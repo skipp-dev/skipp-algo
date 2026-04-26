@@ -1,8 +1,8 @@
 # Sprint-Plan C12 — Reinforcement Learning für Execution + Sizing
 
 **Datum:** 2026-04-26
-**Branch (geplant):** `sprint/c12-rl-execution`
-**Status:** Plan, noch nicht implementiert
+**Branch:** `sprint/c12-rl-execution`
+**Status:** Aktive Implementierung — Phase A (Slippage-Modell + Simulator + TWAP/VWAP-Baselines + Safety-Layer + Drift-Monitor) im Branch `sprint/c12-rl-execution` (PR #312). PPO/SAC-Agenten als optionale stable-baselines3-Backends gegated. Pipeline läuft Ende-zu-Ende auf synthetischen Trades; Live-Daten-Wiring ist ein Dataset-Swap aus dem Order-Lifecycle (siehe `rl/README.md`).
 **Vorgänger:** C2-C9 (Statistik-Härtung), C10 (ML-Layer auf Familien)
 **Sprache:** Deutsch
 **Trigger-Bedingung:** Erst aktivieren, **nachdem** mindestens eine SMC-Familie das C7/C8-Promotions-Gate übersprungen hat und **seit ≥ 4 Wochen** live im Inkubations-Modus läuft.

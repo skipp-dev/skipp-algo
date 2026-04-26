@@ -1,8 +1,8 @@
 # Sprint-Plan C10 — ML-Layer auf SMC-Familien
 
 **Datum:** 2026-04-26
-**Branch (geplant):** `sprint/c10-ml-layer`
-**Status:** Plan, noch nicht implementiert
+**Branch:** `sprint/c10-ml-layer`
+**Status:** Aktive Implementierung — ML-Layer () gelandet auf `sprint/c10-ml-layer` (PR #311) mit kalibrierten Per-Familie-Modellen, Brier/FDR/Permutation/PSR-Gate-Integration und Drift-Watchdog-Hooks. Live-Wiring erfolgt über Dataset-Swap aus dem Feature-Store (siehe `ml/README.md`).
 **Vorgänger:** C2 Walk-Forward, C3 Bootstrap-CI, C4 Permutation, C5 Regime-Stratifikation, C6 PSR/MinTRL, C7 Dashboard, C8 Live-Inkubation, C9 Drift-Alert
 **Sprache:** Deutsch
 
