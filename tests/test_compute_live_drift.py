@@ -285,3 +285,10 @@ def test_drift_verdict_to_json_round_trip() -> None:
     assert payload["variant"] == "v"
     assert payload["verdict"] == "acceptable"
     assert payload["hr_in_bootstrap_ci"] is True
+    # C8 deep-review fix: KS reference is a synthetic normal, not a
+    # real backtest-slippage sample — the marker must surface in the
+    # JSON so downstream consumers do not over-trust the p-value.
+    assert payload["slippage_ks_reference"] == "synthetic_normal"
+    # C8 phase promotion is manual-signoff-only; this drift module
+    # never auto-promotes between phase-A/B/C.
+    assert payload["phase_promotion"] == "manual_signoff_only"

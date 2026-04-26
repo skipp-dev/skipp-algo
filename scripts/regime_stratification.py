@@ -190,6 +190,8 @@ def compute_regime_aware_aggregate(
     *,
     metric: str = "sharpe",
     freq_weighting: bool = True,
+    unknown_share: float | None = None,
+    unknown_share_warn_threshold: float = 0.05,
 ) -> dict[str, Any]:
     """Frequency-weighted aggregate of a single per-regime metric.
 
@@ -197,9 +199,20 @@ def compute_regime_aware_aggregate(
     denominator so the aggregate is computed only over regimes that
     cleared ``min_n_per_regime``.
 
+    When ``unknown_share`` is provided (the value returned by
+    :func:`unknown_regime_share` for the same trade-set) and exceeds
+    ``unknown_share_warn_threshold`` (default 5%, per the C5 deep-review
+    finding), the result dict gains a ``warning`` key describing how
+    much of the trade-set could not be stratified — downstream
+    consumers (dashboard payload, public calibration report) can
+    surface this so a low ``regime_concentration`` is not silently
+    interpreted as "well-diversified" when in fact the regime tag is
+    just missing.
+
     Returns:
         ``{"value": float | None, "method": str, "regimes_used": list[str],
-        "regimes_skipped": list[str]}``
+        "regimes_skipped": list[str], "unknown_share": float | None,
+        "warning": str | None}``
     """
 
     used: list[str] = []
@@ -218,12 +231,23 @@ def compute_regime_aware_aggregate(
         contributions.append((float(value), weight))
 
     if not contributions:
-        return {
+        result: dict[str, Any] = {
             "value": None,
             "method": "frequency_weighted" if freq_weighting else "equal_weighted",
             "regimes_used": used,
             "regimes_skipped": skipped,
+            "unknown_share": (None if unknown_share is None else float(unknown_share)),
         }
+        if (
+            unknown_share is not None
+            and unknown_share > unknown_share_warn_threshold
+        ):
+            result["warning"] = (
+                f"unknown_regime_share={unknown_share:.3f} exceeds "
+                f"warn-threshold {unknown_share_warn_threshold:.3f}; "
+                "regime stratification is partial."
+            )
+        return result
     total_weight = sum(w for _, w in contributions)
     if total_weight <= 0.0:  # pragma: no cover - defensive: unreachable
         # Defensive guard only. With ``freq_weighting=True`` each weight
@@ -236,12 +260,23 @@ def compute_regime_aware_aggregate(
     else:
         agg = sum(v * w for v, w in contributions) / total_weight
         method = "frequency_weighted" if freq_weighting else "equal_weighted"
-    return {
+    result = {
         "value": agg,
         "method": method,
         "regimes_used": used,
         "regimes_skipped": skipped,
+        "unknown_share": (None if unknown_share is None else float(unknown_share)),
     }
+    if (
+        unknown_share is not None
+        and unknown_share > unknown_share_warn_threshold
+    ):
+        result["warning"] = (
+            f"unknown_regime_share={unknown_share:.3f} exceeds "
+            f"warn-threshold {unknown_share_warn_threshold:.3f}; "
+            "regime stratification is partial."
+        )
+    return result
 
 
 def detect_regime_concentration(

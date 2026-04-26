@@ -33,7 +33,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-DASHBOARD_PAYLOAD_VERSION = "v1"
+DASHBOARD_PAYLOAD_VERSION = "1.0.0"
 
 # Sprint-output filename patterns. Each loader gracefully degrades to
 # ``None`` if the file is missing or fails to parse.

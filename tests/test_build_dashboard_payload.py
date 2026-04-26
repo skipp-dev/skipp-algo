@@ -180,3 +180,44 @@ def test_payload_is_json_serialisable(tmp_path: Path) -> None:
     # Must round-trip cleanly so the dashboard can cache it on disk.
     encoded = json.dumps(payload)
     assert json.loads(encoded) == payload
+
+
+def test_variant_row_carries_consumer_aliases(tmp_path: Path) -> None:
+    """C7 BLOCKER fix: producer must emit consumer-friendly aliases.
+
+    The three Streamlit tabs (tab_track_record, tab_calibration_detail,
+    tab_live_incubation) read ``variant``, ``sharpe_ci_low/high``,
+    ``permutation_p_value``, ``psr``, ``walk_forward_efficiency``,
+    ``max_drawdown``. Pin those keys so the producer/consumer drift
+    that the deep-review found cannot reappear silently.
+    """
+    _seed_minimal_cache(tmp_path)
+    payload = build_dashboard_payload(tmp_path, now=_FROZEN_NOW)
+    assert payload["variants"], "expected one variant from minimal cache"
+    row = payload["variants"][0]
+    aliases = {
+        "variant",
+        "sharpe_ci_low",
+        "sharpe_ci_high",
+        "permutation_p_value",
+        "psr",
+        "walk_forward_efficiency",
+        "max_drawdown",
+    }
+    missing = aliases - set(row)
+    assert not missing, f"missing C7 consumer aliases: {missing}"
+    # Aliases must equal their canonical values.
+    assert row["sharpe_ci_low"] == row["bootstrap_ci_low"]
+    assert row["sharpe_ci_high"] == row["bootstrap_ci_high"]
+    assert row["permutation_p_value"] == row["perm_p"]
+    assert row["psr"] == row["psr_at_0"]
+    assert row["walk_forward_efficiency"] == row["wfe"]
+    assert row["max_drawdown"] == row["max_dd"]
+
+
+def test_dashboard_payload_version_is_semver() -> None:
+    """C7 deep-review fix: schema_version bumped from "v1" to semver."""
+    parts = DASHBOARD_PAYLOAD_VERSION.split(".")
+    assert len(parts) == 3, f"expected MAJOR.MINOR.PATCH, got {DASHBOARD_PAYLOAD_VERSION}"
+    for p in parts:
+        assert p.isdigit(), f"non-numeric semver part: {p!r}"

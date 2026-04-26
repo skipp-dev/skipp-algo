@@ -151,6 +151,41 @@ def test_aggregate_equal_weighting_mode() -> None:
     assert math.isclose(out_eq["value"], 1.0)
 
 
+def test_aggregate_emits_warning_when_unknown_share_exceeds_threshold() -> None:
+    """C5 deep-review fix: high unknown-regime share must surface as a warning."""
+    per_regime = {
+        "RISK_ON": {"sharpe": 1.0, "regime_frequency_pct": 0.5, "n": 100},
+        "RISK_OFF": {"sharpe": 0.5, "regime_frequency_pct": 0.5, "n": 100},
+    }
+    out = rs.compute_regime_aware_aggregate(
+        per_regime, metric="sharpe", unknown_share=0.12
+    )
+    assert "warning" in out, "expected warning when unknown_share > 0.05"
+    assert "0.120" in out["warning"]
+    assert out["unknown_share"] == 0.12
+
+
+def test_aggregate_no_warning_when_unknown_share_below_threshold() -> None:
+    per_regime = {
+        "RISK_ON": {"sharpe": 1.0, "regime_frequency_pct": 1.0, "n": 100},
+    }
+    out = rs.compute_regime_aware_aggregate(
+        per_regime, metric="sharpe", unknown_share=0.02
+    )
+    assert "warning" not in out
+    assert out["unknown_share"] == 0.02
+
+
+def test_aggregate_unknown_share_kwarg_is_optional() -> None:
+    """Backward-compat: callers that omit unknown_share keep working."""
+    per_regime = {
+        "RISK_ON": {"sharpe": 1.0, "regime_frequency_pct": 1.0, "n": 100},
+    }
+    out = rs.compute_regime_aware_aggregate(per_regime, metric="sharpe")
+    assert out["unknown_share"] is None
+    assert "warning" not in out
+
+
 # ---------------------------------------------------------------------------
 # detect_regime_concentration
 # ---------------------------------------------------------------------------

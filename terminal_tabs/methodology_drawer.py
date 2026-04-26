@@ -12,6 +12,17 @@ from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+# Single-source the PSR threshold from the gate module so the sidebar
+# rationale and the gate decision can never drift apart (C6 deep-review
+# finding: hardcoded 0.95 here was a literal duplicate of
+# scripts.track_record_gate.MIN_PSR).
+try:
+    from scripts.track_record_gate import MIN_PSR as _MIN_PSR_FROM_GATE
+except ImportError:  # pragma: no cover - import-shim safety only
+    # Sentinel: surfaces in the rendered table so a missing gate import
+    # is visible rather than silently falling back to a duplicated 0.95.
+    _MIN_PSR_FROM_GATE = None
+
 __all__ = [
     "GATE_THRESHOLDS",
     "SOURCE_LINKS",
@@ -55,7 +66,13 @@ SPRINT_PLAN_LINKS: tuple[tuple[str, str], ...] = (
 GATE_THRESHOLDS: tuple[dict[str, Any], ...] = (
     {"name": "min_trades", "value": 30, "rationale": "C8 minimum sample size"},
     {"name": "min_sharpe", "value": 0.5, "rationale": "live ÷ backtest ≥ 0.5"},
-    {"name": "min_psr", "value": 0.95, "rationale": "Bailey-LdP 2012 threshold"},
+    # min_psr value sourced from scripts.track_record_gate.MIN_PSR
+    # (single source of truth — keep in sync if the constant changes).
+    {
+        "name": "min_psr",
+        "value": _MIN_PSR_FROM_GATE,
+        "rationale": "Bailey-LdP 2012 threshold",
+    },
     {"name": "perm_p_max", "value": 0.05, "rationale": "C4 default α"},
     {
         "name": "drift_score_min_acceptable",

@@ -94,6 +94,14 @@ class DriftVerdict:
             "slippage_ks_p": (
                 None if self.slippage_ks_p is None else round(self.slippage_ks_p, 6)
             ),
+            # C8 deep-review caveat: the slippage K-S compares live
+            # slippage against a *modelled* normal distribution
+            # (expected_slippage_mean / expected_slippage_std), not a
+            # real backtest-slippage sample. Surface this in the JSON so
+            # downstream consumers do not over-trust the p-value.
+            # Mid-term action: replace with a real backtest-slippage
+            # reference and bump this marker accordingly.
+            "slippage_ks_reference": "synthetic_normal",
             "hr_in_bootstrap_ci": self.hr_in_bootstrap_ci,
             "verdict": self.verdict,
             "live_max_dd": (
@@ -102,6 +110,12 @@ class DriftVerdict:
             "backtest_max_dd": (
                 None if self.backtest_max_dd is None else round(self.backtest_max_dd, 6)
             ),
+            # C8 phase tracking: the live-incubation runbook
+            # (docs/c8_live_incubation_runbook.md) defines
+            # phase-A (paper) / phase-B (live_small) / phase-C (live_full).
+            # Promotion is manual sign-off only; this drift module does
+            # *not* auto-promote — consumers must consult the runbook.
+            "phase_promotion": "manual_signoff_only",
         }
 
 
