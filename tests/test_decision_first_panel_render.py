@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import textwrap
 
-from streamlit_terminal.decision_first_panel import (
+from dashboard.decision_first_panel import (
     POSTURE_GLYPH,
     build_card,
     render_card,

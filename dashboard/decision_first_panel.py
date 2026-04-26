@@ -15,8 +15,8 @@ as its only source of truth. To stay independent of an X2 import
 order we duck-type the Decision dict (the schema is pinned at
 ``governance.types.Decision`` schema_version=1).
 
-The renderer is split into a *pure* text mode and an optional
-streamlit-aware mode; the pure mode is what the snapshot tests assert.
+The renderer is a pure text mode; snapshot tests assert this output
+verbatim. A streamlit-aware mode can wrap this output later if needed.
 
 Roadmap: docs/IMPROVEMENTS_C2_C12_ROADMAP_2026-04-26.md#c71
 """
@@ -34,7 +34,8 @@ POSTURE_GLYPH: dict[str, str] = {
 
 _SEVERITY_RANK = {"blocker": 3, "warning": 2, "info": 1}
 
-# ASCII sparkline rendered with eighth-blocks for snapshot determinism.
+# Unicode sparkline rendered with eighth-block characters for
+# snapshot determinism. Requires a UTF-8 capable terminal/font.
 _SPARK_CHARS = "▁▂▃▄▅▆▇█"
 
 
@@ -94,8 +95,11 @@ def build_card(
     blockers = list(decision.get("blockers") or [])  # type: ignore[arg-type]
     metrics = dict(decision.get("metrics") or {})  # type: ignore[arg-type]
     posture = str(decision.get("posture", "red"))
+    family = decision.get("family")
+    if family is None:
+        raise KeyError("decision is missing required 'family' key")
     return FamilyCard(
-        family=str(decision["family"]),
+        family=str(family),
         posture=posture,
         promoted=bool(decision.get("promoted", False)),
         top_blocker=_top_blocker(blockers),
@@ -128,15 +132,23 @@ def render_panel(
 ) -> str:
     """Render N decision dicts as a single text panel, one card per family.
 
-    Cards are emitted in input order; callers control sort. Two blank
-    lines between cards keep snapshots robust to single-card edits.
+    Cards are emitted in input order; callers control sort. A single
+    blank line separates cards (the join uses ``"\n\n"``) so snapshots
+    remain robust to single-card edits.
     """
     histories = walkforward_histories or {}
     blocks: list[str] = []
     for d in decisions:
-        family = str(d.get("family", "?"))
+        # Defensive: synthesise a family stub for malformed decision dicts
+        # so the panel still renders rather than masking the upstream bug.
+        decision: Mapping[str, object]
+        if "family" not in d:
+            decision = {**d, "family": "?"}
+        else:
+            decision = d
+        family = str(decision["family"])
         history = histories.get(family, [])
-        blocks.append(render_card(build_card(d, walkforward_history=history)))
+        blocks.append(render_card(build_card(decision, walkforward_history=history)))
     return "\n\n".join(blocks)
 
 
