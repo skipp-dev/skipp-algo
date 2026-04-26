@@ -38,7 +38,7 @@ _VOCAB_MAP: dict[str, frozenset[str]] = {
 }
 
 
-@pytest.mark.parametrize("key,vocab", list(_VOCAB_MAP.items()))
+@pytest.mark.parametrize("key,vocab", sorted(_VOCAB_MAP.items()))
 def test_default_value_is_vocab_member(key: str, vocab: frozenset[str]) -> None:
     assert key in DEFAULTS, (
         f"DEFAULTS is missing required hero-state key {key!r}. "
