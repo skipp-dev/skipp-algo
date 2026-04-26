@@ -23,7 +23,8 @@
     "HERO_ACTION_VOCAB": ["ACTIVE", "WATCH", "AVOID", "BLOCKED"],
     "HERO_BIAS_VOCAB": ["LONG", "SHORT", "FLAT"],
     "HERO_MARKET_MODE_VOCAB": ["BULLISH", "BEARISH", "NEUTRAL", "RISK_OFF"],
-    "HERO_RISK_VOCAB_note": "HERO_RISK uses an empty-string sentinel as part of its Pine boundary contract; full vocabulary list captured at pin time, see source for live values."
+    "HERO_RISK_VOCAB": ["", "DATA_STALE", "EVENT_RISK", "VOLATILITY", "PROVIDER_GAPS"],
+    "HERO_RISK_VOCAB_note": "Empty string is a Pine-gated sentinel meaning 'no dominant risk' (gated by ``!= \"\"`` on the consumer side)."
   },
   "consumer_contract": {
     "categorical_encoding": "These vocabularies are the authoritative categorical-feature set for the future ML layer. Encoders must use the exact string values above.",

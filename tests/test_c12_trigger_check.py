@@ -90,3 +90,28 @@ def test_live_calibration_report_blocked_today() -> None:
         "C12 trigger gate must NOT be GREEN until live incubation runs. "
         f"Got status={result.status}, reasons={result.reasons}"
     )
+
+
+def test_trigger_handles_unparseable_live_days(tmp_path: Path) -> None:
+    """Bad ``live_days`` (None / 'N/A' / nested object) must not crash;
+    the family is treated as 0 days and surfaced in the reasons.
+    """
+    report = tmp_path / "bad.json"
+    report.write_text(
+        json.dumps(
+            {
+                "status": "live",
+                "families": [
+                    {"name": "BOS", "live_days": None},
+                    {"name": "OB", "live_days": "N/A"},
+                    {"name": "FVG", "live_days": {"unexpected": "shape"}},
+                    {"name": "SWEEP", "live_days": 5},
+                ],
+            }
+        )
+    )
+    result = check_c12_trigger.evaluate_trigger(report)
+    assert result.status == "BLOCKED"
+    assert result.families_evaluated == 4
+    assert result.families_live_28d_plus == 0
+    assert any("unparseable" in r for r in result.reasons)

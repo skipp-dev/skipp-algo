@@ -62,7 +62,7 @@ def evaluate_trigger(report_path: Path = DASHBOARD_REPORT) -> TriggerResult:
             reasons=[f"calibration report not found at {report_path}"],
         )
     try:
-        report = json.loads(report_path.read_text())
+        report = json.loads(report_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         return TriggerResult(
             status="UNEVALUABLE",
@@ -82,11 +82,27 @@ def evaluate_trigger(report_path: Path = DASHBOARD_REPORT) -> TriggerResult:
         )
 
     families = report.get("families") or []
-    live_families = [
-        f
-        for f in families
-        if isinstance(f, dict) and float(f.get("live_days", 0)) >= MIN_LIVE_DAYS
-    ]
+    invalid_live_days = 0
+
+    def _coerce_live_days(value: object) -> float | None:
+        """Best-effort coerce; ``None``/``"N/A"``/missing -> None."""
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    live_families: list[dict] = []
+    for f in families:
+        if not isinstance(f, dict):
+            continue
+        live_days = _coerce_live_days(f.get("live_days"))
+        if live_days is None:
+            invalid_live_days += 1
+            continue
+        if live_days >= MIN_LIVE_DAYS:
+            live_families.append(f)
     if live_families:
         return TriggerResult(
             status="GREEN",
@@ -98,12 +114,18 @@ def evaluate_trigger(report_path: Path = DASHBOARD_REPORT) -> TriggerResult:
             families_live_28d_plus=len(live_families),
         )
 
+    reasons = [
+        "no family has reached the 28-day live-incubation threshold",
+        f"families inspected: {len(families)}",
+    ]
+    if invalid_live_days:
+        reasons.append(
+            f"{invalid_live_days} family/families had unparseable "
+            f"'live_days' (treated as 0)"
+        )
     return TriggerResult(
         status="BLOCKED",
-        reasons=[
-            "no family has reached the 28-day live-incubation threshold",
-            f"families inspected: {len(families)}",
-        ],
+        reasons=reasons,
         families_evaluated=len(families),
         families_live_28d_plus=0,
     )
