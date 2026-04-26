@@ -29,6 +29,8 @@ from typing import Literal, Sequence
 
 import numpy as np
 
+from scripts._kolmogorov import kolmogorov_q, kolmogorov_sf_two_sample
+
 DriftSeverity = Literal["green", "yellow", "red"]
 
 
@@ -74,29 +76,11 @@ def ks_two_sample(
     cdf_b = np.searchsorted(b, data_all, side="right") / n_b
     statistic = float(np.max(np.abs(cdf_a - cdf_b)))
 
-    # Asymptotic p-value via the Kolmogorov distribution series:
-    #   Q(λ) = 2 Σ_{k=1..∞} (-1)^{k-1} exp(-2 k² λ²)
-    en = math.sqrt(n_a * n_b / (n_a + n_b))
-    lam = (en + 0.12 + 0.11 / en) * statistic
-    p = _kolmogorov_q(lam)
+    # Shared two-sample K-S survival function (scripts/_kolmogorov.py)
+    # so drift_alert.py and compute_live_drift.py emit identical p-values.
+    n_eff = (n_a * n_b) / (n_a + n_b)
+    p = kolmogorov_sf_two_sample(statistic, n_eff)
     return statistic, p
-
-
-def _kolmogorov_q(lam: float) -> float:
-    """Tail of the Kolmogorov distribution Q(λ); clamped to [0, 1]."""
-
-    if lam <= 0:
-        return 1.0
-    total = 0.0
-    sign = 1.0
-    for k in range(1, 101):
-        term = sign * math.exp(-2.0 * (k * lam) ** 2)
-        total += term
-        if abs(term) < 1e-12:
-            break
-        sign = -sign
-    p = 2.0 * total
-    return max(0.0, min(1.0, p))
 
 
 # ---------------------------------------------------------------------------
@@ -193,40 +177,185 @@ def rolling_drift_score(
 # ---------------------------------------------------------------------------
 
 
+# Detector-3 / Detector-4 thresholds.
+#
+# Mean-shift fires when |mean_live - mean_baseline| / std_baseline >= 0.3.
+# Heuristic: 0.3σ is the lower bound of the "small effect" band per Cohen
+# (1988); below this the K-S test on equally-sized live samples already
+# has < 50% power and the consensus would not lift it. 0.3σ keeps the
+# detector independent of K-S without inflating the false-positive
+# rate on stationary noise.
+#
+# Variance-ratio fires outside [0.5, 2.0] — i.e. live volatility doubles
+# or halves vs baseline. The factor 2 mirrors the "regime-shift" gate
+# used in production-trading post-mortems (e.g. the 2018 vol-regime
+# break) and is the same band used by the c9_threshold_replay.py grid
+# tool so the two C9 producers stay coupled.
+MEAN_SHIFT_FIRE_SIGMA = 0.3
+VAR_RATIO_LOW = 0.5
+VAR_RATIO_HIGH = 2.0
+
+
+def _detector_severities(
+    baseline: np.ndarray,
+    live: np.ndarray,
+    *,
+    p_value_yellow: float,
+    p_value_red: float,
+    psi_n_buckets: int,
+) -> dict[str, "DriftSeverity | None"]:
+    """Per-metric severity for the four C9 detectors.
+
+    Returns ``{ks, psi, mean_shift, var_ratio}`` with ``None`` for
+    detectors that cannot be evaluated (degenerate baseline, empty live,
+    etc.) so the caller can distinguish "not fired" from "not evaluable".
+    """
+    sev: dict[str, DriftSeverity | None] = {
+        "ks": None,
+        "psi": None,
+        "mean_shift": None,
+        "var_ratio": None,
+    }
+
+    # Detector 1 — K-S
+    _stat, p = ks_two_sample(baseline, live)
+    if p is not None:
+        if p < p_value_red:
+            sev["ks"] = "red"
+        elif p < p_value_yellow:
+            sev["ks"] = "yellow"
+        else:
+            sev["ks"] = "green"
+
+    # Detector 2 — PSI
+    psi = population_stability_index(baseline, live, n_buckets=psi_n_buckets)
+    if psi is not None:
+        sev["psi"] = psi_severity(psi)
+
+    # Detector 3 — mean-shift in baseline-σ units
+    if baseline.size and live.size:
+        bstd = float(baseline.std(ddof=0))
+        if bstd > 0.0 and math.isfinite(bstd):
+            shift = abs(float(live.mean()) - float(baseline.mean())) / bstd
+            if shift >= 2 * MEAN_SHIFT_FIRE_SIGMA:
+                sev["mean_shift"] = "red"
+            elif shift >= MEAN_SHIFT_FIRE_SIGMA:
+                sev["mean_shift"] = "yellow"
+            else:
+                sev["mean_shift"] = "green"
+
+    # Detector 4 — variance ratio outside [VAR_RATIO_LOW, VAR_RATIO_HIGH]
+    if baseline.size > 1 and live.size > 1:
+        bstd = float(baseline.std(ddof=0))
+        lstd = float(live.std(ddof=0))
+        if bstd > 0.0 and lstd > 0.0:
+            ratio = lstd / bstd
+            if ratio < VAR_RATIO_LOW or ratio > VAR_RATIO_HIGH:
+                sev["var_ratio"] = "red"
+            elif ratio < VAR_RATIO_LOW * 1.4 or ratio > VAR_RATIO_HIGH / 1.4:
+                # Soft band just inside the fire bracket → yellow.
+                sev["var_ratio"] = "yellow"
+            else:
+                sev["var_ratio"] = "green"
+
+    return sev
+
+
+def _aggregate_metric_severity(
+    detectors: dict[str, "DriftSeverity | None"],
+    *,
+    consensus_min: int,
+) -> tuple[DriftSeverity, int]:
+    """Apply the consensus rule.
+
+    Returns ``(metric_severity, fires)`` where ``fires`` counts detectors
+    that emitted ``yellow`` or ``red``. ``red`` is reached when the
+    consensus threshold is met; otherwise ``yellow`` if any detector
+    fired, else ``green``.
+    """
+    fires = sum(1 for s in detectors.values() if s in ("yellow", "red"))
+    if fires >= consensus_min:
+        return "red", fires
+    if fires > 0:
+        return "yellow", fires
+    return "green", fires
+
+
 def compute_drift_report(
     metrics: dict[str, tuple[Sequence[float] | np.ndarray, Sequence[float] | np.ndarray]],
     *,
     p_value_yellow: float = 0.05,
     p_value_red: float = 0.01,
+    psi_n_buckets: int = 10,
+    consensus_min: int = 2,
+    enable_consensus: bool = True,
 ) -> dict[str, object]:
     """Build a per-metric drift report consumed by the watchdog cron.
 
     ``metrics`` maps metric-name → ``(baseline_samples, live_samples)``.
-    Each metric gets a KS statistic + p-value; severity is mapped from
-    the p-value. The aggregate severity is the worst per-metric
-    severity.
+    With ``enable_consensus=True`` (default) each metric is evaluated by
+    all four C9 detectors (K-S, PSI, mean-shift, variance-ratio) and
+    classified ``red`` only when ≥ ``consensus_min`` detectors fire
+    yellow-or-red — this is the production rule the
+    ``scripts.c9_threshold_replay`` tuner optimises against.
+
+    The legacy K-S-only behaviour is reachable via
+    ``enable_consensus=False`` for callers that want backwards-compatible
+    semantics.
     """
 
     findings: list[DriftFinding] = []
+    findings_dicts: list[dict[str, object]] = []
     for name, (baseline, live) in metrics.items():
-        stat, p = ks_two_sample(baseline, live)
-        if p is None:
-            severity: DriftSeverity = "green"
-        elif p < p_value_red:
-            severity = "red"
-        elif p < p_value_yellow:
-            severity = "yellow"
+        a = np.asarray(baseline, dtype=np.float64)
+        b = np.asarray(live, dtype=np.float64)
+        stat, p = ks_two_sample(a, b)
+        psi_value = population_stability_index(a, b, n_buckets=psi_n_buckets)
+        if not enable_consensus:
+            if p is None:
+                severity: DriftSeverity = "green"
+            elif p < p_value_red:
+                severity = "red"
+            elif p < p_value_yellow:
+                severity = "yellow"
+            else:
+                severity = "green"
+            detectors_dict: dict[str, DriftSeverity | None] = {"ks": severity}
+            fires = 1 if severity in ("yellow", "red") else 0
         else:
-            severity = "green"
+            detectors_dict = _detector_severities(
+                a,
+                b,
+                p_value_yellow=p_value_yellow,
+                p_value_red=p_value_red,
+                psi_n_buckets=psi_n_buckets,
+            )
+            severity, fires = _aggregate_metric_severity(
+                detectors_dict, consensus_min=consensus_min
+            )
+
         findings.append(
             DriftFinding(
                 metric=name,
                 statistic=stat,
                 p_value=p,
                 severity=severity,
-                n_baseline=len(baseline),
-                n_live=len(live),
+                n_baseline=int(a.size),
+                n_live=int(b.size),
             )
+        )
+        findings_dicts.append(
+            {
+                "metric": name,
+                "statistic": round(stat, 6),
+                "p_value": (None if p is None else round(p, 6)),
+                "psi": (None if psi_value is None else round(psi_value, 6)),
+                "severity": severity,
+                "n_baseline": int(a.size),
+                "n_live": int(b.size),
+                "detectors": {k: v for k, v in detectors_dict.items()},
+                "consensus_fires": fires,
+            }
         )
 
     aggregate = "green"
@@ -240,15 +369,7 @@ def compute_drift_report(
     return {
         "aggregate_severity": aggregate,
         "n_metrics": len(findings),
-        "findings": [
-            {
-                "metric": f.metric,
-                "statistic": round(f.statistic, 6),
-                "p_value": (None if f.p_value is None else round(f.p_value, 6)),
-                "severity": f.severity,
-                "n_baseline": f.n_baseline,
-                "n_live": f.n_live,
-            }
-            for f in findings
-        ],
+        "consensus_min": consensus_min if enable_consensus else None,
+        "enable_consensus": bool(enable_consensus),
+        "findings": findings_dicts,
     }

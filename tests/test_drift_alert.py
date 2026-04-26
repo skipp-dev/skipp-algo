@@ -152,10 +152,37 @@ def test_drift_report_aggregate_green_when_all_metrics_match() -> None:
         "sharpe": (rng.normal(1.0, 0.1, 200), rng.normal(1.0, 0.1, 200)),
         "win_rate": (rng.normal(0.55, 0.05, 200), rng.normal(0.55, 0.05, 200)),
     }
-    rep = compute_drift_report(metrics)
+    # Use legacy K-S-only mode for an exact-match assertion; the consensus
+    # mode allows occasional single-detector noise on iid samples.
+    rep = compute_drift_report(metrics, enable_consensus=False)
     assert rep["aggregate_severity"] == "green"
     assert rep["n_metrics"] == 2
     assert all(f["severity"] == "green" for f in rep["findings"])
+
+
+def test_drift_report_consensus_default_no_red_on_iid_samples() -> None:
+    """Consensus default must not flip aggregate to red on iid samples."""
+    rng = np.random.default_rng(0)
+    metrics = {
+        "sharpe": (rng.normal(1.0, 0.1, 400), rng.normal(1.0, 0.1, 400)),
+    }
+    rep = compute_drift_report(metrics)
+    assert rep["aggregate_severity"] in ("green", "yellow")
+    assert rep["enable_consensus"] is True
+    assert rep["consensus_min"] == 2
+
+
+def test_drift_report_consensus_red_when_2_plus_detectors_fire() -> None:
+    """2σ mean-shift on equal-variance samples: KS + mean-shift fire → red."""
+    rng = np.random.default_rng(7)
+    baseline = rng.normal(0.0, 1.0, 400)
+    live = rng.normal(2.0, 1.0, 400)
+    rep = compute_drift_report({"pnl": (baseline, live)})
+    assert rep["aggregate_severity"] == "red"
+    finding = rep["findings"][0]
+    assert finding["consensus_fires"] >= 2
+    assert finding["detectors"]["ks"] in ("red", "yellow")
+    assert finding["detectors"]["mean_shift"] in ("red", "yellow")
 
 
 def test_drift_report_aggregate_red_when_any_metric_is_red() -> None:
@@ -176,6 +203,9 @@ def test_drift_report_findings_payload_shape() -> None:
     }
     rep = compute_drift_report(metrics)
     f0 = rep["findings"][0]
-    assert set(f0) == {"metric", "statistic", "p_value", "severity", "n_baseline", "n_live"}
+    required = {"metric", "statistic", "p_value", "severity", "n_baseline", "n_live"}
+    assert required <= set(f0), f"missing required keys: {required - set(f0)}"
+    # Consensus-mode keys (additive, do not break legacy consumers).
+    assert {"psi", "detectors", "consensus_fires"} <= set(f0)
     assert f0["n_baseline"] == 3
     assert f0["n_live"] == 3
