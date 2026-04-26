@@ -53,6 +53,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import sys
 from dataclasses import dataclass, field
@@ -82,18 +83,40 @@ class TriggerResult:
 
 
 def _coerce_float(value: object) -> float | None:
-    """Best-effort coerce; ``None``/``"N/A"``/missing/dict -> None."""
+    """Best-effort coerce; ``None``/``"N/A"``/missing/dict/non-finite -> None.
+
+    Copilot #301 note: NaN/Inf are explicitly rejected because all
+    NaN comparisons are False, which would let ``live_days=NaN`` slip
+    past the ``< MIN_LIVE_DAYS`` check; and ``int(float('nan'))``
+    raises in :func:`_coerce_int`. Treating non-finite as unparseable
+    keeps the gate verdict deterministic.
+    """
     if value is None:
         return None
+    if isinstance(value, bool):
+        # bools subclass int — accept silently? No: the schema expects
+        # numeric metrics (live_days, n_trades, kill_switch_fires); a
+        # bool slipping through almost certainly indicates upstream
+        # corruption, so reject.
+        return None
     try:
-        return float(value)  # type: ignore[arg-type]
+        f = float(value)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return None
+    if not math.isfinite(f):
+        return None
+    return f
 
 
 def _coerce_int(value: object) -> int | None:
+    """Coerce to int; rejects non-finite, non-integer floats, and bools."""
     f = _coerce_float(value)
     if f is None:
+        return None
+    # Reject non-integer floats like ``30.5`` — n_trades / kill_switch
+    # counts must be whole numbers; a fractional value indicates
+    # upstream defect, not a roundable count.
+    if f != int(f):
         return None
     return int(f)
 
