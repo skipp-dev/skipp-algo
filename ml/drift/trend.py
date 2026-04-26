@@ -14,15 +14,14 @@ on per-call probability snapshots. Two known weaknesses:
 
 C9.1 ships two pure helpers:
 
-- ``psi_trend_alert(history, slope_threshold, window)`` fits a least-
-  squares slope to the most recent ``window`` PSI samples and emits
-  ``trend_warn`` / ``trend_alarm`` independent of the level alert.
+- ``psi_trend_alert(history, window=7, slope_warn=0.005,
+  slope_alarm=0.015)`` fits a least-squares slope to the most recent
+  ``window`` PSI samples and emits ``trend_warn`` / ``trend_alarm``
+  independent of the level alert.
 
 - ``psi_weighted(per_feature_psi, importance)`` computes an importance-
   weighted scalar from a dict of per-feature PSI values. Importance
   weights are normalised; missing keys contribute zero weight.
-
-Roadmap: docs/IMPROVEMENTS_C2_C12_ROADMAP_2026-04-26.md#c91
 """
 from __future__ import annotations
 
