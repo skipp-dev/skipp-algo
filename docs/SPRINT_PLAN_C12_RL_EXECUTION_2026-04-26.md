@@ -5,7 +5,7 @@
 **Status:** Plan, noch nicht implementiert
 **Vorgänger:** C2-C9 (Statistik-Härtung), C10 (ML-Layer auf Familien)
 **Sprache:** Deutsch
-**Trigger-Bedingung:** Erst aktivieren, **nachdem** mindestens eine SMC-Familie das C7/C8-Promotions-Gate übersprungen hat und live im Inkubations-Modus läuft.
+**Trigger-Bedingung:** Erst aktivieren, **nachdem** mindestens eine SMC-Familie das C7/C8-Promotions-Gate übersprungen hat und **seit ≥ 4 Wochen** live im Inkubations-Modus läuft.
 
 ---
 
@@ -21,7 +21,7 @@ Einen Reinforcement-Learning-Layer einziehen, der **nicht entscheidet, ob gehand
 2. **Phase B — RL-Order-Slicing** (Industrie-Standard, niedriges Risiko)
 3. **Phase C — RL-Position-Sizing** (höheres Risiko, separate Promotion)
 
-Out of Scope für C12: RL-basierte Setup-Detection, RL auf Familien-Auswahl, Multi-Agent-RL — alle als Forschungs-Spike-Kandidaten in `docs/research/` markiert.
+Out of Scope für C12: RL-basierte Setup-Detection, RL auf Familien-Auswahl, Multi-Agent-RL — alle als Forschungs-Spike-Kandidaten markiert; ein Ablageort unter `docs/research/` würde dafür bei Bedarf im Rahmen des jeweiligen Spikes neu angelegt.
 
 ---
 
@@ -73,7 +73,7 @@ Bar-Daten reichen für Phase A (Slippage-Modell-Kalibrierung), aber Phase B (Ord
   - Implementation Shortfall = Markt-Impact + Volatilitäts-Risiko + Spread-Kosten
 - **Datenquelle:** Live-Outcome-Stream aus C8 — pro Trade Soll-Preis (Signal-Bar-Close) vs. Ist-Fill-Preis vs. Volume-Profil
 - **Schätzung:** Bayesian Linear Regression mit Half-Normal-Prior auf Impact-Koeffizienten (verhindert negative Impact-Schätzung)
-- **Validierung:** Walk-Forward-Splits auf Slippage-Vorhersage-Brier, MAE auf Implementation-Shortfall
+- **Validierung:** Walk-Forward-Splits mit MAE/RMSE auf Slippage-Vorhersage, MAE auf Implementation-Shortfall
 
 **Akademische Basis:**
 - [Almgren-Chriss 2000](https://www.smallake.kr/wp-content/uploads/2016/03/optliq.pdf) — Original-Framework

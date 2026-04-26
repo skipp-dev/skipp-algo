@@ -226,7 +226,7 @@ Phase B Hardening.
 - `docs/ml/architecture.md` — System-Diagramm, Schnittstellen, Schema-Versionen
 - `docs/ml/promotion_record.md` — pro Familie: hat ML das Gate übersprungen, mit welchen Metriken
 - ADR-Template ausgefüllt: `docs/adr/2026-XX-ml-layer.md` — Entscheidung XGBoost vs. LightGBM, Begründung
-- Eintrag im `CLOUD_MIGRATION_REVIEW_AND_ONBOARDING_2026-04-25.md` Master-Doc
+- Eintrag in die konsolidierte Roadmap `docs/SPRINT_ROADMAP_C2_C9_CONSOLIDATED_2026-04-26.md` als zentralem Repo-Master-Doc
 - Sprint-Retro in `docs/sprints/c10-retro.md`
 
 **Deliverable:** Doku komplett, Sprint geschlossen, PR review-ready.
@@ -316,7 +316,7 @@ Die folgenden Themen sind bewusst **nicht** in C10 — separate Sprint-Pläne be
 
 ### Foundation Models (TimesFM, Chronos, Time-LLM) — Forschungs-Spike
 
-⚠ nur plausibel: Methodisch noch unreif für Production. Als 1-Tages-Forschungs-Spike geplant, nicht als Sprint. Bewertung in `docs/research/foundation_models_2026.md` nach C10-Abschluss.
+⚠ nur plausibel: Methodisch noch unreif für Production. Als 1-Tages-Forschungs-Spike geplant, nicht als Sprint. Die Bewertung wird nach C10-Abschluss im Rahmen dieses Spikes als separate Dokumentation unter `docs/` erstellt; der konkrete Zielpfad wird dabei festgelegt.
 
 ---
 
