@@ -51,6 +51,28 @@ MAX_PERMUTATION_P = 0.05
 MAX_PER_REGIME_HIT_RATE_SPREAD = 0.20
 MIN_PSR = 0.95
 
+# Canonical roster of gate-check names emitted by
+# :func:`evaluate_track_record_gate`. Pinned here so dashboard /
+# methodology-drawer consumers can validate their failure-string handling
+# against a single source of truth (C-sprint deep-review MAJOR finding:
+# unknown failure codes were silently coerced to opaque strings on the
+# Streamlit dashboard). Adding a new check requires updating this
+# constant **and** the consumer roundtrip test in
+# ``tests/test_track_record_gate.py::test_evaluate_emits_all_known_check_names``.
+KNOWN_GATE_CHECK_NAMES: tuple[str, ...] = (
+    "oos_trades",
+    "win_rate",
+    "sharpe",
+    "bootstrap_sharpe_ci_low",
+    "max_drawdown",
+    "walk_forward_efficiency",
+    "permutation_p",
+    "fdr_rate",
+    "per_regime_hit_rate_spread",
+    "psr_sr_star_zero",
+    "min_trl_within_n",
+)
+
 GREEN = "green"
 YELLOW = "yellow"
 RED = "red"
@@ -276,10 +298,16 @@ def evaluate_track_record_gate(
     # PSR / MinTRL
     psr_value: float | None = None
     min_trl_value: float | None = None
+    min_trl_no_edge = False
     if n >= 30:
         psr_dict = probabilistic_sharpe(arr.tolist(), sr_star=0.0, annualize=False)
         psr_value = psr_dict["psr"]
-        # min_trl raises if sr_hat <= sr_star — surface as skipped.
+        # ``min_trl`` raises ValueError when ``sr_hat <= sr_star`` (no
+        # detectable edge). Previously the caller swallowed that as
+        # SKIPPED, which let red gates pass silently. Track the
+        # condition explicitly so the check fires RED with a clear
+        # detail string instead of silently skipping (C-sprint deep-
+        # review MAJOR fix).
         try:
             min_trl_value = float(
                 min_trl(
@@ -292,6 +320,7 @@ def evaluate_track_record_gate(
             )
         except ValueError:
             min_trl_value = None
+            min_trl_no_edge = True
     checks.append(
         _check(
             "psr_sr_star_zero",
@@ -301,7 +330,24 @@ def evaluate_track_record_gate(
         )
     )
     if min_trl_value is None:
-        checks.append(GateCheck(name="min_trl_within_n", status=SKIPPED, threshold=float(n)))
+        if min_trl_no_edge:
+            checks.append(
+                GateCheck(
+                    name="min_trl_within_n",
+                    status=RED,
+                    value=None,
+                    threshold=float(n),
+                    detail="sr_hat <= sr_star (no detectable edge)",
+                )
+            )
+        else:
+            checks.append(
+                GateCheck(
+                    name="min_trl_within_n",
+                    status=SKIPPED,
+                    threshold=float(n),
+                )
+            )
     else:
         ok_trl = min_trl_value <= float(n)
         checks.append(
