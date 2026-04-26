@@ -36,12 +36,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-# Allow direct script invocation.
-_REPO_ROOT_FOR_BOOTSTRAP = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _REPO_ROOT_FOR_BOOTSTRAP not in sys.path:
-    sys.path.insert(0, _REPO_ROOT_FOR_BOOTSTRAP)
-
-from scripts.drift_alert import compute_drift_report  # noqa: E402
+from scripts.drift_alert import compute_drift_report
 
 DEFAULT_OUTCOMES_DIR = Path("artifacts/open_prep/outcomes")
 DEFAULT_OUTPUT_DIR = Path("artifacts/drift")
