@@ -357,6 +357,11 @@ class FeatureImportanceCollector:
 
     def __init__(self, max_samples: int = _MAX_RING_BUFFER) -> None:
         self._buffer: deque[dict[str, Any]] = deque(maxlen=max_samples)
+        # C-sprint deep-review C1: track how many times the ring buffer
+        # has been flushed-and-cleared so observability/tests can detect
+        # silent reset loops (e.g., a hot-restart that wipes the buffer
+        # before any samples were persisted) without scraping log lines.
+        self._reset_count: int = 0
 
     def record(
         self,
@@ -407,12 +412,24 @@ class FeatureImportanceCollector:
             raise
         count = len(self._buffer)
         self._buffer.clear()
+        self._reset_count += 1
         logger.info("Feature importance: flushed %d samples → %s", count, path)
         return path
 
     @property
     def sample_count(self) -> int:
         return len(self._buffer)
+
+    @property
+    def reset_count(self) -> int:
+        """Number of successful ``flush_to_disk`` calls since construction.
+
+        C-sprint deep-review C1: exposed so callers can detect ring-buffer
+        churn (e.g., repeated hot-restarts wiping samples before any
+        meaningful aggregation could happen).
+        """
+
+        return self._reset_count
 
 
 def _pearson_r(xs: list[float], ys: list[float]) -> float:

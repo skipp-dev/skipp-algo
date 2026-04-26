@@ -170,3 +170,26 @@ def test_runner_aggregate_metrics_count_matches_folds() -> None:
         evaluate_fn=_evaluate_passthrough,
     )
     assert out.aggregate_oos_metrics["n_folds_evaluated"] == len(out.folds)
+
+
+def test_run_walk_forward_rejects_non_monotonic_timestamps() -> None:
+    """C-sprint deep-review C2 regression: descending/shuffled
+    timestamps would silently leak across train/test windows."""
+
+    rng = np.random.default_rng(1)
+    n = 50
+    returns = rng.normal(0.001, 0.01, size=n)
+    timestamps = np.arange(n, dtype=np.int64)
+    # Swap two adjacent positions to introduce a single decrease.
+    timestamps[10], timestamps[11] = timestamps[11], timestamps[10]
+    splitter = WalkForwardSplitter(
+        window_type="rolling", n_splits=2, train_size=20, test_size=5
+    )
+    with pytest.raises(ValueError, match="monotonically non-decreasing"):
+        run_walk_forward(
+            returns,
+            timestamps=timestamps,
+            splitter=splitter,
+            optimize_fn=_identity_optimize,
+            evaluate_fn=_evaluate_passthrough,
+        )

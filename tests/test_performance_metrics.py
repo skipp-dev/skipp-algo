@@ -163,3 +163,12 @@ def test_compute_fold_metrics_handles_empty_returns() -> None:
     assert out["sharpe"] is None
     assert out["max_drawdown"] is None
     assert out["total_return"] == 0.0
+
+
+def test_compute_fold_metrics_rejects_2d_input() -> None:
+    """C-sprint deep-review C2 regression: a 2-D returns array used to
+    silently produce a multi-row equity flattened to garbage."""
+
+    arr = np.zeros((3, 4), dtype=np.float64)
+    with pytest.raises(ValueError, match="must be 1-D"):
+        compute_fold_metrics(arr)

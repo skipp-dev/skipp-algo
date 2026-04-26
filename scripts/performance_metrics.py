@@ -175,6 +175,14 @@ def compute_fold_metrics(
     """One-shot per-fold metrics dict for the walk-forward runner."""
 
     arr = np.asarray(returns, dtype=np.float64)
+    if arr.ndim != 1:
+        # C-sprint deep-review C2: a 2-D returns array silently
+        # produces a multi-row ``cumsum`` that flattens to garbage
+        # equity in the per-fold metrics. Fail loud at the boundary
+        # so the upstream callsite gets a clear shape error.
+        raise ValueError(
+            f"compute_fold_metrics: returns must be 1-D; got shape {arr.shape}"
+        )
     equity = np.cumsum(arr) if arr.size > 0 else arr
     return {
         "n": int(arr.size),
