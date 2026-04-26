@@ -10,10 +10,15 @@ GitHub-issue-on-red automation (Sprint C9 / T4) defined in
 ``.github/workflows/drift-watchdog.yml``.
 
 .. note::
-    FIXME(C9/T7-finalize-2026Q3): the default p-value bands and PSI
-    thresholds in this script are *interim* values from C9/T7. They
-    must be re-locked once ≥ 90 days of live data are available — see
-    ``docs/c9_threshold_tuning.md``. Tracking issue: TBD.
+    The default p-value bands and PSI thresholds in this script are
+    *interim* values from C9/T7. They must be re-locked once ≥ 90
+    days of live data are available — see
+    ``docs/c9_threshold_tuning.md`` and the tracking issue
+    https://github.com/skippALGO/skipp-algo/issues/298.
+    The CI anchor test
+    ``tests/test_c9_threshold_finalisation_anchor.py`` fires the
+    moment the live sample is sufficient and the literals are still
+    unchanged.
 
 Usage
 -----
