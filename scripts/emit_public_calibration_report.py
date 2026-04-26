@@ -58,7 +58,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-PUBLIC_SCHEMA_VERSION = "1.0.0"
+PUBLIC_SCHEMA_VERSION = "1.1.0"
 HISTORY_RETENTION = 90  # ~3 months at one entry per day
 DEFAULT_OUTPUT = Path("docs/calibration/calibration_report_public.json")
 DEFAULT_HISTORY_FILENAME = "calibration_report_public_history.jsonl"
@@ -177,15 +177,22 @@ def build_public_report(
     source_path: Path | None,
     source_commit_sha: str | None,
     source_workflow_run: str | None,
+    track_record_gate: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Construct the public-report dict from a calibration artifact.
 
     A ``None`` payload yields a status=``awaiting_first_run`` shell so the
     dashboard can render a useful "no data yet" panel instead of a 404.
+
+    ``track_record_gate`` (additive in schema 1.1.0): when supplied, the
+    serialised verdict from
+    :func:`scripts.track_record_gate.evaluate_track_record_gate` is
+    surfaced under the ``track_record_gate`` key so the dashboard can
+    render the C2-C6 inference layer alongside the calibration block.
     """
     now = datetime.now(UTC).isoformat()
     if cal_payload is None:
-        return {
+        out = {
             "schema_version": PUBLIC_SCHEMA_VERSION,
             "generated_at": now,
             "status": "awaiting_first_run",
@@ -195,6 +202,9 @@ def build_public_report(
                 "workflow_run": source_workflow_run,
             },
         }
+        if track_record_gate is not None:
+            out["track_record_gate"] = track_record_gate
+        return out
 
     metrics = _extract_calibration_metrics(cal_payload)
     n_events = _extract_n_events(cal_payload)
@@ -206,7 +216,7 @@ def build_public_report(
         if v is not None:
             family_weights[str(fam)] = round(v, 6)
 
-    return {
+    out = {
         "schema_version": PUBLIC_SCHEMA_VERSION,
         "generated_at": now,
         "status": "ok",
@@ -220,6 +230,9 @@ def build_public_report(
             "workflow_run": source_workflow_run,
         },
     }
+    if track_record_gate is not None:
+        out["track_record_gate"] = track_record_gate
+    return out
 
 
 def append_public_history(
