@@ -414,6 +414,13 @@ def _atomic_write_json(path: Path, payload: Mapping[str, Any]) -> None:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             json.dump(payload, fh, indent=2, sort_keys=True)
             fh.write("\n")
+            # C-sprint deep-review: flush+fsync before os.replace so a
+            # crash between buffer-write and disk-sync does not leave
+            # a truncated/empty drift verdict (consumed by the
+            # watchdog and the dashboard). Mirrors the pattern in
+            # ``scripts/run_drift_watchdog.py`` and ``open_prep/outcomes.py``.
+            fh.flush()
+            os.fsync(fh.fileno())
         os.replace(tmp_name, path)
     except Exception:
         try:
