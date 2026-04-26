@@ -308,6 +308,86 @@ def test_build_public_report_includes_track_record_gate_on_ok_payload() -> None:
     assert report["track_record_gate"]["status"] == "green"
 
 
-def test_schema_version_is_1_1_0_after_track_record_gate_addition() -> None:
-    assert PUBLIC_SCHEMA_VERSION == "1.1.0"
+def test_schema_version_is_1_2_0_after_regime_stratified_addition() -> None:
+    assert PUBLIC_SCHEMA_VERSION == "1.2.0"
+
+
+# ── regime_stratified (schema 1.2.0 additive field) ─────────────────
+
+
+def test_build_public_report_omits_regime_stratified_when_not_provided() -> None:
+    report = build_public_report(
+        None, source_path=None, source_commit_sha="abc", source_workflow_run="1",
+    )
+    assert "regime_stratified" not in report
+
+
+def test_build_public_report_includes_regime_stratified_on_placeholder() -> None:
+    regime = {
+        "RISK_ON": {
+            "sharpe": 0.93,
+            "sharpe_ci_low": 0.42,
+            "sharpe_ci_high": 1.31,
+            "permutation_p_value": 0.018,
+            "n_trades": 142,
+            "regime_frequency_pct": 38.5,
+        },
+        "aggregate_freq_weighted_sharpe": 0.71,
+        "regime_concentration_warning": False,
+        "fdr_q": 0.05,
+        "bh_rejected_cells": ["RISK_ON"],
+    }
+    report = build_public_report(
+        None,
+        source_path=None,
+        source_commit_sha="abc",
+        source_workflow_run="1",
+        regime_stratified=regime,
+    )
+    assert report["status"] == "awaiting_first_run"
+    assert report["regime_stratified"] == regime
+
+
+def test_build_public_report_includes_regime_stratified_on_ok_payload() -> None:
+    payload = {
+        "family_weights": {"OB": 0.85},
+        "family_stats": {"OB": {"total_events": 100, "total_hits": 60}},
+        "calibration": {"ece": 0.05, "smooth_ece": 0.05, "brier": 0.20},
+    }
+    regime = {
+        "RISK_OFF": {"sharpe": -0.2, "n_trades": 50, "regime_frequency_pct": 22.0},
+        "aggregate_freq_weighted_sharpe": 0.55,
+        "regime_concentration_warning": True,
+    }
+    report = build_public_report(
+        payload,
+        source_path=None,
+        source_commit_sha="abc",
+        source_workflow_run="1",
+        regime_stratified=regime,
+    )
+    assert report["status"] == "ok"
+    assert report["regime_stratified"]["regime_concentration_warning"] is True
+    assert report["regime_stratified"]["RISK_OFF"]["sharpe"] == -0.2
+
+
+def test_track_record_gate_and_regime_stratified_can_coexist() -> None:
+    payload = {
+        "family_weights": {"OB": 0.85},
+        "family_stats": {"OB": {"total_events": 100, "total_hits": 60}},
+        "calibration": {"ece": 0.05, "smooth_ece": 0.05, "brier": 0.20},
+    }
+    gate = {"status": "green", "n_trades": 200, "checks": [], "summary": {}}
+    regime = {"NEUTRAL": {"sharpe": 0.4, "n_trades": 30}}
+    report = build_public_report(
+        payload,
+        source_path=None,
+        source_commit_sha="abc",
+        source_workflow_run="1",
+        track_record_gate=gate,
+        regime_stratified=regime,
+    )
+    assert report["track_record_gate"]["status"] == "green"
+    assert report["regime_stratified"]["NEUTRAL"]["sharpe"] == 0.4
+
 
