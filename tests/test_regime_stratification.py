@@ -227,6 +227,35 @@ def test_aggregate_unknown_share_kwarg_is_optional() -> None:
     assert "warning" not in out
 
 
+def test_aggregate_freq_weighting_uses_finite_count_not_raw_n() -> None:
+    """Copilot #306: weights must reflect finite trade count, not raw n.
+
+    A regime that lost most of its trades to NaN/inf upstream-data
+    defects must not be weighted as if all of them contributed to the
+    metric — otherwise a poisoned regime can dominate the aggregate.
+    """
+
+    # RISK_ON: 100 raw trades, all finite → weight = 100
+    # RISK_OFF: 100 raw trades, only 10 finite → weight should be 10, not 100
+    per_regime = {
+        "RISK_ON": {"sharpe": 1.0, "regime_frequency_pct": 0.5, "n": 100},
+        "RISK_OFF": {
+            "sharpe": -1.0,
+            "regime_frequency_pct": 0.5,
+            "n": 100,
+            "n_finite": 10,
+            "n_non_finite_dropped": 90,
+        },
+    }
+    out = rs.compute_regime_aware_aggregate(per_regime, metric="sharpe")
+    # With raw-n weighting (the bug): (1.0*100 + -1.0*100) / 200 == 0.0
+    # With finite-count weighting (the fix): (1.0*100 + -1.0*10) / 110 ≈ 0.818
+    assert out["value"] > 0.7, (
+        f"finite-count weighting should down-weight RISK_OFF; got {out['value']}"
+    )
+    assert math.isclose(out["value"], (1.0 * 100 + -1.0 * 10) / 110)
+
+
 # ---------------------------------------------------------------------------
 # detect_regime_concentration
 # ---------------------------------------------------------------------------

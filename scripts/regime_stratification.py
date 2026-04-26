@@ -273,6 +273,13 @@ def compute_regime_aware_aggregate(
     denominator so the aggregate is computed only over regimes that
     cleared ``min_n_per_regime``.
 
+    Weighting (when ``freq_weighting=True``): each non-skipped regime
+    contributes its *finite* trade count (``n_finite`` if non-finite
+    PnLs were dropped, else raw ``n``) — i.e. the actual sample count
+    behind the metric value, not the raw regime frequency. This avoids
+    over-weighting regimes that lost a large fraction of their trades
+    to NaN/inf upstream-data defects (Copilot #306 follow-up).
+
     When ``unknown_share`` is provided (the value returned by
     :func:`unknown_regime_share` for the same trade-set) and exceeds
     ``unknown_share_warn_threshold`` (default 5%, per the C5 deep-review
@@ -300,7 +307,18 @@ def compute_regime_aware_aggregate(
         if value is None:
             skipped.append(regime)
             continue
-        weight = float(record.get("regime_frequency_pct", 0.0)) if freq_weighting else 1.0
+        if freq_weighting:
+            # C-sprint Copilot #306: weight by the *finite* trade count
+            # actually used to compute the metric (``n_finite`` if drops
+            # occurred, else raw ``n``) — not by the raw
+            # ``regime_frequency_pct`` which still includes non-finite
+            # trades. Otherwise a regime that lost (e.g.) half its
+            # trades to NaN PnLs would be weighted as if all of them
+            # contributed to the metric, mis-weighting the aggregate
+            # toward regimes with high upstream-data drop rates.
+            weight = float(record.get("n_finite", record.get("n", 0)))
+        else:
+            weight = 1.0
         used.append(regime)
         contributions.append((float(value), weight))
 
@@ -325,10 +343,12 @@ def compute_regime_aware_aggregate(
     total_weight = sum(w for _, w in contributions)
     if total_weight <= 0.0:  # pragma: no cover - defensive: unreachable
         # Defensive guard only. With ``freq_weighting=True`` each weight
-        # is ``n / total_n`` for an admitted regime (``n >=
-        # min_n_per_regime > 0``) so the sum is always > 0; with
-        # ``freq_weighting=False`` weights are 1.0 each. Kept so a
-        # future caller passing custom weights can't get a ZeroDivision.
+        # is the regime's finite trade count (``n_finite`` if drops
+        # occurred, else raw ``n``); a non-skipped regime by
+        # construction has ``n_finite >= min_n_per_regime > 0`` so the
+        # sum is always > 0. With ``freq_weighting=False`` weights are
+        # 1.0 each. Kept so a future caller passing custom weights
+        # can't get a ZeroDivision.
         agg = sum(v for v, _ in contributions) / len(contributions)
         method = "equal_weighted_fallback"
     else:
