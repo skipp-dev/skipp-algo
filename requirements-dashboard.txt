@@ -1,7 +1,11 @@
 # C7/T8 — minimal runtime deps for the read-only dashboard surface.
-# Streamlit + numpy is enough; the dashboard reads pre-computed JSON
-# artefacts and does not call into any provider client at runtime.
-streamlit>=1.30,<2.0
+# The dashboard reads pre-computed JSON artefacts and does not call
+# into any provider client at runtime, so we ship Streamlit + numpy +
+# pandas + plotly only (no httpx, pandas-ta, databento, etc.).
+#
+# Streamlit floor matches the repo-wide requirements.txt (>=1.54)
+# because terminal_tabs/ uses st.fragment without feature-detection.
+streamlit>=1.54,<2.0
 numpy>=1.26
 pandas>=2.0
 plotly>=5.18
