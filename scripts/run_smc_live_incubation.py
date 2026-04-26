@@ -38,9 +38,11 @@ import json
 import logging
 import os
 import tempfile
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
 from scripts.live_risk_limits import (
@@ -67,6 +69,89 @@ _PHASE_DEFAULTS: dict[str, dict[str, Any]] = {
     "live_small": {"size_scale": PHASE_B_RECOMMENDED_SIZE_SCALE, "paper_mode": False},
     "live_full": {"size_scale": 1.0, "paper_mode": False},
 }
+
+
+# ---------------------------------------------------------------------------
+# Phase-promotion pass criteria — code-level mirror of
+# ``docs/c8_live_incubation_runbook.md`` so the runbook table and the
+# code stay in sync.
+#
+# Promotion remains **manual sign-off only** (no auto-promotion) per
+# the runbook contract. These constants merely make the criteria
+# machine-checkable: ``tests/test_c8_phase_criteria_runbook_mirror.py``
+# parses the runbook markdown and asserts each numeric threshold here
+# matches the documented value.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class PhasePassCriteria:
+    """Numeric thresholds gating *manual* promotion to the next phase.
+
+    All fields are advisory checklists rather than gates; the human
+    sign-off is the gate. ``None`` means "no numeric threshold for this
+    phase" (e.g. Phase-C sizing is decided by the future Scale-Phase
+    backlog).
+    """
+
+    phase: str
+    min_phase_days: int
+    min_trades_closed: int
+    max_drift_score_deviation: float | None
+    min_drift_score: float | None
+    require_drift_verdict_in: tuple[str, ...]
+    extra: tuple[str, ...] = ()
+
+
+# Phase-A — Paper (4 weeks minimum). Runbook §"Phase-A — Paper".
+PHASE_A_CRITERIA = PhasePassCriteria(
+    phase="paper",
+    min_phase_days=28,
+    min_trades_closed=20,
+    max_drift_score_deviation=0.30,
+    min_drift_score=0.70,
+    require_drift_verdict_in=("pass", "acceptable"),
+    extra=(
+        "slippage_ks_pvalue_gt_0.05",
+        "hit_rate_inside_c3_bootstrap_ci",
+    ),
+)
+
+# Phase-B — Live Small (3-6 months). Runbook §"Phase-B — Live Small".
+PHASE_B_CRITERIA = PhasePassCriteria(
+    phase="live_small",
+    min_phase_days=90,
+    min_trades_closed=30,
+    max_drift_score_deviation=None,
+    min_drift_score=0.50,
+    require_drift_verdict_in=("pass", "acceptable"),
+    extra=(
+        "kill_switch_never_fired",
+        "max_dd_live_lt_2x_backtest",
+    ),
+)
+
+# Phase-C — Live Full. Promotion criteria intentionally absent —
+# Kelly-style sizing is tracked under the Scale-Phase backlog and
+# requires fresh sign-off whenever the scale fraction changes.
+PHASE_C_CRITERIA = PhasePassCriteria(
+    phase="live_full",
+    min_phase_days=0,
+    min_trades_closed=0,
+    max_drift_score_deviation=None,
+    min_drift_score=None,
+    require_drift_verdict_in=(),
+    extra=("scale_phase_backlog_owns_kelly_sizing",),
+)
+
+
+PHASE_PASS_CRITERIA: Mapping[str, PhasePassCriteria] = MappingProxyType(
+    {
+        PHASE_A_CRITERIA.phase: PHASE_A_CRITERIA,
+        PHASE_B_CRITERIA.phase: PHASE_B_CRITERIA,
+        PHASE_C_CRITERIA.phase: PHASE_C_CRITERIA,
+    }
+)
 
 
 SubmitFn = Callable[[Sequence[IBKROrderIntent]], list[dict[str, Any]]]
