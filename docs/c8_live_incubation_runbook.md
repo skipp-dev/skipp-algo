@@ -52,8 +52,9 @@ position size to **10 %** of the backtest sizing.
 **Pass criteria (manual sign-off after 4 weeks):**
 
 - ≥ 20 paper trades closed
-- |paper-Sharpe / OOS-Sharpe − 1| < 0.30 (drift_score ≥ 0.70 → verdict
-  `pass` or `acceptable`)
+- |paper-Sharpe / OOS-Sharpe − 1| < 0.30 (drift_score ≥ 0.70 — stricter
+  than the code's `acceptable` band of 0.65; equivalent to verdict
+  `acceptable` or `pass` in `scripts/compute_live_drift.py::_VERDICT_BANDS`)
 - Slippage-distribution KS p-value > 0.05 vs the configured 0.5 % mean
 - Hit-rate inside the C3 bootstrap CI
 
@@ -85,10 +86,19 @@ incident review before the next session.
 **Pass criteria:**
 
 - ≥ 30 live trades closed
-- live-Sharpe ÷ backtest-Sharpe ≥ 0.50 (drift_score ≥ 0.50)
+- live-Sharpe ÷ backtest-Sharpe ≥ 0.50 (drift_score ≥ 0.50 — looser
+  than Phase-A; this is below the code's `concerning` band of 0.40
+  but above `fail`. Verdict must still be `pass` or `acceptable`,
+  i.e. drift_score ≥ 0.65; the 0.50 line is a *necessary but not
+  sufficient* watch-marker for Phase-B reviews.)
 - Kill-switch never fired
 - Max-DD live < 2× backtest-Max-DD
 - Drift verdict `pass` or `acceptable`
+- Slippage K-S reference type **must be** `backtest_samples` (see
+  ``slippage_ks_reference_type`` in the drift JSON; `synthetic_normal`
+  is acceptable for Phase-A but blocks Phase-B sign-off)
+- ``window_complete: true`` on the watchdog report (no missing date
+  files in the 30-day window; see ``window_coverage`` in the report)
 
 If all pass → **the track record is externally sellable.**
 

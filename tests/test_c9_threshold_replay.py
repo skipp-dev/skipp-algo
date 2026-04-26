@@ -126,13 +126,23 @@ def test_replay_results_are_one_per_setting() -> None:
 
 
 def test_default_grid_has_at_least_one_passing_setting() -> None:
-    """Sprint-plan §T7 acceptance: ≥1 grid point hits TPR≥0.80, FPR<0.10."""
-    eps = build_synthetic_episodes(n_normal=40, n_drift=20, sample_size=80, seed=11)
+    """Sprint-plan §T7 acceptance: ≥1 grid point hits TPR≥0.80, FPR<0.10.
+
+    Uses ``mix_distributions=True`` so the bar is *not* Gaussian-only; the
+    synthetic bank covers t(df=4) and lognormal episodes too. This is the
+    tighter gate identified by the C-sprint deep review; with the Gaussian-
+    only bank every grid point trivially passes and the test would not
+    detect a regression.
+    """
+    eps = build_synthetic_episodes(
+        n_normal=40, n_drift=20, sample_size=80, seed=11, mix_distributions=True
+    )
     results = replay_thresholds(eps)
     passing = [r for r in results if r.passes_acceptance]
     assert passing, (
         "No threshold setting met the C9/T7 acceptance bar "
-        "(TPR≥0.80, FPR<0.10) on the synthetic bank — investigate."
+        "(TPR≥0.80, FPR<0.10) on the mixed-distribution synthetic bank — "
+        "investigate (see docs/c9_threshold_tuning.md for re-tuning protocol)."
     )
 
 
