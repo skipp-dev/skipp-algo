@@ -15,6 +15,7 @@ from scripts.run_drift_watchdog import (
     extract_metric_pairs,
     load_baseline,
     load_live_outcomes,
+    load_live_outcomes_with_coverage,
     main,
     write_report,
 )
@@ -160,6 +161,73 @@ def test_build_report_returns_red_when_live_drifts(tmp_path: Path) -> None:
         today=today,
     )
     assert rep["aggregate_severity"] == "red"
+
+
+def test_build_report_softens_green_to_yellow_on_incomplete_window(
+    tmp_path: Path,
+) -> None:
+    """C9 deep-review: incomplete date coverage must not look "green"."""
+    today = date(2026, 4, 26)
+    rng = np.random.default_rng(0)
+    samples = rng.normal(0.001, 0.01, size=200).tolist()
+    # Write live outcomes for ONLY 1 of the 30 expected days.
+    _write_outcomes(tmp_path, today, [{"pnl_30m_pct": s} for s in samples[:60]])
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text(
+        json.dumps({"per_setup": {"x": {"oos_pnl_returns": samples}}}),
+        encoding="utf-8",
+    )
+    rep = build_report(
+        outcomes_dir=tmp_path,
+        baseline_json=baseline_path,
+        window_days=30,
+        today=today,
+    )
+    assert rep["window_complete"] is False
+    cov = rep["window_coverage"]
+    assert cov["days_present"] == 1
+    assert cov["days_expected"] == 30
+    assert len(cov["missing_dates"]) == 29
+    # If the underlying KS/PSI verdict was green, it must now be yellow.
+    if rep.get("reason") == "incomplete_window":
+        assert rep["aggregate_severity"] == "yellow"
+
+
+def test_load_live_outcomes_with_coverage_complete(tmp_path: Path) -> None:
+    today = date(2026, 4, 26)
+    for offset in range(3):
+        _write_outcomes(
+            tmp_path,
+            today - timedelta(days=offset),
+            [{"pnl_30m_pct": 0.01 * offset}],
+        )
+    _, cov = load_live_outcomes_with_coverage(tmp_path, window_days=3, today=today)
+    assert cov["window_complete"] is True
+    assert cov["days_present"] == 3
+    assert cov["missing_dates"] == []
+
+
+def test_load_live_outcomes_with_coverage_does_not_admit_dates_outside_window(
+    tmp_path: Path,
+) -> None:
+    """Regression for Copilot review on PR #304: an off-by-one between
+    the cutoff filter (``file_date < today - timedelta(days=window_days)``)
+    and the expected window (last ``window_days`` calendar days from
+    ``today``) previously admitted one extra older date, inflating
+    ``days_present`` past ``days_expected``.
+    """
+    today = date(2026, 4, 26)
+    # Write 3 in-window dates + 1 older outlier exactly on the
+    # previous boundary (today - window_days).
+    for offset in range(3):
+        _write_outcomes(tmp_path, today - timedelta(days=offset), [{"pnl_30m_pct": 0.01}])
+    _write_outcomes(tmp_path, today - timedelta(days=3), [{"pnl_30m_pct": 0.99}])
+    out, cov = load_live_outcomes_with_coverage(tmp_path, window_days=3, today=today)
+    assert cov["days_present"] == 3
+    assert cov["days_expected"] == 3
+    assert cov["window_complete"] is True
+    # Outlier value 0.99 must NOT have been loaded.
+    assert all(rec["pnl_30m_pct"] != 0.99 for rec in out)
 
 
 # ---------------------------------------------------------------------------

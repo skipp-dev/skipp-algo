@@ -65,19 +65,62 @@ def load_live_outcomes(
     window_days: int,
     today: date,
 ) -> list[dict[str, Any]]:
-    """Load outcomes JSONs covering the most recent ``window_days``."""
+    """Load outcomes JSONs covering the most recent ``window_days``.
 
+    Missing date files are silently skipped (weekends, holidays, ingestion
+    gaps). Use :func:`load_live_outcomes_with_coverage` if you need to
+    distinguish a complete window from a backfilled-with-gaps one.
+    """
+
+    out, _ = load_live_outcomes_with_coverage(
+        outcomes_dir, window_days=window_days, today=today
+    )
+    return out
+
+
+def load_live_outcomes_with_coverage(
+    outcomes_dir: Path,
+    *,
+    window_days: int,
+    today: date,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Like :func:`load_live_outcomes` but also returns window coverage info.
+
+    The coverage dict has keys::
+
+        days_present: int       # number of date files actually loaded
+        days_expected: int      # window_days (calendar days, not biz)
+        missing_dates: list[str]  # ISO dates with no outcomes_<DATE>.json
+        window_complete: bool   # True iff missing_dates is empty
+    """
+
+    expected = [
+        (today - timedelta(days=offset)).isoformat()
+        for offset in range(window_days)
+    ]
+    expected_set = set(expected)
     if not outcomes_dir.exists():
-        return []
-    cutoff = today - timedelta(days=window_days)
+        return [], {
+            "days_present": 0,
+            "days_expected": window_days,
+            "missing_dates": expected,
+            "window_complete": False,
+        }
     out: list[dict[str, Any]] = []
+    seen: set[str] = set()
     for path in sorted(outcomes_dir.glob("outcomes_*.json")):
         # Filename pattern: outcomes_YYYY-MM-DD.json
         try:
             file_date = date.fromisoformat(path.stem.replace("outcomes_", ""))
         except ValueError:
             continue
-        if file_date < cutoff or file_date > today:
+        # Only load dates that fall inside the expected window. Using
+        # an explicit set membership avoids an off-by-one between the
+        # cutoff filter and the expected-dates window (Copilot review
+        # PR #304: `cutoff = today - timedelta(days=window_days)` plus
+        # `file_date < cutoff` would have admitted one extra older
+        # date, inflating `days_present` past `days_expected`).
+        if file_date.isoformat() not in expected_set:
             continue
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
@@ -85,7 +128,15 @@ def load_live_outcomes(
             continue
         if isinstance(data, list):
             out.extend(data)
-    return out
+            seen.add(file_date.isoformat())
+    missing = sorted(d for d in expected if d not in seen)
+    coverage = {
+        "days_present": len(seen),
+        "days_expected": window_days,
+        "missing_dates": missing,
+        "window_complete": not missing,
+    }
+    return out, coverage
 
 
 def load_baseline(baseline_json: Path) -> dict[str, Any]:
@@ -152,7 +203,9 @@ def build_report(
     today: date,
     pnl_field: str = "pnl_30m_pct",
 ) -> dict[str, Any]:
-    live = load_live_outcomes(outcomes_dir, window_days=window_days, today=today)
+    live, coverage = load_live_outcomes_with_coverage(
+        outcomes_dir, window_days=window_days, today=today
+    )
     baseline = load_baseline(baseline_json)
     pairs = extract_metric_pairs(
         live_outcomes=live, baseline=baseline, pnl_field=pnl_field
@@ -168,12 +221,23 @@ def build_report(
             "min_required": INSUFFICIENT_LIVE_TRADES,
             "n_metrics": 0,
             "findings": [],
+            "window_days": window_days,
+            "window_complete": coverage["window_complete"],
+            "window_coverage": coverage,
         }
 
     report = compute_drift_report(pairs)
     report["run_date"] = today.isoformat()
     report["window_days"] = window_days
     report["n_live_trades"] = n_live_trades
+    # Additive (non-breaking): consumers that ignore unknown keys are
+    # unaffected; new consumers can yellow-flag incomplete windows.
+    report["window_complete"] = coverage["window_complete"]
+    report["window_coverage"] = coverage
+    if not coverage["window_complete"] and report.get("aggregate_severity") == "green":
+        # Don't escalate red→green on incomplete data; only soften green.
+        report["aggregate_severity"] = "yellow"
+        report["reason"] = "incomplete_window"
     return report
 
 

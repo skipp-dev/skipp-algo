@@ -83,6 +83,7 @@ class DriftVerdict:
     verdict: str
     live_max_dd: float | None = None
     backtest_max_dd: float | None = None
+    slippage_ks_reference_type: str = "unavailable"
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -94,14 +95,21 @@ class DriftVerdict:
             "slippage_ks_p": (
                 None if self.slippage_ks_p is None else round(self.slippage_ks_p, 6)
             ),
-            # C8 deep-review caveat: the slippage K-S compares live
-            # slippage against a *modelled* normal distribution
-            # (expected_slippage_mean / expected_slippage_std), not a
-            # real backtest-slippage sample. Surface this in the JSON so
-            # downstream consumers do not over-trust the p-value.
-            # Mid-term action: replace with a real backtest-slippage
-            # reference and bump this marker accordingly.
-            "slippage_ks_reference": "synthetic_normal",
+            # C8 deep-review caveat: when no real backtest-slippage
+            # sample is available the K-S compares live slippage against
+            # a *modelled* Normal(expected_mean, expected_std) reference.
+            # ``slippage_ks_reference`` keeps the legacy string for
+            # backwards-compat consumers; ``slippage_ks_reference_type``
+            # is the structured marker (one of ``backtest_samples``,
+            # ``synthetic_normal``, ``unavailable``). Phase-B sign-off
+            # MUST require ``backtest_samples`` (see
+            # docs/c8_live_incubation_runbook.md).
+            "slippage_ks_reference": (
+                "synthetic_normal"
+                if self.slippage_ks_reference_type == "synthetic_normal"
+                else self.slippage_ks_reference_type
+            ),
+            "slippage_ks_reference_type": self.slippage_ks_reference_type,
             "hr_in_bootstrap_ci": self.hr_in_bootstrap_ci,
             "verdict": self.verdict,
             "live_max_dd": (
@@ -340,20 +348,23 @@ def compute_live_drift(
         verdict = _verdict_for(score)
 
         ks_p: float | None = None
+        slippage_ref_type = "unavailable"
         if slippage:
             # Prefer a real backtest-slippage sample if the reference
             # carries one; otherwise fall back to a deterministic
             # Normal(expected_mean, expected_std) reference. The
             # synthetic fallback is statistically weak vs fat-tailed
             # real slippage — see C8 review notes.
-            ref_sample: list[float]
+            ref_sample: list[float] = []
             if isinstance(ref_slippage_raw, list) and ref_slippage_raw:
                 ref_sample = [
                     s for s in (
                         _coerce_float(x) for x in ref_slippage_raw
                     ) if s is not None
                 ]
-            else:
+                if ref_sample:
+                    slippage_ref_type = "backtest_samples"
+            if not ref_sample:
                 ref_n = max(len(slippage), 100)
                 rng = np.random.default_rng(seed=12345)
                 ref_sample = rng.normal(
@@ -361,6 +372,7 @@ def compute_live_drift(
                     scale=max(expected_slippage_std, 1e-9),
                     size=ref_n,
                 ).tolist()
+                slippage_ref_type = "synthetic_normal"
             if ref_sample:
                 _, ks_p = ks_two_sample(slippage, ref_sample)
 
@@ -381,6 +393,7 @@ def compute_live_drift(
                 verdict=verdict,
                 live_max_dd=max_drawdown_fraction(returns),
                 backtest_max_dd=backtest_max_dd,
+                slippage_ks_reference_type=slippage_ref_type,
             ).to_json(),
         )
 

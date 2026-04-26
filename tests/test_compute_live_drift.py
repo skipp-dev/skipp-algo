@@ -280,6 +280,7 @@ def test_drift_verdict_to_json_round_trip() -> None:
         slippage_ks_p=0.1,
         hr_in_bootstrap_ci=True,
         verdict="acceptable",
+        slippage_ks_reference_type="synthetic_normal",
     )
     payload = v.to_json()
     assert payload["variant"] == "v"
@@ -289,6 +290,44 @@ def test_drift_verdict_to_json_round_trip() -> None:
     # real backtest-slippage sample — the marker must surface in the
     # JSON so downstream consumers do not over-trust the p-value.
     assert payload["slippage_ks_reference"] == "synthetic_normal"
+    assert payload["slippage_ks_reference_type"] == "synthetic_normal"
     # C8 phase promotion is manual-signoff-only; this drift module
     # never auto-promotes between phase-A/B/C.
     assert payload["phase_promotion"] == "manual_signoff_only"
+
+
+def test_drift_verdict_default_reference_type_is_unavailable() -> None:
+    """No slippage data → reference_type must be ``unavailable``."""
+    v = DriftVerdict(
+        variant="v",
+        n_live_trades=5,
+        live_sharpe=0.0,
+        backtest_sharpe=1.0,
+        drift_score=0.0,
+        slippage_ks_p=None,
+        hr_in_bootstrap_ci=None,
+        verdict="insufficient_sample",
+    )
+    payload = v.to_json()
+    assert payload["slippage_ks_reference_type"] == "unavailable"
+    assert payload["slippage_ks_reference"] == "unavailable"
+    assert payload["slippage_ks_p"] is None
+
+
+def test_drift_verdict_backtest_samples_reference_type() -> None:
+    """When backtest_samples is supplied → reference_type must reflect it."""
+    v = DriftVerdict(
+        variant="v",
+        n_live_trades=20,
+        live_sharpe=0.7,
+        backtest_sharpe=1.0,
+        drift_score=0.7,
+        slippage_ks_p=0.4,
+        hr_in_bootstrap_ci=True,
+        verdict="acceptable",
+        slippage_ks_reference_type="backtest_samples",
+    )
+    payload = v.to_json()
+    assert payload["slippage_ks_reference_type"] == "backtest_samples"
+    # Legacy field reflects the new structured marker too.
+    assert payload["slippage_ks_reference"] == "backtest_samples"
