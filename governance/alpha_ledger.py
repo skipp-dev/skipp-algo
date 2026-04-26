@@ -20,6 +20,8 @@ Roadmap: docs/IMPROVEMENTS_C2_C12_ROADMAP_2026-04-26.md#x1
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 import threading
 from collections.abc import Iterable
 from pathlib import Path
@@ -53,9 +55,24 @@ def _load(path: Path) -> list[AlphaReservation]:
 
 def _dump(path: Path, items: Iterable[AlphaReservation]) -> None:
     payload = json.dumps(list(items), indent=2, sort_keys=True) + "\n"
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(payload, encoding="utf-8")
-    tmp.replace(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=path.name + ".", suffix=".tmp", dir=str(path.parent)
+    )
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(payload)
+            fh.flush()
+            os.fsync(fh.fileno())
+        tmp.replace(path)
+    except Exception:
+        if tmp.exists():
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+        raise
 
 
 def _key(r: AlphaReservation) -> tuple[str, str, str]:
@@ -87,16 +104,39 @@ def register(
                         f"existing {existing['alpha']} vs new {reservation['alpha']}"
                     )
                 return existing
+        new_global = float(sum(r["alpha"] for r in items) + reservation["alpha"])
+        if new_global > GLOBAL_ALPHA_BUDGET + 1e-12:
+            raise ValueError(
+                "global alpha budget exceeded: attempted total "
+                f"{new_global} > budget {GLOBAL_ALPHA_BUDGET} for {key}"
+            )
+        new_family = float(
+            sum(r["alpha"] for r in items if r["family"] == reservation["family"])
+            + reservation["alpha"]
+        )
+        if new_family > PER_FAMILY_ALPHA_BUDGET + 1e-12:
+            raise ValueError(
+                "per-family alpha budget exceeded: family "
+                f"{reservation['family']!r} attempted total {new_family} > "
+                f"budget {PER_FAMILY_ALPHA_BUDGET}"
+            )
         items.append(reservation)
         _dump(p, items)
         return reservation
 
 
 def reset(path: Path | None = None) -> None:
-    """Test/utility helper — wipe the ledger at ``path`` (does not touch DEFAULT)."""
-    p = path or DEFAULT_LEDGER_PATH
-    if p.exists():
-        p.unlink()
+    """Test/utility helper — wipe an explicitly provided ledger path.
+
+    Refuses to operate on ``DEFAULT_LEDGER_PATH`` to avoid accidental
+    deletion of the checked-in repository ledger.
+    """
+    if path is None:
+        raise ValueError("reset() requires an explicit non-default path")
+    if path.resolve() == DEFAULT_LEDGER_PATH.resolve():
+        raise ValueError("reset() refuses to delete DEFAULT_LEDGER_PATH")
+    if path.exists():
+        path.unlink()
 
 
 def total_alpha(items: Iterable[AlphaReservation] | None = None) -> float:

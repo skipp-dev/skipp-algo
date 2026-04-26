@@ -120,3 +120,45 @@ def test_reset_removes_isolated_ledger(tmp_path: Path) -> None:
     assert p.exists()
     reset(p)
     assert not p.exists()
+
+
+def test_reset_refuses_default_path() -> None:
+    with pytest.raises(ValueError, match="non-default"):
+        reset(None)
+    with pytest.raises(ValueError, match="DEFAULT_LEDGER_PATH"):
+        reset(al.DEFAULT_LEDGER_PATH)
+
+
+def test_register_enforces_global_budget(tmp_path: Path) -> None:
+    p = tmp_path / "ledger.json"
+    for i, fam in enumerate(["F1", "F2"]):
+        register(
+            AlphaReservation(
+                sprint=f"S{i}", family=fam, alpha=0.02, method="m", rationale=""
+            ),
+            path=p,
+        )
+    with pytest.raises(ValueError, match="global alpha budget"):
+        register(
+            AlphaReservation(
+                sprint="X", family="F3", alpha=0.02, method="m", rationale=""
+            ),
+            path=p,
+        )
+
+
+def test_register_enforces_per_family_budget(tmp_path: Path) -> None:
+    p = tmp_path / "ledger.json"
+    register(
+        AlphaReservation(
+            sprint="A", family="F1", alpha=0.02, method="m1", rationale=""
+        ),
+        path=p,
+    )
+    with pytest.raises(ValueError, match="per-family alpha budget"):
+        register(
+            AlphaReservation(
+                sprint="B", family="F1", alpha=0.01, method="m2", rationale=""
+            ),
+            path=p,
+        )
