@@ -21,8 +21,8 @@ RUN apt-get update && \
         curl ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements-dashboard.txt .
+RUN pip install --no-cache-dir -r requirements-dashboard.txt
 
 # Copy only what the dashboard needs to keep the image small.
 COPY streamlit_terminal.py ./
