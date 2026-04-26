@@ -59,6 +59,10 @@ MIN_PSR = 0.95
 # Streamlit dashboard). Adding a new check requires updating this
 # constant **and** the consumer roundtrip test in
 # ``tests/test_track_record_gate.py::test_evaluate_emits_all_known_check_names``.
+#
+# Order matters: it MUST mirror the emission sequence inside
+# :func:`evaluate_track_record_gate` so the dashboard “check-by-index”
+# fallback (used when a check name is unknown) renders the correct row.
 KNOWN_GATE_CHECK_NAMES: tuple[str, ...] = (
     "oos_trades",
     "win_rate",
@@ -184,6 +188,29 @@ def evaluate_track_record_gate(
     arr = np.asarray(returns, dtype=np.float64).ravel()
     arr = arr[np.isfinite(arr)]
     n = int(arr.size)
+
+    # C-sprint deep-review MINOR: empty / all-NaN inputs previously
+    # crashed deep inside numpy.percentile with an opaque IndexError.
+    # Fail loud at the boundary so the call-site (dashboard payload,
+    # public report) gets a clear remediation message.
+    if n == 0:
+        raise ValueError(
+            "evaluate_track_record_gate: no finite returns supplied "
+            "(input was empty or all-NaN/inf). "
+            "Filter upstream and decide whether to render an "
+            "'insufficient_data' row instead of dispatching the gate."
+        )
+    # Zero-variance returns also crash deep inside the bootstrap CI
+    # helpers (sharpe_ci → np.quantile on an empty pivot). Surface a
+    # clear remediation message at the boundary.
+    if n >= 2 and float(np.std(arr, ddof=1)) == 0.0:
+        raise ValueError(
+            "evaluate_track_record_gate: zero-variance returns (all "
+            f"{n} samples identical = {float(arr[0])!r}). "
+            "Either the data feed is broken or the strategy generated "
+            "no real outcomes — render an 'insufficient_data' row "
+            "instead of dispatching the gate."
+        )
 
     checks: list[GateCheck] = []
 
@@ -314,47 +341,87 @@ def evaluate_track_record_gate(
     min_trl_value: float | None = None
     min_trl_no_edge = False
     if n >= 30:
-        psr_dict = probabilistic_sharpe(arr.tolist(), sr_star=0.0, annualize=False)
-        psr_value = psr_dict["psr"]
-        # ``min_trl`` raises ValueError on two distinct conditions:
-        # (a) ``sr_hat <= sr_star`` — no detectable edge,
-        # (b) ``denom_inner <= 0`` — non-Gaussian variance-term
-        #     collapse driven by extreme skew/kurtosis.
-        # Both are RED outcomes for the gate, but the detail string
-        # must reflect the actual cause so reviewers don't chase the
-        # wrong remediation. Previously this branch swallowed both as
-        # SKIPPED, which let red gates pass silently (C-sprint deep-
-        # review MAJOR fix).
-        min_trl_failure_detail: str | None = None
         try:
-            min_trl_value = float(
-                min_trl(
-                    sr_hat=psr_dict["sharpe_hat"],
-                    sr_star=0.0,
-                    skew=psr_dict["skew"],
-                    kurtosis=psr_dict["kurtosis"],
-                    alpha=0.05,
-                )
-            )
+            psr_dict = probabilistic_sharpe(arr.tolist(), sr_star=0.0, annualize=False)
         except ValueError as exc:
-            min_trl_value = None
-            min_trl_no_edge = True
-            msg = str(exc).lower()
-            if "variance term" in msg:
-                min_trl_failure_detail = (
-                    "non-Gaussian variance term collapsed "
-                    "(extreme skew/kurtosis)"
+            # Constant-returns / zero-variance edge case. Skip PSR and
+            # MinTRL with a clear detail rather than letting the whole
+            # gate crash (C-sprint deep-review MINOR fix).
+            psr_dict = None
+            psr_skipped_detail = f"probabilistic_sharpe failed: {exc}"
+        else:
+            psr_skipped_detail = None
+        if psr_dict is not None:
+            # C-sprint deep-review MAJOR: assert the documented contract of
+            # ``probabilistic_sharpe``. If ``open_prep.stats_helpers``
+            # silently drops ``skew`` / ``kurtosis`` (e.g. a future Gaussian-
+            # only fast-path), the gate would silently fall back to a
+            # mis-calibrated MinTRL. Fail loud here so the regression is
+            # caught at the gate boundary, not in production output.
+            _missing = [
+                k for k in ("psr", "sharpe_hat", "skew", "kurtosis")
+                if k not in psr_dict
+            ]
+            if _missing:
+                raise RuntimeError(
+                    "probabilistic_sharpe contract violated: missing keys "
+                    f"{_missing!r}; expected {{psr, sharpe_hat, skew, kurtosis}}."
                 )
-            else:
-                min_trl_failure_detail = "sr_hat <= sr_star (no detectable edge)"
-    checks.append(
-        _check(
-            "psr_sr_star_zero",
-            value=psr_value,
-            threshold=MIN_PSR,
-            direction="ge",
+            psr_value = psr_dict["psr"]
+            # ``min_trl`` raises ValueError on two distinct conditions:
+            # (a) ``sr_hat <= sr_star`` — no detectable edge,
+            # (b) ``denom_inner <= 0`` — non-Gaussian variance-term
+            #     collapse driven by extreme skew/kurtosis.
+            # Both are RED outcomes for the gate, but the detail string
+            # must reflect the actual cause so reviewers don't chase the
+            # wrong remediation. Previously this branch swallowed both as
+            # SKIPPED, which let red gates pass silently (C-sprint deep-
+            # review MAJOR fix).
+            min_trl_failure_detail: str | None = None
+            try:
+                min_trl_value = float(
+                    min_trl(
+                        sr_hat=psr_dict["sharpe_hat"],
+                        sr_star=0.0,
+                        skew=psr_dict["skew"],
+                        kurtosis=psr_dict["kurtosis"],
+                        alpha=0.05,
+                    )
+                )
+            except ValueError as exc:
+                min_trl_value = None
+                min_trl_no_edge = True
+                msg = str(exc).lower()
+                if "variance term" in msg:
+                    min_trl_failure_detail = (
+                        "non-Gaussian variance term collapsed "
+                        "(extreme skew/kurtosis)"
+                    )
+                else:
+                    min_trl_failure_detail = "sr_hat <= sr_star (no detectable edge)"
+        else:
+            # PSR computation itself failed (e.g. zero variance).
+            # Both checks become SKIPPED with a structured detail.
+            min_trl_failure_detail = psr_skipped_detail
+    if n >= 30 and psr_value is None:
+        checks.append(
+            GateCheck(
+                name="psr_sr_star_zero",
+                status=SKIPPED,
+                value=None,
+                threshold=MIN_PSR,
+                detail=psr_skipped_detail or "",
+            )
         )
-    )
+    else:
+        checks.append(
+            _check(
+                "psr_sr_star_zero",
+                value=psr_value,
+                threshold=MIN_PSR,
+                direction="ge",
+            )
+        )
     if min_trl_value is None:
         if min_trl_no_edge:
             checks.append(
@@ -459,6 +526,24 @@ def evaluate_track_record_gate_per_variant(
     perm = permutation_p_by_variant or {}
     fdr = fdr_rate_by_variant or {}
     spread = per_regime_hit_rate_spread_by_variant or {}
+
+    # C-sprint deep-review MINOR: catch typos in optional-dict keys
+    # early. Previously a typo (e.g. {“VRNT_A”: 0.6} when returns_by_variant
+    # uses {“vrnt_a”}) silently produced SKIPPED checks for that variant,
+    # which dashboards then rendered as healthy.
+    known = set(returns_by_variant)
+    for label, opt in (
+        ("walk_forward_efficiency_by_variant", wfe),
+        ("permutation_p_by_variant", perm),
+        ("fdr_rate_by_variant", fdr),
+        ("per_regime_hit_rate_spread_by_variant", spread),
+    ):
+        unknown = sorted(set(opt) - known)
+        if unknown:
+            raise ValueError(
+                f"{label}: keys not present in returns_by_variant: {unknown!r}. "
+                "Likely a typo — fix the call-site or rename the variant."
+            )
 
     out: dict[str, dict[str, Any]] = {}
     for variant, returns in returns_by_variant.items():
