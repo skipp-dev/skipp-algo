@@ -21,12 +21,22 @@ RUN apt-get update && \
         curl ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-COPY requirements-dashboard.txt .
+# Slim runtime: streamlit + numpy + pandas + plotly only.
+# DO NOT install requirements.txt here — that pulls httpx / databento /
+# ML deps which the read-only dashboard does not need (C7/T8 surface).
+COPY requirements-dashboard.txt ./requirements-dashboard.txt
 RUN pip install --no-cache-dir -r requirements-dashboard.txt
 
 # Copy only what the dashboard needs to keep the image small.
-COPY streamlit_terminal.py ./
-COPY terminal_tabs/ ./terminal_tabs/
+COPY streamlit_dashboard.py ./
+COPY terminal_tabs/__init__.py ./terminal_tabs/__init__.py
+COPY terminal_tabs/_shared.py ./terminal_tabs/_shared.py
+COPY terminal_tabs/dashboard_cache.py ./terminal_tabs/dashboard_cache.py
+COPY terminal_tabs/drift_loader.py ./terminal_tabs/drift_loader.py
+COPY terminal_tabs/methodology_drawer.py ./terminal_tabs/methodology_drawer.py
+COPY terminal_tabs/tab_calibration_detail.py ./terminal_tabs/tab_calibration_detail.py
+COPY terminal_tabs/tab_live_incubation.py ./terminal_tabs/tab_live_incubation.py
+COPY terminal_tabs/tab_track_record.py ./terminal_tabs/tab_track_record.py
 COPY scripts/build_dashboard_payload.py ./scripts/build_dashboard_payload.py
 COPY docs/c7_dashboard_user_guide.md ./docs/c7_dashboard_user_guide.md
 
@@ -45,5 +55,5 @@ VOLUME ["/app/cache"]
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
     CMD curl -f http://localhost:8501/_stcore/health || exit 1
 
-ENTRYPOINT ["streamlit", "run", "streamlit_terminal.py", \
+ENTRYPOINT ["streamlit", "run", "streamlit_dashboard.py", \
     "--server.port=8501", "--server.address=0.0.0.0"]
