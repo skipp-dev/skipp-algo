@@ -2,9 +2,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal, Sequence
+from typing import Literal
 
 OrderType = Literal["limit_at_mid", "limit_aggressive", "market"]
+VALID_ORDER_TYPES: tuple[OrderType, ...] = (
+    "limit_at_mid",
+    "limit_aggressive",
+    "market",
+)
 
 
 @dataclass(frozen=True)
@@ -27,6 +32,10 @@ class ExecutionAction:
     def __post_init__(self) -> None:
         if not 0.0 <= self.slice_size <= 1.0:
             raise ValueError(f"slice_size out of range: {self.slice_size}")
+        if self.order_type not in VALID_ORDER_TYPES:
+            raise ValueError(
+                f"order_type {self.order_type!r} not in {VALID_ORDER_TYPES}"
+            )
 
 
 @dataclass(frozen=True)

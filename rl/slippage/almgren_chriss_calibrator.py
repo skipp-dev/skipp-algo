@@ -45,6 +45,10 @@ class AlmgrenChrissCalibrator:
     n_train_: int = 0
 
     def fit(self, X: np.ndarray, y_bps: np.ndarray) -> "AlmgrenChrissCalibrator":
+        if self.prior_precision <= 0:
+            raise ValueError("prior_precision must be > 0")
+        if self.noise_variance < 0:
+            raise ValueError("noise_variance must be >= 0")
         X = np.asarray(X, dtype=float)
         y = np.asarray(y_bps, dtype=float)
         if X.ndim != 2 or X.shape[0] != y.shape[0]:
@@ -55,8 +59,14 @@ class AlmgrenChrissCalibrator:
         Lambda = self.prior_precision * np.eye(d)
         sigma2 = max(self.noise_variance, 1e-9)
         Sigma_inv = X.T @ X / sigma2 + Lambda
-        Sigma = np.linalg.inv(Sigma_inv)
-        mu = Sigma @ (X.T @ y) / sigma2
+        rhs = (X.T @ y) / sigma2
+        try:
+            chol = np.linalg.cholesky(Sigma_inv)
+            mu = np.linalg.solve(chol.T, np.linalg.solve(chol, rhs))
+            Sigma = np.linalg.solve(chol.T, np.linalg.solve(chol, np.eye(d)))
+        except np.linalg.LinAlgError:
+            mu = np.linalg.solve(Sigma_inv, rhs)
+            Sigma = np.linalg.solve(Sigma_inv, np.eye(d))
         # Apply half-normal prior by clipping at zero on the impact dims.
         mu = np.maximum(mu, 0.0)
         self.mean_ = mu

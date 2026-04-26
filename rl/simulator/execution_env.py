@@ -88,10 +88,14 @@ class ExecutionEnv:
         # Implementation shortfall contribution = (fill - anchor) * qty
         is_contrib = notional_bps * slice_qty
         self._is_accum += is_contrib
-        self._var_accum += (price_drift_bps ** 2) * (slice_qty ** 2)
+        # Per-step variance share (matched 1:1 with the reward variance penalty
+        # below so internal accounting and the optimised objective coincide).
+        share = slice_qty / max(self.cfg.parent_qty, 1.0)
+        var_step = (price_drift_bps ** 2) * share
+        self._var_accum += var_step
         # Reward = -ImpactShortfall - lambda * variance (per-step)
-        reward = -(notional_bps * (slice_qty / max(self.cfg.parent_qty, 1.0)))
-        reward -= self.cfg.lambda_var * (price_drift_bps ** 2) * (slice_qty / max(self.cfg.parent_qty, 1.0))
+        reward = -(notional_bps * share)
+        reward -= self.cfg.lambda_var * var_step
         self._step_idx += 1
         terminated = self._remaining_qty <= 1e-9
         truncated = self._step_idx >= self.cfg.horizon_steps and not terminated
@@ -112,6 +116,11 @@ class ExecutionEnv:
     @property
     def total_implementation_shortfall_bps(self) -> float:
         return self._is_accum / max(self.cfg.parent_qty, 1.0)
+
+    @property
+    def realized_variance(self) -> float:
+        """Sum of per-step variance contributions consumed by the reward."""
+        return float(self._var_accum)
 
     # internals ------------------------------------------------------------
     def _reset_state(self) -> None:

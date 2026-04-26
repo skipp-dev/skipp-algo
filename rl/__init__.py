@@ -8,8 +8,9 @@ calibrator + execution simulator are pure-numpy and always available.
 
 Live-data onboarding is a dataset swap: build a ``TradeBlotter`` from the C8
 outcome stream, fit ``AlmgrenChrissCalibrator``, plug it into
-``ExecutionSimulator`` and either run a baseline (TWAP/VWAP) or a learned
-agent through ``HardConstraintLayer.guard``. See ``rl/README.md``.
+``ExecutionEnv`` and either run a baseline (TWAP/VWAP) or a learned agent
+through ``HardConstraintLayer.guard_action(...)`` /
+``HardConstraintLayer.guard_size_fraction(...)``. See ``rl/README.md``.
 """
 from rl.types import (
     ExecutionAction,

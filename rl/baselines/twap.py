@@ -11,9 +11,14 @@ class TWAPSlicer:
     name = "twap"
 
     def act(self, state: ExecutionState) -> ExecutionAction:
-        # remaining_time/total_time approximated by recent_volume_profile length;
-        # in env we know it via obs[1] but here we use a simple 1/k schedule.
-        return ExecutionAction(slice_size=0.0, order_type="limit_at_mid")
+        """Return a 1/steps_left slice using ``state.recent_volume_profile``
+        as the remaining-step proxy.
+        """
+        steps_left = max(1, len(getattr(state, "recent_volume_profile", ())))
+        return ExecutionAction(
+            slice_size=1.0 / steps_left,
+            order_type="limit_at_mid",
+        )
 
     def run(self, env: ExecutionEnv) -> dict:
         env.reset()
@@ -21,7 +26,7 @@ class TWAPSlicer:
         for k in range(env.cfg.horizon_steps):
             steps_left = env.cfg.horizon_steps - k
             slice_frac = 1.0 / steps_left
-            obs, r, terminated, truncated, info = env.step(
+            _, r, terminated, truncated, _ = env.step(
                 ExecutionAction(slice_size=slice_frac, order_type="limit_at_mid")
             )
             total_reward += r

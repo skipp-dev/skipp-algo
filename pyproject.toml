@@ -20,6 +20,13 @@ build-backend = "setuptools.build_meta"
 packages = [
     "newsstack_fmp",
     "open_prep",
+    "rl",
+    "rl.agents",
+    "rl.baselines",
+    "rl.drift",
+    "rl.safety",
+    "rl.simulator",
+    "rl.slippage",
     "smc_core",
     "smc_integration",
     "smc_adapters",
@@ -101,7 +108,7 @@ ignore = [
 "streamlit_terminal.py" = ["E402"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["newsstack_fmp", "open_prep", "smc_core", "terminal_poller", "terminal_export"]
+known-first-party = ["newsstack_fmp", "open_prep", "rl", "smc_core", "terminal_poller", "terminal_export"]
 
 [tool.mypy]
 python_version = "3.12"

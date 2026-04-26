@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 try:  # pragma: no cover - exercised only in environments with sb3
-    import gymnasium as gym  # type: ignore
+    import gymnasium as gym  # type: ignore  # noqa: F401
     from stable_baselines3 import PPO  # type: ignore
 
     _HAS_DEPS = True

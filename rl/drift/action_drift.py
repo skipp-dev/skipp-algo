@@ -24,8 +24,15 @@ def _psi(reference: np.ndarray, live: np.ndarray, n_bins: int) -> float:
         return 0.0
     qs = np.linspace(0.0, 1.0, n_bins + 1)
     edges = np.quantile(reference, qs)
-    edges[0] = -np.inf
-    edges[-1] = np.inf
+    # Guard against repeated edges from concentrated/constant references —
+    # ``np.histogram`` requires strictly-increasing bins.
+    edges = np.unique(edges)
+    if edges.size <= 1:
+        edges = np.array([-np.inf, np.inf], dtype=float)
+    else:
+        edges = edges.astype(float, copy=True)
+        edges[0] = -np.inf
+        edges[-1] = np.inf
     eps = 1e-6
     ref_hist, _ = np.histogram(reference, bins=edges)
     live_hist, _ = np.histogram(live, bins=edges)

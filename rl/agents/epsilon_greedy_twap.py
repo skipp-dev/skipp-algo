@@ -16,14 +16,16 @@ class EpsilonGreedyTwapAgent:
 
     name = "eps_greedy_twap"
 
-    def __init__(self, *, epsilon: float = 0.1, seed: int = 0) -> None:
+    def __init__(
+        self, *, epsilon: float = 0.1, seed: int = 0, horizon_steps: int = 20
+    ) -> None:
         self.epsilon = float(epsilon)
         self.rng = np.random.default_rng(seed)
+        self.horizon_steps = max(1.0, float(horizon_steps))
 
     def act(self, obs: np.ndarray) -> ExecutionAction:
-        remaining_pct = float(obs[0])
         time_pct_left = float(obs[1])
-        steps_left = max(1.0, time_pct_left * 20.0)
+        steps_left = max(1.0, time_pct_left * self.horizon_steps)
         twap_frac = 1.0 / steps_left
         if self.rng.uniform() < self.epsilon:
             return ExecutionAction(
