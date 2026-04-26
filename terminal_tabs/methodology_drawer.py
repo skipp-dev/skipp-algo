@@ -18,8 +18,10 @@ from typing import Any
 # scripts.track_record_gate.MIN_PSR).
 try:
     from scripts.track_record_gate import MIN_PSR as _MIN_PSR_FROM_GATE
-except Exception:  # pragma: no cover - import-shim safety
-    _MIN_PSR_FROM_GATE = 0.95
+except ImportError:  # pragma: no cover - import-shim safety only
+    # Sentinel: surfaces in the rendered table so a missing gate import
+    # is visible rather than silently falling back to a duplicated 0.95.
+    _MIN_PSR_FROM_GATE = None
 
 __all__ = [
     "GATE_THRESHOLDS",

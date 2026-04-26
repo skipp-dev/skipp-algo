@@ -212,7 +212,7 @@ def compute_regime_aware_aggregate(
     Returns:
         ``{"value": float | None, "method": str, "regimes_used": list[str],
         "regimes_skipped": list[str], "unknown_share": float | None,
-        "warning"?: str}``
+        "warning": str | None}``
     """
 
     used: list[str] = []
