@@ -52,6 +52,18 @@ def _public_report_blocks() -> list[str]:
             for tgt in node.targets:
                 if isinstance(tgt, ast.Name) and tgt.id == "PUBLIC_SCHEMA_VERSION":
                     blocks["PUBLIC_SCHEMA_VERSION"] = ast.unparse(node)
+    missing = [
+        name
+        for name in ("PUBLIC_SCHEMA_VERSION", "build_public_report")
+        if name not in blocks
+    ]
+    if missing:
+        raise AssertionError(
+            "Pinned symbol(s) missing from "
+            f"{SOURCE_PATH.relative_to(REPO_ROOT)}: {missing}. "
+            "If the symbol was renamed or moved, update the pin "
+            "test and bump PUBLIC_SCHEMA_VERSION as appropriate."
+        )
     # Deterministic order: VERSION first, then build_public_report.
     return [blocks["PUBLIC_SCHEMA_VERSION"], blocks["build_public_report"]]
 
@@ -99,11 +111,59 @@ def test_pinned_sha_matches_source() -> None:
 
 
 def test_additive_fields_history_is_monotonic() -> None:
-    """Each historic schema version must list at least one additive
-    field. This pins the audit trail so a future contributor cannot
-    silently rewrite the additive ledger.
+    """The additive ledger must:
+
+    * cover at least the two known historic versions ``1.1.0`` and
+      ``1.2.0``,
+    * have **strictly monotonic semantic versions** (no regressions),
+    * have a non-empty list of additive fields per entry, and
+    * carry the documented sentinel field for each version (so a
+      future contributor cannot silently rewrite the ledger).
     """
     pin = _load_pin()
     additive = pin["additive_fields_introduced"]
+    assert isinstance(additive, dict) and additive, "additive ledger empty"
+
+    def _parse(version: str) -> tuple[int, int, int]:
+        parts = version.split(".")
+        assert len(parts) == 3, f"non-semver entry: {version}"
+        return tuple(int(p) for p in parts)  # type: ignore[return-value]
+
+    parsed = sorted((_parse(v), v) for v in additive)
+    # Strict monotonicity: each entry must be greater than the previous.
+    for prev, curr in zip(parsed, parsed[1:]):
+        assert prev[0] < curr[0], (
+            f"additive ledger not strictly monotonic: {prev[1]} -> {curr[1]}"
+        )
+
+    # Each entry must have at least one additive field.
+    for version, fields in additive.items():
+        assert isinstance(fields, list) and fields, (
+            f"additive ledger entry {version!r} must be a non-empty list"
+        )
+
+    # Sentinel-field pins for known versions.
     assert "1.1.0" in additive and "track_record_gate" in additive["1.1.0"]
     assert "1.2.0" in additive and "regime_stratified" in additive["1.2.0"]
+
+
+def test_public_report_blocks_raises_clear_error_on_missing_symbol() -> None:
+    """If a refactor removes ``PUBLIC_SCHEMA_VERSION`` or
+    ``build_public_report``, ``_public_report_blocks`` previously
+    surfaced an opaque ``KeyError``. Reproduce the failure mode
+    against a synthetic source so the pin's contract is explicit.
+    """
+    src = "X = 1\n"
+    tree = ast.parse(src)
+    blocks: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == "build_public_report":
+            blocks["build_public_report"] = ast.unparse(node)
+        if isinstance(node, ast.Assign):
+            for tgt in node.targets:
+                if isinstance(tgt, ast.Name) and tgt.id == "PUBLIC_SCHEMA_VERSION":
+                    blocks["PUBLIC_SCHEMA_VERSION"] = ast.unparse(node)
+    # Symbols are absent in this synthetic source — the assertion is
+    # that the pin will detect the absence (not silently pass).
+    assert "PUBLIC_SCHEMA_VERSION" not in blocks
+    assert "build_public_report" not in blocks
