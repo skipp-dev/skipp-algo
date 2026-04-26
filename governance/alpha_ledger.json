@@ -1,0 +1,37 @@
+[
+  {
+    "alpha": 0.01,
+    "family": "BOS",
+    "method": "block_permutation",
+    "rationale": "C4.1 permutation test for BOS structure detection; conservative tail.",
+    "sprint": "C4"
+  },
+  {
+    "alpha": 0.01,
+    "family": "OB",
+    "method": "block_permutation",
+    "rationale": "C4.1 permutation test for order-block edge significance.",
+    "sprint": "C4"
+  },
+  {
+    "alpha": 0.01,
+    "family": "FVG",
+    "method": "psr_lower_bound",
+    "rationale": "C6.1 probabilistic-Sharpe lower bound on per-family TRL.",
+    "sprint": "C6"
+  },
+  {
+    "alpha": 0.01,
+    "family": "CHOCH",
+    "method": "ml_calibration_test",
+    "rationale": "C10 per-family Brier-improvement calibration check.",
+    "sprint": "C10"
+  },
+  {
+    "alpha": 0.01,
+    "family": "GLOBAL",
+    "method": "regime_strat_psr",
+    "rationale": "C5.1 stratified PSR check across regime buckets.",
+    "sprint": "C5"
+  }
+]
