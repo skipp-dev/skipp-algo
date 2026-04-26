@@ -140,6 +140,11 @@ def evaluate_trigger(
         )
     try:
         report = json.loads(report_path.read_text(encoding="utf-8"))
+    except UnicodeDecodeError as exc:
+        return TriggerResult(
+            status="UNEVALUABLE",
+            reasons=[f"calibration report is not valid UTF-8: {exc}"],
+        )
     except json.JSONDecodeError as exc:
         return TriggerResult(
             status="UNEVALUABLE",

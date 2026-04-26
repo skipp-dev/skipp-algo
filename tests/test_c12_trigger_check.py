@@ -229,3 +229,12 @@ def test_live_calibration_report_blocked_today() -> None:
         "C12 trigger gate must NOT be GREEN until live incubation runs. "
         f"Got status={result.status}, reasons={result.reasons}"
     )
+
+
+def test_trigger_unevaluable_on_invalid_utf8(tmp_path: Path) -> None:
+    """Non-UTF-8 bytes must surface as UNEVALUABLE, not crash."""
+    report = tmp_path / "latin1.json"
+    report.write_bytes(b'{"status": "f\xfcr"}')  # latin-1 'ü', invalid utf-8
+    result = check_c12_trigger.evaluate_trigger(report)
+    assert result.status == "UNEVALUABLE"
+    assert any("UTF-8" in r for r in result.reasons)
