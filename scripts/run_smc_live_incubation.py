@@ -1,0 +1,331 @@
+"""C8/T3 — Live-incubation orchestrator with audit log.
+
+Orchestrates one round of the Phase-B live-incubation pipeline:
+
+1. Load SMC setup records from the latest calibration run.
+2. Filter to variants whose track-record-gate verdict is **green** or
+   **amber** (red is blocked from live exposure).
+3. Build IBKR order intents via the Phase-B-safe adapter
+   (``scripts.smc_to_ibkr_adapter``).
+4. Apply the live risk limits (``scripts.live_risk_limits``) — if the
+   kill-switch fires, emit a single ``halted`` audit record and return
+   without submitting any orders.
+5. Hand the surviving intents to a caller-supplied ``submit_fn``
+   (defaulting to a paper-mode no-op so the runner is safe to invoke
+   from CI or a unit test).
+6. Append one JSONL audit record per intent.
+
+Design constraints
+------------------
+
+* **No IBKR client import at module load time.** The submit function is
+  injected so this module can be imported and tested in any
+  environment, including the CI sandbox without ``ibapi``.
+* **Atomic JSONL append.** The audit file is rewritten atomically
+  (temp-file + replace) so a crash mid-run never leaves the audit log
+  half-written. Partial-write streaming is intentionally avoided here:
+  the per-run record count is small (≤ a few dozen) so a full rewrite
+  is both simpler and safer.
+* **Deterministic for fixed inputs.** Audit timestamps are pulled from
+  a caller-injected clock so the runner can be exercised with snapshot
+  tests.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import logging
+import os
+import tempfile
+from collections.abc import Callable, Sequence
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+from scripts.live_risk_limits import (
+    AccountState,
+    KillSwitchDecision,
+    RiskLimits,
+    check_risk_limits,
+)
+from scripts.smc_to_ibkr_adapter import (
+    IBKRExecutionConfig,
+    PHASE_B_RECOMMENDED_SIZE_SCALE,
+    build_ibkr_intents_from_smc_setups,
+)
+from scripts.execute_ibkr_watchlist import IBKROrderIntent
+
+logger = logging.getLogger("scripts.run_smc_live_incubation")
+
+# Track-record-gate verdicts that are allowed to trade live.
+_LIVE_TRADABLE_GATE_STATUSES = frozenset({"green", "amber"})
+
+# CLI phase → size_scale default mapping.
+_PHASE_DEFAULTS: dict[str, dict[str, Any]] = {
+    "paper": {"size_scale": PHASE_B_RECOMMENDED_SIZE_SCALE, "paper_mode": True},
+    "live_small": {"size_scale": PHASE_B_RECOMMENDED_SIZE_SCALE, "paper_mode": False},
+    "live_full": {"size_scale": 1.0, "paper_mode": False},
+}
+
+
+SubmitFn = Callable[[Sequence[IBKROrderIntent]], list[dict[str, Any]]]
+
+
+def _no_op_submit(intents: Sequence[IBKROrderIntent]) -> list[dict[str, Any]]:
+    """Default submitter: record an ``audit_only`` action per intent.
+
+    Used for paper-mode dry-runs and tests. The downstream live runner
+    swaps this for ``place_order_intents_with_ib`` once a TWS session
+    is available.
+    """
+    return [
+        {"intent_id": intent.order_ref, "action": "audit_only"} for intent in intents
+    ]
+
+
+def _filter_tradable_setups(
+    setup_records: Sequence[dict[str, Any]],
+    gate_status_by_variant: dict[str, str],
+) -> list[dict[str, Any]]:
+    """Keep only setups whose variant gate status is green or amber.
+
+    A setup with no variant key (or a variant that is unknown to the
+    gate) is treated as **untradable** — we deliberately fail closed
+    for the Phase-B incubation.
+    """
+    out: list[dict[str, Any]] = []
+    for record in setup_records:
+        variant = record.get("variant")
+        if not isinstance(variant, str):
+            continue
+        status = gate_status_by_variant.get(variant)
+        if status in _LIVE_TRADABLE_GATE_STATUSES:
+            out.append(record)
+    return out
+
+
+def _utc_iso(now: datetime | None) -> str:
+    instant = now if now is not None else datetime.now(timezone.utc)
+    if instant.tzinfo is None:
+        instant = instant.replace(tzinfo=timezone.utc)
+    return instant.astimezone(timezone.utc).isoformat()
+
+
+def _atomic_append_audit(path: Path, records: list[dict[str, Any]]) -> None:
+    """Append ``records`` to a JSONL audit file atomically (rewrite-in-full)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    existing: list[str] = []
+    if path.exists():
+        existing = path.read_text(encoding="utf-8").splitlines()
+        # Strip trailing blank lines so the append doesn't double-newline.
+        while existing and not existing[-1].strip():
+            existing.pop()
+
+    fd, tmp_str = tempfile.mkstemp(
+        dir=str(path.parent), prefix=path.name + ".", suffix=".tmp"
+    )
+    tmp_path = Path(tmp_str)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            for line in existing:
+                fh.write(line)
+                fh.write("\n")
+            for record in records:
+                fh.write(json.dumps(record, sort_keys=True))
+                fh.write("\n")
+        os.replace(tmp_path, path)
+    except BaseException:
+        tmp_path.unlink(missing_ok=True)
+        raise
+
+
+def run_live_incubation(
+    *,
+    setup_records: Sequence[dict[str, Any]],
+    gate_status_by_variant: dict[str, str],
+    risk_limits: RiskLimits,
+    account_state: AccountState,
+    execution_cfg: IBKRExecutionConfig,
+    audit_path: Path,
+    phase: str = "paper",
+    size_scale: float = PHASE_B_RECOMMENDED_SIZE_SCALE,
+    submit_fn: SubmitFn = _no_op_submit,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """Execute one orchestration round and return a structured summary.
+
+    The function never raises on a kill-switch breach: it records the
+    decision in the audit log, marks the run as ``halted`` in the
+    summary, and returns. Callers (cron, CI) treat ``halted`` as a
+    successful no-op rather than a failure.
+    """
+    timestamp = _utc_iso(now)
+    kill_decision: KillSwitchDecision = check_risk_limits(
+        account_state, risk_limits
+    )
+
+    if kill_decision.engaged:
+        halt_record = {
+            "ts": timestamp,
+            "phase": phase,
+            "action": "halted",
+            "kill_switch_triggered": True,
+            "kill_reason": (
+                kill_decision.primary_reason.value
+                if kill_decision.primary_reason is not None
+                else "unknown"
+            ),
+            "kill_detail": list(kill_decision.detail),
+        }
+        _atomic_append_audit(audit_path, [halt_record])
+        return {
+            "phase": phase,
+            "halted": True,
+            "kill_reason": halt_record["kill_reason"],
+            "intents_submitted": 0,
+            "audit_records_written": 1,
+        }
+
+    tradable = _filter_tradable_setups(setup_records, gate_status_by_variant)
+    intents = build_ibkr_intents_from_smc_setups(
+        tradable, execution_cfg, size_scale=size_scale
+    )
+
+    submission_results = submit_fn(intents)
+    submission_by_intent = {
+        result.get("intent_id"): result for result in submission_results
+    }
+
+    audit_records: list[dict[str, Any]] = []
+    for intent in intents:
+        result = submission_by_intent.get(intent.order_ref, {})
+        audit_records.append(
+            {
+                "ts": timestamp,
+                "phase": phase,
+                "intent_id": intent.order_ref,
+                "symbol": intent.symbol,
+                "action": str(result.get("action", "unknown")),
+                "entry_price": float(intent.entry_limit),
+                "stop_loss": float(intent.stop_loss),
+                "take_profit": float(intent.take_profit),
+                "quantity": int(intent.quantity),
+                "size_scale": float(size_scale),
+                "fill_price": _coerce_optional_float(result.get("fill_price")),
+                "kill_switch_triggered": False,
+            }
+        )
+
+    _atomic_append_audit(audit_path, audit_records)
+
+    return {
+        "phase": phase,
+        "halted": False,
+        "kill_reason": None,
+        "intents_submitted": len(intents),
+        "audit_records_written": len(audit_records),
+    }
+
+
+def _coerce_optional_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+# ── CLI entry point ────────────────────────────────────────────────
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="run_smc_live_incubation",
+        description=(
+            "Phase-B live-incubation orchestrator. "
+            "Reads SMC setups + track-record-gate verdicts, applies "
+            "live risk limits, and writes an audit JSONL. "
+            "Default behaviour is dry-run (no actual IBKR submission)."
+        ),
+    )
+    parser.add_argument(
+        "--phase",
+        choices=sorted(_PHASE_DEFAULTS),
+        default="paper",
+        help="Trading phase. paper = dry-run, live_small = 10%% size, live_full = full size.",
+    )
+    parser.add_argument(
+        "--setups",
+        type=Path,
+        required=True,
+        help="JSON file with a list of SMC setup records.",
+    )
+    parser.add_argument(
+        "--gate-statuses",
+        type=Path,
+        required=True,
+        help='JSON file mapping {"variant_key": "green|amber|red"}.',
+    )
+    parser.add_argument(
+        "--audit-output",
+        type=Path,
+        required=True,
+        help="JSONL audit-log destination (atomically rewritten).",
+    )
+    parser.add_argument(
+        "--size-scale",
+        type=float,
+        default=None,
+        help="Override the phase default size scale.",
+    )
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = _build_parser().parse_args(argv)
+    phase_defaults = _PHASE_DEFAULTS[args.phase]
+    size_scale = (
+        args.size_scale
+        if args.size_scale is not None
+        else float(phase_defaults["size_scale"])
+    )
+
+    setup_records = json.loads(args.setups.read_text(encoding="utf-8"))
+    gate_statuses = json.loads(args.gate_statuses.read_text(encoding="utf-8"))
+
+    risk_limits = RiskLimits()  # repo-default; future: load from configs/.
+    account_state = AccountState(
+        as_of=datetime.now(timezone.utc).date(),
+        equity=0.0,
+        starting_equity_today=0.0,
+        high_water_mark=0.0,
+        open_positions=0,
+        gross_exposure_pct=0.0,
+        last_n_pnls=(),
+    )
+    execution_cfg = IBKRExecutionConfig(paper_mode=bool(phase_defaults["paper_mode"]))
+
+    summary = run_live_incubation(
+        setup_records=setup_records,
+        gate_status_by_variant=gate_statuses,
+        risk_limits=risk_limits,
+        account_state=account_state,
+        execution_cfg=execution_cfg,
+        audit_path=args.audit_output,
+        phase=args.phase,
+        size_scale=size_scale,
+    )
+    print(json.dumps(summary, sort_keys=True))
+    return 0
+
+
+__all__ = [
+    "run_live_incubation",
+    "main",
+]
+
+
+if __name__ == "__main__":  # pragma: no cover - script entry point
+    raise SystemExit(main())
