@@ -155,6 +155,18 @@ def evaluate_track_record_gate(
             ``None`` the WFE check is skipped.
         permutation_p: pre-computed permutation p-value (C4 output).
             When ``None`` the permutation check is skipped.
+
+            **Caveat — advisory only:** the C4/T4 implementation
+            currently uses **trade-shuffle** permutation, which over-
+            estimates significance because it ignores the entry-time
+            block structure. Treat ``permutation_p`` as advisory until
+            the Schema-B (entry-time block-permutation) follow-up
+            lands; this check is left in the gate so it can flag
+            obvious failures, but a passing p-value is **not** by
+            itself sufficient to pass C4 in the consolidated roadmap.
+            Tracking issue: see
+            ``docs/SPRINT_PLAN_C4_PERMUTATION_TEST_2026-04-26.md``
+            section 'Schema B (deferred)'.
         fdr_rate: pre-computed FDR rate (C3/T4 + C4/T4 BH output). When
             ``None`` the FDR check is skipped.
         per_regime_hit_rate_spread: max-min hit-rate spread across
@@ -265,13 +277,15 @@ def evaluate_track_record_gate(
         )
     )
 
-    # Permutation p
+    # Permutation p (advisory only — trade-shuffle permutation; Schema B
+    # entry-time block-permutation is deferred. See docstring.)
     checks.append(
         _check(
             "permutation_p",
             value=permutation_p,
             threshold=MAX_PERMUTATION_P,
             direction="le",
+            detail="advisory: trade-shuffle; Schema-B block-permutation deferred",
         )
     )
 
