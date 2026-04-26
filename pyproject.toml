@@ -21,6 +21,7 @@ packages = [
     "newsstack_fmp",
     "open_prep",
     "smc_core",
+    "smc_core.inference",
     "smc_integration",
     "smc_adapters",
     "smc_tv_bridge",
