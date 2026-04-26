@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -65,16 +67,48 @@ class NullCache:
             payload = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             return None
+        if not isinstance(payload, dict):
+            return None
         if payload.get("key") != _key_to_dict(key):
             return None
-        return np.asarray(payload["null"], dtype=np.float64)
+        null_payload = payload.get("null")
+        if null_payload is None:
+            return None
+        try:
+            arr = np.asarray(null_payload, dtype=np.float64)
+        except (TypeError, ValueError):
+            return None
+        if arr.size != key.n_perms:
+            return None
+        return arr
 
     def put(self, key: CacheKey, null: np.ndarray) -> None:
         path = self._shard_path(key)
-        tmp = path.with_suffix(".json.tmp")
+        if null.size != key.n_perms:
+            raise ValueError(
+                f"null array length {null.size} does not match key.n_perms {key.n_perms}"
+            )
+        if not np.all(np.isfinite(null)):
+            raise ValueError("null array contains non-finite values")
         payload = {"key": _key_to_dict(key), "null": null.tolist()}
-        tmp.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
-        tmp.replace(path)
+        body = json.dumps(payload, sort_keys=True)
+        fd, tmp_name = tempfile.mkstemp(
+            prefix=path.name + ".", suffix=".tmp", dir=str(path.parent)
+        )
+        tmp = Path(tmp_name)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                fh.write(body)
+                fh.flush()
+                os.fsync(fh.fileno())
+            tmp.replace(path)
+        except Exception:
+            if tmp.exists():
+                try:
+                    tmp.unlink()
+                except OSError:
+                    pass
+            raise
 
     def __len__(self) -> int:
         return sum(1 for _ in self.cache_dir.glob("*.json"))

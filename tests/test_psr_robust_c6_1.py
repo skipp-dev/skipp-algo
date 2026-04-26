@@ -1,7 +1,6 @@
 """Sprint C6.1 tests for psr_robust (slippage + robust moments)."""
 from __future__ import annotations
 
-import math
 import random
 
 import pytest
