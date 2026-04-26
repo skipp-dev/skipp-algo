@@ -182,10 +182,13 @@ def permutation_test_profit_factor(
     permuted = _permute_outcome_sign(arr, B=B, seed=seed)
     pos = np.where(permuted > 0, permuted, 0.0).sum(axis=1)
     neg = -np.where(permuted < 0, permuted, 0.0).sum(axis=1)
-    null_pf = np.where(neg > 0, pos / np.where(neg == 0, np.nan, neg), np.nan)
+    null_pf = np.where(neg > 0, pos / np.maximum(neg, 1e-12), np.nan)
 
     # For PF, "edge" means observed > 1.0 vs null around 1.0; we still
     # report Phipson-Smyth p-values relative to the null distribution.
+    # Caveat (documented in module docstring): under skewed P&L the
+    # Schema-A null PF has a non-unit expected value, so this p-value
+    # is mis-calibrated. Use Schema B once available.
     p_one = _permutation_p_value(pf_obs, null_pf, side="one_sided")
 
     return {

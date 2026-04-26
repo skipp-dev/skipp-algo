@@ -157,7 +157,30 @@ def _is_drift_severity(severity: DriftSeverity) -> bool:
 
 
 def _episode_fires(episode: Episode, setting: ThresholdSetting) -> bool:
-    """Apply the 4-detector consensus from the C9 sprint plan."""
+    """Apply the 4-detector consensus from the C9 sprint plan.
+
+    The episode "fires" iff at least ``setting.consensus_min`` (default 2)
+    of the four detectors below cross their drift threshold. Two-of-four
+    consensus is the C9/T7 interim rule that trades single-detector
+    sensitivity for a lower false-positive rate against the small
+    pre-90-day sample. Re-tune once we have the lock-in data — see
+    ``run_drift_watchdog.py`` FIXME(C9/T7-finalize-2026Q3).
+
+    Detectors:
+        1. KS p-value vs ``ks_p_yellow``/``ks_p_red`` — distribution-shape change.
+        2. PSI vs ``psi_severity`` thresholds — bucketed mass shift.
+        3. Mean-shift ≥ 0.3 × baseline σ — first-moment shift.
+           Bauchgefühl threshold (sourced from drift-monitoring rules of
+           thumb, NOT calibrated). Confirmed-with-data follow-up: replace
+           with a t-style p-value once the live sample stabilises.
+        4. Variance ratio outside ``[0.5, 2.0]`` (i.e. doubled or halved
+           σ) — second-moment shift. Same bauchgefühl caveat as #3;
+           preferred replacement is an F-test or a rolling-σ z-score.
+
+    Detectors 3 + 4 are intentionally simple by-hand rules so the replay
+    tool stays deterministic and free of stats-package dependencies. The
+    KS and PSI detectors carry the statistical weight of the consensus.
+    """
     baseline = np.asarray(episode.baseline, dtype=np.float64)
     live = np.asarray(episode.live, dtype=np.float64)
 
@@ -175,14 +198,16 @@ def _episode_fires(episode: Episode, setting: ThresholdSetting) -> bool:
     if psi is not None and _is_drift_severity(psi_severity(psi)):
         fires += 1
 
-    # Detector 3: mean-shift (≥ 0.3σ of baseline std)
+    # Detector 3: mean-shift (>= 0.3 sigma of baseline std) — bauchgefühl,
+    # see docstring; tracking re-tune via C9/T7-finalize-2026Q3.
     bstd = float(baseline.std(ddof=0))
     if bstd > 0:
         mean_shift = abs(float(live.mean()) - float(baseline.mean())) / bstd
         if mean_shift >= 0.3:
             fires += 1
 
-    # Detector 4: variance ratio outside [0.5, 2.0]
+    # Detector 4: variance ratio outside [0.5, 2.0] — bauchgefühl, see
+    # docstring; tracking re-tune via C9/T7-finalize-2026Q3.
     lstd = float(live.std(ddof=0))
     if bstd > 0 and lstd > 0:
         ratio = lstd / bstd
