@@ -91,8 +91,12 @@ _FALLBACK_BUFFER_MAX: int = 10_000
 
 
 def get_fallback_buffer() -> list:
-    """Return a copy of the in-memory fallback buffer (operator inspection)."""
-    return list(_FALLBACK_BUFFER)
+    """Return a deep copy of the in-memory fallback buffer (operator inspection).
+
+    Each dict payload is copied so callers cannot mutate the buffer's contents
+    via the returned list.
+    """
+    return [dict(p) if isinstance(p, dict) else p for p in _FALLBACK_BUFFER]
 
 
 def clear_fallback_buffer() -> int:
@@ -118,6 +122,10 @@ def append_jsonl(item: ClassifiedItem, path: str) -> None:
     try:
         payload = item.to_dict()
     except Exception:  # pragma: no cover - defensive
+        logger.warning(
+            "append_jsonl: item.to_dict() failed; using repr fallback payload",
+            exc_info=True,
+        )
         payload = {"_repr": repr(item)}
     try:
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)

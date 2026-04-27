@@ -16,7 +16,7 @@ def test_with_status_returns_two_tuple_on_no_api_key(monkeypatch):
     try:
         out = td.fetch_databento_daily_bars_with_status(["AAPL"])
     except Exception as exc:
-        pytest.skip(f"no-API-key path raised: {exc!r}")
+        pytest.fail(f"no-API-key path should not raise: {exc!r}")
     assert isinstance(out, tuple)
     assert len(out) == 2
     results, failed = out

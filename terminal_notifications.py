@@ -68,31 +68,40 @@ logger = logging.getLogger(__name__)
 # webhook breakage is observable.
 _NOTIF_HEALTH: dict[str, dict] = {}  # channel -> {"consecutive_failures": int, "last_error": str}
 _NOTIF_HEALTH_THRESHOLD: int = 3
+_notif_health_lock = threading.Lock()
 
 
 def _record_notif_failure(channel: str, err: Exception) -> None:
-    st = _NOTIF_HEALTH.setdefault(channel, {"consecutive_failures": 0, "last_error": ""})
-    st["consecutive_failures"] += 1
-    st["last_error"] = repr(err)
-    if st["consecutive_failures"] >= _NOTIF_HEALTH_THRESHOLD:
-        logger.warning(
-            "notification channel %s degraded: %d consecutive failures (last=%s)",
-            channel,
-            st["consecutive_failures"],
-            st["last_error"][:120],
-        )
+    with _notif_health_lock:
+        st = _NOTIF_HEALTH.setdefault(channel, {"consecutive_failures": 0, "last_error": ""})
+        st["consecutive_failures"] += 1
+        st["last_error"] = repr(err)
+        # Warn only on the *first* crossing of the threshold to avoid log spam
+        # during sustained outages; recovery (success) re-arms the warning.
+        if st["consecutive_failures"] == _NOTIF_HEALTH_THRESHOLD:
+            logger.warning(
+                "notification channel %s degraded: %d consecutive failures (last=%s)",
+                channel,
+                st["consecutive_failures"],
+                st["last_error"][:120],
+            )
 
 
 def _record_notif_success(channel: str) -> None:
-    st = _NOTIF_HEALTH.setdefault(channel, {"consecutive_failures": 0, "last_error": ""})
-    st["consecutive_failures"] = 0
+    with _notif_health_lock:
+        st = _NOTIF_HEALTH.setdefault(channel, {"consecutive_failures": 0, "last_error": ""})
+        st["consecutive_failures"] = 0
+        # Clear the stale error so get_notif_health() doesn't keep reporting
+        # an outdated failure after recovery.
+        st["last_error"] = ""
 
 
 def get_notif_health(channel: str | None = None):
     """Return per-channel health snapshot (operator inspection)."""
-    if channel is None:
-        return {k: dict(v) for k, v in _NOTIF_HEALTH.items()}
-    return dict(_NOTIF_HEALTH.get(channel, {"consecutive_failures": 0, "last_error": ""}))
+    with _notif_health_lock:
+        if channel is None:
+            return {k: dict(v) for k, v in _NOTIF_HEALTH.items()}
+        return dict(_NOTIF_HEALTH.get(channel, {"consecutive_failures": 0, "last_error": ""}))
 
 
 # ---------------------------------------------------------------------------

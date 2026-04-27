@@ -98,7 +98,12 @@ class BenzingaCalendarAdapter:
         Returns
         -------
         list[dict]
-            Raw calendar items.
+            Calendar items normalized via :func:`normalize_benzinga_calendar_item`:
+            each row is the original raw payload enriched with stable canonical
+            keys (``event_id``, ``event_date``, ``symbol``, ``event_actual``,
+            ``event_forecast``, ``event_previous``, ``importance``) plus
+            ``kind`` set to ``endpoint_kind``. Original raw fields are preserved
+            for back-compat.
         """
         url = f"{CALENDAR_BASE}/{endpoint}"
         params: dict[str, Any] = {

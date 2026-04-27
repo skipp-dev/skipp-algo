@@ -280,14 +280,14 @@ _BZ_CAL_ALIASES: dict[str, tuple[str, ...]] = {
 }
 
 
-def _first_present(raw: dict, keys: tuple[str, ...]):
+def _first_present(raw: dict[str, Any], keys: tuple[str, ...]) -> Any | None:
     for k in keys:
         if k in raw and raw[k] not in (None, ""):
             return raw[k]
     return None
 
 
-def normalize_benzinga_calendar_item(raw: dict, endpoint_kind: str) -> dict:
+def normalize_benzinga_calendar_item(raw: dict[str, Any], endpoint_kind: str) -> dict[str, Any]:
     """Return a back-compat dict with canonical keys + original keys preserved.
 
     The canonical keys (event_id, event_date, symbol, event_actual,
