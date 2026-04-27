@@ -3107,6 +3107,76 @@ class TestFMPClientCircuitBreakerValidationFailures(unittest.TestCase):
         self.assertGreaterEqual(mock_sleep.call_args[0][0], 0.0)
 
 
+class TestFMPClientCircuitBreakerHttpClassification(unittest.TestCase):
+    """4xx (other than 408/429) MUST NOT trip the breaker — one retired
+    endpoint or one bad symbol must not nuke unrelated FMP calls.
+    Lane 2 regression coverage."""
+
+    def _hit(self, code: int, *, attempts: int = 1) -> FMPClient:
+        client = FMPClient(api_key="test", retry_attempts=attempts)
+        exc = urllib.error.HTTPError(
+            "https://example.com", code, "synthetic", {}, None
+        )
+        with patch("open_prep.macro.urlopen", side_effect=exc):
+            with patch("time.sleep"):  # avoid real sleeps on transient retries
+                with self.assertRaises(RuntimeError):
+                    client._get("/stable/x", {})
+        return client
+
+    def test_404_does_not_trip_circuit_breaker(self):
+        for _ in range(5):
+            client = self._hit(404)
+            self.assertEqual(client._circuit_breaker.state, "CLOSED")
+
+    def test_400_does_not_trip_circuit_breaker(self):
+        client = self._hit(400)
+        self.assertEqual(client._circuit_breaker.state, "CLOSED")
+
+    def test_403_does_not_trip_circuit_breaker(self):
+        client = self._hit(403)
+        self.assertEqual(client._circuit_breaker.state, "CLOSED")
+
+    def test_401_does_not_trip_circuit_breaker(self):
+        client = self._hit(401)
+        self.assertEqual(client._circuit_breaker.state, "CLOSED")
+
+    def test_408_trips_circuit_breaker(self):
+        # Request Timeout is genuinely transient on the server side.
+        client = self._hit(408)
+        self.assertEqual(client._circuit_breaker.state, "OPEN")
+
+    def test_503_still_trips_circuit_breaker(self):
+        client = self._hit(503)
+        self.assertEqual(client._circuit_breaker.state, "OPEN")
+
+    def test_408_is_retried_when_attempts_remain(self):
+        client = FMPClient(api_key="test", retry_attempts=2)
+        exc_408 = urllib.error.HTTPError(
+            "https://example.com", 408, "Request Timeout", {}, None
+        )
+        ok_resp = MagicMock()
+        ok_resp.read.return_value = b'[{"ok": true}]'
+        cm_ok = MagicMock()
+        cm_ok.__enter__.return_value = ok_resp
+        cm_ok.__exit__.return_value = False
+
+        calls = {"n": 0}
+
+        def _side_effect(*args, **kwargs):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise exc_408
+            return cm_ok
+
+        with patch("open_prep.macro.urlopen", side_effect=_side_effect):
+            with patch("time.sleep"):
+                result = client._get("/stable/x", {})
+
+        self.assertEqual(calls["n"], 2)
+        self.assertEqual(result, [{"ok": True}])
+        self.assertEqual(client._circuit_breaker.state, "CLOSED")
+
+
 class TestMacroHelpers(unittest.TestCase):
     def test_parse_retry_after_seconds_numeric(self):
         self.assertEqual(_parse_retry_after_seconds("2.5"), 2.5)
