@@ -423,9 +423,19 @@ def build_dashboard_payload(
 
     artefacts = _load_sprint_artefacts(cache_dir_path, date)
     by_name = {a.name: a.payload for a in artefacts}
-    for a in artefacts:
-        if a.warning is not None:
-            warnings.append(a.warning)
+    # C-sprint deep-review C7 MINOR fix: when EVERY artefact is missing
+    # for the resolved date, downgrade the per-file warning torrent to
+    # a single aggregated message. Operators were drowning in per-file
+    # noise that obscured the actually-actionable signal "this date has
+    # no artefacts at all".
+    if all(a.payload is None for a in artefacts):
+        warnings.append(
+            f"no sprint artefacts found in {cache_dir_path} for date={date}"
+        )
+    else:
+        for a in artefacts:
+            if a.warning is not None:
+                warnings.append(a.warning)
 
     if track_record_gate is None:
         gate_path = cache_dir_path / _TRACK_RECORD_GATE_FILE.format(date=date)

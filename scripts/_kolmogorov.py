@@ -19,8 +19,20 @@ __all__ = ["kolmogorov_q", "kolmogorov_sf_two_sample"]
 
 
 def kolmogorov_q(lam: float) -> float:
-    """Tail of the Kolmogorov distribution Q(λ); clamped to [0, 1]."""
+    """Tail of the Kolmogorov distribution Q(λ); clamped to [0, 1].
+
+    For ``lam < 0.18`` the alternating series
+    ``2 Σ (-1)^(k-1) exp(-2 k² λ²)`` converges so slowly that 100 terms
+    are insufficient and the partial sum oscillates. Q(0.18) ≈ 1 to
+    within ~5e-7 (Numerical Recipes §14.3.3 cutoff), so we short-circuit
+    to 1.0 in that regime — this matches the conservative interpretation
+    "essentially identical distributions cannot be distinguished" and
+    avoids spurious low p-values that would otherwise fire false drift
+    alerts on near-identical baseline/live samples.
+    """
     if lam <= 0.0:
+        return 1.0
+    if lam < 0.18:
         return 1.0
     total = 0.0
     sign = 1.0

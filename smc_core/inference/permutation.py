@@ -65,8 +65,43 @@ def _block_indices(n: int, block_size: int, rng: np.random.Generator) -> np.ndar
         seg = e - s
         out[cursor : cursor + seg] = np.arange(s, e)
         cursor += seg
-    assert cursor == n
+    if cursor != n:  # pragma: no cover - defensive: impossible by construction
+        raise RuntimeError(
+            f"_block_indices internal error: cursor={cursor} != n={n}"
+        )
     return out
+
+
+def _block_aligned_split(
+    permuted: np.ndarray, n_t: int, block_size: int
+) -> tuple[np.ndarray, np.ndarray]:
+    """Split a block-permuted index/value array into ``(treatment, control)``
+    on the closest block boundary to ``n_t``.
+
+    The C-sprint deep-review identified that the previous ``permuted[:n_t]``
+    split could cut the last treatment block mid-way whenever
+    ``n_t % block_size != 0``, breaking the autocorrelation-preserving
+    contract of moving-block permutation under H₀. We now round the
+    treatment side to a whole-block boundary so every block ends up
+    entirely in one arm.
+
+    Boundary policy (post Copilot pass-3 fix):
+    * For ``n_t`` already inside ``[block_size, n - block_size]`` the
+      snapped size differs from the original ``n_t`` by at most
+      ``block_size // 2`` samples — negligible relative to typical ``n``.
+    * The caller (:func:`block_permutation_test`) validates upfront
+      that both arms span at least one full block when
+      ``block_size > 1``, so the clamp branch is unreachable in
+      practice; it remains as a defensive floor.
+    * For ``block_size == 1`` the split is exactly at ``n_t`` (no
+      behavioural change vs. the iid case).
+    """
+    if block_size <= 1:
+        return permuted[:n_t], permuted[n_t:]
+    n = permuted.size
+    snapped = int(round(n_t / block_size)) * block_size
+    snapped = max(block_size, min(snapped, n - block_size))
+    return permuted[:snapped], permuted[snapped:]
 
 
 def block_permutation_test(
@@ -113,15 +148,73 @@ def block_permutation_test(
             f"block_size must be smaller than pooled sample size ({n}), "
             f"got {block_size}"
         )
+    # Copilot pass-3 fix: when ``block_size > 1`` the snapped split rule
+    # in :func:`_block_aligned_split` requires that both arms span at
+    # least one full block. Reject inputs that don't, so the trim below
+    # is always non-empty on both arms.
+    #
+    # Copilot pass-4 correction: the per-arm trim is floor-division to a
+    # multiple of ``block_size``, so the snapped n_t / n_c may deviate
+    # from the original by up to ``block_size - 1`` samples (e.g.
+    # n_t=9, block_size=5 trims to 5 → deviation 4). The earlier
+    # "≤ block_size // 2" wording was wrong; the actual worst case is
+    # ``block_size - 1`` and is documented here so the next reviewer
+    # doesn't chase a phantom regression.
+    if block_size > 1 and (n_t < block_size or (n - n_t) < block_size):
+        raise ValueError(
+            f"block_size > 1 requires both arms to span at least one full "
+            f"block: n_t={n_t}, n_c={n - n_t}, block_size={block_size}"
+        )
 
-    observed = float(statistic(t, c))
+    # Copilot pass-3 fix (CRITICAL): the null draws use a snapped split
+    # to keep blocks intact under H₀. Both ``observed`` and every null
+    # draw must use the *same* group sizes, otherwise the test compares
+    # statistics with different sample-size sampling distributions and
+    # the p-value is miscalibrated. We therefore:
+    #   1. Compute the canonical snapped boundary once.
+    #   2. Trim ``treatment`` and ``control`` to ``snapped`` and
+    #      ``n - snapped`` samples (so observed stays the genuine
+    #      treatment-vs-control statistic, never mixing labels).
+    #   3. Repool from the trimmed arms so null draws operate on the
+    #      same effective ``n`` and inherit the aligned ``n_t``.
+    if block_size > 1:
+        # Trim each arm independently to a multiple of ``block_size``.
+        # This guarantees:
+        #  (a) the snapped n_t (= len(t)) is a multiple of block_size,
+        #      so the null-draw split is exact and never cuts blocks,
+        #  (b) ``observed`` and every null draw evaluate the statistic
+        #      on identical group sizes (Copilot pass-3 CRITICAL fix),
+        #  (c) the snap deviates from the original ``n_t`` / ``n_c``
+        #      by at most ``block_size - 1`` samples — well within the
+        #      "negligible" budget the docstring promises.
+        n_t_trim = (t.size // block_size) * block_size
+        n_c_trim = (c.size // block_size) * block_size
+        if n_t_trim == 0 or n_c_trim == 0:
+            # Already rejected above by the explicit-block-span guard,
+            # but defensive in case future callers relax that.
+            raise ValueError(
+                f"block_size > 1 requires both arms to span at least one "
+                f"full block: n_t={t.size}, n_c={c.size}, "
+                f"block_size={block_size}"
+            )
+        if n_t_trim != t.size:
+            t = t[:n_t_trim]
+        if n_c_trim != c.size:
+            c = c[:n_c_trim]
+        n_t = t.size
+        pooled = np.concatenate([t, c])
+        n = pooled.size
+
     rng = np.random.default_rng(seed)
+    observed = float(statistic(t, c))
     null = np.empty(B, dtype=np.float64)
     for b in range(B):
         idx = _block_indices(n, block_size, rng)
         permuted = pooled[idx]
-        t_b = permuted[:n_t]
-        c_b = permuted[n_t:]
+        # With the per-arm trim above, ``n_t`` is now an exact multiple
+        # of ``block_size`` so the split is exact and ``observed`` and
+        # every null draw share the same group sizes.
+        t_b, c_b = _block_aligned_split(permuted, n_t, block_size)
         null[b] = float(statistic(t_b, c_b))
 
     if alternative == "two-sided":

@@ -87,6 +87,55 @@ def test_alternative_greater_vs_less() -> None:
     assert p_less > 0.95
 
 
+def test_block_aligned_split_keeps_blocks_intact() -> None:
+    """C-sprint deep-review C4 MAJOR fix regression: when ``block_size > 1``
+    and ``n_t`` is not a multiple of ``block_size``, the split between
+    treatment and control must land on a block boundary so no permuted
+    block is cut mid-way. The behaviour for ``block_size == 1`` must
+    remain identical to the iid case (split at exact ``n_t``).
+    """
+    from smc_core.inference.permutation import (
+        _block_aligned_split,
+        _block_indices,
+    )
+
+    rng = np.random.default_rng(seed=7)
+    n = 100
+    block_size = 5
+    n_t = 47  # NOT a multiple of block_size — would have cut mid-block.
+
+    idx = _block_indices(n, block_size, rng)
+    permuted = np.arange(n)[idx]
+
+    t_arr, c_arr = _block_aligned_split(permuted, n_t, block_size)
+    assert t_arr.size + c_arr.size == n
+    # Treatment size snapped to nearest block boundary.
+    assert t_arr.size % block_size == 0
+    # Treatment chunk must be a contiguous prefix of the permuted seq.
+    np.testing.assert_array_equal(t_arr, permuted[: t_arr.size])
+    # block_size=1 path unchanged (exact split at n_t).
+    t1, c1 = _block_aligned_split(permuted, n_t, block_size=1)
+    assert t1.size == n_t
+    np.testing.assert_array_equal(t1, permuted[:n_t])
+    np.testing.assert_array_equal(c1, permuted[n_t:])
+
+
+def test_block_permutation_runs_with_unaligned_n_t() -> None:
+    """End-to-end: ``n_t`` not divisible by ``block_size`` must no longer
+    cut a block mid-way — the run completes and produces a valid
+    p-value distribution.
+    """
+    rng = np.random.default_rng(seed=3)
+    t = rng.normal(0.5, 1.0, size=47)  # 47 not divisible by 5.
+    c = rng.normal(0.0, 1.0, size=53)
+    p, _, null = block_permutation_test(
+        treatment=t, control=c,
+        statistic=_mean_diff, block_size=5, B=200, seed=12,
+    )
+    assert 0.0 < p <= 1.0
+    assert null.shape == (200,)
+
+
 def test_validates_inputs() -> None:
     with pytest.raises(ValueError, match="block_size"):
         block_permutation_test(
@@ -153,3 +202,48 @@ def test_cache_atomic_write_no_partial_files(tmp_path: Path) -> None:
     files = list(tmp_path.iterdir())
     assert len(files) == 1
     assert files[0].suffix == ".json"
+
+
+def test_block_size_gt_1_rejects_arms_smaller_than_one_block() -> None:
+    """Copilot pass-3 fix: explicit guard, no silent miscalibration."""
+    t = np.arange(3, dtype=float)
+    c = np.arange(20, dtype=float)
+    with pytest.raises(ValueError, match="span at least one full block"):
+        block_permutation_test(
+            treatment=t, control=c, statistic=_mean_diff,
+            block_size=5, B=10, seed=0,
+        )
+
+
+def test_observed_uses_same_group_sizes_as_null() -> None:
+    """Copilot pass-3 fix (CRITICAL): observed and null share group sizes.
+
+    Pre-fix, ``observed`` was computed on the original ``(n_t, n_c)``
+    sizes while every null draw used the snapped ``(snapped, n - snapped)``
+    sizes — a miscalibration when ``n_t % block_size != 0``.
+    """
+    rng = np.random.default_rng(0)
+    # n_t=47 with block_size=5 → snapped=45; n_c=53 with block_size=5
+    # would snap to 55 but n_c is also trimmed to a block multiple → 50.
+    t = rng.normal(size=47)
+    c = rng.normal(size=53)
+    sizes_seen: list[tuple[int, int]] = []
+
+    def _stat(arr_t: np.ndarray, arr_c: np.ndarray) -> float:
+        sizes_seen.append((arr_t.size, arr_c.size))
+        return float(arr_t.mean() - arr_c.mean())
+
+    p, observed, null = block_permutation_test(
+        treatment=t, control=c, statistic=_stat,
+        block_size=5, B=20, seed=0,
+    )
+    # All evaluations (1 observed + 20 null) use identical group sizes.
+    assert len(set(sizes_seen)) == 1, sizes_seen
+    n_t_seen, n_c_seen = sizes_seen[0]
+    # Both snapped to multiples of block_size=5.
+    assert n_t_seen % 5 == 0
+    assert n_c_seen % 5 == 0
+    # Snap stayed within block_size//2 of the original n_t=47.
+    assert abs(n_t_seen - 47) <= 2
+    assert 0.0 <= p <= 1.0
+    assert null.shape == (20,)

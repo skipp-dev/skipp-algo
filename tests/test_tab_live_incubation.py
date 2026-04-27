@@ -84,3 +84,57 @@ def test_build_live_view_is_deterministic() -> None:
     a = build_live_view(payload)
     b = build_live_view(payload)
     assert a == b
+
+
+def test_format_live_row_surfaces_slippage_reference_type() -> None:
+    """C-sprint deep-review pass-2: dashboard MUST show the synthetic flag.
+
+    ``slippage_ks_reference_type`` is emitted by ``compute_live_drift``
+    but was not surfaced by any tab — operators judging Phase-B
+    promotion from the UI could not see whether they were looking at
+    real backtest samples or the synthetic_normal fallback.
+    """
+    row = format_live_row({"variant": "v1", "slippage_ks_reference_type": "synthetic_normal"})
+    assert row["slippage_ks_reference_type"] == "synthetic_normal"
+
+    row = format_live_row({"variant": "v1", "slippage_ks_reference_type": "backtest_samples"})
+    assert row["slippage_ks_reference_type"] == "backtest_samples"
+
+    # Missing → "unavailable" so downstream renderers always have a string.
+    row = format_live_row({"variant": "v1"})
+    assert row["slippage_ks_reference_type"] == "unavailable"
+
+
+def test_build_live_view_emits_synthetic_warning_banner_key() -> None:
+    """Banner-key fires when at least one variant has the synthetic fallback."""
+    payload = {
+        "variants": [
+            {"variant": "v1", "live_sharpe": 0.5, "backtest_sharpe": 0.6, "verdict": "pass",
+             "slippage_ks_reference_type": "backtest_samples"},
+            {"variant": "v2", "live_sharpe": 0.4, "backtest_sharpe": 0.5, "verdict": "acceptable",
+             "slippage_ks_reference_type": "synthetic_normal"},
+        ],
+    }
+    out = build_live_view(payload)
+    assert out["slippage_reference_warning"] == "synthetic_normal"
+
+
+def test_build_live_view_emits_unavailable_warning_when_all_unavailable() -> None:
+    payload = {
+        "variants": [
+            {"variant": "v1", "verdict": "insufficient_sample"},
+        ],
+    }
+    out = build_live_view(payload)
+    assert out["slippage_reference_warning"] == "unavailable"
+
+
+def test_build_live_view_no_warning_when_all_backtest_samples() -> None:
+    payload = {
+        "variants": [
+            {"variant": "v1", "verdict": "pass",
+             "slippage_ks_reference_type": "backtest_samples"},
+        ],
+    }
+    out = build_live_view(payload)
+    assert out["slippage_reference_warning"] is None

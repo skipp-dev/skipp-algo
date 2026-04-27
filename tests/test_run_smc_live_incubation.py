@@ -261,3 +261,94 @@ def test_phase_defaults_table_is_complete() -> None:
     for phase, defaults in _PHASE_DEFAULTS.items():
         assert "size_scale" in defaults, f"phase {phase} missing size_scale"
         assert "paper_mode" in defaults, f"phase {phase} missing paper_mode"
+
+
+def test_cli_live_phase_requires_account_state_json(tmp_path: Path) -> None:
+    """C-sprint deep-review C8 MINOR fix: live phases must refuse to run
+    without an explicit ``--account-state-json`` snapshot. The default
+    zero-AccountState would make the kill-switch silently no-op against
+    drawdown / equity / P&L history.
+    """
+    setups = tmp_path / "setups.json"
+    setups.write_text(json.dumps([_setup(variant="v")]), encoding="utf-8")
+    statuses = tmp_path / "statuses.json"
+    statuses.write_text(json.dumps({"v": "green"}), encoding="utf-8")
+    audit = tmp_path / "audit.jsonl"
+
+    for phase in ("live_small", "live_full"):
+        with pytest.raises(SystemExit, match="account-state-json"):
+            main([
+                "--phase", phase,
+                "--setups", str(setups),
+                "--gate-statuses", str(statuses),
+                "--audit-output", str(audit),
+            ])
+
+
+def test_cli_live_phase_loads_account_state_json(tmp_path: Path) -> None:
+    setups = tmp_path / "setups.json"
+    setups.write_text(json.dumps([_setup(variant="v")]), encoding="utf-8")
+    statuses = tmp_path / "statuses.json"
+    statuses.write_text(json.dumps({"v": "green"}), encoding="utf-8")
+    audit = tmp_path / "audit.jsonl"
+
+    snapshot = {
+        "as_of": "2026-04-26",
+        "equity": 100000.0,
+        "starting_equity_today": 100000.0,
+        "high_water_mark": 100000.0,
+        "open_positions": 0,
+        "gross_exposure_pct": 0.0,
+        "last_n_pnls": [10.0, -5.0],
+    }
+    state_path = tmp_path / "account.json"
+    state_path.write_text(json.dumps(snapshot), encoding="utf-8")
+
+    rc = main([
+        "--phase", "live_small",
+        "--setups", str(setups),
+        "--gate-statuses", str(statuses),
+        "--audit-output", str(audit),
+        "--account-state-json", str(state_path),
+    ])
+    assert rc == 0
+
+
+def test_account_state_json_rejects_null_last_n_pnls(tmp_path: Path) -> None:
+    """Copilot pass-4: explicit JSON null for last_n_pnls must produce a
+    clear ValueError, not a raw TypeError from ``float(x) for x in None``."""
+    import pytest
+    from scripts.run_smc_live_incubation import _account_state_from_json
+
+    state_path = tmp_path / "account.json"
+    state_path.write_text(json.dumps({
+        "as_of": "2026-04-26",
+        "equity": 100000.0,
+        "starting_equity_today": 100000.0,
+        "high_water_mark": 100000.0,
+        "open_positions": 0,
+        "gross_exposure_pct": 0.0,
+        "last_n_pnls": None,
+    }), encoding="utf-8")
+    # JSON ``null`` -> Python ``None`` -> documented "treat as empty".
+    state = _account_state_from_json(state_path)
+    assert state.last_n_pnls == ()
+
+
+def test_account_state_json_rejects_non_iterable_last_n_pnls(tmp_path: Path) -> None:
+    """A scalar last_n_pnls must produce a clear ValueError (not a TypeError)."""
+    import pytest
+    from scripts.run_smc_live_incubation import _account_state_from_json
+
+    state_path = tmp_path / "account.json"
+    state_path.write_text(json.dumps({
+        "as_of": "2026-04-26",
+        "equity": 100000.0,
+        "starting_equity_today": 100000.0,
+        "high_water_mark": 100000.0,
+        "open_positions": 0,
+        "gross_exposure_pct": 0.0,
+        "last_n_pnls": 42,
+    }), encoding="utf-8")
+    with pytest.raises(ValueError, match="last_n_pnls must be a list/tuple"):
+        _account_state_from_json(state_path)

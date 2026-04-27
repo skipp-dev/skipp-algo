@@ -118,6 +118,15 @@ def test_phase_b_runbook_mirrors_dataclass() -> None:
     assert "kill_switch_never_fired" in PHASE_B_CRITERIA.extra
     assert re.search(r"Max-DD live\s*<\s*2[×x]\s*backtest", section), section
     assert "max_dd_live_lt_2x_backtest" in PHASE_B_CRITERIA.extra
+    # Slippage K-S reference type must be ``backtest_samples`` for Phase-B.
+    # The C-sprint deep-review found this only in the runbook prose, not
+    # mirrored on the dataclass — making it invisible to the machine-
+    # checkable promotion gate. Now pinned in both directions.
+    assert "backtest_samples" in section
+    assert "slippage_ks_reference_backtest_samples" in PHASE_B_CRITERIA.extra
+    # Watchdog window-coverage requirement (no missing date files).
+    assert "window_complete" in section
+    assert "drift_window_complete" in PHASE_B_CRITERIA.extra
     # verdict pass or acceptable
     assert PHASE_B_CRITERIA.require_drift_verdict_in == ("pass", "acceptable")
 

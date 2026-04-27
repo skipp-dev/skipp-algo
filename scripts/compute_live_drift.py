@@ -23,6 +23,8 @@ Schema (additive only; bump the consumer when fields are removed)::
           "backtest_sharpe": 0.93,
           "drift_score": 0.76,
           "slippage_ks_p": 0.32,
+          "slippage_ks_reference": "backtest_samples",
+          "slippage_ks_reference_type": "backtest_samples",
           "hr_in_bootstrap_ci": true,
           "verdict": "acceptable"
         }

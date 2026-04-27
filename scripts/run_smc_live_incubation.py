@@ -40,7 +40,7 @@ import os
 import tempfile
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any
@@ -128,6 +128,20 @@ PHASE_B_CRITERIA = PhasePassCriteria(
     extra=(
         "kill_switch_never_fired",
         "max_dd_live_lt_2x_backtest",
+        # C-sprint deep-review MAJOR fix: code-mirror of the runbook
+        # contract that ``synthetic_normal`` slippage references are
+        # acceptable for Phase-A only and **must** be replaced by
+        # ``backtest_samples`` before Phase-B sign-off. Without this
+        # mirror, a drift report with ``slippage_ks_reference_type=
+        # synthetic_normal`` would not show up in the machine-checkable
+        # promotion criteria — only in the runbook prose. See
+        # ``compute_live_drift.py`` boundary comment and
+        # ``docs/c8_live_incubation_runbook.md`` §"Phase-B — Live Small".
+        "slippage_ks_reference_backtest_samples",
+        # Watchdog window-coverage gate is also a documented Phase-B
+        # criterion ("``window_complete: true`` on the watchdog report").
+        # Mirrored here so the runbook-mirror test can pin it.
+        "drift_window_complete",
     ),
 )
 
@@ -396,7 +410,91 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Override the phase default size scale.",
     )
+    parser.add_argument(
+        "--account-state-json",
+        type=Path,
+        default=None,
+        help=(
+            "JSON file with the live AccountState snapshot. REQUIRED for "
+            "phase=live_small or live_full so the kill-switch evaluates "
+            "real equity / drawdown / P&L history. Optional for "
+            "phase=paper, where a zero-AccountState is acceptable for "
+            "dry-runs and CI."
+        ),
+    )
     return parser
+
+
+def _account_state_from_json(path: Path) -> AccountState:
+    """Construct an :class:`AccountState` from a JSON file.
+
+    Required keys mirror the dataclass field set; ``last_n_pnls`` is
+    optional and defaults to an empty tuple.
+    """
+    blob = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(blob, dict):
+        raise ValueError(f"--account-state-json must be a JSON object, got {type(blob).__name__}")
+    required = {
+        "as_of",
+        "equity",
+        "starting_equity_today",
+        "high_water_mark",
+        "open_positions",
+        "gross_exposure_pct",
+    }
+    missing = required - blob.keys()
+    if missing:
+        raise ValueError(
+            f"--account-state-json missing required keys: {sorted(missing)!r}"
+        )
+    as_of_raw = blob["as_of"]
+    # Copilot pass-3 fix: enforce strict ISO ``YYYY-MM-DD`` for
+    # ``as_of`` (no time component). ``datetime.fromisoformat`` would
+    # silently accept ``"2026-04-26T13:30:00+00:00"`` here, masking
+    # operator confusion about which day's account state was supplied.
+    if not isinstance(as_of_raw, str):
+        raise ValueError(
+            "--account-state-json: AccountState.as_of must be an ISO date "
+            f"string (YYYY-MM-DD), got {type(as_of_raw).__name__}"
+        )
+    try:
+        as_of = date.fromisoformat(as_of_raw)
+    except ValueError as exc:
+        raise ValueError(
+            f"--account-state-json: AccountState.as_of must be an ISO date "
+            f"string (YYYY-MM-DD), got {as_of_raw!r}"
+        ) from exc
+    # Copilot pass-4 fix: ``last_n_pnls`` is documented as optional, but
+    # ``blob.get("last_n_pnls", ())`` falls through to ``None`` when the
+    # JSON key is present and explicitly ``null``, which then raises a
+    # raw ``TypeError`` from ``float(x) for x in None``. Validate the
+    # type at the boundary so a malformed file produces a clear
+    # remediation message instead of a stack trace.
+    raw_pnls = blob.get("last_n_pnls")
+    if raw_pnls is None:
+        last_n: tuple[float, ...] = ()
+    elif not isinstance(raw_pnls, (list, tuple)):
+        raise ValueError(
+            "--account-state-json: AccountState.last_n_pnls must be a "
+            f"list/tuple of numbers (or omitted), got {type(raw_pnls).__name__}"
+        )
+    else:
+        try:
+            last_n = tuple(float(x) for x in raw_pnls)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "--account-state-json: AccountState.last_n_pnls entries must "
+                f"all be numeric, got {raw_pnls!r}"
+            ) from exc
+    return AccountState(
+        as_of=as_of,
+        equity=float(blob["equity"]),
+        starting_equity_today=float(blob["starting_equity_today"]),
+        high_water_mark=float(blob["high_water_mark"]),
+        open_positions=int(blob["open_positions"]),
+        gross_exposure_pct=float(blob["gross_exposure_pct"]),
+        last_n_pnls=last_n,
+    )
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -412,15 +510,32 @@ def main(argv: Sequence[str] | None = None) -> int:
     gate_statuses = json.loads(args.gate_statuses.read_text(encoding="utf-8"))
 
     risk_limits = RiskLimits()  # repo-default; future: load from configs/.
-    account_state = AccountState(
-        as_of=datetime.now(timezone.utc).date(),
-        equity=0.0,
-        starting_equity_today=0.0,
-        high_water_mark=0.0,
-        open_positions=0,
-        gross_exposure_pct=0.0,
-        last_n_pnls=(),
-    )
+
+    # C-sprint deep-review C8 MINOR fix: a default-zero AccountState is
+    # safe for paper-mode dry-runs but DANGEROUS for any phase that
+    # actually submits orders — the kill-switch evaluates against
+    # equity / drawdown / P&L history, all of which are zero in the
+    # default and can therefore mask a legitimate halt condition. Force
+    # the operator to supply a real snapshot for the live phases.
+    if args.phase in ("live_small", "live_full") and args.account_state_json is None:
+        raise SystemExit(
+            f"phase={args.phase!r} requires --account-state-json with "
+            "the current live AccountState (equity, drawdown, P&L "
+            "history). Refusing to default to a zero-AccountState for "
+            "a non-paper phase — the kill-switch would silently no-op."
+        )
+    if args.account_state_json is not None:
+        account_state = _account_state_from_json(args.account_state_json)
+    else:
+        account_state = AccountState(
+            as_of=datetime.now(timezone.utc).date(),
+            equity=0.0,
+            starting_equity_today=0.0,
+            high_water_mark=0.0,
+            open_positions=0,
+            gross_exposure_pct=0.0,
+            last_n_pnls=(),
+        )
     execution_cfg = IBKRExecutionConfig(paper_mode=bool(phase_defaults["paper_mode"]))
 
     summary = run_live_incubation(
