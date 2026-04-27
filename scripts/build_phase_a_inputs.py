@@ -205,7 +205,15 @@ def _build_gate_status(
                     continue
                 if not isinstance(returns, list):
                     continue
-                cleaned = [float(x) for x in returns if isinstance(x, (int, float))]
+                # Exclude bool explicitly: True/False are valid `int`
+                # subclasses and would be coerced to 1.0/0.0, silently
+                # influencing gate verdicts (matches the scalar-sanitisation
+                # pattern in scripts/build_track_record_gate.py).
+                cleaned = [
+                    float(x)
+                    for x in returns
+                    if not isinstance(x, bool) and isinstance(x, (int, float))
+                ]
                 if cleaned:
                     by_variant[variant] = cleaned
 

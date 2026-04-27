@@ -42,7 +42,15 @@ trap cleanup EXIT
 git fetch origin "${AUDIT_BRANCH}" || true
 if git show-ref --verify --quiet "refs/heads/${AUDIT_BRANCH}"; then
     git checkout "${AUDIT_BRANCH}"
-    git merge --ff-only "origin/${AUDIT_BRANCH}" || true
+    # Fail loud on divergence: a non-fast-forward here means the local audit
+    # branch has unsynced commits, in which case the later `git push` would
+    # be rejected anyway. Aborting now produces an actionable error in the
+    # LaunchAgent log instead of a silent push-failure that leaves Phase-A
+    # artefacts unpublished until an operator notices.
+    if ! git merge --ff-only "origin/${AUDIT_BRANCH}"; then
+        echo "ERROR: cannot fast-forward ${AUDIT_BRANCH} onto origin/${AUDIT_BRANCH}; local branch has diverged. Aborting so an operator can resolve the branch state." >&2
+        exit 1
+    fi
 else
     git checkout -B "${AUDIT_BRANCH}" "origin/${AUDIT_BRANCH}"
 fi
