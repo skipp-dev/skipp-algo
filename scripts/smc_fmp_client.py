@@ -29,6 +29,32 @@ from smc_core.resilient import resilient
 
 logger = logging.getLogger(__name__)
 
+# Lane 5 (provider-boundary audit, 2026-04-27): the helpers below
+# silently swallow ``RuntimeError`` raised by ``_get`` and return an
+# empty result so that downstream pipelines can degrade gracefully.
+# That degradation was *too* graceful — the failure was completely
+# invisible in logs, masking endpoint deprecations, network outages,
+# and quota exhaustion. ``_log_endpoint_failure_once`` emits a single
+# ``logger.warning`` per ``(endpoint, exception-type)`` per process so
+# the failure is surfaced exactly once instead of either spamming or
+# disappearing.
+_LOGGED_SILENT_FAILURES: set[tuple[str, str]] = set()
+
+
+def _log_endpoint_failure_once(endpoint: str, exc: BaseException) -> None:
+    """Emit a one-shot warning for an FMP endpoint that silently degraded."""
+    key = (endpoint, type(exc).__name__)
+    if key in _LOGGED_SILENT_FAILURES:
+        return
+    _LOGGED_SILENT_FAILURES.add(key)
+    logger.warning(
+        "FMP %s degraded silently (%s: %s); returning empty result. "
+        "Subsequent failures of the same kind will not be re-logged.",
+        endpoint,
+        type(exc).__name__,
+        exc,
+    )
+
 _BASE_URL = "https://financialmodelingprep.com"
 # HTTP status codes worth a retry. Anything else is treated as fatal so
 # we don't silently swallow auth/404 problems via the @resilient pilot.
@@ -213,7 +239,8 @@ class SMCFMPClient:
         sym = symbol.strip().upper()
         try:
             data = self._get("/stable/quote", {"symbol": sym})
-        except RuntimeError:
+        except RuntimeError as exc:
+            _log_endpoint_failure_once("/stable/quote", exc)
             return {}
         if isinstance(data, dict):
             return dict(data)
@@ -232,7 +259,8 @@ class SMCFMPClient:
             return {}
         try:
             data = self._get("/stable/profile", {"symbol": requested_symbol})
-        except RuntimeError:
+        except RuntimeError as exc:
+            _log_endpoint_failure_once("/stable/profile", exc)
             return {}
         if isinstance(data, dict):
             return dict(data)
@@ -264,7 +292,8 @@ class SMCFMPClient:
         }
         try:
             data = self._get("/stable/analyst-estimates", params)
-        except RuntimeError:
+        except RuntimeError as exc:
+            _log_endpoint_failure_once("/stable/analyst-estimates", exc)
             return []
         return list(data) if isinstance(data, list) else []
 
@@ -274,7 +303,8 @@ class SMCFMPClient:
             return []
         try:
             data = self._get("/stable/ratios-ttm", {"symbol": requested_symbol})
-        except RuntimeError:
+        except RuntimeError as exc:
+            _log_endpoint_failure_once("/stable/ratios-ttm", exc)
             return []
         return list(data) if isinstance(data, list) else []
 
@@ -284,7 +314,8 @@ class SMCFMPClient:
             return []
         try:
             data = self._get("/stable/key-metrics-ttm", {"symbol": requested_symbol})
-        except RuntimeError:
+        except RuntimeError as exc:
+            _log_endpoint_failure_once("/stable/key-metrics-ttm", exc)
             return []
         return list(data) if isinstance(data, list) else []
 
@@ -468,7 +499,8 @@ class SMCFMPClient:
             params["symbol"] = symbol.strip().upper()
         try:
             data = self._get("/stable/news/stock-latest", params)
-        except RuntimeError:
+        except RuntimeError as exc:
+            _log_endpoint_failure_once("/stable/news/stock-latest", exc)
             return []
         return list(data) if isinstance(data, list) else []
 
@@ -478,7 +510,8 @@ class SMCFMPClient:
         params = {"from": from_date.isoformat(), "to": to_date.isoformat()}
         try:
             data = self._get("/stable/earnings-calendar", params)
-        except RuntimeError:
+        except RuntimeError as exc:
+            _log_endpoint_failure_once("/stable/earnings-calendar", exc)
             return []
         return list(data) if isinstance(data, list) else []
 
@@ -559,8 +592,8 @@ class SMCFMPClient:
                 y10 = _coerce_finite_float(latest.get("year10")) or 0.0
                 spread = round(y10 - y2, 4)
                 return {"2y": round(y2, 4), "10y": round(y10, 4), "spread": spread, "inverted": spread < 0}
-        except Exception:
-            pass
+        except Exception as exc:
+            _log_endpoint_failure_once("/stable/treasury-rates", exc)
         return {"2y": 0.0, "10y": 0.0, "spread": 0.0, "inverted": False}
 
     def get_institutional_holders(self, symbol: str) -> list[dict[str, Any]]:
@@ -594,7 +627,10 @@ class SMCFMPClient:
                     "/stable/institutional-ownership/symbol-positions-summary",
                     {"symbol": sym, "year": year, "quarter": quarter},
                 )
-            except Exception:
+            except Exception as exc:
+                _log_endpoint_failure_once(
+                    "/stable/institutional-ownership/symbol-positions-summary", exc
+                )
                 data = None
             if data and isinstance(data, list) and len(data) > 0:
                 row = data[0]
@@ -625,7 +661,8 @@ class SMCFMPClient:
                 {"symbol": sym, "limit": max(int(limit), 1)},
             )
             return list(data) if isinstance(data, list) else []
-        except Exception:
+        except Exception as exc:
+            _log_endpoint_failure_once("/stable/insider-trading/search", exc)
             return []
 
     def get_technical_indicator(
@@ -646,7 +683,10 @@ class SMCFMPClient:
             data = self._get(
                 f"/stable/technical-indicators/{indicator_type}", params,
             )
-        except RuntimeError:
+        except RuntimeError as exc:
+            _log_endpoint_failure_once(
+                f"/stable/technical-indicators/{indicator_type}", exc
+            )
             return {}
         if isinstance(data, dict):
             return dict(data)
