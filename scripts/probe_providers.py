@@ -25,13 +25,11 @@ import logging
 import os
 import sys
 import time
-import traceback
 from dataclasses import asdict, dataclass
+from datetime import date
 from typing import Any, Callable
 
 from dotenv import load_dotenv
-
-load_dotenv()
 
 # ── Pretty output ───────────────────────────────────────────────────
 
@@ -132,7 +130,9 @@ def probe_fmp_quote() -> tuple[str, str]:
     price = row.get("price")
     if not isinstance(price, (int, float)) or price <= 0:
         return ("WARN", f"price suspect: {price}")
-    return ("OK", f"AAPL price={price} mcap={row.get('marketCap'):,}")
+    mcap = row.get('marketCap')
+    mcap_str = f"{mcap:,.0f}" if isinstance(mcap, (int, float)) and not isinstance(mcap, bool) else "n/a"
+    return ("OK", f"AAPL price={price} mcap={mcap_str}")
 
 
 def probe_fmp_treasury() -> tuple[str, str]:
@@ -296,7 +296,9 @@ def probe_databento_daily_bars() -> tuple[str, str]:
     missing = needed - set(aapl.keys())
     if missing:
         return ("WARN", f"missing fields: {sorted(missing)}")
-    return ("OK", f"AAPL close={aapl.get('close')} vol={aapl.get('volume'):,}")
+    vol = aapl.get('volume')
+    vol_str = f"{vol:,.0f}" if isinstance(vol, (int, float)) and not isinstance(vol, bool) else "n/a"
+    return ("OK", f"AAPL close={aapl.get('close')} vol={vol_str}")
 
 
 def probe_benzinga_news() -> tuple[str, str]:
@@ -319,7 +321,9 @@ def probe_benzinga_news() -> tuple[str, str]:
     row = data[0]
     if "id" not in row or "title" not in row:
         return ("WARN", f"unexpected shape: {sorted(row.keys())[:6]}")
-    return ("OK", f"{len(data)} items, latest id={row.get('id')} ({row.get('created', '?')[:19]})")
+    created = row.get('created') or ''
+    created_str = str(created)[:19] if created else '?'
+    return ("OK", f"{len(data)} items, latest id={row.get('id')} ({created_str})")
 
 
 def probe_benzinga_quotes() -> tuple[str, str]:
@@ -438,7 +442,11 @@ def probe_bz_ownership() -> tuple[str, str]:
 
 
 def probe_bz_calendar_earnings() -> tuple[str, str]:
-    return _bz_get("/api/v2.1/calendar/earnings", {"parameters[date_from]": "2026-04-27"})
+    today = date.today().isoformat()
+    return _bz_get(
+        "/api/v2.1/calendar/earnings",
+        {"parameters[date_from]": today, "parameters[date_to]": today},
+    )
 
 
 def probe_bz_news_top() -> tuple[str, str]:
@@ -693,6 +701,7 @@ def preflight_or_die(
     With ``raise_on_block=False`` the function returns the results without
     raising so callers can decide their own handling.
     """
+    load_dotenv()
     results = run_probes(critical_only=True, quiet=quiet)
     blocking = [r for r in results if r.is_blocking]
     if blocking:
@@ -799,6 +808,7 @@ def _print_summary(results: list[ProbeResult]) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    load_dotenv()
     parser = argparse.ArgumentParser(
         description="Probe every external data/news provider used by skipp-algo.",
     )

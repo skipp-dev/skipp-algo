@@ -5,7 +5,6 @@ in-memory function so the tests are hermetic and instant.
 """
 from __future__ import annotations
 
-import io
 import json
 from unittest.mock import patch
 
