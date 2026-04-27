@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# C13 Phase-A — daily local cron driver for fresh open_prep trade-cards.
+# Invoked by ~/Library/LaunchAgents/com.skippalgo.c13.phase-a-export.plist
+# on Mon-Fri @ 09:18 local time (10 minutes BEFORE the phase-a runner
+# at 09:28). Idempotent: writes timestamped CSV under reports/.
+#
+# Output: reports/open_prep_trade_cards_<TS>.csv (consumed by the
+# subsequent build_phase_a_inputs.py invocation in run-c13-phase-a.sh).
+
+set -euo pipefail
+
+REPO="$(cd "$(dirname "$0")/../.." && pwd)"
+VENV="${C13_VENV:-${HOME}/.venv}"
+
+cd "${REPO}"
+# shellcheck disable=SC1091
+source "${VENV}/bin/activate"
+
+# Phase-A is paper-only; an export failure (e.g. transient FMP circuit
+# open) must NOT block the downstream runner — it will fall back to the
+# most recent successful CSV via build_phase_a_inputs.py auto-discovery.
+export PYTHONPATH="${REPO}"
+python -m scripts.export_open_prep_lists || \
+    echo "open_prep export failed (non-fatal); phase-a runner will use prior CSV"
