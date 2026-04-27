@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import ssl
+import threading
 import time
 import urllib.error
 from dataclasses import dataclass, field
@@ -467,30 +468,44 @@ def macro_bias_score(
 
 
 class _CircuitBreaker:
+    """Thread-safe single-failure circuit breaker.
+
+    State (`_state`, `_opened_at`) is mutated by parallel API workers
+    (`_atr14_by_symbol` / `_fetch_premarket_high_low_bulk` use
+    ``ThreadPoolExecutor`` with up to 8 workers), so all reads/writes
+    are guarded by ``_lock`` to avoid torn reads and the spurious
+    half-open re-open race documented in PRODUCTION_BUG_REPORT.
+    """
+
     def __init__(self, cooldown_seconds: float = 60.0) -> None:
         self.cooldown_seconds = max(cooldown_seconds, 1.0)
         self._state = "CLOSED"
         self._opened_at = 0.0
+        self._lock = threading.Lock()
 
     @property
     def state(self) -> str:
-        return self._state
+        with self._lock:
+            return self._state
 
     def allow_request(self) -> bool:
-        if self._state == "OPEN":
-            if time.time() - self._opened_at >= self.cooldown_seconds:
-                self._state = "HALF_OPEN"
-                return True
-            return False
-        return True
+        with self._lock:
+            if self._state == "OPEN":
+                if time.time() - self._opened_at >= self.cooldown_seconds:
+                    self._state = "HALF_OPEN"
+                    return True
+                return False
+            return True
 
     def on_success(self) -> None:
-        self._state = "CLOSED"
-        self._opened_at = 0.0
+        with self._lock:
+            self._state = "CLOSED"
+            self._opened_at = 0.0
 
     def on_failure(self) -> None:
-        self._state = "OPEN"
-        self._opened_at = time.time()
+        with self._lock:
+            self._state = "OPEN"
+            self._opened_at = time.time()
 
 
 def _log_feature_unavailable_once(feature_key: str, message: str) -> None:
