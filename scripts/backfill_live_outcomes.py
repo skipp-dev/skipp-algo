@@ -35,6 +35,15 @@ from typing import Any
 R_MULTIPLE_KEY = "outcome_r_multiple"
 PNL_KEY = "outcome_pnl_usd"
 
+# C13/T8.3 — opening-auction imbalance annotation keys (additive). The
+# imbalance loader is a Phase-A passive enrichment; downstream
+# consumers must treat the keys as optional (NASDAQ trades never
+# carry them because IBKR has no NASDAQ-imbalance subscription).
+IMBALANCE_SIDE_KEY = "opening_imbalance_side"
+IMBALANCE_NORMALIZED_KEY = "opening_imbalance_shares_normalized"
+IMBALANCE_FEED_KEY = "opening_imbalance_feed"
+IMBALANCE_AVAILABLE_KEY = "opening_imbalance_available"
+
 # Actions the live runner uses to mark a trade as closed.
 _CLOSED_ACTIONS = frozenset({"closed", "stop_hit", "tp_hit", "flattened"})
 
@@ -192,9 +201,121 @@ def backfill_live_outcomes(path: Path | str) -> dict[str, int]:
     return summary
 
 
+def annotate_imbalance_outcomes(
+    audit_path: Path | str,
+    *,
+    imbalance_index: dict[str, dict[str, Any]],
+    avg_volume_lookup: dict[str, float] | None = None,
+) -> dict[str, int]:
+    """Annotate closed trades in the audit log with imbalance metadata.
+
+    Parameters
+    ----------
+    audit_path:
+        Path to a backfilled audit JSONL (run :func:`backfill_live_outcomes`
+        first to ensure outcome fields are present; this hook does not
+        require them but the producer order is the canonical one).
+    imbalance_index:
+        Mapping ``symbol`` (UPPERCASE) -> imbalance-snapshot dict from
+        :mod:`scripts.imbalance_data`. Snapshots without
+        ``auction_imbalance_shares`` set are treated as unavailable.
+    avg_volume_lookup:
+        Optional ``symbol`` -> 30d-avg-daily-volume mapping used for the
+        ``opening_imbalance_shares_normalized`` field. When omitted the
+        normalised value is left as ``None`` and only the raw side flag
+        is written.
+
+    Returns
+    -------
+    dict
+        Summary counts:: ``records_total``, ``records_annotated``,
+        ``records_skipped_no_data``, ``records_skipped_unavailable``.
+
+    The annotation is **purely additive** — fields are written under
+    new keys that the rest of the pipeline ignores (Phase-A passive
+    contract). The function is idempotent.
+    """
+    p = Path(audit_path)
+    records = _load_jsonl(p)
+    avg_volume_lookup = {
+        str(k).upper(): float(v)
+        for k, v in (avg_volume_lookup or {}).items()
+    }
+    summary = {
+        "records_total": len(records),
+        "records_annotated": 0,
+        "records_skipped_no_data": 0,
+        "records_skipped_unavailable": 0,
+    }
+    out: list[dict[str, Any]] = []
+    for record in records:
+        symbol_raw = record.get("symbol")
+        if not symbol_raw:
+            out.append(record)
+            continue
+        sym = str(symbol_raw).upper()
+        snapshot = imbalance_index.get(sym)
+        if snapshot is None:
+            summary["records_skipped_no_data"] += 1
+            out.append(record)
+            continue
+        side = snapshot.get("auction_imbalance_side") or "NEUTRAL"
+        shares = snapshot.get("auction_imbalance_shares")
+        feed = snapshot.get("imbalance_feed")
+        available = bool(snapshot.get("available"))
+        if not available or shares is None:
+            summary["records_skipped_unavailable"] += 1
+            new_record = dict(record)
+            new_record[IMBALANCE_AVAILABLE_KEY] = False
+            new_record[IMBALANCE_FEED_KEY] = feed
+            out.append(new_record)
+            continue
+        normalised = None
+        avg_vol = avg_volume_lookup.get(sym)
+        if avg_vol and avg_vol > 0:
+            try:
+                normalised = float(shares) / float(avg_vol)
+            except (TypeError, ValueError):
+                normalised = None
+        new_record = dict(record)
+        new_record[IMBALANCE_AVAILABLE_KEY] = True
+        new_record[IMBALANCE_SIDE_KEY] = side
+        new_record[IMBALANCE_NORMALIZED_KEY] = normalised
+        new_record[IMBALANCE_FEED_KEY] = feed
+        summary["records_annotated"] += 1
+        out.append(new_record)
+
+    _atomic_write_jsonl(p, out)
+    return summary
+
+
+def load_imbalance_index(jsonl_path: Path | str) -> dict[str, dict[str, Any]]:
+    """Read an imbalance JSONL and return a ``symbol -> snapshot`` map.
+
+    Used as the ``imbalance_index`` argument to
+    :func:`annotate_imbalance_outcomes`. Skips malformed rows.
+    """
+    out: dict[str, dict[str, Any]] = {}
+    p = Path(jsonl_path)
+    if not p.exists():
+        return out
+    for record in _load_jsonl(p):
+        sym_raw = record.get("symbol")
+        if not sym_raw:
+            continue
+        out[str(sym_raw).upper()] = record
+    return out
+
+
 __all__ = [
+    "IMBALANCE_AVAILABLE_KEY",
+    "IMBALANCE_FEED_KEY",
+    "IMBALANCE_NORMALIZED_KEY",
+    "IMBALANCE_SIDE_KEY",
     "PNL_KEY",
     "R_MULTIPLE_KEY",
+    "annotate_imbalance_outcomes",
     "backfill_live_outcomes",
     "compute_trade_outcome",
+    "load_imbalance_index",
 ]
