@@ -468,6 +468,17 @@ def macro_bias_score(
     )
 
 
+class UpstreamPayloadError(RuntimeError):
+    """Raised when the response payload itself signals an upstream issue.
+
+    Subclass of RuntimeError so existing ``except RuntimeError`` callers
+    remain compatible. Distinguished from generic RuntimeError so the
+    circuit breaker only trips on true upstream-outage signals (HTML
+    error pages, FMP ``status=error`` payloads), not on parse errors or
+    schema drift in our own code.
+    """
+
+
 class _CircuitBreaker:
     """Thread-safe single-failure circuit breaker.
 
@@ -571,7 +582,7 @@ class FMPClient:
     def _parse_payload(self, path: str, payload: str) -> Any:
         text = payload.strip()
         if text.lower().startswith("<!doctype html") or text.lower().startswith("<html"):
-            raise RuntimeError(f"FMP API returned HTML on {path}")
+            raise UpstreamPayloadError(f"FMP API returned HTML on {path}")
         try:
             data = json.loads(text)
         except json.JSONDecodeError:
@@ -581,7 +592,7 @@ class FMPClient:
                 return [{key: _coerce_csv_value(value) for key, value in row.items()} for row in reader]
             raise RuntimeError(f"FMP API returned invalid JSON on {path}: {text[:120]}")
         if isinstance(data, dict) and str(data.get("status") or "").lower() == "error":
-            raise RuntimeError(f"FMP API error on {path}: {data.get('message') or 'unknown error'}")
+            raise UpstreamPayloadError(f"FMP API error on {path}: {data.get('message') or 'unknown error'}")
         return data
 
     def _request_once(self, path: str, params: dict[str, Any]) -> Any:
@@ -631,9 +642,13 @@ class FMPClient:
                 if use_circuit_breaker:
                     self._circuit_breaker.on_failure()
                 raise RuntimeError(f"FMP API network error on {path}: {exc}") from exc
-            except RuntimeError:
+            except UpstreamPayloadError:
                 if use_circuit_breaker:
                     self._circuit_breaker.on_failure()
+                raise
+            except RuntimeError:
+                # Parse errors / schema drift are NOT upstream outages; let
+                # them surface without tripping the breaker.
                 raise
         if use_circuit_breaker:
             self._circuit_breaker.on_failure()
