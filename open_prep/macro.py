@@ -1100,6 +1100,32 @@ class FMPClient:
             return []
         return list(data) if isinstance(data, list) else []
 
+    def get_senate_trades_latest(self, limit: int = 100) -> list[dict[str, Any]]:
+        # /stable/senate-latest returns recent disclosures across all senators
+        # without symbol filter — fast, single call. Use for daily ticker scan.
+        params = {"page": 0, "limit": max(int(limit), 1)}
+        try:
+            data = self._get("/stable/senate-latest", params)
+        except RuntimeError:
+            _log_feature_unavailable_once(
+                "stable/senate-latest",
+                "FMP feature unavailable (stable/senate-latest); endpoint retired or upgraded plan required.",
+            )
+            return []
+        return list(data) if isinstance(data, list) else []
+
+    def get_house_trades_latest(self, limit: int = 100) -> list[dict[str, Any]]:
+        params = {"page": 0, "limit": max(int(limit), 1)}
+        try:
+            data = self._get("/stable/house-latest", params)
+        except RuntimeError:
+            _log_feature_unavailable_once(
+                "stable/house-latest",
+                "FMP feature unavailable (stable/house-latest); endpoint retired or upgraded plan required.",
+            )
+            return []
+        return list(data) if isinstance(data, list) else []
+
     def get_treasury_rates(self, date_from: date | None = None, date_to: date | None = None) -> list[dict[str, Any]]:
         params: dict[str, Any] = {}
         if date_from is not None:

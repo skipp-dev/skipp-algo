@@ -1581,3 +1581,125 @@ class TestBeneficialOwnershipEnrichment:
             mock_client.get_acquisition_of_beneficial_ownership.call_count
             == _MAX_BENEFICIAL_OWNERSHIP_LOOKUPS
         )
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 17) PR-D2: political-trades enrichment (Senate + House)
+# ═══════════════════════════════════════════════════════════════════
+
+class TestPoliticalTradesEnrichment:
+    """_fetch_political_trades aggregates Senate + House disclosures, scoped
+    to the universe and the freshness window."""
+
+    def test_fresh_senate_buy_aggregates_correctly(self):
+        from open_prep.run_open_prep import _fetch_political_trades
+
+        today = date(2026, 4, 27)
+        mock_client = MagicMock()
+        mock_client.get_senate_trades_latest.return_value = [
+            {
+                "symbol": "AAPL",
+                "disclosureDate": "2026-04-20",
+                "transactionDate": "2026-04-15",
+                "type": "Purchase",
+                "office": "John Boozman",
+            },
+            {
+                "symbol": "AAPL",
+                "disclosureDate": "2026-04-22",
+                "type": "Sale (Partial)",
+                "office": "Tommy Tuberville",
+            },
+            {
+                "symbol": "OUTSIDE",
+                "disclosureDate": "2026-04-25",
+                "type": "Purchase",
+                "office": "X",
+            },
+        ]
+        mock_client.get_house_trades_latest.return_value = []
+        result = _fetch_political_trades(
+            client=mock_client, symbols=["AAPL", "MSFT"], today=today
+        )
+        assert "AAPL" in result
+        assert "OUTSIDE" not in result  # not in universe
+        assert "MSFT" not in result  # no disclosures
+        row = result["AAPL"]
+        assert row["politician_buy_count"] == 1
+        assert row["politician_sell_count"] == 1
+        assert row["politician_net"] == 0
+        assert row["politician_sentiment"] == "neutral"
+        assert row["politician_senate_count"] == 2
+        assert row["politician_house_count"] == 0
+        assert row["politician_recent"] is True
+        assert "John Boozman" in row["politician_recent_filers"]
+        assert row["politician_latest_disclosure_date"] == "2026-04-22"
+
+    def test_house_and_senate_combine(self):
+        from open_prep.run_open_prep import _fetch_political_trades
+
+        today = date(2026, 4, 27)
+        mock_client = MagicMock()
+        mock_client.get_senate_trades_latest.return_value = [
+            {"symbol": "NVDA", "disclosureDate": "2026-04-20",
+             "type": "Purchase", "office": "Senator A"},
+        ]
+        mock_client.get_house_trades_latest.return_value = [
+            {"symbol": "NVDA", "disclosureDate": "2026-04-21",
+             "type": "Purchase", "office": "Rep. B"},
+            {"symbol": "NVDA", "disclosureDate": "2026-04-22",
+             "type": "Purchase", "office": "Rep. C"},
+        ]
+        result = _fetch_political_trades(
+            client=mock_client, symbols=["NVDA"], today=today
+        )
+        row = result["NVDA"]
+        assert row["politician_senate_count"] == 1
+        assert row["politician_house_count"] == 2
+        assert row["politician_buy_count"] == 3
+        assert row["politician_net"] == 3
+        assert row["politician_sentiment"] == "net_buy"
+        assert row["politician_emoji"] == "🟢"
+
+    def test_stale_disclosure_filtered_out(self):
+        from open_prep.run_open_prep import _fetch_political_trades
+
+        today = date(2026, 4, 27)
+        mock_client = MagicMock()
+        mock_client.get_senate_trades_latest.return_value = [
+            {"symbol": "TSLA", "disclosureDate": "2025-12-01",
+             "type": "Purchase", "office": "Old Senator"},
+        ]
+        mock_client.get_house_trades_latest.return_value = []
+        result = _fetch_political_trades(
+            client=mock_client, symbols=["TSLA"], today=today
+        )
+        assert "TSLA" not in result  # stale, filtered
+
+    def test_provider_failure_returns_partial(self):
+        from open_prep.run_open_prep import _fetch_political_trades
+
+        today = date(2026, 4, 27)
+        mock_client = MagicMock()
+        mock_client.get_senate_trades_latest.side_effect = RuntimeError("boom")
+        mock_client.get_house_trades_latest.return_value = [
+            {"symbol": "GME", "disclosureDate": "2026-04-25",
+             "type": "Purchase", "office": "Rep. X"},
+        ]
+        result = _fetch_political_trades(
+            client=mock_client, symbols=["GME"], today=today
+        )
+        assert "GME" in result
+        assert result["GME"]["politician_house_count"] == 1
+        assert result["GME"]["politician_senate_count"] == 0
+
+    def test_empty_universe_short_circuits(self):
+        from open_prep.run_open_prep import _fetch_political_trades
+
+        mock_client = MagicMock()
+        result = _fetch_political_trades(
+            client=mock_client, symbols=[], today=date(2026, 4, 27)
+        )
+        assert result == {}
+        mock_client.get_senate_trades_latest.assert_not_called()
+        mock_client.get_house_trades_latest.assert_not_called()
