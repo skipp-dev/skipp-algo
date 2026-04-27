@@ -13,7 +13,10 @@ class Blocker(TypedDict):
 
     check: str          # e.g. "brier_threshold", "psr_minimum", "psi_drift"
     severity: BlockerSeverity
-    observed: float
+    # ``observed`` is ``None`` for ``info`` blockers (missing metric);
+    # this keeps the Decision JSON-safe under ``allow_nan=False``, which
+    # is the policy used by every downstream consumer.
+    observed: float | None
     threshold: float
     message: str
 

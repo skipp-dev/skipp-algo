@@ -21,22 +21,31 @@ from governance.types import Blocker, Decision, EventFamily, Posture
 
 DECISION_SCHEMA_VERSION = 1
 
-# Default thresholds — sourced from (verified 2026-04-27):
-#   * Brier:        ml/calibration/online_recalibrator.py::OnlineRecalibrator(brier_regret_threshold=0.02)
-#                   (no module-level CALIBRATED_BRIER_TARGET exists; the
-#                   0.22 absolute cap below is the gate-level target,
-#                   distinct from the regret-threshold above.)
-#   * ECE:          docs/SPRINT_PLAN_C10_ML_LAYER_2026-04-26.md
-#                   (no module-level ECE_TARGET; gate is the source of truth.)
-#   * FDR-q:        scripts/run_ab_comparison.py::FDR_Q
-#   * PSR/MinTRL:   docs/SPRINT_PLAN_C6_PSR_MINTRL_2026-04-26.md and
-#                   open_prep/stats_helpers.py::probabilistic_sharpe / min_trl
-#   * PSI level:    ml/drift/__init__.py::MLDriftDetector(warn=0.10, alarm=0.20)
-#                   (the 0.25 below is the consolidator's hard cap, above
-#                   the per-feature alarm threshold.)
-#   * live/wf:      docs/SPRINT_PLAN_C8_LIVE_INCUBATION_2026-04-26.md
-# Overriding any of these here without first updating the source module
-# (or doc, where no module constant exists) is a contract violation.
+# Default thresholds mirrored here for aggregation only.
+# The source of truth for each threshold is the originating sprint's
+# module and/or sprint-plan document that introduced the check; the
+# constants below MUST stay aligned with those upstream definitions.
+# Updating a value in this file alone must NOT change gate semantics.
+#
+# Pointers (verified 2026-04-27):
+#   * Brier (0.22):       gate-level absolute cap; the live recalibrator
+#                         tracks a separate brier_regret_threshold (~0.02)
+#                         in the C10 ML layer (see
+#                         docs/SPRINT_PLAN_C10_ML_LAYER_2026-04-26.md).
+#                         No module-level CALIBRATED_BRIER_TARGET exists
+#                         today — this gate is the sole source of truth.
+#   * ECE (0.05):         gate is the source of truth
+#                         (docs/SPRINT_PLAN_C10_ML_LAYER_2026-04-26.md).
+#   * FDR-q (0.05):       scripts/run_ab_comparison.py::FDR_Q.
+#   * PSR/MinTRL:         docs/SPRINT_PLAN_C6_PSR_MINTRL_2026-04-26.md and
+#                         open_prep/stats_helpers.py::probabilistic_sharpe
+#                         / min_trl.
+#   * PSI (0.25):         consolidator's hard cap, above the per-feature
+#                         drift-alarm thresholds defined for the C9 drift
+#                         layer (see docs/SPRINT_PLAN_C9_DRIFT_2026-04-26.md).
+#                         The ml/drift/ package does not yet expose a
+#                         module-level constant.
+#   * live/wf (1.5):      docs/SPRINT_PLAN_C8_LIVE_INCUBATION_2026-04-26.md.
 DEFAULT_BRIER_MAX = 0.22
 DEFAULT_ECE_MAX = 0.05
 DEFAULT_FDR_Q = 0.05
@@ -61,8 +70,12 @@ class GateThresholds:
 class FamilyMetrics:
     """Per-family snapshot consumed by the consolidator.
 
-    Any field set to ``None`` is treated as "check not yet available"
-    and emits an ``info``-severity blocker (not a failing one).
+    Any field set to ``None`` is treated as "check not yet available":
+    the consolidator emits an ``info``-severity blocker AND counts the
+    check as failing, so promotion is blocked until the metric is
+    actually measured. ``info`` distinguishes "missing" from a real
+    threshold breach (which uses ``blocker``) but it does not relax the
+    promotion contract — a partially measured family is never promoted.
     """
 
     family: EventFamily
@@ -90,10 +103,13 @@ def _check(
     """Run a single threshold check; mutate blockers/metrics; return ok-flag."""
     label = label or name
     if observed is None:
+        # ``observed`` is ``None`` (not NaN) so the Decision payload stays
+        # safe to serialize with ``json.dumps(..., allow_nan=False)``,
+        # which is the policy used by every downstream consumer.
         blockers.append({
             "check": name,
             "severity": "info",
-            "observed": float("nan"),
+            "observed": None,
             "threshold": threshold,
             "message": f"{label} not yet measured",
         })
@@ -113,7 +129,13 @@ def _check(
 
 
 def _posture(blockers: Iterable[Blocker]) -> Posture:
-    """Map blocker severities to a four-step traffic light."""
+    """Map blocker severities to a four-step traffic light.
+
+    Any ``info`` severity (missing metric) blocks promotion in
+    ``evaluate``, so posture must downgrade to at least ``yellow`` to
+    avoid the contradictory ``posture='green'`` + ``promoted=False``
+    output that an ``info`` blocker would otherwise produce.
+    """
     sev = [b["severity"] for b in blockers]
     n_blocker = sev.count("blocker")
     n_warning = sev.count("warning")
@@ -122,7 +144,7 @@ def _posture(blockers: Iterable[Blocker]) -> Posture:
         return "red"
     if n_blocker == 1:
         return "orange"
-    if n_warning >= 1 or n_info >= 3:
+    if n_warning >= 1 or n_info >= 1:
         return "yellow"
     return "green"
 
@@ -229,7 +251,7 @@ class PromotionGate:
             blockers.append({
                 "check": "live_vs_wf_ratio",
                 "severity": "info",
-                "observed": float("nan"),
+                "observed": None,
                 "threshold": float(t.live_vs_wf_ratio_max),
                 "message": "live or walkforward brier not yet measured",
             })

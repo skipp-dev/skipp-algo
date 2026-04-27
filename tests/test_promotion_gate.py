@@ -9,11 +9,12 @@ from governance.promotion_gate import (
     FamilyMetrics,
     GateThresholds,
 )
+from governance.types import EventFamily
 
 
-def _green_snapshot(family: str = "BOS") -> FamilyMetrics:
+def _green_snapshot(family: EventFamily = "BOS") -> FamilyMetrics:
     return FamilyMetrics(
-        family=family,  # type: ignore[arg-type]
+        family=family,
         brier=0.18,
         ece=0.03,
         fdr_pvalue=0.01,
