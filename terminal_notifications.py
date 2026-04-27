@@ -126,11 +126,21 @@ def _is_market_hours() -> bool:
         from zoneinfo import ZoneInfo
 
         now_et = datetime.now(ZoneInfo("America/New_York"))
-    except Exception:
-        from datetime import timedelta, timezone
+    except ImportError:
+        try:
+            from dateutil.tz import gettz
 
-        logger.debug("zoneinfo unavailable, using UTC-4 fallback", exc_info=True)
-        now_et = datetime.now(timezone.utc) - timedelta(hours=4)
+            tz = gettz("America/New_York")
+            if tz is None:
+                raise ImportError("dateutil could not resolve America/New_York")
+            now_et = datetime.now(tz)
+        except ImportError as exc:
+            raise RuntimeError(
+                "America/New_York timezone unavailable: install `tzdata` "
+                "or `python-dateutil`. Refusing to fall back to a fixed UTC "
+                "offset because that silently drifts 1h every winter and "
+                "would corrupt market-hours gating."
+            ) from exc
 
     if now_et.weekday() >= 5:
         return False
