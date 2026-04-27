@@ -901,6 +901,31 @@ def test_get_senate_trades_latest_swallows_runtime_error(
     assert client_with_get.get_senate_trades_latest() == []
 
 
+def test_get_insider_trading_statistics_path(
+    client_with_get: FMPClient, recorder: dict[str, Any]
+) -> None:
+    recorder["return"] = [{"symbol": "AAPL", "year": 2026, "quarter": 1}]
+    rows = client_with_get.get_insider_trading_statistics("aapl")
+    assert recorder["call"] == ("/stable/insider-trading/statistics", {"symbol": "AAPL"})
+    assert rows == [{"symbol": "AAPL", "year": 2026, "quarter": 1}]
+
+
+def test_get_insider_trading_statistics_empty_symbol(
+    client_with_get: FMPClient, recorder: dict[str, Any]
+) -> None:
+    recorder["return"] = [{"x": 1}]  # would be returned if called
+    assert client_with_get.get_insider_trading_statistics("  ") == []
+    # _get must not have been invoked for empty symbol
+    assert recorder.get("call") is None
+
+
+def test_get_insider_trading_statistics_swallows_runtime_error(
+    client_with_get: FMPClient, recorder: dict[str, Any]
+) -> None:
+    recorder["return"] = RuntimeError("retired")
+    assert client_with_get.get_insider_trading_statistics("AAPL") == []
+
+
 def test_get_treasury_rates_optional_dates(
     client_with_get: FMPClient, recorder: dict[str, Any]
 ) -> None:

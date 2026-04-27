@@ -1135,65 +1135,95 @@ def _fetch_sector_performance(client: FMPClient) -> list[dict[str, Any]]:
 # ---------------------------------------------------------------------------
 # Insider trading enrichment (Ultimate-tier)
 # ---------------------------------------------------------------------------
+_MAX_INSIDER_STATS_LOOKUPS = 30  # Cap parallel API calls
 
 def _fetch_insider_trading(
     *,
     client: FMPClient,
     symbols: list[str],
-    limit_per_symbol: int = 5,
+    limit_per_symbol: int = 5,  # kept for backwards compat (unused after refactor)
 ) -> dict[str, dict[str, Any]]:
-    """Fetch recent insider trades, aggregate buy/sell by symbol.
+    """Fetch quarterly insider-trading statistics per symbol (Ultimate).
+
+    Replaces the prior broad /stable/insider-trading/latest scan with one
+    /stable/insider-trading/statistics call per symbol. Provides quarter-
+    accurate aggregates plus quarter-over-quarter buying acceleration.
 
     Returns a dict keyed by symbol with insider-trade summary fields.
-    Only symbols in the provided universe are returned.
     """
-    universe_set = {s.upper() for s in symbols}
-    result: dict[str, dict[str, Any]] = {}
-
-    # Fetch broad market activity first (faster than per-symbol)
-    try:
-        raw = client.get_insider_trading_latest(limit=500)
-    except Exception as exc:
-        logger.warning("Insider trading fetch failed: %s", exc, exc_info=True)
+    del limit_per_symbol  # signature preserved for callers
+    universe = [s.upper() for s in symbols if s]
+    if not universe:
         return {}
+    capped = universe[:_MAX_INSIDER_STATS_LOOKUPS]
 
-    by_symbol: dict[str, list[dict[str, Any]]] = {}
-    for row in raw:
-        sym = str(row.get("symbol") or "").strip().upper()
-        if sym and sym in universe_set:
-            by_symbol.setdefault(sym, []).append(row)
+    def _worker(sym: str) -> tuple[str, list[dict[str, Any]]]:
+        try:
+            return sym, client.get_insider_trading_statistics(sym)
+        except Exception as exc:
+            logger.debug("Insider statistics fetch failed for %s: %s", sym, exc)
+            return sym, []
 
-    for sym, rows in by_symbol.items():
-        buys = sum(
-            1 for r in rows
-            if str(r.get("transactionType") or "").lower() in ("p-purchase", "purchase", "p")
-        )
-        sells = sum(
-            1 for r in rows
-            if str(r.get("transactionType") or "").lower() in ("s-sale", "sale", "s")
-        )
-        total_value_bought = sum(
-            _to_float(r.get("securitiesTransacted")) * _to_float(r.get("price"))
-            for r in rows
-            if str(r.get("transactionType") or "").lower() in ("p-purchase", "purchase", "p")
-            and r.get("securitiesTransacted") is not None and r.get("price") is not None
-        )
-        total_value_sold = sum(
-            _to_float(r.get("securitiesTransacted")) * _to_float(r.get("price"))
-            for r in rows
-            if str(r.get("transactionType") or "").lower() in ("s-sale", "sale", "s")
-            and r.get("securitiesTransacted") is not None and r.get("price") is not None
-        )
+    raw_by_symbol: dict[str, list[dict[str, Any]]] = {}
+    timed_out = False
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {executor.submit(_worker, s): s for s in capped}
+        try:
+            for fut in as_completed(futures, timeout=30):
+                try:
+                    sym, rows = fut.result(timeout=5)
+                    if rows:
+                        raw_by_symbol[sym] = rows
+                except FuturesTimeoutError:
+                    logger.debug("Insider statistics future timed out: %s", futures[fut])
+                except Exception as exc:
+                    logger.debug("Insider statistics future failed for %s: %s", futures[fut], exc)
+        except FuturesTimeoutError:
+            timed_out = True
+            logger.warning("Insider statistics: outer timeout, using partial results")
+        finally:
+            _shutdown_executor_with_timeout_policy(executor, timed_out=timed_out)
+
+    result: dict[str, dict[str, Any]] = {}
+    for sym, rows in raw_by_symbol.items():
+        # Sort by (year, quarter) descending — defend against unordered API output.
+        try:
+            rows_sorted = sorted(
+                rows,
+                key=lambda r: (int(r.get("year") or 0), int(r.get("quarter") or 0)),
+                reverse=True,
+            )
+        except Exception:
+            rows_sorted = list(rows)
+        if not rows_sorted:
+            continue
+        latest = rows_sorted[0]
+        prev = rows_sorted[1] if len(rows_sorted) > 1 else {}
+
+        buys = int(_to_float(latest.get("acquiredTransactions")) or 0)
+        sells = int(_to_float(latest.get("disposedTransactions")) or 0)
+        bought_value = _to_float(latest.get("totalAcquired")) or 0.0
+        sold_value = _to_float(latest.get("totalDisposed")) or 0.0
+        ratio_raw = latest.get("acquiredDisposedRatio")
+        ratio = _to_float(ratio_raw) if ratio_raw is not None else None
+
+        prev_buys = int(_to_float(prev.get("acquiredTransactions")) or 0) if prev else 0
+        acceleration = buys - prev_buys
 
         if buys > sells:
-            emoji = "🟢"
-            sentiment = "net_buy"
+            sentiment, emoji = "net_buy", "🟢"
         elif sells > buys:
-            emoji = "🔴"
-            sentiment = "net_sell"
+            sentiment, emoji = "net_sell", "🔴"
         else:
-            emoji = "🟡"
-            sentiment = "neutral"
+            sentiment, emoji = "neutral", "🟡"
+
+        year_val = latest.get("year")
+        quarter_val = latest.get("quarter")
+        quarter_label = (
+            f"{int(year_val)}Q{int(quarter_val)}"
+            if year_val is not None and quarter_val is not None
+            else ""
+        )
 
         result[sym] = {
             "insider_buys": buys,
@@ -1201,9 +1231,14 @@ def _fetch_insider_trading(
             "insider_net": buys - sells,
             "insider_sentiment": sentiment,
             "insider_emoji": emoji,
-            "insider_total_bought_value": round(total_value_bought, 2),
-            "insider_total_sold_value": round(total_value_sold, 2),
-            "insider_trade_count": len(rows),
+            "insider_total_bought_value": round(bought_value, 2),
+            "insider_total_sold_value": round(sold_value, 2),
+            "insider_trade_count": buys + sells,
+            "insider_acquired_disposed_ratio": (
+                round(ratio, 4) if ratio is not None else None
+            ),
+            "insider_buying_acceleration": acceleration,
+            "insider_quarter_label": quarter_label,
         }
 
     return result
@@ -4946,6 +4981,9 @@ def generate_open_prep_result(
         q["insider_buys"] = it.get("insider_buys", 0)
         q["insider_sells"] = it.get("insider_sells", 0)
         q["insider_net"] = it.get("insider_net", 0)
+        q["insider_buying_acceleration"] = it.get("insider_buying_acceleration", 0)
+        q["insider_acquired_disposed_ratio"] = it.get("insider_acquired_disposed_ratio")
+        q["insider_quarter_label"] = it.get("insider_quarter_label", "")
 
     # --- Institutional Ownership (Ultimate-tier, 13F) ---
     institutional_ownership: dict[str, dict[str, Any]] = {}

@@ -1061,6 +1061,25 @@ class FMPClient:
             return []
         return list(data) if isinstance(data, list) else []
 
+    def get_insider_trading_statistics(self, symbol: str) -> list[dict[str, Any]]:
+        # Ultimate-plan path. Quarterly aggregates per symbol — one call
+        # replaces the broad /stable/insider-trading/latest scan + manual
+        # aggregation. Returns rows with year/quarter/acquiredTransactions/
+        # disposedTransactions/acquiredDisposedRatio/totalAcquired/etc.
+        cleaned = str(symbol).strip().upper()
+        if not cleaned:
+            return []
+        params = {"symbol": cleaned}
+        try:
+            data = self._get("/stable/insider-trading/statistics", params)
+        except RuntimeError:
+            _log_feature_unavailable_once(
+                "stable/insider-trading/statistics",
+                "FMP feature unavailable (stable/insider-trading/statistics); endpoint retired or upgraded plan required.",
+            )
+            return []
+        return list(data) if isinstance(data, list) else []
+
     def get_institutional_ownership(self, symbol: str, limit: int = 100) -> list[dict[str, Any]]:
         # Ultimate-plan path. The legacy /stable/institutional-ownership was
         # split into multiple endpoints; the per-symbol position summary is
