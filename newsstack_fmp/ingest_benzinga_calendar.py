@@ -32,7 +32,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-from newsstack_fmp._bz_http import _request_with_retry, _sanitize_exc, _sanitize_url  # noqa: E402
+from newsstack_fmp._bz_http import _request_with_retry, _sanitize_exc, _sanitize_url, log_fetch_warning  # noqa: E402
 
 
 # =====================================================================
@@ -113,7 +113,7 @@ class BenzingaCalendarAdapter:
         if importance is not None:
             params["parameters[importance]"] = str(importance)
 
-        r = _request_with_retry(self.client, url, params)
+        r = _request_with_retry(self.client, url, params, label=f"Benzinga calendar/{endpoint}")
 
         if r.status_code != 200:
             logger.warning("Benzinga calendar/%s HTTP %d", endpoint, r.status_code)
@@ -394,10 +394,10 @@ def fetch_benzinga_movers(api_key: str) -> dict[str, list[dict[str, Any]]]:
     """
     with httpx.Client(timeout=10.0, headers={"Accept": "application/json"}) as client:
         try:
-            r = _request_with_retry(client, MOVERS_URL, {"token": api_key})
+            r = _request_with_retry(client, MOVERS_URL, {"token": api_key}, label="Benzinga movers")
             data = r.json()
         except Exception as exc:
-            logger.warning("Benzinga movers fetch failed: %s", _sanitize_exc(exc))
+            log_fetch_warning("Benzinga movers", exc)
             return {"gainers": [], "losers": []}
 
     result: dict[str, Any] = {}
@@ -449,10 +449,10 @@ def fetch_benzinga_quotes(
             r = _request_with_retry(client, QUOTES_URL, {
                 "token": api_key,
                 "symbols": sym_str,
-            })
+            }, label="Benzinga quotes")
             data = r.json()
         except Exception as exc:
-            logger.warning("Benzinga quotes fetch failed: %s", _sanitize_exc(exc))
+            log_fetch_warning("Benzinga quotes", exc)
             return []
 
     # Flatten the nested {security, quote} structure

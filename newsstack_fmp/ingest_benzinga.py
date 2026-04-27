@@ -318,7 +318,7 @@ def fetch_benzinga_top_news(
 
     with httpx.Client(timeout=10.0, headers={"Accept": "application/json"}) as client:
         try:
-            r = _request_with_retry(client, BENZINGA_TOP_NEWS_URL, params)
+            r = _request_with_retry(client, BENZINGA_TOP_NEWS_URL, params, label="Benzinga top_news")
             data = r.json()
         except Exception as exc:
             log_fetch_warning("Benzinga top_news", exc)
@@ -352,7 +352,7 @@ def fetch_benzinga_channels(
 
     with httpx.Client(timeout=10.0, headers={"Accept": "application/json"}) as client:
         try:
-            r = _request_with_retry(client, BENZINGA_CHANNELS_URL, params)
+            r = _request_with_retry(client, BENZINGA_CHANNELS_URL, params, label="Benzinga channels")
             data = r.json()
         except Exception as exc:
             log_fetch_warning("Benzinga channels", exc)
@@ -398,7 +398,7 @@ def fetch_benzinga_quantified_news(
 
     with httpx.Client(timeout=10.0, headers={"Accept": "application/json"}) as client:
         try:
-            r = _request_with_retry(client, BENZINGA_QUANTIFIED_URL, params)
+            r = _request_with_retry(client, BENZINGA_QUANTIFIED_URL, params, label="Benzinga quantified_news")
             data = r.json()
         except Exception as exc:
             log_fetch_warning("Benzinga quantified_news", exc)

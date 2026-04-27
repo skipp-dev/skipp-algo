@@ -22,6 +22,24 @@ SkippALGO is a modular trading intelligence platform combining three core system
 - Optional local scripts may generate or submit user-authorized broker orders only when they are explicitly invoked from the command line.
 - Users remain solely responsible for their own investment decisions, risk management, and regulatory compliance.
 
+## Local Python setup
+
+The single supported bootstrap path for the Python side of the repo is:
+
+```bash
+./scripts/bootstrap_venv.sh
+```
+
+This creates (or reuses) a venv at `${SKIPP_VENV:-$HOME/.venv}`, installs every
+runtime + test dependency from `requirements.txt`, and verifies that the
+provider modules used by the terminal (`databento`, `tradingview_ta`, `httpx`,
+…) are importable.
+
+> **Why a script and not `pip install -e .`?** `pyproject.toml` only declares
+> the optional `vol-regime` extra; runtime dependencies live exclusively in
+> `requirements.txt`. A venv created via `pip install -e .` is silently
+> incomplete and you will discover missing packages at import time.
+
 ### TradingView Automation
 
 This repo now includes a small Playwright-based TradingView automation layer under `automation/tradingview/` for repeatable script open, save, publish, and settings validation flows.
