@@ -38,6 +38,7 @@ from open_prep.macro import (
     DEFAULT_HIGH_IMPACT_EVENTS,
     FinnhubClient,
     FMPClient,
+    UpstreamPayloadError,
     _CircuitBreaker,
     _coerce_csv_value,
     _event_impact_rank,
@@ -537,18 +538,56 @@ def test_execute_get_url_error_retries_then_raises(monkeypatch: pytest.MonkeyPat
     assert client._circuit_breaker.state == "OPEN"
 
 
-def test_execute_get_runtime_error_propagates_and_opens_breaker(
+def test_execute_get_upstream_payload_error_propagates_and_opens_breaker(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # Contract: only UpstreamPayloadError (HTML / FMP status=error) trips the
+    # breaker. Plain RuntimeError must NOT — see the companion test below.
     client = FMPClient(api_key="K", retry_attempts=3, retry_backoff_seconds=0.0)
 
     def fail(path: str, params: dict[str, Any]) -> Any:
-        raise RuntimeError("payload was HTML")
+        raise UpstreamPayloadError("payload was HTML")
 
     monkeypatch.setattr(client, "_request_once", fail)
-    with pytest.raises(RuntimeError, match="HTML"):
+    with pytest.raises(UpstreamPayloadError, match="HTML"):
         client._execute_get("/x", {}, use_circuit_breaker=True)
     assert client._circuit_breaker.state == "OPEN"
+
+
+def test_execute_get_plain_runtime_error_propagates_without_tripping_breaker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Parse errors / schema drift surface as plain RuntimeError; they are our
+    # bug, not an upstream outage, so the breaker must stay CLOSED.
+    client = FMPClient(api_key="K", retry_attempts=3, retry_backoff_seconds=0.0)
+
+    def fail(path: str, params: dict[str, Any]) -> Any:
+        raise RuntimeError("schema drift: missing field 'foo'")
+
+    monkeypatch.setattr(client, "_request_once", fail)
+    with pytest.raises(RuntimeError, match="schema drift"):
+        client._execute_get("/x", {}, use_circuit_breaker=True)
+    assert client._circuit_breaker.state == "CLOSED"
+
+
+def test_parse_payload_html_raises_upstream_payload_error() -> None:
+    client = FMPClient(api_key="K")
+    with pytest.raises(UpstreamPayloadError, match="HTML"):
+        client._parse_payload("/p", "<!DOCTYPE html><html></html>")
+
+
+def test_parse_payload_status_error_raises_upstream_payload_error() -> None:
+    client = FMPClient(api_key="K")
+    with pytest.raises(UpstreamPayloadError, match="FMP API error"):
+        client._parse_payload("/p", json.dumps({"status": "error", "message": "rate limited"}))
+
+
+def test_parse_payload_invalid_json_raises_plain_runtime_error_not_upstream() -> None:
+    client = FMPClient(api_key="K")
+    with pytest.raises(RuntimeError, match="invalid JSON") as exc_info:
+        client._parse_payload("/p", "this is just garbage with no comma")
+    # Must NOT be the UpstreamPayloadError subclass — parse errors are our bug.
+    assert not isinstance(exc_info.value, UpstreamPayloadError)
 
 
 def test_execute_get_short_circuits_when_breaker_open(monkeypatch: pytest.MonkeyPatch) -> None:
