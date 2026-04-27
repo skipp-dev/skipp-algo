@@ -200,6 +200,58 @@ def test_format_alert_includes_each_failure():
     assert "empty" in body
 
 
+def test_format_alert_appends_databento_status_page():
+    blocking = [
+        pp.ProbeResult("Databento ohlcv-1d", "WARN", 100.0, "empty", critical=True),
+    ]
+    _, body = pp._format_alert(blocking)
+    assert "Provider status pages:" in body
+    assert "https://status.databento.com/" in body
+
+
+def test_format_alert_dedupes_status_pages():
+    blocking = [
+        pp.ProbeResult("Databento metadata", "FAIL", 100.0, "503", critical=True),
+        pp.ProbeResult("Databento ohlcv-1d", "WARN", 100.0, "empty", critical=True),
+    ]
+    _, body = pp._format_alert(blocking)
+    # status.databento.com should appear exactly once even with two failures
+    assert body.count("https://status.databento.com/") == 1
+
+
+def test_format_alert_multiple_providers_get_multiple_status_pages():
+    blocking = [
+        pp.ProbeResult("FMP /quote", "FAIL", 100.0, "500", critical=True),
+        pp.ProbeResult("Databento metadata", "FAIL", 100.0, "503", critical=True),
+        pp.ProbeResult("OpenAI /v1/models", "FAIL", 100.0, "500", critical=True),
+    ]
+    _, body = pp._format_alert(blocking)
+    assert "https://status.financialmodelingprep.com/" in body
+    assert "https://status.databento.com/" in body
+    assert "https://status.openai.com/" in body
+
+
+def test_format_alert_omits_status_pages_section_when_unknown_provider():
+    blocking = [
+        pp.ProbeResult("SomeUnmapped service", "FAIL", 100.0, "x", critical=True),
+    ]
+    _, body = pp._format_alert(blocking)
+    assert "Provider status pages:" not in body
+
+
+def test_status_pages_for_preserves_first_seen_order():
+    blocking = [
+        pp.ProbeResult("Databento x", "FAIL", 1.0, "", critical=True),
+        pp.ProbeResult("FMP y", "FAIL", 1.0, "", critical=True),
+        pp.ProbeResult("Databento z", "FAIL", 1.0, "", critical=True),
+    ]
+    pages = pp._status_pages_for(blocking)
+    assert pages == [
+        "https://status.databento.com/",
+        "https://status.financialmodelingprep.com/",
+    ]
+
+
 # ── _notify_blocking ────────────────────────────────────────────────
 
 
