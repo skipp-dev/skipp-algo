@@ -434,6 +434,10 @@ class BenzingaWsAdapter:
         items = ws.drain()  # returns List[NewsItem], may be empty
     """
 
+    # Adapter is considered unhealthy once this many consecutive WS connect
+    # attempts have failed without a successful intervening handshake.
+    _WS_HEALTH_THRESHOLD: int = 5
+
     def __init__(
         self,
         api_key: str,
@@ -453,8 +457,20 @@ class BenzingaWsAdapter:
 
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
+        # Health tracking: count of consecutive *connect* failures since the
+        # last successful WS handshake. Exposed via :pyattr:`is_healthy`.
+        self._consecutive_connect_failures: int = 0
 
     # ── Public API ──────────────────────────────────────────────
+
+    @property
+    def is_healthy(self) -> bool:
+        """True while consecutive connect failures are below the threshold.
+
+        Flips back to True on the next successful WS handshake (which resets
+        the counter inside :meth:`_ws_loop`).
+        """
+        return self._consecutive_connect_failures < self._WS_HEALTH_THRESHOLD
 
     def _matches_channel_filter(self, item: NewsItem) -> bool:
         """Return True if item matches the channel filter (or no filter set)."""
@@ -539,6 +555,8 @@ class BenzingaWsAdapter:
                 ) as ws:
                     logger.info("BenzingaWsAdapter: connected to %s", masked_url)
                     backoff = 1.0
+                    # Successful handshake → adapter is healthy again.
+                    self._consecutive_connect_failures = 0
 
                     # Optional subscribe handshake; server pushes news regardless.
                     auth_msg = json.dumps({"action": "subscribe", "data": {"streams": ["news"]}})
@@ -576,7 +594,8 @@ class BenzingaWsAdapter:
             except Exception as exc:
                 if self._stop_event.is_set():
                     break
-                logger.warning("BenzingaWsAdapter: connection error: %s — reconnecting in %.1fs", type(exc).__name__, backoff, exc_info=True)
+                self._consecutive_connect_failures += 1
+                logger.warning("BenzingaWsAdapter: connection error: %s — reconnecting in %.1fs (consecutive_failures=%d)", type(exc).__name__, backoff, self._consecutive_connect_failures, exc_info=True)
                 # Split sleep into short intervals to allow faster shutdown
                 _slept = 0.0
                 while _slept < backoff and not self._stop_event.is_set():

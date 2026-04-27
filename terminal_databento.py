@@ -76,31 +76,55 @@ def is_available() -> bool:
     return bool(os.environ.get("DATABENTO_API_KEY", ""))
 
 
-def fetch_databento_daily_bars(
+def _fetch_chunk(
+    client: Any,
+    *,
+    dataset: str,
+    symbols: list[str],
+    start: str,
+    end: str,
+) -> "pd.DataFrame":
+    """Fetch one chunk of OHLCV-1d bars. Lets exceptions bubble so the
+    caller can isolate per-chunk failures instead of nuking the whole batch.
+    """
+    store = client.timeseries.get_range(
+        dataset=dataset,
+        symbols=symbols,
+        schema="ohlcv-1d",
+        start=start,
+        end=end,
+    )
+    return store.to_df()
+
+
+def fetch_databento_daily_bars_with_status(
     symbols: list[str],
     *,
     lookback_days: int = 5,
     dataset: str | None = None,
-) -> dict[str, dict[str, Any]]:
-    """Fetch recent daily OHLCV bars for *symbols* via Databento.
+) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    """Fetch daily bars and return ``(results, failed_symbols)``.
 
-    Returns a dict mapping uppercase ticker → quote dict with keys:
-    symbol, price (last close), open, high, low, close, volume,
-    change, changesPercentage.
+    Per-chunk exceptions are isolated: a failure on chunk N does not drop
+    chunks 0..N-1 or N+1..end. Symbols belonging to a failed chunk are
+    returned in ``failed_symbols`` (in their original, pre-normalized form)
+    so callers can decide whether to retry or surface a partial-data
+    warning.
     """
     api_key = _get_api_key()
     if not api_key or not symbols:
-        return {}
+        return {}, []
 
-    # Respect cache
+    # Respect cache (fully-cached short-circuit).
     global _quote_cache, _quote_cache_ts
     with _cache_lock:
         now = time.time()
         if now - _quote_cache_ts < _QUOTE_CACHE_TTL:
             cached = {s.upper(): _quote_cache[s.upper()] for s in symbols if s.upper() in _quote_cache}
             if len(cached) == len(symbols):
-                return cached
+                return cached, []
 
+    failed: list[str] = []
     try:
         client = _make_databento_client(api_key)
         ds = dataset or _pick_dataset(client)
@@ -109,15 +133,18 @@ def fetch_databento_daily_bars(
 
         maybe_refresh_symbol_reference_cache(symbols)
 
-        db_symbols = [normalized for s in symbols if (normalized := _normalize_symbol(s))]
-        # Databento's per-request symbol list has a practical upper bound;
-        # callers used to silently drop everything past index 200, so any
-        # symbol after the 200th never made it into the snapshot. Chunk
-        # instead so the entire requested set is honored.
-        if len(db_symbols) > _MAX_SYMBOLS_PER_REQUEST:
+        # Build (orig_symbol, normalized_symbol) pairs so we can report
+        # *original* symbols back to the caller when a chunk fails.
+        pairs: list[tuple[str, str]] = []
+        for s in symbols:
+            normalized = _normalize_symbol(s)
+            if normalized:
+                pairs.append((s, normalized))
+
+        if len(pairs) > _MAX_SYMBOLS_PER_REQUEST:
             logger.info(
                 "Databento daily-bars request: chunking %d symbols into batches of %d",
-                len(db_symbols), _MAX_SYMBOLS_PER_REQUEST,
+                len(pairs), _MAX_SYMBOLS_PER_REQUEST,
             )
 
         available_end_1d = _get_schema_available_end(client, ds, "ohlcv-1d")
@@ -125,36 +152,45 @@ def fetch_databento_daily_bars(
         clamped_end = _clamp_request_end(requested_end, available_end_1d)
 
         frames: list[pd.DataFrame] = []
-        for batch_start in range(0, len(db_symbols), _MAX_SYMBOLS_PER_REQUEST):
-            batch = db_symbols[batch_start:batch_start + _MAX_SYMBOLS_PER_REQUEST]
-            store = client.timeseries.get_range(
-                dataset=ds,
-                symbols=batch,
-                schema="ohlcv-1d",
-                start=start_date.isoformat(),
-                end=clamped_end.isoformat(),
-            )
-            batch_df = store.to_df()
-            if not batch_df.empty:
+        for batch_start in range(0, len(pairs), _MAX_SYMBOLS_PER_REQUEST):
+            batch_pairs = pairs[batch_start:batch_start + _MAX_SYMBOLS_PER_REQUEST]
+            batch_orig = [orig for orig, _ in batch_pairs]
+            batch_norm = [norm for _, norm in batch_pairs]
+            try:
+                batch_df = _fetch_chunk(
+                    client,
+                    dataset=ds,
+                    symbols=batch_norm,
+                    start=start_date.isoformat(),
+                    end=clamped_end.isoformat(),
+                )
+            except Exception as exc:  # isolate per-chunk failures
+                logger.warning(
+                    "Databento chunk %d-%d failed (%d symbols): %s",
+                    batch_start, batch_start + len(batch_norm), len(batch_norm), exc,
+                )
+                failed.extend(batch_orig)
+                continue
+            if batch_df is not None and not batch_df.empty:
                 frames.append(batch_df)
 
         if not frames:
-            return {}
+            return {}, failed
         df = pd.concat(frames) if len(frames) > 1 else frames[0]
 
         if df.empty:
-            return {}
+            return {}, failed
 
         # Ensure symbol column is string
         if "symbol" in df.columns:
             df["symbol"] = df["symbol"].astype(str)
         else:
-            return {}
+            return {}, failed
 
         required_ohlcv = {"open", "high", "low", "close", "volume"}
         if not required_ohlcv.issubset(df.columns):
             logger.warning("Databento frame missing OHLCV columns: %s", required_ohlcv - set(df.columns))
-            return {}
+            return {}, failed
 
         result: dict[str, dict[str, Any]] = {}
         for sym in df["symbol"].unique():
@@ -169,8 +205,6 @@ def fetch_databento_daily_bars(
             change = close_val - float(prev_close) if prev_close else 0.0
             change_pct = (change / float(prev_close) * 100) if prev_close and prev_close != 0 else 0.0
 
-            # Scale Databento fixed-point prices (they are in 1e-9 USD)
-            # Actually databento ohlcv-1d returns prices as floats in USD
             orig_sym = _reverse_symbol(str(sym))
 
             result[orig_sym.upper()] = {
@@ -191,11 +225,44 @@ def fetch_databento_daily_bars(
             _quote_cache.update(result)
             _quote_cache_ts = time.time()
 
-        return result
+        return result, failed
 
     except Exception as exc:
         logger.warning("Databento daily bars failed: %s", exc, exc_info=True)
-        return {}
+        # Whole-pipeline failure: report all originally-requested symbols
+        # as failed so the caller doesn't think the empty dict is a no-op.
+        not_yet_failed = [s for s in symbols if s not in failed]
+        failed.extend(not_yet_failed)
+        return {}, failed
+
+
+def fetch_databento_daily_bars(
+    symbols: list[str],
+    *,
+    lookback_days: int = 5,
+    dataset: str | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Fetch recent daily OHLCV bars for *symbols* via Databento.
+
+    Returns a dict mapping uppercase ticker → quote dict with keys:
+    symbol, price (last close), open, high, low, close, volume,
+    change, changesPercentage.
+
+    Per-chunk failures are now logged as WARNINGs (with the failed symbol
+    list) rather than silently dropping the entire batch. Use
+    :func:`fetch_databento_daily_bars_with_status` directly for programmatic
+    access to the failed-symbols list.
+    """
+    results, failed = fetch_databento_daily_bars_with_status(
+        symbols, lookback_days=lookback_days, dataset=dataset,
+    )
+    if failed:
+        total = len(failed) + len(results)
+        logger.warning(
+            "databento daily bars: %d/%d symbols failed: %s",
+            len(failed), total, failed[:10],
+        )
+    return results
 
 
 def fetch_databento_quotes(

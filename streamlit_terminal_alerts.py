@@ -7,6 +7,8 @@ Streamlit/session-state side effects so they can be covered with regular tests.
 from __future__ import annotations
 
 import ipaddress
+import logging
+import re
 import socket
 import time
 import urllib.parse
@@ -26,6 +28,10 @@ from terminal_resolution_state import effective_resolution_state
 from terminal_ui_helpers import match_alert_rule
 
 _ALLOWED_WEBHOOK_SCHEMES = frozenset({"https"})
+
+logger = logging.getLogger(__name__)
+# Fallback ticker extraction: matches `$AAPL` style cashtags (1-5 upper-case letters).
+_TICKER_DOLLAR_RE = re.compile(r"\$([A-Z]{1,5})\b")
 
 
 def _get_field(item: Any, name: str, default: Any = None) -> Any:
@@ -119,6 +125,15 @@ def evaluate_alert_rules(
             continue
 
         ticker = str(_get_field(item, "ticker", "") or "").strip().upper()
+        if not ticker:
+            headline = str(_get_field(item, "headline", "") or "")
+            m = _TICKER_DOLLAR_RE.search(headline)
+            if m:
+                ticker = m.group(1)
+            else:
+                logger.debug(
+                    "alert: no ticker for item, skipping (headline=%r)", headline[:60]
+                )
         effective_score = effective_attention_score(item)
         effective_sentiment = effective_catalyst_sentiment(item)
         attention_state = effective_attention_state(item)
