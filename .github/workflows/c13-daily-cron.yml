@@ -97,7 +97,17 @@ jobs:
             echo "rc=78" >> "$GITHUB_OUTPUT"
             exit 78
           fi
-          python -m scripts.backfill_live_outcomes "${AUDIT}"
+          # T8.3 — wire opening-imbalance index when locally produced
+          # snapshots have rolled in via git pull. Absence is expected on
+          # weekends / holidays / pre-T8.2-rollout days; soft-skip the
+          # arg in that case so the backfill still runs (rc=0 path).
+          IMBALANCE_INDEX="cache/imbalance/${DATE}.jsonl"
+          if [ ! -f "${IMBALANCE_INDEX}" ]; then
+            IMBALANCE_INDEX=""
+            echo "No imbalance index for ${DATE} — backfill runs without --imbalance-index."
+          fi
+          python -m scripts.backfill_live_outcomes "${AUDIT}" \
+            ${IMBALANCE_INDEX:+--imbalance-index "${IMBALANCE_INDEX}"}
           echo "rc=$?" >> "$GITHUB_OUTPUT"
 
       - name: Step 2 — drift-input from audit JSONL (advisory)
@@ -180,7 +190,7 @@ jobs:
         run: |
           DATE="${{ steps.date.outputs.date }}"
           TITLE="C13 daily-cron failure ${DATE}"
-          if gh issue list --label c13,critical --search "in:title \"${TITLE}\"" --state open | grep -q "${TITLE}"; then
+          if gh issue list --label c13,critical,cron-failure --search "in:title \"${TITLE}\"" --state open | grep -q "${TITLE}"; then
             echo "Issue already open — skipping."
             exit 0
           fi
@@ -197,6 +207,6 @@ jobs:
           EOF
           )
           gh issue create \
-            --label c13,critical \
+            --label c13,critical,cron-failure \
             --title "${TITLE}" \
             --body "${BODY}"

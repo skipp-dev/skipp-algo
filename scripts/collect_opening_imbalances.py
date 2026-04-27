@@ -178,8 +178,13 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--ib-client-id",
         type=int,
-        default=131,
-        help="IB client id used for the imbalance session (default: 131).",
+        default=None,
+        help=(
+            "IB client id used for the imbalance session. "
+            "Default: rotating allocation via scripts.ib_client_id "
+            "(cooperative registry, range 40-99) so multiple C13 jobs "
+            "can share a TWS session without colliding."
+        ),
     )
     return parser.parse_args(argv)
 
@@ -332,12 +337,23 @@ def main(argv: list[str] | None = None) -> int:
         # the per-symbol ``reqMktData`` calls would fail on an
         # unconnected client.
         from ib_insync import IB  # local import: optional dependency
+        from scripts.ib_client_id import (
+            allocate_ib_client_id,
+            release_ib_client_id,
+        )
+
+        if args.ib_client_id is None:
+            client_id = allocate_ib_client_id("c13_imbalance")
+            allocated = True
+        else:
+            client_id = args.ib_client_id
+            allocated = False
 
         ib_client = IB()
         ib_client.connect(
             host=args.ib_host,
             port=args.ib_port,
-            clientId=args.ib_client_id,
+            clientId=client_id,
         )
         try:
             snapshots, errors = collect_imbalances(
@@ -353,6 +369,13 @@ def main(argv: list[str] | None = None) -> int:
                 ib_client.disconnect()
             except Exception:  # pragma: no cover — exercised live
                 LOGGER.warning("ib_client.disconnect() failed", exc_info=True)
+            if allocated:
+                try:
+                    release_ib_client_id(client_id)
+                except Exception:  # pragma: no cover
+                    LOGGER.warning(
+                        "release_ib_client_id(%s) failed", client_id, exc_info=True
+                    )
 
     _atomic_write_jsonl(
         args.output, (s.to_dict() for s in snapshots)

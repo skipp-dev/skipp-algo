@@ -56,7 +56,9 @@ _ALLOWED: dict[str, frozenset[int]] = {
     # C13 daily-cron: 4 best-effort steps so partial failures still upload
     # artefacts and let the issue-opener step report exactly which step
     # failed; soft-skip rc=78 paths are also gated through these.
-    "c13-daily-cron.yml": frozenset({90, 109, 124, 148}),
+    # Lines 109/124/148 → 119/134/158 (+10) after wiring T8.3 imbalance
+    # index gate into Step 1's run block (PR #333 follow-up).
+    "c13-daily-cron.yml": frozenset({90, 119, 134, 158}),
 }
 
 
