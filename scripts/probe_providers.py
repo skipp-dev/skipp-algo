@@ -1,19 +1,32 @@
 """One-shot reachability + data-shape probe for every external data/news
 provider used by the skipp-algo stack.
 
-Run: PYTHONPATH=. python scripts/probe_providers.py
+Usage:
+    PYTHONPATH=. python scripts/probe_providers.py                # full table
+    PYTHONPATH=. python scripts/probe_providers.py --preflight    # critical only
+    PYTHONPATH=. python scripts/probe_providers.py --json         # machine-readable
+    PYTHONPATH=. python scripts/probe_providers.py --preflight --notify
 
-Exit code 0 = all providers reached at least at the connectivity layer.
+Exit codes:
+    0 = all probed providers OK (or only OPTIONAL ones degraded)
+    1 = at least one CRITICAL provider FAIL/SKIP/WARN
+
 Each row reports: PROVIDER | STATUS | LATENCY | DETAIL
+Probes are tagged ``critical=True`` for surfaces actually consumed by the
+running workflows; the rest (entitlement-gated or retired Benzinga
+endpoints) are kept for visibility but never block a launch.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
+import logging
 import os
 import sys
 import time
 import traceback
+from dataclasses import asdict, dataclass
 from typing import Any, Callable
 
 from dotenv import load_dotenv
@@ -29,10 +42,43 @@ DIM = "\033[2m"
 BOLD = "\033[1m"
 RESET = "\033[0m"
 
-ROW_FMT = "{name:<32} {status:<8} {latency:>8} {detail}"
+ROW_FMT = "{name:<40} {status:<8} {latency:>8} {detail}"
+
+logger = logging.getLogger("probe_providers")
 
 
-def _emit(name: str, status: str, latency_ms: float | None, detail: str) -> None:
+@dataclass(frozen=True)
+class Probe:
+    """A single provider probe with its criticality tag.
+
+    ``critical=True`` means: the running workflows depend on this surface and
+    a non-OK status should block launch / fire an alert. ``critical=False``
+    means: visibility only (e.g. entitlement-gated or retired endpoints).
+    """
+
+    name: str
+    fn: Callable[[], tuple[str, str]]
+    critical: bool = True
+
+
+@dataclass(frozen=True)
+class ProbeResult:
+    name: str
+    status: str  # OK | WARN | FAIL | SKIP
+    latency_ms: float | None
+    detail: str
+    critical: bool
+
+    @property
+    def is_blocking(self) -> bool:
+        """A critical probe blocks if it's anything other than OK."""
+        return self.critical and self.status != "OK"
+
+
+def _emit(name: str, status: str, latency_ms: float | None, detail: str, *,
+          quiet: bool = False) -> None:
+    if quiet:
+        return
     color = {"OK": GREEN, "WARN": YELLOW, "FAIL": RED, "SKIP": DIM}.get(status, "")
     lat = f"{int(latency_ms)}ms" if latency_ms is not None else "—"
     print(ROW_FMT.format(
@@ -43,20 +89,20 @@ def _emit(name: str, status: str, latency_ms: float | None, detail: str) -> None
     ))
 
 
-def _run(name: str, fn: Callable[[], tuple[str, str]]) -> tuple[str, float | None]:
+def _run(probe: Probe, *, quiet: bool = False) -> ProbeResult:
     t0 = time.monotonic()
     try:
-        status, detail = fn()
+        status, detail = probe.fn()
     except Exception as exc:
         latency_ms = (time.monotonic() - t0) * 1000
         msg = f"{type(exc).__name__}: {exc}"
         if len(msg) > 120:
             msg = msg[:117] + "..."
-        _emit(name, "FAIL", latency_ms, msg)
-        return ("FAIL", latency_ms)
+        _emit(probe.name, "FAIL", latency_ms, msg, quiet=quiet)
+        return ProbeResult(probe.name, "FAIL", latency_ms, msg, probe.critical)
     latency_ms = (time.monotonic() - t0) * 1000
-    _emit(name, status, latency_ms, detail)
-    return (status, latency_ms)
+    _emit(probe.name, status, latency_ms, detail, quiet=quiet)
+    return ProbeResult(probe.name, status, latency_ms, detail, probe.critical)
 
 
 # ── Provider probes ─────────────────────────────────────────────────
@@ -214,14 +260,37 @@ def probe_databento_metadata() -> tuple[str, str]:
 
 
 def probe_databento_daily_bars() -> tuple[str, str]:
-    """Databento ohlcv-1d for AAPL — actual bar fetch."""
+    """Databento ohlcv-1d for AAPL — actual bar fetch.
+
+    On weekends and US equity market holidays an empty result is the
+    *expected* outcome (no bar exists yet), so we report ``OK`` instead of
+    ``WARN`` to avoid false preflight alerts. On a regular trading day an
+    empty result is genuinely degraded — most often a Databento incident
+    delaying historical-data availability.
+    """
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
     key = os.getenv("DATABENTO_API_KEY", "")
     if not key:
         return ("SKIP", "DATABENTO_API_KEY missing")
     from terminal_databento import fetch_databento_daily_bars
+
+    try:
+        from newsstack_fmp._market_cal import is_us_equity_trading_day
+        today_et = datetime.now(ZoneInfo("America/New_York")).date()
+        is_trading_day = is_us_equity_trading_day(today_et)
+    except Exception:
+        # If the calendar import ever breaks, fall back to weekday-only check
+        # so we still avoid the most common false positive (Sat/Sun).
+        today_et = datetime.now(ZoneInfo("America/New_York")).date()
+        is_trading_day = today_et.weekday() < 5
+
     bars = fetch_databento_daily_bars(["AAPL", "MSFT"], lookback_days=5)
     if not bars:
-        return ("WARN", "no bars returned (market closed or no data)")
+        if not is_trading_day:
+            return ("OK", f"no bars expected ({today_et} is not a US trading day)")
+        return ("WARN", "no bars returned on a trading day — check https://status.databento.com/")
     aapl = bars.get("AAPL", {})
     needed = {"price", "open", "high", "low", "close", "volume"}
     missing = needed - set(aapl.keys())
@@ -533,59 +602,258 @@ def probe_newsapi_ai() -> tuple[str, str]:
 # ── Main ────────────────────────────────────────────────────────────
 
 
-PROBES: list[tuple[str, Callable[[], tuple[str, str]]]] = [
-    ("FMP /stable/quote", probe_fmp_quote),
-    ("FMP /stable/treasury-rates", probe_fmp_treasury),
-    ("FMP /stable/news/stock-latest", probe_fmp_news),
-    ("FMP /stable/news/press-releases", probe_fmp_press),
-    ("FMP /stable/company-screener", probe_fmp_screener),
-    ("FMP /stable/technical-indicators", probe_fmp_technical),
-    ("Databento metadata.list_datasets", probe_databento_metadata),
-    ("Databento ohlcv-1d (AAPL,MSFT)", probe_databento_daily_bars),
-    ("Benzinga /api/v2/news", probe_benzinga_news),
-    ("Benzinga /api/v1/quoteDelayed", probe_benzinga_quotes),
-    ("Benzinga /api/v1/market/movers", probe_benzinga_movers),
-    ("Benzinga /api/v2/news/top", probe_bz_news_top),
-    ("Benzinga /api/v2/news/channels", probe_bz_news_channels),
-    ("Benzinga /api/v2/news/quantified", probe_bz_news_quantified),
-    ("Benzinga /api/v2.1/calendar/earnings", probe_bz_calendar_earnings),
-    ("Benzinga /api/v2.1/calendar/options_activity", probe_bz_options_activity),
-    ("Benzinga /api/v2.1/fundamentals", probe_bz_fundamentals),
-    ("Benzinga /api/v2.1/ownership", probe_bz_ownership),
-    ("Benzinga /api/v2.1/instruments", probe_bz_instruments),
-    ("Benzinga /api/v2/bars", probe_bz_bars),
-    ("Benzinga /api/v2/search", probe_bz_search),
-    ("Benzinga /api/v2/security", probe_bz_security),
-    ("Benzinga /api/v2/tickerDetail", probe_bz_ticker_detail),
-    ("Benzinga /api/v2/logos", probe_bz_logos),
-    ("Finnhub /quote", probe_finnhub_quote),
-    ("Finnhub /stock/social-sentiment", probe_finnhub_social),
-    ("TradingView headlines (unofficial)", probe_tradingview_news),
-    ("TradingView TA library", probe_tradingview_ta),
-    ("NasdaqTrader symbol directory", probe_nasdaq_trader),
-    ("OpenAI /v1/models", probe_openai),
-    ("NewsAPI.ai (Event Registry)", probe_newsapi_ai),
+# Critical = a workflow surface we actually consume in prod.
+# Non-critical = visibility only (entitlement-gated / retired endpoints kept
+# in the table so a future re-grant or restoration is detected immediately).
+PROBES: list[Probe] = [
+    # FMP — universe, fundamentals, news, technicals
+    Probe("FMP /stable/quote", probe_fmp_quote, critical=True),
+    Probe("FMP /stable/treasury-rates", probe_fmp_treasury, critical=True),
+    Probe("FMP /stable/news/stock-latest", probe_fmp_news, critical=True),
+    Probe("FMP /stable/news/press-releases", probe_fmp_press, critical=True),
+    Probe("FMP /stable/company-screener", probe_fmp_screener, critical=True),
+    Probe("FMP /stable/technical-indicators", probe_fmp_technical, critical=True),
+    # Databento — primary market data
+    Probe("Databento metadata.list_datasets", probe_databento_metadata, critical=True),
+    Probe("Databento ohlcv-1d (AAPL,MSFT)", probe_databento_daily_bars, critical=True),
+    # Benzinga — only news + earnings calendar are on the standard tier
+    Probe("Benzinga /api/v2/news", probe_benzinga_news, critical=True),
+    Probe("Benzinga /api/v2.1/calendar/earnings", probe_bz_calendar_earnings, critical=True),
+    # Benzinga — entitlement-gated or retired (Pro-tier / data-license only).
+    # Already short-circuited at runtime by _bz_http; kept here for visibility
+    # so a future re-grant or URL restoration is detected immediately.
+    Probe("Benzinga /api/v1/quoteDelayed", probe_benzinga_quotes, critical=False),
+    Probe("Benzinga /api/v1/market/movers", probe_benzinga_movers, critical=False),
+    Probe("Benzinga /api/v2/news/top", probe_bz_news_top, critical=False),
+    Probe("Benzinga /api/v2/news/channels", probe_bz_news_channels, critical=False),
+    Probe("Benzinga /api/v2/news/quantified", probe_bz_news_quantified, critical=False),
+    Probe("Benzinga /api/v2.1/calendar/options_activity", probe_bz_options_activity, critical=False),
+    Probe("Benzinga /api/v2.1/fundamentals", probe_bz_fundamentals, critical=False),
+    Probe("Benzinga /api/v2.1/ownership", probe_bz_ownership, critical=False),
+    Probe("Benzinga /api/v2.1/instruments", probe_bz_instruments, critical=False),
+    Probe("Benzinga /api/v2/bars", probe_bz_bars, critical=False),
+    Probe("Benzinga /api/v2/search", probe_bz_search, critical=False),
+    Probe("Benzinga /api/v2/security", probe_bz_security, critical=False),
+    Probe("Benzinga /api/v2/tickerDetail", probe_bz_ticker_detail, critical=False),
+    Probe("Benzinga /api/v2/logos", probe_bz_logos, critical=False),
+    # Finnhub
+    Probe("Finnhub /quote", probe_finnhub_quote, critical=True),
+    Probe("Finnhub /stock/social-sentiment", probe_finnhub_social, critical=False),
+    # TradingView
+    Probe("TradingView headlines (unofficial)", probe_tradingview_news, critical=True),
+    Probe("TradingView TA library", probe_tradingview_ta, critical=True),
+    # Misc
+    Probe("NasdaqTrader symbol directory", probe_nasdaq_trader, critical=True),
+    Probe("OpenAI /v1/models", probe_openai, critical=True),
+    Probe("NewsAPI.ai (Event Registry)", probe_newsapi_ai, critical=True),
 ]
 
 
-def main() -> int:
-    print(f"\n{BOLD}Provider reachability + data-shape probe{RESET}")
-    print(ROW_FMT.format(name="PROVIDER", status="STATUS", latency="LATENCY", detail="DETAIL"))
-    print("─" * 100)
+# ── Public Python entry points (importable by workflow runners) ─────
+
+
+def run_probes(
+    probes: list[Probe] | None = None,
+    *,
+    critical_only: bool = False,
+    quiet: bool = False,
+) -> list[ProbeResult]:
+    """Run probes and return a list of :class:`ProbeResult`.
+
+    ``critical_only=True`` skips probes tagged ``critical=False``.
+    ``quiet=True`` suppresses the per-row pretty print (used by ``--json``).
+    """
+    selected = list(probes if probes is not None else PROBES)
+    if critical_only:
+        selected = [p for p in selected if p.critical]
+    return [_run(p, quiet=quiet) for p in selected]
+
+
+def summarise(results: list[ProbeResult]) -> dict[str, int]:
     counts = {"OK": 0, "WARN": 0, "FAIL": 0, "SKIP": 0}
-    for name, fn in PROBES:
-        status, _ = _run(name, fn)
-        counts[status] = counts.get(status, 0) + 1
+    for r in results:
+        counts[r.status] = counts.get(r.status, 0) + 1
+    counts["BLOCKING"] = sum(1 for r in results if r.is_blocking)
+    return counts
+
+
+def preflight_or_die(
+    *,
+    notify: bool = True,
+    quiet: bool = True,
+    raise_on_block: bool = True,
+) -> list[ProbeResult]:
+    """Run all CRITICAL probes; alert + raise if any are blocking.
+
+    Designed to be called once at the top of any workflow runner::
+
+        from scripts.probe_providers import preflight_or_die
+        preflight_or_die()  # raises SystemExit(1) if a critical surface fails
+
+    With ``raise_on_block=False`` the function returns the results without
+    raising so callers can decide their own handling.
+    """
+    results = run_probes(critical_only=True, quiet=quiet)
+    blocking = [r for r in results if r.is_blocking]
+    if blocking:
+        _log_blocking(blocking)
+        if notify:
+            try:
+                _notify_blocking(blocking)
+            except Exception:
+                logger.exception("preflight notification dispatch failed")
+        if raise_on_block:
+            raise SystemExit(1)
+    return results
+
+
+# ── Notification dispatch (reuses terminal_notifications channels) ──
+
+
+# Maps a substring of the probe name to the provider's public status page.
+# Surfaced in alert bodies so the on-call can one-click verify upstream
+# state instead of guessing whether it's our pipeline or theirs.
+_STATUS_PAGES: dict[str, str] = {
+    "Databento": "https://status.databento.com/",
+    "FMP": "https://status.financialmodelingprep.com/",
+    "Benzinga": "https://status.benzinga.com/",
+    "Finnhub": "https://status.finnhub.io/",
+    "OpenAI": "https://status.openai.com/",
+    "TradingView": "https://status.tradingview.com/",
+}
+
+
+def _status_pages_for(blocking: list[ProbeResult]) -> list[str]:
+    """Return the de-duplicated set of status-page URLs that cover the
+    blocking probes, in the order they first appear."""
+    seen: list[str] = []
+    for r in blocking:
+        for tag, url in _STATUS_PAGES.items():
+            if tag in r.name and url not in seen:
+                seen.append(url)
+    return seen
+
+
+def _format_alert(blocking: list[ProbeResult]) -> tuple[str, str]:
+    """Return (short_title, multi-line body) describing the failures."""
+    title = f"⚠️ skipp-algo preflight: {len(blocking)} provider(s) down"
+    lines = [title, ""]
+    for r in blocking:
+        lat = f"{int(r.latency_ms)}ms" if r.latency_ms is not None else "—"
+        lines.append(f"• {r.name} [{r.status} {lat}] {r.detail}")
+    pages = _status_pages_for(blocking)
+    if pages:
+        lines.append("")
+        lines.append("Provider status pages:")
+        for url in pages:
+            lines.append(f"  {url}")
+    return title, "\n".join(lines)
+
+
+def _log_blocking(blocking: list[ProbeResult]) -> None:
+    for r in blocking:
+        logger.warning(
+            "preflight BLOCK %s status=%s detail=%s", r.name, r.status, r.detail
+        )
+
+
+def _notify_blocking(blocking: list[ProbeResult]) -> None:
+    """Best-effort dispatch via Telegram / Discord / Pushover if configured."""
+    try:
+        from terminal_notifications import (  # type: ignore[import-not-found]
+            NotifyConfig,
+            _send_discord,
+            _send_pushover,
+            _send_telegram,
+        )
+    except Exception:
+        logger.warning("terminal_notifications unavailable; skipping push alert")
+        return
+    cfg = NotifyConfig()
+    if not cfg.has_any_channel:
+        logger.info("no notification channels configured; skipping alert")
+        return
+    title, body = _format_alert(blocking)
+    if cfg.telegram_bot_token and cfg.telegram_chat_id:
+        _send_telegram(cfg.telegram_bot_token, cfg.telegram_chat_id, body)
+    if cfg.discord_webhook_url:
+        _send_discord(cfg.discord_webhook_url, body)
+    if cfg.pushover_app_token and cfg.pushover_user_key:
+        _send_pushover(cfg.pushover_app_token, cfg.pushover_user_key, title, body)
+
+
+# ── CLI ─────────────────────────────────────────────────────────────
+
+
+def _print_summary(results: list[ProbeResult]) -> None:
+    counts = summarise(results)
     print("─" * 100)
     print(
         f"{BOLD}Summary:{RESET} "
         f"{GREEN}{counts.get('OK', 0)} OK{RESET}, "
         f"{YELLOW}{counts.get('WARN', 0)} WARN{RESET}, "
         f"{RED}{counts.get('FAIL', 0)} FAIL{RESET}, "
-        f"{DIM}{counts.get('SKIP', 0)} SKIP{RESET}"
+        f"{DIM}{counts.get('SKIP', 0)} SKIP{RESET}  |  "
+        f"{(RED if counts['BLOCKING'] else GREEN)}{counts['BLOCKING']} blocking{RESET}"
     )
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Probe every external data/news provider used by skipp-algo.",
+    )
+    parser.add_argument(
+        "--preflight",
+        action="store_true",
+        help="only run CRITICAL probes; exit 1 if any are not OK.",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="emit JSON results to stdout (suppresses the pretty table).",
+    )
+    parser.add_argument(
+        "--notify",
+        action="store_true",
+        help="on blocking failure, push to Telegram/Discord/Pushover if "
+             "TERMINAL_* env vars are set.",
+    )
+    args = parser.parse_args(argv)
+
+    if not args.json:
+        print(f"\n{BOLD}Provider reachability + data-shape probe{RESET}")
+        print(ROW_FMT.format(
+            name="PROVIDER", status="STATUS", latency="LATENCY", detail="DETAIL",
+        ))
+        print("─" * 100)
+
+    results = run_probes(critical_only=args.preflight, quiet=args.json)
+    counts = summarise(results)
+
+    if args.json:
+        print(json.dumps(
+            {
+                "results": [asdict(r) for r in results],
+                "counts": counts,
+            },
+            indent=2,
+            default=str,
+        ))
+    else:
+        _print_summary(results)
+
+    if counts["BLOCKING"] > 0 and args.notify:
+        try:
+            _notify_blocking([r for r in results if r.is_blocking])
+        except Exception:
+            logger.exception("notification dispatch failed")
+
+    if args.preflight:
+        return 1 if counts["BLOCKING"] > 0 else 0
+    # Default mode preserves previous behaviour: only fail on hard FAIL.
     return 0 if counts.get("FAIL", 0) == 0 else 1
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     sys.exit(main())
