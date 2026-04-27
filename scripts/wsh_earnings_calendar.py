@@ -235,10 +235,28 @@ def fetch_wsh_calendar(
     # not connect here so unit tests can pass a fully-stubbed client.
 
     try:
-        ib_client.reqWshMetaData(reqId=9000)
+        # ib_insync sync helper: returns the metadata payload string
+        # once the wshMetaData event fires (or raises on timeout).
+        # The low-level ``reqWshMetaData(reqId=...)`` is the EClient
+        # signature; ib_insync's IB wrapper exposes the no-arg form
+        # plus this sync convenience helper.
+        ib_client.getWshMetaData()
     except Exception as exc:  # pragma: no cover — exercised live
         errors.append(f"reqWshMetaData failed: {exc}")
         return events, errors
+
+    # WshEventData is the ib_insync filter object; we import it lazily
+    # to keep test stubs free of the ib_insync dependency.
+    try:
+        from ib_insync.objects import WshEventData
+    except Exception as exc:  # pragma: no cover — only on missing dep
+        errors.append(f"ib_insync.WshEventData import failed: {exc}")
+        return events, errors
+
+    today_iso = _dt.date.today().isoformat()
+    end_date_iso = (
+        _dt.date.today() + _dt.timedelta(days=int(window_days))
+    ).isoformat()
 
     for idx, (symbol, con_id) in enumerate(symbols, start=1):
         if int(con_id) <= 0:
@@ -254,19 +272,20 @@ def fetch_wsh_calendar(
             )
             continue
         try:
-            payload_str = ib_client.reqWshEventData(
-                reqId=9000 + idx,
-                conId=int(con_id),
-                # Forward-window filter via WSH filter JSON. Only
-                # earnings-family events; the rest is dropped at parse
-                # time anyway.
-                filter=json.dumps({
-                    "country": "US",
-                    "watchlist": [str(con_id)],
-                    "filter_categories": ["earnings"],
-                    "future_days": int(window_days),
-                }),
-                timeout=timeout_seconds,
+            # Filter: earnings-family events only, forward window.
+            wsh_filter = json.dumps({
+                "country": "US",
+                "watchlist": [str(con_id)],
+                "filter_categories": ["earnings"],
+                "future_days": int(window_days),
+            })
+            payload_str = ib_client.getWshEventData(
+                WshEventData(
+                    conId=int(con_id),
+                    filter=wsh_filter,
+                    startDate=today_iso,
+                    endDate=end_date_iso,
+                )
             )
         except Exception as exc:  # pragma: no cover — exercised live
             errors.append(f"{symbol}: reqWshEventData failed: {exc}")
