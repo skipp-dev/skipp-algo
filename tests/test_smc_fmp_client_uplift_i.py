@@ -592,6 +592,15 @@ class TestGetTreasuryYields:
             out = c.get_treasury_yields()
         # Lane 1: must hit /stable/treasury-rates, NOT the retired /stable/treasury.
         assert get_mock.call_args[0][0] == "/stable/treasury-rates"
+        # Lane 6: must use a multi-day window (not from==to==today) so
+        # that weekends and US market holidays don't silently degrade
+        # to zero yields. 7-day window covers up to a 4-day Thanksgiving
+        # closure plus weekend.
+        params = get_mock.call_args[0][1]
+        from datetime import date as _date
+        d_from = _date.fromisoformat(params["from"])
+        d_to = _date.fromisoformat(params["to"])
+        assert (d_to - d_from).days >= 3
         assert out == {"2y": 5.0, "10y": 4.0, "spread": -1.0, "inverted": True}
 
     def test_returns_zero_fallback_on_exception(self):

@@ -19,7 +19,7 @@ import ssl
 import time
 import urllib.error
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -529,17 +529,29 @@ class SMCFMPClient:
         return {}
 
     def get_treasury_yields(self) -> dict[str, Any]:
-        """Fetch current US Treasury yields for 2Y and 10Y.
+        """Fetch most recent US Treasury yields for 2Y and 10Y.
 
         Uses FMP ``/stable/treasury-rates`` endpoint (the legacy
         ``/stable/treasury`` path was retired and now returns HTTP 404).
         Returns ``{"2y": float, "10y": float, "spread": float, "inverted": bool}``.
+
+        Lane 6 (2026-04-27) — weekend-naive guard: querying a single
+        ``today`` date returns an empty list on Saturdays, Sundays, and
+        US market holidays (Treasury rates are only published on
+        trading days). To avoid silently degrading to zero yields on
+        non-trading days, query a 7-day rolling window and pick the
+        most recent row.
         """
         today = _today_et()
+        # 7-day window safely covers a 3-day weekend + observed federal
+        # holiday (e.g. Thanksgiving Thu/Fri + weekend = up to 4
+        # consecutive non-trading days). Rates list is descending by
+        # date, so element 0 is the latest published trading day.
+        window_start = today - timedelta(days=7)
         try:
             data = self._get(
                 "/stable/treasury-rates",
-                {"from": today.isoformat(), "to": today.isoformat()},
+                {"from": window_start.isoformat(), "to": today.isoformat()},
             )
             if data and isinstance(data, list) and len(data) > 0:
                 latest = data[0]
