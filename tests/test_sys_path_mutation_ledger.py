@@ -57,6 +57,7 @@ _FROZEN_SITES: dict[str, int] = {
     "open_prep/realtime_signals.py": 1,
     "open_prep/streamlit_monitor.py": 1,
     "scripts/analyze_smc_contextual_calibration_history.py": 1,
+    "scripts/build_phase_a_inputs.py": 1,
     "scripts/check_environment.py": 1,
     "scripts/check_pine_legacy_drift.py": 1,
     "scripts/collect_smc_gate_evidence.py": 1,
