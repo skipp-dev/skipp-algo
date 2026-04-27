@@ -476,9 +476,12 @@ def test_execute_get_honors_retry_after_header(monkeypatch: pytest.MonkeyPatch) 
     assert sleeps == [0.25]
 
 
-def test_execute_get_non_transient_http_error_raises_runtime_and_opens_breaker(
+def test_execute_get_non_transient_http_error_raises_runtime_and_keeps_breaker_closed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # 4xx (except 408/429) are client/data errors — they must raise but must NOT
+    # trip the circuit breaker, otherwise one stale endpoint nukes every other
+    # FMP call for the cooldown window.
     client = FMPClient(api_key="K", retry_attempts=3, retry_backoff_seconds=0.0)
     fp = io.BytesIO(b"server-said-no")
 
@@ -487,6 +490,21 @@ def test_execute_get_non_transient_http_error_raises_runtime_and_opens_breaker(
 
     monkeypatch.setattr(client, "_request_once", fail)
     with pytest.raises(RuntimeError, match="HTTP 400"):
+        client._execute_get("/x", {}, use_circuit_breaker=True)
+    assert client._circuit_breaker.state == "CLOSED"
+
+
+def test_execute_get_429_opens_breaker(monkeypatch: pytest.MonkeyPatch) -> None:
+    # 429 (rate-limit) IS a provider-outage signal — must trip the breaker after
+    # retries are exhausted.
+    client = FMPClient(api_key="K", retry_attempts=2, retry_backoff_seconds=0.0)
+
+    def fail(path: str, params: dict[str, Any]) -> Any:
+        raise urllib.error.HTTPError(url="http://x", code=429, msg="rate", hdrs=None, fp=None)
+
+    monkeypatch.setattr(client, "_request_once", fail)
+    monkeypatch.setattr(macro.time, "sleep", lambda _s: None)
+    with pytest.raises(RuntimeError, match="HTTP 429"):
         client._execute_get("/x", {}, use_circuit_breaker=True)
     assert client._circuit_breaker.state == "OPEN"
 
@@ -999,12 +1017,14 @@ def test_get_sector_performance_snapshot(
 # ---------------------------------------------------------------------------
 
 
-def test_get_batch_aftermarket_trade_propagates_runtime_error(
+def test_get_batch_aftermarket_trade_swallows_chunk_runtime_error_and_returns_empty(
     client_with_get: FMPClient, recorder: dict[str, Any]
 ) -> None:
+    # A chunk failure must NOT bubble — otherwise one bad batch (URL too long,
+    # gateway 414/401) poisons the whole pre-market context. The chunk is
+    # logged + skipped, the rest of the batches still get aggregated.
     recorder["return"] = RuntimeError("fail")
-    with pytest.raises(RuntimeError):
-        client_with_get.get_batch_aftermarket_trade(["AAPL"])
+    assert client_with_get.get_batch_aftermarket_trade(["AAPL"]) == []
 
 
 def test_get_batch_aftermarket_trade_returns_list(
@@ -1012,8 +1032,8 @@ def test_get_batch_aftermarket_trade_returns_list(
 ) -> None:
     recorder["return"] = [{"x": 1}]
     out = client_with_get.get_batch_aftermarket_trade(["aapl", "msft"])
-    # NOTE: this method does not uppercase — passes raw join.
-    assert recorder["call"] == ("/stable/batch-aftermarket-trade", {"symbols": "aapl,msft"})
+    # Symbols are normalised (stripped + uppercased) before the URL is built.
+    assert recorder["call"] == ("/stable/batch-aftermarket-trade", {"symbols": "AAPL,MSFT"})
     assert out == [{"x": 1}]
 
 
@@ -1058,17 +1078,21 @@ def test_get_sector_performance_uses_today_then_falls_back_to_prev_trading_day(
 
     def fake_get(path: str, params: dict[str, Any]) -> Any:
         calls.append((path, dict(params)))
-        # First call (today) returns empty, second (prev day) returns data.
+        # First call (today) returns empty, second (prev day) returns snapshot rows.
         if len(calls) == 1:
             return []
-        return [{"sector": "Tech", "perf": 1.2}]
+        return [
+            {"sector": "Technology", "exchange": "NASDAQ", "averageChange": 1.2},
+            {"sector": "Technology", "exchange": "NYSE", "averageChange": 0.8},
+        ]
 
     monkeypatch.setattr(client, "_get", fake_get)
     rows = client.get_sector_performance()
-    assert rows == [{"sector": "Tech", "perf": 1.2}]
+    # Aggregated across exchanges → mean of 1.2 and 0.8 = 1.0
+    assert rows == [{"sector": "Technology", "changesPercentage": 1.0}]
     assert calls == [
-        ("/stable/sector-performance", {"date": "2026-04-23"}),
-        ("/stable/sector-performance", {"date": "2026-04-22"}),
+        ("/stable/sector-performance-snapshot", {"date": "2026-04-23"}),
+        ("/stable/sector-performance-snapshot", {"date": "2026-04-22"}),
     ]
 
 
@@ -1082,12 +1106,16 @@ def test_get_sector_performance_returns_today_data_without_fallback(
 
     def fake_get(path: str, params: dict[str, Any]) -> Any:
         calls.append((path, dict(params)))
-        return [{"sector": "Energy"}]
+        return [{"sector": "Energy", "exchange": "NYSE", "averageChange": -0.5}]
 
     monkeypatch.setattr(client, "_get", fake_get)
     rows = client.get_sector_performance()
-    assert rows == [{"sector": "Energy"}]
+    assert rows == [{"sector": "Energy", "changesPercentage": -0.5}]
     assert len(calls) == 1
+    assert calls[0] == (
+        "/stable/sector-performance-snapshot",
+        {"date": "2026-04-23"},
+    )
 
 
 # ---------------------------------------------------------------------------

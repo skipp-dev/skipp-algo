@@ -1204,6 +1204,28 @@ class TestOpenPrep(unittest.TestCase):
         mock_get.assert_called_once_with("/stable/batch-aftermarket-trade", {"symbols": "NVDA,PLTR"})
         self.assertEqual(rows, [{"symbol": "NVDA", "price": 100.0}])
 
+    def test_get_batch_aftermarket_trade_chunks_long_symbol_lists(self):
+        # FMP gateway returns 414/401 once the URL exceeds ~6 KB. The client
+        # must split into chunks of <=250 symbols and aggregate results.
+        client = FMPClient(api_key="test")
+        symbols = [f"S{i:04d}" for i in range(601)]  # 3 chunks: 250+250+101
+        with patch.object(
+            FMPClient,
+            "_get",
+            side_effect=[
+                [{"symbol": symbols[0]}],
+                [{"symbol": symbols[250]}],
+                [{"symbol": symbols[500]}],
+            ],
+        ) as mock_get:
+            rows = client.get_batch_aftermarket_trade(symbols)
+
+        self.assertEqual(mock_get.call_count, 3)
+        self.assertEqual(len(rows), 3)
+        # Last chunk has 101 symbols (601 - 2*250).
+        last_call_symbols = mock_get.call_args_list[-1].args[1]["symbols"].split(",")
+        self.assertEqual(len(last_call_symbols), 101)
+
     def test_get_biggest_gainers_and_losers_use_stable_endpoints(self):
         client = FMPClient(api_key="test")
         with patch.object(FMPClient, "_get", side_effect=[[{"symbol": "AAA"}], [{"symbol": "BBB"}]]) as mock_get:

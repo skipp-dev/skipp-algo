@@ -5,6 +5,7 @@ import csv
 import io
 import json
 import logging
+import math
 import os
 import ssl
 import time
@@ -500,6 +501,34 @@ def _log_feature_unavailable_once(feature_key: str, message: str) -> None:
     logger.info(message)
 
 
+def _aggregate_sector_snapshot_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Translate /stable/sector-performance-snapshot rows to the legacy
+    ``[{sector, changesPercentage}, ...]`` shape consumers expect.
+
+    The snapshot endpoint returns one row per (sector, exchange) with field
+    ``averageChange``. Aggregate (mean) per sector across exchanges.
+    """
+    sector_totals: dict[str, list[float]] = {}
+    for row in rows:
+        sector = str(row.get("sector") or "").strip()
+        if not sector:
+            continue
+        raw = row.get("averageChange")
+        if raw is None:
+            raw = row.get("changesPercentage")
+        try:
+            change = float(raw)
+        except (TypeError, ValueError):
+            continue
+        if not math.isfinite(change):
+            continue
+        sector_totals.setdefault(sector, []).append(change)
+    return [
+        {"sector": sector, "changesPercentage": round(sum(changes) / len(changes), 4)}
+        for sector, changes in sector_totals.items()
+    ]
+
+
 @dataclass
 class FMPClient:
     api_key: str
@@ -564,7 +593,12 @@ class FMPClient:
                     delay = retry_after if retry_after is not None else self.retry_backoff_seconds * (attempt + 1)
                     time.sleep(max(delay, 0.0))
                     continue
-                if use_circuit_breaker:
+                # 4xx (except 429) are client/data errors (e.g. /stable/foo retired,
+                # symbol unknown, no data for date). They must NOT trip the breaker —
+                # otherwise one stale endpoint nukes every other unrelated FMP call
+                # for the cooldown window.
+                provider_outage = exc.code in {408, 429, 500, 502, 503, 504}
+                if use_circuit_breaker and provider_outage:
                     self._circuit_breaker.on_failure()
                 body = ""
                 if getattr(exc, "fp", None) is not None:
@@ -831,8 +865,34 @@ class FMPClient:
         return {}
 
     def get_batch_aftermarket_trade(self, symbols: list[str]) -> list[dict[str, Any]]:
-        data = self._get("/stable/batch-aftermarket-trade", {"symbols": ",".join(symbols)})
-        return list(data) if isinstance(data, list) else []
+        # FMP /stable/batch-aftermarket-trade has no documented batch limit but
+        # the gateway returns 414 / 401 (truncated apikey) once the URL exceeds
+        # ~6 KB. Empirically ~500 typical tickers fit; chunk at 250 for safety.
+        # On per-chunk failure, skip that chunk so a single bad batch does not
+        # poison the whole pre-market context.
+        cleaned = [str(s).strip().upper() for s in symbols if str(s).strip()]
+        if not cleaned:
+            return []
+        rows: list[dict[str, Any]] = []
+        chunk_size = 250
+        for start in range(0, len(cleaned), chunk_size):
+            chunk = cleaned[start : start + chunk_size]
+            try:
+                data = self._get(
+                    "/stable/batch-aftermarket-trade",
+                    {"symbols": ",".join(chunk)},
+                )
+            except RuntimeError as exc:
+                logger.warning(
+                    "batch-aftermarket-trade chunk %d-%d failed: %s",
+                    start,
+                    start + len(chunk),
+                    exc,
+                )
+                continue
+            if isinstance(data, list):
+                rows.extend(data)
+        return rows
 
     def get_biggest_gainers(self) -> list[dict[str, Any]]:
         data = self._get("/stable/biggest-gainers", {})
@@ -1165,14 +1225,26 @@ class FMPClient:
         return list(data) if isinstance(data, list) else []
 
     def get_sector_performance(self) -> list[dict[str, Any]]:
-        today = _today_et_date()
-        current = self._get("/stable/sector-performance", {"date": today.isoformat()})
-        current_rows = list(current) if isinstance(current, list) else []
-        if current_rows:
-            return current_rows
-        previous_day = _prev_us_equity_trading_day(today)
-        fallback = self._get("/stable/sector-performance", {"date": previous_day.isoformat()})
-        return list(fallback) if isinstance(fallback, list) else []
+        # FMP retired /stable/sector-performance (always 404). The replacement is
+        # /stable/sector-performance-snapshot which REQUIRES a date param and
+        # returns one row per (sector, exchange) with the field ``averageChange``.
+        # Aggregate per sector and translate to the legacy ``changesPercentage``
+        # shape that all callers (run_open_prep, smc_provider_policy, ...) expect.
+        query_date = _today_et_date()
+        for _ in range(6):
+            try:
+                data = self._get(
+                    "/stable/sector-performance-snapshot",
+                    {"date": query_date.isoformat()},
+                )
+            except RuntimeError:
+                return []
+            raw_rows = list(data) if isinstance(data, list) else []
+            rows = _aggregate_sector_snapshot_rows(raw_rows)
+            if rows:
+                return rows
+            query_date = _prev_us_equity_trading_day(query_date)
+        return []
 
 
 @dataclass
