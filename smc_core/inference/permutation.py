@@ -150,9 +150,16 @@ def block_permutation_test(
         )
     # Copilot pass-3 fix: when ``block_size > 1`` the snapped split rule
     # in :func:`_block_aligned_split` requires that both arms span at
-    # least one full block. Reject inputs that don't, so the snapped
-    # group sizes never deviate from ``n_t`` by more than
-    # ``block_size // 2`` (which the docstring promises).
+    # least one full block. Reject inputs that don't, so the trim below
+    # is always non-empty on both arms.
+    #
+    # Copilot pass-4 correction: the per-arm trim is floor-division to a
+    # multiple of ``block_size``, so the snapped n_t / n_c may deviate
+    # from the original by up to ``block_size - 1`` samples (e.g.
+    # n_t=9, block_size=5 trims to 5 → deviation 4). The earlier
+    # "≤ block_size // 2" wording was wrong; the actual worst case is
+    # ``block_size - 1`` and is documented here so the next reviewer
+    # doesn't chase a phantom regression.
     if block_size > 1 and (n_t < block_size or (n - n_t) < block_size):
         raise ValueError(
             f"block_size > 1 requires both arms to span at least one full "

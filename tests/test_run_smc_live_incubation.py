@@ -312,3 +312,43 @@ def test_cli_live_phase_loads_account_state_json(tmp_path: Path) -> None:
         "--account-state-json", str(state_path),
     ])
     assert rc == 0
+
+
+def test_account_state_json_rejects_null_last_n_pnls(tmp_path: Path) -> None:
+    """Copilot pass-4: explicit JSON null for last_n_pnls must produce a
+    clear ValueError, not a raw TypeError from ``float(x) for x in None``."""
+    import pytest
+    from scripts.run_smc_live_incubation import _account_state_from_json
+
+    state_path = tmp_path / "account.json"
+    state_path.write_text(json.dumps({
+        "as_of": "2026-04-26",
+        "equity": 100000.0,
+        "starting_equity_today": 100000.0,
+        "high_water_mark": 100000.0,
+        "open_positions": 0,
+        "gross_exposure_pct": 0.0,
+        "last_n_pnls": None,
+    }), encoding="utf-8")
+    # JSON ``null`` -> Python ``None`` -> documented "treat as empty".
+    state = _account_state_from_json(state_path)
+    assert state.last_n_pnls == ()
+
+
+def test_account_state_json_rejects_non_iterable_last_n_pnls(tmp_path: Path) -> None:
+    """A scalar last_n_pnls must produce a clear ValueError (not a TypeError)."""
+    import pytest
+    from scripts.run_smc_live_incubation import _account_state_from_json
+
+    state_path = tmp_path / "account.json"
+    state_path.write_text(json.dumps({
+        "as_of": "2026-04-26",
+        "equity": 100000.0,
+        "starting_equity_today": 100000.0,
+        "high_water_mark": 100000.0,
+        "open_positions": 0,
+        "gross_exposure_pct": 0.0,
+        "last_n_pnls": 42,
+    }), encoding="utf-8")
+    with pytest.raises(ValueError, match="last_n_pnls must be a list/tuple"):
+        _account_state_from_json(state_path)

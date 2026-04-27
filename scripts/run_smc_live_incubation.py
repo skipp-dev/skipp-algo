@@ -464,7 +464,28 @@ def _account_state_from_json(path: Path) -> AccountState:
             f"--account-state-json: AccountState.as_of must be an ISO date "
             f"string (YYYY-MM-DD), got {as_of_raw!r}"
         ) from exc
-    last_n = tuple(float(x) for x in blob.get("last_n_pnls", ()))
+    # Copilot pass-4 fix: ``last_n_pnls`` is documented as optional, but
+    # ``blob.get("last_n_pnls", ())`` falls through to ``None`` when the
+    # JSON key is present and explicitly ``null``, which then raises a
+    # raw ``TypeError`` from ``float(x) for x in None``. Validate the
+    # type at the boundary so a malformed file produces a clear
+    # remediation message instead of a stack trace.
+    raw_pnls = blob.get("last_n_pnls")
+    if raw_pnls is None:
+        last_n: tuple[float, ...] = ()
+    elif not isinstance(raw_pnls, (list, tuple)):
+        raise ValueError(
+            "--account-state-json: AccountState.last_n_pnls must be a "
+            f"list/tuple of numbers (or omitted), got {type(raw_pnls).__name__}"
+        )
+    else:
+        try:
+            last_n = tuple(float(x) for x in raw_pnls)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "--account-state-json: AccountState.last_n_pnls entries must "
+                f"all be numeric, got {raw_pnls!r}"
+            ) from exc
     return AccountState(
         as_of=as_of,
         equity=float(blob["equity"]),
