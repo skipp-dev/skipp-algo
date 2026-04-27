@@ -40,6 +40,7 @@ _enricher: Enricher | None = None
 _best_by_ticker: dict[str, dict[str, Any]] = {}
 _bbt_lock = threading.Lock()
 _last_meta: dict[str, Any] | None = None
+_meta_lock = threading.Lock()  # protects _last_meta read/write
 _init_lock = threading.Lock()  # protects all singleton getters below
 
 
@@ -708,7 +709,8 @@ def poll_once(
     if newsapi_provider_meta is not None:
         meta["providers"] = {"newsapi_ai": newsapi_provider_meta}
     global _last_meta
-    _last_meta = copy.deepcopy(meta)
+    with _meta_lock:
+        _last_meta = copy.deepcopy(meta)
     try:
         export_open_prep(cfg.export_path, export_candidates, meta)
     except Exception as exc:
@@ -735,9 +737,10 @@ def get_last_meta() -> dict[str, Any]:
     A deep copy is returned so downstream consumers cannot mutate the
     poller's module-level state across Streamlit refreshes.
     """
-    if _last_meta is None:
-        return {}
-    return copy.deepcopy(_last_meta)
+    with _meta_lock:
+        if _last_meta is None:
+            return {}
+        return copy.deepcopy(_last_meta)
 
 
 def _effective_ts(cand: dict[str, Any]) -> float:
@@ -792,7 +795,8 @@ def _cleanup_singletons() -> None:
             logger.debug("singleton cleanup error", exc_info=True)
     with _bbt_lock:
         _best_by_ticker.clear()
-    _last_meta = None
+    with _meta_lock:
+        _last_meta = None
     _store = _fmp_adapter = _bz_rest_adapter = _bz_ws_adapter = _enricher = None
 
 

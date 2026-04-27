@@ -406,6 +406,7 @@ def _row_from_existing_artifact(path: Path, symbol: str, timeframe: str) -> Stru
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
+        logger.debug("Failed to load existing structure artifact at %s", path, exc_info=True)
         return None
 
     if not isinstance(payload, dict):

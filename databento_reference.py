@@ -16,6 +16,7 @@ import logging
 import os
 import re
 import tempfile
+import threading
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Iterable
@@ -50,6 +51,7 @@ REFERENCE_CACHE_FILE = "corporate_actions_reference_state.json"
 _STATE_CACHE_PATH: str | None = None
 _STATE_CACHE_MTIME: float | None = None
 _STATE_CACHE_VALUE: dict[str, Any] | None = None
+_STATE_CACHE_LOCK = threading.Lock()
 
 
 def _env_int(name: str, default: int) -> int:
@@ -109,9 +111,10 @@ def _replace_atomic(path: Path, content: str) -> None:
 
 def _invalidate_state_cache() -> None:
     global _STATE_CACHE_PATH, _STATE_CACHE_MTIME, _STATE_CACHE_VALUE
-    _STATE_CACHE_PATH = None
-    _STATE_CACHE_MTIME = None
-    _STATE_CACHE_VALUE = None
+    with _STATE_CACHE_LOCK:
+        _STATE_CACHE_PATH = None
+        _STATE_CACHE_MTIME = None
+        _STATE_CACHE_VALUE = None
 
 
 def _load_state(cache_dir: str | Path | None = None) -> dict[str, Any]:
@@ -119,12 +122,13 @@ def _load_state(cache_dir: str | Path | None = None) -> dict[str, Any]:
     path = _cache_path(cache_dir)
     path_str = str(path)
     mtime = path.stat().st_mtime if path.exists() else None
-    if (
-        _STATE_CACHE_VALUE is not None
-        and _STATE_CACHE_PATH == path_str
-        and _STATE_CACHE_MTIME == mtime
-    ):
-        return _STATE_CACHE_VALUE
+    with _STATE_CACHE_LOCK:
+        if (
+            _STATE_CACHE_VALUE is not None
+            and _STATE_CACHE_PATH == path_str
+            and _STATE_CACHE_MTIME == mtime
+        ):
+            return _STATE_CACHE_VALUE
 
     state = _default_state()
     if path.exists():
@@ -134,10 +138,11 @@ def _load_state(cache_dir: str | Path | None = None) -> dict[str, Any]:
                 state.update(loaded)
         except Exception:
             logger.warning("Failed to read Databento reference cache %s", path, exc_info=True)
-    _STATE_CACHE_PATH = path_str
-    _STATE_CACHE_MTIME = mtime
-    _STATE_CACHE_VALUE = state
-    return state
+    with _STATE_CACHE_LOCK:
+        _STATE_CACHE_PATH = path_str
+        _STATE_CACHE_MTIME = mtime
+        _STATE_CACHE_VALUE = state
+        return state
 
 
 def _save_state(state: dict[str, Any], cache_dir: str | Path | None = None) -> dict[str, Any]:
