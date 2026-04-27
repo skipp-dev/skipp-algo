@@ -27,10 +27,13 @@ job without coupling to a TWS session.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import tempfile
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 R_MULTIPLE_KEY = "outcome_r_multiple"
 PNL_KEY = "outcome_pnl_usd"
@@ -207,7 +210,15 @@ def annotate_imbalance_outcomes(
     imbalance_index: dict[str, dict[str, Any]],
     avg_volume_lookup: dict[str, float] | None = None,
 ) -> dict[str, int]:
-    """Annotate closed trades in the audit log with imbalance metadata.
+    """Annotate audit-log rows with opening-imbalance metadata.
+
+    Phase-A T8.3 contract: annotation is **purely additive**. Every
+    audit row that carries a ``symbol`` field is considered —
+    intent-creations, fills, halts, closes, etc. The downstream
+    correlator/stratifier re-filters on its own action set, so this
+    hook does not gate on ``closed`` / ``filled`` / ``outcome_pnl_usd``
+    on its own. Rows without a ``symbol`` are passed through
+    unchanged.
 
     Parameters
     ----------
@@ -231,9 +242,7 @@ def annotate_imbalance_outcomes(
         Summary counts:: ``records_total``, ``records_annotated``,
         ``records_skipped_no_data``, ``records_skipped_unavailable``.
 
-    The annotation is **purely additive** — fields are written under
-    new keys that the rest of the pipeline ignores (Phase-A passive
-    contract). The function is idempotent.
+    The function is idempotent.
     """
     p = Path(audit_path)
     records = _load_jsonl(p)
@@ -293,17 +302,43 @@ def load_imbalance_index(jsonl_path: Path | str) -> dict[str, dict[str, Any]]:
     """Read an imbalance JSONL and return a ``symbol -> snapshot`` map.
 
     Used as the ``imbalance_index`` argument to
-    :func:`annotate_imbalance_outcomes`. Skips malformed rows.
+    :func:`annotate_imbalance_outcomes`. Tolerant by design: malformed
+    JSON lines and rows without a ``symbol`` field are skipped with a
+    log warning so a single corrupt line does not block the whole
+    daily-cron annotation step. The strict reader
+    (:func:`_load_jsonl`) is used by the outcome backfill itself,
+    where partial files must abort.
     """
     out: dict[str, dict[str, Any]] = {}
     p = Path(jsonl_path)
     if not p.exists():
         return out
-    for record in _load_jsonl(p):
-        sym_raw = record.get("symbol")
-        if not sym_raw:
-            continue
-        out[str(sym_raw).upper()] = record
+    with p.open("r", encoding="utf-8") as fh:
+        for line_no, raw in enumerate(fh, start=1):
+            stripped = raw.strip()
+            if not stripped:
+                continue
+            try:
+                obj = json.loads(stripped)
+            except json.JSONDecodeError as exc:
+                logger.warning(
+                    "load_imbalance_index: skipping malformed line %d in %s: %s",
+                    line_no,
+                    p,
+                    exc.msg,
+                )
+                continue
+            if not isinstance(obj, dict):
+                logger.warning(
+                    "load_imbalance_index: skipping non-object line %d in %s",
+                    line_no,
+                    p,
+                )
+                continue
+            sym_raw = obj.get("symbol")
+            if not sym_raw:
+                continue
+            out[str(sym_raw).upper()] = obj
     return out
 
 

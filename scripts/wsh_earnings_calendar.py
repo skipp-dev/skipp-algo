@@ -241,6 +241,18 @@ def fetch_wsh_calendar(
         return events, errors
 
     for idx, (symbol, con_id) in enumerate(symbols, start=1):
+        if int(con_id) <= 0:
+            # Honour the ``con_id == -1`` sentinel documented in
+            # ``_read_watchlist_symbols``: WSH ``reqWshEventData`` is
+            # keyed on a real IBKR conId, so calling it with -1 (or
+            # any non-positive value) is a guaranteed error. Surface
+            # it as a soft skip so the cron operator sees the gap
+            # without aborting the whole run.
+            errors.append(
+                f"{symbol}: skipped reqWshEventData (con_id={con_id} <= 0; "
+                "watchlist row missing IBKR conId)"
+            )
+            continue
         try:
             payload_str = ib_client.reqWshEventData(
                 reqId=9000 + idx,

@@ -160,6 +160,7 @@ def build_snapshot_from_ticks(
         auction_imbalance is not None
         or auction_price is not None
         or auction_volume is not None
+        or regulatory_imbalance is not None
     )
 
     ts = (now_utc or _dt.datetime.now(tz=_dt.timezone.utc)).isoformat()

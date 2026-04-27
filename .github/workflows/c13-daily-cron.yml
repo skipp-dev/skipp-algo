@@ -83,8 +83,10 @@ jobs:
           echo "date=${DATE}" >> "$GITHUB_OUTPUT"
           echo "Trade date: ${DATE}"
 
-      - name: Step 1 — backfill live outcomes
+      - name: Step 1 — backfill live outcomes (advisory)
         id: backfill
+        # CONTINUE-ON-ERROR-INTENTIONAL: soft-skip (rc=78) on missing audit
+        # JSONL must not abort the whole pipeline; downstream steps gate on rc.
         continue-on-error: true
         run: |
           set +e
@@ -92,14 +94,18 @@ jobs:
           AUDIT="${LIVE_DIR}/incubation_${DATE}.jsonl"
           if [ ! -f "${AUDIT}" ]; then
             echo "No audit file for ${DATE} — skipping backfill (rc=78)."
+            echo "rc=78" >> "$GITHUB_OUTPUT"
             exit 78
           fi
           python -m scripts.backfill_live_outcomes "${AUDIT}"
           echo "rc=$?" >> "$GITHUB_OUTPUT"
 
-      - name: Step 2 — drift-input from audit JSONL
+      - name: Step 2 — drift-input from audit JSONL (advisory)
         id: drift_input
         if: steps.backfill.outputs.rc == '0'
+        # CONTINUE-ON-ERROR-INTENTIONAL: failures here are reported via the
+        # downstream issue-opener step; do not fail the whole job so later
+        # steps and artefact upload still run.
         continue-on-error: true
         run: |
           set +e
@@ -109,9 +115,12 @@ jobs:
             --output      "${LIVE_DIR}/drift_input_${DATE}.jsonl"
           echo "rc=$?" >> "$GITHUB_OUTPUT"
 
-      - name: Step 3 — refresh backtest reference
+      - name: Step 3 — refresh backtest reference (advisory)
         id: backtest_ref
         if: steps.drift_input.outputs.rc == '0'
+        # CONTINUE-ON-ERROR-INTENTIONAL: soft-skip (rc=78) when the
+        # walk-forward / bootstrap-CI inputs are not yet refreshed for the
+        # day; this is expected on weekends / holidays.
         continue-on-error: true
         run: |
           set +e
@@ -122,6 +131,7 @@ jobs:
             echo "Walk-forward or bootstrap-CI artefact missing for ${DATE}."
             echo "  WFO=${WFO}  exists=$([ -f "$WFO" ] && echo yes || echo no)"
             echo "  BCI=${BCI}  exists=$([ -f "$BCI" ] && echo yes || echo no)"
+            echo "rc=78" >> "$GITHUB_OUTPUT"
             exit 78
           fi
           python -m scripts.build_backtest_reference backtest-reference \
@@ -130,9 +140,11 @@ jobs:
             --output        "${CALIB_DIR}/backtest_reference_${DATE}.json"
           echo "rc=$?" >> "$GITHUB_OUTPUT"
 
-      - name: Step 4 — compute live drift
+      - name: Step 4 — compute live drift (advisory)
         id: drift
         if: steps.backtest_ref.outputs.rc == '0'
+        # CONTINUE-ON-ERROR-INTENTIONAL: surface failures via the
+        # issue-opener step; do not fail the job so artefacts still upload.
         continue-on-error: true
         run: |
           set +e
@@ -155,8 +167,11 @@ jobs:
           if-no-files-found: warn
 
       - name: Open issue if any required step failed
+        # rc values: '0' = success, '78' = soft-skip (expected on no-audit /
+        # weekend), '' = step skipped via `if:` gate (treat as no-op, NOT a
+        # failure). Anything else is a hard failure worth opening an issue.
         if: |
-          (steps.backfill.outputs.rc != '0' && steps.backfill.outputs.rc != '78') ||
+          (steps.backfill.outputs.rc != '0' && steps.backfill.outputs.rc != '78' && steps.backfill.outputs.rc != '') ||
           (steps.drift_input.outputs.rc != '0' && steps.drift_input.outputs.rc != '') ||
           (steps.backtest_ref.outputs.rc != '0' && steps.backtest_ref.outputs.rc != '78' && steps.backtest_ref.outputs.rc != '') ||
           (steps.drift.outputs.rc != '0' && steps.drift.outputs.rc != '')

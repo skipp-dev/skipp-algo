@@ -75,6 +75,35 @@ _VERDICT_RANK: dict[str, int] = {
     "unknown": 5,
 }
 
+# Audit ``action`` values that represent a *closed* trade. Live
+# incubation writes ``audit_only`` / ``filled`` / ``submitted`` /
+# ``created`` etc. per intent; only these terminal actions count
+# towards ``n_trades`` for the C12 trigger gate. Anything else
+# (intent creation, halts, reconnects, cancels) is excluded so the
+# trigger does not see a permanently zero count even when the live
+# pipeline runs.
+_CLOSED_TRADE_ACTIONS: frozenset[str] = frozenset({
+    "closed",
+    "tp_hit",
+    "stop_hit",
+    "filled",
+})
+
+
+def _is_closed_trade(rec: dict[str, Any]) -> bool:
+    """Return ``True`` if ``rec`` represents a closed trade.
+
+    Either the ``action`` is one of the terminal closed-trade actions
+    or the record carries an ``outcome_pnl_usd`` field (set by
+    :mod:`scripts.backfill_live_outcomes`).
+    """
+    action = rec.get("action")
+    if isinstance(action, str) and action in _CLOSED_TRADE_ACTIONS:
+        return True
+    if rec.get("outcome_pnl_usd") is not None:
+        return True
+    return False
+
 
 @dataclass(slots=True)
 class _FamilyAccumulator:
@@ -234,8 +263,7 @@ def aggregate(
             acc = accs[family]
             if date_hint is not None:
                 acc.trade_days.add(date_hint)
-            action = rec.get("action")
-            if isinstance(action, str) and action.startswith("intent_"):
+            if _is_closed_trade(rec):
                 acc.n_trades += 1
             elif rec.get("kill_switch_triggered") is True:
                 acc.kill_switch_fires += 1

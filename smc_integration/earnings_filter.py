@@ -17,8 +17,11 @@ The filter is deliberately conservative:
   the filter returns ``blocked=True`` with the offending event date.
 
 Default windows mirror the C13 sprint plan: block trades within 1
-business day before and 1 business day after a confirmed earnings
-release. Configure via constructor args.
+**calendar** day before and 1 **calendar** day after a confirmed
+earnings release. (We deliberately use calendar days — not business
+days — because pre-market / weekend earnings releases still affect
+the next session, and a calendar window keeps the rule trivial to
+audit.) Configure via constructor args.
 
 The output ``EarningsFilterDecision`` is serialisable for audit-log
 records — see :func:`as_audit_dict`.
@@ -264,7 +267,20 @@ class EarningsFilter:
         idx: dict[str, list[dict[str, Any]]] = {}
         if self._events_path is None or not self._events_path.exists():
             return idx
-        for ev in _read_jsonl(self._events_path):
+        try:
+            events = _read_jsonl(self._events_path)
+        except (OSError, UnicodeDecodeError) as exc:
+            # Honour the docstring contract: unreadable JSONL must
+            # downgrade to ``WSH_DATA_MISSING`` (Phase A must not block
+            # trades on data unavailability).
+            LOGGER.warning(
+                "earnings_filter: cannot read %s (%s); treating as missing",
+                self._events_path,
+                exc,
+            )
+            self._data_available = False
+            return idx
+        for ev in events:
             sym = str(ev.get("symbol", "")).strip().upper()
             if not sym:
                 continue

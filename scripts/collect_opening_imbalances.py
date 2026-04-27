@@ -243,9 +243,17 @@ def _summarise(
     completed_at: str,
     output_path: Path,
 ) -> CollectionSummary:
-    nyse = sum(1 for _, l in rows if l.upper() == "NYSE")
-    amex = sum(1 for _, l in rows if l.upper() in {"AMEX", "NYSE_MKT", "NYSE_AMERICAN"})
-    nasdaq = sum(1 for _, l in rows if l.upper() == "NASDAQ")
+    # Apply the same normalisation as ``listing_to_imbalance_feed()``
+    # in ``scripts.imbalance_data`` so values like ``"NYSE MKT"`` (with
+    # space) bucket alongside ``"NYSE_MKT"``/``"NYSE_AMERICAN"`` rather
+    # than slipping into ``other_listings`` and skewing ``coverage_pct``.
+    def _norm(listing: str) -> str:
+        return str(listing or "").strip().upper().replace(" ", "_")
+
+    norm_listings = [_norm(l) for _, l in rows]
+    nyse = sum(1 for n in norm_listings if n == "NYSE")
+    amex = sum(1 for n in norm_listings if n in {"AMEX", "NYSE_MKT", "NYSE_AMERICAN"})
+    nasdaq = sum(1 for n in norm_listings if n == "NASDAQ")
     other = max(0, len(rows) - nyse - amex - nasdaq)
     with_snap = sum(1 for s in snapshots if s.available)
     with_imbalance = sum(

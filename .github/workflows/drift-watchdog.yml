@@ -46,10 +46,11 @@ jobs:
           # fast and free of databento/httpx/streamlit transitive deps.
           pip install numpy
 
-      - name: Run drift watchdog
+      - name: Run drift watchdog (advisory)
         id: watchdog
-        # Allow the script to exit 2 (red) without failing the job —
-        # the follow-up step turns it into a GitHub issue.
+        # CONTINUE-ON-ERROR-INTENTIONAL: allow the script to exit 2 (red)
+        # without failing the job — the follow-up step turns it into a
+        # GitHub issue.
         continue-on-error: true
         run: |
           set +e
