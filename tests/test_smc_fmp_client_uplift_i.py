@@ -559,45 +559,48 @@ class TestGetMacroCalendar:
 
 
 class TestGetShortInterest:
-    def test_returns_dict_for_symbols_with_short_pct(self):
+    def test_returns_empty_mapping_after_endpoint_retirement(self):
+        # Lane 1 (2026-04-27): /stable/short-interest is retired (HTTP 404).
+        # The method must short-circuit, NOT call the network, and return {}.
         c = SMCFMPClient(api_key="k")
-        responses = {
-            "AAPL": [{"shortPercentFloat": 1.234}],
-            "TSLA": [{"shortPercentFloat": 5.678}],
-        }
-
-        def fake_get(path, params):
-            return responses.get(params.get("symbol"), [])
-
-        with patch.object(c, "_get", side_effect=fake_get):
+        with patch.object(c, "_get") as get_mock:
             out = c.get_short_interest(["aapl", "tsla", "MISS"])
-        assert out == {"AAPL": 1.23, "TSLA": 5.68}
+        assert out == {}
+        assert not get_mock.called
 
-    def test_skips_blank_symbols(self):
+    def test_returns_empty_for_blank_symbols(self):
         c = SMCFMPClient(api_key="k")
-        with patch.object(c, "_get", return_value=[{"shortPercentFloat": 1.0}]) as get_mock:
+        with patch.object(c, "_get") as get_mock:
             out = c.get_short_interest(["", "  "])
         assert out == {}
         assert not get_mock.called
 
-    def test_skips_symbols_with_exception(self):
+    def test_logs_deprecation_warning_only_once(self, caplog):
         c = SMCFMPClient(api_key="k")
-        with patch.object(c, "_get", side_effect=RuntimeError("x")):
-            out = c.get_short_interest(["AAPL"])
-        assert out == {}
-
-    def test_skips_rows_without_short_percent_float(self):
-        c = SMCFMPClient(api_key="k")
-        with patch.object(c, "_get", return_value=[{"other": 1}]):
-            out = c.get_short_interest(["AAPL"])
-        assert out == {}
+        import logging
+        with caplog.at_level(logging.WARNING, logger="scripts.smc_fmp_client"):
+            c.get_short_interest(["AAPL"])
+            c.get_short_interest(["TSLA"])
+        warnings = [r for r in caplog.records if "short-interest" in r.message]
+        assert len(warnings) == 1
 
 
 class TestGetTreasuryYields:
     def test_returns_yields_and_inversion(self):
         c = SMCFMPClient(api_key="k")
-        with patch.object(c, "_get", return_value=[{"year2": 5.0, "year10": 4.0}]):
+        with patch.object(c, "_get", return_value=[{"year2": 5.0, "year10": 4.0}]) as get_mock:
             out = c.get_treasury_yields()
+        # Lane 1: must hit /stable/treasury-rates, NOT the retired /stable/treasury.
+        assert get_mock.call_args[0][0] == "/stable/treasury-rates"
+        # Lane 6: must use a multi-day window (not from==to==today) so
+        # that weekends and US market holidays don't silently degrade
+        # to zero yields. 7-day window covers up to a 4-day Thanksgiving
+        # closure plus weekend.
+        params = get_mock.call_args[0][1]
+        from datetime import date as _date
+        d_from = _date.fromisoformat(params["from"])
+        d_to = _date.fromisoformat(params["to"])
+        assert (d_to - d_from).days >= 3
         assert out == {"2y": 5.0, "10y": 4.0, "spread": -1.0, "inverted": True}
 
     def test_returns_zero_fallback_on_exception(self):
@@ -615,14 +618,43 @@ class TestGetTreasuryYields:
 
 
 class TestGetInstitutionalHolders:
-    def test_returns_list_payload(self):
+    def test_returns_legacy_shape_from_summary_endpoint(self):
         c = SMCFMPClient(api_key="k")
-        with patch.object(c, "_get", return_value=[{"holder": "X"}]):
-            assert c.get_institutional_holders("AAPL") == [{"holder": "X"}]
+        payload = [{"numberOf13Fshares": 100, "lastNumberOf13Fshares": 80}]
+        with patch.object(c, "_get", return_value=payload) as get_mock:
+            out = c.get_institutional_holders("AAPL")
+        # Lane 1: must hit the new summary endpoint, not the retired one.
+        assert (
+            get_mock.call_args[0][0]
+            == "/stable/institutional-ownership/symbol-positions-summary"
+        )
+        # Caller compatibility: aggregated row is mapped to a single-element
+        # list with legacy `shares`/`previousShares` field names.
+        assert out == [{"shares": 100, "previousShares": 80}]
+
+    def test_walks_back_quarters_until_data_found(self):
+        c = SMCFMPClient(api_key="k")
+        call_count = {"n": 0}
+
+        def fake_get(path, params):
+            call_count["n"] += 1
+            if call_count["n"] < 3:
+                return []
+            return [{"numberOf13Fshares": 50, "lastNumberOf13Fshares": 40}]
+
+        with patch.object(c, "_get", side_effect=fake_get):
+            out = c.get_institutional_holders("AAPL")
+        assert call_count["n"] == 3
+        assert out == [{"shares": 50, "previousShares": 40}]
 
     def test_returns_empty_for_blank_symbol(self):
         c = SMCFMPClient(api_key="k")
         assert c.get_institutional_holders("") == []
+
+    def test_returns_empty_when_no_quarter_has_data(self):
+        c = SMCFMPClient(api_key="k")
+        with patch.object(c, "_get", return_value=[]):
+            assert c.get_institutional_holders("AAPL") == []
 
     def test_returns_empty_on_exception(self):
         c = SMCFMPClient(api_key="k")
@@ -635,6 +667,8 @@ class TestGetInsiderTrading:
         c = SMCFMPClient(api_key="k")
         with patch.object(c, "_get", return_value=[{"name": "x"}]) as get_mock:
             out = c.get_insider_trading("AAPL", limit=5)
+        # Lane 1: must hit /stable/insider-trading/search, not the retired path.
+        assert get_mock.call_args[0][0] == "/stable/insider-trading/search"
         assert out == [{"name": "x"}]
         assert get_mock.call_args[0][1]["limit"] == 5
 
@@ -676,3 +710,67 @@ class TestGetTechnicalIndicator:
         c = SMCFMPClient(api_key="k")
         with patch.object(c, "_get", return_value="not-useful"):
             assert c.get_technical_indicator("AAPL", "1day", "ema") == {}
+
+
+class TestSilentFallbackLoggingLane5:
+    """Lane 5: silent provider-boundary degradations must surface in logs.
+
+    Methods that swallow ``RuntimeError`` from ``_get`` and return an
+    empty result MUST emit exactly one ``logger.warning`` per
+    (endpoint, exception-type) per process via
+    ``_log_endpoint_failure_once``.
+    """
+
+    def setup_method(self):
+        # Reset the module-level dedupe set so each test starts fresh.
+        from scripts.smc_fmp_client import _LOGGED_SILENT_FAILURES
+        _LOGGED_SILENT_FAILURES.clear()
+
+    @pytest.mark.parametrize(
+        "method_name,args,kwargs,expected_endpoint",
+        [
+            ("get_index_quote", ("^VIX",), {}, "/stable/quote"),
+            ("get_company_profile", ("AAPL",), {}, "/stable/profile"),
+            ("get_analyst_estimates", ("AAPL",), {}, "/stable/analyst-estimates"),
+            ("get_ratios_ttm", ("AAPL",), {}, "/stable/ratios-ttm"),
+            ("get_key_metrics_ttm", ("AAPL",), {}, "/stable/key-metrics-ttm"),
+            ("get_stock_latest_news", (), {}, "/stable/news/stock-latest"),
+            ("get_insider_trading", ("AAPL",), {}, "/stable/insider-trading/search"),
+            ("get_technical_indicator", ("AAPL", "1day", "ema"), {},
+             "/stable/technical-indicators/ema"),
+        ],
+    )
+    def test_method_logs_one_shot_warning_on_silent_fallback(
+        self, caplog, method_name, args, kwargs, expected_endpoint,
+    ):
+        import logging
+        c = SMCFMPClient(api_key="k")
+        with patch.object(c, "_get", side_effect=RuntimeError("boom")):
+            with caplog.at_level(logging.WARNING, logger="scripts.smc_fmp_client"):
+                getattr(c, method_name)(*args, **kwargs)
+                # Call again; warning must NOT be re-logged.
+                getattr(c, method_name)(*args, **kwargs)
+        msgs = [r.message for r in caplog.records if "degraded silently" in r.message]
+        assert len(msgs) == 1, msgs
+        assert expected_endpoint in msgs[0]
+
+    def test_treasury_yields_logs_on_failure(self, caplog):
+        import logging
+        c = SMCFMPClient(api_key="k")
+        with patch.object(c, "_get", side_effect=RuntimeError("boom")):
+            with caplog.at_level(logging.WARNING, logger="scripts.smc_fmp_client"):
+                out = c.get_treasury_yields()
+        assert out == {"2y": 0.0, "10y": 0.0, "spread": 0.0, "inverted": False}
+        assert any("/stable/treasury-rates" in r.message for r in caplog.records)
+
+    def test_institutional_holders_logs_on_failure(self, caplog):
+        import logging
+        c = SMCFMPClient(api_key="k")
+        with patch.object(c, "_get", side_effect=RuntimeError("boom")):
+            with caplog.at_level(logging.WARNING, logger="scripts.smc_fmp_client"):
+                out = c.get_institutional_holders("AAPL")
+        assert out == []
+        # The walk-back loop runs up to 4 quarters, but the dedupe means
+        # only ONE warning is emitted across all iterations.
+        msgs = [r.message for r in caplog.records if "symbol-positions-summary" in r.message]
+        assert len(msgs) == 1

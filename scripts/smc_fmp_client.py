@@ -19,7 +19,7 @@ import ssl
 import time
 import urllib.error
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -28,6 +28,32 @@ from zoneinfo import ZoneInfo
 from smc_core.resilient import resilient
 
 logger = logging.getLogger(__name__)
+
+# Lane 5 (provider-boundary audit, 2026-04-27): the helpers below
+# silently swallow ``RuntimeError`` raised by ``_get`` and return an
+# empty result so that downstream pipelines can degrade gracefully.
+# That degradation was *too* graceful — the failure was completely
+# invisible in logs, masking endpoint deprecations, network outages,
+# and quota exhaustion. ``_log_endpoint_failure_once`` emits a single
+# ``logger.warning`` per ``(endpoint, exception-type)`` per process so
+# the failure is surfaced exactly once instead of either spamming or
+# disappearing.
+_LOGGED_SILENT_FAILURES: set[tuple[str, str]] = set()
+
+
+def _log_endpoint_failure_once(endpoint: str, exc: BaseException) -> None:
+    """Emit a one-shot warning for an FMP endpoint that silently degraded."""
+    key = (endpoint, type(exc).__name__)
+    if key in _LOGGED_SILENT_FAILURES:
+        return
+    _LOGGED_SILENT_FAILURES.add(key)
+    logger.warning(
+        "FMP %s degraded silently (%s: %s); returning empty result. "
+        "Subsequent failures of the same kind will not be re-logged.",
+        endpoint,
+        type(exc).__name__,
+        exc,
+    )
 
 _BASE_URL = "https://financialmodelingprep.com"
 # HTTP status codes worth a retry. Anything else is treated as fatal so
@@ -213,7 +239,8 @@ class SMCFMPClient:
         sym = symbol.strip().upper()
         try:
             data = self._get("/stable/quote", {"symbol": sym})
-        except RuntimeError:
+        except RuntimeError as exc:
+            _log_endpoint_failure_once("/stable/quote", exc)
             return {}
         if isinstance(data, dict):
             return dict(data)
@@ -232,7 +259,8 @@ class SMCFMPClient:
             return {}
         try:
             data = self._get("/stable/profile", {"symbol": requested_symbol})
-        except RuntimeError:
+        except RuntimeError as exc:
+            _log_endpoint_failure_once("/stable/profile", exc)
             return {}
         if isinstance(data, dict):
             return dict(data)
@@ -264,7 +292,8 @@ class SMCFMPClient:
         }
         try:
             data = self._get("/stable/analyst-estimates", params)
-        except RuntimeError:
+        except RuntimeError as exc:
+            _log_endpoint_failure_once("/stable/analyst-estimates", exc)
             return []
         return list(data) if isinstance(data, list) else []
 
@@ -274,7 +303,8 @@ class SMCFMPClient:
             return []
         try:
             data = self._get("/stable/ratios-ttm", {"symbol": requested_symbol})
-        except RuntimeError:
+        except RuntimeError as exc:
+            _log_endpoint_failure_once("/stable/ratios-ttm", exc)
             return []
         return list(data) if isinstance(data, list) else []
 
@@ -284,7 +314,8 @@ class SMCFMPClient:
             return []
         try:
             data = self._get("/stable/key-metrics-ttm", {"symbol": requested_symbol})
-        except RuntimeError:
+        except RuntimeError as exc:
+            _log_endpoint_failure_once("/stable/key-metrics-ttm", exc)
             return []
         return list(data) if isinstance(data, list) else []
 
@@ -468,7 +499,8 @@ class SMCFMPClient:
             params["symbol"] = symbol.strip().upper()
         try:
             data = self._get("/stable/news/stock-latest", params)
-        except RuntimeError:
+        except RuntimeError as exc:
+            _log_endpoint_failure_once("/stable/news/stock-latest", exc)
             return []
         return list(data) if isinstance(data, list) else []
 
@@ -478,7 +510,8 @@ class SMCFMPClient:
         params = {"from": from_date.isoformat(), "to": to_date.isoformat()}
         try:
             data = self._get("/stable/earnings-calendar", params)
-        except RuntimeError:
+        except RuntimeError as exc:
+            _log_endpoint_failure_once("/stable/earnings-calendar", exc)
             return []
         return list(data) if isinstance(data, list) else []
 
@@ -510,71 +543,126 @@ class SMCFMPClient:
     def get_short_interest(self, symbols: list[str]) -> dict[str, float]:
         """Fetch short interest as % of float for a list of symbols.
 
-        Uses FMP ``/stable/short-interest`` endpoint.
-        Returns ``{symbol: short_interest_pct}`` for symbols where data
-        is available.  Symbols without data are omitted.
+        DEPRECATED (Lane 1, 2026-04-27): The FMP ``/stable/short-interest``
+        endpoint has been fully retired (returns HTTP 404 with empty
+        body). FMP no longer publishes a 1:1 replacement under
+        ``/stable``; callers must treat short-interest enrichment as
+        unavailable and degrade gracefully.
+
+        This method now returns ``{}`` immediately and logs a one-shot
+        warning so the failure is visible rather than silently producing
+        empty enrichment fields.
         """
-        result: dict[str, float] = {}
-        for symbol in symbols[:100]:
-            sym = str(symbol).strip().upper()
-            if not sym:
-                continue
-            try:
-                data = self._get("/stable/short-interest", {"symbol": sym})
-                if data and isinstance(data, list) and len(data) > 0:
-                    latest = data[0]
-                    float_short = _coerce_finite_float(latest.get("shortPercentFloat"))
-                    if float_short is not None:
-                        result[sym] = round(float_short, 2)
-            except Exception:
-                continue
-        return result
+        if not getattr(self, "_short_interest_deprecation_logged", False):
+            logger.warning(
+                "FMP /stable/short-interest endpoint retired; "
+                "short_interest enrichment is unavailable. Returning empty mapping."
+            )
+            self._short_interest_deprecation_logged = True
+        return {}
 
     def get_treasury_yields(self) -> dict[str, Any]:
-        """Fetch current US Treasury yields for 2Y and 10Y.
+        """Fetch most recent US Treasury yields for 2Y and 10Y.
 
-        Uses FMP ``/stable/treasury`` endpoint.
+        Uses FMP ``/stable/treasury-rates`` endpoint (the legacy
+        ``/stable/treasury`` path was retired and now returns HTTP 404).
         Returns ``{"2y": float, "10y": float, "spread": float, "inverted": bool}``.
+
+        Lane 6 (2026-04-27) — weekend-naive guard: querying a single
+        ``today`` date returns an empty list on Saturdays, Sundays, and
+        US market holidays (Treasury rates are only published on
+        trading days). To avoid silently degrading to zero yields on
+        non-trading days, query a 7-day rolling window and pick the
+        most recent row.
         """
         today = _today_et()
+        # 7-day window safely covers a 3-day weekend + observed federal
+        # holiday (e.g. Thanksgiving Thu/Fri + weekend = up to 4
+        # consecutive non-trading days). Rates list is descending by
+        # date, so element 0 is the latest published trading day.
+        window_start = today - timedelta(days=7)
         try:
-            data = self._get("/stable/treasury", {"from": today.isoformat(), "to": today.isoformat()})
+            data = self._get(
+                "/stable/treasury-rates",
+                {"from": window_start.isoformat(), "to": today.isoformat()},
+            )
             if data and isinstance(data, list) and len(data) > 0:
                 latest = data[0]
                 y2 = _coerce_finite_float(latest.get("year2")) or 0.0
                 y10 = _coerce_finite_float(latest.get("year10")) or 0.0
                 spread = round(y10 - y2, 4)
                 return {"2y": round(y2, 4), "10y": round(y10, 4), "spread": spread, "inverted": spread < 0}
-        except Exception:
-            pass
+        except Exception as exc:
+            _log_endpoint_failure_once("/stable/treasury-rates", exc)
         return {"2y": 0.0, "10y": 0.0, "spread": 0.0, "inverted": False}
 
     def get_institutional_holders(self, symbol: str) -> list[dict[str, Any]]:
-        """Fetch institutional holders for a symbol.
+        """Fetch institutional ownership summary for a symbol.
 
-        Uses FMP ``/stable/institutional-holder`` endpoint.
+        Uses FMP ``/stable/institutional-ownership/symbol-positions-summary``
+        (the legacy ``/stable/institutional-holder`` per-row endpoint was
+        retired and now returns HTTP 404).
+
+        The new endpoint returns one *aggregated* row per (symbol, year,
+        quarter) with ``numberOf13Fshares`` (current) and
+        ``lastNumberOf13Fshares`` (previous quarter). To preserve the
+        existing ``[{shares, previousShares}]`` shape that callers in
+        ``smc_institutional_enrichment`` consume, we map the aggregated
+        row to a single-element list with those legacy field names.
+
+        Walks back at most 4 quarters from "current" until a quarter
+        with data is found, then returns the most recent.
         """
         sym = str(symbol).strip().upper()
         if not sym:
             return []
-        try:
-            data = self._get("/stable/institutional-holder", {"symbol": sym})
-            return list(data) if isinstance(data, list) else []
-        except Exception:
-            return []
+        today = _today_et()
+        # Most recent reported quarter is typically last quarter or two
+        # ago (13F filings lag ~45 days). Walk back from current quarter.
+        year = today.year
+        quarter = (today.month - 1) // 3 + 1
+        for _ in range(4):
+            try:
+                data = self._get(
+                    "/stable/institutional-ownership/symbol-positions-summary",
+                    {"symbol": sym, "year": year, "quarter": quarter},
+                )
+            except Exception as exc:
+                _log_endpoint_failure_once(
+                    "/stable/institutional-ownership/symbol-positions-summary", exc
+                )
+                data = None
+            if data and isinstance(data, list) and len(data) > 0:
+                row = data[0]
+                cur = _coerce_finite_float(row.get("numberOf13Fshares"))
+                prev = _coerce_finite_float(row.get("lastNumberOf13Fshares"))
+                if cur is not None and prev is not None:
+                    return [{"shares": int(cur), "previousShares": int(prev)}]
+            # Walk back one quarter.
+            quarter -= 1
+            if quarter == 0:
+                quarter = 4
+                year -= 1
+        return []
 
     def get_insider_trading(self, symbol: str, *, limit: int = 20) -> list[dict[str, Any]]:
-        """Fetch recent insider transactions.
+        """Fetch recent insider transactions for a symbol.
 
-        Uses FMP ``/stable/insider-trading`` endpoint.
+        Uses FMP ``/stable/insider-trading/search`` endpoint (the legacy
+        ``/stable/insider-trading`` symbol-filtered path was retired and
+        now returns HTTP 404).
         """
         sym = str(symbol).strip().upper()
         if not sym:
             return []
         try:
-            data = self._get("/stable/insider-trading", {"symbol": sym, "limit": max(int(limit), 1)})
+            data = self._get(
+                "/stable/insider-trading/search",
+                {"symbol": sym, "limit": max(int(limit), 1)},
+            )
             return list(data) if isinstance(data, list) else []
-        except Exception:
+        except Exception as exc:
+            _log_endpoint_failure_once("/stable/insider-trading/search", exc)
             return []
 
     def get_technical_indicator(
@@ -595,7 +683,10 @@ class SMCFMPClient:
             data = self._get(
                 f"/stable/technical-indicators/{indicator_type}", params,
             )
-        except RuntimeError:
+        except RuntimeError as exc:
+            _log_endpoint_failure_once(
+                f"/stable/technical-indicators/{indicator_type}", exc
+            )
             return {}
         if isinstance(data, dict):
             return dict(data)
