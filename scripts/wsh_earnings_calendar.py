@@ -235,7 +235,7 @@ def fetch_wsh_calendar(
     # not connect here so unit tests can pass a fully-stubbed client.
 
     try:
-        ib_client.reqWshMetaData(reqId=9000)  # noqa: S101 — TWS contract
+        ib_client.reqWshMetaData(reqId=9000)
     except Exception as exc:  # pragma: no cover — exercised live
         errors.append(f"reqWshMetaData failed: {exc}")
         return events, errors
