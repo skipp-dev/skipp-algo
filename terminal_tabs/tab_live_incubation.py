@@ -43,7 +43,15 @@ def _coerce_optional_int(x: Any) -> int | None:
 
 
 def format_live_row(variant: Mapping[str, Any]) -> dict[str, Any]:
-    """Project one drift-artifact variant onto the table-friendly columns."""
+    """Project one drift-artifact variant onto the table-friendly columns.
+
+    The C-sprint deep-review surfaced ``slippage_ks_reference_type`` here
+    so dashboard operators can see whether a row's slippage K-S was
+    computed against real backtest samples or the ``synthetic_normal``
+    fallback. Phase-B sign-off requires ``backtest_samples``; the row
+    keeps the literal so the UI can render a warning badge for
+    synthetic-only rows instead of silently letting them look healthy.
+    """
     live_sharpe = _coerce_optional_float(variant.get("live_sharpe"))
     backtest_sharpe = _coerce_optional_float(variant.get("backtest_sharpe"))
     drift_pp: float | None
@@ -51,6 +59,7 @@ def format_live_row(variant: Mapping[str, Any]) -> dict[str, Any]:
         drift_pp = live_sharpe - backtest_sharpe
     else:
         drift_pp = None
+    slippage_ref = variant.get("slippage_ks_reference_type")
     return {
         "variant": str(variant.get("variant", "")),
         "backtest_sharpe": backtest_sharpe,
@@ -58,6 +67,9 @@ def format_live_row(variant: Mapping[str, Any]) -> dict[str, Any]:
         "drift_pp": drift_pp,
         "live_trades": _coerce_optional_int(variant.get("n_live_trades")),
         "verdict": str(variant.get("verdict") or "insufficient_sample"),
+        "slippage_ks_reference_type": (
+            str(slippage_ref) if slippage_ref is not None else "unavailable"
+        ),
     }
 
 
@@ -94,12 +106,26 @@ def build_live_view(payload: Mapping[str, Any] | None) -> dict[str, Any]:
 
     variants = list(payload.get("variants") or [])
     rows = [format_live_row(v) for v in variants]
+    # C-sprint deep-review pass-2: aggregate the slippage-reference flag
+    # so the dashboard can render a single "Phase-A only — slippage uses
+    # synthetic_normal fallback" banner. Phase-B sign-off is gated on
+    # ``backtest_samples`` (machine-checked in PHASE_B_CRITERIA.extra).
+    has_synthetic = any(
+        r.get("slippage_ks_reference_type") == "synthetic_normal" for r in rows
+    )
+    has_unavailable = any(
+        r.get("slippage_ks_reference_type") == "unavailable" for r in rows
+    )
     return {
         "status": "ok",
         "computed_at": payload.get("computed_at"),
         "live_window_days": payload.get("live_window_days"),
         "rows": rows,
         "totals": _verdict_totals(variants),
+        "slippage_reference_warning": (
+            "synthetic_normal" if has_synthetic
+            else ("unavailable" if has_unavailable else None)
+        ),
     }
 
 
