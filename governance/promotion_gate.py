@@ -8,8 +8,8 @@ this file alone must NOT shift the gate behaviour — the source of truth
 remains the per-sprint module.
 
 Schema is pinned at ``DECISION_SCHEMA_VERSION = 1`` so downstream
-consumers (``dashboard/decision_first_panel.py`` in C7.1, the markdown
-audit reports, the X3 run-manifest header) can rely on a stable
+consumers (the future C7.1 decision-first dashboard panel, the markdown
+audit reports, and the X3 run-manifest header) can rely on a stable
 contract.
 """
 from __future__ import annotations
