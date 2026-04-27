@@ -2,8 +2,8 @@
 
 **Datum:** 2026-04-27
 **Owner:** Steffen Preuss
-**Vorbedingung:** PR #331 grün und gemerged
-**Ziel:** Vom „methodisch komplett" zum ersten echten Track-Record-Datenpunkt
+**Voraussetzung:** PR #331 grün und gemerged
+**Ziel:** Vom „methodisch komplett“ zum ersten echten Track-Record-Datenpunkt
 
 ## Warum dieser Sprint
 
@@ -19,7 +19,7 @@ Phase-A ist explizit **paper-trading mit 10 % Sizing** ([`docs/c8_live_incubatio
 
 #### T1.0 Pre-Flight Account-Checkliste (vor jedem anderen T1-Step)
 
-Alle vier Punkte MÜSSEN grün sein, bevor der erste Setup gegen Paper-Gateway geht ([IBKR API Market Data Subscriptions](https://www.interactivebrokers.com/campus/ibkr-api-page/market-data-subscriptions/)):
+Alle vier Punkte MÜSSEN grün sein, bevor das erste Setup gegen Paper-Gateway geht ([IBKR API Market Data Subscriptions](https://www.interactivebrokers.com/campus/ibkr-api-page/market-data-subscriptions/)):
 
 - [ ] **Account-Typ ist IBKR Pro** — IBKR Lite hat kein API-Trading; Demo-Accounts können keine Marktdaten abonnieren. Verifizieren in Client Portal → Settings → Account Configuration.
 - [ ] **Mindest-Equity ≥ $500 USD** im Live-Account (Paper-Account selbst hat kein Cash, aber das Subscription-Minimum gilt für den Master-Live-Account, der die Daten zur Verfügung stellt). Plus etwaige Subscription-Kosten on top.
@@ -53,7 +53,7 @@ Alle vier Punkte MÜSSEN grün sein, bevor der erste Setup gegen Paper-Gateway g
 **Ziel:** Die vier-Schritt-Pipeline aus dem Runbook täglich automatisch.
 
 - [ ] Cron-Job (oder GitHub-Actions-Schedule) für die vier Schritte aus [`docs/c8_live_incubation_runbook.md:122-146`](https://github.com/skippALGO/skipp-algo/blob/main/docs/c8_live_incubation_runbook.md): backfill_live_outcomes → build_backtest_reference drift-input → build_backtest_reference backtest-reference → compute_live_drift
-- [ ] Cron läuft täglich nach Marktschluss (US-East-Coast 16:30 + 30 min Buffer = 22:00 UTC)
+- [ ] Cron läuft täglich nach Marktschluss (US-East-Coast 16:30 ET + 30 min Buffer = 21:00 UTC während EDT / 22:00 UTC während EST; Sprintzeitraum 2026-04-28 bis 2026-05-25 liegt vollständig in EDT → 21:00 UTC)
 - [ ] `cache/live/drift_YYYY-MM-DD.json` und `cache/live/incubation_YYYY-MM-DD.jsonl` werden geschrieben, atomic (Pin-Test [`tests/test_atomic_write_call_sites.py`](https://github.com/skippALGO/skipp-algo/blob/main/tests/test_atomic_write_call_sites.py))
 - [ ] `terminal_tabs/drift_loader.py` rendert die letzten 7 Drift-Reports im Dashboard
 - [ ] Cron-Failure-Alerting: Slack/Email bei Job-Failure (oder mindestens GitHub-Actions-Notification)
@@ -130,7 +130,7 @@ WSH ist ✅ über die TWS API verfügbar via `reqWshMetaData` + `reqWshEventData
 - [ ] Konfigurierbar machen: Default `earnings_blackout_hours = 24`, in `cache/live/risk_limits.json` parametrierbar
 - [ ] Tests: 3 Setup-Szenarien (Earnings in 12h → skip, in 48h → pass, kein Earnings → pass), Audit-Log enthält Skip-Reason
 
-#### T7.3 C5-Regime-Bucket „earnings_window"
+#### T7.3 C5-Regime-Bucket „earnings_window“
 
 - [ ] [`scripts/regime_stratification.py`](https://github.com/skippALGO/skipp-algo/blob/main/scripts/regime_stratification.py) liest `regime_at_entry` schon — Producer ergänzen, der für jeden Trade beim Audit-Log-Schreiben einen zusätzlichen Bucket-Tag setzt: `earnings_window: True` falls `EARNINGS` in ±48h um Trade-Entry, sonst `False`
 - [ ] Stratifizierte Drift-Auswertung: pro Familie × `earnings_window`-Bucket separate Drift-Verdicts. Erwartung: Earnings-Window-Trades zeigen höhere Slippage-Variance — wenn das durch Stratifikation aus dem Aggregate herausgerechnet wird, fällt das `concerning`-Drift-Rauschen in der Pipeline
@@ -269,7 +269,7 @@ Diese Marktdaten / Drittanbieter sind sinnvoll, aber gehören in Folge-Sprints:
 - C12-Trigger: [`scripts/check_c12_trigger.py:70-71`](https://github.com/skippALGO/skipp-algo/blob/main/scripts/check_c12_trigger.py) (`MIN_LIVE_DAYS=90`, `MIN_LIVE_TRADES=30`)
 - Phase-B-Promotion-Gate (aus PR #331): `scripts/check_phase_b_drift_readiness.py`
 - Drift-Schema (aus PR #331): `schema_version=1.1.0` in `cache/live/drift_*.json`
-- Deep-Review-Befunde: [`DEEP_REVIEW_C1_C12_2026-04-27.md`](workspace) (geteilt)
+- Deep-Review-Befunde: `DEEP_REVIEW_C1_C12_2026-04-27.md` (extern geteiltes Workspace-Artefakt, nicht im Repo eingecheckt)
 - IBKR Tick Types (Auction 34/35/36/61): [TWS API Tick Types](https://interactivebrokers.github.io/tws-api/tick_types.html)
 - IBKR Auction Columns Glossar: [Auction Columns Documentation](https://www.ibkrguides.com/traderworkstation/auction-columns.htm)
 - NYSE Closing-Auction-Imbalance Methodik: [NYSE Imbalance Reference](https://www.nyse.com/data-insights/nyse-introduces-closing-auction-imbalance-analysis-tool)
