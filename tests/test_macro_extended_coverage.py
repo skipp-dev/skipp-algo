@@ -476,9 +476,12 @@ def test_execute_get_honors_retry_after_header(monkeypatch: pytest.MonkeyPatch) 
     assert sleeps == [0.25]
 
 
-def test_execute_get_non_transient_http_error_raises_runtime_and_opens_breaker(
+def test_execute_get_non_transient_http_error_raises_runtime_and_keeps_breaker_closed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # 4xx (except 408/429) are client/data errors — they must raise but must NOT
+    # trip the circuit breaker, otherwise one stale endpoint nukes every other
+    # FMP call for the cooldown window.
     client = FMPClient(api_key="K", retry_attempts=3, retry_backoff_seconds=0.0)
     fp = io.BytesIO(b"server-said-no")
 
@@ -487,6 +490,21 @@ def test_execute_get_non_transient_http_error_raises_runtime_and_opens_breaker(
 
     monkeypatch.setattr(client, "_request_once", fail)
     with pytest.raises(RuntimeError, match="HTTP 400"):
+        client._execute_get("/x", {}, use_circuit_breaker=True)
+    assert client._circuit_breaker.state == "CLOSED"
+
+
+def test_execute_get_429_opens_breaker(monkeypatch: pytest.MonkeyPatch) -> None:
+    # 429 (rate-limit) IS a provider-outage signal — must trip the breaker after
+    # retries are exhausted.
+    client = FMPClient(api_key="K", retry_attempts=2, retry_backoff_seconds=0.0)
+
+    def fail(path: str, params: dict[str, Any]) -> Any:
+        raise urllib.error.HTTPError(url="http://x", code=429, msg="rate", hdrs=None, fp=None)
+
+    monkeypatch.setattr(client, "_request_once", fail)
+    monkeypatch.setattr(macro.time, "sleep", lambda _s: None)
+    with pytest.raises(RuntimeError, match="HTTP 429"):
         client._execute_get("/x", {}, use_circuit_breaker=True)
     assert client._circuit_breaker.state == "OPEN"
 
@@ -591,13 +609,30 @@ def test_get_profile_bulk_swallows_runtime_error_and_logs_once(
     assert client_with_get.get_profile_bulk() == []
 
 
-def test_get_profiles_uppercases_and_joins_symbols(
+def test_get_profiles_uppercases_and_iterates_per_symbol(
     client_with_get: FMPClient, recorder: dict[str, Any]
 ) -> None:
-    recorder["return"] = [{"symbol": "AAPL"}]
+    # /stable/profile only accepts a single symbol; verify per-symbol calls.
+    calls: list[tuple[str, dict[str, Any]]] = []
+    original = recorder.get("return")
+
+    def _record_get(path: str, params: dict[str, Any]) -> Any:
+        calls.append((path, dict(params)))
+        return [{"symbol": params.get("symbol")}]
+
+    client_with_get._get = _record_get  # type: ignore[assignment]
     rows = client_with_get.get_profiles(["aapl", " msft ", "", "tsla"])
-    assert recorder["call"] == ("/stable/profile", {"symbol": "AAPL,MSFT,TSLA"})
-    assert rows == [{"symbol": "AAPL"}]
+    assert calls == [
+        ("/stable/profile", {"symbol": "AAPL"}),
+        ("/stable/profile", {"symbol": "MSFT"}),
+        ("/stable/profile", {"symbol": "TSLA"}),
+    ]
+    assert rows == [
+        {"symbol": "AAPL"},
+        {"symbol": "MSFT"},
+        {"symbol": "TSLA"},
+    ]
+    recorder["return"] = original
 
 
 def test_get_profiles_returns_empty_for_empty_input(client_with_get: FMPClient) -> None:
@@ -673,7 +708,7 @@ def test_get_cryptocurrency_historical_price(
 ) -> None:
     recorder["return"] = [{"d": 1}]
     client_with_get.get_cryptocurrency_historical_price("btcusd")
-    assert recorder["call"] == ("/stable/cryptocurrency-historical-price", {"symbol": "BTCUSD"})
+    assert recorder["call"] == ("/stable/historical-price-eod/full", {"symbol": "BTCUSD"})
 
 
 def test_get_cryptocurrency_list_and_fear_and_greed(
@@ -753,7 +788,7 @@ def test_get_premarket_movers_and_batch_aftermarket_quote(
     recorder["return"] = []
     client_with_get.get_premarket_movers()
     assert recorder["call"] == ("/stable/most-actives", {})
-    client_with_get.get_batch_aftermarket_quote(["AAPL", "MSFT"])
+    client_with_get.get_batch_aftermarket_quote(["aapl", "MSFT"])
     assert recorder["call"] == (
         "/stable/batch-aftermarket-quote",
         {"symbols": "AAPL,MSFT"},
@@ -803,11 +838,11 @@ def test_get_insider_trading_latest_optional_symbol_and_limit_floor(
 ) -> None:
     recorder["return"] = []
     client_with_get.get_insider_trading_latest()
-    assert recorder["call"] == ("/stable/insider-trading", {"limit": 100})
+    assert recorder["call"] == ("/stable/insider-trading/latest", {"limit": 100, "page": 0})
     client_with_get.get_insider_trading_latest(symbol="aapl", limit=0)
     assert recorder["call"] == (
-        "/stable/insider-trading",
-        {"limit": 1, "symbol": "AAPL"},
+        "/stable/insider-trading/search",
+        {"limit": 1, "page": 0, "symbol": "AAPL"},
     )
 
 
@@ -815,9 +850,80 @@ def test_get_institutional_ownership(client_with_get: FMPClient, recorder: dict[
     recorder["return"] = []
     client_with_get.get_institutional_ownership("aapl", limit=25)
     assert recorder["call"] == (
-        "/stable/institutional-ownership",
-        {"symbol": "AAPL", "limit": 25},
+        "/stable/institutional-ownership/symbol-positions-summary",
+        {"symbol": "AAPL"},
     )
+
+
+def test_get_acquisition_of_beneficial_ownership(
+    client_with_get: FMPClient, recorder: dict[str, Any]
+) -> None:
+    recorder["return"] = [{"symbol": "AAPL", "filingDate": "2026-04-20"}]
+    rows = client_with_get.get_acquisition_of_beneficial_ownership("aapl")
+    assert recorder["call"] == (
+        "/stable/acquisition-of-beneficial-ownership",
+        {"symbol": "AAPL"},
+    )
+    assert rows == [{"symbol": "AAPL", "filingDate": "2026-04-20"}]
+    assert client_with_get.get_acquisition_of_beneficial_ownership("   ") == []
+
+
+def test_get_acquisition_of_beneficial_ownership_swallows_runtime_error(
+    client_with_get: FMPClient, recorder: dict[str, Any]
+) -> None:
+    recorder["return"] = RuntimeError("retired")
+    assert client_with_get.get_acquisition_of_beneficial_ownership("AAPL") == []
+
+
+def test_get_senate_trades_latest_default_paging(
+    client_with_get: FMPClient, recorder: dict[str, Any]
+) -> None:
+    recorder["return"] = [{"symbol": "AAPL"}]
+    rows = client_with_get.get_senate_trades_latest(limit=50)
+    assert recorder["call"] == ("/stable/senate-latest", {"page": 0, "limit": 50})
+    assert rows == [{"symbol": "AAPL"}]
+
+
+def test_get_house_trades_latest_default_paging(
+    client_with_get: FMPClient, recorder: dict[str, Any]
+) -> None:
+    recorder["return"] = [{"symbol": "NVDA"}]
+    rows = client_with_get.get_house_trades_latest(limit=0)
+    # limit floored to 1
+    assert recorder["call"] == ("/stable/house-latest", {"page": 0, "limit": 1})
+    assert rows == [{"symbol": "NVDA"}]
+
+
+def test_get_senate_trades_latest_swallows_runtime_error(
+    client_with_get: FMPClient, recorder: dict[str, Any]
+) -> None:
+    recorder["return"] = RuntimeError("retired")
+    assert client_with_get.get_senate_trades_latest() == []
+
+
+def test_get_insider_trading_statistics_path(
+    client_with_get: FMPClient, recorder: dict[str, Any]
+) -> None:
+    recorder["return"] = [{"symbol": "AAPL", "year": 2026, "quarter": 1}]
+    rows = client_with_get.get_insider_trading_statistics("aapl")
+    assert recorder["call"] == ("/stable/insider-trading/statistics", {"symbol": "AAPL"})
+    assert rows == [{"symbol": "AAPL", "year": 2026, "quarter": 1}]
+
+
+def test_get_insider_trading_statistics_empty_symbol(
+    client_with_get: FMPClient, recorder: dict[str, Any]
+) -> None:
+    recorder["return"] = [{"x": 1}]  # would be returned if called
+    assert client_with_get.get_insider_trading_statistics("  ") == []
+    # _get must not have been invoked for empty symbol
+    assert recorder.get("call") is None
+
+
+def test_get_insider_trading_statistics_swallows_runtime_error(
+    client_with_get: FMPClient, recorder: dict[str, Any]
+) -> None:
+    recorder["return"] = RuntimeError("retired")
+    assert client_with_get.get_insider_trading_statistics("AAPL") == []
 
 
 def test_get_treasury_rates_optional_dates(
@@ -984,9 +1090,14 @@ def test_get_intraday_chart_with_and_without_day(
 def test_get_sector_performance_snapshot(
     client_with_get: FMPClient, recorder: dict[str, Any]
 ) -> None:
+    # `date` is required by FMP; without an explicit `as_of` we now default
+    # to today (US/Eastern) instead of calling the endpoint with `{}`.
     recorder["return"] = []
     client_with_get.get_sector_performance_snapshot()
-    assert recorder["call"] == ("/stable/sector-performance-snapshot", {})
+    call_path, call_params = recorder["call"]
+    assert call_path == "/stable/sector-performance-snapshot"
+    assert set(call_params.keys()) == {"date"}
+    assert call_params["date"]  # non-empty ISO date
     client_with_get.get_sector_performance_snapshot(date(2026, 4, 23))
     assert recorder["call"] == (
         "/stable/sector-performance-snapshot",
@@ -999,9 +1110,15 @@ def test_get_sector_performance_snapshot(
 # ---------------------------------------------------------------------------
 
 
-def test_get_batch_aftermarket_trade_propagates_runtime_error(
+def test_get_batch_aftermarket_trade_reraises_when_all_chunks_fail(
     client_with_get: FMPClient, recorder: dict[str, Any]
 ) -> None:
+    # A *single* chunk failure must NOT bubble — otherwise one bad batch
+    # (URL too long, gateway 414/401) poisons the whole pre-market context.
+    # The chunk is logged + skipped, the rest of the batches still get
+    # aggregated. But if EVERY chunk fails (likely a real misconfiguration
+    # such as a bad apikey) we re-raise so the caller cannot mistake it for
+    # "no data".
     recorder["return"] = RuntimeError("fail")
     with pytest.raises(RuntimeError):
         client_with_get.get_batch_aftermarket_trade(["AAPL"])
@@ -1012,8 +1129,8 @@ def test_get_batch_aftermarket_trade_returns_list(
 ) -> None:
     recorder["return"] = [{"x": 1}]
     out = client_with_get.get_batch_aftermarket_trade(["aapl", "msft"])
-    # NOTE: this method does not uppercase — passes raw join.
-    assert recorder["call"] == ("/stable/batch-aftermarket-trade", {"symbols": "aapl,msft"})
+    # Symbols are normalised (stripped + uppercased) before the URL is built.
+    assert recorder["call"] == ("/stable/batch-aftermarket-trade", {"symbols": "AAPL,MSFT"})
     assert out == [{"x": 1}]
 
 
@@ -1058,17 +1175,21 @@ def test_get_sector_performance_uses_today_then_falls_back_to_prev_trading_day(
 
     def fake_get(path: str, params: dict[str, Any]) -> Any:
         calls.append((path, dict(params)))
-        # First call (today) returns empty, second (prev day) returns data.
+        # First call (today) returns empty, second (prev day) returns snapshot rows.
         if len(calls) == 1:
             return []
-        return [{"sector": "Tech", "perf": 1.2}]
+        return [
+            {"sector": "Technology", "exchange": "NASDAQ", "averageChange": 1.2},
+            {"sector": "Technology", "exchange": "NYSE", "averageChange": 0.8},
+        ]
 
     monkeypatch.setattr(client, "_get", fake_get)
     rows = client.get_sector_performance()
-    assert rows == [{"sector": "Tech", "perf": 1.2}]
+    # Aggregated across exchanges → mean of 1.2 and 0.8 = 1.0
+    assert rows == [{"sector": "Technology", "changesPercentage": 1.0}]
     assert calls == [
-        ("/stable/sector-performance", {"date": "2026-04-23"}),
-        ("/stable/sector-performance", {"date": "2026-04-22"}),
+        ("/stable/sector-performance-snapshot", {"date": "2026-04-23"}),
+        ("/stable/sector-performance-snapshot", {"date": "2026-04-22"}),
     ]
 
 
@@ -1082,12 +1203,16 @@ def test_get_sector_performance_returns_today_data_without_fallback(
 
     def fake_get(path: str, params: dict[str, Any]) -> Any:
         calls.append((path, dict(params)))
-        return [{"sector": "Energy"}]
+        return [{"sector": "Energy", "exchange": "NYSE", "averageChange": -0.5}]
 
     monkeypatch.setattr(client, "_get", fake_get)
     rows = client.get_sector_performance()
-    assert rows == [{"sector": "Energy"}]
+    assert rows == [{"sector": "Energy", "changesPercentage": -0.5}]
     assert len(calls) == 1
+    assert calls[0] == (
+        "/stable/sector-performance-snapshot",
+        {"date": "2026-04-23"},
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -5,6 +5,7 @@ import csv
 import io
 import json
 import logging
+import math
 import os
 import ssl
 import threading
@@ -515,6 +516,34 @@ def _log_feature_unavailable_once(feature_key: str, message: str) -> None:
     logger.info(message)
 
 
+def _aggregate_sector_snapshot_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Translate /stable/sector-performance-snapshot rows to the legacy
+    ``[{sector, changesPercentage}, ...]`` shape consumers expect.
+
+    The snapshot endpoint returns one row per (sector, exchange) with field
+    ``averageChange``. Aggregate (mean) per sector across exchanges.
+    """
+    sector_totals: dict[str, list[float]] = {}
+    for row in rows:
+        sector = str(row.get("sector") or "").strip()
+        if not sector:
+            continue
+        raw = row.get("averageChange")
+        if raw is None:
+            raw = row.get("changesPercentage")
+        try:
+            change = float(raw)
+        except (TypeError, ValueError):
+            continue
+        if not math.isfinite(change):
+            continue
+        sector_totals.setdefault(sector, []).append(change)
+    return [
+        {"sector": sector, "changesPercentage": round(sum(changes) / len(changes), 4)}
+        for sector, changes in sector_totals.items()
+    ]
+
+
 @dataclass
 class FMPClient:
     api_key: str
@@ -572,14 +601,21 @@ class FMPClient:
                     self._circuit_breaker.on_success()
                 return data
             except urllib.error.HTTPError as exc:
-                transient = exc.code in {429, 500, 502, 503, 504}
+                # 408 (Request Timeout) is a provider-side stall — treat it the
+                # same as 429/5xx: retry with backoff before tripping the breaker.
+                transient = exc.code in {408, 429, 500, 502, 503, 504}
                 if transient and attempt + 1 < max_attempts:
                     headers = getattr(exc, "headers", None) or {}
                     retry_after = _parse_retry_after_seconds(headers.get("Retry-After"))
                     delay = retry_after if retry_after is not None else self.retry_backoff_seconds * (attempt + 1)
                     time.sleep(max(delay, 0.0))
                     continue
-                if use_circuit_breaker:
+                # Other 4xx are client/data errors (e.g. /stable/foo retired,
+                # symbol unknown, no data for date). They must NOT trip the
+                # breaker — otherwise one stale endpoint nukes every other
+                # unrelated FMP call for the cooldown window.
+                provider_outage = exc.code in {408, 429, 500, 502, 503, 504}
+                if use_circuit_breaker and provider_outage:
                     self._circuit_breaker.on_failure()
                 body = ""
                 if getattr(exc, "fp", None) is not None:
@@ -641,14 +677,22 @@ class FMPClient:
         return list(data) if isinstance(data, list) else []
 
     def get_profiles(self, symbols: list[str]) -> list[dict[str, Any]]:
+        # FMP /stable/profile only accepts a SINGLE symbol; passing a comma-
+        # joined list silently returns []. Iterate per symbol and warn-skip on
+        # individual failures so a single bad ticker does not nuke the batch.
         requested_symbols = [str(symbol).strip().upper() for symbol in symbols if str(symbol).strip()]
         if not requested_symbols:
             return []
-        try:
-            data = self._get("/stable/profile", {"symbol": ",".join(requested_symbols)})
-        except RuntimeError:
-            return []
-        return list(data) if isinstance(data, list) else []
+        rows: list[dict[str, Any]] = []
+        for sym in requested_symbols:
+            try:
+                data = self._get("/stable/profile", {"symbol": sym})
+            except RuntimeError as exc:
+                logger.warning("profile fetch failed for %s: %s", sym, exc)
+                continue
+            if isinstance(data, list):
+                rows.extend(data)
+        return rows
 
     def get_ratios_ttm(self, symbol: str) -> list[dict[str, Any]]:
         requested_symbol = str(symbol).strip().upper()
@@ -798,9 +842,11 @@ class FMPClient:
         return list(data) if isinstance(data, list) else []
 
     def get_cryptocurrency_historical_price(self, symbol: str) -> list[dict[str, Any]]:
+        # FMP retired /stable/cryptocurrency-historical-price; the EOD history
+        # for crypto symbols is now served by /stable/historical-price-eod/full.
         params = {"symbol": str(symbol).strip().upper()}
         try:
-            data = self._get("/stable/cryptocurrency-historical-price", params)
+            data = self._get("/stable/historical-price-eod/full", params)
         except RuntimeError:
             return []
         return list(data) if isinstance(data, list) else []
@@ -816,6 +862,10 @@ class FMPClient:
         try:
             data = self._get("/stable/fear-and-greed-index", {})
         except RuntimeError:
+            _log_feature_unavailable_once(
+                "stable/fear-and-greed-index",
+                "FMP feature unavailable (stable/fear-and-greed-index); endpoint retired or upgraded plan required.",
+            )
             return []
         return list(data) if isinstance(data, list) else []
 
@@ -846,8 +896,47 @@ class FMPClient:
         return {}
 
     def get_batch_aftermarket_trade(self, symbols: list[str]) -> list[dict[str, Any]]:
-        data = self._get("/stable/batch-aftermarket-trade", {"symbols": ",".join(symbols)})
-        return list(data) if isinstance(data, list) else []
+        # FMP /stable/batch-aftermarket-trade has no documented batch limit but
+        # the gateway returns 414 / 401 (truncated apikey) once the URL exceeds
+        # ~6 KB. Empirically ~500 typical tickers fit; chunk at 250 for safety.
+        # On per-chunk failure, skip that chunk so a single bad batch does not
+        # poison the whole pre-market context.
+        cleaned = [str(s).strip().upper() for s in symbols if str(s).strip()]
+        if not cleaned:
+            return []
+        rows: list[dict[str, Any]] = []
+        chunk_size = 250
+        chunk_count = 0
+        failures = 0
+        last_exc: RuntimeError | None = None
+        for start in range(0, len(cleaned), chunk_size):
+            chunk = cleaned[start : start + chunk_size]
+            chunk_count += 1
+            try:
+                data = self._get(
+                    "/stable/batch-aftermarket-trade",
+                    {"symbols": ",".join(chunk)},
+                )
+            except RuntimeError as exc:
+                logger.warning(
+                    "batch-aftermarket-trade chunk %d-%d failed: %s",
+                    start,
+                    start + len(chunk),
+                    exc,
+                )
+                failures += 1
+                last_exc = exc
+                continue
+            if isinstance(data, list):
+                rows.extend(data)
+        # Per-chunk swallow protects against URL-length / single-batch glitches,
+        # but if EVERY chunk failed it is almost certainly a real configuration
+        # / auth error (bad apikey, retired endpoint, full provider outage). Re-
+        # raise so the caller does not silently treat a misconfiguration as
+        # "no data".
+        if chunk_count > 0 and failures == chunk_count and last_exc is not None:
+            raise last_exc
+        return rows
 
     def get_biggest_gainers(self) -> list[dict[str, Any]]:
         data = self._get("/stable/biggest-gainers", {})
@@ -901,11 +990,31 @@ class FMPClient:
         return list(data) if isinstance(data, list) else []
 
     def get_batch_aftermarket_quote(self, symbols: list[str]) -> list[dict[str, Any]]:
-        try:
-            data = self._get("/stable/batch-aftermarket-quote", {"symbols": ",".join(symbols)})
-        except RuntimeError:
+        # See get_batch_aftermarket_trade: gateway returns 414/401 once the URL
+        # exceeds ~6 KB. Chunk at 250 and skip-with-warn on per-chunk failure.
+        cleaned = [str(s).strip().upper() for s in symbols if str(s).strip()]
+        if not cleaned:
             return []
-        return list(data) if isinstance(data, list) else []
+        rows: list[dict[str, Any]] = []
+        chunk_size = 250
+        for start in range(0, len(cleaned), chunk_size):
+            chunk = cleaned[start : start + chunk_size]
+            try:
+                data = self._get(
+                    "/stable/batch-aftermarket-quote",
+                    {"symbols": ",".join(chunk)},
+                )
+            except RuntimeError as exc:
+                logger.warning(
+                    "batch-aftermarket-quote chunk %d-%d failed: %s",
+                    start,
+                    start + len(chunk),
+                    exc,
+                )
+                continue
+            if isinstance(data, list):
+                rows.extend(data)
+        return rows
 
     def get_splits_calendar(self, date_from: date, date_to: date) -> list[dict[str, Any]]:
         params = {
@@ -963,23 +1072,106 @@ class FMPClient:
         return list(data) if isinstance(data, list) else []
 
     def get_insider_trading_latest(self, symbol: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
-        params: dict[str, Any] = {"limit": max(int(limit), 1)}
+        # Ultimate-plan path. The legacy /stable/insider-trading was renamed:
+        # - /stable/insider-trading/latest   (no symbol filter)
+        # - /stable/insider-trading/search   (with ?symbol=)
+        params: dict[str, Any] = {"limit": max(int(limit), 1), "page": 0}
         if symbol:
             params["symbol"] = str(symbol).strip().upper()
+            path = "/stable/insider-trading/search"
+        else:
+            path = "/stable/insider-trading/latest"
         try:
-            data = self._get("/stable/insider-trading", params)
+            data = self._get(path, params)
         except RuntimeError:
+            _log_feature_unavailable_once(
+                path.lstrip("/"),
+                f"FMP feature unavailable ({path}); endpoint retired or upgraded plan required.",
+            )
+            return []
+        return list(data) if isinstance(data, list) else []
+
+    def get_insider_trading_statistics(self, symbol: str) -> list[dict[str, Any]]:
+        # Ultimate-plan path. Quarterly aggregates per symbol — one call
+        # replaces the broad /stable/insider-trading/latest scan + manual
+        # aggregation. Returns rows with year/quarter/acquiredTransactions/
+        # disposedTransactions/acquiredDisposedRatio/totalAcquired/etc.
+        cleaned = str(symbol).strip().upper()
+        if not cleaned:
+            return []
+        params = {"symbol": cleaned}
+        try:
+            data = self._get("/stable/insider-trading/statistics", params)
+        except RuntimeError:
+            _log_feature_unavailable_once(
+                "stable/insider-trading/statistics",
+                "FMP feature unavailable (stable/insider-trading/statistics); endpoint retired or upgraded plan required.",
+            )
             return []
         return list(data) if isinstance(data, list) else []
 
     def get_institutional_ownership(self, symbol: str, limit: int = 100) -> list[dict[str, Any]]:
+        # Ultimate-plan path. The legacy /stable/institutional-ownership was
+        # split into multiple endpoints; the per-symbol position summary is
+        # the closest replacement of the previous payload shape.
         params = {
             "symbol": str(symbol).strip().upper(),
-            "limit": max(int(limit), 1),
         }
         try:
-            data = self._get("/stable/institutional-ownership", params)
+            data = self._get("/stable/institutional-ownership/symbol-positions-summary", params)
         except RuntimeError:
+            _log_feature_unavailable_once(
+                "stable/institutional-ownership/symbol-positions-summary",
+                "FMP feature unavailable (stable/institutional-ownership/symbol-positions-summary); endpoint retired or upgraded plan required.",
+            )
+            return []
+        rows = list(data) if isinstance(data, list) else []
+        if limit and len(rows) > limit:
+            rows = rows[: max(int(limit), 1)]
+        return rows
+
+    def get_acquisition_of_beneficial_ownership(self, symbol: str) -> list[dict[str, Any]]:
+        # SC 13D / 13G filings (5%+ stakes). Event-driven and orthogonal to
+        # quarterly 13F snapshots — often precedes catalyst moves by days.
+        cleaned = str(symbol).strip().upper()
+        if not cleaned:
+            return []
+        try:
+            data = self._get(
+                "/stable/acquisition-of-beneficial-ownership",
+                {"symbol": cleaned},
+            )
+        except RuntimeError:
+            _log_feature_unavailable_once(
+                "stable/acquisition-of-beneficial-ownership",
+                "FMP feature unavailable (stable/acquisition-of-beneficial-ownership); endpoint retired or upgraded plan required.",
+            )
+            return []
+        return list(data) if isinstance(data, list) else []
+
+    def get_senate_trades_latest(self, limit: int = 100) -> list[dict[str, Any]]:
+        # /stable/senate-latest returns recent disclosures across all senators
+        # without symbol filter — fast, single call. Use for daily ticker scan.
+        params = {"page": 0, "limit": max(int(limit), 1)}
+        try:
+            data = self._get("/stable/senate-latest", params)
+        except RuntimeError:
+            _log_feature_unavailable_once(
+                "stable/senate-latest",
+                "FMP feature unavailable (stable/senate-latest); endpoint retired or upgraded plan required.",
+            )
+            return []
+        return list(data) if isinstance(data, list) else []
+
+    def get_house_trades_latest(self, limit: int = 100) -> list[dict[str, Any]]:
+        params = {"page": 0, "limit": max(int(limit), 1)}
+        try:
+            data = self._get("/stable/house-latest", params)
+        except RuntimeError:
+            _log_feature_unavailable_once(
+                "stable/house-latest",
+                "FMP feature unavailable (stable/house-latest); endpoint retired or upgraded plan required.",
+            )
             return []
         return list(data) if isinstance(data, list) else []
 
@@ -1170,9 +1362,11 @@ class FMPClient:
         return {}
 
     def get_sector_performance_snapshot(self, as_of: date | None = None) -> list[dict[str, Any]]:
-        params: dict[str, Any] = {}
-        if as_of is not None:
-            params["date"] = as_of.isoformat()
+        # /stable/sector-performance-snapshot REQUIRES a `date` parameter; calling
+        # without one returns an empty payload. Default to today (US/Eastern) so
+        # callers that don't supply ``as_of`` still get meaningful data.
+        effective_date = as_of if as_of is not None else _today_et_date()
+        params: dict[str, Any] = {"date": effective_date.isoformat()}
         try:
             data = self._get("/stable/sector-performance-snapshot", params)
         except RuntimeError:
@@ -1180,14 +1374,35 @@ class FMPClient:
         return list(data) if isinstance(data, list) else []
 
     def get_sector_performance(self) -> list[dict[str, Any]]:
-        today = _today_et_date()
-        current = self._get("/stable/sector-performance", {"date": today.isoformat()})
-        current_rows = list(current) if isinstance(current, list) else []
-        if current_rows:
-            return current_rows
-        previous_day = _prev_us_equity_trading_day(today)
-        fallback = self._get("/stable/sector-performance", {"date": previous_day.isoformat()})
-        return list(fallback) if isinstance(fallback, list) else []
+        # FMP retired /stable/sector-performance (always 404). The replacement is
+        # /stable/sector-performance-snapshot which REQUIRES a date param and
+        # returns one row per (sector, exchange) with the field ``averageChange``.
+        # Aggregate per sector and translate to the legacy ``changesPercentage``
+        # shape that all callers (run_open_prep, smc_provider_policy, ...) expect.
+        query_date = _today_et_date()
+        for _ in range(6):
+            try:
+                data = self._get(
+                    "/stable/sector-performance-snapshot",
+                    {"date": query_date.isoformat()},
+                )
+            except RuntimeError as exc:
+                # A 4xx for a non-trading day or transient network glitch must
+                # not abort the walk-back loop — older dates may still succeed.
+                logger.warning(
+                    "sector-performance-snapshot for %s failed; "
+                    "trying previous trading day: %s",
+                    query_date.isoformat(),
+                    exc,
+                )
+                query_date = _prev_us_equity_trading_day(query_date)
+                continue
+            raw_rows = list(data) if isinstance(data, list) else []
+            rows = _aggregate_sector_snapshot_rows(raw_rows)
+            if rows:
+                return rows
+            query_date = _prev_us_equity_trading_day(query_date)
+        return []
 
 
 @dataclass

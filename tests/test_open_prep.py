@@ -1204,6 +1204,28 @@ class TestOpenPrep(unittest.TestCase):
         mock_get.assert_called_once_with("/stable/batch-aftermarket-trade", {"symbols": "NVDA,PLTR"})
         self.assertEqual(rows, [{"symbol": "NVDA", "price": 100.0}])
 
+    def test_get_batch_aftermarket_trade_chunks_long_symbol_lists(self):
+        # FMP gateway returns 414/401 once the URL exceeds ~6 KB. The client
+        # must split into chunks of <=250 symbols and aggregate results.
+        client = FMPClient(api_key="test")
+        symbols = [f"S{i:04d}" for i in range(601)]  # 3 chunks: 250+250+101
+        with patch.object(
+            FMPClient,
+            "_get",
+            side_effect=[
+                [{"symbol": symbols[0]}],
+                [{"symbol": symbols[250]}],
+                [{"symbol": symbols[500]}],
+            ],
+        ) as mock_get:
+            rows = client.get_batch_aftermarket_trade(symbols)
+
+        self.assertEqual(mock_get.call_count, 3)
+        self.assertEqual(len(rows), 3)
+        # Last chunk has 101 symbols (601 - 2*250).
+        last_call_symbols = mock_get.call_args_list[-1].args[1]["symbols"].split(",")
+        self.assertEqual(len(last_call_symbols), 101)
+
     def test_get_biggest_gainers_and_losers_use_stable_endpoints(self):
         client = FMPClient(api_key="test")
         with patch.object(FMPClient, "_get", side_effect=[[{"symbol": "AAA"}], [{"symbol": "BBB"}]]) as mock_get:
@@ -3083,6 +3105,76 @@ class TestFMPClientCircuitBreakerValidationFailures(unittest.TestCase):
         self.assertEqual(call_count["n"], 2)
         self.assertTrue(mock_sleep.called)
         self.assertGreaterEqual(mock_sleep.call_args[0][0], 0.0)
+
+
+class TestFMPClientCircuitBreakerHttpClassification(unittest.TestCase):
+    """4xx (other than 408/429) MUST NOT trip the breaker — one retired
+    endpoint or one bad symbol must not nuke unrelated FMP calls.
+    Lane 2 regression coverage."""
+
+    def _hit(self, code: int, *, attempts: int = 1) -> FMPClient:
+        client = FMPClient(api_key="test", retry_attempts=attempts)
+        exc = urllib.error.HTTPError(
+            "https://example.com", code, "synthetic", {}, None
+        )
+        with patch("open_prep.macro.urlopen", side_effect=exc):
+            with patch("time.sleep"):  # avoid real sleeps on transient retries
+                with self.assertRaises(RuntimeError):
+                    client._get("/stable/x", {})
+        return client
+
+    def test_404_does_not_trip_circuit_breaker(self):
+        for _ in range(5):
+            client = self._hit(404)
+            self.assertEqual(client._circuit_breaker.state, "CLOSED")
+
+    def test_400_does_not_trip_circuit_breaker(self):
+        client = self._hit(400)
+        self.assertEqual(client._circuit_breaker.state, "CLOSED")
+
+    def test_403_does_not_trip_circuit_breaker(self):
+        client = self._hit(403)
+        self.assertEqual(client._circuit_breaker.state, "CLOSED")
+
+    def test_401_does_not_trip_circuit_breaker(self):
+        client = self._hit(401)
+        self.assertEqual(client._circuit_breaker.state, "CLOSED")
+
+    def test_408_trips_circuit_breaker(self):
+        # Request Timeout is genuinely transient on the server side.
+        client = self._hit(408)
+        self.assertEqual(client._circuit_breaker.state, "OPEN")
+
+    def test_503_still_trips_circuit_breaker(self):
+        client = self._hit(503)
+        self.assertEqual(client._circuit_breaker.state, "OPEN")
+
+    def test_408_is_retried_when_attempts_remain(self):
+        client = FMPClient(api_key="test", retry_attempts=2)
+        exc_408 = urllib.error.HTTPError(
+            "https://example.com", 408, "Request Timeout", {}, None
+        )
+        ok_resp = MagicMock()
+        ok_resp.read.return_value = b'[{"ok": true}]'
+        cm_ok = MagicMock()
+        cm_ok.__enter__.return_value = ok_resp
+        cm_ok.__exit__.return_value = False
+
+        calls = {"n": 0}
+
+        def _side_effect(*args, **kwargs):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise exc_408
+            return cm_ok
+
+        with patch("open_prep.macro.urlopen", side_effect=_side_effect):
+            with patch("time.sleep"):
+                result = client._get("/stable/x", {})
+
+        self.assertEqual(calls["n"], 2)
+        self.assertEqual(result, [{"ok": True}])
+        self.assertEqual(client._circuit_breaker.state, "CLOSED")
 
 
 class TestMacroHelpers(unittest.TestCase):

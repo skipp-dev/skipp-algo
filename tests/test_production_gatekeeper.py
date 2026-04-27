@@ -671,20 +671,24 @@ class TestWatchlistAutoAddNoneValues:
 # ═══════════════════════════════════════════════════════════════════
 
 class TestInsiderTradingSafeFloat:
-    """_fetch_insider_trading must not crash on non-numeric
-    securitiesTransacted or price (P-3 fix)."""
+    """_fetch_insider_trading must not crash on non-numeric statistics fields
+    returned from /stable/insider-trading/statistics (P-3 fix)."""
 
-    def test_non_numeric_securities_transacted(self):
-        """Arrange: securitiesTransacted='N/A'. Assert: no crash."""
+    def test_non_numeric_acquired_transactions(self):
+        """Arrange: acquiredTransactions='N/A'. Assert: no crash, treated as 0."""
         from open_prep.run_open_prep import _fetch_insider_trading
 
         mock_client = MagicMock()
-        mock_client.get_insider_trading_latest.return_value = [
+        mock_client.get_insider_trading_statistics.return_value = [
             {
                 "symbol": "TEST",
-                "transactionType": "P-Purchase",
-                "securitiesTransacted": "N/A",
-                "price": 50.0,
+                "year": 2026,
+                "quarter": 1,
+                "acquiredTransactions": "N/A",
+                "disposedTransactions": 5,
+                "totalAcquired": 0,
+                "totalDisposed": 12345.0,
+                "acquiredDisposedRatio": 0.0,
             },
         ]
 
@@ -692,19 +696,23 @@ class TestInsiderTradingSafeFloat:
             client=mock_client, symbols=["TEST"]
         )
         assert "TEST" in result
+        assert result["TEST"]["insider_buys"] == 0
         assert result["TEST"]["insider_total_bought_value"] == 0.0
 
-    def test_none_price(self):
-        """Arrange: price=None. Assert: no crash, value=0."""
+    def test_none_total_disposed(self):
+        """Arrange: totalDisposed=None. Assert: no crash, value=0."""
         from open_prep.run_open_prep import _fetch_insider_trading
 
         mock_client = MagicMock()
-        mock_client.get_insider_trading_latest.return_value = [
+        mock_client.get_insider_trading_statistics.return_value = [
             {
                 "symbol": "FOO",
-                "transactionType": "P-Purchase",
-                "securitiesTransacted": 1000,
-                "price": None,
+                "year": 2026,
+                "quarter": 1,
+                "acquiredTransactions": 3,
+                "disposedTransactions": 1,
+                "totalAcquired": 1000.0,
+                "totalDisposed": None,
             },
         ]
 
@@ -712,7 +720,95 @@ class TestInsiderTradingSafeFloat:
             client=mock_client, symbols=["FOO"]
         )
         assert "FOO" in result
-        assert result["FOO"]["insider_total_bought_value"] == 0.0
+        assert result["FOO"]["insider_total_sold_value"] == 0.0
+        assert result["FOO"]["insider_sentiment"] == "net_buy"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 14b) PR-D3: insider-statistics quarterly aggregates + acceleration
+# ═══════════════════════════════════════════════════════════════════
+
+class TestInsiderStatisticsQuarterly:
+    """_fetch_insider_trading uses /stable/insider-trading/statistics (PR-D3)."""
+
+    def test_latest_quarter_picked_when_unordered(self):
+        """API may return rows out of order — code must sort desc by (year, quarter)."""
+        from open_prep.run_open_prep import _fetch_insider_trading
+
+        mock_client = MagicMock()
+        mock_client.get_insider_trading_statistics.return_value = [
+            {"symbol": "AAPL", "year": 2025, "quarter": 4,
+             "acquiredTransactions": 2, "disposedTransactions": 50,
+             "totalAcquired": 100.0, "totalDisposed": 999.0,
+             "acquiredDisposedRatio": 0.04},
+            {"symbol": "AAPL", "year": 2026, "quarter": 1,
+             "acquiredTransactions": 10, "disposedTransactions": 3,
+             "totalAcquired": 50000.0, "totalDisposed": 1500.0,
+             "acquiredDisposedRatio": 3.33},
+        ]
+        result = _fetch_insider_trading(client=mock_client, symbols=["AAPL"])
+        row = result["AAPL"]
+        assert row["insider_buys"] == 10  # picked 2026Q1 not 2025Q4
+        assert row["insider_sells"] == 3
+        assert row["insider_sentiment"] == "net_buy"
+        assert row["insider_quarter_label"] == "2026Q1"
+        assert row["insider_acquired_disposed_ratio"] == 3.33
+        # acceleration = current_quarter (10) - prev_quarter (2) = 8
+        assert row["insider_buying_acceleration"] == 8
+
+    def test_single_quarter_no_acceleration(self):
+        from open_prep.run_open_prep import _fetch_insider_trading
+
+        mock_client = MagicMock()
+        mock_client.get_insider_trading_statistics.return_value = [
+            {"symbol": "TSLA", "year": 2026, "quarter": 1,
+             "acquiredTransactions": 5, "disposedTransactions": 5,
+             "totalAcquired": 1000.0, "totalDisposed": 1000.0,
+             "acquiredDisposedRatio": 1.0},
+        ]
+        result = _fetch_insider_trading(client=mock_client, symbols=["TSLA"])
+        row = result["TSLA"]
+        assert row["insider_sentiment"] == "neutral"
+        assert row["insider_buying_acceleration"] == 5  # vs implicit 0 prev
+
+    def test_universe_filter_caps_lookups(self):
+        """Only first _MAX_INSIDER_STATS_LOOKUPS symbols are fetched."""
+        from open_prep.run_open_prep import (
+            _MAX_INSIDER_STATS_LOOKUPS,
+            _fetch_insider_trading,
+        )
+
+        mock_client = MagicMock()
+        mock_client.get_insider_trading_statistics.return_value = []
+        many = [f"SYM{i}" for i in range(_MAX_INSIDER_STATS_LOOKUPS + 10)]
+        _fetch_insider_trading(client=mock_client, symbols=many)
+        assert mock_client.get_insider_trading_statistics.call_count == _MAX_INSIDER_STATS_LOOKUPS
+
+    def test_per_symbol_failure_isolated(self):
+        """One symbol failing must not poison the rest."""
+        from open_prep.run_open_prep import _fetch_insider_trading
+
+        def side_effect(sym):
+            if sym == "BAD":
+                raise RuntimeError("boom")
+            return [{"symbol": sym, "year": 2026, "quarter": 1,
+                     "acquiredTransactions": 1, "disposedTransactions": 0,
+                     "totalAcquired": 100.0, "totalDisposed": 0.0,
+                     "acquiredDisposedRatio": None}]
+
+        mock_client = MagicMock()
+        mock_client.get_insider_trading_statistics.side_effect = side_effect
+        result = _fetch_insider_trading(client=mock_client, symbols=["AAPL", "BAD", "NVDA"])
+        assert "AAPL" in result and "NVDA" in result
+        assert "BAD" not in result
+
+    def test_empty_universe_short_circuits(self):
+        from open_prep.run_open_prep import _fetch_insider_trading
+
+        mock_client = MagicMock()
+        result = _fetch_insider_trading(client=mock_client, symbols=[])
+        assert result == {}
+        mock_client.get_insider_trading_statistics.assert_not_called()
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1468,3 +1564,238 @@ class TestPickIndicativePriceCascade:
         px, source = _pick_indicative_price(quote)
         assert px == 99.0
         assert source == "spot"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 16) PR-D1: beneficial-ownership enrichment (SC 13D / 13G)
+# ═══════════════════════════════════════════════════════════════════
+
+class TestBeneficialOwnershipEnrichment:
+    """_fetch_beneficial_ownership aggregates SC 13D/G filings and flags
+    fresh ones inside the configured window."""
+
+    def test_recent_filing_within_window_is_flagged(self):
+        from open_prep.run_open_prep import _fetch_beneficial_ownership
+
+        today = date(2026, 4, 27)
+        mock_client = MagicMock()
+        mock_client.get_acquisition_of_beneficial_ownership.return_value = [
+            {
+                "symbol": "AAPL",
+                "filingDate": "2026-04-20",
+                "nameOfReportingPerson": "Acme Capital",
+                "percentOfClass": "5.6",
+                "url": "https://sec.gov/...",
+            },
+            {
+                "symbol": "AAPL",
+                "filingDate": "2024-02-14",
+                "nameOfReportingPerson": "Stale LLC",
+                "percentOfClass": "5.1",
+            },
+        ]
+        result = _fetch_beneficial_ownership(
+            client=mock_client, symbols=["AAPL"], today=today
+        )
+        assert "AAPL" in result
+        row = result["AAPL"]
+        assert row["beneficial_owner_count"] == 2
+        assert row["beneficial_owner_recent"] is True
+        assert row["beneficial_owner_recent_count"] == 1
+        assert row["beneficial_owner_latest_filer"] == "Acme Capital"
+        assert row["beneficial_owner_latest_pct"] == 5.6
+        assert row["beneficial_owner_latest_date"] == "2026-04-20"
+
+    def test_only_stale_filings_not_flagged(self):
+        from open_prep.run_open_prep import _fetch_beneficial_ownership
+
+        today = date(2026, 4, 27)
+        mock_client = MagicMock()
+        mock_client.get_acquisition_of_beneficial_ownership.return_value = [
+            {
+                "symbol": "TSLA",
+                "filingDate": "2022-03-11",
+                "nameOfReportingPerson": "BlackRock, Inc.",
+                "percentOfClass": "5.3",
+            },
+        ]
+        result = _fetch_beneficial_ownership(
+            client=mock_client, symbols=["TSLA"], today=today
+        )
+        assert result["TSLA"]["beneficial_owner_recent"] is False
+        assert result["TSLA"]["beneficial_owner_recent_count"] == 0
+        assert result["TSLA"]["beneficial_owner_latest_pct"] == 5.3
+
+    def test_empty_or_failed_lookup_returns_no_entry(self):
+        from open_prep.run_open_prep import _fetch_beneficial_ownership
+
+        today = date(2026, 4, 27)
+        mock_client = MagicMock()
+        mock_client.get_acquisition_of_beneficial_ownership.side_effect = [
+            [],  # GME — no filings
+            RuntimeError("boom"),  # FOO — provider fail
+        ]
+        result = _fetch_beneficial_ownership(
+            client=mock_client, symbols=["GME", "FOO"], today=today
+        )
+        assert "GME" not in result
+        assert "FOO" not in result
+
+    def test_non_numeric_percent_does_not_crash(self):
+        from open_prep.run_open_prep import _fetch_beneficial_ownership
+
+        today = date(2026, 4, 27)
+        mock_client = MagicMock()
+        mock_client.get_acquisition_of_beneficial_ownership.return_value = [
+            {
+                "symbol": "NVDA",
+                "filingDate": "2026-04-25",
+                "nameOfReportingPerson": "Mystery LP",
+                "percentOfClass": "N/A",
+            },
+        ]
+        result = _fetch_beneficial_ownership(
+            client=mock_client, symbols=["NVDA"], today=today
+        )
+        assert result["NVDA"]["beneficial_owner_latest_pct"] is None
+        assert result["NVDA"]["beneficial_owner_recent"] is True
+
+    def test_lookup_cap_respected(self):
+        from open_prep.run_open_prep import (
+            _MAX_BENEFICIAL_OWNERSHIP_LOOKUPS,
+            _fetch_beneficial_ownership,
+        )
+
+        today = date(2026, 4, 27)
+        mock_client = MagicMock()
+        mock_client.get_acquisition_of_beneficial_ownership.return_value = []
+        symbols = [f"S{i}" for i in range(_MAX_BENEFICIAL_OWNERSHIP_LOOKUPS + 10)]
+        _fetch_beneficial_ownership(
+            client=mock_client, symbols=symbols, today=today
+        )
+        assert (
+            mock_client.get_acquisition_of_beneficial_ownership.call_count
+            == _MAX_BENEFICIAL_OWNERSHIP_LOOKUPS
+        )
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 17) PR-D2: political-trades enrichment (Senate + House)
+# ═══════════════════════════════════════════════════════════════════
+
+class TestPoliticalTradesEnrichment:
+    """_fetch_political_trades aggregates Senate + House disclosures, scoped
+    to the universe and the freshness window."""
+
+    def test_fresh_senate_buy_aggregates_correctly(self):
+        from open_prep.run_open_prep import _fetch_political_trades
+
+        today = date(2026, 4, 27)
+        mock_client = MagicMock()
+        mock_client.get_senate_trades_latest.return_value = [
+            {
+                "symbol": "AAPL",
+                "disclosureDate": "2026-04-20",
+                "transactionDate": "2026-04-15",
+                "type": "Purchase",
+                "office": "John Boozman",
+            },
+            {
+                "symbol": "AAPL",
+                "disclosureDate": "2026-04-22",
+                "type": "Sale (Partial)",
+                "office": "Tommy Tuberville",
+            },
+            {
+                "symbol": "OUTSIDE",
+                "disclosureDate": "2026-04-25",
+                "type": "Purchase",
+                "office": "X",
+            },
+        ]
+        mock_client.get_house_trades_latest.return_value = []
+        result = _fetch_political_trades(
+            client=mock_client, symbols=["AAPL", "MSFT"], today=today
+        )
+        assert "AAPL" in result
+        assert "OUTSIDE" not in result  # not in universe
+        assert "MSFT" not in result  # no disclosures
+        row = result["AAPL"]
+        assert row["politician_buy_count"] == 1
+        assert row["politician_sell_count"] == 1
+        assert row["politician_net"] == 0
+        assert row["politician_sentiment"] == "neutral"
+        assert row["politician_senate_count"] == 2
+        assert row["politician_house_count"] == 0
+        assert row["politician_recent"] is True
+        assert "John Boozman" in row["politician_recent_filers"]
+        assert row["politician_latest_disclosure_date"] == "2026-04-22"
+
+    def test_house_and_senate_combine(self):
+        from open_prep.run_open_prep import _fetch_political_trades
+
+        today = date(2026, 4, 27)
+        mock_client = MagicMock()
+        mock_client.get_senate_trades_latest.return_value = [
+            {"symbol": "NVDA", "disclosureDate": "2026-04-20",
+             "type": "Purchase", "office": "Senator A"},
+        ]
+        mock_client.get_house_trades_latest.return_value = [
+            {"symbol": "NVDA", "disclosureDate": "2026-04-21",
+             "type": "Purchase", "office": "Rep. B"},
+            {"symbol": "NVDA", "disclosureDate": "2026-04-22",
+             "type": "Purchase", "office": "Rep. C"},
+        ]
+        result = _fetch_political_trades(
+            client=mock_client, symbols=["NVDA"], today=today
+        )
+        row = result["NVDA"]
+        assert row["politician_senate_count"] == 1
+        assert row["politician_house_count"] == 2
+        assert row["politician_buy_count"] == 3
+        assert row["politician_net"] == 3
+        assert row["politician_sentiment"] == "net_buy"
+        assert row["politician_emoji"] == "🟢"
+
+    def test_stale_disclosure_filtered_out(self):
+        from open_prep.run_open_prep import _fetch_political_trades
+
+        today = date(2026, 4, 27)
+        mock_client = MagicMock()
+        mock_client.get_senate_trades_latest.return_value = [
+            {"symbol": "TSLA", "disclosureDate": "2025-12-01",
+             "type": "Purchase", "office": "Old Senator"},
+        ]
+        mock_client.get_house_trades_latest.return_value = []
+        result = _fetch_political_trades(
+            client=mock_client, symbols=["TSLA"], today=today
+        )
+        assert "TSLA" not in result  # stale, filtered
+
+    def test_provider_failure_returns_partial(self):
+        from open_prep.run_open_prep import _fetch_political_trades
+
+        today = date(2026, 4, 27)
+        mock_client = MagicMock()
+        mock_client.get_senate_trades_latest.side_effect = RuntimeError("boom")
+        mock_client.get_house_trades_latest.return_value = [
+            {"symbol": "GME", "disclosureDate": "2026-04-25",
+             "type": "Purchase", "office": "Rep. X"},
+        ]
+        result = _fetch_political_trades(
+            client=mock_client, symbols=["GME"], today=today
+        )
+        assert "GME" in result
+        assert result["GME"]["politician_house_count"] == 1
+        assert result["GME"]["politician_senate_count"] == 0
+
+    def test_empty_universe_short_circuits(self):
+        from open_prep.run_open_prep import _fetch_political_trades
+
+        mock_client = MagicMock()
+        result = _fetch_political_trades(
+            client=mock_client, symbols=[], today=date(2026, 4, 27)
+        )
+        assert result == {}
+        mock_client.get_senate_trades_latest.assert_not_called()
+        mock_client.get_house_trades_latest.assert_not_called()

@@ -205,4 +205,16 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    # Auto-load .env so FMP_API_KEY etc. are available without manual shell
+    # sourcing. Mirrors the loader in open_prep.run_open_prep.__main__ so that
+    # this entry point (used by the c13 phase-a-export LaunchAgent) is also
+    # self-sufficient.
+    try:
+        from dotenv import load_dotenv as _load_dotenv
+
+        _env_path = Path(__file__).resolve().parents[1] / ".env"
+        if _env_path.is_file():
+            _load_dotenv(_env_path, override=False)
+    except ImportError:
+        pass  # python-dotenv not installed — rely on shell environment
     main()

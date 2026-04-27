@@ -1136,65 +1136,101 @@ def _fetch_sector_performance(client: FMPClient) -> list[dict[str, Any]]:
 # ---------------------------------------------------------------------------
 # Insider trading enrichment (Ultimate-tier)
 # ---------------------------------------------------------------------------
+_MAX_INSIDER_STATS_LOOKUPS = 30  # Cap parallel API calls
 
 def _fetch_insider_trading(
     *,
     client: FMPClient,
     symbols: list[str],
-    limit_per_symbol: int = 5,
+    limit_per_symbol: int = 5,  # kept for backwards compat (unused after refactor)
 ) -> dict[str, dict[str, Any]]:
-    """Fetch recent insider trades, aggregate buy/sell by symbol.
+    """Fetch quarterly insider-trading statistics per symbol (Ultimate).
+
+    Replaces the prior broad /stable/insider-trading/latest scan with one
+    /stable/insider-trading/statistics call per symbol. Provides quarter-
+    accurate aggregates plus quarter-over-quarter buying acceleration.
 
     Returns a dict keyed by symbol with insider-trade summary fields.
-    Only symbols in the provided universe are returned.
     """
-    universe_set = {s.upper() for s in symbols}
-    result: dict[str, dict[str, Any]] = {}
-
-    # Fetch broad market activity first (faster than per-symbol)
-    try:
-        raw = client.get_insider_trading_latest(limit=500)
-    except Exception as exc:
-        logger.warning("Insider trading fetch failed: %s", exc, exc_info=True)
+    del limit_per_symbol  # signature preserved for callers
+    universe = [s.upper() for s in symbols if s]
+    if not universe:
         return {}
+    capped = universe[:_MAX_INSIDER_STATS_LOOKUPS]
 
-    by_symbol: dict[str, list[dict[str, Any]]] = {}
-    for row in raw:
-        sym = str(row.get("symbol") or "").strip().upper()
-        if sym and sym in universe_set:
-            by_symbol.setdefault(sym, []).append(row)
+    def _worker(sym: str) -> tuple[str, list[dict[str, Any]]]:
+        try:
+            return sym, client.get_insider_trading_statistics(sym)
+        except Exception as exc:
+            logger.debug("Insider statistics fetch failed for %s: %s", sym, exc)
+            return sym, []
 
-    for sym, rows in by_symbol.items():
-        buys = sum(
-            1 for r in rows
-            if str(r.get("transactionType") or "").lower() in ("p-purchase", "purchase", "p")
-        )
-        sells = sum(
-            1 for r in rows
-            if str(r.get("transactionType") or "").lower() in ("s-sale", "sale", "s")
-        )
-        total_value_bought = sum(
-            _to_float(r.get("securitiesTransacted")) * _to_float(r.get("price"))
-            for r in rows
-            if str(r.get("transactionType") or "").lower() in ("p-purchase", "purchase", "p")
-            and r.get("securitiesTransacted") is not None and r.get("price") is not None
-        )
-        total_value_sold = sum(
-            _to_float(r.get("securitiesTransacted")) * _to_float(r.get("price"))
-            for r in rows
-            if str(r.get("transactionType") or "").lower() in ("s-sale", "sale", "s")
-            and r.get("securitiesTransacted") is not None and r.get("price") is not None
-        )
+    raw_by_symbol: dict[str, list[dict[str, Any]]] = {}
+    timed_out = False
+    # NOTE: deliberately NOT using `with ThreadPoolExecutor(...)`.
+    # The context manager calls `executor.shutdown(wait=True)` on exit,
+    # which would block on hung workers and undermine the
+    # `_shutdown_executor_with_timeout_policy(..., timed_out=True)`
+    # contract that exists precisely to avoid that hang.
+    executor = ThreadPoolExecutor(max_workers=5)
+    futures = {executor.submit(_worker, s): s for s in capped}
+    try:
+        try:
+            for fut in as_completed(futures, timeout=30):
+                try:
+                    sym, rows = fut.result(timeout=5)
+                    if rows:
+                        raw_by_symbol[sym] = rows
+                except FuturesTimeoutError:
+                    logger.debug("Insider statistics future timed out: %s", futures[fut])
+                except Exception as exc:
+                    logger.debug("Insider statistics future failed for %s: %s", futures[fut], exc)
+        except FuturesTimeoutError:
+            timed_out = True
+            logger.warning("Insider statistics: outer timeout, using partial results")
+    finally:
+        _shutdown_executor_with_timeout_policy(executor, timed_out=timed_out)
+
+    result: dict[str, dict[str, Any]] = {}
+    for sym, rows in raw_by_symbol.items():
+        # Sort by (year, quarter) descending — defend against unordered API output.
+        try:
+            rows_sorted = sorted(
+                rows,
+                key=lambda r: (int(r.get("year") or 0), int(r.get("quarter") or 0)),
+                reverse=True,
+            )
+        except Exception:
+            rows_sorted = list(rows)
+        if not rows_sorted:
+            continue
+        latest = rows_sorted[0]
+        prev = rows_sorted[1] if len(rows_sorted) > 1 else {}
+
+        buys = int(_to_float(latest.get("acquiredTransactions")) or 0)
+        sells = int(_to_float(latest.get("disposedTransactions")) or 0)
+        bought_value = _to_float(latest.get("totalAcquired")) or 0.0
+        sold_value = _to_float(latest.get("totalDisposed")) or 0.0
+        ratio_raw = latest.get("acquiredDisposedRatio")
+        ratio = _to_float(ratio_raw) if ratio_raw is not None else None
+
+        prev_buys = int(_to_float(prev.get("acquiredTransactions")) or 0) if prev else 0
+        acceleration = buys - prev_buys
 
         if buys > sells:
-            emoji = "🟢"
-            sentiment = "net_buy"
+            sentiment, emoji = "net_buy", "🟢"
         elif sells > buys:
-            emoji = "🔴"
-            sentiment = "net_sell"
+            sentiment, emoji = "net_sell", "🔴"
         else:
-            emoji = "🟡"
-            sentiment = "neutral"
+            sentiment, emoji = "neutral", "🟡"
+
+        year_val = latest.get("year")
+        quarter_val = latest.get("quarter")
+        quarter_label = (
+            f"{int(year_val)}Q{int(quarter_val)}"
+            if year_val is not None and quarter_val is not None
+            else ""
+        )
 
         result[sym] = {
             "insider_buys": buys,
@@ -1202,12 +1238,222 @@ def _fetch_insider_trading(
             "insider_net": buys - sells,
             "insider_sentiment": sentiment,
             "insider_emoji": emoji,
-            "insider_total_bought_value": round(total_value_bought, 2),
-            "insider_total_sold_value": round(total_value_sold, 2),
-            "insider_trade_count": len(rows),
+            "insider_total_bought_value": round(bought_value, 2),
+            "insider_total_sold_value": round(sold_value, 2),
+            "insider_trade_count": buys + sells,
+            "insider_acquired_disposed_ratio": (
+                round(ratio, 4) if ratio is not None else None
+            ),
+            "insider_buying_acceleration": acceleration,
+            "insider_quarter_label": quarter_label,
         }
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# Beneficial-ownership enrichment (Ultimate-tier, SC 13D / 13G)
+# ---------------------------------------------------------------------------
+_MAX_BENEFICIAL_OWNERSHIP_LOOKUPS = 30  # Cap API calls for SC 13D/G data
+_BENEFICIAL_OWNERSHIP_FRESH_DAYS = 30  # Filings within N days are "fresh"
+
+
+def _fetch_beneficial_ownership(
+    *,
+    client: FMPClient,
+    symbols: list[str],
+    today: date,
+    fresh_days: int = _BENEFICIAL_OWNERSHIP_FRESH_DAYS,
+) -> dict[str, dict[str, Any]]:
+    """Fetch SC 13D / 13G filings (5%+ stakes) per symbol.
+
+    Returns dict keyed by symbol with the most recent filing summary plus a
+    ``beneficial_owner_recent`` flag for filings inside ``fresh_days``.
+    """
+    result: dict[str, dict[str, Any]] = {}
+    cap = min(len(symbols), _MAX_BENEFICIAL_OWNERSHIP_LOOKUPS)
+    batch = [str(s).strip().upper() for s in symbols[:cap] if str(s).strip()]
+    if not batch:
+        return result
+
+    fresh_cutoff = today - timedelta(days=int(max(fresh_days, 0)))
+
+    def _single(sym: str) -> tuple[str, dict[str, Any] | None]:
+        try:
+            rows = client.get_acquisition_of_beneficial_ownership(sym)
+        except Exception as exc:
+            logger.debug("Beneficial ownership fetch failed for %s: %s", sym, exc)
+            return sym, None
+        if not rows:
+            return sym, None
+
+        def _parse_dt(val: Any) -> date | None:
+            if not val:
+                return None
+            try:
+                return date.fromisoformat(str(val)[:10])
+            except Exception:
+                return None
+
+        def _parse_pct(val: Any) -> float | None:
+            try:
+                return float(val)
+            except (TypeError, ValueError):
+                return None
+
+        sorted_rows = sorted(
+            rows,
+            key=lambda r: (_parse_dt(r.get("filingDate")) or date.min),
+            reverse=True,
+        )
+        latest = sorted_rows[0]
+        latest_date = _parse_dt(latest.get("filingDate"))
+        is_recent = latest_date is not None and latest_date >= fresh_cutoff
+        recent_filings = sum(
+            1 for r in sorted_rows
+            if (d := _parse_dt(r.get("filingDate"))) is not None and d >= fresh_cutoff
+        )
+
+        return sym, {
+            "beneficial_owner_count": len(rows),
+            "beneficial_owner_recent": is_recent,
+            "beneficial_owner_recent_count": recent_filings,
+            "beneficial_owner_latest_filer": str(
+                latest.get("nameOfReportingPerson") or ""
+            ).strip(),
+            "beneficial_owner_latest_pct": _parse_pct(latest.get("percentOfClass")),
+            "beneficial_owner_latest_date": (
+                latest_date.isoformat() if latest_date else ""
+            ),
+            "beneficial_owner_latest_url": str(latest.get("url") or "").strip(),
+        }
+
+    workers = max(1, min(5, len(batch)))
+    executor = ThreadPoolExecutor(max_workers=workers)
+    timed_out = False
+    try:
+        futs = {executor.submit(_single, s): s for s in batch}
+        try:
+            for fut in as_completed(futs, timeout=30.0):
+                sym_key = futs[fut]
+                try:
+                    _, data = fut.result()
+                    if data is not None:
+                        result[sym_key] = data
+                except Exception as exc:
+                    logger.debug("Beneficial ownership worker failed for %s: %s", sym_key, exc)
+        except FuturesTimeoutError:
+            timed_out = True
+            logger.warning("Beneficial ownership fetch timed out after 30 s; continuing with partial.")
+    finally:
+        _shutdown_executor_with_timeout_policy(executor, timed_out=timed_out)
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Political-trades enrichment (Ultimate-tier, Senate + House disclosures)
+# ---------------------------------------------------------------------------
+_POLITICAL_TRADES_FRESH_DAYS = 30  # Disclosures within N days are "fresh"
+_POLITICAL_TRADES_LATEST_LIMIT = 250  # Pull recent disclosures broadly
+
+
+def _fetch_political_trades(
+    *,
+    client: FMPClient,
+    symbols: list[str],
+    today: date,
+    fresh_days: int = _POLITICAL_TRADES_FRESH_DAYS,
+    latest_limit: int = _POLITICAL_TRADES_LATEST_LIMIT,
+) -> dict[str, dict[str, Any]]:
+    """Fetch recent Senate + House disclosures, aggregate by symbol.
+
+    Single broad call per chamber (not per symbol) — disclosures already
+    span the whole market. We then index by symbol and freshness.
+    """
+    universe_set = {s.upper() for s in symbols if s}
+    if not universe_set:
+        return {}
+
+    fresh_cutoff = today - timedelta(days=int(max(fresh_days, 0)))
+
+    try:
+        senate_rows = client.get_senate_trades_latest(limit=latest_limit)
+    except Exception as exc:
+        logger.warning("Senate trades fetch failed: %s", exc, exc_info=True)
+        senate_rows = []
+    try:
+        house_rows = client.get_house_trades_latest(limit=latest_limit)
+    except Exception as exc:
+        logger.warning("House trades fetch failed: %s", exc, exc_info=True)
+        house_rows = []
+
+    def _parse_dt(val: Any) -> date | None:
+        if not val:
+            return None
+        try:
+            return date.fromisoformat(str(val)[:10])
+        except Exception:
+            return None
+
+    def _is_buy(row: dict[str, Any]) -> bool:
+        t = str(row.get("type") or "").lower()
+        return "purchase" in t or t.startswith("buy")
+
+    def _is_sell(row: dict[str, Any]) -> bool:
+        t = str(row.get("type") or "").lower()
+        return "sale" in t or t.startswith("sell")
+
+    by_symbol: dict[str, dict[str, Any]] = {}
+    for chamber, rows in (("senate", senate_rows), ("house", house_rows)):
+        for row in rows:
+            sym = str(row.get("symbol") or "").strip().upper()
+            if not sym or sym not in universe_set:
+                continue
+            disclosure = _parse_dt(row.get("disclosureDate"))
+            if disclosure is None or disclosure < fresh_cutoff:
+                continue
+            slot = by_symbol.setdefault(sym, {
+                "politician_buy_count": 0,
+                "politician_sell_count": 0,
+                "politician_senate_count": 0,
+                "politician_house_count": 0,
+                "politician_recent_filers": [],
+                "politician_recent": False,
+                "politician_latest_disclosure_date": "",
+            })
+            if chamber == "senate":
+                slot["politician_senate_count"] += 1
+            else:
+                slot["politician_house_count"] += 1
+            if _is_buy(row):
+                slot["politician_buy_count"] += 1
+            elif _is_sell(row):
+                slot["politician_sell_count"] += 1
+            slot["politician_recent"] = True
+            disclosure_iso = disclosure.isoformat()
+            if disclosure_iso > slot["politician_latest_disclosure_date"]:
+                slot["politician_latest_disclosure_date"] = disclosure_iso
+            office = str(row.get("office") or "").strip()
+            if office and office not in slot["politician_recent_filers"]:
+                slot["politician_recent_filers"].append(office)
+
+    # Cap recent_filers list for payload size
+    for slot in by_symbol.values():
+        slot["politician_recent_filers"] = slot["politician_recent_filers"][:5]
+        net = slot["politician_buy_count"] - slot["politician_sell_count"]
+        slot["politician_net"] = net
+        if net > 0:
+            slot["politician_sentiment"] = "net_buy"
+            slot["politician_emoji"] = "🟢"
+        elif net < 0:
+            slot["politician_sentiment"] = "net_sell"
+            slot["politician_emoji"] = "🔴"
+        else:
+            slot["politician_sentiment"] = "neutral"
+            slot["politician_emoji"] = "🟡"
+
+    return by_symbol
 
 
 # ---------------------------------------------------------------------------
@@ -4742,6 +4988,9 @@ def generate_open_prep_result(
         q["insider_buys"] = it.get("insider_buys", 0)
         q["insider_sells"] = it.get("insider_sells", 0)
         q["insider_net"] = it.get("insider_net", 0)
+        q["insider_buying_acceleration"] = it.get("insider_buying_acceleration", 0)
+        q["insider_acquired_disposed_ratio"] = it.get("insider_acquired_disposed_ratio")
+        q["insider_quarter_label"] = it.get("insider_quarter_label", "")
 
     # --- Institutional Ownership (Ultimate-tier, 13F) ---
     institutional_ownership: dict[str, dict[str, Any]] = {}
@@ -4761,6 +5010,67 @@ def generate_open_prep_result(
         io_data = institutional_ownership.get(sym, {})
         q["inst_ownership_holders"] = io_data.get("inst_ownership_holders", 0)
         q["inst_ownership_top_holders"] = io_data.get("inst_ownership_top_holders", [])
+
+    # --- Beneficial Ownership (Ultimate-tier, SC 13D / 13G) ---
+    beneficial_ownership: dict[str, dict[str, Any]] = {}
+    try:
+        beneficial_ownership = _fetch_beneficial_ownership(
+            client=data_client,
+            symbols=symbol_list,
+            today=today,
+        )
+        if beneficial_ownership:
+            recent = sum(
+                1 for v in beneficial_ownership.values()
+                if v.get("beneficial_owner_recent")
+            )
+            logger.info(
+                "Beneficial ownership: %d symbols enriched (%d with fresh SC 13D/G)",
+                len(beneficial_ownership),
+                recent,
+            )
+    except Exception as exc:
+        logger.warning("Beneficial ownership fetch failed: %s", type(exc).__name__, exc_info=True)
+
+    # Merge beneficial ownership data into quotes
+    for q in quotes:
+        sym = str(q.get("symbol") or "").strip().upper()
+        bo = beneficial_ownership.get(sym, {})
+        q["beneficial_owner_recent"] = bool(bo.get("beneficial_owner_recent", False))
+        q["beneficial_owner_recent_count"] = bo.get("beneficial_owner_recent_count", 0)
+        q["beneficial_owner_latest_filer"] = bo.get("beneficial_owner_latest_filer", "")
+        q["beneficial_owner_latest_pct"] = bo.get("beneficial_owner_latest_pct")
+        q["beneficial_owner_latest_date"] = bo.get("beneficial_owner_latest_date", "")
+
+    # --- Political trades (Ultimate-tier, Senate + House disclosures) ---
+    political_trades: dict[str, dict[str, Any]] = {}
+    try:
+        political_trades = _fetch_political_trades(
+            client=data_client,
+            symbols=symbol_list,
+            today=today,
+        )
+        if political_trades:
+            logger.info(
+                "Political trades: %d symbols with fresh disclosures",
+                len(political_trades),
+            )
+    except Exception as exc:
+        logger.warning("Political trades fetch failed: %s", type(exc).__name__, exc_info=True)
+
+    for q in quotes:
+        sym = str(q.get("symbol") or "").strip().upper()
+        pt = political_trades.get(sym, {})
+        q["politician_recent"] = bool(pt.get("politician_recent", False))
+        q["politician_buy_count"] = pt.get("politician_buy_count", 0)
+        q["politician_sell_count"] = pt.get("politician_sell_count", 0)
+        q["politician_net"] = pt.get("politician_net", 0)
+        q["politician_sentiment"] = pt.get("politician_sentiment", "")
+        q["politician_emoji"] = pt.get("politician_emoji", "")
+        q["politician_senate_count"] = pt.get("politician_senate_count", 0)
+        q["politician_house_count"] = pt.get("politician_house_count", 0)
+        q["politician_recent_filers"] = pt.get("politician_recent_filers", [])
+        q["politician_latest_disclosure_date"] = pt.get("politician_latest_disclosure_date", "")
 
     # --- Finnhub: Insider Sentiment + Peers + FDA Calendar (Phase 1 FREE) ---
     _progress(12, TOTAL_STAGES, "Finnhub Insider Sentiment + Peers …")
