@@ -54,6 +54,7 @@ _FROZEN_SITES: dict[str, int] = {
     "scripts/fvg_quality_recalibration.py": 1,
     "scripts/fx_probe_universe.py": 1,
     "scripts/g23_ab_watchdog.py": 1,
+    "scripts/generate_smc_micro_base_from_databento.py": 1,
     "scripts/generate_smc_micro_profiles.py": 1,
     "scripts/smc_analyst_enrichment.py": 1,
     "scripts/smc_htf_context.py": 1,

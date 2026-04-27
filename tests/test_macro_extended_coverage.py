@@ -1110,7 +1110,7 @@ def test_get_sector_performance_snapshot(
 # ---------------------------------------------------------------------------
 
 
-def test_get_batch_aftermarket_trade_swallows_chunk_runtime_error_and_returns_empty(
+def test_get_batch_aftermarket_trade_reraises_when_all_chunks_fail(
     client_with_get: FMPClient, recorder: dict[str, Any]
 ) -> None:
     # A *single* chunk failure must NOT bubble — otherwise one bad batch

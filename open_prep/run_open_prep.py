@@ -1166,8 +1166,14 @@ def _fetch_insider_trading(
 
     raw_by_symbol: dict[str, list[dict[str, Any]]] = {}
     timed_out = False
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        futures = {executor.submit(_worker, s): s for s in capped}
+    # NOTE: deliberately NOT using `with ThreadPoolExecutor(...)`.
+    # The context manager calls `executor.shutdown(wait=True)` on exit,
+    # which would block on hung workers and undermine the
+    # `_shutdown_executor_with_timeout_policy(..., timed_out=True)`
+    # contract that exists precisely to avoid that hang.
+    executor = ThreadPoolExecutor(max_workers=5)
+    futures = {executor.submit(_worker, s): s for s in capped}
+    try:
         try:
             for fut in as_completed(futures, timeout=30):
                 try:
@@ -1181,8 +1187,8 @@ def _fetch_insider_trading(
         except FuturesTimeoutError:
             timed_out = True
             logger.warning("Insider statistics: outer timeout, using partial results")
-        finally:
-            _shutdown_executor_with_timeout_policy(executor, timed_out=timed_out)
+    finally:
+        _shutdown_executor_with_timeout_policy(executor, timed_out=timed_out)
 
     result: dict[str, dict[str, Any]] = {}
     for sym, rows in raw_by_symbol.items():
