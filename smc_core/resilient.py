@@ -91,8 +91,11 @@ def resilient(
                     delay = capped * rng()
                     if on_retry is not None:
                         on_retry(exc, attempt, delay)
-                    if delay > 0:
-                        sleep(delay)
+                    # Always invoke ``sleep`` — even with delay==0 — so
+                    # callers that hook the sleep callback (e.g. to pop
+                    # a Retry-After hint queue) observe every retry
+                    # boundary. ``time.sleep(0)`` is a documented no-op.
+                    sleep(delay)
 
         # Expose configuration for introspection (helps tests + ops).
         wrapper.__resilient__ = {  # type: ignore[attr-defined]

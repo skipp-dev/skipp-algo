@@ -841,7 +841,12 @@ class TestRetryAfterHygieneLane9:
             return _Resp()
 
         monkeypatch.setattr(mod, "urlopen", fake_urlopen)
-        # Disable jitter so we can assert deterministically on the slept value.
+        # Pin the resilient decorator's full-jitter RNG so the slept
+        # value is deterministic. ``_get`` passes ``rng=random.random``
+        # to ``resilient`` (looked up at call time), so monkeypatching
+        # ``random.random`` here flows through.
+        import random as _random
+        monkeypatch.setattr(_random, "random", lambda: 1.0)
         c = SMCFMPClient(api_key="k", retry_attempts=2)
         out = c._get("/stable/quote", {"symbol": "AAPL"})
 
@@ -880,8 +885,52 @@ class TestRetryAfterHygieneLane9:
             return _Resp()
 
         monkeypatch.setattr(mod, "urlopen", fake_urlopen)
+        # Pin the jitter RNG so the asserted bound is deterministic.
+        import random as _random
+        monkeypatch.setattr(_random, "random", lambda: 1.0)
         c = SMCFMPClient(api_key="k", retry_attempts=2)
         c._get("/stable/quote", {"symbol": "AAPL"})
 
         # All slept values must be <= 60s.
         assert sleeps and all(d <= 60.0 for d in sleeps), sleeps
+
+    def test_parse_retry_after_returns_none_for_nan_and_inf(self):
+        """Regression: ``time.sleep(nan)`` raises ValueError on CPython.
+
+        Garbage float-strings like ``"NaN"`` / ``"inf"`` must therefore
+        be treated as "no hint" so the caller falls through to the
+        default exponential backoff.
+        """
+        from scripts.smc_fmp_client import _parse_retry_after_seconds
+        for v in ("NaN", "nan", "inf", "+inf", "-inf", "Infinity", "-Infinity"):
+            assert _parse_retry_after_seconds(v) is None, v
+
+    def test_resilient_always_calls_sleep_even_when_delay_is_zero(self):
+        """Regression: when full-jitter rng() returns 0 the decorator
+        must still invoke its ``sleep`` callback so callers that hook
+        the callback (e.g. smc_fmp_client._sleep popping the
+        Retry-After hint queue) observe every retry boundary.
+        """
+        from smc_core.resilient import resilient
+
+        sleeps: list[float] = []
+        attempts = {"n": 0}
+
+        @resilient(
+            retries=1,
+            base_delay=0.0,
+            max_delay=0.0,
+            exceptions=(RuntimeError,),
+            sleep=sleeps.append,
+            rng=lambda: 0.0,
+        )
+        def flaky():
+            attempts["n"] += 1
+            if attempts["n"] == 1:
+                raise RuntimeError("boom")
+            return "ok"
+
+        assert flaky() == "ok"
+        # Exactly one retry boundary => exactly one sleep invocation,
+        # even though the computed delay was 0.
+        assert sleeps == [0.0], sleeps

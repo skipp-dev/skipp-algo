@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import logging
 import math
+import random
 import ssl
 import time
 import urllib.error
@@ -106,9 +107,16 @@ def _parse_retry_after_seconds(raw_value: Any) -> float | None:
     if raw_value is None or raw_value == "":
         return None
     try:
-        return max(float(raw_value), 0.0)
+        seconds = float(raw_value)
     except (TypeError, ValueError):
-        pass
+        seconds = None
+    if seconds is not None:
+        # Reject NaN / +inf / -inf so callers fall through to the
+        # default backoff instead of attempting time.sleep(nan), which
+        # raises ``ValueError: Invalid value NaN`` on CPython.
+        if math.isnan(seconds) or math.isinf(seconds):
+            return None
+        return max(seconds, 0.0)
     try:
         parsed = parsedate_to_datetime(str(raw_value))
     except (TypeError, ValueError, IndexError, OverflowError):
@@ -117,10 +125,10 @@ def _parse_retry_after_seconds(raw_value: Any) -> float | None:
         return None
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
-    return max(
-        (parsed.astimezone(timezone.utc) - datetime.now(timezone.utc)).total_seconds(),
-        0.0,
-    )
+    delta = (parsed.astimezone(timezone.utc) - datetime.now(timezone.utc)).total_seconds()
+    if math.isnan(delta) or math.isinf(delta):
+        return None
+    return max(delta, 0.0)
 
 
 def _today_et() -> date:
@@ -271,6 +279,10 @@ class SMCFMPClient:
             exceptions=(urllib.error.URLError,),  # covers HTTPError too
             on_failure=_on_failure,
             sleep=_sleep,
+            # Resolve ``random.random`` at call time (not at decorator
+            # default-argument evaluation time) so tests can pin the
+            # jitter via ``monkeypatch.setattr("random.random", ...)``.
+            rng=random.random,
         )(_do_request)
         return wrapped()
 

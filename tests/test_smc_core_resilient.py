@@ -152,7 +152,13 @@ class TestBackoff:
         # Each delay = capped * rng = 10 * 0.25 then 20 * 0.25.
         assert sleep.calls == [2.5, 5.0]
 
-    def test_zero_base_delay_skips_sleep(self):
+    def test_zero_base_delay_still_calls_sleep(self):
+        """Contract update (Lane 9): the decorator now invokes
+        ``sleep`` on every retry boundary -- even when the computed
+        delay is 0 -- so callers that hook ``sleep`` to do bookkeeping
+        (e.g. popping a Retry-After hint queue) observe each retry.
+        ``time.sleep(0)`` is a documented no-op so this is safe.
+        """
         sleep = FakeSleep()
 
         @resilient(
@@ -167,8 +173,8 @@ class TestBackoff:
 
         with pytest.raises(RuntimeError):
             fail()
-        # delay = 0 → no sleep call.
-        assert sleep.calls == []
+        # 2 retries -> 2 sleep calls, each with delay == 0.
+        assert sleep.calls == [0.0, 0.0]
 
 
 # ---------------------------------------------------------------------------
