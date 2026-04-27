@@ -164,6 +164,23 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Skip the IBKR call; emit only UNAVAILABLE snapshots.",
     )
+    parser.add_argument(
+        "--ib-host",
+        default="127.0.0.1",
+        help="TWS / IB Gateway host (default: 127.0.0.1).",
+    )
+    parser.add_argument(
+        "--ib-port",
+        type=int,
+        default=7497,
+        help="TWS / IB Gateway port (default: 7497, paper).",
+    )
+    parser.add_argument(
+        "--ib-client-id",
+        type=int,
+        default=131,
+        help="IB client id used for the imbalance session (default: 131).",
+    )
     return parser.parse_args(argv)
 
 
@@ -260,7 +277,21 @@ def _summarise(
         1 for s in snapshots if s.auction_imbalance_shares is not None
     )
     eligible = nyse + amex
-    coverage = (with_imbalance / eligible) if eligible else 0.0
+    # ``coverage_pct`` measures "how many of the eligible (NYSE+AMEX)
+    # rows produced an imbalance value". Counting ``with_imbalance``
+    # across ALL listings would let a non-eligible listing (e.g. ARCA
+    # routed via Smart) push the ratio above 1.0, which is meaningless.
+    # We therefore restrict ``with_imbalance_eligible`` to snapshots
+    # whose listing falls into the same NYSE/AMEX bucket used for the
+    # denominator.
+    eligible_listings = {"NYSE", "AMEX", "NYSE_MKT", "NYSE_AMERICAN"}
+    with_imbalance_eligible = sum(
+        1
+        for s in snapshots
+        if s.auction_imbalance_shares is not None
+        and _norm(s.listing_exchange) in eligible_listings
+    )
+    coverage = (with_imbalance_eligible / eligible) if eligible else 0.0
     return CollectionSummary(
         trade_date=trade_date,
         symbols_total=len(rows),
@@ -295,9 +326,33 @@ def main(argv: list[str] | None = None) -> int:
         snapshots = _make_dry_run_snapshots(rows, now_utc=now_utc)
         errors: list[str] = ["dry-run"]
     else:
-        snapshots, errors = collect_imbalances(
-            rows, poll_seconds=args.poll_seconds, now_utc=now_utc
+        # Live cron path: ``fetch_opening_imbalance`` explicitly does
+        # not connect/disconnect (so unit tests can stub the client),
+        # so the CLI owns the TWS lifecycle here. Without this block
+        # the per-symbol ``reqMktData`` calls would fail on an
+        # unconnected client.
+        from ib_insync import IB  # local import: optional dependency
+
+        ib_client = IB()
+        ib_client.connect(
+            host=args.ib_host,
+            port=args.ib_port,
+            clientId=args.ib_client_id,
         )
+        try:
+            snapshots, errors = collect_imbalances(
+                rows,
+                fetch_fn=lambda **kw: fetch_opening_imbalance(
+                    ib_client=ib_client, **kw
+                ),
+                poll_seconds=args.poll_seconds,
+                now_utc=now_utc,
+            )
+        finally:
+            try:
+                ib_client.disconnect()
+            except Exception:  # pragma: no cover — exercised live
+                LOGGER.warning("ib_client.disconnect() failed", exc_info=True)
 
     _atomic_write_jsonl(
         args.output, (s.to_dict() for s in snapshots)

@@ -250,6 +250,15 @@ def aggregate(
                     fam_for_day = {variant_to_family.get(v) for v in
                                    _variants_in_day(audit_path)}
                     fam_for_day.discard(None)
+                    if not fam_for_day:
+                        # No trades that day (halt fired before any
+                        # variant traded) — conservative fallback per
+                        # the C12 contract: a kill-switch fire must
+                        # never be silently dropped, so attribute it
+                        # to every event family. This keeps the
+                        # ``kill_switch_fires == 0`` Phase-B invariant
+                        # honest even on halt-only days.
+                        fam_for_day = set(EVENT_FAMILIES)
                     for fam in fam_for_day:
                         accs[fam].kill_switch_fires += 1
                 continue

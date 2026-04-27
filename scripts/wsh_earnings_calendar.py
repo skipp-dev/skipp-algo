@@ -354,6 +354,23 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Skip the IBKR call; write an empty events JSONL + summary.",
     )
+    parser.add_argument(
+        "--ib-host",
+        default="127.0.0.1",
+        help="TWS / IB Gateway host (default: 127.0.0.1).",
+    )
+    parser.add_argument(
+        "--ib-port",
+        type=int,
+        default=7497,
+        help="TWS / IB Gateway port (default: 7497, paper).",
+    )
+    parser.add_argument(
+        "--ib-client-id",
+        type=int,
+        default=132,
+        help="IB client id used for the WSH session (default: 132).",
+    )
     return parser.parse_args(argv)
 
 
@@ -369,9 +386,30 @@ def main(argv: list[str] | None = None) -> int:
         events: list[WshEvent] = []
         errors: list[str] = ["dry-run"]
     else:
-        events, errors = fetch_wsh_calendar(
-            symbols, window_days=args.window_days
+        # Live cron path: ``fetch_wsh_calendar`` explicitly does not
+        # connect/disconnect (so unit tests can stub the client), so
+        # the CLI owns the TWS lifecycle here. Without this block the
+        # ``reqWshMetaData`` / ``reqWshEventData`` calls would fail on
+        # an unconnected client.
+        from ib_insync import IB  # local import: optional dependency
+
+        ib_client = IB()
+        ib_client.connect(
+            host=args.ib_host,
+            port=args.ib_port,
+            clientId=args.ib_client_id,
         )
+        try:
+            events, errors = fetch_wsh_calendar(
+                symbols,
+                window_days=args.window_days,
+                ib_client=ib_client,
+            )
+        finally:
+            try:
+                ib_client.disconnect()
+            except Exception:  # pragma: no cover — exercised live
+                LOGGER.warning("ib_client.disconnect() failed", exc_info=True)
 
     earnings = filter_earnings_events(events)
     _atomic_write_jsonl(
