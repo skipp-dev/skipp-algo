@@ -1090,9 +1090,14 @@ def test_get_intraday_chart_with_and_without_day(
 def test_get_sector_performance_snapshot(
     client_with_get: FMPClient, recorder: dict[str, Any]
 ) -> None:
+    # `date` is required by FMP; without an explicit `as_of` we now default
+    # to today (US/Eastern) instead of calling the endpoint with `{}`.
     recorder["return"] = []
     client_with_get.get_sector_performance_snapshot()
-    assert recorder["call"] == ("/stable/sector-performance-snapshot", {})
+    call_path, call_params = recorder["call"]
+    assert call_path == "/stable/sector-performance-snapshot"
+    assert set(call_params.keys()) == {"date"}
+    assert call_params["date"]  # non-empty ISO date
     client_with_get.get_sector_performance_snapshot(date(2026, 4, 23))
     assert recorder["call"] == (
         "/stable/sector-performance-snapshot",
@@ -1108,11 +1113,15 @@ def test_get_sector_performance_snapshot(
 def test_get_batch_aftermarket_trade_swallows_chunk_runtime_error_and_returns_empty(
     client_with_get: FMPClient, recorder: dict[str, Any]
 ) -> None:
-    # A chunk failure must NOT bubble — otherwise one bad batch (URL too long,
-    # gateway 414/401) poisons the whole pre-market context. The chunk is
-    # logged + skipped, the rest of the batches still get aggregated.
+    # A *single* chunk failure must NOT bubble — otherwise one bad batch
+    # (URL too long, gateway 414/401) poisons the whole pre-market context.
+    # The chunk is logged + skipped, the rest of the batches still get
+    # aggregated. But if EVERY chunk fails (likely a real misconfiguration
+    # such as a bad apikey) we re-raise so the caller cannot mistake it for
+    # "no data".
     recorder["return"] = RuntimeError("fail")
-    assert client_with_get.get_batch_aftermarket_trade(["AAPL"]) == []
+    with pytest.raises(RuntimeError):
+        client_with_get.get_batch_aftermarket_trade(["AAPL"])
 
 
 def test_get_batch_aftermarket_trade_returns_list(

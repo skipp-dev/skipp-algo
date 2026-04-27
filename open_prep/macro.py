@@ -586,17 +586,19 @@ class FMPClient:
                     self._circuit_breaker.on_success()
                 return data
             except urllib.error.HTTPError as exc:
-                transient = exc.code in {429, 500, 502, 503, 504}
+                # 408 (Request Timeout) is a provider-side stall — treat it the
+                # same as 429/5xx: retry with backoff before tripping the breaker.
+                transient = exc.code in {408, 429, 500, 502, 503, 504}
                 if transient and attempt + 1 < max_attempts:
                     headers = getattr(exc, "headers", None) or {}
                     retry_after = _parse_retry_after_seconds(headers.get("Retry-After"))
                     delay = retry_after if retry_after is not None else self.retry_backoff_seconds * (attempt + 1)
                     time.sleep(max(delay, 0.0))
                     continue
-                # 4xx (except 429) are client/data errors (e.g. /stable/foo retired,
-                # symbol unknown, no data for date). They must NOT trip the breaker —
-                # otherwise one stale endpoint nukes every other unrelated FMP call
-                # for the cooldown window.
+                # Other 4xx are client/data errors (e.g. /stable/foo retired,
+                # symbol unknown, no data for date). They must NOT trip the
+                # breaker — otherwise one stale endpoint nukes every other
+                # unrelated FMP call for the cooldown window.
                 provider_outage = exc.code in {408, 429, 500, 502, 503, 504}
                 if use_circuit_breaker and provider_outage:
                     self._circuit_breaker.on_failure()
@@ -889,8 +891,12 @@ class FMPClient:
             return []
         rows: list[dict[str, Any]] = []
         chunk_size = 250
+        chunk_count = 0
+        failures = 0
+        last_exc: RuntimeError | None = None
         for start in range(0, len(cleaned), chunk_size):
             chunk = cleaned[start : start + chunk_size]
+            chunk_count += 1
             try:
                 data = self._get(
                     "/stable/batch-aftermarket-trade",
@@ -903,9 +909,18 @@ class FMPClient:
                     start + len(chunk),
                     exc,
                 )
+                failures += 1
+                last_exc = exc
                 continue
             if isinstance(data, list):
                 rows.extend(data)
+        # Per-chunk swallow protects against URL-length / single-batch glitches,
+        # but if EVERY chunk failed it is almost certainly a real configuration
+        # / auth error (bad apikey, retired endpoint, full provider outage). Re-
+        # raise so the caller does not silently treat a misconfiguration as
+        # "no data".
+        if chunk_count > 0 and failures == chunk_count and last_exc is not None:
+            raise last_exc
         return rows
 
     def get_biggest_gainers(self) -> list[dict[str, Any]]:
@@ -1332,9 +1347,11 @@ class FMPClient:
         return {}
 
     def get_sector_performance_snapshot(self, as_of: date | None = None) -> list[dict[str, Any]]:
-        params: dict[str, Any] = {}
-        if as_of is not None:
-            params["date"] = as_of.isoformat()
+        # /stable/sector-performance-snapshot REQUIRES a `date` parameter; calling
+        # without one returns an empty payload. Default to today (US/Eastern) so
+        # callers that don't supply ``as_of`` still get meaningful data.
+        effective_date = as_of if as_of is not None else _today_et_date()
+        params: dict[str, Any] = {"date": effective_date.isoformat()}
         try:
             data = self._get("/stable/sector-performance-snapshot", params)
         except RuntimeError:
@@ -1354,8 +1371,17 @@ class FMPClient:
                     "/stable/sector-performance-snapshot",
                     {"date": query_date.isoformat()},
                 )
-            except RuntimeError:
-                return []
+            except RuntimeError as exc:
+                # A 4xx for a non-trading day or transient network glitch must
+                # not abort the walk-back loop — older dates may still succeed.
+                logger.warning(
+                    "sector-performance-snapshot for %s failed; "
+                    "trying previous trading day: %s",
+                    query_date.isoformat(),
+                    exc,
+                )
+                query_date = _prev_us_equity_trading_day(query_date)
+                continue
             raw_rows = list(data) if isinstance(data, list) else []
             rows = _aggregate_sector_snapshot_rows(raw_rows)
             if rows:
