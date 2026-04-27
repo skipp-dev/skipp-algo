@@ -15,6 +15,7 @@ from scripts.run_smc_live_incubation import (
     run_live_incubation,
 )
 from scripts.smc_to_ibkr_adapter import IBKRExecutionConfig
+from scripts.wsh_earnings_calendar import WSH_EVENTS_SCHEMA_VERSION
 
 
 _FROZEN_NOW = datetime(2026, 4, 26, 12, 0, 0, tzinfo=timezone.utc)
@@ -373,7 +374,7 @@ def test_earnings_filter_blocks_intent_and_records_audit(tmp_path: Path) -> None
         "timezone": None,
         "confidence": "Confirmed",
         "source": "WSH",
-        "schema_version": "1.0.0",
+        "schema_version": WSH_EVENTS_SCHEMA_VERSION,
     }) + "\n", encoding="utf-8")
 
     audit = tmp_path / "audit.jsonl"
