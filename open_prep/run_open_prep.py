@@ -46,6 +46,7 @@ from .outcomes import (
 )
 from .playbook import assign_playbooks
 from .regime import apply_regime_adjustments, classify_regime, reset_regime_state
+from .sentiment_fng import fetch_cnn_equity_fear_greed
 
 # --- v2 pipeline modules ---
 from .scorer import load_weight_set, rank_candidates_v2, save_weight_set
@@ -5057,11 +5058,23 @@ def generate_open_prep_result(
                     "source": "derived_from_quotes",
                 })
 
+    # Fetch CNN equity Fear & Greed snapshot (fail-soft — a CNN outage
+    # MUST NOT abort the pipeline). Plumbed through to RegimeSnapshot
+    # so C5 sentiment-regime stratification can bucket trades by it.
+    fng_snapshot = fetch_cnn_equity_fear_greed()
+    if fng_snapshot is not None:
+        logger.info(
+            "CNN equity F&G: %s (%s)",
+            fng_snapshot.get("value"),
+            fng_snapshot.get("label"),
+        )
+
     # Classify market regime
     regime_snapshot = classify_regime(
         macro_bias=bias,
         vix_level=vix_level,
         sector_performance=sector_performance,
+        fear_greed=fng_snapshot,
     )
     logger.info("Market regime: %s (reasons: %s)", regime_snapshot.regime, regime_snapshot.reasons)
 
