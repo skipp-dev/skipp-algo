@@ -1042,33 +1042,44 @@ class FMPClient:
         return list(data) if isinstance(data, list) else []
 
     def get_insider_trading_latest(self, symbol: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
-        params: dict[str, Any] = {"limit": max(int(limit), 1)}
+        # Ultimate-plan path. The legacy /stable/insider-trading was renamed:
+        # - /stable/insider-trading/latest   (no symbol filter)
+        # - /stable/insider-trading/search   (with ?symbol=)
+        params: dict[str, Any] = {"limit": max(int(limit), 1), "page": 0}
         if symbol:
             params["symbol"] = str(symbol).strip().upper()
+            path = "/stable/insider-trading/search"
+        else:
+            path = "/stable/insider-trading/latest"
         try:
-            data = self._get("/stable/insider-trading", params)
+            data = self._get(path, params)
         except RuntimeError:
             _log_feature_unavailable_once(
-                "stable/insider-trading",
-                "FMP feature unavailable (stable/insider-trading); endpoint retired or upgraded plan required.",
+                path.lstrip("/"),
+                f"FMP feature unavailable ({path}); endpoint retired or upgraded plan required.",
             )
             return []
         return list(data) if isinstance(data, list) else []
 
     def get_institutional_ownership(self, symbol: str, limit: int = 100) -> list[dict[str, Any]]:
+        # Ultimate-plan path. The legacy /stable/institutional-ownership was
+        # split into multiple endpoints; the per-symbol position summary is
+        # the closest replacement of the previous payload shape.
         params = {
             "symbol": str(symbol).strip().upper(),
-            "limit": max(int(limit), 1),
         }
         try:
-            data = self._get("/stable/institutional-ownership", params)
+            data = self._get("/stable/institutional-ownership/symbol-positions-summary", params)
         except RuntimeError:
             _log_feature_unavailable_once(
-                "stable/institutional-ownership",
-                "FMP feature unavailable (stable/institutional-ownership); endpoint retired or upgraded plan required.",
+                "stable/institutional-ownership/symbol-positions-summary",
+                "FMP feature unavailable (stable/institutional-ownership/symbol-positions-summary); endpoint retired or upgraded plan required.",
             )
             return []
-        return list(data) if isinstance(data, list) else []
+        rows = list(data) if isinstance(data, list) else []
+        if limit and len(rows) > limit:
+            rows = rows[: max(int(limit), 1)]
+        return rows
 
     def get_treasury_rates(self, date_from: date | None = None, date_to: date | None = None) -> list[dict[str, Any]]:
         params: dict[str, Any] = {}

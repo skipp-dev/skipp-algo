@@ -838,11 +838,11 @@ def test_get_insider_trading_latest_optional_symbol_and_limit_floor(
 ) -> None:
     recorder["return"] = []
     client_with_get.get_insider_trading_latest()
-    assert recorder["call"] == ("/stable/insider-trading", {"limit": 100})
+    assert recorder["call"] == ("/stable/insider-trading/latest", {"limit": 100, "page": 0})
     client_with_get.get_insider_trading_latest(symbol="aapl", limit=0)
     assert recorder["call"] == (
-        "/stable/insider-trading",
-        {"limit": 1, "symbol": "AAPL"},
+        "/stable/insider-trading/search",
+        {"limit": 1, "page": 0, "symbol": "AAPL"},
     )
 
 
@@ -850,8 +850,8 @@ def test_get_institutional_ownership(client_with_get: FMPClient, recorder: dict[
     recorder["return"] = []
     client_with_get.get_institutional_ownership("aapl", limit=25)
     assert recorder["call"] == (
-        "/stable/institutional-ownership",
-        {"symbol": "AAPL", "limit": 25},
+        "/stable/institutional-ownership/symbol-positions-summary",
+        {"symbol": "AAPL"},
     )
 
 
