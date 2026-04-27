@@ -30,9 +30,52 @@ _TOKEN_RE = re.compile(r"(apikey|api_key|token|key)=[^&]+", re.IGNORECASE)
 _WARNED_ENDPOINTS: set[str] = set()
 _warned_lock = threading.Lock()
 
+# Endpoints that have permanently failed (401/403/404 or repeated 400 from
+# a retired URL shape).  After the first such error, callers that pass
+# ``label=`` to :func:`_request_with_retry` will short-circuit and avoid
+# wasting a network round-trip on every poll cycle.
+_DISABLED_ENDPOINTS: set[str] = set()
+_disabled_lock = threading.Lock()
+
 # HTTP status codes that indicate a tier/plan limitation rather than
 # a transient error.  These are suppressed after the first occurrence.
 _TIER_LIMITED_CODES: frozenset[int] = frozenset({400, 401, 403, 404})
+
+
+class BenzingaEndpointDisabled(RuntimeError):
+    """Raised when an endpoint has been marked disabled after a permanent
+    failure (tier-limit, retired URL, or missing entitlement).  Callers
+    typically catch :class:`Exception`, log via :func:`log_fetch_warning`,
+    and return an empty payload.
+    """
+
+    def __init__(self, label: str) -> None:
+        super().__init__(
+            f"Benzinga endpoint disabled (previously failed with tier-limited "
+            f"or retired URL response): {label}"
+        )
+        self.label = label
+
+
+def is_endpoint_disabled(label: str) -> bool:
+    """Return True if *label* has been marked disabled in this process."""
+    with _disabled_lock:
+        return label in _DISABLED_ENDPOINTS
+
+
+def mark_endpoint_disabled(label: str) -> None:
+    """Mark *label* disabled so future requests skip the network call."""
+    with _disabled_lock:
+        _DISABLED_ENDPOINTS.add(label)
+
+
+def clear_disabled_endpoints() -> None:
+    """Clear all disabled endpoint flags (test helper)."""
+    with _disabled_lock:
+        _DISABLED_ENDPOINTS.clear()
+    with _warned_lock:
+        _WARNED_ENDPOINTS.clear()
+
 
 # Repeated transient errors can flood logs during provider/network incidents.
 # Keep one warning per key+window and aggregate the suppressed duplicates.
@@ -72,11 +115,22 @@ def log_fetch_warning(label: str, exc: Exception) -> None:
 
     Other errors (network, 5xx, etc.) are always logged at WARNING.
     """
+    # Skip logging entirely for the synthetic disabled-endpoint exception:
+    # the original failure was already logged on first occurrence and we
+    # don't want a fresh WARNING line every poll cycle just to say "still
+    # disabled".
+    if isinstance(exc, BenzingaEndpointDisabled):
+        logger.debug("%s skipped (endpoint disabled)", label)
+        return
     msg = _sanitize_exc(exc)
     if _is_tier_limited_error(exc):
         with _warned_lock:
             already_warned = label in _WARNED_ENDPOINTS
             _WARNED_ENDPOINTS.add(label)
+        # Once a tier-limited response is seen, mark the endpoint disabled
+        # so callers that pass ``label=`` to ``_request_with_retry`` can
+        # skip future network round-trips.
+        mark_endpoint_disabled(label)
         if not already_warned:
             code = exc.response.status_code  # type: ignore
             logger.warning(
@@ -140,12 +194,21 @@ def _request_with_retry(
     client: httpx.Client,
     url: str,
     params: dict[str, Any],
+    label: str | None = None,
 ) -> httpx.Response:
     """GET *url* with exponential backoff on retryable status codes.
 
     Retries up to ``_MAX_ATTEMPTS`` times on 429/5xx responses and on
     transient network errors (``ConnectError``, ``ReadTimeout``).
+
+    If *label* is provided and that label has previously failed with a
+    tier-limited status code (400/401/403/404), this function raises
+    :class:`BenzingaEndpointDisabled` immediately without making a
+    network call.  Tier-limited responses returned from this call also
+    auto-mark the endpoint disabled so subsequent polls short-circuit.
     """
+    if label is not None and is_endpoint_disabled(label):
+        raise BenzingaEndpointDisabled(label)
     last_exc: Exception | None = None
     r: httpx.Response | None = None
     for attempt in range(_MAX_ATTEMPTS):
@@ -184,7 +247,11 @@ def _request_with_retry(
                 time.sleep(2 ** attempt)
                 continue
             raise
-        except httpx.HTTPStatusError:
+        except httpx.HTTPStatusError as exc:
+            # Auto-disable on tier-limited / retired-URL responses so the
+            # next poll skips the wasted round-trip.
+            if label is not None and exc.response.status_code in _TIER_LIMITED_CODES:
+                mark_endpoint_disabled(label)
             raise
     if r is not None:
         return r

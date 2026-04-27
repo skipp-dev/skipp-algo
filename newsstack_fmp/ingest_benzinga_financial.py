@@ -91,12 +91,20 @@ class BenzingaFinancialAdapter:
         self,
         url: str,
         params: dict[str, Any] | None = None,
+        *,
+        label: str | None = None,
     ) -> Any:
-        """Fetch JSON from *url* with auth token + optional params."""
+        """Fetch JSON from *url* with auth token + optional params.
+
+        If *label* is provided, the underlying ``_request_with_retry``
+        will short-circuit on subsequent calls once that label has been
+        marked disabled (tier-limit / retired URL).  See
+        ``newsstack_fmp._bz_http`` for details.
+        """
         p: dict[str, Any] = {"token": self.api_key}
         if params:
             p.update(params)
-        r = _request_with_retry(self.client, url, p)
+        r = _request_with_retry(self.client, url, p, label=label)
         if r.status_code != 200:
             logger.warning("Benzinga financial HTTP %d", r.status_code)
             return []
@@ -160,7 +168,7 @@ class BenzingaFinancialAdapter:
             params["period"] = period
         if report_type:
             params["reportType"] = report_type
-        data = self._fetch_json(url, params)
+        data = self._fetch_json(url, params, label=f"Benzinga fundamentals/{endpoint}" if endpoint else "Benzinga fundamentals")
         return self._extract_list(data, "result", "fundamentals", "data")
 
     def fetch_fundamentals(
@@ -377,7 +385,7 @@ class BenzingaFinancialAdapter:
             "from": date_from,
             "to": date_to,
         }
-        data = self._fetch_json(BARS_URL, params)
+        data = self._fetch_json(BARS_URL, params, label="Benzinga bars")
         return self._extract_list(data, "result", "data", "bars")
 
     def fetch_chart(
@@ -409,7 +417,7 @@ class BenzingaFinancialAdapter:
             params["to"] = date_to
         if session:
             params["session"] = session
-        data = self._fetch_json(BARS_URL, params)
+        data = self._fetch_json(BARS_URL, params, label="Benzinga bars")
         return self._extract_list(data, "result", "data", "bars")
 
     def fetch_auto_complete(
@@ -444,7 +452,7 @@ class BenzingaFinancialAdapter:
             params["exchanges"] = exchanges
         if types:
             params["types"] = types
-        data = self._fetch_json(SEARCH_URL, params)
+        data = self._fetch_json(SEARCH_URL, params, label="Benzinga search")
         return self._extract_list(data, "result", "data", "search")
 
     def fetch_security(
@@ -461,7 +469,7 @@ class BenzingaFinancialAdapter:
         params: dict[str, Any] = {"symbols": tickers}
         if cusip:
             params["cusip"] = cusip
-        data = self._fetch_json(SECURITY_URL, params)
+        data = self._fetch_json(SECURITY_URL, params, label="Benzinga security")
         return self._extract_list(data, "result", "data", "securities")
 
     def fetch_instruments(
@@ -500,7 +508,7 @@ class BenzingaFinancialAdapter:
             params["sortField"] = sort_field
         if sort_dir:
             params["sortDir"] = sort_dir
-        data = self._fetch_json(INSTRUMENTS_URL, params)
+        data = self._fetch_json(INSTRUMENTS_URL, params, label="Benzinga instruments")
         return self._extract_list(data, "result", "data", "instruments")
 
     def fetch_logos(
@@ -516,7 +524,7 @@ class BenzingaFinancialAdapter:
         params: dict[str, Any] = {"symbols": tickers}
         if filters:
             params["filters"] = filters
-        data = self._fetch_json(LOGOS_URL, params)
+        data = self._fetch_json(LOGOS_URL, params, label="Benzinga logos")
         return self._extract_list(data, "result", "data", "logos")
 
     def fetch_ticker_detail(
@@ -529,7 +537,7 @@ class BenzingaFinancialAdapter:
         percentile data.
         """
         params: dict[str, Any] = {"symbols": tickers}
-        data = self._fetch_json(TICKER_DETAIL_URL, params)
+        data = self._fetch_json(TICKER_DETAIL_URL, params, label="Benzinga ticker_detail")
         return self._extract_list(data, "result", "data", "tickers")
 
     def fetch_options_activity(
@@ -569,7 +577,7 @@ class BenzingaFinancialAdapter:
             params["parameters[date_from]"] = date_from
         if date_to:
             params["parameters[date_to]"] = date_to
-        data = self._fetch_json(OPTIONS_ACTIVITY_URL, params)
+        data = self._fetch_json(OPTIONS_ACTIVITY_URL, params, label="Benzinga options_activity")
         return self._extract_list(data, "options_activity", "result", "data")
 
     # ── SEC Insider Transactions (Ownership API) ────────────
@@ -620,7 +628,7 @@ class BenzingaFinancialAdapter:
             params["dateTo"] = date_to
         if action:
             params["action"] = action
-        data = self._fetch_json(OWNERSHIP_URL, params)
+        data = self._fetch_json(OWNERSHIP_URL, params, label="Benzinga ownership")
         return self._extract_list(data, "ownership", "data", "result")
 
 
@@ -639,7 +647,7 @@ def fetch_benzinga_fundamentals(
     try:
         return adapter.fetch_fundamentals(tickers, **kwargs)
     except Exception as exc:
-        logger.warning("Benzinga fundamentals fetch failed: %s", _sanitize_exc(exc))
+        log_fetch_warning("Benzinga fundamentals", exc)
         return []
     finally:
         adapter.close()
@@ -655,7 +663,7 @@ def fetch_benzinga_financials(
     try:
         return adapter.fetch_financials(tickers, **kwargs)
     except Exception as exc:
-        logger.warning("Benzinga financials fetch failed: %s", _sanitize_exc(exc))
+        log_fetch_warning("Benzinga financials", exc)
         return []
     finally:
         adapter.close()
@@ -671,7 +679,7 @@ def fetch_benzinga_company_profile(
     try:
         return adapter.fetch_company_profile(tickers, **kwargs)
     except Exception as exc:
-        logger.warning("Benzinga company profile fetch failed: %s", _sanitize_exc(exc))
+        log_fetch_warning("Benzinga company_profile", exc)
         return []
     finally:
         adapter.close()
@@ -702,7 +710,7 @@ def fetch_benzinga_ticker_detail(
     try:
         return adapter.fetch_ticker_detail(tickers)
     except Exception as exc:
-        logger.warning("Benzinga ticker detail fetch failed: %s", _sanitize_exc(exc))
+        log_fetch_warning("Benzinga ticker_detail", exc)
         return []
     finally:
         adapter.close()
@@ -719,7 +727,7 @@ def fetch_benzinga_price_history(
     try:
         return adapter.fetch_price_history(tickers, date_from, date_to)
     except Exception as exc:
-        logger.warning("Benzinga price history fetch failed: %s", _sanitize_exc(exc))
+        log_fetch_warning("Benzinga bars", exc)
         return []
     finally:
         adapter.close()
@@ -734,7 +742,7 @@ def fetch_benzinga_logos(
     try:
         return adapter.fetch_logos(tickers)
     except Exception as exc:
-        logger.warning("Benzinga logos fetch failed: %s", _sanitize_exc(exc))
+        log_fetch_warning("Benzinga logos", exc)
         return []
     finally:
         adapter.close()
@@ -750,7 +758,7 @@ def fetch_benzinga_auto_complete(
     try:
         return adapter.fetch_auto_complete(query, **kwargs)
     except Exception as exc:
-        logger.warning("Benzinga auto-complete fetch failed: %s", _sanitize_exc(exc))
+        log_fetch_warning("Benzinga search", exc)
         return []
     finally:
         adapter.close()
