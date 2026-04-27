@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 _BASE_URL = "https://financialmodelingprep.com"
 # HTTP status codes worth a retry. Anything else is treated as fatal so
 # we don't silently swallow auth/404 problems via the @resilient pilot.
-_RETRIABLE_HTTP_CODES = frozenset({429, 500, 502, 503, 504})
+_RETRIABLE_HTTP_CODES = frozenset({408, 429, 500, 502, 503, 504})
 _US_EASTERN = ZoneInfo("America/New_York")
 _MARKET_PE_FORWARD_SYMBOL = "SPY"
 _MARKET_PE_FORWARD_FALLBACK_SYMBOLS: tuple[str, ...] = (
