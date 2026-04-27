@@ -1611,7 +1611,7 @@ def _fetch_house_trading(
         return result
 
     symbol_set = {s.upper() for s in symbols if s.strip()}
-    effective_today = today or date.today()
+    effective_today = today or datetime.now(US_EASTERN_TZ).date()
     cutoff = effective_today - timedelta(days=max(int(lookback_days), 0))
 
     for row in raw:
