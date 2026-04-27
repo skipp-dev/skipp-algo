@@ -1310,6 +1310,111 @@ def _fetch_beneficial_ownership(
 
 
 # ---------------------------------------------------------------------------
+# Political-trades enrichment (Ultimate-tier, Senate + House disclosures)
+# ---------------------------------------------------------------------------
+_POLITICAL_TRADES_FRESH_DAYS = 30  # Disclosures within N days are "fresh"
+_POLITICAL_TRADES_LATEST_LIMIT = 250  # Pull recent disclosures broadly
+
+
+def _fetch_political_trades(
+    *,
+    client: FMPClient,
+    symbols: list[str],
+    today: date,
+    fresh_days: int = _POLITICAL_TRADES_FRESH_DAYS,
+    latest_limit: int = _POLITICAL_TRADES_LATEST_LIMIT,
+) -> dict[str, dict[str, Any]]:
+    """Fetch recent Senate + House disclosures, aggregate by symbol.
+
+    Single broad call per chamber (not per symbol) — disclosures already
+    span the whole market. We then index by symbol and freshness.
+    """
+    universe_set = {s.upper() for s in symbols if s}
+    if not universe_set:
+        return {}
+
+    fresh_cutoff = today - timedelta(days=int(max(fresh_days, 0)))
+
+    try:
+        senate_rows = client.get_senate_trades_latest(limit=latest_limit)
+    except Exception as exc:
+        logger.warning("Senate trades fetch failed: %s", exc, exc_info=True)
+        senate_rows = []
+    try:
+        house_rows = client.get_house_trades_latest(limit=latest_limit)
+    except Exception as exc:
+        logger.warning("House trades fetch failed: %s", exc, exc_info=True)
+        house_rows = []
+
+    def _parse_dt(val: Any) -> date | None:
+        if not val:
+            return None
+        try:
+            return date.fromisoformat(str(val)[:10])
+        except Exception:
+            return None
+
+    def _is_buy(row: dict[str, Any]) -> bool:
+        t = str(row.get("type") or "").lower()
+        return "purchase" in t or t.startswith("buy")
+
+    def _is_sell(row: dict[str, Any]) -> bool:
+        t = str(row.get("type") or "").lower()
+        return "sale" in t or t.startswith("sell")
+
+    by_symbol: dict[str, dict[str, Any]] = {}
+    for chamber, rows in (("senate", senate_rows), ("house", house_rows)):
+        for row in rows:
+            sym = str(row.get("symbol") or "").strip().upper()
+            if not sym or sym not in universe_set:
+                continue
+            disclosure = _parse_dt(row.get("disclosureDate"))
+            if disclosure is None or disclosure < fresh_cutoff:
+                continue
+            slot = by_symbol.setdefault(sym, {
+                "politician_buy_count": 0,
+                "politician_sell_count": 0,
+                "politician_senate_count": 0,
+                "politician_house_count": 0,
+                "politician_recent_filers": [],
+                "politician_recent": False,
+                "politician_latest_disclosure_date": "",
+            })
+            if chamber == "senate":
+                slot["politician_senate_count"] += 1
+            else:
+                slot["politician_house_count"] += 1
+            if _is_buy(row):
+                slot["politician_buy_count"] += 1
+            elif _is_sell(row):
+                slot["politician_sell_count"] += 1
+            slot["politician_recent"] = True
+            disclosure_iso = disclosure.isoformat()
+            if disclosure_iso > slot["politician_latest_disclosure_date"]:
+                slot["politician_latest_disclosure_date"] = disclosure_iso
+            office = str(row.get("office") or "").strip()
+            if office and office not in slot["politician_recent_filers"]:
+                slot["politician_recent_filers"].append(office)
+
+    # Cap recent_filers list for payload size
+    for slot in by_symbol.values():
+        slot["politician_recent_filers"] = slot["politician_recent_filers"][:5]
+        net = slot["politician_buy_count"] - slot["politician_sell_count"]
+        slot["politician_net"] = net
+        if net > 0:
+            slot["politician_sentiment"] = "net_buy"
+            slot["politician_emoji"] = "🟢"
+        elif net < 0:
+            slot["politician_sentiment"] = "net_sell"
+            slot["politician_emoji"] = "🔴"
+        else:
+            slot["politician_sentiment"] = "neutral"
+            slot["politician_emoji"] = "🟡"
+
+    return by_symbol
+
+
+# ---------------------------------------------------------------------------
 # Institutional ownership enrichment (Ultimate-tier, 13F)
 # ---------------------------------------------------------------------------
 _MAX_INST_OWNERSHIP_LOOKUPS = 30  # Cap API calls for institutional data
@@ -4891,6 +4996,36 @@ def generate_open_prep_result(
         q["beneficial_owner_latest_filer"] = bo.get("beneficial_owner_latest_filer", "")
         q["beneficial_owner_latest_pct"] = bo.get("beneficial_owner_latest_pct")
         q["beneficial_owner_latest_date"] = bo.get("beneficial_owner_latest_date", "")
+
+    # --- Political trades (Ultimate-tier, Senate + House disclosures) ---
+    political_trades: dict[str, dict[str, Any]] = {}
+    try:
+        political_trades = _fetch_political_trades(
+            client=data_client,
+            symbols=symbol_list,
+            today=today,
+        )
+        if political_trades:
+            logger.info(
+                "Political trades: %d symbols with fresh disclosures",
+                len(political_trades),
+            )
+    except Exception as exc:
+        logger.warning("Political trades fetch failed: %s", type(exc).__name__, exc_info=True)
+
+    for q in quotes:
+        sym = str(q.get("symbol") or "").strip().upper()
+        pt = political_trades.get(sym, {})
+        q["politician_recent"] = bool(pt.get("politician_recent", False))
+        q["politician_buy_count"] = pt.get("politician_buy_count", 0)
+        q["politician_sell_count"] = pt.get("politician_sell_count", 0)
+        q["politician_net"] = pt.get("politician_net", 0)
+        q["politician_sentiment"] = pt.get("politician_sentiment", "")
+        q["politician_emoji"] = pt.get("politician_emoji", "")
+        q["politician_senate_count"] = pt.get("politician_senate_count", 0)
+        q["politician_house_count"] = pt.get("politician_house_count", 0)
+        q["politician_recent_filers"] = pt.get("politician_recent_filers", [])
+        q["politician_latest_disclosure_date"] = pt.get("politician_latest_disclosure_date", "")
 
     # --- Finnhub: Insider Sentiment + Peers + FDA Calendar (Phase 1 FREE) ---
     _progress(12, TOTAL_STAGES, "Finnhub Insider Sentiment + Peers …")

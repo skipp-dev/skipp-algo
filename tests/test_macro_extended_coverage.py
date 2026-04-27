@@ -875,6 +875,32 @@ def test_get_acquisition_of_beneficial_ownership_swallows_runtime_error(
     assert client_with_get.get_acquisition_of_beneficial_ownership("AAPL") == []
 
 
+def test_get_senate_trades_latest_default_paging(
+    client_with_get: FMPClient, recorder: dict[str, Any]
+) -> None:
+    recorder["return"] = [{"symbol": "AAPL"}]
+    rows = client_with_get.get_senate_trades_latest(limit=50)
+    assert recorder["call"] == ("/stable/senate-latest", {"page": 0, "limit": 50})
+    assert rows == [{"symbol": "AAPL"}]
+
+
+def test_get_house_trades_latest_default_paging(
+    client_with_get: FMPClient, recorder: dict[str, Any]
+) -> None:
+    recorder["return"] = [{"symbol": "NVDA"}]
+    rows = client_with_get.get_house_trades_latest(limit=0)
+    # limit floored to 1
+    assert recorder["call"] == ("/stable/house-latest", {"page": 0, "limit": 1})
+    assert rows == [{"symbol": "NVDA"}]
+
+
+def test_get_senate_trades_latest_swallows_runtime_error(
+    client_with_get: FMPClient, recorder: dict[str, Any]
+) -> None:
+    recorder["return"] = RuntimeError("retired")
+    assert client_with_get.get_senate_trades_latest() == []
+
+
 def test_get_treasury_rates_optional_dates(
     client_with_get: FMPClient, recorder: dict[str, Any]
 ) -> None:
