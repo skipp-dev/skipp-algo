@@ -32,7 +32,7 @@ import argparse
 import csv
 import json
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -138,6 +138,48 @@ def build_gate_status(setups: list[dict[str, Any]]) -> dict[str, str]:
     return {setup["variant"]: "amber" for setup in setups}
 
 
+def _parse_trade_date(raw: str | None) -> str:
+    """Validate and normalise the ``--trade-date`` CLI value.
+
+    Treats an empty / ``None`` value as "today UTC" and otherwise parses
+    via :func:`date.fromisoformat`. Returning the round-tripped
+    ``isoformat()`` value rejects path-traversal payloads (``../``) and
+    locale-specific date strings before they can land in record fields
+    or in the ``setups_<DATE>.jsonl`` filename.
+    """
+
+    if raw is None or raw == "":
+        return datetime.now(UTC).date().isoformat()
+    try:
+        return date.fromisoformat(raw).isoformat()
+    except ValueError as exc:
+        raise SystemExit(
+            f"--trade-date must be ISO-8601 (YYYY-MM-DD); got {raw!r}"
+        ) from exc
+
+
+def _positive_quantity(raw: str) -> int:
+    """Argparse type for ``--quantity``: must be a positive integer.
+
+    The downstream IBKR adapter (``scripts/smc_to_ibkr_adapter.py``)
+    rejects non-positive quantities at submit time; failing fast here
+    keeps the artefact files (and the live runner's audit trail) free
+    of records that are guaranteed to be rejected later.
+    """
+
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            f"--quantity must be an integer; got {raw!r}"
+        ) from exc
+    if value <= 0:
+        raise argparse.ArgumentTypeError(
+            f"--quantity must be > 0; got {value}"
+        )
+    return value
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="build_phase_a_inputs",
@@ -172,16 +214,16 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--quantity",
-        type=int,
+        type=_positive_quantity,
         default=1,
-        help="Per-setup quantity (Phase-A audit-only; default 1).",
+        help="Per-setup quantity (positive int; Phase-A audit-only; default 1).",
     )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
-    trade_date = args.trade_date or datetime.now(UTC).date().isoformat()
+    trade_date = _parse_trade_date(args.trade_date)
 
     csv_path = args.trade_cards_csv or _latest_trade_cards(args.reports_dir)
     setups = build_setups_from_trade_cards(
