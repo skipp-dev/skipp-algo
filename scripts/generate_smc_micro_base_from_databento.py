@@ -16,6 +16,11 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+# Load .env before argparse defaults are resolved (they call os.getenv).
+from dotenv import load_dotenv  # noqa: E402
+
+load_dotenv(REPO_ROOT / ".env")
+
 from scripts.generate_smc_micro_profiles import load_schema, write_pine_library
 from scripts.smc_atomic_write import atomic_write_csv, atomic_write_text
 from scripts.smc_microstructure_base_runtime import (

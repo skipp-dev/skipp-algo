@@ -46,10 +46,14 @@ from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
 
 import pandas as pd
+from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+# Load .env before argparse defaults are resolved (they call os.environ.get).
+load_dotenv(ROOT / ".env")
 
 from scripts.explicit_structure_from_bars import (  # noqa: E402
     build_fvg_from_bars,
