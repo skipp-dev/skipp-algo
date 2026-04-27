@@ -660,14 +660,22 @@ class FMPClient:
         return list(data) if isinstance(data, list) else []
 
     def get_profiles(self, symbols: list[str]) -> list[dict[str, Any]]:
+        # FMP /stable/profile only accepts a SINGLE symbol; passing a comma-
+        # joined list silently returns []. Iterate per symbol and warn-skip on
+        # individual failures so a single bad ticker does not nuke the batch.
         requested_symbols = [str(symbol).strip().upper() for symbol in symbols if str(symbol).strip()]
         if not requested_symbols:
             return []
-        try:
-            data = self._get("/stable/profile", {"symbol": ",".join(requested_symbols)})
-        except RuntimeError:
-            return []
-        return list(data) if isinstance(data, list) else []
+        rows: list[dict[str, Any]] = []
+        for sym in requested_symbols:
+            try:
+                data = self._get("/stable/profile", {"symbol": sym})
+            except RuntimeError as exc:
+                logger.warning("profile fetch failed for %s: %s", sym, exc)
+                continue
+            if isinstance(data, list):
+                rows.extend(data)
+        return rows
 
     def get_ratios_ttm(self, symbol: str) -> list[dict[str, Any]]:
         requested_symbol = str(symbol).strip().upper()
@@ -817,9 +825,11 @@ class FMPClient:
         return list(data) if isinstance(data, list) else []
 
     def get_cryptocurrency_historical_price(self, symbol: str) -> list[dict[str, Any]]:
+        # FMP retired /stable/cryptocurrency-historical-price; the EOD history
+        # for crypto symbols is now served by /stable/historical-price-eod/full.
         params = {"symbol": str(symbol).strip().upper()}
         try:
-            data = self._get("/stable/cryptocurrency-historical-price", params)
+            data = self._get("/stable/historical-price-eod/full", params)
         except RuntimeError:
             return []
         return list(data) if isinstance(data, list) else []
@@ -835,6 +845,10 @@ class FMPClient:
         try:
             data = self._get("/stable/fear-and-greed-index", {})
         except RuntimeError:
+            _log_feature_unavailable_once(
+                "stable/fear-and-greed-index",
+                "FMP feature unavailable (stable/fear-and-greed-index); endpoint retired or upgraded plan required.",
+            )
             return []
         return list(data) if isinstance(data, list) else []
 
@@ -946,11 +960,31 @@ class FMPClient:
         return list(data) if isinstance(data, list) else []
 
     def get_batch_aftermarket_quote(self, symbols: list[str]) -> list[dict[str, Any]]:
-        try:
-            data = self._get("/stable/batch-aftermarket-quote", {"symbols": ",".join(symbols)})
-        except RuntimeError:
+        # See get_batch_aftermarket_trade: gateway returns 414/401 once the URL
+        # exceeds ~6 KB. Chunk at 250 and skip-with-warn on per-chunk failure.
+        cleaned = [str(s).strip().upper() for s in symbols if str(s).strip()]
+        if not cleaned:
             return []
-        return list(data) if isinstance(data, list) else []
+        rows: list[dict[str, Any]] = []
+        chunk_size = 250
+        for start in range(0, len(cleaned), chunk_size):
+            chunk = cleaned[start : start + chunk_size]
+            try:
+                data = self._get(
+                    "/stable/batch-aftermarket-quote",
+                    {"symbols": ",".join(chunk)},
+                )
+            except RuntimeError as exc:
+                logger.warning(
+                    "batch-aftermarket-quote chunk %d-%d failed: %s",
+                    start,
+                    start + len(chunk),
+                    exc,
+                )
+                continue
+            if isinstance(data, list):
+                rows.extend(data)
+        return rows
 
     def get_splits_calendar(self, date_from: date, date_to: date) -> list[dict[str, Any]]:
         params = {
@@ -1014,6 +1048,10 @@ class FMPClient:
         try:
             data = self._get("/stable/insider-trading", params)
         except RuntimeError:
+            _log_feature_unavailable_once(
+                "stable/insider-trading",
+                "FMP feature unavailable (stable/insider-trading); endpoint retired or upgraded plan required.",
+            )
             return []
         return list(data) if isinstance(data, list) else []
 
@@ -1025,6 +1063,10 @@ class FMPClient:
         try:
             data = self._get("/stable/institutional-ownership", params)
         except RuntimeError:
+            _log_feature_unavailable_once(
+                "stable/institutional-ownership",
+                "FMP feature unavailable (stable/institutional-ownership); endpoint retired or upgraded plan required.",
+            )
             return []
         return list(data) if isinstance(data, list) else []
 

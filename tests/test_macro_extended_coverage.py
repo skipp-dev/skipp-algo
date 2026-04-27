@@ -609,13 +609,30 @@ def test_get_profile_bulk_swallows_runtime_error_and_logs_once(
     assert client_with_get.get_profile_bulk() == []
 
 
-def test_get_profiles_uppercases_and_joins_symbols(
+def test_get_profiles_uppercases_and_iterates_per_symbol(
     client_with_get: FMPClient, recorder: dict[str, Any]
 ) -> None:
-    recorder["return"] = [{"symbol": "AAPL"}]
+    # /stable/profile only accepts a single symbol; verify per-symbol calls.
+    calls: list[tuple[str, dict[str, Any]]] = []
+    original = recorder.get("return")
+
+    def _record_get(path: str, params: dict[str, Any]) -> Any:
+        calls.append((path, dict(params)))
+        return [{"symbol": params.get("symbol")}]
+
+    client_with_get._get = _record_get  # type: ignore[assignment]
     rows = client_with_get.get_profiles(["aapl", " msft ", "", "tsla"])
-    assert recorder["call"] == ("/stable/profile", {"symbol": "AAPL,MSFT,TSLA"})
-    assert rows == [{"symbol": "AAPL"}]
+    assert calls == [
+        ("/stable/profile", {"symbol": "AAPL"}),
+        ("/stable/profile", {"symbol": "MSFT"}),
+        ("/stable/profile", {"symbol": "TSLA"}),
+    ]
+    assert rows == [
+        {"symbol": "AAPL"},
+        {"symbol": "MSFT"},
+        {"symbol": "TSLA"},
+    ]
+    recorder["return"] = original
 
 
 def test_get_profiles_returns_empty_for_empty_input(client_with_get: FMPClient) -> None:
@@ -691,7 +708,7 @@ def test_get_cryptocurrency_historical_price(
 ) -> None:
     recorder["return"] = [{"d": 1}]
     client_with_get.get_cryptocurrency_historical_price("btcusd")
-    assert recorder["call"] == ("/stable/cryptocurrency-historical-price", {"symbol": "BTCUSD"})
+    assert recorder["call"] == ("/stable/historical-price-eod/full", {"symbol": "BTCUSD"})
 
 
 def test_get_cryptocurrency_list_and_fear_and_greed(
@@ -771,7 +788,7 @@ def test_get_premarket_movers_and_batch_aftermarket_quote(
     recorder["return"] = []
     client_with_get.get_premarket_movers()
     assert recorder["call"] == ("/stable/most-actives", {})
-    client_with_get.get_batch_aftermarket_quote(["AAPL", "MSFT"])
+    client_with_get.get_batch_aftermarket_quote(["aapl", "MSFT"])
     assert recorder["call"] == (
         "/stable/batch-aftermarket-quote",
         {"symbols": "AAPL,MSFT"},
