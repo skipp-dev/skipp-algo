@@ -15,6 +15,7 @@ from scripts.run_smc_live_incubation import (
     run_live_incubation,
 )
 from scripts.smc_to_ibkr_adapter import IBKRExecutionConfig
+from scripts.wsh_earnings_calendar import WSH_EVENTS_SCHEMA_VERSION
 
 
 _FROZEN_NOW = datetime(2026, 4, 26, 12, 0, 0, tzinfo=timezone.utc)
@@ -352,3 +353,84 @@ def test_account_state_json_rejects_non_iterable_last_n_pnls(tmp_path: Path) -> 
     }), encoding="utf-8")
     with pytest.raises(ValueError, match="last_n_pnls must be a list/tuple"):
         _account_state_from_json(state_path)
+
+
+# ── T7.2 EarningsFilter integration ────────────────────────────────
+
+
+def test_earnings_filter_blocks_intent_and_records_audit(tmp_path: Path) -> None:
+    """When EarningsFilter blocks a symbol, no submit happens but an
+    ``earnings_blocked`` audit row is written with the decision payload."""
+    from scripts.run_smc_live_incubation import run_live_incubation
+    from smc_integration.earnings_filter import EarningsFilter
+
+    wsh = tmp_path / "wsh.jsonl"
+    wsh.write_text(json.dumps({
+        "symbol": "BTC",
+        "con_id": 1,
+        "event_type": "Earnings",
+        "event_date": "2026-04-26",
+        "event_time": None,
+        "timezone": None,
+        "confidence": "Confirmed",
+        "source": "WSH",
+        "schema_version": WSH_EVENTS_SCHEMA_VERSION,
+    }) + "\n", encoding="utf-8")
+
+    audit = tmp_path / "audit.jsonl"
+    submitted: list = []
+
+    def submit(intents):
+        submitted.extend(intents)
+        return [{"intent_id": i.order_ref, "action": "filled"} for i in intents]
+
+    summary = run_live_incubation(
+        setup_records=[_setup()],
+        gate_status_by_variant={"smc_breaker_btc": "green"},
+        risk_limits=RiskLimits(),
+        account_state=_healthy_state(),
+        execution_cfg=IBKRExecutionConfig(paper_mode=True),
+        audit_path=audit,
+        phase="paper",
+        submit_fn=submit,
+        now=_FROZEN_NOW,
+        earnings_filter=EarningsFilter(events_jsonl=wsh),
+    )
+
+    assert summary["intents_submitted"] == 0
+    assert summary["intents_earnings_blocked"] == 1
+    assert submitted == []
+    rows = _read_audit(audit)
+    assert len(rows) == 1
+    assert rows[0]["action"] == "earnings_blocked"
+    assert rows[0]["earnings_filter"]["blocked"] is True
+
+
+def test_earnings_filter_missing_jsonl_is_no_op(tmp_path: Path) -> None:
+    """Phase-A invariant: missing WSH JSONL must NOT block any intent."""
+    from scripts.run_smc_live_incubation import run_live_incubation
+    from smc_integration.earnings_filter import EarningsFilter
+
+    audit = tmp_path / "audit.jsonl"
+    submit_calls: list = []
+
+    def submit(intents):
+        submit_calls.extend(intents)
+        return [{"intent_id": i.order_ref, "action": "filled"} for i in intents]
+
+    summary = run_live_incubation(
+        setup_records=[_setup()],
+        gate_status_by_variant={"smc_breaker_btc": "green"},
+        risk_limits=RiskLimits(),
+        account_state=_healthy_state(),
+        execution_cfg=IBKRExecutionConfig(paper_mode=True),
+        audit_path=audit,
+        phase="paper",
+        submit_fn=submit,
+        now=_FROZEN_NOW,
+        earnings_filter=EarningsFilter(events_jsonl=tmp_path / "missing.jsonl"),
+    )
+
+    assert summary["intents_submitted"] == 1
+    assert summary["intents_earnings_blocked"] == 0
+    assert len(submit_calls) == 1

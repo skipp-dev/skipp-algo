@@ -57,6 +57,10 @@ from scripts.smc_to_ibkr_adapter import (
     build_ibkr_intents_from_smc_setups,
 )
 from scripts.execute_ibkr_watchlist import IBKROrderIntent
+from smc_integration.earnings_filter import (
+    EarningsFilter,
+    EarningsFilterDecision,
+)
 
 logger = logging.getLogger("scripts.run_smc_live_incubation")
 
@@ -264,6 +268,7 @@ def run_live_incubation(
     size_scale: float = PHASE_B_RECOMMENDED_SIZE_SCALE,
     submit_fn: SubmitFn = _no_op_submit,
     now: datetime | None = None,
+    earnings_filter: EarningsFilter | None = None,
 ) -> dict[str, Any]:
     """Execute one orchestration round and return a structured summary.
 
@@ -271,6 +276,14 @@ def run_live_incubation(
     decision in the audit log, marks the run as ``halted`` in the
     summary, and returns. Callers (cron, CI) treat ``halted`` as a
     successful no-op rather than a failure.
+
+    When ``earnings_filter`` is supplied (T7.2), each intent is gated
+    against the filter on its symbol + the run's UTC trade-date; blocked
+    intents are dropped from submission but still produce an audit
+    record with ``action="earnings_blocked"`` so the gate decision is
+    auditable. Missing WSH JSONL is a no-op (filter returns blocked=False
+    with reason WSH_DATA_MISSING) — Phase A must never block on data
+    unavailability.
     """
     timestamp = _utc_iso(now)
     kill_decision: KillSwitchDecision = check_risk_limits(
@@ -304,6 +317,28 @@ def run_live_incubation(
         tradable, execution_cfg, size_scale=size_scale
     )
 
+    # T7.2 — pre-trade earnings filter. Run BEFORE submit_fn so blocked
+    # intents never reach IBKR. Decisions are recorded as audit rows so
+    # the cron can attribute "missing intent" to a deliberate skip vs a
+    # gate fall-out. Trade-date is the UTC calendar date of the run; the
+    # filter does its own pre/post window arithmetic.
+    earnings_decisions: dict[str, EarningsFilterDecision] = {}
+    if earnings_filter is not None:
+        trade_date_iso = (
+            now.astimezone(timezone.utc).date().isoformat()
+            if now is not None
+            else datetime.now(timezone.utc).date().isoformat()
+        )
+        allowed: list[IBKROrderIntent] = []
+        for intent in intents:
+            decision = earnings_filter.decide(
+                symbol=intent.symbol, trade_date=trade_date_iso
+            )
+            earnings_decisions[intent.order_ref] = decision
+            if not decision.blocked:
+                allowed.append(intent)
+        intents = allowed
+
     # Map intent.order_ref → variant so the audit log carries the
     # variant the gate decided on. compute_live_drift (C8/T4) groups
     # by this key; without it the drift cron sees no variants and
@@ -327,6 +362,24 @@ def run_live_incubation(
     }
 
     audit_records: list[dict[str, Any]] = []
+    # First, emit one audit row per earnings-blocked intent (those were
+    # filtered out of ``intents`` above and therefore never seen by
+    # ``submit_fn``). Variant key still resolved from variant_by_order_ref.
+    for order_ref, decision in earnings_decisions.items():
+        if not decision.blocked:
+            continue
+        audit_records.append(
+            {
+                "ts": timestamp,
+                "phase": phase,
+                "intent_id": order_ref,
+                "variant": variant_by_order_ref.get(order_ref, ""),
+                "symbol": decision.symbol,
+                "action": "earnings_blocked",
+                "earnings_filter": decision.as_audit_dict(),
+                "kill_switch_triggered": False,
+            }
+        )
     for intent in intents:
         result = submission_by_intent.get(intent.order_ref, {})
         audit_records.append(
@@ -349,11 +402,15 @@ def run_live_incubation(
 
     _atomic_append_audit(audit_path, audit_records)
 
+    earnings_blocked = sum(
+        1 for d in earnings_decisions.values() if d.blocked
+    )
     return {
         "phase": phase,
         "halted": False,
         "kill_reason": None,
         "intents_submitted": len(intents),
+        "intents_earnings_blocked": earnings_blocked,
         "audit_records_written": len(audit_records),
     }
 
@@ -421,6 +478,30 @@ def _build_parser() -> argparse.ArgumentParser:
             "phase=paper, where a zero-AccountState is acceptable for "
             "dry-runs and CI."
         ),
+    )
+    parser.add_argument(
+        "--wsh-events-jsonl",
+        type=Path,
+        default=None,
+        help=(
+            "Path to a daily WSH events JSONL artefact (T7.1). When "
+            "present and the file exists, the T7.2 EarningsFilter is "
+            "applied to gate intents whose symbol has an earnings event "
+            "inside the configured pre/post window. Missing file is a "
+            "no-op (Phase A never blocks on data unavailability)."
+        ),
+    )
+    parser.add_argument(
+        "--earnings-pre-window-days",
+        type=int,
+        default=1,
+        help="Calendar days before trade-date to block earnings (default: 1).",
+    )
+    parser.add_argument(
+        "--earnings-post-window-days",
+        type=int,
+        default=1,
+        help="Calendar days after trade-date to block earnings (default: 1).",
     )
     return parser
 
@@ -538,6 +619,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     execution_cfg = IBKRExecutionConfig(paper_mode=bool(phase_defaults["paper_mode"]))
 
+    earnings_filter: EarningsFilter | None = None
+    if args.wsh_events_jsonl is not None:
+        earnings_filter = EarningsFilter(
+            events_jsonl=args.wsh_events_jsonl,
+            pre_window_days=int(args.earnings_pre_window_days),
+            post_window_days=int(args.earnings_post_window_days),
+        )
+
     summary = run_live_incubation(
         setup_records=setup_records,
         gate_status_by_variant=gate_statuses,
@@ -547,6 +636,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         audit_path=args.audit_output,
         phase=args.phase,
         size_scale=size_scale,
+        earnings_filter=earnings_filter,
     )
     print(json.dumps(summary, sort_keys=True))
     return 0

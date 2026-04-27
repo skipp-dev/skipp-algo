@@ -1,0 +1,212 @@
+name: c13-daily-cron
+
+# Sprint C13 / T2 — daily incubation cron for Phase A.
+#
+# Runs the four-step JSONL-only pipeline documented in
+# docs/c8_live_incubation_runbook.md:122-146 plus the C13 plan
+# (docs/sprints/c13_live_incubation_phase_a.md):
+#
+#   1. backfill_live_outcomes       — stamp PnL/R-multiple onto closed trades.
+#   2. build_backtest_reference drift-input
+#                                   — audit JSONL → drift-input JSONL.
+#   3. build_backtest_reference backtest-reference
+#                                   — refresh backtest reference from C2/C3.
+#   4. compute_live_drift           — emit cache/live/drift_<DATE>.json.
+#
+# IBKR-bound steps (T7 wsh_earnings_calendar, T8.2
+# collect_opening_imbalances) require a live TWS session and are
+# therefore NOT part of the unattended cron. They run locally on the
+# Phase-A workstation and write into cache/wsh/ and cache/imbalance/;
+# this cron consumes whatever rolled in via git pull. Treat absence as
+# "skip" — the downstream filters and join hooks (T7.2, T8.3) are
+# additive and degrade to no-op when their input file is missing.
+#
+# Vorbild: .github/workflows/drift-watchdog.yml (cron schedule,
+# continue-on-error, GH issue on red, upload-artifact).
+
+on:
+  schedule:
+    # 22:00 UTC weekdays = ~30 min after US cash close (16:00 ET in EST,
+    # 17:00 ET == 21:00 UTC in EDT). Window is wide enough to absorb
+    # late settlement and IBKR reconcile-fills latency before backfill
+    # touches the audit log.
+    - cron: "0 22 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      trade_date:
+        description: "Trade date (YYYY-MM-DD). Default = today UTC."
+        required: false
+        default: ""
+      live_window_days:
+        description: "Drift live-window in days (informational)."
+        required: false
+        default: "30"
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: c13-daily-cron
+  cancel-in-progress: false
+
+jobs:
+  daily-pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      LIVE_DIR: cache/live
+      CALIB_DIR: cache/calibration
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install runtime dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # Pipeline modules are stdlib + numpy. Avoid the full
+          # requirements.txt so the cron stays IBKR-free.
+          pip install numpy
+
+      - name: Resolve trade date
+        id: date
+        run: |
+          if [ -n "${{ github.event.inputs.trade_date }}" ]; then
+            DATE="${{ github.event.inputs.trade_date }}"
+          else
+            DATE="$(date -u +%Y-%m-%d)"
+          fi
+          echo "date=${DATE}" >> "$GITHUB_OUTPUT"
+          echo "Trade date: ${DATE}"
+
+      - name: Step 1 — backfill live outcomes (advisory)
+        id: backfill
+        # CONTINUE-ON-ERROR-INTENTIONAL: soft-skip (rc=78) on missing audit
+        # JSONL must not abort the whole pipeline; downstream steps gate on rc.
+        continue-on-error: true
+        run: |
+          set +e
+          DATE="${{ steps.date.outputs.date }}"
+          AUDIT="${LIVE_DIR}/incubation_${DATE}.jsonl"
+          if [ ! -f "${AUDIT}" ]; then
+            echo "No audit file for ${DATE} — skipping backfill (rc=78)."
+            echo "rc=78" >> "$GITHUB_OUTPUT"
+            exit 78
+          fi
+          # T8.3 — wire opening-imbalance index when locally produced
+          # snapshots have rolled in via git pull. Absence is expected on
+          # weekends / holidays / pre-T8.2-rollout days; soft-skip the
+          # arg in that case so the backfill still runs (rc=0 path).
+          IMBALANCE_INDEX="cache/imbalance/${DATE}.jsonl"
+          if [ ! -f "${IMBALANCE_INDEX}" ]; then
+            IMBALANCE_INDEX=""
+            echo "No imbalance index for ${DATE} — backfill runs without --imbalance-index."
+          fi
+          python -m scripts.backfill_live_outcomes "${AUDIT}" \
+            ${IMBALANCE_INDEX:+--imbalance-index "${IMBALANCE_INDEX}"}
+          echo "rc=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Step 2 — drift-input from audit JSONL (advisory)
+        id: drift_input
+        if: steps.backfill.outputs.rc == '0'
+        # CONTINUE-ON-ERROR-INTENTIONAL: failures here are reported via the
+        # downstream issue-opener step; do not fail the whole job so later
+        # steps and artefact upload still run.
+        continue-on-error: true
+        run: |
+          set +e
+          DATE="${{ steps.date.outputs.date }}"
+          python -m scripts.build_backtest_reference drift-input \
+            --audit-jsonl "${LIVE_DIR}/incubation_${DATE}.jsonl" \
+            --output      "${LIVE_DIR}/drift_input_${DATE}.jsonl"
+          echo "rc=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Step 3 — refresh backtest reference (advisory)
+        id: backtest_ref
+        if: steps.drift_input.outputs.rc == '0'
+        # CONTINUE-ON-ERROR-INTENTIONAL: soft-skip (rc=78) when the
+        # walk-forward / bootstrap-CI inputs are not yet refreshed for the
+        # day; this is expected on weekends / holidays.
+        continue-on-error: true
+        run: |
+          set +e
+          DATE="${{ steps.date.outputs.date }}"
+          WFO="${CALIB_DIR}/walk_forward_${DATE}.json"
+          BCI="${CALIB_DIR}/bootstrap_ci_${DATE}.json"
+          if [ ! -f "${WFO}" ] || [ ! -f "${BCI}" ]; then
+            echo "Walk-forward or bootstrap-CI artefact missing for ${DATE}."
+            echo "  WFO=${WFO}  exists=$([ -f "$WFO" ] && echo yes || echo no)"
+            echo "  BCI=${BCI}  exists=$([ -f "$BCI" ] && echo yes || echo no)"
+            echo "rc=78" >> "$GITHUB_OUTPUT"
+            exit 78
+          fi
+          python -m scripts.build_backtest_reference backtest-reference \
+            --walk-forward  "${WFO}" \
+            --bootstrap-ci  "${BCI}" \
+            --output        "${CALIB_DIR}/backtest_reference_${DATE}.json"
+          echo "rc=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Step 4 — compute live drift (advisory)
+        id: drift
+        if: steps.backtest_ref.outputs.rc == '0'
+        # CONTINUE-ON-ERROR-INTENTIONAL: surface failures via the
+        # issue-opener step; do not fail the job so artefacts still upload.
+        continue-on-error: true
+        run: |
+          set +e
+          DATE="${{ steps.date.outputs.date }}"
+          python -m scripts.compute_live_drift \
+            --live-jsonl           "${LIVE_DIR}/drift_input_${DATE}.jsonl" \
+            --backtest-calibration "${CALIB_DIR}/backtest_reference_${DATE}.json" \
+            --output               "${LIVE_DIR}/drift_${DATE}.json"
+          echo "rc=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Upload daily artefacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: c13-daily-${{ steps.date.outputs.date }}
+          path: |
+            cache/live/drift_input_*.jsonl
+            cache/live/drift_*.json
+            cache/calibration/backtest_reference_*.json
+          if-no-files-found: warn
+
+      - name: Open issue if any required step failed
+        # rc values: '0' = success, '78' = soft-skip (expected on no-audit /
+        # weekend), '' = step skipped via `if:` gate (treat as no-op, NOT a
+        # failure). Anything else is a hard failure worth opening an issue.
+        if: |
+          (steps.backfill.outputs.rc != '0' && steps.backfill.outputs.rc != '78' && steps.backfill.outputs.rc != '') ||
+          (steps.drift_input.outputs.rc != '0' && steps.drift_input.outputs.rc != '') ||
+          (steps.backtest_ref.outputs.rc != '0' && steps.backtest_ref.outputs.rc != '78' && steps.backtest_ref.outputs.rc != '') ||
+          (steps.drift.outputs.rc != '0' && steps.drift.outputs.rc != '')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DATE="${{ steps.date.outputs.date }}"
+          TITLE="C13 daily-cron failure ${DATE}"
+          if gh issue list --label c13,critical,cron-failure --search "in:title \"${TITLE}\"" --state open | grep -q "${TITLE}"; then
+            echo "Issue already open — skipping."
+            exit 0
+          fi
+          BODY=$(cat <<EOF
+          C13 daily cron failed for trade date ${DATE}.
+
+          Step return codes (78 = soft-skip due to missing input):
+          - backfill_live_outcomes:        ${{ steps.backfill.outputs.rc }}
+          - build_backtest_reference (drift-input):     ${{ steps.drift_input.outputs.rc }}
+          - build_backtest_reference (backtest-reference): ${{ steps.backtest_ref.outputs.rc }}
+          - compute_live_drift:            ${{ steps.drift.outputs.rc }}
+
+          Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          EOF
+          )
+          gh issue create \
+            --label c13,critical,cron-failure \
+            --title "${TITLE}" \
+            --body "${BODY}"

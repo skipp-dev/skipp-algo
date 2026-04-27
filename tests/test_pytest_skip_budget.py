@@ -23,6 +23,9 @@ _TESTS_DIR = _REPO_ROOT / "tests"
 _SKIP_RE = re.compile(r"@pytest\.mark\.skip\b|pytest\.skip\s*\(")
 
 _FROZEN_FILE_COUNTS: dict[str, int] = {
+    "tests/test_c11_resume_anchor.py": 2,
+    "tests/test_c9_threshold_finalisation_anchor.py": 1,
+    "tests/test_c9_threshold_lock_status.py": 1,
     "tests/test_e2e_smoke_ci.py": 1,
     "tests/test_generate_smc_micro_profiles.py": 2,
     "tests/test_hero_surface_input_map.py": 1,

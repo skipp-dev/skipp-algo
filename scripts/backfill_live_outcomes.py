@@ -27,13 +27,25 @@ job without coupling to a TWS session.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import tempfile
 from pathlib import Path
 from typing import Any
 
+logger = logging.getLogger(__name__)
+
 R_MULTIPLE_KEY = "outcome_r_multiple"
 PNL_KEY = "outcome_pnl_usd"
+
+# C13/T8.3 — opening-auction imbalance annotation keys (additive). The
+# imbalance loader is a Phase-A passive enrichment; downstream
+# consumers must treat the keys as optional (NASDAQ trades never
+# carry them because IBKR has no NASDAQ-imbalance subscription).
+IMBALANCE_SIDE_KEY = "opening_imbalance_side"
+IMBALANCE_NORMALIZED_KEY = "opening_imbalance_shares_normalized"
+IMBALANCE_FEED_KEY = "opening_imbalance_feed"
+IMBALANCE_AVAILABLE_KEY = "opening_imbalance_available"
 
 # Actions the live runner uses to mark a trade as closed.
 _CLOSED_ACTIONS = frozenset({"closed", "stop_hit", "tp_hit", "flattened"})
@@ -192,9 +204,224 @@ def backfill_live_outcomes(path: Path | str) -> dict[str, int]:
     return summary
 
 
+def annotate_imbalance_outcomes(
+    audit_path: Path | str,
+    *,
+    imbalance_index: dict[str, dict[str, Any]],
+    avg_volume_lookup: dict[str, float] | None = None,
+) -> dict[str, int]:
+    """Annotate audit-log rows with opening-imbalance metadata.
+
+    Phase-A T8.3 contract: annotation is **purely additive**. Every
+    audit row that carries a ``symbol`` field is considered —
+    intent-creations, fills, halts, closes, etc. The downstream
+    correlator/stratifier re-filters on its own action set, so this
+    hook does not gate on ``closed`` / ``filled`` / ``outcome_pnl_usd``
+    on its own. Rows without a ``symbol`` are passed through
+    unchanged.
+
+    Parameters
+    ----------
+    audit_path:
+        Path to a backfilled audit JSONL (run :func:`backfill_live_outcomes`
+        first to ensure outcome fields are present; this hook does not
+        require them but the producer order is the canonical one).
+    imbalance_index:
+        Mapping ``symbol`` (UPPERCASE) -> imbalance-snapshot dict from
+        :mod:`scripts.imbalance_data`. Snapshots without
+        ``auction_imbalance_shares`` set are treated as unavailable.
+    avg_volume_lookup:
+        Optional ``symbol`` -> 30d-avg-daily-volume mapping used for the
+        ``opening_imbalance_shares_normalized`` field. When omitted the
+        normalised value is left as ``None`` and only the raw side flag
+        is written.
+
+    Returns
+    -------
+    dict
+        Summary counts:: ``records_total``, ``records_annotated``,
+        ``records_skipped_no_data``, ``records_skipped_unavailable``.
+
+    The function is idempotent.
+    """
+    p = Path(audit_path)
+    records = _load_jsonl(p)
+    avg_volume_lookup = {
+        str(k).upper(): float(v)
+        for k, v in (avg_volume_lookup or {}).items()
+    }
+    summary = {
+        "records_total": len(records),
+        "records_annotated": 0,
+        "records_skipped_no_data": 0,
+        "records_skipped_unavailable": 0,
+    }
+    out: list[dict[str, Any]] = []
+    for record in records:
+        symbol_raw = record.get("symbol")
+        if not symbol_raw:
+            out.append(record)
+            continue
+        sym = str(symbol_raw).upper()
+        snapshot = imbalance_index.get(sym)
+        if snapshot is None:
+            summary["records_skipped_no_data"] += 1
+            out.append(record)
+            continue
+        side = snapshot.get("auction_imbalance_side") or "NEUTRAL"
+        shares = snapshot.get("auction_imbalance_shares")
+        feed = snapshot.get("imbalance_feed")
+        available = bool(snapshot.get("available"))
+        if not available or shares is None:
+            summary["records_skipped_unavailable"] += 1
+            new_record = dict(record)
+            new_record[IMBALANCE_AVAILABLE_KEY] = False
+            new_record[IMBALANCE_FEED_KEY] = feed
+            out.append(new_record)
+            continue
+        normalised = None
+        avg_vol = avg_volume_lookup.get(sym)
+        if avg_vol and avg_vol > 0:
+            try:
+                normalised = float(shares) / float(avg_vol)
+            except (TypeError, ValueError):
+                normalised = None
+        new_record = dict(record)
+        new_record[IMBALANCE_AVAILABLE_KEY] = True
+        new_record[IMBALANCE_SIDE_KEY] = side
+        new_record[IMBALANCE_NORMALIZED_KEY] = normalised
+        new_record[IMBALANCE_FEED_KEY] = feed
+        summary["records_annotated"] += 1
+        out.append(new_record)
+
+    _atomic_write_jsonl(p, out)
+    return summary
+
+
+def load_imbalance_index(jsonl_path: Path | str) -> dict[str, dict[str, Any]]:
+    """Read an imbalance JSONL and return a ``symbol -> snapshot`` map.
+
+    Used as the ``imbalance_index`` argument to
+    :func:`annotate_imbalance_outcomes`. Tolerant by design: malformed
+    JSON lines and rows without a ``symbol`` field are skipped with a
+    log warning so a single corrupt line does not block the whole
+    daily-cron annotation step. The strict reader
+    (:func:`_load_jsonl`) is used by the outcome backfill itself,
+    where partial files must abort.
+    """
+    out: dict[str, dict[str, Any]] = {}
+    p = Path(jsonl_path)
+    if not p.exists():
+        return out
+    with p.open("r", encoding="utf-8") as fh:
+        for line_no, raw in enumerate(fh, start=1):
+            stripped = raw.strip()
+            if not stripped:
+                continue
+            try:
+                obj = json.loads(stripped)
+            except json.JSONDecodeError as exc:
+                logger.warning(
+                    "load_imbalance_index: skipping malformed line %d in %s: %s",
+                    line_no,
+                    p,
+                    exc.msg,
+                )
+                continue
+            if not isinstance(obj, dict):
+                logger.warning(
+                    "load_imbalance_index: skipping non-object line %d in %s",
+                    line_no,
+                    p,
+                )
+                continue
+            sym_raw = obj.get("symbol")
+            if not sym_raw:
+                continue
+            out[str(sym_raw).upper()] = obj
+    return out
+
+
+def main(argv: list[str] | None = None) -> int:
+    """CLI entrypoint: backfill outcomes for one audit JSONL.
+
+    Usage::
+
+        python -m scripts.backfill_live_outcomes <audit.jsonl> \
+            [--imbalance-index <imbalance.jsonl>]
+
+    Without the optional ``--imbalance-index`` flag the runner only
+    backfills outcome fields (``backfill_live_outcomes``); when an
+    imbalance index is provided it also annotates each row in place
+    via ``annotate_imbalance_outcomes``. Returns 0 on success and a
+    non-zero exit code on argument or I/O errors so the c13-daily-cron
+    workflow can gate downstream steps on the return value.
+    """
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="scripts.backfill_live_outcomes",
+        description=(
+            "Backfill outcome fields (and optionally opening-imbalance "
+            "annotations) for a live-incubation audit JSONL."
+        ),
+    )
+    parser.add_argument(
+        "audit_path",
+        type=Path,
+        help="Path to the live-incubation audit JSONL to backfill in place.",
+    )
+    parser.add_argument(
+        "--imbalance-index",
+        type=Path,
+        default=None,
+        help=(
+            "Optional imbalance JSONL produced by "
+            "scripts.collect_opening_imbalances; when supplied, audit rows "
+            "are also annotated with imbalance metadata."
+        ),
+    )
+    args = parser.parse_args(argv)
+
+    audit = args.audit_path
+    if not audit.is_file():
+        logger.error("audit file %s does not exist", audit)
+        return 2
+
+    summary = backfill_live_outcomes(audit)
+    logger.info("backfill summary: %s", summary)
+    print(json.dumps({"backfill": summary}, sort_keys=True))
+
+    if args.imbalance_index is not None:
+        if not args.imbalance_index.is_file():
+            logger.error(
+                "imbalance index %s does not exist", args.imbalance_index
+            )
+            return 2
+        index = load_imbalance_index(args.imbalance_index)
+        ann_summary = annotate_imbalance_outcomes(
+            audit, imbalance_index=index
+        )
+        logger.info("annotation summary: %s", ann_summary)
+        print(json.dumps({"annotation": ann_summary}, sort_keys=True))
+
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover - CLI entrypoint
+    raise SystemExit(main())
+
+
 __all__ = [
+    "IMBALANCE_AVAILABLE_KEY",
+    "IMBALANCE_FEED_KEY",
+    "IMBALANCE_NORMALIZED_KEY",
+    "IMBALANCE_SIDE_KEY",
     "PNL_KEY",
     "R_MULTIPLE_KEY",
+    "annotate_imbalance_outcomes",
     "backfill_live_outcomes",
     "compute_trade_outcome",
+    "load_imbalance_index",
+    "main",
 ]

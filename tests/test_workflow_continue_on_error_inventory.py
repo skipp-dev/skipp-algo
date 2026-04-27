@@ -50,7 +50,15 @@ _ALLOWED: dict[str, frozenset[int]] = {
     "smc-release-gates.yml": frozenset({172}),
     # Drift watchdog: red verdict is intentionally non-fatal so the follow-up
     # step can convert it into a GitHub issue (silent-fail by design — see C9/T4).
-    "drift-watchdog.yml": frozenset({52}),
+    # Line shifted 52 → 54 after adding CONTINUE-ON-ERROR-INTENTIONAL marker comment
+    # (PR #333 Copilot review on c13-daily-cron — marker discipline test).
+    "drift-watchdog.yml": frozenset({54}),
+    # C13 daily-cron: 4 best-effort steps so partial failures still upload
+    # artefacts and let the issue-opener step report exactly which step
+    # failed; soft-skip rc=78 paths are also gated through these.
+    # Lines 109/124/148 → 119/134/158 (+10) after wiring T8.3 imbalance
+    # index gate into Step 1's run block (PR #333 follow-up).
+    "c13-daily-cron.yml": frozenset({90, 119, 134, 158}),
 }
 
 
