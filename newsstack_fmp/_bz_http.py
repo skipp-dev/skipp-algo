@@ -13,6 +13,8 @@ import logging
 import re
 import threading
 import time
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 import httpx
@@ -106,6 +108,34 @@ def _sanitize_exc(exc: Exception) -> str:
     )
 
 
+def _parse_retry_after_seconds(raw_value: Any) -> float | None:
+    """Parse an HTTP ``Retry-After`` header into seconds (RFC 9110 §10.2.3).
+
+    Accepts both the integer-seconds form (``"30"``) and the HTTP-date
+    form (``"Wed, 21 Oct 2026 07:28:00 GMT"``). Returns ``None`` when
+    the value is empty or unparseable so the caller can fall back to
+    its own backoff schedule.
+    """
+    if raw_value is None or raw_value == "":
+        return None
+    try:
+        return max(float(raw_value), 0.0)
+    except (TypeError, ValueError):
+        pass
+    try:
+        parsed = parsedate_to_datetime(str(raw_value))
+    except (TypeError, ValueError, IndexError, OverflowError):
+        return None
+    if parsed is None:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return max(
+        (parsed.astimezone(timezone.utc) - datetime.now(timezone.utc)).total_seconds(),
+        0.0,
+    )
+
+
 def _request_with_retry(
     client: httpx.Client,
     url: str,
@@ -122,15 +152,21 @@ def _request_with_retry(
         try:
             r = client.get(url, params=params)
             if r.status_code in _RETRYABLE and attempt < _MAX_ATTEMPTS - 1:
+                backoff = 2 ** attempt
+                hint = _parse_retry_after_seconds(r.headers.get("Retry-After"))
+                if hint is not None:
+                    wait = max(backoff, min(hint, 60.0))
+                else:
+                    wait = backoff
                 _log_transient_warning_throttled(
                     f"http_{r.status_code}",
-                    "Benzinga HTTP %s (attempt %d/%d) – retrying in %ds",
+                    "Benzinga HTTP %s (attempt %d/%d) – retrying in %.1fs",
                     r.status_code,
                     attempt + 1,
                     _MAX_ATTEMPTS,
-                    2 ** attempt,
+                    wait,
                 )
-                time.sleep(2 ** attempt)
+                time.sleep(wait)
                 continue
             r.raise_for_status()
             return r

@@ -449,6 +449,7 @@ class TestRetryLogic:
         """Should retry on 429 status code."""
         r429 = MagicMock(spec=httpx.Response)
         r429.status_code = 429
+        r429.headers = {}
         r429.raise_for_status = MagicMock()
 
         r200 = _mock_response({"result": [{"ok": True}]})
@@ -465,6 +466,7 @@ class TestRetryLogic:
         """Should retry on 500 status code."""
         r500 = MagicMock(spec=httpx.Response)
         r500.status_code = 500
+        r500.headers = {}
         r500.raise_for_status = MagicMock()
 
         r200 = _mock_response([{"ok": True}])

@@ -17,6 +17,8 @@ import json
 import logging
 import re
 import time
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 import httpx
@@ -35,6 +37,34 @@ _APIKEY_RE = re.compile(r"(apikey|api_key|token|key)=[^&]+", re.IGNORECASE)
 def _sanitize_url(url: str) -> str:
     """Remove apikey/token query params from a URL for safe logging."""
     return _APIKEY_RE.sub(r"\1=***", url)
+
+
+def _parse_retry_after_seconds(raw_value: Any) -> float | None:
+    """Parse an HTTP ``Retry-After`` header into seconds (RFC 9110 §10.2.3).
+
+    Accepts both the integer-seconds form (``"30"``) and the HTTP-date
+    form (``"Wed, 21 Oct 2026 07:28:00 GMT"``). Returns ``None`` when
+    the value is empty or unparseable so the caller can fall back to
+    its own backoff schedule.
+    """
+    if raw_value is None or raw_value == "":
+        return None
+    try:
+        return max(float(raw_value), 0.0)
+    except (TypeError, ValueError):
+        pass
+    try:
+        parsed = parsedate_to_datetime(str(raw_value))
+    except (TypeError, ValueError, IndexError, OverflowError):
+        return None
+    if parsed is None:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return max(
+        (parsed.astimezone(timezone.utc) - datetime.now(timezone.utc)).total_seconds(),
+        0.0,
+    )
 
 
 def _as_list(x: Any) -> list:
@@ -76,15 +106,26 @@ class FmpAdapter:
     _MAX_RETRIES = 3
 
     def _safe_get(self, url: str, params: dict) -> httpx.Response:
-        """GET with retry+backoff for transient failures, sanitized errors."""
+        """GET with retry+backoff for transient failures, sanitized errors.
+
+        When the response carries a ``Retry-After`` header (typically on
+        HTTP 429), honor at least the suggested wait before the next
+        attempt. The hint is capped at 60s so a misconfigured
+        ``Retry-After: 86400`` cannot wedge the poller for a full day.
+        """
         last_exc: Exception | None = None
         for attempt in range(1, self._MAX_RETRIES + 1):
             try:
                 r = self.client.get(url, params=params)
                 if r.status_code in self._RETRYABLE_CODES and attempt < self._MAX_RETRIES:
-                    wait = 2 ** attempt  # 2s, 4s
+                    backoff = 2 ** attempt  # 2s, 4s
+                    hint = _parse_retry_after_seconds(r.headers.get("Retry-After"))
+                    if hint is not None:
+                        wait = max(backoff, min(hint, 60.0))
+                    else:
+                        wait = backoff
                     logger.warning(
-                        "FMP %d from %s — retry %d/%d in %ds",
+                        "FMP %d from %s — retry %d/%d in %.1fs",
                         r.status_code, _sanitize_url(str(r.url)),
                         attempt, self._MAX_RETRIES, wait,
                     )
