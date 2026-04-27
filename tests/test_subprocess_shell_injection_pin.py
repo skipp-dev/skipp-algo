@@ -62,6 +62,10 @@ _SPAWN_ATTRS = frozenset(
 #
 # Adding/removing any site MUST update this ledger in the same PR.
 _FROZEN_SITES: dict[tuple[str, str], int] = {
+    # governance/run_manifest.py captures `git rev-parse HEAD` once per
+    # process to stamp the run manifest. Token-list args, no shell=True,
+    # 2.0s timeout, stderr discarded, lru_cached.
+    ("governance/run_manifest.py", "check_output"): 1,
     ("open_prep/realtime_signals.py", "Popen"): 1,
     ("open_prep/realtime_signals.py", "run"): 1,
     ("scripts/measure_databento_ops_run.py", "run"): 1,
