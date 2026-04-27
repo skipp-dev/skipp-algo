@@ -9,7 +9,10 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>/Users/steffenpreuss/Downloads/skipp-algo/automation/launchd/run-c13-imbalance.sh</string>
+        <!-- REPLACE __REPO_PATH__ with the absolute path to your local
+             skipp-algo checkout when copying this plist to
+             ~/Library/LaunchAgents/. See automation/launchd/README.md. -->
+        <string>__REPO_PATH__/automation/launchd/run-c13-imbalance.sh</string>
     </array>
 
     <!-- 09:28 local time (ET on the Phase-A workstation) Mon-Fri.

@@ -322,6 +322,23 @@ def run_live_incubation(
     # the cron can attribute "missing intent" to a deliberate skip vs a
     # gate fall-out. Trade-date is the UTC calendar date of the run; the
     # filter does its own pre/post window arithmetic.
+    # Map intent.order_ref → variant FIRST, before the earnings filter
+    # mutates ``intents``. Otherwise earnings-blocked intents would lose
+    # their variant attribution in the audit log (the variant comes from
+    # the *pre-filter* tradable[]↔intents[] zip per the
+    # smc_to_ibkr_adapter ordering contract).
+    variant_by_order_ref: dict[str, str] = {}
+    if len(tradable) == len(intents):
+        for setup, intent in zip(tradable, intents):
+            variant = setup.get("variant")
+            if isinstance(variant, str):
+                variant_by_order_ref[intent.order_ref] = variant
+
+    # T7.2 — pre-trade earnings filter. Run BEFORE submit_fn so blocked
+    # intents never reach IBKR. Decisions are recorded as audit rows so
+    # the cron can attribute "missing intent" to a deliberate skip vs a
+    # gate fall-out. Trade-date is the UTC calendar date of the run; the
+    # filter does its own pre/post window arithmetic.
     earnings_decisions: dict[str, EarningsFilterDecision] = {}
     if earnings_filter is not None:
         trade_date_iso = (
@@ -338,23 +355,6 @@ def run_live_incubation(
             if not decision.blocked:
                 allowed.append(intent)
         intents = allowed
-
-    # Map intent.order_ref → variant so the audit log carries the
-    # variant the gate decided on. compute_live_drift (C8/T4) groups
-    # by this key; without it the drift cron sees no variants and
-    # emits an empty report.
-    #
-    # build_ibkr_intents_from_smc_setups returns "one intent per input
-    # record, in the original order" (see smc_to_ibkr_adapter docstring),
-    # so we zip tradable ↔ intents and use intent.order_ref as the
-    # canonical key. This handles both explicit setup['order_ref'] and
-    # the synthesized "smc-{symbol}-{trade_date}-port{port}" form.
-    variant_by_order_ref: dict[str, str] = {}
-    if len(tradable) == len(intents):
-        for setup, intent in zip(tradable, intents):
-            variant = setup.get("variant")
-            if isinstance(variant, str):
-                variant_by_order_ref[intent.order_ref] = variant
 
     submission_results = submit_fn(intents)
     submission_by_intent = {
