@@ -56,6 +56,20 @@ def test_missing_field_blocks_legacy_artifact(tmp_path: Path) -> None:
     assert mod.main([str(p)]) == mod.EXIT_NOT_READY
 
 
+def test_unknown_reference_type_fails_closed(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Typos / new categories must fail closed (Copilot review #331)."""
+    p = _write(
+        tmp_path,
+        "drift.json",
+        {"variant": "v1", "slippage_ks_reference_type": "backtest_sample"},  # typo
+    )
+    assert mod.main([str(p)]) == mod.EXIT_NOT_READY
+    err = capsys.readouterr().err
+    assert "not whitelisted" in err
+
+
 def test_nested_variants_list(tmp_path: Path) -> None:
     p = _write(
         tmp_path,

@@ -9,12 +9,21 @@ verified it**.
 
 This module exposes a small, dependency-free CLI that scans a
 glob of drift-artifact JSON files and exits non-zero if **any**
-artifact is still using a synthetic null distribution for the
-slippage K-S comparison.
+variant is not Phase-B ready. A variant is NOT ready when its
+``slippage_ks_reference_type`` is:
+
+- ``"synthetic_normal"`` (silent default — no real backtest sample),
+- ``"unavailable"`` (slippage sample missing entirely),
+- missing on every variant in the artifact (legacy/unknown shape), or
+- any value other than ``"backtest_samples"`` (fails closed on typos
+  / new categories until the gate is explicitly updated).
+
+Only ``"backtest_samples"`` is accepted as Phase-B ready.
 
 Wiring:
-- ``.github/workflows/drift-watchdog.yml`` runs this in addition
-  to the watchdog itself; failure blocks Phase-B promotion.
+- ``.github/workflows/phase-b-promotion-readiness.yml`` invokes this
+  via ``workflow_dispatch`` / ``workflow_call``; failure blocks
+  Phase-B promotion.
 - Local pre-promotion check::
 
       python -m scripts.check_phase_b_drift_readiness \\
@@ -67,9 +76,11 @@ def _iter_variants(payload: object) -> Iterable[dict]:
 def assess_artifact(path: Path) -> tuple[bool, list[str]]:
     """Return ``(ready, reasons)`` for a single drift artifact.
 
-    ``ready`` is False if any variant in the artifact has
-    ``slippage_ks_reference_type`` set to ``synthetic_normal`` or
-    ``unavailable``.
+    Fail-closed semantics: a variant is Phase-B ready **only** when
+    ``slippage_ks_reference_type == "backtest_samples"``. Any other
+    value (``synthetic_normal``, ``unavailable``, typos, or new
+    categories not yet whitelisted) marks the artifact as not ready,
+    so unknown values cannot silently bypass the gate.
     """
     payload = json.loads(path.read_text(encoding="utf-8"))
     reasons: list[str] = []
@@ -79,13 +90,20 @@ def assess_artifact(path: Path) -> tuple[bool, list[str]]:
         if ref is None:
             continue
         saw_any = True
+        name = variant.get("variant", "<unnamed>")
+        if ref == BACKTEST_SAMPLES:
+            # Only accepted ready value.
+            continue
         if ref == SYNTHETIC_NORMAL:
-            name = variant.get("variant", "<unnamed>")
             reasons.append(f"{path.name}::{name}: slippage_ks_reference_type={SYNTHETIC_NORMAL!r}")
         elif ref == UNAVAILABLE:
-            name = variant.get("variant", "<unnamed>")
             reasons.append(f"{path.name}::{name}: slippage_ks_reference_type={UNAVAILABLE!r}")
-        # ``backtest_samples`` => ready for Phase-B (no reason added).
+        else:
+            # Fail closed on unknown values (typos / new categories).
+            reasons.append(
+                f"{path.name}::{name}: slippage_ks_reference_type={ref!r} "
+                f"is not whitelisted (expected {BACKTEST_SAMPLES!r})"
+            )
     if not saw_any:
         # Be conservative: an artifact missing the field entirely is
         # treated as not-ready, otherwise old/legacy artifacts would
