@@ -40,7 +40,7 @@ import os
 import tempfile
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any
@@ -448,10 +448,22 @@ def _account_state_from_json(path: Path) -> AccountState:
             f"--account-state-json missing required keys: {sorted(missing)!r}"
         )
     as_of_raw = blob["as_of"]
-    if isinstance(as_of_raw, str):
-        as_of = datetime.fromisoformat(as_of_raw).date()
-    else:
-        raise ValueError("AccountState.as_of must be ISO date string")
+    # Copilot pass-3 fix: enforce strict ISO ``YYYY-MM-DD`` for
+    # ``as_of`` (no time component). ``datetime.fromisoformat`` would
+    # silently accept ``"2026-04-26T13:30:00+00:00"`` here, masking
+    # operator confusion about which day's account state was supplied.
+    if not isinstance(as_of_raw, str):
+        raise ValueError(
+            "--account-state-json: AccountState.as_of must be an ISO date "
+            f"string (YYYY-MM-DD), got {type(as_of_raw).__name__}"
+        )
+    try:
+        as_of = date.fromisoformat(as_of_raw)
+    except ValueError as exc:
+        raise ValueError(
+            f"--account-state-json: AccountState.as_of must be an ISO date "
+            f"string (YYYY-MM-DD), got {as_of_raw!r}"
+        ) from exc
     last_n = tuple(float(x) for x in blob.get("last_n_pnls", ()))
     return AccountState(
         as_of=as_of,
