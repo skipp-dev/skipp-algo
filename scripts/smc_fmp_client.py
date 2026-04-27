@@ -510,35 +510,37 @@ class SMCFMPClient:
     def get_short_interest(self, symbols: list[str]) -> dict[str, float]:
         """Fetch short interest as % of float for a list of symbols.
 
-        Uses FMP ``/stable/short-interest`` endpoint.
-        Returns ``{symbol: short_interest_pct}`` for symbols where data
-        is available.  Symbols without data are omitted.
+        DEPRECATED (Lane 1, 2026-04-27): The FMP ``/stable/short-interest``
+        endpoint has been fully retired (returns HTTP 404 with empty
+        body). FMP no longer publishes a 1:1 replacement under
+        ``/stable``; callers must treat short-interest enrichment as
+        unavailable and degrade gracefully.
+
+        This method now returns ``{}`` immediately and logs a one-shot
+        warning so the failure is visible rather than silently producing
+        empty enrichment fields.
         """
-        result: dict[str, float] = {}
-        for symbol in symbols[:100]:
-            sym = str(symbol).strip().upper()
-            if not sym:
-                continue
-            try:
-                data = self._get("/stable/short-interest", {"symbol": sym})
-                if data and isinstance(data, list) and len(data) > 0:
-                    latest = data[0]
-                    float_short = _coerce_finite_float(latest.get("shortPercentFloat"))
-                    if float_short is not None:
-                        result[sym] = round(float_short, 2)
-            except Exception:
-                continue
-        return result
+        if not getattr(self, "_short_interest_deprecation_logged", False):
+            logger.warning(
+                "FMP /stable/short-interest endpoint retired; "
+                "short_interest enrichment is unavailable. Returning empty mapping."
+            )
+            self._short_interest_deprecation_logged = True
+        return {}
 
     def get_treasury_yields(self) -> dict[str, Any]:
         """Fetch current US Treasury yields for 2Y and 10Y.
 
-        Uses FMP ``/stable/treasury`` endpoint.
+        Uses FMP ``/stable/treasury-rates`` endpoint (the legacy
+        ``/stable/treasury`` path was retired and now returns HTTP 404).
         Returns ``{"2y": float, "10y": float, "spread": float, "inverted": bool}``.
         """
         today = _today_et()
         try:
-            data = self._get("/stable/treasury", {"from": today.isoformat(), "to": today.isoformat()})
+            data = self._get(
+                "/stable/treasury-rates",
+                {"from": today.isoformat(), "to": today.isoformat()},
+            )
             if data and isinstance(data, list) and len(data) > 0:
                 latest = data[0]
                 y2 = _coerce_finite_float(latest.get("year2")) or 0.0
@@ -550,29 +552,66 @@ class SMCFMPClient:
         return {"2y": 0.0, "10y": 0.0, "spread": 0.0, "inverted": False}
 
     def get_institutional_holders(self, symbol: str) -> list[dict[str, Any]]:
-        """Fetch institutional holders for a symbol.
+        """Fetch institutional ownership summary for a symbol.
 
-        Uses FMP ``/stable/institutional-holder`` endpoint.
+        Uses FMP ``/stable/institutional-ownership/symbol-positions-summary``
+        (the legacy ``/stable/institutional-holder`` per-row endpoint was
+        retired and now returns HTTP 404).
+
+        The new endpoint returns one *aggregated* row per (symbol, year,
+        quarter) with ``numberOf13Fshares`` (current) and
+        ``lastNumberOf13Fshares`` (previous quarter). To preserve the
+        existing ``[{shares, previousShares}]`` shape that callers in
+        ``smc_institutional_enrichment`` consume, we map the aggregated
+        row to a single-element list with those legacy field names.
+
+        Walks back at most 4 quarters from "current" until a quarter
+        with data is found, then returns the most recent.
         """
         sym = str(symbol).strip().upper()
         if not sym:
             return []
-        try:
-            data = self._get("/stable/institutional-holder", {"symbol": sym})
-            return list(data) if isinstance(data, list) else []
-        except Exception:
-            return []
+        today = _today_et()
+        # Most recent reported quarter is typically last quarter or two
+        # ago (13F filings lag ~45 days). Walk back from current quarter.
+        year = today.year
+        quarter = (today.month - 1) // 3 + 1
+        for _ in range(4):
+            try:
+                data = self._get(
+                    "/stable/institutional-ownership/symbol-positions-summary",
+                    {"symbol": sym, "year": year, "quarter": quarter},
+                )
+            except Exception:
+                data = None
+            if data and isinstance(data, list) and len(data) > 0:
+                row = data[0]
+                cur = _coerce_finite_float(row.get("numberOf13Fshares"))
+                prev = _coerce_finite_float(row.get("lastNumberOf13Fshares"))
+                if cur is not None and prev is not None:
+                    return [{"shares": int(cur), "previousShares": int(prev)}]
+            # Walk back one quarter.
+            quarter -= 1
+            if quarter == 0:
+                quarter = 4
+                year -= 1
+        return []
 
     def get_insider_trading(self, symbol: str, *, limit: int = 20) -> list[dict[str, Any]]:
-        """Fetch recent insider transactions.
+        """Fetch recent insider transactions for a symbol.
 
-        Uses FMP ``/stable/insider-trading`` endpoint.
+        Uses FMP ``/stable/insider-trading/search`` endpoint (the legacy
+        ``/stable/insider-trading`` symbol-filtered path was retired and
+        now returns HTTP 404).
         """
         sym = str(symbol).strip().upper()
         if not sym:
             return []
         try:
-            data = self._get("/stable/insider-trading", {"symbol": sym, "limit": max(int(limit), 1)})
+            data = self._get(
+                "/stable/insider-trading/search",
+                {"symbol": sym, "limit": max(int(limit), 1)},
+            )
             return list(data) if isinstance(data, list) else []
         except Exception:
             return []
