@@ -10,6 +10,7 @@ three Benzinga adapter modules.
 from __future__ import annotations
 
 import logging
+import random
 import re
 import threading
 import time
@@ -221,30 +222,38 @@ def _request_with_retry(
                     wait = max(backoff, min(hint, 60.0))
                 else:
                     wait = backoff
+                # Full-jitter: pick uniformly in [0, wait] so concurrent
+                # adapter clients don't all wake up at the same instant
+                # and re-overwhelm the upstream after a 429 / 5xx burst.
+                jittered = random.uniform(0.0, wait)
                 _log_transient_warning_throttled(
                     f"http_{r.status_code}",
-                    "Benzinga HTTP %s (attempt %d/%d) – retrying in %.1fs",
+                    "Benzinga HTTP %s (attempt %d/%d) – retrying in %.1fs (jittered from %.1fs)",
                     r.status_code,
                     attempt + 1,
                     _MAX_ATTEMPTS,
+                    jittered,
                     wait,
                 )
-                time.sleep(wait)
+                time.sleep(jittered)
                 continue
             r.raise_for_status()
             return r
         except (httpx.ConnectError, httpx.ReadTimeout) as exc:
             last_exc = exc
             if attempt < _MAX_ATTEMPTS - 1:
+                backoff = 2 ** attempt
+                jittered = random.uniform(0.0, backoff)
                 _log_transient_warning_throttled(
                     f"network_{exc.__class__.__name__}",
-                    "Benzinga network error (attempt %d/%d): %s – retrying in %ds",
+                    "Benzinga network error (attempt %d/%d): %s – retrying in %.1fs (jittered from %ds)",
                     attempt + 1,
                     _MAX_ATTEMPTS,
                     _sanitize_exc(exc),
-                    2 ** attempt,
+                    jittered,
+                    backoff,
                 )
-                time.sleep(2 ** attempt)
+                time.sleep(jittered)
                 continue
             raise
         except httpx.HTTPStatusError as exc:

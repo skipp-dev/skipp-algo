@@ -40,6 +40,12 @@ _cache: dict[str, tuple[float, Any]] = {}
 _cache_lock = threading.Lock()
 _SOCIAL_TTL = 600  # 10 min — Finnhub social data updates slowly
 _CACHE_MAX_SIZE = 200  # hard cap on cache entries
+# Circuit-breaker / rate-limit scalars below are written from
+# ``_finnhub_get`` and read from multiple consumer paths (social
+# sentiment, sidebar status, polling threads).  Streamlit reruns +
+# background threads can hit them concurrently, so all reads and
+# writes go through ``_state_lock`` to avoid torn-state surprises.
+_state_lock = threading.Lock()
 _social_sentiment_blocked: bool = False  # circuit breaker for 403 (premium-only)
 _rate_limit_backoff_until: float = 0.0  # epoch timestamp; skip calls until then
 _consecutive_429_count: int = 0  # counter for exponential backoff
@@ -82,9 +88,12 @@ def social_sentiment_status() -> str:
 
     Used by UI tabs to show clear feedback when the path is blocked.
     """
-    if _social_sentiment_blocked:
+    with _state_lock:
+        blocked = _social_sentiment_blocked
+        backoff_until = _rate_limit_backoff_until
+    if blocked:
         return "blocked_premium"
-    if time.time() < _rate_limit_backoff_until:
+    if time.time() < backoff_until:
         return "rate_limited"
     if not _api_key():
         return "no_api_key"
@@ -170,23 +179,27 @@ def _get(path: str, params: dict[str, Any] | None = None) -> Any:
     request = Request(url, headers={"Accept": "application/json"})
     # Rate-limit backoff guard
     global _rate_limit_backoff_until, _consecutive_429_count  # noqa: PLW0603
-    if time.time() < _rate_limit_backoff_until:
-        return {}
+    with _state_lock:
+        if time.time() < _rate_limit_backoff_until:
+            return {}
     try:
         with urlopen(request, timeout=15, context=_SSL_CTX) as resp:
-            _consecutive_429_count = 0  # reset on success
+            with _state_lock:
+                _consecutive_429_count = 0  # reset on success
             return json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         if exc.code == 429:
-            _consecutive_429_count += 1
-            backoff = min(
-                _BACKOFF_BASE_SECONDS * (2 ** (_consecutive_429_count - 1)),
-                _BACKOFF_MAX_SECONDS,
-            )
-            _rate_limit_backoff_until = time.time() + backoff
+            with _state_lock:
+                _consecutive_429_count += 1
+                backoff = min(
+                    _BACKOFF_BASE_SECONDS * (2 ** (_consecutive_429_count - 1)),
+                    _BACKOFF_MAX_SECONDS,
+                )
+                _rate_limit_backoff_until = time.time() + backoff
+                attempt_for_log = _consecutive_429_count
             log.warning(
                 "Finnhub rate-limited (429) for %s — backing off %.0f s (attempt %d)",
-                path, backoff, _consecutive_429_count,
+                path, backoff, attempt_for_log,
             )
         elif exc.code == 403:
             log.warning(
@@ -195,7 +208,8 @@ def _get(path: str, params: dict[str, Any] | None = None) -> Any:
             )
             if "social-sentiment" in path:
                 global _social_sentiment_blocked  # noqa: PLW0603
-                _social_sentiment_blocked = True
+                with _state_lock:
+                    _social_sentiment_blocked = True
         else:
             log.warning("Finnhub HTTP %s for %s", exc.code, path)
         return {}
@@ -236,8 +250,9 @@ def fetch_social_sentiment(symbol: str) -> SocialSentiment | None:
     Returns ``None`` when no data is available or key is missing.
     Results are cached for ``_SOCIAL_TTL`` seconds (10 min).
     """
-    if _social_sentiment_blocked:
-        return None
+    with _state_lock:
+        if _social_sentiment_blocked:
+            return None
     sym = symbol.upper().strip()
     if not sym:
         return None
