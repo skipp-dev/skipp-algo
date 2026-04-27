@@ -219,9 +219,32 @@ def fetch_opening_imbalance(
     The polling loop is shallow: we subscribe via
     ``ib_client.reqMktData(generic_tick_list="225")``, sleep for
     ``poll_seconds`` to let TWS deliver a few ticks, then read the
-    last-known values from ``ib_client.last_auction_ticks`` (a dict
-    that the caller's EWrapper subclass populates) and unsubscribe.
+    last-known values from either:
+
+    * ``ib_client.last_auction_ticks`` (a dict that a custom EWrapper
+      subclass populates — used by unit-test stubs and bespoke wrappers), or
+    * the ib-insync ``Ticker`` object returned by ``reqMktData`` (the
+      vanilla path the CLI uses; ib-insync exposes auction ticks as the
+      ``auctionVolume`` / ``auctionPrice`` / ``auctionImbalance`` /
+      ``regulatoryImbalance`` attributes).
+
+    The two sources are merged: ``last_auction_ticks`` wins when both
+    are populated so a custom wrapper can override the vanilla feed.
     """
+    # Default ``contract_factory`` to ``ib_insync.Stock`` regardless of
+    # whether the caller injected ``ib_client``. Without this, callers
+    # that pass a connected ``IB()`` (e.g. the cron CLI) would hit the
+    # ``CONTRACT_FACTORY_MISSING`` early-out below and the live path
+    # would never build a contract.
+    if contract_factory is None:
+        try:
+            _, Stock = _import_ib_insync()
+            contract_factory = Stock
+        except RuntimeError:
+            # ib_insync not installed; only the test path (which
+            # supplies an explicit factory) can succeed from here.
+            pass
+
     if ib_client is None:
         IB, Stock = _import_ib_insync()
         ib_client = IB()
@@ -237,7 +260,7 @@ def fetch_opening_imbalance(
         )
 
     try:
-        ib_client.reqMktData(
+        ticker = ib_client.reqMktData(
             contract,
             genericTickList=GENERIC_TICK_AUCTION,
             snapshot=False,
@@ -254,8 +277,9 @@ def fetch_opening_imbalance(
 
     try:
         sleep_fn(max(0.0, float(poll_seconds)))
-        # Stub clients populate ``last_auction_ticks`` via their own
-        # tickPrice / tickSize callbacks. We only consume the dict.
+        # Source 1: a custom EWrapper subclass populates
+        # ``last_auction_ticks`` via its own tickPrice/tickSize
+        # callbacks (this is the unit-test stub path).
         ticks = getattr(ib_client, "last_auction_ticks", {}) or {}
         if not isinstance(ticks, Mapping):
             ticks = {}
@@ -272,6 +296,22 @@ def fetch_opening_imbalance(
             )
             if k in ticks
         }
+        # Source 2: vanilla ib-insync. The Ticker object returned by
+        # reqMktData exposes the auction ticks as named attributes
+        # once TWS streams them. We only fill in keys missing from
+        # ``relevant`` so a bespoke wrapper retains precedence.
+        if ticker is not None:
+            ticker_map = {
+                TICK_AUCTION_VOLUME: getattr(ticker, "auctionVolume", None),
+                TICK_AUCTION_PRICE: getattr(ticker, "auctionPrice", None),
+                TICK_AUCTION_IMBALANCE: getattr(ticker, "auctionImbalance", None),
+                TICK_REGULATORY_IMBALANCE: getattr(
+                    ticker, "regulatoryImbalance", None
+                ),
+            }
+            for k, v in ticker_map.items():
+                if k not in relevant and v is not None:
+                    relevant[k] = v
         snapshot = build_snapshot_from_ticks(
             symbol=symbol,
             listing_exchange=listing_exchange,

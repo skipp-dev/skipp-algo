@@ -342,6 +342,76 @@ def load_imbalance_index(jsonl_path: Path | str) -> dict[str, dict[str, Any]]:
     return out
 
 
+def main(argv: list[str] | None = None) -> int:
+    """CLI entrypoint: backfill outcomes for one audit JSONL.
+
+    Usage::
+
+        python -m scripts.backfill_live_outcomes <audit.jsonl> \
+            [--imbalance-index <imbalance.jsonl>]
+
+    Without the optional ``--imbalance-index`` flag the runner only
+    backfills outcome fields (``backfill_live_outcomes``); when an
+    imbalance index is provided it also annotates each row in place
+    via ``annotate_imbalance_outcomes``. Returns 0 on success and a
+    non-zero exit code on argument or I/O errors so the c13-daily-cron
+    workflow can gate downstream steps on the return value.
+    """
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="scripts.backfill_live_outcomes",
+        description=(
+            "Backfill outcome fields (and optionally opening-imbalance "
+            "annotations) for a live-incubation audit JSONL."
+        ),
+    )
+    parser.add_argument(
+        "audit_path",
+        type=Path,
+        help="Path to the live-incubation audit JSONL to backfill in place.",
+    )
+    parser.add_argument(
+        "--imbalance-index",
+        type=Path,
+        default=None,
+        help=(
+            "Optional imbalance JSONL produced by "
+            "scripts.collect_opening_imbalances; when supplied, audit rows "
+            "are also annotated with imbalance metadata."
+        ),
+    )
+    args = parser.parse_args(argv)
+
+    audit = args.audit_path
+    if not audit.is_file():
+        logger.error("audit file %s does not exist", audit)
+        return 2
+
+    summary = backfill_live_outcomes(audit)
+    logger.info("backfill summary: %s", summary)
+    print(json.dumps({"backfill": summary}, sort_keys=True))
+
+    if args.imbalance_index is not None:
+        if not args.imbalance_index.is_file():
+            logger.error(
+                "imbalance index %s does not exist", args.imbalance_index
+            )
+            return 2
+        index = load_imbalance_index(args.imbalance_index)
+        ann_summary = annotate_imbalance_outcomes(
+            audit, imbalance_index=index
+        )
+        logger.info("annotation summary: %s", ann_summary)
+        print(json.dumps({"annotation": ann_summary}, sort_keys=True))
+
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover - CLI entrypoint
+    raise SystemExit(main())
+
+
 __all__ = [
     "IMBALANCE_AVAILABLE_KEY",
     "IMBALANCE_FEED_KEY",
@@ -353,4 +423,5 @@ __all__ = [
     "backfill_live_outcomes",
     "compute_trade_outcome",
     "load_imbalance_index",
+    "main",
 ]

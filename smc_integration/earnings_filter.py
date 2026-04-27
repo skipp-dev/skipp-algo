@@ -32,7 +32,7 @@ from __future__ import annotations
 import datetime as _dt
 import json
 import logging
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Iterable
 

@@ -3,9 +3,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
-
-import pytest
 
 from scripts.wsh_earnings_calendar import (
     WSH_EARNINGS_EVENT_TYPES,
