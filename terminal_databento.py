@@ -34,6 +34,12 @@ _quote_cache_ts: float = 0.0
 _QUOTE_CACHE_TTL = 120.0  # 2 minutes
 _cache_lock = threading.Lock()
 
+# Per-request symbol cap. Databento accepts large symbol lists, but practical
+# rate-limit and payload-size concerns favor chunking. Callers that pass more
+# than this many symbols are split into back-to-back requests rather than
+# silently truncated (the previous behavior).
+_MAX_SYMBOLS_PER_REQUEST = 200
+
 from databento_volatility_screener import PREFERRED_DATABENTO_DATASETS as _PREFERRED_DATASETS
 
 _SYMBOL_ALIASES = {
@@ -104,21 +110,37 @@ def fetch_databento_daily_bars(
         maybe_refresh_symbol_reference_cache(symbols)
 
         db_symbols = [normalized for s in symbols if (normalized := _normalize_symbol(s))]
-        # Limit batch size to avoid API limits
-        db_symbols = db_symbols[:200]
+        # Databento's per-request symbol list has a practical upper bound;
+        # callers used to silently drop everything past index 200, so any
+        # symbol after the 200th never made it into the snapshot. Chunk
+        # instead so the entire requested set is honored.
+        if len(db_symbols) > _MAX_SYMBOLS_PER_REQUEST:
+            logger.info(
+                "Databento daily-bars request: chunking %d symbols into batches of %d",
+                len(db_symbols), _MAX_SYMBOLS_PER_REQUEST,
+            )
 
         available_end_1d = _get_schema_available_end(client, ds, "ohlcv-1d")
         requested_end = pd.Timestamp(str(end_date + timedelta(days=1)), tz=UTC)
         clamped_end = _clamp_request_end(requested_end, available_end_1d)
 
-        store = client.timeseries.get_range(
-            dataset=ds,
-            symbols=db_symbols,
-            schema="ohlcv-1d",
-            start=start_date.isoformat(),
-            end=clamped_end.isoformat(),
-        )
-        df = store.to_df()
+        frames: list[pd.DataFrame] = []
+        for batch_start in range(0, len(db_symbols), _MAX_SYMBOLS_PER_REQUEST):
+            batch = db_symbols[batch_start:batch_start + _MAX_SYMBOLS_PER_REQUEST]
+            store = client.timeseries.get_range(
+                dataset=ds,
+                symbols=batch,
+                schema="ohlcv-1d",
+                start=start_date.isoformat(),
+                end=clamped_end.isoformat(),
+            )
+            batch_df = store.to_df()
+            if not batch_df.empty:
+                frames.append(batch_df)
+
+        if not frames:
+            return {}
+        df = pd.concat(frames) if len(frames) > 1 else frames[0]
 
         if df.empty:
             return {}
