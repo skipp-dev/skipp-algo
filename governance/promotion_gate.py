@@ -8,8 +8,8 @@ this file alone must NOT shift the gate behaviour — the source of truth
 remains the per-sprint module.
 
 Schema is pinned at ``DECISION_SCHEMA_VERSION = 1`` so downstream
-consumers (``streamlit_terminal/decision_first_panel.py`` in C7.1, the
-markdown audit reports, the X3 run-manifest header) can rely on a stable
+consumers (``dashboard/decision_first_panel.py`` in C7.1, the markdown
+audit reports, the X3 run-manifest header) can rely on a stable
 contract.
 """
 from __future__ import annotations
@@ -21,15 +21,22 @@ from governance.types import Blocker, Decision, EventFamily, Posture
 
 DECISION_SCHEMA_VERSION = 1
 
-# Default thresholds — sourced from:
-#   * Brier:        ml/calibration/__init__.py::CALIBRATED_BRIER_TARGET
-#   * ECE:          ml/calibration/__init__.py::ECE_TARGET
+# Default thresholds — sourced from (verified 2026-04-27):
+#   * Brier:        ml/calibration/online_recalibrator.py::OnlineRecalibrator(brier_regret_threshold=0.02)
+#                   (no module-level CALIBRATED_BRIER_TARGET exists; the
+#                   0.22 absolute cap below is the gate-level target,
+#                   distinct from the regret-threshold above.)
+#   * ECE:          docs/SPRINT_PLAN_C10_ML_LAYER_2026-04-26.md
+#                   (no module-level ECE_TARGET; gate is the source of truth.)
 #   * FDR-q:        scripts/run_ab_comparison.py::FDR_Q
-#   * PSR/MinTRL:   docs/SPRINT_PLAN_C6_PSR_MINTRL_2026-04-26.md
-#   * PSI level:    ml/drift/__init__.py::PSI_LEVEL_THRESHOLD
+#   * PSR/MinTRL:   docs/SPRINT_PLAN_C6_PSR_MINTRL_2026-04-26.md and
+#                   open_prep/stats_helpers.py::probabilistic_sharpe / min_trl
+#   * PSI level:    ml/drift/__init__.py::MLDriftDetector(warn=0.10, alarm=0.20)
+#                   (the 0.25 below is the consolidator's hard cap, above
+#                   the per-feature alarm threshold.)
 #   * live/wf:      docs/SPRINT_PLAN_C8_LIVE_INCUBATION_2026-04-26.md
 # Overriding any of these here without first updating the source module
-# is a contract violation.
+# (or doc, where no module constant exists) is a contract violation.
 DEFAULT_BRIER_MAX = 0.22
 DEFAULT_ECE_MAX = 0.05
 DEFAULT_FDR_Q = 0.05

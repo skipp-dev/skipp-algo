@@ -11,7 +11,7 @@ BlockerSeverity = Literal["info", "warning", "blocker"]
 class Blocker(TypedDict):
     """A single failed gate check."""
 
-    check: str          # e.g. "brier_threshold", "psr_minIS", "psi_drift"
+    check: str          # e.g. "brier_threshold", "psr_minimum", "psi_drift"
     severity: BlockerSeverity
     observed: float
     threshold: float
