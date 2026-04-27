@@ -134,6 +134,9 @@ def evaluate_alert_rules(
                 logger.debug(
                     "alert: no ticker for item, skipping (headline=%r)", headline[:60]
                 )
+                # Skip untickered items entirely so wildcard rules
+                # (ticker="*") cannot fire alerts/webhooks for them.
+                continue
         effective_score = effective_attention_score(item)
         effective_sentiment = effective_catalyst_sentiment(item)
         attention_state = effective_attention_state(item)

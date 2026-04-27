@@ -145,8 +145,8 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/macro.py", 560),
         ("open_prep/sentiment_fng.py", 99),
         ("terminal_finnhub.py", 176),
-        ("terminal_notifications.py", 244),
-        ("terminal_notifications.py", 308),
+        ("terminal_notifications.py", 253),
+        ("terminal_notifications.py", 317),
         ("terminal_tradingview_news.py", 366),
     }
 )

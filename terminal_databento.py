@@ -134,12 +134,17 @@ def fetch_databento_daily_bars_with_status(
         maybe_refresh_symbol_reference_cache(symbols)
 
         # Build (orig_symbol, normalized_symbol) pairs so we can report
-        # *original* symbols back to the caller when a chunk fails.
+        # *original* symbols back to the caller when a chunk fails. Symbols
+        # that fail normalization are also reported back via ``failed`` so
+        # every requested symbol is accounted for in either ``results`` or
+        # ``failed``.
         pairs: list[tuple[str, str]] = []
         for s in symbols:
             normalized = _normalize_symbol(s)
             if normalized:
                 pairs.append((s, normalized))
+            else:
+                failed.append(s)
 
         if len(pairs) > _MAX_SYMBOLS_PER_REQUEST:
             logger.info(
@@ -168,6 +173,7 @@ def fetch_databento_daily_bars_with_status(
                 logger.warning(
                     "Databento chunk %d-%d failed (%d symbols): %s",
                     batch_start, batch_start + len(batch_norm), len(batch_norm), exc,
+                    exc_info=True,
                 )
                 failed.extend(batch_orig)
                 continue
