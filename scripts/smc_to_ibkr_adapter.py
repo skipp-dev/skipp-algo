@@ -116,6 +116,20 @@ def _build_one_intent(
     raw_quantity = int(_required_float(record, "quantity"))
     trade_date = _coerce_trade_date(record.get("trade_date"))
 
+    # C-sprint deep-review pass-3 (Phase-B defense-in-depth): reject
+    # non-positive quantities at the boundary. The previous code path
+    # ``max(1, int(round(raw_quantity * size_scale)))`` silently mapped
+    # zero or negative inputs to a phantom 1-share order, which would
+    # bypass every per-trade-loss limit downstream and could submit
+    # an order to IBKR even when the SMC layer flagged the setup as
+    # invalid. A non-positive quantity always indicates an upstream
+    # defect, so we fail loud here rather than absorb it.
+    if raw_quantity <= 0:
+        raise ValueError(
+            f"quantity must be positive for {symbol!r}; got {raw_quantity!r}. "
+            "Zero / negative quantity indicates an upstream SMC-layer defect."
+        )
+
     if stop_loss == entry_price:
         raise ValueError(
             f"stop_loss must differ from entry for {symbol!r}; "

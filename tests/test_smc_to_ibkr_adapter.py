@@ -179,3 +179,17 @@ def test_trade_date_accepts_iso_string_and_date() -> None:
         [_setup(trade_date=date(2026, 4, 26))], cfg
     )
     assert a.trade_date == b.trade_date == date(2026, 4, 26)
+
+
+def test_rejects_zero_quantity() -> None:
+    """C-sprint deep-review pass-3: zero quantity is an upstream defect."""
+    cfg = IBKRExecutionConfig()
+    with pytest.raises(ValueError, match="quantity must be positive"):
+        build_ibkr_intents_from_smc_setups([_setup(quantity=0)], cfg)
+
+
+def test_rejects_negative_quantity() -> None:
+    """Defense-in-depth: negative quantity must not silently become 1 share."""
+    cfg = IBKRExecutionConfig()
+    with pytest.raises(ValueError, match="quantity must be positive"):
+        build_ibkr_intents_from_smc_setups([_setup(quantity=-5)], cfg)
