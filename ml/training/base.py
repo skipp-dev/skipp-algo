@@ -136,7 +136,7 @@ class BaseFamilyTrainer(ABC):
         )
         return fitted, report
 
-    def _make_version(self, dataset: FamilyDataset) -> str:  # noqa: D401
+    def _make_version(self, dataset: FamilyDataset) -> str:
         return _hash_version(self.backend, dataset, self.seed)
 
 
