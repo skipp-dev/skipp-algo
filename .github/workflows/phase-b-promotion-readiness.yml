@@ -1,0 +1,41 @@
+name: phase-b-promotion-readiness
+
+# Deep-Review 2026-04-27 follow-up: gate Phase-B promotion on the
+# live-drift artifact carrying ``slippage_ks_reference_type ==
+# "backtest_samples"``. Until a backtest slippage sample exists,
+# ``compute_live_drift`` falls back to ``synthetic_normal``; promoting
+# to Phase-B in that state was previously possible because no CI gate
+# verified it. This workflow closes that gap.
+
+on:
+  workflow_dispatch:
+    inputs:
+      drift_glob:
+        description: "Glob of drift artifact JSON files to check"
+        default: "artifacts/drift/drift_report_*.json"
+        required: false
+  workflow_call:
+    inputs:
+      drift_glob:
+        type: string
+        default: "artifacts/drift/drift_report_*.json"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  check-readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run Phase-B readiness gate
+        run: |
+          python -m scripts.check_phase_b_drift_readiness \
+            "${{ inputs.drift_glob || 'artifacts/drift/drift_report_*.json' }}"

@@ -185,10 +185,20 @@ class WalkForwardSplitter:
             if self.embargo_size > 0 and self.window_type == "anchored":
                 train_idx = self._apply_anchored_embargo(train_idx, fold_idx)
 
-            # Apply label-leakage purge using exit timestamps:
-            # any training trade whose exit lands *at or after* the test
-            # window's first timestamp is dropped — its label depends on
-            # data the model is supposedly being tested against.
+            # Apply label-leakage purge using exit timestamps.
+            #
+            # Deep-Review 2026-04-27 (MINOR): the comparison below is
+            # strict ``<`` on purpose. A training trade whose exit
+            # timestamp equals ``test_t0`` (the first bar of the test
+            # window) is **dropped** here, because the strict mask
+            # ``exits < test_t0`` evaluates to False at equality. This
+            # is the conservative choice — at bar-granularity inputs
+            # (e.g. 1-min bars) a simultaneous exit at the boundary
+            # bar carries label information from the same bar that
+            # opens the test window. Switching to ``<=`` would *keep*
+            # those trades (potential label leakage); switching to
+            # ``<`` plus an additional ``embargo_size >= 1`` enforces
+            # an even stricter separation.
             if exits is not None and len(train_idx) > 0:
                 test_t0 = ts[test_start]
                 pre_mask = exits[train_idx] < test_t0

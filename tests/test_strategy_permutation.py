@@ -63,31 +63,44 @@ def test_profit_factor_test_skips_below_min_events() -> None:
 def test_unknown_schema_rejected() -> None:
     rng = np.random.default_rng(0)
     returns = rng.normal(0.001, 0.01, size=80)
-    with pytest.raises(ValueError, match="not implemented"):
+    # 'entry_time' was the legacy placeholder for the (now-shipped) Schema B;
+    # it is not a valid schema name. Schema B is exposed as
+    # 'block_outcome_sign' (Deep-Review 2026-04-27 follow-up).
+    with pytest.raises(ValueError, match="not supported|not implemented"):
         sp.permutation_test_sharpe(returns, schema="entry_time", B=100, seed=1)  # type: ignore[arg-type]
 
 
-@pytest.mark.xfail(
-    strict=False,
-    reason=(
-        "C4/T-followup: Schema B (entry-time block-permutation) is "
-        "deferred per docs/SPRINT_PLAN_C4_PERMUTATION_TEST_2026-04-26.md. "
-        "Until Schema B lands, the gate's permutation_p check is "
-        "advisory only; this xfail keeps the deferral visible in the "
-        "skip ledger."
-    ),
-)
-def test_schema_b_entry_time_block_permutation_supported() -> None:
-    """Future: Schema-B (entry-time block-permutation) preserves the
-    intra-day clustering structure of trades and gives a defensible
-    p-value for the gate. Until then, ``schema='entry_time'`` raises
-    ValueError; this test will pass once the implementation lands.
+def test_schema_b_block_outcome_sign_supported() -> None:
+    """Schema B (block sign-flip) preserves trade-stream autocorrelation
+    under the null. Deep-Review 2026-04-27 follow-up: lifts the prior
+    xfail by routing the previously-deferred entry-time-permutation
+    placeholder through the autocorrelation-aware block sign-flip
+    primitive (conceptual companion to
+    :func:`smc_core.inference.permutation.block_permutation_test`).
     """
     rng = np.random.default_rng(0)
     returns = rng.normal(0.001, 0.01, size=80)
-    out = sp.permutation_test_sharpe(returns, schema="entry_time", B=100, seed=1)
+    out = sp.permutation_test_sharpe(
+        returns, schema="block_outcome_sign", B=200, seed=1, block_size=5,
+    )
+    assert out["schema"] == "block_outcome_sign"
+    assert out["block_size"] == 5
     assert "p_value_one_sided" in out
-    assert 0.0 < out["p_value_one_sided"] <= 1.0
+    assert 0.0 < float(out["p_value_one_sided"]) <= 1.0
+
+
+def test_schema_b_block_size_one_matches_schema_a() -> None:
+    """block_size=1 reduces Schema B to Schema A exactly
+    (verifies the dispatch fallback)."""
+    rng = np.random.default_rng(0)
+    returns = rng.normal(0.001, 0.01, size=80)
+    a = sp.permutation_test_sharpe(returns, schema="outcome_sign", B=200, seed=42)
+    b = sp.permutation_test_sharpe(
+        returns, schema="block_outcome_sign", B=200, seed=42, block_size=1,
+    )
+    # Same RNG seed + same per-element distribution -> bit-identical p-values.
+    assert a["p_value_one_sided"] == b["p_value_one_sided"]
+    assert a["p_value_two_sided"] == b["p_value_two_sided"]
 
 
 # ---------------------------------------------------------------------------

@@ -96,12 +96,23 @@ class GateCheck:
 
 @dataclass(frozen=True)
 class TrackRecordGateVerdict:
-    """Aggregate verdict — stable schema for dashboard + public report."""
+    """Aggregate verdict — stable schema for dashboard + public report.
+
+    The :attr:`schema_version` field follows semver (Deep-Review
+    2026-04-27 follow-up): consumers can branch on the MAJOR component
+    to detect breaking changes. Bump rules mirror
+    :mod:`scripts.emit_public_calibration_report`:
+
+    * PATCH — doc-only / value clarifications.
+    * MINOR — additive fields on the verdict or its checks.
+    * MAJOR — removed / renamed fields, semantic changes to ``status``.
+    """
 
     status: str  # "green" | "yellow" | "red"
     checks: list[GateCheck] = field(default_factory=list)
     n_trades: int = 0
     summary: dict[str, Any] = field(default_factory=dict)
+    schema_version: str = "1.0.0"
 
 
 def _check(
@@ -482,6 +493,7 @@ def verdict_to_dict(verdict: TrackRecordGateVerdict) -> dict[str, Any]:
     """Stable JSON-serialisable form for dashboard / public report."""
 
     return {
+        "schema_version": verdict.schema_version,
         "status": verdict.status,
         "n_trades": int(verdict.n_trades),
         "checks": [

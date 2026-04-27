@@ -30,6 +30,12 @@ from typing import TypedDict
 GLOBAL_ALPHA_BUDGET = 0.05
 PER_FAMILY_ALPHA_BUDGET = 0.025
 
+# Deep-Review 2026-04-27: explicit reserved buffer below the global cap.
+# New consumers (unforeseen at sprint X1) must fit within this buffer
+# before the global cap is approached. The corresponding ledger update
+# lowered each existing reservation from 0.010 → 0.008 (5 * 0.008 = 0.04).
+ALPHA_BUDGET_BUFFER = 0.01
+
 DEFAULT_LEDGER_PATH = Path(__file__).resolve().parent / "alpha_ledger.json"
 
 

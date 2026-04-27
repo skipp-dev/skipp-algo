@@ -308,8 +308,11 @@ def test_build_public_report_includes_track_record_gate_on_ok_payload() -> None:
     assert report["track_record_gate"]["status"] == "green"
 
 
-def test_schema_version_is_1_2_0_after_regime_stratified_addition() -> None:
-    assert PUBLIC_SCHEMA_VERSION == "1.2.0"
+def test_schema_version_is_1_3_0_after_families_addition() -> None:
+    # Deep-Review 2026-04-27: bumped MINOR from 1.2.0 to 1.3.0 with
+    # the additive ``families`` field. Pin renamed accordingly under
+    # docs/calibration/schemas/v1.3.0_public_schema_pin.json.
+    assert PUBLIC_SCHEMA_VERSION == "1.3.0"
 
 
 # ── regime_stratified (schema 1.2.0 additive field) ─────────────────

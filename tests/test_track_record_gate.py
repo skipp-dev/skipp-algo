@@ -158,6 +158,22 @@ def test_verdict_to_dict_is_json_friendly() -> None:
     assert all(set(c.keys()) == {"name", "status", "value", "threshold", "detail"} for c in back["checks"])
 
 
+def test_verdict_carries_schema_version() -> None:
+    """Deep-Review 2026-04-27: dashboard / public-report consumers must
+    be able to detect breaking verdict-schema changes via a semver
+    field. PATCH/MINOR additive bumps must keep the same MAJOR; bumping
+    MAJOR requires updating every downstream consumer.
+    """
+    verdict = evaluate_track_record_gate(_profitable_returns(), bootstrap_B=50)
+    assert verdict.schema_version == "1.0.0"
+    d = verdict_to_dict(verdict)
+    assert d["schema_version"] == "1.0.0"
+    # Pin the MAJOR explicitly so a future MINOR bump (e.g. "1.1.0")
+    # is still allowed but a MAJOR bump (e.g. "2.0.0") fails the suite
+    # and forces a deliberate consumer audit.
+    assert d["schema_version"].split(".", 1)[0] == "1"
+
+
 # ---------------------------------------------------------------------------
 # Contract pin: every emitted check name must be in KNOWN_GATE_CHECK_NAMES
 # (C-sprint deep-review MAJOR fix — unknown failure codes were silently

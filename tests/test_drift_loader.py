@@ -7,6 +7,10 @@ from pathlib import Path
 
 from terminal_tabs.drift_loader import (
     DRIFT_FILENAME_PATTERN,
+    DRIFT_SCHEMA_MAX_COMPATIBLE_MAJOR,
+    DRIFT_SCHEMA_MIN_COMPATIBLE,
+    DriftSchemaError,
+    _check_drift_schema_version,
     _filter_excluded_variants,
     list_drift_dates,
     load_drift_artifact,
@@ -139,3 +143,83 @@ def test_filter_excluded_variants_passthrough_when_none() -> None:
     payload = {"variants": [{"variant": "v01"}]}
     assert _filter_excluded_variants(payload, excluded=None) is payload
     assert _filter_excluded_variants(None, excluded=["v01"]) is None
+
+
+# --- Schema-version range check (Deep-Review C8 fix 2026-04-27) ---
+
+
+def test_check_drift_schema_version_accepts_missing_field() -> None:
+    """Pre-bump artifacts on disk during rollout must still be loadable."""
+    _check_drift_schema_version({"variants": []})
+
+
+def test_check_drift_schema_version_accepts_minimum() -> None:
+    _check_drift_schema_version({"schema_version": DRIFT_SCHEMA_MIN_COMPATIBLE})
+
+
+def test_check_drift_schema_version_accepts_additive_minor() -> None:
+    """A producer ahead by MINOR must be accepted (additive contract)."""
+    _check_drift_schema_version({"schema_version": "1.99.0"})
+
+
+def test_check_drift_schema_version_rejects_higher_major() -> None:
+    bad = f"{DRIFT_SCHEMA_MAX_COMPATIBLE_MAJOR + 1}.0.0"
+    try:
+        _check_drift_schema_version({"schema_version": bad})
+    except DriftSchemaError as exc:
+        assert "MAJOR" in str(exc)
+    else:
+        raise AssertionError(f"expected DriftSchemaError for {bad}")
+
+
+def test_check_drift_schema_version_rejects_unparseable() -> None:
+    try:
+        _check_drift_schema_version({"schema_version": "not-a-version"})
+    except DriftSchemaError as exc:
+        assert "semver" in str(exc).lower()
+    else:
+        raise AssertionError("expected DriftSchemaError for unparseable version")
+
+
+def test_check_drift_schema_version_rejects_non_string() -> None:
+    try:
+        _check_drift_schema_version({"schema_version": 1})
+    except DriftSchemaError:
+        pass
+    else:
+        raise AssertionError("expected DriftSchemaError for non-string version")
+
+
+def test_load_drift_artifact_returns_none_on_incompatible_major(
+    tmp_path: Path,
+) -> None:
+    """End-to-end: incompatible MAJOR makes the loader silent-skip."""
+    bad_major = f"{DRIFT_SCHEMA_MAX_COMPATIBLE_MAJOR + 1}.0.0"
+    _write(
+        tmp_path / "live" / "drift_2026-04-26.json",
+        {"schema_version": bad_major, "variants": []},
+    )
+    assert load_drift_artifact(tmp_path) is None
+
+
+def test_load_drift_artifact_accepts_current_major(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "live" / "drift_2026-04-26.json",
+        {"schema_version": "1.0.0", "variants": []},
+    )
+    out = load_drift_artifact(tmp_path)
+    assert out is not None and out["variants"] == []
+
+
+def test_compute_live_drift_emits_schema_version() -> None:
+    """Producer-side: the artifact carries the schema version."""
+    from scripts.compute_live_drift import (
+        DRIFT_SCHEMA_VERSION,
+        compute_live_drift,
+    )
+
+    payload = compute_live_drift(
+        live_rows=[],
+        backtest_reference={},
+    )
+    assert payload["schema_version"] == DRIFT_SCHEMA_VERSION

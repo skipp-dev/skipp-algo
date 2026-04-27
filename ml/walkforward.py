@@ -118,7 +118,8 @@ def walk_forward_splits(
             continue
 
         if scheme == "rolling":
-            assert train_size is not None  # narrow for type-checker
+            if train_size is None:  # narrow for type-checker; production guard
+                raise RuntimeError("rolling scheme requires train_size")
             train_start = max(0, train_end - train_size)
         else:  # expanding / anchored
             train_start = 0

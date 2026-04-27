@@ -44,6 +44,19 @@ def test_per_family_alpha_budget_not_exceeded() -> None:
         )
 
 
+def test_alpha_budget_buffer_present() -> None:
+    """Deep-Review 2026-04-27: total committed alpha must leave at least
+    ``ALPHA_BUDGET_BUFFER`` headroom below the global cap so unforeseen
+    new consumers can register without tripping the gate."""
+    from governance.alpha_ledger import ALPHA_BUDGET_BUFFER
+
+    headroom = GLOBAL_ALPHA_BUDGET - total_alpha()
+    assert headroom + 1e-12 >= ALPHA_BUDGET_BUFFER, (
+        f"alpha headroom {headroom} below required buffer {ALPHA_BUDGET_BUFFER}; "
+        "lower an existing reservation before adding new ones."
+    )
+
+
 def test_inventory_keys_unique() -> None:
     items = list_reservations()
     keys = [(r["sprint"], r["family"], r["method"]) for r in items]

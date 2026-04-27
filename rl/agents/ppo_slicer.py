@@ -5,13 +5,21 @@ Wraps ``stable_baselines3.PPO`` over a ``gymnasium`` shim of
 exposes ``available = False`` and instantiating raises a clear
 ``RuntimeError``. Callers should branch on ``PPOSlicer.available`` and use
 ``EpsilonGreedyTwapAgent`` otherwise.
+
+.. warning::
+   **EXPERIMENTAL** — Deep-Review 2026-04-27. This agent is **not**
+   exercised by the C12 trigger gate or any production promotion
+   path; it ships for offline research only. The C12 / Phase-B
+   pipelines route through :class:`EpsilonGreedyTwapAgent` and the
+   deterministic TWAP baseline. Promotion of PPO outputs to live
+   requires a separate sign-off; see ``docs/c12_trigger_runbook.md``.
 """
 from __future__ import annotations
 
 from typing import Any
 
 try:  # pragma: no cover - exercised only in environments with sb3
-    import gymnasium as gym  # type: ignore  # noqa: F401
+    import gymnasium as gym  # type: ignore
     from stable_baselines3 import PPO  # type: ignore
 
     _HAS_DEPS = True
@@ -22,8 +30,12 @@ except Exception:  # pragma: no cover - the absence is the locally tested path
 
 
 class PPOSlicer:
-    """Production wrapper around ``sb3.PPO``."""
+    """Production wrapper around ``sb3.PPO`` (EXPERIMENTAL — see module docstring)."""
 
+    #: Marks this agent as research-only; production gates assert that
+    #: no EXPERIMENTAL agent backs a Phase-B promotion (Deep-Review
+    #: 2026-04-27). Do not flip without sign-off.
+    EXPERIMENTAL: bool = True
     available: bool = _HAS_DEPS
     name = "ppo"
 

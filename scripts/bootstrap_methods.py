@@ -8,6 +8,25 @@ higher-level inference helpers in ``scripts/performance_inference.py``
 resampling itself in a thin, dependency-free module makes coverage
 testing and determinism pinning straightforward.
 
+Caveats
+-------
+**Stationarity assumption.** Both :func:`stationary_block_bootstrap` and
+:func:`circular_block_bootstrap` assume the underlying return process is
+*weakly stationary* over the resampled window. Concretely:
+
+* Mean and variance must be approximately time-invariant.
+* The autocovariance ``Cov(r_t, r_{t+h})`` may depend on ``h`` but not
+  on ``t``.
+
+For OOS windows that span a regime change (e.g. low-vol → high-vol
+transitions, COVID-style structural breaks, or post-FOMC repricing),
+this assumption breaks and the resulting CIs are systematically too
+narrow. In that case prefer **regime-stratified resampling**: bucket
+the returns by regime (see :mod:`scripts.regime_stratification`),
+bootstrap *within* each bucket, and aggregate. Deep-Review 2026-04-27
+flagged that this caveat was previously implicit; consumers must now
+read it before publishing a CI on a non-stationary window.
+
 References
 ----------
 - Politis, D.N. & Romano, J.P. (1994) — *The Stationary Bootstrap*.
