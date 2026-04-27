@@ -546,17 +546,20 @@ def _is_within_market_hours() -> bool:
     try:
         from zoneinfo import ZoneInfo
         now_et = datetime.now(ZoneInfo("America/New_York"))
-    except Exception:
+    except ImportError:
         try:
             from dateutil.tz import gettz
-            now_et = datetime.now(gettz("America/New_York"))
-        except Exception:
-            # Last resort: UTC − 5 (EST) is more conservative than UTC − 4 (EDT).
-            # During EDT (Mar–Nov) the gate opens at 05:00 ET / closes at 21:00 ET
-            # (1 h late), which is safe.  During EST (Nov–Mar) it is exact.
-            logger.debug("zoneinfo + dateutil unavailable, using UTC-5 fallback", exc_info=True)
-            from datetime import timedelta
-            now_et = datetime.now(UTC) - timedelta(hours=5)
+            tz = gettz("America/New_York")
+            if tz is None:
+                raise ImportError("dateutil could not resolve America/New_York")
+            now_et = datetime.now(tz)
+        except ImportError as exc:
+            raise RuntimeError(
+                "America/New_York timezone unavailable: install `tzdata` "
+                "or `python-dateutil`. Refusing to fall back to a fixed UTC "
+                "offset because that silently drifts 1h every winter and "
+                "would corrupt realtime signal market-hours gating."
+            ) from exc
 
     # Monday=0, Sunday=6
     if now_et.weekday() >= 5:
