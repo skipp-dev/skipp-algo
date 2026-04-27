@@ -83,18 +83,57 @@ def _dedup_key(d: dict[str, Any]) -> str:
 
 # ── JSONL Export for VisiData ───────────────────────────────────
 
+# Module-level in-memory fallback buffer for append_jsonl when the
+# filesystem write fails (PermissionError, ENOSPC, read-only mount, ...).
+# Bounded to _FALLBACK_BUFFER_MAX entries to avoid unbounded growth.
+_FALLBACK_BUFFER: list = []
+_FALLBACK_BUFFER_MAX: int = 10_000
+
+
+def get_fallback_buffer() -> list:
+    """Return a copy of the in-memory fallback buffer (operator inspection)."""
+    return list(_FALLBACK_BUFFER)
+
+
+def clear_fallback_buffer() -> int:
+    """Clear the fallback buffer; return its previous length."""
+    global _FALLBACK_BUFFER
+    n = len(_FALLBACK_BUFFER)
+    _FALLBACK_BUFFER = []
+    return n
+
+
 def append_jsonl(item: ClassifiedItem, path: str) -> None:
     """Append one classified item as a single JSON line.
 
     Creates the file + parent directories if they don't exist.
     Each line is a self-contained JSON object that VisiData can
     read with ``vd --filetype jsonl <path>``.
+
+    On filesystem errors (PermissionError, ENOSPC, read-only mount, ...)
+    the payload is buffered in memory (capped at ``_FALLBACK_BUFFER_MAX``)
+    and a WARNING is logged, instead of raising.
     """
-    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    line = json.dumps(item.to_dict(), ensure_ascii=False, default=str)
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(line + "\n")
-        f.flush()
+    global _FALLBACK_BUFFER
+    try:
+        payload = item.to_dict()
+    except Exception:  # pragma: no cover - defensive
+        payload = {"_repr": repr(item)}
+    try:
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        line = json.dumps(payload, ensure_ascii=False, default=str)
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(line + "\n")
+            f.flush()
+    except OSError as err:
+        _FALLBACK_BUFFER.append(payload)
+        if len(_FALLBACK_BUFFER) > _FALLBACK_BUFFER_MAX:
+            _FALLBACK_BUFFER = _FALLBACK_BUFFER[-_FALLBACK_BUFFER_MAX:]
+        logger.warning(
+            "append_jsonl: write failed (%s); buffering in-memory (buffer size=%d)",
+            err,
+            len(_FALLBACK_BUFFER),
+        )
 
 
 def rewrite_jsonl(path: str, items: list[dict[str, Any]]) -> None:
