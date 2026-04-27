@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import re
 from datetime import date, datetime, timezone
+from zoneinfo import ZoneInfo
 from typing import Any
 
 # Macro events considered high-impact
@@ -13,6 +14,8 @@ _HIGH_IMPACT_PATTERNS = re.compile(
     r"\b(fomc|cpi|nonfarm|nfp|ppi|ism|gdp|jobless\s+claims|fed\s+chair)\b",
     re.IGNORECASE,
 )
+
+_ET = ZoneInfo("America/New_York")
 
 
 def _parse_date(raw: Any) -> date | None:
@@ -47,10 +50,8 @@ def _parse_event_dt(raw: Any) -> datetime | None:
 
 
 def _format_et(dt: datetime) -> str:
-    """Format a datetime as 'HH:MM ET' (UTC-4 approximation)."""
-    from datetime import timedelta
-
-    et = dt.astimezone(timezone(timedelta(hours=-4)))
+    """Format a datetime as 'HH:MM ET' using America/New_York (DST-aware)."""
+    et = dt.astimezone(_ET)
     return et.strftime("%H:%M ET")
 
 

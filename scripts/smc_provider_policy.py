@@ -35,7 +35,10 @@ import logging
 import math
 import re
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
+
+_ET = ZoneInfo("America/New_York")
 from typing import Any
 
 from scripts.smc_newsapi_ai import NewsApiAiProviderError
@@ -187,7 +190,7 @@ def fetch_regime_fmp(fmp: Any) -> ProviderResult:
         stale.append("fmp_sectors")
 
     try:
-        today = date.today()
+        today = datetime.now(_ET).date()
         macro_events = list(fmp.get_macro_calendar(today, today) or [])
         macro_analysis = macro_bias_with_components(macro_events)
         macro_bias = float(macro_analysis.get("macro_bias") or 0.0)
@@ -405,7 +408,7 @@ def fetch_calendar_fmp(fmp: Any, symbols: list[str]) -> ProviderResult:
     stale: list[str] = []
     earnings: list[dict[str, Any]] = []
     macro_events: list[dict[str, Any]] = []
-    today = date.today()
+    today = datetime.now(_ET).date()
     tomorrow = today + timedelta(days=1)
 
     try:
@@ -444,7 +447,7 @@ def fetch_calendar_benzinga(api_key: str, symbols: list[str]) -> ProviderResult:
 
     adapter = BenzingaCalendarAdapter(api_key)
     try:
-        today = date.today()
+        today = datetime.now(_ET).date()
         tomorrow = today + timedelta(days=1)
         today_str = today.isoformat()
         tomorrow_str = tomorrow.isoformat()

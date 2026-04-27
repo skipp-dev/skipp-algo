@@ -34,6 +34,9 @@ from __future__ import annotations
 import argparse
 import csv
 import datetime as _dt
+from zoneinfo import ZoneInfo
+
+_ET = ZoneInfo("America/New_York")
 import json
 import logging
 import os
@@ -253,9 +256,9 @@ def fetch_wsh_calendar(
         errors.append(f"ib_insync.WshEventData import failed: {exc}")
         return events, errors
 
-    today_iso = _dt.date.today().isoformat()
+    today_iso = _dt.datetime.now(_ET).date().isoformat()
     end_date_iso = (
-        _dt.date.today() + _dt.timedelta(days=int(window_days))
+        _dt.datetime.now(_ET).date() + _dt.timedelta(days=int(window_days))
     ).isoformat()
 
     for idx, (symbol, con_id) in enumerate(symbols, start=1):
