@@ -264,3 +264,43 @@ def normalize_newsapi_ai(it: dict[str, Any]) -> NewsItem:
         source=_normalize_source_name(it.get("source")),
         raw=it,
     )
+
+
+# ── Benzinga calendar canonical schema ─────────────────────────────
+# Canonical Benzinga-calendar field aliases. Upstream Benzinga occasionally
+# renames or A/B-tests these; we accept the variants so consumers see one shape.
+_BZ_CAL_ALIASES: dict[str, tuple[str, ...]] = {
+    "event_id": ("id", "event_id", "uuid"),
+    "event_date": ("date", "event_date", "datetime", "time"),
+    "symbol": ("ticker", "symbol"),
+    "event_actual": ("actual", "actualValue", "actual_value"),
+    "event_forecast": ("forecast", "consensus", "estimate", "forecastValue", "forecast_value"),
+    "event_previous": ("previous", "prior", "previousValue", "previous_value"),
+    "importance": ("importance", "impact", "severity"),
+}
+
+
+def _first_present(raw: dict, keys: tuple[str, ...]):
+    for k in keys:
+        if k in raw and raw[k] not in (None, ""):
+            return raw[k]
+    return None
+
+
+def normalize_benzinga_calendar_item(raw: dict, endpoint_kind: str) -> dict:
+    """Return a back-compat dict with canonical keys + original keys preserved.
+
+    The canonical keys (event_id, event_date, symbol, event_actual,
+    event_forecast, event_previous, importance) are always populated when
+    SOME variant of the source field is present. The original raw keys are
+    left in place so legacy consumers reading e.g. ``item["actual"]``
+    continue to work. ``kind`` records the source endpoint
+    (ratings, earnings, ...).
+    """
+    if not isinstance(raw, dict):
+        return {"kind": endpoint_kind, "raw": raw}
+    out = dict(raw)  # back-compat: keep originals
+    for canonical, aliases in _BZ_CAL_ALIASES.items():
+        out[canonical] = _first_present(raw, aliases)
+    out.setdefault("kind", endpoint_kind)
+    return out

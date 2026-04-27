@@ -28,6 +28,8 @@ import re
 import time
 from typing import Any
 
+from .normalize import normalize_benzinga_calendar_item
+
 import httpx
 
 logger = logging.getLogger(__name__)
@@ -68,6 +70,7 @@ class BenzingaCalendarAdapter:
         self,
         endpoint: str,
         *,
+        endpoint_kind: str | None = None,
         updated_since: int | None = None,
         tickers: str | None = None,
         date_from: str | None = None,
@@ -129,19 +132,23 @@ class BenzingaCalendarAdapter:
             ) from None
 
         # Calendar responses wrap items in a key matching the endpoint name
+        rows: list[dict[str, Any]] = []
         if isinstance(data, dict):
-            # Try common wrapper keys
             for key in (endpoint, endpoint.replace("-", "_"), endpoint.rstrip("s")):
                 if key in data and isinstance(data[key], list):
-                    return list(data[key])
-            # Fallback: find first list value
-            for v in data.values():
-                if isinstance(v, list):
-                    return v
-            return []
-        if isinstance(data, list):
-            return data
-        return []
+                    rows = list(data[key])
+                    break
+            else:
+                for v in data.values():
+                    if isinstance(v, list):
+                        rows = list(v)
+                        break
+        elif isinstance(data, list):
+            rows = list(data)
+        # Apply canonical-schema normalization so consumers see stable keys
+        # even if upstream Benzinga renames variants (actual -> actualValue, etc.).
+        kind = endpoint_kind or endpoint.replace("-", "_")
+        return [normalize_benzinga_calendar_item(r, kind) for r in rows]
 
     # ── Typed fetchers ──────────────────────────────────────
 
