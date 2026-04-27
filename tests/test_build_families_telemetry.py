@@ -104,10 +104,12 @@ def _write_drift(path: Path, payload: dict) -> None:
 def test_aggregate_counts_trades_and_live_days(tmp_path: Path) -> None:
     a1 = tmp_path / "incubation_2026-04-25.jsonl"
     _write_audit(a1, [
-        {"variant": "v_bos_1", "action": "filled"},
         {"variant": "v_bos_1", "action": "closed"},
+        {"variant": "v_bos_1", "action": "flattened"},
         {"variant": "v_ob_1", "action": "tp_hit"},
-        # Non-terminal actions must NOT contribute to n_trades.
+        # Non-terminal actions must NOT contribute to n_trades —
+        # ``filled`` is the *entry* fill, not a closed trade.
+        {"variant": "v_bos_1", "action": "filled"},
         {"variant": "v_bos_1", "action": "audit_only"},
         {"variant": "v_bos_1", "action": "created"},
     ])
@@ -125,7 +127,7 @@ def test_aggregate_counts_trades_and_live_days(tmp_path: Path) -> None:
         summary=summary,
     )
     assert summary.audit_files == 2
-    assert summary.audit_records_total == 6
+    assert summary.audit_records_total == 7
     assert accs["BOS"].n_trades == 3
     assert accs["BOS"].trade_days == {"2026-04-25", "2026-04-26"}
     assert accs["OB"].n_trades == 1
@@ -152,8 +154,8 @@ def test_aggregate_counts_outcome_pnl_as_closed_trade(tmp_path: Path) -> None:
 def test_aggregate_counts_unknown_variants(tmp_path: Path) -> None:
     a1 = tmp_path / "incubation_2026-04-25.jsonl"
     _write_audit(a1, [
-        {"variant": "v_bos_1", "action": "filled"},
-        {"variant": "mystery", "action": "filled"},
+        {"variant": "v_bos_1", "action": "closed"},
+        {"variant": "mystery", "action": "closed"},
     ])
     summary = BuildSummary()
     accs = aggregate(
@@ -213,7 +215,7 @@ def test_to_strict_payload_emits_zero_rows_for_unseen_families() -> None:
 def test_build_payload_end_to_end(tmp_path: Path) -> None:
     a = tmp_path / "incubation_2026-04-25.jsonl"
     _write_audit(a, [
-        {"variant": "v_bos_1", "action": "filled"},
+        {"variant": "v_bos_1", "action": "closed"},
     ])
     d = tmp_path / "drift_2026-04-25.json"
     _write_drift(d, {"variants": [{"variant": "v_bos_1", "verdict": "pass"}]})
@@ -242,7 +244,7 @@ def test_build_payload_end_to_end(tmp_path: Path) -> None:
 
 def test_cli_writes_output_and_returns_zero(tmp_path: Path) -> None:
     a = tmp_path / "incubation_2026-04-25.jsonl"
-    _write_audit(a, [{"variant": "v_bos_1", "action": "filled"}])
+    _write_audit(a, [{"variant": "v_bos_1", "action": "closed"}])
     d = tmp_path / "drift_2026-04-25.json"
     _write_drift(d, {"variants": [{"variant": "v_bos_1", "verdict": "pass"}]})
     vmap = tmp_path / "vmap.json"
@@ -263,7 +265,7 @@ def test_cli_writes_output_and_returns_zero(tmp_path: Path) -> None:
 
 def test_cli_strict_mode_returns_two_on_unknown_variant(tmp_path: Path) -> None:
     a = tmp_path / "incubation_2026-04-25.jsonl"
-    _write_audit(a, [{"variant": "rogue", "action": "filled"}])
+    _write_audit(a, [{"variant": "rogue", "action": "closed"}])
     vmap = tmp_path / "vmap.json"
     vmap.write_text(json.dumps({"v_bos_1": "BOS"}))
     out = tmp_path / "out.json"

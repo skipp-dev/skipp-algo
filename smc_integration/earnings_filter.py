@@ -184,6 +184,19 @@ class EarningsFilter:
             )
 
         events = self._lookup(symbol_norm)
+        # ``_lookup`` may flip ``_data_available`` to False if the JSONL
+        # became unreadable between construction and now (caught inside
+        # ``_build_index``). Re-check so we surface ``WSH_DATA_MISSING``
+        # rather than a misleading ``NO_EARNINGS_EVENT`` pass.
+        if not self._data_available:
+            return EarningsFilterDecision(
+                symbol=symbol_norm,
+                trade_date=td.isoformat(),
+                blocked=False,
+                reason="WSH_DATA_MISSING",
+                pre_window_days=self._pre,
+                post_window_days=self._post,
+            )
         if not events:
             return EarningsFilterDecision(
                 symbol=symbol_norm,

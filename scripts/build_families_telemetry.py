@@ -77,16 +77,19 @@ _VERDICT_RANK: dict[str, int] = {
 
 # Audit ``action`` values that represent a *closed* trade. Live
 # incubation writes ``audit_only`` / ``filled`` / ``submitted`` /
-# ``created`` etc. per intent; only these terminal actions count
-# towards ``n_trades`` for the C12 trigger gate. Anything else
-# (intent creation, halts, reconnects, cancels) is excluded so the
-# trigger does not see a permanently zero count even when the live
-# pipeline runs.
+# ``created`` etc. per intent; only the terminal *exit* actions count
+# towards ``n_trades`` for the C12 trigger gate. ``filled`` is the
+# *entry* fill (broker confirms entry order) and is excluded — the
+# trade is not yet closed at that point and counting it would
+# double-count once ``closed``/``tp_hit``/``stop_hit``/``flattened``
+# fires. Anything else (intent creation, halts, reconnects, cancels)
+# is excluded so the trigger does not see a permanently zero count
+# even when the live pipeline runs.
 _CLOSED_TRADE_ACTIONS: frozenset[str] = frozenset({
     "closed",
     "tp_hit",
     "stop_hit",
-    "filled",
+    "flattened",
 })
 
 

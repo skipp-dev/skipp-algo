@@ -1,8 +1,13 @@
 """C13/T8.1 — IBKR opening-auction imbalance wrapper.
 
-Polls the IBKR ``reqMktData(genericTickList="225")`` stream between
-09:28 and 09:30 ET for each symbol in the watchlist and persists the
-last-known auction snapshot to JSONL.
+The per-symbol entry point (``fetch_opening_imbalance``) performs a
+shallow subscribe-then-sleep against the IBKR
+``reqMktData(genericTickList="225")`` stream and persists the
+last-known auction snapshot to JSONL. The 09:28–09:30 ET window is
+enforced by the cron caller (``scripts.collect_opening_imbalances``
+schedules the run inside that window); ``DEFAULT_POLL_START_ET`` and
+``DEFAULT_POLL_END_ET`` below are exported as the canonical window
+defaults for that caller and any future scheduler that needs them.
 
 Tick types per IBKR docs (``IBApi.EWrapper.tickPrice`` /
 ``IBApi.EWrapper.tickSize``):
