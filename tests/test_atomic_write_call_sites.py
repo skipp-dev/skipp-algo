@@ -1,4 +1,4 @@
-"""Inventory pin for raw file-write call sites under ``scripts/``.
+"""Inventory pin for raw file-write call sites.
 
 Background
 ==========
@@ -10,6 +10,17 @@ real surface is ~15 raw writes outside ``scripts/smc_atomic_write.py``.
 This test pins the explicit allowlist of files that may bypass
 ``atomic_write_parquet`` / ``atomic_write_csv``. Each entry has a brief
 rationale.
+
+Scope (Deep-Review 2026-04-27 follow-up)
+----------------------------------------
+
+Original scope was ``scripts/`` only. The deep review observed that
+the pin was therefore blind to raw writes added under ``open_prep/``,
+``ml/``, ``rl/``, and ``governance/`` — directories that have grown
+production-impacting write sites since I-1 landed. The scan now
+covers all five top-level directories; allowlist keys are the
+repo-relative POSIX paths so the same filename in different
+directories never collides.
 
 Rules of thumb for the allowlist
 ================================
@@ -37,32 +48,56 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS_DIR = REPO_ROOT / "scripts"
+# Deep-Review 2026-04-27: scan additional top-level directories so the
+# atomic-write pin can no longer be silently bypassed by writing under
+# open_prep/ ml/ rl/ governance/.
+_SCAN_DIRS: tuple[Path, ...] = tuple(
+    REPO_ROOT / name for name in ("scripts", "open_prep", "ml", "rl", "governance")
+)
 
 # Files allowed to call open(...,"w"/"wb"/"x"/"a") OR ``Path.open("w"...)``
 # without going through smc_atomic_write. Each entry's value is a brief
 # rationale string (not asserted, but read by future maintainers).
+#
+# Keys are repo-relative POSIX paths (Deep-Review 2026-04-27).
 _ALLOWED_RAW_WRITE_FILES: dict[str, str] = {
-    "plan_2_8_history_backfill.py": "fdopen + os.replace atomic pattern (json snapshots)",
-    "plan_2_8_snooze_admin.py": "fdopen + os.replace atomic pattern (json snapshots)",
-    "plan_2_8_alert_history.py": "fdopen + os.replace atomic pattern (json snapshots)",
-    "plan_2_8_status_ledger_prune.py": "fdopen + os.replace atomic pattern (json snapshots)",
-    "plan_2_8_history_export.py": "history CSV export (one-shot, not pipeline-consumed)",
-    "run_ibkr_open_execution.py": "execution log CSV (one-shot, not pipeline-consumed)",
-    "analyze_smc_contextual_calibration_history.py": "analysis CSV (one-shot)",
-    "start_open_prep_suite.py": "process bootstrap log files",
-    "export_open_prep_lists.py": "fdopen + os.replace atomic pattern (CSV exports)",
-    "run_smc_measurement_benchmark.py": "benchmark CSV (one-shot, not pipeline-consumed)",
-    "plan_2_8_history_archive.py": "JSONL history append (mode='a', not pipeline-consumed)",
-    "plan_2_8_status_ledger.py": "JSONL status ledger append (mode='a', not pipeline-consumed)",
-    "render_ci_gate_summary.py": "GitHub Actions $GITHUB_STEP_SUMMARY append (mode='a')",
-    "backfill_live_outcomes.py": "fdopen + os.replace atomic pattern (audit JSON snapshots)",
-    "build_backtest_reference.py": "fdopen + os.replace atomic pattern (drift reference + drift-input JSON)",
-    "build_track_record_gate.py": "fdopen + os.replace atomic pattern (track_record_gate cache JSON)",
-    "compute_live_drift.py": "fdopen + os.replace atomic pattern (drift verdict JSON)",
-    "run_drift_watchdog.py": "fdopen + os.replace atomic pattern (drift_report JSON)",
-    "run_smc_live_incubation.py": "audit JSONL append (mode='a', append-only ledger)",
+    "scripts/plan_2_8_history_backfill.py": "fdopen + os.replace atomic pattern (json snapshots)",
+    "scripts/plan_2_8_snooze_admin.py": "fdopen + os.replace atomic pattern (json snapshots)",
+    "scripts/plan_2_8_alert_history.py": "fdopen + os.replace atomic pattern (json snapshots)",
+    "scripts/plan_2_8_status_ledger_prune.py": "fdopen + os.replace atomic pattern (json snapshots)",
+    "scripts/plan_2_8_history_export.py": "history CSV export (one-shot, not pipeline-consumed)",
+    "scripts/run_ibkr_open_execution.py": "execution log CSV (one-shot, not pipeline-consumed)",
+    "scripts/analyze_smc_contextual_calibration_history.py": "analysis CSV (one-shot)",
+    "scripts/start_open_prep_suite.py": "process bootstrap log files",
+    "scripts/export_open_prep_lists.py": "fdopen + os.replace atomic pattern (CSV exports)",
+    "scripts/run_smc_measurement_benchmark.py": "benchmark CSV (one-shot, not pipeline-consumed)",
+    "scripts/plan_2_8_history_archive.py": "JSONL history append (mode='a', not pipeline-consumed)",
+    "scripts/plan_2_8_status_ledger.py": "JSONL status ledger append (mode='a', not pipeline-consumed)",
+    "scripts/render_ci_gate_summary.py": "GitHub Actions $GITHUB_STEP_SUMMARY append (mode='a')",
+    "scripts/backfill_live_outcomes.py": "fdopen + os.replace atomic pattern (audit JSON snapshots)",
+    "scripts/build_backtest_reference.py": "fdopen + os.replace atomic pattern (drift reference + drift-input JSON)",
+    "scripts/build_track_record_gate.py": "fdopen + os.replace atomic pattern (track_record_gate cache JSON)",
+    "scripts/compute_live_drift.py": "fdopen + os.replace atomic pattern (drift verdict JSON)",
+    "scripts/run_drift_watchdog.py": "fdopen + os.replace atomic pattern (drift_report JSON)",
+    "scripts/run_smc_live_incubation.py": "audit JSONL append (mode='a', append-only ledger)",
     # smc_atomic_write itself implements the primitive — exempt by definition.
-    "smc_atomic_write.py": "implements the atomic write primitive",
+    "scripts/smc_atomic_write.py": "implements the atomic write primitive",
+    # --- open_prep/ surface (Deep-Review 2026-04-27 scope expansion) ---
+    # Existing surface inventoried at scope-expansion time. New raw
+    # writes here MUST still pass code review; this allowlist only
+    # documents the pre-existing baseline so the gate flips on.
+    "open_prep/alerts.py": "alert ledger JSONL append (mode='a')",
+    "open_prep/candidate_weights.py": "candidate-weights snapshot (one-shot, not pipeline-consumed)",
+    "open_prep/diff.py": "diff text output (one-shot tool)",
+    "open_prep/feature_importance_report.py": "feature-importance report text (one-shot tool)",
+    "open_prep/outcome_backfill.py": "outcome backfill audit + state JSON",
+    "open_prep/outcomes.py": "outcomes ledger snapshots",
+    "open_prep/realtime_signals.py": "realtime-signals state + audit JSONL",
+    "open_prep/watchlist.py": "watchlist snapshot",
+    # --- rl/ surface ---
+    "rl/extensions.py": "rl extension state (research-only, not pipeline-consumed)",
+    # --- governance/ surface ---
+    "governance/alpha_ledger.py": "alpha-budget ledger JSON (governance audit trail)",
 }
 
 _WRITE_MODES: frozenset[str] = frozenset({"w", "wb", "wt", "x", "xb", "xt", "a", "ab", "at",
@@ -124,17 +159,21 @@ def _scan_raw_writes(source: str) -> list[int]:
 
 def _files_with_raw_writes() -> dict[str, list[int]]:
     out: dict[str, list[int]] = {}
-    for py in sorted(SCRIPTS_DIR.glob("*.py")):
-        try:
-            source = py.read_text(encoding="utf-8")
-        except OSError:
+    for scan_dir in _SCAN_DIRS:
+        if not scan_dir.is_dir():
             continue
-        try:
-            hits = _scan_raw_writes(source)
-        except SyntaxError:
-            continue
-        if hits:
-            out[py.name] = hits
+        for py in sorted(scan_dir.rglob("*.py")):
+            try:
+                source = py.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            try:
+                hits = _scan_raw_writes(source)
+            except SyntaxError:
+                continue
+            if hits:
+                rel = py.relative_to(REPO_ROOT).as_posix()
+                out[rel] = hits
     return out
 
 
@@ -155,12 +194,12 @@ def test_atomic_write_helper_file_present() -> None:
 
 
 def test_no_unsanctioned_raw_writes_in_scripts() -> None:
-    """Pin: every raw-write file in scripts/ must appear in the allowlist."""
+    """Pin: every raw-write file under the scanned dirs must appear in the allowlist."""
     observed = _files_with_raw_writes()
     extras = sorted(set(observed) - set(_ALLOWED_RAW_WRITE_FILES))
     assert not extras, (
-        "NEW script(s) introduced raw open(...,'w'/'wb'/'x') call sites:\n"
-        + "\n".join(f"  scripts/{name}: lines {observed[name]}" for name in extras)
+        "NEW file(s) introduced raw open(...,'w'/'wb'/'x') call sites:\n"
+        + "\n".join(f"  {name}: lines {observed[name]}" for name in extras)
         + "\nMigrate to scripts.smc_atomic_write or add to _ALLOWED_RAW_WRITE_FILES "
         "with a rationale."
     )
@@ -176,7 +215,7 @@ def test_allowlist_is_pruned() -> None:
     # smc_atomic_write.py is exempt: it implements the primitive but its
     # internal os.replace is not flagged by our scanner — keep it in the
     # allowlist as a doc anchor.
-    stale = [s for s in stale if s != "smc_atomic_write.py"]
+    stale = [s for s in stale if s != "scripts/smc_atomic_write.py"]
     assert not stale, (
         f"Allowlist contains files that no longer perform raw writes: {stale}. "
         "Remove them from _ALLOWED_RAW_WRITE_FILES."

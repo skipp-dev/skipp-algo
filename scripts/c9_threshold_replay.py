@@ -208,6 +208,15 @@ def _episode_fires(episode: Episode, setting: ThresholdSetting) -> bool:
     Detectors 3 + 4 are intentionally simple by-hand rules so the replay
     tool stays deterministic and free of stats-package dependencies. The
     KS and PSI detectors carry the statistical weight of the consensus.
+
+    See ``docs/c9_threshold_tuning.md`` for the full tuning rationale,
+    the offline grid-search results that picked the current literals,
+    and the re-tuning procedure when the live sample stabilises.
+    Deep-Review 2026-04-27 follow-up: this cross-link was previously
+    missing — the bauchgefühl thresholds (``mean_shift >= 0.3``,
+    ``ratio in [0.5, 2.0]``) were only mentioned inline; the doc
+    now is the single source of truth and any change to the literals
+    here MUST update the doc in the same PR.
     """
     baseline = np.asarray(episode.baseline, dtype=np.float64)
     live = np.asarray(episode.live, dtype=np.float64)

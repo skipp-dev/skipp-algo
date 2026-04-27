@@ -194,7 +194,8 @@ def walk_forward_episodes(config: RLWalkForwardConfig) -> list[RLFold]:
         if train_end <= 0:
             continue
         if config.scheme == "rolling":
-            assert config.train_episodes is not None
+            if config.train_episodes is None:
+                raise RuntimeError("rolling scheme requires config.train_episodes")
             train_start = max(0, train_end - config.train_episodes)
         else:
             train_start = 0

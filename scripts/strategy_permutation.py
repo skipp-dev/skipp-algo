@@ -2,29 +2,33 @@
 
 Sprint C4 / T2 — see ``docs/SPRINT_PLAN_C4_PERMUTATION_TEST_2026-04-26.md``.
 
-This first cut implements **Schema A** (outcome-sign permutation): the
-null hypothesis says "the trade-return signs are exchangeable", i.e. a
-random sign-flip of each trade should produce the same Sharpe-like
-statistic in expectation. Schema A needs no OHLCV provider and no
-entry-time list — it can run as soon as the OOS trade-return list from
-C2 is available, and it provides a cheap sanity check that the strategy
-is not producing positive Sharpe by chance alone.
+This module ships two schemas of trade-return permutation:
 
-Schema B (entry-time permutation, the rigorous test) needs OHLCV access
-and is deferred to a follow-up PR; the dispatcher leaves room for it.
+* **Schema A (outcome_sign)** — independent per-trade sign flips. Cheap,
+  needs no OHLCV provider and no entry-time list. Caveat: under skewed
+  P&L distributions the Schema-A null PF distribution has a non-unit
+  expected value, so the *PF* p-value is mis-calibrated. Sharpe-side
+  Schema A is unbiased under the i.i.d.-sign null.
+* **Schema B (block_outcome_sign)** — block sign flips that preserve
+  serial correlation in the trade-return stream. Equivalent to a
+  moving-block adaptation of the Schema-A null and conceptually
+  aligned with :func:`smc_core.inference.permutation.block_permutation_test`
+  (which is the two-sample variant for treatment-vs-control trade
+  arms; this module's API is single-arm). Use Schema B for live
+  Phase-B / Track-Record gating on intraday strategies where trade
+  outcomes carry autocorrelation.
+
+Schema B was deferred in the initial C4 PR (entry-time permutation
+requires OHLCV access). The 2026-04-27 deep review surfaced that the
+live pipeline was still running on Schema A; this revision makes
+Schema B a first-class top-level path while keeping Schema A as a
+backwards-compatible API special case.
 
 Reuse:
 - ``scripts.run_ab_comparison.benjamini_hochberg`` for the multi-setup
   FDR aggregation in :func:`aggregate_permutation_results`.
 - Phipson-Smyth ``(r + 1) / (B + 1)`` correction lifted from
   ``scripts/run_ab_comparison.py:_permutation_p_delta_metric``.
-
-Caveats:
-- Schema-A profit-factor permutations have a non-unit expected null
-  mean under skewed P&L distributions. The PF p-value reported by
-  :func:`permutation_test_profit_factor` is therefore mis-calibrated
-  and should be interpreted as a sanity check only. Schema B (entry-time
-  permutation) lands the calibrated version.
 """
 
 from __future__ import annotations
@@ -39,7 +43,14 @@ from scripts.bootstrap_methods import (
     MIN_EVENTS_FOR_BOOTSTRAP,
 )
 
-PermutationSchema = Literal["outcome_sign"]
+PermutationSchema = Literal["outcome_sign", "block_outcome_sign"]
+
+# Default block size for Schema B. ``5`` matches the typical
+# autocorrelation-decay length observed for daily-bar SMC trade returns
+# on liquid futures (per the C3 bootstrap calibration). Callers should
+# override per-strategy when a measured autocorrelation length is
+# available; the C8 live-incubation runbook documents how to estimate it.
+DEFAULT_BLOCK_SIZE = 5
 
 
 # ---------------------------------------------------------------------------
@@ -108,6 +119,56 @@ def _permute_outcome_sign(
     return returns[None, :] * signs
 
 
+def _permute_outcome_sign_block(
+    returns: np.ndarray, *, B: int, seed: int, block_size: int
+) -> np.ndarray:
+    """Schema B: flip sign in contiguous blocks of length ``block_size``.
+
+    Each block draws an independent ±1 multiplier; signs *within* a
+    block are tied. ``block_size == 1`` reduces to Schema A exactly
+    (same per-element distribution). Trailing partial block is handled
+    by repeating the final draw.
+
+    The block-sign-flip null preserves the within-block autocorrelation
+    of the original return stream, which the per-trade Schema A
+    destroys. This matches the moving-block permutation philosophy
+    used by :func:`smc_core.inference.permutation.block_permutation_test`
+    in the two-sample setting.
+    """
+    if block_size < 1:
+        raise ValueError(f"block_size must be >= 1, got {block_size}")
+    n = returns.size
+    rng = np.random.default_rng(seed)
+    n_blocks = (n + block_size - 1) // block_size
+    block_signs = rng.choice(np.array([-1.0, 1.0]), size=(B, n_blocks))
+    # Expand block-level signs to per-element signs via repeat, then trim.
+    signs = np.repeat(block_signs, block_size, axis=1)[:, :n]
+    return returns[None, :] * signs
+
+
+def _select_permuter(
+    schema: PermutationSchema, *, block_size: int
+):
+    """Dispatch to the chosen permutation engine.
+
+    Schema B silently falls back to Schema A when ``block_size <= 1``
+    so callers can pass ``block_size=1`` to disable blocking without
+    branching.
+    """
+    if schema == "outcome_sign":
+        return lambda arr, *, B, seed: _permute_outcome_sign(arr, B=B, seed=seed)
+    if schema == "block_outcome_sign":
+        if block_size <= 1:
+            return lambda arr, *, B, seed: _permute_outcome_sign(arr, B=B, seed=seed)
+        return lambda arr, *, B, seed: _permute_outcome_sign_block(
+            arr, B=B, seed=seed, block_size=block_size,
+        )
+    raise ValueError(
+        f"schema {schema!r} not supported; use 'outcome_sign' (Schema A) "
+        "or 'block_outcome_sign' (Schema B)"
+    )
+
+
 def permutation_test_sharpe(
     returns: np.ndarray,
     *,
@@ -116,11 +177,14 @@ def permutation_test_sharpe(
     seed: int = DEFAULT_SEED,
     freq: int = 252,
     min_events: int = MIN_EVENTS_FOR_BOOTSTRAP,
+    block_size: int = DEFAULT_BLOCK_SIZE,
 ) -> dict[str, object]:
-    """Permutation test for Sharpe ratio under Schema A.
+    """Permutation test for Sharpe ratio under Schema A or B.
 
     H0 (Schema A): trade-return signs are exchangeable; the strategy
     has no edge in choosing winners over losers.
+    H0 (Schema B): trade-return signs are exchangeable in contiguous
+    blocks of ``block_size``; the strategy has no autocorrelated edge.
     """
 
     arr = np.asarray(returns, dtype=np.float64).ravel()
@@ -132,17 +196,13 @@ def permutation_test_sharpe(
             "n": int(arr.size),
             "min_events": int(min_events),
         }
-    if schema != "outcome_sign":
-        raise ValueError(
-            f"schema {schema!r} not implemented in this PR; only 'outcome_sign' "
-            "(Schema A) is available. Schema B (entry_time) lands in a follow-up."
-        )
+    permuter = _select_permuter(schema, block_size=block_size)
 
     sqrt_freq = float(np.sqrt(freq))
     sr_obs_periodic = _sharpe_periodic(arr)
     sr_obs = sr_obs_periodic * sqrt_freq
 
-    permuted = _permute_outcome_sign(arr, B=B, seed=seed)
+    permuted = permuter(arr, B=B, seed=seed)
     mu = permuted.mean(axis=1)
     sd = permuted.std(axis=1, ddof=1)
     sd_safe = np.where(sd == 0.0, np.nan, sd)
@@ -151,7 +211,7 @@ def permutation_test_sharpe(
     p_one = _permutation_p_value(sr_obs, null_sr, side="one_sided")
     p_two = _permutation_p_value(sr_obs, null_sr, side="two_sided")
 
-    return {
+    out: dict[str, object] = {
         "metric": "sharpe",
         "schema": schema,
         "value": float(sr_obs),
@@ -161,6 +221,9 @@ def permutation_test_sharpe(
         "n": int(arr.size),
         "freq": int(freq),
     }
+    if schema == "block_outcome_sign":
+        out["block_size"] = int(block_size)
+    return out
 
 
 def permutation_test_profit_factor(
@@ -170,8 +233,16 @@ def permutation_test_profit_factor(
     B: int = DEFAULT_B,
     seed: int = DEFAULT_SEED,
     min_events: int = MIN_EVENTS_FOR_BOOTSTRAP,
+    block_size: int = DEFAULT_BLOCK_SIZE,
 ) -> dict[str, object]:
-    """Permutation test for profit factor (Schema A only)."""
+    """Permutation test for profit factor (Schema A or B).
+
+    Note: under skewed P&L distributions both Schema A and Schema B
+    null PF distributions have a non-unit expected value (the mean of
+    a ratio of sign-flipped sums is not 1). Block sign-flips reduce
+    the bias for autocorrelated streams but do not eliminate it.
+    Treat the PF p-value as a directional sanity check.
+    """
 
     arr = np.asarray(pnl, dtype=np.float64).ravel()
     if arr.size < min_events:
@@ -182,11 +253,10 @@ def permutation_test_profit_factor(
             "n": int(arr.size),
             "min_events": int(min_events),
         }
-    if schema != "outcome_sign":
-        raise ValueError(f"schema {schema!r} not implemented; only 'outcome_sign' available")
+    permuter = _select_permuter(schema, block_size=block_size)
 
     pf_obs = _profit_factor(arr)
-    permuted = _permute_outcome_sign(arr, B=B, seed=seed)
+    permuted = permuter(arr, B=B, seed=seed)
     pos = np.where(permuted > 0, permuted, 0.0).sum(axis=1)
     neg = -np.where(permuted < 0, permuted, 0.0).sum(axis=1)
     # Compute pos/neg only where neg is *strictly* greater than eps
@@ -199,14 +269,9 @@ def permutation_test_profit_factor(
     null_pf = np.full(neg.shape, np.nan, dtype=np.float64)
     np.divide(pos, neg, out=null_pf, where=neg > eps)
 
-    # For PF, "edge" means observed > 1.0 vs null around 1.0; we still
-    # report Phipson-Smyth p-values relative to the null distribution.
-    # See module docstring "Caveats" — Schema-A PF p-values are
-    # mis-calibrated under skewed P&L; use Schema B for the calibrated
-    # version once available.
     p_one = _permutation_p_value(pf_obs, null_pf, side="one_sided")
 
-    return {
+    out: dict[str, object] = {
         "metric": "profit_factor",
         "schema": schema,
         "value": float(pf_obs),
@@ -214,14 +279,18 @@ def permutation_test_profit_factor(
         "B": int(B),
         "n": int(arr.size),
         # C4 deep-review caveat (also in the docstring above): the
-        # Schema-A null-PF distribution has a non-unit expected value
-        # under skewed P&L, so this p-value is *mis-calibrated as a
-        # PF-edge test*. Mark every emission so dashboard / public
-        # report consumers can render the warning explicitly instead of
-        # relying on readers to find the docstring.
-        "caveat": "schema_a_null_miscal_under_skew",
-        "caveat_replacement": "schema_b_entry_time_permutation_pending",
+        # null-PF distribution has a non-unit expected value under
+        # skewed P&L for both Schema A and Schema B, so this p-value
+        # is *mis-calibrated as a PF-edge test*. Mark every emission
+        # so dashboard / public report consumers can render the
+        # warning explicitly instead of relying on readers to find
+        # the docstring.
+        "caveat": "null_miscal_under_skew",
+        "caveat_replacement": "prefer_sharpe_or_two_sample_block_permutation",
     }
+    if schema == "block_outcome_sign":
+        out["block_size"] = int(block_size)
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -301,6 +370,8 @@ def aggregate_permutation_results(
 
 
 __all__ = [
+    "DEFAULT_BLOCK_SIZE",
+    "PermutationSchema",
     "permutation_test_sharpe",
     "permutation_test_profit_factor",
     "aggregate_permutation_results",

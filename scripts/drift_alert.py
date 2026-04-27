@@ -120,8 +120,16 @@ def population_stability_index(
     a_counts, _ = np.histogram(a, bins=edges)
     b_counts, _ = np.histogram(b, bins=edges)
     eps = 1e-6
-    a_pct = (a_counts / a.size) + eps
-    b_pct = (b_counts / b.size) + eps
+    # Deep-Review 2026-04-27 (MINOR): renormalise after the epsilon
+    # smoothing so probabilities sum to exactly 1.0. The previous
+    # ``(counts / n) + eps`` form left ``a_pct`` summing to
+    # ``1 + n_buckets * eps`` and biased PSI slightly upward
+    # (toward red). The renormaliser is the standard Laplace-smoothed
+    # PMF: ``(c / n + eps) / (1 + n_buckets * eps)`` — algebraically
+    # ``(c + eps * n) / (n + eps * n * n_buckets)``.
+    norm = 1.0 + n_buckets * eps
+    a_pct = (a_counts / a.size + eps) / norm
+    b_pct = (b_counts / b.size + eps) / norm
     psi = float(np.sum((b_pct - a_pct) * np.log(b_pct / a_pct)))
     return psi
 

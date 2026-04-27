@@ -5,6 +5,15 @@ absent, exposes ``available = False`` and raises a clear ``RuntimeError`` at
 instantiation. Callers should branch on ``SACSizer.available`` and use a
 fixed-fraction sizer protected by ``rl.safety.HardConstraintLayer``
 otherwise.
+
+.. warning::
+   **EXPERIMENTAL** — Deep-Review 2026-04-27. This sizer is **not**
+   exercised by the C12 trigger gate or any production promotion
+   path; it ships for offline research only. The C12 / Phase-B
+   pipelines route sizing through ``rl.safety.HardConstraintLayer``
+   over a deterministic fixed-fraction sizer. Promotion of SAC
+   outputs to live requires a separate sign-off; see
+   ``docs/c12_trigger_runbook.md``.
 """
 from __future__ import annotations
 
@@ -20,6 +29,10 @@ except Exception:  # pragma: no cover
 
 
 class SACSizer:
+    #: Marks this sizer as research-only; production gates assert that
+    #: no EXPERIMENTAL agent backs a Phase-B promotion (Deep-Review
+    #: 2026-04-27). Do not flip without sign-off.
+    EXPERIMENTAL: bool = True
     available: bool = _HAS_SB3
     name = "sac"
 

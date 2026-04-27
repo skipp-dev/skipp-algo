@@ -16,6 +16,9 @@ from typing import Any
 
 __all__ = [
     "DRIFT_FILENAME_PATTERN",
+    "DRIFT_SCHEMA_MIN_COMPATIBLE",
+    "DRIFT_SCHEMA_MAX_COMPATIBLE_MAJOR",
+    "DriftSchemaError",
     "list_drift_dates",
     "load_drift_artifact",
     "resolve_drift_path",
@@ -23,6 +26,70 @@ __all__ = [
 
 # `drift_<YYYY-MM-DD>.json`
 DRIFT_FILENAME_PATTERN = re.compile(r"^drift_(\d{4}-\d{2}-\d{2})\.json$")
+
+# Drift-artifact schema compatibility window (Deep-Review C8 MAJOR finding
+# 2026-04-27). The producer in ``scripts/compute_live_drift.py`` emits
+# ``schema_version`` at the top level. We accept any version whose MAJOR
+# matches ``DRIFT_SCHEMA_MAX_COMPATIBLE_MAJOR`` and whose full semver is
+# >= ``DRIFT_SCHEMA_MIN_COMPATIBLE`` (additive-MINOR is OK). A MAJOR bump
+# requires an explicit consumer update — refuse-load is the safer default
+# than silent ``KeyError`` downstream.
+DRIFT_SCHEMA_MIN_COMPATIBLE = "1.0.0"
+DRIFT_SCHEMA_MAX_COMPATIBLE_MAJOR = 1
+
+
+class DriftSchemaError(ValueError):
+    """Raised when a drift artifact carries an incompatible schema version."""
+
+
+def _parse_semver(version: str) -> tuple[int, int, int] | None:
+    parts = version.split(".")
+    if len(parts) != 3:
+        return None
+    try:
+        return (int(parts[0]), int(parts[1]), int(parts[2]))
+    except ValueError:
+        return None
+
+
+def _check_drift_schema_version(payload: dict[str, Any]) -> None:
+    """Validate the artifact's ``schema_version`` against the consumer window.
+
+    Missing field → accepted as legacy ``"1.0.0"`` (pre-bump artifacts on
+    disk during the rollout period). Unparseable version → DriftSchemaError.
+    Out-of-window MAJOR → DriftSchemaError. MINOR ahead → accepted (additive).
+    """
+    raw = payload.get("schema_version")
+    if raw is None:
+        # Pre-bump artifact: assume baseline, do not refuse.
+        return
+    if not isinstance(raw, str):
+        raise DriftSchemaError(
+            f"schema_version must be a semver string, got {type(raw).__name__}",
+        )
+    parsed = _parse_semver(raw)
+    if parsed is None:
+        raise DriftSchemaError(
+            f"schema_version {raw!r} is not a valid 3-part semver",
+        )
+    minimum = _parse_semver(DRIFT_SCHEMA_MIN_COMPATIBLE)
+    if minimum is None:
+        # Constant; covered by tests. Defensive raise instead of
+        # ``assert`` so the no-prod-assert pin stays green under
+        # ``python -O`` (Deep-Review 2026-04-27).
+        raise DriftSchemaError(
+            f"DRIFT_SCHEMA_MIN_COMPATIBLE={DRIFT_SCHEMA_MIN_COMPATIBLE!r} is not a valid semver",
+        )
+    if parsed[0] != DRIFT_SCHEMA_MAX_COMPATIBLE_MAJOR:
+        raise DriftSchemaError(
+            f"drift artifact schema_version {raw!r} has incompatible MAJOR; "
+            f"consumer expects MAJOR={DRIFT_SCHEMA_MAX_COMPATIBLE_MAJOR}",
+        )
+    if parsed < minimum:
+        raise DriftSchemaError(
+            f"drift artifact schema_version {raw!r} is below the minimum "
+            f"compatible version {DRIFT_SCHEMA_MIN_COMPATIBLE}",
+        )
 
 
 def _live_dir(cache_dir: Path | str) -> Path:
@@ -85,6 +152,13 @@ def load_drift_artifact(
     except json.JSONDecodeError:
         return None
     if not isinstance(data, dict):
+        return None
+    # Schema-version range check (Deep-Review C8 fix 2026-04-27).
+    # Incompatible MAJOR → refuse to load so the dashboard renders a
+    # clear "no data" panel rather than a downstream KeyError.
+    try:
+        _check_drift_schema_version(data)
+    except DriftSchemaError:
         return None
     return data
 

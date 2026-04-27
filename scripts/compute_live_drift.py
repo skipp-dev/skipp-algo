@@ -13,6 +13,7 @@ back to once ``min(n, m)`` exceeds the small-sample threshold.
 Schema (additive only; bump the consumer when fields are removed)::
 
     {
+      "schema_version": "1.1.0",
       "computed_at": "2026-04-26T13:30:00+00:00",
       "live_window_days": 90,
       "variants": [
@@ -60,7 +61,19 @@ _DEFAULT_EXPECTED_SLIPPAGE_MEAN = 0.005  # 0.5% per the sprint plan
 _DEFAULT_EXPECTED_SLIPPAGE_STD = 0.003
 _TRADING_DAYS_PER_YEAR = 252
 
+# Drift-artifact schema version (Deep-Review C8 MAJOR finding 2026-04-27).
+# The artifact schema is documented as "additive only" but previously
+# emitted no version marker, leaving consumers without a machine-checkable
+# guard against producer-side renames or removals. Bump policy:
+#   * MAJOR: field removed or semantics changed; consumers MUST refuse
+#   * MINOR: additive field; consumers may ignore it
+#   * PATCH: cosmetic / docstring change with no payload diff
+# When you bump this constant, update DRIFT_SCHEMA_MIN_COMPATIBLE in
+# ``terminal_tabs/drift_loader.py`` and add a CHANGELOG entry.
+DRIFT_SCHEMA_VERSION = "1.1.0"
+
 __all__ = [
+    "DRIFT_SCHEMA_VERSION",
     "DriftVerdict",
     "annualised_sharpe",
     "compute_live_drift",
@@ -400,6 +413,7 @@ def compute_live_drift(
         )
 
     return {
+        "schema_version": DRIFT_SCHEMA_VERSION,
         "computed_at": when,
         "live_window_days": live_window_days,
         "variants": verdicts,

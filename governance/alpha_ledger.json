@@ -1,37 +1,37 @@
 [
   {
-    "alpha": 0.01,
+    "alpha": 0.008,
     "family": "BOS",
     "method": "block_permutation",
-    "rationale": "C4.1 permutation test for BOS structure detection; conservative tail.",
+    "rationale": "C4.1 permutation test for BOS structure detection; conservative tail. Per-family alpha lowered from 0.01 to 0.008 (Deep-Review 2026-04-27) so 5x0.008=0.04 leaves a 0.01 buffer below the 0.05 global cap for unforeseen consumers.",
     "sprint": "C4"
   },
   {
-    "alpha": 0.01,
+    "alpha": 0.008,
     "family": "OB",
     "method": "block_permutation",
-    "rationale": "C4.1 permutation test for order-block edge significance.",
+    "rationale": "C4.1 permutation test for order-block edge significance. Per-family alpha lowered from 0.01 to 0.008 (Deep-Review 2026-04-27).",
     "sprint": "C4"
   },
   {
-    "alpha": 0.01,
+    "alpha": 0.008,
     "family": "FVG",
     "method": "psr_lower_bound",
-    "rationale": "C6.1 probabilistic-Sharpe lower bound on per-family TRL.",
+    "rationale": "C6.1 probabilistic-Sharpe lower bound on per-family TRL. Per-family alpha lowered from 0.01 to 0.008 (Deep-Review 2026-04-27).",
     "sprint": "C6"
   },
   {
-    "alpha": 0.01,
+    "alpha": 0.008,
     "family": "CHOCH",
     "method": "ml_calibration_test",
-    "rationale": "C10 per-family Brier-improvement calibration check.",
+    "rationale": "C10 per-family Brier-improvement calibration check. Per-family alpha lowered from 0.01 to 0.008 (Deep-Review 2026-04-27).",
     "sprint": "C10"
   },
   {
-    "alpha": 0.01,
+    "alpha": 0.008,
     "family": "GLOBAL",
     "method": "regime_strat_psr",
-    "rationale": "C5.1 stratified PSR check across regime buckets.",
+    "rationale": "C5.1 stratified PSR check across regime buckets. Per-family alpha lowered from 0.01 to 0.008 (Deep-Review 2026-04-27).",
     "sprint": "C5"
   }
 ]

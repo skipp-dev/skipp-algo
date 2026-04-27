@@ -35,6 +35,19 @@ COPY requirements-dashboard.txt ./requirements-dashboard.txt
 RUN pip install --no-cache-dir -r requirements-dashboard.txt
 
 # Copy only what the dashboard needs to keep the image small.
+#
+# Slim-surface contract (Deep-Review 2026-04-27):
+#   * The exact list of COPY-ed files below IS the contract surface
+#     for the read-only dashboard image. It is pinned by
+#     tests/test_slim_dashboard_image.py — adding a file here without
+#     updating the test (and confirming its transitive imports stay
+#     within ``requirements-dashboard.txt``) will break the slim-image
+#     guarantee.
+#   * If a tab needs a new helper module, the helper MUST be small,
+#     dashboard-specific, and free of httpx / databento / ML deps;
+#     otherwise route through the pre-computed sidecar pattern (see
+#     scripts/build_dashboard_payload.py docstring) instead of pulling
+#     the producer module into the image.
 COPY streamlit_dashboard.py ./
 COPY terminal_tabs/__init__.py ./terminal_tabs/__init__.py
 COPY terminal_tabs/_shared.py ./terminal_tabs/_shared.py

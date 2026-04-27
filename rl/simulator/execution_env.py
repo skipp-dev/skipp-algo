@@ -64,7 +64,13 @@ class ExecutionEnv:
             slice_qty = self._remaining_qty
         # Volume + price evolution
         vol_step = self.cfg.base_volume_per_step * float(np.exp(self._rng.normal(0.0, 0.2)))
-        vol_bps = self.cfg.base_volatility_bps * float(abs(self._rng.normal(1.0, 0.2)))
+        # Deep-Review 2026-04-27: vol_bps must use a lognormal multiplier
+        # (mean=base, no folded-normal up-bias). The previous
+        # ``abs(normal(1.0, 0.2))`` introduced an upward shift in mean
+        # volatility (E[|N(1, 0.2)|] != 1), and gave the simulator an
+        # unphysical asymmetric tail. ``exp(normal(0, 0.2))`` matches
+        # the lognormal model already used for ``vol_step`` above.
+        vol_bps = self.cfg.base_volatility_bps * float(np.exp(self._rng.normal(0.0, 0.2)))
         price_drift_bps = self._rng.normal(0.0, vol_bps)
         self._mid *= (1.0 + price_drift_bps / 1e4)
         # Slippage estimate (in bps, signed adverse for the trader).

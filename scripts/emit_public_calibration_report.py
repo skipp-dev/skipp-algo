@@ -58,7 +58,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-PUBLIC_SCHEMA_VERSION = "1.2.0"
+PUBLIC_SCHEMA_VERSION = "1.3.0"
 HISTORY_RETENTION = 90  # ~3 months at one entry per day
 DEFAULT_OUTPUT = Path("docs/calibration/calibration_report_public.json")
 DEFAULT_HISTORY_FILENAME = "calibration_report_public_history.jsonl"
@@ -171,6 +171,53 @@ def _extract_n_events(payload: dict[str, Any]) -> int | None:
     return total or None
 
 
+# Field-set required by ``scripts/check_c12_trigger.py`` so the public
+# report emits a producer-side schema the trigger consumer can validate.
+# Keeping this constant local (single-source-of-truth lives in the
+# trigger consumer; mirroring it here would invite drift). The trigger
+# pins MIN_LIVE_DAYS / MIN_LIVE_TRADES / acceptable verdicts via
+# ``tests/test_c12_trigger_phase_b_alignment.py``.
+_C12_FAMILY_KEYS: tuple[str, ...] = (
+    "name",
+    "live_days",
+    "n_trades",
+    "kill_switch_fires",
+    "drift_verdict",
+)
+
+
+def _normalise_families(
+    families: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Validate per-family Phase-B telemetry blocks for the C12 trigger.
+
+    Producer-side guardrail (Deep-Review 2026-04-27 MAJOR finding): each
+    family must be a dict; keys outside ``_C12_FAMILY_KEYS`` are passed
+    through (additive contract); missing required keys raise
+    ``ValueError`` at producer-time so the broken payload never reaches
+    the trigger as ``UNEVALUABLE``.
+    """
+    if not isinstance(families, list):
+        raise TypeError(
+            f"families must be a list, got {type(families).__name__}",
+        )
+    out: list[dict[str, Any]] = []
+    for idx, fam in enumerate(families):
+        if not isinstance(fam, dict):
+            raise TypeError(
+                f"families[{idx}] must be a dict, got {type(fam).__name__}",
+            )
+        missing = [k for k in _C12_FAMILY_KEYS if k not in fam]
+        if missing:
+            raise ValueError(
+                f"families[{idx}] missing required keys for the C12 "
+                f"trigger contract: {missing} (see "
+                "scripts/check_c12_trigger.py for the consumer schema)",
+            )
+        out.append(dict(fam))
+    return out
+
+
 def build_public_report(
     cal_payload: dict[str, Any] | None,
     *,
@@ -179,6 +226,7 @@ def build_public_report(
     source_workflow_run: str | None,
     track_record_gate: dict[str, Any] | None = None,
     regime_stratified: dict[str, Any] | None = None,
+    families: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Construct the public-report dict from a calibration artifact.
 
@@ -196,6 +244,17 @@ def build_public_report(
     :mod:`scripts.regime_stratification` are surfaced under the
     ``regime_stratified`` key (one block per regime label plus the
     aggregate freq-weighted Sharpe and BH-FDR rejection summary).
+
+    ``families`` (additive in schema 1.3.0; Deep-Review 2026-04-27 MAJOR
+    finding): per-family Phase-B incubation telemetry consumed by
+    :mod:`scripts.check_c12_trigger`. Each entry must be a dict carrying
+    at minimum ``name``, ``live_days`` (int), ``n_trades`` (int),
+    ``kill_switch_fires`` (int >= 0), ``drift_verdict`` (str). The
+    trigger consumer documents the contract; this producer hook closes
+    the previously-undocumented producer/consumer gap so the GREEN-path
+    is end-to-end testable. Pass ``None`` when no families have entered
+    Phase-B yet (the trigger will return BLOCKED, which is the correct
+    pre-Phase-B state).
     """
     now = datetime.now(UTC).isoformat()
     if cal_payload is None:
@@ -213,6 +272,8 @@ def build_public_report(
             out["track_record_gate"] = track_record_gate
         if regime_stratified is not None:
             out["regime_stratified"] = regime_stratified
+        if families is not None:
+            out["families"] = _normalise_families(families)
         return out
 
     metrics = _extract_calibration_metrics(cal_payload)
@@ -243,6 +304,8 @@ def build_public_report(
         out["track_record_gate"] = track_record_gate
     if regime_stratified is not None:
         out["regime_stratified"] = regime_stratified
+    if families is not None:
+        out["families"] = _normalise_families(families)
     return out
 
 

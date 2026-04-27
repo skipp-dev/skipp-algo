@@ -171,7 +171,16 @@ def test_no_hardcoded_stale_schema_versions_in_tests() -> None:
     test_dir = _REPO_ROOT / "tests"
     violations: list[str] = []
     for py in test_dir.rglob("*.py"):
-        if py.name in ("test_smc_schema_version_enforcement.py", "test_smc_version_governance.py"):
+        if py.name in (
+            "test_smc_schema_version_enforcement.py",
+            "test_smc_version_governance.py",
+            # ``test_drift_loader.py`` validates the *drift* schema-version
+            # parser, which is independent of the SMC SCHEMA_VERSION; it
+            # intentionally hard-codes "1.99.0" / "1.0.0" / "2.0.0"
+            # literals to exercise compatibility branches.
+            # (Deep-Review 2026-04-27.)
+            "test_drift_loader.py",
+        ):
             continue  # skip — these files reference multiple versions for comparison testing
         text = py.read_text(encoding="utf-8")
         for i, line in enumerate(text.splitlines(), 1):

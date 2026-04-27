@@ -36,7 +36,7 @@ PIN_PATH = (
     / "docs"
     / "calibration"
     / "schemas"
-    / "v1.2.0_public_schema_pin.json"
+    / "v1.3.0_public_schema_pin.json"
 )
 SOURCE_PATH = REPO_ROOT / "scripts" / "emit_public_calibration_report.py"
 
@@ -145,6 +145,7 @@ def test_additive_fields_history_is_monotonic() -> None:
     # Sentinel-field pins for known versions.
     assert "1.1.0" in additive and "track_record_gate" in additive["1.1.0"]
     assert "1.2.0" in additive and "regime_stratified" in additive["1.2.0"]
+    assert "1.3.0" in additive and "families" in additive["1.3.0"]
 
 
 def test_public_report_blocks_raises_clear_error_on_missing_symbol() -> None:
