@@ -855,6 +855,26 @@ def test_get_institutional_ownership(client_with_get: FMPClient, recorder: dict[
     )
 
 
+def test_get_acquisition_of_beneficial_ownership(
+    client_with_get: FMPClient, recorder: dict[str, Any]
+) -> None:
+    recorder["return"] = [{"symbol": "AAPL", "filingDate": "2026-04-20"}]
+    rows = client_with_get.get_acquisition_of_beneficial_ownership("aapl")
+    assert recorder["call"] == (
+        "/stable/acquisition-of-beneficial-ownership",
+        {"symbol": "AAPL"},
+    )
+    assert rows == [{"symbol": "AAPL", "filingDate": "2026-04-20"}]
+    assert client_with_get.get_acquisition_of_beneficial_ownership("   ") == []
+
+
+def test_get_acquisition_of_beneficial_ownership_swallows_runtime_error(
+    client_with_get: FMPClient, recorder: dict[str, Any]
+) -> None:
+    recorder["return"] = RuntimeError("retired")
+    assert client_with_get.get_acquisition_of_beneficial_ownership("AAPL") == []
+
+
 def test_get_treasury_rates_optional_dates(
     client_with_get: FMPClient, recorder: dict[str, Any]
 ) -> None:

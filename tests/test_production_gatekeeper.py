@@ -1468,3 +1468,116 @@ class TestPickIndicativePriceCascade:
         px, source = _pick_indicative_price(quote)
         assert px == 99.0
         assert source == "spot"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 16) PR-D1: beneficial-ownership enrichment (SC 13D / 13G)
+# ═══════════════════════════════════════════════════════════════════
+
+class TestBeneficialOwnershipEnrichment:
+    """_fetch_beneficial_ownership aggregates SC 13D/G filings and flags
+    fresh ones inside the configured window."""
+
+    def test_recent_filing_within_window_is_flagged(self):
+        from open_prep.run_open_prep import _fetch_beneficial_ownership
+
+        today = date(2026, 4, 27)
+        mock_client = MagicMock()
+        mock_client.get_acquisition_of_beneficial_ownership.return_value = [
+            {
+                "symbol": "AAPL",
+                "filingDate": "2026-04-20",
+                "nameOfReportingPerson": "Acme Capital",
+                "percentOfClass": "5.6",
+                "url": "https://sec.gov/...",
+            },
+            {
+                "symbol": "AAPL",
+                "filingDate": "2024-02-14",
+                "nameOfReportingPerson": "Stale LLC",
+                "percentOfClass": "5.1",
+            },
+        ]
+        result = _fetch_beneficial_ownership(
+            client=mock_client, symbols=["AAPL"], today=today
+        )
+        assert "AAPL" in result
+        row = result["AAPL"]
+        assert row["beneficial_owner_count"] == 2
+        assert row["beneficial_owner_recent"] is True
+        assert row["beneficial_owner_recent_count"] == 1
+        assert row["beneficial_owner_latest_filer"] == "Acme Capital"
+        assert row["beneficial_owner_latest_pct"] == 5.6
+        assert row["beneficial_owner_latest_date"] == "2026-04-20"
+
+    def test_only_stale_filings_not_flagged(self):
+        from open_prep.run_open_prep import _fetch_beneficial_ownership
+
+        today = date(2026, 4, 27)
+        mock_client = MagicMock()
+        mock_client.get_acquisition_of_beneficial_ownership.return_value = [
+            {
+                "symbol": "TSLA",
+                "filingDate": "2022-03-11",
+                "nameOfReportingPerson": "BlackRock, Inc.",
+                "percentOfClass": "5.3",
+            },
+        ]
+        result = _fetch_beneficial_ownership(
+            client=mock_client, symbols=["TSLA"], today=today
+        )
+        assert result["TSLA"]["beneficial_owner_recent"] is False
+        assert result["TSLA"]["beneficial_owner_recent_count"] == 0
+        assert result["TSLA"]["beneficial_owner_latest_pct"] == 5.3
+
+    def test_empty_or_failed_lookup_returns_no_entry(self):
+        from open_prep.run_open_prep import _fetch_beneficial_ownership
+
+        today = date(2026, 4, 27)
+        mock_client = MagicMock()
+        mock_client.get_acquisition_of_beneficial_ownership.side_effect = [
+            [],  # GME — no filings
+            RuntimeError("boom"),  # FOO — provider fail
+        ]
+        result = _fetch_beneficial_ownership(
+            client=mock_client, symbols=["GME", "FOO"], today=today
+        )
+        assert "GME" not in result
+        assert "FOO" not in result
+
+    def test_non_numeric_percent_does_not_crash(self):
+        from open_prep.run_open_prep import _fetch_beneficial_ownership
+
+        today = date(2026, 4, 27)
+        mock_client = MagicMock()
+        mock_client.get_acquisition_of_beneficial_ownership.return_value = [
+            {
+                "symbol": "NVDA",
+                "filingDate": "2026-04-25",
+                "nameOfReportingPerson": "Mystery LP",
+                "percentOfClass": "N/A",
+            },
+        ]
+        result = _fetch_beneficial_ownership(
+            client=mock_client, symbols=["NVDA"], today=today
+        )
+        assert result["NVDA"]["beneficial_owner_latest_pct"] is None
+        assert result["NVDA"]["beneficial_owner_recent"] is True
+
+    def test_lookup_cap_respected(self):
+        from open_prep.run_open_prep import (
+            _MAX_BENEFICIAL_OWNERSHIP_LOOKUPS,
+            _fetch_beneficial_ownership,
+        )
+
+        today = date(2026, 4, 27)
+        mock_client = MagicMock()
+        mock_client.get_acquisition_of_beneficial_ownership.return_value = []
+        symbols = [f"S{i}" for i in range(_MAX_BENEFICIAL_OWNERSHIP_LOOKUPS + 10)]
+        _fetch_beneficial_ownership(
+            client=mock_client, symbols=symbols, today=today
+        )
+        assert (
+            mock_client.get_acquisition_of_beneficial_ownership.call_count
+            == _MAX_BENEFICIAL_OWNERSHIP_LOOKUPS
+        )

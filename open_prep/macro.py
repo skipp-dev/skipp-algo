@@ -1081,6 +1081,25 @@ class FMPClient:
             rows = rows[: max(int(limit), 1)]
         return rows
 
+    def get_acquisition_of_beneficial_ownership(self, symbol: str) -> list[dict[str, Any]]:
+        # SC 13D / 13G filings (5%+ stakes). Event-driven and orthogonal to
+        # quarterly 13F snapshots — often precedes catalyst moves by days.
+        cleaned = str(symbol).strip().upper()
+        if not cleaned:
+            return []
+        try:
+            data = self._get(
+                "/stable/acquisition-of-beneficial-ownership",
+                {"symbol": cleaned},
+            )
+        except RuntimeError:
+            _log_feature_unavailable_once(
+                "stable/acquisition-of-beneficial-ownership",
+                "FMP feature unavailable (stable/acquisition-of-beneficial-ownership); endpoint retired or upgraded plan required.",
+            )
+            return []
+        return list(data) if isinstance(data, list) else []
+
     def get_treasury_rates(self, date_from: date | None = None, date_to: date | None = None) -> list[dict[str, Any]]:
         params: dict[str, Any] = {}
         if date_from is not None:

@@ -1210,6 +1210,106 @@ def _fetch_insider_trading(
 
 
 # ---------------------------------------------------------------------------
+# Beneficial-ownership enrichment (Ultimate-tier, SC 13D / 13G)
+# ---------------------------------------------------------------------------
+_MAX_BENEFICIAL_OWNERSHIP_LOOKUPS = 30  # Cap API calls for SC 13D/G data
+_BENEFICIAL_OWNERSHIP_FRESH_DAYS = 30  # Filings within N days are "fresh"
+
+
+def _fetch_beneficial_ownership(
+    *,
+    client: FMPClient,
+    symbols: list[str],
+    today: date,
+    fresh_days: int = _BENEFICIAL_OWNERSHIP_FRESH_DAYS,
+) -> dict[str, dict[str, Any]]:
+    """Fetch SC 13D / 13G filings (5%+ stakes) per symbol.
+
+    Returns dict keyed by symbol with the most recent filing summary plus a
+    ``beneficial_owner_recent`` flag for filings inside ``fresh_days``.
+    """
+    result: dict[str, dict[str, Any]] = {}
+    cap = min(len(symbols), _MAX_BENEFICIAL_OWNERSHIP_LOOKUPS)
+    batch = [str(s).strip().upper() for s in symbols[:cap] if str(s).strip()]
+    if not batch:
+        return result
+
+    fresh_cutoff = today - timedelta(days=int(max(fresh_days, 0)))
+
+    def _single(sym: str) -> tuple[str, dict[str, Any] | None]:
+        try:
+            rows = client.get_acquisition_of_beneficial_ownership(sym)
+        except Exception as exc:
+            logger.debug("Beneficial ownership fetch failed for %s: %s", sym, exc)
+            return sym, None
+        if not rows:
+            return sym, None
+
+        def _parse_dt(val: Any) -> date | None:
+            if not val:
+                return None
+            try:
+                return date.fromisoformat(str(val)[:10])
+            except Exception:
+                return None
+
+        def _parse_pct(val: Any) -> float | None:
+            try:
+                return float(val)
+            except (TypeError, ValueError):
+                return None
+
+        sorted_rows = sorted(
+            rows,
+            key=lambda r: (_parse_dt(r.get("filingDate")) or date.min),
+            reverse=True,
+        )
+        latest = sorted_rows[0]
+        latest_date = _parse_dt(latest.get("filingDate"))
+        is_recent = latest_date is not None and latest_date >= fresh_cutoff
+        recent_filings = sum(
+            1 for r in sorted_rows
+            if (d := _parse_dt(r.get("filingDate"))) is not None and d >= fresh_cutoff
+        )
+
+        return sym, {
+            "beneficial_owner_count": len(rows),
+            "beneficial_owner_recent": is_recent,
+            "beneficial_owner_recent_count": recent_filings,
+            "beneficial_owner_latest_filer": str(
+                latest.get("nameOfReportingPerson") or ""
+            ).strip(),
+            "beneficial_owner_latest_pct": _parse_pct(latest.get("percentOfClass")),
+            "beneficial_owner_latest_date": (
+                latest_date.isoformat() if latest_date else ""
+            ),
+            "beneficial_owner_latest_url": str(latest.get("url") or "").strip(),
+        }
+
+    workers = max(1, min(5, len(batch)))
+    executor = ThreadPoolExecutor(max_workers=workers)
+    timed_out = False
+    try:
+        futs = {executor.submit(_single, s): s for s in batch}
+        try:
+            for fut in as_completed(futs, timeout=30.0):
+                sym_key = futs[fut]
+                try:
+                    _, data = fut.result()
+                    if data is not None:
+                        result[sym_key] = data
+                except Exception as exc:
+                    logger.debug("Beneficial ownership worker failed for %s: %s", sym_key, exc)
+        except FuturesTimeoutError:
+            timed_out = True
+            logger.warning("Beneficial ownership fetch timed out after 30 s; continuing with partial.")
+    finally:
+        _shutdown_executor_with_timeout_policy(executor, timed_out=timed_out)
+
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Institutional ownership enrichment (Ultimate-tier, 13F)
 # ---------------------------------------------------------------------------
 _MAX_INST_OWNERSHIP_LOOKUPS = 30  # Cap API calls for institutional data
@@ -4760,6 +4860,37 @@ def generate_open_prep_result(
         io_data = institutional_ownership.get(sym, {})
         q["inst_ownership_holders"] = io_data.get("inst_ownership_holders", 0)
         q["inst_ownership_top_holders"] = io_data.get("inst_ownership_top_holders", [])
+
+    # --- Beneficial Ownership (Ultimate-tier, SC 13D / 13G) ---
+    beneficial_ownership: dict[str, dict[str, Any]] = {}
+    try:
+        beneficial_ownership = _fetch_beneficial_ownership(
+            client=data_client,
+            symbols=symbol_list,
+            today=today,
+        )
+        if beneficial_ownership:
+            recent = sum(
+                1 for v in beneficial_ownership.values()
+                if v.get("beneficial_owner_recent")
+            )
+            logger.info(
+                "Beneficial ownership: %d symbols enriched (%d with fresh SC 13D/G)",
+                len(beneficial_ownership),
+                recent,
+            )
+    except Exception as exc:
+        logger.warning("Beneficial ownership fetch failed: %s", type(exc).__name__, exc_info=True)
+
+    # Merge beneficial ownership data into quotes
+    for q in quotes:
+        sym = str(q.get("symbol") or "").strip().upper()
+        bo = beneficial_ownership.get(sym, {})
+        q["beneficial_owner_recent"] = bool(bo.get("beneficial_owner_recent", False))
+        q["beneficial_owner_recent_count"] = bo.get("beneficial_owner_recent_count", 0)
+        q["beneficial_owner_latest_filer"] = bo.get("beneficial_owner_latest_filer", "")
+        q["beneficial_owner_latest_pct"] = bo.get("beneficial_owner_latest_pct")
+        q["beneficial_owner_latest_date"] = bo.get("beneficial_owner_latest_date", "")
 
     # --- Finnhub: Insider Sentiment + Peers + FDA Calendar (Phase 1 FREE) ---
     _progress(12, TOTAL_STAGES, "Finnhub Insider Sentiment + Peers …")
