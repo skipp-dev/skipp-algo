@@ -710,3 +710,67 @@ class TestGetTechnicalIndicator:
         c = SMCFMPClient(api_key="k")
         with patch.object(c, "_get", return_value="not-useful"):
             assert c.get_technical_indicator("AAPL", "1day", "ema") == {}
+
+
+class TestSilentFallbackLoggingLane5:
+    """Lane 5: silent provider-boundary degradations must surface in logs.
+
+    Methods that swallow ``RuntimeError`` from ``_get`` and return an
+    empty result MUST emit exactly one ``logger.warning`` per
+    (endpoint, exception-type) per process via
+    ``_log_endpoint_failure_once``.
+    """
+
+    def setup_method(self):
+        # Reset the module-level dedupe set so each test starts fresh.
+        from scripts.smc_fmp_client import _LOGGED_SILENT_FAILURES
+        _LOGGED_SILENT_FAILURES.clear()
+
+    @pytest.mark.parametrize(
+        "method_name,args,kwargs,expected_endpoint",
+        [
+            ("get_index_quote", ("^VIX",), {}, "/stable/quote"),
+            ("get_company_profile", ("AAPL",), {}, "/stable/profile"),
+            ("get_analyst_estimates", ("AAPL",), {}, "/stable/analyst-estimates"),
+            ("get_ratios_ttm", ("AAPL",), {}, "/stable/ratios-ttm"),
+            ("get_key_metrics_ttm", ("AAPL",), {}, "/stable/key-metrics-ttm"),
+            ("get_stock_latest_news", (), {}, "/stable/news/stock-latest"),
+            ("get_insider_trading", ("AAPL",), {}, "/stable/insider-trading/search"),
+            ("get_technical_indicator", ("AAPL", "1day", "ema"), {},
+             "/stable/technical-indicators/ema"),
+        ],
+    )
+    def test_method_logs_one_shot_warning_on_silent_fallback(
+        self, caplog, method_name, args, kwargs, expected_endpoint,
+    ):
+        import logging
+        c = SMCFMPClient(api_key="k")
+        with patch.object(c, "_get", side_effect=RuntimeError("boom")):
+            with caplog.at_level(logging.WARNING, logger="scripts.smc_fmp_client"):
+                getattr(c, method_name)(*args, **kwargs)
+                # Call again; warning must NOT be re-logged.
+                getattr(c, method_name)(*args, **kwargs)
+        msgs = [r.message for r in caplog.records if "degraded silently" in r.message]
+        assert len(msgs) == 1, msgs
+        assert expected_endpoint in msgs[0]
+
+    def test_treasury_yields_logs_on_failure(self, caplog):
+        import logging
+        c = SMCFMPClient(api_key="k")
+        with patch.object(c, "_get", side_effect=RuntimeError("boom")):
+            with caplog.at_level(logging.WARNING, logger="scripts.smc_fmp_client"):
+                out = c.get_treasury_yields()
+        assert out == {"2y": 0.0, "10y": 0.0, "spread": 0.0, "inverted": False}
+        assert any("/stable/treasury-rates" in r.message for r in caplog.records)
+
+    def test_institutional_holders_logs_on_failure(self, caplog):
+        import logging
+        c = SMCFMPClient(api_key="k")
+        with patch.object(c, "_get", side_effect=RuntimeError("boom")):
+            with caplog.at_level(logging.WARNING, logger="scripts.smc_fmp_client"):
+                out = c.get_institutional_holders("AAPL")
+        assert out == []
+        # The walk-back loop runs up to 4 quarters, but the dedupe means
+        # only ONE warning is emitted across all iterations.
+        msgs = [r.message for r in caplog.records if "symbol-positions-summary" in r.message]
+        assert len(msgs) == 1
