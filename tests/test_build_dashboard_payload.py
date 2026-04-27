@@ -274,3 +274,114 @@ def test_partial_join_walk_forward_plus_bootstrap_only(tmp_path: Path) -> None:
     warning_blob = "\n".join(payload["warnings"])
     for missing in ("permutation", "regime", "psr"):
         assert missing in warning_blob, f"missing warning for {missing!r}"
+
+
+def test_per_variant_gate_key_roundtrip_producer_to_consumer(tmp_path: Path) -> None:
+    """Roundtrip pin: the producer (``evaluate_track_record_gate_per_variant``
+    + ``verdict_to_dict``) and the consumer (``_per_variant_gate_status``
+    inside ``build_dashboard_payload``) must agree byte-for-byte on the
+    composite variant key ``f"{setup_type}_{symbol_group}"``.
+
+    Without this test, a future producer-side rename (e.g. dash-separator
+    or canonical lowercase) would silently make every dashboard row fall
+    back to the global gate status — losing the per-variant verdict
+    without raising. C-sprint deep-review C7 MAJOR finding.
+    """
+    import numpy as np
+
+    from scripts.track_record_gate import (
+        evaluate_track_record_gate_per_variant,
+    )
+
+    rng = np.random.default_rng(seed=0)
+    returns_a = rng.normal(0.01, 0.05, size=200).tolist()
+    returns_b = rng.normal(-0.005, 0.05, size=200).tolist()
+
+    # Producer composes the per-variant key the same way the consumer
+    # reads it: ``f"{setup_type}_{symbol_group}"``.
+    producer_keys = ["smc_breaker_btc", "smc_imbalance_eth"]
+    per_variant = evaluate_track_record_gate_per_variant(
+        returns_by_variant={
+            producer_keys[0]: returns_a,
+            producer_keys[1]: returns_b,
+        },
+        rr_target=1.0,
+        bootstrap_B=50,
+        bootstrap_seed=1,
+    )
+    track_record_gate = {
+        "status": "yellow",
+        "per_variant": per_variant,
+    }
+
+    date = "2026-04-26"
+    _write(
+        tmp_path / f"walk_forward_{date}.json",
+        {
+            "variants": [
+                {"setup_type": "smc_breaker", "symbol_group": "btc",
+                 "regime": "RISK_ON", "n_trades": 200, "wfe": 0.7},
+                {"setup_type": "smc_imbalance", "symbol_group": "eth",
+                 "regime": "RISK_OFF", "n_trades": 200, "wfe": 0.4},
+            ]
+        },
+    )
+    payload = build_dashboard_payload(
+        tmp_path, track_record_gate=track_record_gate, now=_FROZEN_NOW
+    )
+
+    # The whole point: every row must have looked up its per-variant
+    # entry, NOT silently fallen back to the global ``yellow``. A
+    # producer-side key drift would manifest here as both rows
+    # carrying ``gate_status="amber"`` (the mapped fallback).
+    assert len(payload["variants"]) == 2
+    statuses = {v["variant"]: v["gate_status"] for v in payload["variants"]}
+    assert set(statuses) == set(producer_keys), (
+        "consumer variant_key drifted from producer key format"
+    )
+    # And the actual verdicts must come from the per-variant block,
+    # i.e. either match the producer-emitted status (if it differs
+    # from global "yellow") OR — if both happen to also be yellow —
+    # carry the producer's failure list, which the global fallback
+    # never does.
+    for v in payload["variants"]:
+        producer_entry = per_variant[v["variant"]]
+        assert v["gate_failures"] == producer_entry["failures"], (
+            f"gate_failures for {v['variant']!r} did not roundtrip from "
+            "the producer; consumer fell back to global status."
+        )
+
+
+def test_per_variant_gate_key_consumer_does_not_silently_fall_back(tmp_path: Path) -> None:
+    """Negative-control: when the producer emits a different key format
+    than the consumer expects, the result must be visibly the global
+    fallback for *every* row — i.e. ``gate_failures == []``. This pins
+    the failure mode the previous test detects.
+    """
+    date = "2026-04-26"
+    _write(
+        tmp_path / f"walk_forward_{date}.json",
+        {
+            "variants": [
+                {"setup_type": "smc_breaker", "symbol_group": "btc",
+                 "regime": "RISK_ON", "n_trades": 100},
+            ]
+        },
+    )
+    # Mismatched key format (dash-separator instead of underscore).
+    track_record_gate = {
+        "status": "red",
+        "per_variant": {
+            "smc_breaker-btc": {  # WRONG SEPARATOR
+                "status": "green",
+                "failures": ["intentional"],
+            }
+        },
+    }
+    payload = build_dashboard_payload(
+        tmp_path, track_record_gate=track_record_gate, now=_FROZEN_NOW
+    )
+    v = payload["variants"][0]
+    # Visible fallback: status is the global red, failures empty.
+    assert v["gate_status"] == "red"
+    assert v["gate_failures"] == []

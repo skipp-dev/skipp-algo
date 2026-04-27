@@ -87,6 +87,55 @@ def test_alternative_greater_vs_less() -> None:
     assert p_less > 0.95
 
 
+def test_block_aligned_split_keeps_blocks_intact() -> None:
+    """C-sprint deep-review C4 MAJOR fix regression: when ``block_size > 1``
+    and ``n_t`` is not a multiple of ``block_size``, the split between
+    treatment and control must land on a block boundary so no permuted
+    block is cut mid-way. The behaviour for ``block_size == 1`` must
+    remain identical to the iid case (split at exact ``n_t``).
+    """
+    from smc_core.inference.permutation import (
+        _block_aligned_split,
+        _block_indices,
+    )
+
+    rng = np.random.default_rng(seed=7)
+    n = 100
+    block_size = 5
+    n_t = 47  # NOT a multiple of block_size — would have cut mid-block.
+
+    idx = _block_indices(n, block_size, rng)
+    permuted = np.arange(n)[idx]
+
+    t_arr, c_arr = _block_aligned_split(permuted, n_t, block_size)
+    assert t_arr.size + c_arr.size == n
+    # Treatment size snapped to nearest block boundary.
+    assert t_arr.size % block_size == 0
+    # Treatment chunk must be a contiguous prefix of the permuted seq.
+    np.testing.assert_array_equal(t_arr, permuted[: t_arr.size])
+    # block_size=1 path unchanged (exact split at n_t).
+    t1, c1 = _block_aligned_split(permuted, n_t, block_size=1)
+    assert t1.size == n_t
+    np.testing.assert_array_equal(t1, permuted[:n_t])
+    np.testing.assert_array_equal(c1, permuted[n_t:])
+
+
+def test_block_permutation_runs_with_unaligned_n_t() -> None:
+    """End-to-end: ``n_t`` not divisible by ``block_size`` must no longer
+    cut a block mid-way — the run completes and produces a valid
+    p-value distribution.
+    """
+    rng = np.random.default_rng(seed=3)
+    t = rng.normal(0.5, 1.0, size=47)  # 47 not divisible by 5.
+    c = rng.normal(0.0, 1.0, size=53)
+    p, _, null = block_permutation_test(
+        treatment=t, control=c,
+        statistic=_mean_diff, block_size=5, B=200, seed=12,
+    )
+    assert 0.0 < p <= 1.0
+    assert null.shape == (200,)
+
+
 def test_validates_inputs() -> None:
     with pytest.raises(ValueError, match="block_size"):
         block_permutation_test(

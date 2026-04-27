@@ -65,8 +65,48 @@ def _block_indices(n: int, block_size: int, rng: np.random.Generator) -> np.ndar
         seg = e - s
         out[cursor : cursor + seg] = np.arange(s, e)
         cursor += seg
-    assert cursor == n
+    if cursor != n:  # pragma: no cover - defensive: impossible by construction
+        raise RuntimeError(
+            f"_block_indices internal error: cursor={cursor} != n={n}"
+        )
     return out
+
+
+def _block_aligned_split(
+    permuted: np.ndarray, n_t: int, block_size: int
+) -> tuple[np.ndarray, np.ndarray]:
+    """Split a block-permuted index/value array into ``(treatment, control)``
+    on the closest block boundary to ``n_t``.
+
+    The C-sprint deep-review identified that the previous ``permuted[:n_t]``
+    split could cut the last treatment block mid-way whenever
+    ``n_t % block_size != 0``, breaking the autocorrelation-preserving
+    contract of moving-block permutation under H₀. We now round the
+    treatment side to a whole-block boundary so every block ends up
+    entirely in one arm. The resulting treatment size differs from the
+    original ``n_t`` by at most ``block_size // 2`` samples — negligible
+    relative to typical ``n``, and required for valid p-values when the
+    underlying series is autocorrelated.
+
+    For ``block_size == 1`` the split is exactly at ``n_t`` (no
+    behavioural change vs. the iid case).
+    """
+    if block_size <= 1:
+        return permuted[:n_t], permuted[n_t:]
+    # Snap n_t to the nearest multiple of block_size, clamped into
+    # ``[block_size, len(permuted) - block_size]`` so both arms keep at
+    # least one full block whenever the inputs themselves were big
+    # enough to span at least two blocks.
+    n = permuted.size
+    snapped = int(round(n_t / block_size)) * block_size
+    snapped = max(block_size, min(snapped, n - block_size))
+    if n < 2 * block_size:
+        # Pathological edge — fall back to the position-based split;
+        # the caller validation in :func:`block_permutation_test`
+        # already rejects ``block_size >= n`` so this only happens
+        # when ``n_t < block_size`` or ``n - n_t < block_size``.
+        snapped = n_t
+    return permuted[:snapped], permuted[snapped:]
 
 
 def block_permutation_test(
@@ -120,8 +160,12 @@ def block_permutation_test(
     for b in range(B):
         idx = _block_indices(n, block_size, rng)
         permuted = pooled[idx]
-        t_b = permuted[:n_t]
-        c_b = permuted[n_t:]
+        # C-sprint deep-review MAJOR fix: snap the split to the nearest
+        # block boundary so a block_size > 1 run never cuts a permuted
+        # block mid-way (which would violate the autocorrelation-
+        # preserving contract under H₀ and produce anti-conservative
+        # p-values for autocorrelated inputs).
+        t_b, c_b = _block_aligned_split(permuted, n_t, block_size)
         null[b] = float(statistic(t_b, c_b))
 
     if alternative == "two-sided":

@@ -374,7 +374,27 @@ def write_report(
             r.setting.key() for r in results if r.passes_acceptance
         ],
     }
-    p.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    # C-sprint deep-review C9 MINOR fix: atomic write so a CI-run that
+    # is killed mid-write never leaves a half-written sensitivity
+    # artefact that downstream tooling silently consumes. Mirrors the
+    # pattern used by ``run_drift_watchdog.write_report``.
+    import os as _os
+    import tempfile as _tempfile
+
+    serialised = json.dumps(payload, indent=2, sort_keys=True)
+    fd, tmp_str = _tempfile.mkstemp(
+        dir=str(p.parent), prefix=p.name + ".", suffix=".tmp"
+    )
+    tmp_path = Path(tmp_str)
+    try:
+        with _os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(serialised)
+            fh.flush()
+            _os.fsync(fh.fileno())
+        _os.replace(tmp_path, p)
+    except BaseException:
+        tmp_path.unlink(missing_ok=True)
+        raise
     return p
 
 
