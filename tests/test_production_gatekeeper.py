@@ -671,20 +671,24 @@ class TestWatchlistAutoAddNoneValues:
 # ═══════════════════════════════════════════════════════════════════
 
 class TestInsiderTradingSafeFloat:
-    """_fetch_insider_trading must not crash on non-numeric
-    securitiesTransacted or price (P-3 fix)."""
+    """_fetch_insider_trading must not crash on non-numeric statistics fields
+    returned from /stable/insider-trading/statistics (P-3 fix)."""
 
-    def test_non_numeric_securities_transacted(self):
-        """Arrange: securitiesTransacted='N/A'. Assert: no crash."""
+    def test_non_numeric_acquired_transactions(self):
+        """Arrange: acquiredTransactions='N/A'. Assert: no crash, treated as 0."""
         from open_prep.run_open_prep import _fetch_insider_trading
 
         mock_client = MagicMock()
-        mock_client.get_insider_trading_latest.return_value = [
+        mock_client.get_insider_trading_statistics.return_value = [
             {
                 "symbol": "TEST",
-                "transactionType": "P-Purchase",
-                "securitiesTransacted": "N/A",
-                "price": 50.0,
+                "year": 2026,
+                "quarter": 1,
+                "acquiredTransactions": "N/A",
+                "disposedTransactions": 5,
+                "totalAcquired": 0,
+                "totalDisposed": 12345.0,
+                "acquiredDisposedRatio": 0.0,
             },
         ]
 
@@ -692,19 +696,23 @@ class TestInsiderTradingSafeFloat:
             client=mock_client, symbols=["TEST"]
         )
         assert "TEST" in result
+        assert result["TEST"]["insider_buys"] == 0
         assert result["TEST"]["insider_total_bought_value"] == 0.0
 
-    def test_none_price(self):
-        """Arrange: price=None. Assert: no crash, value=0."""
+    def test_none_total_disposed(self):
+        """Arrange: totalDisposed=None. Assert: no crash, value=0."""
         from open_prep.run_open_prep import _fetch_insider_trading
 
         mock_client = MagicMock()
-        mock_client.get_insider_trading_latest.return_value = [
+        mock_client.get_insider_trading_statistics.return_value = [
             {
                 "symbol": "FOO",
-                "transactionType": "P-Purchase",
-                "securitiesTransacted": 1000,
-                "price": None,
+                "year": 2026,
+                "quarter": 1,
+                "acquiredTransactions": 3,
+                "disposedTransactions": 1,
+                "totalAcquired": 1000.0,
+                "totalDisposed": None,
             },
         ]
 
@@ -712,7 +720,95 @@ class TestInsiderTradingSafeFloat:
             client=mock_client, symbols=["FOO"]
         )
         assert "FOO" in result
-        assert result["FOO"]["insider_total_bought_value"] == 0.0
+        assert result["FOO"]["insider_total_sold_value"] == 0.0
+        assert result["FOO"]["insider_sentiment"] == "net_buy"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 14b) PR-D3: insider-statistics quarterly aggregates + acceleration
+# ═══════════════════════════════════════════════════════════════════
+
+class TestInsiderStatisticsQuarterly:
+    """_fetch_insider_trading uses /stable/insider-trading/statistics (PR-D3)."""
+
+    def test_latest_quarter_picked_when_unordered(self):
+        """API may return rows out of order — code must sort desc by (year, quarter)."""
+        from open_prep.run_open_prep import _fetch_insider_trading
+
+        mock_client = MagicMock()
+        mock_client.get_insider_trading_statistics.return_value = [
+            {"symbol": "AAPL", "year": 2025, "quarter": 4,
+             "acquiredTransactions": 2, "disposedTransactions": 50,
+             "totalAcquired": 100.0, "totalDisposed": 999.0,
+             "acquiredDisposedRatio": 0.04},
+            {"symbol": "AAPL", "year": 2026, "quarter": 1,
+             "acquiredTransactions": 10, "disposedTransactions": 3,
+             "totalAcquired": 50000.0, "totalDisposed": 1500.0,
+             "acquiredDisposedRatio": 3.33},
+        ]
+        result = _fetch_insider_trading(client=mock_client, symbols=["AAPL"])
+        row = result["AAPL"]
+        assert row["insider_buys"] == 10  # picked 2026Q1 not 2025Q4
+        assert row["insider_sells"] == 3
+        assert row["insider_sentiment"] == "net_buy"
+        assert row["insider_quarter_label"] == "2026Q1"
+        assert row["insider_acquired_disposed_ratio"] == 3.33
+        # acceleration = current_quarter (10) - prev_quarter (2) = 8
+        assert row["insider_buying_acceleration"] == 8
+
+    def test_single_quarter_no_acceleration(self):
+        from open_prep.run_open_prep import _fetch_insider_trading
+
+        mock_client = MagicMock()
+        mock_client.get_insider_trading_statistics.return_value = [
+            {"symbol": "TSLA", "year": 2026, "quarter": 1,
+             "acquiredTransactions": 5, "disposedTransactions": 5,
+             "totalAcquired": 1000.0, "totalDisposed": 1000.0,
+             "acquiredDisposedRatio": 1.0},
+        ]
+        result = _fetch_insider_trading(client=mock_client, symbols=["TSLA"])
+        row = result["TSLA"]
+        assert row["insider_sentiment"] == "neutral"
+        assert row["insider_buying_acceleration"] == 5  # vs implicit 0 prev
+
+    def test_universe_filter_caps_lookups(self):
+        """Only first _MAX_INSIDER_STATS_LOOKUPS symbols are fetched."""
+        from open_prep.run_open_prep import (
+            _MAX_INSIDER_STATS_LOOKUPS,
+            _fetch_insider_trading,
+        )
+
+        mock_client = MagicMock()
+        mock_client.get_insider_trading_statistics.return_value = []
+        many = [f"SYM{i}" for i in range(_MAX_INSIDER_STATS_LOOKUPS + 10)]
+        _fetch_insider_trading(client=mock_client, symbols=many)
+        assert mock_client.get_insider_trading_statistics.call_count == _MAX_INSIDER_STATS_LOOKUPS
+
+    def test_per_symbol_failure_isolated(self):
+        """One symbol failing must not poison the rest."""
+        from open_prep.run_open_prep import _fetch_insider_trading
+
+        def side_effect(sym):
+            if sym == "BAD":
+                raise RuntimeError("boom")
+            return [{"symbol": sym, "year": 2026, "quarter": 1,
+                     "acquiredTransactions": 1, "disposedTransactions": 0,
+                     "totalAcquired": 100.0, "totalDisposed": 0.0,
+                     "acquiredDisposedRatio": None}]
+
+        mock_client = MagicMock()
+        mock_client.get_insider_trading_statistics.side_effect = side_effect
+        result = _fetch_insider_trading(client=mock_client, symbols=["AAPL", "BAD", "NVDA"])
+        assert "AAPL" in result and "NVDA" in result
+        assert "BAD" not in result
+
+    def test_empty_universe_short_circuits(self):
+        from open_prep.run_open_prep import _fetch_insider_trading
+
+        mock_client = MagicMock()
+        result = _fetch_insider_trading(client=mock_client, symbols=[])
+        assert result == {}
+        mock_client.get_insider_trading_statistics.assert_not_called()
 
 
 # ═══════════════════════════════════════════════════════════════════
