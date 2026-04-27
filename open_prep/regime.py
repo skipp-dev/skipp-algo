@@ -50,9 +50,14 @@ class RegimeSnapshot:
     lagging_sectors: list[str]
     weight_adjustments: dict[str, float]  # multiplier per score component
     reasons: list[str]
+    # Optional CNN equity Fear & Greed snapshot (see
+    # ``open_prep.sentiment_fng.fetch_cnn_equity_fear_greed``). Plumbed
+    # through the snapshot for C5 sentiment-regime stratification — does
+    # NOT alter regime classification or weight adjustments today.
+    fear_greed: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        out: dict[str, Any] = {
             "regime": self.regime,
             "vix_level": self.vix_level,
             "macro_bias": round(self.macro_bias, 4),
@@ -62,6 +67,9 @@ class RegimeSnapshot:
             "weight_adjustments": {k: round(v, 4) for k, v in self.weight_adjustments.items()},
             "reasons": self.reasons,
         }
+        if self.fear_greed is not None:
+            out["fear_greed"] = dict(self.fear_greed)
+        return out
 
 
 # ---------------------------------------------------------------------------
@@ -128,6 +136,7 @@ def classify_regime(
     macro_bias: float,
     vix_level: float | None = None,
     sector_performance: list[dict[str, Any]] | None = None,
+    fear_greed: dict[str, Any] | None = None,
 ) -> RegimeSnapshot:
     """Classify the current market regime.
 
@@ -213,6 +222,21 @@ def classify_regime(
 
         _prev_regime = regime
 
+    # --- Optional sentiment annotation (no behavioural effect) ---
+    # We attach the CNN equity F&G snapshot to the result and add a
+    # human-readable reason. C5 stratification can later use this field
+    # to bucket trades by sentiment regime; deliberately NOT used to
+    # override the VIX/macro/breadth regime here.
+    fng_payload: dict[str, Any] | None = None
+    if isinstance(fear_greed, dict):
+        raw_value = fear_greed.get("value")
+        if isinstance(raw_value, (int, float)) and not isinstance(raw_value, bool):
+            value_f = float(raw_value)
+            if 0.0 <= value_f <= 100.0:
+                fng_payload = dict(fear_greed)
+                label = fear_greed.get("label") or "?"
+                reasons.append(f"F&G={value_f:.0f} ({label}) [annotation only]")
+
     return RegimeSnapshot(
         regime=regime,
         vix_level=vix,
@@ -222,6 +246,7 @@ def classify_regime(
         lagging_sectors=lagging,
         weight_adjustments=adj_map.get(regime, {}),
         reasons=reasons,
+        fear_greed=fng_payload,
     )
 
 
