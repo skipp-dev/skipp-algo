@@ -5,9 +5,13 @@
 
 set -euo pipefail
 
-REPO="/Users/steffenpreuss/Downloads/skipp-algo"
-VENV="/Users/steffenpreuss/.venv"
-WATCHLIST="${REPO}/reports/databento_watchlist_top5_pre1530.csv"
+# Derive REPO from this script's location so the driver is portable across
+# workstations without editing the tracked file. VENV / WATCHLIST can be
+# overridden via environment variables (set in the LaunchAgent plist's
+# ``EnvironmentVariables`` block).
+REPO="$(cd "$(dirname "$0")/../.." && pwd)"
+VENV="${C13_VENV:-${HOME}/.venv}"
+WATCHLIST="${C13_WATCHLIST:-${REPO}/reports/databento_watchlist_top5_pre1530.csv}"
 WINDOW_DAYS=14
 
 DATE="$(date -u +%Y-%m-%d)"

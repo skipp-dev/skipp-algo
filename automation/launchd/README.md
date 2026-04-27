@@ -19,22 +19,39 @@ with each other.
 
 ## Install
 
-```bash
-# 1. Edit run-c13-imbalance.sh / run-c13-wsh.sh and set REPO + VENV paths.
-# 2. Copy plists into the per-user LaunchAgents directory.
-cp automation/launchd/com.skippalgo.c13.*.plist ~/Library/LaunchAgents/
+The driver scripts (`run-c13-imbalance.sh`, `run-c13-wsh.sh`) derive the
+repo path from their own location, so no editing is needed there. The
+plists carry a `__REPO_PATH__` placeholder in `ProgramArguments` that
+must be substituted with your absolute checkout path before installing
+into `~/Library/LaunchAgents/` (the placeholder keeps the tracked plist
+files portable across workstations).
 
-# 3. Bootstrap into the user's launchd domain.
+Override `C13_VENV` (default: `$HOME/.venv`) and `C13_WATCHLIST`
+(default: `<REPO>/reports/databento_watchlist_top5_pre1530.csv`) via
+the plist's `EnvironmentVariables` block if your local layout differs.
+
+```bash
+REPO="$(pwd)"   # run from the repo root
+
+# 1. Substitute the placeholder and copy plists into the per-user
+#    LaunchAgents directory.
+for label in collect-imbalance wsh-earnings; do
+    sed "s|__REPO_PATH__|${REPO}|g" \
+        "automation/launchd/com.skippalgo.c13.${label}.plist" \
+        > "${HOME}/Library/LaunchAgents/com.skippalgo.c13.${label}.plist"
+done
+
+# 2. Bootstrap into the user's launchd domain.
 launchctl bootstrap "gui/$(id -u)" \
     ~/Library/LaunchAgents/com.skippalgo.c13.collect-imbalance.plist
 launchctl bootstrap "gui/$(id -u)" \
     ~/Library/LaunchAgents/com.skippalgo.c13.wsh-earnings.plist
 
-# 4. Verify they are loaded.
+# 3. Verify they are loaded.
 launchctl print "gui/$(id -u)/com.skippalgo.c13.collect-imbalance" | head
 launchctl print "gui/$(id -u)/com.skippalgo.c13.wsh-earnings"      | head
 
-# 5. Trigger a one-shot run to validate end-to-end (writes log under /tmp).
+# 4. Trigger a one-shot run to validate end-to-end (writes log under /tmp).
 launchctl kickstart -k "gui/$(id -u)/com.skippalgo.c13.collect-imbalance"
 ```
 

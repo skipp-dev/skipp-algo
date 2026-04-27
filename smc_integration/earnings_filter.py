@@ -279,6 +279,10 @@ class EarningsFilter:
     def _build_index(self) -> dict[str, list[dict[str, Any]]]:
         idx: dict[str, list[dict[str, Any]]] = {}
         if self._events_path is None or not self._events_path.exists():
+            # Honour the docstring contract: missing JSONL must downgrade
+            # to ``WSH_DATA_MISSING`` (Phase A must not silently treat
+            # "no file" as "no earnings event").
+            self._data_available = False
             return idx
         try:
             events = _read_jsonl(self._events_path)
