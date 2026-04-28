@@ -59,7 +59,10 @@ def test_reconnect_failure_logs_with_exc_info(caplog: pytest.LogCaptureFixture) 
     # Patch sleep to keep the test fast.
     with patch("newsstack_fmp.store_sqlite.time.sleep", lambda *_: None):
         dummy = _Dummy(sqlite3.ProgrammingError, reconnect_raises=PermissionError)
-        with pytest.raises(sqlite3.ProgrammingError):
+        # On final attempt the reconnect failure is re-raised directly,
+        # bubbling up as PermissionError (the original ProgrammingError is
+        # already being handled when the reconnect raises).
+        with pytest.raises(PermissionError):
             dummy._fn()
 
     error_records = [r for r in caplog.records if r.levelno == logging.ERROR and "_reconnect failed" in r.getMessage()]

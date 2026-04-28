@@ -73,7 +73,7 @@ def _retry_on_locked(fn):
                 try:
                     self._reconnect()
                 except Exception as re_exc:
-                    logger.error("_reconnect failed: %s", re_exc)
+                    logger.error("_reconnect failed: %s", re_exc, exc_info=True)
                     if attempt >= _MAX_RETRIES - 1:
                         raise
                 if attempt < _MAX_RETRIES - 1:
@@ -87,6 +87,7 @@ def _retry_on_locked(fn):
                 logger.error(
                     "SQLite OperationalError after %d retries in %s",
                     _MAX_RETRIES, fn.__name__,
+                    exc_info=True,
                 )
                 raise
     return wrapper
