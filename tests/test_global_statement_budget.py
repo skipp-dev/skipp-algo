@@ -77,17 +77,17 @@ def _all_sites() -> list[tuple[str, int, tuple[str, ...]]]:
 # adding a new global to an already-ledgered line).
 _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
     {
-        ("databento_reference.py", 111, ("_STATE_CACHE_MTIME", "_STATE_CACHE_PATH", "_STATE_CACHE_VALUE")),
-        ("databento_reference.py", 118, ("_STATE_CACHE_MTIME", "_STATE_CACHE_PATH", "_STATE_CACHE_VALUE")),
-        ("newsstack_fmp/pipeline.py", 47, ("_store",)),
-        ("newsstack_fmp/pipeline.py", 57, ("_fmp_adapter",)),
-        ("newsstack_fmp/pipeline.py", 66, ("_bz_rest_adapter",)),
-        ("newsstack_fmp/pipeline.py", 76, ("_bz_ws_adapter",)),
-        ("newsstack_fmp/pipeline.py", 91, ("_enricher",)),
-        ("newsstack_fmp/pipeline.py", 710, ("_last_meta",)),
+        ("databento_reference.py", 113, ("_STATE_CACHE_MTIME", "_STATE_CACHE_PATH", "_STATE_CACHE_VALUE")),
+        ("databento_reference.py", 121, ("_STATE_CACHE_MTIME", "_STATE_CACHE_PATH", "_STATE_CACHE_VALUE")),
+        ("newsstack_fmp/pipeline.py", 48, ("_store",)),
+        ("newsstack_fmp/pipeline.py", 58, ("_fmp_adapter",)),
+        ("newsstack_fmp/pipeline.py", 67, ("_bz_rest_adapter",)),
+        ("newsstack_fmp/pipeline.py", 77, ("_bz_ws_adapter",)),
+        ("newsstack_fmp/pipeline.py", 92, ("_enricher",)),
+        ("newsstack_fmp/pipeline.py", 740, ("_last_meta",)),
         (
             "newsstack_fmp/pipeline.py",
-            776,
+            808,
             ("_bz_rest_adapter", "_bz_ws_adapter", "_enricher", "_fmp_adapter", "_last_meta", "_store"),
         ),
         ("open_prep/regime.py", 129, ("_prev_regime",)),
