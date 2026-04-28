@@ -59,7 +59,9 @@ _FROZEN_BARE_TYPE_IGNORE_SITES: frozenset[tuple[str, int]] = frozenset(
         ("rl/agents/ppo_slicer.py", 28),
         ("rl/agents/sac_sizer.py", 23),
         ("rl/agents/sac_sizer.py", 27),
-        ("newsstack_fmp/_bz_http.py", 137),
+        # Was 137 before PR #382 (Copilot review fixes); shifted to 156
+        # by the explicit ``mark_endpoint_disabled(label)`` block + comment.
+        ("newsstack_fmp/_bz_http.py", 156),
         ("terminal_bitcoin.py", 310),
         ("terminal_bitcoin.py", 394),
         ("terminal_bitcoin.py", 477),

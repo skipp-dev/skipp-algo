@@ -89,6 +89,10 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
     {
         ("newsstack_fmp/ingest_benzinga.py", 196),
         ("newsstack_fmp/ingest_benzinga.py", 207),
+        # PR #367: dedicated ``_sleep`` test seam exposed at module level
+        # in newsstack_fmp/_bz_http.py so jitter tests can monkeypatch a
+        # single attribute. The body is literally ``time.sleep(seconds)``.
+        ("newsstack_fmp/_bz_http.py", 43),
         ("newsstack_fmp/ingest_fmp.py", 132),
         ("newsstack_fmp/ingest_fmp.py", 150),
         ("newsstack_fmp/pipeline.py", 857),
@@ -105,8 +109,10 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/realtime_signals.py", 1593),
         ("open_prep/realtime_signals.py", 2694),
         ("open_prep/realtime_signals.py", 2707),
-        ("open_prep/run_open_prep.py", 1941),
-        ("open_prep/run_open_prep.py", 1943),
+        # Was 1941/1943 before PR #366 (F401 sweep adjusted module head
+        # by +1 line). Same rate-limit block (3 calls/symbol throttle).
+        ("open_prep/run_open_prep.py", 1942),
+        ("open_prep/run_open_prep.py", 1944),
         ("terminal_bitcoin.py", 864),
         ("terminal_bitcoin.py", 866),
         ("terminal_technicals.py", 287),

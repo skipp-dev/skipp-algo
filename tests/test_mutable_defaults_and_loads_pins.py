@@ -165,7 +165,11 @@ _FROZEN_ENV_SUBSCRIPT_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/macro.py", 142),
         ("open_prep/realtime_signals.py", 2613),
         ("open_prep/streamlit_monitor.py", 74),
-        ("streamlit_terminal.py", 327),
+        # Was 327 before PR #382 (Copilot review fixes); shifted to 325
+        # — the trailing ``except Exception`` block grew an explicit
+        # ``logging.getLogger(__name__).debug(..., exc_info=True)`` line.
+        # The actual ``os.environ[key] = str(secrets[key])`` write is at 325.
+        ("streamlit_terminal.py", 325),
     }
 )
 
