@@ -1002,7 +1002,7 @@ class TestStructureArtifactJson:
 
         with patch.object(mod, "STRUCTURE_ARTIFACTS_DIR", artifacts_dir), \
              patch.object(mod, "REPO_ROOT", tmp_path):
-            paths, issues = mod._iter_manifest_artifacts()
+            _paths, issues = mod._iter_manifest_artifacts()
 
         assert len(issues) == 1
         assert issues[0]["code"] == "INVALID_MANIFEST_JSON"
@@ -1016,7 +1016,7 @@ class TestStructureArtifactJson:
 
         with patch.object(mod, "STRUCTURE_ARTIFACTS_DIR", artifacts_dir), \
              patch.object(mod, "REPO_ROOT", tmp_path):
-            paths, issues = mod._iter_manifest_artifacts()
+            _paths, issues = mod._iter_manifest_artifacts()
 
         assert len(issues) == 1
         assert issues[0]["code"] == "INVALID_MANIFEST_SHAPE"
@@ -1031,7 +1031,7 @@ class TestStructureArtifactJson:
 
         with patch.object(mod, "STRUCTURE_ARTIFACTS_DIR", artifacts_dir), \
              patch.object(mod, "REPO_ROOT", tmp_path):
-            paths, issues = mod._iter_manifest_artifacts()
+            _paths, issues = mod._iter_manifest_artifacts()
 
         assert any(i["code"] == "MISSING_ARTIFACT_PATH" for i in issues)
 
@@ -1142,7 +1142,7 @@ class TestStructureArtifactJson:
         with patch.object(mod, "STRUCTURE_ARTIFACTS_DIR", artifacts_dir), \
              patch.object(mod, "STRUCTURE_ARTIFACT_JSON", tmp_path / "nope.json"), \
              patch.object(mod, "REPO_ROOT", tmp_path):
-            paths, issues = mod._iter_manifest_artifacts()
+            paths, _issues = mod._iter_manifest_artifacts()
 
         assert len(paths) == 1
         assert paths[0].name == "AAPL_15m.structure.json"
@@ -1166,7 +1166,7 @@ class TestStructureArtifactJson:
 
         with patch.object(mod, "STRUCTURE_ARTIFACTS_DIR", artifacts_dir), \
              patch.object(mod, "REPO_ROOT", tmp_path):
-            paths, issues = mod._iter_manifest_artifacts()
+            paths, _issues = mod._iter_manifest_artifacts()
 
         # No valid artifact paths — non-dict and empty path both skipped
         assert paths == []
@@ -1181,7 +1181,7 @@ class TestStructureArtifactJson:
         with patch.object(mod, "STRUCTURE_ARTIFACTS_DIR", artifacts_dir), \
              patch.object(mod, "STRUCTURE_ARTIFACT_JSON", tmp_path / "nope.json"), \
              patch.object(mod, "REPO_ROOT", tmp_path):
-            paths, issues = mod._iter_manifest_artifacts()
+            paths, _issues = mod._iter_manifest_artifacts()
 
         # manifests exist but have no artifacts → return empty (no deterministic fallback)
         assert paths == []
@@ -1204,7 +1204,7 @@ class TestStructureArtifactJson:
         with patch.object(mod, "STRUCTURE_ARTIFACTS_DIR", artifacts_dir), \
              patch.object(mod, "STRUCTURE_ARTIFACT_JSON", tmp_path / "nope.json"), \
              patch.object(mod, "REPO_ROOT", tmp_path):
-            contracts, issues = mod._iter_normalized_contracts()
+            contracts, _issues = mod._iter_normalized_contracts()
 
         assert len(contracts) >= 1
 
@@ -1240,7 +1240,7 @@ class TestStructureArtifactJson:
         with patch.object(mod, "STRUCTURE_ARTIFACTS_DIR", tmp_path / "nope"), \
              patch.object(mod, "STRUCTURE_ARTIFACT_JSON", legacy), \
              patch.object(mod, "REPO_ROOT", tmp_path):
-            contracts, issues = mod._iter_normalized_contracts()
+            contracts, _issues = mod._iter_normalized_contracts()
 
         assert len(contracts) >= 1
 

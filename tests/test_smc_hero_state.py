@@ -238,7 +238,7 @@ class TestHeroSetupQualityVocabularyPins:
         from scripts.smc_hero_action import _ACTION_TABLE
         from scripts.smc_hero_state import HERO_QUALITY_A_TO_B
 
-        producer_b_domain = {quality for (_deg, quality) in _ACTION_TABLE.keys()}
+        producer_b_domain = {quality for (_deg, quality) in _ACTION_TABLE}
         assert set(HERO_QUALITY_A_TO_B.values()) == producer_b_domain
 
 

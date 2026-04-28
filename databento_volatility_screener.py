@@ -2229,7 +2229,7 @@ def _build_open_window_aggregates(
     tz = resolve_display_timezone(display_timezone)
     regular_open_by_day = {
         trade_day: pd.Timestamp(datetime.combine(trade_day, reference_open_et, tzinfo=US_EASTERN_TZ).astimezone(tz))
-        for trade_day in windows.keys()
+        for trade_day in windows
     }
 
     metrics: list[dict[str, Any]] = []

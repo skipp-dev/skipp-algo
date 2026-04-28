@@ -314,7 +314,7 @@ def summarize_structure_contracts(contracts: list[NormalizedStructureContract]) 
 
         for key in AUXILIARY_KEYS:
             value = contract.auxiliary.get(key)
-            if isinstance(value, list) and value or isinstance(value, dict) and value:
+            if (isinstance(value, list) and value) or (isinstance(value, dict) and value):
                 auxiliary_categories[key] = True
 
         if contract.structure_profile_used:

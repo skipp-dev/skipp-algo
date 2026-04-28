@@ -1876,7 +1876,7 @@ class RealtimeEngine:
                     logger.debug(
                         "%s RSI %.1f > 70 overbought — SHORT upgrade A1→A0", symbol, tech_rsi,
                     )
-                elif tech_rsi > 70 and level == "A2" or tech_rsi < 30 and level == "A0":
+                elif (tech_rsi > 70 and level == "A2") or (tech_rsi < 30 and level == "A0"):
                     level = "A1"
 
         # Technical consensus confirmation (non-RSI)

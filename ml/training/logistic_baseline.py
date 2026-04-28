@@ -45,7 +45,7 @@ class LogisticBaseline(BaseFamilyTrainer):
 
     def _fit_one(self, X: np.ndarray, y: np.ndarray) -> Any:
         rng = np.random.default_rng(self.seed)
-        n, d = X.shape
+        n, _d = X.shape
         # Standardise (mean/std persisted in payload).
         mean = X.mean(axis=0)
         std = X.std(axis=0)

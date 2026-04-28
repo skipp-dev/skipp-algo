@@ -3484,7 +3484,7 @@ def test_has_open_window_detail_ors_open_and_regular_rows() -> None:
         }
     )
 
-    features, coverage = build_daily_features_full_universe(
+    features, _coverage = build_daily_features_full_universe(
         trading_days=trading_days,
         universe=universe,
         daily_bars=daily_bars,
@@ -6149,7 +6149,7 @@ def test_quality_window_signal_vwap_uses_dollar_volume_directly() -> None:
         "prev_close_to_premarket_pct": [2.0],
         "premarket_to_open_pct": [0.0],
     })
-    status, candidate_exports = _compute_quality_window_signal(
+    _status, candidate_exports = _compute_quality_window_signal(
         detail,
         daily_features=daily,
         premarket_features=premarket,

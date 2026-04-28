@@ -491,7 +491,7 @@ def _normalize_contextual_calibration(raw: Any) -> dict[str, Any]:
             "dimensions": {},
         }
 
-    dimensions_present = sorted(str(key) for key in raw.keys())
+    dimensions_present = sorted(str(key) for key in raw)
     improved_dimensions: list[str] = []
     best_dimension_by_adjusted_brier = None
     best_dimension_by_adjusted_ece = None

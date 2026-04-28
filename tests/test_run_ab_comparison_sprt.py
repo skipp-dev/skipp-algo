@@ -27,14 +27,14 @@ def test_terminal_decision_accepts_h1_on_strong_aggregate() -> None:
 
 def test_terminal_decision_accepts_h0_on_low_hit_rate() -> None:
     cfg = SPRTConfig(p0=0.5, p1=0.6, alpha=0.05, beta=0.20)
-    state, decision = terminal_decision(n=500, k=200, config=cfg)
+    _state, decision = terminal_decision(n=500, k=200, config=cfg)
     assert decision == "accept_h0"
 
 
 def test_terminal_decision_max_n_when_inconclusive() -> None:
     cfg = SPRTConfig(p0=0.5, p1=0.6, alpha=0.05, beta=0.20)
     # Hit-rate exactly midway — LLR will straddle bounds.
-    state, decision = terminal_decision(n=20, k=11, config=cfg)
+    _state, decision = terminal_decision(n=20, k=11, config=cfg)
     assert decision == "inconclusive"
 
 
