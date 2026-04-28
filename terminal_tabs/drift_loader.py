@@ -16,13 +16,20 @@ from typing import Any
 
 __all__ = [
     "DRIFT_FILENAME_PATTERN",
-    "DRIFT_SCHEMA_MIN_COMPATIBLE",
+    "DRIFT_HISTORY_DEFAULT_N",
     "DRIFT_SCHEMA_MAX_COMPATIBLE_MAJOR",
+    "DRIFT_SCHEMA_MIN_COMPATIBLE",
     "DriftSchemaError",
     "list_drift_dates",
     "load_drift_artifact",
+    "load_recent_drift_artifacts",
     "resolve_drift_path",
 ]
+
+# C13/T2 — history-window default for the Streamlit dashboard.
+# The plan calls for "die letzten 7 Drift-Reports"; the loader exposes
+# the constant so the dashboard, tests, and CI all agree on the cap.
+DRIFT_HISTORY_DEFAULT_N = 7
 
 # `drift_<YYYY-MM-DD>.json`
 DRIFT_FILENAME_PATTERN = re.compile(r"^drift_(\d{4}-\d{2}-\d{2})\.json$")
@@ -163,6 +170,44 @@ def load_drift_artifact(
     return data
 
 
+def load_recent_drift_artifacts(
+    cache_dir: Path | str,
+    *,
+    n: int = DRIFT_HISTORY_DEFAULT_N,
+) -> list[dict[str, Any]]:
+    """Return up to ``n`` newest drift artifacts as a list, newest-first.
+
+    C13/T2 — backs the dashboard's "letzten 7 Drift-Reports" panel and
+    any external consumer that needs a rolling window. Each item is the
+    parsed JSON dict augmented with an ``as_of_date`` key so the caller
+    can render history without re-parsing the filename.
+
+    Artifacts that fail to load (missing/corrupt/incompatible schema)
+    are silently skipped — the dashboard already renders a "no data"
+    panel for absent days, and a single bad file must not break the
+    rest of the window.
+    """
+    if n < 0:
+        raise ValueError(f"n must be non-negative, got {n}")
+    if n == 0:
+        return []
+    dates = list_drift_dates(cache_dir)
+    if not dates:
+        return []
+    out: list[dict[str, Any]] = []
+    for date_str in reversed(dates):  # newest-first
+        payload = load_drift_artifact(cache_dir, as_of_date=date_str)
+        if payload is None:
+            continue
+        # Don't mutate the cached dict; layer a shallow copy with the date.
+        item = dict(payload)
+        item["as_of_date"] = date_str
+        out.append(item)
+        if len(out) >= n:
+            break
+    return out
+
+
 def _filter_excluded_variants(
     payload: dict[str, Any] | None,
     *,
@@ -176,7 +221,5 @@ def _filter_excluded_variants(
     if not isinstance(variants, list):
         return payload
     payload = dict(payload)
-    payload["variants"] = [
-        v for v in variants if str(v.get("variant")) not in block
-    ]
+    payload["variants"] = [v for v in variants if str(v.get("variant")) not in block]
     return payload
