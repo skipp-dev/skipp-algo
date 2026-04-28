@@ -122,9 +122,7 @@ def _is_allowed_referrer(path: Path) -> bool:
         return True
     if rel.parts and rel.parts[0] == "pine" and len(rel.parts) >= 2 and rel.parts[1] == "legacy":
         return True
-    if path.name in _REFERENCE_ALLOWLIST_NAMES:
-        return True
-    return False
+    return path.name in _REFERENCE_ALLOWLIST_NAMES
 
 
 def _candidate_files() -> list[Path]:

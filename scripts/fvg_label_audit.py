@@ -227,7 +227,7 @@ def _fvg_context_breakdown(kpis: list[dict[str, Any]]) -> dict[str, dict[str, An
         context[bucket]["n_events"] += n
         context[bucket]["hits"] += round(float(kpi.get("hit_rate", 0.0) or 0.0) * n)
 
-    for bucket, stats in context.items():
+    for _bucket, stats in context.items():
         stats["hit_rate"] = round(
             stats["hits"] / stats["n_events"], 4
         ) if stats["n_events"] > 0 else 0.0

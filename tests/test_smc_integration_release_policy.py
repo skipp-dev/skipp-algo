@@ -991,7 +991,7 @@ class TestValidateGovernanceRegistryErrors:
         )
         import smc_integration.release_policy as rp_mod
         from smc_integration.release_policy import GATE_GOVERNANCE_REGISTRY
-        extended = GATE_GOVERNANCE_REGISTRY + (dup_entry,)
+        extended = (*GATE_GOVERNANCE_REGISTRY, dup_entry)
         monkeypatch.setattr(rp_mod, "GATE_GOVERNANCE_REGISTRY", extended)
         errors = validate_gate_governance_registry()
         assert any("duplicate" in e for e in errors)

@@ -79,9 +79,7 @@ def _is_to_datetime_call(node: ast.AST) -> bool:
     func = node.func
     if isinstance(func, ast.Attribute) and func.attr == "to_datetime":
         return True
-    if isinstance(func, ast.Name) and func.id == "to_datetime":
-        return True
-    return False
+    return bool(isinstance(func, ast.Name) and func.id == "to_datetime")
 
 
 def _first_arg_subscript_key(call: ast.Call) -> str | None:

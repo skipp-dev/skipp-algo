@@ -79,10 +79,7 @@ def _strip_inline_comment(line: str) -> str:
 def _contains_ordered_code_block(haystack: list[str], needle: list[str]) -> bool:
     if not needle:
         return False
-    for start in range(0, len(haystack) - len(needle) + 1):
-        if haystack[start : start + len(needle)] == needle:
-            return True
-    return False
+    return any(haystack[start:start + len(needle)] == needle for start in range(0, len(haystack) - len(needle) + 1))
 
 
 def _count_ordered_code_block_occurrences(haystack: list[str], needle: list[str]) -> int:

@@ -262,14 +262,7 @@ def _is_core_failure_code(code: str) -> bool:
         return True
     if "SMOKE" in upper:
         return True
-    if upper in {
-        "BUNDLE_BUILD_FAILED",
-        "REFRESH_EXECUTION_FAILED",
-        "REFRESH_INCOMPLETE_REFERENCE_SET",
-        "REFRESH_MANIFEST_ERRORS",
-    }:
-        return True
-    return False
+    return upper in {"BUNDLE_BUILD_FAILED", "REFRESH_EXECUTION_FAILED", "REFRESH_INCOMPLETE_REFERENCE_SET", "REFRESH_MANIFEST_ERRORS"}
 
 
 def _measurement_gate_row(report: dict[str, Any]) -> dict[str, Any] | None:

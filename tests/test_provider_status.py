@@ -99,7 +99,7 @@ class TestLatencyMetrics:
 
     def test_p95_latency(self) -> None:
         t = ProviderTracker()
-        for i in range(10):
+        for _i in range(10):
             t.record_success("svc", latency_s=0.01)
         # Several slow calls so they land above the 95th percentile index
         for _ in range(3):

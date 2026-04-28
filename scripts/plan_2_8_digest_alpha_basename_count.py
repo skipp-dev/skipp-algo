@@ -19,10 +19,7 @@ from typing import Any
 def _is_alpha(stem: str) -> bool:
     if not stem:
         return False
-    for c in stem:
-        if not (("A" <= c <= "Z") or ("a" <= c <= "z")):
-            return False
-    return True
+    return all("A" <= c <= "Z" or "a" <= c <= "z" for c in stem)
 
 
 def build(root: Path) -> dict[str, Any]:

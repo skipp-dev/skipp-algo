@@ -351,7 +351,7 @@ def _try_exchanges(symbol: str, interval_val: str) -> Any | None:
     exchanges = ("NASDAQ", "NYSE", "AMEX")
     if cached_exchange:
         # Try cached exchange first, then fall through to the others
-        exchanges = (cached_exchange,) + tuple(e for e in exchanges if e != cached_exchange)
+        exchanges = (cached_exchange, *tuple(e for e in exchanges if e != cached_exchange))
     for exchange in exchanges:
         try:
             _tv_throttle()  # enforces spacing + raises on cooldown

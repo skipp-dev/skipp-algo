@@ -93,10 +93,7 @@ def _snapshot_mentions_symbol(payload: dict[str, Any], symbol: str) -> bool:
         if wanted in normalized_symbols:
             return True
 
-    for story in _extract_stories(payload):
-        if wanted in _story_tickers(story):
-            return True
-    return False
+    return any(wanted in _story_tickers(story) for story in _extract_stories(payload))
 
 
 def _score_for_symbol(scored_payload: dict[str, Any], symbol: str) -> float | None:

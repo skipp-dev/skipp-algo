@@ -277,9 +277,7 @@ def has_any_structure_artifact() -> bool:
         return False
     if any(STRUCTURE_ARTIFACTS_DIR.glob("manifest_*.json")):
         return True
-    if any(STRUCTURE_ARTIFACTS_DIR.glob("*.structure.json")):
-        return True
-    return False
+    return bool(any(STRUCTURE_ARTIFACTS_DIR.glob("*.structure.json")))
 
 
 def _iter_manifest_artifacts(*, repo_state_only: bool = False) -> tuple[list[Path], list[dict[str, Any]]]:

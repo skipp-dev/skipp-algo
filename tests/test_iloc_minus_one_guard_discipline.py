@@ -86,7 +86,7 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         ("scripts/smc_range_profile_regime.py", 278),
         # scripts/databento_preopen_fast.py — premarket "last" close
         # snapshot from already-closed pre-market session window.
-        ("scripts/databento_preopen_fast.py", 416),
+        ("scripts/databento_preopen_fast.py", 428),
         # scripts/databento_production_export.py — same premarket "last"
         # snapshot, production export path.
         ("scripts/databento_production_export.py", 2301),
@@ -135,10 +135,7 @@ def _is_iloc_minus_one(node: ast.AST) -> bool:
 def _has_nearby_exempt(lines: list[str], lineno: int) -> bool:
     start = max(1, lineno - _EXEMPT_PROXIMITY)
     end = min(len(lines), lineno + _EXEMPT_PROXIMITY)
-    for ln in range(start, end + 1):
-        if _EXEMPT_MARKER in lines[ln - 1]:
-            return True
-    return False
+    return any(_EXEMPT_MARKER in lines[ln - 1] for ln in range(start, end + 1))
 
 
 def _module_uses_guard(tree: ast.Module) -> bool:

@@ -175,7 +175,7 @@ def _recent_scope_symbol_counts(
 ) -> dict[int, int]:
     normalized = _normalize_trade_date(daily_features)
     normalized = normalized[normalized["symbol"].astype(str).ne("")].copy()
-    selected = normalized[normalized[selection_column] == True].copy()
+    selected = normalized[normalized[selection_column]].copy()
     if selected.empty:
         return {int(days): 0 for days in FAST_SCOPE_CALIBRATION_DAYS}
     completed_days = sorted(selected["trade_date"].dropna().unique().tolist())
@@ -219,7 +219,7 @@ def _choose_scope_days(
 
     normalized = _normalize_trade_date(daily_features)
     normalized = normalized[normalized["symbol"].astype(str).ne("")].copy()
-    selected = normalized[normalized[selection_column] == True].copy()
+    selected = normalized[normalized[selection_column]].copy()
     if selected.empty:
         return min_scope_days, 0
 
@@ -255,7 +255,7 @@ def _select_recent_scope_symbols(
     if normalized.empty:
         return normalized.iloc[0:0].copy()
 
-    selected = normalized[normalized[selection_column] == True].copy()
+    selected = normalized[normalized[selection_column]].copy()
     if selected.empty:
         return normalized.iloc[0:0].copy()
 

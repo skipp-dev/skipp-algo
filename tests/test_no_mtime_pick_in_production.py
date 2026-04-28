@@ -47,10 +47,7 @@ _MTIME_TOKEN_RE = re.compile(r"\b(st_mtime|getmtime)\b")
 def _has_marker(source_lines: list[str], lineno: int) -> bool:
     start = max(0, lineno - 1 - _PROXIMITY_LINES)
     end = min(len(source_lines), lineno)
-    for line in source_lines[start:end]:
-        if _EXEMPT_MARKER in line:
-            return True
-    return False
+    return any(_EXEMPT_MARKER in line for line in source_lines[start:end])
 
 
 def _iter_violations(path: Path) -> list[str]:

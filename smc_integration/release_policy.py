@@ -1207,14 +1207,7 @@ def _classify_code(code: str, row: dict[str, Any], add_fn: Any) -> None:
         add_fn(REASON_MISSING_ARTIFACT, code)
     elif upper.startswith("MEASUREMENT_"):
         add_fn(REASON_MEASUREMENT_QUALITY, code)
-    elif upper in {"EMPTY_STRUCTURE_INPUT", "META_INPUT_LOAD_FAILED", "STRUCTURE_INPUT_LOAD_FAILED", "INVALID_SNAPSHOT_STRUCTURE_SHAPE"}:
-        detail = code
-        symbol = row.get("symbol", "")
-        tf = row.get("timeframe", "")
-        if symbol and tf:
-            detail = f"{code} ({symbol}/{tf})"
-        add_fn(REASON_SMOKE_FAILURE, detail)
-    elif "MISSING_SMOKE" in upper or "SMOKE" in upper:
+    elif upper in {"EMPTY_STRUCTURE_INPUT", "META_INPUT_LOAD_FAILED", "STRUCTURE_INPUT_LOAD_FAILED", "INVALID_SNAPSHOT_STRUCTURE_SHAPE"} or "MISSING_SMOKE" in upper or "SMOKE" in upper:
         detail = code
         symbol = row.get("symbol", "")
         tf = row.get("timeframe", "")

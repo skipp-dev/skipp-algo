@@ -110,8 +110,8 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("terminal_databento.py", 302, ("_dataset_cache",)),
         ("terminal_export.py", 102, ("_FALLBACK_BUFFER",)),
         ("terminal_export.py", 119, ("_FALLBACK_BUFFER",)),
-        ("terminal_finnhub.py", 179, ("_consecutive_429_count", "_rate_limit_backoff_until")),
-        ("terminal_finnhub.py", 208, ("_social_sentiment_blocked",)),
+        ("terminal_finnhub.py", 177, ("_consecutive_429_count", "_rate_limit_backoff_until")),
+        ("terminal_finnhub.py", 206, ("_social_sentiment_blocked",)),
         ("terminal_spike_scanner.py", 95, ("_YF_UNIVERSE_CACHE",)),
         ("terminal_technicals.py", 213, ("_tv_consecutive_429s", "_tv_cooldown_until")),
         (

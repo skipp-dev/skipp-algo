@@ -257,7 +257,7 @@ def build_cache_path(
     ).hexdigest()[:12]
     directory = get_cache_root(cache_dir) / category / safe_dataset
     directory.mkdir(parents=True, exist_ok=True)
-    filename = "__".join(normalized + [digest]) + suffix
+    filename = "__".join([*normalized, digest]) + suffix
     return directory / filename
 
 
@@ -1759,7 +1759,7 @@ def rank_top_fraction_per_day(
     if ranking_metric not in frame.columns:
         raise ValueError(f"Ranking metric not found: {ranking_metric}")
     ranked_groups: list[pd.DataFrame] = []
-    for trade_date, group in frame.groupby("trade_date", sort=False):
+    for _trade_date, group in frame.groupby("trade_date", sort=False):
         eligible = group.dropna(subset=[ranking_metric]).sort_values(ranking_metric, ascending=False).copy()
         if eligible.empty:
             continue
@@ -5115,11 +5115,7 @@ def run_streamlit_app() -> None:
             focus_0930_cols = ["focus_0930_open_30s_volume", "focus_0930_early_dip_pct_10s", "focus_0930_reclaim_second_30s"]
             focus_0800_cols = ["focus_0800_open_30s_volume", "focus_0800_early_dip_pct_10s", "focus_0800_reclaim_second_30s"]
             focus_0400_cols = ["focus_0400_open_30s_volume", "focus_0400_early_dip_pct_10s", "focus_0400_reclaim_second_30s"]
-            if focus_view == "09:30 only":
-                visible_columns = [col for col in visible_columns if col not in focus_0800_cols and col not in focus_0930_cols and col not in focus_0400_cols]
-            elif focus_view == "08:00 only":
-                visible_columns = [col for col in visible_columns if col not in focus_0800_cols and col not in focus_0930_cols and col not in focus_0400_cols]
-            elif focus_view == "04:00 only":
+            if focus_view == "09:30 only" or focus_view == "08:00 only" or focus_view == "04:00 only":
                 visible_columns = [col for col in visible_columns if col not in focus_0800_cols and col not in focus_0930_cols and col not in focus_0400_cols]
             if "open_pattern_status" not in visible_columns and "open_pattern_status" in display_watchlist_table.columns:
                 visible_columns = ["open_pattern_status", *visible_columns]

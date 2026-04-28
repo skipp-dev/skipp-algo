@@ -16,6 +16,22 @@ from .service import build_snapshot_bundle_for_symbol_timeframe
 
 _CANONICAL_SNAPSHOT_BUNDLE_DIRS = ("reports/smc_snapshot_bundles",)
 
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _portable_bundle_path(output_dir: Path, filename: str) -> str:
+    """Return a repo-relative POSIX path when possible, else the bare filename.
+
+    Avoids leaking absolute developer-machine paths (e.g. ``/Users/...``) into
+    manifest artifacts so they remain portable across machines and CI.
+    """
+    candidate = (Path(output_dir) / filename).resolve()
+    try:
+        rel = candidate.relative_to(_REPO_ROOT)
+    except ValueError:
+        return filename
+    return rel.as_posix()
+
 
 def _normalize_symbols(symbols: list[str]) -> list[str]:
     seen: set[str] = set()
@@ -165,7 +181,7 @@ def build_snapshot_manifest(
             {
                 "symbol": symbol,
                 "timeframe": timeframe,
-                "bundle_path": str(output_dir / _bundle_file_name(symbol, timeframe)),
+                "bundle_path": _portable_bundle_path(output_dir, _bundle_file_name(symbol, timeframe)),
                 "has_structure": _has_structure(bundle.get("snapshot", {})),
                 "has_meta": _has_meta(bundle.get("snapshot", {})),
                 "has_bos": category_flags["has_bos"],

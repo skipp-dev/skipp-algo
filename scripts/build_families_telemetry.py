@@ -103,9 +103,7 @@ def _is_closed_trade(rec: dict[str, Any]) -> bool:
     action = rec.get("action")
     if isinstance(action, str) and action in _CLOSED_TRADE_ACTIONS:
         return True
-    if rec.get("outcome_pnl_usd") is not None:
-        return True
-    return False
+    return rec.get("outcome_pnl_usd") is not None
 
 
 @dataclass(slots=True)

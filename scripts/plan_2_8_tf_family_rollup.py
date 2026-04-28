@@ -102,11 +102,11 @@ def build_rollup(
             fslot["hit_rate_weighted"] += fam_hr * fam_n
 
     # Normalise weighted sums into hit rates.
-    for tf, slot in per_tf.items():
+    for _tf, slot in per_tf.items():
         n = slot["n_events"]
         slot["hit_rate"] = (slot["hit_rate_weighted"] / n) if n else 0.0
         del slot["hit_rate_weighted"]
-        for fam, fslot in slot["families"].items():
+        for _fam, fslot in slot["families"].items():
             fn = fslot["n_events"]
             fslot["hit_rate"] = (fslot["hit_rate_weighted"] / fn) if fn else 0.0
             del fslot["hit_rate_weighted"]

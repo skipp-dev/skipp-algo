@@ -124,11 +124,22 @@ class TestBaseRuntimeScreenerFree:
             / "smc_microstructure_base_runtime.py"
         )
         source = source_path.read_text(encoding="utf-8")
-        # Find the import block from databento_utils
+        # Find the import block from databento_utils. Only multi-line
+        # parenthesized imports need scanning; single-line imports already
+        # have all names visible on the same line.
         in_import_block = False
         for line in source.splitlines():
             stripped = line.strip()
             if stripped.startswith("from databento_utils import"):
+                if "(" not in stripped:
+                    # Single-line import — check inline names directly.
+                    inline = stripped.split("import", 1)[1].strip()
+                    for name in (n.strip() for n in inline.split(",")):
+                        assert name and not name.startswith("_"), (
+                            f"base runtime imports underscore-prefixed name "
+                            f"'{name}' from databento_utils"
+                        )
+                    continue
                 in_import_block = True
                 continue
             if in_import_block:

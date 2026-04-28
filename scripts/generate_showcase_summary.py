@@ -182,7 +182,7 @@ def main() -> None:
 
     rel = OUTPUT_DIR.relative_to(ROOT)
     print(f"Showcase artifacts written to {rel}/")
-    for a in artifacts + ["showcase_manifest.json"]:
+    for a in [*artifacts, "showcase_manifest.json"]:
         print(f"  {a}")
 
 

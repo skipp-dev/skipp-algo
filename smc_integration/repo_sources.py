@@ -557,7 +557,7 @@ def _finalize_composite_meta(
     }
 
     now = float(reference_time) if reference_time is not None else time.time()
-    for domain, domain_meta, domain_status in [
+    for domain, domain_meta, _domain_status in [
         ("volume", volume_meta, volume_domain_status),
         ("technical", technical_meta, technical_domain_status),
         ("news", news_meta, news_domain_status),

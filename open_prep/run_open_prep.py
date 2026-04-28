@@ -1633,7 +1633,7 @@ def _fetch_house_trading(
         elif "sale" in tx_type or "sell" in tx_type:
             entry["house_sells"] += 1
 
-    for sym, data in result.items():
+    for _sym, data in result.items():
         net = data["house_buys"] - data["house_sells"]
         data["house_net"] = net
         if net > 0:

@@ -118,16 +118,7 @@ def _is_urlopen_call(node: ast.Call) -> bool:
     if isinstance(func, ast.Name) and func.id == "urlopen":
         return True
     # ``urllib.request.urlopen(...)``.
-    if (
-        isinstance(func, ast.Attribute)
-        and func.attr == "urlopen"
-        and isinstance(func.value, ast.Attribute)
-        and func.value.attr == "request"
-        and isinstance(func.value.value, ast.Name)
-        and func.value.value.id == "urllib"
-    ):
-        return True
-    return False
+    return bool(isinstance(func, ast.Attribute) and func.attr == "urlopen" and isinstance(func.value, ast.Attribute) and func.value.attr == "request" and isinstance(func.value.value, ast.Name) and func.value.value.id == "urllib")
 
 
 def _has_timeout_kwarg(node: ast.Call) -> bool:
@@ -153,7 +144,7 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # is unchanged (still ``timeout=...``).
         ("open_prep/macro.py", 691),
         ("open_prep/sentiment_fng.py", 99),
-        ("terminal_finnhub.py", 184),
+        ("terminal_finnhub.py", 182),
         ("terminal_notifications.py", 250),
         ("terminal_notifications.py", 314),
         ("terminal_tradingview_news.py", 365),

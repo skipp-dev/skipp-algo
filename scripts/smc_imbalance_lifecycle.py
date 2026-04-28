@@ -206,7 +206,7 @@ def _derive_imbalance(df: pd.DataFrame, result: dict[str, Any]) -> dict[str, Any
 
     # Liquidity void: very large FVG (> LIQ_VOID_MIN_SIZE_PCT of price)
     mid_price = (last_high + last_low) / 2 if (last_high + last_low) > 0 else 1.0
-    for idx, top, bottom in bull_fvgs:
+    for _idx, top, bottom in bull_fvgs:
         gap_pct = (top - bottom) / mid_price * 100
         if gap_pct >= LIQ_VOID_MIN_SIZE_PCT:
             result["LIQ_VOID_BULL_ACTIVE"] = True
@@ -214,7 +214,7 @@ def _derive_imbalance(df: pd.DataFrame, result: dict[str, Any]) -> dict[str, Any
             result["LIQ_VOID_BOTTOM"] = bottom
             break
 
-    for idx, top, bottom in bear_fvgs:
+    for _idx, top, bottom in bear_fvgs:
         gap_pct = (top - bottom) / mid_price * 100
         if gap_pct >= LIQ_VOID_MIN_SIZE_PCT:
             result["LIQ_VOID_BEAR_ACTIVE"] = True

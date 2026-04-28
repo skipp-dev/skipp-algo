@@ -88,7 +88,7 @@ def test_sharpe_ci_coverage_at_least_85pct() -> None:
     n_reps = 60
     n_covered = 0
     seed_seq = np.random.SeedSequence(2026)
-    for replication, ss in enumerate(seed_seq.spawn(n_reps)):
+    for _replication, ss in enumerate(seed_seq.spawn(n_reps)):
         rng = np.random.default_rng(ss)
         returns = rng.normal(mu, sigma, size=n)
         out = pi.sharpe_ci(

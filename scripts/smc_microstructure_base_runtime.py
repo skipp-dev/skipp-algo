@@ -875,14 +875,14 @@ def _grouped_setup_decay_half_life_30m_buckets(
     if frame.empty:
         return pd.Series(dtype=float)
 
-    bucket_frame = frame.loc[:, group_columns + ["minutes_from_open", "dollar_volume"]].copy()
+    bucket_frame = frame.loc[:, [*group_columns, "minutes_from_open", "dollar_volume"]].copy()
     bucket_frame["bucket_index"] = ((bucket_frame["minutes_from_open"] // 30).astype(int)).clip(lower=0)
     bucket_frame = (
-        bucket_frame.groupby(group_columns + ["bucket_index"], sort=False, observed=True)["dollar_volume"]
+        bucket_frame.groupby([*group_columns, "bucket_index"], sort=False, observed=True)["dollar_volume"]
         .sum()
         .rename("bucket_dollar")
         .reset_index()
-        .sort_values(group_columns + ["bucket_index"])
+        .sort_values([*group_columns, "bucket_index"])
         .reset_index(drop=True)
     )
 
@@ -950,17 +950,7 @@ def _aggregate_window_metrics(
     ]
     subset = frame.loc[
         mask,
-        group_columns + [
-            "open",
-            "high",
-            "low",
-            "close",
-            "dollar_volume",
-            "trade_proxy",
-            "active_minute",
-            "spread_bps_proxy",
-            "wickiness_proxy",
-        ],
+        [*group_columns, "open", "high", "low", "close", "dollar_volume", "trade_proxy", "active_minute", "spread_bps_proxy", "wickiness_proxy"],
     ]
     if subset.empty:
         return _empty_group_metrics(group_columns, columns)
@@ -1008,7 +998,7 @@ def _aggregate_open_close_metrics(
     group_columns: list[str],
 ) -> pd.DataFrame:
     columns = ["dollar_volume", "open_price", "close_price"]
-    subset = frame.loc[mask, group_columns + ["open", "close", "dollar_volume"]]
+    subset = frame.loc[mask, [*group_columns, "open", "close", "dollar_volume"]]
     if subset.empty:
         return _empty_group_metrics(group_columns, columns)
     grouped = subset.groupby(group_columns, sort=False, observed=True)
@@ -1162,7 +1152,7 @@ def _build_symbol_day_minute_metrics(
 
     if is_rth.any():
         rth_half_life = _grouped_setup_decay_half_life_30m_buckets(
-            minute_frame.loc[is_rth, group_columns + ["minutes_from_open", "dollar_volume"]],
+            minute_frame.loc[is_rth, [*group_columns, "minutes_from_open", "dollar_volume"]],
             group_columns=group_columns,
         )
     else:

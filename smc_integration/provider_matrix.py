@@ -255,12 +255,7 @@ def _current_mapping_for_provider(name: str) -> ProviderCurrentMapping:
             diagnostics_available=False,
             auxiliary_available=False,
             mapped_auxiliary_categories={},
-            mapped_meta_fields=mapped_meta_fields + [
-                "technical.value.strength",
-                "technical.value.bias",
-                "technical.asof_ts",
-                "technical.stale",
-            ],
+            mapped_meta_fields=[*mapped_meta_fields, "technical.value.strength", "technical.value.bias", "technical.asof_ts", "technical.stale"],
         )
 
     if name == "benzinga_watchlist_json":
@@ -284,12 +279,7 @@ def _current_mapping_for_provider(name: str) -> ProviderCurrentMapping:
             diagnostics_available=False,
             auxiliary_available=False,
             mapped_auxiliary_categories={},
-            mapped_meta_fields=mapped_meta_fields + [
-                "news.value.strength",
-                "news.value.bias",
-                "news.asof_ts",
-                "news.stale",
-            ],
+            mapped_meta_fields=[*mapped_meta_fields, "news.value.strength", "news.value.bias", "news.asof_ts", "news.stale"],
         )
 
     return ProviderCurrentMapping(

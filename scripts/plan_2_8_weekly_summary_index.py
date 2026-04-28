@@ -39,12 +39,12 @@ def build(
     lines: list[str] = ["# Plan 2.8 weekly summary", ""]
     lines.append("## Contents")
     lines.append("")
-    for i, (filename, heading, present) in enumerate(entries, start=1):
+    for i, (_filename, heading, present) in enumerate(entries, start=1):
         state = "" if present else " _(missing)_"
         slug = heading.lower().replace(" ", "-")
         lines.append(f"{i}. [{heading}](#{slug}){state}")
     lines.append("")
-    for filename, heading, present in entries:
+    for _filename, heading, present in entries:
         lines.append(f"## {heading}")
         lines.append("")
         if present:
