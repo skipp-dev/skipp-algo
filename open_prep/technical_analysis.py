@@ -660,7 +660,7 @@ def calculate_support_resistance_targets(
         # Filter out zero values that would corrupt S/R calculations
         highs = [h if h > 0 else current_price for h in highs_raw]
         lows = [lo if lo > 0 else current_price for lo in lows_raw]
-    except Exception as exc:
+    except Exception:
         logger.warning("S/R bar prep failed — returning empty result", exc_info=True)
         return empty
 
@@ -679,7 +679,7 @@ def calculate_support_resistance_targets(
         for tr in tr_values[14:]:
             atr = (atr * 13.0 + tr) / 14.0
         result["atr"] = round(atr, 2)
-    except Exception as exc:
+    except Exception:
         logger.warning("S/R ATR computation failed", exc_info=True)
 
     # --- Pivot Points (off last 20 bars) ---
@@ -701,7 +701,7 @@ def calculate_support_resistance_targets(
         s1 = 2 * pivot - pivot_high
         s2 = pivot - (pivot_high - pivot_low)
         s3 = pivot_low - 2 * (pivot_high - pivot)
-    except Exception as exc:
+    except Exception:
         logger.warning("S/R pivot computation failed", exc_info=True)
 
     # --- Swing highs / lows ---
@@ -715,7 +715,7 @@ def calculate_support_resistance_targets(
             lo = lows[i]
             if lo < lows[i - 1] and lo < lows[i - 2] and lo < lows[i + 1] and lo < lows[i + 2]:
                 swing_lows.append(lo)
-    except Exception as exc:
+    except Exception:
         logger.warning("S/R swing detection failed", exc_info=True)
 
     # --- EMAs ---
@@ -735,7 +735,7 @@ def calculate_support_resistance_targets(
             ema_50 = None
         if ema_200 is not None and math.isnan(ema_200):
             ema_200 = None
-    except Exception as exc:
+    except Exception:
         logger.warning("S/R EMA computation failed", exc_info=True)
 
     # --- Fibonacci ---
@@ -747,7 +747,7 @@ def calculate_support_resistance_targets(
         fib_382 = recent_high - fib_range * 0.382
         fib_500 = recent_high - fib_range * 0.500
         fib_618 = recent_high - fib_range * 0.618
-    except Exception as exc:
+    except Exception:
         logger.warning("S/R Fibonacci computation failed", exc_info=True)
 
     # --- Combine & sort ---
@@ -825,7 +825,7 @@ def calculate_support_resistance_targets(
             "support_1_pct": _pct(support_1),
             "resistance_1_pct": _pct(resistance_1),
         })
-    except Exception as exc:
+    except Exception:
         logger.warning("S/R combine/targets computation failed — returning partial result", exc_info=True)
 
     return result
