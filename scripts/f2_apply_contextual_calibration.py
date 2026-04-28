@@ -88,7 +88,8 @@ import json
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Literal
+from typing import Any, Literal
+from collections.abc import Iterable
 
 from smc_core.event_ledger import read_event_ledger
 from smc_core.scoring import (

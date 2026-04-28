@@ -8,7 +8,8 @@ import sys
 import time as time_module
 from datetime import UTC, date, datetime, time
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
+from collections.abc import Sequence
 
 import numpy as np
 import pandas as pd
@@ -1982,8 +1983,8 @@ def _collect_quality_window_source_frames(
         "early_exchange_datasets": normalized_map,
         "applied_early_exchange_datasets": applied_datasets,
         "early_exchange_symbol_counts": early_symbol_counts,
-        "quality_window_detail_rows": int(len(quality_detail)),
-        "premarket_detail_rows": int(len(premarket_detail)),
+        "quality_window_detail_rows": len(quality_detail),
+        "premarket_detail_rows": len(premarket_detail),
     }
     return quality_detail, premarket_detail, metadata
 
@@ -2308,7 +2309,7 @@ def _build_premarket_features_full_universe_export(second_detail_all: pd.DataFra
                 "premarket_last_trade_ts": ordered["timestamp"].max(),
                 "premarket_trade_count_source": premarket_trade_count_source,
                 "premarket_trade_count_usable": True,
-                "premarket_seconds": int(len(ordered)),
+                "premarket_seconds": len(ordered),
             }
         )
 
@@ -2667,7 +2668,7 @@ def _build_core_vs_benzinga_news_side_by_side(
             "enabled": True,
             "status": "ok" if core_fetch_error is None else "core_fetch_degraded",
             "trade_date": latest_trade_date.isoformat(),
-            "symbol_day_rows": int(len(merged)),
+            "symbol_day_rows": len(merged),
             "core_nonzero_symbols": int(merged["core_has_news"].sum()),
             "core_fetch_error": core_fetch_error,
         },
@@ -2824,13 +2825,13 @@ def _build_research_news_flags_full_universe_export(
         "window_24h_rule": "[trade_date 09:30 ET - 24h, trade_date 09:30 ET)",
         "preopen_window_et": "04:00:00-09:30:00",
         "request_mode": "dateFrom/dateTo-date+ticker_batches",
-        "requested_symbol_days": int(len(scope)),
-        "resolved_symbol_days": int(len(resolved_symbol_days)),
-        "failed_symbol_days": int(len(failed_symbol_days)),
-        "truncated_symbol_days": int(len(truncated_symbol_days)),
-        "degraded_symbol_days": int(len(failed_symbol_days | truncated_symbol_days)),
+        "requested_symbol_days": len(scope),
+        "resolved_symbol_days": len(resolved_symbol_days),
+        "failed_symbol_days": len(failed_symbol_days),
+        "truncated_symbol_days": len(truncated_symbol_days),
+        "degraded_symbol_days": len(failed_symbol_days | truncated_symbol_days),
         "fetched_provider_items": int(fetched_items),
-        "matched_symbol_articles": int(len(article_frame)),
+        "matched_symbol_articles": len(article_frame),
         "ignored_items_missing_timestamp": int(ignored_items_missing_timestamp),
         "truncated_requests": int(truncated_requests),
         "sample_errors": sample_errors[:3],
@@ -2841,7 +2842,7 @@ def _build_research_news_flag_coverage(flags_frame: pd.DataFrame) -> pd.DataFram
     if flags_frame.empty:
         return pd.DataFrame(columns=RESEARCH_NEWS_FLAG_COVERAGE_COLUMNS)
     rows: list[dict[str, Any]] = []
-    total_rows = int(len(flags_frame))
+    total_rows = len(flags_frame)
     for flag_name in RESEARCH_NEWS_FLAG_COLUMNS[2:]:
         series = flags_frame.get(flag_name, pd.Series(dtype=object))
         non_null_rows = int(pd.Series(series).notna().sum())
@@ -2916,7 +2917,7 @@ def _build_research_news_flag_outcome_slices(daily_features: pd.DataFrame, flags
                     "flag_name": flag_name,
                     "selected_top20pct": bool(selected),
                     "flag_value": bool(flag_value),
-                    "row_count": int(len(cohort)),
+                    "row_count": len(cohort),
                 }
                 for output_name, source_name in metric_columns.items():
                     numeric = pd.to_numeric(cohort.get(source_name, pd.Series(dtype=float)), errors="coerce")
@@ -3009,8 +3010,8 @@ def _build_research_event_flags_full_universe_export(
         "enabled": True,
         "source": "fmp_earnings_calendar",
         "status": "ok",
-        "fetched_rows": int(len(earnings_rows)),
-        "matched_symbol_days": int(len(event_frame)),
+        "fetched_rows": len(earnings_rows),
+        "matched_symbol_days": len(event_frame),
     }
 
 
@@ -3018,7 +3019,7 @@ def _build_research_event_flag_coverage(flags_frame: pd.DataFrame) -> pd.DataFra
     if flags_frame.empty:
         return pd.DataFrame(columns=RESEARCH_EVENT_FLAG_COVERAGE_COLUMNS)
     rows: list[dict[str, Any]] = []
-    total_rows = int(len(flags_frame))
+    total_rows = len(flags_frame)
     for flag_name in RESEARCH_EVENT_FLAG_COLUMNS[2:]:
         series = pd.Series(flags_frame[flag_name], dtype="boolean")
         non_null_rows = int(series.notna().sum())
@@ -3091,7 +3092,7 @@ def _build_research_event_flag_outcome_slices(daily_features: pd.DataFrame, flag
                     "flag_name": flag_name,
                     "selected_top20pct": bool(selected),
                     "flag_value": bool(flag_value),
-                    "row_count": int(len(cohort)),
+                    "row_count": len(cohort),
                 }
                 for output_name, source_name in metric_columns.items():
                     numeric = pd.to_numeric(cohort.get(source_name, pd.Series(dtype=float)), errors="coerce")
@@ -3659,21 +3660,21 @@ def run_production_export_pipeline(
     output_summary = {
         "full_universe_symbol_count": int(raw_universe["symbol"].astype(str).str.upper().nunique()),
         "trade_date_count": int(pd.Series(trading_days).nunique()),
-        "daily_symbol_feature_rows": int(len(daily_symbol_features_full_universe)),
+        "daily_symbol_feature_rows": len(daily_symbol_features_full_universe),
         "eligible_symbol_day_rows": int(daily_symbol_features_full_universe["is_eligible"].sum()),
         "selected_top20pct_symbol_day_rows": int(daily_symbol_features_full_universe["selected_top20pct"].sum()),
-        "full_universe_second_detail_open_rows": int(len(full_universe_second_detail_open)),
-        "full_universe_second_detail_close_rows": int(len(full_universe_second_detail_close)),
-        "full_universe_close_trade_detail_rows": int(len(full_universe_close_trade_detail)),
-        "full_universe_close_outcome_minute_rows": int(len(full_universe_close_outcome_minute)),
+        "full_universe_second_detail_open_rows": len(full_universe_second_detail_open),
+        "full_universe_second_detail_close_rows": len(full_universe_second_detail_close),
+        "full_universe_close_trade_detail_rows": len(full_universe_close_trade_detail),
+        "full_universe_close_outcome_minute_rows": len(full_universe_close_outcome_minute),
         "premarket_symbol_day_rows": int(premarket_features_full_universe["has_premarket_data"].sum()),
-        "premarket_window_feature_rows": int(len(premarket_window_features_full_universe)),
+        "premarket_window_feature_rows": len(premarket_window_features_full_universe),
         "close_imbalance_symbol_day_rows": int(close_imbalance_features_full_universe["has_close_window_detail"].sum()) if not close_imbalance_features_full_universe.empty else 0,
-        "close_imbalance_outcome_rows": int(len(close_imbalance_outcomes_full_universe)),
-        "research_event_flag_rows": int(len(research_event_flags_full_universe)),
-        "research_news_flag_rows": int(len(research_news_flags_full_universe)),
-        "core_vs_benzinga_news_side_by_side_rows": int(len(core_vs_benzinga_news_side_by_side)),
-        "core_vs_benzinga_news_overlap_stats_rows": int(len(core_vs_benzinga_news_overlap_stats)),
+        "close_imbalance_outcome_rows": len(close_imbalance_outcomes_full_universe),
+        "research_event_flag_rows": len(research_event_flags_full_universe),
+        "research_news_flag_rows": len(research_news_flags_full_universe),
+        "core_vs_benzinga_news_side_by_side_rows": len(core_vs_benzinga_news_side_by_side),
+        "core_vs_benzinga_news_overlap_stats_rows": len(core_vs_benzinga_news_overlap_stats),
         "batl": batl_debug,
     }
 
@@ -3831,7 +3832,7 @@ def run_production_export_pipeline(
         "core_vs_benzinga_news_overlap_stats_rows": len(core_vs_benzinga_news_overlap_stats),
         "core_vs_benzinga_news_source": core_vs_benzinga_news_metadata,
         "detail_symbol_count": int(summary["symbol"].nunique()) if not summary.empty else 0,
-        "expected_symbol_day_rows": int(len(daily_symbol_features_full_universe)),
+        "expected_symbol_day_rows": len(daily_symbol_features_full_universe),
         "covered_symbol_day_rows": int(daily_symbol_features_full_universe["has_intraday"].sum()) if not daily_symbol_features_full_universe.empty else 0,
         "missing_open_window_symbol_day_rows": int((~daily_symbol_features_full_universe["has_open_window_detail"]).sum()) if "has_open_window_detail" in daily_symbol_features_full_universe.columns else int((~daily_symbol_features_full_universe["has_intraday"]).sum()) if not daily_symbol_features_full_universe.empty else 0,
         "detail_exclusion_reasons": sorted({reason for reason in symbol_day_diagnostics.get("excluded_reason", pd.Series(dtype=str)).astype(str) if reason}),

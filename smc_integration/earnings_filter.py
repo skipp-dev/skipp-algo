@@ -34,7 +34,8 @@ import json
 import logging
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
+from collections.abc import Iterable
 
 LOGGER = logging.getLogger(__name__)
 

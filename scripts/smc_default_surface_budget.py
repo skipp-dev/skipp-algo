@@ -18,7 +18,7 @@ the WS3 surface spec.
 from __future__ import annotations
 
 from types import MappingProxyType
-from typing import Iterable, Mapping
+from collections.abc import Iterable, Mapping
 
 
 # ── Default view mode ────────────────────────────────────────────────

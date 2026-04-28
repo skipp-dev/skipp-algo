@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, UTC
 from enum import Enum
-from typing import Iterable, Mapping
+from collections.abc import Iterable, Mapping
 
 
 class StaleStatus(str, Enum):

@@ -4,7 +4,8 @@ import logging
 import math
 import time
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
+from collections.abc import Callable
 
 from .meta_merge import merge_raw_meta_domains
 from .sources import (

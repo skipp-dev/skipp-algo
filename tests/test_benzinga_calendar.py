@@ -14,7 +14,8 @@ from __future__ import annotations
 import sys
 import time
 from pathlib import Path
-from typing import Any, Generator
+from typing import Any
+from collections.abc import Generator
 from unittest.mock import MagicMock, patch
 
 import httpx

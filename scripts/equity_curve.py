@@ -17,7 +17,7 @@ on nothing else in the C-series. It is consumed by the future
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, Sequence
+from collections.abc import Iterable, Sequence
 
 import numpy as np
 

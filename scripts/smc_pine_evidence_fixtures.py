@@ -29,7 +29,8 @@ from __future__ import annotations
 
 from copy import deepcopy
 from types import MappingProxyType
-from typing import Any, Mapping
+from typing import Any
+from collections.abc import Mapping
 
 from scripts.smc_pine_scenario_catalog import (
     PINE_SCENARIO_CATALOG,

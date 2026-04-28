@@ -649,6 +649,5 @@ class TestMainMissingArgs:
             "--databento-api-key", "",
             "--export-dir", str(tmp_path),
         ]
-        with patch("sys.argv", ["prog", *test_args]):
-            with pytest.raises(ValueError, match="Databento API key"):
-                main()
+        with patch("sys.argv", ["prog", *test_args]), pytest.raises(ValueError, match="Databento API key"):
+            main()

@@ -128,9 +128,8 @@ class TestTrackContextManager:
 
     def test_failure_via_context(self) -> None:
         t = ProviderTracker()
-        with pytest.raises(ValueError):
-            with t.track("svc"):
-                raise ValueError("boom")
+        with pytest.raises(ValueError), t.track("svc"):
+            raise ValueError("boom")
         s = t.status("svc")
         assert s.total_failures == 1
         assert "boom" in s.last_error

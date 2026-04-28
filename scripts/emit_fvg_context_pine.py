@@ -43,7 +43,8 @@ import os
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
+from collections.abc import Iterable
 
 # --- Path bootstrap so the script works both as `-m` and as a file ---
 _REPO_ROOT = Path(__file__).resolve().parent.parent

@@ -89,7 +89,7 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         ("scripts/databento_preopen_fast.py", 428),
         # scripts/databento_production_export.py — same premarket "last"
         # snapshot, production export path.
-        ("scripts/databento_production_export.py", 2301),
+        ("scripts/databento_production_export.py", 2302),
         # scripts/generate_bullish_quality_scanner.py — manifest scalar
         # lookups (source_data_fetched_at / latest window_tag); not bar
         # data.

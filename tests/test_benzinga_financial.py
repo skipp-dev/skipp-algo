@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Any, Generator
+from typing import Any
+from collections.abc import Generator
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -292,9 +293,8 @@ class TestEdgeCases:
         r.headers = {"content-type": "text/html"}
         r.raise_for_status = MagicMock()
         r.url = "https://api.benzinga.com/test"
-        with patch.object(adapter.client, "get", return_value=r):
-            with pytest.raises(ValueError, match="non-JSON"):
-                adapter.fetch_fundamentals("AAPL")
+        with patch.object(adapter.client, "get", return_value=r), pytest.raises(ValueError, match="non-JSON"):
+            adapter.fetch_fundamentals("AAPL")
 
     def test_error_body_on_http_200_raises(self, adapter: BenzingaFinancialAdapter, caplog):
         """HTTP 200 with {'error': ...} must fail loudly."""
@@ -302,10 +302,8 @@ class TestEdgeCases:
             adapter.client,
             "get",
             return_value=_mock_response({"error": "invalid token"}),
-        ):
-            with caplog.at_level("ERROR"):
-                with pytest.raises(RuntimeError, match="Benzinga financial API error"):
-                    adapter.fetch_fundamentals("AAPL")
+        ), caplog.at_level("ERROR"), pytest.raises(RuntimeError, match="Benzinga financial API error"):
+            adapter.fetch_fundamentals("AAPL")
         assert "error payload" in caplog.text.lower()
 
     def test_string_response_returns_empty(self, adapter: BenzingaFinancialAdapter):
@@ -488,6 +486,5 @@ class TestRetryLogic:
         client = MagicMock()
         client.get.side_effect = httpx.ConnectError("persistent fail")
 
-        with patch("newsstack_fmp._bz_http._sleep"):
-            with pytest.raises(httpx.ConnectError):
-                _request_with_retry(client, "https://test.com", {})
+        with patch("newsstack_fmp._bz_http._sleep"), pytest.raises(httpx.ConnectError):
+            _request_with_retry(client, "https://test.com", {})

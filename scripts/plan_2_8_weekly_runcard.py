@@ -21,7 +21,7 @@ import argparse
 import datetime as _dt
 import sys
 from pathlib import Path
-from typing import Iterable
+from collections.abc import Iterable
 
 
 SECTION_MAP: tuple[tuple[str, str], ...] = (

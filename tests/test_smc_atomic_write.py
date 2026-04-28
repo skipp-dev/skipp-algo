@@ -81,9 +81,8 @@ def test_atomic_write_csv_leaves_target_untouched_on_writer_failure(tmp_path: Pa
     def _boom(self, *args, **kwargs):
         raise RuntimeError("simulated csv crash")
 
-    with patch.object(pd.DataFrame, "to_csv", _boom):
-        with pytest.raises(RuntimeError, match="simulated csv crash"):
-            atomic_write_csv(_df(), target, index=False)
+    with patch.object(pd.DataFrame, "to_csv", _boom), pytest.raises(RuntimeError, match="simulated csv crash"):
+        atomic_write_csv(_df(), target, index=False)
 
     assert target.read_bytes() == original_bytes
     siblings = [p for p in target.parent.iterdir() if p != target]

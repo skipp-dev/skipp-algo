@@ -363,7 +363,7 @@ def aggregate_permutation_results(
         "per_setup": per_setup,
         "aggregate": {
             "fdr_q": float(q),
-            "n_tested": int(len(eligible)),
+            "n_tested": len(eligible),
             "n_significant": n_significant,
         },
     }

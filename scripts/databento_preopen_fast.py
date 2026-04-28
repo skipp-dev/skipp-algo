@@ -434,7 +434,7 @@ def _aggregate_current_premarket_features(
                 "premarket_active_seconds": premarket_active_seconds,
                 "premarket_trade_count_source": premarket_trade_count_source,
                 "premarket_trade_count_usable": True,
-                "premarket_seconds": int(len(ordered)),
+                "premarket_seconds": len(ordered),
             }
         )
 
@@ -712,7 +712,7 @@ def run_preopen_fast_refresh(
     daily_current = _build_current_daily_features(scope_rows, daily_bars, target_trade_date=target_trade_date)
     symbols = sorted(daily_current["symbol"].dropna().astype(str).unique().tolist())
     if resolved_scope_symbol_count <= 0:
-        resolved_scope_symbol_count = int(len(symbols))
+        resolved_scope_symbol_count = len(symbols)
     previous_close_by_symbol = {
         row.symbol: _safe_float(row.previous_close)
         for row in daily_current[["symbol", "previous_close"]]
@@ -1108,7 +1108,7 @@ def run_preopen_fast_refresh(
         "mode": "preopen_fast_reduced_scope",
         "scope_days": int(resolved_scope_days),
         "scope_days_mode": "auto" if scope_days is None or int(scope_days) <= 0 else "manual",
-        "scope_symbol_count": int(len(symbols)),
+        "scope_symbol_count": len(symbols),
         "scope_symbol_count_target": int(_target_scope_symbol_count()),
         "scope_symbol_count_resolved": int(resolved_scope_symbol_count),
         "scope_symbol_count_calibration": scope_calibration,
@@ -1122,7 +1122,7 @@ def run_preopen_fast_refresh(
         "failed_fetch_batches": failed_batch_errors,
         "availability_clamp_bypassed": clamp_bypassed,
         "dataset_available_end": str(available_end) if available_end is not None else None,
-        "full_universe_second_detail_open_rows": int(len(current_second_detail)),
+        "full_universe_second_detail_open_rows": len(current_second_detail),
         "quality_open_drive_window_score_profile": bullish_cfg.score_profile,
     }
     premarket_window_current = build_premarket_window_features_full_universe_export(
@@ -1231,8 +1231,8 @@ def main() -> int:
             {
                 "manifest": result["manifest"],
                 "paths": {key: str(value) for key, value in result["paths"].items()},
-                "daily_rows": int(len(result["daily_current"])),
-                "premarket_rows": int(len(result["premarket_current"])),
+                "daily_rows": len(result["daily_current"]),
+                "premarket_rows": len(result["premarket_current"]),
             },
             indent=2,
             ensure_ascii=True,

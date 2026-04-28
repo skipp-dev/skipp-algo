@@ -1,7 +1,7 @@
 """Microstructure features (Bid-Ask Imbalance, Volume Imbalance, VPIN)."""
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
 
 import numpy as np
 

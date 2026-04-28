@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Iterator
+from collections.abc import Iterator
 
 from tests._pine_text import strip_pine_strings_and_line_comments
 

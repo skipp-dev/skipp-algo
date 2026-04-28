@@ -14,7 +14,8 @@ import json
 import statistics
 import sys
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
+from collections.abc import Iterable
 
 
 VALID_STATUSES = frozenset({"green", "amber", "red", "unknown"})

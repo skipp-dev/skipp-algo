@@ -43,7 +43,8 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
+from collections.abc import Iterable
 
 
 SUMMARY_SCHEMA_VERSION = 1

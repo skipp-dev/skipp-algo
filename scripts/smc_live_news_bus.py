@@ -1030,7 +1030,7 @@ def poll_live_news_bus(
                 "ok": bool(provider_results[provider].ok),
                 "error": provider_results[provider].error,
                 "raw_count": int(provider_results[provider].raw_count),
-                "new_item_count": int(len(provider_results[provider].items)),
+                "new_item_count": len(provider_results[provider].items),
                 "cursor": provider_cursors[provider],
                 **(
                     {

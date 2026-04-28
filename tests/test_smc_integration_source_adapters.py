@@ -396,9 +396,8 @@ class TestFmpWatchlistJson:
     def test_missing_file_raises(self, tmp_path: Path) -> None:
         from smc_integration.sources import fmp_watchlist_json as mod
 
-        with patch.object(mod, "FMP_WATCHLIST_JSON", tmp_path / "nope.json"):
-            with pytest.raises(FileNotFoundError):
-                mod.load_raw_meta_input("AAPL", "15m")
+        with patch.object(mod, "FMP_WATCHLIST_JSON", tmp_path / "nope.json"), pytest.raises(FileNotFoundError):
+            mod.load_raw_meta_input("AAPL", "15m")
 
     def test_invalid_payload_type_raises(self, tmp_path: Path) -> None:
         from smc_integration.sources import fmp_watchlist_json as mod
@@ -661,9 +660,8 @@ class TestDabentoWatchlistCsv:
         csv_path = tmp_path / "databento_watchlist_top5_pre1530.csv"
         _write_csv(csv_path, rows)
 
-        with patch.object(mod, "WATCHLIST_CSV", csv_path):
-            with pytest.raises(ValueError, match="not present"):
-                mod.load_raw_meta_input("NVDA", "15m")
+        with patch.object(mod, "WATCHLIST_CSV", csv_path), pytest.raises(ValueError, match="not present"):
+            mod.load_raw_meta_input("NVDA", "15m")
 
     def test_peer_median_volume_regime(self, tmp_path: Path) -> None:
         from smc_integration.sources import databento_watchlist_csv as mod
@@ -726,9 +724,8 @@ class TestDabentoWatchlistCsv:
         csv_path = tmp_path / "databento_watchlist_top5_pre1530.csv"
         csv_path.write_text("symbol,trade_date\n", encoding="utf-8")
 
-        with patch.object(mod, "WATCHLIST_CSV", csv_path):
-            with pytest.raises(ValueError, match="empty"):
-                mod.load_raw_meta_input("AAPL", "15m")
+        with patch.object(mod, "WATCHLIST_CSV", csv_path), pytest.raises(ValueError, match="empty"):
+            mod.load_raw_meta_input("AAPL", "15m")
 
 
 # ── structure_artifact_json ──────────────────────────────────────
@@ -835,9 +832,8 @@ class TestStructureArtifactJson:
 
         with patch.object(mod, "STRUCTURE_ARTIFACTS_DIR", tmp_path / "artifacts"), \
              patch.object(mod, "STRUCTURE_ARTIFACT_JSON", tmp_path / "nope.json"), \
-             patch.object(mod, "REPO_ROOT", tmp_path):
-            with pytest.raises(FileNotFoundError, match="no structure artifact"):
-                mod.load_raw_structure_input("AAPL", "15m")
+             patch.object(mod, "REPO_ROOT", tmp_path), pytest.raises(FileNotFoundError, match="no structure artifact"):
+            mod.load_raw_structure_input("AAPL", "15m")
 
     def test_validate_contract_identity_symbol_mismatch(self, tmp_path: Path) -> None:
         from smc_integration.sources.structure_artifact_json import _validate_contract_identity
@@ -1098,9 +1094,8 @@ class TestStructureArtifactJson:
         _write_json(artifacts_dir / "manifest_15m.json", manifest)
 
         with patch.object(mod, "STRUCTURE_ARTIFACTS_DIR", artifacts_dir), \
-             patch.object(mod, "REPO_ROOT", tmp_path):
-            with pytest.raises(ValueError, match="missing artifact_path"):
-                mod._resolve_from_manifest("AAPL", "15m")
+             patch.object(mod, "REPO_ROOT", tmp_path), pytest.raises(ValueError, match="missing artifact_path"):
+            mod._resolve_from_manifest("AAPL", "15m")
 
     def test_resolve_from_manifest_path_not_exists(self, tmp_path: Path) -> None:
         from smc_integration.sources import structure_artifact_json as mod
@@ -1111,9 +1106,8 @@ class TestStructureArtifactJson:
         _write_json(artifacts_dir / "manifest_15m.json", manifest)
 
         with patch.object(mod, "STRUCTURE_ARTIFACTS_DIR", artifacts_dir), \
-             patch.object(mod, "REPO_ROOT", tmp_path):
-            with pytest.raises(ValueError, match="does not exist"):
-                mod._resolve_from_manifest("AAPL", "15m")
+             patch.object(mod, "REPO_ROOT", tmp_path), pytest.raises(ValueError, match="does not exist"):
+            mod._resolve_from_manifest("AAPL", "15m")
 
     def test_load_json_non_dict_raises(self, tmp_path: Path) -> None:
         from smc_integration.sources.structure_artifact_json import _load_json
@@ -1422,9 +1416,8 @@ class TestStructureArtifactJson:
              patch.object(mod, "REPO_ROOT", tmp_path), \
              patch.object(mod, "_manifest_repo_state_health_issues", return_value=[
                  {"code": "MISSING_MANIFEST_WORKBOOK_PROVENANCE", "message": "no provenance"}
-             ]):
-            with pytest.raises(ValueError, match="provenance check failed"):
-                mod._assert_manifest_repo_state_provenance_ok("15m")
+             ]), pytest.raises(ValueError, match="provenance check failed"):
+            mod._assert_manifest_repo_state_provenance_ok("15m")
 
     def test_assert_manifest_repo_state_provenance_ok_no_manifest(self, tmp_path: Path) -> None:
         from smc_integration.sources import structure_artifact_json as mod
@@ -1467,9 +1460,8 @@ class TestStructureArtifactJson:
         _write_json(artifacts_dir / "manifest_15m.json", {"artifacts": "bad"})
 
         with patch.object(mod, "STRUCTURE_ARTIFACTS_DIR", artifacts_dir), \
-             patch.object(mod, "REPO_ROOT", tmp_path):
-            with pytest.raises(ValueError, match="must be a list"):
-                mod._resolve_from_manifest("AAPL", "15m")
+             patch.object(mod, "REPO_ROOT", tmp_path), pytest.raises(ValueError, match="must be a list"):
+            mod._resolve_from_manifest("AAPL", "15m")
 
     def test_resolve_from_manifest_no_manifest(self, tmp_path: Path) -> None:
         from smc_integration.sources import structure_artifact_json as mod

@@ -357,12 +357,12 @@ def build_filter_funnel(*, daily: pd.DataFrame, prem: pd.DataFrame, cfg: LongDip
     if frame.empty:
         return []
     current = frame.copy()
-    funnel = [{"filter": "Total symbols", "threshold": "n/a", "remaining": int(len(current))}]
+    funnel = [{"filter": "Total symbols", "threshold": "n/a", "remaining": len(current)}]
 
     def _apply(name: str, threshold: str, mask: pd.Series) -> None:
         nonlocal current
         current = current.loc[mask.fillna(False)].copy()
-        funnel.append({"filter": name, "threshold": threshold, "remaining": int(len(current))})
+        funnel.append({"filter": name, "threshold": threshold, "remaining": len(current)})
 
     _apply("is_eligible", "True", current["is_eligible"])
     _apply("premarket_gap_pct", f">= {cfg.min_gap_pct:.1f}", pd.to_numeric(current["prev_close_to_premarket_pct"], errors="coerce") >= float(cfg.min_gap_pct))
@@ -371,7 +371,7 @@ def build_filter_funnel(*, daily: pd.DataFrame, prem: pd.DataFrame, cfg: LongDip
 
     trade_count = pd.to_numeric(current.get("premarket_trade_count"), errors="coerce")
     if trade_count.isna().all():
-        funnel.append({"filter": "premarket_trade_count", "threshold": "skipped (no data)", "remaining": int(len(current))})
+        funnel.append({"filter": "premarket_trade_count", "threshold": "skipped (no data)", "remaining": len(current)})
     else:
         _apply("premarket_trade_count", f">= {int(cfg.min_premarket_trade_count):,}", trade_count >= int(cfg.min_premarket_trade_count))
     return funnel

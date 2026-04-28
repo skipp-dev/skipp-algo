@@ -6,7 +6,7 @@ import argparse
 import json
 import csv
 from pathlib import Path
-from typing import Sequence
+from collections.abc import Sequence
 
 from smc_integration.batch import load_symbols_from_source, write_snapshot_bundles_for_symbols
 from smc_integration.structure_batch import write_structure_artifacts_from_workbook

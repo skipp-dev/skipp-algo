@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Sequence
+from typing import Any
+from collections.abc import Sequence
 
 import numpy as np
 import pandas as pd
@@ -102,6 +103,7 @@ def _compute_group_structure_metrics(group: pd.DataFrame, *, prefix: str) -> dic
     last_swing_low = _latest_value(low_values, swing_low_indices)
 
     move_sign = _sign(last_close - float(close_values[0]))
+    # BAR-CLOSE-EXEMPT: deterministic feature engineering on already-validated, masked OHLCV arrays
     ema_sign = _sign(float(ema_fast.iloc[-1] - ema_slow.iloc[-1]))
     long_sign = _sign(float(last_close - ema_long.iloc[-1]))
     trend_state = ema_sign if ema_sign != 0 else move_sign

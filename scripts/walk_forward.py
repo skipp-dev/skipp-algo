@@ -21,7 +21,8 @@ References
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterator, Literal, Sequence
+from typing import Literal
+from collections.abc import Iterator, Sequence
 
 import numpy as np
 
