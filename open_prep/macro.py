@@ -1576,6 +1576,11 @@ class FMPClient:
         try:
             data = self._get(f"/stable/historical-chart/{interval}", params)
         except RuntimeError as exc:
+            _log_feature_unavailable_once(
+                f"stable/historical-chart/{interval}",
+                f"FMP feature unavailable (stable/historical-chart/{interval}); continuing without intraday chart data.",
+                exc=exc,
+            )
             return []
         return list(data) if isinstance(data, list) else []
 

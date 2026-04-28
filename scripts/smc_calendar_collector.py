@@ -86,10 +86,8 @@ def collect_earnings_and_macro(
     # server's local clock. On a UTC server, ``date.today()`` advances at
     # 00:00 UTC — i.e. 20:00 ET (EDT) the previous day — which silently
     # rolls earnings into ``earnings_tomorrow_tickers`` for ~4 hours every
-    # night. Tested via
-    # ``test_smc_calendar_collector_anchors_today_on_us_eastern``.
+    # night. Tested via ``test_today_anchored_on_us_eastern``.
     today = reference_date or datetime.now(_ET).date()
-    from datetime import timedelta  # noqa: F401  (kept for backwards-compat re-export sites)
 
     if next_trading_date is not None:
         tomorrow = next_trading_date
