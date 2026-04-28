@@ -1167,7 +1167,7 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
 
     raw_bars, bars_source_mode = _load_source_bars(symbol, timeframe, resolved_inputs)
     details["bars_source_mode"] = bars_source_mode
-    details["raw_bar_rows"] = int(len(raw_bars))
+    details["raw_bar_rows"] = len(raw_bars)
     if raw_bars.empty:
         warnings.append("no bar source available for measurement evidence")
         details["evaluated_event_counts"] = {family: 0 for family in _FAMILIES}
@@ -1181,7 +1181,7 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
         details["warnings"] = list(warnings)
         return MeasurementEvidence(events_by_family, stratified_events, scored_events, details, warnings)
     resampled_bars = _to_epoch_seconds(resampled_bars)
-    details["resampled_bar_rows"] = int(len(resampled_bars))
+    details["resampled_bar_rows"] = len(resampled_bars)
 
     explicit_payload: dict[str, Any] | None = None
     try:

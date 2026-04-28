@@ -5,7 +5,7 @@ is normalised to sum to 1.0 across the horizon.
 """
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
 
 import numpy as np
 

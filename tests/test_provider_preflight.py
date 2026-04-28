@@ -125,9 +125,8 @@ def test_preflight_or_die_passes_when_all_critical_ok():
 
 def test_preflight_or_die_raises_on_critical_fail():
     probes = [pp.Probe("crit", _fail, critical=True)]
-    with patch.object(pp, "PROBES", probes):
-        with pytest.raises(SystemExit) as excinfo:
-            pp.preflight_or_die(notify=False)
+    with patch.object(pp, "PROBES", probes), pytest.raises(SystemExit) as excinfo:
+        pp.preflight_or_die(notify=False)
     assert excinfo.value.code == 1
 
 
@@ -155,9 +154,8 @@ def test_preflight_or_die_optional_failure_does_not_block():
 def test_preflight_or_die_notify_called_on_failure():
     probes = [pp.Probe("crit", _fail, critical=True)]
     with patch.object(pp, "PROBES", probes), \
-         patch.object(pp, "_notify_blocking") as mock_notify:
-        with pytest.raises(SystemExit):
-            pp.preflight_or_die(notify=True)
+         patch.object(pp, "_notify_blocking") as mock_notify, pytest.raises(SystemExit):
+        pp.preflight_or_die(notify=True)
     assert mock_notify.call_count == 1
     blocking_arg = mock_notify.call_args[0][0]
     assert len(blocking_arg) == 1
@@ -167,9 +165,8 @@ def test_preflight_or_die_notify_called_on_failure():
 def test_preflight_or_die_notify_skipped_when_disabled():
     probes = [pp.Probe("crit", _fail, critical=True)]
     with patch.object(pp, "PROBES", probes), \
-         patch.object(pp, "_notify_blocking") as mock_notify:
-        with pytest.raises(SystemExit):
-            pp.preflight_or_die(notify=False)
+         patch.object(pp, "_notify_blocking") as mock_notify, pytest.raises(SystemExit):
+        pp.preflight_or_die(notify=False)
     mock_notify.assert_not_called()
 
 

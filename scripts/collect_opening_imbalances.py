@@ -30,7 +30,8 @@ import sys
 import tempfile
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
+from collections.abc import Iterable
 
 from scripts.imbalance_data import (
     IMBALANCE_SCHEMA_VERSION,

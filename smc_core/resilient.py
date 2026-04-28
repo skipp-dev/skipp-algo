@@ -37,7 +37,8 @@ from __future__ import annotations
 import functools
 import random
 import time
-from typing import Any, Callable, TypeVar
+from typing import Any, TypeVar
+from collections.abc import Callable
 
 
 F = TypeVar("F", bound=Callable[..., Any])

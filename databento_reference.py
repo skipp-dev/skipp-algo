@@ -19,7 +19,8 @@ import tempfile
 import threading
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
+from collections.abc import Iterable
 
 import pandas as pd
 

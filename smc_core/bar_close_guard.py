@@ -38,7 +38,8 @@ not-yet-closed bars".
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final, Mapping
+from typing import TYPE_CHECKING, Final
+from collections.abc import Mapping
 
 if TYPE_CHECKING:  # pragma: no cover - type-only
     import pandas as pd

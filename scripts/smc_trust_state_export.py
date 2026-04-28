@@ -32,7 +32,8 @@ breaks.
 """
 from __future__ import annotations
 
-from typing import Any, Mapping
+from typing import Any
+from collections.abc import Mapping
 
 from smc_integration.action_degradation import (
     ActionDegradation,

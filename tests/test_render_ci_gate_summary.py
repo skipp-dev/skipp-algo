@@ -163,9 +163,8 @@ class TestMain:
                     "enforcement": "advisory",
                 })()
             })(),
-        ):
-            with patch.dict("os.environ", {}, clear=True):
-                import os
-                os.environ.pop("GITHUB_STEP_SUMMARY", None)
-                result = mod.main()
+        ), patch.dict("os.environ", {}, clear=True):
+            import os
+            os.environ.pop("GITHUB_STEP_SUMMARY", None)
+            result = mod.main()
         assert result == 0

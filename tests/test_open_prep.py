@@ -1284,10 +1284,9 @@ class TestOpenPrep(unittest.TestCase):
 
         with (
             patch("open_prep.macro.urlopen", side_effect=non_transient) as mock_urlopen,
-            patch("open_prep.macro.time.sleep") as mock_sleep,
+            patch("open_prep.macro.time.sleep") as mock_sleep,self.assertRaises(RuntimeError)
         ):
-            with self.assertRaises(RuntimeError):
-                client._get("/stable/economic-calendar", {"from": "2026-02-20", "to": "2026-02-21"})
+            client._get("/stable/economic-calendar", {"from": "2026-02-20", "to": "2026-02-21"})
 
         self.assertEqual(mock_urlopen.call_count, 1)
         mock_sleep.assert_not_called()
@@ -2848,9 +2847,8 @@ class TestFMPClientCsvFallback(unittest.TestCase):
         """Non-JSON, non-CSV garbage still raises RuntimeError."""
         client = self._make_client()
         cm = self._mock_urlopen_with_payload("<!DOCTYPE html><html>Error</html>")
-        with patch("open_prep.macro.urlopen", return_value=cm):
-            with self.assertRaises(RuntimeError) as ctx:
-                client._get("/stable/some-path", {})
+        with patch("open_prep.macro.urlopen", return_value=cm), self.assertRaises(RuntimeError) as ctx:
+            client._get("/stable/some-path", {})
         # HTML payloads are now detected and reported specifically
         self.assertIn("FMP API returned HTML", str(ctx.exception))
 
@@ -2913,10 +2911,9 @@ class TestFMPProfileBulkFallback(unittest.TestCase):
             FMPClient,
             "_get",
             side_effect=RuntimeError("FMP API HTTP 400 on /stable/profile-bulk: Bad Request"),
-        ):
-            with self.assertLogs("open_prep.macro", level="INFO") as logs:
-                first = client.get_profile_bulk()
-                second = client.get_profile_bulk()
+        ), self.assertLogs("open_prep.macro", level="INFO") as logs:
+            first = client.get_profile_bulk()
+            second = client.get_profile_bulk()
 
         self.assertEqual(first, [])
         self.assertEqual(second, [])
@@ -2950,10 +2947,9 @@ class TestFMPEarningsCalendarFallback(unittest.TestCase):
             FMPClient,
             "_get",
             side_effect=RuntimeError("FMP API HTTP 400 on /stable/earnings-calendar: Bad Request"),
-        ):
-            with self.assertLogs("open_prep.macro", level="INFO") as logs:
-                first = client.get_earnings_calendar(date(2026, 3, 20), date(2026, 3, 20))
-                second = client.get_earnings_calendar(date(2026, 3, 20), date(2026, 3, 20))
+        ), self.assertLogs("open_prep.macro", level="INFO") as logs:
+            first = client.get_earnings_calendar(date(2026, 3, 20), date(2026, 3, 20))
+            second = client.get_earnings_calendar(date(2026, 3, 20), date(2026, 3, 20))
 
         self.assertEqual(first, [])
         self.assertEqual(second, [])
@@ -2986,10 +2982,9 @@ class TestFMPArticlesFallback(unittest.TestCase):
             FMPClient,
             "_get",
             side_effect=RuntimeError("FMP API HTTP 400 on /stable/fmp-articles: Bad Request"),
-        ):
-            with self.assertLogs("open_prep.macro", level="INFO") as logs:
-                first = client.get_fmp_articles(limit=10)
-                second = client.get_fmp_articles(limit=10)
+        ), self.assertLogs("open_prep.macro", level="INFO") as logs:
+            first = client.get_fmp_articles(limit=10)
+            second = client.get_fmp_articles(limit=10)
 
         self.assertEqual(first, [])
         self.assertEqual(second, [])
@@ -3018,9 +3013,8 @@ class TestFMPClientCircuitBreakerValidationFailures(unittest.TestCase):
         client = self._make_client()
         cm = self._mock_urlopen_with_payload("<!DOCTYPE html><html>Error</html>")
 
-        with patch("open_prep.macro.urlopen", return_value=cm):
-            with self.assertRaises(RuntimeError):
-                client._get("/stable/some-path", {})
+        with patch("open_prep.macro.urlopen", return_value=cm), self.assertRaises(RuntimeError):
+            client._get("/stable/some-path", {})
 
         self.assertEqual(client._circuit_breaker.state, "OPEN")
 
@@ -3028,9 +3022,8 @@ class TestFMPClientCircuitBreakerValidationFailures(unittest.TestCase):
         client = self._make_client()
         cm = self._mock_urlopen_with_payload('{"status": "error", "message": "boom"}')
 
-        with patch("open_prep.macro.urlopen", return_value=cm):
-            with self.assertRaises(RuntimeError):
-                client._get("/stable/some-path", {})
+        with patch("open_prep.macro.urlopen", return_value=cm), self.assertRaises(RuntimeError):
+            client._get("/stable/some-path", {})
 
         self.assertEqual(client._circuit_breaker.state, "OPEN")
 
@@ -3066,9 +3059,8 @@ class TestFMPClientCircuitBreakerValidationFailures(unittest.TestCase):
                 raise exc_429
             return mock_resp_ok
 
-        with patch("open_prep.macro.urlopen", side_effect=_side_effect):
-            with patch("time.sleep") as mock_sleep:
-                result = client._get("/stable/some-path", {})
+        with patch("open_prep.macro.urlopen", side_effect=_side_effect), patch("time.sleep") as mock_sleep:
+            result = client._get("/stable/some-path", {})
 
         self.assertEqual(call_count["n"], 2)
         # Should have slept with the Retry-After value (0.01), not the backoff
@@ -3097,9 +3089,8 @@ class TestFMPClientCircuitBreakerValidationFailures(unittest.TestCase):
                 raise exc_429
             return mock_resp_ok
 
-        with patch("open_prep.macro.urlopen", side_effect=_side_effect):
-            with patch("time.sleep") as mock_sleep:
-                client._get("/stable/some-path", {})
+        with patch("open_prep.macro.urlopen", side_effect=_side_effect), patch("time.sleep") as mock_sleep:
+            client._get("/stable/some-path", {})
 
         self.assertEqual(call_count["n"], 2)
         self.assertTrue(mock_sleep.called)
@@ -3167,9 +3158,8 @@ class TestFMPClientCircuitBreakerHttpClassification(unittest.TestCase):
                 raise exc_408
             return cm_ok
 
-        with patch("open_prep.macro.urlopen", side_effect=_side_effect):
-            with patch("time.sleep"):
-                result = client._get("/stable/x", {})
+        with patch("open_prep.macro.urlopen", side_effect=_side_effect), patch("time.sleep"):
+            result = client._get("/stable/x", {})
 
         self.assertEqual(calls["n"], 2)
         self.assertEqual(result, [{"ok": True}])
@@ -3696,9 +3686,8 @@ class TestSR2WatchlistFcntlFallback(unittest.TestCase):
         """_file_lock must be usable as a context manager regardless of platform."""
         from open_prep.watchlist import _file_lock
         import tempfile
-        with tempfile.TemporaryDirectory():
-            with _file_lock():
-                pass  # Should not raise
+        with tempfile.TemporaryDirectory(), _file_lock():
+            pass  # Should not raise
 
 
 class TestSR2AtomicLatestWrite(unittest.TestCase):

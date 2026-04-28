@@ -100,7 +100,7 @@ def _serialize_vol_regime(vol_regime_result: Any, *, bars_available: bool) -> di
 
 
 def _context_diagnostics_for_bars(bars: pd.DataFrame) -> dict[str, Any]:
-    bar_count = int(len(bars))
+    bar_count = len(bars)
     bars_available = bar_count > 0
     diagnostics: dict[str, Any] = {
         "bars_available": bars_available,

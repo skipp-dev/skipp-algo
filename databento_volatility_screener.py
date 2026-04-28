@@ -23,7 +23,8 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta, tzinfo
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
+from collections.abc import Callable
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
 
@@ -2275,13 +2276,13 @@ def _build_open_window_aggregates(
             {
                 "trade_date": trade_day,
                 "symbol": symbol,
-                _m("open_window_second_rows"): int(len(group)),
+                _m("open_window_second_rows"): len(group),
                 _m("open_1m_volume"): float(first_minute["volume"].sum()),
                 _m("open_5m_volume"): float(first_five["volume"].sum()),
                 _m("open_30s_volume"): float(first_thirty["volume"].sum()),
-                _m("regular_open_second_rows"): int(len(first_minute)),
-                _m("regular_open_5m_second_rows"): int(len(first_five)),
-                _m("regular_open_30s_second_rows"): int(len(first_thirty)),
+                _m("regular_open_second_rows"): len(first_minute),
+                _m("regular_open_5m_second_rows"): len(first_five),
+                _m("regular_open_30s_second_rows"): len(first_thirty),
                 _m("regular_open_reference_price"): reference_price,
                 _m("early_dip_low_10s"): early_dip_low,
                 _m("early_dip_pct_10s"): early_dip_pct,
@@ -2394,10 +2395,10 @@ def _build_close_imbalance_aggregates(
             {
                 "trade_date": trade_day,
                 "symbol": symbol,
-                "close_window_second_rows": int(len(window_rows)),
-                "close_preclose_second_rows": int(len(preclose_rows)),
-                "close_last_minute_second_rows": int(len(last_minute_rows)),
-                "close_postclose_second_rows": int(len(postclose_rows)),
+                "close_window_second_rows": len(window_rows),
+                "close_preclose_second_rows": len(preclose_rows),
+                "close_last_minute_second_rows": len(last_minute_rows),
+                "close_postclose_second_rows": len(postclose_rows),
                 "close_10m_volume": close_10m_volume,
                 "close_last_1m_volume": close_last_1m_volume,
                 "close_postclose_5m_volume": close_postclose_5m_volume,
@@ -2746,7 +2747,7 @@ def _build_close_trade_aggregates(
         if auction_ts is None:
             continue
         ordered = group.sort_values(["timestamp", "sequence"], na_position="last").copy()
-        trade_count = int(len(ordered))
+        trade_count = len(ordered)
         if trade_count == 0:
             continue
         volume_total = float(ordered["size"].sum())
@@ -2829,7 +2830,7 @@ def _build_close_outcome_aggregates(close_outcome_minute_detail_all: pd.DataFram
             {
                 "trade_date": trade_day,
                 "symbol": symbol,
-                "close_afterhours_minute_rows": int(len(ordered)),
+                "close_afterhours_minute_rows": len(ordered),
                 "close_afterhours_volume": float(ordered["volume"].sum()),
                 "close_last_price_2000": float(pd.to_numeric(ordered.iloc[-1].get("close"), errors="coerce")),
                 "close_high_price_1600_2000": float(pd.to_numeric(ordered.get("high"), errors="coerce").max()),

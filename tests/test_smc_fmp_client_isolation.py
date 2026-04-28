@@ -94,9 +94,8 @@ class TestSMCFMPClientInterface:
 
         c = SMCFMPClient(api_key="k", retry_attempts=3)
         with patch.object(mod, "resilient", side_effect=_spy_resilient), \
-             patch.object(mod, "urlopen", side_effect=RuntimeError("stop")):
-            with pytest.raises(RuntimeError):
-                c._get("/any", {})
+             patch.object(mod, "urlopen", side_effect=RuntimeError("stop")), pytest.raises(RuntimeError):
+            c._get("/any", {})
         assert captured["config"]["retries"] == 2  # retry_attempts=3 → 2 extras
         assert captured["config"]["base_delay"] == 0.5
         # Bumped from 4.0 to 60.0 in PR #379 so honored ``Retry-After``

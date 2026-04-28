@@ -18,7 +18,8 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
+from collections.abc import Iterable
 
 
 def _keyset(digest: dict[str, Any]) -> dict[tuple[str, str], dict[str, Any]]:

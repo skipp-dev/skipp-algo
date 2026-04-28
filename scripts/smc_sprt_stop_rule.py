@@ -78,7 +78,8 @@ import json
 import math
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Literal
+from typing import Literal
+from collections.abc import Iterable
 
 
 Decision = Literal[

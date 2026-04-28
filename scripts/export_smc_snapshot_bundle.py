@@ -5,7 +5,7 @@ from scripts.smc_atomic_write import atomic_write_text
 import argparse
 import json
 from pathlib import Path
-from typing import Sequence
+from collections.abc import Sequence
 
 from smc_integration.service import build_snapshot_bundle_for_symbol_timeframe
 from smc_integration.artifact_resolution import resolve_structure_artifact_inputs

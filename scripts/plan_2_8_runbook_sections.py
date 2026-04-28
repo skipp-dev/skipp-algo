@@ -21,7 +21,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Iterable
+from collections.abc import Iterable
 
 
 DEFAULT_REQUIRED: tuple[str, ...] = (

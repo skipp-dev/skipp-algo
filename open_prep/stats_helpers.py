@@ -18,7 +18,7 @@ Sources:
 from __future__ import annotations
 
 import math
-from typing import Sequence
+from collections.abc import Sequence
 
 __all__ = [
     "MIN_OBSERVATIONS_FOR_PSR",

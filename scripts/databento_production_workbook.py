@@ -277,16 +277,16 @@ def write_databento_production_workbook_from_frames(
     )
     path.write_bytes(payload)
 
-    rows = {"summary": int(len(summary))}
+    rows = {"summary": len(summary)}
     if minute_detail is not None:
-        rows["minute_detail"] = int(len(minute_detail))
+        rows["minute_detail"] = len(minute_detail)
     if second_detail is not None:
-        rows["second_detail"] = int(len(second_detail))
+        rows["second_detail"] = len(second_detail)
     if additional_sheets:
         for name, frame in additional_sheets.items():
             if frame is None:
                 continue
-            rows[str(name)] = int(len(frame))
+            rows[str(name)] = len(frame)
 
     return WorkbookWriteResult(
         output_path=path,

@@ -20,7 +20,8 @@ import re
 import tempfile
 from datetime import UTC, date, datetime, timedelta, tzinfo
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
+from collections.abc import Callable
 
 import pandas as pd
 from zoneinfo import ZoneInfo

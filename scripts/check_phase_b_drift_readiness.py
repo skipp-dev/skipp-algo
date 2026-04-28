@@ -27,7 +27,7 @@ import glob
 import json
 import sys
 from pathlib import Path
-from typing import Iterable
+from collections.abc import Iterable
 
 # String constants kept in sync with ``scripts/compute_live_drift.py``.
 SYNTHETIC_NORMAL = "synthetic_normal"

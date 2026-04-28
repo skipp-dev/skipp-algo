@@ -2894,47 +2894,44 @@ else:
         if _tk and _tk != "MARKET":
             _tickers_seen.setdefault(_tk, []).append(_fi)
 
-    with _detail_cols[0]:
-        with st.expander(f"Unique tickers ({_stats['unique_tickers']})"):
-            for _tk_sym in sorted(_tickers_seen):
-                _tk_items = _tickers_seen[_tk_sym]
-                _best = max(_tk_items, key=effective_catalyst_score)
-                _hl = safe_markdown_text((_best.get("headline") or "")[:100])
-                _u = safe_url(_best.get("url") or "")
+    with _detail_cols[0], st.expander(f"Unique tickers ({_stats['unique_tickers']})"):
+        for _tk_sym in sorted(_tickers_seen):
+            _tk_items = _tickers_seen[_tk_sym]
+            _best = max(_tk_items, key=effective_catalyst_score)
+            _hl = safe_markdown_text((_best.get("headline") or "")[:100])
+            _u = safe_url(_best.get("url") or "")
+            _link = f"[{_hl}]({_u})" if _u else _hl
+            st.markdown(f"**{_tk_sym}** — {_link}")
+
+    with _detail_cols[1], st.expander(f"Actionable ({_stats['actionable']})"):
+        _act_items = dedup_feed_items([d for d in feed if _is_actionable_broad(d)])
+        if _act_items:
+            for _ai in _act_items:
+                _tk = _ai.get("ticker", "?")
+                _hl = safe_markdown_text((_ai.get("headline") or "")[:100])
+                _u = safe_url(_ai.get("url") or "")
+                _sc = effective_attention_score(_ai)
+                _att = effective_attention_state(_ai)
                 _link = f"[{_hl}]({_u})" if _u else _hl
-                st.markdown(f"**{_tk_sym}** — {_link}")
-
-    with _detail_cols[1]:
-        with st.expander(f"Actionable ({_stats['actionable']})"):
-            _act_items = dedup_feed_items([d for d in feed if _is_actionable_broad(d)])
-            if _act_items:
-                for _ai in _act_items:
-                    _tk = _ai.get("ticker", "?")
-                    _hl = safe_markdown_text((_ai.get("headline") or "")[:100])
-                    _u = safe_url(_ai.get("url") or "")
-                    _sc = effective_attention_score(_ai)
-                    _att = effective_attention_state(_ai)
-                    _link = f"[{_hl}]({_u})" if _u else _hl
-                    if _att:
-                        st.markdown(f"**{_tk}** ({_att.title()} · {_sc:.2f}) — {_link}")
-                    else:
-                        st.markdown(f"**{_tk}** ({_sc:.2f}) — {_link}")
-            else:
-                st.caption("No actionable items.")
-
-    with _detail_cols[2]:
-        with st.expander(f"HIGH materiality ({_stats['high_materiality']})"):
-            _high_items = dedup_feed_items([d for d in feed if d.get("materiality") == "HIGH"])
-            if _high_items:
-                for _hi in _high_items:
-                    _tk = _hi.get("ticker", "?")
-                    _hl = safe_markdown_text((_hi.get("headline") or "")[:100])
-                    _u = safe_url(_hi.get("url") or "")
-                    _sc = effective_catalyst_score(_hi)
-                    _link = f"[{_hl}]({_u})" if _u else _hl
+                if _att:
+                    st.markdown(f"**{_tk}** ({_att.title()} · {_sc:.2f}) — {_link}")
+                else:
                     st.markdown(f"**{_tk}** ({_sc:.2f}) — {_link}")
-            else:
-                st.caption("No HIGH materiality items.")
+        else:
+            st.caption("No actionable items.")
+
+    with _detail_cols[2], st.expander(f"HIGH materiality ({_stats['high_materiality']})"):
+        _high_items = dedup_feed_items([d for d in feed if d.get("materiality") == "HIGH"])
+        if _high_items:
+            for _hi in _high_items:
+                _tk = _hi.get("ticker", "?")
+                _hl = safe_markdown_text((_hi.get("headline") or "")[:100])
+                _u = safe_url(_hi.get("url") or "")
+                _sc = effective_catalyst_score(_hi)
+                _link = f"[{_hl}]({_u})" if _u else _hl
+                st.markdown(f"**{_tk}** ({_sc:.2f}) — {_link}")
+        else:
+            st.caption("No HIGH materiality items.")
 
     st.divider()
 
@@ -3054,74 +3051,69 @@ else:
         with _hdr_cols[1]:
             with st.popover("**Headline** ℹ️"):
                 st.markdown("**News headline** with sentiment icon (🟢 positive / 🔴 negative / ⚪ neutral). Click the link to open the full article.")
-        with _hdr_cols[2]:
-            with st.popover("**Category** ℹ️"):
-                st.markdown(
-                    "**News category** — Classifies the type of news.\n\n"
-                    "Common values:\n"
-                    "- `mna` — Mergers & Acquisitions\n"
-                    "- `earnings` — Earnings reports\n"
-                    "- `macro` — Macroeconomic news\n"
-                    "- `analyst` — Analyst actions\n"
-                    "- `crypto` — Cryptocurrency\n"
-                    "- `guidance` — Company guidance\n"
-                    "- `insider` — Insider trading\n"
-                    "- `govt` — Government/regulation"
-                )
-        with _hdr_cols[3]:
-            with st.popover("**Score** ℹ️"):
-                st.markdown(
-                    "**News importance score** (0–1) computed by the scoring engine based on "
-                    "source tier, relevance, materiality, and sentiment strength.\n\n"
-                    "Higher = more market-moving.\n\n"
-                    "**Colour coding** (colour = impact × direction)\n\n"
-                    "| Colour | Threshold | Meaning |\n"
-                    "|--------|-----------|---------|\n"
-                    "| 🟢 **green bold** | + score ≥ 0.80 | **High-impact bullish** — actionable. "
-                    "Triggers an A1→A0 upgrade and fires the alert webhook. |\n"
-                    "| 🔴 **red bold** | − score ≥ 0.80 | **High-impact bearish** — actionable. "
-                    "Scored strongly across source tier, relevance, materiality & sentiment. |\n"
-                    "| 🟡 yellow | + score ≥ 0.50 | **Moderate-impact bullish** — notable but below "
-                    "high-conviction threshold. |\n"
-                    "| 🟠 orange | − score ≥ 0.50 | **Moderate-impact bearish** — notable but below "
-                    "high-conviction threshold. |\n"
-                    "| plain | score < 0.50 | **Low-impact** — informational only, "
-                    "no alert action taken. |\n\n"
-                    "**Direction prefix**\n\n"
-                    "| Prefix | Meaning |\n"
-                    "|--------|---------|\n"
-                    "| **+** | Bullish impact |\n"
-                    "| **n** | Neutral impact |\n"
-                    "| **−** | Bearish impact |\n\n"
-                    "The 🔍 badge means **WIIM** (Why It Matters) — a short explanation of the article's market relevance."
-                )
-        with _hdr_cols[4]:
-            with st.popover("**Age** ℹ️"):
-                st.markdown(
-                    "**Time since publication** — How long ago the article was published.\n\n"
-                    "Recency icons:\n"
-                    "- 🟢 Fresh (< 1 hour)\n"
-                    "- 🟡 Recent (1–4 hours)\n"
-                    "- ⚪ Older (> 4 hours)"
-                )
-        with _hdr_cols[5]:
-            with st.popover("**Event** ℹ️"):
-                st.markdown(
-                    "**Event classification label** — Describes the type of market event.\n\n"
-                    "Examples:\n"
-                    "- `ma deal` — M&A transaction\n"
-                    "- `earnings beat` — Earnings surprise\n"
-                    "- `analyst upgrade` — Rating change\n"
-                    "- `guidance raised` — Outlook revision\n"
-                    "- `stock split` — Corporate action\n\n"
-                    "The provider icon shows the data source."
-                )
-        with _hdr_cols[6]:
-            with st.popover("**Price** ℹ️"):
-                st.markdown(
-                    "**Databento daily close price** — The most recent closing price "
-                    "from Databento market data."
-                )
+        with _hdr_cols[2], st.popover("**Category** ℹ️"):
+            st.markdown(
+                "**News category** — Classifies the type of news.\n\n"
+                "Common values:\n"
+                "- `mna` — Mergers & Acquisitions\n"
+                "- `earnings` — Earnings reports\n"
+                "- `macro` — Macroeconomic news\n"
+                "- `analyst` — Analyst actions\n"
+                "- `crypto` — Cryptocurrency\n"
+                "- `guidance` — Company guidance\n"
+                "- `insider` — Insider trading\n"
+                "- `govt` — Government/regulation"
+            )
+        with _hdr_cols[3], st.popover("**Score** ℹ️"):
+            st.markdown(
+                "**News importance score** (0–1) computed by the scoring engine based on "
+                "source tier, relevance, materiality, and sentiment strength.\n\n"
+                "Higher = more market-moving.\n\n"
+                "**Colour coding** (colour = impact × direction)\n\n"
+                "| Colour | Threshold | Meaning |\n"
+                "|--------|-----------|---------|\n"
+                "| 🟢 **green bold** | + score ≥ 0.80 | **High-impact bullish** — actionable. "
+                "Triggers an A1→A0 upgrade and fires the alert webhook. |\n"
+                "| 🔴 **red bold** | − score ≥ 0.80 | **High-impact bearish** — actionable. "
+                "Scored strongly across source tier, relevance, materiality & sentiment. |\n"
+                "| 🟡 yellow | + score ≥ 0.50 | **Moderate-impact bullish** — notable but below "
+                "high-conviction threshold. |\n"
+                "| 🟠 orange | − score ≥ 0.50 | **Moderate-impact bearish** — notable but below "
+                "high-conviction threshold. |\n"
+                "| plain | score < 0.50 | **Low-impact** — informational only, "
+                "no alert action taken. |\n\n"
+                "**Direction prefix**\n\n"
+                "| Prefix | Meaning |\n"
+                "|--------|---------|\n"
+                "| **+** | Bullish impact |\n"
+                "| **n** | Neutral impact |\n"
+                "| **−** | Bearish impact |\n\n"
+                "The 🔍 badge means **WIIM** (Why It Matters) — a short explanation of the article's market relevance."
+            )
+        with _hdr_cols[4], st.popover("**Age** ℹ️"):
+            st.markdown(
+                "**Time since publication** — How long ago the article was published.\n\n"
+                "Recency icons:\n"
+                "- 🟢 Fresh (< 1 hour)\n"
+                "- 🟡 Recent (1–4 hours)\n"
+                "- ⚪ Older (> 4 hours)"
+            )
+        with _hdr_cols[5], st.popover("**Event** ℹ️"):
+            st.markdown(
+                "**Event classification label** — Describes the type of market event.\n\n"
+                "Examples:\n"
+                "- `ma deal` — M&A transaction\n"
+                "- `earnings beat` — Earnings surprise\n"
+                "- `analyst upgrade` — Rating change\n"
+                "- `guidance raised` — Outlook revision\n"
+                "- `stock split` — Corporate action\n\n"
+                "The provider icon shows the data source."
+            )
+        with _hdr_cols[6], st.popover("**Price** ℹ️"):
+            st.markdown(
+                "**Databento daily close price** — The most recent closing price "
+                "from Databento market data."
+            )
         st.divider()
 
         for d in filtered[:50]:

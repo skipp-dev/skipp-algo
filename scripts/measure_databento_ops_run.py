@@ -242,7 +242,7 @@ def main() -> int:
             report["steps"]["generate_watchlist"] = {
                 "ok": True,
                 "duration_seconds": round(watch_seconds, 3),
-                "rows": int(len(watch.get("watchlist_table", []))) if isinstance(watch, dict) else 0,
+                "rows": len(watch.get("watchlist_table", [])) if isinstance(watch, dict) else 0,
                 "warnings": watch.get("warnings", []) if isinstance(watch, dict) else [],
                 "trade_date": watch.get("trade_date") if isinstance(watch, dict) else None,
                 "source_data_fetched_at": watch.get("source_data_fetched_at") if isinstance(watch, dict) else None,

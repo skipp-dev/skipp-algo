@@ -15,7 +15,7 @@ contract.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Iterable
+from collections.abc import Iterable
 
 from governance.types import Blocker, Decision, EventFamily, Posture
 

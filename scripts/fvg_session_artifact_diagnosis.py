@@ -26,7 +26,7 @@ import json
 from collections import Counter, defaultdict
 from datetime import datetime, timezone, UTC
 from pathlib import Path
-from typing import Iterable
+from collections.abc import Iterable
 
 
 DEFAULT_ROOT = Path("artifacts/ci/measurement_benchmark_2026-04-22_partial50_v3")

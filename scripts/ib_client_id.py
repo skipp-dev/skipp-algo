@@ -42,7 +42,7 @@ import os
 import random
 import time
 from pathlib import Path
-from typing import Iterable
+from collections.abc import Iterable
 
 DEFAULT_REGISTRY_PATH = Path.home() / "client_id_registry.json"
 DEFAULT_PROCESS_TIMEOUT_SECONDS = 300

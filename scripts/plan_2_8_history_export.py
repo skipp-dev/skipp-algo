@@ -19,7 +19,8 @@ import datetime as _dt
 import json
 import sys
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
+from collections.abc import Iterable
 
 
 DEFAULT_FIELDS: tuple[str, ...] = (

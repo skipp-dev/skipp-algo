@@ -11,7 +11,8 @@ from datetime import date, datetime, time, timedelta
 from pathlib import Path
 import sys
 import time as time_module
-from typing import Any, Iterable, cast
+from typing import Any, cast
+from collections.abc import Iterable
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import pandas as pd

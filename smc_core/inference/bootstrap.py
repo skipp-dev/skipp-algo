@@ -29,7 +29,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import erf, sqrt
-from typing import Callable, Literal, TypedDict
+from typing import Literal, TypedDict
+from collections.abc import Callable
 
 import numpy as np
 

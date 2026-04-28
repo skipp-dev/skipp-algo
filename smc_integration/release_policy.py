@@ -7,7 +7,8 @@ import os
 from dataclasses import asdict, dataclass
 from statistics import median
 import subprocess
-from typing import Any, Iterable
+from typing import Any
+from collections.abc import Iterable
 
 logger = logging.getLogger(__name__)
 

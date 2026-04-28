@@ -32,7 +32,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Iterable
+from collections.abc import Iterable
 
 # Match repo-tracked manifests written by snapshot/structure/benchmark code:
 #   manifest_5m.json, manifest_15m.json, manifest_1H.json, manifest.json,

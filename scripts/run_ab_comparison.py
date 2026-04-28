@@ -31,7 +31,8 @@ import random
 import sys
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Callable, Sequence
+from typing import Any
+from collections.abc import Callable, Sequence
 
 # Re-use the report helpers from the performance report generator.
 from scripts.generate_performance_report import (

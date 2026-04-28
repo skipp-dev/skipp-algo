@@ -29,7 +29,8 @@ The check is in-process, deterministic and free of I/O.
 """
 from __future__ import annotations
 
-from typing import Any, Mapping
+from typing import Any
+from collections.abc import Mapping
 
 from scripts.smc_hero_state import build_hero_state
 from scripts.smc_pine_evidence_fixtures import build_evidence_fixture
