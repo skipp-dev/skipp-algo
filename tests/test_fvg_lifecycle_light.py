@@ -5,7 +5,6 @@ bull/bear tie-break nearest selection, and maturity derivation.
 """
 from __future__ import annotations
 
-import pytest
 from scripts.smc_fvg_lifecycle_light import build_fvg_lifecycle_light, DEFAULTS
 
 

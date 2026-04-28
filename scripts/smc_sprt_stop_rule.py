@@ -76,7 +76,7 @@ from scripts.smc_atomic_write import atomic_write_text
 
 import json
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Literal
 

@@ -13,7 +13,6 @@ from __future__ import annotations
 import math
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock
 
 # Ensure project root is on sys.path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]

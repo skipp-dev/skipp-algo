@@ -38,7 +38,7 @@ from .normalize import normalize_benzinga_rest, normalize_benzinga_ws
 
 logger = logging.getLogger(__name__)
 
-from newsstack_fmp._bz_http import _request_with_retry, _sanitize_exc, _sanitize_url, log_fetch_warning  # noqa: E402
+from newsstack_fmp._bz_http import _request_with_retry, _sanitize_url, log_fetch_warning  # noqa: E402
 
 
 # =====================================================================

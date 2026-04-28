@@ -10,7 +10,6 @@ from terminal_notifications import (
     NotifyConfig,
     _format_discord_message,
     _format_message,
-    _is_market_hours,
     _is_throttled,
     _mark_notified,
     _send_discord,

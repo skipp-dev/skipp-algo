@@ -46,9 +46,9 @@ _DIR_EXCLUDE = frozenset(
 
 # Frozen ledger: (relative posix path) -> frozenset of linenos.
 _FROZEN_SITES: dict[str, frozenset[int]] = {
-    "scripts/smc_alert_notifier.py": frozenset({482}),
+    "scripts/smc_alert_notifier.py": frozenset({481}),
     "scripts/verify_branch_protection.py": frozenset({103}),
-    "terminal_notifications.py": frozenset({253, 317}),
+    "terminal_notifications.py": frozenset({250, 314}),
 }
 
 _FROZEN_TOTAL = sum(len(v) for v in _FROZEN_SITES.values())

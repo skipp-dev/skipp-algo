@@ -318,7 +318,6 @@ def test_cli_live_phase_loads_account_state_json(tmp_path: Path) -> None:
 def test_account_state_json_rejects_null_last_n_pnls(tmp_path: Path) -> None:
     """Copilot pass-4: explicit JSON null for last_n_pnls must produce a
     clear ValueError, not a raw TypeError from ``float(x) for x in None``."""
-    import pytest
     from scripts.run_smc_live_incubation import _account_state_from_json
 
     state_path = tmp_path / "account.json"

@@ -69,7 +69,6 @@ def test_extended_integrability_is_conservative_for_non_provider_sources() -> No
 # ── pure helper coverage ─────────────────────────────────────────
 
 from smc_integration.extended_structure_discovery import (
-    EVIDENCE_TYPE_ORDER,
     _candidate_rank,
     _evidence_tokens,
     _evidence_type_for,

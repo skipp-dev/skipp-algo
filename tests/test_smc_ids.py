@@ -5,8 +5,6 @@ from __future__ import annotations
 import pytest
 
 from smc_core.ids import (
-    DEFAULT_SESSION_TZ,
-    SYMBOL_TICKSIZE,
     bos_id,
     fvg_id,
     liquidity_id,
@@ -139,7 +137,7 @@ def test_quantize_time_1d_explicit_utc() -> None:
 
 def test_quantize_time_1d_session_boundary() -> None:
     """Timestamps just before and after local midnight should land in different day anchors."""
-    from datetime import datetime, timezone
+    from datetime import datetime
     from zoneinfo import ZoneInfo
 
     tz = ZoneInfo("America/New_York")

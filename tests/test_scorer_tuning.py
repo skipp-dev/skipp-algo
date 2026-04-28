@@ -11,7 +11,6 @@ import pytest
 from open_prep.outcomes import (
     FEATURE_KEYS,
     FEATURE_TO_WEIGHT_KEY,
-    ScorerWeightUpdate,
     check_scorer_drift,
     compute_weight_adjustments,
     scorer_update_to_json,

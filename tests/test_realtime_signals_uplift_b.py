@@ -15,7 +15,6 @@ Out of scope (RealtimeEngine + main()) — left for a later bucket.
 
 from __future__ import annotations
 
-import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any

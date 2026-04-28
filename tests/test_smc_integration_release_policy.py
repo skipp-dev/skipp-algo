@@ -12,7 +12,6 @@ from smc_integration.release_policy import (
     MeasurementShadowThresholds,
     EVIDENCE_MIN_SYMBOL_COVERAGE,
     EVIDENCE_MIN_TIMEFRAME_COVERAGE,
-    REASON_INSUFFICIENT_RUNS,
     REASON_INSUFFICIENT_SYMBOLS,
     REASON_INSUFFICIENT_TIMEFRAMES,
     REASON_MEASUREMENT_QUALITY,
@@ -1126,7 +1125,6 @@ class TestFiniteAndIntMetricEdges:
 
     def test_finite_metric_nan_returns_none(self) -> None:
         from smc_integration.release_policy import _finite_metric
-        import math
         assert _finite_metric(float("nan")) is None
 
     def test_finite_metric_inf_returns_none(self) -> None:

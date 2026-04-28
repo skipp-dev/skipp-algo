@@ -14,8 +14,7 @@ import logging
 import os
 import threading
 import time
-from datetime import UTC, date, datetime, timedelta
-from pathlib import Path
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo as _ZoneInfo
 

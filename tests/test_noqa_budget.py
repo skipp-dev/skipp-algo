@@ -88,15 +88,15 @@ def _all_sites() -> list[tuple[str, int, tuple[str, ...]]]:
 _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
     {
         ("newsstack_fmp/ingest_benzinga.py", 41, ("E402",)),
-        ("newsstack_fmp/ingest_benzinga_calendar.py", 37, ("E402",)),
-        ("newsstack_fmp/ingest_benzinga_financial.py", 50, ("E402",)),
+        ("newsstack_fmp/ingest_benzinga_calendar.py", 35, ("E402",)),
+        ("newsstack_fmp/ingest_benzinga_financial.py", 48, ("E402",)),
         ("newsstack_fmp/pipeline.py", 832, ("E402",)),
         ("open_prep/streamlit_monitor.py", 82, ("E402",)),
         ("smc_core/resilient.py", 88, ("PERF203",)),
-        ("streamlit_terminal.py", 2984, ("ANN001",)),
+        ("streamlit_terminal.py", 2957, ("ANN001",)),
         ("terminal_bitcoin.py", 68, ("F401", "F811")),
-        ("terminal_finnhub.py", 181, ("PLW0603",)),
-        ("terminal_finnhub.py", 210, ("PLW0603",)),
+        ("terminal_finnhub.py", 179, ("PLW0603",)),
+        ("terminal_finnhub.py", 208, ("PLW0603",)),
         # NOTE: The 17 ``terminal_tabs/__init__.py`` ``F401`` sites
         # (formerly lines 7-23) were retired in PR #290 — the package
         # now uses a lazy ``__getattr__`` resolver instead of eager

@@ -10,7 +10,7 @@ from __future__ import annotations
 import time
 from typing import Any, Literal
 
-from smc_core.layering import derive_base_signals, normalize_meta, REGIME_STYLE
+from smc_core.layering import derive_base_signals, normalize_meta
 from smc_core.types import (
     DirectionalStrength,
     MarketRegimeContext,

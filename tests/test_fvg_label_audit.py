@@ -3,13 +3,11 @@
 from __future__ import annotations
 
 import json
-import textwrap
 from pathlib import Path
 
 import pytest
 
 from scripts.fvg_label_audit import (
-    FVGAuditResult,
     _derive_findings,
     _derive_recommendations,
     _fvg_context_breakdown,

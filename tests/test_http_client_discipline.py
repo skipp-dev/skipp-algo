@@ -139,15 +139,15 @@ def _has_timeout_kwarg(node: ast.Call) -> bool:
 # new compliant sites are added (or removed when a site moves).
 _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
     {
-        ("databento_universe.py", 307),
+        ("databento_universe.py", 306),
         ("databento_volatility_screener.py", 1110),
         ("open_prep/bea.py", 94),
         ("open_prep/macro.py", 600),
         ("open_prep/sentiment_fng.py", 99),
-        ("terminal_finnhub.py", 186),
-        ("terminal_notifications.py", 253),
-        ("terminal_notifications.py", 317),
-        ("terminal_tradingview_news.py", 366),
+        ("terminal_finnhub.py", 184),
+        ("terminal_notifications.py", 250),
+        ("terminal_notifications.py", 314),
+        ("terminal_tradingview_news.py", 365),
     }
 )
 

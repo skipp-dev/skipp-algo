@@ -15,7 +15,6 @@ from unittest.mock import MagicMock
 import httpx
 import pytest
 
-from newsstack_fmp import _bz_http
 from newsstack_fmp._bz_http import (
     BenzingaEndpointDisabled,
     _request_with_retry,

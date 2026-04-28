@@ -16,7 +16,6 @@
 from __future__ import annotations
 
 import pandas as pd
-import pytest
 
 from scripts.smc_range_regime import DEFAULTS, build_range_regime
 

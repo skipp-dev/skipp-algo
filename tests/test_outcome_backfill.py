@@ -5,17 +5,14 @@ import json
 from datetime import date, datetime, time as dt_time
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from zoneinfo import ZoneInfo as _ZoneInfo
 
 import pandas as pd
 import pytest
 
 from open_prep.outcome_backfill import (
-    OUTCOMES_DIR,
     _DEFAULT_DATASET,
-    _EXIT_TIME,
-    _OPEN_TIME,
     _fetch_bars,
     _load_outcome_file,
     _load_pending_dates,

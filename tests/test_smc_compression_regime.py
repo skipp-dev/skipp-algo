@@ -5,7 +5,6 @@ Covers all four ATR regime states + squeeze on/released + momentum bias.
 from __future__ import annotations
 
 import pandas as pd
-import pytest
 
 from scripts.smc_compression_regime import DEFAULTS, build_compression_regime
 

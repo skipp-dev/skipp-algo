@@ -355,7 +355,6 @@ class TestCandidatePathsDedup:
 class TestBuildStructureGapReportRealProviderWithPartialFields:
     def test_partial_fields_produce_gaps(self) -> None:
         from types import SimpleNamespace
-        from unittest.mock import MagicMock
 
         import smc_integration.structure_audit as mod
 

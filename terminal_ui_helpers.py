@@ -20,7 +20,6 @@ from terminal_catalyst_state import (
 from terminal_attention_state import (
     effective_attention_active,
     effective_attention_priority,
-    effective_attention_state,
 )
 from terminal_reaction_state import (
     effective_reaction_actionable,
@@ -38,7 +37,6 @@ from terminal_posture_state import (
     effective_posture_actionable,
     effective_posture_priority,
     effective_posture_score,
-    effective_posture_state,
 )
 
 # ── Icon / colour maps ──────────────────────────────────────────

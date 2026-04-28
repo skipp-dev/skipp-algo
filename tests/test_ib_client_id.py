@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
-import pytest
 
 from scripts.ib_client_id import (
     DEFAULT_PREFERRED_RANGE,

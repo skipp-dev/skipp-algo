@@ -23,7 +23,6 @@ import re
 from collections import defaultdict
 from pathlib import Path
 
-import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 

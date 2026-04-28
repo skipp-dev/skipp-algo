@@ -4464,7 +4464,6 @@ def run_streamlit_app() -> None:
         BULLISH_QUALITY_SCORE_PROFILES,
         DEFAULT_BULLISH_QUALITY_SCORE_PROFILE,
         build_default_bullish_quality_config,
-        normalize_bullish_quality_score_profile,
     )
     from scripts.databento_preopen_fast import run_preopen_fast_refresh
     from scripts.databento_production_export import run_production_export_pipeline

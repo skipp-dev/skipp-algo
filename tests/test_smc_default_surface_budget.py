@@ -8,7 +8,6 @@ import pytest
 
 from scripts.smc_default_surface_budget import (
     DEFAULT_VIEW_MODE,
-    FORBIDDEN_DEFAULT_TOKENS,
     VISUAL_BUDGET,
     default_facing_views,
     forbidden_tokens_in,

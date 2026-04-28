@@ -2,11 +2,8 @@
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
-from unittest import mock
 
-import pytest
 
 import open_prep.outcome_backfill as ob
 

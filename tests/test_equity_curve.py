@@ -8,7 +8,6 @@ import numpy as np
 import pytest
 
 from scripts.equity_curve import (
-    EquityCurve,
     FoldTrades,
     concatenate_oos_folds,
     make_fold,

@@ -13,9 +13,7 @@ from __future__ import annotations
 import json
 import time
 from pathlib import Path
-from typing import Any
 
-import pytest
 
 from smc_integration.repo_sources import (
     _META_DOMAIN_STALE_HOURS,

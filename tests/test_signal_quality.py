@@ -6,13 +6,7 @@ intentionally, not silently).
 """
 from __future__ import annotations
 
-import pytest
 from scripts.smc_signal_quality import (
-    DEFAULTS,
-    PENALTY_EVENT,
-    TIER_GOOD,
-    TIER_LOW,
-    TIER_OK,
     build_signal_quality,
     _score_tier,
     _freshness_label,
