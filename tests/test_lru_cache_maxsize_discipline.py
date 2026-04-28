@@ -42,6 +42,7 @@ _BASELINE_LRU_CACHE_SITES: frozenset[tuple[str, str]] = frozenset({
     ("scripts/smc_newsapi_ai.py", "_uppercase_exact_pattern"),
     ("scripts/smc_newsapi_ai.py", "_strict_market_context_pattern"),
     ("newsstack_fmp/_market_cal.py", "us_equity_market_holidays"),
+    ("governance/run_manifest.py", "_git_sha"),
 })
 
 
@@ -152,10 +153,14 @@ _BARE_LRU_RE = re.compile(
 def test_no_bare_lru_cache_decorator_lines() -> None:
     bad: list[str] = []
     for path in _iter_python_files():
+        rel = str(path.relative_to(REPO_ROOT)).replace("\\", "/")
+        # Skip the test files themselves (they cite ``@lru_cache`` patterns
+        # in docstrings/regexes for educational purposes).
+        if rel.startswith("tests/"):
+            continue
         text = path.read_text(encoding="utf-8")
         for match in _BARE_LRU_RE.finditer(text):
             line_no = text[: match.start()].count("\n") + 1
-            rel = str(path.relative_to(REPO_ROOT)).replace("\\", "/")
             bad.append(f"{rel}:{line_no}")
     assert not bad, (
         "Bare @lru_cache decorator lines (no parens, no maxsize) "
