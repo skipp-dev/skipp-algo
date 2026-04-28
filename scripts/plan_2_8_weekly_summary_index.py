@@ -44,7 +44,7 @@ def build(
         slug = heading.lower().replace(" ", "-")
         lines.append(f"{i}. [{heading}](#{slug}){state}")
     lines.append("")
-    for _filename, heading, present in entries:
+    for filename, heading, present in entries:
         lines.append(f"## {heading}")
         lines.append("")
         if present:
