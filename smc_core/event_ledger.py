@@ -74,6 +74,16 @@ def _scored_event_to_record(
     context = get("context") or {}
     if not isinstance(context, dict):
         context = {}
+    # predicted_prob is mandatory: a missing or None value would silently
+    # become 0.0 with the old `float(get(..., 0.0) or 0.0)` shape and make
+    # every such row look like a 0% prediction in downstream scoring.
+    # Found via SMC bug-hunt v2 phase 5 — schema/contract evolution.
+    prob_raw = get("predicted_prob")
+    if prob_raw is None:
+        raise ValueError(
+            f"event missing predicted_prob (event_id={get('event_id', '')!r}); "
+            "explicit float in [0.0, 1.0] required"
+        )
     return EventLedgerRecord(
         schema_version=EVENT_LEDGER_SCHEMA_VERSION,
         event_id=str(get("event_id", "")),
@@ -81,7 +91,7 @@ def _scored_event_to_record(
         timeframe=timeframe,
         family=str(get("family", "")),
         timestamp=float(get("timestamp", 0.0) or 0.0),
-        predicted_prob=float(get("predicted_prob", 0.0) or 0.0),
+        predicted_prob=float(prob_raw),
         outcome=bool(get("outcome", False)),
         context={str(k): str(v) for k, v in context.items()},
         raw_score=(

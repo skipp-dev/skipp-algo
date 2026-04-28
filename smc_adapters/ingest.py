@@ -62,15 +62,6 @@ def _as_str(value: Any, context: str) -> str:
     return value
 
 
-def _as_int(value: Any, context: str) -> int:
-    if isinstance(value, bool):
-        raise ValueError(f"{context} must be integer")
-    try:
-        return int(value)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"{context} must be integer") from exc
-
-
 def _as_list(value: Any, context: str) -> list[Any]:
     if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
         return list(value)

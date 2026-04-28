@@ -160,3 +160,22 @@ def test_jsonl_each_row_independently_parseable(tmp_path: Path) -> None:
         record = json.loads(line)
         assert record["schema_version"] == "1.0"
         assert "event_id" in record
+
+
+def test_missing_predicted_prob_raises_value_error(tmp_path: Path) -> None:
+    """Found via SMC bug-hunt v2 phase 5: a missing predicted_prob used to
+    silently coerce to 0.0 (via ``float(get(..., 0.0) or 0.0)``), turning
+    every such row into a 0% prediction in downstream scoring. The reader
+    must now reject the event explicitly."""
+    events = [
+        {
+            "event_id": "ob-noprob",
+            "family": "OB",
+            # predicted_prob intentionally omitted
+            "outcome": True,
+            "timestamp": 3.0,
+        }
+    ]
+    path = tmp_path / "events.jsonl"
+    with pytest.raises(ValueError, match="predicted_prob"):
+        write_event_ledger(events, output_path=path, symbol="X", timeframe="15m")

@@ -115,10 +115,6 @@ def _coerce_optional_float(value: Any) -> float | None:
     return None
 
 
-def _same_trade_date_rows(rows: list[dict[str, str]], trade_date: str) -> list[dict[str, str]]:
-    return [row for row in rows if str(row.get("trade_date", "")).strip() == trade_date]
-
-
 def _same_trade_date_peer_rows(rows: list[dict[str, str]], trade_date: str, symbol: str) -> list[dict[str, str]]:
     wanted = str(symbol).strip().upper()
     return [
