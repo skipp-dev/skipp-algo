@@ -453,27 +453,36 @@ def fetch_benzinga_quotes(
     if not symbols:
         return []
 
-    # API supports max ~50 symbols per call
-    sym_str = ",".join(s.strip().upper() for s in symbols[:50])
+    # Benzinga's quoteDelayed endpoint accepts max ~50 symbols per call.
+    # Chunk through the full list so callers passing >50 symbols (Streamlit
+    # watchlists, terminal_tabs) don't silently drop the tail.
+    cleaned = [s.strip().upper() for s in symbols if s and s.strip()]
+    if not cleaned:
+        return []
 
+    chunk_size = 50
+    quotes_raw: list[dict[str, Any]] = []
     with httpx.Client(timeout=10.0, headers={"Accept": "application/json"}) as client:
-        try:
-            r = _request_with_retry(client, QUOTES_URL, {
-                "token": api_key,
-                "symbols": sym_str,
-            }, label="Benzinga quotes")
-            data = r.json()
-        except Exception as exc:
-            log_fetch_warning("Benzinga quotes", exc)
-            return []
+        for start in range(0, len(cleaned), chunk_size):
+            chunk = cleaned[start : start + chunk_size]
+            sym_str = ",".join(chunk)
+            try:
+                r = _request_with_retry(client, QUOTES_URL, {
+                    "token": api_key,
+                    "symbols": sym_str,
+                }, label="Benzinga quotes")
+                data = r.json()
+            except Exception as exc:
+                log_fetch_warning(
+                    f"Benzinga quotes chunk {start}-{start + len(chunk)}", exc
+                )
+                continue
+            if isinstance(data, dict):
+                quotes_raw.extend(data.get("quotes", []) or [])
+            elif isinstance(data, list):
+                quotes_raw.extend(data)
 
     # Flatten the nested {security, quote} structure
-    quotes_raw: list[dict[str, Any]] = []
-    if isinstance(data, dict):
-        quotes_raw = data.get("quotes", [])
-    elif isinstance(data, list):
-        quotes_raw = data
-
     results: list[dict[str, Any]] = []
     for q in quotes_raw:
         if not isinstance(q, dict):
