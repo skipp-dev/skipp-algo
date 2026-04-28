@@ -77,17 +77,17 @@ def _all_sites() -> list[tuple[str, int, tuple[str, ...]]]:
 # adding a new global to an already-ledgered line).
 _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
     {
-        ("databento_reference.py", 111, ("_STATE_CACHE_MTIME", "_STATE_CACHE_PATH", "_STATE_CACHE_VALUE")),
-        ("databento_reference.py", 118, ("_STATE_CACHE_MTIME", "_STATE_CACHE_PATH", "_STATE_CACHE_VALUE")),
-        ("newsstack_fmp/pipeline.py", 47, ("_store",)),
-        ("newsstack_fmp/pipeline.py", 57, ("_fmp_adapter",)),
-        ("newsstack_fmp/pipeline.py", 66, ("_bz_rest_adapter",)),
-        ("newsstack_fmp/pipeline.py", 76, ("_bz_ws_adapter",)),
-        ("newsstack_fmp/pipeline.py", 91, ("_enricher",)),
-        ("newsstack_fmp/pipeline.py", 710, ("_last_meta",)),
+        ("databento_reference.py", 113, ("_STATE_CACHE_MTIME", "_STATE_CACHE_PATH", "_STATE_CACHE_VALUE")),
+        ("databento_reference.py", 121, ("_STATE_CACHE_MTIME", "_STATE_CACHE_PATH", "_STATE_CACHE_VALUE")),
+        ("newsstack_fmp/pipeline.py", 48, ("_store",)),
+        ("newsstack_fmp/pipeline.py", 58, ("_fmp_adapter",)),
+        ("newsstack_fmp/pipeline.py", 67, ("_bz_rest_adapter",)),
+        ("newsstack_fmp/pipeline.py", 77, ("_bz_ws_adapter",)),
+        ("newsstack_fmp/pipeline.py", 92, ("_enricher",)),
+        ("newsstack_fmp/pipeline.py", 740, ("_last_meta",)),
         (
             "newsstack_fmp/pipeline.py",
-            776,
+            808,
             ("_bz_rest_adapter", "_bz_ws_adapter", "_enricher", "_fmp_adapter", "_last_meta", "_store"),
         ),
         ("open_prep/regime.py", 129, ("_prev_regime",)),
@@ -97,16 +97,16 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("smc_tv_bridge/smc_api.py", 200, ("_tech_provider",)),
         (
             "streamlit_terminal.py",
-            603,
+            576,
             ("btc_available", "databento_available", "ensure_rt_engine_running", "newsapi_available", "tv_available"),
         ),
         ("terminal_bitcoin.py", 97, ("_client",)),
-        ("terminal_databento.py", 119, ("_quote_cache", "_quote_cache_ts")),
-        ("terminal_databento.py", 303, ("_dataset_cache",)),
-        ("terminal_export.py", 104, ("_FALLBACK_BUFFER",)),
-        ("terminal_export.py", 121, ("_FALLBACK_BUFFER",)),
-        ("terminal_finnhub.py", 181, ("_consecutive_429_count", "_rate_limit_backoff_until")),
-        ("terminal_finnhub.py", 210, ("_social_sentiment_blocked",)),
+        ("terminal_databento.py", 118, ("_quote_cache", "_quote_cache_ts")),
+        ("terminal_databento.py", 302, ("_dataset_cache",)),
+        ("terminal_export.py", 102, ("_FALLBACK_BUFFER",)),
+        ("terminal_export.py", 119, ("_FALLBACK_BUFFER",)),
+        ("terminal_finnhub.py", 179, ("_consecutive_429_count", "_rate_limit_backoff_until")),
+        ("terminal_finnhub.py", 208, ("_social_sentiment_blocked",)),
         ("terminal_spike_scanner.py", 95, ("_YF_UNIVERSE_CACHE",)),
         ("terminal_technicals.py", 213, ("_tv_consecutive_429s", "_tv_cooldown_until")),
         (
@@ -116,7 +116,7 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ),
         ("terminal_technicals.py", 246, ("_tv_consecutive_429s",)),
         ("terminal_technicals.py", 263, ("_tv_cooldown_ended_at", "_tv_last_call_ts")),
-        ("terminal_tradingview_news.py", 346, ("_last_request_ts",)),
+        ("terminal_tradingview_news.py", 345, ("_last_request_ts",)),
     }
 )
 

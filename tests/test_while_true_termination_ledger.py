@@ -75,7 +75,7 @@ WHILE_TRUE_LEDGER: set[tuple[str, int]] = {
     ("databento_volatility_screener.py", 1051),
     ("terminal_background_poller.py", 160),
     ("terminal_background_poller.py", 341),
-    ("databento_universe.py", 248),
+    ("databento_universe.py", 247),
     ("open_prep/realtime_signals.py", 2664),
     ("open_prep/macro.py", 83),
     ("smc_core/resilient.py", 85),
