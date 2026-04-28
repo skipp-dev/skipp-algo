@@ -47,13 +47,19 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-          cache: pip
+
+      - name: Install uv
+        if: steps.gate.outputs.run_heavy == 'true'
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            requirements*.txt
 
       - name: Install dependencies
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt pytest
+          uv pip install --system -r requirements.txt pytest
 
       - name: Run fast provider and smoke health checks
         if: steps.gate.outputs.run_heavy == 'true'
@@ -98,7 +104,7 @@ jobs:
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
           python -m pytest -q --maxfail=1 \
-            -n auto --dist=loadfile \
+            -n auto --dist=worksteal \
             --cov=smc_integration \
             --cov-fail-under=95 \
             --cov-report=term-missing:skip-covered \
@@ -114,7 +120,7 @@ jobs:
           mkdir -p artifacts/ci
           set -o pipefail
           python -m pytest -q --maxfail=1 \
-            -n auto --dist=loadfile \
+            -n auto --dist=worksteal \
             --cov-fail-under=20 \
             --cov=streamlit_terminal \
             --cov=streamlit_terminal_alerts \
