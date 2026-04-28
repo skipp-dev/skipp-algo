@@ -289,7 +289,7 @@ def load_raw_structure_input(symbol: str, timeframe: str) -> dict[str, Any]:
     }
 
 
-def load_raw_meta_input(symbol: str, timeframe: str) -> dict[str, Any]:
+def load_raw_meta_input(symbol: str, timeframe: str, **_kwargs: Any) -> dict[str, Any]:
     rows = _load_rows()
     row = _select_symbol_row(rows, symbol)
     normalized_symbol = str(row.get("symbol", symbol)).strip().upper()

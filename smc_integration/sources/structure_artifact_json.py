@@ -557,6 +557,6 @@ def load_raw_structure_input(symbol: str, timeframe: str) -> dict[str, Any]:
     }
 
 
-def load_raw_meta_input(symbol: str, timeframe: str) -> dict[str, Any]:
+def load_raw_meta_input(symbol: str, timeframe: str, **_kwargs: Any) -> dict[str, Any]:
     del symbol, timeframe
     raise ValueError("structure_artifact_json does not provide raw meta input")

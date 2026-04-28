@@ -389,6 +389,7 @@ def _try_load_meta_domain(
     primary_name: str,
     *,
     auto_mode: bool,
+    reference_time: float | None = None,
 ) -> tuple[dict[str, Any] | None, str, str]:
     """Load a meta domain from the primary provider, falling back through
     other domain-capable providers when *auto_mode* is ``True``.
@@ -412,7 +413,7 @@ def _try_load_meta_domain(
         last_provider_name = name
         attempted_any_candidate = True
         try:
-            meta = provider.load_meta(symbol, timeframe)
+            meta = provider.load_meta(symbol, timeframe, reference_time=reference_time)
         except FileNotFoundError:
             last_status = "source_file_not_found"
             if not auto_mode:
@@ -614,22 +615,22 @@ def load_raw_meta_input_composite(
     structure_provider = _SOURCE_PROVIDERS[plan["structure"]]
 
     volume_meta_raw, volume_domain_status, actual_volume_source = _try_load_meta_domain(
-        "volume", symbol, timeframe, plan["volume"], auto_mode=auto_mode,
+        "volume", symbol, timeframe, plan["volume"], auto_mode=auto_mode, reference_time=reference_time,
     )
     # volume is mandatory – if _try_load_meta_domain returned None, fall back
     # to the planned provider so merge_raw_meta_domains raises clearly.
     if volume_meta_raw is None:
         volume_provider = _SOURCE_PROVIDERS[plan["volume"]]
-        volume_meta = volume_provider.load_meta(symbol, timeframe)
+        volume_meta = volume_provider.load_meta(symbol, timeframe, reference_time=reference_time)
         actual_volume_source = plan["volume"]
     else:
         volume_meta = volume_meta_raw
 
     technical_meta, technical_domain_status, actual_technical_source = _try_load_meta_domain(
-        "technical", symbol, timeframe, plan["technical"], auto_mode=auto_mode,
+        "technical", symbol, timeframe, plan["technical"], auto_mode=auto_mode, reference_time=reference_time,
     )
     news_meta, news_domain_status, actual_news_source = _try_load_meta_domain(
-        "news", symbol, timeframe, plan["news"], auto_mode=auto_mode,
+        "news", symbol, timeframe, plan["news"], auto_mode=auto_mode, reference_time=reference_time,
     )
 
     return _finalize_composite_meta(
@@ -683,7 +684,7 @@ def load_raw_meta_input_composite_for_release_reference(
         )
 
     volume_meta_raw, volume_domain_status, actual_volume_source = _try_load_meta_domain(
-        "volume", symbol, timeframe, plan["volume"], auto_mode=True,
+        "volume", symbol, timeframe, plan["volume"], auto_mode=True, reference_time=reference_time,
     )
     if volume_meta_raw is None:
         fallback_asof = float(reference_time) if reference_time is not None else time.time()
@@ -696,10 +697,10 @@ def load_raw_meta_input_composite_for_release_reference(
         volume_fallback_used = actual_volume_source != plan["volume"]
 
     technical_meta, technical_domain_status, actual_technical_source = _try_load_meta_domain(
-        "technical", symbol, timeframe, plan["technical"], auto_mode=True,
+        "technical", symbol, timeframe, plan["technical"], auto_mode=True, reference_time=reference_time,
     )
     news_meta, news_domain_status, actual_news_source = _try_load_meta_domain(
-        "news", symbol, timeframe, plan["news"], auto_mode=True,
+        "news", symbol, timeframe, plan["news"], auto_mode=True, reference_time=reference_time,
     )
 
     return _finalize_composite_meta(

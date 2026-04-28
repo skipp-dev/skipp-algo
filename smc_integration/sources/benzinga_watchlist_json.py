@@ -157,7 +157,7 @@ def load_raw_structure_input(symbol: str, timeframe: str) -> dict[str, Any]:
     }
 
 
-def load_raw_meta_input(symbol: str, timeframe: str) -> dict[str, Any]:
+def load_raw_meta_input(symbol: str, timeframe: str, **_kwargs: Any) -> dict[str, Any]:
     payload = _load_payload()
     row = _select_symbol_row(payload, symbol)
 

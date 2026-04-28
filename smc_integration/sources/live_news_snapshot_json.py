@@ -169,7 +169,13 @@ def load_raw_structure_input(symbol: str, timeframe: str) -> dict[str, Any]:
     }
 
 
-def load_raw_meta_input(symbol: str, timeframe: str) -> dict[str, Any]:
+def load_raw_meta_input(
+    symbol: str,
+    timeframe: str,
+    *,
+    reference_time: float | None = None,
+    **_kwargs: Any,
+) -> dict[str, Any]:
     payload = _load_payload()
     wanted = str(symbol).strip().upper()
     generated_at_ts = _parse_generated_at(payload.get("generated_at"))
@@ -180,8 +186,12 @@ def load_raw_meta_input(symbol: str, timeframe: str) -> dict[str, Any]:
         # Snapshot opt-in: stamp meta with current time so this CI fixture
         # never trips the 48h _META_DOMAIN_STALE_HOURS gate. Real article
         # published_ts are still preserved for sentiment scoring; only the
-        # meta-domain freshness pointer is overridden.
-        asof_ts = float(time.time())
+        # meta-domain freshness pointer is overridden. When the caller
+        # supplies a reference_time (e.g. the bundle's generated_at), prefer
+        # it so two calls with the same generated_at produce byte-identical
+        # bundles (otherwise time.time() drift breaks determinism under
+        # xdist parallel workers).
+        asof_ts = float(reference_time) if reference_time is not None else float(time.time())
     else:
         asof_ts = latest_published_ts or generated_at_ts
     if asof_ts is None:
