@@ -81,7 +81,7 @@ WHILE_TRUE_LEDGER: set[tuple[str, int]] = {
     ("smc_core/resilient.py", 85),
     ("newsstack_fmp/ingest_benzinga.py", 514),
     ("newsstack_fmp/shared_fetch.py", 265),
-    ("newsstack_fmp/pipeline.py", 821),
+    ("newsstack_fmp/pipeline.py", 833),
 }
 
 

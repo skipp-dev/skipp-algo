@@ -31,6 +31,11 @@ from .store_sqlite import SqliteStore
 
 logger = logging.getLogger(__name__)
 
+# Threshold of consecutive ``poll_once`` failures in ``run_pipeline`` after
+# which a single WARN is emitted to surface a degraded state to operators
+# (audit-v2-lens-3 — sticky failure counter).
+_PIPELINE_HEALTH_THRESHOLD: int = 3
+
 # ── Module-level singletons (reused across Streamlit refreshes) ──
 _store: SqliteStore | None = None
 _fmp_adapter: FmpAdapter | None = None
@@ -808,7 +813,13 @@ _atexit.register(_cleanup_singletons)
 # ── Standalone infinite loop (optional) ─────────────────────────
 
 def run_pipeline(cfg: Config | None = None) -> None:
-    """Infinite polling loop — only for standalone background usage."""
+    """Infinite polling loop — only for standalone background usage.
+
+    Tracks consecutive ``poll_once`` failures and logs a single WARN when
+    the count crosses ``_PIPELINE_HEALTH_THRESHOLD`` so operators have a
+    visible signal that the loop is degraded instead of failing silently
+    behind the periodic ``logger.exception`` lines (audit-v2-lens-3).
+    """
     if cfg is None:
         cfg = Config()
 
@@ -817,13 +828,24 @@ def run_pipeline(cfg: Config | None = None) -> None:
         cfg.poll_interval_s,
         cfg.active_sources,
     )
+    consecutive_failures = 0
     try:
         while True:
             t0 = time.time()
             try:
                 poll_once(cfg)
+                consecutive_failures = 0
             except Exception:
+                consecutive_failures += 1
                 logger.exception("Pipeline cycle error — will retry next tick.")
+                if consecutive_failures == _PIPELINE_HEALTH_THRESHOLD:
+                    logger.warning(
+                        "newsstack pipeline unhealthy: %d consecutive poll_once failures "
+                        "(threshold=%d). Loop continues, but downstream stores will not "
+                        "advance until the next successful cycle.",
+                        consecutive_failures,
+                        _PIPELINE_HEALTH_THRESHOLD,
+                    )
             dt = time.time() - t0
             time.sleep(max(0.2, cfg.poll_interval_s - dt))
     except KeyboardInterrupt:
