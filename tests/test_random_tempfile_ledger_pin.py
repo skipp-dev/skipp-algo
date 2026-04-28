@@ -46,7 +46,7 @@ _RANDOM_LEDGER: frozenset[tuple[str, int]] = frozenset({
 _ALLOWED_TEMPFILE_METHODS: frozenset[str] = frozenset({"mkstemp"})
 
 _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
-    ("databento_reference.py", 96, "mkstemp"),
+    ("databento_reference.py", 98, "mkstemp"),
     ("databento_utils.py", 126, "mkstemp"),
     ("databento_volatility_screener.py", 299, "mkstemp"),
     ("governance/alpha_ledger.py", 65, "mkstemp"),
@@ -60,14 +60,14 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     ("open_prep/outcomes.py", 120, "mkstemp"),
     ("open_prep/outcomes.py", 397, "mkstemp"),
     ("open_prep/realtime_signals.py", 109, "mkstemp"),
-    ("open_prep/realtime_signals.py", 2496, "mkstemp"),
-    ("open_prep/realtime_signals.py", 2537, "mkstemp"),
+    ("open_prep/realtime_signals.py", 2499, "mkstemp"),
+    ("open_prep/realtime_signals.py", 2540, "mkstemp"),
     ("open_prep/watchlist.py", 63, "mkstemp"),
     ("smc_core/inference/null_cache.py", 95, "mkstemp"),
-    ("terminal_export.py", 123, "mkstemp"),
-    ("terminal_export.py", 177, "mkstemp"),
-    ("terminal_export.py", 560, "mkstemp"),
-    ("terminal_export.py", 706, "mkstemp"),
+    ("terminal_export.py", 170, "mkstemp"),
+    ("terminal_export.py", 224, "mkstemp"),
+    ("terminal_export.py", 607, "mkstemp"),
+    ("terminal_export.py", 753, "mkstemp"),
 })
 
 
