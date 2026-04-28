@@ -51,13 +51,19 @@ def resilient(
     exceptions: tuple[type[BaseException], ...] = (Exception,),
     on_failure: Callable[[BaseException], Any] | None = None,
     on_retry: Callable[[BaseException, int, float], None] | None = None,
-    sleep: Callable[[float], None] = time.sleep,
-    rng: Callable[[], float] = random.random,
+    delay_from_exc: Callable[[BaseException], float | None] | None = None,
+    sleep: Callable[[float], None] | None = None,
+    rng: Callable[[], float] | None = None,
 ) -> Callable[[F], F]:
     """Wrap ``func`` so that selected exceptions trigger bounded retries.
 
     Parameters are keyword-only on purpose so call sites read like
     documentation: ``@resilient(retries=2, base_delay=0.25, ...)``.
+
+    ``delay_from_exc`` lets the wrapped exception override the default
+    full-jitter delay (e.g. honoring an HTTP ``Retry-After`` hint).
+    Returning ``None`` falls back to the default jittered delay. The
+    returned value is still capped at ``max_delay``.
 
     The ``sleep`` and ``rng`` parameters are injected for testing — pass
     a fake clock to make the decorator deterministic in unit tests.
@@ -86,13 +92,19 @@ def resilient(
                         if on_failure is not None:
                             return on_failure(exc)
                         raise
-                    # Full jitter: random in [0, capped_delay)
-                    capped = min(base_delay * (2 ** (attempt - 1)), max_delay)
-                    delay = capped * rng()
+                    override = delay_from_exc(exc) if delay_from_exc is not None else None
+                    if override is not None:
+                        delay = max(0.0, min(float(override), max_delay))
+                    else:
+                        # Full jitter: random in [0, capped_delay)
+                        capped = min(base_delay * (2 ** (attempt - 1)), max_delay)
+                        rng_fn = rng if rng is not None else random.random
+                        delay = capped * rng_fn()
                     if on_retry is not None:
                         on_retry(exc, attempt, delay)
                     if delay > 0:
-                        sleep(delay)
+                        sleep_fn = sleep if sleep is not None else time.sleep
+                        sleep_fn(delay)
 
         # Expose configuration for introspection (helps tests + ops).
         wrapper.__resilient__ = {  # type: ignore[attr-defined]
