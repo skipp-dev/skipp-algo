@@ -12,11 +12,14 @@ Integration:
 
 from __future__ import annotations
 
+import logging
 import math
 from dataclasses import dataclass
 from typing import Any, Literal
 
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 VolRegimeLabel = Literal["LOW_VOL", "NORMAL", "HIGH_VOL", "EXTREME"]
 VolRegimeModelSource = Literal["arch_garch", "atr_fallback"]
@@ -97,6 +100,7 @@ def _load_arch_model_factory() -> Any | None:
     try:
         from arch import arch_model
     except Exception:
+        logger.debug("arch dependency unavailable; vol-regime will use ATR fallback", exc_info=True)
         return None
     return arch_model
 

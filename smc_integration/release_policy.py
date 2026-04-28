@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import enum
+import logging
 import math
 import os
 from dataclasses import asdict, dataclass, field
 from statistics import median
 import subprocess
 from typing import Any, Iterable
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Operational release baseline: representative liquid US equities across
@@ -1071,6 +1074,7 @@ def resolve_git_commit() -> str | None:
             timeout=_GIT_REV_PARSE_TIMEOUT,
         )
     except Exception:
+        logger.debug("git rev-parse HEAD invocation failed", exc_info=True)
         return None
     if result.returncode != 0:
         return None

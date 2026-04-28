@@ -3513,6 +3513,7 @@ def _safe_timestamp(value: Any) -> pd.Timestamp | None:
     try:
         ts = pd.Timestamp(value)
     except Exception:
+        logger.debug("_safe_timestamp coercion failed for %r", value, exc_info=True)
         return None
     if pd.isna(ts):
         return None
