@@ -97,7 +97,13 @@ def load_raw_structure_input(symbol: str, timeframe: str) -> dict[str, Any]:
     }
 
 
-def load_raw_meta_input(symbol: str, timeframe: str) -> dict[str, Any]:
+def load_raw_meta_input(
+    symbol: str,
+    timeframe: str,
+    *,
+    reference_time: float | None = None,
+    **_kwargs: Any,
+) -> dict[str, Any]:
     payload = _load_payload()
     row = _select_symbol_row(payload, symbol)
 
@@ -111,7 +117,9 @@ def load_raw_meta_input(symbol: str, timeframe: str) -> dict[str, Any]:
         # fallback never trips the 48h _META_DOMAIN_STALE_HOURS gate. Real
         # provider sources still win whenever they cover the symbol; this
         # only applies when the largecap scaffold is the actual chosen source.
-        asof_ts = float(time.time())
+        # When the caller supplies a reference_time (e.g. bundle generated_at),
+        # prefer it so determinism is preserved across xdist workers.
+        asof_ts = float(reference_time) if reference_time is not None else float(time.time())
     elif trade_date:
         asof_ts = _asof_ts_from_trade_date(trade_date)
     else:

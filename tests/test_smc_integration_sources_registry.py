@@ -187,7 +187,7 @@ def test_release_reference_meta_can_synthesize_volume_from_structure_artifact(mo
         lambda symbol, timeframe: True,
     )
 
-    def _missing_domain(domain: str, symbol: str, timeframe: str, primary_name: str, *, auto_mode: bool):
+    def _missing_domain(domain: str, symbol: str, timeframe: str, primary_name: str, *, auto_mode: bool, reference_time: float | None = None):
         return None, "source_validation_error", primary_name
 
     monkeypatch.setattr(repo_sources_module, "_try_load_meta_domain", _missing_domain)
@@ -242,7 +242,7 @@ def test_try_load_meta_domain_logs_warning_when_no_candidates_are_attempted(monk
 
 def test_try_load_meta_domain_surfaces_domain_key_absent_across_all_candidates(monkeypatch, caplog: pytest.LogCaptureFixture) -> None:
     class _Provider:
-        def load_meta(self, symbol: str, timeframe: str) -> dict[str, object]:
+        def load_meta(self, symbol: str, timeframe: str, **_kwargs) -> dict[str, object]:
             del symbol, timeframe
             return {}
 
