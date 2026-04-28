@@ -39,6 +39,7 @@ _DIR_EXCLUDE = frozenset({
 
 _RANDOM_LEDGER: frozenset[tuple[str, int]] = frozenset({
     ("open_prep/error_taxonomy.py", 111),  # retry-jitter; non-security
+    ("newsstack_fmp/_bz_http.py", 34),  # retry-jitter; non-security
 })
 
 # ---- Layer 2: tempfile.* ledger ----------------------------------------------
@@ -47,7 +48,7 @@ _ALLOWED_TEMPFILE_METHODS: frozenset[str] = frozenset({"mkstemp"})
 
 _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     ("databento_reference.py", 98, "mkstemp"),
-    ("databento_utils.py", 126, "mkstemp"),
+    ("databento_utils.py", 124, "mkstemp"),
     ("databento_volatility_screener.py", 299, "mkstemp"),
     ("governance/alpha_ledger.py", 65, "mkstemp"),
     ("newsstack_fmp/open_prep_export.py", 24, "mkstemp"),
@@ -56,7 +57,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     ("open_prep/diff.py", 56, "mkstemp"),
     ("open_prep/feature_importance_report.py", 247, "mkstemp"),
     ("open_prep/outcome_backfill.py", 87, "mkstemp"),
-    ("open_prep/outcome_backfill.py", 514, "mkstemp"),
+    ("open_prep/outcome_backfill.py", 513, "mkstemp"),
     ("open_prep/outcomes.py", 120, "mkstemp"),
     ("open_prep/outcomes.py", 397, "mkstemp"),
     ("open_prep/realtime_signals.py", 109, "mkstemp"),
@@ -64,10 +65,10 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     ("open_prep/realtime_signals.py", 2540, "mkstemp"),
     ("open_prep/watchlist.py", 63, "mkstemp"),
     ("smc_core/inference/null_cache.py", 95, "mkstemp"),
-    ("terminal_export.py", 170, "mkstemp"),
-    ("terminal_export.py", 224, "mkstemp"),
-    ("terminal_export.py", 607, "mkstemp"),
-    ("terminal_export.py", 753, "mkstemp"),
+    ("terminal_export.py", 168, "mkstemp"),
+    ("terminal_export.py", 222, "mkstemp"),
+    ("terminal_export.py", 605, "mkstemp"),
+    ("terminal_export.py", 751, "mkstemp"),
 })
 
 

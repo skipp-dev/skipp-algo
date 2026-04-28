@@ -89,7 +89,7 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         ("scripts/databento_preopen_fast.py", 416),
         # scripts/databento_production_export.py — same premarket "last"
         # snapshot, production export path.
-        ("scripts/databento_production_export.py", 2302),
+        ("scripts/databento_production_export.py", 2301),
         # scripts/generate_bullish_quality_scanner.py — manifest scalar
         # lookups (source_data_fetched_at / latest window_tag); not bar
         # data.
@@ -97,11 +97,11 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         ("scripts/generate_bullish_quality_scanner.py", 177),
         # scripts/generate_databento_watchlist.py — manifest scalar
         # lookup (latest manifest string value); not bar data.
-        ("scripts/generate_databento_watchlist.py", 148),
+        ("scripts/generate_databento_watchlist.py", 144),
         # scripts/smc_microstructure_base_runtime.py — OHLC reduction
         # over a full closed frame (open from first row, close from
         # last row).
-        ("scripts/smc_microstructure_base_runtime.py", 803),
+        ("scripts/smc_microstructure_base_runtime.py", 802),
     }
 )
 
