@@ -102,7 +102,10 @@ def resilient(
                         delay = capped * rng_fn()
                     if on_retry is not None:
                         on_retry(exc, attempt, delay)
-                    if delay > 0:
+                    # Use ``>= 0`` so injected sleep stubs always observe a
+                    # call even when full-jitter RNG returns 0.0; this also
+                    # preserves explicit ``Retry-After: 0`` hints.
+                    if delay >= 0:
                         sleep_fn = sleep if sleep is not None else time.sleep
                         sleep_fn(delay)
 

@@ -111,9 +111,15 @@ def _parse_retry_after_seconds(raw_value: str | None) -> float | None:
     if not raw_value:
         return None
     try:
-        return max(float(raw_value), 0.0)
+        v = float(raw_value)
     except (TypeError, ValueError):
-        pass
+        v = None
+    if v is not None:
+        # Reject NaN/Inf — ``time.sleep(nan)`` raises ValueError and
+        # ``time.sleep(inf)`` would wedge the retry loop.
+        if math.isnan(v) or math.isinf(v):
+            return None
+        return max(v, 0.0)
     try:
         parsed = parsedate_to_datetime(str(raw_value))
     except (TypeError, ValueError, IndexError, OverflowError):
