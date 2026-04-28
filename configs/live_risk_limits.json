@@ -1,0 +1,12 @@
+{
+  "_comment": "C13 Phase-A frozen risk-limits snapshot. These values mirror scripts/live_risk_limits.RiskLimits dataclass defaults as of 2026-04-28. The runner (scripts/run_smc_live_incubation.py:593) currently instantiates RiskLimits() directly — this file is an audit artefact. Wiring a loader is a separate task.",
+  "max_daily_loss_pct": 2.0,
+  "max_open_positions": 5,
+  "max_consecutive_losses": 4,
+  "max_drawdown_pct": 8.0,
+  "max_gross_exposure_pct": 200.0,
+  "flatten_on_breach": true,
+  "manual_halt": false,
+  "frozen_at": "2026-04-28",
+  "frozen_for": "C13 Phase-A paper-trading 28-day window"
+}
