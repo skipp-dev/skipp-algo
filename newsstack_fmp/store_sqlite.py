@@ -209,6 +209,21 @@ class SqliteStore:
         except sqlite3.IntegrityError:
             return False
 
+    @_retry_on_locked
+    def unmark_seen(self, provider: str, item_id: str) -> None:
+        """Reverse a prior ``mark_seen`` so a transient failure can be retried.
+
+        Used by the per-item processing pipeline: if classification, scoring,
+        or enrichment crashes after the dedup row was already committed,
+        leaving the row in place would silently turn a transient failure into
+        permanent data loss on the next poll cycle. This call is idempotent.
+        """
+        with self._lock:
+            self.conn.execute(
+                "DELETE FROM seen WHERE provider=? AND item_id=?",
+                (provider, item_id),
+            )
+
     # ── Novelty clustering ──────────────────────────────────────
 
     @_retry_on_locked

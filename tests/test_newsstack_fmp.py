@@ -3181,3 +3181,144 @@ class TestConfigReprHidesApiKeys(unittest.TestCase):
             s = str(cfg)
             self.assertNotIn("sk-SECRET-fmp", s)
             self.assertNotIn("bz-SECRET-bz", s)
+
+
+# ── Audit v2 Lens 1: per-item failure isolation in process_news_items ──
+
+
+class TestProcessNewsItemsPerItemIsolation(unittest.TestCase):
+    """A single item that crashes inside the per-item loop (e.g. SQLite
+    OperationalError, scoring crash, malformed payload) must NOT prevent
+    subsequent items in the same batch from being processed.
+
+    Pre-fix behaviour: outer ``for it in items`` had no try/except, so one
+    bad item silently aborted the whole batch — drops would be invisible
+    because the cursor was already partially advanced and no warning fired.
+    """
+
+    def test_one_failing_item_does_not_drop_remainder(self):
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.store_sqlite import SqliteStore
+        from newsstack_fmp.enrich import Enricher
+
+        store = SqliteStore(":memory:")
+        enricher = Enricher()
+        best: dict = {}
+
+        good_a = NewsItem(
+            provider="fmp_stock_latest",
+            item_id="good_a",
+            published_ts=200.0,
+            updated_ts=200.0,
+            headline="AAPL beats Q1 earnings",
+            snippet="",
+            tickers=["AAPL"],
+            url="https://example.com/a",
+            source="Test",
+        )
+        bad = NewsItem(
+            provider="fmp_stock_latest",
+            item_id="bad",
+            published_ts=201.0,
+            updated_ts=201.0,
+            headline="MSFT explodes",
+            snippet="",
+            tickers=["MSFT"],
+            url="https://example.com/b",
+            source="Test",
+        )
+        good_c = NewsItem(
+            provider="fmp_stock_latest",
+            item_id="good_c",
+            published_ts=202.0,
+            updated_ts=202.0,
+            headline="GOOG raises guidance",
+            snippet="",
+            tickers=["GOOG"],
+            url="https://example.com/c",
+            source="Test",
+        )
+
+        # Make ``store.mark_seen`` blow up on the bad item only.
+        real_mark_seen = store.mark_seen
+
+        def flaky_mark_seen(provider: str, item_id: str, ts: float) -> bool:
+            if item_id == "bad":
+                raise RuntimeError("simulated DB outage on this item")
+            return real_mark_seen(provider, item_id, ts)
+
+        store.mark_seen = flaky_mark_seen  # type: ignore[assignment]
+
+        try:
+            max_ts, _ = process_news_items(
+                store, [good_a, bad, good_c], best, None, enricher, 99.0,
+                last_seen_epoch=0.0,
+            )
+        finally:
+            enricher.close()
+
+        # Both surrounding items must have been processed despite the
+        # middle one raising.
+        self.assertIn("AAPL", best)
+        self.assertIn("GOOG", best)
+        # The bad item must NOT pollute best_by_ticker.
+        self.assertNotIn("MSFT", best)
+        # Cursor advances to the highest timestamp seen in the batch,
+        # including items that later fail. The bad item updates max_ts to
+        # 201 before the exception, and good_c then raises it to 202.
+        self.assertEqual(max_ts, 202.0)
+
+    def test_failure_after_mark_seen_rolls_back_dedup(self):
+        """A crash AFTER ``mark_seen`` succeeded must un-commit the dedup
+        row, so the next poll cycle can retry the item. Otherwise a
+        transient failure (network, scoring crash) would silently turn
+        into permanent data loss.
+        """
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.store_sqlite import SqliteStore
+        from newsstack_fmp.enrich import Enricher
+
+        store = SqliteStore(":memory:")
+        enricher = Enricher()
+        best: dict = {}
+
+        bad = NewsItem(
+            provider="fmp_stock_latest",
+            item_id="bad",
+            published_ts=200.0,
+            updated_ts=200.0,
+            headline="MSFT crash",
+            snippet="",
+            tickers=["MSFT"],
+            url="https://example.com/bad",
+            source="Test",
+        )
+
+        # Make ``classify_and_score`` blow up — i.e. failure happens AFTER
+        # ``store.mark_seen`` already committed the dedup row.
+        from newsstack_fmp import pipeline as pipeline_mod
+        original_score = pipeline_mod.classify_and_score
+        try:
+            pipeline_mod.classify_and_score = lambda *a, **kw: (_ for _ in ()).throw(
+                RuntimeError("simulated scorer crash")
+            )
+            try:
+                process_news_items(
+                    store, [bad], best, None, enricher, 99.0,
+                    last_seen_epoch=0.0,
+                )
+            finally:
+                enricher.close()
+        finally:
+            pipeline_mod.classify_and_score = original_score
+
+        # The item must be retriable — mark_seen must return True (newly
+        # inserted) on a fresh attempt, proving the dedup row was rolled
+        # back rather than left behind as silent data loss.
+        self.assertTrue(store.mark_seen("fmp_stock_latest", "bad", 200.0))
+
+
+if __name__ == "__main__":
+    unittest.main()

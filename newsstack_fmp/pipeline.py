@@ -281,96 +281,125 @@ def process_news_items(
         _shared_enrich_counter = [0]
 
     for it in items:
-        if not it.is_valid:
-            continue
-
-        # Determine effective timestamp.  _to_epoch returns 0.0 for
-        # missing/unparseable dates — fall back to time.time() for
-        # processing but do NOT let synthetic timestamps advance the cursor.
-        raw_ts = it.updated_ts or it.published_ts
-        has_real_ts = raw_ts is not None and raw_ts > 0
-        ts = raw_ts if has_real_ts else time.time()
-
-        # Cursor check: skip items older than last seen for this provider.
-        # Use strict < so items sharing the cursor timestamp are not dropped;
-        # mark_seen() is the authoritative dedup.
-        if ts < last_seen_epoch:
-            continue
-
-        # Only advance cursor with real (non-synthetic) timestamps
-        if has_real_ts:
-            max_ts = max(max_ts, ts)
-
-        # Dedup (provider, item_id)
-        if not store.mark_seen(it.provider, it.item_id, ts):
-            continue
-
-        # Tickers + universe filter (deduplicate to avoid redundant per-ticker work)
-        tickers = [t for t in (it.tickers or []) if isinstance(t, str) and t.strip()]
-        tickers = list(dict.fromkeys(t.strip().upper() for t in tickers))
-        if universe:
-            tickers = [t for t in tickers if t in universe]
-            if not tickers:
+        # Lens 1 (silent-degradation v2): isolate per-item failures so a
+        # single bad item (DB locked, scoring crash, malformed payload)
+        # does not silently drop the remainder of the batch. exc_info=True
+        # preserves the traceback for diagnosis while continuing the loop.
+        marked_seen = False
+        try:
+            if not it.is_valid:
                 continue
 
-        if not it.headline.strip():
+            # Determine effective timestamp.  _to_epoch returns 0.0 for
+            # missing/unparseable dates — fall back to time.time() for
+            # processing but do NOT let synthetic timestamps advance the cursor.
+            raw_ts = it.updated_ts or it.published_ts
+            has_real_ts = raw_ts is not None and raw_ts > 0
+            ts = raw_ts if has_real_ts else time.time()
+
+            # Cursor check: skip items older than last seen for this provider.
+            # Use strict < so items sharing the cursor timestamp are not dropped;
+            # mark_seen() is the authoritative dedup.
+            if ts < last_seen_epoch:
+                continue
+
+            # Only advance cursor with real (non-synthetic) timestamps
+            if has_real_ts:
+                max_ts = max(max_ts, ts)
+
+            # Dedup (provider, item_id)
+            if not store.mark_seen(it.provider, it.item_id, ts):
+                continue
+            # Track for rollback: if classification/enrich/best_by_ticker
+            # raises below, we must unmark to keep the item retriable.
+            marked_seen = True
+
+            # Tickers + universe filter (deduplicate to avoid redundant per-ticker work)
+            tickers = [t for t in (it.tickers or []) if isinstance(t, str) and t.strip()]
+            tickers = list(dict.fromkeys(t.strip().upper() for t in tickers))
+            if universe:
+                tickers = [t for t in tickers if t in universe]
+                if not tickers:
+                    continue
+
+            if not it.headline.strip():
+                continue
+
+            # Novelty cluster -- compute hash once, reuse in scorer
+            chash = cluster_hash(it.headline or "", it.tickers or [])
+            cluster_count, _ = store.cluster_touch(chash, ts)
+            score = classify_and_score(it, cluster_count=cluster_count, chash=chash)
+
+            warn_flags: list[str] = []
+            if score.category == "offering":
+                warn_flags.append("offering_risk")
+            if score.category == "lawsuit":
+                warn_flags.append("likely_noise")
+
+            # Enrich high-score items once per item (budget shared across calls).
+            # Hoisted above the per-ticker loop to avoid redundant HTTP calls
+            # when one item maps to multiple tickers.
+            enrich_result = None
+            if score.score >= enrich_threshold and _shared_enrich_counter[0] < enrich_budget:
+                enrich_result = enricher.fetch_url_snippet(it.url)
+                enrich_count += 1
+                _shared_enrich_counter[0] += 1
+
+            # Build candidate per ticker
+            for tk in tickers:
+                vwap = vwap_gate_stub(tk)
+
+                cand: dict[str, Any] = {
+                    "ticker": tk,
+                    "headline": it.headline[:260],
+                    "snippet": (it.snippet or "")[:260],
+                    "news_provider": it.provider,
+                    "news_source": it.source,
+                    "news_url": it.url,
+                    "category": score.category,
+                    "impact": round(score.impact, 3),
+                    "clarity": round(score.clarity, 3),
+                    "novelty_cluster_count": int(cluster_count),
+                    "polarity": score.polarity,
+                    "news_score": round(score.score, 4),
+                    "warn_flags": list(warn_flags),
+                    "signals": {"vwap": vwap},
+                    "published_ts": it.published_ts,
+                    "updated_ts": it.updated_ts,
+                    "_seen_ts": ts,
+                }
+
+                if enrich_result is not None:
+                    cand["enrich"] = dict(enrich_result)
+
+                # Keep best per ticker
+                with _bbt_lock:
+                    prev = best_by_ticker.get(tk)
+                    if (prev is None) or (cand["news_score"] > prev["news_score"]) or (
+                        cand["news_score"] == prev["news_score"]
+                        and cand.get("updated_ts", 0) > prev.get("updated_ts", 0)
+                    ):
+                        best_by_ticker[tk] = cand
+        except Exception as exc:
+            if marked_seen:
+                # Roll back the dedup commit so a transient failure does
+                # not turn into permanent data loss on the next poll cycle.
+                try:
+                    store.unmark_seen(it.provider, it.item_id)
+                except Exception:
+                    logger.exception(
+                        "process_news_items: unmark_seen rollback failed for %s/%s",
+                        getattr(it, "provider", "?"),
+                        getattr(it, "item_id", "?"),
+                    )
+            logger.warning(
+                "process_news_items: skipping item provider=%s id=%s due to %s",
+                getattr(it, "provider", "?"),
+                getattr(it, "item_id", "?"),
+                type(exc).__name__,
+                exc_info=True,
+            )
             continue
-
-        # Novelty cluster -- compute hash once, reuse in scorer
-        chash = cluster_hash(it.headline or "", it.tickers or [])
-        cluster_count, _ = store.cluster_touch(chash, ts)
-        score = classify_and_score(it, cluster_count=cluster_count, chash=chash)
-
-        warn_flags: list[str] = []
-        if score.category == "offering":
-            warn_flags.append("offering_risk")
-        if score.category == "lawsuit":
-            warn_flags.append("likely_noise")
-
-        # Enrich high-score items once per item (budget shared across calls).
-        # Hoisted above the per-ticker loop to avoid redundant HTTP calls
-        # when one item maps to multiple tickers.
-        enrich_result = None
-        if score.score >= enrich_threshold and _shared_enrich_counter[0] < enrich_budget:
-            enrich_result = enricher.fetch_url_snippet(it.url)
-            enrich_count += 1
-            _shared_enrich_counter[0] += 1
-
-        # Build candidate per ticker
-        for tk in tickers:
-            vwap = vwap_gate_stub(tk)
-
-            cand: dict[str, Any] = {
-                "ticker": tk,
-                "headline": it.headline[:260],
-                "snippet": (it.snippet or "")[:260],
-                "news_provider": it.provider,
-                "news_source": it.source,
-                "news_url": it.url,
-                "category": score.category,
-                "impact": round(score.impact, 3),
-                "clarity": round(score.clarity, 3),
-                "novelty_cluster_count": int(cluster_count),
-                "polarity": score.polarity,
-                "news_score": round(score.score, 4),
-                "warn_flags": list(warn_flags),
-                "signals": {"vwap": vwap},
-                "published_ts": it.published_ts,
-                "updated_ts": it.updated_ts,
-                "_seen_ts": ts,
-            }
-
-            if enrich_result is not None:
-                cand["enrich"] = dict(enrich_result)
-
-            # Keep best per ticker
-            with _bbt_lock:
-                prev = best_by_ticker.get(tk)
-                if (prev is None) or (cand["news_score"] > prev["news_score"]) or (
-                    cand["news_score"] == prev["news_score"]
-                    and cand.get("updated_ts", 0) > prev.get("updated_ts", 0)
-                ):
-                    best_by_ticker[tk] = cand
 
     return max_ts, enrich_count
 
