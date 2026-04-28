@@ -2158,8 +2158,13 @@ def _probe_data_capabilities(*, client: FMPClient, today: date) -> dict[str, dic
         except Exception as exc:
             logger.debug("Capability cache read failed: %s", exc)
 
+    # /stable/eod-bulk only has data for trading days. Probing today's date on
+    # a weekend / market holiday returns an empty body and the capability gets
+    # misclassified as "unavailable". Snap the probe date back to the most
+    # recent trading day so the probe reflects the endpoint's true health.
+    eod_probe_date = today if _is_us_equity_trading_day(today) else _prev_trading_day(today)
     probes: list[tuple[str, str, dict[str, Any]]] = [
-        ("eod_bulk", "/stable/eod-bulk", {"date": today.isoformat(), "datatype": "json"}),
+        ("eod_bulk", "/stable/eod-bulk", {"date": eod_probe_date.isoformat(), "datatype": "json"}),
         (
             "upgrades_downgrades",
             "/stable/grades",

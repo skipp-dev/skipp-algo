@@ -61,6 +61,7 @@ def collect_earnings_and_macro(
     macro_events: list[dict[str, Any]] | None = None,
     *,
     reference_date: date | None = None,
+    next_trading_date: date | None = None,
 ) -> dict[str, Any]:
     """Collect earnings and macro calendar data for library generation.
 
@@ -74,11 +75,27 @@ def collect_earnings_and_macro(
         Rows with ``name``, ``time_utc``, ``impact`` (optional).
     reference_date:
         Override "today" for deterministic testing.
+    next_trading_date:
+        Override the "tomorrow" reference. When omitted, falls back to the
+        next US equity trading day after ``reference_date`` (skips weekends
+        and US market holidays). The naive ``today + 1 day`` would land on
+        Saturday for any Friday call and silently emit an empty
+        ``earnings_tomorrow_tickers`` set.
     """
     today = reference_date or date.today()
-    from datetime import timedelta
+    from datetime import timedelta  # noqa: F401  (kept for backwards-compat re-export sites)
 
-    tomorrow = today + timedelta(days=1)
+    if next_trading_date is not None:
+        tomorrow = next_trading_date
+    else:
+        try:
+            from newsstack_fmp._market_cal import next_trading_day as _next_td
+
+            tomorrow = _next_td(today)
+        except Exception:
+            from datetime import timedelta as _td
+
+            tomorrow = today + _td(days=1)
     universe = {s.upper() for s in symbols}
 
     earnings_today: list[str] = []
