@@ -36,15 +36,13 @@ def test_bz_http_retry_uses_full_jitter() -> None:
     a Benzinga 429 burst and re-overwhelms the upstream.
     """
     from newsstack_fmp import _bz_http
+    from smc_core import resilient as _resilient
 
-    # Force deterministic jitter pick: random.uniform(0, x) -> 0.5 * x
+    # Force deterministic jitter pick: random.random() -> 0.5
     sleeps: list[float] = []
 
     def fake_sleep(s: float) -> None:
         sleeps.append(s)
-
-    def fake_uniform(lo: float, hi: float) -> float:
-        return 0.5 * hi  # mid-jitter
 
     # Build a fake client that returns 429 then 200
     responses = [
@@ -55,8 +53,8 @@ def test_bz_http_retry_uses_full_jitter() -> None:
     client = mock.Mock(spec=httpx.Client)
     client.get = mock.Mock(side_effect=responses)
 
-    with mock.patch.object(_bz_http.time, "sleep", side_effect=fake_sleep), \
-         mock.patch.object(_bz_http.random, "uniform", side_effect=fake_uniform):
+    with mock.patch.object(_resilient.time, "sleep", side_effect=fake_sleep), \
+         mock.patch.object(_resilient.random, "random", return_value=0.5):
         out = _bz_http._request_with_retry(
             client,
             "https://example.test/feed",
@@ -74,14 +72,12 @@ def test_bz_http_retry_uses_full_jitter() -> None:
 def test_bz_http_jitter_used_for_network_errors() -> None:
     """Transient network errors also retry with full-jitter."""
     from newsstack_fmp import _bz_http
+    from smc_core import resilient as _resilient
 
     sleeps: list[float] = []
 
     def fake_sleep(s: float) -> None:
         sleeps.append(s)
-
-    def fake_uniform(lo: float, hi: float) -> float:
-        return 0.25 * hi
 
     success = mock.Mock(spec=httpx.Response, status_code=200, headers={})
     success.raise_for_status = mock.Mock()
@@ -89,8 +85,8 @@ def test_bz_http_jitter_used_for_network_errors() -> None:
     client = mock.Mock(spec=httpx.Client)
     client.get = mock.Mock(side_effect=[err, success])
 
-    with mock.patch.object(_bz_http.time, "sleep", side_effect=fake_sleep), \
-         mock.patch.object(_bz_http.random, "uniform", side_effect=fake_uniform):
+    with mock.patch.object(_resilient.time, "sleep", side_effect=fake_sleep), \
+         mock.patch.object(_resilient.random, "random", return_value=0.25):
         out = _bz_http._request_with_retry(
             client,
             "https://example.test/feed",
