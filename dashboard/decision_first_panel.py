@@ -153,8 +153,8 @@ def render_panel(
 
 
 __all__ = [
-    "FamilyCard",
     "POSTURE_GLYPH",
+    "FamilyCard",
     "build_card",
     "render_card",
     "render_panel",

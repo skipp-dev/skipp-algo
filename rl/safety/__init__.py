@@ -67,4 +67,4 @@ class HardConstraintLayer:
         return float(requested_fraction), "accept", "ok"
 
 
-__all__ = ["HardConstraintLayer", "GuardResult", "VALID_ORDER_TYPES", "SizingDecision"]
+__all__ = ["VALID_ORDER_TYPES", "GuardResult", "HardConstraintLayer", "SizingDecision"]

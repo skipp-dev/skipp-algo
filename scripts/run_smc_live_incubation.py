@@ -643,8 +643,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 __all__ = [
-    "run_live_incubation",
     "main",
+    "run_live_incubation",
 ]
 
 

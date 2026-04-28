@@ -19,6 +19,7 @@ Usage::
     status = tracker.status("fmp_candles")
     print(status.availability, status.avg_latency_ms, status.reason)
 """
+
 from __future__ import annotations
 
 import logging
@@ -26,7 +27,7 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Self
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,7 @@ _DOWN_CONSECUTIVE = 5  # 5+ consecutive failures → down
 
 
 # ── Data structures ─────────────────────────────────────────────────────────
+
 
 @dataclass(frozen=True)
 class ProviderStatus:
@@ -151,6 +153,7 @@ class _ProviderState:
 
 # ── Tracker (top-level API) ────────────────────────────────────────────────
 
+
 class ProviderTracker:
     """Thread-safe registry that tracks health for multiple named providers."""
 
@@ -173,7 +176,7 @@ class ProviderTracker:
             self._name = name
             self._t0: float = 0.0
 
-        def __enter__(self) -> _TrackContext:
+        def __enter__(self) -> Self:
             self._t0 = time.monotonic()
             return self
 
@@ -226,9 +229,7 @@ class ProviderTracker:
         """One-line human-readable summary per provider (for dashboards)."""
         lines: list[str] = []
         for st in self.all_statuses().values():
-            icon = {"up": "✅", "degraded": "⚡", "down": "🔴", "unknown": "❓"}.get(
-                st.availability, "❓"
-            )
+            icon = {"up": "✅", "degraded": "⚡", "down": "🔴", "unknown": "❓"}.get(st.availability, "❓")
             lat = f" avg={st.avg_latency_ms:.0f}ms" if st.avg_latency_ms else ""
             lines.append(f"{icon} {st.name}: {st.availability}{lat} — {st.reason}")
         return lines

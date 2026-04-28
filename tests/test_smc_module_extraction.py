@@ -147,7 +147,7 @@ class TestNoCircularImports:
         imported_modules = {
             alias.name if isinstance(node, ast.Import) else node.module
             for node in ast.walk(tree)
-            if isinstance(node, (ast.Import, ast.ImportFrom)) and (node.module if isinstance(node, ast.ImportFrom) else None) is not None or isinstance(node, ast.Import)
+            if (isinstance(node, (ast.Import, ast.ImportFrom)) and (node.module if isinstance(node, ast.ImportFrom) else None) is not None) or isinstance(node, ast.Import)
             for alias in (node.names if isinstance(node, ast.Import) else [node])
         }
         for mod_name in imported_modules:

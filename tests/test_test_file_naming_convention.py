@@ -68,8 +68,8 @@ def test_every_test_file_defines_at_least_one_test() -> None:
         if not _has_test_function(text):
             empty.append(rel)
     assert not empty, (
-        f"Test file(s) with no `def test_*` function "
-        f"(dead test code — fail-author-time tripwire):\n"
+        "Test file(s) with no `def test_*` function "
+        "(dead test code — fail-author-time tripwire):\n"
         + "\n".join(f"  {p}" for p in empty)
         + "\nEither add a real test, rename the file (drop the "
         "``test_`` prefix if it's a helper), delete the file, or — "

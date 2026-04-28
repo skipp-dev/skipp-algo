@@ -165,6 +165,54 @@ jobs:
             --output               "${LIVE_DIR}/drift_${DATE}.json"
           echo "rc=$?" >> "$GITHUB_OUTPUT"
 
+      - name: Step 5a — build families telemetry (advisory)
+        id: families
+        if: steps.drift.outputs.rc == '0'
+        # CONTINUE-ON-ERROR-INTENTIONAL: soft-skip (rc=78) when the
+        # variant→family map is not present in the repo. Phase A keeps
+        # the map outside source-control until C12 promotion gate goes
+        # live; absence must not abort the cron.
+        continue-on-error: true
+        env:
+          # Override-able via repo variable so the map can be promoted
+          # into a different path without a workflow edit.
+          VARIANT_FAMILY_MAP: ${{ vars.C13_VARIANT_FAMILY_MAP || 'configs/c13/variant_family_map.json' }}
+        run: |
+          set +e
+          DATE="${{ steps.date.outputs.date }}"
+          if [ ! -f "${VARIANT_FAMILY_MAP}" ]; then
+            echo "Variant→family map ${VARIANT_FAMILY_MAP} missing — skipping families telemetry (rc=78)."
+            echo "rc=78" >> "$GITHUB_OUTPUT"
+            exit 78
+          fi
+          python -m scripts.build_families_telemetry \
+            --audit-jsonl        "${LIVE_DIR}/incubation_*.jsonl" \
+            --drift-jsonl        "${LIVE_DIR}/drift_*.json" \
+            --variant-family-map "${VARIANT_FAMILY_MAP}" \
+            --output             "${LIVE_DIR}/families_telemetry_${DATE}.json"
+          echo "rc=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Step 5b — emit public calibration report (advisory)
+        id: emit_public
+        if: steps.drift.outputs.rc == '0'
+        # CONTINUE-ON-ERROR-INTENTIONAL: surfaces failures via the
+        # issue-opener step. Wires --include-families when step 5a
+        # produced a families-telemetry artefact (skipped soft on
+        # missing map → emit runs without families[]).
+        continue-on-error: true
+        run: |
+          set +e
+          DATE="${{ steps.date.outputs.date }}"
+          FAMILIES="${LIVE_DIR}/families_telemetry_${DATE}.json"
+          if [ "${{ steps.families.outputs.rc }}" = "0" ] && [ -f "${FAMILIES}" ]; then
+            python -m scripts.emit_public_calibration_report \
+              --include-families "${FAMILIES}"
+          else
+            echo "No families-telemetry artefact for ${DATE} — emit runs without --include-families."
+            python -m scripts.emit_public_calibration_report
+          fi
+          echo "rc=$?" >> "$GITHUB_OUTPUT"
+
       - name: Upload daily artefacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -173,7 +221,10 @@ jobs:
           path: |
             cache/live/drift_input_*.jsonl
             cache/live/drift_*.json
+            cache/live/families_telemetry_*.json
             cache/calibration/backtest_reference_*.json
+            docs/calibration/calibration_report_public.json
+            docs/calibration/calibration_report_public_history.jsonl
           if-no-files-found: warn
 
       - name: Open issue if any required step failed
@@ -184,7 +235,9 @@ jobs:
           (steps.backfill.outputs.rc != '0' && steps.backfill.outputs.rc != '78' && steps.backfill.outputs.rc != '') ||
           (steps.drift_input.outputs.rc != '0' && steps.drift_input.outputs.rc != '') ||
           (steps.backtest_ref.outputs.rc != '0' && steps.backtest_ref.outputs.rc != '78' && steps.backtest_ref.outputs.rc != '') ||
-          (steps.drift.outputs.rc != '0' && steps.drift.outputs.rc != '')
+          (steps.drift.outputs.rc != '0' && steps.drift.outputs.rc != '') ||
+          (steps.families.outputs.rc != '0' && steps.families.outputs.rc != '78' && steps.families.outputs.rc != '') ||
+          (steps.emit_public.outputs.rc != '0' && steps.emit_public.outputs.rc != '')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -202,6 +255,8 @@ jobs:
           - build_backtest_reference (drift-input):     ${{ steps.drift_input.outputs.rc }}
           - build_backtest_reference (backtest-reference): ${{ steps.backtest_ref.outputs.rc }}
           - compute_live_drift:            ${{ steps.drift.outputs.rc }}
+          - build_families_telemetry:      ${{ steps.families.outputs.rc }}
+          - emit_public_calibration_report: ${{ steps.emit_public.outputs.rc }}
 
           Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           EOF

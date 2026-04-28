@@ -63,4 +63,4 @@ def parkinson_volatility(high: Sequence[float], low: Sequence[float]) -> np.ndar
     return np.log(h / l) ** 2 / (4.0 * np.log(2.0))
 
 
-__all__ = ["realized_volatility", "garman_klass_volatility", "parkinson_volatility"]
+__all__ = ["garman_klass_volatility", "parkinson_volatility", "realized_volatility"]

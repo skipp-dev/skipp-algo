@@ -202,7 +202,7 @@ def test_all_pine_mp_refs_resolve_to_generated_fields() -> None:
                 orphans.append(f"  {fname} -> mp.{ref}")
 
     assert orphans == [], (
-        f"Pine mp.* references to non-existent library fields:\n"
+        "Pine mp.* references to non-existent library fields:\n"
         + "\n".join(orphans)
     )
 

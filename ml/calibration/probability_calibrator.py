@@ -189,8 +189,8 @@ def evaluate_calibrator(
 
 
 __all__ = [
-    "ProbabilityCalibrator",
-    "PlattCalibrator",
     "IsotonicCalibrator",
+    "PlattCalibrator",
+    "ProbabilityCalibrator",
     "evaluate_calibrator",
 ]

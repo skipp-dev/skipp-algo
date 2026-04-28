@@ -1004,7 +1004,8 @@ class TestV55bContractSync:
 
     def test_manifest_matches_committed_pine(self):
         """Committed manifest must match committed Pine (both default reference)."""
-        import json, re
+        import json
+        import re
         manifest = json.loads(
             (ROOT / "pine/generated/smc_micro_profiles_generated.json").read_text()
         )

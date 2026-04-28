@@ -90,7 +90,7 @@ def test_top_movers_respects_min_events_floor() -> None:
 
 
 def test_top_movers_honors_top_n() -> None:
-    fams = [(f"5m", f"F{i}") for i in range(10)]
+    fams = [("5m", f"F{i}") for i in range(10)]
     earliest = _snap("2026-04-14T07:00:00Z",
                      {f: {"n_events": 100, "hit_rate": 0.5} for f in fams})
     latest = _snap("2026-04-21T07:00:00Z",

@@ -81,7 +81,7 @@ class TestCandleContract:
     def test_candle_with_timestamp_instead_of_date(self) -> None:
         """Candles may use integer 'timestamp' instead of 'date'."""
         candle = {"open": 1.0, "high": 2.0, "low": 0.5, "close": 1.5, "volume": 100, "timestamp": 1711540200}
-        assert CANDLE_REQUIRED_KEYS <= set(candle.keys())
+        assert set(candle.keys()) >= CANDLE_REQUIRED_KEYS
         assert CANDLE_TIMESTAMP_KEYS & set(candle.keys())
 
 

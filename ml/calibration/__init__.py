@@ -11,8 +11,8 @@ from ml.calibration.online_recalibrator import OnlineRecalibrator, Recalibration
 
 __all__ = [
     "IsotonicCalibrator",
+    "OnlineRecalibrator",
     "PlattCalibrator",
     "ProbabilityCalibrator",
-    "OnlineRecalibrator",
     "RecalibrationDecision",
 ]

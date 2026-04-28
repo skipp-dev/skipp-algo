@@ -114,7 +114,7 @@ def test_core_engine_reverse_loops_are_guarded_before_size_minus_one_iteration()
         assert (
             f'{array_name}.size() > 0' in context
             or f'not na({array_name}) and {array_name}.size() > 0' in context
-            or f'na({array_name}) ? false :' in context and f'{array_name}.size() > 0' in context
+            or (f'na({array_name}) ? false :' in context and f'{array_name}.size() > 0' in context)
         ), f'Reverse loop for {array_name} must be preceded by a non-empty array guard'
 
 
