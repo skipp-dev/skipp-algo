@@ -7,7 +7,6 @@ from datetime import date, timedelta
 from pathlib import Path
 
 import numpy as np
-import pytest
 
 from scripts.run_drift_watchdog import (
     INSUFFICIENT_LIVE_TRADES,

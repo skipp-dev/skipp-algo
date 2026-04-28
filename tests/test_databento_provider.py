@@ -8,28 +8,17 @@ Covers:
 """
 from __future__ import annotations
 
-import math
-import re
-from datetime import UTC, date, datetime, timedelta
-from pathlib import Path
-from typing import Any
+from datetime import date
 from unittest.mock import MagicMock
 
-import numpy as np
 import pandas as pd
 import pytest
 
-from databento_provider import DabentoProvider, DegradedProvider, MarketDataProvider
+from databento_provider import DegradedProvider, MarketDataProvider
 from databento_utils import (
-    CACHE_VERSION,
-    CACHE_VERSION_BY_CATEGORY,
     DATA_CACHE_TTL_SECONDS,
-    DATABENTO_SYMBOL_ALIASES,
-    DATABENTO_UNSUPPORTED_SYMBOLS,
     PREFERRED_DATABENTO_DATASETS,
     RECENT_INTRADAY_CACHE_TTL_SECONDS,
-    US_EASTERN_TZ,
-    _API_KEY_REDACTION_PATTERNS,
     _clamp_request_end,
     _coerce_timestamp_frame,
     _exclusive_ohlcv_1s_end,
@@ -40,7 +29,6 @@ from databento_utils import (
     _store_to_frame,
     _trade_day_cache_max_age_seconds,
     _validate_frame_columns,
-    _warn_with_redacted_exception,
     _write_cached_frame,
     build_cache_path,
     choose_default_dataset,

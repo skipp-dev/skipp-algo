@@ -15,10 +15,8 @@ immediately — zero friction for local usage.
 """
 from __future__ import annotations
 
-import hashlib
 import hmac
 import os
-from typing import Any
 
 
 def _get_required_token() -> str | None:

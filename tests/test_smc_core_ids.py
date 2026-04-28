@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 import pytest
 from zoneinfo import ZoneInfo
 
-from smc_core.ids import DEFAULT_SESSION_TZ, bos_id, fvg_id, ob_id, quantize_price, quantize_time_to_tf, sweep_id, SYMBOL_TICKSIZE
+from smc_core.ids import DEFAULT_SESSION_TZ, bos_id, fvg_id, ob_id, quantize_price, quantize_time_to_tf, sweep_id
 
 
 def test_ob_id_deterministic() -> None:

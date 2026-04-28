@@ -6,7 +6,6 @@ Volume regimes and event risk should only downgrade + warn, never hard-block.
 
 from __future__ import annotations
 
-import pytest
 
 from smc_core.layering import apply_layering
 from smc_core.types import (

@@ -1,15 +1,12 @@
 """Tests for scripts/generate_performance_report.py."""
 from __future__ import annotations
 
-import json
 import math
 from pathlib import Path
 
 import pytest
 
 from scripts.generate_performance_report import (
-    AggregateReport,
-    PairReport,
     _aggregate,
     _grade,
     _load_pair,

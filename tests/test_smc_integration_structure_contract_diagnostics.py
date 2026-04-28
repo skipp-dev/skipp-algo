@@ -97,14 +97,11 @@ from smc_integration.structure_contract import (
     _canonical_structure,
     _coerce_symbol,
     _coerce_timeframe,
-    _counts,
-    _coverage,
     _diagnostics,
     _normalize_single,
     _select_legacy_entry,
     normalize_structure_contract,
     normalize_structure_contracts,
-    summarize_structure_contracts,
 )
 
 

@@ -16,12 +16,10 @@ Findings:
 
 from __future__ import annotations
 
-import logging
 import threading
 from unittest import mock
 
 import httpx
-import pytest
 
 
 # ── RED 1 — _bz_http.py: full-jitter retry ──────────────────────

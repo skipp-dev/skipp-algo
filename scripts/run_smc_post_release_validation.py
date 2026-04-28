@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Any
 
 from scripts.verify_tradingview_post_release import (
-    POST_RELEASE_FAILURE_CODES,
     verify_post_release_validation,
 )
 

@@ -7,7 +7,6 @@ missing dependencies, and module-level side effects.
 from __future__ import annotations
 
 import importlib
-import sys
 
 import pytest
 

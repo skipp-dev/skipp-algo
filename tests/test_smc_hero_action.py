@@ -8,7 +8,6 @@ import pytest
 from smc_integration.action_degradation import ActionDegradation
 
 from scripts.smc_hero_action import (
-    HeroAction,
     PINE_HERO_ACTION_FIELDS,
     all_action_verbs,
     derive_hero_action,

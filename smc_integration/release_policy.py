@@ -4,7 +4,7 @@ import enum
 import logging
 import math
 import os
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from statistics import median
 import subprocess
 from typing import Any, Iterable

@@ -27,7 +27,6 @@ import json
 import logging
 import re
 import smtplib
-import sys
 import urllib.request
 import urllib.error
 from datetime import UTC, datetime

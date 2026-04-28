@@ -14,14 +14,12 @@ import json
 import sys
 from pathlib import Path
 
-import pytest
 
 from smc_core.schema_version import (
     SCHEMA_VERSION,
     VersionChangeType,
     auto_commit_allowed,
     classify_version_change,
-    parse_semver,
 )
 from scripts.smc_version_governance import evaluate_governance
 
@@ -424,7 +422,6 @@ class TestManifestGovernanceMetadata:
     and schema_version_previous when regenerated."""
 
     def test_manifest_includes_version_change_type(self, tmp_path: Path):
-        from scripts.generate_smc_micro_profiles import load_schema
         from scripts.smc_microstructure_base_runtime import generate_pine_library_from_base
         from scripts.smc_schema_resolver import resolve_microstructure_schema_path
 

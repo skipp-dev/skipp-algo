@@ -7,7 +7,6 @@ import time
 import pytest
 
 from smc_tv_bridge.provider_status import (
-    ProviderStatus,
     ProviderTracker,
     _DOWN_CONSECUTIVE,
 )

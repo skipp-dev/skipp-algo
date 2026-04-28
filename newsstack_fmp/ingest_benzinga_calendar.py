@@ -24,8 +24,6 @@ All adapters are **optional** — they are only called when
 from __future__ import annotations
 
 import logging
-import re
-import time
 from typing import Any
 
 from .normalize import normalize_benzinga_calendar_item
@@ -34,7 +32,12 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-from newsstack_fmp._bz_http import _request_with_retry, _sanitize_exc, _sanitize_url, log_fetch_warning  # noqa: E402
+from newsstack_fmp._bz_http import (  # noqa: E402
+    _request_with_retry,
+    _sanitize_exc as _sanitize_exc,
+    _sanitize_url as _sanitize_url,
+    log_fetch_warning,
+)
 
 
 # =====================================================================

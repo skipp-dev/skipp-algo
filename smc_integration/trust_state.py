@@ -54,7 +54,6 @@ from typing import Any, Iterable, Mapping
 from smc_integration.provider_health import (
     FailureAction,
     classify_domain_alerts_to_failure_actions,
-    worst_failure_action,
 )
 
 

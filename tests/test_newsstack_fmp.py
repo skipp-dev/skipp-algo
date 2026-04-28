@@ -2436,7 +2436,6 @@ class TestSeenTsNotInExport(unittest.TestCase):
         from newsstack_fmp.pipeline import poll_once, _best_by_ticker
         from newsstack_fmp.config import Config
         from newsstack_fmp.common_types import NewsItem
-        from newsstack_fmp.normalize import normalize_fmp
 
         store = MagicMock()
         store.get_kv.return_value = "0"
@@ -2645,7 +2644,7 @@ class TestEnrichBudgetPerCycle(unittest.TestCase):
         from newsstack_fmp.common_types import NewsItem
         from newsstack_fmp.store_sqlite import SqliteStore
         from newsstack_fmp.enrich import Enricher
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import patch
 
         store = SqliteStore(":memory:")
         enricher = Enricher()

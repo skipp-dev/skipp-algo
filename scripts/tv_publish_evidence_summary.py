@@ -13,7 +13,6 @@ from scripts.smc_atomic_write import atomic_write_text
 
 import argparse
 import json
-import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any

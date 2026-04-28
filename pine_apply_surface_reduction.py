@@ -392,7 +392,7 @@ def _build_group_var_header(groups_used: set[str]) -> str:
 
 def apply_skippalgo_grouping(path: Path, dry_run: bool) -> int:
     """Group ungrouped inputs in SkippALGO.pine."""
-    from pine_input_surface import parse_inputs, _GROUP_RE, _DISPLAY_RE
+    from pine_input_surface import parse_inputs, _DISPLAY_RE
 
     text = path.read_text()
     lines = text.splitlines(keepends=True)
@@ -497,7 +497,7 @@ SKIPPALGO_EVAL_VARS = {
 
 def apply_skippalgo_expert_display_none(path: Path, dry_run: bool) -> int:
     """Add display.none to previously-grouped expert inputs in SkippALGO."""
-    from pine_input_surface import parse_inputs, _DISPLAY_RE, _GROUP_RE
+    from pine_input_surface import parse_inputs, _DISPLAY_RE
 
     text = path.read_text()
     lines = text.splitlines(keepends=True)

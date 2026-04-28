@@ -15,7 +15,7 @@ import importlib
 import inspect
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -40,8 +40,6 @@ class TestProtocolSurface:
     def test_protocols_are_runtime_checkable(self) -> None:
         from smc_tv_bridge.adapters import (
             CandleProvider,
-            RegimeProvider,
-            TechnicalScoreProvider,
         )
         # runtime_checkable protocols can be used with isinstance()
         assert hasattr(CandleProvider, "__protocol_attrs__") or hasattr(
