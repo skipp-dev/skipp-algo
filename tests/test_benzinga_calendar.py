@@ -578,7 +578,7 @@ class TestRetryLogic:
         assert result == resp
         assert client.get.call_count == 1
 
-    @patch("newsstack_fmp.ingest_benzinga_calendar.time.sleep")
+    @patch("newsstack_fmp._bz_http._sleep")
     def test_retry_on_429(self, mock_sleep):
         client = MagicMock()
         resp_429 = MagicMock()
@@ -593,7 +593,7 @@ class TestRetryLogic:
         assert client.get.call_count == 2
         mock_sleep.assert_called_once()
 
-    @patch("newsstack_fmp.ingest_benzinga_calendar.time.sleep")
+    @patch("newsstack_fmp._bz_http._sleep")
     def test_retry_on_500(self, mock_sleep):
         client = MagicMock()
         resp_500 = MagicMock()
@@ -606,7 +606,7 @@ class TestRetryLogic:
         result = _request_with_retry(client, "https://x.com", {})
         assert result == resp_ok
 
-    @patch("newsstack_fmp.ingest_benzinga_calendar.time.sleep")
+    @patch("newsstack_fmp._bz_http._sleep")
     def test_retry_on_connect_error(self, mock_sleep):
         client = MagicMock()
         resp_ok = MagicMock()
@@ -617,7 +617,7 @@ class TestRetryLogic:
         result = _request_with_retry(client, "https://x.com", {})
         assert result == resp_ok
 
-    @patch("newsstack_fmp.ingest_benzinga_calendar.time.sleep")
+    @patch("newsstack_fmp._bz_http._sleep")
     def test_retry_exhausted_raises(self, mock_sleep):
         client = MagicMock()
         client.get.side_effect = httpx.ConnectError("Connection refused")
@@ -640,7 +640,7 @@ class TestRetryLogic:
             _request_with_retry(client, "https://x.com", {})
         assert client.get.call_count == 1
 
-    @patch("newsstack_fmp.ingest_benzinga_calendar.time.sleep")
+    @patch("newsstack_fmp._bz_http._sleep")
     def test_retry_on_read_timeout(self, mock_sleep):
         client = MagicMock()
         resp_ok = MagicMock()
@@ -651,7 +651,7 @@ class TestRetryLogic:
         result = _request_with_retry(client, "https://x.com", {})
         assert result == resp_ok
 
-    @patch("newsstack_fmp.ingest_benzinga_calendar.time.sleep")
+    @patch("newsstack_fmp._bz_http._sleep")
     def test_max_retries_returns_last_response(self, mock_sleep):
         """After max retries with retryable status, the last response is returned."""
         client = MagicMock()
