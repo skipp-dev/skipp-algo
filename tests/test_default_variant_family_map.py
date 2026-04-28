@@ -42,9 +42,11 @@ def test_default_variant_family_map_uses_only_known_families() -> None:
     seen = set(mapping.values())
     unknown = seen - set(EVENT_FAMILIES)
     assert not unknown, f"default seed map references unknown families: {sorted(unknown)}"
-    # At least one family must be represented (sanity check; loader already
-    # rejects empty maps but this guards against future regressions where the
-    # file is replaced with `{"_meta": ...}` style metadata).
+    # At least one family must be represented. NOTE:
+    # ``load_variant_family_map`` does *not* reject an empty ``{}`` (it
+    # only validates key/value types and family membership), so this
+    # assertion — together with ``assert mapping`` in the strict-load
+    # test above — is what enforces non-emptiness for the seed map.
     assert seen, "default seed map covers no families"
 
 
