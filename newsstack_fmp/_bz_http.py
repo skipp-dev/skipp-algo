@@ -11,12 +11,13 @@ from __future__ import annotations
 
 import logging
 import math
+import random
 import re
 import threading
 import time
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
-from typing import Any
+from typing import Any, Callable
 
 import httpx
 
@@ -152,6 +153,20 @@ _RETRYABLE: frozenset[int] = frozenset({429, 500, 502, 503, 504})
 # Maximum number of retry attempts (including the first request).
 _MAX_ATTEMPTS: int = 3
 
+# Test injection seams for deterministic retry timing. Production keeps
+# full-jitter (random.random) and real time.sleep; unit tests monkeypatch
+# these module attributes (e.g. ``_rng = lambda: 1.0``) to make the
+# backoff path observable. The defaults look up ``time.sleep`` /
+# ``random.random`` at call time so existing tests that patch
+# ``_bz_http.time.sleep`` (via the shared ``time`` module object) keep
+# working unchanged.
+def _rng() -> float:
+    return random.random()
+
+
+def _sleep(d: float) -> None:
+    time.sleep(d)
+
 
 def _sanitize_url(url: str) -> str:
     """Remove apikey/token query params from a URL for safe logging."""
@@ -285,6 +300,8 @@ def _bz_on_failure(exc: BaseException) -> httpx.Response:
     delay_from_exc=_bz_delay_from_exc,
     on_retry=_bz_on_retry,
     on_failure=_bz_on_failure,
+    rng=lambda: _rng(),
+    sleep=lambda d: _sleep(d),
 )
 def _attempt_bz_get(
     client: httpx.Client,

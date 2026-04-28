@@ -150,7 +150,8 @@ class TestBzHttpRequestWithRetryHonorsRetryAfter:
         from newsstack_fmp import _bz_http
 
         sleeps: list[float] = []
-        monkeypatch.setattr(_bz_http.time, "sleep", lambda d: sleeps.append(d))
+        monkeypatch.setattr(_bz_http, "_sleep", lambda d: sleeps.append(d))
+        monkeypatch.setattr(_bz_http, "_rng", lambda: 1.0)
 
         client = httpx.Client()
         monkeypatch.setattr(
@@ -170,7 +171,8 @@ class TestBzHttpRequestWithRetryHonorsRetryAfter:
         from newsstack_fmp import _bz_http
 
         sleeps: list[float] = []
-        monkeypatch.setattr(_bz_http.time, "sleep", lambda d: sleeps.append(d))
+        monkeypatch.setattr(_bz_http, "_sleep", lambda d: sleeps.append(d))
+        monkeypatch.setattr(_bz_http, "_rng", lambda: 1.0)
 
         client = httpx.Client()
         monkeypatch.setattr(
@@ -183,14 +185,15 @@ class TestBzHttpRequestWithRetryHonorsRetryAfter:
         )
         _bz_http._request_with_retry(client, "https://example.test/x", {"token": "k"})
 
-        # Pure exponential: 2**0 == 1s.
+        # Pure exponential ceiling: 2**0 == 1s (full-jitter RNG pinned to 1.0).
         assert sleeps == [1]
 
     def test_pathological_retry_after_capped_at_60s(self, monkeypatch):
         from newsstack_fmp import _bz_http
 
         sleeps: list[float] = []
-        monkeypatch.setattr(_bz_http.time, "sleep", lambda d: sleeps.append(d))
+        monkeypatch.setattr(_bz_http, "_sleep", lambda d: sleeps.append(d))
+        monkeypatch.setattr(_bz_http, "_rng", lambda: 1.0)
 
         client = httpx.Client()
         monkeypatch.setattr(
