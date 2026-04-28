@@ -1046,13 +1046,6 @@ class TestEvaluateBosEmptyFuture:
         pass
 
 
-class TestEvaluateZoneEmptyFuture:
-    """Cover line 348: same analysis as 309 — guarded by anchor_idx check."""
-
-    def test_unreachable_placeholder(self) -> None:
-        pass
-
-
 class TestObContextSkipBranches:
     """Cover lines 547, 551, 554: _ob_context_light_for_event skip branches."""
 
