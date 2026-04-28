@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import csv
 import io
 import json
@@ -12,6 +11,7 @@ import ssl
 import threading
 import time
 import urllib.error
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from email.utils import parsedate_to_datetime
@@ -577,11 +577,10 @@ def _is_permanent_feature_failure(exc: BaseException | None) -> bool:
         # the once-only log for forensic context.
         return True
     code = match.group(1)
-    if code in _TRANSIENT_HTTP_CODES:
-        return False
-    # Any other 4xx → permanent. Any other 5xx (501/505/...) → also permanent
-    # (server-side rejections like "Not Implemented" don't self-heal on retry).
-    return True
+    # Transient codes self-heal on retry; everything else (other 4xx, 5xx like
+    # 501/505 server-side rejections) is treated as permanent — those don't
+    # self-heal.
+    return code not in _TRANSIENT_HTTP_CODES
 
 
 def _log_feature_unavailable_once(
@@ -659,7 +658,7 @@ class FMPClient:
     _last_quote_fetch_diagnostics: dict[str, Any] = field(default_factory=dict, init=False, repr=False)
 
     @classmethod
-    def from_env(cls) -> "FMPClient":
+    def from_env(cls) -> FMPClient:
         return cls(api_key=str(os.environ.get("FMP_API_KEY") or ""))
 
     def _build_url(self, path: str, params: dict[str, Any]) -> str:
@@ -677,12 +676,12 @@ class FMPClient:
             raise UpstreamPayloadError(f"FMP API returned HTML on {path}")
         try:
             data = json.loads(text)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as exc:
             first_line = text.splitlines()[0] if text else ""
             if "," in first_line and (first_line.startswith('"') or first_line.lower().startswith("symbol,")):
                 reader = csv.DictReader(io.StringIO(text))
                 return [{key: _coerce_csv_value(value) for key, value in row.items()} for row in reader]
-            raise RuntimeError(f"FMP API returned invalid JSON on {path}: {text[:120]}")
+            raise RuntimeError(f"FMP API returned invalid JSON on {path}: {text[:120]}") from exc
         if isinstance(data, dict) and str(data.get("status") or "").lower() == "error":
             raise UpstreamPayloadError(f"FMP API error on {path}: {data.get('message') or 'unknown error'}")
         return data
@@ -906,7 +905,7 @@ class FMPClient:
             f"{symbol}: {failed_symbol_errors[symbol]}"
             for symbol in failed_quote_symbols
         ) or None
-        duration_ms = int(round((time.perf_counter() - started_at) * 1000.0))
+        duration_ms = round((time.perf_counter() - started_at) * 1000.0)
         self._last_quote_fetch_diagnostics = {
             "quote_fetch_mode": "fmp_stable_quote_per_symbol",
             "requested_symbols": requested_symbols,
@@ -1662,7 +1661,7 @@ class FinnhubClient:
     api_key: str = ""
 
     @classmethod
-    def from_env(cls) -> "FinnhubClient":
+    def from_env(cls) -> FinnhubClient:
         return cls(api_key=str(os.environ.get("FINNHUB_API_KEY") or ""))
 
     def available(self) -> bool:
