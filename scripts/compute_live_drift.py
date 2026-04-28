@@ -274,6 +274,7 @@ def compute_live_drift(
     backtest_reference: Mapping[str, Mapping[str, Any]] | None = None,
     live_jsonl: Path | None = None,
     backtest_calibration: Path | None = None,
+    slippage_reference: Path | None = None,
     min_trades: int = 15,
     expected_slippage_mean: float = _DEFAULT_EXPECTED_SLIPPAGE_MEAN,
     expected_slippage_std: float = _DEFAULT_EXPECTED_SLIPPAGE_STD,
@@ -312,6 +313,33 @@ def compute_live_drift(
         backtest_reference = payload.get("backtest_reference") or {}
 
     grouped = _group_by_variant(live_rows)
+
+    # ── C13/T4: per-family slippage-sample injection ──────────────
+    # When ``--slippage-reference`` points at a file produced by
+    # :mod:`scripts.build_backtest_slippage_samples`, broadcast each
+    # family’s samples to every variant key whose family prefix
+    # matches (e.g. ``BOS_megacap`` consumes the ``BOS`` family
+    # samples). This flips ``slippage_ks_reference_type`` from
+    # ``synthetic_normal`` to ``backtest_samples`` and unblocks the
+    # Phase-B promotion gate.
+    if slippage_reference is not None:
+        with Path(slippage_reference).open("r", encoding="utf-8") as fh:
+            slip_payload = json.load(fh)
+        # Imported lazily to keep the module import-light for tests
+        # that never touch the slippage path.
+        from scripts.build_backtest_slippage_samples import (
+            expand_to_variant_samples,
+        )
+
+        per_variant = expand_to_variant_samples(slip_payload, grouped.keys())
+        if per_variant:
+            merged: dict[str, dict[str, Any]] = {
+                k: dict(v) for k, v in (backtest_reference or {}).items()
+            }
+            for variant, samples in per_variant.items():
+                slot = merged.setdefault(variant, {})
+                slot["slippage_samples"] = samples
+            backtest_reference = merged
     when = (now or datetime.now(UTC)).isoformat()
     verdicts: list[dict[str, Any]] = []
 
@@ -335,9 +363,7 @@ def compute_live_drift(
             if slip is not None:
                 slippage.append(slip)
             h = r.get("hit")
-            if isinstance(h, bool):
-                hits.append(1 if h else 0)
-            elif isinstance(h, (int, float)):
+            if isinstance(h, bool) or isinstance(h, (int, float)):
                 hits.append(1 if h else 0)
 
         n_live = len(returns)
@@ -455,6 +481,17 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--live-jsonl", type=Path, required=True)
     p.add_argument("--backtest-calibration", type=Path, required=True)
     p.add_argument("--output", type=Path, required=True)
+    p.add_argument(
+        "--slippage-reference",
+        type=Path,
+        default=None,
+        help=(
+            "Optional path to a per-family backtest-slippage sample file "
+            "produced by scripts/build_backtest_slippage_samples.py. "
+            "When supplied, the K-S reference flips from synthetic_normal "
+            "to backtest_samples and unblocks Phase-B promotion (C13/T4)."
+        ),
+    )
     p.add_argument("--min-trades", type=int, default=15)
     p.add_argument("--live-window-days", type=int, default=90)
     return p
@@ -465,6 +502,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     report = compute_live_drift(
         live_jsonl=args.live_jsonl,
         backtest_calibration=args.backtest_calibration,
+        slippage_reference=args.slippage_reference,
         min_trades=args.min_trades,
         live_window_days=args.live_window_days,
     )

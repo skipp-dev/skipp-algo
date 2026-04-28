@@ -331,3 +331,83 @@ def test_drift_verdict_backtest_samples_reference_type() -> None:
     assert payload["slippage_ks_reference_type"] == "backtest_samples"
     # Legacy field reflects the new structured marker too.
     assert payload["slippage_ks_reference"] == "backtest_samples"
+
+
+# ── C13/T4: --slippage-reference round-trip ─────────────────────────
+
+
+def test_compute_live_drift_slippage_reference_flips_to_backtest_samples(
+    tmp_path,
+) -> None:
+    """End-to-end: per-family slippage file → backtest_samples ref type."""
+    from scripts.build_backtest_slippage_samples import (
+        SCHEMA_VERSION,
+        build_payload,
+    )
+    from scripts.compute_live_drift import _atomic_write_json
+
+    # 1. Produce per-family slippage samples (replay-only for determinism).
+    sample_payload = build_payload(
+        real_fills_by_family=None, mode="replay", min_per_family=120
+    )
+    assert sample_payload["schema_version"] == SCHEMA_VERSION
+    sample_path = tmp_path / "slippage.json"
+    _atomic_write_json(sample_path, sample_payload)
+
+    # 2. Live rows for a BOS_megacap variant with realistic slippage.
+    returns = _make_returns(0.004, 0.01, 30, seed=11)
+    rng = np.random.default_rng(7)
+    slips = rng.normal(2.0, 8.0, size=30).tolist()
+    rows = [
+        {"variant": "BOS_megacap", "return": r, "slippage": s}
+        for r, s in zip(returns, slips, strict=True)
+    ]
+
+    # 3. Compute drift WITH slippage reference.
+    out = compute_live_drift(
+        live_rows=rows,
+        backtest_reference={"BOS_megacap": {"sharpe": 0.5}},
+        slippage_reference=sample_path,
+    )
+    v = out["variants"][0]
+    assert v["slippage_ks_reference_type"] == "backtest_samples"
+
+    # 4. Without the slippage reference → falls back to synthetic_normal.
+    out_no_ref = compute_live_drift(
+        live_rows=rows,
+        backtest_reference={"BOS_megacap": {"sharpe": 0.5}},
+    )
+    assert out_no_ref["variants"][0]["slippage_ks_reference_type"] == "synthetic_normal"
+
+
+def test_compute_live_drift_slippage_reference_unblocks_phase_b_gate(
+    tmp_path,
+) -> None:
+    """Drift-report + phase-B gate produced via --slippage-reference passes."""
+    from scripts import check_phase_b_drift_readiness as gate
+    from scripts.build_backtest_slippage_samples import build_payload
+    from scripts.compute_live_drift import _atomic_write_json
+
+    sample_path = tmp_path / "slippage.json"
+    _atomic_write_json(
+        sample_path,
+        build_payload(mode="replay", min_per_family=100),
+    )
+
+    returns = _make_returns(0.004, 0.01, 30, seed=13)
+    rng = np.random.default_rng(8)
+    slips = rng.normal(2.0, 8.0, size=30).tolist()
+    rows = [
+        {"variant": "BOS_megacap", "return": r, "slippage": s}
+        for r, s in zip(returns, slips, strict=True)
+    ]
+
+    drift_report = compute_live_drift(
+        live_rows=rows,
+        backtest_reference={"BOS_megacap": {"sharpe": 0.5}},
+        slippage_reference=sample_path,
+    )
+    drift_path = tmp_path / "drift.json"
+    _atomic_write_json(drift_path, drift_report)
+
+    assert gate.main([str(drift_path)]) == gate.EXIT_OK
