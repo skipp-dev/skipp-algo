@@ -1669,7 +1669,7 @@ def test_runtime_error_falls_through_to_empty_collection(
         ("get_premarket_movers", (), {}, "stable/most-actives"),
     ],
 )
-def test_silent_fallback_warns_once_per_endpoint(
+def test_silent_fallback_logs_once_per_endpoint(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
     method: str,
@@ -1694,7 +1694,7 @@ def test_silent_fallback_warns_once_per_endpoint(
 
     matching = [r for r in caplog.records if feature_key in r.message]
     assert len(matching) == 1, (
-        f"{method} should emit warn-once for {feature_key} on RuntimeError; "
+        f"{method} should emit log-once for {feature_key} on RuntimeError; "
         f"got {len(matching)} log records"
     )
     assert feature_key in macro._FMP_FEATURE_UNAVAILABLE_LOGGED

@@ -20,7 +20,7 @@ import ssl
 import time
 import urllib.error
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from email.utils import parsedate_to_datetime
 from typing import Any
 from urllib.parse import urlencode
@@ -124,15 +124,15 @@ def _parse_retry_after_seconds(raw_value: Any) -> float | None:
     if parsed is None:
         return None
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    delta = (parsed.astimezone(timezone.utc) - datetime.now(timezone.utc)).total_seconds()
+        parsed = parsed.replace(tzinfo=UTC)
+    delta = (parsed.astimezone(UTC) - datetime.now(UTC)).total_seconds()
     if math.isnan(delta) or math.isinf(delta):
         return None
     return max(delta, 0.0)
 
 
 def _today_et() -> date:
-    return datetime.now(timezone.utc).astimezone(_US_EASTERN).date()
+    return datetime.now(UTC).astimezone(_US_EASTERN).date()
 
 
 def _prev_trading_day(day: date) -> date:
@@ -258,14 +258,22 @@ class SMCFMPClient:
                 raise RuntimeError(f"FMP HTTP {exc.code} on {path}") from exc
             raise RuntimeError(f"FMP network error on {path}: {exc}") from exc
 
+        def _delay_from_exc(exc: BaseException) -> float | None:
+            """Surface the captured ``Retry-After`` hint to ``@resilient``.
+
+            Returning a non-``None`` value routes through the override
+            branch of ``smc_core.resilient``, which sets the next delay
+            to ``min(hint, max_delay)`` *independently* of the jitter
+            RNG. This guarantees the hint is honored even when the
+            full-jitter ``capped * rng()`` would otherwise land on 0
+            (which would skip ``_sleep`` entirely and silently drop the
+            hint). ``None`` falls back to the default jittered delay.
+            """
+            if not retry_after_hint:
+                return None
+            return retry_after_hint.pop(0)
+
         def _sleep(delay: float) -> None:
-            if retry_after_hint:
-                hint = retry_after_hint.pop(0)
-                # Honor the server-supplied hint, but cap it at a sane
-                # ceiling so a misconfigured ``Retry-After: 86400`` can't
-                # wedge a synchronous CLI for a full day. The cap (60s)
-                # comfortably exceeds any normal rate-limit cooldown.
-                delay = max(delay, min(hint, 60.0))
             time.sleep(delay)
 
         # Build the decorator per-call so the runtime ``retry_attempts``
@@ -275,10 +283,13 @@ class SMCFMPClient:
         wrapped = resilient(
             retries=max_extra,
             base_delay=0.5,
-            max_delay=4.0,
+            # Cap covers normal rate-limit cooldowns; ``delay_from_exc``
+            # routes any honored ``Retry-After`` through this same cap.
+            max_delay=60.0,
             exceptions=(urllib.error.URLError,),  # covers HTTPError too
             on_failure=_on_failure,
             sleep=_sleep,
+            delay_from_exc=_delay_from_exc,
             # Resolve ``random.random`` at call time (not at decorator
             # default-argument evaluation time) so tests can pin the
             # jitter via ``monkeypatch.setattr("random.random", ...)``.

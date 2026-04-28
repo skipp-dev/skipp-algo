@@ -894,6 +894,51 @@ class TestRetryAfterHygieneLane9:
         # All slept values must be <= 60s.
         assert sleeps and all(d <= 60.0 for d in sleeps), sleeps
 
+    def test_get_honors_retry_after_even_when_jitter_rng_is_zero(self, monkeypatch):
+        """Regression: with ``random.random() == 0.0`` the full-jitter
+        delay would be 0 and ``@resilient`` would skip ``sleep`` —
+        silently dropping any ``Retry-After`` hint. The client must
+        route the hint through ``delay_from_exc`` so it survives the
+        ``delay > 0`` gate."""
+        import urllib.error
+        import scripts.smc_fmp_client as mod
+
+        sleeps: list[float] = []
+        monkeypatch.setattr(mod.time, "sleep", lambda d: sleeps.append(d))
+
+        attempts = {"n": 0}
+        class _FakeHeaders:
+            def get(self, key, default=None):
+                return "5" if key == "Retry-After" else default
+
+        def fake_urlopen(*args, **kwargs):
+            attempts["n"] += 1
+            if attempts["n"] == 1:
+                err = urllib.error.HTTPError(
+                    url="x", code=429, msg="Too Many", hdrs=_FakeHeaders(), fp=None,
+                )
+                err.headers = _FakeHeaders()
+                raise err
+            class _Resp:
+                def __enter__(self): return self
+                def __exit__(self, *a): return False
+                def read(self): return b"[]"
+            return _Resp()
+
+        monkeypatch.setattr(mod, "urlopen", fake_urlopen)
+        # Pin jitter RNG to exactly 0.0 — the worst-case path that
+        # previously skipped ``sleep`` entirely under the old
+        # closure-based ``_sleep`` design.
+        import random as _random
+        monkeypatch.setattr(_random, "random", lambda: 0.0)
+        c = SMCFMPClient(api_key="k", retry_attempts=2)
+        c._get("/stable/quote", {"symbol": "AAPL"})
+
+        assert attempts["n"] == 2
+        # Retry-After=5 must still produce a >=5s sleep even though
+        # ``capped * rng()`` would have been 0.
+        assert sleeps and any(d >= 5.0 for d in sleeps), sleeps
+
     def test_parse_retry_after_returns_none_for_nan_and_inf(self):
         """Regression: ``time.sleep(nan)`` raises ValueError on CPython.
 

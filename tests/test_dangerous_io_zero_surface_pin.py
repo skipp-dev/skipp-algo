@@ -8,7 +8,9 @@ a deliberate, reviewed action.
 Surfaces:
 
 * ``os.kill(pid, sig)`` — process signalling. Allowed only as
-  signal-0 liveness probes inside ``open_prep/realtime_signals.py``.
+  signal-0 liveness probes inside ``open_prep/realtime_signals.py``
+  (realtime engine PID file) and ``scripts/ib_client_id.py``
+  (IB-client-id leasing registry).
 * ``shutil.rmtree(...)`` — recursive deletion. Allowed only inside
   ``scripts/`` (one-shot artifact refresh tooling).
 * ``socket.socket(...)`` — raw socket creation. Allowed only inside
@@ -77,10 +79,13 @@ def _attr_call_sites(attr_owner: str, attr_name: str) -> set[tuple[str, int]]:
 
 # --- os.kill -----------------------------------------------------------------
 
-# Signal-0 liveness probes for the realtime engine PID file. Every one of these
-# call sites passes ``0`` as the signal, so they cannot terminate a process —
-# they merely check existence. New non-zero ``os.kill`` callers must be
-# explicitly added below with justification.
+# Signal-0 liveness probes only. Every one of these call sites passes ``0``
+# as the signal, so they cannot terminate a process — they merely check
+# existence. Two contexts are currently allow-listed:
+#   * ``open_prep/realtime_signals.py`` — realtime engine PID file probe.
+#   * ``scripts/ib_client_id.py`` — IB API client_id slot leasing registry.
+# New non-zero ``os.kill`` callers must be explicitly added below with
+# justification.
 OS_KILL_ALLOWED: set[tuple[str, int]] = {
     ("open_prep/realtime_signals.py", 172),
     ("open_prep/realtime_signals.py", 198),
@@ -95,7 +100,8 @@ def test_os_kill_zero_surface_pin() -> None:
     unexpected = sites - OS_KILL_ALLOWED
     assert not unexpected, (
         "New os.kill(...) call site detected. Process signalling must remain "
-        "confined to the realtime engine liveness probes. If genuinely needed, "
+        "confined to the allow-listed signal-0 liveness probes (realtime engine "
+        "PID file + IB-client-id leasing registry). If genuinely needed, "
         "add the new (path, line) pair to OS_KILL_ALLOWED in this test with "
         "a justification in the commit message.\n"
         f"unexpected = {sorted(unexpected)}"
