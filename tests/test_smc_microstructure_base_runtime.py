@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import warnings
 from typing import Any, cast
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 import numpy as np
@@ -447,12 +447,19 @@ def test_build_base_snapshot_from_bundle_payload_warns_when_asof_is_stale(
 ) -> None:
     bundle_payload, session_minute_detail = _make_bundle_payload(tmp_path)
 
-    class FakeDate(date):
+    # Production code anchors "today" via ``datetime.now(_ET).date()`` so we
+    # patch ``runtime.datetime`` rather than ``runtime.date``. ``FakeDateTime``
+    # subclasses datetime and returns a fixed instant for ``.now(tz)`` while
+    # leaving all other datetime semantics intact.
+    class FakeDateTime(datetime):
         @classmethod
-        def today(cls) -> "FakeDate":
-            return cls(2026, 3, 27)
+        def now(cls, tz=None):  # type: ignore[override]
+            pinned = datetime(2026, 3, 27, 12, 0, tzinfo=runtime._ET)
+            if tz is None:
+                return pinned.replace(tzinfo=None)
+            return pinned.astimezone(tz)
 
-    monkeypatch.setattr(runtime, "date", FakeDate)
+    monkeypatch.setattr(runtime, "datetime", FakeDateTime)
 
     with pytest.warns(UserWarning, match=r"Microstructure base asof_date is 8 days old; results may be stale\."):
         output, payload, _ = build_base_snapshot_from_bundle_payload(
