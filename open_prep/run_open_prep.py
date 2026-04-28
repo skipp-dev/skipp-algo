@@ -471,6 +471,7 @@ def _format_macro_events(events: list[dict], max_events: int) -> list[dict]:
 from newsstack_fmp._market_cal import (
     is_us_equity_trading_day as _is_us_equity_trading_day,
     prev_trading_day as _prev_trading_day,
+    us_equity_market_holidays as _us_equity_market_holidays,  # noqa: F401  (re-exported for tests)
 )
 
 
