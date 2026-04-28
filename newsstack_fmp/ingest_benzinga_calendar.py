@@ -481,10 +481,13 @@ def fetch_benzinga_quotes(
                 data = r.json()
             except BenzingaEndpointDisabled as exc:
                 # Endpoint marked disabled (tier-limited 4xx); subsequent
-                # chunks would raise immediately. Log once and break out
-                # rather than fast-failing every remaining chunk.
+                # chunks would raise immediately. Leave a debug breadcrumb
+                # here and break out rather than fast-failing every remaining
+                # chunk. The operator-visible disable event is logged by the
+                # code that marks the endpoint disabled; log_fetch_warning
+                # short-circuits BenzingaEndpointDisabled to DEBUG.
                 log_fetch_warning(
-                    f"Benzinga quotes chunk {start}-{start + len(chunk)} (endpoint disabled)",
+                    f"Benzinga quotes chunk {start}-{start + len(chunk)} (debug: endpoint already disabled)",
                     exc,
                 )
                 break
