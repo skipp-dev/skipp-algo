@@ -21,19 +21,17 @@ Optional: ``DATABENTO_API_KEY`` for real-time quote enrichment.
 
 from __future__ import annotations
 
-import html
 import json
 import logging
 import os
 import re
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 import httpx
 import pandas as pd
@@ -351,20 +349,17 @@ from smc_integration.provider_health import (
 from terminal_background_poller import BackgroundPoller
 from terminal_catalyst_state import (
     annotate_feed_with_ticker_catalyst_state,
-    effective_catalyst_actionable,
     effective_catalyst_score,
     effective_catalyst_sentiment,
 )
 from terminal_attention_state import (
     annotate_feed_with_ticker_attention_state,
-    effective_attention_active,
     effective_attention_dispatchable,
     effective_attention_priority,
     effective_attention_score,
     effective_attention_state,
 )
 from terminal_export import (
-    append_jsonl,
     fire_webhook,
     load_jsonl_feed,
     load_rt_quotes,
@@ -381,26 +376,22 @@ from terminal_feed_state import (
 )
 from terminal_live_story_state import (
     apply_live_story_state,
-    build_live_story_state_from_feed,
     live_story_key,
 )
 from terminal_reaction_state import (
     annotate_feed_with_ticker_reaction_state,
-    effective_reaction_actionable,
     effective_reaction_priority,
     effective_reaction_score,
     effective_reaction_state,
 )
 from terminal_resolution_state import (
     annotate_feed_with_ticker_resolution_state,
-    effective_resolution_actionable,
     effective_resolution_priority,
     effective_resolution_score,
     effective_resolution_state,
 )
 from terminal_posture_state import (
     annotate_feed_with_ticker_posture_state,
-    effective_posture_actionable,
     effective_posture_priority,
     effective_posture_score,
     effective_posture_state,
@@ -408,7 +399,6 @@ from terminal_posture_state import (
 from terminal_status_helpers import (
     api_key_status,
     cursor_diagnostic,
-    degraded_mode_reasons,
     feed_staleness_diagnostic,
     format_poll_ago,
     poll_failure_count,
@@ -434,21 +424,15 @@ from terminal_poller import (
     legacy_cursor_from_provider_cursors,
     live_news_source_label,
     poll_and_classify_live_bus,
-    seed_provider_cursors,
 )
 
 
 from terminal_spike_scanner import (
     SESSION_ICONS,
-    build_spike_rows,
-    filter_spike_rows,
     market_session,
-    overlay_extended_hours_quotes,
 )
 from terminal_spike_detector import (
     SpikeDetector,
-    format_spike_description,
-    format_time_et,
 )
 from streamlit_terminal_alerts import evaluate_alert_rules, validate_webhook_url
 from streamlit_terminal_config import (
@@ -469,7 +453,6 @@ from terminal_ui_helpers import (
     SENTIMENT_COLORS,
     _is_actionable_broad,
     aggregate_segments,
-    build_heatmap_data,
     compute_feed_stats,
     dedup_feed_items,
     dedup_articles,
@@ -501,10 +484,8 @@ from terminal_tradingview_news import (
     is_available as tv_available,
 )
 from terminal_databento import (
-    fetch_databento_quotes,
     fetch_databento_quote_map,
     is_available as databento_available,
-    get_dataset_info as databento_dataset_info,
 )
 from terminal_bitcoin import (
     fetch_btc_quote,
@@ -524,14 +505,6 @@ from terminal_bitcoin import (
     is_available as btc_available,
 )
 
-from terminal_newsapi import (
-    NLPSentiment,
-    newsapi_available,
-    fetch_event_clusters,
-    fetch_nlp_sentiment,
-    fetch_trending_concepts,
-    fetch_breaking_events,
-)
 
 logger = logging.getLogger(__name__)
 

@@ -15,8 +15,6 @@ from typing import Any
 import pytest
 
 from scripts.run_ab_comparison import (
-    BOOTSTRAP_B,
-    BOOTSTRAP_SEED,
     MIN_EVENTS_PER_ARM_FOR_BOOTSTRAP,
     _calibration_fdr_layer,
     _metric_brier,

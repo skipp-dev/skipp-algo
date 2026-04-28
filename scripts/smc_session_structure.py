@@ -17,7 +17,7 @@ Usage::
 from __future__ import annotations
 
 import logging
-from datetime import datetime, time, timezone
+from datetime import datetime
 from typing import Any
 
 import pandas as pd

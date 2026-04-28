@@ -5,7 +5,6 @@ import warnings
 
 import pandas as pd
 
-from scripts.bullish_quality_config import build_default_bullish_quality_config
 from scripts.databento_preopen_fast import (
     _choose_scope_days,
     _aggregate_current_premarket_features,

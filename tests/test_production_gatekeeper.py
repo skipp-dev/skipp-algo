@@ -1069,7 +1069,7 @@ class TestAtrCacheAtomicWrite:
     def test_save_and_load_roundtrip(self, tmp_path, monkeypatch):
         """Arrange: save ATR cache. Act: load it. Assert: data matches."""
         from open_prep.run_open_prep import (
-            _save_atr_cache, _load_atr_cache, ATR_CACHE_DIR,
+            _save_atr_cache, _load_atr_cache,
         )
 
         monkeypatch.setattr("open_prep.run_open_prep.ATR_CACHE_DIR", tmp_path)

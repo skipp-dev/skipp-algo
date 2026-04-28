@@ -10,7 +10,6 @@ tier (30 req / s, no daily limit) is never stressed.
 
 from __future__ import annotations
 
-import atexit
 import json
 import logging
 import os
@@ -18,8 +17,7 @@ import re
 import ssl
 import threading
 import time
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from dataclasses import dataclass
 from typing import Any
 from urllib.request import Request, urlopen
 import urllib.error

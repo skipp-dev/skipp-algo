@@ -79,6 +79,12 @@ def _globals_call_sites() -> set[tuple[str, int]]:
 # / ``terminal_posture_state`` for the established pattern).
 GLOBALS_CALL_ALLOWED: set[tuple[str, int]] = {
     ("streamlit_terminal.py", 2226),
+    # Lazy-loaded tab module pattern: ``__getattr__`` resolves a tab name
+    # by importing the underlying module on demand and caching the result
+    # (or ``None`` if the optional dep is missing) into the package
+    # globals so subsequent attribute lookups skip the import path.
+    ("terminal_tabs/__init__.py", 57),
+    ("terminal_tabs/__init__.py", 60),
 }
 
 

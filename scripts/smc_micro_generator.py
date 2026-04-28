@@ -6,16 +6,14 @@ and list assignments.  Every function in this module is side-effect free
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 
 from scripts.generate_smc_micro_profiles import (
-    LISTS,
     STATE_COLUMNS,
-    Thresholds,
     add_bucket_features,
     apply_candidate_rules,
     apply_overrides,

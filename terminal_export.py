@@ -32,9 +32,7 @@ from terminal_attention_state import (
     effective_attention_state,
 )
 from terminal_catalyst_state import (
-    effective_catalyst_actionable,
     effective_catalyst_age_minutes,
-    effective_catalyst_score,
     effective_catalyst_sentiment,
 )
 from terminal_feed_lifecycle import is_market_hours

@@ -43,7 +43,6 @@ from .repo_sources import (
 )
 from .trust_tier import (
     derive_quality_recommendation as _derive_quality_recommendation,
-    derive_trust_summary,
     resolve_provider_state,
     resolve_trust_main_blocker,
     resolve_trust_tier,

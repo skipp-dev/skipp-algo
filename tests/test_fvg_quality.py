@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import math
 
-import pytest
 
 from smc_core.fvg_quality import (
     DEFAULT_DIRECTIONS,

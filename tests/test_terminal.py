@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import json
 import os
-import tempfile
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -26,7 +25,6 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from newsstack_fmp.common_types import NewsItem
-from newsstack_fmp.scoring import ScoreResult, classify_and_score, cluster_hash
 from newsstack_fmp.store_sqlite import SqliteStore
 from terminal_poller import ClassifiedItem
 

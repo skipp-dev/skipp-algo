@@ -6,7 +6,6 @@ import dataclasses
 import json
 from pathlib import Path
 
-import pytest
 
 from scripts.f2_run_promotion_gate import main, run_promotion_gate
 from scripts.f2_experiment_spec import load_f2_spec

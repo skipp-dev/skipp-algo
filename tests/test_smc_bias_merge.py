@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import pytest
 
-from smc_core.bias_merge import BiasVerdict, merge_bias
+from smc_core.bias_merge import merge_bias
 
 
 def _htf(counter: int) -> dict:

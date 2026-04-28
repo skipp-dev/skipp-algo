@@ -10,10 +10,8 @@ Validates that:
 
 from __future__ import annotations
 
-import warnings
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import UTC, date, time
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest

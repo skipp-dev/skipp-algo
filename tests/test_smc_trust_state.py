@@ -9,7 +9,6 @@ from smc_integration.trust_state import (
     ACTION_IMPACT_NO_NEW_ENTRIES,
     ACTION_IMPACT_SUPPRESS_PRODUCT,
     TrustState,
-    TrustStateAssessment,
     all_trust_states,
     derive_trust_state,
     state_action_impact,

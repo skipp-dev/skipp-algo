@@ -68,7 +68,6 @@ _FROZEN_SITES: dict[str, int] = {
     "streamlit_terminal.py": 1,
     "terminal_bitcoin.py": 1,
     "terminal_finnhub.py": 2,
-    "terminal_tabs/__init__.py": 17,
 }
 _FROZEN_TOTAL = sum(_FROZEN_SITES.values())
 

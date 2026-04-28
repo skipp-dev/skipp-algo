@@ -29,7 +29,7 @@ from typing import Literal, Sequence
 
 import numpy as np
 
-from scripts._kolmogorov import kolmogorov_q, kolmogorov_sf_two_sample
+from scripts._kolmogorov import kolmogorov_sf_two_sample
 
 DriftSeverity = Literal["green", "yellow", "red"]
 

@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 import time as time_module
 import warnings
 from datetime import UTC, date, datetime, time, timedelta

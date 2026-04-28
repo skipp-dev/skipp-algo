@@ -5,14 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
 
 from scripts.check_resource_envelope import (
-    DRIFT_ADVISORY_FRACTION,
-    ENVELOPE_HARD_LIMITS,
-    ENVELOPE_WARN_THRESHOLDS,
-    REQUIRED_FIELDS,
-    EnvelopeCheckResult,
     check_envelope,
     format_summary_lines,
 )

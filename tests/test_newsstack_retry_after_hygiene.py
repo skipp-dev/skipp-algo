@@ -183,8 +183,10 @@ class TestBzHttpRequestWithRetryHonorsRetryAfter:
         )
         _bz_http._request_with_retry(client, "https://example.test/x", {"token": "k"})
 
-        # Pure exponential: 2**0 == 1s.
-        assert sleeps == [1]
+        # Pure-exponential cap is 2**0 == 1s; full-jitter window
+        # picks any value in [0, 1.0).  We assert the *bound* rather
+        # than the exact value to avoid coupling to RNG state.
+        assert sleeps and 0.0 <= sleeps[0] <= 1.0, sleeps
 
     def test_pathological_retry_after_capped_at_60s(self, monkeypatch):
         from newsstack_fmp import _bz_http

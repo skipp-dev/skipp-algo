@@ -52,11 +52,11 @@ _FROZEN_SITES: dict[str, frozenset[int]] = {
     "open_prep/realtime_signals.py": frozenset({171}),
     "pine_apply_surface_reduction.py": frozenset({53, 87, 397, 471, 502, 555}),
     "pine_input_surface.py": frozenset({129, 156, 187, 260, 270, 344}),
-    "scripts/fvg_label_audit_q3.py": frozenset({60}),
+    "scripts/fvg_label_audit_q3.py": frozenset({59}),
     "scripts/fvg_session_artifact_diagnosis.py": frozenset({37}),
     "scripts/investigate_universe_delta.py": frozenset({28}),
     "scripts/run_smc_e2e_smoke_test.py": frozenset({53, 97, 133}),
-    "streamlit_terminal.py": frozenset({1614, 2006, 2023}),
+    "streamlit_terminal.py": frozenset({1587, 1979, 1996}),
 }
 _FROZEN_TOTAL = sum(len(v) for v in _FROZEN_SITES.values())
 

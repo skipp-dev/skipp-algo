@@ -2765,7 +2765,6 @@ class TestRealtimeSignalsSafeFloat(unittest.TestCase):
     def test_detect_signal_with_non_numeric_quote_returns_none(self):
         """M-3: bare float() replaced with _safe_float."""
         from open_prep.realtime_signals import RealtimeEngine
-        from unittest.mock import MagicMock
         engine = RealtimeEngine.__new__(RealtimeEngine)
         engine._last_prices = {}
         signal = engine._detect_signal(
@@ -3431,7 +3430,7 @@ class TestSeniorReviewFixesRealtimeSignals(unittest.TestCase):
 
     def test_restore_preserves_news_fields(self):
         """H-4: News enrichment fields must survive disk restore."""
-        from open_prep.realtime_signals import RealtimeSignal, RealtimeEngine, SIGNALS_PATH
+        from open_prep.realtime_signals import RealtimeEngine
         import time as _time
         now_epoch = _time.time()
         signal_data = {
@@ -3600,7 +3599,6 @@ class TestSR2OutcomesEnvVarCrashGuard(unittest.TestCase):
     def test_malformed_retention_env_var(self):
         """OPEN_PREP_OUTCOME_RETENTION_DAYS='bad' must not crash store_daily_outcomes."""
         from unittest.mock import patch
-        from open_prep.outcomes import store_daily_outcomes
 
         with patch.dict(os.environ, {"OPEN_PREP_OUTCOME_RETENTION_DAYS": "invalid"}):
             # Should not raise — the try/except falls back to 90

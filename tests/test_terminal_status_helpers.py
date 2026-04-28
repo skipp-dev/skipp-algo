@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import time
 
-import pytest
 
 from terminal_status_helpers import (
     api_key_status,

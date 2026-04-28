@@ -4,10 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 
 from scripts.audit_library_consumers import (
-    AuditResult,
     audit,
     extract_consumer_refs,
     extract_exports,

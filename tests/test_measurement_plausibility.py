@@ -15,7 +15,6 @@ import pytest
 from smc_core.benchmark import (
     BenchmarkResult,
     EventFamily,
-    EventFamilyKPI,
     build_benchmark,
     export_benchmark_artifacts,
 )

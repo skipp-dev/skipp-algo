@@ -8,7 +8,6 @@ from pathlib import Path
 import pytest
 
 from scripts.f2_experiment_spec import (
-    F2Spec,
     SPEC_SCHEMA_VERSION,
     evaluate_promotion,
     evaluate_rollback,
