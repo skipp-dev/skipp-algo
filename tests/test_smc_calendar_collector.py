@@ -9,8 +9,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 from smc_calendar_collector import collect_earnings_and_macro
 
-TODAY = date(2026, 3, 28)
-TOMORROW = date(2026, 3, 29)
+TODAY = date(2026, 3, 27)  # Friday
+TOMORROW = date(2026, 3, 30)  # Monday — next US-equity trading day after Fri 03-27
 
 
 class TestNoEarnings:
@@ -29,7 +29,7 @@ class TestNoEarnings:
 class TestEarningsTodayBMO:
 
     def test_earnings_today_bmo(self) -> None:
-        earnings = [{"symbol": "AAPL", "date": "2026-03-28", "timing": "bmo"}]
+        earnings = [{"symbol": "AAPL", "date": "2026-03-27", "timing": "bmo"}]
         result = collect_earnings_and_macro(
             ["AAPL", "MSFT"], earnings_data=earnings, reference_date=TODAY
         )
@@ -38,7 +38,7 @@ class TestEarningsTodayBMO:
         assert result["earnings_amc_tickers"] == ""
 
     def test_earnings_today_amc(self) -> None:
-        earnings = [{"symbol": "GOOG", "date": "2026-03-28", "timing": "amc"}]
+        earnings = [{"symbol": "GOOG", "date": "2026-03-27", "timing": "amc"}]
         result = collect_earnings_and_macro(
             ["GOOG"], earnings_data=earnings, reference_date=TODAY
         )
@@ -50,7 +50,8 @@ class TestEarningsTodayBMO:
 class TestEarningsTomorrow:
 
     def test_earnings_tomorrow(self) -> None:
-        earnings = [{"symbol": "MSFT", "date": "2026-03-29", "timing": "bmo"}]
+        # MSFT reports Mon 03-30 — the next trading day after Fri 03-27 (skipping the weekend).
+        earnings = [{"symbol": "MSFT", "date": "2026-03-30", "timing": "bmo"}]
         result = collect_earnings_and_macro(
             ["MSFT"], earnings_data=earnings, reference_date=TODAY
         )
@@ -62,7 +63,7 @@ class TestMacroFOMCToday:
 
     def test_macro_fomc_today(self) -> None:
         events = [
-            {"name": "FOMC Minutes", "time_utc": "2026-03-28T18:00:00+00:00", "impact": "high"},
+            {"name": "FOMC Minutes", "time_utc": "2026-03-27T18:00:00+00:00", "impact": "high"},
         ]
         result = collect_earnings_and_macro(
             ["AAPL"], macro_events=events, reference_date=TODAY
@@ -81,7 +82,7 @@ class TestNoMacro:
 
     def test_low_impact_ignored(self) -> None:
         events = [
-            {"name": "Redbook Index", "time_utc": "2026-03-28T14:00:00+00:00", "impact": "low"},
+            {"name": "Redbook Index", "time_utc": "2026-03-27T14:00:00+00:00", "impact": "low"},
         ]
         result = collect_earnings_and_macro(
             ["AAPL"], macro_events=events, reference_date=TODAY
@@ -93,8 +94,8 @@ class TestSymbolFilter:
 
     def test_symbol_filter(self) -> None:
         earnings = [
-            {"symbol": "AAPL", "date": "2026-03-28", "timing": "bmo"},
-            {"symbol": "XYZ", "date": "2026-03-28", "timing": "bmo"},
+            {"symbol": "AAPL", "date": "2026-03-27", "timing": "bmo"},
+            {"symbol": "XYZ", "date": "2026-03-27", "timing": "bmo"},
         ]
         result = collect_earnings_and_macro(
             ["AAPL"], earnings_data=earnings, reference_date=TODAY
@@ -107,8 +108,8 @@ class TestMultipleMacroPicksNearest:
 
     def test_picks_earliest(self) -> None:
         events = [
-            {"name": "CPI Release", "time_utc": "2026-03-28T12:30:00+00:00"},
-            {"name": "FOMC Decision", "time_utc": "2026-03-28T18:00:00+00:00"},
+            {"name": "CPI Release", "time_utc": "2026-03-27T12:30:00+00:00"},
+            {"name": "FOMC Decision", "time_utc": "2026-03-27T18:00:00+00:00"},
         ]
         result = collect_earnings_and_macro(
             ["AAPL"], macro_events=events, reference_date=TODAY
@@ -126,3 +127,32 @@ class TestReturnShape:
             "earnings_bmo_tickers", "earnings_amc_tickers",
             "high_impact_macro_today", "macro_event_name", "macro_event_time",
         }
+
+
+class TestWeekendSkip:
+    """Lane 6 — ``tomorrow`` must skip weekends and US-equity holidays."""
+
+    def test_friday_tomorrow_is_monday_not_saturday(self) -> None:
+        # Friday → Saturday earnings should NOT be classified as "tomorrow".
+        earnings = [{"symbol": "MSFT", "date": "2026-03-28", "timing": "bmo"}]
+        result = collect_earnings_and_macro(
+            ["MSFT"], earnings_data=earnings, reference_date=TODAY
+        )
+        assert result["earnings_tomorrow_tickers"] == ""
+
+    def test_friday_monday_earnings_classified_as_tomorrow(self) -> None:
+        earnings = [{"symbol": "MSFT", "date": "2026-03-30", "timing": "bmo"}]
+        result = collect_earnings_and_macro(
+            ["MSFT"], earnings_data=earnings, reference_date=TODAY
+        )
+        assert "MSFT" in result["earnings_tomorrow_tickers"]
+
+    def test_explicit_next_trading_date_override(self) -> None:
+        earnings = [{"symbol": "TSLA", "date": "2026-04-02", "timing": "amc"}]
+        result = collect_earnings_and_macro(
+            ["TSLA"],
+            earnings_data=earnings,
+            reference_date=date(2026, 4, 1),
+            next_trading_date=date(2026, 4, 2),
+        )
+        assert "TSLA" in result["earnings_tomorrow_tickers"]
