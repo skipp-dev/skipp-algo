@@ -44,9 +44,9 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         # already-resampled HTF buckets; the daily/weekly/monthly
         # frames are produced via pandas resample which drops the
         # partial bucket when the source frame is bar-close clean.
-        ("smc_core/session_context.py", 118),
         ("smc_core/session_context.py", 124),
         ("smc_core/session_context.py", 130),
+        ("smc_core/session_context.py", 136),
         # smc_core/vol_regime.py — ATR / variance current values; the
         # caller passes a frame post-`guard_closed_bars` in production.
         ("smc_core/vol_regime.py", 135),
