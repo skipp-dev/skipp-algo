@@ -74,7 +74,7 @@ _DIR_EXCLUDE: frozenset[str] = frozenset(
 # When a refactor moves code, update the lineno here in the SAME PR.
 _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
     {
-        ("streamlit_terminal_alerts.py", 91),
+        ("streamlit_terminal_alerts.py", 92),
         ("smc_tv_bridge/smc_api.py", 85),
         ("open_prep/alerts.py", 240),
         ("open_prep/run_open_prep.py", 4511),
@@ -83,8 +83,8 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/streamlit_monitor.py", 126),
         ("terminal_spike_scanner.py", 161),
         ("newsstack_fmp/ingest_benzinga.py", 565),
-        ("newsstack_fmp/store_sqlite.py", 175),
-        ("newsstack_fmp/store_sqlite.py", 282),
+        ("newsstack_fmp/store_sqlite.py", 176),
+        ("newsstack_fmp/store_sqlite.py", 283),
     }
 )
 

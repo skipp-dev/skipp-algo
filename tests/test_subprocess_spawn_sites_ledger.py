@@ -133,7 +133,7 @@ def _subprocess_alias_or_direct_import_sites() -> set[tuple[str, int, str]]:
 # Locked surface — every entry is a reviewed external command.
 SUBPROCESS_RUN_LEDGER: set[tuple[str, int]] = {
     # `git rev-parse HEAD` for release-manifest provenance.
-    ("smc_integration/release_policy.py", 1069),
+    ("smc_integration/release_policy.py", 1070),
     # `pgrep` to discover the realtime-signals daemon PID.
     ("open_prep/realtime_signals.py", 181),
 }

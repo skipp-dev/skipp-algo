@@ -38,6 +38,7 @@ _ALLOWLIST_OWNER_REPOS: frozenset[str] = frozenset(
         "actions/setup-node",
         "actions/setup-python",
         "actions/upload-artifact",
+        "astral-sh/setup-uv",
         "dawidd6/action-download-artifact",
     }
 )

@@ -107,6 +107,7 @@ _FROZEN_FILE_COUNTS: dict[str, int] = {
     "terminal_forecast.py": 2,
     "terminal_poller.py": 13,
     "terminal_spike_scanner.py": 1,
+    "terminal_tabs/tab_live_incubation.py": 1,
     "terminal_technicals.py": 2,
 }
 

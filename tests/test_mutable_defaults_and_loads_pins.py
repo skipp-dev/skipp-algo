@@ -110,7 +110,7 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/outcome_backfill.py", 80),
         ("open_prep/outcomes.py", 168),
         ("open_prep/realtime_signals.py", 1459),
-        ("open_prep/realtime_signals.py", 2577),
+        ("open_prep/realtime_signals.py", 2574),
         ("open_prep/scorer.py", 87),
         ("open_prep/watchlist.py", 53),
     }
@@ -161,9 +161,9 @@ def test_no_stale_json_load_ledger_entries() -> None:
 _FROZEN_ENV_SUBSCRIPT_SITES: frozenset[tuple[str, int]] = frozenset(
     {
         ("databento_client.py", 60),
-        ("databento_volatility_screener.py", 781),
+        ("databento_volatility_screener.py", 782),
         ("open_prep/macro.py", 149),
-        ("open_prep/realtime_signals.py", 2613),
+        ("open_prep/realtime_signals.py", 2610),
         ("open_prep/streamlit_monitor.py", 74),
         ("streamlit_terminal.py", 325),
     }
