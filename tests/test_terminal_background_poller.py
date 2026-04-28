@@ -3,10 +3,11 @@ from __future__ import annotations
 
 import queue
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import pytest
 
 from terminal_background_poller import BackgroundPoller
 from terminal_feed_state import merge_live_feed_rows
@@ -350,3 +351,103 @@ class TestBackgroundPoller:
             store=MagicMock(),
         )
         assert bp.total_items_dropped == 0
+
+
+# ---------------------------------------------------------------------------
+# Audit v2 Lens 3 — health flag for long-running consumer
+# ---------------------------------------------------------------------------
+
+
+class TestBackgroundPollerHealthFlag:
+    """``is_healthy`` consolidates ``is_alive`` + consecutive-failure
+    counter so dashboards can branch on a single boolean instead of
+    parsing ``last_poll_status`` strings.
+    """
+
+    def test_initial_state_is_healthy_false_when_not_started(self):
+        bp = BackgroundPoller(
+            cfg=_FakeCfg(),
+            benzinga_adapter=None,
+            fmp_adapter=None,
+            store=MagicMock(),
+        )
+        # Thread not started yet → unhealthy by definition.
+        assert bp.is_alive is False
+        assert bp.is_healthy is False
+        assert bp.consecutive_failures == 0
+
+    @patch("terminal_poller.poll_and_classify_live_bus")
+    def test_is_healthy_flips_false_after_threshold_consecutive_failures(
+        self, mock_poll, caplog
+    ):
+        """After ``_HEALTH_THRESHOLD`` consecutive failures, the poller
+        must self-report unhealthy and emit a single WARN on the first
+        threshold crossing (== not >=) to avoid log spam.
+        """
+        mock_poll.side_effect = RuntimeError("API down")
+
+        bp = BackgroundPoller(
+            cfg=_FakeCfg(poll_interval_s=0.02),
+            benzinga_adapter=MagicMock(),
+            fmp_adapter=None,
+            store=MagicMock(),
+        )
+
+        with caplog.at_level("WARNING", logger="terminal_background_poller"):
+            bp.start()
+            # Wait until threshold is reached (or timeout).
+            deadline = time.monotonic() + 2.0
+            while (
+                bp.consecutive_failures < bp._HEALTH_THRESHOLD
+                and time.monotonic() < deadline
+            ):
+                time.sleep(0.02)
+            bp.stop_and_join(timeout=1.0)
+
+        assert bp.consecutive_failures >= bp._HEALTH_THRESHOLD
+        # Thread has now stopped, so is_healthy is False either way; the
+        # important contract is that the failure counter advanced and the
+        # WARN fired on the threshold boundary.
+        warn_msgs = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+        crossing_warns = [m for m in warn_msgs if "BG poller unhealthy" in m]
+        assert len(crossing_warns) == 1, (
+            f"Expected exactly one threshold-crossing WARN, got "
+            f"{len(crossing_warns)}: {crossing_warns}"
+        )
+
+    @patch("terminal_poller.poll_and_classify_live_bus")
+    def test_consecutive_failures_resets_on_successful_poll(self, mock_poll):
+        """A successful poll must zero the failure counter so the
+        unhealthy state clears as soon as the upstream recovers.
+        """
+        # Fail twice, then succeed.
+        call_count = {"n": 0}
+
+        def _flaky_poll(*args, **kwargs):
+            call_count["n"] += 1
+            if call_count["n"] <= 2:
+                raise RuntimeError("transient outage")
+            return [], dict(kwargs.get("provider_cursors") or {}), {}
+
+        mock_poll.side_effect = _flaky_poll
+
+        bp = BackgroundPoller(
+            cfg=_FakeCfg(poll_interval_s=0.02),
+            benzinga_adapter=MagicMock(),
+            fmp_adapter=None,
+            store=MagicMock(),
+        )
+
+        bp.start()
+        # Wait until at least one success has run.
+        deadline = time.monotonic() + 2.0
+        while call_count["n"] < 3 and time.monotonic() < deadline:
+            time.sleep(0.02)
+        # Allow the success branch to land.
+        time.sleep(0.1)
+        bp.stop_and_join(timeout=1.0)
+
+        # After at least one success, counter must be back to 0.
+        assert call_count["n"] >= 3
+        assert bp.consecutive_failures == 0
+        assert bp.last_poll_error == ""

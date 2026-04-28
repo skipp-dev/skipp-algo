@@ -43,6 +43,13 @@ class BackgroundPoller:
     store : SqliteStore
     """
 
+    # Audit v2 Lens 3 — long-running consumer health flag. Crossing the
+    # threshold flips ``is_healthy`` to False so dashboards / Streamlit
+    # surfaces can render a degraded indicator instead of silently
+    # serving stale data. Threshold is intentionally low (3) so a brief
+    # network blip does not flip the flag, but a sustained outage does.
+    _HEALTH_THRESHOLD: int = 3
+
     def __init__(
         self,
         cfg: Any,
@@ -76,11 +83,27 @@ class BackgroundPoller:
         self.last_poll_duration_s: float = 0.0
         self._last_periodic_prune_ts: float = 0.0  # for 30s dedup reset
 
+        # Audit v2 Lens 3 — consecutive_failures drives ``is_healthy``.
+        # Reset to 0 on every successful poll; WARN once when the
+        # threshold is first crossed (== not >=) to avoid log spam.
+        self.consecutive_failures: int = 0
+
     # ── Thread lifecycle ────────────────────────────────────
 
     @property
     def is_alive(self) -> bool:
         return self._thread is not None and self._thread.is_alive()
+
+    @property
+    def is_healthy(self) -> bool:
+        """Audit v2 Lens 3: True iff the thread is alive AND consecutive
+        failure count is below ``_HEALTH_THRESHOLD``. Consumers (Streamlit
+        dashboards, ops checks) can branch on this to surface a degraded
+        indicator instead of silently serving stale data.
+        """
+        with self._stats_lock:
+            failures = self.consecutive_failures
+        return self.is_alive and failures < self._HEALTH_THRESHOLD
 
     def start(self, cursor: str | dict[str, str] | None = None) -> None:
         """Start the background polling thread (idempotent)."""
@@ -283,6 +306,18 @@ class BackgroundPoller:
                     self.last_poll_ts = time.time()
                     self.last_poll_duration_s = time.monotonic() - _t0
                     self.consecutive_empty_polls += 1
+                    # Audit v2 Lens 3: increment failure counter and warn
+                    # once on the FIRST threshold crossing (==, not >=).
+                    self.consecutive_failures += 1
+                    _crossed = self.consecutive_failures == self._HEALTH_THRESHOLD
+                    _failures = self.consecutive_failures
+                if _crossed:
+                    logger.warning(
+                        "BG poller unhealthy: %d consecutive failures "
+                        "(threshold=%d). is_healthy=False until next "
+                        "successful poll.",
+                        _failures, self._HEALTH_THRESHOLD,
+                    )
                 continue
 
             with self._lock:
@@ -296,6 +331,9 @@ class BackgroundPoller:
                 self.last_poll_ts = time.time()
                 self.total_items_ingested += len(items)
                 self.last_poll_error = ""
+                # Audit v2 Lens 3: reset failure counter on successful
+                # poll (clears the unhealthy state and last_error).
+                self.consecutive_failures = 0
 
             src = live_news_source_label(provider_counts)
 
