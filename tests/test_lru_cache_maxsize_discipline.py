@@ -61,9 +61,7 @@ def _is_lru_cache_decorator(node: ast.expr) -> bool:
     target = node.func if isinstance(node, ast.Call) else node
     if isinstance(target, ast.Name) and target.id == "lru_cache":
         return True
-    if isinstance(target, ast.Attribute) and target.attr == "lru_cache":
-        return True
-    return False
+    return bool(isinstance(target, ast.Attribute) and target.attr == "lru_cache")
 
 
 def _has_explicit_maxsize(node: ast.expr) -> bool:
@@ -81,9 +79,7 @@ def _has_explicit_maxsize(node: ast.expr) -> bool:
         if kw.arg != "maxsize":
             continue
         # Reject ``maxsize=None`` — explicit-but-unbounded is still unbounded.
-        if isinstance(kw.value, ast.Constant) and kw.value.value is None:
-            return False
-        return True
+        return not (isinstance(kw.value, ast.Constant) and kw.value.value is None)
     return False
 
 

@@ -236,13 +236,13 @@ def test_build_research_event_flag_outcome_slices_separates_selected_and_flag_st
     slices = _build_research_event_flag_outcome_slices(daily_features, flags)
     selected_true = slices[
         (slices["flag_name"] == "is_earnings_day")
-        & (slices["selected_top20pct"] == True)
-        & (slices["flag_value"] == True)
+        & (slices["selected_top20pct"])
+        & (slices["flag_value"])
     ].iloc[0]
     unselected_false = slices[
         (slices["flag_name"] == "is_earnings_day")
-        & (slices["selected_top20pct"] == False)
-        & (slices["flag_value"] == False)
+        & (~slices["selected_top20pct"])
+        & (~slices["flag_value"])
     ].iloc[0]
 
     assert selected_true["row_count"] == 1
@@ -4839,11 +4839,11 @@ def test_symbol_detail_cache_key_includes_premarket_anchor(tmp_path) -> None:
     base_parts = ["2025-01-06", "AAPL", "Europe/Berlin", "152000", "160000"]
     path_a = build_cache_path(
         tmp_path, "symbol_detail_second", dataset="DBEQ.BASIC",
-        parts=base_parts + ["040000"],
+        parts=[*base_parts, "040000"],
     )
     path_b = build_cache_path(
         tmp_path, "symbol_detail_second", dataset="DBEQ.BASIC",
-        parts=base_parts + ["080000"],
+        parts=[*base_parts, "080000"],
     )
     assert path_a != path_b, "Different premarket_anchor_et must produce different cache paths"
 
@@ -6161,7 +6161,7 @@ def test_quality_window_signal_vwap_uses_dollar_volume_directly() -> None:
     late_key = "quality_candidates_0900_0930_all"
     if late_key in candidate_exports and not candidate_exports[late_key].empty:
         row = candidate_exports[late_key].iloc[0]
-        assert row["window_vwap_trend_ok"] is True or row["window_vwap_trend_ok"] == True, (
+        assert row["window_vwap_trend_ok"] is True or row["window_vwap_trend_ok"], (
             f"window_vwap_trend_ok should be True (close > vwap), got {row['window_vwap_trend_ok']}"
         )
 

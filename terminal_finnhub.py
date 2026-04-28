@@ -76,9 +76,7 @@ def is_equity_symbol(symbol: str) -> bool:
         return False
     # Must be pure alpha or alpha with dot (e.g. BRK.B)
     cleaned = s.replace(".", "")
-    if not cleaned.isalpha():
-        return False
-    return True
+    return cleaned.isalpha()
 
 
 def social_sentiment_status() -> str:

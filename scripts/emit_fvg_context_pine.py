@@ -175,7 +175,7 @@ def build_pine_snippet(
         return "\n".join(header_lines) + "\n"
 
     body_lines = emit_fvg_pine_constants(report)
-    return "\n".join(header_lines + ['', *body_lines]) + "\n"
+    return "\n".join([*header_lines, '', *body_lines]) + "\n"
 
 
 def write_outputs(

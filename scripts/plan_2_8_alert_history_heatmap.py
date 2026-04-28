@@ -108,7 +108,7 @@ def render_markdown(report: dict[str, Any]) -> str:
     if not keys:
         lines.append("_No alerts in window._")
         return "\n".join(lines) + "\n"
-    header = ["weekday"] + keys + ["total"]
+    header = ["weekday", *keys, "total"]
     lines.append("| " + " | ".join(header) + " |")
     lines.append("| " + " | ".join(["---"] * len(header)) + " |")
     for wd in WEEKDAYS:

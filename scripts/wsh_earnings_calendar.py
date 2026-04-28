@@ -262,7 +262,7 @@ def fetch_wsh_calendar(
         _dt.datetime.now(_ET).date() + _dt.timedelta(days=int(window_days))
     ).isoformat()
 
-    for idx, (symbol, con_id) in enumerate(symbols, start=1):
+    for _idx, (symbol, con_id) in enumerate(symbols, start=1):
         if int(con_id) <= 0:
             # Honour the ``con_id == -1`` sentinel documented in
             # ``_read_watchlist_symbols``: WSH ``reqWshEventData`` is

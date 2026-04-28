@@ -97,6 +97,6 @@ def make_minimal_watchlist_csv(tmp_path: Path, *, symbols: list[str] | None = No
     values = symbols or ["AAPL", "MSFT"]
     path = tmp_path / "reports" / "watchlist.csv"
     path.parent.mkdir(parents=True, exist_ok=True)
-    rows = ["symbol"] + values
+    rows = ["symbol", *values]
     path.write_text("\n".join(rows) + "\n", encoding="utf-8")
     return path

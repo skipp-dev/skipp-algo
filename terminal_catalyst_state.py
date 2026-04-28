@@ -197,9 +197,7 @@ def effective_catalyst_actionable(item: Any, *, now: float | None = None) -> boo
     age_minutes = effective_catalyst_age_minutes(item, now=now)
     if score >= 0.65:
         return True
-    if age_minutes is not None and age_minutes <= 1440.0 and score >= 0.45:
-        return True
-    return False
+    return bool(age_minutes is not None and age_minutes <= 1440.0 and score >= 0.45)
 
 
 def build_ticker_catalyst_state(

@@ -608,7 +608,7 @@ def _build_contextual_calibration(
         group_method_counts: dict[str, int] = {}
         warnings = list(input_warnings)
 
-        for group_key, indices in sorted(grouped_indices.items()):
+        for _group_key, indices in sorted(grouped_indices.items()):
             group_raw = [raw_probabilities[idx] for idx in indices]
             group_outcomes = [outcomes[idx] for idx in indices]
             method, _parameters, group_calibrated, group_warnings = _fit_calibration_mapping(

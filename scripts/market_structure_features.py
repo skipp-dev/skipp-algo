@@ -188,19 +188,7 @@ def build_market_structure_feature_frame(
     group_keys: Sequence[str],
     prefix: str,
 ) -> pd.DataFrame:
-    columns = list(group_keys) + [
-        f"{prefix}_trend_state",
-        f"{prefix}_last_event",
-        f"{prefix}_break_quality_score",
-        f"{prefix}_pressure_score",
-        f"{prefix}_compression_score",
-        f"{prefix}_distance_to_swing_high_pct",
-        f"{prefix}_distance_to_swing_low_pct",
-        f"{prefix}_reclaim_flag",
-        f"{prefix}_failed_break_flag",
-        f"{prefix}_alignment_score",
-        f"{prefix}_bias_score",
-    ]
+    columns = [*list(group_keys), f"{prefix}_trend_state", f"{prefix}_last_event", f"{prefix}_break_quality_score", f"{prefix}_pressure_score", f"{prefix}_compression_score", f"{prefix}_distance_to_swing_high_pct", f"{prefix}_distance_to_swing_low_pct", f"{prefix}_reclaim_flag", f"{prefix}_failed_break_flag", f"{prefix}_alignment_score", f"{prefix}_bias_score"]
     if detail.empty:
         return pd.DataFrame(columns=columns)
 

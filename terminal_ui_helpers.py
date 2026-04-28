@@ -384,9 +384,7 @@ def _is_actionable_broad(d: dict[str, Any]) -> bool:
     if ns >= 0.65:
         return True
     age_minutes = effective_catalyst_age_minutes(d)
-    if age_minutes is not None and age_minutes <= 1440.0 and ns >= 0.45:
-        return True
-    return False
+    return bool(age_minutes is not None and age_minutes <= 1440.0 and ns >= 0.45)
 
 
 def compute_feed_stats(feed: list[dict[str, Any]]) -> dict[str, Any]:

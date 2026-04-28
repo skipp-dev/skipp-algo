@@ -319,7 +319,7 @@ def test_select_recent_scope_symbols_keeps_latest_per_symbol() -> None:
     out = dpf._select_recent_scope_symbols(df, scope_days=10)
     assert set(out["symbol"]) == {"AAPL", "MSFT"}
     assert out.loc[out["symbol"] == "AAPL", "trade_date"].iloc[0] == date(2026, 4, 22)
-    assert (out["is_eligible"] == True).all()
+    assert (out["is_eligible"]).all()
 
 
 # ---------------------------------------------------------------------------

@@ -71,9 +71,7 @@ def _is_xml_family_module(module: str | None) -> bool:
         return False
     if module == "xml" or module.startswith("xml."):
         return True
-    if module == "lxml" or module.startswith("lxml."):
-        return True
-    return False
+    return bool(module == "lxml" or module.startswith("lxml."))
 
 
 def _iter_first_party_py_files() -> list[Path]:

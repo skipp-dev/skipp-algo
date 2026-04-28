@@ -472,7 +472,7 @@ class TestMainRunScan:
             "--fmp-api-key", "test-fmp",
             "--export-dir", str(tmp_path),
         ]
-        with patch("sys.argv", ["prog"] + test_args):
+        with patch("sys.argv", ["prog", *test_args]):
             main()
 
         mock_scan.assert_called_once()
@@ -498,7 +498,7 @@ class TestMainRunScan:
             "--enrich-news",
             "--export-dir", str(tmp_path),
         ]
-        with patch("sys.argv", ["prog"] + test_args):
+        with patch("sys.argv", ["prog", *test_args]):
             main()
 
         call_kwargs = mock_finalize.call_args.kwargs
@@ -520,7 +520,7 @@ class TestMainRunScan:
             "--enrich-all",
             "--export-dir", str(tmp_path),
         ]
-        with patch("sys.argv", ["prog"] + test_args):
+        with patch("sys.argv", ["prog", *test_args]):
             main()
 
         call_kwargs = mock_finalize.call_args.kwargs
@@ -550,7 +550,7 @@ class TestMainRunScan:
             "--newsapi-ai-key", "news-key",
             "--export-dir", str(tmp_path),
         ]
-        with patch("sys.argv", ["prog"] + test_args):
+        with patch("sys.argv", ["prog", *test_args]):
             main()
 
         assert mock_finalize.call_args.kwargs["newsapi_ai_key"] == "news-key"
@@ -592,7 +592,7 @@ class TestMainBundle:
             "--export-dir", str(output_dir),
             "--output-root", str(repo_root),
         ]
-        with patch("sys.argv", ["prog"] + test_args):
+        with patch("sys.argv", ["prog", *test_args]):
             cli.main()
 
         base_csv_candidates = sorted(output_dir.glob("*__smc_microstructure_base_*.csv"))
@@ -630,7 +630,7 @@ class TestMainBundle:
             "--export-dir", str(tmp_path),
             "--output-root", str(repo_root),
         ]
-        with patch("sys.argv", ["prog"] + test_args):
+        with patch("sys.argv", ["prog", *test_args]):
             main()
 
         call_kwargs = mock_finalize.call_args.kwargs
@@ -649,6 +649,6 @@ class TestMainMissingArgs:
             "--databento-api-key", "",
             "--export-dir", str(tmp_path),
         ]
-        with patch("sys.argv", ["prog"] + test_args):
+        with patch("sys.argv", ["prog", *test_args]):
             with pytest.raises(ValueError, match="Databento API key"):
                 main()

@@ -83,9 +83,7 @@ def build_structure_state_light(
         strength += 5
 
     # BOS in trend direction (0-15)
-    if state == "BULLISH" and bos_bull:
-        strength += 15
-    elif state == "BEARISH" and bos_bear:
+    if state == "BULLISH" and bos_bull or state == "BEARISH" and bos_bear:
         strength += 15
     elif last_event.startswith("BOS_"):
         strength += 8

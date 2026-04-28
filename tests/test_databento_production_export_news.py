@@ -319,8 +319,8 @@ def test_build_research_news_flag_coverage_distribution_and_outcome_slices() -> 
     ].iloc[0]
     selected_true = slices[
         (slices["flag_name"] == "company_news_item_count_24h")
-        & (slices["selected_top20pct"] == True)
-        & (slices["flag_value"] == True)
+        & (slices["selected_top20pct"])
+        & (slices["flag_value"])
     ].iloc[0]
 
     assert count_row["symbol_day_rows"] == 3

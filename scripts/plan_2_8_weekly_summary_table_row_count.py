@@ -23,9 +23,7 @@ def _is_row(line: str) -> bool:
     s = line.strip()
     if len(s) < 3 or not s.startswith("|") or not s.endswith("|"):
         return False
-    if s.count("|") < 2:
-        return False
-    return True
+    return not s.count("|") < 2
 
 
 def _is_separator(line: str) -> bool:

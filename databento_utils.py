@@ -86,7 +86,7 @@ def build_cache_path(
     ).hexdigest()[:12]
     directory = get_cache_root(cache_dir) / category / safe_dataset
     directory.mkdir(parents=True, exist_ok=True)
-    filename = "__".join(normalized + [digest]) + suffix
+    filename = "__".join([*normalized, digest]) + suffix
     return directory / filename
 
 

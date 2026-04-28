@@ -3408,7 +3408,7 @@ class TestSeniorReviewFixesTechnicalAnalysis(unittest.TestCase):
         from open_prep.technical_analysis import calculate_support_resistance_targets
         # Build 50+ bars where the last bar has no close
         bars = []
-        for i in range(55):
+        for _i in range(55):
             bars.append({"high": 110.0, "low": 90.0, "close": 100.0, "open": 99.0})
         # Remove close from last bar → should use current_price fallback
         bars[-1] = {"high": 110.0, "low": 90.0, "open": 99.0}

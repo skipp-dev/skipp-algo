@@ -40,7 +40,7 @@ def tmp_db(tmp_path: Path) -> SqliteStore:
 
 
 @pytest.fixture
-def sample_raw_benzinga() -> Dict[str, Any]:
+def sample_raw_benzinga() -> dict[str, Any]:
     """Simulated raw Benzinga REST /api/v2/news response item."""
     return {
         "id": 99900001,
@@ -59,7 +59,7 @@ def sample_raw_benzinga() -> Dict[str, Any]:
 
 
 @pytest.fixture
-def sample_newsitem(sample_raw_benzinga: Dict[str, Any]) -> NewsItem:
+def sample_newsitem(sample_raw_benzinga: dict[str, Any]) -> NewsItem:
     """Pre-normalised NewsItem from Benzinga REST."""
     from newsstack_fmp.normalize import normalize_benzinga_rest
     return normalize_benzinga_rest(sample_raw_benzinga)
@@ -708,8 +708,8 @@ class TestTerminalConfig:
 class TestVdSnapshot:
     """Tests for build_vd_snapshot / save_vd_snapshot."""
 
-    def _make_feed_item(self, ticker: str, score: float, **overrides: Any) -> Dict[str, Any]:
-        base: Dict[str, Any] = {
+    def _make_feed_item(self, ticker: str, score: float, **overrides: Any) -> dict[str, Any]:
+        base: dict[str, Any] = {
             "ticker": ticker,
             "news_score": score,
             "sentiment_label": "bullish",
@@ -821,8 +821,8 @@ class TestVdSnapshot:
 class TestRtIntegration:
     """Tests for load_rt_quotes and RT-merged build_vd_snapshot."""
 
-    def _make_feed_item(self, ticker: str, score: float, **kw: Any) -> Dict[str, Any]:
-        base: Dict[str, Any] = {
+    def _make_feed_item(self, ticker: str, score: float, **kw: Any) -> dict[str, Any]:
+        base: dict[str, Any] = {
             "ticker": ticker,
             "news_score": score,
             "sentiment_label": "bullish",
@@ -841,7 +841,7 @@ class TestRtIntegration:
         base.update(kw)
         return base
 
-    def _write_rt_jsonl(self, path: Path, rows: List[Dict[str, Any]]) -> None:
+    def _write_rt_jsonl(self, path: Path, rows: list[dict[str, Any]]) -> None:
         with open(path, "w", encoding="utf-8") as fh:
             for r in rows:
                 fh.write(json.dumps(r) + "\n")
@@ -1002,8 +1002,8 @@ class TestRtIntegration:
 class TestBzQuotesFallback:
     """Tests for Benzinga delayed quotes as fallback price source."""
 
-    def _make_feed_item(self, ticker: str, score: float, **kw: Any) -> Dict[str, Any]:
-        base: Dict[str, Any] = {
+    def _make_feed_item(self, ticker: str, score: float, **kw: Any) -> dict[str, Any]:
+        base: dict[str, Any] = {
             "ticker": ticker,
             "news_score": score,
             "published_ts": time.time(),
@@ -1013,7 +1013,7 @@ class TestBzQuotesFallback:
         base.update(kw)
         return base
 
-    def _make_bz_quote(self, symbol: str, last: float, chg_pct: float) -> Dict[str, Any]:
+    def _make_bz_quote(self, symbol: str, last: float, chg_pct: float) -> dict[str, Any]:
         return {
             "symbol": symbol,
             "last": str(last),

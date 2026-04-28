@@ -65,7 +65,7 @@ def test_discover_structure_category_coverage_is_complete_and_deterministic() ->
     assert one == two
     assert set(one.keys()) == {"bos", "choch", "orderblocks", "fvg", "liquidity_sweeps"}
 
-    for category, row in one.items():
+    for _category, row in one.items():
         assert set(row.keys()) == {"available", "producer", "source_evidence", "notes"}
         assert isinstance(row["available"], bool)
         assert isinstance(row["source_evidence"], list)

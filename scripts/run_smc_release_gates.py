@@ -447,12 +447,7 @@ def _gate_failure_is_data_absent(gate: dict[str, Any]) -> bool:
         # No explicit failure signals.  Check if all pair_results are
         # "data insufficient" or None — this is a CI data-absence pattern.
         pair_results = details.get("pair_results", [])
-        if pair_results and all(
-            pr.get("quality_guardrail") in (None, "data insufficient")
-            for pr in pair_results
-        ):
-            return True
-        return False
+        return bool(pair_results and all(pr.get("quality_guardrail") in (None, "data insufficient") for pr in pair_results))
 
     return all(s in _DATA_ABSENT_CODES for s in signals if s)
 
@@ -613,9 +608,7 @@ def _missing_smoke_pairs(provider_report: dict[str, Any], *, symbols: list[str],
 def _status_ok_or_warn(status: str, *, fail_on_warn: bool) -> bool:
     if status == "ok":
         return True
-    if status == "warn" and not fail_on_warn:
-        return True
-    return False
+    return bool(status == "warn" and not fail_on_warn)
 
 
 def _run_publish_contract_gate(args: argparse.Namespace) -> dict[str, Any]:
@@ -971,9 +964,7 @@ def _run_measurement_gate(
 
     details["warnings"] = warnings
     has_hard_block = bool(hard_blocking)
-    if strict_measurement_shadow and measurement_degradations:
-        status = "fail"
-    elif has_hard_block:
+    if strict_measurement_shadow and measurement_degradations or has_hard_block:
         status = "fail"
     else:
         # Measurement gate is soft by default — "ok" or "warn" unless explicitly promoted.

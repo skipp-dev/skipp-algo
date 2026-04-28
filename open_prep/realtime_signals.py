@@ -1577,7 +1577,7 @@ class RealtimeEngine:
                 logger.debug("Bulk profile unavailable (%s) — falling back to per-symbol", exc)
                 # Strategy 2: Per-symbol fallback (capped to 50 to limit latency)
                 remaining = need_avg_vol - set(self._avg_vol_cache)
-                for i, sym in enumerate(sorted(remaining)[:50]):
+                for _i, sym in enumerate(sorted(remaining)[:50]):
                     try:
                         profile = client.get_company_profile(sym)
                         avg_vol = _safe_float(
@@ -1876,10 +1876,7 @@ class RealtimeEngine:
                     logger.debug(
                         "%s RSI %.1f > 70 overbought — SHORT upgrade A1→A0", symbol, tech_rsi,
                     )
-                elif tech_rsi > 70 and level == "A2":
-                    level = "A1"
-                # RSI oversold penalty for shorts
-                elif tech_rsi < 30 and level == "A0":
+                elif tech_rsi > 70 and level == "A2" or tech_rsi < 30 and level == "A0":
                     level = "A1"
 
         # Technical consensus confirmation (non-RSI)

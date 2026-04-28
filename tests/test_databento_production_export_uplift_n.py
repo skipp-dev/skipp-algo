@@ -337,9 +337,9 @@ def test_build_empty_premarket_window_features_export():
         }
     )
     out = _build_empty_premarket_window_features_export(expected)
-    assert (out["has_window_data"] == False).all()
+    assert (~out["has_window_data"]).all()
     assert out["quality_filter_reason"].iloc[0] == "no_window_data"
-    assert (out["quality_selected_top_n"] == False).all()
+    assert (~out["quality_selected_top_n"]).all()
 
 
 # ── exchange-key normalization ─────────────────────────────────
@@ -681,7 +681,7 @@ class TestEmptyResearchFlags:
         )
         out = _empty_research_event_flags(scope, missing=False)
         for col in RESEARCH_EVENT_FLAG_COLUMNS[2:]:
-            assert out[col].iloc[0] == False
+            assert not out[col].iloc[0]
 
     def test_news_flags_missing(self):
         scope = pd.DataFrame(
@@ -708,7 +708,7 @@ class TestEmptyResearchFlags:
         for col in RESEARCH_NEWS_FLAG_COUNT_COLUMNS:
             assert out[col].iloc[0] == 0
         for col in RESEARCH_NEWS_FLAG_BOOLEAN_COLUMNS:
-            assert out[col].iloc[0] == False
+            assert not out[col].iloc[0]
 
 
 class TestResearchNewsPositiveMask:
