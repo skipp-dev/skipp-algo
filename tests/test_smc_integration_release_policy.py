@@ -1197,7 +1197,7 @@ class TestRawBrierAboveThreshold:
             "n_events": 5,
             "stratification_coverage": {"populated_bucket_count": 2},
         }
-        degradations, baseline = assess_measurement_shadow_degradations(
+        degradations, _baseline = assess_measurement_shadow_degradations(
             current, [], thresholds=thresholds,
         )
         codes = {d["code"] for d in degradations}

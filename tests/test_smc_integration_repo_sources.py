@@ -392,7 +392,7 @@ class TestTryLoadMetaDomainEdges:
             )
 
     def test_auto_mode_returns_none_on_missing(self) -> None:
-        meta, status, source = _try_load_meta_domain(
+        meta, status, _source = _try_load_meta_domain(
             "volume", "__MISSING__", "15m", "databento_watchlist_csv", auto_mode=True,
         )
         assert meta is None

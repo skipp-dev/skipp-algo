@@ -630,7 +630,7 @@ class TestResolveEventRiskLightEdges:
                 "by_symbol": {},
             },
         )
-        light, details = measurement_evidence._resolve_measurement_event_risk_light("AAPL", "15m")
+        _light, details = measurement_evidence._resolve_measurement_event_risk_light("AAPL", "15m")
         assert details["event_risk_source_mode"] == "reference_snapshot"
 
     def test_both_sources_fail_returns_none_mode(self, monkeypatch) -> None:
@@ -644,7 +644,7 @@ class TestResolveEventRiskLightEdges:
             "get_reference_event_risk_snapshot",
             lambda symbols: (_ for _ in ()).throw(RuntimeError("ref fail")),
         )
-        light, details = measurement_evidence._resolve_measurement_event_risk_light("AAPL", "15m")
+        _light, details = measurement_evidence._resolve_measurement_event_risk_light("AAPL", "15m")
         assert details["event_risk_source_mode"] == "none"
         assert details["event_risk_signal_present"] is False
 
@@ -659,7 +659,7 @@ class TestResolveEventRiskLightEdges:
             "get_reference_event_risk_snapshot",
             lambda symbols: (_ for _ in ()).throw(RuntimeError("ref fail")),
         )
-        light, details = measurement_evidence._resolve_measurement_event_risk_light("AAPL", "15m")
+        _light, details = measurement_evidence._resolve_measurement_event_risk_light("AAPL", "15m")
         assert details["event_risk_source_mode"] == "none"
 
 

@@ -566,7 +566,7 @@ def _finalize_composite_meta(
         if domain_meta is None:
             diagnostics[f"{domain}_asof_ts"] = None
             diagnostics[f"{domain}_age_hours"] = None
-            diagnostics[f"{domain}_stale"] = False if relax_missing_optional_domains and domain in {"technical", "news"} else True
+            diagnostics[f"{domain}_stale"] = not (relax_missing_optional_domains and domain in {"technical", "news"})
             continue
 
         domain_asof = domain_meta.get("asof_ts")
@@ -578,7 +578,7 @@ def _finalize_composite_meta(
         else:
             diagnostics[f"{domain}_asof_ts"] = None
             diagnostics[f"{domain}_age_hours"] = None
-            diagnostics[f"{domain}_stale"] = False if relax_missing_optional_domains and domain in {"technical", "news"} else True
+            diagnostics[f"{domain}_stale"] = not (relax_missing_optional_domains and domain in {"technical", "news"})
 
     merged["meta_domain_diagnostics"] = diagnostics
 

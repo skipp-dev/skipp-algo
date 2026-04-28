@@ -318,7 +318,7 @@ def test_atr14_by_symbol_returns_from_cache_when_complete(
         def get_batch_quotes(self, _syms: list[str]) -> list[dict[str, Any]]:
             return []
 
-    atr, mom, vwap, avg_vol_fb, errors = rop._atr14_by_symbol(
+    atr, _mom, vwap, _avg_vol_fb, errors = rop._atr14_by_symbol(
         client=_Client(),
         symbols=["AAPL", "MSFT"],
         as_of=as_of,

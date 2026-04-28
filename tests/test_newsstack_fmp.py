@@ -407,7 +407,7 @@ class TestCursorStrictLessThan(unittest.TestCase):
         )
 
         # last_seen_epoch == item.updated_ts — item must NOT be dropped
-        max_ts, _ = process_news_items(
+        _max_ts, _ = process_news_items(
             store, [item], best, None, enricher, 99.0,
             last_seen_epoch=100.0,
         )

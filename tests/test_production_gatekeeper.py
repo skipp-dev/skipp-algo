@@ -304,7 +304,7 @@ class TestNoSystemExit:
         mock_client = MagicMock()
         mock_client.get_batch_quotes.side_effect = RuntimeError("API down")
 
-        quotes, atr_map, mom_map, vwap_map, errors, quote_diagnostics = _fetch_quotes_with_atr(
+        quotes, _atr_map, _mom_map, _vwap_map, errors, quote_diagnostics = _fetch_quotes_with_atr(
             client=mock_client,
             symbols=["AAPL"],
             run_dt_utc=datetime(2025, 6, 16, 13, 0, tzinfo=UTC),
@@ -1553,7 +1553,7 @@ class TestPickIndicativePriceCascade:
         """When all price fields are absent, returns (0.0, 'spot')."""
         from open_prep.run_open_prep import _pick_indicative_price
 
-        px, source = _pick_indicative_price({})
+        px, _source = _pick_indicative_price({})
         assert px == 0.0
 
     def test_zero_premarket_falls_through(self):

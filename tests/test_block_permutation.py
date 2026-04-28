@@ -233,7 +233,7 @@ def test_observed_uses_same_group_sizes_as_null() -> None:
         sizes_seen.append((arr_t.size, arr_c.size))
         return float(arr_t.mean() - arr_c.mean())
 
-    p, observed, null = block_permutation_test(
+    p, _observed, null = block_permutation_test(
         treatment=t, control=c, statistic=_stat,
         block_size=5, B=20, seed=0,
     )

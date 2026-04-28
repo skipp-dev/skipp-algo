@@ -236,7 +236,7 @@ class TestPollAndClassify:
         mock_adapter = MagicMock(spec=["fetch_news"])
         mock_adapter.fetch_news.return_value = []
 
-        items, cursor = poll_and_classify(mock_adapter, tmp_db, cursor=None)
+        items, _cursor = poll_and_classify(mock_adapter, tmp_db, cursor=None)
         assert items == []
 
     def test_cursor_advances(self, tmp_db: SqliteStore) -> None:
@@ -257,7 +257,7 @@ class TestPollAndClassify:
 
         # Second poll with same item → deduped, cursor stays
         mock_adapter.fetch_news.return_value = [item]
-        items2, cursor2 = poll_and_classify(mock_adapter, tmp_db, cursor=cursor1)
+        items2, _cursor2 = poll_and_classify(mock_adapter, tmp_db, cursor=cursor1)
         assert len(items2) == 0  # deduped
 
 
@@ -641,7 +641,7 @@ class TestClassifierIntegration:
         from open_prep.playbook import classify_news_event
 
         title = "Trading Halt: ACME Corp halted pending company news"
-        label, score = classify_article_sentiment(title)
+        label, _score = classify_article_sentiment(title)
         # Halts are typically neutral sentiment (no directional keywords)
         assert label in ("neutral", "bearish")
 
@@ -654,7 +654,7 @@ class TestClassifierIntegration:
         from open_prep.playbook import classify_news_event
 
         title = "FDA Grants Approval for New Drug Treatment by PharmaCo"
-        label, score = classify_article_sentiment(title)
+        label, _score = classify_article_sentiment(title)
         assert label == "bullish"
 
         event = classify_news_event(title)

@@ -84,7 +84,7 @@ def test_load_skips_non_fvg_family(tmp_path):
         + json.dumps(_event()) + "\n",
         encoding="utf-8",
     )
-    events, warnings = gate.load_fvg_events(tmp_path)
+    events, _warnings = gate.load_fvg_events(tmp_path)
     assert len(events) == 1
     assert events[0]["family"] == "FVG"
 

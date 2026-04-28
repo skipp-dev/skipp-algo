@@ -964,7 +964,7 @@ def _run_measurement_gate(
 
     details["warnings"] = warnings
     has_hard_block = bool(hard_blocking)
-    if strict_measurement_shadow and measurement_degradations or has_hard_block:
+    if (strict_measurement_shadow and measurement_degradations) or has_hard_block:
         status = "fail"
     else:
         # Measurement gate is soft by default — "ok" or "warn" unless explicitly promoted.
