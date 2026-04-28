@@ -35,7 +35,7 @@ import logging
 import math
 import re
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import datetime
 
 from newsstack_fmp._market_cal import next_trading_day
 from zoneinfo import ZoneInfo

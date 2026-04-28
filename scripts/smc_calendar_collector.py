@@ -82,8 +82,12 @@ def collect_earnings_and_macro(
         Saturday for any Friday call and silently emit an empty
         ``earnings_tomorrow_tickers`` set.
     """
-    today = reference_date or date.today()
-    from datetime import timedelta  # noqa: F401  (kept for backwards-compat re-export sites)
+    # Anchor "today" in US/Eastern (the trading-day timezone) instead of the
+    # server's local clock. On a UTC server, ``date.today()`` advances at
+    # 00:00 UTC — i.e. 20:00 ET (EDT) the previous day — which silently
+    # rolls earnings into ``earnings_tomorrow_tickers`` for ~4 hours every
+    # night. Tested via ``test_today_anchored_on_us_eastern``.
+    today = reference_date or datetime.now(_ET).date()
 
     if next_trading_date is not None:
         tomorrow = next_trading_date
@@ -129,7 +133,12 @@ def collect_earnings_and_macro(
     for evt in macro_events or []:
         name = evt.get("name") or ""
         evt_dt = _parse_event_dt(evt.get("time_utc"))
-        if evt_dt is not None and evt_dt.date() != today:
+        # Anchor the event date in US/Eastern before comparing with
+        # ``today`` (which is also ET). Otherwise an event at 00:30 UTC
+        # (= 20:30 ET previous day) would match ``today`` purely by UTC
+        # date arithmetic and surface as a "today" event when in trading
+        # terms it already happened yesterday.
+        if evt_dt is not None and evt_dt.astimezone(_ET).date() != today:
             continue
         is_high = bool(_HIGH_IMPACT_PATTERNS.search(name))
         if not is_high:

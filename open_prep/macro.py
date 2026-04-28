@@ -7,6 +7,7 @@ import json
 import logging
 import math
 import os
+import re
 import ssl
 import threading
 import time
@@ -111,9 +112,15 @@ def _parse_retry_after_seconds(raw_value: str | None) -> float | None:
     if not raw_value:
         return None
     try:
-        return max(float(raw_value), 0.0)
+        v = float(raw_value)
     except (TypeError, ValueError):
-        pass
+        v = None
+    if v is not None:
+        # Reject NaN/Inf — ``time.sleep(NaN)`` raises ValueError and
+        # ``time.sleep(inf)`` would wedge the retry loop.
+        if math.isnan(v) or math.isinf(v):
+            return None
+        return max(v, 0.0)
     try:
         parsed = parsedate_to_datetime(str(raw_value))
     except (TypeError, ValueError, IndexError, OverflowError):
@@ -520,11 +527,96 @@ class _CircuitBreaker:
             self._opened_at = time.time()
 
 
-def _log_feature_unavailable_once(feature_key: str, message: str) -> None:
+# Permanent vs transient HTTP failure classification.
+#
+# ``_execute_get`` raises ``RuntimeError("FMP API HTTP {code} on {path}: ...")``
+# for ALL upstream HTTP errors — both permanent (auth/missing/retired) and
+# transient (rate-limit/timeout/5xx). The once-per-process dedupe in
+# ``_log_feature_unavailable_once`` is the right semantic for permanent
+# failures ("this feature is unavailable on this tier; stop spamming the
+# log") but the *wrong* semantic for transient outages, where we want every
+# WARNING so on-call can see sustained 429s / 5xx storms.
+#
+# Status-code groups (RFC 7231 + provider-specific):
+#   408 Request Timeout      → transient
+#   429 Too Many Requests    → transient
+#   500/502/503/504          → transient
+#   400/401/403/404/410/451  → permanent (auth, missing, retired, legal-block)
+#   any other 4xx            → permanent (treat client-side errors as deterministic)
+_HTTP_CODE_RE = re.compile(r"HTTP (\d{3})")
+_TRANSIENT_HTTP_CODES = frozenset({"408", "429", "500", "502", "503", "504"})
+_CIRCUIT_OPEN_RE = re.compile(r"FMP API circuit open for ")
+_NETWORK_ERROR_RE = re.compile(r"FMP API network error on ")
+_RETRIES_EXHAUSTED_RE = re.compile(r"FMP API request exhausted retries on ")
+
+
+def _is_permanent_feature_failure(exc: BaseException | None) -> bool:
+    """Return True if ``exc`` represents a deterministic, recurring failure.
+
+    Permanent  = same input → same failure on every retry (404 retired
+                 endpoint, 401 missing API key, 403 tier mismatch,
+                 ``UpstreamPayloadError`` HTML/error-payload).
+    Transient  = self-healing (408/429/5xx, network error, retries-exhausted,
+                 circuit-open) — we MUST keep WARN-ing every occurrence so
+                 sustained outages stay visible.
+
+    ``exc=None`` is treated as permanent so legacy callers without an
+    exception object behave like the pre-refactor INFO-once path.
+    """
+    if exc is None:
+        return True
+    if isinstance(exc, UpstreamPayloadError):
+        return True
+    text = str(exc)
+    if _CIRCUIT_OPEN_RE.search(text) or _NETWORK_ERROR_RE.search(text) or _RETRIES_EXHAUSTED_RE.search(text):
+        return False
+    match = _HTTP_CODE_RE.search(text)
+    if match is None:
+        # Non-HTTP RuntimeError: treat as permanent (parse error / schema
+        # drift) so we don't spam, but include the exception class name in
+        # the once-only log for forensic context.
+        return True
+    code = match.group(1)
+    if code in _TRANSIENT_HTTP_CODES:
+        return False
+    # Any other 4xx → permanent. Any other 5xx (501/505/...) → also permanent
+    # (server-side rejections like "Not Implemented" don't self-heal on retry).
+    return True
+
+
+def _log_feature_unavailable_once(
+    feature_key: str,
+    message: str,
+    *,
+    exc: BaseException | None = None,
+) -> None:
+    """Log a feature-unavailable event with permanent/transient discipline.
+
+    Permanent failures (401/403/404/410, ``UpstreamPayloadError``,
+    deterministic parse errors): INFO once per ``feature_key`` per process.
+    Transient failures (408/429/5xx, network errors, circuit-open,
+    retries-exhausted): WARNING every occurrence with the exception type
+    and message so on-call sees sustained outages.
+    """
+    if not _is_permanent_feature_failure(exc):
+        # Transient — always warn so persistent outages stay visible.
+        if exc is not None:
+            logger.warning(
+                "%s [transient %s: %s]",
+                message,
+                type(exc).__name__,
+                exc,
+            )
+        else:
+            logger.warning("%s [transient]", message)
+        return
     if feature_key in _FMP_FEATURE_UNAVAILABLE_LOGGED:
         return
     _FMP_FEATURE_UNAVAILABLE_LOGGED.add(feature_key)
-    logger.info(message)
+    if exc is not None:
+        logger.info("%s [permanent %s: %s]", message, type(exc).__name__, exc)
+    else:
+        logger.info(message)
 
 
 def _aggregate_sector_snapshot_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -683,10 +775,11 @@ class FMPClient:
     def get_profile_bulk(self) -> list[dict[str, Any]]:
         try:
             data = self._get("/stable/profile-bulk", {})
-        except RuntimeError:
+        except RuntimeError as exc:
             _log_feature_unavailable_once(
                 "stable/profile-bulk",
                 "FMP feature unavailable (stable/profile-bulk); continuing without profile bulk data.",
+                exc=exc,
             )
             return []
         return list(data) if isinstance(data, list) else []
@@ -715,10 +808,11 @@ class FMPClient:
             return []
         try:
             data = self._get("/stable/ratios-ttm", {"symbol": requested_symbol})
-        except RuntimeError:
+        except RuntimeError as exc:
             _log_feature_unavailable_once(
                 "stable/ratios-ttm",
                 "FMP feature unavailable (stable/ratios-ttm); continuing without TTM ratios.",
+                exc=exc,
             )
             return []
         return list(data) if isinstance(data, list) else []
@@ -726,10 +820,11 @@ class FMPClient:
     def get_company_screener(self, **kwargs: Any) -> list[dict[str, Any]]:
         try:
             data = self._get("/stable/company-screener", kwargs)
-        except RuntimeError:
+        except RuntimeError as exc:
             _log_feature_unavailable_once(
                 "stable/company-screener",
                 "FMP feature unavailable (stable/company-screener); continuing without screener results.",
+                exc=exc,
             )
             return []
         return list(data) if isinstance(data, list) else []
@@ -839,10 +934,11 @@ class FMPClient:
         }
         try:
             data = self._get("/stable/fmp-articles", params)
-        except RuntimeError:
+        except RuntimeError as exc:
             _log_feature_unavailable_once(
                 "stable/fmp-articles",
                 "FMP feature unavailable (stable/fmp-articles); continuing without FMP article data.",
+                exc=exc,
             )
             return []
         return list(data) if isinstance(data, list) else []
@@ -853,10 +949,11 @@ class FMPClient:
             params["symbol"] = str(symbol).strip().upper()
         try:
             data = self._get("/stable/news/stock-latest", params)
-        except RuntimeError:
+        except RuntimeError as exc:
             _log_feature_unavailable_once(
                 "stable/news/stock-latest",
                 "FMP feature unavailable (stable/news/stock-latest); continuing without latest stock news.",
+                exc=exc,
             )
             return []
         return list(data) if isinstance(data, list) else []
@@ -864,10 +961,11 @@ class FMPClient:
     def get_batch_crypto_quotes(self) -> list[dict[str, Any]]:
         try:
             data = self._get("/stable/batch-crypto-quotes", {})
-        except RuntimeError:
+        except RuntimeError as exc:
             _log_feature_unavailable_once(
                 "stable/batch-crypto-quotes",
                 "FMP feature unavailable (stable/batch-crypto-quotes); continuing without crypto batch quotes.",
+                exc=exc,
             )
             return []
         return list(data) if isinstance(data, list) else []
@@ -878,10 +976,11 @@ class FMPClient:
         params = {"symbol": str(symbol).strip().upper()}
         try:
             data = self._get("/stable/historical-price-eod/full", params)
-        except RuntimeError:
+        except RuntimeError as exc:
             _log_feature_unavailable_once(
                 "stable/historical-price-eod/full",
                 "FMP feature unavailable (stable/historical-price-eod/full); continuing without EOD price history.",
+                exc=exc,
             )
             return []
         return list(data) if isinstance(data, list) else []
@@ -889,10 +988,11 @@ class FMPClient:
     def get_cryptocurrency_list(self) -> list[dict[str, Any]]:
         try:
             data = self._get("/stable/cryptocurrency-list", {})
-        except RuntimeError:
+        except RuntimeError as exc:
             _log_feature_unavailable_once(
                 "stable/cryptocurrency-list",
                 "FMP feature unavailable (stable/cryptocurrency-list); continuing without crypto reference list.",
+                exc=exc,
             )
             return []
         return list(data) if isinstance(data, list) else []
@@ -900,10 +1000,11 @@ class FMPClient:
     def get_fear_and_greed_index(self) -> list[dict[str, Any]]:
         try:
             data = self._get("/stable/fear-and-greed-index", {})
-        except RuntimeError:
+        except RuntimeError as exc:
             _log_feature_unavailable_once(
                 "stable/fear-and-greed-index",
                 "FMP feature unavailable (stable/fear-and-greed-index); endpoint retired or upgraded plan required.",
+                exc=exc,
             )
             return []
         return list(data) if isinstance(data, list) else []
@@ -924,10 +1025,11 @@ class FMPClient:
             params["periodLength"] = int(indicator_period)
         try:
             data = self._get(f"/stable/technical-indicators/{indicator_type}", params)
-        except RuntimeError:
+        except RuntimeError as exc:
             _log_feature_unavailable_once(
                 f"stable/technical-indicators/{indicator_type}",
                 f"FMP feature unavailable (stable/technical-indicators/{indicator_type}); continuing without this indicator.",
+                exc=exc,
             )
             return {}
         if isinstance(data, dict):
@@ -995,10 +1097,11 @@ class FMPClient:
             params["date"] = as_of.isoformat()
         try:
             data = self._get("/stable/eod-bulk", params)
-        except RuntimeError:
+        except RuntimeError as exc:
             _log_feature_unavailable_once(
                 "stable/eod-bulk",
                 "FMP feature unavailable (stable/eod-bulk); continuing without bulk EOD data.",
+                exc=exc,
             )
             return []
         return list(data) if isinstance(data, list) else []
@@ -1010,10 +1113,11 @@ class FMPClient:
         }
         try:
             data = self._get("/stable/earnings-calendar", params)
-        except RuntimeError:
+        except RuntimeError as exc:
             _log_feature_unavailable_once(
                 "stable/earnings-calendar",
                 "FMP feature unavailable (stable/earnings-calendar); continuing without earnings calendar data.",
+                exc=exc,
             )
             return []
         return list(data) if isinstance(data, list) else []
@@ -1025,10 +1129,11 @@ class FMPClient:
         }
         try:
             data = self._get("/stable/economic-calendar", params)
-        except RuntimeError:
+        except RuntimeError as exc:
             _log_feature_unavailable_once(
                 "stable/economic-calendar",
                 "FMP feature unavailable (stable/economic-calendar); continuing without macro calendar data.",
+                exc=exc,
             )
             return []
         return list(data) if isinstance(data, list) else []
@@ -1036,10 +1141,11 @@ class FMPClient:
     def get_premarket_movers(self) -> list[dict[str, Any]]:
         try:
             data = self._get("/stable/most-actives", {})
-        except RuntimeError:
+        except RuntimeError as exc:
             _log_feature_unavailable_once(
                 "stable/most-actives",
                 "FMP feature unavailable (stable/most-actives); continuing without pre-market movers.",
+                exc=exc,
             )
             return []
         return list(data) if isinstance(data, list) else []
@@ -1078,7 +1184,12 @@ class FMPClient:
         }
         try:
             data = self._get("/stable/splits-calendar", params)
-        except RuntimeError:
+        except RuntimeError as exc:
+            _log_feature_unavailable_once(
+                "stable/splits-calendar",
+                "FMP feature unavailable (stable/splits-calendar); continuing without splits calendar data.",
+                exc=exc,
+            )
             return []
         return list(data) if isinstance(data, list) else []
 
@@ -1089,7 +1200,12 @@ class FMPClient:
         }
         try:
             data = self._get("/stable/dividends-calendar", params)
-        except RuntimeError:
+        except RuntimeError as exc:
+            _log_feature_unavailable_once(
+                "stable/dividends-calendar",
+                "FMP feature unavailable (stable/dividends-calendar); continuing without dividends calendar data.",
+                exc=exc,
+            )
             return []
         return list(data) if isinstance(data, list) else []
 
@@ -1100,7 +1216,12 @@ class FMPClient:
         }
         try:
             data = self._get("/stable/ipos-calendar", params)
-        except RuntimeError:
+        except RuntimeError as exc:
+            _log_feature_unavailable_once(
+                "stable/ipos-calendar",
+                "FMP feature unavailable (stable/ipos-calendar); continuing without ipos calendar data.",
+                exc=exc,
+            )
             return []
         return list(data) if isinstance(data, list) else []
 
@@ -1122,7 +1243,12 @@ class FMPClient:
             params["limit"] = max(int(limit), 1)
         try:
             data = self._get("/stable/grades", params)
-        except RuntimeError:
+        except RuntimeError as exc:
+            _log_feature_unavailable_once(
+                "stable/grades",
+                "FMP feature unavailable (stable/grades); continuing without grades data.",
+                exc=exc,
+            )
             return []
         return list(data) if isinstance(data, list) else []
 
@@ -1138,10 +1264,11 @@ class FMPClient:
             path = "/stable/insider-trading/latest"
         try:
             data = self._get(path, params)
-        except RuntimeError:
+        except RuntimeError as exc:
             _log_feature_unavailable_once(
                 path.lstrip("/"),
                 f"FMP feature unavailable ({path}); endpoint retired or upgraded plan required.",
+                exc=exc,
             )
             return []
         return list(data) if isinstance(data, list) else []
@@ -1157,10 +1284,11 @@ class FMPClient:
         params = {"symbol": cleaned}
         try:
             data = self._get("/stable/insider-trading/statistics", params)
-        except RuntimeError:
+        except RuntimeError as exc:
             _log_feature_unavailable_once(
                 "stable/insider-trading/statistics",
                 "FMP feature unavailable (stable/insider-trading/statistics); endpoint retired or upgraded plan required.",
+                exc=exc,
             )
             return []
         return list(data) if isinstance(data, list) else []
@@ -1174,10 +1302,11 @@ class FMPClient:
         }
         try:
             data = self._get("/stable/institutional-ownership/symbol-positions-summary", params)
-        except RuntimeError:
+        except RuntimeError as exc:
             _log_feature_unavailable_once(
                 "stable/institutional-ownership/symbol-positions-summary",
                 "FMP feature unavailable (stable/institutional-ownership/symbol-positions-summary); endpoint retired or upgraded plan required.",
+                exc=exc,
             )
             return []
         rows = list(data) if isinstance(data, list) else []
@@ -1196,10 +1325,11 @@ class FMPClient:
                 "/stable/acquisition-of-beneficial-ownership",
                 {"symbol": cleaned},
             )
-        except RuntimeError:
+        except RuntimeError as exc:
             _log_feature_unavailable_once(
                 "stable/acquisition-of-beneficial-ownership",
                 "FMP feature unavailable (stable/acquisition-of-beneficial-ownership); endpoint retired or upgraded plan required.",
+                exc=exc,
             )
             return []
         return list(data) if isinstance(data, list) else []
@@ -1210,10 +1340,11 @@ class FMPClient:
         params = {"page": 0, "limit": max(int(limit), 1)}
         try:
             data = self._get("/stable/senate-latest", params)
-        except RuntimeError:
+        except RuntimeError as exc:
             _log_feature_unavailable_once(
                 "stable/senate-latest",
                 "FMP feature unavailable (stable/senate-latest); endpoint retired or upgraded plan required.",
+                exc=exc,
             )
             return []
         return list(data) if isinstance(data, list) else []
@@ -1222,10 +1353,11 @@ class FMPClient:
         params = {"page": 0, "limit": max(int(limit), 1)}
         try:
             data = self._get("/stable/house-latest", params)
-        except RuntimeError:
+        except RuntimeError as exc:
             _log_feature_unavailable_once(
                 "stable/house-latest",
                 "FMP feature unavailable (stable/house-latest); endpoint retired or upgraded plan required.",
+                exc=exc,
             )
             return []
         return list(data) if isinstance(data, list) else []
@@ -1238,7 +1370,12 @@ class FMPClient:
             params["to"] = date_to.isoformat()
         try:
             data = self._get("/stable/treasury-rates", params)
-        except RuntimeError:
+        except RuntimeError as exc:
+            _log_feature_unavailable_once(
+                "stable/treasury-rates",
+                "FMP feature unavailable (stable/treasury-rates); continuing without treasury rates data.",
+                exc=exc,
+            )
             return []
         return list(data) if isinstance(data, list) else []
 
@@ -1246,7 +1383,12 @@ class FMPClient:
         params = {"limit": max(int(limit), 1)}
         try:
             data = self._get("/stable/house-latest", params)
-        except RuntimeError:
+        except RuntimeError as exc:
+            _log_feature_unavailable_once(
+                "stable/house-latest",
+                "FMP feature unavailable (stable/house-latest); continuing without house latest data.",
+                exc=exc,
+            )
             return []
         return list(data) if isinstance(data, list) else []
 
@@ -1254,7 +1396,12 @@ class FMPClient:
         params = {"symbol": str(symbol).strip().upper()}
         try:
             data = self._get("/stable/discounted-cash-flow", params)
-        except RuntimeError:
+        except RuntimeError as exc:
+            _log_feature_unavailable_once(
+                "stable/discounted-cash-flow",
+                "FMP feature unavailable (stable/discounted-cash-flow); continuing without discounted cash flow data.",
+                exc=exc,
+            )
             return {}
         if isinstance(data, dict):
             return dict(data)
@@ -1268,7 +1415,12 @@ class FMPClient:
         requested_symbol = str(symbol).strip().upper()
         try:
             data = self._get("/stable/profile", {"symbol": requested_symbol})
-        except RuntimeError:
+        except RuntimeError as exc:
+            _log_feature_unavailable_once(
+                "stable/profile",
+                "FMP feature unavailable (stable/profile); continuing without profile data.",
+                exc=exc,
+            )
             return {}
         if isinstance(data, dict):
             return dict(data)
@@ -1287,7 +1439,12 @@ class FMPClient:
         requested_symbol = str(symbol).strip().upper()
         try:
             data = self._get("/stable/price-target-consensus", {"symbol": requested_symbol})
-        except RuntimeError:
+        except RuntimeError as exc:
+            _log_feature_unavailable_once(
+                "stable/price-target-consensus",
+                "FMP feature unavailable (stable/price-target-consensus); continuing without price target consensus data.",
+                exc=exc,
+            )
             return {}
         if isinstance(data, dict):
             return dict(data)
@@ -1306,7 +1463,12 @@ class FMPClient:
         requested_symbol = str(symbol).strip().upper()
         try:
             data = self._get("/stable/price-target-summary", {"symbol": requested_symbol})
-        except RuntimeError:
+        except RuntimeError as exc:
+            _log_feature_unavailable_once(
+                "stable/price-target-summary",
+                "FMP feature unavailable (stable/price-target-summary); continuing without price target summary data.",
+                exc=exc,
+            )
             return {}
         if isinstance(data, dict):
             return dict(data)
@@ -1325,7 +1487,12 @@ class FMPClient:
         requested_symbol = str(symbol).strip().upper()
         try:
             data = self._get("/stable/grades-consensus", {"symbol": requested_symbol})
-        except RuntimeError:
+        except RuntimeError as exc:
+            _log_feature_unavailable_once(
+                "stable/grades-consensus",
+                "FMP feature unavailable (stable/grades-consensus); continuing without grades consensus data.",
+                exc=exc,
+            )
             return {}
         if isinstance(data, dict):
             return dict(data)
@@ -1348,7 +1515,12 @@ class FMPClient:
         }
         try:
             data = self._get("/stable/analyst-estimates", params)
-        except RuntimeError:
+        except RuntimeError as exc:
+            _log_feature_unavailable_once(
+                "stable/analyst-estimates",
+                "FMP feature unavailable (stable/analyst-estimates); continuing without analyst estimates data.",
+                exc=exc,
+            )
             return []
         return list(data) if isinstance(data, list) else []
 
@@ -1359,7 +1531,12 @@ class FMPClient:
         }
         try:
             data = self._get("/stable/earnings", params)
-        except RuntimeError:
+        except RuntimeError as exc:
+            _log_feature_unavailable_once(
+                "stable/earnings",
+                "FMP feature unavailable (stable/earnings); continuing without earnings data.",
+                exc=exc,
+            )
             return []
         return list(data) if isinstance(data, list) else []
 
@@ -1371,7 +1548,12 @@ class FMPClient:
         }
         try:
             data = self._get("/stable/historical-price-eod/full", params)
-        except RuntimeError:
+        except RuntimeError as exc:
+            _log_feature_unavailable_once(
+                "stable/historical-price-eod/full",
+                "FMP feature unavailable (stable/historical-price-eod/full); continuing without full data.",
+                exc=exc,
+            )
             return []
         if isinstance(data, dict):
             return dict(data)
@@ -1393,7 +1575,12 @@ class FMPClient:
             params["to"] = day.isoformat()
         try:
             data = self._get(f"/stable/historical-chart/{interval}", params)
-        except RuntimeError:
+        except RuntimeError as exc:
+            _log_feature_unavailable_once(
+                f"stable/historical-chart/{interval}",
+                f"FMP feature unavailable (stable/historical-chart/{interval}); continuing without intraday chart data.",
+                exc=exc,
+            )
             return []
         return list(data) if isinstance(data, list) else []
 
@@ -1401,7 +1588,12 @@ class FMPClient:
         requested_symbol = str(symbol).strip().upper()
         try:
             data = self._get("/stable/quote", {"symbol": requested_symbol})
-        except RuntimeError:
+        except RuntimeError as exc:
+            _log_feature_unavailable_once(
+                "stable/quote",
+                "FMP feature unavailable (stable/quote); continuing without quote data.",
+                exc=exc,
+            )
             return {}
         if isinstance(data, dict):
             return dict(data)
@@ -1424,7 +1616,12 @@ class FMPClient:
         params: dict[str, Any] = {"date": effective_date.isoformat()}
         try:
             data = self._get("/stable/sector-performance-snapshot", params)
-        except RuntimeError:
+        except RuntimeError as exc:
+            _log_feature_unavailable_once(
+                "stable/sector-performance-snapshot",
+                "FMP feature unavailable (stable/sector-performance-snapshot); continuing without sector performance snapshot data.",
+                exc=exc,
+            )
             return []
         return list(data) if isinstance(data, list) else []
 
