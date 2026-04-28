@@ -169,7 +169,7 @@ def test_volatile_artifact_policy_entries_have_valid_drift_class() -> None:
             f"entry {entry['path']} has unknown drift_class {entry['drift_class']}"
         )
         assert "reason" in entry, f"entry {entry['path']} missing reason"
-        assert "path" in entry, f"entry missing path key"
+        assert "path" in entry, "entry missing path key"
 
 
 def test_restore_on_commit_paths_match_workflow_restore_step() -> None:

@@ -165,7 +165,7 @@ def slim_file(path: Path, dry_run: bool = False) -> tuple[int, int]:
             lines.insert(import_idx + j, imp_line)
         print(f"  ✓ Injected {len(import_lines)} import statements at line {import_idx + 1}")
     else:
-        print(f"  ⓘ Imports already present — skipping injection")
+        print("  ⓘ Imports already present — skipping injection")
 
     # ── Step 2: Replace function bodies ──
     replaced = 0

@@ -1242,10 +1242,10 @@ def write_core_import_snippet(path: Path, *, library_owner: str, library_name: s
     path.parent.mkdir(parents=True, exist_ok=True)
     import_path = f"{library_owner}/{library_name}/{library_version}"
     content = [
-        f"// Core import snippet — microstructure list bindings only.",
-        f"// For regime, news, calendar, layering, and event-risk (v5) fields,",
-        f"// read mp.FIELD_NAME directly from the library. See the full field",
-        f"// inventory in the library header comment.",
+        "// Core import snippet — microstructure list bindings only.",
+        "// For regime, news, calendar, layering, and event-risk (v5) fields,",
+        "// read mp.FIELD_NAME directly from the library. See the full field",
+        "// inventory in the library header comment.",
         f"import {import_path} as mp",
         "string clean_reclaim_tickers_effective = mp.CLEAN_RECLAIM_TICKERS",
         "string stop_hunt_tickers_effective = mp.STOP_HUNT_PRONE_TICKERS",

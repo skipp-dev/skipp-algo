@@ -247,9 +247,9 @@ def build_evidence_lane_gate() -> dict[str, Any]:
 
 
 __all__ = [
-    "DRIFT_TYPE_MISSING_ARTIFACT",
-    "DRIFT_TYPE_STALE_MANIFEST",
-    "DRIFT_TYPE_SEMANTIC_DRIFT",
     "DRIFT_TYPES",
+    "DRIFT_TYPE_MISSING_ARTIFACT",
+    "DRIFT_TYPE_SEMANTIC_DRIFT",
+    "DRIFT_TYPE_STALE_MANIFEST",
     "build_evidence_lane_gate",
 ]

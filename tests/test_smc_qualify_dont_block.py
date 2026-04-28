@@ -49,7 +49,7 @@ class TestQualifyDontBlock:
             assert style.trade_state != "BLOCKED", (
                 f"HOLIDAY_SUSPECT must not hard-block; got trade_state=BLOCKED for {style.reason_codes}"
             )
-            assert "WARNING" == style.tone or style.trade_state == "DISCOURAGED"
+            assert style.tone == "WARNING" or style.trade_state == "DISCOURAGED"
 
     def test_low_volume_not_blocked(self) -> None:
         snapshot = apply_layering(_structure_with_ob(), _meta("LOW_VOLUME"), generated_at=1.0)

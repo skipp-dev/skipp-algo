@@ -110,8 +110,8 @@ def population_stability_index(
 
 __all__ = [
     "brier_score",
-    "log_loss",
-    "roc_auc",
     "expected_calibration_error",
+    "log_loss",
     "population_stability_index",
+    "roc_auc",
 ]

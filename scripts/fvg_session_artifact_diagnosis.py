@@ -95,7 +95,7 @@ def diagnose(root: Path) -> dict:
 
 
 def _print_md(report: dict) -> None:
-    print(f"# FVG session-bucket integrity\n")
+    print("# FVG session-bucket integrity\n")
     print(f"Source: `{report['source_root']}`")
     print(f"Total FVG events: {report['n_fvg_events_total']}\n")
     print("| Session | n | midnight-UTC n | midnight-UTC % | TF breakout | Verdict |")

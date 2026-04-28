@@ -22,7 +22,7 @@ __all__ = [
     "BaseFamilyTrainer",
     "FamilyDataset",
     "FittedModel",
-    "LogisticBaseline",
     "LGBMFamilyTrainer",
+    "LogisticBaseline",
     "XGBFamilyTrainer",
 ]

@@ -36,7 +36,7 @@ def test_missing(tmp_path: Path) -> None:
 
 def test_counts(tmp_path: Path) -> None:
     p = tmp_path / "s.md"
-    p.write_bytes("\ufeffhello \ufeffworld".encode("utf-8"))
+    p.write_bytes("\ufeffhello \ufeffworld".encode())
     assert bc.compute(p)["bom_char_count"] == 2
 
 
@@ -54,7 +54,7 @@ def test_markdown_shape(tmp_path: Path) -> None:
 
 def test_cli_json(tmp_path: Path) -> None:
     p = tmp_path / "s.md"
-    p.write_bytes("\ufeffa".encode("utf-8"))
+    p.write_bytes("\ufeffa".encode())
     out = tmp_path / "o.json"
     code = bc.main([
         "--summary", str(p), "--format", "json", "--output", str(out),

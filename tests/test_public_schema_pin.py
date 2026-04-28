@@ -91,7 +91,7 @@ def test_public_schema_version_matches_pin() -> None:
     from scripts.emit_public_calibration_report import PUBLIC_SCHEMA_VERSION
 
     pin = _load_pin()
-    assert PUBLIC_SCHEMA_VERSION == pin["schema_version"], (
+    assert pin["schema_version"] == PUBLIC_SCHEMA_VERSION, (
         f"PUBLIC_SCHEMA_VERSION ({PUBLIC_SCHEMA_VERSION}) drifted from "
         f"the pin ({pin['schema_version']}). Bump the pin and add an "
         "additive_fields_introduced entry."

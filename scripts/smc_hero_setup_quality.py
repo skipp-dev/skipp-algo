@@ -219,8 +219,8 @@ def render_hero_setup_quality_block_lines(
 
 
 __all__ = [
-    "HeroSetupQuality",
     "PINE_HERO_QUALITY_FIELDS",
+    "HeroSetupQuality",
     "all_quality_tiers",
     "derive_hero_setup_quality",
     "render_hero_setup_quality_block_lines",

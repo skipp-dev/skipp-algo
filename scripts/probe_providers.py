@@ -398,10 +398,10 @@ def _bz_get(path: str, extra: dict[str, Any] | None = None) -> tuple[str, str]:
     if r.status_code in (401, 403):
         return ("WARN", f"HTTP {r.status_code} — token has no entitlement for this endpoint")
     if r.status_code == 404:
-        return ("WARN", f"HTTP 404 — endpoint moved or wrong shape")
+        return ("WARN", "HTTP 404 — endpoint moved or wrong shape")
     if r.status_code == 422:
         # 422 = endpoint reachable & authorised, but our params are insufficient → still "reachable"
-        return ("OK", f"HTTP 422 — endpoint authorised, needs different params (entitlement OK)")
+        return ("OK", "HTTP 422 — endpoint authorised, needs different params (entitlement OK)")
     return ("FAIL", f"HTTP {r.status_code}: {r.text[:80]}")
 
 

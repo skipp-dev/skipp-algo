@@ -297,7 +297,7 @@ def _aggregate(events: list[dict]) -> dict:
 
 
 def _print_md(report: dict) -> None:
-    print(f"# Real ASIA-session FVG sample\n")
+    print("# Real ASIA-session FVG sample\n")
     print(f"Source: `{report['source']}`")
     print(f"Window: {report['window']['start']} → {report['window']['end']} (UTC)")
     print(f"Symbols: {', '.join(report['universe'])}")

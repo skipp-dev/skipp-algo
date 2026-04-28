@@ -90,7 +90,7 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("newsstack_fmp/ingest_benzinga.py", 41, ("E402",)),
         ("newsstack_fmp/ingest_benzinga_calendar.py", 35, ("E402",)),
         ("newsstack_fmp/ingest_benzinga_financial.py", 48, ("E402",)),
-        ("newsstack_fmp/pipeline.py", 832, ("E402",)),
+        ("newsstack_fmp/pipeline.py", 868, ("E402",)),
         ("open_prep/run_open_prep.py", 474, ("F401",)),
         ("open_prep/streamlit_monitor.py", 82, ("E402",)),
         ("smc_core/resilient.py", 88, ("PERF203",)),

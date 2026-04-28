@@ -741,8 +741,8 @@ def render_comparison(digest: dict[str, Any]) -> str:
     lines: list[str] = []
     lines.append(f"# A/B Comparison: {digest['experiment']}")
     lines.append("")
-    lines.append(f"| Arm | Pairs | Grade |")
-    lines.append(f"|-----|------:|-------|")
+    lines.append("| Arm | Pairs | Grade |")
+    lines.append("|-----|------:|-------|")
     lines.append(f"| Control   | {digest['control_pairs']} | {digest['control_grade']} |")
     lines.append(f"| Treatment | {digest['treatment_pairs']} | {digest['treatment_grade']} |")
     lines.append("")

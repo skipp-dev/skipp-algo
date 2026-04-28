@@ -183,7 +183,7 @@ class TestNoBridgeOpenPrepImports:
                     if alias.name.startswith("open_prep"):
                         violations.append(f"line {node.lineno}: import {alias.name}")
         assert not violations, (
-            f"smc_api.py still has direct open_prep imports:\n"
+            "smc_api.py still has direct open_prep imports:\n"
             + "\n".join(f"  {v}" for v in violations)
         )
 

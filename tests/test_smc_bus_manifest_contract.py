@@ -49,13 +49,13 @@ def test_lite_contract_stays_a_stable_engine_subset() -> None:
         'LeanPackB',
     )
     assert set(MANIFEST.LITE_BUS_CHANNELS).issubset(set(MANIFEST.ENGINE_BUS_CHANNELS))
-    assert MANIFEST.LITE_BUS_LABELS == tuple(f'BUS {channel}' for channel in MANIFEST.LITE_BUS_CHANNELS)
+    assert tuple(f'BUS {channel}' for channel in MANIFEST.LITE_BUS_CHANNELS) == MANIFEST.LITE_BUS_LABELS
 
 
 def test_strategy_contract_matches_the_executable_core() -> None:
     assert MANIFEST.STRATEGY_BUS_CHANNELS == MANIFEST.EXECUTABLE_BUS_CHANNELS
     assert set(MANIFEST.STRATEGY_BUS_CHANNELS).issubset(set(MANIFEST.LITE_BUS_CHANNELS))
-    assert MANIFEST.EXECUTABLE_BUS_LABELS == tuple(f'BUS {channel}' for channel in MANIFEST.EXECUTABLE_BUS_CHANNELS)
+    assert tuple(f'BUS {channel}' for channel in MANIFEST.EXECUTABLE_BUS_CHANNELS) == MANIFEST.EXECUTABLE_BUS_LABELS
 
 
 def test_engine_hidden_plot_order_matches_manifest() -> None:

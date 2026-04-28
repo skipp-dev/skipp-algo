@@ -41,7 +41,7 @@ def test_missing(tmp_path: Path) -> None:
 
 def test_counts(tmp_path: Path) -> None:
     p = tmp_path / "s.md"
-    p.write_bytes("a\u2028b\u2029c".encode("utf-8"))
+    p.write_bytes("a\u2028b\u2029c".encode())
     assert ls.compute(p)["line_separator_char_count"] == 2
 
 
@@ -59,7 +59,7 @@ def test_markdown_shape(tmp_path: Path) -> None:
 
 def test_cli_json(tmp_path: Path) -> None:
     p = tmp_path / "s.md"
-    p.write_bytes("\u2028".encode("utf-8"))
+    p.write_bytes("\u2028".encode())
     out = tmp_path / "o.json"
     code = ls.main([
         "--summary", str(p), "--format", "json", "--output", str(out),

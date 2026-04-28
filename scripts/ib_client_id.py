@@ -128,7 +128,7 @@ def allocate_ib_client_id(
     try:
         try:
             fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except (OSError, IOError):
+        except OSError:
             return random.randint(*preferred_range)
 
         registry = _reap_stale(
@@ -172,7 +172,7 @@ def allocate_ib_client_id(
     finally:
         try:
             fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
-        except (OSError, IOError):
+        except OSError:
             pass
         lock_fd.close()
 
@@ -192,7 +192,7 @@ def release_ib_client_id(
     try:
         try:
             fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except (OSError, IOError):
+        except OSError:
             return False
         registry = _load(path)
         cid_str = str(client_id)
@@ -204,7 +204,7 @@ def release_ib_client_id(
     finally:
         try:
             fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
-        except (OSError, IOError):
+        except OSError:
             pass
         lock_fd.close()
 

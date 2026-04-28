@@ -239,7 +239,7 @@ def main() -> int:
             print(f"  [{i}] {diff}")
         print()
         print("If these changes are intentional, run:")
-        print(f"  python scripts/e2e_smoke_ci.py --update-reference")
+        print("  python scripts/e2e_smoke_ci.py --update-reference")
         return 1
 
     print("E2E smoke test passed — no structural regressions.")

@@ -125,8 +125,8 @@ def _load_state(cache_dir: str | Path | None = None) -> dict[str, Any]:
     with _STATE_CACHE_LOCK:
         if (
             _STATE_CACHE_VALUE is not None
-            and _STATE_CACHE_PATH == path_str
-            and _STATE_CACHE_MTIME == mtime
+            and path_str == _STATE_CACHE_PATH
+            and mtime == _STATE_CACHE_MTIME
         ):
             return _STATE_CACHE_VALUE
 

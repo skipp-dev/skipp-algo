@@ -39,10 +39,10 @@ from typing import Iterable, Sequence
 
 __all__ = [
     "CalibrationReport",
+    "calibration_report",
+    "dce",
     "ece",
     "smooth_ece",
-    "dce",
-    "calibration_report",
 ]
 
 
