@@ -44,8 +44,8 @@ _SYS_EXIT_LEDGER: frozenset[tuple[str, int]] = frozenset({
     ("open_prep/outcome_backfill.py", 528),
     ("pine_input_surface.py", 400),
     ("pine_input_surface.py", 402),
-    ("test_usi_lint.py", 90),
-    ("test_usi_lint.py", 93),
+    ("test_usi_lint.py", 91),
+    ("test_usi_lint.py", 94),
 })
 
 

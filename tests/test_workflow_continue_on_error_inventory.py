@@ -58,7 +58,7 @@ _ALLOWED: dict[str, frozenset[int]] = {
     # failed; soft-skip rc=78 paths are also gated through these.
     # Lines 109/124/148 → 119/134/158 (+10) after wiring T8.3 imbalance
     # index gate into Step 1's run block (PR #333 follow-up).
-    "c13-daily-cron.yml": frozenset({90, 119, 134, 158}),
+    "c13-daily-cron.yml": frozenset({90, 119, 134, 158, 175, 202}),
 }
 
 

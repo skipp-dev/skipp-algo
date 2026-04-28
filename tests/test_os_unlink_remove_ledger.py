@@ -88,7 +88,7 @@ def _os_delete_sites() -> set[tuple[str, int, str]]:
 # so a stale handle never crashes the caller.
 OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     ("newsstack_fmp/open_prep_export.py", 34, "unlink"),
-    ("newsstack_fmp/store_sqlite.py", 141, "remove"),
+    ("newsstack_fmp/store_sqlite.py", 142, "remove"),
     ("open_prep/alerts.py", 78, "unlink"),
     ("open_prep/candidate_weights.py", 153, "unlink"),
     ("open_prep/diff.py", 67, "unlink"),
@@ -98,8 +98,8 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     ("open_prep/outcomes.py", 129, "unlink"),
     ("open_prep/outcomes.py", 409, "unlink"),
     ("open_prep/realtime_signals.py", 117, "remove"),
-    ("open_prep/realtime_signals.py", 2514, "unlink"),
-    ("open_prep/realtime_signals.py", 2553, "unlink"),
+    ("open_prep/realtime_signals.py", 2511, "unlink"),
+    ("open_prep/realtime_signals.py", 2550, "unlink"),
     ("open_prep/run_open_prep.py", 2218, "unlink"),
     ("open_prep/run_open_prep.py", 3022, "unlink"),
     ("open_prep/run_open_prep.py", 3366, "unlink"),

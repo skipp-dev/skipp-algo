@@ -51,13 +51,13 @@ _WEAK_DIGESTS = frozenset({"md5", "sha1"})
 
 # Frozen ledger: {rel_posix_path: {algo: frozenset[lineno]}}.
 _FROZEN_SITES: dict[str, dict[str, frozenset[int]]] = {
-    "databento_utils.py": {"sha1": frozenset({83})},
-    "databento_volatility_screener.py": {"sha1": frozenset({254, 378, 396})},
+    "databento_utils.py": {"sha1": frozenset({84})},
+    "databento_volatility_screener.py": {"sha1": frozenset({255, 379, 397})},
     "newsstack_fmp/normalize.py": {"md5": frozenset({130, 253})},
     "newsstack_fmp/scoring.py": {"sha1": frozenset({108})},
     "newsstack_fmp/shared_fetch.py": {
-        "md5": frozenset({74}),
-        "sha1": frozenset({183}),
+        "md5": frozenset({75}),
+        "sha1": frozenset({184}),
     },
     "open_prep/dirty_flag_manager.py": {"md5": frozenset({74})},
     "open_prep/realtime_signals.py": {"md5": frozenset({1013})},
