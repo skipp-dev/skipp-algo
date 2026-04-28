@@ -1676,9 +1676,7 @@ def compute_power_gaps(
         ``"Gap Down"``), ``has_earnings``, ``eps_surprise``,
         ``eps_surprise_pct``.
     """
-    from datetime import datetime, timezone
-
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
 
     # 1) Fetch movers
     movers_data = fetch_benzinga_market_movers(api_key)
