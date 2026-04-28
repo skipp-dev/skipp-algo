@@ -109,3 +109,32 @@ def test_dwm_levels_accept_datetime_timestamps() -> None:
     assert levels["day_open"] == 101.8
     assert levels["prev_day_high"] == 102.0
     assert levels["prev_day_low"] == 99.0
+
+
+def test_dwm_levels_buckets_by_local_tz_not_utc() -> None:
+    """Bars in a single ET trading day must aggregate into one ``_day``
+    bucket even when the ET → UTC conversion straddles UTC midnight.
+
+    Pre-fix: ``build_dwm_levels`` bucketed by ``_dt.dt.floor("D")`` on the
+    UTC-anchored series, so a Monday 21:00 ET bar (= Tuesday 01:00 UTC)
+    was attributed to Tuesday's bucket — silently mis-aligning
+    prev_day_high / prev_week_high vs. ``build_killzones`` (which uses
+    ET via ``_to_local_bars``). Found via SMC bug-hunt v2 phase 1.
+    """
+    rows = [
+        # Monday ET — both bars are Monday's session, but the 21:00 ET bar
+        # is already Tuesday in UTC.
+        {"timestamp": pd.Timestamp("2026-03-23T22:00:00Z"), "open": 100.0, "high": 200.0, "low": 99.0, "close": 199.0, "volume": 100.0},
+        {"timestamp": pd.Timestamp("2026-03-24T01:00:00Z"), "open": 199.0, "high": 300.0, "low": 198.0, "close": 299.0, "volume": 100.0},
+        # Tuesday ET
+        {"timestamp": pd.Timestamp("2026-03-24T14:00:00Z"), "open": 299.0, "high": 150.0, "low": 140.0, "close": 145.0, "volume": 100.0},
+        # Wednesday ET (current "day" — so prev_day_* must look at Tuesday)
+        {"timestamp": pd.Timestamp("2026-03-25T14:00:00Z"), "open": 145.0, "high": 120.0, "low": 110.0, "close": 115.0, "volume": 100.0},
+    ]
+
+    levels = build_dwm_levels(pd.DataFrame(rows), tz="America/New_York")
+
+    # Tuesday (the prev day from Wednesday's POV) high must NOT include
+    # the 300.0 spike that actually belongs to Monday's post-market.
+    assert levels["prev_day_high"] == 150.0, levels
+    assert levels["day_open"] == 145.0, levels

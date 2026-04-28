@@ -96,15 +96,21 @@ def build_session_pivots(df: pd.DataFrame, tz: str = DEFAULT_TZ) -> list[dict]:
     return build_killzones(df, tz=tz)
 
 
-def build_dwm_levels(df: pd.DataFrame) -> dict:
+def build_dwm_levels(df: pd.DataFrame, tz: str = DEFAULT_TZ) -> dict:
     bars = df.copy()
     bars["timestamp"] = coerce_timestamps_to_epoch_seconds(bars["timestamp"])
 
-    bars["_dt"] = pd.to_datetime(bars["timestamp"], unit="s", utc=True)
-    bars["_day"] = bars["_dt"].dt.floor("D")
-    dt_naive = bars["_dt"].dt.tz_localize(None)
-    bars["_week"] = dt_naive.dt.strftime("%G-W%V")
-    bars["_month"] = dt_naive.dt.strftime("%Y-%m")
+    # Bucket day/week/month in the *same* local timezone the killzones
+    # use (default ET). Bucketing in UTC mis-attributes any session that
+    # crosses UTC midnight (US post-market 20:00 ET = 00:00 UTC, futures,
+    # FX, crypto), causing prev_day_high/low and prev_week/month_high/low
+    # to silently land on the wrong calendar bucket.
+    ts_utc = pd.to_datetime(bars["timestamp"], unit="s", utc=True)
+    dt_local = ts_utc.dt.tz_convert(ZoneInfo(tz))
+    bars["_day"] = dt_local.dt.date
+    dt_local_naive = dt_local.dt.tz_localize(None)
+    bars["_week"] = dt_local_naive.dt.strftime("%G-W%V")
+    bars["_month"] = dt_local_naive.dt.strftime("%Y-%m")
 
     for col in ["open", "high", "low", "close"]:
         bars[col] = pd.to_numeric(bars[col], errors="coerce")
@@ -166,6 +172,6 @@ def build_session_liquidity_context(df: pd.DataFrame, tz: str = DEFAULT_TZ) -> d
     return {
         "killzones": build_killzones(df, tz=tz),
         "session_pivots": build_session_pivots(df, tz=tz),
-        "dwm_levels": build_dwm_levels(df),
+        "dwm_levels": build_dwm_levels(df, tz=tz),
         "opening_levels": build_opening_levels(df, tz=tz),
     }
