@@ -91,7 +91,11 @@ def resilient(
                     delay = capped * rng()
                     if on_retry is not None:
                         on_retry(exc, attempt, delay)
-                    if delay > 0:
+                    # Always call ``sleep`` — even when the jittered
+                    # delay is exactly 0 — so monkeypatched/injected
+                    # ``sleep`` callbacks observe every retry deterministically
+                    # and ``Retry-After`` hints are never silently dropped.
+                    if delay >= 0:
                         sleep(delay)
 
         # Expose configuration for introspection (helps tests + ops).

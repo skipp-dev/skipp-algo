@@ -87,12 +87,12 @@ def _all_sites() -> list[tuple[str, int]]:
 # reason, or (b) an existing site moves by ±N lines.
 _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
     {
-        ("newsstack_fmp/_bz_http.py", 238),
-        ("newsstack_fmp/_bz_http.py", 256),
+        ("newsstack_fmp/_bz_http.py", 245),
+        ("newsstack_fmp/_bz_http.py", 263),
         ("newsstack_fmp/ingest_benzinga.py", 196),
         ("newsstack_fmp/ingest_benzinga.py", 207),
-        ("newsstack_fmp/ingest_fmp.py", 132),
-        ("newsstack_fmp/ingest_fmp.py", 150),
+        ("newsstack_fmp/ingest_fmp.py", 139),
+        ("newsstack_fmp/ingest_fmp.py", 157),
         ("newsstack_fmp/pipeline.py", 824),
         ("newsstack_fmp/shared_fetch.py", 273),
         ("newsstack_fmp/store_sqlite.py", 80),
@@ -100,8 +100,8 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/alerts.py", 409),
         ("open_prep/alerts.py", 419),
         ("open_prep/error_taxonomy.py", 117),
-        ("open_prep/macro.py", 622),
-        ("open_prep/macro.py", 640),
+        ("open_prep/macro.py", 628),
+        ("open_prep/macro.py", 646),
         ("open_prep/realtime_signals.py", 265),
         ("open_prep/realtime_signals.py", 338),
         ("open_prep/realtime_signals.py", 1593),

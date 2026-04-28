@@ -152,7 +152,14 @@ class TestBackoff:
         # Each delay = capped * rng = 10 * 0.25 then 20 * 0.25.
         assert sleep.calls == [2.5, 5.0]
 
-    def test_zero_base_delay_skips_sleep(self):
+    def test_zero_base_delay_still_invokes_sleep(self):
+        """Full-jitter can legitimately produce delay == 0.
+
+        ``sleep`` must still be called — even with delay 0 — so that
+        (a) monkeypatched/injected sleeps can observe every retry, and
+        (b) honored ``Retry-After`` hints are not silently dropped.
+        Audit v2 RED 2 (Lens 9).
+        """
         sleep = FakeSleep()
 
         @resilient(
@@ -167,8 +174,8 @@ class TestBackoff:
 
         with pytest.raises(RuntimeError):
             fail()
-        # delay = 0 → no sleep call.
-        assert sleep.calls == []
+        # delay = 0 is still an observable retry event.
+        assert sleep.calls == [0.0, 0.0]
 
 
 # ---------------------------------------------------------------------------

@@ -75,7 +75,11 @@ def collect_earnings_and_macro(
     reference_date:
         Override "today" for deterministic testing.
     """
-    today = reference_date or date.today()
+    # ``date.today()`` uses the server's local clock — on a UTC runner
+    # this flips one day early for market hours 20:00–24:00 ET.
+    # Anchor on US-Eastern explicitly so earnings "today" / "tomorrow"
+    # bucketing agrees with NYSE sessions regardless of host tz.
+    today = reference_date or datetime.now(_ET).date()
     from datetime import timedelta
 
     tomorrow = today + timedelta(days=1)
