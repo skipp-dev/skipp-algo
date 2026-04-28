@@ -14,7 +14,7 @@ Note on termination: a strict body-must-contain-break invariant was
 considered and rejected because some legitimate signal-driven main
 loops here rely on ``KeyboardInterrupt`` propagating out of an
 outer ``try``/``except KeyboardInterrupt`` (e.g.
-``newsstack_fmp/pipeline.py:817``). Such loops have no in-body
+``newsstack_fmp/pipeline.py:850``). Such loops have no in-body
 exit but DO terminate cleanly. Pinning the (path, line) is the
 right primitive.
 
@@ -76,12 +76,12 @@ WHILE_TRUE_LEDGER: set[tuple[str, int]] = {
     ("terminal_background_poller.py", 160),
     ("terminal_background_poller.py", 341),
     ("databento_universe.py", 248),
-    ("open_prep/realtime_signals.py", 2661),
-    ("open_prep/macro.py", 81),
-    ("smc_core/resilient.py", 79),
-    ("newsstack_fmp/ingest_benzinga.py", 498),
+    ("open_prep/realtime_signals.py", 2664),
+    ("open_prep/macro.py", 83),
+    ("smc_core/resilient.py", 85),
+    ("newsstack_fmp/ingest_benzinga.py", 514),
     ("newsstack_fmp/shared_fetch.py", 265),
-    ("newsstack_fmp/pipeline.py", 817),
+    ("newsstack_fmp/pipeline.py", 850),
 }
 
 

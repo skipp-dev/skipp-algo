@@ -285,6 +285,7 @@ def process_news_items(
         # single bad item (DB locked, scoring crash, malformed payload)
         # does not silently drop the remainder of the batch. exc_info=True
         # preserves the traceback for diagnosis while continuing the loop.
+        marked_seen = False
         try:
             if not it.is_valid:
                 continue
@@ -309,6 +310,9 @@ def process_news_items(
             # Dedup (provider, item_id)
             if not store.mark_seen(it.provider, it.item_id, ts):
                 continue
+            # Track for rollback: if classification/enrich/best_by_ticker
+            # raises below, we must unmark to keep the item retriable.
+            marked_seen = True
 
             # Tickers + universe filter (deduplicate to avoid redundant per-ticker work)
             tickers = [t for t in (it.tickers or []) if isinstance(t, str) and t.strip()]
@@ -377,6 +381,17 @@ def process_news_items(
                     ):
                         best_by_ticker[tk] = cand
         except Exception as exc:
+            if marked_seen:
+                # Roll back the dedup commit so a transient failure does
+                # not turn into permanent data loss on the next poll cycle.
+                try:
+                    store.unmark_seen(it.provider, it.item_id)
+                except Exception:
+                    logger.exception(
+                        "process_news_items: unmark_seen rollback failed for %s/%s",
+                        getattr(it, "provider", "?"),
+                        getattr(it, "item_id", "?"),
+                    )
             logger.warning(
                 "process_news_items: skipping item provider=%s id=%s due to %s",
                 getattr(it, "provider", "?"),

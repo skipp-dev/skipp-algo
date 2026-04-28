@@ -3264,10 +3264,60 @@ class TestProcessNewsItemsPerItemIsolation(unittest.TestCase):
         self.assertIn("GOOG", best)
         # The bad item must NOT pollute best_by_ticker.
         self.assertNotIn("MSFT", best)
-        # Cursor advances to the highest *successfully-processed* ts seen.
-        # The bad item still updates max_ts before the exception (ts=201)
-        # but good_c (ts=202) is the strictly-greater bound.
+        # Cursor advances to the highest timestamp seen in the batch,
+        # including items that later fail. The bad item updates max_ts to
+        # 201 before the exception, and good_c then raises it to 202.
         self.assertEqual(max_ts, 202.0)
+
+    def test_failure_after_mark_seen_rolls_back_dedup(self):
+        """A crash AFTER ``mark_seen`` succeeded must un-commit the dedup
+        row, so the next poll cycle can retry the item. Otherwise a
+        transient failure (network, scoring crash) would silently turn
+        into permanent data loss.
+        """
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.store_sqlite import SqliteStore
+        from newsstack_fmp.enrich import Enricher
+
+        store = SqliteStore(":memory:")
+        enricher = Enricher()
+        best: dict = {}
+
+        bad = NewsItem(
+            provider="fmp_stock_latest",
+            item_id="bad",
+            published_ts=200.0,
+            updated_ts=200.0,
+            headline="MSFT crash",
+            snippet="",
+            tickers=["MSFT"],
+            url="https://example.com/bad",
+            source="Test",
+        )
+
+        # Make ``classify_and_score`` blow up — i.e. failure happens AFTER
+        # ``store.mark_seen`` already committed the dedup row.
+        from newsstack_fmp import pipeline as pipeline_mod
+        original_score = pipeline_mod.classify_and_score
+        try:
+            pipeline_mod.classify_and_score = lambda *a, **kw: (_ for _ in ()).throw(
+                RuntimeError("simulated scorer crash")
+            )
+            try:
+                process_news_items(
+                    store, [bad], best, None, enricher, 99.0,
+                    last_seen_epoch=0.0,
+                )
+            finally:
+                enricher.close()
+        finally:
+            pipeline_mod.classify_and_score = original_score
+
+        # The item must be retriable — mark_seen must return True (newly
+        # inserted) on a fresh attempt, proving the dedup row was rolled
+        # back rather than left behind as silent data loss.
+        self.assertTrue(store.mark_seen("fmp_stock_latest", "bad", 200.0))
 
 
 if __name__ == "__main__":
