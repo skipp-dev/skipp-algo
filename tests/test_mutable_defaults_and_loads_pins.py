@@ -165,7 +165,7 @@ _FROZEN_ENV_SUBSCRIPT_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/macro.py", 142),
         ("open_prep/realtime_signals.py", 2613),
         ("open_prep/streamlit_monitor.py", 74),
-        ("streamlit_terminal.py", 327),
+        ("streamlit_terminal.py", 325),
     }
 )
 
