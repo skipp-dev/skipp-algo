@@ -31,16 +31,11 @@ from scripts.build_dashboard_payload import build_dashboard_payload
 # Import C7 sub-modules directly (NOT via ``from terminal_tabs import …``)
 # so the slim Docker image does not trigger the trader-tab re-exports
 # in ``terminal_tabs/__init__.py`` which depend on httpx/databento.
-from terminal_tabs import methodology_drawer
-from terminal_tabs import tab_calibration_detail
-from terminal_tabs import tab_live_incubation
-from terminal_tabs import tab_track_record
+from terminal_tabs import methodology_drawer, tab_calibration_detail, tab_live_incubation, tab_track_record
 from terminal_tabs.dashboard_cache import DEFAULT_TTL_SECONDS, TTLCache
 from terminal_tabs.drift_loader import list_drift_dates, load_drift_artifact
 
-DEFAULT_CACHE_DIR = Path(
-    os.environ.get("SKIPP_DASHBOARD_CACHE_DIR", "cache")
-).resolve()
+DEFAULT_CACHE_DIR = Path(os.environ.get("SKIPP_DASHBOARD_CACHE_DIR", "cache")).resolve()
 
 
 @st.cache_resource
@@ -76,13 +71,9 @@ def main() -> None:
     methodology_drawer.render_sidebar(payload)
 
     drift_dates = list_drift_dates(cache_dir)
-    drift_payload = (
-        _load_drift(cache_dir, as_of_date=drift_dates[-1]) if drift_dates else None
-    )
+    drift_payload = _load_drift(cache_dir, as_of_date=drift_dates[-1]) if drift_dates else None
 
-    tab_tr, tab_cal, tab_live = st.tabs(
-        ["Track Record", "Calibration Detail", "Live Incubation"]
-    )
+    tab_tr, tab_cal, tab_live = st.tabs(["Track Record", "Calibration Detail", "Live Incubation"])
     with tab_tr:
         tab_track_record.render(payload)
     with tab_cal:
@@ -95,6 +86,16 @@ def main() -> None:
             tab_calibration_detail.render(payload, chosen)
     with tab_live:
         tab_live_incubation.render(drift_payload)
+        # T2-dash drift-history panel: shows the last
+        # ``DRIFT_HISTORY_DEFAULT_N`` drift artefacts (newest-first)
+        # underneath the live view. Guarded with ``hasattr`` so this
+        # module remains importable on commits where PR #407
+        # (which introduces ``render_drift_history``) is not yet merged.
+        if hasattr(tab_live_incubation, "render_drift_history"):
+            tab_live_incubation.render_drift_history(
+                cache_dir=cache_dir,
+                n=getattr(tab_live_incubation, "DRIFT_HISTORY_DEFAULT_N", 7),
+            )
 
 
 if __name__ == "__main__":
