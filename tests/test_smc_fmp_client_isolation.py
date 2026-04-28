@@ -99,7 +99,10 @@ class TestSMCFMPClientInterface:
                 c._get("/any", {})
         assert captured["config"]["retries"] == 2  # retry_attempts=3 → 2 extras
         assert captured["config"]["base_delay"] == 0.5
-        assert captured["config"]["max_delay"] == 4.0
+        # Bumped from 4.0 to 60.0 in PR #379 so honored ``Retry-After``
+        # hints (which the FMP rate-limiter routinely sets to 30-60s)
+        # survive the ``min(hint, max_delay)`` cap in @resilient.
+        assert captured["config"]["max_delay"] == 60.0
 
 
 # ── 2. No open_prep at runtime ─────────────────────────────────
