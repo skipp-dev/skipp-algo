@@ -83,6 +83,16 @@ class TestLabelSweepReversal:
     def test_empty_closes(self) -> None:
         assert label_sweep_reversal(100.0, "SELL_SIDE", []) is False
 
+    def test_zero_sweep_price_returns_false(self) -> None:
+        # Symmetry pin with label_bos_follow_through (which already guards
+        # bos_price <= 0). A zero sweep_price must not raise ZeroDivisionError;
+        # the labeller has no meaningful answer and must return False.
+        assert label_sweep_reversal(0.0, "SELL_SIDE", [1.0, 2.0]) is False
+        assert label_sweep_reversal(0.0, "BUY_SIDE", [1.0, 2.0]) is False
+
+    def test_negative_sweep_price_returns_false(self) -> None:
+        assert label_sweep_reversal(-5.0, "SELL_SIDE", [1.0, 2.0]) is False
+
 
 class TestLabelBosFollowThrough:
     def test_bullish_follow_through(self) -> None:
@@ -93,6 +103,10 @@ class TestLabelBosFollowThrough:
 
     def test_empty_paths(self) -> None:
         assert label_bos_follow_through(100.0, "UP", [], []) is False
+
+    def test_zero_bos_price_returns_false(self) -> None:
+        # Existing guard at line 831 — pin against regression.
+        assert label_bos_follow_through(0.0, "UP", [1.0, 2.0], [0.5, 0.6]) is False
 
 
 class TestZoneMitigationLabels:

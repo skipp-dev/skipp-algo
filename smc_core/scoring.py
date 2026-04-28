@@ -807,6 +807,11 @@ def label_sweep_reversal(
     """
     if not subsequent_closes:
         return False
+    if sweep_price <= 0:
+        # Symmetry with label_bos_follow_through: a non-positive reference
+        # price has no meaningful pct interpretation and would otherwise
+        # raise ZeroDivisionError on a corrupted upstream event.
+        return False
 
     if sweep_side == "SELL_SIDE":
         # Sell-side sweep → reversal = price moves UP
