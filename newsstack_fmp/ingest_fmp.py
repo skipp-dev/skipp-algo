@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import re
 import time
 from datetime import datetime, timezone
@@ -50,9 +51,15 @@ def _parse_retry_after_seconds(raw_value: Any) -> float | None:
     if raw_value is None or raw_value == "":
         return None
     try:
-        return max(float(raw_value), 0.0)
+        v = float(raw_value)
     except (TypeError, ValueError):
-        pass
+        v = None
+    if v is not None:
+        # Reject NaN/Inf — ``time.sleep(NaN)`` raises ValueError and
+        # ``time.sleep(inf)`` would wedge the retry loop.
+        if math.isnan(v) or math.isinf(v):
+            return None
+        return max(v, 0.0)
     try:
         parsed = parsedate_to_datetime(str(raw_value))
     except (TypeError, ValueError, IndexError, OverflowError):

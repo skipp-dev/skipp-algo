@@ -78,7 +78,10 @@ def _globals_call_sites() -> set[tuple[str, int]]:
 # or a dataclass/TypedDict context object (see ``terminal_attention_state``
 # / ``terminal_posture_state`` for the established pattern).
 GLOBALS_CALL_ALLOWED: set[tuple[str, int]] = {
-    ("streamlit_terminal.py", 2226),
+    # streamlit_terminal.py:2199 — was 2226; shifted by -27 lines after
+    # PR #366 (F401 unused-import sweep) trimmed eager re-exports from
+    # the module head. Same call site (``_intel_enabled`` helper).
+    ("streamlit_terminal.py", 2199),
     # Lazy-loaded tab module pattern: ``__getattr__`` resolves a tab name
     # by importing the underlying module on demand and caching the result
     # (or ``None`` if the optional dep is missing) into the package

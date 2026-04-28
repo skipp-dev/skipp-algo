@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import sys
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
@@ -156,3 +156,103 @@ class TestWeekendSkip:
             next_trading_date=date(2026, 4, 2),
         )
         assert "TSLA" in result["earnings_tomorrow_tickers"]
+
+
+class _FakeDateTime(datetime):
+    """``datetime`` subclass that returns a pinned UTC instant from ``now()``."""
+
+    _PINNED_UTC = datetime(2026, 4, 28, 2, 30, tzinfo=timezone.utc)
+
+    @classmethod
+    def now(cls, tz=None):  # type: ignore[override]
+        if tz is None:
+            return cls._PINNED_UTC.replace(tzinfo=None)
+        return cls._PINNED_UTC.astimezone(tz)
+
+
+class TestUSEasternAnchoring:
+    """Re-pin the ET-anchoring contract from PR #364 / Audit v3.
+
+    PR #369's weekend-skip fix re-introduced ``date.today()`` for the
+    ``today`` reference, undoing the v3 ET-anchor. These tests pin the
+    contract again so on-call doesn't get woken up by spurious
+    ``earnings_today↔earnings_tomorrow`` flips around UTC midnight.
+    """
+
+    def test_today_anchored_on_us_eastern(self, monkeypatch: object) -> None:
+        # 2026-04-28 02:30 UTC == 2026-04-27 22:30 ET (EDT, UTC-4).
+        # On a UTC server, ``date.today()`` would advance to 2026-04-28
+        # and silently push AAPL's AMC earnings into tomorrow.
+        import smc_calendar_collector as mod
+
+        monkeypatch.setattr(mod, "datetime", _FakeDateTime)  # type: ignore[attr-defined]
+        result = collect_earnings_and_macro(
+            symbols=["AAPL"],
+            earnings_data=[
+                {"symbol": "AAPL", "date": "2026-04-27", "timing": "amc"},
+            ],
+            macro_events=[],
+        )
+        assert "AAPL" in result["earnings_today_tickers"].split(","), (
+            "Earnings on 2026-04-27 (US/Eastern today) must land in "
+            "earnings_today_tickers, not earnings_tomorrow_tickers."
+        )
+
+    def test_macro_event_anchored_on_us_eastern(self, monkeypatch: object) -> None:
+        """Copilot PR #364 follow-up: ``evt_dt.date()`` must be taken
+        AFTER ``.astimezone(_ET)`` so an event at 00:30 UTC (= 20:30 ET
+        previous day) doesn't masquerade as today's event.
+        """
+        import smc_calendar_collector as mod
+
+        # Pin "now" to 2026-04-28 14:00 UTC (= 10:00 ET 2026-04-28).
+        class _PinnedDT(datetime):
+            @classmethod
+            def now(cls, tz=None):  # type: ignore[override]
+                pinned = datetime(2026, 4, 28, 14, 0, tzinfo=timezone.utc)
+                return pinned.astimezone(tz) if tz else pinned.replace(tzinfo=None)
+
+        monkeypatch.setattr(mod, "datetime", _PinnedDT)  # type: ignore[attr-defined]
+        # Event at 00:30 UTC on 2026-04-28 == 2026-04-27 20:30 ET.
+        # In trading terms that's YESTERDAY — must NOT match today.
+        events = [
+            {
+                "name": "FOMC Statement",
+                "time_utc": "2026-04-28T00:30:00+00:00",
+                "impact": "high",
+            },
+        ]
+        result = collect_earnings_and_macro(
+            symbols=["AAPL"], macro_events=events
+        )
+        assert result["high_impact_macro_today"] is False, (
+            "00:30 UTC == 20:30 ET previous day must NOT be classified "
+            "as a today-event (evt_dt must be ET-anchored before .date())."
+        )
+
+    def test_macro_event_at_us_market_close_still_today(
+        self, monkeypatch: object
+    ) -> None:
+        """Inverse case: an event at 23:00 UTC (19:00 ET) on the
+        anchor's ET date must still be classified as today's event."""
+        import smc_calendar_collector as mod
+
+        class _PinnedDT(datetime):
+            @classmethod
+            def now(cls, tz=None):  # type: ignore[override]
+                pinned = datetime(2026, 4, 28, 14, 0, tzinfo=timezone.utc)
+                return pinned.astimezone(tz) if tz else pinned.replace(tzinfo=None)
+
+        monkeypatch.setattr(mod, "datetime", _PinnedDT)  # type: ignore[attr-defined]
+        events = [
+            {
+                "name": "FOMC Press Conference",
+                "time_utc": "2026-04-28T23:00:00+00:00",
+                "impact": "high",
+            },
+        ]
+        result = collect_earnings_and_macro(
+            symbols=["AAPL"], macro_events=events
+        )
+        assert result["high_impact_macro_today"] is True
+        assert "FOMC" in result["macro_event_name"]

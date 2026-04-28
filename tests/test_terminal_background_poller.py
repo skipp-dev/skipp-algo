@@ -3,11 +3,9 @@ from __future__ import annotations
 
 import queue
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from terminal_background_poller import BackgroundPoller
 from terminal_feed_state import merge_live_feed_rows
