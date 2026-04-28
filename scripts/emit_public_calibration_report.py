@@ -46,9 +46,8 @@ Usage::
     python -m scripts.emit_public_calibration_report \\
         --input-cal artifacts/reports/zone_priority_calibration.json
 """
-from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
+from __future__ import annotations
 
 import argparse
 import json
@@ -57,6 +56,8 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+from scripts.smc_atomic_write import atomic_write_text
 
 PUBLIC_SCHEMA_VERSION = "1.3.0"
 HISTORY_RETENTION = 90  # ~3 months at one entry per day
@@ -379,8 +380,8 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         type=Path,
         default=None,
         help="Path to a zone_priority(_contextual)_calibration.json. "
-             "When omitted, the latest matching file under "
-             f"{DEFAULT_SEARCH_DIR}/ is used.",
+        "When omitted, the latest matching file under "
+        f"{DEFAULT_SEARCH_DIR}/ is used.",
     )
     parser.add_argument(
         "--search-dir",
@@ -404,6 +405,17 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         default=os.environ.get("GITHUB_RUN_ID"),
         help="Source workflow run id (default: $GITHUB_RUN_ID).",
     )
+    parser.add_argument(
+        "--include-families",
+        type=Path,
+        default=None,
+        help=(
+            "Optional path to a families telemetry JSON (output of "
+            "scripts/build_families_telemetry.py). When provided, the "
+            "families[] block is embedded into the public report so the "
+            "C12 trigger can evaluate per-family Phase-B promotion."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -425,12 +437,46 @@ def main(argv: list[str] | None = None) -> int:
             print(f"ERROR: cannot read calibration source {cal_path}: {exc}", file=sys.stderr)
             return 1
 
-    report = build_public_report(
-        cal_payload,
-        source_path=cal_path,
-        source_commit_sha=args.commit_sha,
-        source_workflow_run=args.workflow_run,
-    )
+    families: list[dict[str, Any]] | None = None
+    if args.include_families is not None:
+        try:
+            fam_payload = json.loads(args.include_families.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            print(
+                f"ERROR: malformed families telemetry JSON at {args.include_families}: {exc}",
+                file=sys.stderr,
+            )
+            return 1
+        except OSError as exc:
+            print(
+                f"ERROR: cannot read families telemetry {args.include_families}: {exc}",
+                file=sys.stderr,
+            )
+            return 1
+        if not isinstance(fam_payload, dict) or "families" not in fam_payload:
+            print(
+                f"ERROR: families telemetry at {args.include_families} "
+                "missing top-level 'families' key (expected producer schema "
+                "from scripts/build_families_telemetry.py).",
+                file=sys.stderr,
+            )
+            return 1
+        families = fam_payload["families"]
+
+    try:
+        report = build_public_report(
+            cal_payload,
+            source_path=cal_path,
+            source_commit_sha=args.commit_sha,
+            source_workflow_run=args.workflow_run,
+            families=families,
+        )
+    except (TypeError, ValueError) as exc:
+        print(
+            f"ERROR: families telemetry rejected by C12 contract: {exc}",
+            file=sys.stderr,
+        )
+        return 1
 
     try:
         write_report(report, args.output)
@@ -440,10 +486,7 @@ def main(argv: list[str] | None = None) -> int:
 
     history_path = append_public_history(args.output, report)
 
-    print(
-        f"Public calibration report: status={report['status']} "
-        f"output={args.output} history={history_path}"
-    )
+    print(f"Public calibration report: status={report['status']} output={args.output} history={history_path}")
     return 0
 
 

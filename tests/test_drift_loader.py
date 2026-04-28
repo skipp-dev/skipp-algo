@@ -223,3 +223,87 @@ def test_compute_live_drift_emits_schema_version() -> None:
         backtest_reference={},
     )
     assert payload["schema_version"] == DRIFT_SCHEMA_VERSION
+
+
+# ---------------------------------------------------------------------------
+# C13/T2 — load_recent_drift_artifacts (rolling history loader)
+# ---------------------------------------------------------------------------
+
+
+def _write_drift(live: Path, date_str: str, payload: dict | None = None) -> None:
+    payload = payload or {"schema_version": "1.0.0", "computed_at": date_str}
+    _write(live / f"drift_{date_str}.json", payload)
+
+
+def test_load_recent_drift_artifacts_empty_dir(tmp_path: Path) -> None:
+    from terminal_tabs.drift_loader import load_recent_drift_artifacts
+
+    assert load_recent_drift_artifacts(tmp_path) == []
+
+
+def test_load_recent_drift_artifacts_n_zero_returns_empty(tmp_path: Path) -> None:
+    from terminal_tabs.drift_loader import load_recent_drift_artifacts
+
+    _write_drift(tmp_path / "live", "2026-04-26")
+    assert load_recent_drift_artifacts(tmp_path, n=0) == []
+
+
+def test_load_recent_drift_artifacts_negative_n_raises(tmp_path: Path) -> None:
+    import pytest
+
+    from terminal_tabs.drift_loader import load_recent_drift_artifacts
+
+    with pytest.raises(ValueError, match="non-negative"):
+        load_recent_drift_artifacts(tmp_path, n=-1)
+
+
+def test_load_recent_drift_artifacts_returns_newest_first(tmp_path: Path) -> None:
+    from terminal_tabs.drift_loader import load_recent_drift_artifacts
+
+    live = tmp_path / "live"
+    _write_drift(live, "2026-04-25")
+    _write_drift(live, "2026-04-27")
+    _write_drift(live, "2026-04-26")
+    out = load_recent_drift_artifacts(tmp_path, n=7)
+    assert [d["as_of_date"] for d in out] == [
+        "2026-04-27",
+        "2026-04-26",
+        "2026-04-25",
+    ]
+
+
+def test_load_recent_drift_artifacts_caps_at_n(tmp_path: Path) -> None:
+    from terminal_tabs.drift_loader import load_recent_drift_artifacts
+
+    live = tmp_path / "live"
+    for day in range(1, 11):  # 04-01 .. 04-10
+        _write_drift(live, f"2026-04-{day:02d}")
+    out = load_recent_drift_artifacts(tmp_path, n=7)
+    assert len(out) == 7
+    assert out[0]["as_of_date"] == "2026-04-10"
+    assert out[-1]["as_of_date"] == "2026-04-04"
+
+
+def test_load_recent_drift_artifacts_skips_corrupt(tmp_path: Path) -> None:
+    from terminal_tabs.drift_loader import load_recent_drift_artifacts
+
+    live = tmp_path / "live"
+    _write_drift(live, "2026-04-25")
+    _write(live / "drift_2026-04-26.json", "{not json")
+    _write_drift(live, "2026-04-27")
+    out = load_recent_drift_artifacts(tmp_path, n=10)
+    assert [d["as_of_date"] for d in out] == ["2026-04-27", "2026-04-25"]
+
+
+def test_load_recent_drift_artifacts_default_n_is_seven(tmp_path: Path) -> None:
+    from terminal_tabs.drift_loader import (
+        DRIFT_HISTORY_DEFAULT_N,
+        load_recent_drift_artifacts,
+    )
+
+    assert DRIFT_HISTORY_DEFAULT_N == 7
+    live = tmp_path / "live"
+    for day in range(1, 11):
+        _write_drift(live, f"2026-04-{day:02d}")
+    out = load_recent_drift_artifacts(tmp_path)  # default n
+    assert len(out) == DRIFT_HISTORY_DEFAULT_N

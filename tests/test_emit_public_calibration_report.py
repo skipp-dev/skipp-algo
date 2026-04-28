@@ -1,8 +1,10 @@
 """Tests for ``scripts.emit_public_calibration_report`` (Q3/Q4 §3.1.1)."""
+
 from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -18,7 +20,6 @@ from scripts.emit_public_calibration_report import (
     main,
     write_report,
 )
-
 
 # ── Pure helpers ──────────────────────────────────────────────────
 
@@ -74,9 +75,9 @@ def test_extract_n_events_handles_empty() -> None:
 def test_extract_weighted_hit_rate_matches_history_formula() -> None:
     payload = {
         "family_stats": {
-            "OB":   {"total_events": 100, "total_hits": 85},
-            "FVG":  {"total_events": 200, "total_hits": 120},
-            "BOS":  {"total_events": 0, "total_hits": 0},  # skipped
+            "OB": {"total_events": 100, "total_hits": 85},
+            "FVG": {"total_events": 200, "total_hits": 120},
+            "BOS": {"total_events": 0, "total_hits": 0},  # skipped
         },
     }
     hr = _extract_weighted_hit_rate(payload)
@@ -93,7 +94,10 @@ def test_extract_weighted_hit_rate_handles_empty() -> None:
 
 def test_build_public_report_awaiting_first_run_when_payload_none() -> None:
     report = build_public_report(
-        None, source_path=None, source_commit_sha="abc1234", source_workflow_run="42",
+        None,
+        source_path=None,
+        source_commit_sha="abc1234",
+        source_workflow_run="42",
     )
     assert report["status"] == "awaiting_first_run"
     assert report["schema_version"] == PUBLIC_SCHEMA_VERSION
@@ -105,8 +109,8 @@ def test_build_public_report_full_payload() -> None:
     payload = {
         "family_weights": {"OB": 0.85, "FVG": 0.61, "BOS": 0.81, "SWEEP": 0.73},
         "family_stats": {
-            "OB":   {"total_events": 200, "total_hits": 170},
-            "FVG":  {"total_events": 100, "total_hits": 60},
+            "OB": {"total_events": 200, "total_hits": 170},
+            "FVG": {"total_events": 100, "total_hits": 60},
         },
         "testable_calibration": {
             "n_events": 300,
@@ -115,8 +119,10 @@ def test_build_public_report_full_payload() -> None:
         },
     }
     report = build_public_report(
-        payload, source_path=Path("artifacts/reports/zone_priority_calibration.json"),
-        source_commit_sha="deadbee", source_workflow_run="99",
+        payload,
+        source_path=Path("artifacts/reports/zone_priority_calibration.json"),
+        source_commit_sha="deadbee",
+        source_workflow_run="99",
     )
     assert report["status"] == "ok"
     assert report["n_events"] == 300
@@ -132,11 +138,14 @@ def test_build_public_report_redacts_internal_fields() -> None:
     """
     payload = {
         "per_symbol_stats": {"AAPL": {"hr": 0.91}, "TSLA": {"hr": 0.55}},  # MUST NOT leak
-        "raw_event_counts": [1, 2, 3, 4, 5],                                # MUST NOT leak
+        "raw_event_counts": [1, 2, 3, 4, 5],  # MUST NOT leak
         "family_weights": {"OB": 0.85},
     }
     report = build_public_report(
-        payload, source_path=None, source_commit_sha=None, source_workflow_run=None,
+        payload,
+        source_path=None,
+        source_commit_sha=None,
+        source_workflow_run=None,
     )
     serialized = json.dumps(report)
     assert "AAPL" not in serialized
@@ -154,7 +163,9 @@ def test_find_latest_returns_none_when_dir_missing(tmp_path: Path) -> None:
 def test_find_latest_prefers_newest(tmp_path: Path) -> None:
     older = tmp_path / "zone_priority_calibration.json"
     older.write_text("{}")
-    import os, time
+    import os
+    import time
+
     time.sleep(0.01)
     newer = tmp_path / "zone_priority_contextual_calibration.json"
     newer.write_text("{}")
@@ -215,10 +226,14 @@ def test_append_public_history_truncates_to_retention(tmp_path: Path) -> None:
 
 def test_main_emits_awaiting_first_run_when_no_artifact(tmp_path: Path) -> None:
     output = tmp_path / "out" / "calibration_report_public.json"
-    rc = main([
-        "--search-dir", str(tmp_path / "missing"),
-        "--output", str(output),
-    ])
+    rc = main(
+        [
+            "--search-dir",
+            str(tmp_path / "missing"),
+            "--output",
+            str(output),
+        ]
+    )
     assert rc == 0
     payload = json.loads(output.read_text(encoding="utf-8"))
     assert payload["status"] == "awaiting_first_run"
@@ -227,18 +242,28 @@ def test_main_emits_awaiting_first_run_when_no_artifact(tmp_path: Path) -> None:
 
 def test_main_emits_ok_with_explicit_input(tmp_path: Path) -> None:
     cal_src = tmp_path / "zone_priority_calibration.json"
-    cal_src.write_text(json.dumps({
-        "family_weights": {"OB": 0.85, "FVG": 0.61},
-        "family_stats": {"OB": {"total_events": 100, "total_hits": 85}},
-        "testable_calibration": {"n_events": 100, "smooth_ece": 0.10, "ece_binned_n10": 0.11},
-    }))
+    cal_src.write_text(
+        json.dumps(
+            {
+                "family_weights": {"OB": 0.85, "FVG": 0.61},
+                "family_stats": {"OB": {"total_events": 100, "total_hits": 85}},
+                "testable_calibration": {"n_events": 100, "smooth_ece": 0.10, "ece_binned_n10": 0.11},
+            }
+        )
+    )
     output = tmp_path / "out" / "calibration_report_public.json"
-    rc = main([
-        "--input-cal", str(cal_src),
-        "--output", str(output),
-        "--commit-sha", "abc1234",
-        "--workflow-run", "42",
-    ])
+    rc = main(
+        [
+            "--input-cal",
+            str(cal_src),
+            "--output",
+            str(output),
+            "--commit-sha",
+            "abc1234",
+            "--workflow-run",
+            "42",
+        ]
+    )
     assert rc == 0
     payload = json.loads(output.read_text(encoding="utf-8"))
     assert payload["status"] == "ok"
@@ -272,7 +297,10 @@ def test_write_report_is_atomic(tmp_path: Path) -> None:
 
 def test_build_public_report_omits_track_record_gate_when_not_provided() -> None:
     report = build_public_report(
-        None, source_path=None, source_commit_sha="abc", source_workflow_run="1",
+        None,
+        source_path=None,
+        source_commit_sha="abc",
+        source_workflow_run="1",
     )
     assert "track_record_gate" not in report
 
@@ -320,7 +348,10 @@ def test_schema_version_is_1_3_0_after_families_addition() -> None:
 
 def test_build_public_report_omits_regime_stratified_when_not_provided() -> None:
     report = build_public_report(
-        None, source_path=None, source_commit_sha="abc", source_workflow_run="1",
+        None,
+        source_path=None,
+        source_commit_sha="abc",
+        source_workflow_run="1",
     )
     assert "regime_stratified" not in report
 
@@ -394,3 +425,142 @@ def test_track_record_gate_and_regime_stratified_can_coexist() -> None:
     assert report["regime_stratified"]["NEUTRAL"]["sharpe"] == 0.4
 
 
+# ── C13/T5 — --include-families CLI flag ────────────────────────────
+
+
+def _valid_families_payload() -> dict[str, Any]:
+    return {
+        "schema_version": "1.0.0",
+        "families": [
+            {
+                "name": "BOS",
+                "live_days": 7,
+                "n_trades": 12,
+                "kill_switch_fires": 0,
+                "drift_verdict": "pass",
+            },
+            {
+                "name": "OB",
+                "live_days": 7,
+                "n_trades": 8,
+                "kill_switch_fires": 1,
+                "drift_verdict": "acceptable",
+            },
+        ],
+    }
+
+
+def _write_minimal_cal(tmp_path: Path) -> Path:
+    cal = tmp_path / "zone_priority_calibration.json"
+    cal.write_text(
+        json.dumps(
+            {
+                "family_weights": {"OB": 0.85, "FVG": 0.61},
+                "family_stats": {"OB": {"total_events": 100, "total_hits": 85}},
+                "testable_calibration": {
+                    "n_events": 100,
+                    "smooth_ece": 0.10,
+                    "ece_binned_n10": 0.11,
+                },
+            }
+        )
+    )
+    return cal
+
+
+def test_main_without_include_families_omits_families_block(tmp_path: Path) -> None:
+    output = tmp_path / "report.json"
+    rc = main(
+        [
+            "--input-cal",
+            str(_write_minimal_cal(tmp_path)),
+            "--output",
+            str(output),
+        ]
+    )
+    assert rc == 0
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert "families" not in payload
+
+
+def test_main_with_include_families_embeds_block(tmp_path: Path) -> None:
+    fam_path = tmp_path / "families.json"
+    fam_path.write_text(json.dumps(_valid_families_payload()))
+    output = tmp_path / "report.json"
+    rc = main(
+        [
+            "--input-cal",
+            str(_write_minimal_cal(tmp_path)),
+            "--output",
+            str(output),
+            "--include-families",
+            str(fam_path),
+        ]
+    )
+    assert rc == 0
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert "families" in payload
+    names = sorted(f["name"] for f in payload["families"])
+    assert names == ["BOS", "OB"]
+
+
+def test_main_with_malformed_families_returns_one(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    fam_path = tmp_path / "families.json"
+    fam_path.write_text("{not-json")
+    rc = main(
+        [
+            "--input-cal",
+            str(_write_minimal_cal(tmp_path)),
+            "--output",
+            str(tmp_path / "report.json"),
+            "--include-families",
+            str(fam_path),
+        ]
+    )
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "families telemetry" in err.lower() or "malformed" in err.lower()
+
+
+def test_main_with_missing_families_key_returns_one(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    fam_path = tmp_path / "families.json"
+    fam_path.write_text(json.dumps({"schema_version": "1.0.0"}))  # no "families"
+    rc = main(
+        [
+            "--input-cal",
+            str(_write_minimal_cal(tmp_path)),
+            "--output",
+            str(tmp_path / "report.json"),
+            "--include-families",
+            str(fam_path),
+        ]
+    )
+    assert rc == 1
+    assert "families" in capsys.readouterr().err.lower()
+
+
+def test_main_with_invalid_family_record_returns_one(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    fam_path = tmp_path / "families.json"
+    fam_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0.0",
+                "families": [
+                    {"name": "BOS"}  # missing required keys
+                ],
+            }
+        )
+    )
+    rc = main(
+        [
+            "--input-cal",
+            str(_write_minimal_cal(tmp_path)),
+            "--output",
+            str(tmp_path / "report.json"),
+            "--include-families",
+            str(fam_path),
+        ]
+    )
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "C12" in err or "missing required keys" in err
