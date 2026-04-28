@@ -455,8 +455,18 @@ def fetch_tv_headlines(
         data = _fetch_raw(ticker)
         headlines = _parse_items(data)
         _set_cached(cache_key, headlines)
+        _health.record_success()
         return headlines[:max_items]
-    except Exception:
+    except Exception as exc:
+        # Update health state so `is_available()` / `health_status()` and
+        # the sidebar "TV degraded" indicator reflect reality.  Without
+        # this, the cache simply returns [] forever and consumers think
+        # there is no news for the ticker.
+        _health.record_failure(repr(exc))
+        log.warning(
+            "fetch_tv(%s) failed; recorded health failure: %s",
+            ticker, exc,
+        )
         return []
 
 
