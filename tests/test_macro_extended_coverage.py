@@ -1639,6 +1639,67 @@ def test_runtime_error_falls_through_to_empty_collection(
     assert result == [] or result == {}
 
 
+@pytest.mark.parametrize(
+    ("method", "args", "kwargs", "feature_key"),
+    [
+        ("get_ratios_ttm", ("AAPL",), {}, "stable/ratios-ttm"),
+        ("get_company_screener", (), {"sector": "Tech"}, "stable/company-screener"),
+        ("get_stock_latest_news", (), {"symbol": "AAPL"}, "stable/news/stock-latest"),
+        ("get_batch_crypto_quotes", (), {}, "stable/batch-crypto-quotes"),
+        (
+            "get_cryptocurrency_historical_price",
+            ("BTCUSD",),
+            {},
+            "stable/historical-price-eod/full",
+        ),
+        ("get_cryptocurrency_list", (), {}, "stable/cryptocurrency-list"),
+        (
+            "get_technical_indicator",
+            ("AAPL", "1day", "rsi"),
+            {},
+            "stable/technical-indicators/rsi",
+        ),
+        ("get_eod_bulk", (date(2026, 4, 23),), {}, "stable/eod-bulk"),
+        (
+            "get_macro_calendar",
+            (date(2026, 1, 1), date(2026, 1, 31)),
+            {},
+            "stable/economic-calendar",
+        ),
+        ("get_premarket_movers", (), {}, "stable/most-actives"),
+    ],
+)
+def test_silent_fallback_warns_once_per_endpoint(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    method: str,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    feature_key: str,
+) -> None:
+    """Each FMP getter must emit `_log_feature_unavailable_once` exactly once
+    when its endpoint raises RuntimeError, instead of silently returning []/{}."""
+
+    client = FMPClient(api_key="K")
+
+    def boom(path: str, params: dict[str, Any]) -> Any:
+        raise RuntimeError("simulated upstream failure")
+
+    monkeypatch.setattr(client, "_get", boom)
+    monkeypatch.setattr(macro, "_FMP_FEATURE_UNAVAILABLE_LOGGED", set())
+
+    with caplog.at_level(logging.INFO, logger="open_prep.macro"):
+        getattr(client, method)(*args, **kwargs)
+        getattr(client, method)(*args, **kwargs)
+
+    matching = [r for r in caplog.records if feature_key in r.message]
+    assert len(matching) == 1, (
+        f"{method} should emit warn-once for {feature_key} on RuntimeError; "
+        f"got {len(matching)} log records"
+    )
+    assert feature_key in macro._FMP_FEATURE_UNAVAILABLE_LOGGED
+
+
 def test_execute_get_url_error_first_attempt_then_success(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
