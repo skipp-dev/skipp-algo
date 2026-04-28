@@ -142,7 +142,8 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("databento_universe.py", 306),
         ("databento_volatility_screener.py", 1110),
         ("open_prep/bea.py", 94),
-        # open_prep/macro.py:692 — was 600 before audit/discipline-pattern-v4.
+        # open_prep/macro.py:691 — shifted by ruff RUF046/B904/SIM103 cleanup;
+        # was 692 after audit/discipline-pattern-v4 (originally 600).
         # Shifted by +92 lines: ``import re`` at module top (+1), the
         # _HTTP_CODE_RE / _TRANSIENT_HTTP_CODES classifier constants (+8),
         # the ``_is_permanent_feature_failure`` helper (+~30), the
@@ -150,7 +151,7 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # transient/permanent dispatch (+~50), and the math import + NaN
         # guard in ``_parse_retry_after_seconds``. The urlopen call itself
         # is unchanged (still ``timeout=...``).
-        ("open_prep/macro.py", 692),
+        ("open_prep/macro.py", 691),
         ("open_prep/sentiment_fng.py", 99),
         ("terminal_finnhub.py", 184),
         ("terminal_notifications.py", 250),
