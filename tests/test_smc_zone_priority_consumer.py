@@ -468,4 +468,4 @@ def test_trend_vocab_constants_pinned() -> None:
     assert TREND_IMPROVING == "IMPROVING"
     assert TREND_STABLE == "STABLE"
     assert TREND_DEGRADING == "DEGRADING"
-    assert TREND_VOCAB == frozenset({"IMPROVING", "STABLE", "DEGRADING"})
+    assert frozenset({"IMPROVING", "STABLE", "DEGRADING"}) == TREND_VOCAB

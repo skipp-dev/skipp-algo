@@ -24,6 +24,6 @@ __all__ = [
     "ExecutionAction",
     "ExecutionState",
     "SlippageEstimate",
-    "TradeRecord",
     "TradeBlotter",
+    "TradeRecord",
 ]

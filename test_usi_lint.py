@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Basic Pine Script v6 lint checks for USI.pine."""
-import re, sys
+import re
+import sys
 
 def lint_pine(path):
     with open(path, encoding="utf-8") as f:

@@ -34,9 +34,9 @@ from scripts.regime_stratification import (
 )
 
 __all__ = [
+    "RegimeStratifiedResult",
     "regime_stratified_bootstrap",
     "regime_stratified_permutation",
-    "RegimeStratifiedResult",
 ]
 
 Trade = Mapping[str, Any]

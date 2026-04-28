@@ -200,10 +200,10 @@ def _coerce_trade_date(value: Any) -> date:
 
 
 __all__ = [
-    "IBKRExecutionConfig",
-    "PAPER_TRADING_PORT",
-    "LIVE_TRADING_PORT",
     "DEFAULT_SIZE_SCALE",
+    "LIVE_TRADING_PORT",
+    "PAPER_TRADING_PORT",
     "PHASE_B_RECOMMENDED_SIZE_SCALE",
+    "IBKRExecutionConfig",
     "build_ibkr_intents_from_smc_setups",
 ]

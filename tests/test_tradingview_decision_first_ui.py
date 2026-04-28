@@ -147,7 +147,7 @@ def test_dashboard_explain_popup_tooltips_cover_zone_priority_and_per_family() -
         ("BOS", "mp.ZONE_CAL_BOS"),
         ("SWEEP", "mp.ZONE_CAL_SWEEP"),
     ):
-        marker = f'dashboard_row_tt(smc_dashboard, '
+        marker = 'dashboard_row_tt(smc_dashboard, '
         per_family_tt_marker = f'"{family} — calibrated weight " '
         assert marker in source
         assert per_family_tt_marker in source, f"missing tooltip text for family {family}"

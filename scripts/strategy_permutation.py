@@ -372,7 +372,7 @@ def aggregate_permutation_results(
 __all__ = [
     "DEFAULT_BLOCK_SIZE",
     "PermutationSchema",
-    "permutation_test_sharpe",
-    "permutation_test_profit_factor",
     "aggregate_permutation_results",
+    "permutation_test_profit_factor",
+    "permutation_test_sharpe",
 ]

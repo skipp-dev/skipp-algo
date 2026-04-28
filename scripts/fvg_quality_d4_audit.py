@@ -79,7 +79,7 @@ def main() -> int:
     args = parser.parse_args()
 
     ev = _load_fvg_events(args.root)
-    print(f"== D4 FVG quality conditional hit rates ==")
+    print("== D4 FVG quality conditional hit rates ==")
     print(f"   root: {args.root}")
     print(f"   total FVG events: {len(ev)}")
     print()

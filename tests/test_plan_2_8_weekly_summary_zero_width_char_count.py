@@ -38,7 +38,7 @@ def test_missing(tmp_path: Path) -> None:
 
 def test_counts(tmp_path: Path) -> None:
     p = tmp_path / "s.md"
-    p.write_bytes("a\u200bb\u200cc\u200dd".encode("utf-8"))
+    p.write_bytes("a\u200bb\u200cc\u200dd".encode())
     assert zw.compute(p)["zero_width_char_count"] == 3
 
 
@@ -56,7 +56,7 @@ def test_markdown_shape(tmp_path: Path) -> None:
 
 def test_cli_json(tmp_path: Path) -> None:
     p = tmp_path / "s.md"
-    p.write_bytes("\u200b".encode("utf-8"))
+    p.write_bytes("\u200b".encode())
     out = tmp_path / "o.json"
     code = zw.main([
         "--summary", str(p), "--format", "json", "--output", str(out),

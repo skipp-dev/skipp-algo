@@ -31,11 +31,11 @@ from typing import Any
 
 __all__ = [
     "MIN_TRADES_PER_REGIME",
+    "compute_regime_aware_aggregate",
+    "compute_regime_conditional_metrics",
+    "detect_regime_concentration",
     "stratify_trades_by_regime",
     "unknown_regime_share",
-    "compute_regime_conditional_metrics",
-    "compute_regime_aware_aggregate",
-    "detect_regime_concentration",
 ]
 
 

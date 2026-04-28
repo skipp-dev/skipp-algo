@@ -38,6 +38,6 @@ if bc > 0 and bs is not None:
 blocks.sort(key=lambda x: -x[2])
 total = sum(b[2] for b in blocks)
 print(f"Total main-body locals: {total}")
-print(f"\nTop 25 blocks:")
+print("\nTop 25 blocks:")
 for st, en, c, f in blocks[:25]:
     print(f"  L{st}-L{en}: {c} locals  {f}")

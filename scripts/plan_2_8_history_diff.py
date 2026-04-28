@@ -73,7 +73,7 @@ def diff_snapshots(prev: dict[str, Any], latest: dict[str, Any]) -> dict[str, An
             "n_prev":   p.get("n_events"),
             "n_latest": l.get("n_events"),
         })
-        fams = sorted(set((p.get("families") or {})) | set((l.get("families") or {})))
+        fams = sorted(set(p.get("families") or {}) | set(l.get("families") or {}))
         for fam in fams:
             fp = (p.get("families") or {}).get(fam) or {}
             fl = (l.get("families") or {}).get(fam) or {}

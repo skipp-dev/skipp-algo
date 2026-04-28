@@ -21,11 +21,11 @@ import math
 from typing import Sequence
 
 __all__ = [
-    "compute_skew_kurtosis",
-    "compute_sharpe",
-    "probabilistic_sharpe",
-    "min_trl",
     "MIN_OBSERVATIONS_FOR_PSR",
+    "compute_sharpe",
+    "compute_skew_kurtosis",
+    "min_trl",
+    "probabilistic_sharpe",
 ]
 
 

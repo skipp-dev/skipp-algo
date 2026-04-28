@@ -456,9 +456,9 @@ def profit_factor_ci(
 
 
 __all__ = [
-    "sharpe_ci",
-    "max_dd_ci",
-    "win_rate_ci",
-    "profit_factor_ci",
     "make_resamples",
+    "max_dd_ci",
+    "profit_factor_ci",
+    "sharpe_ci",
+    "win_rate_ci",
 ]

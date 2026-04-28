@@ -88,8 +88,8 @@ def test_every_httpx_client_instantiation_is_guarded() -> None:
         if not any(_GUARD_RE.search(prev) for prev in window):
             unguarded.append((i + 1, line))
     assert not unguarded, (
-        f"Unguarded httpx.Client(...) instantiation(s) found "
-        f"(no `if client is None:` within 3 preceding lines):\n"
+        "Unguarded httpx.Client(...) instantiation(s) found "
+        "(no `if client is None:` within 3 preceding lines):\n"
         + "\n".join(f"  L{ln}: {txt.strip()}" for ln, txt in unguarded)
         + "\nWrap each construction in the established fallback pattern."
     )

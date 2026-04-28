@@ -193,9 +193,9 @@ class TestScoreFvg:
             "is_full_body": -1,
             "hurst_50": 0,
         }
-        assert STRICT_V1_NO_HURST_MEANS == {
+        assert {
             k: 0.5 for k in STRICT_V1_NO_HURST_WEIGHTS
-        }
+        } == STRICT_V1_NO_HURST_MEANS
         assert DEFAULT_WEIGHTS is STRICT_V1_NO_HURST_WEIGHTS
         assert DEFAULT_DIRECTIONS is STRICT_V1_NO_HURST_DIRECTIONS
         assert DEFAULT_MEANS is STRICT_V1_NO_HURST_MEANS
