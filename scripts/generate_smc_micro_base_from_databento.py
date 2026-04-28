@@ -23,8 +23,11 @@ load_dotenv(REPO_ROOT / ".env")
 
 from scripts.generate_smc_micro_profiles import load_schema
 from scripts.smc_atomic_write import atomic_write_csv, atomic_write_text
+from scripts.smc_enrichment_types import EnrichmentDict
+from scripts.smc_library_layering import compute_library_layering
+from scripts.smc_live_news_bus import DEFAULT_SYMBOL_LIMIT, export_live_news_snapshot, resolve_live_news_symbols
 from scripts.smc_microstructure_base_runtime import (
-    ETF_KEYWORDS,  # noqa: F401  re-exported for legacy callers / pin tests
+    ETF_KEYWORDS,
     MappingStatus,
     generate_base_from_bundle,
     generate_pine_library_from_base,
@@ -33,9 +36,9 @@ from scripts.smc_microstructure_base_runtime import (
     run_databento_base_scan_pipeline,
 )
 from scripts.smc_news_scorer import compute_news_sentiment
-from scripts.smc_enrichment_types import EnrichmentDict
-from scripts.smc_library_layering import compute_library_layering
-from scripts.smc_live_news_bus import DEFAULT_SYMBOL_LIMIT, export_live_news_snapshot, resolve_live_news_symbols
+
+# Re-exported for legacy callers / pin tests:
+__all__ = ["ETF_KEYWORDS"]
 
 logger = logging.getLogger(__name__)
 

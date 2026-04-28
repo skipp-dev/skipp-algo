@@ -26,19 +26,17 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from .normalize import normalize_benzinga_calendar_item
-
 import httpx
+
+from .normalize import normalize_benzinga_calendar_item
 
 logger = logging.getLogger(__name__)
 
 from newsstack_fmp._bz_http import (  # noqa: E402
+    BenzingaEndpointDisabled,
     _request_with_retry,
-    _sanitize_exc as _sanitize_exc,
-    _sanitize_url as _sanitize_url,
     log_fetch_warning,
 )
-
 
 # =====================================================================
 # 1) Calendar Adapter (ratings, earnings, economics, conference calls)
@@ -459,7 +457,13 @@ def fetch_benzinga_quotes(
     # Benzinga's quoteDelayed endpoint accepts max ~50 symbols per call.
     # Chunk through the full list so callers passing >50 symbols (Streamlit
     # watchlists, terminal_tabs) don't silently drop the tail.
-    cleaned = [s.strip().upper() for s in symbols if s and s.strip()]
+    cleaned: list[str] = []
+    for s in symbols:
+        if not s:
+            continue
+        stripped = s.strip()
+        if stripped:
+            cleaned.append(stripped.upper())
     if not cleaned:
         return []
 
@@ -475,6 +479,18 @@ def fetch_benzinga_quotes(
                     "symbols": sym_str,
                 }, label="Benzinga quotes")
                 data = r.json()
+            except BenzingaEndpointDisabled as exc:
+                # Endpoint marked disabled (tier-limited 4xx); subsequent
+                # chunks would raise immediately. Leave a debug breadcrumb
+                # here and break out rather than fast-failing every remaining
+                # chunk. The operator-visible disable event is logged by the
+                # code that marks the endpoint disabled; log_fetch_warning
+                # short-circuits BenzingaEndpointDisabled to DEBUG.
+                log_fetch_warning(
+                    f"Benzinga quotes chunk {start}-{start + len(chunk)} (debug: endpoint already disabled)",
+                    exc,
+                )
+                break
             except Exception as exc:
                 log_fetch_warning(
                     f"Benzinga quotes chunk {start}-{start + len(chunk)}", exc

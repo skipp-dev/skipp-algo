@@ -21,11 +21,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from newsstack_fmp.ingest_benzinga_financial import (
-    BenzingaFinancialAdapter,
+from newsstack_fmp._bz_http import (
     _request_with_retry,
     _sanitize_exc,
     _sanitize_url,
+)
+from newsstack_fmp.ingest_benzinga_financial import (
+    BenzingaFinancialAdapter,
     fetch_benzinga_auto_complete,
     fetch_benzinga_company_profile,
     fetch_benzinga_financials,
@@ -449,7 +451,7 @@ class TestRetryLogic:
         client = MagicMock()
         client.get.side_effect = [r429, r200]
 
-        with patch("newsstack_fmp.ingest_benzinga_financial.time.sleep"):
+        with patch("newsstack_fmp._bz_http._sleep"):
             result = _request_with_retry(client, "https://test.com", {})
             assert result.status_code == 200
             assert client.get.call_count == 2
@@ -466,7 +468,7 @@ class TestRetryLogic:
         client = MagicMock()
         client.get.side_effect = [r500, r200]
 
-        with patch("newsstack_fmp.ingest_benzinga_financial.time.sleep"):
+        with patch("newsstack_fmp._bz_http._sleep"):
             result = _request_with_retry(client, "https://test.com", {})
             assert result.status_code == 200
 
@@ -477,7 +479,7 @@ class TestRetryLogic:
         client = MagicMock()
         client.get.side_effect = [httpx.ConnectError("fail"), r200]
 
-        with patch("newsstack_fmp.ingest_benzinga_financial.time.sleep"):
+        with patch("newsstack_fmp._bz_http._sleep"):
             result = _request_with_retry(client, "https://test.com", {})
             assert result.status_code == 200
 
@@ -486,6 +488,6 @@ class TestRetryLogic:
         client = MagicMock()
         client.get.side_effect = httpx.ConnectError("persistent fail")
 
-        with patch("newsstack_fmp.ingest_benzinga_financial.time.sleep"):
+        with patch("newsstack_fmp._bz_http._sleep"):
             with pytest.raises(httpx.ConnectError):
                 _request_with_retry(client, "https://test.com", {})

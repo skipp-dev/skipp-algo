@@ -1887,6 +1887,8 @@ class TestConfigActiveSources(unittest.TestCase):
             "ENABLE_FMP_ARTICLES": "1",
             "ENABLE_BENZINGA_REST": "0",
             "ENABLE_BENZINGA_WS": "0",
+            "ENABLE_TRADINGVIEW_NEWS": "0",
+            "ENABLE_NEWSAPI_AI": "0",
         }):
             cfg = Config()
         self.assertEqual(cfg.active_sources, ["fmp_stock_latest", "fmp_press_latest", "fmp_articles"])
@@ -1913,6 +1915,8 @@ class TestConfigActiveSources(unittest.TestCase):
             "ENABLE_FMP": "0",
             "ENABLE_BENZINGA_REST": "0",
             "ENABLE_BENZINGA_WS": "0",
+            "ENABLE_TRADINGVIEW_NEWS": "0",
+            "ENABLE_FMP_ARTICLES": "0",
             "ENABLE_NEWSAPI_AI": "1",
             "NEWSAPI_AI_KEY": "news-key",
         }):
@@ -1924,8 +1928,11 @@ class TestConfigActiveSources(unittest.TestCase):
 
         with patch.dict(os.environ, {
             "ENABLE_FMP": "0",
+            "ENABLE_FMP_ARTICLES": "0",
             "ENABLE_BENZINGA_REST": "0",
             "ENABLE_BENZINGA_WS": "0",
+            "ENABLE_TRADINGVIEW_NEWS": "0",
+            "ENABLE_NEWSAPI_AI": "0",
         }):
             cfg = Config()
         self.assertEqual(cfg.active_sources, [])

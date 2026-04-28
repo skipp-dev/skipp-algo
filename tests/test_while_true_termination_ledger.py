@@ -73,19 +73,10 @@ def _while_true_sites() -> set[tuple[str, int]]:
 # Locked surface — every entry is a reviewed long-lived loop.
 WHILE_TRUE_LEDGER: set[tuple[str, int]] = {
     ("databento_volatility_screener.py", 1051),
-    # terminal_background_poller.py:183 — drain() loop, exits via
-    #   ``except queue.Empty: break`` (documented exit path).
-    # terminal_background_poller.py:379 — ring-buffer enqueue loop, exits
-    #   via ``break`` after successful ``put_nowait`` or via inner
-    #   ``except queue.Empty: break`` guard. Both shifted from 160/341
-    #   by PR #378 (is_healthy flag added before the drain method).
     ("terminal_background_poller.py", 183),
     ("terminal_background_poller.py", 379),
     ("databento_universe.py", 247),
     ("open_prep/realtime_signals.py", 2664),
-    # open_prep/macro.py:84 — was 83; shifted by +1 from the
-    # ``import re`` added during the discipline-pattern-v4 audit
-    # (Phase 1: permanent/transient classifier needs `re`).
     ("open_prep/macro.py", 84),
     ("smc_core/resilient.py", 85),
     ("newsstack_fmp/ingest_benzinga.py", 514),

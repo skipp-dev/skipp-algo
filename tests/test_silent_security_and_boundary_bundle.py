@@ -183,9 +183,9 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     ("newsstack_fmp/run.py", 22),
     ("open_prep/candidate_weights.py", 208),
     ("open_prep/feature_importance_report.py", 305),
-    ("open_prep/outcome_backfill.py", 411),
+    ("open_prep/outcome_backfill.py", 410),
     ("open_prep/realtime_signals.py", 2633),
-    ("open_prep/run_open_prep.py", 5791),
+    ("open_prep/run_open_prep.py", 5796),
     ("smc_tv_bridge/smc_api.py", 35),
 })
 
@@ -241,7 +241,7 @@ _FROZEN_SYSPATH_SITES: frozenset[tuple[str, int, str]] = frozenset({
     ("smc_tv_bridge/smc_api.py", 32, "insert"),
     ("streamlit_databento_volatility_screener.py", 9, "insert"),
     ("streamlit_smc_micro_base_generator.py", 9, "insert"),
-    ("streamlit_terminal.py", 275, "insert"),
+    ("streamlit_terminal.py", 273, "insert"),
 })
 
 

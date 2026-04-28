@@ -47,11 +47,9 @@ logger = logging.getLogger(__name__)
 
 from newsstack_fmp._bz_http import (  # noqa: E402
     _request_with_retry,
-    _sanitize_exc as _sanitize_exc,
     _sanitize_url,
     log_fetch_warning,
 )
-
 
 # =====================================================================
 # Base URLs
