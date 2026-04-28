@@ -61,7 +61,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from smc_core.fvg_quality import score_fvg  # noqa: E402
+from smc_core.fvg_quality import score_fvg
 
 DEFAULT_TOP_THRESHOLD = 0.75   # plan §D4 line 326
 DEFAULT_BOTTOM_THRESHOLD = 0.55  # plan §D4 line 326

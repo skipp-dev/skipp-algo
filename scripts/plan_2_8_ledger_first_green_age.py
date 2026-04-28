@@ -12,7 +12,7 @@ from scripts.smc_atomic_write import atomic_write_text
 import argparse
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 from typing import Any
 
@@ -55,7 +55,7 @@ def compute(
 ) -> dict[str, Any]:
     first = _first_green(records)
     if now is None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
     if first is None:
         hours: float | None = None
         ts_s: str | None = None

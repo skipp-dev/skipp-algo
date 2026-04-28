@@ -5,7 +5,7 @@ All logic now lives in smc_core.htf_context (F-08 layer cleanup).
 from __future__ import annotations
 
 # Re-export everything for backward compatibility
-from smc_core.htf_context import (  # noqa: F401
+from smc_core.htf_context import (
     build_htf_bias_context,
     build_ipda_range,
     compute_calendar_boundaries,

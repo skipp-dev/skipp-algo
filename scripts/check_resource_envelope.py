@@ -25,7 +25,7 @@ import json
 import logging
 import sys
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 from typing import Any
 
@@ -98,7 +98,7 @@ class EnvelopeCheckResult:
 def check_envelope(envelope_path: Path) -> EnvelopeCheckResult:
     """Validate the resource envelope and check thresholds."""
     result = EnvelopeCheckResult(
-        checked_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        checked_at=datetime.now(UTC).isoformat(timespec="seconds"),
     )
 
     if not envelope_path.exists():

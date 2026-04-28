@@ -54,7 +54,7 @@ def render_runcard(
     run_url: str | None = None,
     now: _dt.datetime | None = None,
 ) -> str:
-    now_ = now or _dt.datetime.now(tz=_dt.timezone.utc)
+    now_ = now or _dt.datetime.now(tz=_dt.UTC)
     header = [
         "# Plan 2.8 weekly runcard",
         "",

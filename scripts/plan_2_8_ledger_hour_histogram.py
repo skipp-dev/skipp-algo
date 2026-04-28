@@ -51,7 +51,7 @@ def compute(records: list[dict[str, Any]]) -> dict[str, Any]:
         if ts is None:
             skipped += 1
             continue
-        hour = ts.astimezone(_dt.timezone.utc).hour
+        hour = ts.astimezone(_dt.UTC).hour
         buckets[hour] += 1
     total = sum(buckets)
     empty_hours = [h for h, n in enumerate(buckets) if n == 0]

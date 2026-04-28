@@ -18,7 +18,7 @@ from scripts.smc_micro_streamlit_app import (
 
 
 class _ContextBlock:
-    def __enter__(self) -> "_ContextBlock":
+    def __enter__(self) -> _ContextBlock:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
@@ -39,7 +39,7 @@ class _StatusRecorder:
 
 
 class _FakeColumn:
-    def __init__(self, owner: "_FakeStreamlit") -> None:
+    def __init__(self, owner: _FakeStreamlit) -> None:
         self.owner = owner
 
     def button(self, label: str, **_: object) -> bool:

@@ -17,7 +17,7 @@ import json
 import math
 import sys
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 from typing import Any
 
@@ -393,7 +393,7 @@ def main() -> int:
         print("No benchmark pair summaries found.", file=sys.stderr)
         return 1
 
-    generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    generated_at = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
 
     report_md = render_report(pairs, generated_at=generated_at)
     md_path = output_dir / "performance_report.md"

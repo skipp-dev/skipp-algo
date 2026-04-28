@@ -100,7 +100,7 @@ def _github_get(path: str, token: str) -> tuple[int, Any]:
         },
     )
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:  # noqa: S310
+        with urllib.request.urlopen(req, timeout=15) as resp:
             body = json.loads(resp.read())
             return resp.status, body
     except urllib.error.HTTPError as exc:

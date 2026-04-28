@@ -357,7 +357,7 @@ class TestToEpochTimezoneHandling(unittest.TestCase):
         result = _to_epoch("2026-01-15T12:00:00")
         import datetime
         expected = datetime.datetime(2026, 1, 15, 12, 0, 0,
-                                     tzinfo=datetime.timezone.utc).timestamp()
+                                     tzinfo=datetime.UTC).timestamp()
         self.assertAlmostEqual(result, expected, places=0)
 
     def test_explicit_utc_matches_naive(self):

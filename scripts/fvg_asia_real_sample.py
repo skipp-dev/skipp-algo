@@ -42,7 +42,7 @@ import json
 import os
 import sys
 from collections import Counter, defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 from pathlib import Path
 
 import pandas as pd
@@ -55,12 +55,12 @@ if str(ROOT) not in sys.path:
 # Load .env before argparse defaults are resolved (they call os.environ.get).
 load_dotenv(ROOT / ".env")
 
-from scripts.explicit_structure_from_bars import (  # noqa: E402
+from scripts.explicit_structure_from_bars import (
     build_fvg_from_bars,
     resample_bars_to_timeframe,
 )
-from scripts.smc_session_context_block import _classify_session  # noqa: E402
-from smc_core.scoring import (  # noqa: E402
+from scripts.smc_session_context_block import _classify_session
+from smc_core.scoring import (
     label_fvg_mitigation,
     label_fvg_partial_50,
 )
@@ -248,7 +248,7 @@ def _process_symbol_tf(
             direction=direction,
             future=future,
         )
-        anchor_dt = datetime.fromtimestamp(anchor_ts, tz=timezone.utc)
+        anchor_dt = datetime.fromtimestamp(anchor_ts, tz=UTC)
         session = _classify_session(anchor_dt.time())
         out.append(
             {
@@ -321,9 +321,9 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     end_dt = (
-        datetime.fromisoformat(args.end).astimezone(timezone.utc)
+        datetime.fromisoformat(args.end).astimezone(UTC)
         if args.end
-        else datetime.now(tz=timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        else datetime.now(tz=UTC).replace(hour=0, minute=0, second=0, microsecond=0)
     )
     start_dt = end_dt - timedelta(days=int(args.days))
     symbols = [s.strip().upper() for s in args.symbols.split(",") if s.strip()]

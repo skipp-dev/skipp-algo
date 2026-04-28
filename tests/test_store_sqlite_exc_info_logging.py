@@ -42,7 +42,7 @@ class _Dummy:
             raise self._reconnect_raises("simulated reconnect failure")
 
     @_retry_on_locked
-    def _fn(self, *args: Any, **kwargs: Any) -> None:  # noqa: D401, ANN401
+    def _fn(self, *args: Any, **kwargs: Any) -> None:
         self.attempts += 1
         raise self._raises("simulated SQLite primitive failure")
 

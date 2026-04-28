@@ -77,7 +77,7 @@ class SplitConformalClassifier:
             return probs
         raise ValueError(f"Unsupported probs shape {probs.shape}")
 
-    def calibrate(self, probs_cal: np.ndarray, y_cal: np.ndarray) -> "SplitConformalClassifier":
+    def calibrate(self, probs_cal: np.ndarray, y_cal: np.ndarray) -> SplitConformalClassifier:
         p1 = self._to_p1(probs_cal)
         y = np.asarray(y_cal, dtype=int)
         if p1.shape[0] != y.shape[0]:
@@ -162,7 +162,7 @@ class AdaptiveConformalClassifier:
 
     def calibrate(
         self, probs_cal: np.ndarray, y_cal: np.ndarray
-    ) -> "AdaptiveConformalClassifier":
+    ) -> AdaptiveConformalClassifier:
         p1 = self._to_p1(probs_cal)
         y = np.asarray(y_cal, dtype=int)
         if p1.shape[0] != y.shape[0]:

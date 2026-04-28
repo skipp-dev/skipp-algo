@@ -59,7 +59,7 @@ def test_atomic_write_parquet_leaves_target_untouched_on_writer_failure(tmp_path
     atomic_write_parquet(_df(), target, index=False)
     original_bytes = target.read_bytes()
 
-    def _boom(self, *args, **kwargs):  # noqa: ARG001
+    def _boom(self, *args, **kwargs):
         raise RuntimeError("simulated writer crash")
 
     with patch.object(pd.DataFrame, "to_parquet", _boom):
@@ -78,7 +78,7 @@ def test_atomic_write_csv_leaves_target_untouched_on_writer_failure(tmp_path: Pa
     atomic_write_csv(_df(), target, index=False)
     original_bytes = target.read_bytes()
 
-    def _boom(self, *args, **kwargs):  # noqa: ARG001
+    def _boom(self, *args, **kwargs):
         raise RuntimeError("simulated csv crash")
 
     with patch.object(pd.DataFrame, "to_csv", _boom):

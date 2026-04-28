@@ -50,9 +50,9 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from smc_core.benchmark import stratified_fvg_report  # noqa: E402
-from smc_core.event_ledger import read_event_ledger  # noqa: E402
-from smc_core.fvg_pine_emit import emit_fvg_pine_constants  # noqa: E402
+from smc_core.benchmark import stratified_fvg_report
+from smc_core.event_ledger import read_event_ledger
+from smc_core.fvg_pine_emit import emit_fvg_pine_constants
 
 PINE_HEADER = "//@version=6"
 PINE_STATUS_KEY = "FVG_CONTEXT_HEALTH_STATUS"

@@ -42,7 +42,7 @@ def build(
     actor: str | None = None,
     now: _dt.datetime | None = None,
 ) -> dict[str, Any]:
-    now_ = now or _dt.datetime.now(tz=_dt.timezone.utc)
+    now_ = now or _dt.datetime.now(tz=_dt.UTC)
     return {
         "schema_version": 1,
         "run_id":       _opt(run_id, "GITHUB_RUN_ID"),

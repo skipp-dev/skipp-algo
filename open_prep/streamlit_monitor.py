@@ -79,7 +79,7 @@ def _load_streamlit_secrets() -> None:
 _load_env_file(PROJECT_ROOT / ".env")
 _load_streamlit_secrets()
 
-from open_prep.run_open_prep import (  # noqa: E402
+from open_prep.run_open_prep import (
     GAP_MODE_CHOICES,
     GAP_MODE_PREMARKET_INDICATIVE,
     GAP_SCOPE_CHOICES,

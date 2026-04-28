@@ -44,7 +44,7 @@ class AlmgrenChrissCalibrator:
     cov_: np.ndarray | None = None
     n_train_: int = 0
 
-    def fit(self, X: np.ndarray, y_bps: np.ndarray) -> "AlmgrenChrissCalibrator":
+    def fit(self, X: np.ndarray, y_bps: np.ndarray) -> AlmgrenChrissCalibrator:
         if self.prior_precision <= 0:
             raise ValueError("prior_precision must be > 0")
         if self.noise_variance < 0:

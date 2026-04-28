@@ -47,7 +47,7 @@ def summarize(
     now: _dt.datetime | None = None,
     top_n: int = 10,
 ) -> dict[str, Any]:
-    now_ = now or _dt.datetime.now(tz=_dt.timezone.utc)
+    now_ = now or _dt.datetime.now(tz=_dt.UTC)
     cutoff = now_ - _dt.timedelta(days=lookback_days)
     buckets: dict[tuple[str, str], dict[str, Any]] = {}
     for rec in records:

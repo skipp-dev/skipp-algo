@@ -126,7 +126,7 @@ def build_unavailable_snapshot(
     now_utc: _dt.datetime | None = None,
 ) -> ImbalanceSnapshot:
     """Helper for a "no-data" snapshot (cron continues without blocking)."""
-    ts = (now_utc or _dt.datetime.now(tz=_dt.timezone.utc)).isoformat()
+    ts = (now_utc or _dt.datetime.now(tz=_dt.UTC)).isoformat()
     return ImbalanceSnapshot(
         symbol=str(symbol).upper(),
         listing_exchange=str(listing_exchange or "").upper(),
@@ -168,7 +168,7 @@ def build_snapshot_from_ticks(
         or regulatory_imbalance is not None
     )
 
-    ts = (now_utc or _dt.datetime.now(tz=_dt.timezone.utc)).isoformat()
+    ts = (now_utc or _dt.datetime.now(tz=_dt.UTC)).isoformat()
     return ImbalanceSnapshot(
         symbol=str(symbol).upper(),
         listing_exchange=str(listing_exchange or "").upper(),

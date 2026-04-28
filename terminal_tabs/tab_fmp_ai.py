@@ -13,7 +13,7 @@ import concurrent.futures
 import logging
 import os
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 from zoneinfo import ZoneInfo as _ZoneInfo
 
 _ET = _ZoneInfo("America/New_York")
@@ -488,7 +488,7 @@ def _save_fmp_ai_result(question: str, answer: str, model: str,
                         n_articles: int, n_tickers: int,
                         n_fmp: int) -> tuple[str, str]:
     """Build save content and filename. Returns (content, filename)."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     slug = _question_to_slug(question)
     ts_file = now.strftime("%Y%m%d_%H%M%S")
     ts_display = now.strftime("%Y-%m-%d %H:%M:%S UTC")

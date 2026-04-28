@@ -167,7 +167,7 @@ def _safe_fetch(callback: FetchCallback, cme_symbol: str, timeframe: str,
     """Wrap the user fetch in a fail-soft envelope; never raises."""
     try:
         bars = callback(cme_symbol, timeframe)
-    except Exception as exc:  # noqa: BLE001 — boundary swallow is intentional
+    except Exception as exc:
         return [], f"{type(exc).__name__}: {exc}"
     if not isinstance(bars, list):
         return [], f"fetch returned {type(bars).__name__}, expected list"

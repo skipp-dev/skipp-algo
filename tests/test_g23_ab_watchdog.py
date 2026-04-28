@@ -10,8 +10,8 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from scripts import g23_ab_watchdog as wd  # noqa: E402
-from scripts.smc_sprt_stop_rule import SPRTConfig  # noqa: E402
+from scripts import g23_ab_watchdog as wd
+from scripts.smc_sprt_stop_rule import SPRTConfig
 
 
 # ── helpers ────────────────────────────────────────────────────────────────

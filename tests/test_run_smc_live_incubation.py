@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timezone, UTC
 from pathlib import Path
 
 import pytest
@@ -18,7 +18,7 @@ from scripts.smc_to_ibkr_adapter import IBKRExecutionConfig
 from scripts.wsh_earnings_calendar import WSH_EVENTS_SCHEMA_VERSION
 
 
-_FROZEN_NOW = datetime(2026, 4, 26, 12, 0, 0, tzinfo=timezone.utc)
+_FROZEN_NOW = datetime(2026, 4, 26, 12, 0, 0, tzinfo=UTC)
 
 
 def _setup(variant: str = "smc_breaker_btc", **overrides) -> dict:

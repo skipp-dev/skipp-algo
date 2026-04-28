@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 from unittest.mock import MagicMock, patch
 
 
@@ -28,7 +28,7 @@ def _make_et(weekday: int, hour: int, minute: int = 0) -> datetime:
     weekday: 0=Monday, 5=Saturday, 6=Sunday
     """
     # Start from a known Monday: 2026-02-23 is a Monday
-    base = datetime(2026, 2, 23, hour, minute, tzinfo=timezone.utc)
+    base = datetime(2026, 2, 23, hour, minute, tzinfo=UTC)
     delta = weekday  # 0=Mon
     return base + timedelta(days=delta)
 

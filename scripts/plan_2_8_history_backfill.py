@@ -73,7 +73,7 @@ def merge(
     incoming_stats = _ingest(incoming)
 
     def _sort_key(k: tuple[str, str]) -> tuple[_dt.datetime, str]:
-        ts = _parse_iso(k[0]) or _dt.datetime.min.replace(tzinfo=_dt.timezone.utc)
+        ts = _parse_iso(k[0]) or _dt.datetime.min.replace(tzinfo=_dt.UTC)
         return (ts, k[1])
 
     order.sort(key=_sort_key)

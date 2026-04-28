@@ -31,7 +31,7 @@ import os
 import re
 import sys
 import tempfile
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 from typing import Any
 
@@ -50,7 +50,7 @@ def _parse_ts(name: str) -> datetime | None:
         return None
     try:
         return datetime.strptime(m.group(1), "%Y-%m-%dT%H-%M-%SZ").replace(
-            tzinfo=timezone.utc
+            tzinfo=UTC
         )
     except ValueError:
         return None
@@ -86,7 +86,7 @@ def cleanup_archives(
     if max_age_days < 0:
         raise ValueError("max_age_days must be >= 0")
     archive_dir = Path(archive_dir)
-    now = now or datetime.now(tz=timezone.utc)
+    now = now or datetime.now(tz=UTC)
     cutoff = now.timestamp() - (max_age_days * 86400)
 
     deleted: list[dict[str, Any]] = []

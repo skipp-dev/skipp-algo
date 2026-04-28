@@ -51,7 +51,7 @@ class PPOSlicer:
         self.seed = int(seed)
         self._model: Any = None
 
-    def fit(self, env: Any, total_timesteps: int = 50_000) -> "PPOSlicer":  # pragma: no cover
+    def fit(self, env: Any, total_timesteps: int = 50_000) -> PPOSlicer:  # pragma: no cover
         self._model = PPO(
             "MlpPolicy", env, learning_rate=self.learning_rate, n_steps=self.n_steps, seed=self.seed
         )

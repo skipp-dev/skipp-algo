@@ -32,7 +32,7 @@ from .normalize import normalize_benzinga_calendar_item
 
 logger = logging.getLogger(__name__)
 
-from newsstack_fmp._bz_http import (  # noqa: E402
+from newsstack_fmp._bz_http import (
     BenzingaEndpointDisabled,
     _request_with_retry,
     log_fetch_warning,

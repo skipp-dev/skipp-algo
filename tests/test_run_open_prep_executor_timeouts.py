@@ -9,7 +9,7 @@ class _FakeClient:
 
 
 class _FakeExecutor:
-    instances: list["_FakeExecutor"] = []
+    instances: list[_FakeExecutor] = []
 
     def __init__(self, max_workers: int):
         self.max_workers = max_workers

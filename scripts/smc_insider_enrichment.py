@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -23,7 +23,7 @@ def compute_insider_enrichment(
     buying: list[str] = []
     selling_heavy: list[str] = []
     failed: list[tuple[str, str]] = []  # E-2: per-symbol failure tracking
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%d")
+    cutoff = (datetime.now(UTC) - timedelta(days=30)).strftime("%Y-%m-%d")
 
     for symbol in symbols[:30]:
         sym = str(symbol).strip().upper()
@@ -56,7 +56,7 @@ def compute_insider_enrichment(
                 buying.append(sym)
             if sell_value > 2_000_000:
                 selling_heavy.append(sym)
-        except Exception as exc:  # noqa: BLE001 - E-2: track per-symbol failures
+        except Exception as exc:
             failed.append((sym, type(exc).__name__))
             logger.warning("insider enrichment failed for %s: %s", sym, exc)
             continue

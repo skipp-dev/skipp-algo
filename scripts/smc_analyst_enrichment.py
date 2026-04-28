@@ -60,7 +60,7 @@ def compute_analyst_enrichment(
             avg_target = float(latest.get("estimatedEpsAvg") or 0)
             if price > 0 and avg_target > 0 and (avg_target / price - 1) > 0.30:
                 high_upside.append(sym)
-        except Exception as exc:  # noqa: BLE001 - E-2: track per-symbol failures
+        except Exception as exc:
             failed.append((sym, type(exc).__name__))
             logger.warning("analyst enrichment failed for %s: %s", sym, exc)
             continue

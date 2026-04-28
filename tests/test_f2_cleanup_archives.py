@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 
 import pytest
@@ -18,7 +18,7 @@ def _mk(archive: Path, name: str) -> Path:
     return p
 
 
-NOW = datetime(2026, 4, 21, 12, 0, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 4, 21, 12, 0, 0, tzinfo=UTC)
 
 
 def test_deletes_older_than_cutoff(tmp_path: Path) -> None:

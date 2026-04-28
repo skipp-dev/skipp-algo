@@ -3086,7 +3086,7 @@ class TestFMPClientCircuitBreakerValidationFailures(unittest.TestCase):
         exc_429 = urllib.error.HTTPError(
             "https://example.com", 429, "Too Many Requests", {}, None
         )
-        future = datetime.now(timezone.utc) + timedelta(seconds=5)
+        future = datetime.now(UTC) + timedelta(seconds=5)
         exc_429.headers = {"Retry-After": future.strftime("%a, %d %b %Y %H:%M:%S GMT")}
 
         call_count = {"n": 0}

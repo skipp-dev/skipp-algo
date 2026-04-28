@@ -32,7 +32,7 @@ def _parse_iso(ts: str) -> _dt.datetime:
 
 def _iso_week_monday(ts: _dt.datetime) -> _dt.date:
     # Monday of the ISO week containing `ts` (UTC).
-    d = ts.astimezone(_dt.timezone.utc).date()
+    d = ts.astimezone(_dt.UTC).date()
     return d - _dt.timedelta(days=d.weekday())
 
 

@@ -38,7 +38,7 @@ def prune_lines(
     now: _dt.datetime | None = None,
     drop_undated: bool = False,
 ) -> dict[str, Any]:
-    now_ = now or _dt.datetime.now(tz=_dt.timezone.utc)
+    now_ = now or _dt.datetime.now(tz=_dt.UTC)
     floor = now_ - _dt.timedelta(days=keep_days)
     kept: list[str] = []
     malformed = 0
@@ -66,7 +66,7 @@ def prune_lines(
             kept_count += 1
             continue
         if ts.tzinfo is None:
-            ts = ts.replace(tzinfo=_dt.timezone.utc)
+            ts = ts.replace(tzinfo=_dt.UTC)
         if ts < floor:
             dropped_stale += 1
             continue

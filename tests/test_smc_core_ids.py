@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 
 import pytest
 from zoneinfo import ZoneInfo
@@ -22,7 +22,7 @@ def test_quantize_time_to_tf_alignment() -> None:
         assert int(anchor) % block == 0
 
     daily_anchor = quantize_time_to_tf(t, "1D")
-    session_dt = datetime.fromtimestamp(daily_anchor, tz=timezone.utc).astimezone(ZoneInfo(DEFAULT_SESSION_TZ))
+    session_dt = datetime.fromtimestamp(daily_anchor, tz=UTC).astimezone(ZoneInfo(DEFAULT_SESSION_TZ))
     assert (session_dt.hour, session_dt.minute, session_dt.second) == (0, 0, 0)
 
 

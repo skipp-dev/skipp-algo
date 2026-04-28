@@ -36,7 +36,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from smc_core.event_ledger import read_event_ledger  # noqa: E402
+from smc_core.event_ledger import read_event_ledger
 
 REPORT_VERSION = "2.0"
 WEIGHT_CAP_LO = 0.05

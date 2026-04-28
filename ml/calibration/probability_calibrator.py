@@ -17,7 +17,7 @@ class ProbabilityCalibrator(ABC):
     name: str = "base"
 
     @abstractmethod
-    def fit(self, raw_scores: Sequence[float], y_true: Sequence[float]) -> "ProbabilityCalibrator":
+    def fit(self, raw_scores: Sequence[float], y_true: Sequence[float]) -> ProbabilityCalibrator:
         ...
 
     @abstractmethod
@@ -43,7 +43,7 @@ class PlattCalibrator(ProbabilityCalibrator):
     b: float = 0.0
     name: str = "platt"
 
-    def fit(self, raw_scores: Sequence[float], y_true: Sequence[float]) -> "PlattCalibrator":
+    def fit(self, raw_scores: Sequence[float], y_true: Sequence[float]) -> PlattCalibrator:
         """Fit on (raw_scores, y_true) via GD + backtracking line search."""
         x = np.asarray(raw_scores, dtype=float)
         y = np.asarray(y_true, dtype=float)
@@ -114,7 +114,7 @@ class IsotonicCalibrator(ProbabilityCalibrator):
     y_breaks: np.ndarray | None = None
     name: str = "isotonic"
 
-    def fit(self, raw_scores: Sequence[float], y_true: Sequence[float]) -> "IsotonicCalibrator":
+    def fit(self, raw_scores: Sequence[float], y_true: Sequence[float]) -> IsotonicCalibrator:
         x = np.asarray(raw_scores, dtype=float)
         y = np.asarray(y_true, dtype=float)
         if x.size == 0:

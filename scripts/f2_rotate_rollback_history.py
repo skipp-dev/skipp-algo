@@ -42,7 +42,7 @@ DEFAULT_ARCHIVE_SUBDIR = "rollback_history.archive"
 def _utc_iso_compact() -> str:
     # 2026-04-21T10-00-00Z — colons swapped for dashes so it is a
     # safe filename on every filesystem.
-    return _dt.datetime.now(tz=_dt.timezone.utc).strftime("%Y-%m-%dT%H-%M-%SZ")
+    return _dt.datetime.now(tz=_dt.UTC).strftime("%Y-%m-%dT%H-%M-%SZ")
 
 
 def _atomic_write_json(path: Path, data: list[float]) -> None:

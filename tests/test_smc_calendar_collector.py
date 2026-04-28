@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import sys
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timezone, UTC
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
@@ -161,7 +161,7 @@ class TestWeekendSkip:
 class _FakeDateTime(datetime):
     """``datetime`` subclass that returns a pinned UTC instant from ``now()``."""
 
-    _PINNED_UTC = datetime(2026, 4, 28, 2, 30, tzinfo=timezone.utc)
+    _PINNED_UTC = datetime(2026, 4, 28, 2, 30, tzinfo=UTC)
 
     @classmethod
     def now(cls, tz=None):  # type: ignore[override]
@@ -209,7 +209,7 @@ class TestUSEasternAnchoring:
         class _PinnedDT(datetime):
             @classmethod
             def now(cls, tz=None):  # type: ignore[override]
-                pinned = datetime(2026, 4, 28, 14, 0, tzinfo=timezone.utc)
+                pinned = datetime(2026, 4, 28, 14, 0, tzinfo=UTC)
                 return pinned.astimezone(tz) if tz else pinned.replace(tzinfo=None)
 
         monkeypatch.setattr(mod, "datetime", _PinnedDT)  # type: ignore[attr-defined]
@@ -240,7 +240,7 @@ class TestUSEasternAnchoring:
         class _PinnedDT(datetime):
             @classmethod
             def now(cls, tz=None):  # type: ignore[override]
-                pinned = datetime(2026, 4, 28, 14, 0, tzinfo=timezone.utc)
+                pinned = datetime(2026, 4, 28, 14, 0, tzinfo=UTC)
                 return pinned.astimezone(tz) if tz else pinned.replace(tzinfo=None)
 
         monkeypatch.setattr(mod, "datetime", _PinnedDT)  # type: ignore[attr-defined]

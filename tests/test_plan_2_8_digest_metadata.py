@@ -48,7 +48,7 @@ def test_collect_captured_at_iso(tmp_path: Path) -> None:
     d.mkdir()
     rep = dm.collect(
         d, now=_dt.datetime(2026, 4, 21, 12, 0,
-                            tzinfo=_dt.timezone.utc),
+                            tzinfo=_dt.UTC),
     )
     assert rep["captured_at"] == "2026-04-21T12:00:00Z"
 

@@ -32,7 +32,7 @@ rs = _load()
 def test_build_uses_explicit_args(monkeypatch: pytest.MonkeyPatch) -> None:
     for k in ("GITHUB_RUN_ID", "GITHUB_SHA", "GITHUB_REF", "GITHUB_ACTOR"):
         monkeypatch.delenv(k, raising=False)
-    now = _dt.datetime(2026, 4, 21, 12, 0, tzinfo=_dt.timezone.utc)
+    now = _dt.datetime(2026, 4, 21, 12, 0, tzinfo=_dt.UTC)
     stamp = rs.build(
         run_id="123", run_url="https://x",
         sha="abc", ref="refs/heads/main", actor="me",

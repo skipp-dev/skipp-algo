@@ -55,7 +55,7 @@ def test_summarize_ranks_by_count() -> None:
     r = mod.summarize(
         recs,
         lookback_days=30,
-        now=_dt.datetime(2026, 4, 21, tzinfo=_dt.timezone.utc),
+        now=_dt.datetime(2026, 4, 21, tzinfo=_dt.UTC),
     )
     assert r["top"][0]["family"] == "FVG"
     assert r["top"][0]["count"] == 3
@@ -70,7 +70,7 @@ def test_summarize_respects_lookback() -> None:
     import datetime as _dt
     r = mod.summarize(
         recs, lookback_days=30,
-        now=_dt.datetime(2026, 4, 21, tzinfo=_dt.timezone.utc),
+        now=_dt.datetime(2026, 4, 21, tzinfo=_dt.UTC),
     )
     assert r["top"][0]["count"] == 1
     assert r["records_in_window"] == 1
@@ -85,7 +85,7 @@ def test_ignores_malformed_rows() -> None:
     import datetime as _dt
     r = mod.summarize(
         recs, lookback_days=30,
-        now=_dt.datetime(2026, 4, 21, tzinfo=_dt.timezone.utc),
+        now=_dt.datetime(2026, 4, 21, tzinfo=_dt.UTC),
     )
     assert r["records_in_window"] == 1
 
@@ -99,7 +99,7 @@ def test_max_abs_delta_tracked_across_records() -> None:
     import datetime as _dt
     r = mod.summarize(
         recs, lookback_days=30,
-        now=_dt.datetime(2026, 4, 21, tzinfo=_dt.timezone.utc),
+        now=_dt.datetime(2026, 4, 21, tzinfo=_dt.UTC),
     )
     top = r["top"][0]
     assert top["max_abs_delta_pp"] == 0.20
@@ -113,7 +113,7 @@ def test_render_markdown_empty_and_populated() -> None:
     r = mod.summarize(
         [_rec("2026-04-19T00:00:00Z", "5m", "FVG", 0.12)],
         lookback_days=30,
-        now=_dt.datetime(2026, 4, 21, tzinfo=_dt.timezone.utc),
+        now=_dt.datetime(2026, 4, 21, tzinfo=_dt.UTC),
     )
     md = mod.render_markdown(r)
     assert "Plan 2.8 alert-history summary" in md

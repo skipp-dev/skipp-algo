@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import httpx
+from datetime import UTC
 
 logger = logging.getLogger(__name__)
 
@@ -222,7 +223,7 @@ def query_llm(
 
     # Build messages
     from datetime import datetime, timezone
-    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    now_str = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
 
     user_message = (
         f"Current time: {now_str}\n\n"

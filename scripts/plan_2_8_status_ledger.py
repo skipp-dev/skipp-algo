@@ -52,7 +52,7 @@ def build_record(
     run_url: str | None = None,
     now: _dt.datetime | None = None,
 ) -> dict[str, Any]:
-    now_ = now or _dt.datetime.now(tz=_dt.timezone.utc)
+    now_ = now or _dt.datetime.now(tz=_dt.UTC)
     record: dict[str, Any] = {
         "captured_at": now_.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "status":      resolve_status(payload),

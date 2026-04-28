@@ -39,7 +39,7 @@ def lint(
     now: _dt.datetime | None = None,
 ) -> dict[str, Any]:
     findings: list[dict[str, Any]] = []
-    now_ = now or _dt.datetime.now(tz=_dt.timezone.utc)
+    now_ = now or _dt.datetime.now(tz=_dt.UTC)
 
     if not isinstance(data, dict):
         findings.append({

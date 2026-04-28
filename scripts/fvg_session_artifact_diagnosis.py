@@ -24,7 +24,7 @@ from __future__ import annotations
 import argparse
 import json
 from collections import Counter, defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 from typing import Iterable
 
@@ -45,7 +45,7 @@ def _iter_events(root: Path) -> Iterable[dict]:
 
 
 def _is_midnight_utc(ts_epoch: float) -> bool:
-    dt = datetime.fromtimestamp(float(ts_epoch), tz=timezone.utc)
+    dt = datetime.fromtimestamp(float(ts_epoch), tz=UTC)
     return (dt.hour, dt.minute, dt.second) == (0, 0, 0)
 
 

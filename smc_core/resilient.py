@@ -85,7 +85,7 @@ def resilient(
             while True:
                 try:
                     return func(*args, **kwargs)
-                except exceptions as exc:  # noqa: PERF203 — explicit retry loop
+                except exceptions as exc:
                     last_exc = exc
                     attempt += 1
                     if attempt > retries:

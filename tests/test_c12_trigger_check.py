@@ -24,7 +24,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
-import check_c12_trigger  # noqa: E402
+import check_c12_trigger
 
 
 def _qualified_family(**overrides: object) -> dict:

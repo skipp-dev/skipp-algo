@@ -39,38 +39,12 @@ _DIR_EXCLUDE = {
 
 _NOQA_RE = re.compile(r"#\s*noqa\b", re.IGNORECASE)
 
-# Frozen ledger — exactly today's surface (2026-04-25).
-_FROZEN_SITES: dict[str, int] = {
-    "newsstack_fmp/ingest_benzinga.py": 1,
-    "newsstack_fmp/ingest_benzinga_calendar.py": 1,
-    "newsstack_fmp/ingest_benzinga_financial.py": 1,
-    "newsstack_fmp/pipeline.py": 1,
-    "open_prep/run_open_prep.py": 1,
-    "open_prep/streamlit_monitor.py": 1,
-    "scripts/check_pine_legacy_drift.py": 1,
-    "scripts/smc_calendar_collector.py": 1,
-    "scripts/emit_fvg_context_pine.py": 3,
-    "scripts/f2_apply_contextual_calibration.py": 1,
-    "scripts/fvg_asia_real_sample.py": 3,
-    "scripts/fvg_quality_quartile_gate.py": 1,
-    "scripts/fvg_quality_recalibration.py": 1,
-    "scripts/fx_probe_universe.py": 1,
-    "scripts/g23_ab_watchdog.py": 1,
-    "scripts/generate_smc_micro_base_from_databento.py": 1,
-    "scripts/generate_smc_micro_profiles.py": 1,
-    "scripts/smc_analyst_enrichment.py": 1,
-    "scripts/smc_htf_context.py": 1,
-    "scripts/smc_insider_enrichment.py": 1,
-    "scripts/smc_institutional_enrichment.py": 1,
-    "scripts/smc_microstructure_base_runtime.py": 3,
-    "scripts/smc_session_context.py": 1,
-    "scripts/tv_recovery.py": 1,
-    "scripts/verify_branch_protection.py": 1,
-    "smc_core/resilient.py": 1,
-    "streamlit_terminal.py": 1,
-    "terminal_bitcoin.py": 1,
-    "terminal_finnhub.py": 2,
-}
+# Frozen ledger — exactly today's surface (2026-04-28).
+# As of the RUF100 cleanup wave, the codebase contains zero first-party
+# ``# noqa`` suppressions. The ledger remains as a tripwire: any new
+# suppression will trip ``test_no_new_noqa_files`` and require a
+# deliberate update in the same PR.
+_FROZEN_SITES: dict[str, int] = {}
 _FROZEN_TOTAL = sum(_FROZEN_SITES.values())
 
 

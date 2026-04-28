@@ -54,7 +54,7 @@ def detect_flips(
 ) -> list[dict[str, Any]]:
     if weeks < 0:
         raise ValueError("weeks must be non-negative")
-    now_ = now or _dt.datetime.now(tz=_dt.timezone.utc)
+    now_ = now or _dt.datetime.now(tz=_dt.UTC)
     cutoff = now_ - _dt.timedelta(weeks=weeks) if weeks > 0 else None
     in_window: list[dict[str, Any]] = []
     for rec in records:

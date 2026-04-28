@@ -71,7 +71,7 @@ def test_stale_entry_flagged() -> None:
     import datetime as _dt
     r = lint_mod.lint(
         {"snoozes": [{"tf": "5m", "expires": "2024-01-01T00:00:00Z"}]},
-        now=_dt.datetime(2026, 4, 21, tzinfo=_dt.timezone.utc),
+        now=_dt.datetime(2026, 4, 21, tzinfo=_dt.UTC),
     )
     assert any(f["kind"] == "stale" for f in r["findings"])
 

@@ -16,7 +16,7 @@ import re
 import threading
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from typing import Any, cast
 
 import httpx
@@ -424,7 +424,7 @@ def query_fmp_llm(
             fmp_tickers=n_fmp,
         )
 
-    now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    now_str = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
     user_message = (
         f"Current time: {now_str}\n\n"
         f"## Question\n{question}\n\n"

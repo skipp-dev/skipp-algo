@@ -213,7 +213,7 @@ HERO_RISK_VOCAB: frozenset[str] = frozenset({
 })
 
 
-def project_trust_state_to_hero(state: "TrustState") -> str:
+def project_trust_state_to_hero(state: TrustState) -> str:
     """Translate a canonical ``TrustState`` into the Hero-local vocab.
 
     Single source of truth for the ``WATCH_ONLY`` → ``"degraded"``

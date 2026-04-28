@@ -103,7 +103,7 @@ def execute_recovery(
     for attempt in range(1, max_attempts + 1):
         try:
             ok = bool(runner(step, attempt))
-        except Exception as exc:  # noqa: BLE001 — runner is user-supplied
+        except Exception as exc:
             attempts.append(RecoveryAttempt(
                 step=step, attempt=attempt, succeeded=False,
                 note=f"runner raised {type(exc).__name__}: {exc}",

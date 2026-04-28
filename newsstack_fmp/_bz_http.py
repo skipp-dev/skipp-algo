@@ -15,7 +15,7 @@ import random
 import re
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from email.utils import parsedate_to_datetime
 from typing import Any
 
@@ -212,9 +212,9 @@ def _parse_retry_after_seconds(raw_value: Any) -> float | None:
     if parsed is None:
         return None
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
+        parsed = parsed.replace(tzinfo=UTC)
     return max(
-        (parsed.astimezone(timezone.utc) - datetime.now(timezone.utc)).total_seconds(),
+        (parsed.astimezone(UTC) - datetime.now(UTC)).total_seconds(),
         0.0,
     )
 

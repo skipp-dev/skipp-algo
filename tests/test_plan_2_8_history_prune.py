@@ -27,7 +27,7 @@ def _load():
 hp = _load()
 
 
-NOW = _dt.datetime(2026, 4, 22, tzinfo=_dt.timezone.utc)
+NOW = _dt.datetime(2026, 4, 22, tzinfo=_dt.UTC)
 
 
 def _line(day: str, extra: str = "x") -> str:

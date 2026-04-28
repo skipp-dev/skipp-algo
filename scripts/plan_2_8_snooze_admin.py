@@ -30,7 +30,7 @@ DEFAULT_CONFIG = Path("configs/plan_2_8_snoozes.json")
 
 def _now(now: str | None) -> _dt.datetime:
     if now is None:
-        return _dt.datetime.now(tz=_dt.timezone.utc)
+        return _dt.datetime.now(tz=_dt.UTC)
     ts = now[:-1] + "+00:00" if now.endswith("Z") else now
     return _dt.datetime.fromisoformat(ts)
 
@@ -108,7 +108,7 @@ def list_entries(
     entries = list(data.get("snoozes") or [])
     if not only_active:
         return entries
-    n = now or _dt.datetime.now(tz=_dt.timezone.utc)
+    n = now or _dt.datetime.now(tz=_dt.UTC)
     return [e for e in entries if not _expired(e, n)]
 
 

@@ -1476,7 +1476,7 @@ _ = (time, _CircuitBreaker)
 # ---------------------------------------------------------------------------
 
 
-from open_prep.macro import (  # noqa: E402
+from open_prep.macro import (
     _canonical_event_name,
     _macro_weight,
     filter_us_high_impact_events,

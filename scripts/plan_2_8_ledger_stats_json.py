@@ -58,7 +58,7 @@ def _iter_records(ledger: Path) -> list[dict[str, Any]]:
 def bucket(
     records: list[dict[str, Any]], *, period: str = "week",
 ) -> dict[str, Any]:
-    buckets: "OrderedDict[str, dict[str, int]]" = OrderedDict()
+    buckets: OrderedDict[str, dict[str, int]] = OrderedDict()
     skipped = 0
     for rec in records:
         ts = _parse_ts(rec.get("captured_at"))

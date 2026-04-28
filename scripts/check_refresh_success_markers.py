@@ -25,7 +25,7 @@ import json
 import logging
 import sys
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 from typing import Any
 
@@ -102,7 +102,7 @@ def check_markers(markers_path: Path) -> MarkerCheckResult:
     - ``pipeline_completed_at`` is present (late-phase completion).
     """
     result = MarkerCheckResult(
-        checked_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        checked_at=datetime.now(UTC).isoformat(timespec="seconds"),
     )
 
     if not markers_path.exists():

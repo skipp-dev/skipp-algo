@@ -52,7 +52,7 @@ def compute(
     for rec in records:
         ts = _parse_ts(rec.get("captured_at"))
         if ts is not None:
-            timestamps.append(ts.astimezone(_dt.timezone.utc))
+            timestamps.append(ts.astimezone(_dt.UTC))
     timestamps.sort()
     gaps: list[dict[str, Any]] = []
     for a, b in zip(timestamps, timestamps[1:]):

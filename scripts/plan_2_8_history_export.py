@@ -63,7 +63,7 @@ def filter_records(
 ) -> list[dict[str, Any]]:
     if lookback_days is None:
         return list(records)
-    now_ = now or _dt.datetime.now(tz=_dt.timezone.utc)
+    now_ = now or _dt.datetime.now(tz=_dt.UTC)
     floor = now_ - _dt.timedelta(days=lookback_days)
     out: list[dict[str, Any]] = []
     for r in records:
@@ -71,7 +71,7 @@ def filter_records(
         if ts is None:
             continue
         if ts.tzinfo is None:
-            ts = ts.replace(tzinfo=_dt.timezone.utc)
+            ts = ts.replace(tzinfo=_dt.UTC)
         if ts >= floor:
             out.append(r)
     return out

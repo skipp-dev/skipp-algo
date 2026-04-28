@@ -88,7 +88,7 @@ def test_generated_timestamp_in_utc_iso(tmp_path: Path) -> None:
     _seed(tmp_path, {"coverage.md": "x"})
     md = rc_mod.render_runcard(
         tmp_path,
-        now=_dt.datetime(2026, 4, 21, 12, 0, 0, tzinfo=_dt.timezone.utc),
+        now=_dt.datetime(2026, 4, 21, 12, 0, 0, tzinfo=_dt.UTC),
     )
     assert "2026-04-21T12:00:00Z" in md
 

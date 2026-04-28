@@ -50,7 +50,7 @@ def compute(
 ) -> dict[str, Any]:
     if weeks < 1:
         raise ValueError("weeks must be >= 1")
-    now_ = now or _dt.datetime.now(tz=_dt.timezone.utc)
+    now_ = now or _dt.datetime.now(tz=_dt.UTC)
     cutoff = now_ - _dt.timedelta(weeks=weeks)
     clean: list[tuple[_dt.datetime, str]] = []
     for rec in records:

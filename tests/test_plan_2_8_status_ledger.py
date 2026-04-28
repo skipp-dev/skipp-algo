@@ -29,7 +29,7 @@ def _load():
 sl = _load()
 
 
-NOW = _dt.datetime(2026, 4, 22, 12, 0, 0, tzinfo=_dt.timezone.utc)
+NOW = _dt.datetime(2026, 4, 22, 12, 0, 0, tzinfo=_dt.UTC)
 
 
 def test_resolve_status_from_snapshot() -> None:

@@ -23,7 +23,7 @@ def collect(
     *,
     now: _dt.datetime | None = None,
 ) -> dict[str, Any]:
-    now_ = now or _dt.datetime.now(tz=_dt.timezone.utc)
+    now_ = now or _dt.datetime.now(tz=_dt.UTC)
     entries: list[dict[str, Any]] = []
     if scripts_dir.is_dir():
         for p in sorted(scripts_dir.glob("plan_2_8_*.py")):
@@ -32,7 +32,7 @@ def collect(
                 "name":  p.name,
                 "size":  st.st_size,
                 "mtime": _dt.datetime.fromtimestamp(
-                    st.st_mtime, tz=_dt.timezone.utc,
+                    st.st_mtime, tz=_dt.UTC,
                 ).strftime("%Y-%m-%dT%H:%M:%SZ"),
             })
     return {

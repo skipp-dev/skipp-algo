@@ -112,7 +112,7 @@ def test_custom_fields(tmp_path: Path) -> None:
 
 def test_filter_by_lookback_days() -> None:
     records = [_rec("2025-01-01"), _rec("2026-04-20")]
-    now = _dt.datetime(2026, 4, 22, tzinfo=_dt.timezone.utc)
+    now = _dt.datetime(2026, 4, 22, tzinfo=_dt.UTC)
     kept = he.filter_records(records, lookback_days=30, now=now)
     assert len(kept) == 1
     assert kept[0]["captured_at"].startswith("2026-04-20")

@@ -82,7 +82,7 @@ def _fetch_chunk(
     symbols: list[str],
     start: str,
     end: str,
-) -> "pd.DataFrame":
+) -> pd.DataFrame:
     """Fetch one chunk of OHLCV-1d bars. Lets exceptions bubble so the
     caller can isolate per-chunk failures instead of nuking the whole batch.
     """

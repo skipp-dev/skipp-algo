@@ -13,13 +13,13 @@ from scripts.smc_atomic_write import atomic_write_text
 import argparse
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 from typing import Any
 
 
 def _iso(t: float) -> str:
-    return datetime.fromtimestamp(t, tz=timezone.utc).isoformat()
+    return datetime.fromtimestamp(t, tz=UTC).isoformat()
 
 
 def build(root: Path) -> dict[str, Any]:

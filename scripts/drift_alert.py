@@ -211,7 +211,7 @@ def _detector_severities(
     p_value_yellow: float,
     p_value_red: float,
     psi_n_buckets: int,
-) -> dict[str, "DriftSeverity | None"]:
+) -> dict[str, DriftSeverity | None]:
     """Per-metric severity for the four C9 detectors.
 
     Returns ``{ks, psi, mean_shift, var_ratio}`` with ``None`` for
@@ -270,7 +270,7 @@ def _detector_severities(
 
 
 def _aggregate_metric_severity(
-    detectors: dict[str, "DriftSeverity | None"],
+    detectors: dict[str, DriftSeverity | None],
     *,
     consensus_min: int,
 ) -> tuple[DriftSeverity, int]:
