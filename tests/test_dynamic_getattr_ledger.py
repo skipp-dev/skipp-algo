@@ -94,7 +94,7 @@ def _dynamic_getattr_sites() -> set[tuple[str, int]]:
 DYNAMIC_GETATTR_LEDGER: set[tuple[str, int]] = {
     ("smc_core/event_ledger.py", 72),
     ("smc_core/scoring.py", 291),
-    ("streamlit_terminal_alerts.py", 34),
+    ("streamlit_terminal_alerts.py", 40),
     ("terminal_attention_state.py", 46),
     ("terminal_catalyst_state.py", 32),
     ("terminal_live_story_state.py", 43),
