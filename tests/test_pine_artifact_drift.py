@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts.generate_smc_micro_profiles import LISTS, write_pine_library
 
 
 COMMITTED_PINE = Path("pine/generated/smc_micro_profiles_generated.pine")

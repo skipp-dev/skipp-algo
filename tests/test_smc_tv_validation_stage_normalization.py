@@ -15,7 +15,6 @@ from __future__ import annotations
 
 from unittest import mock
 
-import pytest
 
 from scripts.run_smc_release_gates import (
     _run_post_release_validation_gate,

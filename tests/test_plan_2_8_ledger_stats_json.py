@@ -6,7 +6,6 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
-from typing import Any
 
 import pytest
 

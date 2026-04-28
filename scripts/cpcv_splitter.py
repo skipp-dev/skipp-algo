@@ -25,7 +25,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from itertools import combinations
 from math import comb
-from typing import Iterator, Sequence
+from typing import Iterator
 
 import numpy as np
 

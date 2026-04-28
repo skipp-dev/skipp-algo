@@ -23,7 +23,6 @@ from scripts.smc_atomic_write import atomic_write_text
 
 import argparse
 import re
-import sys
 from pathlib import Path
 
 # ──────────────────────────────────────────────────────────────────────

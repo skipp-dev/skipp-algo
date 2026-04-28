@@ -22,7 +22,7 @@ import logging
 import os
 import sys
 import tempfile
-from datetime import date, datetime, timedelta, time as dt_time
+from datetime import date, datetime, time as dt_time
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo as _ZoneInfo
@@ -325,7 +325,6 @@ def backfill_feature_importance(
     Returns the number of labeled samples written.
     """
     from .outcomes import (
-        FEATURE_IMPORTANCE_DIR,
         FEATURE_KEYS,
         FeatureImportanceCollector,
         _load_outcomes_range,

@@ -280,6 +280,7 @@ def main(argv: list[str] | None = None) -> int:
     rendered = _format_json(result) if args.json else _format_markdown(result)
     if args.out is not None:
         args.out.parent.mkdir(parents=True, exist_ok=True)
+        # ATOMIC-WRITE-EXEMPT: CLI-utility output to user-specified path; not a runtime consumer.
         args.out.write_text(rendered + ("\n" if not rendered.endswith("\n") else ""), encoding="utf-8")
         sys.stderr.write(f"Wrote {args.out} ({len(result.hits)} hits across {result.files_scanned} files)\n")
     else:

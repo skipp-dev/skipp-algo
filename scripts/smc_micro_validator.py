@@ -13,7 +13,6 @@ import pandas as pd
 
 from scripts.generate_smc_micro_profiles import (
     assess_csv_against_schema,
-    load_schema,
     validate_schema,
 )
 

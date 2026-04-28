@@ -10,7 +10,7 @@ Today: 7 sites, all in legitimate CLI dispatch / `__main__` guards:
 |---|---|---|
 | `open_prep/candidate_weights.py` | 241 | `if __name__ == "__main__": sys.exit(main())` |
 | `open_prep/feature_importance_report.py` | 351 | same |
-| `open_prep/outcome_backfill.py` | 529 | same |
+| `open_prep/outcome_backfill.py` | 528 | same |
 | `pine_input_surface.py` | 400, 402 | argparse `args.cmd` dispatch |
 | `test_usi_lint.py` | 90, 93 | top-level CLI script |
 
@@ -41,7 +41,7 @@ _DIR_EXCLUDE = frozenset({
 _SYS_EXIT_LEDGER: frozenset[tuple[str, int]] = frozenset({
     ("open_prep/candidate_weights.py", 241),
     ("open_prep/feature_importance_report.py", 351),
-    ("open_prep/outcome_backfill.py", 529),
+    ("open_prep/outcome_backfill.py", 528),
     ("pine_input_surface.py", 400),
     ("pine_input_surface.py", 402),
     ("test_usi_lint.py", 90),

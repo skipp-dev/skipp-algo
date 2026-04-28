@@ -5,11 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
 
 from smc_core.benchmark import (
-    BenchmarkResult,
-    EventFamilyKPI,
     build_benchmark,
     compute_event_family_kpi,
     export_benchmark_artifacts,

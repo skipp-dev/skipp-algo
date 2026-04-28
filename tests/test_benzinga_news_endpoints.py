@@ -15,7 +15,6 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import httpx
-import pytest
 
 # Ensure project root is on the path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]

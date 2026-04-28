@@ -7,7 +7,6 @@ import pytest
 
 from smc_integration.action_degradation import (
     ActionDegradation,
-    ActionDegradationResult,
     all_action_tiers,
     derive_action_degradation,
     tier_for_trust_state,

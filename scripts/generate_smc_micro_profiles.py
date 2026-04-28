@@ -4,13 +4,12 @@ import argparse
 import json
 import logging
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, cast
 
 import pandas as pd
 
-from smc_core.schema_version import SCHEMA_VERSION, VersionChangeType, classify_version_change
+from smc_core.schema_version import SCHEMA_VERSION, classify_version_change
 from scripts.smc_atomic_write import atomic_write_csv, atomic_write_text
 from scripts.smc_enrichment_types import EnrichmentDict
 

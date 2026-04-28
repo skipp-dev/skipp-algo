@@ -14,13 +14,10 @@ Covers:
 from __future__ import annotations
 
 import json
-import os
-import tempfile
 import threading
 import time
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 
 # === Fix #6+7: JSONL dedup newest-wins + robust key ========================

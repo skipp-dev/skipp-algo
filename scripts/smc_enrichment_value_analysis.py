@@ -6,10 +6,9 @@ to quantify the incremental value of each enrichment dimension.
 
 from __future__ import annotations
 
-import math
 import statistics
 from dataclasses import dataclass, field
-from typing import Any, Literal, Sequence
+from typing import Literal, Sequence
 
 
 StratKey = Literal["regime", "trust_tier", "news_bias"]

@@ -36,6 +36,8 @@ import math
 import re
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
+
+from newsstack_fmp._market_cal import next_trading_day
 from zoneinfo import ZoneInfo
 
 _ET = ZoneInfo("America/New_York")
@@ -309,7 +311,6 @@ def fetch_news_fmp(fmp: Any, symbols: list[str]) -> ProviderResult:
 def fetch_news_benzinga(api_key: str, symbols: list[str]) -> ProviderResult:
     """Fetch news via Benzinga REST (fallback for news domain)."""
     from newsstack_fmp.ingest_benzinga import BenzingaRestAdapter
-    from newsstack_fmp.scoring import classify_and_score
 
     adapter = BenzingaRestAdapter(api_key)
     try:
@@ -409,7 +410,9 @@ def fetch_calendar_fmp(fmp: Any, symbols: list[str]) -> ProviderResult:
     earnings: list[dict[str, Any]] = []
     macro_events: list[dict[str, Any]] = []
     today = datetime.now(_ET).date()
-    tomorrow = today + timedelta(days=1)
+    # Advance "tomorrow" past weekends and US-equity holidays so a Friday
+    # run still queries Monday's earnings instead of an empty Saturday window.
+    tomorrow = next_trading_day(today)
 
     try:
         raw = fmp.get_earnings_calendar(today, tomorrow)
@@ -436,7 +439,9 @@ def fetch_calendar_fmp(fmp: Any, symbols: list[str]) -> ProviderResult:
         logger.warning("FMP macro-calendar fetch failed", exc_info=True)
         stale.append("fmp_macro")
 
-    result = collect_earnings_and_macro(symbols, earnings, macro_events, reference_date=today)
+    result = collect_earnings_and_macro(
+        symbols, earnings, macro_events, reference_date=today, next_trading_date=tomorrow
+    )
     return ProviderResult(data=result, provider="fmp", stale=stale)
 
 
@@ -448,7 +453,7 @@ def fetch_calendar_benzinga(api_key: str, symbols: list[str]) -> ProviderResult:
     adapter = BenzingaCalendarAdapter(api_key)
     try:
         today = datetime.now(_ET).date()
-        tomorrow = today + timedelta(days=1)
+        tomorrow = next_trading_day(today)
         today_str = today.isoformat()
         tomorrow_str = tomorrow.isoformat()
 
@@ -481,7 +486,9 @@ def fetch_calendar_benzinga(api_key: str, symbols: list[str]) -> ProviderResult:
     finally:
         adapter.close()
 
-    result = collect_earnings_and_macro(symbols, earnings, macro_events, reference_date=today)
+    result = collect_earnings_and_macro(
+        symbols, earnings, macro_events, reference_date=today, next_trading_date=tomorrow
+    )
     return ProviderResult(data=result, provider="benzinga")
 
 

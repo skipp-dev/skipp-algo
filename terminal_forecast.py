@@ -13,7 +13,6 @@ import os
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Any
 
 from open_prep_boundary import FMPClientLike, make_fmp_client
 

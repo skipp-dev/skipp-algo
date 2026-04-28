@@ -139,6 +139,7 @@ def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
     fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".families_", suffix=".json")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            # ATOMIC-WRITE-EXEMPT: hand-rolled mkstemp+fsync+os.replace pattern above.
             json.dump(payload, fh, indent=2, sort_keys=True)
             fh.flush()
             os.fsync(fh.fileno())

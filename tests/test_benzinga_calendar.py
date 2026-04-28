@@ -832,8 +832,8 @@ class TestBenzingaQuotes:
         assert result[0]["symbol"] == "A"
 
     @patch("newsstack_fmp.ingest_benzinga_calendar._request_with_retry")
-    def test_quotes_max_50_symbols(self, mock_req):
-        """Verify API call is limited to 50 symbols."""
+    def test_quotes_chunks_beyond_50_symbols(self, mock_req):
+        """100 symbols → 2 chunks of 50 (no silent truncation)."""
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"quotes": []}
         mock_req.return_value = mock_resp
@@ -841,10 +841,33 @@ class TestBenzingaQuotes:
         symbols = [f"SYM{i}" for i in range(100)]
         fetch_benzinga_quotes("test_key", symbols)
 
-        call_args = mock_req.call_args
-        params = call_args[0][2]  # positional arg 3
-        sym_csv = params["symbols"]
-        assert len(sym_csv.split(",")) == 50
+        assert mock_req.call_count == 2
+        first_params = mock_req.call_args_list[0][0][2]
+        second_params = mock_req.call_args_list[1][0][2]
+        assert len(first_params["symbols"].split(",")) == 50
+        assert len(second_params["symbols"].split(",")) == 50
+        # No overlap between chunks (all symbols covered exactly once).
+        all_sent = set(first_params["symbols"].split(",")) | set(
+            second_params["symbols"].split(",")
+        )
+        assert all_sent == {f"SYM{i}" for i in range(100)}
+
+    @patch("newsstack_fmp.ingest_benzinga_calendar._request_with_retry")
+    def test_quotes_partial_chunk_failure_isolation(self, mock_req):
+        """One failing chunk does not nuke the other chunk's data."""
+        good_resp = MagicMock()
+        good_resp.json.return_value = {
+            "quotes": [{"security": {"symbol": "AAPL"}, "quote": {"last": 1.0}}],
+        }
+        mock_req.side_effect = [good_resp, Exception("Timeout")]
+
+        symbols = [f"SYM{i}" for i in range(75)]  # 50 + 25
+        result = fetch_benzinga_quotes("test_key", symbols)
+
+        assert mock_req.call_count == 2
+        # Chunk 1 succeeded → its quote survives the chunk-2 failure.
+        assert len(result) == 1
+        assert result[0]["symbol"] == "AAPL"
 
     @patch("newsstack_fmp.ingest_benzinga_calendar._request_with_retry")
     def test_quotes_uppercase_symbols(self, mock_req):

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -658,7 +657,7 @@ class TestCLI:
         pine.write_text(_pine_content(MARKET_REGIME="RISK_OFF"), encoding="utf-8")
         state_file = tmp_path / "state.json"
 
-        from scripts.smc_alert_notifier import main, build_parser
+        from scripts.smc_alert_notifier import main
 
         with patch.object(
             __import__("scripts.smc_alert_notifier", fromlist=["build_parser"]),

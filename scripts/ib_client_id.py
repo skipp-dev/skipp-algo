@@ -81,6 +81,7 @@ def _save(path: Path, registry: dict[str, dict]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
     with tmp.open("w", encoding="utf-8") as fh:
+        # ATOMIC-WRITE-EXEMPT: tmp+os.replace pattern (lease registry, small dict).
         json.dump(registry, fh, indent=2, sort_keys=True)
     os.replace(tmp, path)
 

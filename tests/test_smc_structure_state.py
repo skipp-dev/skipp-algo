@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import pandas as pd
-import pytest
 
 from scripts.smc_structure_state import DEFAULTS, build_structure_state
 

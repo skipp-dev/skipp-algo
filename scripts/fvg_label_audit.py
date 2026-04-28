@@ -22,7 +22,6 @@ from __future__ import annotations
 from scripts.smc_atomic_write import atomic_write_text
 
 import json
-import math
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any

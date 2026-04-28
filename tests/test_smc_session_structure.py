@@ -14,7 +14,6 @@
 from __future__ import annotations
 
 import pandas as pd
-import pytest
 
 from scripts.smc_session_structure import DEFAULTS, build_session_structure
 

@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 
 from scripts.smc_trust_state_export import (
     PINE_TRUST_FIELDS,

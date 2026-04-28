@@ -14,7 +14,6 @@ cycles between feed modules and their state stores.
 from __future__ import annotations
 
 import ast
-import re
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent

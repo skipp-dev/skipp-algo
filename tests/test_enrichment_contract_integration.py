@@ -15,7 +15,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from scripts.generate_smc_micro_profiles import load_schema, LISTS
+from scripts.generate_smc_micro_profiles import LISTS
 from scripts.smc_enrichment_types import EnrichmentDict
 from scripts.smc_microstructure_base_runtime import generate_pine_library_from_base
 from scripts.smc_schema_resolver import resolve_microstructure_schema_path

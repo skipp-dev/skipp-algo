@@ -96,7 +96,7 @@ WARNINGS_SIMPLEFILTER_LEDGER: set[tuple[str, int, str]] = {
     ("databento_volatility_screener.py", 2090, "always"),
     ("databento_volatility_screener.py", 2536, "always"),
     ("databento_volatility_screener.py", 2653, "always"),
-    ("databento_universe.py", 163, "always"),
+    ("databento_universe.py", 162, "always"),
 }
 
 
