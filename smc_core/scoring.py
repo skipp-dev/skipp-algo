@@ -189,7 +189,7 @@ def _bucket_index(probability: float, *, bin_count: int) -> int:
     clipped = min(max(float(probability), 0.0), 1.0)
     if clipped >= 1.0:
         return bin_count - 1
-    return min(bin_count - 1, int(math.floor(clipped * bin_count)))
+    return min(bin_count - 1, math.floor(clipped * bin_count))
 
 
 def brier_score(predictions: list[tuple[float, bool]]) -> float:

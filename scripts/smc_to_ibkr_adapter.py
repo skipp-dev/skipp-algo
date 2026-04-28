@@ -146,7 +146,7 @@ def _build_one_intent(
             f"stop_loss less than 1bp from entry for {symbol!r}; reject as zero-risk"
         )
 
-    scaled_quantity = max(1, int(round(raw_quantity * size_scale)))
+    scaled_quantity = max(1, round(raw_quantity * size_scale))
 
     return IBKROrderIntent(
         trade_date=trade_date,

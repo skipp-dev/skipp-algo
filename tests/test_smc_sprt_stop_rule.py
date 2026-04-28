@@ -124,7 +124,7 @@ def test_evaluate_accepts_h1_on_strong_signal() -> None:
 def test_evaluate_accepts_h0_on_low_hit_rate() -> None:
     cfg = SPRTConfig(p0=0.5, p1=0.7, alpha=0.05, beta=0.20)
     outcomes = [False] * 30
-    state, decision = evaluate(outcomes, cfg)
+    _state, decision = evaluate(outcomes, cfg)
     assert decision == "accept_h0"
 
 
@@ -165,13 +165,13 @@ def test_terminal_decision_zero_n_is_inconclusive_not_max_n_reached() -> None:
 
 def test_terminal_decision_still_accepts_h1_on_strong_evidence() -> None:
     cfg = SPRTConfig(p0=0.5, p1=0.7, alpha=0.05, beta=0.20)
-    state, decision = terminal_decision(n=100, k=85, config=cfg)
+    _state, decision = terminal_decision(n=100, k=85, config=cfg)
     assert decision == "accept_h1"
 
 
 def test_terminal_decision_still_accepts_h0_on_low_hit_rate() -> None:
     cfg = SPRTConfig(p0=0.5, p1=0.7, alpha=0.05, beta=0.20)
-    state, decision = terminal_decision(n=100, k=20, config=cfg)
+    _state, decision = terminal_decision(n=100, k=20, config=cfg)
     assert decision == "accept_h0"
 
 
@@ -180,7 +180,7 @@ def test_evaluate_streaming_max_n_distinct_from_terminal_inconclusive() -> None:
     different operational semantics (see module docstring)."""
     cfg = SPRTConfig(p0=0.5, p1=0.7, alpha=0.05, beta=0.20, max_n=10)
     streaming_state, streaming_decision = evaluate([True, False] * 5, cfg)
-    terminal_state, terminal_dec = terminal_decision(
+    _terminal_state, terminal_dec = terminal_decision(
         n=streaming_state.n, k=streaming_state.k, config=cfg
     )
     assert streaming_decision == "max_n_reached"

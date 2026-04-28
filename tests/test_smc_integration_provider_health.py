@@ -2004,14 +2004,14 @@ class TestSortedRecords:
 class TestPromoteReleaseStrictFailures:
     def test_promotes_matching_warning(self) -> None:
         warnings = [{"code": "MISSING_ARTIFACT", "symbol": "X"}]
-        w, f, d = _promote_release_strict_failures(warnings=warnings, failures=[], degradations=[])
+        w, f, _d = _promote_release_strict_failures(warnings=warnings, failures=[], degradations=[])
         assert len(w) == 0
         assert len(f) == 1
         assert f[0]["promoted_by"] == "release_strict_policy"
 
     def test_promotes_matching_degradation(self) -> None:
         degradations = [{"code": "STALE_MANIFEST_GENERATED_AT"}]
-        w, f, d = _promote_release_strict_failures(warnings=[], failures=[], degradations=degradations)
+        _w, f, d = _promote_release_strict_failures(warnings=[], failures=[], degradations=degradations)
         assert len(d) == 0
         assert len(f) == 1
 

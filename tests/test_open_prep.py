@@ -884,7 +884,7 @@ class TestOpenPrep(unittest.TestCase):
         self.assertLess(score, 0.0)
 
     def test_sentiment_neutral_generic(self):
-        label, score = classify_article_sentiment("Tempus AI Earnings Report: Financial Analysis")
+        label, _score = classify_article_sentiment("Tempus AI Earnings Report: Financial Analysis")
         self.assertEqual(label, "neutral")
 
     def test_sentiment_negation_flips_bullish_to_bearish(self):
@@ -929,7 +929,7 @@ class TestOpenPrep(unittest.TestCase):
     def test_sentiment_mixed_leans_correct_direction(self):
         """When both bull and bear signals are present, net direction should
         reflect the dominant sentiment."""
-        label, score = classify_article_sentiment(
+        label, _score = classify_article_sentiment(
             "Mixed results: revenue growth but wider loss"
         )
         # "wider loss" phrase = 2 bear pts, "growth" = 2 bull pts, "loss" keyword = 2 bear pts → net bearish

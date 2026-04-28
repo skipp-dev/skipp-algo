@@ -1973,7 +1973,7 @@ def write_base_workbook(path: Path, base_snapshot: pd.DataFrame, mapping_payload
     max_data_rows_per_sheet = max(1, excel_max_rows - 1)
     path.parent.mkdir(parents=True, exist_ok=True)
     mapping_frame = pd.DataFrame(mapping_payload["mapping_status"])
-    base_sheet_count = max(1, int(math.ceil(len(base_snapshot) / max_data_rows_per_sheet)))
+    base_sheet_count = max(1, math.ceil(len(base_snapshot) / max_data_rows_per_sheet))
     summary_frame = pd.DataFrame(
         [
             {

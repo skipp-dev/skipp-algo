@@ -17,7 +17,7 @@ def _write_watchlist_csv(path: Path, rows: list[dict[str, object]]) -> None:
         {
             str(key)
             for row in rows
-            for key in row.keys()
+            for key in row
             if str(key) not in header
         }
     )

@@ -491,7 +491,7 @@ def _median_metric(values: list[float]) -> float | None:
 def _median_int_metric(values: list[int]) -> int | None:
     if not values:
         return None
-    return int(round(float(median(values))))
+    return round(float(median(values)))
 
 
 def _optional_stripped_string(value: Any) -> str | None:

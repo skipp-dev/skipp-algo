@@ -30,7 +30,7 @@ def compute(path: Path) -> dict[str, Any]:
         if not isinstance(obj, dict):
             continue
         records += 1
-        keys.update(str(k) for k in obj.keys())
+        keys.update(str(k) for k in obj)
     return {
         "schema_version":       1,
         "record_count":         records,

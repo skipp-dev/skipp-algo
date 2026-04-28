@@ -61,7 +61,7 @@ class TestPromoteA0A1Signals(unittest.TestCase):
         ])
         rt = _make_rt_signals([("NVDA", "A1", "LONG", "momentum_breakout")])
 
-        ranked_out, filt_out, promoted, a0a1 = promote_a0a1_signals(
+        ranked_out, filt_out, promoted, _a0a1 = promote_a0a1_signals(
             ranked, filtered, rt,
         )
 

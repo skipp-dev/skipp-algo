@@ -57,7 +57,7 @@ def test_compatible_patch_difference_ignored() -> None:
 
 
 def test_schema_version_is_valid_semver() -> None:
-    major, minor, patch = parse_semver(SCHEMA_VERSION)
+    major, _minor, _patch = parse_semver(SCHEMA_VERSION)
     assert major >= 1
 
 

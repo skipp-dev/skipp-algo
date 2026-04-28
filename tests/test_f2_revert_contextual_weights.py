@@ -105,7 +105,7 @@ def test_revert_noop_when_artifact_missing(tmp_path: Path) -> None:
 
 
 def test_revert_noop_when_status_field_missing(tmp_path: Path) -> None:
-    spec, report, artifact, journal = _setup(tmp_path, artifact_status=None)
+    spec, report, _artifact, journal = _setup(tmp_path, artifact_status=None)
     rec = revert_contextual_weights(
         spec_path=spec, report_path=report, journal_path=journal,
     )
@@ -123,7 +123,7 @@ def test_revert_refuses_when_decision_not_rollback(tmp_path: Path) -> None:
 
 
 def test_revert_force_flag_overrides_decision(tmp_path: Path) -> None:
-    spec, report, artifact, journal = _setup(tmp_path)
+    spec, report, _artifact, journal = _setup(tmp_path)
     report.write_text(json.dumps(_report("hold")), encoding="utf-8")
     rec = revert_contextual_weights(
         spec_path=spec, report_path=report, journal_path=journal,

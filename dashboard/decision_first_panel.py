@@ -54,7 +54,7 @@ def sparkline(values: Sequence[float]) -> str:
     span = hi - lo
     n = len(_SPARK_CHARS) - 1
     return "".join(
-        _SPARK_CHARS[int(round((v - lo) / span * n))] for v in values
+        _SPARK_CHARS[round((v - lo) / span * n)] for v in values
     )
 
 

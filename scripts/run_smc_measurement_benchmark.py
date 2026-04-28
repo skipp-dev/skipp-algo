@@ -156,7 +156,7 @@ def _reliability_rows(scoring_result: Any, *, bin_count: int = 10) -> list[dict[
     buckets: dict[int, list[ScoredEvent]] = {}
     for event in events:
         clipped = min(max(float(event.predicted_prob), 0.0), 1.0)
-        bucket_idx = min(bin_count - 1, int(math.floor(clipped * bin_count)))
+        bucket_idx = min(bin_count - 1, math.floor(clipped * bin_count))
         buckets.setdefault(bucket_idx, []).append(event)
 
     rows: list[dict[str, Any]] = []

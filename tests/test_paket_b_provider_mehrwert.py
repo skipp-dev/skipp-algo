@@ -229,7 +229,7 @@ class TestB1DomainFallbackChain:
         monkeypatch.setattr(tradingview_watchlist_json, "TRADINGVIEW_WATCHLIST_JSON", tmp_path / "also_missing.json")
         monkeypatch.setattr(largecap_watchlist_json, "LARGECAP_WATCHLIST_JSON", tmp_path / "largecap_missing.json")
 
-        meta, status, actual = _try_load_meta_domain(
+        meta, status, _actual = _try_load_meta_domain(
             "technical", "AAPL", "15m", "fmp_watchlist_json", auto_mode=True,
         )
         assert meta is None

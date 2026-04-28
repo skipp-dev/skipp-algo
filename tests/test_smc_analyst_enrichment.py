@@ -15,7 +15,7 @@ class TestComputeAnalystEnrichment:
     def _mock_fmp(self, estimates_by_sym: dict[str, list], profiles_by_sym: dict[str, dict]) -> MagicMock:
         fmp = MagicMock()
         fmp.get_analyst_estimates.side_effect = lambda s, **kw: estimates_by_sym.get(s, [])
-        fmp.get_company_profile.side_effect = lambda s: profiles_by_sym.get(s, None)
+        fmp.get_company_profile.side_effect = lambda s: profiles_by_sym.get(s)
         return fmp
 
     def test_strong_buy_detected(self) -> None:

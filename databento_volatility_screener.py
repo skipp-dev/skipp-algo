@@ -2229,7 +2229,7 @@ def _build_open_window_aggregates(
     tz = resolve_display_timezone(display_timezone)
     regular_open_by_day = {
         trade_day: pd.Timestamp(datetime.combine(trade_day, reference_open_et, tzinfo=US_EASTERN_TZ).astimezone(tz))
-        for trade_day in windows.keys()
+        for trade_day in windows
     }
 
     metrics: list[dict[str, Any]] = []
@@ -4696,7 +4696,7 @@ def run_streamlit_app() -> None:
                             _step_total = max(1, int(_step_match.group(2)))
                             _fast_progress_step = _step
                             _fast_progress_total = _step_total
-                            _fast_progress_pct = max(_fast_progress_pct, min(100, int(round((_step / _step_total) * 100))))
+                            _fast_progress_pct = max(_fast_progress_pct, min(100, round((_step / _step_total) * 100)))
                         if "done" in _msg.lower():
                             _fast_progress_pct = 100
                         _elapsed = max(0.0, time_module.perf_counter() - refresh_started)
@@ -4708,7 +4708,7 @@ def run_streamlit_app() -> None:
                                 _fast_eta_smooth_seconds = _raw_eta_seconds
                             else:
                                 _fast_eta_smooth_seconds = (_fast_eta_smooth_seconds * 0.75) + (_raw_eta_seconds * 0.25)
-                            _eta_seconds = int(round(max(0.0, _fast_eta_smooth_seconds)))
+                            _eta_seconds = round(max(0.0, _fast_eta_smooth_seconds))
                             _eta_text = f" | ETA ~{_eta_seconds}s"
                         _progress_text = f"Step {_fast_progress_step}/{_fast_progress_total} ({_fast_progress_pct}%)" + _eta_text
                         _fast_progress_bar.progress(_fast_progress_pct, text=f"{_progress_text} - {_msg}")

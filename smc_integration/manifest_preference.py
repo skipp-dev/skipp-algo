@@ -86,7 +86,7 @@ def resolve_preferred(
         enumerate(items),
         key=lambda x: (-x[1].priority, x[0]),
     )
-    chosen_idx, chosen = indexed[0]
+    _chosen_idx, chosen = indexed[0]
     rejected = tuple(c for i, c in indexed[1:])
 
     if chosen.source is ArtifactSource.SCRATCH and len(items) == 1:

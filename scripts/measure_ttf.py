@@ -58,7 +58,7 @@ def _percentile(sorted_values: list[int], pct: float) -> int | None:
     lo = int(rank)
     hi = min(lo + 1, len(sorted_values) - 1)
     frac = rank - lo
-    return int(round(sorted_values[lo] * (1 - frac) + sorted_values[hi] * frac))
+    return round(sorted_values[lo] * (1 - frac) + sorted_values[hi] * frac)
 
 
 def time_to_fill(event: dict[str, Any]) -> int | None:
