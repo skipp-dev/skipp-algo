@@ -10,16 +10,20 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from collections.abc import Iterable
 from pathlib import Path
+from threading import RLock
 from typing import Any
 
 __all__ = [
     "DRIFT_FILENAME_PATTERN",
     "DRIFT_HISTORY_DEFAULT_N",
+    "DRIFT_RECENT_CACHE_TTL_SECONDS",
     "DRIFT_SCHEMA_MAX_COMPATIBLE_MAJOR",
     "DRIFT_SCHEMA_MIN_COMPATIBLE",
     "DriftSchemaError",
+    "invalidate_recent_drift_cache",
     "list_drift_dates",
     "load_drift_artifact",
     "load_recent_drift_artifacts",
@@ -170,6 +174,92 @@ def load_drift_artifact(
     return data
 
 
+# ---------------------------------------------------------------------------
+# Recent-window TTL cache
+# ---------------------------------------------------------------------------
+# Process-local TTL cache for :func:`load_recent_drift_artifacts`. The
+# function is called on every dashboard render (Streamlit reruns the
+# script per interaction); reading + parsing N JSON artifacts on every
+# rerun is wasteful, so we memoize the result for a short window.
+#
+# The cache key includes a fingerprint of the ``cache/live/`` directory
+# (mtime + entry count) so a freshly-written artifact bypasses stale
+# entries automatically — callers don't need to remember to invalidate.
+# Tests can call :func:`invalidate_recent_drift_cache` to reset state.
+
+# 60 seconds is short enough that a manual reload picks up new files
+# even when the directory mtime is unchanged (e.g. atomic rename in
+# place), and long enough to absorb tab-switching bursts.
+DRIFT_RECENT_CACHE_TTL_SECONDS = 60.0
+
+_RECENT_CACHE_LOCK = RLock()
+_RECENT_CACHE: dict[
+    tuple[str, int, int, float],
+    tuple[float, list[dict[str, Any]]],
+] = {}
+
+
+def _live_dir_fingerprint(cache_dir: Path | str) -> tuple[int, float]:
+    """Cheap fingerprint of ``cache/live/`` for cache-key construction.
+
+    Returns ``(entry_count, mtime_ns)``. Both fields change when the
+    producer writes a new ``drift_<date>.json``, so the cache key
+    rotates without us having to scan the file list.
+    """
+    live = _live_dir(cache_dir)
+    try:
+        st = live.stat()
+    except (OSError, FileNotFoundError):
+        return (0, 0.0)
+    try:
+        count = sum(1 for _ in live.iterdir())
+    except OSError:
+        count = 0
+    return (count, float(st.st_mtime_ns))
+
+
+def _recent_cache_key(
+    cache_dir: Path | str,
+    n: int,
+) -> tuple[str, int, int, float]:
+    count, mtime_ns = _live_dir_fingerprint(cache_dir)
+    return (str(Path(cache_dir).resolve()), int(n), count, mtime_ns)
+
+
+def _recent_cache_get(
+    key: tuple[str, int, int, float],
+) -> list[dict[str, Any]] | None:
+    now = time.monotonic()
+    with _RECENT_CACHE_LOCK:
+        entry = _RECENT_CACHE.get(key)
+        if entry is None:
+            return None
+        ts, value = entry
+        if (now - ts) >= DRIFT_RECENT_CACHE_TTL_SECONDS:
+            _RECENT_CACHE.pop(key, None)
+            return None
+        return value
+
+
+def _recent_cache_put(
+    key: tuple[str, int, int, float],
+    value: list[dict[str, Any]],
+) -> None:
+    with _RECENT_CACHE_LOCK:
+        _RECENT_CACHE[key] = (time.monotonic(), value)
+
+
+def invalidate_recent_drift_cache() -> None:
+    """Clear the :func:`load_recent_drift_artifacts` TTL cache.
+
+    Mostly useful in tests and from REPL sessions where the directory
+    fingerprint cannot be relied on (e.g. fake clocks, in-memory file
+    systems). Production code should not need this.
+    """
+    with _RECENT_CACHE_LOCK:
+        _RECENT_CACHE.clear()
+
+
 def load_recent_drift_artifacts(
     cache_dir: Path | str,
     *,
@@ -186,11 +276,34 @@ def load_recent_drift_artifacts(
     are silently skipped — the dashboard already renders a "no data"
     panel for absent days, and a single bad file must not break the
     rest of the window.
+
+    Results are memoized in a process-local TTL cache (see
+    :data:`DRIFT_RECENT_CACHE_TTL_SECONDS`). The cache key includes a
+    ``cache/live/`` directory fingerprint (mtime + entry count), so a
+    freshly-written drift artifact bypasses stale entries automatically;
+    callers that need to force a refresh can call
+    :func:`invalidate_recent_drift_cache`.
     """
     if n < 0:
         raise ValueError(f"n must be non-negative, got {n}")
     if n == 0:
         return []
+    key = _recent_cache_key(cache_dir, n)
+    cached = _recent_cache_get(key)
+    if cached is not None:
+        # Defensive shallow-copy so callers that mutate the list (e.g.
+        # truncation in a panel) don't corrupt the cached value.
+        return list(cached)
+    out = _load_recent_drift_artifacts_uncached(cache_dir, n=n)
+    _recent_cache_put(key, out)
+    return list(out)
+
+
+def _load_recent_drift_artifacts_uncached(
+    cache_dir: Path | str,
+    *,
+    n: int,
+) -> list[dict[str, Any]]:
     dates = list_drift_dates(cache_dir)
     if not dates:
         return []
