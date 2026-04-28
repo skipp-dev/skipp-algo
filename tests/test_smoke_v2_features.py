@@ -1,9 +1,7 @@
 """Smoke test for all new modules and wiring."""
 from open_prep.signal_decay import adaptive_half_life, adaptive_freshness_decay, signal_strength_decay
 from open_prep.realtime_signals import RealtimeEngine, RealtimeSignal
-from open_prep.scorer import filter_candidate, rank_candidates_v2
-from open_prep.technical_analysis import detect_breakout, detect_consolidation, detect_symbol_regime
-from open_prep.regime import classify_symbol_regime, apply_symbol_regime_adjustments
+from open_prep.technical_analysis import detect_consolidation, detect_symbol_regime
 
 # Test signal_decay
 assert adaptive_half_life(0.5) == 1200.0, "Low ATR should give max HL"

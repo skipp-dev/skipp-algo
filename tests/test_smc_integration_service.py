@@ -353,7 +353,6 @@ class TestResolveSourceDescriptorUnknown:
 
 class TestLoadStructureInputAndContextNonArtifact:
     def test_non_artifact_source_returns_none_context(self, monkeypatch) -> None:
-        from types import SimpleNamespace
 
         monkeypatch.setattr(
             service,

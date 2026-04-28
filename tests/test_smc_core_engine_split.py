@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import pathlib
 import re
 
 from tests.smc_manifest_test_utils import ROOT, load_manifest

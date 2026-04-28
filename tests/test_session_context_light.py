@@ -5,7 +5,6 @@ behavior with and without compression_regime data.
 """
 from __future__ import annotations
 
-import pytest
 from scripts.smc_session_context_light import (
     build_session_context_light,
     DEFAULTS,

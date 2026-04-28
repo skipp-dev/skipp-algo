@@ -27,7 +27,7 @@ without parsing Pine.
 from __future__ import annotations
 
 import enum
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Mapping
 

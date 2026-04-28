@@ -12,8 +12,6 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-import pandas as pd
-import pytest
 
 from smc_tv_bridge.smc_api import (
     _adapt_bos,

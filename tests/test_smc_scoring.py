@@ -6,11 +6,9 @@ import json
 import math
 from pathlib import Path
 
-import pytest
 
 from smc_core.scoring import (
     ScoredEvent,
-    ScoringResult,
     brier_score,
     compute_fvg_partial_fill,
     export_scoring_artifact,

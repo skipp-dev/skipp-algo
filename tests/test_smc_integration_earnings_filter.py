@@ -12,7 +12,6 @@ from smc_integration.earnings_filter import (
     DEFAULT_PRE_WINDOW_DAYS,
     EARNINGS_EVENT_TYPES,
     EarningsFilter,
-    EarningsFilterDecision,
 )
 
 

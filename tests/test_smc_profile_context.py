@@ -13,7 +13,6 @@ Covers:
 from __future__ import annotations
 
 import pandas as pd
-import pytest
 
 from scripts.smc_profile_context import DEFAULTS, build_profile_context
 

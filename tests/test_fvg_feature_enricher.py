@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pandas as pd
-import pytest
 
 from smc_integration.measurement_evidence import (
     _atr_at,

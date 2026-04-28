@@ -5,7 +5,6 @@ from pathlib import Path
 from smc_integration.artifact_resolution import (
     resolve_export_bundle_root,
     resolve_production_workbook_path,
-    resolve_structure_artifact_inputs,
 )
 from tests.helpers.smc_test_artifacts import make_minimal_workbook
 

@@ -84,7 +84,6 @@ from smc_integration.repo_sources import (
     _source_priority_key,
     _SOURCE_PROVIDERS,
     select_best_structure_source,
-    select_best_volume_source,
     select_best_technical_source,
     select_best_news_source,
     select_best_source,
@@ -229,11 +228,9 @@ class TestLoadRawStructureAutoErrors:
 
 
 import time as _time
-import math as _math
 from smc_integration.repo_sources import (
     _finalize_composite_meta,
     _try_load_meta_domain,
-    _resolve_auto_structure_source_for_symbol_timeframe,
 )
 
 

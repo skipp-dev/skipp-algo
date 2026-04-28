@@ -35,7 +35,7 @@ import logging
 import math
 import re
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 _ET = ZoneInfo("America/New_York")
@@ -309,7 +309,6 @@ def fetch_news_fmp(fmp: Any, symbols: list[str]) -> ProviderResult:
 def fetch_news_benzinga(api_key: str, symbols: list[str]) -> ProviderResult:
     """Fetch news via Benzinga REST (fallback for news domain)."""
     from newsstack_fmp.ingest_benzinga import BenzingaRestAdapter
-    from newsstack_fmp.scoring import classify_and_score
 
     adapter = BenzingaRestAdapter(api_key)
     try:

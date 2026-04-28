@@ -19,7 +19,6 @@ from typing import Any
 from unittest.mock import patch
 
 import pandas as pd
-import pytest
 
 from scripts.generate_smc_micro_base_from_databento import (
     _derive_volume_regime,

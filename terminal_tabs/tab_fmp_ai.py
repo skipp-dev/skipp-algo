@@ -13,7 +13,7 @@ import concurrent.futures
 import logging
 import os
 import time
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo as _ZoneInfo
 
 _ET = _ZoneInfo("America/New_York")

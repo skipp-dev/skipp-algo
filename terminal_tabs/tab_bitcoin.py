@@ -18,7 +18,6 @@ from terminal_bitcoin import (
     format_large_number,
     format_supply,
     is_available,
-    technicals_signal_icon,
     technicals_signal_label,
 )
 

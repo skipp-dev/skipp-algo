@@ -22,14 +22,6 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from newsstack_fmp.ingest_benzinga_financial import (
-    BARS_URL,
-    FUNDAMENTALS_BASE,
-    INSTRUMENTS_URL,
-    LOGOS_URL,
-    OPTIONS_ACTIVITY_URL,
-    SEARCH_URL,
-    SECURITY_URL,
-    TICKER_DETAIL_URL,
     BenzingaFinancialAdapter,
     _request_with_retry,
     _sanitize_exc,

@@ -43,7 +43,6 @@ from scripts.generate_smc_micro_base_from_databento import (
     build_enrichment,
     finalize_pipeline,
 )
-from scripts.smc_enrichment_types import EnrichmentDict
 from scripts.smc_microstructure_base_runtime import generate_pine_library_from_base
 from scripts.smc_provider_policy import ProviderResult
 from scripts.smc_schema_resolver import resolve_microstructure_schema_path

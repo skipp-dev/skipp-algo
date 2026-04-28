@@ -27,7 +27,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import re
 import threading
 import time
 from dataclasses import dataclass, field
@@ -39,7 +38,6 @@ import httpx
 from streamlit_terminal_alerts import validate_webhook_url
 from terminal_catalyst_state import (
     effective_catalyst_age_minutes,
-    effective_catalyst_score,
     effective_catalyst_sentiment,
 )
 from terminal_attention_state import (
@@ -47,7 +45,6 @@ from terminal_attention_state import (
     effective_attention_state,
 )
 from terminal_reaction_state import (
-    effective_reaction_actionable,
     effective_reaction_state,
 )
 from terminal_resolution_state import (

@@ -117,3 +117,63 @@ def test_driver_contains_safe_branch_guard(driver):
 
 def test_git_available():
     assert shutil.which("git"), "git CLI required for Lane 7 driver tests"
+
+
+# ---------------------------------------------------------------------------
+# Lane 7 (continued, 2026-04-28) — venv-realism guard.
+# Sourcing a missing venv activate script under ``set -u`` produces a
+# cryptic error. Each cron driver MUST surface a clear actionable
+# message and exit non-zero so launchd marks the job red.
+# ---------------------------------------------------------------------------
+
+VENV_GUARD_DRIVERS = [
+    REPO / "automation" / "launchd" / "run-c13-wsh.sh",
+    REPO / "automation" / "launchd" / "run-c13-imbalance.sh",
+    REPO / "automation" / "launchd" / "run-c13-phase-a.sh",
+    REPO / "automation" / "launchd" / "run-c13-phase-a-export.sh",
+]
+
+
+@pytest.mark.parametrize("driver", VENV_GUARD_DRIVERS, ids=lambda p: p.name)
+def test_driver_has_venv_existence_guard(driver):
+    text = driver.read_text()
+    assert '[[ ! -f "${VENV}/bin/activate" ]]' in text, (
+        f"{driver.name} must check venv activate exists before sourcing"
+    )
+    assert "set C13_VENV in plist" in text, (
+        f"{driver.name} venv error message must mention C13_VENV"
+    )
+
+
+def test_venv_guard_snippet_aborts_with_clear_message(tmp_path):
+    """Behavioural check: the guard idiom exits 1 with a useful stderr
+    when the venv path doesn't exist."""
+    script = tmp_path / "guard.sh"
+    script.write_text(textwrap.dedent("""
+    #!/usr/bin/env bash
+    set -euo pipefail
+    VENV="/nonexistent/venv"
+    if [[ ! -f "${VENV}/bin/activate" ]]; then
+        echo "cron: virtualenv activate script not found at ${VENV}/bin/activate (set C13_VENV in plist)" >&2
+        exit 1
+    fi
+    source "${VENV}/bin/activate"
+    """))
+    result = _run(["bash", str(script)], tmp_path)
+    assert result.returncode == 1
+    assert "virtualenv activate script not found" in result.stderr
+    assert "C13_VENV" in result.stderr
+
+
+def test_audit_push_aborts_on_pull_failure():
+    """run-c13-audit-push.sh must NOT silently swallow a pull failure
+    (which would later surface as a misleading non-fast-forward push
+    rejection)."""
+    script = REPO / "automation" / "launchd" / "run-c13-audit-push.sh"
+    text = script.read_text()
+    assert "git pull --ff-only origin data/phase-a-audit || true" not in text, (
+        "audit-push must not swallow pull failures with '|| true'"
+    )
+    assert "if ! git pull --ff-only origin data/phase-a-audit;" in text, (
+        "audit-push must check pull result explicitly and abort on failure"
+    )

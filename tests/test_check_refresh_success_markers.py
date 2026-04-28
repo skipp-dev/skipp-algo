@@ -5,12 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
 
 from scripts.check_refresh_success_markers import (
-    REQUIRED_STAGES,
-    REQUIRED_TOP_LEVEL_FIELDS,
-    MarkerCheckResult,
     check_markers,
 )
 

@@ -13,7 +13,6 @@
 from __future__ import annotations
 
 import pandas as pd
-import pytest
 
 from scripts.smc_imbalance_lifecycle import DEFAULTS, build_imbalance_lifecycle
 

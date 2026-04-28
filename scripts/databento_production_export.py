@@ -33,7 +33,6 @@ from databento_volatility_screener import (
     US_EASTERN_TZ,
     _write_exact_named_export_state,
     _write_parquet_atomic,
-    _write_tradingview_watchlist_exports,
     _read_cached_frame,
     _write_cached_frame,
     build_cache_path,

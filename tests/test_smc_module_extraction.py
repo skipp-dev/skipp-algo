@@ -9,7 +9,6 @@ These tests ensure:
 from __future__ import annotations
 
 import importlib
-import sys
 import types
 
 import pytest
@@ -78,7 +77,6 @@ class TestRuntimeReExports:
 
     def test_streamlit_app_reexports(self):
         from scripts.smc_microstructure_base_runtime import (
-            _resolve_ui_dataset_options,
             list_generated_base_csvs,
             resolve_base_csv_selection,
             resolve_base_csv_action_target,

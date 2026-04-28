@@ -50,6 +50,13 @@ _SINGLE_BRANCH_ALLOWLIST: dict[str, str] = {
     "scripts/f2_simulate_chain.py": (
         "decision synthesizer for simulation, not a real-time consumer"
     ),
+    # forward_test_tracking.py: own promotion decision module with its
+    # own Literal vocab (promote/continue/demote). Only the shared SPRT
+    # "continue" literal overlaps; the module is the *producer* of its
+    # own decision tuple, not a downstream consumer of SPRT vocab.
+    "scripts/forward_test_tracking.py": (
+        "emits own promotion-decision vocab; only shares 'continue' literal"
+    ),
 }
 
 
