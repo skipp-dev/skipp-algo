@@ -10,6 +10,7 @@ three Benzinga adapter modules.
 from __future__ import annotations
 
 import logging
+import random
 import re
 import threading
 import time
@@ -22,6 +23,24 @@ import httpx
 from smc_core.resilient import resilient
 
 logger = logging.getLogger(__name__)
+
+
+def _rng() -> float:
+    """Test seam: full-jitter random source for retry backoff.
+
+    Returns a float in [0.0, 1.0).  Patch this attribute (not
+    ``random.random``) in tests that need deterministic jitter.
+    """
+    return random.random()
+
+
+def _sleep(seconds: float) -> None:
+    """Test seam: sleep used during retry backoff.
+
+    Patch this attribute (not ``time.sleep``) in tests that need to
+    capture retry sleep durations.
+    """
+    time.sleep(seconds)
 
 # Regex to strip API keys/tokens from URLs before logging.
 _TOKEN_RE = re.compile(r"(apikey|api_key|token|key)=[^&]+", re.IGNORECASE)
@@ -278,6 +297,12 @@ def _bz_on_failure(exc: BaseException) -> httpx.Response:
     delay_from_exc=_bz_delay_from_exc,
     on_retry=_bz_on_retry,
     on_failure=_bz_on_failure,
+    # Route jitter + sleep through module-level seams so tests can
+    # patch ``_bz_http._rng`` / ``_bz_http._sleep`` directly. The
+    # lambdas resolve the names at call time so monkey-patching the
+    # module attributes works as expected.
+    rng=lambda: _rng(),
+    sleep=lambda s: _sleep(s),
 )
 def _attempt_bz_get(
     client: httpx.Client,
