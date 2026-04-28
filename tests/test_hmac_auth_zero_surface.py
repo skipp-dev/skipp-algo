@@ -28,8 +28,8 @@ ROOT = Path(__file__).resolve().parent.parent
 
 # Each entry is (relative_path, line_number, attribute_name).
 HMAC_ALLOWED: set[tuple[str, int, str]] = {
-    ("terminal_export.py", 774, "new"),
-    ("terminal_auth.py", 32, "compare_digest"),
+    ("terminal_export.py", 772, "new"),
+    ("terminal_auth.py", 30, "compare_digest"),
 }
 
 _DIR_EXCLUDE = {
