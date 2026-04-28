@@ -25,12 +25,14 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from newsstack_fmp.ingest_benzinga_calendar import (
-    CALENDAR_BASE,
-    BenzingaCalendarAdapter,
+from newsstack_fmp._bz_http import (
     _request_with_retry,
     _sanitize_exc,
     _sanitize_url,
+)
+from newsstack_fmp.ingest_benzinga_calendar import (
+    CALENDAR_BASE,
+    BenzingaCalendarAdapter,
     fetch_benzinga_movers,
     fetch_benzinga_quotes,
 )

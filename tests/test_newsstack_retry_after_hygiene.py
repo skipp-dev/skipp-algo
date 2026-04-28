@@ -171,6 +171,11 @@ class TestBzHttpRequestWithRetryHonorsRetryAfter:
 
         sleeps: list[float] = []
         monkeypatch.setattr(_bz_http.time, "sleep", lambda d: sleeps.append(d))
+        # Pin the jitter source to a non-zero value so ``@resilient`` always
+        # produces ``delay > 0`` and actually invokes ``sleep`` (otherwise the
+        # full-jitter ``capped * rng()`` can land on 0.0 and skip the call,
+        # leaving ``sleeps`` empty and flaking the assertion below).
+        monkeypatch.setattr(_bz_http, "_rng", lambda: 0.5)
 
         client = httpx.Client()
         monkeypatch.setattr(
@@ -183,10 +188,9 @@ class TestBzHttpRequestWithRetryHonorsRetryAfter:
         )
         _bz_http._request_with_retry(client, "https://example.test/x", {"token": "k"})
 
-        # Pure-exponential cap is 2**0 == 1s; full-jitter window
-        # picks any value in [0, 1.0).  We assert the *bound* rather
-        # than the exact value to avoid coupling to RNG state.
-        assert sleeps and 0.0 <= sleeps[0] <= 1.0, sleeps
+        # Pure-exponential cap is 2**0 == 1s; with rng pinned to 0.5 the
+        # delay is exactly 0.5s (well within the [0, 1.0) full-jitter window).
+        assert sleeps and 0.0 < sleeps[0] <= 1.0, sleeps
 
     def test_pathological_retry_after_capped_at_60s(self, monkeypatch):
         from newsstack_fmp import _bz_http

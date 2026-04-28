@@ -5,20 +5,12 @@ import logging
 import math
 import time as time_module
 import warnings
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time
-from zoneinfo import ZoneInfo
-
-_ET = ZoneInfo("America/New_York")
-
-
-def _today_et() -> date:
-    """Return today's date in US/Eastern. Hookable for deterministic tests."""
-    return datetime.now(_ET).date()
-
-
 from pathlib import Path
-from typing import Any, Callable, cast
+from typing import Any, cast
+from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
@@ -27,23 +19,8 @@ from databento_provider import list_recent_trading_days
 from databento_utils import US_EASTERN_TZ
 from scripts.databento_production_export import run_production_export_pipeline
 from scripts.generate_smc_micro_profiles import load_schema, run_generation
-from scripts.smc_atomic_write import atomic_write_csv, atomic_write_parquet, atomic_write_text
 from scripts.load_databento_export_bundle import load_export_bundle
-from scripts.smc_enrichment_types import EnrichmentDict
-
-# ── Re-exports from extracted modules (backward compatibility) ──────
-from scripts.smc_micro_publish_guard import (  # noqa: F401
-    evaluate_micro_library_publish_guard,
-    inspect_generated_micro_library_contract,
-    publish_micro_library_to_tradingview,
-)
-from scripts.smc_micro_streamlit_app import (  # noqa: F401
-    _resolve_ui_dataset_options,
-    list_generated_base_csvs,
-    resolve_base_csv_action_target,
-    resolve_base_csv_selection,
-    run_streamlit_micro_base_app,
-)
+from scripts.smc_atomic_write import atomic_write_csv, atomic_write_parquet, atomic_write_text
 from scripts.smc_databento_session_detail import (  # noqa: F401
     AFTERHOURS_END_ET,
     AFTERHOURS_MINUTES,
@@ -63,6 +40,28 @@ from scripts.smc_databento_session_detail import (  # noqa: F401
     _universe_fingerprint,
     collect_full_universe_session_minute_detail,
 )
+from scripts.smc_enrichment_types import EnrichmentDict
+
+# ── Re-exports from extracted modules (backward compatibility) ──────
+from scripts.smc_micro_publish_guard import (  # noqa: F401
+    evaluate_micro_library_publish_guard,
+    inspect_generated_micro_library_contract,
+    publish_micro_library_to_tradingview,
+)
+from scripts.smc_micro_streamlit_app import (  # noqa: F401
+    _resolve_ui_dataset_options,
+    list_generated_base_csvs,
+    resolve_base_csv_action_target,
+    resolve_base_csv_selection,
+    run_streamlit_micro_base_app,
+)
+
+_ET = ZoneInfo("America/New_York")
+
+
+def _today_et() -> date:
+    """Return today's date in US/Eastern. Hookable for deterministic tests."""
+    return datetime.now(_ET).date()
 
 
 logger = logging.getLogger(__name__)
@@ -1509,7 +1508,7 @@ def build_symbol_day_microstructure_feature_frame(
             missing_count = int(missing_minute_rows.sum())
             sample_rows = merged.loc[missing_minute_rows, ["trade_date", "symbol"]].head(10)
             sample = ", ".join(
-                f"{str(row.trade_date)}:{str(row.symbol)}"
+                f"{row.trade_date!s}:{row.symbol!s}"
                 for row in sample_rows.itertuples(index=False)
             )
             logger.warning(

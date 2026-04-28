@@ -21,11 +21,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from newsstack_fmp.ingest_benzinga_financial import (
-    BenzingaFinancialAdapter,
+from newsstack_fmp._bz_http import (
     _request_with_retry,
     _sanitize_exc,
     _sanitize_url,
+)
+from newsstack_fmp.ingest_benzinga_financial import (
+    BenzingaFinancialAdapter,
     fetch_benzinga_auto_complete,
     fetch_benzinga_company_profile,
     fetch_benzinga_financials,

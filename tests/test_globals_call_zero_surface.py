@@ -12,11 +12,19 @@ it is harmless in isolation, but every call site is a vector for:
   pattern, which silently bypasses the import system and breaks the
   ``__all__`` export contract.
 
-The whole repo currently has exactly *one* production ``globals()`` call:
-a read-only ``globals().get("_INTEL_ENABLED", False)`` lookup inside the
-Streamlit terminal, where the symbol is bound by the sidebar toggle
-block above. Lock that surface in so any new ``globals()`` use becomes
-a deliberate, reviewed change.
+The whole repo currently allow-lists three production ``globals()``
+call sites:
+
+* a read-only ``globals().get("_INTEL_ENABLED", False)`` lookup inside
+  the Streamlit terminal, where the symbol is bound by the sidebar
+  toggle block above; and
+* two ``globals()[name] = ...`` mutation sites inside
+  ``terminal_tabs/__init__.py`` that implement a lazy-import
+  ``__getattr__`` cache for optional tab modules (the import + cache
+  is the *only* time those entries are written).
+
+Lock that surface in so any new ``globals()`` use — read or write —
+becomes a deliberate, reviewed change.
 """
 
 from __future__ import annotations
@@ -71,18 +79,21 @@ def _globals_call_sites() -> set[tuple[str, int]]:
     return sites
 
 
-# Single legitimate caller: read-only ``globals().get("_INTEL_ENABLED", False)``
-# inside the Streamlit terminal. The lookup target is set by the sidebar
-# toggle block higher up in the file before any tab content renders. Adding
-# a new caller is almost always wrong — prefer explicit module-level state
-# or a dataclass/TypedDict context object (see ``terminal_attention_state``
-# / ``terminal_posture_state`` for the established pattern).
+# Allow-listed callers (mix of read and controlled write):
+#   * ``streamlit_terminal.py`` — read-only ``globals().get("_INTEL_ENABLED",
+#     False)``. The lookup target is set by the sidebar toggle block higher
+#     up in the file before any tab content renders.
+#   * ``terminal_tabs/__init__.py`` — lazy-loaded tab module pattern:
+#     ``__getattr__`` resolves a tab name by importing the underlying module
+#     on demand and caching the result (or ``None`` if the optional dep is
+#     missing) into the package globals via ``globals()[name] = ...`` so
+#     subsequent attribute lookups skip the import path.
+# Adding a new caller is almost always wrong — prefer explicit module-level
+# state or a dataclass/TypedDict context object (see
+# ``terminal_attention_state`` / ``terminal_posture_state`` for the
+# established pattern).
 GLOBALS_CALL_ALLOWED: set[tuple[str, int]] = {
-    ("streamlit_terminal.py", 2226),
-    # Lazy-loaded tab module pattern: ``__getattr__`` resolves a tab name
-    # by importing the underlying module on demand and caching the result
-    # (or ``None`` if the optional dep is missing) into the package
-    # globals so subsequent attribute lookups skip the import path.
+    ("streamlit_terminal.py", 2199),
     ("terminal_tabs/__init__.py", 57),
     ("terminal_tabs/__init__.py", 60),
 }
