@@ -25,7 +25,7 @@ _SUBSECTION_RE = re.compile(r"^### (.+)$", re.MULTILINE)
 # Canonical format: ### Category (YYYY-MM-DD) — Title
 # (em-dash U+2014 is the convention; we accept it explicitly).
 _CANONICAL_RE = re.compile(
-    r"^[A-Z][A-Za-z0-9 /+()_,-]+? "          # Category (allow / + parens)
+    r"^[A-Z][A-Za-z0-9 /+()_,&-]+? "         # Category (allow / + parens & ampersand)
     r"\((\d{4}-\d{2}-\d{2})\)"               # (YYYY-MM-DD)
     r" \u2014 "                              # ' — '
     r".+\S$"                                 # Title (non-empty, no trailing ws)

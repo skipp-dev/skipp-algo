@@ -6,7 +6,7 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
-### Chore (2026-04-26) — pytest-xdist as local default + determinism regression fix
+### Changed (2026-04-26) — pytest-xdist as local default + determinism regression fix
 
 - `pyproject.toml` `[tool.pytest.ini_options]` gains
   `addopts = "-n auto --dist=loadfile"`. This aligns the local default

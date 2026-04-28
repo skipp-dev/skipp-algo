@@ -248,6 +248,7 @@ def write_report(report: dict[str, Any], *, output_dir: Path, run_date: date) ->
     fd, tmp_path = tempfile.mkstemp(dir=output_dir, suffix=".tmp")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            # ATOMIC-WRITE-EXEMPT: hand-rolled mkstemp+fsync+os.replace pattern above.
             json.dump(report, fh, indent=2, default=str, allow_nan=False)
             fh.flush()
             os.fsync(fh.fileno())

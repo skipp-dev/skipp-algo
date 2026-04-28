@@ -49,8 +49,8 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         ("smc_core/session_context.py", 130),
         # smc_core/vol_regime.py — ATR / variance current values; the
         # caller passes a frame post-`guard_closed_bars` in production.
-        ("smc_core/vol_regime.py", 131),
-        ("smc_core/vol_regime.py", 147),
+        ("smc_core/vol_regime.py", 135),
+        ("smc_core/vol_regime.py", 151),
         # smc_core/htf_context.py — IPDA range needs last + previous
         # HTF candle; partial HTF bar is acceptable (range only widens).
         ("smc_core/htf_context.py", 103),
@@ -86,10 +86,10 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         ("scripts/smc_range_profile_regime.py", 278),
         # scripts/databento_preopen_fast.py — premarket "last" close
         # snapshot from already-closed pre-market session window.
-        ("scripts/databento_preopen_fast.py", 417),
+        ("scripts/databento_preopen_fast.py", 416),
         # scripts/databento_production_export.py — same premarket "last"
         # snapshot, production export path.
-        ("scripts/databento_production_export.py", 2300),
+        ("scripts/databento_production_export.py", 2302),
         # scripts/generate_bullish_quality_scanner.py — manifest scalar
         # lookups (source_data_fetched_at / latest window_tag); not bar
         # data.
@@ -101,7 +101,7 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         # scripts/smc_microstructure_base_runtime.py — OHLC reduction
         # over a full closed frame (open from first row, close from
         # last row).
-        ("scripts/smc_microstructure_base_runtime.py", 793),
+        ("scripts/smc_microstructure_base_runtime.py", 803),
     }
 )
 
