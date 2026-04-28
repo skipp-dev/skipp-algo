@@ -54,7 +54,7 @@ def compute(records: list[dict[str, Any]]) -> dict[str, Any]:
         if ts is None:
             skipped += 1
             continue
-        buckets[ts.astimezone(_dt.timezone.utc).weekday()] += 1
+        buckets[ts.astimezone(_dt.UTC).weekday()] += 1
     empty = [WEEKDAY_NAMES[i] for i, n in enumerate(buckets) if n == 0]
     return {
         "schema_version": 1,

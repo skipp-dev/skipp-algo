@@ -404,7 +404,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
-    started = _dt.datetime.now(tz=_dt.timezone.utc).isoformat()
+    started = _dt.datetime.now(tz=_dt.UTC).isoformat()
     symbols = _read_watchlist_symbols(args.watchlist)
     if not symbols:
         LOGGER.error("watchlist %s is empty; aborting", args.watchlist)
@@ -463,7 +463,7 @@ def main(argv: list[str] | None = None) -> int:
         (e.to_dict() for e in earnings),
     )
 
-    completed = _dt.datetime.now(tz=_dt.timezone.utc).isoformat()
+    completed = _dt.datetime.now(tz=_dt.UTC).isoformat()
     summary = WshFetchSummary(
         symbols_requested=len(symbols),
         symbols_with_events=len({e.symbol for e in earnings}),

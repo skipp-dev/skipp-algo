@@ -99,7 +99,7 @@ class StackedMetaLearner:
     n_iter_: int = 0
     converged_: bool = False
 
-    def fit(self, P: np.ndarray, y: np.ndarray) -> "StackedMetaLearner":
+    def fit(self, P: np.ndarray, y: np.ndarray) -> StackedMetaLearner:
         """Fit on (n_samples, n_families) probabilities and binary labels."""
         P = np.asarray(P, dtype=float)
         y = np.asarray(y, dtype=float)

@@ -29,7 +29,7 @@ def _load():
 fa = _load()
 
 
-NOW = _dt.datetime(2026, 4, 21, 12, 0, tzinfo=_dt.timezone.utc)
+NOW = _dt.datetime(2026, 4, 21, 12, 0, tzinfo=_dt.UTC)
 
 
 def _rec(days_ago: int, status: str, **extra: Any) -> dict[str, Any]:

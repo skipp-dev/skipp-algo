@@ -12,7 +12,7 @@ Covers:
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 
 import pandas as pd
 import pytest
@@ -44,7 +44,7 @@ def _make_snapshot(**kwargs) -> pd.DataFrame:
 
 
 def _ts(hour: int, minute: int = 0) -> datetime:
-    return datetime(2026, 6, 15, hour, minute, 0, tzinfo=timezone.utc)
+    return datetime(2026, 6, 15, hour, minute, 0, tzinfo=UTC)
 
 
 # ═════════════════════════════════════════════════════════════════
@@ -303,7 +303,7 @@ class TestOverrides:
 
 def test_tz2_london_summer_open_is_in_window_bst_07_00_utc() -> None:
     # 2025-07-15 08:00 BST = 07:00 UTC → first second of LONDON window.
-    ts = datetime(2025, 7, 15, 7, 0, 0, tzinfo=timezone.utc)
+    ts = datetime(2025, 7, 15, 7, 0, 0, tzinfo=UTC)
     result = build_session_context_block(timestamp=ts)
     assert result["SESSION_CONTEXT"] == "LONDON"
 
@@ -313,7 +313,7 @@ def test_tz2_london_winter_open_drifts_outside_window_gmt_08_00_utc() -> None:
     # but our UTC-fixed window started at 07:00 UTC, so we are already
     # 1h INTO the LONDON session. This test pins that: winter local
     # opens are NOT the boundary; UTC is.
-    ts_one_hour_in = datetime(2025, 12, 15, 8, 0, 0, tzinfo=timezone.utc)
+    ts_one_hour_in = datetime(2025, 12, 15, 8, 0, 0, tzinfo=UTC)
     result = build_session_context_block(timestamp=ts_one_hour_in)
     assert result["SESSION_CONTEXT"] == "LONDON"
 
@@ -321,15 +321,15 @@ def test_tz2_london_winter_open_drifts_outside_window_gmt_08_00_utc() -> None:
     # 07:00 UTC on a winter day — must STILL be classified as LONDON.
     # That is the lock-down: winter and summer behave identically when
     # measured in UTC.
-    ts_winter_07_utc = datetime(2025, 12, 15, 7, 0, 0, tzinfo=timezone.utc)
+    ts_winter_07_utc = datetime(2025, 12, 15, 7, 0, 0, tzinfo=UTC)
     assert build_session_context_block(timestamp=ts_winter_07_utc)["SESSION_CONTEXT"] == "LONDON"
 
 
 def test_tz2_ny_session_uses_summer_clock_anchor() -> None:
     # 13:30 UTC = 09:30 EDT (NYSE summer open) and 08:30 EST (winter,
     # 1h before NYSE open). Both must map to NY_AM in our UTC-fixed model.
-    summer = datetime(2025, 7, 15, 13, 30, 0, tzinfo=timezone.utc)
-    winter = datetime(2025, 12, 15, 13, 30, 0, tzinfo=timezone.utc)
+    summer = datetime(2025, 7, 15, 13, 30, 0, tzinfo=UTC)
+    winter = datetime(2025, 12, 15, 13, 30, 0, tzinfo=UTC)
     assert build_session_context_block(timestamp=summer)["SESSION_CONTEXT"] == "NY_AM"
     assert build_session_context_block(timestamp=winter)["SESSION_CONTEXT"] == "NY_AM"
 
@@ -339,8 +339,8 @@ def test_tz2_session_classification_is_dst_invariant() -> None:
     identically on a BST-period date and a GMT-period date."""
     from scripts.smc_session_context_block import SESSIONS
 
-    bst_date = datetime(2025, 7, 15, tzinfo=timezone.utc)
-    gmt_date = datetime(2025, 12, 15, tzinfo=timezone.utc)
+    bst_date = datetime(2025, 7, 15, tzinfo=UTC)
+    gmt_date = datetime(2025, 12, 15, tzinfo=UTC)
 
     for label, (start, _end) in SESSIONS.items():
         bst_ts = bst_date.replace(hour=start.hour, minute=start.minute)

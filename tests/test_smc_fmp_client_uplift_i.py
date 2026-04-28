@@ -15,7 +15,7 @@ import io
 import json
 import math
 import urllib.error
-from datetime import date
+from datetime import date, UTC
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -792,7 +792,7 @@ class TestRetryAfterHygieneLane9:
     def test_parse_retry_after_accepts_http_date_form(self):
         from scripts.smc_fmp_client import _parse_retry_after_seconds
         from datetime import datetime, timezone, timedelta
-        future = datetime.now(timezone.utc) + timedelta(seconds=30)
+        future = datetime.now(UTC) + timedelta(seconds=30)
         # RFC 9110 §10.2.3 HTTP-date format
         from email.utils import format_datetime
         out = _parse_retry_after_seconds(format_datetime(future, usegmt=True))
@@ -809,7 +809,7 @@ class TestRetryAfterHygieneLane9:
         assert _parse_retry_after_seconds("-5") == 0.0
         from datetime import datetime, timezone, timedelta
         from email.utils import format_datetime
-        past = datetime.now(timezone.utc) - timedelta(seconds=30)
+        past = datetime.now(UTC) - timedelta(seconds=30)
         assert _parse_retry_after_seconds(format_datetime(past, usegmt=True)) == 0.0
 
     def test_get_honors_retry_after_seconds_hint(self, monkeypatch):

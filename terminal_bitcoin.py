@@ -27,7 +27,7 @@ import re
 import threading
 import time
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 from types import SimpleNamespace
 from typing import Any
 
@@ -65,7 +65,7 @@ except ImportError:
     _TV = False
 
 try:
-    import pandas as pd  # type: ignore[import-untyped]  # noqa: F811,F401 — only _PD flag used
+    import pandas as pd  # type: ignore[import-untyped]
     _PD = True
 except ImportError:
     _PD = False
@@ -506,7 +506,7 @@ def fetch_btc_ohlcv_10min(hours: int = 48) -> list[dict[str, Any]]:
         }).dropna()
 
         # Filter to last N hours
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+        cutoff = datetime.now(UTC) - timedelta(hours=hours)
         if hist_10m.index.tz is None:
             hist_10m.index = hist_10m.index.tz_localize("UTC")
         else:
@@ -663,7 +663,7 @@ def fetch_fear_greed() -> FearGreed | None:
             ts_str = ""
             if ts_val:
                 try:
-                    ts_str = datetime.fromtimestamp(int(ts_val), tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+                    ts_str = datetime.fromtimestamp(int(ts_val), tz=UTC).strftime("%Y-%m-%d %H:%M UTC")
                 except (ValueError, OverflowError, OSError):
                     ts_str = str(ts_val)
             try:

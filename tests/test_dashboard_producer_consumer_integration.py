@@ -11,7 +11,7 @@ realistic fixture inputs (one variant, all five sprint outputs).
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 
 import pytest
@@ -20,7 +20,7 @@ from scripts.build_dashboard_payload import build_dashboard_payload
 from terminal_tabs.tab_calibration_detail import build_detail
 from terminal_tabs.tab_track_record import build_summary
 
-_FROZEN_NOW = datetime(2026, 4, 26, 12, 0, 0, tzinfo=timezone.utc)
+_FROZEN_NOW = datetime(2026, 4, 26, 12, 0, 0, tzinfo=UTC)
 
 
 def _write(path: Path, payload: dict) -> None:

@@ -29,7 +29,7 @@ import json
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 from typing import Any
 
@@ -464,10 +464,10 @@ def build_dashboard_payload(
 
 def _utc_isoformat(now: datetime | None) -> str:
     """Stable ISO-8601 timestamp for the payload header."""
-    instant = now if now is not None else datetime.now(timezone.utc)
+    instant = now if now is not None else datetime.now(UTC)
     if instant.tzinfo is None:
-        instant = instant.replace(tzinfo=timezone.utc)
-    return instant.astimezone(timezone.utc).isoformat()
+        instant = instant.replace(tzinfo=UTC)
+    return instant.astimezone(UTC).isoformat()
 
 
 __all__ = [

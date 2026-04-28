@@ -60,7 +60,7 @@ def heatmap(
     lookback_days: int | None = None,
     now: _dt.datetime | None = None,
 ) -> dict[str, Any]:
-    now_ = now or _dt.datetime.now(tz=_dt.timezone.utc)
+    now_ = now or _dt.datetime.now(tz=_dt.UTC)
     floor = (now_ - _dt.timedelta(days=lookback_days)
              if lookback_days is not None else None)
 
@@ -74,7 +74,7 @@ def heatmap(
         if ts is None:
             continue
         if ts.tzinfo is None:
-            ts = ts.replace(tzinfo=_dt.timezone.utc)
+            ts = ts.replace(tzinfo=_dt.UTC)
         if floor is not None and ts < floor:
             continue
         tf = str(rec.get("tf", "")).strip()

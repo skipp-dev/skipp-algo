@@ -59,7 +59,7 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 # Re-use the existing SPRT module (already validated by F2/G3 callers).
-from scripts.smc_sprt_stop_rule import SPRTConfig, terminal_decision  # noqa: E402
+from scripts.smc_sprt_stop_rule import SPRTConfig, terminal_decision
 
 HISTORY_RETENTION = 90
 DEFAULT_ROLLBACK_STREAK = 2  # plan line 414

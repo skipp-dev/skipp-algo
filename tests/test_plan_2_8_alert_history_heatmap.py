@@ -64,7 +64,7 @@ def test_lookback_days_floor() -> None:
         _rec("2026-04-20", "5m", "HR"),
         _rec("2026-03-01", "5m", "HR"),  # too old
     ]
-    now = _dt.datetime(2026, 4, 22, tzinfo=_dt.timezone.utc)
+    now = _dt.datetime(2026, 4, 22, tzinfo=_dt.UTC)
     rep = hm.heatmap(recs, lookback_days=14, now=now)
     assert rep["total"] == 1
     assert rep["tf_family_totals"]["5m/HR"] == 1

@@ -8,7 +8,7 @@ problem (DoD: 'Refresh-Berichte zeigen Ursache und Reichweite').
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from enum import Enum
 from typing import Iterable, Mapping
 
@@ -84,7 +84,7 @@ def classify_batch(
             reason=f"missing or unparsable timestamp ({timestamp!r})",
         )
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
+        parsed = parsed.replace(tzinfo=UTC)
     age_seconds = (now - parsed).total_seconds()
     age_hours = age_seconds / 3600.0
     if age_hours >= stale_hours:

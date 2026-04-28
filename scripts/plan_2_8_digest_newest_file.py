@@ -12,7 +12,7 @@ from scripts.smc_atomic_write import atomic_write_text
 import argparse
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 from typing import Any
 
@@ -29,7 +29,7 @@ def build(root: Path) -> dict[str, Any]:
         return {"schema_version": 1, "found": False}
     candidates.sort(key=lambda t: (-t[0], t[1]))
     mtime, name, size = candidates[0]
-    iso = datetime.fromtimestamp(mtime, tz=timezone.utc).isoformat()
+    iso = datetime.fromtimestamp(mtime, tz=UTC).isoformat()
     return {
         "schema_version": 1,
         "found":          True,

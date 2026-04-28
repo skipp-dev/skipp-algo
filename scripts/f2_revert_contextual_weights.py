@@ -61,7 +61,7 @@ ARCHIVE_SUBDIR_DEFAULT = "contextual_calibration.archive"
 
 
 def _utc_iso_compact() -> str:
-    return _dt.datetime.now(tz=_dt.timezone.utc).strftime("%Y-%m-%dT%H-%M-%SZ")
+    return _dt.datetime.now(tz=_dt.UTC).strftime("%Y-%m-%dT%H-%M-%SZ")
 
 
 def _atomic_write_text(path: Path, text: str) -> None:

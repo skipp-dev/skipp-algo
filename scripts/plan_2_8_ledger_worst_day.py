@@ -56,7 +56,7 @@ def compute(records: list[dict[str, Any]]) -> dict[str, Any]:
         s = raw.strip().lower()
         if s not in VALID_STATUSES:
             continue
-        key = ts.astimezone(_dt.timezone.utc).strftime("%Y-%m-%d")
+        key = ts.astimezone(_dt.UTC).strftime("%Y-%m-%d")
         slot = buckets.setdefault(key, {k: 0 for k in VALID_STATUSES})
         slot[s] += 1
     if not buckets:

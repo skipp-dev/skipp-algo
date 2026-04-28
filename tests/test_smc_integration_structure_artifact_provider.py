@@ -26,7 +26,7 @@ def test_structure_artifact_provider_loads_explicit_structure(monkeypatch, tmp_p
 
     monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACT_JSON", artifact_path)
 
-    payload = structure_artifact_json._load_payload()  # noqa: SLF001
+    payload = structure_artifact_json._load_payload()
     entry = next((item for item in payload["entries"] if item["structure"]["bos"]), payload["entries"][0])
     symbol = str(entry["symbol"])
 

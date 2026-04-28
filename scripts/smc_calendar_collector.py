@@ -5,7 +5,7 @@ Pure stdlib implementation — no open_prep or external dependencies.
 from __future__ import annotations
 
 import re
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timezone, UTC
 from zoneinfo import ZoneInfo
 from typing import Any
 
@@ -37,13 +37,13 @@ def _parse_date(raw: Any) -> date | None:
 def _parse_event_dt(raw: Any) -> datetime | None:
     """Parse an ISO-ish datetime string to a timezone-aware datetime."""
     if isinstance(raw, datetime):
-        return raw if raw.tzinfo else raw.replace(tzinfo=timezone.utc)
+        return raw if raw.tzinfo else raw.replace(tzinfo=UTC)
     if not isinstance(raw, str) or not raw:
         return None
     for fmt in ("%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S"):
         try:
             dt = datetime.strptime(raw, fmt)
-            return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+            return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
         except ValueError:
             continue
     return None

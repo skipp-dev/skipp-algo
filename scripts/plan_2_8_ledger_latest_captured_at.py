@@ -14,7 +14,7 @@ from scripts.smc_atomic_write import atomic_write_text
 import argparse
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 from typing import Any
 
@@ -41,7 +41,7 @@ def compute(
     now: datetime | None = None,
 ) -> dict[str, Any]:
     if now is None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
     for rec in reversed(records):
         ts = rec.get("captured_at")
         if not isinstance(ts, str):

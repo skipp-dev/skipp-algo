@@ -110,7 +110,7 @@ def test_snapshot_from_ticks_buy_imbalance() -> None:
     }
     s = build_snapshot_from_ticks(
         symbol="ZIM", listing_exchange="NYSE", ticks=ticks,
-        now_utc=_dt.datetime(2026, 4, 27, 13, 28, tzinfo=_dt.timezone.utc),
+        now_utc=_dt.datetime(2026, 4, 27, 13, 28, tzinfo=_dt.UTC),
     )
     assert s.available is True
     assert s.imbalance_feed == "NYSE"

@@ -16,7 +16,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-from pine_input_surface import parse_inputs  # noqa: E402
+from pine_input_surface import parse_inputs
 
 
 def _load(name: str) -> list:

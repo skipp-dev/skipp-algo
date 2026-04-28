@@ -5,7 +5,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 from typing import Any
 
@@ -43,7 +43,7 @@ def test_no_green() -> None:
 
 
 def test_first_green_picks_earliest() -> None:
-    now = datetime(2026, 4, 20, 10, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 4, 20, 10, 0, tzinfo=UTC)
     rep = fg.compute(
         [
             {"status": "red", "captured_at": "2026-04-20T00:00:00+00:00"},
@@ -56,7 +56,7 @@ def test_first_green_picks_earliest() -> None:
 
 
 def test_bad_timestamp_skipped() -> None:
-    now = datetime(2026, 4, 20, 10, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 4, 20, 10, 0, tzinfo=UTC)
     rep = fg.compute(
         [
             {"status": "green", "captured_at": "bogus"},

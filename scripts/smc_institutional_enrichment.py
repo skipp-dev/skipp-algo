@@ -41,7 +41,7 @@ def compute_institutional_enrichment(
                     accumulation.append(sym)
                 elif change_pct < -0.05:
                     distribution.append(sym)
-        except Exception as exc:  # noqa: BLE001 - E-2: track per-symbol failures
+        except Exception as exc:
             failed.append((sym, type(exc).__name__))
             logger.warning("institutional enrichment failed for %s: %s", sym, exc)
             continue

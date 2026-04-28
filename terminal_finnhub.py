@@ -176,7 +176,7 @@ def _get(path: str, params: dict[str, Any] | None = None) -> Any:
     url = f"{_BASE}{path}?{'&'.join(query_parts)}"
     request = Request(url, headers={"Accept": "application/json"})
     # Rate-limit backoff guard
-    global _rate_limit_backoff_until, _consecutive_429_count  # noqa: PLW0603
+    global _rate_limit_backoff_until, _consecutive_429_count
     with _state_lock:
         if time.time() < _rate_limit_backoff_until:
             return {}
@@ -205,7 +205,7 @@ def _get(path: str, params: dict[str, Any] | None = None) -> Any:
                 "(suppressing further calls this session)", path,
             )
             if "social-sentiment" in path:
-                global _social_sentiment_blocked  # noqa: PLW0603
+                global _social_sentiment_blocked
                 with _state_lock:
                     _social_sentiment_blocked = True
         else:

@@ -74,12 +74,12 @@ def interval_seconds(interval: str) -> int:
 
 
 def guard_closed_bars(
-    df: "pd.DataFrame",
+    df: pd.DataFrame,
     *,
     interval: str,
     now: float | None,
     timestamp_column: str = "timestamp",
-) -> "pd.DataFrame":
+) -> pd.DataFrame:
     """Return ``df`` with any trailing in-progress bars removed.
 
     Parameters

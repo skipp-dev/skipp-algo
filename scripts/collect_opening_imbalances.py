@@ -319,7 +319,7 @@ def _summarise(
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
 
-    now_utc = _dt.datetime.now(tz=_dt.timezone.utc)
+    now_utc = _dt.datetime.now(tz=_dt.UTC)
     started_at = now_utc.isoformat()
     trade_date = args.trade_date or now_utc.date().isoformat()
 
@@ -382,7 +382,7 @@ def main(argv: list[str] | None = None) -> int:
         args.output, (s.to_dict() for s in snapshots)
     )
 
-    completed = _dt.datetime.now(tz=_dt.timezone.utc).isoformat()
+    completed = _dt.datetime.now(tz=_dt.UTC).isoformat()
     summary = _summarise(
         trade_date=trade_date,
         rows=rows,

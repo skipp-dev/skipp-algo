@@ -15,7 +15,7 @@ Usage::
 from __future__ import annotations
 
 import logging
-from datetime import datetime, time, timezone
+from datetime import datetime, time, timezone, UTC
 from typing import Any
 
 import pandas as pd
@@ -102,7 +102,7 @@ def build_session_context_block(
     """
     result = dict(DEFAULTS)
 
-    ts = timestamp or datetime.now(timezone.utc)
+    ts = timestamp or datetime.now(UTC)
     current_time = ts.time() if hasattr(ts, "time") else time(0, 0)
 
     result["SESSION_CONTEXT"] = _classify_session(current_time)

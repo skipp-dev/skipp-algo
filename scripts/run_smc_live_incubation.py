@@ -40,7 +40,7 @@ import os
 import tempfile
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timezone, UTC
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any
@@ -209,10 +209,10 @@ def _filter_tradable_setups(
 
 
 def _utc_iso(now: datetime | None) -> str:
-    instant = now if now is not None else datetime.now(timezone.utc)
+    instant = now if now is not None else datetime.now(UTC)
     if instant.tzinfo is None:
-        instant = instant.replace(tzinfo=timezone.utc)
-    return instant.astimezone(timezone.utc).isoformat()
+        instant = instant.replace(tzinfo=UTC)
+    return instant.astimezone(UTC).isoformat()
 
 
 def _atomic_append_audit(path: Path, records: list[dict[str, Any]]) -> None:
@@ -342,9 +342,9 @@ def run_live_incubation(
     earnings_decisions: dict[str, EarningsFilterDecision] = {}
     if earnings_filter is not None:
         trade_date_iso = (
-            now.astimezone(timezone.utc).date().isoformat()
+            now.astimezone(UTC).date().isoformat()
             if now is not None
-            else datetime.now(timezone.utc).date().isoformat()
+            else datetime.now(UTC).date().isoformat()
         )
         allowed: list[IBKROrderIntent] = []
         for intent in intents:
@@ -609,7 +609,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         account_state = _account_state_from_json(args.account_state_json)
     else:
         account_state = AccountState(
-            as_of=datetime.now(timezone.utc).date(),
+            as_of=datetime.now(UTC).date(),
             equity=0.0,
             starting_equity_today=0.0,
             high_water_mark=0.0,

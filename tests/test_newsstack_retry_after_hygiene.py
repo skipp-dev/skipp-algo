@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import httpx
 import pytest
+from datetime import UTC
 
 
 # ── _parse_retry_after_seconds (both copies) ────────────────────────
@@ -44,7 +45,7 @@ class TestParseRetryAfterSeconds:
         from datetime import datetime, timedelta, timezone
         from email.utils import format_datetime
         mod = importlib.import_module(module_path)
-        future = datetime.now(timezone.utc) + timedelta(seconds=30)
+        future = datetime.now(UTC) + timedelta(seconds=30)
         out = mod._parse_retry_after_seconds(format_datetime(future, usegmt=True))
         assert out is not None
         assert 25 <= out <= 35  # tolerance for clock skew
@@ -61,7 +62,7 @@ class TestParseRetryAfterSeconds:
         from email.utils import format_datetime
         mod = importlib.import_module(module_path)
         assert mod._parse_retry_after_seconds("-5") == 0.0
-        past = datetime.now(timezone.utc) - timedelta(seconds=30)
+        past = datetime.now(UTC) - timedelta(seconds=30)
         assert mod._parse_retry_after_seconds(format_datetime(past, usegmt=True)) == 0.0
 
 

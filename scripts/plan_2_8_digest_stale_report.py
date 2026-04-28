@@ -24,7 +24,7 @@ def classify(
     stale_days: float,
     now: _dt.datetime | None = None,
 ) -> dict[str, Any]:
-    now_ = now or _dt.datetime.now(tz=_dt.timezone.utc)
+    now_ = now or _dt.datetime.now(tz=_dt.UTC)
     fresh: list[dict[str, Any]] = []
     warn: list[dict[str, Any]] = []
     stale: list[dict[str, Any]] = []
@@ -33,7 +33,7 @@ def classify(
             if not path.is_file():
                 continue
             mtime = _dt.datetime.fromtimestamp(
-                path.stat().st_mtime, tz=_dt.timezone.utc,
+                path.stat().st_mtime, tz=_dt.UTC,
             )
             age = max(0.0, (now_ - mtime).total_seconds() / 86400.0)
             entry = {"name": path.name, "age_days": round(age, 2)}

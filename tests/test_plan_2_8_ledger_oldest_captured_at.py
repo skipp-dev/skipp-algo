@@ -5,7 +5,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 from typing import Any
 
@@ -36,7 +36,7 @@ def test_empty() -> None:
 
 
 def test_oldest() -> None:
-    now = datetime(2026, 4, 20, 10, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 4, 20, 10, 0, tzinfo=UTC)
     rep = oc.compute(
         [
             {"status": "red", "captured_at": "2026-04-20T00:00:00+00:00"},
@@ -50,7 +50,7 @@ def test_oldest() -> None:
 
 
 def test_head_invalid_skipped() -> None:
-    now = datetime(2026, 4, 20, 10, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 4, 20, 10, 0, tzinfo=UTC)
     rep = oc.compute(
         [
             {"status": "red", "captured_at": "bogus"},

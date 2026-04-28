@@ -302,7 +302,7 @@ class _ImportBlocker:
     def __init__(self, blocked: str):
         self.blocked = blocked
 
-    def find_module(self, fullname: str, path: Any = None) -> "_ImportBlocker | None":
+    def find_module(self, fullname: str, path: Any = None) -> _ImportBlocker | None:
         if fullname == self.blocked or fullname.startswith(f"{self.blocked}."):
             return self
         return None

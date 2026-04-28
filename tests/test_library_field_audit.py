@@ -381,7 +381,7 @@ RESERVED_PINE_EXPORTS: set[str] = set()
 # block; dashboards still re-derive regime/bias/session/trust/freshness
 # locally. Wiring lands together with the Mobile + Default surface
 # reshape in the upcoming UI ticket.
-from scripts.smc_hero_market_mode import (  # noqa: E402
+from scripts.smc_hero_market_mode import (
     PINE_HERO_MARKET_FIELDS,
 )
 
@@ -390,7 +390,7 @@ RESERVED_PINE_EXPORTS.update(PINE_HERO_MARKET_FIELDS)
 # ENG-WS3-04 — Hero Setup-Quality card. Same situation as above:
 # canonical card is exported, dashboards still pick from raw ensemble
 # fields. Wired in the same UI ticket as the Market head.
-from scripts.smc_hero_setup_quality import (  # noqa: E402
+from scripts.smc_hero_setup_quality import (
     PINE_HERO_QUALITY_FIELDS,
 )
 
@@ -398,7 +398,7 @@ RESERVED_PINE_EXPORTS.update(PINE_HERO_QUALITY_FIELDS)
 
 # ENG-WS3-05 — Hero Action recommendation. Exported as the canonical
 # verb + reason; Pine still derives the action label internally.
-from scripts.smc_hero_action import (  # noqa: E402
+from scripts.smc_hero_action import (
     PINE_HERO_ACTION_FIELDS,
 )
 

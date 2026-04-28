@@ -17,6 +17,7 @@ import json
 import threading
 import time
 from unittest.mock import MagicMock, patch
+from datetime import UTC
 
 
 
@@ -292,7 +293,7 @@ class TestPremarketPartialDegrade:
                 client=mock_client,
                 symbols=["AAPL"],
                 today=date.today(),
-                run_dt_utc=datetime.now(timezone.utc),
+                run_dt_utc=datetime.now(UTC),
                 mover_seed_max_symbols=10,
                 analyst_catalyst_limit=0,
             )

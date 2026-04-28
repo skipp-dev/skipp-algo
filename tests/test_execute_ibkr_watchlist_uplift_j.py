@@ -747,7 +747,7 @@ class TestPlaceOrderIntentsWithIb:
         ib.placeOrder.return_value = SimpleNamespace(orderStatus=SimpleNamespace(status="Submitted"))
         Stock = MagicMock(return_value=SimpleNamespace(symbol="AAPL"))
         # Use the real LimitOrder/Order via SimpleNamespace constructors
-        LimitOrder = lambda action, qty, price: SimpleNamespace(  # noqa: E731
+        LimitOrder = lambda action, qty, price: SimpleNamespace(
             action=action,
             totalQuantity=qty,
             lmtPrice=price,
@@ -758,7 +758,7 @@ class TestPlaceOrderIntentsWithIb:
             auxPrice=None,
             transmit=True,
         )
-        Order = lambda **kw: SimpleNamespace(  # noqa: E731
+        Order = lambda **kw: SimpleNamespace(
             **kw, orderId=0, permId=0, orderRef="", lmtPrice=None, auxPrice=None, transmit=True
         )
         with _patch_ibkr_types(Stock=Stock, LimitOrder=LimitOrder, Order=Order):

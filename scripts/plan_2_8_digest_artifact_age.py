@@ -22,14 +22,14 @@ def scan(
     artifact_dir: Path, *,
     now: _dt.datetime | None = None,
 ) -> dict[str, Any]:
-    now_ = now or _dt.datetime.now(tz=_dt.timezone.utc)
+    now_ = now or _dt.datetime.now(tz=_dt.UTC)
     entries: list[dict[str, Any]] = []
     if artifact_dir.is_dir():
         for path in sorted(artifact_dir.iterdir()):
             if not path.is_file():
                 continue
             mtime = _dt.datetime.fromtimestamp(
-                path.stat().st_mtime, tz=_dt.timezone.utc,
+                path.stat().st_mtime, tz=_dt.UTC,
             )
             age = (now_ - mtime).total_seconds() / 86400.0
             if age < 0:

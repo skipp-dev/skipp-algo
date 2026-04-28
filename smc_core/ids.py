@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from decimal import Decimal, ROUND_HALF_UP
 from zoneinfo import ZoneInfo
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 
 from .types import BosDir, BosEventKind, FvgDir, ObDir, SweepSide
 
@@ -161,9 +161,9 @@ def quantize_time_to_tf(
 
     if timeframe == "1D":
         tz = ZoneInfo(session_tz or DEFAULT_SESSION_TZ)
-        dt = datetime.fromtimestamp(seconds, tz=timezone.utc).astimezone(tz)
+        dt = datetime.fromtimestamp(seconds, tz=UTC).astimezone(tz)
         midnight = dt.replace(hour=0, minute=0, second=0, microsecond=0)
-        return float(int(midnight.astimezone(timezone.utc).timestamp()))
+        return float(int(midnight.astimezone(UTC).timestamp()))
 
     return float(seconds - (seconds % block))
 

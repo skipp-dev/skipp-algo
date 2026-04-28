@@ -48,7 +48,7 @@ class SACSizer:
         self.seed = int(seed)
         self._model: Any = None
 
-    def fit(self, env: Any, total_timesteps: int = 100_000) -> "SACSizer":  # pragma: no cover
+    def fit(self, env: Any, total_timesteps: int = 100_000) -> SACSizer:  # pragma: no cover
         self._model = SAC(
             "MlpPolicy", env, learning_rate=self.learning_rate, batch_size=self.batch_size, seed=self.seed
         )

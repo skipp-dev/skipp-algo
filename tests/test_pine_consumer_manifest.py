@@ -7,10 +7,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from scripts.smc_bus_manifest import ACTIVE_VALIDATION_PINE_FILES  # noqa: E402
-from scripts.smc_bus_manifest import DASHBOARD_GROUP_TITLES  # noqa: E402
-from scripts.smc_bus_manifest import ENGINE_BUS_LABELS  # noqa: E402
-from scripts.smc_bus_manifest import STRATEGY_GROUP_TITLES  # noqa: E402
+from scripts.smc_bus_manifest import ACTIVE_VALIDATION_PINE_FILES
+from scripts.smc_bus_manifest import DASHBOARD_GROUP_TITLES
+from scripts.smc_bus_manifest import ENGINE_BUS_LABELS
+from scripts.smc_bus_manifest import STRATEGY_GROUP_TITLES
 
 
 RUNBOOK_PATH = ROOT / 'docs/tradingview-manual-validation-runbook.md'

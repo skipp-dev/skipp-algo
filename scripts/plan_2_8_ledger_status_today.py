@@ -58,7 +58,7 @@ def find_today(
         s = raw.strip().lower()
         if s not in VALID_STATUSES:
             continue
-        if ts.astimezone(_dt.timezone.utc).date() != target:
+        if ts.astimezone(_dt.UTC).date() != target:
             continue
         match = {
             "schema_version": 1,
@@ -110,7 +110,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     if args.date is None:
-        target = _dt.datetime.now(tz=_dt.timezone.utc).date()
+        target = _dt.datetime.now(tz=_dt.UTC).date()
     else:
         try:
             target = _dt.date.fromisoformat(args.date)

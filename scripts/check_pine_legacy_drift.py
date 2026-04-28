@@ -42,7 +42,7 @@ _REPO_ROOT_FOR_BOOTSTRAP = os.path.dirname(os.path.dirname(os.path.abspath(__fil
 if _REPO_ROOT_FOR_BOOTSTRAP not in sys.path:
     sys.path.insert(0, _REPO_ROOT_FOR_BOOTSTRAP)
 
-from scripts.pine_path_resolver import PINE_LEGACY_DIR  # noqa: E402
+from scripts.pine_path_resolver import PINE_LEGACY_DIR
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent

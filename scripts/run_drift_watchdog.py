@@ -42,7 +42,7 @@ import argparse
 import json
 import os
 import tempfile
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone, UTC
 from pathlib import Path
 from typing import Any
 
@@ -295,7 +295,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
-    today = args.today or datetime.now(tz=timezone.utc).date()
+    today = args.today or datetime.now(tz=UTC).date()
     report = build_report(
         outcomes_dir=args.outcomes_dir,
         baseline_json=args.baseline_json,

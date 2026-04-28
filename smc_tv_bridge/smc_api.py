@@ -18,7 +18,7 @@ import logging
 import os
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from pathlib import Path
 from typing import Any
 
@@ -81,7 +81,7 @@ def _candle_ts(c: dict[str, Any]) -> int:
         try:
             if "T" in d:
                 return int(datetime.fromisoformat(d).timestamp())
-            return int(datetime.strptime(d, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp())
+            return int(datetime.strptime(d, "%Y-%m-%d").replace(tzinfo=UTC).timestamp())
         except Exception:
             pass
     return int(time.time())

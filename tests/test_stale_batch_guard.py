@@ -1,7 +1,7 @@
 """Tests for stale-batch protection (ENG-WS5-02)."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 
 from smc_integration.stale_batch_guard import (
     DEFAULT_AGING_HOURS,
@@ -12,7 +12,7 @@ from smc_integration.stale_batch_guard import (
 )
 
 
-NOW = datetime(2026, 4, 20, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 4, 20, 12, 0, tzinfo=UTC)
 
 
 def _ts(hours_ago: float) -> str:

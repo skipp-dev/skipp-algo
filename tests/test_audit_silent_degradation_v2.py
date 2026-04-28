@@ -184,7 +184,7 @@ def test_finnhub_social_sentiment_status_uses_lock() -> None:
     acquire_count = {"n": 0}
 
     class CountingLock:
-        def __enter__(self) -> "CountingLock":
+        def __enter__(self) -> CountingLock:
             acquire_count["n"] += 1
             real_lock.acquire()
             return self

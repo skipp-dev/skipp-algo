@@ -25,7 +25,7 @@ from typing import Any
 def _now(ts: str | None) -> str:
     if ts:
         return ts
-    return _dt.datetime.now(tz=_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return _dt.datetime.now(tz=_dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _load_alerts(path: Path) -> list[dict[str, Any]]:

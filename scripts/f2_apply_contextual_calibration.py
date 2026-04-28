@@ -269,7 +269,7 @@ def _build_pair_summary(
     drift away from the harness output schema if the harness adds
     fields later.
     """
-    from smc_core.scoring import _build_stratified_calibration  # noqa: F401  (sanity)
+    from smc_core.scoring import _build_stratified_calibration
 
     calibration = serialize_calibration_summary(scoring_result.calibration)
     stratified = serialize_stratified_calibration(

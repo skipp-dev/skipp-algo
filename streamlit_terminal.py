@@ -51,7 +51,7 @@ class _DummySessionState(dict[str, Any]):
 
 
 class _DummyWidgetSurface:
-    def __enter__(self) -> "_DummyWidgetSurface":
+    def __enter__(self) -> _DummyWidgetSurface:
         return self
 
     def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
@@ -86,27 +86,27 @@ class _DummyStreamlit(_DummyWidgetSurface):
 
         return decorator
 
-    def tabs(self, labels: list[Any]) -> list["_DummyStreamlit"]:
+    def tabs(self, labels: list[Any]) -> list[_DummyStreamlit]:
         return [self for _ in labels]
 
-    def columns(self, spec: Any, *args: Any, **kwargs: Any) -> list["_DummyStreamlit"]:
+    def columns(self, spec: Any, *args: Any, **kwargs: Any) -> list[_DummyStreamlit]:
         del args, kwargs
         count = spec if isinstance(spec, int) else len(spec)
         return [self for _ in range(max(int(count), 0))]
 
-    def expander(self, *args: Any, **kwargs: Any) -> "_DummyStreamlit":
+    def expander(self, *args: Any, **kwargs: Any) -> _DummyStreamlit:
         del args, kwargs
         return self
 
-    def spinner(self, *args: Any, **kwargs: Any) -> "_DummyStreamlit":
+    def spinner(self, *args: Any, **kwargs: Any) -> _DummyStreamlit:
         del args, kwargs
         return self
 
-    def container(self, *args: Any, **kwargs: Any) -> "_DummyStreamlit":
+    def container(self, *args: Any, **kwargs: Any) -> _DummyStreamlit:
         del args, kwargs
         return self
 
-    def empty(self, *args: Any, **kwargs: Any) -> "_DummyStreamlit":
+    def empty(self, *args: Any, **kwargs: Any) -> _DummyStreamlit:
         del args, kwargs
         return self
 
@@ -2954,7 +2954,7 @@ else:
         label = signal_label(sig)
         return f"{icon} {label}" if icon else (label or "\u2014")
 
-    def _safe_tab(label: str, body_fn, *args, **kwargs) -> None:  # noqa: ANN001
+    def _safe_tab(label: str, body_fn, *args, **kwargs) -> None:
         """Wrap a tab body in try/except so one failing tab doesn't crash others (item 7)."""
         try:
             body_fn(*args, **kwargs)
