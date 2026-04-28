@@ -10,6 +10,13 @@ from datetime import UTC, date, datetime, time
 from zoneinfo import ZoneInfo
 
 _ET = ZoneInfo("America/New_York")
+
+
+def _today_et() -> date:
+    """Return today's date in US/Eastern. Hookable for deterministic tests."""
+    return datetime.now(_ET).date()
+
+
 from pathlib import Path
 from typing import Any, Callable, cast
 
@@ -313,7 +320,7 @@ def _build_base_snapshot_from_symbol_day_features(
     if not resolved_asof:
         raise RuntimeError("Unable to resolve asof_date from symbol-day features")
     resolved_date = date.fromisoformat(resolved_asof)
-    days_stale = (datetime.now(_ET).date() - resolved_date).days
+    days_stale = (_today_et() - resolved_date).days
     if days_stale > 5:
         warnings.warn(
             f"Microstructure base asof_date is {days_stale} days old; results may be stale.",
@@ -1694,7 +1701,7 @@ def build_base_snapshot_from_bundle_payload(
     if not resolved_asof:
         raise RuntimeError("Unable to resolve asof_date from bundle symbol-day features")
     resolved_date = date.fromisoformat(resolved_asof)
-    days_stale = (datetime.now(_ET).date() - resolved_date).days
+    days_stale = (_today_et() - resolved_date).days
     if days_stale > 5:
         warnings.warn(
             f"Microstructure base asof_date is {days_stale} days old; results may be stale.",

@@ -447,12 +447,7 @@ def test_build_base_snapshot_from_bundle_payload_warns_when_asof_is_stale(
 ) -> None:
     bundle_payload, session_minute_detail = _make_bundle_payload(tmp_path)
 
-    class FakeDate(date):
-        @classmethod
-        def today(cls) -> "FakeDate":
-            return cls(2026, 3, 27)
-
-    monkeypatch.setattr(runtime, "date", FakeDate)
+    monkeypatch.setattr(runtime, "_today_et", lambda: date(2026, 3, 27))
 
     with pytest.warns(UserWarning, match=r"Microstructure base asof_date is 8 days old; results may be stale\."):
         output, payload, _ = build_base_snapshot_from_bundle_payload(
