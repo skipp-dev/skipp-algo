@@ -22,7 +22,6 @@ import pytest
 
 from scripts.run_ab_comparison import _normal_cdf
 
-
 # Reference values from a 64-bit ``scipy.stats.norm.cdf`` evaluation,
 # rounded to 15 significant digits. ``math.erf`` is implemented on
 # ``libm``'s high-precision erf, so the ``0.5 * (1 + erf(x / sqrt(2)))``

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-
 import pytest
 
 from scripts.smc_zone_priority_consumer import (
@@ -19,7 +18,6 @@ from scripts.smc_zone_priority_consumer import (
     compute_per_family_hit_rates,
     degrade_family_hit_rates,
 )
-
 
 # ── Defaults ────────────────────────────────────────────────────
 

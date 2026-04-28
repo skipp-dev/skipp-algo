@@ -10,7 +10,6 @@ import statistics
 from dataclasses import dataclass, field
 from typing import Literal, Sequence
 
-
 StratKey = Literal["regime", "trust_tier", "news_bias"]
 
 

@@ -15,7 +15,6 @@ from __future__ import annotations
 
 from unittest import mock
 
-
 from scripts.run_smc_release_gates import (
     _run_post_release_validation_gate,
     _tv_gate_is_soft_only,

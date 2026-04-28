@@ -8,7 +8,6 @@ import pytest
 
 from smc_integration import structure_batch as structure_batch_module
 from smc_integration.structure_batch import write_structure_artifacts_from_workbook
-
 from tests.helpers.smc_test_artifacts import make_minimal_workbook
 
 ROOT = Path(__file__).resolve().parents[1]

@@ -6,8 +6,6 @@ month and reports status counts per bucket. Pure stdlib, JSON-first.
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import datetime as _dt
 import json
@@ -16,6 +14,7 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
+from scripts.smc_atomic_write import atomic_write_text
 
 VALID_STATUSES = ("green", "amber", "red", "unknown")
 

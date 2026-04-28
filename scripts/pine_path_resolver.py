@@ -18,7 +18,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Sequence
 
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 # Single source of truth for the LEGACY pine directory location (H-8,
 # system review 2026-04-24). All non-test code that needs to address

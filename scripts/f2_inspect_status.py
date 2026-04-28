@@ -23,8 +23,6 @@ Pure-Python, read-only, no network.
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 import re
@@ -32,6 +30,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from scripts.smc_atomic_write import atomic_write_text
 
 STATUS_SCHEMA_VERSION = 1
 _REPORT_RE = re.compile(r"f2_promotion_gate_(\d{4}-\d{2}-\d{2})\.json$")

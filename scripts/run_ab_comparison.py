@@ -22,8 +22,6 @@ Output
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 import math
@@ -35,11 +33,12 @@ from typing import Any, Callable, Sequence
 
 # Re-use the report helpers from the performance report generator.
 from scripts.generate_performance_report import (
+    PairReport,
     _aggregate,
     _grade,
     load_benchmark,
-    PairReport,
 )
+from scripts.smc_atomic_write import atomic_write_text
 from scripts.smc_sprt_stop_rule import SPRTConfig, terminal_decision
 
 

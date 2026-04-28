@@ -5,9 +5,9 @@ Pure stdlib implementation — no open_prep or external dependencies.
 from __future__ import annotations
 
 import re
-from datetime import date, datetime, timezone, UTC
-from zoneinfo import ZoneInfo
+from datetime import UTC, date, datetime, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
 # Macro events considered high-impact
 _HIGH_IMPACT_PATTERNS = re.compile(

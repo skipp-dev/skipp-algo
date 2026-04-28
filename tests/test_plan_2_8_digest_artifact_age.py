@@ -12,7 +12,6 @@ from typing import Any
 
 import pytest
 
-
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "plan_2_8_digest_artifact_age.py"
 WEEKLY = REPO / ".github" / "workflows" / "plan-2-8-weekly-digest.yml"

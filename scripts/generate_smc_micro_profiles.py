@@ -9,9 +9,9 @@ from typing import Any, cast
 
 import pandas as pd
 
-from smc_core.schema_version import SCHEMA_VERSION, classify_version_change
 from scripts.smc_atomic_write import atomic_write_csv, atomic_write_text
 from scripts.smc_enrichment_types import EnrichmentDict
+from smc_core.schema_version import SCHEMA_VERSION, classify_version_change
 
 logger = logging.getLogger(__name__)
 
@@ -1110,8 +1110,14 @@ def write_pine_library(
     # Pine consumer always sees a renderable value.
     from scripts.smc_zone_priority_consumer import (
         DEFAULTS as _ZH_DEFAULTS,
+    )
+    from scripts.smc_zone_priority_consumer import (
         FAMILIES as _ZH_FAMILIES,
+    )
+    from scripts.smc_zone_priority_consumer import (
         HR_SENTINEL_DEGRADED as _ZH_HR_SENTINEL,
+    )
+    from scripts.smc_zone_priority_consumer import (
         build_consumer_exports,
     )
 

@@ -16,7 +16,6 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
-
 # ── Helpers ─────────────────────────────────────────────────────
 
 def _fake_base_result(tmp_path: Path) -> dict[str, Any]:

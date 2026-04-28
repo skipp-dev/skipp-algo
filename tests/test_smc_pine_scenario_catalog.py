@@ -21,7 +21,6 @@ from scripts.smc_pine_scenario_catalog import (
     list_pine_scenarios,
 )
 
-
 _EXPECTED_IDS_IN_ORDER: tuple[str, ...] = (
     "ws1_bos_bullish_continuation",
     "ws1_choch_reclaim_long",

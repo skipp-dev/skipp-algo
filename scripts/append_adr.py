@@ -21,14 +21,13 @@ Typical use (e.g. at W13 recording a Q4-gate reject reason):
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import datetime as _dt
 import re
 import sys
 from pathlib import Path
 
+from scripts.smc_atomic_write import atomic_write_text
 
 ENTRIES_HEADER = "## Entries"
 REQUIRED_SUBSECTIONS = (

@@ -18,7 +18,6 @@ from smc_integration.trust_state import (
     derive_trust_state,
 )
 
-
 # ── Vocabulary ────────────────────────────────────────────────────────
 
 

@@ -8,8 +8,6 @@ section heading. Emits a per-link report in md or json. Optional
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 import re
@@ -17,6 +15,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from scripts.smc_atomic_write import atomic_write_text
 
 # Matches `[label](#slug)` but **not** http(s) or file links.
 LINK_RE = re.compile(r"\[([^\]]+)\]\(#([A-Za-z0-9][A-Za-z0-9_\-]*)\)")

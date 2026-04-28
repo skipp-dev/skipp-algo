@@ -17,17 +17,15 @@ from scripts.explicit_structure_from_bars import build_explicit_structure_from_b
 from scripts.load_databento_export_bundle import load_export_bundle
 from scripts.smc_event_risk_builder import build_event_risk
 from scripts.smc_event_risk_light import build_event_risk_light
-from scripts.smc_signal_quality import build_signal_quality
-from smc_core.htf_context import build_htf_bias_context
-from smc_core.session_context import build_session_liquidity_context
 from scripts.smc_session_context_block import build_session_context_block
 from scripts.smc_session_context_light import build_session_context_light
+from scripts.smc_signal_quality import build_signal_quality
 from scripts.smc_structure_state import build_structure_state
 from scripts.smc_structure_state_light import build_structure_state_light
-from smc_core.bias_merge import merge_bias
-from smc_integration.timeframes import is_daily_timeframe
 from smc_core.benchmark import EventFamily
+from smc_core.bias_merge import merge_bias
 from smc_core.ensemble_quality import build_ensemble_quality, serialize_ensemble_quality
+from smc_core.htf_context import build_htf_bias_context
 from smc_core.scoring import (
     ScoredEvent,
     compute_fvg_partial_fill,
@@ -38,11 +36,12 @@ from smc_core.scoring import (
     label_sweep_reversal,
     score_events,
 )
+from smc_core.session_context import build_session_liquidity_context
 from smc_core.vol_regime import compute_vol_regime
 from smc_integration.artifact_resolution import resolve_structure_artifact_inputs
 from smc_integration.repo_sources import load_raw_meta_input_composite
 from smc_integration.sources import structure_artifact_json
-
+from smc_integration.timeframes import is_daily_timeframe
 
 _FAMILIES: tuple[EventFamily, ...] = ("BOS", "OB", "FVG", "SWEEP")
 _BOS_LOOKAHEAD_BARS = 8

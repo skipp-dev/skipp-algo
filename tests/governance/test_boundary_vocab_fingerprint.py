@@ -73,6 +73,8 @@ from scripts.smc_bus_manifest import (
 )
 from scripts.smc_hero_state import (
     DEFAULTS as HERO_DEFAULTS,
+)
+from scripts.smc_hero_state import (
     HERO_ACTION_VOCAB,
     HERO_QUALITY_A_TO_B,
     HERO_SETUP_QUALITY_VOCAB,

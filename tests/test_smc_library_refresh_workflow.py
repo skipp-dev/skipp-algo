@@ -3,16 +3,15 @@ from __future__ import annotations
 from pathlib import Path
 
 from smc_integration.release_policy import (
-    DRIFT_CLASSES,
     DRIFT_CLASS_GITIGNORED,
     DRIFT_CLASS_RESTORE_ON_COMMIT,
     DRIFT_CLASS_STAGE_ONLY,
+    DRIFT_CLASSES,
     RESTORE_ON_COMMIT_PATHS,
     STAGE_ONLY_PATHS,
     VOLATILE_ARTIFACT_POLICY,
     classify_artifact_drift,
 )
-
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_PATH = ROOT / ".github/workflows/smc-library-refresh.yml"

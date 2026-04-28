@@ -1,6 +1,6 @@
-from .schema_version import SCHEMA_VERSION
 from .ensemble_quality import EnsembleQualityResult, build_ensemble_quality, serialize_ensemble_quality
 from .layering import apply_layering, derive_base_signals, normalize_meta
+from .schema_version import SCHEMA_VERSION
 from .serialization import snapshot_to_dict
 from .types import (
     BaseLayerSignals,

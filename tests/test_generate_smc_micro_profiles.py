@@ -12,8 +12,8 @@ from scripts.generate_smc_micro_profiles import (
     _bucket_quantile,
     _safe_bool,
     add_bucket_features,
-    assess_csv_against_schema,
     apply_candidate_rules,
+    assess_csv_against_schema,
     build_lists_from_state,
     coerce_input_frame,
     load_schema,
@@ -25,10 +25,8 @@ from scripts.generate_smc_micro_profiles import (
     write_pine_library,
     write_readiness_report,
 )
-
 from scripts.smc_enrichment_types import EnrichmentDict
 from scripts.smc_schema_resolver import resolve_microstructure_schema_path
-
 
 SCHEMA_PATH = str(resolve_microstructure_schema_path())
 

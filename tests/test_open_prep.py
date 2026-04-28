@@ -1,5 +1,4 @@
-from datetime import UTC, datetime, date, timedelta
-from pathlib import Path
+import argparse
 import io
 import json
 import os
@@ -7,11 +6,21 @@ import tempfile
 import time
 import unittest
 import urllib.error
+from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
 from unittest.mock import MagicMock, patch
-import argparse
 
-from open_prep.trade_cards import build_trade_cards
 import open_prep.run_open_prep as run_open_prep
+from open_prep.macro import (
+    FMPClient,
+    _parse_retry_after_seconds,
+    filter_us_events,
+    filter_us_high_impact_events,
+    filter_us_mid_impact_events,
+    macro_bias_score,
+    macro_bias_with_components,
+)
+from open_prep.news import _parse_article_datetime, build_news_scores, classify_article_sentiment
 from open_prep.run_open_prep import (
     GAP_MODE_OFF,
     GAP_MODE_PREMARKET_INDICATIVE,
@@ -20,30 +29,21 @@ from open_prep.run_open_prep import (
     GAP_SCOPE_STRETCH_ONLY,
     _build_runtime_status,
     _calculate_atr14_from_eod,
-    _fetch_symbol_atr,
-    _load_atr_cache,
-    _save_atr_cache,
     _extract_time_str,
+    _fetch_symbol_atr,
     _filter_events_by_cutoff_utc,
     _inputs_hash,
     _is_gap_day,
+    _load_atr_cache,
     _parse_bar_dt_utc,
+    _save_atr_cache,
     _sort_macro_events,
     _to_iso_utc_from_epoch,
     apply_gap_mode_to_quotes,
     build_gap_scanner,
 )
-from open_prep.news import build_news_scores, _parse_article_datetime, classify_article_sentiment
 from open_prep.screen import classify_long_gap, compute_gap_warn_flags, rank_candidates
-from open_prep.macro import (
-    FMPClient,
-    _parse_retry_after_seconds,
-    filter_us_events,
-    filter_us_high_impact_events,
-    filter_us_mid_impact_events,
-    macro_bias_with_components,
-    macro_bias_score,
-)
+from open_prep.trade_cards import build_trade_cards
 
 
 class TestOpenPrep(unittest.TestCase):
@@ -1057,7 +1057,7 @@ class TestOpenPrep(unittest.TestCase):
         self.assertEqual(macro_bias_score(events), 0.0)
 
     def test_gdpnow_not_treated_as_high_impact_release(self):
-        from open_prep.macro import _is_high_impact_event_name, DEFAULT_HIGH_IMPACT_EVENTS
+        from open_prep.macro import DEFAULT_HIGH_IMPACT_EVENTS, _is_high_impact_event_name
         self.assertFalse(_is_high_impact_event_name(
             "Atlanta Fed GDPNow", DEFAULT_HIGH_IMPACT_EVENTS
         ))
@@ -2452,23 +2452,23 @@ class TestSignalDecay(unittest.TestCase):
     """Tests for open_prep.signal_decay (M-8)."""
 
     def test_adaptive_half_life_low_atr_gives_max(self):
-        from open_prep.signal_decay import adaptive_half_life, MAX_HALF_LIFE_SECONDS
+        from open_prep.signal_decay import MAX_HALF_LIFE_SECONDS, adaptive_half_life
         hl = adaptive_half_life(atr_pct=0.5)
         self.assertEqual(hl, MAX_HALF_LIFE_SECONDS)
 
     def test_adaptive_half_life_high_atr_gives_min(self):
-        from open_prep.signal_decay import adaptive_half_life, MIN_HALF_LIFE_SECONDS
+        from open_prep.signal_decay import MIN_HALF_LIFE_SECONDS, adaptive_half_life
         hl = adaptive_half_life(atr_pct=10.0)
         self.assertEqual(hl, MIN_HALF_LIFE_SECONDS)
 
     def test_adaptive_half_life_mid_atr_interpolated(self):
-        from open_prep.signal_decay import adaptive_half_life, MIN_HALF_LIFE_SECONDS, MAX_HALF_LIFE_SECONDS
+        from open_prep.signal_decay import MAX_HALF_LIFE_SECONDS, MIN_HALF_LIFE_SECONDS, adaptive_half_life
         hl = adaptive_half_life(atr_pct=3.0)
         self.assertGreater(hl, MIN_HALF_LIFE_SECONDS)
         self.assertLess(hl, MAX_HALF_LIFE_SECONDS)
 
     def test_adaptive_half_life_none_uses_base(self):
-        from open_prep.signal_decay import adaptive_half_life, BASE_HALF_LIFE_SECONDS
+        from open_prep.signal_decay import BASE_HALF_LIFE_SECONDS, adaptive_half_life
         self.assertEqual(adaptive_half_life(), BASE_HALF_LIFE_SECONDS)
 
     def test_adaptive_half_life_instrument_class_fallback(self):
@@ -2506,22 +2506,22 @@ class TestRegime(unittest.TestCase):
     """Tests for open_prep.regime (M-7)."""
 
     def test_classify_regime_extreme_vix_is_risk_off(self):
-        from open_prep.regime import classify_regime, REGIME_RISK_OFF
+        from open_prep.regime import REGIME_RISK_OFF, classify_regime
         snap = classify_regime(macro_bias=0.2, vix_level=40.0)
         self.assertEqual(snap.regime, REGIME_RISK_OFF)
 
     def test_classify_regime_low_vix_positive_bias_is_risk_on(self):
-        from open_prep.regime import classify_regime, REGIME_RISK_ON
+        from open_prep.regime import REGIME_RISK_ON, classify_regime
         snap = classify_regime(macro_bias=0.3, vix_level=12.0)
         self.assertEqual(snap.regime, REGIME_RISK_ON)
 
     def test_classify_regime_negative_bias_is_risk_off(self):
-        from open_prep.regime import classify_regime, REGIME_RISK_OFF
+        from open_prep.regime import REGIME_RISK_OFF, classify_regime
         snap = classify_regime(macro_bias=-0.6)
         self.assertEqual(snap.regime, REGIME_RISK_OFF)
 
     def test_classify_regime_mixed_breadth_is_rotation(self):
-        from open_prep.regime import classify_regime, REGIME_ROTATION
+        from open_prep.regime import REGIME_ROTATION, classify_regime
         sectors = [
             {"sector": f"Leading{i}", "changesPercentage": 1.0} for i in range(5)
         ] + [
@@ -2531,18 +2531,18 @@ class TestRegime(unittest.TestCase):
         self.assertEqual(snap.regime, REGIME_ROTATION)
 
     def test_classify_regime_neutral_no_vix(self):
-        from open_prep.regime import classify_regime, REGIME_NEUTRAL
+        from open_prep.regime import REGIME_NEUTRAL, classify_regime
         snap = classify_regime(macro_bias=0.0)
         self.assertEqual(snap.regime, REGIME_NEUTRAL)
 
     def test_classify_regime_broad_breadth_is_risk_on(self):
-        from open_prep.regime import classify_regime, REGIME_RISK_ON
+        from open_prep.regime import REGIME_RISK_ON, classify_regime
         sectors = [{"sector": f"S{i}", "changesPercentage": 1.0} for i in range(8)]
         snap = classify_regime(macro_bias=0.1, sector_performance=sectors)
         self.assertEqual(snap.regime, REGIME_RISK_ON)
 
     def test_apply_regime_adjustments_risk_off(self):
-        from open_prep.regime import classify_regime, apply_regime_adjustments
+        from open_prep.regime import apply_regime_adjustments, classify_regime
         snap = classify_regime(macro_bias=-0.7)
         base = {"gap": 1.0, "macro": 1.0, "rvol": 1.0}
         adj = apply_regime_adjustments(base, snap)
@@ -2587,25 +2587,25 @@ class TestPlaybook(unittest.TestCase):
     """Tests for open_prep.playbook (M-6)."""
 
     def test_classify_earnings(self):
-        from open_prep.playbook import classify_news_event, EVENT_SCHEDULED
+        from open_prep.playbook import EVENT_SCHEDULED, classify_news_event
         result = classify_news_event("AAPL Q3 Earnings Beat")
         self.assertEqual(result["event_class"], EVENT_SCHEDULED)
         self.assertEqual(result["event_label"], "earnings")
 
     def test_classify_ma_deal(self):
-        from open_prep.playbook import classify_news_event, EVENT_UNSCHEDULED
+        from open_prep.playbook import EVENT_UNSCHEDULED, classify_news_event
         result = classify_news_event("Company X merger with Company Y announced")
         self.assertEqual(result["event_class"], EVENT_UNSCHEDULED)
         self.assertIn("ma_deal", result["event_labels_all"])
 
     def test_classify_unknown_event(self):
-        from open_prep.playbook import classify_news_event, EVENT_UNKNOWN
+        from open_prep.playbook import EVENT_UNKNOWN, classify_news_event
         result = classify_news_event("Random text with no triggers")
         self.assertEqual(result["event_class"], EVENT_UNKNOWN)
         self.assertEqual(result["materiality"], "LOW")
 
     def test_classify_analyst_upgrade(self):
-        from open_prep.playbook import classify_news_event, EVENT_STRUCTURAL
+        from open_prep.playbook import EVENT_STRUCTURAL, classify_news_event
         result = classify_news_event("Goldman Sachs initiates coverage on TSLA with Buy rating")
         self.assertEqual(result["event_class"], EVENT_STRUCTURAL)
 
@@ -2620,7 +2620,7 @@ class TestPlaybook(unittest.TestCase):
         self.assertEqual(result["materiality"], "MEDIUM")
 
     def test_classify_recency_ultra_fresh(self):
-        from open_prep.playbook import classify_recency, RECENCY_ULTRA_FRESH
+        from open_prep.playbook import RECENCY_ULTRA_FRESH, classify_recency
         now = datetime.now(UTC)
         art_dt = now - timedelta(minutes=2)
         result = classify_recency(art_dt, now)
@@ -2628,7 +2628,7 @@ class TestPlaybook(unittest.TestCase):
         self.assertTrue(result["is_actionable"])
 
     def test_classify_recency_stale(self):
-        from open_prep.playbook import classify_recency, RECENCY_STALE
+        from open_prep.playbook import RECENCY_STALE, classify_recency
         now = datetime.now(UTC)
         art_dt = now - timedelta(hours=36)
         result = classify_recency(art_dt, now)
@@ -2636,7 +2636,7 @@ class TestPlaybook(unittest.TestCase):
         self.assertFalse(result["is_actionable"])
 
     def test_classify_recency_none_returns_unknown(self):
-        from open_prep.playbook import classify_recency, RECENCY_UNKNOWN
+        from open_prep.playbook import RECENCY_UNKNOWN, classify_recency
         result = classify_recency(None, datetime.now(UTC))
         self.assertEqual(result["recency_bucket"], RECENCY_UNKNOWN)
 
@@ -2667,7 +2667,7 @@ class TestPlaybook(unittest.TestCase):
         self.assertIn(result.playbook, ["GAP_AND_GO", "GAP_FADE", "POST_NEWS_DRIFT", "NO_TRADE"])
 
     def test_classify_fda_event(self):
-        from open_prep.playbook import classify_news_event, EVENT_SCHEDULED
+        from open_prep.playbook import EVENT_SCHEDULED, classify_news_event
         result = classify_news_event("FDA approves new drug for cancer treatment")
         self.assertEqual(result["event_class"], EVENT_SCHEDULED)
         self.assertIn("fda", result["event_labels_all"])
@@ -3078,7 +3078,7 @@ class TestFMPClientCircuitBreakerValidationFailures(unittest.TestCase):
 
     def test_429_retries_with_retry_after_http_date_header(self):
         """Retry-After in HTTP-date format must be parsed to delay seconds."""
-        from datetime import datetime, timezone, timedelta
+        from datetime import datetime, timedelta, timezone
 
         client = FMPClient(api_key="test", retry_attempts=2)
         mock_resp_ok = self._mock_urlopen_with_payload('[{"ok": true}]')
@@ -3289,8 +3289,8 @@ class TestCapabilityProbeEodBulkDatatype(unittest.TestCase):
     """Capability probe for eod_bulk should include datatype=json."""
 
     def test_eod_bulk_probe_includes_datatype_json(self):
-        from open_prep.run_open_prep import _probe_data_capabilities
         from open_prep.macro import FMPClient
+        from open_prep.run_open_prep import _probe_data_capabilities
 
         client = FMPClient(api_key="test")
         with patch.object(FMPClient, "_get") as mock_get:
@@ -3337,14 +3337,14 @@ class TestSeniorReviewFixesPlaybook(unittest.TestCase):
 
     def test_source_quality_sector_not_tier_1(self):
         """H-2: 'sector' must NOT match Tier 1 (was caused by 'sec' substring)."""
-        from open_prep.playbook import classify_source_quality, SOURCE_TIER_1
+        from open_prep.playbook import SOURCE_TIER_1, classify_source_quality
         result = classify_source_quality("Financial Sector Report", "BofA Sector Analysis")
         self.assertNotEqual(result["source_tier"], SOURCE_TIER_1,
                             "'sector' must not match Tier 1 via 'sec' substring")
 
     def test_source_quality_sec_filing_is_tier_1(self):
         """H-2: Actual SEC references must still be Tier 1."""
-        from open_prep.playbook import classify_source_quality, SOURCE_TIER_1
+        from open_prep.playbook import SOURCE_TIER_1, classify_source_quality
         # "sec" as standalone word
         result = classify_source_quality("SEC Filing 8-K", "SEC")
         self.assertEqual(result["source_tier"], SOURCE_TIER_1)
@@ -3354,13 +3354,13 @@ class TestSeniorReviewFixesPlaybook(unittest.TestCase):
 
     def test_source_quality_sec_gov_is_tier_1(self):
         """H-2: sec.gov must remain Tier 1."""
-        from open_prep.playbook import classify_source_quality, SOURCE_TIER_1
+        from open_prep.playbook import SOURCE_TIER_1, classify_source_quality
         result = classify_source_quality("Filing posted", "sec.gov")
         self.assertEqual(result["source_tier"], SOURCE_TIER_1)
 
     def test_source_quality_insecure_not_tier_1(self):
         """H-2: Words containing 'sec' as substring (insecure, section) must NOT match."""
-        from open_prep.playbook import classify_source_quality, SOURCE_TIER_1
+        from open_prep.playbook import SOURCE_TIER_1, classify_source_quality
         for word in ("insecure data", "section 13", "secondary market"):
             result = classify_source_quality(word, "generic-source")
             self.assertNotEqual(result["source_tier"], SOURCE_TIER_1,
@@ -3369,6 +3369,7 @@ class TestSeniorReviewFixesPlaybook(unittest.TestCase):
     def test_execution_quality_no_dollar_volume_param(self):
         """M-6: _execution_quality no longer accepts dollar_volume."""
         import inspect
+
         from open_prep.playbook import _execution_quality
         params = list(inspect.signature(_execution_quality).parameters)
         self.assertNotIn("dollar_volume", params,
@@ -3430,8 +3431,9 @@ class TestSeniorReviewFixesRealtimeSignals(unittest.TestCase):
 
     def test_restore_preserves_news_fields(self):
         """H-4: News enrichment fields must survive disk restore."""
-        from open_prep.realtime_signals import RealtimeEngine
         import time as _time
+
+        from open_prep.realtime_signals import RealtimeEngine
         now_epoch = _time.time()
         signal_data = {
             "symbol": "NVDA", "level": "A0", "direction": "LONG",
@@ -3480,10 +3482,11 @@ class TestSeniorReviewFixesRealtimeSignals(unittest.TestCase):
 
     def test_save_signals_cleans_temp_on_failure(self):
         """M-3: Temp file must be cleaned up on json.dump failure."""
-        from open_prep.realtime_signals import RealtimeEngine
-        import open_prep.realtime_signals as _rt_mod
-        import time as _time
         import shutil
+        import time as _time
+
+        import open_prep.realtime_signals as _rt_mod
+        from open_prep.realtime_signals import RealtimeEngine
 
         engine = RealtimeEngine.__new__(RealtimeEngine)
         engine._active_signals = []
@@ -3623,8 +3626,9 @@ class TestSR2TechnicalAnalysisEmaEmpty(unittest.TestCase):
     """M-2: _ema([]) must return NaN, not 0.0, to prevent false breakouts."""
 
     def test_ema_empty_returns_nan(self):
-        from open_prep.technical_analysis import _ema
         import math
+
+        from open_prep.technical_analysis import _ema
 
         result = _ema([], 20)
         self.assertTrue(math.isnan(result), f"Expected NaN, got {result}")
@@ -3657,9 +3661,10 @@ class TestSR2CacheEviction(unittest.TestCase):
     """M-4: Cache eviction removes stale files."""
 
     def test_evict_stale_files(self):
-        from open_prep.run_open_prep import _evict_stale_cache_files
-        from pathlib import Path
         import tempfile
+        from pathlib import Path
+
+        from open_prep.run_open_prep import _evict_stale_cache_files
 
         with tempfile.TemporaryDirectory() as td:
             td_path = Path(td)
@@ -3680,9 +3685,10 @@ class TestSR2CacheEviction(unittest.TestCase):
             self.assertTrue(fresh.exists(), "Fresh file should be kept")
 
     def test_evict_handles_empty_dir(self):
-        from open_prep.run_open_prep import _evict_stale_cache_files
-        from pathlib import Path
         import tempfile
+        from pathlib import Path
+
+        from open_prep.run_open_prep import _evict_stale_cache_files
 
         with tempfile.TemporaryDirectory() as td:
             _evict_stale_cache_files(Path(td), max_age_days=7)
@@ -3694,8 +3700,9 @@ class TestSR2WatchlistFcntlFallback(unittest.TestCase):
 
     def test_file_lock_context_manager_works(self):
         """_file_lock must be usable as a context manager regardless of platform."""
-        from open_prep.watchlist import _file_lock
         import tempfile
+
+        from open_prep.watchlist import _file_lock
         with tempfile.TemporaryDirectory():
             with _file_lock():
                 pass  # Should not raise
@@ -3707,6 +3714,7 @@ class TestSR2AtomicLatestWrite(unittest.TestCase):
     def test_latest_write_is_atomic(self):
         """Verify the code path uses tempfile+replace (structural check)."""
         import inspect
+
         from open_prep import run_open_prep
         source = inspect.getsource(run_open_prep.generate_open_prep_result)
         # Must contain mkstemp (atomic write) not write_text (non-atomic)
@@ -3721,6 +3729,7 @@ class TestHitRateEnrichmentUsesVolumeRatio(unittest.TestCase):
         """Structural: the hit-rate loop must reference 'volume_ratio',
         not 'avg_volume', to avoid key mismatch with FMP quote dicts."""
         import inspect
+
         from open_prep import run_open_prep
         source = inspect.getsource(run_open_prep.generate_open_prep_result)
         # The old code used row.get("avg_volume", 1) which is wrong (FMP key is avgVolume).
@@ -3748,7 +3757,7 @@ class TestSR6_ScoreCandidateOutputsVolumeRatio(unittest.TestCase):
     Streamlit) can read it without re-deriving from volume/avg_volume."""
 
     def test_volume_ratio_in_output(self):
-        from open_prep.scorer import score_candidate, filter_candidate
+        from open_prep.scorer import filter_candidate, score_candidate
         quote = {
             "symbol": "TEST",
             "price": 50.0,

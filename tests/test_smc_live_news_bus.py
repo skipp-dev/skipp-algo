@@ -10,9 +10,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from newsstack_fmp.common_types import NewsItem
 from newsstack_fmp.shared_fetch import CachedNewsBatch
-from scripts.smc_newsapi_ai import NewsApiAiProviderError
 from scripts import smc_live_news_bus as bus
-
+from scripts.smc_newsapi_ai import NewsApiAiProviderError
 
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 

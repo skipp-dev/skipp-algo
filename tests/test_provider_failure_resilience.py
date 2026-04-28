@@ -21,8 +21,8 @@ class TestBzWsDrainSafety(unittest.TestCase):
     @patch("newsstack_fmp.pipeline._get_store")
     @patch("newsstack_fmp.pipeline._get_enricher")
     def test_drain_connection_error_continues_poll(self, mock_enr, mock_store, mock_ws):
-        from newsstack_fmp.pipeline import poll_once
         from newsstack_fmp.config import Config
+        from newsstack_fmp.pipeline import poll_once
 
         store = MagicMock()
         store.get_kv.return_value = "0"
@@ -49,8 +49,8 @@ class TestBzWsDrainSafety(unittest.TestCase):
     @patch("newsstack_fmp.pipeline._get_store")
     @patch("newsstack_fmp.pipeline._get_enricher")
     def test_drain_timeout_continues_poll(self, mock_enr, mock_store, mock_ws):
-        from newsstack_fmp.pipeline import poll_once
         from newsstack_fmp.config import Config
+        from newsstack_fmp.pipeline import poll_once
 
         store = MagicMock()
         store.get_kv.return_value = "0"

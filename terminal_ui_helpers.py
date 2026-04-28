@@ -7,19 +7,24 @@ and can be tested in regular pytest without launching a Streamlit app.
 from __future__ import annotations
 
 import time
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from collections import defaultdict
 from typing import Any
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
+from terminal_attention_state import (
+    effective_attention_active,
+    effective_attention_priority,
+)
 from terminal_catalyst_state import (
     effective_catalyst_actionable,
     effective_catalyst_age_minutes,
     effective_catalyst_score,
     effective_catalyst_sentiment,
 )
-from terminal_attention_state import (
-    effective_attention_active,
-    effective_attention_priority,
+from terminal_posture_state import (
+    effective_posture_actionable,
+    effective_posture_priority,
+    effective_posture_score,
 )
 from terminal_reaction_state import (
     effective_reaction_actionable,
@@ -32,11 +37,6 @@ from terminal_resolution_state import (
     effective_resolution_priority,
     effective_resolution_score,
     effective_resolution_state,
-)
-from terminal_posture_state import (
-    effective_posture_actionable,
-    effective_posture_priority,
-    effective_posture_score,
 )
 
 # ── Icon / colour maps ──────────────────────────────────────────

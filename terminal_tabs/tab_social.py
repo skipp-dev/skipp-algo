@@ -6,13 +6,14 @@ from typing import Any
 
 import streamlit as st
 
-from terminal_newsapi import newsapi_available, fetch_social_ranked_articles
-
 from terminal_finnhub import (
     fetch_social_sentiment_batch,
-    is_available as finnhub_available,
     social_sentiment_status,
 )
+from terminal_finnhub import (
+    is_available as finnhub_available,
+)
+from terminal_newsapi import fetch_social_ranked_articles, newsapi_available
 from terminal_ui_helpers import safe_markdown_text, safe_url
 
 

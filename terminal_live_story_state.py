@@ -19,7 +19,6 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-
 DEFAULT_LIVE_STORY_TTL_S = 7200.0
 DEFAULT_LIVE_STORY_COOLDOWN_S = 900.0
 LIVE_STORY_BUCKET_SECONDS = 900

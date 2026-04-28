@@ -36,25 +36,25 @@ from typing import Any
 import httpx
 
 from streamlit_terminal_alerts import validate_webhook_url
-from terminal_catalyst_state import (
-    effective_catalyst_age_minutes,
-    effective_catalyst_sentiment,
-)
 from terminal_attention_state import (
     effective_attention_dispatchable,
     effective_attention_state,
 )
-from terminal_reaction_state import (
-    effective_reaction_state,
-)
-from terminal_resolution_state import (
-    effective_resolution_state,
+from terminal_catalyst_state import (
+    effective_catalyst_age_minutes,
+    effective_catalyst_sentiment,
 )
 from terminal_posture_state import (
     effective_posture_action,
     effective_posture_actionable,
     effective_posture_score,
     effective_posture_state,
+)
+from terminal_reaction_state import (
+    effective_reaction_state,
+)
+from terminal_resolution_state import (
+    effective_resolution_state,
 )
 
 logger = logging.getLogger(__name__)

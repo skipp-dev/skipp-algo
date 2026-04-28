@@ -18,16 +18,16 @@ Programmatic::
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 import logging
 import sys
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone, UTC
+from datetime import UTC, datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from scripts.smc_atomic_write import atomic_write_text
 
 logger = logging.getLogger(__name__)
 

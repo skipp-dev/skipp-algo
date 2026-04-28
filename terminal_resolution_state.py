@@ -21,7 +21,6 @@ from terminal_reaction_state import (
 	effective_reaction_state,
 )
 
-
 _RESOLUTION_PRIORITY = {
 	"FOLLOW_THROUGH": 4,
 	"OPEN": 3,

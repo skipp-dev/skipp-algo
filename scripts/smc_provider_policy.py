@@ -36,9 +36,9 @@ import math
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from newsstack_fmp._market_cal import next_trading_day
-from zoneinfo import ZoneInfo
 
 _ET = ZoneInfo("America/New_York")
 from typing import Any
@@ -342,8 +342,8 @@ def fetch_news_newsapi_ai(
     article_feed_after_uri: str = "",
 ) -> ProviderResult:
     """Fetch news via NewsAPI.ai / Event Registry (tertiary fallback for news)."""
-    from newsstack_fmp.pipeline import _newsapi_operator_status
     from newsstack_fmp.normalize import normalize_newsapi_ai
+    from newsstack_fmp.pipeline import _newsapi_operator_status
     from scripts.smc_news_scorer import compute_news_sentiment
     from scripts.smc_newsapi_ai import extract_newsapi_feed_article_cursor_uri, fetch_newsapi_records
 

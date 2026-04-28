@@ -20,7 +20,6 @@ import pytest
 
 from scripts.smc_fmp_client import SMCFMPClient
 
-
 # ── 1. SMCFMPClient surface ────────────────────────────────────
 
 

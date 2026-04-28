@@ -16,8 +16,8 @@ from rl.types import (
     ExecutionAction,
     ExecutionState,
     SlippageEstimate,
-    TradeRecord,
     TradeBlotter,
+    TradeRecord,
 )
 
 __all__ = [

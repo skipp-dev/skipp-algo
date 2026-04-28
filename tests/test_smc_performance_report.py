@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 from scripts.smc_performance_report import generate_performance_report
 
 

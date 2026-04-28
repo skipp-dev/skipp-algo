@@ -13,7 +13,6 @@ from typing import Any
 
 from terminal_live_story_state import live_story_key
 
-
 _MATERIALITY_BONUS = {
     "LOW": 0.00,
     "MEDIUM": 0.08,

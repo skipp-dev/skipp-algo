@@ -11,13 +11,13 @@ Pure stdlib, no mutation of the input file.
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 import sys
 from pathlib import Path
 from typing import Any
+
+from scripts.smc_atomic_write import atomic_write_text
 
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:

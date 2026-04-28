@@ -19,7 +19,6 @@ import pandas as pd
 
 from scripts.smc_range_regime import DEFAULTS, build_range_regime
 
-
 # ── Test data helpers ────────────────────────────────────────────────
 
 def _trending_up_bars() -> pd.DataFrame:

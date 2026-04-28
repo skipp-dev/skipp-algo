@@ -13,7 +13,7 @@ import concurrent.futures
 import logging
 import os
 import time
-from datetime import datetime, timedelta, timezone, UTC
+from datetime import UTC, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo as _ZoneInfo
 
 _ET = _ZoneInfo("America/New_York")
@@ -39,7 +39,8 @@ except ImportError:
     _TV_AVAILABLE = False
 
 try:
-    from terminal_finnhub import fetch_social_sentiment_batch, is_available as _finnhub_available
+    from terminal_finnhub import fetch_social_sentiment_batch
+    from terminal_finnhub import is_available as _finnhub_available
     _FINNHUB_AVAILABLE = _finnhub_available()
 except ImportError:
     _FINNHUB_AVAILABLE = False
@@ -52,10 +53,10 @@ except ImportError:
 
 try:
     from terminal_poller import (
+        fetch_benzinga_earnings,
+        fetch_benzinga_ratings,
         fetch_economic_calendar,
         fetch_sector_performance,
-        fetch_benzinga_ratings,
-        fetch_benzinga_earnings,
     )
     _POLLER_AVAILABLE = True
 except ImportError:

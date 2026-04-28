@@ -40,11 +40,12 @@ import os
 import tempfile
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date, datetime, timezone, UTC
+from datetime import UTC, date, datetime, timezone
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any
 
+from scripts.execute_ibkr_watchlist import IBKROrderIntent
 from scripts.live_risk_limits import (
     AccountState,
     KillSwitchDecision,
@@ -52,11 +53,10 @@ from scripts.live_risk_limits import (
     check_risk_limits,
 )
 from scripts.smc_to_ibkr_adapter import (
-    IBKRExecutionConfig,
     PHASE_B_RECOMMENDED_SIZE_SCALE,
+    IBKRExecutionConfig,
     build_ibkr_intents_from_smc_setups,
 )
-from scripts.execute_ibkr_watchlist import IBKROrderIntent
 from smc_integration.earnings_filter import (
     EarningsFilter,
     EarningsFilterDecision,

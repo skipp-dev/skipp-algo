@@ -6,14 +6,13 @@ Zero-based index (among valid records) of the most recent
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 import sys
 from pathlib import Path
 from typing import Any, Iterable
 
+from scripts.smc_atomic_write import atomic_write_text
 
 VALID_STATUSES = frozenset({"green", "amber", "red", "unknown"})
 

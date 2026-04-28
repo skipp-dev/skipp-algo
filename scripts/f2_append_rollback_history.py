@@ -37,7 +37,6 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-
 DEFAULT_MAX_LEN = 30
 DEFAULT_METRIC = "calibrated_brier"
 

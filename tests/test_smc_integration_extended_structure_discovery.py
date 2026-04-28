@@ -10,7 +10,6 @@ from smc_integration.extended_structure_discovery import (
     discover_extended_structure_candidates,
 )
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -68,6 +67,8 @@ def test_extended_integrability_is_conservative_for_non_provider_sources() -> No
 
 # ── pure helper coverage ─────────────────────────────────────────
 
+import re
+
 from smc_integration.extended_structure_discovery import (
     _candidate_rank,
     _evidence_tokens,
@@ -79,7 +80,6 @@ from smc_integration.extended_structure_discovery import (
     _matches_any,
     _read_text,
 )
-import re
 
 
 class TestMatchesAll:

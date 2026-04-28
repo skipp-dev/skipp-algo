@@ -10,18 +10,17 @@ Covers:
 """
 from __future__ import annotations
 
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 
 import pytest
 
 from scripts.smc_event_risk_builder import (
     DEFAULTS,
-    build_event_risk,
     _compute_window_state,
     _merge_ticker_lists,
     _parse_event_time,
+    build_event_risk,
 )
-
 
 # ── 1. No event (all defaults) ─────────────────────────────────────
 

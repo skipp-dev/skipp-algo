@@ -40,7 +40,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.smc_atomic_write import atomic_write_json, atomic_write_text
 
-
 # Map open_prep ``setup_type`` strings → live-incubation variant keys.
 # The mapping is intentionally narrow: any unmapped setup_type raises
 # during the build so a typo or new setup family is caught instead of

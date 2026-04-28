@@ -1,6 +1,6 @@
 """Smoke test for all new modules and wiring."""
-from open_prep.signal_decay import adaptive_half_life, adaptive_freshness_decay, signal_strength_decay
 from open_prep.realtime_signals import RealtimeEngine, RealtimeSignal
+from open_prep.signal_decay import adaptive_freshness_decay, adaptive_half_life, signal_strength_decay
 from open_prep.technical_analysis import detect_consolidation, detect_symbol_regime
 
 # Test signal_decay

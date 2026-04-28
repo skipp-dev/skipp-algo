@@ -36,6 +36,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
+from scripts.smc_hero_setup_quality import derive_hero_setup_quality
 from smc_integration.action_degradation import (
     ActionDegradation,
     derive_action_degradation,
@@ -46,9 +47,6 @@ from smc_integration.trust_state import (
     TrustStateCause,
     derive_trust_state,
 )
-
-from scripts.smc_hero_setup_quality import derive_hero_setup_quality
-
 
 # ── Action vocabulary ─────────────────────────────────────────────────
 

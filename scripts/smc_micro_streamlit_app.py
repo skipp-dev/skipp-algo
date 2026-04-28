@@ -16,7 +16,6 @@ import pandas as pd
 from databento_provider import list_accessible_datasets
 from databento_utils import PREFERRED_DATABENTO_DATASETS, choose_default_dataset
 
-
 # ── UI helpers ──────────────────────────────────────────────────────
 
 

@@ -22,7 +22,6 @@ from typing import Any, Mapping
 
 from smc_integration.trust_state import TrustState, derive_trust_state
 
-
 # ── Vocabulary ────────────────────────────────────────────────────────
 
 

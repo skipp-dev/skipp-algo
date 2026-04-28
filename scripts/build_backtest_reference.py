@@ -30,7 +30,6 @@ from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
-
 __all__ = [
     "build_backtest_reference",
     "build_drift_input_from_audit",

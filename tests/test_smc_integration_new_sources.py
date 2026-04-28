@@ -4,7 +4,12 @@ import json
 from pathlib import Path
 
 from smc_adapters import build_meta_from_raw, build_volume_provenance_from_raw
-from smc_integration.sources import benzinga_watchlist_json, databento_watchlist_csv, fmp_watchlist_json, tradingview_watchlist_json
+from smc_integration.sources import (
+    benzinga_watchlist_json,
+    databento_watchlist_csv,
+    fmp_watchlist_json,
+    tradingview_watchlist_json,
+)
 
 
 def _write_rows(path: Path, rows: list[dict[str, object]]) -> None:

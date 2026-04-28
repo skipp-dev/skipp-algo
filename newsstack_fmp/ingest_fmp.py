@@ -18,7 +18,7 @@ import logging
 import math
 import re
 import time
-from datetime import datetime, timezone, UTC
+from datetime import UTC, datetime, timezone
 from email.utils import parsedate_to_datetime
 from typing import Any
 

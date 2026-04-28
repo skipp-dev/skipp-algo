@@ -9,9 +9,9 @@ import pytest
 from scripts.smc_hero_information_architecture import (
     HERO_PRIMARY_LINES,
     HERO_ROW_CATALOG,
+    VIEW_MODE_LEVELS,
     HeroReadingLevel,
     HeroRow,
-    VIEW_MODE_LEVELS,
     all_reading_levels,
     hero_primary_lines,
     level_of,

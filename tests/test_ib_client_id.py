@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-
 from scripts.ib_client_id import (
     DEFAULT_PREFERRED_RANGE,
     allocate_ib_client_id,

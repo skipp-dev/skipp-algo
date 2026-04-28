@@ -5,7 +5,6 @@ import pandas as pd
 
 from scripts.smc_structure_state import DEFAULTS, build_structure_state
 
-
 # ── Helpers ─────────────────────────────────────────────────────────
 
 

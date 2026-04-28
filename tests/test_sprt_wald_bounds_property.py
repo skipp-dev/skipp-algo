@@ -24,7 +24,6 @@ import pytest
 
 from scripts.smc_sprt_stop_rule import SPRTConfig
 
-
 # Grid spans the documented valid range: alpha, beta in (0, 0.5).
 # Pre-PR-#117 callers used (0.05, 0.20); the production refresh runs
 # tighter (0.025, 0.10). The grid below covers both plus extremes.

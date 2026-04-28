@@ -44,7 +44,6 @@ if _REPO_ROOT_FOR_BOOTSTRAP not in sys.path:
 
 from scripts.pine_path_resolver import PINE_LEGACY_DIR
 
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 INDEX_FILE = REPO_ROOT / "PINE_LEGACY.md"
 

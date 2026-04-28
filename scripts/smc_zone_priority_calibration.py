@@ -19,8 +19,6 @@ Usage
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import hashlib
 import json
 import math
@@ -30,6 +28,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+from scripts.smc_atomic_write import atomic_write_text
 
 # S-3 (TEMPORAL_NUMERICAL_AUDIT_2026-04-24): defense-in-depth seed for the
 # calibration pipeline. Currently no stochastic ops in this module, but a

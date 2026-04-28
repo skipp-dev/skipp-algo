@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
-import json
 import csv
+import json
 from pathlib import Path
 from typing import Sequence
 
+from scripts.smc_atomic_write import atomic_write_text
+from smc_integration.artifact_resolution import resolve_watchlist_export_inputs
 from smc_integration.batch import load_symbols_from_source, write_snapshot_bundles_for_symbols
 from smc_integration.structure_batch import write_structure_artifacts_from_workbook
-from smc_integration.artifact_resolution import resolve_watchlist_export_inputs
 
 
 def _parse_symbols_csv(raw: str) -> list[str]:

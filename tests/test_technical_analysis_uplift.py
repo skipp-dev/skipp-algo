@@ -55,7 +55,6 @@ from open_prep.technical_analysis import (
     validate_data_quality,
 )
 
-
 # ---------------------------------------------------------------------------
 # _unit_scale / _safe_float / apply_diminishing_returns / _ema
 # ---------------------------------------------------------------------------

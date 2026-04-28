@@ -38,7 +38,6 @@ from newsstack_fmp.ingest_benzinga_financial import (
     fetch_benzinga_ticker_detail,
 )
 
-
 # ═══════════════════════════════════════════════════════════════
 # Fixtures
 # ═══════════════════════════════════════════════════════════════

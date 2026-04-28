@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import csv
 import json
 import math
+import sys
 import time
 from pathlib import Path
-import sys
 from typing import Any
 
 import plotly.graph_objects as go
+
+from scripts.smc_atomic_write import atomic_write_text
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -20,6 +20,7 @@ if str(REPO_ROOT) not in sys.path:
 from smc_core.benchmark import BenchmarkResult, build_benchmark, export_benchmark_artifacts
 from smc_core.ensemble_quality import EnsembleQualityResult, export_ensemble_quality_artifact
 from smc_core.event_ledger import ledger_path_for_pair, write_event_ledger
+from smc_core.schema_version import SCHEMA_VERSION
 from smc_core.scoring import (
     ScoredEvent,
     export_scoring_artifact,
@@ -30,7 +31,6 @@ from smc_core.scoring import (
     summarize_contextual_calibration,
     summarize_stratified_calibration,
 )
-from smc_core.schema_version import SCHEMA_VERSION
 from smc_integration.measurement_evidence import build_measurement_evidence
 from smc_integration.release_policy import (
     RELEASE_REFERENCE_SYMBOLS,

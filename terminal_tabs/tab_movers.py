@@ -8,7 +8,6 @@ import pandas as pd
 import streamlit as st
 
 from terminal_spike_scanner import SESSION_ICONS
-
 from terminal_tabs._shared import (
     build_mover_table_rows,
     build_unified_movers,

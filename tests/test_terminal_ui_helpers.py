@@ -21,12 +21,12 @@ from typing import Any
 
 from terminal_ui_helpers import (
     _SKIP_CHANNELS,
-    _is_actionable_broad,
     MATERIALITY_COLORS,
     MATERIALITY_EMOJI,
     RECENCY_COLORS,
     RECENCY_EMOJI,
     SENTIMENT_COLORS,
+    _is_actionable_broad,
     aggregate_segments,
     build_heatmap_data,
     build_segment_summary_rows,

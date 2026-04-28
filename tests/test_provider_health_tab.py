@@ -1,7 +1,6 @@
 """Tests for the Provider Health tab integration in streamlit_terminal."""
 from __future__ import annotations
 
-
 import pytest
 
 

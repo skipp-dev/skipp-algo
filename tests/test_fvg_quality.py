@@ -4,12 +4,10 @@ from __future__ import annotations
 
 import math
 
-
 from smc_core.fvg_quality import (
     DEFAULT_DIRECTIONS,
     DEFAULT_MEANS,
     DEFAULT_WEIGHTS,
-    FvgQualityScore,
     LENIENT_DIRECTIONS,
     LENIENT_MEANS,
     LENIENT_WEIGHTS,
@@ -17,6 +15,7 @@ from smc_core.fvg_quality import (
     STRICT_V1_NO_HURST_MEANS,
     STRICT_V1_NO_HURST_WEIGHTS,
     WEIGHT_VERSION,
+    FvgQualityScore,
     rolling_hurst,
     score_events,
     score_fvg,

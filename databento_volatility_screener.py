@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import gc
 import hashlib
 import json
 import logging
@@ -17,8 +19,6 @@ import sys
 import tempfile
 import time as time_module
 import warnings
-import asyncio
-import gc
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta, tzinfo
 from io import BytesIO
@@ -28,7 +28,6 @@ from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
 
 import certifi
-
 import numpy as np
 import pandas as pd
 
@@ -4453,12 +4452,13 @@ def export_run_artifacts(
 
 
 def run_streamlit_app() -> None:
-    from dataclasses import replace
     import os
-    import streamlit as st
+    from dataclasses import replace
     from datetime import UTC, datetime
-    from dotenv import load_dotenv
     from pathlib import Path
+
+    import streamlit as st
+    from dotenv import load_dotenv
 
     from scripts.bullish_quality_config import (
         BULLISH_QUALITY_SCORE_PROFILES,

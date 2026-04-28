@@ -56,7 +56,6 @@ from __future__ import annotations
 
 from typing import Any, Protocol, runtime_checkable
 
-
 # ── Candle contract keys ────────────────────────────────────────────────────
 
 CANDLE_REQUIRED_KEYS = {"open", "high", "low", "close", "volume"}

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from streamlit_terminal_pure import (
+    build_alert_rule_payload,
     build_test_mode_config_overrides,
     build_test_mode_state_defaults,
-    build_alert_rule_payload,
     extract_feed_tickers,
     merge_alert_log_entries,
 )

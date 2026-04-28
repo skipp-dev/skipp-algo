@@ -137,8 +137,9 @@ def probe_fmp_quote() -> tuple[str, str]:
 
 def probe_fmp_treasury() -> tuple[str, str]:
     """FMP /stable/treasury-rates — Lane 1 retired-endpoint replacement."""
-    import httpx
     from datetime import date, timedelta
+
+    import httpx
     key = os.getenv("FMP_API_KEY", "")
     if not key:
         return ("SKIP", "FMP_API_KEY missing")
@@ -530,7 +531,7 @@ def probe_tradingview_news() -> tuple[str, str]:
 def probe_tradingview_ta() -> tuple[str, str]:
     """tradingview_ta library — TA summary fetch."""
     try:
-        from tradingview_ta import TA_Handler, Interval
+        from tradingview_ta import Interval, TA_Handler
     except ImportError:
         return ("SKIP", "tradingview_ta not installed")
     h = TA_Handler(symbol="AAPL", screener="america", exchange="NASDAQ",

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -11,8 +12,6 @@ from open_prep.outcomes import (
     compute_hit_rates,
     store_daily_outcomes,
 )
-
-from datetime import date
 
 
 @pytest.fixture()

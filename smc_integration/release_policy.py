@@ -4,9 +4,9 @@ import enum
 import logging
 import math
 import os
+import subprocess
 from dataclasses import asdict, dataclass
 from statistics import median
-import subprocess
 from typing import Any, Iterable
 
 logger = logging.getLogger(__name__)

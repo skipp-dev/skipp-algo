@@ -17,10 +17,10 @@ import re
 import threading
 import time
 from dataclasses import dataclass
+from datetime import UTC
 from typing import Any
 
 import httpx
-from datetime import UTC
 
 logger = logging.getLogger(__name__)
 

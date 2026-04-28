@@ -7,14 +7,14 @@ is used (deterministic). Subdirectories are ignored.
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 import sys
-from datetime import datetime, timezone, UTC
+from datetime import UTC, datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from scripts.smc_atomic_write import atomic_write_text
 
 
 def build(root: Path) -> dict[str, Any]:

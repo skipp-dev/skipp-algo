@@ -31,7 +31,6 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Mapping
 
-
 # ── Reading levels ────────────────────────────────────────────────────
 
 

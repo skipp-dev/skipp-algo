@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import pandas as pd
 
-from smc_integration import service
 from smc_core.scoring import ScoredEvent
 from smc_core.vol_regime import VolRegimeResult
+from smc_integration import service
 from smc_integration.measurement_evidence import MeasurementEvidence
 
 

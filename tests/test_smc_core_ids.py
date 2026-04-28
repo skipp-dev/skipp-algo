@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone, UTC
+from datetime import UTC, datetime, timezone
+from zoneinfo import ZoneInfo
 
 import pytest
-from zoneinfo import ZoneInfo
 
 from smc_core.ids import DEFAULT_SESSION_TZ, bos_id, fvg_id, ob_id, quantize_price, quantize_time_to_tf, sweep_id
 

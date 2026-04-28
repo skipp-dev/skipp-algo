@@ -19,7 +19,6 @@ from unittest.mock import patch
 
 import pytest
 
-
 # ── 1. Protocol surface ────────────────────────────────────────────────────
 
 class TestProtocolSurface:

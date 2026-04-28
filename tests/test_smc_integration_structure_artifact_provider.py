@@ -6,11 +6,11 @@ from pathlib import Path
 import pytest
 
 from scripts.export_smc_structure_artifact import export_structure_artifact
-from smc_integration import artifact_resolution
-from smc_integration.structure_batch import write_structure_artifacts_from_workbook
 from smc_adapters import build_structure_from_raw
 from smc_core.schema_version import SCHEMA_VERSION
+from smc_integration import artifact_resolution
 from smc_integration.sources import structure_artifact_json
+from smc_integration.structure_batch import write_structure_artifacts_from_workbook
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKBOOK_PATH = ROOT / "databento_volatility_production_20260307_114724.xlsx"

@@ -10,7 +10,6 @@ import importlib
 
 import pytest
 
-
 # Modules that are pure-logic and should import cleanly without env vars or mocking.
 _PURE_MODULES = [
     "databento_client",

@@ -26,8 +26,8 @@ from smc_core.types import (
     TimedDirectionalStrength,
     TimedEnrichedNews,
     TimedVolumeInfo,
-    VolumeRegime,
     VolumeInfo,
+    VolumeRegime,
 )
 
 

@@ -7,12 +7,11 @@ intentionally, not silently).
 from __future__ import annotations
 
 from scripts.smc_signal_quality import (
-    build_signal_quality,
-    _score_tier,
-    _freshness_label,
     _bias_alignment,
+    _freshness_label,
+    _score_tier,
+    build_signal_quality,
 )
-
 
 # ── Helpers ──────────────────────────────────────────────────────────
 

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pandas as pd
 import pytest
-import smc_core.vol_regime as vol_regime_module
 
+import smc_core.vol_regime as vol_regime_module
 from smc_core.vol_regime import VolRegimeResult, classify_volume_regime_from_rvol, compute_vol_regime
 
 

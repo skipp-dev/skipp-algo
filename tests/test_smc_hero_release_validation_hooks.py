@@ -18,7 +18,6 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
-
 from scripts.run_smc_post_release_validation import (
     HERO_STATE_FIELDS,
     run_post_release_validation,

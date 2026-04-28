@@ -1,7 +1,7 @@
 """Semantic tests for the v5.5 OB Context Light adapter."""
 from __future__ import annotations
 
-from scripts.smc_ob_context_light import build_ob_context_light, DEFAULTS, FRESHNESS_MAX_BARS
+from scripts.smc_ob_context_light import DEFAULTS, FRESHNESS_MAX_BARS, build_ob_context_light
 
 
 class TestDefaults:

@@ -30,7 +30,6 @@ from terminal_resolution_state import (
     effective_resolution_state,
 )
 
-
 _ATTENTION_PRIORITY = {
     "ALERT": 4,
     "FOCUS": 3,

@@ -1,7 +1,6 @@
 """Tests for idempotent TradingView recovery (ENG-WS5-03)."""
 from __future__ import annotations
 
-
 from scripts.tv_recovery import (
     KNOWN_FLAKES,
     RecoveryStep,

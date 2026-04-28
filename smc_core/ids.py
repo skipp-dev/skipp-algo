@@ -13,9 +13,9 @@ asset-class defaults or explicit tick sizes end-to-end.
 
 from __future__ import annotations
 
-from decimal import Decimal, ROUND_HALF_UP
+from datetime import UTC, datetime, timezone
+from decimal import ROUND_HALF_UP, Decimal
 from zoneinfo import ZoneInfo
-from datetime import datetime, timezone, UTC
 
 from .types import BosDir, BosEventKind, FvgDir, ObDir, SweepSide
 

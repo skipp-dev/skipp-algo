@@ -7,9 +7,6 @@ from typing import Any
 import pytest
 
 from smc_integration.release_policy import (
-    ContextualCalibrationPromotionPolicy,
-    ContextualCalibrationRecommendationPolicy,
-    MeasurementShadowThresholds,
     EVIDENCE_MIN_SYMBOL_COVERAGE,
     EVIDENCE_MIN_TIMEFRAME_COVERAGE,
     REASON_INSUFFICIENT_SYMBOLS,
@@ -22,6 +19,9 @@ from smc_integration.release_policy import (
     RELEASE_REFERENCE_SYMBOLS,
     RELEASE_REFERENCE_TIMEFRAMES,
     RELEASE_STALE_AFTER_SECONDS,
+    ContextualCalibrationPromotionPolicy,
+    ContextualCalibrationRecommendationPolicy,
+    MeasurementShadowThresholds,
     assess_contextual_calibration_promotion,
     assess_measurement_shadow_degradations,
     build_measurement_shadow_baseline,
@@ -30,7 +30,6 @@ from smc_integration.release_policy import (
     recommend_contextual_calibration,
     resolve_release_policy,
 )
-
 
 # ---------------------------------------------------------------------------
 # Default policy values
@@ -895,8 +894,8 @@ class TestGovernanceEnforcementGaps:
     def test_hard_blocking_codes_consistent_with_frozenset(self) -> None:
         from smc_integration.release_policy import (
             GATE_GOVERNANCE_REGISTRY,
-            GovernanceStatus,
             HARD_BLOCKING_DEGRADATION_CODES,
+            GovernanceStatus,
         )
         registry_hard = {
             g.code for g in GATE_GOVERNANCE_REGISTRY
@@ -932,7 +931,7 @@ class TestGovernanceEnforcementGaps:
         assert len(codes) == len(set(codes)), "Duplicate codes in registry"
 
     def test_get_gate_governance_returns_entry(self) -> None:
-        from smc_integration.release_policy import get_gate_governance, GovernanceStatus
+        from smc_integration.release_policy import GovernanceStatus, get_gate_governance
         entry = get_gate_governance("MEASUREMENT_CALIBRATED_BRIER_ABOVE_THRESHOLD")
         assert entry is not None
         assert entry.promotion_state == GovernanceStatus.HARD_BLOCKING
@@ -944,8 +943,8 @@ class TestGovernanceEnforcementGaps:
     def test_shadow_not_in_hard_blocking(self) -> None:
         from smc_integration.release_policy import (
             GATE_GOVERNANCE_REGISTRY,
-            GovernanceStatus,
             HARD_BLOCKING_DEGRADATION_CODES,
+            GovernanceStatus,
         )
         shadow_codes = {
             g.code for g in GATE_GOVERNANCE_REGISTRY
@@ -957,8 +956,8 @@ class TestGovernanceEnforcementGaps:
     def test_excluded_not_in_hard_blocking(self) -> None:
         from smc_integration.release_policy import (
             GATE_GOVERNANCE_REGISTRY,
-            GovernanceStatus,
             HARD_BLOCKING_DEGRADATION_CODES,
+            GovernanceStatus,
         )
         excluded_codes = {
             g.code for g in GATE_GOVERNANCE_REGISTRY
@@ -997,12 +996,12 @@ class TestValidateGovernanceRegistryErrors:
         assert any("duplicate" in e for e in errors)
 
     def test_empty_reviewer_detected(self, monkeypatch) -> None:
+        import smc_integration.release_policy as rp_mod
         from smc_integration.release_policy import (
             GateGovernance,
             GovernanceStatus,
             validate_gate_governance_registry,
         )
-        import smc_integration.release_policy as rp_mod
         bad_entry = GateGovernance(
             code="TEST_BAD_REVIEWER",
             promotion_state=GovernanceStatus.ADVISORY,
@@ -1016,12 +1015,12 @@ class TestValidateGovernanceRegistryErrors:
         assert any("reviewer is empty" in e for e in errors)
 
     def test_empty_promotion_reason_detected(self, monkeypatch) -> None:
+        import smc_integration.release_policy as rp_mod
         from smc_integration.release_policy import (
             GateGovernance,
             GovernanceStatus,
             validate_gate_governance_registry,
         )
-        import smc_integration.release_policy as rp_mod
         bad_entry = GateGovernance(
             code="TEST_BAD_REASON",
             promotion_state=GovernanceStatus.ADVISORY,
@@ -1035,12 +1034,12 @@ class TestValidateGovernanceRegistryErrors:
         assert any("promotion_reason is empty" in e for e in errors)
 
     def test_hard_blocking_without_baselines_detected(self, monkeypatch) -> None:
+        import smc_integration.release_policy as rp_mod
         from smc_integration.release_policy import (
             GateGovernance,
             GovernanceStatus,
             validate_gate_governance_registry,
         )
-        import smc_integration.release_policy as rp_mod
         bad_entry = GateGovernance(
             code="TEST_NO_BASELINES",
             promotion_state=GovernanceStatus.HARD_BLOCKING,
@@ -1055,12 +1054,12 @@ class TestValidateGovernanceRegistryErrors:
         assert any("minimum_required_baselines" in e for e in errors)
 
     def test_hard_blocking_without_evidence_detected(self, monkeypatch) -> None:
+        import smc_integration.release_policy as rp_mod
         from smc_integration.release_policy import (
             GateGovernance,
             GovernanceStatus,
             validate_gate_governance_registry,
         )
-        import smc_integration.release_policy as rp_mod
         bad_entry = GateGovernance(
             code="TEST_NO_EVIDENCE",
             promotion_state=GovernanceStatus.HARD_BLOCKING,
@@ -1075,12 +1074,12 @@ class TestValidateGovernanceRegistryErrors:
         assert any("evidence_reference" in e for e in errors)
 
     def test_cross_check_mismatch_detected(self, monkeypatch) -> None:
+        import smc_integration.release_policy as rp_mod
         from smc_integration.release_policy import (
             GateGovernance,
             GovernanceStatus,
             validate_gate_governance_registry,
         )
-        import smc_integration.release_policy as rp_mod
         entry = GateGovernance(
             code="TEST_CROSS",
             promotion_state=GovernanceStatus.HARD_BLOCKING,
@@ -1227,6 +1226,7 @@ class TestResolveGitCommit:
 
     def test_subprocess_exception_returns_none(self, monkeypatch) -> None:
         import subprocess
+
         from smc_integration.release_policy import resolve_git_commit
         monkeypatch.delenv("GITHUB_SHA", raising=False)
         monkeypatch.setattr(subprocess, "run", lambda *a, **kw: (_ for _ in ()).throw(OSError("no git")))
@@ -1234,6 +1234,7 @@ class TestResolveGitCommit:
 
     def test_subprocess_nonzero_returns_none(self, monkeypatch) -> None:
         import subprocess as sp
+
         from smc_integration.release_policy import resolve_git_commit
         monkeypatch.delenv("GITHUB_SHA", raising=False)
 
@@ -1245,6 +1246,7 @@ class TestResolveGitCommit:
 
     def test_subprocess_empty_stdout_returns_none(self, monkeypatch) -> None:
         import subprocess as sp
+
         from smc_integration.release_policy import resolve_git_commit
         monkeypatch.delenv("GITHUB_SHA", raising=False)
 
@@ -1415,6 +1417,7 @@ class TestInvalidPromotionState:
 
     def test_non_enum_promotion_state(self, monkeypatch) -> None:
         import types
+
         import smc_integration.release_policy as rp_mod
         from smc_integration.release_policy import validate_gate_governance_registry
 

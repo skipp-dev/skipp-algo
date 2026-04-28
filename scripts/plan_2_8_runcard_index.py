@@ -11,14 +11,13 @@ Pure stdlib.
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 import sys
 from pathlib import Path
 from typing import Any
 
+from scripts.smc_atomic_write import atomic_write_text
 
 # Kept in lockstep with plan_2_8_weekly_runcard.SECTION_MAP.
 SECTION_MAP: tuple[tuple[str, str], ...] = (

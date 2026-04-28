@@ -4,7 +4,6 @@ import re
 
 from tests.smc_manifest_test_utils import ROOT
 
-
 UTILS_PATH = ROOT / 'SMC++' / 'smc_utils.pine'
 CORE_ENGINE_PATH = ROOT / 'SMC_Core_Engine.pine'
 

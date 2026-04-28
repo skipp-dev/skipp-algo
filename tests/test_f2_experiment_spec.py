@@ -14,7 +14,6 @@ from scripts.f2_experiment_spec import (
     load_f2_spec,
 )
 
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SHIPPED_SPEC = REPO_ROOT / "artifacts" / "experiments" / "f2_contextual_promotion.json"
 

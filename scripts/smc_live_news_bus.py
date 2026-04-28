@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import csv
 import json
 import logging
@@ -20,13 +18,14 @@ from newsstack_fmp.ingest_benzinga import fetch_benzinga_quantified_news as _fet
 from newsstack_fmp.ingest_fmp import FmpAdapter
 from newsstack_fmp.normalize import normalize_newsapi_ai
 from newsstack_fmp.scoring import classify_and_score, cluster_hash
-from smc_integration.release_policy import RELEASE_REFERENCE_SYMBOLS
 from newsstack_fmp.shared_fetch import (
     DEFAULT_SHARED_NEWS_CACHE_DIR,
     DEFAULT_SHARED_NEWS_CACHE_TTL_SECONDS,
     fetch_cached_batch,
     tv_headline_to_news_item,
 )
+from scripts.smc_atomic_write import atomic_write_text
+from smc_integration.release_policy import RELEASE_REFERENCE_SYMBOLS
 from terminal_tradingview_news import fetch_tv_multi
 
 logger = logging.getLogger(__name__)

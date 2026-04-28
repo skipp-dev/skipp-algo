@@ -27,12 +27,11 @@ import re
 import threading
 import time
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone, UTC
+from datetime import UTC, datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import Any
 
 from open_prep_boundary import FMPClientLike, make_fmp_client
-
 from terminal_technicals import (
     _tv_cooldown_remaining,
     _tv_is_cooling_down,
@@ -59,7 +58,7 @@ except ImportError:
     _YF = False
 
 try:
-    from tradingview_ta import TA_Handler, Interval  # type: ignore[import-untyped]
+    from tradingview_ta import Interval, TA_Handler  # type: ignore[import-untyped]
     _TV = True
 except ImportError:
     _TV = False

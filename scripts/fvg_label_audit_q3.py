@@ -15,7 +15,6 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Iterable
 
-
 DEFAULT_ROOT = Path("artifacts/ci/measurement_benchmark_combined_2026-04-21")
 
 

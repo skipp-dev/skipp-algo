@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections import deque
-
 from pathlib import Path
 
 import open_prep.realtime_signals as rs

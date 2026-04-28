@@ -21,7 +21,6 @@ import sys
 from pathlib import Path
 from typing import Any, Iterable
 
-
 DEFAULT_FIELDS: tuple[str, ...] = (
     "captured_at",
     "scoring_root",

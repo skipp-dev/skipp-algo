@@ -8,8 +8,6 @@ stripped content is three or more of ``-``, ``_`` or ``*``
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 import re
@@ -17,6 +15,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from scripts.smc_atomic_write import atomic_write_text
 
 _FENCE = re.compile(r"^```")
 _HR = re.compile(r"^(?:-{3,}|_{3,}|\*{3,})$")

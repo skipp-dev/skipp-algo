@@ -34,7 +34,6 @@ from scripts.smc_alert_notifier import (
     suppress_duplicates,
 )
 
-
 # ── Fixtures ──────────────────────────────────────────────────────
 
 def _pine_content(**overrides: str) -> str:
@@ -719,7 +718,6 @@ def _cli_parser(**kw: Any) -> MagicMock:
 
 
 from typing import Any
-
 
 # ── v5.3 alert rule tests ────────────────────────────────────────
 

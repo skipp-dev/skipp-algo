@@ -15,14 +15,13 @@ Subdirectories are ignored.
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 import sys
 from pathlib import Path
 from typing import Any
 
+from scripts.smc_atomic_write import atomic_write_text
 
 _BUCKETS = (
     ("<1KB",     0,           1024),

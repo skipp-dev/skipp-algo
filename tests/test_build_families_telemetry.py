@@ -19,7 +19,6 @@ from scripts.build_families_telemetry import (
     to_strict_payload,
 )
 
-
 # ---------------------------------------------------------------------------
 # Pinning: schema + family list mirror the consumer contract
 # ---------------------------------------------------------------------------

@@ -16,10 +16,10 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from scripts.smc_enrichment_types import EnrichmentDict
 from scripts.smc_bus_manifest import DASHBOARD_BUS_CHANNELS as MANIFEST_DASHBOARD_BUS_CHANNELS
 from scripts.smc_bus_manifest import ENGINE_BUS_CHANNELS as MANIFEST_ENGINE_BUS_CHANNELS
 from scripts.smc_bus_manifest import STRATEGY_BUS_CHANNELS as MANIFEST_STRATEGY_BUS_CHANNELS
+from scripts.smc_enrichment_types import EnrichmentDict
 from scripts.smc_microstructure_base_runtime import generate_pine_library_from_base
 from scripts.smc_schema_resolver import resolve_microstructure_schema_path
 
@@ -976,13 +976,14 @@ class TestV55bContractSync:
     def test_reference_enrichment_field_names_match_typeddicts(self):
         """Every field in the reference fixture must match its TypedDict exactly."""
         import json
+
         from scripts.smc_enrichment_types import (
             EventRiskLightBlock,
-            SessionContextLightBlock,
-            OBContextLightBlock,
             FVGLifecycleLightBlock,
-            StructureStateLightBlock,
+            OBContextLightBlock,
+            SessionContextLightBlock,
             SignalQualityBlock,
+            StructureStateLightBlock,
         )
         fixture = json.loads(
             (ROOT / "tests/fixtures/reference_enrichment.json").read_text()

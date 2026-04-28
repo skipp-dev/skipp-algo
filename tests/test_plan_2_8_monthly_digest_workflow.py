@@ -6,7 +6,6 @@ from pathlib import Path
 
 import yaml
 
-
 WORKFLOW = (
     Path(__file__).resolve().parents[1]
     / ".github" / "workflows" / "plan-2-8-monthly-digest.yml"

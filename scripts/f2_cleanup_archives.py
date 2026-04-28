@@ -23,17 +23,17 @@ Exit codes
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 import os
 import re
 import sys
 import tempfile
-from datetime import datetime, timezone, UTC
+from datetime import UTC, datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from scripts.smc_atomic_write import atomic_write_text
 
 CLEANUP_SCHEMA_VERSION = 1
 DEFAULT_MAX_AGE_DAYS = 90

@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import csv
 import json
+import sys
 import time
 from collections import Counter
 from dataclasses import fields
 from datetime import UTC, datetime
 from pathlib import Path
-import sys
 from typing import Any
+
+from scripts.smc_atomic_write import atomic_write_text
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -27,7 +27,6 @@ from smc_integration.release_policy import (
     serialize_contextual_calibration_promotion_policy,
     serialize_contextual_calibration_recommendation_policy,
 )
-
 
 _KNOWN_DIMENSIONS: tuple[str, ...] = ("session", "htf_bias", "vol_regime")
 

@@ -420,6 +420,7 @@ def main(argv: list[str] | None = None) -> int:
         # ``reqWshMetaData`` / ``reqWshEventData`` calls would fail on
         # an unconnected client.
         from ib_insync import IB  # local import: optional dependency
+
         from scripts.ib_client_id import (
             allocate_ib_client_id,
             release_ib_client_id,

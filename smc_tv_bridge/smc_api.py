@@ -18,7 +18,7 @@ import logging
 import os
 import sys
 import time
-from datetime import datetime, timezone, UTC
+from datetime import UTC, datetime, timezone
 from pathlib import Path
 from typing import Any
 

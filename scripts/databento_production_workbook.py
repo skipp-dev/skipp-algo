@@ -10,16 +10,16 @@ This module centralizes workbook generation so daily/base production paths and U
 use the same producer logic.
 """
 
+import zipfile
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
 from typing import Any
-import zipfile
 
 import pandas as pd
-from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.formatting.rule import ColorScaleRule
+from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from pandas.api.types import is_datetime64_any_dtype
 

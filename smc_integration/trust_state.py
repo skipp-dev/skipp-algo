@@ -56,7 +56,6 @@ from smc_integration.provider_health import (
     classify_domain_alerts_to_failure_actions,
 )
 
-
 # ── Canonical product states ──────────────────────────────────────────
 
 

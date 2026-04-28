@@ -1,8 +1,7 @@
 """Unit tests for the Hero State Contract (scripts/smc_hero_state.py)."""
 from __future__ import annotations
 
-
-from scripts.smc_hero_state import DEFAULTS, build_hero_state, _derive_trust, _derive_bias, _derive_action
+from scripts.smc_hero_state import DEFAULTS, _derive_action, _derive_bias, _derive_trust, build_hero_state
 
 
 class TestDeriveTrust:

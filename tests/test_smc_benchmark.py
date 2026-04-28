@@ -5,14 +5,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-
 from smc_core.benchmark import (
     build_benchmark,
     compute_event_family_kpi,
     export_benchmark_artifacts,
 )
 from smc_core.schema_version import SCHEMA_VERSION
-
 
 # --- EventFamilyKPI ---
 
@@ -258,6 +256,7 @@ class TestStratifiedFvgReport:
 
     def test_output_is_deterministic_and_json_serialisable(self) -> None:
         import json
+
         from smc_core.benchmark import stratified_fvg_report
 
         events = self._events(

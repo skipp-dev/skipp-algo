@@ -6,10 +6,8 @@ import dataclasses
 import json
 from pathlib import Path
 
-
-from scripts.f2_run_promotion_gate import main, run_promotion_gate
 from scripts.f2_experiment_spec import load_f2_spec
-
+from scripts.f2_run_promotion_gate import main, run_promotion_gate
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SHIPPED_SPEC = REPO_ROOT / "artifacts" / "experiments" / "f2_contextual_promotion.json"

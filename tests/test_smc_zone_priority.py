@@ -5,13 +5,12 @@ import pytest
 
 from scripts.smc_zone_priority import (
     DEFAULTS,
-    build_zone_priority,
     _clamp,
+    _identify_catalyst,
     _rank_from_score,
     _select_top_family,
-    _identify_catalyst,
+    build_zone_priority,
 )
-
 
 # ── Defaults ────────────────────────────────────────────────────
 

@@ -20,7 +20,6 @@ from __future__ import annotations
 from types import MappingProxyType
 from typing import Iterable, Mapping
 
-
 # ── Default view mode ────────────────────────────────────────────────
 # The Pine ``surface_mode`` input must default to this view mode. Any
 # change here is a product-level decision that should fail this test

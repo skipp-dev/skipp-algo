@@ -6,10 +6,10 @@ behavior with and without compression_regime data.
 from __future__ import annotations
 
 from scripts.smc_session_context_light import (
-    build_session_context_light,
     DEFAULTS,
-    REQUIRED_DEFAULTS,
     OPTIONAL_DEFAULTS,
+    REQUIRED_DEFAULTS,
+    build_session_context_light,
 )
 
 

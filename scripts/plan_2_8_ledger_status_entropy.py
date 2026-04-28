@@ -6,8 +6,6 @@ distribution. Zero for empty ledger or single-status ledger.
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 import math
@@ -16,6 +14,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+from scripts.smc_atomic_write import atomic_write_text
 
 VALID_STATUSES = frozenset({"green", "amber", "red", "unknown"})
 

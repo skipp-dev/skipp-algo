@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 PLAN_PATH = ROOT / "docs/smc_deep_research_migration_plan_copilot.md"
 PHASE_C_PATH = ROOT / "docs/PHASE_C_ANALYSIS.md"

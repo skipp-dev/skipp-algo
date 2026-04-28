@@ -4,8 +4,8 @@ from typing import Any
 
 import pandas as pd
 
-from smc_core.ids import fvg_id, liquidity_id, ob_id, sweep_id
 from scripts.smc_price_action_engine import canonical_timeframe, detect_bos_from_pivots, normalize_bars
+from smc_core.ids import fvg_id, liquidity_id, ob_id, sweep_id
 
 
 def _is_up(open_price: float, close_price: float) -> bool:

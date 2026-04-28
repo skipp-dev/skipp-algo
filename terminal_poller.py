@@ -26,15 +26,15 @@ from zoneinfo import ZoneInfo as _ZoneInfo
 
 _ET = _ZoneInfo("America/New_York")
 
-from newsstack_fmp.common_types import NewsItem
 from newsstack_fmp._bz_http import _sanitize_exc, log_fetch_warning
-from open_prep_boundary import FMPClientLike, make_fmp_client
+from newsstack_fmp.common_types import NewsItem
 from newsstack_fmp.ingest_benzinga import (
     BenzingaRestAdapter,
     fetch_benzinga_channels,
     fetch_benzinga_quantified_news,
     fetch_benzinga_top_news,
 )
+from open_prep_boundary import FMPClientLike, make_fmp_client
 
 try:
     from newsstack_fmp.ingest_benzinga_calendar import (
@@ -1390,7 +1390,11 @@ def fetch_benzinga_news_by_channel(
 
 from newsstack_fmp._market_cal import (
     is_us_equity_trading_day as _is_trading_day,
+)
+from newsstack_fmp._market_cal import (
     next_trading_day as _next_trading_day,
+)
+from newsstack_fmp._market_cal import (
     prev_trading_day as _prev_trading_day,
 )
 

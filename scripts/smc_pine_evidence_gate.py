@@ -35,7 +35,6 @@ from scripts.smc_hero_state import build_hero_state
 from scripts.smc_pine_evidence_fixtures import build_evidence_fixture
 from scripts.smc_pine_scenario_catalog import PINE_SCENARIO_CATALOG, PineScenario
 
-
 _HERO_RISK_FIELD = "HERO_RISK"
 
 # Required top-level enrichment keys the Hero State Contract consumes. A

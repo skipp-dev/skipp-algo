@@ -16,7 +16,6 @@ import pandas as pd
 
 from scripts.smc_imbalance_lifecycle import DEFAULTS, build_imbalance_lifecycle
 
-
 # ── Test data helpers ────────────────────────────────────────────────
 
 def _bars_with_bull_fvg() -> pd.DataFrame:

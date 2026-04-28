@@ -13,10 +13,9 @@ from unittest.mock import patch
 
 import pytest
 
-from scripts.generate_smc_micro_profiles import LISTS, write_pine_library
 from scripts.generate_smc_micro_base_from_databento import build_enrichment
+from scripts.generate_smc_micro_profiles import LISTS, write_pine_library
 from scripts.smc_enrichment_types import EnrichmentDict
-
 
 # ── Helpers ─────────────────────────────────────────────────────
 

@@ -12,7 +12,6 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-
 from smc_tv_bridge.smc_api import (
     _adapt_bos,
     _adapt_sweeps,
@@ -25,7 +24,6 @@ from smc_tv_bridge.smc_api import (
     encode_zones,
 )
 from tests.fixture_helpers import assert_keys_subset
-
 
 # ── candles_to_dataframe ─────────────────────────────────
 

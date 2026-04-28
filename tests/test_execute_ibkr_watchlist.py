@@ -18,7 +18,8 @@ from scripts.execute_ibkr_watchlist import (
     resolve_trade_date,
     supervise_open_execution,
 )
-from scripts.run_ibkr_open_execution import build_execution_event_log, build_parser as build_supervisor_parser, write_execution_event_log_csv
+from scripts.run_ibkr_open_execution import build_execution_event_log, write_execution_event_log_csv
+from scripts.run_ibkr_open_execution import build_parser as build_supervisor_parser
 
 
 def _sample_watchlist() -> pd.DataFrame:

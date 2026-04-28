@@ -46,7 +46,6 @@ from smc_integration.trust_state import (
     derive_trust_state,
 )
 
-
 # Stable Pine field-name surface (caller never spells these manually).
 PINE_TRUST_FIELDS: tuple[str, ...] = (
     "TRUST_STATE",
