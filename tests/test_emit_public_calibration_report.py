@@ -206,7 +206,7 @@ def test_append_public_history_truncates_to_retention(tmp_path: Path) -> None:
         report = {**base, "generated_at": f"2026-01-{(i % 28) + 1:02d}T00:00:00+00:00"}
         append_public_history(out, report)
     history_path = out.with_name("calibration_report_public_history.jsonl")
-    lines = [l for l in history_path.read_text(encoding="utf-8").splitlines() if l.strip()]
+    lines = [line for line in history_path.read_text(encoding="utf-8").splitlines() if line.strip()]
     assert len(lines) == HISTORY_RETENTION
 
 
@@ -246,7 +246,7 @@ def test_main_emits_ok_with_explicit_input(tmp_path: Path) -> None:
     assert payload["source"]["commit_sha"] == "abc1234"
     history = output.with_name("calibration_report_public_history.jsonl")
     assert history.exists()
-    history_lines = [l for l in history.read_text(encoding="utf-8").splitlines() if l.strip()]
+    history_lines = [line for line in history.read_text(encoding="utf-8").splitlines() if line.strip()]
     assert len(history_lines) == 1
 
 
