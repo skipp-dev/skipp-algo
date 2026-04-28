@@ -15,11 +15,13 @@ from __future__ import annotations
 import json
 import logging
 import math
+import random
 import ssl
 import time
 import urllib.error
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 from typing import Any
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -92,6 +94,41 @@ _APPROXIMATE_PE_FIELDS: tuple[str, ...] = (
 
 def _build_tls_context() -> ssl.SSLContext:
     return ssl.create_default_context()
+
+
+def _parse_retry_after_seconds(raw_value: Any) -> float | None:
+    """Parse an HTTP ``Retry-After`` header value into seconds.
+
+    Accepts both the integer-seconds form (``"30"``) and the
+    HTTP-date form (``"Wed, 21 Oct 2026 07:28:00 GMT"``) per RFC 9110
+    §10.2.3. Returns ``None`` for empty / unparseable input so the
+    caller can fall back to its own backoff schedule.
+    """
+    if raw_value is None or raw_value == "":
+        return None
+    try:
+        seconds = float(raw_value)
+    except (TypeError, ValueError):
+        seconds = None
+    if seconds is not None:
+        # Reject NaN / +inf / -inf so callers fall through to the
+        # default backoff instead of attempting time.sleep(nan), which
+        # raises ``ValueError: Invalid value NaN`` on CPython.
+        if math.isnan(seconds) or math.isinf(seconds):
+            return None
+        return max(seconds, 0.0)
+    try:
+        parsed = parsedate_to_datetime(str(raw_value))
+    except (TypeError, ValueError, IndexError, OverflowError):
+        return None
+    if parsed is None:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    delta = (parsed.astimezone(timezone.utc) - datetime.now(timezone.utc)).total_seconds()
+    if math.isnan(delta) or math.isinf(delta):
+        return None
+    return max(delta, 0.0)
 
 
 def _today_et() -> date:
@@ -177,11 +214,23 @@ class SMCFMPClient:
         * After all retries are exhausted the call still raises
           ``RuntimeError`` (`on_failure` re-wraps the last exception),
           keeping the existing error contract consumers depend on.
+
+        Lane 9 (provider-boundary audit, 2026-04-27): when the provider
+        returns ``Retry-After`` (most commonly on HTTP 429), respect it
+        by waiting at least the suggested duration before the next
+        attempt. The hint is captured into a closure variable on each
+        failed attempt and consulted by the custom sleeper passed to
+        ``@resilient`` so we never busy-retry against a server that has
+        explicitly told us to back off.
         """
         query = {k: v for k, v in params.items() if v is not None}
         query.setdefault("apikey", self.api_key)
         url = f"{_BASE_URL}{path}?{urlencode(query, doseq=True)}"
         request = Request(url, headers={"User-Agent": "skipp-algo/1.0"})
+
+        # Lane 9: closure-stored Retry-After hint, refreshed by each
+        # failed attempt and consumed (then cleared) by ``_sleep``.
+        retry_after_hint: list[float] = []
 
         def _do_request() -> Any:
             try:
@@ -194,6 +243,12 @@ class SMCFMPClient:
                 return self._parse(path, payload)
             except urllib.error.HTTPError as exc:
                 if exc.code in _RETRIABLE_HTTP_CODES:
+                    headers = getattr(exc, "headers", None) or {}
+                    hint = _parse_retry_after_seconds(
+                        headers.get("Retry-After") if hasattr(headers, "get") else None
+                    )
+                    if hint is not None:
+                        retry_after_hint.append(hint)
                     raise  # let @resilient retry
                 # Non-retriable HTTP code → fail fast as before.
                 raise RuntimeError(f"FMP HTTP {exc.code} on {path}") from exc
@@ -202,6 +257,16 @@ class SMCFMPClient:
             if isinstance(exc, urllib.error.HTTPError):
                 raise RuntimeError(f"FMP HTTP {exc.code} on {path}") from exc
             raise RuntimeError(f"FMP network error on {path}: {exc}") from exc
+
+        def _sleep(delay: float) -> None:
+            if retry_after_hint:
+                hint = retry_after_hint.pop(0)
+                # Honor the server-supplied hint, but cap it at a sane
+                # ceiling so a misconfigured ``Retry-After: 86400`` can't
+                # wedge a synchronous CLI for a full day. The cap (60s)
+                # comfortably exceeds any normal rate-limit cooldown.
+                delay = max(delay, min(hint, 60.0))
+            time.sleep(delay)
 
         # Build the decorator per-call so the runtime ``retry_attempts``
         # field stays honored. ``retries`` is *additional* attempts after
@@ -213,11 +278,11 @@ class SMCFMPClient:
             max_delay=4.0,
             exceptions=(urllib.error.URLError,),  # covers HTTPError too
             on_failure=_on_failure,
-            # Late-bound sleep lookup so test fixtures that monkey-patch
-            # ``time.sleep`` after this module is imported still observe
-            # the call (the decorator's default would otherwise capture
-            # the original reference at construction time).
-            sleep=lambda delay: time.sleep(delay),
+            sleep=_sleep,
+            # Resolve ``random.random`` at call time (not at decorator
+            # default-argument evaluation time) so tests can pin the
+            # jitter via ``monkeypatch.setattr("random.random", ...)``.
+            rng=random.random,
         )(_do_request)
         return wrapped()
 

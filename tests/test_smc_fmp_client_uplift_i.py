@@ -774,3 +774,133 @@ class TestSilentFallbackLoggingLane5:
         # only ONE warning is emitted across all iterations.
         msgs = [r.message for r in caplog.records if "symbol-positions-summary" in r.message]
         assert len(msgs) == 1
+
+
+class TestRetryAfterHygieneLane9:
+    """Lane 9 (provider-boundary audit, 2026-04-27): when FMP returns
+    ``Retry-After`` (typically on HTTP 429), ``_get`` must wait at least
+    the suggested duration before the next retry, capped at 60s so a
+    misconfigured ``Retry-After: 86400`` cannot wedge the CLI for a day.
+    """
+
+    def test_parse_retry_after_accepts_seconds_form(self):
+        from scripts.smc_fmp_client import _parse_retry_after_seconds
+        assert _parse_retry_after_seconds("0") == 0.0
+        assert _parse_retry_after_seconds("12") == 12.0
+        assert _parse_retry_after_seconds("12.5") == 12.5
+
+    def test_parse_retry_after_accepts_http_date_form(self):
+        from scripts.smc_fmp_client import _parse_retry_after_seconds
+        from datetime import datetime, timezone, timedelta
+        future = datetime.now(timezone.utc) + timedelta(seconds=30)
+        # RFC 9110 §10.2.3 HTTP-date format
+        from email.utils import format_datetime
+        out = _parse_retry_after_seconds(format_datetime(future, usegmt=True))
+        assert out is not None
+        assert 25 <= out <= 35  # tolerance for clock skew
+
+    def test_parse_retry_after_returns_none_for_garbage(self):
+        from scripts.smc_fmp_client import _parse_retry_after_seconds
+        for v in (None, "", "not-a-date", object()):
+            assert _parse_retry_after_seconds(v) is None
+
+    def test_parse_retry_after_clamps_negative_to_zero(self):
+        from scripts.smc_fmp_client import _parse_retry_after_seconds
+        assert _parse_retry_after_seconds("-5") == 0.0
+        from datetime import datetime, timezone, timedelta
+        from email.utils import format_datetime
+        past = datetime.now(timezone.utc) - timedelta(seconds=30)
+        assert _parse_retry_after_seconds(format_datetime(past, usegmt=True)) == 0.0
+
+    def test_get_honors_retry_after_seconds_hint(self, monkeypatch):
+        """A 429 with ``Retry-After: 7`` must cause _get to sleep at
+        least 7 seconds before the second attempt."""
+        import urllib.error
+        import scripts.smc_fmp_client as mod
+
+        sleeps: list[float] = []
+        monkeypatch.setattr(mod.time, "sleep", lambda d: sleeps.append(d))
+
+        attempts = {"n": 0}
+        class _FakeHeaders:
+            def get(self, key, default=None):
+                return "7" if key == "Retry-After" else default
+
+        def fake_urlopen(*args, **kwargs):
+            attempts["n"] += 1
+            if attempts["n"] == 1:
+                err = urllib.error.HTTPError(
+                    url="x", code=429, msg="Too Many", hdrs=_FakeHeaders(), fp=None,
+                )
+                err.headers = _FakeHeaders()
+                raise err
+            class _Resp:
+                def __enter__(self): return self
+                def __exit__(self, *a): return False
+                def read(self): return b'[{"ok": 1}]'
+            return _Resp()
+
+        monkeypatch.setattr(mod, "urlopen", fake_urlopen)
+        # Pin the resilient decorator's full-jitter RNG so the slept
+        # value is deterministic. ``_get`` passes ``rng=random.random``
+        # to ``resilient`` (looked up at call time), so monkeypatching
+        # ``random.random`` here flows through.
+        import random as _random
+        monkeypatch.setattr(_random, "random", lambda: 1.0)
+        c = SMCFMPClient(api_key="k", retry_attempts=2)
+        out = c._get("/stable/quote", {"symbol": "AAPL"})
+
+        assert out == [{"ok": 1}]
+        assert attempts["n"] == 2
+        # The decorator's own backoff caps at base_delay*rng() ≤ 0.5s,
+        # so anything ≥ 7s came from the Retry-After hint.
+        assert any(d >= 7.0 for d in sleeps), sleeps
+
+    def test_get_caps_pathological_retry_after_at_60s(self, monkeypatch):
+        """A misconfigured ``Retry-After: 86400`` must NOT wedge the
+        client for a full day — the cap is 60s."""
+        import urllib.error
+        import scripts.smc_fmp_client as mod
+
+        sleeps: list[float] = []
+        monkeypatch.setattr(mod.time, "sleep", lambda d: sleeps.append(d))
+
+        class _FakeHeaders:
+            def get(self, key, default=None):
+                return "86400" if key == "Retry-After" else default
+
+        attempts = {"n": 0}
+        def fake_urlopen(*args, **kwargs):
+            attempts["n"] += 1
+            if attempts["n"] == 1:
+                err = urllib.error.HTTPError(
+                    url="x", code=429, msg="Too Many", hdrs=_FakeHeaders(), fp=None,
+                )
+                err.headers = _FakeHeaders()
+                raise err
+            class _Resp:
+                def __enter__(self): return self
+                def __exit__(self, *a): return False
+                def read(self): return b"[]"
+            return _Resp()
+
+        monkeypatch.setattr(mod, "urlopen", fake_urlopen)
+        # Pin the jitter RNG so the asserted bound is deterministic.
+        import random as _random
+        monkeypatch.setattr(_random, "random", lambda: 1.0)
+        c = SMCFMPClient(api_key="k", retry_attempts=2)
+        c._get("/stable/quote", {"symbol": "AAPL"})
+
+        # All slept values must be <= 60s.
+        assert sleeps and all(d <= 60.0 for d in sleeps), sleeps
+
+    def test_parse_retry_after_returns_none_for_nan_and_inf(self):
+        """Regression: ``time.sleep(nan)`` raises ValueError on CPython.
+
+        Garbage float-strings like ``"NaN"`` / ``"inf"`` must therefore
+        be treated as "no hint" so the caller falls through to the
+        default exponential backoff.
+        """
+        from scripts.smc_fmp_client import _parse_retry_after_seconds
+        for v in ("NaN", "nan", "inf", "+inf", "-inf", "Infinity", "-Infinity"):
+            assert _parse_retry_after_seconds(v) is None, v
