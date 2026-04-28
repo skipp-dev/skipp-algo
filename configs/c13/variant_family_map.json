@@ -1,0 +1,17 @@
+{
+  "smc_breaker_btc": "BOS",
+  "smc_breaker_eth": "BOS",
+  "smc_breaker_es": "BOS",
+  "smc_orderblock_btc": "OB",
+  "smc_orderblock_eth": "OB",
+  "smc_orderblock_es": "OB",
+  "smc_fvg_btc": "FVG",
+  "smc_fvg_eth": "FVG",
+  "smc_fvg_es": "FVG",
+  "smc_imbalance_btc": "FVG",
+  "smc_imbalance_eth": "FVG",
+  "smc_imbalance_es": "FVG",
+  "smc_sweep_btc": "SWEEP",
+  "smc_sweep_eth": "SWEEP",
+  "smc_sweep_es": "SWEEP"
+}
