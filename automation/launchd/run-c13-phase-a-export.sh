@@ -13,6 +13,13 @@ REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 VENV="${C13_VENV:-${HOME}/.venv}"
 
 cd "${REPO}"
+# Lane 7: venv-realism guard. Sourcing a missing activate yields a
+# cryptic ``no such file or directory`` from inside `set -u`; surface a
+# clear error so the operator can fix C13_VENV in the plist.
+if [[ ! -f "${VENV}/bin/activate" ]]; then
+    echo "phase-a-export cron: virtualenv activate script not found at ${VENV}/bin/activate (set C13_VENV in plist)" >&2
+    exit 1
+fi
 # shellcheck disable=SC1091
 source "${VENV}/bin/activate"
 
