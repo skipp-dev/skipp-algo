@@ -149,6 +149,35 @@ def test_smc_calendar_collector_reference_date_override_still_honored():
     assert "MSFT" in result["earnings_bmo_tickers"].split(",")
 
 
+def test_smc_calendar_collector_macro_event_uses_et_date(monkeypatch):
+    """A macro event near UTC midnight must be classified by its ET date,
+    not its raw UTC date — otherwise an FOMC release at 02:00 UTC (=
+    22:00 ET prior day in EDT) would be silently dropped from "today"."""
+    from scripts import smc_calendar_collector as mod
+
+    # Pin "now" to 2026-04-27 23:30 ET (= 2026-04-28 03:30 UTC).
+    monkeypatch.setattr(mod, "datetime", _FakeDateTime)
+
+    # Macro event at 2026-04-28 02:00 UTC. In UTC that's 04-28; in ET
+    # that's 04-27 22:00 — the same trading day as "today" (04-27 ET).
+    result = mod.collect_earnings_and_macro(
+        symbols=[],
+        earnings_data=[],
+        macro_events=[
+            {
+                "name": "FOMC Rate Decision",
+                "time_utc": "2026-04-28T02:00:00+00:00",
+                "impact": "high",
+            },
+        ],
+    )
+    assert result["high_impact_macro_today"] is True, (
+        "Event at 02:00 UTC (= 22:00 ET prior day) must count as today's "
+        "macro event when ``today`` is anchored in ET."
+    )
+    assert result["macro_event_name"] == "FOMC Rate Decision"
+
+
 # ---------------------------------------------------------------------------
 # AMBER pin (Lens 2) — realtime_signals tz-fallback must remain neutral
 # ---------------------------------------------------------------------------

@@ -116,7 +116,11 @@ def collect_earnings_and_macro(
     for evt in macro_events or []:
         name = evt.get("name") or ""
         evt_dt = _parse_event_dt(evt.get("time_utc"))
-        if evt_dt is not None and evt_dt.date() != today:
+        # Compare in US-Eastern: ``today`` is anchored to ET (above), so
+        # ``evt_dt.date()`` must also be taken in ET. Otherwise an event
+        # at e.g. 00:30 UTC (= prior-day 20:30 ET in winter) would be
+        # silently classified into the wrong trading day.
+        if evt_dt is not None and evt_dt.astimezone(_ET).date() != today:
             continue
         is_high = bool(_HIGH_IMPACT_PATTERNS.search(name))
         if not is_high:
