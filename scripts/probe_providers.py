@@ -138,11 +138,15 @@ def probe_fmp_quote() -> tuple[str, str]:
 def probe_fmp_treasury() -> tuple[str, str]:
     """FMP /stable/treasury-rates — Lane 1 retired-endpoint replacement."""
     import httpx
-    from datetime import date, timedelta
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
     key = os.getenv("FMP_API_KEY", "")
     if not key:
         return ("SKIP", "FMP_API_KEY missing")
-    end = date.today()
+    # Anchor to US/Eastern so the probe is consistent regardless of host TZ
+    # (audit-v2-lens-2 — naive date.today() drifts by a calendar day in
+    # non-ET runners and can request a future-dated window).
+    end = datetime.now(ZoneInfo("America/New_York")).date()
     start = end - timedelta(days=7)
     r = httpx.get(
         "https://financialmodelingprep.com/stable/treasury-rates",
@@ -442,7 +446,10 @@ def probe_bz_ownership() -> tuple[str, str]:
 
 
 def probe_bz_calendar_earnings() -> tuple[str, str]:
-    today = date.today().isoformat()
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    # ET-anchored to match exchange/earnings calendar semantics.
+    today = datetime.now(ZoneInfo("America/New_York")).date().isoformat()
     return _bz_get(
         "/api/v2.1/calendar/earnings",
         {"parameters[date_from]": today, "parameters[date_to]": today},
