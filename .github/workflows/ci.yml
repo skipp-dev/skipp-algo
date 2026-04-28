@@ -51,16 +51,27 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-          cache: pip
+      - name: Install uv
+        if: steps.gate.outputs.run_heavy == 'true'
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            requirements*.txt
       - name: Install test dependencies
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt pytest
-      - name: Run Python tests
-        if: steps.gate.outputs.run_heavy == 'true'
+          uv pip install --system -r requirements.txt pytest
+      # Coverage adds ~25-35% test wall-time. Keep it on `main` pushes (where
+      # the report has value) and skip on PRs to shorten the feedback loop.
+      - name: Run Python tests (PR — no coverage)
+        if: steps.gate.outputs.run_heavy == 'true' && github.event_name == 'pull_request'
         run: |
-          python -m pytest -q --maxfail=1 -n auto --dist=loadfile --cov --cov-report=term-missing:skip-covered
+          python -m pytest -q --maxfail=1 -n auto --dist=worksteal
+      - name: Run Python tests (push — with coverage)
+        if: steps.gate.outputs.run_heavy == 'true' && github.event_name != 'pull_request'
+        run: |
+          python -m pytest -q --maxfail=1 -n auto --dist=worksteal --cov --cov-report=term-missing:skip-covered
       - name: E2E structural smoke test
         if: steps.gate.outputs.run_heavy == 'true'
         run: python scripts/e2e_smoke_ci.py
