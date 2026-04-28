@@ -61,7 +61,15 @@ pythonpath = ["."]
 # Override locally with `pytest -n0` for interactive debugging (pdb /
 # breakpoints do not work under xdist workers). To disable the plugin
 # entirely, also clear addopts: `pytest -o addopts= -p no:xdist`.
-addopts = "-n auto --dist=loadfile"
+#
+# Local memory cap (2026-04-28): pinned to `-n 4` instead of `-n auto`.
+#   * Mac dev box (16 GB RAM, 12 cores) was OOM-thrashing under `-n auto`:
+#     12 workers × ~180-450 MB RSS = 2-5 GB peak just for SMC suite.
+#   * CI overrides this back to `-n auto` via `PYTEST_ADDOPTS` /
+#     `pytest -n auto` in `.github/workflows/ci.yml`.
+#   * Override locally for full parallelism: `pytest -n auto ...` or
+#     `PYTEST_XDIST_AUTO_NUM_WORKERS=8 pytest ...`.
+addopts = "-n 4 --dist=loadfile"
 filterwarnings = [
     "ignore:Microstructure base asof_date is .* days old:UserWarning",
 ]
