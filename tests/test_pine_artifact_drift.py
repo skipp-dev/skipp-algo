@@ -15,7 +15,7 @@ COMMITTED_PINE = Path("pine/generated/smc_micro_profiles_generated.pine")
 
 def test_committed_pine_matches_generator():
     """Committed Pine artifact must have valid structure (v5.5 lean).
-    
+
     Instead of byte-for-byte comparison against a transient fresh
     generation (which depends on the asof_date used), we verify that the
     committed artifact has all expected v5.5 section headers.

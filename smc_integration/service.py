@@ -243,7 +243,7 @@ def _load_symbol_bars_for_context(symbol: str, timeframe: str) -> pd.DataFrame:
     try:
         bundle = load_export_bundle(_DEFAULT_EXPORT_DIR, manifest_prefix="databento_volatility_production_")
     except Exception:
-        return pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume", "symbol"]) 
+        return pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume", "symbol"])
 
     frames = bundle.get("frames", {})
     symbol_name = str(symbol).strip().upper()

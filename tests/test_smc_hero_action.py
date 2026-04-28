@@ -130,7 +130,7 @@ class TestReason:
         assert action.reason == "FOMC in 1h"
 
     def test_reason_is_never_empty_for_any_state(self) -> None:
-        # Defaults: empty enrichment yields verb=watch (no_trade NONE → 
+        # Defaults: empty enrichment yields verb=watch (no_trade NONE →
         # actually default is no degradation block + no trust, derive from
         # empty enrichment gives healthy, quality avoid → watch).
         action = derive_hero_action({})
