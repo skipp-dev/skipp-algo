@@ -33,8 +33,14 @@ git fetch origin data/phase-a-audit --quiet
 git checkout data/phase-a-audit 2>/dev/null || \
     git checkout -b data/phase-a-audit origin/data/phase-a-audit
 
-# Pull latest in case yesterday's run already pushed.
-git pull --ff-only origin data/phase-a-audit || true
+# Pull latest in case yesterday's run already pushed. A failure here
+# (network blip, branch divergence) MUST abort: otherwise the later
+# `git push` rejects with non-fast-forward and the operator chases a
+# misleading error in the wrong layer.
+if ! git pull --ff-only origin data/phase-a-audit; then
+    echo "audit-push: pull --ff-only failed for data/phase-a-audit; aborting (will retry tomorrow)" >&2
+    exit 1
+fi
 
 git add "${AUDIT}" "${SETUPS}" "${GATES}" 2>/dev/null || true
 
