@@ -76,7 +76,7 @@ def load_previous_snapshot() -> dict[str, Any] | None:
     if not LAST_RESULT_PATH.exists():
         return None
     try:
-        with open(LAST_RESULT_PATH, "r", encoding="utf-8") as fh:
+        with open(LAST_RESULT_PATH, encoding="utf-8") as fh:
             return json.load(fh)  # type: ignore[no-any-return]
     except Exception:
         logger.warning("Failed to load previous snapshot")
