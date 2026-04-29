@@ -1137,9 +1137,8 @@ class TestOpenPrep(unittest.TestCase):
                 time.sleep(0.01)
             return [{"symbol": symbol, "price": 100.0}]
 
-        with patch.dict(os.environ, {"OPEN_PREP_FMP_QUOTE_WORKERS": "3"}, clear=False):
-            with patch.object(FMPClient, "_execute_get", side_effect=side_effect):
-                quotes = client.get_batch_quotes(["AAPL", "MSFT", "NVDA"])
+        with patch.dict(os.environ, {"OPEN_PREP_FMP_QUOTE_WORKERS": "3"}, clear=False), patch.object(FMPClient, "_execute_get", side_effect=side_effect):
+            quotes = client.get_batch_quotes(["AAPL", "MSFT", "NVDA"])
 
         diagnostics = client.get_last_quote_fetch_diagnostics()
         self.assertEqual([row["symbol"] for row in quotes], ["AAPL", "MSFT", "NVDA"])
@@ -3107,10 +3106,12 @@ class TestFMPClientCircuitBreakerHttpClassification(unittest.TestCase):
         exc = urllib.error.HTTPError(
             "https://example.com", code, "synthetic", {}, None
         )
-        with patch("open_prep.macro.urlopen", side_effect=exc):
-            with patch("time.sleep"):  # avoid real sleeps on transient retries
-                with self.assertRaises(RuntimeError):
-                    client._get("/stable/x", {})
+        with (
+            patch("open_prep.macro.urlopen", side_effect=exc),
+            patch("time.sleep"),  # avoid real sleeps on transient retries
+            self.assertRaises(RuntimeError),
+        ):
+            client._get("/stable/x", {})
         return client
 
     def test_404_does_not_trip_circuit_breaker(self):
@@ -3200,9 +3201,8 @@ class TestMacroHelpers(unittest.TestCase):
         cm.__exit__.return_value = False
         ssl_context = object()
 
-        with patch("open_prep.macro._build_tls_context", return_value=ssl_context) as mock_tls_context:
-            with patch("open_prep.macro.urlopen", return_value=cm) as mock_urlopen:
-                rows = client._request_once("/stable/batch-quote", {"symbols": "AAPL"})
+        with patch("open_prep.macro._build_tls_context", return_value=ssl_context) as mock_tls_context, patch("open_prep.macro.urlopen", return_value=cm) as mock_urlopen:
+            rows = client._request_once("/stable/batch-quote", {"symbols": "AAPL"})
 
         self.assertEqual(rows, [{"symbol": "AAPL"}])
         mock_tls_context.assert_called_once_with()

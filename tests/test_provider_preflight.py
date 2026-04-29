@@ -172,11 +172,13 @@ def test_preflight_or_die_notify_skipped_when_disabled():
 
 def test_preflight_or_die_swallows_notification_failure():
     probes = [pp.Probe("crit", _fail, critical=True)]
-    with patch.object(pp, "PROBES", probes), \
-         patch.object(pp, "_notify_blocking", side_effect=RuntimeError("net down")):
+    with (
+        patch.object(pp, "PROBES", probes),
+        patch.object(pp, "_notify_blocking", side_effect=RuntimeError("net down")),
+        pytest.raises(SystemExit) as excinfo,
+    ):
         # must still raise SystemExit, NOT the notification RuntimeError
-        with pytest.raises(SystemExit) as excinfo:
-            pp.preflight_or_die(notify=True)
+        pp.preflight_or_die(notify=True)
     assert excinfo.value.code == 1
 
 

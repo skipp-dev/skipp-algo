@@ -200,9 +200,8 @@ class TestMain:
                 return 200, rulesets_list
             return 200, _FULL_PROTECTION_RESPONSE
 
-        with patch.dict("os.environ", {"GITHUB_TOKEN": "fake"}):
-            with patch.object(mod, "_github_get", side_effect=_mock_get):
-                result = mod.main()
+        with patch.dict("os.environ", {"GITHUB_TOKEN": "fake"}), patch.object(mod, "_github_get", side_effect=_mock_get):
+            result = mod.main()
         assert result == 0
 
 

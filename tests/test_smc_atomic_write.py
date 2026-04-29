@@ -62,9 +62,8 @@ def test_atomic_write_parquet_leaves_target_untouched_on_writer_failure(tmp_path
     def _boom(self, *args, **kwargs):
         raise RuntimeError("simulated writer crash")
 
-    with patch.object(pd.DataFrame, "to_parquet", _boom):
-        with pytest.raises(RuntimeError, match="simulated writer crash"):
-            atomic_write_parquet(_df(), target, index=False)
+    with patch.object(pd.DataFrame, "to_parquet", _boom), pytest.raises(RuntimeError, match="simulated writer crash"):
+        atomic_write_parquet(_df(), target, index=False)
 
     # Target unchanged.
     assert target.read_bytes() == original_bytes

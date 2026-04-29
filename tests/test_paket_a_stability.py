@@ -32,9 +32,8 @@ class TestA1SchemaResolver:
 
     def test_resolver_raises_when_file_missing(self, tmp_path: Path) -> None:
         fake_path = tmp_path / "does_not_exist.json"
-        with patch("scripts.smc_schema_resolver._CANONICAL_PATH", fake_path):
-            with pytest.raises(FileNotFoundError, match="canonical location"):
-                resolve_microstructure_schema_path()
+        with patch("scripts.smc_schema_resolver._CANONICAL_PATH", fake_path), pytest.raises(FileNotFoundError, match="canonical location"):
+            resolve_microstructure_schema_path()
 
 
 # ---------------------------------------------------------------------------
