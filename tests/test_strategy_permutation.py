@@ -66,7 +66,7 @@ def test_unknown_schema_rejected() -> None:
     # 'entry_time' was the legacy placeholder for the (now-shipped) Schema B;
     # it is not a valid schema name. Schema B is exposed as
     # 'block_outcome_sign' (Deep-Review 2026-04-27 follow-up).
-    with pytest.raises(ValueError, match="not supported|not implemented"):
+    with pytest.raises(ValueError, match=r"not supported|not implemented"):
         sp.permutation_test_sharpe(returns, schema="entry_time", B=100, seed=1)  # type: ignore[arg-type]
 
 

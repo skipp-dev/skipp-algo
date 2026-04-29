@@ -184,7 +184,7 @@ def test_revert_raises_on_missing_treatment_artifact_field(tmp_path: Path) -> No
     report_path = tmp_path / "r.json"
     spec_path.write_text(json.dumps({"arms": {"treatment": {}}}), encoding="utf-8")
     report_path.write_text(json.dumps(_report()), encoding="utf-8")
-    with pytest.raises(ValueError, match="arms.treatment.calibration_artifact"):
+    with pytest.raises(ValueError, match=r"arms.treatment.calibration_artifact"):
         revert_contextual_weights(
             spec_path=spec_path, report_path=report_path,
             journal_path=tmp_path / "j.jsonl",
