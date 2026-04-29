@@ -9,7 +9,6 @@ from pathlib import Path
 
 import pytest
 
-
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "plan_2_8_ledger_validate.py"
 
