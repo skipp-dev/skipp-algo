@@ -4546,7 +4546,7 @@ else:
                         # Color volume bars by direction
                         _vol_colors = [
                             "rgba(38, 166, 91, 0.6)" if c >= o else "rgba(239, 83, 80, 0.6)"
-                            for o, c in zip(_chart_opens, _chart_closes)
+                            for o, c in zip(_chart_opens, _chart_closes, strict=False)
                         ]
 
                         fig = make_subplots(
