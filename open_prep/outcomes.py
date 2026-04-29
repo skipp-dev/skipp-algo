@@ -26,11 +26,11 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo as _ZoneInfo
 
-_ET = _ZoneInfo("America/New_York")
-
 from .utils import to_float as _safe_float
 
 logger = logging.getLogger("open_prep.outcomes")
+
+_ET = _ZoneInfo("America/New_York")
 
 OUTCOMES_DIR = Path("artifacts/open_prep/outcomes")
 
