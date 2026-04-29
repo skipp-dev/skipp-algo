@@ -256,10 +256,7 @@ def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
 
     ledger_paths: list[Path]
-    if args.ledger:
-        ledger_paths = [Path(p) for p in args.ledger]
-    else:
-        ledger_paths = _discover_ledger_paths(args.search_dir)
+    ledger_paths = [Path(p) for p in args.ledger] if args.ledger else _discover_ledger_paths(args.search_dir)
 
     try:
         events = collect_fvg_events(ledger_paths)
