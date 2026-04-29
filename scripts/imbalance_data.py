@@ -31,8 +31,8 @@ import dataclasses
 import datetime as _dt
 import logging
 import time
-from typing import Any, Literal
 from collections.abc import Mapping
+from typing import Any, Literal
 
 LOGGER = logging.getLogger(__name__)
 
