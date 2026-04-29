@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import argparse
 import hashlib
 import json
@@ -473,7 +474,6 @@ from newsstack_fmp._market_cal import (
     prev_trading_day as _prev_trading_day,
     us_equity_market_holidays as _us_equity_market_holidays,
 )
-import contextlib
 
 
 def _is_first_session_after_non_trading_stretch(d: date) -> bool:
