@@ -344,7 +344,7 @@ def derive_trust_state(provider_report: Mapping[str, Any]) -> TrustStateAssessme
 
     cause = _select_primary_cause(enriched, worst_state)
     contributing = tuple(
-        alert for alert, st in zip(enriched, candidate_states) if st is worst_state
+        alert for alert, st in zip(enriched, candidate_states, strict=False) if st is worst_state
     )
 
     return TrustStateAssessment(
