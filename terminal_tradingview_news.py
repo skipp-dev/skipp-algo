@@ -24,15 +24,15 @@ endpoint isn't hammered.
 
 from __future__ import annotations
 
+import json
 import logging
+import ssl
 import threading
 import time
+import urllib.error
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.request import Request, urlopen
-import urllib.error
-import json
-import ssl
 
 try:
     import certifi
