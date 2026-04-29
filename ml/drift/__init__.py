@@ -1,8 +1,8 @@
 """ML probability-distribution drift detector (mirrors C9 contract)."""
 from __future__ import annotations
 
-from dataclasses import dataclass
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 from ml.metrics import population_stability_index
 from ml.types import EventFamily
