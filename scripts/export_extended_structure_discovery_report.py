@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
-from pathlib import Path
 from collections.abc import Sequence
+from pathlib import Path
 
+from scripts.smc_atomic_write import atomic_write_text
 from smc_integration.extended_structure_discovery import build_extended_structure_discovery_report
-
 
 DEFAULT_OUTPUT = Path("reports") / "extended_structure_discovery_report.json"
 
