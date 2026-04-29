@@ -58,7 +58,7 @@ _FROZEN_SITES: dict[str, frozenset[int]] = {
     "newsstack_fmp/store_sqlite.py": frozenset({176, 283}),
     "open_prep/alerts.py": frozenset({240}),
     "open_prep/macro.py": frozenset({33}),
-    "open_prep/run_open_prep.py": frozenset({4511}),
+    "open_prep/run_open_prep.py": frozenset({4502}),
     "open_prep/streamlit_monitor.py": frozenset({75, 126}),
     "scripts/databento_preopen_fast.py": frozenset({574}),
     "scripts/generate_smc_micro_base_from_databento.py": frozenset({1192, 1194, 1242}),
