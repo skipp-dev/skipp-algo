@@ -55,6 +55,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+import contextlib
 
 # Pinned by tests/test_build_families_telemetry.py against
 # scripts/emit_public_calibration_report.py:_C12_FAMILY_KEYS so the
@@ -144,10 +145,8 @@ def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
             os.fsync(fh.fileno())
         os.replace(tmp, path)
     except Exception:
-        try:
+        with contextlib.suppress(FileNotFoundError):
             os.unlink(tmp)
-        except FileNotFoundError:
-            pass
         raise
 
 
