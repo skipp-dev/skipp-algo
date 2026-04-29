@@ -16,7 +16,6 @@ from __future__ import annotations
 import importlib
 import inspect
 
-
 # ---------------------------------------------------------------------------
 # C-DEAD-1: resolve_latest_base_csv removed
 # ---------------------------------------------------------------------------
@@ -32,26 +31,26 @@ def test_resolve_latest_base_csv_not_importable():
 # ---------------------------------------------------------------------------
 
 def test_mapping_status_is_same_object():
-    from scripts.smc_microstructure_base_runtime import MappingStatus as MappingStatusRt
     from scripts.generate_smc_micro_base_from_databento import MappingStatus as MappingStatusDb
+    from scripts.smc_microstructure_base_runtime import MappingStatus as MappingStatusRt
     assert MappingStatusRt is MappingStatusDb
 
 
 def test_infer_asset_type_is_same_object():
-    from scripts.smc_microstructure_base_runtime import infer_asset_type as rt_fn
     from scripts.generate_smc_micro_base_from_databento import infer_asset_type as db_fn
+    from scripts.smc_microstructure_base_runtime import infer_asset_type as rt_fn
     assert rt_fn is db_fn
 
 
 def test_infer_universe_bucket_is_same_object():
-    from scripts.smc_microstructure_base_runtime import infer_universe_bucket as rt_fn
     from scripts.generate_smc_micro_base_from_databento import infer_universe_bucket as db_fn
+    from scripts.smc_microstructure_base_runtime import infer_universe_bucket as rt_fn
     assert rt_fn is db_fn
 
 
 def test_etf_keywords_is_same_object():
-    from scripts.smc_microstructure_base_runtime import ETF_KEYWORDS as ETF_KEYWORDS_RT
     from scripts.generate_smc_micro_base_from_databento import ETF_KEYWORDS as ETF_KEYWORDS_DB
+    from scripts.smc_microstructure_base_runtime import ETF_KEYWORDS as ETF_KEYWORDS_RT
     assert ETF_KEYWORDS_RT is ETF_KEYWORDS_DB
 
 
