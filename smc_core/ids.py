@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from decimal import Decimal, ROUND_HALF_UP
 from zoneinfo import ZoneInfo
-from datetime import datetime, timezone, UTC
+from datetime import datetime, UTC
 
 from .types import BosDir, BosEventKind, FvgDir, ObDir, SweepSide
 

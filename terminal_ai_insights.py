@@ -222,7 +222,7 @@ def query_llm(
         )
 
     # Build messages
-    from datetime import datetime, timezone
+    from datetime import datetime
     now_str = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
 
     user_message = (

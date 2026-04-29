@@ -288,7 +288,7 @@ class TestPremarketPartialDegrade:
 
         with patch("open_prep.run_open_prep._build_mover_seed", return_value=[]), \
              patch("open_prep.run_open_prep._normalize_symbols", side_effect=lambda x: list(dict.fromkeys(s.upper().strip() for s in x))):
-            from datetime import date, datetime, timezone
+            from datetime import date, datetime
             premarket, error_msg = _fetch_premarket_context(
                 client=mock_client,
                 symbols=["AAPL"],

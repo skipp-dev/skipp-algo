@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import time
-from datetime import datetime, timedelta, timezone, UTC
+from datetime import datetime, timedelta, UTC
 from unittest.mock import MagicMock, patch
 
 
