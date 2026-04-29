@@ -154,7 +154,7 @@ def _diff_lines(actual: Any, expected: Any, path: str = "") -> list[str]:
             out.append(
                 f"{path}: list length actual={len(actual)} expected={len(expected)}",
             )
-        for i, (a, e) in enumerate(zip(actual, expected)):
+        for i, (a, e) in enumerate(zip(actual, expected, strict=False)):
             out.extend(_diff_lines(a, e, f"{path}[{i}]"))
     else:
         if actual != expected:
