@@ -142,10 +142,7 @@ def render_panel(
         # Defensive: synthesise a family stub for malformed decision dicts
         # so the panel still renders rather than masking the upstream bug.
         decision: Mapping[str, object]
-        if "family" not in d:
-            decision = {**d, "family": "?"}
-        else:
-            decision = d
+        decision = {**d, "family": "?"} if "family" not in d else d
         family = str(decision["family"])
         history = histories.get(family, [])
         blocks.append(render_card(build_card(decision, walkforward_history=history)))
