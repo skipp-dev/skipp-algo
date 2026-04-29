@@ -92,9 +92,8 @@ def _scan() -> tuple[
                 name = func.attr
             elif isinstance(func, ast.Name):
                 name = func.id
-            if name in {"run", "Popen", "call", "check_call", "check_output"}:
-                if _shell_true(node):
-                    shell_hits.append((rel, node.lineno, name))
+            if name in {"run", "Popen", "call", "check_call", "check_output"} and _shell_true(node):
+                shell_hits.append((rel, node.lineno, name))
     return builtins_hits, shell_hits
 
 
