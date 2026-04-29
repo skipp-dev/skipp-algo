@@ -8,8 +8,6 @@ import pandas as pd
 import streamlit as st
 
 from terminal_spike_scanner import SESSION_ICONS
-from terminal_ui_helpers import format_age_string
-
 from terminal_tabs._shared import (
     build_unified_movers,
     cached_ticker_sectors,
@@ -17,6 +15,7 @@ from terminal_tabs._shared import (
     render_forecast_expander,
     render_technicals_expander,
 )
+from terminal_ui_helpers import format_age_string
 
 
 def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
