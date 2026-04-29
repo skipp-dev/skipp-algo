@@ -20,7 +20,6 @@ from scripts.fvg_label_audit import (
     to_json,
 )
 
-
 # ── Fixtures ────────────────────────────────────────────────────
 
 
