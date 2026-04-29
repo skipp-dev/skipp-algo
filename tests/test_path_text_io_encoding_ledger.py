@@ -59,7 +59,7 @@ _FROZEN_SITES: dict[str, frozenset[int]] = {
     "pine_apply_surface_reduction.py": frozenset({53, 87, 397, 471, 502, 555}),
     "pine_input_surface.py": frozenset({129, 156, 187, 260, 270, 344}),
     "scripts/fvg_label_audit_q3.py": frozenset({58}),
-    "scripts/fvg_session_artifact_diagnosis.py": frozenset({37}),
+    "scripts/fvg_session_artifact_diagnosis.py": frozenset({36}),
     "scripts/investigate_universe_delta.py": frozenset({28}),
     "scripts/phase5_perf_trend.py": frozenset({163}),
     "scripts/run_smc_e2e_smoke_test.py": frozenset({56, 100, 136}),
