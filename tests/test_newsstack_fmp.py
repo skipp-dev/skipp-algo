@@ -430,7 +430,7 @@ class TestAtomicExport(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             path = os.path.join(td, "out.json")
             export_open_prep(path, [{"ticker": "X"}], {"ts": 1.0})
-            with open(path, "r") as f:
+            with open(path) as f:
                 data = json.load(f)
             self.assertEqual(len(data["candidates"]), 1)
             self.assertEqual(data["meta"]["ts"], 1.0)
@@ -451,7 +451,7 @@ class TestAtomicExport(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             path = os.path.join(td, "out.json")
             export_open_prep(path, [], {"generated_ts": 123.0})
-            with open(path, "r") as f:
+            with open(path) as f:
                 data = json.load(f)
             self.assertEqual(data["candidates"], [])
             self.assertEqual(data["meta"]["generated_ts"], 123.0)
