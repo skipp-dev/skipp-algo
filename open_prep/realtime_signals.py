@@ -180,7 +180,7 @@ def _detect_rt_engine_pid() -> int | None:
 
     try:
         pgrep_exe = shutil.which("pgrep") or "pgrep"
-        result = subprocess.run(  # noqa: S603  # trusted: hardcoded pgrep argv resolved via shutil.which
+        result = subprocess.run(  # trusted: hardcoded pgrep argv resolved via shutil.which
             [pgrep_exe, "-f", "python.*-m open_prep.realtime_signals"],
             capture_output=True,
             text=True,
@@ -324,7 +324,7 @@ def _ensure_rt_engine_running_locked(
 
         log_fh = open(_RT_ENGINE_LOG_FILE, "a", encoding="utf-8")
         try:
-            proc = subprocess.Popen(  # noqa: S603  # trusted: sys.executable -m hardcoded module argv
+            proc = subprocess.Popen(  # trusted: sys.executable -m hardcoded module argv
                 [
                     sys.executable, "-m", "open_prep.realtime_signals",
                     "--interval", str(poll_interval),
