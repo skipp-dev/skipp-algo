@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 RUNBOOK = (
     Path(__file__).resolve().parents[1]
     / "docs" / "plan_2_8_rollout_runbook.md"
