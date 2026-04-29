@@ -4,8 +4,8 @@ from typing import Any
 
 import pandas as pd
 
-from smc_core.ids import liquidity_id, sweep_id
 from scripts.smc_price_action_engine import canonical_timeframe, normalize_bars
+from smc_core.ids import liquidity_id, sweep_id
 
 
 def detect_liquidity_levels(
