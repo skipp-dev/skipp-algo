@@ -6,11 +6,11 @@ so readers never see a partially-written file.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import tempfile
 from typing import Any
-import contextlib
 
 
 def export_open_prep(
@@ -29,7 +29,7 @@ def export_open_prep(
             f.flush()
             os.fsync(f.fileno())
         os.replace(tmp, path)
-    except BaseException:
+    except Exception:
         # Clean up temp file on any failure
         with contextlib.suppress(OSError):
             os.unlink(tmp)
