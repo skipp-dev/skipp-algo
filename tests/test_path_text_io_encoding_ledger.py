@@ -49,7 +49,7 @@ _DIR_EXCLUDE = {
 
 # Frozen ledger — exactly today's surface (2026-04-25).
 _FROZEN_SITES: dict[str, frozenset[int]] = {
-    "open_prep/realtime_signals.py": frozenset({172}),
+    "open_prep/realtime_signals.py": frozenset({173}),
     "pine_apply_surface_reduction.py": frozenset({53, 87, 397, 471, 502, 555}),
     "pine_input_surface.py": frozenset({129, 156, 187, 260, 270, 344}),
     "scripts/fvg_label_audit_q3.py": frozenset({58}),

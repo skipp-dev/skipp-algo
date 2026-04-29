@@ -52,6 +52,7 @@ from typing import Any
 from .macro import FMPClient
 from .signal_decay import adaptive_freshness_decay
 from .utils import to_float as _safe_float
+import contextlib
 
 logger = logging.getLogger("open_prep.realtime_signals")
 
@@ -173,10 +174,8 @@ def _detect_rt_engine_pid() -> int | None:
             os.kill(pid, 0)
             return pid
         except (ValueError, OSError):
-            try:
+            with contextlib.suppress(OSError):
                 _RT_ENGINE_PID_FILE.unlink(missing_ok=True)
-            except OSError:
-                pass
 
     try:
         pgrep_exe = shutil.which("pgrep") or "pgrep"
@@ -2509,10 +2508,8 @@ class RealtimeEngine:
                     # NO fsync — speed over durability for VisiData snapshots
                 os.replace(tmp_path, VD_SIGNALS_PATH)
             except BaseException:
-                try:
+                with contextlib.suppress(OSError):
                     os.unlink(tmp_path)
-                except OSError:
-                    pass
                 raise
         except Exception as exc:
             logger.debug("VisiData snapshot write failed: %s", exc)
@@ -2548,10 +2545,8 @@ class RealtimeEngine:
                 os.replace(tmp_path, SIGNALS_PATH)
             except BaseException:
                 # Clean up temp file on any failure (including KeyboardInterrupt)
-                try:
+                with contextlib.suppress(OSError):
                     os.unlink(tmp_path)
-                except OSError:
-                    pass
                 raise
         except Exception as exc:
             logger.warning("Failed to save signals: %s", exc, exc_info=True)

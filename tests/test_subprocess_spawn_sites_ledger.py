@@ -135,12 +135,12 @@ SUBPROCESS_RUN_LEDGER: set[tuple[str, int]] = {
     # `git rev-parse HEAD` for release-manifest provenance.
     ("smc_integration/release_policy.py", 1072),
     # `pgrep` to discover the realtime-signals daemon PID.
-    ("open_prep/realtime_signals.py", 183),
+    ("open_prep/realtime_signals.py", 182),
 }
 
 SUBPROCESS_POPEN_LEDGER: set[tuple[str, int]] = {
     # Detached re-launch of the realtime-signals daemon.
-    ("open_prep/realtime_signals.py", 327),
+    ("open_prep/realtime_signals.py", 326),
 }
 
 

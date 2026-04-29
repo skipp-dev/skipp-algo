@@ -87,8 +87,8 @@ def _attr_call_sites(attr_owner: str, attr_name: str) -> set[tuple[str, int]]:
 # New non-zero ``os.kill`` callers must be explicitly added below with
 # justification.
 OS_KILL_ALLOWED: set[tuple[str, int]] = {
-    ("open_prep/realtime_signals.py", 173),
-    ("open_prep/realtime_signals.py", 200),
+    ("open_prep/realtime_signals.py", 174),
+    ("open_prep/realtime_signals.py", 199),
     # Signal-0 PID liveness probe for the IB-client-id leasing registry
     # (claims an IB API client_id slot only if the previous owner is gone).
     ("scripts/ib_client_id.py", 63),
