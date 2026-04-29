@@ -9,7 +9,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-
 from scripts.generate_smc_micro_profiles import (
     render_output_path,
     write_core_import_snippet,
