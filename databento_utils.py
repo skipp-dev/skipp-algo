@@ -25,6 +25,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 import pandas as pd
+import contextlib
 
 logger = logging.getLogger(__name__)
 
@@ -103,10 +104,8 @@ def _read_cached_frame(path: Path, *, max_age_seconds: int | None = None) -> pd.
         return pd.read_parquet(path)
     except Exception:
         logger.warning("Corrupt cache file removed: %s", path, exc_info=True)
-        try:
+        with contextlib.suppress(OSError):
             path.unlink()
-        except OSError:
-            pass
         return None
 
 
@@ -133,10 +132,8 @@ def _replace_atomic(path: Path, write_temp: Callable[[Path], None]) -> None:
         write_temp(temp_path)
         os.replace(temp_path, path)
     except Exception:
-        try:
+        with contextlib.suppress(OSError):
             temp_path.unlink(missing_ok=True)
-        except OSError:
-            pass
         raise
 
 
