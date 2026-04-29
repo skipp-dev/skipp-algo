@@ -162,7 +162,7 @@ class TestIntraCHOCH:
         assert result["SESS_INTRA_CHOCH"] is False
 
 
-class TestPDH_PDL:
+class TestPdhPdl:
     def test_pdh_pdl_populated(self):
         result = build_session_structure(
             snapshot=_session_bars_bull(),
