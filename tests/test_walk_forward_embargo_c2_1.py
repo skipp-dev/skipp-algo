@@ -42,9 +42,9 @@ def test_rolling_keeps_train_size_constant() -> None:
 
 
 def test_rolling_requires_train_size() -> None:
-    with pytest.raises(ValueError, match="rolling.*train_size"):
+    with pytest.raises(ValueError, match=r"rolling.*train_size"):
         walk_forward_splits(100, scheme="rolling")
-    with pytest.raises(ValueError, match="rolling.*train_size"):
+    with pytest.raises(ValueError, match=r"rolling.*train_size"):
         walk_forward_splits(100, scheme="rolling", train_size=0)
 
 

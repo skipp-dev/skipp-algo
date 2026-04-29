@@ -47,7 +47,7 @@ def test_missing_file_raises_filenotfound(tmp_path: Path) -> None:
     root.mkdir()
     legacy.mkdir(parents=True)
 
-    with pytest.raises(FileNotFoundError, match="MISSING.pine"):
+    with pytest.raises(FileNotFoundError, match=r"MISSING.pine"):
         resolve_pine_file("MISSING.pine", search_dirs=(root, legacy))
 
 
@@ -57,7 +57,7 @@ def test_collision_raises_collisionerror(tmp_path: Path) -> None:
     _write(root / "DUP.pine")
     _write(legacy / "DUP.pine")
 
-    with pytest.raises(CollisionError, match="DUP.pine"):
+    with pytest.raises(CollisionError, match=r"DUP.pine"):
         resolve_pine_file("DUP.pine", search_dirs=(root, legacy))
 
 

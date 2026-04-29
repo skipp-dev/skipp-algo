@@ -303,7 +303,7 @@ def test_promote_refuses_when_spec_status_is_plumbing_only(tmp_path: Path) -> No
     _write(artifact, {"status": "shadow"})
     spec_path = _spec(tmp_path, artifact, status="plumbing_only")
 
-    with pytest.raises(ValueError, match="spec.status="):
+    with pytest.raises(ValueError, match=r"spec.status="):
         promote_contextual_weights(
             spec_path=spec_path,
             report_path=_report(tmp_path),
@@ -338,7 +338,7 @@ def test_promote_force_does_not_bypass_spec_status_gate(tmp_path: Path) -> None:
     spec_path = _spec(tmp_path, artifact, status="plumbing_only")
     report_path = _report(tmp_path, decision="hold")  # also non-promote
 
-    with pytest.raises(ValueError, match="spec.status="):
+    with pytest.raises(ValueError, match=r"spec.status="):
         promote_contextual_weights(
             spec_path=spec_path,
             report_path=report_path,
