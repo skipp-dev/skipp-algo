@@ -69,7 +69,7 @@ def _save_raw(entries: list[dict[str, Any]]) -> None:
             fh.flush()
             os.fsync(fh.fileno())
         os.replace(tmp_path, WATCHLIST_PATH)
-    except BaseException:
+    except Exception:
         with suppress(OSError):
             os.unlink(tmp_path)
         raise
