@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 import os
@@ -10,6 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from scripts.smc_atomic_write import atomic_write_text
 
 _POST_RELEASE_MANIFEST_STALE_AFTER_SECONDS = 2 * 60 * 60
 
