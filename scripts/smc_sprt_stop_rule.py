@@ -72,15 +72,14 @@ The :data:`Decision` literal carries five disjoint outcomes:
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import json
 import math
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
-from collections.abc import Iterable
 
+from scripts.smc_atomic_write import atomic_write_text
 
 Decision = Literal[
     "accept_h0",
