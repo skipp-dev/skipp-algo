@@ -39,8 +39,10 @@ def test_empty(tmp_path: Path) -> None:
 
 
 def test_oldest_newest(tmp_path: Path) -> None:
-    a = tmp_path / "a"; a.write_bytes(b"x")
-    b = tmp_path / "b"; b.write_bytes(b"xx")
+    a = tmp_path / "a"
+    a.write_bytes(b"x")
+    b = tmp_path / "b"
+    b.write_bytes(b"xx")
     os.utime(a, (100, 100))
     os.utime(b, (200, 200))
     rep = on.build(tmp_path)

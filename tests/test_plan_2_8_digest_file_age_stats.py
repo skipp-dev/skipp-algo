@@ -38,8 +38,10 @@ def test_empty(tmp_path: Path) -> None:
 
 
 def test_known_ages(tmp_path: Path) -> None:
-    a = tmp_path / "a"; a.write_bytes(b"x")
-    b = tmp_path / "b"; b.write_bytes(b"x")
+    a = tmp_path / "a"
+    a.write_bytes(b"x")
+    b = tmp_path / "b"
+    b.write_bytes(b"x")
     os.utime(a, (1000.0, 1000.0))
     os.utime(b, (1500.0, 1500.0))
     rep = fa.build(tmp_path, now_ts=2000.0)
@@ -58,7 +60,8 @@ def test_subdirs_ignored(tmp_path: Path) -> None:
 
 
 def test_negative_age_clamped(tmp_path: Path) -> None:
-    a = tmp_path / "a"; a.write_bytes(b"x")
+    a = tmp_path / "a"
+    a.write_bytes(b"x")
     os.utime(a, (2000.0, 2000.0))
     rep = fa.build(tmp_path, now_ts=1000.0)
     assert rep["min_age_seconds"] == 0.0
