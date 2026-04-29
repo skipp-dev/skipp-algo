@@ -164,7 +164,7 @@ def _load_outcomes_range(lookback_days: int = 20) -> list[dict[str, Any]]:
         if loaded >= lookback_days:
             break
         try:
-            with open(path, "r", encoding="utf-8") as fh:
+            with open(path, encoding="utf-8") as fh:
                 data = json.load(fh)
             if isinstance(data, list):
                 records.extend(data)
@@ -470,7 +470,7 @@ def compute_feature_importance(
         if loaded >= lookback_days:
             break
         try:
-            with open(path, "r", encoding="utf-8") as fh:
+            with open(path, encoding="utf-8") as fh:
                 for line in fh:
                     line = line.strip()
                     if line:
