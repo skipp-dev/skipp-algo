@@ -20,9 +20,9 @@ References
 
 from __future__ import annotations
 
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from typing import Literal
-from collections.abc import Iterator, Sequence
 
 import numpy as np
 
