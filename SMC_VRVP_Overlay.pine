@@ -1,0 +1,426 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © preuss_steffen
+
+//@version=6
+
+// Product role: companion_operator_only.
+//
+// SMC VRVP Overlay — Visible-Range Volume Profile with Multi-POC / VAH / VAL,
+// rendered alongside the existing SMC stack as additional confluence levels.
+//
+// Inspired by PerroGordo's "VRVP Clone + Multi-POC v5" but trimmed to the
+// pieces that complement SMC_Profile_Context (which only emits per-session
+// POCs from the mp library):
+//   • Visible-range bucket histogram (right or left placement).
+//   • Up/Down split or Total mode.
+//   • Top-N POCs via "Highest Rows" or local-peak "Volume Nodes" with
+//     min-separation filter (true HVN cluster detection).
+//   • Value Area (default 70%) → VAH / VAL lines.
+//
+// This is a pure visual companion — no signal exports, no library coupling.
+
+indicator("SMC VRVP Overlay", "SMC.VRVP", overlay = true,
+     max_boxes_count = 500, max_lines_count = 50, max_labels_count = 100)
+
+// ── Inputs ──────────────────────────────────────────────────────
+
+var string g_in = "Profile"
+var int    rowSize    = input.int(50, "Rows", minval = 5, maxval = 200, group = g_in,
+     tooltip = "Number of display buckets across the visible price range.")
+var string volMode    = input.string("Up/Down", "Volume mode",
+     options = ["Up/Down", "Total", "Delta"], group = g_in)
+var int    vaPct      = input.int(70, "Value Area %", minval = 10, maxval = 95, group = g_in)
+var string distMode   = input.string("Typical Price Weighted", "Volume distribution",
+     options = ["Uniform", "Typical Price Weighted", "Close Weighted"], group = g_in,
+     tooltip = "How a bar's volume is spread across the rows it touches.")
+
+var string g_st = "Style"
+var int    widthPct   = input.int(15, "Profile width (% of visible bars)",
+     minval = 5, maxval = 50, group = g_st)
+var string placement  = input.string("Right", "Placement",
+     options = ["Right", "Left"], group = g_st)
+var color  upColor    = input.color(color.new(#26a69a, 0),  "Up volume",   group = g_st)
+var color  dnColor    = input.color(color.new(#787b86, 0),  "Down volume", group = g_st)
+var color  vaUpColor  = input.color(color.new(#26a69a, 50), "VA up",       group = g_st)
+var color  vaDnColor  = input.color(color.new(#787b86, 50), "VA down",     group = g_st)
+var color  pocColor   = input.color(color.new(#ef5350, 0),  "POC color",   group = g_st)
+var color  vahColor   = input.color(color.new(#26a69a, 0),  "VAH color",   group = g_st)
+var color  valColor   = input.color(color.new(#26a69a, 0),  "VAL color",   group = g_st)
+
+var string g_poc = "Multi-POC"
+var int    pocCount   = input.int(3, "Number of POCs", minval = 1, maxval = 8, group = g_poc)
+var string pocMode    = input.string("Volume Nodes", "POC mode",
+     options = ["Highest Rows", "Volume Nodes"], group = g_poc,
+     tooltip = "Highest Rows = top-N rows by volume. Volume Nodes = local peaks with min separation (true HVNs).")
+var int    minSepIn   = input.int(0, "Min node separation (rows)", minval = 0, maxval = 50, group = g_poc,
+     tooltip = "0 = auto: max(2, rows / (pocCount × 2)).")
+var color  poc2Color  = input.color(#ff9800, "POC 2", group = g_poc)
+var color  poc3Color  = input.color(#ffeb3b, "POC 3", group = g_poc)
+var color  poc4Color  = input.color(#9c27b0, "POC 4", group = g_poc)
+var color  poc5Color  = input.color(#00bcd4, "POC 5", group = g_poc)
+var color  poc6Color  = input.color(#e91e63, "POC 6", group = g_poc)
+var color  poc7Color  = input.color(#8bc34a, "POC 7", group = g_poc)
+var color  poc8Color  = input.color(#607d8b, "POC 8", group = g_poc)
+var bool   showPocLab = input.bool(true,  "Show POC price labels", group = g_poc)
+
+const int INTERNAL_ROWS = 400
+const int MAX_DISPLAY   = 200
+
+// ── Visible-range detection ─────────────────────────────────────
+
+int leftTime  = chart.left_visible_bar_time
+int rightTime = chart.right_visible_bar_time
+bool isVisible = time >= leftTime and time <= rightTime
+
+var int   visBars   = 0
+var int   leftBar   = 0
+var int   rightBar  = 0
+var float visHigh   = na
+var float visLow    = na
+
+if time == leftTime
+    leftBar  := bar_index
+    visBars  := 0
+    visHigh  := high
+    visLow   := low
+
+if isVisible
+    visBars  += 1
+    rightBar := bar_index
+    visHigh  := math.max(nz(visHigh, high), high)
+    visLow   := math.min(nz(visLow,  low),  low)
+
+// ── Row geometry ───────────────────────────────────────────────
+
+float priceRange    = nz(visHigh - visLow, 0)
+int   displayRows   = math.min(rowSize, MAX_DISPLAY)
+float displayHeight = priceRange > 0 ? priceRange / displayRows  : 0
+float internHeight  = priceRange > 0 ? priceRange / INTERNAL_ROWS : 0
+
+// ── Triangle weight helper ─────────────────────────────────────
+
+triWeight(float price, float center, float halfWidth) =>
+    if halfWidth <= 0
+        1.0
+    else
+        float d = math.abs(price - center)
+        math.max(0.0, 1.0 - (d / halfWidth))
+
+// ── Volume accumulation (internal high-resolution buckets) ─────
+
+var float[] iUp    = array.new_float(INTERNAL_ROWS, 0.0)
+var float[] iDn    = array.new_float(INTERNAL_ROWS, 0.0)
+var float[] iTot   = array.new_float(INTERNAL_ROWS, 0.0)
+
+if time == leftTime
+    for k = 0 to INTERNAL_ROWS - 1
+        array.set(iUp,  k, 0.0)
+        array.set(iDn,  k, 0.0)
+        array.set(iTot, k, 0.0)
+
+if isVisible and internHeight > 0 and not na(visLow)
+    float bH = high
+    float bL = low
+    float bR = bH - bL
+    float bV = nz(volume)
+    bool  isUp = close >= open
+
+    float center = switch distMode
+        "Typical Price Weighted" => (high + low + close) / 3
+        "Close Weighted"         => close
+        =>                          (high + low) / 2
+    float halfSpread = bR / 2
+
+    if bR < syminfo.mintick
+        int idx = int(math.floor((close - visLow) / internHeight))
+        idx := math.max(0, math.min(idx, INTERNAL_ROWS - 1))
+        if isUp
+            array.set(iUp, idx, array.get(iUp, idx) + bV)
+        else
+            array.set(iDn, idx, array.get(iDn, idx) + bV)
+        array.set(iTot, idx, array.get(iTot, idx) + bV)
+    else
+        var float[] w = array.new_float(INTERNAL_ROWS, 0.0)
+        for k = 0 to INTERNAL_ROWS - 1
+            array.set(w, k, 0.0)
+        float wSum = 0.0
+        for k = 0 to INTERNAL_ROWS - 1
+            float rb = visLow + k * internHeight
+            float rt = rb + internHeight
+            if bH >= rb and bL <= rt
+                float weight = 0.0
+                if distMode == "Uniform"
+                    float oT = math.min(bH, rt)
+                    float oB = math.max(bL, rb)
+                    float oR = oT - oB
+                    weight := oR > 0 ? oR / bR : 0.0
+                else
+                    float rm = (rb + rt) / 2
+                    weight := triWeight(rm, center, halfSpread)
+                    float oT = math.min(bH, rt)
+                    float oB = math.max(bL, rb)
+                    if oT <= oB
+                        weight := 0.0
+                array.set(w, k, weight)
+                wSum += weight
+        if wSum > 0
+            for k = 0 to INTERNAL_ROWS - 1
+                float ww = array.get(w, k)
+                if ww > 0
+                    float c = bV * (ww / wSum)
+                    if isUp
+                        array.set(iUp, k, array.get(iUp, k) + c)
+                    else
+                        array.set(iDn, k, array.get(iDn, k) + c)
+                    array.set(iTot, k, array.get(iTot, k) + c)
+
+// ── Aggregate to display rows ──────────────────────────────────
+
+var float[] dUp  = array.new_float(MAX_DISPLAY, 0.0)
+var float[] dDn  = array.new_float(MAX_DISPLAY, 0.0)
+var float[] dTot = array.new_float(MAX_DISPLAY, 0.0)
+
+bool finalize = time == rightTime and internHeight > 0 and displayHeight > 0
+
+if finalize
+    for k = 0 to MAX_DISPLAY - 1
+        array.set(dUp,  k, 0.0)
+        array.set(dDn,  k, 0.0)
+        array.set(dTot, k, 0.0)
+    for k = 0 to INTERNAL_ROWS - 1
+        float mid = visLow + k * internHeight + internHeight / 2
+        int   di  = int(math.floor((mid - visLow) / displayHeight))
+        di := math.max(0, math.min(di, displayRows - 1))
+        array.set(dUp,  di, array.get(dUp,  di) + array.get(iUp,  k))
+        array.set(dDn,  di, array.get(dDn,  di) + array.get(iDn,  k))
+        array.set(dTot, di, array.get(dTot, di) + array.get(iTot, k))
+
+// ── POC / VA computation ───────────────────────────────────────
+
+var int[]   topIdx   = array.new_int(8, 0)
+var float[] topPrice = array.new_float(8, na)
+var int     vahIdx   = 0
+var int     valIdx   = 0
+var float   vahPrice = na
+var float   valPrice = na
+var float   totalVol = 0.0
+
+if finalize
+    float maxV = 0.0
+    int   pocI = 0
+    totalVol := 0.0
+    for k = 0 to displayRows - 1
+        float v = array.get(dTot, k)
+        totalVol += v
+        if v > maxV
+            maxV := v
+            pocI := k
+
+    int autoSep = math.max(2, math.round(displayRows / (pocCount * 2)))
+    int minSep  = minSepIn > 0 ? minSepIn : autoSep
+
+    var int[]   selIdx = array.new_int(0)
+    var float[] selVol = array.new_float(0)
+    array.clear(selIdx)
+    array.clear(selVol)
+
+    if pocMode == "Highest Rows"
+        var int[]   srtI = array.new_int(0)
+        var float[] srtV = array.new_float(0)
+        array.clear(srtI)
+        array.clear(srtV)
+        for k = 0 to displayRows - 1
+            array.push(srtI, k)
+            array.push(srtV, array.get(dTot, k))
+        int lim = math.min(7, array.size(srtV) - 1)
+        for r = 0 to lim
+            int   mI = r
+            float mV = array.get(srtV, r)
+            for j = r + 1 to array.size(srtV) - 1
+                if array.get(srtV, j) > mV
+                    mV := array.get(srtV, j)
+                    mI := j
+            if mI != r
+                float tv = array.get(srtV, r)
+                int   ti = array.get(srtI, r)
+                array.set(srtV, r,  array.get(srtV, mI))
+                array.set(srtI, r,  array.get(srtI, mI))
+                array.set(srtV, mI, tv)
+                array.set(srtI, mI, ti)
+            array.push(selIdx, array.get(srtI, r))
+            array.push(selVol, array.get(srtV, r))
+    else
+        var int[]   pkI = array.new_int(0)
+        var float[] pkV = array.new_float(0)
+        array.clear(pkI)
+        array.clear(pkV)
+        for k = 0 to displayRows - 1
+            float c  = array.get(dTot, k)
+            float pv = k > 0 ? array.get(dTot, k - 1) : 0.0
+            float nv = k < displayRows - 1 ? array.get(dTot, k + 1) : 0.0
+            bool isPeak = if k == 0
+                c > nv
+            else if k == displayRows - 1
+                c > pv
+            else
+                c >= pv and c >= nv and (c > pv or c > nv)
+            if isPeak and c > 0
+                array.push(pkI, k)
+                array.push(pkV, c)
+        int nP = array.size(pkI)
+        if nP > 1
+            for r = 0 to nP - 2
+                int   mI = r
+                float mV = array.get(pkV, r)
+                for j = r + 1 to nP - 1
+                    if array.get(pkV, j) > mV
+                        mV := array.get(pkV, j)
+                        mI := j
+                if mI != r
+                    float tv = array.get(pkV, r)
+                    int   ti = array.get(pkI, r)
+                    array.set(pkV, r,  array.get(pkV, mI))
+                    array.set(pkI, r,  array.get(pkI, mI))
+                    array.set(pkV, mI, tv)
+                    array.set(pkI, mI, ti)
+        if nP > 0
+            for k = 0 to nP - 1
+                if array.size(selIdx) >= 8
+                    break
+                int cand = array.get(pkI, k)
+                bool tooClose = false
+                int nS = array.size(selIdx)
+                if nS > 0
+                    for j = 0 to nS - 1
+                        if math.abs(cand - array.get(selIdx, j)) < minSep
+                            tooClose := true
+                            break
+                if not tooClose
+                    array.push(selIdx, cand)
+                    array.push(selVol, array.get(pkV, k))
+
+    int nSel = array.size(selIdx)
+    for r = 0 to 7
+        if r < nSel
+            int rowIdx = array.get(selIdx, r)
+            array.set(topIdx, r, rowIdx)
+            array.set(topPrice, r, visLow + rowIdx * displayHeight + displayHeight / 2)
+        else
+            array.set(topIdx,   r, 0)
+            array.set(topPrice, r, na)
+
+    // Value Area expand from primary POC
+    int pocPrimary = nSel > 0 ? array.get(topIdx, 0) : pocI
+    float target  = totalVol * (vaPct / 100.0)
+    float acc     = array.get(dTot, pocPrimary)
+    vahIdx := pocPrimary
+    valIdx := pocPrimary
+    while acc < target
+        float vAbove = vahIdx < displayRows - 1 ? array.get(dTot, vahIdx + 1) : 0.0
+        float vBelow = valIdx > 0               ? array.get(dTot, valIdx - 1) : 0.0
+        if vAbove == 0 and vBelow == 0
+            break
+        if vAbove >= vBelow and vahIdx < displayRows - 1
+            vahIdx += 1
+            acc    += vAbove
+        else if valIdx > 0
+            valIdx -= 1
+            acc    += vBelow
+        else
+            break
+    vahPrice := visLow + (vahIdx + 1) * displayHeight
+    valPrice := visLow + valIdx       * displayHeight
+
+// ── Drawing ────────────────────────────────────────────────────
+
+var box[]   boxes  = array.new_box()
+var line[]  lines  = array.new_line()
+var label[] labels = array.new_label()
+
+if finalize
+    while array.size(boxes) > 0
+        box.delete(array.pop(boxes))
+    while array.size(lines) > 0
+        line.delete(array.pop(lines))
+    while array.size(labels) > 0
+        label.delete(array.pop(labels))
+
+    float maxRow = 0.0
+    for k = 0 to displayRows - 1
+        maxRow := math.max(maxRow, array.get(dTot, k))
+
+    int profW   = math.max(10, math.round(visBars * widthPct / 100))
+    int anchor  = bar_index
+    int profR   = placement == "Right" ? anchor : leftBar + profW
+    int profL   = placement == "Right" ? anchor - profW : leftBar
+
+    for k = 0 to displayRows - 1
+        float rb = visLow + k * displayHeight
+        float rt = rb + displayHeight
+        float rv = array.get(dTot, k)
+        float uv = array.get(dUp,  k)
+        float dv = array.get(dDn,  k)
+        if rv > 0 and maxRow > 0
+            bool inVA = k >= valIdx and k <= vahIdx
+            if volMode == "Up/Down"
+                int uW = math.round(profW * (uv / maxRow))
+                int dW = math.round(profW * (dv / maxRow))
+                color uC = inVA ? vaUpColor : upColor
+                color dC = inVA ? vaDnColor : dnColor
+                if placement == "Right"
+                    if uW > 0
+                        array.push(boxes, box.new(profR - uW, rt, profR, rb, border_color = color.black, border_width = 1, bgcolor = uC))
+                    if dW > 0
+                        array.push(boxes, box.new(profR - uW - dW, rt, profR - uW, rb, border_color = color.black, border_width = 1, bgcolor = dC))
+                else
+                    if uW > 0
+                        array.push(boxes, box.new(profL, rt, profL + uW, rb, border_color = color.black, border_width = 1, bgcolor = uC))
+                    if dW > 0
+                        array.push(boxes, box.new(profL + uW, rt, profL + uW + dW, rb, border_color = color.black, border_width = 1, bgcolor = dC))
+            else if volMode == "Total"
+                int  bW = math.round(profW * (rv / maxRow))
+                color bC = uv >= dv ? (inVA ? vaUpColor : upColor) : (inVA ? vaDnColor : dnColor)
+                if placement == "Right"
+                    array.push(boxes, box.new(profR - bW, rt, profR, rb, border_color = color.new(bC, 50), bgcolor = bC))
+                else
+                    array.push(boxes, box.new(profL, rt, profL + bW, rb, border_color = color.new(bC, 50), bgcolor = bC))
+            else
+                float delta = uv - dv
+                int   dW = math.round(profW * (math.abs(delta) / maxRow))
+                color bC = delta >= 0 ? (inVA ? vaUpColor : upColor) : (inVA ? vaDnColor : dnColor)
+                if placement == "Right"
+                    array.push(boxes, box.new(profR - dW, rt, profR, rb, border_color = color.new(bC, 50), bgcolor = bC))
+                else
+                    array.push(boxes, box.new(profL, rt, profL + dW, rb, border_color = color.new(bC, 50), bgcolor = bC))
+
+    // POC lines (rank-colored, dashed for secondary)
+    for r = 0 to pocCount - 1
+        float p = array.get(topPrice, r)
+        if not na(p)
+            color lc = switch r
+                0 => pocColor
+                1 => poc2Color
+                2 => poc3Color
+                3 => poc4Color
+                4 => poc5Color
+                5 => poc6Color
+                6 => poc7Color
+                =>   poc8Color
+            array.push(lines, line.new(leftBar, p, anchor, p, color = lc,
+                 style = r == 0 ? line.style_dashed : line.style_dotted, width = 1))
+            if showPocLab
+                string txt = (r == 0 ? "POC " : "POC" + str.tostring(r + 1) + " ") + str.tostring(p, format.mintick)
+                if placement == "Right"
+                    array.push(labels, label.new(profR - profW - 2, p, txt,
+                         style = label.style_label_right, color = lc, textcolor = color.white, size = size.tiny))
+                else
+                    array.push(labels, label.new(profL + profW + 2, p, txt,
+                         style = label.style_label_left,  color = lc, textcolor = color.white, size = size.tiny))
+
+    // VAH / VAL
+    if not na(vahPrice)
+        array.push(lines, line.new(leftBar, vahPrice, anchor, vahPrice,
+             color = vahColor, style = line.style_dashed, width = 1))
+    if not na(valPrice)
+        array.push(lines, line.new(leftBar, valPrice, anchor, valPrice,
+             color = valColor, style = line.style_dashed, width = 1))

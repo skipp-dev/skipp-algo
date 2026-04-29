@@ -1,0 +1,190 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © preuss_steffen
+
+//@version=6
+
+// Product role: Beginner-facing EXIT companion for SMC Mobile_Dashboard.
+// Source of truth: linked SMC Core BUS outputs (Armed/Confirmed/Ready, Trigger, Invalidation).
+// What it adds: a local position-lifecycle state machine + alertconditions for
+//   STOP / TP1 / TP2 / DEFENSIVE EXIT — the missing piece so a manual trader
+//   can rely on TradingView phone alerts instead of staring at the chart.
+// Levels:
+//   R   = trigger - invalidation
+//   TP1 = trigger + tp1_r * R   (default 1.5R)
+//   TP2 = trigger + tp2_r * R   (default 3.0R)
+//   STOP = invalidation
+// No library imports — fully BUS-driven and self-contained.
+
+indicator("SMC Exit Signal", overlay = true)
+
+// ───────────────────────── Inputs ─────────────────────────
+var string g_plan = "1. Exit Plan"
+var string g_visual = "2. Visual"
+var string g_bus_state = "3. Expert Mapping - Entry States"
+var string g_bus_plan = "4. Expert Mapping - Trade Plan"
+
+tp1_r = input.float(1.5, "TP1 (R-multiple)", minval = 0.25, step = 0.25, group = g_plan, tooltip = "Take half off here. Stop should move to break-even.")
+tp2_r = input.float(3.0, "TP2 (R-multiple)", minval = 0.5, step = 0.25, group = g_plan, tooltip = "Final exit. Close remaining position.")
+use_defensive_exit = input.bool(true, "Defensive exit on setup invalidation", group = g_plan, tooltip = "Fire EXIT if the entry-stack collapses (Armed/Confirmed/Ready all drop to false) while still in trade — before stop is hit.")
+defensive_grace_bars = input.int(2, "Defensive grace bars", minval = 0, maxval = 20, group = g_plan, tooltip = "Tolerate this many bars of state collapse before firing the defensive exit. Avoids one-bar flickers.")
+
+show_levels = input.bool(true, "Show Stop/TP1/TP2 lines while in trade", group = g_visual)
+show_labels = input.bool(true, "Show ENTER / EXIT labels", group = g_visual)
+show_table = input.bool(true, "Show status table", group = g_visual)
+
+src_armed = input.source(close, "BUS Armed", group = g_bus_state, tooltip = "Bind these to SMC Core outputs in the same order as on SMC_Long_Strategy.")
+src_confirmed = input.source(close, "BUS Confirmed", group = g_bus_state)
+src_ready = input.source(close, "BUS Ready", group = g_bus_state)
+src_trigger = input.source(close, "BUS Trigger", group = g_bus_plan, tooltip = "Trigger price (entry stop) from the linked SMC Core output.")
+src_invalidation = input.source(close, "BUS Invalidation", group = g_bus_plan, tooltip = "Invalidation price (stop level) from the linked SMC Core output.")
+
+// ───────────────────────── Helpers ─────────────────────────
+state_on(float value) =>
+    not na(value) and value > 0.5
+
+bool armed = state_on(src_armed)
+bool confirmed = state_on(src_confirmed)
+bool ready = state_on(src_ready)
+bool any_state = armed or confirmed or ready
+
+bool risk_ok = not na(src_trigger) and not na(src_invalidation) and src_trigger > src_invalidation
+
+// ───────────────────────── Position-Lifecycle State Machine ─────────────────────────
+// States:
+//   0 = FLAT (no exposure, watching)
+//   1 = ARMED (state on, levels published, waiting for trigger to be hit)
+//   2 = IN_TRADE (price has touched trigger, position considered open)
+// Transitions are evaluated on confirmed bars to avoid intrabar flicker.
+
+var int   pos_state          = 0
+var float entry_price        = na
+var float entry_stop         = na
+var float tp1_price          = na
+var float tp2_price          = na
+var int   entry_bar          = na
+var bool  tp1_hit_already    = false
+var int   collapse_count     = 0
+
+// Latch ARMED when the stack provides valid levels and at least one state is on.
+// Stays ARMED while levels exist and we're not yet in trade.
+if pos_state == 0 and any_state and risk_ok
+    pos_state := 1
+    entry_stop := src_invalidation
+    entry_price := src_trigger
+    tp1_price := src_trigger + (src_trigger - src_invalidation) * tp1_r
+    tp2_price := src_trigger + (src_trigger - src_invalidation) * tp2_r
+
+// While ARMED, refresh levels (operator may shift trigger/invalidation pre-fill).
+if pos_state == 1 and risk_ok
+    entry_stop := src_invalidation
+    entry_price := src_trigger
+    tp1_price := src_trigger + (src_trigger - src_invalidation) * tp1_r
+    tp2_price := src_trigger + (src_trigger - src_invalidation) * tp2_r
+
+// Trigger fill: high crosses entry_price → enter IN_TRADE.
+bool just_entered = false
+if pos_state == 1 and not na(entry_price) and high >= entry_price
+    pos_state := 2
+    entry_bar := bar_index
+    tp1_hit_already := false
+    collapse_count := 0
+    just_entered := true
+
+// Cancel ARMED if state stack disappears entirely before fill (no exit alert — never entered).
+if pos_state == 1 and not any_state
+    pos_state := 0
+    entry_price := na
+    entry_stop := na
+    tp1_price := na
+    tp2_price := na
+
+// ───────────────────────── Exit Detection (only when IN_TRADE) ─────────────────────────
+bool exit_stop_hit = false
+bool exit_tp1_hit = false
+bool exit_tp2_hit = false
+bool exit_defensive = false
+
+if pos_state == 2
+    // 1) Hard stop — close below invalidation (use close, not low, to avoid wick flicker).
+    if not na(entry_stop) and close < entry_stop
+        exit_stop_hit := true
+
+    // 2) TP1 — first time high reaches TP1 price.
+    if not exit_stop_hit and not tp1_hit_already and not na(tp1_price) and high >= tp1_price
+        exit_tp1_hit := true
+        tp1_hit_already := true
+
+    // 3) TP2 — high reaches TP2 price → full close.
+    if not exit_stop_hit and not na(tp2_price) and high >= tp2_price
+        exit_tp2_hit := true
+
+    // 4) Defensive — entry stack collapses while in trade, with grace window.
+    if use_defensive_exit
+        if not any_state
+            collapse_count := collapse_count + 1
+        else
+            collapse_count := 0
+        if collapse_count > defensive_grace_bars and not exit_stop_hit and not exit_tp2_hit
+            exit_defensive := true
+
+// On any full exit (stop / tp2 / defensive), reset back to FLAT.
+bool full_exit = exit_stop_hit or exit_tp2_hit or exit_defensive
+if full_exit
+    pos_state := 0
+    entry_price := na
+    entry_stop := na
+    tp1_price := na
+    tp2_price := na
+    entry_bar := na
+    tp1_hit_already := false
+    collapse_count := 0
+
+// ───────────────────────── Alerts ─────────────────────────
+alertcondition(just_entered, title = "ENTER LONG (trigger filled)", message = "SMC Exit Signal: trigger filled — position OPEN")
+alertcondition(exit_stop_hit, title = "EXIT — Stop hit", message = "SMC Exit Signal: STOP HIT — close full position")
+alertcondition(exit_tp1_hit, title = "EXIT — TP1 (take half)", message = "SMC Exit Signal: TP1 reached — take half, move stop to entry")
+alertcondition(exit_tp2_hit, title = "EXIT — TP2 (close rest)", message = "SMC Exit Signal: TP2 reached — close remaining position")
+alertcondition(exit_defensive, title = "EXIT — Defensive (setup invalidated)", message = "SMC Exit Signal: setup collapsed in-trade — defensive exit")
+alertcondition(exit_stop_hit or exit_tp2_hit or exit_defensive, title = "EXIT (any full close)", message = "SMC Exit Signal: full exit triggered")
+
+// ───────────────────────── Visuals ─────────────────────────
+plot(show_levels and pos_state == 2 ? entry_stop : na, "Stop", color = color.new(color.red, 0), linewidth = 2, style = plot.style_linebr)
+plot(show_levels and pos_state == 2 ? tp1_price : na, "TP1", color = color.new(color.orange, 0), linewidth = 1, style = plot.style_linebr)
+plot(show_levels and pos_state == 2 ? tp2_price : na, "TP2", color = color.new(color.green, 0), linewidth = 2, style = plot.style_linebr)
+plot(show_levels and pos_state == 2 ? entry_price : na, "Entry", color = color.new(color.aqua, 0), linewidth = 1, style = plot.style_linebr)
+
+if show_labels
+    if just_entered
+        label.new(bar_index, low, "🟢 ENTER", style = label.style_label_up, color = color.new(color.green, 20), textcolor = color.white, size = size.small)
+    if exit_stop_hit
+        label.new(bar_index, high, "🔴 EXIT — Stop", style = label.style_label_down, color = color.new(color.red, 10), textcolor = color.white, size = size.small)
+    if exit_tp1_hit
+        label.new(bar_index, high, "🟠 TP1 — take half", style = label.style_label_down, color = color.new(color.orange, 10), textcolor = color.white, size = size.small)
+    if exit_tp2_hit
+        label.new(bar_index, high, "🟢 EXIT — TP2", style = label.style_label_down, color = color.new(color.green, 10), textcolor = color.white, size = size.small)
+    if exit_defensive
+        label.new(bar_index, high, "🟡 EXIT — Defensive", style = label.style_label_down, color = color.new(color.yellow, 10), textcolor = color.black, size = size.small)
+
+// ───────────────────────── Status table (top-right) ─────────────────────────
+if show_table and barstate.islast
+    var table tbl = table.new(position.top_right, 2, 6, frame_color = color.gray, frame_width = 1, border_color = color.gray, border_width = 1)
+    string state_txt = pos_state == 0 ? "FLAT" : pos_state == 1 ? "ARMED" : "IN-TRADE"
+    color  state_bg  = pos_state == 0 ? color.new(color.gray, 70) : pos_state == 1 ? color.new(color.yellow, 70) : color.new(color.green, 70)
+
+    table.cell(tbl, 0, 0, "SMC Exit", text_color = color.white, bgcolor = color.new(color.black, 30), text_size = size.small)
+    table.cell(tbl, 1, 0, "", text_color = color.white, bgcolor = color.new(color.black, 30), text_size = size.small)
+
+    table.cell(tbl, 0, 1, "State", text_color = color.white, bgcolor = color.new(color.black, 50), text_size = size.small)
+    table.cell(tbl, 1, 1, state_txt, text_color = color.white, bgcolor = state_bg, text_size = size.small)
+
+    table.cell(tbl, 0, 2, "Entry", text_color = color.white, bgcolor = color.new(color.black, 50), text_size = size.small)
+    table.cell(tbl, 1, 2, na(entry_price) ? "—" : str.tostring(entry_price, format.mintick), text_color = color.white, bgcolor = color.new(color.aqua, 70), text_size = size.small)
+
+    table.cell(tbl, 0, 3, "Stop", text_color = color.white, bgcolor = color.new(color.black, 50), text_size = size.small)
+    table.cell(tbl, 1, 3, na(entry_stop) ? "—" : str.tostring(entry_stop, format.mintick), text_color = color.white, bgcolor = color.new(color.red, 60), text_size = size.small)
+
+    table.cell(tbl, 0, 4, "TP1 (" + str.tostring(tp1_r) + "R)", text_color = color.white, bgcolor = color.new(color.black, 50), text_size = size.small)
+    table.cell(tbl, 1, 4, na(tp1_price) ? "—" : str.tostring(tp1_price, format.mintick), text_color = color.white, bgcolor = color.new(color.orange, 60), text_size = size.small)
+
+    table.cell(tbl, 0, 5, "TP2 (" + str.tostring(tp2_r) + "R)", text_color = color.white, bgcolor = color.new(color.black, 50), text_size = size.small)
+    table.cell(tbl, 1, 5, na(tp2_price) ? "—" : str.tostring(tp2_price, format.mintick), text_color = color.white, bgcolor = color.new(color.green, 60), text_size = size.small)
