@@ -5,6 +5,7 @@ or experienced sector rotation.
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -13,7 +14,6 @@ from pathlib import Path
 from typing import Any
 
 from .utils import to_float
-import contextlib
 
 logger = logging.getLogger("open_prep.diff")
 
