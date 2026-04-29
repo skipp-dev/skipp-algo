@@ -7,8 +7,8 @@ process.
 from __future__ import annotations
 
 import threading
-from dataclasses import dataclass
 from collections.abc import Mapping
+from dataclasses import dataclass
 
 import numpy as np
 
