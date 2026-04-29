@@ -22,14 +22,14 @@ Exit codes
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 import re
 import sys
 from pathlib import Path
 from typing import Any
+
+from scripts.smc_atomic_write import atomic_write_text
 
 ROLLUP_SCHEMA_VERSION = 1
 DEFAULT_TFS = ("5m", "15m", "1H", "4H")
