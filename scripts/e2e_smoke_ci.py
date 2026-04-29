@@ -38,13 +38,13 @@ How to update the reference file:
 """
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 import sys
 from pathlib import Path
 from typing import Any
+
+from scripts.smc_atomic_write import atomic_write_text
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -57,13 +57,13 @@ def collect_smoke_snapshot() -> dict[str, Any]:
     """Collect the current structural snapshot for comparison."""
     from smc_integration.release_policy import (
         GATE_GOVERNANCE_REGISTRY,
-        GovernanceStatus,
         HARD_BLOCKING_DEGRADATION_CODES,
         RELEASE_REFERENCE_SYMBOLS,
         RELEASE_REFERENCE_TIMEFRAMES,
+        GovernanceStatus,
         MeasurementShadowThresholds,
-        validate_gate_governance_registry,
         serialize_measurement_shadow_thresholds,
+        validate_gate_governance_registry,
     )
 
     # 1. Governance registry
