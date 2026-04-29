@@ -1349,10 +1349,7 @@ def write_manifest(
                 exc_info=True,
             )
 
-    if prev_schema:
-        change_type = classify_version_change(prev_schema, SCHEMA_VERSION).value
-    else:
-        change_type = "initial"
+    change_type = classify_version_change(prev_schema, SCHEMA_VERSION).value if prev_schema else "initial"
 
     def _rel(p: Path) -> str:
         if relative_to is not None:
