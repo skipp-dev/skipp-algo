@@ -49,7 +49,7 @@ def _load_raw() -> list[dict[str, Any]]:
     if not WATCHLIST_PATH.exists():
         return []
     try:
-        with open(WATCHLIST_PATH, "r", encoding="utf-8") as fh:
+        with open(WATCHLIST_PATH, encoding="utf-8") as fh:
             data = json.load(fh)
         return data if isinstance(data, list) else []
     except Exception:
