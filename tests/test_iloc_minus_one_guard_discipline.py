@@ -101,7 +101,7 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         # scripts/smc_microstructure_base_runtime.py — OHLC reduction
         # over a full closed frame (open from first row, close from
         # last row).
-        ("scripts/smc_microstructure_base_runtime.py", 802),
+        ("scripts/smc_microstructure_base_runtime.py", 817),
     }
 )
 
