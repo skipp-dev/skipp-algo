@@ -34,7 +34,6 @@ from scripts.smc_zone_priority_consumer import (
     TRUST_UNAVAILABLE,
 )
 
-
 # ── ZONE_CAL_TRUST glyph gate — SMC_Dashboard.pine:1429-1434 ────────
 
 
