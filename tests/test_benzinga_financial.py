@@ -9,9 +9,9 @@ Covers:
 from __future__ import annotations
 
 import sys
+from collections.abc import Generator
 from pathlib import Path
 from typing import Any
-from collections.abc import Generator
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -38,7 +38,6 @@ from newsstack_fmp.ingest_benzinga_financial import (
     fetch_benzinga_price_history,
     fetch_benzinga_ticker_detail,
 )
-
 
 # ═══════════════════════════════════════════════════════════════
 # Fixtures
