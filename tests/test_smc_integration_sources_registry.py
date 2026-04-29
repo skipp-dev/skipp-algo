@@ -1,18 +1,18 @@
 from __future__ import annotations
 
-import smc_integration.repo_sources as repo_sources_module
 import pytest
 
+import smc_integration.repo_sources as repo_sources_module
 from smc_integration.repo_sources import (
     discover_composite_source_plan,
     discover_repo_source_paths,
     discover_repo_sources,
     load_raw_meta_input,
+    load_raw_structure_input,
     select_best_news_source,
     select_best_structure_source,
     select_best_technical_source,
     select_best_volume_source,
-    load_raw_structure_input,
 )
 
 
