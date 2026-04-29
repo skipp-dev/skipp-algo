@@ -1,20 +1,21 @@
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
 import warnings
+from datetime import UTC, date, datetime
 
 import pandas as pd
-import scripts.databento_production_export as export_mod
 
+import scripts.databento_production_export as export_mod
 from newsstack_fmp.common_types import NewsItem
 from scripts.databento_production_export import (
-    _coalesce_optional_merge_column,
     _build_core_vs_benzinga_news_side_by_side,
     _build_research_news_flag_coverage,
     _build_research_news_flag_outcome_slices,
     _build_research_news_flag_trade_date_distribution,
     _build_research_news_flags_full_universe_export,
+    _coalesce_optional_merge_column,
 )
+
 
 def test_coalesce_optional_merge_column_handles_missing_and_suffix_columns() -> None:
     frame = pd.DataFrame(
