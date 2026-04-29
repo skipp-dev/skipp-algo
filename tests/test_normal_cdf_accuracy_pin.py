@@ -15,14 +15,13 @@ warrant explicit review.
 """
 
 from __future__ import annotations
-from itertools import pairwise
 
 import math
+from itertools import pairwise
 
 import pytest
 
 from scripts.run_ab_comparison import _normal_cdf
-
 
 # Reference values from a 64-bit ``scipy.stats.norm.cdf`` evaluation,
 # rounded to 15 significant digits. ``math.erf`` is implemented on
