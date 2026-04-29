@@ -147,7 +147,7 @@ class TestGeneratedArtifactDrift:
             old_lines = checked_in_text.splitlines()
             new_lines = fresh_text.splitlines()
             diffs: list[str] = []
-            for i, (o, n) in enumerate(zip(old_lines, new_lines), 1):
+            for i, (o, n) in enumerate(zip(old_lines, new_lines, strict=False), 1):
                 if o != n:
                     diffs.append(f"  L{i}:  checked-in: {o!r}")
                     diffs.append(f"  L{i}:  generator:  {n!r}")
