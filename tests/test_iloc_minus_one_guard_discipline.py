@@ -97,7 +97,7 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         ("scripts/generate_bullish_quality_scanner.py", 177),
         # scripts/generate_databento_watchlist.py — manifest scalar
         # lookup (latest manifest string value); not bar data.
-        ("scripts/generate_databento_watchlist.py", 144),
+        ("scripts/generate_databento_watchlist.py", 143),
         # scripts/smc_microstructure_base_runtime.py — OHLC reduction
         # over a full closed frame (open from first row, close from
         # last row).
