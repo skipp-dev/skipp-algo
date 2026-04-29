@@ -9,7 +9,6 @@ import pytest
 
 from scripts.cpcv_splitter import CombinatorialPurgedSplitter, CPCVSplit
 
-
 # ---------------------------------------------------------------------------
 # Constructor validation
 # ---------------------------------------------------------------------------
