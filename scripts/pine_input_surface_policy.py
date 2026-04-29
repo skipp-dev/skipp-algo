@@ -14,10 +14,10 @@ DoD:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import Enum, StrEnum
 
 
-class InputVisibility(str, Enum):
+class InputVisibility(StrEnum):
     USER_VISIBLE = "user_visible"     # produktrelevant; sichtbar
     OPERATOR_ONLY = "operator_only"    # display=display.none verlangt
     EXPERIMENTAL = "experimental"      # display=display.none verlangt

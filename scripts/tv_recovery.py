@@ -14,11 +14,11 @@ DoD:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import Enum, StrEnum
 from collections.abc import Callable
 
 
-class RecoveryStep(str, Enum):
+class RecoveryStep(StrEnum):
     CLOSE_MODAL = "close_modal"
     REINSERT_INPUT = "reinsert_input"
     ENSURE_PINE_EDITOR = "ensure_pine_editor"

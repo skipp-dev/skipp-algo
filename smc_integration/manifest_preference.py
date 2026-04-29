@@ -16,12 +16,12 @@ Source taxonomy
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import Enum, StrEnum
 from pathlib import Path
 from collections.abc import Iterable
 
 
-class ArtifactSource(str, Enum):
+class ArtifactSource(StrEnum):
     MANIFEST = "manifest"
     SHADOW = "shadow"
     SCRATCH = "scratch"

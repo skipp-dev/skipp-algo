@@ -13,12 +13,12 @@ DoD:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import Enum, StrEnum
 
 from scripts.smc_surface_matrix import SURFACE_MATRIX, SurfaceClass
 
 
-class FileLifecycle(str, Enum):
+class FileLifecycle(StrEnum):
     PRODUCTION = "production"
     OPERATOR_ONLY = "operator_only"
     EXPERIMENTAL = "experimental"

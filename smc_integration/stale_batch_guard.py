@@ -9,11 +9,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, UTC
-from enum import Enum
+from enum import Enum, StrEnum
 from collections.abc import Iterable, Mapping
 
 
-class StaleStatus(str, Enum):
+class StaleStatus(StrEnum):
     FRESH = "fresh"
     AGING = "aging"        # warn-only band
     STALE = "stale"        # produktive Laeufe schlagen sauber fehl

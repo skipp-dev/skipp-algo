@@ -13,17 +13,17 @@ DoD:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import Enum, StrEnum
 
 
-class SurfaceClass(str, Enum):
+class SurfaceClass(StrEnum):
     PRODUCTION = "production"
     OPERATOR_ONLY = "operator_only"
     EXPERIMENTAL = "experimental"
     HISTORICAL = "historical"
 
 
-class Audience(str, Enum):
+class Audience(StrEnum):
     DESKTOP = "desktop"
     MOBILE = "mobile"
     OPERATOR = "operator"

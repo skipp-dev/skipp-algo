@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date
-from enum import Enum
+from enum import Enum, StrEnum
 from collections.abc import Sequence
 
 __all__ = [
@@ -32,7 +32,7 @@ __all__ = [
 ]
 
 
-class BreachReason(str, Enum):
+class BreachReason(StrEnum):
     DAILY_LOSS = "daily_loss_exceeded"
     MAX_OPEN_POSITIONS = "max_open_positions_exceeded"
     MAX_CONSECUTIVE_LOSSES = "max_consecutive_losses_exceeded"
