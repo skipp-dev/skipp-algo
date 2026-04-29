@@ -3731,7 +3731,7 @@ class TestHitRateEnrichmentUsesVolumeRatio(unittest.TestCase):
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-class TestSR6_ScoreCandidateOutputsVolumeRatio(unittest.TestCase):
+class TestSr6ScoreCandidateOutputsVolumeRatio(unittest.TestCase):
     """SR6-1: score_candidate() must include ``volume_ratio`` in its
     return dict so that downstream consumers (hit-rate enrichment,
     Streamlit) can read it without re-deriving from volume/avg_volume."""
@@ -3788,7 +3788,7 @@ class TestSR6_ScoreCandidateOutputsVolumeRatio(unittest.TestCase):
                                msg="volume_ratio should reflect the pre-computed value")
 
 
-class TestSR6_PremarketFreshnessSecMerged(unittest.TestCase):
+class TestSr6PremarketFreshnessSecMerged(unittest.TestCase):
     """SR6-2: premarket_freshness_sec must be merged into quotes so the
     scorer's freshness decay component is not always zero."""
 
@@ -3811,7 +3811,7 @@ class TestSR6_PremarketFreshnessSecMerged(unittest.TestCase):
         )
 
 
-class TestSR6_IdentifierChangeFieldsMerged(unittest.TestCase):
+class TestSr6IdentifierChangeFieldsMerged(unittest.TestCase):
     """SR6-2b: identifier-change metadata must survive the premarket merge
     so downstream ranking and exports can inspect Databento reference events."""
 
@@ -3838,7 +3838,7 @@ class TestSR6_IdentifierChangeFieldsMerged(unittest.TestCase):
             )
 
 
-class TestSR6_BreakoutZeroGuards(unittest.TestCase):
+class TestSr6BreakoutZeroGuards(unittest.TestCase):
     """SR6-3: detect_breakout() must not crash on OHLCV bars where
     all close prices in the lookback window are zero (data corruption)."""
 
