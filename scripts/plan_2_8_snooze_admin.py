@@ -24,7 +24,6 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-
 DEFAULT_CONFIG = Path("configs/plan_2_8_snoozes.json")
 
 
