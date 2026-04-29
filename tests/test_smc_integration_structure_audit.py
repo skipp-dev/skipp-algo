@@ -10,7 +10,6 @@ from smc_integration.structure_audit import (
     structure_gap_report_to_dict,
 )
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
