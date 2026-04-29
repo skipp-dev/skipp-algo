@@ -17,10 +17,10 @@ import os
 import re
 import tempfile
 import threading
+from collections.abc import Iterable
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
-from collections.abc import Iterable
 
 import pandas as pd
 
