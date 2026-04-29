@@ -175,10 +175,7 @@ def _check_branch_protection(token: str, report: ProtectionReport) -> None:
 
         contexts: list[str] = []
         checks_list = status_checks.get("checks", [])
-        if checks_list:
-            contexts = [c.get("context", "") for c in checks_list]
-        else:
-            contexts = status_checks.get("contexts", [])
+        contexts = [c.get("context", "") for c in checks_list] if checks_list else status_checks.get("contexts", [])
 
         for req_check in REQUIRED_STATUS_CHECKS:
             found = req_check in contexts
