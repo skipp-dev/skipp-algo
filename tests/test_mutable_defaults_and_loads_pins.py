@@ -108,7 +108,7 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/diff.py", 80),
         ("open_prep/outcome_backfill.py", 60),
         ("open_prep/outcome_backfill.py", 80),
-        ("open_prep/outcomes.py", 168),
+        ("open_prep/outcomes.py", 167),
         ("open_prep/realtime_signals.py", 1461),
         ("open_prep/realtime_signals.py", 2576),
         ("open_prep/scorer.py", 87),

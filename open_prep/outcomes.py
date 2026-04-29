@@ -27,6 +27,7 @@ from typing import Any
 from zoneinfo import ZoneInfo as _ZoneInfo
 
 from .utils import to_float as _safe_float
+import contextlib
 
 logger = logging.getLogger("open_prep.outcomes")
 
@@ -125,10 +126,8 @@ def store_daily_outcomes(
             os.fsync(fh.fileno())
         os.replace(tmp_path, path)
     except BaseException:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp_path)
-        except OSError:
-            pass
         raise
     logger.info("Stored %d outcome records for %s → %s", len(outcomes), run_date, path)
 
@@ -405,10 +404,8 @@ class FeatureImportanceCollector:
                 os.fsync(fh.fileno())
             os.replace(tmp_path, path)
         except BaseException:
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(tmp_path)
-            except OSError:
-                pass
             raise
         count = len(self._buffer)
         self._buffer.clear()
