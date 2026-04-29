@@ -137,7 +137,7 @@ def test_evaluation_is_deterministic_with_seed() -> None:
     b = evaluate_track_record_gate(r, bootstrap_B=80, bootstrap_seed=123)
     # Statuses + per-check values must match exactly.
     assert a.status == b.status
-    for ca, cb in zip(a.checks, b.checks):
+    for ca, cb in zip(a.checks, b.checks, strict=False):
         assert ca.name == cb.name
         assert ca.status == cb.status
         if ca.value is not None and cb.value is not None:
