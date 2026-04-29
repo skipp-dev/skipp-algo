@@ -139,7 +139,7 @@ HTTP_POST_LEDGER: set[tuple[str, int]] = {
     # OpenAI chat completions — FMP insights enrichment.
     ("terminal_fmp_insights.py", 372),
     # Webhook fan-out from the live Streamlit terminal alert path.
-    ("streamlit_terminal.py", 2248),
+    ("streamlit_terminal.py", 2257),
     # OpenAI chat completions — terminal AI insights enrichment.
     ("terminal_ai_insights.py", 246),
 }
