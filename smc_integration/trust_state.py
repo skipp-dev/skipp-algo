@@ -48,15 +48,14 @@ badges, ENG-WS2-04 action degradation) can consume one stable surface.
 from __future__ import annotations
 
 import enum
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
-from collections.abc import Iterable, Mapping
 
 from smc_integration.provider_health import (
     FailureAction,
     classify_domain_alerts_to_failure_actions,
 )
-
 
 # ── Canonical product states ──────────────────────────────────────────
 
