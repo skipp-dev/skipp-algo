@@ -221,5 +221,5 @@ def test_f2_pipeline_e2e_revert_idempotent_on_second_rollback(tmp_path: Path) ->
     # Both runs journaled.
     lines = journal.read_text(encoding="utf-8").strip().splitlines()
     assert len(lines) == 2
-    actions = [json.loads(l)["action"] for l in lines]
+    actions = [json.loads(ln)["action"] for ln in lines]
     assert actions == ["reverted", "noop_already_shadow"]

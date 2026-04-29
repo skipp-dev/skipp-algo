@@ -134,7 +134,7 @@ class TestMain:
         monkeypatch.setattr(cw, "CANDIDATE_RUN_LOG_DIR", tmp_path)
         monkeypatch.setattr(cw, "compute_feature_importance",
                             lambda **kw: _make_fi_report(labeled=5))
-        monkeypatch.setattr(cw, "save_weight_set", lambda l, w: None)
+        monkeypatch.setattr(cw, "save_weight_set", lambda ln, w: None)
         rc = cw.main(["--min-samples", "30"])
         assert rc == 0
         rec = json.loads((tmp_path / "latest.json").read_text())
@@ -156,7 +156,7 @@ class TestMain:
                             lambda **kw: _make_fi_report(labeled=100))
         called: list = []
         monkeypatch.setattr(cw, "save_weight_set",
-                            lambda l, w: called.append((l, w)))
+                            lambda ln, w: called.append((ln, w)))
         rc = cw.main(["--dry-run"])
         assert rc == 0
         assert not (tmp_path / "latest.json").exists()

@@ -46,21 +46,21 @@ def garman_klass_volatility(
     GK = 0.5 * (ln(H/L))^2 - (2*ln(2) - 1) * (ln(C/O))^2
     """
     h = np.asarray(high, dtype=float)
-    l = np.asarray(low, dtype=float)
+    lo = np.asarray(low, dtype=float)
     o = np.asarray(open_, dtype=float)
     c = np.asarray(close, dtype=float)
     h = np.maximum(h, 1e-12)
-    l = np.maximum(l, 1e-12)
+    lo = np.maximum(lo, 1e-12)
     o = np.maximum(o, 1e-12)
     c = np.maximum(c, 1e-12)
-    return 0.5 * np.log(h / l) ** 2 - (2.0 * np.log(2.0) - 1.0) * np.log(c / o) ** 2
+    return 0.5 * np.log(h / lo) ** 2 - (2.0 * np.log(2.0) - 1.0) * np.log(c / o) ** 2
 
 
 def parkinson_volatility(high: Sequence[float], low: Sequence[float]) -> np.ndarray:
     """Per-bar Parkinson variance: (ln(H/L))^2 / (4 * ln(2))."""
     h = np.maximum(np.asarray(high, dtype=float), 1e-12)
-    l = np.maximum(np.asarray(low, dtype=float), 1e-12)
-    return np.log(h / l) ** 2 / (4.0 * np.log(2.0))
+    lo = np.maximum(np.asarray(low, dtype=float), 1e-12)
+    return np.log(h / lo) ** 2 / (4.0 * np.log(2.0))
 
 
 __all__ = ["garman_klass_volatility", "parkinson_volatility", "realized_volatility"]

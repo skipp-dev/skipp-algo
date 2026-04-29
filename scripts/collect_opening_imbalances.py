@@ -274,7 +274,7 @@ def _summarise(
     def _norm(listing: str) -> str:
         return str(listing or "").strip().upper().replace(" ", "_")
 
-    norm_listings = [_norm(l) for _, l in rows]
+    norm_listings = [_norm(ln) for _, ln in rows]
     nyse = sum(1 for n in norm_listings if n == "NYSE")
     amex = sum(1 for n in norm_listings if n in {"AMEX", "NYSE_MKT", "NYSE_AMERICAN"})
     nasdaq = sum(1 for n in norm_listings if n == "NASDAQ")

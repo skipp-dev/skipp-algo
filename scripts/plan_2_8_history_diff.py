@@ -61,9 +61,9 @@ def diff_snapshots(prev: dict[str, Any], latest: dict[str, Any]) -> dict[str, An
     per_family: list[dict[str, Any]] = []
     for tf in tfs:
         p = prev_tfs.get(tf) or {}
-        l = latest_tfs.get(tf) or {}
+        lat = latest_tfs.get(tf) or {}
         hr_p = p.get("hit_rate")
-        hr_l = l.get("hit_rate")
+        hr_l = lat.get("hit_rate")
         delta = None if (hr_p is None or hr_l is None) else hr_l - hr_p
         per_tf.append({
             "tf": tf,
@@ -71,12 +71,12 @@ def diff_snapshots(prev: dict[str, Any], latest: dict[str, Any]) -> dict[str, An
             "hr_latest": hr_l,
             "delta_pp":  delta,
             "n_prev":   p.get("n_events"),
-            "n_latest": l.get("n_events"),
+            "n_latest": lat.get("n_events"),
         })
-        fams = sorted(set(p.get("families") or {}) | set(l.get("families") or {}))
+        fams = sorted(set(p.get("families") or {}) | set(lat.get("families") or {}))
         for fam in fams:
             fp = (p.get("families") or {}).get(fam) or {}
-            fl = (l.get("families") or {}).get(fam) or {}
+            fl = (lat.get("families") or {}).get(fam) or {}
             fhr_p = fp.get("hit_rate")
             fhr_l = fl.get("hit_rate")
             fdelta = None if (fhr_p is None or fhr_l is None) else fhr_l - fhr_p

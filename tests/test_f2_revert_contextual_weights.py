@@ -167,7 +167,7 @@ def test_revert_journal_appends_across_runs(tmp_path: Path) -> None:
     revert_contextual_weights(spec_path=spec, report_path=report, journal_path=journal)
     lines = journal.read_text(encoding="utf-8").strip().splitlines()
     assert len(lines) == 2
-    assert all(json.loads(l)["action"] == "noop_already_shadow" for l in lines)
+    assert all(json.loads(ln)["action"] == "noop_already_shadow" for ln in lines)
 
 
 def test_revert_raises_on_missing_spec(tmp_path: Path) -> None:

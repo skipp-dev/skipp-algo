@@ -381,7 +381,7 @@ class TestFullEnrichment:
 
     def test_no_python_booleans(self, base_csv: Path, tmp_path: Path):
         text = _run_pipeline(base_csv, tmp_path, enrichment=_full_enrichment())
-        bool_lines = [l for l in text.splitlines() if "const bool " in l]
+        bool_lines = [ln for ln in text.splitlines() if "const bool " in ln]
         for line in bool_lines:
             assert "True" not in line and "False" not in line, f"Python bool in: {line}"
 

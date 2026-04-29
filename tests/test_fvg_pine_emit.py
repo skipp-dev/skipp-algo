@@ -32,7 +32,7 @@ def test_emits_one_pair_per_cell() -> None:
     lines = emit_fvg_pine_constants(report)
     # Header + 2 lines per cell × 3 cells = 7
     assert lines[0].startswith("// ── FVG Tri-Axis Health")
-    decls = [l for l in lines if l.startswith("export const")]
+    decls = [ln for ln in lines if ln.startswith("export const")]
     assert len(decls) == 6  # 3 cells × (value + status)
 
 

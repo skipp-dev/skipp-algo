@@ -1032,7 +1032,7 @@ class TestSmokeFullV4Pipeline:
             assert field in pine_text, f"Smoke: missing v5 field: {field}"
 
         # 4. Verify field count
-        export_lines = [l for l in pine_text.splitlines() if l.startswith("export const")]
+        export_lines = [ln for ln in pine_text.splitlines() if ln.startswith("export const")]
         assert len(export_lines) == len(V5_FIELD_INVENTORY), (
             f"Expected {len(V5_FIELD_INVENTORY)} exports, got {len(export_lines)}"
         )
@@ -1056,7 +1056,7 @@ class TestSmokeFullV4Pipeline:
             enrichment=enrichment,
         )
         pine_text = result["pine_path"].read_text(encoding="utf-8")
-        export_lines = [l for l in pine_text.splitlines() if l.startswith("export const")]
+        export_lines = [ln for ln in pine_text.splitlines() if ln.startswith("export const")]
         found_names = set()
         for line in export_lines:
             parts = line.split(" = ", 1)[0].split()
@@ -1160,7 +1160,7 @@ class TestSmokeFullV4Pipeline:
 
         # Verify Pine content
         pine_text = Path(result["pine_paths"]["pine_path"]).read_text(encoding="utf-8")
-        export_lines = [l for l in pine_text.splitlines() if l.startswith("export const")]
+        export_lines = [ln for ln in pine_text.splitlines() if ln.startswith("export const")]
         assert len(export_lines) == len(V5_FIELD_INVENTORY)
 
         # Verify manifest

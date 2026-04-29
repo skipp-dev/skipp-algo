@@ -59,7 +59,7 @@ def test_rotate_trims_by_max_rows_keeping_newest(tmp_path: Path) -> None:
     assert summary["dropped_cap"] == 7
     assert summary["backup"] is not None
     # The three remaining rows are the three newest.
-    surviving = [json.loads(l) for l in history.read_text(encoding="utf-8").splitlines() if l.strip()]
+    surviving = [json.loads(ln) for ln in history.read_text(encoding="utf-8").splitlines() if ln.strip()]
     assert [s["captured_at"] for s in surviving] == [
         "2026-04-08T07:00:00Z", "2026-04-09T07:00:00Z", "2026-04-10T07:00:00Z",
     ]
@@ -74,7 +74,7 @@ def test_rotate_drops_by_max_age(tmp_path: Path) -> None:
     assert summary["before"] == 21
     assert summary["dropped_age"] == 13
     assert summary["after"] == 8
-    surviving = [json.loads(l) for l in history.read_text(encoding="utf-8").splitlines() if l.strip()]
+    surviving = [json.loads(ln) for ln in history.read_text(encoding="utf-8").splitlines() if ln.strip()]
     oldest_kept = min(s["captured_at"] for s in surviving)
     assert oldest_kept == "2026-04-14T07:00:00Z"
 

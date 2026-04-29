@@ -80,7 +80,7 @@ def collect_links(text: str) -> list[dict[str, Any]]:
 def check(text: str) -> dict[str, Any]:
     anchors = collect_anchors(text)
     links = collect_links(text)
-    broken = [l for l in links if l["anchor"] not in anchors]
+    broken = [ln for ln in links if ln["anchor"] not in anchors]
     return {
         "schema_version": 1,
         "counts": {
