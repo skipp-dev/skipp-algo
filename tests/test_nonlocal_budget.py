@@ -65,10 +65,10 @@ def _all_nonlocal_sites() -> list[tuple[str, int, tuple[str, ...]]]:
 #   within an ensemble scoring helper closure.
 _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
     {
-        ("databento_volatility_screener.py", 4688, ("_fast_progress_pct",)),
-        ("databento_volatility_screener.py", 4689, ("_fast_progress_step",)),
-        ("databento_volatility_screener.py", 4690, ("_fast_progress_total",)),
-        ("databento_volatility_screener.py", 4691, ("_fast_eta_smooth_seconds",)),
+        ("databento_volatility_screener.py", 4685, ("_fast_progress_pct",)),
+        ("databento_volatility_screener.py", 4686, ("_fast_progress_step",)),
+        ("databento_volatility_screener.py", 4687, ("_fast_progress_total",)),
+        ("databento_volatility_screener.py", 4688, ("_fast_eta_smooth_seconds",)),
         ("smc_core/ensemble_quality.py", 172, ("active_weight", "weighted_total")),
     }
 )
