@@ -637,8 +637,9 @@ class TestMeasurementLane:
 
     def test_scoring_log_score_finite(self):
         """Log score must be finite for valid predictions."""
-        from smc_core.scoring import log_score
         import math
+
+        from smc_core.scoring import log_score
         score = log_score([(0.8, True), (0.2, False)])
         assert math.isfinite(score)
         assert score > 0
