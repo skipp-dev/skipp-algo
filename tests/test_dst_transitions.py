@@ -4,7 +4,7 @@ Locks the behaviour around the spring-forward (2nd Sunday of March)
 and fall-back (1st Sunday of November) boundaries so a future
 regression to fixed-offset arithmetic is caught immediately.
 """
-from datetime import datetime, date, timedelta
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from newsstack_fmp._market_cal import is_us_equity_trading_day
