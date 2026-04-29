@@ -20,7 +20,6 @@ import pytest
 
 from smc_integration.sources.base import SourceCapabilities, SourceDescriptor
 
-
 # ── base.py ──────────────────────────────────────────────────────
 
 
