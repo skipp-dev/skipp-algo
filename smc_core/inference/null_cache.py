@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+import contextlib
 
 
 @dataclass(frozen=True)
@@ -104,10 +105,8 @@ class NullCache:
             tmp.replace(path)
         except Exception:
             if tmp.exists():
-                try:
+                with contextlib.suppress(OSError):
                     tmp.unlink()
-                except OSError:
-                    pass
             raise
 
     def __len__(self) -> int:
