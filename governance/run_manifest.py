@@ -21,6 +21,7 @@ import hashlib
 import json
 import os
 import platform
+import shutil
 import subprocess
 import sys
 import time
@@ -68,8 +69,9 @@ def _git_sha() -> str:
     if sha:
         return sha
     try:
+        git_exe = shutil.which("git") or "git"
         out = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"],
+            [git_exe, "rev-parse", "HEAD"],
             stderr=subprocess.DEVNULL,
             cwd=Path(__file__).resolve().parent,
             timeout=2.0,

@@ -19,17 +19,18 @@ Usage
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import hashlib
 import json
 import math
 import random
+import shutil
 import subprocess
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+from scripts.smc_atomic_write import atomic_write_text
 
 # S-3 (TEMPORAL_NUMERICAL_AUDIT_2026-04-24): defense-in-depth seed for the
 # calibration pipeline. Currently no stochastic ops in this module, but a
@@ -1020,8 +1021,9 @@ def _sha256_of_file(path: Path) -> str:
 def _git_rev(repo_root: Path) -> str | None:
     """Return the current git HEAD commit SHA, or ``None`` if unavailable."""
     try:
+        git_exe = shutil.which("git") or "git"
         out = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
+            [git_exe, "rev-parse", "HEAD"],
             cwd=repo_root,
             capture_output=True,
             text=True,

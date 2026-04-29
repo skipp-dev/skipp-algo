@@ -29,10 +29,11 @@ from __future__ import annotations
 
 import argparse
 import re
+import shutil
 import subprocess
 import sys
-from pathlib import Path
 from collections.abc import Iterable
+from pathlib import Path
 
 # Match repo-tracked manifests written by snapshot/structure/benchmark code:
 #   manifest_5m.json, manifest_15m.json, manifest_1H.json, manifest.json,
@@ -49,8 +50,9 @@ _POISON_PATTERNS = (
 def _staged_manifest_paths() -> list[Path]:
     """Return staged Added/Modified files matching the manifest pattern."""
     try:
+        git_exe = shutil.which("git") or "git"
         out = subprocess.check_output(
-            ["git", "diff", "--cached", "--name-only", "--diff-filter=AM"],
+            [git_exe, "diff", "--cached", "--name-only", "--diff-filter=AM"],
             text=True,
         )
     except (OSError, subprocess.CalledProcessError):
@@ -87,8 +89,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.all_tracked:
         try:
+            git_exe = shutil.which("git") or "git"
             tracked = subprocess.check_output(
-                ["git", "ls-files"], text=True
+                [git_exe, "ls-files"], text=True
             ).splitlines()
         except (OSError, subprocess.CalledProcessError) as exc:
             print(f"error: git ls-files failed: {exc}", file=sys.stderr)

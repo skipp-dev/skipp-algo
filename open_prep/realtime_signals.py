@@ -164,6 +164,7 @@ def _update_telemetry_status(
 
 
 def _detect_rt_engine_pid() -> int | None:
+    import shutil
     import subprocess
 
     if _RT_ENGINE_PID_FILE.exists():
@@ -178,8 +179,9 @@ def _detect_rt_engine_pid() -> int | None:
                 pass
 
     try:
+        pgrep_exe = shutil.which("pgrep") or "pgrep"
         result = subprocess.run(
-            ["pgrep", "-f", "python.*-m open_prep.realtime_signals"],
+            [pgrep_exe, "-f", "python.*-m open_prep.realtime_signals"],
             capture_output=True,
             text=True,
             timeout=5,

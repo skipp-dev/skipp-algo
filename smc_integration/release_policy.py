@@ -4,11 +4,12 @@ import enum
 import logging
 import math
 import os
+import shutil
+import subprocess
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from statistics import median
-import subprocess
 from typing import Any
-from collections.abc import Iterable
 
 logger = logging.getLogger(__name__)
 
@@ -1067,8 +1068,9 @@ def resolve_git_commit() -> str | None:
     if env_sha:
         return env_sha
     try:
+        git_exe = shutil.which("git") or "git"
         result = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
+            [git_exe, "rev-parse", "HEAD"],
             check=False,
             capture_output=True,
             text=True,

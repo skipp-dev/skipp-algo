@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
 import socket
 import subprocess
 import sys
@@ -36,7 +37,8 @@ def _run_open_prep(repo_root: Path, python_exe: str) -> None:
 
 
 def _stop_existing_monitor() -> None:
-    subprocess.run(["pkill", "-f", "streamlit.*streamlit_monitor.py"], check=False)
+    pkill_exe = shutil.which("pkill") or "pkill"
+    subprocess.run([pkill_exe, "-f", "streamlit.*streamlit_monitor.py"], check=False)
 
 
 def _start_streamlit(repo_root: Path, python_exe: str, port: int) -> int:

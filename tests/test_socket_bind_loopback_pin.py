@@ -51,8 +51,8 @@ _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 # Frozen ledger: (rel posix path) -> {"socket": frozenset[int], "bind": frozenset[int]}.
 _FROZEN_SITES: dict[str, dict[str, frozenset[int]]] = {
     "scripts/start_open_prep_suite.py": {
-        "socket": frozenset({15}),
-        "bind": frozenset({18}),
+        "socket": frozenset({16}),
+        "bind": frozenset({19}),
     },
 }
 
