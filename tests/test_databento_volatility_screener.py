@@ -523,7 +523,7 @@ def test_probe_symbol_support_only_marks_explicit_unresolved_symbols_unsupported
 
     class FakeTimeseries:
         def get_range(self, **kwargs):
-            warnings.warn("Symbols did not resolve: BAD")
+            warnings.warn("Symbols did not resolve: BAD", stacklevel=2)
             return FakeStore()
 
     class FakeClient:
