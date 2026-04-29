@@ -23,7 +23,6 @@ from terminal_catalyst_state import (
     effective_catalyst_sentiment,
 )
 
-
 _REACTION_PRIORITY = {
     "CONFIRMED": 4,
     "WATCH": 3,
