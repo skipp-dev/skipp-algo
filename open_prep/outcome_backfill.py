@@ -116,10 +116,7 @@ def compute_pnl_from_bars(
         return None
 
     # Filter to this symbol if the DataFrame contains multiple symbols.
-    if "symbol" in bars_df.columns:
-        sym_df = bars_df[bars_df["symbol"] == symbol]
-    else:
-        sym_df = bars_df
+    sym_df = bars_df[bars_df["symbol"] == symbol] if "symbol" in bars_df.columns else bars_df
 
     if sym_df.empty:
         return None
