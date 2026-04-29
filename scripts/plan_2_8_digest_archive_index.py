@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from scripts.smc_atomic_write import atomic_write_text
+import contextlib
 
 
 def scan(archive_dir: Path) -> dict[str, Any]:
@@ -29,10 +30,8 @@ def scan(archive_dir: Path) -> dict[str, Any]:
                 if not f.is_file():
                     continue
                 file_count += 1
-                try:
+                with contextlib.suppress(OSError):
                     total_size += f.stat().st_size
-                except OSError:
-                    pass
             entries.append({
                 "name":       child.name,
                 "files":      file_count,
