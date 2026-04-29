@@ -91,7 +91,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     ("newsstack_fmp/store_sqlite.py", 142, "remove"),
     ("open_prep/alerts.py", 78, "unlink"),
     ("open_prep/candidate_weights.py", 153, "unlink"),
-    ("open_prep/diff.py", 67, "unlink"),
+    ("open_prep/diff.py", 68, "unlink"),
     ("open_prep/feature_importance_report.py", 255, "unlink"),
     ("open_prep/outcome_backfill.py", 96, "unlink"),
     ("open_prep/outcome_backfill.py", 521, "unlink"),
