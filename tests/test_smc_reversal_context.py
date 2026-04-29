@@ -6,7 +6,6 @@ import pytest
 
 from scripts.smc_reversal_context import DEFAULTS, build_reversal_context
 
-
 # ── Helpers ─────────────────────────────────────────────────────────
 
 def _make_signals(**kwargs) -> dict:
