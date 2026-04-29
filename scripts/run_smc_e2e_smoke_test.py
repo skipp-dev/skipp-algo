@@ -18,14 +18,14 @@ with fixture data (where zero events are expected and acceptable).
 """
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+
+from scripts.smc_atomic_write import atomic_write_text
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
