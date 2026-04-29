@@ -1,16 +1,29 @@
 from __future__ import annotations
 
 import csv
+import time as _time
 from pathlib import Path
 
 import pytest
 
 from smc_adapters import build_meta_from_raw, build_structure_from_raw
 from smc_integration.repo_sources import (
-    discover_repo_sources,
+    _SOURCE_PROVIDERS,
+    _can_supply_domain,
+    _finalize_composite_meta,
+    _resolve_provider,
+    _select_best_source_for_domain,
+    _source_priority_key,
+    _try_load_meta_domain,
+    discover_composite_source_plan,
     discover_repo_source_paths,
+    discover_repo_sources,
     load_raw_meta_input,
     load_raw_structure_input,
+    select_best_news_source,
+    select_best_source,
+    select_best_structure_source,
+    select_best_technical_source,
 )
 
 
@@ -76,19 +89,6 @@ def test_discover_repo_sources_returns_descriptors() -> None:
 
 
 # ── pure helper coverage ─────────────────────────────────────────
-
-from smc_integration.repo_sources import (
-    _can_supply_domain,
-    _resolve_provider,
-    _select_best_source_for_domain,
-    _source_priority_key,
-    _SOURCE_PROVIDERS,
-    select_best_structure_source,
-    select_best_technical_source,
-    select_best_news_source,
-    select_best_source,
-    discover_composite_source_plan,
-)
 
 
 class TestSourcePriorityKey:
@@ -225,13 +225,6 @@ class TestLoadRawStructureAutoErrors:
 # ---------------------------------------------------------------------------
 # Coverage-boost tests — targeted at uncovered lines
 # ---------------------------------------------------------------------------
-
-
-import time as _time
-from smc_integration.repo_sources import (
-    _finalize_composite_meta,
-    _try_load_meta_domain,
-)
 
 
 class TestFinalizeCompositeMetaMissingDomains:
