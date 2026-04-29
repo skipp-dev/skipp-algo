@@ -1,8 +1,8 @@
 """Online recalibration trigger (PSI-based)."""
 from __future__ import annotations
 
-from dataclasses import dataclass
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 from ml.metrics import brier_score, population_stability_index
 
