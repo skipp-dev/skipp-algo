@@ -38,7 +38,6 @@ from typing import Any, Literal
 
 from scripts.smc_sprt_stop_rule import SPRTConfig
 
-
 SPEC_SCHEMA_VERSION = 1
 
 
