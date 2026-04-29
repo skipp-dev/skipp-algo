@@ -43,6 +43,7 @@ import random
 import time
 from collections.abc import Iterable
 from pathlib import Path
+import contextlib
 
 DEFAULT_REGISTRY_PATH = Path.home() / "client_id_registry.json"
 DEFAULT_PROCESS_TIMEOUT_SECONDS = 300
@@ -170,10 +171,8 @@ def allocate_ib_client_id(
         _save(path, registry)
         return int(oldest_cid_str)
     finally:
-        try:
+        with contextlib.suppress(OSError):
             fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
-        except OSError:
-            pass
         lock_fd.close()
 
 
@@ -202,10 +201,8 @@ def release_ib_client_id(
             return True
         return False
     finally:
-        try:
+        with contextlib.suppress(OSError):
             fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
-        except OSError:
-            pass
         lock_fd.close()
 
 
