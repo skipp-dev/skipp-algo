@@ -25,7 +25,6 @@ from pathlib import Path
 
 import yaml
 
-
 WORKFLOW = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "f2-promotion-gate-daily.yml"
 
 
