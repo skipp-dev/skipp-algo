@@ -3054,12 +3054,10 @@ else:
         # Show filtered items
         # Column headers with info popovers
         _hdr_cols = st.columns([1, 4, 1, 1, 1, 1, 1])
-        with _hdr_cols[0]:
-            with st.popover("**Ticker** ℹ️"):
-                st.markdown("**Stock symbol** — The ticker symbol of the company mentioned in the article (e.g. AAPL, TSLA, NVDA).")
-        with _hdr_cols[1]:
-            with st.popover("**Headline** ℹ️"):
-                st.markdown("**News headline** with sentiment icon (🟢 positive / 🔴 negative / ⚪ neutral). Click the link to open the full article.")
+        with _hdr_cols[0], st.popover("**Ticker** ℹ️"):
+            st.markdown("**Stock symbol** — The ticker symbol of the company mentioned in the article (e.g. AAPL, TSLA, NVDA).")
+        with _hdr_cols[1], st.popover("**Headline** ℹ️"):
+            st.markdown("**News headline** with sentiment icon (🟢 positive / 🔴 negative / ⚪ neutral). Click the link to open the full article.")
         with _hdr_cols[2], st.popover("**Category** ℹ️"):
             st.markdown(
                 "**News category** — Classifies the type of news.\n\n"
