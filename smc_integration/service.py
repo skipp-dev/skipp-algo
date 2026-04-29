@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import math
-from typing import Any, cast
 from pathlib import Path
+from typing import Any, cast
 
 import pandas as pd
 
+from scripts.load_databento_export_bundle import load_export_bundle
+from scripts.smc_bus_manifest import build_product_cut_manifest_payload
+from scripts.smc_structure_qualifiers import build_structure_qualifiers
 from smc_adapters import (
     build_meta_from_raw,
     build_structure_from_raw,
@@ -17,21 +20,18 @@ from smc_core import apply_layering, derive_base_signals, normalize_meta, snapsh
 from smc_core.benchmark import BenchmarkResult, build_benchmark
 from smc_core.bias_merge import merge_bias
 from smc_core.ensemble_quality import build_ensemble_quality, serialize_ensemble_quality
+from smc_core.htf_context import build_htf_bias_context
 from smc_core.scoring import (
     score_events,
     serialize_calibration_summary,
     summarize_contextual_calibration,
     summarize_stratified_calibration,
 )
-from smc_core.vol_regime import compute_vol_regime
-from smc_core.types import SmcSnapshot
-from scripts.load_databento_export_bundle import load_export_bundle
-from scripts.smc_bus_manifest import build_product_cut_manifest_payload
-from smc_core.htf_context import build_htf_bias_context
 from smc_core.session_context import build_session_liquidity_context
-from scripts.smc_structure_qualifiers import build_structure_qualifiers
-from smc_integration.sources import structure_artifact_json
+from smc_core.types import SmcSnapshot
+from smc_core.vol_regime import compute_vol_regime
 from smc_integration.measurement_evidence import build_measurement_evidence
+from smc_integration.sources import structure_artifact_json
 
 from .repo_sources import (
     discover_composite_source_plan,
@@ -43,11 +43,12 @@ from .repo_sources import (
 )
 from .trust_tier import (
     derive_quality_recommendation as _derive_quality_recommendation,
+)
+from .trust_tier import (
     resolve_provider_state,
     resolve_trust_main_blocker,
     resolve_trust_tier,
 )
-
 
 _DEFAULT_EXPORT_DIR = Path("artifacts") / "smc_microstructure_exports"
 
