@@ -6,6 +6,8 @@ from typing import Any
 from scripts.databento_production_workbook import (
     DEFAULT_PRODUCTION_EXPORT_DIR,
     canonical_production_workbook_path,
+)
+from scripts.databento_production_workbook import (
     resolve_production_workbook_path as resolve_lineage_workbook_path,
 )
 
