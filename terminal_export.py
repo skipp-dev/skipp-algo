@@ -23,6 +23,7 @@ from typing import Any
 import httpx
 
 from open_prep.playbook import classify_recency
+from streamlit_terminal_alerts import validate_webhook_url
 from terminal_attention_state import (
     effective_attention_active,
     effective_attention_confidence,
@@ -37,6 +38,14 @@ from terminal_catalyst_state import (
 )
 from terminal_feed_lifecycle import is_market_hours
 from terminal_poller import ClassifiedItem
+from terminal_posture_state import (
+    effective_posture_action,
+    effective_posture_actionable,
+    effective_posture_confidence,
+    effective_posture_reason,
+    effective_posture_score,
+    effective_posture_state,
+)
 from terminal_reaction_state import (
     effective_reaction_actionable,
     effective_reaction_score,
@@ -47,15 +56,6 @@ from terminal_resolution_state import (
     effective_resolution_score,
     effective_resolution_state,
 )
-from terminal_posture_state import (
-    effective_posture_action,
-    effective_posture_actionable,
-    effective_posture_confidence,
-    effective_posture_reason,
-    effective_posture_score,
-    effective_posture_state,
-)
-from streamlit_terminal_alerts import validate_webhook_url
 
 logger = logging.getLogger(__name__)
 
