@@ -19,6 +19,7 @@ Roadmap: docs/IMPROVEMENTS_C2_C12_ROADMAP_2026-04-26.md#x1
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import tempfile
@@ -26,7 +27,6 @@ import threading
 from collections.abc import Iterable
 from pathlib import Path
 from typing import TypedDict
-import contextlib
 
 GLOBAL_ALPHA_BUDGET = 0.05
 PER_FAMILY_ALPHA_BUDGET = 0.025
