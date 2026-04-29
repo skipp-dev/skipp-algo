@@ -31,7 +31,6 @@ from scripts.generate_smc_micro_profiles import (
     write_pine_library,
 )
 
-
 # ── Helpers ─────────────────────────────────────────────────────
 
 def _empty_lists() -> dict[str, list[str]]:
