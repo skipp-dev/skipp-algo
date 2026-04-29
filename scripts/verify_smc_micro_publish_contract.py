@@ -5,7 +5,6 @@ import json
 import re
 from pathlib import Path
 
-
 IMPORT_RE = re.compile(r"^\s*import\s+([A-Za-z0-9_/-]+)\s+as\s+([A-Za-z_][A-Za-z0-9_]*)\s*$")
 EXPECTED_DEPRECATED_POLICY_MODE = "compatibility_only"
 EXPECTED_DEPRECATED_FIELD_VERSION = "v5.5b"
