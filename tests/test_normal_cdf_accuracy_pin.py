@@ -15,6 +15,7 @@ warrant explicit review.
 """
 
 from __future__ import annotations
+from itertools import pairwise
 
 import math
 
@@ -77,7 +78,7 @@ def test_normal_cdf_monotonic() -> None:
     """``_normal_cdf`` must be (weakly) monotonically increasing."""
     xs = [-5.0, -3.0, -1.0, -0.5, 0.0, 0.5, 1.0, 3.0, 5.0]
     ys = [_normal_cdf(x) for x in xs]
-    for prev, curr in zip(ys, ys[1:]):
+    for prev, curr in pairwise(ys):
         assert prev <= curr, f"non-monotonic: {ys}"
 
 

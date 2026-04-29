@@ -24,6 +24,7 @@ Companion to ``tests/test_ml_input_schema_pin.py`` (C10 input schema).
 """
 
 from __future__ import annotations
+from itertools import pairwise
 
 import ast
 import hashlib
@@ -131,7 +132,7 @@ def test_additive_fields_history_is_monotonic() -> None:
 
     parsed = sorted((_parse(v), v) for v in additive)
     # Strict monotonicity: each entry must be greater than the previous.
-    for prev, curr in zip(parsed, parsed[1:]):
+    for prev, curr in pairwise(parsed):
         assert prev[0] < curr[0], (
             f"additive ledger not strictly monotonic: {prev[1]} -> {curr[1]}"
         )

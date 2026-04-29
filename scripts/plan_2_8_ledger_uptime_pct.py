@@ -6,6 +6,7 @@ the window are clipped. Pure stdlib.
 """
 
 from __future__ import annotations
+from itertools import pairwise
 
 from scripts.smc_atomic_write import atomic_write_text
 
@@ -76,7 +77,7 @@ def compute(
         windowed.insert(0, (cutoff, anchor[1]))
     total_seconds = 0.0
     green_seconds = 0.0
-    for (t0, s0), (t1, _) in zip(windowed, windowed[1:]):
+    for (t0, s0), (t1, _) in pairwise(windowed):
         span = (t1 - t0).total_seconds()
         if span < 0:
             span = 0.0

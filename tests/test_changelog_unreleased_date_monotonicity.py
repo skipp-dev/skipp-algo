@@ -17,6 +17,7 @@ separate roadmap discipline; those are excluded by title filter
 """
 
 from __future__ import annotations
+from itertools import pairwise
 
 import re
 from pathlib import Path
@@ -70,7 +71,7 @@ def test_unreleased_dates_are_non_increasing_top_to_bottom() -> None:
         # Nothing to compare; pin is structurally satisfied.
         return
     violations: list[str] = []
-    for (line_a, date_a), (line_b, date_b) in zip(dates, dates[1:]):
+    for (line_a, date_a), (line_b, date_b) in pairwise(dates):
         # ``date_b`` appears BELOW ``date_a`` and must be <= date_a (older or same).
         if date_b > date_a:
             violations.append(

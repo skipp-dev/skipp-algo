@@ -9,6 +9,7 @@ Emits markdown (default) or JSON. Exit code is ``1`` when
 """
 
 from __future__ import annotations
+from itertools import pairwise
 
 from scripts.smc_atomic_write import atomic_write_text
 
@@ -71,7 +72,7 @@ def detect_flips(
                 continue
         in_window.append({**rec, "status": status})
     flips: list[dict[str, Any]] = []
-    for prev, curr in zip(in_window, in_window[1:]):
+    for prev, curr in pairwise(in_window):
         if prev["status"] != curr["status"]:
             flips.append({
                 "from":        prev["status"],

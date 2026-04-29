@@ -11,6 +11,7 @@ since we can't bound them without a ``now``. Pure stdlib.
 """
 
 from __future__ import annotations
+from itertools import pairwise
 
 from scripts.smc_atomic_write import atomic_write_text
 
@@ -64,7 +65,7 @@ def compute(records: list[dict[str, Any]]) -> dict[str, Any]:
         clean.append((ts, status))
     intervals: list[dict[str, Any]] = []
     totals = {"amber": 0.0, "red": 0.0, "unknown": 0.0}
-    for (t0, s0), (t1, _) in zip(clean, clean[1:]):
+    for (t0, s0), (t1, _) in pairwise(clean):
         if s0 not in NON_GREEN:
             continue
         secs = (t1 - t0).total_seconds()

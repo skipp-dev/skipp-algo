@@ -7,6 +7,7 @@ present, ``found`` is ``False``.
 """
 
 from __future__ import annotations
+from itertools import pairwise
 
 from scripts.smc_atomic_write import atomic_write_text
 
@@ -63,7 +64,7 @@ def compute(records: list[dict[str, Any]]) -> dict[str, Any]:
     longest = 0.0
     start = times[0][1]
     end = times[0][1]
-    for prev, cur in zip(times, times[1:]):
+    for prev, cur in pairwise(times):
         delta = (cur[0] - prev[0]).total_seconds() / 3600.0
         if delta > longest:
             longest = delta

@@ -6,6 +6,7 @@ size-budget reports. Pure stdlib.
 """
 
 from __future__ import annotations
+from itertools import pairwise
 
 from scripts.smc_atomic_write import atomic_write_text
 
@@ -67,7 +68,7 @@ def summarise(
         if ts >= cutoff:
             in_window.append((ts, status))
     flips = sum(
-        1 for (_, a), (_, b) in zip(in_window, in_window[1:]) if a != b
+        1 for (_, a), (_, b) in pairwise(in_window) if a != b
     )
     counts = {s: sum(1 for _, st in in_window if st == s)
               for s in VALID_STATUSES}

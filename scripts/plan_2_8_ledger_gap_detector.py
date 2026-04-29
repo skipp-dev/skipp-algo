@@ -7,6 +7,7 @@ histogram would average away.
 """
 
 from __future__ import annotations
+from itertools import pairwise
 
 from scripts.smc_atomic_write import atomic_write_text
 
@@ -55,7 +56,7 @@ def compute(
             timestamps.append(ts.astimezone(_dt.UTC))
     timestamps.sort()
     gaps: list[dict[str, Any]] = []
-    for a, b in zip(timestamps, timestamps[1:]):
+    for a, b in pairwise(timestamps):
         hours = (b - a).total_seconds() / 3600.0
         if hours > threshold_hours:
             gaps.append({
