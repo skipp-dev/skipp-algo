@@ -48,7 +48,7 @@ _DIR_EXCLUDE = frozenset(
     }
 )
 
-# Match ``# noqa`` (bare) or ``# noqa: CODE[, CODE...]``.
+# Match ``noqa`` (bare) or ``noqa: CODE[, CODE...]`` markers in source.
 # Codes are ASCII letters + digits with optional commas/spaces between.
 _NOQA_RE = re.compile(r"#\s*noqa(?::\s*([A-Z0-9, ]+))?")
 
@@ -83,14 +83,25 @@ def _all_sites() -> list[tuple[str, int, tuple[str, ...]]]:
     return out
 
 
-# Frozen inventory of ``# noqa`` sites at the time this pin landed.
+# Frozen inventory of noqa-suppression sites at the time this pin landed.
 # Each tuple is ``(rel, lineno, sorted-code-tuple)``.
 #
-# As of the RUF100 cleanup wave (April 2026), the codebase contains zero
-# first-party ``# noqa`` suppressions. The ledger remains as a tripwire:
-# any new suppression will trip ``test_no_new_noqa_sites`` and force a
-# deliberate review + ledger update in the same PR.
-_FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset()
+# As of the RUF100 cleanup wave (April 2026), the codebase contains a
+# small set of intentional first-party noqa suppressions. The
+# ledger remains as a tripwire: any new suppression will trip
+# ``test_no_new_noqa_sites`` and force a deliberate review + ledger
+# update in the same PR.
+#
+# Sister ledger ``test_noqa_suppression_ledger.py`` carries the same
+# entries with explanatory rationale; both must be kept in sync.
+_FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
+    {
+        # streamlit_terminal_alerts.py:76 — Bandit S104 false positive:
+        # validates a webhook URL host string ("0.0.0.0") rather than
+        # binding a server.
+        ("streamlit_terminal_alerts.py", 76, ("S104",)),
+    }
+)
 
 
 def test_no_new_noqa_sites() -> None:
