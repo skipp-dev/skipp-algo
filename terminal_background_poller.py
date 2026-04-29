@@ -243,7 +243,7 @@ class BackgroundPoller:
         """Main loop running in the background thread."""
         import re as _re
 
-        from terminal_poller import poll_and_classify_live_bus, live_news_source_label
+        from terminal_poller import live_news_source_label, poll_and_classify_live_bus
 
         logger.info("Background poll loop entered")
 
