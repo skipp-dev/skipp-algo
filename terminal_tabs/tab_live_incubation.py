@@ -64,10 +64,7 @@ def format_live_row(variant: Mapping[str, Any]) -> dict[str, Any]:
     live_sharpe = _coerce_optional_float(variant.get("live_sharpe"))
     backtest_sharpe = _coerce_optional_float(variant.get("backtest_sharpe"))
     drift_pp: float | None
-    if live_sharpe is not None and backtest_sharpe is not None:
-        drift_pp = live_sharpe - backtest_sharpe
-    else:
-        drift_pp = None
+    drift_pp = live_sharpe - backtest_sharpe if live_sharpe is not None and backtest_sharpe is not None else None
     slippage_ref = variant.get("slippage_ks_reference_type")
     return {
         "variant": str(variant.get("variant", "")),
