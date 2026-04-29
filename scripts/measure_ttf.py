@@ -32,13 +32,12 @@ Design notes
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import json
 from pathlib import Path
 from statistics import median
 from typing import Any
 
+from scripts.smc_atomic_write import atomic_write_text
 
 DEFAULT_LOOKAHEAD_SWEEP: tuple[int, ...] = (5, 10, 20, 40)
 
