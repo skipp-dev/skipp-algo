@@ -51,7 +51,7 @@ class TestCatalogShape:
 
     def test_scenarios_are_immutable(self) -> None:
         scenario = PINE_SCENARIO_CATALOG[0]
-        with pytest.raises(Exception):
+        with pytest.raises(AttributeError):
             scenario.expected_action = "WATCH"  # type: ignore[misc]
 
 

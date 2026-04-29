@@ -152,7 +152,7 @@ class TestCalibrationReport:
     def test_returns_frozen_dataclass(self) -> None:
         report = calibration_report([0.5, 0.5], [0, 1])
         assert isinstance(report, CalibrationReport)
-        with pytest.raises(Exception):  # frozen → assignment fails
+        with pytest.raises(AttributeError):  # frozen → assignment fails
             report.n_samples = 99  # type: ignore[misc]
 
     def test_n_samples_matches_input(self) -> None:
