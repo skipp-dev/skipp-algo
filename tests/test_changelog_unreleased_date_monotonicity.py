@@ -17,9 +17,9 @@ separate roadmap discipline; those are excluded by title filter
 """
 
 from __future__ import annotations
-from itertools import pairwise
 
 import re
+from itertools import pairwise
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
