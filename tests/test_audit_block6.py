@@ -16,10 +16,8 @@ from __future__ import annotations
 import json
 import threading
 import time
-from unittest.mock import MagicMock, patch
 from datetime import UTC
-
-
+from unittest.mock import MagicMock, patch
 
 # === Fix #6+7: JSONL dedup newest-wins + robust key ========================
 
