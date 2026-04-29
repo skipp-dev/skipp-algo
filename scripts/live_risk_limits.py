@@ -18,10 +18,10 @@ been killed" against historical streams.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import date
 from enum import StrEnum
-from collections.abc import Sequence
 
 __all__ = [
     "AccountState",
