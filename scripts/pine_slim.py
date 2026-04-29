@@ -19,11 +19,11 @@ Safety:
  - Dry-run mode shows what would change without writing.
 """
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import re
 from pathlib import Path
+
+from scripts.smc_atomic_write import atomic_write_text
 
 # ──────────────────────────────────────────────────────────────────────
 # Library import block to inject
