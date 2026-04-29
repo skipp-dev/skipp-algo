@@ -9,6 +9,7 @@ import tempfile
 import time
 import unittest
 from unittest.mock import MagicMock, patch
+import contextlib
 
 # ── R-3: Config reads env vars at instantiation, not import time ──
 
@@ -1459,10 +1460,8 @@ class TestWsQueueOverflowLogging(unittest.TestCase):
             try:
                 adapter.queue.put_nowait(item2)
             except q.Full:
-                try:
+                with contextlib.suppress(q.Empty):
                     adapter.queue.get_nowait()
-                except q.Empty:
-                    pass
                 adapter.queue.put_nowait(item2)
                 import logging
                 logging.getLogger("newsstack_fmp.ingest_benzinga").warning(
