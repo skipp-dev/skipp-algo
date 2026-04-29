@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 ENGINE_PATH = ROOT / "SMC_Core_Engine.pine"
 REMOVED_PHASE_C_C1_INPUTS = [
