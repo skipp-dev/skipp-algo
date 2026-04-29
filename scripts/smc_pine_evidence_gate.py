@@ -29,13 +29,12 @@ The check is in-process, deterministic and free of I/O.
 """
 from __future__ import annotations
 
-from typing import Any
 from collections.abc import Mapping
+from typing import Any
 
 from scripts.smc_hero_state import build_hero_state
 from scripts.smc_pine_evidence_fixtures import build_evidence_fixture
 from scripts.smc_pine_scenario_catalog import PINE_SCENARIO_CATALOG, PineScenario
-
 
 _HERO_RISK_FIELD = "HERO_RISK"
 
