@@ -1,7 +1,6 @@
 """Tests for input-surface reduction policy (ENG-WS6-02)."""
 from __future__ import annotations
 
-
 from scripts.pine_input_surface_policy import (
     INPUT_GROUP_POLICY,
     VISIBILITIES_REQUIRING_DISPLAY_NONE,
