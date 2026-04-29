@@ -86,7 +86,7 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         ("scripts/smc_range_profile_regime.py", 278),
         # scripts/databento_preopen_fast.py — premarket "last" close
         # snapshot from already-closed pre-market session window.
-        ("scripts/databento_preopen_fast.py", 428),
+        ("scripts/databento_preopen_fast.py", 425),
         # scripts/databento_production_export.py — same premarket "last"
         # snapshot, production export path.
         ("scripts/databento_production_export.py", 2301),

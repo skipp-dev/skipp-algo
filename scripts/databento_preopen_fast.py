@@ -93,10 +93,7 @@ def _extract_live_license_cutoff_utc(error_text: str) -> datetime | None:
         ts = pd.Timestamp(raw)
     except Exception:
         return None
-    if ts.tzinfo is None:
-        ts = ts.tz_localize(UTC)
-    else:
-        ts = ts.tz_convert(UTC)
+    ts = ts.tz_localize(UTC) if ts.tzinfo is None else ts.tz_convert(UTC)
     # The error says live access is required *after* this timestamp.
     # Use one second earlier for safe historical/delayed retry.
     return (ts - pd.Timedelta(seconds=1)).to_pydatetime()
