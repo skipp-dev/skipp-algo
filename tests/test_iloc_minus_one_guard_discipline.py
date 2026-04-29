@@ -74,7 +74,7 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         # scripts/smc_session_structure.py — previous-day row + opening
         # range break; both consume closed daily frames.
         ("scripts/smc_session_structure.py", 96),
-        ("scripts/smc_session_structure.py", 148),
+        ("scripts/smc_session_structure.py", 146),
         # scripts/smc_range_regime.py — last close vs lookback range;
         # closed daily frame.
         ("scripts/smc_range_regime.py", 126),
