@@ -19,7 +19,6 @@ from scripts.smc_pine_evidence_fixtures import (
 )
 from scripts.smc_pine_scenario_catalog import PINE_SCENARIO_CATALOG
 
-
 _SCENARIO_IDS = [s.scenario_id for s in PINE_SCENARIO_CATALOG]
 
 
