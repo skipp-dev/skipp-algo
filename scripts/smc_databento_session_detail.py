@@ -10,8 +10,6 @@ runtime module.
 """
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import hashlib
 import json
 import logging
@@ -38,6 +36,7 @@ from databento_utils import (
     warn_with_redacted_exception,
     write_cached_frame,
 )
+from scripts.smc_atomic_write import atomic_write_text
 
 logger = logging.getLogger(__name__)
 
