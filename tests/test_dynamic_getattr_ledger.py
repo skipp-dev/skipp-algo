@@ -98,7 +98,7 @@ DYNAMIC_GETATTR_LEDGER: set[tuple[str, int]] = {
     ("terminal_attention_state.py", 46),
     ("terminal_catalyst_state.py", 32),
     ("terminal_live_story_state.py", 43),
-    ("terminal_poller.py", 1154),
+    ("terminal_poller.py", 1162),
     ("terminal_posture_state.py", 54),
     ("terminal_reaction_state.py", 50),
     ("terminal_resolution_state.py", 44),

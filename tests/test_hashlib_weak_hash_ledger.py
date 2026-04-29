@@ -61,7 +61,7 @@ _FROZEN_SITES: dict[str, dict[str, frozenset[int]]] = {
     },
     "open_prep/dirty_flag_manager.py": {"md5": frozenset({74})},
     "open_prep/realtime_signals.py": {"md5": frozenset({1015})},
-    "terminal_poller.py": {"md5": frozenset({189, 228})},
+    "terminal_poller.py": {"md5": frozenset({197, 236})},
 }
 
 _FROZEN_TOTAL = sum(
