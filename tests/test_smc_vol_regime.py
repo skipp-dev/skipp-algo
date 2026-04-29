@@ -16,9 +16,9 @@ def _make_bars(n: int = 60, base_range: float = 1.0) -> pd.DataFrame:
     for i in range(n):
         o = close
         h = o + base_range
-        l = o - base_range * 0.5
+        lo = o - base_range * 0.5
         c = o + base_range * 0.3
-        rows.append({"high": h, "low": l, "close": c, "open": o, "timestamp": 1700000000 + i * 900})
+        rows.append({"high": h, "low": lo, "close": c, "open": o, "timestamp": 1700000000 + i * 900})
         close = c
     return pd.DataFrame(rows)
 
@@ -31,9 +31,9 @@ def _make_extreme_bars(n: int = 60) -> pd.DataFrame:
         factor = 1.0 if i < n - 5 else 5.0  # last 5 bars spike
         o = close
         h = o + factor * 2
-        l = o - factor * 1
+        lo = o - factor * 1
         c = o + factor * 0.5
-        rows.append({"high": h, "low": l, "close": c, "open": o, "timestamp": 1700000000 + i * 900})
+        rows.append({"high": h, "low": lo, "close": c, "open": o, "timestamp": 1700000000 + i * 900})
         close = c
     return pd.DataFrame(rows)
 

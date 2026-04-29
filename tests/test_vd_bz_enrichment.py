@@ -297,7 +297,7 @@ class TestSaveVdBzCalendar:
         with open(path) as f:
             lines = f.readlines()
         assert len(lines) == 2
-        types = {json.loads(l)["type"] for l in lines}
+        types = {json.loads(ln)["type"] for ln in lines}
         assert types == {"dividend", "ipo"}
 
     def test_atomic_write_no_tmp_left(self, tmp_path: Path):
@@ -327,7 +327,7 @@ class TestSaveVdBzCalendar:
         with open(path) as f:
             lines = f.readlines()
         assert len(lines) == 2
-        tickers = {json.loads(l)["ticker"] for l in lines}
+        tickers = {json.loads(ln)["ticker"] for ln in lines}
         assert "AAPL" not in tickers
         assert tickers == {"MSFT", "NVDA"}
 

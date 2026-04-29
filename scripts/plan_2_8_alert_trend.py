@@ -102,14 +102,14 @@ def build(
     direction_counts = {"rising": 0, "falling": 0, "flat": 0,
                         "new": 0, "gone": 0}
     for tf, fam in keys:
-        l = l_idx.get((tf, fam))
+        lat = l_idx.get((tf, fam))
         p = p_idx.get((tf, fam))
-        direction = _direction(l, p)
+        direction = _direction(lat, p)
         direction_counts[direction] += 1
 
-        l_hr = _num((l or {}).get("hit_rate_pct"))
+        l_hr = _num((lat or {}).get("hit_rate_pct"))
         p_hr = _num((p or {}).get("hit_rate_pct"))
-        l_ev = _num((l or {}).get("events"))
+        l_ev = _num((lat or {}).get("events"))
         p_ev = _num((p or {}).get("events"))
 
         def _delta(a: float | None, b: float | None) -> float | None:

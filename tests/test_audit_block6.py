@@ -84,7 +84,7 @@ class TestRotateJsonlNewestWins:
         rotate_jsonl(path, max_lines=5000, max_age_s=86400)
 
         with open(path) as f:
-            lines = [json.loads(l) for l in f if l.strip()]
+            lines = [json.loads(ln) for ln in f if ln.strip()]
         assert len(lines) == 1
         assert lines[0]["headline"] == "new"
 

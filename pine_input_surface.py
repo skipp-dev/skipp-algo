@@ -185,7 +185,7 @@ def cmd_regroup(pine_path: Path, map_path: Path, dry_run: bool = False) -> None:
     group_var_prefix = cmap.get("group_var_prefix", "g_")
 
     lines = pine_path.read_text().splitlines(keepends=True)
-    inputs = parse_inputs([l.rstrip("\n") for l in lines])
+    inputs = parse_inputs([ln.rstrip("\n") for ln in lines])
 
     # Build group variable name map: "Core" -> "g_core"
     gvar_map: dict[str, str] = {}
@@ -228,7 +228,7 @@ def cmd_regroup(pine_path: Path, map_path: Path, dry_run: bool = False) -> None:
             gvar = gvar_map[g]
             decl = f'var string {gvar} = "{g}"\n'
             # Check if already declared
-            if not any(gvar in l for l in modified_lines):
+            if not any(gvar in ln for ln in modified_lines):
                 insert_lines.append(decl)
 
         if insert_lines:
@@ -247,7 +247,7 @@ def cmd_regroup(pine_path: Path, map_path: Path, dry_run: bool = False) -> None:
                 if a and a.get("group"):
                     used_gvars.add(gvar_map.get(a["group"]))
 
-            insert_lines = [l for l in insert_lines if l.split("=")[0].strip().split()[-1] in used_gvars]
+            insert_lines = [ln for ln in insert_lines if ln.split("=")[0].strip().split()[-1] in used_gvars]
             if insert_lines:
                 insert_lines.insert(0, "\n// ── Input Groups ─────────────────────────────────────────\n")
                 insert_lines.append("\n")

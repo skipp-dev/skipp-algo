@@ -105,9 +105,9 @@ def top_movers(
     rows: list[dict[str, Any]] = []
     for key in sorted(set(prev_slices) | set(latest_slices)):
         p = prev_slices.get(key) or {}
-        l = latest_slices.get(key) or {}
-        hr_p, hr_l = p.get("hit_rate"), l.get("hit_rate")
-        n_p, n_l = p.get("n_events") or 0, l.get("n_events") or 0
+        lat = latest_slices.get(key) or {}
+        hr_p, hr_l = p.get("hit_rate"), lat.get("hit_rate")
+        n_p, n_l = p.get("n_events") or 0, lat.get("n_events") or 0
         if hr_p is None or hr_l is None:
             continue
         comparable = n_p >= min_events and n_l >= min_events

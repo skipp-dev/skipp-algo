@@ -185,7 +185,7 @@ class TestGeneratedArtifactDrift:
     def test_v5_field_count(self, regenerated: Path):
         """Sanity check: the Pine library contains the expected v5.5 field count."""
         pine = (regenerated / "pine" / "generated" / "smc_micro_profiles_generated.pine").read_text()
-        exports = [l for l in pine.splitlines() if l.startswith("export const")]
+        exports = [ln for ln in pine.splitlines() if ln.startswith("export const")]
         # Shared lean families reuse canonical exports instead of duplicating
         # Event Risk / Session Context / Structure State fields.
         # v6 adds 20 new fields: Short Interest(4), Treasury(4), Sector Rotation(4),

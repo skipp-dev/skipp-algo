@@ -52,7 +52,7 @@ def apply_smc_display_none(path: Path, dry_run: bool) -> int:
 
     text = path.read_text()
     lines = text.splitlines(keepends=True)
-    inputs = parse_inputs([l.rstrip("\n") for l in lines])
+    inputs = parse_inputs([ln.rstrip("\n") for ln in lines])
     changes = 0
 
     for inp in inputs:
@@ -396,7 +396,7 @@ def apply_skippalgo_grouping(path: Path, dry_run: bool) -> int:
 
     text = path.read_text()
     lines = text.splitlines(keepends=True)
-    inputs = parse_inputs([l.rstrip("\n") for l in lines])
+    inputs = parse_inputs([ln.rstrip("\n") for ln in lines])
 
     changes = 0
     groups_used: set[str] = set()
@@ -501,11 +501,11 @@ def apply_skippalgo_expert_display_none(path: Path, dry_run: bool) -> int:
 
     text = path.read_text()
     lines = text.splitlines(keepends=True)
-    inputs = parse_inputs([l.rstrip("\n") for l in lines])
+    inputs = parse_inputs([ln.rstrip("\n") for ln in lines])
     changes = 0
 
     # Check if g_forecast_eval group var exists; if not, we'll add it
-    has_eval_gvar = any("g_forecast_eval" in l for l in lines)
+    has_eval_gvar = any("g_forecast_eval" in ln for ln in lines)
 
     for inp in inputs:
         line_idx = inp.lineno - 1

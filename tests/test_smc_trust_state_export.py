@@ -177,7 +177,7 @@ class TestRender:
         }
         lines = render_trust_block_lines(enr)
         # Find the degradation_reason line and assert it remains valid Pine.
-        reason_line = next(l for l in lines if "TRUST_DEGRADATION_REASON" in l)
+        reason_line = next(ln for ln in lines if "TRUST_DEGRADATION_REASON" in ln)
         assert reason_line.endswith('"')
         # Backslash and quote must both be escaped.
         assert '\\\\backslash' in reason_line

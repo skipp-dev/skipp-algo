@@ -45,12 +45,12 @@ def lint_pine(path):
         # skip known Pine built-ins used as plotshape params
         if var in ('grpUsi', 'grpFilt', 'grpStable', 'grpVis'):
             # group vars — used inline in input() calls
-            uses = [i for i, l in enumerate(lines, 1) if var in l and i != defline]
+            uses = [i for i, ln in enumerate(lines, 1) if var in ln and i != defline]
             if not uses:
                 errors.append(f"Variable '{var}' defined at line {defline} but never referenced")
             continue
         # count references outside definition line
-        uses = [i for i, l in enumerate(lines, 1) if var in l and i != defline]
+        uses = [i for i, ln in enumerate(lines, 1) if var in ln and i != defline]
         if not uses:
             errors.append(f"Variable '{var}' defined at line {defline} but never referenced")
 

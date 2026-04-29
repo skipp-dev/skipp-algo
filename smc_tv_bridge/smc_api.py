@@ -310,7 +310,7 @@ def build_smc_snapshot(symbol: str, timeframe: str) -> dict[str, Any]:
 # ══════════════════════════════════════════════════════════
 
 def encode_levels(levels: list[dict[str, Any]]) -> str:
-    return ";".join(f"{int(l['time'])}|{l['price']}|{l['dir']}" for l in levels)
+    return ";".join(f"{int(ln['time'])}|{ln['price']}|{ln['dir']}" for ln in levels)
 
 
 def encode_zones(zones: list[dict[str, Any]]) -> str:

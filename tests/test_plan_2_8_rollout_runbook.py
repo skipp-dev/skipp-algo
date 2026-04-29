@@ -54,9 +54,9 @@ def test_phase_table_lists_all_four_phases() -> None:
 def test_runbook_pins_phases_0_and_1_as_done() -> None:
     text = _text()
     # Phase-0 and Phase-1 rows must show the `done` marker.
-    lines = [l for l in text.splitlines() if l.startswith("| Phase 0")]
+    lines = [ln for ln in text.splitlines() if ln.startswith("| Phase 0")]
     assert lines and "done" in lines[0]
-    lines = [l for l in text.splitlines() if l.startswith("| Phase 1")]
+    lines = [ln for ln in text.splitlines() if ln.startswith("| Phase 1")]
     assert lines and "done" in lines[0]
 
 
