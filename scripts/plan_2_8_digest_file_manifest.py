@@ -13,14 +13,13 @@ Pure stdlib. Does not import any of the target scripts.
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 import sys
 from pathlib import Path
 from typing import Any
 
+from scripts.smc_atomic_write import atomic_write_text
 
 SELF_NAME = "plan_2_8_digest_file_manifest.py"
 STATUS_NAME = "plan_2_8_status.py"
