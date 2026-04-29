@@ -4,8 +4,8 @@ from datetime import UTC, datetime
 from typing import Any
 
 from scripts.smc_newsapi_ai import (
-    NewsApiAiProviderError,
     TARGET_KEYWORDS_PER_REQUEST,
+    NewsApiAiProviderError,
     extract_newsapi_feed_article_cursor_uri,
     fetch_newsapi_article_records,
     fetch_newsapi_articles,
