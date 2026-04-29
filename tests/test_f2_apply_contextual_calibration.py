@@ -327,5 +327,5 @@ def test_rescore_pair_force_global_makes_arms_identical(tmp_path: Path) -> None:
         contextual_cal=ctx,
         force_global=True,
     )
-    for c, t in zip(control.events, treatment.events):
+    for c, t in zip(control.events, treatment.events, strict=False):
         assert c.predicted_prob == pytest.approx(t.predicted_prob)
