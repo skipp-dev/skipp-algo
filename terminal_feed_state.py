@@ -6,8 +6,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from terminal_catalyst_state import annotate_feed_with_ticker_catalyst_state
 from terminal_attention_state import annotate_feed_with_ticker_attention_state
+from terminal_catalyst_state import annotate_feed_with_ticker_catalyst_state
 from terminal_export import load_jsonl_feed
 from terminal_live_story_state import build_live_story_state_from_feed, live_story_key
 from terminal_poller import seed_provider_cursors
