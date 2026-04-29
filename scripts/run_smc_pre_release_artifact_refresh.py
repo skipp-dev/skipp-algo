@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
+import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
-import sys
 from typing import Any
 
 import pandas as pd
+
+from scripts.smc_atomic_write import atomic_write_text
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
