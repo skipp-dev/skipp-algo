@@ -18,8 +18,6 @@ Exit codes
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 import sys
@@ -28,6 +26,7 @@ from typing import Any
 
 from scripts.f2_inspect_status import build_status
 from scripts.f2_weekly_digest import build_digest
+from scripts.smc_atomic_write import atomic_write_text
 
 RUNBOOK_SCHEMA_VERSION = 1
 DEFAULT_WINDOW_DAYS = 7
