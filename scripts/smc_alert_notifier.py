@@ -20,19 +20,19 @@ configure via env vars or CLI flags.
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 import logging
 import re
 import smtplib
-import urllib.request
 import urllib.error
+import urllib.request
 from datetime import UTC, datetime
 from email.message import EmailMessage
 from pathlib import Path
 from typing import Any
+
+from scripts.smc_atomic_write import atomic_write_text
 
 logger = logging.getLogger(__name__)
 
