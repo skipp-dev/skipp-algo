@@ -541,9 +541,8 @@ def _no_trade_zone(
             reasons.append("breaking_news_no_reclaim")
 
     # Illiquid premarket
-    if premarket_stale:
-        if spread_bps is not None and spread_bps > 200:
-            reasons.append("illiquid_stale_premarket")
+    if premarket_stale and spread_bps is not None and spread_bps > 200:
+        reasons.append("illiquid_stale_premarket")
 
     # Halt risk
     if is_halt_risk and abs(gap_pct) > 15.0:
