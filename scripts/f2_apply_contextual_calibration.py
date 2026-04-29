@@ -81,16 +81,19 @@ Exit codes
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 import sys
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
-from collections.abc import Iterable
 
+from scripts.smc_atomic_write import atomic_write_text
+from scripts.smc_zone_priority_calibration import (
+    ContextualCalibrationResult,
+    resolve_contextual_weight,
+)
 from smc_core.event_ledger import read_event_ledger
 from smc_core.scoring import (
     ScoredEvent,
@@ -100,10 +103,6 @@ from smc_core.scoring import (
     serialize_stratified_calibration,
     summarize_contextual_calibration,
     summarize_stratified_calibration,
-)
-from scripts.smc_zone_priority_calibration import (
-    ContextualCalibrationResult,
-    resolve_contextual_weight,
 )
 
 BlendMode = Literal["anchor"]
