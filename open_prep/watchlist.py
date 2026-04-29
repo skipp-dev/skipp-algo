@@ -9,7 +9,7 @@ import logging
 import os
 import tempfile
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -70,10 +70,8 @@ def _save_raw(entries: list[dict[str, Any]]) -> None:
             os.fsync(fh.fileno())
         os.replace(tmp_path, WATCHLIST_PATH)
     except BaseException:
-        try:
+        with suppress(OSError):
             os.unlink(tmp_path)
-        except OSError:
-            pass
         raise
 
 
