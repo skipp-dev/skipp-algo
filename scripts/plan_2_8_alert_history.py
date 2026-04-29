@@ -20,6 +20,7 @@ import sys
 import tempfile
 from pathlib import Path
 from typing import Any
+import contextlib
 
 
 def _now(ts: str | None) -> str:
@@ -109,10 +110,8 @@ def append_alerts(
                 fh.write(json.dumps(r) + "\n")
         os.replace(tmp, log)
     except Exception:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp)
-        except OSError:
-            pass
         raise
     return {
         "appended": len(new_records),
