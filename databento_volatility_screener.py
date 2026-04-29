@@ -4133,10 +4133,7 @@ def _persist_watchlist_snapshot(
     if snapshot.empty:
         return history
     snapshot["trigger"] = str(trigger)
-    if history.empty:
-        history = snapshot.copy()
-    else:
-        history = pd.concat([history, snapshot], ignore_index=True)
+    history = snapshot.copy() if history.empty else pd.concat([history, snapshot], ignore_index=True)
     history = history.drop_duplicates(subset=["snapshot_at", "trade_date", "symbol"], keep="last")
     history = history.sort_values(["snapshot_at", "trade_date", "watchlist_rank", "symbol"]).reset_index(drop=True)
     _write_cached_frame(history_path, history)
