@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from smc_integration.structure_contract import normalize_structure_contracts_with_diagnostics
 from smc_integration.sources import structure_artifact_json
+from smc_integration.structure_contract import normalize_structure_contracts_with_diagnostics
 
 
 def test_normalize_structure_contracts_reports_dropped_legacy_entries() -> None:
