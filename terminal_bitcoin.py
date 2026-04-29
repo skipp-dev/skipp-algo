@@ -402,10 +402,7 @@ def fetch_btc_ohlcv(
                 rows: list[dict[str, Any]] = []
                 for idx, row in hist.iterrows():
                     ts = idx
-                    if hasattr(ts, "isoformat"):
-                        ts_str = ts.isoformat()
-                    else:
-                        ts_str = str(ts)
+                    ts_str = ts.isoformat() if hasattr(ts, "isoformat") else str(ts)
                     rows.append({
                         "date": ts_str,
                         "open": float(row.get("Open", 0)),
