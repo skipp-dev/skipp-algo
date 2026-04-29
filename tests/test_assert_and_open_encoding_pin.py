@@ -25,8 +25,8 @@ Defense-only, no production code changes.
 from __future__ import annotations
 
 import ast
-from pathlib import Path
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 
