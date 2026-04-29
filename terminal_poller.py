@@ -24,17 +24,15 @@ from datetime import UTC, date, datetime
 from typing import Any, cast
 from zoneinfo import ZoneInfo as _ZoneInfo
 
-_ET = _ZoneInfo("America/New_York")
-
-from newsstack_fmp.common_types import NewsItem
 from newsstack_fmp._bz_http import _sanitize_exc, log_fetch_warning
-from open_prep_boundary import FMPClientLike, make_fmp_client
+from newsstack_fmp.common_types import NewsItem
 from newsstack_fmp.ingest_benzinga import (
     BenzingaRestAdapter,
     fetch_benzinga_channels,
     fetch_benzinga_quantified_news,
     fetch_benzinga_top_news,
 )
+from open_prep_boundary import FMPClientLike, make_fmp_client
 
 try:
     from newsstack_fmp.ingest_benzinga_calendar import (
@@ -72,6 +70,15 @@ except ImportError:
     fetch_benzinga_price_history = None  # type: ignore[assignment]
     fetch_benzinga_ticker_detail = None  # type: ignore[assignment]
 
+from newsstack_fmp._market_cal import (
+    is_us_equity_trading_day as _is_trading_day,
+)
+from newsstack_fmp._market_cal import (
+    next_trading_day as _next_trading_day,
+)
+from newsstack_fmp._market_cal import (
+    prev_trading_day as _prev_trading_day,
+)
 from newsstack_fmp.scoring import classify_and_score, cluster_hash
 from newsstack_fmp.store_sqlite import SqliteStore
 
@@ -85,6 +92,7 @@ from open_prep.playbook import (
 
 logger = logging.getLogger(__name__)
 
+_ET = _ZoneInfo("America/New_York")
 
 _CURSOR_KEY_BENZINGA = "benzinga"
 _CURSOR_KEY_FMP_STOCK = "fmp_stock"
@@ -1388,11 +1396,6 @@ def fetch_benzinga_news_by_channel(
 
 # ── Today / Tomorrow Outlook (trading-day traffic light) ─────
 
-from newsstack_fmp._market_cal import (
-    is_us_equity_trading_day as _is_trading_day,
-    next_trading_day as _next_trading_day,
-    prev_trading_day as _prev_trading_day,
-)
 
 
 def _compute_outlook_for_date(
