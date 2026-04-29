@@ -4,9 +4,13 @@ from typing import Any, cast
 
 import pytest
 
-from smc_adapters.ingest import build_meta_from_raw, build_snapshot_from_raw, build_structure_from_raw, build_volume_provenance_from_raw
+from smc_adapters.ingest import (
+    build_meta_from_raw,
+    build_snapshot_from_raw,
+    build_structure_from_raw,
+    build_volume_provenance_from_raw,
+)
 from smc_core.types import SmcSnapshot
-
 
 RAW_STRUCTURE = {
     "bos": [
