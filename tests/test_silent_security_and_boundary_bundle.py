@@ -181,7 +181,7 @@ def test_no_warnings_ignore_in_prod() -> None:
 
 _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     ("newsstack_fmp/run.py", 22),
-    ("open_prep/candidate_weights.py", 208),
+    ("open_prep/candidate_weights.py", 207),
     ("open_prep/feature_importance_report.py", 305),
     ("open_prep/outcome_backfill.py", 410),
     ("open_prep/realtime_signals.py", 2632),

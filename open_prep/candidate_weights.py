@@ -55,6 +55,7 @@ from open_prep.outcomes import (
     scorer_update_to_json,
 )
 from open_prep.scorer import DEFAULT_WEIGHTS, save_weight_set
+import contextlib
 
 logger = logging.getLogger("open_prep.candidate_weights")
 
@@ -149,10 +150,8 @@ def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
             fh.write("\n")
         os.replace(tmp_name, path)
     except Exception:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp_name)
-        except OSError:
-            pass
         raise
 
 
