@@ -9,7 +9,6 @@ from __future__ import annotations
 import time
 from typing import Any
 
-
 # ── Provider key detection ──────────────────────────────────────────────────
 
 def api_key_status(
