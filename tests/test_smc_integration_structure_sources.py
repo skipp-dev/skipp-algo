@@ -7,12 +7,11 @@ from pathlib import Path
 import pytest
 
 import smc_integration.repo_sources as repo_sources_module
+from smc_core.schema_version import SCHEMA_VERSION
 from smc_integration.provider_matrix import build_provider_summary
 from smc_integration.repo_sources import discover_structure_source_status, load_raw_structure_input
-from smc_core.schema_version import SCHEMA_VERSION
 from smc_integration.service import build_snapshot_bundle_for_symbol_timeframe
 from smc_integration.sources import structure_artifact_json
-
 
 ROOT = Path(__file__).resolve().parents[1]
 
