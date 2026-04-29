@@ -32,7 +32,7 @@ def test_latest_by_filename_iso_picks_newest_by_embedded_timestamp(tmp_path: Pat
     chosen = latest_by_filename_iso(tmp_path.glob("*_manifest.json"))
     assert chosen == newer, (
         "Resolver must pick the file whose embedded timestamp is newest, "
-        "regardless of mtime; got %r vs newer=%r older=%r" % (chosen, newer, older)
+        f"regardless of mtime; got {chosen!r} vs newer={newer!r} older={older!r}"
     )
 
 
