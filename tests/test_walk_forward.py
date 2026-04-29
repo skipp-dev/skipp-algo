@@ -210,7 +210,7 @@ def test_splitter_is_deterministic() -> None:
     folds1 = list(s1.split(_ts(80)))
     folds2 = list(s2.split(_ts(80)))
     assert len(folds1) == len(folds2)
-    for a, b in zip(folds1, folds2):
+    for a, b in zip(folds1, folds2, strict=False):
         assert a.fold_idx == b.fold_idx
         assert np.array_equal(a.train_idx, b.train_idx)
         assert np.array_equal(a.test_idx, b.test_idx)
