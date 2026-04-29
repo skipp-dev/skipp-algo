@@ -18,6 +18,7 @@ Exit codes
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import sys
@@ -105,10 +106,8 @@ def _github_get(path: str, token: str) -> tuple[int, Any]:
             return resp.status, body
     except urllib.error.HTTPError as exc:
         body = {}
-        try:
+        with contextlib.suppress(Exception):
             body = json.loads(exc.read())
-        except Exception:
-            pass
         return exc.code, body
 
 

@@ -62,7 +62,6 @@ _FROZEN_SITES: dict[str, frozenset[int]] = {
     "open_prep/streamlit_monitor.py": frozenset({75, 126}),
     "scripts/databento_preopen_fast.py": frozenset({574}),
     "scripts/generate_smc_micro_base_from_databento.py": frozenset({1189, 1191, 1239}),
-    "scripts/verify_branch_protection.py": frozenset({110}),
     "smc_tv_bridge/smc_api.py": frozenset({85}),
     "streamlit_terminal_alerts.py": frozenset({92}),
     "terminal_spike_scanner.py": frozenset({161}),
