@@ -106,11 +106,11 @@ bool exit_tp2_hit = false
 bool exit_defensive = false
 
 if pos_state == 2
-    // 1) Hard stop — close below invalidation (use close, not low, to avoid wick flicker).
+    // 1. Hard stop — close below invalidation, use close not low to avoid wick flicker.
     if not na(entry_stop) and close < entry_stop
         exit_stop_hit := true
 
-    // 2) TP1 — first time high reaches TP1 price.
+    // 2. TP1 — first time high reaches TP1 price.
     if not exit_stop_hit and not tp1_hit_already and not na(tp1_price) and high >= tp1_price
         exit_tp1_hit := true
         tp1_hit_already := true
@@ -118,11 +118,11 @@ if pos_state == 2
         if move_be_after_tp1 and not na(entry_price)
             entry_stop := math.max(entry_stop, entry_price)
 
-    // 3) TP2 — high reaches TP2 price → full close.
+    // 3. TP2 — high reaches TP2 price → full close.
     if not exit_stop_hit and not na(tp2_price) and high >= tp2_price
         exit_tp2_hit := true
 
-    // 4) Defensive — entry stack collapses while in trade, with grace window.
+    // 4. Defensive — entry stack collapses while in trade, with grace window.
     if use_defensive_exit
         if not any_state
             collapse_count := collapse_count + 1
