@@ -33,12 +33,12 @@ from typing import Any
 
 import httpx
 
+from newsstack_fmp._bz_http import _request_with_retry, _sanitize_url, log_fetch_warning
+
 from .common_types import NewsItem
 from .normalize import normalize_benzinga_rest, normalize_benzinga_ws
 
 logger = logging.getLogger(__name__)
-
-from newsstack_fmp._bz_http import _request_with_retry, _sanitize_url, log_fetch_warning
 
 
 # =====================================================================
