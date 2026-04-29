@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 import math
+import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
-import sys
 from typing import Any
+
+from scripts.smc_atomic_write import atomic_write_text
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -18,6 +18,7 @@ if str(REPO_ROOT) not in sys.path:
 from scripts.smc_pine_evidence_gate import build_evidence_lane_gate
 from scripts.verify_smc_micro_publish_contract import verify_publish_contract
 from smc_core.benchmark import EventFamily, build_benchmark, export_benchmark_artifacts
+from smc_core.schema_version import SCHEMA_VERSION
 from smc_core.scoring import (
     export_scoring_artifact,
     score_events,
@@ -25,8 +26,8 @@ from smc_core.scoring import (
     summarize_contextual_calibration,
     summarize_stratified_calibration,
 )
-from smc_core.schema_version import SCHEMA_VERSION
 from smc_integration.measurement_evidence import build_evidence_id, build_measurement_evidence
+from smc_integration.provider_health import run_provider_health_check
 from smc_integration.release_policy import (
     RELEASE_REFERENCE_SYMBOLS,
     RELEASE_REFERENCE_TIMEFRAMES,
@@ -41,7 +42,6 @@ from smc_integration.release_policy import (
     runtime_metadata,
     serialize_measurement_shadow_thresholds,
 )
-from smc_integration.provider_health import run_provider_health_check
 from smc_integration.service import build_snapshot_bundle_for_symbol_timeframe
 from smc_integration.trust_tier import derive_quality_recommendation
 
