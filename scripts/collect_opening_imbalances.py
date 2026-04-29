@@ -28,10 +28,10 @@ import logging
 import os
 import sys
 import tempfile
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
-from collections.abc import Iterable
 
 from scripts.imbalance_data import (
     IMBALANCE_SCHEMA_VERSION,
@@ -339,6 +339,7 @@ def main(argv: list[str] | None = None) -> int:
         # the per-symbol ``reqMktData`` calls would fail on an
         # unconnected client.
         from ib_insync import IB  # local import: optional dependency
+
         from scripts.ib_client_id import (
             allocate_ib_client_id,
             release_ib_client_id,
