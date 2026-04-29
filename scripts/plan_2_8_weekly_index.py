@@ -9,12 +9,12 @@ Files are listed in sorted order (stable under rename). Pure stdlib.
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 from pathlib import Path
 from typing import Any
+
+from scripts.smc_atomic_write import atomic_write_text
 
 
 def scan(artifact_dir: Path) -> dict[str, Any]:
