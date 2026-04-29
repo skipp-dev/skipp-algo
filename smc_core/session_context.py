@@ -67,10 +67,10 @@ def build_killzones(df: pd.DataFrame, tz: str = DEFAULT_TZ) -> list[dict]:
         start_t = _parse_hhmm(start_hm)
         end_t = _parse_hhmm(end_hm)
 
-        scoped = bars[bars["_dt_local"].apply(lambda x: _in_session(x, start_t, end_t))].copy()
+        scoped = bars[bars["_dt_local"].apply(lambda x, _s=start_t, _e=end_t: _in_session(x, _s, _e))].copy()
         if scoped.empty:
             continue
-        scoped["_session_date"] = scoped["_dt_local"].apply(lambda x: _session_date_for_row(x, start_t, end_t))
+        scoped["_session_date"] = scoped["_dt_local"].apply(lambda x, _s=start_t, _e=end_t: _session_date_for_row(x, _s, _e))
 
         for session_date, group in scoped.groupby("_session_date"):
             high = float(group["high"].max())

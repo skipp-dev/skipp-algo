@@ -2920,8 +2920,8 @@ def test_download_nasdaq_trader_text_raises_after_retries_for_http_error_statuse
     for status_code in status_codes:
         calls = {"count": 0}
 
-        def fake_urlopen(request, timeout, context, *, _status_code=status_code):
-            calls["count"] += 1
+        def fake_urlopen(request, timeout, context, *, _status_code=status_code, _calls=calls):
+            _calls["count"] += 1
             raise HTTPError(request.full_url, _status_code, "failure", hdrs=None, fp=None)
 
         monkeypatch.setattr("databento_volatility_screener.urlopen", fake_urlopen)

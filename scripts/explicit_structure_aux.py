@@ -54,11 +54,11 @@ def build_session_ranges(df: pd.DataFrame, timezone: str = DEFAULT_TZ, sessions:
         start = _parse_hhmm(start_raw)
         end = _parse_hhmm(end_raw)
 
-        scoped = bars[bars["_dt_local"].apply(lambda dt: _in_session(dt, start, end))].copy()
+        scoped = bars[bars["_dt_local"].apply(lambda dt, _s=start, _e=end: _in_session(dt, _s, _e))].copy()
         if scoped.empty:
             continue
 
-        scoped["_session_date"] = scoped["_dt_local"].apply(lambda dt: _session_date(dt, start, end))
+        scoped["_session_date"] = scoped["_dt_local"].apply(lambda dt, _s=start, _e=end: _session_date(dt, _s, _e))
         for session_date, group in scoped.groupby("_session_date"):
             high = float(group["high"].max())
             low = float(group["low"].min())
