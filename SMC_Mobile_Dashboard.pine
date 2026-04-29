@@ -149,6 +149,12 @@ if barstate.islast and bus_ok
         table.cell(mob, 1, 5, tm_state_txt, text_color = txt, bgcolor = tm_state_bg, text_size = size.normal, text_halign = text.align_right)
         table.cell(mob, 0, 6, "Stop",   text_color = txt, bgcolor = hdr, text_size = size.normal, text_halign = text.align_left)
         table.cell(mob, 1, 6, tm_stop_txt, text_color = txt, bgcolor = tm_state == 2 ? color.new(M_BEAR, 65) : hdr, text_size = size.normal, text_halign = text.align_right)
+    else
+        // Clear stale Trade/Stop rows when tm_enable is toggled off mid-session
+        // and reset the state machine so a re-enable starts FLAT.
+        table.clear(mob, 0, 5, 1, 6)
+        tm_state := 0
+        tm_entry_price := na, tm_entry_stop := na, tm_tp1_price := na, tm_tp2_price := na, tm_tp1_hit := false
 else if barstate.islast and not bus_ok
     table.cell(mob, 0, 0, "SMC Mobile", text_color = chart.fg_color, bgcolor = color.new(color.red, 70), text_size = size.normal)
     table.cell(mob, 1, 0, "❌ Add SMC Core Engine first", text_color = chart.fg_color, bgcolor = color.new(color.red, 70), text_size = size.normal)

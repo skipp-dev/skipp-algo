@@ -14,7 +14,7 @@ laufen.** Pine-Indikatoren in TradingView sind technisch isoliert — sie
 kommunizieren *nicht* untereinander auf dem Chart.
 
 Was sie teilen, ist die **publizierte TradingView-Library**
-`preuss_steffen/smc_micro_profiles_generated/1` (im Code als `mp` importiert).
+`skippALGO/smc_micro_profiles_generated/1` (im Code als `mp` importiert).
 Daten werden also vom TV-Server bezogen, nicht von einem Nachbar-Indikator.
 
 → Du musst **nicht** `SMC_Core_Engine` zusätzlich laden, damit z. B. das

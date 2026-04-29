@@ -140,11 +140,18 @@ if isVisible and internHeight > 0 and not na(visLow)
             array.set(iDn, idx, array.get(iDn, idx) + bV)
         array.set(iTot, idx, array.get(iTot, idx) + bV)
     else
+        // Only iterate the internal rows that overlap [bL, bH] instead of the
+        // full INTERNAL_ROWS (400). Avoids approaching Pine's per-bar execution
+        // limit on large visible ranges with many price bars to distribute.
+        int kStart = int(math.floor((bL - visLow) / internHeight))
+        int kEnd   = int(math.floor((bH - visLow) / internHeight))
+        kStart := math.max(0, math.min(kStart, INTERNAL_ROWS - 1))
+        kEnd   := math.max(0, math.min(kEnd,   INTERNAL_ROWS - 1))
         var float[] w = array.new_float(INTERNAL_ROWS, 0.0)
-        for k = 0 to INTERNAL_ROWS - 1
+        for k = kStart to kEnd
             array.set(w, k, 0.0)
         float wSum = 0.0
-        for k = 0 to INTERNAL_ROWS - 1
+        for k = kStart to kEnd
             float rb = visLow + k * internHeight
             float rt = rb + internHeight
             if bH >= rb and bL <= rt
@@ -164,7 +171,7 @@ if isVisible and internHeight > 0 and not na(visLow)
                 array.set(w, k, weight)
                 wSum += weight
         if wSum > 0
-            for k = 0 to INTERNAL_ROWS - 1
+            for k = kStart to kEnd
                 float ww = array.get(w, k)
                 if ww > 0
                     float c = bV * (ww / wSum)

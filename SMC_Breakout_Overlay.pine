@@ -20,7 +20,7 @@
 // This is a thin RENDERER over existing SMC signals — no new detection.
 
 indicator("SMC Breakout Overlay", "SMC.BO", overlay = true,
-     max_lines_count = 400, max_labels_count = 200, max_bars_back = 500)
+     max_lines_count = 100, max_labels_count = 200, max_boxes_count = 500, max_bars_back = 500)
 
 import preuss_steffen/smc_micro_profiles_generated/1 as mp
 
@@ -103,7 +103,12 @@ float chwidth = (h_ - l_) * thrPct
 // Returns 🟢 / 🔴 / 🟡.
 
 vol_sentiment(int from_bar) =>
-    int span = math.max(bar_index - from_bar, 1)
+    // Cap span to a safe lookback so we never index beyond `max_bars_back`
+    // and never run an unbounded loop when an anchor persists for thousands
+    // of bars (would cause runtime errors / severe slowdowns).
+    int VOL_LOOKBACK_MAX = 500
+    int raw_span = math.max(bar_index - from_bar, 1)
+    int span = math.min(raw_span, VOL_LOOKBACK_MAX)
     float green_sum = 0.0
     float red_sum   = 0.0
     float total_sum = 0.0
@@ -128,13 +133,15 @@ bool trig_bear = ((use_bos and bos_bear) or (use_choch and choch_bear))
      and not na(sup_anchor_bar) and not na(sup_anchor_val)
      and (bar_index - sup_anchor_bar) >= minHold
 
-// ── Draw box (4 line.new — identical pattern to LonesomeTheBlue) ─
+// ── Draw box (single box.new — proper object lifecycle, no max_lines spam) ─
 
 draw_box(int x1, float y_top, float y_bot, int x2, color col) =>
-    line.new(x1 = x2, y1 = y_top, x2 = x1, y2 = y_top, color = col, style = lstyle, width = lineW)
-    line.new(x1 = x2, y1 = y_bot, x2 = x1, y2 = y_bot, color = col, style = lstyle, width = lineW)
-    line.new(x1 = x1, y1 = y_bot, x2 = x1, y2 = y_top, color = col, style = lstyle, width = lineW)
-    line.new(x1 = x2, y1 = y_bot, x2 = x2, y2 = y_top, color = col, style = lstyle, width = lineW)
+    // Use box.new so each breakout produces ONE managed object instead of 4
+    // permanently allocated `line` objects (would silently hit max_lines_count
+    // and stop drawing after enough triggers).
+    box.new(left = x1, top = y_top, right = x2, bottom = y_bot,
+         border_color = col, border_width = lineW, border_style = lstyle,
+         bgcolor = color.new(col, 90))
 
 // Per-trigger label text helper: "BOS 🟢" / "CHoCH 🔴" / etc.
 breakout_label(bool is_bos, bool is_choch, int from_bar) =>

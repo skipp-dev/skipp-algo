@@ -28,6 +28,7 @@ tp2_r = input.float(3.0, "TP2 (R-multiple)", minval = 0.5, step = 0.25, group = 
 move_be_after_tp1 = input.bool(true, "Move stop to break-even after TP1", group = g_plan, tooltip = "After TP1 hits, the displayed Stop bumps up to entry price. The hard-stop alert then fires at break-even instead of the original invalidation. Most-asked-for safety feature.")
 use_defensive_exit = input.bool(true, "Defensive exit on setup invalidation", group = g_plan, tooltip = "Fire EXIT if the entry-stack collapses (Armed/Confirmed/Ready all drop to false) while still in trade — before stop is hit.")
 defensive_grace_bars = input.int(2, "Defensive grace bars", minval = 0, maxval = 20, group = g_plan, tooltip = "Tolerate this many bars of state collapse before firing the defensive exit. Avoids one-bar flickers.")
+confirm_bars_only = input.bool(true, "Evaluate on confirmed bars only", group = g_plan, tooltip = "Gate state-machine transitions and exit detection to barstate.isconfirmed. Recommended ON to avoid intrabar flicker (re-arm / multi-trigger alerts on the same bar). Turn OFF only if you explicitly want intrabar reactions.")
 
 show_levels = input.bool(true, "Show Stop/TP1/TP2 lines while in trade", group = g_visual)
 show_labels = input.bool(true, "Show ENTER / EXIT labels", group = g_visual)
@@ -66,9 +67,12 @@ var int   entry_bar          = na
 var bool  tp1_hit_already    = false
 var int   collapse_count     = 0
 
+// Optional gate: only mutate state on confirmed bars to avoid intrabar flicker.
+bool eval_now = (not confirm_bars_only) or barstate.isconfirmed
+
 // Latch ARMED when the stack provides valid levels and at least one state is on.
 // Stays ARMED while levels exist and we're not yet in trade.
-if pos_state == 0 and any_state and risk_ok
+if eval_now and pos_state == 0 and any_state and risk_ok
     pos_state := 1
     entry_stop := src_invalidation
     entry_price := src_trigger
@@ -76,7 +80,7 @@ if pos_state == 0 and any_state and risk_ok
     tp2_price := src_trigger + (src_trigger - src_invalidation) * tp2_r
 
 // While ARMED, refresh levels (operator may shift trigger/invalidation pre-fill).
-if pos_state == 1 and risk_ok
+if eval_now and pos_state == 1 and risk_ok
     entry_stop := src_invalidation
     entry_price := src_trigger
     tp1_price := src_trigger + (src_trigger - src_invalidation) * tp1_r
@@ -84,7 +88,7 @@ if pos_state == 1 and risk_ok
 
 // Trigger fill: high crosses entry_price → enter IN_TRADE.
 bool just_entered = false
-if pos_state == 1 and not na(entry_price) and high >= entry_price
+if eval_now and pos_state == 1 and not na(entry_price) and high >= entry_price
     pos_state := 2
     entry_bar := bar_index
     tp1_hit_already := false
@@ -92,7 +96,7 @@ if pos_state == 1 and not na(entry_price) and high >= entry_price
     just_entered := true
 
 // Cancel ARMED if state stack disappears entirely before fill (no exit alert — never entered).
-if pos_state == 1 and not any_state
+if eval_now and pos_state == 1 and not any_state
     pos_state := 0
     entry_price := na
     entry_stop := na
@@ -105,7 +109,7 @@ bool exit_tp1_hit = false
 bool exit_tp2_hit = false
 bool exit_defensive = false
 
-if pos_state == 2
+if eval_now and pos_state == 2
     // 1. Hard stop — close below invalidation, use close not low to avoid wick flicker.
     if not na(entry_stop) and close < entry_stop
         exit_stop_hit := true

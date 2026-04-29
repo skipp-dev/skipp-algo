@@ -55,8 +55,10 @@ i_close_only = input.bool(true , "Trigger nur bei barstate.isconfirmed",
      group = gSafe, tooltip = "Adressiert Schwäche C: var-State auf bestätigten Bars.")
 
 gAlert       = "Alerts (Edge-Detection)"
-i_use_edge   = input.bool(true , "Edge-only Alerts (kein Level-Spam)",
-     group = gAlert, tooltip = "Schwäche E: Alerts feuern nur bei rising-edge.")
+// NOTE: Alertconditions in this script are always edge-detected via `not foo[1]`
+// (see section 7). The previous `i_use_edge` toggle did not influence the
+// alertcondition() expressions — it only changed status-label text — so it
+// was misleading. Removed in favor of a single, predictable alert mode.
 
 // ── 2.  CONTEXT FROM MP SNAPSHOT (read-only) ─────────────────────────────────
 // Wir lesen NICHT pro Bar — mp.* ist Tagesstart-Snapshot. Defensiv.
@@ -80,14 +82,19 @@ var int    entry_time_ms = na
 var bool   t1_hit        = false
 
 // Reset-Hook (Schwäche C: explizite Re-Init bei recompile / force-reset)
-if i_reset_now
+// Gate to last-bar so toggling input.bool TRUE resets exactly once instead of
+// re-firing on every historical bar (which would prevent state from forming).
+if i_reset_now and barstate.islast
     state := 0, entry_price := na, initial_stop := na, active_stop := na
     t1_price := na, t2_price := na, entry_bar := na, entry_time_ms := na
     t1_hit := false
 
-// ── 4.  ARMING & ENTRY ────────────────────────────────────────────────────────
+// ── 4.  ARMING & ENTRY ───────────────────────────────────────────────
 bool can_act = (not i_close_only) or barstate.isconfirmed
-arm_edge_now = i_arm_long and (not i_arm_long[1])  // rising-edge auf Toggle
+// `i_arm_long` is an input.bool — constant across the historical bar series after
+// (re)compile, so a `not i_arm_long[1]` rising-edge can never fire mid-series.
+// Detect the toggle exactly once on the realtime/last bar instead.
+arm_edge_now = i_arm_long and barstate.islast and (not i_arm_long[1])
 
 if can_act and state == 0 and arm_edge_now and i_entry > 0 and i_stop > 0 and i_stop < i_entry
     state         := 1
@@ -153,7 +160,7 @@ if barstate.islast
          "\nT1/T2: " + str.tostring(t1_price, format.mintick) + " / " + str.tostring(t2_price, format.mintick) +
          "  (T1-Partial " + str.tostring(i_t1_partial, "#.#") + "%)" +
          (state == 2 ? "\nElapsed: " + str.tostring(math.round((time - entry_time_ms) / 60000)) + "m" : "") +
-         "\nAlerts: " + (i_use_edge ? "edge-only" : "level (SPAM)") +
+         "\nAlerts: edge-only" +
          "  Tier: " + ctx_action_tier +
          (ctx_event_block ? "\n⚠ EVENT_BLOCK" : "") + (ctx_earnings ? "\n⚠ EARNINGS" : "")
     statusLbl := label.new(bar_index, high, txt, style = label.style_label_left,
