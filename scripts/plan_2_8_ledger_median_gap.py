@@ -8,6 +8,7 @@ or with malformed timestamps are skipped. ``median_hours`` is
 """
 
 from __future__ import annotations
+from itertools import pairwise
 
 from scripts.smc_atomic_write import atomic_write_text
 
@@ -56,7 +57,7 @@ def _ts(rec: dict[str, Any]) -> datetime | None:
 def compute(records: list[dict[str, Any]]) -> dict[str, Any]:
     times: list[datetime] = [t for t in (_ts(r) for r in records) if t]
     gaps_h: list[float] = []
-    for a, b in zip(times, times[1:]):
+    for a, b in pairwise(times):
         delta = (b - a).total_seconds() / 3600.0
         gaps_h.append(delta)
     median_h: float | None

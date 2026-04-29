@@ -6,6 +6,7 @@ Complements flap_rate which only tracks *any* transition.
 """
 
 from __future__ import annotations
+from itertools import pairwise
 
 from scripts.smc_atomic_write import atomic_write_text
 
@@ -49,7 +50,7 @@ def compute(records: list[dict[str, Any]]) -> dict[str, Any]:
         if s in VALID_STATUSES:
             cleaned.append(s)
     total = 0
-    for a, b in zip(cleaned, cleaned[1:]):
+    for a, b in pairwise(cleaned):
         if a != b:
             matrix[a][b] += 1
             total += 1

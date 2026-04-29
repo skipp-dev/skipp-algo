@@ -32,6 +32,7 @@ Pinned properties:
 """
 
 from __future__ import annotations
+from itertools import pairwise
 
 import random
 
@@ -62,7 +63,7 @@ def test_adjusted_monotone_along_sorted_axis(seed: int) -> None:
     # Re-sort by raw p-value and check adjusted is non-decreasing.
     paired = sorted(zip(pvals, out["adjusted"]), key=lambda x: x[0])
     adj_sorted = [a for _, a in paired]
-    for prev, curr in zip(adj_sorted, adj_sorted[1:]):
+    for prev, curr in pairwise(adj_sorted):
         assert prev <= curr + 1e-12, (
             f"BH-adjusted p-values not monotone along sorted axis: {adj_sorted}"
         )

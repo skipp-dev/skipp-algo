@@ -1,5 +1,6 @@
 """Sprint C2.1 — walk-forward hardening tests for ml/walkforward."""
 from __future__ import annotations
+from itertools import pairwise
 
 import numpy as np
 import pytest
@@ -114,7 +115,7 @@ def test_walkforwardconfig_validation() -> None:
 def test_validation_folds_disjoint_and_chronological() -> None:
     folds = walk_forward_splits(120, n_folds=4, embargo=2)
     val_ranges = [(int(f.val_idx[0]), int(f.val_idx[-1])) for f in folds]
-    for a, b in zip(val_ranges, val_ranges[1:]):
+    for a, b in pairwise(val_ranges):
         assert a[1] < b[0], (a, b)
 
 

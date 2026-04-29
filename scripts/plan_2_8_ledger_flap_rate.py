@@ -6,6 +6,7 @@ average flips-per-week over the observed weeks.
 """
 
 from __future__ import annotations
+from itertools import pairwise
 
 from scripts.smc_atomic_write import atomic_write_text
 
@@ -64,7 +65,7 @@ def compute(records: list[dict[str, Any]]) -> dict[str, Any]:
         cleaned.append((ts, s))
     per_week: dict[str, int] = {}
     flips = 0
-    for (_, prev_s), (ts, cur_s) in zip(cleaned, cleaned[1:]):
+    for (_, prev_s), (ts, cur_s) in pairwise(cleaned):
         if prev_s != cur_s:
             flips += 1
             key = _bucket(ts)
