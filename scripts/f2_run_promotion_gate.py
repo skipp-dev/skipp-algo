@@ -39,8 +39,6 @@ Exit codes
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 import sys
@@ -54,7 +52,7 @@ from scripts.f2_experiment_spec import (
 )
 from scripts.generate_performance_report import load_benchmark
 from scripts.run_ab_comparison import compare
-
+from scripts.smc_atomic_write import atomic_write_text
 
 REPORT_SCHEMA_VERSION = 1
 
