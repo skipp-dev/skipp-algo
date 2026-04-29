@@ -27,10 +27,10 @@ hero output against the catalog inside the release-gates.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from copy import deepcopy
 from types import MappingProxyType
 from typing import Any
-from collections.abc import Mapping
 
 from scripts.smc_pine_scenario_catalog import (
     PINE_SCENARIO_CATALOG,
