@@ -32,9 +32,9 @@ Pinned properties:
 """
 
 from __future__ import annotations
-from itertools import pairwise
 
 import random
+from itertools import pairwise
 
 import pytest
 
