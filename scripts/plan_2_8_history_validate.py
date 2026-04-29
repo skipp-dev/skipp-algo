@@ -17,8 +17,6 @@ Pure stdlib.
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import datetime as _dt
 import json
@@ -26,6 +24,8 @@ import sys
 from collections import Counter
 from pathlib import Path
 from typing import Any
+
+from scripts.smc_atomic_write import atomic_write_text
 
 
 def _parse_iso(ts: str) -> _dt.datetime:
