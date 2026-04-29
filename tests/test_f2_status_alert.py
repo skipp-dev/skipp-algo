@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.f2_status_alert import main, _scan_reports, _trailing_streak
+from scripts.f2_status_alert import _scan_reports, _trailing_streak, main
 
 
 def _write(path: Path, payload: dict) -> None:
