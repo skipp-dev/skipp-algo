@@ -108,10 +108,7 @@ def _extract_arm_totals(comparison: dict[str, Any]) -> tuple[int, int, int, int]
     control_n = _coerce_int(sprt.get("control_n"))
     # control_k is usually not stored; derive from control_hit_rate.
     control_hr = _coerce_float(sprt.get("control_hit_rate"))
-    if control_hr is not None:
-        control_k = round(control_n * control_hr)
-    else:
-        control_k = 0
+    control_k = round(control_n * control_hr) if control_hr is not None else 0
     return control_n, control_k, treatment_n, treatment_k
 
 
