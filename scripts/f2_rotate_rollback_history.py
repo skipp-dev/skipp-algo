@@ -35,7 +35,6 @@ import sys
 import tempfile
 from pathlib import Path
 
-
 DEFAULT_ARCHIVE_SUBDIR = "rollback_history.archive"
 
 
