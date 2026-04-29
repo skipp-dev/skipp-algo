@@ -1,0 +1,11 @@
+rank,symbol,score,price,gap_pct,gap_type,gap_available,gap_from_ts,gap_to_ts,gap_reason,volume,avg_volume,rel_volume,macro_bias,news_catalyst_score,long_allowed,no_trade_reason
+1,GOOGL,3.0921,349.78,0.0,OFF,False,2026-04-28T20:00:00+00:00,,stale_prior_session_quote,27244680.0,25056236.4,,0.5,0.45,True,earnings_risk_window
+2,NVDA,3.085,213.17,0.0,OFF,False,2026-04-28T20:00:00+00:00,,stale_prior_session_quote,179415428.0,150309529.25,,0.5,1.25,True,
+3,MSFT,3.0106,429.25,0.0,OFF,False,2026-04-28T20:00:00+00:00,,stale_prior_session_quote,30312242.0,32628296.65,,0.5,0.6,True,earnings_risk_window
+4,AMZN,2.9874,259.7,0.0,OFF,False,2026-04-28T20:00:00+00:00,,stale_prior_session_quote,42065244.0,45682025.55,,0.5,0.8,True,earnings_risk_window
+5,AMD,2.5685,323.21,0.0,OFF,False,2026-04-28T20:00:00+00:00,,stale_prior_session_quote,42022027.0,39761575.25,,0.5,1.1,True,
+6,TSLA,2.4833,376.02,0.0,OFF,False,2026-04-28T20:00:00+00:00,,stale_prior_session_quote,50307720.0,69766232.25,,0.5,0.9,True,
+7,PWR,2.251,630.94,0.0,OFF,False,2026-04-28T20:00:00+00:00,,stale_prior_session_quote,1303074.0,902822.05,,0.5,0.0,True,earnings_risk_window
+8,PLTR,2.0,141.18,0.0,OFF,False,2026-04-28T20:00:00+00:00,,stale_prior_session_quote,24542303.0,48717109.3,,0.5,0.95,True,
+9,META,1.7671,671.34,0.0,OFF,False,2026-04-28T20:00:00+00:00,,stale_prior_session_quote,10276663.0,15022037.9,,0.5,0.8,True,earnings_risk_window
+10,SMCI,1.079,27.25,0.0,OFF,False,2026-04-28T20:00:00+00:00,,stale_prior_session_quote,21827632.0,30937122.9,,0.5,0.0,True,
