@@ -15,9 +15,7 @@ from __future__ import annotations
 
 import math
 
-
 from scripts.run_ab_comparison import _metric_brier, _metric_ece
-
 
 # ---------------------------------------------------------------------------
 # Brier: mean((p - o)^2)
