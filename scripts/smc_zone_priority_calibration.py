@@ -55,7 +55,7 @@ class FamilyStats:
         if not self.weights or sum(self.weights) == 0:
             return 0.0
         return sum(
-            r * w for r, w in zip(self.hit_rates, self.weights)
+            r * w for r, w in zip(self.hit_rates, self.weights, strict=False)
         ) / sum(self.weights)
 
     @property
