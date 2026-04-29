@@ -37,6 +37,7 @@ Exit codes:
 """
 from __future__ import annotations
 
+import contextlib
 import argparse
 import json
 import logging
@@ -55,7 +56,6 @@ from open_prep.outcomes import (
     scorer_update_to_json,
 )
 from open_prep.scorer import DEFAULT_WEIGHTS, save_weight_set
-import contextlib
 
 logger = logging.getLogger("open_prep.candidate_weights")
 
