@@ -205,7 +205,7 @@ def _compute_volume_profile(
     bins = np.linspace(price_min, price_max, n_bins + 1)
     bin_volumes = np.zeros(n_bins)
 
-    for price, vol in zip(closes.values, volumes.values):
+    for price, vol in zip(closes.values, volumes.values, strict=False):
         idx = int((float(price) - price_min) / (price_max - price_min) * (n_bins - 1))
         idx = min(max(idx, 0), n_bins - 1)
         bin_volumes[idx] += float(vol)
