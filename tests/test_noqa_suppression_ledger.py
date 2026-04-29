@@ -51,7 +51,7 @@ _NOQA_RE = re.compile(r"#\s*noqa\b", re.IGNORECASE)
 #   leakage in shipped manifests. The path is a search pattern, not a
 #   file Python opens. Bandit S108 is a false positive.
 #
-# All other first-party ``# noqa`` suppressions remain forbidden.
+# All other first-party noqa suppressions remain forbidden.
 _FROZEN_SITES: dict[str, int] = {
     "streamlit_terminal_alerts.py": 1,
     "scripts/scan_manifests_for_pytest_provenance.py": 1,
