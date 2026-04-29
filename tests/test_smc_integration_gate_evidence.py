@@ -1269,7 +1269,7 @@ def test_gate_evidence_domain_stale_aggregation_is_deterministic(monkeypatch, tm
                 )
             ),
         )
-        monkeypatch.setattr(evidence_script, "_render", lambda report, output: captured.append(report))
+        monkeypatch.setattr(evidence_script, "_render", lambda report, output, _c=captured: _c.append(report))
         evidence_script.main()
         results.append(captured[-1])
 
