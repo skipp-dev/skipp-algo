@@ -6,7 +6,6 @@ import json
 import math
 from pathlib import Path
 
-
 from smc_core.scoring import (
     ScoredEvent,
     brier_score,
@@ -20,7 +19,6 @@ from smc_core.scoring import (
     log_score,
     score_events,
 )
-
 
 # --- Brier Score ---
 
