@@ -14,7 +14,7 @@ DoD:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum, StrEnum
+from enum import StrEnum
 
 
 class InputVisibility(StrEnum):

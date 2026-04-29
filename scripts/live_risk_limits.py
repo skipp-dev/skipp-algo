@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date
-from enum import Enum, StrEnum
+from enum import StrEnum
 from collections.abc import Sequence
 
 __all__ = [
