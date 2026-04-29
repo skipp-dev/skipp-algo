@@ -45,8 +45,8 @@ Usage
 from __future__ import annotations
 
 import re
-from pathlib import Path
 from collections.abc import Iterable
+from pathlib import Path
 
 # Match either ``YYYYMMDD_HHMMSS[Z]`` (backend artifacts) or
 # ``YYYY-MM-DDTHH-MM-SS-mmmZ`` (TradingView/automation reports).
