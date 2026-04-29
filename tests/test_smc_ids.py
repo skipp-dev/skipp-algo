@@ -14,7 +14,6 @@ from smc_core.ids import (
     sweep_id,
 )
 
-
 # --- quantize_price: backward-compatible decimals mode ---
 
 
