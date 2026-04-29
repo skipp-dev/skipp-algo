@@ -9,7 +9,6 @@ The cache is intentionally file-backed so normalization paths can consult the
 latest known alias map without hitting the network on every call.
 """
 
-import contextlib
 from __future__ import annotations
 
 import json
@@ -26,6 +25,7 @@ from typing import Any
 import pandas as pd
 
 from databento_client import _make_databento_reference_client, _redact_sensitive_error_text
+import contextlib
 
 logger = logging.getLogger(__name__)
 
