@@ -236,6 +236,7 @@ if not _SMC_TERMINAL_TEST_MODE:
 if not _SMC_TERMINAL_TEST_MODE:
     try:
         import tokenize as _tokenize_mod
+
         from streamlit.runtime.caching import cache_utils as _cu  # pyright: ignore[reportMissingImports]
 
         _orig_make_function_key = _cu._make_function_key
@@ -335,22 +336,23 @@ if not _SMC_TERMINAL_TEST_MODE:
     _load_env_file(PROJECT_ROOT / ".env")
     _load_streamlit_secrets()
 
+from newsstack_fmp._bz_http import _WARNED_ENDPOINTS
 from newsstack_fmp.ingest_benzinga import BenzingaRestAdapter
 from newsstack_fmp.ingest_fmp import FmpAdapter
 from newsstack_fmp.store_sqlite import SqliteStore
-from newsstack_fmp._bz_http import _WARNED_ENDPOINTS
-from open_prep.playbook import classify_recency as _classify_recency
+from open_prep.log_redaction import apply_global_log_redaction
 from open_prep.outcomes import _load_outcomes_range, compute_hit_rates
-from smc_integration.provider_health import (
-    FailureAction,
-    _FAILURE_SEMANTICS_MATRIX,
-    run_provider_health_check,
+from open_prep.playbook import classify_recency as _classify_recency
+from open_prep.realtime_signals import (
+    RealtimeEngine,
+    ensure_rt_engine_running,
+    get_rt_engine_status,
+    get_rt_engine_telemetry_status,
 )
-from terminal_background_poller import BackgroundPoller
-from terminal_catalyst_state import (
-    annotate_feed_with_ticker_catalyst_state,
-    effective_catalyst_score,
-    effective_catalyst_sentiment,
+from smc_integration.provider_health import (
+    _FAILURE_SEMANTICS_MATRIX,
+    FailureAction,
+    run_provider_health_check,
 )
 from terminal_attention_state import (
     annotate_feed_with_ticker_attention_state,
@@ -358,6 +360,12 @@ from terminal_attention_state import (
     effective_attention_priority,
     effective_attention_score,
     effective_attention_state,
+)
+from terminal_background_poller import BackgroundPoller
+from terminal_catalyst_state import (
+    annotate_feed_with_ticker_catalyst_state,
+    effective_catalyst_score,
+    effective_catalyst_sentiment,
 )
 from terminal_export import (
     fire_webhook,
@@ -369,14 +377,24 @@ from terminal_export import (
 from terminal_feed_lifecycle import FeedLifecycleManager, feed_staleness_minutes, is_market_hours
 from terminal_feed_state import (
     build_derived_feed_state,
-    hydrate_feed_story_state as hydrate_feed_story_state_core,
     merge_live_feed_rows,
     restore_feed_state,
+)
+from terminal_feed_state import (
+    hydrate_feed_story_state as hydrate_feed_story_state_core,
+)
+from terminal_feed_state import (
     resync_feed_from_jsonl as resync_feed_from_jsonl_core,
 )
 from terminal_live_story_state import (
     apply_live_story_state,
     live_story_key,
+)
+from terminal_posture_state import (
+    annotate_feed_with_ticker_posture_state,
+    effective_posture_priority,
+    effective_posture_score,
+    effective_posture_state,
 )
 from terminal_reaction_state import (
     annotate_feed_with_ticker_reaction_state,
@@ -390,12 +408,6 @@ from terminal_resolution_state import (
     effective_resolution_score,
     effective_resolution_state,
 )
-from terminal_posture_state import (
-    annotate_feed_with_ticker_posture_state,
-    effective_posture_priority,
-    effective_posture_score,
-    effective_posture_state,
-)
 from terminal_status_helpers import (
     api_key_status,
     cursor_diagnostic,
@@ -403,15 +415,58 @@ from terminal_status_helpers import (
     format_poll_ago,
     poll_failure_count,
 )
-from open_prep.realtime_signals import (
-    RealtimeEngine,
-    ensure_rt_engine_running,
-    get_rt_engine_status,
-    get_rt_engine_telemetry_status,
-)
-from open_prep.log_redaction import apply_global_log_redaction
+
 if not _SMC_TERMINAL_TEST_MODE:
     apply_global_log_redaction()
+from streamlit_terminal_alerts import evaluate_alert_rules, validate_webhook_url
+from streamlit_terminal_config import (
+    collect_tv_news_symbols as _collect_tv_news_symbols,
+)
+from streamlit_terminal_config import (
+    has_live_news_provider as _has_live_news_provider,
+)
+from streamlit_terminal_pure import (
+    build_alert_rule_payload,
+    build_test_mode_config_overrides,
+    build_test_mode_state_defaults,
+    extract_feed_tickers,
+    merge_alert_log_entries,
+)
+from streamlit_terminal_runtime import resolve_live_story_state_kwargs, safe_float_mov, should_poll
+from terminal_bitcoin import (
+    fetch_btc_news,
+    fetch_btc_ohlcv_10min,
+    fetch_btc_outlook,
+    fetch_btc_quote,
+    fetch_btc_supply,
+    fetch_btc_technicals,
+    fetch_crypto_listings,
+    fetch_crypto_movers,
+    fetch_fear_greed,
+    format_btc_price,
+    format_large_number,
+    format_supply,
+    technicals_signal_icon,
+    technicals_signal_label,
+)
+from terminal_bitcoin import (
+    is_available as btc_available,
+)
+from terminal_databento import (
+    fetch_databento_quote_map,
+)
+from terminal_databento import (
+    is_available as databento_available,
+)
+from terminal_finnhub import (
+    fetch_social_sentiment_batch,
+)
+from terminal_finnhub import (
+    is_available as finnhub_available,
+)
+from terminal_forecast import (
+    fetch_forecast,
+)
 from terminal_notifications import NotifyConfig, notify_high_score_items
 from terminal_poller import (
     ClassifiedItem,
@@ -425,28 +480,28 @@ from terminal_poller import (
     live_news_source_label,
     poll_and_classify_live_bus,
 )
-
-
+from terminal_spike_detector import (
+    SpikeDetector,
+)
 from terminal_spike_scanner import (
     SESSION_ICONS,
     market_session,
 )
-from terminal_spike_detector import (
-    SpikeDetector,
+from terminal_technicals import (
+    INTERVAL_MAP,
+    fetch_technicals,
+    signal_icon,
+    signal_label,
 )
-from streamlit_terminal_alerts import evaluate_alert_rules, validate_webhook_url
-from streamlit_terminal_config import (
-    collect_tv_news_symbols as _collect_tv_news_symbols,
-    has_live_news_provider as _has_live_news_provider,
+from terminal_tradingview_news import (
+    fetch_tv_feed_dicts,
 )
-from streamlit_terminal_pure import (
-    build_test_mode_config_overrides,
-    build_test_mode_state_defaults,
-    build_alert_rule_payload,
-    extract_feed_tickers,
-    merge_alert_log_entries,
+from terminal_tradingview_news import (
+    health_status as tv_health_status,
 )
-from streamlit_terminal_runtime import resolve_live_story_state_kwargs, safe_float_mov, should_poll
+from terminal_tradingview_news import (
+    is_available as tv_available,
+)
 from terminal_ui_helpers import (
     MATERIALITY_COLORS,
     RECENCY_COLORS,
@@ -454,8 +509,8 @@ from terminal_ui_helpers import (
     _is_actionable_broad,
     aggregate_segments,
     compute_feed_stats,
-    dedup_feed_items,
     dedup_articles,
+    dedup_feed_items,
     filter_feed,
     format_age_string,
     format_score_badge,
@@ -465,46 +520,6 @@ from terminal_ui_helpers import (
     safe_url,
     split_segments_by_sentiment,
 )
-from terminal_technicals import (
-    fetch_technicals,
-    signal_icon,
-    signal_label,
-    INTERVAL_MAP,
-)
-from terminal_forecast import (
-    fetch_forecast,
-)
-from terminal_finnhub import (
-    fetch_social_sentiment_batch,
-    is_available as finnhub_available,
-)
-from terminal_tradingview_news import (
-    fetch_tv_feed_dicts,
-    health_status as tv_health_status,
-    is_available as tv_available,
-)
-from terminal_databento import (
-    fetch_databento_quote_map,
-    is_available as databento_available,
-)
-from terminal_bitcoin import (
-    fetch_btc_quote,
-    fetch_btc_ohlcv_10min,
-    fetch_btc_technicals,
-    fetch_fear_greed,
-    fetch_crypto_movers,
-    fetch_crypto_listings,
-    fetch_btc_supply,
-    fetch_btc_news,
-    fetch_btc_outlook,
-    format_large_number,
-    format_btc_price,
-    format_supply,
-    technicals_signal_label,
-    technicals_signal_icon,
-    is_available as btc_available,
-)
-
 
 logger = logging.getLogger(__name__)
 
@@ -609,6 +624,7 @@ st.set_page_config(
 
 # ── Auth guard (only active when STREAMLIT_AUTH_TOKEN is set) ────
 from terminal_auth import require_auth as _require_auth
+
 if not _require_auth():
     st.stop()
 
