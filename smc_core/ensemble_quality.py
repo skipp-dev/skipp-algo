@@ -13,7 +13,6 @@ from typing import Any, Literal
 from smc_core.schema_version import SCHEMA_VERSION
 from smc_core.scoring import ScoringResult
 
-
 QualityTier = Literal["low", "ok", "good", "high"]
 
 
