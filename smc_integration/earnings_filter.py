@@ -32,10 +32,10 @@ from __future__ import annotations
 import datetime as _dt
 import json
 import logging
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
-from collections.abc import Iterable
 
 LOGGER = logging.getLogger(__name__)
 
