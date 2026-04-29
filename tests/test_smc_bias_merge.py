@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-
 from smc_core.bias_merge import merge_bias
 
 
