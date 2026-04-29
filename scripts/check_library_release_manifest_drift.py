@@ -43,7 +43,6 @@ import json
 import sys
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_MANIFEST = REPO_ROOT / "artifacts" / "tradingview" / "library_release_manifest.json"
 
