@@ -130,9 +130,9 @@ class TestIdentity:
         assert canonical is reexport
 
     def test_session_constant_identity(self):
-        from scripts.smc_databento_session_detail import PREMARKET_START_ET as canonical
-        from scripts.smc_microstructure_base_runtime import PREMARKET_START_ET as reexport
-        assert canonical is reexport
+        from scripts.smc_databento_session_detail import PREMARKET_START_ET as PREMARKET_RT
+        from scripts.smc_microstructure_base_runtime import PREMARKET_START_ET as PREMARKET_RX
+        assert PREMARKET_RT is PREMARKET_RX
 
 
 # ── 4. No circular imports ──────────────────────────────────────────

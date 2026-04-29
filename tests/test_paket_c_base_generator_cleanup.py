@@ -32,9 +32,9 @@ def test_resolve_latest_base_csv_not_importable():
 # ---------------------------------------------------------------------------
 
 def test_mapping_status_is_same_object():
-    from scripts.smc_microstructure_base_runtime import MappingStatus as rt_cls
-    from scripts.generate_smc_micro_base_from_databento import MappingStatus as db_cls
-    assert rt_cls is db_cls
+    from scripts.smc_microstructure_base_runtime import MappingStatus as MappingStatusRt
+    from scripts.generate_smc_micro_base_from_databento import MappingStatus as MappingStatusDb
+    assert MappingStatusRt is MappingStatusDb
 
 
 def test_infer_asset_type_is_same_object():
@@ -50,9 +50,9 @@ def test_infer_universe_bucket_is_same_object():
 
 
 def test_etf_keywords_is_same_object():
-    from scripts.smc_microstructure_base_runtime import ETF_KEYWORDS as rt_kw
-    from scripts.generate_smc_micro_base_from_databento import ETF_KEYWORDS as db_kw
-    assert rt_kw is db_kw
+    from scripts.smc_microstructure_base_runtime import ETF_KEYWORDS as ETF_KEYWORDS_RT
+    from scripts.generate_smc_micro_base_from_databento import ETF_KEYWORDS as ETF_KEYWORDS_DB
+    assert ETF_KEYWORDS_RT is ETF_KEYWORDS_DB
 
 
 # ---------------------------------------------------------------------------
