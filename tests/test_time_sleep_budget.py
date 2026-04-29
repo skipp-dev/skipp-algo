@@ -87,8 +87,8 @@ def _all_sites() -> list[tuple[str, int]]:
 # reason, or (b) an existing site moves by ±N lines.
 _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
     {
-        ("newsstack_fmp/ingest_benzinga.py", 196),
-        ("newsstack_fmp/ingest_benzinga.py", 207),
+        ("newsstack_fmp/ingest_benzinga.py", 197),
+        ("newsstack_fmp/ingest_benzinga.py", 208),
         ("newsstack_fmp/ingest_fmp.py", 136),
         ("newsstack_fmp/ingest_fmp.py", 154),
         ("newsstack_fmp/pipeline.py", 893),

@@ -96,11 +96,11 @@ def _asyncio_attr_call_sites(attr: str) -> set[tuple[str, int]]:
 # Benzinga websocket adapter, which owns its own loop because it lives
 # off the main thread for the lifetime of the websocket session.
 NEW_EVENT_LOOP_ALLOWED: set[tuple[str, int]] = {
-    ("newsstack_fmp/ingest_benzinga.py", 525),
+    ("newsstack_fmp/ingest_benzinga.py", 526),
 }
 
 SET_EVENT_LOOP_ALLOWED: set[tuple[str, int]] = {
-    ("newsstack_fmp/ingest_benzinga.py", 526),
+    ("newsstack_fmp/ingest_benzinga.py", 527),
 }
 
 

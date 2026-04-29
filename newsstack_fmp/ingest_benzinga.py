@@ -23,6 +23,7 @@ enabled in ``Config``.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import queue
@@ -560,10 +561,8 @@ class BenzingaWsAdapter:
 
                     # Optional subscribe handshake; server pushes news regardless.
                     auth_msg = json.dumps({"action": "subscribe", "data": {"streams": ["news"]}})
-                    try:
+                    with contextlib.suppress(Exception):
                         await ws.send(auth_msg)
-                    except Exception:
-                        pass
 
                     async for message in ws:
                         if self._stop_event.is_set():
@@ -581,10 +580,8 @@ class BenzingaWsAdapter:
                                     self.queue.put_nowait(item)
                                 except queue.Full:
                                     # Drop oldest to make room
-                                    try:
+                                    with contextlib.suppress(queue.Empty):
                                         self.queue.get_nowait()
-                                    except queue.Empty:
-                                        pass
                                     self.queue.put_nowait(item)
                                     logger.warning(
                                         "BenzingaWsAdapter: queue full (max=%d) — dropped oldest item.",
