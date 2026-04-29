@@ -6,8 +6,7 @@ from typing import Any
 
 import streamlit as st
 
-from terminal_newsapi import newsapi_available, fetch_breaking_events
-
+from terminal_newsapi import fetch_breaking_events, newsapi_available
 from terminal_ui_helpers import safe_markdown_text
 
 
