@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import ClassVar
+
 import open_prep.run_open_prep as rop
 
 
@@ -9,7 +11,7 @@ class _FakeClient:
 
 
 class _FakeExecutor:
-    instances: list[_FakeExecutor] = []
+    instances: ClassVar[list[_FakeExecutor]] = []
 
     def __init__(self, max_workers: int):
         self.max_workers = max_workers

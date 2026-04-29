@@ -270,7 +270,7 @@ def _file_lock(lock_path: Path):
             break
         except FileExistsError:
             if time.time() >= deadline:
-                raise TimeoutError(f"Timed out waiting for shared news cache lock: {lock_path}")
+                raise TimeoutError(f"Timed out waiting for shared news cache lock: {lock_path}") from None
             time.sleep(_LOCK_POLL_INTERVAL_SECONDS)
     try:
         yield

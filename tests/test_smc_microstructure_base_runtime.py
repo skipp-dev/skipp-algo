@@ -1244,7 +1244,7 @@ def test_collect_full_universe_session_minute_detail_excludes_runtime_unsupporte
             )
 
     def fake_get_range(*args: Any, **kwargs: Any) -> FakeStore:
-        warnings.warn("The streaming request had one or more symbols which did not resolve: AACB")
+        warnings.warn("The streaming request had one or more symbols which did not resolve: AACB", stacklevel=2)
         return FakeStore()
 
     monkeypatch.setattr(session_detail, "_make_databento_client", lambda api_key: object())
@@ -1352,7 +1352,7 @@ def test_collect_full_universe_session_minute_detail_runtime_unsupported_symbols
         symbols = [str(value).upper() for value in kwargs.get("symbols", [])]
         requested_batches.append(symbols)
         if call_count == 1:
-            warnings.warn("The streaming request had one or more symbols which did not resolve: AACB")
+            warnings.warn("The streaming request had one or more symbols which did not resolve: AACB", stacklevel=2)
             return FakeStore(pd.DataFrame(columns=["symbol", "ts", "open", "high", "low", "close", "volume", "trade_count"]))
         return FakeStore(
             pd.DataFrame(
@@ -2290,7 +2290,7 @@ def test_collect_full_universe_session_minute_detail_writes_unresolved_cache_sid
             return pd.DataFrame(columns=["symbol", "ts", "open", "high", "low", "close", "volume", "trade_count"])
 
     def fake_get_range(*args: Any, **kwargs: Any) -> EmptyStore:
-        warnings.warn("The streaming request had one or more symbols which did not resolve: AACB")
+        warnings.warn("The streaming request had one or more symbols which did not resolve: AACB", stacklevel=2)
         return EmptyStore()
 
     monkeypatch.setattr(session_detail, "_make_databento_client", lambda api_key: object())
