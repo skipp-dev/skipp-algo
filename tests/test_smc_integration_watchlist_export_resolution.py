@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from smc_core.schema_version import SCHEMA_VERSION
 from scripts import export_smc_snapshot_watchlist_bundles as module
+from smc_core.schema_version import SCHEMA_VERSION
 from tests.helpers.smc_test_artifacts import (
     make_minimal_structure_artifact,
     make_minimal_watchlist_csv,
