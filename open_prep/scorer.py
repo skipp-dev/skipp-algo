@@ -8,6 +8,7 @@ backward compatibility.
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import math
@@ -110,10 +111,8 @@ def save_weight_set(label: str, weights: dict[str, float]) -> None:
     except BaseException:
         if fd >= 0:
             os.close(fd)
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp)
-        except OSError:
-            pass
         raise
 
 
