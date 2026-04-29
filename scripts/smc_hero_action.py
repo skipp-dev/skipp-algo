@@ -209,7 +209,7 @@ def render_hero_action_block_lines(
     lines: list[str] = ["// ── Hero Action (ENG-WS3-05) ──"]
     for field, key in zip(
         PINE_HERO_ACTION_FIELDS,
-        ("verb", "verb_de", "reason", "degradation", "quality"),
+        ("verb", "verb_de", "reason", "degradation", "quality"), strict=False,
     ):
         lines.append(
             f'export const string {field} = "{_pine_string(values[key])}"'
