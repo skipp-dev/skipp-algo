@@ -22,6 +22,7 @@ import re
 import sys
 from pathlib import Path
 from typing import Any
+import contextlib
 
 
 FLAG_RE = re.compile(r'add_argument\(\s*["\'](--?[A-Za-z0-9][A-Za-z0-9\-_]*)["\']')
@@ -56,10 +57,8 @@ def scan(repo_root: Path) -> dict[str, Any]:
         test_stem = "test_" + stem
         paired = test_files.get(test_stem)
         flags: list[str] = []
-        try:
+        with contextlib.suppress(OSError):
             flags = _extract_flags(script.read_text(encoding="utf-8"))
-        except OSError:
-            pass
         rows.append({
             "script":     str(script.relative_to(repo_root)),
             "test":       str(paired.relative_to(repo_root))
