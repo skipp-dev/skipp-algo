@@ -8,14 +8,14 @@ UTC timestamp, and the size + mtime of each Plan-2.8 script in
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import datetime as _dt
 import json
 import platform
 from pathlib import Path
 from typing import Any
+
+from scripts.smc_atomic_write import atomic_write_text
 
 
 def collect(
