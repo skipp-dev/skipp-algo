@@ -945,10 +945,7 @@ def _calculate_energy_weights(
         v = max(_safe_float(bar.get("volume", 0.0)), 0.0)
 
         # True range
-        if prev_close is not None:
-            tr = max(h - lo, abs(h - prev_close), abs(lo - prev_close))
-        else:
-            tr = h - lo
+        tr = max(h - lo, abs(h - prev_close), abs(lo - prev_close)) if prev_close is not None else h - lo
         prev_close = c
 
         energy = v * max(tr, 1e-10)
@@ -1032,10 +1029,7 @@ def calculate_ewma_metrics(
     distance_pct = ((current_price - ewma) / ewma * 100.0) if ewma > 0 else 0.0
 
     channel_range = highest - lowest
-    if channel_range > 0:
-        channel_pct = max(0.0, min(100.0, (current_price - lowest) / channel_range * 100.0))
-    else:
-        channel_pct = 50.0
+    channel_pct = max(0.0, min(100.0, (current_price - lowest) / channel_range * 100.0)) if channel_range > 0 else 50.0
 
     bounce_zone = -bounce_threshold_pct <= distance_pct <= bounce_threshold_pct
     breakdown = distance_pct < breakdown_threshold_pct
