@@ -4,7 +4,6 @@ from typing import Any
 
 import pandas as pd
 
-from smc_core.ids import liquidity_id
 from scripts.explicit_structure_detectors import detect_liquidity_sweeps_from_lines
 from scripts.explicit_structure_profiles import build_structure_profile, validate_structure_profile
 from scripts.smc_price_action_engine import (
@@ -12,6 +11,7 @@ from scripts.smc_price_action_engine import (
     coerce_timestamps_to_epoch_seconds,
     normalize_bars,
 )
+from smc_core.ids import liquidity_id
 
 RequiredBarColumns = ("symbol", "timestamp", "open", "high", "low", "close")
 
