@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import csv
 import json
@@ -17,15 +15,17 @@ from scripts.execute_ibkr_watchlist import (
     _normalize_schedule_value,
     _parse_symbol_filter,
     build_order_intents,
-    build_parser as build_execute_parser,
     build_preview_payload,
     filter_watchlist,
     load_watchlist_frame,
     resolve_trade_date,
     supervise_open_execution,
 )
+from scripts.execute_ibkr_watchlist import (
+    build_parser as build_execute_parser,
+)
 from scripts.generate_databento_watchlist import LongDipConfig
-
+from scripts.smc_atomic_write import atomic_write_text
 
 DEFAULT_SUPERVISOR_JSON = Path(__file__).resolve().parents[1] / "reports" / "ibkr_open_execution_supervisor.json"
 DEFAULT_SUPERVISOR_EVENTS_CSV = Path(__file__).resolve().parents[1] / "reports" / "ibkr_open_execution_events.csv"
