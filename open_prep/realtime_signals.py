@@ -1789,22 +1789,21 @@ class RealtimeEngine:
         # Block or downgrade LONG signals when intraday momentum is negative
         # (price falling from previous poll → still accelerating down).
         falling_knife_warned = False
-        if direction == "LONG" and prev_price is not None:
-            if price < prev_price:
-                # Price dropped since last poll — momentum is negative
-                if level == "A0":
-                    level = "A1"  # downgrade — do not fire A0 into a falling knife
-                    logger.debug(
-                        "Falling-knife downgrade: %s A0→A1 (price %.2f < prev %.2f)",
-                        symbol, price, prev_price,
-                    )
-                else:
-                    # A1 with negative momentum — annotate but allow through
-                    logger.debug(
-                        "Falling-knife warn: %s A1 (price %.2f < prev %.2f)",
-                        symbol, price, prev_price,
-                    )
-                    falling_knife_warned = True
+        if direction == "LONG" and prev_price is not None and price < prev_price:
+            # Price dropped since last poll — momentum is negative
+            if level == "A0":
+                level = "A1"  # downgrade — do not fire A0 into a falling knife
+                logger.debug(
+                    "Falling-knife downgrade: %s A0→A1 (price %.2f < prev %.2f)",
+                    symbol, price, prev_price,
+                )
+            else:
+                # A1 with negative momentum — annotate but allow through
+                logger.debug(
+                    "Falling-knife warn: %s A1 (price %.2f < prev %.2f)",
+                    symbol, price, prev_price,
+                )
+                falling_knife_warned = True
 
         # Breakout from key levels — require prev_price to avoid
         # false-fires on first poll after startup / watchlist reload.
