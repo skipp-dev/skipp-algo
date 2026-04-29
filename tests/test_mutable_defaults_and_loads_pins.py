@@ -104,7 +104,7 @@ _JSON_LOAD_RE = re.compile(r"\bjson\.load\s*\(")
 
 _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
     {
-        ("open_prep/alerts.py", 54),
+        ("open_prep/alerts.py", 55),
         ("open_prep/diff.py", 80),
         ("open_prep/outcome_backfill.py", 60),
         ("open_prep/outcome_backfill.py", 80),

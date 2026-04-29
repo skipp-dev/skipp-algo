@@ -89,7 +89,7 @@ def _os_delete_sites() -> set[tuple[str, int, str]]:
 OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     ("newsstack_fmp/open_prep_export.py", 34, "unlink"),
     ("newsstack_fmp/store_sqlite.py", 142, "remove"),
-    ("open_prep/alerts.py", 78, "unlink"),
+    ("open_prep/alerts.py", 79, "unlink"),
     ("open_prep/candidate_weights.py", 153, "unlink"),
     ("open_prep/diff.py", 67, "unlink"),
     ("open_prep/feature_importance_report.py", 255, "unlink"),
