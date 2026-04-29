@@ -22,10 +22,10 @@ in the same pair output directory as ``events_<SYMBOL>_<TIMEFRAME>.jsonl``.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable, Iterator
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
-from collections.abc import Iterable, Iterator
 
 from smc_core.schema_version import EVENT_LEDGER_SCHEMA_VERSION  # re-export for back-compat
 
