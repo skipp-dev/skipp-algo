@@ -49,7 +49,6 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
-
 _TIER_THRESHOLDS: tuple[tuple[str, float], ...] = (
     ("HIGH", 0.70),
     ("MEDIUM", 0.50),
