@@ -164,16 +164,14 @@ class TestBenzingaWatchlistJson:
         source_path = tmp_path / "benzinga_watchlist_snapshot.json"
         _write_json(source_path, payload)
 
-        with patch.object(mod, "BENZINGA_WATCHLIST_JSON", source_path):
-            with pytest.raises(ValueError, match="not present"):
-                mod.load_raw_meta_input("MSFT", "15m")
+        with patch.object(mod, "BENZINGA_WATCHLIST_JSON", source_path), pytest.raises(ValueError, match="not present"):
+            mod.load_raw_meta_input("MSFT", "15m")
 
     def test_missing_file_raises(self, tmp_path: Path) -> None:
         from smc_integration.sources import benzinga_watchlist_json as mod
 
-        with patch.object(mod, "BENZINGA_WATCHLIST_JSON", tmp_path / "nonexistent.json"):
-            with pytest.raises(FileNotFoundError):
-                mod.load_raw_meta_input("AAPL", "15m")
+        with patch.object(mod, "BENZINGA_WATCHLIST_JSON", tmp_path / "nonexistent.json"), pytest.raises(FileNotFoundError):
+            mod.load_raw_meta_input("AAPL", "15m")
 
     def test_symbol_case_insensitive(self, tmp_path: Path) -> None:
         from smc_integration.sources import benzinga_watchlist_json as mod
@@ -208,9 +206,8 @@ class TestBenzingaWatchlistJson:
         source_path = tmp_path / "bz.json"
         source_path.write_text("[1,2,3]", encoding="utf-8")
 
-        with patch.object(mod, "BENZINGA_WATCHLIST_JSON", source_path):
-            with pytest.raises(ValueError, match="must be an object"):
-                mod.load_raw_meta_input("AAPL", "15m")
+        with patch.object(mod, "BENZINGA_WATCHLIST_JSON", source_path), pytest.raises(ValueError, match="must be an object"):
+            mod.load_raw_meta_input("AAPL", "15m")
 
     def test_no_symbol_rows_raises(self, tmp_path: Path) -> None:
         from smc_integration.sources import benzinga_watchlist_json as mod
@@ -219,9 +216,8 @@ class TestBenzingaWatchlistJson:
         source_path = tmp_path / "bz.json"
         _write_json(source_path, payload)
 
-        with patch.object(mod, "BENZINGA_WATCHLIST_JSON", source_path):
-            with pytest.raises(ValueError, match="no symbol rows"):
-                mod.load_raw_meta_input("AAPL", "15m")
+        with patch.object(mod, "BENZINGA_WATCHLIST_JSON", source_path), pytest.raises(ValueError, match="no symbol rows"):
+            mod.load_raw_meta_input("AAPL", "15m")
 
     def test_payload_key_alternatives(self, tmp_path: Path) -> None:
         from smc_integration.sources import benzinga_watchlist_json as mod
@@ -244,9 +240,8 @@ class TestBenzingaWatchlistJson:
         source_path = tmp_path / "bz.json"
         _write_json(source_path, payload)
 
-        with patch.object(mod, "BENZINGA_WATCHLIST_JSON", source_path):
-            with pytest.raises(ValueError, match="missing both"):
-                mod.load_raw_meta_input("AAPL", "15m")
+        with patch.object(mod, "BENZINGA_WATCHLIST_JSON", source_path), pytest.raises(ValueError, match="missing both"):
+            mod.load_raw_meta_input("AAPL", "15m")
 
     def test_coerce_helpers(self) -> None:
         from smc_integration.sources.benzinga_watchlist_json import (
@@ -309,9 +304,8 @@ class TestBenzingaWatchlistJson:
         source_path = tmp_path / "bz.json"
         _write_json(source_path, payload)
 
-        with patch.object(mod, "BENZINGA_WATCHLIST_JSON", source_path):
-            with pytest.raises(ValueError, match="must not be empty"):
-                mod.load_raw_meta_input("", "15m")
+        with patch.object(mod, "BENZINGA_WATCHLIST_JSON", source_path), pytest.raises(ValueError, match="must not be empty"):
+            mod.load_raw_meta_input("", "15m")
 
     def test_thin_fraction_coercion(self, tmp_path: Path) -> None:
         from smc_integration.sources import benzinga_watchlist_json as mod
@@ -405,9 +399,8 @@ class TestFmpWatchlistJson:
         source_path = tmp_path / "fmp.json"
         source_path.write_text("[1,2,3]", encoding="utf-8")
 
-        with patch.object(mod, "FMP_WATCHLIST_JSON", source_path):
-            with pytest.raises(ValueError, match="must be an object"):
-                mod.load_raw_meta_input("AAPL", "15m")
+        with patch.object(mod, "FMP_WATCHLIST_JSON", source_path), pytest.raises(ValueError, match="must be an object"):
+            mod.load_raw_meta_input("AAPL", "15m")
 
     def test_missing_symbol_raises(self, tmp_path: Path) -> None:
         from smc_integration.sources import fmp_watchlist_json as mod
@@ -416,9 +409,8 @@ class TestFmpWatchlistJson:
         source_path = tmp_path / "fmp.json"
         _write_json(source_path, payload)
 
-        with patch.object(mod, "FMP_WATCHLIST_JSON", source_path):
-            with pytest.raises(ValueError, match="not present"):
-                mod.load_raw_meta_input("MSFT", "15m")
+        with patch.object(mod, "FMP_WATCHLIST_JSON", source_path), pytest.raises(ValueError, match="not present"):
+            mod.load_raw_meta_input("MSFT", "15m")
 
     def test_no_symbol_rows_raises(self, tmp_path: Path) -> None:
         from smc_integration.sources import fmp_watchlist_json as mod
@@ -427,9 +419,8 @@ class TestFmpWatchlistJson:
         source_path = tmp_path / "fmp.json"
         _write_json(source_path, payload)
 
-        with patch.object(mod, "FMP_WATCHLIST_JSON", source_path):
-            with pytest.raises(ValueError, match="no symbol rows"):
-                mod.load_raw_meta_input("AAPL", "15m")
+        with patch.object(mod, "FMP_WATCHLIST_JSON", source_path), pytest.raises(ValueError, match="no symbol rows"):
+            mod.load_raw_meta_input("AAPL", "15m")
 
     def test_payload_key_alternatives(self, tmp_path: Path) -> None:
         from smc_integration.sources import fmp_watchlist_json as mod
@@ -467,9 +458,8 @@ class TestFmpWatchlistJson:
         source_path = tmp_path / "fmp.json"
         _write_json(source_path, payload)
 
-        with patch.object(mod, "FMP_WATCHLIST_JSON", source_path):
-            with pytest.raises(ValueError, match="missing both"):
-                mod.load_raw_meta_input("AAPL", "15m")
+        with patch.object(mod, "FMP_WATCHLIST_JSON", source_path), pytest.raises(ValueError, match="missing both"):
+            mod.load_raw_meta_input("AAPL", "15m")
 
     def test_coerce_helpers(self) -> None:
         from smc_integration.sources.fmp_watchlist_json import (
@@ -519,9 +509,8 @@ class TestFmpWatchlistJson:
         source_path = tmp_path / "fmp.json"
         _write_json(source_path, payload)
 
-        with patch.object(mod, "FMP_WATCHLIST_JSON", source_path):
-            with pytest.raises(ValueError, match="must not be empty"):
-                mod.load_raw_meta_input("", "15m")
+        with patch.object(mod, "FMP_WATCHLIST_JSON", source_path), pytest.raises(ValueError, match="must not be empty"):
+            mod.load_raw_meta_input("", "15m")
 
     def test_thin_fraction_coercion(self, tmp_path: Path) -> None:
         from smc_integration.sources import fmp_watchlist_json as mod
@@ -1527,9 +1516,8 @@ class TestLiveNewsSnapshotJson:
         source_path = tmp_path / "smc_live_news_snapshot.json"
         _write_json(source_path, payload)
 
-        with patch.object(mod, "LIVE_NEWS_SNAPSHOT_JSON", source_path):
-            with pytest.raises(ValueError, match="not present"):
-                mod.load_raw_structure_input("MSFT", "15m")
+        with patch.object(mod, "LIVE_NEWS_SNAPSHOT_JSON", source_path), pytest.raises(ValueError, match="not present"):
+            mod.load_raw_structure_input("MSFT", "15m")
 
     def test_load_raw_structure_returns_empty_for_known_symbol(self, tmp_path: Path) -> None:
         from smc_integration.sources import live_news_snapshot_json as mod
@@ -1577,9 +1565,8 @@ class TestLiveNewsSnapshotJson:
     def test_missing_file_raises(self, tmp_path: Path) -> None:
         from smc_integration.sources import live_news_snapshot_json as mod
 
-        with patch.object(mod, "LIVE_NEWS_SNAPSHOT_JSON", tmp_path / "nonexistent.json"):
-            with pytest.raises(FileNotFoundError):
-                mod.load_raw_meta_input("AAPL", "15m")
+        with patch.object(mod, "LIVE_NEWS_SNAPSHOT_JSON", tmp_path / "nonexistent.json"), pytest.raises(FileNotFoundError):
+            mod.load_raw_meta_input("AAPL", "15m")
 
     def test_no_stories_returns_no_news_domain(self, tmp_path: Path) -> None:
         from smc_integration.sources import live_news_snapshot_json as mod
@@ -1704,9 +1691,8 @@ class TestTradingviewHelpers:
     def test_missing_file_raises(self, tmp_path: Path) -> None:
         from smc_integration.sources import tradingview_watchlist_json as mod
 
-        with patch.object(mod, "TRADINGVIEW_WATCHLIST_JSON", tmp_path / "nope.json"):
-            with pytest.raises(FileNotFoundError):
-                mod.load_raw_meta_input("AAPL", "15m")
+        with patch.object(mod, "TRADINGVIEW_WATCHLIST_JSON", tmp_path / "nope.json"), pytest.raises(FileNotFoundError):
+            mod.load_raw_meta_input("AAPL", "15m")
 
     def test_invalid_payload_type_raises(self, tmp_path: Path) -> None:
         from smc_integration.sources import tradingview_watchlist_json as mod
@@ -1714,9 +1700,8 @@ class TestTradingviewHelpers:
         source_path = tmp_path / "tv.json"
         source_path.write_text("[1,2,3]", encoding="utf-8")
 
-        with patch.object(mod, "TRADINGVIEW_WATCHLIST_JSON", source_path):
-            with pytest.raises(ValueError, match="must be an object"):
-                mod.load_raw_meta_input("AAPL", "15m")
+        with patch.object(mod, "TRADINGVIEW_WATCHLIST_JSON", source_path), pytest.raises(ValueError, match="must be an object"):
+            mod.load_raw_meta_input("AAPL", "15m")
 
     def test_missing_symbol_raises(self, tmp_path: Path) -> None:
         from smc_integration.sources import tradingview_watchlist_json as mod
@@ -1725,9 +1710,8 @@ class TestTradingviewHelpers:
         source_path = tmp_path / "tv.json"
         _write_json(source_path, payload)
 
-        with patch.object(mod, "TRADINGVIEW_WATCHLIST_JSON", source_path):
-            with pytest.raises(ValueError, match="not present"):
-                mod.load_raw_meta_input("MSFT", "15m")
+        with patch.object(mod, "TRADINGVIEW_WATCHLIST_JSON", source_path), pytest.raises(ValueError, match="not present"):
+            mod.load_raw_meta_input("MSFT", "15m")
 
     def test_empty_symbol_raises(self, tmp_path: Path) -> None:
         from smc_integration.sources import tradingview_watchlist_json as mod
@@ -1736,9 +1720,8 @@ class TestTradingviewHelpers:
         source_path = tmp_path / "tv.json"
         _write_json(source_path, payload)
 
-        with patch.object(mod, "TRADINGVIEW_WATCHLIST_JSON", source_path):
-            with pytest.raises(ValueError, match="must not be empty"):
-                mod.load_raw_meta_input("", "15m")
+        with patch.object(mod, "TRADINGVIEW_WATCHLIST_JSON", source_path), pytest.raises(ValueError, match="must not be empty"):
+            mod.load_raw_meta_input("", "15m")
 
     def test_no_symbol_rows_raises(self, tmp_path: Path) -> None:
         from smc_integration.sources import tradingview_watchlist_json as mod
@@ -1747,9 +1730,8 @@ class TestTradingviewHelpers:
         source_path = tmp_path / "tv.json"
         _write_json(source_path, payload)
 
-        with patch.object(mod, "TRADINGVIEW_WATCHLIST_JSON", source_path):
-            with pytest.raises(ValueError, match="no symbol rows"):
-                mod.load_raw_meta_input("AAPL", "15m")
+        with patch.object(mod, "TRADINGVIEW_WATCHLIST_JSON", source_path), pytest.raises(ValueError, match="no symbol rows"):
+            mod.load_raw_meta_input("AAPL", "15m")
 
     def test_invalid_regime_defaults_to_normal(self, tmp_path: Path) -> None:
         from smc_integration.sources import tradingview_watchlist_json as mod
@@ -1805,9 +1787,8 @@ class TestTradingviewHelpers:
         source_path = tmp_path / "tv.json"
         _write_json(source_path, payload)
 
-        with patch.object(mod, "TRADINGVIEW_WATCHLIST_JSON", source_path):
-            with pytest.raises(ValueError, match="missing both"):
-                mod.load_raw_meta_input("AAPL", "15m")
+        with patch.object(mod, "TRADINGVIEW_WATCHLIST_JSON", source_path), pytest.raises(ValueError, match="missing both"):
+            mod.load_raw_meta_input("AAPL", "15m")
 
     def test_coerce_helpers(self) -> None:
         from smc_integration.sources.tradingview_watchlist_json import (
@@ -1840,9 +1821,8 @@ class TestLiveNewsHelpers:
         source_path = tmp_path / "snap.json"
         source_path.write_text("[1,2,3]", encoding="utf-8")
 
-        with patch.object(mod, "LIVE_NEWS_SNAPSHOT_JSON", source_path):
-            with pytest.raises(ValueError, match="must be an object"):
-                mod.load_raw_meta_input("AAPL", "15m")
+        with patch.object(mod, "LIVE_NEWS_SNAPSHOT_JSON", source_path), pytest.raises(ValueError, match="must be an object"):
+            mod.load_raw_meta_input("AAPL", "15m")
 
     def test_no_stories_key_raises(self, tmp_path: Path) -> None:
         from smc_integration.sources import live_news_snapshot_json as mod
@@ -1851,9 +1831,8 @@ class TestLiveNewsHelpers:
         source_path = tmp_path / "snap.json"
         _write_json(source_path, payload)
 
-        with patch.object(mod, "LIVE_NEWS_SNAPSHOT_JSON", source_path):
-            with pytest.raises(ValueError, match="no story rows"):
-                mod.load_raw_meta_input("AAPL", "15m")
+        with patch.object(mod, "LIVE_NEWS_SNAPSHOT_JSON", source_path), pytest.raises(ValueError, match="no story rows"):
+            mod.load_raw_meta_input("AAPL", "15m")
 
     def test_parse_generated_at_iso(self) -> None:
         from smc_integration.sources.live_news_snapshot_json import _parse_generated_at
@@ -1955,6 +1934,5 @@ class TestLiveNewsHelpers:
         source_path = tmp_path / "snap.json"
         _write_json(source_path, payload)
 
-        with patch.object(mod, "LIVE_NEWS_SNAPSHOT_JSON", source_path):
-            with pytest.raises(ValueError, match="missing both"):
-                mod.load_raw_meta_input("AAPL", "15m")
+        with patch.object(mod, "LIVE_NEWS_SNAPSHOT_JSON", source_path), pytest.raises(ValueError, match="missing both"):
+            mod.load_raw_meta_input("AAPL", "15m")
