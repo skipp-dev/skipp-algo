@@ -6,8 +6,8 @@ Configuration is loaded from ``artifacts/open_prep/alert_config.json``.
 """
 from __future__ import annotations
 
-import json
 import ipaddress
+import json
 import logging
 import os
 import socket
