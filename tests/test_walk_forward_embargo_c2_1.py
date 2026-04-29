@@ -1,5 +1,6 @@
 """Sprint C2.1 — walk-forward hardening tests for ml/walkforward."""
 from __future__ import annotations
+
 from itertools import pairwise
 
 import numpy as np
