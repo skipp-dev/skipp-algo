@@ -39,7 +39,7 @@ def _iter_records(ledger: Path) -> list[dict[str, Any]]:
 
 def compute(records: list[dict[str, Any]]) -> dict[str, Any]:
     last_status: str | None = None
-    last_ts: str | None = None
+    _last_ts: str | None = None
     latest: dict[str, Any] | None = None
     for rec in records:
         raw = rec.get("status")
@@ -58,7 +58,7 @@ def compute(records: list[dict[str, Any]]) -> dict[str, Any]:
                 "at":   ts,
             }
         last_status = s
-        last_ts = ts
+        _last_ts = ts
     if latest is None:
         return {"schema_version": 1, "found": False}
     return {

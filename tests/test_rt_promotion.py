@@ -234,7 +234,7 @@ class TestPromoteA0A1Signals(unittest.TestCase):
         ])
         rt = _make_rt_signals([("NVDA", "A1", "LONG", "breakout")])
 
-        ranked_copy = copy.deepcopy(ranked_orig)
+        _ranked_copy = copy.deepcopy(ranked_orig)
         filtered_copy = copy.deepcopy(filtered_orig)
 
         promote_a0a1_signals(ranked_orig, filtered_orig, rt)

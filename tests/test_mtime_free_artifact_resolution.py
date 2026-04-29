@@ -61,7 +61,7 @@ def test_sorted_by_filename_iso_returns_newest_first(tmp_path: Path) -> None:
 
 def test_unstamped_filenames_sort_after_stamped(tmp_path: Path) -> None:
     stamped = _touch(tmp_path / "x_20260101_000000.json", mtime=1.0)
-    plain = _touch(tmp_path / "canonical.json", mtime=999_999_999.0)
+    _plain = _touch(tmp_path / "canonical.json", mtime=999_999_999.0)
     chosen = latest_by_filename_iso(tmp_path.glob("*.json"))
     assert chosen == stamped, (
         "Stamped filenames must rank above unstamped ones regardless of mtime"

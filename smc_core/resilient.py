@@ -82,12 +82,12 @@ def resilient(
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             attempt = 0
-            last_exc: BaseException | None = None
+            _last_exc: BaseException | None = None
             while True:
                 try:
                     return func(*args, **kwargs)
                 except exceptions as exc:
-                    last_exc = exc
+                    _last_exc = exc
                     attempt += 1
                     if attempt > retries:
                         if on_failure is not None:

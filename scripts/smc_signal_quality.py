@@ -240,14 +240,14 @@ def build_signal_quality(
     ob_side = str(ob_light.get("PRIMARY_OB_SIDE", "NONE"))
     ob_fresh = bool(ob_light.get("OB_FRESH", False))
     ob_distance = float(ob_light.get("PRIMARY_OB_DISTANCE", 99.0))
-    ob_mitigation = str(ob_light.get("OB_MITIGATION_STATE", "stale"))
+    _ob_mitigation = str(ob_light.get("OB_MITIGATION_STATE", "stale"))
 
     # Fallback: derive from broad OB block only if lean is absent
     if ob_side == "NONE":
         ob = enr.get("order_blocks") or {}
         if ob:
             bull_dist = float(ob.get("OB_NEAREST_DISTANCE_PCT", 99.0))
-            bear_dist = float(ob.get("OB_NEAREST_DISTANCE_PCT", 99.0))
+            _bear_dist = float(ob.get("OB_NEAREST_DISTANCE_PCT", 99.0))
             bull_fresh = int(ob.get("BULL_OB_FRESHNESS", 0))
             bear_fresh = int(ob.get("BEAR_OB_FRESHNESS", 0))
             if bull_fresh > bear_fresh:

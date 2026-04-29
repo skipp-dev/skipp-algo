@@ -442,7 +442,7 @@ class TestFinalizePipeline:
         df.to_csv(csv_path, index=False)
         base_result = {"output_paths": {"base_csv": csv_path}, "base_snapshot": df}
 
-        result = finalize_pipeline(
+        _result = finalize_pipeline(
             base_result=base_result,
             schema_path=Path("schema/smc_microstructure_base.json"),
             output_root=tmp_path,

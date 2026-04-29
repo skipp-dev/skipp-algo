@@ -19,7 +19,7 @@ from terminal_ui_helpers import format_age_string
 
 def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     """Render the RT Spikes tab."""
-    cfg = st.session_state.cfg
+    _cfg = st.session_state.cfg
     spike_det: SpikeDetector | None = st.session_state.get("spike_detector")
 
     st.subheader("⚡ Real-Time Spike Detection")

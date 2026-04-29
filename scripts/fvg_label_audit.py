@@ -394,7 +394,7 @@ def _derive_recommendations(
 def run_fvg_audit(benchmark_dir: Path) -> FVGAuditResult:
     """Run the full FVG label audit."""
     kpis = _load_benchmark_kpis(benchmark_dir)
-    scored = _load_scored_events(benchmark_dir)
+    _scored = _load_scored_events(benchmark_dir)
 
     comparison = _fvg_vs_family_comparison(kpis)
     per_pair = _fvg_per_pair_breakdown(kpis)

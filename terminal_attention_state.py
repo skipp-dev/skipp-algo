@@ -84,7 +84,7 @@ def _derive_attention_fields(item: Any, *, now: float | None = None) -> dict[str
     resolution_score = effective_resolution_score(item)
     resolution_actionable = effective_resolution_actionable(item, now=now)
     reaction_state = effective_reaction_state(item)
-    reaction_score = effective_reaction_score(item)
+    _reaction_score = effective_reaction_score(item)
     reaction_actionable = effective_reaction_actionable(item, now=now)
     catalyst_score = effective_catalyst_score(item)
     age_minutes = effective_catalyst_age_minutes(item, now=now)

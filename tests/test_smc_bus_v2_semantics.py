@@ -813,7 +813,7 @@ def test_quality_score_uses_fixed_local_bounds_text() -> None:
 
 
 def test_lean_transport_row_exposes_ensemble_and_library_volatility() -> None:
-    core_source = _read(CORE_PATH)
+    _core_source = _read(CORE_PATH)
     dashboard_source = _read(DASHBOARD_PATH)
     resolver_source = _read(RESOLVERS_PATH)
 

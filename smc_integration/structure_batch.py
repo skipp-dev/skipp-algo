@@ -271,7 +271,7 @@ def build_single_symbol_structure_artifact(
     }
     latest_ts = pd.to_datetime(canonical_bars["timestamp"], errors="coerce", utc=True).dropna().max()
     latest_close = pd.to_numeric(canonical_bars["close"], errors="coerce").dropna().iloc[-1]
-    asof_ts = float(pd.Timestamp(latest_ts).timestamp()) if pd.notna(latest_ts) else float(generated_at)
+    _asof_ts = float(pd.Timestamp(latest_ts).timestamp()) if pd.notna(latest_ts) else float(generated_at)
 
     last_event = "none"
     trend_state = 0
