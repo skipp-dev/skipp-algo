@@ -30,10 +30,10 @@ Phase-B safety rails baked into the adapter
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
 from typing import Any
-from collections.abc import Sequence
 
 from scripts.execute_ibkr_watchlist import IBKROrderIntent
 
