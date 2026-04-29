@@ -77,7 +77,7 @@ class TestScorerPassthrough:
         name = q.get("name") or q.get("companyName") or ""
         assert name == "Apple Inc."
 
-    def test_name_from_companyName_field(self):
+    def test_name_from_company_name_field(self):
         q = self._make_quote(companyName="Apple Inc.")
         name = q.get("name") or q.get("companyName") or ""
         assert name == "Apple Inc."
@@ -95,7 +95,7 @@ class TestScorerPassthrough:
         q = self._make_quote(change="2.35")
         assert to_float(q.get("change"), default=0.0) == 2.35
 
-    def test_changesPercentage_fallback_to_changePercentage(self):
+    def test_changes_percentage_fallback_to_change_percentage(self):
         q = self._make_quote(changePercentage=1.5)
         val = q.get("changesPercentage") or q.get("changePercentage")
         assert to_float(val, default=0.0) == 1.5
@@ -191,7 +191,7 @@ class TestRankScore:
         expected = abs(5.0) * 0.7 + 0.5 * 100.0 * 0.3
         assert result == round(expected, 2)
 
-    def test_fallback_to_changesPercentage_when_gap_is_zero(self):
+    def test_fallback_to_changes_percentage_when_gap_is_zero(self):
         row = {"gap_pct": 0.0, "changesPercentage": 3.0, "score": 0.5}
         result = self._compute_rank_score(row)
         # gap_pct=0.0 is falsy, so changesPercentage=3.0 should be used
@@ -363,7 +363,7 @@ class TestScorerRoundSafety:
         val = f.get("change") or 0.0
         assert round(val, 4) == 0.0
 
-    def test_round_changesPercentage_none_safe(self):
+    def test_round_changes_percentage_none_safe(self):
         f = {"changesPercentage": None}
         val = f.get("changesPercentage") or 0.0
         assert round(val, 4) == 0.0
