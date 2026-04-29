@@ -4,7 +4,6 @@ import re
 
 from tests.smc_manifest_test_utils import ROOT, load_manifest
 
-
 CORE_PATH = ROOT / 'SMC_Core_Engine.pine'
 LIFECYCLE_PRIVATE_PATH = ROOT / 'SMC++' / 'smc_lifecycle_private.pine'
 OBSERVABILITY_PRIVATE_PATH = ROOT / 'SMC++' / 'smc_observability_private.pine'
