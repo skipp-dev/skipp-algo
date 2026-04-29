@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import csv
 import json
 import os
@@ -11,13 +9,14 @@ from datetime import UTC, datetime
 from html import escape
 from pathlib import Path
 
+from scripts.smc_atomic_write import atomic_write_text
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from open_prep.run_open_prep import (
     GAP_MODE_PREMARKET_INDICATIVE,
     generate_open_prep_result,
 )
-
 
 DEFAULT_UNIVERSE = ["NVDA", "PLTR", "PWR", "TSLA", "AMD", "META", "MSFT", "AMZN", "GOOGL", "SMCI"]
 
