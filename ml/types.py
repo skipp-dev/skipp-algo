@@ -4,9 +4,9 @@ Stdlib-only so importing ``ml.types`` never pulls heavy deps.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Literal
-from collections.abc import Mapping
 
 EventFamily = Literal["BOS", "OB", "FVG", "SWEEP"]
 
