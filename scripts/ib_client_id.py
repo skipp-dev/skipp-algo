@@ -36,6 +36,7 @@ Usage::
 
 from __future__ import annotations
 
+import contextlib
 import fcntl
 import json
 import os
@@ -43,7 +44,6 @@ import random
 import time
 from collections.abc import Iterable
 from pathlib import Path
-import contextlib
 
 DEFAULT_REGISTRY_PATH = Path.home() / "client_id_registry.json"
 DEFAULT_PROCESS_TIMEOUT_SECONDS = 300
