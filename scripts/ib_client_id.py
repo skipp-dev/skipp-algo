@@ -122,7 +122,7 @@ def allocate_ib_client_id(
     lock_path.parent.mkdir(parents=True, exist_ok=True)
 
     try:
-        lock_fd = open(lock_path, "w")
+        lock_fd = open(lock_path, "w")  # noqa: SIM115 -- fd held under fcntl.flock for client-id allocation
     except OSError:
         return random.randint(*preferred_range)
 
@@ -185,7 +185,7 @@ def release_ib_client_id(
         return False
     lock_path = path.with_suffix(path.suffix + ".lock")
     try:
-        lock_fd = open(lock_path, "w")
+        lock_fd = open(lock_path, "w")  # noqa: SIM115 -- fd held under fcntl.flock for client-id allocation
     except OSError:
         return False
     try:
