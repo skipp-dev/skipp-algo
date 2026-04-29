@@ -261,10 +261,7 @@ def bootstrap_ci(
     arr = _validate(sample)
     rng = np.random.default_rng(seed)
 
-    if block_length == 1:
-        resamples = _iid_resample(arr, B, rng)
-    else:
-        resamples = _stationary_resample(arr, B, block_length, rng)
+    resamples = _iid_resample(arr, B, rng) if block_length == 1 else _stationary_resample(arr, B, block_length, rng)
 
     boot = np.array([statistic(resamples[i]) for i in range(B)], dtype=np.float64)
     observed = float(statistic(arr))
