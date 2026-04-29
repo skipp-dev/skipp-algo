@@ -20,7 +20,7 @@ def test_smoke_snapshot_collects_expected_keys() -> None:
 
 
 def test_smoke_snapshot_matches_reference() -> None:
-    from scripts.e2e_smoke_ci import collect_smoke_snapshot, compare_snapshots, DEFAULT_REFERENCE
+    from scripts.e2e_smoke_ci import DEFAULT_REFERENCE, collect_smoke_snapshot, compare_snapshots
     if not DEFAULT_REFERENCE.exists():
         pytest.skip("Reference file not generated yet")
     reference = json.loads(DEFAULT_REFERENCE.read_text(encoding="utf-8"))
