@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import smc_integration.artifact_resolution as _ar
 from smc_integration.artifact_resolution import (
     resolve_export_bundle_root,
     resolve_production_workbook_path,
@@ -69,8 +70,6 @@ def test_no_hidden_workspace_dependency(tmp_path: Path, monkeypatch) -> None:
 
 
 # ── pure helper coverage ─────────────────────────────────────────
-
-import smc_integration.artifact_resolution as _ar
 
 
 class TestToExistingPath:
