@@ -18,14 +18,14 @@ Pure stdlib.
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 import sys
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
-from collections.abc import Iterable
+
+from scripts.smc_atomic_write import atomic_write_text
 
 
 def _pairs(items: Iterable[Any]) -> set[tuple[str, str]]:
