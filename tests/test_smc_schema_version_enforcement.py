@@ -180,6 +180,14 @@ def test_no_hardcoded_stale_schema_versions_in_tests() -> None:
             # literals to exercise compatibility branches.
             # (Deep-Review 2026-04-27.)
             "test_drift_loader.py",
+            # ``test_drift_loader_recent_cache.py`` uses the *drift* schema
+            # version (DRIFT_SCHEMA_MIN_COMPATIBLE = "1.0.0"), independent of
+            # the SMC SCHEMA_VERSION.
+            "test_drift_loader_recent_cache.py",
+            # ``test_emit_public_calibration_report.py`` uses the *families*
+            # schema version (FAMILIES_SCHEMA_VERSION = "1.0.0" in
+            # scripts/build_families_telemetry.py), independent of SMC.
+            "test_emit_public_calibration_report.py",
         ):
             continue  # skip — these files reference multiple versions for comparison testing
         text = py.read_text(encoding="utf-8")
