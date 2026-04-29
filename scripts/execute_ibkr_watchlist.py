@@ -702,7 +702,7 @@ def flatten_after(
     _, Stock, _, MarketOrder, _ = _import_ibkr_types()
     contract = Stock(symbol, execution_cfg.exchange, execution_cfg.currency)
     ib.qualifyContracts(contract)
-    flatten_quantity = int(round(abs(net_quantity)))
+    flatten_quantity = round(abs(net_quantity))
     action = "SELL" if net_quantity > 0 else "BUY"
     market_order = MarketOrder(action, flatten_quantity)
     market_order.tif = execution_cfg.tif

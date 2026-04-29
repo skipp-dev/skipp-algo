@@ -104,8 +104,8 @@ def _winsorize(values: Sequence[float], alpha: float) -> list[float]:
         raise ValueError(f"alpha must be in (0, 0.5), got {alpha}")
     sorted_vals = sorted(values)
     n = len(sorted_vals)
-    lo_idx = max(0, int(math.floor(alpha * n)))
-    hi_idx = min(n - 1, int(math.ceil((1.0 - alpha) * n)) - 1)
+    lo_idx = max(0, math.floor(alpha * n))
+    hi_idx = min(n - 1, math.ceil((1.0 - alpha) * n) - 1)
     lo = sorted_vals[lo_idx]
     hi = sorted_vals[hi_idx]
     return [min(max(v, lo), hi) for v in values]

@@ -584,7 +584,7 @@ def collect_calibration_arrays(
                 continue
             if not (0.0 <= p <= 1.0) or not (0.0 <= r <= 1.0):
                 continue
-            positives = int(round(r * n))
+            positives = round(r * n)
             positives = max(0, min(n, positives))
             negatives = n - positives
             preds.extend([p] * n)
@@ -693,7 +693,7 @@ def collect_calibration_arrays_per_bucket(
                         continue
                     if not (0.0 <= p <= 1.0) or not (0.0 <= r <= 1.0):
                         continue
-                    positives = max(0, min(n, int(round(r * n))))
+                    positives = max(0, min(n, round(r * n)))
                     preds.extend([p] * n)
                     outs.extend([1] * positives)
                     outs.extend([0] * (n - positives))

@@ -2104,7 +2104,7 @@ def _build_daily_symbol_features_full_universe_export(
         ranking_metric=ranking_metric,
     )
     eligible_count_map = ranked_candidates.groupby("trade_date").size().astype(int).to_dict()
-    take_n_map = {trade_day: int(math.ceil(count * top_fraction)) if int(count) > 0 else 0 for trade_day, count in eligible_count_map.items()}
+    take_n_map = {trade_day: math.ceil(count * top_fraction) if int(count) > 0 else 0 for trade_day, count in eligible_count_map.items()}
     features["eligible_count_for_trade_date"] = features["trade_date"].map(eligible_count_map).fillna(0).astype(int)
     features["take_n_for_trade_date"] = features["trade_date"].map(take_n_map).fillna(0).astype(int)
     features["rank_within_trade_date"] = pd.Series(pd.array([pd.NA] * len(features), dtype="Int64"), index=features.index)
@@ -2146,7 +2146,7 @@ def _build_daily_symbol_features_full_universe_export(
         )
         early_eligible_count_map = early_candidates.groupby("trade_date").size().astype(int).to_dict()
         early_take_n_map = {
-            trade_day: int(math.ceil(count * top_fraction)) if int(count) > 0 else 0
+            trade_day: math.ceil(count * top_fraction) if int(count) > 0 else 0
             for trade_day, count in early_eligible_count_map.items()
         }
         if not early_candidates.empty:

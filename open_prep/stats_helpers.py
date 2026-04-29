@@ -285,4 +285,4 @@ def min_trl(
             "non-Gaussian variance term collapsed; check skew/kurtosis inputs"
         )
     n_needed = 1.0 + denom_inner * (z_alpha / (sr_hat - sr_star)) ** 2
-    return int(math.ceil(n_needed))
+    return math.ceil(n_needed)

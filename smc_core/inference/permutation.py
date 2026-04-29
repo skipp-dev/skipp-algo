@@ -100,7 +100,7 @@ def _block_aligned_split(
     if block_size <= 1:
         return permuted[:n_t], permuted[n_t:]
     n = permuted.size
-    snapped = int(round(n_t / block_size)) * block_size
+    snapped = round(n_t / block_size) * block_size
     snapped = max(block_size, min(snapped, n - block_size))
     return permuted[:snapped], permuted[snapped:]
 
