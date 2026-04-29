@@ -30,10 +30,7 @@ def nth_weekday_of_month(year: int, month: int, weekday: int, n: int) -> date:
 
 def last_weekday_of_month(year: int, month: int, weekday: int) -> date:
     """Return the last occurrence of *weekday* in *month* of *year*."""
-    if month == 12:
-        last = date(year + 1, 1, 1) - timedelta(days=1)
-    else:
-        last = date(year, month + 1, 1) - timedelta(days=1)
+    last = date(year + 1, 1, 1) - timedelta(days=1) if month == 12 else date(year, month + 1, 1) - timedelta(days=1)
     offset = (last.weekday() - weekday) % 7
     return last - timedelta(days=offset)
 
