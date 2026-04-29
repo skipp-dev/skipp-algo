@@ -14,7 +14,6 @@ from scripts.build_phase_a_inputs import (
     main,
 )
 
-
 _HEADER = (
     "rank,symbol,setup_type,entry_trigger,invalidation,risk_management,"
     "atr,tight,mid,wide,stop_reference_source,stop_reference_price,"
