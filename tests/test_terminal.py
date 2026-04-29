@@ -407,7 +407,7 @@ class TestJsonlExport:
     """Tests for terminal_export.append_jsonl and rotate_jsonl."""
 
     def _make_classified_item(self, **overrides: Any) -> ClassifiedItem:
-        from terminal_poller import ClassifiedItem as _CI
+        from terminal_poller import ClassifiedItem as _ClassifiedItemL
         defaults: dict[str, Any] = dict(
             item_id="test1", ticker="NVDA", tickers_all=["NVDA"],
             headline="Test headline", snippet="Test snippet",
@@ -427,7 +427,7 @@ class TestJsonlExport:
             is_wiim=False,
         )
         defaults.update(overrides)
-        return _CI(**defaults)
+        return _ClassifiedItemL(**defaults)
 
     def test_append_creates_file(self, tmp_path: Path) -> None:
         from terminal_export import append_jsonl
@@ -488,7 +488,7 @@ class TestWebhookStub:
     """Tests for terminal_export.fire_webhook."""
 
     def _make_ci(self, **kw: Any) -> ClassifiedItem:
-        from terminal_poller import ClassifiedItem as _CI
+        from terminal_poller import ClassifiedItem as _ClassifiedItemL
         defaults: dict[str, Any] = dict(
             item_id="wh1", ticker="NVDA", tickers_all=["NVDA"],
             headline="NVIDIA beats estimates", snippet="Details",
@@ -508,7 +508,7 @@ class TestWebhookStub:
             is_wiim=False,
         )
         defaults.update(kw)
-        return _CI(**defaults)
+        return _ClassifiedItemL(**defaults)
 
     def test_disabled_when_no_url(self) -> None:
         from terminal_export import fire_webhook

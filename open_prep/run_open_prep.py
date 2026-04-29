@@ -4498,11 +4498,11 @@ def _enrich_zone_priority(
     # Load calibrated family weights (best-effort)
     calibrated_fw: dict[str, float] | None = None
     try:
-        from pathlib import Path as _P
+        from pathlib import Path as _PathL
         import json as _json
         for _cal_p in (
-            _P("artifacts/reports/zone_priority_calibration.json"),
-            _P("artifacts/ci/measurement_benchmark/zone_priority_calibration.json"),
+            _PathL("artifacts/reports/zone_priority_calibration.json"),
+            _PathL("artifacts/ci/measurement_benchmark/zone_priority_calibration.json"),
         ):
             if _cal_p.exists():
                 _cal = _json.loads(_cal_p.read_text(encoding="utf-8"))
