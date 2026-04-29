@@ -25,7 +25,6 @@ import pytest
 from scripts import c9_threshold_replay
 from scripts.check_c12_trigger import evaluate_trigger
 
-
 _BAUCHGEFUEHL_LITERALS = (
     # Detector 3 — mean-shift threshold in σ-units of baseline.
     re.compile(r"mean_shift\s*>=\s*0\.3\b"),
