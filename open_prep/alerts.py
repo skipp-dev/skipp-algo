@@ -6,6 +6,7 @@ Configuration is loaded from ``artifacts/open_prep/alert_config.json``.
 """
 from __future__ import annotations
 
+import contextlib
 import ipaddress
 import json
 import logging
@@ -18,7 +19,6 @@ import time
 import urllib.parse
 from pathlib import Path
 from typing import Any
-import contextlib
 
 logger = logging.getLogger("open_prep.alerts")
 
@@ -74,7 +74,7 @@ def save_alert_config(config: dict[str, Any]) -> Path:
             fh.flush()
             os.fsync(fh.fileno())
         os.replace(tmp_path, ALERT_CONFIG_PATH)
-    except BaseException:
+    except Exception:
         with contextlib.suppress(OSError):
             os.unlink(tmp_path)
         raise
