@@ -17,8 +17,8 @@ from pathlib import Path
 
 import yaml
 
-from smc_integration.release_policy import RELEASE_REFERENCE_TIMEFRAMES
 from scripts.run_smc_measurement_benchmark import build_parser
+from smc_integration.release_policy import RELEASE_REFERENCE_TIMEFRAMES
 
 REPO = Path(__file__).resolve().parents[1]
 ROLLING_WF = REPO / ".github" / "workflows" / "smc-measurement-benchmark-rolling.yml"
