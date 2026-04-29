@@ -5,7 +5,6 @@ from collections import OrderedDict
 from collections.abc import Mapping
 from typing import Any
 
-
 _LOG = logging.getLogger(__name__)
 
 
