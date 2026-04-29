@@ -5,7 +5,7 @@ bull/bear tie-break nearest selection, and maturity derivation.
 """
 from __future__ import annotations
 
-from scripts.smc_fvg_lifecycle_light import build_fvg_lifecycle_light, DEFAULTS
+from scripts.smc_fvg_lifecycle_light import DEFAULTS, build_fvg_lifecycle_light
 
 
 def _imbalance(
