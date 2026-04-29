@@ -44,6 +44,7 @@ from typing import Any
 from zoneinfo import ZoneInfo as _ZoneInfo
 
 from open_prep.outcomes import compute_feature_importance
+import contextlib
 
 logger = logging.getLogger("open_prep.feature_importance_report")
 
@@ -251,10 +252,8 @@ def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
             fh.write("\n")
         os.replace(tmp_name, path)
     except Exception:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp_name)
-        except OSError:
-            pass
         raise
 
 
