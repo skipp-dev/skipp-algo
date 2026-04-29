@@ -256,10 +256,7 @@ def _derive_volume_regime(
     syms = base_snapshot["symbol"].astype(str).str.upper()
     low = sorted(syms[adv < adv_threshold].dropna().tolist())
     median_adv = adv.median()
-    if pd.notna(median_adv) and median_adv > 0:
-        holiday = sorted(syms[adv < 0.2 * median_adv].dropna().tolist())
-    else:
-        holiday = []
+    holiday = sorted(syms[adv < 0.2 * median_adv].dropna().tolist()) if pd.notna(median_adv) and median_adv > 0 else []
     return {"low_tickers": low, "holiday_suspect_tickers": holiday}
 
 
