@@ -41,7 +41,7 @@ _NOQA_RE = re.compile(r"#\s*noqa\b", re.IGNORECASE)
 
 # Frozen ledger — exactly today's surface (2026-04-29).
 #
-# Two suppressions are intentional and registered here:
+# The following suppressions are intentional and registered here:
 #
 # * ``streamlit_terminal_alerts.py``: validates that a webhook URL host is
 #   not "0.0.0.0" / localhost — string-matching, *not* binding a server.
