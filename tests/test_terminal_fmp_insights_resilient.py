@@ -99,6 +99,6 @@ def test_call_openai_chat_empty_choices_raises_sentinel(monkeypatch):
     client = _Client([empty])
     _patch_httpx_client(monkeypatch, client)
 
-    with pytest.raises(fi._OpenAIEmptyChoices):
+    with pytest.raises(fi._OpenAIEmptyChoicesError):
         fi._call_openai_chat({"x": 1}, api_key="sk-test")
     assert client.calls == 1
