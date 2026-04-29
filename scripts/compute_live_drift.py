@@ -363,7 +363,7 @@ def compute_live_drift(
             if slip is not None:
                 slippage.append(slip)
             h = r.get("hit")
-            if isinstance(h, bool) or isinstance(h, (int, float)):
+            if isinstance(h, (bool, int, float)):
                 hits.append(1 if h else 0)
 
         n_live = len(returns)
