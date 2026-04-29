@@ -6,9 +6,9 @@ but on action quantiles rather than feature/probability bins.
 """
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal
-from collections.abc import Sequence
 
 import numpy as np
 
