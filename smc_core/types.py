@@ -3,17 +3,17 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal, TypeAlias
 
-VolumeRegime: TypeAlias = Literal["NORMAL", "LOW_VOLUME", "HOLIDAY_SUSPECT"]
-BosEventKind: TypeAlias = Literal["BOS", "CHOCH"]
-BosDir: TypeAlias = Literal["UP", "DOWN"]
-ObDir: TypeAlias = Literal["BULL", "BEAR"]
-FvgDir: TypeAlias = Literal["BULL", "BEAR"]
-SweepSide: TypeAlias = Literal["BUY_SIDE", "SELL_SIDE"]
-EventSeverity: TypeAlias = Literal["HIGH", "MODERATE", "LOW"]
-EventType: TypeAlias = Literal["EARNINGS", "FOMC", "CPI", "NFP", "OPEX", "OTHER"]
-MarketRegime: TypeAlias = Literal["RISK_ON", "RISK_OFF", "ROTATION", "NEUTRAL"]
-NewsCategory: TypeAlias = Literal["MACRO", "SECTOR", "COMPANY", "GEOPOLITICAL", "OTHER"]
-ReasonCode: TypeAlias = Literal[
+type VolumeRegime = Literal["NORMAL", "LOW_VOLUME", "HOLIDAY_SUSPECT"]
+type BosEventKind = Literal["BOS", "CHOCH"]
+type BosDir = Literal["UP", "DOWN"]
+type ObDir = Literal["BULL", "BEAR"]
+type FvgDir = Literal["BULL", "BEAR"]
+type SweepSide = Literal["BUY_SIDE", "SELL_SIDE"]
+type EventSeverity = Literal["HIGH", "MODERATE", "LOW"]
+type EventType = Literal["EARNINGS", "FOMC", "CPI", "NFP", "OPEX", "OTHER"]
+type MarketRegime = Literal["RISK_ON", "RISK_OFF", "ROTATION", "NEUTRAL"]
+type NewsCategory = Literal["MACRO", "SECTOR", "COMPANY", "GEOPOLITICAL", "OTHER"]
+type ReasonCode = Literal[
     "REGIME_NORMAL",
     "REGIME_LOW_VOLUME",
     "REGIME_HOLIDAY_SUSPECT",
