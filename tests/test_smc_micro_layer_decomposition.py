@@ -15,9 +15,9 @@ import pandas as pd
 import pytest
 
 from scripts.generate_smc_micro_profiles import (
+    LISTS,
     coerce_input_frame,
     load_schema,
-    LISTS,
 )
 from scripts.smc_micro_generator import GenerationResult, generate
 from scripts.smc_micro_publisher import publish_generation_result, publish_readiness_report
@@ -27,7 +27,6 @@ from scripts.smc_micro_validator import (
     validate_publish_readiness,
 )
 from scripts.smc_schema_resolver import resolve_microstructure_schema_path
-
 
 SCHEMA_PATH = resolve_microstructure_schema_path()
 
