@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import typing
 
+from scripts import smc_sprt_stop_rule
 from scripts.smc_sprt_stop_rule import (
     INCONCLUSIVE_DECISIONS,
     SPRTConfig,
@@ -28,7 +29,6 @@ from scripts.smc_sprt_stop_rule import (
     evaluate,
     terminal_decision,
 )
-from scripts import smc_sprt_stop_rule
 
 _EXPECTED_VOCAB: frozenset[str] = frozenset({
     "continue",
