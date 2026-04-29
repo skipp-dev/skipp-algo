@@ -12,7 +12,7 @@ from scripts.smc_atomic_write import atomic_write_text
 import argparse
 import json
 import sys
-from datetime import datetime, timezone, UTC
+from datetime import datetime, UTC
 from pathlib import Path
 from typing import Any
 

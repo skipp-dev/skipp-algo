@@ -1,7 +1,7 @@
 """Tests for stale-batch protection (ENG-WS5-02)."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone, UTC
+from datetime import datetime, timedelta, UTC
 
 from smc_integration.stale_batch_guard import (
     DEFAULT_AGING_HOURS,

@@ -15,7 +15,7 @@ import random
 import re
 import threading
 import time
-from datetime import datetime, timezone, UTC
+from datetime import datetime, UTC
 from email.utils import parsedate_to_datetime
 from typing import Any
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import date, datetime, timezone, UTC
+from datetime import date, datetime, UTC
 from pathlib import Path
 
 import pytest

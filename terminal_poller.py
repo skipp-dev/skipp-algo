@@ -1676,7 +1676,7 @@ def compute_power_gaps(
         ``"Gap Down"``), ``has_earnings``, ``eps_surprise``,
         ``eps_surprise_pct``.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     today = datetime.now(UTC).strftime("%Y-%m-%d")
 

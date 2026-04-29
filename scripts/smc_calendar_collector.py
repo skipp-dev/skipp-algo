@@ -5,7 +5,7 @@ Pure stdlib implementation — no open_prep or external dependencies.
 from __future__ import annotations
 
 import re
-from datetime import date, datetime, timezone, UTC
+from datetime import date, datetime, UTC
 from zoneinfo import ZoneInfo
 from typing import Any
 

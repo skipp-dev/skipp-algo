@@ -791,7 +791,7 @@ class TestRetryAfterHygieneLane9:
 
     def test_parse_retry_after_accepts_http_date_form(self):
         from scripts.smc_fmp_client import _parse_retry_after_seconds
-        from datetime import datetime, timezone, timedelta
+        from datetime import datetime, timedelta
         future = datetime.now(UTC) + timedelta(seconds=30)
         # RFC 9110 §10.2.3 HTTP-date format
         from email.utils import format_datetime
@@ -807,7 +807,7 @@ class TestRetryAfterHygieneLane9:
     def test_parse_retry_after_clamps_negative_to_zero(self):
         from scripts.smc_fmp_client import _parse_retry_after_seconds
         assert _parse_retry_after_seconds("-5") == 0.0
-        from datetime import datetime, timezone, timedelta
+        from datetime import datetime, timedelta
         from email.utils import format_datetime
         past = datetime.now(UTC) - timedelta(seconds=30)
         assert _parse_retry_after_seconds(format_datetime(past, usegmt=True)) == 0.0

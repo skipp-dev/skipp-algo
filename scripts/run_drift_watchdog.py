@@ -42,7 +42,7 @@ import argparse
 import json
 import os
 import tempfile
-from datetime import date, datetime, timedelta, timezone, UTC
+from datetime import date, datetime, timedelta, UTC
 from pathlib import Path
 from typing import Any
 

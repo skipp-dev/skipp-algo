@@ -42,7 +42,7 @@ import json
 import os
 import sys
 from collections import Counter, defaultdict
-from datetime import datetime, timedelta, timezone, UTC
+from datetime import datetime, timedelta, UTC
 from pathlib import Path
 
 import pandas as pd

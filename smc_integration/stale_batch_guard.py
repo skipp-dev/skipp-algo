@@ -8,7 +8,7 @@ problem (DoD: 'Refresh-Berichte zeigen Ursache und Reichweite').
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone, UTC
+from datetime import datetime, UTC
 from enum import Enum
 from collections.abc import Iterable, Mapping
 

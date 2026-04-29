@@ -3070,7 +3070,7 @@ class TestFMPClientCircuitBreakerValidationFailures(unittest.TestCase):
 
     def test_429_retries_with_retry_after_http_date_header(self):
         """Retry-After in HTTP-date format must be parsed to delay seconds."""
-        from datetime import datetime, timezone, timedelta
+        from datetime import datetime, timedelta
 
         client = FMPClient(api_key="test", retry_attempts=2)
         mock_resp_ok = self._mock_urlopen_with_payload('[{"ok": true}]')

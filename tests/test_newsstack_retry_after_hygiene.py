@@ -42,7 +42,7 @@ class TestParseRetryAfterSeconds:
 
     def test_accepts_http_date_form(self, module_path):
         import importlib
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
         from email.utils import format_datetime
         mod = importlib.import_module(module_path)
         future = datetime.now(UTC) + timedelta(seconds=30)
@@ -58,7 +58,7 @@ class TestParseRetryAfterSeconds:
 
     def test_clamps_negative_to_zero(self, module_path):
         import importlib
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
         from email.utils import format_datetime
         mod = importlib.import_module(module_path)
         assert mod._parse_retry_after_seconds("-5") == 0.0

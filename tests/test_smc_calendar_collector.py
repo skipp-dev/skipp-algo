@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import sys
-from datetime import date, datetime, timezone, UTC
+from datetime import date, datetime, UTC
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
