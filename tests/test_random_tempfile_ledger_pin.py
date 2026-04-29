@@ -65,10 +65,10 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     ("open_prep/realtime_signals.py", 2539, "mkstemp"),
     ("open_prep/watchlist.py", 63, "mkstemp"),
     ("smc_core/inference/null_cache.py", 95, "mkstemp"),
-    ("terminal_export.py", 168, "mkstemp"),
-    ("terminal_export.py", 222, "mkstemp"),
-    ("terminal_export.py", 605, "mkstemp"),
-    ("terminal_export.py", 751, "mkstemp"),
+    ("terminal_export.py", 169, "mkstemp"),
+    ("terminal_export.py", 221, "mkstemp"),
+    ("terminal_export.py", 598, "mkstemp"),
+    ("terminal_export.py", 742, "mkstemp"),
 })
 
 
