@@ -22,25 +22,24 @@ Output
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 import math
 import random
 import sys
 from collections import defaultdict
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
-from collections.abc import Callable, Sequence
 
 # Re-use the report helpers from the performance report generator.
 from scripts.generate_performance_report import (
+    PairReport,
     _aggregate,
     _grade,
     load_benchmark,
-    PairReport,
 )
+from scripts.smc_atomic_write import atomic_write_text
 from scripts.smc_sprt_stop_rule import SPRTConfig, terminal_decision
 
 
