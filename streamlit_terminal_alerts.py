@@ -12,8 +12,8 @@ import re
 import socket
 import time
 import urllib.parse
-from typing import Any
 from collections.abc import Callable
+from typing import Any
 
 from terminal_attention_state import (
     effective_attention_active,
