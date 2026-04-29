@@ -1,19 +1,19 @@
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
-from dataclasses import asdict
 import json
 import os
 import subprocess
 import sys
 import time
+from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
+
+from scripts.smc_atomic_write import atomic_write_text
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
