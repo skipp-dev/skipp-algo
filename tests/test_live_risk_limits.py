@@ -133,5 +133,5 @@ def test_zero_high_water_mark_does_not_crash() -> None:
 
 def test_decision_immutable() -> None:
     out = check_risk_limits(_state(), RiskLimits())
-    with pytest.raises(Exception):
+    with pytest.raises(AttributeError):
         out.engaged = True  # type: ignore[misc]

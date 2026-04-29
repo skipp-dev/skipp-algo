@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal, TypeAlias
+from typing import Literal
 
 type VolumeRegime = Literal["NORMAL", "LOW_VOLUME", "HOLIDAY_SUSPECT"]
 type BosEventKind = Literal["BOS", "CHOCH"]
