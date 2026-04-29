@@ -17,8 +17,10 @@ def lint_pine(path):
     for ch_open, ch_close, name in [('(', ')', 'parentheses'), ('[', ']', 'brackets')]:
         depth = 0
         for i, c in enumerate(src):
-            if c == ch_open: depth += 1
-            elif c == ch_close: depth -= 1
+            if c == ch_open:
+                depth += 1
+            elif c == ch_close:
+                depth -= 1
             if depth < 0:
                 ln = src[:i].count('\n') + 1
                 errors.append(f"Unmatched closing {name} at line {ln}")
