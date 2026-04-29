@@ -17,10 +17,10 @@ so a misconfigured ``Retry-After: 86400`` cannot wedge the poller.
 
 from __future__ import annotations
 
-import httpx
-import pytest
 from datetime import UTC
 
+import httpx
+import pytest
 
 # ── _parse_retry_after_seconds (both copies) ────────────────────────
 
