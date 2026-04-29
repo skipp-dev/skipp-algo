@@ -1,30 +1,39 @@
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 import math
 import re
+import sys
+import time as time_module
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
-import sys
-import time as time_module
 from typing import Any, cast
-from collections.abc import Iterable
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import pandas as pd
+
+from scripts.smc_atomic_write import atomic_write_text
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from strategy_config import LONG_DIP_MAX_GAP_PCT, LONG_DIP_MIN_GAP_PCT, LONG_DIP_MIN_PREMARKET_ACTIVE_SECONDS, LONG_DIP_MIN_PREMARKET_DOLLAR_VOLUME, LONG_DIP_MIN_PREMARKET_TRADE_COUNT, LONG_DIP_MIN_PREMARKET_VOLUME, LONG_DIP_MIN_PREVIOUS_CLOSE, LONG_DIP_POSITION_BUDGET_USD, LONG_DIP_TOP_N
 from scripts.generate_databento_watchlist import LongDipConfig, build_daily_watchlists, load_watchlist_inputs
 from smc_integration.batch import write_snapshot_bundles_for_symbols
-
+from strategy_config import (
+    LONG_DIP_MAX_GAP_PCT,
+    LONG_DIP_MIN_GAP_PCT,
+    LONG_DIP_MIN_PREMARKET_ACTIVE_SECONDS,
+    LONG_DIP_MIN_PREMARKET_DOLLAR_VOLUME,
+    LONG_DIP_MIN_PREMARKET_TRADE_COUNT,
+    LONG_DIP_MIN_PREMARKET_VOLUME,
+    LONG_DIP_MIN_PREVIOUS_CLOSE,
+    LONG_DIP_POSITION_BUDGET_USD,
+    LONG_DIP_TOP_N,
+)
 
 DEFAULT_WATCHLIST_CSV = REPO_ROOT / "reports" / "databento_watchlist_top5_pre1530.csv"
 DEFAULT_PREVIEW_JSON = REPO_ROOT / "reports" / "ibkr_watchlist_preview.json"
