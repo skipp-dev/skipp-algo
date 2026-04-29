@@ -8,11 +8,11 @@ from typing import Any
 import streamlit as st
 
 from terminal_bitcoin import (
-    fetch_btc_quote,
-    fetch_btc_technicals,
-    fetch_btc_supply,
     fetch_btc_news,
     fetch_btc_outlook,
+    fetch_btc_quote,
+    fetch_btc_supply,
+    fetch_btc_technicals,
     fetch_fear_greed,
     format_btc_price,
     format_large_number,
