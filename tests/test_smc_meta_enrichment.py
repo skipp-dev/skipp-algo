@@ -9,6 +9,13 @@ from __future__ import annotations
 
 import pytest
 
+from smc_adapters.ingest import build_meta_from_raw
+from smc_adapters.regime_bridge import regime_snapshot_to_context
+from smc_core.layering import (
+    apply_layering,
+    derive_base_signals,
+    normalize_meta,
+)
 from smc_core.types import (
     DirectionalStrength,
     EnrichedNews,
@@ -21,14 +28,6 @@ from smc_core.types import (
     TimedVolumeInfo,
     VolumeInfo,
 )
-from smc_core.layering import (
-    apply_layering,
-    derive_base_signals,
-    normalize_meta,
-)
-from smc_adapters.ingest import build_meta_from_raw
-from smc_adapters.regime_bridge import regime_snapshot_to_context
-
 
 # ---------------------------------------------------------------------------
 # Helpers
