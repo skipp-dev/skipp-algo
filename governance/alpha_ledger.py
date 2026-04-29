@@ -26,6 +26,7 @@ import threading
 from collections.abc import Iterable
 from pathlib import Path
 from typing import TypedDict
+import contextlib
 
 GLOBAL_ALPHA_BUDGET = 0.05
 PER_FAMILY_ALPHA_BUDGET = 0.025
@@ -74,10 +75,8 @@ def _dump(path: Path, items: Iterable[AlphaReservation]) -> None:
         tmp.replace(path)
     except Exception:
         if tmp.exists():
-            try:
+            with contextlib.suppress(OSError):
                 tmp.unlink()
-            except OSError:
-                pass
         raise
 
 
