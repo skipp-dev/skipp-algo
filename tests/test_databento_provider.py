@@ -36,7 +36,6 @@ from databento_utils import (
     resolve_display_timezone,
 )
 
-
 # ── Protocol conformance ────────────────────────────────────────────────────
 
 
