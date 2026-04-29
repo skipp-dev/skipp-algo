@@ -158,7 +158,7 @@ def test_higher_dim_input_rejected(method: str) -> None:
 
 
 @pytest.mark.parametrize("method", ["iid", "stationary", "circular"])
-def test_zero_B_rejected(method: str) -> None:
+def test_zero_b_rejected(method: str) -> None:
     with pytest.raises(ValueError, match="B must be positive"):
         bm.make_resamples(np.array([1.0, 2.0]), method=method, B=0, seed=1)
 
