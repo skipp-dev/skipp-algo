@@ -29,7 +29,6 @@ from terminal_resolution_state import (
     effective_resolution_state,
 )
 
-
 _POSTURE_PRIORITY = {
     "LONG": 5,
     "SHORT": 5,
