@@ -745,11 +745,10 @@ class TestSilentFallbackLoggingLane5:
     ):
         import logging
         c = SMCFMPClient(api_key="k")
-        with patch.object(c, "_get", side_effect=RuntimeError("boom")):
-            with caplog.at_level(logging.WARNING, logger="scripts.smc_fmp_client"):
-                getattr(c, method_name)(*args, **kwargs)
-                # Call again; warning must NOT be re-logged.
-                getattr(c, method_name)(*args, **kwargs)
+        with patch.object(c, "_get", side_effect=RuntimeError("boom")), caplog.at_level(logging.WARNING, logger="scripts.smc_fmp_client"):
+            getattr(c, method_name)(*args, **kwargs)
+            # Call again; warning must NOT be re-logged.
+            getattr(c, method_name)(*args, **kwargs)
         msgs = [r.message for r in caplog.records if "degraded silently" in r.message]
         assert len(msgs) == 1, msgs
         assert expected_endpoint in msgs[0]
@@ -757,18 +756,16 @@ class TestSilentFallbackLoggingLane5:
     def test_treasury_yields_logs_on_failure(self, caplog):
         import logging
         c = SMCFMPClient(api_key="k")
-        with patch.object(c, "_get", side_effect=RuntimeError("boom")):
-            with caplog.at_level(logging.WARNING, logger="scripts.smc_fmp_client"):
-                out = c.get_treasury_yields()
+        with patch.object(c, "_get", side_effect=RuntimeError("boom")), caplog.at_level(logging.WARNING, logger="scripts.smc_fmp_client"):
+            out = c.get_treasury_yields()
         assert out == {"2y": 0.0, "10y": 0.0, "spread": 0.0, "inverted": False}
         assert any("/stable/treasury-rates" in r.message for r in caplog.records)
 
     def test_institutional_holders_logs_on_failure(self, caplog):
         import logging
         c = SMCFMPClient(api_key="k")
-        with patch.object(c, "_get", side_effect=RuntimeError("boom")):
-            with caplog.at_level(logging.WARNING, logger="scripts.smc_fmp_client"):
-                out = c.get_institutional_holders("AAPL")
+        with patch.object(c, "_get", side_effect=RuntimeError("boom")), caplog.at_level(logging.WARNING, logger="scripts.smc_fmp_client"):
+            out = c.get_institutional_holders("AAPL")
         assert out == []
         # The walk-back loop runs up to 4 quarters, but the dedupe means
         # only ONE warning is emitted across all iterations.

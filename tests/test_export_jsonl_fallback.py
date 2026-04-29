@@ -17,9 +17,8 @@ def test_append_jsonl_falls_back_on_permission_error(tmp_path, caplog):
     terminal_export.clear_fallback_buffer()
     target = tmp_path / "denied.jsonl"
     item = _FakeItem({"event": "test", "value": 1})
-    with patch("builtins.open", side_effect=PermissionError("denied")):
-        with caplog.at_level(logging.WARNING, logger="terminal_export"):
-            terminal_export.append_jsonl(item, str(target))
+    with patch("builtins.open", side_effect=PermissionError("denied")), caplog.at_level(logging.WARNING, logger="terminal_export"):
+        terminal_export.append_jsonl(item, str(target))
     buf = terminal_export.get_fallback_buffer()
     assert len(buf) >= 1
     assert buf[-1] == {"event": "test", "value": 1}
