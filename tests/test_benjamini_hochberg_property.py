@@ -61,7 +61,7 @@ def test_adjusted_monotone_along_sorted_axis(seed: int) -> None:
     pvals = [rng.random() for _ in range(rng.randint(2, 50))]
     out = benjamini_hochberg(pvals, q=0.10)
     # Re-sort by raw p-value and check adjusted is non-decreasing.
-    paired = sorted(zip(pvals, out["adjusted"]), key=lambda x: x[0])
+    paired = sorted(zip(pvals, out["adjusted"], strict=False), key=lambda x: x[0])
     adj_sorted = [a for _, a in paired]
     for prev, curr in pairwise(adj_sorted):
         assert prev <= curr + 1e-12, (
@@ -103,7 +103,7 @@ def test_rejection_set_is_prefix_of_sorted_order(seed: int) -> None:
     rng = random.Random(seed)
     pvals = [rng.random() for _ in range(rng.randint(2, 50))]
     out = benjamini_hochberg(pvals, q=0.10)
-    paired = sorted(zip(pvals, out["rejected"]), key=lambda x: x[0])
+    paired = sorted(zip(pvals, out["rejected"], strict=False), key=lambda x: x[0])
     seen_unrejected = False
     for _, rej in paired:
         if not rej:
@@ -124,7 +124,7 @@ def test_threshold_separates_rejected_from_unrejected(seed: int) -> None:
     if threshold is None:
         assert not any(out["rejected"])
         return
-    for p, rej in zip(pvals, out["rejected"]):
+    for p, rej in zip(pvals, out["rejected"], strict=False):
         if rej:
             assert p <= threshold + 1e-12, (
                 f"rejected p={p} exceeds threshold {threshold}"
