@@ -7,9 +7,9 @@ ratings, earnings, economics, and conference-calls methods.
 from __future__ import annotations
 
 import sys
+from collections.abc import Generator
 from pathlib import Path
 from typing import Any
-from collections.abc import Generator
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -30,7 +30,6 @@ from terminal_poller import (
     fetch_benzinga_retail,
     fetch_benzinga_splits,
 )
-
 
 # ═══════════════════════════════════════════════════════════════
 # Fixtures
