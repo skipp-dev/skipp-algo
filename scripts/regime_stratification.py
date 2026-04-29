@@ -83,10 +83,7 @@ def stratify_trades_by_regime(
     buckets: dict[str, list[Trade]] = {}
     for trade in trades:
         regime = trade.get(regime_col)
-        if regime is None or regime == "":
-            key = "UNKNOWN"
-        else:
-            key = str(regime)
+        key = "UNKNOWN" if regime is None or regime == "" else str(regime)
         buckets.setdefault(key, []).append(trade)
 
     def sort_key(name: str) -> tuple[int, str]:
