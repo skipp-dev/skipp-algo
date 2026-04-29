@@ -56,6 +56,21 @@ from scripts.smc_micro_streamlit_app import (
     run_streamlit_micro_base_app,
 )
 
+# Public re-export surface (backward compatibility for legacy importers).
+__all__ = [
+    "_assert_complete_symbol_coverage",
+    "_coverage_stats",
+    "_universe_fingerprint",
+    "evaluate_micro_library_publish_guard",
+    "inspect_generated_micro_library_contract",
+    "publish_micro_library_to_tradingview",
+    "_resolve_ui_dataset_options",
+    "list_generated_base_csvs",
+    "resolve_base_csv_action_target",
+    "resolve_base_csv_selection",
+    "run_streamlit_micro_base_app",
+]
+
 _ET = ZoneInfo("America/New_York")
 
 
