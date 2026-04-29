@@ -119,7 +119,7 @@ def test_build_tp_trail_orders_sets_oca_group_and_anchor() -> None:
         def __init__(self) -> None:
             self._next_id = 100
 
-        def getReqId(self) -> int:
+        def getReqId(self) -> int:  # noqa: N802 -- mocks IBKR API (camelCase required)
             value = self._next_id
             self._next_id += 1
             return value
@@ -186,7 +186,7 @@ def test_monitor_open_orders_returns_filtered_snapshot() -> None:
             self.orderStatus = FakeOrderStatus(status)
 
     class FakeIB:
-        def openTrades(self):
+        def openTrades(self):  # noqa: N802 -- mocks IBKR API (camelCase required)
             return [
                 FakeTrade("AAA", 1, "skipp-2026-03-08-AAA-L1-entry", "Submitted"),
                 FakeTrade("BBB", 2, "skipp-2026-03-08-BBB-L1-entry", "Submitted"),
@@ -242,7 +242,7 @@ def test_reconcile_fills_and_positions_filters_account_and_symbols() -> None:
             self.avgCost = avg_cost
 
     class FakeIB:
-        def openTrades(self):
+        def openTrades(self):  # noqa: N802 -- mocks IBKR API (camelCase required)
             return []
 
         def fills(self):
@@ -296,14 +296,14 @@ def test_supervise_open_execution_recovers_from_initial_disconnect() -> None:
             self.connected = False
             self.connect_calls = 0
 
-        def isConnected(self) -> bool:
+        def isConnected(self) -> bool:  # noqa: N802 -- mocks IBKR API (camelCase required)
             return self.connected
 
         def connect(self, host: str, port: int, clientId: int, timeout: float, readonly: bool) -> None:
             self.connect_calls += 1
             self.connected = True
 
-        def openTrades(self):
+        def openTrades(self):  # noqa: N802 -- mocks IBKR API (camelCase required)
             return []
 
         def fills(self):
