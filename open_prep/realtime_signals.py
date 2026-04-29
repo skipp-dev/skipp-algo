@@ -34,6 +34,7 @@ Usage::
 """
 from __future__ import annotations
 
+import contextlib
 import fcntl
 import hashlib
 import json
@@ -52,7 +53,6 @@ from typing import Any
 from .macro import FMPClient
 from .signal_decay import adaptive_freshness_decay
 from .utils import to_float as _safe_float
-import contextlib
 
 logger = logging.getLogger("open_prep.realtime_signals")
 
