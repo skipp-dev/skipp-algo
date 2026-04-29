@@ -27,10 +27,10 @@ Roadmap: docs/IMPROVEMENTS_C2_C12_ROADMAP_2026-04-26.md#c31
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from math import erf, sqrt
 from typing import Literal, TypedDict
-from collections.abc import Callable
 
 import numpy as np
 
