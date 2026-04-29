@@ -16,7 +16,7 @@ Why pin file locks:
 
 Today exactly two production modules acquire/release advisory locks:
 
-* ``open_prep/realtime_signals.py:254`` (``LOCK_EX|LOCK_NB``) +
+* ``open_prep/realtime_signals.py:256`` (``LOCK_EX|LOCK_NB``) +
   ``:280`` (``LOCK_UN``) — daemon PID-file singleton lock.
 * ``open_prep/watchlist.py:41`` (``LOCK_EX``) + ``:44`` (``LOCK_UN``) —
   watchlist read/write critical section.
@@ -127,8 +127,8 @@ def _fcntl_alias_or_direct_import_sites() -> set[tuple[str, int, str]]:
 # Locked surface — every entry is a reviewed advisory-lock leg.
 FCNTL_FLOCK_ALLOWED: set[tuple[str, int]] = {
     # Realtime-signals daemon PID-file singleton lock.
-    ("open_prep/realtime_signals.py", 254),  # LOCK_EX | LOCK_NB
-    ("open_prep/realtime_signals.py", 280),  # LOCK_UN
+    ("open_prep/realtime_signals.py", 256),  # LOCK_EX | LOCK_NB
+    ("open_prep/realtime_signals.py", 282),  # LOCK_UN
     # Watchlist read/write critical section.
     ("open_prep/watchlist.py", 41),  # LOCK_EX
     ("open_prep/watchlist.py", 44),  # LOCK_UN
