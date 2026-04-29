@@ -13,12 +13,12 @@ Pure stdlib.
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import sys
 import urllib.parse
 from pathlib import Path
+
+from scripts.smc_atomic_write import atomic_write_text
 
 
 def render(
