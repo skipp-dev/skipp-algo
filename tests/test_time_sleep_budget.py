@@ -108,8 +108,8 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/run_open_prep.py", 1942),
         ("open_prep/run_open_prep.py", 1944),
         ("newsstack_fmp/_bz_http.py", 44),
-        ("terminal_bitcoin.py", 864),
-        ("terminal_bitcoin.py", 866),
+        ("terminal_bitcoin.py", 861),
+        ("terminal_bitcoin.py", 863),
         ("terminal_technicals.py", 287),
         ("terminal_tradingview_news.py", 351),
     }
