@@ -8,6 +8,7 @@ backward compatibility.
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import math
@@ -34,7 +35,6 @@ from .technical_analysis import (
 )
 from .utils import MIN_PRICE_THRESHOLD, SEVERE_GAP_DOWN_THRESHOLD
 from .utils import to_float as _to_float
-import contextlib
 
 logger = logging.getLogger("open_prep.scorer")
 
@@ -108,7 +108,7 @@ def save_weight_set(label: str, weights: dict[str, float]) -> None:
         os.close(fd)
         fd = -1
         os.replace(tmp, str(path))
-    except BaseException:
+    except Exception:
         if fd >= 0:
             os.close(fd)
         with contextlib.suppress(OSError):
