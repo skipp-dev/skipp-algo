@@ -1,11 +1,13 @@
 import unittest
+
 from open_prep.macro import (
     canonicalize_event_name,
     dedupe_events,
+    filter_us_mid_impact_events,
     macro_bias_score,
     macro_bias_with_components,
-    filter_us_mid_impact_events,
 )
+
 
 class TestMacroDedup(unittest.TestCase):
     def test_canonicalization(self):
