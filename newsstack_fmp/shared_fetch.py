@@ -5,7 +5,7 @@ import json
 import os
 import time
 from collections.abc import Callable
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -277,7 +277,5 @@ def _file_lock(lock_path: Path):
     finally:
         if fd is not None:
             os.close(fd)
-        try:
+        with suppress(FileNotFoundError):
             lock_path.unlink()
-        except FileNotFoundError:
-            pass
