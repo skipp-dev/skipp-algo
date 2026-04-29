@@ -3,9 +3,9 @@ from __future__ import annotations
 import logging
 import math
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
-from collections.abc import Callable
 
 from .meta_merge import merge_raw_meta_domains
 from .sources import (
