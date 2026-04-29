@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 BOUNDARY_PATH = ROOT / "open_prep_boundary.py"
 WORKFLOW_PATH = ROOT / ".github/workflows/smc-deeper-integration-gates.yml"
