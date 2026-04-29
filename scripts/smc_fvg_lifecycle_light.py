@@ -88,19 +88,13 @@ def build_fvg_lifecycle_light(
         bull_top = float(il.get("BULL_FVG_TOP", 0.0))
         bull_bottom = float(il.get("BULL_FVG_BOTTOM", 0.0))
         bull_mid = (bull_top + bull_bottom) / 2.0 if (bull_top + bull_bottom) > 0 else 0.0
-        if current_price > 0 and bull_mid > 0:
-            bull_dist = abs(current_price - bull_mid) / current_price * 100.0
-        else:
-            bull_dist = 0.0
+        bull_dist = abs(current_price - bull_mid) / current_price * 100.0 if current_price > 0 and bull_mid > 0 else 0.0
 
     if bear_active:
         bear_top = float(il.get("BEAR_FVG_TOP", 0.0))
         bear_bottom = float(il.get("BEAR_FVG_BOTTOM", 0.0))
         bear_mid = (bear_top + bear_bottom) / 2.0 if (bear_top + bear_bottom) > 0 else 0.0
-        if current_price > 0 and bear_mid > 0:
-            bear_dist = abs(current_price - bear_mid) / current_price * 100.0
-        else:
-            bear_dist = 0.0
+        bear_dist = abs(current_price - bear_mid) / current_price * 100.0 if current_price > 0 and bear_mid > 0 else 0.0
 
     # Pick primary: nearest active FVG
     if bull_active and (not bear_active or bull_dist <= bear_dist):
