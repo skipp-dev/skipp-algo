@@ -25,6 +25,7 @@ var string g_bus_plan = "4. Expert Mapping - Trade Plan"
 
 tp1_r = input.float(1.5, "TP1 (R-multiple)", minval = 0.25, step = 0.25, group = g_plan, tooltip = "Take half off here. Stop should move to break-even.")
 tp2_r = input.float(3.0, "TP2 (R-multiple)", minval = 0.5, step = 0.25, group = g_plan, tooltip = "Final exit. Close remaining position.")
+move_be_after_tp1 = input.bool(true, "Move stop to break-even after TP1", group = g_plan, tooltip = "After TP1 hits, the displayed Stop bumps up to entry price. The hard-stop alert then fires at break-even instead of the original invalidation. Most-asked-for safety feature.")
 use_defensive_exit = input.bool(true, "Defensive exit on setup invalidation", group = g_plan, tooltip = "Fire EXIT if the entry-stack collapses (Armed/Confirmed/Ready all drop to false) while still in trade — before stop is hit.")
 defensive_grace_bars = input.int(2, "Defensive grace bars", minval = 0, maxval = 20, group = g_plan, tooltip = "Tolerate this many bars of state collapse before firing the defensive exit. Avoids one-bar flickers.")
 
@@ -113,6 +114,9 @@ if pos_state == 2
     if not exit_stop_hit and not tp1_hit_already and not na(tp1_price) and high >= tp1_price
         exit_tp1_hit := true
         tp1_hit_already := true
+        // Breakeven-after-T1: bump the stop up to entry price (never down).
+        if move_be_after_tp1 and not na(entry_price)
+            entry_stop := math.max(entry_stop, entry_price)
 
     // 3) TP2 — high reaches TP2 price → full close.
     if not exit_stop_hit and not na(tp2_price) and high >= tp2_price

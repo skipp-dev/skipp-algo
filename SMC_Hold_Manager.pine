@@ -36,6 +36,8 @@ i_t1_R       = input.float(1.0 , "Target-1 (R)" , minval = 0.5, step = 0.1, grou
 i_t2_R       = input.float(2.0 , "Target-2 (R)" , minval = 1.0, step = 0.1, group = gIn)
 
 gMgmt        = "Hold-Management"
+i_simple_mode= input.bool(false, "Simple Mode (BE-after-T1 only)" , group = gMgmt,
+     tooltip = "Bei aktiviert: ATR-Chandelier-Trail UND Time-Stop sind deaktiviert. Verhält sich dann wie SMC_Exit_Signal mit Breakeven-after-T1 — saubere Migration für Anfänger.")
 i_use_chand  = input.bool(true , "ATR-Chandelier-Trail aktiv"  , group = gMgmt)
 i_atr_len    = input.int (14   , "ATR-Length"                  , group = gMgmt, minval = 5)
 // ATR-Mult ist NICHT family-aware in v1 — siehe Schwäche G; v3 leitet aus mp.* ab.
@@ -108,7 +110,7 @@ if can_act and entry_touch
 float atr     = ta_lib.atr(i_atr_len)
 float chand   = high - atr * i_atr_mult
 // Chandelier-Trail nur erhöhen, nie senken — adressiert Long-Asymmetrie.
-if state == 2 and i_use_chand and not na(chand)
+if state == 2 and i_use_chand and not i_simple_mode and not na(chand)
     active_stop := math.max(active_stop, chand)
 
 // Breakeven nach T1 (Schwäche F-light: Faktor fest, NICHT aus mp.ZONE_CAL_*)
@@ -121,7 +123,7 @@ if state == 2 and not t1_hit and high >= t1_price
 bool stop_hit = state == 2 and low <= active_stop
 
 // Time-Stop in Minuten — konvertiert zu ms, TF-agnostisch (Schwäche D).
-bool time_stop_hit = state == 2 and i_use_tstop and
+bool time_stop_hit = state == 2 and i_use_tstop and not i_simple_mode and
      (time - entry_time_ms) >= (i_tstop_min * 60 * 1000)
 
 bool t2_hit = state == 2 and high >= t2_price
