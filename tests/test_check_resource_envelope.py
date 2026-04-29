@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-
 from scripts.check_resource_envelope import (
     check_envelope,
     format_summary_lines,
