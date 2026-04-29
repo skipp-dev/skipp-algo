@@ -44,6 +44,7 @@ from scripts.smc_to_ibkr_adapter import (
     IBKRExecutionConfig,
     build_ibkr_intents_from_smc_setups,
 )
+import contextlib
 
 logger = logging.getLogger("smoke_smc_to_ibkr_adapter")
 
@@ -202,10 +203,8 @@ def _atomic_append_jsonl(path: Path, rows: Iterable[Mapping[str, Any]]) -> None:
             os.fsync(fh.fileno())
         os.replace(tmp_name, path)
     except BaseException:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp_name)
-        except OSError:
-            pass
         raise
 
 
