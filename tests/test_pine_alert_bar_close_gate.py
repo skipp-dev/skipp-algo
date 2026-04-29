@@ -30,8 +30,8 @@ contract).
 from __future__ import annotations
 
 import re
-from pathlib import Path
 from collections.abc import Iterator
+from pathlib import Path
 
 from tests._pine_text import strip_pine_strings_and_line_comments
 
