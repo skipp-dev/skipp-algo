@@ -13,7 +13,7 @@ DoD:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum, StrEnum
+from enum import StrEnum
 
 from scripts.smc_surface_matrix import SURFACE_MATRIX, SurfaceClass
 

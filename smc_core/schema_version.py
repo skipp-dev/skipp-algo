@@ -10,7 +10,7 @@ Bump instructions: see docs/schema_versioning.md
 
 from __future__ import annotations
 
-from enum import Enum, StrEnum
+from enum import StrEnum
 
 # Current pin: 3.0.0 (2026-04-23). Pine-library export field count 200 → 201
 # (adds ZONE_CAL_TRUST + ZONE_CAL_CONFIDENCE for Phase-H consumer maturity,
