@@ -1,7 +1,7 @@
 """Semantic tests for the v5.5 Structure State Light adapter."""
 from __future__ import annotations
 
-from scripts.smc_structure_state_light import build_structure_state_light, DEFAULTS
+from scripts.smc_structure_state_light import DEFAULTS, build_structure_state_light
 
 
 class TestDefaults:
