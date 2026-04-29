@@ -145,10 +145,7 @@ def _derive_posture_fields(item: Any, *, now: float | None = None) -> dict[str, 
         _safe_float(_get_field(item, "catalyst_confidence", effective_catalyst_score(item)), -1.0),
     ]
     valid_confidence = [value for value in confidence_inputs if value >= 0.0]
-    if valid_confidence:
-        posture_confidence = sum(valid_confidence) / len(valid_confidence)
-    else:
-        posture_confidence = resolution_score
+    posture_confidence = sum(valid_confidence) / len(valid_confidence) if valid_confidence else resolution_score
     if posture_state in {"LONG", "SHORT"}:
         posture_confidence += 0.08
     elif posture_state in {"WATCH_LONG", "WATCH_SHORT"}:
