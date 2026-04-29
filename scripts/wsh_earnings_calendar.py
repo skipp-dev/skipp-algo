@@ -34,20 +34,20 @@ from __future__ import annotations
 import argparse
 import csv
 import datetime as _dt
-from zoneinfo import ZoneInfo
-
-_ET = ZoneInfo("America/New_York")
 import json
 import logging
 import os
 import sys
 import tempfile
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
-from collections.abc import Iterable
+from zoneinfo import ZoneInfo
 
 LOGGER = logging.getLogger(__name__)
+
+_ET = ZoneInfo("America/New_York")
 
 # Producer-side schema; bump when fields are removed (additive ok).
 WSH_EVENTS_SCHEMA_VERSION = "1.0.0"
@@ -421,6 +421,7 @@ def main(argv: list[str] | None = None) -> int:
         # ``reqWshMetaData`` / ``reqWshEventData`` calls would fail on
         # an unconnected client.
         from ib_insync import IB  # local import: optional dependency
+
         from scripts.ib_client_id import (
             allocate_ib_client_id,
             release_ib_client_id,
