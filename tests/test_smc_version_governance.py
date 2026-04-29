@@ -14,15 +14,13 @@ import json
 import sys
 from pathlib import Path
 
-
+from scripts.smc_version_governance import evaluate_governance
 from smc_core.schema_version import (
     SCHEMA_VERSION,
     VersionChangeType,
     auto_commit_allowed,
     classify_version_change,
 )
-from scripts.smc_version_governance import evaluate_governance
-
 
 # ── 1. classify_version_change ──────────────────────────────────────
 
@@ -422,10 +420,10 @@ class TestManifestGovernanceMetadata:
     and schema_version_previous when regenerated."""
 
     def test_manifest_includes_version_change_type(self, tmp_path: Path):
+        import pandas as pd
+
         from scripts.smc_microstructure_base_runtime import generate_pine_library_from_base
         from scripts.smc_schema_resolver import resolve_microstructure_schema_path
-
-        import pandas as pd
         schema_path = resolve_microstructure_schema_path()
 
         # Write a base CSV
@@ -468,10 +466,10 @@ class TestManifestGovernanceMetadata:
         assert manifest["auto_commit_allowed"] is True
 
     def test_manifest_records_unchanged_on_regeneration(self, tmp_path: Path):
+        import pandas as pd
+
         from scripts.smc_microstructure_base_runtime import generate_pine_library_from_base
         from scripts.smc_schema_resolver import resolve_microstructure_schema_path
-
-        import pandas as pd
         schema_path = resolve_microstructure_schema_path()
         csv_path = tmp_path / "base.csv"
         row = {
