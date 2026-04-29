@@ -36,6 +36,7 @@ Usage::
 
 from __future__ import annotations
 
+import contextlib
 import fcntl
 import json
 import os
@@ -170,10 +171,8 @@ def allocate_ib_client_id(
         _save(path, registry)
         return int(oldest_cid_str)
     finally:
-        try:
+        with contextlib.suppress(OSError):
             fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
-        except OSError:
-            pass
         lock_fd.close()
 
 
@@ -202,10 +201,8 @@ def release_ib_client_id(
             return True
         return False
     finally:
-        try:
+        with contextlib.suppress(OSError):
             fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
-        except OSError:
-            pass
         lock_fd.close()
 
 
