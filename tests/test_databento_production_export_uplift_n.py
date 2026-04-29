@@ -101,7 +101,9 @@ class TestEnvFlag:
 class TestMakeExportFmpClient:
     def test_uses_factory_override(self):
         sentinel = object()
-        fake = lambda key: sentinel
+
+        def fake(key):
+            return sentinel
         with patch.object(mod, "FMPClient", fake):
             assert _make_export_fmp_client("k") is sentinel
 

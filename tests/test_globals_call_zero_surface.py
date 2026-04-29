@@ -93,7 +93,7 @@ def _globals_call_sites() -> set[tuple[str, int]]:
 # ``terminal_attention_state`` / ``terminal_posture_state`` for the
 # established pattern).
 GLOBALS_CALL_ALLOWED: set[tuple[str, int]] = {
-    ("streamlit_terminal.py", 2199),
+    ("streamlit_terminal.py", 2208),
     ("terminal_tabs/__init__.py", 57),
     ("terminal_tabs/__init__.py", 60),
 }

@@ -579,11 +579,20 @@ def _initialize_test_mode_runtime() -> None:
         st.session_state.setdefault(key, value)
     st.session_state.setdefault("cfg", _build_test_terminal_config())
 
-    tv_available = lambda: False
-    databento_available = lambda: False
-    btc_available = lambda: False
-    newsapi_available = lambda: False
-    ensure_rt_engine_running = lambda *args, **kwargs: False
+    def tv_available() -> bool:
+        return False
+
+    def databento_available() -> bool:
+        return False
+
+    def btc_available() -> bool:
+        return False
+
+    def newsapi_available() -> bool:
+        return False
+
+    def ensure_rt_engine_running(*args, **kwargs) -> bool:
+        return False
 
 
 if _SMC_TERMINAL_TEST_MODE:
