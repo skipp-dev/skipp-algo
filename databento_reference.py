@@ -1,6 +1,5 @@
 """Databento reference-data helpers for corporate-actions alias resolution.
 
-import contextlib
 This module owns the optional Reference API integration for corporate-actions
 events such as ``LCC``, ``BBCC``, ``BBEC``, and ``ICC``. It caches normalized
 event rows locally, derives a current symbol-alias map and identifier snapshot,
@@ -26,6 +25,7 @@ from typing import Any
 import pandas as pd
 
 from databento_client import _make_databento_reference_client, _redact_sensitive_error_text
+import contextlib
 
 logger = logging.getLogger(__name__)
 
