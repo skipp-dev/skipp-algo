@@ -32,6 +32,7 @@ Exit codes:
 """
 from __future__ import annotations
 
+import contextlib
 import argparse
 import json
 import logging
@@ -44,7 +45,6 @@ from typing import Any
 from zoneinfo import ZoneInfo as _ZoneInfo
 
 from open_prep.outcomes import compute_feature_importance
-import contextlib
 
 logger = logging.getLogger("open_prep.feature_importance_report")
 
