@@ -13,8 +13,8 @@ from smc_core.types import (
     SmcStructure,
     TimedDirectionalStrength,
     TimedVolumeInfo,
-    VolumeRegime,
     VolumeInfo,
+    VolumeRegime,
 )
 
 
