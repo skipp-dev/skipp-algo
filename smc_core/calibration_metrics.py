@@ -33,9 +33,9 @@ honest inputs.
 from __future__ import annotations
 
 import math
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from statistics import mean
-from collections.abc import Iterable, Sequence
 
 __all__ = [
     "CalibrationReport",
