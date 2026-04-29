@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from datetime import date
 
-
 from open_prep.outcomes import FeatureImportanceCollector
 
 
