@@ -347,7 +347,7 @@ class FMPLLMResponse:
     error: str = ""
 
 
-class _OpenAIEmptyChoices(Exception):
+class _OpenAIEmptyChoicesError(Exception):
     """Internal sentinel: OpenAI returned a 200 with no choices."""
 
 
@@ -365,7 +365,7 @@ def _call_openai_chat(payload: dict[str, Any], api_key: str) -> str:
 
     Retries only on ``httpx.ReadTimeout`` (handled by ``@resilient``).
     Raises ``httpx.HTTPStatusError`` on non-2xx responses (caller decides
-    how to surface), and ``_OpenAIEmptyChoices`` when the API returns a
+    how to surface), and ``_OpenAIEmptyChoicesError`` when the API returns a
     200 with an empty ``choices`` array.
     """
     with httpx.Client(timeout=_API_TIMEOUT) as client:
@@ -381,7 +381,7 @@ def _call_openai_chat(payload: dict[str, Any], api_key: str) -> str:
         data = resp.json()
     choices = data.get("choices") or []
     if not choices:
-        raise _OpenAIEmptyChoices()
+        raise _OpenAIEmptyChoicesError()
     return choices[0].get("message", {}).get("content", "").strip()
 
 
@@ -460,7 +460,7 @@ def query_fmp_llm(
             fmp_tickers=n_fmp,
             error=f"OpenAI API error: {exc.response.status_code}",
         )
-    except _OpenAIEmptyChoices:
+    except _OpenAIEmptyChoicesError:
         return FMPLLMResponse(
             answer="", model=model, cached=False,
             context_articles=n_articles, context_tickers=n_tickers,

@@ -64,7 +64,7 @@ _disabled_lock = threading.Lock()
 _TIER_LIMITED_CODES: frozenset[int] = frozenset({400, 401, 403, 404})
 
 
-class BenzingaEndpointDisabled(RuntimeError):
+class BenzingaEndpointDisabledError(RuntimeError):
     """Raised when an endpoint has been marked disabled after a permanent
     failure (tier-limit, retired URL, or missing entitlement).  Callers
     typically catch :class:`Exception`, log via :func:`log_fetch_warning`,
@@ -141,7 +141,7 @@ def log_fetch_warning(label: str, exc: Exception) -> None:
     # the original failure was already logged on first occurrence and we
     # don't want a fresh WARNING line every poll cycle just to say "still
     # disabled".
-    if isinstance(exc, BenzingaEndpointDisabled):
+    if isinstance(exc, BenzingaEndpointDisabledError):
         logger.debug("%s skipped (endpoint disabled)", label)
         return
     msg = _sanitize_exc(exc)
@@ -234,12 +234,12 @@ def _request_with_retry(
 
     If *label* is provided and that label has previously failed with a
     tier-limited status code (400/401/403/404), this function raises
-    :class:`BenzingaEndpointDisabled` immediately without making a
+    :class:`BenzingaEndpointDisabledError` immediately without making a
     network call.  Tier-limited responses returned from this call also
     auto-mark the endpoint disabled so subsequent polls short-circuit.
     """
     if label is not None and is_endpoint_disabled(label):
-        raise BenzingaEndpointDisabled(label)
+        raise BenzingaEndpointDisabledError(label)
     try:
         return _attempt_bz_get(client, url, params)
     except httpx.HTTPStatusError as exc:
@@ -250,7 +250,7 @@ def _request_with_retry(
         raise
 
 
-class _BzRetryableStatus(Exception):
+class _BzRetryableStatusError(Exception):
     """Internal sentinel: a 429/5xx status that ``@resilient`` should retry."""
 
     def __init__(self, response: httpx.Response) -> None:
@@ -264,13 +264,13 @@ class _BzRetryableStatus(Exception):
 
 def _bz_delay_from_exc(exc: BaseException) -> float | None:
     """Honor ``Retry-After`` hints when present; otherwise fall back to jitter."""
-    if isinstance(exc, _BzRetryableStatus) and exc.retry_after_hint is not None:
+    if isinstance(exc, _BzRetryableStatusError) and exc.retry_after_hint is not None:
         return float(exc.retry_after_hint)
     return None
 
 
 def _bz_on_retry(exc: BaseException, attempt: int, delay: float) -> None:
-    if isinstance(exc, _BzRetryableStatus):
+    if isinstance(exc, _BzRetryableStatusError):
         _log_transient_warning_throttled(
             f"http_{exc.status_code}",
             "Benzinga HTTP %s (attempt %d/%d) – retrying in %.1fs",
@@ -292,7 +292,7 @@ def _bz_on_retry(exc: BaseException, attempt: int, delay: float) -> None:
 
 def _bz_on_failure(exc: BaseException) -> httpx.Response:
     """After exhausted retries, surface the underlying HTTP error."""
-    if isinstance(exc, _BzRetryableStatus):
+    if isinstance(exc, _BzRetryableStatusError):
         exc.response.raise_for_status()
     raise exc
 
@@ -301,7 +301,7 @@ def _bz_on_failure(exc: BaseException) -> httpx.Response:
     retries=_MAX_ATTEMPTS - 1,
     base_delay=1.0,
     max_delay=60.0,
-    exceptions=(httpx.ConnectError, httpx.ReadTimeout, _BzRetryableStatus),
+    exceptions=(httpx.ConnectError, httpx.ReadTimeout, _BzRetryableStatusError),
     delay_from_exc=_bz_delay_from_exc,
     on_retry=_bz_on_retry,
     on_failure=_bz_on_failure,
@@ -319,6 +319,6 @@ def _attempt_bz_get(
 ) -> httpx.Response:
     r = client.get(url, params=params)
     if r.status_code in _RETRYABLE:
-        raise _BzRetryableStatus(r)
+        raise _BzRetryableStatusError(r)
     r.raise_for_status()
     return r

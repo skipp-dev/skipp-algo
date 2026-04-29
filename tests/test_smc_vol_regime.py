@@ -98,7 +98,7 @@ class TestComputeVolRegime:
 
     def test_forecast_failure_falls_back_to_atr(self, monkeypatch: pytest.MonkeyPatch) -> None:
         def _raise_forecast_unavailable(*args, **kwargs):
-            raise vol_regime_module._ForecastUnavailable("arch_fit_failed")
+            raise vol_regime_module._ForecastUnavailableError("arch_fit_failed")
 
         monkeypatch.setattr(vol_regime_module, "_forecast_context", _raise_forecast_unavailable)
 

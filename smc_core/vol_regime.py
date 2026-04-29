@@ -49,7 +49,7 @@ _THRESHOLDS: list[tuple[float, VolRegimeLabel]] = [
 ]
 
 
-class _ForecastUnavailable(RuntimeError):
+class _ForecastUnavailableError(RuntimeError):
     def __init__(self, reason: str, detail: str | None = None):
         super().__init__(detail or reason)
         self.reason = reason
@@ -146,16 +146,16 @@ def _extract_atr_context(
 def _extract_forecast_variance(raw_forecast: Any) -> float:
     variance_frame = getattr(raw_forecast, "variance", None)
     if variance_frame is None or getattr(variance_frame, "empty", True):
-        raise _ForecastUnavailable("arch_empty_forecast")
+        raise _ForecastUnavailableError("arch_empty_forecast")
 
     last_row = variance_frame.iloc[-1]
     variance_series = pd.to_numeric(last_row, errors="coerce").dropna()
     if variance_series.empty:
-        raise _ForecastUnavailable("arch_invalid_forecast")
+        raise _ForecastUnavailableError("arch_invalid_forecast")
 
     variance = float(variance_series.iloc[0])
     if not math.isfinite(variance) or variance <= 0:
-        raise _ForecastUnavailable("arch_invalid_forecast")
+        raise _ForecastUnavailableError("arch_invalid_forecast")
     return variance
 
 
@@ -167,30 +167,30 @@ def _forecast_context(
 ) -> tuple[float, float, float, float]:
     returns = pd.to_numeric(df["close"], errors="coerce").pct_change().replace([float("inf"), float("-inf")], pd.NA).dropna()
     if len(returns) < forecast_min_bars:
-        raise _ForecastUnavailable("insufficient_forecast_history")
+        raise _ForecastUnavailableError("insufficient_forecast_history")
 
     arch_model_factory = _load_arch_model_factory()
     if arch_model_factory is None:
-        raise _ForecastUnavailable("arch_unavailable")
+        raise _ForecastUnavailableError("arch_unavailable")
 
     try:
         model = arch_model_factory(returns * 100.0, mean="Zero", vol="GARCH", p=1, q=1, dist="normal", rescale=False)
         fit_result = model.fit(disp="off", show_warning=False)
         variance = _extract_forecast_variance(fit_result.forecast(horizon=1, reindex=False))
-    except _ForecastUnavailable:
+    except _ForecastUnavailableError:
         raise
     except Exception as exc:
-        raise _ForecastUnavailable("arch_fit_failed", detail=str(exc)) from exc
+        raise _ForecastUnavailableError("arch_fit_failed", detail=str(exc)) from exc
 
     window = min(int(lookback), len(returns))
     min_periods = max(5, window // 2)
     baseline_series = returns.abs().rolling(window=window, min_periods=min_periods).mean().dropna()
     if baseline_series.empty:
-        raise _ForecastUnavailable("baseline_unavailable")
+        raise _ForecastUnavailableError("baseline_unavailable")
 
     baseline_volatility = float(baseline_series.iloc[-window:].median())
     if not math.isfinite(baseline_volatility) or baseline_volatility <= 0:
-        raise _ForecastUnavailable("baseline_unavailable")
+        raise _ForecastUnavailableError("baseline_unavailable")
 
     forecast_volatility = math.sqrt(variance) / 100.0
     forecast_ratio = forecast_volatility / baseline_volatility
@@ -281,7 +281,7 @@ def compute_vol_regime(
             lookback=lookback,
             forecast_min_bars=resolved_forecast_min_bars,
         )
-    except _ForecastUnavailable as exc:
+    except _ForecastUnavailableError as exc:
         return _fallback_result(
             ratio=ratio,
             confidence=atr_confidence,

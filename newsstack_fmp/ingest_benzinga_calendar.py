@@ -33,7 +33,7 @@ from .normalize import normalize_benzinga_calendar_item
 logger = logging.getLogger(__name__)
 
 from newsstack_fmp._bz_http import (
-    BenzingaEndpointDisabled,
+    BenzingaEndpointDisabledError,
     _request_with_retry,
     log_fetch_warning,
 )
@@ -479,13 +479,13 @@ def fetch_benzinga_quotes(
                     "symbols": sym_str,
                 }, label="Benzinga quotes")
                 data = r.json()
-            except BenzingaEndpointDisabled as exc:
+            except BenzingaEndpointDisabledError as exc:
                 # Endpoint marked disabled (tier-limited 4xx); subsequent
                 # chunks would raise immediately. Leave a debug breadcrumb
                 # here and break out rather than fast-failing every remaining
                 # chunk. The operator-visible disable event is logged by the
                 # code that marks the endpoint disabled; log_fetch_warning
-                # short-circuits BenzingaEndpointDisabled to DEBUG.
+                # short-circuits BenzingaEndpointDisabledError to DEBUG.
                 log_fetch_warning(
                     f"Benzinga quotes chunk {start}-{start + len(chunk)} (debug: endpoint already disabled)",
                     exc,

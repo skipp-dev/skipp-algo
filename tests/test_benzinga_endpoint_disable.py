@@ -4,7 +4,7 @@ The breaker prevents the terminal poller from wasting a network round-trip
 on every cycle for endpoints that have permanently failed (401/403/404 or
 retired URL shapes returning 400).  Once an endpoint's *label* is marked
 disabled, subsequent calls to ``_request_with_retry`` raise
-``BenzingaEndpointDisabled`` immediately without invoking the HTTP client.
+``BenzingaEndpointDisabledError`` immediately without invoking the HTTP client.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ import httpx
 import pytest
 
 from newsstack_fmp._bz_http import (
-    BenzingaEndpointDisabled,
+    BenzingaEndpointDisabledError,
     _request_with_retry,
     clear_disabled_endpoints,
     is_endpoint_disabled,
@@ -80,7 +80,7 @@ def test_request_with_retry_short_circuits_when_label_disabled() -> None:
     mark_endpoint_disabled("Benzinga movers")
     client = _make_client_returning(200)
 
-    with pytest.raises(BenzingaEndpointDisabled) as excinfo:
+    with pytest.raises(BenzingaEndpointDisabledError) as excinfo:
         _request_with_retry(client, "https://api.benzinga.com/api/v1/market/movers",
                             {"token": "x"}, label="Benzinga movers")
 
@@ -180,10 +180,10 @@ def test_log_fetch_warning_marks_disabled_on_tier_limited() -> None:
 
 
 def test_log_fetch_warning_skips_silently_for_disabled_exception(caplog: Any) -> None:
-    """The synthetic BenzingaEndpointDisabled exception must NOT spam WARNING."""
+    """The synthetic BenzingaEndpointDisabledError exception must NOT spam WARNING."""
     import logging
     caplog.set_level(logging.WARNING, logger="newsstack_fmp._bz_http")
-    log_fetch_warning("Benzinga foo", BenzingaEndpointDisabled("Benzinga foo"))
+    log_fetch_warning("Benzinga foo", BenzingaEndpointDisabledError("Benzinga foo"))
     warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
     assert warnings == []
 
@@ -214,7 +214,7 @@ def test_second_call_after_401_avoids_network() -> None:
     assert client.get.call_count == 1
 
     # Second call: short-circuits BEFORE any HTTP
-    with pytest.raises(BenzingaEndpointDisabled):
+    with pytest.raises(BenzingaEndpointDisabledError):
         _request_with_retry(client, "https://api.benzinga.com/probe",
                             {"token": "x"}, label="Benzinga movers")
     # Critical: still 1 — no second network call
