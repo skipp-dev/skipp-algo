@@ -116,7 +116,8 @@ class TestNoOpenPrepImport:
 
         src = importlib.util.find_spec(mod.__name__)
         assert src is not None and src.origin is not None
-        source = open(src.origin, encoding="utf-8").read()
+        with open(src.origin, encoding="utf-8") as _f:
+            source = _f.read()
         # Check that no import statement references open_prep
         import re
         import_lines = re.findall(r"^\s*(from|import)\s+.*open_prep.*", source, re.MULTILINE)
@@ -213,7 +214,8 @@ class TestNoOpenPrepImport:
 
         src = importlib.util.find_spec(mod.__name__)
         assert src is not None and src.origin is not None
-        source = open(src.origin, encoding="utf-8").read()
+        with open(src.origin, encoding="utf-8") as _f:
+            source = _f.read()
         assert "open_prep" not in source
 
 
@@ -250,7 +252,8 @@ class TestCanonicalModulesOpenPrepFree:
         mod = importlib.import_module(module_name)
         spec = importlib.util.find_spec(mod.__name__)
         assert spec is not None and spec.origin is not None
-        source = open(spec.origin, encoding="utf-8").read()
+        with open(spec.origin, encoding="utf-8") as _f:
+            source = _f.read()
         hits = re.findall(
             r"^\s*(from|import)\s+open_prep\b", source, re.MULTILINE
         )
