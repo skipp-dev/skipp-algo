@@ -1277,7 +1277,7 @@ def main() -> int:
         g for g in gates
         if g.get("name") in {"publish_contract", "reference_bundle", "measurement_lane", "provider_health", "evidence_lane"}
     ]
-    live_only_gates = [
+    _live_only_gates = [
         g for g in gates
         if g.get("name") in {"post_release_validation"}
     ]

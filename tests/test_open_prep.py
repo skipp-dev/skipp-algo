@@ -3060,7 +3060,7 @@ class TestFMPClientCircuitBreakerValidationFailures(unittest.TestCase):
             return mock_resp_ok
 
         with patch("open_prep.macro.urlopen", side_effect=_side_effect), patch("time.sleep") as mock_sleep:
-            result = client._get("/stable/some-path", {})
+            _result = client._get("/stable/some-path", {})
 
         self.assertEqual(call_count["n"], 2)
         # Should have slept with the Retry-After value (0.01), not the backoff
@@ -3593,11 +3593,11 @@ class TestSR2OutcomesEnvVarCrashGuard(unittest.TestCase):
         with patch.dict(os.environ, {"OPEN_PREP_OUTCOME_RETENTION_DAYS": "invalid"}):
             # Should not raise — the try/except falls back to 90
             import tempfile
-            with tempfile.TemporaryDirectory() as td:
+            with tempfile.TemporaryDirectory() as _td:
                 # We can't easily test the full function without a result,
                 # but we can verify the env var parsing path
                 try:
-                    max_days = max(
+                    _max_days = max(
                         int(float(os.environ.get("OPEN_PREP_OUTCOME_RETENTION_DAYS", "90") or "90")),
                         7,
                     )

@@ -263,7 +263,7 @@ def build_ticker_catalyst_state(
                 best_row = row
                 best_strength = row_strength
 
-        directional_total = positive_strength + negative_strength
+        _directional_total = positive_strength + negative_strength
         net_strength = positive_strength - negative_strength
         conflict = positive_strength >= 0.35 and negative_strength >= 0.35
         if conflict and abs(net_strength) < 0.18:

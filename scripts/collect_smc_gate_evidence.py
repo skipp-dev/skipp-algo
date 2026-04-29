@@ -621,7 +621,7 @@ def _extract_measurement_entry(
         scoring_rel = str(details.get("scoring_artifact_path", "")).strip() or None
 
     benchmark_path = _resolve_related_path(benchmark_rel, base_path=benchmark_base) if benchmark_rel else None
-    benchmark_manifest_path = _resolve_related_path(benchmark_manifest_rel, base_path=benchmark_base) if benchmark_manifest_rel else None
+    _benchmark_manifest_path = _resolve_related_path(benchmark_manifest_rel, base_path=benchmark_base) if benchmark_manifest_rel else None
     scoring_path = _resolve_related_path(scoring_rel, base_path=scoring_base) if scoring_rel else None
 
     benchmark_payload: dict[str, Any] | None = None

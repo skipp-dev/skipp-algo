@@ -1177,7 +1177,7 @@ class TestPartialProviderOutage(unittest.TestCase):
         try:
             with patch.dict(os.environ, {"FMP_API_KEY": "test", "FILTER_TO_UNIVERSE": "0"}):
                 cfg = Config()
-                result = poll_once(cfg, universe=set())
+                _result = poll_once(cfg, universe=set())
 
             # poll_once must not crash and must export the pre-existing candidate
             mock_export.assert_called_once()
@@ -2316,7 +2316,7 @@ class TestEnrichmentHoisted(unittest.TestCase):
         enricher = Enricher()
         # Mock the enricher to count calls
         call_count = 0
-        original_fetch = enricher.fetch_url_snippet
+        _original_fetch = enricher.fetch_url_snippet
 
         def counting_fetch(url):
             nonlocal call_count
@@ -2670,7 +2670,7 @@ class TestEnrichBudgetPerCycle(unittest.TestCase):
         ]
 
         call_count = 0
-        original_fetch = enricher.fetch_url_snippet
+        _original_fetch = enricher.fetch_url_snippet
 
         def counting_fetch(url):
             nonlocal call_count

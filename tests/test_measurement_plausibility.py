@@ -80,7 +80,7 @@ class TestBenchmarkArtifactPlausibility:
         assert sample_benchmark.schema_version == SCHEMA_VERSION
 
     def test_artifact_export_roundtrip(self, sample_benchmark: BenchmarkResult, tmp_path: Path) -> None:
-        manifest = export_benchmark_artifacts(sample_benchmark, tmp_path)
+        _manifest = export_benchmark_artifacts(sample_benchmark, tmp_path)
         assert (tmp_path / "manifest.json").exists()
         benchmark_file = tmp_path / f"benchmark_{sample_benchmark.symbol}_{sample_benchmark.timeframe}.json"
         assert benchmark_file.exists()

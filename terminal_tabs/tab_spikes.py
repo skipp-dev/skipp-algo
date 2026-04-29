@@ -90,7 +90,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         return
 
     # Build table
-    now = time.time()
+    _now = time.time()
     table_rows: list[dict[str, Any]] = []
     for r in filtered_rows[:100]:
         dir_icon = "🟢" if r.get("chg_pct", 0) > 0 else "🔴"

@@ -438,7 +438,7 @@ def apply_skippalgo_grouping(path: Path, dry_run: bool) -> int:
 
     # Insert group variable declarations
     if groups_used and changes > 0:
-        header = _build_group_var_header(groups_used)
+        _header = _build_group_var_header(groups_used)
         # Find insertion point: first ungrouped input that we modified
         first_ungrouped = min(
             inp.lineno for inp in inputs

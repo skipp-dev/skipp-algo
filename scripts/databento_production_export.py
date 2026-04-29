@@ -3619,7 +3619,7 @@ def run_production_export_pipeline(
         daily_symbol_features_full_universe,
     )
 
-    latest_trade_date = pd.to_datetime(daily_symbol_features_full_universe.get("trade_date"), errors="coerce").dt.date.dropna().max()
+    _latest_trade_date = pd.to_datetime(daily_symbol_features_full_universe.get("trade_date"), errors="coerce").dt.date.dropna().max()
     quality_window_status = _build_quality_window_status_latest(
         premarket_window_features_full_universe,
         display_timezone=display_timezone,

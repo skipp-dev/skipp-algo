@@ -340,7 +340,7 @@ def run_streamlit_micro_base_app() -> None:
     from scripts.smc_schema_resolver import resolve_microstructure_schema_path
 
     schema_path = resolve_microstructure_schema_path()
-    overrides_path = repo_root / "data" / "input" / "microstructure_overrides.csv"
+    _overrides_path = repo_root / "data" / "input" / "microstructure_overrides.csv"
     try:
         publish_guard = evaluate_micro_library_publish_guard(
             repo_root=repo_root,
