@@ -14,14 +14,14 @@ Pure stdlib.
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import datetime as _dt
 import json
 import os
 from pathlib import Path
 from typing import Any
+
+from scripts.smc_atomic_write import atomic_write_text
 
 
 def _opt(value: str | None, env_key: str) -> str | None:
