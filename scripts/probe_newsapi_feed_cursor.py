@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 import os
@@ -12,6 +10,7 @@ from typing import Any
 
 import httpx
 
+from scripts.smc_atomic_write import atomic_write_text
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
