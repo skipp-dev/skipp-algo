@@ -14,6 +14,7 @@ Feature Importance (#3):
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import math
@@ -27,7 +28,6 @@ from typing import Any
 from zoneinfo import ZoneInfo as _ZoneInfo
 
 from .utils import to_float as _safe_float
-import contextlib
 
 logger = logging.getLogger("open_prep.outcomes")
 
