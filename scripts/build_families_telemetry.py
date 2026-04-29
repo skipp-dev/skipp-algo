@@ -51,10 +51,10 @@ import glob
 import json
 import sys
 from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-from collections.abc import Iterable
 
 # Pinned by tests/test_build_families_telemetry.py against
 # scripts/emit_public_calibration_report.py:_C12_FAMILY_KEYS so the
