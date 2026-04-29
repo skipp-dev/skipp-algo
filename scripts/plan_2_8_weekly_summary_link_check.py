@@ -15,8 +15,6 @@ dashes; strip leading/trailing dashes).
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 import re
@@ -24,6 +22,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from scripts.smc_atomic_write import atomic_write_text
 
 _LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 _HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$")
