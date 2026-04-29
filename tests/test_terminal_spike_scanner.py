@@ -391,8 +391,8 @@ class TestMarketSession:
         assert result in ("pre-market", "regular", "after-hours", "closed")
 
     def test_weekend_is_closed(self):
-        from unittest.mock import patch
         from datetime import datetime
+        from unittest.mock import patch
         from zoneinfo import ZoneInfo
 
         # Saturday 10:00 ET
@@ -402,8 +402,8 @@ class TestMarketSession:
             assert market_session() == "closed"
 
     def test_premarket(self):
-        from unittest.mock import patch
         from datetime import datetime
+        from unittest.mock import patch
         from zoneinfo import ZoneInfo
 
         # Monday 7:00 ET
@@ -413,8 +413,8 @@ class TestMarketSession:
             assert market_session() == "pre-market"
 
     def test_regular(self):
-        from unittest.mock import patch
         from datetime import datetime
+        from unittest.mock import patch
         from zoneinfo import ZoneInfo
 
         # Monday 12:00 ET
@@ -424,8 +424,8 @@ class TestMarketSession:
             assert market_session() == "regular"
 
     def test_afterhours(self):
-        from unittest.mock import patch
         from datetime import datetime
+        from unittest.mock import patch
         from zoneinfo import ZoneInfo
 
         # Monday 17:00 ET
@@ -435,8 +435,8 @@ class TestMarketSession:
             assert market_session() == "after-hours"
 
     def test_late_night_closed(self):
-        from unittest.mock import patch
         from datetime import datetime
+        from unittest.mock import patch
         from zoneinfo import ZoneInfo
 
         # Monday 22:00 ET
