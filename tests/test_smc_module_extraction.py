@@ -143,7 +143,8 @@ class TestNoCircularImports:
     def test_publish_guard_does_not_import_runtime(self):
         import scripts.smc_micro_publish_guard as mod
         import ast
-        tree = ast.parse(open(mod.__file__).read())
+        with open(mod.__file__) as _f:
+            tree = ast.parse(_f.read())
         imported_modules = {
             alias.name if isinstance(node, ast.Import) else node.module
             for node in ast.walk(tree)
@@ -157,7 +158,8 @@ class TestNoCircularImports:
     def test_session_detail_does_not_import_runtime(self):
         import scripts.smc_databento_session_detail as mod
         import ast
-        tree = ast.parse(open(mod.__file__).read())
+        with open(mod.__file__) as _f:
+            tree = ast.parse(_f.read())
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) and node.module and "smc_microstructure_base_runtime" in node.module:
                 pytest.fail(f"session_detail imports from runtime: {node.module}")

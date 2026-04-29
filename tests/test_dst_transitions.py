@@ -50,7 +50,8 @@ class TestFixedOffsetForbidden:
     """Pin the contract: production code must use ZoneInfo, not timedelta-offsets."""
     def test_smc_calendar_collector_uses_zoneinfo(self):
         import scripts.smc_calendar_collector as mod
-        src = open(mod.__file__).read()
+        with open(mod.__file__) as _f:
+            src = _f.read()
         assert "timedelta(hours=-4)" not in src, \
             "smc_calendar_collector.py must not hard-code EDT offset"
         assert "timedelta(hours=-5)" not in src, \
