@@ -28,7 +28,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-
 VALID_STATUSES: frozenset[str] = frozenset({"green", "amber", "red", "unknown"})
 
 
