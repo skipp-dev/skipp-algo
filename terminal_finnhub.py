@@ -17,10 +17,10 @@ import re
 import ssl
 import threading
 import time
+import urllib.error
 from dataclasses import dataclass
 from typing import Any
 from urllib.request import Request, urlopen
-import urllib.error
 
 try:
     import certifi
