@@ -5,7 +5,6 @@ import json
 from argparse import Namespace
 from pathlib import Path
 
-
 from scripts import run_smc_ci_health_checks as ci_script
 from scripts import run_smc_release_gates as release_script
 from smc_core.scoring import ScoredEvent
