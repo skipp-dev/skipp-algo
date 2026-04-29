@@ -16,7 +16,6 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-
 # ── 1. databento_client surface ─────────────────────────────────────────────
 
 class TestDabentoClientSurface:
@@ -209,7 +208,7 @@ class TestDabentoUniverseBehavior:
     """Functional tests for universe helpers."""
 
     def test_empty_universe_frame(self) -> None:
-        from databento_universe import _empty_universe_frame, UNIVERSE_COLUMNS
+        from databento_universe import UNIVERSE_COLUMNS, _empty_universe_frame
         frame = _empty_universe_frame()
         assert list(frame.columns) == UNIVERSE_COLUMNS
         assert frame.empty
