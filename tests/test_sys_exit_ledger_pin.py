@@ -83,9 +83,8 @@ def _scan() -> tuple[set[tuple[str, int]], set[tuple[str, int, str]]]:
                     and f.value.id == "sys"
                 ):
                     sys_exit_sites.add((rel, node.lineno))
-            elif isinstance(f, ast.Name):
-                if f.id in ("exit", "quit"):
-                    bare_exit_sites.add((rel, node.lineno, f.id))
+            elif isinstance(f, ast.Name) and f.id in ("exit", "quit"):
+                bare_exit_sites.add((rel, node.lineno, f.id))
     return sys_exit_sites, bare_exit_sites
 
 
