@@ -4,7 +4,6 @@ import re
 from pathlib import Path
 from typing import Any
 
-
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 _TOKEN_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
