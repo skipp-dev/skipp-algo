@@ -1457,7 +1457,7 @@ class RealtimeEngine:
             logger.warning("No latest_open_prep_run.json found — watchlist empty")
             return
         try:
-            with open(run_path, "r", encoding="utf-8") as fh:
+            with open(run_path, encoding="utf-8") as fh:
                 data = json.load(fh)
 
             # -- Build full universe: ranked + overflow -------------------
@@ -2572,7 +2572,7 @@ class RealtimeEngine:
             return _empty
         try:
             file_age_s = time.time() - SIGNALS_PATH.stat().st_mtime
-            with open(SIGNALS_PATH, "r", encoding="utf-8") as fh:
+            with open(SIGNALS_PATH, encoding="utf-8") as fh:
                 data: dict[str, Any] = json.load(fh)
             if file_age_s > max_age_s:
                 data["stale"] = True
