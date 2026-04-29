@@ -100,6 +100,10 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # validates a webhook URL host string ("0.0.0.0") rather than
         # binding a server.
         ("streamlit_terminal_alerts.py", 76, ("S104",)),
+        # governance/run_manifest.py:73 — Bandit S603 false positive:
+        # subprocess.check_output called with a ``shutil.which("git")``
+        # executable and a hardcoded argv list. No untrusted input.
+        ("governance/run_manifest.py", 73, ("S603",)),
     }
 )
 

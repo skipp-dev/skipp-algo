@@ -50,11 +50,16 @@ _NOQA_RE = re.compile(r"#\s*noqa\b", re.IGNORECASE)
 #   literal ``r"/tmp/pytest-of-..."`` used to *detect* pytest tmp-path
 #   leakage in shipped manifests. The path is a search pattern, not a
 #   file Python opens. Bandit S108 is a false positive.
+# * ``governance/run_manifest.py``: invokes ``git rev-parse HEAD`` via a
+#   ``shutil.which("git")``-resolved executable with a hardcoded argv
+#   list. No untrusted input reaches subprocess; Bandit S603 is a false
+#   positive in this trusted-binary, fixed-args context.
 #
 # All other first-party noqa suppressions remain forbidden.
 _FROZEN_SITES: dict[str, int] = {
     "streamlit_terminal_alerts.py": 1,
     "scripts/scan_manifests_for_pytest_provenance.py": 1,
+    "governance/run_manifest.py": 1,
 }
 _FROZEN_TOTAL = sum(_FROZEN_SITES.values())
 
