@@ -6,7 +6,6 @@ import re
 import sys
 from types import ModuleType
 
-
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 MANIFEST_PATH = ROOT / 'scripts' / 'smc_bus_manifest.py'
 
