@@ -112,9 +112,8 @@ def _scan_xml_imports(tree: ast.AST) -> list[tuple[str, int]]:
             for alias in node.names:
                 if _is_xml_family_module(alias.name):
                     out.append((alias.name, node.lineno))
-        elif isinstance(node, ast.ImportFrom):
-            if _is_xml_family_module(node.module):
-                out.append((node.module or "", node.lineno))
+        elif isinstance(node, ast.ImportFrom) and _is_xml_family_module(node.module):
+            out.append((node.module or "", node.lineno))
     return out
 
 
