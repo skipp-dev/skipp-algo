@@ -220,8 +220,10 @@ def test_finnhub_concurrent_429s_do_not_corrupt_counter() -> None:
 
     t1 = threading.Thread(target=bump)
     t2 = threading.Thread(target=bump)
-    t1.start(); t2.start()
-    t1.join(); t2.join()
+    t1.start()
+    t2.start()
+    t1.join()
+    t2.join()
 
     with fh._state_lock:
         final = fh._consecutive_429_count

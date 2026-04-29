@@ -199,7 +199,8 @@ class TestFunctionalBehavior:
     def test_resolve_base_csv_action_target_multiple_no_selection(self, tmp_path):
         from scripts.smc_micro_streamlit_app import resolve_base_csv_action_target
         p1, p2 = tmp_path / "a.csv", tmp_path / "b.csv"
-        p1.touch(); p2.touch()
+        p1.touch()
+        p2.touch()
         target, error = resolve_base_csv_action_target([p1, p2], None)
         assert target is None
         assert error is not None

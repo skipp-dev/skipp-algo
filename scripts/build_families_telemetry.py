@@ -182,7 +182,9 @@ def _trade_date_from_path(p: Path) -> str | None:
     for token in stem.split("_"):
         if len(token) == 10 and token[4] == "-" and token[7] == "-":
             try:
-                int(token[:4]); int(token[5:7]); int(token[8:10])
+                int(token[:4])
+                int(token[5:7])
+                int(token[8:10])
             except ValueError:
                 continue
             return token
