@@ -47,7 +47,7 @@ _RANDOM_LEDGER: frozenset[tuple[str, int]] = frozenset({
 _ALLOWED_TEMPFILE_METHODS: frozenset[str] = frozenset({"mkstemp"})
 
 _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
-    ("databento_reference.py", 99, "mkstemp"),
+    ("databento_reference.py", 100, "mkstemp"),
     ("databento_utils.py", 125, "mkstemp"),
     ("databento_volatility_screener.py", 300, "mkstemp"),
     ("governance/alpha_ledger.py", 65, "mkstemp"),

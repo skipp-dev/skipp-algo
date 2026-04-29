@@ -25,6 +25,7 @@ from typing import Any
 import pandas as pd
 
 from databento_client import _make_databento_reference_client, _redact_sensitive_error_text
+import contextlib
 
 logger = logging.getLogger(__name__)
 
@@ -103,10 +104,8 @@ def _replace_atomic(path: Path, content: str) -> None:
         temp_path.write_text(content, encoding="utf-8")
         os.replace(temp_path, path)
     except Exception:
-        try:
+        with contextlib.suppress(OSError):
             temp_path.unlink(missing_ok=True)
-        except OSError:
-            pass
         raise
 
 
