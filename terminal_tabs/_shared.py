@@ -17,13 +17,13 @@ from typing import Any
 import pandas as pd
 import streamlit as st
 
+from newsstack_fmp._bz_http import _WARNED_ENDPOINTS
 from terminal_forecast import (
     fetch_forecast,
 )
-
-from terminal_newsapi import newsapi_available, fetch_event_clusters
-
+from terminal_newsapi import fetch_event_clusters, newsapi_available
 from terminal_poller import (
+    compute_tomorrow_outlook,
     fetch_benzinga_delayed_quotes,
     fetch_benzinga_market_movers,
     fetch_defense_watchlist,
@@ -31,7 +31,6 @@ from terminal_poller import (
     fetch_industry_performance,
     fetch_sector_performance,
     fetch_ticker_sectors,
-    compute_tomorrow_outlook,
 )
 from terminal_spike_detector import SpikeDetector
 from terminal_spike_scanner import (
@@ -43,17 +42,16 @@ from terminal_spike_scanner import (
     fetch_most_active,
 )
 from terminal_technicals import (
+    INTERVAL_MAP,
     fetch_technicals,
     signal_icon,
     signal_label,
-    INTERVAL_MAP,
 )
 from terminal_ui_helpers import (
     dedup_articles,
     format_age_string,
     safe_markdown_text,
 )
-from newsstack_fmp._bz_http import _WARNED_ENDPOINTS
 
 logger = logging.getLogger(__name__)
 
