@@ -23,13 +23,6 @@ import pytest
 
 from scripts import run_smc_post_release_validation as post_release
 from scripts import smc_pine_evidence_gate as evidence_gate
-from scripts.smc_pine_evidence_gate import (
-    DRIFT_TYPE_MISSING_ARTIFACT,
-    DRIFT_TYPE_SEMANTIC_DRIFT,
-    DRIFT_TYPE_STALE_MANIFEST,
-    DRIFT_TYPES,
-    build_evidence_lane_gate,
-)
 from scripts.run_smc_post_release_validation import (
     FAILURE_CLASS_AUTH,
     FAILURE_CLASS_MISSING_ARTIFACT,
@@ -43,7 +36,13 @@ from scripts.run_smc_post_release_validation import (
     _classify_failure_code,
     run_post_release_validation,
 )
-
+from scripts.smc_pine_evidence_gate import (
+    DRIFT_TYPE_MISSING_ARTIFACT,
+    DRIFT_TYPE_SEMANTIC_DRIFT,
+    DRIFT_TYPE_STALE_MANIFEST,
+    DRIFT_TYPES,
+    build_evidence_lane_gate,
+)
 
 # ──────────────────────────────────────────────────────────────────────
 # Evidence-lane gate — drift_type + primary_blocker
