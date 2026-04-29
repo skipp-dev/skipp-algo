@@ -6,8 +6,7 @@ from typing import Any
 
 import streamlit as st
 
-from terminal_newsapi import newsapi_available, fetch_trending_concepts
-
+from terminal_newsapi import fetch_trending_concepts, newsapi_available
 from terminal_ui_helpers import safe_markdown_text
 
 
