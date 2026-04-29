@@ -8,8 +8,8 @@ import pandas as pd
 import streamlit as st
 
 from terminal_tabs._shared import (
-    bz_tier_warning,
     build_bz_mover_rows,
+    bz_tier_warning,
     cached_bz_movers,
     cached_bz_quotes,
     render_event_clusters_expander,
