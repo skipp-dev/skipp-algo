@@ -19,7 +19,6 @@ from scripts.emit_fvg_context_pine import (
     write_outputs,
 )
 
-
 # ── _normalise_event ─────────────────────────────────────────────
 
 
