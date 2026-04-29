@@ -93,11 +93,10 @@ def _first_arg_subscript_key(call: ast.Call) -> str | None:
         if isinstance(slice_val, ast.Constant) and isinstance(slice_val.value, str):
             return slice_val.value
     # frame.get("col")
-    if isinstance(arg, ast.Call) and isinstance(arg.func, ast.Attribute):
-        if arg.func.attr == "get" and arg.args:
-            inner = arg.args[0]
-            if isinstance(inner, ast.Constant) and isinstance(inner.value, str):
-                return inner.value
+    if isinstance(arg, ast.Call) and isinstance(arg.func, ast.Attribute) and arg.func.attr == "get" and arg.args:
+        inner = arg.args[0]
+        if isinstance(inner, ast.Constant) and isinstance(inner.value, str):
+            return inner.value
     return None
 
 
