@@ -90,7 +90,7 @@ def assign_transition_bucket(
     # change_bars is in monotonic order (bars are monotonic by contract).
     # Use bisect to find the nearest change in O(log n) instead of O(n).
     out: list[dict[str, Any]] = []
-    for trade, bar in zip(trades, bars):
+    for trade, bar in zip(trades, bars, strict=False):
         new = dict(trade)
         idx = bisect.bisect_left(change_bars, bar)
         candidates = []
