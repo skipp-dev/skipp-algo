@@ -12,11 +12,11 @@ DoD:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import Enum, StrEnum
 from collections.abc import Mapping
 
 
-class CheckStatus(str, Enum):
+class CheckStatus(StrEnum):
     PASS = "pass"
     FAIL = "fail"
     SKIPPED = "skipped"

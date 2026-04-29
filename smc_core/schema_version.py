@@ -10,7 +10,7 @@ Bump instructions: see docs/schema_versioning.md
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import Enum, StrEnum
 
 # Current pin: 3.0.0 (2026-04-23). Pine-library export field count 200 → 201
 # (adds ZONE_CAL_TRUST + ZONE_CAL_CONFIDENCE for Phase-H consumer maturity,
@@ -38,7 +38,7 @@ EVENT_LEDGER_SCHEMA_VERSION = "1.0"
 SESSION_SCHEMA_VERSION = "2026-04-24.0"
 
 
-class VersionChangeType(str, Enum):
+class VersionChangeType(StrEnum):
     """Classification of a semver transition."""
 
     UNCHANGED = "unchanged"
