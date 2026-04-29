@@ -11,6 +11,7 @@ latest known alias map without hitting the network on every call.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -25,7 +26,6 @@ from typing import Any
 import pandas as pd
 
 from databento_client import _make_databento_reference_client, _redact_sensitive_error_text
-import contextlib
 
 logger = logging.getLogger(__name__)
 
