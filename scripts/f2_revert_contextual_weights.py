@@ -49,6 +49,7 @@ import sys
 import tempfile
 from pathlib import Path
 from typing import Any
+import contextlib
 
 JOURNAL_DEFAULT = Path("artifacts/ci/f2/revert_journal.jsonl")
 ARCHIVE_SUBDIR_DEFAULT = "contextual_calibration.archive"
@@ -75,10 +76,8 @@ def _atomic_write_text(path: Path, text: str) -> None:
     except BaseException:
         if fd >= 0:
             os.close(fd)
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp)
-        except OSError:
-            pass
         raise
 
 
