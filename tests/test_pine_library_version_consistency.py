@@ -23,7 +23,6 @@ import re
 from collections import defaultdict
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # ``import preuss_steffen/smc_utils/1 as u``
