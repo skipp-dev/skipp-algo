@@ -24,10 +24,9 @@ first-ticketset document:
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
-from collections.abc import Mapping
-
 
 # Hero vocabulary constants mirror ``scripts/smc_hero_state.py``. They are
 # duplicated here as plain literals (rather than imported) so that this catalog
