@@ -17,7 +17,6 @@ from dashboard.decision_first_panel import (
     sparkline,
 )
 
-
 # ---------------------------------------------------------------------------
 # Decision fixtures matching governance.types.Decision shape.
 # ---------------------------------------------------------------------------
