@@ -36,6 +36,7 @@ import sys
 import tempfile
 from pathlib import Path
 from typing import Any
+import contextlib
 
 DEFAULT_MAX_LEN = 30
 DEFAULT_METRIC = "calibrated_brier"
@@ -64,10 +65,8 @@ def _atomic_write(path: Path, data: list[float]) -> None:
     except BaseException:
         if fd >= 0:
             os.close(fd)
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp)
-        except OSError:
-            pass
         raise
 
 
