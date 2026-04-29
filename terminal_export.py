@@ -10,6 +10,7 @@ on empty config values.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import hmac
 import json
@@ -56,7 +57,6 @@ from terminal_resolution_state import (
     effective_resolution_score,
     effective_resolution_state,
 )
-import contextlib
 
 logger = logging.getLogger(__name__)
 
