@@ -43,13 +43,13 @@ from typing import Any
 
 import httpx
 
-logger = logging.getLogger(__name__)
-
 from newsstack_fmp._bz_http import (
     _request_with_retry,
     _sanitize_url,
     log_fetch_warning,
 )
+
+logger = logging.getLogger(__name__)
 
 # =====================================================================
 # Base URLs

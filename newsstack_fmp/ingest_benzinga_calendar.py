@@ -28,15 +28,15 @@ from typing import Any
 
 import httpx
 
-from .normalize import normalize_benzinga_calendar_item
-
-logger = logging.getLogger(__name__)
-
 from newsstack_fmp._bz_http import (
     BenzingaEndpointDisabledError,
     _request_with_retry,
     log_fetch_warning,
 )
+
+from .normalize import normalize_benzinga_calendar_item
+
+logger = logging.getLogger(__name__)
 
 # =====================================================================
 # 1) Calendar Adapter (ratings, earnings, economics, conference calls)
