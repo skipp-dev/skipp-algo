@@ -22,9 +22,9 @@ report builder.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
-from collections.abc import Sequence
 
 import numpy as np
 
