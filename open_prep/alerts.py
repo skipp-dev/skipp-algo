@@ -50,7 +50,7 @@ def load_alert_config() -> dict[str, Any]:
     """Load alert config from JSON file, falling back to defaults."""
     if ALERT_CONFIG_PATH.exists():
         try:
-            with open(ALERT_CONFIG_PATH, "r", encoding="utf-8") as fh:
+            with open(ALERT_CONFIG_PATH, encoding="utf-8") as fh:
                 return {**DEFAULT_CONFIG, **json.load(fh)}
         except Exception:
             logger.warning("Failed to load alert config, using defaults", exc_info=True)
