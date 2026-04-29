@@ -2,26 +2,26 @@ from __future__ import annotations
 
 import json
 import warnings
-from typing import Any, cast
 from datetime import date
 from pathlib import Path
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
 import pytest
 
-import scripts.smc_microstructure_base_runtime as runtime
 import scripts.smc_databento_session_detail as session_detail
+import scripts.smc_microstructure_base_runtime as runtime
 from scripts.smc_microstructure_base_runtime import (
     _abs_return_series_for_index,
-    _column_nanmeans_or_zero,
     _clip01,
     _clip01_series,
-    _consistency_score_from_numeric_values,
     _coerce_bool,
     _coerce_bool_series,
     _coerce_trade_date_series,
+    _column_nanmeans_or_zero,
     _consistency_score,
+    _consistency_score_from_numeric_values,
     _et_minutes_since_midnight,
     _grouped_setup_decay_half_life_30m_buckets,
     _mean_or_default,
@@ -29,8 +29,8 @@ from scripts.smc_microstructure_base_runtime import (
     _quantile_or_default,
     _safe_float,
     _safe_ratio,
-    _safe_ratio_to_constant_series,
     _safe_ratio_series_for_index,
+    _safe_ratio_to_constant_series,
     _setup_decay_half_life_30m_buckets,
     build_base_snapshot_from_bundle_payload,
     build_symbol_day_microstructure_feature_frame,
@@ -38,9 +38,7 @@ from scripts.smc_microstructure_base_runtime import (
     infer_asset_type,
     write_base_manifest,
 )
-
 from scripts.smc_schema_resolver import resolve_microstructure_schema_path
-
 
 SCHEMA_PATH = resolve_microstructure_schema_path()
 
