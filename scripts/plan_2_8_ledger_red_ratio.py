@@ -48,10 +48,7 @@ def compute(records: list[dict[str, Any]], last_n: int) -> dict[str, Any]:
     window = cleaned if last_n <= 0 else cleaned[-last_n:]
     red = sum(1 for s in window if s == "red")
     ratio: float | None
-    if window:
-        ratio = round(red / len(window), 4)
-    else:
-        ratio = None
+    ratio = round(red / len(window), 4) if window else None
     return {
         "schema_version": 1,
         "last_n":         last_n,
