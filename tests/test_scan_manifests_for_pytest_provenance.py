@@ -6,7 +6,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 SCANNER = Path(__file__).resolve().parent.parent / "scripts" / "scan_manifests_for_pytest_provenance.py"
 
 
