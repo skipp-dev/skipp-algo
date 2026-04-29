@@ -24,11 +24,11 @@ Companion to ``tests/test_ml_input_schema_pin.py`` (C10 input schema).
 """
 
 from __future__ import annotations
-from itertools import pairwise
 
 import ast
 import hashlib
 import json
+from itertools import pairwise
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
