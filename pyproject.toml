@@ -120,7 +120,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S", "T20", "B011"]
+"tests/*" = ["S", "T20", "B011", "N801"]
 "scripts/*" = ["T20"]
 "open_prep/streamlit_monitor.py" = ["T20"]
 "streamlit_terminal.py" = ["E402"]
