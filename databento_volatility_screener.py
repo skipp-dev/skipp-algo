@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import logging
@@ -54,7 +55,6 @@ logger = logging.getLogger(__name__)
 # invalidation block in run_streamlit_app() for the affected keys.
 # Source of truth: smc_core.schema_version.SESSION_SCHEMA_VERSION (H-6).
 from smc_core.schema_version import SESSION_SCHEMA_VERSION as _DVS_SESSION_SCHEMA_VERSION
-import contextlib
 
 _API_KEY_REDACTION_PATTERNS = (
     re.compile(r"(api[_-]?key=)([^&\s]+)", flags=re.IGNORECASE),
