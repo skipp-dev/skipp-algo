@@ -15,8 +15,8 @@ from terminal_bitcoin import (
     fetch_fear_greed,
 )
 from terminal_fmp_insights import fetch_fmp_profiles, fetch_fmp_quotes, fetch_fmp_ratios
-from terminal_forecast import _fetch_fmp
 from terminal_fmp_technicals import _fetch_indicator, _fetch_price
+from terminal_forecast import _fetch_fmp
 from terminal_poller import (
     fetch_defense_watchlist,
     fetch_economic_calendar,
