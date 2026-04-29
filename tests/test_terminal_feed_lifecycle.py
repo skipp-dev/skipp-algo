@@ -2,9 +2,8 @@
 from __future__ import annotations
 
 import time
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
-
 
 from terminal_feed_lifecycle import (
     FeedLifecycleManager,
@@ -15,7 +14,6 @@ from terminal_feed_lifecycle import (
     is_premarket_window,
     is_weekend,
 )
-
 
 # ---------------------------------------------------------------------------
 # Time helpers
