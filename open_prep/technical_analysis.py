@@ -995,7 +995,7 @@ def calculate_ewma(
     highs = [_safe_float(b.get("high", 0.0)) for b in recent]
     lows = [_safe_float(b.get("low", 0.0)) for b in recent]
 
-    ewma_val = sum(p * w for p, w in zip(closes, weights))
+    ewma_val = sum(p * w for p, w in zip(closes, weights, strict=False))
     highest = max(highs) if highs else ewma_val
     lowest = min(lows) if lows else ewma_val
 
