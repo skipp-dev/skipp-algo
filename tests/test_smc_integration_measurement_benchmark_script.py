@@ -5,7 +5,7 @@ from argparse import Namespace
 from pathlib import Path
 
 from scripts import run_smc_measurement_benchmark as benchmark_script
-from smc_core.ensemble_quality import serialize_ensemble_quality, build_ensemble_quality
+from smc_core.ensemble_quality import build_ensemble_quality, serialize_ensemble_quality
 from smc_core.scoring import ScoredEvent
 from smc_integration.measurement_evidence import MeasurementEvidence
 
