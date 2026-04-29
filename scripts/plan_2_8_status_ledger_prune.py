@@ -13,6 +13,7 @@ import os
 import sys
 import tempfile
 from pathlib import Path
+import contextlib
 
 
 def prune(lines: list[str], *, keep: int) -> list[str]:
@@ -46,10 +47,8 @@ def _rewrite(ledger: Path, kept: list[str]) -> None:
                 fh.write(line + "\n")
         os.replace(tmp_path, ledger)
     except Exception:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp_path)
-        except OSError:
-            pass
         raise
 
 
