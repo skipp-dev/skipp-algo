@@ -35,18 +35,18 @@ Run::
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 import os
 import sys
 from collections import Counter, defaultdict
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
 from dotenv import load_dotenv
+
+from scripts.smc_atomic_write import atomic_write_text
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
@@ -64,7 +64,6 @@ from smc_core.scoring import (
     label_fvg_mitigation,
     label_fvg_partial_50,
 )
-
 
 # Small high-volume universe with material extended-hours tape so the
 # 22:00–08:00 UTC window actually contains trades (US equities trade
