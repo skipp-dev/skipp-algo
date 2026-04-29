@@ -14,6 +14,7 @@ Feature Importance (#3):
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import math
@@ -125,10 +126,8 @@ def store_daily_outcomes(
             os.fsync(fh.fileno())
         os.replace(tmp_path, path)
     except BaseException:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp_path)
-        except OSError:
-            pass
         raise
     logger.info("Stored %d outcome records for %s → %s", len(outcomes), run_date, path)
 
@@ -405,10 +404,8 @@ class FeatureImportanceCollector:
                 os.fsync(fh.fileno())
             os.replace(tmp_path, path)
         except BaseException:
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(tmp_path)
-            except OSError:
-                pass
             raise
         count = len(self._buffer)
         self._buffer.clear()
