@@ -4,13 +4,14 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .base import SourceCapabilities, SourceDescriptor
 from smc_integration.structure_contract import (
     contract_to_dict,
     normalize_structure_contract,
     normalize_structure_contracts_with_diagnostics,
     summarize_structure_contracts,
 )
+
+from .base import SourceCapabilities, SourceDescriptor
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 STRUCTURE_ARTIFACT_JSON = REPO_ROOT / "reports" / "smc_structure_artifact.json"
