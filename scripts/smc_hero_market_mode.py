@@ -187,7 +187,7 @@ def render_hero_market_mode_block_lines(
     lines: list[str] = ["// ── Hero Market Mode (ENG-WS3-03) ──"]
     for field, key in zip(
         PINE_HERO_MARKET_FIELDS,
-        ("regime", "bias", "session", "trust", "freshness"),
+        ("regime", "bias", "session", "trust", "freshness"), strict=False,
     ):
         lines.append(
             f'export const string {field} = "{_pine_string(values[key])}"'
