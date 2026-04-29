@@ -241,8 +241,8 @@ def _l2_logreg(
     for _ in range(epochs):
         grad_beta = [0.0] * n_features
         grad_bias = 0.0
-        for row, y in zip(matrix, labels):
-            z = bias + sum(b * x for b, x in zip(beta, row))
+        for row, y in zip(matrix, labels, strict=False):
+            z = bias + sum(b * x for b, x in zip(beta, row, strict=False))
             p = _logistic(z)
             err = p - y
             grad_bias += err
@@ -300,7 +300,7 @@ def _score_with_directions(
 def _quartiles(scores: list[float], outcomes: list[int]) -> list[QuartileStat]:
     if not scores:
         return []
-    paired = sorted(zip(scores, outcomes), key=lambda x: x[0])
+    paired = sorted(zip(scores, outcomes, strict=False), key=lambda x: x[0])
     n = len(paired)
     cuts = [n // 4, n // 2, (3 * n) // 4]
     buckets: list[list[tuple[float, int]]] = [[], [], [], []]
@@ -336,7 +336,7 @@ def _spearman(scores: list[float], outcomes: list[int]) -> float:
         return float("nan")
     rank_score = _rank(scores)
     rank_out = _rank([float(o) for o in outcomes])
-    diffs = [(a - b) ** 2 for a, b in zip(rank_score, rank_out)]
+    diffs = [(a - b) ** 2 for a, b in zip(rank_score, rank_out, strict=False)]
     rho = 1 - (6 * sum(diffs)) / (n * (n * n - 1))
     return round(rho, 4)
 
@@ -443,9 +443,9 @@ def recalibrate(
         return report
 
     matrix_raw = [[row[k] for k in FEATURE_KEYS] for row in rows]
-    columns = list(zip(*matrix_raw))
+    columns = list(zip(*matrix_raw, strict=False))
     z_columns = [_zscore(list(col)) for col in columns]
-    matrix = [list(r) for r in zip(*z_columns)]
+    matrix = [list(r) for r in zip(*z_columns, strict=False)]
 
     beta, _bias = _l2_logreg(matrix, outcomes)
     report.weights_shadow = _normalise_to_weights(beta)
