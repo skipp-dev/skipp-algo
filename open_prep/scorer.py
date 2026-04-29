@@ -34,6 +34,7 @@ from .technical_analysis import (
 )
 from .utils import MIN_PRICE_THRESHOLD, SEVERE_GAP_DOWN_THRESHOLD
 from .utils import to_float as _to_float
+import contextlib
 
 logger = logging.getLogger("open_prep.scorer")
 
@@ -110,10 +111,8 @@ def save_weight_set(label: str, weights: dict[str, float]) -> None:
     except BaseException:
         if fd >= 0:
             os.close(fd)
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp)
-        except OSError:
-            pass
         raise
 
 
