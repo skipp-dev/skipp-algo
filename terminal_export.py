@@ -191,7 +191,7 @@ def rotate_jsonl(path: str, max_lines: int = 5000, max_age_s: float = 14400.0) -
     ``time.time() - max_age_s`` are dropped regardless of count.
     """
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             lines = f.readlines()
     except FileNotFoundError:
         return
@@ -246,7 +246,7 @@ def load_jsonl_feed(path: str, max_items: int = 500) -> list[dict[str, Any]]:
     """
     dedup_map: dict[str, dict[str, Any]] = {}
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             for raw in f:
                 raw = raw.strip()
                 if not raw:
@@ -309,7 +309,7 @@ def load_rt_quotes(
                          time.time() - mtime, max_age_s, path)
             return {}
         result: dict[str, dict[str, Any]] = {}
-        with open(path, "r", encoding="utf-8") as fh:
+        with open(path, encoding="utf-8") as fh:
             for line in fh:
                 line = line.strip()
                 if not line:
