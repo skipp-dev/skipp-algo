@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import date, datetime, UTC
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import pytest
@@ -16,7 +16,6 @@ from scripts.run_smc_live_incubation import (
 )
 from scripts.smc_to_ibkr_adapter import IBKRExecutionConfig
 from scripts.wsh_earnings_calendar import WSH_EVENTS_SCHEMA_VERSION
-
 
 _FROZEN_NOW = datetime(2026, 4, 26, 12, 0, 0, tzinfo=UTC)
 
@@ -338,6 +337,7 @@ def test_account_state_json_rejects_null_last_n_pnls(tmp_path: Path) -> None:
 def test_account_state_json_rejects_non_iterable_last_n_pnls(tmp_path: Path) -> None:
     """A scalar last_n_pnls must produce a clear ValueError (not a TypeError)."""
     import pytest
+
     from scripts.run_smc_live_incubation import _account_state_from_json
 
     state_path = tmp_path / "account.json"
