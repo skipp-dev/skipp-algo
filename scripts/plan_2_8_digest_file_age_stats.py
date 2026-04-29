@@ -8,14 +8,14 @@ the report deterministic in tests; defaults to ``time.time()``.
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 import sys
 import time
 from pathlib import Path
 from typing import Any
+
+from scripts.smc_atomic_write import atomic_write_text
 
 
 def build(root: Path, now_ts: float | None = None) -> dict[str, Any]:
