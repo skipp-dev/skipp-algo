@@ -7,10 +7,10 @@ problem (DoD: 'Refresh-Berichte zeigen Ursache und Reichweite').
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime, UTC
-from enum import StrEnum
 from collections.abc import Iterable, Mapping
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from enum import StrEnum
 
 
 class StaleStatus(StrEnum):
