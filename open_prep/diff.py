@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from .utils import to_float
+import contextlib
 
 logger = logging.getLogger("open_prep.diff")
 
@@ -63,10 +64,8 @@ def save_result_snapshot(result: dict[str, Any]) -> Path:
             os.fsync(fh.fileno())
         os.replace(tmp_path, LAST_RESULT_PATH)
     except BaseException:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp_path)
-        except OSError:
-            pass
         raise
     return LAST_RESULT_PATH
 
