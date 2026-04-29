@@ -48,7 +48,6 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-
 JOURNAL_DEFAULT = Path("artifacts/ci/f2/promote_journal.jsonl")
 ARCHIVE_SUBDIR_DEFAULT = "contextual_calibration.archive"
 
