@@ -13,6 +13,7 @@ refactored code should import directly from this module.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import logging
 import os
@@ -25,7 +26,6 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 import pandas as pd
-import contextlib
 
 logger = logging.getLogger(__name__)
 
