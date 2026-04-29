@@ -1,20 +1,20 @@
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-from collections.abc import Sequence
 
 import pandas as pd
 
 from scripts.databento_production_workbook import resolve_production_workbook_path
 from scripts.explicit_structure_from_bars import build_explicit_structure_from_bars
 from scripts.explicit_structure_profiles import EVENT_LOGIC_VERSION, validate_structure_profile
+from scripts.smc_atomic_write import atomic_write_text
 from smc_core.schema_version import SCHEMA_VERSION
+
 DEFAULT_WORKBOOK = Path("artifacts/smc_microstructure_exports/databento_volatility_production_workbook.xlsx")
 DEFAULT_OUTPUT = Path("reports") / "smc_structure_artifact.json"
 
