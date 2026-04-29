@@ -136,7 +136,7 @@ def _get_enricher() -> Enricher:
 def load_universe(path: str) -> set[str]:
     """Load universe from a text file (one ticker per line)."""
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             universe = {
                 line.strip().upper()
                 for line in f
