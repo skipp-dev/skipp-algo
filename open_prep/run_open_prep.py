@@ -5509,7 +5509,7 @@ def generate_open_prep_result(
         now_utc=run_dt,
     )
     # Merge playbook data into each v2 candidate row
-    for row, pb in zip(ranked_v2, playbook_results):
+    for row, pb in zip(ranked_v2, playbook_results, strict=False):
         row["playbook"] = pb.to_dict()
     logger.info(
         "Playbook assignment: %s",
