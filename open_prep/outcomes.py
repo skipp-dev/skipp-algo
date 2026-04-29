@@ -439,7 +439,7 @@ def _pearson_r(xs: list[float], ys: list[float]) -> float:
         return 0.0
     mx = sum(xs) / n
     my = sum(ys) / n
-    cov = sum((x - mx) * (y - my) for x, y in zip(xs, ys))
+    cov = sum((x - mx) * (y - my) for x, y in zip(xs, ys, strict=False))
     sx = math.sqrt(sum((x - mx) ** 2 for x in xs))
     sy = math.sqrt(sum((y - my) ** 2 for y in ys))
     if sx == 0 or sy == 0:
@@ -506,8 +506,8 @@ def compute_feature_importance(
         r = _pearson_r(vals, outcomes)
 
         # Mean-separation importance
-        wins = [v for v, o in zip(vals, outcomes) if o > 0.5]
-        losses = [v for v, o in zip(vals, outcomes) if o <= 0.5]
+        wins = [v for v, o in zip(vals, outcomes, strict=False) if o > 0.5]
+        losses = [v for v, o in zip(vals, outcomes, strict=False) if o <= 0.5]
         mean_win = (sum(wins) / len(wins)) if wins else 0.0
         mean_loss = (sum(losses) / len(losses)) if losses else 0.0
         std_win = (
