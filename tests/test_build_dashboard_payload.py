@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -12,7 +12,6 @@ from scripts.build_dashboard_payload import (
     DASHBOARD_PAYLOAD_VERSION,
     build_dashboard_payload,
 )
-
 
 _FROZEN_NOW = datetime(2026, 4, 26, 12, 0, 0, tzinfo=UTC)
 
