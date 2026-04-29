@@ -43,7 +43,7 @@ _MANIFEST_RE = re.compile(r"(?:^|/)[A-Za-z0-9_]*manifest(?:_[^/]*)?\.json$")
 _POISON_PATTERNS = (
     re.compile(r"pytest-of-[A-Za-z0-9_.-]+"),
     re.compile(r"/var/folders/[^\"']+/T/pytest[^\"']*"),
-    re.compile(r"/tmp/pytest-of-[^\"']+"),
+    re.compile(r"/tmp/pytest-of-[^\"']+"),  # noqa: S108 - regex for poison detection, not file creation
 )
 
 

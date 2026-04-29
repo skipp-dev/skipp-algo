@@ -39,12 +39,23 @@ _DIR_EXCLUDE = {
 
 _NOQA_RE = re.compile(r"#\s*noqa\b", re.IGNORECASE)
 
-# Frozen ledger — exactly today's surface (2026-04-28).
-# As of the RUF100 cleanup wave, the codebase contains zero first-party
-# ``# noqa`` suppressions. The ledger remains as a tripwire: any new
-# suppression will trip ``test_no_new_noqa_files`` and require a
-# deliberate update in the same PR.
-_FROZEN_SITES: dict[str, int] = {}
+# Frozen ledger — exactly today's surface (2026-04-29).
+#
+# Two suppressions are intentional and registered here:
+#
+# * ``streamlit_terminal_alerts.py``: validates that a webhook URL host is
+#   not "0.0.0.0" / localhost — string-matching, *not* binding a server.
+#   Bandit S104 is a false positive in this context.
+# * ``scripts/scan_manifests_for_pytest_provenance.py``: contains a regex
+#   literal ``r"/tmp/pytest-of-..."`` used to *detect* pytest tmp-path
+#   leakage in shipped manifests. The path is a search pattern, not a
+#   file Python opens. Bandit S108 is a false positive.
+#
+# All other first-party ``# noqa`` suppressions remain forbidden.
+_FROZEN_SITES: dict[str, int] = {
+    "streamlit_terminal_alerts.py": 1,
+    "scripts/scan_manifests_for_pytest_provenance.py": 1,
+}
 _FROZEN_TOTAL = sum(_FROZEN_SITES.values())
 
 
