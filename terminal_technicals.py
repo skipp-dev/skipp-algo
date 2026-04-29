@@ -20,7 +20,7 @@ log = logging.getLogger(__name__)
 _APIKEY_RE = re.compile(r"(apikey|api_key|token|key)=[^&\s]+", re.IGNORECASE)
 
 try:
-    from tradingview_ta import TA_Handler, Interval  # type: ignore[import-untyped]
+    from tradingview_ta import Interval, TA_Handler  # type: ignore[import-untyped]
 
     _TV_AVAILABLE = True
 except ImportError:
