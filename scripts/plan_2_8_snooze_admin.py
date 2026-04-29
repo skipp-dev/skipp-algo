@@ -23,6 +23,7 @@ import sys
 import tempfile
 from pathlib import Path
 from typing import Any
+import contextlib
 
 DEFAULT_CONFIG = Path("configs/plan_2_8_snoozes.json")
 
@@ -61,10 +62,8 @@ def _save(path: Path, data: dict[str, Any]) -> None:
             fh.write("\n")
         os.replace(tmp, path)
     except Exception:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp)
-        except OSError:
-            pass
         raise
 
 
