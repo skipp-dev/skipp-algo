@@ -51,7 +51,7 @@ def _staged_manifest_paths() -> list[Path]:
     """Return staged Added/Modified files matching the manifest pattern."""
     try:
         git_exe = shutil.which("git") or "git"
-        out = subprocess.check_output(
+        out = subprocess.check_output(  # noqa: S603  # trusted: hardcoded git argv resolved via shutil.which
             [git_exe, "diff", "--cached", "--name-only", "--diff-filter=AM"],
             text=True,
         )
@@ -90,7 +90,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.all_tracked:
         try:
             git_exe = shutil.which("git") or "git"
-            tracked = subprocess.check_output(
+            tracked = subprocess.check_output(  # noqa: S603  # trusted: hardcoded git argv resolved via shutil.which
                 [git_exe, "ls-files"], text=True
             ).splitlines()
         except (OSError, subprocess.CalledProcessError) as exc:
