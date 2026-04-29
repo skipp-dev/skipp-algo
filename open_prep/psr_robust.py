@@ -85,7 +85,7 @@ def compute_psr_minIS(
         periods_per_year=periods_per_year,
     )
 
-    net_returns = [r - (s / 1e4) for r, s in zip(returns, slippage_bps_series)]
+    net_returns = [r - (s / 1e4) for r, s in zip(returns, slippage_bps_series, strict=False)]
     net = probabilistic_sharpe(
         net_returns,
         sr_star=sr_star,
