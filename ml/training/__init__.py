@@ -14,8 +14,8 @@ Every backend implements ``BaseFamilyTrainer`` so callers can swap them at
 runtime without touching the surrounding pipeline.
 """
 from ml.training.base import BaseFamilyTrainer, FamilyDataset, FittedModel
-from ml.training.logistic_baseline import LogisticBaseline
 from ml.training.lgbm_family_trainer import LGBMFamilyTrainer
+from ml.training.logistic_baseline import LogisticBaseline
 from ml.training.xgb_family_trainer import XGBFamilyTrainer
 
 __all__ = [
