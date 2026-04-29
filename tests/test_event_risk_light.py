@@ -1,7 +1,7 @@
 """Semantic tests for the v5.5 Event Risk Light adapter."""
 from __future__ import annotations
 
-from scripts.smc_event_risk_light import build_event_risk_light, DEFAULTS
+from scripts.smc_event_risk_light import DEFAULTS, build_event_risk_light
 
 
 class TestDefaults:
