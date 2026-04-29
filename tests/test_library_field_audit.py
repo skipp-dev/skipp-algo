@@ -157,13 +157,14 @@ def _collect_generated_fields() -> set[str]:
     # regex-based scan above can miss exports rendered through a loop
     # over an external tuple, so we always trust the tuple as the
     # authoritative field list for that block.
+    from scripts.smc_hero_action import PINE_HERO_ACTION_FIELDS
+    from scripts.smc_hero_market_mode import PINE_HERO_MARKET_FIELDS
+    from scripts.smc_hero_setup_quality import PINE_HERO_QUALITY_FIELDS
     from scripts.smc_trust_state_export import (
         PINE_ACTION_DEGRADATION_FIELDS,
         PINE_TRUST_FIELDS,
     )
-    from scripts.smc_hero_market_mode import PINE_HERO_MARKET_FIELDS
-    from scripts.smc_hero_setup_quality import PINE_HERO_QUALITY_FIELDS
-    from scripts.smc_hero_action import PINE_HERO_ACTION_FIELDS
+
     # ZONE_HR_<FAM> per-family hit-rate exports are emitted by
     # generate_smc_micro_profiles.py via a two-stage f-string
     # indirection (``key = f"ZONE_HR_{fam}"``) that the regex above
