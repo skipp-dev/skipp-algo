@@ -62,7 +62,6 @@ _FROZEN_SITES: dict[str, frozenset[int]] = {
     "scripts/generate_smc_micro_base_from_databento.py": frozenset({1189, 1191, 1239}),
     "smc_tv_bridge/smc_api.py": frozenset({85}),
     "streamlit_terminal_alerts.py": frozenset({92}),
-    "terminal_spike_scanner.py": frozenset({161}),
 }
 
 _FROZEN_TOTAL = sum(len(v) for v in _FROZEN_SITES.values())
