@@ -223,9 +223,12 @@ def _resolve_auto_structure_source_for_symbol_timeframe(symbol: str, timeframe: 
         provider = _SOURCE_PROVIDERS.get(name)
         if provider is None:
             continue
-        if name == "structure_artifact_json" and wants_specific_artifact:
-            if not structure_artifact_json.has_artifact_for_symbol_timeframe(wanted_symbol, wanted_timeframe):
-                continue
+        if (
+            name == "structure_artifact_json"
+            and wants_specific_artifact
+            and not structure_artifact_json.has_artifact_for_symbol_timeframe(wanted_symbol, wanted_timeframe)
+        ):
+            continue
         if _can_supply_domain(provider, "structure"):
             return provider.descriptor.name
     raise ValueError("no integration source can supply domain=structure")
