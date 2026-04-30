@@ -87,7 +87,7 @@ def _os_delete_sites() -> set[tuple[str, int, str]]:
 # call in a ``try / except FileNotFoundError`` (or ``Path.unlink(missing_ok=True)``)
 # so a stale handle never crashes the caller.
 OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
-    ("newsstack_fmp/open_prep_export.py", 34, "unlink"),
+    ("newsstack_fmp/open_prep_export.py", 35, "unlink"),
     ("newsstack_fmp/store_sqlite.py", 143, "remove"),
     ("open_prep/alerts.py", 78, "unlink"),
     ("open_prep/candidate_weights.py", 154, "unlink"),
