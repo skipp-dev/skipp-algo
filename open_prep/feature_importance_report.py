@@ -32,8 +32,8 @@ Exit codes:
 """
 from __future__ import annotations
 
-import contextlib
 import argparse
+import contextlib
 import json
 import logging
 import os
