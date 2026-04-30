@@ -75,8 +75,13 @@ def resample_bars_to_timeframe(df: pd.DataFrame, timeframe: str) -> pd.DataFrame
         # BAR-CLOSE-EXEMPT: offline batch aggregation script. Reads a finished
         # historical bar series and trims a partial trailing bucket whose end
         # exceeds the source's max timestamp. There is no live trading loop
-        # here — .iloc[-1] reads a closed historical bar, not the chart's
-        # current candle (system review 2026-04-24 / iloc-guard ledger).
+        # here — the tail-row indexer reads a closed historical bar, not the
+        # chart's current candle (system review 2026-04-24 / iloc-guard ledger).
+        # NOTE: this comment block intentionally avoids the literal token so
+        # the iloc-guard discipline test (which scans a ±2-line window
+        # around the pinned hotspot) cannot be satisfied by the comment
+        # alone — it must match the real code site below (Copilot review
+        # of PR #1942).
         # Prevent a partial trailing bucket from being treated as a confirmed bar.
         if (
             not agg.empty
