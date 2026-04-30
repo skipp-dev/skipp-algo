@@ -172,33 +172,33 @@ class TestWeekendHolidayGapScope:
 
     def test_daily_scope_normal_weekday(self):
         """DAILY scope: any US trading day is a gap day."""
-        from open_prep.run_open_prep import _is_gap_day, GAP_SCOPE_DAILY
+        from open_prep.run_open_prep import GAP_SCOPE_DAILY, _is_gap_day
 
         # 2025-06-16 is Monday — normal trading day
         assert _is_gap_day(date(2025, 6, 16), GAP_SCOPE_DAILY) is True
 
     def test_daily_scope_saturday(self):
         """DAILY scope: Saturday is not a trading day → no gap."""
-        from open_prep.run_open_prep import _is_gap_day, GAP_SCOPE_DAILY
+        from open_prep.run_open_prep import GAP_SCOPE_DAILY, _is_gap_day
 
         assert _is_gap_day(date(2025, 6, 14), GAP_SCOPE_DAILY) is False
 
     def test_stretch_scope_monday_is_gap_day(self):
         """STRETCH_ONLY: Monday after a regular weekend is a stretch→ gap day."""
-        from open_prep.run_open_prep import _is_gap_day, GAP_SCOPE_STRETCH_ONLY
+        from open_prep.run_open_prep import GAP_SCOPE_STRETCH_ONLY, _is_gap_day
 
         assert _is_gap_day(date(2025, 6, 16), GAP_SCOPE_STRETCH_ONLY) is True
 
     def test_stretch_scope_tuesday_is_not_gap_day(self):
         """STRETCH_ONLY: Tuesday (after a normal Monday) is NOT a stretch."""
-        from open_prep.run_open_prep import _is_gap_day, GAP_SCOPE_STRETCH_ONLY
+        from open_prep.run_open_prep import GAP_SCOPE_STRETCH_ONLY, _is_gap_day
 
         assert _is_gap_day(date(2025, 6, 17), GAP_SCOPE_STRETCH_ONLY) is False
 
     def test_stretch_scope_post_holiday(self):
         """STRETCH_ONLY: Day after Independence Day (Jul 4 2025 = Fri) is
         the following Monday (Jul 7) — should be a stretch gap day."""
-        from open_prep.run_open_prep import _is_gap_day, GAP_SCOPE_STRETCH_ONLY
+        from open_prep.run_open_prep import GAP_SCOPE_STRETCH_ONLY, _is_gap_day
 
         # After Jul 4 (Friday holiday) + weekend → Monday Jul 7 is stretch
         assert _is_gap_day(date(2025, 7, 7), GAP_SCOPE_STRETCH_ONLY) is True
@@ -395,8 +395,11 @@ class TestRealtimeSignalFloatSafety:
     def _make_bare_engine():
         """Create a bare RealtimeEngine bypassing __init__ with all needed attrs."""
         from open_prep.realtime_signals import (
-            RealtimeEngine, GateHysteresis, DynamicCooldown, VolumeRegimeDetector,
+            DynamicCooldown,
+            GateHysteresis,
+            RealtimeEngine,
             TechnicalScorer,
+            VolumeRegimeDetector,
         )
         engine = RealtimeEngine.__new__(RealtimeEngine)
         engine._last_prices = {}
@@ -878,8 +881,9 @@ class TestAlertThrottlePruning:
 
     def test_prune_removes_stale(self):
         """Arrange: 600 entries, all stale. Assert: pruned to near 0."""
-        from open_prep import alerts
         import time
+
+        from open_prep import alerts
 
         alerts._last_sent.clear()
         now = time.time()
@@ -892,8 +896,9 @@ class TestAlertThrottlePruning:
 
     def test_prune_keeps_fresh(self):
         """Arrange: 600 entries, half fresh. Assert: only stale removed."""
-        from open_prep import alerts
         import time
+
+        from open_prep import alerts
 
         alerts._last_sent.clear()
         now = time.time()
@@ -1069,7 +1074,8 @@ class TestAtrCacheAtomicWrite:
     def test_save_and_load_roundtrip(self, tmp_path, monkeypatch):
         """Arrange: save ATR cache. Act: load it. Assert: data matches."""
         from open_prep.run_open_prep import (
-            _save_atr_cache, _load_atr_cache,
+            _load_atr_cache,
+            _save_atr_cache,
         )
 
         monkeypatch.setattr("open_prep.run_open_prep.ATR_CACHE_DIR", tmp_path)
@@ -1145,7 +1151,7 @@ class TestGapScopeWeekendHoliday:
 
     def test_daily_scope_fires_every_trading_day(self):
         """Arrange: 5 consecutive weekdays. Assert: all are gap days."""
-        from open_prep.run_open_prep import _is_gap_day, GAP_SCOPE_DAILY
+        from open_prep.run_open_prep import GAP_SCOPE_DAILY, _is_gap_day
 
         # Mon-Fri of a regular week
         monday = date(2025, 1, 6)
@@ -1155,21 +1161,21 @@ class TestGapScopeWeekendHoliday:
 
     def test_stretch_only_fires_after_weekend(self):
         """Arrange: Monday after normal weekend. Assert: is a gap day."""
-        from open_prep.run_open_prep import _is_gap_day, GAP_SCOPE_STRETCH_ONLY
+        from open_prep.run_open_prep import GAP_SCOPE_STRETCH_ONLY, _is_gap_day
 
         monday = date(2025, 1, 6)
         assert _is_gap_day(monday, GAP_SCOPE_STRETCH_ONLY) is True
 
     def test_stretch_only_skips_mid_week(self):
         """Arrange: Tuesday in a normal week. Assert: NOT a gap day."""
-        from open_prep.run_open_prep import _is_gap_day, GAP_SCOPE_STRETCH_ONLY
+        from open_prep.run_open_prep import GAP_SCOPE_STRETCH_ONLY, _is_gap_day
 
         tuesday = date(2025, 1, 7)
         assert _is_gap_day(tuesday, GAP_SCOPE_STRETCH_ONLY) is False
 
     def test_stretch_only_fires_after_holiday(self):
         """Arrange: day after MLK Day. Assert: is a gap day."""
-        from open_prep.run_open_prep import _is_gap_day, GAP_SCOPE_STRETCH_ONLY
+        from open_prep.run_open_prep import GAP_SCOPE_STRETCH_ONLY, _is_gap_day
 
         # MLK Day 2025 is Monday Jan 20; Tuesday Jan 21 is after a 3-day stretch
         tuesday_after_mlk = date(2025, 1, 21)
@@ -1177,7 +1183,7 @@ class TestGapScopeWeekendHoliday:
 
     def test_daily_scope_weekend_is_not_gap_day(self):
         """Arrange: Saturday. Assert: NOT a gap day even in DAILY mode."""
-        from open_prep.run_open_prep import _is_gap_day, GAP_SCOPE_DAILY
+        from open_prep.run_open_prep import GAP_SCOPE_DAILY, _is_gap_day
 
         saturday = date(2025, 1, 4)
         assert _is_gap_day(saturday, GAP_SCOPE_DAILY) is False
@@ -1193,7 +1199,7 @@ class TestPremarketTimestampMissingGapReason:
     def test_missing_timestamp_premarket_source(self):
         """Arrange: premarket price available but no timestamp.
         Assert: gap_reason='missing_quote_timestamp'."""
-        from open_prep.run_open_prep import _compute_gap_for_quote, GAP_MODE_PREMARKET_INDICATIVE
+        from open_prep.run_open_prep import GAP_MODE_PREMARKET_INDICATIVE, _compute_gap_for_quote
 
         quote = {
             "symbol": "TEST",
@@ -1213,7 +1219,7 @@ class TestPremarketTimestampMissingGapReason:
     def test_missing_timestamp_spot_source(self):
         """Arrange: only spot price, no timestamp.
         Assert: gap_reason='stale_quote_unknown_timestamp'."""
-        from open_prep.run_open_prep import _compute_gap_for_quote, GAP_MODE_PREMARKET_INDICATIVE
+        from open_prep.run_open_prep import GAP_MODE_PREMARKET_INDICATIVE, _compute_gap_for_quote
 
         quote = {
             "symbol": "TEST",
@@ -1231,7 +1237,7 @@ class TestPremarketTimestampMissingGapReason:
 
     def test_valid_timestamp_produces_gap(self):
         """Arrange: premarket price + valid timestamp. Assert: gap computed."""
-        from open_prep.run_open_prep import _compute_gap_for_quote, GAP_MODE_PREMARKET_INDICATIVE
+        from open_prep.run_open_prep import GAP_MODE_PREMARKET_INDICATIVE, _compute_gap_for_quote
 
         quote = {
             "symbol": "TEST",
@@ -1260,7 +1266,7 @@ class TestComputeGapAllReasonPaths:
 
     def test_mode_off_returns_mode_off_reason(self):
         """gap_mode=OFF → gap_reason='mode_off', gap_available=False."""
-        from open_prep.run_open_prep import _compute_gap_for_quote, GAP_MODE_OFF
+        from open_prep.run_open_prep import GAP_MODE_OFF, _compute_gap_for_quote
 
         quote = {"symbol": "X", "previousClose": 100.0, "price": 105.0}
         run_dt = datetime(2025, 1, 6, 13, 0, tzinfo=UTC)
@@ -1271,7 +1277,7 @@ class TestComputeGapAllReasonPaths:
 
     def test_not_trading_day_saturday(self):
         """Saturday → gap_reason='not_trading_day'."""
-        from open_prep.run_open_prep import _compute_gap_for_quote, GAP_MODE_PREMARKET_INDICATIVE
+        from open_prep.run_open_prep import GAP_MODE_PREMARKET_INDICATIVE, _compute_gap_for_quote
 
         quote = {"symbol": "X", "previousClose": 100.0, "preMarketPrice": 105.0, "timestamp": 1}
         # Saturday 2025-01-04
@@ -1285,9 +1291,9 @@ class TestComputeGapAllReasonPaths:
     def test_scope_stretch_only_mid_week(self):
         """STRETCH_ONLY scope on a mid-week day → gap_reason='scope_stretch_only'."""
         from open_prep.run_open_prep import (
-            _compute_gap_for_quote,
             GAP_MODE_PREMARKET_INDICATIVE,
             GAP_SCOPE_STRETCH_ONLY,
+            _compute_gap_for_quote,
         )
 
         quote = {"symbol": "X", "previousClose": 100.0, "preMarketPrice": 105.0, "timestamp": 1}
@@ -1304,7 +1310,7 @@ class TestComputeGapAllReasonPaths:
 
     def test_rth_open_unavailable_before_930(self):
         """RTH_OPEN mode before 9:30 ET → gap_reason='rth_open_unavailable'."""
-        from open_prep.run_open_prep import _compute_gap_for_quote, GAP_MODE_RTH_OPEN
+        from open_prep.run_open_prep import GAP_MODE_RTH_OPEN, _compute_gap_for_quote
 
         quote = {"symbol": "X", "previousClose": 100.0, "open": 105.0}
         # 8:00 ET = 13:00 UTC on a Monday
@@ -1317,7 +1323,7 @@ class TestComputeGapAllReasonPaths:
 
     def test_rth_open_available_after_930(self):
         """RTH_OPEN mode after 9:30 ET → gap computed."""
-        from open_prep.run_open_prep import _compute_gap_for_quote, GAP_MODE_RTH_OPEN
+        from open_prep.run_open_prep import GAP_MODE_RTH_OPEN, _compute_gap_for_quote
 
         quote = {"symbol": "X", "previousClose": 100.0, "open": 103.0}
         # 10:00 ET = 15:00 UTC
@@ -1331,7 +1337,7 @@ class TestComputeGapAllReasonPaths:
 
     def test_premarket_before_4am_et(self):
         """Before 4am ET, no premarket window → gap_reason='premarket_unavailable'."""
-        from open_prep.run_open_prep import _compute_gap_for_quote, GAP_MODE_PREMARKET_INDICATIVE
+        from open_prep.run_open_prep import GAP_MODE_PREMARKET_INDICATIVE, _compute_gap_for_quote
 
         quote = {
             "symbol": "X",
@@ -1350,9 +1356,9 @@ class TestComputeGapAllReasonPaths:
     def test_stretch_scope_monday_computes_gap(self):
         """STRETCH_ONLY scope on Monday after weekend → gap is computed."""
         from open_prep.run_open_prep import (
-            _compute_gap_for_quote,
             GAP_MODE_PREMARKET_INDICATIVE,
             GAP_SCOPE_STRETCH_ONLY,
+            _compute_gap_for_quote,
         )
 
         quote = {
@@ -1481,7 +1487,7 @@ class TestHolidayEdgeCases:
     def test_new_year_on_saturday_observed_friday_2022(self):
         """New Year 2022 fell on Saturday → observed Friday Dec 31 2021.
         The cross-year observed holiday MUST be recognized as a non-trading day."""
-        from open_prep.run_open_prep import _us_equity_market_holidays, _is_us_equity_trading_day
+        from open_prep.run_open_prep import _is_us_equity_trading_day, _us_equity_market_holidays
 
         # The observed Dec 31 holiday lives in the 2022 holiday set
         holidays_2022 = _us_equity_market_holidays(2022)
@@ -1500,7 +1506,7 @@ class TestHolidayEdgeCases:
 
     def test_prev_trading_day_skips_cross_year_dec31(self):
         """Jan 2, 2028 → prev = Dec 30, 2027 (Dec 31 is observed New Year)."""
-        from open_prep.run_open_prep import _prev_trading_day, _is_us_equity_trading_day
+        from open_prep.run_open_prep import _is_us_equity_trading_day, _prev_trading_day
 
         # Jan 1 2028 = Saturday → observed Dec 31 2027 (Friday, closed)
         assert _is_us_equity_trading_day(date(2027, 12, 31)) is False
@@ -1510,7 +1516,7 @@ class TestHolidayEdgeCases:
 
     def test_stretch_scope_after_good_friday(self):
         """Monday after Good Friday (3-day stretch) is a gap day."""
-        from open_prep.run_open_prep import _is_gap_day, GAP_SCOPE_STRETCH_ONLY
+        from open_prep.run_open_prep import GAP_SCOPE_STRETCH_ONLY, _is_gap_day
 
         assert _is_gap_day(date(2025, 4, 21), GAP_SCOPE_STRETCH_ONLY) is True
 

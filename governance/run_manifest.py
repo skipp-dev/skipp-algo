@@ -70,7 +70,7 @@ def _git_sha() -> str:
         return sha
     try:
         git_exe = shutil.which("git") or "git"
-        out = subprocess.check_output(  # noqa: S603  # trusted: hardcoded git argv resolved via shutil.which
+        out = subprocess.check_output(  # noqa: S603 -- hardcoded git argv resolved via shutil.which (no shell, no user input)
             [git_exe, "rev-parse", "HEAD"],
             stderr=subprocess.DEVNULL,
             cwd=Path(__file__).resolve().parent,

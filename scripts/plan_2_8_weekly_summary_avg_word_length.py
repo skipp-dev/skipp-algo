@@ -23,10 +23,7 @@ def compute(path: Path) -> dict[str, Any]:
             "avg_word_length":   0.0,
         }
     tokens = path.read_text(encoding="utf-8").split()
-    if tokens:
-        avg = sum(len(t) for t in tokens) / len(tokens)
-    else:
-        avg = 0.0
+    avg = sum(len(t) for t in tokens) / len(tokens) if tokens else 0.0
     return {
         "schema_version":    1,
         "word_count":        len(tokens),

@@ -21,7 +21,6 @@ import pytest
 from terminal_background_poller import BackgroundPoller
 from terminal_ui_helpers import safe_url
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

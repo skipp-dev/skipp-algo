@@ -140,7 +140,7 @@ def adversarial_bar_replay(
     step = max(1, n // take)
     insertion_points = [min(n, (i + 1) * step) for i in range(take)]
     # Insert from the end so earlier indices stay valid.
-    for pos, bar in zip(reversed(insertion_points), reversed(worst_bars)):
+    for pos, bar in zip(reversed(insertion_points), reversed(worst_bars), strict=False):
         out.insert(pos, bar)
     return out
 

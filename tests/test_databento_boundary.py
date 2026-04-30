@@ -18,7 +18,6 @@ import pytest
 
 import databento_utils
 
-
 # ── 1. Public-alias parity ──────────────────────────────────────────────────
 
 _EXPECTED_PUBLIC_ALIASES: list[tuple[str, str]] = [

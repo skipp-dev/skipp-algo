@@ -85,7 +85,7 @@ def compute_psr_minIS(
         periods_per_year=periods_per_year,
     )
 
-    net_returns = [r - (s / 1e4) for r, s in zip(returns, slippage_bps_series)]
+    net_returns = [r - (s / 1e4) for r, s in zip(returns, slippage_bps_series, strict=False)]
     net = probabilistic_sharpe(
         net_returns,
         sr_star=sr_star,
@@ -170,10 +170,7 @@ def probabilistic_sharpe_robust(
     # at per-period frequency. Only sr_star (caller-supplied, possibly
     # annual) is rescaled back to per-period for comparison.
     sr_internal = sharpe
-    if annualize:
-        sr_star_internal = sr_star / math.sqrt(periods_per_year)
-    else:
-        sr_star_internal = sr_star
+    sr_star_internal = sr_star / math.sqrt(periods_per_year) if annualize else sr_star
 
     denom_inner = 1.0 - skew_w * sr_internal + ((kurt_w - 1.0) / 4.0) * sr_internal ** 2
     if denom_inner <= 0.0:

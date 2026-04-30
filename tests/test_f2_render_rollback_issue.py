@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-
 from scripts.f2_render_rollback_issue import (
     ISSUE_LABEL,
     TITLE_PREFIX,

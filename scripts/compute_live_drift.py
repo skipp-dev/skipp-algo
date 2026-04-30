@@ -48,6 +48,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import contextlib
 
 # Drift verdict bands (multiplicative live/backtest Sharpe ratio)
 _VERDICT_BANDS: tuple[tuple[float, str], ...] = (
@@ -466,10 +467,8 @@ def _atomic_write_json(path: Path, payload: Mapping[str, Any]) -> None:
             os.fsync(fh.fileno())
         os.replace(tmp_name, path)
     except Exception:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp_name)
-        except OSError:
-            pass
         raise
 
 

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-
 from scripts.smc_enrichment_value_analysis import (
     TradeEntry,
     analyze_enrichment_value,

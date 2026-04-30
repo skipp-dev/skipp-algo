@@ -1,5 +1,6 @@
 """Pin per-channel notification health monitor (Lane 16)."""
 import logging
+
 import pytest
 
 import terminal_notifications as tn

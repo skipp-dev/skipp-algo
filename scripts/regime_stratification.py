@@ -83,10 +83,7 @@ def stratify_trades_by_regime(
     buckets: dict[str, list[Trade]] = {}
     for trade in trades:
         regime = trade.get(regime_col)
-        if regime is None or regime == "":
-            key = "UNKNOWN"
-        else:
-            key = str(regime)
+        key = "UNKNOWN" if regime is None or regime == "" else str(regime)
         buckets.setdefault(key, []).append(trade)
 
     def sort_key(name: str) -> tuple[int, str]:
@@ -307,18 +304,19 @@ def compute_regime_aware_aggregate(
         if value is None:
             skipped.append(regime)
             continue
-        if freq_weighting:
-            # C-sprint Copilot #306: weight by the *finite* trade count
-            # actually used to compute the metric (``n_finite`` if drops
-            # occurred, else raw ``n``) — not by the raw
-            # ``regime_frequency_pct`` which still includes non-finite
-            # trades. Otherwise a regime that lost (e.g.) half its
-            # trades to NaN PnLs would be weighted as if all of them
-            # contributed to the metric, mis-weighting the aggregate
-            # toward regimes with high upstream-data drop rates.
-            weight = float(record.get("n_finite", record.get("n", 0)))
-        else:
-            weight = 1.0
+        # C-sprint Copilot #306: weight by the *finite* trade count
+        # actually used to compute the metric (``n_finite`` if drops
+        # occurred, else raw ``n``) — not by the raw
+        # ``regime_frequency_pct`` which still includes non-finite
+        # trades. Otherwise a regime that lost (e.g.) half its
+        # trades to NaN PnLs would be weighted as if all of them
+        # contributed to the metric, mis-weighting the aggregate
+        # toward regimes with high upstream-data drop rates.
+        weight = (
+            float(record.get("n_finite", record.get("n", 0)))
+            if freq_weighting
+            else 1.0
+        )
         used.append(regime)
         contributions.append((float(value), weight))
 

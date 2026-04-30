@@ -74,7 +74,7 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         # scripts/smc_session_structure.py — previous-day row + opening
         # range break; both consume closed daily frames.
         ("scripts/smc_session_structure.py", 96),
-        ("scripts/smc_session_structure.py", 148),
+        ("scripts/smc_session_structure.py", 146),
         # scripts/smc_range_regime.py — last close vs lookback range;
         # closed daily frame.
         ("scripts/smc_range_regime.py", 126),
@@ -86,10 +86,10 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         ("scripts/smc_range_profile_regime.py", 278),
         # scripts/databento_preopen_fast.py — premarket "last" close
         # snapshot from already-closed pre-market session window.
-        ("scripts/databento_preopen_fast.py", 428),
+        ("scripts/databento_preopen_fast.py", 430),
         # scripts/databento_production_export.py — same premarket "last"
         # snapshot, production export path.
-        ("scripts/databento_production_export.py", 2302),
+        ("scripts/databento_production_export.py", 2301),
         # scripts/generate_bullish_quality_scanner.py — manifest scalar
         # lookups (source_data_fetched_at / latest window_tag); not bar
         # data.
@@ -97,7 +97,7 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         ("scripts/generate_bullish_quality_scanner.py", 177),
         # scripts/generate_databento_watchlist.py — manifest scalar
         # lookup (latest manifest string value); not bar data.
-        ("scripts/generate_databento_watchlist.py", 144),
+        ("scripts/generate_databento_watchlist.py", 143),
         # scripts/smc_microstructure_base_runtime.py — OHLC reduction
         # over a full closed frame (open from first row, close from
         # last row).

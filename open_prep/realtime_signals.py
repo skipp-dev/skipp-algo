@@ -180,7 +180,7 @@ def _detect_rt_engine_pid() -> int | None:
 
     try:
         pgrep_exe = shutil.which("pgrep") or "pgrep"
-        result = subprocess.run(  # noqa: S603  # trusted: hardcoded pgrep argv resolved via shutil.which
+        result = subprocess.run(  # noqa: S603 -- hardcoded pgrep argv resolved via shutil.which (no shell, no user input)
             [pgrep_exe, "-f", "python.*-m open_prep.realtime_signals"],
             capture_output=True,
             text=True,
@@ -324,7 +324,7 @@ def _ensure_rt_engine_running_locked(
 
         log_fh = open(_RT_ENGINE_LOG_FILE, "a", encoding="utf-8")
         try:
-            proc = subprocess.Popen(  # noqa: S603  # trusted: sys.executable -m hardcoded module argv
+            proc = subprocess.Popen(  # noqa: S603 -- sys.executable with hardcoded module argv (no shell, no user input)
                 [
                     sys.executable, "-m", "open_prep.realtime_signals",
                     "--interval", str(poll_interval),
@@ -1457,7 +1457,7 @@ class RealtimeEngine:
             logger.warning("No latest_open_prep_run.json found — watchlist empty")
             return
         try:
-            with open(run_path, "r", encoding="utf-8") as fh:
+            with open(run_path, encoding="utf-8") as fh:
                 data = json.load(fh)
 
             # -- Build full universe: ranked + overflow -------------------
@@ -1789,22 +1789,21 @@ class RealtimeEngine:
         # Block or downgrade LONG signals when intraday momentum is negative
         # (price falling from previous poll → still accelerating down).
         falling_knife_warned = False
-        if direction == "LONG" and prev_price is not None:
-            if price < prev_price:
-                # Price dropped since last poll — momentum is negative
-                if level == "A0":
-                    level = "A1"  # downgrade — do not fire A0 into a falling knife
-                    logger.debug(
-                        "Falling-knife downgrade: %s A0→A1 (price %.2f < prev %.2f)",
-                        symbol, price, prev_price,
-                    )
-                else:
-                    # A1 with negative momentum — annotate but allow through
-                    logger.debug(
-                        "Falling-knife warn: %s A1 (price %.2f < prev %.2f)",
-                        symbol, price, prev_price,
-                    )
-                    falling_knife_warned = True
+        if direction == "LONG" and prev_price is not None and price < prev_price:
+            # Price dropped since last poll — momentum is negative
+            if level == "A0":
+                level = "A1"  # downgrade — do not fire A0 into a falling knife
+                logger.debug(
+                    "Falling-knife downgrade: %s A0→A1 (price %.2f < prev %.2f)",
+                    symbol, price, prev_price,
+                )
+            else:
+                # A1 with negative momentum — annotate but allow through
+                logger.debug(
+                    "Falling-knife warn: %s A1 (price %.2f < prev %.2f)",
+                    symbol, price, prev_price,
+                )
+                falling_knife_warned = True
 
         # Breakout from key levels — require prev_price to avoid
         # false-fires on first poll after startup / watchlist reload.
@@ -2572,7 +2571,7 @@ class RealtimeEngine:
             return _empty
         try:
             file_age_s = time.time() - SIGNALS_PATH.stat().st_mtime
-            with open(SIGNALS_PATH, "r", encoding="utf-8") as fh:
+            with open(SIGNALS_PATH, encoding="utf-8") as fh:
                 data: dict[str, Any] = json.load(fh)
             if file_age_s > max_age_s:
                 data["stale"] = True

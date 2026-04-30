@@ -19,6 +19,7 @@ import os
 import tempfile
 from pathlib import Path
 from typing import Any
+import contextlib
 
 
 def _parse_iso(ts: str) -> _dt.datetime | None:
@@ -105,10 +106,8 @@ def _write(path: Path, records: list[dict[str, Any]]) -> None:
                 fh.write(json.dumps(rec) + "\n")
         os.replace(tmp, path)
     except Exception:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp)
-        except OSError:
-            pass
         raise
 
 

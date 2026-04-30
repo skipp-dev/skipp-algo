@@ -48,9 +48,8 @@ def _collect_imported_roots(source: str) -> set[str]:
         if isinstance(node, ast.Import):
             for alias in node.names:
                 roots.add(alias.name.split(".", 1)[0])
-        elif isinstance(node, ast.ImportFrom):
-            if node.module:
-                roots.add(node.module.split(".", 1)[0])
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            roots.add(node.module.split(".", 1)[0])
     return roots
 
 

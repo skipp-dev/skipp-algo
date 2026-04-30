@@ -536,14 +536,17 @@ def _no_trade_zone(
     reasons: list[str] = []
 
     # Directly into a massive breaking-news candle with no reclaim
-    if event_class == EVENT_UNSCHEDULED and recency_bucket == RECENCY_ULTRA_FRESH:
-        if ext_hours_score < 0.3 and abs(gap_pct) > 3.0:
-            reasons.append("breaking_news_no_reclaim")
+    if (
+        event_class == EVENT_UNSCHEDULED
+        and recency_bucket == RECENCY_ULTRA_FRESH
+        and ext_hours_score < 0.3
+        and abs(gap_pct) > 3.0
+    ):
+        reasons.append("breaking_news_no_reclaim")
 
     # Illiquid premarket
-    if premarket_stale:
-        if spread_bps is not None and spread_bps > 200:
-            reasons.append("illiquid_stale_premarket")
+    if premarket_stale and spread_bps is not None and spread_bps > 200:
+        reasons.append("illiquid_stale_premarket")
 
     # Halt risk
     if is_halt_risk and abs(gap_pct) > 15.0:

@@ -22,7 +22,6 @@ from scripts.f2_experiment_spec import load_f2_spec
 from scripts.f2_run_promotion_gate import run_promotion_gate
 from scripts.smc_zone_priority_calibration import ContextualCalibrationResult
 
-
 # ── Shared fixture builders ────────────────────────────────────────────────
 
 
@@ -328,5 +327,5 @@ def test_rescore_pair_force_global_makes_arms_identical(tmp_path: Path) -> None:
         contextual_cal=ctx,
         force_global=True,
     )
-    for c, t in zip(control.events, treatment.events):
+    for c, t in zip(control.events, treatment.events, strict=False):
         assert c.predicted_prob == pytest.approx(t.predicted_prob)

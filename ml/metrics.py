@@ -75,10 +75,7 @@ def expected_calibration_error(
     n = yt.size
     for k in range(n_bins):
         lo, hi = edges[k], edges[k + 1]
-        if k == n_bins - 1:
-            mask = (yp >= lo) & (yp <= hi)
-        else:
-            mask = (yp >= lo) & (yp < hi)
+        mask = (yp >= lo) & (yp <= hi) if k == n_bins - 1 else (yp >= lo) & (yp < hi)
         bin_n = int(mask.sum())
         if bin_n == 0:
             continue

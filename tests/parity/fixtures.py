@@ -48,10 +48,7 @@ def make_reversal_bars(symbol: str = "TEST", periods: int = 30) -> pd.DataFrame:
     rows: list[dict] = []
     mid = periods // 2
     for i, ts in enumerate(timestamps):
-        if i < mid:
-            base = 100.0 + i * 0.6
-        else:
-            base = 100.0 + mid * 0.6 - (i - mid) * 0.7
+        base = 100.0 + i * 0.6 if i < mid else 100.0 + mid * 0.6 - (i - mid) * 0.7
         if i % 5 == 3:
             base -= 1.0
         rows.append(

@@ -18,14 +18,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from scripts.smc_newsapi_ai import NewsApiAiProviderError
 from scripts.smc_provider_policy import (
     ALL_POLICIES,
-    DomainPolicy,
     POLICY_BASE_SCAN,
     POLICY_CALENDAR,
     POLICY_NEWS,
     POLICY_REGIME,
     POLICY_TECHNICAL,
+    DomainPolicy,
     ProviderResult,
     fetch_calendar_fmp,
     fetch_news_fmp,
@@ -35,8 +36,6 @@ from scripts.smc_provider_policy import (
     fetch_technical_tradingview,
     resolve_domain,
 )
-from scripts.smc_newsapi_ai import NewsApiAiProviderError
-
 
 # ── Test 1: Policy declarations ──────────────────────────────────
 

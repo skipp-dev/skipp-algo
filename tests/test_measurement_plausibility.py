@@ -18,6 +18,7 @@ from smc_core.benchmark import (
     build_benchmark,
     export_benchmark_artifacts,
 )
+from smc_core.schema_version import SCHEMA_VERSION
 from smc_core.scoring import (
     ScoredEvent,
     ScoringResult,
@@ -26,8 +27,6 @@ from smc_core.scoring import (
     log_score,
     score_events,
 )
-from smc_core.schema_version import SCHEMA_VERSION
-
 
 # ── Benchmark artifact plausibility ──────────────────────────────────
 

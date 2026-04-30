@@ -11,7 +11,6 @@ from scripts.forward_test_tracking import (
     expected_vs_realized_ratio,
 )
 
-
 # ---------------------------------------------------------------------------
 # expected_vs_realized_ratio
 # ---------------------------------------------------------------------------

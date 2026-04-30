@@ -93,7 +93,7 @@ class FamilyPredictor:
                 model_version=artifact.fitted.model_version,
                 calibrator_version=artifact.calibrator.version,
             )
-            for p, r in zip(probs, raws)
+            for p, r in zip(probs, raws, strict=False)
         )
 
 

@@ -91,9 +91,9 @@ def ece(predictions: Iterable[float], outcomes: Iterable[int], *, n_bins: int = 
     for k in range(n_bins):
         lo, hi = edges[k], edges[k + 1]
         if k == n_bins - 1:
-            members = [(p, o) for p, o in zip(preds, outs) if lo <= p <= hi]
+            members = [(p, o) for p, o in zip(preds, outs, strict=False) if lo <= p <= hi]
         else:
-            members = [(p, o) for p, o in zip(preds, outs) if lo <= p < hi]
+            members = [(p, o) for p, o in zip(preds, outs, strict=False) if lo <= p < hi]
         if not members:
             continue
         bin_mean_pred = mean(p for p, _ in members)
@@ -161,7 +161,7 @@ def smooth_ece(
         w_sum = sum(weights)
         if w_sum <= 0.0:
             continue
-        r_hat = sum(w * o for w, o in zip(weights, outs)) / w_sum
+        r_hat = sum(w * o for w, o in zip(weights, outs, strict=False)) / w_sum
         total += w_sum * abs(r_hat - g)
         total_weight += w_sum
     if total_weight <= 0.0:
@@ -186,7 +186,7 @@ def _pool_adjacent_violators(values: Sequence[float], weights: Sequence[float]) 
         raise ValueError("values and weights length mismatch")
     # Use stack of (sum_weighted_value, sum_weight, length) blocks.
     stack: list[list[float]] = []  # each: [sum_wv, sum_w, length]
-    for v, w in zip(values, weights):
+    for v, w in zip(values, weights, strict=False):
         block = [v * w, w, 1.0]
         while stack and stack[-1][0] / stack[-1][1] > block[0] / block[1]:
             top = stack.pop()
@@ -223,7 +223,7 @@ def dce(predictions: Iterable[float], outcomes: Iterable[int]) -> float:
     weights = [1.0] * len(sorted_preds)
     isotonic = _pool_adjacent_violators(sorted_outs, weights)
     # Distance is mean |p - iso(p)| — the L1 projection cost.
-    return sum(abs(p - i) for p, i in zip(sorted_preds, isotonic)) / len(sorted_preds)
+    return sum(abs(p - i) for p, i in zip(sorted_preds, isotonic, strict=False)) / len(sorted_preds)
 
 
 # ---------------------------------------------------------------------------

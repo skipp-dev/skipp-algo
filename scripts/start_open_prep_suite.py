@@ -28,7 +28,7 @@ def _run_open_prep(repo_root: Path, python_exe: str) -> None:
     out_file.parent.mkdir(parents=True, exist_ok=True)
 
     with out_file.open("w", encoding="utf-8") as fh:
-        subprocess.run(  # noqa: S603  # trusted: python_exe -m hardcoded module argv
+        subprocess.run(  # noqa: S603 -- python_exe -m hardcoded module argv (no shell, no user input)
             [python_exe, "-m", "open_prep.run_open_prep"],
             cwd=str(repo_root),
             stdout=fh,
@@ -38,7 +38,7 @@ def _run_open_prep(repo_root: Path, python_exe: str) -> None:
 
 def _stop_existing_monitor() -> None:
     pkill_exe = shutil.which("pkill") or "pkill"
-    subprocess.run([pkill_exe, "-f", "streamlit.*streamlit_monitor.py"], check=False)  # noqa: S603  # trusted: hardcoded pkill argv resolved via shutil.which
+    subprocess.run([pkill_exe, "-f", "streamlit.*streamlit_monitor.py"], check=False)  # noqa: S603 -- hardcoded pkill argv resolved via shutil.which (no shell, no user input)
 
 
 def _start_streamlit(repo_root: Path, python_exe: str, port: int) -> int:
@@ -59,7 +59,7 @@ def _start_streamlit(repo_root: Path, python_exe: str, port: int) -> int:
     ]
 
     with log_file.open("w", encoding="utf-8") as fh:
-        proc = subprocess.Popen(  # noqa: S603  # trusted: streamlit binary derived from python_exe sibling, hardcoded argv
+        proc = subprocess.Popen(  # noqa: S603 -- streamlit binary derived from python_exe sibling, hardcoded argv (no shell, no user input)
             streamlit_cmd,
             cwd=str(repo_root),
             env=env,

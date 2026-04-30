@@ -8,6 +8,7 @@ backward compatibility.
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import math
@@ -83,7 +84,7 @@ def load_weight_set(label: str = "default") -> dict[str, float]:
     path = OUTCOMES_DIR / f"weights_{label}.json"
     if path.exists():
         try:
-            with open(path, "r", encoding="utf-8") as fh:
+            with open(path, encoding="utf-8") as fh:
                 data = json.load(fh)
             if isinstance(data, dict):
                 merged = dict(DEFAULT_WEIGHTS)
@@ -110,10 +111,8 @@ def save_weight_set(label: str, weights: dict[str, float]) -> None:
     except BaseException:
         if fd >= 0:
             os.close(fd)
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp)
-        except OSError:
-            pass
         raise
 
 

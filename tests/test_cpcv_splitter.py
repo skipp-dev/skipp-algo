@@ -9,7 +9,6 @@ import pytest
 
 from scripts.cpcv_splitter import CombinatorialPurgedSplitter, CPCVSplit
 
-
 # ---------------------------------------------------------------------------
 # Constructor validation
 # ---------------------------------------------------------------------------
@@ -184,7 +183,7 @@ def test_splitter_is_deterministic() -> None:
     folds1 = list(s1.split(n_observations=120))
     folds2 = list(s2.split(n_observations=120))
     assert len(folds1) == len(folds2)
-    for a, b in zip(folds1, folds2):
+    for a, b in zip(folds1, folds2, strict=False):
         assert a.test_groups == b.test_groups
         assert np.array_equal(a.train_idx, b.train_idx)
         assert np.array_equal(a.test_idx, b.test_idx)

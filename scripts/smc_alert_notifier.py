@@ -602,27 +602,25 @@ def main() -> int:
         return 0
 
     sent = False
-    if args.telegram_bot_token and args.telegram_chat_id:
-        if send_telegram(
-            alerts,
-            bot_token=args.telegram_bot_token,
-            chat_id=args.telegram_chat_id,
-            ts=ts,
-        ):
-            sent = True
+    if args.telegram_bot_token and args.telegram_chat_id and send_telegram(
+        alerts,
+        bot_token=args.telegram_bot_token,
+        chat_id=args.telegram_chat_id,
+        ts=ts,
+    ):
+        sent = True
 
-    if args.smtp_host and args.email_to:
-        if send_email(
-            alerts,
-            smtp_host=args.smtp_host,
-            smtp_port=args.smtp_port,
-            smtp_user=args.smtp_user,
-            smtp_pass=args.smtp_pass,
-            from_addr=args.email_from,
-            to_addr=args.email_to,
-            ts=ts,
-        ):
-            sent = True
+    if args.smtp_host and args.email_to and send_email(
+        alerts,
+        smtp_host=args.smtp_host,
+        smtp_port=args.smtp_port,
+        smtp_user=args.smtp_user,
+        smtp_pass=args.smtp_pass,
+        from_addr=args.email_from,
+        to_addr=args.email_to,
+        ts=ts,
+    ):
+        sent = True
 
     if not sent:
         # No channel configured — print to stdout as fallback

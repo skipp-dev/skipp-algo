@@ -58,6 +58,9 @@ Do not constitute feature gaps when they lag behind engine development.
 | SMC_Profile_Context.pine | indicator | Ticker grade, VWAP position, spread regime |
 | SMC_Session_Context.pine | indicator | Session labels, killzone highlight |
 | SMC_Structure_Context.pine | indicator | Structure state, CHoCH/BOS markers |
+| SMC_Breakout_Overlay.pine | indicator | BOS/CHoCH breakout boxes + vol-emoji + ATR-RR W/L sim |
+| SMC_VRVP_Overlay.pine | indicator | Visible-range volume profile + multi-POC (no library imports) |
+| SMC_Exit_Signal.pine | indicator | Position-lifecycle SM + alertcondition() für Stop/TP1/TP2/Defensive — beginner-facing exit engine |
 | Volume_Weighted_Trend_SkippAlgo.pine | indicator | Standalone branded tool (no SMC imports) |
 
 ### Operator-only (1 file)

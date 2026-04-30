@@ -55,17 +55,12 @@ _DIR_EXCLUDE = frozenset(
 # ---------------------------------------------------------------------------
 _FROZEN_SITES: dict[str, frozenset[int]] = {
     "newsstack_fmp/ingest_benzinga.py": frozenset({565}),
-    "newsstack_fmp/store_sqlite.py": frozenset({176, 283}),
-    "open_prep/alerts.py": frozenset({240}),
-    "open_prep/macro.py": frozenset({33}),
+    "open_prep/alerts.py": frozenset({239}),
     "open_prep/run_open_prep.py": frozenset({4511}),
     "open_prep/streamlit_monitor.py": frozenset({75, 126}),
-    "scripts/databento_preopen_fast.py": frozenset({574}),
-    "scripts/generate_smc_micro_base_from_databento.py": frozenset({1192, 1194, 1242}),
-    "scripts/verify_branch_protection.py": frozenset({110}),
+    "scripts/generate_smc_micro_base_from_databento.py": frozenset({1189, 1191, 1239}),
     "smc_tv_bridge/smc_api.py": frozenset({85}),
     "streamlit_terminal_alerts.py": frozenset({92}),
-    "terminal_spike_scanner.py": frozenset({161}),
 }
 
 _FROZEN_TOTAL = sum(len(v) for v in _FROZEN_SITES.values())

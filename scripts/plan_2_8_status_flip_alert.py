@@ -9,17 +9,16 @@ Emits markdown (default) or JSON. Exit code is ``1`` when
 """
 
 from __future__ import annotations
-from itertools import pairwise
-
-from scripts.smc_atomic_write import atomic_write_text
 
 import argparse
 import datetime as _dt
 import json
 import sys
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
+from scripts.smc_atomic_write import atomic_write_text
 
 VALID_STATUSES = frozenset({"green", "amber", "red", "unknown"})
 

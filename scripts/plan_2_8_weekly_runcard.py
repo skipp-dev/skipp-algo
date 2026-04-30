@@ -15,14 +15,13 @@ Any input file that is missing or empty is skipped without failure
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import datetime as _dt
 import sys
-from pathlib import Path
 from collections.abc import Iterable
+from pathlib import Path
 
+from scripts.smc_atomic_write import atomic_write_text
 
 SECTION_MAP: tuple[tuple[str, str], ...] = (
     ("Weekly digest",            "weekly_digest.md"),

@@ -19,6 +19,7 @@ Roadmap: docs/IMPROVEMENTS_C2_C12_ROADMAP_2026-04-26.md#x1
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import tempfile
@@ -74,10 +75,8 @@ def _dump(path: Path, items: Iterable[AlphaReservation]) -> None:
         tmp.replace(path)
     except Exception:
         if tmp.exists():
-            try:
+            with contextlib.suppress(OSError):
                 tmp.unlink()
-            except OSError:
-                pass
         raise
 
 

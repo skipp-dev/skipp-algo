@@ -251,10 +251,7 @@ def build_ticker_resolution_state(
             anchor_ts = _optional_float(seed.get("resolution_anchor_ts")) or anchor_ts
             seed_peak = _optional_float(seed.get("resolution_peak_impulse_pct"))
             if seed_peak is not None:
-                if direction_sign >= 0.0:
-                    peak_impulse = max(peak_impulse, seed_peak)
-                else:
-                    peak_impulse = min(peak_impulse, seed_peak)
+                peak_impulse = max(peak_impulse, seed_peak) if direction_sign >= 0.0 else min(peak_impulse, seed_peak)
 
         if current_price is not None and current_price > 0 and anchor_price is None:
             anchor_price = current_price
@@ -270,10 +267,7 @@ def build_ticker_resolution_state(
         peak_aligned = direction_sign * peak_impulse if direction_sign else 0.0
 
         if impulse_pct is not None:
-            if direction_sign >= 0.0:
-                peak_impulse = max(peak_impulse, impulse_pct)
-            else:
-                peak_impulse = min(peak_impulse, impulse_pct)
+            peak_impulse = max(peak_impulse, impulse_pct) if direction_sign >= 0.0 else min(peak_impulse, impulse_pct)
             peak_aligned = direction_sign * peak_impulse if direction_sign else 0.0
 
         elapsed_minutes = None

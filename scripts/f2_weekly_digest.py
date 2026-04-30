@@ -19,8 +19,6 @@ Pure-Python, read-only, no network. Schema-pinned (``schema_version``).
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 import re
@@ -28,6 +26,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from scripts.smc_atomic_write import atomic_write_text
 
 DIGEST_SCHEMA_VERSION = 1
 DEFAULT_WINDOW_DAYS = 7

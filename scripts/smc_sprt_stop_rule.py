@@ -72,15 +72,14 @@ The :data:`Decision` literal carries five disjoint outcomes:
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import json
 import math
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
-from collections.abc import Iterable
 
+from scripts.smc_atomic_write import atomic_write_text
 
 Decision = Literal[
     "accept_h0",
@@ -166,10 +165,7 @@ def update(state: SPRTState, outcome: bool, config: SPRTConfig) -> SPRTState:
     ``outcome`` is coerced to 0/1; non-bool truthy/falsy values are accepted.
     """
     x = 1 if outcome else 0
-    if x == 1:
-        increment = math.log(config.p1 / config.p0)
-    else:
-        increment = math.log((1.0 - config.p1) / (1.0 - config.p0))
+    increment = math.log(config.p1 / config.p0) if x == 1 else math.log((1.0 - config.p1) / (1.0 - config.p0))
     return SPRTState(n=state.n + 1, k=state.k + x, llr=state.llr + increment)
 
 

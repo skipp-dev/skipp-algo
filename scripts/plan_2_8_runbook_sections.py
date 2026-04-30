@@ -14,15 +14,14 @@ Heading detection ignores fenced code blocks and trailing whitespace.
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 import re
 import sys
-from pathlib import Path
 from collections.abc import Iterable
+from pathlib import Path
 
+from scripts.smc_atomic_write import atomic_write_text
 
 DEFAULT_REQUIRED: tuple[str, ...] = (
     "Phase timeline (addendum \u00a76)",

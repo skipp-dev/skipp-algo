@@ -184,7 +184,7 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     ("open_prep/candidate_weights.py", 208),
     ("open_prep/feature_importance_report.py", 305),
     ("open_prep/outcome_backfill.py", 410),
-    ("open_prep/realtime_signals.py", 2632),
+    ("open_prep/realtime_signals.py", 2631),
     ("open_prep/run_open_prep.py", 5796),
     ("smc_tv_bridge/smc_api.py", 35),
 })

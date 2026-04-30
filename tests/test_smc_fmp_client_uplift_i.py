@@ -15,7 +15,7 @@ import io
 import json
 import math
 import urllib.error
-from datetime import date, UTC
+from datetime import UTC, date
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -787,8 +787,9 @@ class TestRetryAfterHygieneLane9:
         assert _parse_retry_after_seconds("12.5") == 12.5
 
     def test_parse_retry_after_accepts_http_date_form(self):
-        from scripts.smc_fmp_client import _parse_retry_after_seconds
         from datetime import datetime, timedelta
+
+        from scripts.smc_fmp_client import _parse_retry_after_seconds
         future = datetime.now(UTC) + timedelta(seconds=30)
         # RFC 9110 §10.2.3 HTTP-date format
         from email.utils import format_datetime
@@ -813,6 +814,7 @@ class TestRetryAfterHygieneLane9:
         """A 429 with ``Retry-After: 7`` must cause _get to sleep at
         least 7 seconds before the second attempt."""
         import urllib.error
+
         import scripts.smc_fmp_client as mod
 
         sleeps: list[float] = []
@@ -857,6 +859,7 @@ class TestRetryAfterHygieneLane9:
         """A misconfigured ``Retry-After: 86400`` must NOT wedge the
         client for a full day — the cap is 60s."""
         import urllib.error
+
         import scripts.smc_fmp_client as mod
 
         sleeps: list[float] = []
@@ -898,6 +901,7 @@ class TestRetryAfterHygieneLane9:
         route the hint through ``delay_from_exc`` so it survives the
         ``delay > 0`` gate."""
         import urllib.error
+
         import scripts.smc_fmp_client as mod
 
         sleeps: list[float] = []

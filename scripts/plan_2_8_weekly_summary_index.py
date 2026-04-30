@@ -8,12 +8,11 @@ output is always complete. Pure stdlib.
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import sys
 from pathlib import Path
 
+from scripts.smc_atomic_write import atomic_write_text
 
 # (filename, heading) pairs. Order is the TOC order.
 DEFAULT_SECTIONS: tuple[tuple[str, str], ...] = (

@@ -15,7 +15,6 @@ from scripts.smc_ab_experiment import (
     summarize_assignment,
 )
 
-
 # ── Experiment construction ──────────────────────────────────────
 
 

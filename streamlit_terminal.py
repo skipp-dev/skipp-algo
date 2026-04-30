@@ -1488,10 +1488,11 @@ def _resync_feed_from_jsonl() -> None:
     # session_state.cursor here would rewind it on the next rerun
     # (the main loop syncs session cursor back into the poller),
     # causing duplicate ingestion.
-    if not st.session_state.get("use_bg_poller") or st.session_state.get("bg_poller") is None:
-        if result.legacy_cursor:
-            st.session_state["cursor"] = result.legacy_cursor
-            st.session_state["provider_cursors"] = dict(result.provider_cursors)
+    if (
+        not st.session_state.get("use_bg_poller") or st.session_state.get("bg_poller") is None
+    ) and result.legacy_cursor:
+        st.session_state["cursor"] = result.legacy_cursor
+        st.session_state["provider_cursors"] = dict(result.provider_cursors)
 
     st.session_state.last_resync_ts = time.time()
 
@@ -3369,10 +3370,7 @@ else:
                 # Bullish tech (>0.5) adds to score; bearish tech (<0.5)
                 # only adds when price direction aligns (short).
                 _tech_dev = _tech - 0.5
-                if _chg >= 0:
-                    _tech_contrib = max(_tech_dev, 0) * 100.0 * 0.15
-                else:
-                    _tech_contrib = max(-_tech_dev, 0) * 100.0 * 0.15
+                _tech_contrib = max(_tech_dev, 0) * 100.0 * 0.15 if _chg >= 0 else max(-_tech_dev, 0) * 100.0 * 0.15
                 # RT signal tier bonus
                 _sig = _rt_signals.get(r.get("symbol", ""), "")
                 _sig_bonus = _RT_SIGNAL_BONUS.get(_sig, 0.0) * 0.15
@@ -4546,7 +4544,7 @@ else:
                         # Color volume bars by direction
                         _vol_colors = [
                             "rgba(38, 166, 91, 0.6)" if c >= o else "rgba(239, 83, 80, 0.6)"
-                            for o, c in zip(_chart_opens, _chart_closes)
+                            for o, c in zip(_chart_opens, _chart_closes, strict=False)
                         ]
 
                         fig = make_subplots(

@@ -15,7 +15,6 @@ import pytest
 
 from open_prep import macro as _macro_mod
 
-
 # Surface the helpers under short names for readability.
 _classify = _macro_mod._is_permanent_feature_failure
 _log = _macro_mod._log_feature_unavailable_once

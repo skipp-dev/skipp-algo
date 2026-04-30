@@ -13,8 +13,6 @@ Pure stdlib, read-only.
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 import re
@@ -22,6 +20,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from scripts.smc_atomic_write import atomic_write_text
 
 ENTRY_RE = re.compile(r"^### (\d{4}-\d{2}-\d{2}) - (.+)$")
 

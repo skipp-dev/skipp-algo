@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 
-
 from scripts.run_ab_comparison import (
     HIT_RATE_REGRESSION_TOLERANCE,
     PROMOTE_IMPROVEMENT,

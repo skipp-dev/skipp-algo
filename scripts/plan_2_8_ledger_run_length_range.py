@@ -6,14 +6,13 @@ Empty ledger yields 0. Single run yields 0.
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 import sys
 from pathlib import Path
 from typing import Any
 
+from scripts.smc_atomic_write import atomic_write_text
 
 VALID_STATUSES = frozenset({"green", "amber", "red", "unknown"})
 

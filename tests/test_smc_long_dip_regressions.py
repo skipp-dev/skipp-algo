@@ -3,7 +3,6 @@ from __future__ import annotations
 import pathlib
 import re
 
-
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SMC_PATH = ROOT / 'SMC_Core_Engine.pine'
 RESOLVERS_PATH = ROOT / 'SMC++' / 'smc_context_resolvers.pine'

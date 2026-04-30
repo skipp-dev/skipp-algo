@@ -17,9 +17,8 @@ the WS3 surface spec.
 """
 from __future__ import annotations
 
-from types import MappingProxyType
 from collections.abc import Iterable, Mapping
-
+from types import MappingProxyType
 
 # ── Default view mode ────────────────────────────────────────────────
 # The Pine ``surface_mode`` input must default to this view mode. Any

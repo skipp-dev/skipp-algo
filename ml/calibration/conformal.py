@@ -37,7 +37,7 @@ class ConformalReport:
 
 def _empirical_coverage(sets: list[set[int]], y: np.ndarray) -> float:
     return float(
-        sum(1 for s, label in zip(sets, y) if int(label) in s) / max(1, y.size)
+        sum(1 for s, label in zip(sets, y, strict=False) if int(label) in s) / max(1, y.size)
     )
 
 

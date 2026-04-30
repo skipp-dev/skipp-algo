@@ -17,12 +17,11 @@ Rules:
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
-from collections.abc import Mapping
 
 from smc_integration.trust_state import TrustState, derive_trust_state
-
 
 # ── Vocabulary ────────────────────────────────────────────────────────
 
@@ -187,7 +186,7 @@ def render_hero_market_mode_block_lines(
     lines: list[str] = ["// ── Hero Market Mode (ENG-WS3-03) ──"]
     for field, key in zip(
         PINE_HERO_MARKET_FIELDS,
-        ("regime", "bias", "session", "trust", "freshness"),
+        ("regime", "bias", "session", "trust", "freshness"), strict=False,
     ):
         lines.append(
             f'export const string {field} = "{_pine_string(values[key])}"'

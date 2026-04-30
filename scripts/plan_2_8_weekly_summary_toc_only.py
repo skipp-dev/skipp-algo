@@ -8,12 +8,11 @@ standalone markdown artifact. Useful for inlining into
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import sys
 from pathlib import Path
 
+from scripts.smc_atomic_write import atomic_write_text
 
 CONTENTS_HEADING = "## Contents"
 

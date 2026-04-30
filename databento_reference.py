@@ -11,6 +11,7 @@ latest known alias map without hitting the network on every call.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -103,10 +104,8 @@ def _replace_atomic(path: Path, content: str) -> None:
         temp_path.write_text(content, encoding="utf-8")
         os.replace(temp_path, path)
     except Exception:
-        try:
+        with contextlib.suppress(OSError):
             temp_path.unlink(missing_ok=True)
-        except OSError:
-            pass
         raise
 
 

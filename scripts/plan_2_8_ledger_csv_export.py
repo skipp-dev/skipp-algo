@@ -6,8 +6,6 @@ emits ``captured_at,status,run_url`` by default. Pure stdlib.
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import csv
 import io
@@ -16,6 +14,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from scripts.smc_atomic_write import atomic_write_text
 
 DEFAULT_FIELDS: tuple[str, ...] = ("captured_at", "status", "run_url")
 

@@ -17,7 +17,6 @@ import pandas as pd
 
 from scripts.smc_session_structure import DEFAULTS, build_session_structure
 
-
 # ── Test data helpers ────────────────────────────────────────────────
 
 def _session_bars_bull() -> pd.DataFrame:

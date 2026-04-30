@@ -1,7 +1,15 @@
 from __future__ import annotations
 
 from smc_core import apply_layering
-from smc_core.types import DirectionalStrength, LiquiditySweep, SmcMeta, SmcStructure, TimedDirectionalStrength, TimedVolumeInfo, VolumeInfo
+from smc_core.types import (
+    DirectionalStrength,
+    LiquiditySweep,
+    SmcMeta,
+    SmcStructure,
+    TimedDirectionalStrength,
+    TimedVolumeInfo,
+    VolumeInfo,
+)
 
 
 def test_liquidity_sweep_style_is_warning_and_neutral_with_reason_code() -> None:

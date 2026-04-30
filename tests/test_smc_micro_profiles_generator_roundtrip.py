@@ -95,7 +95,7 @@ def test_roundtrip_default_scenario_emits_vocab_members() -> None:
     )
     lines = _emit_pine_block(hs)
     assert len(lines) == 7
-    for field, line in zip(_PINE_EMIT_FIELDS, lines):
+    for field, line in zip(_PINE_EMIT_FIELDS, lines, strict=False):
         vocab = _FIELD_VOCAB[field]
         if vocab is None:
             continue

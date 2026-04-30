@@ -73,7 +73,7 @@ def validate_webhook_url(
     host = (parsed.hostname or "").strip().lower()
     if not host:
         return False, "missing_host"
-    if host in {"localhost", "localhost.localdomain", "0.0.0.0"} or host.endswith(".local"):  # noqa: S104 - validating url host string, not binding
+    if host in {"localhost", "localhost.localdomain", "0.0.0.0"} or host.endswith(".local"):  # noqa: S104 -- "0.0.0.0" is a deny-listed URL host literal, not a bind address
         return False, "local_host"
     if parsed.username or parsed.password:
         return False, "credentials_not_allowed"

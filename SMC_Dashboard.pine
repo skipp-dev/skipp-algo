@@ -20,6 +20,18 @@ var string g_bus_detail = "6. Operator Only - Detail Surface"
 var string g_bus_lean = "7. Operator Only - Lean Surface"
 var string g_bus_preset = "8. Operator Only - Preset Contract"
 var string g_local_debug = "9. Operator Only - Local Debug Mirrors"
+var string g_trade_mgmt = "10. Trade Management (optional, mirrors SMC_Hold_Manager)"
+
+// ── Trade Management mirror inputs ────────────────────────────
+// READ-ONLY mirror of SMC_Hold_Manager.pine state machine. Renders 2 extra
+// rows (Trade-State + live Stop) at the bottom of the dashboard table when
+// enabled. NO alerts here — Mobile/Dashboard surfaces are read-only by
+// design. For audible alerts, link SMC_Hold_Manager on the same chart.
+// MIRROR-OF: SMC_Hold_Manager.pine §state-machine (FLAT/ARMED/IN_TRADE)
+tm_enable      = input.bool(false, "Enable Trade-Mgmt rows",            group = g_trade_mgmt, tooltip = "Adds 2 read-only rows (Trade-State + live Stop) showing the same FLAT/ARMED/IN-TRADE machine SMC_Hold_Manager runs. No alerts; for audible alerts add SMC_Hold_Manager.")
+tm_tp1_r       = input.float(1.5,  "TP1 (R-multiple)",                  group = g_trade_mgmt, minval = 0.25, step = 0.25)
+tm_tp2_r       = input.float(3.0,  "TP2 (R-multiple)",                  group = g_trade_mgmt, minval = 0.5,  step = 0.25)
+tm_be_after_t1 = input.bool(true,  "Move stop to break-even after TP1", group = g_trade_mgmt)
 
 surface_mode = input.string("Decision Brief", "View", options = ["Focus", "Hero", "Explain", "Decision Brief", "Audit View"], group = g_surface, tooltip = "Focus: 3-row traffic light — just the essentials.\nHero: 7-row decision-first surface (action, market, quality, trust, why now, risk, plan) reading the hero state contract from the generated library.\nExplain: checklist showing why the current zone state holds.\nDecision Brief: compact setup overview with context.\nAudit View: full expert table for review.")
 show_table = input.bool(true, "Show Brief Panel", group = g_surface)
@@ -1547,7 +1559,7 @@ plot(show_risk_lines and actionable_state ? src_trigger : na, "Trade Trigger", c
 plot(show_risk_lines and actionable_state ? src_invalidation : na, "Trade Invalidation", color = color.new(CLR_CAUTION, 0), linewidth = 2, style = plot.style_linebr)
 bgcolor(show_state_bg and state_code >= 5 ? color.new(CLR_BULL, 90) : na)
 
-var table smc_dashboard = table.new(position.bottom_right, 2, 76, border_width = 0)
+var table smc_dashboard = table.new(position.bottom_right, 2, 78, border_width = 0)
 
 if show_table and barstate.islast
     color txt = chart.fg_color
@@ -1949,4 +1961,61 @@ if show_table and barstate.islast
         string _wt_full = "Why this Tier? Ranked calibrated weights driving the Zone Priority pick:\n  1. " + array.get(_wt_names, 0) + " — " + format_cal_weight(array.get(_wt_vals, 0)) + " (" + calibration_confidence_tier(array.get(_wt_vals, 0)) + ")\n  2. " + array.get(_wt_names, 1) + " — " + format_cal_weight(array.get(_wt_vals, 1)) + " (" + calibration_confidence_tier(array.get(_wt_vals, 1)) + ")\n  3. " + array.get(_wt_names, 2) + " — " + format_cal_weight(array.get(_wt_vals, 2)) + " (" + calibration_confidence_tier(array.get(_wt_vals, 2)) + ")\n  4. " + array.get(_wt_names, 3) + " — " + format_cal_weight(array.get(_wt_vals, 3)) + " (" + calibration_confidence_tier(array.get(_wt_vals, 3)) + ")\nSource: zone_priority_calibration.json · BUS contract: ZONE_CAL_*"
         dashboard_row_tt(smc_dashboard, 75, "Top-3 Weights", _wt_top3, status_bg(calibration_confidence_state(array.get(_wt_vals, 0))), txt, _wt_full)
 else if barstate.islast
-    table.clear(smc_dashboard, 0, 0, 1, 75)
+    // Clear the full table (incl. trade-mgmt rows 76/77) when show_table is off.
+    table.clear(smc_dashboard, 0, 0, 1, 77)
+// ───────────────────────── Trade Management mirror ─────────────────────────
+// Read-only mirror of SMC_Hold_Manager state machine. Renders 2 rows
+// (Trade-State + live Stop) at table rows 76/77 when tm_enable is on.
+// MIRROR-OF: SMC_Hold_Manager.pine §state-machine (FLAT/ARMED/IN_TRADE).
+// No alerts here — by design. For audible alerts add SMC_Hold_Manager
+// on the same chart.
+tm_armed_flag     = not na(src_armed) and src_armed > 0.5
+tm_confirmed_flag = not na(src_confirmed) and src_confirmed > 0.5
+tm_ready_flag     = not na(src_ready) and src_ready > 0.5
+tm_any_state      = tm_armed_flag or tm_confirmed_flag or tm_ready_flag
+tm_risk_ok        = not na(src_trigger) and not na(src_invalidation) and src_trigger > src_invalidation
+
+var int   tm_state       = 0
+var float tm_entry_price = na
+var float tm_entry_stop  = na
+var float tm_tp1_price   = na
+var float tm_tp2_price   = na
+var bool  tm_tp1_hit     = false
+
+if tm_enable
+    if tm_state == 0 and tm_any_state and tm_risk_ok
+        tm_state := 1
+        tm_entry_price := src_trigger
+        tm_entry_stop  := src_invalidation
+        tm_tp1_price   := src_trigger + (src_trigger - src_invalidation) * tm_tp1_r
+        tm_tp2_price   := src_trigger + (src_trigger - src_invalidation) * tm_tp2_r
+        tm_tp1_hit     := false
+    if tm_state == 1 and tm_risk_ok
+        tm_entry_price := src_trigger
+        tm_entry_stop  := src_invalidation
+        tm_tp1_price   := src_trigger + (src_trigger - src_invalidation) * tm_tp1_r
+        tm_tp2_price   := src_trigger + (src_trigger - src_invalidation) * tm_tp2_r
+    if tm_state == 1 and not na(tm_entry_price) and high >= tm_entry_price
+        tm_state := 2
+    if tm_state == 1 and not tm_any_state
+        tm_state := 0
+        tm_entry_price := na, tm_entry_stop := na, tm_tp1_price := na, tm_tp2_price := na
+    if tm_state == 2
+        if not tm_tp1_hit and not na(tm_tp1_price) and high >= tm_tp1_price
+            tm_tp1_hit := true
+            if tm_be_after_t1 and not na(tm_entry_price)
+                tm_entry_stop := math.max(tm_entry_stop, tm_entry_price)
+        bool tm_full_exit = (not na(tm_entry_stop) and close < tm_entry_stop) or (not na(tm_tp2_price) and high >= tm_tp2_price)
+        if tm_full_exit
+            tm_state := 0
+            tm_entry_price := na, tm_entry_stop := na, tm_tp1_price := na, tm_tp2_price := na, tm_tp1_hit := false
+
+if show_table and barstate.islast and tm_enable
+    string tm_state_txt = tm_state == 0 ? "FLAT" : tm_state == 1 ? "ARMED" : "IN-TRADE"
+    color  tm_state_bg  = tm_state == 0 ? color.new(CLR_NEUTRAL, 80) : tm_state == 1 ? color.new(CLR_CAUTION, 70) : color.new(CLR_BULL, 65)
+    string tm_stop_txt  = na(tm_entry_stop) ? "—" : str.tostring(tm_entry_stop, format.mintick) + (tm_tp1_hit and tm_be_after_t1 ? " (BE)" : "")
+    color  tm_stop_bg   = tm_state == 2 ? color.new(CLR_BEAR, 65) : color.new(color.black, 100)
+    dashboard_row(smc_dashboard, 76, "Trade", tm_state_txt, tm_state_bg, chart.fg_color)
+    dashboard_row(smc_dashboard, 77, "Stop",  tm_stop_txt,  tm_stop_bg,  chart.fg_color)
+else if barstate.islast and not tm_enable
+    table.clear(smc_dashboard, 0, 76, 1, 77)

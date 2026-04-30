@@ -219,7 +219,7 @@ def bos_id(
     timeframe: str,
     anchor_ts: float,
     kind: BosEventKind,
-    dir: BosDir,
+    direction: BosDir,
     price: float,
     *,
     ticksize: float | None = None,
@@ -229,14 +229,14 @@ def bos_id(
     sym = _norm_symbol(symbol)
     t_anchor = int(quantize_time_to_tf(anchor_ts, timeframe, session_tz=session_tz))
     p = _quantize_for_id(price, symbol=sym, ticksize=ticksize, asset_class=asset_class)
-    return f"bos:{sym}:{timeframe}:{t_anchor}:{kind}:{dir}:{p}"
+    return f"bos:{sym}:{timeframe}:{t_anchor}:{kind}:{direction}:{p}"
 
 
 def ob_id(
     symbol: str,
     timeframe: str,
     anchor_ts: float,
-    dir: ObDir,
+    direction: ObDir,
     low: float,
     high: float,
     *,
@@ -248,14 +248,14 @@ def ob_id(
     t_anchor = int(quantize_time_to_tf(anchor_ts, timeframe, session_tz=session_tz))
     lo = _quantize_for_id(low, symbol=sym, ticksize=ticksize, asset_class=asset_class)
     hi = _quantize_for_id(high, symbol=sym, ticksize=ticksize, asset_class=asset_class)
-    return f"ob:{sym}:{timeframe}:{t_anchor}:{dir}:{lo}:{hi}"
+    return f"ob:{sym}:{timeframe}:{t_anchor}:{direction}:{lo}:{hi}"
 
 
 def fvg_id(
     symbol: str,
     timeframe: str,
     anchor_ts: float,
-    dir: FvgDir,
+    direction: FvgDir,
     low: float,
     high: float,
     *,
@@ -267,7 +267,7 @@ def fvg_id(
     t_anchor = int(quantize_time_to_tf(anchor_ts, timeframe, session_tz=session_tz))
     lo = _quantize_for_id(low, symbol=sym, ticksize=ticksize, asset_class=asset_class)
     hi = _quantize_for_id(high, symbol=sym, ticksize=ticksize, asset_class=asset_class)
-    return f"fvg:{sym}:{timeframe}:{t_anchor}:{dir}:{lo}:{hi}"
+    return f"fvg:{sym}:{timeframe}:{t_anchor}:{direction}:{lo}:{hi}"
 
 
 def sweep_id(

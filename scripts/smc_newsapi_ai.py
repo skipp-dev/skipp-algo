@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import re
-from functools import lru_cache
 from datetime import UTC, datetime, timedelta
+from functools import lru_cache
 from typing import Any
 
 import httpx
-
 
 EVENT_REGISTRY_ARTICLES_URL = "https://eventregistry.org/api/v1/article/getArticles"
 EVENT_REGISTRY_EVENTS_URL = "https://eventregistry.org/api/v1/event/getEvents"

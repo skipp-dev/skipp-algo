@@ -15,6 +15,7 @@ Roadmap: docs/IMPROVEMENTS_C2_C12_ROADMAP_2026-04-26.md#c41
 """
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
@@ -104,10 +105,8 @@ class NullCache:
             tmp.replace(path)
         except Exception:
             if tmp.exists():
-                try:
+                with contextlib.suppress(OSError):
                     tmp.unlink()
-                except OSError:
-                    pass
             raise
 
     def __len__(self) -> int:

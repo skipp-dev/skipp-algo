@@ -76,9 +76,10 @@ def test_no_pickle_imports() -> None:
                 for a in node.names:
                     if a.name == "pickle" or a.name.startswith("pickle.") or a.name == "cPickle":
                         bad.append(f"{rel}:{node.lineno}: import {a.name}")
-            elif isinstance(node, ast.ImportFrom):
-                if node.module and (node.module == "pickle" or node.module.startswith("pickle.")):
-                    bad.append(f"{rel}:{node.lineno}: from {node.module} import …")
+            elif isinstance(node, ast.ImportFrom) and node.module and (
+                node.module == "pickle" or node.module.startswith("pickle.")
+            ):
+                bad.append(f"{rel}:{node.lineno}: from {node.module} import …")
     assert not bad, (
         "pickle imports are banned (deserialisation = arbitrary code execution; "
         "use json or msgpack):\n  - " + "\n  - ".join(bad)
@@ -97,9 +98,13 @@ def test_no_pickle_load_calls() -> None:
             if not isinstance(node, ast.Call):
                 continue
             f = node.func
-            if isinstance(f, ast.Attribute) and f.attr in ("load", "loads"):
-                if isinstance(f.value, ast.Name) and f.value.id in ("pickle", "cPickle"):
-                    bad.append(f"{rel}:{node.lineno}: {f.value.id}.{f.attr}(…)")
+            if (
+                isinstance(f, ast.Attribute)
+                and f.attr in ("load", "loads")
+                and isinstance(f.value, ast.Name)
+                and f.value.id in ("pickle", "cPickle")
+            ):
+                bad.append(f"{rel}:{node.lineno}: {f.value.id}.{f.attr}(…)")
     assert not bad, "pickle.load/loads calls banned:\n  - " + "\n  - ".join(bad)
 
 

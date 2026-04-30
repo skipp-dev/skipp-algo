@@ -21,7 +21,6 @@ from unittest import mock
 
 import httpx
 
-
 # ── RED 1 — _bz_http.py: full-jitter retry ──────────────────────
 
 

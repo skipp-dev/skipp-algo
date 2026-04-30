@@ -4,12 +4,10 @@ import pathlib
 import re
 import sys
 
-
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from scripts.smc_bus_manifest import DASHBOARD_BUS_BINDINGS, STRATEGY_BUS_BINDINGS
-
 
 DASHBOARD_PATH = ROOT / "SMC_Dashboard.pine"
 STRATEGY_PATH = ROOT / "SMC_Long_Strategy.pine"

@@ -34,6 +34,7 @@ import os
 import sys
 import tempfile
 from pathlib import Path
+import contextlib
 
 DEFAULT_ARCHIVE_SUBDIR = "rollback_history.archive"
 
@@ -56,10 +57,8 @@ def _atomic_write_json(path: Path, data: list[float]) -> None:
     except BaseException:
         if fd >= 0:
             os.close(fd)
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp)
-        except OSError:
-            pass
         raise
 
 

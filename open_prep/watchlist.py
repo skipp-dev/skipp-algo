@@ -9,7 +9,7 @@ import logging
 import os
 import tempfile
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -49,7 +49,7 @@ def _load_raw() -> list[dict[str, Any]]:
     if not WATCHLIST_PATH.exists():
         return []
     try:
-        with open(WATCHLIST_PATH, "r", encoding="utf-8") as fh:
+        with open(WATCHLIST_PATH, encoding="utf-8") as fh:
             data = json.load(fh)
         return data if isinstance(data, list) else []
     except Exception:
@@ -69,11 +69,9 @@ def _save_raw(entries: list[dict[str, Any]]) -> None:
             fh.flush()
             os.fsync(fh.fileno())
         os.replace(tmp_path, WATCHLIST_PATH)
-    except BaseException:
-        try:
+    except Exception:
+        with suppress(OSError):
             os.unlink(tmp_path)
-        except OSError:
-            pass
         raise
 
 

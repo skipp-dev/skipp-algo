@@ -14,7 +14,6 @@ from __future__ import annotations
 from pathlib import Path
 from unittest import mock
 
-
 from scripts.smc_pine_evidence_gate import build_evidence_lane_gate
 from scripts.smc_pine_scenario_catalog import PINE_SCENARIO_CATALOG
 

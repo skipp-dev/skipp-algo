@@ -55,7 +55,7 @@ class FamilyStats:
         if not self.weights or sum(self.weights) == 0:
             return 0.0
         return sum(
-            r * w for r, w in zip(self.hit_rates, self.weights)
+            r * w for r, w in zip(self.hit_rates, self.weights, strict=False)
         ) / sum(self.weights)
 
     @property
@@ -490,10 +490,9 @@ def append_history_entry(
         "family_stats": dict(cal.family_stats),
         "source_dir": cal.source_dir,
     }
-    if testable:
-        # Surface smECE so trend consumers can also reason about drift.
-        if "smooth_ece" in testable:
-            entry["smooth_ece"] = testable["smooth_ece"]
+    # Surface smECE so trend consumers can also reason about drift.
+    if testable and "smooth_ece" in testable:
+        entry["smooth_ece"] = testable["smooth_ece"]
 
     # Read existing entries, append, truncate to retention window.
     existing: list[dict[str, Any]] = []
@@ -1022,7 +1021,7 @@ def _git_rev(repo_root: Path) -> str | None:
     """Return the current git HEAD commit SHA, or ``None`` if unavailable."""
     try:
         git_exe = shutil.which("git") or "git"
-        out = subprocess.run(  # noqa: S603  # trusted: hardcoded git argv resolved via shutil.which
+        out = subprocess.run(  # noqa: S603 -- hardcoded git argv resolved via shutil.which (no shell, no user input)
             [git_exe, "rev-parse", "HEAD"],
             cwd=repo_root,
             capture_output=True,

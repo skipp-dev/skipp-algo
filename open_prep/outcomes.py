@@ -14,6 +14,7 @@ Feature Importance (#3):
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import math
@@ -125,10 +126,8 @@ def store_daily_outcomes(
             os.fsync(fh.fileno())
         os.replace(tmp_path, path)
     except BaseException:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp_path)
-        except OSError:
-            pass
         raise
     logger.info("Stored %d outcome records for %s → %s", len(outcomes), run_date, path)
 
@@ -164,7 +163,7 @@ def _load_outcomes_range(lookback_days: int = 20) -> list[dict[str, Any]]:
         if loaded >= lookback_days:
             break
         try:
-            with open(path, "r", encoding="utf-8") as fh:
+            with open(path, encoding="utf-8") as fh:
                 data = json.load(fh)
             if isinstance(data, list):
                 records.extend(data)
@@ -405,10 +404,8 @@ class FeatureImportanceCollector:
                 os.fsync(fh.fileno())
             os.replace(tmp_path, path)
         except BaseException:
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(tmp_path)
-            except OSError:
-                pass
             raise
         count = len(self._buffer)
         self._buffer.clear()
@@ -439,7 +436,7 @@ def _pearson_r(xs: list[float], ys: list[float]) -> float:
         return 0.0
     mx = sum(xs) / n
     my = sum(ys) / n
-    cov = sum((x - mx) * (y - my) for x, y in zip(xs, ys))
+    cov = sum((x - mx) * (y - my) for x, y in zip(xs, ys, strict=False))
     sx = math.sqrt(sum((x - mx) ** 2 for x in xs))
     sy = math.sqrt(sum((y - my) ** 2 for y in ys))
     if sx == 0 or sy == 0:
@@ -470,7 +467,7 @@ def compute_feature_importance(
         if loaded >= lookback_days:
             break
         try:
-            with open(path, "r", encoding="utf-8") as fh:
+            with open(path, encoding="utf-8") as fh:
                 for line in fh:
                     line = line.strip()
                     if line:
@@ -506,8 +503,8 @@ def compute_feature_importance(
         r = _pearson_r(vals, outcomes)
 
         # Mean-separation importance
-        wins = [v for v, o in zip(vals, outcomes) if o > 0.5]
-        losses = [v for v, o in zip(vals, outcomes) if o <= 0.5]
+        wins = [v for v, o in zip(vals, outcomes, strict=False) if o > 0.5]
+        losses = [v for v, o in zip(vals, outcomes, strict=False) if o <= 0.5]
         mean_win = (sum(wins) / len(wins)) if wins else 0.0
         mean_loss = (sum(losses) / len(losses)) if losses else 0.0
         std_win = (

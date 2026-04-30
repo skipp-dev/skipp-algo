@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 from smc_integration.manifest_preference import (
     ArtifactCandidate,
     ArtifactSource,

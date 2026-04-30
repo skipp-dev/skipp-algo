@@ -6,12 +6,11 @@ from pathlib import Path
 import pytest
 
 from scripts.smc_hero_market_mode import (
-    HeroMarketMode,
     PINE_HERO_MARKET_FIELDS,
+    HeroMarketMode,
     derive_hero_market_mode,
     render_hero_market_mode_block_lines,
 )
-
 
 # ── Vocabulary / dataclass ────────────────────────────────────────────
 

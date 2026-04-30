@@ -170,13 +170,14 @@ def _scan_file(path: Path, keywords: tuple[str, ...], rel_root: Path) -> list[_H
                     kind="function", name=node.name,
                     docstring_first_line=_docstring_first_line(node),
                 ))
-        elif isinstance(node, ast.ClassDef):
-            if _matches(node.name, keywords) or _matches(ast.get_docstring(node) or "", keywords):
-                hits.append(_Hit(
-                    path=rel, line=node.lineno,
-                    kind="class", name=node.name,
-                    docstring_first_line=_docstring_first_line(node),
-                ))
+        elif isinstance(node, ast.ClassDef) and (
+            _matches(node.name, keywords) or _matches(ast.get_docstring(node) or "", keywords)
+        ):
+            hits.append(_Hit(
+                path=rel, line=node.lineno,
+                kind="class", name=node.name,
+                docstring_first_line=_docstring_first_line(node),
+            ))
     return hits
 
 

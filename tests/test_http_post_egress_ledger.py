@@ -153,7 +153,7 @@ URLLIB_REQUEST_POST_LEDGER: set[tuple[str, int]] = {
     # Pushover messages API.
     ("terminal_notifications.py", 311),
     # Open-prep alerts dispatcher (Slack/webhook).
-    ("open_prep/alerts.py", 396),
+    ("open_prep/alerts.py", 395),
 }
 
 

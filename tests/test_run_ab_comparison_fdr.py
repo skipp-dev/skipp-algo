@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import math
 
-
 from scripts.run_ab_comparison import (
     FDR_Q,
     _family_fdr_layer,
@@ -16,7 +15,6 @@ from scripts.run_ab_comparison import (
     benjamini_hochberg,
     compare,
 )
-
 
 # ---------------------------------------------------------------------------
 # benjamini_hochberg() unit tests
