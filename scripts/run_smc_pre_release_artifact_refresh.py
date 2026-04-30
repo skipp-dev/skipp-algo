@@ -151,6 +151,16 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Downgrade structurally empty refreshed reference artifacts from fail to warn.",
     )
+    parser.add_argument(
+        "--soft-skip-on-missing-inputs",
+        action="store_true",
+        help=(
+            "Exit with rc=78 (soft-skip) instead of rc=1 when every failure "
+            "is REFRESH_EXECUTION_FAILED caused by a missing canonical export "
+            "manifest (typical on ephemeral CI runners that do not carry the "
+            "upstream Databento export bundle). Bug-Hunt 2026-05-01 F-03."
+        ),
+    )
     parser.add_argument("--output", default="-", help="Output JSON path, or '-' for stdout.")
     return parser
 
@@ -272,12 +282,38 @@ def main() -> int:
                 failures.append(empty_failure)
 
     checked_at = float(time.time())
-    exit_code = 1 if failures else 0
+
+    # F-03 (Bug-Hunt 2026-05-01): allow callers (e.g. the
+    # smc-deeper-integration-gates workflow on an ephemeral runner that
+    # does not carry the canonical Databento export bundle) to opt into
+    # a soft-skip exit when the only reason every per-timeframe refresh
+    # failed is a missing export manifest.
+    soft_skipped = bool(
+        getattr(args, "soft_skip_on_missing_inputs", False)
+        and failures
+        and all(
+            failure.get("code") == "REFRESH_EXECUTION_FAILED"
+            and "manifest" in str(failure.get("message", "")).lower()
+            for failure in failures
+        )
+    )
+    if soft_skipped:
+        exit_code = 78
+    else:
+        exit_code = 1 if failures else 0
+    if soft_skipped:
+        overall_status = "skipped"
+    elif failures:
+        overall_status = "fail"
+    elif warnings:
+        overall_status = "warn"
+    else:
+        overall_status = "ok"
     report = {
         "report_kind": "pre_release_refresh",
         "checked_at": checked_at,
         "checked_at_iso": _iso_utc(checked_at),
-        "overall_status": "fail" if failures else "warn" if warnings else "ok",
+        "overall_status": overall_status,
         "reference_symbols": symbols,
         "reference_timeframes": timeframes,
         "resolved_inputs": {
@@ -293,6 +329,8 @@ def main() -> int:
             "script": "scripts/run_smc_pre_release_artifact_refresh.py",
             "mode": "pre_release_refresh",
             "warn_on_empty_artifacts": bool(args.warn_on_empty_artifacts),
+            "soft_skip_on_missing_inputs": bool(getattr(args, "soft_skip_on_missing_inputs", False)),
+            "soft_skipped": bool(soft_skipped),
             "exit_code": int(exit_code),
         },
         "runtime_metadata": runtime_metadata(),
