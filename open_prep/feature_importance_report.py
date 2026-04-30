@@ -251,7 +251,7 @@ def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
             json.dump(payload, fh, indent=2, sort_keys=True)
             fh.write("\n")
         os.replace(tmp_name, path)
-    except Exception:
+    except BaseException:
         with contextlib.suppress(OSError):
             os.unlink(tmp_name)
         raise
