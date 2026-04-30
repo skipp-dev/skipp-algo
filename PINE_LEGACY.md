@@ -54,6 +54,10 @@ These are the canonical TradingView library + consumer files, pinned by
 | `SMC_Imbalance_Context.pine`      | overlay       |
 | `SMC_HTF_Confluence.pine`         | overlay       |
 | `SMC_Event_Overlay.pine`          | overlay       |
+| `SMC_Breakout_Overlay.pine`       | overlay       |
+| `SMC_VRVP_Overlay.pine`           | overlay       |
+| `SMC_Exit_Signal.pine`            | consumer      |
+| `SMC_Hold_Manager.pine`           | consumer      |
 | `SMC_TV_Bridge.pine`              | bridge        |
 | `SMC_Setup_Check.pine`            | diagnostic    |
 | `pine/skipp_calibration.pine`     | library       |
