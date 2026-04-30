@@ -1,0 +1,174 @@
+# ---------------------------------------------------------------------------
+# smc-databento-production-export
+#
+# Daily-windowed Databento volatility production export. Materializes the
+# canonical `databento_volatility_production_*_manifest.json` (plus its
+# companion workbook + frame parquets) under
+# `artifacts/smc_microstructure_exports/` and exposes them to downstream
+# workflows via:
+#
+#   1) GitHub Actions cache (key `smc-prod-export-<os>-<YYYY-MM-DD>`) so
+#      `smc-library-refresh.yml` can restore the bundle in its
+#      "Refresh release reference artifacts" step without re-running the
+#      Databento pull.
+#   2) A retained workflow artifact (`smc-databento-production-export`)
+#      for ad-hoc inspection / replay.
+#
+# Why this exists:
+#   `scripts/run_smc_pre_release_artifact_refresh.py` (called by
+#   smc-library-refresh.yml) loads its reference symbol/timeframe bundles
+#   via `manifest_prefix=databento_volatility_production_`. Prior to this
+#   workflow that manifest was only ever generated on a developer
+#   workstation, so library-refresh had been red since 2026-04-24 with
+#   `canonical export bundle unavailable for symbol=…`.
+#
+# Schedule:
+#   Runs ~30 min BEFORE each library-refresh cron tick so the cache is
+#   warm by the time library-refresh tries to restore it. Library-refresh
+#   ticks at 12:30 / 14:30 / 16:30 / 18:30 UTC on weekdays — this
+#   workflow runs at 12:00 / 14:00 / 16:00 / 18:00 UTC. The library-
+#   refresh restore step uses `restore-keys` to fall back to the most
+#   recent same-day cache if a tick is missed.
+#
+# Required secrets:
+#   DATABENTO_API_KEY   – mandatory (producer hard-fails without it)
+#   GH_PAT              – optional, used by checkout to inherit higher
+#                         scopes when present; falls back to GITHUB_TOKEN
+#   FMP_API_KEY         – optional (FMP enrichment is skipped when unset)
+#   BENZINGA_API_KEY    – optional (Benzinga news comparison is skipped)
+# ---------------------------------------------------------------------------
+
+name: smc-databento-production-export
+
+on:
+  schedule:
+    - cron: "0 12 * * 1-5"   # 12:00 UTC – 30 min ahead of library-refresh 12:30 tick
+    - cron: "0 14 * * 1-5"   # 14:00 UTC – 30 min ahead of library-refresh 14:30 tick
+    - cron: "0 16 * * 1-5"   # 16:00 UTC – 30 min ahead of library-refresh 16:30 tick
+    - cron: "0 18 * * 1-5"   # 18:00 UTC – 30 min ahead of library-refresh 18:30 tick
+  workflow_dispatch:
+    inputs:
+      lookback_days:
+        description: "Override --lookback-days (default 30)"
+        required: false
+        default: "30"
+      force_refresh:
+        description: "Pass --force-refresh to bypass the file cache"
+        required: false
+        default: "false"
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  EXPORT_DIR: artifacts/smc_microstructure_exports
+  PRODUCER_RUNNER_LABEL: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+
+jobs:
+  export:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 90
+
+    steps:
+      - name: Set export date
+        id: date
+        run: |
+          DATE=$(date -u +%Y-%m-%d)
+          echo "EXPORT_DATE=${DATE}" >> "$GITHUB_ENV"
+          echo "export_date=${DATE}" >> "$GITHUB_OUTPUT"
+
+      - name: Emit runner selection
+        run: |
+          echo "::notice::Producer job running on label '${PRODUCER_RUNNER_LABEL}' (runner='${{ runner.name }}')."
+
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # ── Restore today's cache so an already-warm bundle short-circuits the
+      # ── Databento pull. We KEEP the workflow running so a fresh manifest is
+      # ── always written (Databento data drifts intra-day), but this gives us
+      # ── a quick sanity log line if a same-day re-run is unnecessary.
+      - name: Inspect existing cache (advisory only)
+        id: cache_probe
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.EXPORT_DIR }}
+          key: smc-prod-export-${{ runner.os }}-${{ env.EXPORT_DATE }}
+          lookup-only: true
+
+      - name: Note pre-existing cache hit
+        if: steps.cache_probe.outputs.cache-hit == 'true'
+        run: |
+          echo "::notice::Cache key smc-prod-export-${{ runner.os }}-${EXPORT_DATE} already exists. Producer will overwrite with a fresh manifest."
+
+      - name: Run Databento production export
+        env:
+          DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+          BENZINGA_API_KEY: ${{ secrets.BENZINGA_API_KEY }}
+          DATABENTO_DATASET: ${{ vars.DATABENTO_DATASET }}
+          LOOKBACK_DAYS: ${{ inputs.lookback_days || '30' }}
+          FORCE_REFRESH_FLAG: ${{ inputs.force_refresh == 'true' && '--force-refresh' || '' }}
+        run: |
+          set -euo pipefail
+          mkdir -p "${EXPORT_DIR}"
+          python scripts/databento_production_export.py \
+            --lookback-days "${LOOKBACK_DAYS}" \
+            --export-dir "${EXPORT_DIR}" \
+            ${FORCE_REFRESH_FLAG}
+
+      - name: Verify canonical manifest was produced
+        run: |
+          set -euo pipefail
+          if ! ls "${EXPORT_DIR}"/databento_volatility_production_*_manifest.json >/dev/null 2>&1; then
+            echo "::error::Producer completed but no databento_volatility_production_*_manifest.json was found in ${EXPORT_DIR}/"
+            ls -la "${EXPORT_DIR}/" || true
+            exit 1
+          fi
+          NEWEST=$(ls -1t "${EXPORT_DIR}"/databento_volatility_production_*_manifest.json | head -1)
+          echo "::notice::Newest manifest: ${NEWEST}"
+          python -c "import json,sys; d=json.load(open('${NEWEST}')); print('symbols:', len(d.get('symbols', []) or d.get('manifest', {}).get('symbols', [])), 'frames:', list((d.get('frames') or d.get('manifest', {}).get('frames') or {}).keys())[:5])" || true
+
+      # ── Save the bundle to the GHA cache (always, even on overwrite) so
+      # ── library-refresh can restore it via the same key. Saving with the
+      # ── same key as a probed entry is a no-op; that's fine.
+      - name: Save export bundle to cache
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.EXPORT_DIR }}
+          key: smc-prod-export-${{ runner.os }}-${{ env.EXPORT_DATE }}-${{ github.run_id }}
+
+      # ── Also publish under the date-only key. We use the run_id-suffixed
+      # ── key above to allow multiple intra-day saves; the date-only key
+      # ── below is the canonical handle library-refresh restores against.
+      - name: Save export bundle under date-only key (canonical)
+        if: success()
+        continue-on-error: true   # second save with identical date key is OK to skip
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.EXPORT_DIR }}
+          key: smc-prod-export-${{ runner.os }}-${{ env.EXPORT_DATE }}
+
+      - name: Upload export bundle as workflow artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smc-databento-production-export-${{ env.EXPORT_DATE }}-${{ github.run_id }}
+          path: ${{ env.EXPORT_DIR }}/
+          retention-days: 7
+          if-no-files-found: error
