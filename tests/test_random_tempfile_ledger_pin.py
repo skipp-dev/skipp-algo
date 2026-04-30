@@ -52,7 +52,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     ("databento_volatility_screener.py", 299, "mkstemp"),
     ("governance/alpha_ledger.py", 66, "mkstemp"),
     ("newsstack_fmp/open_prep_export.py", 25, "mkstemp"),
-    ("open_prep/alerts.py", 67, "mkstemp"),
+    ("open_prep/alerts.py", 68, "mkstemp"),
     ("open_prep/candidate_weights.py", 146, "mkstemp"),
     ("open_prep/diff.py", 57, "mkstemp"),
     ("open_prep/feature_importance_report.py", 247, "mkstemp"),
