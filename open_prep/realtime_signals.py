@@ -251,7 +251,7 @@ def ensure_rt_engine_running(
 
     # Use a file lock to prevent TOCTOU race between concurrent callers
     _RT_ENGINE_LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
-    lock_fd = open(_RT_ENGINE_LOCK_FILE, "w", encoding="utf-8")
+    lock_fd = open(_RT_ENGINE_LOCK_FILE, "w", encoding="utf-8")  # noqa: SIM115 -- long-lived advisory file lock; closed in finally / process exit
     try:
         fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
@@ -322,7 +322,7 @@ def _ensure_rt_engine_running_locked(
                 if k and k not in env:
                     env[k] = v
 
-        log_fh = open(_RT_ENGINE_LOG_FILE, "a", encoding="utf-8")
+        log_fh = open(_RT_ENGINE_LOG_FILE, "a", encoding="utf-8")  # noqa: SIM115 -- handed to subprocess.Popen as stdout/stderr; lifetime tied to detached child process
         try:
             proc = subprocess.Popen(  # trusted: sys.executable -m hardcoded module argv
                 [
