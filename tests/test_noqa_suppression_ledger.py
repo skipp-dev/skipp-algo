@@ -39,49 +39,20 @@ _DIR_EXCLUDE = {
 
 _NOQA_RE = re.compile(r"#\s*noqa\b", re.IGNORECASE)
 
-# Frozen ledger — exactly today's surface (2026-04-29).
+# Frozen ledger — exactly today's surface (2026-04-30).
 #
 # The following suppressions are intentional and registered here:
 #
-# * ``streamlit_terminal_alerts.py``: validates that a webhook URL host is
-#   not "0.0.0.0" / localhost — string-matching, *not* binding a server.
-#   Bandit S104 is a false positive in this context.
-# * ``scripts/scan_manifests_for_pytest_provenance.py``: contains a regex
-#   literal ``r"/tmp/pytest-of-..."`` used to *detect* pytest tmp-path
-#   leakage in shipped manifests. The path is a search pattern, not a
-#   file Python opens. Bandit S108 is a false positive. Additionally,
-#   two ``subprocess.check_output`` calls invoke ``git diff --cached``
-#   and ``git ls-files`` via a ``shutil.which("git")``-resolved
-#   executable with hardcoded argv lists; Bandit S603 is a false
-#   positive in this trusted-binary, fixed-args context.
-# * ``governance/run_manifest.py``: invokes ``git rev-parse HEAD`` via a
-#   ``shutil.which("git")``-resolved executable with a hardcoded argv
-#   list. No untrusted input reaches subprocess; Bandit S603 is a false
-#   positive in this trusted-binary, fixed-args context.
-# * ``open_prep/realtime_signals.py``: spawns the realtime engine via
-#   ``sys.executable -m open_prep.realtime_signals`` and probes for an
-#   existing instance via ``shutil.which("pgrep")`` with hardcoded
-#   argv. Bandit S603 is a false positive in both trusted-binary,
-#   fixed-args contexts.
-# * ``scripts/measure_databento_ops_run.py``: invokes
-#   ``sys.executable -c <runner>`` with a hardcoded inline runner script.
-#   Bandit S603 is a false positive (no untrusted argv element).
-# * ``scripts/smc_micro_publish_guard.py``: invokes the project's
-#   ``npm run tv:publish-micro-library`` task with a hardcoded argv
-#   list. Bandit S603 is a false positive.
-# * ``scripts/smc_zone_priority_calibration.py``: invokes
-#   ``git rev-parse HEAD`` via a ``shutil.which("git")``-resolved
-#   executable with a hardcoded argv list. Bandit S603 is a false
-#   positive.
-# * ``scripts/start_open_prep_suite.py``: launches the open-prep run
-#   (``python_exe -m open_prep.run_open_prep``), stops any prior
-#   streamlit monitor (``shutil.which("pkill")``), and spawns a
-#   streamlit binary derived from the same Python sibling path. All
-#   three sites use hardcoded argv lists; Bandit S603 is a false
-#   positive in each.
-# * ``smc_integration/release_policy.py``: invokes ``git rev-parse HEAD``
-#   via a ``shutil.which("git")``-resolved executable with a hardcoded
-#   argv list. Bandit S603 is a false positive.
+# * ``open_prep/realtime_signals.py`` (2 sites): SIM115 false positives
+#   — file descriptors are intentionally held open beyond the function
+#   scope (fcntl.flock for engine startup; log fh inherited by a
+#   detached subprocess via ``start_new_session=True``).
+# * ``scripts/ib_client_id.py`` (2 sites): SIM115 false positives —
+#   lock fds held under fcntl.flock for client-id allocation (these are
+#   captured in the per-file count even though this test's
+#   ``_DIR_EXCLUDE`` set does not include ``scripts``; the sister
+#   ledger ``test_noqa_budget.py`` excludes ``scripts`` from its
+#   inventory and so does not list these entries).
 #
 # All other first-party noqa suppressions remain forbidden.
 _FROZEN_SITES: dict[str, int] = {

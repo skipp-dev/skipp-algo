@@ -1,7 +1,8 @@
 """Audit pin: ``# noqa`` frozen-inventory budget with code-set capture.
 
 Every ``# noqa`` is a deliberate lint suppression. We freeze the
-current inventory (27 sites) so that:
+current inventory (2 sites, both SIM115 in ``open_prep/realtime_signals.py``)
+so that:
 
 * New ``# noqa`` additions trip ``test_no_new_noqa_sites`` and force a
   deliberate review (could the code be fixed instead of suppressed?).
@@ -12,13 +13,14 @@ current inventory (27 sites) so that:
 
 Categories observed in the current ledger:
 
-* ``F401`` — re-export-only `__init__.py` imports (``terminal_tabs``).
-* ``E402`` — deferred imports after sys.path manipulation / atexit.
-* ``F401, F811`` — typing-only optional imports (``terminal_bitcoin``).
-* ``PLW0603`` — module-singleton ``global`` (already pinned via
-  ``test_global_statement_budget.py``).
-* ``PERF203`` — explicit retry-loop ``try/except`` shape.
-* ``ANN001`` — `*args, **kwargs` callback signature.
+* ``SIM115`` — file descriptors held under ``fcntl.flock`` (engine
+  startup) or inherited by a detached subprocess
+  (``start_new_session=True`` log fh).
+
+Note: this test excludes ``scripts/`` via ``_DIR_EXCLUDE``, so the two
+SIM115 noqa sites in ``scripts/ib_client_id.py`` are **not** tracked
+here. They are tracked by the per-file count in the sister ledger
+``test_noqa_suppression_ledger.py``.
 """
 
 from __future__ import annotations
