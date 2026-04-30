@@ -2495,10 +2495,7 @@ def _fetch_premarket_context(
 
     # Stage 1: mover seed + union symbol list
     try:
-        if cached_mover_seed:
-            mover_seed = cached_mover_seed
-        else:
-            mover_seed = _build_mover_seed(client, mover_seed_max_symbols)
+        mover_seed = cached_mover_seed or _build_mover_seed(client, mover_seed_max_symbols)
         mover_seed_set = set(mover_seed)
         union_symbols = _normalize_symbols(symbols + mover_seed)
         if len(union_symbols) > MAX_PREMARKET_UNION_SYMBOLS:
@@ -2902,16 +2899,13 @@ def _calculate_atr14_from_eod(candles: list[dict], period: int = 14) -> float:
     prev_close: float | None = None
 
     for _, high, low, close in parsed:
-        if prev_close is None:
-            # First bar TR is H-L (no prior close)
-            # Standard practice often skips first bar or treats as H-L
-            tr = high - low
-        else:
-            tr = max(
-                high - low,
-                abs(high - prev_close),
-                abs(low - prev_close),
-            )
+        # First bar TR is H-L (no prior close).
+        # Standard practice often skips first bar or treats as H-L.
+        tr = (
+            high - low
+            if prev_close is None
+            else max(high - low, abs(high - prev_close), abs(low - prev_close))
+        )
         tr_values.append(max(tr, 0.0))
         prev_close = close
 
@@ -3249,10 +3243,7 @@ def _parse_bar_dt_utc(bar: dict[str, Any]) -> datetime | None:
         dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
         if dt.tzinfo is None:
             naive_mode = str(os.environ.get("OPEN_PREP_INTRADAY_NAIVE_TZ", "NY")).strip().upper()
-            if naive_mode in {"UTC", "Z"}:
-                dt = dt.replace(tzinfo=UTC)
-            else:
-                dt = dt.replace(tzinfo=US_EASTERN_TZ)
+            dt = dt.replace(tzinfo=UTC) if naive_mode in {"UTC", "Z"} else dt.replace(tzinfo=US_EASTERN_TZ)
         return dt.astimezone(UTC)
     except ValueError:
         pass
@@ -3260,10 +3251,7 @@ def _parse_bar_dt_utc(bar: dict[str, Any]) -> datetime | None:
         try:
             dt = datetime.strptime(raw, fmt)
             naive_mode = str(os.environ.get("OPEN_PREP_INTRADAY_NAIVE_TZ", "NY")).strip().upper()
-            if naive_mode in {"UTC", "Z"}:
-                dt = dt.replace(tzinfo=UTC)
-            else:
-                dt = dt.replace(tzinfo=US_EASTERN_TZ)
+            dt = dt.replace(tzinfo=UTC) if naive_mode in {"UTC", "Z"} else dt.replace(tzinfo=US_EASTERN_TZ)
             return dt.astimezone(UTC)
         except ValueError:
             continue
