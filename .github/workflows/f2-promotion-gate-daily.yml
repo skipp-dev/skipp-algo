@@ -253,13 +253,13 @@ jobs:
           TITLE=$(cat /tmp/issue_title.txt)
           # Look for an existing open rollback issue (any date) to avoid
           # duplicates on consecutive bad days; comment on it instead.
-          EXISTING=$(gh issue list --state open --label f2-rollback --limit 1 --json number --jq '.[0].number' || true)
+          EXISTING=$(gh issue list --state open --label cron-failure --limit 1 --json number --jq '.[0].number' || true)
           if [ -n "${EXISTING}" ]; then
             echo "Existing rollback issue #${EXISTING} found; commenting."
             gh issue comment "${EXISTING}" --body-file /tmp/issue_body.md
           else
             echo "No open rollback issue; creating new one."
-            gh issue create --title "${TITLE}" --body-file /tmp/issue_body.md --label f2-rollback
+            gh issue create --title "${TITLE}" --body-file /tmp/issue_body.md --label cron-failure
           fi
 
       - name: Auto-revert contextual calibration (§2.4 G2)
