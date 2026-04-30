@@ -13,10 +13,19 @@ EVENT_REGISTRY_ARTICLE_FEED_URL = "https://eventregistry.org/api/v1/minuteStream
 MAX_KEYWORDS_PER_REQUEST = 60
 TARGET_KEYWORDS_PER_REQUEST = 6
 MAX_ARTICLES_PER_REQUEST = 100
+# Default articlesCount for public fetch entry points. Capped well below
+# the API ceiling (MAX_ARTICLES_PER_REQUEST=100) so that broad keyword
+# searches (e.g. "Apple" with ~9M matches) do not push the round-trip
+# beyond the httpx timeout. See P-7 in docs/reviews/2026-04-24-system-review.md.
+DEFAULT_ARTICLES_PER_REQUEST = 50
 MAX_EVENTS_PER_REQUEST = 50
 MAX_FEED_ARTICLES_PER_REQUEST = 2000
 ARTICLE_FEED_MAX_AGE_SECONDS = 240 * 60
 MIN_SYMBOL_LENGTH = 3
+# Per-request httpx timeout for every Event Registry call. Bumped from 20.0s
+# (2026-04-30) after live audit showed broad-keyword `getArticles` round-trips
+# of up to ~24 s — see P-7 in docs/reviews/2026-04-24-system-review.md.
+HTTPX_REQUEST_TIMEOUT_SECONDS = 45.0
 _STRICT_MARKET_CONTEXT_SYMBOLS = {
     "AMT",
     "CAT",
@@ -341,7 +350,7 @@ def fetch_newsapi_feed_article_probe(
 
     own_client = client is None
     if client is None:
-        client = httpx.Client(timeout=20.0)
+        client = httpx.Client(timeout=HTTPX_REQUEST_TIMEOUT_SECONDS)
 
     seen_ids: set[str] = set()
     articles: list[dict[str, Any]] = []
@@ -480,7 +489,7 @@ def fetch_newsapi_article_records(
 
     own_client = client is None
     if client is None:
-        client = httpx.Client(timeout=20.0)
+        client = httpx.Client(timeout=HTTPX_REQUEST_TIMEOUT_SECONDS)
 
     seen_ids: set[str] = set()
     articles: list[dict[str, Any]] = []
@@ -585,7 +594,7 @@ def fetch_newsapi_event_records(
 
     own_client = client is None
     if client is None:
-        client = httpx.Client(timeout=20.0)
+        client = httpx.Client(timeout=HTTPX_REQUEST_TIMEOUT_SECONDS)
 
     seen_ids: set[str] = set()
     events: list[dict[str, Any]] = []
@@ -676,7 +685,7 @@ def fetch_newsapi_records(
 ) -> list[dict[str, Any]]:
     own_client = client is None
     if client is None:
-        client = httpx.Client(timeout=20.0)
+        client = httpx.Client(timeout=HTTPX_REQUEST_TIMEOUT_SECONDS)
     now = current_time.astimezone(UTC) if current_time is not None else datetime.now(UTC)
 
     try:
