@@ -120,7 +120,7 @@ float chand   = high - atr * i_atr_mult
 if state == 2 and i_use_chand and not i_simple_mode and not na(chand)
     active_stop := math.max(active_stop, chand)
 
-// Breakeven nach T1 (Schwäche F-light: Faktor fest, NICHT aus mp.ZONE_CAL_*)
+// Breakeven nach T1 (Schwäche F-light: Faktor fest, NICHT aus den ZONE_CAL_* Calibration-Feldern)
 if state == 2 and not t1_hit and high >= t1_price
     t1_hit := true
     if i_breakeven
@@ -182,6 +182,6 @@ alertcondition(_alertGate and can_act and exit_edge                  , "HM_EXIT_
 // ── 8.  TODO / Phase-Gates ───────────────────────────────────────────────────
 // v2 (post C13 sign-off ~26.05.): Short-Pfad spiegeln, gap-open earnings pre-defensive.
 // v3 (post Phase-B sign-off ~Ende Juli):
-//   • i_atr_mult per family aus mp.ZONE_CAL_OB / _FVG / _BOS / _SWEEP ableiten
-//   • Quality-Sizing aus mp.HERO_QUALITY_TIER + ZONE_HR_* Hit-Rates
+//   • i_atr_mult per family aus den ZONE_CAL_OB / _FVG / _BOS / _SWEEP Feldern ableiten
+//   • Quality-Sizing aus dem HERO_QUALITY_TIER Feld + ZONE_HR_* Hit-Rates
 // v4: state-persistence via webhook reconstruction (kein var-Loss bei recompile).
