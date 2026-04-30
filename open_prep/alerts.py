@@ -6,6 +6,7 @@ Configuration is loaded from ``artifacts/open_prep/alert_config.json``.
 """
 from __future__ import annotations
 
+import contextlib
 import ipaddress
 import json
 import logging
@@ -74,10 +75,8 @@ def save_alert_config(config: dict[str, Any]) -> Path:
             os.fsync(fh.fileno())
         os.replace(tmp_path, ALERT_CONFIG_PATH)
     except BaseException:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp_path)
-        except OSError:
-            pass
         raise
     logger.info("Saved alert config → %s", ALERT_CONFIG_PATH)
     return ALERT_CONFIG_PATH
