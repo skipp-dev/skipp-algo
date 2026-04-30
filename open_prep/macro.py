@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import csv
 import io
 import json
@@ -28,10 +29,8 @@ except Exception:  # pragma: no cover
 
 _prev_trading_day: Any = None
 
-try:
+with contextlib.suppress(Exception):  # pragma: no cover
     from newsstack_fmp._market_cal import prev_trading_day as _prev_trading_day
-except Exception:  # pragma: no cover
-    pass
 
 
 logger = logging.getLogger(__name__)
