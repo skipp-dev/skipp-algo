@@ -543,6 +543,11 @@ def probe_uw_market_tide() -> tuple[str, str]:
     return _uw_probe("/api/market/market-tide", None, "market-tide")
 
 
+def probe_uw_insider_transactions() -> tuple[str, str]:
+    """Unusual Whales /api/insider/transactions — bulk Form-4 (v3 P-4c)."""
+    return _uw_probe("/api/insider/transactions", {"limit": "1"}, "insider-tx")
+
+
 def probe_bz_ownership() -> tuple[str, str]:
     return _bz_get("/api/v2.1/ownership", {"symbols": "AAPL"})
 
@@ -757,6 +762,7 @@ PROBES: list[Probe] = [
     Probe("UnusualWhales /api/darkpool/{ticker}", probe_uw_darkpool, critical=False),
     Probe("UnusualWhales /api/stock/{ticker}/spot-exposures/strike", probe_uw_spot_gex, critical=False),
     Probe("UnusualWhales /api/market/market-tide", probe_uw_market_tide, critical=False),
+    Probe("UnusualWhales /api/insider/transactions", probe_uw_insider_transactions, critical=False),
     Probe("Benzinga /api/v2.1/fundamentals", probe_bz_fundamentals, critical=False),
     Probe("Benzinga /api/v2.1/ownership", probe_bz_ownership, critical=False),
     Probe("Benzinga /api/v2.1/instruments", probe_bz_instruments, critical=False),

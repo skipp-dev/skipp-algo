@@ -37,6 +37,8 @@ UW_DARKPOOL_RECENT_PATH = "/darkpool/recent"
 UW_SPOT_GEX_STRIKE_PATH = "/stock/{ticker}/spot-exposures/strike"
 # v3 P-4d: marketwide call/put-premium tide
 UW_MARKET_TIDE_PATH = "/market/market-tide"
+# v3 P-4c: bulk Form-4 insider transactions (single source for monitor + ML)
+UW_INSIDER_TX_PATH = "/insider/transactions"
 
 
 class UnusualWhalesAdapter:
@@ -239,6 +241,23 @@ class UnusualWhalesAdapter:
         data = self._get_json(UW_MARKET_TIDE_PATH)
         return self._unwrap_list(data)
 
+    # ── v3 P-4c: bulk Form-4 insider transactions ──
+
+    def fetch_insider_transactions(
+        self, *, limit: int = 100, ticker: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Fetch Form-4 insider transactions (bulk or per-ticker).
+
+        Each record is one Form-4 line item — drop-in compatible with the
+        FMP per-symbol shape mapped earlier in P-3c.
+        """
+        params: dict[str, Any] = {"limit": str(limit)}
+        sym = (ticker or "").strip().upper()
+        if sym:
+            params["ticker_symbol"] = sym
+        data = self._get_json(UW_INSIDER_TX_PATH, params=params)
+        return self._unwrap_list(data)
+
 
 # ── Module-level helpers (mirrors ingest_benzinga_financial.py shape) ──
 
@@ -343,6 +362,26 @@ def fetch_uw_market_tide(api_key: str) -> list[dict[str, Any]]:
         return adapter.fetch_market_tide()
     except Exception:
         logger.warning("fetch_uw_market_tide failed", exc_info=True)
+        return []
+    finally:
+        adapter.close()
+
+
+def fetch_uw_insider_transactions(
+    api_key: str, *, limit: int = 100, ticker: str | None = None,
+) -> list[dict[str, Any]]:
+    """Standalone wrapper for UW Form-4 insider transactions (v3 P-4c).
+
+    Supports either bulk-mode (no ticker) or per-symbol filtering.
+    Returns ``[]`` on any error; never raises.
+    """
+    adapter = _adapter_or_none(api_key)
+    if adapter is None:
+        return []
+    try:
+        return adapter.fetch_insider_transactions(limit=limit, ticker=ticker)
+    except Exception:
+        logger.warning("fetch_uw_insider_transactions failed", exc_info=True)
         return []
     finally:
         adapter.close()
