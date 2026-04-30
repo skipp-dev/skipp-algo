@@ -183,12 +183,15 @@ plotshape(show_arrows and trig_bear, "SMC Breakdown", shape.triangledown,
      location.abovebar, colDn, size = size.small)
 
 // ── Alerts ─────────────────────────────────────────────────────
-
-alertcondition(trig_bull, title = "SMC Breakout",
+// H-1 (system review 2026-04-24): every alertcondition() must be gated
+// against intra-bar firing. _alertGate is the canonical token the audit
+// pin (tests/test_pine_alert_bar_close_gate.py) recognises.
+_alertGate = barstate.isconfirmed
+alertcondition(_alertGate and trig_bull, title = "SMC Breakout",
      message = "SMC Breakout (BOS/CHoCH bull through resistance)")
-alertcondition(trig_bear, title = "SMC Breakdown",
+alertcondition(_alertGate and trig_bear, title = "SMC Breakdown",
      message = "SMC Breakdown (BOS/CHoCH bear through support)")
-alertcondition(trig_bull or trig_bear, title = "SMC Breakout or Breakdown",
+alertcondition(_alertGate and (trig_bull or trig_bear), title = "SMC Breakout or Breakdown",
      message = "SMC Breakout or Breakdown")
 
 // ── Win/Loss tracker (ATR-RR simulation) ───────────────────────

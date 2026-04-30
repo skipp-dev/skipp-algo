@@ -168,12 +168,16 @@ if barstate.islast
 
 // ── 7.  ALERTS — edge-detected, ein Pulse pro Event ──────────────────────────
 // Master-Pulse-Semantik: long_invalidated_now ist EDGE, nicht Level.
-alertcondition(can_act and entry_touch                , "HM_ENTRY"     , "Hold-Manager: Entry touched")
-alertcondition(can_act and t1_hit and not t1_hit[1]   , "HM_T1"        , "Hold-Manager: T1 reached")
-alertcondition(can_act and t2_hit and not t2_hit[1]   , "HM_T2"        , "Hold-Manager: T2 reached — exit")
-alertcondition(can_act and stop_hit and not stop_hit[1], "HM_STOP"     , "Hold-Manager: Stop hit")
-alertcondition(can_act and time_stop_hit and not time_stop_hit[1], "HM_TIMESTOP", "Hold-Manager: Time-Stop hit")
-alertcondition(can_act and exit_edge                  , "HM_EXIT_ANY"  , "Hold-Manager: any exit (master)")
+// H-1 (system review 2026-04-24): bind alertcondition() to bar-close gate.
+// Mirrors can_act but uses literal _alertGate token recognised by
+// tests/test_pine_alert_bar_close_gate.py.
+_alertGate = (not i_close_only) or barstate.isconfirmed
+alertcondition(_alertGate and can_act and entry_touch                , "HM_ENTRY"     , "Hold-Manager: Entry touched")
+alertcondition(_alertGate and can_act and t1_hit and not t1_hit[1]   , "HM_T1"        , "Hold-Manager: T1 reached")
+alertcondition(_alertGate and can_act and t2_hit and not t2_hit[1]   , "HM_T2"        , "Hold-Manager: T2 reached — exit")
+alertcondition(_alertGate and can_act and stop_hit and not stop_hit[1], "HM_STOP"     , "Hold-Manager: Stop hit")
+alertcondition(_alertGate and can_act and time_stop_hit and not time_stop_hit[1], "HM_TIMESTOP", "Hold-Manager: Time-Stop hit")
+alertcondition(_alertGate and can_act and exit_edge                  , "HM_EXIT_ANY"  , "Hold-Manager: any exit (master)")
 
 // ── 8.  TODO / Phase-Gates ───────────────────────────────────────────────────
 // v2 (post C13 sign-off ~26.05.): Short-Pfad spiegeln, gap-open earnings pre-defensive.
