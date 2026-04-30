@@ -77,7 +77,6 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("smc_tv_bridge/smc_api.py", 85),
         ("open_prep/alerts.py", 240),
         ("open_prep/run_open_prep.py", 4511),
-        ("open_prep/macro.py", 33),
         ("open_prep/streamlit_monitor.py", 75),
         ("open_prep/streamlit_monitor.py", 126),
         ("newsstack_fmp/ingest_benzinga.py", 565),
