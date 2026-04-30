@@ -181,11 +181,11 @@ def test_no_warnings_ignore_in_prod() -> None:
 
 _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     ("newsstack_fmp/run.py", 22),
-    ("open_prep/candidate_weights.py", 208),
+    ("open_prep/candidate_weights.py", 207),
     ("open_prep/feature_importance_report.py", 305),
-    ("open_prep/outcome_backfill.py", 410),
+    ("open_prep/outcome_backfill.py", 411),
     ("open_prep/realtime_signals.py", 2631),
-    ("open_prep/run_open_prep.py", 5796),
+    ("open_prep/run_open_prep.py", 5775),
     ("smc_tv_bridge/smc_api.py", 35),
 })
 
@@ -239,9 +239,9 @@ _FROZEN_SYSPATH_SITES: frozenset[tuple[str, int, str]] = frozenset({
     ("open_prep/realtime_signals.py", 1067, "insert"),
     ("open_prep/streamlit_monitor.py", 33, "insert"),
     ("smc_tv_bridge/smc_api.py", 32, "insert"),
-    ("streamlit_databento_volatility_screener.py", 9, "insert"),
-    ("streamlit_smc_micro_base_generator.py", 9, "insert"),
-    ("streamlit_terminal.py", 273, "insert"),
+    ("streamlit_databento_volatility_screener.py", 8, "insert"),
+    ("streamlit_smc_micro_base_generator.py", 8, "insert"),
+    ("streamlit_terminal.py", 274, "insert"),
 })
 
 
