@@ -5,10 +5,11 @@ Why this module exists
 ``terminal_bitcoin.fetch_fear_greed`` already wires *crypto* F&G from
 ``api.alternative.me`` into the Bitcoin tab — but that index is
 crypto-only and not relevant for the SMC / Open-Prep equity scoring
-pipeline. The FMP ``/stable/fear-and-greed-index`` endpoint returns 404
-on Ultimate (logged once via ``_log_feature_unavailable_once``), so
-``open_prep/macro.py::get_fear_and_greed_index`` is effectively a dead
-fallback today.
+pipeline. The FMP ``/stable/fear-and-greed-index`` endpoint was retired
+(returned 404 on Ultimate, legacy ``/api/v3`` returns 403 "Legacy
+Endpoint"); the dormant ``open_prep/macro.py::get_fear_and_greed_index``
+caller and its consumer in ``terminal_bitcoin.fetch_fear_greed`` were
+removed in P-6 (2026-04-30; see docs/reviews/2026-04-24-system-review.md).
 
 This module fetches CNN's public dataviz endpoint (the one that powers
 the cnn.com/markets/fear-and-greed page). The endpoint is unauthenticated

@@ -4,15 +4,12 @@ import os
 from datetime import date
 from unittest.mock import MagicMock, patch
 
-import httpx
-
 from terminal_bitcoin import (
     fetch_btc_news,
     fetch_btc_ohlcv,
     fetch_btc_quote,
     fetch_crypto_listings,
     fetch_crypto_movers,
-    fetch_fear_greed,
 )
 from terminal_fmp_insights import fetch_fmp_profiles, fetch_fmp_quotes, fetch_fmp_ratios
 from terminal_fmp_technicals import _fetch_indicator, _fetch_price
@@ -379,27 +376,9 @@ def test_fetch_btc_news_uses_shared_news_path_and_fallback() -> None:
     assert client.get_stock_latest_news.call_args_list[1].kwargs == {"limit": 50}
 
 
-def test_fetch_fear_greed_fmp_fallback_uses_shared_client() -> None:
-    fake_response = MagicMock()
-    fake_response.raise_for_status.side_effect = httpx.ReadTimeout("down")
-    client = MagicMock()
-    client.get_fear_and_greed_index.return_value = [{"value": 55, "valueClassification": "Greed", "timestamp": "2026-03-25"}]
+# ``test_fetch_fear_greed_fmp_fallback_uses_shared_client`` removed in P-6
+# (2026-04-30): FMP retired ``/stable/fear-and-greed-index`` and the FMP
+# fallback branch in ``terminal_bitcoin.fetch_fear_greed`` was deleted.
+# alternative.me is the sole F&G source for the crypto tile.
+# See docs/reviews/2026-04-24-system-review.md (P-6).
 
-    with patch(
-        "terminal_bitcoin._get_cached",
-        return_value=None,
-    ), patch(
-        "terminal_bitcoin._set_cached"
-    ), patch(
-        "terminal_bitcoin._get_client",
-        return_value=MagicMock(get=MagicMock(return_value=fake_response)),
-    ), patch(
-        "terminal_bitcoin._make_fmp_client",
-        return_value=client,
-    ):
-        row = fetch_fear_greed()
-
-    assert row is not None
-    assert row.value == 55.0
-    assert row.label == "Greed"
-    client.get_fear_and_greed_index.assert_called_once()

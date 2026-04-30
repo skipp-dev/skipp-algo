@@ -69,11 +69,11 @@ _FROZEN_BARE_TYPE_IGNORE_SITES: frozenset[tuple[str, int]] = frozenset(
         ("terminal_bitcoin.py", 552),
         ("terminal_bitcoin.py", 561),
         ("terminal_bitcoin.py", 639),
-        ("terminal_bitcoin.py", 711),
-        ("terminal_bitcoin.py", 753),
-        ("terminal_bitcoin.py", 778),
-        ("terminal_bitcoin.py", 804),
-        ("terminal_bitcoin.py", 857),
+        ("terminal_bitcoin.py", 694),
+        ("terminal_bitcoin.py", 736),
+        ("terminal_bitcoin.py", 761),
+        ("terminal_bitcoin.py", 787),
+        ("terminal_bitcoin.py", 840),
     }
 )
 
