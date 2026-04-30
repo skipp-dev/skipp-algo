@@ -59,6 +59,9 @@ concurrency:
   group: f2-promotion-gate-daily
   cancel-in-progress: false
 
+env:
+  PYTHONPATH: ${{ github.workspace }}
+
 jobs:
   promotion-gate:
     runs-on: ubuntu-latest

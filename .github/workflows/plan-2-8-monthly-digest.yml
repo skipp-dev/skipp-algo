@@ -22,6 +22,9 @@ permissions:
   contents: read
   actions: read
 
+env:
+  PYTHONPATH: ${{ github.workspace }}
+
 jobs:
   monthly-digest:
     runs-on: ubuntu-latest

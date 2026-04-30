@@ -10,13 +10,12 @@ from typing import Any
 
 import pandas as pd
 
-from scripts.smc_atomic_write import atomic_write_text
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.load_databento_export_bundle import load_export_bundle
+from scripts.smc_atomic_write import atomic_write_text  # noqa: E402
+from scripts.load_databento_export_bundle import load_export_bundle  # noqa: E402
 from smc_integration.artifact_resolution import resolve_structure_artifact_inputs
 from smc_integration.release_policy import (
     RELEASE_REFERENCE_SYMBOLS,
