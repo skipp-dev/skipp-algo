@@ -121,10 +121,13 @@ def test_mobile_consumes_bus_schema() -> None:
     assert "7001" in source
 
 
-def test_mobile_has_6_bus_bindings() -> None:
+def test_mobile_has_8_bus_bindings() -> None:
     source = _read(MOBILE_PATH)
     count = source.count("input.source(")
-    assert count == 6
+    # 6 baseline bindings + 2 Trade-Mgmt rows (Trade / Stop) added in the
+    # mobile-mirror of the desktop dashboard's Trade-Mgmt drill-down
+    # (system review 2026-04-24, mirrors var_budget Hold +2 ledger bump).
+    assert count == 8
 
 
 def test_mobile_has_no_overlays() -> None:
