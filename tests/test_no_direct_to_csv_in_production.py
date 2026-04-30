@@ -64,9 +64,13 @@ def _is_json_dump_to_open_writer(call: ast.Call) -> bool:
     an explicit exemption marker for every json.dump in scripts/.
     """
     func = call.func
-    if isinstance(func, ast.Attribute) and func.attr == "dump":
-        if isinstance(func.value, ast.Name) and func.value.id == "json":
-            return True
+    if (
+        isinstance(func, ast.Attribute)
+        and func.attr == "dump"
+        and isinstance(func.value, ast.Name)
+        and func.value.id == "json"
+    ):
+        return True
     return False
 
 
