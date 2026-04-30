@@ -108,6 +108,11 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # positives: hardcoded pgrep / sys.executable -m argv lists.
         ("open_prep/realtime_signals.py", 183, ("S603",)),
         ("open_prep/realtime_signals.py", 327, ("S603",)),
+        # open_prep/realtime_signals.py:254,325 — SIM115: long-lived
+        # advisory file lock + log file handle held open across the
+        # detached engine subprocess lifetime; ``with`` is unsuitable.
+        ("open_prep/realtime_signals.py", 254, ("SIM115",)),
+        ("open_prep/realtime_signals.py", 325, ("SIM115",)),
         # smc_integration/release_policy.py:1072 — Bandit S603 false
         # positive: ``git rev-parse HEAD`` via shutil.which("git").
         ("smc_integration/release_policy.py", 1072, ("S603",)),
