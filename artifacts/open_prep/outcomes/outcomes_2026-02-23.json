@@ -9,7 +9,7 @@
     "gap_bucket_label": "tiny",
     "rvol_bucket_label": "low",
     "regime": "RISK_ON",
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": true,
+    "pnl_30m_pct": 0.8458
   }
 ]

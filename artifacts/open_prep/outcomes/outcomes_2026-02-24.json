@@ -9,8 +9,8 @@
     "gap_bucket_label": "extreme",
     "rvol_bucket_label": "very_high",
     "regime": "NEUTRAL",
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": false,
+    "pnl_30m_pct": -1.5704
   },
   {
     "date": "2026-02-24",
@@ -48,8 +48,8 @@
     "gap_bucket_label": "extreme",
     "rvol_bucket_label": "very_high",
     "regime": "NEUTRAL",
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": true,
+    "pnl_30m_pct": 3.3333
   },
   {
     "date": "2026-02-24",
@@ -61,8 +61,8 @@
     "gap_bucket_label": "extreme",
     "rvol_bucket_label": "very_high",
     "regime": "NEUTRAL",
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": false,
+    "pnl_30m_pct": -0.0727
   },
   {
     "date": "2026-02-24",
@@ -74,8 +74,8 @@
     "gap_bucket_label": "extreme",
     "rvol_bucket_label": "very_high",
     "regime": "NEUTRAL",
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": false,
+    "pnl_30m_pct": -3.2573
   },
   {
     "date": "2026-02-24",
@@ -87,8 +87,8 @@
     "gap_bucket_label": "extreme",
     "rvol_bucket_label": "very_high",
     "regime": "NEUTRAL",
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": true,
+    "pnl_30m_pct": 0.7524
   },
   {
     "date": "2026-02-24",
@@ -100,8 +100,8 @@
     "gap_bucket_label": "extreme",
     "rvol_bucket_label": "very_high",
     "regime": "NEUTRAL",
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": false,
+    "pnl_30m_pct": -0.5584
   },
   {
     "date": "2026-02-24",
@@ -113,8 +113,8 @@
     "gap_bucket_label": "extreme",
     "rvol_bucket_label": "very_high",
     "regime": "NEUTRAL",
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": false,
+    "pnl_30m_pct": -1.0345
   },
   {
     "date": "2026-02-24",

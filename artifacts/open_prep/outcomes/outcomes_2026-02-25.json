@@ -9,8 +9,8 @@
     "gap_bucket_label": "extreme",
     "rvol_bucket_label": "normal",
     "regime": "NEUTRAL",
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": true,
+    "pnl_30m_pct": 5.9071
   },
   {
     "date": "2026-02-25",
@@ -22,8 +22,8 @@
     "gap_bucket_label": "extreme",
     "rvol_bucket_label": "very_high",
     "regime": "NEUTRAL",
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": true,
+    "pnl_30m_pct": 28.8889
   },
   {
     "date": "2026-02-25",
@@ -35,8 +35,8 @@
     "gap_bucket_label": "medium",
     "rvol_bucket_label": "normal",
     "regime": "NEUTRAL",
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": false,
+    "pnl_30m_pct": -0.0767
   },
   {
     "date": "2026-02-25",
@@ -48,8 +48,8 @@
     "gap_bucket_label": "medium",
     "rvol_bucket_label": "normal",
     "regime": "NEUTRAL",
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": true,
+    "pnl_30m_pct": 2.0041
   },
   {
     "date": "2026-02-25",
@@ -61,8 +61,8 @@
     "gap_bucket_label": "extreme",
     "rvol_bucket_label": "normal",
     "regime": "NEUTRAL",
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": true,
+    "pnl_30m_pct": 8.3545
   },
   {
     "date": "2026-02-25",
@@ -74,8 +74,8 @@
     "gap_bucket_label": "medium",
     "rvol_bucket_label": "normal",
     "regime": "NEUTRAL",
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": true,
+    "pnl_30m_pct": 3.0546
   },
   {
     "date": "2026-02-25",
@@ -87,8 +87,8 @@
     "gap_bucket_label": "medium",
     "rvol_bucket_label": "normal",
     "regime": "NEUTRAL",
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": true,
+    "pnl_30m_pct": 1.8954
   },
   {
     "date": "2026-02-25",
@@ -100,8 +100,8 @@
     "gap_bucket_label": "large",
     "rvol_bucket_label": "normal",
     "regime": "NEUTRAL",
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": true,
+    "pnl_30m_pct": 2.5612
   },
   {
     "date": "2026-02-25",
@@ -113,8 +113,8 @@
     "gap_bucket_label": "medium",
     "rvol_bucket_label": "normal",
     "regime": "NEUTRAL",
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": true,
+    "pnl_30m_pct": 1.7627
   },
   {
     "date": "2026-02-25",
@@ -126,7 +126,7 @@
     "gap_bucket_label": "medium",
     "rvol_bucket_label": "normal",
     "regime": "NEUTRAL",
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": true,
+    "pnl_30m_pct": 0.8155
   }
 ]
