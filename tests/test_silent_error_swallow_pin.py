@@ -56,9 +56,9 @@ _DIR_EXCLUDE = frozenset(
 _FROZEN_SITES: dict[str, frozenset[int]] = {
     "newsstack_fmp/ingest_benzinga.py": frozenset({565}),
     "open_prep/alerts.py": frozenset({239}),
-    "open_prep/run_open_prep.py": frozenset({4511}),
+    "open_prep/run_open_prep.py": frozenset({4492}),
     "open_prep/streamlit_monitor.py": frozenset({75, 126}),
-    "scripts/generate_smc_micro_base_from_databento.py": frozenset({1189, 1191, 1239}),
+    "scripts/generate_smc_micro_base_from_databento.py": frozenset({1192, 1194, 1242}),
     "smc_tv_bridge/smc_api.py": frozenset({85}),
     "streamlit_terminal_alerts.py": frozenset({92}),
 }
