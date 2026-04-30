@@ -439,6 +439,20 @@ def probe_bz_options_activity() -> tuple[str, str]:
     return _bz_get("/api/v2.1/calendar/options_activity", {"parameters[tickers]": "AAPL"})
 
 
+def _uw_headers(key: str) -> dict[str, str]:
+    """Standard UW header set (Bearer + mandatory client-id).
+
+    v3 P-4a: ``UW-CLIENT-API-ID`` is documented as required in the UW
+    public skill.md manifest. Set here so all UW probes are consistent
+    with the production adapter (newsstack_fmp/ingest_unusual_whales.py).
+    """
+    return {
+        "Authorization": f"Bearer {key}",
+        "Accept": "application/json",
+        "UW-CLIENT-API-ID": "100001",
+    }
+
+
 def probe_uw_options_flow() -> tuple[str, str]:
     """Unusual Whales /api/option-trades/flow-alerts — active UOA source.
 
@@ -453,7 +467,7 @@ def probe_uw_options_flow() -> tuple[str, str]:
         r = httpx.get(
             "https://api.unusualwhales.com/api/option-trades/flow-alerts",
             params={"ticker_symbol": "AAPL", "limit": "1"},
-            headers={"Authorization": f"Bearer {key}", "Accept": "application/json"},
+            headers=_uw_headers(key),
             timeout=15.0,
         )
     except httpx.HTTPError as exc:

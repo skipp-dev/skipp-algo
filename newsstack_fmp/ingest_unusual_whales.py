@@ -51,6 +51,11 @@ class UnusualWhalesAdapter:
             headers={
                 "Accept": "application/json",
                 "Authorization": f"Bearer {api_key}",
+                # v3 P-4a: UW marks UW-CLIENT-API-ID as a mandatory header
+                # in their public skill.md manifest. Currently tolerated as
+                # missing, but UW may begin enforcing this; setting it now
+                # avoids a future surprise 4xx.
+                "UW-CLIENT-API-ID": "100001",
             },
         )
 
