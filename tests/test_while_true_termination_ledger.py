@@ -78,7 +78,10 @@ WHILE_TRUE_LEDGER: set[tuple[str, int]] = {
     ("databento_universe.py", 247),
     ("open_prep/realtime_signals.py", 2662),
     ("open_prep/macro.py", 83),
-    ("smc_core/resilient.py", 86),
+    # resilient retry decorator: exits via return on success, raise after
+    # max retries, or return on_failure(exc) callback. CWE-835 mitigated
+    # by three explicit exit paths (system review 2026-04-30).
+    ("smc_core/resilient.py", 85),
     ("newsstack_fmp/ingest_benzinga.py", 514),
     ("newsstack_fmp/shared_fetch.py", 266),
     ("newsstack_fmp/pipeline.py", 886),
