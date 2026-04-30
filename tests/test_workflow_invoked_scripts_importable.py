@@ -149,8 +149,12 @@ def test_workflow_invoked_scripts_are_importable(script_relpath: str) -> None:
     ``ImportError`` on ``scripts`` is treated as failure.
     """
     script_path = REPO_ROOT / script_relpath
-    if not script_path.exists():
-        pytest.skip(f"{script_relpath} referenced by workflow but missing in tree")
+    # If a workflow references a script that does not exist, that is a real
+    # bug (the workflow will fail at runtime). Fail the test instead of
+    # skipping so it shows up in the pytest.skip budget ledger as zero.
+    assert script_path.exists(), (
+        f"{script_relpath} referenced by workflow but missing in tree"
+    )
 
     env = dict(os.environ)
     env["PYTHONPATH"] = str(REPO_ROOT)
