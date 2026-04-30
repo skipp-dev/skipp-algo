@@ -576,33 +576,6 @@ class TestGetMacroCalendar:
         assert "dead" in diag["error"]
 
 
-class TestGetShortInterest:
-    def test_returns_empty_mapping_after_endpoint_retirement(self):
-        # Lane 1 (2026-04-27): /stable/short-interest is retired (HTTP 404).
-        # The method must short-circuit, NOT call the network, and return {}.
-        c = SMCFMPClient(api_key="k")
-        with patch.object(c, "_get") as get_mock:
-            out = c.get_short_interest(["aapl", "tsla", "MISS"])
-        assert out == {}
-        assert not get_mock.called
-
-    def test_returns_empty_for_blank_symbols(self):
-        c = SMCFMPClient(api_key="k")
-        with patch.object(c, "_get") as get_mock:
-            out = c.get_short_interest(["", "  "])
-        assert out == {}
-        assert not get_mock.called
-
-    def test_logs_deprecation_warning_only_once(self, caplog):
-        c = SMCFMPClient(api_key="k")
-        import logging
-        with caplog.at_level(logging.WARNING, logger="scripts.smc_fmp_client"):
-            c.get_short_interest(["AAPL"])
-            c.get_short_interest(["TSLA"])
-        warnings = [r for r in caplog.records if "short-interest" in r.message]
-        assert len(warnings) == 1
-
-
 class TestGetTreasuryYields:
     def test_returns_yields_and_inversion(self):
         c = SMCFMPClient(api_key="k")

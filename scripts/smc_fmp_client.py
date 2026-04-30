@@ -631,27 +631,6 @@ class SMCFMPClient:
         }
         return rows
 
-    def get_short_interest(self, symbols: list[str]) -> dict[str, float]:
-        """Fetch short interest as % of float for a list of symbols.
-
-        DEPRECATED (Lane 1, 2026-04-27): The FMP ``/stable/short-interest``
-        endpoint has been fully retired (returns HTTP 404 with empty
-        body). FMP no longer publishes a 1:1 replacement under
-        ``/stable``; callers must treat short-interest enrichment as
-        unavailable and degrade gracefully.
-
-        This method now returns ``{}`` immediately and logs a one-shot
-        warning so the failure is visible rather than silently producing
-        empty enrichment fields.
-        """
-        if not getattr(self, "_short_interest_deprecation_logged", False):
-            logger.warning(
-                "FMP /stable/short-interest endpoint retired; "
-                "short_interest enrichment is unavailable. Returning empty mapping."
-            )
-            self._short_interest_deprecation_logged = True
-        return {}
-
     def get_treasury_yields(self) -> dict[str, Any]:
         """Fetch most recent US Treasury yields for 2Y and 10Y.
 
