@@ -45,7 +45,7 @@ env:
 
 jobs:
   rolling-benchmark:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-m' }}
     timeout-minutes: 60
 
     steps:

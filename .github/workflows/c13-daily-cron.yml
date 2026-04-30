@@ -52,7 +52,7 @@ concurrency:
 
 jobs:
   daily-pipeline:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-m' }}
     timeout-minutes: 20
     env:
       LIVE_DIR: cache/live
