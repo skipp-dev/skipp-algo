@@ -617,6 +617,20 @@ def _log_feature_unavailable_once(
         logger.info(message)
 
 
+def _normalise_analyst_estimates_period(period: object) -> str:
+    """Coerce ``period`` to a value FMP /stable/analyst-estimates accepts.
+
+    The endpoint returns HTTP 400 for anything other than ``annual`` or
+    ``quarterly``. Historical callers (and FMP's sibling endpoints) pass
+    ``quarter``; map any value starting with 'q' (case-insensitive) to
+    ``quarterly`` and everything else (including blank) to ``annual``.
+    """
+    text = str(period).strip().lower() if period is not None else ""
+    if text.startswith("q"):
+        return "quarterly"
+    return "annual"
+
+
 def _aggregate_sector_snapshot_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Translate /stable/sector-performance-snapshot rows to the legacy
     ``[{sector, changesPercentage}, ...]`` shape consumers expect.
@@ -1505,10 +1519,10 @@ class FMPClient:
                     return dict(row)
         return {}
 
-    def get_analyst_estimates(self, symbol: str, *, period: str = "quarter", limit: int = 8) -> list[dict[str, Any]]:
+    def get_analyst_estimates(self, symbol: str, *, period: str = "annual", limit: int = 8) -> list[dict[str, Any]]:
         params = {
             "symbol": str(symbol).strip().upper(),
-            "period": str(period).strip() or "quarter",
+            "period": _normalise_analyst_estimates_period(period),
             "limit": max(int(limit), 1),
         }
         try:

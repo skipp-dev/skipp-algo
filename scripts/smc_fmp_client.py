@@ -57,6 +57,21 @@ def _log_endpoint_failure_once(endpoint: str, exc: BaseException) -> None:
         exc,
     )
 
+def _normalise_analyst_estimates_period(period: object) -> str:
+    """Normalise ``period`` to a value the FMP /stable/analyst-estimates endpoint accepts.
+
+    The endpoint rejects anything other than ``annual`` or ``quarterly`` with HTTP 400.
+    Historical callers (and the FMP docs for sibling endpoints) use ``quarter``; we
+    coerce that — and any blank value — to a valid form so live callers do not silently
+    return an empty list. Anything starting with 'q' (case-insensitive) becomes
+    ``quarterly``; everything else (including blank) becomes ``annual``.
+    """
+    text = str(period).strip().lower() if period is not None else ""
+    if text.startswith("q"):
+        return "quarterly"
+    return "annual"
+
+
 _BASE_URL = "https://financialmodelingprep.com"
 # HTTP status codes worth a retry. Anything else is treated as fatal so
 # we don't silently swallow auth/404 problems via the @resilient pilot.
@@ -355,7 +370,7 @@ class SMCFMPClient:
         self,
         symbol: str,
         *,
-        period: str = "quarter",
+        period: str = "annual",
         limit: int = 4,
     ) -> list[dict[str, Any]]:
         requested_symbol = str(symbol).strip().upper()
@@ -363,7 +378,7 @@ class SMCFMPClient:
             return []
         params = {
             "symbol": requested_symbol,
-            "period": str(period).strip() or "quarter",
+            "period": _normalise_analyst_estimates_period(period),
             "limit": max(int(limit), 1),
         }
         try:
@@ -434,7 +449,7 @@ class SMCFMPClient:
                 ratios = dict(ratios_rows[0]) if ratios_rows and isinstance(ratios_rows[0], dict) else {}
                 key_metrics_rows = self.get_key_metrics_ttm(candidate_symbol)
                 key_metrics = dict(key_metrics_rows[0]) if key_metrics_rows and isinstance(key_metrics_rows[0], dict) else {}
-                analyst_estimates = self.get_analyst_estimates(candidate_symbol, period="quarter", limit=4)
+                analyst_estimates = self.get_analyst_estimates(candidate_symbol, period="annual", limit=4)
             except Exception as exc:
                 diagnostics["status"] = "error"
                 diagnostics["error"] = str(exc)

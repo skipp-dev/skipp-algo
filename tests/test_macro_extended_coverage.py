@@ -1053,7 +1053,7 @@ def test_get_analyst_estimates_defaults_and_overrides(
     client_with_get.get_analyst_estimates("aapl")
     assert recorder["call"] == (
         "/stable/analyst-estimates",
-        {"symbol": "AAPL", "period": "quarter", "limit": 8},
+        {"symbol": "AAPL", "period": "annual", "limit": 8},
     )
     client_with_get.get_analyst_estimates("aapl", period="annual", limit=0)
     assert recorder["call"][1] == {"symbol": "AAPL", "period": "annual", "limit": 1}
@@ -1064,7 +1064,15 @@ def test_get_analyst_estimates_blank_period_falls_back(
 ) -> None:
     recorder["return"] = []
     client_with_get.get_analyst_estimates("aapl", period="   ")
-    assert recorder["call"][1]["period"] == "quarter"
+    assert recorder["call"][1]["period"] == "annual"
+
+
+def test_get_analyst_estimates_quarter_normalised_to_quarterly(
+    client_with_get: FMPClient, recorder: dict[str, Any]
+) -> None:
+    recorder["return"] = []
+    client_with_get.get_analyst_estimates("aapl", period="quarter")
+    assert recorder["call"][1]["period"] == "quarterly"
 
 
 def test_get_earnings_report(client_with_get: FMPClient, recorder: dict[str, Any]) -> None:
