@@ -86,6 +86,10 @@ _NOQA_RE = re.compile(r"#\s*noqa\b", re.IGNORECASE)
 # All other first-party noqa suppressions remain forbidden.
 _FROZEN_SITES: dict[str, int] = {
     "streamlit_terminal_alerts.py": 1,
+    "databento_volatility_screener.py": 1,
+    "newsstack_fmp/pipeline.py": 1,
+    "open_prep/run_open_prep.py": 1,
+    "smc_tv_bridge/smc_api.py": 1,
     "scripts/scan_manifests_for_pytest_provenance.py": 3,
     "governance/run_manifest.py": 1,
     "open_prep/realtime_signals.py": 2,

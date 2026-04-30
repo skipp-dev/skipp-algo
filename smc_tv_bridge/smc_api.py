@@ -173,7 +173,7 @@ def _detect_structure_canonical(candles: list[dict[str, Any]], symbol: str, time
 # Provider layer — adapter-based (see ADR-001)
 # ══════════════════════════════════════════════════════════
 
-from smc_tv_bridge.adapters import CandleProvider, RegimeProvider, TechnicalScoreProvider
+from smc_tv_bridge.adapters import CandleProvider, RegimeProvider, TechnicalScoreProvider  # noqa: E402 -- adapter-based Provider layer per ADR-001, imported after upstream type defs
 
 _candle_provider: CandleProvider | None = None
 _regime_provider: RegimeProvider | None = None

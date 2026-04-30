@@ -54,7 +54,7 @@ logger = logging.getLogger(__name__)
 # (or any cached-derived dvs_* session_state entry) changes. See the
 # invalidation block in run_streamlit_app() for the affected keys.
 # Source of truth: smc_core.schema_version.SESSION_SCHEMA_VERSION (H-6).
-from smc_core.schema_version import SESSION_SCHEMA_VERSION as _DVS_SESSION_SCHEMA_VERSION
+from smc_core.schema_version import SESSION_SCHEMA_VERSION as _DVS_SESSION_SCHEMA_VERSION  # noqa: E402 -- cache-version source-of-truth, imported after streamlit/regex setup block
 
 _API_KEY_REDACTION_PATTERNS = (
     re.compile(r"(api[_-]?key=)([^&\s]+)", flags=re.IGNORECASE),
