@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import json
 import logging
@@ -1948,10 +1949,8 @@ def _fetch_finnhub_patterns(
             _raw_levels = sr.get("levels", []) if isinstance(sr, dict) else []
             sr_levels: list[float] = []
             for _lv in _raw_levels:
-                try:
+                with contextlib.suppress(ValueError, TypeError):
                     sr_levels.append(float(_lv))
-                except (ValueError, TypeError):
-                    pass
 
             # Extract signal from aggregate indicators
             tech_signal = ""
@@ -2214,10 +2213,8 @@ def _probe_data_capabilities(*, client: FMPClient, today: date) -> dict[str, dic
         except BaseException:
             if fd >= 0:
                 os.close(fd)
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(tmp)
-            except OSError:
-                pass
             raise
     except Exception as exc:
         logger.debug("Capability cache write failed: %s", exc)
@@ -3018,10 +3015,8 @@ def _save_atr_cache(
         except BaseException:
             if fd >= 0:
                 os.close(fd)
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(tmp)
-            except OSError:
-                pass
             raise
         # Evict stale cache files (> 7 days old) to prevent unbounded growth.
         _evict_stale_cache_files(ATR_CACHE_DIR, max_age_days=7)
@@ -3362,10 +3357,8 @@ def _pm_cache_save(
         except BaseException:
             if fd >= 0:
                 os.close(fd)
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(tmp)
-            except OSError:
-                pass
             raise
         # Evict stale PM cache files (> 2 days old).
         _evict_stale_cache_files(PM_CACHE_DIR, max_age_days=2)
@@ -5656,10 +5649,8 @@ def generate_open_prep_result(
         except BaseException:
             if _fd >= 0:
                 os.close(_fd)
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(_tmp_name)
-            except OSError:
-                pass
             raise
         # Backward-compat symlink so existing callers (vd_watch.sh, start_open_prep_suite.py)
         # that look in the package dir still find the file.
