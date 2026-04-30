@@ -193,6 +193,13 @@ except ImportError:  # pragma: no cover
     _fetch_uw_options = None  # type: ignore[assignment]
     _uw_configured = lambda: False  # type: ignore[assignment]
 
+# v3 P-3c: insider feed migrated from retired Benzinga endpoint to FMP
+# /stable/insider-trading/search (per-symbol). Benzinga adapter stays as fallback.
+try:
+    from scripts.smc_fmp_client import SMCFMPClient as _SMCFMPClient
+except ImportError:  # pragma: no cover
+    _SMCFMPClient = None  # type: ignore[assignment]
+
 try:
     from terminal_ui_helpers import safe_markdown_text as _safe_md
 except ImportError:  # pragma: no cover
@@ -347,7 +354,11 @@ def _cached_bz_insider_op(
     action: str | None = None,
     page_size: int = 100,
 ) -> list[dict[str, Any]]:
-    """Cache Benzinga insider transactions for 3 minutes."""
+    """Cache Benzinga insider transactions for 3 minutes.
+
+    v3 P-3c: kept as fallback per user instruction ("Behalte Benzinga").
+    Active path is :func:`_cached_fmp_insider_op` below.
+    """
     if _fetch_bz_insider is None:
         return []
     try:
@@ -358,6 +369,84 @@ def _cached_bz_insider_op(
     except Exception:
         logger.warning("_cached_bz_insider_op failed", exc_info=True)
         return []
+
+
+_FMP_INSIDER_TYPE_MAP = {
+    "P": ("P", "PURCHASE"),
+    "S": ("S", "SALE"),
+    "A": ("A", "AWARD", "GRANT"),
+    "D": ("D", "DISPOSITION"),
+    "M": ("M", "EXERCISE"),
+}
+
+
+def _fmp_insider_to_bz_shape(rec: dict[str, Any]) -> dict[str, Any]:
+    """Map an FMP insider-trading record into the Benzinga renderer shape."""
+    sym = str(rec.get("symbol") or rec.get("ticker") or "").upper()
+    try:
+        shares = float(rec.get("securitiesTransacted") or 0)
+    except (TypeError, ValueError):
+        shares = 0.0
+    try:
+        price = float(rec.get("price") or 0)
+    except (TypeError, ValueError):
+        price = 0.0
+    return {
+        "ticker": sym,
+        "company_name": rec.get("companyName") or rec.get("companyCik") or sym,
+        "owner_name": rec.get("reportingName") or "",
+        "owner_title": rec.get("typeOfOwner") or "",
+        "transaction_type": rec.get("transactionType") or "",
+        "date": rec.get("transactionDate") or rec.get("filingDate") or "",
+        "shares_traded": shares,
+        "price_per_share": price,
+        "total_value": shares * price,
+        "shares_held": rec.get("securitiesOwned") or 0,
+        "_fmp_raw": rec,
+    }
+
+
+@st.cache_data(ttl=180, show_spinner=False)
+def _cached_fmp_insider_op(
+    api_key: str,
+    tickers: str,
+    action: str | None = None,
+    page_size: int = 100,
+) -> list[dict[str, Any]]:
+    """Cache FMP insider transactions (per-ticker) for 3 minutes.
+
+    v3 P-3c: replaces the retired Benzinga ``/insiders/transactions`` feed.
+    FMP exposes only a per-symbol endpoint, so ``tickers`` is required.
+    ``action`` is applied client-side against the FMP ``transactionType``
+    field (e.g. ``"P-Purchase"`` → matches ``action="P"``).
+    """
+    if _SMCFMPClient is None or not api_key:
+        return []
+    syms = [t.strip().upper() for t in (tickers or "").split(",") if t.strip()]
+    if not syms:
+        return []
+    client = _SMCFMPClient(api_key=api_key)
+    out: list[dict[str, Any]] = []
+    per_sym = max(int(page_size) // max(len(syms), 1), 1)
+    for sym in syms:
+        try:
+            recs = client.get_insider_trading(sym, limit=per_sym) or []
+        except Exception:
+            logger.warning("_cached_fmp_insider_op failed for %s", sym, exc_info=True)
+            continue
+        for rec in recs:
+            if not isinstance(rec, dict):
+                continue
+            mapped = _fmp_insider_to_bz_shape(rec)
+            if action:
+                tt = str(mapped.get("transaction_type", "")).upper()
+                allowed = _FMP_INSIDER_TYPE_MAP.get(action.upper(), (action.upper(),))
+                if not any(tok in tt for tok in allowed):
+                    continue
+            out.append(mapped)
+            if len(out) >= page_size:
+                return out
+    return out
 
 
 @st.cache_data(ttl=120, show_spinner=False)
@@ -2059,14 +2148,29 @@ def main() -> None:
                 }
                 api_act = _act_map.get(ins_action_op)
 
-                ins_data_op = _cached_bz_insider_op(
-                    bz_key, date_from=_bz_from, date_to=_bz_to,
-                    action=api_act, page_size=ins_lim_op,
-                )
-
-                if ins_tk_op and ins_data_op:
-                    wanted = {t.strip() for t in ins_tk_op.split(",") if t.strip()}
-                    ins_data_op = [r for r in ins_data_op if str(r.get("ticker", "")).upper() in wanted]
+                # v3 P-3c: prefer FMP /stable/insider-trading/search (per-symbol).
+                # Falls back to retired Benzinga adapter only if FMP key missing.
+                _fmp_key = os.environ.get("FMP_API_KEY", "")
+                if _SMCFMPClient is not None and _fmp_key:
+                    if not ins_tk_op:
+                        st.info(
+                            "FMP insider feed requires at least one ticker — "
+                            "enter a symbol (e.g. AAPL) above to load transactions."
+                        )
+                        ins_data_op = []
+                    else:
+                        ins_data_op = _cached_fmp_insider_op(
+                            _fmp_key, ins_tk_op,
+                            action=api_act, page_size=ins_lim_op,
+                        )
+                else:
+                    ins_data_op = _cached_bz_insider_op(
+                        bz_key, date_from=_bz_from, date_to=_bz_to,
+                        action=api_act, page_size=ins_lim_op,
+                    )
+                    if ins_tk_op and ins_data_op:
+                        wanted = {t.strip() for t in ins_tk_op.split(",") if t.strip()}
+                        ins_data_op = [r for r in ins_data_op if str(r.get("ticker", "")).upper() in wanted]
 
                 if ins_data_op:
                     df_io = pd.DataFrame(ins_data_op)
