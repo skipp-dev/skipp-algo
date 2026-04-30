@@ -79,6 +79,10 @@ jobs:
           if [ "${{ github.event.inputs.feature_importance || 'true' }}" = "true" ]; then
             ARGS+=(--feature-importance)
           fi
+          # F-09: fail loud (exit 3) when the run made zero progress;
+          # without this the workflow silently went green even when no
+          # outcomes were resolved, skipped or failed.
+          ARGS+=(--require-progress)
           python -m open_prep.outcome_backfill "${ARGS[@]}"
 
       - name: Generate feature-importance report

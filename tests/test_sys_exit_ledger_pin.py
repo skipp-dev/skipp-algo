@@ -41,7 +41,7 @@ _DIR_EXCLUDE = frozenset({
 _SYS_EXIT_LEDGER: frozenset[tuple[str, int]] = frozenset({
     ("open_prep/candidate_weights.py", 240),
     ("open_prep/feature_importance_report.py", 351),
-    ("open_prep/outcome_backfill.py", 529),
+    ("open_prep/outcome_backfill.py", 549),
     ("pine_input_surface.py", 400),
     ("pine_input_surface.py", 402),
     ("test_usi_lint.py", 94),
