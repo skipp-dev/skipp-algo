@@ -561,7 +561,12 @@ class BenzingaWsAdapter:
 
                     # Optional subscribe handshake; server pushes news regardless.
                     auth_msg = json.dumps({"action": "subscribe", "data": {"streams": ["news"]}})
-                    with contextlib.suppress(Exception):
+                    # Suppress only the realistic transient failure: a closed/closing
+                    # connection. Any other failure (programming bug, type error,
+                    # serializer issue) should propagate to the outer reconnect
+                    # handler so it surfaces in logs rather than being silently
+                    # swallowed.
+                    with contextlib.suppress(websockets.exceptions.WebSocketException, OSError):
                         await ws.send(auth_msg)
 
                     async for message in ws:
