@@ -824,9 +824,11 @@ def main() -> None:
         atr_period = st.number_input("ATR period", min_value=1, max_value=200, value=14)
         atr_parallel_workers = st.number_input("ATR parallel workers", min_value=1, max_value=20, value=8)
 
-        if st.button("🔄 Sofort aktualisieren", width="stretch", on_click=_on_force_refresh):
-            if not auto_refresh_enabled:
-                st.rerun()
+        if (
+            st.button("🔄 Sofort aktualisieren", width="stretch", on_click=_on_force_refresh)
+            and not auto_refresh_enabled
+        ):
+            st.rerun()
 
         # Reset cache (forces a complete fresh pipeline run)
         if st.button("🔃 Cache leeren", width="stretch",
@@ -838,9 +840,11 @@ def main() -> None:
             st.toast("Cache geleert — nächster Refresh holt frische Daten", icon="🔃")
             st.rerun()
 
-        if st.button("🔎 Nur Universum neu laden", width="stretch", on_click=_on_reload_universe):
-            if not auto_refresh_enabled:
-                st.rerun()
+        if (
+            st.button("🔎 Nur Universum neu laden", width="stretch", on_click=_on_reload_universe)
+            and not auto_refresh_enabled
+        ):
+            st.rerun()
 
         # ── Data freshness diagnostics ──────────────────────
         _diag_last_fetch_raw = st.session_state.get("last_live_fetch_utc")
