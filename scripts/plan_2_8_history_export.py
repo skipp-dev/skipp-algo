@@ -18,10 +18,9 @@ import csv
 import datetime as _dt
 import json
 import sys
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
-from collections.abc import Iterable
-
 
 DEFAULT_FIELDS: tuple[str, ...] = (
     "captured_at",

@@ -393,6 +393,7 @@ class TestFetchSectorPerformance(unittest.TestCase):
     ) -> None:
         """Verify walk-back uses _prev_trading_day, not timedelta(days=1)."""
         from datetime import date as real_date
+
         from terminal_poller import fetch_sector_performance
 
         # prev_trading_day → always return a Friday

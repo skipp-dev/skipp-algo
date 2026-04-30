@@ -4,13 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 from scripts.audit_library_consumers import (
     audit,
     extract_consumer_refs,
     extract_exports,
 )
-
 
 _LIBRARY_SNIPPET = """\
 //@version=6

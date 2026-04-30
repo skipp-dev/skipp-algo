@@ -166,7 +166,7 @@ def build_snapshot_manifest(
         "symbols_with_fvg": 0,
         "symbols_with_liquidity_sweeps": 0,
     }
-    for symbol, bundle in zip(symbols_built, bundles):
+    for symbol, bundle in zip(symbols_built, bundles, strict=False):
         category_flags = _category_flags(bundle)
         if category_flags["has_bos"]:
             coverage_summary["symbols_with_bos"] += 1

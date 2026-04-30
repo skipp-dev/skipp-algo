@@ -47,6 +47,7 @@ from pathlib import Path
 from typing import Any
 
 from scripts.drift_alert import compute_drift_report
+import contextlib
 
 DEFAULT_OUTCOMES_DIR = Path("artifacts/open_prep/outcomes")
 DEFAULT_OUTPUT_DIR = Path("artifacts/drift")
@@ -254,10 +255,8 @@ def write_report(report: dict[str, Any], *, output_dir: Path, run_date: date) ->
             os.fsync(fh.fileno())
         os.replace(tmp_path, target)
     except Exception:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp_path)
-        except OSError:
-            pass
         raise
     return target
 

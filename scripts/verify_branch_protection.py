@@ -18,6 +18,7 @@ Exit codes
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import sys
@@ -105,10 +106,8 @@ def _github_get(path: str, token: str) -> tuple[int, Any]:
             return resp.status, body
     except urllib.error.HTTPError as exc:
         body = {}
-        try:
+        with contextlib.suppress(Exception):
             body = json.loads(exc.read())
-        except Exception:
-            pass
         return exc.code, body
 
 
@@ -175,10 +174,7 @@ def _check_branch_protection(token: str, report: ProtectionReport) -> None:
 
         contexts: list[str] = []
         checks_list = status_checks.get("checks", [])
-        if checks_list:
-            contexts = [c.get("context", "") for c in checks_list]
-        else:
-            contexts = status_checks.get("contexts", [])
+        contexts = [c.get("context", "") for c in checks_list] if checks_list else status_checks.get("contexts", [])
 
         for req_check in REQUIRED_STATUS_CHECKS:
             found = req_check in contexts

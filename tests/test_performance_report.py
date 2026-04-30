@@ -15,7 +15,6 @@ from scripts.generate_performance_report import (
     render_report,
 )
 
-
 # ── Grade helper ─────────────────────────────────────────────────────────────
 
 @pytest.mark.parametrize(

@@ -1,7 +1,7 @@
 """Tests for stale-batch protection (ENG-WS5-02)."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 
 from smc_integration.stale_batch_guard import (
     DEFAULT_AGING_HOURS,
@@ -10,7 +10,6 @@ from smc_integration.stale_batch_guard import (
     classify_batch,
     evaluate,
 )
-
 
 NOW = datetime(2026, 4, 20, 12, 0, tzinfo=UTC)
 

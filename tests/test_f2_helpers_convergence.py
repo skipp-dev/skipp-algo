@@ -23,7 +23,6 @@ from pathlib import Path
 
 import pytest
 
-
 F2_HELPERS = [
     "scripts.f2_run_promotion_gate",
     "scripts.f2_append_rollback_history",

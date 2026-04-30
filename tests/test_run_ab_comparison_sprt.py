@@ -12,7 +12,6 @@ from scripts.run_ab_comparison import (
 )
 from scripts.smc_sprt_stop_rule import SPRTConfig, terminal_decision
 
-
 # ---------------------------------------------------------------------------
 # terminal_decision (closed-form aggregate SPRT)
 # ---------------------------------------------------------------------------

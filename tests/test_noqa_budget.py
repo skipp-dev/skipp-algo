@@ -111,6 +111,13 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # smc_integration/release_policy.py:1072 — Bandit S603 false
         # positive: ``git rev-parse HEAD`` via shutil.which("git").
         ("smc_integration/release_policy.py", 1072, ("S603",)),
+        # E402 outliers — late imports after sys.path/streamlit setup
+        # blocks that pyproject's per-file-ignores cannot easily cover
+        # without disabling E402 for too-broad surface area.
+        ("databento_volatility_screener.py", 57, ("E402",)),
+        ("newsstack_fmp/pipeline.py", 868, ("E402",)),
+        ("open_prep/run_open_prep.py", 472, ("E402",)),
+        ("smc_tv_bridge/smc_api.py", 176, ("E402",)),
     }
 )
 

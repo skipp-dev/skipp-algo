@@ -11,6 +11,11 @@ import sys
 from dataclasses import dataclass, field
 from typing import Any
 
+from scripts.explicit_structure_from_bars import build_explicit_structure_from_bars
+from smc_adapters.ingest import build_structure_from_raw
+from smc_adapters.pine import snapshot_to_pine_payload
+from smc_core import apply_layering
+from smc_core.types import SmcMeta, TimedVolumeInfo, VolumeInfo
 from tests.parity.fixtures import PARITY_FIXTURES
 from tests.parity.normalization import (
     bridge_bos_to_dicts,
@@ -23,12 +28,6 @@ from tests.parity.normalization import (
     normalize_canonical_sweeps,
     strip_pine_style,
 )
-
-from scripts.explicit_structure_from_bars import build_explicit_structure_from_bars
-from smc_adapters.ingest import build_structure_from_raw
-from smc_adapters.pine import snapshot_to_pine_payload
-from smc_core import apply_layering
-from smc_core.types import SmcMeta, TimedVolumeInfo, VolumeInfo
 
 
 @dataclass

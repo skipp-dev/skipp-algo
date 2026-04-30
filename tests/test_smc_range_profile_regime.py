@@ -7,7 +7,6 @@ import pytest
 
 from scripts.smc_range_profile_regime import DEFAULTS, build_range_profile_regime
 
-
 # ── helpers ─────────────────────────────────────────────────────
 
 def _bars(n: int = 20, *, base: float = 100.0, spread: float = 2.0,

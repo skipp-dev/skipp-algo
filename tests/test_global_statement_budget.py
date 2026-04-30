@@ -77,8 +77,8 @@ def _all_sites() -> list[tuple[str, int, tuple[str, ...]]]:
 # adding a new global to an already-ledgered line).
 _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
     {
-        ("databento_reference.py", 114, ("_STATE_CACHE_MTIME", "_STATE_CACHE_PATH", "_STATE_CACHE_VALUE")),
-        ("databento_reference.py", 122, ("_STATE_CACHE_MTIME", "_STATE_CACHE_PATH", "_STATE_CACHE_VALUE")),
+        ("databento_reference.py", 113, ("_STATE_CACHE_MTIME", "_STATE_CACHE_PATH", "_STATE_CACHE_VALUE")),
+        ("databento_reference.py", 121, ("_STATE_CACHE_MTIME", "_STATE_CACHE_PATH", "_STATE_CACHE_VALUE")),
         ("newsstack_fmp/pipeline.py", 59, ("_store",)),
         ("newsstack_fmp/pipeline.py", 69, ("_fmp_adapter", "_fmp_adapter_key")),
         ("newsstack_fmp/pipeline.py", 84, ("_bz_rest_adapter", "_bz_rest_adapter_key")),
@@ -112,7 +112,7 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("terminal_export.py", 119, ("_FALLBACK_BUFFER",)),
         ("terminal_finnhub.py", 177, ("_consecutive_429_count", "_rate_limit_backoff_until")),
         ("terminal_finnhub.py", 206, ("_social_sentiment_blocked",)),
-        ("terminal_spike_scanner.py", 95, ("_YF_UNIVERSE_CACHE",)),
+        ("terminal_spike_scanner.py", 96, ("_YF_UNIVERSE_CACHE",)),
         ("terminal_technicals.py", 213, ("_tv_consecutive_429s", "_tv_cooldown_until")),
         (
             "terminal_technicals.py",

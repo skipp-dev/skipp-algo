@@ -2,13 +2,18 @@ from __future__ import annotations
 
 import pandas as pd
 
+from scripts.smc_price_action_engine import (
+    detect_high_volume_bars,
+    detect_ob_fvg_stack,
+    detect_structure_breaking_fvg,
+    normalize_bars,
+)
 from scripts.smc_structure_qualifiers import (
     build_pivots_top_bottom,
     build_structure_qualifiers,
     detect_broken_fractal,
     detect_ppdd,
 )
-from scripts.smc_price_action_engine import detect_high_volume_bars, detect_ob_fvg_stack, detect_structure_breaking_fvg, normalize_bars
 
 
 def make_bars(rows: list[dict]) -> pd.DataFrame:

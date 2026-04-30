@@ -18,7 +18,6 @@ from smc_core import apply_layering
 from smc_core.schema_version import SCHEMA_VERSION
 from smc_core.types import SmcMeta, TimedVolumeInfo, VolumeInfo
 from smc_tv_bridge.smc_api import encode_levels, encode_sweeps, encode_zones
-
 from tests.parity.fixtures import EXPECTED_FAMILIES, PARITY_FIXTURES
 from tests.parity.normalization import (
     PINE_REQUIRED_BOS_FIELDS,
@@ -39,7 +38,6 @@ from tests.parity.normalization import (
     strip_pine_style,
 )
 from tests.parity.report import run_parity_report
-
 
 # ── Helpers ──────────────────────────────────────────────────────
 

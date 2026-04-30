@@ -48,7 +48,6 @@ from pathlib import Path
 
 import pytest
 
-
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
 _DIR_EXCLUDE: frozenset[str] = frozenset(
@@ -76,15 +75,11 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
     {
         ("streamlit_terminal_alerts.py", 92),
         ("smc_tv_bridge/smc_api.py", 85),
-        ("open_prep/alerts.py", 240),
+        ("open_prep/alerts.py", 239),
         ("open_prep/run_open_prep.py", 4511),
-        ("open_prep/macro.py", 33),
         ("open_prep/streamlit_monitor.py", 75),
         ("open_prep/streamlit_monitor.py", 126),
-        ("terminal_spike_scanner.py", 161),
         ("newsstack_fmp/ingest_benzinga.py", 565),
-        ("newsstack_fmp/store_sqlite.py", 176),
-        ("newsstack_fmp/store_sqlite.py", 283),
     }
 )
 

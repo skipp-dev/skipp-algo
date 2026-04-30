@@ -9,14 +9,13 @@ Usage:
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from scripts.smc_atomic_write import atomic_write_text
 
 ROOT = Path(__file__).resolve().parent.parent
 REPORTS_DIR = ROOT / "automation" / "tradingview" / "reports"

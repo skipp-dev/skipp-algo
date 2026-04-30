@@ -329,7 +329,7 @@ def run_live_incubation(
     # smc_to_ibkr_adapter ordering contract).
     variant_by_order_ref: dict[str, str] = {}
     if len(tradable) == len(intents):
-        for setup, intent in zip(tradable, intents):
+        for setup, intent in zip(tradable, intents, strict=False):
             variant = setup.get("variant")
             if isinstance(variant, str):
                 variant_by_order_ref[intent.order_ref] = variant

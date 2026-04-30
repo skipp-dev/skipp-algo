@@ -12,13 +12,12 @@ Covers:
 """
 from __future__ import annotations
 
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 
 import pandas as pd
 import pytest
 
 from scripts.smc_session_context_block import DEFAULTS, build_session_context_block
-
 
 # ── Helpers ──────────────────────────────────────────────────────
 

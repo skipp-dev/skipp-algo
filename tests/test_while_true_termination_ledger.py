@@ -72,12 +72,12 @@ def _while_true_sites() -> set[tuple[str, int]]:
 
 # Locked surface — every entry is a reviewed long-lived loop.
 WHILE_TRUE_LEDGER: set[tuple[str, int]] = {
-    ("databento_volatility_screener.py", 1052),
+    ("databento_volatility_screener.py", 1049),
     ("terminal_background_poller.py", 183),
     ("terminal_background_poller.py", 379),
     ("databento_universe.py", 247),
-    ("open_prep/realtime_signals.py", 2663),
-    ("open_prep/macro.py", 84),
+    ("open_prep/realtime_signals.py", 2662),
+    ("open_prep/macro.py", 83),
     ("smc_core/resilient.py", 86),
     ("newsstack_fmp/ingest_benzinga.py", 514),
     ("newsstack_fmp/shared_fetch.py", 266),

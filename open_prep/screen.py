@@ -223,9 +223,8 @@ def compute_gap_warn_flags(row: dict[str, Any]) -> list[str]:
 
     # --- GAP DOWN ---
     if gap_pct < GAP_DOWN_MIN_PCT:
-        if _above(vwap) or _above(pdl) or _above(pmh):
-            if ext_score > -0.8:
-                flags.append("gap_down_reversal_ok")
+        if (_above(vwap) or _above(pdl) or _above(pmh)) and ext_score > -0.8:
+            flags.append("gap_down_reversal_ok")
 
         if (
             gap_pct < FALLING_KNIFE_GAP_PCT
@@ -236,9 +235,8 @@ def compute_gap_warn_flags(row: dict[str, Any]) -> list[str]:
             flags.append("gap_down_falling_knife")
 
     # --- Large relative gap (ATR-normalised) ---
-    if atr_pct is not None and atr_pct > 0:
-        if abs(gap_pct) > GAP_LARGE_ATR_RATIO * atr_pct:
-            flags.append("gap_large_atr")
+    if atr_pct is not None and atr_pct > 0 and abs(gap_pct) > GAP_LARGE_ATR_RATIO * atr_pct:
+        flags.append("gap_large_atr")
 
     # --- Data quality / liquidity warnings ---
     if spread_bps_raw is not None:

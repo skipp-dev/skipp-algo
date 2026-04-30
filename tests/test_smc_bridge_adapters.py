@@ -19,7 +19,6 @@ from unittest.mock import patch
 
 import pytest
 
-
 # ── 1. Protocol surface ────────────────────────────────────────────────────
 
 class TestProtocolSurface:
@@ -173,11 +172,14 @@ class TestNoBridgeOpenPrepImports:
         tree = ast.parse(src.read_text(encoding="utf-8"), filename=str(src))
         violations: list[str] = []
         for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and node.module:
-                # Imports from the adapter wrapper are allowed; direct
-                # imports from the open_prep package are not.
-                if node.module.startswith("open_prep"):
-                    violations.append(f"line {node.lineno}: from {node.module} import ...")
+            # Imports from the adapter wrapper are allowed; direct
+            # imports from the open_prep package are not.
+            if (
+                isinstance(node, ast.ImportFrom)
+                and node.module
+                and node.module.startswith("open_prep")
+            ):
+                violations.append(f"line {node.lineno}: from {node.module} import ...")
             if isinstance(node, ast.Import):
                 for alias in node.names:
                     if alias.name.startswith("open_prep"):

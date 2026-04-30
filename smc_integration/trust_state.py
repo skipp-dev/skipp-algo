@@ -336,15 +336,16 @@ def derive_trust_state(provider_report: Mapping[str, Any]) -> TrustStateAssessme
             _state_from_action(action, has_stale=(_failure_type_of(alert) == "stale"))
         )
 
-    if not candidate_states:
-        # Alerts were present but none classifiable → conservative DEGRADED.
-        worst_state = TrustState.DEGRADED
-    else:
-        worst_state = max(candidate_states, key=_state_rank)
+    # Alerts were present but none classifiable → conservative DEGRADED.
+    worst_state = (
+        TrustState.DEGRADED
+        if not candidate_states
+        else max(candidate_states, key=_state_rank)
+    )
 
     cause = _select_primary_cause(enriched, worst_state)
     contributing = tuple(
-        alert for alert, st in zip(enriched, candidate_states) if st is worst_state
+        alert for alert, st in zip(enriched, candidate_states, strict=False) if st is worst_state
     )
 
     return TrustStateAssessment(

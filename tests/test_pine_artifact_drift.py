@@ -8,8 +8,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
-
 COMMITTED_PINE = Path("pine/generated/smc_micro_profiles_generated.pine")
 
 

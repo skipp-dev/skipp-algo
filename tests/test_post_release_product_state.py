@@ -1,7 +1,6 @@
 """Tests for post-release product-state validation (ENG-WS5-04)."""
 from __future__ import annotations
 
-
 from scripts.post_release_product_state import (
     HERO_ACTION_REQUIRED,
     HERO_MARKET_REQUIRED,

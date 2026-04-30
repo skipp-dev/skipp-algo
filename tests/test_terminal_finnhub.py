@@ -4,9 +4,7 @@ from __future__ import annotations
 import time
 from unittest import mock
 
-
 import terminal_finnhub
-
 
 # ---------------------------------------------------------------------------
 # is_equity_symbol guard

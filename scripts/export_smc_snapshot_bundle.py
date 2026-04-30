@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
-from pathlib import Path
 from collections.abc import Sequence
+from pathlib import Path
 
-from smc_integration.service import build_snapshot_bundle_for_symbol_timeframe
+from scripts.smc_atomic_write import atomic_write_text
 from smc_integration.artifact_resolution import resolve_structure_artifact_inputs
+from smc_integration.service import build_snapshot_bundle_for_symbol_timeframe
 
 
 def export_snapshot_bundle(

@@ -5,15 +5,14 @@ import pytest
 
 from smc_integration.trust_state import (
     ACTION_IMPACT_ADVISORY_ONLY,
-    ACTION_IMPACT_NONE,
     ACTION_IMPACT_NO_NEW_ENTRIES,
+    ACTION_IMPACT_NONE,
     ACTION_IMPACT_SUPPRESS_PRODUCT,
     TrustState,
     all_trust_states,
     derive_trust_state,
     state_action_impact,
 )
-
 
 # ── State vocabulary ──────────────────────────────────────────────────
 

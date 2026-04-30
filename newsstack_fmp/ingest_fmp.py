@@ -127,10 +127,7 @@ class FmpAdapter:
                 if r.status_code in self._RETRYABLE_CODES and attempt < self._MAX_RETRIES:
                     backoff = 2 ** attempt  # 2s, 4s
                     hint = _parse_retry_after_seconds(r.headers.get("Retry-After"))
-                    if hint is not None:
-                        wait = max(backoff, min(hint, 60.0))
-                    else:
-                        wait = backoff
+                    wait = max(backoff, min(hint, 60.0)) if hint is not None else backoff
                     logger.warning(
                         "FMP %d from %s — retry %d/%d in %.1fs",
                         r.status_code, _sanitize_url(str(r.url)),

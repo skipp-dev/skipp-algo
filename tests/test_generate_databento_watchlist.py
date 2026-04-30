@@ -1,10 +1,25 @@
 from __future__ import annotations
 
-from datetime import date
 import warnings
+from datetime import date
 
 import pandas as pd
 
+from scripts.execute_ibkr_watchlist import build_parser as build_execute_parser
+from scripts.generate_databento_watchlist import (
+    LongDipConfig,
+    _coerce_structure_columns,
+    _merge_open_signal_metrics,
+    build_daily_watchlists,
+    build_filter_funnel,
+    build_preanchor_seed_candidates,
+    build_preopen_long_candidates,
+    compute_entry_ladder,
+    generate_watchlist_result,
+)
+from scripts.generate_databento_watchlist import (
+    build_parser as build_watchlist_parser,
+)
 from strategy_config import (
     LONG_DIP_BUILDING_MIN_PREMARKET_ACTIVE_SECONDS,
     LONG_DIP_DEFAULTS,
@@ -12,19 +27,6 @@ from strategy_config import (
     LONG_DIP_MIN_PREMARKET_ACTIVE_SECONDS,
     LONG_DIP_SPARSE_MIN_PREMARKET_ACTIVE_SECONDS,
 )
-from scripts.generate_databento_watchlist import (
-    LongDipConfig,
-    _coerce_structure_columns,
-    _merge_open_signal_metrics,
-    build_filter_funnel,
-    build_parser as build_watchlist_parser,
-    build_daily_watchlists,
-    build_preanchor_seed_candidates,
-    build_preopen_long_candidates,
-    compute_entry_ladder,
-    generate_watchlist_result,
-)
-from scripts.execute_ibkr_watchlist import build_parser as build_execute_parser
 
 
 def test_build_preopen_long_candidates_filters_and_ranks_with_preopen_data() -> None:

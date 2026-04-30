@@ -8,18 +8,17 @@ or with malformed timestamps are skipped. ``median_hours`` is
 """
 
 from __future__ import annotations
-from itertools import pairwise
-
-from scripts.smc_atomic_write import atomic_write_text
 
 import argparse
 import json
 import statistics
 import sys
 from datetime import datetime
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
+from scripts.smc_atomic_write import atomic_write_text
 
 VALID_STATUSES = ("green", "amber", "red", "unknown")
 
@@ -61,10 +60,7 @@ def compute(records: list[dict[str, Any]]) -> dict[str, Any]:
         delta = (b - a).total_seconds() / 3600.0
         gaps_h.append(delta)
     median_h: float | None
-    if gaps_h:
-        median_h = round(float(statistics.median(gaps_h)), 4)
-    else:
-        median_h = None
+    median_h = round(float(statistics.median(gaps_h)), 4) if gaps_h else None
     return {
         "schema_version":  1,
         "records":         len(times),

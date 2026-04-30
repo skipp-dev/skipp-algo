@@ -29,8 +29,6 @@ Exit codes
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 import sys
@@ -44,7 +42,7 @@ from scripts.f2_revert_contextual_weights import revert_contextual_weights
 from scripts.f2_rotate_rollback_history import rotate_history
 from scripts.f2_summarize_history import build_summary
 from scripts.f2_weekly_digest import build_digest
-
+from scripts.smc_atomic_write import atomic_write_text
 
 SIM_SCHEMA_VERSION = 1
 

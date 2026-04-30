@@ -95,13 +95,13 @@ DYNAMIC_GETATTR_LEDGER: set[tuple[str, int]] = {
     ("smc_core/event_ledger.py", 73),
     ("smc_core/scoring.py", 291),
     ("streamlit_terminal_alerts.py", 41),
-    ("terminal_attention_state.py", 46),
-    ("terminal_catalyst_state.py", 32),
-    ("terminal_live_story_state.py", 43),
+    ("terminal_attention_state.py", 45),
+    ("terminal_catalyst_state.py", 31),
+    ("terminal_live_story_state.py", 42),
     ("terminal_poller.py", 1162),
-    ("terminal_posture_state.py", 54),
-    ("terminal_reaction_state.py", 50),
-    ("terminal_resolution_state.py", 44),
+    ("terminal_posture_state.py", 53),
+    ("terminal_reaction_state.py", 49),
+    ("terminal_resolution_state.py", 43),
 }
 
 

@@ -28,7 +28,6 @@ from newsstack_fmp.ingest_benzinga import (
     fetch_benzinga_top_news,
 )
 
-
 # ═══════════════════════════════════════════════════════════════
 # fetch_benzinga_top_news
 # ═══════════════════════════════════════════════════════════════

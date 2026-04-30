@@ -24,9 +24,17 @@ var string g_bus = "Operator Only - BUS"
 src_bus_schema_version = input.source(close, "BUS SchemaVersion", group = g_bus, display = display.none)
 src_state_code         = input.source(close, "BUS StateCode",      group = g_bus, display = display.none)
 src_armed              = input.source(close, "BUS Armed",          group = g_bus, display = display.none)
+src_confirmed          = input.source(close, "BUS Confirmed",      group = g_bus, display = display.none)
+src_ready              = input.source(close, "BUS Ready",          group = g_bus, display = display.none)
 src_quality_score      = input.source(close, "BUS QualityScore",   group = g_bus, display = display.none)
 src_trigger            = input.source(close, "BUS Trigger",        group = g_bus, display = display.none)
 src_invalidation       = input.source(close, "BUS Invalidation",   group = g_bus, display = display.none)
+
+var string g_trade_mgmt = "Trade Management (optional)"
+tm_enable      = input.bool(false, "Enable Trade-Mgmt rows",        group = g_trade_mgmt, tooltip = "Adds 2 extra rows to the table: Trade-State (FLAT/ARMED/IN-TRADE) and live Stop. Same logic as SMC_Exit_Signal.")
+tm_tp1_r       = input.float(1.5,  "TP1 (R-multiple)",              group = g_trade_mgmt, minval = 0.25, step = 0.25)
+tm_tp2_r       = input.float(3.0,  "TP2 (R-multiple)",              group = g_trade_mgmt, minval = 0.5,  step = 0.25)
+tm_be_after_t1 = input.bool(true,  "Move stop to break-even after TP1", group = g_trade_mgmt)
 
 // ── BUS Schema Version Check ──
 int expected_bus_version = 7001
@@ -72,7 +80,56 @@ string hero_risk_m = mp.HERO_RISK
 string extra_line = hero_why_m != "" ? hero_why_m : hero_risk_m != "" ? hero_risk_m : "—"
 
 // ── Render ──
-var table mob = table.new(position.bottom_right, 2, 5, border_width = 0)
+var table mob = table.new(position.bottom_right, 2, 7, border_width = 0)
+
+// ── Trade-Management mini state machine (mirrors SMC_Exit_Signal) ──
+// FLAT (0) → ARMED (1) → IN_TRADE (2). Stop bumps to entry on TP1 hit when
+// tm_be_after_t1 is true. No alerts here — Mobile is read-only; for alerts
+// link SMC_Exit_Signal or SMC_Hold_Manager on the same chart.
+tm_armed_flag     = not na(src_armed) and src_armed > 0.5
+tm_confirmed_flag = not na(src_confirmed) and src_confirmed > 0.5
+tm_ready_flag     = not na(src_ready) and src_ready > 0.5
+tm_any_state      = tm_armed_flag or tm_confirmed_flag or tm_ready_flag
+tm_risk_ok        = not na(src_trigger) and not na(src_invalidation) and src_trigger > src_invalidation
+
+var int   tm_state         = 0
+var float tm_entry_price   = na
+var float tm_entry_stop    = na
+var float tm_tp1_price     = na
+var float tm_tp2_price     = na
+var bool  tm_tp1_hit       = false
+
+if tm_enable
+    if tm_state == 0 and tm_any_state and tm_risk_ok
+        tm_state := 1
+        tm_entry_price := src_trigger
+        tm_entry_stop  := src_invalidation
+        tm_tp1_price   := src_trigger + (src_trigger - src_invalidation) * tm_tp1_r
+        tm_tp2_price   := src_trigger + (src_trigger - src_invalidation) * tm_tp2_r
+        tm_tp1_hit     := false
+    if tm_state == 1 and tm_risk_ok
+        tm_entry_price := src_trigger
+        tm_entry_stop  := src_invalidation
+        tm_tp1_price   := src_trigger + (src_trigger - src_invalidation) * tm_tp1_r
+        tm_tp2_price   := src_trigger + (src_trigger - src_invalidation) * tm_tp2_r
+    if tm_state == 1 and not na(tm_entry_price) and high >= tm_entry_price
+        tm_state := 2
+    if tm_state == 1 and not tm_any_state
+        tm_state := 0
+        tm_entry_price := na, tm_entry_stop := na, tm_tp1_price := na, tm_tp2_price := na
+    if tm_state == 2
+        if not tm_tp1_hit and not na(tm_tp1_price) and high >= tm_tp1_price
+            tm_tp1_hit := true
+            if tm_be_after_t1 and not na(tm_entry_price)
+                tm_entry_stop := math.max(tm_entry_stop, tm_entry_price)
+        bool tm_full_exit = (not na(tm_entry_stop) and close < tm_entry_stop) or (not na(tm_tp2_price) and high >= tm_tp2_price)
+        if tm_full_exit
+            tm_state := 0
+            tm_entry_price := na, tm_entry_stop := na, tm_tp1_price := na, tm_tp2_price := na, tm_tp1_hit := false
+
+string tm_state_txt = tm_state == 0 ? "FLAT" : tm_state == 1 ? "ARMED" : "IN-TRADE"
+color  tm_state_bg  = tm_state == 0 ? color.new(M_NEUTRAL, 80) : tm_state == 1 ? color.new(M_CAUTION, 70) : color.new(M_BULL, 65)
+string tm_stop_txt  = na(tm_entry_stop) ? "—" : str.tostring(tm_entry_stop, format.mintick) + (tm_tp1_hit and tm_be_after_t1 ? " (BE)" : "")
 
 if barstate.islast and bus_ok
     color txt = chart.fg_color
@@ -87,6 +144,17 @@ if barstate.islast and bus_ok
     table.cell(mob, 1, 3, hero_quality_m, text_color = txt, bgcolor = hero_quality_m == "high" or hero_quality_m == "good" ? color.new(M_BULL, 75) : hero_quality_m == "ok" ? color.new(M_CAUTION, 75) : color.new(M_NEUTRAL, 80), text_size = size.normal, text_halign = text.align_right)
     table.cell(mob, 0, 4, "Context", text_color = txt, bgcolor = hdr,       text_size = size.normal, text_halign = text.align_left)
     table.cell(mob, 1, 4, extra_line, text_color = txt, bgcolor = hero_risk_m != "" ? color.new(M_CAUTION, 80) : hero_why_m != "" ? color.new(M_ALT, 85) : hdr, text_size = size.normal, text_halign = text.align_right)
+    if tm_enable
+        table.cell(mob, 0, 5, "Trade",  text_color = txt, bgcolor = hdr, text_size = size.normal, text_halign = text.align_left)
+        table.cell(mob, 1, 5, tm_state_txt, text_color = txt, bgcolor = tm_state_bg, text_size = size.normal, text_halign = text.align_right)
+        table.cell(mob, 0, 6, "Stop",   text_color = txt, bgcolor = hdr, text_size = size.normal, text_halign = text.align_left)
+        table.cell(mob, 1, 6, tm_stop_txt, text_color = txt, bgcolor = tm_state == 2 ? color.new(M_BEAR, 65) : hdr, text_size = size.normal, text_halign = text.align_right)
+    else
+        // Clear stale Trade/Stop rows when tm_enable is toggled off mid-session
+        // and reset the state machine so a re-enable starts FLAT.
+        table.clear(mob, 0, 5, 1, 6)
+        tm_state := 0
+        tm_entry_price := na, tm_entry_stop := na, tm_tp1_price := na, tm_tp2_price := na, tm_tp1_hit := false
 else if barstate.islast and not bus_ok
     table.cell(mob, 0, 0, "SMC Mobile", text_color = chart.fg_color, bgcolor = color.new(color.red, 70), text_size = size.normal)
     table.cell(mob, 1, 0, "❌ Add SMC Core Engine first", text_color = chart.fg_color, bgcolor = color.new(color.red, 70), text_size = size.normal)

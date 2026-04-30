@@ -4,7 +4,6 @@ import pathlib
 
 from tests.smc_manifest_test_utils import ROOT, load_manifest, read_text
 
-
 CHECKLIST_PATH = ROOT / 'docs' / 'tradingview-validation-checklist.md'
 RUNBOOK_DE_PATH = ROOT / 'docs' / 'tradingview-manual-validation-runbook.md'
 RUNBOOK_EN_PATH = ROOT / 'docs' / 'tradingview-manual-validation-runbook_EN.md'

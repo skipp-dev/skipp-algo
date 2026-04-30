@@ -15,7 +15,6 @@ import time
 from pathlib import Path
 from typing import Any
 
-
 # Ensure project root is on the path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -26,7 +25,6 @@ from terminal_export import (
     build_vd_snapshot,
     save_vd_bz_calendar,
 )
-
 
 # ═══════════════════════════════════════════════════════════════
 # Helpers

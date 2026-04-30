@@ -10,7 +10,6 @@ from typing import Any
 
 import pytest
 
-
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "plan_2_8_ledger_total_byte_size.py"
 WEEKLY = REPO / ".github" / "workflows" / "plan-2-8-weekly-digest.yml"

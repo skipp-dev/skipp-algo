@@ -5,12 +5,11 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import pytest
-
 
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "plan_2_8_ledger_latest_captured_at.py"

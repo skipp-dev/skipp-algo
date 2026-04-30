@@ -98,12 +98,10 @@ def build_session_structure(
             result["SESS_PDL"] = float(row.get("low", 0.0))
 
     # PDH/PDL sweep detection
-    if result["SESS_PDH"] > 0 and result["SESS_HIGH"] > 0:
-        if result["SESS_HIGH"] > result["SESS_PDH"]:
-            result["SESS_PDH_SWEPT"] = True
-    if result["SESS_PDL"] > 0 and result["SESS_LOW"] > 0:
-        if result["SESS_LOW"] < result["SESS_PDL"]:
-            result["SESS_PDL_SWEPT"] = True
+    if result["SESS_PDH"] > 0 and result["SESS_HIGH"] > 0 and result["SESS_HIGH"] > result["SESS_PDH"]:
+        result["SESS_PDH_SWEPT"] = True
+    if result["SESS_PDL"] > 0 and result["SESS_LOW"] > 0 and result["SESS_LOW"] < result["SESS_PDL"]:
+        result["SESS_PDL_SWEPT"] = True
 
     # Composite score
     result["SESS_STRUCT_SCORE"] = _session_score(result)

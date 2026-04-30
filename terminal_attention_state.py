@@ -155,10 +155,7 @@ def _derive_attention_fields(item: Any, *, now: float | None = None) -> dict[str
         _safe_float(_get_field(item, "reaction_confidence", None), -1.0),
     ]
     valid_confidence = [value for value in confidence_inputs if value >= 0.0]
-    if valid_confidence:
-        attention_confidence = sum(valid_confidence) / len(valid_confidence)
-    else:
-        attention_confidence = attention_score
+    attention_confidence = sum(valid_confidence) / len(valid_confidence) if valid_confidence else attention_score
     if age_minutes is not None and age_minutes <= 30.0 and attention_active:
         attention_confidence += 0.05
     if attention_state == "ALERT":

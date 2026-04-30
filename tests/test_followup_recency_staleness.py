@@ -14,7 +14,6 @@ import json
 import time
 from pathlib import Path
 
-
 from smc_integration.repo_sources import (
     _META_DOMAIN_STALE_HOURS,
     load_raw_meta_input_composite,

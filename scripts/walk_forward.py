@@ -171,11 +171,12 @@ class WalkForwardSplitter:
 
             # Drop the immediately preceding `purge_size` rows.
             train_end = test_start - self.purge_size
-            if train_end <= train_start:
-                # Purge ate the whole training window — yield empty.
-                train_idx = np.empty(0, dtype=np.int64)
-            else:
-                train_idx = np.arange(train_start, train_end)
+            # Purge ate the whole training window — yield empty.
+            train_idx = (
+                np.empty(0, dtype=np.int64)
+                if train_end <= train_start
+                else np.arange(train_start, train_end)
+            )
 
             # Apply embargo: remove from `train_idx` any observation
             # that fell inside an *earlier* fold's embargo window.

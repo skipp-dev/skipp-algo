@@ -9,6 +9,7 @@ Run with: pytest tests/test_terminal_bitcoin.py -v
 from __future__ import annotations
 
 import os
+
 import pytest
 
 # Skip entire module if no API keys are set

@@ -4,9 +4,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-
 import open_prep.outcome_backfill as ob
-
 
 # ── Run-log persistence ───────────────────────────────────────────────
 

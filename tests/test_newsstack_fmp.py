@@ -9,6 +9,7 @@ import tempfile
 import time
 import unittest
 from unittest.mock import MagicMock, patch
+import contextlib
 
 # ── R-3: Config reads env vars at instantiation, not import time ──
 
@@ -385,10 +386,10 @@ class TestCursorStrictLessThan(unittest.TestCase):
     """Items with ts == last_seen_epoch must NOT be dropped by cursor."""
 
     def test_same_timestamp_not_dropped(self):
-        from newsstack_fmp.pipeline import process_news_items
         from newsstack_fmp.common_types import NewsItem
-        from newsstack_fmp.store_sqlite import SqliteStore
         from newsstack_fmp.enrich import Enricher
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.store_sqlite import SqliteStore
 
         store = SqliteStore(":memory:")
         enricher = Enricher()
@@ -430,7 +431,7 @@ class TestAtomicExport(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             path = os.path.join(td, "out.json")
             export_open_prep(path, [{"ticker": "X"}], {"ts": 1.0})
-            with open(path, "r") as f:
+            with open(path) as f:
                 data = json.load(f)
             self.assertEqual(len(data["candidates"]), 1)
             self.assertEqual(data["meta"]["ts"], 1.0)
@@ -451,7 +452,7 @@ class TestAtomicExport(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             path = os.path.join(td, "out.json")
             export_open_prep(path, [], {"generated_ts": 123.0})
-            with open(path, "r") as f:
+            with open(path) as f:
                 data = json.load(f)
             self.assertEqual(data["candidates"], [])
             self.assertEqual(data["meta"]["generated_ts"], 123.0)
@@ -467,8 +468,8 @@ class TestPollOnceFailOpen(unittest.TestCase):
     @patch("newsstack_fmp.pipeline._get_enricher")
     @patch("newsstack_fmp.pipeline._get_fmp_adapter")
     def test_process_db_error_does_not_crash(self, mock_fmp, mock_enr, mock_store):
-        from newsstack_fmp.pipeline import poll_once
         from newsstack_fmp.config import Config
+        from newsstack_fmp.pipeline import poll_once
 
         store = MagicMock()
         store.get_kv.return_value = "0"
@@ -489,8 +490,8 @@ class TestPollOnceFailOpen(unittest.TestCase):
     @patch("newsstack_fmp.pipeline._get_store")
     @patch("newsstack_fmp.pipeline._get_enricher")
     def test_export_failure_does_not_crash(self, mock_enr, mock_store, mock_export):
-        from newsstack_fmp.pipeline import poll_once
         from newsstack_fmp.config import Config
+        from newsstack_fmp.pipeline import poll_once
 
         store = MagicMock()
         store.get_kv.return_value = "0"
@@ -557,8 +558,8 @@ class TestAlwaysExport(unittest.TestCase):
     @patch("newsstack_fmp.pipeline._get_store")
     @patch("newsstack_fmp.pipeline._get_enricher")
     def test_empty_candidates_still_exports(self, mock_enr, mock_store, mock_export):
-        from newsstack_fmp.pipeline import poll_once, _best_by_ticker
         from newsstack_fmp.config import Config
+        from newsstack_fmp.pipeline import _best_by_ticker, poll_once
 
         store = MagicMock()
         store.get_kv.return_value = "0"
@@ -612,10 +613,10 @@ class TestSyntheticTimestampDoesNotAdvanceCursor(unittest.TestCase):
     but must NOT advance the max_ts cursor."""
 
     def test_zero_ts_does_not_advance_cursor(self):
-        from newsstack_fmp.pipeline import process_news_items
         from newsstack_fmp.common_types import NewsItem
-        from newsstack_fmp.store_sqlite import SqliteStore
         from newsstack_fmp.enrich import Enricher
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.store_sqlite import SqliteStore
 
         store = SqliteStore(":memory:")
         enricher = Enricher()
@@ -676,6 +677,7 @@ class TestApiKeyNotLeaked(unittest.TestCase):
     def test_fmp_http_error_sanitized(self):
         """raise_for_status on 403 must NOT contain apikey."""
         import httpx as _httpx
+
         from newsstack_fmp.ingest_fmp import FmpAdapter
 
         adapter = FmpAdapter("my_secret_key")
@@ -1002,8 +1004,8 @@ class TestCycleWarningsInMeta(unittest.TestCase):
     @patch("newsstack_fmp.pipeline._get_enricher")
     @patch("newsstack_fmp.pipeline._get_fmp_adapter")
     def test_fmp_failure_appears_in_warnings(self, mock_fmp, mock_enr, mock_store, mock_export):
-        from newsstack_fmp.pipeline import poll_once
         from newsstack_fmp.config import Config
+        from newsstack_fmp.pipeline import poll_once
 
         store = MagicMock()
         store.get_kv.return_value = "0"
@@ -1031,8 +1033,8 @@ class TestCycleWarningsInMeta(unittest.TestCase):
     @patch("newsstack_fmp.pipeline._get_store")
     @patch("newsstack_fmp.pipeline._get_enricher")
     def test_no_failures_empty_warnings(self, mock_enr, mock_store, mock_export):
-        from newsstack_fmp.pipeline import poll_once
         from newsstack_fmp.config import Config
+        from newsstack_fmp.pipeline import poll_once
 
         store = MagicMock()
         store.get_kv.return_value = "0"
@@ -1059,10 +1061,10 @@ class TestDuplicateBurst(unittest.TestCase):
     """200 identical items in one batch must produce only 1 candidate."""
 
     def test_burst_dedup(self):
-        from newsstack_fmp.pipeline import process_news_items
         from newsstack_fmp.common_types import NewsItem
-        from newsstack_fmp.store_sqlite import SqliteStore
         from newsstack_fmp.enrich import Enricher
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.store_sqlite import SqliteStore
 
         store = SqliteStore(":memory:")
         enricher = Enricher()
@@ -1096,10 +1098,10 @@ class TestDuplicateBurst(unittest.TestCase):
     def test_burst_different_ids_same_headline(self):
         """Different item_ids with same headline → multiple dedup entries
         but same cluster → novelty decay kicks in."""
-        from newsstack_fmp.pipeline import process_news_items
         from newsstack_fmp.common_types import NewsItem
-        from newsstack_fmp.store_sqlite import SqliteStore
         from newsstack_fmp.enrich import Enricher
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.store_sqlite import SqliteStore
 
         store = SqliteStore(":memory:")
         enricher = Enricher()
@@ -1151,8 +1153,8 @@ class TestPartialProviderOutage(unittest.TestCase):
     @patch("newsstack_fmp.pipeline._get_enricher")
     @patch("newsstack_fmp.pipeline._get_fmp_adapter")
     def test_fmp_down_benzinga_candidates_exported(self, mock_fmp, mock_enr, mock_store, mock_export):
-        from newsstack_fmp.pipeline import poll_once, _best_by_ticker
         from newsstack_fmp.config import Config
+        from newsstack_fmp.pipeline import _best_by_ticker, poll_once
 
         store = MagicMock()
         store.get_kv.return_value = "0"
@@ -1207,9 +1209,9 @@ class TestBenzingaCursorOnProcessingFailure(unittest.TestCase):
     def test_cursor_not_advanced_on_failure(
         self, mock_bz_rest, mock_fmp, mock_enr, mock_store, mock_export
     ):
-        from newsstack_fmp.pipeline import poll_once, _best_by_ticker
-        from newsstack_fmp.config import Config
         from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.config import Config
+        from newsstack_fmp.pipeline import _best_by_ticker, poll_once
 
         store = MagicMock()
         # Initial cursors: no prior progress
@@ -1276,9 +1278,9 @@ class TestBenzingaCursorOnProcessingFailure(unittest.TestCase):
     def test_cursor_advances_on_success(
         self, mock_bz_rest, mock_fmp, mock_enr, mock_store, mock_export
     ):
-        from newsstack_fmp.pipeline import poll_once, _best_by_ticker
-        from newsstack_fmp.config import Config
         from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.config import Config
+        from newsstack_fmp.pipeline import _best_by_ticker, poll_once
 
         store = MagicMock()
         store.get_kv.return_value = "0"
@@ -1342,7 +1344,7 @@ class TestEnricherStreaming(unittest.TestCase):
     """Enricher must use streaming and stop reading at _MAX_CONTENT_BYTES."""
 
     def test_large_response_bounded(self):
-        from newsstack_fmp.enrich import Enricher, _MAX_CONTENT_BYTES
+        from newsstack_fmp.enrich import _MAX_CONTENT_BYTES, Enricher
 
         enricher = Enricher()
 
@@ -1428,8 +1430,9 @@ class TestWsQueueOverflowLogging(unittest.TestCase):
 
     def test_queue_full_logs_warning(self):
         import queue as q
-        from newsstack_fmp.ingest_benzinga import BenzingaWsAdapter
+
         from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.ingest_benzinga import BenzingaWsAdapter
 
         adapter = BenzingaWsAdapter("test_key")
         # Replace with a tiny queue
@@ -1457,10 +1460,8 @@ class TestWsQueueOverflowLogging(unittest.TestCase):
             try:
                 adapter.queue.put_nowait(item2)
             except q.Full:
-                try:
+                with contextlib.suppress(q.Empty):
                     adapter.queue.get_nowait()
-                except q.Empty:
-                    pass
                 adapter.queue.put_nowait(item2)
                 import logging
                 logging.getLogger("newsstack_fmp.ingest_benzinga").warning(
@@ -1651,9 +1652,9 @@ class TestBenzingaCursorNoTimeNowFallback(unittest.TestCase):
     def test_zero_ts_items_no_cursor_advance(
         self, mock_bz_rest, mock_fmp, mock_enr, mock_store, mock_export
     ):
-        from newsstack_fmp.pipeline import poll_once, _best_by_ticker
-        from newsstack_fmp.config import Config
         from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.config import Config
+        from newsstack_fmp.pipeline import _best_by_ticker, poll_once
 
         store = MagicMock()
         store.get_kv.return_value = "0"
@@ -1803,10 +1804,10 @@ class TestMultiTickerFanout(unittest.TestCase):
     """One item with 3 tickers must produce 3 entries in best_by_ticker."""
 
     def test_three_tickers(self):
-        from newsstack_fmp.pipeline import process_news_items
         from newsstack_fmp.common_types import NewsItem
-        from newsstack_fmp.store_sqlite import SqliteStore
         from newsstack_fmp.enrich import Enricher
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.store_sqlite import SqliteStore
 
         store = SqliteStore(":memory:")
         enricher = Enricher()
@@ -1839,10 +1840,10 @@ class TestMultiTickerFanout(unittest.TestCase):
             self.assertEqual(best[tk]["headline"], "FDA approves new drug affecting sector")
 
     def test_fanout_with_universe_filter(self):
-        from newsstack_fmp.pipeline import process_news_items
         from newsstack_fmp.common_types import NewsItem
-        from newsstack_fmp.store_sqlite import SqliteStore
         from newsstack_fmp.enrich import Enricher
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.store_sqlite import SqliteStore
 
         store = SqliteStore(":memory:")
         enricher = Enricher()
@@ -2008,10 +2009,10 @@ class TestBenzingaNoEpochCursor(unittest.TestCase):
     def test_ws_future_ts_does_not_block_rest_older_items(self):
         """Simulate: WS delivers ts=2000, REST delivers ts=1500.
         The REST item must NOT be dropped."""
-        from newsstack_fmp.pipeline import process_news_items
         from newsstack_fmp.common_types import NewsItem
-        from newsstack_fmp.store_sqlite import SqliteStore
         from newsstack_fmp.enrich import Enricher
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.store_sqlite import SqliteStore
 
         store = SqliteStore(":memory:")
         enricher = Enricher()
@@ -2056,8 +2057,8 @@ class TestBenzingaNoEpochCursor(unittest.TestCase):
         self, mock_fmp, mock_enr, mock_store, mock_export
     ):
         """Export meta.cursor must NOT contain benzinga_last_seen_epoch."""
-        from newsstack_fmp.pipeline import poll_once, _best_by_ticker
         from newsstack_fmp.config import Config
+        from newsstack_fmp.pipeline import _best_by_ticker, poll_once
 
         store = MagicMock()
         store.get_kv.return_value = "0"
@@ -2168,7 +2169,7 @@ class TestZeroTsCandidateNotPrunedImmediately(unittest.TestCase):
 
     def test_zero_ts_item_survives_pruning(self):
         """An item with ts=0 should be retained if _seen_ts is fresh."""
-        from newsstack_fmp.pipeline import _prune_best_by_ticker, _best_by_ticker
+        from newsstack_fmp.pipeline import _best_by_ticker, _prune_best_by_ticker
 
         old = _best_by_ticker.copy()
         _best_by_ticker.clear()
@@ -2188,10 +2189,10 @@ class TestZeroTsCandidateNotPrunedImmediately(unittest.TestCase):
 
     def test_candidate_dict_has_seen_ts(self):
         """process_news_items must add _seen_ts to candidate dicts."""
-        from newsstack_fmp.pipeline import process_news_items
         from newsstack_fmp.common_types import NewsItem
-        from newsstack_fmp.store_sqlite import SqliteStore
         from newsstack_fmp.enrich import Enricher
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.store_sqlite import SqliteStore
 
         store = SqliteStore(":memory:")
         enricher = Enricher()
@@ -2307,10 +2308,10 @@ class TestEnrichmentHoisted(unittest.TestCase):
     """Enrichment must be called once per item, not once per ticker."""
 
     def test_multi_ticker_item_enriches_once(self):
-        from newsstack_fmp.pipeline import process_news_items
         from newsstack_fmp.common_types import NewsItem
-        from newsstack_fmp.store_sqlite import SqliteStore
         from newsstack_fmp.enrich import Enricher
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.store_sqlite import SqliteStore
 
         store = SqliteStore(":memory:")
         enricher = Enricher()
@@ -2362,10 +2363,10 @@ class TestWarnFlagsNotShared(unittest.TestCase):
     """Multi-ticker candidates must have independent warn_flags lists."""
 
     def test_offering_multi_ticker_independent_warn_flags(self):
-        from newsstack_fmp.pipeline import process_news_items
         from newsstack_fmp.common_types import NewsItem
-        from newsstack_fmp.store_sqlite import SqliteStore
         from newsstack_fmp.enrich import Enricher
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.store_sqlite import SqliteStore
 
         store = SqliteStore(":memory:")
         enricher = Enricher()
@@ -2398,10 +2399,10 @@ class TestWarnFlagsNotShared(unittest.TestCase):
 
     def test_mutation_does_not_propagate(self):
         """Appending to one candidate's warn_flags must NOT affect another."""
-        from newsstack_fmp.pipeline import process_news_items
         from newsstack_fmp.common_types import NewsItem
-        from newsstack_fmp.store_sqlite import SqliteStore
         from newsstack_fmp.enrich import Enricher
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.store_sqlite import SqliteStore
 
         store = SqliteStore(":memory:")
         enricher = Enricher()
@@ -2440,9 +2441,9 @@ class TestSeenTsNotInExport(unittest.TestCase):
     def test_exported_candidates_have_no_underscore_fields(
         self, mock_fmp, mock_enr, mock_store, mock_export
     ):
-        from newsstack_fmp.pipeline import poll_once, _best_by_ticker
-        from newsstack_fmp.config import Config
         from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.config import Config
+        from newsstack_fmp.pipeline import _best_by_ticker, poll_once
 
         store = MagicMock()
         store.get_kv.return_value = "0"
@@ -2484,10 +2485,10 @@ class TestSeenTsNotInExport(unittest.TestCase):
 
     def test_seen_ts_still_in_best_by_ticker(self):
         """_seen_ts must still be present in internal _best_by_ticker."""
-        from newsstack_fmp.pipeline import process_news_items
         from newsstack_fmp.common_types import NewsItem
-        from newsstack_fmp.store_sqlite import SqliteStore
         from newsstack_fmp.enrich import Enricher
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.store_sqlite import SqliteStore
 
         store = SqliteStore(":memory:")
         enricher = Enricher()
@@ -2517,8 +2518,8 @@ class TestClusterHashPassthrough(unittest.TestCase):
     """classify_and_score must accept and return a pre-computed chash."""
 
     def test_precomputed_hash_returned(self):
-        from newsstack_fmp.scoring import classify_and_score
         from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.scoring import classify_and_score
 
         item = NewsItem(
             provider="fmp_stock_latest", item_id="hash_test",
@@ -2532,8 +2533,8 @@ class TestClusterHashPassthrough(unittest.TestCase):
 
     def test_without_chash_still_computes(self):
         """Backward compat: omitting chash still auto-computes it."""
-        from newsstack_fmp.scoring import classify_and_score, cluster_hash
         from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.scoring import classify_and_score, cluster_hash
 
         item = NewsItem(
             provider="fmp_stock_latest", item_id="hash_auto",
@@ -2547,8 +2548,8 @@ class TestClusterHashPassthrough(unittest.TestCase):
         self.assertEqual(result.cluster_hash, expected)
 
     def test_none_chash_auto_computes(self):
-        from newsstack_fmp.scoring import classify_and_score, cluster_hash
         from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.scoring import classify_and_score, cluster_hash
 
         item = NewsItem(
             provider="benzinga_rest", item_id="hash_none",
@@ -2573,11 +2574,12 @@ class TestEnrichResultNotShared(unittest.TestCase):
     def test_enrich_independent_across_tickers(self):
         """When enrich fires for a multi-ticker item, each ticker's 'enrich'
         dict must be a separate object (no shared reference)."""
-        from newsstack_fmp.pipeline import process_news_items
-        from newsstack_fmp.common_types import NewsItem
-        from newsstack_fmp.store_sqlite import SqliteStore
-        from newsstack_fmp.enrich import Enricher
         from unittest.mock import patch
+
+        from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.enrich import Enricher
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.store_sqlite import SqliteStore
 
         store = SqliteStore(":memory:")
         enricher = Enricher()
@@ -2610,11 +2612,12 @@ class TestEnrichResultNotShared(unittest.TestCase):
 
     def test_enrich_mutation_does_not_propagate(self):
         """Mutating one ticker's enrich dict must not affect the other."""
-        from newsstack_fmp.pipeline import process_news_items
-        from newsstack_fmp.common_types import NewsItem
-        from newsstack_fmp.store_sqlite import SqliteStore
-        from newsstack_fmp.enrich import Enricher
         from unittest.mock import patch
+
+        from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.enrich import Enricher
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.store_sqlite import SqliteStore
 
         store = SqliteStore(":memory:")
         enricher = Enricher()
@@ -2647,11 +2650,12 @@ class TestEnrichBudgetPerCycle(unittest.TestCase):
 
     def test_enrich_budget_parameter(self):
         """process_news_items must honour enrich_budget parameter."""
-        from newsstack_fmp.pipeline import process_news_items
-        from newsstack_fmp.common_types import NewsItem
-        from newsstack_fmp.store_sqlite import SqliteStore
-        from newsstack_fmp.enrich import Enricher
         from unittest.mock import patch
+
+        from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.enrich import Enricher
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.store_sqlite import SqliteStore
 
         store = SqliteStore(":memory:")
         enricher = Enricher()
@@ -2689,11 +2693,12 @@ class TestEnrichBudgetPerCycle(unittest.TestCase):
 
     def test_enrich_used_returned(self):
         """process_news_items must return (max_ts, enrich_used) tuple."""
-        from newsstack_fmp.pipeline import process_news_items
-        from newsstack_fmp.common_types import NewsItem
-        from newsstack_fmp.store_sqlite import SqliteStore
-        from newsstack_fmp.enrich import Enricher
         from unittest.mock import patch
+
+        from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.enrich import Enricher
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.store_sqlite import SqliteStore
 
         store = SqliteStore(":memory:")
         enricher = Enricher()
@@ -2726,11 +2731,12 @@ class TestEnrichBudgetPerCycle(unittest.TestCase):
 
     def test_zero_budget_no_enrichment(self):
         """enrich_budget=0 must prevent any enrichment calls."""
-        from newsstack_fmp.pipeline import process_news_items
-        from newsstack_fmp.common_types import NewsItem
-        from newsstack_fmp.store_sqlite import SqliteStore
-        from newsstack_fmp.enrich import Enricher
         from unittest.mock import patch
+
+        from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.enrich import Enricher
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.store_sqlite import SqliteStore
 
         store = SqliteStore(":memory:")
         enricher = Enricher()
@@ -2759,10 +2765,10 @@ class TestDuplicateTickerDedup(unittest.TestCase):
 
     def test_duplicate_tickers_deduped(self):
         """Item with ['AAPL', 'AAPL'] should produce only one candidate."""
-        from newsstack_fmp.pipeline import process_news_items
         from newsstack_fmp.common_types import NewsItem
-        from newsstack_fmp.store_sqlite import SqliteStore
         from newsstack_fmp.enrich import Enricher
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.store_sqlite import SqliteStore
 
         store = SqliteStore(":memory:")
         enricher = Enricher()
@@ -2788,10 +2794,10 @@ class TestDuplicateTickerDedup(unittest.TestCase):
 
     def test_order_preserved_after_dedup(self):
         """Dedup must preserve first-seen order."""
-        from newsstack_fmp.pipeline import process_news_items
         from newsstack_fmp.common_types import NewsItem
-        from newsstack_fmp.store_sqlite import SqliteStore
         from newsstack_fmp.enrich import Enricher
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.store_sqlite import SqliteStore
 
         store = SqliteStore(":memory:")
         enricher = Enricher()
@@ -2834,9 +2840,9 @@ class TestPollOnceReturnsCopies(unittest.TestCase):
     def test_mutation_does_not_corrupt_internal_state(
         self, mock_fmp, mock_enr, mock_store, mock_export
     ):
-        from newsstack_fmp.pipeline import poll_once, _best_by_ticker
-        from newsstack_fmp.config import Config
         from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.config import Config
+        from newsstack_fmp.pipeline import _best_by_ticker, poll_once
 
         store = MagicMock()
         store.get_kv.return_value = "0"
@@ -2895,9 +2901,9 @@ class TestPollOnceReturnsCopies(unittest.TestCase):
     def test_return_has_no_internal_fields(
         self, mock_fmp, mock_enr, mock_store, mock_export
     ):
-        from newsstack_fmp.pipeline import poll_once, _best_by_ticker
-        from newsstack_fmp.config import Config
         from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.config import Config
+        from newsstack_fmp.pipeline import _best_by_ticker, poll_once
 
         store = MagicMock()
         store.get_kv.return_value = "0"
@@ -2988,9 +2994,9 @@ class TestExportCandidatesDeepCopy(unittest.TestCase):
     def test_nested_mutation_does_not_corrupt_internal_state(
         self, mock_fmp, mock_enr, mock_store, mock_export
     ):
-        from newsstack_fmp.pipeline import poll_once, _best_by_ticker
-        from newsstack_fmp.config import Config
         from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.config import Config
+        from newsstack_fmp.pipeline import _best_by_ticker, poll_once
 
         store = MagicMock()
         store.get_kv.return_value = "0"
@@ -3064,9 +3070,9 @@ class TestExportCandidatesDeepCopy(unittest.TestCase):
     ):
         """Verify that nested dict/list objects in the returned candidates
         are NOT the same Python objects as those in _best_by_ticker."""
-        from newsstack_fmp.pipeline import poll_once, _best_by_ticker
-        from newsstack_fmp.config import Config
         from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.config import Config
+        from newsstack_fmp.pipeline import _best_by_ticker, poll_once
 
         store = MagicMock()
         store.get_kv.return_value = "0"
@@ -3203,10 +3209,10 @@ class TestProcessNewsItemsPerItemIsolation(unittest.TestCase):
     """
 
     def test_one_failing_item_does_not_drop_remainder(self):
-        from newsstack_fmp.pipeline import process_news_items
         from newsstack_fmp.common_types import NewsItem
-        from newsstack_fmp.store_sqlite import SqliteStore
         from newsstack_fmp.enrich import Enricher
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.store_sqlite import SqliteStore
 
         store = SqliteStore(":memory:")
         enricher = Enricher()
@@ -3281,10 +3287,10 @@ class TestProcessNewsItemsPerItemIsolation(unittest.TestCase):
         transient failure (network, scoring crash) would silently turn
         into permanent data loss.
         """
-        from newsstack_fmp.pipeline import process_news_items
         from newsstack_fmp.common_types import NewsItem
-        from newsstack_fmp.store_sqlite import SqliteStore
         from newsstack_fmp.enrich import Enricher
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.store_sqlite import SqliteStore
 
         store = SqliteStore(":memory:")
         enricher = Enricher()

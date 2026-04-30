@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
 from tests.smc_manifest_test_utils import (
     ROOT,
     extract_group_titles,
@@ -11,7 +10,6 @@ from tests.smc_manifest_test_utils import (
     load_manifest,
     read_text,
 )
-
 
 MANIFEST = load_manifest()
 CORE_PATH = ROOT / 'SMC_Core_Engine.pine'

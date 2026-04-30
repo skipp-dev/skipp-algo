@@ -98,10 +98,10 @@ def compute_news_sentiment(
 
         # WP-NW3: time-based recency weight
         published_ts = float(article.get("published_ts") or 0)
-        if published_ts > 0:
-            age_hours = max(0.0, (now_ts - published_ts) / 3600.0)
-        else:
-            age_hours = 12.0  # default when timestamp unknown
+        # default age (12 h) when timestamp unknown
+        age_hours = (
+            max(0.0, (now_ts - published_ts) / 3600.0) if published_ts > 0 else 12.0
+        )
         # Exponential decay: 1 h → 1.0, 6 h → 0.65, 12 h → 0.42, 24 h → 0.18
         recency_weight = max(0.1, math.exp(-0.07 * age_hours))
 

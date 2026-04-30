@@ -4,10 +4,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-
 import open_prep.candidate_weights as cw
 from open_prep.scorer import DEFAULT_WEIGHTS
-
 
 # ── Fixtures ─────────────────────────────────────────────────────────
 

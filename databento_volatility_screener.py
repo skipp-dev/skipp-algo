@@ -7,6 +7,9 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
+import gc
 import hashlib
 import json
 import logging
@@ -17,8 +20,6 @@ import sys
 import tempfile
 import time as time_module
 import warnings
-import asyncio
-import gc
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta, tzinfo
 from io import BytesIO
@@ -53,7 +54,7 @@ logger = logging.getLogger(__name__)
 # (or any cached-derived dvs_* session_state entry) changes. See the
 # invalidation block in run_streamlit_app() for the affected keys.
 # Source of truth: smc_core.schema_version.SESSION_SCHEMA_VERSION (H-6).
-from smc_core.schema_version import SESSION_SCHEMA_VERSION as _DVS_SESSION_SCHEMA_VERSION
+from smc_core.schema_version import SESSION_SCHEMA_VERSION as _DVS_SESSION_SCHEMA_VERSION  # noqa: E402 -- cache-version source-of-truth, imported after streamlit/regex setup block
 
 _API_KEY_REDACTION_PATTERNS = (
     re.compile(r"(api[_-]?key=)([^&\s]+)", flags=re.IGNORECASE),
@@ -274,10 +275,8 @@ def _read_cached_frame(path: Path, *, max_age_seconds: int | None = None) -> pd.
         return pd.read_parquet(path)
     except Exception:
         logger.warning("Corrupt cache file removed: %s", path, exc_info=True)
-        try:
+        with contextlib.suppress(OSError):
             path.unlink()
-        except OSError:
-            pass
         return None
 
 
@@ -308,10 +307,8 @@ def _replace_atomic(path: Path, write_temp: Callable[[Path], None]) -> None:
         write_temp(temp_path)
         os.replace(temp_path, path)
     except Exception:
-        try:
+        with contextlib.suppress(OSError):
             temp_path.unlink(missing_ok=True)
-        except OSError:
-            pass
         raise
 
 
@@ -4133,10 +4130,7 @@ def _persist_watchlist_snapshot(
     if snapshot.empty:
         return history
     snapshot["trigger"] = str(trigger)
-    if history.empty:
-        history = snapshot.copy()
-    else:
-        history = pd.concat([history, snapshot], ignore_index=True)
+    history = snapshot.copy() if history.empty else pd.concat([history, snapshot], ignore_index=True)
     history = history.drop_duplicates(subset=["snapshot_at", "trade_date", "symbol"], keep="last")
     history = history.sort_values(["snapshot_at", "trade_date", "watchlist_rank", "symbol"]).reset_index(drop=True)
     _write_cached_frame(history_path, history)

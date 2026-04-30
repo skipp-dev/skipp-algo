@@ -1,7 +1,6 @@
 """Tests for legacy/experimental file classification (ENG-WS6-04)."""
 from __future__ import annotations
 
-
 from scripts.smc_file_lifecycle import (
     EXPLICIT_OVERRIDES,
     FileLifecycle,

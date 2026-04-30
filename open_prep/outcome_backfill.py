@@ -57,7 +57,7 @@ def _load_pending_dates(lookback_days: int = 1) -> list[date]:
         if loaded >= lookback_days:
             break
         try:
-            with open(path, "r", encoding="utf-8") as fh:
+            with open(path, encoding="utf-8") as fh:
                 data = json.load(fh)
             if isinstance(data, list) and any(
                 r.get("profitable_30m") is None for r in data
@@ -77,7 +77,7 @@ def _load_outcome_file(run_date: date) -> tuple[Path, list[dict[str, Any]]]:
     path = OUTCOMES_DIR / f"outcomes_{run_date.isoformat()}.json"
     if not path.exists():
         return path, []
-    with open(path, "r", encoding="utf-8") as fh:
+    with open(path, encoding="utf-8") as fh:
         data = json.load(fh)
     return path, data if isinstance(data, list) else []
 

@@ -6,13 +6,12 @@ from pathlib import Path
 import pytest
 
 from scripts.smc_hero_setup_quality import (
-    HeroSetupQuality,
     PINE_HERO_QUALITY_FIELDS,
+    HeroSetupQuality,
     all_quality_tiers,
     derive_hero_setup_quality,
     render_hero_setup_quality_block_lines,
 )
-
 
 # ── Vocabulary ────────────────────────────────────────────────────────
 

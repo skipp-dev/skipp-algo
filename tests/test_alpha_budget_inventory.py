@@ -17,7 +17,6 @@ from governance.alpha_ledger import (
     total_alpha,
 )
 
-
 # ---------------------------------------------------------------------------
 # Inventory snapshot — enforces the budget across the actual ledger file.
 # ---------------------------------------------------------------------------

@@ -48,9 +48,11 @@ def _has_test_function(text: str) -> bool:
                 return True
         elif isinstance(node, ast.ClassDef) and node.name.startswith("Test"):
             for sub in node.body:
-                if isinstance(sub, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    if sub.name.startswith("test_"):
-                        return True
+                if (
+                    isinstance(sub, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    and sub.name.startswith("test_")
+                ):
+                    return True
     return False
 
 

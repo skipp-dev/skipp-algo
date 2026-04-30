@@ -1,5 +1,6 @@
 """Sprint C2.1 — walk-forward hardening tests for ml/walkforward."""
 from __future__ import annotations
+
 from itertools import pairwise
 
 import numpy as np
@@ -27,7 +28,7 @@ def test_anchored_alias_for_expanding() -> None:
     a = walk_forward_splits(100, n_folds=4, embargo=2, scheme="anchored")
     b = walk_forward_splits(100, n_folds=4, embargo=2, scheme="expanding")
     assert len(a) == len(b)
-    for fa, fb in zip(a, b):
+    for fa, fb in zip(a, b, strict=False):
         np.testing.assert_array_equal(fa.train_idx, fb.train_idx)
         np.testing.assert_array_equal(fa.val_idx, fb.val_idx)
 

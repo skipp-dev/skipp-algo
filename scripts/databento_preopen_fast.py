@@ -19,6 +19,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+import contextlib
+
 from databento_volatility_screener import (
     US_EASTERN_TZ,
     _clamp_request_end,
@@ -569,10 +571,8 @@ def _write_fast_outputs(
         _merge_by_trade_date(outputs["premarket_window_features"], premarket_window_current),
     )
     if quality_window_status_latest.empty and outputs["quality_window_status_latest"].exists():
-        try:
+        with contextlib.suppress(Exception):
             quality_window_status_latest = pd.read_parquet(outputs["quality_window_status_latest"])
-        except Exception:
-            pass
     _write_parquet_atomic(outputs["quality_window_status_latest"], quality_window_status_latest)
     _write_text_atomic(
         manifest_path,

@@ -10,6 +10,7 @@ the same process share a single connection + threading lock, avoiding
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 import sqlite3
@@ -138,10 +139,8 @@ class SqliteStore:
             logger.warning("SQLite DB corrupt (%s) — recreating: %s", self._path, exc)
             self.conn.close()
             for suffix in ("", "-wal", "-shm"):
-                try:
+                with contextlib.suppress(FileNotFoundError):
                     os.remove(self._path + suffix)
-                except FileNotFoundError:
-                    pass
             self.conn = self._connect(self._path)
 
         self.conn.executescript(SCHEMA)
@@ -171,10 +170,8 @@ class SqliteStore:
                 return  # already alive
             except (sqlite3.ProgrammingError, sqlite3.OperationalError):
                 pass
-            try:
+            with contextlib.suppress(Exception):
                 self.conn.close()
-            except Exception:
-                pass
             logger.info("Reconnecting SQLite: %s", self._path)
             self.conn = self._connect(self._path)
             self.conn.executescript(SCHEMA)
@@ -278,7 +275,5 @@ class SqliteStore:
         if self._path != ":memory:" and not force:
             logger.debug("Ignoring close() on shared SqliteStore: %s", self._path)
             return
-        try:
+        with contextlib.suppress(Exception):
             self.conn.close()
-        except Exception:
-            pass

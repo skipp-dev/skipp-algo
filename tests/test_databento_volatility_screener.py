@@ -1,95 +1,75 @@
 from __future__ import annotations
 
-from datetime import UTC, date, datetime, time
 import json
 import logging
 import os
-from pathlib import Path
 import threading
-from typing import Any, cast
 import warnings
+from datetime import UTC, date, datetime, time
+from pathlib import Path
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
 import pytest
+
 import scripts.databento_production_export as export_mod
-
-from scripts.load_databento_export_bundle import build_bundle_summary, load_export_bundle, resolve_manifest_path
-from scripts.bullish_quality_config import PremarketWindowDefinition, build_default_bullish_quality_config
-from scripts.databento_production_export import (
-    FIXED_ET_DISPLAY_TIMEZONE,
-    _build_exact_window_end_lookup,
-    _build_batl_debug_payload,
-    _build_daily_symbol_features_full_universe_export,
-    _build_research_event_flag_coverage,
-    _build_research_event_flag_outcome_slices,
-    _build_research_event_flag_trade_date_distribution,
-    _build_research_event_flags_full_universe_export,
-    _build_quality_window_status_latest,
-    _populate_quality_window_ranks,
-    _compute_quality_reason,
-    _normalize_exchange_key,
-    _normalize_quality_window_exchange_dataset_map,
-    _window_bounds_for_trade_date,
-    _write_exact_named_exports,
-    build_premarket_window_features_full_universe_export,
-    compute_single_window_features,
-    _collect_quality_window_source_frames,
-    _compute_quality_window_signal,
-    _enrich_universe_with_quality_window_status,
-    _filter_premarket_rows,
-    _load_fundamental_reference,
-    _select_top_candidates_per_day,
-    _format_optional_time,
-    _build_premarket_features_full_universe_export,
-    _collect_fixed_et_second_detail,
-    _prepare_full_universe_second_detail_export,
-    _run_fixed_et_intraday_screen,
-    run_production_export_pipeline,
-)
-
 from databento_volatility_screener import (
+    CACHE_VERSION_BY_CATEGORY,
+    DATA_CACHE_TTL_SECONDS,
     EXACT_NAMED_EXPORT_STATE_FILE,
+    SYMBOL_SUPPORT_CACHE_TTL_SECONDS,
     UI_RUNTIME_STATE_KEY,
+    UNIVERSE_COLUMNS,
+    WATCHLIST_SNAPSHOT_FILE,
+    DataStatusResult,
+    SymbolDayState,
+    _augment_watchlist_result_with_intraday_context,
     _build_focus_window_coverage_series,
     _build_open_pattern_status_series,
+    _build_tradingview_watchlist_text,
     _build_watchlist_snapshot_panel_frames,
     _build_watchlist_table_style_frame,
-    _build_tradingview_watchlist_text,
-    _augment_watchlist_result_with_intraday_context,
-    _collapse_duplicate_symbol_seconds,
-    _deduplicate_daily_symbol_rows,
-    _format_intraday_reference_time,
-    _highlight_rank_change_label,
-    _format_reclaim_status_series,
-    _resolve_watchlist_snapshot_trigger,
-    _run_full_history_refresh_with_status,
-    _numeric_series_or_nan,
-    _persist_watchlist_snapshot,
-    _download_nasdaq_trader_text,
-    _fetch_us_equity_universe_via_screener,
-    UNIVERSE_COLUMNS,
     _clamp_request_end,
     _coerce_timestamp_frame,
+    _collapse_duplicate_symbol_seconds,
     _daily_request_end_exclusive,
+    _deduplicate_daily_symbol_rows,
+    _download_nasdaq_trader_text,
     _extract_unresolved_symbols_from_warning_messages,
+    _fetch_us_equity_universe_via_screener,
+    _format_intraday_reference_time,
+    _format_reclaim_status_series,
+    _highlight_rank_change_label,
     _iter_symbol_batches,
+    _load_ui_runtime_state,
     _normalize_symbol_day_scope,
+    _numeric_series_or_nan,
     _parse_nasdaq_trader_directory,
+    _persist_ui_runtime_state,
+    _persist_watchlist_snapshot,
     _prepare_frame_for_excel,
     _probe_symbol_support,
     _read_cached_frame,
     _read_exact_named_export_state,
     _read_symbol_support_cache,
-    _symbols_requiring_support_check,
+    _resolve_watchlist_snapshot_trigger,
+    _run_full_history_refresh_with_status,
     _symbol_scope_token,
+    _symbols_requiring_support_check,
     _update_state_from_chunk,
-    _load_ui_runtime_state,
-    _persist_ui_runtime_state,
     _write_cached_frame,
     _write_exact_named_export_state,
+    _write_streamlit_watchlist_txt_exports,
     _write_symbol_support_cache,
+    _write_tradingview_watchlist_exports,
+    build_cache_path,
     build_daily_features_full_universe,
+    build_data_status_result,
+    build_entry_checklist_table,
+    build_summary_table,
+    build_window_definition,
+    choose_default_dataset,
     collect_detail_tables_for_summary,
     collect_full_universe_close_trade_detail,
     collect_full_universe_open_window_second_detail,
@@ -101,27 +81,46 @@ from databento_volatility_screener import (
     list_recent_trading_days,
     load_daily_bars,
     normalize_symbol_for_databento,
-    run_intraday_screen,
-    SYMBOL_SUPPORT_CACHE_TTL_SECONDS,
-    DATA_CACHE_TTL_SECONDS,
-    CACHE_VERSION_BY_CATEGORY,
-    _write_tradingview_watchlist_exports,
-    _write_streamlit_watchlist_txt_exports,
-    SymbolDayState,
-    build_cache_path,
-    build_entry_checklist_table,
-    build_data_status_result,
-    build_window_definition,
-    build_summary_table,
-    choose_default_dataset,
-    DataStatusResult,
     rank_top_fraction_per_day,
-    resolve_watchlist_display_table,
     resolve_selected_detail_tables,
+    resolve_watchlist_display_table,
+    run_intraday_screen,
     summarize_symbol_day,
-    WATCHLIST_SNAPSHOT_FILE,
+)
+from scripts.bullish_quality_config import PremarketWindowDefinition, build_default_bullish_quality_config
+from scripts.databento_production_export import (
+    FIXED_ET_DISPLAY_TIMEZONE,
+    _build_batl_debug_payload,
+    _build_daily_symbol_features_full_universe_export,
+    _build_exact_window_end_lookup,
+    _build_premarket_features_full_universe_export,
+    _build_quality_window_status_latest,
+    _build_research_event_flag_coverage,
+    _build_research_event_flag_outcome_slices,
+    _build_research_event_flag_trade_date_distribution,
+    _build_research_event_flags_full_universe_export,
+    _collect_fixed_et_second_detail,
+    _collect_quality_window_source_frames,
+    _compute_quality_reason,
+    _compute_quality_window_signal,
+    _enrich_universe_with_quality_window_status,
+    _filter_premarket_rows,
+    _format_optional_time,
+    _load_fundamental_reference,
+    _normalize_exchange_key,
+    _normalize_quality_window_exchange_dataset_map,
+    _populate_quality_window_ranks,
+    _prepare_full_universe_second_detail_export,
+    _run_fixed_et_intraday_screen,
+    _select_top_candidates_per_day,
+    _window_bounds_for_trade_date,
+    _write_exact_named_exports,
+    build_premarket_window_features_full_universe_export,
+    compute_single_window_features,
+    run_production_export_pipeline,
 )
 from scripts.generate_databento_watchlist import LongDipConfig, generate_watchlist_result
+from scripts.load_databento_export_bundle import build_bundle_summary, load_export_bundle, resolve_manifest_path
 
 
 def test_build_research_event_flags_full_universe_export_derives_earnings_flags(monkeypatch) -> None:
@@ -6217,8 +6216,8 @@ def test_quality_window_signal_gap_filter_uses_window_close_basis_consistently()
 def test_collect_full_universe_preserves_trade_count(monkeypatch, tmp_path: Path) -> None:
     """collect_full_universe_open_window_second_detail should propagate the
     trade_count column (normalized from 'count') to the output frame."""
-    from databento_volatility_screener import collect_full_universe_open_window_second_detail
     import databento_volatility_screener as screener_mod
+    from databento_volatility_screener import collect_full_universe_open_window_second_detail
 
     trade_day = date(2026, 3, 6)
     ts_base = pd.Timestamp("2026-03-06 09:00:00", tz="US/Eastern").tz_convert("UTC")

@@ -106,10 +106,9 @@ def main(argv: list[str] | None = None) -> int:
     files: list[Path] = []
     for raw in args.paths:
         matches = glob.glob(raw)
-        if not matches:
-            # Allow a literal path that exists.
-            if Path(raw).exists():
-                matches = [raw]
+        # Allow a literal path that exists.
+        if not matches and Path(raw).exists():
+            matches = [raw]
         for m in matches:
             p = Path(m)
             if p.is_file() and p.suffix == ".json":

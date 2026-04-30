@@ -6,8 +6,6 @@ month and reports status counts per bucket. Pure stdlib, JSON-first.
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import datetime as _dt
 import json
@@ -16,6 +14,7 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
+from scripts.smc_atomic_write import atomic_write_text
 
 VALID_STATUSES = ("green", "amber", "red", "unknown")
 
@@ -120,10 +119,7 @@ def main(argv: list[str] | None = None) -> int:
 
     records = _iter_records(args.ledger)
     report = bucket(records, period=args.period)
-    if args.format == "md":
-        body = render_markdown(report)
-    else:
-        body = json.dumps(report, indent=2) + "\n"
+    body = render_markdown(report) if args.format == "md" else json.dumps(report, indent=2) + "\n"
     if args.output is not None:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         atomic_write_text(body, args.output)

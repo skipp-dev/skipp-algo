@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
 # ── Required fields per pine payload entity type ──────────────────
 # If a new field is added to the pine payload, it must be registered here
 # or the required-field parity test will fail.

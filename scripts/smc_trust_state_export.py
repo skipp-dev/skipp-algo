@@ -32,8 +32,8 @@ breaks.
 """
 from __future__ import annotations
 
-from typing import Any
 from collections.abc import Mapping
+from typing import Any
 
 from smc_integration.action_degradation import (
     ActionDegradation,
@@ -46,7 +46,6 @@ from smc_integration.trust_state import (
     TrustStateCause,
     derive_trust_state,
 )
-
 
 # Stable Pine field-name surface (caller never spells these manually).
 PINE_TRUST_FIELDS: tuple[str, ...] = (

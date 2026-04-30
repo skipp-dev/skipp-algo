@@ -13,7 +13,6 @@ import types
 
 import pytest
 
-
 # ── 1. Direct import of extracted modules ────────────────────────────
 
 class TestDirectImports:
@@ -78,8 +77,8 @@ class TestRuntimeReExports:
     def test_streamlit_app_reexports(self):
         from scripts.smc_microstructure_base_runtime import (
             list_generated_base_csvs,
-            resolve_base_csv_selection,
             resolve_base_csv_action_target,
+            resolve_base_csv_selection,
             run_streamlit_micro_base_app,
         )
         assert callable(list_generated_base_csvs)
@@ -89,13 +88,13 @@ class TestRuntimeReExports:
 
     def test_session_detail_reexports(self):
         from scripts.smc_microstructure_base_runtime import (
-            PREMARKET_START_ET,
-            REGULAR_OPEN_ET,
-            REGULAR_CLOSE_ET,
             AFTERHOURS_END_ET,
-            PREMARKET_MINUTES,
-            REGULAR_MINUTES,
             AFTERHOURS_MINUTES,
+            PREMARKET_MINUTES,
+            PREMARKET_START_ET,
+            REGULAR_CLOSE_ET,
+            REGULAR_MINUTES,
+            REGULAR_OPEN_ET,
             collect_full_universe_session_minute_detail,
         )
         assert callable(collect_full_universe_session_minute_detail)
@@ -141,8 +140,9 @@ class TestNoCircularImports:
     """Extracted modules must not import from runtime (one-directional)."""
 
     def test_publish_guard_does_not_import_runtime(self):
-        import scripts.smc_micro_publish_guard as mod
         import ast
+
+        import scripts.smc_micro_publish_guard as mod
         with open(mod.__file__) as _f:
             tree = ast.parse(_f.read())
         imported_modules = {
@@ -156,8 +156,9 @@ class TestNoCircularImports:
                 pytest.fail(f"publish_guard imports from runtime: {mod_name}")
 
     def test_session_detail_does_not_import_runtime(self):
-        import scripts.smc_databento_session_detail as mod
         import ast
+
+        import scripts.smc_databento_session_detail as mod
         with open(mod.__file__) as _f:
             tree = ast.parse(_f.read())
         for node in ast.walk(tree):

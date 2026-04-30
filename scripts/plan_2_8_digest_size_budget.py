@@ -9,14 +9,13 @@ bundle from unintentional bloat.
 
 from __future__ import annotations
 
-from scripts.smc_atomic_write import atomic_write_text
-
 import argparse
 import json
 import sys
 from pathlib import Path
 from typing import Any
 
+from scripts.smc_atomic_write import atomic_write_text
 
 DEFAULT_MAX_BYTES = 1 * 1024 * 1024  # 1 MiB
 

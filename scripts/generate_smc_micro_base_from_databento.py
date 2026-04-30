@@ -256,10 +256,7 @@ def _derive_volume_regime(
     syms = base_snapshot["symbol"].astype(str).str.upper()
     low = sorted(syms[adv < adv_threshold].dropna().tolist())
     median_adv = adv.median()
-    if pd.notna(median_adv) and median_adv > 0:
-        holiday = sorted(syms[adv < 0.2 * median_adv].dropna().tolist())
-    else:
-        holiday = []
+    holiday = sorted(syms[adv < 0.2 * median_adv].dropna().tolist()) if pd.notna(median_adv) and median_adv > 0 else []
     return {"low_tickers": low, "holiday_suspect_tickers": holiday}
 
 
@@ -937,13 +934,16 @@ def build_enrichment(
 
         news_domain_diagnostic["diagnostics"] = diagnostics
 
-        if live_snapshot_diagnostics is not None:
-            if pr.provider == "none" and _news_payload_has_mentions(news_result):
-                resolved_news_provider = "live_snapshot"
-                news_domain_diagnostic["selected_provider"] = "live_snapshot"
-                news_domain_diagnostic["provider_status"] = "ok"
-                news_domain_diagnostic["ok"] = True
-                news_domain_diagnostic["status_detail"] = "Provider chain returned no data; using live news snapshot overlay."
+        if (
+            live_snapshot_diagnostics is not None
+            and pr.provider == "none"
+            and _news_payload_has_mentions(news_result)
+        ):
+            resolved_news_provider = "live_snapshot"
+            news_domain_diagnostic["selected_provider"] = "live_snapshot"
+            news_domain_diagnostic["provider_status"] = "ok"
+            news_domain_diagnostic["ok"] = True
+            news_domain_diagnostic["status_detail"] = "Provider chain returned no data; using live news snapshot overlay."
 
         provenance["news_provider"] = resolved_news_provider
         domain_diagnostics["news"] = news_domain_diagnostic

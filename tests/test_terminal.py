@@ -9,6 +9,9 @@ from __future__ import annotations
 
 import json
 import os
+
+# Ensure project root is on the path
+import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -17,9 +20,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-# Ensure project root is on the path
-import sys
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -27,7 +27,6 @@ if str(PROJECT_ROOT) not in sys.path:
 from newsstack_fmp.common_types import NewsItem
 from newsstack_fmp.store_sqlite import SqliteStore
 from terminal_poller import ClassifiedItem
-
 
 # ═════════════════════════════════════════════════════════════════
 # Fixtures

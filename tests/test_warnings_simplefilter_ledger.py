@@ -91,11 +91,11 @@ def _warnings_simplefilter_sites() -> set[tuple[str, int, str]]:
 # ``warnings.catch_warnings()`` block. New entries must also be
 # ``"always"`` (or the parallel silent-warnings bundle will also fail).
 WARNINGS_SIMPLEFILTER_LEDGER: set[tuple[str, int, str]] = {
-    ("databento_volatility_screener.py", 555, "always"),
-    ("databento_volatility_screener.py", 1574, "always"),
-    ("databento_volatility_screener.py", 2091, "always"),
-    ("databento_volatility_screener.py", 2537, "always"),
-    ("databento_volatility_screener.py", 2654, "always"),
+    ("databento_volatility_screener.py", 552, "always"),
+    ("databento_volatility_screener.py", 1571, "always"),
+    ("databento_volatility_screener.py", 2088, "always"),
+    ("databento_volatility_screener.py", 2534, "always"),
+    ("databento_volatility_screener.py", 2651, "always"),
     ("databento_universe.py", 162, "always"),
 }
 

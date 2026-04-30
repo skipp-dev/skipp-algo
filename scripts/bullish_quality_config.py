@@ -5,7 +5,6 @@ from datetime import date
 
 import pandas as pd
 
-
 DEFAULT_BULLISH_QUALITY_SCORE_PROFILE = "balanced"
 BULLISH_QUALITY_SCORE_PROFILES: tuple[str, ...] = ("conservative", "balanced", "aggressive")
 

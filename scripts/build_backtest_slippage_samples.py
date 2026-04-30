@@ -64,6 +64,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import contextlib
 
 SCHEMA_VERSION = "1.0.0"
 
@@ -341,10 +342,8 @@ def _atomic_write_json(path: Path, payload: Mapping[str, Any]) -> None:
             os.fsync(fh.fileno())
         os.replace(tmp_name, path)
     except BaseException:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp_name)
-        except OSError:
-            pass
         raise
 
 

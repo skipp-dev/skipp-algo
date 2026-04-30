@@ -210,7 +210,7 @@ def render_hero_setup_quality_block_lines(
     lines: list[str] = ["// ── Hero Setup Quality (ENG-WS3-04) ──"]
     for field, key in zip(
         PINE_HERO_QUALITY_FIELDS,
-        ("tier", "why_now", "main_risk", "family_health"),
+        ("tier", "why_now", "main_risk", "family_health"), strict=False,
     ):
         lines.append(
             f'export const string {field} = "{_pine_string(values[key])}"'

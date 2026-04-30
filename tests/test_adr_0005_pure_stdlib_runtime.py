@@ -21,7 +21,6 @@ from pathlib import Path
 
 import pytest
 
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Files covered by ADR-0005's "measurement runtime" definition.
@@ -51,11 +50,10 @@ def _collect_imported_roots(source: str) -> set[str]:
         if isinstance(node, ast.Import):
             for alias in node.names:
                 roots.add(alias.name.split(".", 1)[0])
-        elif isinstance(node, ast.ImportFrom):
-            # ImportFrom.module is None for "from . import x" — skip
-            # those; relative imports cannot reach a banned root.
-            if node.module:
-                roots.add(node.module.split(".", 1)[0])
+        # ImportFrom.module is None for "from . import x" — skip
+        # those; relative imports cannot reach a banned root.
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            roots.add(node.module.split(".", 1)[0])
     return roots
 
 

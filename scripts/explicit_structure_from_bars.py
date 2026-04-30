@@ -72,10 +72,14 @@ def resample_bars_to_timeframe(df: pd.DataFrame, timeframe: str) -> pd.DataFrame
             .reset_index()
             .rename(columns={"bucket_end": "timestamp"})
         )
-        if not agg.empty and pd.notna(max_source_ts):
-            # Prevent a partial trailing bucket from being treated as a confirmed bar.
-            if pd.Timestamp(agg["timestamp"].iloc[-1]) > pd.Timestamp(max_source_ts):
-                agg = agg.iloc[:-1]
+        # Prevent a partial trailing bucket from being treated as a confirmed bar.
+        if (
+            not agg.empty
+            and pd.notna(max_source_ts)
+            and pd.Timestamp(agg["timestamp"].iloc[-1])
+            > pd.Timestamp(max_source_ts)
+        ):
+            agg = agg.iloc[:-1]
         agg = agg.dropna(subset=["open", "high", "low", "close"]).reset_index(drop=True)
         if agg.empty:
             continue

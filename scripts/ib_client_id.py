@@ -36,6 +36,7 @@ Usage::
 
 from __future__ import annotations
 
+import contextlib
 import fcntl
 import json
 import os
@@ -121,7 +122,7 @@ def allocate_ib_client_id(
     lock_path.parent.mkdir(parents=True, exist_ok=True)
 
     try:
-        lock_fd = open(lock_path, "w")
+        lock_fd = open(lock_path, "w")  # noqa: SIM115 -- advisory fcntl lock; closed in finally below
     except OSError:
         return random.randint(*preferred_range)
 
@@ -170,10 +171,8 @@ def allocate_ib_client_id(
         _save(path, registry)
         return int(oldest_cid_str)
     finally:
-        try:
+        with contextlib.suppress(OSError):
             fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
-        except OSError:
-            pass
         lock_fd.close()
 
 
@@ -186,7 +185,7 @@ def release_ib_client_id(
         return False
     lock_path = path.with_suffix(path.suffix + ".lock")
     try:
-        lock_fd = open(lock_path, "w")
+        lock_fd = open(lock_path, "w")  # noqa: SIM115 -- advisory fcntl lock; closed in finally below
     except OSError:
         return False
     try:
@@ -202,10 +201,8 @@ def release_ib_client_id(
             return True
         return False
     finally:
-        try:
+        with contextlib.suppress(OSError):
             fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
-        except OSError:
-            pass
         lock_fd.close()
 
 

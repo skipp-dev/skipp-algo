@@ -36,7 +36,6 @@ from smc_tv_bridge.stubs import (
     StubTechProvider,
 )
 
-
 # ═══════════════════════════════════════════════════════════════════════════
 # 1. Candle contract
 # ═══════════════════════════════════════════════════════════════════════════
@@ -350,7 +349,7 @@ class TestEncodingContract:
         assert encode_sweeps(sweeps) == "2000|101.0|SELL"
 
     def test_encode_empty_lists(self) -> None:
-        from smc_tv_bridge.smc_api import encode_levels, encode_zones, encode_sweeps
+        from smc_tv_bridge.smc_api import encode_levels, encode_sweeps, encode_zones
         assert encode_levels([]) == ""
         assert encode_zones([]) == ""
         assert encode_sweeps([]) == ""

@@ -15,9 +15,8 @@ resolution raises ``CollisionError`` rather than silently picking one.
 
 from __future__ import annotations
 
-from pathlib import Path
 from collections.abc import Sequence
-
+from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 # Single source of truth for the LEGACY pine directory location (H-8,

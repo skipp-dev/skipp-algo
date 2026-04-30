@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from collections import Counter
 
-
 from scripts.smc_surface_matrix import (
     SURFACE_MATRIX,
     Audience,
