@@ -120,10 +120,12 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S", "T20", "B011", "N801"]
-"scripts/*" = ["T20"]
-"open_prep/streamlit_monitor.py" = ["T20"]
+"tests/*" = ["S", "T20", "B011", "N801", "E402"]
+"scripts/*" = ["T20", "E402"]
+"open_prep/streamlit_monitor.py" = ["T20", "E402"]
 "streamlit_terminal.py" = ["E402"]
+"streamlit_databento_volatility_screener.py" = ["E402"]
+"streamlit_smc_micro_base_generator.py" = ["E402"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["governance", "newsstack_fmp", "open_prep", "rl", "smc_core", "terminal_poller", "terminal_export"]
