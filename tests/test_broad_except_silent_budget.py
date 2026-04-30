@@ -79,7 +79,7 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/run_open_prep.py", 4492),
         ("open_prep/streamlit_monitor.py", 75),
         ("open_prep/streamlit_monitor.py", 126),
-        ("newsstack_fmp/ingest_benzinga.py", 565),
+        ("newsstack_fmp/ingest_benzinga.py", 577),
     }
 )
 

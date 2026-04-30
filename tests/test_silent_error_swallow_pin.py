@@ -54,7 +54,7 @@ _DIR_EXCLUDE = frozenset(
 # ``except`` clauses themselves. Order is irrelevant; sets give O(1) lookup.
 # ---------------------------------------------------------------------------
 _FROZEN_SITES: dict[str, frozenset[int]] = {
-    "newsstack_fmp/ingest_benzinga.py": frozenset({565}),
+    "newsstack_fmp/ingest_benzinga.py": frozenset({577}),
     "open_prep/alerts.py": frozenset({239}),
     "open_prep/run_open_prep.py": frozenset({4492}),
     "open_prep/streamlit_monitor.py": frozenset({75, 126}),
