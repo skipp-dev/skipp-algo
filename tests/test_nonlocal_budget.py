@@ -69,7 +69,7 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("databento_volatility_screener.py", 4683, ("_fast_progress_step",)),
         ("databento_volatility_screener.py", 4684, ("_fast_progress_total",)),
         ("databento_volatility_screener.py", 4685, ("_fast_eta_smooth_seconds",)),
-        ("smc_core/ensemble_quality.py", 172, ("active_weight", "weighted_total")),
+        ("smc_core/ensemble_quality.py", 171, ("active_weight", "weighted_total")),
     }
 )
 
