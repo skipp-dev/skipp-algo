@@ -56,7 +56,7 @@ env:
 
 jobs:
   recalibrate-shadow:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-m' }}
     timeout-minutes: 20
     steps:
       - name: Checkout
