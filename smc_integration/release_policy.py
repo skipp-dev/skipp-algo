@@ -1069,7 +1069,7 @@ def resolve_git_commit() -> str | None:
         return env_sha
     try:
         git_exe = shutil.which("git") or "git"
-        result = subprocess.run(  # trusted: hardcoded git argv resolved via shutil.which
+        result = subprocess.run(  # noqa: S603 -- hardcoded git argv resolved via shutil.which (no shell, no user input)
             [git_exe, "rev-parse", "HEAD"],
             check=False,
             capture_output=True,

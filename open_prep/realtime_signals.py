@@ -180,7 +180,7 @@ def _detect_rt_engine_pid() -> int | None:
 
     try:
         pgrep_exe = shutil.which("pgrep") or "pgrep"
-        result = subprocess.run(  # trusted: hardcoded pgrep argv resolved via shutil.which
+        result = subprocess.run(  # noqa: S603 -- hardcoded pgrep argv resolved via shutil.which (no shell, no user input)
             [pgrep_exe, "-f", "python.*-m open_prep.realtime_signals"],
             capture_output=True,
             text=True,
@@ -251,7 +251,7 @@ def ensure_rt_engine_running(
 
     # Use a file lock to prevent TOCTOU race between concurrent callers
     _RT_ENGINE_LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
-    lock_fd = open(_RT_ENGINE_LOCK_FILE, "w", encoding="utf-8")  # noqa: SIM115 -- fd held under fcntl.flock for engine-startup lifetime
+    lock_fd = open(_RT_ENGINE_LOCK_FILE, "w", encoding="utf-8")
     try:
         fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
@@ -322,9 +322,9 @@ def _ensure_rt_engine_running_locked(
                 if k and k not in env:
                     env[k] = v
 
-        log_fh = open(_RT_ENGINE_LOG_FILE, "a", encoding="utf-8")  # noqa: SIM115 -- fd inherited by detached subprocess (start_new_session=True)
+        log_fh = open(_RT_ENGINE_LOG_FILE, "a", encoding="utf-8")
         try:
-            proc = subprocess.Popen(  # trusted: sys.executable -m hardcoded module argv
+            proc = subprocess.Popen(  # noqa: S603 -- sys.executable with hardcoded module argv (no shell, no user input)
                 [
                     sys.executable, "-m", "open_prep.realtime_signals",
                     "--interval", str(poll_interval),

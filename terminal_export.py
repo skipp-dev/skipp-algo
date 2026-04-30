@@ -10,6 +10,7 @@ on empty config values.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import hmac
 import json
@@ -173,10 +174,8 @@ def rewrite_jsonl(path: str, items: list[dict[str, Any]]) -> None:
         os.replace(tmp_path, path)
         logger.info("Rewrote JSONL %s with %d items", path, len(sorted_items))
     except BaseException:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp_path)
-        except OSError:
-            pass
         raise
 
 
@@ -225,10 +224,8 @@ def rotate_jsonl(path: str, max_lines: int = 5000, max_age_s: float = 14400.0) -
             fh.writelines(keep)
         os.replace(tmp_path, path)
     except BaseException:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp_path)
-        except OSError:
-            pass
         raise
     logger.info("Rotated JSONL %s: %d → %d lines", path, len(lines), len(keep))
 
@@ -449,16 +446,12 @@ def build_vd_snapshot(
             bq = bz_by_sym[tk]
             bz_last = bq.get("last")
             if bz_last is not None:
-                try:
+                with contextlib.suppress(ValueError, TypeError):
                     price = round(float(bz_last), 2)
-                except (ValueError, TypeError):
-                    pass
             bz_chg = bq.get("changePercent")
             if bz_chg is not None and chg_pct is None:
-                try:
+                with contextlib.suppress(ValueError, TypeError):
                     chg_pct = round(float(bz_chg), 2)
-                except (ValueError, TypeError):
-                    pass
 
         # Recompute recency live from published_ts
         pub_ts = d.get("published_ts")
@@ -613,10 +606,8 @@ def save_vd_snapshot(
                     fh.write("\n")
             os.replace(tmp_path, dest)
         except BaseException:
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(tmp_path)
-            except OSError:
-                pass
             raise
     except Exception as exc:
         logger.debug("VisiData snapshot write failed: %s", exc)
@@ -756,10 +747,8 @@ def save_vd_bz_calendar(
             os.replace(tmp_path, dest)
             logger.debug("Wrote %d BZ calendar events to %s", len(rows), dest)
         except BaseException:
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(tmp_path)
-            except OSError:
-                pass
             raise
     except Exception as exc:
         logger.debug("BZ calendar write failed: %s", exc)

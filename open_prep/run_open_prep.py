@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import json
 import logging
@@ -1948,10 +1949,8 @@ def _fetch_finnhub_patterns(
             _raw_levels = sr.get("levels", []) if isinstance(sr, dict) else []
             sr_levels: list[float] = []
             for _lv in _raw_levels:
-                try:
+                with contextlib.suppress(ValueError, TypeError):
                     sr_levels.append(float(_lv))
-                except (ValueError, TypeError):
-                    pass
 
             # Extract signal from aggregate indicators
             tech_signal = ""
@@ -2214,10 +2213,8 @@ def _probe_data_capabilities(*, client: FMPClient, today: date) -> dict[str, dic
         except BaseException:
             if fd >= 0:
                 os.close(fd)
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(tmp)
-            except OSError:
-                pass
             raise
     except Exception as exc:
         logger.debug("Capability cache write failed: %s", exc)
@@ -2498,10 +2495,7 @@ def _fetch_premarket_context(
 
     # Stage 1: mover seed + union symbol list
     try:
-        if cached_mover_seed:
-            mover_seed = cached_mover_seed
-        else:
-            mover_seed = _build_mover_seed(client, mover_seed_max_symbols)
+        mover_seed = cached_mover_seed or _build_mover_seed(client, mover_seed_max_symbols)
         mover_seed_set = set(mover_seed)
         union_symbols = _normalize_symbols(symbols + mover_seed)
         if len(union_symbols) > MAX_PREMARKET_UNION_SYMBOLS:
@@ -2905,16 +2899,13 @@ def _calculate_atr14_from_eod(candles: list[dict], period: int = 14) -> float:
     prev_close: float | None = None
 
     for _, high, low, close in parsed:
-        if prev_close is None:
-            # First bar TR is H-L (no prior close)
-            # Standard practice often skips first bar or treats as H-L
-            tr = high - low
-        else:
-            tr = max(
-                high - low,
-                abs(high - prev_close),
-                abs(low - prev_close),
-            )
+        # First bar TR is H-L (no prior close).
+        # Standard practice often skips first bar or treats as H-L.
+        tr = (
+            high - low
+            if prev_close is None
+            else max(high - low, abs(high - prev_close), abs(low - prev_close))
+        )
         tr_values.append(max(tr, 0.0))
         prev_close = close
 
@@ -3018,10 +3009,8 @@ def _save_atr_cache(
         except BaseException:
             if fd >= 0:
                 os.close(fd)
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(tmp)
-            except OSError:
-                pass
             raise
         # Evict stale cache files (> 7 days old) to prevent unbounded growth.
         _evict_stale_cache_files(ATR_CACHE_DIR, max_age_days=7)
@@ -3254,10 +3243,7 @@ def _parse_bar_dt_utc(bar: dict[str, Any]) -> datetime | None:
         dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
         if dt.tzinfo is None:
             naive_mode = str(os.environ.get("OPEN_PREP_INTRADAY_NAIVE_TZ", "NY")).strip().upper()
-            if naive_mode in {"UTC", "Z"}:
-                dt = dt.replace(tzinfo=UTC)
-            else:
-                dt = dt.replace(tzinfo=US_EASTERN_TZ)
+            dt = dt.replace(tzinfo=UTC) if naive_mode in {"UTC", "Z"} else dt.replace(tzinfo=US_EASTERN_TZ)
         return dt.astimezone(UTC)
     except ValueError:
         pass
@@ -3265,10 +3251,7 @@ def _parse_bar_dt_utc(bar: dict[str, Any]) -> datetime | None:
         try:
             dt = datetime.strptime(raw, fmt)
             naive_mode = str(os.environ.get("OPEN_PREP_INTRADAY_NAIVE_TZ", "NY")).strip().upper()
-            if naive_mode in {"UTC", "Z"}:
-                dt = dt.replace(tzinfo=UTC)
-            else:
-                dt = dt.replace(tzinfo=US_EASTERN_TZ)
+            dt = dt.replace(tzinfo=UTC) if naive_mode in {"UTC", "Z"} else dt.replace(tzinfo=US_EASTERN_TZ)
             return dt.astimezone(UTC)
         except ValueError:
             continue
@@ -3362,10 +3345,8 @@ def _pm_cache_save(
         except BaseException:
             if fd >= 0:
                 os.close(fd)
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(tmp)
-            except OSError:
-                pass
             raise
         # Evict stale PM cache files (> 2 days old).
         _evict_stale_cache_files(PM_CACHE_DIR, max_age_days=2)
@@ -5656,10 +5637,8 @@ def generate_open_prep_result(
         except BaseException:
             if _fd >= 0:
                 os.close(_fd)
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(_tmp_name)
-            except OSError:
-                pass
             raise
         # Backward-compat symlink so existing callers (vd_watch.sh, start_open_prep_suite.py)
         # that look in the package dir still find the file.
