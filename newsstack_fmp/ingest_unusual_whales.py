@@ -31,6 +31,12 @@ UW_BASE_URL = "https://api.unusualwhales.com/api"
 # Endpoint paths (kept as constants for grep/refactor).
 UW_FLOW_ALERTS_PATH = "/option-trades/flow-alerts"
 UW_FLOW_RECENT_PATH = "/stock/{ticker}/flow-recent"
+# v3 P-4b: dark-pool prints + dealer-gamma-by-strike
+UW_DARKPOOL_TICKER_PATH = "/darkpool/{ticker}"
+UW_DARKPOOL_RECENT_PATH = "/darkpool/recent"
+UW_SPOT_GEX_STRIKE_PATH = "/stock/{ticker}/spot-exposures/strike"
+# v3 P-4d: marketwide call/put-premium tide
+UW_MARKET_TIDE_PATH = "/market/market-tide"
 
 
 class UnusualWhalesAdapter:
@@ -187,6 +193,52 @@ class UnusualWhalesAdapter:
                 out.append(mapped)
         return out
 
+    # ── v3 P-4b: dark-pool prints + dealer-gamma-by-strike ──
+
+    def fetch_darkpool(
+        self, ticker: str, *, limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """Fetch dark-pool prints for a single ticker."""
+        sym = (ticker or "").strip().upper()
+        if not sym:
+            return []
+        data = self._get_json(
+            UW_DARKPOOL_TICKER_PATH.format(ticker=sym),
+            params={"limit": str(limit)},
+        )
+        return self._unwrap_list(data)
+
+    def fetch_darkpool_recent(self, *, limit: int = 100) -> list[dict[str, Any]]:
+        """Fetch the firehose of recent dark-pool prints across all tickers."""
+        data = self._get_json(
+            UW_DARKPOOL_RECENT_PATH, params={"limit": str(limit)},
+        )
+        return self._unwrap_list(data)
+
+    def fetch_spot_gex(self, ticker: str) -> list[dict[str, Any]]:
+        """Fetch dealer-gamma exposure broken down by strike.
+
+        Returns a list of per-strike records with full Greek surface
+        (gamma/delta/charm/vanna for both calls + puts, broken down by
+        OI/volume/bid/ask). All numeric values are returned as strings.
+        """
+        sym = (ticker or "").strip().upper()
+        if not sym:
+            return []
+        data = self._get_json(UW_SPOT_GEX_STRIKE_PATH.format(ticker=sym))
+        return self._unwrap_list(data)
+
+    # ── v3 P-4d: marketwide tide ──
+
+    def fetch_market_tide(self) -> list[dict[str, Any]]:
+        """Fetch the intraday net-call/put-premium tide timeseries.
+
+        Returns ~80 5-minute records for the current trading day.
+        The last record is the session-to-date snapshot.
+        """
+        data = self._get_json(UW_MARKET_TIDE_PATH)
+        return self._unwrap_list(data)
+
 
 # ── Module-level helpers (mirrors ingest_benzinga_financial.py shape) ──
 
@@ -222,3 +274,75 @@ def fetch_uw_options_flow(
 def is_uw_configured() -> bool:
     """Return True if a UW key is present in the environment."""
     return bool(os.getenv("UNUSUAL_WHALES_API_KEY", "").strip())
+
+
+# ── v3 P-4b/d: module-level wrappers for new endpoints ──
+
+
+def _adapter_or_none(api_key: str) -> UnusualWhalesAdapter | None:
+    if not api_key:
+        return None
+    try:
+        return UnusualWhalesAdapter(api_key)
+    except RuntimeError:
+        return None
+
+
+def fetch_uw_darkpool(
+    api_key: str, ticker: str, *, limit: int = 100,
+) -> list[dict[str, Any]]:
+    """Standalone wrapper for dark-pool prints. Returns ``[]`` on any error."""
+    adapter = _adapter_or_none(api_key)
+    if adapter is None:
+        return []
+    try:
+        return adapter.fetch_darkpool(ticker, limit=limit)
+    except Exception:
+        logger.warning("fetch_uw_darkpool failed", exc_info=True)
+        return []
+    finally:
+        adapter.close()
+
+
+def fetch_uw_darkpool_recent(
+    api_key: str, *, limit: int = 100,
+) -> list[dict[str, Any]]:
+    """Standalone wrapper for the recent-prints firehose."""
+    adapter = _adapter_or_none(api_key)
+    if adapter is None:
+        return []
+    try:
+        return adapter.fetch_darkpool_recent(limit=limit)
+    except Exception:
+        logger.warning("fetch_uw_darkpool_recent failed", exc_info=True)
+        return []
+    finally:
+        adapter.close()
+
+
+def fetch_uw_spot_gex(api_key: str, ticker: str) -> list[dict[str, Any]]:
+    """Standalone wrapper for dealer-gamma-by-strike."""
+    adapter = _adapter_or_none(api_key)
+    if adapter is None:
+        return []
+    try:
+        return adapter.fetch_spot_gex(ticker)
+    except Exception:
+        logger.warning("fetch_uw_spot_gex failed", exc_info=True)
+        return []
+    finally:
+        adapter.close()
+
+
+def fetch_uw_market_tide(api_key: str) -> list[dict[str, Any]]:
+    """Standalone wrapper for marketwide call/put-premium tide."""
+    adapter = _adapter_or_none(api_key)
+    if adapter is None:
+        return []
+    try:
+        return adapter.fetch_market_tide()
+    except Exception:
+        logger.warning("fetch_uw_market_tide failed", exc_info=True)
+        return []
+    finally:
+        adapter.close()

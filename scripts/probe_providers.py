@@ -491,6 +491,58 @@ def probe_uw_options_flow() -> tuple[str, str]:
     return ("OK", f"AAPL flow-alerts {len(recs) if isinstance(recs, list) else '?'} record(s)")
 
 
+def _uw_probe(path: str, params: dict[str, str] | None, label: str) -> tuple[str, str]:
+    """Shared boilerplate for UW endpoint probes (v3 P-4b/d)."""
+    import httpx
+    key = os.getenv("UNUSUAL_WHALES_API_KEY", "").strip()
+    if not key:
+        return ("SKIP", "UNUSUAL_WHALES_API_KEY missing")
+    try:
+        r = httpx.get(
+            f"https://api.unusualwhales.com{path}",
+            params=params or {},
+            headers=_uw_headers(key),
+            timeout=15.0,
+        )
+    except httpx.HTTPError as exc:
+        return ("FAIL", f"HTTP error: {exc}")
+    if r.status_code == 401:
+        return ("FAIL", "HTTP 401 — UW key invalid")
+    if r.status_code == 403:
+        return ("WARN", "HTTP 403 — endpoint not in plan tier")
+    if r.status_code == 429:
+        return ("WARN", "HTTP 429 — rate-limited")
+    if r.status_code != 200:
+        return ("FAIL", f"HTTP {r.status_code}: {r.text[:80]}")
+    try:
+        data = r.json()
+    except Exception:
+        return ("WARN", "non-JSON response")
+    if isinstance(data, dict):
+        recs = data.get("data") or []
+    else:
+        recs = data if isinstance(data, list) else []
+    n = len(recs) if isinstance(recs, list) else "?"
+    return ("OK", f"{label} {n} record(s)")
+
+
+def probe_uw_darkpool() -> tuple[str, str]:
+    """Unusual Whales /api/darkpool/{ticker} — institutional prints (v3 P-4b)."""
+    return _uw_probe("/api/darkpool/AAPL", {"limit": "1"}, "AAPL darkpool")
+
+
+def probe_uw_spot_gex() -> tuple[str, str]:
+    """Unusual Whales /api/stock/{ticker}/spot-exposures/strike — dealer GEX (v3 P-4b)."""
+    return _uw_probe(
+        "/api/stock/AAPL/spot-exposures/strike", None, "AAPL spot-gex",
+    )
+
+
+def probe_uw_market_tide() -> tuple[str, str]:
+    """Unusual Whales /api/market/market-tide — net call/put premium (v3 P-4d)."""
+    return _uw_probe("/api/market/market-tide", None, "market-tide")
+
+
 def probe_bz_ownership() -> tuple[str, str]:
     return _bz_get("/api/v2.1/ownership", {"symbols": "AAPL"})
 
@@ -700,6 +752,11 @@ PROBES: list[Probe] = [
     Probe("Benzinga /api/v2.1/calendar/options_activity", probe_bz_options_activity, critical=False),
     # Unusual Whales — v3 P-3c: active UOA source replacing retired Benzinga options_activity
     Probe("UnusualWhales /api/option-trades/flow-alerts", probe_uw_options_flow, critical=True),
+    # v3 P-4b/d: new UW surfaces — Basic-tier entitlement verified 2026-05-01
+    # but not contractually guaranteed, so left non-critical.
+    Probe("UnusualWhales /api/darkpool/{ticker}", probe_uw_darkpool, critical=False),
+    Probe("UnusualWhales /api/stock/{ticker}/spot-exposures/strike", probe_uw_spot_gex, critical=False),
+    Probe("UnusualWhales /api/market/market-tide", probe_uw_market_tide, critical=False),
     Probe("Benzinga /api/v2.1/fundamentals", probe_bz_fundamentals, critical=False),
     Probe("Benzinga /api/v2.1/ownership", probe_bz_ownership, critical=False),
     Probe("Benzinga /api/v2.1/instruments", probe_bz_instruments, critical=False),

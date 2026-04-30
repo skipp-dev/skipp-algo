@@ -193,6 +193,18 @@ except ImportError:  # pragma: no cover
     _fetch_uw_options = None  # type: ignore[assignment]
     _uw_configured = lambda: False  # type: ignore[assignment]
 
+# v3 P-4b/d: dark-pool prints, dealer-gamma-by-strike, marketwide tide.
+try:
+    from newsstack_fmp.ingest_unusual_whales import (
+        fetch_uw_darkpool as _fetch_uw_darkpool,
+        fetch_uw_spot_gex as _fetch_uw_spot_gex,
+        fetch_uw_market_tide as _fetch_uw_market_tide,
+    )
+except ImportError:  # pragma: no cover
+    _fetch_uw_darkpool = None  # type: ignore[assignment]
+    _fetch_uw_spot_gex = None  # type: ignore[assignment]
+    _fetch_uw_market_tide = None  # type: ignore[assignment]
+
 # v3 P-3c: insider feed migrated from retired Benzinga endpoint to FMP
 # /stable/insider-trading/search (per-symbol). Benzinga adapter stays as fallback.
 try:
@@ -447,6 +459,47 @@ def _cached_fmp_insider_op(
             if len(out) >= page_size:
                 return out
     return out
+
+
+# ── v3 P-4b/d: UW dark-pool, spot-GEX, market-tide caches ──
+
+
+@st.cache_data(ttl=180, show_spinner=False)
+def _cached_uw_darkpool_op(
+    api_key: str, ticker: str, *, limit: int = 100,
+) -> list[dict[str, Any]]:
+    """Cache UW dark-pool prints for 3 minutes (per ticker)."""
+    if _fetch_uw_darkpool is None or not api_key or not (ticker or "").strip():
+        return []
+    try:
+        return _fetch_uw_darkpool(api_key, ticker, limit=limit) or []
+    except Exception:
+        logger.warning("_cached_uw_darkpool_op failed", exc_info=True)
+        return []
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_uw_gex_op(api_key: str, ticker: str) -> list[dict[str, Any]]:
+    """Cache UW dealer-gamma-by-strike for 5 minutes (per ticker)."""
+    if _fetch_uw_spot_gex is None or not api_key or not (ticker or "").strip():
+        return []
+    try:
+        return _fetch_uw_spot_gex(api_key, ticker) or []
+    except Exception:
+        logger.warning("_cached_uw_gex_op failed", exc_info=True)
+        return []
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def _cached_uw_tide_op(api_key: str) -> list[dict[str, Any]]:
+    """Cache UW marketwide tide ticks for 60 seconds."""
+    if _fetch_uw_market_tide is None or not api_key:
+        return []
+    try:
+        return _fetch_uw_market_tide(api_key) or []
+    except Exception:
+        logger.warning("_cached_uw_tide_op failed", exc_info=True)
+        return []
 
 
 @st.cache_data(ttl=120, show_spinner=False)
@@ -1902,7 +1955,8 @@ def main() -> None:
             st.caption(
                 "Full Benzinga data suite: Dividends, Splits, IPOs, "
                 "Guidance, Retail, Conference Calls, Top News, Quantified News, "
-                "Options Flow, Insider Trades, Power Gaps, Channel Browser"
+                "Options Flow, Insider Trades, Power Gaps, Channel Browser. "
+                "UW: Dark Pool, Spot GEX, Market Tide."
             )
 
             _today = datetime.now(UTC).date()
@@ -1912,13 +1966,15 @@ def main() -> None:
             (bz_op_divs, bz_op_splits, bz_op_ipos, bz_op_guid,
              bz_op_retail, bz_op_conf, bz_op_top, bz_op_quant,
              bz_op_opts, bz_op_insider, bz_op_power_gaps,
-             bz_op_channels) = st.tabs([
+             bz_op_channels,
+             uw_op_dp, uw_op_gex, uw_op_tide) = st.tabs([
                 "💵 Dividends", "✂️ Splits", "🚀 IPOs",
                 "🔮 Guidance", "🛒 Retail", "📞 Conf Calls",
                 "📰 Top News",
                 "📈 Quantified", "🎰 Options",
                 "🔍 Insider Trades", "⚡ Power Gaps",
                 "📡 Channel Browser",
+                "🌑 UW Dark Pool", "📊 UW Spot GEX", "🌊 UW Market Tide",
             ])
 
             # ── Dividends ──
@@ -2362,6 +2418,126 @@ def main() -> None:
                         st.info("Select one or more channels above to browse news.")
                 else:
                     st.info("Could not load Benzinga channel list.")
+
+            # ── v3 P-4b: UW Dark Pool prints ──
+            with uw_op_dp:
+                _uw_key = os.environ.get("UNUSUAL_WHALES_API_KEY", "").strip()
+                if not _uw_key:
+                    st.info("Set UNUSUAL_WHALES_API_KEY to enable dark-pool prints.")
+                else:
+                    dp_tk = st.text_input(
+                        "Ticker", value="AAPL",
+                        key="uw_dp_ticker",
+                        placeholder="e.g. AAPL",
+                    )
+                    dp_lim = st.selectbox(
+                        "Max prints", [25, 50, 100, 200],
+                        index=2, key="uw_dp_limit",
+                    )
+                    if dp_tk.strip():
+                        dp_data = _cached_uw_darkpool_op(_uw_key, dp_tk.strip(), limit=dp_lim)
+                        if dp_data:
+                            df_dp = pd.DataFrame(dp_data)
+                            _cols = [c for c in [
+                                "executed_at", "ticker", "size", "price",
+                                "volume", "premium", "sale_cond_codes", "canceled",
+                            ] if c in df_dp.columns]
+                            st.caption(f"{len(df_dp)} dark-pool print(s) for {dp_tk.upper()}")
+                            st.dataframe(
+                                df_dp[_cols] if _cols else df_dp,
+                                width="stretch",
+                                height=min(400, 40 + 35 * len(df_dp)),
+                            )
+                        else:
+                            st.info(f"No dark-pool prints returned for {dp_tk.upper()}.")
+
+            # ── v3 P-4b: UW Spot GEX by strike ──
+            with uw_op_gex:
+                _uw_key = os.environ.get("UNUSUAL_WHALES_API_KEY", "").strip()
+                if not _uw_key:
+                    st.info("Set UNUSUAL_WHALES_API_KEY to enable spot-GEX exposures.")
+                else:
+                    gex_tk = st.text_input(
+                        "Ticker", value="AAPL",
+                        key="uw_gex_ticker",
+                        placeholder="e.g. AAPL",
+                    )
+                    if gex_tk.strip():
+                        gex_data = _cached_uw_gex_op(_uw_key, gex_tk.strip())
+                        if gex_data:
+                            rows = []
+                            for r in gex_data:
+                                try:
+                                    s = float(r.get("strike", 0) or 0)
+                                    cg = float(r.get("call_gamma_oi", 0) or 0)
+                                    pg = float(r.get("put_gamma_oi", 0) or 0)
+                                    rows.append({
+                                        "strike": s,
+                                        "call_gamma_oi": cg,
+                                        "put_gamma_oi": pg,
+                                        "net_gex": cg - pg,
+                                    })
+                                except (TypeError, ValueError):
+                                    continue
+                            if rows:
+                                df_gex = pd.DataFrame(rows).sort_values("strike")
+                                st.caption(
+                                    f"{len(df_gex)} strike(s) — "
+                                    "net dealer gamma OI (call − put). "
+                                    "Positive = magnet, negative = repulsive."
+                                )
+                                st.bar_chart(df_gex.set_index("strike")["net_gex"])
+                                with st.expander("Raw GEX rows"):
+                                    st.dataframe(
+                                        df_gex,
+                                        width="stretch",
+                                        height=min(400, 40 + 35 * len(df_gex)),
+                                    )
+                            else:
+                                st.info("GEX response parsed empty.")
+                        else:
+                            st.info(f"No GEX data returned for {gex_tk.upper()}.")
+
+            # ── v3 P-4d: UW Market Tide ──
+            with uw_op_tide:
+                _uw_key = os.environ.get("UNUSUAL_WHALES_API_KEY", "").strip()
+                if not _uw_key:
+                    st.info("Set UNUSUAL_WHALES_API_KEY to enable market-tide.")
+                else:
+                    tide_data = _cached_uw_tide_op(_uw_key)
+                    if not tide_data:
+                        st.info("No market-tide ticks returned.")
+                    else:
+                        latest = tide_data[-1] if isinstance(tide_data, list) else {}
+                        try:
+                            ncp = float(latest.get("net_call_premium", 0) or 0)
+                            npp = float(latest.get("net_put_premium", 0) or 0)
+                            nv = float(latest.get("net_volume", 0) or 0)
+                            bias_emoji = "🟢 Bullish" if (ncp + npp) > 0 else "🔴 Bearish"
+                            c1, c2, c3, c4 = st.columns(4)
+                            c1.metric("📞 Net Call Prem", f"${ncp / 1e6:,.2f}M")
+                            c2.metric("📝 Net Put Prem", f"${npp / 1e6:,.2f}M")
+                            c3.metric("📊 Net Volume", f"{nv:,.0f}")
+                            c4.metric("🌊 Tide Bias", bias_emoji)
+                            ts = latest.get("timestamp") or latest.get("date")
+                            if ts:
+                                st.caption(f"Latest tick: {ts}")
+                        except (TypeError, ValueError):
+                            st.warning("Failed to parse latest tide tick.")
+                        # Time series chart of net call − net put
+                        rows = []
+                        for r in tide_data:
+                            try:
+                                rows.append({
+                                    "timestamp": r.get("timestamp") or r.get("date"),
+                                    "net_call_premium": float(r.get("net_call_premium", 0) or 0),
+                                    "net_put_premium": float(r.get("net_put_premium", 0) or 0),
+                                })
+                            except (TypeError, ValueError):
+                                continue
+                        if rows:
+                            df_t = pd.DataFrame(rows).set_index("timestamp")
+                            st.line_chart(df_t)
 
         # ===================================================================
         # 11c. Defense & Aerospace Watchlist
