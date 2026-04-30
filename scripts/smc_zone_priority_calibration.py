@@ -490,10 +490,9 @@ def append_history_entry(
         "family_stats": dict(cal.family_stats),
         "source_dir": cal.source_dir,
     }
-    if testable:
-        # Surface smECE so trend consumers can also reason about drift.
-        if "smooth_ece" in testable:
-            entry["smooth_ece"] = testable["smooth_ece"]
+    # Surface smECE so trend consumers can also reason about drift.
+    if testable and "smooth_ece" in testable:
+        entry["smooth_ece"] = testable["smooth_ece"]
 
     # Read existing entries, append, truncate to retention window.
     existing: list[dict[str, Any]] = []
