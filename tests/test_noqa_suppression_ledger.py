@@ -99,6 +99,13 @@ _FROZEN_SITES: dict[str, int] = {
     "scripts/smc_zone_priority_calibration.py": 1,
     "scripts/start_open_prep_suite.py": 3,
     "smc_integration/release_policy.py": 1,
+    # E402 after sys.path bootstrap (system review 2026-04-30):
+    # both scripts insert repo root into sys.path before importing
+    # first-party modules; ruff-isort cannot statically prove the
+    # ordering is required for runnability when invoked as a path
+    # rather than as a -m module.
+    "scripts/collect_smc_gate_evidence.py": 1,
+    "scripts/run_smc_pre_release_artifact_refresh.py": 2,
 }
 _FROZEN_TOTAL = sum(_FROZEN_SITES.values())
 
