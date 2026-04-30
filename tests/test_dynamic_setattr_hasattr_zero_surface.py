@@ -87,7 +87,7 @@ def _dynamic_builtin_sites(builtin: str) -> set[tuple[str, int]]:
 # assignment when ``item`` is a dict, so the dynamic write only happens
 # on dataclass-style targets the caller already knows.
 DYNAMIC_SETATTR_ALLOWED: set[tuple[str, int]] = {
-    ("terminal_live_story_state.py", 50),
+    ("terminal_live_story_state.py", 49),
 }
 
 
@@ -122,7 +122,7 @@ def test_dynamic_setattr_zero_surface_pin() -> None:
 # overrides. The name comes from a small, trusted override-mapping
 # defined in the same module.
 DYNAMIC_HASATTR_ALLOWED: set[tuple[str, int]] = {
-    ("streamlit_terminal.py", 570),
+    ("streamlit_terminal.py", 585),
 }
 
 

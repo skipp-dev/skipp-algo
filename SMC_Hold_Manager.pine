@@ -1,3 +1,4 @@
+//@version=6
 // ============================================================================
 //  SMC Hold-Manager v1 — pure visualization (no strategy.*, no auto-trade)
 //  Found via SMC bug-hunt v2 phase 7 (alert edge) + Hold-Manager plan analysis.
@@ -16,7 +17,6 @@
 //  Schwächen-Matrix (A–G) und Phase-Gates: siehe Plan-Doku Section
 //  "Bekannte Schwächen & Mitigation".
 // ============================================================================
-//@version=6
 indicator("SMC Hold-Manager v1 — Visualization", overlay = true,
      max_labels_count = 200, max_lines_count = 200, max_boxes_count = 50)
 
