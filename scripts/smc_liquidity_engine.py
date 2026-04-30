@@ -103,49 +103,55 @@ def detect_liquidity_sweeps(
             if ts <= level_time:
                 continue
 
-            if level_side == "BUY_SIDE":
-                if float(row["high"]) > level_price and float(row["close"]) < level_price:
-                    out.append(
-                        {
-                            "id": sweep_id(
-                                symbol=str(symbol),
-                                timeframe=tf,
-                                anchor_ts=float(ts),
-                                side="BUY_SIDE",
-                                price=level_price,
-                                ticksize=ticksize,
-                                asset_class=asset_class,
-                                session_tz=session_tz,
-                            ),
-                            "time": float(ts),
-                            "price": level_price,
-                            "side": "BUY_SIDE",
-                            "source_liquidity_id": str(level.get("id", "")),
-                        }
-                    )
-                    break
+            if (
+                level_side == "BUY_SIDE"
+                and float(row["high"]) > level_price
+                and float(row["close"]) < level_price
+            ):
+                out.append(
+                    {
+                        "id": sweep_id(
+                            symbol=str(symbol),
+                            timeframe=tf,
+                            anchor_ts=float(ts),
+                            side="BUY_SIDE",
+                            price=level_price,
+                            ticksize=ticksize,
+                            asset_class=asset_class,
+                            session_tz=session_tz,
+                        ),
+                        "time": float(ts),
+                        "price": level_price,
+                        "side": "BUY_SIDE",
+                        "source_liquidity_id": str(level.get("id", "")),
+                    }
+                )
+                break
 
-            if level_side == "SELL_SIDE":
-                if float(row["low"]) < level_price and float(row["close"]) > level_price:
-                    out.append(
-                        {
-                            "id": sweep_id(
-                                symbol=str(symbol),
-                                timeframe=tf,
-                                anchor_ts=float(ts),
-                                side="SELL_SIDE",
-                                price=level_price,
-                                ticksize=ticksize,
-                                asset_class=asset_class,
-                                session_tz=session_tz,
-                            ),
-                            "time": float(ts),
-                            "price": level_price,
-                            "side": "SELL_SIDE",
-                            "source_liquidity_id": str(level.get("id", "")),
-                        }
-                    )
-                    break
+            if (
+                level_side == "SELL_SIDE"
+                and float(row["low"]) < level_price
+                and float(row["close"]) > level_price
+            ):
+                out.append(
+                    {
+                        "id": sweep_id(
+                            symbol=str(symbol),
+                            timeframe=tf,
+                            anchor_ts=float(ts),
+                            side="SELL_SIDE",
+                            price=level_price,
+                            ticksize=ticksize,
+                            asset_class=asset_class,
+                            session_tz=session_tz,
+                        ),
+                        "time": float(ts),
+                        "price": level_price,
+                        "side": "SELL_SIDE",
+                        "source_liquidity_id": str(level.get("id", "")),
+                    }
+                )
+                break
 
     dedup: list[dict[str, Any]] = []
     seen: set[str] = set()
