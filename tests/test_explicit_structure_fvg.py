@@ -40,7 +40,7 @@ def test_fvg_id_is_anchored_to_confirmation_bar() -> None:
         symbol="AAPL",
         timeframe="1D",
         anchor_ts=confirm_ts,
-        dir="BULL",
+        direction="BULL",
         low=float(bullish["low"]),
         high=float(bullish["high"]),
     )
