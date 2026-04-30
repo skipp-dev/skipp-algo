@@ -9,7 +9,7 @@ Today: 7 sites, all in legitimate CLI dispatch / `__main__` guards:
 | File | Line | Context |
 |---|---|---|
 | `open_prep/candidate_weights.py` | 241 | `if __name__ == "__main__": sys.exit(main())` |
-| `open_prep/feature_importance_report.py` | 351 | same |
+| `open_prep/feature_importance_report.py` | 350 | same |
 | `open_prep/outcome_backfill.py` | 528 | same |
 | `pine_input_surface.py` | 400, 402 | argparse `args.cmd` dispatch |
 | `test_usi_lint.py` | 93, 96 | top-level CLI script |
