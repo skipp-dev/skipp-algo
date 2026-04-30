@@ -106,8 +106,8 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
     {
         ("open_prep/alerts.py", 54),
         ("open_prep/diff.py", 79),
-        ("open_prep/outcome_backfill.py", 60),
-        ("open_prep/outcome_backfill.py", 80),
+        ("open_prep/outcome_backfill.py", 61),
+        ("open_prep/outcome_backfill.py", 81),
         ("open_prep/outcomes.py", 167),
         ("open_prep/realtime_signals.py", 1461),
         ("open_prep/realtime_signals.py", 2575),
@@ -165,7 +165,7 @@ _FROZEN_ENV_SUBSCRIPT_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/macro.py", 149),
         ("open_prep/realtime_signals.py", 2611),
         ("open_prep/streamlit_monitor.py", 74),
-        ("streamlit_terminal.py", 325),
+        ("streamlit_terminal.py", 326),
     }
 )
 
