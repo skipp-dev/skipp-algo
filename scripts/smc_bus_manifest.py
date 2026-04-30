@@ -405,13 +405,12 @@ NON_SMC_PINE_FILES: frozenset[str] = frozenset({
     'REV-BUY.pine',
     'REV-Ladder-CHoCH.pine',
     'REV-Ladder.pine',
-    # SMC-prefixed companion overlays not yet promoted into SURFACE_DEFINITIONS.
-    # Tracked here to satisfy the "every pine file is classified" tripwire while
-    # surface_role / contract_tier / consumer_role classifications are pending.
-    'SMC_Breakout_Overlay.pine',
-    'SMC_Exit_Signal.pine',
-    'SMC_Hold_Manager.pine',
-    'SMC_VRVP_Overlay.pine',
+    # NOTE: SMC_Breakout_Overlay / SMC_Exit_Signal / SMC_Hold_Manager /
+    # SMC_VRVP_Overlay used to live in this fallback list as
+    # "tracked but unclassified" markers. They have since been promoted into
+    # SURFACE_DEFINITIONS (companion_operator_only / overlay_companion +
+    # exit_companion) so they MUST be removed here — leaving them in both
+    # lists trips test_non_smc_pine_files_are_disjoint_from_surface_definitions.
     'USI_Lines.pine',
     'USI_Strategy.pine',
     'USI-CHOCH.pine',
