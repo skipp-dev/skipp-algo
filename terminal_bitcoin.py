@@ -918,13 +918,12 @@ def fetch_btc_outlook() -> BTCOutlook:
     resistance = price * 1.05
 
     # Try to get better S/R from technicals
-    if tech_1d and tech_1d.rsi is not None and price > 0:
-        # Estimate S/R from recent range
-        if quote:
-            if quote.day_low > 0:
-                support = quote.day_low * 0.99
-            if quote.day_high > 0:
-                resistance = quote.day_high * 1.01
+    # Estimate S/R from recent range
+    if tech_1d and tech_1d.rsi is not None and price > 0 and quote:
+        if quote.day_low > 0:
+            support = quote.day_low * 0.99
+        if quote.day_high > 0:
+            resistance = quote.day_high * 1.01
 
     summary = f"**{trend}** outlook based on {len(reasons)} signals. " + " | ".join(reasons)
 
