@@ -243,7 +243,7 @@ jobs:
         run: |
           DATE="${{ steps.date.outputs.date }}"
           TITLE="C13 daily-cron failure ${DATE}"
-          if gh issue list --label c13,critical,cron-failure --search "in:title \"${TITLE}\"" --state open | grep -q "${TITLE}"; then
+          if gh issue list --label cron-failure --search "in:title \"${TITLE}\"" --state open | grep -q "${TITLE}"; then
             echo "Issue already open — skipping."
             exit 0
           fi
@@ -262,6 +262,6 @@ jobs:
           EOF
           )
           gh issue create \
-            --label c13,critical,cron-failure \
+            --label cron-failure \
             --title "${TITLE}" \
             --body "${BODY}"

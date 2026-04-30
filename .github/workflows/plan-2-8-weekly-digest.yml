@@ -13248,7 +13248,7 @@ jobs:
           # comment instead of opening a fresh one. This keeps the
           # backlog readable across consecutive alerting weeks.
           existing="$(gh issue list \
-            --label plan-2.8 --label drift-alert \
+            --label cron-failure \
             --state open --json number --jq '.[0].number' || echo '')"
           if [ -n "${existing}" ]; then
             gh issue comment "${existing}" \
@@ -13257,7 +13257,7 @@ jobs:
             gh issue create \
               --title "${title}" \
               --body-file artifacts/plan_2_8_digest/issue_body.md \
-              --label plan-2.8,drift-alert
+              --label cron-failure
           fi
 
       - name: Close drift-alert issues when alerts cleared
@@ -13273,7 +13273,7 @@ jobs:
           # a short note pointing at this run. Idempotent: a no-op
           # when no matching open issue exists.
           numbers="$(gh issue list \
-            --label plan-2.8 --label drift-alert \
+            --label cron-failure \
             --state open --json number --jq '.[].number' || echo '')"
           if [ -z "${numbers}" ]; then
             echo "No open drift-alert issues to close."

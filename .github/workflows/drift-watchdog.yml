@@ -79,12 +79,12 @@ jobs:
           TITLE="Drift Alert ${DATE}: aggregate_severity=red"
           # Idempotency: title carries the date so re-runs the same day
           # do not spam.
-          if gh issue list --label drift --search "in:title \"${TITLE}\"" --state open | grep -q "${TITLE}"; then
+          if gh issue list --label cron-failure --search "in:title \"${TITLE}\"" --state open | grep -q "${TITLE}"; then
             echo "Issue already open for ${DATE} — skipping."
             exit 0
           fi
           gh issue create \
-            --label drift,critical \
+            --label cron-failure \
             --title "${TITLE}" \
             --body-file "${REPORT}"
 
