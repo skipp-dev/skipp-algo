@@ -439,6 +439,44 @@ def probe_bz_options_activity() -> tuple[str, str]:
     return _bz_get("/api/v2.1/calendar/options_activity", {"parameters[tickers]": "AAPL"})
 
 
+def probe_uw_options_flow() -> tuple[str, str]:
+    """Unusual Whales /api/option-trades/flow-alerts — active UOA source.
+
+    v3 P-3c: replaces the retired Benzinga ``/api/v2.1/calendar/options_activity``
+    feed in production. Uses Bearer auth with ``UNUSUAL_WHALES_API_KEY``.
+    """
+    import httpx
+    key = os.getenv("UNUSUAL_WHALES_API_KEY", "").strip()
+    if not key:
+        return ("SKIP", "UNUSUAL_WHALES_API_KEY missing")
+    try:
+        r = httpx.get(
+            "https://api.unusualwhales.com/api/option-trades/flow-alerts",
+            params={"ticker_symbol": "AAPL", "limit": "1"},
+            headers={"Authorization": f"Bearer {key}", "Accept": "application/json"},
+            timeout=15.0,
+        )
+    except httpx.HTTPError as exc:
+        return ("FAIL", f"HTTP error: {exc}")
+    if r.status_code == 401:
+        return ("FAIL", "HTTP 401 — UW key invalid")
+    if r.status_code == 403:
+        return ("WARN", "HTTP 403 — endpoint not in plan tier")
+    if r.status_code == 429:
+        return ("WARN", "HTTP 429 — rate-limited")
+    if r.status_code != 200:
+        return ("FAIL", f"HTTP {r.status_code}: {r.text[:80]}")
+    try:
+        data = r.json()
+    except Exception:
+        return ("WARN", "non-JSON response")
+    if isinstance(data, dict):
+        recs = data.get("data") or data.get("flow_alerts") or []
+    else:
+        recs = data if isinstance(data, list) else []
+    return ("OK", f"AAPL flow-alerts {len(recs) if isinstance(recs, list) else '?'} record(s)")
+
+
 def probe_bz_ownership() -> tuple[str, str]:
     return _bz_get("/api/v2.1/ownership", {"symbols": "AAPL"})
 
@@ -646,6 +684,8 @@ PROBES: list[Probe] = [
     Probe("Benzinga /api/v2/news/channels", probe_bz_news_channels, critical=False),
     Probe("Benzinga /api/v2/newsquantified", probe_bz_news_quantified, critical=False),
     Probe("Benzinga /api/v2.1/calendar/options_activity", probe_bz_options_activity, critical=False),
+    # Unusual Whales — v3 P-3c: active UOA source replacing retired Benzinga options_activity
+    Probe("UnusualWhales /api/option-trades/flow-alerts", probe_uw_options_flow, critical=True),
     Probe("Benzinga /api/v2.1/fundamentals", probe_bz_fundamentals, critical=False),
     Probe("Benzinga /api/v2.1/ownership", probe_bz_ownership, critical=False),
     Probe("Benzinga /api/v2.1/instruments", probe_bz_instruments, critical=False),
