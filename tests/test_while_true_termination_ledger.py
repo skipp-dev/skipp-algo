@@ -70,43 +70,70 @@ def _while_true_sites() -> set[tuple[str, int]]:
     return out
 
 
-# Locked surface — every entry is a reviewed long-lived loop.
-WHILE_TRUE_LEDGER: set[tuple[str, int]] = {
-    ("databento_volatility_screener.py", 1049),
-    ("terminal_background_poller.py", 183),
-    ("terminal_background_poller.py", 379),
-    ("databento_universe.py", 247),
-    ("open_prep/realtime_signals.py", 2662),
-    ("open_prep/macro.py", 83),
+# Locked surface — every entry is a reviewed long-lived loop, pinned by
+# **per-file count** (not exact line numbers).
+#
+# Why count, not (path, lineno):
+#   The previous version of this ledger pinned each loop's exact lineno,
+#   which made the test break on every unrelated edit that shifted lines
+#   (the ingest_benzinga.py entry broke twice in a single day on
+#   2026-04-30). The policy this guard enforces is *no growth in the
+#   unbounded-loop surface*, which is fundamentally a count, not a
+#   location. Refactors that move a ``while True:`` within a file are
+#   now no-ops; net additions / removals still fail closed.
+WHILE_TRUE_LEDGER: dict[str, int] = {
+    "databento_volatility_screener.py": 1,
+    "terminal_background_poller.py": 2,
+    "databento_universe.py": 1,
+    "open_prep/realtime_signals.py": 1,
+    "open_prep/macro.py": 1,
     # resilient retry decorator: exits via return on success, raise after
     # max retries, or return on_failure(exc) callback. CWE-835 mitigated
     # by three explicit exit paths (system review 2026-04-30).
-    ("smc_core/resilient.py", 85),
-    ("newsstack_fmp/ingest_benzinga.py", 526),
-    ("newsstack_fmp/shared_fetch.py", 266),
-    ("newsstack_fmp/pipeline.py", 886),
+    "smc_core/resilient.py": 1,
+    "newsstack_fmp/ingest_benzinga.py": 1,
+    "newsstack_fmp/shared_fetch.py": 1,
+    "newsstack_fmp/pipeline.py": 1,
 }
 
 
-def test_while_true_site_ledger_pin() -> None:
-    sites = _while_true_sites()
+def _per_file_counts(sites: set[tuple[str, int]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for rel, _ in sites:
+        counts[rel] = counts.get(rel, 0) + 1
+    return counts
 
-    unexpected = sites - WHILE_TRUE_LEDGER
-    assert not unexpected, (
-        "New ``while True:`` loop detected in production code. "
-        "Unbounded loops are a CWE-835 surface (loop with unreachable "
-        "exit condition) and must be a deliberate, reviewed addition. "
-        "If this is a legitimate new poller / watcher / runner, "
-        "append the (path, line) tuple to WHILE_TRUE_LEDGER and "
+
+def test_while_true_site_ledger_pin() -> None:
+    counts = _per_file_counts(_while_true_sites())
+
+    unexpected_files = sorted(set(counts) - set(WHILE_TRUE_LEDGER))
+    assert not unexpected_files, (
+        "New ``while True:`` loop detected in file(s) not in "
+        "WHILE_TRUE_LEDGER. Unbounded loops are a CWE-835 surface (loop "
+        "with unreachable exit condition) and must be a deliberate, "
+        "reviewed addition. If this is a legitimate new poller / "
+        "watcher / runner, append the file to WHILE_TRUE_LEDGER and "
         "ensure the body contains a documented exit path "
-        "(``break``, ``return``, or ``raise``).\n"
-        f"unexpected = {sorted(unexpected)}"
+        "(``break``, ``return``, or ``raise``).\n  - "
+        + "\n  - ".join(f"{rel} ({counts[rel]} loop(s))" for rel in unexpected_files)
     )
 
-    missing = WHILE_TRUE_LEDGER - sites
-    assert not missing, (
-        "WHILE_TRUE_LEDGER entries no longer present at the recorded "
-        "(path, line). Update the ledger to match the current call "
-        "sites and verify the underlying loop semantics are unchanged.\n"
-        f"missing = {sorted(missing)}"
+    missing_files = sorted(set(WHILE_TRUE_LEDGER) - set(counts))
+    assert not missing_files, (
+        "WHILE_TRUE_LEDGER entries no longer present in code. "
+        "Update the ledger to match the current call sites and verify "
+        "the underlying loop semantics are unchanged.\n  - "
+        + "\n  - ".join(missing_files)
+    )
+
+    drifted = sorted(
+        (rel, WHILE_TRUE_LEDGER[rel], counts[rel])
+        for rel in WHILE_TRUE_LEDGER.keys() & counts.keys()
+        if WHILE_TRUE_LEDGER[rel] != counts[rel]
+    )
+    assert not drifted, (
+        "Per-file ``while True:`` count drift:\n  - "
+        + "\n  - ".join(f"{rel}: ledger={ledger}, actual={actual}" for rel, ledger, actual in drifted)
+        + "\nUpdate WHILE_TRUE_LEDGER with justification."
     )
