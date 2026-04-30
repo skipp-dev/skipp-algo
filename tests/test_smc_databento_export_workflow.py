@@ -130,9 +130,9 @@ def test_consumer_restores_with_matching_cache_key():
 def test_consumer_release_reference_step_is_advisory_when_bundle_missing():
     wf = _load_yaml(CONSUMER_WF)
     for step in _flatten_steps(wf):
-        if step.get("name") == "Refresh release reference artifacts":
+        if step.get("name") == "Refresh release reference artifacts (best-effort)":
             assert step.get("continue-on-error") is True, (
-                "Refresh release reference artifacts must be advisory "
+                "Refresh release reference artifacts (best-effort) must be advisory "
                 "(continue-on-error: true) so a cold producer cache does "
                 "not block the entire library refresh + TradingView publish."
             )
@@ -142,7 +142,7 @@ def test_consumer_release_reference_step_is_advisory_when_bundle_missing():
                 "and skip cleanly when the bundle is missing."
             )
             return
-    pytest.fail("Could not find 'Refresh release reference artifacts' step")
+    pytest.fail("Could not find 'Refresh release reference artifacts (best-effort)' step")
 
 
 def test_producer_script_exposes_export_dir_flag():
