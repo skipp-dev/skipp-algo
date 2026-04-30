@@ -182,6 +182,17 @@ except ImportError:  # pragma: no cover
     _fetch_bz_options = None  # type: ignore[assignment]
     _fetch_bz_insider = None  # type: ignore[assignment]
 
+# v3 P-3b: Unusual Whales replaces the retired Benzinga options_activity feed.
+# Benzinga remains the news ingest — only the options-flow path is rerouted.
+try:
+    from newsstack_fmp.ingest_unusual_whales import (
+        fetch_uw_options_flow as _fetch_uw_options,
+        is_uw_configured as _uw_configured,
+    )
+except ImportError:  # pragma: no cover
+    _fetch_uw_options = None  # type: ignore[assignment]
+    _uw_configured = lambda: False  # type: ignore[assignment]
+
 try:
     from terminal_ui_helpers import safe_markdown_text as _safe_md
 except ImportError:  # pragma: no cover
@@ -375,13 +386,25 @@ def _cached_defense_wl_op(api_key: str) -> list[dict[str, Any]]:
 
 @st.cache_data(ttl=180, show_spinner=False)
 def _cached_bz_options_op(api_key: str, tickers: str) -> list[dict[str, Any]]:
-    """Cache Benzinga options activity for 3 minutes."""
+    """Cache options activity for 3 minutes.
+
+    v3 P-3b: prefers Unusual Whales (UNUSUAL_WHALES_API_KEY) when set,
+    falls back to the Benzinga path (which is now retired and returns
+    [] anyway).  Function name retained for cache-key stability.
+    """
+    uw_key = os.environ.get("UNUSUAL_WHALES_API_KEY", "").strip()
+    if uw_key and _fetch_uw_options is not None:
+        try:
+            return _fetch_uw_options(uw_key, tickers) or []
+        except Exception:
+            logger.warning("_cached_bz_options_op (UW) failed", exc_info=True)
+            return []
     if _fetch_bz_options is None:
         return []
     try:
         return _fetch_bz_options(api_key, tickers) or []
     except Exception:
-        logger.warning("_cached_bz_options_op failed", exc_info=True)
+        logger.warning("_cached_bz_options_op (Benzinga fallback) failed", exc_info=True)
         return []
 
 
@@ -1956,12 +1979,19 @@ def main() -> None:
                 )
                 if _opt_tickers.strip():
                     opt_data = _cached_bz_options_op(bz_key, _opt_tickers.strip())
+                    _src = "Unusual Whales" if _uw_configured() else "Benzinga (retired)"
                     if opt_data:
                         df_o = pd.DataFrame(opt_data)
-                        st.caption(f"{len(df_o)} options activity record(s)")
+                        # Hide the raw UW payload column from the table view.
+                        if "_uw_raw" in df_o.columns:
+                            df_o = df_o.drop(columns=["_uw_raw"])
+                        st.caption(f"{len(df_o)} options activity record(s) — source: {_src}")
                         st.dataframe(df_o, width="stretch", height=min(400, 40 + 35 * len(df_o)))
                     else:
-                        st.info("No options activity found. (Requires Options Activity API access.)")
+                        st.info(
+                            f"No options activity found (source: {_src}). "
+                            "Set UNUSUAL_WHALES_API_KEY to enable UW flow alerts."
+                        )
                 else:
                     st.info("Enter ticker(s) above to view options activity.")
 
