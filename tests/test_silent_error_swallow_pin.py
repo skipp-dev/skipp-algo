@@ -49,21 +49,31 @@ _DIR_EXCLUDE = frozenset(
 )
 
 # ---------------------------------------------------------------------------
-# Frozen ledger — every ``except Exception: pass`` site in production code.
-# Keys are workspace-relative POSIX paths; values are the linenos of the
-# ``except`` clauses themselves. Order is irrelevant; sets give O(1) lookup.
+# Frozen ledger — every ``except Exception: pass`` site in production code,
+# pinned by **per-file count**. Keys are workspace-relative POSIX paths;
+# values are the number of legitimate ``except Exception: pass`` handlers
+# in that file.
+#
+# Why count, not (path, lineno):
+#   The previous incarnation of this ledger pinned each handler's exact
+#   line number. That made the test break on every unrelated edit that
+#   shifted lines (the ingest_benzinga.py ledger broke twice in a single
+#   day in 2026-04-30). The policy this pin enforces is *no growth in the
+#   silent-swallow surface*, which is fundamentally a count, not a
+#   location. Refactors that move a swallow within a file are now no-ops
+#   for this guard; net additions / removals still fail closed.
 # ---------------------------------------------------------------------------
-_FROZEN_SITES: dict[str, frozenset[int]] = {
-    "newsstack_fmp/ingest_benzinga.py": frozenset({577}),
-    "open_prep/alerts.py": frozenset({239}),
-    "open_prep/run_open_prep.py": frozenset({4492}),
-    "open_prep/streamlit_monitor.py": frozenset({75, 126}),
-    "scripts/generate_smc_micro_base_from_databento.py": frozenset({1192, 1194, 1242}),
-    "smc_tv_bridge/smc_api.py": frozenset({85}),
-    "streamlit_terminal_alerts.py": frozenset({92}),
+_FROZEN_SITES: dict[str, int] = {
+    "newsstack_fmp/ingest_benzinga.py": 1,
+    "open_prep/alerts.py": 1,
+    "open_prep/run_open_prep.py": 1,
+    "open_prep/streamlit_monitor.py": 2,
+    "scripts/generate_smc_micro_base_from_databento.py": 3,
+    "smc_tv_bridge/smc_api.py": 1,
+    "streamlit_terminal_alerts.py": 1,
 }
 
-_FROZEN_TOTAL = sum(len(v) for v in _FROZEN_SITES.values())
+_FROZEN_TOTAL = sum(_FROZEN_SITES.values())
 
 
 def _iter_first_party_py_files() -> list[Path]:
@@ -178,18 +188,24 @@ def test_no_removed_except_pass_files() -> None:
     )
 
 
-_PARAMS: list[tuple[str, frozenset[int]]] = sorted(_FROZEN_SITES.items())
+_PARAMS: list[tuple[str, int]] = sorted(_FROZEN_SITES.items())
 
 
-@pytest.mark.parametrize(("rel", "expected_lines"), _PARAMS, ids=[p[0] for p in _PARAMS])
-def test_except_pass_lines_pinned_per_file(rel: str, expected_lines: frozenset[int]) -> None:
+@pytest.mark.parametrize(("rel", "expected_count"), _PARAMS, ids=[p[0] for p in _PARAMS])
+def test_except_pass_count_pinned_per_file(rel: str, expected_count: int) -> None:
+    """Per-file count of silent swallows must equal the frozen count.
+
+    Net additions / removals within a frozen file fail closed. Movements
+    of a swallow within the same file are intentionally not flagged —
+    the policy this pin enforces is the size of the silent-swallow
+    surface, not the exact lines.
+    """
     actual_sites = _scan_except_pass_sites()
-    actual = actual_sites.get(rel, set())
-    drifted = actual ^ expected_lines
-    assert not drifted, (
-        f"silent ``except Exception: pass`` line drift in {rel}:\n"
-        f"  expected lines: {sorted(expected_lines)}\n"
-        f"  actual lines:   {sorted(actual)}\n"
-        f"  drift:          {sorted(drifted)}\n"
-        "Update _FROZEN_SITES if the move is intentional."
+    actual_count = len(actual_sites.get(rel, set()))
+    assert actual_count == expected_count, (
+        f"silent ``except Exception: pass`` count drift in {rel}: "
+        f"frozen={expected_count}, actual={actual_count}.\n"
+        "Either:\n"
+        "  (a) handle / log the new error site, or\n"
+        "  (b) update the count in _FROZEN_SITES with justification."
     )

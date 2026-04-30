@@ -68,20 +68,25 @@ _DIR_EXCLUDE: frozenset[str] = frozenset(
     }
 )
 
-# Frozen inventory of every existing broad-except + silent-body site.
-# ``(relative_posix_path, lineno_of_handler)``. Exact match required.
-# When a refactor moves code, update the lineno here in the SAME PR.
-_FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
-    {
-        ("streamlit_terminal_alerts.py", 92),
-        ("smc_tv_bridge/smc_api.py", 85),
-        ("open_prep/alerts.py", 239),
-        ("open_prep/run_open_prep.py", 4492),
-        ("open_prep/streamlit_monitor.py", 75),
-        ("open_prep/streamlit_monitor.py", 126),
-        ("newsstack_fmp/ingest_benzinga.py", 577),
-    }
-)
+# Frozen inventory of every existing broad-except + silent-body site,
+# pinned by **per-file count** (not exact line numbers).
+#
+# Why count, not (path, lineno):
+#   The previous version of this pin recorded each handler's lineno.
+#   That made the test break on every unrelated edit that shifted lines
+#   (the ingest_benzinga.py entry broke twice in a single day on
+#   2026-04-30). The policy here is *no growth in the broad-silent
+#   surface*, which is fundamentally a count, not a location. Refactors
+#   that move a swallow within a file are now no-ops for this guard;
+#   net additions / removals still fail closed.
+_FROZEN_SITE_COUNTS: dict[str, int] = {
+    "streamlit_terminal_alerts.py": 1,
+    "smc_tv_bridge/smc_api.py": 1,
+    "open_prep/alerts.py": 1,
+    "open_prep/run_open_prep.py": 1,
+    "open_prep/streamlit_monitor.py": 2,
+    "newsstack_fmp/ingest_benzinga.py": 1,
+}
 
 
 def _iter_first_party_py_files() -> list[Path]:
@@ -155,46 +160,66 @@ def test_first_party_files_present() -> None:
 
 
 def test_no_unexpected_broad_except_silent_sites() -> None:
-    """Every broad-except + silent-body site must be in the frozen inventory.
+    """Per-file count of broad-except + silent-body must match the frozen
+    inventory.
 
     Failure here = a *new* ``except Exception: pass`` (or ``: continue``)
-    appeared. Either narrow the exception type / add observability, or
-    add the new site to ``_FROZEN_SITES`` with explicit justification in
-    the PR description.
+    appeared, OR a frozen file dropped a previously-pinned site, OR a
+    file outside the inventory grew a broad-silent handler. Either
+    narrow the new exception type / add observability, or update
+    ``_FROZEN_SITE_COUNTS`` with explicit justification in the PR
+    description.
     """
-    seen: set[tuple[str, int]] = set()
+    actual_counts: dict[str, int] = {}
     for path in _iter_first_party_py_files():
         rel = path.relative_to(_REPO_ROOT).as_posix()
-        for lineno in _collect_broad_silent_sites(path):
-            seen.add((rel, lineno))
-    new_sites = sorted(seen - _FROZEN_SITES)
-    assert not new_sites, (
-        "New broad-except + silent-body site(s) detected (not in "
-        "_FROZEN_SITES):\n  - "
-        + "\n  - ".join(f"{rel}:{ln}" for rel, ln in new_sites)
+        sites = _collect_broad_silent_sites(path)
+        if sites:
+            actual_counts[rel] = len(sites)
+
+    new_files = sorted(set(actual_counts) - set(_FROZEN_SITE_COUNTS))
+    assert not new_files, (
+        "New file(s) with broad-except + silent-body handler(s) (not in "
+        "_FROZEN_SITE_COUNTS):\n  - "
+        + "\n  - ".join(f"{rel} ({actual_counts[rel]} site(s))" for rel in new_files)
         + "\nPrefer narrowing to a specific exception type and adding a "
         "log line. If this site genuinely needs to swallow Exception, "
-        "add it to _FROZEN_SITES with a one-line justification in the "
-        "PR description."
+        "add it to _FROZEN_SITE_COUNTS with a one-line justification in "
+        "the PR description."
+    )
+
+    gone_files = sorted(set(_FROZEN_SITE_COUNTS) - set(actual_counts))
+    assert not gone_files, (
+        "Frozen file(s) no longer contain any broad-except + silent "
+        "handler:\n  - "
+        + "\n  - ".join(gone_files)
+        + "\nRemove the entry from _FROZEN_SITE_COUNTS (the cleanup is "
+        "a good outcome \u2014 the pin just needs to follow it)."
+    )
+
+    drifted = sorted(
+        (rel, _FROZEN_SITE_COUNTS[rel], actual_counts[rel])
+        for rel in _FROZEN_SITE_COUNTS.keys() & actual_counts.keys()
+        if _FROZEN_SITE_COUNTS[rel] != actual_counts[rel]
+    )
+    assert not drifted, (
+        "Per-file broad-silent count drift detected:\n  - "
+        + "\n  - ".join(f"{rel}: frozen={frozen}, actual={actual}" for rel, frozen, actual in drifted)
+        + "\nUpdate _FROZEN_SITE_COUNTS with justification, or restore "
+        "the previous handler."
     )
 
 
-@pytest.mark.parametrize("entry", sorted(_FROZEN_SITES))
-def test_frozen_sites_still_match(entry: tuple[str, int]) -> None:
-    """Every frozen entry must still resolve to a broad-except + silent body.
+@pytest.mark.parametrize("rel_path", sorted(_FROZEN_SITE_COUNTS))
+def test_frozen_files_still_exist(rel_path: str) -> None:
+    """Every frozen file path must still exist on disk.
 
     Forces the inventory to track real refactors instead of silently
-    rotting into a free-pass list.
+    rotting into a stale list pointing at deleted files.
     """
-    rel_path, lineno = entry
     path = _REPO_ROOT / rel_path
     assert path.is_file(), (
-        f"Frozen-site path missing: {rel_path}. Update _FROZEN_SITES "
-        "after the refactor that moved or deleted this file."
-    )
-    sites = _collect_broad_silent_sites(path)
-    assert lineno in sites, (
-        f"Frozen entry {rel_path}:{lineno} no longer matches a broad-"
-        "except + silent-body handler. Update the lineno (or remove the "
-        "entry) in _FROZEN_SITES."
+        f"Frozen-site path missing: {rel_path}. Update "
+        "_FROZEN_SITE_COUNTS after the refactor that moved or deleted "
+        "this file."
     )

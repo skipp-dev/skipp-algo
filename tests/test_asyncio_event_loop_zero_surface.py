@@ -92,15 +92,28 @@ def _asyncio_attr_call_sites(attr: str) -> set[tuple[str, int]]:
     return sites
 
 
+def _per_file_counts(sites: set[tuple[str, int]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for rel, _ in sites:
+        counts[rel] = counts.get(rel, 0) + 1
+    return counts
+
+
 # Single legitimate caller pair: the daemon-thread entry point in the
 # Benzinga websocket adapter, which owns its own loop because it lives
 # off the main thread for the lifetime of the websocket session.
-NEW_EVENT_LOOP_ALLOWED: set[tuple[str, int]] = {
-    ("newsstack_fmp/ingest_benzinga.py", 537),
+#
+# Pinned by **per-file count** (not exact line numbers) — the policy
+# this guard enforces is "only this file is allowed to install a manual
+# event loop, and only this many times". Line numbers were dropped
+# 2026-04-30 because they kept drifting on unrelated edits and broke
+# the pin twice in a single day.
+NEW_EVENT_LOOP_ALLOWED: dict[str, int] = {
+    "newsstack_fmp/ingest_benzinga.py": 1,
 }
 
-SET_EVENT_LOOP_ALLOWED: set[tuple[str, int]] = {
-    ("newsstack_fmp/ingest_benzinga.py", 538),
+SET_EVENT_LOOP_ALLOWED: dict[str, int] = {
+    "newsstack_fmp/ingest_benzinga.py": 1,
 }
 
 
@@ -160,50 +173,73 @@ def test_asyncio_alias_import_zero_surface_pin() -> None:
 
 
 def test_asyncio_new_event_loop_zero_surface_pin() -> None:
-    sites = _asyncio_attr_call_sites("new_event_loop")
+    counts = _per_file_counts(_asyncio_attr_call_sites("new_event_loop"))
 
-    unexpected = sites - NEW_EVENT_LOOP_ALLOWED
-    assert not unexpected, (
-        "New ``asyncio.new_event_loop()`` call site detected. Manual "
-        "loop creation is almost always wrong on the main thread — "
-        "use ``asyncio.run(coro)`` instead. The only legitimate use "
-        "is owning a loop on a non-main thread (e.g. a daemon worker "
-        "with a websocket session). If a new caller is genuinely "
-        "required, append the (path, line) tuple to "
+    unexpected_files = sorted(set(counts) - set(NEW_EVENT_LOOP_ALLOWED))
+    assert not unexpected_files, (
+        "New ``asyncio.new_event_loop()`` call site detected in file(s) "
+        "not in NEW_EVENT_LOOP_ALLOWED. Manual loop creation is almost "
+        "always wrong on the main thread — use ``asyncio.run(coro)`` "
+        "instead. The only legitimate use is owning a loop on a non-main "
+        "thread (e.g. a daemon worker with a websocket session). If a "
+        "new caller is genuinely required, append the file to "
         "NEW_EVENT_LOOP_ALLOWED with a justification in the commit "
         "message and pair it with the matching "
         "``asyncio.set_event_loop(loop)`` allow-list entry.\n"
-        f"unexpected = {sorted(unexpected)}"
+        f"unexpected_files = {unexpected_files}"
     )
 
-    missing = NEW_EVENT_LOOP_ALLOWED - sites
-    assert not missing, (
+    missing_files = sorted(set(NEW_EVENT_LOOP_ALLOWED) - set(counts))
+    assert not missing_files, (
         "NEW_EVENT_LOOP_ALLOWED entries no longer present in code. "
         "Update the allow-list to match the current call sites.\n"
-        f"missing = {sorted(missing)}"
+        f"missing_files = {missing_files}"
+    )
+
+    drifted = sorted(
+        (rel, NEW_EVENT_LOOP_ALLOWED[rel], counts[rel])
+        for rel in NEW_EVENT_LOOP_ALLOWED.keys() & counts.keys()
+        if NEW_EVENT_LOOP_ALLOWED[rel] != counts[rel]
+    )
+    assert not drifted, (
+        "Per-file ``asyncio.new_event_loop()`` count drift:\n  - "
+        + "\n  - ".join(f"{rel}: allowed={allowed}, actual={actual}" for rel, allowed, actual in drifted)
+        + "\nUpdate NEW_EVENT_LOOP_ALLOWED with justification."
     )
 
 
 def test_asyncio_set_event_loop_zero_surface_pin() -> None:
-    sites = _asyncio_attr_call_sites("set_event_loop")
+    counts = _per_file_counts(_asyncio_attr_call_sites("set_event_loop"))
 
-    unexpected = sites - SET_EVENT_LOOP_ALLOWED
-    assert not unexpected, (
-        "New ``asyncio.set_event_loop(loop)`` call site detected. "
-        "Installing a loop manually is only legitimate paired with "
+    unexpected_files = sorted(set(counts) - set(SET_EVENT_LOOP_ALLOWED))
+    assert not unexpected_files, (
+        "New ``asyncio.set_event_loop(loop)`` call site detected in "
+        "file(s) not in SET_EVENT_LOOP_ALLOWED. Installing a loop "
+        "manually is only legitimate paired with "
         "``asyncio.new_event_loop()`` in a non-main thread that owns "
         "the loop for its entire lifetime. Anything else competes "
         "with ``asyncio.run`` and produces flaky 'no current event "
         "loop in thread X' / 'This event loop is already running' "
         "failures. If a new caller is genuinely required, append the "
-        "(path, line) tuple to SET_EVENT_LOOP_ALLOWED with a "
-        "justification in the commit message.\n"
-        f"unexpected = {sorted(unexpected)}"
+        "file to SET_EVENT_LOOP_ALLOWED with a justification in the "
+        "commit message.\n"
+        f"unexpected_files = {unexpected_files}"
     )
 
-    missing = SET_EVENT_LOOP_ALLOWED - sites
-    assert not missing, (
+    missing_files = sorted(set(SET_EVENT_LOOP_ALLOWED) - set(counts))
+    assert not missing_files, (
         "SET_EVENT_LOOP_ALLOWED entries no longer present in code. "
         "Update the allow-list to match the current call sites.\n"
-        f"missing = {sorted(missing)}"
+        f"missing_files = {missing_files}"
+    )
+
+    drifted = sorted(
+        (rel, SET_EVENT_LOOP_ALLOWED[rel], counts[rel])
+        for rel in SET_EVENT_LOOP_ALLOWED.keys() & counts.keys()
+        if SET_EVENT_LOOP_ALLOWED[rel] != counts[rel]
+    )
+    assert not drifted, (
+        "Per-file ``asyncio.set_event_loop()`` count drift:\n  - "
+        + "\n  - ".join(f"{rel}: allowed={allowed}, actual={actual}" for rel, allowed, actual in drifted)
+        + "\nUpdate SET_EVENT_LOOP_ALLOWED with justification."
     )
