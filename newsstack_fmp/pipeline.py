@@ -865,7 +865,7 @@ def _cleanup_singletons() -> None:
     _fmp_adapter_key = _bz_rest_adapter_key = _bz_ws_adapter_key = None
 
 
-import atexit as _atexit
+import atexit as _atexit  # noqa: E402 -- late import for atexit cleanup hook registration after singleton helpers are defined
 
 _atexit.register(_cleanup_singletons)
 

@@ -468,7 +468,7 @@ def _format_macro_events(events: list[dict], max_events: int) -> list[dict]:
 
 
 # ── NYSE holiday / trading-day helpers (canonical source: newsstack_fmp._market_cal)
-from newsstack_fmp._market_cal import (
+from newsstack_fmp._market_cal import (  # noqa: E402 -- canonical NYSE trading-day helpers, imported after local fallback definitions to override
     is_us_equity_trading_day as _is_us_equity_trading_day,
     prev_trading_day as _prev_trading_day,
     us_equity_market_holidays as _us_equity_market_holidays,
