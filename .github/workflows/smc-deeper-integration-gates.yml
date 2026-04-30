@@ -20,7 +20,7 @@ env:
 
 jobs:
   deeper-gates:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-m' }}
     timeout-minutes: 35
 
     steps:
