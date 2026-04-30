@@ -28,6 +28,9 @@ permissions:
   actions: read
   issues: write
 
+env:
+  PYTHONPATH: ${{ github.workspace }}
+
 jobs:
   weekly-digest:
     runs-on: ubuntu-latest

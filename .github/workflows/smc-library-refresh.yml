@@ -55,6 +55,7 @@ permissions:
   pull-requests: write
 
 env:
+  PYTHONPATH: ${{ github.workspace }}
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   REFRESH_DATE: ""   # set dynamically in the date step
   SMC_REFRESH_RUNNER_LABEL: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
