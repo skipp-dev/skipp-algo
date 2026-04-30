@@ -1,0 +1,183 @@
+// ============================================================================
+//  SMC Hold-Manager v1 — pure visualization (no strategy.*, no auto-trade)
+//  Found via SMC bug-hunt v2 phase 7 (alert edge) + Hold-Manager plan analysis.
+//  Scope: Phase-A safe — does not touch lifecycle, Setup-Detection, Live-Path.
+//  Target sign-off: read-only overlay, can ship before C13 sign-off (~26.05.).
+//
+//  Sicherheitsleitplanken:
+//   • indicator() statt strategy() — keine Order
+//   • liest mp.* (Tagesstart-Snapshot) und manuelle Inputs — published BUS only
+//   • Alert-Edges (rising-edge), nicht "level" Re-Fire
+//   • Pine var-State-Loss durch barstate.isconfirmed + Reset-Hook gehärtet
+//   • Time-Stop in Minuten, nicht in Bars (TF-agnostisch)
+//   • Long-Pfad zuerst — Short-Path explizit als TODO markiert
+//
+//  Plan-Doku: docs/SMC_Hold_Manager_Plan.md
+//  Schwächen-Matrix (A–G) und Phase-Gates: siehe Plan-Doku Section
+//  "Bekannte Schwächen & Mitigation".
+// ============================================================================
+//@version=6
+indicator("SMC Hold-Manager v1 — Visualization", overlay = true,
+     max_labels_count = 200, max_lines_count = 200, max_boxes_count = 50)
+
+import skippALGO/smc_micro_profiles_generated/1 as mp
+import TradingView/ta/8 as ta_lib
+
+// ── 1.  INPUTS ───────────────────────────────────────────────────────────────
+// Manuelle Plan-Eingabe — Werte werden via Webhook/Setup-Alert befüllt.
+// (BUS Target1/2/StopLevel sind aktuell NICHT published → Phase-B Aufgabe.)
+gIn          = "Plan-Inputs (manuell aus Setup-Alert)"
+i_arm_long   = input.bool(false , "Arm Long (Webhook-Toggle)" , group = gIn)
+i_entry      = input.price(0.0 , "Entry / Trigger"            , group = gIn,
+     confirm = true, tooltip = "Plan-Trigger aus Setup-Alert")
+i_stop       = input.price(0.0 , "Initial Invalidation"        , group = gIn,
+     confirm = true, tooltip = "long_invalidation_level (siehe smc_lifecycle:118)")
+i_t1_R       = input.float(1.0 , "Target-1 (R)" , minval = 0.5, step = 0.1, group = gIn)
+i_t2_R       = input.float(2.0 , "Target-2 (R)" , minval = 1.0, step = 0.1, group = gIn)
+
+gMgmt        = "Hold-Management"
+i_simple_mode= input.bool(false, "Simple Mode (BE-after-T1 only)" , group = gMgmt,
+     tooltip = "Bei aktiviert: ATR-Chandelier-Trail UND Time-Stop sind deaktiviert. Verhält sich dann wie SMC_Exit_Signal mit Breakeven-after-T1 — saubere Migration für Anfänger.")
+i_use_chand  = input.bool(true , "ATR-Chandelier-Trail aktiv"  , group = gMgmt)
+i_atr_len    = input.int (14   , "ATR-Length"                  , group = gMgmt, minval = 5)
+// ATR-Mult ist NICHT family-aware in v1 — siehe Schwäche G; v3 leitet aus mp.* ab.
+i_atr_mult   = input.float(2.5 , "ATR-Mult (TODO: family-aware in v3)", step = 0.1, group = gMgmt)
+i_breakeven  = input.bool(true , "Breakeven nach T1"           , group = gMgmt)
+i_t1_partial = input.float(50.0, "Partial-Exit % @ T1"         , minval = 0, maxval = 100, group = gMgmt)
+i_use_tstop  = input.bool(true , "Time-Stop aktiv"             , group = gMgmt)
+// Time-Stop in MINUTEN (nicht Bars) — adressiert Schwäche D.
+i_tstop_min  = input.int (90   , "Time-Stop (Minuten ab Entry)" , minval = 5, group = gMgmt)
+
+gSafe        = "Safety / Reset"
+i_reset_now  = input.bool(false, "Force Reset (Trade beenden)" , group = gSafe,
+     tooltip = "Notausschalter — setzt State auf NONE zurück.")
+i_close_only = input.bool(true , "Trigger nur bei barstate.isconfirmed",
+     group = gSafe, tooltip = "Adressiert Schwäche C: var-State auf bestätigten Bars.")
+
+gAlert       = "Alerts (Edge-Detection)"
+// NOTE: Alertconditions in this script are always edge-detected via `not foo[1]`
+// (see section 7). The previous `i_use_edge` toggle did not influence the
+// alertcondition() expressions — it only changed status-label text — so it
+// was misleading. Removed in favor of a single, predictable alert mode.
+
+// ── 2.  CONTEXT FROM MP SNAPSHOT (read-only) ─────────────────────────────────
+// Wir lesen NICHT pro Bar — mp.* ist Tagesstart-Snapshot. Defensiv.
+ctx_event_block = mp.MARKET_EVENT_BLOCKED or mp.SYMBOL_EVENT_BLOCKED
+ctx_earnings    = str.contains(mp.EARNINGS_TODAY_TICKERS, syminfo.ticker) or
+                  str.contains(mp.EARNINGS_TOMORROW_TICKERS, syminfo.ticker)
+ctx_action_tier = mp.ACTION_DEGRADATION_TIER  // "none"/"reduce"/"avoid"/"halt"
+
+// ── 3.  STATE MACHINE ────────────────────────────────────────────────────────
+// 4-Tupel parallel zur smc_lifecycle Semantik (long_setup_expired,
+// long_confirm_expired, long_broken_down, long_invalidated_now).
+// In v1 nutzen wir nur den Hold-Phase-Teil: ARMED → IN_TRADE → CLOSED.
+var int    state         = 0  // 0=NONE, 1=ARMED, 2=IN_TRADE, 3=CLOSED
+var float  entry_price   = na
+var float  initial_stop  = na
+var float  active_stop   = na
+var float  t1_price      = na
+var float  t2_price      = na
+var int    entry_bar     = na
+var int    entry_time_ms = na
+var bool   t1_hit        = false
+
+// Reset-Hook (Schwäche C: explizite Re-Init bei recompile / force-reset)
+// Gate to last-bar so toggling input.bool TRUE resets exactly once instead of
+// re-firing on every historical bar (which would prevent state from forming).
+if i_reset_now and barstate.islast
+    state := 0, entry_price := na, initial_stop := na, active_stop := na
+    t1_price := na, t2_price := na, entry_bar := na, entry_time_ms := na
+    t1_hit := false
+
+// ── 4.  ARMING & ENTRY ───────────────────────────────────────────────
+bool can_act = (not i_close_only) or barstate.isconfirmed
+// `i_arm_long` is an input.bool — constant across the historical bar series after
+// (re)compile, so a `not i_arm_long[1]` rising-edge can never fire mid-series.
+// Detect the toggle exactly once on the realtime/last bar instead.
+arm_edge_now = i_arm_long and barstate.islast and (not i_arm_long[1])
+
+if can_act and state == 0 and arm_edge_now and i_entry > 0 and i_stop > 0 and i_stop < i_entry
+    state         := 1
+    entry_price   := i_entry
+    initial_stop  := i_stop
+    active_stop   := i_stop
+    float risk_R  := entry_price - initial_stop
+    t1_price      := entry_price + risk_R * i_t1_R
+    t2_price      := entry_price + risk_R * i_t2_R
+    entry_bar     := bar_index
+    entry_time_ms := time
+    t1_hit        := false
+
+// Trigger-Touch erkennen — naive: Bar handelt durch Entry.
+bool entry_touch = state == 1 and low <= entry_price and high >= entry_price
+if can_act and entry_touch
+    state := 2
+
+// ── 5.  HOLD-MANAGEMENT ──────────────────────────────────────────────────────
+float atr     = ta_lib.atr(i_atr_len)
+float chand   = high - atr * i_atr_mult
+// Chandelier-Trail nur erhöhen, nie senken — adressiert Long-Asymmetrie.
+if state == 2 and i_use_chand and not i_simple_mode and not na(chand)
+    active_stop := math.max(active_stop, chand)
+
+// Breakeven nach T1 (Schwäche F-light: Faktor fest, NICHT aus mp.ZONE_CAL_*)
+if state == 2 and not t1_hit and high >= t1_price
+    t1_hit := true
+    if i_breakeven
+        active_stop := math.max(active_stop, entry_price)
+
+// long_broken_down äquivalent (smc_lifecycle:118)
+bool stop_hit = state == 2 and low <= active_stop
+
+// Time-Stop in Minuten — konvertiert zu ms, TF-agnostisch (Schwäche D).
+bool time_stop_hit = state == 2 and i_use_tstop and not i_simple_mode and
+     (time - entry_time_ms) >= (i_tstop_min * 60 * 1000)
+
+bool t2_hit = state == 2 and high >= t2_price
+
+// long_invalidated_now Pulse — pro Trade einmal (rising-edge).
+bool exit_now = stop_hit or t2_hit or time_stop_hit
+bool exit_edge = exit_now and (not exit_now[1])
+if can_act and exit_edge
+    state := 3
+
+// ── 6.  PLOTS / VISUALS ──────────────────────────────────────────────────────
+plot(state >= 1 ? entry_price  : na, "Entry"   , color.new(color.aqua, 0)  , 1, plot.style_linebr)
+plot(state >= 2 ? active_stop  : na, "Stop"    , color.new(color.red , 0)  , 2, plot.style_linebr)
+plot(state >= 1 ? t1_price     : na, "T1"      , color.new(color.green, 30), 1, plot.style_linebr)
+plot(state >= 1 ? t2_price     : na, "T2"      , color.new(color.green, 0) , 1, plot.style_linebr)
+
+plotshape(can_act and entry_touch , "Entry"     , shape.triangleup  , location.belowbar, color.aqua  , size = size.small)
+plotshape(can_act and t1_hit and not t1_hit[1], "T1 Hit", shape.diamond, location.abovebar, color.green, size = size.small)
+plotshape(can_act and exit_edge   , "Exit"      , shape.xcross      , location.abovebar, color.red   , size = size.small)
+
+// Status-Label am letzten Bar (nur einmal — Schwäche E: kein Spam).
+var label statusLbl = na
+if barstate.islast
+    label.delete(statusLbl)
+    string txt = "State: " + (state == 0 ? "NONE" : state == 1 ? "ARMED" : state == 2 ? "IN_TRADE" : "CLOSED") +
+         "\nStop: " + str.tostring(active_stop, format.mintick) +
+         "\nT1/T2: " + str.tostring(t1_price, format.mintick) + " / " + str.tostring(t2_price, format.mintick) +
+         "  (T1-Partial " + str.tostring(i_t1_partial, "#.#") + "%)" +
+         (state == 2 ? "\nElapsed: " + str.tostring(math.round((time - entry_time_ms) / 60000)) + "m" : "") +
+         "\nAlerts: edge-only" +
+         "  Tier: " + ctx_action_tier +
+         (ctx_event_block ? "\n⚠ EVENT_BLOCK" : "") + (ctx_earnings ? "\n⚠ EARNINGS" : "")
+    statusLbl := label.new(bar_index, high, txt, style = label.style_label_left,
+         color = state == 2 ? color.new(color.blue, 80) : color.new(color.gray, 80))
+
+// ── 7.  ALERTS — edge-detected, ein Pulse pro Event ──────────────────────────
+// Master-Pulse-Semantik: long_invalidated_now ist EDGE, nicht Level.
+alertcondition(can_act and entry_touch                , "HM_ENTRY"     , "Hold-Manager: Entry touched")
+alertcondition(can_act and t1_hit and not t1_hit[1]   , "HM_T1"        , "Hold-Manager: T1 reached")
+alertcondition(can_act and t2_hit and not t2_hit[1]   , "HM_T2"        , "Hold-Manager: T2 reached — exit")
+alertcondition(can_act and stop_hit and not stop_hit[1], "HM_STOP"     , "Hold-Manager: Stop hit")
+alertcondition(can_act and time_stop_hit and not time_stop_hit[1], "HM_TIMESTOP", "Hold-Manager: Time-Stop hit")
+alertcondition(can_act and exit_edge                  , "HM_EXIT_ANY"  , "Hold-Manager: any exit (master)")
+
+// ── 8.  TODO / Phase-Gates ───────────────────────────────────────────────────
+// v2 (post C13 sign-off ~26.05.): Short-Pfad spiegeln, gap-open earnings pre-defensive.
+// v3 (post Phase-B sign-off ~Ende Juli):
+//   • i_atr_mult per family aus mp.ZONE_CAL_OB / _FVG / _BOS / _SWEEP ableiten
+//   • Quality-Sizing aus mp.HERO_QUALITY_TIER + ZONE_HR_* Hit-Rates
+// v4: state-persistence via webhook reconstruction (kein var-Loss bei recompile).

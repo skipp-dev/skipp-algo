@@ -1,0 +1,247 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © preuss_steffen
+
+//@version=6
+
+// Product role: companion_operator_only.
+//
+// SMC Breakout Overlay — LonesomeTheBlue-style breakout/breakdown boxes,
+// driven by the SMC micro-profiles library (BOS / CHoCH + active S/R).
+//
+// What it draws:
+//   • Blue rectangle + ▲ when mp.BOS_BULL (or CHoCH_BULL) fires while the
+//     active resistance held for ≥ minHoldBars — box spans from the bar where
+//     resistance was established up to the breakout bar.
+//   • Red rectangle + ▼ mirrored for mp.BOS_BEAR / CHoCH_BEAR vs. support.
+//
+// Box height = chwidth = threshold% of the most-recent N-bar range (same
+// idea as the original LonesomeTheBlue Breakout Finder).
+//
+// This is a thin RENDERER over existing SMC signals — no new detection.
+
+indicator("SMC Breakout Overlay", "SMC.BO", overlay = true,
+     max_lines_count = 100, max_labels_count = 200, max_boxes_count = 500, max_bars_back = 500)
+
+import preuss_steffen/smc_micro_profiles_generated/1 as mp
+
+// ── Inputs ──────────────────────────────────────────────────────
+
+var g_trig = "Triggers"
+var bool use_bos    = input.bool(true,  "Trigger on BOS",   group = g_trig)
+var bool use_choch  = input.bool(true,  "Trigger on CHoCH", group = g_trig)
+var int  minHold    = input.int(5,      "Min level age (bars)", minval = 1, maxval = 200, group = g_trig,
+     tooltip = "Skip boxes where the broken level was established fewer than N bars ago — filters noise.")
+
+var g_box  = "Box geometry"
+var int   rangeLen  = input.int(300, "Range lookback (bars)",  minval = 30, maxval = 500, group = g_box,
+     tooltip = "Window used to compute the threshold band height (LonesomeTheBlue uses 300).")
+var float thrPct    = input.float(3.0, "Threshold band %",     minval = 0.5, maxval = 10.0, step = 0.5, group = g_box,
+     tooltip = "Box height as % of the lookback-window range.") / 100.0
+
+var g_vis  = "Visuals"
+var color colUp     = input.color(color.new(color.blue, 0), "Breakout (bull) color",  group = g_vis)
+var color colDn     = input.color(color.new(color.red,  0), "Breakdown (bear) color", group = g_vis)
+var int   lineW     = input.int(1, "Line width", minval = 1, maxval = 4, group = g_vis)
+var string lstyle   = input.string(line.style_solid, "Line style",
+     options = [line.style_solid, line.style_dashed, line.style_dotted], group = g_vis)
+var bool show_arrows = input.bool(true, "Show ▲/▼ markers", group = g_vis)
+var bool show_volemoji = input.bool(true, "Show volume sentiment emoji", group = g_vis,
+     tooltip = "🟢 if bull-volume >55% between level establishment and breakout, 🔴 if bear-volume >55%, 🟡 mixed.")
+
+var g_sim = "Win/Loss tracker (ATR-RR sim)"
+var bool sim_on   = input.bool(true,  "Enable tracker",          group = g_sim)
+var float rr      = input.float(1.5, "RR ratio",   minval = 0.5, maxval = 5.0, step = 0.1, group = g_sim)
+var int   atrLen  = input.int(14,    "ATR length", minval = 5,   maxval = 50,  group = g_sim)
+var float atrMult = input.float(1.5, "ATR × mult → SL", minval = 0.5, maxval = 5.0, step = 0.1, group = g_sim)
+var bool  sl_on_close = input.bool(true, "SL on close (else high/low)", group = g_sim)
+var bool show_table   = input.bool(true, "Show stats table", group = g_sim)
+
+// ── Library fields ──────────────────────────────────────────────
+
+bool  bos_bull   = mp.BOS_BULL
+bool  bos_bear   = mp.BOS_BEAR
+bool  choch_bull = mp.CHOCH_BULL
+bool  choch_bear = mp.CHOCH_BEAR
+float resistance = mp.ACTIVE_RESISTANCE
+float support    = mp.ACTIVE_SUPPORT
+bool  res_on     = mp.RESISTANCE_ACTIVE
+bool  sup_on     = mp.SUPPORT_ACTIVE
+
+// ── Track "level established at" bars ──────────────────────────
+// Whenever the active S/R value changes (or activates), remember the bar.
+// This becomes the left edge of the box (analog of LonesomeTheBlue's
+// `bostart` = oldest pivot in the cluster).
+
+var int   res_anchor_bar = na
+var float res_anchor_val = na
+var int   sup_anchor_bar = na
+var float sup_anchor_val = na
+
+if res_on and (na(res_anchor_val) or resistance != res_anchor_val)
+    res_anchor_bar := bar_index
+    res_anchor_val := resistance
+if not res_on
+    res_anchor_bar := na
+    res_anchor_val := na
+
+if sup_on and (na(sup_anchor_val) or support != sup_anchor_val)
+    sup_anchor_bar := bar_index
+    sup_anchor_val := support
+if not sup_on
+    sup_anchor_bar := na
+    sup_anchor_val := na
+
+// ── Threshold band height (LonesomeTheBlue formula) ────────────
+
+int   lll     = math.max(math.min(bar_index, rangeLen), 1)
+float h_      = ta.highest(high, lll)
+float l_      = ta.lowest(low,  lll)
+float chwidth = (h_ - l_) * thrPct
+
+// ── Volume-sentiment emoji (ChartPrime-style) ──────────────────
+// Sums green vs. red bar volume between `from_bar` and the current bar.
+// Returns 🟢 / 🔴 / 🟡.
+
+vol_sentiment(int from_bar) =>
+    // Cap span to a safe lookback so we never index beyond `max_bars_back`
+    // and never run an unbounded loop when an anchor persists for thousands
+    // of bars (would cause runtime errors / severe slowdowns).
+    int VOL_LOOKBACK_MAX = 500
+    int raw_span = math.max(bar_index - from_bar, 1)
+    int span = math.min(raw_span, VOL_LOOKBACK_MAX)
+    float green_sum = 0.0
+    float red_sum   = 0.0
+    float total_sum = 0.0
+    for i = 0 to span - 1
+        float v = nz(volume[i])
+        total_sum += v
+        if close[i] > open[i]
+            green_sum += v
+        else if close[i] < open[i]
+            red_sum += v
+    float gr = total_sum > 0 ? green_sum / total_sum * 100.0 : 0.0
+    float rr_ = total_sum > 0 ? red_sum   / total_sum * 100.0 : 0.0
+    gr > 55.0 ? "🟢" : rr_ > 55.0 ? "🔴" : "🟡"
+
+// ── Trigger evaluation ─────────────────────────────────────────
+
+bool trig_bull = ((use_bos and bos_bull) or (use_choch and choch_bull))
+     and not na(res_anchor_bar) and not na(res_anchor_val)
+     and (bar_index - res_anchor_bar) >= minHold
+
+bool trig_bear = ((use_bos and bos_bear) or (use_choch and choch_bear))
+     and not na(sup_anchor_bar) and not na(sup_anchor_val)
+     and (bar_index - sup_anchor_bar) >= minHold
+
+// ── Draw box (single box.new — proper object lifecycle, no max_lines spam) ─
+
+draw_box(int x1, float y_top, float y_bot, int x2, color col) =>
+    // Use box.new so each breakout produces ONE managed object instead of 4
+    // permanently allocated `line` objects (would silently hit max_lines_count
+    // and stop drawing after enough triggers).
+    box.new(left = x1, top = y_top, right = x2, bottom = y_bot,
+         border_color = col, border_width = lineW, border_style = lstyle,
+         bgcolor = color.new(col, 90))
+
+// Per-trigger label text helper: "BOS 🟢" / "CHoCH 🔴" / etc.
+breakout_label(bool is_bos, bool is_choch, int from_bar) =>
+    string tag = is_choch ? "CHoCH" : (is_bos ? "BOS" : "")
+    string emo = show_volemoji ? " " + vol_sentiment(from_bar) : ""
+    tag + emo
+
+if trig_bull
+    float y_top = res_anchor_val
+    float y_bot = res_anchor_val - chwidth
+    draw_box(res_anchor_bar, y_top, y_bot, bar_index, colUp)
+    string txt = breakout_label(use_bos and bos_bull, use_choch and choch_bull, res_anchor_bar)
+    if txt != ""
+        label.new(int(math.avg(res_anchor_bar, bar_index)), y_top, txt,
+             color = color.new(colUp, 70), textcolor = color.white,
+             style = label.style_label_down, size = size.tiny)
+    // After a confirmed breakout the level is consumed — release the anchor
+    // so the next BOS_BULL needs a freshly established resistance.
+    res_anchor_bar := na
+    res_anchor_val := na
+
+if trig_bear
+    float y_bot = sup_anchor_val
+    float y_top = sup_anchor_val + chwidth
+    draw_box(sup_anchor_bar, y_top, y_bot, bar_index, colDn)
+    string txt = breakout_label(use_bos and bos_bear, use_choch and choch_bear, sup_anchor_bar)
+    if txt != ""
+        label.new(int(math.avg(sup_anchor_bar, bar_index)), y_bot, txt,
+             color = color.new(colDn, 70), textcolor = color.white,
+             style = label.style_label_up, size = size.tiny)
+    sup_anchor_bar := na
+    sup_anchor_val := na
+
+// ── Markers (▲ below / ▼ above the breakout bar) ───────────────
+
+plotshape(show_arrows and trig_bull, "SMC Breakout",  shape.triangleup,
+     location.belowbar, colUp, size = size.small)
+plotshape(show_arrows and trig_bear, "SMC Breakdown", shape.triangledown,
+     location.abovebar, colDn, size = size.small)
+
+// ── Alerts ─────────────────────────────────────────────────────
+
+alertcondition(trig_bull, title = "SMC Breakout",
+     message = "SMC Breakout (BOS/CHoCH bull through resistance)")
+alertcondition(trig_bear, title = "SMC Breakdown",
+     message = "SMC Breakdown (BOS/CHoCH bear through support)")
+alertcondition(trig_bull or trig_bear, title = "SMC Breakout or Breakdown",
+     message = "SMC Breakout or Breakdown")
+
+// ── Win/Loss tracker (ATR-RR simulation) ───────────────────────
+// Mirrors ChartPrime's idea: when a breakout/breakdown fires, open a
+// virtual trade with SL = ATR×mult, TP = SL×RR, and tally hit/miss.
+// Pure rendering — not connected to the real strategy engine.
+
+float atr_v  = ta.atr(atrLen)
+float sl_dist = atr_v * atrMult
+
+var bool  sim_active   = false
+var bool  sim_long     = false
+var float sim_tp       = na
+var float sim_sl       = na
+var int   sim_wins     = 0
+var int   sim_losses   = 0
+
+if sim_on and not sim_active and (trig_bull or trig_bear)
+    sim_active := true
+    sim_long   := trig_bull
+    if sim_long
+        sim_sl := close - sl_dist
+        sim_tp := close + sl_dist * rr
+    else
+        sim_sl := close + sl_dist
+        sim_tp := close - sl_dist * rr
+
+if sim_on and sim_active
+    float sl_probe = sl_on_close ? close : (sim_long ? low  : high)
+    float tp_probe =                 (sim_long ? high : low )
+    bool tp_hit = sim_long ? (tp_probe >= sim_tp) : (tp_probe <= sim_tp)
+    bool sl_hit = sim_long ? (sl_probe <= sim_sl) : (sl_probe >= sim_sl)
+    if tp_hit
+        sim_wins  += 1
+        sim_active := false
+    else if sl_hit
+        sim_losses += 1
+        sim_active := false
+
+int   sim_total = sim_wins + sim_losses
+float sim_wr    = sim_total > 0 ? sim_wins / float(sim_total) * 100.0 : 0.0
+
+var table tb = table.new(position.top_right, 2, 4, bgcolor = color.new(color.gray, 80),
+     border_width = 1, border_color = color.new(color.gray, 60))
+
+if show_table and sim_on and barstate.islast
+    table.cell(tb, 0, 0, "SMC BO Sim (RR " + str.tostring(rr, "#.0") + ")",
+         text_color = color.new(color.white, 0), bgcolor = color.new(color.gray, 60))
+    table.cell(tb, 1, 0, "", bgcolor = color.new(color.gray, 60))
+    table.cell(tb, 0, 1, "Wins",   text_color = color.new(color.silver, 0))
+    table.cell(tb, 1, 1, str.tostring(sim_wins),   text_color = color.new(#08c09b, 0))
+    table.cell(tb, 0, 2, "Losses", text_color = color.new(color.silver, 0))
+    table.cell(tb, 1, 2, str.tostring(sim_losses), text_color = color.new(#cd0202, 0))
+    table.cell(tb, 0, 3, "Win %",  text_color = color.new(color.silver, 0))
+    table.cell(tb, 1, 3, str.tostring(sim_wr, "#.0") + "%",
+         text_color = sim_wr >= 50.0 ? color.new(#08c09b, 0) : color.new(#cd0202, 0))
