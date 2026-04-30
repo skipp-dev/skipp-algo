@@ -86,11 +86,11 @@ def _all_dunder_import_sites() -> list[tuple[str, int]]:
 
 _FROZEN_DUNDER_IMPORT_SITES: frozenset[tuple[str, int]] = frozenset(
     {
-        ("open_prep/streamlit_monitor.py", 914),
-        ("open_prep/streamlit_monitor.py", 926),
-        ("open_prep/streamlit_monitor.py", 961),
-        ("open_prep/streamlit_monitor.py", 964),
-        ("open_prep/streamlit_monitor.py", 989),
+        ("open_prep/streamlit_monitor.py", 918),
+        ("open_prep/streamlit_monitor.py", 930),
+        ("open_prep/streamlit_monitor.py", 965),
+        ("open_prep/streamlit_monitor.py", 968),
+        ("open_prep/streamlit_monitor.py", 993),
     }
 )
 
