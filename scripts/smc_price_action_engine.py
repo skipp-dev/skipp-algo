@@ -409,27 +409,39 @@ def detect_structure_breaking_fvg(df: pd.DataFrame, pivot_lookup: int = 1) -> li
         bullish_fvg = float(cur["low"]) > float(left["high"])
         bearish_fvg = float(cur["high"]) < float(left["low"])
 
-        if bullish_fvg and last_top is not None:
-            if float(mid["close"]) > last_top and float(mid["low"]) < last_top and float(left["high"]) < last_top and float(cur["low"]) > last_top:
-                out.append(
-                    {
-                        "time": int(cur["timestamp"]),
-                        "dir": "BULL",
-                        "kind": "STRUCTURE_BREAKING_FVG",
-                        "level": float(last_top),
-                    }
-                )
+        if (
+            bullish_fvg
+            and last_top is not None
+            and float(mid["close"]) > last_top
+            and float(mid["low"]) < last_top
+            and float(left["high"]) < last_top
+            and float(cur["low"]) > last_top
+        ):
+            out.append(
+                {
+                    "time": int(cur["timestamp"]),
+                    "dir": "BULL",
+                    "kind": "STRUCTURE_BREAKING_FVG",
+                    "level": float(last_top),
+                }
+            )
 
-        if bearish_fvg and last_bottom is not None:
-            if float(mid["close"]) < last_bottom and float(mid["high"]) > last_bottom and float(left["low"]) > last_bottom and float(cur["high"]) < last_bottom:
-                out.append(
-                    {
-                        "time": int(cur["timestamp"]),
-                        "dir": "BEAR",
-                        "kind": "STRUCTURE_BREAKING_FVG",
-                        "level": float(last_bottom),
-                    }
-                )
+        if (
+            bearish_fvg
+            and last_bottom is not None
+            and float(mid["close"]) < last_bottom
+            and float(mid["high"]) > last_bottom
+            and float(left["low"]) > last_bottom
+            and float(cur["high"]) < last_bottom
+        ):
+            out.append(
+                {
+                    "time": int(cur["timestamp"]),
+                    "dir": "BEAR",
+                    "kind": "STRUCTURE_BREAKING_FVG",
+                    "level": float(last_bottom),
+                }
+            )
 
     return out
 
