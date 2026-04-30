@@ -96,21 +96,12 @@ def _all_sites() -> list[tuple[str, int, tuple[str, ...]]]:
 # entries with explanatory rationale; both must be kept in sync.
 _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
     {
-        # streamlit_terminal_alerts.py:76 — Bandit S104 false positive:
-        # validates a webhook URL host string ("0.0.0.0") rather than
-        # binding a server.
-        ("streamlit_terminal_alerts.py", 76, ("S104",)),
-        # governance/run_manifest.py:73 — Bandit S603 false positive:
-        # subprocess.check_output called with a ``shutil.which("git")``
-        # executable and a hardcoded argv list. No untrusted input.
-        ("governance/run_manifest.py", 73, ("S603",)),
-        # open_prep/realtime_signals.py:183,327 — Bandit S603 false
-        # positives: hardcoded pgrep / sys.executable -m argv lists.
-        ("open_prep/realtime_signals.py", 183, ("S603",)),
-        ("open_prep/realtime_signals.py", 327, ("S603",)),
-        # smc_integration/release_policy.py:1072 — Bandit S603 false
-        # positive: ``git rev-parse HEAD`` via shutil.which("git").
-        ("smc_integration/release_policy.py", 1072, ("S603",)),
+        # open_prep/realtime_signals.py:254,325 — SIM115 false positives:
+        # file descriptors are intentionally held open beyond the function
+        # scope (fcntl.flock for engine startup; log fh inherited by a
+        # detached subprocess via start_new_session=True).
+        ("open_prep/realtime_signals.py", 254, ("SIM115",)),
+        ("open_prep/realtime_signals.py", 325, ("SIM115",)),
     }
 )
 
