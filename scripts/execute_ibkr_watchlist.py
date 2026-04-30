@@ -445,10 +445,10 @@ def build_preview_payload(
 
 def _import_ibkr_types() -> tuple[Any, Any, Any, Any, Any]:
     try:
-        from ib_insync import IB, LimitOrder, MarketOrder, Order, Stock
+        from ib_async import IB, LimitOrder, MarketOrder, Order, Stock
     except ImportError as exc:  # pragma: no cover - exercised manually in runtime
         raise RuntimeError(
-            "ib_insync is not installed. Install dependencies with `pip install -r requirements.txt`."
+            "ib_async is not installed. Install dependencies with `pip install -r requirements.txt` (provides ib_async>=2.1.0)."
         ) from exc
     return IB, Stock, LimitOrder, MarketOrder, Order
 

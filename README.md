@@ -620,7 +620,7 @@ python scripts/execute_ibkr_watchlist.py --watchlist-csv reports/databento_watch
 
 - `DATABENTO_API_KEY` is required for the screener and production export pipeline.
 - `FMP_API_KEY` is optional and used for fundamentals enrichment and fallback universe-related flows.
-- `ib_insync` plus a reachable TWS or IB Gateway session are required only for `scripts/execute_ibkr_watchlist.py`.
+- `ib_async` plus a reachable TWS or IB Gateway session are required only for `scripts/execute_ibkr_watchlist.py`.
 
 ### Default Operating Model
 
