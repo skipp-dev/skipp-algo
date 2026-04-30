@@ -274,8 +274,8 @@ class BenzingaRestAdapter:
 # 1b) Additional News endpoints (synchronous, standalone functions)
 # =====================================================================
 
-BENZINGA_TOP_NEWS_URL = "https://api.benzinga.com/api/v2/news/top"
-BENZINGA_CHANNELS_URL = "https://api.benzinga.com/api/v2/news/channels"
+BENZINGA_TOP_NEWS_URL = "https://api.benzinga.com/api/v2/news-top-stories"
+BENZINGA_CHANNELS_URL = "https://api.benzinga.com/api/v2/channels"
 BENZINGA_QUANTIFIED_URL = "https://api.benzinga.com/api/v2/newsquantified"
 
 
@@ -378,11 +378,14 @@ def fetch_benzinga_quantified_news(
 ) -> list[dict[str, Any]]:
     """Fetch quantified news (news with price-impact context) from Benzinga.
 
-    Authenticates via the ``Authorization`` request header (per the official
-    Benzinga ``newsquantified`` reference) — *not* via the legacy ``?token=``
-    query parameter that the standard ``/api/v2/news`` endpoints accept. All
-    query parameters are documented in snake_case (``date_from``, ``date_to``,
-    ``updated_since``, ``pagesize``, ``page``, ``symbols``, ``date``).
+    Authenticates via the ``?token=`` query parameter (consistent with the
+    official ``benzinga-python-client`` and the rest of our Benzinga calls).
+    Live tests confirm both ``Authorization`` header and ``?token=`` are
+    accepted by the server, but ``?token=`` keeps the codebase uniform.
+
+    All query parameters are documented in snake_case (``date_from``,
+    ``date_to``, ``updated_since``, ``pagesize``, ``page``, ``symbols``,
+    ``date``) per the official Benzinga newsquantified reference.
 
     Returns
     -------
@@ -390,6 +393,7 @@ def fetch_benzinga_quantified_news(
         Items with keys: Symb, Headlines, DayOpen, OpenGap%, Range%, etc.
     """
     params: dict[str, Any] = {
+        "token": api_key,
         "pagesize": str(page_size),
         "page": str(page),
     }
@@ -404,8 +408,7 @@ def fetch_benzinga_quantified_news(
     if updated_since is not None:
         params["updated_since"] = str(updated_since)
 
-    headers = {"Accept": "application/json", "Authorization": api_key}
-    with httpx.Client(timeout=10.0, headers=headers) as client:
+    with httpx.Client(timeout=10.0, headers={"Accept": "application/json"}) as client:
         try:
             r = _request_with_retry(client, BENZINGA_QUANTIFIED_URL, params, label="Benzinga quantified_news")
             data = r.json()

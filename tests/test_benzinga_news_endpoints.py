@@ -128,7 +128,7 @@ class TestFetchBenzingaChannels:
         r.json.return_value = data
         r.headers = {"content-type": "application/json"}
         r.raise_for_status = MagicMock()
-        r.url = "https://api.benzinga.com/api/v2/news/channels"
+        r.url = "https://api.benzinga.com/api/v2/channels"
         return r
 
     def test_returns_list(self):
@@ -220,8 +220,10 @@ class TestFetchBenzingaQuantifiedNews:
             assert call_args[1]["params"]["date_from"] == "2025-01-01"
             assert call_args[1]["params"]["date_to"] == "2025-01-31"
             assert call_args[1]["params"]["pagesize"] == "25"
-            # Token MUST be sent via Authorization header, not query param
-            assert "token" not in call_args[1]["params"]
+            # Token is sent as ?token= query param (consistent with rest of
+            # codebase + the official benzinga-python-client). Live tests
+            # confirmed both Authorization header and ?token= are accepted.
+            assert call_args[1]["params"]["token"] == "test_key"
 
     def test_returns_empty_on_error(self):
         with patch("newsstack_fmp.ingest_benzinga.httpx.Client") as MockClient:
