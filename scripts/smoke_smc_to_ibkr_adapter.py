@@ -13,7 +13,7 @@ hand-off without requiring a live IBKR connection in CI. Two modes:
 
 ``--live``
     Connect to the IBKR Paper Gateway on ``localhost:7497`` via
-    ``ib_insync``, place each intent as a *limit* order, wait for an
+    ``ib_async``, place each intent as a *limit* order, wait for an
     ack, then immediately cancel. Pure round-trip — no real fills.
 
 The frozen risk-limits file is the single source of truth for Phase-A:
@@ -21,7 +21,7 @@ positional caps, gross-exposure ceilings, and the killswitch-on-breach
 flag are all read from there. Modifying that file is a separate
 governed action.
 
-Pure stdlib + the existing adapter; ``ib_insync`` is imported lazily
+Pure stdlib + the existing adapter; ``ib_async`` is imported lazily
 only when ``--live`` is requested so CI does not pull it.
 """
 
@@ -265,7 +265,7 @@ def run_mock(
 
 
 # ---------------------------------------------------------------------------
-# Live-mode runner (lazy ib_insync import)
+# Live-mode runner (lazy ib_async import)
 # ---------------------------------------------------------------------------
 
 
@@ -282,11 +282,11 @@ def run_live(
 ) -> dict[str, Any]:
     """Place + cancel each intent on the IBKR Paper Gateway."""
     try:
-        from ib_insync import IB, LimitOrder, Stock  # type: ignore[import-untyped]
+        from ib_async import IB, LimitOrder, Stock  # type: ignore[import-untyped]
     except ImportError as exc:  # pragma: no cover - exercised only in live mode
         raise RuntimeError(
-            "ib_insync is required for --live mode; install with "
-            "`pip install ib_insync` and ensure IBKR Paper Gateway is running."
+            "ib_async is required for --live mode; install with "
+            "`pip install ib_async>=2.1.0` and ensure IBKR Paper Gateway is running."
         ) from exc
 
     exec_cfg = IBKRExecutionConfig(host=host, paper_mode=(port == DEFAULT_PAPER_PORT), client_id=client_id)

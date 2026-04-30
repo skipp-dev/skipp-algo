@@ -338,7 +338,7 @@ def main(argv: list[str] | None = None) -> int:
         # so the CLI owns the TWS lifecycle here. Without this block
         # the per-symbol ``reqMktData`` calls would fail on an
         # unconnected client.
-        from ib_insync import IB  # local import: optional dependency
+        from ib_async import IB  # local import: optional dependency
 
         from scripts.ib_client_id import (
             allocate_ib_client_id,

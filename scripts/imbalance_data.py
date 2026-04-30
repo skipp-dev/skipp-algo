@@ -195,12 +195,12 @@ def build_snapshot_from_ticks(
     )
 
 
-def _import_ib_insync() -> Any:
+def _import_ib_async() -> Any:
     try:
-        from ib_insync import IB, Stock
+        from ib_async import IB, Stock
     except ImportError as exc:  # pragma: no cover — exercised manually
         raise RuntimeError(
-            "ib_insync is not installed. Install with "
+            "ib_async is not installed. Install with "
             "`pip install -r requirements.txt`."
         ) from exc
     return IB, Stock
@@ -229,30 +229,30 @@ def fetch_opening_imbalance(
 
     * ``ib_client.last_auction_ticks`` (a dict that a custom EWrapper
       subclass populates — used by unit-test stubs and bespoke wrappers), or
-    * the ib-insync ``Ticker`` object returned by ``reqMktData`` (the
-      vanilla path the CLI uses; ib-insync exposes auction ticks as the
+    * the ib_async ``Ticker`` object returned by ``reqMktData`` (the
+      vanilla path the CLI uses; ib_async exposes auction ticks as the
       ``auctionVolume`` / ``auctionPrice`` / ``auctionImbalance`` /
       ``regulatoryImbalance`` attributes).
 
     The two sources are merged: ``last_auction_ticks`` wins when both
     are populated so a custom wrapper can override the vanilla feed.
     """
-    # Default ``contract_factory`` to ``ib_insync.Stock`` regardless of
+    # Default ``contract_factory`` to ``ib_async.Stock`` regardless of
     # whether the caller injected ``ib_client``. Without this, callers
     # that pass a connected ``IB()`` (e.g. the cron CLI) would hit the
     # ``CONTRACT_FACTORY_MISSING`` early-out below and the live path
     # would never build a contract.
     if contract_factory is None:
         try:
-            _, Stock = _import_ib_insync()
+            _, Stock = _import_ib_async()
             contract_factory = Stock
         except RuntimeError:
-            # ib_insync not installed; only the test path (which
+            # ib_async not installed; only the test path (which
             # supplies an explicit factory) can succeed from here.
             pass
 
     if ib_client is None:
-        IB, Stock = _import_ib_insync()
+        IB, Stock = _import_ib_async()
         ib_client = IB()
         contract_factory = contract_factory or Stock
 
@@ -302,7 +302,7 @@ def fetch_opening_imbalance(
             )
             if k in ticks
         }
-        # Source 2: vanilla ib-insync. The Ticker object returned by
+        # Source 2: vanilla ib_async. The Ticker object returned by
         # reqMktData exposes the auction ticks as named attributes
         # once TWS streams them. We only fill in keys missing from
         # ``relevant`` so a bespoke wrapper retains precedence.

@@ -366,7 +366,7 @@ The relevant dependencies already listed in `requirements.txt` are:
 - `python-dotenv`
 - `openpyxl`
 - `pyarrow`
-- `ib_insync`
+- `ib_async`
 
 Install with:
 

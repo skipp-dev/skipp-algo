@@ -26,7 +26,7 @@ Ohne C8 ist der Track-Record nicht extern verkaufbar — Backtest allein, selbst
 ## Inventur (✅ vorhanden / ❌ Greenfield)
 
 ### IBKR-Stack vorhanden
-- ✅ `ib_insync>=0.9.86` in `requirements.txt`
+- ✅ `ib_async>=2.1.0` in `requirements.txt`
 - ✅ `scripts/run_ibkr_open_execution.py` (291 Zeilen) — Execution-Event-Log + Reconnect-Supervision
 - ✅ `scripts/execute_ibkr_watchlist.py` (1118 Zeilen) — vollständige Order-Pipeline:
   - `IBKRConnectionConfig` `:44` mit Default-Port 7497 (Paper-Trading)
@@ -340,7 +340,7 @@ Während dieser Zeit:
 
 ## Out-of-Scope
 
-- Multi-Broker (nur IBKR via `ib_insync`)
+- Multi-Broker (nur IBKR via `ib_async`)
 - Crypto-Exchanges (ccxt nicht installiert — späterer Sprint)
 - Auto-Position-Sizing über Kelly-Kriterium (kommt mit Scale-Phase C)
 - Live-WebSocket-Streaming-UI (C9 oder später)
@@ -350,7 +350,7 @@ Während dieser Zeit:
 
 - [QuantVPS — Paper Trading Simulators (März 2026)](https://www.quantvps.com/blog/paper-trading-simulators) — 30-50 Trades, 3-6 Monate, 10-25% Size, 0.5% Slippage-Default
 - [Alpaca Markets Data-Backed Guide (August 2025)](https://alpaca.markets/learn/paper-trading-vs-live-trading-a-data-backed-guide-on-when-to-start-trading-real-money) — Paper-zu-Live-Transition Daten
-- [QuantInsti IBKR-Bot-Guide (März 2026)](https://www.quantinsti.com/articles/build-trading-bot-interactive-brokers-python-chatgpt/) — `ib_async`/`ib_insync`-Pattern
+- [QuantInsti IBKR-Bot-Guide (März 2026)](https://www.quantinsti.com/articles/build-trading-bot-interactive-brokers-python-chatgpt/) — `ib_async`-Pattern
 - [PickMyTrade IBKR Automated Trading Guide 2026](https://blog.pickmytrade.io/ibkr-automated-trading-system-guide-2026/) — API-Updates Oktober 2025, Risk-Tools
 - [Reddit r/algotrading — Live-Deploy-Kriterien](https://www.reddit.com/r/algotrading/comments/uls93l/how_do_you_determine_if_a_you_are_going_deploy/) — 2-3 Monate Demo-Inkubation
 - [Roguequant Substack (August 2025)](https://roguequant.substack.com/p/the-75-win-rate-strategy-i-found) — 3 Monate / 30 Trades als Minimum
