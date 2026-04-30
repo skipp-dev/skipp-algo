@@ -124,12 +124,22 @@ vol_sentiment(int from_bar) =>
     gr > 55.0 ? "🟢" : rr_ > 55.0 ? "🔴" : "🟡"
 
 // ── Trigger evaluation ─────────────────────────────────────────
+// H-1 follow-up (PR #1940 review): the trigger booleans drive both the
+// alertcondition gate AND the anchor-consumption side effects below
+// (`res_anchor_* := na`, `sup_anchor_* := na`) plus plotshape / sim.
+// If we let them flicker intrabar, a mid-bar wick can consume the anchor
+// without the alert ever firing on the confirmed close. Anchor the truth
+// to `barstate.isconfirmed` once at the source so every downstream
+// consumer (alerts, anchor consume, plotshape, sim) stays aligned.
+bool _trig_confirmed = barstate.isconfirmed
 
-bool trig_bull = ((use_bos and bos_bull) or (use_choch and choch_bull))
+bool trig_bull = _trig_confirmed
+     and ((use_bos and bos_bull) or (use_choch and choch_bull))
      and not na(res_anchor_bar) and not na(res_anchor_val)
      and (bar_index - res_anchor_bar) >= minHold
 
-bool trig_bear = ((use_bos and bos_bear) or (use_choch and choch_bear))
+bool trig_bear = _trig_confirmed
+     and ((use_bos and bos_bear) or (use_choch and choch_bear))
      and not na(sup_anchor_bar) and not na(sup_anchor_val)
      and (bar_index - sup_anchor_bar) >= minHold
 
