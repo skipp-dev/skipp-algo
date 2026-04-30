@@ -293,7 +293,25 @@ class TestGetAnalystEstimates:
         c = SMCFMPClient(api_key="k")
         with patch.object(c, "_get", return_value=[]) as get_mock:
             c.get_analyst_estimates("AAPL", period="   ")
-        assert get_mock.call_args[0][1]["period"] == "quarter"
+        assert get_mock.call_args[0][1]["period"] == "annual"
+
+    def test_default_period_is_annual(self):
+        c = SMCFMPClient(api_key="k")
+        with patch.object(c, "_get", return_value=[]) as get_mock:
+            c.get_analyst_estimates("AAPL")
+        assert get_mock.call_args[0][1]["period"] == "annual"
+
+    def test_period_quarter_normalised_to_quarterly(self):
+        c = SMCFMPClient(api_key="k")
+        with patch.object(c, "_get", return_value=[]) as get_mock:
+            c.get_analyst_estimates("AAPL", period="quarter")
+        assert get_mock.call_args[0][1]["period"] == "quarterly"
+
+    def test_period_quarterly_passthrough(self):
+        c = SMCFMPClient(api_key="k")
+        with patch.object(c, "_get", return_value=[]) as get_mock:
+            c.get_analyst_estimates("AAPL", period="Quarterly")
+        assert get_mock.call_args[0][1]["period"] == "quarterly"
 
     def test_returns_empty_on_runtime_error(self):
         c = SMCFMPClient(api_key="k")
