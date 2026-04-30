@@ -1,0 +1,16 @@
+{
+  "cli_args": {
+    "dataset": "DBEQ.BASIC",
+    "date": null,
+    "feature_importance": true,
+    "lookback": 5
+  },
+  "dates_processed": 4,
+  "failed": 3,
+  "feature_importance_samples": 28,
+  "resolved": 28,
+  "run_id": "20260430T065458",
+  "skipped": 0,
+  "started_at_et": "2026-04-30T06:54:58.102996-04:00",
+  "status": "failed"
+}
