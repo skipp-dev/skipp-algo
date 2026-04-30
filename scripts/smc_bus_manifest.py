@@ -72,6 +72,9 @@ CONSUMER_ROLE_VALUES: tuple[str, ...] = (
     'bridge',
     'legacy_monolith',
     'legacy_split',
+    # Companion exits / hold-management surfaces (added with v3 phase 1
+    # classification of SMC_Exit_Signal.pine + SMC_Hold_Manager.pine).
+    'exit_companion',
 )
 
 PRODUCT_CUT_MANIFEST_VERSION = 2
@@ -287,6 +290,59 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         consumer_role = 'legacy_split',
         notes = (
             'Deprecated split prototype.',
+        ),
+    ),
+    # New companion surfaces shipped 2026-04-30 (commit 68e1aac0):
+    # BE-after-T1 + Simple-Mode + Trade-Mgmt rows feature bundle.
+    # Classified here so the manifest contract pin
+    # ``test_every_pine_file_is_classified_or_explicitly_excluded`` no
+    # longer flags them as unclassified drift.
+    # Discovered via SMC review v3 phase 1.
+    SurfaceDefinition(
+        file = 'SMC_Breakout_Overlay.pine',
+        script_name = 'SMC Breakout Overlay',
+        surface_role = 'companion_operator_only',
+        contract_tier = 'pro',
+        consumer_role = 'overlay_companion',
+        notes = (
+            'LonesomeTheBlue-style breakout/breakdown box renderer over '
+            'mp.BOS_* / mp.CHoCH_* signals. Pure visual, no new detection.',
+        ),
+    ),
+    SurfaceDefinition(
+        file = 'SMC_Exit_Signal.pine',
+        script_name = 'SMC Exit Signal',
+        surface_role = 'companion_operator_only',
+        contract_tier = 'lite_and_pro',
+        consumer_role = 'exit_companion',
+        notes = (
+            'Beginner-facing exit companion: STOP / TP1 / TP2 / DEFENSIVE '
+            'EXIT alerts driven by linked SMC Core BUS outputs. No '
+            'library import — fully BUS-driven.',
+        ),
+    ),
+    SurfaceDefinition(
+        file = 'SMC_Hold_Manager.pine',
+        script_name = 'SMC Hold-Manager v1',
+        surface_role = 'companion_operator_only',
+        contract_tier = 'lite_and_pro',
+        consumer_role = 'exit_companion',
+        notes = (
+            'Read-only hold-management overlay with ATR-Chandelier trail, '
+            'BE-after-T1, optional Simple-Mode, and time-stop. Imports '
+            'skippALGO/smc_micro_profiles_generated (separate namespace '
+            'from preuss_steffen — not auto-pinned by library refresh).',
+        ),
+    ),
+    SurfaceDefinition(
+        file = 'SMC_VRVP_Overlay.pine',
+        script_name = 'SMC VRVP Overlay',
+        surface_role = 'companion_operator_only',
+        contract_tier = 'pro',
+        consumer_role = 'overlay_companion',
+        notes = (
+            'Visible-Range Volume Profile companion: histogram + '
+            'multi-POC + VAH/VAL. No library import — fully self-contained.',
         ),
     ),
 )

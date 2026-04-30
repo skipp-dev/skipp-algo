@@ -567,6 +567,7 @@ jobs:
             SMC_Imbalance_Context.pine \
             SMC_HTF_Confluence.pine \
             SMC_Event_Overlay.pine \
+            SMC_Breakout_Overlay.pine \
             artifacts/tradingview/library_release_manifest.json
           if ! git diff --quiet; then
             echo "::error::Unexpected tracked changes remain unstaged before refresh commit."
