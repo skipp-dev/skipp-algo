@@ -16,6 +16,7 @@ independently.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import re
 import time
@@ -156,10 +157,9 @@ def _yf_screen_movers() -> dict[str, list[dict[str, Any]]]:
                 market_cap = fi.get("marketCap", 0) or fi.get("market_cap", 0) or 0
 
                 info_name = sym  # fast_info doesn't have company name
-                try:
+                # info lookup is best-effort; name defaults to sym
+                with contextlib.suppress(Exception):
                     info_name = t.info.get("shortName", sym) if hasattr(t, "info") else sym
-                except Exception:
-                    pass  # info lookup is best-effort; name defaults to sym
 
                 all_items.append({
                     "symbol": sym,
