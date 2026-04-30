@@ -205,6 +205,14 @@ except ImportError:  # pragma: no cover
     _fetch_uw_spot_gex = None  # type: ignore[assignment]
     _fetch_uw_market_tide = None  # type: ignore[assignment]
 
+# v3 P-4c: bulk Form-4 insider transactions (drop-in for FMP per-symbol fallback).
+try:
+    from newsstack_fmp.ingest_unusual_whales import (
+        fetch_uw_insider_transactions as _fetch_uw_insider,
+    )
+except ImportError:  # pragma: no cover
+    _fetch_uw_insider = None  # type: ignore[assignment]
+
 # v3 P-3c: insider feed migrated from retired Benzinga endpoint to FMP
 # /stable/insider-trading/search (per-symbol). Benzinga adapter stays as fallback.
 try:
@@ -456,6 +464,114 @@ def _cached_fmp_insider_op(
                 if not any(tok in tt for tok in allowed):
                     continue
             out.append(mapped)
+            if len(out) >= page_size:
+                return out
+    return out
+
+
+# ── v3 P-4c: UW Form-4 insider transactions (drop-in for FMP fallback) ──
+
+
+_UW_INSIDER_CODE_LABEL = {
+    "P": "P-Purchase",
+    "S": "S-Sale",
+    "A": "A-Award",
+    "D": "D-Disposition",
+    "M": "M-Exercise",
+    "G": "G-Gift",
+    "F": "F-Tax",
+}
+
+
+def _uw_insider_to_renderer_shape(rec: dict[str, Any]) -> dict[str, Any]:
+    """Map a UW insider Form-4 record to the monitor's renderer shape.
+
+    Mirrors :func:`_fmp_insider_to_bz_shape` so the downstream dataframe and
+    ≥$100K notable list keep working identically.
+    """
+    sym = str(rec.get("ticker") or "").upper()
+    try:
+        shares = float(rec.get("amount") or 0)
+    except (TypeError, ValueError):
+        shares = 0.0
+    try:
+        price = float(rec.get("price") or 0)
+    except (TypeError, ValueError):
+        price = 0.0
+    code = str(rec.get("transaction_code") or "").upper()
+    tx_type = _UW_INSIDER_CODE_LABEL.get(code, code or "")
+    # Owner title — UW exposes officer_title plus role-flag booleans.
+    title = rec.get("officer_title") or ""
+    if not title:
+        roles = []
+        if rec.get("is_director"):
+            roles.append("Director")
+        if rec.get("is_officer"):
+            roles.append("Officer")
+        if rec.get("is_ten_percent_owner"):
+            roles.append("10% Owner")
+        title = ", ".join(roles)
+    return {
+        "ticker": sym,
+        "company_name": rec.get("company_name") or sym,
+        "owner_name": rec.get("owner_name") or "",
+        "owner_title": title,
+        "transaction_type": tx_type,
+        "date": rec.get("transaction_date") or rec.get("filing_date") or "",
+        "shares_traded": shares,
+        "price_per_share": price,
+        "total_value": shares * price,
+        "shares_held": rec.get("shares_owned_after") or 0,
+        "_uw_raw": rec,
+    }
+
+
+@st.cache_data(ttl=180, show_spinner=False)
+def _cached_uw_insider_op(
+    api_key: str,
+    tickers: str,
+    action: str | None = None,
+    page_size: int = 100,
+) -> list[dict[str, Any]]:
+    """Cache UW Form-4 insider transactions for 3 minutes.
+
+    ``tickers`` may be empty — UW supports a true bulk feed (unlike FMP).
+    When ``tickers`` is given, the call is fanned out per-ticker.
+    ``action`` is matched against the single-letter ``transaction_code``.
+    """
+    if _fetch_uw_insider is None or not api_key:
+        return []
+    syms = [t.strip().upper() for t in (tickers or "").split(",") if t.strip()]
+    out: list[dict[str, Any]] = []
+    if not syms:
+        # Bulk mode — single call.
+        try:
+            recs = _fetch_uw_insider(api_key, limit=page_size) or []
+        except Exception:
+            logger.warning("_cached_uw_insider_op (bulk) failed", exc_info=True)
+            recs = []
+        for rec in recs:
+            if not isinstance(rec, dict):
+                continue
+            if action and str(rec.get("transaction_code") or "").upper() != action.upper():
+                continue
+            out.append(_uw_insider_to_renderer_shape(rec))
+            if len(out) >= page_size:
+                return out
+        return out
+    per_sym = max(int(page_size) // max(len(syms), 1), 1)
+    for sym in syms:
+        try:
+            recs = _fetch_uw_insider(api_key, limit=per_sym, ticker=sym) or []
+        except Exception:
+            logger.warning("_cached_uw_insider_op failed for %s", sym, exc_info=True)
+            continue
+        for rec in recs:
+            if not isinstance(rec, dict):
+                continue
+            if action and str(rec.get("transaction_code") or "").upper() != action.upper():
+                continue
+            out.append(_uw_insider_to_renderer_shape(rec))
             if len(out) >= page_size:
                 return out
     return out
@@ -2204,10 +2320,19 @@ def main() -> None:
                 }
                 api_act = _act_map.get(ins_action_op)
 
-                # v3 P-3c: prefer FMP /stable/insider-trading/search (per-symbol).
-                # Falls back to retired Benzinga adapter only if FMP key missing.
+                # v3 P-4c: preference cascade UW > FMP > Benzinga.
+                # UW supports both bulk and per-ticker; FMP is per-ticker only;
+                # Benzinga is the legacy retired fallback.
+                _uw_key = os.environ.get("UNUSUAL_WHALES_API_KEY", "").strip()
                 _fmp_key = os.environ.get("FMP_API_KEY", "")
-                if _SMCFMPClient is not None and _fmp_key:
+                _ins_src = "Benzinga (retired)"
+                if _fetch_uw_insider is not None and _uw_key:
+                    ins_data_op = _cached_uw_insider_op(
+                        _uw_key, ins_tk_op,
+                        action=api_act, page_size=ins_lim_op,
+                    )
+                    _ins_src = "Unusual Whales"
+                elif _SMCFMPClient is not None and _fmp_key:
                     if not ins_tk_op:
                         st.info(
                             "FMP insider feed requires at least one ticker — "
@@ -2219,6 +2344,7 @@ def main() -> None:
                             _fmp_key, ins_tk_op,
                             action=api_act, page_size=ins_lim_op,
                         )
+                        _ins_src = "FMP"
                 else:
                     ins_data_op = _cached_bz_insider_op(
                         bz_key, date_from=_bz_from, date_to=_bz_to,
@@ -2235,7 +2361,7 @@ def main() -> None:
                         "transaction_type", "date", "shares_traded",
                         "price_per_share", "total_value", "shares_held",
                     ] if c in df_io.columns]
-                    st.caption(f"{len(df_io)} insider transaction(s)")
+                    st.caption(f"{len(df_io)} insider transaction(s) — source: {_ins_src}")
                     st.dataframe(
                         df_io[_cols] if _cols else df_io,
                         width="stretch",
