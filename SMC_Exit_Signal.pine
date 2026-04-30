@@ -149,9 +149,10 @@ if full_exit
 
 // ───────────────────────── Alerts ─────────────────────────
 // H-1 (system review 2026-04-24): bind alertcondition() to bar-close gate.
-// Mirrors eval_now but uses the literal token barstate.isconfirmed that
+// Reuses eval_now as the single source of truth for the bar-close gate
+// (PR #1940 review). The literal _alertGate token is preserved because
 // the audit pin tests/test_pine_alert_bar_close_gate.py recognises.
-_alertGate = (not confirm_bars_only) or barstate.isconfirmed
+_alertGate = eval_now
 alertcondition(_alertGate and just_entered, title = "ENTER LONG (trigger filled)", message = "SMC Exit Signal: trigger filled — position OPEN")
 alertcondition(_alertGate and exit_stop_hit, title = "EXIT — Stop hit", message = "SMC Exit Signal: STOP HIT — close full position")
 alertcondition(_alertGate and exit_tp1_hit, title = "EXIT — TP1 (take half)", message = "SMC Exit Signal: TP1 reached — take half, move stop to entry")

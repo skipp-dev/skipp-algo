@@ -295,7 +295,7 @@ jobs:
       # Marked advisory until the producer cache is warm so that a missing
       # bundle does not block the entire library refresh / TradingView
       # publish flow. The strict gates step below still runs unconditionally.
-      # CONTINUE-ON-ERROR-INTENTIONAL: best-effort hop — strict gates job below
+      # CONTINUE-ON-ERROR-INTENTIONAL: best-effort hop — strict gates step below
       # is the real fail signal; M-1 / Klasse #24.
       - name: Refresh release reference artifacts (best-effort)
         id: pre_release_refresh

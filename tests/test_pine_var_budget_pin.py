@@ -52,7 +52,8 @@ _DECL_RE = re.compile(r"^\s*(?:var|varip)\s+\w", re.MULTILINE)
 
 
 # Frozen ledger: file path (relative to repo root, forward-slash) → max
-# allowed ``var`` / ``varip`` declaration count. Captured 2026-04-25.
+# allowed ``var`` / ``varip`` declaration count. Captured 2026-04-25,
+# refreshed 2026-04-30 (PR #1937 cascade + PR-D7 cosmetic alignment).
 _FROZEN_LEDGER: dict[str, int] = {
     "SMC_Breakout_Overlay.pine": 32,
     "SMC_Core_Engine.pine": 415,
