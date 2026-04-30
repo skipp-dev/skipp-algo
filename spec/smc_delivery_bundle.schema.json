@@ -90,7 +90,7 @@
               "script_name": { "type": "string", "minLength": 1 },
               "surface_role": { "type": "string", "enum": ["lite_primary", "pro_primary", "companion_operator_only", "internal", "legacy"] },
               "contract_tier": { "type": "string", "enum": ["lite_and_pro", "pro", "execution", "internal", "legacy"] },
-              "consumer_role": { "type": "string", "enum": ["producer", "dashboard_companion", "execution_wrapper", "overlay_companion", "context_companion", "setup_utility", "confluence_hub", "mobile_companion", "bridge", "legacy_monolith", "legacy_split"] },
+              "consumer_role": { "type": "string", "enum": ["producer", "dashboard_companion", "execution_wrapper", "overlay_companion", "context_companion", "setup_utility", "confluence_hub", "mobile_companion", "bridge", "legacy_monolith", "legacy_split", "exit_companion"] },
               "validation_target": { "type": "boolean" },
               "notes": {
                 "type": "array",

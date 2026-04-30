@@ -33,6 +33,7 @@ EXPECTED_CONSUMERS: set[str] = {
     "SMC_Imbalance_Context.pine",
     "SMC_HTF_Confluence.pine",
     "SMC_Event_Overlay.pine",
+    "SMC_Breakout_Overlay.pine",
 }
 
 EXCLUDED_PARTS = {"tests", "generated", "node_modules", ".git", "pine"}

@@ -49,6 +49,12 @@ _ROOT_ORCHESTRATORS: frozenset[str] = frozenset({
     "SMC_TV_Bridge.pine",
     "SkippALGO_Confluence.pine",
     "test_div.pine",
+    # 2026-04-30 (commit 68e1aac0): companion overlays + exit/hold-mgr surfaces.
+    # Inventory updated as part of v3 phase 1 pine-consumer-discipline fix.
+    "SMC_Breakout_Overlay.pine",
+    "SMC_Exit_Signal.pine",
+    "SMC_Hold_Manager.pine",
+    "SMC_VRVP_Overlay.pine",
 })
 
 _PINE_LIBRARIES: frozenset[str] = frozenset({
