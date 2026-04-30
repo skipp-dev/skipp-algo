@@ -7,6 +7,9 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
+import gc
 import hashlib
 import json
 import logging
@@ -17,8 +20,6 @@ import sys
 import tempfile
 import time as time_module
 import warnings
-import asyncio
-import gc
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta, tzinfo
 from io import BytesIO
@@ -274,10 +275,8 @@ def _read_cached_frame(path: Path, *, max_age_seconds: int | None = None) -> pd.
         return pd.read_parquet(path)
     except Exception:
         logger.warning("Corrupt cache file removed: %s", path, exc_info=True)
-        try:
+        with contextlib.suppress(OSError):
             path.unlink()
-        except OSError:
-            pass
         return None
 
 
@@ -308,10 +307,8 @@ def _replace_atomic(path: Path, write_temp: Callable[[Path], None]) -> None:
         write_temp(temp_path)
         os.replace(temp_path, path)
     except Exception:
-        try:
+        with contextlib.suppress(OSError):
             temp_path.unlink(missing_ok=True)
-        except OSError:
-            pass
         raise
 
 
