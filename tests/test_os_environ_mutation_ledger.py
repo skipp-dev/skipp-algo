@@ -127,13 +127,16 @@ def _scan_file(path: Path) -> Counter[tuple[str, str]]:
                 ):
                     counts[(rel, _OP_WRITE)] += 1
         # SDFLT / other method calls on os.environ
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
-            if _is_os_environ(node.func.value):
-                if node.func.attr == "setdefault":
-                    counts[(rel, _OP_SDFLT)] += 1
-                elif node.func.attr in {"update", "pop", "__setitem__", "clear"}:
-                    # Treat as a generic write so an unknown-op test trips it.
-                    counts[(rel, node.func.attr.upper())] += 1
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and _is_os_environ(node.func.value)
+        ):
+            if node.func.attr == "setdefault":
+                counts[(rel, _OP_SDFLT)] += 1
+            elif node.func.attr in {"update", "pop", "__setitem__", "clear"}:
+                # Treat as a generic write so an unknown-op test trips it.
+                counts[(rel, node.func.attr.upper())] += 1
     return counts
 
 
