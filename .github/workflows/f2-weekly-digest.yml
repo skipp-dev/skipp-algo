@@ -38,6 +38,9 @@ concurrency:
   group: f2-weekly-digest
   cancel-in-progress: false
 
+env:
+  PYTHONPATH: ${{ github.workspace }}
+
 jobs:
   digest:
     runs-on: ubuntu-latest
