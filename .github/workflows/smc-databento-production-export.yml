@@ -157,7 +157,10 @@ jobs:
       # ── Also publish under the date-only key. We use the run_id-suffixed
       # ── key above to allow multiple intra-day saves; the date-only key
       # ── below is the canonical handle library-refresh restores against.
-      - name: Save export bundle under date-only key (canonical)
+      # CONTINUE-ON-ERROR-INTENTIONAL: second save with the date-only canonical key
+      # is best-effort — actions/cache rejects re-writes for an existing key, so a
+      # benign 409 must not fail the export pipeline (M-1 / Klasse #24).
+      - name: Save export bundle under date-only key (canonical, best-effort)
         if: success()
         continue-on-error: true   # second save with identical date key is OK to skip
         uses: actions/cache/save@v4

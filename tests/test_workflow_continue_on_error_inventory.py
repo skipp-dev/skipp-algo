@@ -36,18 +36,21 @@ WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
 # step, optional gate, or non-blocking observability hop).
 _ALLOWED: dict[str, frozenset[int]] = {
     # Best-effort live news refresh: NewsAPI 5xx is tolerated to keep cron green.
-    "smc-live-newsapi-refresh.yml": frozenset({106}),
+    "smc-live-newsapi-refresh.yml": frozenset({107}),
     # Library refresh: 6 best-effort hops (gates probe, TV publish, telegram pings).
-    # Lines 601/744/764 (was 592/735/755): same three sites (alerts dispatch,
-    # breaking-change notify, end-of-run status) — file body shifted +9 lines
-    # in upstream main without a recorded direct edit; resync to actual offsets.
-    "smc-library-refresh.yml": frozenset({165, 376, 601, 744, 764}),
+    # Lines 165 → 166 (alerts dispatch), 376 → 303 sequence shifted by upstream
+    # rearrangement (PR #1937 cascade), and a NEW best-effort hop at 303 added
+    # by the "Refresh release reference artifacts (best-effort)" step that
+    # tolerates a cold producer cache (M-1 marker present, advisory in name).
+    # Lines 416/642/785/805 → 418/644/787/807 (+2 each) due to the marker comment
+    # and renamed step name above.
+    "smc-library-refresh.yml": frozenset({166, 303, 418, 644, 787, 807}),
     # Deeper integration gates: 2 advisory-only probes.
-    "smc-deeper-integration-gates.yml": frozenset({54, 98}),
+    "smc-deeper-integration-gates.yml": frozenset({55, 99}),
     # Weekly digest: 3 best-effort delivery hops.
-    "plan-2-8-weekly-digest.yml": frozenset({444, 661, 940}),
+    "plan-2-8-weekly-digest.yml": frozenset({447, 664, 943}),
     # Release gates: 1 advisory metric collection hop.
-    "smc-release-gates.yml": frozenset({172}),
+    "smc-release-gates.yml": frozenset({173}),
     # Drift watchdog: red verdict is intentionally non-fatal so the follow-up
     # step can convert it into a GitHub issue (silent-fail by design — see C9/T4).
     # Line shifted 52 → 54 after adding CONTINUE-ON-ERROR-INTENTIONAL marker comment
