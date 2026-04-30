@@ -22,12 +22,21 @@ inline comment (YAML noise). The single source of truth is this test.
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
+
+# Match ``continue-on-error: true`` — optionally followed by an inline
+# ``# ...`` rationale comment on the same line. The previous strict
+# ``stripped == "continue-on-error: true"`` check silently skipped sites
+# carrying a trailing comment (Copilot review of PR #1939). Anchored to
+# end-of-line so ``continue-on-error: false`` and templated variants
+# (``${{ ... }}``) are rejected.
+_COE_LINE_RE = re.compile(r"^continue-on-error:\s+true(?:\s+#.*)?$")
 
 # Allowed continue-on-error sites: workflow-relative-path -> set of 1-based line numbers.
 # Each entry is intentionally explicit; do NOT collapse with wildcards.
@@ -62,6 +71,11 @@ _ALLOWED: dict[str, frozenset[int]] = {
     # Lines 109/124/148 → 119/134/158 (+10) after wiring T8.3 imbalance
     # index gate into Step 1's run block (PR #333 follow-up).
     "c13-daily-cron.yml": frozenset({90, 119, 134, 158, 175, 202}),
+    # Producer cache: second save under the date-only canonical key is best-effort
+    # because actions/cache rejects re-writes for an existing key (benign 409).
+    # Surfaced by PR-D8 (Copilot review of PR #1939) — was previously invisible
+    # to the inventory because of the trailing rationale comment on the same line.
+    "smc-databento-production-export.yml": frozenset({165}),
 }
 
 
@@ -69,10 +83,19 @@ def _scan_workflow(path: Path) -> frozenset[int]:
     """Return the set of 1-based line numbers carrying ``continue-on-error: true``."""
     hits: set[int] = set()
     for idx, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
-        # Match exact ``continue-on-error: true`` ignoring leading whitespace.
-        # Reject ``continue-on-error: false`` and templated variants.
+        # Match ``continue-on-error: true`` ignoring leading whitespace AND any
+        # trailing inline ``# ...`` comment. PR-D8 hardening (Copilot review of
+        # PR #1939): the previous strict ``stripped == "continue-on-error: true"``
+        # match silently dropped sites that carried a trailing rationale comment
+        # on the same line, e.g.
+        #     continue-on-error: true   # second save with identical date key
+        # which left the entire workflow out of the inventory ledger.
+        # Reject ``continue-on-error: false`` and templated variants by anchoring
+        # the regex to ``true`` followed by end-of-line, whitespace, or ``#``.
         stripped = raw.strip()
-        if stripped == "continue-on-error: true":
+        if stripped.startswith("#"):
+            continue
+        if _COE_LINE_RE.match(stripped):
             hits.add(idx)
     return frozenset(hits)
 
