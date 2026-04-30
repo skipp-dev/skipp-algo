@@ -1488,10 +1488,11 @@ def _resync_feed_from_jsonl() -> None:
     # session_state.cursor here would rewind it on the next rerun
     # (the main loop syncs session cursor back into the poller),
     # causing duplicate ingestion.
-    if not st.session_state.get("use_bg_poller") or st.session_state.get("bg_poller") is None:
-        if result.legacy_cursor:
-            st.session_state["cursor"] = result.legacy_cursor
-            st.session_state["provider_cursors"] = dict(result.provider_cursors)
+    if (
+        not st.session_state.get("use_bg_poller") or st.session_state.get("bg_poller") is None
+    ) and result.legacy_cursor:
+        st.session_state["cursor"] = result.legacy_cursor
+        st.session_state["provider_cursors"] = dict(result.provider_cursors)
 
     st.session_state.last_resync_ts = time.time()
 
