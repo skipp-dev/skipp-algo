@@ -182,11 +182,32 @@ def _collect_generated_fields() -> set[str]:
 
 
 def _collect_pine_mp_refs() -> dict[str, set[str]]:
-    """Return {pine_file: {field_names}} for all mp.FIELD references."""
+    """Return {pine_file: {field_names}} for all mp.FIELD references.
+
+    Comment-only references are filtered out: ``// foo mp.BAR baz`` is
+    documentation, not a Pine consumer of ``mp.BAR``. Pine has no block
+    comments, only ``//`` line comments, so a line-by-line strip-then-
+    match is sufficient.
+
+    Found via SMC review v3 phase 11 — without the strip, German-language
+    TODO comments in SMC_Hold_Manager.pine (e.g. ``// Quality-Sizing aus
+    mp.HERO_QUALITY_TIER + ZONE_HR_*``) caused two false-positive RED
+    pins (``test_all_pine_mp_refs_resolve_to_generated_fields`` and
+    ``test_reserved_pine_exports_have_no_pine_consumer_yet``).
+    """
     result: dict[str, set[str]] = {}
+    pattern = re.compile(r"\bmp\.([A-Z_][A-Z0-9_]+)")
     for pine in sorted(_PINE_DIR.glob("*.pine")):
         source = pine.read_text(encoding="utf-8")
-        refs = set(re.findall(r"\bmp\.([A-Z_][A-Z0-9_]+)", source))
+        refs: set[str] = set()
+        for raw_line in source.splitlines():
+            stripped = raw_line.lstrip()
+            if stripped.startswith("//"):
+                continue
+            # Strip trailing inline comments before matching so
+            # ``foo = bar  // mp.SOMETHING`` is also filtered.
+            code_part = raw_line.split("//", 1)[0]
+            refs.update(pattern.findall(code_part))
         if refs:
             result[pine.name] = refs
     return result
@@ -404,6 +425,15 @@ from scripts.smc_hero_action import (
 )
 
 RESERVED_PINE_EXPORTS.update(PINE_HERO_ACTION_FIELDS)
+
+# ENG-WS2-02 trust contract — exported as the canonical rolled-up
+# action-impact label, but no production *.pine file consumes it yet
+# (a comment in SMC_Dashboard.pine:759 documents the *intent* to
+# consume it — that comment was previously misclassified as a real
+# consumer by the unfiltered regex scan; see v3 phase 11 fix).
+# Re-classified as RESERVED with a backlog reference until the
+# dashboard re-wire ticket lands.
+RESERVED_PINE_EXPORTS.add("TRUST_ACTION_IMPACT")
 
 # F-3 (Boundary-Contract Plan 2026-04-23, PR-BC-02) — Pine sentinel
 # constant for degraded per-family HR exports (e.g. ZONE_HR_FVG).
