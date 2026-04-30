@@ -1,0 +1,19 @@
+{
+  "generated_at_et": "2026-04-30T06:54:58.249795-04:00",
+  "labeled_samples": 28,
+  "lookback_days": 30,
+  "min_samples_threshold": 30,
+  "ranking_drift": {
+    "drifted_features": [],
+    "max_position_delta": 0,
+    "position_threshold": 3,
+    "reason": "no prior ok-report available",
+    "status": "unknown",
+    "top_n": 10
+  },
+  "report": null,
+  "run_id": "20260430T065458",
+  "shortfall": 2,
+  "status": "insufficient_labels",
+  "total_samples": 28
+}
