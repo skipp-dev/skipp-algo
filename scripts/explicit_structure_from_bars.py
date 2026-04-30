@@ -72,6 +72,11 @@ def resample_bars_to_timeframe(df: pd.DataFrame, timeframe: str) -> pd.DataFrame
             .reset_index()
             .rename(columns={"bucket_end": "timestamp"})
         )
+        # BAR-CLOSE-EXEMPT: offline batch aggregation script. Reads a finished
+        # historical bar series and trims a partial trailing bucket whose end
+        # exceeds the source's max timestamp. There is no live trading loop
+        # here — .iloc[-1] reads a closed historical bar, not the chart's
+        # current candle (system review 2026-04-24 / iloc-guard ledger).
         # Prevent a partial trailing bucket from being treated as a confirmed bar.
         if (
             not agg.empty
@@ -79,6 +84,7 @@ def resample_bars_to_timeframe(df: pd.DataFrame, timeframe: str) -> pd.DataFrame
             and pd.Timestamp(agg["timestamp"].iloc[-1])
             > pd.Timestamp(max_source_ts)
         ):
+            # BAR-CLOSE-EXEMPT: drops the partial trailing bucket detected above.
             agg = agg.iloc[:-1]
         agg = agg.dropna(subset=["open", "high", "low", "close"]).reset_index(drop=True)
         if agg.empty:
