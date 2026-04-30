@@ -7,7 +7,7 @@ REST:
     Additional news endpoints:
     - ``/api/v2/news/top`` — curated top news stories
     - ``/api/v2/news/channels`` — list available channel IDs/names
-    - ``/api/v2/news/quantified`` — quantified news with price context
+    - ``/api/v2/newsquantified`` — quantified news with price context
 
 WebSocket:
     Connects to Benzinga's news stream WS endpoint.  Runs in a **daemon
@@ -276,7 +276,7 @@ class BenzingaRestAdapter:
 
 BENZINGA_TOP_NEWS_URL = "https://api.benzinga.com/api/v2/news/top"
 BENZINGA_CHANNELS_URL = "https://api.benzinga.com/api/v2/news/channels"
-BENZINGA_QUANTIFIED_URL = "https://api.benzinga.com/api/v2/news/quantified"
+BENZINGA_QUANTIFIED_URL = "https://api.benzinga.com/api/v2/newsquantified"
 
 
 def fetch_benzinga_top_news(
@@ -370,33 +370,42 @@ def fetch_benzinga_quantified_news(
     *,
     page_size: int = 50,
     page: int = 0,
+    symbols: str | None = None,
+    date: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
-    updated_since: str | None = None,
-    publish_since: str | None = None,
+    updated_since: str | int | None = None,
 ) -> list[dict[str, Any]]:
     """Fetch quantified news (news with price-impact context) from Benzinga.
+
+    Authenticates via the ``Authorization`` request header (per the official
+    Benzinga ``newsquantified`` reference) — *not* via the legacy ``?token=``
+    query parameter that the standard ``/api/v2/news`` endpoints accept. All
+    query parameters are documented in snake_case (``date_from``, ``date_to``,
+    ``updated_since``, ``pagesize``, ``page``, ``symbols``, ``date``).
 
     Returns
     -------
     list[dict]
-        Items with keys: headline, volume, day_open, open_gap, range, etc.
+        Items with keys: Symb, Headlines, DayOpen, OpenGap%, Range%, etc.
     """
     params: dict[str, Any] = {
-        "token": api_key,
-        "pageSize": str(page_size),
+        "pagesize": str(page_size),
         "page": str(page),
     }
+    if symbols:
+        params["symbols"] = symbols
+    if date:
+        params["date"] = date
     if date_from:
-        params["dateFrom"] = date_from
+        params["date_from"] = date_from
     if date_to:
-        params["dateTo"] = date_to
-    if updated_since:
-        params["updatedSince"] = updated_since
-    if publish_since:
-        params["publishSince"] = publish_since
+        params["date_to"] = date_to
+    if updated_since is not None:
+        params["updated_since"] = str(updated_since)
 
-    with httpx.Client(timeout=10.0, headers={"Accept": "application/json"}) as client:
+    headers = {"Accept": "application/json", "Authorization": api_key}
+    with httpx.Client(timeout=10.0, headers=headers) as client:
         try:
             r = _request_with_retry(client, BENZINGA_QUANTIFIED_URL, params, label="Benzinga quantified_news")
             data = r.json()

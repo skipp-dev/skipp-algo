@@ -460,7 +460,42 @@ def probe_bz_news_channels() -> tuple[str, str]:
 
 
 def probe_bz_news_quantified() -> tuple[str, str]:
-    return _bz_get("/api/v2/news/quantified", {"pageSize": 3})
+    """Benzinga /api/v2/newsquantified — quantified news analytics.
+
+    Per the official docs this endpoint authenticates via the ``Authorization``
+    header (NOT the legacy ``?token=`` query param), uses snake_case query
+    parameters (``pagesize`` not ``pageSize``), and lives at the path
+    ``/api/v2/newsquantified`` (one word).
+    """
+    import httpx
+    key = os.getenv("BENZINGA_API_KEY", "")
+    if not key:
+        return ("SKIP", "BENZINGA_API_KEY missing")
+    r = httpx.get(
+        "https://api.benzinga.com/api/v2/newsquantified",
+        params={"pagesize": 3},
+        headers={"Accept": "application/json", "Authorization": key},
+        timeout=15.0,
+    )
+    if r.status_code == 200:
+        try:
+            data = r.json()
+            if isinstance(data, list):
+                summary = f"list len={len(data)}"
+            elif isinstance(data, dict):
+                summary = f"dict keys={sorted(data.keys())[:4]}"
+            else:
+                summary = f"type={type(data).__name__}"
+        except Exception:
+            summary = f"non-JSON, bytes={len(r.content)}"
+        return ("OK", summary)
+    if r.status_code in (401, 403):
+        return ("WARN", f"HTTP {r.status_code} — token has no entitlement for newsquantified")
+    if r.status_code == 404:
+        return ("WARN", "HTTP 404 — endpoint moved or wrong shape")
+    if r.status_code == 422:
+        return ("OK", "HTTP 422 — endpoint authorised, needs different params (entitlement OK)")
+    return ("FAIL", f"HTTP {r.status_code}: {r.text[:80]}")
 
 
 def probe_finnhub_quote() -> tuple[str, str]:
@@ -636,7 +671,7 @@ PROBES: list[Probe] = [
     Probe("Benzinga /api/v1/market/movers", probe_benzinga_movers, critical=False),
     Probe("Benzinga /api/v2/news/top", probe_bz_news_top, critical=False),
     Probe("Benzinga /api/v2/news/channels", probe_bz_news_channels, critical=False),
-    Probe("Benzinga /api/v2/news/quantified", probe_bz_news_quantified, critical=False),
+    Probe("Benzinga /api/v2/newsquantified", probe_bz_news_quantified, critical=False),
     Probe("Benzinga /api/v2.1/calendar/options_activity", probe_bz_options_activity, critical=False),
     Probe("Benzinga /api/v2.1/fundamentals", probe_bz_fundamentals, critical=False),
     Probe("Benzinga /api/v2.1/ownership", probe_bz_ownership, critical=False),
