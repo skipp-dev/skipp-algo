@@ -89,6 +89,7 @@ _FROZEN_SITES: dict[str, int] = {
     "scripts/scan_manifests_for_pytest_provenance.py": 3,
     "governance/run_manifest.py": 1,
     "open_prep/realtime_signals.py": 2,
+    "scripts/ib_client_id.py": 2,
     "scripts/measure_databento_ops_run.py": 1,
     "scripts/smc_micro_publish_guard.py": 1,
     "scripts/smc_zone_priority_calibration.py": 1,
