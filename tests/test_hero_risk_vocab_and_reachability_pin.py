@@ -71,9 +71,13 @@ def _resolve_returns(source: str, fn_name: str) -> set[str]:
             for tgt in node.targets:
                 if isinstance(tgt, ast.Name):
                     name_to_value[tgt.id] = node.value.value
-        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
-            if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
-                name_to_value[node.target.id] = node.value.value
+        elif (
+            isinstance(node, ast.AnnAssign)
+            and isinstance(node.target, ast.Name)
+            and isinstance(node.value, ast.Constant)
+            and isinstance(node.value.value, str)
+        ):
+            name_to_value[node.target.id] = node.value.value
 
     out: set[str] = set()
     for node in ast.walk(tree):
