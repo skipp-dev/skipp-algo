@@ -452,50 +452,23 @@ def probe_bz_calendar_earnings() -> tuple[str, str]:
 
 
 def probe_bz_news_top() -> tuple[str, str]:
-    return _bz_get("/api/v2/news/top", {"pageSize": 3})
+    return _bz_get("/api/v2/news-top-stories", {"pageSize": 3})
 
 
 def probe_bz_news_channels() -> tuple[str, str]:
-    return _bz_get("/api/v2/news/channels")
+    return _bz_get("/api/v2/channels")
 
 
 def probe_bz_news_quantified() -> tuple[str, str]:
     """Benzinga /api/v2/newsquantified — quantified news analytics.
 
-    Per the official docs this endpoint authenticates via the ``Authorization``
-    header (NOT the legacy ``?token=`` query param), uses snake_case query
-    parameters (``pagesize`` not ``pageSize``), and lives at the path
-    ``/api/v2/newsquantified`` (one word).
+    Path is ``/api/v2/newsquantified`` (one word, per official docs and the
+    benzinga-python-client). Auth uses ``?token=`` query param like the rest
+    of the Benzinga endpoints — live tests confirmed both ``?token=`` and the
+    ``Authorization`` header are accepted by the server, so we keep ``?token=``
+    for consistency with the official client and the rest of our codebase.
     """
-    import httpx
-    key = os.getenv("BENZINGA_API_KEY", "")
-    if not key:
-        return ("SKIP", "BENZINGA_API_KEY missing")
-    r = httpx.get(
-        "https://api.benzinga.com/api/v2/newsquantified",
-        params={"pagesize": 3},
-        headers={"Accept": "application/json", "Authorization": key},
-        timeout=15.0,
-    )
-    if r.status_code == 200:
-        try:
-            data = r.json()
-            if isinstance(data, list):
-                summary = f"list len={len(data)}"
-            elif isinstance(data, dict):
-                summary = f"dict keys={sorted(data.keys())[:4]}"
-            else:
-                summary = f"type={type(data).__name__}"
-        except Exception:
-            summary = f"non-JSON, bytes={len(r.content)}"
-        return ("OK", summary)
-    if r.status_code in (401, 403):
-        return ("WARN", f"HTTP {r.status_code} — token has no entitlement for newsquantified")
-    if r.status_code == 404:
-        return ("WARN", "HTTP 404 — endpoint moved or wrong shape")
-    if r.status_code == 422:
-        return ("OK", "HTTP 422 — endpoint authorised, needs different params (entitlement OK)")
-    return ("FAIL", f"HTTP {r.status_code}: {r.text[:80]}")
+    return _bz_get("/api/v2/newsquantified", {"pagesize": 3})
 
 
 def probe_finnhub_quote() -> tuple[str, str]:
