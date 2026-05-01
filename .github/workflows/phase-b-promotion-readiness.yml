@@ -24,6 +24,11 @@ on:
 permissions:
   contents: read
 
+env:
+  # F-V6-A2 (2026-05-02): force unbuffered Python stdout so progress logs surface
+  # in CI in near-real-time rather than after a buffer flush at process exit.
+  PYTHONUNBUFFERED: "1"
+
 jobs:
   check-readiness:
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-m' }}
