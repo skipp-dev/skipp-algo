@@ -62,7 +62,11 @@ _ALLOWED: dict[str, frozenset[int]] = {
     # 179→197, 316→339, 431→454, 670→693, 813→836, 833→856.
     # F-V4-A4 (2026-05-02): hygiene intent comments shifted 5 sites by +2:
     # 339→341, 454→456, 693→695, 836→838, 856→858 (197 unchanged).
-    "smc-library-refresh.yml": frozenset({197, 341, 456, 695, 838, 858}),
+    # F-V4-J3 (2026-05-01, rebased 2026-05-02): workflow_run trigger +
+    # job-level `if:` guard added 14 lines at the top of the workflow,
+    # shifting all 6 entries by +14: 197→211, 341→355, 456→470, 695→709,
+    # 838→852, 858→872.
+    "smc-library-refresh.yml": frozenset({211, 355, 470, 709, 852, 872}),
     # Deeper integration gates: 2 advisory-only probes.
     # Rebaselined 2026-05-02 after PR #2028 composite migration: 69→73, 113→117 (+4 each).
     # F-V4-B4 (2026-05-02): 73→74, 117→118 (+1 each) after @v7 fleet bump.

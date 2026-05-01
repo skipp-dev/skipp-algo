@@ -55,6 +55,16 @@ on:
     - cron: "0 15 * * 1-5"   # 15:00 UTC – market open  (was 14:30)
     - cron: "0 17 * * 1-5"   # 17:00 UTC – midday       (was 16:30)
     - cron: "0 19 * * 1-5"   # 19:00 UTC – late session (was 18:30)
+  # F-V4-J3 (2026-05-01) blast-radius reduction (kept alongside the
+  # F-V6-C3 cron schedule above as belt-and-suspenders): consumer also
+  # fires immediately when the producer (smc-databento-production-export)
+  # completes successfully, gated by the job-level `if:` below. Refresh
+  # is idempotent so back-to-back fires (workflow_run + nearby cron) are
+  # safe; concurrency guard above prevents overlap.
+  workflow_run:
+    workflows: ["smc-databento-production-export"]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
 
 # F-V8-C3.1-D (2026-05-02): serialize consumer runs per ref. Mirrors the
@@ -91,6 +101,10 @@ env:
 
 jobs:
   refresh:
+    # F-V4-J3: when triggered by workflow_run, only proceed if producer
+    # succeeded. Manual workflow_dispatch and scheduled cron bypass this
+    # guard (cron already implies "no upstream signal to gate on").
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
     # F-V8-C3.1 (2026-05-02): bumped 90→120 in lockstep with the producer
     # (smc-databento-production-export). Pin test enforces producer ≤
