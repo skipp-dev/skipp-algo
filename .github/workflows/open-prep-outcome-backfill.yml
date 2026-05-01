@@ -10,11 +10,12 @@ name: open-prep-outcome-backfill
 
 on:
   schedule:
-    # 11:15 ET on weekdays (15:15 UTC during EST, 16:15 UTC during EDT).
-    # Two cron entries cover both DST regimes; the runtime guard inside
-    # the script naturally skips dates with no pending outcomes.
-    - cron: "15 15 * * 1-5"
-    - cron: "15 16 * * 1-5"
+    # F-V4-C2 + F-V4-E2 (audit 2026-05-01): moved out of US RTH (13:30-21:00 UTC).
+    # Previous cron entries 15:15 UTC + 16:15 UTC fired DURING the US session and
+    # repeatedly hit Databento HTTP 422 ("data_start_after_available_end") because
+    # the post-open data does not settle until after RTH close. Moved to 22:15 UTC
+    # (~17:15 ET, ~18:15 EDT — both well after settlement >21:30 UTC).
+    - cron: "15 22 * * 1-5"
   workflow_dispatch:
     inputs:
       date:

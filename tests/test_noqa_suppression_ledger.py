@@ -124,6 +124,12 @@ _FROZEN_SITES: dict[str, int] = {
     "scripts/run_smc_measurement_benchmark.py": 1,
     "scripts/run_smc_release_gates.py": 1,
     "scripts/smc_performance_report.py": 1,
+    # F-V4-E1 (2026-05-01): databento_safe_fetch.safe_get_range catches
+    # ``Exception`` deliberately so it can string-classify the ~half-dozen
+    # Databento error types (HTTP 422 / data_start_after_available_end /
+    # BentoClientError) and re-raise unclassified errors. BLE001 noqa
+    # is justified by the docstring + classification dispatch table.
+    "scripts/databento_safe_fetch.py": 1,
 }
 _FROZEN_TOTAL = sum(_FROZEN_SITES.values())
 
