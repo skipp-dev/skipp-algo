@@ -85,3 +85,6 @@ artifacts/ops_run_measure.py
 
 # Editable-install metadata (added 2026-04-23 with pyproject [tool.setuptools] block)
 *.egg-info/
+
+# import-linter cache (regenerated on every run)
+.import_linter_cache/
