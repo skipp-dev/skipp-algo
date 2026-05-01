@@ -28,6 +28,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  PYTHONUNBUFFERED: "1"  # F-V5-A2 (2026-05-01)
   PYTHONPATH: ${{ github.workspace }}
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   # F-V6-A2 (2026-05-02): force unbuffered Python stdout so progress logs surface
