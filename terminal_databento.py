@@ -20,6 +20,7 @@ from zoneinfo import ZoneInfo as _ZoneInfo
 
 import pandas as pd
 
+from databento_client import _databento_get_range_with_retry
 from databento_reference import maybe_refresh_symbol_reference_cache
 from databento_utils import normalize_symbol_for_databento
 from databento_volatility_screener import (
@@ -92,7 +93,12 @@ def _fetch_chunk(
     """Fetch one chunk of OHLCV-1d bars. Lets exceptions bubble so the
     caller can isolate per-chunk failures instead of nuking the whole batch.
     """
-    store = client.timeseries.get_range(
+    # F-V4-E1 (2026-05-01): route through the canonical retry helper in
+    # databento_client so transient TLS / RemoteDisconnected / 5xx failures
+    # don't poison a chunk that would have succeeded on a second attempt.
+    store = _databento_get_range_with_retry(
+        client,
+        context=f"terminal_databento._fetch_chunk[{dataset}]",
         dataset=dataset,
         symbols=symbols,
         schema="ohlcv-1d",
