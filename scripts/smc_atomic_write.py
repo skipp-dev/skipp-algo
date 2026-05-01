@@ -17,9 +17,18 @@ import stat
 import tempfile
 import threading
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import pandas as pd
+if TYPE_CHECKING:
+    # Bug-Hunt 2026-05-01 F-05: ``pandas`` is only referenced in type
+    # annotations on ``atomic_write_parquet`` / ``atomic_write_csv``.
+    # ``from __future__ import annotations`` defers those annotations to
+    # strings, so a runtime ``import pandas`` would only serve to make
+    # ``atomic_write_text`` / ``atomic_write_json`` callers (e.g. the
+    # ``emit_public_calibration_report`` step in ``c13-daily-cron`` —
+    # which deliberately does not install pandas to stay IBKR-free)
+    # crash at import time. Restrict pandas to TYPE_CHECKING.
+    import pandas as pd  # pragma: no cover
 
 __all__ = [
     "atomic_write_csv",
