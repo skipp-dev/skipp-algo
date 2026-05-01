@@ -1244,6 +1244,152 @@ class TestOpenPrep(unittest.TestCase):
         mock_get.assert_called_once_with("/stable/eod-bulk", {"date": "2026-02-20", "datatype": "json"})
         self.assertEqual(rows, [{"symbol": "NVDA", "date": "2026-02-20"}])
 
+    # F-V4-FMP-PHASE2 (2026-05-01)
+    def test_get_batch_commodity_quotes_with_and_without_symbols(self):
+        client = FMPClient(api_key="test")
+        payload = [{"symbol": "GCUSD", "price": 2412.5}]
+        with patch.object(FMPClient, "_get", return_value=payload) as mock_get:
+            rows_with = client.get_batch_commodity_quotes([" gcusd ", "clusd"])
+            rows_without = client.get_batch_commodity_quotes()
+
+        self.assertEqual(rows_with, payload)
+        self.assertEqual(rows_without, payload)
+        self.assertEqual(
+            mock_get.call_args_list[0].args,
+            ("/stable/batch-commodity-quotes", {"symbols": "GCUSD,CLUSD"}),
+        )
+        self.assertEqual(
+            mock_get.call_args_list[1].args,
+            ("/stable/batch-commodity-quotes", {}),
+        )
+
+    def test_get_commodities_list_uses_stable_endpoint(self):
+        client = FMPClient(api_key="test")
+        payload = [{"symbol": "GCUSD", "name": "Gold"}]
+        with patch.object(FMPClient, "_get", return_value=payload) as mock_get:
+            rows = client.get_commodities_list()
+
+        mock_get.assert_called_once_with("/stable/commodities-list", {})
+        self.assertEqual(rows, payload)
+
+    def test_get_batch_forex_quotes_with_and_without_symbols(self):
+        client = FMPClient(api_key="test")
+        payload = [{"symbol": "EURUSD", "price": 1.07}]
+        with patch.object(FMPClient, "_get", return_value=payload) as mock_get:
+            rows_with = client.get_batch_forex_quotes(["eurusd", " usdjpy"])
+            rows_without = client.get_batch_forex_quotes()
+
+        self.assertEqual(rows_with, payload)
+        self.assertEqual(rows_without, payload)
+        self.assertEqual(
+            mock_get.call_args_list[0].args,
+            ("/stable/batch-forex-quotes", {"symbols": "EURUSD,USDJPY"}),
+        )
+        self.assertEqual(
+            mock_get.call_args_list[1].args,
+            ("/stable/batch-forex-quotes", {}),
+        )
+
+    def test_get_forex_list_uses_stable_endpoint(self):
+        client = FMPClient(api_key="test")
+        payload = [{"symbol": "EURUSD", "name": "Euro / US Dollar"}]
+        with patch.object(FMPClient, "_get", return_value=payload) as mock_get:
+            rows = client.get_forex_list()
+
+        mock_get.assert_called_once_with("/stable/forex-list", {})
+        self.assertEqual(rows, payload)
+
+    def test_get_cot_report_passes_symbol_and_dates(self):
+        client = FMPClient(api_key="test")
+        payload = [{"symbol": "GC", "noncomm_long": 200000}]
+        with patch.object(FMPClient, "_get", return_value=payload) as mock_get:
+            rows = client.get_cot_report("gc", date(2026, 1, 1), date(2026, 4, 1))
+            rows_default = client.get_cot_report()
+
+        self.assertEqual(rows, payload)
+        self.assertEqual(rows_default, payload)
+        self.assertEqual(
+            mock_get.call_args_list[0].args,
+            (
+                "/stable/commitment-of-traders-report",
+                {"symbol": "GC", "from": "2026-01-01", "to": "2026-04-01"},
+            ),
+        )
+        self.assertEqual(
+            mock_get.call_args_list[1].args,
+            ("/stable/commitment-of-traders-report", {}),
+        )
+
+    def test_get_cot_analysis_uses_stable_endpoint(self):
+        client = FMPClient(api_key="test")
+        payload = [{"symbol": "GC", "marketSentiment": "Bullish"}]
+        with patch.object(FMPClient, "_get", return_value=payload) as mock_get:
+            rows = client.get_cot_analysis("GC")
+
+        mock_get.assert_called_once_with(
+            "/stable/commitment-of-traders-analysis", {"symbol": "GC"}
+        )
+        self.assertEqual(rows, payload)
+
+    def test_get_stock_news_serialises_symbols_and_paging(self):
+        client = FMPClient(api_key="test")
+        payload = [{"title": "AAPL beats", "symbol": "AAPL"}]
+        with patch.object(FMPClient, "_get", return_value=payload) as mock_get:
+            rows = client.get_stock_news(["aapl", " nvda "], page=1, limit=25)
+            rows_default = client.get_stock_news()
+
+        self.assertEqual(rows, payload)
+        self.assertEqual(rows_default, payload)
+        self.assertEqual(
+            mock_get.call_args_list[0].args,
+            (
+                "/stable/news/stock-latest",
+                {"page": 1, "limit": 25, "symbols": "AAPL,NVDA"},
+            ),
+        )
+        self.assertEqual(
+            mock_get.call_args_list[1].args,
+            ("/stable/news/stock-latest", {"page": 0, "limit": 50}),
+        )
+
+    def test_get_income_statement_normalises_symbol_and_period(self):
+        client = FMPClient(api_key="test")
+        payload = [{"symbol": "AAPL", "revenue": 100}]
+        with patch.object(FMPClient, "_get", return_value=payload) as mock_get:
+            rows = client.get_income_statement(" aapl ", period="QUARTER", limit=8)
+            empty = client.get_income_statement("")
+
+        mock_get.assert_called_once_with(
+            "/stable/income-statement",
+            {"symbol": "AAPL", "period": "quarter", "limit": 8},
+        )
+        self.assertEqual(rows, payload)
+        self.assertEqual(empty, [])
+
+    def test_get_balance_sheet_uses_stable_endpoint(self):
+        client = FMPClient(api_key="test")
+        payload = [{"symbol": "AAPL", "totalAssets": 1}]
+        with patch.object(FMPClient, "_get", return_value=payload) as mock_get:
+            rows = client.get_balance_sheet("AAPL")
+
+        mock_get.assert_called_once_with(
+            "/stable/balance-sheet-statement",
+            {"symbol": "AAPL", "period": "annual", "limit": 5},
+        )
+        self.assertEqual(rows, payload)
+
+    def test_get_cash_flow_statement_uses_stable_endpoint(self):
+        client = FMPClient(api_key="test")
+        payload = [{"symbol": "AAPL", "operatingCashFlow": 1}]
+        with patch.object(FMPClient, "_get", return_value=payload) as mock_get:
+            rows = client.get_cash_flow_statement("AAPL", period="quarter", limit=4)
+
+        mock_get.assert_called_once_with(
+            "/stable/cash-flow-statement",
+            {"symbol": "AAPL", "period": "quarter", "limit": 4},
+        )
+        self.assertEqual(rows, payload)
+
     def test_fmp_client_get_retries_transient_http_error(self):
         client = FMPClient(api_key="test", retry_attempts=3, retry_backoff_seconds=0.01)
 
