@@ -51,7 +51,7 @@ jobs:
         if: steps.gate.outputs.run_heavy == 'true'
         uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: "3.13"
       - name: Install uv
         if: steps.gate.outputs.run_heavy == 'true'
         uses: astral-sh/setup-uv@v3
