@@ -1,6 +1,8 @@
 # live-window: mutating-on-cron  # F-V6-F2.1 (2026-05-02)
 name: drift-watchdog
 
+# live-window: off-hours-only  # 07:00 UTC Mondays — outside trading window 13:30–20:00 UTC (audit F-V3-14, 2026-05-01)
+#
 # Sprint C9 / T5 — weekly drift watchdog cron.
 #
 # Reads the last 30 days of live outcomes, compares them against the

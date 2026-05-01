@@ -1,6 +1,8 @@
 # live-window: mutating-on-cron  # F-V6-F2.1 (2026-05-02)
 name: c13-daily-cron
 
+# live-window: off-hours-only  # 22:00 UTC weekdays — outside trading window 13:30–20:00 UTC (audit F-V3-14, 2026-05-01)
+#
 # Sprint C13 / T2 — daily incubation cron for Phase A.
 #
 # Runs the four-step JSONL-only pipeline documented in
@@ -112,8 +114,38 @@ jobs:
             echo "No imbalance index for ${DATE} — backfill runs without --imbalance-index."
           fi
           python -m scripts.backfill_live_outcomes "${AUDIT}" \
-            ${IMBALANCE_INDEX:+--imbalance-index "${IMBALANCE_INDEX}"}
-          echo "rc=$?" >> "$GITHUB_OUTPUT"
+            ${IMBALANCE_INDEX:+--imbalance-index "${IMBALANCE_INDEX}"} \
+            | tee /tmp/backfill_live_outcomes.stdout
+          echo "rc=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      # F-V3-15 (audit 2026-05-01): soft-fail visibility for empty backfills.
+      # The script always exits 0 on a parsable audit JSONL, even when 0
+      # records were backfilled and N records are stuck pending — that
+      # silent-skip pattern hid quota/auth/input-path bugs in past
+      # incidents. We parse the structured summary printed at L393 of
+      # scripts/backfill_live_outcomes.py and surface a ::warning::
+      # banner when nothing made progress despite work being available.
+      # Phase 1 (here): warning only. Phase 2 (after 7 days of
+      # baseline): flip to ::error:: + exit 1.
+      - name: Step 1b — assert backfill made progress (advisory)
+        id: backfill_progress
+        if: steps.backfill.outputs.rc == '0'
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          summary=$(grep -E '^\{"backfill"' /tmp/backfill_live_outcomes.stdout | tail -1 || true)
+          if [ -z "$summary" ]; then
+            echo "::warning::F-V3-15: no {\"backfill\":...} summary line found in stdout; cannot assert progress"
+            exit 0
+          fi
+          backfilled=$(echo "$summary" | jq -r '.backfill.records_backfilled // 0')
+          pending=$(echo "$summary" | jq -r '.backfill.records_pending_close // 0')
+          already=$(echo "$summary" | jq -r '.backfill.records_already_resolved // 0')
+          total=$(echo "$summary" | jq -r '.backfill.records_total // 0')
+          echo "backfill summary: total=$total backfilled=$backfilled already_resolved=$already pending_close=$pending"
+          if [ "$backfilled" -eq 0 ] && [ "$pending" -gt 0 ]; then
+            echo "::warning::F-V3-15: backfill_live_outcomes resolved 0 of $pending pending records on ${{ steps.date.outputs.date }} — likely auth/quota/input-path regression. Investigate before this becomes hard-fail in phase 2."
+          fi
 
       - name: Step 2 — drift-input from audit JSONL (advisory)
         id: drift_input
