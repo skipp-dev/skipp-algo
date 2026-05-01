@@ -55,7 +55,7 @@ _ALLOWED: dict[str, frozenset[int]] = {
     # and renamed step name above.
     "smc-library-refresh.yml": frozenset({166, 303, 418, 644, 787, 807}),
     # Deeper integration gates: 2 advisory-only probes.
-    "smc-deeper-integration-gates.yml": frozenset({55, 99}),
+    "smc-deeper-integration-gates.yml": frozenset({69, 113}),
     # Weekly digest: 3 best-effort delivery hops.
     "plan-2-8-weekly-digest.yml": frozenset({447, 664, 943}),
     # Release gates: 1 advisory metric collection hop.
