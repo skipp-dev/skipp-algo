@@ -61,6 +61,10 @@ jobs:
           python -m scripts.emit_public_calibration_report
 
       - name: Upload public report artifact
+        # F-V4-D2 (2026-05-01): default `if: success()` is intentional — this
+        # is a published report. Uploading a half-baked report on failure
+        # would corrupt the public-history JSONL. Audited by
+        # tests/test_workflow_upload_artifact_unguarded_inventory.py.
         uses: actions/upload-artifact@v7
         with:
           name: calibration-report-public

@@ -82,6 +82,10 @@ jobs:
           esac
 
       - name: Upload watchdog artifact
+        # F-V4-D2 (2026-05-01): always() — watchdog history (g23_history.jsonl)
+        # must be preserved even when an unexpected exit code surfaces, so we
+        # can debug what the watcher saw before failing.
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: g23-ab-watchdog
