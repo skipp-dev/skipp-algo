@@ -626,13 +626,26 @@ jobs:
           git checkout -b "$BRANCH"
           git commit -m "chore: library refresh ${REFRESH_DATE} (run ${{ github.run_number }})"
           git push -u origin "$BRANCH"
-          gh pr create \
+          # F-V6-I2.1 (2026-05-02): previously this `gh pr create` was suffixed
+          # with `|| true`, which silently swallowed real PR-creation failures
+          # (auth issues, branch-protection refusals, transient API errors) and
+          # left the workflow green with no follow-up PR. Surface as ::error::
+          # and fail the job so the library refresh cannot be lost.
+          if ! gh pr create \
             --base main \
             --head "$BRANCH" \
             --label automated \
             --title "chore: library refresh ${REFRESH_DATE} (run ${{ github.run_number }})" \
-            --body "Automated SMC library refresh from \`smc-library-refresh\` (run ${GITHUB_RUN_ID}). Pine library content + manifest. Heavy CI is skipped for bot/* PRs (validation already happened in the refresh workflow itself: TV preflight + post-release validation + release gates)." || true
-          gh pr merge "$BRANCH" --auto --squash --delete-branch || true
+            --body "Automated SMC library refresh from \`smc-library-refresh\` (run ${GITHUB_RUN_ID}). Pine library content + manifest. Heavy CI is skipped for bot/* PRs (validation already happened in the refresh workflow itself: TV preflight + post-release validation + release gates)."; then
+            echo "::error file=.github/workflows/smc-library-refresh.yml::gh pr create failed for ${BRANCH} — see step log for stderr"
+            exit 1
+          fi
+          # CONTINUE-ON-ERROR-INTENTIONAL: enabling auto-merge can race with
+          # branch-protection / required-status-check evaluation; the PR itself
+          # is already open and reviewable, so we surface as warning rather
+          # than failing the job.
+          gh pr merge "$BRANCH" --auto --squash --delete-branch \
+            || echo "::warning::auto-merge enable failed for ${BRANCH} (PR is open and reviewable)"
 
       # ── Signal alerts (non-blocking) ────────────────────────────
       - name: Evaluate and send alerts
