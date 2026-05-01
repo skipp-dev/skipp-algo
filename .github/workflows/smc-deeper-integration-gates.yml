@@ -39,9 +39,23 @@ jobs:
           pip install -r requirements.txt pytest
 
       - name: Refresh reference artifacts for deeper evidence run
+        # Bug-Hunt 2026-05-01 F-03: pass --soft-skip-on-missing-inputs so
+        # the step exits cleanly with rc=0 (and a GitHub annotation) when
+        # the runner does not carry the canonical Databento export bundle
+        # (manifest_prefix=databento_volatility_production_), instead of
+        # turning every deeper-gates run red. Any other failure class
+        # still propagates as rc!=0.
         run: |
+          set +e
           python scripts/run_smc_pre_release_artifact_refresh.py \
+            --soft-skip-on-missing-inputs \
             --output artifacts/ci/smc_deeper_refresh_report.json
+          rc=$?
+          if [ "$rc" -eq 78 ]; then
+            echo "::warning title=pre-release-refresh::skipped (no canonical export bundle on runner; rc=78)"
+            exit 0
+          fi
+          exit "$rc"
 
       - name: Run deeper provider and smoke health checks
         run: |
