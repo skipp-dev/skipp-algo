@@ -145,6 +145,9 @@ jobs:
                 --name "${ART_NAME}" \
                 --dir  artifacts/ci/f2/_attempt/ 2>/dev/null; then
               # Promote the attempt into place.
+              # F-V4-I2 (2026-05-01): best-effort copy — `_attempt/` may be empty
+              # if the prior run uploaded a partial artifact; tolerate missing
+              # source files intentionally so the run can continue.
               cp -R artifacts/ci/f2/_attempt/. artifacts/ci/f2/ 2>/dev/null || true
               rm -rf artifacts/ci/f2/_attempt
               DOWNLOADED_RUN="${rid}"
@@ -232,6 +235,8 @@ jobs:
           if [ "${rc}" -eq 0 ] || [ "${rc}" -eq 2 ]; then
             exit "${rc}"
           fi
+          # F-V4-A4 (2026-05-01): unexpected rc — surface as ::error:: annotation.
+          echo "::error::f2 promotion gate emitted unexpected return code ${rc} (expected 0=pass, 2=rollback, 1=config-error). Treating as config-error and failing CI."
           exit 1
 
       - name: Append rollback history

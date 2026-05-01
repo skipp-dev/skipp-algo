@@ -118,7 +118,8 @@ jobs:
             tests/test_smc_scoring.py
           )
           if [ ${#tests[@]} -eq 0 ]; then
-            echo "No release-gate tests matched the configured patterns." >&2
+            # F-V4-A4 (2026-05-01): emit ::error:: annotation for empty-glob.
+            echo "::error::No release-gate tests matched the configured patterns."
             exit 1
           fi
           python -m pytest -q --maxfail=1 "${tests[@]}"

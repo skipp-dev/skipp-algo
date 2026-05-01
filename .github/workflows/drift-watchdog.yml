@@ -104,5 +104,7 @@ jobs:
       - name: Fail job if watchdog crashed unexpectedly
         if: steps.watchdog.outputs.rc != '0' && steps.watchdog.outputs.rc != '2'
         run: |
-          echo "Watchdog exited with unexpected code ${{ steps.watchdog.outputs.rc }}" >&2
+          # F-V4-A4 (2026-05-01): emit ::error:: annotation so the failure surfaces
+          # in the PR/run summary instead of only stderr.
+          echo "::error::Watchdog exited with unexpected code ${{ steps.watchdog.outputs.rc }} (expected 0=ok or 2=drift)"
           exit 1
