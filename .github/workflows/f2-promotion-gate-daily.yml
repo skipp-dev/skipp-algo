@@ -93,6 +93,10 @@ jobs:
         # and the cron fails with ModuleNotFoundError. Carries forward F-CI-D1.
         run: |
           python -m pip install --upgrade pip
+          # `pip install -e .` only installs the project itself; runtime deps
+          # like pandas/numpy live in requirements.txt. Without this, the F2
+          # promotion-gate orchestrator fails with `ModuleNotFoundError: No
+          # module named 'pandas'` (observed run 25211945532, 2026-05-01).
           pip install -r requirements.txt
           pip install -e .
 
