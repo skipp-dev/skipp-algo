@@ -13,11 +13,14 @@ from typing import Any
 
 from dotenv import load_dotenv
 
-from scripts.smc_atomic_write import atomic_write_text
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
+
+# Bug-Hunt 2026-05-01 F-01: deferred so the script also works when
+# invoked as `python scripts/X.py` (no PYTHONPATH=.) — sys.path.insert
+# above must happen before any first-party `from scripts.` import.
+from scripts.smc_atomic_write import atomic_write_text  # noqa: E402
 
 
 def _iso_now() -> str:

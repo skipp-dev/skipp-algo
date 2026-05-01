@@ -25,12 +25,23 @@ import math
 import random
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from scripts.smc_atomic_write import atomic_write_text
+# Bug-Hunt 2026-05-01 F-01: ensure REPO_ROOT is on sys.path BEFORE the
+# ``from scripts.smc_atomic_write`` import below, so the script also works
+# when invoked as ``python scripts/smc_zone_priority_calibration.py`` (no
+# PYTHONPATH=.). The deferred ``sys.path.insert`` inside ``main()`` (kept
+# for the ``smc_core``/``smc_integration`` lookup it already had) is no
+# longer sufficient on its own.
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.smc_atomic_write import atomic_write_text  # noqa: E402
 
 # S-3 (TEMPORAL_NUMERICAL_AUDIT_2026-04-24): defense-in-depth seed for the
 # calibration pipeline. Currently no stochastic ops in this module, but a
