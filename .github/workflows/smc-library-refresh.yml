@@ -308,20 +308,41 @@ jobs:
           echo "reason=${REASON}" >> "$GITHUB_OUTPUT"
 
       # ── Restore canonical Databento production export bundle ────
-      # Produced by `.github/workflows/smc-databento-production-export.yml`.
-      # The producer runs ~30 min before each library-refresh tick and
-      # writes `artifacts/smc_microstructure_exports/databento_volatility_production_*`.
-      # We restore by today's date key, falling back to the most recent
-      # same-OS bundle if the producer was skipped or hasn't run yet.
-      - name: Restore Databento production export bundle
-        id: restore_export_bundle
+      # F-V5-D3 (2026-05-01): switched from actions/cache/restore to
+      # dawidd6/action-download-artifact. The producer workflow
+      # (smc-databento-production-export.yml) publishes its bundle as a
+      # workflow artifact named
+      # `smc-databento-production-export-<DATE>-<RUN_ID>` (F-V5-D2). We
+      # search the producer workflow's recent runs for the newest
+      # successful artifact whose name matches today's date; if none is
+      # available we fall back to the most recent same-prefix artifact.
+      # `if_no_artifact_found: warn` keeps the existing soft-fail
+      # contract — verify_export_bundle below decides whether to block.
+      - name: Restore Databento production export bundle (today)
+        id: restore_export_bundle_today
         if: steps.diff.outputs.changed == 'true'
-        uses: actions/cache/restore@v4
+        uses: dawidd6/action-download-artifact@v6
         with:
+          workflow: smc-databento-production-export.yml
+          name: smc-databento-production-export-${{ env.REFRESH_DATE }}-
+          name_is_regexp: true
           path: artifacts/smc_microstructure_exports
-          key: smc-prod-export-${{ runner.os }}-${{ env.REFRESH_DATE }}
-          restore-keys: |
-            smc-prod-export-${{ runner.os }}-
+          workflow_conclusion: success
+          if_no_artifact_found: warn
+
+      - name: Restore Databento production export bundle (latest fallback)
+        id: restore_export_bundle_fallback
+        if: |
+          steps.diff.outputs.changed == 'true'
+          && steps.restore_export_bundle_today.outputs.found_artifact != 'true'
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: smc-databento-production-export.yml
+          name: ^smc-databento-production-export-
+          name_is_regexp: true
+          path: artifacts/smc_microstructure_exports
+          workflow_conclusion: success
+          if_no_artifact_found: warn
 
       - name: Verify Databento production export bundle is present
         id: verify_export_bundle
