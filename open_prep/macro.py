@@ -1463,6 +1463,49 @@ class FMPClient:
             return []
         return list(data) if isinstance(data, list) else []
 
+
+    def get_economic_indicators(
+        self,
+        name: str,
+        date_from: date | None = None,
+        date_to: date | None = None,
+    ) -> list[dict[str, Any]]:
+        """FMP `/stable/economic-indicators?name=...` (GDP, CPI, unemployment, ...)."""
+        cleaned = str(name or "").strip()
+        if not cleaned:
+            return []
+        params: dict[str, Any] = {"name": cleaned}
+        if date_from is not None:
+            params["from"] = date_from.isoformat()
+        if date_to is not None:
+            params["to"] = date_to.isoformat()
+        try:
+            data = self._get("/stable/economic-indicators", params)
+        except RuntimeError as exc:
+            _log_feature_unavailable_once(
+                "stable/economic-indicators",
+                "FMP feature unavailable (stable/economic-indicators); continuing without economic indicator data.",
+                exc=exc,
+            )
+            return []
+        return list(data) if isinstance(data, list) else []
+
+    def get_house_trades(self, symbol: str) -> list[dict[str, Any]]:
+        """Disclosed US House trades for a given ticker (`/stable/house-trades`)."""
+        cleaned = str(symbol or "").strip().upper()
+        if not cleaned:
+            return []
+        try:
+            data = self._get("/stable/house-trades", {"symbol": cleaned})
+        except RuntimeError as exc:
+            _log_feature_unavailable_once(
+                "stable/house-trades",
+                "FMP feature unavailable (stable/house-trades); continuing without per-symbol house trade data.",
+                exc=exc,
+            )
+            return []
+        return list(data) if isinstance(data, list) else []
+
     def get_upgrades_downgrades(
         self,
         symbol: str | None = None,

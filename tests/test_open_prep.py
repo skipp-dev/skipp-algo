@@ -1244,6 +1244,43 @@ class TestOpenPrep(unittest.TestCase):
         mock_get.assert_called_once_with("/stable/eod-bulk", {"date": "2026-02-20", "datatype": "json"})
         self.assertEqual(rows, [{"symbol": "NVDA", "date": "2026-02-20"}])
 
+    # F-V4-FMP-PHASE1 (2026-05-01)
+    def test_get_economic_indicators_passes_name_and_optional_dates(self):
+        client = FMPClient(api_key="test")
+        payload = [{"date": "2026-03-31", "value": 3.2}]
+        with patch.object(FMPClient, "_get", return_value=payload) as mock_get:
+            rows = client.get_economic_indicators("CPI", date(2026, 1, 1), date(2026, 4, 1))
+            rows_no_dates = client.get_economic_indicators("GDP")
+
+        self.assertEqual(rows, payload)
+        self.assertEqual(rows_no_dates, payload)
+        self.assertEqual(
+            mock_get.call_args_list[0].args,
+            ("/stable/economic-indicators", {"name": "CPI", "from": "2026-01-01", "to": "2026-04-01"}),
+        )
+        self.assertEqual(
+            mock_get.call_args_list[1].args,
+            ("/stable/economic-indicators", {"name": "GDP"}),
+        )
+
+    def test_get_economic_indicators_returns_empty_for_blank_name(self):
+        client = FMPClient(api_key="test")
+        with patch.object(FMPClient, "_get") as mock_get:
+            self.assertEqual(client.get_economic_indicators(""), [])
+            self.assertEqual(client.get_economic_indicators("   "), [])
+        mock_get.assert_not_called()
+
+    def test_get_house_trades_normalises_symbol_and_skips_blank(self):
+        client = FMPClient(api_key="test")
+        payload = [{"symbol": "AAPL", "representative": "Pelosi"}]
+        with patch.object(FMPClient, "_get", return_value=payload) as mock_get:
+            rows = client.get_house_trades(" aapl ")
+            empty = client.get_house_trades("")
+
+        mock_get.assert_called_once_with("/stable/house-trades", {"symbol": "AAPL"})
+        self.assertEqual(rows, payload)
+        self.assertEqual(empty, [])
+
     # F-V4-FMP-PHASE2 (2026-05-01)
     def test_get_batch_commodity_quotes_with_and_without_symbols(self):
         client = FMPClient(api_key="test")
