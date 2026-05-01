@@ -47,7 +47,8 @@ _ALLOWED: dict[str, frozenset[int]] = {
     # Best-effort live news refresh: NewsAPI 5xx is tolerated to keep cron green.
     # Rebaselined 2026-05-02: 107 → 111 (+4) after upstream env edit.
     # F-V4-B4 (2026-05-02): 111 → 113 (+2) after actions/upload-artifact@v4 → @v7 fleet bump.
-    "smc-live-newsapi-refresh.yml": frozenset({113}),
+    # F-V4-A2 (2026-05-01, rebased 2026-05-02): 113 → 114 (+1) after PYTHONUNBUFFERED env addition.
+    "smc-live-newsapi-refresh.yml": frozenset({114}),
     # Library refresh: 6 best-effort hops (gates probe, TV publish, telegram pings).
     # Lines 165 → 166 (alerts dispatch), 376 → 303 sequence shifted by upstream
     # rearrangement (PR #1937 cascade), and a NEW best-effort hop at 303 added
@@ -63,24 +64,29 @@ _ALLOWED: dict[str, frozenset[int]] = {
     # F-V4-A4 (2026-05-02): hygiene intent comments shifted 5 sites by +2:
     # 339→341, 454→456, 693→695, 836→838, 856→858 (197 unchanged).
     # F-V4-J3 (2026-05-01, rebased 2026-05-02): workflow_run trigger +
-    # job-level `if:` guard added 14 lines at the top of the workflow,
-    # shifting all 6 entries by +14: 197→211, 341→355, 456→470, 695→709,
-    # 838→852, 858→872.
-    "smc-library-refresh.yml": frozenset({216, 381, 496, 735, 878, 898}),
+    # job-level `if:` guard added 14 lines: 197→211, 341→355, 456→470,
+    # 695→709, 838→852, 858→872.
+    # F-V5-D2 (2026-05-02): artifact-handoff bumps to 216, 381, 496, 735, 878, 898.
+    # F-V4-A2 (PR #1985, rebased 2026-05-02): PYTHONUNBUFFERED env added
+    # 1 more line each → 217, 382, 497, 736, 879, 899.
+    "smc-library-refresh.yml": frozenset({217, 382, 497, 736, 879, 899}),
     # Deeper integration gates: 2 advisory-only probes.
     # Rebaselined 2026-05-02 after PR #2028 composite migration: 69→73, 113→117 (+4 each).
     # F-V4-B4 (2026-05-02): 73→74, 117→118 (+1 each) after @v7 fleet bump.
     # F-V4-A4 (2026-05-02): 118 → 120 (+2) after hygiene intent comment.
-    "smc-deeper-integration-gates.yml": frozenset({74, 120}),
+    # F-V4-A2 (2026-05-01, rebased 2026-05-02): 74→75, 120→121 (+1 each) after PYTHONUNBUFFERED.
+    "smc-deeper-integration-gates.yml": frozenset({75, 121}),
     # Weekly digest: 3 best-effort delivery hops.
     # Rebaselined 2026-05-02: 447→451, 664→668, 943→947 (+4 each).
     # F-V4-B4 (2026-05-02): 451→458, 668→675, 947→954 (+7 each) after @v7 fleet bump.
-    "plan-2-8-weekly-digest.yml": frozenset({460, 677, 956}),
+    # F-V4-A2 (2026-05-01, rebased 2026-05-02): +1 each after PYTHONUNBUFFERED.
+    "plan-2-8-weekly-digest.yml": frozenset({461, 678, 957}),
     # Release gates: 1 advisory metric collection hop.
     # Rebaselined 2026-05-02: 173→177 (+4).
     # F-V4-B4 (2026-05-02): 177 → 178 (+1) after @v7 fleet bump.
     # F-V4-A4 (2026-05-02): 178 → 179 (+1) after hygiene intent comment.
-    "smc-release-gates.yml": frozenset({179}),
+    # F-V4-A2 (2026-05-01, rebased 2026-05-02): 179 → 180 (+1) after PYTHONUNBUFFERED.
+    "smc-release-gates.yml": frozenset({180}),
     # Drift watchdog: red verdict is intentionally non-fatal so the follow-up
     # step can convert it into a GitHub issue (silent-fail by design — see C9/T4).
     # Line shifted 52 → 54 after adding CONTINUE-ON-ERROR-INTENTIONAL marker comment
@@ -88,7 +94,8 @@ _ALLOWED: dict[str, frozenset[int]] = {
     # Rebaselined 2026-05-02: 54→60 (+6).
     # F-V4-B4 (2026-05-02): 60 → 67 (+7) after @v7 fleet bump.
     # F-V3-12 (PR #1982, 2026-05-02): +2 from new live-window header comment → 67 → 69.
-    "drift-watchdog.yml": frozenset({69}),
+    # F-V4-A2 (2026-05-01, rebased 2026-05-02): 69 → 73 (+4) after PYTHONUNBUFFERED env block addition.
+    "drift-watchdog.yml": frozenset({73}),
     # C13 daily-cron: 4 best-effort steps so partial failures still upload
     # artefacts and let the issue-opener step report exactly which step
     # failed; soft-skip rc=78 paths are also gated through these.
@@ -99,7 +106,8 @@ _ALLOWED: dict[str, frozenset[int]] = {
     # F-V3-15 (PR #1982, 2026-05-02): added Step 1b backfill-progress
     # advisory + 2-line header comment → existing 6 entries shift +2 (Step 1)
     # and +32 (Steps 2–5b after step1b's 30-line block); new Step 1b at 133.
-    "c13-daily-cron.yml": frozenset({97, 133, 156, 171, 195, 212, 239}),
+    # F-V4-A2 (2026-05-01, rebased 2026-05-02): +4 each after PYTHONUNBUFFERED env block.
+    "c13-daily-cron.yml": frozenset({101, 137, 160, 175, 199, 216, 243}),
     # Producer cache: second save under the date-only canonical key is best-effort
     # because actions/cache rejects re-writes for an existing key (benign 409).
     # Surfaced by PR-D8 (Copilot review of PR #1939) — was previously invisible
@@ -107,7 +115,8 @@ _ALLOWED: dict[str, frozenset[int]] = {
     # Rebaselined 2026-05-02 after PR #2028 composite migration: 169→177 (+8).
     # F-V4-B4 (2026-05-02): 177 → 199 (+22) after @v7 fleet bump.
     # F-V5-D2 (2026-05-02): removed entry — PR #2014 dropped the actions/cache
-    # producer step entirely (cache→artifact handoff migration).
+    # producer step entirely (cache→artifact handoff migration). PYTHONUNBUFFERED
+    # from PR #1985 still applies to the workflow but no continue-on-error remains.
 }
 
 
