@@ -14,6 +14,12 @@ on:
 permissions:
   contents: read
 
+# F-V5-C2 (2026-05-01): cron-triggered heartbeat — queue overlapping runs so a
+# manual dispatch cannot cancel the daily anchor sweep mid-flight.
+concurrency:
+  group: plan-2-8-status-daily
+  cancel-in-progress: false
+
 env:
   PYTHONPATH: ${{ github.workspace }}
   # F-V6-A2 (2026-05-02): force unbuffered Python stdout so progress logs surface

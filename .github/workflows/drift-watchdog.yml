@@ -29,6 +29,13 @@ env:
   # in CI in near-real-time rather than after a buffer flush at process exit.
   PYTHONUNBUFFERED: "1"
 
+# F-V5-C2 (2026-05-01): cron-triggered job — queue overlapping runs instead of
+# killing them. The drift report walks 30 days of live outcomes; cancelling a
+# half-written run mid-flight risks an inconsistent artifact.
+concurrency:
+  group: drift-watchdog
+  cancel-in-progress: false
+
 jobs:
   drift-watchdog:
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}

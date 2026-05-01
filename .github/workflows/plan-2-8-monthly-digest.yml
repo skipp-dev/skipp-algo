@@ -23,6 +23,13 @@ permissions:
   contents: read
   actions: read
 
+# F-V5-C2 (2026-05-01): cron-triggered digest — queue overlapping runs instead
+# of killing them so the monthly snapshot cannot be truncated by a manual
+# workflow_dispatch overlap.
+concurrency:
+  group: plan-2-8-monthly-digest
+  cancel-in-progress: false
+
 env:
   PYTHONPATH: ${{ github.workspace }}
   # F-V6-A2 (2026-05-02): force unbuffered Python stdout so progress logs surface
