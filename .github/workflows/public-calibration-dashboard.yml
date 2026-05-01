@@ -60,7 +60,15 @@ jobs:
             docs/calibration/calibration_report_public_history.jsonl
           if-no-files-found: warn
 
-      - name: Commit refreshed public report
+      - name: Commit refreshed public report via PR
+        # F-V5-F1 / F-V3-11..15 (2026-05-01): the repo's `main-governance`
+        # ruleset blocks bare pushes to main (GH013). Push to a fresh
+        # `bot/*` branch (allowed) and open an auto-merge PR so changes
+        # actually land. GH_PAT is required (not GITHUB_TOKEN) so the PR
+        # triggers the required fast-gates check; falls back to the default
+        # token in forks/dry-runs where GH_PAT is empty.
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
@@ -69,10 +77,16 @@ jobs:
                   docs/calibration/calibration_report_public_history.jsonl || true
           if git diff --staged --quiet; then
             echo "No changes to commit."
-          else
-            git commit -m "chore(docs): public calibration report ${GITHUB_RUN_ID}"
-            # Bare push to main is blocked by the repository ruleset (GH013);
-            # downgrade to a warning so the workflow stays green. A separate
-            # audit finding tracks the auto-PR migration for this workflow.
-            git push 2>&1 || echo "::warning::git push to main rejected (likely GH013 ruleset); commit captured locally only"
+            exit 0
           fi
+          BRANCH="bot/calibration-public-${GITHUB_RUN_ID}"
+          git checkout -b "$BRANCH"
+          git commit -m "chore(docs): public calibration report ${GITHUB_RUN_ID}"
+          git push -u origin "$BRANCH"
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --label automated \
+            --title "chore(docs): public calibration report ${GITHUB_RUN_ID}" \
+            --body "Automated public calibration dashboard refresh from run ${GITHUB_RUN_ID}." || true
+          gh pr merge "$BRANCH" --auto --squash --delete-branch || true
