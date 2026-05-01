@@ -25,7 +25,11 @@ permissions:
 
 concurrency:
   group: smc-live-newsapi-refresh
-  cancel-in-progress: true
+  # F-V5-C1 (2026-05-01): 5-min cron — queue instead of kill mid-fetch.
+  # Killing an in-flight NewsAPI page-iteration mid-call wastes the
+  # spent quota and risks a half-written snapshot; serialising the
+  # ticks costs at most one delayed run per overrun.
+  cancel-in-progress: false
 
 env:
   PYTHONPATH: ${{ github.workspace }}
