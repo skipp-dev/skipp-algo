@@ -280,16 +280,21 @@ jobs:
         id: verify_export_bundle
         if: steps.diff.outputs.changed == 'true'
         run: |
-          set +e
+          set -euo pipefail
           if ls artifacts/smc_microstructure_exports/databento_volatility_production_*_manifest.json >/dev/null 2>&1; then
             echo "bundle_present=true" >> "$GITHUB_OUTPUT"
             NEWEST=$(ls -1t artifacts/smc_microstructure_exports/databento_volatility_production_*_manifest.json | head -1)
             echo "::notice::Restored Databento production manifest: ${NEWEST}"
-          else
-            echo "bundle_present=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::No Databento production export bundle restored from cache. The release-reference refresh step will be advisory-only this run. Trigger smc-databento-production-export workflow to populate."
+            exit 0
           fi
-          exit 0
+          # F-V5-D1 (2026-05-01): when the library content has actually
+          # changed (steps.diff.outputs.changed == 'true') we MUST not
+          # publish a refreshed library against a stale / missing producer
+          # bundle. Hard-fail with a clickable annotation that points at
+          # the upstream workflow so triage starts in the right place.
+          echo "bundle_present=false" >> "$GITHUB_OUTPUT"
+          echo "::error file=.github/workflows/smc-databento-production-export.yml::Producer artifact missing for ${REFRESH_DATE}; refresh aborted. Re-run smc-databento-production-export and then re-trigger smc-library-refresh."
+          exit 1
 
       # ── Release-reference artifact refresh + strict gates ───────
       # Marked advisory until the producer cache is warm so that a missing
