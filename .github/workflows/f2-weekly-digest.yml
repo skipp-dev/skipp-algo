@@ -102,7 +102,7 @@ jobs:
 
       - name: Upload digest artifact
         if: steps.digest.outputs.status == 'built'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: f2-weekly-digest-${{ github.run_id }}
           path: |

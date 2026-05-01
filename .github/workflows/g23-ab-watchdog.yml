@@ -82,7 +82,7 @@ jobs:
           esac
 
       - name: Upload watchdog artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: g23-ab-watchdog
           path: |

@@ -237,7 +237,7 @@ jobs:
       - name: Upload F2 dual-arm artifacts
         # Published as a separate, named artifact so the
         # f2-promotion-gate-daily workflow can pull it via
-        # actions/download-artifact@v4 with its cross-workflow
+        # actions/download-artifact@v7 with its cross-workflow
         # `workflow:` parameter.
         if: always()
         uses: actions/upload-artifact@v7

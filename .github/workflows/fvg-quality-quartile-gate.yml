@@ -85,7 +85,7 @@ jobs:
           echo "release_gate=$DEC" >> "$GITHUB_OUTPUT"
 
       - name: Upload release-gate artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: fvg-quality-release-gate
           path: |
