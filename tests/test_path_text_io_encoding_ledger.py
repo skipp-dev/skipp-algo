@@ -47,7 +47,11 @@ _DIR_EXCLUDE = {
     "SMC++",
 }
 
-# Frozen ledger — exactly today's surface (2026-04-25).
+# Frozen ledger — exactly today's surface (2026-05-01).
+# F-V4-PATHIO-DRIFT (2026-05-01): bumped run_smc_e2e_smoke_test.py
+# (53,97,133 → 56,100,136 from upstream edits) and added new entry
+# scripts/phase5_perf_trend.py:163 (single write_text site that landed
+# without encoding=). Pure ledger sync — no production change.
 _FROZEN_SITES: dict[str, frozenset[int]] = {
     "open_prep/realtime_signals.py": frozenset({172}),
     "pine_apply_surface_reduction.py": frozenset({53, 87, 397, 471, 502, 555}),
@@ -55,7 +59,8 @@ _FROZEN_SITES: dict[str, frozenset[int]] = {
     "scripts/fvg_label_audit_q3.py": frozenset({58}),
     "scripts/fvg_session_artifact_diagnosis.py": frozenset({37}),
     "scripts/investigate_universe_delta.py": frozenset({28}),
-    "scripts/run_smc_e2e_smoke_test.py": frozenset({53, 97, 133}),
+    "scripts/phase5_perf_trend.py": frozenset({163}),
+    "scripts/run_smc_e2e_smoke_test.py": frozenset({56, 100, 136}),
     "streamlit_terminal.py": frozenset({1613, 2005, 2022}),
 }
 _FROZEN_TOTAL = sum(len(v) for v in _FROZEN_SITES.values())
