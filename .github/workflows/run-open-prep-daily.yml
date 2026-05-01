@@ -1,3 +1,4 @@
+# live-window: mutating-on-cron  # F-V6-F2.1 (2026-05-02)
 name: run-open-prep-daily
 
 # Daily pre-open scoring run. Generates a fresh `outcomes_<date>.json`

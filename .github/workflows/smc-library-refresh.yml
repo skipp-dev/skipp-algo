@@ -1,3 +1,4 @@
+# live-window: mutating-on-cron  # F-V6-F2.1 (2026-05-02)
 # SMC Library Intraday Refresh (v5)
 #
 # Runs 4x per trading day at 12:30 / 14:30 / 16:30 / 18:30 UTC on weekdays.
