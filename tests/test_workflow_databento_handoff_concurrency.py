@@ -42,7 +42,10 @@ _HANDOFF_WORKFLOWS = {
 
 
 def _load(path: Path) -> dict:
-    return yaml.safe_load(path.read_text())
+    # F-V8-C3.1-D round-3 (Copilot review): pin UTF-8 to match sibling
+    # workflow-YAML pin tests (e.g. test_workflow_databento_handoff_timeouts.py)
+    # so the test is deterministic across environments with non-UTF-8 locales.
+    return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
 @pytest.mark.parametrize("workflow_name,expected", list(_HANDOFF_WORKFLOWS.items()))
