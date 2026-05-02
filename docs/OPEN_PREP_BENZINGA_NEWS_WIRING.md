@@ -385,3 +385,42 @@ Fuer belastbare OFF-vs-ON-Vergleiche existiert ausserdem ein separater Shadow-He
 - `build_core_news_shadow_comparison(...)`
 
 Er vergleicht denselben Scope einmal mit Benzinga OFF und einmal mit Benzinga ON, ohne einen Default-Switch vorzunehmen.
+
+---
+
+## 9. Update 2026-04-30: Unusual Whales parallel intelligence section
+
+Parallel zur Benzinga-Intelligence-UI in `open_prep/streamlit_monitor.py`
+existiert seit den v3-P-Audit-PRs #1965 / #1967 / #1968 / #1969 eine
+Unusual-Whales-Intelligence-Verdrahtung:
+
+- **Aktivierung:** `UNUSUAL_WHALES_API_KEY` in `.env` setzen (Bearer).
+  Der Key aktiviert die UW-Surfaces; ohne Key bleiben die UW-Tabs in der
+  Benzinga-Intelligence-Suite sichtbar und zeigen Empty-State-Hinweise
+  (Adapter-/Modul-Wrapper liefern `[]`). `scripts/probe_providers.py`
+  meldet in diesem Fall `SKIP` — das ist Probe-Verhalten, nicht das
+  Runtime-UI-Verhalten.
+- **Mandatory Header:** `UW-CLIENT-API-ID: 100001` (v3 P-4a, hart
+  verdrahtet in `newsstack_fmp/ingest_unusual_whales.py`).
+- **Surfaces:**
+  - Options-Flow Alerts (`open_prep/streamlit_monitor.py` ~L2254 — UW
+    primary, ersetzt ad-hoc Flow-Gating in der Monitor-UI).
+  - Dark-Pool-Prints, Spot-GEX, Market-Tide (PR #1968) als Macro-Tape.
+  - Bulk Form-4 Insider Transactions (PR #1969) als Ergaenzung zu FMP.
+- **Insider-Feed-Swap:** `streamlit_monitor.py` zieht Insider-Sentiment
+  jetzt aus FMP + UW (v3 P-3c, PR #1966); die alte Benzinga-Insider-Route
+  bleibt nur noch als sekundaere Quelle in der Benzinga-Intelligence-UI
+  bestehen.
+
+Wichtig: An der Default-Verdrahtung der Core-Open-Prep-News-Felder
+(`news_catalyst_by_symbol` etc.) aendert sich dadurch *nichts*. UW ist
+ein zusaetzlicher Flow-/Insider-Surface-Provider, kein News-Scorer.
+
+## 10. Update 2026-04-30: Benzinga quantified-news endpoint fix
+
+Die `fetch_benzinga_quantified_news(...)`-Wrapper-Funktion und der
+zugehoerige Endpoint-Pfad wurden in PRs #1951 / #1952 (v3 P-1) korrigiert,
+nachdem der Endpoint laut offizieller Doku unter einem anderen Pfad
+ausgeliefert wird. Authentifizierung laeuft weiterhin via `?token=`-Query
+(reverted in #1952). Bestehende Konsumenten unter `terminal_export.py`
+und der Benzinga-Intelligence-UI funktionieren unveraendert.

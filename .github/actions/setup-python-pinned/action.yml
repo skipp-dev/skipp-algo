@@ -1,0 +1,53 @@
+# F-V8-B3.1 (2026-05-02) — Single source of truth for the Python toolchain
+# version used across CI workflows.
+#
+# Plan-review picked Option B (composite action) over Option A (repo
+# variable) and Option C (per-workflow matrix). Rationale:
+#   - File-based audit trail (Settings UI is not greppable).
+#   - No runtime dependency on org/repo Settings being set correctly.
+#   - Easy to test with a workflow-pin test in tests/.
+#
+# Hardcoded version = "3.12" because:
+#   - Matches ci.yml (canonical baseline).
+#   - Matches 18 of 28 workflows that pin python-version today (lowest
+#     blast radius across the migration).
+#   - Phase 2 PR (chore/v8-b3-1-phase2) sweeps the remaining 23 workflows
+#     onto this composite. f2-promotion-gate-daily is the only Phase-1
+#     workflow with a behavior change (3.13→3.12); see PR description.
+#
+# To bump the toolchain in the future, edit `python-version:` below in a
+# single PR — the pin test (tests/test_workflow_python_version_pinned.py)
+# will catch any workflow that drifted off the composite.
+name: "Setup pinned Python toolchain"
+description: >-
+  Wraps actions/setup-python with the repo-wide canonical Python
+  version. All CI workflows should use this composite instead of
+  pinning python-version directly.
+
+inputs:
+  cache:
+    description: "Optional cache backend for actions/setup-python (e.g. 'pip'). Empty = no cache."
+    required: false
+    default: ""
+  cache-dependency-path:
+    description: "Optional cache key dependency path (e.g. 'requirements*.txt')."
+    required: false
+    default: ""
+
+outputs:
+  python-version:
+    description: "Resolved python version string."
+    value: ${{ steps.setup.outputs.python-version }}
+  python-path:
+    description: "Absolute path to the resolved python interpreter."
+    value: ${{ steps.setup.outputs.python-path }}
+
+runs:
+  using: "composite"
+  steps:
+    - id: setup
+      uses: actions/setup-python@v6
+      with:
+        python-version: "3.12"
+        cache: ${{ inputs.cache }}
+        cache-dependency-path: ${{ inputs.cache-dependency-path }}

@@ -1,3 +1,4 @@
+# live-window: any-trigger  # F-V6-F2.1 (2026-05-02)
 name: CI
 
 on:
@@ -15,12 +16,16 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
+  PYTHONUNBUFFERED: "1"  # F-V5-A2 (2026-05-01)
   PYTHONPATH: ${{ github.workspace }}
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  # F-V6-A2 (2026-05-02): force unbuffered Python stdout so progress logs surface
+  # in CI in near-real-time rather than after a buffer flush at process exit.
+  PYTHONUNBUFFERED: "1"
 
 jobs:
   validate:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
     timeout-minutes: 45
     steps:
       # Bot data-only PRs (e.g. `bot/run-open-prep-*`, `bot/outcome-backfill-*`)

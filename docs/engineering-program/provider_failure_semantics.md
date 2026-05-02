@@ -101,3 +101,37 @@ Result:   Trust unverändert, Info-Log, reduzierte News-Tiefe akzeptiert
 - `volume/missing`, `volume/stale` → ADVISORY (Quality-Impact, aber kein Entry-Block)
 - `technical/*` → FALLBACK/ADVISORY (optionaler Enrichment)
 - `news/*` → FALLBACK/ADVISORY (News ist Signal-Enrichment, nicht Gate-relevant)
+
+---
+
+## Status-Update 2026-04-30 — v3 Provider-Audit (PRs #1951–#1969)
+
+Diese Failure-Semantik-Matrix wurde am 2026-04-17 (F-04) eingefroren und
+deckt aktuell die Domains **structure / volume / technical / news** ab.
+Der v3-Provider-Audit (Endstand 2026-04-30) hat den Provider-Stack
+erweitert, ohne die existierenden Domain-Semantiken zu aendern:
+
+- **Unusual Whales (neu)** als Options-Flow / Macro-Flow / Insider-Surface
+  Provider (#1965, #1967, #1968, #1969). UW liefert Daten zu Domains,
+  die bisher nicht Teil der Failure-Matrix sind (`options_flow`,
+  `dark_pool`, `gex`, `market_tide`, `insider_form4`). Die Failure-
+  Behandlung folgt aktuell der allgemeinen `FALLBACK` / `ADVISORY`
+  Konvention der News-Domain. Eine formale Erweiterung der Matrix um
+  diese Domains ist in einer separaten ADR zu klaeren (Reservierung:
+  ADR-0008 "UW Failure Semantics", noch offen).
+
+- **FMP fear-and-greed** und **FMP short-interest** Pfade wurden in
+  PRs #1962 / #1964 entfernt (siehe `docs/FMP_ENDPOINT_GAP_ANALYSE.md`
+  "Retired FMP Paths"). Die Failure-Matrix enthielt diese Pfade nie
+  explizit — keine Aenderung noetig.
+
+- **Monitor-Insider-Feed-Swap** (#1966): Benzinga-Insider wurde im
+  Open-Prep Monitor durch FMP + UW abgeloest. Das ist semantisch
+  weiterhin News-Domain (`FALLBACK` zwischen Providern); keine
+  Matrix-Aenderung noetig.
+
+- **`ib_insync` → `ib_async`** (#1955): Drop-in Importswap, kein
+  Verhalten geaendert; nicht Failure-Matrix-relevant.
+
+Der naechste freie ADR-Slot ist **0008** (siehe `docs/adr/README.md`)
+— fuer eine formale UW-Failure-Semantik wuerde dieser Slot reserviert.
