@@ -229,3 +229,164 @@ Before submitting your review, confirm you actually checked:
       provably non-None or wrapped in `str(...)`
 - [ ] Compared `gh pr checks <n>` count to branch-protection
       expected required-check count
+
+---
+
+## §6 — Copilot review-thread hygiene (META class)
+
+> Calibrated against audit-2 (2026-05-02 evening): even after a "done"
+> sweep, 30+ unresolved Copilot threads remained across 12 PRs.
+> Roughly 60% were stale (already-fixed in a later commit Copilot
+> never re-reviewed), 40% were real misses.
+
+For every PR the reviewer touches:
+
+1. **Two-source verification, not `gh pr view`.** Inline review
+   threads do NOT show up in `gh pr view` output. Always pull both:
+   ```bash
+   gh api repos/<owner>/<repo>/pulls/<N>/comments --paginate
+   gh api graphql -f query='query{repository(owner:"<o>",name:"<r>"){
+     pullRequest(number:<N>){reviewThreads(first:100){nodes{
+       id isResolved isOutdated path line
+       comments(first:5){nodes{author{login} body}}}}}}}'
+   ```
+   Filter both for Copilot via case-insensitive substring match
+   `/opilot/i` — do NOT match `copilot[bot]` literally; the login
+   varies between `Copilot`, `copilot-pull-request-reviewer[bot]`,
+   etc.
+
+2. **Stale-thread triage before any code change.** For every
+   unresolved Copilot thread, FIRST read the file at the cited line
+   on the current branch tip. If the suggestion is already
+   implemented → resolve via mutation (no commit needed). Only if the
+   code still doesn't match → write a fix. Skipping triage wastes a
+   full edit cycle on a no-op and pollutes git history with
+   "no-op" commits.
+   ```bash
+   gh api graphql -f query='mutation{resolveReviewThread(
+     input:{threadId:"<id>"}){thread{isResolved}}}'
+   ```
+
+3. **`jq` is unsafe for Copilot bodies.** Copilot inline-comment
+   bodies often contain literal control characters (newlines inside
+   ` ```code``` ` blocks) that crash `jq` mid-stream. Use Python
+   with `json.loads(raw, strict=False)` instead.
+
+4. **Re-verify after every push.** Copilot does NOT auto-re-review
+   after a force-push. The `unresolved` count never drops on its own.
+   The PR-done checkpoint is: re-run BOTH queries above, count
+   unresolved Copilot threads, target zero — then resolve any
+   remaining stale ones explicitly via the mutation.
+
+---
+
+## §7 — Comment / docstring drift (FACTUAL-CODE class)
+
+> Audit-2 found multiple cases where the *prose* (comment, docstring,
+> heading) diverged from the *behavior* the surrounding code actually
+> implemented. CI green-lit all of them; only Copilot inline review
+> caught the divergence. These are reviewer-only catches.
+
+For every PR diff:
+
+1. **Cron / schedule comments must match cron expressions.** A
+   comment "intentionally runs inside trading window 13:30–20:00 UTC"
+   above a cron list `[12:30, 14:30, 16:30, 18:30]` is wrong (12:30
+   is outside that window). Re-derive the human description from the
+   cron, don't trust the existing prose.
+
+2. **Permissions-block intent comments must name the real consumer.**
+   Comment says "needed so the dashboard JSON gets published" but the
+   workflow actually publishes `docs/ab/g23_status.md` +
+   `g23_history.jsonl`. Cross-check every "needed for X" justification
+   against the actual outputs of the job.
+
+3. **Docstring must match validation strictness.** A test docstring
+   "expects a non-empty mapping" while the code accepts `{}` and any
+   string is a documentation bug — pick one and align. Easier fix is
+   usually update the docstring; tightening risks breaking valid
+   workflows that rely on the documented permissive shape.
+
+4. **Hardcoded version literals duplicating a central ledger.** When
+   a uniformity test owns the frozen-major value (e.g.
+   `_FROZEN_MAJOR = "v7"` in
+   `tests/test_workflow_upload_artifact_uniform_version.py`), no other
+   test should hardcode `@v7`. The duplicate creates two bump sites
+   at the next major upgrade; one will be missed. Per-call-site tests
+   should assert prefix-only (`actions/upload-artifact@`) and let the
+   central ledger own the pin.
+
+5. **Glob `*.yml` is incomplete.** Workflow-iterating tests must
+   include both `*.yml` and `*.yaml` (mirror the canonical shape from
+   `tests/test_gha_action_allowlist.py`). The default `Path.glob` is
+   case-sensitive on Linux CI runners and a single `.yaml` file slips
+   through silently.
+
+6. **Regex narrower than the data it scans.** A pattern like
+   `actions/upload-artifact@(?P<ref>v\d+(?:\.\d+){0,2})` silently
+   skips SHA-pinned references. Either parse every `uses:` reference
+   and validate the ref shape against an explicit allow-list, or
+   widen the regex and add an explicit "SHA pin requires manual
+   ledger entry" branch.
+
+7. **Silent `except SyntaxError: return []` in lint guards.** A
+   `try: ast.parse(...) except SyntaxError: return []` lets a syntax
+   error elsewhere in the file silently bypass the guard. The guard
+   then reports zero violations and the PR ships. Re-raise (or
+   `pytest.fail`) with the filename so the unparseable file is
+   surfaced loudly.
+
+8. **`set -euo pipefail` missing in `run: |` blocks that mutate.**
+   Any workflow `run:` block that writes/commits/pushes (`git config`,
+   `git add`, `git commit`, `git push`, `gh pr create`, `gh pr merge`)
+   must start with `set -euo pipefail`. Otherwise a failed `git add`
+   lets `git commit` proceed, the step exits 0, and the workflow
+   reports `outcome=pushed` while nothing was pushed.
+
+9. **`continue-on-error: true` + missing strict mode = silent
+   success.** When a step has `continue-on-error: true` AND its
+   `run: |` block lacks `set -euo pipefail`, the failure mode is
+   "silently green forever". Either drop `continue-on-error` (if the
+   failure is real) or add strict mode (if the soft-fail is
+   intentional but should still surface inner-step failures via
+   explicit rc handling).
+
+10. **Inline AST-walker false-negative on `contextlib.suppress`.**
+    A "no-broad-except" guard that scans `ast.Try` nodes will miss
+    `with contextlib.suppress(Exception): ...`. Walk `ast.With` items
+    too OR narrow the suppression site to a specific exception class
+    (`OSError`, `WebSocketException`) and add a regression test for
+    the narrowed shape.
+
+---
+
+## Self-test rubric — additions (audit-2 calibration)
+
+Before submitting your review, ALSO confirm:
+
+- [ ] Ran the inline-comments + GraphQL `reviewThreads` queries on
+      every PR in the queue and triaged each unresolved Copilot
+      thread (stale → resolve mutation; real → fix)
+- [ ] Used `python3 -c "import json; json.loads(raw,strict=False)"`
+      (NOT `jq`) for any Copilot-body parsing
+- [ ] Re-derived every cron / schedule comment from the actual cron
+      expression
+- [ ] Cross-checked every "needed for X" permissions comment against
+      the workflow's real outputs
+- [ ] grep'd for hardcoded version literals (`@v7`, `@v4`, etc.) that
+      duplicate a central uniformity ledger; replaced with prefix
+      assertion
+- [ ] grep'd workflow-iterating tests for `glob("*.yml")` without the
+      matching `*.yaml` partner
+- [ ] grep'd lint guards for `except SyntaxError: return` /
+      `except SyntaxError: pass` / `except Exception: continue` and
+      replaced with explicit re-raise with filename
+- [ ] grep'd every workflow `run: |` block that mutates state for
+      `set -euo pipefail` on the first non-comment line
+- [ ] grep'd every `continue-on-error: true` step for matching strict
+      mode in the inner `run:` block
+- [ ] grep'd for `contextlib.suppress(Exception)` /
+      `suppress(BaseException)` and either narrowed or covered by an
+      AST-walker guard that handles `ast.With` items
+- [ ] Re-ran the unresolved-Copilot scan after every push, target
+      `unresolved=0` per PR
