@@ -1,6 +1,8 @@
 # live-window: mutating-on-cron  # F-V6-F2.1 (2026-05-02)
 name: plan-2.8 weekly trend digest
 
+# live-window: off-hours-only  # 12:00 UTC Mondays — outside trading window 13:30–20:00 UTC (audit F-V3-14, 2026-05-01)
+#
 # Weekly Plan 2.8 trend digest. Pulls the long-running history JSONL
 # from the most-recent rolling-bench run, renders the digest with
 # scripts/plan_2_8_trend_digest.py, streams it into the run summary

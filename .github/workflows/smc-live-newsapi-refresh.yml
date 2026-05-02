@@ -112,6 +112,9 @@ jobs:
         # push failure (e.g. token race, rare ruleset push event).
         continue-on-error: true
         run: |
+          # F-V3 (audit 2026-05-02): strict mode so unexpected git failures
+          # don't silently slip past and mis-report `outcome=pushed`. The
+          # explicit `if/exit 0` paths below already match expected rcs.
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

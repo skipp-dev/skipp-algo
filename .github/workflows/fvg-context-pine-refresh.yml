@@ -1,6 +1,8 @@
 # live-window: mutating-on-cron  # F-V6-F2.1 (2026-05-02)
 name: fvg-context-pine-refresh
 
+# live-window: off-hours-only  # 05:15 UTC weekdays — outside trading window 13:30–20:00 UTC (audit F-V3-14, 2026-05-01)
+#
 # Q3/Q4 plan §D2: refresh `pine/generated/fvg_context_health.pine` from
 # the latest event ledgers so the SMC_Dashboard FVG Status row can
 # render per-context (session × vol_regime) hit-rate cells.
