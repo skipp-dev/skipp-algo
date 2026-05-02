@@ -50,9 +50,9 @@ _DIR_EXCLUDE = frozenset(
 #
 # Convention on this repo: every site is a one-shot
 # ``sys.path.insert(0, REPO_ROOT)`` performed before relative-from-root
-# imports in standalone-runnable scripts. The one script with count == 2
-# (``smc_zone_priority_calibration.py``) does it inside two different
-# ``__main__``-style entry blocks.
+# imports in standalone-runnable scripts. The single non-trivial site is
+# ``smc_zone_priority_calibration.py`` (count == 3), which performs the
+# insert in three different ``__main__``-style entry blocks.
 _FROZEN_SITES: dict[str, int] = {
     "open_prep/realtime_signals.py": 1,
     "open_prep/streamlit_monitor.py": 1,
