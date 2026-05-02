@@ -156,7 +156,7 @@ jobs:
 
       - name: Upload monthly digest
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: plan-2-8-monthly-digest
           path: artifacts/plan_2_8_monthly

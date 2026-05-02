@@ -46,7 +46,8 @@ _COE_LINE_RE = re.compile(r"^continue-on-error:\s+true(?:\s+#.*)?$")
 _ALLOWED: dict[str, frozenset[int]] = {
     # Best-effort live news refresh: NewsAPI 5xx is tolerated to keep cron green.
     # Rebaselined 2026-05-02: 107 → 111 (+4) after upstream env edit.
-    "smc-live-newsapi-refresh.yml": frozenset({111}),
+    # F-V4-B4 (2026-05-02): 111 → 113 (+2) after actions/upload-artifact@v4 → @v7 fleet bump.
+    "smc-live-newsapi-refresh.yml": frozenset({113}),
     # Library refresh: 6 best-effort hops (gates probe, TV publish, telegram pings).
     # Lines 165 → 166 (alerts dispatch), 376 → 303 sequence shifted by upstream
     # rearrangement (PR #1937 cascade), and a NEW best-effort hop at 303 added
@@ -57,22 +58,28 @@ _ALLOWED: dict[str, frozenset[int]] = {
     # Rebaselined 2026-05-02 after PR #2028 composite migration (setup-python-pinned)
     # which added 7 lines to the affected jobs:
     # 172→179, 309→316, 424→431, 650→670, 793→813, 813→833.
-    "smc-library-refresh.yml": frozenset({179, 316, 431, 670, 813, 833}),
+    # F-V4-B4 (2026-05-02): bumped after upload-artifact@v4 → @v7 fleet migration:
+    # 179→197, 316→339, 431→454, 670→693, 813→836, 833→856.
+    "smc-library-refresh.yml": frozenset({197, 339, 454, 693, 836, 856}),
     # Deeper integration gates: 2 advisory-only probes.
     # Rebaselined 2026-05-02 after PR #2028 composite migration: 69→73, 113→117 (+4 each).
-    "smc-deeper-integration-gates.yml": frozenset({73, 117}),
+    # F-V4-B4 (2026-05-02): 73→74, 117→118 (+1 each) after @v7 fleet bump.
+    "smc-deeper-integration-gates.yml": frozenset({74, 118}),
     # Weekly digest: 3 best-effort delivery hops.
     # Rebaselined 2026-05-02: 447→451, 664→668, 943→947 (+4 each).
-    "plan-2-8-weekly-digest.yml": frozenset({451, 668, 947}),
+    # F-V4-B4 (2026-05-02): 451→458, 668→675, 947→954 (+7 each) after @v7 fleet bump.
+    "plan-2-8-weekly-digest.yml": frozenset({458, 675, 954}),
     # Release gates: 1 advisory metric collection hop.
     # Rebaselined 2026-05-02: 173→177 (+4).
-    "smc-release-gates.yml": frozenset({177}),
+    # F-V4-B4 (2026-05-02): 177 → 178 (+1) after @v7 fleet bump.
+    "smc-release-gates.yml": frozenset({178}),
     # Drift watchdog: red verdict is intentionally non-fatal so the follow-up
     # step can convert it into a GitHub issue (silent-fail by design — see C9/T4).
     # Line shifted 52 → 54 after adding CONTINUE-ON-ERROR-INTENTIONAL marker comment
     # (PR #333 Copilot review on c13-daily-cron — marker discipline test).
     # Rebaselined 2026-05-02: 54→60 (+6).
-    "drift-watchdog.yml": frozenset({60}),
+    # F-V4-B4 (2026-05-02): 60 → 67 (+7) after @v7 fleet bump.
+    "drift-watchdog.yml": frozenset({67}),
     # C13 daily-cron: 4 best-effort steps so partial failures still upload
     # artefacts and let the issue-opener step report exactly which step
     # failed; soft-skip rc=78 paths are also gated through these.
@@ -86,7 +93,8 @@ _ALLOWED: dict[str, frozenset[int]] = {
     # Surfaced by PR-D8 (Copilot review of PR #1939) — was previously invisible
     # to the inventory because of the trailing rationale comment on the same line.
     # Rebaselined 2026-05-02 after PR #2028 composite migration: 169→177 (+8).
-    "smc-databento-production-export.yml": frozenset({177}),
+    # F-V4-B4 (2026-05-02): 177 → 199 (+22) after @v7 fleet bump.
+    "smc-databento-production-export.yml": frozenset({199}),
 }
 
 

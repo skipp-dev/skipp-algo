@@ -193,7 +193,10 @@ def test_alert_history_uploaded_with_long_retention() -> None:
     steps = _wf()["jobs"]["weekly-digest"]["steps"]
     up = next(s for s in steps
               if s.get("name") == "Upload alert history log")
-    assert up["uses"].startswith("actions/upload-artifact@v4")
+    assert up["uses"].startswith("actions/upload-artifact@")
+    # Major-version pin uniformity is owned by
+    # tests/test_workflow_upload_artifact_uniform_version.py — don't
+    # duplicate the frozen-major value here.
     assert up["with"]["retention-days"] == 365
     assert up["with"]["name"] == "plan-2-8-alert-history"
     assert up["with"]["if-no-files-found"] == "ignore"

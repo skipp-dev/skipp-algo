@@ -43,7 +43,10 @@ def test_workflow_parses_recal_status_tokens() -> None:
 
 def test_workflow_uploads_shadow_artifact() -> None:
     text = WF.read_text()
-    assert "actions/upload-artifact@v4" in text
+    # Major-version pin uniformity is owned by
+    # tests/test_workflow_upload_artifact_uniform_version.py — assert
+    # only that the action is referenced here, not the frozen major.
+    assert "actions/upload-artifact@" in text
     assert "fvg-quality-recal-shadow-" in text
     assert "fvg_quality_calibration_shadow.json" in text
 

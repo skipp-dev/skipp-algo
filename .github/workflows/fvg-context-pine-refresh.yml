@@ -58,7 +58,7 @@ jobs:
           python -m scripts.emit_fvg_context_pine
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: fvg-context-pine
           path: |
