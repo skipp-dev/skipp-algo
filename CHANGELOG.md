@@ -142,6 +142,22 @@ auth + mandatory `UW-CLIENT-API-ID: 100001` header):
 
 - **#1954 — v3 P-9 / P-10** (`docs(audit)`): review-trail entries +
   audit-trail markers `F-V3-<class>` for the audit step itself.
+### Refactor (2026-05-01) — F-V4-E1 databento safe-fetch caller migration
+
+- `terminal_databento._fetch_chunk` migrated from raw
+  `client.timeseries.get_range` to the canonical
+  `_databento_get_range_with_retry` helper from `databento_client`.
+  Daily-bar fetches now inherit transient-error retry semantics
+  (TLS / RemoteDisconnected / 5xx) instead of failing fast on the
+  first network blip.
+- New defense ledger `tests/test_databento_safe_fetch_callers.py`
+  scans top-level `*.py` for raw `client.timeseries.get_range`
+  callers, with a frozen `ALLOWED_DIRECT_CALLERS` allow-list
+  (`databento_client.py` itself + `databento_volatility_screener.py`,
+  which carries a parallel helper — consolidation tracked separately).
+- Drift bump: `tests/test_global_statement_budget.py` line numbers
+  for `terminal_databento.py` (124→130, 308→314) shifted by the
+  helper-import + 5-line F-V4-E1 intent comment.
 
 ### Changed (2026-04-26) — pytest-xdist as local default + determinism regression fix
 
