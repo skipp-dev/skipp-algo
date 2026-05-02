@@ -164,7 +164,17 @@ def test_producer_script_exposes_export_dir_flag():
 
 
 def test_producer_schedule_runs_before_library_refresh():
-    """Producer crons must fire before the corresponding library-refresh tick."""
+    """Producer→Consumer coupling.
+
+    Originally enforced cron-before-cron timing. After F-V4-J3 (2026-05-01)
+    the consumer (smc-library-refresh) was switched from 4 daily crons to
+    `workflow_run` triggered by the producer; the producer keeps its own
+    crons and gates the cascade. The new contract:
+
+    1. Producer must still declare schedule.cron entries.
+    2. Consumer must declare a `workflow_run` trigger naming the producer
+       and gating on conclusion=='success'.
+    """
     producer = _load_yaml(PRODUCER_WF)
     consumer = _load_yaml(CONSUMER_WF)
 
@@ -177,22 +187,34 @@ def test_producer_schedule_runs_before_library_refresh():
         return [entry.get("cron", "") for entry in sched]
 
     p_crons = _crons(p_on)
-    c_crons = _crons(c_on)
     assert p_crons, "Producer must declare schedule.cron entries"
-    assert c_crons, "Consumer must declare schedule.cron entries"
 
-    def _minutes(cron: str) -> int:
-        # cron format: 'M H D M W' — return total minutes since midnight UTC
-        m = re.match(r"\s*(\d+)\s+(\d+)\s+", cron)
-        return int(m.group(2)) * 60 + int(m.group(1)) if m else -1
+    # F-V4-J3: consumer must be workflow_run-coupled to the producer.
+    wfr = (c_on or {}).get("workflow_run")
+    assert wfr, (
+        "Consumer must declare a workflow_run trigger (F-V4-J3). "
+        "Got on: " + repr(list((c_on or {}).keys()))
+    )
+    producer_name = producer.get("name") or PRODUCER_WF.stem
+    assert producer_name in (wfr.get("workflows") or []), (
+        f"Consumer workflow_run.workflows must reference producer "
+        f"{producer_name!r}; got {wfr.get('workflows')!r}"
+    )
 
-    producer_minutes = sorted({_minutes(c) for c in p_crons})
-    consumer_minutes = sorted({_minutes(c) for c in c_crons})
-    for cm in consumer_minutes:
-        assert any(pm <= cm for pm in producer_minutes), (
-            f"No producer cron fires at or before consumer tick {cm // 60:02d}:{cm % 60:02d} UTC. "
-            f"Producer minutes: {producer_minutes}, consumer minutes: {consumer_minutes}"
-        )
+    # The job-level `if:` must gate on conclusion=='success' so that
+    # producer failures do not cascade into stale-data publishes.
+    # Strict equality check: a substring match would accept truthy
+    # noise like "!= 'success'", "succeeded()", or chained boolean
+    # expressions whose effective gate isn't on success.
+    refresh_if = (consumer.get("jobs", {}).get("refresh", {}) or {}).get("if", "")
+    refresh_if_norm = " ".join(str(refresh_if).split())
+    assert (
+        "github.event.workflow_run.conclusion == 'success'" in refresh_if_norm
+        or 'github.event.workflow_run.conclusion == "success"' in refresh_if_norm
+    ), (
+        f"Consumer jobs.refresh.if must gate workflow_run on "
+        f"conclusion == 'success' (exact equality); got: {refresh_if!r}"
+    )
 
 
 def test_export_dir_is_gitignored():
