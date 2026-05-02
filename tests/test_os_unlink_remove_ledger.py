@@ -94,7 +94,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     ("open_prep/diff.py", 68, "unlink"),
     ("open_prep/feature_importance_report.py", 255, "unlink"),
     ("open_prep/outcome_backfill.py", 97, "unlink"),
-    ("open_prep/outcome_backfill.py", 542, "unlink"),
+    ("open_prep/outcome_backfill.py", 539, "unlink"),
     ("open_prep/outcomes.py", 130, "unlink"),
     ("open_prep/outcomes.py", 408, "unlink"),
     ("open_prep/realtime_signals.py", 117, "remove"),
