@@ -13,11 +13,15 @@ Failure modes guarded:
   privilege-escalation footgun.
 
 Allow-list of acceptable shapes:
-  Top-level ``permissions:`` followed by a mapping (possibly empty ``{}``
-  for the explicit "no scopes" declaration) or a string value
-  (``read-all`` is fine; ``write-all`` is rejected by
-  ``test_no_workflow_uses_write_all``), OR every job inside the
-  workflow declares its own ``permissions:`` block.
+  Top-level ``permissions:`` followed by EITHER a mapping (possibly empty
+  ``{}`` for the explicit "no scopes" declaration) OR one of the GitHub
+  Actions string literals ``read-all`` / ``write-all`` (``write-all`` is
+  separately rejected by ``test_no_workflow_uses_write_all``), OR every
+  job inside the workflow declares its own ``permissions:`` block whose
+  value is itself a mapping or one of the same string literals.
+
+Arbitrary string values (e.g. typos like ``read``) are rejected — they
+would otherwise pass this guard and only fail at workflow-run time.
 """
 
 from __future__ import annotations
@@ -29,6 +33,25 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
+
+# GitHub Actions only accepts these two string literals as permissions values.
+# Any other string (typo, partial value) is invalid YAML for the actions schema
+# and would fail at workflow-run time. We reject them here at lint time.
+_ALLOWED_PERMISSION_STRINGS = frozenset({"read-all", "write-all"})
+
+
+def _is_valid_permissions_value(perm: object) -> bool:
+    """True iff ``perm`` is a shape GitHub Actions accepts for ``permissions:``.
+
+    Accepts: any mapping (including ``{}``), or one of the string literals
+    ``read-all`` / ``write-all``. Rejects: ``None``, arbitrary strings, lists,
+    numbers — all of which the Actions runtime would reject.
+    """
+    if isinstance(perm, dict):
+        return True
+    if isinstance(perm, str):
+        return perm.strip().lower() in _ALLOWED_PERMISSION_STRINGS
+    return False
 
 
 def _all_workflow_files() -> list[Path]:
@@ -87,23 +110,39 @@ def test_workflow_has_explicit_permissions(wf_path: Path) -> None:
         # declaration, useful for read-only workflows that want to opt out
         # of every default) or the literal strings 'read-all' / 'write-all'.
         # 'write-all' is also caught by test_no_workflow_uses_write_all so
-        # this branch will not silently accept it.
-        assert isinstance(top_level, (dict, str)), (
-            f"{wf_path.name}: top-level permissions must be a mapping or 'read-all'"
+        # this branch will not silently accept it. Arbitrary strings like
+        # 'read' (a common typo for 'read-all') are rejected here so they
+        # don't slip through and only fail at workflow-run time.
+        assert _is_valid_permissions_value(top_level), (
+            f"F-V4-F3: {wf_path.name} top-level `permissions:` value "
+            f"{top_level!r} is invalid. Must be a mapping (possibly `{{}}`) "
+            f"or one of {sorted(_ALLOWED_PERMISSION_STRINGS)!r}."
         )
         return
 
-    # No top-level permissions → every job must declare its own.
+    # No top-level permissions → every job must declare its own AND each
+    # per-job value must itself be a valid permissions shape (a bare
+    # `permissions:` with a null value would pass a presence-only check
+    # but is invalid for the Actions runtime).
     jobs = doc.get("jobs", {})
     assert isinstance(jobs, dict) and jobs, (
         f"{wf_path.name}: no top-level permissions and no jobs declared"
     )
-    missing = [
-        name for name, body in jobs.items()
-        if not (isinstance(body, dict) and "permissions" in body)
-    ]
+    missing: list[str] = []
+    invalid: list[str] = []
+    for name, body in jobs.items():
+        if not (isinstance(body, dict) and "permissions" in body):
+            missing.append(name)
+            continue
+        if not _is_valid_permissions_value(body["permissions"]):
+            invalid.append(f"{name}={body['permissions']!r}")
     assert not missing, (
         f"F-V4-F3: {wf_path.name} has no top-level `permissions:` block "
         f"and these jobs are also missing one: {missing}. "
         "Add either a top-level `permissions:` block or a per-job one."
+    )
+    assert not invalid, (
+        f"F-V4-F3: {wf_path.name} per-job `permissions:` value(s) invalid: "
+        f"{invalid}. Must be a mapping (possibly `{{}}`) or one of "
+        f"{sorted(_ALLOWED_PERMISSION_STRINGS)!r}."
     )
