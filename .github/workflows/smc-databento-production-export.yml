@@ -62,6 +62,16 @@ on:
         required: false
         default: "false"
 
+# F-V8-C3.1-D (2026-05-02): serialize producer runs per ref so a slow
+# export (now permitted up to 120 min via PR #2027) cannot be raced by
+# the next 2-hour cron tick. cancel-in-progress=false because killing a
+# half-finished export would leave the consumer (smc-library-refresh)
+# reading a stale or partial artifact at its next handoff window. The
+# follow-on tick queues instead and runs once the in-flight job exits.
+concurrency:
+  group: smc-databento-production-export-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
