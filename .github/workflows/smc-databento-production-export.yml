@@ -77,13 +77,16 @@ env:
 jobs:
   export:
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
-    # F-V6-C3 (2026-05-02): tightened 90→60. Downstream consumer
-    # (smc-library-refresh) ticks 30 min after this producer, so any run
-    # exceeding 30 min poisons the consumer with stale data. 60 is a
-    # cautious first cut (caps overruns at 2× the consumer headroom and
-    # surfaces sustained slowdowns) without risking known historical
-    # 63-min outlier runs. Pin test asserts producer ≤ consumer timeout.
-    timeout-minutes: 60
+    # F-V8-C3.1 (2026-05-02): bumped 60→120 after 12 consecutive runs were
+    # killed by the 60-min cap with runtimes 62–75 min (no successful run for
+    # days). The intent of the F-V6-C3 tight cap was protecting the consumer
+    # from stale data, but a producer that *never* finishes provides no data
+    # at all — a strictly worse failure mode. 120 = 2h cron interval, matched
+    # by the consumer cap, so back-to-back runs still cannot overlap. Once
+    # the new A1.x logging (F-V8-A1.1) reveals which step dominates the
+    # 60+min runtime, a follow-up PR will tighten this again with a real
+    # script-side or pip-cache fix. Pin test enforces producer ≤ consumer.
+    timeout-minutes: 120
 
     steps:
       - name: Set export date
