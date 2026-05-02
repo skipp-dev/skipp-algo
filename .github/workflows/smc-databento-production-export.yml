@@ -165,8 +165,8 @@ jobs:
           # Tee stdout+stderr so the partial log survives runner shutdown
           # signals (ubuntu-latest-m has been getting evicted ~63 min into
           # silent runs — we lost all observability before this fix).
-          # `script -q -e` keeps the child attached to a pseudo-TTY so Python
-          # auto-flushes line by line.
+          # Run Python in unbuffered mode (`-u` / `PYTHONUNBUFFERED=1`) so
+          # log lines flush promptly while `tee` preserves the combined stream.
           python -u scripts/databento_production_export.py \
             --lookback-days "${LOOKBACK_DAYS}" \
             --export-dir "${EXPORT_DIR}" \
