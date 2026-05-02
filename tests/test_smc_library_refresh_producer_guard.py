@@ -29,7 +29,9 @@ def test_verify_export_bundle_step_hard_fails_on_missing_producer() -> None:
 
     # Slice out just that step body to keep the assertion narrow.
     after = body.split("id: verify_export_bundle", 1)[1]
-    # Step ends at the next top-level `- name:` (8 spaces of indent).
+    # Step ends at the next sibling `- name:`. Steps under
+    # jobs.<job>.steps are indented 6 spaces in this file (the leading
+    # `      - name:` opens each step), so split on that pattern.
     step_body = re.split(r"\n      - name:", after, maxsplit=1)[0]
 
     assert "set -euo pipefail" in step_body, (
