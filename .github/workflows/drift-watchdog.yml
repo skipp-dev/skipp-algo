@@ -1,3 +1,4 @@
+# live-window: mutating-on-cron  # F-V6-F2.1 (2026-05-02)
 name: drift-watchdog
 
 # Sprint C9 / T5 — weekly drift watchdog cron.

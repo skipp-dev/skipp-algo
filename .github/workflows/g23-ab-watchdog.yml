@@ -1,3 +1,4 @@
+# live-window: mutating-on-cron  # F-V6-F2.1 (2026-05-02)
 name: g23-ab-watchdog
 
 # Q3/Q4 plan §G2 (rollback gate, line 414) + §G3 (30-day SPRT stop rule, line 415).

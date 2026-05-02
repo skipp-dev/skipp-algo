@@ -1,3 +1,4 @@
+# live-window: mutating-on-cron  # F-V6-F2.1 (2026-05-02)
 name: smc-live-newsapi-refresh
 
 on:
