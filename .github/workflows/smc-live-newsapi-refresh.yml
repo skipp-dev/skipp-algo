@@ -99,22 +99,20 @@ jobs:
             artifacts/smc_microstructure_exports/smc_live_news_state.json
           retention-days: 14
 
-      # Direct pushes to main may be blocked by branch protection requiring
-      # pull requests and required checks (including fast-gates). The
-      # artifact upload above is the authoritative live-snapshot delivery
-      # channel; the optional commit below is a best-effort convenience for
-      # git-tracked staleness floors and MUST NOT fail the workflow when the
-      # protected-branch policy rejects it.
-      #
-      # If this push is consistently rejected, use the uploaded artifact as
-      # the source of truth and either re-run the workflow or update the
-      # branch-protection/ruleset configuration before expecting this step
-      # to succeed.
-      - name: Commit snapshot updates
-        # CONTINUE-ON-ERROR-INTENTIONAL: snapshot commit is best-effort; ruleset
-        # may transiently block bot push, run still succeeds (idempotent next tick).
+      # F-V5-F1 (2026-05-01): bare push to main is blocked by the
+      # `main-governance` ruleset, and a PR per 5-minute cron tick would
+      # spam ~288 PRs/day. The uploaded artifact above is the authoritative
+      # live-snapshot delivery channel; consumers that need a git-tracked
+      # staleness floor read from the rolling `bot/live-news-snapshot`
+      # branch which we force-update here. No bare push, no fake-success
+      # warning — every step honestly reports its own outcome.
+      - name: Publish snapshot to rolling bot branch
+        # CONTINUE-ON-ERROR-INTENTIONAL: best-effort secondary channel; the
+        # artifact upload above remains the source of truth on transient
+        # push failure (e.g. token race, rare ruleset push event).
         continue-on-error: true
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add --sparse -f artifacts/smc_microstructure_exports/smc_live_news_snapshot.json artifacts/smc_microstructure_exports/smc_live_news_state.json
@@ -123,28 +121,14 @@ jobs:
             exit 0
           fi
           git commit -m "[skip ci] chore: refresh live news snapshot"
-
-          # Retry push with rebase to handle concurrent pushes to main.
-          # Push/rebase failures are expected under branch protection and
-          # are downgraded to ::warning:: so the run does not show error
-          # annotations for an intended/acceptable outcome — the artifact
-          # upload above is the authoritative delivery channel.
-          for attempt in 1 2 3; do
-            if git push; then
-              echo "Push succeeded on attempt $attempt."
-              exit 0
-            fi
-
-            if [ "$attempt" -eq 3 ]; then
-              echo "::warning::Push failed after ${attempt} attempts; relying on uploaded artifact."
-              exit 0
-            fi
-
-            echo "::warning::Push rejected on attempt ${attempt}; rebasing onto origin/main and retrying."
-            git fetch origin main
-            if ! git rebase origin/main; then
-              git rebase --abort || true
-              echo "::warning::Snapshot commit conflicts with newer origin/main; relying on uploaded artifact."
-              exit 0
-            fi
-          done
+          # Force-update the dedicated snapshot branch (allowed by ruleset
+          # since `bot/*` is excluded). --force-with-lease guards against
+          # accidental overwrite of someone else's manual fix-up commit.
+          # actions/checkout fetches a shallow ref by default, so the
+          # remote-tracking branch for `bot/live-news-snapshot` does not
+          # exist locally and `--force-with-lease` would fall back to its
+          # "empty lease" semantics (i.e. unconditionally force-push).
+          # Fetch the remote tip first so the lease has a real base to
+          # compare against; tolerate the branch not yet existing.
+          git fetch origin "+refs/heads/bot/live-news-snapshot:refs/remotes/origin/bot/live-news-snapshot" 2>/dev/null || true
+          git push --force-with-lease=refs/heads/bot/live-news-snapshot origin "HEAD:refs/heads/bot/live-news-snapshot"

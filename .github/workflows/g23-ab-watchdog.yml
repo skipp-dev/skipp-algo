@@ -23,6 +23,10 @@ on:
 permissions:
   contents: write
   issues: write
+  # Required for `gh pr create` / `gh pr merge --auto` below: when GH_PAT
+  # is unset and GH_TOKEN falls back to github.token, the API call needs
+  # this scope to open the PR. Without it the PR step would 403.
+  pull-requests: write
 
 concurrency:
   group: g23-ab-watchdog
@@ -86,7 +90,15 @@ jobs:
             docs/ab/g23_status.md
           if-no-files-found: warn
 
-      - name: Commit refreshed status
+      - name: Commit refreshed status via PR
+        # F-V5-F1 / F-V3-11..15 (2026-05-01): the repo's `main-governance`
+        # ruleset blocks bare pushes to main (GH013). Push to a fresh
+        # `bot/*` branch (allowed) and open an auto-merge PR so changes
+        # actually land. GH_PAT is required (not GITHUB_TOKEN) so the PR
+        # triggers the required fast-gates check; falls back to the default
+        # token in forks/dry-runs where GH_PAT is empty.
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
@@ -94,13 +106,21 @@ jobs:
           git add docs/ab/g23_status.md docs/ab/g23_history.jsonl || true
           if git diff --staged --quiet; then
             echo "No changes to commit."
-          else
-            git commit -m "chore(docs): g23 watchdog status ${GITHUB_RUN_ID}"
-            # Bare push to main is blocked by the repository ruleset (GH013);
-            # downgrade to a warning so the workflow stays green. A separate
-            # audit finding tracks the auto-PR migration for this workflow.
-            git push 2>&1 || echo "::warning::git push to main rejected (likely GH013 ruleset); commit captured locally only"
+            exit 0
           fi
+          BRANCH="bot/g23-watchdog-${GITHUB_RUN_ID}"
+          git checkout -b "$BRANCH"
+          git commit -m "chore(docs): g23 watchdog status ${GITHUB_RUN_ID}"
+          git push -u origin "$BRANCH"
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --label automated \
+            --title "chore(docs): g23 watchdog status ${GITHUB_RUN_ID}" \
+            --body "Automated §G2/§G3 A/B watchdog status update from run ${GITHUB_RUN_ID}." 2>pr_err.log \
+            || { rc=$?; if grep -qi 'already exists' pr_err.log; then echo "PR already exists for ${BRANCH}"; else cat pr_err.log; exit $rc; fi; }
+          gh pr merge "$BRANCH" --auto --squash --delete-branch 2>merge_err.log \
+            || { rc=$?; if grep -qiE 'already (merged|closed)|cannot be merged' merge_err.log; then echo "auto-merge already armed or completed for ${BRANCH}"; else cat merge_err.log; exit $rc; fi; }
 
       - name: Open issue on §G2 rollback signal
         if: steps.watchdog.outputs.exit_code == '2'
