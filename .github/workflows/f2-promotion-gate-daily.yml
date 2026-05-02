@@ -74,10 +74,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # F-V8-B3.1 (2026-05-02): migrated to ./.github/actions/setup-python-pinned
+      # composite. NOTE: this is a behavior change — previously this workflow
+      # pinned 3.13 explicitly while ci.yml + 17 other workflows ran on 3.12.
+      # The composite hardcodes 3.12 (matches ci.yml baseline; minimises blast
+      # radius across the 28-workflow Phase 2 sweep). If the F2 promotion gate
+      # genuinely requires a 3.13-only library feature, revert this hunk and
+      # add a workflow-specific override (or extend the composite with an
+      # `override-version:` input). No 3.13-only feature was identified during
+      # plan-review.
       - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
+        uses: ./.github/actions/setup-python-pinned
 
       - name: Install dependencies
         # F-V8-B1.1 (2026-05-02): requirements.txt MUST come before `pip install -e .`

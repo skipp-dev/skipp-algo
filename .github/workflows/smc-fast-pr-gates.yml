@@ -49,9 +49,7 @@ jobs:
 
       - name: Set up Python
         if: steps.gate.outputs.run_heavy == 'true'
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
+        uses: ./.github/actions/setup-python-pinned
 
       - name: Install uv
         if: steps.gate.outputs.run_heavy == 'true'
