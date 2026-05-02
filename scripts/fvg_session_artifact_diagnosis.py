@@ -24,10 +24,9 @@ from __future__ import annotations
 import argparse
 import json
 from collections import Counter, defaultdict
-from datetime import datetime, UTC
-from pathlib import Path
 from collections.abc import Iterable
-
+from datetime import UTC, datetime
+from pathlib import Path
 
 DEFAULT_ROOT = Path("artifacts/ci/measurement_benchmark_2026-04-22_partial50_v3")
 
