@@ -79,6 +79,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  PYTHONUNBUFFERED: "1"  # F-V5-A2 (2026-05-01)
   PYTHONPATH: ${{ github.workspace }}
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   REFRESH_DATE: ""   # set dynamically in the date step
