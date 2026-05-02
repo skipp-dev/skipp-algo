@@ -1,0 +1,61 @@
+# Bug-Hunt SMC v3 Phase 1 — Architecture Coherence
+# import-linter contract for layer-boundary enforcement.
+#
+# Rationale: smc_core is the foundational SMC engine; nothing in
+# smc_core may pull from higher-level orchestration (open_prep,
+# automation, dashboards, terminals, scripts) or sibling consumers
+# (smc_integration). Same for smc_adapters and smc_tv_bridge.
+#
+# Run via:  .venv/bin/python -m importlinter --config .importlinter
+
+[importlinter]
+root_packages =
+    smc_core
+    smc_integration
+    smc_adapters
+    smc_tv_bridge
+    open_prep
+    newsstack_fmp
+    ml
+    rl
+    dashboard
+    scripts
+
+[importlinter:contract:smc-core-isolation]
+name = smc_core must not depend on higher layers or terminals
+type = forbidden
+source_modules =
+    smc_core
+forbidden_modules =
+    smc_integration
+    smc_adapters
+    smc_tv_bridge
+    open_prep
+    newsstack_fmp
+    dashboard
+    scripts
+    ml
+    rl
+
+[importlinter:contract:smc-adapters-isolation]
+name = smc_adapters must not depend on smc_integration / open_prep / scripts
+type = forbidden
+source_modules =
+    smc_adapters
+forbidden_modules =
+    smc_integration
+    open_prep
+    scripts
+    ml
+    rl
+
+[importlinter:contract:newsstack-isolation]
+name = newsstack_fmp must not depend on open_prep or smc_integration
+type = forbidden
+source_modules =
+    newsstack_fmp
+forbidden_modules =
+    open_prep
+    smc_integration
+    scripts
+    dashboard

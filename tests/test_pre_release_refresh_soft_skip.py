@@ -205,3 +205,91 @@ def test_soft_skip_does_not_swallow_other_failure_classes(
     assert report["runner"]["soft_skipped"] is False
     codes = {failure.get("code") for failure in report["failures"]}
     assert "REFRESH_MANIFEST_ERRORS" in codes
+
+
+def test_soft_skip_classifies_missing_prefixed_manifest_errors(
+    script_module: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """REFRESH_MANIFEST_ERRORS soft-skips ONLY when every detail.code starts MISSING_.
+
+    F-V8-followup PR #2026 round-2 (Copilot review). Genuine refresh bugs
+    such as ``BUILD_SYMBOL_ARTIFACT_FAILED`` arrive via the same
+    ``REFRESH_MANIFEST_ERRORS`` envelope and must NOT be soft-skipped;
+    only manifests whose every detail uses the canonical ``MISSING_*``
+    prefix may be classified as missing-input.
+    """
+    _patch_resolution_to_empty(script_module, monkeypatch, tmp_path)
+
+    def _return_manifest_missing_only(**_kwargs: object) -> dict:
+        return {
+            "errors": [
+                {"code": "MISSING_STRUCTURE_INPUTS", "message": "no bundle"},
+                {"code": "MISSING_REFERENCE_ARTIFACT", "message": "no rs"},
+            ],
+            "counts": {"symbols_requested": 1, "artifacts_written": 0},
+        }
+
+    monkeypatch.setattr(
+        script_module,
+        "write_structure_artifacts_from_workbook",
+        _return_manifest_missing_only,
+    )
+
+    out = tmp_path / "report.json"
+    rc = _run_main(
+        script_module,
+        monkeypatch,
+        extra_argv=["--soft-skip-on-missing-inputs"],
+        output_path=out,
+    )
+
+    assert rc == 78, (
+        "manifest with only MISSING_-prefixed details must classify as "
+        "missing-input and soft-skip"
+    )
+    report = _read_report(out)
+    assert report["overall_status"] == "skipped"
+    assert report["runner"]["soft_skipped"] is True
+
+
+def test_soft_skip_rejects_mixed_missing_and_genuine_manifest_errors(
+    script_module: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A single non-MISSING detail in the manifest blocks soft-skip."""
+    _patch_resolution_to_empty(script_module, monkeypatch, tmp_path)
+
+    def _return_manifest_mixed(**_kwargs: object) -> dict:
+        return {
+            "errors": [
+                {"code": "MISSING_STRUCTURE_INPUTS", "message": "no bundle"},
+                {"code": "BUILD_SYMBOL_ARTIFACT_FAILED", "message": "real bug"},
+            ],
+            "counts": {"symbols_requested": 1, "artifacts_written": 0},
+        }
+
+    monkeypatch.setattr(
+        script_module,
+        "write_structure_artifacts_from_workbook",
+        _return_manifest_mixed,
+    )
+
+    out = tmp_path / "report.json"
+    rc = _run_main(
+        script_module,
+        monkeypatch,
+        extra_argv=["--soft-skip-on-missing-inputs"],
+        output_path=out,
+    )
+
+    assert rc == 1, (
+        "any non-MISSING_ detail in REFRESH_MANIFEST_ERRORS must surface "
+        "as rc=1 — genuine refresh bugs must not be hidden"
+    )
+    report = _read_report(out)
+    assert report["overall_status"] == "fail"
+    assert report["runner"]["soft_skipped"] is False
+

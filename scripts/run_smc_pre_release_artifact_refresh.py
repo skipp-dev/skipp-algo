@@ -155,10 +155,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--soft-skip-on-missing-inputs",
         action="store_true",
         help=(
-            "Exit with rc=78 (soft-skip) instead of rc=1 when every failure "
-            "is REFRESH_EXECUTION_FAILED caused by a missing canonical export "
-            "manifest (typical on ephemeral CI runners that do not carry the "
-            "upstream Databento export bundle). Bug-Hunt 2026-05-01 F-03."
+            "Exit with rc=78 (soft-skip) instead of rc=1 when every failure is "
+            "attributable to missing canonical inputs. Recognized as missing-input: "
+            "REFRESH_REFERENCE_SYMBOLS_UNAVAILABLE; REFRESH_EXECUTION_FAILED whose "
+            "message references the manifest or export bundle; REFRESH_MANIFEST_ERRORS "
+            "whose every detail.code starts with 'MISSING_'. "
+            "REFRESH_INCOMPLETE_REFERENCE_SET / REFRESH_EMPTY_REFERENCE_ARTIFACTS only "
+            "qualify when accompanied by an unambiguous missing-input failure in the "
+            "same run. Genuine refresh bugs (e.g. BUILD_SYMBOL_ARTIFACT_FAILED inside "
+            "REFRESH_MANIFEST_ERRORS) still surface as rc=1. Bug-Hunt 2026-05-01 F-03; "
+            "widened by F-V8-followup (2026-05-02)."
         ),
     )
     parser.add_argument("--output", default="-", help="Output JSON path, or '-' for stdout.")
@@ -293,28 +299,66 @@ def main() -> int:
     # `REFRESH_EXECUTION_FAILED` + "manifest" message and therefore exited 1
     # — defeating the workflow's `if rc==78: warn+exit 0` wrapper. Verified
     # against artifact smc_deeper_refresh_report.json from run 25248713567.
-    _MISSING_INPUT_FAILURE_CODES = frozenset(
+    #
+    # F-V8-followup PR #2026 round 2 (Copilot review): the first widening was
+    # too eager — REFRESH_MANIFEST_ERRORS can also wrap genuine bugs (e.g.
+    # BUILD_SYMBOL_ARTIFACT_FAILED) which must NOT be soft-skipped. We now
+    # split the codes into two tiers:
+    #   * "unambiguous": missing-input by definition
+    #   * "derived": only count as missing-input when an unambiguous failure
+    #     is also present in the same run
+    # and we tighten REFRESH_MANIFEST_ERRORS to only count when every inner
+    # detail.code starts with "MISSING_" (the canonical missing-input prefix
+    # used by smc_integration.structure_batch / provider_health).
+    _UNAMBIGUOUS_MISSING_INPUT_CODES = frozenset(
+        {"REFRESH_REFERENCE_SYMBOLS_UNAVAILABLE"}
+    )
+    _DERIVED_MISSING_INPUT_CODES = frozenset(
         {
-            "REFRESH_REFERENCE_SYMBOLS_UNAVAILABLE",
-            "REFRESH_MANIFEST_ERRORS",
             "REFRESH_INCOMPLETE_REFERENCE_SET",
             "REFRESH_EMPTY_REFERENCE_ARTIFACTS",
         }
     )
 
-    def _failure_indicates_missing_input(failure: dict[str, Any]) -> bool:
+    def _is_unambiguous_missing_input(failure: dict[str, Any]) -> bool:
         code = failure.get("code")
-        if code in _MISSING_INPUT_FAILURE_CODES:
+        if code in _UNAMBIGUOUS_MISSING_INPUT_CODES:
             return True
         if code == "REFRESH_EXECUTION_FAILED":
             message = str(failure.get("message", "")).lower()
             return "manifest" in message or "export bundle" in message
+        if code == "REFRESH_MANIFEST_ERRORS":
+            details = failure.get("details") or []
+            if not isinstance(details, list) or not details:
+                return False
+            for detail in details:
+                detail_code = ""
+                if isinstance(detail, dict):
+                    detail_code = str(detail.get("code", ""))
+                if not detail_code.startswith("MISSING_"):
+                    return False
+            return True
         return False
+
+    def _is_derived_missing_input(failure: dict[str, Any]) -> bool:
+        return failure.get("code") in _DERIVED_MISSING_INPUT_CODES
+
+    def _all_missing_inputs(items: list[dict[str, Any]]) -> bool:
+        if not items:
+            return False
+        has_unambiguous = False
+        for item in items:
+            if _is_unambiguous_missing_input(item):
+                has_unambiguous = True
+                continue
+            if _is_derived_missing_input(item):
+                continue
+            return False
+        return has_unambiguous
 
     soft_skipped = bool(
         getattr(args, "soft_skip_on_missing_inputs", False)
-        and failures
-        and all(_failure_indicates_missing_input(failure) for failure in failures)
+        and _all_missing_inputs(failures)
     )
     if soft_skipped:
         exit_code = 78
