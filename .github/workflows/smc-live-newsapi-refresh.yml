@@ -130,4 +130,4 @@ jobs:
           # Fetch the remote tip first so the lease has a real base to
           # compare against; tolerate the branch not yet existing.
           git fetch origin "+refs/heads/bot/live-news-snapshot:refs/remotes/origin/bot/live-news-snapshot" 2>/dev/null || true
-          git push --force-with-lease=refs/heads/bot/live-news-snapshot origin "HEAD:refs/heads/bot/live-news-snapshot"
+          git push --force-with-lease=refs/heads/bot/live-news-snapshot origin "HEAD:refs/heads/bot/live-news-snapshot" || echo "::warning::live-news snapshot push failed (will retry next cron tick)"
