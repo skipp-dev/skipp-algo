@@ -70,7 +70,7 @@ def generate() -> dict:
     - Other lean blocks are accepted as-is (hand-maintained fixtures with
       no broad source block in the fixture).
     """
-    with open(FIXTURE) as f:
+    with open(FIXTURE, encoding="utf-8") as f:
         enr = json.load(f)
 
     from scripts.smc_event_risk_light import build_event_risk_light
@@ -148,12 +148,28 @@ def generate_manifest(summary: dict, artifacts: list[str]) -> dict:
         "artifacts": artifacts,
     }
 
+# F-V6-A1.1 (2026-05-02): bootstrap root logging so the logger.info(...)
+# progress messages this entry point emits actually surface in CI logs
+# (default WARNING-only handler would drop them). Extends F-V5-A1-2 / #2012
+# from the priority entry-point set to plan_2_8 aggregators + showcase.
+try:
+    from scripts._logging_init import init_cli_logging
+except ImportError:  # script-style invocation: `python scripts/X.py`
+    import sys as _v6a11_sys
+    from pathlib import Path as _v6a11_Path
+
+    _v6a11_sys.path.insert(0, str(_v6a11_Path(__file__).resolve().parents[1]))
+    from scripts._logging_init import init_cli_logging  # type: ignore[no-redef]
+
+
+
 
 def main() -> None:
+    init_cli_logging()  # F-V6-A1.1 (2026-05-02)
     summary = generate()
 
     # Read fixture for Pine surface generation
-    with open(FIXTURE) as f:
+    with open(FIXTURE, encoding="utf-8") as f:
         enr = json.load(f)
 
     pine_surface = generate_pine_surface(enr)
