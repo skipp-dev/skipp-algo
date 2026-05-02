@@ -57,6 +57,16 @@ on:
     - cron: "0 19 * * 1-5"   # 19:00 UTC – late session (was 18:30)
   workflow_dispatch:
 
+# F-V8-C3.1-D (2026-05-02): serialize consumer runs per ref. Mirrors the
+# producer guard (smc-databento-production-export) so a slow handoff
+# cannot be raced by the next 2-hour cron tick. cancel-in-progress=false
+# because the consumer commits artifacts and opens PRs — killing it
+# mid-run would leave a half-written artifact tree on the runner and a
+# zombie PR branch on origin. The follow-on tick queues instead.
+concurrency:
+  group: smc-library-refresh-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
   pull-requests: write
