@@ -1,3 +1,4 @@
+# live-window: off-hours-only  # F-V6-F2.1 (2026-05-02)
 # ---------------------------------------------------------------------------
 # smc-databento-production-export
 #
@@ -42,10 +43,14 @@ name: smc-databento-production-export
 
 on:
   schedule:
-    - cron: "0 12 * * 1-5"   # 12:00 UTC – 30 min ahead of library-refresh 12:30 tick
-    - cron: "0 14 * * 1-5"   # 14:00 UTC – 30 min ahead of library-refresh 14:30 tick
-    - cron: "0 16 * * 1-5"   # 16:00 UTC – 30 min ahead of library-refresh 16:30 tick
-    - cron: "0 18 * * 1-5"   # 18:00 UTC – 30 min ahead of library-refresh 18:30 tick
+    # F-V6-C3 (2026-05-02): handoff headroom 30 → 60 min. Consumer
+    # (smc-library-refresh) was respaced from HH:30 → HH+1:00 so a producer
+    # run can use its full 60-min budget (see PR #2018) without ever feeding
+    # the consumer a stale or partial export.
+    - cron: "0 12 * * 1-5"   # 12:00 UTC – 60 min ahead of library-refresh 13:00 tick
+    - cron: "0 14 * * 1-5"   # 14:00 UTC – 60 min ahead of library-refresh 15:00 tick
+    - cron: "0 16 * * 1-5"   # 16:00 UTC – 60 min ahead of library-refresh 17:00 tick
+    - cron: "0 18 * * 1-5"   # 18:00 UTC – 60 min ahead of library-refresh 19:00 tick
   workflow_dispatch:
     inputs:
       lookback_days:
@@ -57,19 +62,50 @@ on:
         required: false
         default: "false"
 
+# F-V8-C3.1-D (2026-05-02): serialize producer runs per ref so a slow
+# export (now permitted up to 120 min via PR #2027) cannot be raced by
+# the next 2-hour cron tick. cancel-in-progress=false because killing a
+# half-finished export would leave the consumer (smc-library-refresh)
+# reading a stale or partial artifact at its next handoff window. The
+# follow-on tick queues instead and runs once the in-flight job exits.
+concurrency:
+  group: smc-databento-production-export-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
+# F-V5-C2 (2026-05-01): cron-triggered producer export — queue overlapping
+# runs instead of killing them. A 90-minute Databento bundle build that gets
+# cancelled at minute 80 by the next cron tick wastes both time and quota; the
+# downstream library-refresh consumer expects a complete artifact.
+concurrency:
+  group: smc-databento-production-export
+  cancel-in-progress: false
+
 env:
+  PYTHONUNBUFFERED: "1"  # F-V5-A2 (2026-05-01)
   PYTHONPATH: ${{ github.workspace }}
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   EXPORT_DIR: artifacts/smc_microstructure_exports
-  PRODUCER_RUNNER_LABEL: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-m' }}
+  PRODUCER_RUNNER_LABEL: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
+  # F-V6-A2 (2026-05-02): force unbuffered Python stdout so progress logs surface
+  # in CI in near-real-time rather than after a buffer flush at process exit.
+  PYTHONUNBUFFERED: "1"
 
 jobs:
   export:
-    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-m' }}
-    timeout-minutes: 90
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
+    # F-V8-C3.1 (2026-05-02): bumped 60→120 after 12 consecutive runs were
+    # killed by the 60-min cap with runtimes 62–75 min (no successful run for
+    # days). The intent of the F-V6-C3 tight cap was protecting the consumer
+    # from stale data, but a producer that *never* finishes provides no data
+    # at all — a strictly worse failure mode. 120 = 2h cron interval, matched
+    # by the consumer cap, so back-to-back runs still cannot overlap. Once
+    # the new A1.x logging (F-V8-A1.1) reveals which step dominates the
+    # 60+min runtime, a follow-up PR will tighten this again with a real
+    # script-side or pip-cache fix. Pin test enforces producer ≤ consumer.
+    timeout-minutes: 120
 
     steps:
       - name: Set export date
@@ -90,9 +126,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
+        uses: ./.github/actions/setup-python-pinned
 
       - name: Install Python dependencies
         run: |

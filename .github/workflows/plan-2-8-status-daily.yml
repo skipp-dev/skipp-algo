@@ -1,3 +1,4 @@
+# live-window: off-hours-only  # F-V6-F2.1 (2026-05-02)
 name: plan-2.8 status daily
 
 # Daily heartbeat for the Plan 2.8 rollout. Walks the Phase 0-3
@@ -13,12 +14,22 @@ on:
 permissions:
   contents: read
 
+# F-V5-C2 (2026-05-01): cron-triggered heartbeat — queue overlapping runs so a
+# manual dispatch cannot cancel the daily anchor sweep mid-flight.
+concurrency:
+  group: plan-2-8-status-daily
+  cancel-in-progress: false
+
 env:
+  PYTHONUNBUFFERED: "1"  # F-V5-A2 (2026-05-01)
   PYTHONPATH: ${{ github.workspace }}
+  # F-V6-A2 (2026-05-02): force unbuffered Python stdout so progress logs surface
+  # in CI in near-real-time rather than after a buffer flush at process exit.
+  PYTHONUNBUFFERED: "1"
 
 jobs:
   status:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
     timeout-minutes: 5
     steps:
       - name: Checkout

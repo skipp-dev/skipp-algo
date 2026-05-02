@@ -35,6 +35,19 @@ Schema (additive only; bump the consumer when fields are removed)::
 
 from __future__ import annotations
 
+# F-V5-A1-2 / F-CI-O1 (2026-05-01): bootstrap root logging so the
+# logger.info(...) progress messages this entry point emits actually
+# surface in CI logs (default WARNING-only handler would drop them).
+try:
+    from scripts._logging_init import init_cli_logging
+except ImportError:  # script-style invocation: `python scripts/X.py`
+    import sys as _v5a12_sys
+    from pathlib import Path as _v5a12_Path
+
+    _v5a12_sys.path.insert(0, str(_v5a12_Path(__file__).resolve().parents[1]))
+    from scripts._logging_init import init_cli_logging  # type: ignore[no-redef]
+
+
 import argparse
 import json
 import math
@@ -497,6 +510,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    init_cli_logging()  # F-V5-A1-2 (2026-05-01)
     args = _build_arg_parser().parse_args(argv)
     report = compute_live_drift(
         live_jsonl=args.live_jsonl,
