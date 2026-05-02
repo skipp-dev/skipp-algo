@@ -100,11 +100,6 @@ env:
   REFRESH_DATE: ""   # set dynamically in the date step
   SMC_REFRESH_RUNNER_LABEL: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
   SMC_INCREMENTAL_BASE_SEED_CACHE_VERSION: v1
-  # F-V6-A2 (2026-05-02): force unbuffered Python stdout so progress logs surface
-  # in CI in near-real-time rather than after a buffer flush at process exit.
-  PYTHONUNBUFFERED: "1"
-
-  PYTHONUNBUFFERED: "1"  # F-V4-A2: surface partial logs on runner eviction
 jobs:
   refresh:
     # F-V4-J3: when triggered by workflow_run, only proceed if producer

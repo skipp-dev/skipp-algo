@@ -27,7 +27,6 @@ permissions:
   issues: write
 
 env:
-<<<<<<< HEAD
   # F-V6-A2 (2026-05-02): force unbuffered Python stdout so progress logs surface
   # in CI in near-real-time rather than after a buffer flush at process exit.
   PYTHONUNBUFFERED: "1"
@@ -38,9 +37,6 @@ env:
 concurrency:
   group: drift-watchdog
   cancel-in-progress: false
-=======
-  PYTHONUNBUFFERED: "1"  # F-V4-A2: surface partial logs on runner eviction
->>>>>>> 5a8f232a (fix(ci): F-V4-A2 add PYTHONUNBUFFERED to all 27 remaining workflows)
 
 jobs:
   drift-watchdog:
