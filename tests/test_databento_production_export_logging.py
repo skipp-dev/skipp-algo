@@ -24,9 +24,14 @@ def test_databento_production_export_main_configures_logging() -> None:
     assert main_marker in src, "scripts/databento_production_export.py: no def main"
     main_body = src.split(main_marker, 1)[1].split("\ndef ", 1)[0]
 
-    assert "basicConfig" in main_body or "dictConfig" in main_body, (
-        "scripts/databento_production_export.py::main lacks logging.basicConfig "
-        "(or logging.config.dictConfig). Without root-logger configuration, "
-        "logger.info/_progress calls are dropped silently in CI. "
-        "Regression of F-V5-A1 / F-CI-O1."
+    assert (
+        "basicConfig" in main_body
+        or "dictConfig" in main_body
+        or "init_cli_logging" in main_body
+    ), (
+        "scripts/databento_production_export.py::main lacks logging bootstrap "
+        "(logging.basicConfig, logging.config.dictConfig, or the shared "
+        "scripts._logging_init.init_cli_logging helper). Without root-logger "
+        "configuration, logger.info/_progress calls are dropped silently in CI. "
+        "Regression of F-V5-A1 / F-CI-O1 (helper variant: F-V8-A1.1, 2026-05-02)."
     )
