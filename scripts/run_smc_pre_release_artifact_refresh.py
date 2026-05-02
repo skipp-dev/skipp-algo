@@ -283,19 +283,38 @@ def main() -> int:
 
     checked_at = float(time.time())
 
-    # F-03 (Bug-Hunt 2026-05-01): allow callers (e.g. the
-    # smc-deeper-integration-gates workflow on an ephemeral runner that
-    # does not carry the canonical Databento export bundle) to opt into
-    # a soft-skip exit when the only reason every per-timeframe refresh
-    # failed is a missing export manifest.
+    # F-V8-followup (2026-05-02): on a smc-deeper-integration-gates runner
+    # without the canonical Databento export bundle the per-timeframe refresh
+    # never reaches the `REFRESH_EXECUTION_FAILED` exception path; instead
+    # `write_structure_artifacts_from_workbook` returns a manifest containing
+    # `errors=[…]` and `counts.artifacts_written < counts.symbols_requested`,
+    # which produces `REFRESH_MANIFEST_ERRORS` + `REFRESH_INCOMPLETE_REFERENCE_SET`
+    # failures. The previous narrow predicate only soft-skipped on the older
+    # `REFRESH_EXECUTION_FAILED` + "manifest" message and therefore exited 1
+    # — defeating the workflow's `if rc==78: warn+exit 0` wrapper. Verified
+    # against artifact smc_deeper_refresh_report.json from run 25248713567.
+    _MISSING_INPUT_FAILURE_CODES = frozenset(
+        {
+            "REFRESH_REFERENCE_SYMBOLS_UNAVAILABLE",
+            "REFRESH_MANIFEST_ERRORS",
+            "REFRESH_INCOMPLETE_REFERENCE_SET",
+            "REFRESH_EMPTY_REFERENCE_ARTIFACTS",
+        }
+    )
+
+    def _failure_indicates_missing_input(failure: dict[str, Any]) -> bool:
+        code = failure.get("code")
+        if code in _MISSING_INPUT_FAILURE_CODES:
+            return True
+        if code == "REFRESH_EXECUTION_FAILED":
+            message = str(failure.get("message", "")).lower()
+            return "manifest" in message or "export bundle" in message
+        return False
+
     soft_skipped = bool(
         getattr(args, "soft_skip_on_missing_inputs", False)
         and failures
-        and all(
-            failure.get("code") == "REFRESH_EXECUTION_FAILED"
-            and "manifest" in str(failure.get("message", "")).lower()
-            for failure in failures
-        )
+        and all(_failure_indicates_missing_input(failure) for failure in failures)
     )
     if soft_skipped:
         exit_code = 78
