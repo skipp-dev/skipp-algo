@@ -65,11 +65,16 @@ def _direct_get_range_call_lines(source: str, filename: str) -> list[int]:
     """
     try:
         tree = ast.parse(source, filename=filename)
-    except SyntaxError:
-        # If a top-level production file cannot be parsed, that's a bigger
-        # problem than this guard cares about — fail loudly via empty result
-        # so the test surfaces the real syntax error elsewhere.
-        return []
+    except SyntaxError as exc:
+        # Re-raise with filename context so the guard can never be silently
+        # bypassed by an unparseable production file. Returning an empty
+        # list here would let unwrapped get_range() callers slip through
+        # whenever a syntax error existed elsewhere in the same module.
+        raise AssertionError(
+            f"Cannot AST-parse {filename} for direct-get_range scan; "
+            f"fix the syntax error before re-running this guard. "
+            f"Original error: {exc}"
+        ) from exc
 
     hits: list[int] = []
     for node in ast.walk(tree):
