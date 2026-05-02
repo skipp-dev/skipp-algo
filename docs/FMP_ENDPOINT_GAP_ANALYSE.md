@@ -410,3 +410,23 @@ Erst wenn die FMP-Abdeckung ausgeschöpft ist, lohnt sich der Aufwand für:
 - **Finnhub** (WebSocket für Real-Time, alternative News)
 - **Twelve Data** (breitere Technische Indikatoren, Crypto)
 - **Polygon** (Tick-Level-Daten, Options Flow)
+
+---
+
+## Update 2026-04-30: Retired FMP Paths (v3 audit)
+
+Folgende FMP-Pfade wurden als Teil des v3-Provider-Audits entfernt und
+sind nicht mehr Bestandteil der aktiven Codebase. Sie sollen **nicht**
+ohne neuen RFC reaktiviert werden:
+
+| Path | Removed in PR | Grund |
+|------|---------------|-------|
+| `fetch_fear_and_greed_*` (FMP) | #1962 (v3 P-6) | Dead code — kein Production-Konsument; Indikator wird durch andere Macro-Surfaces (UW Market-Tide) abgedeckt. |
+| FMP `short-interest` enrichment | #1964 (v3 P-2) | Monitor wechselte auf Unusual Whales fuer Flow-Kontext; FMP-Short-Interest-Pfad war redundant. |
+
+**Zugewinn-Pfade in derselben Audit-Welle:**
+
+- FMP `insider-trading-*` (`get_insider_trading_latest`,
+  `get_insider_trading_statistics`) sind weiterhin aktiv und werden nach
+  v3 P-3c (#1966) als Primaerquelle fuer Insider-Sentiment im Open-Prep
+  Monitor verwendet (parallel zu Unusual Whales bulk Form-4).
