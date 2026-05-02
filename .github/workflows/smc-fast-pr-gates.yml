@@ -15,11 +15,13 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  PYTHONUNBUFFERED: "1"  # F-V5-A2 (2026-05-01)
   PYTHONPATH: ${{ github.workspace }}
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   # F-V6-A2 (2026-05-02): force unbuffered Python stdout so progress logs surface
   # in CI in near-real-time rather than after a buffer flush at process exit.
+  # (F-V5-A2 originally introduced this on 2026-05-01; F-V6-A2 expanded the
+  # comment but kept the same key — the duplicate from a prior rebase merge
+  # made GitHub Actions reject this workflow as invalid YAML.)
   PYTHONUNBUFFERED: "1"
 
 jobs:
