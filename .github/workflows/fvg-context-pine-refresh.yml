@@ -58,6 +58,10 @@ jobs:
           python -m scripts.emit_fvg_context_pine
 
       - name: Upload artifacts
+        # F-V4-D2 (2026-05-01): default `if: success()` is intentional — this
+        # artifact is a published Pine snippet; uploading a partial/failed
+        # generation would mislead downstream consumers. Audited by
+        # tests/test_workflow_upload_artifact_unguarded_inventory.py.
         uses: actions/upload-artifact@v7
         with:
           name: fvg-context-pine

@@ -85,6 +85,9 @@ jobs:
           echo "release_gate=$DEC" >> "$GITHUB_OUTPUT"
 
       - name: Upload release-gate artifact
+        # F-V4-D2 (2026-05-01): always() so a failed gate run still leaves the
+        # partial release_gate.json/.md behind for postmortem inspection.
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: fvg-quality-release-gate
