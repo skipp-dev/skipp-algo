@@ -1,5 +1,12 @@
 """Audit guard: workflows must not paper over a `git push` to a protected
-branch with `|| echo "::warning::..."` or similar success-faking patterns.
+branch with the literal `git push ... || echo ...` success-faking pattern.
+
+Scope is intentionally narrow: this guard targets the *specific* anti-
+pattern where a rejected push (typically GH013 against the `main`-branch
+ruleset) is downgraded to an `echo "::warning::..."` and the step exits 0,
+leaving the workflow falsely green. Other masking patterns on `git push`
+(e.g. `|| true`, `|| printf`, generic `|| <cmd>`) are out of scope here
+and are covered by adjacent guards / code-review checklists.
 
 Repository's `main-governance` ruleset blocks bare pushes to `main` (GH013).
 Workflows that need to land file changes MUST either:

@@ -12,6 +12,10 @@ on:
 
 permissions:
   contents: write
+  # Required for `gh pr create` / `gh pr merge --auto` below: when GH_PAT
+  # is unset and GH_TOKEN falls back to github.token, the API call needs
+  # this scope to open the PR. Without it the PR step would 403.
+  pull-requests: write
 
 concurrency:
   group: public-calibration-dashboard
@@ -88,5 +92,7 @@ jobs:
             --head "$BRANCH" \
             --label automated \
             --title "chore(docs): public calibration report ${GITHUB_RUN_ID}" \
-            --body "Automated public calibration dashboard refresh from run ${GITHUB_RUN_ID}." || true
-          gh pr merge "$BRANCH" --auto --squash --delete-branch || true
+            --body "Automated public calibration dashboard refresh from run ${GITHUB_RUN_ID}." 2>pr_err.log \
+            || { rc=$?; if grep -qi 'already exists' pr_err.log; then echo "PR already exists for ${BRANCH}"; else cat pr_err.log; exit $rc; fi; }
+          gh pr merge "$BRANCH" --auto --squash --delete-branch 2>merge_err.log \
+            || { rc=$?; if grep -qiE 'already (merged|closed)|cannot be merged' merge_err.log; then echo "auto-merge already armed or completed for ${BRANCH}"; else cat merge_err.log; exit $rc; fi; }

@@ -115,4 +115,11 @@ jobs:
           # Force-update the dedicated snapshot branch (allowed by ruleset
           # since `bot/*` is excluded). --force-with-lease guards against
           # accidental overwrite of someone else's manual fix-up commit.
-          git push --force-with-lease origin "HEAD:refs/heads/bot/live-news-snapshot"
+          # actions/checkout fetches a shallow ref by default, so the
+          # remote-tracking branch for `bot/live-news-snapshot` does not
+          # exist locally and `--force-with-lease` would fall back to its
+          # "empty lease" semantics (i.e. unconditionally force-push).
+          # Fetch the remote tip first so the lease has a real base to
+          # compare against; tolerate the branch not yet existing.
+          git fetch origin "+refs/heads/bot/live-news-snapshot:refs/remotes/origin/bot/live-news-snapshot" 2>/dev/null || true
+          git push --force-with-lease=refs/heads/bot/live-news-snapshot origin "HEAD:refs/heads/bot/live-news-snapshot"
