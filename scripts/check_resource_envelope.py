@@ -229,7 +229,7 @@ def main() -> int:
     _v4a1b_logging.basicConfig(
         level=_v4a1b_logging.INFO,
         format="%(asctime)sZ %(levelname)s %(name)s %(message)s",
-        stream=_v4a1b_sys.stdout,
+        stream=_v4a1b_sys.stderr,
         force=True,
     )
     _v4a1b_logging.Formatter.converter = _v4a1b_time.gmtime
