@@ -42,7 +42,12 @@ _PUSH_RE = re.compile(r"\bgit\s+push\b")
 
 
 def _iter_workflow_files() -> list[Path]:
-    return sorted(p for p in WORKFLOWS_DIR.glob("*.yml") if p.is_file())
+    # F1 (audit 2026-05-02): also match `.yaml` so future renames don't silently bypass this guard.
+    return sorted(
+        p
+        for p in (set(WORKFLOWS_DIR.glob("*.yml")) | set(WORKFLOWS_DIR.glob("*.yaml")))
+        if p.is_file()
+    )
 
 
 def _iter_run_blocks(wf_path: Path) -> list[tuple[str, str]]:

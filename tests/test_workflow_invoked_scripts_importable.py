@@ -52,7 +52,8 @@ def _discover_invocations() -> list[tuple[Path, str]]:
     pairs: list[tuple[Path, str]] = []
     if not WORKFLOW_DIR.is_dir():
         return pairs
-    for wf in sorted(WORKFLOW_DIR.glob("*.yml")):
+    # F1 (audit 2026-05-02): also match `.yaml` so future renames don't silently bypass this guard.
+    for wf in sorted(set(WORKFLOW_DIR.glob("*.yml")) | set(WORKFLOW_DIR.glob("*.yaml"))):
         text = wf.read_text(encoding="utf-8")
         for match in _DIRECT_INVOKE_RE.finditer(text):
             pairs.append((wf, match.group(1)))
