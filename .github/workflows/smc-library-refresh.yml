@@ -204,7 +204,9 @@ jobs:
             tests/test_smc_core_*.py
           )
           if [ ${#tests[@]} -eq 0 ]; then
-            echo "No gate tests matched." >&2
+            # F-V4-A4 (2026-05-01): empty-glob config error must surface as a
+            # ::error:: annotation, not stderr-only.
+            echo "::error::No gate tests matched the configured patterns."
             exit 1
           fi
           set +e

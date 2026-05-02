@@ -60,11 +60,14 @@ _ALLOWED: dict[str, frozenset[int]] = {
     # 172→179, 309→316, 424→431, 650→670, 793→813, 813→833.
     # F-V4-B4 (2026-05-02): bumped after upload-artifact@v4 → @v7 fleet migration:
     # 179→197, 316→339, 431→454, 670→693, 813→836, 833→856.
-    "smc-library-refresh.yml": frozenset({197, 339, 454, 693, 836, 856}),
+    # F-V4-A4 (2026-05-02): hygiene intent comments shifted 5 sites by +2:
+    # 339→341, 454→456, 693→695, 836→838, 856→858 (197 unchanged).
+    "smc-library-refresh.yml": frozenset({197, 341, 456, 695, 838, 858}),
     # Deeper integration gates: 2 advisory-only probes.
     # Rebaselined 2026-05-02 after PR #2028 composite migration: 69→73, 113→117 (+4 each).
     # F-V4-B4 (2026-05-02): 73→74, 117→118 (+1 each) after @v7 fleet bump.
-    "smc-deeper-integration-gates.yml": frozenset({74, 118}),
+    # F-V4-A4 (2026-05-02): 118 → 120 (+2) after hygiene intent comment.
+    "smc-deeper-integration-gates.yml": frozenset({74, 120}),
     # Weekly digest: 3 best-effort delivery hops.
     # Rebaselined 2026-05-02: 447→451, 664→668, 943→947 (+4 each).
     # F-V4-B4 (2026-05-02): 451→458, 668→675, 947→954 (+7 each) after @v7 fleet bump.
@@ -72,7 +75,8 @@ _ALLOWED: dict[str, frozenset[int]] = {
     # Release gates: 1 advisory metric collection hop.
     # Rebaselined 2026-05-02: 173→177 (+4).
     # F-V4-B4 (2026-05-02): 177 → 178 (+1) after @v7 fleet bump.
-    "smc-release-gates.yml": frozenset({178}),
+    # F-V4-A4 (2026-05-02): 178 → 179 (+1) after hygiene intent comment.
+    "smc-release-gates.yml": frozenset({179}),
     # Drift watchdog: red verdict is intentionally non-fatal so the follow-up
     # step can convert it into a GitHub issue (silent-fail by design — see C9/T4).
     # Line shifted 52 → 54 after adding CONTINUE-ON-ERROR-INTENTIONAL marker comment
