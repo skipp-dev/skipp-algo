@@ -27,6 +27,7 @@ env:
   # in CI in near-real-time rather than after a buffer flush at process exit.
   PYTHONUNBUFFERED: "1"
 
+  PYTHONUNBUFFERED: "1"  # F-V4-A2: surface partial logs on runner eviction
 jobs:
   emit-pine-snippet:
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}

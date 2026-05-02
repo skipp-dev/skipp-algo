@@ -104,6 +104,7 @@ env:
   # in CI in near-real-time rather than after a buffer flush at process exit.
   PYTHONUNBUFFERED: "1"
 
+  PYTHONUNBUFFERED: "1"  # F-V4-A2: surface partial logs on runner eviction
 jobs:
   refresh:
     # F-V4-J3: when triggered by workflow_run, only proceed if producer

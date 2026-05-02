@@ -24,6 +24,7 @@ env:
   # made GitHub Actions reject this workflow as invalid YAML.)
   PYTHONUNBUFFERED: "1"
 
+  PYTHONUNBUFFERED: "1"  # F-V4-A2: surface partial logs on runner eviction
 jobs:
   fast-gates:
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
