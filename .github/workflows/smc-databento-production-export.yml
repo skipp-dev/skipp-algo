@@ -75,6 +75,14 @@ concurrency:
 permissions:
   contents: read
 
+# F-V5-C2 (2026-05-01): cron-triggered producer export — queue overlapping
+# runs instead of killing them. A 90-minute Databento bundle build that gets
+# cancelled at minute 80 by the next cron tick wastes both time and quota; the
+# downstream library-refresh consumer expects a complete artifact.
+concurrency:
+  group: smc-databento-production-export
+  cancel-in-progress: false
+
 env:
   PYTHONPATH: ${{ github.workspace }}
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"

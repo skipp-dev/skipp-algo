@@ -71,6 +71,13 @@ permissions:
   contents: write
   pull-requests: write
 
+# F-V5-C2 (2026-05-01): cron-triggered refresh that opens a PR — queue
+# overlapping runs instead of killing them so a half-pushed branch / partially
+# created PR is never left behind.
+concurrency:
+  group: smc-library-refresh
+  cancel-in-progress: false
+
 env:
   PYTHONPATH: ${{ github.workspace }}
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
