@@ -53,7 +53,7 @@ _ALLOWED: dict[str, frozenset[int]] = {
     # tolerates a cold producer cache (M-1 marker present, advisory in name).
     # Lines 416/642/785/805 → 418/644/787/807 (+2 each) due to the marker comment
     # and renamed step name above.
-    "smc-library-refresh.yml": frozenset({166, 303, 418, 644, 787, 807}),
+    "smc-library-refresh.yml": frozenset({172, 309, 424, 650, 793, 813}),
     # Deeper integration gates: 2 advisory-only probes.
     "smc-deeper-integration-gates.yml": frozenset({69, 113}),  # rebaselined 2026-05-02 (was {55,99}; +14 line shift after header edit)
     # Weekly digest: 3 best-effort delivery hops.
@@ -75,7 +75,7 @@ _ALLOWED: dict[str, frozenset[int]] = {
     # because actions/cache rejects re-writes for an existing key (benign 409).
     # Surfaced by PR-D8 (Copilot review of PR #1939) — was previously invisible
     # to the inventory because of the trailing rationale comment on the same line.
-    "smc-databento-production-export.yml": frozenset({165}),
+    "smc-databento-production-export.yml": frozenset({169}),
 }
 
 

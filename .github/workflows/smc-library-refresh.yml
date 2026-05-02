@@ -1,7 +1,8 @@
 # live-window: mutating-on-cron  # F-V6-F2.1 (2026-05-02)
 # SMC Library Intraday Refresh (v5)
 #
-# Runs 4x per trading day at 12:30 / 14:30 / 16:30 / 18:30 UTC on weekdays.
+# Runs 4x per trading day at 13:00 / 15:00 / 17:00 / 19:00 UTC on weekdays
+# (respaced from 12:30/14:30/16:30/18:30 — see F-V6-C3, 2026-05-02).
 # Each run: generate → event-risk → gate → detect changes → diff report →
 #           governance → publish → commit → alerts.
 # Skips publish/version-bump/commit when the library content is unchanged.
@@ -45,10 +46,15 @@ name: smc-library-refresh
 
 on:
   schedule:
-    - cron: "30 12 * * 1-5"   # 12:30 UTC – pre-market
-    - cron: "30 14 * * 1-5"   # 14:30 UTC – market open
-    - cron: "30 16 * * 1-5"   # 16:30 UTC – midday
-    - cron: "30 18 * * 1-5"   # 18:30 UTC – late session
+    # F-V6-C3 (2026-05-02): respaced from HH:30 → HH+1:00. The 30-min
+    # handoff window was too tight for the producer
+    # (smc-databento-production-export) which can legitimately run up to
+    # 60 min (timeout cap, PR #2018). New 60-min headroom guarantees the
+    # consumer always reads the freshest export.
+    - cron: "0 13 * * 1-5"   # 13:00 UTC – pre-market   (was 12:30)
+    - cron: "0 15 * * 1-5"   # 15:00 UTC – market open  (was 14:30)
+    - cron: "0 17 * * 1-5"   # 17:00 UTC – midday       (was 16:30)
+    - cron: "0 19 * * 1-5"   # 19:00 UTC – late session (was 18:30)
   workflow_dispatch:
 
 permissions:

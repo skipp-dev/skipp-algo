@@ -43,10 +43,14 @@ name: smc-databento-production-export
 
 on:
   schedule:
-    - cron: "0 12 * * 1-5"   # 12:00 UTC – 30 min ahead of library-refresh 12:30 tick
-    - cron: "0 14 * * 1-5"   # 14:00 UTC – 30 min ahead of library-refresh 14:30 tick
-    - cron: "0 16 * * 1-5"   # 16:00 UTC – 30 min ahead of library-refresh 16:30 tick
-    - cron: "0 18 * * 1-5"   # 18:00 UTC – 30 min ahead of library-refresh 18:30 tick
+    # F-V6-C3 (2026-05-02): handoff headroom 30 → 60 min. Consumer
+    # (smc-library-refresh) was respaced from HH:30 → HH+1:00 so a producer
+    # run can use its full 60-min budget (see PR #2018) without ever feeding
+    # the consumer a stale or partial export.
+    - cron: "0 12 * * 1-5"   # 12:00 UTC – 60 min ahead of library-refresh 13:00 tick
+    - cron: "0 14 * * 1-5"   # 14:00 UTC – 60 min ahead of library-refresh 15:00 tick
+    - cron: "0 16 * * 1-5"   # 16:00 UTC – 60 min ahead of library-refresh 17:00 tick
+    - cron: "0 18 * * 1-5"   # 18:00 UTC – 60 min ahead of library-refresh 19:00 tick
   workflow_dispatch:
     inputs:
       lookback_days:
