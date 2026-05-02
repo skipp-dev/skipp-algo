@@ -47,7 +47,7 @@ env:
 
 jobs:
   backfill:
-    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-m' }}
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
     timeout-minutes: 20
     steps:
       - name: Checkout

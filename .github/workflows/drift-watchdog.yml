@@ -31,7 +31,7 @@ env:
 
 jobs:
   drift-watchdog:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
     timeout-minutes: 10
     env:
       LIVE_WINDOW_DAYS: ${{ github.event.inputs.live_window_days || '30' }}

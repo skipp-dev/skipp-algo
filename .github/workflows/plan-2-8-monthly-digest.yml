@@ -31,7 +31,7 @@ env:
 
 jobs:
   monthly-digest:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
     steps:
       - uses: actions/checkout@v4
 

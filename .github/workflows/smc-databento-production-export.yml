@@ -69,14 +69,14 @@ env:
   PYTHONPATH: ${{ github.workspace }}
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   EXPORT_DIR: artifacts/smc_microstructure_exports
-  PRODUCER_RUNNER_LABEL: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-m' }}
+  PRODUCER_RUNNER_LABEL: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
   # F-V6-A2 (2026-05-02): force unbuffered Python stdout so progress logs surface
   # in CI in near-real-time rather than after a buffer flush at process exit.
   PYTHONUNBUFFERED: "1"
 
 jobs:
   export:
-    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-m' }}
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
     # F-V6-C3 (2026-05-02): tightened 90→60. Downstream consumer
     # (smc-library-refresh) ticks 30 min after this producer, so any run
     # exceeding 30 min poisons the consumer with stale data. 60 is a

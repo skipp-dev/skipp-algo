@@ -6,6 +6,28 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-05-02) — F-V8-C3.1 PR C / runner-tier maximization (`ubuntu-latest-l` default)
+
+- Every workflow under `.github/workflows/` now uses the unified
+  expression `runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}`
+  for every job. Previously the repo was split 14 / 14 between literal
+  `ubuntu-latest` and `${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-m' }}`.
+  The new default lifts all 28 workflows from `-m` (4 vCPU / 16 GB,
+  eviction-prone, blamed for 12 consecutive Databento producer
+  timeouts) to `-l` (8 vCPU / 32 GB).
+- Operator escape hatch is unchanged: set
+  `vars.SMC_GH_HOSTED_RUNNER` in repo Settings → Variables to override
+  globally without touching code (e.g. roll back to `-m`, or test a
+  larger tier).
+- New pin test `tests/test_workflow_runner_pinned.py` (30 cases, one per
+  workflow plus two repo-wide invariants) prevents drift: no job may
+  use `ubuntu-latest` (literal) or `ubuntu-latest-m` (literal) again
+  without an explicit allowlist entry.
+- Composite-action constraint documented in the pin test docstring:
+  `runs-on:` is a job-level key and cannot be wrapped by a composite
+  action; the GitHub-Actions-native equivalent for a single source of
+  truth is the repo variable + literal fallback used here.
+
 ### Changed (2026-04-26) — pytest-xdist as local default + determinism regression fix
 
 - `pyproject.toml` `[tool.pytest.ini_options]` gains

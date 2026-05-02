@@ -65,7 +65,7 @@ env:
   PYTHONPATH: ${{ github.workspace }}
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   REFRESH_DATE: ""   # set dynamically in the date step
-  SMC_REFRESH_RUNNER_LABEL: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-m' }}
+  SMC_REFRESH_RUNNER_LABEL: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
   SMC_INCREMENTAL_BASE_SEED_CACHE_VERSION: v1
   # F-V6-A2 (2026-05-02): force unbuffered Python stdout so progress logs surface
   # in CI in near-real-time rather than after a buffer flush at process exit.
@@ -73,7 +73,7 @@ env:
 
 jobs:
   refresh:
-    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-m' }}
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
     # F-V6-C4 (2026-05-02): tightened 120→90. Cron repeats every 2h, so 90
     # surfaces hung runs ~30 min before the next tick instead of letting a
     # zombie run overlap. Pin test asserts producer (smc-databento-
