@@ -301,7 +301,17 @@ def _build_feed_request_params(
         ("lang", "eng"),
         ("isDuplicateFilter", "skipDuplicates"),
         ("dataType", "news"),
+        # Explicit include-flags (F-V4-NEWSAPI-INCLUDES, 2026-05-01):
+        # avoid relying on the API's default response shape and pull the
+        # zero-cost enrichment fields we're already paying for.
         ("includeArticleTitle", "true"),
+        ("includeArticleBody", "true"),
+        ("includeArticleSentiment", "true"),
+        ("includeArticleSocialScore", "true"),
+        ("includeArticleConcepts", "true"),
+        ("includeArticleCategories", "true"),
+        ("includeArticleImage", "true"),
+        ("includeArticleSourceInfo", "true"),
     ]
     after_uri = str(article_feed_after_uri or "").strip()
     if after_uri:
@@ -400,6 +410,13 @@ def fetch_newsapi_feed_article_probe(
                         "date": _article_published_value(item),
                         "source": _article_source_name(item),
                         "tickers": matched_symbols,
+                        # F-V4-NEWSAPI-INCLUDES (2026-05-01): surface
+                        # enrichment fields requested via includeArticle*.
+                        "sentiment": item.get("sentiment"),
+                        "social_score": item.get("socialScore"),
+                        "concepts": item.get("concepts"),
+                        "categories": item.get("categories"),
+                        "image": item.get("image") or item.get("imageUrl"),
                         "newsapi_fetch_mode": "feed_articles",
                     }
                 )
@@ -512,7 +529,18 @@ def fetch_newsapi_article_records(
                 ("dateEnd", end_date.isoformat()),
                 ("isDuplicateFilter", "skipDuplicates"),
                 ("dataType", "news"),
+                # Explicit include-flags (F-V4-NEWSAPI-INCLUDES, 2026-05-01):
+                # mirror the feed endpoint so search + stream return the
+                # same enrichment fields (sentiment, social score, concepts,
+                # categories, image, source info).
                 ("includeArticleTitle", "true"),
+                ("includeArticleBody", "true"),
+                ("includeArticleSentiment", "true"),
+                ("includeArticleSocialScore", "true"),
+                ("includeArticleConcepts", "true"),
+                ("includeArticleCategories", "true"),
+                ("includeArticleImage", "true"),
+                ("includeArticleSourceInfo", "true"),
             ]
             params.extend(("keyword", keyword) for keyword in keyword_chunk)
 
@@ -541,6 +569,13 @@ def fetch_newsapi_article_records(
                         "date": _article_published_value(item),
                         "source": _article_source_name(item),
                         "tickers": matched_symbols,
+                        # F-V4-NEWSAPI-INCLUDES (2026-05-01): surface
+                        # enrichment fields requested via includeArticle*.
+                        "sentiment": item.get("sentiment"),
+                        "social_score": item.get("socialScore"),
+                        "concepts": item.get("concepts"),
+                        "categories": item.get("categories"),
+                        "image": item.get("image") or item.get("imageUrl"),
                         "newsapi_fetch_mode": "search_articles",
                     }
                 )
@@ -615,10 +650,19 @@ def fetch_newsapi_event_records(
                 ("lang", "eng"),
                 ("dateStart", start_date.isoformat()),
                 ("dateEnd", end_date.isoformat()),
+                # Explicit include-flags (F-V4-NEWSAPI-INCLUDES, 2026-05-01):
+                # surface concepts, categories, location, stories, and the
+                # social score so event clusters carry the same context the
+                # underlying articles do.
                 ("includeEventTitle", "true"),
                 ("includeEventSummary", "true"),
                 ("includeEventDate", "true"),
                 ("includeEventArticleCounts", "true"),
+                ("includeEventConcepts", "true"),
+                ("includeEventCategories", "true"),
+                ("includeEventLocation", "true"),
+                ("includeEventStories", "true"),
+                ("includeEventSocialScore", "true"),
             ]
             params.extend(("keyword", keyword) for keyword in keyword_chunk)
 
@@ -658,6 +702,14 @@ def fetch_newsapi_event_records(
                         "tickers": matched_symbols,
                         "kind": "event",
                         "event_article_count": _event_article_count(item),
+                        # F-V4-NEWSAPI-INCLUDES (2026-05-01): surface
+                        # enrichment fields requested via includeEvent*.
+                        "sentiment": item.get("sentiment"),
+                        "social_score": item.get("socialScore"),
+                        "concepts": item.get("concepts"),
+                        "categories": item.get("categories"),
+                        "location": item.get("location"),
+                        "stories": item.get("stories"),
                         "newsapi_fetch_mode": "search_events",
                     }
                 )

@@ -6,6 +6,82 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-05-02) — F-V8-C3.1 PR C / runner-tier maximization (`ubuntu-latest-l` default)
+
+- Every workflow under `.github/workflows/` now uses the unified
+  expression `runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}`
+  for every job. Previously the repo was split 14 / 14 between literal
+  `ubuntu-latest` and `${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-m' }}`.
+  The new default lifts all 28 workflows from `-m` (4 vCPU / 16 GB,
+  eviction-prone, blamed for 12 consecutive Databento producer
+  timeouts) to `-l` (8 vCPU / 32 GB).
+- Operator escape hatch is unchanged: set
+  `vars.SMC_GH_HOSTED_RUNNER` in repo Settings → Variables to override
+  globally without touching code (e.g. roll back to `-m`, or test a
+  larger tier).
+- New pin test `tests/test_workflow_runner_pinned.py` (30 cases, one per
+  workflow plus two repo-wide invariants) prevents drift: no job may
+  use `ubuntu-latest` (literal) or `ubuntu-latest-m` (literal) again
+  without an explicit allowlist entry.
+- Composite-action constraint documented in the pin test docstring:
+  `runs-on:` is a job-level key and cannot be wrapped by a composite
+  action; the GitHub-Actions-native equivalent for a single source of
+  truth is the repo variable + literal fallback used here.
+
+### Docs (2026-05-01) — V4 audit deferred-followups batch summary (#1991–#1996)
+
+Roll-up entry for the six independent PRs that closed out the SMC Review
+V4 Proactive CI/Pipeline Robustness Audit deferred-followups queue
+(after Steps 1–8 + 7b shipped as #1982–#1990). Each PR carries its own
+`F-V4-<class> (2026-05-01)` markers, defense ledger (where applicable),
+and rollback notes:
+
+- **#1991 — F-V4-PATHIO-DRIFT** (`fix(tests)`): bumped
+  `tests/test_path_text_io_encoding_ledger.py` for
+  `run_smc_e2e_smoke_test.py` ({53,97,133}→{56,100,136}) and added
+  `scripts/phase5_perf_trend.py` ({163}). Drift-only ledger refresh.
+- **#1992 — F-V4-D2** (`fix(ci)`): `actions/upload-artifact`
+  failure-resilience audit. 4/831 unguarded sites: 2 hardened with
+  `if: always()` (`fvg-quality-quartile-gate.yml`, `g23-ab-watchdog.yml`
+  — diagnostic artifacts must survive failed runs); 2 documented with
+  intent comments as intentional `success()`
+  (`fvg-context-pine-refresh.yml`, `public-calibration-dashboard.yml` —
+  publish artifacts where partial output would mislead). New defense
+  ledger `tests/test_workflow_upload_artifact_unguarded_inventory.py`
+  with frozen `ALLOWED_UNGUARDED` allow-list.
+- **#1993 — F-V4-F3** (`fix(ci)`): workflow permissions defense ledger.
+  Audit found zero workflows missing `permissions:` and zero using
+  `write-all`. New defense test
+  `tests/test_workflow_permissions_present.py` (parametrised over every
+  workflow + global `write-all` check) prevents regression.
+- **#1994 — F-V4-H2** (`fix(ci)`): pinned all 14 `runs-on: ubuntu-latest`
+  sites to `ubuntu-24.04` (current `-latest` target → zero behaviour
+  change today, but locks runner-image upgrades to change-control). New
+  defense ledger `tests/test_workflow_runner_pinned.py` forbids floating
+  `-latest` runner aliases anywhere.
+- **#1995 — J3-FOLLOWUP** (`docs(ci)`): cron→`workflow_run` conversion
+  candidate map at
+  `docs/ci-proposals/j3-followup-cron-workflow-run-2026-05-01.md`.
+  Analysis-only — documents the cascade map (8 candidate workflows
+  across 4 chains), risk-orders conversions, provides `workflow_run`
+  template + caveats (default-branch firing, missing inputs, head_sha
+  vs main checkout, weekday filters). Recommends per-workflow follow-up
+  PRs starting with `g23-ab-watchdog ← public-calibration-dashboard`.
+- **#1996 — F-V4-E1** (`refactor(databento)`): routed
+  `terminal_databento._fetch_chunk` through the canonical
+  `_databento_get_range_with_retry` helper from `databento_client`
+  (transient TLS / RemoteDisconnected / 5xx retry semantics for daily
+  bars). New defense ledger `tests/test_databento_safe_fetch_callers.py`
+  with frozen `ALLOWED_DIRECT_CALLERS` allow-list (`databento_client.py`
+  + `databento_volatility_screener.py`, the latter having a parallel
+  helper — consolidation tracked separately).
+
+Bundled drift bumps (pre-existing main drift folded into the relevant
+PRs): `tests/test_workflow_continue_on_error_inventory.py` for
+`smc-deeper-integration-gates.yml` ({55,99}→{69,113}) in PRs #1992 and
+#1994; `tests/test_global_statement_budget.py` for
+`terminal_databento.py` (124→130, 308→314) in PR #1996.
+
 ### Changed (2026-04-26) — pytest-xdist as local default + determinism regression fix
 
 - `pyproject.toml` `[tool.pytest.ini_options]` gains

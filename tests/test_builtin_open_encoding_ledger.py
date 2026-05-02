@@ -40,7 +40,6 @@ _DIR_EXCLUDE = {
 _FROZEN_SITES: dict[str, frozenset[int]] = {
     "scripts/count_main_locals.py": frozenset({4}),
     "scripts/fvg_quality_d4_audit.py": frozenset({34}),
-    "scripts/generate_showcase_summary.py": frozenset({73, 156}),
     "scripts/ib_client_id.py": frozenset({125, 188}),
 }
 _FROZEN_TOTAL = sum(len(v) for v in _FROZEN_SITES.values())

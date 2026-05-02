@@ -42,8 +42,24 @@ def render_markdown(report: dict[str, Any]) -> str:
         f"- writable_fraction: {report['writable_fraction']}\n"
     )
 
+# F-V6-A1.1 (2026-05-02): bootstrap root logging so the logger.info(...)
+# progress messages this entry point emits actually surface in CI logs
+# (default WARNING-only handler would drop them). Extends F-V5-A1-2 / #2012
+# from the priority entry-point set to plan_2_8 aggregators + showcase.
+try:
+    from scripts._logging_init import init_cli_logging
+except ImportError:  # script-style invocation: `python scripts/X.py`
+    import sys as _v6a11_sys
+    from pathlib import Path as _v6a11_Path
+
+    _v6a11_sys.path.insert(0, str(_v6a11_Path(__file__).resolve().parents[1]))
+    from scripts._logging_init import init_cli_logging  # type: ignore[no-redef]
+
+
+
 
 def main(argv: list[str] | None = None) -> int:
+    init_cli_logging()  # F-V6-A1.1 (2026-05-02)
     parser = argparse.ArgumentParser(description="Writable fraction.")
     parser.add_argument("--artifact-dir", type=Path, required=True)
     parser.add_argument("--format", choices=("md", "json"), default="md")
