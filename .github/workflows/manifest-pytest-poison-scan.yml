@@ -1,3 +1,4 @@
+# live-window: any-trigger  # F-V6-F2.1 (2026-05-02)
 name: manifest-pytest-poison-scan
 
 on:
@@ -13,12 +14,16 @@ permissions:
   contents: read
 
 env:
+  PYTHONUNBUFFERED: "1"  # F-V5-A2 (2026-05-01)
   PYTHONPATH: ${{ github.workspace }}
+  # F-V6-A2 (2026-05-02): force unbuffered Python stdout so progress logs surface
+  # in CI in near-real-time rather than after a buffer flush at process exit.
+  PYTHONUNBUFFERED: "1"
 
 jobs:
   scan:
     name: scan tracked manifests for pytest provenance
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
