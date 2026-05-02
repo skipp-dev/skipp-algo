@@ -57,8 +57,14 @@ def test_composite_action_exists_and_pins_one_python_version() -> None:
         f"(found {len(setup_python_steps)})"
     )
     pinned_version = setup_python_steps[0].get("with", {}).get("python-version")
-    assert isinstance(pinned_version, str) and pinned_version.strip(), (
-        "Composite must hardcode a non-empty python-version literal"
+    # Copilot review on PR #2028: a non-empty assertion is too weak — it would
+    # accept "${{ inputs.python-version }}", an env reference, or any random
+    # string. Pin to the exact literal "3.12" (the canonical project version)
+    # so a regression to a passthrough or a typo (e.g. "3.21") fails CI.
+    assert pinned_version == "3.12", (
+        "Composite must hardcode python-version: \"3.12\" (got "
+        f"{pinned_version!r}). The whole point of F-V8-B3.1 is a single "
+        "literal source of truth; a passthrough or env reference defeats that."
     )
 
 
