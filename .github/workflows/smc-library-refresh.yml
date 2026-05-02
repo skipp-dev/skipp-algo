@@ -74,12 +74,12 @@ env:
 jobs:
   refresh:
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
-    # F-V6-C4 (2026-05-02): tightened 120→90. Cron repeats every 2h, so 90
-    # surfaces hung runs ~30 min before the next tick instead of letting a
-    # zombie run overlap. Pin test asserts producer (smc-databento-
-    # production-export) timeout ≤ this value so producer can never out-run
-    # the consumer's own budget.
-    timeout-minutes: 90
+    # F-V8-C3.1 (2026-05-02): bumped 90→120 in lockstep with the producer
+    # (smc-databento-production-export). Pin test enforces producer ≤
+    # consumer, so the two move together. 120 = exactly the 2h cron
+    # interval — back-to-back runs touch but cannot overlap (anything >120
+    # would let a zombie run collide with the next tick).
+    timeout-minutes: 120
 
     steps:
       # ── Metadata ────────────────────────────────────────────────
