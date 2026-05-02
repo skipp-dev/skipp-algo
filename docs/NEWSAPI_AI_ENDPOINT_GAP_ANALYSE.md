@@ -31,9 +31,9 @@ und priorisiert die Integration.
 
 | # | Funktion | Endpoint | Modus |
 | --- | --- | --- | --- |
-| 1 | `fetch_newsapi_records` | `article/getArticles` | Historische Suche (Lookback ≤ 2 Tage, max. 50 Artikel/Request, dedup) |
-| 2 | `fetch_newsapi_event_records` | `event/getEvents` | Event-Cluster (Lookback ≤ 2 Tage, max. 50 Events/Request) |
-| 3 | `fetch_newsapi_feed` | `minuteStreamArticles` | Live-Cursor-Feed (URI- oder Timestamp-Cursor in `newsapi_ai.last_seen_*`) |
+| 1 | `fetch_newsapi_records` / `fetch_newsapi_articles` (article/getArticles) | `article/getArticles` | Historische Suche (Lookback `NEWSAPI_AI_LOOKBACK_DAYS`, default 2 Tage; max. `articles_per_request=MAX_ARTICLES_PER_REQUEST=100` Artikel/Request, dedup) |
+| 2 | `fetch_newsapi_event_records` | `event/getEvents` | Event-Cluster (Lookback `NEWSAPI_AI_LOOKBACK_DAYS`, default 2 Tage; max. 50 Events/Request) |
+| 3 | `fetch_newsapi_feed_article_records` | `minuteStreamArticles` | Live-Cursor-Feed (URI- oder Timestamp-Cursor in `newsapi_ai.last_seen_*`) |
 
 ### Aktuelle Request-Form
 
@@ -49,9 +49,16 @@ und priorisiert die Integration.
 
 - `newsstack_fmp/pipeline.py` — symbol-scoped Fetch + Cursor-Persistierung
 - `newsstack_fmp/normalize.py` — `NewsItem.raw` enthält das vollständige Payload, neue Felder fließen automatisch durch
-- `terminal_tabs/_shared.py` — Event-Clustered-News-Expander (einziger
-  verbleibender UI-Konsument; Breaking/Trending/Bitcoin-Tabs sind
-  decommissioned, vgl. `terminal_tabs/tab_*.py`)
+- `scripts/smc_live_news_bus.py` — Live-Bus-Konsument (ruft
+  `fetch_newsapi_feed_article_records` direkt auf, Cursor in
+  `newsapi_ai.last_seen_*` Snapshot)
+- `terminal_tabs/_shared.py` — Event-Clustered-News-Expander
+  (Stock-orientierter UI-Konsument)
+- `terminal_tabs/tab_bitcoin.py` + `streamlit_terminal.py` (`tab_bitcoin`,
+  ab ~L4430) — Bitcoin-Tab rendert weiterhin Live-Daten aus
+  `terminal_bitcoin` plus den NewsAPI.ai-Bitcoin-News-Block; nur die
+  separaten Breaking/Trending-Tabs sind decommissioned
+  (vgl. übrige `terminal_tabs/tab_*.py`).
 
 ---
 
@@ -81,8 +88,12 @@ Quelle: [eventregistry.org/documentation](https://eventregistry.org/documentatio
 | Top / Breaking Events | `event/getEvent`, `event/getEventArticles` | Drill-down auf Events, deren URI wir bereits speichern | klein |
 
 > **Hinweis:** Diese Quellen waren bis zur Tab-Decommission (Breaking,
-> Trending, Bitcoin) UI-seitig integriert. Re-Integration als
-> Catalyst-Signal in `terminal_catalyst_state.py` wäre direkt nutzbar.
+> Trending) UI-seitig integriert; der Bitcoin-Tab existiert weiterhin
+> (`terminal_tabs/tab_bitcoin.py` + `streamlit_terminal.py` ~L4430)
+> und konsumiert Live-Daten aus `terminal_bitcoin` plus den
+> NewsAPI.ai-Bitcoin-News-Block. Re-Integration der trending/breaking
+> Endpoints als Catalyst-Signal in `terminal_catalyst_state.py` wäre
+> direkt nutzbar.
 
 ### 2.3  Zeit-Aggregation & Heat-Maps (Phase 2)
 
@@ -127,11 +138,13 @@ Downstream-Auswertung in der Pipeline fehlt aber noch:
    `conceptUri` — höhere Recall/Precision ohne API-Pricing-Risiko.
 2. **`sourceRankPercentile`-Filter** als optionaler Pipeline-Param —
    eliminiert Long-Tail-Spam.
-3. **Trending Concepts** als neuer FetchMode in `smc_newsapi_ai.py` —
-   füttert `terminal_catalyst_state.py`.
 
 ### Phase 2 — Neue Endpoints / Features
 
+3. **Trending Concepts** als neuer FetchMode in `smc_newsapi_ai.py` —
+   füttert `terminal_catalyst_state.py`. (Verschoben aus Phase 1: nutzt
+   einen *neuen* Endpoint `trending/getTrendingConcepts`, kein reiner
+   Param-Switch wie 1–2.)
 4. **`event/getEventArticles`** Drill-down für gespeicherte Event-URIs.
 5. **`getArticleCountInTime`** als Volume-Sparkline-Datenquelle.
 6. **`recentActivityEvents`** Live-Event-Stream parallel zum
