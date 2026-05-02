@@ -13,8 +13,11 @@ Failure modes guarded:
   privilege-escalation footgun.
 
 Allow-list of acceptable shapes:
-  Top-level ``permissions:`` block followed by a non-empty mapping, OR
-  every job inside the workflow declares its own ``permissions:`` block.
+  Top-level ``permissions:`` followed by a mapping (possibly empty ``{}``
+  for the explicit "no scopes" declaration) or a string value
+  (``read-all`` is fine; ``write-all`` is rejected by
+  ``test_no_workflow_uses_write_all``), OR every job inside the
+  workflow declares its own ``permissions:`` block.
 """
 
 from __future__ import annotations
