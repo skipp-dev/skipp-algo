@@ -158,13 +158,28 @@ jobs:
           DATABENTO_DATASET: ${{ vars.DATABENTO_DATASET }}
           LOOKBACK_DAYS: ${{ inputs.lookback_days || '30' }}
           FORCE_REFRESH_FLAG: ${{ inputs.force_refresh == 'true' && '--force-refresh' || '' }}
+          PYTHONUNBUFFERED: "1"
         run: |
           set -euo pipefail
-          mkdir -p "${EXPORT_DIR}"
-          python scripts/databento_production_export.py \
+          mkdir -p "${EXPORT_DIR}" artifacts/ci
+          # Tee stdout+stderr so the partial log survives runner shutdown
+          # signals (ubuntu-latest-m has been getting evicted ~63 min into
+          # silent runs — we lost all observability before this fix).
+          # Run Python in unbuffered mode (`-u` / `PYTHONUNBUFFERED=1`) so
+          # log lines flush promptly while `tee` preserves the combined stream.
+          python -u scripts/databento_production_export.py \
             --lookback-days "${LOOKBACK_DAYS}" \
             --export-dir "${EXPORT_DIR}" \
-            ${FORCE_REFRESH_FLAG}
+            ${FORCE_REFRESH_FLAG} 2>&1 | tee artifacts/ci/databento_production_export_stdout.log
+
+      - name: Upload export stdout log (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smc-databento-production-export-stdout-${{ env.EXPORT_DATE }}-${{ github.run_id }}
+          path: artifacts/ci/databento_production_export_stdout.log
+          retention-days: 14
+          if-no-files-found: warn
 
       - name: Verify canonical manifest was produced
         run: |
