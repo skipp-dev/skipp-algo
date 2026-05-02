@@ -80,6 +80,11 @@ concurrency:
 permissions:
   contents: write
   pull-requests: write
+  # Required by dawidd6/action-download-artifact below: it calls the
+  # GitHub Actions REST API to enumerate the producer workflow's runs
+  # and download the resolved artifact. Without this, the cross-workflow
+  # pull silently fails with 403 and verify_export_bundle then blocks.
+  actions: read
 
 # F-V5-C2 (2026-05-01): cron-triggered refresh that opens a PR — queue
 # overlapping runs instead of killing them so a half-pushed branch / partially
