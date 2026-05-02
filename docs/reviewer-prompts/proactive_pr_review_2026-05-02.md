@@ -19,8 +19,11 @@
    says "1 line changed" — rebases combining `--ours` with env blocks,
    import lists, or list-typed YAML keys are the #1 source of silent
    regressions.
-3. Output a table per PR with: file, line, class (from §3 below),
-   severity (BLOCKER / FACTUAL / COSMETIC), suggested patch.
+3. Output a table per PR with: file, line, **class** (one of BLOCKER /
+   FACTUAL / DEFENSIVE / CODE / COSMETIC / META — the §-tag in brackets
+   indicates which §1–§7 rule fired), severity (BLOCKER blocks merge;
+   FACTUAL/DEFENSIVE/CODE require a follow-up commit before merge;
+   COSMETIC/META can ship as a follow-up PR), and a suggested patch.
 4. If anything in §1 (CI structural) hits, treat as BLOCKER and stop —
    the workflow will silently disappear from required-checks and
    branch protection will lock the PR with no actionable error.
@@ -35,7 +38,7 @@ For every changed `.github/workflows/*.yml` and
 1. **Duplicate YAML keys after rebase.** Pipe the file through
    `python3 -c "import sys,yaml; yaml.safe_load(open(sys.argv[1]))"`
    AND through `yamllint -d "{rules: {key-duplicates: enable}}"`. The
-   stdlib loader silently last-wins; GitHub Actions REJECTS the file
+   PyYAML loader silently last-wins; GitHub Actions REJECTS the file
    and the workflow vanishes from the checks rollup with no error
    surfaced in the PR UI. Specifically check `env:`, `permissions:`,
    `defaults:`, `jobs.<id>.env:`, `concurrency:`.
