@@ -30,8 +30,12 @@ from __future__ import annotations
 import textwrap
 from pathlib import Path
 
+import pytest
 
-def test_collect_pine_mp_refs_ignores_comment_only_references(tmp_path: Path) -> None:
+
+def test_collect_pine_mp_refs_ignores_comment_only_references(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from tests.test_library_field_audit import _collect_pine_mp_refs
 
     fixture = tmp_path / "fake.pine"
@@ -50,12 +54,8 @@ def test_collect_pine_mp_refs_ignores_comment_only_references(tmp_path: Path) ->
 
     import tests.test_library_field_audit as audit_mod
 
-    original_dir = audit_mod._PINE_DIR
-    try:
-        audit_mod._PINE_DIR = tmp_path
-        refs = _collect_pine_mp_refs()
-    finally:
-        audit_mod._PINE_DIR = original_dir
+    monkeypatch.setattr(audit_mod, "_PINE_DIR", tmp_path)
+    refs = _collect_pine_mp_refs()
 
     assert "fake.pine" in refs, "fixture file was not collected"
     found = refs["fake.pine"]
