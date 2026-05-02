@@ -71,7 +71,7 @@ _ALLOWED: dict[str, frozenset[int]] = {
     # Weekly digest: 3 best-effort delivery hops.
     # Rebaselined 2026-05-02: 447→451, 664→668, 943→947 (+4 each).
     # F-V4-B4 (2026-05-02): 451→458, 668→675, 947→954 (+7 each) after @v7 fleet bump.
-    "plan-2-8-weekly-digest.yml": frozenset({458, 675, 954}),
+    "plan-2-8-weekly-digest.yml": frozenset({460, 677, 956}),
     # Release gates: 1 advisory metric collection hop.
     # Rebaselined 2026-05-02: 173→177 (+4).
     # F-V4-B4 (2026-05-02): 177 → 178 (+1) after @v7 fleet bump.
@@ -83,7 +83,8 @@ _ALLOWED: dict[str, frozenset[int]] = {
     # (PR #333 Copilot review on c13-daily-cron — marker discipline test).
     # Rebaselined 2026-05-02: 54→60 (+6).
     # F-V4-B4 (2026-05-02): 60 → 67 (+7) after @v7 fleet bump.
-    "drift-watchdog.yml": frozenset({67}),
+    # F-V3-12 (PR #1982, 2026-05-02): +2 from new live-window header comment → 67 → 69.
+    "drift-watchdog.yml": frozenset({69}),
     # C13 daily-cron: 4 best-effort steps so partial failures still upload
     # artefacts and let the issue-opener step report exactly which step
     # failed; soft-skip rc=78 paths are also gated through these.
@@ -91,14 +92,17 @@ _ALLOWED: dict[str, frozenset[int]] = {
     # index gate into Step 1's run block (PR #333 follow-up).
     # Rebaselined 2026-05-02 after PR #2028 composite migration:
     # 90→95, 119→124, 134→139, 158→163, 175→180, 202→207 (+5 each).
-    "c13-daily-cron.yml": frozenset({95, 124, 139, 163, 180, 207}),
+    # F-V3-15 (PR #1982, 2026-05-02): added Step 1b backfill-progress
+    # advisory + 2-line header comment → existing 6 entries shift +2 (Step 1)
+    # and +32 (Steps 2–5b after step1b's 30-line block); new Step 1b at 133.
+    "c13-daily-cron.yml": frozenset({97, 133, 156, 171, 195, 212, 239}),
     # Producer cache: second save under the date-only canonical key is best-effort
     # because actions/cache rejects re-writes for an existing key (benign 409).
     # Surfaced by PR-D8 (Copilot review of PR #1939) — was previously invisible
     # to the inventory because of the trailing rationale comment on the same line.
     # Rebaselined 2026-05-02 after PR #2028 composite migration: 169→177 (+8).
     # F-V4-B4 (2026-05-02): 177 → 199 (+22) after @v7 fleet bump.
-    "smc-databento-production-export.yml": frozenset({199}),
+    "smc-databento-production-export.yml": frozenset({214}),
 }
 
 
