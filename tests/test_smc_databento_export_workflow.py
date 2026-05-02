@@ -203,10 +203,17 @@ def test_producer_schedule_runs_before_library_refresh():
 
     # The job-level `if:` must gate on conclusion=='success' so that
     # producer failures do not cascade into stale-data publishes.
+    # Strict equality check: a substring match would accept truthy
+    # noise like "!= 'success'", "succeeded()", or chained boolean
+    # expressions whose effective gate isn't on success.
     refresh_if = (consumer.get("jobs", {}).get("refresh", {}) or {}).get("if", "")
-    assert "workflow_run.conclusion" in refresh_if and "success" in refresh_if, (
-        f"Consumer jobs.refresh.if must gate workflow_run on conclusion=='success'; "
-        f"got: {refresh_if!r}"
+    refresh_if_norm = " ".join(str(refresh_if).split())
+    assert (
+        "github.event.workflow_run.conclusion == 'success'" in refresh_if_norm
+        or 'github.event.workflow_run.conclusion == "success"' in refresh_if_norm
+    ), (
+        f"Consumer jobs.refresh.if must gate workflow_run on "
+        f"conclusion == 'success' (exact equality); got: {refresh_if!r}"
     )
 
 
