@@ -144,6 +144,77 @@ def test_pre_release_refresh_fails_when_reference_set_is_incomplete(monkeypatch,
     assert any(item.get("code") in {"REFRESH_MANIFEST_ERRORS", "REFRESH_INCOMPLETE_REFERENCE_SET"} for item in captured_reports[-1]["failures"])
 
 
+def test_pre_release_refresh_soft_skips_on_manifest_errors_when_inputs_missing(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """F-V8-followup (2026-05-02): widen soft-skip predicate.
+
+    When `--soft-skip-on-missing-inputs` is set and every failure is a
+    missing-input failure (REFRESH_MANIFEST_ERRORS /
+    REFRESH_INCOMPLETE_REFERENCE_SET in this scenario), the script must
+    return exit code 78 so the smc-deeper-integration-gates workflow can
+    promote the failure into a `::warning::` instead of a hard failure.
+
+    Regression for run 25248713567 where the predicate previously only
+    matched `REFRESH_EXECUTION_FAILED + "manifest"` and therefore exited
+    1 even with `--soft-skip-on-missing-inputs`.
+    """
+    captured_reports: list[dict] = []
+
+    monkeypatch.setattr(
+        refresh_script,
+        "build_parser",
+        lambda: _Parser(
+            Namespace(
+                symbols="IBG,AAPL",
+                timeframes="15m",
+                structure_artifacts_dir=str(tmp_path / "reports" / "smc_structure_artifacts"),
+                workbook_path="",
+                export_bundle_root="",
+                structure_profile="hybrid_default",
+                allow_missing_inputs=False,
+                warn_on_empty_artifacts=False,
+                soft_skip_on_missing_inputs=True,
+                output="-",
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        refresh_script,
+        "resolve_structure_artifact_inputs",
+        lambda **kwargs: {
+            "workbook_path": None,
+            "export_bundle_root": None,
+            "structure_artifacts_dir": tmp_path / "reports" / "smc_structure_artifacts",
+            "resolution_mode": "missing",
+            "warnings": [],
+            "errors": [{"code": "WORKBOOK_NOT_FOUND"}],
+        },
+    )
+    monkeypatch.setattr(
+        refresh_script,
+        "write_structure_artifacts_from_workbook",
+        lambda **kwargs: {
+            "counts": {
+                "symbols_requested": 2,
+                "artifacts_written": 1,
+                "errors": 1,
+            },
+            "errors": [{"code": "MISSING_STRUCTURE_INPUTS"}],
+            "warnings": [],
+            "timeframe": kwargs["timeframe"],
+        },
+    )
+    monkeypatch.setattr(
+        refresh_script, "_render", lambda report, output: captured_reports.append(report)
+    )
+
+    rc = refresh_script.main()
+
+    assert rc == 78, "soft-skip should yield exit 78 (skipped) when only missing-input failures present"
+    assert captured_reports[-1]["overall_status"] == "skipped"
+
+
 def test_pre_release_refresh_fails_when_artifacts_are_structurally_empty(monkeypatch, tmp_path: Path) -> None:
     captured_reports: list[dict] = []
 

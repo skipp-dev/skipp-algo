@@ -126,6 +126,11 @@ def test_fetch_newsapi_article_records_preserve_metadata() -> None:
             "date": "2026-04-08T10:15:00Z",
             "source": "Reuters",
             "tickers": ["AAPL"],
+            "sentiment": None,
+            "social_score": None,
+            "concepts": None,
+            "categories": None,
+            "image": None,
             "newsapi_fetch_mode": "search_articles",
         }
     ]
@@ -289,6 +294,12 @@ def test_fetch_newsapi_event_records_preserve_metadata() -> None:
             "tickers": ["AAPL"],
             "kind": "event",
             "event_article_count": 14,
+            "sentiment": None,
+            "social_score": None,
+            "concepts": None,
+            "categories": None,
+            "location": None,
+            "stories": None,
             "newsapi_fetch_mode": "search_events",
         }
     ]

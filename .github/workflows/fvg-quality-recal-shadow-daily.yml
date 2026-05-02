@@ -1,3 +1,4 @@
+# live-window: off-hours-only  # F-V6-F2.1 (2026-05-02)
 name: fvg-quality-recal-shadow-daily
 
 # Plan §D4 — daily *shadow* FVG-quality recalibration.
@@ -52,11 +53,15 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  PYTHONUNBUFFERED: "1"  # F-V5-A2 (2026-05-01)
   PYTHONPATH: ${{ github.workspace }}
+  # F-V6-A2 (2026-05-02): force unbuffered Python stdout so progress logs surface
+  # in CI in near-real-time rather than after a buffer flush at process exit.
+  PYTHONUNBUFFERED: "1"
 
 jobs:
   recalibrate-shadow:
-    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-m' }}
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
     timeout-minutes: 20
     steps:
       - name: Checkout
