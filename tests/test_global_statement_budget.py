@@ -40,7 +40,11 @@ _DIR_EXCLUDE = frozenset(
         "node_modules",
         "artifacts",
         "docs",
-        "scripts",
+        # Note: ``scripts/`` is intentionally **NOT** excluded — V5 audit
+        # (F-V5-G1, 2026-05-01) found that excluding it had hidden a
+        # production regression in ``scripts/databento_production_export.py``.
+        # Test-suite helpers under ``tests/`` are still excluded since
+        # module-level fixtures legitimately use ``global`` for test setup.
         "tests",
         "SMC++",
     }
@@ -97,6 +101,14 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ),
         ("open_prep/regime.py", 129, ("_prev_regime",)),
         ("open_prep/regime.py", 156, ("_prev_regime",)),
+        # F-V5-G1 (2026-05-01): pre-existing site surfaced when ``scripts/``
+        # was added to the audit scope. TODO move to a class attribute or
+        # injected dependency in a follow-up PR.
+        (
+            "scripts/databento_production_export.py",
+            687,
+            ("_DEFAULT_BULLISH_QUALITY_CFG",),
+        ),
         ("smc_tv_bridge/smc_api.py", 184, ("_candle_provider",)),
         ("smc_tv_bridge/smc_api.py", 192, ("_regime_provider",)),
         ("smc_tv_bridge/smc_api.py", 200, ("_tech_provider",)),
