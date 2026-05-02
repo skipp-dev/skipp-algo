@@ -38,7 +38,7 @@ env:
 
 jobs:
   evaluate:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
     timeout-minutes: 5
     steps:
       - name: Checkout

@@ -22,7 +22,7 @@ env:
 jobs:
   scan:
     name: scan tracked manifests for pytest provenance
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

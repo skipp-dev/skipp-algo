@@ -32,7 +32,7 @@ env:
 
 jobs:
   check-readiness:
-    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-m' }}
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
