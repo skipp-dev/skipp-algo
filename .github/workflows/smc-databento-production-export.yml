@@ -69,7 +69,13 @@ env:
 jobs:
   export:
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-m' }}
-    timeout-minutes: 90
+    # F-V6-C3 (2026-05-02): tightened 90→60. Downstream consumer
+    # (smc-library-refresh) ticks 30 min after this producer, so any run
+    # exceeding 30 min poisons the consumer with stale data. 60 is a
+    # cautious first cut (caps overruns at 2× the consumer headroom and
+    # surfaces sustained slowdowns) without risking known historical
+    # 63-min outlier runs. Pin test asserts producer ≤ consumer timeout.
+    timeout-minutes: 60
 
     steps:
       - name: Set export date
