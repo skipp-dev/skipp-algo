@@ -318,6 +318,27 @@ def _summarise(
 
 
 def main(argv: list[str] | None = None) -> int:
+    # F-V4-A1b: configure root logging so logger.info / logging.* calls actually
+    # surface on stdout when this script is invoked from a GitHub Actions workflow.
+    # Without this, the pipeline runs silently and runner-side eviction or
+    # mid-pipeline errors are impossible to triage. Also flush eagerly so partial
+    # logs survive runner shutdown signals. Self-contained imports to avoid
+    # disturbing module-level import order.
+    import logging as _v4a1b_logging, sys as _v4a1b_sys, time as _v4a1b_time
+    _v4a1b_logging.basicConfig(
+        level=_v4a1b_logging.INFO,
+        format="%(asctime)sZ %(levelname)s %(name)s %(message)s",
+        stream=_v4a1b_sys.stderr,
+        force=True,
+    )
+    _v4a1b_logging.Formatter.converter = _v4a1b_time.gmtime
+    try:
+        _v4a1b_sys.stdout.reconfigure(line_buffering=True)  # type: ignore[attr-defined]
+        _v4a1b_sys.stderr.reconfigure(line_buffering=True)  # type: ignore[attr-defined]
+    except (AttributeError, OSError):
+        pass
+
+
     args = _parse_args(argv)
 
     now_utc = _dt.datetime.now(tz=_dt.UTC)
