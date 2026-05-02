@@ -90,7 +90,12 @@ _FROZEN_SITES: dict[str, int] = {
     "scripts/run_smc_release_gates.py": 1,
     "scripts/smc_performance_report.py": 1,
     "scripts/smc_version_governance.py": 1,
-    "scripts/smc_zone_priority_calibration.py": 2,
+    # Rebaselined 2026-05-02: bumped 2 → 3 because Bug-Hunt 2026-05-01 F-01
+    # added a module-level ``sys.path.insert`` (line 42) so REPO_ROOT is on
+    # sys.path *before* deferred imports inside ``main()``. The two existing
+    # in-function inserts (lines 632, 739) are kept for direct script-run
+    # paths.
+    "scripts/smc_zone_priority_calibration.py": 3,
     "smc_tv_bridge/smc_api.py": 1,
     "streamlit_databento_volatility_screener.py": 1,
     "streamlit_smc_micro_base_generator.py": 1,
