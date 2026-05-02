@@ -83,8 +83,11 @@ PRs): `tests/test_workflow_continue_on_error_inventory.py` for
 `terminal_databento.py` (124→130, 308→314) in PR #1996.
 ### Providers / Audit (2026-04-30) — v3 provider audit P-1..P-10 (consolidated)
 
-Consolidated entry for the v3 provider-stack audit shipped 2026-04-30
-(PRs #1951..#1969). Each P-class shipped as its own PR; this is the
+Consolidated entry for the v3 provider-stack audit shipped 2026-04-30.
+The audit covers the following PRs (specific subset of #1951..#1969;
+PRs in that range not listed here are unrelated):
+#1951, #1952, #1954, #1955, #1961, #1962, #1963, #1964, #1965, #1966,
+#1967, #1968, #1969. Each P-class shipped as its own PR; this is the
 at-a-glance index. See `docs/BLOOMBERG_TERMINAL_PLAN.md` §10–11,
 `docs/OPEN_PREP_BENZINGA_NEWS_WIRING.md` §11–12, and
 `docs/FMP_ENDPOINT_GAP_ANALYSE.md` "Retired FMP Paths" for the
