@@ -31,7 +31,7 @@ the existing kwargs plus a ``context=`` string for log attribution.
 
 from __future__ import annotations
 
-import re
+import ast
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -43,13 +43,48 @@ ALLOWED_DIRECT_CALLERS: frozenset[str] = frozenset({
     "databento_volatility_screener.py",   # parallel helper (consolidation follow-up)
 })
 
-# Match `.timeseries.get_range(` as a method call.
-_DIRECT_CALL_RE = re.compile(r"\.timeseries\.get_range\(")
-
 
 def _iter_top_level_python_files() -> list[Path]:
-    """Top-level *.py files only — the production tree."""
-    return sorted(REPO_ROOT.glob("*.py"))
+    """Top-level production *.py files only.
+
+    Top-level test_*.py modules (e.g. ``test_compile.py``, ``test_usi_lint.py``)
+    are excluded — they belong to the test tree even though they sit at the
+    repo root for legacy reasons. The dedicated ``tests/`` directory is
+    excluded by the glob (non-recursive)."""
+    return sorted(
+        p for p in REPO_ROOT.glob("*.py") if not p.name.startswith("test_")
+    )
+
+
+def _direct_get_range_call_lines(source: str, filename: str) -> list[int]:
+    """Return line numbers of every ``<expr>.timeseries.get_range(...)`` call.
+
+    Uses ast.parse so commented-out lines, string literals containing the
+    pattern, and assignments like ``x = ".timeseries.get_range("`` do not
+    produce false positives the way a textual regex would.
+    """
+    try:
+        tree = ast.parse(source, filename=filename)
+    except SyntaxError:
+        # If a top-level production file cannot be parsed, that's a bigger
+        # problem than this guard cares about — fail loudly via empty result
+        # so the test surfaces the real syntax error elsewhere.
+        return []
+
+    hits: list[int] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        # Match `<anything>.timeseries.get_range(...)`.
+        if (
+            isinstance(func, ast.Attribute)
+            and func.attr == "get_range"
+            and isinstance(func.value, ast.Attribute)
+            and func.value.attr == "timeseries"
+        ):
+            hits.append(getattr(node, "lineno", 0))
+    return hits
 
 
 def test_no_unwrapped_direct_databento_get_range_callers() -> None:
@@ -58,13 +93,9 @@ def test_no_unwrapped_direct_databento_get_range_callers() -> None:
     for py in _iter_top_level_python_files():
         if py.name in ALLOWED_DIRECT_CALLERS:
             continue
-        text = py.read_text(encoding="utf-8", errors="replace")
-        for lineno, line in enumerate(text.splitlines(), start=1):
-            stripped = line.lstrip()
-            if stripped.startswith("#"):
-                continue
-            if _DIRECT_CALL_RE.search(line):
-                offenders.append(f"{py.name}:{lineno}")
+        source = py.read_text(encoding="utf-8", errors="replace")
+        for lineno in _direct_get_range_call_lines(source, py.name):
+            offenders.append(f"{py.name}:{lineno}")
     assert not offenders, (
         "F-V4-E1: direct `.timeseries.get_range(` calls outside the allow-list "
         f"({sorted(ALLOWED_DIRECT_CALLERS)}). Route through "
