@@ -70,7 +70,7 @@ def generate() -> dict:
     - Other lean blocks are accepted as-is (hand-maintained fixtures with
       no broad source block in the fixture).
     """
-    with open(FIXTURE) as f:
+    with open(FIXTURE, encoding="utf-8") as f:
         enr = json.load(f)
 
     from scripts.smc_event_risk_light import build_event_risk_light
@@ -169,7 +169,7 @@ def main() -> None:
     summary = generate()
 
     # Read fixture for Pine surface generation
-    with open(FIXTURE) as f:
+    with open(FIXTURE, encoding="utf-8") as f:
         enr = json.load(f)
 
     pine_surface = generate_pine_surface(enr)
