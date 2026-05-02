@@ -81,6 +81,67 @@ PRs): `tests/test_workflow_continue_on_error_inventory.py` for
 `smc-deeper-integration-gates.yml` ({55,99}→{69,113}) in PRs #1992 and
 #1994; `tests/test_global_statement_budget.py` for
 `terminal_databento.py` (124→130, 308→314) in PR #1996.
+### Providers / Audit (2026-04-30) — v3 provider audit P-1..P-10 (consolidated)
+
+Consolidated entry for the v3 provider-stack audit shipped 2026-04-30.
+The audit covers the following PRs (specific subset of #1951..#1969;
+PRs in that range not listed here are unrelated):
+#1951, #1952, #1954, #1955, #1961, #1962, #1963, #1964, #1965, #1966,
+#1967, #1968, #1969. Each P-class shipped as its own PR; this is the
+at-a-glance index. See `docs/BLOOMBERG_TERMINAL_PLAN.md` §10–11,
+`docs/OPEN_PREP_BENZINGA_NEWS_WIRING.md` §11–12, and
+`docs/FMP_ENDPOINT_GAP_ANALYSE.md` "Retired FMP Paths" for the
+narrative versions.
+
+**Added — Unusual Whales provider** (`UNUSUAL_WHALES_API_KEY`, Bearer
+auth + mandatory `UW-CLIENT-API-ID: 100001` header):
+
+- **#1965 — v3 P-3b** (`feat(providers)`): Unusual Whales adapter
+  `newsstack_fmp/ingest_unusual_whales.py` + options-flow surface in
+  `open_prep/streamlit_monitor.py`. Replaces ad-hoc flow gating.
+- **#1967 — v3 P-4a** (`fix(providers)`): `UW-CLIENT-API-ID` header
+  marked mandatory (hardcoded `100001`) per provider docs; omission may
+  be enforced by the API.
+- **#1968 — v3 P-4b/d** (`feat(providers)`): UW dark-pool prints,
+  spot-GEX, and market-tide surfaces wired into the macro-flow tape.
+- **#1969 — v3 P-4c** (`feat(providers)`): UW bulk Form-4 insider
+  transactions added in parallel to the FMP insider feed.
+- **#1966 — v3 P-3c** (`refactor(monitor)`): monitor insider-feed
+  swapped from Benzinga to FMP + UW probe (Benzinga insider remains
+  available via the Intelligence section as secondary).
+
+**Removed — dead/redundant FMP paths:**
+
+- **#1962 — v3 P-6** (`refactor(fmp)`): dropped FMP `fear-and-greed`
+  path. Dead code with no production consumer; fear/greed sentiment
+  remains covered via CNN (equity, `open_prep/sentiment_fng.py`) and
+  alternative.me (crypto, `terminal_bitcoin.py`).
+- **#1964 — v3 P-2** (`refactor(fmp)`): dropped FMP `short-interest`
+  enrichment after FMP retired `/stable/short-interest` with no free
+  replacement.
+
+**Fixed / Standardised:**
+
+- **#1951, #1952 — v3 P-1** (`fix(benzinga)`): corrected
+  `quantified_news` endpoint path (was misconfigured / returning HTTP 400;
+  post-fix the endpoint is reachable but entitlement-gated — 401 without
+  the right plan); auth retained as `?token=` query param (revert in #1952).
+- **#1955 — v3 P-8** (`refactor(ibkr)`): `ib_insync` → `ib_async`
+  drop-in import-surface swap; `requirements.txt` pin
+  `ib_async>=2.1.0`. No behaviour change for existing
+  `scripts/execute_ibkr_watchlist.py`.
+- **#1961 — v3 P-7** (`fix(newsapi)`): NewsAPI.ai shared `httpx`
+  timeout bumped 20s → 45s; reduces false-negative timeouts on Event
+  Registry feeds.
+- **#1963 — v3 P-5** (`ci`): standardised the larger-runner pattern
+  (`runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-m' }}`)
+  across long-running workflows (later pinned to `ubuntu-24.04` in
+  F-V4-H2 / #1994).
+
+**Docs-only review entries:**
+
+- **#1954 — v3 P-9 / P-10** (`docs(audit)`): review-trail entries +
+  audit-trail markers `F-V3-<class>` for the audit step itself.
 
 ### Changed (2026-04-26) — pytest-xdist as local default + determinism regression fix
 
