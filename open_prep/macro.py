@@ -1233,6 +1233,236 @@ class FMPClient:
             return []
         return list(data) if isinstance(data, list) else []
 
+    # ------------------------------------------------------------------
+    # F-V4-FMP-PHASE2 (2026-05-01): batch commodity / forex quotes,
+    # CoT report + analysis, latest stock news, and the three core
+    # financial statements. See docs/FMP_ENDPOINT_GAP_ANALYSE.md.
+    # ------------------------------------------------------------------
+
+    def get_batch_commodity_quotes(
+        self, symbols: list[str] | None = None
+    ) -> list[dict[str, Any]]:
+        """FMP `/stable/batch-commodity-quotes` (DXY proxies, gold, oil, ...)."""
+        params: dict[str, Any] = {}
+        if symbols:
+            cleaned = [s.strip().upper() for s in symbols if str(s or "").strip()]
+            if cleaned:
+                params["symbols"] = ",".join(cleaned)
+        try:
+            data = self._get("/stable/batch-commodity-quotes", params)
+        except RuntimeError as exc:
+            _log_feature_unavailable_once(
+                "stable/batch-commodity-quotes",
+                "FMP feature unavailable (stable/batch-commodity-quotes); continuing without commodity quote data.",
+                exc=exc,
+            )
+            return []
+        return list(data) if isinstance(data, list) else []
+
+    def get_commodities_list(self) -> list[dict[str, Any]]:
+        """FMP `/stable/commodities-list` (master list of tradable commodities)."""
+        try:
+            data = self._get("/stable/commodities-list", {})
+        except RuntimeError as exc:
+            _log_feature_unavailable_once(
+                "stable/commodities-list",
+                "FMP feature unavailable (stable/commodities-list); continuing without commodities list.",
+                exc=exc,
+            )
+            return []
+        return list(data) if isinstance(data, list) else []
+
+    def get_batch_forex_quotes(
+        self, symbols: list[str] | None = None
+    ) -> list[dict[str, Any]]:
+        """FMP `/stable/batch-forex-quotes` (DXY components, EURUSD, USDJPY, ...)."""
+        params: dict[str, Any] = {}
+        if symbols:
+            cleaned = [s.strip().upper() for s in symbols if str(s or "").strip()]
+            if cleaned:
+                params["symbols"] = ",".join(cleaned)
+        try:
+            data = self._get("/stable/batch-forex-quotes", params)
+        except RuntimeError as exc:
+            _log_feature_unavailable_once(
+                "stable/batch-forex-quotes",
+                "FMP feature unavailable (stable/batch-forex-quotes); continuing without forex quote data.",
+                exc=exc,
+            )
+            return []
+        return list(data) if isinstance(data, list) else []
+
+    def get_forex_list(self) -> list[dict[str, Any]]:
+        """FMP `/stable/forex-list` (master list of tradable FX pairs)."""
+        try:
+            data = self._get("/stable/forex-list", {})
+        except RuntimeError as exc:
+            _log_feature_unavailable_once(
+                "stable/forex-list",
+                "FMP feature unavailable (stable/forex-list); continuing without forex list.",
+                exc=exc,
+            )
+            return []
+        return list(data) if isinstance(data, list) else []
+
+    def get_cot_report(
+        self,
+        symbol: str | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
+    ) -> list[dict[str, Any]]:
+        """FMP `/stable/commitment-of-traders-report`."""
+        params: dict[str, Any] = {}
+        if symbol:
+            cleaned = str(symbol).strip().upper()
+            if cleaned:
+                params["symbol"] = cleaned
+        if date_from is not None:
+            params["from"] = date_from.isoformat()
+        if date_to is not None:
+            params["to"] = date_to.isoformat()
+        try:
+            data = self._get("/stable/commitment-of-traders-report", params)
+        except RuntimeError as exc:
+            _log_feature_unavailable_once(
+                "stable/commitment-of-traders-report",
+                "FMP feature unavailable (stable/commitment-of-traders-report); continuing without CoT report data.",
+                exc=exc,
+            )
+            return []
+        return list(data) if isinstance(data, list) else []
+
+    def get_cot_analysis(
+        self,
+        symbol: str | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
+    ) -> list[dict[str, Any]]:
+        """FMP `/stable/commitment-of-traders-analysis` (positioning summary)."""
+        params: dict[str, Any] = {}
+        if symbol:
+            cleaned = str(symbol).strip().upper()
+            if cleaned:
+                params["symbol"] = cleaned
+        if date_from is not None:
+            params["from"] = date_from.isoformat()
+        if date_to is not None:
+            params["to"] = date_to.isoformat()
+        try:
+            data = self._get("/stable/commitment-of-traders-analysis", params)
+        except RuntimeError as exc:
+            _log_feature_unavailable_once(
+                "stable/commitment-of-traders-analysis",
+                "FMP feature unavailable (stable/commitment-of-traders-analysis); continuing without CoT analysis data.",
+                exc=exc,
+            )
+            return []
+        return list(data) if isinstance(data, list) else []
+
+    def get_stock_news(
+        self,
+        symbols: list[str] | None = None,
+        page: int = 0,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        """FMP `/stable/news/stock-latest` (latest stock-tagged news feed)."""
+        params: dict[str, Any] = {
+            "page": max(int(page), 0),
+            "limit": max(int(limit), 1),
+        }
+        if symbols:
+            cleaned = [s.strip().upper() for s in symbols if str(s or "").strip()]
+            if cleaned:
+                params["symbols"] = ",".join(cleaned)
+        try:
+            data = self._get("/stable/news/stock-latest", params)
+        except RuntimeError as exc:
+            _log_feature_unavailable_once(
+                "stable/news/stock-latest",
+                "FMP feature unavailable (stable/news/stock-latest); continuing without stock news data.",
+                exc=exc,
+            )
+            return []
+        return list(data) if isinstance(data, list) else []
+
+    def get_income_statement(
+        self,
+        symbol: str,
+        period: str = "annual",
+        limit: int = 5,
+    ) -> list[dict[str, Any]]:
+        """FMP `/stable/income-statement` (single-symbol P&L)."""
+        cleaned = str(symbol or "").strip().upper()
+        if not cleaned:
+            return []
+        params = {
+            "symbol": cleaned,
+            "period": str(period or "annual").strip().lower() or "annual",
+            "limit": max(int(limit), 1),
+        }
+        try:
+            data = self._get("/stable/income-statement", params)
+        except RuntimeError as exc:
+            _log_feature_unavailable_once(
+                "stable/income-statement",
+                "FMP feature unavailable (stable/income-statement); continuing without income statement data.",
+                exc=exc,
+            )
+            return []
+        return list(data) if isinstance(data, list) else []
+
+    def get_balance_sheet(
+        self,
+        symbol: str,
+        period: str = "annual",
+        limit: int = 5,
+    ) -> list[dict[str, Any]]:
+        """FMP `/stable/balance-sheet-statement` (single-symbol balance sheet)."""
+        cleaned = str(symbol or "").strip().upper()
+        if not cleaned:
+            return []
+        params = {
+            "symbol": cleaned,
+            "period": str(period or "annual").strip().lower() or "annual",
+            "limit": max(int(limit), 1),
+        }
+        try:
+            data = self._get("/stable/balance-sheet-statement", params)
+        except RuntimeError as exc:
+            _log_feature_unavailable_once(
+                "stable/balance-sheet-statement",
+                "FMP feature unavailable (stable/balance-sheet-statement); continuing without balance sheet data.",
+                exc=exc,
+            )
+            return []
+        return list(data) if isinstance(data, list) else []
+
+    def get_cash_flow_statement(
+        self,
+        symbol: str,
+        period: str = "annual",
+        limit: int = 5,
+    ) -> list[dict[str, Any]]:
+        """FMP `/stable/cash-flow-statement` (single-symbol cash flows)."""
+        cleaned = str(symbol or "").strip().upper()
+        if not cleaned:
+            return []
+        params = {
+            "symbol": cleaned,
+            "period": str(period or "annual").strip().lower() or "annual",
+            "limit": max(int(limit), 1),
+        }
+        try:
+            data = self._get("/stable/cash-flow-statement", params)
+        except RuntimeError as exc:
+            _log_feature_unavailable_once(
+                "stable/cash-flow-statement",
+                "FMP feature unavailable (stable/cash-flow-statement); continuing without cash flow data.",
+                exc=exc,
+            )
+            return []
+        return list(data) if isinstance(data, list) else []
+
     def get_upgrades_downgrades(
         self,
         symbol: str | None = None,
