@@ -66,11 +66,7 @@ def _paper_tws_reachable() -> bool:
 
 pytestmark = pytest.mark.skipif(
     not _paper_tws_reachable(),
-    reason=(
-        f"IBKR Paper TWS not reachable on "
-        f"{_PAPER_TWS_HOST}:{_PAPER_TWS_PORT} "
-        "(start TWS in Paper mode with API enabled to run this test)."
-    ),
+    reason="IBKR Paper TWS not reachable on the configured host/port (start TWS in Paper mode with API enabled to run this test).",
 )
 
 
