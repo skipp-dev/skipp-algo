@@ -310,9 +310,20 @@ def main() -> int:
     _MISSING_INPUT_FAILURE_CODES = frozenset(
         {
             "REFRESH_REFERENCE_SYMBOLS_UNAVAILABLE",
-            "REFRESH_MANIFEST_ERRORS",
             "REFRESH_INCOMPLETE_REFERENCE_SET",
             "REFRESH_EMPTY_REFERENCE_ARTIFACTS",
+        }
+    )
+    # 2026-05-03 (#2034): REFRESH_MANIFEST_ERRORS is a wrapper code whose
+    # severity depends on the *inner* error codes. We only treat it as
+    # missing-input when every inner error is itself a missing-input class
+    # (currently WORKBOOK_NOT_FOUND / MISSING_STRUCTURE_INPUTS — extend as
+    # new producers are added). Inner codes outside this set indicate real
+    # producer breakage and must surface as rc=1, not rc=78.
+    _MISSING_INPUT_INNER_CODES = frozenset(
+        {
+            "WORKBOOK_NOT_FOUND",
+            "MISSING_STRUCTURE_INPUTS",
         }
     )
 
@@ -320,6 +331,15 @@ def main() -> int:
         code = failure.get("code")
         if code in _MISSING_INPUT_FAILURE_CODES:
             return True
+        if code == "REFRESH_MANIFEST_ERRORS":
+            details = failure.get("details")
+            if not isinstance(details, list) or not details:
+                return False
+            return all(
+                isinstance(inner, dict)
+                and inner.get("code") in _MISSING_INPUT_INNER_CODES
+                for inner in details
+            )
         if code == "REFRESH_EXECUTION_FAILED":
             message = str(failure.get("message", "")).lower()
             return "manifest" in message or "export bundle" in message

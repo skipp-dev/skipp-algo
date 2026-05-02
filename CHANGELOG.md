@@ -28,7 +28,7 @@ All notable changes to this project are documented in this file.
   action; the GitHub-Actions-native equivalent for a single source of
   truth is the repo variable + literal fallback used here.
 
-### Docs (2026-05-01) — V4 audit deferred-followups batch summary (#1991–#1996)
+### Documentation (2026-05-01) — V4 audit deferred-followups batch summary (#1991–#1996)
 
 Roll-up entry for the six independent PRs that closed out the SMC Review
 V4 Proactive CI/Pipeline Robustness Audit deferred-followups queue
@@ -81,7 +81,7 @@ PRs): `tests/test_workflow_continue_on_error_inventory.py` for
 `smc-deeper-integration-gates.yml` ({55,99}→{69,113}) in PRs #1992 and
 #1994; `tests/test_global_statement_budget.py` for
 `terminal_databento.py` (124→130, 308→314) in PR #1996.
-### Providers / Audit (2026-04-30) — v3 provider audit P-1..P-10 (consolidated)
+### Changed (2026-04-30) — v3 provider audit P-1..P-10 (consolidated)
 
 Consolidated entry for the v3 provider-stack audit shipped 2026-04-30.
 The audit covers the following PRs (specific subset of #1951..#1969;
@@ -142,7 +142,7 @@ auth + mandatory `UW-CLIENT-API-ID: 100001` header):
 
 - **#1954 — v3 P-9 / P-10** (`docs(audit)`): review-trail entries +
   audit-trail markers `F-V3-<class>` for the audit step itself.
-### Refactor (2026-05-01) — F-V4-E1 databento safe-fetch caller migration
+### Changed (2026-05-01) — F-V4-E1 databento safe-fetch caller migration
 
 - `terminal_databento._fetch_chunk` migrated from raw
   `client.timeseries.get_range` to the canonical

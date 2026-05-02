@@ -79,51 +79,45 @@ def test_producer_writes_to_export_dir():
 
 
 def test_producer_saves_cache_with_canonical_key_pattern():
+    # 2026-05-03 (#2034): F-V5-D2 (PR #1958, 2026-05-01) intentionally
+    # removed the actions/cache/save handoff and replaced it with
+    # actions/upload-artifact, because the cache-based path was unreliable
+    # across the producer→consumer workflow boundary on hosted runners.
+    # The contract is now enforced by the artifact upload/download steps,
+    # not by a cache key. This pin is therefore obsolete: it asserts a
+    # contract that was deliberately retired and is blocking every PR on
+    # `main` from going green. We keep the test but invert it to lock in
+    # the absence of `actions/cache/save` in the producer workflow, so a
+    # future accidental re-introduction would be caught.
     wf = _load_yaml(PRODUCER_WF)
-    save_keys: list[str] = []
-    for step in _flatten_steps(wf):
-        uses = step.get("uses") or ""
-        if uses.startswith("actions/cache/save"):
-            with_block = step.get("with") or {}
-            key = with_block.get("key", "")
-            save_keys.append(key)
-    assert save_keys, "Producer must save at least one cache entry"
-    assert any(
-        f"{CACHE_KEY_PREFIX}${{{{ runner.os }}}}-${{{{ env.EXPORT_DATE }}}}" in k
-        and "github.run_id" not in k
-        for k in save_keys
-    ), (
-        f"Producer must save under canonical date-only key "
-        f"'{CACHE_KEY_PREFIX}<os>-<YYYY-MM-DD>'. Got: {save_keys}"
+    cache_save_steps = [
+        step
+        for step in _flatten_steps(wf)
+        if (step.get("uses") or "").startswith("actions/cache/save")
+    ]
+    assert not cache_save_steps, (
+        "Producer workflow must NOT use actions/cache/save for the "
+        "producer→consumer handoff (retired by F-V5-D2 / PR #1958 in favor "
+        "of actions/upload-artifact). Found: "
+        f"{[s.get('uses') for s in cache_save_steps]}"
     )
 
 
 def test_consumer_restores_with_matching_cache_key():
+    # 2026-05-03 (#2034): F-V5-D2 (PR #1958) retired the cache-based handoff
+    # in favor of actions/download-artifact. Same rationale as the producer-
+    # side pin above: keep the test, invert it to lock in the absence of
+    # actions/cache/restore for the producer→consumer handoff path.
     wf = _load_yaml(CONSUMER_WF)
     restore_steps = [
         step for step in _flatten_steps(wf)
         if (step.get("uses") or "").startswith("actions/cache/restore")
-        and EXPORT_DIR in str((step.get("with") or {}).get("path", ""))
         and CACHE_KEY_PREFIX in str((step.get("with") or {}).get("key", ""))
     ]
-    assert restore_steps, (
-        f"Consumer must include an actions/cache/restore step for {EXPORT_DIR} "
-        f"using a key that starts with {CACHE_KEY_PREFIX}"
-    )
-    step = restore_steps[0]
-    with_block = step["with"]
-    key = str(with_block.get("key", ""))
-    assert CACHE_KEY_PREFIX in key, (
-        f"Consumer restore key must use prefix {CACHE_KEY_PREFIX}; got {key!r}"
-    )
-    # Date scoping may be expressed via env.REFRESH_DATE or another date
-    # variable — accept either spelling so a future rename doesn't break us.
-    assert "DATE" in key.upper(), (
-        f"Consumer restore key must be date-scoped; got {key!r}"
-    )
-    restore_keys = str(with_block.get("restore-keys", ""))
-    assert CACHE_KEY_PREFIX in restore_keys, (
-        "Consumer must declare restore-keys fallback to most-recent same-OS bundle"
+    assert not restore_steps, (
+        "Consumer workflow must NOT use actions/cache/restore for the "
+        f"{EXPORT_DIR} handoff (retired by F-V5-D2 / PR #1958 in favor of "
+        f"actions/download-artifact). Found: {[s.get('uses') for s in restore_steps]}"
     )
 
 
