@@ -46,7 +46,8 @@ _WRITE_PERMS_OF_INTEREST = {"contents", "pull-requests", "issues"}
 
 
 def _all_workflow_files() -> list[Path]:
-    return sorted(_WF_DIR.glob("*.yml"))
+    # F1 (audit 2026-05-02): also match `.yaml` so future renames don't silently bypass this guard.
+    return sorted(set(_WF_DIR.glob("*.yml")) | set(_WF_DIR.glob("*.yaml")))
 
 
 def _read_marker(path: Path) -> str | None:
