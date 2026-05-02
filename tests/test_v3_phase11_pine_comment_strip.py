@@ -30,8 +30,6 @@ from __future__ import annotations
 import textwrap
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-
 
 def test_collect_pine_mp_refs_ignores_comment_only_references(tmp_path: Path) -> None:
     from tests.test_library_field_audit import _collect_pine_mp_refs

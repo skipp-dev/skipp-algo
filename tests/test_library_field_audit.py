@@ -380,9 +380,15 @@ PYTHON_ONLY_EXPORTS: set[str] = {
     "ZONE_CAL_BOS_HIGH_VOL",
     "ZONE_CAL_SWEEP_HIGH_VOL",
     # ── ENG-WS2-02 trust cause trail (diagnostic; Pine consumes only
-    # the rolled-up TRUST_STATE / TRUST_ACTION_IMPACT /
-    # TRUST_DEGRADATION_REASON; the cause sub-fields stay Python-side
-    # telemetry) ──
+    # the rolled-up TRUST_STATE / TRUST_DEGRADATION_REASON; the cause
+    # sub-fields stay Python-side telemetry. NOTE: TRUST_ACTION_IMPACT
+    # is intentionally NOT listed here — it is exported as the
+    # canonical rolled-up action-impact label but is RESERVED (see the
+    # RESERVED_PINE_EXPORTS.add('TRUST_ACTION_IMPACT') call below) until
+    # the dashboard re-wire ticket lands. A comment in
+    # SMC_Dashboard.pine:759 documents only the *intent* to wire it up;
+    # that comment was previously misclassified as a real consumer by
+    # the unfiltered regex scan, hence the v3 phase 11 fix.) ──
     "TRUST_CAUSE_DOMAIN",
     "TRUST_CAUSE_FAILURE_TYPE",
     "TRUST_CAUSE_CODE",
