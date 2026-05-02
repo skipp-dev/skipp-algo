@@ -66,7 +66,7 @@ _ALLOWED: dict[str, frozenset[int]] = {
     # job-level `if:` guard added 14 lines at the top of the workflow,
     # shifting all 6 entries by +14: 197→211, 341→355, 456→470, 695→709,
     # 838→852, 858→872.
-    "smc-library-refresh.yml": frozenset({211, 355, 470, 709, 852, 872}),
+    "smc-library-refresh.yml": frozenset({216, 381, 496, 735, 878, 898}),
     # Deeper integration gates: 2 advisory-only probes.
     # Rebaselined 2026-05-02 after PR #2028 composite migration: 69→73, 113→117 (+4 each).
     # F-V4-B4 (2026-05-02): 73→74, 117→118 (+1 each) after @v7 fleet bump.
@@ -106,7 +106,8 @@ _ALLOWED: dict[str, frozenset[int]] = {
     # to the inventory because of the trailing rationale comment on the same line.
     # Rebaselined 2026-05-02 after PR #2028 composite migration: 169→177 (+8).
     # F-V4-B4 (2026-05-02): 177 → 199 (+22) after @v7 fleet bump.
-    "smc-databento-production-export.yml": frozenset({214}),
+    # F-V5-D2 (2026-05-02): removed entry — PR #2014 dropped the actions/cache
+    # producer step entirely (cache→artifact handoff migration).
 }
 
 

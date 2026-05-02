@@ -133,22 +133,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # ── Restore today's cache so an already-warm bundle short-circuits the
-      # ── Databento pull. We KEEP the workflow running so a fresh manifest is
-      # ── always written (Databento data drifts intra-day), but this gives us
-      # ── a quick sanity log line if a same-day re-run is unnecessary.
-      - name: Inspect existing cache (advisory only)
-        id: cache_probe
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ env.EXPORT_DIR }}
-          key: smc-prod-export-${{ runner.os }}-${{ env.EXPORT_DATE }}
-          lookup-only: true
-
-      - name: Note pre-existing cache hit
-        if: steps.cache_probe.outputs.cache-hit == 'true'
-        run: |
-          echo "::notice::Cache key smc-prod-export-${{ runner.os }}-${EXPORT_DATE} already exists. Producer will overwrite with a fresh manifest."
+      # F-V5-D2 (2026-05-01): the previous handoff used actions/cache as a
+      # cross-workflow conduit, which is unsupported on github.com (caches are
+      # branch-scoped) and silently broken on enterprise runners. The bundle is
+      # now published exclusively via actions/upload-artifact below; the
+      # downstream library-refresh consumer pulls it via
+      # dawidd6/action-download-artifact (F-V5-D3).
 
       - name: Run Databento production export
         env:
@@ -193,30 +183,10 @@ jobs:
           echo "::notice::Newest manifest: ${NEWEST}"
           python -c "import json,sys; d=json.load(open('${NEWEST}')); print('symbols:', len(d.get('symbols', []) or d.get('manifest', {}).get('symbols', [])), 'frames:', list((d.get('frames') or d.get('manifest', {}).get('frames') or {}).keys())[:5])" || true
 
-      # ── Save the bundle to the GHA cache (always, even on overwrite) so
-      # ── library-refresh can restore it via the same key. Saving with the
-      # ── same key as a probed entry is a no-op; that's fine.
-      - name: Save export bundle to cache
-        if: success()
-        uses: actions/cache/save@v4
-        with:
-          path: ${{ env.EXPORT_DIR }}
-          key: smc-prod-export-${{ runner.os }}-${{ env.EXPORT_DATE }}-${{ github.run_id }}
-
-      # ── Also publish under the date-only key. We use the run_id-suffixed
-      # ── key above to allow multiple intra-day saves; the date-only key
-      # ── below is the canonical handle library-refresh restores against.
-      # CONTINUE-ON-ERROR-INTENTIONAL: second save with the date-only canonical key
-      # is best-effort — actions/cache rejects re-writes for an existing key, so a
-      # benign 409 must not fail the export pipeline (M-1 / Klasse #24).
-      - name: Save export bundle under date-only key (canonical, best-effort)
-        if: success()
-        continue-on-error: true   # second save with identical date key is OK to skip
-        uses: actions/cache/save@v4
-        with:
-          path: ${{ env.EXPORT_DIR }}
-          key: smc-prod-export-${{ runner.os }}-${{ env.EXPORT_DATE }}
-
+      # F-V5-D2 (2026-05-01): cross-workflow handoff to smc-library-refresh
+      # is now via actions/upload-artifact (below) instead of actions/cache.
+      # Caches are branch-scoped on github.com so the previous design
+      # silently dropped restores for non-default-branch consumer runs.
       - name: Upload export bundle as workflow artifact
         if: success()
         uses: actions/upload-artifact@v7
