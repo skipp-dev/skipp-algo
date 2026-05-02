@@ -134,12 +134,16 @@ def _request_method_post_sites() -> set[tuple[str, int]]:
 HTTP_POST_LEDGER: set[tuple[str, int]] = {
     # Notification webhook fan-out (Discord/Slack-style).
     ("terminal_notifications.py", 274),
-    # FMP/news export webhook (raw body, no redirects).
-    ("terminal_export.py", 919),
+    # FMP/news export webhook (raw body, no redirects, HMAC-SHA256 signed,
+    # SSRF-guarded via _is_safe_webhook_url). Line shifted 919 → 908
+    # (system review 2026-04-30).
+    ("terminal_export.py", 908),
     # OpenAI chat completions — FMP insights enrichment.
     ("terminal_fmp_insights.py", 372),
-    # Webhook fan-out from the live Streamlit terminal alert path.
-    ("streamlit_terminal.py", 2257),
+    # Webhook fan-out from the live Streamlit terminal alert path
+    # (httpx, follow_redirects=False, timeout=5s, dedup + budget cap).
+    # Line shifted 2257 → 2274 (system review 2026-04-30).
+    ("streamlit_terminal.py", 2274),
     # OpenAI chat completions — terminal AI insights enrichment.
     ("terminal_ai_insights.py", 246),
 }

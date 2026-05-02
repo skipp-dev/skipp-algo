@@ -52,23 +52,33 @@ _DECL_RE = re.compile(r"^\s*(?:var|varip)\s+\w", re.MULTILINE)
 
 
 # Frozen ledger: file path (relative to repo root, forward-slash) → max
-# allowed ``var`` / ``varip`` declaration count. Captured 2026-04-25.
+# allowed ``var`` / ``varip`` declaration count. Captured 2026-04-25,
+# refreshed 2026-04-30 (PR #1937 cascade + PR-D7 cosmetic alignment).
 _FROZEN_LEDGER: dict[str, int] = {
+    "SMC_Breakout_Overlay.pine": 32,
     "SMC_Core_Engine.pine": 415,
-    "SMC_Dashboard.pine": 27,
+    # 27 → 34 (2026-04-30, commit 68e1aac0): Trade-Mgmt rows in
+    # Mobile_Dashboard mirrored extra var/varip state into SMC_Dashboard.
+    # Re-frozen here as part of v3 phase 1 pine-consumer-discipline fix.
+    "SMC_Dashboard.pine": 34,
     "SMC_Event_Overlay.pine": 13,
+    "SMC_Exit_Signal.pine": 13,
     "SMC_HTF_Confluence.pine": 8,
+    "SMC_Hold_Manager.pine": 10,
     "SMC_Imbalance_Context.pine": 14,
     "SMC_Liquidity_Context.pine": 12,
     "SMC_Liquidity_Structure.pine": 9,
     "SMC_Long_Strategy.pine": 19,
-    "SMC_Mobile_Dashboard.pine": 9,
+    # 9 → 16 (2026-04-30, commit 68e1aac0): Trade-Mgmt rows feature added
+    # 7 var declarations to track per-row state. Ledger re-frozen.
+    "SMC_Mobile_Dashboard.pine": 16,
     "SMC_Orderflow_Overlay.pine": 10,
     "SMC_Profile_Context.pine": 11,
     "SMC_Session_Context.pine": 11,
     "SMC_Setup_Check.pine": 2,
     "SMC_Structure_Context.pine": 10,
     "SMC_TV_Bridge.pine": 3,
+    "SMC_VRVP_Overlay.pine": 55,
     "SkippALGO_Confluence.pine": 7,
     "pine/legacy/BFI-Reversal.pine": 37,
     "pine/legacy/BTC 3m EV Scalper BALANCED (Harmonized).pine": 6,
@@ -92,7 +102,7 @@ _FROZEN_LEDGER: dict[str, int] = {
     "test_div.pine": 2,
 }
 
-_TOTAL_BUDGET = 862  # bumped 2026-04-25 for H-1 bar-close gate (Confluence +1, Event_Overlay +2)
+_TOTAL_BUDGET = 986  # bumped 2026-04-30 (audit cascade from F-04 PR #1924) for 4 SMC overlay/exit/hold/VRVP files (+32 +13 +10 +55 = +110); was 876 (v3 phase 1).
 
 
 def _iter_pine() -> list[Path]:

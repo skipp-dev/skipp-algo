@@ -217,12 +217,56 @@
       "notes": [
         "Deprecated split prototype."
       ]
+    },
+    {
+      "file": "SMC_Breakout_Overlay.pine",
+      "script_name": "SMC Breakout Overlay",
+      "surface_role": "companion_operator_only",
+      "contract_tier": "pro",
+      "consumer_role": "overlay_companion",
+      "validation_target": false,
+      "notes": [
+        "LonesomeTheBlue-style breakout/breakdown box renderer over mp.BOS_* / mp.CHoCH_* signals. Pure visual, no new detection."
+      ]
+    },
+    {
+      "file": "SMC_Exit_Signal.pine",
+      "script_name": "SMC Exit Signal",
+      "surface_role": "companion_operator_only",
+      "contract_tier": "lite_and_pro",
+      "consumer_role": "exit_companion",
+      "validation_target": false,
+      "notes": [
+        "Beginner-facing exit companion: STOP / TP1 / TP2 / DEFENSIVE EXIT alerts driven by linked SMC Core BUS outputs. No library import \u2014 fully BUS-driven."
+      ]
+    },
+    {
+      "file": "SMC_Hold_Manager.pine",
+      "script_name": "SMC Hold-Manager v1",
+      "surface_role": "companion_operator_only",
+      "contract_tier": "lite_and_pro",
+      "consumer_role": "exit_companion",
+      "validation_target": false,
+      "notes": [
+        "Read-only hold-management overlay with ATR-Chandelier trail, BE-after-T1, optional Simple-Mode, and time-stop. Imports skippALGO/smc_micro_profiles_generated (separate namespace from preuss_steffen \u2014 not auto-pinned by library refresh)."
+      ]
+    },
+    {
+      "file": "SMC_VRVP_Overlay.pine",
+      "script_name": "SMC VRVP Overlay",
+      "surface_role": "companion_operator_only",
+      "contract_tier": "pro",
+      "consumer_role": "overlay_companion",
+      "validation_target": false,
+      "notes": [
+        "Visible-Range Volume Profile companion: histogram + multi-POC + VAH/VAL. No library import \u2014 fully self-contained."
+      ]
     }
   ],
   "surfaceRoleCounts": {
     "lite_primary": 1,
     "pro_primary": 3,
-    "companion_operator_only": 11,
+    "companion_operator_only": 15,
     "internal": 1,
     "legacy": 3
   },
@@ -256,7 +300,11 @@
     "SMC_Profile_Context.pine",
     "SMC_Liquidity_Structure.pine",
     "SMC_Setup_Check.pine",
-    "SMC_Mobile_Dashboard.pine"
+    "SMC_Mobile_Dashboard.pine",
+    "SMC_Breakout_Overlay.pine",
+    "SMC_Exit_Signal.pine",
+    "SMC_Hold_Manager.pine",
+    "SMC_VRVP_Overlay.pine"
   ],
   "internalFiles": [
     "SMC_TV_Bridge.pine"

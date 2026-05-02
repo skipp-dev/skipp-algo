@@ -148,12 +148,17 @@ if full_exit
     collapse_count := 0
 
 // ───────────────────────── Alerts ─────────────────────────
-alertcondition(just_entered, title = "ENTER LONG (trigger filled)", message = "SMC Exit Signal: trigger filled — position OPEN")
-alertcondition(exit_stop_hit, title = "EXIT — Stop hit", message = "SMC Exit Signal: STOP HIT — close full position")
-alertcondition(exit_tp1_hit, title = "EXIT — TP1 (take half)", message = "SMC Exit Signal: TP1 reached — take half, move stop to entry")
-alertcondition(exit_tp2_hit, title = "EXIT — TP2 (close rest)", message = "SMC Exit Signal: TP2 reached — close remaining position")
-alertcondition(exit_defensive, title = "EXIT — Defensive (setup invalidated)", message = "SMC Exit Signal: setup collapsed in-trade — defensive exit")
-alertcondition(exit_stop_hit or exit_tp2_hit or exit_defensive, title = "EXIT (any full close)", message = "SMC Exit Signal: full exit triggered")
+// H-1 (system review 2026-04-24): bind alertcondition() to bar-close gate.
+// Reuses eval_now as the single source of truth for the bar-close gate
+// (PR #1940 review). The literal _alertGate token is preserved because
+// the audit pin tests/test_pine_alert_bar_close_gate.py recognises.
+_alertGate = eval_now
+alertcondition(_alertGate and just_entered, title = "ENTER LONG (trigger filled)", message = "SMC Exit Signal: trigger filled — position OPEN")
+alertcondition(_alertGate and exit_stop_hit, title = "EXIT — Stop hit", message = "SMC Exit Signal: STOP HIT — close full position")
+alertcondition(_alertGate and exit_tp1_hit, title = "EXIT — TP1 (take half)", message = "SMC Exit Signal: TP1 reached — take half, move stop to entry")
+alertcondition(_alertGate and exit_tp2_hit, title = "EXIT — TP2 (close rest)", message = "SMC Exit Signal: TP2 reached — close remaining position")
+alertcondition(_alertGate and exit_defensive, title = "EXIT — Defensive (setup invalidated)", message = "SMC Exit Signal: setup collapsed in-trade — defensive exit")
+alertcondition(_alertGate and (exit_stop_hit or exit_tp2_hit or exit_defensive), title = "EXIT (any full close)", message = "SMC Exit Signal: full exit triggered")
 
 // ───────────────────────── Visuals ─────────────────────────
 plot(show_levels and pos_state == 2 ? entry_stop : na, "Stop", color = color.new(color.red, 0), linewidth = 2, style = plot.style_linebr)

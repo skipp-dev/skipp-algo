@@ -11,7 +11,7 @@ Reference docs:
 The module is intentionally I/O-narrow:
 
 * **Inputs.** A list of (symbol, conId) pairs and a forward-window in
-  days. Network access goes through ``ib_insync`` to a running TWS /
+  days. Network access goes through ``ib_async`` to a running TWS /
   IB Gateway session.
 * **Outputs.** A JSONL artefact ``cache/live/wsh_events_<DATE>.jsonl``
   with one line per (symbol, event) pair. Schema version 1.0.0.
@@ -103,13 +103,13 @@ class WshFetchSummary:
         return asdict(self)
 
 
-def _import_ib_insync() -> Any:
-    """Import ib_insync.IB lazily so CI without IBKR deps still works."""
+def _import_ib_async() -> Any:
+    """Import ib_async.IB lazily so CI without IBKR deps still works."""
     try:
-        from ib_insync import IB
+        from ib_async import IB
     except ImportError as exc:  # pragma: no cover — exercised in live runtime
         raise RuntimeError(
-            "ib_insync is not installed. Install with "
+            "ib_async is not installed. Install with "
             "`pip install -r requirements.txt`."
         ) from exc
     return IB
@@ -223,7 +223,7 @@ def fetch_wsh_calendar(
     fail (Phase-A blocks no trade on missing WSH data).
 
     Pure-stdlib path: when ``ib_client`` is None we attempt to import
-    ``ib_insync.IB`` lazily; tests stub the client through the
+    ``ib_async.IB`` lazily; tests stub the client through the
     ``ib_client`` parameter.
     """
     events: list[WshEvent] = []
@@ -233,29 +233,29 @@ def fetch_wsh_calendar(
         return events, errors
 
     if ib_client is None:
-        IB = _import_ib_insync()
+        IB = _import_ib_async()
         ib_client = IB()
     # The TWS WSH-MetaData call is a one-shot handshake per session;
     # callers are responsible for connect/disconnect lifecycle. We do
     # not connect here so unit tests can pass a fully-stubbed client.
 
     try:
-        # ib_insync sync helper: returns the metadata payload string
+        # ib_async sync helper: returns the metadata payload string
         # once the wshMetaData event fires (or raises on timeout).
         # The low-level ``reqWshMetaData(reqId=...)`` is the EClient
-        # signature; ib_insync's IB wrapper exposes the no-arg form
+        # signature; ib_async's IB wrapper exposes the no-arg form
         # plus this sync convenience helper.
         ib_client.getWshMetaData()
     except Exception as exc:  # pragma: no cover — exercised live
         errors.append(f"reqWshMetaData failed: {exc}")
         return events, errors
 
-    # WshEventData is the ib_insync filter object; we import it lazily
-    # to keep test stubs free of the ib_insync dependency.
+    # WshEventData is the ib_async filter object; we import it lazily
+    # to keep test stubs free of the ib_async dependency.
     try:
-        from ib_insync.objects import WshEventData
+        from ib_async.objects import WshEventData
     except Exception as exc:  # pragma: no cover — only on missing dep
-        errors.append(f"ib_insync.WshEventData import failed: {exc}")
+        errors.append(f"ib_async.WshEventData import failed: {exc}")
         return events, errors
 
     today_iso = _dt.datetime.now(_ET).date().isoformat()
@@ -420,7 +420,7 @@ def main(argv: list[str] | None = None) -> int:
         # the CLI owns the TWS lifecycle here. Without this block the
         # ``reqWshMetaData`` / ``reqWshEventData`` calls would fail on
         # an unconnected client.
-        from ib_insync import IB  # local import: optional dependency
+        from ib_async import IB  # local import: optional dependency
 
         from scripts.ib_client_id import (
             allocate_ib_client_id,

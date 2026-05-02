@@ -39,6 +39,8 @@ _FROZEN_FILE_COUNTS: dict[str, int] = {
     "tests/test_six_zero_tripwires_bundle.py": 1,
     "tests/test_smc_schema_version_enforcement.py": 1,
     "tests/test_smc_trust_badges_dashboard.py": 1,
+    "tests/test_workflow_live_window_posture.py": 2,
+    "tests/test_workflow_pythonpath_for_direct_invoke.py": 1,
     "tests/test_zone_priority_calibration.py": 1,
 }
 

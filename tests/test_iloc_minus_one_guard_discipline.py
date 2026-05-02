@@ -67,10 +67,13 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         # sign; backtest-only path operates on closed historical frames.
         ("scripts/market_structure_features.py", 105),
         ("scripts/market_structure_features.py", 106),
-        # scripts/explicit_structure_from_bars.py — explicit inline
-        # guard immediately above (`agg = agg.iloc[:-1]` if trailing
+        # scripts/explicit_structure_from_bars.py — pinned to the
+        # actual `.iloc[-1]` site (tail-timestamp probe). The comment
+        # block above intentionally avoids the `iloc[-1]` literal so it
+        # cannot mask line drift of this code site (PR-D7 follow-up).
+        # explicit inline guard immediately above (`agg = agg.iloc[:-1]` if trailing
         # aggregated bucket exceeds the source frame's max timestamp).
-        ("scripts/explicit_structure_from_bars.py", 77),
+        ("scripts/explicit_structure_from_bars.py", 88),
         # scripts/smc_session_structure.py — previous-day row + opening
         # range break; both consume closed daily frames.
         ("scripts/smc_session_structure.py", 96),

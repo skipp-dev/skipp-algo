@@ -278,8 +278,10 @@ def test_dashboard_audit_view_has_why_this_tier_drilldown() -> None:
     source = _read("SMC_Dashboard.pine")
 
     # Table size + final clear range must accommodate the new rows.
-    assert "table.new(position.bottom_right, 2, 76, border_width = 0)" in source
-    assert "table.clear(smc_dashboard, 0, 0, 1, 75)" in source
+    # Grew 76 → 78 rows when the Trade-Mgmt rows (Trade=76, Stop=77) were
+    # mirrored from the mobile dashboard (system review 2026-04-24).
+    assert "table.new(position.bottom_right, 2, 78, border_width = 0)" in source
+    assert "table.clear(smc_dashboard, 0, 0, 1, 77)" in source
     # New rows pinned by section + content row.
     assert 'section_row(smc_dashboard, 74, "[ Why this Tier? ]"' in source
     assert 'dashboard_row_tt(smc_dashboard, 75, "Top-3 Weights",' in source

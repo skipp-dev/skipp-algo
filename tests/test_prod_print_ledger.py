@@ -57,7 +57,7 @@ _FROZEN_PRINT_COUNTS: dict[str, int] = {
     "pine_input_surface.py": 15,
     "test_usi_lint.py": 3,
     "smc_integration/provider_health.py": 1,
-    "open_prep/outcome_backfill.py": 3,
+    "open_prep/outcome_backfill.py": 4,
     "open_prep/candidate_weights.py": 4,
     "open_prep/feature_importance_report.py": 4,
 }

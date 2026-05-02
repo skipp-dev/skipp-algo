@@ -65,6 +65,16 @@ data/output/
 reports/_tmp_structure_*/
 reports/smc_structure_artifacts/
 reports/smc_snapshot_bundles/
+
+# Per-run open_prep dashboard outputs (timestamped HTML/CSV/JSON snapshots
+# produced by `python -m open_prep …` and the streamlit dashboard runs).
+# These accumulate without bound on contributor machines and CI hosts and
+# show up as ever-growing untracked drift in `git status`. They are not
+# part of the canonical artifact corpus.
+reports/open_prep_lists_*.html
+reports/open_prep_lists_*.csv
+reports/open_prep_full_run_*.json
+reports/open_prep_compare_*.json
 artifacts/smc_microstructure_exports/
 artifacts/tradingview/*.json
 artifacts/ops_run_report.json
@@ -75,3 +85,6 @@ artifacts/ops_run_measure.py
 
 # Editable-install metadata (added 2026-04-23 with pyproject [tool.setuptools] block)
 *.egg-info/
+
+# import-linter cache (regenerated on every run)
+.import_linter_cache/

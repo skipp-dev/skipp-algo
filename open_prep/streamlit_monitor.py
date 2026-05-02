@@ -182,6 +182,44 @@ except ImportError:  # pragma: no cover
     _fetch_bz_options = None  # type: ignore[assignment]
     _fetch_bz_insider = None  # type: ignore[assignment]
 
+# v3 P-3b: Unusual Whales replaces the retired Benzinga options_activity feed.
+# Benzinga remains the news ingest — only the options-flow path is rerouted.
+try:
+    from newsstack_fmp.ingest_unusual_whales import (
+        fetch_uw_options_flow as _fetch_uw_options,
+        is_uw_configured as _uw_configured,
+    )
+except ImportError:  # pragma: no cover
+    _fetch_uw_options = None  # type: ignore[assignment]
+    _uw_configured = lambda: False  # type: ignore[assignment]
+
+# v3 P-4b/d: dark-pool prints, dealer-gamma-by-strike, marketwide tide.
+try:
+    from newsstack_fmp.ingest_unusual_whales import (
+        fetch_uw_darkpool as _fetch_uw_darkpool,
+        fetch_uw_spot_gex as _fetch_uw_spot_gex,
+        fetch_uw_market_tide as _fetch_uw_market_tide,
+    )
+except ImportError:  # pragma: no cover
+    _fetch_uw_darkpool = None  # type: ignore[assignment]
+    _fetch_uw_spot_gex = None  # type: ignore[assignment]
+    _fetch_uw_market_tide = None  # type: ignore[assignment]
+
+# v3 P-4c: bulk Form-4 insider transactions (drop-in for FMP per-symbol fallback).
+try:
+    from newsstack_fmp.ingest_unusual_whales import (
+        fetch_uw_insider_transactions as _fetch_uw_insider,
+    )
+except ImportError:  # pragma: no cover
+    _fetch_uw_insider = None  # type: ignore[assignment]
+
+# v3 P-3c: insider feed migrated from retired Benzinga endpoint to FMP
+# /stable/insider-trading/search (per-symbol). Benzinga adapter stays as fallback.
+try:
+    from scripts.smc_fmp_client import SMCFMPClient as _SMCFMPClient
+except ImportError:  # pragma: no cover
+    _SMCFMPClient = None  # type: ignore[assignment]
+
 try:
     from terminal_ui_helpers import safe_markdown_text as _safe_md
 except ImportError:  # pragma: no cover
@@ -336,7 +374,11 @@ def _cached_bz_insider_op(
     action: str | None = None,
     page_size: int = 100,
 ) -> list[dict[str, Any]]:
-    """Cache Benzinga insider transactions for 3 minutes."""
+    """Cache Benzinga insider transactions for 3 minutes.
+
+    v3 P-3c: kept as fallback per user instruction ("Behalte Benzinga").
+    Active path is :func:`_cached_fmp_insider_op` below.
+    """
     if _fetch_bz_insider is None:
         return []
     try:
@@ -346,6 +388,233 @@ def _cached_bz_insider_op(
         ) or []
     except Exception:
         logger.warning("_cached_bz_insider_op failed", exc_info=True)
+        return []
+
+
+_FMP_INSIDER_TYPE_MAP = {
+    "P": ("P", "PURCHASE"),
+    "S": ("S", "SALE"),
+    "A": ("A", "AWARD", "GRANT"),
+    "D": ("D", "DISPOSITION"),
+    "M": ("M", "EXERCISE"),
+}
+
+
+def _fmp_insider_to_bz_shape(rec: dict[str, Any]) -> dict[str, Any]:
+    """Map an FMP insider-trading record into the Benzinga renderer shape."""
+    sym = str(rec.get("symbol") or rec.get("ticker") or "").upper()
+    try:
+        shares = float(rec.get("securitiesTransacted") or 0)
+    except (TypeError, ValueError):
+        shares = 0.0
+    try:
+        price = float(rec.get("price") or 0)
+    except (TypeError, ValueError):
+        price = 0.0
+    return {
+        "ticker": sym,
+        "company_name": rec.get("companyName") or rec.get("companyCik") or sym,
+        "owner_name": rec.get("reportingName") or "",
+        "owner_title": rec.get("typeOfOwner") or "",
+        "transaction_type": rec.get("transactionType") or "",
+        "date": rec.get("transactionDate") or rec.get("filingDate") or "",
+        "shares_traded": shares,
+        "price_per_share": price,
+        "total_value": shares * price,
+        "shares_held": rec.get("securitiesOwned") or 0,
+        "_fmp_raw": rec,
+    }
+
+
+@st.cache_data(ttl=180, show_spinner=False)
+def _cached_fmp_insider_op(
+    api_key: str,
+    tickers: str,
+    action: str | None = None,
+    page_size: int = 100,
+) -> list[dict[str, Any]]:
+    """Cache FMP insider transactions (per-ticker) for 3 minutes.
+
+    v3 P-3c: replaces the retired Benzinga ``/insiders/transactions`` feed.
+    FMP exposes only a per-symbol endpoint, so ``tickers`` is required.
+    ``action`` is applied client-side against the FMP ``transactionType``
+    field (e.g. ``"P-Purchase"`` → matches ``action="P"``).
+    """
+    if _SMCFMPClient is None or not api_key:
+        return []
+    syms = [t.strip().upper() for t in (tickers or "").split(",") if t.strip()]
+    if not syms:
+        return []
+    client = _SMCFMPClient(api_key=api_key)
+    out: list[dict[str, Any]] = []
+    per_sym = max(int(page_size) // max(len(syms), 1), 1)
+    for sym in syms:
+        try:
+            recs = client.get_insider_trading(sym, limit=per_sym) or []
+        except Exception:
+            logger.warning("_cached_fmp_insider_op failed for %s", sym, exc_info=True)
+            continue
+        for rec in recs:
+            if not isinstance(rec, dict):
+                continue
+            mapped = _fmp_insider_to_bz_shape(rec)
+            if action:
+                tt = str(mapped.get("transaction_type", "")).upper()
+                allowed = _FMP_INSIDER_TYPE_MAP.get(action.upper(), (action.upper(),))
+                if not any(tok in tt for tok in allowed):
+                    continue
+            out.append(mapped)
+            if len(out) >= page_size:
+                return out
+    return out
+
+
+# ── v3 P-4c: UW Form-4 insider transactions (drop-in for FMP fallback) ──
+
+
+_UW_INSIDER_CODE_LABEL = {
+    "P": "P-Purchase",
+    "S": "S-Sale",
+    "A": "A-Award",
+    "D": "D-Disposition",
+    "M": "M-Exercise",
+    "G": "G-Gift",
+    "F": "F-Tax",
+}
+
+
+def _uw_insider_to_renderer_shape(rec: dict[str, Any]) -> dict[str, Any]:
+    """Map a UW insider Form-4 record to the monitor's renderer shape.
+
+    Mirrors :func:`_fmp_insider_to_bz_shape` so the downstream dataframe and
+    ≥$100K notable list keep working identically.
+    """
+    sym = str(rec.get("ticker") or "").upper()
+    try:
+        shares = float(rec.get("amount") or 0)
+    except (TypeError, ValueError):
+        shares = 0.0
+    try:
+        price = float(rec.get("price") or 0)
+    except (TypeError, ValueError):
+        price = 0.0
+    code = str(rec.get("transaction_code") or "").upper()
+    tx_type = _UW_INSIDER_CODE_LABEL.get(code, code or "")
+    # Owner title — UW exposes officer_title plus role-flag booleans.
+    title = rec.get("officer_title") or ""
+    if not title:
+        roles = []
+        if rec.get("is_director"):
+            roles.append("Director")
+        if rec.get("is_officer"):
+            roles.append("Officer")
+        if rec.get("is_ten_percent_owner"):
+            roles.append("10% Owner")
+        title = ", ".join(roles)
+    return {
+        "ticker": sym,
+        "company_name": rec.get("company_name") or sym,
+        "owner_name": rec.get("owner_name") or "",
+        "owner_title": title,
+        "transaction_type": tx_type,
+        "date": rec.get("transaction_date") or rec.get("filing_date") or "",
+        "shares_traded": shares,
+        "price_per_share": price,
+        "total_value": shares * price,
+        "shares_held": rec.get("shares_owned_after") or 0,
+        "_uw_raw": rec,
+    }
+
+
+@st.cache_data(ttl=180, show_spinner=False)
+def _cached_uw_insider_op(
+    api_key: str,
+    tickers: str,
+    action: str | None = None,
+    page_size: int = 100,
+) -> list[dict[str, Any]]:
+    """Cache UW Form-4 insider transactions for 3 minutes.
+
+    ``tickers`` may be empty — UW supports a true bulk feed (unlike FMP).
+    When ``tickers`` is given, the call is fanned out per-ticker.
+    ``action`` is matched against the single-letter ``transaction_code``.
+    """
+    if _fetch_uw_insider is None or not api_key:
+        return []
+    syms = [t.strip().upper() for t in (tickers or "").split(",") if t.strip()]
+    out: list[dict[str, Any]] = []
+    if not syms:
+        # Bulk mode — single call.
+        try:
+            recs = _fetch_uw_insider(api_key, limit=page_size) or []
+        except Exception:
+            logger.warning("_cached_uw_insider_op (bulk) failed", exc_info=True)
+            recs = []
+        for rec in recs:
+            if not isinstance(rec, dict):
+                continue
+            if action and str(rec.get("transaction_code") or "").upper() != action.upper():
+                continue
+            out.append(_uw_insider_to_renderer_shape(rec))
+            if len(out) >= page_size:
+                return out
+        return out
+    per_sym = max(int(page_size) // max(len(syms), 1), 1)
+    for sym in syms:
+        try:
+            recs = _fetch_uw_insider(api_key, limit=per_sym, ticker=sym) or []
+        except Exception:
+            logger.warning("_cached_uw_insider_op failed for %s", sym, exc_info=True)
+            continue
+        for rec in recs:
+            if not isinstance(rec, dict):
+                continue
+            if action and str(rec.get("transaction_code") or "").upper() != action.upper():
+                continue
+            out.append(_uw_insider_to_renderer_shape(rec))
+            if len(out) >= page_size:
+                return out
+    return out
+
+
+# ── v3 P-4b/d: UW dark-pool, spot-GEX, market-tide caches ──
+
+
+@st.cache_data(ttl=180, show_spinner=False)
+def _cached_uw_darkpool_op(
+    api_key: str, ticker: str, *, limit: int = 100,
+) -> list[dict[str, Any]]:
+    """Cache UW dark-pool prints for 3 minutes (per ticker)."""
+    if _fetch_uw_darkpool is None or not api_key or not (ticker or "").strip():
+        return []
+    try:
+        return _fetch_uw_darkpool(api_key, ticker, limit=limit) or []
+    except Exception:
+        logger.warning("_cached_uw_darkpool_op failed", exc_info=True)
+        return []
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_uw_gex_op(api_key: str, ticker: str) -> list[dict[str, Any]]:
+    """Cache UW dealer-gamma-by-strike for 5 minutes (per ticker)."""
+    if _fetch_uw_spot_gex is None or not api_key or not (ticker or "").strip():
+        return []
+    try:
+        return _fetch_uw_spot_gex(api_key, ticker) or []
+    except Exception:
+        logger.warning("_cached_uw_gex_op failed", exc_info=True)
+        return []
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def _cached_uw_tide_op(api_key: str) -> list[dict[str, Any]]:
+    """Cache UW marketwide tide ticks for 60 seconds."""
+    if _fetch_uw_market_tide is None or not api_key:
+        return []
+    try:
+        return _fetch_uw_market_tide(api_key) or []
+    except Exception:
+        logger.warning("_cached_uw_tide_op failed", exc_info=True)
         return []
 
 
@@ -375,13 +644,25 @@ def _cached_defense_wl_op(api_key: str) -> list[dict[str, Any]]:
 
 @st.cache_data(ttl=180, show_spinner=False)
 def _cached_bz_options_op(api_key: str, tickers: str) -> list[dict[str, Any]]:
-    """Cache Benzinga options activity for 3 minutes."""
+    """Cache options activity for 3 minutes.
+
+    v3 P-3b: prefers Unusual Whales (UNUSUAL_WHALES_API_KEY) when set,
+    falls back to the Benzinga path (which is now retired and returns
+    [] anyway).  Function name retained for cache-key stability.
+    """
+    uw_key = os.environ.get("UNUSUAL_WHALES_API_KEY", "").strip()
+    if uw_key and _fetch_uw_options is not None:
+        try:
+            return _fetch_uw_options(uw_key, tickers) or []
+        except Exception:
+            logger.warning("_cached_bz_options_op (UW) failed", exc_info=True)
+            return []
     if _fetch_bz_options is None:
         return []
     try:
         return _fetch_bz_options(api_key, tickers) or []
     except Exception:
-        logger.warning("_cached_bz_options_op failed", exc_info=True)
+        logger.warning("_cached_bz_options_op (Benzinga fallback) failed", exc_info=True)
         return []
 
 
@@ -1790,7 +2071,8 @@ def main() -> None:
             st.caption(
                 "Full Benzinga data suite: Dividends, Splits, IPOs, "
                 "Guidance, Retail, Conference Calls, Top News, Quantified News, "
-                "Options Flow, Insider Trades, Power Gaps, Channel Browser"
+                "Options Flow, Insider Trades, Power Gaps, Channel Browser. "
+                "UW: Dark Pool, Spot GEX, Market Tide."
             )
 
             _today = datetime.now(UTC).date()
@@ -1800,13 +2082,15 @@ def main() -> None:
             (bz_op_divs, bz_op_splits, bz_op_ipos, bz_op_guid,
              bz_op_retail, bz_op_conf, bz_op_top, bz_op_quant,
              bz_op_opts, bz_op_insider, bz_op_power_gaps,
-             bz_op_channels) = st.tabs([
+             bz_op_channels,
+             uw_op_dp, uw_op_gex, uw_op_tide) = st.tabs([
                 "💵 Dividends", "✂️ Splits", "🚀 IPOs",
                 "🔮 Guidance", "🛒 Retail", "📞 Conf Calls",
                 "📰 Top News",
                 "📈 Quantified", "🎰 Options",
                 "🔍 Insider Trades", "⚡ Power Gaps",
                 "📡 Channel Browser",
+                "🌑 UW Dark Pool", "📊 UW Spot GEX", "🌊 UW Market Tide",
             ])
 
             # ── Dividends ──
@@ -1956,12 +2240,19 @@ def main() -> None:
                 )
                 if _opt_tickers.strip():
                     opt_data = _cached_bz_options_op(bz_key, _opt_tickers.strip())
+                    _src = "Unusual Whales" if _uw_configured() else "Benzinga (retired)"
                     if opt_data:
                         df_o = pd.DataFrame(opt_data)
-                        st.caption(f"{len(df_o)} options activity record(s)")
+                        # Hide the raw UW payload column from the table view.
+                        if "_uw_raw" in df_o.columns:
+                            df_o = df_o.drop(columns=["_uw_raw"])
+                        st.caption(f"{len(df_o)} options activity record(s) — source: {_src}")
                         st.dataframe(df_o, width="stretch", height=min(400, 40 + 35 * len(df_o)))
                     else:
-                        st.info("No options activity found. (Requires Options Activity API access.)")
+                        st.info(
+                            f"No options activity found (source: {_src}). "
+                            "Set UNUSUAL_WHALES_API_KEY to enable UW flow alerts."
+                        )
                 else:
                     st.info("Enter ticker(s) above to view options activity.")
 
@@ -2029,14 +2320,39 @@ def main() -> None:
                 }
                 api_act = _act_map.get(ins_action_op)
 
-                ins_data_op = _cached_bz_insider_op(
-                    bz_key, date_from=_bz_from, date_to=_bz_to,
-                    action=api_act, page_size=ins_lim_op,
-                )
-
-                if ins_tk_op and ins_data_op:
-                    wanted = {t.strip() for t in ins_tk_op.split(",") if t.strip()}
-                    ins_data_op = [r for r in ins_data_op if str(r.get("ticker", "")).upper() in wanted]
+                # v3 P-4c: preference cascade UW > FMP > Benzinga.
+                # UW supports both bulk and per-ticker; FMP is per-ticker only;
+                # Benzinga is the legacy retired fallback.
+                _uw_key = os.environ.get("UNUSUAL_WHALES_API_KEY", "").strip()
+                _fmp_key = os.environ.get("FMP_API_KEY", "")
+                _ins_src = "Benzinga (retired)"
+                if _fetch_uw_insider is not None and _uw_key:
+                    ins_data_op = _cached_uw_insider_op(
+                        _uw_key, ins_tk_op,
+                        action=api_act, page_size=ins_lim_op,
+                    )
+                    _ins_src = "Unusual Whales"
+                elif _SMCFMPClient is not None and _fmp_key:
+                    if not ins_tk_op:
+                        st.info(
+                            "FMP insider feed requires at least one ticker — "
+                            "enter a symbol (e.g. AAPL) above to load transactions."
+                        )
+                        ins_data_op = []
+                    else:
+                        ins_data_op = _cached_fmp_insider_op(
+                            _fmp_key, ins_tk_op,
+                            action=api_act, page_size=ins_lim_op,
+                        )
+                        _ins_src = "FMP"
+                else:
+                    ins_data_op = _cached_bz_insider_op(
+                        bz_key, date_from=_bz_from, date_to=_bz_to,
+                        action=api_act, page_size=ins_lim_op,
+                    )
+                    if ins_tk_op and ins_data_op:
+                        wanted = {t.strip() for t in ins_tk_op.split(",") if t.strip()}
+                        ins_data_op = [r for r in ins_data_op if str(r.get("ticker", "")).upper() in wanted]
 
                 if ins_data_op:
                     df_io = pd.DataFrame(ins_data_op)
@@ -2045,7 +2361,7 @@ def main() -> None:
                         "transaction_type", "date", "shares_traded",
                         "price_per_share", "total_value", "shares_held",
                     ] if c in df_io.columns]
-                    st.caption(f"{len(df_io)} insider transaction(s)")
+                    st.caption(f"{len(df_io)} insider transaction(s) — source: {_ins_src}")
                     st.dataframe(
                         df_io[_cols] if _cols else df_io,
                         width="stretch",
@@ -2228,6 +2544,126 @@ def main() -> None:
                         st.info("Select one or more channels above to browse news.")
                 else:
                     st.info("Could not load Benzinga channel list.")
+
+            # ── v3 P-4b: UW Dark Pool prints ──
+            with uw_op_dp:
+                _uw_key = os.environ.get("UNUSUAL_WHALES_API_KEY", "").strip()
+                if not _uw_key:
+                    st.info("Set UNUSUAL_WHALES_API_KEY to enable dark-pool prints.")
+                else:
+                    dp_tk = st.text_input(
+                        "Ticker", value="AAPL",
+                        key="uw_dp_ticker",
+                        placeholder="e.g. AAPL",
+                    )
+                    dp_lim = st.selectbox(
+                        "Max prints", [25, 50, 100, 200],
+                        index=2, key="uw_dp_limit",
+                    )
+                    if dp_tk.strip():
+                        dp_data = _cached_uw_darkpool_op(_uw_key, dp_tk.strip(), limit=dp_lim)
+                        if dp_data:
+                            df_dp = pd.DataFrame(dp_data)
+                            _cols = [c for c in [
+                                "executed_at", "ticker", "size", "price",
+                                "volume", "premium", "sale_cond_codes", "canceled",
+                            ] if c in df_dp.columns]
+                            st.caption(f"{len(df_dp)} dark-pool print(s) for {dp_tk.upper()}")
+                            st.dataframe(
+                                df_dp[_cols] if _cols else df_dp,
+                                width="stretch",
+                                height=min(400, 40 + 35 * len(df_dp)),
+                            )
+                        else:
+                            st.info(f"No dark-pool prints returned for {dp_tk.upper()}.")
+
+            # ── v3 P-4b: UW Spot GEX by strike ──
+            with uw_op_gex:
+                _uw_key = os.environ.get("UNUSUAL_WHALES_API_KEY", "").strip()
+                if not _uw_key:
+                    st.info("Set UNUSUAL_WHALES_API_KEY to enable spot-GEX exposures.")
+                else:
+                    gex_tk = st.text_input(
+                        "Ticker", value="AAPL",
+                        key="uw_gex_ticker",
+                        placeholder="e.g. AAPL",
+                    )
+                    if gex_tk.strip():
+                        gex_data = _cached_uw_gex_op(_uw_key, gex_tk.strip())
+                        if gex_data:
+                            rows = []
+                            for r in gex_data:
+                                try:
+                                    s = float(r.get("strike", 0) or 0)
+                                    cg = float(r.get("call_gamma_oi", 0) or 0)
+                                    pg = float(r.get("put_gamma_oi", 0) or 0)
+                                    rows.append({
+                                        "strike": s,
+                                        "call_gamma_oi": cg,
+                                        "put_gamma_oi": pg,
+                                        "net_gex": cg - pg,
+                                    })
+                                except (TypeError, ValueError):
+                                    continue
+                            if rows:
+                                df_gex = pd.DataFrame(rows).sort_values("strike")
+                                st.caption(
+                                    f"{len(df_gex)} strike(s) — "
+                                    "net dealer gamma OI (call − put). "
+                                    "Positive = magnet, negative = repulsive."
+                                )
+                                st.bar_chart(df_gex.set_index("strike")["net_gex"])
+                                with st.expander("Raw GEX rows"):
+                                    st.dataframe(
+                                        df_gex,
+                                        width="stretch",
+                                        height=min(400, 40 + 35 * len(df_gex)),
+                                    )
+                            else:
+                                st.info("GEX response parsed empty.")
+                        else:
+                            st.info(f"No GEX data returned for {gex_tk.upper()}.")
+
+            # ── v3 P-4d: UW Market Tide ──
+            with uw_op_tide:
+                _uw_key = os.environ.get("UNUSUAL_WHALES_API_KEY", "").strip()
+                if not _uw_key:
+                    st.info("Set UNUSUAL_WHALES_API_KEY to enable market-tide.")
+                else:
+                    tide_data = _cached_uw_tide_op(_uw_key)
+                    if not tide_data:
+                        st.info("No market-tide ticks returned.")
+                    else:
+                        latest = tide_data[-1] if isinstance(tide_data, list) else {}
+                        try:
+                            ncp = float(latest.get("net_call_premium", 0) or 0)
+                            npp = float(latest.get("net_put_premium", 0) or 0)
+                            nv = float(latest.get("net_volume", 0) or 0)
+                            bias_emoji = "🟢 Bullish" if (ncp + npp) > 0 else "🔴 Bearish"
+                            c1, c2, c3, c4 = st.columns(4)
+                            c1.metric("📞 Net Call Prem", f"${ncp / 1e6:,.2f}M")
+                            c2.metric("📝 Net Put Prem", f"${npp / 1e6:,.2f}M")
+                            c3.metric("📊 Net Volume", f"{nv:,.0f}")
+                            c4.metric("🌊 Tide Bias", bias_emoji)
+                            ts = latest.get("timestamp") or latest.get("date")
+                            if ts:
+                                st.caption(f"Latest tick: {ts}")
+                        except (TypeError, ValueError):
+                            st.warning("Failed to parse latest tide tick.")
+                        # Time series chart of net call − net put
+                        rows = []
+                        for r in tide_data:
+                            try:
+                                rows.append({
+                                    "timestamp": r.get("timestamp") or r.get("date"),
+                                    "net_call_premium": float(r.get("net_call_premium", 0) or 0),
+                                    "net_put_premium": float(r.get("net_put_premium", 0) or 0),
+                                })
+                            except (TypeError, ValueError):
+                                continue
+                        if rows:
+                            df_t = pd.DataFrame(rows).set_index("timestamp")
+                            st.line_chart(df_t)
 
         # ===================================================================
         # 11c. Defense & Aerospace Watchlist

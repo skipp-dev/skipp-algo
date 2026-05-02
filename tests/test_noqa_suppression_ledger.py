@@ -94,11 +94,36 @@ _FROZEN_SITES: dict[str, int] = {
     "governance/run_manifest.py": 1,
     "open_prep/realtime_signals.py": 2,
     "scripts/ib_client_id.py": 2,
-    "scripts/measure_databento_ops_run.py": 1,
+    "scripts/measure_databento_ops_run.py": 2,
     "scripts/smc_micro_publish_guard.py": 1,
-    "scripts/smc_zone_priority_calibration.py": 1,
+    "scripts/smc_zone_priority_calibration.py": 2,
     "scripts/start_open_prep_suite.py": 3,
     "smc_integration/release_policy.py": 1,
+    # E402 after sys.path bootstrap (system review 2026-04-30):
+    # both scripts insert repo root into sys.path before importing
+    # first-party modules; ruff-isort cannot statically prove the
+    # ordering is required for runnability when invoked as a path
+    # rather than as a -m module.
+    "scripts/collect_smc_gate_evidence.py": 1,
+    "scripts/run_smc_pre_release_artifact_refresh.py": 2,
+    # SMC review v3 ledger sync (2026-05-01, F-V3-18): rolling-bench / smoke /
+    # FVG quality scripts that were added in #1947–#1972 without bumping the
+    # ledger. All are E402 after sys.path bootstrap or T201/print() in
+    # one-shot CLI tools — never on hot/prod codepaths.
+    "scripts/analyze_smc_contextual_calibration_history.py": 3,
+    "scripts/e2e_smoke_ci.py": 1,
+    "scripts/execute_ibkr_watchlist.py": 1,
+    "scripts/export_open_prep_lists.py": 2,
+    "scripts/export_open_prep_reports.py": 2,
+    "scripts/fvg_asia_real_sample.py": 1,
+    "scripts/fvg_label_audit.py": 1,
+    "scripts/fvg_quality_recalibration.py": 1,
+    "scripts/generate_performance_report.py": 1,
+    "scripts/probe_newsapi_feed_cursor.py": 4,
+    "scripts/run_smc_e2e_smoke_test.py": 1,
+    "scripts/run_smc_measurement_benchmark.py": 1,
+    "scripts/run_smc_release_gates.py": 1,
+    "scripts/smc_performance_report.py": 1,
 }
 _FROZEN_TOTAL = sum(_FROZEN_SITES.values())
 

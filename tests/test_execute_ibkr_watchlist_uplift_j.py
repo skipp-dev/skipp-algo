@@ -5,7 +5,7 @@ operations (`cancel_symbol_orders_after`, `flatten_after`),
 `place_order_intents_with_ib`/`place_order_intents`,
 `check_ibkr_connection`, and the CLI entry point.
 
-All ib_insync types are stubbed via `_import_ibkr_types` patches; no
+All ib_async types are stubbed via `_import_ibkr_types` patches; no
 TWS/IB Gateway is touched and `time_module.sleep` is patched out so
 schedule helpers run instantly.
 """

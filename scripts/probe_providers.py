@@ -439,6 +439,115 @@ def probe_bz_options_activity() -> tuple[str, str]:
     return _bz_get("/api/v2.1/calendar/options_activity", {"parameters[tickers]": "AAPL"})
 
 
+def _uw_headers(key: str) -> dict[str, str]:
+    """Standard UW header set (Bearer + mandatory client-id).
+
+    v3 P-4a: ``UW-CLIENT-API-ID`` is documented as required in the UW
+    public skill.md manifest. Set here so all UW probes are consistent
+    with the production adapter (newsstack_fmp/ingest_unusual_whales.py).
+    """
+    return {
+        "Authorization": f"Bearer {key}",
+        "Accept": "application/json",
+        "UW-CLIENT-API-ID": "100001",
+    }
+
+
+def probe_uw_options_flow() -> tuple[str, str]:
+    """Unusual Whales /api/option-trades/flow-alerts — active UOA source.
+
+    v3 P-3c: replaces the retired Benzinga ``/api/v2.1/calendar/options_activity``
+    feed in production. Uses Bearer auth with ``UNUSUAL_WHALES_API_KEY``.
+    """
+    import httpx
+    key = os.getenv("UNUSUAL_WHALES_API_KEY", "").strip()
+    if not key:
+        return ("SKIP", "UNUSUAL_WHALES_API_KEY missing")
+    try:
+        r = httpx.get(
+            "https://api.unusualwhales.com/api/option-trades/flow-alerts",
+            params={"ticker_symbol": "AAPL", "limit": "1"},
+            headers=_uw_headers(key),
+            timeout=15.0,
+        )
+    except httpx.HTTPError as exc:
+        return ("FAIL", f"HTTP error: {exc}")
+    if r.status_code == 401:
+        return ("FAIL", "HTTP 401 — UW key invalid")
+    if r.status_code == 403:
+        return ("WARN", "HTTP 403 — endpoint not in plan tier")
+    if r.status_code == 429:
+        return ("WARN", "HTTP 429 — rate-limited")
+    if r.status_code != 200:
+        return ("FAIL", f"HTTP {r.status_code}: {r.text[:80]}")
+    try:
+        data = r.json()
+    except Exception:
+        return ("WARN", "non-JSON response")
+    if isinstance(data, dict):
+        recs = data.get("data") or data.get("flow_alerts") or []
+    else:
+        recs = data if isinstance(data, list) else []
+    return ("OK", f"AAPL flow-alerts {len(recs) if isinstance(recs, list) else '?'} record(s)")
+
+
+def _uw_probe(path: str, params: dict[str, str] | None, label: str) -> tuple[str, str]:
+    """Shared boilerplate for UW endpoint probes (v3 P-4b/d)."""
+    import httpx
+    key = os.getenv("UNUSUAL_WHALES_API_KEY", "").strip()
+    if not key:
+        return ("SKIP", "UNUSUAL_WHALES_API_KEY missing")
+    try:
+        r = httpx.get(
+            f"https://api.unusualwhales.com{path}",
+            params=params or {},
+            headers=_uw_headers(key),
+            timeout=15.0,
+        )
+    except httpx.HTTPError as exc:
+        return ("FAIL", f"HTTP error: {exc}")
+    if r.status_code == 401:
+        return ("FAIL", "HTTP 401 — UW key invalid")
+    if r.status_code == 403:
+        return ("WARN", "HTTP 403 — endpoint not in plan tier")
+    if r.status_code == 429:
+        return ("WARN", "HTTP 429 — rate-limited")
+    if r.status_code != 200:
+        return ("FAIL", f"HTTP {r.status_code}: {r.text[:80]}")
+    try:
+        data = r.json()
+    except Exception:
+        return ("WARN", "non-JSON response")
+    if isinstance(data, dict):
+        recs = data.get("data") or []
+    else:
+        recs = data if isinstance(data, list) else []
+    n = len(recs) if isinstance(recs, list) else "?"
+    return ("OK", f"{label} {n} record(s)")
+
+
+def probe_uw_darkpool() -> tuple[str, str]:
+    """Unusual Whales /api/darkpool/{ticker} — institutional prints (v3 P-4b)."""
+    return _uw_probe("/api/darkpool/AAPL", {"limit": "1"}, "AAPL darkpool")
+
+
+def probe_uw_spot_gex() -> tuple[str, str]:
+    """Unusual Whales /api/stock/{ticker}/spot-exposures/strike — dealer GEX (v3 P-4b)."""
+    return _uw_probe(
+        "/api/stock/AAPL/spot-exposures/strike", None, "AAPL spot-gex",
+    )
+
+
+def probe_uw_market_tide() -> tuple[str, str]:
+    """Unusual Whales /api/market/market-tide — net call/put premium (v3 P-4d)."""
+    return _uw_probe("/api/market/market-tide", None, "market-tide")
+
+
+def probe_uw_insider_transactions() -> tuple[str, str]:
+    """Unusual Whales /api/insider/transactions — bulk Form-4 (v3 P-4c)."""
+    return _uw_probe("/api/insider/transactions", {"limit": "1"}, "insider-tx")
+
+
 def probe_bz_ownership() -> tuple[str, str]:
     return _bz_get("/api/v2.1/ownership", {"symbols": "AAPL"})
 
@@ -452,15 +561,23 @@ def probe_bz_calendar_earnings() -> tuple[str, str]:
 
 
 def probe_bz_news_top() -> tuple[str, str]:
-    return _bz_get("/api/v2/news/top", {"pageSize": 3})
+    return _bz_get("/api/v2/news-top-stories", {"pageSize": 3})
 
 
 def probe_bz_news_channels() -> tuple[str, str]:
-    return _bz_get("/api/v2/news/channels")
+    return _bz_get("/api/v2/channels")
 
 
 def probe_bz_news_quantified() -> tuple[str, str]:
-    return _bz_get("/api/v2/news/quantified", {"pageSize": 3})
+    """Benzinga /api/v2/newsquantified — quantified news analytics.
+
+    Path is ``/api/v2/newsquantified`` (one word, per official docs and the
+    benzinga-python-client). Auth uses ``?token=`` query param like the rest
+    of the Benzinga endpoints — live tests confirmed both ``?token=`` and the
+    ``Authorization`` header are accepted by the server, so we keep ``?token=``
+    for consistency with the official client and the rest of our codebase.
+    """
+    return _bz_get("/api/v2/newsquantified", {"pagesize": 3})
 
 
 def probe_finnhub_quote() -> tuple[str, str]:
@@ -636,8 +753,16 @@ PROBES: list[Probe] = [
     Probe("Benzinga /api/v1/market/movers", probe_benzinga_movers, critical=False),
     Probe("Benzinga /api/v2/news/top", probe_bz_news_top, critical=False),
     Probe("Benzinga /api/v2/news/channels", probe_bz_news_channels, critical=False),
-    Probe("Benzinga /api/v2/news/quantified", probe_bz_news_quantified, critical=False),
+    Probe("Benzinga /api/v2/newsquantified", probe_bz_news_quantified, critical=False),
     Probe("Benzinga /api/v2.1/calendar/options_activity", probe_bz_options_activity, critical=False),
+    # Unusual Whales — v3 P-3c: active UOA source replacing retired Benzinga options_activity
+    Probe("UnusualWhales /api/option-trades/flow-alerts", probe_uw_options_flow, critical=True),
+    # v3 P-4b/d: new UW surfaces — Basic-tier entitlement verified 2026-05-01
+    # but not contractually guaranteed, so left non-critical.
+    Probe("UnusualWhales /api/darkpool/{ticker}", probe_uw_darkpool, critical=False),
+    Probe("UnusualWhales /api/stock/{ticker}/spot-exposures/strike", probe_uw_spot_gex, critical=False),
+    Probe("UnusualWhales /api/market/market-tide", probe_uw_market_tide, critical=False),
+    Probe("UnusualWhales /api/insider/transactions", probe_uw_insider_transactions, critical=False),
     Probe("Benzinga /api/v2.1/fundamentals", probe_bz_fundamentals, critical=False),
     Probe("Benzinga /api/v2.1/ownership", probe_bz_ownership, critical=False),
     Probe("Benzinga /api/v2.1/instruments", probe_bz_instruments, critical=False),

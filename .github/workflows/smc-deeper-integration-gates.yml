@@ -1,3 +1,4 @@
+# live-window: any-trigger  # F-V6-F2.1 (2026-05-02)
 name: smc-deeper-integration-gates
 
 on:
@@ -15,11 +16,16 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
+  PYTHONUNBUFFERED: "1"  # F-V5-A2 (2026-05-01)
+  PYTHONPATH: ${{ github.workspace }}
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  # F-V6-A2 (2026-05-02): force unbuffered Python stdout so progress logs surface
+  # in CI in near-real-time rather than after a buffer flush at process exit.
+  PYTHONUNBUFFERED: "1"
 
 jobs:
   deeper-gates:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
     timeout-minutes: 35
 
     steps:
@@ -38,9 +44,23 @@ jobs:
           pip install -r requirements.txt pytest
 
       - name: Refresh reference artifacts for deeper evidence run
+        # Bug-Hunt 2026-05-01 F-03: pass --soft-skip-on-missing-inputs so
+        # the step exits cleanly with rc=0 (and a GitHub annotation) when
+        # the runner does not carry the canonical Databento export bundle
+        # (manifest_prefix=databento_volatility_production_), instead of
+        # turning every deeper-gates run red. Any other failure class
+        # still propagates as rc!=0.
         run: |
+          set +e
           python scripts/run_smc_pre_release_artifact_refresh.py \
+            --soft-skip-on-missing-inputs \
             --output artifacts/ci/smc_deeper_refresh_report.json
+          rc=$?
+          if [ "$rc" -eq 78 ]; then
+            echo "::warning title=pre-release-refresh::skipped (no canonical export bundle on runner; rc=78)"
+            exit 0
+          fi
+          exit "$rc"
 
       - name: Run deeper provider and smoke health checks
         run: |

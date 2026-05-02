@@ -49,6 +49,12 @@ _ROOT_ORCHESTRATORS: frozenset[str] = frozenset({
     "SMC_TV_Bridge.pine",
     "SkippALGO_Confluence.pine",
     "test_div.pine",
+    # 2026-04-30 (commit 68e1aac0): companion overlays + exit/hold-mgr surfaces.
+    # Inventory updated as part of v3 phase 1 pine-consumer-discipline fix.
+    "SMC_Breakout_Overlay.pine",
+    "SMC_Exit_Signal.pine",
+    "SMC_Hold_Manager.pine",
+    "SMC_VRVP_Overlay.pine",
 })
 
 _PINE_LIBRARIES: frozenset[str] = frozenset({
@@ -113,5 +119,7 @@ def test_smcpp_library_inventory_is_exact() -> None:
 def test_total_active_pine_surface_count() -> None:
     """Belt-and-braces: active surface count is pinned for at-a-glance review."""
     expected = len(_ROOT_ORCHESTRATORS) + len(_PINE_LIBRARIES) + len(_SMCPP_LIBRARIES)
-    # 17 + 5 + 8 = 30 active Pine files.
-    assert expected == 30, f"inventory frozensets drifted: total={expected}"
+    # 21 + 5 + 8 = 34 active Pine files
+    # (was 17 + 5 + 8 = 30; +4 from F-04 PR #1924 promoting
+    # SMC_Breakout_Overlay / Exit_Signal / Hold_Manager / VRVP_Overlay).
+    assert expected == 34, f"inventory frozensets drifted: total={expected}"

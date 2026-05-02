@@ -11,13 +11,17 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from scripts.smc_atomic_write import atomic_write_text
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from smc_integration.release_policy import (
+# Bug-Hunt 2026-05-01 Finding F-01: imports below depend on REPO_ROOT
+# being on sys.path so the script works both as ``python -m scripts.X``
+# and as ``python scripts/X.py`` (the form used by several workflows).
+# noqa: E402 covers the deliberate post-sys.path-insert ordering.
+from scripts.smc_atomic_write import atomic_write_text  # noqa: E402
+
+from smc_integration.release_policy import (  # noqa: E402
     ContextualCalibrationPromotionPolicy,
     ContextualCalibrationRecommendationPolicy,
     assess_contextual_calibration_promotion,

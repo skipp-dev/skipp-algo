@@ -1,3 +1,4 @@
+# live-window: off-hours-only  # F-V6-F2.1 (2026-05-02)
 name: Plan 2.8 Monthly Digest
 
 on:
@@ -22,9 +23,23 @@ permissions:
   contents: read
   actions: read
 
+# F-V5-C2 (2026-05-01): cron-triggered digest — queue overlapping runs instead
+# of killing them so the monthly snapshot cannot be truncated by a manual
+# workflow_dispatch overlap.
+concurrency:
+  group: plan-2-8-monthly-digest
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"  # F-V5-A2 (2026-05-01)
+  PYTHONPATH: ${{ github.workspace }}
+  # F-V6-A2 (2026-05-02): force unbuffered Python stdout so progress logs surface
+  # in CI in near-real-time rather than after a buffer flush at process exit.
+  PYTHONUNBUFFERED: "1"
+
 jobs:
   monthly-digest:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
     steps:
       - uses: actions/checkout@v4
 

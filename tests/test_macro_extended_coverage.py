@@ -750,14 +750,15 @@ def test_get_cryptocurrency_historical_price(
     assert recorder["call"] == ("/stable/historical-price-eod/full", {"symbol": "BTCUSD"})
 
 
-def test_get_cryptocurrency_list_and_fear_and_greed(
+def test_get_cryptocurrency_list(
     client_with_get: FMPClient, recorder: dict[str, Any]
 ) -> None:
     recorder["return"] = []
     client_with_get.get_cryptocurrency_list()
     assert recorder["call"] == ("/stable/cryptocurrency-list", {})
-    client_with_get.get_fear_and_greed_index()
-    assert recorder["call"] == ("/stable/fear-and-greed-index", {})
+    # ``get_fear_and_greed_index`` removed in P-6 (2026-04-30): the FMP
+    # endpoint is retired; crypto F&G now flows through alternative.me
+    # in ``terminal_bitcoin.fetch_fear_greed``.
 
 
 def test_get_technical_indicator_includes_period_when_provided(
@@ -1053,7 +1054,7 @@ def test_get_analyst_estimates_defaults_and_overrides(
     client_with_get.get_analyst_estimates("aapl")
     assert recorder["call"] == (
         "/stable/analyst-estimates",
-        {"symbol": "AAPL", "period": "quarter", "limit": 8},
+        {"symbol": "AAPL", "period": "annual", "limit": 8},
     )
     client_with_get.get_analyst_estimates("aapl", period="annual", limit=0)
     assert recorder["call"][1] == {"symbol": "AAPL", "period": "annual", "limit": 1}
@@ -1064,7 +1065,15 @@ def test_get_analyst_estimates_blank_period_falls_back(
 ) -> None:
     recorder["return"] = []
     client_with_get.get_analyst_estimates("aapl", period="   ")
-    assert recorder["call"][1]["period"] == "quarter"
+    assert recorder["call"][1]["period"] == "annual"
+
+
+def test_get_analyst_estimates_quarter_normalised_to_quarterly(
+    client_with_get: FMPClient, recorder: dict[str, Any]
+) -> None:
+    recorder["return"] = []
+    client_with_get.get_analyst_estimates("aapl", period="quarter")
+    assert recorder["call"][1]["period"] == "quarterly"
 
 
 def test_get_earnings_report(client_with_get: FMPClient, recorder: dict[str, Any]) -> None:
@@ -1598,7 +1607,6 @@ def test_macro_weight_branches(
         ("get_batch_crypto_quotes", (), {}),
         ("get_cryptocurrency_historical_price", ("BTCUSD",), {}),
         ("get_cryptocurrency_list", (), {}),
-        ("get_fear_and_greed_index", (), {}),
         ("get_macro_calendar", (date(2026, 1, 1), date(2026, 1, 31)), {}),
         ("get_premarket_movers", (), {}),
         ("get_batch_aftermarket_quote", (["AAPL", "MSFT"],), {}),

@@ -1,3 +1,4 @@
+# live-window: mutating-on-cron  # F-V6-F2.1 (2026-05-02)
 name: plan-2.8 weekly trend digest
 
 # Weekly Plan 2.8 trend digest. Pulls the long-running history JSONL
@@ -28,9 +29,22 @@ permissions:
   actions: read
   issues: write
 
+# F-V5-C2 (2026-05-01): cron-triggered digest — queue overlapping runs instead
+# of killing them so an alert-issue write cannot be interrupted mid-API call.
+concurrency:
+  group: plan-2-8-weekly-digest
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"  # F-V5-A2 (2026-05-01)
+  PYTHONPATH: ${{ github.workspace }}
+  # F-V6-A2 (2026-05-02): force unbuffered Python stdout so progress logs surface
+  # in CI in near-real-time rather than after a buffer flush at process exit.
+  PYTHONUNBUFFERED: "1"
+
 jobs:
   weekly-digest:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -13245,7 +13259,7 @@ jobs:
           # comment instead of opening a fresh one. This keeps the
           # backlog readable across consecutive alerting weeks.
           existing="$(gh issue list \
-            --label plan-2.8 --label drift-alert \
+            --label cron-failure \
             --state open --json number --jq '.[0].number' || echo '')"
           if [ -n "${existing}" ]; then
             gh issue comment "${existing}" \
@@ -13254,7 +13268,7 @@ jobs:
             gh issue create \
               --title "${title}" \
               --body-file artifacts/plan_2_8_digest/issue_body.md \
-              --label plan-2.8,drift-alert
+              --label cron-failure
           fi
 
       - name: Close drift-alert issues when alerts cleared
@@ -13270,7 +13284,7 @@ jobs:
           # a short note pointing at this run. Idempotent: a no-op
           # when no matching open issue exists.
           numbers="$(gh issue list \
-            --label plan-2.8 --label drift-alert \
+            --label cron-failure \
             --state open --json number --jq '.[].number' || echo '')"
           if [ -z "${numbers}" ]; then
             echo "No open drift-alert issues to close."

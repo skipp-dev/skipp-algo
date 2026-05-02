@@ -1,5 +1,18 @@
 from __future__ import annotations
 
+# F-V5-A1-2 / F-CI-O1 (2026-05-01): bootstrap root logging so the
+# logger.info(...) progress messages this entry point emits actually
+# surface in CI logs (default WARNING-only handler would drop them).
+try:
+    from scripts._logging_init import init_cli_logging
+except ImportError:  # script-style invocation: `python scripts/X.py`
+    import sys as _v5a12_sys
+    from pathlib import Path as _v5a12_Path
+
+    _v5a12_sys.path.insert(0, str(_v5a12_Path(__file__).resolve().parents[1]))
+    from scripts._logging_init import init_cli_logging  # type: ignore[no-redef]
+
+
 import argparse
 import json
 import math
@@ -9,11 +22,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from scripts.smc_atomic_write import atomic_write_text
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
+
+# Bug-Hunt 2026-05-01 F-01: deferred so the script also works when
+# invoked as `python scripts/X.py` (no PYTHONPATH=.) — sys.path.insert
+# above must happen before any first-party `from scripts.` import.
+from scripts.smc_atomic_write import atomic_write_text  # noqa: E402
 
 from scripts.smc_pine_evidence_gate import build_evidence_lane_gate
 from scripts.verify_smc_micro_publish_contract import verify_publish_contract
@@ -1113,6 +1129,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    init_cli_logging()  # F-V5-A1-2 (2026-05-01)
     args = build_parser().parse_args()
     checked_at = float(time.time())
 

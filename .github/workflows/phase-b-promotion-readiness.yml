@@ -1,3 +1,4 @@
+# live-window: manual-only  # F-V6-F2.1 (2026-05-02)
 name: phase-b-promotion-readiness
 
 # Deep-Review 2026-04-27 follow-up: gate Phase-B promotion on the
@@ -24,9 +25,14 @@ on:
 permissions:
   contents: read
 
+env:
+  # F-V6-A2 (2026-05-02): force unbuffered Python stdout so progress logs surface
+  # in CI in near-real-time rather than after a buffer flush at process exit.
+  PYTHONUNBUFFERED: "1"
+
 jobs:
   check-readiness:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4

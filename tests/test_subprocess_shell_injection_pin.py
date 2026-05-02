@@ -69,6 +69,10 @@ _FROZEN_SITES: dict[tuple[str, str], int] = {
     ("open_prep/realtime_signals.py", "Popen"): 1,
     ("open_prep/realtime_signals.py", "run"): 1,
     ("scripts/measure_databento_ops_run.py", "run"): 1,
+    # scripts/phase5_perf_trend.py wraps `gh run list` once per workflow to
+    # compute the larger-runner perf trend artifact (review-v3 phase 5).
+    # Token-list args, no shell=True, dev-only/manually invoked.
+    ("scripts/phase5_perf_trend.py", "check_output"): 1,
     ("scripts/scan_manifests_for_pytest_provenance.py", "check_output"): 2,
     ("scripts/smc_micro_publish_guard.py", "run"): 1,
     ("scripts/smc_zone_priority_calibration.py", "run"): 1,

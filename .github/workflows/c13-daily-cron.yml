@@ -1,3 +1,4 @@
+# live-window: mutating-on-cron  # F-V6-F2.1 (2026-05-02)
 name: c13-daily-cron
 
 # Sprint C13 / T2 — daily incubation cron for Phase A.
@@ -50,9 +51,14 @@ concurrency:
   group: c13-daily-cron
   cancel-in-progress: false
 
+env:
+  # F-V6-A2 (2026-05-02): force unbuffered Python stdout so progress logs surface
+  # in CI in near-real-time rather than after a buffer flush at process exit.
+  PYTHONUNBUFFERED: "1"
+
 jobs:
   daily-pipeline:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
     timeout-minutes: 20
     env:
       LIVE_DIR: cache/live
@@ -60,9 +66,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - uses: ./.github/actions/setup-python-pinned
         with:
-          python-version: "3.12"
           cache: pip
 
       - name: Install runtime dependencies
@@ -243,7 +248,7 @@ jobs:
         run: |
           DATE="${{ steps.date.outputs.date }}"
           TITLE="C13 daily-cron failure ${DATE}"
-          if gh issue list --label c13,critical,cron-failure --search "in:title \"${TITLE}\"" --state open | grep -q "${TITLE}"; then
+          if gh issue list --label cron-failure --search "in:title \"${TITLE}\"" --state open | grep -q "${TITLE}"; then
             echo "Issue already open — skipping."
             exit 0
           fi
@@ -262,6 +267,6 @@ jobs:
           EOF
           )
           gh issue create \
-            --label c13,critical,cron-failure \
+            --label cron-failure \
             --title "${TITLE}" \
             --body "${BODY}"

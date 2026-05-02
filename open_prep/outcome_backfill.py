@@ -392,6 +392,16 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Also backfill feature importance samples from resolved outcomes.",
     )
+    parser.add_argument(
+        "--require-progress",
+        action="store_true",
+        help=(
+            "Exit 3 when the run made zero progress "
+            "(resolved == 0 AND failed == 0 AND skipped == 0). "
+            "Use this in scheduled workflows that should never "
+            "silently no-op (audit finding F-09)."
+        ),
+    )
     return parser
 
 
@@ -459,8 +469,18 @@ def main(argv: list[str] | None = None) -> int:
     # and the FI report's `insufficient_labels` state.
     resolved = int(summary.get("resolved") or 0)
     failed = int(summary.get("failed") or 0)
+    skipped = int(summary.get("skipped") or 0)
     if resolved == 0 and failed > 0:
         return 2
+    # F-09: opt-in tripwire for scheduled workflows. The default
+    # behaviour (no-op runs are tolerated) stays unchanged so ad-hoc
+    # / dry-run invocations don't break.
+    if args.require_progress and (resolved + failed + skipped) == 0:
+        print(
+            "::error::--require-progress was set but the run made "
+            "no progress (resolved=0, failed=0, skipped=0)."
+        )
+        return 3
     return 0
 
 

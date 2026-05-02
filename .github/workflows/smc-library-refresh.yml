@@ -1,6 +1,8 @@
+# live-window: mutating-on-cron  # F-V6-F2.1 (2026-05-02)
 # SMC Library Intraday Refresh (v5)
 #
-# Runs 4x per trading day at 12:30 / 14:30 / 16:30 / 18:30 UTC on weekdays.
+# Runs 4x per trading day at 13:00 / 15:00 / 17:00 / 19:00 UTC on weekdays
+# (respaced from 12:30/14:30/16:30/18:30 — see F-V6-C3, 2026-05-02).
 # Each run: generate → event-risk → gate → detect changes → diff report →
 #           governance → publish → commit → alerts.
 # Skips publish/version-bump/commit when the library content is unchanged.
@@ -44,25 +46,57 @@ name: smc-library-refresh
 
 on:
   schedule:
-    - cron: "30 12 * * 1-5"   # 12:30 UTC – pre-market
-    - cron: "30 14 * * 1-5"   # 14:30 UTC – market open
-    - cron: "30 16 * * 1-5"   # 16:30 UTC – midday
-    - cron: "30 18 * * 1-5"   # 18:30 UTC – late session
+    # F-V6-C3 (2026-05-02): respaced from HH:30 → HH+1:00. The 30-min
+    # handoff window was too tight for the producer
+    # (smc-databento-production-export) which can legitimately run up to
+    # 60 min (timeout cap, PR #2018). New 60-min headroom guarantees the
+    # consumer always reads the freshest export.
+    - cron: "0 13 * * 1-5"   # 13:00 UTC – pre-market   (was 12:30)
+    - cron: "0 15 * * 1-5"   # 15:00 UTC – market open  (was 14:30)
+    - cron: "0 17 * * 1-5"   # 17:00 UTC – midday       (was 16:30)
+    - cron: "0 19 * * 1-5"   # 19:00 UTC – late session (was 18:30)
   workflow_dispatch:
+
+# F-V8-C3.1-D (2026-05-02): serialize consumer runs per ref. Mirrors the
+# producer guard (smc-databento-production-export) so a slow handoff
+# cannot be raced by the next 2-hour cron tick. cancel-in-progress=false
+# because the consumer commits artifacts and opens PRs — killing it
+# mid-run would leave a half-written artifact tree on the runner and a
+# zombie PR branch on origin. The follow-on tick queues instead.
+concurrency:
+  group: smc-library-refresh-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: write
   pull-requests: write
 
+# F-V5-C2 (2026-05-01): cron-triggered refresh that opens a PR — queue
+# overlapping runs instead of killing them so a half-pushed branch / partially
+# created PR is never left behind.
+concurrency:
+  group: smc-library-refresh
+  cancel-in-progress: false
+
 env:
+  PYTHONUNBUFFERED: "1"  # F-V5-A2 (2026-05-01)
+  PYTHONPATH: ${{ github.workspace }}
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   REFRESH_DATE: ""   # set dynamically in the date step
-  SMC_REFRESH_RUNNER_LABEL: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+  SMC_REFRESH_RUNNER_LABEL: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
   SMC_INCREMENTAL_BASE_SEED_CACHE_VERSION: v1
+  # F-V6-A2 (2026-05-02): force unbuffered Python stdout so progress logs surface
+  # in CI in near-real-time rather than after a buffer flush at process exit.
+  PYTHONUNBUFFERED: "1"
 
 jobs:
   refresh:
-    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
+    # F-V8-C3.1 (2026-05-02): bumped 90→120 in lockstep with the producer
+    # (smc-databento-production-export). Pin test enforces producer ≤
+    # consumer, so the two move together. 120 = exactly the 2h cron
+    # interval — back-to-back runs touch but cannot overlap (anything >120
+    # would let a zombie run collide with the next tick).
     timeout-minutes: 120
 
     steps:
@@ -85,9 +119,7 @@ jobs:
 
       # ── Python + Node setup ─────────────────────────────────────
       - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
+        uses: ./.github/actions/setup-python-pinned
 
       - name: Set up Node
         uses: actions/setup-node@v6
@@ -259,11 +291,52 @@ jobs:
           echo "breaking=${BREAKING}" >> "$GITHUB_OUTPUT"
           echo "reason=${REASON}" >> "$GITHUB_OUTPUT"
 
-      # ── Release-reference artifact refresh + strict gates ───────
-      - name: Refresh release reference artifacts
-        id: pre_release_refresh
+      # ── Restore canonical Databento production export bundle ────
+      # Produced by `.github/workflows/smc-databento-production-export.yml`.
+      # The producer runs ~30 min before each library-refresh tick and
+      # writes `artifacts/smc_microstructure_exports/databento_volatility_production_*`.
+      # We restore by today's date key, falling back to the most recent
+      # same-OS bundle if the producer was skipped or hasn't run yet.
+      - name: Restore Databento production export bundle
+        id: restore_export_bundle
+        if: steps.diff.outputs.changed == 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: artifacts/smc_microstructure_exports
+          key: smc-prod-export-${{ runner.os }}-${{ env.REFRESH_DATE }}
+          restore-keys: |
+            smc-prod-export-${{ runner.os }}-
+
+      - name: Verify Databento production export bundle is present
+        id: verify_export_bundle
         if: steps.diff.outputs.changed == 'true'
         run: |
+          set +e
+          if ls artifacts/smc_microstructure_exports/databento_volatility_production_*_manifest.json >/dev/null 2>&1; then
+            echo "bundle_present=true" >> "$GITHUB_OUTPUT"
+            NEWEST=$(ls -1t artifacts/smc_microstructure_exports/databento_volatility_production_*_manifest.json | head -1)
+            echo "::notice::Restored Databento production manifest: ${NEWEST}"
+          else
+            echo "bundle_present=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No Databento production export bundle restored from cache. The release-reference refresh step will be advisory-only this run. Trigger smc-databento-production-export workflow to populate."
+          fi
+          exit 0
+
+      # ── Release-reference artifact refresh + strict gates ───────
+      # Marked advisory until the producer cache is warm so that a missing
+      # bundle does not block the entire library refresh / TradingView
+      # publish flow. The strict gates step below still runs unconditionally.
+      # CONTINUE-ON-ERROR-INTENTIONAL: best-effort hop — strict gates step below
+      # is the real fail signal; M-1 / Klasse #24.
+      - name: Refresh release reference artifacts (best-effort)
+        id: pre_release_refresh
+        if: steps.diff.outputs.changed == 'true'
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.verify_export_bundle.outputs.bundle_present }}" != "true" ]; then
+            echo "::warning::Skipping release reference artifact refresh: export bundle missing."
+            exit 0
+          fi
           python scripts/run_smc_pre_release_artifact_refresh.py \
             --export-bundle-root artifacts/smc_microstructure_exports \
             --warn-on-empty-artifacts \
@@ -567,6 +640,7 @@ jobs:
             SMC_Imbalance_Context.pine \
             SMC_HTF_Confluence.pine \
             SMC_Event_Overlay.pine \
+            SMC_Breakout_Overlay.pine \
             artifacts/tradingview/library_release_manifest.json
           if ! git diff --quiet; then
             echo "::error::Unexpected tracked changes remain unstaged before refresh commit."
@@ -583,13 +657,26 @@ jobs:
           git checkout -b "$BRANCH"
           git commit -m "chore: library refresh ${REFRESH_DATE} (run ${{ github.run_number }})"
           git push -u origin "$BRANCH"
-          gh pr create \
+          # F-V6-I2.1 (2026-05-02): previously this `gh pr create` was suffixed
+          # with `|| true`, which silently swallowed real PR-creation failures
+          # (auth issues, branch-protection refusals, transient API errors) and
+          # left the workflow green with no follow-up PR. Surface as ::error::
+          # and fail the job so the library refresh cannot be lost.
+          if ! gh pr create \
             --base main \
             --head "$BRANCH" \
             --label automated \
             --title "chore: library refresh ${REFRESH_DATE} (run ${{ github.run_number }})" \
-            --body "Automated SMC library refresh from \`smc-library-refresh\` (run ${GITHUB_RUN_ID}). Pine library content + manifest. Heavy CI is skipped for bot/* PRs (validation already happened in the refresh workflow itself: TV preflight + post-release validation + release gates)." || true
-          gh pr merge "$BRANCH" --auto --squash --delete-branch || true
+            --body "Automated SMC library refresh from \`smc-library-refresh\` (run ${GITHUB_RUN_ID}). Pine library content + manifest. Heavy CI is skipped for bot/* PRs (validation already happened in the refresh workflow itself: TV preflight + post-release validation + release gates)."; then
+            echo "::error file=.github/workflows/smc-library-refresh.yml::gh pr create failed for ${BRANCH} — see step log for stderr"
+            exit 1
+          fi
+          # CONTINUE-ON-ERROR-INTENTIONAL: enabling auto-merge can race with
+          # branch-protection / required-status-check evaluation; the PR itself
+          # is already open and reviewable, so we surface as warning rather
+          # than failing the job.
+          gh pr merge "$BRANCH" --auto --squash --delete-branch \
+            || echo "::warning::auto-merge enable failed for ${BRANCH} (PR is open and reviewable)"
 
       # ── Signal alerts (non-blocking) ────────────────────────────
       - name: Evaluate and send alerts

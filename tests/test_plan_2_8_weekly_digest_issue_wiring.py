@@ -42,7 +42,10 @@ def test_issue_creation_step_present_and_conditional() -> None:
     run = issue["run"]
     assert "gh issue create" in run
     assert "--body-file artifacts/plan_2_8_digest/issue_body.md" in run
-    assert "--label plan-2.8,drift-alert" in run
+    # Bug-Hunt 2026-05-01 F-04: only the existing 'cron-failure' label is
+    # used; previous labels 'plan-2.8' and 'drift-alert' do not exist in the
+    # repo and silently broke `gh issue create`.
+    assert "--label cron-failure" in run
 
 
 def test_issue_step_dedups_via_existing_open_issue() -> None:
@@ -50,7 +53,9 @@ def test_issue_step_dedups_via_existing_open_issue() -> None:
     issue = next(s for s in steps if s.get("name") == "Open drift-alert issue")
     run = issue["run"]
     assert "gh issue list" in run
-    assert "--label plan-2.8" in run and "--label drift-alert" in run
+    # Bug-Hunt 2026-05-01 F-04: dedup query uses the same 'cron-failure'
+    # label as the create call.
+    assert "--label cron-failure" in run
     assert "--state open" in run
     assert "gh issue comment" in run
 

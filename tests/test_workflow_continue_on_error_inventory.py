@@ -22,12 +22,21 @@ inline comment (YAML noise). The single source of truth is this test.
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
+
+# Match ``continue-on-error: true`` — optionally followed by an inline
+# ``# ...`` rationale comment on the same line. The previous strict
+# ``stripped == "continue-on-error: true"`` check silently skipped sites
+# carrying a trailing comment (Copilot review of PR #1939). Anchored to
+# end-of-line so ``continue-on-error: false`` and templated variants
+# (``${{ ... }}``) are rejected.
+_COE_LINE_RE = re.compile(r"^continue-on-error:\s+true(?:\s+#.*)?$")
 
 # Allowed continue-on-error sites: workflow-relative-path -> set of 1-based line numbers.
 # Each entry is intentionally explicit; do NOT collapse with wildcards.
@@ -36,29 +45,48 @@ WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
 # step, optional gate, or non-blocking observability hop).
 _ALLOWED: dict[str, frozenset[int]] = {
     # Best-effort live news refresh: NewsAPI 5xx is tolerated to keep cron green.
-    "smc-live-newsapi-refresh.yml": frozenset({106}),
+    # Rebaselined 2026-05-02: 107 → 111 (+4) after upstream env edit.
+    "smc-live-newsapi-refresh.yml": frozenset({111}),
     # Library refresh: 6 best-effort hops (gates probe, TV publish, telegram pings).
-    # Lines 601/744/764 (was 592/735/755): same three sites (alerts dispatch,
-    # breaking-change notify, end-of-run status) — file body shifted +9 lines
-    # in upstream main without a recorded direct edit; resync to actual offsets.
-    "smc-library-refresh.yml": frozenset({165, 376, 601, 744, 764}),
+    # Lines 165 → 166 (alerts dispatch), 376 → 303 sequence shifted by upstream
+    # rearrangement (PR #1937 cascade), and a NEW best-effort hop at 303 added
+    # by the "Refresh release reference artifacts (best-effort)" step that
+    # tolerates a cold producer cache (M-1 marker present, advisory in name).
+    # Lines 416/642/785/805 → 418/644/787/807 (+2 each) due to the marker comment
+    # and renamed step name above.
+    # Rebaselined 2026-05-02 after PR #2028 composite migration (setup-python-pinned)
+    # which added 7 lines to the affected jobs:
+    # 172→179, 309→316, 424→431, 650→670, 793→813, 813→833.
+    "smc-library-refresh.yml": frozenset({179, 316, 431, 670, 813, 833}),
     # Deeper integration gates: 2 advisory-only probes.
-    "smc-deeper-integration-gates.yml": frozenset({54, 98}),
+    # Rebaselined 2026-05-02 after PR #2028 composite migration: 69→73, 113→117 (+4 each).
+    "smc-deeper-integration-gates.yml": frozenset({73, 117}),
     # Weekly digest: 3 best-effort delivery hops.
-    "plan-2-8-weekly-digest.yml": frozenset({444, 661, 940}),
+    # Rebaselined 2026-05-02: 447→451, 664→668, 943→947 (+4 each).
+    "plan-2-8-weekly-digest.yml": frozenset({451, 668, 947}),
     # Release gates: 1 advisory metric collection hop.
-    "smc-release-gates.yml": frozenset({172}),
+    # Rebaselined 2026-05-02: 173→177 (+4).
+    "smc-release-gates.yml": frozenset({177}),
     # Drift watchdog: red verdict is intentionally non-fatal so the follow-up
     # step can convert it into a GitHub issue (silent-fail by design — see C9/T4).
     # Line shifted 52 → 54 after adding CONTINUE-ON-ERROR-INTENTIONAL marker comment
     # (PR #333 Copilot review on c13-daily-cron — marker discipline test).
-    "drift-watchdog.yml": frozenset({54}),
+    # Rebaselined 2026-05-02: 54→60 (+6).
+    "drift-watchdog.yml": frozenset({60}),
     # C13 daily-cron: 4 best-effort steps so partial failures still upload
     # artefacts and let the issue-opener step report exactly which step
     # failed; soft-skip rc=78 paths are also gated through these.
     # Lines 109/124/148 → 119/134/158 (+10) after wiring T8.3 imbalance
     # index gate into Step 1's run block (PR #333 follow-up).
-    "c13-daily-cron.yml": frozenset({90, 119, 134, 158, 175, 202}),
+    # Rebaselined 2026-05-02 after PR #2028 composite migration:
+    # 90→95, 119→124, 134→139, 158→163, 175→180, 202→207 (+5 each).
+    "c13-daily-cron.yml": frozenset({95, 124, 139, 163, 180, 207}),
+    # Producer cache: second save under the date-only canonical key is best-effort
+    # because actions/cache rejects re-writes for an existing key (benign 409).
+    # Surfaced by PR-D8 (Copilot review of PR #1939) — was previously invisible
+    # to the inventory because of the trailing rationale comment on the same line.
+    # Rebaselined 2026-05-02 after PR #2028 composite migration: 169→177 (+8).
+    "smc-databento-production-export.yml": frozenset({177}),
 }
 
 
@@ -66,10 +94,19 @@ def _scan_workflow(path: Path) -> frozenset[int]:
     """Return the set of 1-based line numbers carrying ``continue-on-error: true``."""
     hits: set[int] = set()
     for idx, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
-        # Match exact ``continue-on-error: true`` ignoring leading whitespace.
-        # Reject ``continue-on-error: false`` and templated variants.
+        # Match ``continue-on-error: true`` ignoring leading whitespace AND any
+        # trailing inline ``# ...`` comment. PR-D8 hardening (Copilot review of
+        # PR #1939): the previous strict ``stripped == "continue-on-error: true"``
+        # match silently dropped sites that carried a trailing rationale comment
+        # on the same line, e.g.
+        #     continue-on-error: true   # second save with identical date key
+        # which left the entire workflow out of the inventory ledger.
+        # Reject ``continue-on-error: false`` and templated variants by anchoring
+        # the regex to ``true`` followed by end-of-line, whitespace, or ``#``.
         stripped = raw.strip()
-        if stripped == "continue-on-error: true":
+        if stripped.startswith("#"):
+            continue
+        if _COE_LINE_RE.match(stripped):
             hits.add(idx)
     return frozenset(hits)
 

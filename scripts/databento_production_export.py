@@ -4040,6 +4040,19 @@ def run_production_export_pipeline(
 
 
 def main(argv: Sequence[str] | None = None) -> None:
+    # F-V8-A1.1 (2026-05-02): bootstrap root logging so the logger.info(...)
+    # progress messages this entry point emits actually surface in CI logs
+    # (default WARNING-only handler would drop them). Carries forward F-CI-O1.
+    try:
+        from scripts._logging_init import init_cli_logging
+    except ImportError:  # script-style invocation: `python scripts/X.py`
+        import sys as _v8a11_sys
+        from pathlib import Path as _v8a11_Path
+
+        _v8a11_sys.path.insert(0, str(_v8a11_Path(__file__).resolve().parents[1]))
+        from scripts._logging_init import init_cli_logging  # type: ignore[no-redef]
+    init_cli_logging()
+
     load_dotenv(REPO_ROOT / ".env")
 
     parser = argparse.ArgumentParser(description="Run the Databento production export pipeline.")
@@ -4063,6 +4076,19 @@ def main(argv: Sequence[str] | None = None) -> None:
         help="Disable preopen 04:00 scope selection and the fixed 10:00 ET outcome snapshot for SMC base-generation focused exports.",
     )
     parser.add_argument("--force-refresh", action="store_true")
+    parser.add_argument(
+        "--export-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Override the export output directory. Defaults to "
+            "default_export_directory() (typically ~/Downloads). Set this "
+            "in CI to materialize the canonical "
+            "`databento_volatility_production_*_manifest.json` under the "
+            "repo's artifacts tree (e.g. "
+            "artifacts/smc_microstructure_exports)."
+        ),
+    )
     args = parser.parse_args(list(argv) if argv is not None else [])
 
     databento_api_key = os.getenv("DATABENTO_API_KEY", "")
@@ -4090,7 +4116,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         premarket_anchor_et=time(4, 0),
         min_market_cap=0.0,
         cache_dir=REPO_ROOT / "artifacts" / "databento_volatility_cache",
-        export_dir=default_export_directory(),
+        export_dir=args.export_dir if args.export_dir is not None else default_export_directory(),
         use_file_cache=True,
         force_refresh=bool(args.force_refresh),
         bullish_score_profile=str(args.bullish_score_profile),

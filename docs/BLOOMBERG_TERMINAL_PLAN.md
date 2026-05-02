@@ -345,3 +345,43 @@ The terminal overlays Benzinga delayed quotes for fresher price/change data:
 - **Session icons:** `SESSION_ICONS` dict provides user-facing labels (🌅 Pre-Market, 🟢 Regular, 🌙 After-Hours, ⚫ Closed)
 - **Caching:** `@st.cache_data(ttl=60)` prevents redundant API calls
 - **Consumers:** `streamlit_terminal.py`, `open_prep/streamlit_monitor.py`, VisiData snapshots
+
+---
+
+## 10. Unusual Whales Provider (added v3 P-3b / P-4a-d, 2026-04-30)
+
+The terminal/monitor stack gained Unusual Whales as a parallel options-flow
+and macro-flow provider:
+
+- **Adapter:** `newsstack_fmp/ingest_unusual_whales.py` — Bearer auth via
+  `UNUSUAL_WHALES_API_KEY`; mandatory `UW-CLIENT-API-ID` header (v3 P-4a,
+  PR #1967, value pinned to `100001`).
+- **Surfaces** (PRs #1965, #1968, #1969):
+  - Options flow (#1965) — primary trigger, replaces ad-hoc gating
+  - Dark-pool prints + spot-GEX + market-tide (#1968)
+  - Bulk Form-4 insider transactions (#1969)
+- **Consumers:** `open_prep/streamlit_monitor.py` (UW flow alerts +
+  insider-feed swap, see v3 P-3c, PR #1966), `scripts/probe_providers.py`.
+- **Auth-failure handling:** 401 on `UNUSUAL_WHALES_API_KEY` short-circuits
+  with a logged error in production. The probe (`scripts/probe_providers.py`)
+  reports `SKIP` when the key is missing; the runtime adapter / module
+  wrappers in `newsstack_fmp/ingest_unusual_whales.py` and
+  `open_prep/streamlit_monitor.py` instead return `[]` on missing keys or
+  handled errors, so consumers and UI tabs render empty-state hints rather
+  than failing.
+
+## 11. Retired / Removed Paths (v3 audit 2026-04-30)
+
+For traceability — these paths are intentionally gone from the current
+provider stack and should not be reintroduced without a new RFC:
+
+- **FMP fear-and-greed** (`fetch_fear_and_greed_*`) — dropped in PR #1962
+  (v3 P-6) as dead code with no production consumer.
+- **FMP short-interest enrichment** — dropped in PR #1964 (v3 P-2) after
+  the monitor switched to Unusual Whales for flow context.
+- **Benzinga insider-feed in monitor** — swapped to FMP + UW probe in
+  PR #1966 (v3 P-3c). Benzinga insider remains available via the
+  Intelligence section but is no longer the primary monitor source.
+- **`ib_insync`** — replaced by `ib_async>=2.1.0` in PR #1955 (v3 P-8).
+  Drop-in import-surface swap, no behaviour change for existing IBKR
+  scripts.

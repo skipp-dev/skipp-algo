@@ -287,11 +287,18 @@ The `🔍` badge marks **WIIM** (“Why It Matters”) enriched items.
 | Provider | API Key Env Var | Coverage |
 | -------- | --------------- | -------- |
 | **Benzinga** | `BENZINGA_API_KEY` | News (REST + WebSocket), calendar (ratings, earnings, economics, dividends, splits, IPOs, guidance, retail), financial data, delayed quotes, movers |
-| **FMP** | `FMP_API_KEY` | Quotes, sector performance, economic calendar, gainers/losers/actives, crypto, fear & greed, analyst targets, company profiles |
+| **FMP** | `FMP_API_KEY` | Quotes, sector performance, economic calendar, gainers/losers/actives, crypto, analyst targets, company profiles, insider transactions (US) |
+| **Unusual Whales** | `UNUSUAL_WHALES_API_KEY` | Options flow, dark-pool prints, spot-GEX, market-tide surfaces, bulk Form-4 insider transactions (Bearer auth; the required `UW-CLIENT-API-ID` header is sent automatically by the adapter / probe code — no extra env var needed) |
 | **NewsAPI.ai** | `NEWSAPI_AI_KEY` | Event Registry article search, live article feed, event search, breaking events, trending concepts, NLP sentiment scoring |
 | **TradingView** | *(none — scraper)* | Technical analysis (oscillators, moving averages) for equities and crypto |
+| **Databento** | `DATABENTO_API_KEY` | Historical + reference market data (OHLCV, corporate actions, identifier state) |
 | **yfinance** | *(none — free)* | Fallback historical OHLCV, market cap, company info |
 | **Finnhub** | `FINNHUB_API_KEY` | Social sentiment for crypto |
+
+> **Removed providers / paths** (v3 audit 2026-04-30): FMP `fear-and-greed`
+> and FMP `short-interest` enrichment paths have been retired (PRs #1962,
+> #1964); the monitor insider-feed has been swapped from Benzinga onto
+> FMP + Unusual Whales (#1966).
 
 ### Quick Start (Terminal)
 
@@ -306,10 +313,12 @@ pip install -r requirements.txt
 cp .env.example .env   # or create .env manually
 # Required:
 #   BENZINGA_API_KEY=your_key
-# Optional (enables more tabs):
+# Optional (enables more tabs / surfaces):
 #   FMP_API_KEY=your_key
 #   NEWSAPI_AI_KEY=your_key
+#   UNUSUAL_WHALES_API_KEY=your_key   # options flow, dark-pool, GEX, market-tide
 #   FINNHUB_API_KEY=your_key
+#   DATABENTO_API_KEY=your_key        # historical + reference market data
 
 # 3. Run
 streamlit run streamlit_terminal.py
@@ -324,10 +333,10 @@ The dashboard opens at `http://localhost:8501` with a dark theme.
 | Variable | Required | Description |
 | -------- | -------- | ----------- |
 | `BENZINGA_API_KEY` | Yes | Benzinga API key for primary news feed |
-| `FMP_API_KEY` | No | FMP key for quotes, calendar, sector data, crypto |
+| `FMP_API_KEY` | No | FMP key for quotes, calendar, sector data, crypto, insider transactions |
+| `UNUSUAL_WHALES_API_KEY` | No | Unusual Whales Bearer token — enables options-flow, dark-pool, spot-GEX, market-tide, and bulk Form-4 insider surfaces in `open_prep/streamlit_monitor.py` and `newsstack_fmp/ingest_unusual_whales.py` |
 | `NEWSAPI_AI_KEY` | No | NewsAPI.ai key for Event Registry search/feed fallback, breaking/trending/NLP tabs |
-
-Live NewsAPI.ai behavior: the pollers and generator snapshot prefer `minuteStreamArticles`, persist `recentActivityArticlesNewsUpdatesAfterUri` when available, and fall back to timestamp/search polling when the cursor is older than the stream window.
+| `DATABENTO_API_KEY` | No | Databento API key for historical OHLCV + reference market data (corporate actions, identifier state) |
 | `FINNHUB_API_KEY` | No | Finnhub key for crypto social sentiment |
 | `TERMINAL_NOTIFY_ENABLED` | No | `1` to enable push notifications |
 | `TERMINAL_NOTIFY_MIN_SCORE` | No | Minimum news score for notification (default: `0.85`) |
@@ -335,6 +344,13 @@ Live NewsAPI.ai behavior: the pollers and generator snapshot prefer `minuteStrea
 | `TERMINAL_WEBHOOK_URL` | No | Webhook URL for alert dispatch |
 | `TERMINAL_POLL_INTERVAL` | No | Poll interval in seconds (default: `15`) |
 | `TERMINAL_TOPICS` | No | Comma-separated topic filter for Benzinga |
+
+> **Live NewsAPI.ai behavior**: the pollers and generator snapshot prefer
+> `minuteStreamArticles`, persist `recentActivityArticlesNewsUpdatesAfterUri`
+> when available, and fall back to timestamp/search polling when the cursor
+> is older than the stream window. The shared `httpx` timeout was bumped
+> from 20s to 45s in v3 P-7 (#1961) to reduce false-negative timeouts on
+> Event Registry feeds.
 
 **Optional Databento Reference Knobs**:
 
@@ -620,7 +636,7 @@ python scripts/execute_ibkr_watchlist.py --watchlist-csv reports/databento_watch
 
 - `DATABENTO_API_KEY` is required for the screener and production export pipeline.
 - `FMP_API_KEY` is optional and used for fundamentals enrichment and fallback universe-related flows.
-- `ib_insync` plus a reachable TWS or IB Gateway session are required only for `scripts/execute_ibkr_watchlist.py`.
+- `ib_async` plus a reachable TWS or IB Gateway session are required only for `scripts/execute_ibkr_watchlist.py`. The repo migrated from the unmaintained `ib_insync` to `ib_async` in v3 P-8 (#1955) — the import surface is a drop-in swap, but new contributors must depend on `ib_async>=2.1.0` (already pinned in `requirements.txt`).
 
 ### Default Operating Model
 

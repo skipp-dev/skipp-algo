@@ -1,3 +1,4 @@
+# live-window: any-trigger  # F-V6-F2.1 (2026-05-02)
 name: smc-fast-pr-gates
 
 on:
@@ -14,11 +15,18 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
+  PYTHONPATH: ${{ github.workspace }}
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  # F-V6-A2 (2026-05-02): force unbuffered Python stdout so progress logs surface
+  # in CI in near-real-time rather than after a buffer flush at process exit.
+  # (F-V5-A2 originally introduced this on 2026-05-01; F-V6-A2 expanded the
+  # comment but kept the same key — the duplicate from a prior rebase merge
+  # made GitHub Actions reject this workflow as invalid YAML.)
+  PYTHONUNBUFFERED: "1"
 
 jobs:
   fast-gates:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
     timeout-minutes: 35
 
     steps:
@@ -44,9 +52,7 @@ jobs:
 
       - name: Set up Python
         if: steps.gate.outputs.run_heavy == 'true'
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
+        uses: ./.github/actions/setup-python-pinned
 
       - name: Install uv
         if: steps.gate.outputs.run_heavy == 'true'

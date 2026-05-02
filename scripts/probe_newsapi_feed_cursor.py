@@ -10,16 +10,19 @@ from typing import Any
 
 import httpx
 
-from scripts.smc_atomic_write import atomic_write_text
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
-from newsstack_fmp.config import Config
-from newsstack_fmp.pipeline import load_universe
-from scripts.smc_newsapi_ai import (
+# Bug-Hunt 2026-05-01 F-01: deferred so the script also works when
+# invoked as `python scripts/X.py` (no PYTHONPATH=.) — sys.path.insert
+# above must happen before any first-party `from scripts.` import.
+from scripts.smc_atomic_write import atomic_write_text  # noqa: E402
+
+from newsstack_fmp.config import Config  # noqa: E402
+from newsstack_fmp.pipeline import load_universe  # noqa: E402
+from scripts.smc_newsapi_ai import (  # noqa: E402
     ARTICLE_FEED_MAX_AGE_SECONDS,
     NewsApiAiProviderError,
     extract_newsapi_feed_article_cursor_uri,

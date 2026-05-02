@@ -677,28 +677,11 @@ def fetch_fear_greed() -> FearGreed | None:
     except (httpx.HTTPError, OSError, ValueError) as exc:
         log.debug("alternative.me F&G failed: %s", exc)
 
-    # Fallback: FMP (may not be available on all plans)
-    client = _make_fmp_client()
-    data = client.get_fear_and_greed_index() if client is not None else []
-    if not data:
-        return None
-
-    rows = data if isinstance(data, list) else [data]
-    if not rows:
-        return None
-
-    d = rows[0] if isinstance(rows[0], dict) else {}
-    try:
-        _fg_val = float(d.get("value") or 0)
-    except (ValueError, TypeError):
-        _fg_val = 0.0
-    fg = FearGreed(
-        value=_fg_val,
-        label=d.get("valueClassification", d.get("label", "")),
-        timestamp=str(d.get("timestamp", d.get("date", ""))),
-    )
-    _set_cached("fear_greed", fg)
-    return fg
+    # Removed FMP fallback (P-6, 2026-04-30): ``/stable/fear-and-greed-index``
+    # was retired and the legacy v3 endpoint returns 403 "Legacy Endpoint".
+    # alternative.me is the sole, sufficient source for the crypto F&G tile.
+    # See docs/reviews/2026-04-24-system-review.md (P-6).
+    return None
 
 
 def fetch_crypto_movers() -> dict[str, list[CryptoMover]]:

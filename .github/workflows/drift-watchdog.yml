@@ -1,3 +1,4 @@
+# live-window: mutating-on-cron  # F-V6-F2.1 (2026-05-02)
 name: drift-watchdog
 
 # Sprint C9 / T5 — weekly drift watchdog cron.
@@ -23,9 +24,21 @@ permissions:
   contents: read
   issues: write
 
+env:
+  # F-V6-A2 (2026-05-02): force unbuffered Python stdout so progress logs surface
+  # in CI in near-real-time rather than after a buffer flush at process exit.
+  PYTHONUNBUFFERED: "1"
+
+# F-V5-C2 (2026-05-01): cron-triggered job — queue overlapping runs instead of
+# killing them. The drift report walks 30 days of live outcomes; cancelling a
+# half-written run mid-flight risks an inconsistent artifact.
+concurrency:
+  group: drift-watchdog
+  cancel-in-progress: false
+
 jobs:
   drift-watchdog:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
     timeout-minutes: 10
     env:
       LIVE_WINDOW_DAYS: ${{ github.event.inputs.live_window_days || '30' }}
@@ -79,12 +92,12 @@ jobs:
           TITLE="Drift Alert ${DATE}: aggregate_severity=red"
           # Idempotency: title carries the date so re-runs the same day
           # do not spam.
-          if gh issue list --label drift --search "in:title \"${TITLE}\"" --state open | grep -q "${TITLE}"; then
+          if gh issue list --label cron-failure --search "in:title \"${TITLE}\"" --state open | grep -q "${TITLE}"; then
             echo "Issue already open for ${DATE} — skipping."
             exit 0
           fi
           gh issue create \
-            --label drift,critical \
+            --label cron-failure \
             --title "${TITLE}" \
             --body-file "${REPORT}"
 

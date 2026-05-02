@@ -1322,13 +1322,15 @@ def build_enrichment(
         enrichment.setdefault("_diagnostics", {})["regime_conflicts"] = regime_conflicts
 
     # ── Short Interest (v6) ─────────────────────────────────────
+    # P-2 (2026-04-30): FMP /stable/short-interest endpoint retired with no
+    # 1:1 replacement under /stable. Enrichment path removed; the flag is
+    # kept for argparse-surface stability but is now a no-op. Pine
+    # consumers fall back to the empty-enrichment defaults emitted by
+    # generate_smc_micro_profiles.py (HIGH_SHORT_INTEREST_TICKERS="" etc.).
     if enrich_short_interest and fmp is not None:
-        try:
-            from scripts.smc_short_interest_enrichment import compute_short_interest_enrichment
-            enrichment["short_interest"] = compute_short_interest_enrichment(symbols[:50], fmp)
-        except Exception as exc:
-            logger.warning("Short interest enrichment failed", exc_info=True)
-            enrichment.setdefault("_diagnostics", {})["short_interest_error"] = str(exc)
+        enrichment.setdefault("_diagnostics", {})["short_interest_status"] = (
+            "endpoint_retired_no_replacement"
+        )
 
     # ── Treasury / Yield Curve (v6) ─────────────────────────────
     if enrich_treasury and fmp is not None:
@@ -1741,6 +1743,19 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    # F-V8-A1.2 (2026-05-02): bootstrap root logging so the logger.info(...)
+    # progress messages this entry point emits actually surface in CI logs
+    # (default WARNING-only handler would drop them). Carries forward F-CI-O1.
+    try:
+        from scripts._logging_init import init_cli_logging
+    except ImportError:  # script-style invocation: `python scripts/X.py`
+        import sys as _v8a12_sys
+        from pathlib import Path as _v8a12_Path
+
+        _v8a12_sys.path.insert(0, str(_v8a12_Path(__file__).resolve().parents[1]))
+        from scripts._logging_init import init_cli_logging  # type: ignore[no-redef]
+    init_cli_logging()
+
     args = build_parser().parse_args()
     cli_progress_callback = _emit_cli_progress
     enrichment_flags = _resolve_enrichment_flags(args)

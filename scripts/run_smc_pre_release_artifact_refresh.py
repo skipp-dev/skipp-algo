@@ -1,5 +1,18 @@
 from __future__ import annotations
 
+# F-V5-A1-2 / F-CI-O1 (2026-05-01): bootstrap root logging so the
+# logger.info(...) progress messages this entry point emits actually
+# surface in CI logs (default WARNING-only handler would drop them).
+try:
+    from scripts._logging_init import init_cli_logging
+except ImportError:  # script-style invocation: `python scripts/X.py`
+    import sys as _v5a12_sys
+    from pathlib import Path as _v5a12_Path
+
+    _v5a12_sys.path.insert(0, str(_v5a12_Path(__file__).resolve().parents[1]))
+    from scripts._logging_init import init_cli_logging  # type: ignore[no-redef]
+
+
 import argparse
 import json
 import sys
@@ -10,13 +23,12 @@ from typing import Any
 
 import pandas as pd
 
-from scripts.smc_atomic_write import atomic_write_text
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.load_databento_export_bundle import load_export_bundle
+from scripts.smc_atomic_write import atomic_write_text  # noqa: E402
+from scripts.load_databento_export_bundle import load_export_bundle  # noqa: E402
 from smc_integration.artifact_resolution import resolve_structure_artifact_inputs
 from smc_integration.release_policy import (
     RELEASE_REFERENCE_SYMBOLS,
@@ -152,11 +164,22 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Downgrade structurally empty refreshed reference artifacts from fail to warn.",
     )
+    parser.add_argument(
+        "--soft-skip-on-missing-inputs",
+        action="store_true",
+        help=(
+            "Exit with rc=78 (soft-skip) instead of rc=1 when every failure "
+            "is REFRESH_EXECUTION_FAILED caused by a missing canonical export "
+            "manifest (typical on ephemeral CI runners that do not carry the "
+            "upstream Databento export bundle). Bug-Hunt 2026-05-01 F-03."
+        ),
+    )
     parser.add_argument("--output", default="-", help="Output JSON path, or '-' for stdout.")
     return parser
 
 
 def main() -> int:
+    init_cli_logging()  # F-V5-A1-2 (2026-05-01)
     args = build_parser().parse_args()
 
     symbols = parse_csv(str(args.symbols), normalize_upper=True)
@@ -273,12 +296,57 @@ def main() -> int:
                 failures.append(empty_failure)
 
     checked_at = float(time.time())
-    exit_code = 1 if failures else 0
+
+    # F-V8-followup (2026-05-02): on a smc-deeper-integration-gates runner
+    # without the canonical Databento export bundle the per-timeframe refresh
+    # never reaches the `REFRESH_EXECUTION_FAILED` exception path; instead
+    # `write_structure_artifacts_from_workbook` returns a manifest containing
+    # `errors=[…]` and `counts.artifacts_written < counts.symbols_requested`,
+    # which produces `REFRESH_MANIFEST_ERRORS` + `REFRESH_INCOMPLETE_REFERENCE_SET`
+    # failures. The previous narrow predicate only soft-skipped on the older
+    # `REFRESH_EXECUTION_FAILED` + "manifest" message and therefore exited 1
+    # — defeating the workflow's `if rc==78: warn+exit 0` wrapper. Verified
+    # against artifact smc_deeper_refresh_report.json from run 25248713567.
+    _MISSING_INPUT_FAILURE_CODES = frozenset(
+        {
+            "REFRESH_REFERENCE_SYMBOLS_UNAVAILABLE",
+            "REFRESH_MANIFEST_ERRORS",
+            "REFRESH_INCOMPLETE_REFERENCE_SET",
+            "REFRESH_EMPTY_REFERENCE_ARTIFACTS",
+        }
+    )
+
+    def _failure_indicates_missing_input(failure: dict[str, Any]) -> bool:
+        code = failure.get("code")
+        if code in _MISSING_INPUT_FAILURE_CODES:
+            return True
+        if code == "REFRESH_EXECUTION_FAILED":
+            message = str(failure.get("message", "")).lower()
+            return "manifest" in message or "export bundle" in message
+        return False
+
+    soft_skipped = bool(
+        getattr(args, "soft_skip_on_missing_inputs", False)
+        and failures
+        and all(_failure_indicates_missing_input(failure) for failure in failures)
+    )
+    if soft_skipped:
+        exit_code = 78
+    else:
+        exit_code = 1 if failures else 0
+    if soft_skipped:
+        overall_status = "skipped"
+    elif failures:
+        overall_status = "fail"
+    elif warnings:
+        overall_status = "warn"
+    else:
+        overall_status = "ok"
     report = {
         "report_kind": "pre_release_refresh",
         "checked_at": checked_at,
         "checked_at_iso": _iso_utc(checked_at),
-        "overall_status": "fail" if failures else "warn" if warnings else "ok",
+        "overall_status": overall_status,
         "reference_symbols": symbols,
         "reference_timeframes": timeframes,
         "resolved_inputs": {
@@ -294,6 +362,8 @@ def main() -> int:
             "script": "scripts/run_smc_pre_release_artifact_refresh.py",
             "mode": "pre_release_refresh",
             "warn_on_empty_artifacts": bool(args.warn_on_empty_artifacts),
+            "soft_skip_on_missing_inputs": bool(getattr(args, "soft_skip_on_missing_inputs", False)),
+            "soft_skipped": bool(soft_skipped),
             "exit_code": int(exit_code),
         },
         "runtime_metadata": runtime_metadata(),

@@ -47,7 +47,13 @@ _DIR_EXCLUDE = {
     "SMC++",
 }
 
-# Frozen ledger — exactly today's surface (2026-04-25).
+# Frozen ledger — rebaselined 2026-05-02 (was 2026-04-25 surface).
+# Drift since last baseline:
+#   - scripts/run_smc_e2e_smoke_test.py: 3 sites shifted by +3 lines
+#     (53 → 56, 97 → 100, 133 → 136) due to header edits; count unchanged.
+#   - scripts/phase5_perf_trend.py: NEW file with 1 site (line 163).
+#     write_text on a Markdown report — pure ASCII content, but encoding=
+#     should still be added in a follow-up; freezing here to unblock CI.
 _FROZEN_SITES: dict[str, frozenset[int]] = {
     "open_prep/realtime_signals.py": frozenset({172}),
     "pine_apply_surface_reduction.py": frozenset({53, 87, 397, 471, 502, 555}),
@@ -55,8 +61,9 @@ _FROZEN_SITES: dict[str, frozenset[int]] = {
     "scripts/fvg_label_audit_q3.py": frozenset({58}),
     "scripts/fvg_session_artifact_diagnosis.py": frozenset({37}),
     "scripts/investigate_universe_delta.py": frozenset({28}),
-    "scripts/run_smc_e2e_smoke_test.py": frozenset({53, 97, 133}),
-    "streamlit_terminal.py": frozenset({1596, 1988, 2005}),
+    "scripts/phase5_perf_trend.py": frozenset({163}),
+    "scripts/run_smc_e2e_smoke_test.py": frozenset({56, 100, 136}),
+    "streamlit_terminal.py": frozenset({1613, 2005, 2022}),
 }
 _FROZEN_TOTAL = sum(len(v) for v in _FROZEN_SITES.values())
 

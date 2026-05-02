@@ -1,5 +1,18 @@
 from __future__ import annotations
 
+# F-V5-A1-2 / F-CI-O1 (2026-05-01): bootstrap root logging so the
+# logger.info(...) progress messages this entry point emits actually
+# surface in CI logs (default WARNING-only handler would drop them).
+try:
+    from scripts._logging_init import init_cli_logging
+except ImportError:  # script-style invocation: `python scripts/X.py`
+    import sys as _v5a12_sys
+    from pathlib import Path as _v5a12_Path
+
+    _v5a12_sys.path.insert(0, str(_v5a12_Path(__file__).resolve().parents[1]))
+    from scripts._logging_init import init_cli_logging  # type: ignore[no-redef]
+
+
 import argparse
 import glob
 import hashlib
@@ -11,11 +24,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from scripts.smc_atomic_write import atomic_write_text
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.smc_atomic_write import atomic_write_text  # noqa: E402
 
 from smc_integration.release_policy import (
     EVIDENCE_LOOKBACK_DAYS,
@@ -854,6 +867,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    init_cli_logging()  # F-V5-A1-2 (2026-05-01)
     args = build_parser().parse_args()
 
     file_paths = sorted(Path(p) for p in glob.glob(str(args.input_glob)))

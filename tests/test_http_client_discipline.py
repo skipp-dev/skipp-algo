@@ -142,8 +142,8 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # transient/permanent dispatch (+~50), and the math import + NaN
         # guard in ``_parse_retry_after_seconds``. The urlopen call itself
         # is unchanged (still ``timeout=...``).
-        ("open_prep/macro.py", 690),
-        ("open_prep/sentiment_fng.py", 99),
+        ("open_prep/macro.py", 704),
+        ("open_prep/sentiment_fng.py", 100),
         ("terminal_finnhub.py", 182),
         ("terminal_notifications.py", 250),
         ("terminal_notifications.py", 314),

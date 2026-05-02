@@ -8,7 +8,7 @@ falls back to a locally-constructed client when the caller passes
 
     own_client = client is None
     if client is None:
-        client = httpx.Client(timeout=20.0)
+        client = httpx.Client(timeout=HTTPX_REQUEST_TIMEOUT_SECONDS)
     try:
         ...
     finally:
