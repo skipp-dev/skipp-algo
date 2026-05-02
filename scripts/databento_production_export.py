@@ -4040,6 +4040,19 @@ def run_production_export_pipeline(
 
 
 def main(argv: Sequence[str] | None = None) -> None:
+    # F-V8-A1.1 (2026-05-02): bootstrap root logging so the logger.info(...)
+    # progress messages this entry point emits actually surface in CI logs
+    # (default WARNING-only handler would drop them). Carries forward F-CI-O1.
+    try:
+        from scripts._logging_init import init_cli_logging
+    except ImportError:  # script-style invocation: `python scripts/X.py`
+        import sys as _v8a11_sys
+        from pathlib import Path as _v8a11_Path
+
+        _v8a11_sys.path.insert(0, str(_v8a11_Path(__file__).resolve().parents[1]))
+        from scripts._logging_init import init_cli_logging  # type: ignore[no-redef]
+    init_cli_logging()
+
     load_dotenv(REPO_ROOT / ".env")
 
     parser = argparse.ArgumentParser(description="Run the Databento production export pipeline.")

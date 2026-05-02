@@ -1,3 +1,4 @@
+# live-window: mutating-on-cron  # F-V6-F2.1 (2026-05-02)
 name: run-open-prep-daily
 
 # Daily pre-open scoring run. Generates a fresh `outcomes_<date>.json`
@@ -44,7 +45,7 @@ env:
 
 jobs:
   run:
-    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-m' }}
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
     timeout-minutes: 35
     steps:
       - name: Checkout
@@ -134,10 +135,23 @@ jobs:
           git checkout -b "$BRANCH"
           git commit -m "chore(open_prep): daily run outcomes ${GITHUB_RUN_ID}"
           git push -u origin "$BRANCH"
-          gh pr create \
+          # F-V6-I2.1 (2026-05-02): previously this `gh pr create` was suffixed
+          # with `|| true`, which silently swallowed real PR-creation failures
+          # (auth issues, branch-protection refusals, transient API errors) and
+          # left the workflow green with no follow-up PR. Surface as ::error::
+          # and fail the job so the daily outcomes cannot be lost.
+          if ! gh pr create \
             --base main \
             --head "$BRANCH" \
             --label automated \
             --title "chore(open_prep): daily run outcomes ${GITHUB_RUN_ID}" \
-            --body "Automated pre-open scoring run from \`run-open-prep-daily\` (run ${GITHUB_RUN_ID}). Adds today's outcomes_*.json so the outcome-backfill workflow can label it later for the FI corpus." || true
-          gh pr merge "$BRANCH" --auto --squash --delete-branch || true
+            --body "Automated pre-open scoring run from \`run-open-prep-daily\` (run ${GITHUB_RUN_ID}). Adds today's outcomes_*.json so the outcome-backfill workflow can label it later for the FI corpus."; then
+            echo "::error file=.github/workflows/run-open-prep-daily.yml::gh pr create failed for ${BRANCH} — see step log for stderr"
+            exit 1
+          fi
+          # CONTINUE-ON-ERROR-INTENTIONAL: enabling auto-merge can race with
+          # branch-protection / required-status-check evaluation; the PR itself
+          # is already open and reviewable, so we surface as warning rather
+          # than failing the job.
+          gh pr merge "$BRANCH" --auto --squash --delete-branch \
+            || echo "::warning::auto-merge enable failed for ${BRANCH} (PR is open and reviewable)"

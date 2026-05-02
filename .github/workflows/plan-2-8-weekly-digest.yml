@@ -1,3 +1,4 @@
+# live-window: mutating-on-cron  # F-V6-F2.1 (2026-05-02)
 name: plan-2.8 weekly trend digest
 
 # Weekly Plan 2.8 trend digest. Pulls the long-running history JSONL
@@ -28,12 +29,22 @@ permissions:
   actions: read
   issues: write
 
+# F-V5-C2 (2026-05-01): cron-triggered digest — queue overlapping runs instead
+# of killing them so an alert-issue write cannot be interrupted mid-API call.
+concurrency:
+  group: plan-2-8-weekly-digest
+  cancel-in-progress: false
+
 env:
+  PYTHONUNBUFFERED: "1"  # F-V5-A2 (2026-05-01)
   PYTHONPATH: ${{ github.workspace }}
+  # F-V6-A2 (2026-05-02): force unbuffered Python stdout so progress logs surface
+  # in CI in near-real-time rather than after a buffer flush at process exit.
+  PYTHONUNBUFFERED: "1"
 
 jobs:
   weekly-digest:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
     timeout-minutes: 10
     steps:
       - name: Checkout
