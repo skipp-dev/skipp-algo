@@ -59,22 +59,33 @@ _FROZEN_SITES: dict[str, int] = {
     "scripts/analyze_smc_contextual_calibration_history.py": 1,
     "scripts/build_phase_a_inputs.py": 1,
     "scripts/check_environment.py": 1,
-    "scripts/check_pine_legacy_drift.py": 1,
-    "scripts/collect_smc_gate_evidence.py": 1,
+    # Rebaselined 2026-05-03 (after PR #2035): bumped 1 → 2 because the
+    # cross-process import-order fix added a module-level
+    # ``sys.path.insert`` (the ``_bootstrap_sys_mod`` helper) on top of the
+    # pre-existing in-function insert so ``from scripts.…`` imports resolve
+    # before being referenced.
+    "scripts/check_pine_legacy_drift.py": 2,
+    # Rebaselined 2026-05-03 (after PR #2035): see check_pine_legacy_drift.py.
+    "scripts/collect_smc_gate_evidence.py": 2,
     "scripts/databento_preopen_fast.py": 1,
     "scripts/databento_production_export.py": 1,
     "scripts/databento_smoke_test.py": 1,
-    "scripts/e2e_smoke_ci.py": 1,
-    "scripts/emit_fvg_context_pine.py": 1,
+    # Rebaselined 2026-05-03 (after PR #2035): see check_pine_legacy_drift.py.
+    "scripts/e2e_smoke_ci.py": 2,
+    # Rebaselined 2026-05-03 (after PR #2035): see check_pine_legacy_drift.py.
+    "scripts/emit_fvg_context_pine.py": 2,
     "scripts/execute_ibkr_watchlist.py": 1,
     "scripts/export_open_prep_lists.py": 1,
     "scripts/export_open_prep_reports.py": 1,
     "scripts/export_smc_live_news_snapshot.py": 1,
     "scripts/fvg_asia_real_sample.py": 1,
     "scripts/fvg_label_audit.py": 1,
-    "scripts/fvg_quality_quartile_gate.py": 1,
-    "scripts/fvg_quality_recalibration.py": 1,
-    "scripts/g23_ab_watchdog.py": 1,
+    # Rebaselined 2026-05-03 (after PR #2035): see check_pine_legacy_drift.py.
+    "scripts/fvg_quality_quartile_gate.py": 2,
+    # Rebaselined 2026-05-03 (after PR #2035): see check_pine_legacy_drift.py.
+    "scripts/fvg_quality_recalibration.py": 2,
+    # Rebaselined 2026-05-03 (after PR #2035): see check_pine_legacy_drift.py.
+    "scripts/g23_ab_watchdog.py": 2,
     "scripts/generate_performance_report.py": 1,
     "scripts/generate_showcase_summary.py": 1,
     "scripts/generate_smc_micro_base_from_databento.py": 1,
@@ -86,8 +97,10 @@ _FROZEN_SITES: dict[str, int] = {
     "scripts/run_smc_ci_health_checks.py": 1,
     "scripts/run_smc_e2e_smoke_test.py": 1,
     "scripts/run_smc_measurement_benchmark.py": 1,
-    "scripts/run_smc_pre_release_artifact_refresh.py": 1,
-    "scripts/run_smc_release_gates.py": 1,
+    # Rebaselined 2026-05-03 (after PR #2035): see check_pine_legacy_drift.py.
+    "scripts/run_smc_pre_release_artifact_refresh.py": 2,
+    # Rebaselined 2026-05-03 (after PR #2035): see check_pine_legacy_drift.py.
+    "scripts/run_smc_release_gates.py": 2,
     "scripts/smc_performance_report.py": 1,
     "scripts/smc_version_governance.py": 1,
     # Rebaselined 2026-05-02: bumped 2 → 3 because Bug-Hunt 2026-05-01 F-01
