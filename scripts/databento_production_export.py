@@ -3325,6 +3325,11 @@ def run_production_export_pipeline(
     )
     intraday_close_outcome_anchor = pd.DataFrame()
     if not smc_base_only:
+        _progress(
+            f"Step 6b/10: Running close-imbalance outcome anchor screen "
+            f"({len(trading_days)} days, fixed-ET 09:30 -> next-day outcome window)..."
+        )
+        intraday_close_outcome_started_at = time_module.perf_counter()
         intraday_close_outcome_anchor = _run_fixed_et_intraday_screen(
             databento_api_key,
             dataset=dataset,
@@ -3337,6 +3342,12 @@ def run_production_export_pipeline(
             cache_dir=resolved_cache_dir,
             use_file_cache=use_file_cache,
             force_refresh=force_refresh,
+            progress_callback=_progress,
+        )
+        _progress(
+            f"Step 6b/10 complete: Close-imbalance outcome anchor screen finished in "
+            f"{time_module.perf_counter() - intraday_close_outcome_started_at:.1f}s "
+            f"(rows={len(intraday_close_outcome_anchor)})"
         )
     if not intraday_close_outcome_anchor.empty:
         exact_1000_lookup = _build_exact_window_end_lookup(
