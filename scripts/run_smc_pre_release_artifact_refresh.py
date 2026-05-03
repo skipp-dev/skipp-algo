@@ -363,6 +363,38 @@ def main() -> int:
             "MISSING_STRUCTURE_INPUTS",
         }
     )
+    # 2026-05-03 (#2040 follow-up to #2036): narrow pattern set for inner
+    # failures whose ``code`` alone is too broad to soft-skip safely, but
+    # whose ``error`` message uniquely identifies a missing-input scenario.
+    # Each entry is ``(inner_code, error_substring_lowercase)``; both
+    # must match for the failure to be treated as missing-input.
+    #
+    # Currently registered:
+    # * (``BUILD_SYMBOL_ARTIFACT_FAILED``, "workbook fallback is only
+    #   supported for 1d") — deeper-gates schedule run cannot fetch
+    #   intraday timeframes (5m/15m/1H/4H) without a Databento export
+    #   bundle. The production workbook is daily-only by design; the
+    #   producer raises ``BUILD_SYMBOL_ARTIFACT_FAILED`` with a
+    #   well-defined error string instructing the operator to provide
+    #   ``--export-bundle-root`` or use ``--timeframe 1D``. Verified
+    #   against artifact smc_deeper_refresh_report.json from run
+    #   25271677690 (12 symbols × 4 intraday TFs = 48 inner failures,
+    #   all carrying this exact error prefix).
+    _MISSING_INPUT_INNER_PATTERNS: tuple[tuple[str, str], ...] = (
+        ("BUILD_SYMBOL_ARTIFACT_FAILED", "workbook fallback is only supported for 1d"),
+    )
+
+    def _inner_indicates_missing_input(inner: dict[str, Any]) -> bool:
+        inner_code = inner.get("code")
+        if inner_code in _MISSING_INPUT_INNER_CODES:
+            return True
+        if not isinstance(inner_code, str):
+            return False
+        inner_error = str(inner.get("error", "")).lower()
+        for pattern_code, pattern_substring in _MISSING_INPUT_INNER_PATTERNS:
+            if inner_code == pattern_code and pattern_substring in inner_error:
+                return True
+        return False
 
     def _failure_indicates_missing_input(failure: dict[str, Any]) -> bool:
         code = failure.get("code")
@@ -373,8 +405,7 @@ def main() -> int:
             if not isinstance(details, list) or not details:
                 return False
             return all(
-                isinstance(inner, dict)
-                and inner.get("code") in _MISSING_INPUT_INNER_CODES
+                isinstance(inner, dict) and _inner_indicates_missing_input(inner)
                 for inner in details
             )
         if code == "REFRESH_EXECUTION_FAILED":
