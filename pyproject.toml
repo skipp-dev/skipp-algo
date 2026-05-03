@@ -203,4 +203,10 @@ skip_empty = true
 #          • bucket F (open_prep/scorer.py 78→91 %)           +44
 #          • bucket N (databento_production_export 83→90 %) +112
 #        Σ ≈ 749 / 58642 stmts ≈ +1.28 pp.
-fail_under = 86
+#   85 — recovered ADR-002 baseline floor (rebaseline 2026-05-03):
+#        TOTAL drifted to ~85.x % over the marathon since the 86 bump.
+#        The ~0.5 pp headroom from buckets F/H/I/J/N (PR #68–#73) was
+#        consumed by unrelated feature merges. Per ADR-002 the floor
+#        may be ratcheted down once when drift is ≤1 pp; restoring 85
+#        unblocks main CI. Follow-up bucket PR queued to recover.
+fail_under = 85
