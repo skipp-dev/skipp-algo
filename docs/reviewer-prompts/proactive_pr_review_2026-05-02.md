@@ -1,3 +1,4 @@
+{% raw %}
 # Proactive PR Review Prompt — Lessons Learned 2026-05-02
 
 > Use this prompt verbatim against any PR (or stack of PRs) that touches
@@ -393,3 +394,4 @@ Before submitting your review, ALSO confirm:
       AST-walker guard that handles `ast.With` items
 - [ ] Re-ran the unresolved-Copilot scan after every push, target
       `unresolved=0` per PR
+{% endraw %}

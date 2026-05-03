@@ -1,3 +1,4 @@
+{% raw %}
 # WP-R3 — Hosted-vs-Self-hosted Runner Decision
 
 Stand: 2026-04-18
@@ -75,3 +76,4 @@ upgrade requires only:
 This document supersedes the pilot guidance in
 `docs/smc_github_hosted_larger_runner_pilot.md`, which is retained as
 historical context.
+{% endraw %}
