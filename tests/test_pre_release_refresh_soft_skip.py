@@ -387,3 +387,111 @@ def test_soft_skip_for_empty_artifacts_with_missing_structure_inputs_details(
     report = _read_report(out)
     assert report["overall_status"] == "skipped"
     assert report["runner"]["soft_skipped"] is True
+
+
+# ---------------------------------------------------------------------------
+# Pattern-based inner-code soft-skip (2026-05-03 follow-up to PR #2036):
+#
+# REFRESH_MANIFEST_ERRORS with inner code BUILD_SYMBOL_ARTIFACT_FAILED is
+# normally a producer regression and must surface as rc=1. But the deeper-
+# gates schedule run on hosted runners legitimately produces this exact
+# inner code with a well-defined error string ("Workbook fallback is only
+# supported for 1D ...") because the production workbook is daily-only and
+# intraday timeframes (5m/15m/1H/4H) require an export bundle that hosted
+# runners do not carry. We match (code, error_substring) pairs to
+# soft-skip ONLY this narrow scenario.
+# ---------------------------------------------------------------------------
+
+
+def test_soft_skip_for_build_failed_workbook_fallback_intraday_marker(
+    script_module: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """REFRESH_MANIFEST_ERRORS w/ all BUILD_SYMBOL_ARTIFACT_FAILED + intraday marker → rc=78."""
+    _patch_resolution_to_empty(script_module, monkeypatch, tmp_path)
+
+    def _return_intraday_workbook_fallback(**_kwargs: object) -> dict:
+        return {
+            "errors": [
+                {
+                    "code": "BUILD_SYMBOL_ARTIFACT_FAILED",
+                    "symbol": "AAPL",
+                    "timeframe": "5m",
+                    "error": (
+                        "Workbook fallback is only supported for 1D (daily) "
+                        "timeframe; got timeframe='5m' for symbol=AAPL. The "
+                        "production workbook contains only the 'daily_bars' "
+                        "sheet, so intraday timeframes require a canonical "
+                        "export bundle with the 'full_universe_second_detail_open' "
+                        "parquet frame. Fix: provide --export-bundle-root "
+                        "pointing to an intraday-enabled bundle, or change "
+                        "--timeframe to 1D."
+                    ),
+                },
+            ],
+            "counts": {"symbols_requested": 1, "artifacts_written": 0},
+        }
+
+    monkeypatch.setattr(
+        script_module,
+        "write_structure_artifacts_from_workbook",
+        _return_intraday_workbook_fallback,
+    )
+
+    out = tmp_path / "report.json"
+    rc = _run_main(
+        script_module,
+        monkeypatch,
+        extra_argv=["--soft-skip-on-missing-inputs"],
+        output_path=out,
+    )
+
+    assert rc == 78, "intraday-workbook-fallback BUILD_SYMBOL_ARTIFACT_FAILED must soft-skip"
+    report = _read_report(out)
+    assert report["overall_status"] == "skipped"
+    assert report["runner"]["soft_skipped"] is True
+    assert report["runner"]["exit_code"] == 78
+
+
+def test_no_soft_skip_for_build_failed_without_workbook_fallback_marker(
+    script_module: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """REFRESH_MANIFEST_ERRORS w/ BUILD_SYMBOL_ARTIFACT_FAILED but unrelated error → rc=1."""
+    _patch_resolution_to_empty(script_module, monkeypatch, tmp_path)
+
+    def _return_unrelated_build_failure(**_kwargs: object) -> dict:
+        return {
+            "errors": [
+                {
+                    "code": "BUILD_SYMBOL_ARTIFACT_FAILED",
+                    "symbol": "AAPL",
+                    "timeframe": "5m",
+                    "error": "synthetic producer regression: invalid swing high index 999",
+                },
+            ],
+            "counts": {"symbols_requested": 1, "artifacts_written": 0},
+        }
+
+    monkeypatch.setattr(
+        script_module,
+        "write_structure_artifacts_from_workbook",
+        _return_unrelated_build_failure,
+    )
+
+    out = tmp_path / "report.json"
+    rc = _run_main(
+        script_module,
+        monkeypatch,
+        extra_argv=["--soft-skip-on-missing-inputs"],
+        output_path=out,
+    )
+
+    assert rc == 1, "BUILD_SYMBOL_ARTIFACT_FAILED without intraday-workbook marker must NOT be soft-skipped"
+    report = _read_report(out)
+    assert report["overall_status"] == "fail"
+    assert report["runner"]["soft_skipped"] is False
+    codes = {failure.get("code") for failure in report["failures"]}
+    assert "REFRESH_MANIFEST_ERRORS" in codes
