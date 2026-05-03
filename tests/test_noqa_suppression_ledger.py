@@ -104,25 +104,35 @@ _FROZEN_SITES: dict[str, int] = {
     # first-party modules; ruff-isort cannot statically prove the
     # ordering is required for runnability when invoked as a path
     # rather than as a -m module.
-    "scripts/collect_smc_gate_evidence.py": 1,
-    "scripts/run_smc_pre_release_artifact_refresh.py": 2,
+    # Rebaselined 2026-05-03 (after PR #2035): bumped 1 → 3 / 2 → 4
+    # because the import-order fix added the ``_bootstrap_sys_mod``
+    # helper which contributes two new ``# noqa: E402`` lines per
+    # script (the ``sys = _bootstrap_sys_mod`` rebinding and the
+    # subsequent ``from scripts._logging_init import init_cli_logging``).
+    "scripts/collect_smc_gate_evidence.py": 3,
+    "scripts/run_smc_pre_release_artifact_refresh.py": 4,
     # SMC review v3 ledger sync (2026-05-01, F-V3-18): rolling-bench / smoke /
     # FVG quality scripts that were added in #1947–#1972 without bumping the
     # ledger. All are E402 after sys.path bootstrap or T201/print() in
     # one-shot CLI tools — never on hot/prod codepaths.
     "scripts/analyze_smc_contextual_calibration_history.py": 3,
-    "scripts/e2e_smoke_ci.py": 1,
+    # Rebaselined 2026-05-03 (after PR #2035): bumped 1 → 3 because
+    # the import-order fix added the ``_bootstrap_sys_mod`` helper
+    # (two new ``# noqa: E402`` lines per script).
+    "scripts/e2e_smoke_ci.py": 3,
     "scripts/execute_ibkr_watchlist.py": 1,
     "scripts/export_open_prep_lists.py": 2,
     "scripts/export_open_prep_reports.py": 2,
     "scripts/fvg_asia_real_sample.py": 1,
     "scripts/fvg_label_audit.py": 1,
-    "scripts/fvg_quality_recalibration.py": 1,
+    # Rebaselined 2026-05-03 (after PR #2035): bumped 1 → 3, see e2e_smoke_ci.py.
+    "scripts/fvg_quality_recalibration.py": 3,
     "scripts/generate_performance_report.py": 1,
     "scripts/probe_newsapi_feed_cursor.py": 4,
     "scripts/run_smc_e2e_smoke_test.py": 1,
     "scripts/run_smc_measurement_benchmark.py": 1,
-    "scripts/run_smc_release_gates.py": 1,
+    # Rebaselined 2026-05-03 (after PR #2035): bumped 1 → 3, see e2e_smoke_ci.py.
+    "scripts/run_smc_release_gates.py": 3,
     "scripts/smc_performance_report.py": 1,
     # F-V4-E1 (2026-05-01): databento_safe_fetch.safe_get_range catches
     # ``Exception`` deliberately so it can string-classify the ~half-dozen
@@ -130,6 +140,14 @@ _FROZEN_SITES: dict[str, int] = {
     # BentoClientError) and re-raise unclassified errors. BLE001 noqa
     # is justified by the docstring + classification dispatch table.
     "scripts/databento_safe_fetch.py": 1,
+    # Added 2026-05-03 (after PR #2035): each carries the two
+    # ``# noqa: E402`` lines from the ``_bootstrap_sys_mod`` helper
+    # (``sys = _bootstrap_sys_mod`` rebinding + the immediately
+    # following ``from scripts._logging_init import init_cli_logging``).
+    "scripts/check_pine_legacy_drift.py": 2,
+    "scripts/emit_fvg_context_pine.py": 2,
+    "scripts/fvg_quality_quartile_gate.py": 2,
+    "scripts/g23_ab_watchdog.py": 2,
 }
 _FROZEN_TOTAL = sum(_FROZEN_SITES.values())
 
