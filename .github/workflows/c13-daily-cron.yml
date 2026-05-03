@@ -130,6 +130,9 @@ jobs:
       - name: Step 1b — assert backfill made progress (advisory)
         id: backfill_progress
         if: steps.backfill.outputs.rc == '0'
+        # CONTINUE-ON-ERROR-INTENTIONAL: F-V3-15 Phase 1 — advisory only;
+        # warns when 0 records backfilled despite work pending. Phase 2
+        # (after 7 days baseline) flips to ::error:: + exit 1.
         continue-on-error: true
         run: |
           set -euo pipefail

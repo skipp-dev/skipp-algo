@@ -75,13 +75,9 @@ concurrency:
 permissions:
   contents: read
 
-# F-V5-C2 (2026-05-01): cron-triggered producer export — queue overlapping
-# runs instead of killing them. A 90-minute Databento bundle build that gets
-# cancelled at minute 80 by the next cron tick wastes both time and quota; the
-# downstream library-refresh consumer expects a complete artifact.
-concurrency:
-  group: smc-databento-production-export
-  cancel-in-progress: false
+# F-V5-C2 (2026-05-01) → superseded by F-V8-C3.1-D (2026-05-02) per-ref
+# block above; the prior ref-less `concurrency:` declaration was removed
+# 2026-05-03 because YAML last-wins silently overrode the per-ref intent.
 
 env:
   PYTHONUNBUFFERED: "1"  # F-V5-A2 (2026-05-01)
@@ -149,7 +145,7 @@ jobs:
           set -euo pipefail
           mkdir -p "${EXPORT_DIR}" artifacts/ci
           # Tee stdout+stderr so the partial log survives runner shutdown
-          # signals (ubuntu-latest-m has been getting evicted ~63 min into
+          # signals (the smaller -m runner tier has been getting evicted ~63 min into
           # silent runs — we lost all observability before this fix).
           # Run Python in unbuffered mode (`-u` / `PYTHONUNBUFFERED=1`) so
           # log lines flush promptly while `tee` preserves the combined stream.
@@ -160,7 +156,7 @@ jobs:
 
       - name: Upload export stdout log (always)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: smc-databento-production-export-stdout-${{ env.EXPORT_DATE }}-${{ github.run_id }}
           path: artifacts/ci/databento_production_export_stdout.log

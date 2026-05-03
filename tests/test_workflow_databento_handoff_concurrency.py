@@ -48,7 +48,10 @@ def _load(path: Path) -> dict:
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
-@pytest.mark.parametrize("workflow_name,expected", list(_HANDOFF_WORKFLOWS.items()))
+@pytest.mark.parametrize(
+    "workflow_name,expected",
+    sorted(_HANDOFF_WORKFLOWS.items(), key=lambda kv: kv[0]),
+)
 def test_handoff_workflow_has_concurrency_guard(workflow_name: str, expected: dict) -> None:
     """Each handoff workflow must declare a workflow-level concurrency block.
 

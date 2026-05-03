@@ -130,4 +130,17 @@ jobs:
           # Fetch the remote tip first so the lease has a real base to
           # compare against; tolerate the branch not yet existing.
           git fetch origin "+refs/heads/bot/live-news-snapshot:refs/remotes/origin/bot/live-news-snapshot" 2>/dev/null || true
-          git push --force-with-lease=refs/heads/bot/live-news-snapshot origin "HEAD:refs/heads/bot/live-news-snapshot" || echo "::warning::live-news snapshot push failed (will retry next cron tick)"
+          # F-V5-F1 (2026-05-03): replaced fake-success push pattern (`git`
+          # push followed by `|| echo` warning swallow) with an explicit
+          # `if git push; then ... else ... fi` block that surfaces real
+          # push failures as job failures instead of silently downgrading
+          # them to warnings. The cron tick still auto-recovers, but each
+          # failed run now shows up red so operators get visibility. The
+          # `if git push` form is what tests/test_workflow_auth_pattern.py
+          # expects (it explicitly disallows the `if !` negation).
+          if git push --force-with-lease=refs/heads/bot/live-news-snapshot origin "HEAD:refs/heads/bot/live-news-snapshot"; then
+            echo "Pushed live-news snapshot to bot/live-news-snapshot."
+          else
+            echo "::error::live-news snapshot push failed (will retry next cron tick)"
+            exit 1
+          fi

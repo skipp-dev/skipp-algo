@@ -11,8 +11,6 @@ The four orphans listed below are intentional:
   the underlying script's unit tests.
 - ``phase-b-promotion-readiness``: human-gated promotion checklist;
   outputs a markdown summary, not a programmatic artifact.
-- ``public-calibration-dashboard``: pure publish step (uploads HTML to
-  GH Pages); contract is the dashboard URL, not the workflow.
 - ``regime-stratification-validation``: experimental regime sweep, kept
   out of the gate set deliberately while the methodology stabilises.
 
@@ -33,7 +31,6 @@ TESTS_DIR = REPO_ROOT / "tests"
 ALLOWED_ORPHANS: frozenset[str] = frozenset({
     "g23-ab-watchdog.yml",
     "phase-b-promotion-readiness.yml",
-    "public-calibration-dashboard.yml",
     "regime-stratification-validation.yml",
 })
 
