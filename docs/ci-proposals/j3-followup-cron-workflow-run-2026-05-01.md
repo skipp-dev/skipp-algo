@@ -1,3 +1,4 @@
+{% raw %}
 # J3-FOLLOWUP — cron→workflow_run conversion candidates
 
 **Audit date**: 2026-05-01
@@ -97,3 +98,4 @@ This PR adds no test (the `workflow_run` shape is a positive feature, not a forb
 - `smc-databento-production-export.yml` (4-tick cascade) — too much variance.
 - `drift-watchdog.yml` (Mon-only, depends on a "C2 walk-forward cron" that wasn't found in the current workflow set) — investigate upstream existence first.
 - `plan-2-8-status-daily.yml` (intentional pre-bench timing per its comment) — keep cron.
+{% endraw %}

@@ -1,3 +1,4 @@
+{% raw %}
 # Sprint-Plan C9 — Drift-Alert + Anomalie-Monitoring
 
 **Datum:** 2026-04-26
@@ -370,3 +371,4 @@ Sprint-Close-Sync in Master-Doc.
 - [AI Infrastructure Alliance — 8 Drift-Methoden](https://ai-infrastructure.org/8-concept-drift-detection-methods/) — Background CUSUM/PH
 - Page (1954) — Original Page-Hinkley-Test (referenziert in allen Quellen)
 - Bifet & Gavalda (2007) — ADWIN (Stretch, not in scope)
+{% endraw %}

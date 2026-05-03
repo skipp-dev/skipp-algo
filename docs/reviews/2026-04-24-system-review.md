@@ -1,3 +1,4 @@
+{% raw %}
 # SMC System Review 2026-04-24
 
 > Full-Surface Audit per Memory-stored prompt `smc-system-review-prompt-2026-04-24.md` (Copilot persistent memory, not in repo). See repo [`README.md`](../../README.md) für Methodologie-Kontext. Audit-only — keine Code-Änderungen. Pure grep + AST + read_file Belege.
@@ -186,3 +187,4 @@ python -m pytest tests/test_lru_cache_maxsize_discipline.py -q
 **Datum:** 2026-04-24
 **Branch des Reports:** `docs/smc-system-review-2026-04-24`
 **Sibling PR (Pin-Triple):** #127
+{% endraw %}
