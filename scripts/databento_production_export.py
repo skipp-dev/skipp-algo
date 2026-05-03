@@ -3529,14 +3529,20 @@ def run_production_export_pipeline(
         f"Step 9/10a complete: Daily symbol features built in {time_module.perf_counter() - feature_build_started_at:.1f}s "
         f"(rows={len(daily_symbol_features_full_universe)})"
     )
+    _progress("Step 9/10b: Fetching research event flags (FMP earnings calendar)...")
+    research_event_flags_started_at = time_module.perf_counter()
     research_event_flags_full_universe, research_event_flag_metadata = _build_research_event_flags_full_universe_export(
         daily_features=daily_symbol_features_full_universe,
         fmp_api_key=fmp_api_key,
     )
+    _progress(f"Step 9/10b complete: Research event flags built in {time_module.perf_counter() - research_event_flags_started_at:.1f}s (rows={len(research_event_flags_full_universe)})")
+    _progress("Step 9/10c: Fetching research news flags (Benzinga, batched)...")
+    research_news_flags_started_at = time_module.perf_counter()
     research_news_flags_full_universe, research_news_flag_metadata = _build_research_news_flags_full_universe_export(
         daily_features=daily_symbol_features_full_universe,
         benzinga_api_key=benzinga_api_key,
     )
+    _progress(f"Step 9/10c complete: Research news flags built in {time_module.perf_counter() - research_news_flags_started_at:.1f}s (rows={len(research_news_flags_full_universe)})")
     daily_symbol_features_full_universe = daily_symbol_features_full_universe.merge(
         research_event_flags_full_universe,
         on=["trade_date", "symbol"],
@@ -3568,11 +3574,14 @@ def run_production_export_pipeline(
         daily_symbol_features_full_universe,
         research_news_flags_full_universe,
     )
+    _progress("Step 9/10e: Building core-vs-Benzinga news side-by-side (FMP)...")
+    core_vs_benzinga_news_started_at = time_module.perf_counter()
     core_vs_benzinga_news_side_by_side, core_vs_benzinga_news_overlap_stats, core_vs_benzinga_news_metadata = _build_core_vs_benzinga_news_side_by_side(
         daily_features=daily_symbol_features_full_universe,
         research_news_flags=research_news_flags_full_universe,
         fmp_api_key=fmp_api_key,
     )
+    _progress(f"Step 9/10e complete: Core-vs-Benzinga news side-by-side built in {time_module.perf_counter() - core_vs_benzinga_news_started_at:.1f}s (rows={len(core_vs_benzinga_news_side_by_side)})")
     full_universe_second_detail_open = _prepare_full_universe_second_detail_export(
         full_universe_second_detail_raw,
         daily_symbol_features_full_universe,
