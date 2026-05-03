@@ -86,12 +86,9 @@ permissions:
   # pull silently fails with 403 and verify_export_bundle then blocks.
   actions: read
 
-# F-V5-C2 (2026-05-01): cron-triggered refresh that opens a PR — queue
-# overlapping runs instead of killing them so a half-pushed branch / partially
-# created PR is never left behind.
-concurrency:
-  group: smc-library-refresh
-  cancel-in-progress: false
+# F-V5-C2 (2026-05-01) → superseded by F-V8-C3.1-D (2026-05-02) per-ref
+# block above; the prior ref-less `concurrency:` declaration was removed
+# 2026-05-03 because YAML last-wins silently overrode the per-ref intent.
 
 env:
   PYTHONUNBUFFERED: "1"  # F-V5-A2 (2026-05-01)

@@ -6,6 +6,31 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-05-03) — main unbreaker: concurrency dup + line-shift cascade + 2 hygiene fixes
+
+- Removed second (ref-less) `concurrency:` block from
+  `smc-databento-production-export.yml` and `smc-library-refresh.yml`
+  that YAML-last-wins overrode the per-ref F-V8-C3.1-D guards above.
+- Re-anchored `# CONTINUE-ON-ERROR-INTENTIONAL:` marker on
+  `c13-daily-cron.yml` Step 1b backfill_progress (drift from PR #2033).
+- Bumped `actions/upload-artifact@v4 → @v7` on the producer stdout-log
+  step and refreshed the ubuntu-latest-m comment to satisfy the runner
+  pin literal check.
+- Migrated `smc-live-newsapi-refresh.yml` `git push ... || echo` to an
+  `if !` block so push failures surface (F-V5-F1) instead of being
+  silently downgraded; cron tick still auto-recovers.
+- Bulk-updated `tests/test_workflow_continue_on_error_inventory.py`
+  line allow-lists for 7 workflows after PR #2033 PYTHONUNBUFFERED dedup.
+- Wrapped `tests/test_workflow_databento_handoff_concurrency.py`
+  parametrize source in `sorted(...)` for xdist determinism.
+- Removed `public-calibration-dashboard.yml` from
+  `tests/test_workflow_orphan_inventory.py::ALLOWED_ORPHANS` (now has
+  test coverage).
+- Moved 2026-05-01 F-V4-E1 CHANGELOG entry above 2026-04-30 v3 P-1..P-10
+  block to satisfy [Unreleased] date-monotonicity pin.
+- Migrated 9 scripts to import-after-`sys.path.insert` order with
+  `# noqa: E402` to satisfy first-party import-order pin.
+
 ### Changed (2026-05-02) — F-V8-C3.1 PR C / runner-tier maximization (`ubuntu-latest-l` default)
 
 - Every workflow under `.github/workflows/` now uses the unified
@@ -81,7 +106,24 @@ PRs): `tests/test_workflow_continue_on_error_inventory.py` for
 `smc-deeper-integration-gates.yml` ({55,99}→{69,113}) in PRs #1992 and
 #1994; `tests/test_global_statement_budget.py` for
 `terminal_databento.py` (124→130, 308→314) in PR #1996.
-### Changed (2026-04-30) — v3 provider audit P-1..P-10 (consolidated)
+
+### Changed (2026-05-01) — F-V4-E1 databento safe-fetch caller migration
+
+- `terminal_databento._fetch_chunk` migrated from raw
+  `client.timeseries.get_range` to the canonical
+  `_databento_get_range_with_retry` helper from `databento_client`.
+  Daily-bar fetches now inherit transient-error retry semantics
+  (TLS / RemoteDisconnected / 5xx) instead of failing fast on the
+  first network blip.
+- New defense ledger `tests/test_databento_safe_fetch_callers.py`
+  scans top-level `*.py` for raw `client.timeseries.get_range`
+  callers, with a frozen `ALLOWED_DIRECT_CALLERS` allow-list
+  (`databento_client.py` itself + `databento_volatility_screener.py`,
+  which carries a parallel helper — consolidation tracked separately).
+- Drift bump: `tests/test_global_statement_budget.py` line numbers
+  for `terminal_databento.py` (124→130, 308→314) shifted by the
+  helper-import + 5-line F-V4-E1 intent comment.
+
 
 Consolidated entry for the v3 provider-stack audit shipped 2026-04-30.
 The audit covers the following PRs (specific subset of #1951..#1969;
@@ -142,22 +184,6 @@ auth + mandatory `UW-CLIENT-API-ID: 100001` header):
 
 - **#1954 — v3 P-9 / P-10** (`docs(audit)`): review-trail entries +
   audit-trail markers `F-V3-<class>` for the audit step itself.
-### Changed (2026-05-01) — F-V4-E1 databento safe-fetch caller migration
-
-- `terminal_databento._fetch_chunk` migrated from raw
-  `client.timeseries.get_range` to the canonical
-  `_databento_get_range_with_retry` helper from `databento_client`.
-  Daily-bar fetches now inherit transient-error retry semantics
-  (TLS / RemoteDisconnected / 5xx) instead of failing fast on the
-  first network blip.
-- New defense ledger `tests/test_databento_safe_fetch_callers.py`
-  scans top-level `*.py` for raw `client.timeseries.get_range`
-  callers, with a frozen `ALLOWED_DIRECT_CALLERS` allow-list
-  (`databento_client.py` itself + `databento_volatility_screener.py`,
-  which carries a parallel helper — consolidation tracked separately).
-- Drift bump: `tests/test_global_statement_budget.py` line numbers
-  for `terminal_databento.py` (124→130, 308→314) shifted by the
-  helper-import + 5-line F-V4-E1 intent comment.
 
 ### Changed (2026-04-26) — pytest-xdist as local default + determinism regression fix
 

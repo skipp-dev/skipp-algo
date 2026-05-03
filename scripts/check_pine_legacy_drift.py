@@ -28,17 +28,24 @@ locations (collision — the resolver shim cannot disambiguate).
 
 from __future__ import annotations
 
-# F-V5-A1-2 / F-CI-O1 (2026-05-01): bootstrap root logging so the
-# logger.info(...) progress messages this entry point emits actually
-# surface in CI logs (default WARNING-only handler would drop them).
-try:
-    from scripts._logging_init import init_cli_logging
-except ImportError:  # script-style invocation: `python scripts/X.py`
-    import sys as _v5a12_sys
-    from pathlib import Path as _v5a12_Path
+# F-V5-A1-2 / F-CI-O1 (2026-05-01) + F-V?-? (2026-05-03): bootstrap repo
+# root onto sys.path BEFORE the first-party `from scripts._logging_init`
+# import so this file works under both `python -m scripts.X` and
+# `python scripts/X.py`. The unconditional `sys.path.insert` (literal
+# `sys` name, NOT an alias) also satisfies
+# tests/test_workflow_invoked_scripts_import_order.py which detects
+# the mutation via AST chain `sys.path.insert` — aliased forms
+# (`_v5a12_sys.path.insert`) are not detected and were considered
+# late-bootstrap, flagging the early bootstrap import as out-of-order.
+import os as _bootstrap_os
+import sys as _bootstrap_sys_mod
+sys = _bootstrap_sys_mod  # noqa: E402  - bind name `sys` so the AST chain `sys.path.insert` below is detected by the import-order linter
 
-    _v5a12_sys.path.insert(0, str(_v5a12_Path(__file__).resolve().parents[1]))
-    from scripts._logging_init import init_cli_logging  # type: ignore[no-redef]
+_BOOTSTRAP_ROOT = _bootstrap_os.path.dirname(_bootstrap_os.path.dirname(_bootstrap_os.path.abspath(__file__)))
+if _BOOTSTRAP_ROOT not in sys.path:
+    sys.path.insert(0, _BOOTSTRAP_ROOT)
+
+from scripts._logging_init import init_cli_logging  # noqa: E402
 
 
 import argparse
