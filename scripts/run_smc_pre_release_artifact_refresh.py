@@ -84,7 +84,9 @@ def _artifact_has_structure_signal(artifact: Any) -> bool:
     return False
 
 
-def _collect_structurally_empty_failure(manifest: dict[str, Any], *, timeframe: str) -> dict[str, Any] | None:
+def _collect_structurally_empty_failure(
+    manifest: dict[str, Any], *, timeframe: str
+) -> dict[str, Any] | None:
     artifacts = manifest.get("artifacts")
     if not isinstance(artifacts, list) or not artifacts:
         return None
@@ -93,11 +95,22 @@ def _collect_structurally_empty_failure(manifest: dict[str, Any], *, timeframe: 
         return None
 
     coverage_modes = sorted({str(artifact.get("coverage_mode", "none")) for artifact in artifacts if isinstance(artifact, dict)})
+    # F-V?-? (2026-05-03): attach a snapshot of the manifest's `errors` list
+    # as `details` so the soft-skip predicate can apply the same inner-code
+    # structural check it already applies to REFRESH_MANIFEST_ERRORS.
+    # An empty manifest with no inner errors most likely indicates a
+    # producer-side regression (writer ran cleanly but emitted nothing),
+    # which must surface as rc=1; only when every inner error is itself a
+    # known missing-input class do we treat structural emptiness as a
+    # genuine missing-input scenario warranting rc=78.
+    manifest_errors = manifest.get("errors")
+    details = list(manifest_errors) if isinstance(manifest_errors, list) else []
     return {
         "code": "REFRESH_EMPTY_REFERENCE_ARTIFACTS",
         "timeframe": timeframe,
         "artifacts_evaluated": len(artifacts),
         "coverage_modes": coverage_modes,
+        "details": details,
     }
 
 
@@ -280,12 +293,20 @@ def main() -> int:
         symbols_requested = int(counts.get("symbols_requested", 0))
         artifacts_written = int(counts.get("artifacts_written", 0))
         if artifacts_written < symbols_requested:
+            # F-V?-? (2026-05-03): attach `details: manifest_errors` so the
+            # soft-skip predicate can apply the same inner-code structural
+            # check it already applies to REFRESH_MANIFEST_ERRORS. An
+            # incomplete reference set with NO inner errors usually means
+            # the writer succeeded for some symbols and silently dropped
+            # others — a producer regression that must surface as rc=1, not
+            # rc=78.
             failures.append(
                 {
                     "code": "REFRESH_INCOMPLETE_REFERENCE_SET",
                     "timeframe": timeframe,
                     "symbols_requested": symbols_requested,
                     "artifacts_written": artifacts_written,
+                    "details": list(manifest_errors),
                 }
             )
 
@@ -317,16 +338,25 @@ def main() -> int:
     _MISSING_INPUT_FAILURE_CODES = frozenset(
         {
             "REFRESH_REFERENCE_SYMBOLS_UNAVAILABLE",
+        }
+    )
+    # 2026-05-03 (#2034 + follow-up): wrapper failure codes whose severity
+    # depends on the *inner* error codes carried in `details`. We only
+    # treat them as missing-input when every inner error is itself a
+    # missing-input class. Inner codes outside that set indicate real
+    # producer breakage and must surface as rc=1, not rc=78.
+    # Initially only REFRESH_MANIFEST_ERRORS used this pattern; extended
+    # 2026-05-03 to REFRESH_INCOMPLETE_REFERENCE_SET and
+    # REFRESH_EMPTY_REFERENCE_ARTIFACTS (which were previously in the
+    # unconditional missing-input set above and could mask producer
+    # regressions as soft-skips).
+    _MISSING_INPUT_WRAPPER_CODES = frozenset(
+        {
+            "REFRESH_MANIFEST_ERRORS",
             "REFRESH_INCOMPLETE_REFERENCE_SET",
             "REFRESH_EMPTY_REFERENCE_ARTIFACTS",
         }
     )
-    # 2026-05-03 (#2034): REFRESH_MANIFEST_ERRORS is a wrapper code whose
-    # severity depends on the *inner* error codes. We only treat it as
-    # missing-input when every inner error is itself a missing-input class
-    # (currently WORKBOOK_NOT_FOUND / MISSING_STRUCTURE_INPUTS — extend as
-    # new producers are added). Inner codes outside this set indicate real
-    # producer breakage and must surface as rc=1, not rc=78.
     _MISSING_INPUT_INNER_CODES = frozenset(
         {
             "WORKBOOK_NOT_FOUND",
@@ -338,7 +368,7 @@ def main() -> int:
         code = failure.get("code")
         if code in _MISSING_INPUT_FAILURE_CODES:
             return True
-        if code == "REFRESH_MANIFEST_ERRORS":
+        if code in _MISSING_INPUT_WRAPPER_CODES:
             details = failure.get("details")
             if not isinstance(details, list) or not details:
                 return False

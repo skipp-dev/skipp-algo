@@ -300,6 +300,12 @@ def test_pre_release_refresh_fails_when_artifacts_are_structurally_empty(monkeyp
         "timeframe": "15m",
         "artifacts_evaluated": 2,
         "coverage_modes": ["none"],
+        # 2026-05-03: empty manifest errors snapshot attached so the
+        # soft-skip predicate can apply the same inner-code structural
+        # check it applies to REFRESH_MANIFEST_ERRORS. An empty list here
+        # means the writer ran cleanly but emitted nothing — a producer
+        # regression — so the failure surfaces as rc=1 (not soft-skipped).
+        "details": [],
     } in captured_reports[-1]["failures"]
 
 
@@ -389,6 +395,9 @@ def test_pre_release_refresh_warns_when_empty_artifacts_are_allowed(monkeypatch,
         "timeframe": "15m",
         "artifacts_evaluated": 2,
         "coverage_modes": ["none"],
+        # 2026-05-03: empty manifest errors snapshot attached — see
+        # `_collect_structurally_empty_failure` for rationale.
+        "details": [],
         "message": "Refreshed reference artifacts are structurally empty for this timeframe.",
         "promoted_to_warning_by": "warn_on_empty_artifacts",
     } in captured_reports[-1]["warnings"]
