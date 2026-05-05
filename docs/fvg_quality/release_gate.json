@@ -3,7 +3,7 @@
   "failure_reasons": [
     "no_events_loaded"
   ],
-  "generated_at": "2026-05-01T08:10:02.562774+00:00",
+  "generated_at": "2026-05-05T08:22:31.112010+00:00",
   "loader_warnings": [
     "no --root supplied (awaiting first run)"
   ],
@@ -11,9 +11,9 @@
   "quartiles": [],
   "release_gate": "AWAITING_DATA",
   "source": {
-    "commit_sha": "6d4b3a39ce5c393a64f340dec305c8c284e4f640",
+    "commit_sha": "8e8ac0574f858499056692a62f3c39a12075a65f",
     "root": null,
-    "workflow_run": "25207595067"
+    "workflow_run": "25365634297"
   },
   "top_threshold": 0.75,
   "total_events": 0
