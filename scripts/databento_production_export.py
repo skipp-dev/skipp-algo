@@ -15,6 +15,19 @@ import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
 
+# Phase-5.2 Quickfix Item 4: harden Databento HTTP timeout against slow-drip streams.
+# BentoHttpAPI.TIMEOUT defaults to 100s and is applied PER CHUNK by requests with
+# stream=True. Combined with schema=trades + large symbol batches in 8/10c this
+# allows effectively unbounded stream duration up to the 120min job-timeout.
+# Lowering the per-chunk timeout to 60s favours fast-fail + retry (PR #1996 wrap)
+# over silent hang. Module-level patch so all _make_databento_client paths inherit.
+try:
+    from databento.common.http import BentoHttpAPI as _BentoHttpAPI
+
+    _BentoHttpAPI.TIMEOUT = 60
+except ImportError:  # pragma: no cover - databento is a hard dep, stay defensive
+    pass
+
 logger = logging.getLogger(__name__)
 
 FIXED_ET_DISPLAY_TIMEZONE = "America/New_York"
@@ -3202,7 +3215,7 @@ def run_production_export_pipeline(
     benzinga_api_key: str = "",
     dataset: str,
     quality_window_early_exchange_datasets: dict[str, str] | None = None,
-    lookback_days: int = 30,
+    lookback_days: int = 15,
     top_fraction: float = 0.20,
     ranking_metric: str = "window_range_pct",
     display_timezone: str = "Europe/Berlin",
@@ -4079,7 +4092,7 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     parser = argparse.ArgumentParser(description="Run the Databento production export pipeline.")
     parser.add_argument("--dataset", default=(os.getenv("DATABENTO_DATASET") or "").strip() or None)
-    parser.add_argument("--lookback-days", type=int, default=30)
+    parser.add_argument("--lookback-days", type=int, default=15)
     parser.add_argument("--top-fraction", type=float, default=float(os.getenv("DATABENTO_TOP_FRACTION", "0.20")))
     parser.add_argument(
         "--bullish-score-profile",
