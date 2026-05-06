@@ -4477,7 +4477,10 @@ def test_run_intraday_screen_uses_incremental_cache_policy(monkeypatch, tmp_path
     )
 
     assert len(result) == 3
-    assert observed_ttls == [None, DATA_CACHE_TTL_SECONDS, 0]
+    # P5.3-A6: TTL values are emitted in completion-order (non-deterministic under
+    # ThreadPoolExecutor); compare as multiset.
+    from collections import Counter
+    assert Counter(observed_ttls) == Counter([None, DATA_CACHE_TTL_SECONDS, 0])
 
 
 def test_run_intraday_screen_reports_per_day_progress(monkeypatch, tmp_path) -> None:
@@ -4528,7 +4531,9 @@ def test_run_intraday_screen_reports_per_day_progress(monkeypatch, tmp_path) -> 
     )
 
     assert len(result) == 2
-    assert observed_messages == [
+    # P5.3-A6: progress messages now emitted in completion-order (non-deterministic
+    # under ThreadPoolExecutor); the day_index in each message remains chronological.
+    assert sorted(observed_messages) == [
         "Step 6/10 progress: intraday day 1/2 2026-03-03 complete (rows=1, cache_hit=yes)",
         "Step 6/10 progress: intraday day 2/2 2026-03-04 complete (rows=1, cache_hit=yes)",
     ]

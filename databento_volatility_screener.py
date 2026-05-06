@@ -18,8 +18,10 @@ import os
 import re
 import sys
 import tempfile
+import threading
 import time as time_module
 import warnings
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta, tzinfo
 from io import BytesIO
@@ -132,6 +134,14 @@ DATA_CACHE_TTL_SECONDS = 4 * 3600  # 4 hours – guards against stale intra-day 
 RECENT_INTRADAY_CACHE_TTL_SECONDS = DATA_CACHE_TTL_SECONDS
 DATABENTO_GET_RANGE_MAX_ATTEMPTS = 3
 INTRADAY_SUMMARY_BATCH_SIZE = 500
+# P5.3-A6: parallelize the per-day intraday-screen loop. Each worker fetches
+# one trade_day independently against Databento (Unlimited plan); shared
+# ``runtime_unsupported_symbols`` mutations rely on GIL-atomic ``set.update``,
+# which means workers within one batch may not see each other's discoveries
+# until completion (acceptable: corrected on next run). Memory budget on
+# ubuntu-latest-l (16 GB): ~2 GB pandas frame per concurrent day -> 4 workers
+# = 8 GB peak (50% headroom). Increase only with memory monitoring.
+INTRADAY_DAY_PARALLELISM = 4
 DATABENTO_SYMBOL_ALIASES = {
     "BRK-A": "BRK.A",
     "BRK-B": "BRK.B",
@@ -1635,6 +1645,86 @@ def _load_intraday_summary_batch(
         )
 
 
+def _process_intraday_day(
+    *,
+    client: Any,
+    dataset: str,
+    trade_day: date,
+    universe_symbols: set[str],
+    runtime_unsupported_symbols: set[str],
+    available_end_1s: Any,
+    symbol_scope: str,
+    display_timezone: str,
+    window_start: time | None,
+    window_end: time | None,
+    premarket_anchor_et: time,
+    cache_dir: str | Path | None,
+    use_file_cache: bool,
+    force_refresh: bool,
+    latest_trade_day: date | None,
+    prev_close_lookup: dict[tuple[date, str], float | None],
+) -> tuple[list[dict[str, Any]], int, bool]:
+    """Worker for one intraday trade_day. Returns (records, row_count, cache_hit)."""
+    day_ws, day_we = _resolve_window_for_date(trade_day, display_timezone, window_start, window_end)
+    window = build_window_definition(
+        trade_day,
+        display_timezone=display_timezone,
+        window_start=day_ws,
+        window_end=day_we,
+        premarket_anchor_et=premarket_anchor_et,
+    )
+    cache_path = build_cache_path(
+        cache_dir,
+        "intraday_summary",
+        dataset=dataset,
+        parts=[
+            trade_day.isoformat(),
+            display_timezone,
+            day_ws.strftime("%H%M%S"),
+            day_we.strftime("%H%M%S"),
+            premarket_anchor_et.strftime("%H%M%S"),
+            symbol_scope,
+        ],
+    )
+    day_frame: pd.DataFrame | None = None
+    cache_hit = False
+    if use_file_cache and not force_refresh:
+        day_frame = _read_cached_frame(
+            cache_path,
+            max_age_seconds=_trade_day_cache_max_age_seconds(trade_day, latest_trade_day),
+        )
+        cache_hit = day_frame is not None
+    if day_frame is None:
+        states: dict[str, SymbolDayState] = {}
+        active_symbols = set(universe_symbols) - runtime_unsupported_symbols
+        for symbols_batch in _iter_symbol_batches(active_symbols, batch_size=INTRADAY_SUMMARY_BATCH_SIZE):
+            _load_intraday_summary_batch(
+                client,
+                dataset=dataset,
+                trade_day=trade_day,
+                window=window,
+                available_end_1s=available_end_1s,
+                symbols_batch=symbols_batch,
+                states=states,
+                runtime_unsupported_symbols=runtime_unsupported_symbols,
+            )
+        day_rows = [summarize_symbol_day(state, previous_close=None) for state in states.values()]
+        day_frame = pd.DataFrame(day_rows) if day_rows else _empty_intraday_frame()
+        if use_file_cache and not day_frame.empty:
+            _write_cached_frame(cache_path, day_frame)
+    if day_frame.empty:
+        return [], 0, cache_hit
+    filtered = day_frame[day_frame["symbol"].isin(universe_symbols)].copy()
+    if filtered.empty:
+        return [], 0, cache_hit
+    filtered["previous_close"] = filtered.apply(
+        lambda row: prev_close_lookup.get((pd.Timestamp(row["trade_date"]).date(), str(row["symbol"]).upper())),
+        axis=1,
+    )
+    filtered = _add_transition_columns(filtered)
+    return filtered.to_dict(orient="records"), len(filtered), cache_hit
+
+
 def run_intraday_screen(
     databento_api_key: str,
     *,
@@ -1650,6 +1740,7 @@ def run_intraday_screen(
     use_file_cache: bool = False,
     force_refresh: bool = False,
     progress_callback: Any = None,
+    max_workers: int = INTRADAY_DAY_PARALLELISM,
 ) -> pd.DataFrame:
     client = _make_databento_client(databento_api_key)
     available_end_1s = _get_schema_available_end(client, dataset, "ohlcv-1s")
@@ -1661,83 +1752,79 @@ def run_intraday_screen(
     }
     results: list[dict[str, Any]] = []
     latest_trade_day = max(trading_days) if trading_days else None
-
     total_days = len(trading_days)
+    if total_days == 0:
+        return _empty_intraday_frame()
 
-    for day_index, trade_day in enumerate(trading_days, start=1):
-        day_ws, day_we = _resolve_window_for_date(trade_day, display_timezone, window_start, window_end)
-        window = build_window_definition(
-            trade_day,
-            display_timezone=display_timezone,
-            window_start=day_ws,
-            window_end=day_we,
-            premarket_anchor_et=premarket_anchor_et,
-        )
-        cache_path = build_cache_path(
-            cache_dir,
-            "intraday_summary",
+    # P5.3-A6: parallelize day-loop. Each day is independent (own state dict,
+    # own cache key, own DB query). ``progress_callback`` is invoked under a
+    # lock so emit-order is consistent even though completion-order is not.
+    effective_workers = max(1, min(max_workers, total_days))
+    progress_lock = threading.Lock()
+    day_errors: list[tuple[date, BaseException]] = []
+
+    def _submit_day(day_index: int, trade_day: date) -> tuple[int, date, list[dict[str, Any]], int, bool]:
+        records, row_count, cache_hit = _process_intraday_day(
+            client=client,
             dataset=dataset,
-            parts=[
-                trade_day.isoformat(),
-                display_timezone,
-                day_ws.strftime("%H%M%S"),
-                day_we.strftime("%H%M%S"),
-                premarket_anchor_et.strftime("%H%M%S"),
-                symbol_scope,
-            ],
+            trade_day=trade_day,
+            universe_symbols=universe_symbols,
+            runtime_unsupported_symbols=runtime_unsupported_symbols,
+            available_end_1s=available_end_1s,
+            symbol_scope=symbol_scope,
+            display_timezone=display_timezone,
+            window_start=window_start,
+            window_end=window_end,
+            premarket_anchor_et=premarket_anchor_et,
+            cache_dir=cache_dir,
+            use_file_cache=use_file_cache,
+            force_refresh=force_refresh,
+            latest_trade_day=latest_trade_day,
+            prev_close_lookup=prev_close_lookup,
         )
-        day_frame: pd.DataFrame | None = None
-        cache_hit = False
-        if use_file_cache and not force_refresh:
-            day_frame = _read_cached_frame(
-                cache_path,
-                max_age_seconds=_trade_day_cache_max_age_seconds(trade_day, latest_trade_day),
-            )
-            cache_hit = day_frame is not None
-        if day_frame is None:
-            states: dict[str, SymbolDayState] = {}
-            active_symbols = set(universe_symbols) - runtime_unsupported_symbols
-            for symbols_batch in _iter_symbol_batches(active_symbols, batch_size=INTRADAY_SUMMARY_BATCH_SIZE):
-                _load_intraday_summary_batch(
-                    client,
-                    dataset=dataset,
-                    trade_day=trade_day,
-                    window=window,
-                    available_end_1s=available_end_1s,
-                    symbols_batch=symbols_batch,
-                    states=states,
-                    runtime_unsupported_symbols=runtime_unsupported_symbols,
+        return day_index, trade_day, records, row_count, cache_hit
+
+    with ThreadPoolExecutor(max_workers=effective_workers, thread_name_prefix="intraday_day") as executor:
+        future_to_day = {
+            executor.submit(_submit_day, day_index, trade_day): (day_index, trade_day)
+            for day_index, trade_day in enumerate(trading_days, start=1)
+        }
+        for future in as_completed(future_to_day):
+            day_index, trade_day = future_to_day[future]
+            try:
+                _, _, records, row_count, cache_hit = future.result()
+            except Exception as exc:
+                day_errors.append((trade_day, exc))
+                logger.warning(
+                    "Step 6/10 progress: intraday day %d/%d %s FAILED: %s",
+                    day_index,
+                    total_days,
+                    trade_day.isoformat(),
+                    exc,
                 )
-            day_rows = [summarize_symbol_day(state, previous_close=None) for state in states.values()]
-            day_frame = pd.DataFrame(day_rows) if day_rows else _empty_intraday_frame()
-            if use_file_cache and not day_frame.empty:
-                _write_cached_frame(cache_path, day_frame)
-        if day_frame.empty:
-            if progress_callback is not None:
-                progress_callback(
-                    f"Step 6/10 progress: intraday day {day_index}/{total_days} {trade_day.isoformat()} complete "
-                    f"(rows=0, cache_hit={'yes' if cache_hit else 'no'})"
-                )
-            continue
-        filtered = day_frame[day_frame["symbol"].isin(universe_symbols)].copy()
-        if filtered.empty:
-            if progress_callback is not None:
-                progress_callback(
-                    f"Step 6/10 progress: intraday day {day_index}/{total_days} {trade_day.isoformat()} complete "
-                    f"(rows=0, cache_hit={'yes' if cache_hit else 'no'})"
-                )
-            continue
-        filtered["previous_close"] = filtered.apply(
-            lambda row: prev_close_lookup.get((pd.Timestamp(row["trade_date"]).date(), str(row["symbol"]).upper())),
-            axis=1,
-        )
-        filtered = _add_transition_columns(filtered)
-        results.extend(filtered.to_dict(orient="records"))
-        if progress_callback is not None:
-            progress_callback(
-                f"Step 6/10 progress: intraday day {day_index}/{total_days} {trade_day.isoformat()} complete "
-                f"(rows={len(filtered)}, cache_hit={'yes' if cache_hit else 'no'})"
-            )
+                with progress_lock:
+                    if progress_callback is not None:
+                        progress_callback(
+                            f"Step 6/10 progress: intraday day {day_index}/{total_days} "
+                            f"{trade_day.isoformat()} FAILED ({type(exc).__name__})"
+                        )
+                continue
+            with progress_lock:
+                results.extend(records)
+                if progress_callback is not None:
+                    progress_callback(
+                        f"Step 6/10 progress: intraday day {day_index}/{total_days} "
+                        f"{trade_day.isoformat()} complete "
+                        f"(rows={row_count}, cache_hit={'yes' if cache_hit else 'no'})"
+                    )
+
+    if day_errors and len(day_errors) == total_days:
+        # All days failed — surface the first error so the caller does not
+        # silently receive an empty frame from a fully broken upstream.
+        first_day, first_exc = day_errors[0]
+        raise RuntimeError(
+            f"run_intraday_screen: all {total_days} days failed; first error on {first_day.isoformat()}: {first_exc}"
+        ) from first_exc
 
     if not results:
         return _empty_intraday_frame()
