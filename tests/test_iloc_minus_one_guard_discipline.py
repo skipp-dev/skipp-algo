@@ -94,7 +94,10 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         # snapshot, production export path.
         # Phase-5.2 Quickfix B (PR #2058): Item 4 (BentoHttpAPI.TIMEOUT module-patch)
         # inserted ~13 lines near top of file, shifting site 2301 -> 2314.
-        ("scripts/databento_production_export.py", 2314),
+        # P5.3-A7 (PR pending): ThreadPoolExecutor imports + STEP8_SUBSTEP_PARALLELISM
+        # constant + _rss_mib_snapshot helper added at top of file, shifting
+        # site 2314 -> 2343.
+        ("scripts/databento_production_export.py", 2343),
         # scripts/generate_bullish_quality_scanner.py — manifest scalar
         # lookups (source_data_fetched_at / latest window_tag); not bar
         # data.
