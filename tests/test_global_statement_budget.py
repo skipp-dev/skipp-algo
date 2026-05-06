@@ -106,9 +106,12 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # injected dependency in a follow-up PR.
         # Phase-5.2 Quickfix bundle B (PR #2058+): line shifted 687→700 by
         # the BentoHttpAPI.TIMEOUT module-patch insertion at the top of file.
+        # P5.3-A7 (PR pending): line shifted 700→729 by ThreadPoolExecutor
+        # imports + STEP8_SUBSTEP_PARALLELISM constant + _rss_mib_snapshot helper
+        # inserted at top of file.
         (
             "scripts/databento_production_export.py",
-            700,
+            729,
             ("_DEFAULT_BULLISH_QUALITY_CFG",),
         ),
         ("smc_tv_bridge/smc_api.py", 184, ("_candle_provider",)),

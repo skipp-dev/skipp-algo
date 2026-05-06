@@ -5,11 +5,36 @@ import logging
 import math
 import os
 import sys
+import threading
 import time as time_module
 from collections.abc import Sequence
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, date, datetime, time
 from pathlib import Path
 from typing import Any
+
+try:
+    import resource as _resource  # POSIX-only stdlib; absent on Windows.
+except ImportError:  # pragma: no cover - CI runners are ubuntu-latest-l (POSIX).
+    _resource = None  # type: ignore[assignment]
+
+
+def _rss_mib_snapshot() -> float | None:
+    """Return current process max RSS in MiB, or ``None`` on non-POSIX.
+
+    macOS reports ``ru_maxrss`` in bytes; Linux reports it in KiB. We normalise
+    by sniffing a sentinel: any value >= 1<<30 (~1 GiB) on a fresh process is
+    almost certainly bytes (Linux would already be in TiB territory).
+    """
+
+    if _resource is None:
+        return None
+    raw = _resource.getrusage(_resource.RUSAGE_SELF).ru_maxrss
+    if raw <= 0:
+        return None
+    if sys.platform == "darwin":
+        return raw / (1024.0 * 1024.0)
+    return raw / 1024.0
 
 import numpy as np
 import pandas as pd
@@ -32,6 +57,10 @@ logger = logging.getLogger(__name__)
 
 FIXED_ET_DISPLAY_TIMEZONE = "America/New_York"
 FUNDAMENTAL_REFERENCE_EMPTY_CACHE_TTL_SECONDS = 30 * 60
+
+# P5.3-A7: Parallelize Step 8/10a-d sub-steps (max_workers conservative for 16 GB CI runner;
+# 10c accumulates the largest frame via pd.concat, peak RSS ~3 × largest_frame at this width).
+STEP8_SUBSTEP_PARALLELISM = 3
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -3417,73 +3446,89 @@ def run_production_export_pipeline(
                 f"Step 8/10: Collecting research/export detail "
                 f"(open-window, close-window, close-trade metadata; {second_detail_scope})..."
             )
-        open_detail_started_at = time_module.perf_counter()
-        full_universe_second_detail_raw = collect_full_universe_open_window_second_detail(
-            databento_api_key,
-            dataset=dataset,
-            trading_days=trading_days,
-            universe_symbols=universe_symbols,
-            daily_bars=daily_bars,
-            symbol_day_scope=ranked_scope if second_detail_scope == "ranked_only" else None,
-            display_timezone=display_timezone,
-            window_start=window_start,
-            window_end=window_end,
-            premarket_anchor_et=premarket_anchor_et,
-            cache_dir=resolved_cache_dir,
-            use_file_cache=use_file_cache,
-            force_refresh=force_refresh,
-        )
-        _progress(
-            f"Step 8/10a complete: Open-window second detail collected in {time_module.perf_counter() - open_detail_started_at:.1f}s "
-            f"(rows={len(full_universe_second_detail_raw)})"
-        )
-        close_second_started_at = time_module.perf_counter()
-        full_universe_close_detail_raw = _collect_fixed_et_second_detail(
-            databento_api_key,
-            dataset=dataset,
-            trading_days=trading_days,
-            universe_symbols=universe_symbols,
-            daily_bars=daily_bars,
-            symbol_day_scope=ranked_scope if second_detail_scope == "ranked_only" else None,
-            window_start=DEFAULT_CLOSE_IMBALANCE_WINDOW_START_ET,
-            window_end=DEFAULT_CLOSE_IMBALANCE_WINDOW_END_ET,
-            premarket_anchor_et=DEFAULT_CLOSE_IMBALANCE_WINDOW_START_ET,
-            cache_dir=resolved_cache_dir,
-            use_file_cache=use_file_cache,
-            force_refresh=force_refresh,
-        )
-        _progress(
-            f"Step 8/10b complete: Close-window second detail collected in {time_module.perf_counter() - close_second_started_at:.1f}s "
-            f"(rows={len(full_universe_close_detail_raw)})"
-        )
-        close_trade_started_at = time_module.perf_counter()
-        full_universe_close_trade_detail_raw = collect_full_universe_close_trade_detail(
-            databento_api_key,
-            dataset=dataset,
-            trading_days=trading_days,
-            universe_symbols=universe_symbols,
-            symbol_day_scope=ranked_scope if second_detail_scope == "ranked_only" else None,
-            display_timezone=display_timezone,
-            window_start=close_trade_window_start,
-            window_end=close_trade_window_end,
-            cache_dir=resolved_cache_dir,
-            use_file_cache=use_file_cache,
-            force_refresh=force_refresh,
-        )
-        _progress(
-            f"Step 8/10c complete: Close-trade detail collected in {time_module.perf_counter() - close_trade_started_at:.1f}s "
-            f"(rows={len(full_universe_close_trade_detail_raw)})"
-        )
-        if smc_base_only:
-            _progress("Step 8/10d: Skipping close-outcome minute detail in SMC base-only mode...")
-            full_universe_close_outcome_minute_raw = pd.DataFrame()
-            _progress("Step 8/10e: Skipping quality-window source detail in SMC base-only mode...")
-            quality_window_second_detail = pd.DataFrame()
-            premarket_source_detail = pd.DataFrame()
-            quality_window_source_metadata = empty_quality_window_source_metadata
-        else:
-            close_outcome_started_at = time_module.perf_counter()
-            full_universe_close_outcome_minute_raw = collect_full_universe_close_outcome_minute_detail(
+        # P5.3-A7: parallelize Step 8/10a-d sub-steps via ThreadPoolExecutor.
+        # Each sub-step is I/O-bound (Databento HTTP + decode) so threads release the
+        # GIL on socket reads. No partial-failure tolerance: first exception re-raised,
+        # in-flight threads complete on context exit (cannot interrupt threads in CPython).
+        # Step 8/10e (quality-window source frames) remains sequential after the layer
+        # because no wallclock baseline exists yet and it depends on raw_universe extras.
+        step8_progress_lock = threading.Lock()
+
+        def _run_open_window_substep() -> tuple[str, pd.DataFrame, str]:
+            started = time_module.perf_counter()
+            df = collect_full_universe_open_window_second_detail(
+                databento_api_key,
+                dataset=dataset,
+                trading_days=trading_days,
+                universe_symbols=universe_symbols,
+                daily_bars=daily_bars,
+                symbol_day_scope=ranked_scope if second_detail_scope == "ranked_only" else None,
+                display_timezone=display_timezone,
+                window_start=window_start,
+                window_end=window_end,
+                premarket_anchor_et=premarket_anchor_et,
+                cache_dir=resolved_cache_dir,
+                use_file_cache=use_file_cache,
+                force_refresh=force_refresh,
+            )
+            elapsed = time_module.perf_counter() - started
+            return (
+                "10a",
+                df,
+                f"Step 8/10a complete: Open-window second detail collected in {elapsed:.1f}s "
+                f"(rows={len(df)})",
+            )
+
+        def _run_close_window_substep() -> tuple[str, pd.DataFrame, str]:
+            started = time_module.perf_counter()
+            df = _collect_fixed_et_second_detail(
+                databento_api_key,
+                dataset=dataset,
+                trading_days=trading_days,
+                universe_symbols=universe_symbols,
+                daily_bars=daily_bars,
+                symbol_day_scope=ranked_scope if second_detail_scope == "ranked_only" else None,
+                window_start=DEFAULT_CLOSE_IMBALANCE_WINDOW_START_ET,
+                window_end=DEFAULT_CLOSE_IMBALANCE_WINDOW_END_ET,
+                premarket_anchor_et=DEFAULT_CLOSE_IMBALANCE_WINDOW_START_ET,
+                cache_dir=resolved_cache_dir,
+                use_file_cache=use_file_cache,
+                force_refresh=force_refresh,
+            )
+            elapsed = time_module.perf_counter() - started
+            return (
+                "10b",
+                df,
+                f"Step 8/10b complete: Close-window second detail collected in {elapsed:.1f}s "
+                f"(rows={len(df)})",
+            )
+
+        def _run_close_trade_substep() -> tuple[str, pd.DataFrame, str]:
+            started = time_module.perf_counter()
+            df = collect_full_universe_close_trade_detail(
+                databento_api_key,
+                dataset=dataset,
+                trading_days=trading_days,
+                universe_symbols=universe_symbols,
+                symbol_day_scope=ranked_scope if second_detail_scope == "ranked_only" else None,
+                display_timezone=display_timezone,
+                window_start=close_trade_window_start,
+                window_end=close_trade_window_end,
+                cache_dir=resolved_cache_dir,
+                use_file_cache=use_file_cache,
+                force_refresh=force_refresh,
+            )
+            elapsed = time_module.perf_counter() - started
+            return (
+                "10c",
+                df,
+                f"Step 8/10c complete: Close-trade detail collected in {elapsed:.1f}s "
+                f"(rows={len(df)})",
+            )
+
+        def _run_close_outcome_substep() -> tuple[str, pd.DataFrame, str]:
+            started = time_module.perf_counter()
+            df = collect_full_universe_close_outcome_minute_detail(
                 databento_api_key,
                 dataset=dataset,
                 trading_days=trading_days,
@@ -3494,10 +3539,64 @@ def run_production_export_pipeline(
                 use_file_cache=use_file_cache,
                 force_refresh=force_refresh,
             )
-            _progress(
-                f"Step 8/10d complete: Close-outcome minute detail collected in {time_module.perf_counter() - close_outcome_started_at:.1f}s "
-                f"(rows={len(full_universe_close_outcome_minute_raw)})"
+            elapsed = time_module.perf_counter() - started
+            return (
+                "10d",
+                df,
+                f"Step 8/10d complete: Close-outcome minute detail collected in {elapsed:.1f}s "
+                f"(rows={len(df)})",
             )
+
+        substep_jobs = [
+            _run_open_window_substep,
+            _run_close_window_substep,
+            _run_close_trade_substep,
+        ]
+        if not smc_base_only:
+            substep_jobs.append(_run_close_outcome_substep)
+
+        step8_layer_started_at = time_module.perf_counter()
+        step8_rss_before_mib = _rss_mib_snapshot()
+        step8_substep_results: dict[str, pd.DataFrame] = {}
+        with ThreadPoolExecutor(
+            max_workers=STEP8_SUBSTEP_PARALLELISM,
+            thread_name_prefix="step8_substep",
+        ) as step8_executor:
+            step8_futures = [step8_executor.submit(job) for job in substep_jobs]
+            for future in as_completed(step8_futures):
+                # First exception re-raises here; the with-block then waits for any
+                # in-flight threads to finish (Python cannot cancel running threads).
+                label, frame, message = future.result()
+                step8_substep_results[label] = frame
+                with step8_progress_lock:
+                    _progress(message)
+        step8_rss_after_mib = _rss_mib_snapshot()
+        rss_delta_msg = ""
+        if step8_rss_before_mib is not None and step8_rss_after_mib is not None:
+            rss_delta_msg = (
+                f", rss_before={step8_rss_before_mib:.0f}MiB, "
+                f"rss_after={step8_rss_after_mib:.0f}MiB, "
+                f"rss_delta={step8_rss_after_mib - step8_rss_before_mib:+.0f}MiB"
+            )
+        _progress(
+            f"Step 8 parallel layer complete (10a-d) in "
+            f"{time_module.perf_counter() - step8_layer_started_at:.1f}s "
+            f"(workers={STEP8_SUBSTEP_PARALLELISM}, jobs={len(substep_jobs)}{rss_delta_msg})"
+        )
+
+        full_universe_second_detail_raw = step8_substep_results["10a"]
+        full_universe_close_detail_raw = step8_substep_results["10b"]
+        full_universe_close_trade_detail_raw = step8_substep_results["10c"]
+
+        if smc_base_only:
+            _progress("Step 8/10d: Skipping close-outcome minute detail in SMC base-only mode...")
+            full_universe_close_outcome_minute_raw = pd.DataFrame()
+            _progress("Step 8/10e: Skipping quality-window source detail in SMC base-only mode...")
+            quality_window_second_detail = pd.DataFrame()
+            premarket_source_detail = pd.DataFrame()
+            quality_window_source_metadata = empty_quality_window_source_metadata
+        else:
+            full_universe_close_outcome_minute_raw = step8_substep_results["10d"]
             quality_source_started_at = time_module.perf_counter()
             quality_window_second_detail, premarket_source_detail, quality_window_source_metadata = _collect_quality_window_source_frames(
                 databento_api_key=databento_api_key,
