@@ -94,8 +94,11 @@ WARNINGS_SIMPLEFILTER_LEDGER: set[tuple[str, int, str]] = {
     ("databento_volatility_screener.py", 552, "always"),
     ("databento_volatility_screener.py", 1571, "always"),
     ("databento_volatility_screener.py", 2088, "always"),
-    ("databento_volatility_screener.py", 2534, "always"),
-    ("databento_volatility_screener.py", 2651, "always"),
+    # Phase-5.2 Quickfix B (PR #2058): Item 1 inserted batch_size kwarg + comment
+    # block above _iter_symbol_batches call in collect_full_universe_close_trade_detail,
+    # shifting the two surrounding warnings.simplefilter sites by +7.
+    ("databento_volatility_screener.py", 2541, "always"),
+    ("databento_volatility_screener.py", 2658, "always"),
     ("databento_universe.py", 162, "always"),
 }
 

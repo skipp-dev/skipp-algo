@@ -92,7 +92,9 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         ("scripts/databento_preopen_fast.py", 430),
         # scripts/databento_production_export.py — same premarket "last"
         # snapshot, production export path.
-        ("scripts/databento_production_export.py", 2301),
+        # Phase-5.2 Quickfix B (PR #2058): Item 4 (BentoHttpAPI.TIMEOUT module-patch)
+        # inserted ~13 lines near top of file, shifting site 2301 -> 2314.
+        ("scripts/databento_production_export.py", 2314),
         # scripts/generate_bullish_quality_scanner.py — manifest scalar
         # lookups (source_data_fetched_at / latest window_tag); not bar
         # data.
