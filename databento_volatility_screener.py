@@ -2528,7 +2528,14 @@ def collect_full_universe_close_trade_detail(
         if day_frame is None:
             day_parts: list[pd.DataFrame] = []
             active_symbols = set(day_universe_symbols) - runtime_unsupported_symbols
-            for symbols_batch in _iter_symbol_batches(active_symbols):
+            # Phase-5.2 Quickfix Item 1: explicit batch_size to align 8/10c with the
+            # 8/10a/b INTRADAY_SUMMARY_BATCH_SIZE sweet-spot. Default
+            # MAX_SYMBOLS_PER_REQUEST (2000) combined with schema=trades yields
+            # ~3.5x trade-volume per stream and is deterministic root cause of
+            # 121min job-timeouts (n=8/8 cron runs cancelled, Mo+Di 04-05/05-05).
+            for symbols_batch in _iter_symbol_batches(
+                active_symbols, batch_size=INTRADAY_SUMMARY_BATCH_SIZE
+            ):
                 try:
                     with warnings.catch_warnings(record=True) as caught_warnings:
                         warnings.simplefilter("always")

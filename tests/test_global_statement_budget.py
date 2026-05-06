@@ -104,9 +104,11 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # F-V5-G1 (2026-05-01): pre-existing site surfaced when ``scripts/``
         # was added to the audit scope. TODO move to a class attribute or
         # injected dependency in a follow-up PR.
+        # Phase-5.2 Quickfix bundle B (PR #2058+): line shifted 687→700 by
+        # the BentoHttpAPI.TIMEOUT module-patch insertion at the top of file.
         (
             "scripts/databento_production_export.py",
-            687,
+            700,
             ("_DEFAULT_BULLISH_QUALITY_CFG",),
         ),
         ("smc_tv_bridge/smc_api.py", 184, ("_candle_provider",)),
