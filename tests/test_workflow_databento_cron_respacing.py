@@ -29,8 +29,16 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 _PRODUCER = _REPO_ROOT / ".github" / "workflows" / "smc-databento-production-export.yml"
 _CONSUMER = _REPO_ROOT / ".github" / "workflows" / "smc-library-refresh.yml"
 
-# F-V6-C3 (2026-05-02): producer's max budget is 60 min (PR #2018), so the
-# consumer must wait at least that long before reading.
+# Floor-pin (NOT equals-pin): the consumer must wait *at least* this long
+# after a producer tick before reading. Floor history:
+#   F-V6-C3 (2026-05-02, PR #2018) — set to 60 when producer cap was 60.
+#   F-V8-C3.1 (2026-05-02)        — left at 60 when cap moved to 120
+#                                    (60-min margin of safety).
+#   F-V8-C4  (2026-05-08)         — kept at 60 when cap moved to 240.
+# Realised headroom is now 240 min (cron 12→16, 16→20 UTC). Keeping the
+# floor at 60 lets a future re-tightening (e.g. once Step 6/6b/8 backend
+# bias is resolved and the cap drops back to 120) happen without
+# breaking this pin.
 _CRON_HEADROOM_MIN_MINUTES = 60
 
 

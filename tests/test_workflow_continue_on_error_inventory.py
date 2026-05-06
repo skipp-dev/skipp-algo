@@ -74,7 +74,9 @@ _ALLOWED: dict[str, frozenset[int]] = {
     # Audit unbreaker (2026-05-03): -3 each after removing the dup ref-less
     # `concurrency:` block + lead-in comment that YAML last-wins overrode the
     # per-ref F-V8-C3.1-D guard.
-    "smc-library-refresh.yml": frozenset({209, 374, 489, 728, 871, 891}),
+    # F-V8-C4 (2026-05-08): -1 each after cron restructure 4×→2× (consumer
+    # cron block lost 4 entries but gained a 6-line rationale comment, net -1).
+    "smc-library-refresh.yml": frozenset({208, 373, 488, 727, 870, 890}),
     # Deeper integration gates: 2 advisory-only probes.
     # Rebaselined 2026-05-02 after PR #2028 composite migration: 69→73, 113→117 (+4 each).
     # F-V4-B4 (2026-05-02): 73→74, 117→118 (+1 each) after @v7 fleet bump.

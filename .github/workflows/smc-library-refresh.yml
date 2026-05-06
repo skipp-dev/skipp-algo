@@ -46,15 +46,14 @@ name: smc-library-refresh
 
 on:
   schedule:
-    # F-V6-C3 (2026-05-02): respaced from HH:30 → HH+1:00. The 30-min
-    # handoff window was too tight for the producer
-    # (smc-databento-production-export) which can legitimately run up to
-    # 60 min (timeout cap, PR #2018). New 60-min headroom guarantees the
-    # consumer always reads the freshest export.
-    - cron: "0 13 * * 1-5"   # 13:00 UTC – pre-market   (was 12:30)
-    - cron: "0 15 * * 1-5"   # 15:00 UTC – market open  (was 14:30)
-    - cron: "0 17 * * 1-5"   # 17:00 UTC – midday       (was 16:30)
-    - cron: "0 19 * * 1-5"   # 19:00 UTC – late session (was 18:30)
+    # F-V8-C4 (2026-05-08): cron restructure 4×→2× to match producer's
+    # new 240-min budget (see smc-databento-production-export.yml). Each
+    # producer tick gets a consumer follow-up exactly 240 min later, so
+    # the consumer always reads a freshly-completed export even if the
+    # producer uses its full new cap. Workflow_run trigger below remains
+    # the primary fast path; cron is the safety net.
+    - cron: "0 16 * * 1-5"   # 16:00 UTC – 240 min after producer 12:00 tick
+    - cron: "0 20 * * 1-5"   # 20:00 UTC – 240 min after producer 16:00 tick
   # F-V4-J3 (2026-05-01) blast-radius reduction (kept alongside the
   # F-V6-C3 cron schedule above as belt-and-suspenders): consumer also
   # fires immediately when the producer (smc-databento-production-export)
@@ -104,12 +103,12 @@ jobs:
     # guard (cron already implies "no upstream signal to gate on").
     if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
-    # F-V8-C3.1 (2026-05-02): bumped 90→120 in lockstep with the producer
-    # (smc-databento-production-export). Pin test enforces producer ≤
-    # consumer, so the two move together. 120 = exactly the 2h cron
-    # interval — back-to-back runs touch but cannot overlap (anything >120
-    # would let a zombie run collide with the next tick).
-    timeout-minutes: 120
+    # F-V8-C4 (2026-05-08): bumped 120→240 in lockstep with the producer.
+    # Pin test enforces producer ≤ consumer, so the two move together.
+    # 240 = exactly the new 4 h cron interval — back-to-back runs touch
+    # but cannot overlap (anything >240 would let a zombie run collide
+    # with the next tick).
+    timeout-minutes: 240
 
     steps:
       # ── Metadata ────────────────────────────────────────────────

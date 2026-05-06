@@ -30,17 +30,21 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 _PRODUCER = _REPO_ROOT / ".github" / "workflows" / "smc-databento-production-export.yml"
 _CONSUMER = _REPO_ROOT / ".github" / "workflows" / "smc-library-refresh.yml"
 
-# F-V8-C3.1 (2026-05-02) — bumped both caps from 60/90 to 120/120 after the
-# producer was killed 12 runs in a row by the 60-min cap. Cap is now 120,
-# which equals the cron interval (2h) — anything >120 would let a zombie
-# run overlap the next tick. Once F-V8-A1.x logging reveals the dominant
-# step, a follow-up PR can tighten these caps again behind a real fix.
-_PRODUCER_TIMEOUT_MAX = 120
-_CONSUMER_TIMEOUT_MAX = 120
+# F-V8-C4 (2026-05-08) — bumped both caps from 120/120 to 240/240 after
+# three consecutive cap-busts at 120 min (n=1/n=2/n=3, runs 25438174407,
+# 25446229916, 25450506584) confirmed the producer's worst-case runtime
+# exceeds 2 h on ubuntu-latest-l. Cap is now 240, which equals the new
+# 4 h cron interval (cron restructured 4×→2× in lockstep) — anything >240
+# would let a zombie run overlap the next tick. Once a follow-up PR
+# resolves the Step 6/6b/8 backend bias, these caps can be tightened
+# again.
+_PRODUCER_TIMEOUT_MAX = 240
+_CONSUMER_TIMEOUT_MAX = 240
 # Cron headroom (consumer cron offset - producer cron offset, hour-aware)
-# the consumer expects in order to read fresh exports. PR #2020 respaced
-# consumer to HH+1:00 so the realised headroom is 60 min, but we keep the
-# floor at 30 min so a future re-tightening still has a margin of safety.
+# the consumer expects in order to read fresh exports. F-V8-C4 (2026-05-08)
+# restructured the cron to 4 h spacing, so the realised headroom is now
+# 240 min. We keep the floor at 30 min so a future re-tightening still has
+# a margin of safety even before the cap itself comes back down.
 _CRON_HEADROOM_MIN_MINUTES = 30
 
 
