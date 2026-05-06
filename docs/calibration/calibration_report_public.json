@@ -1,13 +1,13 @@
 {
   "family_weights": {},
-  "generated_at": "2026-05-05T06:32:58.775417+00:00",
+  "generated_at": "2026-05-06T07:14:29.124287+00:00",
   "metrics": {},
   "n_events": null,
   "schema_version": "1.3.0",
   "source": {
-    "commit_sha": "e80c60047bb8d7758acba95f0503dd96b80f647d",
+    "commit_sha": "3efe24a4732691af3c16e57150ff16a9cec2b2df",
     "path": "artifacts/reports/zone_priority_contextual_calibration.json",
-    "workflow_run": "25361477747"
+    "workflow_run": "25421637345"
   },
   "status": "ok",
   "weighted_hit_rate": null
