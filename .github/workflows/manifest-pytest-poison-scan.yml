@@ -13,6 +13,14 @@ on:
 permissions:
   contents: read
 
+# F-V8-C5-A (2026-05-07): serialize per-ref so a fast follow-up push
+# (e.g. amend + force-push during PR review) cancels the now-stale
+# in-flight scan. cancel-in-progress is gated on pull_request only, so
+# pushes to main always run to completion (audit-trail integrity).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   PYTHONUNBUFFERED: "1"  # F-V5-A2 (2026-05-01)
   PYTHONPATH: ${{ github.workspace }}

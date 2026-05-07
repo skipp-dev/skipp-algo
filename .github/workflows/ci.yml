@@ -6,6 +6,16 @@ on:
     branches: ["**"]
   pull_request:
     branches: ["**"]
+    # F-V8-C5-A (2026-05-07): doc-only PRs do not exercise the validate
+    # job's heavy gate; skip CI to save runner minutes. ci.yml is NOT a
+    # required status check on main (only `fast-gates` is — see
+    # smc-fast-pr-gates.yml), so paths-ignore here cannot block a merge.
+    # `push:` above is intentionally NOT path-filtered — pushes to any
+    # branch always run CI for audit-trail integrity.
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'CHANGELOG.md'
   workflow_dispatch:
 
 permissions:
