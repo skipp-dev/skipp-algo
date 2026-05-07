@@ -5,6 +5,12 @@
 name: CI xdist benchmark (one-shot)
 
 on:
+  # Push trigger scoped to the benchmark branch so each push triggers a
+  # run (workaround: workflow_dispatch on a non-default branch requires
+  # the workflow to exist on the default branch first; gh CLI returns
+  # HTTP 404 otherwise). Removed when the branch is deleted.
+  push:
+    branches: ["chore-ci-xdist-benchmark"]
   workflow_dispatch:
     inputs:
       maxfail:
