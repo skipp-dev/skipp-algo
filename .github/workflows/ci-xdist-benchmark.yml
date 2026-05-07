@@ -64,21 +64,27 @@ jobs:
         run: uv pip install --system -r requirements.txt pytest pytest-xdist
       - name: nproc / runner shape
         run: |
-          echo "iteration=${{ inputs.iteration }} arm=${{ matrix.arm.name }}"
+          echo "iteration=${{ inputs.iteration || 'push' }} arm=${{ matrix.arm.name }}"
           echo "nproc=$(nproc)"
           echo "mem=$(grep MemTotal /proc/meminfo)"
       - name: Pytest (${{ matrix.arm.name }})
         id: pytest
+        env:
+          # `inputs.*` is empty when the workflow runs from `push:` (only
+          # populated on workflow_dispatch). Fall back to safe defaults so
+          # both trigger paths work identically.
+          MAXFAIL: ${{ inputs.maxfail || '0' }}
+          ITERATION: ${{ inputs.iteration || 'push' }}
         run: |
           set -euo pipefail
           start=$(date +%s)
-          python -m pytest -q --maxfail=${{ inputs.maxfail }} \
+          python -m pytest -q --maxfail="${MAXFAIL}" \
             ${{ matrix.arm.pytest_args }} \
             -o cache_dir=/tmp/pytest-cache-${{ matrix.arm.name }}
           end=$(date +%s)
           dur=$((end - start))
           echo "duration_seconds=${dur}" >> "$GITHUB_OUTPUT"
-          echo "::notice title=bench-${{ matrix.arm.name }}::wallclock=${dur}s ($(date -u -d @${dur} +%Mm%Ss))"
+          echo "::notice title=bench-${{ matrix.arm.name }}::wallclock=${dur}s ($(date -u -d @${dur} +%Mm%Ss)) iter=${ITERATION}"
       - name: Summary
         if: always()
         run: |
