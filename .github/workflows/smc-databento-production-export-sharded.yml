@@ -90,7 +90,7 @@ jobs:
           cat shards.json
           echo "-----------------------"
           # Wrap into the matrix-include form GHA expects so A9b.2b can
-          # consume it directly via `strategy.matrix: ${{ fromJson(...) }}`.
+          # consume it directly via strategy.matrix.fromJson(needs.plan.outputs.matrix).
           MATRIX=$(jq -c '{include: .}' shards.json)
           echo "matrix=${MATRIX}" >> "$GITHUB_OUTPUT"
           echo "shard_count=$(jq 'length' shards.json)" >> "$GITHUB_OUTPUT"
