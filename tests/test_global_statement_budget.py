@@ -112,9 +112,12 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # A8-Telemetry-Mini (PR pending): line shifted 729→734 by the
         # ``_fmt_rss_mib`` formatter helper added next to ``_rss_mib_snapshot``
         # for Step 9 RSS-bracket telemetry.
+        # A8.1 (PR #2078): line shifted 734→781 by ``_rss_current_mib`` +
+        # ``_fmt_rss_pair`` helpers added for current+peak RSS instrumentation
+        # (see commit 9e93416c).
         (
             "scripts/databento_production_export.py",
-            734,
+            781,
             ("_DEFAULT_BULLISH_QUALITY_CFG",),
         ),
         ("smc_tv_bridge/smc_api.py", 184, ("_candle_provider",)),
