@@ -2873,24 +2873,36 @@ def _build_close_trade_aggregates(
     if close_trade_detail_all.empty:
         return pd.DataFrame(columns=metric_columns)
 
-    detail = close_trade_detail_all.copy()
-    detail["trade_date"] = pd.to_datetime(detail["trade_date"], errors="coerce").dt.date
-    detail["symbol"] = detail["symbol"].astype(str).str.upper()
-    detail["timestamp"] = pd.to_datetime(detail["timestamp"], errors="coerce", utc=True).dt.tz_convert(resolve_display_timezone(display_timezone))
-    detail["ts_recv"] = pd.to_datetime(detail.get("ts_recv"), errors="coerce", utc=True)
-    detail["ts_event"] = pd.to_datetime(detail.get("ts_event"), errors="coerce", utc=True)
-    detail["size"] = pd.to_numeric(detail.get("size"), errors="coerce").fillna(0.0)
-    detail["price"] = _normalize_trade_price_series(detail.get("price"))
-    detail["flags"] = pd.to_numeric(detail.get("flags"), errors="coerce").fillna(0).astype(int)
-    detail["sequence"] = pd.to_numeric(detail.get("sequence"), errors="coerce")
-    detail["publisher_id"] = pd.to_numeric(detail.get("publisher_id"), errors="coerce").astype("Int64")
-    detail["side"] = detail.get("side", "N").astype(str).str.upper().replace("", "N")
-    detail["venue_class"] = detail.get("venue_class", "").astype(str)
+    # A8.1.5: build coerced columns into a NEW frame instead of ``.copy()``-then-mutate.
+    # The caller in ``scripts/databento_production_export.py`` retains the raw frame
+    # via its own ``full_universe_close_trade_detail_raw`` reference and needs it
+    # untouched for the parquet export downstream. Avoiding the full ``.copy()`` of a
+    # 77M-row DataFrame removes the ~12-15 GiB allocation spike that produced OOM
+    # SIGTERMs on the 32 GiB runner (run 25498657837 et al.).
+    src = close_trade_detail_all
+    tz = resolve_display_timezone(display_timezone)
+    side_src = src["side"] if "side" in src.columns else pd.Series("N", index=src.index)
+    venue_src = src["venue_class"] if "venue_class" in src.columns else pd.Series("", index=src.index)
+    coerced: dict[str, pd.Series] = {
+        "trade_date": pd.to_datetime(src["trade_date"], errors="coerce").dt.date,
+        "symbol": src["symbol"].astype(str).str.upper(),
+        "timestamp": pd.to_datetime(src["timestamp"], errors="coerce", utc=True).dt.tz_convert(tz),
+        "ts_recv": pd.to_datetime(src.get("ts_recv"), errors="coerce", utc=True),
+        "ts_event": pd.to_datetime(src.get("ts_event"), errors="coerce", utc=True),
+        "size": pd.to_numeric(src.get("size"), errors="coerce").fillna(0.0),
+        "price": _normalize_trade_price_series(src.get("price")),
+        "flags": pd.to_numeric(src.get("flags"), errors="coerce").fillna(0).astype(int),
+        "sequence": pd.to_numeric(src.get("sequence"), errors="coerce"),
+        "publisher_id": pd.to_numeric(src.get("publisher_id"), errors="coerce").astype("Int64"),
+        "side": side_src.astype(str).str.upper().replace("", "N"),
+        "venue_class": venue_src.astype(str),
+    }
+    detail = pd.DataFrame(coerced, index=src.index)
+    del coerced
     detail = detail.dropna(subset=["trade_date", "symbol", "timestamp"])
     if detail.empty:
         return pd.DataFrame(columns=metric_columns)
 
-    tz = resolve_display_timezone(display_timezone)
     auction_by_day = {
         trade_day: pd.Timestamp(datetime.combine(trade_day, close_auction_time, tzinfo=US_EASTERN_TZ).astimezone(tz))
         for trade_day in trading_days
@@ -2969,11 +2981,21 @@ def _build_close_outcome_aggregates(close_outcome_minute_detail_all: pd.DataFram
     if close_outcome_minute_detail_all.empty:
         return pd.DataFrame(columns=metric_columns)
 
-    detail = close_outcome_minute_detail_all.copy()
-    detail["trade_date"] = pd.to_datetime(detail["trade_date"], errors="coerce").dt.date
-    detail["symbol"] = detail["symbol"].astype(str).str.upper()
-    detail["timestamp"] = pd.to_datetime(detail["timestamp"], errors="coerce", utc=True)
-    detail["volume"] = pd.to_numeric(detail.get("volume"), errors="coerce").fillna(0.0)
+    # A8.1.5: same Series-build pattern as ``_build_close_trade_aggregates`` to avoid
+    # the ``.copy()`` allocation spike on the ~14M-row close-outcome detail frame.
+    src = close_outcome_minute_detail_all
+    coerced: dict[str, pd.Series] = {
+        "trade_date": pd.to_datetime(src["trade_date"], errors="coerce").dt.date,
+        "symbol": src["symbol"].astype(str).str.upper(),
+        "timestamp": pd.to_datetime(src["timestamp"], errors="coerce", utc=True),
+        "volume": pd.to_numeric(src.get("volume"), errors="coerce").fillna(0.0),
+    }
+    # Pass through unchanged columns the per-group loop reads via ``ordered.get(...)``.
+    for passthrough in ("close", "high", "low"):
+        if passthrough in src.columns:
+            coerced[passthrough] = src[passthrough]
+    detail = pd.DataFrame(coerced, index=src.index)
+    del coerced
     detail = detail.dropna(subset=["trade_date", "symbol", "timestamp"])
     if detail.empty:
         return pd.DataFrame(columns=metric_columns)
