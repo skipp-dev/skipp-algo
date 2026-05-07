@@ -68,10 +68,12 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # Phase-5.2 Quickfix B (PR #2058): Item 1 inserted +7 lines around Z 2531
         # in databento_volatility_screener.py, shifting the four ``_fast_progress_*``
         # nonlocal sites from 4682-4685 to 4689-4692. No semantic change.
-        ("databento_volatility_screener.py", 4819, ("_fast_progress_pct",)),
-        ("databento_volatility_screener.py", 4820, ("_fast_progress_step",)),
-        ("databento_volatility_screener.py", 4821, ("_fast_progress_total",)),
-        ("databento_volatility_screener.py", 4822, ("_fast_eta_smooth_seconds",)),
+        # A8.1 (PR #2078): all four sites shifted +36 by
+        # _rss_current_mib + _fmt_rss_pair helpers + 13 step9a markers.
+        ("databento_volatility_screener.py", 4855, ("_fast_progress_pct",)),
+        ("databento_volatility_screener.py", 4856, ("_fast_progress_step",)),
+        ("databento_volatility_screener.py", 4857, ("_fast_progress_total",)),
+        ("databento_volatility_screener.py", 4858, ("_fast_eta_smooth_seconds",)),
         ("smc_core/ensemble_quality.py", 171, ("active_weight", "weighted_total")),
     }
 )

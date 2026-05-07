@@ -97,7 +97,9 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         # P5.3-A7 (PR pending): ThreadPoolExecutor imports + STEP8_SUBSTEP_PARALLELISM
         # constant + _rss_mib_snapshot helper added at top of file, shifting
         # site 2314 -> 2343.
-        ("scripts/databento_production_export.py", 2348),
+        # A8.1 (PR #2078): _rss_current_mib + _fmt_rss_pair helpers added
+        # for current+peak RSS instrumentation, shifting site 2348 -> 2395.
+        ("scripts/databento_production_export.py", 2395),
         # scripts/generate_bullish_quality_scanner.py — manifest scalar
         # lookups (source_data_fetched_at / latest window_tag); not bar
         # data.
