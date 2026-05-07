@@ -1,0 +1,102 @@
+# live-window: manual-only
+# ---------------------------------------------------------------------------
+# smc-databento-production-export-sharded  (A9b.2a — plan-job only)
+#
+# This is the FIRST stage of the matrix-sharded producer workflow that
+# replaces `smc-databento-production-export.yml`. At A9b.2a it contains
+# ONLY the `plan` job: it computes a shard plan via
+# `scripts/databento_plan_shards.py` and uploads the resulting JSON as
+# an artifact. No matrix fan-out, no producer execution, no reduce step
+# yet — those land in A9b.2b and A9b.3.
+#
+# Trigger: workflow_dispatch ONLY. No `schedule:` block on purpose
+# until A9b.5 (cron cutover); a draft/probe workflow must never fire on
+# its own and risk producing partial canonical artifacts that downstream
+# consumers might pick up.
+#
+# Validation flow:
+#   1) Merge this PR (script + tests + this file).
+#   2) `gh workflow run smc-databento-production-export-sharded.yml \
+#         -f lookback_days=10 -f num_shards=2`
+#   3) Download the `a9b-2a-shard-plan` artifact and verify the matrix
+#      JSON matches the unit-test expectation
+#      (2 shards, 5 days each, contiguous, ending today UTC).
+#   4) Proceed to A9b.2b (add matrix-fan-out producer jobs).
+#
+# A9b spec lives in session memory `f2-rolling-bench-rootcause.md`.
+# ---------------------------------------------------------------------------
+
+name: smc-databento-production-export-sharded
+
+on:
+  workflow_dispatch:
+    inputs:
+      lookback_days:
+        description: "Total trailing calendar window to split across shards (default 30)"
+        required: false
+        default: "30"
+      num_shards:
+        description: "Number of producer shards in the matrix (default 6)"
+        required: false
+        default: "6"
+
+# Per-ref serialization mirrors the live producer cron's discipline so a
+# slow plan-job (it shouldn't be slow, but cheap insurance) cannot be
+# raced by a manual re-dispatch on the same ref. cancel-in-progress is
+# false by symmetry; the plan job is sub-minute, queueing is fine.
+concurrency:
+  group: smc-databento-production-export-sharded-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
+
+jobs:
+  plan:
+    name: plan shards
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.compute.outputs.matrix }}
+      shard_count: ${{ steps.compute.outputs.shard_count }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: ./.github/actions/setup-python-pinned
+
+      - name: Compute shard plan
+        id: compute
+        run: |
+          set -euo pipefail
+          LOOKBACK="${{ inputs.lookback_days }}"
+          NUM="${{ inputs.num_shards }}"
+          echo "::notice::Planning shards: lookback_days=${LOOKBACK} num_shards=${NUM}"
+          python scripts/databento_plan_shards.py \
+            --lookback-days "${LOOKBACK}" \
+            --num-shards "${NUM}" \
+            > shards.json
+          echo "----- shards.json -----"
+          cat shards.json
+          echo "-----------------------"
+          # Wrap into the matrix-include form GHA expects so A9b.2b can
+          # consume it directly via `strategy.matrix: ${{ fromJson(...) }}`.
+          MATRIX=$(jq -c '{include: .}' shards.json)
+          echo "matrix=${MATRIX}" >> "$GITHUB_OUTPUT"
+          echo "shard_count=$(jq 'length' shards.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload shard plan
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: a9b-2a-shard-plan
+          path: shards.json
+          retention-days: 7
+          if-no-files-found: error
