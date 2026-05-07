@@ -103,7 +103,8 @@ _ALLOWED: dict[str, frozenset[int]] = {
     # F-V4-A4 (2026-05-02): 178 → 179 (+1) after hygiene intent comment.
     # F-V4-A2 (2026-05-01, rebased 2026-05-02): 179 → 180 (+1) after PYTHONUNBUFFERED.
     # F-V?-A2 cascade (2026-05-03): 180 → 175 (-5) after PYTHONUNBUFFERED dedup (PR #2033).
-    "smc-release-gates.yml": frozenset({175}),
+    # F-V8-C5-B (2026-05-07): 175 → 177 (+2) after pip-cache add to setup-python (PR-A2 cron-batch).
+    "smc-release-gates.yml": frozenset({177}),
     # Drift watchdog: red verdict is intentionally non-fatal so the follow-up
     # step can convert it into a GitHub issue (silent-fail by design — see C9/T4).
     # Line shifted 52 → 54 after adding CONTINUE-ON-ERROR-INTENTIONAL marker comment
