@@ -82,6 +82,7 @@ def _all_counts() -> dict[str, int]:
 # (or remove it entirely if the count reaches 0).
 _FROZEN_FILE_COUNTS: dict[str, int] = {
     "dashboard/decision_first_panel.py": 2,
+    "databento_volatility_screener.py": 1,  # A8-Telemetry-Mini: optional ``import resource`` shim for non-POSIX (CI is POSIX-only).
     "governance/run_manifest.py": 1,
     "ml/calibration/probability_calibrator.py": 1,
     "ml/training/lgbm_family_trainer.py": 2,
