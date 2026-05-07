@@ -94,10 +94,18 @@ env:
   PYTHONPATH: ${{ github.workspace }}
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   EXPORT_DIR: artifacts/smc_microstructure_exports
-  PRODUCER_RUNNER_LABEL: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
+  # A9e PROBE BRANCH (probe-a9e-ubuntu-latest, 2026-05-07): hard-coded to
+  # `ubuntu-latest` instead of `ubuntu-latest-l` to test the runner-pre-emption
+  # hypothesis. Runs n=4/5/6 on `ubuntu-latest-l` died with exit 143 +
+  # "shutdown signal" at ~130min mark (NOT cgroup-OOM — peak RSS was 24/64 GiB).
+  # If this probe dies with exit 137 (no shutdown-signal) → pre-emption confirmed.
+  # If this probe completes successfully → memory was actually the constraint.
+  # DO NOT MERGE: this branch is diagnostic-only. Producer normally needs the
+  # `-l` runner's 32+ GiB RAM (Step 8 alone uses ~19 GiB).
+  PRODUCER_RUNNER_LABEL: "ubuntu-latest"
 jobs:
   export:
-    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
+    runs-on: ubuntu-latest
     # F-V8-C3.1 (2026-05-02): bumped 60→120 after 12 consecutive runs were
     # killed by the 60-min cap with runtimes 62–75 min (no successful run for
     # days). The intent of the F-V6-C3 tight cap was protecting the consumer
