@@ -52,6 +52,34 @@ from strategy_config import (
 
 logger = logging.getLogger(__name__)
 
+
+# A8 telemetry mirror of scripts/databento_production_export.py:_rss_mib_snapshot
+# Used by build_daily_features_full_universe() Step 9/10a sub-step markers to
+# diagnose the SIGTERM-after-39min-silence failure observed in n=4 Run 25462396194.
+# Zero-behavior helper; same darwin/linux normalisation as the source-of-truth.
+try:
+    import resource as _a8_resource  # POSIX-only stdlib; absent on Windows.
+except ImportError:  # pragma: no cover - CI runners are ubuntu-latest-l (POSIX).
+    _a8_resource = None  # type: ignore[assignment]
+
+
+def _rss_mib() -> float | None:
+    """Return current process max RSS in MiB, or ``None`` on non-POSIX."""
+    if _a8_resource is None:
+        return None
+    raw = _a8_resource.getrusage(_a8_resource.RUSAGE_SELF).ru_maxrss
+    if raw <= 0:
+        return None
+    if sys.platform == "darwin":
+        return raw / (1024.0 * 1024.0)
+    return raw / 1024.0
+
+
+def _fmt_rss_mib(value: float | None) -> str:
+    """Match existing 'rss_after=18806MiB' format (no decimals, no space)."""
+    return f"{value:.0f}MiB" if value is not None else "n/a"
+
+
 # A-3: Bump when the shape of dvs_watchlist_result / dvs_bullish_quality_result
 # (or any cached-derived dvs_* session_state entry) changes. See the
 # invalidation block in run_streamlit_app() for the affected keys.
@@ -2953,6 +2981,9 @@ def build_daily_features_full_universe(
         empty_coverage = pd.DataFrame(columns=["trade_date", "symbol", "has_daily_bar", "has_intraday_summary", "has_open_window_detail", "has_close_window_detail", "exclusion_reason"])
         return empty_features, empty_coverage
 
+    # A8 telemetry: bracket build_daily_features for Step 9 SIGTERM diagnosis (n=4 Run 25462396194).
+    logger.info("[A8] step9a/build start expected_rows=%d rss=%s", len(expected), _fmt_rss_mib(_rss_mib()))
+
     if close_detail_all is None:
         close_detail_all = pd.DataFrame()
     if close_trade_detail_all is None:
@@ -2995,6 +3026,7 @@ def build_daily_features_full_universe(
         intraday_frame["symbol"] = intraday_frame["symbol"].astype(str).str.upper()
         intraday_frame = intraday_frame.drop_duplicates(subset=["trade_date", "symbol"]).reset_index(drop=True)
 
+    logger.info("[A8] step9a/aggregators start second_detail_rows=%d rss=%s", len(second_detail_all), _fmt_rss_mib(_rss_mib()))
     open_window = _build_open_window_aggregates(
         second_detail_all,
         trading_days=trading_days,
@@ -3005,6 +3037,7 @@ def build_daily_features_full_universe(
         reference_open_et=time(9, 30),
         metric_prefix="",
     )
+    logger.info("[A8] step9a/aggregators open_window_0930 done rows=%d rss=%s", len(open_window), _fmt_rss_mib(_rss_mib()))
     if smc_base_only:
         open_window_0800 = pd.DataFrame()
         open_window_0400 = pd.DataFrame()
@@ -3019,6 +3052,7 @@ def build_daily_features_full_universe(
             reference_open_et=time(8, 0),
             metric_prefix="focus_0800_",
         )
+        logger.info("[A8] step9a/aggregators open_window_0800 done rows=%d rss=%s", len(open_window_0800), _fmt_rss_mib(_rss_mib()))
         open_window_0400 = _build_open_window_aggregates(
             second_detail_all,
             trading_days=trading_days,
@@ -3029,6 +3063,7 @@ def build_daily_features_full_universe(
             reference_open_et=time(4, 0),
             metric_prefix="focus_0400_",
         )
+        logger.info("[A8] step9a/aggregators open_window_0400 done rows=%d rss=%s", len(open_window_0400), _fmt_rss_mib(_rss_mib()))
     if not open_window.empty:
         open_window["trade_date"] = pd.to_datetime(open_window["trade_date"], errors="coerce").dt.date
         open_window["symbol"] = open_window["symbol"].astype(str).str.upper()
@@ -3043,12 +3078,15 @@ def build_daily_features_full_universe(
         trading_days=trading_days,
         display_timezone=display_timezone,
     )
+    logger.info("[A8] step9a/aggregators close_imbalance done rows=%d rss=%s", len(close_window), _fmt_rss_mib(_rss_mib()))
     close_trade_window = _build_close_trade_aggregates(
         close_trade_detail_all,
         trading_days=trading_days,
         display_timezone=display_timezone,
     )
+    logger.info("[A8] step9a/aggregators close_trade done rows=%d rss=%s", len(close_trade_window), _fmt_rss_mib(_rss_mib()))
     close_outcome_window = pd.DataFrame() if smc_base_only else _build_close_outcome_aggregates(close_outcome_minute_detail_all)
+    logger.info("[A8] step9a/aggregators close_outcome done rows=%d rss=%s", len(close_outcome_window), _fmt_rss_mib(_rss_mib()))
     if not close_window.empty:
         close_window["trade_date"] = pd.to_datetime(close_window["trade_date"], errors="coerce").dt.date
         close_window["symbol"] = close_window["symbol"].astype(str).str.upper()
@@ -3059,6 +3097,7 @@ def build_daily_features_full_universe(
         close_outcome_window["trade_date"] = pd.to_datetime(close_outcome_window["trade_date"], errors="coerce").dt.date
         close_outcome_window["symbol"] = close_outcome_window["symbol"].astype(str).str.upper()
 
+    logger.info("[A8] step9a/merge-chain start expected_rows=%d rss=%s", len(expected), _fmt_rss_mib(_rss_mib()))
     features = expected.merge(universe_frame, on="symbol", how="left")
     if not daily.empty:
         features = features.merge(daily, on=["trade_date", "symbol"], how="left")
@@ -3076,6 +3115,7 @@ def build_daily_features_full_universe(
         features = features.merge(close_trade_window, on=["trade_date", "symbol"], how="left")
     if not close_outcome_window.empty:
         features = features.merge(close_outcome_window, on=["trade_date", "symbol"], how="left")
+    logger.info("[A8] step9a/merge-chain done features_rows=%d features_cols=%d rss=%s", len(features), len(features.columns), _fmt_rss_mib(_rss_mib()))
 
     if "previous_close_intraday" in features.columns:
         features["previous_close"] = features["previous_close"].combine_first(features["previous_close_intraday"])
@@ -3116,6 +3156,7 @@ def build_daily_features_full_universe(
         features["close_trade_has_trf_activity"] = pd.Series(features["close_trade_has_trf_activity"], dtype="boolean").fillna(False).astype(bool)
     if "close_trade_has_lit_activity" in features.columns:
         features["close_trade_has_lit_activity"] = pd.Series(features["close_trade_has_lit_activity"], dtype="boolean").fillna(False).astype(bool)
+    logger.info("[A8] step9a/groupby-cascade start smc_base_only=%s rss=%s", smc_base_only, _fmt_rss_mib(_rss_mib()))
     if smc_base_only:
         features["has_next_day_outcome"] = False
     else:
@@ -3175,6 +3216,7 @@ def build_daily_features_full_universe(
             np.nan,
         )
         features["has_next_day_outcome"] = features["next_trade_date"].notna() & next_open.gt(0) & next_window_end.gt(0)
+    logger.info("[A8] step9a/groupby-cascade done rss=%s", _fmt_rss_mib(_rss_mib()))
 
     if "open_1m_volume" not in features.columns:
         features["open_1m_volume"] = np.nan
@@ -3316,6 +3358,7 @@ def build_daily_features_full_universe(
         default="",
     )
     coverage = coverage.sort_values(["symbol", "trade_date"]).reset_index(drop=True)
+    logger.info("[A8] step9a/build done features_rows=%d features_cols=%d coverage_rows=%d rss=%s", len(features), len(features.columns), len(coverage), _fmt_rss_mib(_rss_mib()))
     return features, coverage
 
 
