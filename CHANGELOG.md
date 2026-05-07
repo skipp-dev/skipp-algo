@@ -6,6 +6,52 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-05-06) — F-V8-C4 / cron restructure 4×→2× + cap 120→240 min (#2066), and (2026-05-07) F-V8-C4-D doc-drift sync
+
+- **F-V8-C4 (PR #2066, squash `5db4cfd3`)**: restructured the Databento
+  producer/consumer cron pair from 4×/day to 2×/day on weekdays after
+  three consecutive 120-min cap-busts (n=1/n=2/n=3, runs 25438174407,
+  25446229916, 25450506584) confirmed the producer's worst-case runtime
+  (~2 h 0 min on `ubuntu-latest-l`, peak RSS 18.6 GB / 32 GB) cannot
+  reliably fit inside a 2 h tick. Producer cron now ticks at 12:00 /
+  16:00 UTC; consumer (`smc-library-refresh`) follows 240 min later at
+  16:00 / 20:00 UTC. Both `timeout-minutes` caps bumped 120 → 240 in
+  lockstep with the new 4 h cron interval — anything > 240 would let a
+  zombie run overlap the next tick. Per-ref `concurrency:` guards from
+  F-V8-C3.1-D remain in place; the `workflow_run` fast-path trigger on
+  the consumer is unchanged.
+- **F-V8-C4-D (this PR)**: doc-drift sync identified by Copilot review
+  of #2066 — purely comment/docstring/CHANGELOG, zero behavior change:
+  - `CHANGELOG.md`: add the missing F-V8-C4 entry above (was the gap).
+  - `.github/workflows/smc-databento-production-export.yml`: replace
+    stale "Schedule: 12/14/16/18 UTC, 30-min headroom, 120 min cap"
+    header with F-V8-C4 reality. `cron:`, `concurrency:`, and
+    `timeout-minutes:` keys are unchanged (already correct).
+  - `.github/workflows/smc-library-refresh.yml`: replace stale "Runs 4x
+    per trading day at 13/15/17/19 UTC" header with the F-V8-C4
+    schedule. Same constraint: keys unchanged, comments only.
+  - `tests/test_workflow_databento_handoff_timeouts.py`: docstring
+    update from "30 minutes later (12:00→12:30…)" + "2-hour cron
+    interval" to F-V8-C4 reality (240 min handoff, 4 h cron). Test
+    logic and pinned constants (`_PRODUCER_TIMEOUT_MAX = 240`,
+    `_CONSUMER_TIMEOUT_MAX = 240`, `_CRON_HEADROOM_MIN_MINUTES = 30`)
+    are unchanged.
+  - **Date correction**: also corrects 7 pre-existing `2026-05-08`
+    references to `2026-05-06` in the same files. The squash
+    `5db4cfd3` actually landed `2026-05-06 21:24:53 UTC`
+    (`author/commit time 2026-05-06 23:24:53 +0200`); the
+    `2026-05-08` string was systemic doc-drift introduced during
+    PR #2066 authorship. One additional reference in
+    `tests/test_workflow_databento_cron_respacing.py:37` carries the
+    same drift but is **out-of-scope** for this PR (file not
+    otherwise touched here); follow-up cleanup recommended.
+- Subsequent A8-telemetry PR #2071 added Step 9 RSS bracketing in
+  `build_daily_features_full_universe` to localise the SIGTERM-after-
+  39-min-silence failure mode observed in n=4 (run 25462396194) under
+  the new 240-min cap. The A8 real-fix (chunking / streaming /
+  intermediate release of aggregator intermediates) will follow in a
+  separate PR once n=5 KPI data lands.
+
 ### Changed (2026-05-03) — main unbreaker: concurrency dup + line-shift cascade + 2 hygiene fixes
 
 - Removed second (ref-less) `concurrency:` block from

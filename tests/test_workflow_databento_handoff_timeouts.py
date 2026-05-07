@@ -6,17 +6,21 @@ Background
 ----------
 ``smc-databento-production-export.yml`` (producer) writes the daily
 microstructure exports that ``smc-library-refresh.yml`` (consumer) reads
-30 minutes later (12:00→12:30, 14:00→14:30, 16:00→16:30, 18:00→18:30 UTC).
+240 minutes later — F-V8-C4 (2026-05-06) restructured both cron schedules
+from 4×/day to 2×/day, so the producer ticks at 12:00 / 16:00 UTC and the
+consumer follows at 16:00 / 20:00 UTC.
 
-Before this audit:
+Before the F-V6-C3 / F-V6-C4 audit:
 
-* Producer ``timeout-minutes: 90`` — could overrun the 30-min consumer
-  headroom by ~3× and let the consumer pick up *yesterday's* artifact.
-* Consumer ``timeout-minutes: 120`` — exceeded the 2-hour cron interval,
-  so a hung run could overlap the next tick.
+* Producer ``timeout-minutes: 90`` — could overrun the (then 30-min)
+  consumer headroom by ~3× and let the consumer pick up *yesterday's*
+  artifact.
+* Consumer ``timeout-minutes: 120`` — exceeded the (then 2-hour) cron
+  interval, so a hung run could overlap the next tick.
 
 This module pins both timeouts and the relative ordering invariants so a
-future "harmless tweak" cannot silently re-open the regression.
+future "harmless tweak" cannot silently re-open the regression. F-V8-C4
+bumped both caps to 240 min in lockstep with the new 4 h cron interval.
 """
 from __future__ import annotations
 
@@ -30,7 +34,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 _PRODUCER = _REPO_ROOT / ".github" / "workflows" / "smc-databento-production-export.yml"
 _CONSUMER = _REPO_ROOT / ".github" / "workflows" / "smc-library-refresh.yml"
 
-# F-V8-C4 (2026-05-08) — bumped both caps from 120/120 to 240/240 after
+# F-V8-C4 (2026-05-06) — bumped both caps from 120/120 to 240/240 after
 # three consecutive cap-busts at 120 min (n=1/n=2/n=3, runs 25438174407,
 # 25446229916, 25450506584) confirmed the producer's worst-case runtime
 # exceeds 2 h on ubuntu-latest-l. Cap is now 240, which equals the new
@@ -41,7 +45,7 @@ _CONSUMER = _REPO_ROOT / ".github" / "workflows" / "smc-library-refresh.yml"
 _PRODUCER_TIMEOUT_MAX = 240
 _CONSUMER_TIMEOUT_MAX = 240
 # Cron headroom (consumer cron offset - producer cron offset, hour-aware)
-# the consumer expects in order to read fresh exports. F-V8-C4 (2026-05-08)
+# the consumer expects in order to read fresh exports. F-V8-C4 (2026-05-06)
 # restructured the cron to 4 h spacing, so the realised headroom is now
 # 240 min. We keep the floor at 30 min so a future re-tightening still has
 # a margin of safety even before the cap itself comes back down.
@@ -93,27 +97,27 @@ def _cron_offsets_minutes(workflow: dict) -> list[int]:
 
 
 def test_producer_timeout_is_tight() -> None:
-    """F-V6-C3: producer cannot overrun the consumer's headroom."""
+    """F-V8-C4 (was F-V6-C3): producer cannot overrun the consumer's headroom."""
     timeouts = _job_timeouts(_load(_PRODUCER))
     assert timeouts, f"{_PRODUCER.name} has no jobs with timeout-minutes"
     for job_id, mins in timeouts.items():
         assert mins <= _PRODUCER_TIMEOUT_MAX, (
             f"{_PRODUCER.name} job '{job_id}' has timeout-minutes={mins}, "
-            f"exceeding F-V6-C3 cap of {_PRODUCER_TIMEOUT_MAX} min. A producer "
+            f"exceeding F-V8-C4 cap of {_PRODUCER_TIMEOUT_MAX} min. A producer "
             "that can run longer than the consumer's cron headroom risks "
             "feeding the consumer stale or partial exports."
         )
 
 
 def test_consumer_timeout_is_tight() -> None:
-    """F-V6-C4: consumer cannot overlap its own next cron tick."""
+    """F-V8-C4 (was F-V6-C4): consumer cannot overlap its own next cron tick."""
     timeouts = _job_timeouts(_load(_CONSUMER))
     assert timeouts, f"{_CONSUMER.name} has no jobs with timeout-minutes"
     for job_id, mins in timeouts.items():
         assert mins <= _CONSUMER_TIMEOUT_MAX, (
             f"{_CONSUMER.name} job '{job_id}' has timeout-minutes={mins}, "
-            f"exceeding F-V6-C4 cap of {_CONSUMER_TIMEOUT_MAX} min. The cron "
-            "repeats every 2h, so any value >120 lets a zombie run overlap "
+            f"exceeding F-V8-C4 cap of {_CONSUMER_TIMEOUT_MAX} min. The cron "
+            "repeats every 4h, so any value >240 lets a zombie run overlap "
             "the next tick."
         )
 

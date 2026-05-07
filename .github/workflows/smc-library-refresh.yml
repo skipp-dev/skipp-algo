@@ -1,8 +1,14 @@
 # live-window: mutating-on-cron  # F-V6-F2.1 (2026-05-02)
 # SMC Library Intraday Refresh (v5)
 #
-# Runs 4x per trading day at 13:00 / 15:00 / 17:00 / 19:00 UTC on weekdays
-# (respaced from 12:30/14:30/16:30/18:30 — see F-V6-C3, 2026-05-02).
+# Runs 2x per trading day at 16:00 / 20:00 UTC on weekdays — restructured
+# 4×→2× in F-V8-C4 (2026-05-06) to give the producer a dedicated 240-min
+# handoff window (prior schedules: 13/15/17/19 UTC per F-V6-C3, and
+# 12:30/14:30/16:30/18:30 UTC before that). See cron block below for
+# rationale and CHANGELOG.md F-V8-C4 entry for the lockstep producer
+# restructure. Within the handoff window the consumer expects a
+# freshly-completed producer artifact (see
+# test_workflow_databento_handoff_timeouts for the pin enforcing this).
 # Each run: generate → event-risk → gate → detect changes → diff report →
 #           governance → publish → commit → alerts.
 # Skips publish/version-bump/commit when the library content is unchanged.
@@ -46,12 +52,12 @@ name: smc-library-refresh
 
 on:
   schedule:
-    # F-V8-C4 (2026-05-08): cron restructure 4×→2× to match producer's
+    # F-V8-C4 (2026-05-06): cron restructure 4×→2× to match producer's
     # new 240-min budget (see smc-databento-production-export.yml). Each
     # producer tick gets a consumer follow-up exactly 240 min later, so
-    # the consumer always reads a freshly-completed export even if the
-    # producer uses its full new cap. Workflow_run trigger below remains
-    # the primary fast path; cron is the safety net.
+    # within the handoff window the consumer expects a freshly-completed
+    # export even if the producer uses its full new cap. Workflow_run
+    # trigger below remains the primary fast path; cron is the safety net.
     - cron: "0 16 * * 1-5"   # 16:00 UTC – 240 min after producer 12:00 tick
     - cron: "0 20 * * 1-5"   # 20:00 UTC – 240 min after producer 16:00 tick
   # F-V4-J3 (2026-05-01) blast-radius reduction (kept alongside the
@@ -103,7 +109,7 @@ jobs:
     # guard (cron already implies "no upstream signal to gate on").
     if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
-    # F-V8-C4 (2026-05-08): bumped 120→240 in lockstep with the producer.
+    # F-V8-C4 (2026-05-06): bumped 120→240 in lockstep with the producer.
     # Pin test enforces producer ≤ consumer, so the two move together.
     # 240 = exactly the new 4 h cron interval — back-to-back runs touch
     # but cannot overlap (anything >240 would let a zombie run collide

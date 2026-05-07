@@ -24,12 +24,17 @@
 #   `canonical export bundle unavailable for symbol=…`.
 #
 # Schedule:
-#   Runs ~30 min BEFORE each library-refresh cron tick so the cache is
-#   warm by the time library-refresh tries to restore it. Library-refresh
-#   ticks at 12:30 / 14:30 / 16:30 / 18:30 UTC on weekdays — this
-#   workflow runs at 12:00 / 14:00 / 16:00 / 18:00 UTC. The library-
-#   refresh restore step uses `restore-keys` to fall back to the most
-#   recent same-day cache if a tick is missed.
+#   F-V8-C4 (2026-05-06) restructured the cron from 4×/day to 2×/day in
+#   lockstep with the consumer. This workflow now runs at 12:00 / 16:00
+#   UTC on weekdays; the library-refresh consumer fires 240 min later
+#   (16:00 / 20:00 UTC), so each producer tick gets a dedicated 4 h
+#   handoff window — enough headroom for the worst observed runtime
+#   (~2 h 0 min, n=1/n=2/n=3 cap-busts at 120 min). The handoff itself is
+#   artifact-based: the producer publishes via `actions/upload-artifact`
+#   and the consumer fetches via `dawidd6/action-download-artifact@v6`
+#   (regex match on the latest successful run for the same ref). The
+#   `actions/cache/restore` step in the consumer is for an unrelated
+#   `incremental_base_seed` cache, not the producer→consumer handoff.
 #
 # Required secrets:
 #   DATABENTO_API_KEY   – mandatory (producer hard-fails without it)
@@ -43,7 +48,7 @@ name: smc-databento-production-export
 
 on:
   schedule:
-    # F-V8-C4 (2026-05-08): cron restructure 4×→2× + cap 120→240. Three
+    # F-V8-C4 (2026-05-06): cron restructure 4×→2× + cap 120→240. Three
     # consecutive cap-busts at 120 min (n=1/n=2/n=3, runs 25438174407,
     # 25446229916, 25450506584) showed the producer cannot reliably
     # complete inside a 2 h window with the current Step 6/6b/8 backend
@@ -67,11 +72,12 @@ on:
         default: "false"
 
 # F-V8-C3.1-D (2026-05-02): serialize producer runs per ref so a slow
-# export (now permitted up to 120 min via PR #2027) cannot be raced by
-# the next 2-hour cron tick. cancel-in-progress=false because killing a
-# half-finished export would leave the consumer (smc-library-refresh)
-# reading a stale or partial artifact at its next handoff window. The
-# follow-on tick queues instead and runs once the in-flight job exits.
+# export (now permitted up to 240 min via F-V8-C4, 2026-05-06) cannot be
+# raced by the next 4-hour cron tick. cancel-in-progress=false because
+# killing a half-finished export would leave the consumer (smc-library-
+# refresh) reading a stale or partial artifact at its next handoff
+# window. The follow-on tick queues instead and runs once the in-flight
+# job exits.
 concurrency:
   group: smc-databento-production-export-${{ github.ref }}
   cancel-in-progress: false
@@ -96,7 +102,7 @@ jobs:
     # killed by the 60-min cap with runtimes 62–75 min (no successful run for
     # days). The intent of the F-V6-C3 tight cap was protecting the consumer
     # from stale data, but a producer that *never* finishes provides no data
-    # at all — a strictly worse failure mode. F-V8-C4 (2026-05-08) bumped
+    # at all — a strictly worse failure mode. F-V8-C4 (2026-05-06) bumped
     # 120 → 240 in lockstep with the cron restructure (4×→2×): the new
     # 4 h cron interval is matched by this 240-min cap, so back-to-back
     # runs still cannot overlap. Three consecutive 120-min cap-busts
