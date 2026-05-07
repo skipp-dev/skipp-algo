@@ -1,27 +1,30 @@
 # live-window: manual-only
 # ---------------------------------------------------------------------------
-# smc-databento-production-export-sharded  (A9b.2a — plan-job only)
+# smc-databento-production-export-sharded  (A9b.2a + A9b.2b)
 #
-# This is the FIRST stage of the matrix-sharded producer workflow that
-# replaces `smc-databento-production-export.yml`. At A9b.2a it contains
-# ONLY the `plan` job: it computes a shard plan via
-# `scripts/databento_plan_shards.py` and uploads the resulting JSON as
-# an artifact. No matrix fan-out, no producer execution, no reduce step
-# yet — those land in A9b.2b and A9b.3.
+# Matrix-sharded producer workflow that will eventually replace
+# `smc-databento-production-export.yml` once the reduce-step (A9b.3) and
+# cron cutover (A9b.5) land. Current stage:
+#
+#   plan      (A9b.2a) — compute shard plan via
+#                        scripts/databento_plan_shards.py and emit
+#                        matrix JSON as job-output + artifact.
+#   producer  (A9b.2b) — matrix-fan-out of N shards. Each shard runs
+#                        scripts/databento_production_export.py with
+#                        --start-date/--end-date/--shard-id/--shard-of
+#                        and uploads stdout + per-shard export-dir as
+#                        a single artifact `a9b-2b-shard-<i>-of-<N>`.
 #
 # Trigger: workflow_dispatch ONLY. No `schedule:` block on purpose
 # until A9b.5 (cron cutover); a draft/probe workflow must never fire on
 # its own and risk producing partial canonical artifacts that downstream
 # consumers might pick up.
 #
-# Validation flow:
-#   1) Merge this PR (script + tests + this file).
-#   2) `gh workflow run smc-databento-production-export-sharded.yml \
-#         -f lookback_days=10 -f num_shards=2`
-#   3) Download the `a9b-2a-shard-plan` artifact and verify the matrix
-#      JSON matches the unit-test expectation
-#      (2 shards, 5 days each, contiguous, ending today UTC).
-#   4) Proceed to A9b.2b (add matrix-fan-out producer jobs).
+# Probe flow:
+#   gh workflow run smc-databento-production-export-sharded.yml \
+#     -f lookback_days=10 -f num_shards=2
+#   # → 1 plan job + 2 producer shards × ~90min cap. Shard artifacts
+#   #   feed the A9b.3 reduce-step fixture work (real shard-manifests).
 #
 # A9b spec lives in session memory `f2-rolling-bench-rootcause.md`.
 # ---------------------------------------------------------------------------
@@ -100,3 +103,71 @@ jobs:
           path: shards.json
           retention-days: 7
           if-no-files-found: error
+
+  producer:
+    name: producer (shard ${{ matrix.shard_id }}/${{ matrix.shard_of }})
+    needs: plan
+    if: needs.plan.outputs.shard_count != '0'
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
+    # Per-shard cap. The original 1-job producer hit a ~120min platform
+    # wall (A9-grep / A9e probe falsified internal-timeout hypothesis).
+    # 90min per shard gives 30min headroom under the wall while N=2
+    # halves the per-shard work; later N=6 should comfortably fit.
+    timeout-minutes: 90
+    strategy:
+      # We MUST collect every shard's manifest even if shard-1 OOMs:
+      # those shard-manifest specimens drive the A9b.3 reduce-step
+      # fixture design.
+      fail-fast: false
+      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
+    env:
+      EXPORT_DIR: artifacts/smc_microstructure_exports
+    steps:
+      - name: Emit shard context
+        run: |
+          echo "::notice::Shard ${{ matrix.shard_id }}/${{ matrix.shard_of }} window=${{ matrix.start_date }}..${{ matrix.end_date }} runner='${{ runner.name }}'"
+
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: ./.github/actions/setup-python-pinned
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Databento production export (sharded)
+        env:
+          DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+          BENZINGA_API_KEY: ${{ secrets.BENZINGA_API_KEY }}
+          DATABENTO_DATASET: ${{ vars.DATABENTO_DATASET }}
+          PYTHONUNBUFFERED: "1"
+        run: |
+          set -euo pipefail
+          mkdir -p "${EXPORT_DIR}" artifacts/ci
+          # Mirror live-cron stdout-tee discipline so a runner-process
+          # eviction at the platform-wall preserves partial logs.
+          python -u scripts/databento_production_export.py \
+            --start-date "${{ matrix.start_date }}" \
+            --end-date "${{ matrix.end_date }}" \
+            --shard-id "${{ matrix.shard_id }}" \
+            --shard-of "${{ matrix.shard_of }}" \
+            --export-dir "${EXPORT_DIR}" \
+            2>&1 | tee artifacts/ci/databento_production_export_stdout.log
+
+      - name: Upload shard artifact (always)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: a9b-2b-shard-${{ matrix.shard_id }}-of-${{ matrix.shard_of }}
+          path: |
+            artifacts/ci/databento_production_export_stdout.log
+            ${{ env.EXPORT_DIR }}/
+          retention-days: 7
+          if-no-files-found: warn
