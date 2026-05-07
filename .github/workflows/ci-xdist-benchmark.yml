@@ -1,0 +1,86 @@
+# live-window: dispatch-only  # F-V8-C5-D (2026-05-07)
+# One-shot A/B benchmark: pytest serial vs -n auto worksteal, both on the
+# same 8-core runner pool, same checkout, same SHA. Manual dispatch only.
+# Delete after benchmark conclusion is recorded.
+name: CI xdist benchmark (one-shot)
+
+on:
+  workflow_dispatch:
+    inputs:
+      maxfail:
+        description: "pytest --maxfail value (1 to short-circuit, 0 to disable)"
+        required: false
+        default: "0"
+      iteration:
+        description: "Iteration label for log/audit trail (free text)"
+        required: false
+        default: "1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-xdist-benchmark-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
+
+jobs:
+  bench:
+    strategy:
+      fail-fast: false
+      matrix:
+        # Two arms run in parallel on identical runner type.
+        arm:
+          - { name: "xdist",  pytest_args: "-n auto --dist=worksteal" }
+          - { name: "serial", pytest_args: "-n0" }
+    name: bench-${{ matrix.arm.name }}
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: "**/requirements*.txt"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            requirements*.txt
+      - name: Install test dependencies
+        run: uv pip install --system -r requirements.txt pytest pytest-xdist
+      - name: nproc / runner shape
+        run: |
+          echo "iteration=${{ inputs.iteration }} arm=${{ matrix.arm.name }}"
+          echo "nproc=$(nproc)"
+          echo "mem=$(grep MemTotal /proc/meminfo)"
+      - name: Pytest (${{ matrix.arm.name }})
+        id: pytest
+        run: |
+          set -euo pipefail
+          start=$(date +%s)
+          python -m pytest -q --maxfail=${{ inputs.maxfail }} \
+            ${{ matrix.arm.pytest_args }} \
+            -o cache_dir=/tmp/pytest-cache-${{ matrix.arm.name }}
+          end=$(date +%s)
+          dur=$((end - start))
+          echo "duration_seconds=${dur}" >> "$GITHUB_OUTPUT"
+          echo "::notice title=bench-${{ matrix.arm.name }}::wallclock=${dur}s ($(date -u -d @${dur} +%Mm%Ss))"
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## bench-${{ matrix.arm.name }}"
+            echo ""
+            echo "- args: \`${{ matrix.arm.pytest_args }}\`"
+            echo "- duration: \`${{ steps.pytest.outputs.duration_seconds }}s\`"
+            echo "- runner: \`${{ runner.name }}\`"
+            echo "- nproc: \`$(nproc)\`"
+          } >> "$GITHUB_STEP_SUMMARY"
