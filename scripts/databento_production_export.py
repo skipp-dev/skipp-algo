@@ -8,6 +8,7 @@ import sys
 import threading
 import time as time_module
 from collections.abc import Sequence
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, date, datetime, time
 from pathlib import Path
@@ -3238,6 +3239,7 @@ def _write_canonical_production_workbook(
     batl_debug: dict[str, Any],
     output_summary: dict[str, Any],
     smc_base_only: bool = False,
+    progress_callback: Callable[[str], None] | None = None,
 ) -> Path:
     canonical_workbook = canonical_production_workbook_path(export_dir=export_dir)
     additional_sheets = {
@@ -3285,6 +3287,7 @@ def _write_canonical_production_workbook(
         minute_detail=workbook_minute_detail,
         second_detail=workbook_second_detail,
         additional_sheets=additional_sheets,
+        progress_callback=progress_callback,
     )
     return workbook_result.output_path
 
@@ -4126,6 +4129,7 @@ def run_production_export_pipeline(
         batl_debug=batl_debug,
         output_summary=output_summary,
         smc_base_only=smc_base_only,
+        progress_callback=_progress,
     )
     _progress(
         f"Step 10/10b complete: Canonical production workbook written in {time_module.perf_counter() - canonical_workbook_started_at:.1f}s"

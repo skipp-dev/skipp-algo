@@ -15,7 +15,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
-from typing import Any
+from time import perf_counter
+from typing import Any, Callable
 
 import pandas as pd
 from openpyxl.formatting.rule import ColorScaleRule
@@ -115,11 +116,48 @@ def create_excel_workbook_bytes(
     second_detail: pd.DataFrame | None = None,
     additional_sheets: dict[str, pd.DataFrame] | None = None,
     generated_at: float | None = None,
+    progress_callback: Callable[[str], None] | None = None,
 ) -> bytes:
-    def _write_chunked_sheet(writer: pd.ExcelWriter, frame: pd.DataFrame, *, sheet_name: str) -> None:
+    # Per-sheet observability for Step 10/10b. Default callback is a no-op so
+    # behavior is unchanged for callers (and existing tests). When wired from
+    # the producer's `_progress` closure, each sheet emits an elapsed-time
+    # marker so cap-hits inside this single-shot openpyxl write can be
+    # attributed to a specific sheet rather than appearing as a silent gap.
+    _t0 = perf_counter()
+
+    def _emit(msg: str) -> None:
+        if progress_callback is None:
+            return
+        progress_callback(f"workbook: {msg} (t+{perf_counter() - _t0:.1f}s)")
+
+    # Pre-compute the planned sheet list so per-sheet markers can include
+    # `idx/total` for monotonic progress tracking.
+    planned_sheets: list[tuple[str, pd.DataFrame]] = [("summary", summary)]
+    if additional_sheets:
+        for sheet_name, frame in additional_sheets.items():
+            if frame is None or frame.empty:
+                continue
+            planned_sheets.append((str(sheet_name)[:31], frame))
+    if minute_detail is not None and not minute_detail.empty:
+        planned_sheets.append(("minute_detail", minute_detail))
+    if second_detail is not None and not second_detail.empty:
+        planned_sheets.append(("second_detail", second_detail))
+    total_sheets = len(planned_sheets)
+    _emit(f"begin openpyxl write, sheets={total_sheets}")
+
+    def _write_chunked_sheet(
+        writer: pd.ExcelWriter,
+        frame: pd.DataFrame,
+        *,
+        sheet_name: str,
+        sheet_index: int,
+    ) -> None:
         prepared = prepare_frame_for_excel(frame)
+        rows = len(prepared)
+        _emit(f"sheet {sheet_index}/{total_sheets} '{sheet_name}' rows={rows} begin")
         if prepared.empty:
             prepared.to_excel(writer, sheet_name=sheet_name, index=False)
+            _emit(f"sheet {sheet_index}/{total_sheets} '{sheet_name}' rows=0 done")
             return
         # Pandas writes a header row, so data rows must stay below the worksheet max.
         max_data_rows_per_sheet = max(1, EXCEL_MAX_ROWS_PER_SHEET - 1)
@@ -132,20 +170,13 @@ def create_excel_workbook_bytes(
                 suffix = f"_{chunk_index:03d}"
                 chunk_sheet_name = f"{base_name[: max(0, 31 - len(suffix))]}{suffix}"
             prepared.iloc[start_row:end_row].to_excel(writer, sheet_name=chunk_sheet_name, index=False)
+        _emit(f"sheet {sheet_index}/{total_sheets} '{sheet_name}' rows={rows} done")
 
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        _write_chunked_sheet(writer, summary, sheet_name="summary")
-        if additional_sheets:
-            for sheet_name, frame in additional_sheets.items():
-                if frame is None or frame.empty:
-                    continue
-                safe_sheet_name = str(sheet_name)[:31]
-                _write_chunked_sheet(writer, frame, sheet_name=safe_sheet_name)
-        if minute_detail is not None and not minute_detail.empty:
-            _write_chunked_sheet(writer, minute_detail, sheet_name="minute_detail")
-        if second_detail is not None and not second_detail.empty:
-            _write_chunked_sheet(writer, second_detail, sheet_name="second_detail")
+        for idx, (name, frame) in enumerate(planned_sheets, start=1):
+            _write_chunked_sheet(writer, frame, sheet_name=name, sheet_index=idx)
+        _emit("all sheets written, applying header styling")
 
         workbook = writer.book
         for worksheet in workbook.worksheets:
@@ -199,9 +230,12 @@ def create_excel_workbook_bytes(
             pinned = datetime.fromtimestamp(float(generated_at), tz=UTC).replace(tzinfo=None)
             workbook.properties.created = pinned
             workbook.properties.modified = pinned
+    _emit("openpyxl context exit complete")
     raw = output.getvalue()
     if generated_at is not None:
+        _emit(f"normalize_xlsx_zip_timestamps begin (raw_bytes={len(raw)})")
         raw = _normalize_xlsx_zip_timestamps(raw, generated_at=float(generated_at))
+        _emit(f"normalize_xlsx_zip_timestamps done (final_bytes={len(raw)})")
     return raw
 
 
@@ -265,6 +299,7 @@ def write_databento_production_workbook_from_frames(
     minute_detail: pd.DataFrame | None = None,
     second_detail: pd.DataFrame | None = None,
     additional_sheets: dict[str, pd.DataFrame] | None = None,
+    progress_callback: Callable[[str], None] | None = None,
 ) -> WorkbookWriteResult:
     path = Path(output_path).expanduser()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -274,8 +309,13 @@ def write_databento_production_workbook_from_frames(
         second_detail=second_detail,
         additional_sheets=additional_sheets,
         generated_at=generated_at,
+        progress_callback=progress_callback,
     )
+    if progress_callback is not None:
+        progress_callback(f"workbook: write_bytes begin (bytes={len(payload)})")
     path.write_bytes(payload)
+    if progress_callback is not None:
+        progress_callback("workbook: write_bytes done")
 
     rows = {"summary": len(summary)}
     if minute_detail is not None:
