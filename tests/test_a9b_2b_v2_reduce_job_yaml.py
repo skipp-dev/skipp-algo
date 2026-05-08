@@ -1,0 +1,190 @@
+"""A9b.2b-v2 — YAML smoke tests for the reduce job.
+
+Guards the structural wiring of the sharded workflow's ``reduce`` job
+which downloads every per-shard producer artifact, runs
+``scripts/databento_production_merge_shards.py`` with
+``--expected-shard-count`` + ``--allow-partial``, and uploads the merged
+manifest. Anything below that the GitHub Actions YAML engine cannot
+catch in a static parse round (e.g. wrong artifact pattern, missing
+``always()`` guard on the if-condition, wrong actions/ versions) gets
+caught here in <2s pytest instead of after a 120-min producer dispatch.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+_SHARDED_WORKFLOW_BASENAME = "smc-databento-production-export-sharded"
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _yaml_doc() -> dict:
+    yaml = pytest.importorskip("yaml")
+    path = (
+        _REPO_ROOT
+        / ".github"
+        / "workflows"
+        / f"{_SHARDED_WORKFLOW_BASENAME}.yml"
+    )
+    assert path.exists(), f"Expected sharded workflow at {path}"
+    return yaml.safe_load(path.read_text())
+
+
+def _reduce_job() -> dict:
+    doc = _yaml_doc()
+    jobs = doc["jobs"]
+    assert "reduce" in jobs, "A9b.2b-v2: reduce job missing from sharded workflow"
+    return jobs["reduce"]
+
+
+def _reduce_steps() -> list[dict]:
+    return _reduce_job()["steps"]
+
+
+# ---------------------------------------------------------------------------
+# Job-level structure
+# ---------------------------------------------------------------------------
+
+def test_reduce_needs_plan_and_producer() -> None:
+    job = _reduce_job()
+    needs = job["needs"]
+    if isinstance(needs, str):
+        needs = [needs]
+    assert set(needs) == {"plan", "producer"}, (
+        f"reduce job must depend on both plan and producer; got {needs!r}"
+    )
+
+
+def test_reduce_if_condition_is_partial_safe() -> None:
+    # Must use always() so reduce still runs when some producer shards
+    # fail (partial-report principle), but must also gate on plan success
+    # so we don't run reduce when there is provably nothing to merge.
+    job = _reduce_job()
+    expr = str(job.get("if", ""))
+    assert "always()" in expr, (
+        f"reduce.if must include always(); got {expr!r}. Without it, a single "
+        f"producer-shard failure would skip reduce and we'd lose the partial "
+        f"merged manifest."
+    )
+    assert "needs.plan.result == 'success'" in expr, (
+        f"reduce.if must guard on plan success; got {expr!r}. Without it, "
+        f"reduce would run even when the planner failed (no shards to merge)."
+    )
+
+
+def test_reduce_uses_pinned_runner_var() -> None:
+    job = _reduce_job()
+    runs_on = str(job.get("runs-on", ""))
+    assert "vars.SMC_GH_HOSTED_RUNNER" in runs_on, (
+        f"reduce.runs-on must consult vars.SMC_GH_HOSTED_RUNNER per repo "
+        f"runner-pinning discipline; got {runs_on!r}"
+    )
+
+
+def test_reduce_timeout_is_short() -> None:
+    # Reduce is small (downloads a few MB of manifests + JSON merge).
+    # Anything > 30min suggests artifact-download flakiness was masked.
+    job = _reduce_job()
+    tmo = job.get("timeout-minutes")
+    assert isinstance(tmo, int) and 1 <= tmo <= 30, (
+        f"reduce.timeout-minutes must be an int in [1, 30]; got {tmo!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Step-level structure
+# ---------------------------------------------------------------------------
+
+def test_reduce_downloads_all_shard_artifacts_separately() -> None:
+    steps = _reduce_steps()
+    matches = [
+        s for s in steps if str(s.get("uses", "")).startswith("actions/download-artifact@")
+    ]
+    assert matches, "reduce job must include actions/download-artifact"
+    # Pin to v7 per repo discipline (matches upload-artifact@v7).
+    for s in matches:
+        assert s["uses"] == "actions/download-artifact@v7", (
+            f"reduce must pin actions/download-artifact@v7; got {s['uses']!r}"
+        )
+    with_block = matches[0].get("with", {})
+    assert with_block.get("pattern") == "a9b-2b-shard-*-of-*", (
+        f"download pattern must be 'a9b-2b-shard-*-of-*'; got "
+        f"{with_block.get('pattern')!r}"
+    )
+    # merge-multiple: false is critical — true would collide manifest
+    # basenames across shards and silently overwrite.
+    assert with_block.get("merge-multiple") is False, (
+        "reduce download-artifact must set merge-multiple: false to keep "
+        "each shard's manifest in its own subdirectory"
+    )
+
+
+def test_reduce_invokes_merge_shards_script_with_required_flags() -> None:
+    steps = _reduce_steps()
+    run_text = "\n".join(str(s.get("run", "")) for s in steps if "run" in s)
+    assert "scripts/databento_production_merge_shards.py" in run_text, (
+        "reduce job must invoke scripts/databento_production_merge_shards.py"
+    )
+    for flag in ("--shard-dir", "--output", "--expected-shard-count", "--allow-partial"):
+        assert flag in run_text, (
+            f"reduce job must pass {flag} to the merge script; not found in run-blocks"
+        )
+
+
+def test_reduce_passes_plan_shard_count_to_expected() -> None:
+    steps = _reduce_steps()
+    # The shard-count must come from the plan job's output, not be
+    # hard-coded; otherwise a planner-config change silently breaks the
+    # partial-run detection.
+    blob = "\n".join(
+        str(s.get("env", "")) + "\n" + str(s.get("run", "")) for s in steps
+    )
+    assert "needs.plan.outputs.shard_count" in blob, (
+        "reduce must derive --expected-shard-count from "
+        "needs.plan.outputs.shard_count, not hard-code it"
+    )
+
+
+def test_reduce_uploads_merged_manifest_artifact() -> None:
+    steps = _reduce_steps()
+    uploads = [
+        s for s in steps if str(s.get("uses", "")).startswith("actions/upload-artifact@")
+    ]
+    assert uploads, "reduce job must upload the merged manifest as an artifact"
+    for s in uploads:
+        assert s["uses"] == "actions/upload-artifact@v7", (
+            f"reduce upload-artifact must be pinned @v7; got {s['uses']!r}"
+        )
+        assert str(s.get("if", "")).strip() == "always()", (
+            f"reduce upload-artifact must run with if: always() so partial "
+            f"merged manifests are still captured for triage; got "
+            f"{s.get('if')!r}"
+        )
+    names = {u["with"]["name"] for u in uploads}
+    assert "a9b-2b-merged-manifest" in names, (
+        f"reduce must upload artifact named 'a9b-2b-merged-manifest'; "
+        f"got {names!r}"
+    )
+
+
+def test_reduce_checkout_pinned_v6() -> None:
+    steps = _reduce_steps()
+    checkouts = [s for s in steps if str(s.get("uses", "")).startswith("actions/checkout@")]
+    assert checkouts, "reduce must check out the repo to access scripts/"
+    for s in checkouts:
+        assert s["uses"] == "actions/checkout@v6", (
+            f"reduce checkout must be pinned @v6; got {s['uses']!r}"
+        )
+
+
+def test_reduce_uses_python_pinned_action() -> None:
+    steps = _reduce_steps()
+    py_setup = [
+        s for s in steps if str(s.get("uses", "")).endswith("/setup-python-pinned")
+    ]
+    assert py_setup, (
+        "reduce must use ./.github/actions/setup-python-pinned per repo "
+        "Python version discipline"
+    )

@@ -3,17 +3,25 @@
 # smc-databento-production-export-sharded  (A9b.2a + A9b.2b)
 #
 # Matrix-sharded producer workflow that will eventually replace
-# `smc-databento-production-export.yml` once the reduce-step (A9b.3) and
-# cron cutover (A9b.5) land. Current stage:
+# `smc-databento-production-export.yml` once the cron cutover (A9b.5)
+# lands. Current stage:
 #
-#   plan      (A9b.2a) — compute shard plan via
-#                        scripts/databento_plan_shards.py and emit
-#                        matrix JSON as job-output + artifact.
-#   producer  (A9b.2b) — matrix-fan-out of N shards. Each shard runs
-#                        scripts/databento_production_export.py with
-#                        --start-date/--end-date/--shard-id/--shard-of
-#                        and uploads stdout + per-shard export-dir as
-#                        a single artifact `a9b-2b-shard-<i>-of-<N>`.
+#   plan      (A9b.2a)    — compute shard plan via
+#                           scripts/databento_plan_shards.py and emit
+#                           matrix JSON as job-output + artifact.
+#   producer  (A9b.2b)    — matrix-fan-out of N shards. Each shard runs
+#                           scripts/databento_production_export.py with
+#                           --start-date/--end-date/--shard-id/--shard-of
+#                           and uploads stdout + per-shard export-dir as
+#                           a single artifact `a9b-2b-shard-<i>-of-<N>`.
+#   reduce    (A9b.2b-v2) — downloads every producer-shard artifact, runs
+#                           scripts/databento_production_merge_shards.py
+#                           with --expected-shard-count + --allow-partial,
+#                           uploads the merged manifest as a single
+#                           artifact `a9b-2b-merged-manifest`. Runs even
+#                           if some shards failed (partial-report
+#                           principle); the merged manifest then carries
+#                           partial_run=true + failed_shard_ids=[...].
 #
 # Trigger: workflow_dispatch ONLY. No `schedule:` block on purpose
 # until A9b.5 (cron cutover); a draft/probe workflow must never fire on
@@ -171,3 +179,95 @@ jobs:
             ${{ env.EXPORT_DIR }}/
           retention-days: 7
           if-no-files-found: warn
+
+  reduce:
+    name: reduce shard manifests
+    needs: [plan, producer]
+    # Run reduce as long as the plan succeeded, regardless of producer
+    # outcomes. Without `always()` a single shard fail would skip reduce
+    # and we'd lose the partial-report. The plan-success guard keeps us
+    # from running reduce when there is provably nothing to merge.
+    if: always() && needs.plan.result == 'success'
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: ./.github/actions/setup-python-pinned
+
+      - name: Download all producer shard artifacts
+        # `merge-multiple: false` keeps each shard's manifest in its own
+        # subdirectory; otherwise basenames collide and shard-K silently
+        # overwrites shard-K-1 in the workspace. Pattern matches every
+        # producer-emitted artifact regardless of how many shards the
+        # plan dispatched.
+        uses: actions/download-artifact@v7
+        with:
+          pattern: a9b-2b-shard-*-of-*
+          path: shard-artifacts/
+          merge-multiple: false
+
+      - name: List downloaded shard artifacts
+        # Diagnostic — surfaces which shards actually completed before
+        # we hand the directory list to the reducer. Cheap, always-on.
+        run: |
+          set -euo pipefail
+          echo '----- shard-artifacts/ tree -----'
+          ls -la shard-artifacts/ || true
+          for d in shard-artifacts/a9b-2b-shard-*; do
+            echo "-- $d --"
+            find "$d" -maxdepth 3 -name '*_manifest.json' -print || true
+          done
+          echo '---------------------------------'
+
+      - name: Reduce per-shard manifests into one canonical manifest
+        env:
+          EXPECTED: ${{ needs.plan.outputs.shard_count }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/merged
+          # Build --shard-dir argv from the on-disk shard artifacts. A
+          # producer shard that failed before writing the export dir
+          # simply won't appear here; --allow-partial then lets reduce
+          # succeed and stamp partial_run telemetry into the merged
+          # manifest so downstream consumers detect the degraded run.
+          ARGS=()
+          for d in shard-artifacts/a9b-2b-shard-*; do
+            sub="$d/smc_microstructure_exports"
+            if [ -d "$sub" ] && ls "$sub"/*_manifest.json >/dev/null 2>&1; then
+              ARGS+=(--shard-dir "$sub")
+            else
+              echo "::warning::No manifest under $sub; skipping"
+            fi
+          done
+          if [ "${#ARGS[@]}" -eq 0 ]; then
+            echo "::error::No shard manifests found; cannot run reduce."
+            exit 1
+          fi
+          python scripts/databento_production_merge_shards.py \
+            "${ARGS[@]}" \
+            --expected-shard-count "${EXPECTED}" \
+            --allow-partial \
+            --output artifacts/merged/databento_volatility_production_merged_manifest.json
+          echo '----- merged manifest head -----'
+          python - <<'PY'
+          import json
+          m = json.load(open('artifacts/merged/databento_volatility_production_merged_manifest.json'))
+          for k in ('shard_count', 'shard_ids', 'expected_shard_count', 'partial_run', 'failed_shard_ids', 'merge_script_version', 'merged_at', 'trade_dates_covered'):
+              if k in m:
+                  print(f'{k}: {m[k]!r}')
+          PY
+          echo '--------------------------------'
+
+      - name: Upload merged manifest
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: a9b-2b-merged-manifest
+          path: artifacts/merged/
+          retention-days: 30
+          if-no-files-found: error

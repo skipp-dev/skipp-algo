@@ -34,6 +34,7 @@ _ALLOWLIST_OWNER_REPOS: frozenset[str] = frozenset(
         "actions/attest-build-provenance",
         "actions/cache",
         "actions/checkout",
+        "actions/download-artifact",
         "actions/github-script",
         "actions/setup-node",
         "actions/setup-python",
