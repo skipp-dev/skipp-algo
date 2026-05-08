@@ -259,3 +259,96 @@ def test_cli_returns_2_on_multiple_manifests_per_shard(tmp_path: Path) -> None:
     res = _run_cli(["--shard-dir", str(s1), "--output", str(out)])
     assert res.returncode == 2
     assert "Multiple manifests" in res.stderr
+
+
+# ---------------------------------------------------------------------------
+# Partial-run telemetry (a9b.3.1: --allow-partial / --expected-shard-count)
+# ---------------------------------------------------------------------------
+
+def test_expected_shard_count_complete_no_partial_flag(mod):
+    merged = mod.merge_manifests(
+        [{"a": 1}, {"a": 2}], expected_shard_count=2
+    )
+    assert merged["partial_run"] is False
+    assert merged["failed_shard_ids"] == []
+    assert merged["expected_shard_count"] == 2
+
+
+def test_expected_shard_count_missing_strict_raises(mod):
+    with pytest.raises(mod.ManifestMergeError, match=r"Missing shard\(s\) \[2\]"):
+        mod.merge_manifests([{"a": 1}], shard_ids=[1], expected_shard_count=2)
+
+
+def test_expected_shard_count_missing_with_allow_partial(mod):
+    merged = mod.merge_manifests(
+        [{"a": 1}], shard_ids=[1], expected_shard_count=3, allow_partial=True
+    )
+    assert merged["partial_run"] is True
+    assert merged["failed_shard_ids"] == [2, 3]
+    assert merged["expected_shard_count"] == 3
+    assert merged["shard_ids"] == [1]
+    assert merged["a"] == 1  # passthrough single-shard
+
+
+def test_expected_shard_count_invalid_raises(mod):
+    with pytest.raises(mod.ManifestMergeError, match="expected_shard_count must be"):
+        mod.merge_manifests([{"a": 1}], expected_shard_count=0)
+
+
+def test_shard_id_outside_expected_range_raises(mod):
+    with pytest.raises(mod.ManifestMergeError, match="outside the expected"):
+        mod.merge_manifests(
+            [{"a": 1}, {"a": 2}], shard_ids=[1, 5], expected_shard_count=3
+        )
+
+
+def test_cli_allow_partial_emits_telemetry(tmp_path: Path) -> None:
+    s1 = tmp_path / "shard-1"
+    s1.mkdir()
+    (s1 / "x_manifest.json").write_text(
+        json.dumps({"a": 4, "trade_dates_covered": ["2026-01-02"]})
+    )
+    out = tmp_path / "merged.json"
+    res = _run_cli(
+        [
+            "--shard-dir", str(s1),
+            "--output", str(out),
+            "--expected-shard-count", "2",
+            "--allow-partial",
+        ]
+    )
+    assert res.returncode == 0, res.stderr
+    payload = json.loads(out.read_text())
+    assert payload["partial_run"] is True
+    assert payload["failed_shard_ids"] == [2]
+    assert payload["expected_shard_count"] == 2
+    assert "WARNING" in res.stdout
+    assert "[2]" in res.stdout
+
+
+def test_cli_allow_partial_without_expected_count_returns_2(tmp_path: Path) -> None:
+    s1 = tmp_path / "shard-1"
+    s1.mkdir()
+    (s1 / "x_manifest.json").write_text(json.dumps({"a": 1}))
+    out = tmp_path / "merged.json"
+    res = _run_cli(["--shard-dir", str(s1), "--output", str(out), "--allow-partial"])
+    assert res.returncode == 2
+    assert "--allow-partial requires --expected-shard-count" in res.stderr
+
+
+def test_cli_strict_missing_shard_returns_2(tmp_path: Path) -> None:
+    s1 = tmp_path / "shard-1"
+    s1.mkdir()
+    (s1 / "x_manifest.json").write_text(json.dumps({"a": 1}))
+    out = tmp_path / "merged.json"
+    res = _run_cli(
+        ["--shard-dir", str(s1), "--output", str(out), "--expected-shard-count", "2"]
+    )
+    assert res.returncode == 2
+    assert "Missing shard" in res.stderr
+
+
+def test_version_bumped(mod):
+    # Reminder: bump MERGE_SCRIPT_VERSION on any output-shape change so
+    # downstream consumers (and reduce-job log greps) can detect it.
+    assert mod.MERGE_SCRIPT_VERSION == "a9b.3.1"

@@ -92,9 +92,16 @@ _INJECTED_KEYS: frozenset[str] = frozenset({
     "shard_ids",
     "merged_at",
     "merge_script_version",
+    # Partial-run telemetry (only set when --allow-partial+--expected-shard-count
+    # is used and at least one expected shard is missing). Reserved here so a
+    # producer that ever started emitting these names would be rejected before
+    # silently colliding with reduce-step output.
+    "partial_run",
+    "failed_shard_ids",
+    "expected_shard_count",
 })
 
-MERGE_SCRIPT_VERSION = "a9b.3.0"
+MERGE_SCRIPT_VERSION = "a9b.3.1"
 
 
 class ManifestMergeError(ValueError):
@@ -263,6 +270,8 @@ def _qualify(parent: str | None, key: str) -> str:
 def merge_manifests(
     shards: Sequence[Mapping[str, Any]],
     shard_ids: Sequence[int] | None = None,
+    expected_shard_count: int | None = None,
+    allow_partial: bool = False,
 ) -> dict[str, Any]:
     """Reduce N shard manifests into one canonical merged manifest.
 
@@ -273,6 +282,17 @@ def merge_manifests(
     shard_ids
         Optional explicit shard ids. Defaults to ``range(1, len+1)``. Must
         match ``len(shards)`` and be unique-positive when supplied.
+    expected_shard_count
+        Total number of producer shards that were dispatched. When set, the
+        function compares ``shard_ids`` against ``range(1, expected+1)`` and
+        either raises (default) or annotates the result with partial-run
+        telemetry (see ``allow_partial``).
+    allow_partial
+        When ``True`` and ``expected_shard_count`` is set and at least one
+        expected shard id is missing from ``shard_ids``, the merge succeeds
+        and the returned manifest carries ``partial_run=True`` plus the
+        ``failed_shard_ids`` list. When ``False`` (default), missing shards
+        raise ``ManifestMergeError``.
 
     Raises
     ------
@@ -297,6 +317,25 @@ def merge_manifests(
                 f"shard_ids must be positive 1-based ids; got {shard_ids}"
             )
 
+    missing_ids: list[int] = []
+    if expected_shard_count is not None:
+        if expected_shard_count < 1:
+            raise ManifestMergeError(
+                f"expected_shard_count must be >= 1; got {expected_shard_count}"
+            )
+        if any(sid > expected_shard_count for sid in shard_ids):
+            raise ManifestMergeError(
+                f"shard_ids {sorted(shard_ids)} contains id(s) outside the "
+                f"expected 1..{expected_shard_count} range"
+            )
+        missing_ids = sorted(set(range(1, expected_shard_count + 1)) - set(shard_ids))
+        if missing_ids and not allow_partial:
+            raise ManifestMergeError(
+                f"Missing shard(s) {missing_ids} of expected "
+                f"{expected_shard_count}; pass --allow-partial to emit a "
+                f"partial merged manifest with telemetry instead."
+            )
+
     merged = _merge_field_set(shards, shard_ids)
     # Inject reduce-step provenance fields (do not collide with payload).
     for k in _INJECTED_KEYS:
@@ -309,6 +348,10 @@ def merge_manifests(
     merged["shard_ids"] = sorted(shard_ids)
     merged["merged_at"] = _now_utc_iso()
     merged["merge_script_version"] = MERGE_SCRIPT_VERSION
+    if expected_shard_count is not None:
+        merged["expected_shard_count"] = expected_shard_count
+        merged["partial_run"] = bool(missing_ids)
+        merged["failed_shard_ids"] = missing_ids
     return merged
 
 
@@ -372,20 +415,62 @@ def _build_argparser() -> argparse.ArgumentParser:
         required=True,
         help="Destination path for merged manifest JSON.",
     )
+    p.add_argument(
+        "--expected-shard-count",
+        type=int,
+        default=None,
+        help=(
+            "Total number of producer shards that were dispatched. When set, "
+            "the reducer compares the discovered shard ids against "
+            "range(1, N+1) and either raises (default) or emits partial-run "
+            "telemetry when --allow-partial is also given."
+        ),
+    )
+    p.add_argument(
+        "--allow-partial",
+        action="store_true",
+        help=(
+            "When set together with --expected-shard-count, succeed even if "
+            "some expected shards are missing. The merged manifest will then "
+            "carry partial_run=True and failed_shard_ids=[...] so downstream "
+            "consumers (and the reduce-job log) can detect degraded output."
+        ),
+    )
     return p
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _build_argparser().parse_args(argv)
+    if args.allow_partial and args.expected_shard_count is None:
+        print(
+            "ERROR: --allow-partial requires --expected-shard-count to be set; "
+            "otherwise missing shards cannot be detected.",
+            file=sys.stderr,
+        )
+        return 2
     try:
         pairs = discover_shard_manifests(args.shard_dir)
         shards = [json.loads(p.read_text(encoding="utf-8")) for _, p in pairs]
         shard_ids = [sid for sid, _ in pairs]
-        merged = merge_manifests(shards, shard_ids=shard_ids)
+        merged = merge_manifests(
+            shards,
+            shard_ids=shard_ids,
+            expected_shard_count=args.expected_shard_count,
+            allow_partial=args.allow_partial,
+        )
     except ManifestMergeError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
     atomic_write_json(merged, args.output, indent=2, sort_keys=True)
+    if merged.get("partial_run"):
+        # Emit a clearly-greppable WARNING line so the reduce-job log makes
+        # partial outputs unmistakable. Stdout (not stderr) keeps argparse
+        # error semantics clean.
+        print(
+            f"WARNING: partial_run=True; missing shard ids "
+            f"{merged['failed_shard_ids']} of expected "
+            f"{merged['expected_shard_count']}"
+        )
     return 0
 
 
