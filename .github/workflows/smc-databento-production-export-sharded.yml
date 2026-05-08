@@ -99,10 +99,11 @@ jobs:
           echo "-----------------------"
           # Wrap into the matrix-include form GHA expects so A9b.2b can
           # consume it directly via strategy.matrix.fromJson(needs.plan.outputs.matrix).
-          # NOTE: do NOT write the literal expression with ${{ ... }} braces in
-          # this comment — GHA evaluates ${{ }} inside run: blocks (even in
-          # shell comments), and referencing the in-job needs.plan output here
-          # crashes the template engine with "Error reading JToken".
+          # IMPORTANT: do not document GHA expressions using their literal brace
+          # syntax inside this run: block — the template engine evaluates such
+          # expressions before the shell sees the script (even in shell
+          # comments) and crashes if the reference resolves to empty. Use
+          # prose only inside run: blocks.
           MATRIX=$(jq -c '{include: .}' shards.json)
           echo "matrix=${MATRIX}" >> "$GITHUB_OUTPUT"
           echo "shard_count=$(jq 'length' shards.json)" >> "$GITHUB_OUTPUT"
