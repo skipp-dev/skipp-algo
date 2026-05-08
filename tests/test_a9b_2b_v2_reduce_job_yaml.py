@@ -260,10 +260,13 @@ def test_run_blocks_do_not_reference_unresolvable_template_expressions() -> None
     job itself, so ``fromJson('')`` raised the error.
 
     Guard: no ``run:`` block may contain the literal substring
-    ``${{ fromJson(`` — if you need to document such expressions, use plain
-    prose without the ``${{`` braces.
+    ``${{ fromJson(`` (crashes when reference is empty), or ``${{`` followed
+    by a literal ellipsis ``...`` (placeholder leaked into the YAML).
+    Documentation must use plain prose without the ``${{`` braces.
     """
     yaml = pytest.importorskip("yaml")
+    import re
+
     path = (
         _REPO_ROOT
         / ".github"
@@ -271,14 +274,23 @@ def test_run_blocks_do_not_reference_unresolvable_template_expressions() -> None
         / f"{_SHARDED_WORKFLOW_BASENAME}.yml"
     )
     doc = yaml.safe_load(path.read_text())
-    offenders: list[tuple[str, str]] = []
+    # Match ${{ ... <ellipsis or 'fromJson('> ... }} style misuse.
+    bad_patterns = (
+        re.compile(r"\$\{\{[^}]*\.\.\."),       # ellipsis placeholder
+        re.compile(r"\$\{\{\s*fromJson\("),     # fromJson(...) inside run
+    )
+    offenders: list[tuple[str, str, str]] = []
     for job_name, job in doc["jobs"].items():
         for step in job.get("steps", []):
             run_text = step.get("run")
             if not isinstance(run_text, str):
                 continue
-            if "${{ fromJson(" in run_text or "${{fromJson(" in run_text:
-                offenders.append((job_name, str(step.get("name", "<unnamed>"))))
+            for pat in bad_patterns:
+                m = pat.search(run_text)
+                if m:
+                    offenders.append(
+                        (job_name, str(step.get("name", "<unnamed>")), m.group(0))
+                    )
     assert not offenders, (
         f"run: blocks must not contain ${{{{ fromJson(...) }}}} expressions — "
         f"GHA evaluates these even in shell comments and crashes when the "
