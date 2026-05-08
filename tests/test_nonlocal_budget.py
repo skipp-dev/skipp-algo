@@ -72,10 +72,10 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # _rss_current_mib + _fmt_rss_pair helpers + 13 step9a markers.
         # A8.1.5 (this PR): Series-Build refactor in _build_close_{trade,outcome}_aggregates
         # added +22 net lines around L2876+, shifting the four sites by +22.
-        ("databento_volatility_screener.py", 4877, ("_fast_progress_pct",)),
-        ("databento_volatility_screener.py", 4878, ("_fast_progress_step",)),
-        ("databento_volatility_screener.py", 4879, ("_fast_progress_total",)),
-        ("databento_volatility_screener.py", 4880, ("_fast_eta_smooth_seconds",)),
+        ("databento_volatility_screener.py", 4935, ("_fast_progress_pct",)),
+        ("databento_volatility_screener.py", 4936, ("_fast_progress_step",)),
+        ("databento_volatility_screener.py", 4937, ("_fast_progress_total",)),
+        ("databento_volatility_screener.py", 4938, ("_fast_eta_smooth_seconds",)),
         ("smc_core/ensemble_quality.py", 171, ("active_weight", "weighted_total")),
     }
 )

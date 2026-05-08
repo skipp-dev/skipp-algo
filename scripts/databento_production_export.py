@@ -3393,6 +3393,8 @@ def run_production_export_pipeline(
         cache_dir=resolved_cache_dir,
         use_file_cache=use_file_cache,
         force_refresh=force_refresh,
+        progress_callback=_progress,
+        max_workers=int(os.environ.get("DATABENTO_DAILY_MAX_WORKERS", "1")),
     )
     daily_bars_fetched_at = datetime.now(UTC).isoformat(timespec="seconds")
 

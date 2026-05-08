@@ -95,13 +95,13 @@ WARNINGS_SIMPLEFILTER_LEDGER: set[tuple[str, int, str]] = {
     # shifted +36 by _rss_current_mib + _fmt_rss_pair helpers + 13 step9a
     # markers added for current+peak RSS instrumentation (commit 9e93416c).
     ("databento_volatility_screener.py", 626, "always"),
-    ("databento_volatility_screener.py", 1645, "always"),
-    ("databento_volatility_screener.py", 2239, "always"),
+    ("databento_volatility_screener.py", 1703, "always"),
+    ("databento_volatility_screener.py", 2297, "always"),
     # Phase-5.2 Quickfix B (PR #2058): Item 1 inserted batch_size kwarg + comment
     # block above _iter_symbol_batches call in collect_full_universe_close_trade_detail,
     # shifting the two surrounding warnings.simplefilter sites by +7.
-    ("databento_volatility_screener.py", 2692, "always"),
-    ("databento_volatility_screener.py", 2809, "always"),
+    ("databento_volatility_screener.py", 2750, "always"),
+    ("databento_volatility_screener.py", 2867, "always"),
     ("databento_universe.py", 162, "always"),
 }
 
