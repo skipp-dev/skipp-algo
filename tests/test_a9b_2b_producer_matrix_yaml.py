@@ -17,11 +17,14 @@ A9b.2a smoke tests in ``test_a9b_2a_plan_shards.py``.
 
 from __future__ import annotations
 
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
 _SHARDED_WORKFLOW_BASENAME = "smc-databento-production-export-sharded"
+_REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _yaml_doc() -> dict:
@@ -135,3 +138,24 @@ def test_workflow_remains_dispatch_only_after_2b() -> None:
     assert list(triggers.keys()) == ["workflow_dispatch"], (
         f"sharded workflow must remain workflow_dispatch-only; got {list(triggers.keys())}"
     )
+
+
+def test_producer_script_advertises_sharding_flags() -> None:
+    """Pre-flight contract: producer script must expose all 4 A9b.1 sharding
+    CLI flags that the workflow invokes — otherwise dispatch-time failure with
+    ``unrecognized arguments`` (cost ~3min runner-time, hit on 2026-05-08
+    when A9b.2b probe ran against main without #2081 yet merged)."""
+    out = subprocess.run(
+        [sys.executable, "scripts/databento_production_export.py", "--help"],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=str(_REPO_ROOT),
+    )
+    assert out.returncode == 0, (
+        f"producer --help exited rc={out.returncode}; stderr={out.stderr[:500]}"
+    )
+    for flag in ("--start-date", "--end-date", "--shard-id", "--shard-of"):
+        assert flag in out.stdout, (
+            f"producer/workflow contract broken: missing {flag} in --help output"
+        )
