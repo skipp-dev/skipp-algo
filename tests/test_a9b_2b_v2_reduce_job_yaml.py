@@ -239,3 +239,49 @@ def test_reduce_does_not_pass_smc_microstructure_exports_subdir() -> None:
         "regression: '--shard-dir \"$sub\"' (where sub=$d/smc_microstructure_exports) "
         "reintroduces the shard-id collision; pass '$d' instead"
     )
+
+
+def test_run_blocks_do_not_reference_unresolvable_template_expressions() -> None:
+    """Regression for GHA template-engine crash on intra-job needs.* refs.
+
+    GitHub Actions evaluates ``${{ ... }}`` expressions inside ``run:`` blocks
+    BEFORE the shell sees the script — even inside what looks like a shell
+    comment. If a job's run-block references its OWN job's outputs (or any
+    expression that resolves to an empty string at evaluation time), the
+    template engine crashes with::
+
+        Error reading JToken from JsonReader. Path '', line 0, position 0.
+
+    and the job fails before any step executes. We hit this in run
+    25544081086 + 25544170182 because a documentation comment inside the
+    ``plan`` job's ``Compute shard plan`` step referenced
+    ``${{ fromJson(needs.plan.outputs.matrix) }}`` literally for didactic
+    purposes — but ``needs.plan.outputs.matrix`` is empty during the plan
+    job itself, so ``fromJson('')`` raised the error.
+
+    Guard: no ``run:`` block may contain the literal substring
+    ``${{ fromJson(`` — if you need to document such expressions, use plain
+    prose without the ``${{`` braces.
+    """
+    yaml = pytest.importorskip("yaml")
+    path = (
+        _REPO_ROOT
+        / ".github"
+        / "workflows"
+        / f"{_SHARDED_WORKFLOW_BASENAME}.yml"
+    )
+    doc = yaml.safe_load(path.read_text())
+    offenders: list[tuple[str, str]] = []
+    for job_name, job in doc["jobs"].items():
+        for step in job.get("steps", []):
+            run_text = step.get("run")
+            if not isinstance(run_text, str):
+                continue
+            if "${{ fromJson(" in run_text or "${{fromJson(" in run_text:
+                offenders.append((job_name, str(step.get("name", "<unnamed>"))))
+    assert not offenders, (
+        f"run: blocks must not contain ${{{{ fromJson(...) }}}} expressions — "
+        f"GHA evaluates these even in shell comments and crashes when the "
+        f"reference is empty. Offenders: {offenders}. Rephrase the comment to "
+        f"plain prose without ${{{{ braces."
+    )
