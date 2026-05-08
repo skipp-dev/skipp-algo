@@ -4275,7 +4275,62 @@ def main(argv: Sequence[str] | None = None) -> None:
             "artifacts/smc_microstructure_exports)."
         ),
     )
+    # A9b.1 (2026-05-08): explicit-range + shard CLI for matrix-sharded
+    # producer workflow (see session-memory A9b spec). When --start-date
+    # AND --end-date are both provided the producer ignores --lookback-days
+    # and processes the closed [start, end] trading-day range instead, by
+    # passing the resolved day list via `trading_days_override`. The
+    # --shard-id/--shard-of pair is metadata-only (logging + downstream
+    # artifact-naming) and does not affect range computation; the workflow
+    # YAML is responsible for splitting the calendar into N disjoint
+    # [start, end] sub-ranges before fan-out.
+    parser.add_argument(
+        "--start-date",
+        type=lambda s: date.fromisoformat(s),
+        default=None,
+        help="Inclusive start of trading-day range (YYYY-MM-DD). Requires --end-date.",
+    )
+    parser.add_argument(
+        "--end-date",
+        type=lambda s: date.fromisoformat(s),
+        default=None,
+        help="Inclusive end of trading-day range (YYYY-MM-DD). Requires --start-date.",
+    )
+    parser.add_argument(
+        "--shard-id",
+        type=int,
+        default=None,
+        help="1-based shard index for matrix-sharded execution. Requires --shard-of.",
+    )
+    parser.add_argument(
+        "--shard-of",
+        type=int,
+        default=None,
+        help="Total number of shards in the matrix. Requires --shard-id.",
+    )
     args = parser.parse_args(list(argv) if argv is not None else [])
+
+    # A9b.1: validate range + shard arg pairs (fail-fast before any IO).
+    if (args.start_date is None) != (args.end_date is None):
+        raise SystemExit(
+            "--start-date and --end-date must be provided together (or neither)."
+        )
+    if args.start_date is not None and args.end_date is not None and args.start_date > args.end_date:
+        raise SystemExit(
+            f"--start-date ({args.start_date.isoformat()}) must be on or before "
+            f"--end-date ({args.end_date.isoformat()})."
+        )
+    if (args.shard_id is None) != (args.shard_of is None):
+        raise SystemExit(
+            "--shard-id and --shard-of must be provided together (or neither)."
+        )
+    if args.shard_id is not None and args.shard_of is not None:
+        if args.shard_of < 1:
+            raise SystemExit(f"--shard-of must be >= 1 (got {args.shard_of}).")
+        if not (1 <= args.shard_id <= args.shard_of):
+            raise SystemExit(
+                f"--shard-id ({args.shard_id}) must be in [1, --shard-of={args.shard_of}]."
+            )
 
     databento_api_key = os.getenv("DATABENTO_API_KEY", "")
     fmp_api_key = os.getenv("FMP_API_KEY", "")
@@ -4288,6 +4343,41 @@ def main(argv: Sequence[str] | None = None) -> None:
     available = list_accessible_datasets(databento_api_key)
     requested_dataset = str(args.dataset or "").strip()
     dataset = choose_default_dataset(available, requested_dataset=requested_dataset or None)
+
+    # A9b.1: when an explicit range is given, resolve trading days against
+    # the dataset's availability metadata and pass the closed [start, end]
+    # subset via `trading_days_override`. This bypasses --lookback-days.
+    trading_days_override: list[date] | None = None
+    if args.start_date is not None and args.end_date is not None:
+        span_days = (args.end_date - args.start_date).days + 1
+        candidate_lookback = max(span_days * 4, span_days + 10, 30)
+        candidate_days = list_recent_trading_days(
+            databento_api_key,
+            dataset=dataset,
+            lookback_days=candidate_lookback,
+            end_date=args.end_date,
+        )
+        trading_days_override = sorted(
+            day for day in candidate_days if args.start_date <= day <= args.end_date
+        )
+        if not trading_days_override:
+            raise SystemExit(
+                f"No trading days available for dataset {dataset!r} in range "
+                f"[{args.start_date.isoformat()}, {args.end_date.isoformat()}]."
+            )
+        shard_label = (
+            f" (shard {args.shard_id}/{args.shard_of})"
+            if args.shard_id is not None and args.shard_of is not None
+            else ""
+        )
+        logger.info(
+            "A9b.1: explicit range %s..%s -> %d trading day(s)%s",
+            args.start_date.isoformat(),
+            args.end_date.isoformat(),
+            len(trading_days_override),
+            shard_label,
+        )
+
     result = run_production_export_pipeline(
         databento_api_key=databento_api_key,
         fmp_api_key=fmp_api_key,
@@ -4308,6 +4398,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         bullish_score_profile=str(args.bullish_score_profile),
         skip_cost_estimate=not bool(args.estimate_costs),
         smc_base_only=bool(args.smc_base_only),
+        trading_days_override=trading_days_override,
     )
 
     print("EXPORT_DIR", result["manifest"]["export_dir"])
