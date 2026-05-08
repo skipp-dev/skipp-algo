@@ -98,7 +98,7 @@ jobs:
           cat shards.json
           echo "-----------------------"
           # Wrap into the matrix-include form GHA expects so A9b.2b can
-          # consume it directly via strategy.matrix.fromJson(needs.plan.outputs.matrix).
+          # consume it directly via `matrix: ${{ fromJson(needs.plan.outputs.matrix) }}`.
           MATRIX=$(jq -c '{include: .}' shards.json)
           echo "matrix=${MATRIX}" >> "$GITHUB_OUTPUT"
           echo "shard_count=$(jq 'length' shards.json)" >> "$GITHUB_OUTPUT"
@@ -237,11 +237,16 @@ jobs:
           # manifest so downstream consumers detect the degraded run.
           ARGS=()
           for d in shard-artifacts/a9b-2b-shard-*; do
-            sub="$d/smc_microstructure_exports"
-            if [ -d "$sub" ] && ls "$sub"/*_manifest.json >/dev/null 2>&1; then
-              ARGS+=(--shard-dir "$sub")
+            # Pass the OUTER shard-artifact dir (basename 'a9b-2b-shard-N-of-M')
+            # to the reducer, NOT the inner 'smc_microstructure_exports' subdir,
+            # so _parse_shard_id_from_dir() can recover the real shard-id.
+            # Otherwise, on partial-runs, the surviving shard would always be
+            # labeled shard-1 by the 1-based enumeration fallback. The reducer
+            # uses rglob('*_manifest.json') to descend into subdirs.
+            if [ -d "$d" ] && find "$d" -name '*_manifest.json' -print -quit | grep -q .; then
+              ARGS+=(--shard-dir "$d")
             else
-              echo "::warning::No manifest under $sub; skipping"
+              echo "::warning::No manifest under $d; skipping"
             fi
           done
           if [ "${#ARGS[@]}" -eq 0 ]; then

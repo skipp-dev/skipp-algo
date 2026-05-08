@@ -188,3 +188,49 @@ def test_reduce_uses_python_pinned_action() -> None:
         "reduce must use ./.github/actions/setup-python-pinned per repo "
         "Python version discipline"
     )
+
+
+def test_reduce_shard_dir_basename_encodes_shard_id() -> None:
+    """
+    Regression-guard for the shard-id parse bug:
+
+    The reducer parses the shard-id from the basename of each --shard-dir
+    via the regex ``shard-<i>(?:-of-<N>)?``. If the workflow passes a path
+    whose basename does NOT encode the shard-id (e.g. the inner
+    ``smc_microstructure_exports`` subdir, which has the same basename for
+    every shard), the parser silently falls back to 1-based enumeration.
+    On full-runs this coincidentally yields correct ids, but on partial-runs
+    the surviving shard would always be labeled shard-1, producing wrong
+    failed_shard_ids.
+
+    This test asserts the workflow's reduce step iterates the OUTER
+    shard-artifact dirs (basename pattern ``a9b-2b-shard-*``) and passes
+    that dir as ``--shard-dir``.
+    """
+    steps = _reduce_steps()
+    run_text = "\n".join(str(s.get("run", "")) for s in steps if "run" in s)
+    # The for-loop must iterate the outer shard-artifact dirs.
+    assert "shard-artifacts/a9b-2b-shard-*" in run_text, (
+        "reduce step must loop over 'shard-artifacts/a9b-2b-shard-*' "
+        "so the basename encodes the shard-id (regex 'shard-<i>')"
+    )
+    # The --shard-dir argument must be the loop variable, NOT a derived subdir.
+    assert 'ARGS+=(--shard-dir "$d")' in run_text, (
+        "reduce step must pass the OUTER loop dir '$d' as --shard-dir; "
+        "any inner-subdir variant (e.g. '$d/smc_microstructure_exports') "
+        "breaks shard-id parsing and corrupts failed_shard_ids on partial runs"
+    )
+
+
+def test_reduce_does_not_pass_smc_microstructure_exports_subdir() -> None:
+    """Defensive negation of the previously-shipped bug."""
+    steps = _reduce_steps()
+    run_text = "\n".join(str(s.get("run", "")) for s in steps if "run" in s)
+    assert '--shard-dir "$d/smc_microstructure_exports"' not in run_text, (
+        "regression: '--shard-dir \"$d/smc_microstructure_exports\"' "
+        "reintroduces the shard-id collision; pass '$d' instead"
+    )
+    assert '--shard-dir "$sub"' not in run_text, (
+        "regression: '--shard-dir \"$sub\"' (where sub=$d/smc_microstructure_exports) "
+        "reintroduces the shard-id collision; pass '$d' instead"
+    )

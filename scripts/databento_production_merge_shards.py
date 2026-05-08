@@ -39,7 +39,7 @@ import sys
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
-# Bootstrap sys.path BEFORE the first first-party import so that script-style
+# Bootstrap sys.path BEFORE any first-party import so that script-style
 # invocation (`python scripts/databento_production_merge_shards.py`) can
 # resolve the ``scripts`` package. The check is idempotent for the common
 # `python -m` form. See Bug-Hunt F-01 / test_workflow_invoked_scripts_import_order.
@@ -101,7 +101,7 @@ _INJECTED_KEYS: frozenset[str] = frozenset({
     "expected_shard_count",
 })
 
-MERGE_SCRIPT_VERSION = "a9b.3.1"
+MERGE_SCRIPT_VERSION = "a9b.3.2"
 
 
 class ManifestMergeError(ValueError):
@@ -195,16 +195,21 @@ def _merge_field_set(
 
         # Missing-in-some-shard handling: preserve as per-shard so reviewers
         # can see exactly which shard lacked the field.
+        # NOTE: shard-id keys are stringified before emit so the on-disk JSON
+        # schema matches the in-memory dict after a json.load() round-trip
+        # (JSON object keys are always strings).
         if len(present_pairs) != len(shards):
             missing = [sid for sid in shard_ids if sid not in present_ids]
             out[f"{key}_per_shard_partial"] = {
-                "present": dict(zip(present_ids, present_vals)),
+                "present": {str(sid): val for sid, val in zip(present_ids, present_vals)},
                 "missing_shard_ids": missing,
             }
             continue
 
         if _is_per_shard_key(key):
-            out[f"{key}_per_shard"] = dict(zip(present_ids, present_vals))
+            out[f"{key}_per_shard"] = {
+                str(sid): val for sid, val in zip(present_ids, present_vals)
+            }
             continue
 
         # Disjoint-union fields must run their reducer even when every shard
@@ -358,13 +363,17 @@ def merge_manifests(
 def discover_shard_manifests(shard_dirs: Iterable[Path]) -> list[tuple[int, Path]]:
     """Locate one ``*_manifest.json`` per shard directory.
 
-    Returns ``[(shard_id, manifest_path), ...]`` sorted by shard_id. The
-    shard_id is parsed from the directory name suffix ``shard-<i>`` /
-    ``shard-<i>-of-<N>``; if no such suffix is present the directory is
-    enumerated 1-based by sorted name.
+    Returns ``[(shard_id, manifest_path), ...]`` sorted by ``shard_id``.
+    The shard_id is parsed from the directory name suffix ``shard-<i>`` /
+    ``shard-<i>-of-<N>``; when no such suffix is present, directories are
+    enumerated 1-based after sorting by basename (NOT full path, so
+    behaviour is stable across temp roots).
     """
+    shard_dirs = list(shard_dirs)
     pairs: list[tuple[int, Path]] = []
-    for idx, d in enumerate(sorted(shard_dirs), start=1):
+    # Stable enumeration fallback: sort by basename, not full path.
+    enum_sorted = sorted(shard_dirs, key=lambda d: d.name)
+    for idx, d in enumerate(enum_sorted, start=1):
         sid = _parse_shard_id_from_dir(d.name) or idx
         candidates = sorted(d.rglob("*_manifest.json"))
         if not candidates:
@@ -375,6 +384,8 @@ def discover_shard_manifests(shard_dirs: Iterable[Path]) -> list[tuple[int, Path
                 f"reduce-step expects exactly one manifest per shard."
             )
         pairs.append((sid, candidates[0]))
+    # Sort by parsed shard_id so 'shard-2' precedes 'shard-10'.
+    pairs.sort(key=lambda p: p[0])
     return pairs
 
 
