@@ -16,7 +16,8 @@ from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
 from time import perf_counter
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 import pandas as pd
 from openpyxl.formatting.rule import ColorScaleRule
@@ -114,7 +115,7 @@ def create_excel_workbook_bytes(
     *,
     minute_detail: pd.DataFrame | None = None,
     second_detail: pd.DataFrame | None = None,
-    additional_sheets: dict[str, pd.DataFrame] | None = None,
+    additional_sheets: dict[str, pd.DataFrame | None] | None = None,
     generated_at: float | None = None,
     progress_callback: Callable[[str], None] | None = None,
 ) -> bytes:
@@ -298,7 +299,7 @@ def write_databento_production_workbook_from_frames(
     generated_at: float | None = None,
     minute_detail: pd.DataFrame | None = None,
     second_detail: pd.DataFrame | None = None,
-    additional_sheets: dict[str, pd.DataFrame] | None = None,
+    additional_sheets: dict[str, pd.DataFrame | None] | None = None,
     progress_callback: Callable[[str], None] | None = None,
 ) -> WorkbookWriteResult:
     path = Path(output_path).expanduser()
@@ -312,10 +313,15 @@ def write_databento_production_workbook_from_frames(
         progress_callback=progress_callback,
     )
     if progress_callback is not None:
-        progress_callback(f"workbook: write_bytes begin (bytes={len(payload)})")
+        _t0 = perf_counter()
+        progress_callback(
+            f"workbook: write_bytes begin (bytes={len(payload)}) (t+0.0s)"
+        )
     path.write_bytes(payload)
     if progress_callback is not None:
-        progress_callback("workbook: write_bytes done")
+        progress_callback(
+            f"workbook: write_bytes done (t+{perf_counter() - _t0:.1f}s)"
+        )
 
     rows = {"summary": len(summary)}
     if minute_detail is not None:
