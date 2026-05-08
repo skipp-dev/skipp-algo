@@ -47,11 +47,11 @@ def test_production_export_current_returns_positive_on_linux() -> None:
     val = ex._rss_current_mib_snapshot()
     assert isinstance(val, float)
     assert val > 0.0
-    # Sanity: current RSS for a Python interpreter must be at least ~5 MiB and
-    # cannot exceed the peak watermark.
-    peak = ex._rss_peak_mib_snapshot()
-    assert peak is not None
-    assert val <= peak + 1.0  # rounding tolerance
+    # NOTE: do NOT compare val (VmRSS, continuous) against
+    # _rss_peak_mib_snapshot() (ru_maxrss, syscall-boundary sampled) — the two
+    # telemetry sources are inherently racy and the invariant
+    # ``val <= peak`` flapped on push-event CI runs (see PR #2079). We test
+    # our wrappers, not Linux-kernel cross-source consistency guarantees.
 
 
 def test_production_export_fmt_rss_pair_shape() -> None:
