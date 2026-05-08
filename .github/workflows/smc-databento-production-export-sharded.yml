@@ -31,7 +31,7 @@
 # Probe flow:
 #   gh workflow run smc-databento-production-export-sharded.yml \
 #     -f lookback_days=10 -f num_shards=2
-#   # → 1 plan job + 2 producer shards × ~90min cap. Shard artifacts
+#   # → 1 plan job + 2 producer shards × ~120min cap. Shard artifacts
 #   #   feed the A9b.3 reduce-step fixture work (real shard-manifests).
 #
 # A9b spec lives in session memory `f2-rolling-bench-rootcause.md`.
@@ -124,9 +124,13 @@ jobs:
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
     # Per-shard cap. The original 1-job producer hit a ~120min platform
     # wall (A9-grep / A9e probe falsified internal-timeout hypothesis).
-    # 90min per shard gives 30min headroom under the wall while N=2
-    # halves the per-shard work; later N=6 should comfortably fit.
-    timeout-minutes: 90
+    # Q4 (post-Probe-v3): bumped 90→120 to absorb the v3 cap-hit margin
+    # observed at lookback_days=10 num_shards=2; the platform wall lives
+    # ~at 120min so this is at-the-wall, not above it. Step-progress
+    # markers from Q1 (xlsx writer) and Q3 (Step 5 batches) plus
+    # P5.3-A6 (Step 6 per-day) provide the observability needed to
+    # attribute any future cap-hit before another bump is even considered.
+    timeout-minutes: 120
     strategy:
       # We MUST collect every shard's manifest even if shard-1 OOMs:
       # those shard-manifest specimens drive the A9b.3 reduce-step
