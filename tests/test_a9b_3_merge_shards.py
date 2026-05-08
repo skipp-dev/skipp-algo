@@ -37,6 +37,10 @@ def _load_module():
     spec = importlib.util.spec_from_file_location(
         "databento_production_merge_shards", _SCRIPT_PATH
     )
+    assert spec is not None and spec.loader is not None, (
+        f"importlib failed to build a loader-bearing spec for {_SCRIPT_PATH}; "
+        "this should never happen for a present .py file."
+    )
     mod = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = mod
     spec.loader.exec_module(mod)
@@ -86,7 +90,7 @@ def test_real_fixture_per_shard_timestamps(mod, real_shards):
     # *_fetched_at fields must be preserved per-shard (override table).
     assert "close_trade_detail_fetched_at_per_shard" in merged
     payload = merged["close_trade_detail_fetched_at_per_shard"]
-    assert set(payload.keys()) == {1, 2}
+    assert set(payload.keys()) == {"1", "2"}
     # Original key must NOT also leak through.
     assert "close_trade_detail_fetched_at" not in merged
 
@@ -127,7 +131,7 @@ def test_missing_key_in_some_shards_emits_partial(mod):
     assert merged["a"] == 1
     assert "rare_per_shard_partial" in merged
     assert merged["rare_per_shard_partial"] == {
-        "present": {1: 7},
+        "present": {"1": 7},
         "missing_shard_ids": [2],
     }
 
@@ -135,7 +139,7 @@ def test_missing_key_in_some_shards_emits_partial(mod):
 def test_per_shard_override_basename(mod):
     shards = [{"basename": "run_a"}, {"basename": "run_b"}]
     merged = mod.merge_manifests(shards)
-    assert merged["basename_per_shard"] == {1: "run_a", 2: "run_b"}
+    assert merged["basename_per_shard"] == {"1": "run_a", "2": "run_b"}
     assert "basename" not in merged
 
 
@@ -351,4 +355,4 @@ def test_cli_strict_missing_shard_returns_2(tmp_path: Path) -> None:
 def test_version_bumped(mod):
     # Reminder: bump MERGE_SCRIPT_VERSION on any output-shape change so
     # downstream consumers (and reduce-job log greps) can detect it.
-    assert mod.MERGE_SCRIPT_VERSION == "a9b.3.1"
+    assert mod.MERGE_SCRIPT_VERSION == "a9b.3.2"
