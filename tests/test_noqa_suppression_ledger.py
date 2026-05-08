@@ -148,6 +148,10 @@ _FROZEN_SITES: dict[str, int] = {
     "scripts/emit_fvg_context_pine.py": 2,
     "scripts/fvg_quality_quartile_gate.py": 2,
     "scripts/g23_ab_watchdog.py": 2,
+    # A9b.3 reduce-step: single `# noqa: E402` for the
+    # `from scripts.smc_atomic_write import atomic_write_json` import
+    # which must follow the sys.path bootstrap (see import-order ledger).
+    "scripts/databento_production_merge_shards.py": 1,
 }
 _FROZEN_TOTAL = sum(_FROZEN_SITES.values())
 

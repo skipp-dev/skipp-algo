@@ -69,6 +69,9 @@ _FROZEN_SITES: dict[str, int] = {
     "scripts/collect_smc_gate_evidence.py": 2,
     "scripts/databento_preopen_fast.py": 1,
     "scripts/databento_production_export.py": 1,
+    # A9b.3 reduce-step needs sys.path bootstrap to import scripts.smc_atomic_write
+    # for atomic JSON writes when invoked as `python scripts/X.py` from CI.
+    "scripts/databento_production_merge_shards.py": 1,
     "scripts/databento_smoke_test.py": 1,
     # Rebaselined 2026-05-03 (after PR #2035): see check_pine_legacy_drift.py.
     "scripts/e2e_smoke_ci.py": 2,
