@@ -183,11 +183,14 @@ jobs:
   reduce:
     name: reduce shard manifests
     needs: [plan, producer]
-    # Run reduce as long as the plan succeeded, regardless of producer
-    # outcomes. Without `always()` a single shard fail would skip reduce
-    # and we'd lose the partial-report. The plan-success guard keeps us
-    # from running reduce when there is provably nothing to merge.
-    if: always() && needs.plan.result == 'success'
+    # Run reduce as long as the plan succeeded AND there is at least one
+    # shard to merge, regardless of individual producer outcomes. Without
+    # `always()` a single shard fail would skip reduce and we'd lose the
+    # partial-report. The plan-success guard keeps us from running reduce
+    # when planning itself failed; the shard_count != '0' guard avoids
+    # an empty reduce when the plan produced an empty matrix (zero shards
+    # also skip the producer job per its own condition).
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.shard_count != '0'
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
     timeout-minutes: 15
     steps:

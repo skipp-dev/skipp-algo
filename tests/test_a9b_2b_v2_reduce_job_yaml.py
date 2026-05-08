@@ -72,6 +72,11 @@ def test_reduce_if_condition_is_partial_safe() -> None:
         f"reduce.if must guard on plan success; got {expr!r}. Without it, "
         f"reduce would run even when the planner failed (no shards to merge)."
     )
+    assert "needs.plan.outputs.shard_count != '0'" in expr, (
+        f"reduce.if must guard against zero-shard plans; got {expr!r}. The "
+        f"producer job is skipped when shard_count == '0', and without this "
+        f"guard reduce would run on an empty matrix and fail at download."
+    )
 
 
 def test_reduce_uses_pinned_runner_var() -> None:
