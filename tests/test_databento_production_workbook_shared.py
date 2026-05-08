@@ -264,3 +264,103 @@ def test_production_pipeline_canonical_workbook_helper_slims_base_only_sheet_set
         "batl_debug",
         "output_checks",
     }
+
+
+def test_create_excel_workbook_bytes_emits_progress_per_sheet() -> None:
+    """Q1 obs(workbook): per-sheet progress markers are emitted into a callback.
+
+    Without a callback the writer must remain silent (no behavior change).
+    With a callback every sheet emits begin+done markers, plus pre-/post-
+    serialization markers around the openpyxl context exit and the xlsx
+    zip-timestamp normalization.
+    """
+    summary = pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-03-06",
+                "symbol": "AAPL",
+                "window_range_pct": 2.1,
+                "realized_vol_pct": 1.2,
+                "window_return_pct": 0.5,
+                "prev_close_to_premarket_pct": 1.1,
+                "premarket_to_open_pct": 0.4,
+                "open_to_current_pct": 0.2,
+            }
+        ]
+    )
+    additional = {
+        "daily_bars": pd.DataFrame(
+            [{"trade_date": "2026-03-06", "symbol": "AAPL", "close": 180.0}]
+        ),
+        "manifest": pd.DataFrame([{"key": "v", "value": "1"}]),
+    }
+
+    # Default behavior: no callback → no progress emitted, payload still valid.
+    payload_silent = workbook_mod.create_excel_workbook_bytes(
+        summary=summary,
+        additional_sheets=additional,
+        generated_at=1_700_000_000.0,
+    )
+    assert isinstance(payload_silent, bytes) and len(payload_silent) > 0
+
+    msgs: list[str] = []
+    payload = workbook_mod.create_excel_workbook_bytes(
+        summary=summary,
+        additional_sheets=additional,
+        generated_at=1_700_000_000.0,
+        progress_callback=msgs.append,
+    )
+    assert isinstance(payload, bytes) and len(payload) > 0
+
+    # All progress markers must use the agreed "workbook: " prefix so the
+    # producer's existing _progress closure can route them uniformly.
+    assert msgs, "expected at least one progress marker when callback is supplied"
+    assert all(m.startswith("workbook: ") for m in msgs), msgs
+
+    joined = "\n".join(msgs)
+    # Per-sheet begin/done markers cover summary + every additional sheet.
+    assert "'summary' rows=1 begin" in joined, joined
+    assert "'summary' rows=1 done" in joined, joined
+    assert "'daily_bars' rows=1 begin" in joined, joined
+    assert "'manifest' rows=1 begin" in joined, joined
+    # Post-serialization markers from the canonical xlsx write path.
+    assert "openpyxl context exit complete" in joined, joined
+    assert "normalize_xlsx_zip_timestamps begin" in joined, joined
+    assert "normalize_xlsx_zip_timestamps done" in joined, joined
+
+
+def test_write_databento_production_workbook_from_frames_threads_progress(tmp_path: Path) -> None:
+    """The public writer entry point forwards the callback to the bytes writer
+    and additionally emits its own write_bytes begin/done markers."""
+    summary = pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-03-06",
+                "symbol": "AAPL",
+                "window_range_pct": 1.0,
+                "realized_vol_pct": 1.0,
+                "window_return_pct": 1.0,
+                "prev_close_to_premarket_pct": 1.0,
+                "premarket_to_open_pct": 1.0,
+                "open_to_current_pct": 1.0,
+            }
+        ]
+    )
+    msgs: list[str] = []
+    out = tmp_path / "out.xlsx"
+    result = write_databento_production_workbook_from_frames(
+        summary=summary,
+        output_path=out,
+        generated_at=1_700_000_000.0,
+        progress_callback=msgs.append,
+    )
+    assert result.output_path == out
+    assert out.exists() and out.stat().st_size > 0
+    joined = "\n".join(msgs)
+    assert "workbook: write_bytes begin" in joined, joined
+    assert "workbook: write_bytes done" in joined, joined
+    # All progress lines (including write_bytes markers) carry the elapsed-time suffix.
+    assert all("(t+" in m for m in msgs), msgs
+    # Inner per-sheet markers must also be present (callback was forwarded).
+    assert "'summary' rows=1 begin" in joined, joined
+

@@ -114,10 +114,11 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # for Step 9 RSS-bracket telemetry.
         # A8.1 (PR #2078): line shifted 734→781 by ``_rss_current_mib`` +
         # ``_fmt_rss_pair`` helpers added for current+peak RSS instrumentation
-        # (see commit 9e93416c).
+        # (see commit 9e93416c). Q1 obs(workbook): line shifted 781→782 by
+        # ``Callable`` import added for ``progress_callback`` plumbing.
         (
             "scripts/databento_production_export.py",
-            781,
+            782,
             ("_DEFAULT_BULLISH_QUALITY_CFG",),
         ),
         ("smc_tv_bridge/smc_api.py", 184, ("_candle_provider",)),
