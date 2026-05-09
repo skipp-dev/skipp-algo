@@ -6,6 +6,39 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-09) — terminal: Finnhub free-tier extensions (company-news / news-sentiment / recommendations / insider)
+
+- **`feat(terminal): Finnhub free-tier endpoints — company-news + news-sentiment + recommendations + insider-sentiment`** —
+  Phase D (PR4) of Provider Audit 2.0, surfacing four free-tier Finnhub
+  endpoints that the existing `terminal_finnhub.py` ignored (only
+  premium-locked `/stock/social-sentiment` was wired previously).
+  Stacked on PR3 (FMP extras), PR2 (UW news/headlines), PR1
+  (cross-provider hard-dedup).
+  - `fetch_company_news(symbol, days_back=7, max_items=50)` →
+    `list[CompanyNewsItem]` — endpoint `/company-news`. 5-min cache.
+  - `fetch_news_sentiment(symbol)` → `NewsSentimentSummary | None` —
+    endpoint `/news-sentiment` (buzz + bullish/bearish split + sector
+    score). 30-min cache.
+  - `fetch_recommendation_trends(symbol)` → `list[RecommendationTrend]` —
+    endpoint `/stock/recommendation` (analyst grade tally per month).
+    6-h cache.
+  - `fetch_insider_sentiment(symbol, months_back=6)` →
+    `list[InsiderSentimentMonth]` — endpoint `/stock/insider-sentiment`
+    (monthly insider net-flow + MSPR). 6-h cache.
+  - All four reuse the existing `is_equity_symbol` guard (rejects
+    crypto / forex / index symbols), the existing `_get_cached/_set_cached`
+    TTL cache, the existing `_get` helper with 429 exponential backoff,
+    and a new generalised **DISABLED-path short-circuit**: any 403/404
+    response now adds the path substring to `_blocked_path_substrings`
+    so further calls return `{}` immediately for the rest of the process
+    (mirrors the per-endpoint pattern from PR2/PR3 newsstack adapters).
+  - `clear_blocked_paths()` test helper to reset the short-circuit in
+    unit tests.
+- **Tests** — `tests/test_terminal_finnhub.py` grows from 18 → 33 cases:
+  parsing, equity-guard rejection, empty-payload handling, max-items cap,
+  per-key caching, `data` field unwrap for insider sentiment, and the
+  generalised blocked-path reset helper.
+
 ### Added (2026-05-09) — newsstack: FMP extras (general / Senate-House / 8-K)
 
 - **`feat(newsstack): FMP general-latest + Senate/House trades + 8-K filings`** —

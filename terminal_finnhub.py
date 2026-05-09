@@ -45,6 +45,11 @@ _CACHE_MAX_SIZE = 200  # hard cap on cache entries
 # writes go through ``_state_lock`` to avoid torn-state surprises.
 _state_lock = threading.Lock()
 _social_sentiment_blocked: bool = False  # circuit breaker for 403 (premium-only)
+# PR4 (2026-05-09) — generalised path-prefix block list. Any path whose
+# substring matches an entry here short-circuits in ``_get`` and returns
+# ``{}`` immediately, mirroring the per-endpoint DISABLED-pattern from
+# newsstack_fmp/ingest_unusual_whales.py and the FMP extras adapters.
+_blocked_path_substrings: set[str] = set()
 _rate_limit_backoff_until: float = 0.0  # epoch timestamp; skip calls until then
 _consecutive_429_count: int = 0  # counter for exponential backoff
 _BACKOFF_BASE_SECONDS = 5.0
@@ -168,6 +173,10 @@ def _get(path: str, params: dict[str, Any] | None = None) -> Any:
     key = _api_key()
     if not key:
         return {}
+    # PR4: generalised DISABLED-path short-circuit (any 403/404 path stays muted).
+    with _state_lock:
+        if any(sub in path for sub in _blocked_path_substrings):
+            return {}
     query_parts: list[str] = [f"token={key}"]
     for k, v in (params or {}).items():
         query_parts.append(f"{k}={v}")
@@ -206,6 +215,17 @@ def _get(path: str, params: dict[str, Any] | None = None) -> Any:
                 global _social_sentiment_blocked
                 with _state_lock:
                     _social_sentiment_blocked = True
+            # PR4: also mark the full path-substring as blocked so the
+            # generalised short-circuit prevents any further quota burn.
+            with _state_lock:
+                _blocked_path_substrings.add(path)
+        elif exc.code == 404:
+            log.warning(
+                "Finnhub HTTP 404 for %s — endpoint retired or wrong path "
+                "(suppressing further calls this session)", path,
+            )
+            with _state_lock:
+                _blocked_path_substrings.add(path)
         else:
             log.warning("Finnhub HTTP %s for %s", exc.code, path)
         return {}
@@ -324,3 +344,251 @@ def fetch_social_sentiment_batch(
         if sent is not None:
             results[sent.symbol] = sent
     return results
+
+
+# ── PR4 (2026-05-09): Finnhub free-tier extensions ───────────
+# C3+C4 of Provider Audit 2.0 — surface free-tier endpoints that the
+# existing module ignored (only social-sentiment was wired previously).
+# All four use the same generic 403/404 DISABLED-path short-circuit
+# landed earlier in this file so quota-locked endpoints auto-suppress.
+
+_NEWS_TTL = 300         # 5 min  — company news refreshes intra-day
+_SENTIMENT_TTL = 1800   # 30 min — news sentiment is a slower aggregate
+_RECO_TTL = 21600       # 6 h    — recommendation trends update infrequently
+_INSIDER_TTL = 21600    # 6 h    — insider sentiment is monthly
+
+
+@dataclass(frozen=True, slots=True)
+class CompanyNewsItem:
+    """One Finnhub /company-news article."""
+
+    symbol: str
+    item_id: int
+    datetime_epoch: float
+    headline: str
+    summary: str
+    source: str
+    url: str
+    category: str
+    related: str
+    image: str
+
+
+@dataclass(frozen=True, slots=True)
+class NewsSentimentSummary:
+    """Aggregated /news-sentiment buzz/sentiment snapshot for a symbol."""
+
+    symbol: str
+    buzz_articles_in_last_week: int
+    buzz_weekly_average: float
+    buzz_score: float
+    company_news_score: float
+    sector_avg_news_score: float
+    sentiment_bearish_pct: float
+    sentiment_bullish_pct: float
+
+
+@dataclass(frozen=True, slots=True)
+class RecommendationTrend:
+    """One row of /stock/recommendation — analyst grade tally for a period."""
+
+    symbol: str
+    period: str  # ISO date string of the month the row applies to
+    strong_buy: int
+    buy: int
+    hold: int
+    sell: int
+    strong_sell: int
+
+
+@dataclass(frozen=True, slots=True)
+class InsiderSentimentMonth:
+    """One row of /stock/insider-sentiment — monthly insider activity."""
+
+    symbol: str
+    year: int
+    month: int
+    change: int   # net share change
+    mspr: float   # monthly share purchase ratio
+
+
+def _ymd_window(days_back: int) -> tuple[str, str]:
+    """Return (from_yyyymmdd, to_yyyymmdd) covering [today-N, today]."""
+    import datetime as _dt
+
+    today = _dt.date.today()
+    start = today - _dt.timedelta(days=max(1, days_back))
+    return start.isoformat(), today.isoformat()
+
+
+def fetch_company_news(
+    symbol: str,
+    *,
+    days_back: int = 7,
+    max_items: int = 50,
+) -> list[CompanyNewsItem]:
+    """GET /company-news?symbol=&from=&to= — recent per-symbol headlines.
+
+    Returns up to *max_items* most-recent articles within *days_back*.
+    Returns ``[]`` on HTTP error / quota lock / non-equity symbol /
+    missing API key.  Caches per (symbol, days_back) for 5 minutes.
+    """
+    if not is_equity_symbol(symbol):
+        return []
+    sym = symbol.upper().strip()
+    cache_key = f"company_news:{sym}:{days_back}"
+    cached = _get_cached(cache_key, _NEWS_TTL)
+    if cached is not None:
+        return cached  # type: ignore[return-value]
+    frm, to = _ymd_window(days_back)
+    raw = _get("/company-news", {"symbol": sym, "from": frm, "to": to})
+    if not isinstance(raw, list):
+        return []
+    items: list[CompanyNewsItem] = []
+    for rec in raw[:max_items]:
+        if not isinstance(rec, dict):
+            continue
+        try:
+            items.append(
+                CompanyNewsItem(
+                    symbol=sym,
+                    item_id=int(rec.get("id") or 0),
+                    datetime_epoch=float(rec.get("datetime") or 0.0),
+                    headline=str(rec.get("headline") or "").strip(),
+                    summary=str(rec.get("summary") or "").strip(),
+                    source=str(rec.get("source") or "").strip(),
+                    url=str(rec.get("url") or "").strip(),
+                    category=str(rec.get("category") or "").strip(),
+                    related=str(rec.get("related") or "").strip(),
+                    image=str(rec.get("image") or "").strip(),
+                )
+            )
+        except (TypeError, ValueError):
+            continue
+    _set_cached(cache_key, items)
+    return items
+
+
+def fetch_news_sentiment(symbol: str) -> NewsSentimentSummary | None:
+    """GET /news-sentiment?symbol= — aggregate buzz + bullish/bearish split.
+
+    Returns ``None`` on HTTP error / quota lock / non-equity symbol.
+    Caches per symbol for 30 minutes.
+    """
+    if not is_equity_symbol(symbol):
+        return None
+    sym = symbol.upper().strip()
+    cache_key = f"news_sentiment:{sym}"
+    cached = _get_cached(cache_key, _SENTIMENT_TTL)
+    if cached is not None:
+        return cached  # type: ignore[return-value]
+    raw = _get("/news-sentiment", {"symbol": sym})
+    if not isinstance(raw, dict) or not raw:
+        return None
+    buzz = raw.get("buzz") or {}
+    sent = raw.get("sentiment") or {}
+    try:
+        summary = NewsSentimentSummary(
+            symbol=sym,
+            buzz_articles_in_last_week=int(buzz.get("articlesInLastWeek") or 0),
+            buzz_weekly_average=float(buzz.get("weeklyAverage") or 0.0),
+            buzz_score=float(buzz.get("buzz") or 0.0),
+            company_news_score=float(raw.get("companyNewsScore") or 0.0),
+            sector_avg_news_score=float(raw.get("sectorAverageNewsScore") or 0.0),
+            sentiment_bearish_pct=float(sent.get("bearishPercent") or 0.0),
+            sentiment_bullish_pct=float(sent.get("bullishPercent") or 0.0),
+        )
+    except (TypeError, ValueError):
+        return None
+    _set_cached(cache_key, summary)
+    return summary
+
+
+def fetch_recommendation_trends(symbol: str) -> list[RecommendationTrend]:
+    """GET /stock/recommendation?symbol= — analyst grade tally per month.
+
+    Returns the list ordered as Finnhub returns it (most-recent first).
+    Returns ``[]`` on HTTP error / quota lock / non-equity symbol.
+    Caches per symbol for 6 hours.
+    """
+    if not is_equity_symbol(symbol):
+        return []
+    sym = symbol.upper().strip()
+    cache_key = f"reco_trend:{sym}"
+    cached = _get_cached(cache_key, _RECO_TTL)
+    if cached is not None:
+        return cached  # type: ignore[return-value]
+    raw = _get("/stock/recommendation", {"symbol": sym})
+    if not isinstance(raw, list):
+        return []
+    out: list[RecommendationTrend] = []
+    for rec in raw:
+        if not isinstance(rec, dict):
+            continue
+        try:
+            out.append(
+                RecommendationTrend(
+                    symbol=sym,
+                    period=str(rec.get("period") or "").strip(),
+                    strong_buy=int(rec.get("strongBuy") or 0),
+                    buy=int(rec.get("buy") or 0),
+                    hold=int(rec.get("hold") or 0),
+                    sell=int(rec.get("sell") or 0),
+                    strong_sell=int(rec.get("strongSell") or 0),
+                )
+            )
+        except (TypeError, ValueError):
+            continue
+    _set_cached(cache_key, out)
+    return out
+
+
+def fetch_insider_sentiment(
+    symbol: str, *, months_back: int = 6
+) -> list[InsiderSentimentMonth]:
+    """GET /stock/insider-sentiment?symbol=&from=&to= — monthly insider net flow.
+
+    *months_back* selects the lookback window; default 6 months.
+    Returns ``[]`` on HTTP error / quota lock / non-equity symbol.
+    Caches per (symbol, months_back) for 6 hours.
+    """
+    if not is_equity_symbol(symbol):
+        return []
+    sym = symbol.upper().strip()
+    cache_key = f"insider_sent:{sym}:{months_back}"
+    cached = _get_cached(cache_key, _INSIDER_TTL)
+    if cached is not None:
+        return cached  # type: ignore[return-value]
+    frm, to = _ymd_window(max(30, months_back * 31))
+    raw = _get("/stock/insider-sentiment", {"symbol": sym, "from": frm, "to": to})
+    if not isinstance(raw, dict):
+        return []
+    rows = raw.get("data") or []
+    if not isinstance(rows, list):
+        return []
+    out: list[InsiderSentimentMonth] = []
+    for rec in rows:
+        if not isinstance(rec, dict):
+            continue
+        try:
+            out.append(
+                InsiderSentimentMonth(
+                    symbol=sym,
+                    year=int(rec.get("year") or 0),
+                    month=int(rec.get("month") or 0),
+                    change=int(rec.get("change") or 0),
+                    mspr=float(rec.get("mspr") or 0.0),
+                )
+            )
+        except (TypeError, ValueError):
+            continue
+    _set_cached(cache_key, out)
+    return out
+
+
+def clear_blocked_paths() -> None:
+    """Reset the generalised DISABLED-path short-circuit (test helper)."""
+    global _social_sentiment_blocked
+    with _state_lock:
+        _blocked_path_substrings.clear()
+        _social_sentiment_blocked = False
