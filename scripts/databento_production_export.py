@@ -3251,7 +3251,17 @@ def _write_canonical_production_workbook(
         "daily_symbol_features_full_universe": daily_symbol_features_full_universe,
         "full_universe_second_detail_open": full_universe_second_detail_open,
         "full_universe_second_detail_close": full_universe_second_detail_close,
-        "full_universe_close_trade_detail": full_universe_close_trade_detail,
+        # Q5a (2026-05-09): full_universe_close_trade_detail intentionally
+        # excluded from the canonical xlsx workbook to avoid runner OOM.
+        # Validation run 25593357307 (Q3a HEAD f843f7a3, 6-shard matrix)
+        # killed shards 3 & 6 mid-write of this sheet at peakRSS ~6.9 GB
+        # on 7 GB GHA runners (12.4-12.8M rows × ~10 cols, openpyxl
+        # default in-memory mode). The same data is exported as a parquet
+        # artifact via _write_exact_named_exports() in Step 10/10c
+        # (<export_dir>/full_universe_close_trade_detail.parquet) — that
+        # path remains the authoritative source for downstream consumers.
+        # Function param `full_universe_close_trade_detail` retained
+        # because the row count is still surfaced in output_summary.
         "full_universe_close_outcome_minute": full_universe_close_outcome_minute,
         "close_imbalance_features_full_universe": close_imbalance_features_full_universe,
         "close_imbalance_outcomes_full_universe": close_imbalance_outcomes_full_universe,
@@ -3272,6 +3282,11 @@ def _write_canonical_production_workbook(
         "batl_debug": pd.DataFrame([batl_debug]),
         "output_checks": pd.DataFrame([output_summary]),
     }
+    if progress_callback is not None:
+        progress_callback(
+            "workbook: skipping full_universe_close_trade_detail "
+            "(parquet retained via Step 10/10c, Q5a OOM mitigation)"
+        )
     workbook_minute_detail = minute_detail
     workbook_second_detail = second_detail
     if smc_base_only:
