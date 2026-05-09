@@ -48,7 +48,7 @@ _DIR_EXCLUDE = frozenset(
 _FROZEN_SITES: dict[str, frozenset[int]] = {
     "scripts/smc_alert_notifier.py": frozenset({481}),
     "scripts/verify_branch_protection.py": frozenset({104}),
-    "terminal_notifications.py": frozenset({250, 314}),
+    "terminal_notifications.py": frozenset({255, 319}),
 }
 
 _FROZEN_TOTAL = sum(len(v) for v in _FROZEN_SITES.values())

@@ -30,7 +30,7 @@ ROOT = Path(__file__).resolve().parent.parent
 HMAC_ALLOWED: set[tuple[str, int, str]] = {
     # TradersPost webhook payload signing (HMAC-SHA256). Line shifted
     # 772 → 761 (system review 2026-04-30).
-    ("terminal_export.py", 761, "new"),
+    ("terminal_export.py", 765, "new"),
     ("terminal_auth.py", 30, "compare_digest"),
 }
 
