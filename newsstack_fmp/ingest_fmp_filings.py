@@ -25,8 +25,18 @@ import httpx
 logger = logging.getLogger(__name__)
 
 FMP_BASE = "https://financialmodelingprep.com/stable"
-FMP_8K_LATEST_PATH = "/sec-filings/8-K-latest"
-FMP_13F_LATEST_PATH = "/sec-filings/13F-HR-latest"
+# Live-audit 2026-05-09: the FMP /stable/ paths use hyphenated form,
+# *not* the slash-separated form previously assumed. /sec-filings/8-K-latest
+# returns 404; /sec-filings-8k is the working bulk path.
+FMP_8K_LATEST_PATH = "/sec-filings-8k"
+# Live-audit 2026-05-09: NO working /stable/ path found for 13F-HR bulk feed
+# after probing 7 variants (sec-filings-13f, sec-filings-13F-HR,
+# sec-filings-form-13f, form-13F-rss-feed, 13f-filings, etc. — all 404).
+# The constant is retained so existing tests that reference it as a label
+# keep working; the first live call will 404 and the existing
+# `mark_fmp_filings_disabled` mechanism will quietly silence the endpoint.
+# TODO(B6): locate or request the correct FMP 13F bulk path.
+FMP_13F_LATEST_PATH = "/sec-filings-13f"
 
 _APIKEY_RE = re.compile(r"(apikey|api_key|token|key)=[^&]+", re.IGNORECASE)
 
@@ -62,7 +72,7 @@ def clear_fmp_filings_disabled() -> None:
 
 
 class FmpFilingsAdapter:
-    """Synchronous adapter for FMP /sec-filings/8-K-latest."""
+    """Synchronous adapter for FMP /sec-filings-8k bulk feed."""
 
     _RETRYABLE_CODES = frozenset({429, 500, 502, 503, 504})
     _MAX_RETRIES = 3
@@ -125,7 +135,7 @@ class FmpFilingsAdapter:
         )
 
     def fetch_8k_latest(self, *, page: int = 0, limit: int = 50) -> list[dict]:
-        """GET /stable/sec-filings/8-K-latest?page=…&limit=…"""
+        """GET /stable/sec-filings-8k?page=…&limit=… (live-tested 2026-05-09)."""
         data = self._get_json(
             FMP_8K_LATEST_PATH, {"page": page, "limit": limit}
         )
@@ -134,10 +144,15 @@ class FmpFilingsAdapter:
         return [it for it in data if isinstance(it, dict)]
 
     def fetch_13f_latest(self, *, page: int = 0, limit: int = 50) -> list[dict]:
-        """GET /stable/sec-filings/13F-HR-latest?page=…&limit=…
+        """GET /stable/sec-filings-13f?page=…&limit=… (path NOT verified live).
 
         B6 follow-up (PR5 2026-05-09): institutional 13F-HR filings as a
         news-shaped event stream — no CIK iteration needed.
+
+        Live-audit 2026-05-09: no working FMP /stable/ path located. The
+        endpoint will 404 on first call and self-disable via the
+        ``mark_fmp_filings_disabled`` short-circuit. Disable
+        ``ENABLE_FMP_13F`` until the correct path is documented.
         """
         data = self._get_json(
             FMP_13F_LATEST_PATH, {"page": page, "limit": limit}

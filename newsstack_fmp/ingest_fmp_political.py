@@ -25,6 +25,16 @@ import httpx
 logger = logging.getLogger(__name__)
 
 FMP_BASE = "https://financialmodelingprep.com/stable"
+# Live-audit 2026-05-09: /stable/senate-trades and /stable/house-trades
+# return 400 when called without a `symbol=` param — they are the per-ticker
+# detail endpoints, NOT bulk feeds. The legacy /v4/senate-trading-rss-feed
+# bulk path is restricted to subscribers from before 2024-08-31 (403).
+# As a result the `enable_fmp_senate_trades` and `enable_fmp_house_trades`
+# config flags default to "0"; if a user enables them, the first call will
+# 400 and self-disable via `mark_fmp_political_disabled`. A symbol-iteration
+# implementation over the universe is left as a follow-up.
+# TODO: implement per-symbol congressional trading collection or restore
+# bulk access via a different FMP plan / endpoint.
 FMP_SENATE_TRADES_PATH = "/senate-trades"
 FMP_HOUSE_TRADES_PATH = "/house-trades"
 

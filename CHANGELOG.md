@@ -6,6 +6,37 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-05-09) — FMP `/stable/` endpoint paths (live-audit, PR #2110)
+
+Live API smoke-tests across all newsstack providers (post-PR #2104–#2109)
+uncovered three FMP endpoint-path mismatches against the current
+financialmodelingprep.com `/stable/` API:
+
+- **`newsstack_fmp/ingest_fmp_filings.py`** (`FMP_8K_LATEST_PATH`):
+  changed from `/sec-filings/8-K-latest` (404) to **`/sec-filings-8k`**
+  (verified live: returns a list of 8-K filings with keys `symbol`,
+  `cik`, `filingDate`, `acceptedDate`, `formType`, …).
+- **`newsstack_fmp/ingest_fmp_filings.py`** (`FMP_13F_LATEST_PATH`):
+  no working `/stable/` 13F bulk path located after probing 7 variants
+  (`sec-filings-13f`, `sec-filings-13F-HR`, `sec-filings-form-13f`,
+  `form-13F-rss-feed`, etc. — all 404). Constant updated to
+  `/sec-filings-13f` for consistency; the existing 404 → `mark_disabled`
+  short-circuit will self-mute the endpoint on first call. `ENABLE_FMP_13F`
+  remains default-off until the correct path is documented (TODO comment
+  inline in the adapter).
+- **`newsstack_fmp/ingest_fmp_political.py`** (senate/house): the
+  `/stable/senate-trades` and `/stable/house-trades` paths are *per-ticker*
+  detail endpoints (return 400 without a `symbol=` param), not bulk
+  feeds. Legacy `/v4/senate-trading-rss-feed` is now restricted to
+  pre-2024-08-31 subscribers (403). `ENABLE_FMP_SENATE_TRADES` and
+  `ENABLE_FMP_HOUSE_TRADES` remain default-off; an inline TODO documents
+  the situation and proposes per-symbol iteration as a follow-up.
+
+Verified-working endpoints in the same audit (no changes required):
+`finnhub.fetch_company_news`, `fetch_recommendation_trends`,
+`fetch_insider_sentiment`, `unusual_whales.fetch_uw_news_headlines`.
+`finnhub.fetch_news_sentiment` returns 403 on the free tier as expected.
+
 ### Fixed (2026-05-09) — Provider Audit 2.0 post-merge follow-ups (PR #2109)
 
 - **`fix(provider-audit-2): post-merge audit fixes`** — quantum sweep
