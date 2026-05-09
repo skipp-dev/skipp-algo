@@ -23,7 +23,8 @@ from .common_types import NewsItem
 from .config import Config
 from .enrich import Enricher
 from .ingest_fmp import FmpAdapter
-from .normalize import normalize_newsapi_ai
+from .ingest_unusual_whales import fetch_uw_news_headlines, is_uw_configured
+from .normalize import normalize_newsapi_ai, normalize_uw_news_headline
 from .open_prep_export import export_open_prep
 from .scoring import classify_and_score, cluster_hash
 from .shared_fetch import CachedNewsBatch, fetch_cached_batch, tv_headline_to_news_item
@@ -508,6 +509,7 @@ def poll_once(
     tv_last_seen = float(store.get_kv("tradingview.last_seen_epoch") or "0")
     newsapi_last_seen = float(store.get_kv("newsapi_ai.last_seen_epoch") or "0")
     newsapi_last_seen_uri = str(store.get_kv("newsapi_ai.last_seen_news_uri") or "").strip()
+    uw_news_last_seen = float(store.get_kv("uw_news.last_seen_epoch") or "0")
 
     cycle_warnings: list[str] = []
     universe_symbols = sorted(universe) if universe else []
@@ -520,6 +522,7 @@ def poll_once(
     new_tv_max = tv_last_seen
     new_newsapi_max = newsapi_last_seen
     new_newsapi_uri = newsapi_last_seen_uri
+    new_uw_news_max = uw_news_last_seen
     newsapi_provider_meta: dict[str, str] | None = None
     ingest_counts_by_source: dict[str, int] = {}
 
@@ -609,6 +612,33 @@ def poll_once(
             _msg = _sanitize_exc(exc)
             logger.warning("Benzinga REST fetch failed: %s", _msg)
             cycle_warnings.append(f"benzinga_rest: {_msg}")
+
+    # ── 2.5) Unusual Whales /news/headlines (B1+B2+B3, PR2 2026-05-09) ─
+    # Default-OFF via ENABLE_UW_NEWS=1.  DISABLED-pattern in the adapter
+    # auto-suppresses subsequent calls if the endpoint returns 401/403/404.
+    # Items flow via other_items so they share PR1's cross-provider hard-
+    # dedup cache (cluster_hash is provider-agnostic).
+    if cfg.enable_uw_news and is_uw_configured():
+        try:
+            uw_raw = fetch_uw_news_headlines(
+                os.getenv("UNUSUAL_WHALES_API_KEY", ""),
+                limit=cfg.uw_news_limit,
+            )
+            uw_news_items = [normalize_uw_news_headline(rec) for rec in uw_raw]
+            uw_news_items = [it for it in uw_news_items if it.is_valid]
+            uw_news_new = [
+                it for it in uw_news_items if it.updated_ts > uw_news_last_seen
+            ]
+            new_uw_news_max = max(
+                (it.updated_ts for it in uw_news_new),
+                default=uw_news_last_seen,
+            )
+            ingest_counts_by_source["uw_news"] = len(uw_raw)
+            other_items.extend(uw_news_new)
+        except Exception as exc:
+            _msg = _sanitize_exc(exc)
+            logger.warning("UW news/headlines fetch failed: %s", _msg)
+            cycle_warnings.append(f"uw_news: {_msg}")
 
     # ── 3) Symbol-scoped providers (TradingView + NewsAPI.ai) ──
     if universe_symbols:
@@ -739,6 +769,8 @@ def poll_once(
         store.set_kv("newsapi_ai.last_seen_epoch", str(new_newsapi_max))
     if other_processing_ok and new_newsapi_uri != newsapi_last_seen_uri:
         store.set_kv("newsapi_ai.last_seen_news_uri", new_newsapi_uri)
+    if other_processing_ok and new_uw_news_max > uw_news_last_seen:
+        store.set_kv("uw_news.last_seen_epoch", str(new_uw_news_max))
 
     # ── 7) Export ───────────────────────────────────────────────
     with _bbt_lock:

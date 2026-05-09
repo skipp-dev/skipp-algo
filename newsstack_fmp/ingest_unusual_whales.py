@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 from typing import Any
 
 import httpx
@@ -39,6 +40,45 @@ UW_SPOT_GEX_STRIKE_PATH = "/stock/{ticker}/spot-exposures/strike"
 UW_MARKET_TIDE_PATH = "/market/market-tide"
 # v3 P-4c: bulk Form-4 insider transactions (single source for monitor + ML)
 UW_INSIDER_TX_PATH = "/insider/transactions"
+# B1 (PR2 2026-05-09): broad-market news headlines, default-OFF in pipeline.
+UW_NEWS_HEADLINES_PATH = "/news/headlines"
+
+
+# ── Once-per-endpoint suppression (mirrors _bz_http.py) ──────────────
+# When UW returns a permanent failure (auth/tier/missing), we mark the
+# endpoint disabled for the rest of the process so subsequent polls
+# short-circuit without burning quota or filling logs.  Per-process
+# state (cleared on restart); idempotent helpers exposed for tests.
+_DISABLED_ENDPOINTS: set[str] = set()
+_disabled_lock = threading.Lock()
+
+
+class UnusualWhalesEndpointDisabledError(RuntimeError):
+    """Raised when a UW endpoint has been marked disabled after a permanent
+    failure (tier-limit, missing entitlement, retired URL).  Callers catch
+    Exception, log, and return ``[]``.
+    """
+
+    def __init__(self, label: str) -> None:
+        super().__init__(
+            f"UW endpoint disabled (tier-limited or retired): {label}"
+        )
+        self.label = label
+
+
+def is_uw_endpoint_disabled(label: str) -> bool:
+    with _disabled_lock:
+        return label in _DISABLED_ENDPOINTS
+
+
+def mark_uw_endpoint_disabled(label: str) -> None:
+    with _disabled_lock:
+        _DISABLED_ENDPOINTS.add(label)
+
+
+def clear_uw_disabled_endpoints() -> None:
+    with _disabled_lock:
+        _DISABLED_ENDPOINTS.clear()
 
 
 class UnusualWhalesAdapter:
@@ -73,6 +113,10 @@ class UnusualWhalesAdapter:
     # ── Internal ────────────────────────────────────────────
 
     def _get_json(self, path: str, params: dict[str, Any] | None = None) -> Any:
+        # B2: Skip the network call if a previous response marked this
+        # endpoint as permanently unavailable (tier-limit, missing entitlement).
+        if is_uw_endpoint_disabled(path):
+            return None
         url = f"{UW_BASE_URL}{path}"
         try:
             r = self.client.get(url, params=params or {})
@@ -81,9 +125,15 @@ class UnusualWhalesAdapter:
             return None
         if r.status_code == 401:
             logger.error("UW auth failed (401) — check UNUSUAL_WHALES_API_KEY")
+            mark_uw_endpoint_disabled(path)
             return None
         if r.status_code == 403:
             logger.warning("UW 403 on %s — endpoint not in current plan tier", path)
+            mark_uw_endpoint_disabled(path)
+            return None
+        if r.status_code == 404:
+            logger.warning("UW 404 on %s — endpoint not available", path)
+            mark_uw_endpoint_disabled(path)
             return None
         if r.status_code == 429:
             logger.warning("UW rate-limited (429) on %s", path)
@@ -258,6 +308,27 @@ class UnusualWhalesAdapter:
         data = self._get_json(UW_INSIDER_TX_PATH, params=params)
         return self._unwrap_list(data)
 
+    # ── B1 (PR2 2026-05-09): broad-market news headlines ──
+
+    def fetch_news_headlines(
+        self,
+        *,
+        limit: int = 100,
+        ticker: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Fetch UW broad-market news headlines.
+
+        Endpoint: ``/news/headlines`` (default-OFF in pipeline; enable
+        via ``ENABLE_UW_NEWS=1``).  Marked DISABLED on first 401/403/404
+        so subsequent polls short-circuit without burning quota.
+        """
+        params: dict[str, Any] = {"limit": str(limit)}
+        sym = (ticker or "").strip().upper()
+        if sym:
+            params["ticker_symbol"] = sym
+        data = self._get_json(UW_NEWS_HEADLINES_PATH, params=params)
+        return self._unwrap_list(data)
+
 
 # ── Module-level helpers (mirrors ingest_benzinga_financial.py shape) ──
 
@@ -382,6 +453,28 @@ def fetch_uw_insider_transactions(
         return adapter.fetch_insider_transactions(limit=limit, ticker=ticker)
     except Exception:
         logger.warning("fetch_uw_insider_transactions failed", exc_info=True)
+        return []
+    finally:
+        adapter.close()
+
+
+def fetch_uw_news_headlines(
+    api_key: str,
+    *,
+    limit: int = 100,
+    ticker: str | None = None,
+) -> list[dict[str, Any]]:
+    """Standalone wrapper for UW /news/headlines (B1, PR2 2026-05-09).
+
+    Returns ``[]`` on missing key, disabled endpoint, or any error.
+    """
+    adapter = _adapter_or_none(api_key)
+    if adapter is None:
+        return []
+    try:
+        return adapter.fetch_news_headlines(limit=limit, ticker=ticker)
+    except Exception:
+        logger.warning("fetch_uw_news_headlines failed", exc_info=True)
         return []
     finally:
         adapter.close()

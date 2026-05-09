@@ -304,3 +304,67 @@ def normalize_benzinga_calendar_item(raw: dict[str, Any], endpoint_kind: str) ->
         out[canonical] = _first_present(raw, aliases)
     out.setdefault("kind", endpoint_kind)
     return out
+
+
+# ── Unusual Whales /news/headlines (B1, PR2 2026-05-09) ─────────────
+
+
+def normalize_uw_news_headline(rec: dict[str, Any]) -> NewsItem:
+    """Normalise one UW ``/news/headlines`` record.
+
+    UW field shape (per public docs): ``id``, ``headline``, ``source``,
+    ``url``, ``tags``, ``sentiment``, ``is_major``, ``created_at``,
+    ``tickers``.  Falls back gracefully if any field is missing.
+    ``raw`` preserves UW-specific fields (``is_major``, ``tags``,
+    ``sentiment``) for downstream scoring/observability.
+    """
+    if not isinstance(rec, dict):
+        return NewsItem(
+            provider="uw_news", item_id="", published_ts=0.0, updated_ts=0.0,
+            headline="", snippet="", tickers=[], url=None, source="Unusual Whales",
+        )
+
+    item_id = str(rec.get("id") or rec.get("uuid") or "").strip()
+    headline = str(rec.get("headline") or rec.get("title") or "").strip()
+
+    # If no stable id provided, derive a hash-based id from headline+url
+    # so dedup still functions per-provider via mark_seen.
+    if not item_id and headline:
+        seed = f"{headline}|{rec.get('url') or ''}"
+        item_id = hashlib.sha1(seed.encode("utf-8")).hexdigest()[:16]
+
+    snippet = str(rec.get("description") or rec.get("teaser") or "").strip()
+    url = rec.get("url") or rec.get("link") or None
+    source = _normalize_source_name(
+        rec.get("source") or rec.get("publisher") or "Unusual Whales"
+    )
+
+    tickers_raw = rec.get("tickers") or rec.get("symbols") or []
+    if isinstance(tickers_raw, str):
+        tickers = [t for t in (
+            _normalize_ticker_token(s) for s in tickers_raw.split(",")
+        ) if t]
+    elif isinstance(tickers_raw, list):
+        tickers = [t for t in (
+            _normalize_ticker_token(x) for x in tickers_raw
+        ) if t]
+    else:
+        tickers = _extract_tickers(rec)
+
+    published = str(
+        rec.get("created_at") or rec.get("published_at") or rec.get("date") or ""
+    ).strip()
+    pts = _to_epoch(published)
+
+    return NewsItem(
+        provider="uw_news",
+        item_id=item_id,
+        published_ts=pts,
+        updated_ts=pts,
+        headline=headline,
+        snippet=snippet[:500],
+        tickers=tickers,
+        url=str(url) if url else None,
+        source=source,
+        raw=rec,
+    )

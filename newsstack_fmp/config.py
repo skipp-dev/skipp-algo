@@ -51,6 +51,9 @@ class Config:
     enable_benzinga_ws: bool = field(default_factory=lambda: os.getenv("ENABLE_BENZINGA_WS", "0") == "1")
     enable_tradingview_news: bool = field(default_factory=lambda: os.getenv("ENABLE_TRADINGVIEW_NEWS", "0") == "1")
     enable_newsapi_ai: bool = field(default_factory=lambda: os.getenv("ENABLE_NEWSAPI_AI", "1") == "1")
+    # B1: Unusual Whales /news/headlines (default-OFF — endpoint availability
+    # depends on UW plan tier; DISABLED-pattern auto-suppresses on 401/403/404).
+    enable_uw_news: bool = field(default_factory=lambda: os.getenv("ENABLE_UW_NEWS", "0") == "1")
 
     # ── Polling cadence ─────────────────────────────────────────
     poll_interval_s: float = field(default_factory=lambda: _env_float("POLL_INTERVAL_S", 2.0))
@@ -87,6 +90,7 @@ class Config:
     tv_max_total: int = field(default_factory=lambda: _env_int("TV_MAX_TOTAL", 25))
     newsapi_ai_lookback_days: int = field(default_factory=lambda: _env_int("NEWSAPI_AI_LOOKBACK_DAYS", 2))
     newsapi_ai_articles_per_request: int = field(default_factory=lambda: _env_int("NEWSAPI_AI_ARTICLES_PER_REQUEST", 100))
+    uw_news_limit: int = field(default_factory=lambda: _env_int("UW_NEWS_LIMIT", 100))
 
     # ── State ───────────────────────────────────────────────────
     sqlite_path: str = field(default_factory=lambda: os.getenv("SQLITE_PATH", "newsstack_fmp/state.db"))
@@ -124,4 +128,6 @@ class Config:
             sources.append("tradingview")
         if self.enable_newsapi_ai and self.newsapi_ai_key:
             sources.append("newsapi_ai")
+        if self.enable_uw_news and os.getenv("UNUSUAL_WHALES_API_KEY", "").strip():
+            sources.append("uw_news")
         return sources

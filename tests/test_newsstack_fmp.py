@@ -3494,5 +3494,134 @@ class TestCrossProviderHardDedup(unittest.TestCase):
             enricher.close()
 
 
+# ── PR2: UW /news/headlines + DISABLED-endpoint pattern (B1+B2) ──
+
+
+class TestUWNewsHeadlines(unittest.TestCase):
+    """B1+B2: UW /news/headlines adapter + DISABLED-endpoint pattern.
+
+    The DISABLED set is module-level state; tests reset it in setUp
+    so each test starts from a known clean slate.
+    """
+
+    def setUp(self):
+        from newsstack_fmp.ingest_unusual_whales import (
+            clear_uw_disabled_endpoints,
+        )
+        clear_uw_disabled_endpoints()
+
+    def test_fetch_news_headlines_unwraps_data(self):
+        from newsstack_fmp.ingest_unusual_whales import UnusualWhalesAdapter
+
+        adapter = UnusualWhalesAdapter("fake-key")
+        try:
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.json.return_value = {
+                "data": [
+                    {"id": "1", "headline": "X", "tickers": ["AAPL"]},
+                    {"id": "2", "headline": "Y", "tickers": ["MSFT"]},
+                ]
+            }
+            with patch.object(adapter.client, "get", return_value=mock_resp):
+                out = adapter.fetch_news_headlines(limit=50)
+            self.assertEqual(len(out), 2)
+            self.assertEqual(out[0]["headline"], "X")
+        finally:
+            adapter.close()
+
+    def test_disabled_endpoint_short_circuits(self):
+        from newsstack_fmp.ingest_unusual_whales import (
+            UW_NEWS_HEADLINES_PATH,
+            UnusualWhalesAdapter,
+            mark_uw_endpoint_disabled,
+        )
+
+        adapter = UnusualWhalesAdapter("fake-key")
+        try:
+            mark_uw_endpoint_disabled(UW_NEWS_HEADLINES_PATH)
+            with patch.object(adapter.client, "get") as mock_get:
+                out = adapter.fetch_news_headlines()
+            self.assertEqual(out, [])
+            # No HTTP call made because endpoint was already disabled.
+            mock_get.assert_not_called()
+        finally:
+            adapter.close()
+
+    def test_403_marks_endpoint_disabled(self):
+        from newsstack_fmp.ingest_unusual_whales import (
+            UW_NEWS_HEADLINES_PATH,
+            UnusualWhalesAdapter,
+            is_uw_endpoint_disabled,
+        )
+
+        adapter = UnusualWhalesAdapter("fake-key")
+        try:
+            mock_resp = MagicMock()
+            mock_resp.status_code = 403
+            with patch.object(adapter.client, "get", return_value=mock_resp):
+                out = adapter.fetch_news_headlines()
+            self.assertEqual(out, [])
+            self.assertTrue(is_uw_endpoint_disabled(UW_NEWS_HEADLINES_PATH))
+        finally:
+            adapter.close()
+
+    def test_404_marks_endpoint_disabled(self):
+        from newsstack_fmp.ingest_unusual_whales import (
+            UW_NEWS_HEADLINES_PATH,
+            UnusualWhalesAdapter,
+            is_uw_endpoint_disabled,
+        )
+
+        adapter = UnusualWhalesAdapter("fake-key")
+        try:
+            mock_resp = MagicMock()
+            mock_resp.status_code = 404
+            with patch.object(adapter.client, "get", return_value=mock_resp):
+                out = adapter.fetch_news_headlines()
+            self.assertEqual(out, [])
+            self.assertTrue(is_uw_endpoint_disabled(UW_NEWS_HEADLINES_PATH))
+        finally:
+            adapter.close()
+
+    def test_normalize_uw_news_headline_basic(self):
+        from newsstack_fmp.normalize import normalize_uw_news_headline
+
+        rec = {
+            "id": "uw-42",
+            "headline": "FDA approves drug",
+            "tickers": ["ACME"],
+            "url": "https://uw.example/42",
+            "source": "Reuters",
+            "created_at": "2026-05-09T10:00:00Z",
+            "is_major": True,
+        }
+        item = normalize_uw_news_headline(rec)
+        self.assertEqual(item.provider, "uw_news")
+        self.assertEqual(item.item_id, "uw-42")
+        self.assertEqual(item.headline, "FDA approves drug")
+        self.assertEqual(item.tickers, ["ACME"])
+        self.assertGreater(item.published_ts, 0)
+        self.assertTrue(item.is_valid)
+        # raw preserves UW-specific fields for downstream observability
+        self.assertTrue(item.raw["is_major"])
+
+    def test_normalize_uw_news_headline_invalid_drops(self):
+        from newsstack_fmp.normalize import normalize_uw_news_headline
+
+        item = normalize_uw_news_headline({"id": "x", "headline": ""})
+        self.assertFalse(item.is_valid)
+
+    def test_normalize_uw_news_headline_synthesizes_id(self):
+        from newsstack_fmp.normalize import normalize_uw_news_headline
+
+        item = normalize_uw_news_headline(
+            {"headline": "Some news", "url": "https://x/y"}
+        )
+        # Falls back to a sha1-derived id so per-provider mark_seen still works.
+        self.assertEqual(len(item.item_id), 16)
+        self.assertTrue(item.is_valid)
+
+
 if __name__ == "__main__":
     unittest.main()

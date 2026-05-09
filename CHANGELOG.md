@@ -6,6 +6,34 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-09) — newsstack: Unusual Whales /news/headlines provider
+
+- **`feat(newsstack): UW /news/headlines provider with DISABLED-endpoint pattern`** —
+  New broad-market news provider via Unusual Whales `/news/headlines` (default-OFF
+  via `ENABLE_UW_NEWS=1`). Mirrors the proven `_bz_http.py` DISABLED pattern: on
+  401/403/404 the endpoint is marked permanently disabled for the process so
+  subsequent polls short-circuit without burning quota. UW news items flow through
+  `other_items` so they automatically participate in the cross-provider hard-dedup
+  cache from PR #2104. New cursor `uw_news.last_seen_epoch` for delta polling.
+  Stacked on PR #2104 (will resolve cleanly after that merges).
+
+  Components:
+  - `UnusualWhalesAdapter.fetch_news_headlines(limit, ticker)` + module-level
+    `fetch_uw_news_headlines` wrapper in `newsstack_fmp/ingest_unusual_whales.py`.
+  - DISABLED helpers: `is_uw_endpoint_disabled`, `mark_uw_endpoint_disabled`,
+    `clear_uw_disabled_endpoints`, `UnusualWhalesEndpointDisabledError`.
+  - `normalize_uw_news_headline(rec) -> NewsItem` in `newsstack_fmp/normalize.py`
+    with sha1-derived id fallback. `raw` preserves UW-specific fields
+    (`is_major`, `tags`, `sentiment`).
+  - Pipeline sink in `newsstack_fmp/pipeline.py::poll_once` between Benzinga REST
+    and the symbol-scoped providers.
+  - Config flags `enable_uw_news`, `uw_news_limit` in `newsstack_fmp/config.py`;
+    `active_sources` reports `uw_news` when enabled.
+
+  New tests in `tests/test_newsstack_fmp.py::TestUWNewsHeadlines`:
+  data-unwrap, disabled-short-circuit, 403/404 mark, normalize basic /
+  invalid-drop / synthesised-id.
+
 ### Added (2026-05-09) — newsstack: cross-provider hard-dedup for enrichment
 
 - **`feat(newsstack): cross-provider hard-dedup for enrichment HTTP calls`** —
