@@ -1400,10 +1400,12 @@ def load_daily_bars(
     if not trading_days:
         return pd.DataFrame(columns=["trade_date", "symbol", "open", "high", "low", "close", "volume", "previous_close"])
     _t0 = time_module.perf_counter()
+    _emit_lock = threading.Lock()
 
     def _emit(msg: str) -> None:
         if progress_callback is not None:
-            progress_callback(f"step-5: {msg} (t+{time_module.perf_counter() - _t0:.1f}s)")
+            with _emit_lock:
+                progress_callback(f"step-5: {msg} (t+{time_module.perf_counter() - _t0:.1f}s)")
 
     _emit(
         f"begin trading_days={len(trading_days)} universe={len(universe_symbols)} "
@@ -1500,26 +1502,6 @@ def load_daily_bars(
     frame["previous_close"] = frame.groupby("symbol")["close"].shift(1)
     frame = frame[frame["trade_date"].isin(trading_days)].reset_index(drop=True)
     _emit(f"complete rows={len(frame)}")
-    return frame
-    normalized_universe_symbols = {
-        normalized
-        for symbol in universe_symbols
-        if (normalized := normalize_symbol_for_databento(symbol)) is not None
-    }
-    frame["symbol"] = frame.get("symbol", "").map(normalize_symbol_for_databento)
-    frame = frame[frame["symbol"].isin(normalized_universe_symbols)].copy()
-    frame["trade_date"] = frame["ts"].dt.date
-    keep_cols = [col for col in ["trade_date", "symbol", "open", "high", "low", "close", "volume", "publisher_id"] if col in frame.columns]
-    frame = frame[keep_cols].copy()
-    for col in ["open", "high", "low", "close", "volume"]:
-        if col in frame.columns:
-            frame[col] = pd.to_numeric(frame[col], errors="coerce")
-    frame = _deduplicate_daily_symbol_rows(frame)
-    keep_cols = [col for col in ["trade_date", "symbol", "open", "high", "low", "close", "volume"] if col in frame.columns]
-    frame = frame[keep_cols].copy()
-    frame = frame.sort_values(["symbol", "trade_date"]).reset_index(drop=True)
-    frame["previous_close"] = frame.groupby("symbol")["close"].shift(1)
-    frame = frame[frame["trade_date"].isin(trading_days)].reset_index(drop=True)
     return frame
 
 

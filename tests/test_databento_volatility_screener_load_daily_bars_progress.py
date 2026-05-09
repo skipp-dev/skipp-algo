@@ -14,7 +14,6 @@ and to prove the parallel mode produces the same row set as sequential mode.
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
-from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -125,7 +124,7 @@ def test_load_daily_bars_emits_step_5_progress_markers(patched_screener):
     assert any(m.startswith("step-5: complete ") for m in msgs), msgs
 
 
-def test_load_daily_bars_cache_hit_emits_marker(patched_screener, tmp_path, monkeypatch):
+def test_load_daily_bars_cache_hit_emits_marker(patched_screener, monkeypatch):
     """When the file cache returns a frame, the function emits 'cache HIT'."""
     cached = pd.DataFrame(
         [
