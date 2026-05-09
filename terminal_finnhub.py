@@ -431,7 +431,9 @@ def fetch_company_news(
 
     Returns up to *max_items* most-recent articles within *days_back*.
     Returns ``[]`` on HTTP error / quota lock / non-equity symbol /
-    missing API key.  Caches per (symbol, days_back) for 5 minutes.
+    missing API key.  Caches per ``(symbol, days_back, max_items)`` for
+    5 minutes (max_items included so callers with different limits do not
+    collide on a previously-cached truncated list).
     """
     if not is_equity_symbol(symbol):
         return []

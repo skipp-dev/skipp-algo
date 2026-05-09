@@ -88,15 +88,15 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("newsstack_fmp/pipeline.py", 93, ("_bz_rest_adapter", "_bz_rest_adapter_key")),
         ("newsstack_fmp/pipeline.py", 109, ("_bz_ws_adapter", "_bz_ws_adapter_key")),
         ("newsstack_fmp/pipeline.py", 135, ("_enricher",)),
-        ("newsstack_fmp/pipeline.py", 1016, ("_last_meta",)),
+        ("newsstack_fmp/pipeline.py", 1018, ("_last_meta",)),
         (
             "newsstack_fmp/pipeline.py",
-            1084,
+            1086,
             ("_bz_rest_adapter", "_bz_ws_adapter", "_enricher", "_fmp_adapter", "_last_meta", "_store"),
         ),
         (
             "newsstack_fmp/pipeline.py",
-            1085,
+            1087,
             ("_bz_rest_adapter_key", "_bz_ws_adapter_key", "_fmp_adapter_key"),
         ),
         ("open_prep/regime.py", 129, ("_prev_regime",)),
@@ -136,7 +136,7 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("terminal_export.py", 120, ("_FALLBACK_BUFFER",)),
         ("terminal_finnhub.py", 186, ("_consecutive_429_count", "_rate_limit_backoff_until")),
         ("terminal_finnhub.py", 215, ("_social_sentiment_blocked",)),
-        ("terminal_finnhub.py", 598, ("_social_sentiment_blocked",)),
+        ("terminal_finnhub.py", 600, ("_social_sentiment_blocked",)),
         ("terminal_spike_scanner.py", 96, ("_YF_UNIVERSE_CACHE",)),
         ("terminal_technicals.py", 213, ("_tv_consecutive_429s", "_tv_cooldown_until")),
         (

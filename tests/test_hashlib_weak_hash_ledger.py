@@ -55,7 +55,7 @@ _FROZEN_SITES: dict[str, dict[str, frozenset[int]]] = {
     "databento_volatility_screener.py": {"sha1": frozenset({330, 450, 468})},
     "newsstack_fmp/normalize.py": {
         "md5": frozenset({130, 253}),
-        "sha1": frozenset({334, 420, 458, 501}),
+        "sha1": frozenset({334, 420, 458, 502}),
     },
     "newsstack_fmp/scoring.py": {"sha1": frozenset({108})},
     "newsstack_fmp/shared_fetch.py": {

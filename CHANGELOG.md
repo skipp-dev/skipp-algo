@@ -6,6 +6,36 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-05-09) — Copilot review follow-ups for PRs #2109/#2110
+
+Addresses post-merge Copilot inline review on the Provider Audit 2.0 stack:
+
+- **`newsstack_fmp/pipeline.py`** (`meta_sources`): use **singular** provider
+  labels `fmp_senate_trade` / `fmp_house_trade` to match
+  `normalize_fmp_political_trade`, `Config.active_sources`, and
+  `ingest_counts_by_source`. The plural form (added by PR #2109) made the
+  exported `meta['sources']` telemetry list inconsistent with observed
+  provider tags downstream.
+- **`newsstack_fmp/ingest_fmp_political.py`**: corrected the inline audit
+  comment — `_TIER_LIMITED_CODES = {401, 403, 404}` does **not** include
+  400, so a 400 response is caught by the wrapper but does **not**
+  auto-disable the endpoint. The comment now warns to keep
+  `ENABLE_FMP_SENATE_TRADES=0` / `ENABLE_FMP_HOUSE_TRADES=0` until
+  per-symbol iteration lands, otherwise the path will be polled every
+  tick and burn quota in a 400-loop.
+- **`terminal_finnhub.py`** (`fetch_company_news`): docstring updated to
+  reflect that the cache key now includes `max_items` (not just
+  `(symbol, days_back)`).
+- **`newsstack_fmp/normalize.py`** (`normalize_fmp_filing_13f`): docstring
+  reworded — cross-provider hard-dedup is keyed off `cluster_hash`
+  (headline + tickers), not `item_id`.
+- **`newsstack_fmp/ingest_fmp_filings.py`** (`FmpFilingsAdapter`): class
+  docstring expanded to mention both 8-K and 13F-HR endpoints.
+- **`tests/test_time_sleep_budget.py`**: refreshed `_FROZEN_SITES` line
+  numbers in `newsstack_fmp/ingest_fmp_filings.py`,
+  `newsstack_fmp/ingest_fmp_political.py`, and `newsstack_fmp/pipeline.py`
+  for the +N-line drift introduced by the docstring/comment edits above.
+
 ### Fixed (2026-05-09) — FMP `/stable/` endpoint paths (live-audit, PR #2110)
 
 Live API smoke-tests across all newsstack providers (post-PR #2104–#2109)

@@ -35,7 +35,7 @@ FMP_8K_LATEST_PATH = "/sec-filings-8k"
 # The constant is retained so existing tests that reference it as a label
 # keep working; the first live call will 404 and the existing
 # `mark_fmp_filings_disabled` mechanism will quietly silence the endpoint.
-# TODO(B6): locate or request the correct FMP 13F bulk path.
+# Follow-up (B6): locate or request the correct FMP 13F bulk path.
 FMP_13F_LATEST_PATH = "/sec-filings-13f"
 
 _APIKEY_RE = re.compile(r"(apikey|api_key|token|key)=[^&]+", re.IGNORECASE)
@@ -72,7 +72,12 @@ def clear_fmp_filings_disabled() -> None:
 
 
 class FmpFilingsAdapter:
-    """Synchronous adapter for FMP /sec-filings-8k bulk feed."""
+    """Synchronous adapter for FMP SEC filings bulk feeds.
+
+    Implements both ``/sec-filings-8k`` (8-K material events) and
+    ``/sec-filings/13F-HR-latest`` (institutional 13F-HR holdings)
+    endpoints, sharing the DISABLED-path short-circuit and retry policy.
+    """
 
     _RETRYABLE_CODES = frozenset({429, 500, 502, 503, 504})
     _MAX_RETRIES = 3
