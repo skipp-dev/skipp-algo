@@ -23,7 +23,15 @@ from .common_types import NewsItem
 from .config import Config
 from .enrich import Enricher
 from .ingest_fmp import FmpAdapter
-from .normalize import normalize_newsapi_ai
+from .ingest_fmp_filings import fetch_fmp_8k_latest
+from .ingest_fmp_political import fetch_fmp_house_trades, fetch_fmp_senate_trades
+from .ingest_unusual_whales import fetch_uw_news_headlines, is_uw_configured
+from .normalize import (
+    normalize_fmp_filing_8k,
+    normalize_fmp_political_trade,
+    normalize_newsapi_ai,
+    normalize_uw_news_headline,
+)
 from .open_prep_export import export_open_prep
 from .scoring import classify_and_score, cluster_hash
 from .shared_fetch import CachedNewsBatch, fetch_cached_batch, tv_headline_to_news_item
@@ -508,6 +516,12 @@ def poll_once(
     tv_last_seen = float(store.get_kv("tradingview.last_seen_epoch") or "0")
     newsapi_last_seen = float(store.get_kv("newsapi_ai.last_seen_epoch") or "0")
     newsapi_last_seen_uri = str(store.get_kv("newsapi_ai.last_seen_news_uri") or "").strip()
+    uw_news_last_seen = float(store.get_kv("uw_news.last_seen_epoch") or "0")
+    # PR3: FMP extras cursors
+    fmp_general_last = float(store.get_kv("fmp.general.last_seen_epoch") or "0")
+    fmp_senate_last = float(store.get_kv("fmp.senate.last_seen_epoch") or "0")
+    fmp_house_last = float(store.get_kv("fmp.house.last_seen_epoch") or "0")
+    fmp_8k_last = float(store.get_kv("fmp.8k.last_seen_epoch") or "0")
 
     cycle_warnings: list[str] = []
     universe_symbols = sorted(universe) if universe else []
@@ -520,6 +534,12 @@ def poll_once(
     new_tv_max = tv_last_seen
     new_newsapi_max = newsapi_last_seen
     new_newsapi_uri = newsapi_last_seen_uri
+    new_uw_news_max = uw_news_last_seen
+    # PR3: FMP extras cursor maxes
+    new_fmp_general_max = fmp_general_last
+    new_fmp_senate_max = fmp_senate_last
+    new_fmp_house_max = fmp_house_last
+    new_fmp_8k_max = fmp_8k_last
     newsapi_provider_meta: dict[str, str] | None = None
     ingest_counts_by_source: dict[str, int] = {}
 
@@ -578,6 +598,26 @@ def poll_once(
                 _msg = _sanitize_exc(exc)
                 logger.warning("FMP articles fetch failed: %s", _msg)
                 cycle_warnings.append(f"fmp_articles: {_msg}")
+        # B4 (PR3 2026-05-09): FMP /news/general-latest — macro / market-wide news
+        if cfg.enable_fmp_general:
+            try:
+                general_batch = _fetch_cached_provider_items(
+                    cfg=cfg,
+                    provider="fmp_general_latest",
+                    min_cursor=fmp_general_last,
+                    scope={"page": cfg.fmp_general_page, "limit": cfg.fmp_general_limit},
+                    fetcher=lambda: fmp.fetch_general_latest(
+                        cfg.fmp_general_page, cfg.fmp_general_limit
+                    ),
+                    cache_owner=fmp,
+                )
+                fmp_items.extend(general_batch.items)
+                new_fmp_general_max = general_batch.cursor
+                ingest_counts_by_source["fmp_general_latest"] = general_batch.raw_count
+            except Exception as exc:
+                _msg = _sanitize_exc(exc)
+                logger.warning("FMP general-latest fetch failed: %s", _msg)
+                cycle_warnings.append(f"fmp_general_latest: {_msg}")
 
     # ── 2) Benzinga REST delta ──────────────────────────────────
     bz_rest_items: list[NewsItem] = []
@@ -609,6 +649,114 @@ def poll_once(
             _msg = _sanitize_exc(exc)
             logger.warning("Benzinga REST fetch failed: %s", _msg)
             cycle_warnings.append(f"benzinga_rest: {_msg}")
+
+    # ── 2.5) Unusual Whales /news/headlines (B1+B2+B3, PR2 2026-05-09) ─
+    # Default-OFF via ENABLE_UW_NEWS=1.  DISABLED-pattern in the adapter
+    # auto-suppresses subsequent calls if the endpoint returns 401/403/404.
+    # Items flow via other_items so they share PR1's cross-provider hard-
+    # dedup cache (cluster_hash is provider-agnostic).
+    if cfg.enable_uw_news and is_uw_configured():
+        try:
+            uw_raw = fetch_uw_news_headlines(
+                os.getenv("UNUSUAL_WHALES_API_KEY", ""),
+                limit=cfg.uw_news_limit,
+            )
+            uw_news_items = [normalize_uw_news_headline(rec) for rec in uw_raw]
+            uw_news_items = [it for it in uw_news_items if it.is_valid]
+            uw_news_new = [
+                it for it in uw_news_items if it.updated_ts > uw_news_last_seen
+            ]
+            new_uw_news_max = max(
+                (it.updated_ts for it in uw_news_new),
+                default=uw_news_last_seen,
+            )
+            ingest_counts_by_source["uw_news"] = len(uw_raw)
+            other_items.extend(uw_news_new)
+        except Exception as exc:
+            _msg = _sanitize_exc(exc)
+            logger.warning("UW news/headlines fetch failed: %s", _msg)
+            cycle_warnings.append(f"uw_news: {_msg}")
+
+    # ── 2.6) FMP Senate trades (B5, PR3 2026-05-09) ──────────
+    # Default-OFF; DISABLED-pattern in adapter auto-suppresses 401/403/404.
+    if cfg.enable_fmp_senate_trades and cfg.fmp_api_key:
+        try:
+            senate_raw: list[dict] = []
+            for page in range(max(1, cfg.fmp_political_pages)):
+                page_raw = fetch_fmp_senate_trades(cfg.fmp_api_key, page=page)
+                if not page_raw:
+                    break
+                senate_raw.extend(page_raw)
+            senate_items = [
+                normalize_fmp_political_trade(rec, chamber="senate")
+                for rec in senate_raw
+            ]
+            senate_items = [it for it in senate_items if it.is_valid]
+            senate_new = [
+                it for it in senate_items if it.updated_ts > fmp_senate_last
+            ]
+            new_fmp_senate_max = max(
+                (it.updated_ts for it in senate_new),
+                default=fmp_senate_last,
+            )
+            ingest_counts_by_source["fmp_senate_trade"] = len(senate_raw)
+            other_items.extend(senate_new)
+        except Exception as exc:
+            _msg = _sanitize_exc(exc)
+            logger.warning("FMP senate-trades fetch failed: %s", _msg)
+            cycle_warnings.append(f"fmp_senate_trade: {_msg}")
+
+    # ── 2.7) FMP House trades (B5, PR3 2026-05-09) ───────────
+    if cfg.enable_fmp_house_trades and cfg.fmp_api_key:
+        try:
+            house_raw: list[dict] = []
+            for page in range(max(1, cfg.fmp_political_pages)):
+                page_raw = fetch_fmp_house_trades(cfg.fmp_api_key, page=page)
+                if not page_raw:
+                    break
+                house_raw.extend(page_raw)
+            house_items = [
+                normalize_fmp_political_trade(rec, chamber="house")
+                for rec in house_raw
+            ]
+            house_items = [it for it in house_items if it.is_valid]
+            house_new = [
+                it for it in house_items if it.updated_ts > fmp_house_last
+            ]
+            new_fmp_house_max = max(
+                (it.updated_ts for it in house_new),
+                default=fmp_house_last,
+            )
+            ingest_counts_by_source["fmp_house_trade"] = len(house_raw)
+            other_items.extend(house_new)
+        except Exception as exc:
+            _msg = _sanitize_exc(exc)
+            logger.warning("FMP house-trades fetch failed: %s", _msg)
+            cycle_warnings.append(f"fmp_house_trade: {_msg}")
+
+    # ── 2.8) FMP SEC 8-K filings (B7, PR3 2026-05-09) ──────────
+    if cfg.enable_fmp_8k and cfg.fmp_api_key:
+        try:
+            eight_k_raw = fetch_fmp_8k_latest(
+                cfg.fmp_api_key, page=0, limit=cfg.fmp_8k_limit
+            )
+            eight_k_items = [
+                normalize_fmp_filing_8k(rec) for rec in eight_k_raw
+            ]
+            eight_k_items = [it for it in eight_k_items if it.is_valid]
+            eight_k_new = [
+                it for it in eight_k_items if it.updated_ts > fmp_8k_last
+            ]
+            new_fmp_8k_max = max(
+                (it.updated_ts for it in eight_k_new),
+                default=fmp_8k_last,
+            )
+            ingest_counts_by_source["fmp_8k_latest"] = len(eight_k_raw)
+            other_items.extend(eight_k_new)
+        except Exception as exc:
+            _msg = _sanitize_exc(exc)
+            logger.warning("FMP 8-K-latest fetch failed: %s", _msg)
+            cycle_warnings.append(f"fmp_8k_latest: {_msg}")
 
     # ── 3) Symbol-scoped providers (TradingView + NewsAPI.ai) ──
     if universe_symbols:
@@ -714,7 +862,7 @@ def poll_once(
         cycle_warnings.append(f"process_other: {_msg}")
 
     # ── 6) Update cursors ───────────────────────────────────────
-    combined_fmp_max = max(new_fmp_stock_max, new_fmp_press_max, new_fmp_articles_max, processed_fmp_max, fmp_legacy_last)
+    combined_fmp_max = max(new_fmp_stock_max, new_fmp_press_max, new_fmp_articles_max, new_fmp_general_max, processed_fmp_max, fmp_legacy_last)
     if fmp_processing_ok:
         if new_fmp_stock_max > fmp_stock_last:
             store.set_kv("fmp.stock.last_seen_epoch", str(new_fmp_stock_max))
@@ -722,6 +870,8 @@ def poll_once(
             store.set_kv("fmp.press.last_seen_epoch", str(new_fmp_press_max))
         if new_fmp_articles_max > fmp_articles_last:
             store.set_kv("fmp.articles.last_seen_epoch", str(new_fmp_articles_max))
+        if new_fmp_general_max > fmp_general_last:
+            store.set_kv("fmp.general.last_seen_epoch", str(new_fmp_general_max))
         if combined_fmp_max > fmp_legacy_last:
             store.set_kv("fmp.last_seen_epoch", str(combined_fmp_max))
 
@@ -739,6 +889,15 @@ def poll_once(
         store.set_kv("newsapi_ai.last_seen_epoch", str(new_newsapi_max))
     if other_processing_ok and new_newsapi_uri != newsapi_last_seen_uri:
         store.set_kv("newsapi_ai.last_seen_news_uri", new_newsapi_uri)
+    if other_processing_ok and new_uw_news_max > uw_news_last_seen:
+        store.set_kv("uw_news.last_seen_epoch", str(new_uw_news_max))
+    # PR3: FMP political/filings cursor writes
+    if other_processing_ok and new_fmp_senate_max > fmp_senate_last:
+        store.set_kv("fmp.senate.last_seen_epoch", str(new_fmp_senate_max))
+    if other_processing_ok and new_fmp_house_max > fmp_house_last:
+        store.set_kv("fmp.house.last_seen_epoch", str(new_fmp_house_max))
+    if other_processing_ok and new_fmp_8k_max > fmp_8k_last:
+        store.set_kv("fmp.8k.last_seen_epoch", str(new_fmp_8k_max))
 
     # ── 7) Export ───────────────────────────────────────────────
     with _bbt_lock:

@@ -1886,6 +1886,7 @@ class TestConfigActiveSources(unittest.TestCase):
         with patch.dict(os.environ, {
             "ENABLE_FMP": "1",
             "ENABLE_FMP_ARTICLES": "1",
+            "ENABLE_FMP_GENERAL": "0",
             "ENABLE_BENZINGA_REST": "0",
             "ENABLE_BENZINGA_WS": "0",
             "ENABLE_TRADINGVIEW_NEWS": "0",
@@ -1918,6 +1919,7 @@ class TestConfigActiveSources(unittest.TestCase):
             "ENABLE_BENZINGA_WS": "0",
             "ENABLE_TRADINGVIEW_NEWS": "0",
             "ENABLE_FMP_ARTICLES": "0",
+            "ENABLE_FMP_GENERAL": "0",
             "ENABLE_NEWSAPI_AI": "1",
             "NEWSAPI_AI_KEY": "news-key",
         }):
@@ -1930,6 +1932,7 @@ class TestConfigActiveSources(unittest.TestCase):
         with patch.dict(os.environ, {
             "ENABLE_FMP": "0",
             "ENABLE_FMP_ARTICLES": "0",
+            "ENABLE_FMP_GENERAL": "0",
             "ENABLE_BENZINGA_REST": "0",
             "ENABLE_BENZINGA_WS": "0",
             "ENABLE_TRADINGVIEW_NEWS": "0",
@@ -3492,6 +3495,335 @@ class TestCrossProviderHardDedup(unittest.TestCase):
                 self.assertEqual(len(clusters), 1)
         finally:
             enricher.close()
+
+
+# ── PR2: UW /news/headlines + DISABLED-endpoint pattern (B1+B2) ──
+
+
+class TestUWNewsHeadlines(unittest.TestCase):
+    """B1+B2: UW /news/headlines adapter + DISABLED-endpoint pattern.
+
+    The DISABLED set is module-level state; tests reset it in setUp
+    so each test starts from a known clean slate.
+    """
+
+    def setUp(self):
+        from newsstack_fmp.ingest_unusual_whales import (
+            clear_uw_disabled_endpoints,
+        )
+        clear_uw_disabled_endpoints()
+
+    def test_fetch_news_headlines_unwraps_data(self):
+        from newsstack_fmp.ingest_unusual_whales import UnusualWhalesAdapter
+
+        adapter = UnusualWhalesAdapter("fake-key")
+        try:
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.json.return_value = {
+                "data": [
+                    {"id": "1", "headline": "X", "tickers": ["AAPL"]},
+                    {"id": "2", "headline": "Y", "tickers": ["MSFT"]},
+                ]
+            }
+            with patch.object(adapter.client, "get", return_value=mock_resp):
+                out = adapter.fetch_news_headlines(limit=50)
+            self.assertEqual(len(out), 2)
+            self.assertEqual(out[0]["headline"], "X")
+        finally:
+            adapter.close()
+
+    def test_disabled_endpoint_short_circuits(self):
+        from newsstack_fmp.ingest_unusual_whales import (
+            UW_NEWS_HEADLINES_PATH,
+            UnusualWhalesAdapter,
+            mark_uw_endpoint_disabled,
+        )
+
+        adapter = UnusualWhalesAdapter("fake-key")
+        try:
+            mark_uw_endpoint_disabled(UW_NEWS_HEADLINES_PATH)
+            with patch.object(adapter.client, "get") as mock_get:
+                out = adapter.fetch_news_headlines()
+            self.assertEqual(out, [])
+            # No HTTP call made because endpoint was already disabled.
+            mock_get.assert_not_called()
+        finally:
+            adapter.close()
+
+    def test_403_marks_endpoint_disabled(self):
+        from newsstack_fmp.ingest_unusual_whales import (
+            UW_NEWS_HEADLINES_PATH,
+            UnusualWhalesAdapter,
+            is_uw_endpoint_disabled,
+        )
+
+        adapter = UnusualWhalesAdapter("fake-key")
+        try:
+            mock_resp = MagicMock()
+            mock_resp.status_code = 403
+            with patch.object(adapter.client, "get", return_value=mock_resp):
+                out = adapter.fetch_news_headlines()
+            self.assertEqual(out, [])
+            self.assertTrue(is_uw_endpoint_disabled(UW_NEWS_HEADLINES_PATH))
+        finally:
+            adapter.close()
+
+    def test_404_marks_endpoint_disabled(self):
+        from newsstack_fmp.ingest_unusual_whales import (
+            UW_NEWS_HEADLINES_PATH,
+            UnusualWhalesAdapter,
+            is_uw_endpoint_disabled,
+        )
+
+        adapter = UnusualWhalesAdapter("fake-key")
+        try:
+            mock_resp = MagicMock()
+            mock_resp.status_code = 404
+            with patch.object(adapter.client, "get", return_value=mock_resp):
+                out = adapter.fetch_news_headlines()
+            self.assertEqual(out, [])
+            self.assertTrue(is_uw_endpoint_disabled(UW_NEWS_HEADLINES_PATH))
+        finally:
+            adapter.close()
+
+    def test_normalize_uw_news_headline_basic(self):
+        from newsstack_fmp.normalize import normalize_uw_news_headline
+
+        rec = {
+            "id": "uw-42",
+            "headline": "FDA approves drug",
+            "tickers": ["ACME"],
+            "url": "https://uw.example/42",
+            "source": "Reuters",
+            "created_at": "2026-05-09T10:00:00Z",
+            "is_major": True,
+        }
+        item = normalize_uw_news_headline(rec)
+        self.assertEqual(item.provider, "uw_news")
+        self.assertEqual(item.item_id, "uw-42")
+        self.assertEqual(item.headline, "FDA approves drug")
+        self.assertEqual(item.tickers, ["ACME"])
+        self.assertGreater(item.published_ts, 0)
+        self.assertTrue(item.is_valid)
+        # raw preserves UW-specific fields for downstream observability
+        self.assertTrue(item.raw["is_major"])
+
+    def test_normalize_uw_news_headline_invalid_drops(self):
+        from newsstack_fmp.normalize import normalize_uw_news_headline
+
+        item = normalize_uw_news_headline({"id": "x", "headline": ""})
+        self.assertFalse(item.is_valid)
+
+    def test_normalize_uw_news_headline_synthesizes_id(self):
+        from newsstack_fmp.normalize import normalize_uw_news_headline
+
+        item = normalize_uw_news_headline(
+            {"headline": "Some news", "url": "https://x/y"}
+        )
+        # Falls back to a sha1-derived id so per-provider mark_seen still works.
+        self.assertEqual(len(item.item_id), 16)
+        self.assertTrue(item.is_valid)
+
+
+# ── PR3: FMP extras (B4 general / B5 Senate+House / B7 8-K) ──
+
+
+class TestFmpExtras(unittest.TestCase):
+    """PR3 — FMP general-latest, Senate/House trades, SEC 8-K filings."""
+
+    def setUp(self):
+        from newsstack_fmp.ingest_fmp_filings import clear_fmp_filings_disabled
+        from newsstack_fmp.ingest_fmp_political import (
+            clear_fmp_political_disabled,
+        )
+        clear_fmp_political_disabled()
+        clear_fmp_filings_disabled()
+
+    # ── B5: Senate / House political-trades adapter ──
+
+    def test_fetch_senate_trades_returns_items(self):
+        from newsstack_fmp.ingest_fmp_political import FmpPoliticalAdapter
+
+        adapter = FmpPoliticalAdapter("fake-key")
+        try:
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.json.return_value = [
+                {"firstName": "Nancy", "lastName": "Pelosi", "ticker": "NVDA"},
+                {"firstName": "Tom", "lastName": "Cotton", "ticker": "AAPL"},
+            ]
+            with patch.object(adapter.client, "get", return_value=mock_resp):
+                out = adapter.fetch_senate_trades(page=0)
+            self.assertEqual(len(out), 2)
+            self.assertEqual(out[0]["ticker"], "NVDA")
+        finally:
+            adapter.close()
+
+    def test_political_disabled_short_circuits(self):
+        from newsstack_fmp.ingest_fmp_political import (
+            FMP_SENATE_TRADES_PATH,
+            FmpPoliticalAdapter,
+            mark_fmp_political_disabled,
+        )
+
+        adapter = FmpPoliticalAdapter("fake-key")
+        try:
+            mark_fmp_political_disabled(FMP_SENATE_TRADES_PATH)
+            with patch.object(adapter.client, "get") as mock_get:
+                out = adapter.fetch_senate_trades()
+            self.assertEqual(out, [])
+            mock_get.assert_not_called()
+        finally:
+            adapter.close()
+
+    def test_403_marks_political_disabled(self):
+        from newsstack_fmp.ingest_fmp_political import (
+            FMP_HOUSE_TRADES_PATH,
+            FmpPoliticalAdapter,
+            is_fmp_political_disabled,
+        )
+
+        adapter = FmpPoliticalAdapter("fake-key")
+        try:
+            mock_resp = MagicMock()
+            mock_resp.status_code = 403
+            with patch.object(adapter.client, "get", return_value=mock_resp):
+                out = adapter.fetch_house_trades()
+            self.assertEqual(out, [])
+            self.assertTrue(is_fmp_political_disabled(FMP_HOUSE_TRADES_PATH))
+        finally:
+            adapter.close()
+
+    def test_normalize_political_trade_basic(self):
+        from newsstack_fmp.normalize import normalize_fmp_political_trade
+
+        rec = {
+            "firstName": "Nancy",
+            "lastName": "Pelosi",
+            "office": "House",
+            "link": "https://senate.example/42",
+            "transactionDate": "2026-04-10",
+            "type": "Purchase",
+            "amount": "$15,001 - $50,000",
+            "ticker": "NVDA",
+            "assetDescription": "NVIDIA Corp",
+        }
+        item = normalize_fmp_political_trade(rec, chamber="house")
+        self.assertEqual(item.provider, "fmp_house_trade")
+        self.assertEqual(item.tickers, ["NVDA"])
+        self.assertIn("Pelosi", item.headline)
+        self.assertIn("NVDA", item.headline)
+        self.assertIn("Purchase", item.headline)
+        self.assertGreater(item.published_ts, 0)
+        self.assertTrue(item.is_valid)
+        self.assertEqual(len(item.item_id), 16)
+
+    def test_normalize_political_trade_handles_fmp_typo(self):
+        """FMP has a 'dateRecieved' typo — must still parse the timestamp."""
+        from newsstack_fmp.normalize import normalize_fmp_political_trade
+
+        rec = {
+            "firstName": "X",
+            "lastName": "Y",
+            "dateRecieved": "2026-04-15",
+            "type": "Sale",
+            "ticker": "AAPL",
+        }
+        item = normalize_fmp_political_trade(rec, chamber="senate")
+        self.assertGreater(item.published_ts, 0)
+        self.assertEqual(item.provider, "fmp_senate_trade")
+
+    # ── B7: SEC 8-K filings adapter ──
+
+    def test_fetch_8k_latest_returns_items(self):
+        from newsstack_fmp.ingest_fmp_filings import FmpFilingsAdapter
+
+        adapter = FmpFilingsAdapter("fake-key")
+        try:
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.json.return_value = [
+                {
+                    "symbol": "AAPL",
+                    "cik": "0000320193",
+                    "acceptedDate": "2026-05-08 16:30:00",
+                    "filingDate": "2026-05-08 16:30:00",
+                    "form": "8-K",
+                    "link": "https://www.sec.gov/x",
+                    "finalLink": "https://www.sec.gov/x/y",
+                },
+            ]
+            with patch.object(adapter.client, "get", return_value=mock_resp):
+                out = adapter.fetch_8k_latest(limit=10)
+            self.assertEqual(len(out), 1)
+            self.assertEqual(out[0]["symbol"], "AAPL")
+        finally:
+            adapter.close()
+
+    def test_filings_disabled_short_circuits(self):
+        from newsstack_fmp.ingest_fmp_filings import (
+            FMP_8K_LATEST_PATH,
+            FmpFilingsAdapter,
+            mark_fmp_filings_disabled,
+        )
+
+        adapter = FmpFilingsAdapter("fake-key")
+        try:
+            mark_fmp_filings_disabled(FMP_8K_LATEST_PATH)
+            with patch.object(adapter.client, "get") as mock_get:
+                out = adapter.fetch_8k_latest()
+            self.assertEqual(out, [])
+            mock_get.assert_not_called()
+        finally:
+            adapter.close()
+
+    def test_404_marks_filings_disabled(self):
+        from newsstack_fmp.ingest_fmp_filings import (
+            FMP_8K_LATEST_PATH,
+            FmpFilingsAdapter,
+            is_fmp_filings_disabled,
+        )
+
+        adapter = FmpFilingsAdapter("fake-key")
+        try:
+            mock_resp = MagicMock()
+            mock_resp.status_code = 404
+            with patch.object(adapter.client, "get", return_value=mock_resp):
+                out = adapter.fetch_8k_latest()
+            self.assertEqual(out, [])
+            self.assertTrue(is_fmp_filings_disabled(FMP_8K_LATEST_PATH))
+        finally:
+            adapter.close()
+
+    def test_normalize_8k_filing_basic(self):
+        from newsstack_fmp.normalize import normalize_fmp_filing_8k
+
+        rec = {
+            "symbol": "AAPL",
+            "cik": "0000320193",
+            "acceptedDate": "2026-05-08 16:30:00",
+            "filingDate": "2026-05-08 16:30:00",
+            "form": "8-K",
+            "link": "https://www.sec.gov/x",
+            "finalLink": "https://www.sec.gov/x/y",
+        }
+        item = normalize_fmp_filing_8k(rec)
+        self.assertEqual(item.provider, "fmp_8k_latest")
+        self.assertEqual(item.tickers, ["AAPL"])
+        self.assertEqual(item.source, "SEC EDGAR")
+        self.assertEqual(item.url, "https://www.sec.gov/x/y")
+        self.assertGreater(item.published_ts, 0)
+        self.assertTrue(item.is_valid)
+
+    def test_normalize_8k_filing_synthesizes_id_when_no_url(self):
+        from newsstack_fmp.normalize import normalize_fmp_filing_8k
+
+        item = normalize_fmp_filing_8k(
+            {"symbol": "MSFT", "acceptedDate": "2026-05-08", "cik": "123"}
+        )
+        self.assertEqual(len(item.item_id), 16)
+        self.assertTrue(item.is_valid)
 
 
 if __name__ == "__main__":
