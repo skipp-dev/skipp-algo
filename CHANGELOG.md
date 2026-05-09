@@ -6,6 +6,29 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-09) — newsstack: FMP Form-13F follow-up (B6)
+
+- **`feat(newsstack): FMP /sec-filings/13F-HR-latest provider`** —
+  Closes the **B6** follow-up deferred from PR #2106. Adds the latest-filings
+  feed for institutional 13F-HR submissions (no CIK iteration needed —
+  treats it as a news-shaped event stream like 8-K).
+  - `FmpFilingsAdapter.fetch_13f_latest(page, limit)` in
+    `newsstack_fmp/ingest_fmp_filings.py` reusing the existing
+    `mark_fmp_filings_disabled` short-circuit on 403/404.
+  - Module wrapper `fetch_fmp_13f_latest(api_key, page, limit)`.
+  - `normalize_fmp_filing_13f(rec)` in `newsstack_fmp/normalize.py`
+    synthesizing `13F-HR filing: {institution}` headlines (`tickers=[]`
+    since 13F-HR is institution-keyed via CIK, not symbol-keyed).
+  - Pipeline cursor `fmp.13f.last_seen_epoch` (block 2.9). Items flow
+    via `other_items` so they inherit the PR1 cross-provider hard-dedup
+    automatically.
+  - Config: `enable_fmp_13f` (default 0, env `ENABLE_FMP_13F`),
+    `fmp_13f_limit` (default 50, env `FMP_13F_LIMIT`). `active_sources`
+    appends `fmp_13f_latest` when both flag + key are set.
+- **Tests** — `tests/test_newsstack_fmp.py` 172 → 176 cases:
+  fetch returns items, DISABLED-path short-circuit, normalize basic +
+  synthesized item_id when no URL.
+
 ### Added (2026-05-09) — terminal: Finnhub free-tier extensions (company-news / news-sentiment / recommendations / insider)
 
 - **`feat(terminal): Finnhub free-tier endpoints — company-news + news-sentiment + recommendations + insider-sentiment`** —
