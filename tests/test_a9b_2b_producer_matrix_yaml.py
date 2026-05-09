@@ -6,7 +6,7 @@ These tests guard the structural wiring of the sharded workflow's
 * ``needs: plan`` chain (typo here = workflow_dispatch fails immediately)
 * ``strategy.matrix`` consumes ``fromJson(needs.plan.outputs.matrix)``
 * ``fail-fast: false`` (we MUST collect every shard manifest for A9b.3)
-* per-shard ``timeout-minutes: 90``
+* per-shard ``timeout-minutes: 120`` (Q4 bumped 90→120 post-Probe-v3)
 * per-shard artifact name template includes both shard-id and shard-of
 * producer call carries the four sharding CLI flags introduced in A9b.1
 * ``workflow_dispatch`` remains the only trigger (no ``schedule``)
@@ -76,11 +76,12 @@ def test_producer_strategy_fail_fast_is_false() -> None:
     )
 
 
-def test_producer_per_shard_timeout_is_90() -> None:
+def test_producer_per_shard_timeout_is_120() -> None:
     job = _producer_job()
-    assert job.get("timeout-minutes") == 90, (
-        "A9b.2b: per-shard cap pinned at 90min (30min headroom under the "
-        "observed ~120min platform wall)."
+    assert job.get("timeout-minutes") == 120, (
+        "Q4 (post-Probe-v3): per-shard cap pinned at 120min (at the observed "
+        "~120min platform wall). Bumped from 90 to absorb v3 cap-hit margin; "
+        "any future bump must follow a fresh step-progress profile, not a guess."
     )
 
 
