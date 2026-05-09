@@ -2002,6 +2002,20 @@ def write_base_workbook(path: Path, base_snapshot: pd.DataFrame, mapping_payload
             }
         ]
     )
+    # WATCHLIST (Q5a mirror, 2026-05-09): openpyxl in-memory write.
+    #   Why watched: same failure class as full_universe_close_trade_detail
+    #     (run 25593357307: 6.9 GB peakRSS / 7 GB ubuntu-latest → exit 143).
+    #     base_snapshot is currently chunked (loop below) which mitigates today.
+    #   Trigger to act (any of, dual-occurrence OR confirmed root cause):
+    #     1. base_snapshot row count materially above current baseline
+    #        (re-establish baseline if not on file).
+    #     2. peakRSS for this step materially above current baseline
+    #        (relative to runner & history; not a fixed GB number).
+    #     3. Confirmed OOM evidence: exit 143 PLUS "runner has received a
+    #        shutdown signal" in logs — exit 143 alone is ambiguous.
+    #   Action on trigger: add `write_only=True` toggle + per-sheet flush;
+    #     mirror Q5a/Q5b discipline (full sweep, ledger pre-flight).
+    #   DO NOT preemptively refactor — measurement-gated only.
     with pd.ExcelWriter(path, engine="openpyxl") as writer:
         for sheet_index, start_row in enumerate(range(0, len(base_snapshot), max_data_rows_per_sheet), start=1):
             end_row = start_row + max_data_rows_per_sheet
