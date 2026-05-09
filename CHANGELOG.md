@@ -6,6 +6,54 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-09) — newsstack: FMP extras (general / Senate-House / 8-K)
+
+- **`feat(newsstack): FMP general-latest + Senate/House trades + 8-K filings`** —
+  Three new FMP-backed providers extending PR2's pattern. Stacked on PR2
+  (UW news/headlines) and PR1 (cross-provider hard-dedup). All default-OFF
+  except `fmp_general_latest` (default-ON since it complements the existing
+  per-symbol `fmp_stock_latest` and corporate `fmp_press_latest` feeds with
+  macro / market-wide coverage). Senate/House/8-K adapters mirror PR2's
+  DISABLED-endpoint short-circuit so tier-locked endpoints (401/403/404)
+  auto-suppress for the rest of the process.
+  - `FmpAdapter.fetch_general_latest(page, limit)` in
+    `newsstack_fmp/ingest_fmp.py` (provider label `fmp_general_latest`,
+    reuses `normalize_fmp`, wired through the existing
+    `_fetch_cached_provider_items` cache layer).
+  - `newsstack_fmp/ingest_fmp_political.py` — new `FmpPoliticalAdapter`
+    with `fetch_senate_trades` / `fetch_house_trades` and module-level
+    wrappers `fetch_fmp_senate_trades` / `fetch_fmp_house_trades`.
+    DISABLED helpers: `is_fmp_political_disabled`,
+    `mark_fmp_political_disabled`, `clear_fmp_political_disabled`,
+    `FmpPoliticalEndpointDisabledError`.
+  - `newsstack_fmp/ingest_fmp_filings.py` — new `FmpFilingsAdapter`
+    with `fetch_8k_latest` and module wrapper `fetch_fmp_8k_latest`.
+    Same DISABLED-pattern surface area.
+  - `normalize_fmp_political_trade(rec, *, chamber)` and
+    `normalize_fmp_filing_8k(rec)` in `newsstack_fmp/normalize.py` —
+    synthesise stable headlines and sha1-derived item_ids for non-news
+    payload schemas. Handles FMP's `dateRecieved` typo.
+  - Pipeline cursors `fmp.general.last_seen_epoch`,
+    `fmp.senate.last_seen_epoch`, `fmp.house.last_seen_epoch`,
+    `fmp.8k.last_seen_epoch`. Senate / House / 8-K items flow via
+    `other_items` so they automatically inherit PR1's cross-provider
+    hard-dedup cache.
+  - Config flags: `enable_fmp_general` (env `ENABLE_FMP_GENERAL`,
+    default `1`), `enable_fmp_senate_trades` /
+    `enable_fmp_house_trades` / `enable_fmp_8k` (env
+    `ENABLE_FMP_SENATE_TRADES` / `ENABLE_FMP_HOUSE_TRADES` /
+    `ENABLE_FMP_8K`, all default `0`). New limits: `fmp_general_limit`
+    (50), `fmp_political_pages` (1), `fmp_8k_limit` (50).
+
+  New tests in `tests/test_newsstack_fmp.py::TestFmpExtras`:
+  Senate fetch + DISABLED short-circuit + 403-marks; political-trade
+  normalize basic + FMP-typo handling; 8-K fetch + DISABLED + 404-marks;
+  8-K normalize basic + synthesised-id.
+
+  **Form-13F (B6) deferred** — it's an analytics endpoint that doesn't
+  fit the news-pipeline model cleanly without CIK iteration. Will land
+  separately if user opts in.
+
 ### Added (2026-05-09) — newsstack: Unusual Whales /news/headlines provider
 
 - **`feat(newsstack): UW /news/headlines provider with DISABLED-endpoint pattern`** —

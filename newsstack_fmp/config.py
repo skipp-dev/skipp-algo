@@ -54,6 +54,13 @@ class Config:
     # B1: Unusual Whales /news/headlines (default-OFF — endpoint availability
     # depends on UW plan tier; DISABLED-pattern auto-suppresses on 401/403/404).
     enable_uw_news: bool = field(default_factory=lambda: os.getenv("ENABLE_UW_NEWS", "0") == "1")
+    # B4/B5/B7 (PR3 2026-05-09) — FMP extras. general-latest is default-ON
+    # (pure value-add macro coverage); Senate/House/8-K default-OFF since
+    # they require dedicated FMP plan tiers (DISABLED-pattern auto-suppresses).
+    enable_fmp_general: bool = field(default_factory=lambda: os.getenv("ENABLE_FMP_GENERAL", "1") == "1")
+    enable_fmp_senate_trades: bool = field(default_factory=lambda: os.getenv("ENABLE_FMP_SENATE_TRADES", "0") == "1")
+    enable_fmp_house_trades: bool = field(default_factory=lambda: os.getenv("ENABLE_FMP_HOUSE_TRADES", "0") == "1")
+    enable_fmp_8k: bool = field(default_factory=lambda: os.getenv("ENABLE_FMP_8K", "0") == "1")
 
     # ── Polling cadence ─────────────────────────────────────────
     poll_interval_s: float = field(default_factory=lambda: _env_float("POLL_INTERVAL_S", 2.0))
@@ -91,6 +98,11 @@ class Config:
     newsapi_ai_lookback_days: int = field(default_factory=lambda: _env_int("NEWSAPI_AI_LOOKBACK_DAYS", 2))
     newsapi_ai_articles_per_request: int = field(default_factory=lambda: _env_int("NEWSAPI_AI_ARTICLES_PER_REQUEST", 100))
     uw_news_limit: int = field(default_factory=lambda: _env_int("UW_NEWS_LIMIT", 100))
+    # PR3: FMP extras pagination/limits
+    fmp_general_limit: int = field(default_factory=lambda: _env_int("FMP_GENERAL_LIMIT", 50))
+    fmp_general_page: int = field(default_factory=lambda: _env_int("FMP_GENERAL_PAGE", 0))
+    fmp_political_pages: int = field(default_factory=lambda: _env_int("FMP_POLITICAL_PAGES", 1))
+    fmp_8k_limit: int = field(default_factory=lambda: _env_int("FMP_8K_LIMIT", 50))
 
     # ── State ───────────────────────────────────────────────────
     sqlite_path: str = field(default_factory=lambda: os.getenv("SQLITE_PATH", "newsstack_fmp/state.db"))
@@ -120,6 +132,8 @@ class Config:
             sources.extend(["fmp_stock_latest", "fmp_press_latest"])
             if self.enable_fmp_articles:
                 sources.append("fmp_articles")
+            if self.enable_fmp_general:
+                sources.append("fmp_general_latest")
         if self.enable_benzinga_rest:
             sources.append("benzinga_rest")
         if self.enable_benzinga_ws:
@@ -130,4 +144,12 @@ class Config:
             sources.append("newsapi_ai")
         if self.enable_uw_news and os.getenv("UNUSUAL_WHALES_API_KEY", "").strip():
             sources.append("uw_news")
+        # PR3: FMP political/filings extras (require fmp_api_key)
+        if self.fmp_api_key:
+            if self.enable_fmp_senate_trades:
+                sources.append("fmp_senate_trade")
+            if self.enable_fmp_house_trades:
+                sources.append("fmp_house_trade")
+            if self.enable_fmp_8k:
+                sources.append("fmp_8k_latest")
         return sources
