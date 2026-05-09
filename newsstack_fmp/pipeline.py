@@ -23,11 +23,12 @@ from .common_types import NewsItem
 from .config import Config
 from .enrich import Enricher
 from .ingest_fmp import FmpAdapter
-from .ingest_fmp_filings import fetch_fmp_8k_latest
+from .ingest_fmp_filings import fetch_fmp_8k_latest, fetch_fmp_13f_latest
 from .ingest_fmp_political import fetch_fmp_house_trades, fetch_fmp_senate_trades
 from .ingest_unusual_whales import fetch_uw_news_headlines, is_uw_configured
 from .normalize import (
     normalize_fmp_filing_8k,
+    normalize_fmp_filing_13f,
     normalize_fmp_political_trade,
     normalize_newsapi_ai,
     normalize_uw_news_headline,
@@ -522,6 +523,7 @@ def poll_once(
     fmp_senate_last = float(store.get_kv("fmp.senate.last_seen_epoch") or "0")
     fmp_house_last = float(store.get_kv("fmp.house.last_seen_epoch") or "0")
     fmp_8k_last = float(store.get_kv("fmp.8k.last_seen_epoch") or "0")
+    fmp_13f_last = float(store.get_kv("fmp.13f.last_seen_epoch") or "0")
 
     cycle_warnings: list[str] = []
     universe_symbols = sorted(universe) if universe else []
@@ -540,6 +542,7 @@ def poll_once(
     new_fmp_senate_max = fmp_senate_last
     new_fmp_house_max = fmp_house_last
     new_fmp_8k_max = fmp_8k_last
+    new_fmp_13f_max = fmp_13f_last
     newsapi_provider_meta: dict[str, str] | None = None
     ingest_counts_by_source: dict[str, int] = {}
 
@@ -758,6 +761,30 @@ def poll_once(
             logger.warning("FMP 8-K-latest fetch failed: %s", _msg)
             cycle_warnings.append(f"fmp_8k_latest: {_msg}")
 
+    # ── 2.9) FMP SEC 13F-HR filings (B6, PR5 2026-05-09) ───────
+    if cfg.enable_fmp_13f and cfg.fmp_api_key:
+        try:
+            thirteen_f_raw = fetch_fmp_13f_latest(
+                cfg.fmp_api_key, page=0, limit=cfg.fmp_13f_limit
+            )
+            thirteen_f_items = [
+                normalize_fmp_filing_13f(rec) for rec in thirteen_f_raw
+            ]
+            thirteen_f_items = [it for it in thirteen_f_items if it.is_valid]
+            thirteen_f_new = [
+                it for it in thirteen_f_items if it.updated_ts > fmp_13f_last
+            ]
+            new_fmp_13f_max = max(
+                (it.updated_ts for it in thirteen_f_new),
+                default=fmp_13f_last,
+            )
+            ingest_counts_by_source["fmp_13f_latest"] = len(thirteen_f_raw)
+            other_items.extend(thirteen_f_new)
+        except Exception as exc:
+            _msg = _sanitize_exc(exc)
+            logger.warning("FMP 13F-HR-latest fetch failed: %s", _msg)
+            cycle_warnings.append(f"fmp_13f_latest: {_msg}")
+
     # ── 3) Symbol-scoped providers (TradingView + NewsAPI.ai) ──
     if universe_symbols:
         if cfg.enable_tradingview_news:
@@ -898,6 +925,8 @@ def poll_once(
         store.set_kv("fmp.house.last_seen_epoch", str(new_fmp_house_max))
     if other_processing_ok and new_fmp_8k_max > fmp_8k_last:
         store.set_kv("fmp.8k.last_seen_epoch", str(new_fmp_8k_max))
+    if other_processing_ok and new_fmp_13f_max > fmp_13f_last:
+        store.set_kv("fmp.13f.last_seen_epoch", str(new_fmp_13f_max))
 
     # ── 7) Export ───────────────────────────────────────────────
     with _bbt_lock:

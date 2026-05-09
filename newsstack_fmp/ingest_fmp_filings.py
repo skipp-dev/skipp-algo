@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 FMP_BASE = "https://financialmodelingprep.com/stable"
 FMP_8K_LATEST_PATH = "/sec-filings/8-K-latest"
+FMP_13F_LATEST_PATH = "/sec-filings/13F-HR-latest"
 
 _APIKEY_RE = re.compile(r"(apikey|api_key|token|key)=[^&]+", re.IGNORECASE)
 
@@ -136,6 +137,19 @@ class FmpFilingsAdapter:
             return []
         return [it for it in data if isinstance(it, dict)]
 
+    def fetch_13f_latest(self, *, page: int = 0, limit: int = 50) -> list[dict]:
+        """GET /stable/sec-filings/13F-HR-latest?page=…&limit=…
+
+        B6 follow-up (PR5 2026-05-09): institutional 13F-HR filings as a
+        news-shaped event stream — no CIK iteration needed.
+        """
+        data = self._get_json(
+            FMP_13F_LATEST_PATH, {"page": page, "limit": limit}
+        )
+        if not isinstance(data, list):
+            return []
+        return [it for it in data if isinstance(it, dict)]
+
     def close(self) -> None:
         self.client.close()
 
@@ -163,6 +177,22 @@ def fetch_fmp_8k_latest(
         return adapter.fetch_8k_latest(page=page, limit=limit)
     except Exception as exc:
         logger.warning("FMP 8-K-latest fetch failed: %s", type(exc).__name__)
+        return []
+    finally:
+        adapter.close()
+
+
+def fetch_fmp_13f_latest(
+    api_key: str, *, page: int = 0, limit: int = 50
+) -> list[dict]:
+    """Module-level wrapper: returns [] on missing key / adapter error."""
+    adapter = _adapter_or_none(api_key)
+    if adapter is None:
+        return []
+    try:
+        return adapter.fetch_13f_latest(page=page, limit=limit)
+    except Exception as exc:
+        logger.warning("FMP 13F-HR-latest fetch failed: %s", type(exc).__name__)
         return []
     finally:
         adapter.close()

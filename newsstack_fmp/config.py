@@ -61,6 +61,8 @@ class Config:
     enable_fmp_senate_trades: bool = field(default_factory=lambda: os.getenv("ENABLE_FMP_SENATE_TRADES", "0") == "1")
     enable_fmp_house_trades: bool = field(default_factory=lambda: os.getenv("ENABLE_FMP_HOUSE_TRADES", "0") == "1")
     enable_fmp_8k: bool = field(default_factory=lambda: os.getenv("ENABLE_FMP_8K", "0") == "1")
+    # B6 (PR5 2026-05-09) — FMP /sec-filings/13F-HR-latest follow-up to PR3.
+    enable_fmp_13f: bool = field(default_factory=lambda: os.getenv("ENABLE_FMP_13F", "0") == "1")
 
     # ── Polling cadence ─────────────────────────────────────────
     poll_interval_s: float = field(default_factory=lambda: _env_float("POLL_INTERVAL_S", 2.0))
@@ -103,6 +105,7 @@ class Config:
     fmp_general_page: int = field(default_factory=lambda: _env_int("FMP_GENERAL_PAGE", 0))
     fmp_political_pages: int = field(default_factory=lambda: _env_int("FMP_POLITICAL_PAGES", 1))
     fmp_8k_limit: int = field(default_factory=lambda: _env_int("FMP_8K_LIMIT", 50))
+    fmp_13f_limit: int = field(default_factory=lambda: _env_int("FMP_13F_LIMIT", 50))
 
     # ── State ───────────────────────────────────────────────────
     sqlite_path: str = field(default_factory=lambda: os.getenv("SQLITE_PATH", "newsstack_fmp/state.db"))
@@ -152,4 +155,6 @@ class Config:
                 sources.append("fmp_house_trade")
             if self.enable_fmp_8k:
                 sources.append("fmp_8k_latest")
+            if self.enable_fmp_13f:
+                sources.append("fmp_13f_latest")
         return sources
