@@ -299,6 +299,21 @@ _API_KEY_REDACTION_PATTERNS = (
     re.compile(r"(api[_-]?key=)([^&\s]+)", flags=re.IGNORECASE),
     re.compile(r"(token=)([^&\s]+)", flags=re.IGNORECASE),
     re.compile(r"(Authorization:\s*Bearer\s+)([^\s]+)", flags=re.IGNORECASE),
+    # PR #2113 (Copilot follow-up to PR #2112 M1): Discord and Slack
+    # webhook URLs embed the secret directly in the URL **path** (not a
+    # query parameter), so the canonical ``api_key=`` / ``token=`` /
+    # ``Bearer ...`` patterns above cannot mask them. ``repr(httpx_exc)``
+    # routinely includes the request URL, which is how those tokens
+    # would otherwise leak into the redaction sites in terminal_export,
+    # terminal_tradingview_news and terminal_notifications.
+    re.compile(
+        r"(https?://(?:ptb\.|canary\.)?discord(?:app)?\.com/api/webhooks/\d+/)([\w-]+)",
+        flags=re.IGNORECASE,
+    ),
+    re.compile(
+        r"(https?://hooks\.slack\.com/services/T[A-Z0-9]+/B[A-Z0-9]+/)([A-Za-z0-9]+)",
+        flags=re.IGNORECASE,
+    ),
 )
 
 

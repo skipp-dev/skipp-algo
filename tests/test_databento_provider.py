@@ -339,6 +339,40 @@ class TestRedaction:
         text = "Connection timed out after 30 seconds"
         assert _redact_sensitive_error_text(text) == text
 
+    # PR #2113 (Copilot follow-up to PR #2112 M1): webhook URLs embed the
+    # secret directly in the URL **path**, so the canonical ``api_key=`` /
+    # ``token=`` / ``Bearer ...`` patterns cannot mask them.
+    def test_redact_discord_webhook_token(self):
+        text = (
+            "HTTPStatusError 401 for url "
+            "'https://discord.com/api/webhooks/123456789012345678/"
+            "abcDEF_ghi-JKLmnopQRSTuvwxyz0123456789-_xyz'"
+        )
+        result = _redact_sensitive_error_text(text)
+        assert "abcDEF_ghi-JKLmnopQRSTuvwxyz0123456789-_xyz" not in result
+        assert "***" in result
+        # The non-secret prefix (host + webhook id) must be preserved so
+        # operators can still see *which* channel failed.
+        assert "discord.com/api/webhooks/123456789012345678/" in result
+
+    def test_redact_discord_ptb_canary_webhook_token(self):
+        for host in ("ptb.discord.com", "canary.discord.com", "discordapp.com"):
+            text = f"https://{host}/api/webhooks/42/SECRET_TOKEN_VALUE"
+            result = _redact_sensitive_error_text(text)
+            assert "SECRET_TOKEN_VALUE" not in result, host
+            assert "***" in result, host
+
+    def test_redact_slack_webhook_token(self):
+        text = (
+            "RequestError sending to "
+            "https://hooks.slack.com/services/T01ABCDEFGH/B01IJKLMNOP/"
+            "abcdefghijklmnopqrstuvwx"
+        )
+        result = _redact_sensitive_error_text(text)
+        assert "abcdefghijklmnopqrstuvwx" not in result
+        assert "***" in result
+        assert "T01ABCDEFGH/B01IJKLMNOP/" in result
+
 
 # ── Dataset selection ───────────────────────────────────────────────────────
 

@@ -396,10 +396,14 @@ class BackgroundPoller:
                     )
 
             # Periodic SQLite prune (every 100 polls)
-            # Quantum-sweep L2: read ``self.poll_count`` under the stats
-            # lock — every other read/write of the counter is serialised,
-            # so an unprotected modulo here would be the lone gap that
-            # could observe a torn intermediate value under tsan.
+            # Quantum-sweep L2 (refined in PR #2113 per Copilot review):
+            # CPython's GIL makes a single ``int`` read atomic, so this
+            # is **not** a torn-read fix. The lock is taken purely for
+            # **lock-parity**: every other read/write of ``poll_count``
+            # is already serialised under ``_stats_lock``, so taking it
+            # here too keeps the access pattern uniform and prevents a
+            # future refactor (or a free-threaded build without the GIL)
+            # from accidentally introducing a stale-read race.
             with self._stats_lock:
                 _should_prune = (self.poll_count % 100 == 0)
             if _should_prune:
