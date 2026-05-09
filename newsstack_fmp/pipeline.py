@@ -299,6 +299,7 @@ def process_news_items(
     last_seen_epoch: float = 0.0,
     enrich_budget: int = 3,
     _shared_enrich_counter: list[int] | None = None,
+    _enriched_clusters: dict[str, dict[str, Any]] | None = None,
 ) -> tuple[float, int]:
     """Dedupe → novelty → score → enrich a batch of :class:`NewsItem`.
 
@@ -308,11 +309,23 @@ def process_news_items(
     *_shared_enrich_counter*: if provided, a single-element ``[int]`` list
     that is incremented on each enrichment call.  Survives exceptions so
     the budget is correctly shared across batches even on partial failure.
+
+    *_enriched_clusters* (cross-provider hard-dedup, 2026-05-09): if
+    provided, a dict keyed by ``chash`` storing the first enrichment
+    result + score metadata seen for that cluster within the current
+    poll cycle. Subsequent items sharing a chash skip the enrichment
+    HTTP call and reuse the stored snippet.  Saves quota when the same
+    story arrives via FMP + Benzinga + UW + NewsAPI.ai in one cycle.
+    Provider-agnostic: ``cluster_hash`` already excludes provider.
+    Pass the same dict to both calls in ``poll_once`` to dedup across
+    fmp_items vs other_items batches.
     """
     max_ts = last_seen_epoch
     enrich_count = 0
     if _shared_enrich_counter is None:
         _shared_enrich_counter = [0]
+    if _enriched_clusters is None:
+        _enriched_clusters = {}
 
     for it in items:
         # Lens 1 (silent-degradation v2): isolate per-item failures so a
@@ -373,11 +386,22 @@ def process_news_items(
             # Enrich high-score items once per item (budget shared across calls).
             # Hoisted above the per-ticker loop to avoid redundant HTTP calls
             # when one item maps to multiple tickers.
+            #
+            # Cross-provider hard-dedup (2026-05-09): if the same cluster
+            # (chash) was already enriched in this poll cycle by another
+            # provider, reuse the snippet and skip the HTTP call. cluster_hash
+            # is provider-independent so FMP+Benzinga+UW+NewsAPI.ai variants
+            # of the same story share a chash.
             enrich_result = None
-            if score.score >= enrich_threshold and _shared_enrich_counter[0] < enrich_budget:
+            cluster_dedup_hit = False
+            if chash in _enriched_clusters:
+                enrich_result = _enriched_clusters[chash].get("enrich_result")
+                cluster_dedup_hit = True
+            elif score.score >= enrich_threshold and _shared_enrich_counter[0] < enrich_budget:
                 enrich_result = enricher.fetch_url_snippet(it.url)
                 enrich_count += 1
                 _shared_enrich_counter[0] += 1
+                _enriched_clusters[chash] = {"enrich_result": enrich_result, "ts": ts}
 
             # Build candidate per ticker
             for tk in tickers:
@@ -401,6 +425,7 @@ def process_news_items(
                     "published_ts": it.published_ts,
                     "updated_ts": it.updated_ts,
                     "_seen_ts": ts,
+                    "cluster_dedup": bool(cluster_dedup_hit),
                 }
 
                 if enrich_result is not None:
@@ -654,12 +679,17 @@ def poll_once(
 
     # ── 5) Process all items through unified pipeline ───────────
     _enrich_ctr: list[int] = [0]  # mutable counter survives exceptions
+    # Cross-provider hard-dedup: shared across both batches so the same
+    # cluster (chash) seen via FMP and via Benzinga/UW/NewsAPI.ai in the
+    # same poll cycle only triggers ONE enrichment HTTP call.
+    _enriched_clusters: dict[str, dict[str, Any]] = {}
     fmp_processing_ok = False
     try:
         processed_fmp_max, _fmp_enrich_used = process_news_items(
             store, fmp_items, _best_by_ticker, universe, enricher,
             cfg.score_enrich_threshold, last_seen_epoch=0.0,
             _shared_enrich_counter=_enrich_ctr,
+            _enriched_clusters=_enriched_clusters,
         )
         fmp_processing_ok = True
     except Exception as exc:
@@ -675,6 +705,7 @@ def poll_once(
             cfg.score_enrich_threshold, last_seen_epoch=0.0,
             enrich_budget=max(0, 3 - _enrich_ctr[0]),
             _shared_enrich_counter=_enrich_ctr,
+            _enriched_clusters=_enriched_clusters,
         )
         other_processing_ok = True
     except Exception as exc:
