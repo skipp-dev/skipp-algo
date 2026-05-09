@@ -5385,7 +5385,7 @@ def test_run_production_export_pipeline_smc_base_only_slims_runtime_bundle_and_l
     assert observed["write_watchlists"] is False
     assert observed["parquet_name_allowlist"] == {"daily_bars", "daily_symbol_features_full_universe"}
     assert any("Step 10/10a: Writing slim runtime bundle artifacts" in message for message in progress_messages)
-    assert any("Step 10/10b: Writing canonical production workbook" in message for message in progress_messages)
+    assert any("Step 10/10c: Writing canonical production workbook" in message for message in progress_messages)
     assert observed["exact_named_names"] == {
         "daily_symbol_features_full_universe",
         "premarket_features_full_universe",
@@ -5393,7 +5393,7 @@ def test_run_production_export_pipeline_smc_base_only_slims_runtime_bundle_and_l
         "quality_window_status_latest",
         "symbol_day_diagnostics",
     }
-    assert any("Step 10/10c: Writing slim exact-named parquet exports" in message for message in progress_messages)
+    assert any("Step 10/10b: Writing slim exact-named parquet exports" in message for message in progress_messages)
     assert any("Step 10/10d: Writing exact-named export state" in message for message in progress_messages)
     assert result["exported_paths"]["canonical_production_workbook"] == tmp_path / "databento_volatility_production_workbook.xlsx"
     assert result["exported_paths"]["exact_named_state"] == tmp_path / "databento_exact_named_state.json"

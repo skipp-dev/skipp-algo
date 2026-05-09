@@ -119,7 +119,8 @@ def create_excel_workbook_bytes(
     generated_at: float | None = None,
     progress_callback: Callable[[str], None] | None = None,
 ) -> bytes:
-    # Per-sheet observability for Step 10/10b. Default callback is a no-op so
+    # Per-sheet observability for Step 10/10c (was 10/10b before Q5b reorder).
+    # Default callback is a no-op so
     # behavior is unchanged for callers (and existing tests). When wired from
     # the producer's `_progress` closure, each sheet emits an elapsed-time
     # marker so cap-hits inside this single-shot openpyxl write can be
