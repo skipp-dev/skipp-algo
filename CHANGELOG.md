@@ -6,6 +6,30 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-09) — newsstack: cross-provider hard-dedup for enrichment
+
+- **`feat(newsstack): cross-provider hard-dedup for enrichment HTTP calls`** —
+  Same news cluster (chash) arriving from multiple providers in one poll cycle
+  now triggers exactly ONE `Enricher.fetch_url_snippet()` HTTP call. Subsequent
+  items reuse the cached snippet via a new optional `_enriched_clusters: dict`
+  parameter on `process_news_items()`, threaded through `poll_once()` so the
+  fmp_items batch and the other_items batch share one cache.
+
+  `cluster_hash()` excludes `provider` (verified, was already the case), so
+  FMP+Benzinga+Unusual-Whales+NewsAPI.ai variants of the same story share a
+  chash. Previously the soft novelty decay scored duplicates down but each
+  duplicate still ran its own enrichment HTTP call — wasting quota
+  proportional to provider overlap. Each candidate now also carries a
+  `cluster_dedup: bool` field for downstream observability.
+
+  Backward compatible: parameter defaults to `None` → existing direct callers
+  / tests unchanged. Soft-dedup mechanisms (`mark_seen`, `cluster_touch`
+  novelty decay, `best_by_ticker` max-score selection) preserved unchanged.
+
+  New tests in `tests/test_newsstack_fmp.py::TestCrossProviderHardDedup`:
+  `test_same_cluster_skips_second_enrich`, `test_no_clusters_param_backward_compat`,
+  `test_cluster_dedup_field_set_on_candidate`. All 155 newsstack_fmp tests green.
+
 ### Changed (2026-05-09) — Probe v3 cap-hit bundle (Q1–Q5b) + A1 followup
 
 Audit-trail completion for the seven PRs merged on 2026-05-09 that closed the
