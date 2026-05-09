@@ -3257,8 +3257,9 @@ def _write_canonical_production_workbook(
         # killed shards 3 & 6 mid-write of this sheet at peakRSS ~6.9 GB
         # on 7 GB GHA runners (12.4-12.8M rows × ~10 cols, openpyxl
         # default in-memory mode). The same data is exported as a parquet
-        # artifact via _write_exact_named_exports() in Step 10/10c
-        # (<export_dir>/full_universe_close_trade_detail.parquet) — that
+        # artifact via _write_exact_named_exports() in Step 10/10b
+        # (<export_dir>/full_universe_close_trade_detail.parquet, written
+        # BEFORE the workbook step since Q5b for defense-in-depth) — that
         # path remains the authoritative source for downstream consumers.
         # Function param `full_universe_close_trade_detail` retained
         # because the row count is still surfaced in output_summary.
@@ -3285,7 +3286,7 @@ def _write_canonical_production_workbook(
     if progress_callback is not None:
         progress_callback(
             "workbook: skipping full_universe_close_trade_detail "
-            "(parquet retained via Step 10/10c, Q5a OOM mitigation)"
+            "(parquet retained via Step 10/10b, Q5a OOM mitigation)"
         )
     workbook_minute_detail = minute_detail
     workbook_second_detail = second_detail
@@ -4118,7 +4119,55 @@ def run_production_export_pipeline(
         f"(artifacts={len(paths)}, parquet_frames={sum(1 for name in paths if name.startswith('parquet_'))})"
     )
 
-    _progress("Step 10/10b: Writing canonical production workbook...")
+    # Q5b (defense-in-depth): write parquet exports BEFORE canonical workbook.
+    # Rationale: workbook write is the OOM-risk path (run 25593357307 killed
+    # shards 3 & 6 mid-sheet on full_universe_close_trade_detail at ~6.9 GB
+    # peakRSS). Writing parquet first guarantees downstream consumers have the
+    # authoritative artifacts even if the workbook step is killed by the runner.
+    # Step labels were renumbered so monotonic order matches execution order:
+    # 10/10b = parquet (was 10/10c), 10/10c = workbook (was 10/10b).
+    exact_named_frames = {
+        "daily_symbol_features_full_universe": daily_symbol_features_full_universe,
+        "full_universe_second_detail_open": full_universe_second_detail_open,
+        "full_universe_second_detail_close": full_universe_second_detail_close,
+        "full_universe_close_trade_detail": full_universe_close_trade_detail,
+        "full_universe_close_outcome_minute": full_universe_close_outcome_minute,
+        "close_imbalance_features_full_universe": close_imbalance_features_full_universe,
+        "close_imbalance_outcomes_full_universe": close_imbalance_outcomes_full_universe,
+        "premarket_features_full_universe": premarket_features_full_universe,
+        "premarket_window_features_full_universe": premarket_window_features_full_universe,
+        "symbol_day_diagnostics": symbol_day_diagnostics,
+        "research_event_flags_full_universe": research_event_flags_full_universe,
+        "research_event_flag_coverage": research_event_flag_coverage,
+        "research_event_flag_trade_date_distribution": research_event_flag_trade_date_distribution,
+        "research_event_flag_outcome_slices": research_event_flag_outcome_slices,
+        "research_news_flags_full_universe": research_news_flags_full_universe,
+        "research_news_flag_coverage": research_news_flag_coverage,
+        "research_news_flag_trade_date_distribution": research_news_flag_trade_date_distribution,
+        "research_news_flag_outcome_slices": research_news_flag_outcome_slices,
+        "core_vs_benzinga_news_side_by_side": core_vs_benzinga_news_side_by_side,
+        "core_vs_benzinga_news_overlap_stats": core_vs_benzinga_news_overlap_stats,
+        "quality_window_status_latest": quality_window_status,
+    }
+    if smc_base_only:
+        allowed_exact_named_names = set(SMC_BASE_ONLY_EXACT_NAMED_FRAME_NAMES)
+        exact_named_frames = {
+            name: frame for name, frame in exact_named_frames.items() if name in allowed_exact_named_names
+        }
+        _progress("Step 10/10b: Writing slim exact-named parquet exports for SMC base-only mode...")
+    else:
+        _progress("Step 10/10b: Writing exact-named parquet exports...")
+    exact_named_exports_started_at = time_module.perf_counter()
+    exact_named_paths = _write_exact_named_exports(
+        resolved_export_dir,
+        exact_named_frames,
+    )
+    _progress(
+        f"Step 10/10b complete: Exact-named parquet exports written in {time_module.perf_counter() - exact_named_exports_started_at:.1f}s "
+        f"(artifacts={len(exact_named_paths)})"
+    )
+
+    _progress("Step 10/10c: Writing canonical production workbook...")
     canonical_workbook_started_at = time_module.perf_counter()
     paths["canonical_production_workbook"] = _write_canonical_production_workbook(
         export_dir=resolved_export_dir,
@@ -4157,48 +4206,7 @@ def run_production_export_pipeline(
         progress_callback=_progress,
     )
     _progress(
-        f"Step 10/10b complete: Canonical production workbook written in {time_module.perf_counter() - canonical_workbook_started_at:.1f}s"
-    )
-
-    exact_named_frames = {
-        "daily_symbol_features_full_universe": daily_symbol_features_full_universe,
-        "full_universe_second_detail_open": full_universe_second_detail_open,
-        "full_universe_second_detail_close": full_universe_second_detail_close,
-        "full_universe_close_trade_detail": full_universe_close_trade_detail,
-        "full_universe_close_outcome_minute": full_universe_close_outcome_minute,
-        "close_imbalance_features_full_universe": close_imbalance_features_full_universe,
-        "close_imbalance_outcomes_full_universe": close_imbalance_outcomes_full_universe,
-        "premarket_features_full_universe": premarket_features_full_universe,
-        "premarket_window_features_full_universe": premarket_window_features_full_universe,
-        "symbol_day_diagnostics": symbol_day_diagnostics,
-        "research_event_flags_full_universe": research_event_flags_full_universe,
-        "research_event_flag_coverage": research_event_flag_coverage,
-        "research_event_flag_trade_date_distribution": research_event_flag_trade_date_distribution,
-        "research_event_flag_outcome_slices": research_event_flag_outcome_slices,
-        "research_news_flags_full_universe": research_news_flags_full_universe,
-        "research_news_flag_coverage": research_news_flag_coverage,
-        "research_news_flag_trade_date_distribution": research_news_flag_trade_date_distribution,
-        "research_news_flag_outcome_slices": research_news_flag_outcome_slices,
-        "core_vs_benzinga_news_side_by_side": core_vs_benzinga_news_side_by_side,
-        "core_vs_benzinga_news_overlap_stats": core_vs_benzinga_news_overlap_stats,
-        "quality_window_status_latest": quality_window_status,
-    }
-    if smc_base_only:
-        allowed_exact_named_names = set(SMC_BASE_ONLY_EXACT_NAMED_FRAME_NAMES)
-        exact_named_frames = {
-            name: frame for name, frame in exact_named_frames.items() if name in allowed_exact_named_names
-        }
-        _progress("Step 10/10c: Writing slim exact-named parquet exports for SMC base-only mode...")
-    else:
-        _progress("Step 10/10c: Writing exact-named parquet exports...")
-    exact_named_exports_started_at = time_module.perf_counter()
-    exact_named_paths = _write_exact_named_exports(
-        resolved_export_dir,
-        exact_named_frames,
-    )
-    _progress(
-        f"Step 10/10c complete: Exact-named parquet exports written in {time_module.perf_counter() - exact_named_exports_started_at:.1f}s "
-        f"(artifacts={len(exact_named_paths)})"
+        f"Step 10/10c complete: Canonical production workbook written in {time_module.perf_counter() - canonical_workbook_started_at:.1f}s"
     )
 
     _progress("Step 10/10d: Writing exact-named export state...")
