@@ -132,21 +132,28 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("terminal_bitcoin.py", 97, ("_client",)),
         ("terminal_databento.py", 130, ("_quote_cache", "_quote_cache_ts")),
         ("terminal_databento.py", 314, ("_dataset_cache",)),
-        ("terminal_export.py", 103, ("_FALLBACK_BUFFER",)),
-        ("terminal_export.py", 120, ("_FALLBACK_BUFFER",)),
-        ("terminal_finnhub.py", 186, ("_consecutive_429_count", "_rate_limit_backoff_until")),
-        ("terminal_finnhub.py", 215, ("_social_sentiment_blocked",)),
-        ("terminal_finnhub.py", 600, ("_social_sentiment_blocked",)),
+        ("terminal_export.py", 104, ("_FALLBACK_BUFFER",)),
+        ("terminal_export.py", 121, ("_FALLBACK_BUFFER",)),
+        (
+            "terminal_finnhub.py",
+            177,
+            (
+                "_consecutive_429_count",
+                "_rate_limit_backoff_until",
+                "_social_sentiment_blocked",
+            ),
+        ),
+        ("terminal_finnhub.py", 603, ("_social_sentiment_blocked",)),
         ("terminal_spike_scanner.py", 96, ("_YF_UNIVERSE_CACHE",)),
-        ("terminal_technicals.py", 213, ("_tv_consecutive_429s", "_tv_cooldown_until")),
+        ("terminal_technicals.py", 212, ("_tv_consecutive_429s", "_tv_cooldown_until")),
         (
             "terminal_technicals.py",
-            214,
+            213,
             ("_tv_last_429_log_key", "_tv_last_429_log_ts", "_tv_suppressed_429_logs"),
         ),
-        ("terminal_technicals.py", 246, ("_tv_consecutive_429s",)),
-        ("terminal_technicals.py", 263, ("_tv_cooldown_ended_at", "_tv_last_call_ts")),
-        ("terminal_tradingview_news.py", 345, ("_last_request_ts",)),
+        ("terminal_technicals.py", 245, ("_tv_consecutive_429s",)),
+        ("terminal_technicals.py", 262, ("_tv_cooldown_ended_at", "_tv_last_call_ts")),
+        ("terminal_tradingview_news.py", 347, ("_last_request_ts",)),
     }
 )
 

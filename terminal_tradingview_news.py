@@ -34,6 +34,8 @@ from dataclasses import dataclass, field
 from typing import Any
 from urllib.request import Request, urlopen
 
+from databento_utils import _redact_sensitive_error_text
+
 try:
     import certifi
     _SSL_CTX = ssl.create_default_context(cafile=certifi.where())
@@ -461,7 +463,10 @@ def fetch_tv_headlines(
         # the sidebar "TV degraded" indicator reflect reality.  Without
         # this, the cache simply returns [] forever and consumers think
         # there is no news for the ticker.
-        _health.record_failure(repr(exc))
+        # Quantum-sweep M1: ``repr(exc)`` may include URLs with embedded
+        # tokens (urllib3 ``MaxRetryError``); redact before persisting it
+        # into the health-monitor state where the dashboard reads it.
+        _health.record_failure(_redact_sensitive_error_text(repr(exc)))
         log.warning(
             "fetch_tv(%s) failed; recorded health failure: %s",
             ticker, exc,

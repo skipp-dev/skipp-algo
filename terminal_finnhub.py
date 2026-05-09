@@ -170,6 +170,11 @@ def _get(path: str, params: dict[str, Any] | None = None) -> Any:
         ``docs/TEMPORAL_NUMERICAL_IMPROVEMENT_PLAN_2026-04-24.md``
         under E-3.
     """
+    # Quantum-sweep L1: consolidate all ``global`` declarations at the top
+    # of the function body so the mutation surface is auditable in one
+    # place (was previously one declaration mid-function plus a second
+    # nested inside the 403 branch).
+    global _rate_limit_backoff_until, _consecutive_429_count, _social_sentiment_blocked
     key = _api_key()
     if not key:
         return {}
@@ -183,7 +188,6 @@ def _get(path: str, params: dict[str, Any] | None = None) -> Any:
     url = f"{_BASE}{path}?{'&'.join(query_parts)}"
     request = Request(url, headers={"Accept": "application/json"})
     # Rate-limit backoff guard
-    global _rate_limit_backoff_until, _consecutive_429_count
     with _state_lock:
         if time.time() < _rate_limit_backoff_until:
             return {}
@@ -212,7 +216,6 @@ def _get(path: str, params: dict[str, Any] | None = None) -> Any:
                 "(suppressing further calls this session)", path,
             )
             if "social-sentiment" in path:
-                global _social_sentiment_blocked
                 with _state_lock:
                     _social_sentiment_blocked = True
             # PR4: also mark the full path-substring as blocked so the

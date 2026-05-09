@@ -35,6 +35,7 @@ from typing import Any
 
 import httpx
 
+from databento_utils import _redact_sensitive_error_text
 from streamlit_terminal_alerts import validate_webhook_url
 from terminal_attention_state import (
     effective_attention_dispatchable,
@@ -72,7 +73,11 @@ def _record_notif_failure(channel: str, err: Exception) -> None:
     with _notif_health_lock:
         st = _NOTIF_HEALTH.setdefault(channel, {"consecutive_failures": 0, "last_error": ""})
         st["consecutive_failures"] += 1
-        st["last_error"] = repr(err)
+        # Quantum-sweep M1: webhook URLs frequently embed bot tokens;
+        # ``repr(err)`` from httpx commonly includes the request URL.
+        # Redact through the canonical helper before publishing it on
+        # the health-state dict that the sidebar widget reads.
+        st["last_error"] = _redact_sensitive_error_text(repr(err))
         # Warn only on the *first* crossing of the threshold to avoid log spam
         # during sustained outages; recovery (success) re-arms the warning.
         if st["consecutive_failures"] == _NOTIF_HEALTH_THRESHOLD:

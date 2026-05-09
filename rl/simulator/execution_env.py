@@ -121,6 +121,13 @@ class ExecutionEnv:
     # introspection --------------------------------------------------------
     @property
     def total_implementation_shortfall_bps(self) -> float:
+        # Quantum-sweep L4: ``max(parent_qty, 1.0)`` floors the divisor at
+        # 1.0 to avoid div-by-zero. For fractional-share parents
+        # (``parent_qty < 1.0``) this *understates* the bps figure since
+        # the true shortfall would be divided by the smaller fractional
+        # quantity. Revisit if/when the simulator supports fractional
+        # parents — switch to ``max(parent_qty, 1e-9)`` and document the
+        # numerical-stability tradeoff in the strategy docstring.
         return self._is_accum / max(self.cfg.parent_qty, 1.0)
 
     @property

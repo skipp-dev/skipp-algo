@@ -106,10 +106,10 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     ("open_prep/run_open_prep.py", 5641, "unlink"),
     ("open_prep/scorer.py", 115, "unlink"),
     ("open_prep/watchlist.py", 74, "unlink"),
-    ("terminal_export.py", 178, "unlink"),
-    ("terminal_export.py", 228, "unlink"),
-    ("terminal_export.py", 610, "unlink"),
-    ("terminal_export.py", 751, "unlink"),
+    ("terminal_export.py", 182, "unlink"),
+    ("terminal_export.py", 232, "unlink"),
+    ("terminal_export.py", 614, "unlink"),
+    ("terminal_export.py", 755, "unlink"),
 }
 
 

@@ -77,6 +77,12 @@ def compute_calendar_boundaries(df: pd.DataFrame) -> dict:
     ts_naive = ts.dt.tz_localize(None)
 
     day_change_idx = ts.dt.floor("D").ne(ts.dt.floor("D").shift())
+    # Quantum-sweep L3: ``%G-W%V`` (ISO-8601 year + ISO week) intentionally
+    # diverges from ``%Y-%m`` (calendar year + month) at year boundaries —
+    # e.g. 2024-12-30 falls in ISO week ``2025-W01`` but calendar month
+    # ``2024-12``. That is the *correct* semantics for the prev-week vs.
+    # prev-month change detectors below; do not normalise to a single
+    # year representation.
     week_key = ts_naive.dt.strftime("%G-W%V")
     month_key = ts_naive.dt.strftime("%Y-%m")
     week_change_idx = week_key.ne(week_key.shift())
