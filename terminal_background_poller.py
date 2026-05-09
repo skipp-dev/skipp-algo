@@ -396,7 +396,13 @@ class BackgroundPoller:
                     )
 
             # Periodic SQLite prune (every 100 polls)
-            if self.poll_count % 100 == 0:
+            # Quantum-sweep L2: read ``self.poll_count`` under the stats
+            # lock — every other read/write of the counter is serialised,
+            # so an unprotected modulo here would be the lone gap that
+            # could observe a torn intermediate value under tsan.
+            with self._stats_lock:
+                _should_prune = (self.poll_count % 100 == 0)
+            if _should_prune:
                 try:
                     self._store.prune_seen(keep_seconds=86400)
                     self._store.prune_clusters(keep_seconds=86400)

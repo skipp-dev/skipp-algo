@@ -109,6 +109,10 @@ def build_dwm_levels(df: pd.DataFrame, tz: str = DEFAULT_TZ) -> dict:
     dt_local = ts_utc.dt.tz_convert(ZoneInfo(tz))
     bars["_day"] = dt_local.dt.date
     dt_local_naive = dt_local.dt.tz_localize(None)
+    # Quantum-sweep L3: ``%G-W%V`` (ISO-8601 year-week) and ``%Y-%m``
+    # (calendar year-month) intentionally use different year axes; they
+    # diverge at year boundaries (e.g. 2024-12-30 → 2025-W01 but 2024-12)
+    # which is the correct behaviour for prev-week vs. prev-month bucketing.
     bars["_week"] = dt_local_naive.dt.strftime("%G-W%V")
     bars["_month"] = dt_local_naive.dt.strftime("%Y-%m")
 

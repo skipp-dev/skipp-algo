@@ -6,6 +6,62 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-05-09) — Quantum sweep medium/low findings (M1, M2, L1–L6)
+
+Hardening pass on the quantum-sweep audit (PR #2112). No behavioural
+changes; tightens redaction parity and threading discipline, and
+documents three intentional-but-non-obvious numeric/calendar edge cases.
+
+- **M1 — `repr(...)` payload redaction parity** (3 sites): wrap
+  `repr(item)` / `repr(exc)` / `repr(err)` through the canonical
+  `databento_utils._redact_sensitive_error_text` helper before they are
+  persisted to disk (`terminal_export.py` JSONL fallback) or to the
+  in-memory health-state dicts that the dashboard reads
+  (`terminal_tradingview_news.py`, `terminal_notifications.py`).
+  Closes a redaction gap where wrapped httpx/urllib3 exceptions whose
+  `__repr__` includes auth tokens (`api_key=`, `token=`,
+  `Authorization: Bearer …`) could leak into artifacts/logs.
+- **M2 — terminal_technicals.py redaction parity**: replace the local
+  narrow `_APIKEY_RE` regex (`(apikey|api_key|token|key)=…`) with an
+  import of `_redact_sensitive_error_text`, picking up the canonical
+  patterns (Bearer tokens, additional key shapes). Removes duplicate
+  regex source of truth.
+- **L1 — `terminal_finnhub.py` global consolidation**: hoist the
+  nested `global _social_sentiment_blocked` (was buried inside the 403
+  branch) up to the top of `_get(...)` alongside the existing
+  `global _rate_limit_backoff_until, _consecutive_429_count`. All
+  mutation surface for the function is now declared in one place,
+  matching the convention used elsewhere in the file.
+- **L2 — `terminal_background_poller.py` `poll_count` lock parity**:
+  read `self.poll_count` under `self._stats_lock` for the periodic
+  prune trigger (was the only unprotected access; every other read /
+  write of the counter is already serialised).
+- **L3 — `smc_core/htf_context.py` + `smc_core/session_context.py`
+  ISO-week boundary comment**: document that `%G-W%V` (ISO-8601
+  year-week) and `%Y-%m` (calendar year-month) intentionally use
+  different year axes and diverge at year boundaries (e.g. 2024-12-30
+  → ISO `2025-W01` but calendar `2024-12`) — that is the correct
+  semantics for prev-week vs. prev-month bucketing.
+- **L4 — `rl/simulator/execution_env.py` fractional-share comment**:
+  document that `max(parent_qty, 1.0)` floors the implementation-shortfall
+  divisor at 1.0 and *understates* the bps figure for fractional-share
+  parents (`parent_qty < 1.0`); revisit if/when the simulator supports
+  fractional parents.
+- **L5 — `databento_volatility_screener.py` `pd.to_datetime(...,
+  utc=True)`**: add `utc=True` to the `trade_date` coercion to suppress
+  the pandas "mixed timezone" `FutureWarning` when upstream joins
+  accidentally inject tz-aware Timestamps. The trailing `.dt.date`
+  still returns naive `datetime.date` instances downstream.
+- **L6 — `newsstack_fmp/ingest_unusual_whales.py` non-JSON body
+  sample**: extend the existing "UW returned non-JSON" warning to
+  include `r.text[:200]`, so silent UW schema changes (HTML
+  maintenance pages, plain-text gateway responses) are diagnosable
+  from logs without round-tripping through `curl`.
+
+Tripwire ledgers refreshed for the global / urlopen / sleep / unlink
+line-number drift caused by the added imports and the consolidated
+`global` declarations.
+
 ### Fixed (2026-05-09) — Copilot review follow-ups for PRs #2109/#2110
 
 Addresses post-merge Copilot inline review on the Provider Audit 2.0 stack:

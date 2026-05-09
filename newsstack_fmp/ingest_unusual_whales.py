@@ -138,7 +138,15 @@ class UnusualWhalesAdapter:
         try:
             return r.json()
         except Exception:
-            logger.warning("UW returned non-JSON on %s", path)
+            # Quantum-sweep L6: include a 200-char body sample so silent
+            # UW schema changes (HTML maintenance pages, plain-text error
+            # blobs, gateway responses) are diagnosable from logs without
+            # round-tripping through curl.
+            logger.warning(
+                "UW returned non-JSON on %s (body sample=%r)",
+                path,
+                r.text[:200],
+            )
             return None
 
     @staticmethod

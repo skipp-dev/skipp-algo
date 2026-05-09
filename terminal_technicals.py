@@ -9,15 +9,14 @@ hammering TradingView's scanner endpoint.
 from __future__ import annotations
 
 import logging
-import re
 import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any
 
-log = logging.getLogger(__name__)
+from databento_utils import _redact_sensitive_error_text
 
-_APIKEY_RE = re.compile(r"(apikey|api_key|token|key)=[^&\s]+", re.IGNORECASE)
+log = logging.getLogger(__name__)
 
 try:
     from tradingview_ta import Interval, TA_Handler  # type: ignore[import-untyped]
@@ -367,7 +366,7 @@ def _try_exchanges(symbol: str, interval_val: str) -> Any | None:
                 _SYMBOL_EXCHANGE_CACHE[symbol] = exchange
                 return analysis
         except Exception as exc:
-            _msg = _APIKEY_RE.sub(r"\1=***", str(exc))
+            _msg = _redact_sensitive_error_text(str(exc))
             if "429" in _msg or "cooldown active" in _msg:
                 raise  # let caller handle 429 / cooldown
             continue
@@ -547,7 +546,7 @@ def fetch_technicals(
         return result
 
     except Exception as exc:
-        _msg = _APIKEY_RE.sub(r"\1=***", str(exc))
+        _msg = _redact_sensitive_error_text(str(exc))
         if "cooldown active" in _msg:
             # Cooldown RuntimeError from _tv_throttle — don't count as new 429
             remaining = _tv_cooldown_remaining()

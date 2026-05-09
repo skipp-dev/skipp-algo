@@ -23,6 +23,7 @@ from typing import Any
 
 import httpx
 
+from databento_utils import _redact_sensitive_error_text
 from open_prep.playbook import classify_recency
 from streamlit_terminal_alerts import validate_webhook_url
 from terminal_attention_state import (
@@ -125,7 +126,10 @@ def append_jsonl(item: ClassifiedItem, path: str) -> None:
             "append_jsonl: item.to_dict() failed; using repr fallback payload",
             exc_info=True,
         )
-        payload = {"_repr": repr(item)}
+        # Quantum-sweep M1: route repr() through the canonical redactor so
+        # an item whose ``__repr__`` includes auth tokens (e.g. wrapped
+        # httpx requests) cannot leak to the JSONL artifact on disk.
+        payload = {"_repr": _redact_sensitive_error_text(repr(item))}
     try:
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         line = json.dumps(payload, ensure_ascii=False, default=str)
