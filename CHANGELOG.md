@@ -6,6 +6,47 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-05-09) — Provider Audit 2.0 post-merge follow-ups (PR #2109)
+
+- **`fix(provider-audit-2): post-merge audit fixes`** — quantum sweep
+  follow-ups across the merged PR2104–PR2108 stack. 11 findings:
+  - **Critical (data correctness)**:
+    - `terminal_finnhub.fetch_insider_sentiment`: skip caching `[]` on
+      empty `_get` payload (rate-limit / key-miss). Previously a single
+      429 silenced the endpoint for the full 6h TTL.
+    - `terminal_finnhub.fetch_company_news`: include `max_items` in
+      cache key. Previously a caller asking for 200 items would receive
+      a 50-item cached truncation if a prior caller hit the path first.
+    - `newsstack_fmp/pipeline.py`: 4 cursor-filter sites changed
+      `it.updated_ts > fmp_*_last` → `>=` (senate, house, 8K, 13F).
+      FMP returns date-only timestamps for these endpoints; `>` was
+      dropping same-day records on subsequent polls. `mark_seen()`
+      remains the authoritative per-id dedup.
+  - **Important**:
+    - `newsstack_fmp/normalize.py:334` (UW news headline-derived id):
+      `hashlib.sha1(..., usedforsecurity=False)` flag added (matches
+      the other 4 sha1 sites).
+    - `newsstack_fmp/pipeline.py`: `enrich_budget=3` absolute cap (was
+      `max(0, 3 - _enrich_ctr[0])` which under-budgeted the
+      other-provider batch when the FMP batch had already consumed
+      enrichments — `_enricher` carries the shared counter anyway).
+    - `newsstack_fmp/pipeline.py` `meta_sources`: added 6 missing
+      telemetry entries (`uw_news`, `fmp_general_latest`,
+      `fmp_senate_trades`, `fmp_house_trades`, `fmp_8k_latest`,
+      `fmp_13f_latest`).
+    - Removed 3 dead exception classes never raised:
+      `UnusualWhalesEndpointDisabledError`,
+      `FmpFilingsEndpointDisabledError`,
+      `FmpPoliticalEndpointDisabledError`. Mute mechanism is the
+      `mark_*_disabled()` flag plus generic-Exception catch in callers.
+  - **Minor**:
+    - `tests/test_terminal_finnhub.py:120`: replaced duplicate
+      `import unittest.mock as _mock` with alias `_mock = mock`
+      (the module is already imported at file top).
+    - Tripwire ledgers refreshed: weak-hash pin, weak-hash sites,
+      `# noqa` budget, `time.sleep` budget, `global` statement budget,
+      HTTP client discipline, `# type: ignore` budget.
+
 ### Added (2026-05-09) — newsstack: FMP Form-13F follow-up (B6)
 
 - **`feat(newsstack): FMP /sec-filings/13F-HR-latest provider`** —

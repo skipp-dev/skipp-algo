@@ -117,7 +117,9 @@ class TestBackoff:
 # PR4 (2026-05-09): Finnhub free-tier extensions
 # ---------------------------------------------------------------------------
 
-import unittest.mock as _mock
+# Audit-fix (2026-05-09): alias the already-imported `mock` rather than
+# re-importing as `_mock` (PR2107 review). Keeps existing test body unchanged.
+_mock = mock
 
 
 class TestCompanyNews:
