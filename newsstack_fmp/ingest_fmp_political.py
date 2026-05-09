@@ -37,7 +37,7 @@ FMP_BASE = "https://financialmodelingprep.com/stable"
 # until per-symbol iteration lands; otherwise the path will be polled every
 # tick and burn quota on a 400-loop. A symbol-iteration implementation over
 # the universe is left as a follow-up.
-# TODO: implement per-symbol congressional trading collection or restore
+# Follow-up: implement per-symbol congressional trading collection or restore
 # bulk access via a different FMP plan / endpoint.
 FMP_SENATE_TRADES_PATH = "/senate-trades"
 FMP_HOUSE_TRADES_PATH = "/house-trades"

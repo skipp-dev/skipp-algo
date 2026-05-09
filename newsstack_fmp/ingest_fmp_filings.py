@@ -35,7 +35,7 @@ FMP_8K_LATEST_PATH = "/sec-filings-8k"
 # The constant is retained so existing tests that reference it as a label
 # keep working; the first live call will 404 and the existing
 # `mark_fmp_filings_disabled` mechanism will quietly silence the endpoint.
-# TODO(B6): locate or request the correct FMP 13F bulk path.
+# Follow-up (B6): locate or request the correct FMP 13F bulk path.
 FMP_13F_LATEST_PATH = "/sec-filings-13f"
 
 _APIKEY_RE = re.compile(r"(apikey|api_key|token|key)=[^&]+", re.IGNORECASE)
