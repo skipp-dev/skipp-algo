@@ -6,6 +6,38 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-05-10) — PR #2112 Copilot review follow-ups (PR #2113)
+
+Three small follow-ups raised by the Copilot review on PR #2112.
+No behavioural changes outside the redaction surface.
+
+- **Copilot #1 — webhook URL token redaction (extends PR #2112 M1)**:
+  extend `databento_utils._API_KEY_REDACTION_PATTERNS` with two
+  additional URL-path patterns so the canonical redactor also masks
+  Discord (`https://discord.com/api/webhooks/{id}/{token}`, including
+  `ptb.` / `canary.` / `discordapp.com` variants) and Slack
+  (`https://hooks.slack.com/services/T…/B…/{token}`) webhook secrets.
+  These are embedded in the URL **path** (not as `?token=…`), so the
+  pre-existing `api_key=` / `token=` / `Authorization: Bearer` patterns
+  could not catch them. `repr(httpx_exc)` typically includes the
+  request URL, which is how those tokens would otherwise leak into the
+  three M1 sites (`terminal_export.py`, `terminal_tradingview_news.py`,
+  `terminal_notifications.py`). Adds 3 unit tests in
+  `tests/test_databento_provider.py::TestRedaction`.
+- **Copilot #2 — `terminal_background_poller.py` L2 comment refinement**:
+  reword the L2 explanatory comment. The original wording suggested
+  the lock prevents a "torn intermediate value under tsan", which is
+  misleading for CPython where the GIL makes a single `int` read
+  atomic. The lock is taken purely for **lock-parity** with every other
+  access of `poll_count` — same code, no semantic change.
+- **Copilot #3 — `databento_volatility_screener.py` L5 follow-through**:
+  the PR #2112 changelog claimed `utc=True` was added to the
+  `pd.to_datetime(src["trade_date"], errors="coerce")` coercion in
+  `_build_close_trade_aggregates`, but the code change was not actually
+  landed. This PR applies it (now at the close-trade detail builder
+  *and* the close-outcome minute detail builder for parity), with an
+  explanatory comment.
+
 ### Fixed (2026-05-09) — Quantum sweep medium/low findings (M1, M2, L1–L6)
 
 Hardening pass on the quantum-sweep audit (PR #2112). No behavioural

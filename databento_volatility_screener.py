@@ -2924,7 +2924,12 @@ def _build_close_trade_aggregates(
     side_src = src["side"] if "side" in src.columns else pd.Series("N", index=src.index)
     venue_src = src["venue_class"] if "venue_class" in src.columns else pd.Series("", index=src.index)
     coerced: dict[str, pd.Series] = {
-        "trade_date": pd.to_datetime(src["trade_date"], errors="coerce").dt.date,
+        # PR #2113 (Copilot follow-up to PR #2112 L5): keep ``pd.to_datetime``
+        # on a single tz-aware code path so a tz-aware ``trade_date`` series
+        # (from upstream joins) does not raise the "mixed timezone"
+        # ``FutureWarning``. The trailing ``.dt.date`` still returns naive
+        # ``datetime.date`` instances downstream.
+        "trade_date": pd.to_datetime(src["trade_date"], errors="coerce", utc=True).dt.date,
         "symbol": src["symbol"].astype(str).str.upper(),
         "timestamp": pd.to_datetime(src["timestamp"], errors="coerce", utc=True).dt.tz_convert(tz),
         "ts_recv": pd.to_datetime(src.get("ts_recv"), errors="coerce", utc=True),
@@ -3025,7 +3030,9 @@ def _build_close_outcome_aggregates(close_outcome_minute_detail_all: pd.DataFram
     # the ``.copy()`` allocation spike on the ~14M-row close-outcome detail frame.
     src = close_outcome_minute_detail_all
     coerced: dict[str, pd.Series] = {
-        "trade_date": pd.to_datetime(src["trade_date"], errors="coerce").dt.date,
+        # PR #2113 (Copilot follow-up to PR #2112 L5): same utc=True parity
+        # as ``_build_close_trade_aggregates`` above — see comment there.
+        "trade_date": pd.to_datetime(src["trade_date"], errors="coerce", utc=True).dt.date,
         "symbol": src["symbol"].astype(str).str.upper(),
         "timestamp": pd.to_datetime(src["timestamp"], errors="coerce", utc=True),
         "volume": pd.to_numeric(src.get("volume"), errors="coerce").fillna(0.0),
