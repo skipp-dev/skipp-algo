@@ -6,6 +6,54 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-05-09) — Probe v3 cap-hit bundle (Q1–Q5b) + A1 followup
+
+Audit-trail completion for the seven PRs merged on 2026-05-09 that closed the
+Probe v3 sharded-producer cap-hit investigation. All entries doc-only here; the
+behavior changes already shipped in their respective PRs. Validated end-to-end
+by sharded run `25597406066` (6/6 shards green at 49.6 min / 120 min cap).
+
+- **Q1 (PR #2095)** — `obs(workbook): per-sheet progress in canonical xlsx
+  write (Step 10/10b)`. Adds per-sheet progress prints inside the Excel write
+  loop in `scripts/smc_microstructure_base_runtime.py` so cap-hit / OOM
+  failures during workbook assembly are localisable to a specific sheet rather
+  than a vague "Step 10". Pure observability, zero behavior change.
+- **Q2 + Q3 (PR #2098)** — `obs(load_daily_bars): per-batch progress + opt-in
+  parallel fetch (Step 5/10)`. Adds per-batch progress in the daily-bar loader
+  AND introduces opt-in parallel fetch via `DATABENTO_DAILY_MAX_WORKERS` env
+  var (default = 1, behavior preserved when unset). Single PR carries Q2's
+  observability + Q3's parallelism scaffold.
+- **Q3a (PR #2099)** — `ci(sharded): activate parallel-fetch via
+  DATABENTO_DAILY_MAX_WORKERS=4 (Q3a)`. Activates the Q3 parallel path in
+  `smc-databento-production-export-sharded.yml` only (non-sharded variant left
+  on default `=1`). Decision-gated by Q3 KPI evidence.
+- **Q4 (PR #2097)** — `ci(sharded): bump per-shard cap 90->120 (Q4 of Probe v3
+  Cap-Hit)`. Raises `timeout-minutes:` in `smc-databento-production-export-
+  sharded.yml` from 90 → 120 min after Q1+Q2+Q3 instrumentation showed the
+  worst-case shard wallclock approaching the 90-min cap with no further easy
+  wins inside the per-shard process. Cap is per-shard, not aggregate.
+- **Q5a (PR #2100)** — `remove(workbook): drop full_universe_close_trade_detail
+  from canonical xlsx (Q5a — OOM mitigation)`. Removes the
+  `full_universe_close_trade_detail` sheet from the canonical workbook in
+  `scripts/smc_microstructure_base_runtime.py`. Cause: this sheet alone drove
+  peak RSS to 6.9 GB / 7 GB on `ubuntu-latest`, OOM-killing shards 3 & 6 of
+  run `25593357307` with `exit 143` + "runner has received a shutdown signal".
+  Data still available via the parquet export pathway; only the in-memory
+  openpyxl assembly is dropped.
+- **Q5b (PR #2101)** — `Q5b: write parquet exports BEFORE canonical workbook
+  (defense-in-depth)`. Reorders `_write_outputs` so all parquet artifacts are
+  flushed to disk *before* the openpyxl workbook is materialised in memory.
+  Ensures partial success: even if a future workbook OOM recurs, the parquet
+  layer is intact and downstream consumers (rolling-bench, library-refresh)
+  still have data.
+- **A1 (PR #2102)** — `A1 (post-Q5b followup): watchlist comment for openpyxl
+  OOM mirror site`. Adds a 14-line watchlist comment block above the
+  `pd.ExcelWriter` call in `_write_base_snapshot_workbook` marking it as a
+  Q5a mirror site. Pure documentation: same failure class as the sheet Q5a
+  removed, currently mitigated by the chunked write loop. Comment defines
+  three explicit triggers for future action and an anti-noise rule
+  (dual-occurrence OR confirmed root cause). No preemptive refactor.
+
 ### Changed (2026-05-06) — F-V8-C4 / cron restructure 4×→2× + cap 120→240 min (#2066), and (2026-05-07) F-V8-C4-D doc-drift sync
 
 - **F-V8-C4 (PR #2066, squash `5db4cfd3`)**: restructured the Databento
