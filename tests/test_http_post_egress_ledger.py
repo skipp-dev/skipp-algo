@@ -133,11 +133,11 @@ def _request_method_post_sites() -> set[tuple[str, int]]:
 # legitimate egress edge to a known external service.
 HTTP_POST_LEDGER: set[tuple[str, int]] = {
     # Notification webhook fan-out (Discord/Slack-style).
-    ("terminal_notifications.py", 274),
+    ("terminal_notifications.py", 279),
     # FMP/news export webhook (raw body, no redirects, HMAC-SHA256 signed,
     # SSRF-guarded via _is_safe_webhook_url). Line shifted 919 → 908
     # (system review 2026-04-30).
-    ("terminal_export.py", 908),
+    ("terminal_export.py", 912),
     # OpenAI chat completions — FMP insights enrichment.
     ("terminal_fmp_insights.py", 372),
     # Webhook fan-out from the live Streamlit terminal alert path
@@ -153,9 +153,9 @@ HTTP_POST_LEDGER: set[tuple[str, int]] = {
 # sites that bypass the .post(...) attribute-call detector above.
 URLLIB_REQUEST_POST_LEDGER: set[tuple[str, int]] = {
     # Generic POST webhook helper (Slack/Discord-shape).
-    ("terminal_notifications.py", 246),
+    ("terminal_notifications.py", 251),
     # Pushover messages API.
-    ("terminal_notifications.py", 311),
+    ("terminal_notifications.py", 316),
     # Open-prep alerts dispatcher (Slack/webhook).
     ("open_prep/alerts.py", 395),
 }
