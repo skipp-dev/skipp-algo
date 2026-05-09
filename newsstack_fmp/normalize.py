@@ -483,7 +483,8 @@ def normalize_fmp_filing_13f(rec: dict[str, Any]) -> NewsItem:
 
     13F-HR is institution-keyed (no symbol field), so ``tickers`` is
     always empty and the headline carries the filer name. Cross-provider
-    hard-dedup (PR1) still applies via item_id.
+    hard-dedup (PR1) is keyed off ``cluster_hash`` (headline + tickers),
+    not ``item_id``.
     """
     name = str(rec.get("name") or rec.get("filerName") or "").strip()
     cik = str(rec.get("cik") or "").strip()
