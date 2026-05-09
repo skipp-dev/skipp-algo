@@ -368,3 +368,106 @@ def normalize_uw_news_headline(rec: dict[str, Any]) -> NewsItem:
         source=source,
         raw=rec,
     )
+
+
+# ── FMP political trades (Senate + House, PR3 2026-05-09) ────
+
+
+def normalize_fmp_political_trade(rec: dict[str, Any], *, chamber: str) -> NewsItem:
+    """Normalise one Senate or House congressional trade disclosure.
+
+    chamber: "senate" or "house" — drives provider label and source.
+    """
+    provider = "fmp_senate_trade" if chamber == "senate" else "fmp_house_trade"
+    source = "FMP Senate" if chamber == "senate" else "FMP House"
+
+    first_name = str(rec.get("firstName") or "").strip()
+    last_name = str(rec.get("lastName") or "").strip()
+    person = f"{last_name} {first_name[:1]}." if first_name else last_name
+    tx_type = str(rec.get("type") or "").strip()
+    ticker_raw = rec.get("ticker") or rec.get("symbol") or ""
+    ticker = _normalize_ticker_token(ticker_raw)
+    amount = str(rec.get("amount") or "").strip()
+    asset_desc = str(rec.get("assetDescription") or "").strip()
+
+    headline_parts = [
+        ("Senate" if chamber == "senate" else "House") + " trade:",
+        person,
+    ]
+    if tx_type:
+        headline_parts.append(tx_type)
+    if ticker:
+        headline_parts.append(ticker)
+    elif asset_desc:
+        headline_parts.append(asset_desc)
+    if amount:
+        headline_parts.append(amount)
+    headline = " ".join(p for p in headline_parts if p).strip()
+
+    url = rec.get("link") or None
+    # FMP API has a typo: "dateRecieved" (sic) — keep both for forward compat.
+    tx_date = str(
+        rec.get("transactionDate")
+        or rec.get("dateRecieved")
+        or rec.get("dateReceived")
+        or ""
+    ).strip()
+    ts = _to_epoch(tx_date)
+
+    item_id_seed = f"{url or ''}|{tx_date}|{ticker}|{tx_type}|{person}"
+    item_id = hashlib.sha1(
+        item_id_seed.encode("utf-8", errors="replace"), usedforsecurity=False
+    ).hexdigest()[:16]
+
+    tickers = [ticker] if ticker else []
+
+    return NewsItem(
+        provider=provider,
+        item_id=item_id,
+        published_ts=ts,
+        updated_ts=ts,
+        headline=headline,
+        snippet=asset_desc[:500],
+        tickers=tickers,
+        url=str(url) if url else None,
+        source=source,
+        raw=rec,
+    )
+
+
+# ── FMP SEC 8-K filings (B7, PR3 2026-05-09) ─────────────────
+
+
+def normalize_fmp_filing_8k(rec: dict[str, Any]) -> NewsItem:
+    """Normalise one FMP /sec-filings/8-K-latest record."""
+    symbol_raw = rec.get("symbol") or rec.get("ticker") or ""
+    symbol = _normalize_ticker_token(symbol_raw)
+    headline = f"8-K filing: {symbol}" if symbol else "8-K filing"
+
+    url = rec.get("finalLink") or rec.get("link") or None
+    accepted = str(
+        rec.get("acceptedDate") or rec.get("filingDate") or rec.get("date") or ""
+    ).strip()
+    ts = _to_epoch(accepted)
+
+    item_id = str(url or "").strip()
+    if not item_id:
+        seed = f"{symbol}|{accepted}|{rec.get('cik', '')}"
+        item_id = hashlib.sha1(
+            seed.encode("utf-8", errors="replace"), usedforsecurity=False
+        ).hexdigest()[:16]
+
+    tickers = [symbol] if symbol else []
+
+    return NewsItem(
+        provider="fmp_8k_latest",
+        item_id=item_id,
+        published_ts=ts,
+        updated_ts=ts,
+        headline=headline,
+        snippet="",
+        tickers=tickers,
+        url=str(url) if url else None,
+        source="SEC EDGAR",
+        raw=rec,
+    )

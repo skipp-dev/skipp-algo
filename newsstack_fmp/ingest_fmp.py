@@ -176,5 +176,15 @@ class FmpAdapter:
         r = self._safe_get(url, {"page": 0, "limit": limit, "apikey": self.api_key})
         return [normalize_fmp("fmp_articles", it) for it in _as_list(_safe_json(r))]
 
+    def fetch_general_latest(self, page: int, limit: int) -> list[NewsItem]:
+        """GET /stable/news/general-latest?page=…&limit=… (B4, PR3 2026-05-09).
+
+        Macro / market-wide news that complements the per-symbol
+        ``fetch_stock_latest`` and corporate ``fetch_press_latest`` feeds.
+        """
+        url = f"{FMP_BASE}/news/general-latest"
+        r = self._safe_get(url, {"page": page, "limit": limit, "apikey": self.api_key})
+        return [normalize_fmp("fmp_general_latest", it) for it in _as_list(_safe_json(r))]
+
     def close(self) -> None:
         self.client.close()
