@@ -165,6 +165,15 @@ jobs:
           BENZINGA_API_KEY: ${{ secrets.BENZINGA_API_KEY }}
           DATABENTO_DATASET: ${{ vars.DATABENTO_DATASET }}
           PYTHONUNBUFFERED: "1"
+          # Q3a (post-Probe-v3): activate the parallel-fetch cure landed in
+          # Q3 (#2098) for Step 5/10 (load_daily_bars). 4 workers fan out
+          # the per-batch Databento daily-bars requests; thread-safety is
+          # provided by load_daily_bars's threading.Lock around the
+          # progress callback and by databento_client's per-call
+          # requests.Session (connection-pooled, no shared mutable state).
+          # Producer pipeline is then expected to land well under the
+          # 120min cap (Q4 #2097) on lookback_days=10 num_shards=2.
+          DATABENTO_DAILY_MAX_WORKERS: "4"
         run: |
           set -euo pipefail
           mkdir -p "${EXPORT_DIR}" artifacts/ci
