@@ -43,12 +43,8 @@ _disabled_lock = threading.Lock()
 _TIER_LIMITED_CODES = frozenset({401, 403, 404})
 
 
-class FmpPoliticalEndpointDisabledError(RuntimeError):
-    def __init__(self, label: str) -> None:
-        super().__init__(
-            f"FMP political endpoint disabled (tier-limited or retired): {label}"
-        )
-        self.label = label
+# Audit-fix (2026-05-09): FmpPoliticalEndpointDisabledError removed (defined
+# but never raised; mute path is mark_fmp_political_disabled + Exception catch).
 
 
 def is_fmp_political_disabled(label: str) -> bool:

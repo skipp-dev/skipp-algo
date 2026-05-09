@@ -144,7 +144,7 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # is unchanged (still ``timeout=...``).
         ("open_prep/macro.py", 704),
         ("open_prep/sentiment_fng.py", 100),
-        ("terminal_finnhub.py", 182),
+        ("terminal_finnhub.py", 191),
         ("terminal_notifications.py", 250),
         ("terminal_notifications.py", 314),
         ("terminal_tradingview_news.py", 365),

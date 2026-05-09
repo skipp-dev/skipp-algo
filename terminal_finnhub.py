@@ -436,7 +436,9 @@ def fetch_company_news(
     if not is_equity_symbol(symbol):
         return []
     sym = symbol.upper().strip()
-    cache_key = f"company_news:{sym}:{days_back}"
+    # Audit-fix (2026-05-09): include max_items in cache key so callers with
+    # different limits don't collide on a previously-cached truncated list.
+    cache_key = f"company_news:{sym}:{days_back}:{max_items}"
     cached = _get_cached(cache_key, _NEWS_TTL)
     if cached is not None:
         return cached  # type: ignore[return-value]
@@ -562,6 +564,11 @@ def fetch_insider_sentiment(
     frm, to = _ymd_window(max(30, months_back * 31))
     raw = _get("/stock/insider-sentiment", {"symbol": sym, "from": frm, "to": to})
     if not isinstance(raw, dict):
+        return []
+    # Audit-fix (2026-05-09): treat empty dict (rate-limit / key-miss / 4xx
+    # short-circuit) as a transient miss — do NOT cache an empty list for the
+    # full 6h TTL or the endpoint goes silently dark for hours after a 429.
+    if not raw:
         return []
     rows = raw.get("data") or []
     if not isinstance(rows, list):

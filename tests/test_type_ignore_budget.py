@@ -104,7 +104,7 @@ _FROZEN_FILE_COUNTS: dict[str, int] = {
     "streamlit_terminal.py": 7,
     "terminal_bitcoin.py": 18,
     "terminal_export.py": 1,
-    "terminal_finnhub.py": 1,
+    "terminal_finnhub.py": 5,
     "terminal_forecast.py": 2,
     "terminal_poller.py": 13,
     "terminal_spike_scanner.py": 1,

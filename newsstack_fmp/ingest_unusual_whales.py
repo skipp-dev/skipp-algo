@@ -53,17 +53,11 @@ _DISABLED_ENDPOINTS: set[str] = set()
 _disabled_lock = threading.Lock()
 
 
-class UnusualWhalesEndpointDisabledError(RuntimeError):
-    """Raised when a UW endpoint has been marked disabled after a permanent
-    failure (tier-limit, missing entitlement, retired URL).  Callers catch
-    Exception, log, and return ``[]``.
-    """
-
-    def __init__(self, label: str) -> None:
-        super().__init__(
-            f"UW endpoint disabled (tier-limited or retired): {label}"
-        )
-        self.label = label
+# Audit-fix (2026-05-09): UnusualWhalesEndpointDisabledError class removed.
+# It was defined but never raised — the actual mute mechanism is the
+# is_uw_endpoint_disabled()/mark_uw_endpoint_disabled() pair plus a
+# generic-Exception catch in the pipeline. Reintroduce only if a caller
+# is wired to handle it specifically.
 
 
 def is_uw_endpoint_disabled(label: str) -> bool:

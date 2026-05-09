@@ -331,7 +331,9 @@ def normalize_uw_news_headline(rec: dict[str, Any]) -> NewsItem:
     # so dedup still functions per-provider via mark_seen.
     if not item_id and headline:
         seed = f"{headline}|{rec.get('url') or ''}"
-        item_id = hashlib.sha1(seed.encode("utf-8")).hexdigest()[:16]
+        item_id = hashlib.sha1(
+            seed.encode("utf-8"), usedforsecurity=False
+        ).hexdigest()[:16]
 
     snippet = str(rec.get("description") or rec.get("teaser") or "").strip()
     url = rec.get("url") or rec.get("link") or None

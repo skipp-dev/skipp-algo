@@ -695,8 +695,11 @@ def poll_once(
                 for rec in senate_raw
             ]
             senate_items = [it for it in senate_items if it.is_valid]
+            # Audit-fix (2026-05-09): >= not > so same-day records (FMP returns
+            # date-only granularity for senate/house) aren't dropped on next poll.
+            # mark_seen() is the authoritative per-item dedup.
             senate_new = [
-                it for it in senate_items if it.updated_ts > fmp_senate_last
+                it for it in senate_items if it.updated_ts >= fmp_senate_last
             ]
             new_fmp_senate_max = max(
                 (it.updated_ts for it in senate_new),
@@ -723,8 +726,9 @@ def poll_once(
                 for rec in house_raw
             ]
             house_items = [it for it in house_items if it.is_valid]
+            # Audit-fix (2026-05-09): >= not > (date-only granularity).
             house_new = [
-                it for it in house_items if it.updated_ts > fmp_house_last
+                it for it in house_items if it.updated_ts >= fmp_house_last
             ]
             new_fmp_house_max = max(
                 (it.updated_ts for it in house_new),
@@ -747,8 +751,9 @@ def poll_once(
                 normalize_fmp_filing_8k(rec) for rec in eight_k_raw
             ]
             eight_k_items = [it for it in eight_k_items if it.is_valid]
+            # Audit-fix (2026-05-09): >= for safety; mark_seen() dedups per id.
             eight_k_new = [
-                it for it in eight_k_items if it.updated_ts > fmp_8k_last
+                it for it in eight_k_items if it.updated_ts >= fmp_8k_last
             ]
             new_fmp_8k_max = max(
                 (it.updated_ts for it in eight_k_new),
@@ -771,8 +776,9 @@ def poll_once(
                 normalize_fmp_filing_13f(rec) for rec in thirteen_f_raw
             ]
             thirteen_f_items = [it for it in thirteen_f_items if it.is_valid]
+            # Audit-fix (2026-05-09): >= for safety; mark_seen() dedups per id.
             thirteen_f_new = [
-                it for it in thirteen_f_items if it.updated_ts > fmp_13f_last
+                it for it in thirteen_f_items if it.updated_ts >= fmp_13f_last
             ]
             new_fmp_13f_max = max(
                 (it.updated_ts for it in thirteen_f_new),
@@ -878,7 +884,10 @@ def poll_once(
         process_news_items(
             store, other_items, _best_by_ticker, universe, enricher,
             cfg.score_enrich_threshold, last_seen_epoch=0.0,
-            enrich_budget=max(0, 3 - _enrich_ctr[0]),
+            # Audit-fix (2026-05-09): absolute cap of 3 (was relative
+            # `max(0, 3 - _enrich_ctr[0])` which under-budgeted the
+            # other-provider batch when fmp had already consumed enrichments).
+            enrich_budget=3,
             _shared_enrich_counter=_enrich_ctr,
             _enriched_clusters=_enriched_clusters,
         )
@@ -955,6 +964,17 @@ def poll_once(
         meta_sources.extend(["fmp_stock_latest", "fmp_press_latest"])
         if cfg.enable_fmp_articles:
             meta_sources.append("fmp_articles")
+        # Audit-fix (2026-05-09): expose new FMP sources for telemetry.
+        if cfg.enable_fmp_general:
+            meta_sources.append("fmp_general_latest")
+        if cfg.enable_fmp_senate_trades and cfg.fmp_api_key:
+            meta_sources.append("fmp_senate_trades")
+        if cfg.enable_fmp_house_trades and cfg.fmp_api_key:
+            meta_sources.append("fmp_house_trades")
+        if cfg.enable_fmp_8k and cfg.fmp_api_key:
+            meta_sources.append("fmp_8k_latest")
+        if cfg.enable_fmp_13f and cfg.fmp_api_key:
+            meta_sources.append("fmp_13f_latest")
     if cfg.enable_benzinga_rest:
         meta_sources.append("benzinga_rest")
     if cfg.enable_benzinga_ws:
@@ -963,6 +983,9 @@ def poll_once(
         meta_sources.append("tradingview")
     if cfg.enable_newsapi_ai and cfg.newsapi_ai_key and universe_symbols:
         meta_sources.append("newsapi_ai")
+    # Audit-fix (2026-05-09): UW news source telemetry.
+    if cfg.enable_uw_news and is_uw_configured():
+        meta_sources.append("uw_news")
     meta: dict[str, Any] = {
         "generated_ts": time.time(),
         "cursor": {
