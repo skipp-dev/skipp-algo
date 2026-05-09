@@ -3385,6 +3385,14 @@ def run_production_export_pipeline(
     universe_symbols = set(supported_universe["symbol"].dropna().astype(str).str.upper())
 
     _progress(f"Step 5/10: Loading daily bars ({len(universe_symbols)} symbols, {len(trading_days)} days)...")
+    _daily_workers_raw = os.environ.get("DATABENTO_DAILY_MAX_WORKERS", "1")
+    try:
+        _daily_max_workers = max(1, int(_daily_workers_raw))
+    except (TypeError, ValueError):
+        _progress(
+            f"Step 5/10: WARN ignoring DATABENTO_DAILY_MAX_WORKERS={_daily_workers_raw!r} (not an int); defaulting to 1"
+        )
+        _daily_max_workers = 1
     daily_bars = load_daily_bars(
         databento_api_key,
         dataset=dataset,
@@ -3393,6 +3401,8 @@ def run_production_export_pipeline(
         cache_dir=resolved_cache_dir,
         use_file_cache=use_file_cache,
         force_refresh=force_refresh,
+        progress_callback=_progress,
+        max_workers=_daily_max_workers,
     )
     daily_bars_fetched_at = datetime.now(UTC).isoformat(timespec="seconds")
 

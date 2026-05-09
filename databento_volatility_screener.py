@@ -1394,9 +1394,23 @@ def load_daily_bars(
     cache_dir: str | Path | None = None,
     use_file_cache: bool = False,
     force_refresh: bool = False,
+    progress_callback: Callable[[str], None] | None = None,
+    max_workers: int = 1,
 ) -> pd.DataFrame:
     if not trading_days:
         return pd.DataFrame(columns=["trade_date", "symbol", "open", "high", "low", "close", "volume", "previous_close"])
+    _t0 = time_module.perf_counter()
+    _emit_lock = threading.Lock()
+
+    def _emit(msg: str) -> None:
+        if progress_callback is not None:
+            with _emit_lock:
+                progress_callback(f"step-5: {msg} (t+{time_module.perf_counter() - _t0:.1f}s)")
+
+    _emit(
+        f"begin trading_days={len(trading_days)} universe={len(universe_symbols)} "
+        f"max_workers={max_workers}"
+    )
     symbol_scope = _symbol_scope_token(universe_symbols)
     start_date = trading_days[0] - timedelta(days=14)
     end_date = trading_days[-1]
@@ -1409,14 +1423,24 @@ def load_daily_bars(
     frame: pd.DataFrame | None = None
     if use_file_cache and not force_refresh:
         frame = _read_cached_frame(cache_path, max_age_seconds=DATA_CACHE_TTL_SECONDS)
-    if frame is None:
+    if frame is not None:
+        _emit(f"cache HIT path={cache_path} rows={len(frame)}")
+    else:
+        _emit(f"cache MISS path={cache_path} (force_refresh={force_refresh})")
         client = _make_databento_client(databento_api_key)
         schema_end = _get_schema_available_end(client, dataset, "ohlcv-1d")
         end_date = _daily_request_end_exclusive(end_date, schema_end)
         if end_date <= start_date:
+            _emit("schema_end collapsed window; returning empty frame")
             return pd.DataFrame(columns=["trade_date", "symbol", "open", "high", "low", "close", "volume", "previous_close"])
-        frames: list[pd.DataFrame] = []
-        for symbols_batch in _iter_symbol_batches(universe_symbols):
+        batches = list(_iter_symbol_batches(universe_symbols))
+        effective_workers = max(1, min(int(max_workers), len(batches)))
+        mode = "parallel" if effective_workers > 1 else "sequential"
+        _emit(f"fetching {len(batches)} batches mode={mode} workers={effective_workers}")
+
+        def _fetch_one(indexed_batch: tuple[int, list[str]]) -> pd.DataFrame | None:
+            idx, symbols_batch = indexed_batch
+            _emit(f"batch {idx}/{len(batches)} begin (n_symbols={len(symbols_batch)})")
             try:
                 store = _databento_get_range_with_retry(
                     client,
@@ -1430,18 +1454,33 @@ def load_daily_bars(
                 batch_frame = _store_to_frame(store, context="load_daily_bars")
                 if not batch_frame.empty:
                     _validate_frame_columns(batch_frame, required={"symbol", "open", "high", "low", "close", "volume"}, context="load_daily_bars")
-                if not batch_frame.empty:
-                    frames.append(batch_frame)
+                _emit(f"batch {idx}/{len(batches)} done rows={len(batch_frame)}")
+                return batch_frame if not batch_frame.empty else None
             except Exception as exc:
                 _warn_with_redacted_exception(
                     f"Failed to fetch daily bars for batch of {len(symbols_batch)} symbols",
                     exc,
                     include_traceback=True,
                 )
+                _emit(f"batch {idx}/{len(batches)} FAILED")
+                return None
+
+        indexed = list(enumerate(batches, start=1))
+        if effective_workers > 1 and len(batches) > 1:
+            with ThreadPoolExecutor(max_workers=effective_workers, thread_name_prefix="daily_bars_batch") as executor:
+                results = list(executor.map(_fetch_one, indexed))
+        else:
+            results = [_fetch_one(item) for item in indexed]
+        frames = [f for f in results if f is not None]
+        ok = sum(1 for f in results if f is not None)
+        failed = sum(1 for f in results if f is None)
+        _emit(f"fetch complete batches_ok={ok} batches_failed_or_empty={failed}")
         frame = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
         if use_file_cache and not frame.empty:
             _write_cached_frame(cache_path, frame)
+            _emit(f"wrote cache rows={len(frame)}")
     if frame.empty:
+        _emit("complete rows=0 (empty after fetch)")
         return pd.DataFrame(columns=["trade_date", "symbol", "open", "high", "low", "close", "volume", "previous_close"])
     normalized_universe_symbols = {
         normalized
@@ -1462,6 +1501,7 @@ def load_daily_bars(
     frame = frame.sort_values(["symbol", "trade_date"]).reset_index(drop=True)
     frame["previous_close"] = frame.groupby("symbol")["close"].shift(1)
     frame = frame[frame["trade_date"].isin(trading_days)].reset_index(drop=True)
+    _emit(f"complete rows={len(frame)}")
     return frame
 
 
