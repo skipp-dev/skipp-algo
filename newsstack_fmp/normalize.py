@@ -471,3 +471,44 @@ def normalize_fmp_filing_8k(rec: dict[str, Any]) -> NewsItem:
         source="SEC EDGAR",
         raw=rec,
     )
+
+
+# ── FMP SEC 13F-HR filings (B6, PR5 2026-05-09) ────────────
+
+
+def normalize_fmp_filing_13f(rec: dict[str, Any]) -> NewsItem:
+    """Normalise one FMP /sec-filings/13F-HR-latest record.
+
+    13F-HR is institution-keyed (no symbol field), so ``tickers`` is
+    always empty and the headline carries the filer name. Cross-provider
+    hard-dedup (PR1) still applies via item_id.
+    """
+    name = str(rec.get("name") or rec.get("filerName") or "").strip()
+    cik = str(rec.get("cik") or "").strip()
+    headline = f"13F-HR filing: {name}" if name else "13F-HR filing"
+
+    url = rec.get("finalLink") or rec.get("link") or None
+    filed = str(
+        rec.get("date") or rec.get("filingDate") or rec.get("acceptedDate") or ""
+    ).strip()
+    ts = _to_epoch(filed)
+
+    item_id = str(url or "").strip()
+    if not item_id:
+        seed = f"{name}|{filed}|{cik}"
+        item_id = hashlib.sha1(
+            seed.encode("utf-8", errors="replace"), usedforsecurity=False
+        ).hexdigest()[:16]
+
+    return NewsItem(
+        provider="fmp_13f_latest",
+        item_id=item_id,
+        published_ts=ts,
+        updated_ts=ts,
+        headline=headline,
+        snippet="",
+        tickers=[],
+        url=str(url) if url else None,
+        source="SEC EDGAR",
+        raw=rec,
+    )

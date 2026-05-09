@@ -3825,6 +3825,79 @@ class TestFmpExtras(unittest.TestCase):
         self.assertEqual(len(item.item_id), 16)
         self.assertTrue(item.is_valid)
 
+    # ── B6 (PR5 2026-05-09): SEC 13F-HR filings follow-up ──
+
+    def test_fetch_13f_latest_returns_items(self):
+        from newsstack_fmp.ingest_fmp_filings import FmpFilingsAdapter
+
+        adapter = FmpFilingsAdapter("fake-key")
+        try:
+            mock_resp = MagicMock()
+            mock_resp.status_code = 200
+            mock_resp.json.return_value = [
+                {
+                    "cik": "0001067983",
+                    "name": "BERKSHIRE HATHAWAY INC",
+                    "date": "2026-05-08 16:00:00",
+                    "formType": "13F-HR",
+                    "link": "https://www.sec.gov/cgi-bin/x",
+                    "finalLink": "https://www.sec.gov/Archives/x.txt",
+                },
+            ]
+            with patch.object(adapter.client, "get", return_value=mock_resp):
+                out = adapter.fetch_13f_latest(limit=10)
+            self.assertEqual(len(out), 1)
+            self.assertEqual(out[0]["cik"], "0001067983")
+        finally:
+            adapter.close()
+
+    def test_13f_disabled_short_circuits(self):
+        from newsstack_fmp.ingest_fmp_filings import (
+            FMP_13F_LATEST_PATH,
+            FmpFilingsAdapter,
+            mark_fmp_filings_disabled,
+        )
+
+        adapter = FmpFilingsAdapter("fake-key")
+        try:
+            mark_fmp_filings_disabled(FMP_13F_LATEST_PATH)
+            with patch.object(adapter.client, "get") as mock_get:
+                out = adapter.fetch_13f_latest()
+            self.assertEqual(out, [])
+            mock_get.assert_not_called()
+        finally:
+            adapter.close()
+
+    def test_normalize_13f_filing_basic(self):
+        from newsstack_fmp.normalize import normalize_fmp_filing_13f
+
+        rec = {
+            "cik": "0001067983",
+            "name": "BERKSHIRE HATHAWAY INC",
+            "date": "2026-05-08 16:00:00",
+            "formType": "13F-HR",
+            "link": "https://www.sec.gov/cgi-bin/x",
+            "finalLink": "https://www.sec.gov/Archives/x.txt",
+        }
+        item = normalize_fmp_filing_13f(rec)
+        self.assertEqual(item.provider, "fmp_13f_latest")
+        self.assertEqual(item.tickers, [])  # institution-keyed, no symbols
+        self.assertEqual(item.source, "SEC EDGAR")
+        self.assertIn("BERKSHIRE HATHAWAY INC", item.headline)
+        self.assertEqual(item.url, "https://www.sec.gov/Archives/x.txt")
+        self.assertGreater(item.published_ts, 0)
+        self.assertTrue(item.is_valid)
+
+    def test_normalize_13f_filing_synthesizes_id_when_no_url(self):
+        from newsstack_fmp.normalize import normalize_fmp_filing_13f
+
+        item = normalize_fmp_filing_13f(
+            {"cik": "999", "name": "ACME CAPITAL", "date": "2026-05-08"}
+        )
+        self.assertEqual(len(item.item_id), 16)
+        self.assertEqual(item.tickers, [])
+        self.assertTrue(item.is_valid)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -111,3 +111,154 @@ class TestBackoff:
         b1 = terminal_finnhub._BACKOFF_BASE_SECONDS * (2 ** 0)
         b2 = terminal_finnhub._BACKOFF_BASE_SECONDS * (2 ** 1)
         assert b2 > b1
+
+
+# ---------------------------------------------------------------------------
+# PR4 (2026-05-09): Finnhub free-tier extensions
+# ---------------------------------------------------------------------------
+
+import unittest.mock as _mock
+
+
+class TestCompanyNews:
+    def setup_method(self) -> None:
+        terminal_finnhub._cache.clear()
+        terminal_finnhub.clear_blocked_paths()
+
+    def test_non_equity_returns_empty(self) -> None:
+        assert terminal_finnhub.fetch_company_news("BTC") == []
+
+    def test_parses_records(self) -> None:
+        payload = [
+            {
+                "id": 7, "datetime": 1700000000, "headline": "AAPL beats",
+                "summary": "x", "source": "Reuters", "url": "https://e",
+                "category": "company", "related": "AAPL", "image": "",
+            },
+            {"id": 8, "datetime": 1700000100, "headline": "more", "summary": "",
+             "source": "WSJ", "url": "u", "category": "c", "related": "AAPL",
+             "image": ""},
+        ]
+        with _mock.patch.object(terminal_finnhub, "_get", return_value=payload):
+            items = terminal_finnhub.fetch_company_news("AAPL", days_back=3)
+        assert len(items) == 2
+        assert items[0].symbol == "AAPL"
+        assert items[0].headline == "AAPL beats"
+        assert items[0].item_id == 7
+
+    def test_max_items_cap(self) -> None:
+        payload = [{"id": i, "datetime": 1, "headline": f"h{i}", "summary": "",
+                    "source": "s", "url": "u", "category": "", "related": "",
+                    "image": ""} for i in range(100)]
+        with _mock.patch.object(terminal_finnhub, "_get", return_value=payload):
+            items = terminal_finnhub.fetch_company_news("MSFT", max_items=5)
+        assert len(items) == 5
+
+    def test_empty_payload(self) -> None:
+        with _mock.patch.object(terminal_finnhub, "_get", return_value=[]):
+            assert terminal_finnhub.fetch_company_news("AAPL") == []
+
+    def test_caches_per_window(self) -> None:
+        calls = {"n": 0}
+        def fake_get(_p, _q):
+            calls["n"] += 1
+            return [{"id": 1, "datetime": 1, "headline": "h", "summary": "",
+                     "source": "s", "url": "u", "category": "", "related": "",
+                     "image": ""}]
+        with _mock.patch.object(terminal_finnhub, "_get", side_effect=fake_get):
+            terminal_finnhub.fetch_company_news("AAPL", days_back=1)
+            terminal_finnhub.fetch_company_news("AAPL", days_back=1)
+        assert calls["n"] == 1
+
+
+class TestNewsSentiment:
+    def setup_method(self) -> None:
+        terminal_finnhub._cache.clear()
+        terminal_finnhub.clear_blocked_paths()
+
+    def test_non_equity_returns_none(self) -> None:
+        assert terminal_finnhub.fetch_news_sentiment("BTC") is None
+
+    def test_parses_payload(self) -> None:
+        payload = {
+            "buzz": {"articlesInLastWeek": 12, "weeklyAverage": 3.4, "buzz": 1.1},
+            "companyNewsScore": 0.65, "sectorAverageNewsScore": 0.5,
+            "sentiment": {"bearishPercent": 0.2, "bullishPercent": 0.8},
+        }
+        with _mock.patch.object(terminal_finnhub, "_get", return_value=payload):
+            s = terminal_finnhub.fetch_news_sentiment("AAPL")
+        assert s is not None
+        assert s.symbol == "AAPL"
+        assert s.buzz_articles_in_last_week == 12
+        assert s.sentiment_bullish_pct == 0.8
+        assert s.company_news_score == 0.65
+
+    def test_empty_payload_returns_none(self) -> None:
+        with _mock.patch.object(terminal_finnhub, "_get", return_value={}):
+            assert terminal_finnhub.fetch_news_sentiment("AAPL") is None
+
+
+class TestRecommendationTrends:
+    def setup_method(self) -> None:
+        terminal_finnhub._cache.clear()
+        terminal_finnhub.clear_blocked_paths()
+
+    def test_non_equity_returns_empty(self) -> None:
+        assert terminal_finnhub.fetch_recommendation_trends("BTC") == []
+
+    def test_parses_records(self) -> None:
+        payload = [
+            {"period": "2026-04-01", "strongBuy": 10, "buy": 12, "hold": 5,
+             "sell": 1, "strongSell": 0, "symbol": "AAPL"},
+            {"period": "2026-03-01", "strongBuy": 8, "buy": 11, "hold": 6,
+             "sell": 2, "strongSell": 1, "symbol": "AAPL"},
+        ]
+        with _mock.patch.object(terminal_finnhub, "_get", return_value=payload):
+            rows = terminal_finnhub.fetch_recommendation_trends("AAPL")
+        assert len(rows) == 2
+        assert rows[0].period == "2026-04-01"
+        assert rows[0].strong_buy == 10
+        assert rows[1].sell == 2
+
+    def test_dict_payload_returns_empty(self) -> None:
+        with _mock.patch.object(terminal_finnhub, "_get", return_value={}):
+            assert terminal_finnhub.fetch_recommendation_trends("AAPL") == []
+
+
+class TestInsiderSentiment:
+    def setup_method(self) -> None:
+        terminal_finnhub._cache.clear()
+        terminal_finnhub.clear_blocked_paths()
+
+    def test_non_equity_returns_empty(self) -> None:
+        assert terminal_finnhub.fetch_insider_sentiment("BTC") == []
+
+    def test_unwraps_data_field(self) -> None:
+        payload = {"symbol": "AAPL", "data": [
+            {"symbol": "AAPL", "year": 2026, "month": 4, "change": 5000, "mspr": 12.3},
+            {"symbol": "AAPL", "year": 2026, "month": 3, "change": -2000, "mspr": -7.1},
+        ]}
+        with _mock.patch.object(terminal_finnhub, "_get", return_value=payload):
+            rows = terminal_finnhub.fetch_insider_sentiment("AAPL")
+        assert len(rows) == 2
+        assert rows[0].year == 2026 and rows[0].month == 4
+        assert rows[0].change == 5000
+        assert rows[1].mspr == -7.1
+
+    def test_missing_data_returns_empty(self) -> None:
+        with _mock.patch.object(terminal_finnhub, "_get", return_value={"symbol": "AAPL"}):
+            assert terminal_finnhub.fetch_insider_sentiment("AAPL") == []
+
+
+class TestBlockedPathShortCircuit:
+    def setup_method(self) -> None:
+        terminal_finnhub._cache.clear()
+        terminal_finnhub.clear_blocked_paths()
+
+    def test_clear_blocked_paths_resets_state(self) -> None:
+        with terminal_finnhub._state_lock:
+            terminal_finnhub._blocked_path_substrings.add("/foo")
+            terminal_finnhub._social_sentiment_blocked = True
+        terminal_finnhub.clear_blocked_paths()
+        assert terminal_finnhub._blocked_path_substrings == set()
+        assert terminal_finnhub._social_sentiment_blocked is False
