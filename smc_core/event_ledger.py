@@ -95,15 +95,16 @@ def _scored_event_to_record(
         predicted_prob=float(prob_raw),
         outcome=bool(get("outcome", False)),
         context={str(k): str(v) for k, v in context.items()},
+        # PR-quantum-strict-audit: cache the ``get`` result via walrus so
+        # mypy --strict can narrow ``Any | None`` -> ``Any`` for the
+        # ``float(...)`` / ``str(...)`` call. Two separate ``get`` calls
+        # would also be a (theoretical) idempotency hazard if ``context``
+        # mutated between them.
         raw_score=(
-            float(get("raw_score"))
-            if get("raw_score") is not None
-            else None
+            float(_rs) if (_rs := get("raw_score")) is not None else None
         ),
         raw_score_name=(
-            str(get("raw_score_name"))
-            if get("raw_score_name") is not None
-            else None
+            str(_rsn) if (_rsn := get("raw_score_name")) is not None else None
         ),
         features=dict(get("features") or {}),
         outcome_extras=dict(get("outcome_extras") or {}),
