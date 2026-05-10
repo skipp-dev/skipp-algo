@@ -105,3 +105,25 @@ def test_annotate_feed_and_effective_helpers_prefer_resolution_values() -> None:
     assert effective_resolution_score(annotated[0]) == pytest.approx(0.51)
     assert effective_resolution_actionable(annotated[0]) is False
     assert effective_resolution_priority({"resolution_state": "FOLLOW_THROUGH"}) > effective_resolution_priority({"resolution_state": "OPEN"})
+
+
+def test_build_ticker_resolution_state_marks_open_failed_and_stalled_branches() -> None:
+    missing_quote = build_ticker_resolution_state([_row()], now=1500.0)
+    assert missing_quote["AAPL"]["resolution_state"] == "OPEN"
+    assert missing_quote["AAPL"]["resolution_reason"] == "missing_quote_context"
+
+    failed = build_ticker_resolution_state(
+        [_row(ticker="MSFT", reaction_state="FADE", reaction_actionable=False, peak_impulse_pct=1.0)],
+        rt_quotes={"MSFT": {"price": 100.1, "chg_pct": 0.1}},
+        now=1500.0,
+    )
+    assert failed["MSFT"]["resolution_state"] == "FAILED"
+    assert failed["MSFT"]["resolution_reason"] == "negative_reaction_persisted"
+
+    stalled = build_ticker_resolution_state(
+        [_row(ticker="NVDA", peak_impulse_pct=0.30, reaction_state="WATCH")],
+        rt_quotes={"NVDA": {"price": 100.1, "chg_pct": 0.1}},
+        now=1800.0,
+    )
+    assert stalled["NVDA"]["resolution_state"] == "STALLED"
+    assert stalled["NVDA"]["resolution_reason"] == "no_follow_through"

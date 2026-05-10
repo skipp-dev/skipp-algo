@@ -1684,15 +1684,15 @@ def _get_store() -> SqliteStore:
 
 
 def _snapshot_bg_poller_state(poller: BackgroundPoller, *, reason: str, restarting: bool = False) -> None:
-    dropped_count = int(getattr(poller, "total_items_dropped", 0) or 0)
+    dropped_count = int((poller_snapshot := poller.snapshot()).get("total_items_dropped", 0) or 0)
     snapshot = {
         "reason": reason,
         "observed_at": time.time(),
-        "poll_count": int(getattr(poller, "poll_count", 0) or 0),
-        "poll_attempts": int(getattr(poller, "poll_attempts", 0) or 0),
-        "last_poll_status": str(getattr(poller, "last_poll_status", "—") or "—"),
-        "last_poll_error": str(getattr(poller, "last_poll_error", "") or ""),
-        "last_poll_ts": float(getattr(poller, "last_poll_ts", 0.0) or 0.0),
+        "poll_count": int(poller_snapshot.get("poll_count", 0) or 0),
+        "poll_attempts": int(poller_snapshot.get("poll_attempts", 0) or 0),
+        "last_poll_status": str(poller_snapshot.get("last_poll_status", "—") or "—"),
+        "last_poll_error": str(poller_snapshot.get("last_poll_error", "") or ""),
+        "last_poll_ts": float(poller_snapshot.get("last_poll_ts", 0.0) or 0.0),
         "total_items_dropped": dropped_count,
     }
     st.session_state["bg_poller_total_dropped"] = max(
@@ -2701,21 +2701,21 @@ if st.session_state.use_bg_poller:
     # Sync status from background poller for sidebar display
     _bp = st.session_state.bg_poller
     if _bp is not None:
-        st.session_state.poll_count = max(st.session_state.poll_count, _bp.poll_count)
+        st.session_state.poll_count = max(st.session_state.poll_count, int((_bp_snapshot := _bp.snapshot()).get("poll_count", 0) or 0))
         st.session_state["poll_attempts"] = max(
-            st.session_state.get("poll_attempts", 0), getattr(_bp, "poll_attempts", _bp.poll_count))
-        st.session_state.last_poll_ts = _bp.last_poll_ts
-        st.session_state.last_poll_status = _bp.last_poll_status
-        if _bp.last_poll_ts > 0:
-            st.session_state.last_poll_error = _bp.last_poll_error
-        st.session_state.last_poll_duration_s = getattr(_bp, "last_poll_duration_s", 0.0)
+            st.session_state.get("poll_attempts", 0), int(_bp_snapshot.get("poll_attempts", 0) or 0))
+        st.session_state.last_poll_ts = float(_bp_snapshot.get("last_poll_ts", 0.0) or 0.0)
+        st.session_state.last_poll_status = str(_bp_snapshot.get("last_poll_status", "—") or "—")
+        if st.session_state.last_poll_ts > 0:
+            st.session_state.last_poll_error = str(_bp_snapshot.get("last_poll_error", "") or "")
+        st.session_state.last_poll_duration_s = float(_bp_snapshot.get("last_poll_duration_s", 0.0) or 0.0)
         st.session_state.total_items_ingested = max(
-            st.session_state.total_items_ingested, _bp.total_items_ingested)
+            st.session_state.total_items_ingested, int(_bp_snapshot.get("total_items_ingested", 0) or 0))
         st.session_state["bg_poller_total_dropped"] = max(
             int(st.session_state.get("bg_poller_total_dropped", 0) or 0),
-            int(getattr(_bp, "total_items_dropped", 0) or 0),
+            int(_bp_snapshot.get("total_items_dropped", 0) or 0),
         )
-        st.session_state.provider_cursors = _bp.provider_cursors
+        st.session_state.provider_cursors = dict(_bp_snapshot.get("provider_cursors") or {})
         st.session_state.cursor = legacy_cursor_from_provider_cursors(st.session_state.provider_cursors)
 
 else:
