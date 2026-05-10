@@ -34,8 +34,15 @@ _cache: dict[str, tuple[float, str]] = {}   # hash -> (timestamp, response)
 _CACHE_TTL_S = 300.0  # 5 minutes
 
 
-def _cache_key(question: str, context_digest: str, model: str) -> str:
-    raw = f"{model}|{question}|{context_digest}"
+def _cache_key(question: str, context_digest: str, model: str, api_key: str) -> str:
+    # Audit 2026-05-10 (PR-J3): partition the cache by OpenAI API key.
+    # Without the api_key fingerprint, two callers with different OpenAI
+    # keys submitting the same (question, context, model) tuple would
+    # share each other's cached LLM completions (cross-account response
+    # leakage; also denial-of-service when one key's negative response
+    # is served to another key).
+    fp = hashlib.sha256(str(api_key).encode()).hexdigest()[:16]
+    raw = f"{fp}|{model}|{question}|{context_digest}"
     return hashlib.sha256(raw.encode()).hexdigest()[:24]
 
 
@@ -213,7 +220,7 @@ def query_llm(
 
     # Check cache
     digest = hashlib.sha256(context_json.encode()).hexdigest()[:16]
-    ck = _cache_key(question, digest, model)
+    ck = _cache_key(question, digest, model, api_key)
     cached_text = _get_cached(ck)
     if cached_text is not None:
         return LLMResponse(
