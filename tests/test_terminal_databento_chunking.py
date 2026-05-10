@@ -25,11 +25,13 @@ import pytest
 def reset_quote_cache():
     """Ensure each test starts with a clean module-level quote cache."""
     import terminal_databento
+    # Audit 2026-05-10 (PR-E): _quote_cache and _quote_cache_ts are
+    # now per-fingerprint dicts, not flat dict + scalar.
     terminal_databento._quote_cache.clear()
-    terminal_databento._quote_cache_ts = 0.0
+    terminal_databento._quote_cache_ts.clear()
     yield
     terminal_databento._quote_cache.clear()
-    terminal_databento._quote_cache_ts = 0.0
+    terminal_databento._quote_cache_ts.clear()
 
 
 def _make_fake_store(symbols: list[str]) -> SimpleNamespace:
