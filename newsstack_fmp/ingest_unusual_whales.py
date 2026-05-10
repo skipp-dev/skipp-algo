@@ -24,6 +24,8 @@ from typing import Any
 
 import httpx
 
+from newsstack_fmp._bz_http import _request_with_status_retry
+
 logger = logging.getLogger(__name__)
 
 # Base URL for all UW REST endpoints.
@@ -112,8 +114,26 @@ class UnusualWhalesAdapter:
         if is_uw_endpoint_disabled(path):
             return None
         url = f"{UW_BASE_URL}{path}"
+        # Audit-fix (2026-05-10, F2): use the shared retry primitive from
+        # _bz_http so 429/5xx and transient network errors are retried with
+        # backoff + Retry-After honoring before falling through to the
+        # tier-disabled / status-code branches below. The primitive returns
+        # a Response without raise_for_status so non-retryable 4xx (401/403/
+        # 404) still flow into the existing mark_uw_endpoint_disabled paths.
         try:
-            r = self.client.get(url, params=params or {})
+            r = _request_with_status_retry(self.client, url, params or {})
+        except httpx.HTTPStatusError as exc:
+            # Raised after retry exhaustion on a 429/5xx response.
+            code = exc.response.status_code
+            if code == 429:
+                logger.warning(
+                    "UW rate-limited (429) on %s after retries", path
+                )
+            else:
+                logger.warning(
+                    "UW HTTP %d on %s after retries", code, path
+                )
+            return None
         except httpx.HTTPError as exc:
             logger.warning("UW HTTP error on %s: %s", path, exc)
             return None
@@ -151,16 +171,46 @@ class UnusualWhalesAdapter:
 
     @staticmethod
     def _unwrap_list(data: Any) -> list[dict[str, Any]]:
-        """Tolerate either ``{"data": [...]}`` or a bare list payload."""
+        """Tolerate either ``{"data": [...]}`` or a bare list payload.
+
+        Audit-fix (2026-05-10, F4): emit warnings when records are dropped
+        from a list/wrapper or when no recognized wrapper key is found, so
+        silent UW schema drift becomes visible in CI artifacts. The set of
+        wrapper keys is intentionally unchanged \u2014 do not add speculative
+        keys (e.g. ``records``) without UW endpoint evidence.
+        """
         if data is None:
             return []
         if isinstance(data, list):
-            return [r for r in data if isinstance(r, dict)]
+            kept = [r for r in data if isinstance(r, dict)]
+            dropped = len(data) - len(kept)
+            if dropped:
+                logger.warning(
+                    "UW _unwrap_list: dropped %d non-dict item(s) from bare list "
+                    "(possible schema drift; example type=%s)",
+                    dropped,
+                    type(next((x for x in data if not isinstance(x, dict)), None)).__name__,
+                )
+            return kept
         if isinstance(data, dict):
             for key in ("data", "results", "flow_alerts", "items"):
                 v = data.get(key)
                 if isinstance(v, list):
-                    return [r for r in v if isinstance(r, dict)]
+                    kept = [r for r in v if isinstance(r, dict)]
+                    dropped = len(v) - len(kept)
+                    if dropped:
+                        logger.warning(
+                            "UW _unwrap_list: dropped %d non-dict item(s) from "
+                            "wrapper key %r (possible schema drift)",
+                            dropped,
+                            key,
+                        )
+                    return kept
+            logger.warning(
+                "UW _unwrap_list: no recognized wrapper key in dict payload "
+                "(possible schema drift; keys=%r)",
+                sorted(data.keys()),
+            )
         return []
 
     @staticmethod

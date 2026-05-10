@@ -666,8 +666,11 @@ def poll_once(
             )
             uw_news_items = [normalize_uw_news_headline(rec) for rec in uw_raw]
             uw_news_items = [it for it in uw_news_items if it.is_valid]
+            # Audit-fix (2026-05-10, F5): >= not > so same-second items aren't
+            # dropped on next poll. mark_seen() is the authoritative per-item
+            # dedup. Mirrors the FMP Senate/House watermark fix from 2026-05-09.
             uw_news_new = [
-                it for it in uw_news_items if it.updated_ts > uw_news_last_seen
+                it for it in uw_news_items if it.updated_ts >= uw_news_last_seen
             ]
             new_uw_news_max = max(
                 (it.updated_ts for it in uw_news_new),

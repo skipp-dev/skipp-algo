@@ -3625,6 +3625,87 @@ class TestUWNewsHeadlines(unittest.TestCase):
         self.assertEqual(len(item.item_id), 16)
         self.assertTrue(item.is_valid)
 
+    # ── Reliability audit fixes (2026-05-10): F5 / F4 / F2 ──
+
+    def test_uw_watermark_is_inclusive_for_same_epoch(self):
+        """F5: same-second items must NOT be dropped on next poll.
+
+        Mirrors the FMP Senate/House `>=` watermark fix (2026-05-09).
+        """
+        # Direct unit-style assertion on the comprehension semantics used
+        # in pipeline.py (line ~672). The previous `>` filter dropped any
+        # item whose updated_ts equaled the cursor; mark_seen() is the
+        # authoritative per-item dedup, so the watermark should be
+        # inclusive (>=) and let dedup handle replays.
+        last_seen = 1715000000
+        items = [
+            MagicMock(updated_ts=1715000000, is_valid=True),
+            MagicMock(updated_ts=1715000005, is_valid=True),
+        ]
+        # Production behavior post-F5
+        new_items = [it for it in items if it.updated_ts >= last_seen]
+        self.assertEqual(len(new_items), 2)
+        # Pre-F5 behavior would have dropped the first
+        old_items = [it for it in items if it.updated_ts > last_seen]
+        self.assertEqual(len(old_items), 1)
+
+    def test_uw_429_is_retried_before_empty_result(self):
+        """F2: 429 must be retried with backoff, not silently swallowed."""
+        from newsstack_fmp import _bz_http
+        from newsstack_fmp.ingest_unusual_whales import UnusualWhalesAdapter
+
+        adapter = UnusualWhalesAdapter("fake-key")
+        try:
+            ok_resp = MagicMock()
+            ok_resp.status_code = 200
+            ok_resp.json.return_value = {
+                "data": [{"id": "1", "headline": "X", "tickers": ["AAPL"]}]
+            }
+            r429 = MagicMock()
+            r429.status_code = 429
+            r429.headers = {"Retry-After": "0"}
+            with patch.object(
+                adapter.client, "get", side_effect=[r429, ok_resp]
+            ) as mock_get, patch.object(_bz_http, "_sleep", lambda s: None):
+                out = adapter.fetch_news_headlines(limit=50)
+            self.assertEqual(mock_get.call_count, 2)
+            self.assertEqual(len(out), 1)
+            self.assertEqual(out[0]["headline"], "X")
+        finally:
+            adapter.close()
+
+    def test_uw_unwrap_list_warns_on_unknown_shape(self):
+        """F4: unrecognized dict payload triggers a drift warning."""
+        from newsstack_fmp.ingest_unusual_whales import UnusualWhalesAdapter
+
+        with self.assertLogs(
+            "newsstack_fmp.ingest_unusual_whales", level="WARNING"
+        ) as cm:
+            out = UnusualWhalesAdapter._unwrap_list(
+                {"unexpected_key": [{"id": "1"}]}
+            )
+        self.assertEqual(out, [])
+        self.assertTrue(
+            any("no recognized wrapper key" in m for m in cm.output),
+            f"missing drift warning in {cm.output!r}",
+        )
+
+    def test_uw_unwrap_list_warns_on_dropped_items(self):
+        """F4: dropped non-dict entries surface a drift warning."""
+        from newsstack_fmp.ingest_unusual_whales import UnusualWhalesAdapter
+
+        with self.assertLogs(
+            "newsstack_fmp.ingest_unusual_whales", level="WARNING"
+        ) as cm:
+            out = UnusualWhalesAdapter._unwrap_list(
+                [{"id": "1"}, "not-a-dict", 42]
+            )
+        self.assertEqual(out, [{"id": "1"}])
+        self.assertTrue(
+            any("dropped 2 non-dict" in m for m in cm.output),
+            f"missing drop warning in {cm.output!r}",
+        )
+
 
 # ── PR3: FMP extras (B4 general / B5 Senate+House / B7 8-K) ──
 

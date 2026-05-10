@@ -312,13 +312,33 @@ def _bz_on_failure(exc: BaseException) -> httpx.Response:
     rng=lambda: _rng(),
     sleep=lambda s: _sleep(s),
 )
+def _request_with_status_retry(
+    client: httpx.Client,
+    url: str,
+    params: dict[str, Any],
+) -> httpx.Response:
+    """GET with retry on 429/5xx and transient network errors.
+
+    Returns the final :class:`httpx.Response` *without* calling
+    ``raise_for_status``, so callers can inspect non-retryable 4xx
+    codes (e.g. 401/403/404 used by UW for tier-limited endpoints).
+
+    Audit-fix (2026-05-10, F2): extracted from ``_attempt_bz_get`` so
+    the Unusual Whales adapter can share the same retry primitive
+    without duplicating the backoff/Retry-After/jitter logic.
+    """
+    r = client.get(url, params=params)
+    if r.status_code in _RETRYABLE:
+        raise _BzRetryableStatusError(r)
+    return r
+
+
 def _attempt_bz_get(
     client: httpx.Client,
     url: str,
     params: dict[str, Any],
 ) -> httpx.Response:
-    r = client.get(url, params=params)
-    if r.status_code in _RETRYABLE:
-        raise _BzRetryableStatusError(r)
+    """GET with retry + ``raise_for_status`` for non-retryable 4xx."""
+    r = _request_with_status_retry(client, url, params)
     r.raise_for_status()
     return r
