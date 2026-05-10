@@ -182,3 +182,41 @@ def test_annotate_feed_and_effective_helpers_prefer_catalyst_values() -> None:
     assert effective_catalyst_sentiment({"catalyst_direction": "BEARISH", "sentiment_label": "bullish"}) == "bearish"
     assert effective_catalyst_age_minutes({"catalyst_age_minutes": 7.5, "age_minutes": 30.0}) == pytest.approx(7.5)
     assert effective_catalyst_actionable({"catalyst_actionable": True, "news_score": 0.1}) is True
+
+
+def test_catalyst_state_fallbacks_for_provider_shape_and_actionability() -> None:
+    fallback_provider_row = _row(
+        story_key="fallback-provider",
+        news_score=0.70,
+        sentiment_label="bullish",
+        provider="fmp_press",
+        source="FMP",
+        source_rank=2,
+        materiality="MEDIUM",
+        updated_ts=940.0,
+        is_actionable=False,
+    )
+    fallback_provider_row["story_providers_seen"] = "not-a-list"
+    feed = [
+        _row(
+            story_key="market",
+            ticker="MARKET",
+            news_score=0.99,
+            sentiment_label="bullish",
+            provider="benzinga_rest",
+            source="Benzinga",
+            source_rank=1,
+            materiality="HIGH",
+            updated_ts=999.0,
+        ),
+        fallback_provider_row,
+    ]
+
+    state = build_ticker_catalyst_state(feed, now=1000.0)
+
+    assert "MARKET" not in state
+    assert state["AAPL"]["catalyst_provider_count"] == 1
+    assert state["AAPL"]["catalyst_direction"] == "BULLISH"
+    assert state["AAPL"]["catalyst_actionable"] is True
+    assert effective_catalyst_sentiment({"catalyst_direction": "MIXED", "sentiment_label": "bad"}) == "neutral"
+    assert effective_catalyst_age_minutes({"published_ts": 940.0}, now=1000.0) == pytest.approx(1.0)

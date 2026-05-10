@@ -94,3 +94,53 @@ def test_annotate_feed_and_effective_helpers_prefer_explicit_posture_values() ->
     assert effective_posture_score(annotated[0]) == pytest.approx(0.73)
     assert effective_posture_actionable(annotated[0]) is True
     assert effective_posture_priority({"posture_state": "LONG"}) > effective_posture_priority({"posture_state": "WATCH_LONG"})
+
+
+def test_build_ticker_posture_state_marks_watch_short_and_neutral_branches() -> None:
+    watch = _row(
+        ticker="TSLA",
+        catalyst_direction="BEARISH",
+        resolution_state="OPEN",
+        resolution_score=0.65,
+        resolution_actionable=True,
+        reaction_state="WATCH",
+        reaction_score=0.62,
+        reaction_actionable=True,
+    )
+    neutral = _row(
+        ticker="MSFT",
+        catalyst_direction="NEUTRAL",
+        resolution_state="OPEN",
+        resolution_score=0.70,
+        resolution_actionable=True,
+        reaction_state="WATCH",
+        reaction_score=0.60,
+        reaction_actionable=True,
+    )
+
+    state = build_ticker_posture_state([watch, neutral], now=1500.0)
+
+    assert state["TSLA"]["posture_state"] == "WATCH_SHORT"
+    assert state["TSLA"]["posture_action"] == "watch"
+    assert state["MSFT"]["posture_state"] == "NEUTRAL"
+    assert state["MSFT"]["posture_reason"] == "no_directional_edge"
+
+
+def test_effective_posture_helpers_derive_confidence_reason_and_stale_neutral() -> None:
+    stale_row = _row(resolution_state="OPEN", resolution_score=0.55, resolution_actionable=False)
+    stale_row["catalyst_age_minutes"] = 1500.0
+
+    state = build_ticker_posture_state([stale_row], now=1500.0)
+
+    assert state["AAPL"]["posture_state"] == "NEUTRAL"
+    assert state["AAPL"]["posture_reason"] == "stale_setup"
+    assert effective_posture_action(
+        {
+            "resolution_state": "OPEN",
+            "resolution_score": 0.65,
+            "resolution_actionable": True,
+            "catalyst_direction": "BULLISH",
+            "catalyst_score": 0.70,
+            "catalyst_actionable": True,
+        }
+    ) == "watch"

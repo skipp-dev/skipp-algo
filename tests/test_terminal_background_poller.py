@@ -125,6 +125,57 @@ class TestBackgroundPoller:
             "tv": "12345",
         }
 
+    def test_cursor_property_reads_provider_cursors_under_lock(self):
+        class CountingLock:
+            def __init__(self) -> None:
+                self.enters = 0
+
+            def __enter__(self):
+                self.enters += 1
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+        bp = BackgroundPoller(
+            cfg=_FakeCfg(),
+            benzinga_adapter=None,
+            fmp_adapter=None,
+            store=MagicMock(),
+        )
+        bp.cursor = "12345"
+        lock = CountingLock()
+        bp._lock = lock
+
+        assert bp.cursor == "12345"
+        assert lock.enters == 1
+
+    def test_snapshot_returns_locked_copies_of_status_and_cursors(self):
+        bp = BackgroundPoller(
+            cfg=_FakeCfg(),
+            benzinga_adapter=None,
+            fmp_adapter=None,
+            store=MagicMock(),
+        )
+        bp.cursor = "12345"
+        bp.poll_count = 3
+        bp.poll_attempts = 4
+        bp.last_poll_status = "ok"
+        bp.last_poll_error = ""
+        bp.total_items_ingested = 7
+        bp.total_items_dropped = 2
+
+        snapshot = bp.snapshot()
+        snapshot["provider_cursors"]["benzinga"] = "99999"
+
+        assert snapshot["poll_count"] == 3
+        assert snapshot["poll_attempts"] == 4
+        assert snapshot["last_poll_status"] == "ok"
+        assert snapshot["total_items_ingested"] == 7
+        assert snapshot["total_items_dropped"] == 2
+        assert snapshot["cursor"] == "12345"
+        assert bp.provider_cursors["benzinga"] == "12345"
+
     def test_update_interval(self):
         bp = BackgroundPoller(
             cfg=_FakeCfg(),

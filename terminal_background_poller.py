@@ -194,15 +194,9 @@ class BackgroundPoller:
 
     @property
     def cursor(self) -> str | None:
-        max_ts = 0.0
-        for value in self._provider_cursors.values():
-            try:
-                max_ts = max(max_ts, float(value or 0.0))
-            except (TypeError, ValueError):
-                continue
-        if max_ts <= 0:
-            return None
-        return str(int(max_ts))
+        with self._lock:
+            provider_cursors = dict(self._provider_cursors)
+        return self._legacy_cursor_from_provider_cursors(provider_cursors)
 
     @cursor.setter
     def cursor(self, value: str | None) -> None:
@@ -215,6 +209,47 @@ class BackgroundPoller:
                 key: seeded
                 for key in ("benzinga", "fmp_stock", "fmp_press", "tv")
             }
+
+    @staticmethod
+    def _legacy_cursor_from_provider_cursors(provider_cursors: dict[str, str]) -> str | None:
+        max_ts = 0.0
+        for value in provider_cursors.values():
+            try:
+                max_ts = max(max_ts, float(value or 0.0))
+            except (TypeError, ValueError):
+                continue
+        if max_ts <= 0:
+            return None
+        return str(int(max_ts))
+
+    def snapshot(self) -> dict[str, Any]:
+        """Return a consistent main-thread snapshot of poller state.
+
+        Streamlit reads these fields from the UI thread while the poll loop
+        writes them from the background thread. Individual CPython attribute
+        reads are atomic under the GIL, but taking the same locks used by the
+        writers gives us a coherent status snapshot and keeps the contract
+        safe for future free-threaded Python builds.
+        """
+        with self._stats_lock:
+            snapshot = {
+                "poll_count": self.poll_count,
+                "poll_attempts": self.poll_attempts,
+                "last_poll_ts": self.last_poll_ts,
+                "last_poll_status": self.last_poll_status,
+                "last_poll_error": self.last_poll_error,
+                "total_items_ingested": self.total_items_ingested,
+                "total_items_dropped": self.total_items_dropped,
+                "consecutive_empty_polls": self.consecutive_empty_polls,
+                "last_poll_duration_s": self.last_poll_duration_s,
+                "consecutive_failures": self.consecutive_failures,
+            }
+        with self._lock:
+            provider_cursors = dict(self._provider_cursors)
+        snapshot["provider_cursors"] = provider_cursors
+        snapshot["cursor"] = self._legacy_cursor_from_provider_cursors(provider_cursors)
+        snapshot["is_alive"] = self.is_alive
+        return snapshot
 
     @property
     def provider_cursors(self) -> dict[str, str]:
