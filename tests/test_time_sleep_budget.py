@@ -115,7 +115,7 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("terminal_bitcoin.py", 844),
         ("terminal_bitcoin.py", 846),
         ("terminal_technicals.py", 286),
-        ("terminal_tradingview_news.py", 353),
+        ("terminal_tradingview_news.py", 357),
     }
 )
 

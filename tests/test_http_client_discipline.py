@@ -147,7 +147,7 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("terminal_finnhub.py", 195),
         ("terminal_notifications.py", 255),
         ("terminal_notifications.py", 319),
-        ("terminal_tradingview_news.py", 367),
+        ("terminal_tradingview_news.py", 371),
     }
 )
 

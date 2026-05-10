@@ -342,7 +342,11 @@ def _from_tv_symbol(tv_sym: str) -> str:
 def _fetch_raw(symbol: str) -> dict[str, Any]:
     """Fetch raw JSON from the TradingView headlines API.
 
-    Applies rate limiting and updates health state.
+    Performs rate-limited HTTP only. Health accounting lives in the
+    wrapper :func:`fetch_tv_headlines` -- single source of truth, see
+    audit 2026-05-10. Doing it here would double-count whenever a
+    single logical fetch retries / paginates internally; doing it both
+    here and in the wrapper is the bug PR-A originally fixed.
     """
     global _last_request_ts
 
@@ -366,22 +370,24 @@ def _fetch_raw(symbol: str) -> dict[str, Any]:
     try:
         with urlopen(request, timeout=_REQUEST_TIMEOUT, context=_SSL_CTX) as resp:
             data: dict[str, Any] = json.loads(resp.read().decode("utf-8"))
-            _health.record_success()
             return data
     except urllib.error.HTTPError as exc:
-        _msg = f"HTTP {exc.code}"
-        _health.record_failure(_msg)
-        log.warning("TradingView headlines HTTP error for %s: %s", symbol, _msg)
+        log.warning(
+            "TradingView headlines HTTP error for %s: HTTP %s",
+            symbol, exc.code,
+        )
         raise
     except urllib.error.URLError as exc:
-        _msg = str(exc.reason)[:80]
-        _health.record_failure(_msg)
-        log.warning("TradingView headlines URL error for %s: %s", symbol, _msg)
+        log.warning(
+            "TradingView headlines URL error for %s: %s",
+            symbol, str(exc.reason)[:80],
+        )
         raise
     except Exception as exc:
-        _msg = f"{type(exc).__name__}: {str(exc)[:80]}"
-        _health.record_failure(_msg)
-        log.warning("TradingView headlines error for %s: %s", symbol, _msg)
+        log.warning(
+            "TradingView headlines error for %s: %s: %s",
+            symbol, type(exc).__name__, str(exc)[:80],
+        )
         raise
 
 
@@ -456,22 +462,26 @@ def fetch_tv_headlines(
         data = _fetch_raw(ticker)
         headlines = _parse_items(data)
         _set_cached(cache_key, headlines)
-        _health.record_success()
-        return headlines[:max_items]
     except Exception as exc:
-        # Update health state so `is_available()` / `health_status()` and
-        # the sidebar "TV degraded" indicator reflect reality.  Without
-        # this, the cache simply returns [] forever and consumers think
-        # there is no news for the ticker.
-        # Quantum-sweep M1: ``repr(exc)`` may include URLs with embedded
-        # tokens (urllib3 ``MaxRetryError``); redact before persisting it
-        # into the health-monitor state where the dashboard reads it.
+        # Single source of truth for TV health metrics -- see audit
+        # 2026-05-10. The wrapper records exactly one failure per
+        # logical fetch regardless of which inner step (HTTP, parse,
+        # cache write) raised, and ``_fetch_raw`` deliberately performs
+        # NO accounting itself.
+        # ``repr(exc)`` may include URLs with embedded tokens (urllib3
+        # ``MaxRetryError``); redact before persisting it into the
+        # health-monitor state where the dashboard reads it.
         _health.record_failure(_redact_sensitive_error_text(repr(exc)))
         log.warning(
             "fetch_tv(%s) failed; recorded health failure: %s",
             ticker, exc,
         )
         return []
+    # Single source of truth for TV health metrics -- see audit
+    # 2026-05-10. Success is recorded here (and only here) so retries /
+    # internal pagination inside ``_fetch_raw`` cannot double-count.
+    _health.record_success()
+    return headlines[:max_items]
 
 
 def fetch_tv_multi(
