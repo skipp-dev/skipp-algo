@@ -153,6 +153,15 @@ jobs:
           LOOKBACK_DAYS: ${{ inputs.lookback_days || '30' }}
           FORCE_REFRESH_FLAG: ${{ inputs.force_refresh == 'true' && '--force-refresh' || '' }}
           PYTHONUNBUFFERED: "1"
+          # Q3a (post-Probe-v3, 2026-05-10): activate the parallel-fetch cure
+          # landed in Q3 (#2098) for Step 5/10 (load_daily_bars). 4 workers
+          # fan out the per-batch Databento daily-bars requests; thread-safety
+          # is provided by load_daily_bars's threading.Lock around the
+          # progress callback and by databento_client's per-call
+          # requests.Session (connection-pooled, no shared mutable state).
+          # Mirrors the sharded-probe env contract — without this the
+          # legacy producer cron has been at the 240min cap since 2026-05-06.
+          DATABENTO_DAILY_MAX_WORKERS: "4"
         run: |
           set -euo pipefail
           mkdir -p "${EXPORT_DIR}" artifacts/ci
