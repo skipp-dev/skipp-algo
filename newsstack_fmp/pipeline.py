@@ -296,6 +296,19 @@ def _newsapi_operator_status(
     )
 
 
+def _filter_uw_news_new(items: list, last_seen: float) -> list:
+    """Filter UW news items newer-or-equal-to the watermark.
+
+    Audit-fix (2026-05-10, F5): inclusive (``>=``) so same-second items
+    aren't dropped on the next poll. ``mark_seen()`` is the authoritative
+    per-item dedup, so the watermark only needs to bracket the candidate
+    window. Mirrors the FMP Senate/House watermark fix from 2026-05-09.
+    Extracted so the watermark inclusivity is unit-testable against the
+    real production helper rather than a re-implemented comprehension.
+    """
+    return [it for it in items if it.updated_ts >= last_seen]
+
+
 # ── Core: process a batch of NewsItem objects ───────────────────
 
 def process_news_items(
@@ -666,12 +679,7 @@ def poll_once(
             )
             uw_news_items = [normalize_uw_news_headline(rec) for rec in uw_raw]
             uw_news_items = [it for it in uw_news_items if it.is_valid]
-            # Audit-fix (2026-05-10, F5): >= not > so same-second items aren't
-            # dropped on next poll. mark_seen() is the authoritative per-item
-            # dedup. Mirrors the FMP Senate/House watermark fix from 2026-05-09.
-            uw_news_new = [
-                it for it in uw_news_items if it.updated_ts >= uw_news_last_seen
-            ]
+            uw_news_new = _filter_uw_news_new(uw_news_items, uw_news_last_seen)
             new_uw_news_max = max(
                 (it.updated_ts for it in uw_news_new),
                 default=uw_news_last_seen,

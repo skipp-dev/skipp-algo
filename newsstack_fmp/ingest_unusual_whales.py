@@ -116,10 +116,12 @@ class UnusualWhalesAdapter:
         url = f"{UW_BASE_URL}{path}"
         # Audit-fix (2026-05-10, F2): use the shared retry primitive from
         # _bz_http so 429/5xx and transient network errors are retried with
-        # backoff + Retry-After honoring before falling through to the
-        # tier-disabled / status-code branches below. The primitive returns
-        # a Response without raise_for_status so non-retryable 4xx (401/403/
-        # 404) still flow into the existing mark_uw_endpoint_disabled paths.
+        # backoff + Retry-After honoring. The primitive returns a Response
+        # without raise_for_status so non-retryable 4xx (401/403/404) still
+        # flow into the existing mark_uw_endpoint_disabled paths below.
+        # 429 either succeeds on retry or raises HTTPStatusError on retry
+        # exhaustion (caught here) -- the legacy 429 fall-through branch
+        # below is therefore unreachable and was removed.
         try:
             r = _request_with_status_retry(self.client, url, params or {})
         except httpx.HTTPStatusError as exc:
@@ -148,9 +150,6 @@ class UnusualWhalesAdapter:
         if r.status_code == 404:
             logger.warning("UW 404 on %s — endpoint not available", path)
             mark_uw_endpoint_disabled(path)
-            return None
-        if r.status_code == 429:
-            logger.warning("UW rate-limited (429) on %s", path)
             return None
         if r.status_code != 200:
             logger.warning("UW HTTP %d on %s", r.status_code, path)

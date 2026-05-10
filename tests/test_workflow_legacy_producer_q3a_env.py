@@ -31,7 +31,7 @@ def _load(path: Path) -> dict:
 
 
 def _producer_step_envs(workflow: dict) -> list[dict]:
-    """Return env dicts of every step whose name starts with ``Run Databento``."""
+    """Return env dicts of every step whose name starts with ``Run Databento production export``."""
     envs: list[dict] = []
     for job in (workflow.get("jobs") or {}).values():
         for step in job.get("steps") or []:
