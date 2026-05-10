@@ -63,7 +63,7 @@ def test_dashboard_has_companion_summary_and_pro_diagnostics() -> None:
     assert 'dashboard_row(smc_dashboard, 3, "Session / Market"' in source
     assert 'dashboard_row(smc_dashboard, 4, "Event Risk"' in source
     assert 'dashboard_compact_trust_text(' in source
-    assert 'dashboard_row(smc_dashboard, 6, "Trust / Data"' in source
+    assert 'dashboard_row_tt(smc_dashboard, 6, "Trust / Data"' in source
     assert 'dashboard_row(smc_dashboard, 7, "Short-term Pressure"' in source
     assert 'dashboard_row(smc_dashboard, 8, "Risk Plan"' in source
     assert 'dashboard_row(smc_dashboard, 1, "Action"' not in source
@@ -96,7 +96,7 @@ def test_dashboard_hero_surface_pins_one_liner_row_and_shifted_row_order() -> No
     source = _read("SMC_Dashboard.pine")
 
     assert 'dashboard_row(smc_dashboard, 0, "SMC Long-Dip Dashboard v7", "Hero | Decision-first surface"' in source
-    assert 'dashboard_row_tt(smc_dashboard, 1, "Hero", _hero_one, _hero_one_bg, txt, _hero_one_tt)' in source
+    assert 'dashboard_row_tt(smc_dashboard, 1, "Hero", _hero_one_display, _hero_one_bg, txt, _hero_one_tt)' in source
     assert 'dashboard_row(smc_dashboard, 2, "Market", h_market_line,' in source
     assert 'dashboard_row(smc_dashboard, 3, "Action", h_action_line,' in source
     assert 'dashboard_row(smc_dashboard, 4, "Why now", h_why_line,' in source
@@ -104,7 +104,7 @@ def test_dashboard_hero_surface_pins_one_liner_row_and_shifted_row_order() -> No
     assert 'dashboard_row(smc_dashboard, 6, "Trust", h_trust_line,' in source
     assert 'dashboard_row(smc_dashboard, 7, "Risk", h_risk_line,' in source
     assert 'dashboard_row(smc_dashboard, 8, "Risk Plan", dashboard_compact_risk_plan_text(' in source
-    assert "table.clear(smc_dashboard, 0, 9, 1, 73)" in source
+    assert "table.clear(smc_dashboard, 0, 9, 1, 79)" in source
     # Hero one-liner contract: must be assembled from the generated mp.*
     # contract (no hard-coded values) via the user-configurable token
     # composer and must carry the canonical blocker prefix so a degraded
@@ -272,19 +272,22 @@ def test_dashboard_audit_view_has_why_this_tier_drilldown() -> None:
     'why does the engine pick OB over FVG today?' in one glance.
 
     Read-only on the existing ZONE_CAL_* BUS contract; no engine change.
-    The drill-down is appended at rows 74/75 so the existing audit-row
-    pin tests keep working.
+    The drill-down is appended at rows 74/75 and the universe-status
+    feature matrix at rows 76/77 so the existing audit-row pin tests keep
+    working.
     """
     source = _read("SMC_Dashboard.pine")
 
     # Table size + final clear range must accommodate the new rows.
-    # Grew 76 → 78 rows when the Trade-Mgmt rows (Trade=76, Stop=77) were
-    # mirrored from the mobile dashboard (system review 2026-04-24).
-    assert "table.new(position.bottom_right, 2, 78, border_width = 0)" in source
-    assert "table.clear(smc_dashboard, 0, 0, 1, 77)" in source
+    # Grew 78 → 80 rows when Universe Status rows were appended above the
+    # Trade-Mgmt rows (Trade=78, Stop=79).
+    assert "table.new(position.bottom_right, 2, 80, border_width = 0)" in source
+    assert "table.clear(smc_dashboard, 0, 0, 1, 79)" in source
     # New rows pinned by section + content row.
     assert 'section_row(smc_dashboard, 74, "[ Why this Tier? ]"' in source
     assert 'dashboard_row_tt(smc_dashboard, 75, "Top-3 Weights",' in source
+    assert 'section_row(smc_dashboard, 76, "[ Universe Status ]"' in source
+    assert 'dashboard_row_tt(smc_dashboard, 77, "Universe Status", dashboard_universe_badge,' in source
     # Drill-down must read from the published BUS contract (no shadow source).
     for fam in ("OB", "FVG", "BOS", "SWEEP"):
         assert f"mp.ZONE_CAL_{fam}" in source
@@ -615,7 +618,7 @@ def test_dashboard_hero_row_carries_h5_onboarding_tooltip() -> None:
     assert "4 Clicks to first calibrated signal" in source
     assert "Quickstart Preset" in source
     assert "preset never lowers your value" in source
-    assert 'dashboard_row_tt(smc_dashboard, 1, "Hero", _hero_one, _hero_one_bg, txt, _hero_one_tt)' in source
+    assert 'dashboard_row_tt(smc_dashboard, 1, "Hero", _hero_one_display, _hero_one_bg, txt, _hero_one_tt)' in source
 
 
 def test_dashboard_calibration_sha_input_and_hero_sha_token() -> None:
@@ -657,3 +660,46 @@ def test_dashboard_calibration_breach_banner_overrides_hero_blocker() -> None:
     assert "smECE_30d ≤ 0.12" in slo
     assert "CAL-BREACH" in slo
     assert "Plan §3.1.2" in slo
+
+
+def test_universe_status_is_exact_and_user_visible_across_surfaces() -> None:
+    core = _read("SMC_Core_Engine.pine")
+    dashboard = _read("SMC_Dashboard.pine")
+    strategy = _read("SMC_Long_Strategy.pine")
+    utils = _read("SMC++/smc_utils.pine")
+    resolvers = _read("SMC++/smc_context_resolvers.pine")
+
+    # Empty UNIVERSE_TICKERS must fail closed to UNINITIALIZED and exact token
+    # matching must replace substring matching everywhere that gates universe
+    # membership.
+    assert 'bool lib_universe_initialized = mp.UNIVERSE_TICKERS != ""' in core
+    assert 'bool lib_ticker_in_universe = lib_universe_initialized and u.csv_has_symbol_token(mp.UNIVERSE_TICKERS, current_symbol_key, current_symbol_key_qualified)' in core
+    assert 'bool dashboard_ticker_in_universe = dashboard_universe_initialized and u.csv_has_symbol_token(mp.UNIVERSE_TICKERS, dashboard_symbol_key, dashboard_symbol_key_qualified)' in dashboard
+    assert 'bool strategy_ticker_in_universe = strategy_universe_initialized and u.csv_has_symbol_token(mp.UNIVERSE_TICKERS, strategy_symbol_key, strategy_symbol_key_qualified)' in strategy
+    assert 'str.contains(mp.UNIVERSE_TICKERS' not in core + dashboard + strategy
+    assert 'mp.UNIVERSE_TICKERS != "" ?' not in core + dashboard + strategy
+
+    # The exact visible states and English operator copy are shared from the
+    # public utility seam so Core, Dashboard, and Strategy cannot drift.
+    for status in (
+        'UNIVERSE: VERIFIED',
+        'UNIVERSE: PARTIAL',
+        'UNIVERSE: NOT SCANNED',
+        'UNIVERSE: UNINITIALIZED',
+        'Status: Not Scanned',
+        'Core SMC chart logic remains active.',
+        'Producer-based context is not available for this symbol.',
+        'This symbol is outside the latest scanned universe. Core SMC logic still runs, but producer-based context is unavailable.',
+        'Strategy entries are disabled because this symbol is outside the scanned universe.',
+        'Strategy entries are disabled because universe data is not available.',
+    ):
+        assert status in utils + strategy
+
+    assert 'u.universe_status_badge(lib_universe_status_code)' in core
+    assert 'u.universe_status_banner(lib_universe_status_code)' in core
+    assert 'int universe_status_code' in resolvers
+    assert 'dashboard_universe_tt = dashboard_universe_detail + "\\n\\n" + dashboard_universe_matrix' in dashboard
+    assert 'dashboard_row_tt(smc_dashboard, 77, "Universe Status", dashboard_universe_badge' in dashboard
+    assert 'strict_universe_entries = input.bool(false, "Strict Universe Mode"' in strategy
+    assert 'bool universe_gate_ok = not strict_universe_entries or backtest_mode or strategy_universe_status_code == 3 or strategy_universe_status_code == 2' in strategy
+    assert 'bool can_stage_entry = selected_state and quality_ok and risk_levels_ok and regime_gate_ok and universe_gate_ok' in strategy

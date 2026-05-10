@@ -149,6 +149,24 @@ export csv_has_token(string csv, string token) =>
 export csv_has_symbol_token(string csv, string ticker, string tickerid) =>
     csv_has_token(csv, ticker) or csv_has_token(csv, tickerid)
 
+export universe_status_code(bool universe_initialized, bool ticker_in_universe, bool producer_context_partial) =>
+    universe_initialized ? ticker_in_universe ? producer_context_partial ? 2 : 3 : 1 : 0
+
+export universe_status_badge(int status_code) =>
+    status_code == 3 ? 'UNIVERSE: VERIFIED' : status_code == 2 ? 'UNIVERSE: PARTIAL' : status_code == 1 ? 'UNIVERSE: NOT SCANNED' : 'UNIVERSE: UNINITIALIZED'
+
+export universe_status_banner(int status_code) =>
+    status_code == 3 ? 'This symbol is part of the latest scanned universe. Full producer context is available.' : status_code == 2 ? 'This symbol has partial universe coverage. Core SMC logic runs, but some producer-based context may be missing.' : status_code == 1 ? 'This symbol is outside the latest scanned universe. Core SMC logic still runs, but producer-based context is unavailable.' : 'Universe data is not loaded. Core chart logic may run, but producer-based context cannot be validated.'
+
+export universe_status_dashboard_text(int status_code) =>
+    status_code == 3 ? 'Status: Verified\nThis symbol is included in the latest scanned universe.\nAll available producer-based context can be used.' : status_code == 2 ? 'Status: Partial\nThis symbol is only partially covered by the latest universe snapshot.\nSome enriched context fields may be unavailable or incomplete.' : status_code == 1 ? 'Status: Not Scanned\nThis symbol was not included in the latest scanned universe.\nCore SMC chart logic remains active.\nProducer-based context is not available for this symbol.' : 'Status: Uninitialized\nUniverse membership could not be verified.\nProducer-based context is not loaded or not ready.\nUse caution until universe data is available.'
+
+export universe_status_feature_matrix(int status_code) =>
+    status_code == 3 ? 'SMC Structure: Available\nMarket Structure Logic: Available\nProducer Context: Available\nNews Context: Available\nEarnings Context: Available\nMicrostructure Profile: Available\nMacro Regime Context: Available' : status_code == 2 ? 'SMC Structure: Available\nMarket Structure Logic: Available\nProducer Context: Limited\nNews Context: Limited\nEarnings Context: Limited\nMicrostructure Profile: Limited\nMacro Regime Context: Available' : status_code == 1 ? 'SMC Structure: Available\nMarket Structure Logic: Available\nProducer Context: Unavailable\nUniverse Membership: Not Verified\nNews Context: Unavailable\nEarnings Context: Unavailable\nMicrostructure Profile: Unavailable\nMacro Regime Context: Available' : 'SMC Structure: Available\nMarket Structure Logic: Available\nProducer Context: Not loaded\nUniverse Membership: Not Verified\nNews Context: Not verified\nEarnings Context: Not verified\nMicrostructure Profile: Not verified\nMacro Regime Context: Available'
+
+export universe_status_strategy_text(int status_code) =>
+    status_code == 1 ? 'Strategy entries are disabled because this symbol is outside the scanned universe.' : status_code == 0 ? 'Strategy entries are disabled because universe data is not available.' : ''
+
 export htf_fvg_key(int left_time, int right_time, float top, float bottom) =>
     str.format('{0}|{1}|{2}|{3}', left_time, right_time, format_level(top), format_level(bottom))
 

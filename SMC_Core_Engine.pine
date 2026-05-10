@@ -2697,6 +2697,8 @@ string rth_only_tickers_effective = mp.RTH_ONLY_TICKERS
 string weak_premarket_tickers_effective = mp.WEAK_PREMARKET_TICKERS
 string weak_afterhours_tickers_effective = mp.WEAK_AFTERHOURS_TICKERS
 string fast_decay_tickers_effective = mp.FAST_DECAY_TICKERS
+string current_symbol_key = syminfo.ticker
+string current_symbol_key_qualified = syminfo.tickerid
 
 // ── Library Freshness Check ──
 asof_year  = str.tonumber(str.substring(mp.ASOF_DATE, 0, 4))
@@ -2731,7 +2733,8 @@ bool lib_low_volume   = str.contains(mp.VOLUME_LOW_TICKERS, syminfo.ticker)
 
 // ── Universe Coverage — is this ticker covered by the enrichment scan? ──
 // Uses dedicated UNIVERSE_TICKERS field instead of heuristic across 7 lists (F7 fix).
-bool lib_ticker_in_universe = mp.UNIVERSE_TICKERS != "" ? str.contains(mp.UNIVERSE_TICKERS, syminfo.ticker) : true
+bool lib_universe_initialized = mp.UNIVERSE_TICKERS != ""
+bool lib_ticker_in_universe = lib_universe_initialized and u.csv_has_symbol_token(mp.UNIVERSE_TICKERS, current_symbol_key, current_symbol_key_qualified)
 
 // ── Market Valuation Flags ──
 float  lib_market_pe_forward         = mp.MARKET_PE_FORWARD
@@ -2832,6 +2835,8 @@ float  lib_macro_bias_raw         = mp.MACRO_BIAS_RAW
 string lib_earnings_tomorrow      = mp.EARNINGS_TOMORROW_TICKERS
 int    lib_provider_count         = mp.PROVIDER_COUNT
 string lib_stale_providers        = mp.STALE_PROVIDERS
+bool   lib_universe_partial_context = lib_ticker_in_universe and (lib_provider_count == 0 or lib_stale_providers != "" or lib_erl_provider_status != "ok")
+int    lib_universe_status_code     = u.universe_status_code(lib_universe_initialized, lib_ticker_in_universe, lib_universe_partial_context)
 
 // ── Ticker Heat Map (WP-LF4) ──
 string lib_ticker_heat_map        = mp.TICKER_HEAT_MAP
@@ -3372,8 +3377,6 @@ ob_config_bull_broken.show_profile := use_ob_profile_effective
 
 int chart_tf_sec = nz(timeframe.in_seconds(), 0)
 bool intraday_time_chart = chart_tf_sec > 0 and chart_tf_sec < 86400
-string current_symbol_key = syminfo.ticker
-string current_symbol_key_qualified = syminfo.tickerid
 bool micro_is_clean_reclaim = use_microstructure_profiles and u.csv_has_symbol_token(clean_reclaim_tickers_effective, current_symbol_key, current_symbol_key_qualified)
 bool micro_is_stop_hunt = use_microstructure_profiles and u.csv_has_symbol_token(stop_hunt_tickers_effective, current_symbol_key, current_symbol_key_qualified)
 bool micro_is_midday_dead = use_microstructure_profiles and u.csv_has_symbol_token(midday_dead_tickers_effective, current_symbol_key, current_symbol_key_qualified)
@@ -5523,16 +5526,21 @@ if barstate.islast and compact_mode
     string core_main_risk = cr.compose_main_risk_text(core_product_state, event_risk_state, long_ready_blocker_text, long_strict_blocker_text, long_state.last_invalid_source, lib_sq_warnings, lib_erl_provider_status, core_has_earnings_tomorrow)
     string core_market_event = mp.HIGH_IMPACT_MACRO_TODAY ? (lib_macro_event_name + ' ' + lib_macro_event_time) : 'No event'
     string core_tone_text = lib_tone + ' · Heat ' + str.tostring(lib_global_heat, '#.##')
-    string core_hero_text = cr.compose_core_hero_text(core_product_state, core_bias_text, core_trade_threshold, core_trust_tier, core_trust_suffix, core_provider_state, core_why_now, core_main_risk, mp.MARKET_REGIME, lib_regime_blocked, lib_regime_dimmed, lib_asof_display, lib_vix_level, core_market_event, core_tone_text, lib_yield_inverted, lib_sector_leading, is_breaking_news, lib_high_impact_news_count, lib_ticker_in_universe)
+    string core_hero_text = cr.compose_core_hero_text(core_product_state, core_bias_text, core_trade_threshold, core_trust_tier, core_trust_suffix, core_provider_state, core_why_now, core_main_risk, mp.MARKET_REGIME, lib_regime_blocked, lib_regime_dimmed, lib_asof_display, lib_vix_level, core_market_event, core_tone_text, lib_yield_inverted, lib_sector_leading, is_breaking_news, lib_high_impact_news_count, lib_universe_status_code)
     string core_hero_display = core_hero_text
     if compact_mode
-        // WP-OV5: 6-line compact hero — Action, Bias, Confidence, Trust, VIX, Main blocker
+        // WP-OV5: compact hero — Universe badge plus Action, Bias, Confidence, Trust, VIX, Main blocker
         string _cb_action = core_product_state
         if (core_product_state == 'WAIT' or core_product_state == 'BLOCKED') and (lib_regime_blocked or lib_regime_dimmed)
             _cb_action := core_product_state + ' (' + mp.MARKET_REGIME + ')'
-        core_hero_display := 'Action: ' + _cb_action + '\nBias: ' + core_bias_text + '\nConfidence: ' + core_trade_threshold + '\nTrust: ' + (core_trust_suffix != '' ? core_trust_tier + ' (' + core_trust_suffix + ')' : core_trust_tier) + '\nVIX: ' + str.tostring(lib_vix_level, '#.##') + (not lib_ticker_in_universe ? '\n⚠ Not scanned — ticker data n/a' : '') + '\nMain blocker: ' + core_main_risk
+        core_hero_display := u.universe_status_badge(lib_universe_status_code) + '\nAction: ' + _cb_action + '\nBias: ' + core_bias_text + '\nConfidence: ' + core_trade_threshold + '\nTrust: ' + (core_trust_suffix != '' ? core_trust_tier + ' (' + core_trust_suffix + ')' : core_trust_tier) + '\nVIX: ' + str.tostring(lib_vix_level, '#.##') + '\n' + u.universe_status_banner(lib_universe_status_code) + '\nMain blocker: ' + core_main_risk
     float core_hero_y = high + nz(atr, high * 0.01) * 1.15
-    core_hero_card := label.new(bar_index, core_hero_y, core_hero_display, color = cr.resolve_core_hero_color(core_product_state, BULL_HERO, BULL_HERO_READY, BEAR_HERO), textcolor = color.white, style = label.style_label_left, size = size.small)
+    color core_hero_bg = cr.resolve_core_hero_color(core_product_state, BULL_HERO, BULL_HERO_READY, BEAR_HERO)
+    if lib_universe_status_code == 0 or lib_universe_status_code == 1
+        core_hero_bg := color.new(color.red, 65)
+    else if lib_universe_status_code == 2
+        core_hero_bg := color.new(color.orange, 60)
+    core_hero_card := label.new(bar_index, core_hero_y, core_hero_display, color = core_hero_bg, textcolor = color.white, style = label.style_label_left, size = size.small)
 else if barstate.islast and not na(core_hero_card)
     label.delete(core_hero_card)
 
@@ -5569,8 +5577,12 @@ var label health_badge = na
 if barstate.islast and show_dashboard and not compact_mode
     if not na(health_badge)
         label.delete(health_badge)
-    string badge_text = compose_health_badge_text(lib_sq_bias_alignment, lib_sq_tier, lib_sq_score, event_risk_state, lib_sq_freshness, lib_sq_warnings, lib_erl_provider_status)
+    string badge_text = u.universe_status_badge(lib_universe_status_code) + '\n' + u.universe_status_banner(lib_universe_status_code) + '\n' + compose_health_badge_text(lib_sq_bias_alignment, lib_sq_tier, lib_sq_score, event_risk_state, lib_sq_freshness, lib_sq_warnings, lib_erl_provider_status)
     color badge_col = resolve_health_badge_color(lib_sq_tier)
+    if lib_universe_status_code == 0 or lib_universe_status_code == 1
+        badge_col := color.new(color.red, 65)
+    else if lib_universe_status_code == 2
+        badge_col := color.new(color.orange, 60)
     health_badge := label.new(bar_index, low, badge_text, color = badge_col, textcolor = color.white, style = label.style_label_up, size = size.tiny)
 else if barstate.islast and compact_mode and not na(health_badge)
     label.delete(health_badge)

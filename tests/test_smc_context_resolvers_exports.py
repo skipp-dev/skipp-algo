@@ -45,7 +45,7 @@ EXPECTED_EXPORT_SIGNATURES = [
     'export compose_main_risk_text(string product_state, string event_risk_state, string long_ready_blocker_text, string long_strict_blocker_text, string long_last_invalid_source, string signal_warnings, string provider_status, bool has_earnings_tomorrow)',
     'export compose_trade_threshold_text(string trust_tier, int signal_quality_score)',
     'export resolve_core_hero_color(string product_state, color bull_hero, color bull_hero_ready, color bear_hero)',
-    'export compose_core_hero_text(string product_state, string bias_text, string trade_threshold_text, string trust_tier, string trust_suffix, string provider_state, string why_now, string main_risk, string market_regime, bool regime_blocks, bool regime_dims, string asof_display, float vix_level, string market_event, string tone_text, bool yield_inverted, string sector_leading, bool breaking_news, int high_impact_count, bool ticker_in_universe)',
+    'export compose_core_hero_text(string product_state, string bias_text, string trade_threshold_text, string trust_tier, string trust_suffix, string provider_state, string why_now, string main_risk, string market_regime, bool regime_blocks, bool regime_dims, string asof_display, float vix_level, string market_event, string tone_text, bool yield_inverted, string sector_leading, bool breaking_news, int high_impact_count, int universe_status_code)',
     'export resolve_core_alert_action_name(string event_name)',
     'export pack_bus_row(int row_state, int reason_code)',
     'export pack_bus_four(float value1, float value2, float value3, float value4)',

@@ -129,7 +129,7 @@ export resolve_core_hero_color(string product_state, color bull_hero, color bull
         hero_color := bear_hero
     hero_color
 
-export compose_core_hero_text(string product_state, string bias_text, string trade_threshold_text, string trust_tier, string trust_suffix, string provider_state, string why_now, string main_risk, string market_regime, bool regime_blocks, bool regime_dims, string asof_display, float vix_level, string market_event, string tone_text, bool yield_inverted, string sector_leading, bool breaking_news, int high_impact_count, bool ticker_in_universe) =>
+export compose_core_hero_text(string product_state, string bias_text, string trade_threshold_text, string trust_tier, string trust_suffix, string provider_state, string why_now, string main_risk, string market_regime, bool regime_blocks, bool regime_dims, string asof_display, float vix_level, string market_event, string tone_text, bool yield_inverted, string sector_leading, bool breaking_news, int high_impact_count, int universe_status_code) =>
     string action_display = product_state
     if (product_state == 'WAIT' or product_state == 'BLOCKED') and (regime_blocks or regime_dims)
         action_display := product_state + ' (regime: ' + market_regime + ')'
@@ -141,7 +141,7 @@ export compose_core_hero_text(string product_state, string bias_text, string tra
     string sector_text = sector_leading != '' ? sector_leading : '—'
     string breaking_text = breaking_news ? ' · ⚡ BREAKING' : ''
     string news_depth_text = high_impact_count > 5 ? ' · ' + str.tostring(high_impact_count) + ' high-impact' : ''
-    'Action: ' + action_display + '\nBias: ' + bias_display + '\nConfidence: ' + trade_threshold_text + '\nTrust: ' + trust_display + '\nVIX: ' + str.tostring(vix_level, '#.##') + '\nTone: ' + tone_text + breaking_text + news_depth_text + '\nMarket: ' + market_event + yield_text + '\nSector: ' + sector_text + '\nProvider: ' + provider_state + (not ticker_in_universe ? '\n⚠ Symbol not scanned — ticker-specific data unavailable (VIX/regime still active)' : '') + '\nWhy now: ' + why_now + '\nMain blocker: ' + main_risk + '\nData: ' + asof_display
+    'Action: ' + action_display + '\nBias: ' + bias_display + '\nConfidence: ' + trade_threshold_text + '\nTrust: ' + trust_display + '\nVIX: ' + str.tostring(vix_level, '#.##') + '\nTone: ' + tone_text + breaking_text + news_depth_text + '\nMarket: ' + market_event + yield_text + '\nSector: ' + sector_text + '\nProvider: ' + provider_state + '\n' + u.universe_status_badge(universe_status_code) + '\n' + u.universe_status_banner(universe_status_code) + '\nWhy now: ' + why_now + '\nMain blocker: ' + main_risk + '\nData: ' + asof_display
 
 export resolve_core_alert_action_name(string event_name) =>
     string action_name = 'WAIT'
