@@ -19,8 +19,8 @@ def _drop_nones(value: Any) -> Any:
     return value
 
 
-def snapshot_to_dict(snapshot: SmcSnapshot, *, product_cut: dict[str, Any] | None = None) -> dict:
-    payload = _drop_nones(asdict(snapshot))
+def snapshot_to_dict(snapshot: SmcSnapshot, *, product_cut: dict[str, Any] | None = None) -> dict[str, Any]:
+    payload: dict[str, Any] = _drop_nones(asdict(snapshot))
     if product_cut is not None:
         payload["product_cut"] = _drop_nones(dict(product_cut))
     return payload
