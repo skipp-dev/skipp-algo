@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import newsstack_fmp
+import newsstack_fmp.pipeline as pipeline
 
 
 def test_newsstack_package_exports_latest_news_score() -> None:
-    from newsstack_fmp import pipeline
-
     with pipeline._bbt_lock:
         old = dict(pipeline._best_by_ticker)
         pipeline._best_by_ticker.clear()
