@@ -499,3 +499,173 @@ class TestBackgroundPollerHealthFlag:
         assert call_count["n"] >= 3
         assert bp.consecutive_failures == 0
         assert bp.last_poll_error == ""
+
+
+# ---------------------------------------------------------------------------
+# PR-D (audit 2026-05-10): _enqueue_batch race-hardening tests
+# ---------------------------------------------------------------------------
+
+
+def _make_poller(maxsize: int = 2) -> BackgroundPoller:
+    """Construct a poller and shrink its internal queue for race tests."""
+    bp = BackgroundPoller(
+        cfg=_FakeCfg(),
+        benzinga_adapter=None,
+        fmp_adapter=None,
+        store=MagicMock(),
+    )
+    # Replace the 500-deep production queue with a tiny one so we can
+    # provoke ``Full`` deterministically.
+    bp._queue = queue.Queue(maxsize=maxsize)
+    return bp
+
+
+class TestEnqueueBatchRaceHardening:
+    """Pin the put_nowait/get_nowait Full↔Empty race fix."""
+
+    def test_simple_enqueue_when_room_available(self):
+        bp = _make_poller(maxsize=2)
+        assert bp._enqueue_batch(["a", "b", "c"]) is True
+        assert bp._queue.qsize() == 1
+        assert bp.total_items_dropped == 0
+        assert bp.total_enqueue_drops == 0
+
+    def test_evicts_oldest_when_full(self):
+        bp = _make_poller(maxsize=2)
+        # Fill the queue: 2 batches of 5 items each.
+        bp._queue.put_nowait(["old1"] * 5)
+        bp._queue.put_nowait(["old2"] * 5)
+        assert bp._queue.full()
+
+        # New batch must be enqueued; oldest gets evicted.
+        assert bp._enqueue_batch(["new"] * 3) is True
+        # Eviction counted exactly once (5 items).
+        assert bp.total_items_dropped == 5
+        assert bp.total_enqueue_drops == 0
+
+    def test_no_silent_drop_when_consumer_drains_during_full(self):
+        """Reproduce the legacy race.
+
+        Pre-PR-D, the inline loop did:
+            put_nowait → Full
+            get_nowait → Empty (consumer drained between the two ops)
+            break        # batch silently dropped, no counter bump
+
+        We simulate the race by patching ``_queue.get_nowait`` to raise
+        ``Empty`` exactly once (as if the consumer drained between our
+        ``Full`` and our eviction attempt). The fixed implementation
+        must ``continue`` and successfully enqueue on the next attempt.
+        """
+        bp = _make_poller(maxsize=1)
+        bp._queue.put_nowait(["existing"])
+        assert bp._queue.full()
+
+        real_get = bp._queue.get_nowait
+        calls = {"n": 0}
+
+        def racing_get():
+            calls["n"] += 1
+            if calls["n"] == 1:
+                # Simulate consumer draining the slot between our Full
+                # and our get_nowait: the slot is gone.
+                raise queue.Empty
+            return real_get()
+
+        bp._queue.get_nowait = racing_get  # type: ignore[method-assign]
+
+        result = bp._enqueue_batch(["fresh"] * 4)
+
+        # The batch MUST land in the queue, not vanish silently.
+        assert result is True
+        assert bp.total_enqueue_drops == 0, (
+            "Race-window drop must not be silent and counter must stay clean "
+            "when the retry succeeds"
+        )
+
+    def test_explicit_drop_when_queue_stays_full(self):
+        """If retries are exhausted, increment total_enqueue_drops exactly once."""
+        bp = _make_poller(maxsize=1)
+        bp._queue.put_nowait(["existing"])
+
+        # Force every get_nowait to raise Empty -> we can never make room.
+        def always_empty():
+            raise queue.Empty
+
+        bp._queue.get_nowait = always_empty  # type: ignore[method-assign]
+        # And put_nowait always raises Full so the put never succeeds.
+        def always_full(_item):
+            raise queue.Full
+
+        bp._queue.put_nowait = always_full  # type: ignore[method-assign]
+
+        result = bp._enqueue_batch(["x"] * 7)
+
+        assert result is False
+        assert bp.total_enqueue_drops == 1
+        # Items in the dropped batch are surfaced via total_items_dropped.
+        assert bp.total_items_dropped == 7
+
+    def test_stats_dict_exposes_total_enqueue_drops(self):
+        bp = _make_poller()
+        snap = bp.snapshot()
+        assert "total_enqueue_drops" in snap
+        assert snap["total_enqueue_drops"] == 0
+
+    def test_concurrent_producer_consumer_preserves_invariant(self):
+        """Stress: items_enqueued == items_in_queue + items_consumed + dropped.
+
+        Multiple producer threads enqueue batches while a consumer
+        thread drains. The total counters must balance even in the
+        presence of the Full/Empty race window.
+        """
+        import threading
+
+        bp = _make_poller(maxsize=4)
+
+        n_producers = 4
+        batches_per_producer = 30
+        items_per_batch = 5
+        total_enqueued = n_producers * batches_per_producer
+        total_items_offered = total_enqueued * items_per_batch
+
+        consumed: list[Any] = []
+        stop = threading.Event()
+
+        def producer():
+            for _ in range(batches_per_producer):
+                bp._enqueue_batch(["x"] * items_per_batch)
+
+        def consumer():
+            while not stop.is_set():
+                try:
+                    consumed.append(bp._queue.get(timeout=0.05))
+                except queue.Empty:
+                    continue
+
+        c = threading.Thread(target=consumer, daemon=True)
+        c.start()
+
+        producers = [threading.Thread(target=producer) for _ in range(n_producers)]
+        for p in producers:
+            p.start()
+        for p in producers:
+            p.join(timeout=5.0)
+
+        # Drain remainder, then stop the consumer.
+        deadline = time.monotonic() + 2.0
+        while time.monotonic() < deadline:
+            try:
+                consumed.append(bp._queue.get(timeout=0.05))
+            except queue.Empty:
+                break
+        stop.set()
+        c.join(timeout=1.0)
+
+        consumed_items = sum(len(b) for b in consumed)
+        # Eviction-dropped items + explicit-drop items + consumed items
+        # must equal everything we offered. Nothing silently vanished.
+        assert consumed_items + bp.total_items_dropped == total_items_offered, (
+            f"Item accounting drift: consumed={consumed_items} "
+            f"dropped={bp.total_items_dropped} offered={total_items_offered} "
+            f"enqueue_drops={bp.total_enqueue_drops}"
+        )

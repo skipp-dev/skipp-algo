@@ -79,6 +79,11 @@ class BackgroundPoller:
         self.last_poll_error: str = ""
         self.total_items_ingested: int = 0
         self.total_items_dropped: int = 0
+        # PR-D (audit 2026-05-10): explicit counter for batches that
+        # could not be enqueued at all because the queue stayed full
+        # across the bounded retry window. Distinct from
+        # ``total_items_dropped`` which counts *evicted* old batches.
+        self.total_enqueue_drops: int = 0
         self.consecutive_empty_polls: int = 0
         self.last_poll_duration_s: float = 0.0
         self._last_periodic_prune_ts: float = 0.0  # for 30s dedup reset
@@ -240,6 +245,7 @@ class BackgroundPoller:
                 "last_poll_error": self.last_poll_error,
                 "total_items_ingested": self.total_items_ingested,
                 "total_items_dropped": self.total_items_dropped,
+                "total_enqueue_drops": self.total_enqueue_drops,
                 "consecutive_empty_polls": self.consecutive_empty_polls,
                 "last_poll_duration_s": self.last_poll_duration_s,
                 "consecutive_failures": self.consecutive_failures,
@@ -273,6 +279,69 @@ class BackgroundPoller:
     def _get_interval(self) -> float:
         with self._lock:
             return float(getattr(self, "_interval_override", self._cfg.poll_interval_s))
+
+    # Bounded retry budget against the put_nowait/get_nowait race window.
+    # If the queue stays full for this many attempts the batch is
+    # surfaced via ``total_enqueue_drops`` instead of being silently
+    # discarded by the legacy ``break`` path.
+    _ENQUEUE_RETRY_BUDGET: int = 8
+
+    def _enqueue_batch(self, items: Any) -> bool:
+        """Enqueue *items* with bounded ring-buffer eviction.
+
+        Audit 2026-05-10 (PR-D): the previous inline implementation had
+        a ``put_nowait`` → ``Full`` → ``get_nowait`` → ``Empty`` → ``break``
+        race. When the consumer drained the queue between our ``Full``
+        exception and our eviction attempt, ``Empty`` was raised and the
+        entire fresh batch was silently discarded with no counter bump.
+
+        The fix:
+
+        * On ``Empty`` we ``continue`` and retry ``put_nowait`` -- the
+          consumer just made room, so the next put almost always wins.
+        * Bound the retry loop with ``_ENQUEUE_RETRY_BUDGET`` to prevent
+          a pathological producer/consumer cadence from spinning.
+        * If the batch still cannot be placed, increment the new
+          ``total_enqueue_drops`` counter and log a WARNING so the drop
+          is observable, instead of being silent.
+
+        Returns True iff the batch was successfully enqueued.
+        """
+        evicted = 0
+        enqueued = False
+        for _ in range(self._ENQUEUE_RETRY_BUDGET):
+            try:
+                self._queue.put_nowait(items)
+                enqueued = True
+                break
+            except queue.Full:
+                try:
+                    old = self._queue.get_nowait()
+                    evicted += len(old)
+                except queue.Empty:
+                    # Race: consumer drained between our Full and our
+                    # get_nowait. Retry the put -- do NOT silently drop.
+                    continue
+
+        if evicted:
+            with self._stats_lock:
+                self.total_items_dropped += evicted
+            logger.info(
+                "BG poller evicted %d stale items to make room (total dropped: %d)",
+                evicted, self.total_items_dropped,
+            )
+
+        if not enqueued:
+            with self._stats_lock:
+                self.total_enqueue_drops += 1
+                self.total_items_dropped += len(items)
+            logger.warning(
+                "BG poller could not enqueue batch of %d items after %d retries "
+                "(total enqueue drops: %d)",
+                len(items), self._ENQUEUE_RETRY_BUDGET, self.total_enqueue_drops,
+            )
+
+        return enqueued
 
     def _run_loop(self) -> None:
         """Main loop running in the background thread."""
@@ -410,25 +479,7 @@ class BackgroundPoller:
             # Enqueue items for the main thread (ring-buffer: evict oldest
             # batches when full so the newest data always gets through)
             if items:
-                evicted = 0
-                while True:
-                    try:
-                        self._queue.put_nowait(items)
-                        break
-                    except queue.Full:
-                        try:
-                            old = self._queue.get_nowait()
-                            evicted += len(old)
-                        except queue.Empty:
-                            # Shouldn't happen, but guard anyway
-                            break
-                if evicted:
-                    with self._stats_lock:
-                        self.total_items_dropped += evicted
-                    logger.info(
-                        "BG poller evicted %d stale items to make room (total dropped: %d)",
-                        evicted, self.total_items_dropped,
-                    )
+                self._enqueue_batch(items)
 
             # Periodic SQLite prune (every 100 polls)
             # Quantum-sweep L2 (refined in PR #2113 per Copilot review):
