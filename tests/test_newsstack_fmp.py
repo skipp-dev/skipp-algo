@@ -3630,24 +3630,24 @@ class TestUWNewsHeadlines(unittest.TestCase):
     def test_uw_watermark_is_inclusive_for_same_epoch(self):
         """F5: same-second items must NOT be dropped on next poll.
 
-        Mirrors the FMP Senate/House `>=` watermark fix (2026-05-09).
+        Calls the real ``newsstack_fmp.pipeline._filter_uw_news_new``
+        helper so a regression back to ``>`` is caught here, not silently
+        masked by an inline re-implementation. Mirrors the FMP Senate/House
+        ``>=`` watermark fix (2026-05-09).
         """
-        # Direct unit-style assertion on the comprehension semantics used
-        # in pipeline.py (line ~672). The previous `>` filter dropped any
-        # item whose updated_ts equaled the cursor; mark_seen() is the
-        # authoritative per-item dedup, so the watermark should be
-        # inclusive (>=) and let dedup handle replays.
+        from newsstack_fmp.pipeline import _filter_uw_news_new
+
         last_seen = 1715000000
         items = [
             MagicMock(updated_ts=1715000000, is_valid=True),
             MagicMock(updated_ts=1715000005, is_valid=True),
+            MagicMock(updated_ts=1714999999, is_valid=True),
         ]
-        # Production behavior post-F5
-        new_items = [it for it in items if it.updated_ts >= last_seen]
+        new_items = _filter_uw_news_new(items, last_seen)
+        # Same-second item kept (F5 inclusivity), strictly older dropped.
         self.assertEqual(len(new_items), 2)
-        # Pre-F5 behavior would have dropped the first
-        old_items = [it for it in items if it.updated_ts > last_seen]
-        self.assertEqual(len(old_items), 1)
+        kept_ts = sorted(it.updated_ts for it in new_items)
+        self.assertEqual(kept_ts, [1715000000, 1715000005])
 
     def test_uw_429_is_retried_before_empty_result(self):
         """F2: 429 must be retried with backoff, not silently swallowed."""
