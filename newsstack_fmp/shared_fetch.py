@@ -261,7 +261,12 @@ def _write_payload(path: Path, payload: dict[str, Any]) -> None:
 @contextmanager
 def _file_lock(lock_path: Path):
     lock_path.parent.mkdir(parents=True, exist_ok=True)
-    deadline = time.time() + _LOCK_TIMEOUT_SECONDS
+    # Audit 2026-05-10 (PR-J1): use time.monotonic() for the deadline.
+    # time.time() is wall-clock and can jump BACKWARDS (NTP correction,
+    # VM live-migrate, manual `date -s`); a backwards jump prevents the
+    # original deadline from ever expiring and the lock-waiter loops
+    # forever, deadlocking every shared-fetch caller.
+    deadline = time.monotonic() + _LOCK_TIMEOUT_SECONDS
     fd: int | None = None
     while True:
         try:
@@ -269,7 +274,7 @@ def _file_lock(lock_path: Path):
             os.write(fd, str(os.getpid()).encode("utf-8"))
             break
         except FileExistsError:
-            if time.time() >= deadline:
+            if time.monotonic() >= deadline:
                 raise TimeoutError(f"Timed out waiting for shared news cache lock: {lock_path}") from None
             time.sleep(_LOCK_POLL_INTERVAL_SECONDS)
     try:
