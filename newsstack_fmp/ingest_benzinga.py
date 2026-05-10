@@ -575,7 +575,17 @@ class BenzingaWsAdapter:
                     try:
                         await ws.send(auth_msg)
                     except Exception:
-                        pass
+                        # Audit 2026-05-10 (PR-K): the subscribe handshake is
+                        # optional (the server pushes news regardless), but a
+                        # silent except: pass hides observability of upstream
+                        # protocol changes. Log at debug with traceback so
+                        # operators can correlate against connect/disconnect
+                        # patterns without raising the log floor.
+                        logger.debug(
+                            "BenzingaWsAdapter: optional subscribe handshake "
+                            "failed (server pushes news regardless)",
+                            exc_info=True,
+                        )
 
                     async for message in ws:
                         if self._stop_event.is_set():
