@@ -10,6 +10,7 @@
 indicator("SMC Long-Dip Dashboard v7", "SMC Long-Dip Dashboard v7", overlay = true, max_labels_count = 50)
 
 import preuss_steffen/smc_micro_profiles_generated/1 as mp
+import preuss_steffen/smc_utils/1 as u
 
 var string g_surface = "1. Product Surface"
 var string g_bus_lifecycle = "2. Operator Only - Lifecycle BUS"
@@ -363,6 +364,9 @@ status_bg(int state_value) =>
     else if state_value == -1
         bg := color.new(CLR_BEAR, 82)
     bg
+
+universe_status_state(int status_code) =>
+    status_code == 3 ? 5 : status_code == 2 ? 2 : -1
 
 dashboard_row(table tbl, int row, string label_text, string value_text, color bg, color txt) =>
     table.cell(tbl, 0, row, label_text, bgcolor = bg, text_color = txt, text_halign = text.align_left)
@@ -1554,12 +1558,23 @@ string long_zones_text = zone_detail_text(row_reason(long_zones_row_code), src_z
 string long_debug_text = row_status(debug_state_row_code) == 0 ? "off" : "state=" + long_visual_text(state_code) + " | src=" + source_label + " | fresh=" + freshness_text(freshness_code) + " | " + source_state_text(source_state_code)
 
 bool actionable_state = state_code >= 5
+string dashboard_symbol_key = syminfo.ticker
+string dashboard_symbol_key_qualified = syminfo.tickerid
+bool dashboard_universe_initialized = mp.UNIVERSE_TICKERS != ""
+bool dashboard_ticker_in_universe = dashboard_universe_initialized and u.csv_has_symbol_token(mp.UNIVERSE_TICKERS, dashboard_symbol_key, dashboard_symbol_key_qualified)
+bool dashboard_universe_partial_context = dashboard_ticker_in_universe and (mp.PROVIDER_COUNT == 0 or mp.STALE_PROVIDERS != "" or mp.EVENT_PROVIDER_STATUS != "ok")
+int dashboard_universe_status_code = u.universe_status_code(dashboard_universe_initialized, dashboard_ticker_in_universe, dashboard_universe_partial_context)
+int dashboard_universe_state = universe_status_state(dashboard_universe_status_code)
+string dashboard_universe_badge = u.universe_status_badge(dashboard_universe_status_code)
+string dashboard_universe_detail = u.universe_status_dashboard_text(dashboard_universe_status_code)
+string dashboard_universe_matrix = u.universe_status_feature_matrix(dashboard_universe_status_code)
+string dashboard_universe_tt = dashboard_universe_detail + "\n\n" + dashboard_universe_matrix
 
 plot(show_risk_lines and actionable_state ? src_trigger : na, "Trade Trigger", color = color.new(CLR_WARN, 0), linewidth = 2, style = plot.style_linebr)
 plot(show_risk_lines and actionable_state ? src_invalidation : na, "Trade Invalidation", color = color.new(CLR_CAUTION, 0), linewidth = 2, style = plot.style_linebr)
 bgcolor(show_state_bg and state_code >= 5 ? color.new(CLR_BULL, 90) : na)
 
-var table smc_dashboard = table.new(position.bottom_right, 2, 78, border_width = 0)
+var table smc_dashboard = table.new(position.bottom_right, 2, 80, border_width = 0)
 
 if show_table and barstate.islast
     color txt = chart.fg_color
@@ -1574,10 +1589,10 @@ if show_table and barstate.islast
         string focus_levels = actionable_state and not na(src_trigger) ? "Entry " + str.tostring(src_trigger, format.mintick) + " | Stop " + str.tostring(src_invalidation, format.mintick) : "—"
         string focus_context = mp.MARKET_REGIME + " · " + mp.TRADE_STATE
         color focus_context_bg = mp.TRADE_STATE == "BLOCKED" ? color.new(CLR_BEAR, 80) : mp.TRADE_STATE == "DISCOURAGED" ? color.new(CLR_CAUTION, 80) : color.new(CLR_BULL_ALT, 85)
-        dashboard_row(smc_dashboard, 0, "SMC", focus_action, focus_action_bg, txt)
+        dashboard_row_tt(smc_dashboard, 0, "SMC", focus_action + " | " + dashboard_universe_badge, focus_action_bg, txt, dashboard_universe_tt)
         dashboard_row(smc_dashboard, 1, "Plan", focus_levels, actionable_state ? color.new(CLR_BULL_ALT, 85) : header_bg, txt)
         dashboard_row(smc_dashboard, 2, "Market", focus_context, focus_context_bg, txt)
-        table.clear(smc_dashboard, 0, 3, 1, 73)
+        table.clear(smc_dashboard, 0, 3, 1, 79)
     else if surface_mode == "Explain"
         // ── EXPLAIN MODE (v7.2): Checklist explaining why the current zone state holds ──
         // Shows each major criterion as ✅ / ❌ with what's met, what's missing, and the next step.
@@ -1624,7 +1639,7 @@ if show_table and barstate.islast
         // ── Render ──
         color pass = color.new(CLR_BULL, 75)
         color fail = color.new(CLR_BEAR, 75)
-        dashboard_row(smc_dashboard, 0, "SMC Explain", ex_state_label, ex_state_bg, txt)
+        dashboard_row_tt(smc_dashboard, 0, "SMC Explain", ex_state_label + " | " + dashboard_universe_badge, ex_state_bg, txt, dashboard_universe_tt)
         dashboard_row(smc_dashboard, 1, "Zone Source", ex_source, header_bg, txt)
         section_row(smc_dashboard, 2, "[ Checklist ]", header_bg, txt)
         dashboard_row(smc_dashboard, 3, ex_struct_ok ? "✅ Structure" : "❌ Structure", ex_struct_event, ex_struct_ok ? pass : fail, txt)
@@ -1664,7 +1679,7 @@ if show_table and barstate.islast
             dashboard_row_tt(smc_dashboard, 12, ex_fvg_pass ? "✅ FVG Health" : "⚠ FVG Health", ex_fvg_detail, ex_fvg_pass ? pass : color.new(CLR_CAUTION, 75), txt, _ex_fvg_tt)
         section_row(smc_dashboard, 13, "[ Next Step ]", header_bg, txt)
         dashboard_row(smc_dashboard, 14, "→", ex_next_step, ex_state_bg, txt)
-        table.clear(smc_dashboard, 0, 15, 1, 73)
+        table.clear(smc_dashboard, 0, 15, 1, 79)
     else if compact_dashboard
         // WP-OV5: 5-row compact dashboard for mobile / small screens
         string lib_regime = mp.MARKET_REGIME
@@ -1681,12 +1696,12 @@ if show_table and barstate.islast
         int _compact_product_trust_state = product_trust_badge_state(mp.TRUST_STATE)
         int _compact_trust_state = _compact_legacy_trust_state < _compact_product_trust_state ? _compact_legacy_trust_state : _compact_product_trust_state
         string _compact_trust_text = dashboard_compact_trust_text(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, micro_fresh_row_code, event_risk_row_code, ready_gate_row_code, strict_gate_row_code, mp.ENSEMBLE_QUALITY_TIER) + " | data: " + product_trust_badge_text(mp.TRUST_STATE, mp.TRUST_DEGRADATION_REASON)
-        dashboard_row(smc_dashboard, 0, "SMC Compact", "Decision Brief", header_bg, txt)
+        dashboard_row_tt(smc_dashboard, 0, "SMC Compact", "Decision Brief | " + dashboard_universe_badge, header_bg, txt, dashboard_universe_tt)
         dashboard_row(smc_dashboard, 1, "Market", market_line, market_bg, txt)
         dashboard_row(smc_dashboard, 2, "Structure", dashboard_compact_structure_text(state_code, zone_code, lean_struct_row_code, reclaim_code), status_bg(setup_state), txt)
-        dashboard_row(smc_dashboard, 3, "Trust / Data", _compact_trust_text, status_bg(_compact_trust_state), txt)
+        dashboard_row_tt(smc_dashboard, 3, "Trust / Data", _compact_trust_text + " | " + dashboard_universe_badge, status_bg(_compact_trust_state < dashboard_universe_state ? _compact_trust_state : dashboard_universe_state), txt, dashboard_universe_tt)
         dashboard_row(smc_dashboard, 4, "Risk Plan", dashboard_compact_risk_plan_text(actionable_state, src_trigger, src_stop_level, src_target_1, src_target_2), status_bg(actionable_state ? 5 : 0), txt)
-        table.clear(smc_dashboard, 0, 5, 1, 73)
+        table.clear(smc_dashboard, 0, 5, 1, 79)
     else if surface_mode == "Decision Brief"
         // Market Context from Library
         string lib_regime = mp.MARKET_REGIME
@@ -1728,10 +1743,10 @@ if show_table and barstate.islast
         int _brief_product_trust_state = product_trust_badge_state(mp.TRUST_STATE)
         int _brief_trust_state = _brief_legacy_trust_state < _brief_product_trust_state ? _brief_legacy_trust_state : _brief_product_trust_state
         string _brief_trust_text = dashboard_compact_trust_text(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, micro_fresh_row_code, event_risk_row_code, ready_gate_row_code, strict_gate_row_code, mp.ENSEMBLE_QUALITY_TIER) + " | data: " + product_trust_badge_text(mp.TRUST_STATE, mp.TRUST_DEGRADATION_REASON)
-        dashboard_row(smc_dashboard, 6, "Trust / Data", _brief_trust_text, status_bg(_brief_trust_state), txt)
+        dashboard_row_tt(smc_dashboard, 6, "Trust / Data", _brief_trust_text + " | " + dashboard_universe_badge, status_bg(_brief_trust_state < dashboard_universe_state ? _brief_trust_state : dashboard_universe_state), txt, dashboard_universe_tt)
         dashboard_row(smc_dashboard, 7, "Short-term Pressure", dashboard_compact_pressure_text(ltf_delta_row_code, src_ltf_volume_delta, swing_row_code), status_bg(row_status(ltf_delta_row_code)), txt)
         dashboard_row(smc_dashboard, 8, "Risk Plan", dashboard_compact_risk_plan_text(actionable_state, src_trigger, src_stop_level, src_target_1, src_target_2), status_bg(actionable_state ? 5 : 0), txt)
-        table.clear(smc_dashboard, 0, 9, 1, 73)
+        table.clear(smc_dashboard, 0, 9, 1, 79)
     else if surface_mode == "Hero"
         // ── Hero Surface (PR 2) ──
         // Reads the hero state contract from the generated library and exposes
@@ -1791,8 +1806,9 @@ if show_table and barstate.islast
         // hint instead of the onboarding nudge, so the surface stays useful
         // for advanced users.
         int _hero_preset_code = int(math.round(src_preset_class_code))
-        string _hero_one_tt = _hero_preset_code == 0 ? "Onboarding · 4 Clicks to first calibrated signal:\n  1. Open Settings → Quickstart Preset.\n  2. Pick Mega-Cap US Tech / Financial Services / Energy.\n  3. Confirm — preset raises floors (RVOL, HTF Bias, FVG Quality), never lowers your inputs.\n  4. Watch the Hero row update; Trust badge turns T1/T2 once the calibrated stack agrees.\nSource: SMC_Core_Engine quickstart_preset · Plan §1.4 + §2.5 H5." : "Curated preset active (class " + str.tostring(_hero_preset_code) + ") — calibrated floors applied to RVOL/HTF/FVG/Vol inputs. You can still tighten any input above the preset floor; the preset never lowers your value.\nSource: BUS Preset* contract."
-        dashboard_row_tt(smc_dashboard, 1, "Hero", _hero_one, _hero_one_bg, txt, _hero_one_tt)
+        string _hero_one_tt = (_hero_preset_code == 0 ? "Onboarding · 4 Clicks to first calibrated signal:\n  1. Open Settings → Quickstart Preset.\n  2. Pick Mega-Cap US Tech / Financial Services / Energy.\n  3. Confirm — preset raises floors (RVOL, HTF Bias, FVG Quality), never lowers your inputs.\n  4. Watch the Hero row update; Trust badge turns T1/T2 once the calibrated stack agrees.\nSource: SMC_Core_Engine quickstart_preset · Plan §1.4 + §2.5 H5." : "Curated preset active (class " + str.tostring(_hero_preset_code) + ") — calibrated floors applied to RVOL/HTF/FVG/Vol inputs. You can still tighten any input above the preset floor; the preset never lowers your value.\nSource: BUS Preset* contract.") + "\n\n" + dashboard_universe_tt
+        string _hero_one_display = _hero_one + " · " + dashboard_universe_badge
+        dashboard_row_tt(smc_dashboard, 1, "Hero", _hero_one_display, _hero_one_bg, txt, _hero_one_tt)
         dashboard_row(smc_dashboard, 2, "Market", h_market_line, h_market_bg, txt)
         dashboard_row(smc_dashboard, 3, "Action", h_action_line, h_action_bg, txt)
         dashboard_row(smc_dashboard, 4, "Why now", h_why_line, h_why_bg, txt)
@@ -1800,7 +1816,7 @@ if show_table and barstate.islast
         dashboard_row(smc_dashboard, 6, "Trust", h_trust_line, status_bg(h_trust_state), txt)
         dashboard_row(smc_dashboard, 7, "Risk", h_risk_line, status_bg(h_risk_state), txt)
         dashboard_row(smc_dashboard, 8, "Risk Plan", dashboard_compact_risk_plan_text(actionable_state, src_trigger, src_stop_level, src_target_1, src_target_2), status_bg(actionable_state ? 5 : 0), txt)
-        table.clear(smc_dashboard, 0, 9, 1, 73)
+        table.clear(smc_dashboard, 0, 9, 1, 79)
     else
         dashboard_row(smc_dashboard, 0, "SMC Long-Dip Dashboard v7", "Audit View | Expert review only", header_bg, txt)
         // ── AUDIT: decision detail first, then lean review, diagnostics, risk plan, and explicit debug ──
@@ -1960,12 +1976,14 @@ if show_table and barstate.islast
         string _wt_top3 = array.get(_wt_names, 0) + " " + format_cal_weight(array.get(_wt_vals, 0)) + " · " + array.get(_wt_names, 1) + " " + format_cal_weight(array.get(_wt_vals, 1)) + " · " + array.get(_wt_names, 2) + " " + format_cal_weight(array.get(_wt_vals, 2))
         string _wt_full = "Why this Tier? Ranked calibrated weights driving the Zone Priority pick:\n  1. " + array.get(_wt_names, 0) + " — " + format_cal_weight(array.get(_wt_vals, 0)) + " (" + calibration_confidence_tier(array.get(_wt_vals, 0)) + ")\n  2. " + array.get(_wt_names, 1) + " — " + format_cal_weight(array.get(_wt_vals, 1)) + " (" + calibration_confidence_tier(array.get(_wt_vals, 1)) + ")\n  3. " + array.get(_wt_names, 2) + " — " + format_cal_weight(array.get(_wt_vals, 2)) + " (" + calibration_confidence_tier(array.get(_wt_vals, 2)) + ")\n  4. " + array.get(_wt_names, 3) + " — " + format_cal_weight(array.get(_wt_vals, 3)) + " (" + calibration_confidence_tier(array.get(_wt_vals, 3)) + ")\nSource: zone_priority_calibration.json · BUS contract: ZONE_CAL_*"
         dashboard_row_tt(smc_dashboard, 75, "Top-3 Weights", _wt_top3, status_bg(calibration_confidence_state(array.get(_wt_vals, 0))), txt, _wt_full)
+        section_row(smc_dashboard, 76, "[ Universe Status ]", header_bg, txt)
+        dashboard_row_tt(smc_dashboard, 77, "Universe Status", dashboard_universe_badge, status_bg(dashboard_universe_state), txt, dashboard_universe_tt)
 else if barstate.islast
-    // Clear the full table (incl. trade-mgmt rows 76/77) when show_table is off.
-    table.clear(smc_dashboard, 0, 0, 1, 77)
+    // Clear the full table (incl. universe + trade-mgmt rows 76..79) when show_table is off.
+    table.clear(smc_dashboard, 0, 0, 1, 79)
 // ───────────────────────── Trade Management mirror ─────────────────────────
 // Read-only mirror of SMC_Hold_Manager state machine. Renders 2 rows
-// (Trade-State + live Stop) at table rows 76/77 when tm_enable is on.
+// (Trade-State + live Stop) at table rows 78/79 when tm_enable is on.
 // MIRROR-OF: SMC_Hold_Manager.pine §state-machine (FLAT/ARMED/IN_TRADE).
 // No alerts here — by design. For audible alerts add SMC_Hold_Manager
 // on the same chart.
@@ -2015,7 +2033,7 @@ if show_table and barstate.islast and tm_enable
     color  tm_state_bg  = tm_state == 0 ? color.new(CLR_NEUTRAL, 80) : tm_state == 1 ? color.new(CLR_CAUTION, 70) : color.new(CLR_BULL, 65)
     string tm_stop_txt  = na(tm_entry_stop) ? "—" : str.tostring(tm_entry_stop, format.mintick) + (tm_tp1_hit and tm_be_after_t1 ? " (BE)" : "")
     color  tm_stop_bg   = tm_state == 2 ? color.new(CLR_BEAR, 65) : color.new(color.black, 100)
-    dashboard_row(smc_dashboard, 76, "Trade", tm_state_txt, tm_state_bg, chart.fg_color)
-    dashboard_row(smc_dashboard, 77, "Stop",  tm_stop_txt,  tm_stop_bg,  chart.fg_color)
+    dashboard_row(smc_dashboard, 78, "Trade", tm_state_txt, tm_state_bg, chart.fg_color)
+    dashboard_row(smc_dashboard, 79, "Stop",  tm_stop_txt,  tm_stop_bg,  chart.fg_color)
 else if barstate.islast and not tm_enable
-    table.clear(smc_dashboard, 0, 76, 1, 77)
+    table.clear(smc_dashboard, 0, 78, 1, 79)

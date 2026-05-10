@@ -139,12 +139,14 @@ def collect_smoke_snapshot() -> dict[str, Any]:
 
 
 def _count_dashboard_audit_rows() -> int | None:
-    """Count dashboard_row() calls in the audit view section of SMC_Dashboard.pine."""
+    """Count dashboard row calls in the audit view section of SMC_Dashboard.pine."""
     dashboard_path = REPO_ROOT / "SMC_Dashboard.pine"
     if not dashboard_path.exists():
         return None
     content = dashboard_path.read_text(encoding="utf-8", errors="replace")
-    # Count lines that call dashboard_row() or section_row() in the audit else block
+    # Count lines that call dashboard_row(), dashboard_row_tt(), or section_row()
+    # in the audit else block. Tooltip rows render real table rows too; excluding
+    # them made the snapshot drift when a visible row gained hover copy.
     in_audit = False
     count = 0
     for line in content.splitlines():
@@ -153,7 +155,11 @@ def _count_dashboard_audit_rows() -> int | None:
             in_audit = False
         if "Audit View" in stripped:
             in_audit = True
-        if in_audit and ("dashboard_row(" in stripped or "section_row(" in stripped):
+        if in_audit and (
+            "dashboard_row(" in stripped
+            or "dashboard_row_tt(" in stripped
+            or "section_row(" in stripped
+        ):
             count += 1
     return count
 

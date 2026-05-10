@@ -4,6 +4,7 @@
 //@version=6
 
 import preuss_steffen/smc_micro_profiles_generated/1 as mp
+import preuss_steffen/smc_utils/1 as u
 
 // Product role: pro execution surface on the frozen 8-channel executable contract.
 // Product scope: this strategy executes long-only setups from the linked SMC Core long-dip specialist.
@@ -22,6 +23,7 @@ entry_mode = input.string("Strict", "Execution Stage", options = ["Armed", "Conf
 min_quality_score = input.float(0.0, "Minimum Quality Score", step = 0.25, group = g_setup, tooltip = "Minimum quality score required before the linked core setup can stage an execution plan.")
 use_regime_gate = input.bool(true, "Respect Regime Gate", group = g_setup, tooltip = "When enabled, the strategy respects TRADE_STATE, macro events, and earnings from the linked library. Disable to see raw signal performance without regime filtering.\n\n⚠️ BACKTEST NOTE: Library data is a snapshot of a single day. In backtests, today's regime/earnings/macro values are applied to ALL historical bars. For accurate historical backtests, set this to OFF and evaluate the pure signal performance. The regime gate is designed for LIVE TRADING, not historical backtesting.")
 backtest_mode = input.bool(false, "Backtest Mode (Ignore Library)", group = g_setup, tooltip = "When ON, all library-based filters are bypassed. Use this for honest historical backtests showing pure price-structure signal performance.\n\nWhen OFF (default), the strategy uses live library data for entry gating (regime, earnings, macro events).")
+strict_universe_entries = input.bool(false, "Strict Universe Mode", group = g_setup, tooltip = "When enabled, live entries are disabled unless the chart symbol is inside the latest scanned universe. Backtest Mode bypasses this gate with the other library filters. Status text: Strategy entries are disabled because this symbol is outside the scanned universe. Strategy entries are disabled because universe data is not available.")
 use_take_profit = input.bool(true, "Use Take Profit", group = g_trade_plan, tooltip = "Stage a take-profit target on top of the linked core execution trigger and invalidation plan.")
 take_profit_r = input.float(2.0, "Take Profit (R)", minval = 0.0, step = 0.25, group = g_trade_plan, tooltip = "Take-profit distance in R measured from execution trigger to invalidation.")
 
@@ -63,9 +65,17 @@ bool regime_allows_entry = mp.TRADE_STATE != "BLOCKED"
 bool no_macro_event_block = not mp.HIGH_IMPACT_MACRO_TODAY or mp.MARKET_REGIME != "RISK_OFF"
 bool not_earnings_ticker = not str.contains(mp.EARNINGS_TODAY_TICKERS, syminfo.ticker)
 bool regime_gate_ok = use_regime_gate and not backtest_mode ? (regime_allows_entry and no_macro_event_block and not_earnings_ticker) : true
+string strategy_symbol_key = syminfo.ticker
+string strategy_symbol_key_qualified = syminfo.tickerid
+bool strategy_universe_initialized = mp.UNIVERSE_TICKERS != ""
+bool strategy_ticker_in_universe = strategy_universe_initialized and u.csv_has_symbol_token(mp.UNIVERSE_TICKERS, strategy_symbol_key, strategy_symbol_key_qualified)
+bool strategy_universe_partial_context = strategy_ticker_in_universe and (mp.PROVIDER_COUNT == 0 or mp.STALE_PROVIDERS != "" or mp.EVENT_PROVIDER_STATUS != "ok")
+int strategy_universe_status_code = u.universe_status_code(strategy_universe_initialized, strategy_ticker_in_universe, strategy_universe_partial_context)
+bool universe_gate_ok = not strict_universe_entries or backtest_mode or strategy_universe_status_code == 3 or strategy_universe_status_code == 2
+string universe_strict_block_text = strict_universe_entries and not backtest_mode ? u.universe_status_strategy_text(strategy_universe_status_code) : ""
 
 // Entry/exit logic is evaluated from confirmed BUS inputs; no intrabar lookahead is used in this strategy wrapper.
-bool can_stage_entry = selected_state and quality_ok and risk_levels_ok and regime_gate_ok
+bool can_stage_entry = selected_state and quality_ok and risk_levels_ok and regime_gate_ok and universe_gate_ok
 
 float risk_per_unit = risk_levels_ok ? src_trigger - src_invalidation : na
 float take_profit_price = na
@@ -134,7 +144,7 @@ float win_rate = total_trades > 0 ? winning_trades / total_trades * 100.0 : 0.0
 float profit_factor = gross_loss > 0 ? gross_profit / gross_loss : 0.0
 float avg_r = total_trades > 0 ? strategy.netprofit / (total_trades * (strategy.initial_capital * 0.01)) : 0.0
 
-var table perf_tbl = table.new(position.bottom_left, 2, 8, border_width = 0)
+var table perf_tbl = table.new(position.bottom_left, 2, 9, border_width = 0)
 
 perf_row(table tbl, int row, string label_text, string value_text, color bg, color txt) =>
     table.cell(tbl, 0, row, label_text, bgcolor = bg, text_color = txt, text_halign = text.align_left, text_size = size.small)
@@ -150,15 +160,18 @@ if show_performance and barstate.islast
     color wr_bg = win_rate >= 50 ? ok_bg : win_rate >= 40 ? warn_bg : bad_bg
     color pf_bg = profit_factor >= 1.5 ? ok_bg : profit_factor >= 1.0 ? warn_bg : bad_bg
     color dd_bg = max_drawdown_pct <= 10 ? ok_bg : max_drawdown_pct <= 20 ? warn_bg : bad_bg
+    color universe_bg = strategy_universe_status_code == 3 ? ok_bg : strategy_universe_status_code == 2 ? warn_bg : bad_bg
+    string universe_status_line = u.universe_status_badge(strategy_universe_status_code) + (universe_strict_block_text != "" ? " | " + universe_strict_block_text : "")
 
     perf_row(perf_tbl, 0, "SMC Strategy v7", total_trades > 0 ? "Performance" : "No Trades Yet", header_bg, txt)
-    perf_row(perf_tbl, 1, "Trades", str.tostring(total_trades) + "  (W:" + str.tostring(winning_trades) + " / L:" + str.tostring(losing_trades) + ")", ok_bg, txt)
-    perf_row(perf_tbl, 2, "Win Rate", str.tostring(win_rate, '#.#') + "%", wr_bg, txt)
-    perf_row(perf_tbl, 3, "Profit Factor", str.tostring(profit_factor, '#.##'), pf_bg, txt)
-    perf_row(perf_tbl, 4, "Net Profit", str.tostring(strategy.netprofit, '#.##'), strategy.netprofit >= 0 ? ok_bg : bad_bg, txt)
-    perf_row(perf_tbl, 5, "Max Drawdown", str.tostring(max_drawdown_pct, '#.#') + "%", dd_bg, txt)
-    perf_row(perf_tbl, 6, "Avg Trade", str.tostring(total_trades > 0 ? strategy.netprofit / total_trades : 0.0, '#.##'), total_trades > 0 and strategy.netprofit / total_trades > 0 ? ok_bg : warn_bg, txt)
-    perf_row(perf_tbl, 7, "Mode", backtest_mode ? "Backtest (pure signal)" : use_regime_gate ? "Live (regime gated)" : "Live (ungated)", header_bg, txt)
+    perf_row(perf_tbl, 1, "Universe", universe_status_line, universe_bg, txt)
+    perf_row(perf_tbl, 2, "Trades", str.tostring(total_trades) + "  (W:" + str.tostring(winning_trades) + " / L:" + str.tostring(losing_trades) + ")", ok_bg, txt)
+    perf_row(perf_tbl, 3, "Win Rate", str.tostring(win_rate, '#.#') + "%", wr_bg, txt)
+    perf_row(perf_tbl, 4, "Profit Factor", str.tostring(profit_factor, '#.##'), pf_bg, txt)
+    perf_row(perf_tbl, 5, "Net Profit", str.tostring(strategy.netprofit, '#.##'), strategy.netprofit >= 0 ? ok_bg : bad_bg, txt)
+    perf_row(perf_tbl, 6, "Max Drawdown", str.tostring(max_drawdown_pct, '#.#') + "%", dd_bg, txt)
+    perf_row(perf_tbl, 7, "Avg Trade", str.tostring(total_trades > 0 ? strategy.netprofit / total_trades : 0.0, '#.##'), total_trades > 0 and strategy.netprofit / total_trades > 0 ? ok_bg : warn_bg, txt)
+    perf_row(perf_tbl, 8, "Mode", backtest_mode ? "Backtest (pure signal)" : use_regime_gate ? "Live (regime gated)" : "Live (ungated)", header_bg, txt)
 else if barstate.islast and not show_performance
-    table.clear(perf_tbl, 0, 0, 1, 7)
+    table.clear(perf_tbl, 0, 0, 1, 8)
 plot(use_take_profit ? (strategy.position_size > 0 ? active_take_profit : take_profit_price) : na, "Execution Take Profit", color = color.new(color.green, 0), linewidth = 1, style = plot.style_linebr)
