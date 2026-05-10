@@ -343,6 +343,12 @@ def _fetch_raw(symbol: str) -> dict[str, Any]:
     """Fetch raw JSON from the TradingView headlines API.
 
     Applies rate limiting and updates health state.
+
+    Single source of truth for TV health metrics -- see audit 2026-05-10.
+    Higher-level wrappers (``fetch_tv_headlines``) MUST NOT call
+    ``_health.record_success`` / ``record_failure`` themselves; doing so
+    would double-count requests when retries / pagination invoke
+    ``_fetch_raw`` multiple times for a single logical fetch.
     """
     global _last_request_ts
 
@@ -456,20 +462,17 @@ def fetch_tv_headlines(
         data = _fetch_raw(ticker)
         headlines = _parse_items(data)
         _set_cached(cache_key, headlines)
-        _health.record_success()
+        # Health accounting lives exclusively in ``_fetch_raw`` (audit
+        # 2026-05-10): success was already recorded there.
         return headlines[:max_items]
     except Exception as exc:
-        # Update health state so `is_available()` / `health_status()` and
-        # the sidebar "TV degraded" indicator reflect reality.  Without
-        # this, the cache simply returns [] forever and consumers think
-        # there is no news for the ticker.
-        # Quantum-sweep M1: ``repr(exc)`` may include URLs with embedded
-        # tokens (urllib3 ``MaxRetryError``); redact before persisting it
-        # into the health-monitor state where the dashboard reads it.
-        _health.record_failure(_redact_sensitive_error_text(repr(exc)))
+        # Health accounting lives exclusively in ``_fetch_raw`` (audit
+        # 2026-05-10): the failure was already recorded there with a
+        # branch-specific message. Do NOT call ``record_failure`` again
+        # here -- it would double-count this single logical fetch.
         log.warning(
-            "fetch_tv(%s) failed; recorded health failure: %s",
-            ticker, exc,
+            "fetch_tv(%s) failed: %s",
+            ticker, _redact_sensitive_error_text(repr(exc)),
         )
         return []
 
