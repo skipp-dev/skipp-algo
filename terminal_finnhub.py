@@ -101,16 +101,26 @@ def social_sentiment_status() -> str:
     return "available"
 
 
-def _get_cached(key: str, ttl: float) -> Any | None:
+def _get_cached(key: str, ttl: float) -> tuple[bool, Any]:
+    """Return ``(found, value)`` for *key*.
+
+    Audit 2026-05-10 (PR-B): the previous signature returned ``None`` both
+    for "no entry" and for "cached None" (empty-payload miss). That made
+    ``_set_cached(key, None)`` ineffective -- callers would re-hit the
+    upstream API on every subsequent empty response. The tuple makes the
+    distinction explicit: ``found=True`` means a fresh cache entry exists
+    (the value may legitimately be ``None``); ``found=False`` means the
+    caller must perform the upstream fetch.
+    """
     with _cache_lock:
         entry = _cache.get(key)
         if entry is None:
-            return None
+            return (False, None)
         ts, val = entry
         if time.time() - ts > ttl:
             del _cache[key]
-            return None
-        return val
+            return (False, None)
+        return (True, val)
 
 
 def _set_cached(key: str, val: Any) -> None:
@@ -280,8 +290,8 @@ def fetch_social_sentiment(symbol: str) -> SocialSentiment | None:
         return None
 
     cache_key = f"fh_social:{sym}"
-    cached = _get_cached(cache_key, _SOCIAL_TTL)
-    if cached is not None:
+    found, cached = _get_cached(cache_key, _SOCIAL_TTL)
+    if found:
         return cached  # type: ignore[return-value]
 
     data = _get("/stock/social-sentiment", {"symbol": sym})
@@ -444,8 +454,8 @@ def fetch_company_news(
     # Audit-fix (2026-05-09): include max_items in cache key so callers with
     # different limits don't collide on a previously-cached truncated list.
     cache_key = f"company_news:{sym}:{days_back}:{max_items}"
-    cached = _get_cached(cache_key, _NEWS_TTL)
-    if cached is not None:
+    found, cached = _get_cached(cache_key, _NEWS_TTL)
+    if found:
         return cached  # type: ignore[return-value]
     frm, to = _ymd_window(days_back)
     raw = _get("/company-news", {"symbol": sym, "from": frm, "to": to})
@@ -486,8 +496,8 @@ def fetch_news_sentiment(symbol: str) -> NewsSentimentSummary | None:
         return None
     sym = symbol.upper().strip()
     cache_key = f"news_sentiment:{sym}"
-    cached = _get_cached(cache_key, _SENTIMENT_TTL)
-    if cached is not None:
+    found, cached = _get_cached(cache_key, _SENTIMENT_TTL)
+    if found:
         return cached  # type: ignore[return-value]
     raw = _get("/news-sentiment", {"symbol": sym})
     if not isinstance(raw, dict) or not raw:
@@ -522,8 +532,8 @@ def fetch_recommendation_trends(symbol: str) -> list[RecommendationTrend]:
         return []
     sym = symbol.upper().strip()
     cache_key = f"reco_trend:{sym}"
-    cached = _get_cached(cache_key, _RECO_TTL)
-    if cached is not None:
+    found, cached = _get_cached(cache_key, _RECO_TTL)
+    if found:
         return cached  # type: ignore[return-value]
     raw = _get("/stock/recommendation", {"symbol": sym})
     if not isinstance(raw, list):
@@ -563,8 +573,8 @@ def fetch_insider_sentiment(
         return []
     sym = symbol.upper().strip()
     cache_key = f"insider_sent:{sym}:{months_back}"
-    cached = _get_cached(cache_key, _INSIDER_TTL)
-    if cached is not None:
+    found, cached = _get_cached(cache_key, _INSIDER_TTL)
+    if found:
         return cached  # type: ignore[return-value]
     frm, to = _ymd_window(max(30, months_back * 31))
     raw = _get("/stock/insider-sentiment", {"symbol": sym, "from": frm, "to": to})

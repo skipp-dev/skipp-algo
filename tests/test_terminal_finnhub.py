@@ -264,3 +264,67 @@ class TestBlockedPathShortCircuit:
         terminal_finnhub.clear_blocked_paths()
         assert terminal_finnhub._blocked_path_substrings == set()
         assert terminal_finnhub._social_sentiment_blocked is False
+
+
+# ---------------------------------------------------------------------------
+# Cache miss-sentinel (PR-B, audit 2026-05-10)
+# ---------------------------------------------------------------------------
+
+
+class TestCacheMissSentinel:
+    """``_set_cached(key, None)`` must actually cache the miss.
+
+    Pre-fix bug: ``_get_cached`` returned ``None`` for both "no entry" and
+    "cached None", so two consecutive empty payloads issued two upstream
+    API calls. PR-B switches ``_get_cached`` to ``(found, value)`` and these
+    tests pin the new contract.
+    """
+
+    def setup_method(self) -> None:
+        with terminal_finnhub._cache_lock:
+            terminal_finnhub._cache.clear()
+
+    def teardown_method(self) -> None:
+        with terminal_finnhub._cache_lock:
+            terminal_finnhub._cache.clear()
+
+    def test_get_cached_returns_found_false_for_unknown_key(self) -> None:
+        found, value = terminal_finnhub._get_cached("does-not-exist", ttl=60.0)
+        assert found is False
+        assert value is None
+
+    def test_get_cached_returns_found_true_for_cached_none(self) -> None:
+        terminal_finnhub._set_cached("k-none", None)
+        found, value = terminal_finnhub._get_cached("k-none", ttl=60.0)
+        assert found is True
+        assert value is None
+
+    def test_cached_value_returned_within_ttl(self) -> None:
+        terminal_finnhub._set_cached("k-val", [1, 2, 3])
+        found, value = terminal_finnhub._get_cached("k-val", ttl=60.0)
+        assert found is True
+        assert value == [1, 2, 3]
+
+    def test_cached_miss_expires_after_ttl(self) -> None:
+        # Write the entry with a back-dated timestamp so it is already stale.
+        with terminal_finnhub._cache_lock:
+            terminal_finnhub._cache["k-stale"] = (time.time() - 120.0, None)
+        found, value = terminal_finnhub._get_cached("k-stale", ttl=60.0)
+        assert found is False
+        assert value is None
+        # And the stale entry must have been evicted.
+        with terminal_finnhub._cache_lock:
+            assert "k-stale" not in terminal_finnhub._cache
+
+    def test_empty_social_response_caches_miss_one_upstream_call(self) -> None:
+        """Two consecutive empty-payload calls must issue ONE upstream call."""
+        with mock.patch.object(
+            terminal_finnhub, "_get", return_value={"reddit": [], "twitter": []}
+        ) as m_get:
+            r1 = terminal_finnhub.fetch_social_sentiment("AAPL")
+            r2 = terminal_finnhub.fetch_social_sentiment("AAPL")
+        assert r1 is None
+        assert r2 is None
+        assert m_get.call_count == 1, (
+            f"miss was not cached -- upstream called {m_get.call_count}x"
+        )
