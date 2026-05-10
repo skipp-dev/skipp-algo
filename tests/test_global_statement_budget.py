@@ -5,7 +5,7 @@ Module-level mutable state with ``global`` is a common cause of:
 * concurrency bugs (no synchronisation around the assignment),
 * dependency-injection blockers (singletons can't be overridden cleanly).
 
-The current production codebase has 26 ``global`` statements, all
+The current production codebase has 24 ``global`` statements, all
 documented module-level singletons (rate-limit cooldown counters,
 TradingView 429 backoff state, lazy provider singletons, regime-state
 remembrance, Streamlit tab-availability flags).  Defense pin freezes
@@ -91,12 +91,12 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("newsstack_fmp/pipeline.py", 1018, ("_last_meta",)),
         (
             "newsstack_fmp/pipeline.py",
-            1086,
+            1107,
             ("_bz_rest_adapter", "_bz_ws_adapter", "_enricher", "_fmp_adapter", "_last_meta", "_store"),
         ),
         (
             "newsstack_fmp/pipeline.py",
-            1087,
+            1108,
             ("_bz_rest_adapter_key", "_bz_ws_adapter_key", "_fmp_adapter_key"),
         ),
         ("open_prep/regime.py", 129, ("_prev_regime",)),
@@ -132,8 +132,6 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("terminal_bitcoin.py", 97, ("_client",)),
         ("terminal_databento.py", 130, ("_quote_cache", "_quote_cache_ts")),
         ("terminal_databento.py", 314, ("_dataset_cache",)),
-        ("terminal_export.py", 104, ("_FALLBACK_BUFFER",)),
-        ("terminal_export.py", 121, ("_FALLBACK_BUFFER",)),
         (
             "terminal_finnhub.py",
             177,

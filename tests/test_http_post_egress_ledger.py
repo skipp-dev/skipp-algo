@@ -135,9 +135,9 @@ HTTP_POST_LEDGER: set[tuple[str, int]] = {
     # Notification webhook fan-out (Discord/Slack-style).
     ("terminal_notifications.py", 279),
     # FMP/news export webhook (raw body, no redirects, HMAC-SHA256 signed,
-    # SSRF-guarded via _is_safe_webhook_url). Line shifted 919 → 908
-    # (system review 2026-04-30).
-    ("terminal_export.py", 912),
+    # SSRF-guarded via _is_safe_webhook_url). Line shifted 912 → 916
+    # (deep-audit fallback-buffer lock refresh).
+    ("terminal_export.py", 916),
     # OpenAI chat completions — FMP insights enrichment.
     ("terminal_fmp_insights.py", 372),
     # Webhook fan-out from the live Streamlit terminal alert path

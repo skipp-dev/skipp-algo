@@ -1050,6 +1050,27 @@ def get_last_meta() -> dict[str, Any]:
         return copy.deepcopy(_last_meta)
 
 
+def get_news_score(symbol: str) -> float:
+    """Return the latest best-by-ticker news score for *symbol*.
+
+    The Streamlit poller owns ``_best_by_ticker``; this read-only facade keeps
+    bridge consumers off private module globals while preserving the existing
+    best-effort ``0.0`` fallback when no recent candidate is available.
+    """
+    ticker = str(symbol or "").strip().upper()
+    if not ticker:
+        return 0.0
+    with _bbt_lock:
+        candidate = copy.deepcopy(_best_by_ticker.get(ticker))
+    if not candidate:
+        return 0.0
+    try:
+        return float(candidate.get("news_score") or 0.0)
+    except (TypeError, ValueError):
+        logger.debug("Invalid news_score for %s: %r", ticker, candidate.get("news_score"))
+        return 0.0
+
+
 def _effective_ts(cand: dict[str, Any]) -> float:
     """Return the best available timestamp for a candidate.
 

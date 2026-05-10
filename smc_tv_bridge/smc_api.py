@@ -173,7 +173,7 @@ def _detect_structure_canonical(candles: list[dict[str, Any]], symbol: str, time
 # Provider layer — adapter-based (see ADR-001)
 # ══════════════════════════════════════════════════════════
 
-from smc_tv_bridge.adapters import CandleProvider, RegimeProvider, TechnicalScoreProvider  # noqa: E402 -- adapter-based Provider layer per ADR-001, imported after upstream type defs
+from smc_tv_bridge.adapters import CandleProvider, RegimeProvider, TechnicalScoreProvider  # noqa: E402,I001 -- adapter-based Provider layer per ADR-001, imported after upstream type defs
 
 _candle_provider: CandleProvider | None = None
 _regime_provider: RegimeProvider | None = None
@@ -209,14 +209,15 @@ def _fetch_candles(symbol: str, timeframe: str) -> list[dict[str, Any]]:
     provider = _get_candle_provider()
     interval = _TF_TO_FMP_INTERVAL.get(timeframe, "15min")
     limit = _TF_CANDLE_LIMIT.get(timeframe, 100)
-    return provider.fetch_candles(symbol, interval, limit)
+    candles: list[dict[str, Any]] = provider.fetch_candles(symbol, interval, limit)
+    return candles
 
 
 def _get_news_score(symbol: str) -> float:
     """Best-effort news score for a symbol from the newsstack."""
     try:
         from newsstack_fmp import get_news_score
-        return get_news_score(symbol)
+        return float(get_news_score(symbol))
     except Exception:
         return 0.0
 
