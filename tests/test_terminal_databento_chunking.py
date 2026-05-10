@@ -85,7 +85,7 @@ class TestFetchDatabentoDailyBarsChunking:
         monkeypatch.setattr(
             terminal_databento, "maybe_refresh_symbol_reference_cache", lambda *a, **k: None
         )
-        monkeypatch.setattr(terminal_databento, "_pick_dataset", lambda c: "DBEQ.BASIC")
+        monkeypatch.setattr(terminal_databento, "_pick_dataset", lambda c, k: "DBEQ.BASIC")
 
         result = terminal_databento.fetch_databento_daily_bars(symbols)
 
@@ -131,7 +131,7 @@ class TestFetchDatabentoDailyBarsChunking:
         monkeypatch.setattr(
             terminal_databento, "maybe_refresh_symbol_reference_cache", lambda *a, **k: None
         )
-        monkeypatch.setattr(terminal_databento, "_pick_dataset", lambda c: "DBEQ.BASIC")
+        monkeypatch.setattr(terminal_databento, "_pick_dataset", lambda c, k: "DBEQ.BASIC")
 
         result = terminal_databento.fetch_databento_daily_bars(symbols)
 

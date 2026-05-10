@@ -10,6 +10,7 @@ Uses the same caching infrastructure as ``databento_volatility_screener.py``.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import threading
@@ -138,7 +139,7 @@ def fetch_databento_daily_bars_with_status(
     failed: list[str] = []
     try:
         client = _make_databento_client(api_key)
-        ds = dataset or _pick_dataset(client)
+        ds = dataset or _pick_dataset(client, api_key)
         end_date = datetime.now(_ET).date()
         start_date = end_date - timedelta(days=lookback_days + 3)  # padding for weekends
 
@@ -305,32 +306,59 @@ def fetch_databento_quote_map(
     return fetch_databento_daily_bars(symbols, dataset=dataset)
 
 
-_dataset_cache: str | None = None
+_dataset_cache: dict[str, str] = {}
 _dataset_cache_lock = threading.Lock()
 
 
-def _pick_dataset(client: Any) -> str:
-    """Choose the best available dataset for the account."""
-    global _dataset_cache
-    if _dataset_cache is not None:
-        return _dataset_cache
+def _client_fingerprint(api_key: str) -> str:
+    """Return a stable, non-reversible fingerprint for *api_key*.
+
+    Used to scope :data:`_dataset_cache` per Databento account so a
+    cached dataset for one API key is never returned for another. The
+    full key is never logged or persisted -- only the first 16 hex
+    characters of its SHA-256 digest end up in process memory.
+    """
+    return hashlib.sha256(api_key.encode("utf-8")).hexdigest()[:16]
+
+
+def _reset_dataset_cache() -> None:
+    """Test-only helper: clear the per-client dataset cache."""
     with _dataset_cache_lock:
-        if _dataset_cache is not None:
-            return _dataset_cache
+        _dataset_cache.clear()
+
+
+def _pick_dataset(client: Any, api_key: str) -> str:
+    """Choose the best available dataset for *client* (scoped by *api_key*).
+
+    Audit 2026-05-10 (PR-C): the cache used to be a single module-global
+    string, so the first client's dataset was returned for every
+    subsequent call regardless of which API key (or which Databento
+    account / entitlement set) was in use. The cache is now a dict keyed
+    by an opaque per-key fingerprint.
+    """
+    fp = _client_fingerprint(api_key)
+    cached = _dataset_cache.get(fp)
+    if cached is not None:
+        return cached
+    with _dataset_cache_lock:
+        cached = _dataset_cache.get(fp)
+        if cached is not None:
+            return cached
         try:
             available = client.metadata.list_datasets()
             available_set = {str(d) for d in available}
             for ds in _PREFERRED_DATASETS:
                 if ds in available_set:
-                    _dataset_cache = ds
+                    _dataset_cache[fp] = ds
                     logger.info("Databento dataset selected: %s", ds)
                     return ds
             # Fallback
-            _dataset_cache = str(available[0]) if available else "DBEQ.BASIC"
-            return _dataset_cache
+            picked = str(available[0]) if available else "DBEQ.BASIC"
+            _dataset_cache[fp] = picked
+            return picked
         except Exception:
-            _dataset_cache = "DBEQ.BASIC"
-            return _dataset_cache
+            _dataset_cache[fp] = "DBEQ.BASIC"
+            return "DBEQ.BASIC"
 
 
 def get_dataset_info(api_key: str | None = None) -> dict[str, Any]:
@@ -343,7 +371,7 @@ def get_dataset_info(api_key: str | None = None) -> dict[str, Any]:
         return {"error": "No API key"}
     try:
         client = _make_databento_client(key)
-        ds = _pick_dataset(client)
+        ds = _pick_dataset(client, key)
         ds_range = client.metadata.get_dataset_range(dataset=ds)
         return {
             "dataset": ds,
