@@ -5391,7 +5391,7 @@ export async function publishPrivateScript(
       .filter({ hasText: /script is not on the chart/i })
       .locator('button, [role="button"]')
       .filter({ hasText: /add to chart/i });
-    const clickedDialogAdd = await clickFirst(dialogAddButton, 1_500).catch(() => false);
+    const clickedDialogAdd = await clickFirst([dialogAddButton], 1_500).catch(() => false);
     tracePageEvent(page, "publish-gate-dialog-add", `clicked=${clickedDialogAdd}`);
     if (clickedDialogAdd) {
       await page.waitForTimeout(2_000);
@@ -5463,7 +5463,7 @@ export async function publishPrivateScript(
         .filter({ hasText: /script is not on the chart/i })
         .locator('button, [role="button"]')
         .filter({ hasText: /add to chart/i });
-      const clickedDialogAdd = await clickFirst(dialogAddButton, 1_500).catch(() => false);
+      const clickedDialogAdd = await clickFirst([dialogAddButton], 1_500).catch(() => false);
       tracePageEvent(page, "publish-gate-late-dialog-add", `clicked=${clickedDialogAdd}`);
       if (clickedDialogAdd) {
         await page.waitForTimeout(2_000);

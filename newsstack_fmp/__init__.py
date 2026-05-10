@@ -8,3 +8,15 @@ Designed to be polled synchronously on each Streamlit refresh via
 ``poll_once()``.  Benzinga WebSocket (if enabled) runs in a daemon
 thread and feeds items through a thread-safe queue.
 """
+
+from __future__ import annotations
+
+
+def get_news_score(symbol: str) -> float:
+    """Return the latest best-effort news score for *symbol*."""
+    from .pipeline import get_news_score as _get_news_score
+
+    return _get_news_score(symbol)
+
+
+__all__ = ["get_news_score"]

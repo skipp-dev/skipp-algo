@@ -17,6 +17,7 @@ import json
 import logging
 import os
 import tempfile
+import threading
 import time
 from datetime import UTC, datetime
 from typing import Any
@@ -88,6 +89,7 @@ def _dedup_key(d: dict[str, Any]) -> str:
 # Bounded to _FALLBACK_BUFFER_MAX entries to avoid unbounded growth.
 _FALLBACK_BUFFER: list = []
 _FALLBACK_BUFFER_MAX: int = 10_000
+_FALLBACK_BUFFER_LOCK = threading.Lock()
 
 
 def get_fallback_buffer() -> list:
@@ -96,15 +98,16 @@ def get_fallback_buffer() -> list:
     Each dict payload is copied so callers cannot mutate the buffer's contents
     via the returned list.
     """
-    return [dict(p) if isinstance(p, dict) else p for p in _FALLBACK_BUFFER]
+    with _FALLBACK_BUFFER_LOCK:
+        return [dict(p) if isinstance(p, dict) else p for p in _FALLBACK_BUFFER]
 
 
 def clear_fallback_buffer() -> int:
     """Clear the fallback buffer; return its previous length."""
-    global _FALLBACK_BUFFER
-    n = len(_FALLBACK_BUFFER)
-    _FALLBACK_BUFFER = []
-    return n
+    with _FALLBACK_BUFFER_LOCK:
+        n = len(_FALLBACK_BUFFER)
+        _FALLBACK_BUFFER.clear()
+        return n
 
 
 def append_jsonl(item: ClassifiedItem, path: str) -> None:
@@ -118,7 +121,6 @@ def append_jsonl(item: ClassifiedItem, path: str) -> None:
     the payload is buffered in memory (capped at ``_FALLBACK_BUFFER_MAX``)
     and a WARNING is logged, instead of raising.
     """
-    global _FALLBACK_BUFFER
     try:
         payload = item.to_dict()
     except Exception:  # pragma: no cover - defensive
@@ -137,13 +139,15 @@ def append_jsonl(item: ClassifiedItem, path: str) -> None:
             f.write(line + "\n")
             f.flush()
     except OSError as err:
-        _FALLBACK_BUFFER.append(payload)
-        if len(_FALLBACK_BUFFER) > _FALLBACK_BUFFER_MAX:
-            _FALLBACK_BUFFER = _FALLBACK_BUFFER[-_FALLBACK_BUFFER_MAX:]
+        with _FALLBACK_BUFFER_LOCK:
+            _FALLBACK_BUFFER.append(payload)
+            if len(_FALLBACK_BUFFER) > _FALLBACK_BUFFER_MAX:
+                del _FALLBACK_BUFFER[:-_FALLBACK_BUFFER_MAX]
+            buffer_size = len(_FALLBACK_BUFFER)
         logger.warning(
             "append_jsonl: write failed (%s); buffering in-memory (buffer size=%d)",
             err,
-            len(_FALLBACK_BUFFER),
+            buffer_size,
         )
 
 

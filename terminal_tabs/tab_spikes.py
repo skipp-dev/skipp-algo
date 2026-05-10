@@ -22,6 +22,29 @@ from terminal_tabs._shared import (
 )
 
 
+def _build_filtered_spike_rows(
+    data: dict[str, list[dict[str, Any]]],
+    *,
+    min_volume: int,
+    min_change_pct: float,
+    min_price: float,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Build spike rows and apply tab-local price/volume controls."""
+    all_rows = build_spike_rows(
+        data.get("gainers") or [],
+        data.get("losers") or [],
+        data.get("actives") or [],
+    )
+    filtered_rows = filter_spike_rows(all_rows, min_change_pct=min_change_pct)
+    filtered_rows = [
+        row
+        for row in filtered_rows
+        if float(row.get("volume") or 0) >= min_volume
+        and float(row.get("price") or 0) >= min_price
+    ]
+    return all_rows, filtered_rows
+
+
 def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     """Render the Spike Scanner tab."""
     cfg = st.session_state.cfg
@@ -67,12 +90,11 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         )
 
     # Build combined rows
-    all_rows = build_spike_rows(data)
-    filtered_rows = filter_spike_rows(
-        all_rows,
+    all_rows, filtered_rows = _build_filtered_spike_rows(
+        data,
         min_volume=int(min_vol),
-        min_change_pct=min_chg,
-        min_price=min_price,
+        min_change_pct=float(min_chg),
+        min_price=float(min_price),
     )
 
     # Summary
@@ -81,7 +103,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     m2.metric("After Filter", len(filtered_rows))
     m3.metric(
         "Top Spike",
-        f"{filtered_rows[0]['symbol']} {filtered_rows[0]['chg_pct']:+.1f}%"
+        f"{filtered_rows[0]['symbol']} {filtered_rows[0]['change_pct']:+.1f}%"
         if filtered_rows else "—",
     )
 
@@ -93,15 +115,16 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     _now = time.time()
     table_rows: list[dict[str, Any]] = []
     for r in filtered_rows[:100]:
-        dir_icon = "🟢" if r.get("chg_pct", 0) > 0 else "🔴"
+        change_pct = float(r.get("change_pct") or 0.0)
+        dir_icon = "🟢" if change_pct > 0 else "🔴"
         table_rows.append({
             "Dir": dir_icon,
             "Symbol": r["symbol"],
             "Name": (r.get("name") or "")[:40],
             "Price": f"${r['price']:.2f}" if r["price"] >= 1 else f"${r['price']:.4f}",
-            "Change %": f"{r['chg_pct']:+.2f}%",
+            "Change %": f"{change_pct:+.2f}%",
             "Volume": f"{r['volume']:,}" if r.get("volume") else "",
-            "Mkt Cap": r.get("mkt_cap", ""),
+            "Mkt Cap": r.get("mktcap_display") or r.get("market_cap", ""),
             "Source": r.get("source", ""),
         })
 

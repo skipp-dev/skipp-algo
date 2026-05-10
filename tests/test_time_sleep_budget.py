@@ -95,7 +95,7 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("newsstack_fmp/ingest_fmp_filings.py", 134),
         ("newsstack_fmp/ingest_fmp_political.py", 122),
         ("newsstack_fmp/ingest_fmp_political.py", 135),
-        ("newsstack_fmp/pipeline.py", 1137),
+        ("newsstack_fmp/pipeline.py", 1158),
         ("newsstack_fmp/shared_fetch.py", 274),
         ("newsstack_fmp/store_sqlite.py", 81),
         ("newsstack_fmp/store_sqlite.py", 86),
