@@ -38,8 +38,19 @@ logger = logging.getLogger(__name__)
 _ET = _ZoneInfo("America/New_York")
 
 # ── Module-level cache for quote snapshots ──────────────────────
-_quote_cache: dict[str, dict[str, Any]] = {}
-_quote_cache_ts: float = 0.0
+#
+# Audit 2026-05-10 (PR-E): the quote cache is now scoped per-API-key
+# fingerprint. Pre-PR-E ``_quote_cache`` was a single module-global
+# ``dict[symbol, quote]`` and ``_quote_cache_ts`` a single timestamp,
+# so quotes fetched under one Databento account were silently served
+# to callers using a different API key (cross-account leakage when
+# the process is shared between users / environments).
+#
+# The map is now ``dict[fingerprint, dict[symbol, quote]]`` and the
+# timestamp ``dict[fingerprint, float]``; ``_client_fingerprint`` is
+# the same SHA-256 helper used by ``_dataset_cache`` (PR-C).
+_quote_cache: dict[str, dict[str, dict[str, Any]]] = {}
+_quote_cache_ts: dict[str, float] = {}
 _QUOTE_CACHE_TTL = 120.0  # 2 minutes
 _cache_lock = threading.Lock()
 
@@ -127,12 +138,20 @@ def fetch_databento_daily_bars_with_status(
     if not api_key or not symbols:
         return {}, []
 
-    # Respect cache (fully-cached short-circuit).
-    global _quote_cache, _quote_cache_ts
+    # Respect cache (fully-cached short-circuit). Audit 2026-05-10
+    # (PR-E): cache lookups are scoped by API-key fingerprint so we
+    # never serve a quote fetched under a different Databento account.
+    fp = _client_fingerprint(api_key)
     with _cache_lock:
         now = time.time()
-        if now - _quote_cache_ts < _QUOTE_CACHE_TTL:
-            cached = {s.upper(): _quote_cache[s.upper()] for s in symbols if s.upper() in _quote_cache}
+        ts = _quote_cache_ts.get(fp, 0.0)
+        if now - ts < _QUOTE_CACHE_TTL:
+            fp_quotes = _quote_cache.get(fp, {})
+            cached = {
+                s.upper(): fp_quotes[s.upper()]
+                for s in symbols
+                if s.upper() in fp_quotes
+            }
             if len(cached) == len(symbols):
                 return cached, []
 
@@ -238,10 +257,11 @@ def fetch_databento_daily_bars_with_status(
                 "changePercentage": round(change_pct, 4),
             }
 
-        # Update cache
+        # Update cache. Scoped per fingerprint per PR-E.
         with _cache_lock:
-            _quote_cache.update(result)
-            _quote_cache_ts = time.time()
+            fp_quotes = _quote_cache.setdefault(fp, {})
+            fp_quotes.update(result)
+            _quote_cache_ts[fp] = time.time()
 
         return result, failed
 
