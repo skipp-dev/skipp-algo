@@ -18,6 +18,9 @@ def _reset_health_state() -> None:
         _health.last_error = ""
         _health.total_requests = 0
         _health.total_failures = 0
+    # Reset rate-limit timestamp so back-to-back tests do not sleep up to
+    # ``_MIN_REQUEST_INTERVAL`` between mocked HTTP calls.
+    ttvn._last_request_ts = 0.0
 
 
 def test_tvheadline_recency_unknown_when_published_missing() -> None:
