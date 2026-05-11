@@ -151,7 +151,7 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ),
         ("terminal_technicals.py", 245, ("_tv_consecutive_429s",)),
         ("terminal_technicals.py", 262, ("_tv_cooldown_ended_at", "_tv_last_call_ts")),
-        ("terminal_tradingview_news.py", 351, ("_last_request_ts",)),
+        ("terminal_tradingview_news.py", 403, ("_last_request_ts",)),
     }
 )
 
