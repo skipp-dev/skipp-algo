@@ -25,11 +25,13 @@ import pytest
 def reset_quote_cache():
     """Ensure each test starts with a clean module-level quote cache."""
     import terminal_databento
+    # Audit 2026-05-10 (PR-E): _quote_cache and _quote_cache_ts are
+    # now per-fingerprint dicts, not flat dict + scalar.
     terminal_databento._quote_cache.clear()
-    terminal_databento._quote_cache_ts = 0.0
+    terminal_databento._quote_cache_ts.clear()
     yield
     terminal_databento._quote_cache.clear()
-    terminal_databento._quote_cache_ts = 0.0
+    terminal_databento._quote_cache_ts.clear()
 
 
 def _make_fake_store(symbols: list[str]) -> SimpleNamespace:
@@ -85,7 +87,7 @@ class TestFetchDatabentoDailyBarsChunking:
         monkeypatch.setattr(
             terminal_databento, "maybe_refresh_symbol_reference_cache", lambda *a, **k: None
         )
-        monkeypatch.setattr(terminal_databento, "_pick_dataset", lambda c: "DBEQ.BASIC")
+        monkeypatch.setattr(terminal_databento, "_pick_dataset", lambda c, k: "DBEQ.BASIC")
 
         result = terminal_databento.fetch_databento_daily_bars(symbols)
 
@@ -131,7 +133,7 @@ class TestFetchDatabentoDailyBarsChunking:
         monkeypatch.setattr(
             terminal_databento, "maybe_refresh_symbol_reference_cache", lambda *a, **k: None
         )
-        monkeypatch.setattr(terminal_databento, "_pick_dataset", lambda c: "DBEQ.BASIC")
+        monkeypatch.setattr(terminal_databento, "_pick_dataset", lambda c, k: "DBEQ.BASIC")
 
         result = terminal_databento.fetch_databento_daily_bars(symbols)
 

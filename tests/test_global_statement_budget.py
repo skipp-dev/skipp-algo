@@ -130,8 +130,6 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
             ("btc_available", "databento_available", "ensure_rt_engine_running", "newsapi_available", "tv_available"),
         ),
         ("terminal_bitcoin.py", 97, ("_client",)),
-        ("terminal_databento.py", 130, ("_quote_cache", "_quote_cache_ts")),
-        ("terminal_databento.py", 314, ("_dataset_cache",)),
         (
             "terminal_finnhub.py",
             187,
@@ -151,7 +149,7 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ),
         ("terminal_technicals.py", 245, ("_tv_consecutive_429s",)),
         ("terminal_technicals.py", 262, ("_tv_cooldown_ended_at", "_tv_last_call_ts")),
-        ("terminal_tradingview_news.py", 351, ("_last_request_ts",)),
+        ("terminal_tradingview_news.py", 403, ("_last_request_ts",)),
     }
 )
 
