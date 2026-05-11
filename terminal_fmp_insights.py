@@ -32,12 +32,19 @@ _APIKEY_RE = re.compile(r"(apikey|api_key|token|key)=[^&\s]+", re.IGNORECASE)
 # In-memory response cache (thread-safe, separate from OpenAI cache)
 # ---------------------------------------------------------------------------
 _cache_lock = threading.Lock()
-_cache: dict[str, tuple[float, str]] = {}
+_cache: dict[str, tuple[float, str | object]] = {}
 _CACHE_TTL_S = 300.0  # 5 minutes
 
 
-def _cache_key(question: str, context_digest: str, model: str) -> str:
-    raw = f"fmp|{model}|{question}|{context_digest}"
+def _cache_key(question: str, context_digest: str, model: str, api_key: str) -> str:
+    # Audit 2026-05-10 (PR-J3): partition the cache by OpenAI API key.
+    # Without the api_key fingerprint, two callers with different OpenAI
+    # keys submitting the same (question, context, model) tuple would
+    # share each other's cached LLM completions (cross-account response
+    # leakage; also denial-of-service when one key's negative response
+    # is served to another key).
+    fp = hashlib.sha256(str(api_key).encode()).hexdigest()[:16]
+    raw = f"fmp|{fp}|{model}|{question}|{context_digest}"
     return hashlib.sha256(raw.encode()).hexdigest()[:24]
 
 
@@ -412,7 +419,8 @@ def _call_openai_chat(payload: dict[str, Any], api_key: str) -> str:
     choices = data.get("choices") or []
     if not choices:
         raise _OpenAIEmptyChoicesError()
-    return choices[0].get("message", {}).get("content", "").strip()
+    content = choices[0].get("message", {}).get("content", "")
+    return content.strip() if isinstance(content, str) else ""
 
 
 def query_fmp_llm(
@@ -445,7 +453,7 @@ def query_fmp_llm(
 
     # Check cache
     digest = hashlib.sha256(context_json.encode()).hexdigest()[:16]
-    ck = _cache_key(question, digest, model)
+    ck = _cache_key(question, digest, model, api_key)
     hit, cached_text = _get_cached(ck)
     if hit:
         return FMPLLMResponse(
