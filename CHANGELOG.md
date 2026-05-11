@@ -6,6 +6,99 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-11) — Real-day ranking snapshot dump (opt-in)
+
+Add an opt-in snapshot writer to `open_prep/run_open_prep.py` that
+captures the **exact** inputs passed to `rank_candidates_v2` (quotes,
+bias, top_n, news side-channels, sector context, weight_label) plus
+the resulting ranked / filtered_out outputs and a diagnostic context
+block (`regime`, `run_date_utc`, `vix_level`; the latter is observed in
+this code path but not currently passed into `rank_candidates_v2`).
+Triggered via env var `OPEN_PREP_DUMP_SNAPSHOT=1` (defaults off — no
+production behaviour change). Output goes to
+`artifacts/open_prep/snapshots/ranking_snapshot_<YYYYMMDD_HHMMSS_%fZ>_<pid>.json`
+via an atomic temp-file write + replace.
+
+Purpose: prerequisite for a planned real-day smoke-anchor golden test
+(follow-up to PR #2138 once that PR merges). The fixture-based golden
+in PR #2138 covers all known scorer branches synthetically; this
+snapshot path will let a real production run be replayed
+deterministically as a second golden once captured.
+
+No tests added — the dump path is diagnostic-only, opt-in, and wraps
+its work in a broad `except` so any failure logs a warning without
+affecting the run.
+
+### Added (2026-05-11) — PR #2138 ranking golden + news-tier tuning
+
+Two coordinated additions to the production ranking surface:
+
+**A. Golden-file regression test for `open_prep.scorer.rank_candidates_v2`**
+
+`rank_candidates_v2` is the production ranking boundary and is fully
+deterministic when called with `dirty_manager=None` and
+`weight_label="default"`. New artefacts:
+
+- `tests/fixtures/ranking_archetypes_input.json` — 7 quote archetypes
+  covering distinct pipeline branches: `MEGA_CAP_EARNINGS`,
+  `SECTOR_LEADER`, `SECTOR_LAGGARD`, `NEWS_PUMP`, `ENERGY_RISK_OFF`,
+  `PENNY_REJECT`, `SEVERE_GAP_DOWN_REJECT`.
+- `tests/fixtures/ranking_archetypes_golden.json` — captured expected
+  output (ranked + filtered_out, floats rounded to 6 places).
+- `tests/test_ranking_golden.py` — three tests: full golden match,
+  determinism (two runs identical), and hard-invariant filter contracts
+  (penny + severe-gap-down always rejected; no overlap between ranked
+  and filtered; score-descending order).
+
+Workflow for intentional weight/threshold changes:
+
+```
+REGEN_RANKING_GOLDEN=1 .venv/bin/python -m pytest -p no:cacheprovider tests/test_ranking_golden.py
+git diff tests/fixtures/ranking_archetypes_golden.json
+```
+
+The diff makes every scoring change reviewable; commit source change and
+golden update together in the same PR.
+
+**B. News source-tier discounting + low-tier rumor penalty**
+
+The first golden run surfaced a real ranking pathology: under
+`DEFAULT_WEIGHTS`, an unverified Stocktwits rumor (`PUMP` archetype,
+TIER_3 source) ranked **#1 above** a tier-1 confirmed earnings beat
+(`NVDA` archetype) on raw gap × rvol alone. Three coordinated changes
+to `open_prep/scorer.py`:
+
+1. `NEWS_SOURCE_TIER_MULTIPLIERS` — discount `news_component` by source
+   credibility:
+
+   | Tier | Multiplier | Examples |
+   |------|------------|----------|
+   | TIER_1 | 1.00 | Reuters, Dow Jones, MarketWatch |
+   | TIER_2 | 0.70 | TradingView, DPA-AFX, CNBC TV |
+   | TIER_3 | 0.30 | GuruFocus, Stocktwits, Zacks, Invezz |
+   | TIER_4 | 0.10 | unknown / anything else |
+
+2. `DEFAULT_WEIGHTS["news"]: 0.8 → 2.5` — tier-1 confirmed news now
+   carries roughly the same component magnitude as `earnings_bmo`
+   (1.5 × DR), instead of being a minor afterthought.
+
+3. `LOW_TIER_NEWS_RUMOR_PENALTY = 0.75` — multiplicative final-score
+   haircut applied when `news_source_tier ∈ {TIER_3, TIER_4}` AND
+   `news_score >= 0.5`. Stops technically-strong moves driven by
+   unverified social chatter from out-ranking confirmed catalysts.
+   Surfaced as new `score_breakdown.low_tier_news_rumor_penalty` field
+   for production traceability.
+
+Effect on golden archetypes (rank order):
+
+```
+Before:  PUMP 11.71 → LEAD 9.38 → NVDA 9.09 → ENRG 5.31 → LAGG 1.30
+After:   NVDA 10.65 → LEAD 9.38 → PUMP 8.72 → ENRG 5.31 → LAGG 1.29
+```
+
+Verification: `tests/test_open_prep.py` (280 passed) +
+`tests/test_ranking_golden.py` (3 passed) + filter contracts preserved.
+
 ### Fixed (2026-05-10) — PR #2112 Copilot review follow-ups (PR #2113)
 
 Three small follow-ups raised by the Copilot review on PR #2112.

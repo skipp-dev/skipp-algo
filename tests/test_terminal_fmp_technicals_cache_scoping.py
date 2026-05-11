@@ -12,8 +12,6 @@ dataset-cache (PR-C #2124) and quote-cache (PR-E #2129) leakage bugs.
 
 from __future__ import annotations
 
-import time
-
 import terminal_fmp_technicals as t
 
 
@@ -54,7 +52,6 @@ class TestFMPTechnicalsCacheScoping:
 
     def test_expired_for_one_key_does_not_affect_other(self) -> None:
         fp_a = t._client_fingerprint("KEY-A")
-        fp_b = t._client_fingerprint("KEY-B")
         # Pre-populate both, manually age KEY-A's entry past TTL.
         t._cache_set("AAPL", "1D", "KEY-A", {"v": "stale"})
         t._cache_set("AAPL", "1D", "KEY-B", {"v": "fresh"})

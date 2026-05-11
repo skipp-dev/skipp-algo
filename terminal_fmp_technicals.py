@@ -85,7 +85,7 @@ def _cache_get(
     sym: str, interval: str, api_key: str,
 ) -> dict[str, Any] | None:
     fp = _client_fingerprint(api_key)
-    key = (fp, sym.upper(), interval)
+    key = (fp, sym.upper().strip(), interval)
     with _fmp_cache_lock:
         entry = _fmp_cache.get(key)
         if entry and (time.time() - entry[0]) < _FMP_CACHE_TTL:
@@ -97,7 +97,7 @@ def _cache_set(
     sym: str, interval: str, api_key: str, result: dict[str, Any],
 ) -> None:
     fp = _client_fingerprint(api_key)
-    key = (fp, sym.upper(), interval)
+    key = (fp, sym.upper().strip(), interval)
     with _fmp_cache_lock:
         _fmp_cache[key] = (time.time(), result)
         # Evict old entries

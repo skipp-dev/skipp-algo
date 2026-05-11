@@ -102,14 +102,17 @@ _FROZEN_FILE_COUNTS: dict[str, int] = {
     "smc_core/layering.py": 1,
     "smc_core/resilient.py": 2,
     "streamlit_terminal.py": 7,
+    "terminal_ai_insights.py": 1,  # PR #2128: tuple-return (bool, T) miss-cache helper signature confuses generic narrowing.
     "terminal_bitcoin.py": 18,
     "terminal_export.py": 1,
     "terminal_finnhub.py": 5,
+    "terminal_fmp_insights.py": 1,  # PR #2128: tuple-return (bool, T) miss-cache helper signature confuses generic narrowing.
     "terminal_forecast.py": 2,
     "terminal_poller.py": 13,
     "terminal_spike_scanner.py": 1,
     "terminal_tabs/tab_live_incubation.py": 1,
     "terminal_technicals.py": 2,
+    "terminal_tradingview_news.py": 1,  # PR #2128: tuple-return (bool, T) miss-cache helper signature confuses generic narrowing.
 }
 
 
