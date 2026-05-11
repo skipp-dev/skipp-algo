@@ -119,14 +119,19 @@ def _get_cached(key: str, ttl: float) -> Any:
         if entry is None:
             return None
         ts, val = entry
-        if time.time() - ts > ttl:
+        # Audit 2026-05-10 (PR-J4): monotonic clock for cache TTL.
+        if time.monotonic() - ts > ttl:
             del _cache[key]
             return None
         return val
 
 
 def _set_cached(key: str, val: Any) -> None:
-    now = time.time()
+    # Audit 2026-05-10 (PR-J4): use time.monotonic() for cache timestamp
+    # arithmetic. time.time() (wall clock) jumps backwards on NTP
+    # correction / VM live-migrate / manual `date -s` and would either
+    # evict valid entries instantly or never expire stale entries.
+    now = time.monotonic()
     with _cache_lock:
         _cache[key] = (now, val)
         # Evict expired entries when cache grows large
