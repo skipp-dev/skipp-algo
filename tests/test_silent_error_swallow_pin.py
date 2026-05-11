@@ -8,10 +8,11 @@ Two related "errors disappear into the void" shapes:
   sites. Pinned as a hard zero-surface invariant.
 
 * **``except Exception: pass``** — silently swallows every error
-  with no log, no re-raise, no marker. Surface today: 16 sites
-  across 12 files (mix of opportunistic best-effort cleanup, data-
-  source fallbacks, and Streamlit UI guards). Pinned as a frozen
-  ledger so the count cannot grow without explicit acknowledgement.
+    with no log, no re-raise, no marker. Surface today: 9 sites
+    across 6 files (mix of opportunistic best-effort cleanup,
+    best-effort fallbacks, and Streamlit UI guards). Pinned as a
+    frozen ledger so the count cannot grow without explicit
+    acknowledgement.
 
 The ledger is *not* a ban: each existing site can stay. But adding
 a new ``except Exception: pass`` requires either (a) actually
@@ -64,7 +65,6 @@ _DIR_EXCLUDE = frozenset(
 #   for this guard; net additions / removals still fail closed.
 # ---------------------------------------------------------------------------
 _FROZEN_SITES: dict[str, int] = {
-    "newsstack_fmp/ingest_benzinga.py": 1,
     "open_prep/alerts.py": 1,
     "open_prep/run_open_prep.py": 1,
     "open_prep/streamlit_monitor.py": 2,
