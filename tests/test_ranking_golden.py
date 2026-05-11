@@ -10,11 +10,12 @@ module-level mutable state) when called with ``dirty_manager=None`` and
 regression anchor.
 
 The fixture in ``tests/fixtures/ranking_archetypes_input.json`` contains
-nine quote archetypes that exercise distinct branches of the pipeline:
+twelve quote archetypes that exercise distinct branches of the pipeline:
 
     MEGA_CAP_EARNINGS, SECTOR_LEADER, SECTOR_LAGGARD,
     NEWS_PUMP, ENERGY_RISK_OFF, PENNY_REJECT, SEVERE_GAP_DOWN_REJECT,
-    TIER_2_NEWS, COUNTER_TREND
+    TIER_2_NEWS, COUNTER_TREND,
+    EARNINGS_AMC, STALE_PREMARKET, EARNINGS_RISK_WINDOW
 
 The expected output is captured in
 ``tests/fixtures/ranking_archetypes_golden.json``. Any change to scoring
@@ -242,4 +243,147 @@ def test_counter_trend_and_rumor_penalties_stack() -> None:
     assert breakdown.get("low_tier_news_rumor_penalty", 0.0) > 0.0, (
         "low_tier_news_rumor_penalty did not fire on CTRD (expected TIER_3 "
         "news with score 0.6 to trigger penalty)"
+    )
+
+
+def test_amc_earnings_has_no_bmo_bonus() -> None:
+    """AMCS reports earnings AFTER market close (timing='amc').
+
+    earnings_bmo_component must be 0 — the +1.5 weight bonus only applies
+    to BMO timing. Compare against NVDA (timing='bmo') where the component
+    is non-zero. This pins the AMC-vs-BMO branch in score_candidate.
+    """
+    actual = _run_pipeline()
+    by_symbol = {r["symbol"]: r for r in actual["ranked"]}
+    assert "AMCS" in by_symbol, "AMCS archetype missing from ranked output"
+    assert "NVDA" in by_symbol, "NVDA archetype missing from ranked output"
+    amcs_bmo = by_symbol["AMCS"].get("score_breakdown", {}).get(
+        "earnings_bmo_component", 0.0
+    )
+    nvda_bmo = by_symbol["NVDA"].get("score_breakdown", {}).get(
+        "earnings_bmo_component", 0.0
+    )
+    assert amcs_bmo == 0.0, (
+        f"AMCS (earnings_timing='amc') must have earnings_bmo_component=0, "
+        f"got {amcs_bmo}"
+    )
+    assert nvda_bmo > 0.0, (
+        f"NVDA (earnings_timing='bmo') must have earnings_bmo_component>0, "
+        f"got {nvda_bmo}"
+    )
+
+
+def test_stale_premarket_is_soft_filter() -> None:
+    """STAL has premarket_stale=true but is NOT a hard block.
+
+    The candidate must still appear in ``ranked`` (not ``filtered_out``)
+    with ``premarket_stale`` annotated in score_breakdown.filter_reasons.
+    """
+    actual = _run_pipeline()
+    ranked_syms = {r["symbol"] for r in actual["ranked"]}
+    filtered_syms = {r["symbol"] for r in actual["filtered_out"]}
+    assert "STAL" in ranked_syms, "STAL must pass (soft filter, not hard block)"
+    assert "STAL" not in filtered_syms, "STAL must not be hard-filtered"
+    stal_row = next(r for r in actual["ranked"] if r["symbol"] == "STAL")
+    reasons = stal_row.get("no_trade_reason", [])
+    assert "premarket_stale" in reasons, (
+        f"STAL must have 'premarket_stale' in no_trade_reason, got {reasons}"
+    )
+
+
+def test_earnings_risk_window_is_soft_filter() -> None:
+    """ERWN has earnings_risk_window=true but is NOT a hard block.
+
+    The candidate must still appear in ``ranked`` (not ``filtered_out``)
+    with ``earnings_risk_window`` annotated in
+    score_breakdown.filter_reasons.
+    """
+    actual = _run_pipeline()
+    ranked_syms = {r["symbol"] for r in actual["ranked"]}
+    filtered_syms = {r["symbol"] for r in actual["filtered_out"]}
+    assert "ERWN" in ranked_syms, (
+        "ERWN must pass (soft filter, not hard block)"
+    )
+    assert "ERWN" not in filtered_syms, "ERWN must not be hard-filtered"
+    erwn_row = next(r for r in actual["ranked"] if r["symbol"] == "ERWN")
+    reasons = erwn_row.get("no_trade_reason", [])
+    assert "earnings_risk_window" in reasons, (
+        f"ERWN must have 'earnings_risk_window' in no_trade_reason, "
+        f"got {reasons}"
+    )
+
+
+def _run_with_overrides(**overrides: Any) -> dict[str, Any]:
+    """Run the pipeline with the same fixture but specific param overrides.
+
+    Used for branches that depend on global parameters (bias, vix_level)
+    rather than per-quote fields, so they cannot be expressed as fixture
+    archetypes.
+    """
+    data = _load_input()
+    params = dict(data["params"])
+    params.update(overrides)
+    sc = data["side_channels"]
+    ranked, filtered_out = rank_candidates_v2(
+        quotes=data["quotes"],
+        bias=float(params["bias"]),
+        top_n=int(params["top_n"]),
+        news_scores=sc.get("news_scores"),
+        news_metrics=sc.get("news_metrics"),
+        sector_changes=sc.get("sector_changes"),
+        symbol_sectors=sc.get("symbol_sectors"),
+        institutional_scores=sc.get("institutional_scores"),
+        estimate_revisions=sc.get("estimate_revisions"),
+        weight_label=str(params["weight_label"]),
+        vix_level=params.get("vix_level"),
+        gate_tracker=None,
+        dirty_manager=None,
+    )
+    return {
+        "ranked": _normalise_ranked(ranked),
+        "filtered_out": _normalise_filtered(filtered_out),
+    }
+
+
+def test_macro_risk_off_extreme_hard_filters_all() -> None:
+    """When bias <= -0.75, every candidate must be hard-filtered.
+
+    This is the global-macro kill switch — bias is a global parameter
+    (not a per-quote field), so it cannot be expressed as a fixture
+    archetype. ``macro_risk_off_extreme`` is in the hard_blocks set;
+    no symbol should reach ``ranked``.
+    """
+    actual = _run_with_overrides(bias=-0.85)
+    assert actual["ranked"] == [], (
+        f"With bias=-0.85, ranked must be empty (macro risk-off extreme), "
+        f"got {[r['symbol'] for r in actual['ranked']]}"
+    )
+    assert actual["filtered_out"], "filtered_out must be non-empty"
+    for row in actual["filtered_out"]:
+        reasons = row.get("filter_reasons") or row.get(
+            "score_breakdown", {}
+        ).get("filter_reasons", [])
+        assert "macro_risk_off_extreme" in reasons, (
+            f"Symbol {row.get('symbol')} filtered without "
+            f"'macro_risk_off_extreme' reason: {reasons}"
+        )
+
+
+def test_high_vix_regime_relaxes_adaptive_gates() -> None:
+    """vix_level changes adaptive_gates['score_min'] thresholds on rows.
+
+    vix_level is a global parameter (not per-quote), so it cannot be a
+    fixture archetype. The contract: a HIGH vix (>30) relaxes score_min
+    by 15 %, a LOW vix (<15) tightens it by 15 %. We assert the gate
+    threshold attached to a row actually responds to vix changes — this
+    pins the macro-regime → adaptive-gate plumbing.
+    """
+    high = _run_with_overrides(vix_level=35.0)
+    low = _run_with_overrides(vix_level=10.0)
+    assert high["ranked"] and low["ranked"], "Expected non-empty ranked output"
+    high_score_min = high["ranked"][0]["adaptive_gates"]["score_min"]
+    low_score_min = low["ranked"][0]["adaptive_gates"]["score_min"]
+    assert high_score_min < low_score_min, (
+        f"HIGH vix (35) must RELAX score_min vs LOW vix (10): "
+        f"high={high_score_min} low={low_score_min}"
     )
