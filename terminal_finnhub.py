@@ -50,7 +50,7 @@ _social_sentiment_blocked: bool = False  # circuit breaker for 403 (premium-only
 # ``{}`` immediately, mirroring the per-endpoint DISABLED-pattern from
 # newsstack_fmp/ingest_unusual_whales.py and the FMP extras adapters.
 _blocked_path_substrings: set[str] = set()
-_rate_limit_backoff_until: float = 0.0  # epoch timestamp; skip calls until then
+_rate_limit_backoff_until: float = 0.0  # monotonic timestamp; skip calls until then (PR-J4)
 _consecutive_429_count: int = 0  # counter for exponential backoff
 _BACKOFF_BASE_SECONDS = 5.0
 _BACKOFF_MAX_SECONDS = 300.0  # 5 min ceiling
@@ -94,7 +94,9 @@ def social_sentiment_status() -> str:
         backoff_until = _rate_limit_backoff_until
     if blocked:
         return "blocked_premium"
-    if time.time() < backoff_until:
+    # Audit 2026-05-10 (PR-J4): _rate_limit_backoff_until is a
+    # monotonic timestamp; compare with time.monotonic().
+    if time.monotonic() < backoff_until:
         return "rate_limited"
     if not _api_key():
         return "no_api_key"
@@ -117,7 +119,8 @@ def _get_cached(key: str, ttl: float) -> tuple[bool, Any]:
         if entry is None:
             return (False, None)
         ts, val = entry
-        if time.time() - ts > ttl:
+        # Audit 2026-05-10 (PR-J4): cache timestamps are monotonic.
+        if time.monotonic() - ts > ttl:
             del _cache[key]
             return (False, None)
         return (True, val)
@@ -125,10 +128,15 @@ def _get_cached(key: str, ttl: float) -> tuple[bool, Any]:
 
 def _set_cached(key: str, val: Any) -> None:
     with _cache_lock:
-        _cache[key] = (time.time(), val)
+        # Audit 2026-05-10 (PR-J4): use time.monotonic() for cache
+        # timestamp arithmetic. time.time() (wall clock) jumps backwards
+        # on NTP correction / VM live-migrate / manual `date -s` and
+        # would either evict valid entries instantly or never expire
+        # stale entries.
+        _cache[key] = (time.monotonic(), val)
         # Evict oldest entries when cache grows beyond limit
         if len(_cache) > _CACHE_MAX_SIZE:
-            now = time.time()
+            now = time.monotonic()
             expired = [k for k, (ts, _) in _cache.items() if now - ts > _SOCIAL_TTL]
             for k in expired:
                 del _cache[k]
@@ -199,7 +207,8 @@ def _get(path: str, params: dict[str, Any] | None = None) -> Any:
     request = Request(url, headers={"Accept": "application/json"})
     # Rate-limit backoff guard
     with _state_lock:
-        if time.time() < _rate_limit_backoff_until:
+        # Audit 2026-05-10 (PR-J4): _rate_limit_backoff_until is monotonic.
+        if time.monotonic() < _rate_limit_backoff_until:
             return {}
     try:
         with urlopen(request, timeout=15, context=_SSL_CTX) as resp:
@@ -214,7 +223,8 @@ def _get(path: str, params: dict[str, Any] | None = None) -> Any:
                     _BACKOFF_BASE_SECONDS * (2 ** (_consecutive_429_count - 1)),
                     _BACKOFF_MAX_SECONDS,
                 )
-                _rate_limit_backoff_until = time.time() + backoff
+                # Audit 2026-05-10 (PR-J4): monotonic deadline for backoff.
+                _rate_limit_backoff_until = time.monotonic() + backoff
                 attempt_for_log = _consecutive_429_count
             log.warning(
                 "Finnhub rate-limited (429) for %s — backing off %.0f s (attempt %d)",

@@ -669,3 +669,83 @@ class TestEnqueueBatchRaceHardening:
             f"dropped={bp.total_items_dropped} offered={total_items_offered} "
             f"enqueue_drops={bp.total_enqueue_drops}"
         )
+
+# PR-H (audit 2026-05-10): _wait_for_next_poll lost-wake-signal regression
+# ---------------------------------------------------------------------------
+
+
+class TestWaitForNextPollLostWake:
+    """Pin the lost-wake-signal fix.
+
+    Pre-PR-H, the run-loop did:
+
+        self._wake_event.clear()                  # discards prior wake
+        self._wake_event.wait(timeout=interval)
+        self._wake_event.clear()
+
+    A wake fired during the previous work cycle was silently discarded
+    by the leading clear() and the next wait() slept the full interval.
+    """
+
+    def _make(self):
+        return BackgroundPoller(
+            cfg=_FakeCfg(poll_interval_s=0.5),
+            benzinga_adapter=None,
+            fmp_adapter=None,
+            store=MagicMock(),
+        )
+
+    def test_wake_set_before_wait_returns_immediately(self):
+        """Canonical regression: wake fired during previous work cycle
+        must NOT be lost, and the next wait() must return immediately."""
+        bp = self._make()
+        # Simulate: wake_and_reset_cursor() fired during the previous
+        # work cycle, so the event is already set when we re-enter the
+        # sleep call.
+        bp._wake_event.set()
+
+        t0 = time.monotonic()
+        bp._wait_for_next_poll(interval=2.0)
+        elapsed = time.monotonic() - t0
+
+        assert elapsed < 0.2, (
+            f"Lost wake regression: a pre-set _wake_event must short-circuit "
+            f"the next wait() but slept {elapsed:.3f}s"
+        )
+        # Wake was consumed, so a subsequent wait must respect timeout.
+        assert not bp._wake_event.is_set()
+
+    def test_wake_consumed_after_wait_returns(self):
+        """The clear() must come AFTER wait(), so the wake that woke us
+        is consumed exactly once."""
+        bp = self._make()
+        bp._wake_event.set()
+        bp._wait_for_next_poll(interval=1.0)
+        assert not bp._wake_event.is_set(), "Wake must be consumed by clear()"
+
+    def test_wake_during_sleep_wakes_us(self):
+        """Wake fired while we are sleeping must wake us early."""
+        import threading
+        bp = self._make()
+
+        def fire_wake_after_short_delay():
+            time.sleep(0.05)
+            bp._wake_event.set()
+
+        threading.Thread(target=fire_wake_after_short_delay, daemon=True).start()
+        t0 = time.monotonic()
+        bp._wait_for_next_poll(interval=2.0)
+        elapsed = time.monotonic() - t0
+
+        assert 0.04 < elapsed < 0.5, (
+            f"Wake during sleep must interrupt within ~50ms but took {elapsed:.3f}s"
+        )
+        assert not bp._wake_event.is_set()
+
+    def test_no_wake_sleeps_full_interval(self):
+        """Without any wake, wait_for_next_poll sleeps the full interval."""
+        bp = self._make()
+        t0 = time.monotonic()
+        bp._wait_for_next_poll(interval=0.1)
+        elapsed = time.monotonic() - t0
+        assert 0.09 <= elapsed < 0.3, f"Expected ~0.1s sleep, got {elapsed:.3f}s"

@@ -192,6 +192,13 @@ class UnusualWhalesAdapter:
                 )
             return kept
         if isinstance(data, dict):
+            # audit-fix-followup-2 (2026-05-10, S4): an empty `{}` payload
+            # is a legitimate "no items" response from UW (some endpoints
+            # return `{}` rather than `{"data": []}`), so treat it as the
+            # empty list silently — without this, every quiet poll spammed
+            # the "no recognized wrapper key" drift warning below.
+            if not data:
+                return []
             for key in ("data", "results", "flow_alerts", "items"):
                 v = data.get(key)
                 if isinstance(v, list):

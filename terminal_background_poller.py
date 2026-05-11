@@ -343,6 +343,27 @@ class BackgroundPoller:
 
         return enqueued
 
+    def _wait_for_next_poll(self, interval: float) -> None:
+        """Sleep up to *interval* seconds, returning early on a wake signal.
+
+        Audit 2026-05-10 (PR-H): the previous implementation cleared
+        ``_wake_event`` BEFORE waiting, which created a lost-wake race
+        window. Sequence under load:
+
+        1. Work cycle finishes.
+        2. ``wake_and_reset_cursor`` fires (sets ``_wake_event``).
+        3. Loop re-enters and calls ``_wake_event.clear()`` -- the wake
+           from step 2 is silently discarded.
+        4. ``_wake_event.wait(timeout=interval)`` then sleeps the full
+           interval despite a pending wake request.
+
+        The fix is to clear AFTER the wait, not before. Any wake fired
+        during the previous work cycle is preserved and causes the next
+        ``wait()`` to return immediately.
+        """
+        self._wake_event.wait(timeout=interval)
+        self._wake_event.clear()
+
     def _run_loop(self) -> None:
         """Main loop running in the background thread."""
         import re as _re
@@ -365,9 +386,7 @@ class BackgroundPoller:
                 #   - _wake_event: stale recovery / forced re-poll
                 # We use _wake_event.wait() as the primary sleep so that
                 # wake_and_reset_cursor() can interrupt it immediately.
-                self._wake_event.clear()
-                self._wake_event.wait(timeout=interval)
-                self._wake_event.clear()
+                self._wait_for_next_poll(interval)
                 if self._stop_event.is_set():
                     break
 

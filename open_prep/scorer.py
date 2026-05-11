@@ -51,7 +51,12 @@ DEFAULT_WEIGHTS: dict[str, float] = {
     "momentum_z": 0.5,
     "hvb": 0.3,
     "earnings_bmo": 1.5,
-    "news": 0.8,
+    # news weight raised from 0.8 → 2.5 so a tier-1 confirmed news catalyst
+    # carries roughly the same component weight as earnings_bmo (1.5 × DR).
+    # See NEWS_SOURCE_TIER_MULTIPLIERS for tier discounting and
+    # LOW_TIER_NEWS_RUMOR_PENALTY for the final-score haircut applied when
+    # an unverified rumor is the catalyst.
+    "news": 2.5,
     "ext_hours": 1.0,
     "analyst_catalyst": 0.5,
     "vwap_distance": 0.4,
@@ -72,6 +77,31 @@ RVOL_CAP = 10.0
 
 # Freshness decay
 FRESHNESS_HALF_LIFE_SECONDS = 600.0  # 10 minutes
+
+# News source-tier credibility multiplier applied to news_component.
+# Discourages low-tier (Stocktwits / unknown) rumors from competing with
+# tier-1 wire-service confirmed events at the same news_score level.
+# TIER_1: Reuters, Dow Jones, MarketWatch
+# TIER_2: TradingView, DPA-AFX, CNBC TV
+# TIER_3: GuruFocus, Stocktwits, Zacks, Invezz, Cointelegraph
+# TIER_4: anything else (default for unknown sources)
+NEWS_SOURCE_TIER_MULTIPLIERS: dict[str, float] = {
+    "TIER_1": 1.00,
+    "TIER_2": 0.70,
+    "TIER_3": 0.30,
+    "TIER_4": 0.10,
+}
+
+# Final-score haircut applied when a stock's news catalyst is from a low-tier
+# (unverified / social) source. This prevents purely-technical breakouts that
+# happen to be accompanied by a Stocktwits rumor from out-ranking confirmed
+# tier-1 catalysts (e.g. a post-earnings beat) on raw gap × rvol alone.
+# Triggers when news_source_tier ∈ {TIER_3, TIER_4} AND news_score >= the
+# threshold (i.e. the rumor is meaningful enough that it likely contributed
+# to the price action).
+LOW_TIER_NEWS_RUMOR_PENALTY: float = 0.75
+LOW_TIER_NEWS_PENALTY_THRESHOLD: float = 0.5
+LOW_TIER_NEWS_PENALTY_TIERS: frozenset[str] = frozenset({"TIER_3", "TIER_4"})
 
 # ---------------------------------------------------------------------------
 # Weight ensemble loader
@@ -539,7 +569,13 @@ def score_candidate(
     earnings_bmo_component = w["earnings_bmo"] if f["earnings_bmo"] else 0.0
     # news / ext_hours: apply DR (positive-only scores)
     news_normed = min(max(news_score, 0.0), 1.0)
-    news_component = w["news"] * apply_diminishing_returns(news_normed)
+    # Source-tier credibility multiplier: tier-1 wires (Reuters/DJ) keep full
+    # credit; tier-3 (Stocktwits etc.) and tier-4 (unknown) are discounted so
+    # an unverified social rumor cannot out-rank a confirmed earnings beat at
+    # the same raw news_score.
+    news_source_tier = str(f.get("news_source_tier", "TIER_3"))
+    news_tier_multiplier = NEWS_SOURCE_TIER_MULTIPLIERS.get(news_source_tier, 0.10)
+    news_component = w["news"] * apply_diminishing_returns(news_normed) * news_tier_multiplier
     ext_normed = min(max(ext_hours_score, 0.0), 1.0)
     ext_hours_component = w["ext_hours"] * apply_diminishing_returns(ext_normed)
     analyst_catalyst_component = w["analyst_catalyst"] * analyst_catalyst_score
@@ -645,6 +681,20 @@ def score_candidate(
     if momentum_z < -2.5:
         counter_trend_penalty = min(0.40, abs(momentum_z + 2.5) * 0.20)
         score = score * (1.0 - counter_trend_penalty)
+
+    # --- Low-Tier News Rumor Penalty ---
+    # When the news catalyst comes from an unverified / social source
+    # (TIER_3/TIER_4) AND the rumor is significant enough to plausibly drive
+    # the price action (news_score >= threshold), apply a final-score haircut.
+    # This stops a Stocktwits rumor + technical breakout from out-ranking a
+    # tier-1 confirmed catalyst (e.g. earnings beat) on raw gap × rvol alone.
+    rumor_penalty_applied = 0.0
+    if (
+        news_source_tier in LOW_TIER_NEWS_PENALTY_TIERS
+        and news_score >= LOW_TIER_NEWS_PENALTY_THRESHOLD
+    ):
+        rumor_penalty_applied = 1.0 - LOW_TIER_NEWS_RUMOR_PENALTY
+        score = score * LOW_TIER_NEWS_RUMOR_PENALTY
 
     # --- Entry Probability (#13) ---
     entry_probability = compute_entry_probability(
@@ -754,6 +804,7 @@ def score_candidate(
             "risk_off_penalty": round(risk_off_penalty, 4),
             "risk_penalty": round(risk_penalty_val, 4),
             "counter_trend_penalty": round(counter_trend_penalty, 4),
+            "low_tier_news_rumor_penalty": round(rumor_penalty_applied, 4),
         },
         # Technical analysis enrichment
         "instrument_class": f.get("instrument_class", "mid_cap"),

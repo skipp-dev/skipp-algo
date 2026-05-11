@@ -85,7 +85,6 @@ _FROZEN_SITE_COUNTS: dict[str, int] = {
     "open_prep/alerts.py": 1,
     "open_prep/run_open_prep.py": 1,
     "open_prep/streamlit_monitor.py": 2,
-    "newsstack_fmp/ingest_benzinga.py": 1,
 }
 
 

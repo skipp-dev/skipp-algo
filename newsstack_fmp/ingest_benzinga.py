@@ -450,6 +450,10 @@ class BenzingaWsAdapter:
     # attempts have failed without a successful intervening handshake.
     _WS_HEALTH_THRESHOLD: int = 5
 
+    # Bounded retry budget for the put_nowait/get_nowait race window in
+    # :meth:`_enqueue_item`. Audit 2026-05-10 (PR-F).
+    _ENQUEUE_RETRY_BUDGET: int = 8
+
     def __init__(
         self,
         api_key: str,
@@ -472,6 +476,13 @@ class BenzingaWsAdapter:
         # Health tracking: count of consecutive *connect* failures since the
         # last successful WS handshake. Exposed via :pyattr:`is_healthy`.
         self._consecutive_connect_failures: int = 0
+        # PR-F (audit 2026-05-10): drop accounting for the bounded
+        # ring-buffer enqueue. ``total_items_dropped`` counts items the
+        # adapter chose to evict (queue full but new item still placed).
+        # ``total_enqueue_drops`` counts items that could NOT be placed
+        # at all because the queue stayed full across the retry window.
+        self.total_items_dropped: int = 0
+        self.total_enqueue_drops: int = 0
 
     # ── Public API ──────────────────────────────────────────────
 
@@ -530,6 +541,64 @@ class BenzingaWsAdapter:
                 break
         return items
 
+    def _enqueue_item(self, item: NewsItem) -> bool:
+        """Place *item* on :attr:`queue` with bounded ring-buffer eviction.
+
+        Audit 2026-05-10 (PR-F): the previous inline implementation had
+        a ``put_nowait`` -> ``Full`` -> ``get_nowait`` -> ``Empty`` -> ``pass``
+        race followed by an UNGUARDED ``put_nowait(item)``. When the
+        consumer drained between our ``Full`` exception and our eviction
+        attempt the eviction quietly failed; the unguarded retry then
+        either silently succeeded or raised ``queue.Full`` and killed
+        the WS reader thread.
+
+        The fix mirrors PR-D (#2125) on ``BackgroundPoller``:
+
+        * On ``Empty`` we ``continue`` and retry ``put_nowait`` -- the
+          consumer just made room, so the next put almost always wins.
+        * Bound the loop with ``_ENQUEUE_RETRY_BUDGET`` to avoid a
+          pathological producer/consumer cadence spinning.
+        * If the item still cannot be placed, increment
+          ``total_enqueue_drops`` and ``total_items_dropped`` and log a
+          WARNING. Drops are no longer silent and never raise.
+
+        Returns True iff the item was successfully enqueued.
+        """
+        evicted = 0
+        enqueued = False
+        for _ in range(self._ENQUEUE_RETRY_BUDGET):
+            try:
+                self.queue.put_nowait(item)
+                enqueued = True
+                break
+            except queue.Full:
+                try:
+                    self.queue.get_nowait()
+                    evicted += 1
+                except queue.Empty:
+                    # Race: consumer drained between our Full and our
+                    # get_nowait. Retry the put -- do NOT silently drop.
+                    continue
+
+        if evicted:
+            self.total_items_dropped += evicted
+            logger.warning(
+                "BenzingaWsAdapter: queue full (max=%d) -- evicted %d stale "
+                "item(s) (total dropped: %d)",
+                self.queue.maxsize, evicted, self.total_items_dropped,
+            )
+
+        if not enqueued:
+            self.total_enqueue_drops += 1
+            self.total_items_dropped += 1
+            logger.warning(
+                "BenzingaWsAdapter: could not enqueue item after %d retries "
+                "(total enqueue drops: %d)",
+                self._ENQUEUE_RETRY_BUDGET, self.total_enqueue_drops,
+            )
+
+        return enqueued
+
     # ── Internal: async event loop in daemon thread ─────────────
 
     def _run_loop(self) -> None:
@@ -575,7 +644,17 @@ class BenzingaWsAdapter:
                     try:
                         await ws.send(auth_msg)
                     except Exception:
-                        pass
+                        # Audit 2026-05-10 (PR-K): the subscribe handshake is
+                        # optional (the server pushes news regardless), but a
+                        # silent except: pass hides observability of upstream
+                        # protocol changes. Log at debug with traceback so
+                        # operators can correlate against connect/disconnect
+                        # patterns without raising the log floor.
+                        logger.debug(
+                            "BenzingaWsAdapter: optional subscribe handshake "
+                            "failed (server pushes news regardless)",
+                            exc_info=True,
+                        )
 
                     async for message in ws:
                         if self._stop_event.is_set():
@@ -589,19 +668,7 @@ class BenzingaWsAdapter:
                         for p in payloads:
                             item = normalize_benzinga_ws(p)
                             if item.is_valid and self._matches_channel_filter(item):
-                                try:
-                                    self.queue.put_nowait(item)
-                                except queue.Full:
-                                    # Drop oldest to make room
-                                    try:
-                                        self.queue.get_nowait()
-                                    except queue.Empty:
-                                        pass
-                                    self.queue.put_nowait(item)
-                                    logger.warning(
-                                        "BenzingaWsAdapter: queue full (max=%d) — dropped oldest item.",
-                                        self.queue.maxsize,
-                                    )
+                                self._enqueue_item(item)
 
             except Exception as exc:
                 if self._stop_event.is_set():

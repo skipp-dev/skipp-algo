@@ -22,12 +22,15 @@ in the same pair output directory as ``events_<SYMBOL>_<TIMEFRAME>.jsonl``.
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Iterable, Iterator
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
 from smc_core.schema_version import EVENT_LEDGER_SCHEMA_VERSION  # re-export for back-compat
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -137,13 +140,30 @@ def write_event_ledger(
 
 
 def read_event_ledger(path: Path) -> Iterator[dict[str, Any]]:
-    """Yield records from a JSONL ledger (raw dicts, no class coercion)."""
+    """Yield records from a JSONL ledger (raw dicts, no class coercion).
+
+    Audit 2026-05-10 (PR-J2): malformed JSONL lines (truncated writes,
+    partial flushes, disk-full mid-append) MUST NOT abort the generator.
+    Pre-fix a bare ``json.loads`` raised ``json.JSONDecodeError`` from
+    inside the generator and silently lost every subsequent record for
+    every caller (scoring pipelines, F2 calibration, AB comparison).
+    Now: log + skip and continue.
+    """
     with path.open("r", encoding="utf-8") as handle:
-        for line in handle:
+        for line_no, line in enumerate(handle, start=1):
             line = line.strip()
             if not line:
                 continue
-            yield json.loads(line)
+            try:
+                yield json.loads(line)
+            except json.JSONDecodeError as exc:
+                logger.warning(
+                    "event_ledger %s line %d: malformed JSON, skipping (%s)",
+                    path,
+                    line_no,
+                    exc,
+                )
+                continue
 
 
 def ledger_path_for_pair(
