@@ -5405,6 +5405,48 @@ def generate_open_prep_result(
             weight_label="_regime_adjusted",
         )
 
+    # Optional snapshot dump (opt-in via env var) — captures the EXACT inputs
+    # passed to ``rank_candidates_v2`` plus the resulting ranked/filtered
+    # outputs, for use as a real-day smoke-anchor golden fixture (see PR #2138
+    # follow-up: tests/test_ranking_golden.py).
+    if os.getenv("OPEN_PREP_DUMP_SNAPSHOT", "").strip().lower() in {"1", "true", "yes"}:
+        try:
+            import json as _json_snap
+            _snap_dir = Path("artifacts/open_prep/snapshots")
+            _snap_dir.mkdir(parents=True, exist_ok=True)
+            _snap_ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%SZ")
+            _snap_path = _snap_dir / f"ranking_snapshot_{_snap_ts}.json"
+            _snapshot = {
+                "schema_version": 1,
+                "captured_at_utc": datetime.now(UTC).isoformat(),
+                "inputs": {
+                    "quotes": quotes,
+                    "bias": bias,
+                    "top_n": max(config.top, 1),
+                    "news_scores": news_scores,
+                    "news_metrics": news_metrics,
+                    "sector_changes": sector_changes_map,
+                    "symbol_sectors": symbol_sectors,
+                    "weight_label": "_regime_adjusted",
+                    "vix_level": vix_level,
+                },
+                "outputs": {
+                    "ranked": ranked_v2,
+                    "filtered_out": filtered_out_v2,
+                },
+                "context": {
+                    "regime": regime_snapshot.regime,
+                    "run_date_utc": today.isoformat() if hasattr(today, "isoformat") else str(today),
+                },
+            }
+            _snap_path.write_text(
+                _json_snap.dumps(_snapshot, indent=2, default=str, allow_nan=False) + "\n",
+                encoding="utf-8",
+            )
+            logger.info("Ranking snapshot written to %s", _snap_path)
+        except Exception as _snap_exc:  # pragma: no cover — diagnostic only
+            logger.warning("Failed to write ranking snapshot: %s", _snap_exc)
+
     # Enrich v2 candidates with historical hit rates + regime
     for row in ranked_v2:
         gap_pct = _to_float(row.get("gap_pct"), default=0.0)

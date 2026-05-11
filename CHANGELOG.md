@@ -6,6 +6,26 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-11) — Real-day ranking snapshot dump (opt-in)
+
+Add an opt-in snapshot writer to `open_prep/run_open_prep.py` that
+captures the **exact** inputs passed to `rank_candidates_v2` (quotes,
+bias, top_n, news side-channels, sector context, weight_label,
+vix_level) plus the resulting ranked / filtered_out outputs. Triggered
+via env var `OPEN_PREP_DUMP_SNAPSHOT=1` (defaults off — no production
+behaviour change). Output goes to
+`artifacts/open_prep/snapshots/ranking_snapshot_<YYYYMMDD_HHMMSSZ>.json`.
+
+Purpose: prerequisite for a future real-day smoke-anchor golden test
+(follow-up to PR #2138). The fixture-based 12-archetype golden covers
+all known scorer branches; this snapshot path will let a real
+production run be replayed deterministically as a second golden once
+captured.
+
+No tests added — the dump path is diagnostic-only, opt-in, and wraps
+its work in a broad `except` so any failure logs a warning without
+affecting the run.
+
 ### Fixed (2026-05-10) — PR #2112 Copilot review follow-ups (PR #2113)
 
 Three small follow-ups raised by the Copilot review on PR #2112.
