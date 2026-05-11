@@ -5405,14 +5405,19 @@ def generate_open_prep_result(
             weight_label="_regime_adjusted",
         )
 
-    # Optional snapshot dump (opt-in via env var) — captures the EXACT inputs
-    # passed to ``rank_candidates_v2`` plus the resulting ranked/filtered
-    # outputs, intended as a real-day smoke-anchor for a planned follow-up
-    # golden test (see PR #2138).
+    # Optional snapshot dump (opt-in via env var) — captures the inputs
+    # actually passed to ``rank_candidates_v2`` in this code path plus
+    # the resulting ranked/filtered outputs and extra diagnostic context
+    # (including vix_level, which is available here but not currently
+    # threaded into the call above). Intended as a real-day smoke-anchor
+    # for a planned follow-up golden test (see PR #2138).
     if os.getenv("OPEN_PREP_DUMP_SNAPSHOT", "").strip().lower() in {"1", "true", "yes"}:
+        _snap_dir = Path("artifacts/open_prep/snapshots")
+        _snap_path: Path | None = None
         try:
             import json as _json_snap
-            _snap_dir = Path("artifacts/open_prep/snapshots")
+            import tempfile as _tmp_snap
+
             _snap_dir.mkdir(parents=True, exist_ok=True)
             # Microsecond + pid suffix to avoid race overwrites when two
             # processes write within the same second.
@@ -5437,16 +5442,33 @@ def generate_open_prep_result(
                 },
                 "context": {
                     "regime": regime_snapshot.regime,
+                    "vix_level": vix_level,
                     "run_date_utc": today.isoformat() if hasattr(today, "isoformat") else str(today),
                 },
             }
-            _snap_path.write_text(
-                _json_snap.dumps(_snapshot, indent=2, default=str, allow_nan=False) + "\n",
-                encoding="utf-8",
-            )
+            _snap_content = (
+                _json_snap.dumps(_snapshot, indent=2, default=str, allow_nan=False) + "\n"
+            ).encode("utf-8")
+            _fd, _tmp_name = _tmp_snap.mkstemp(dir=str(_snap_dir), suffix=".tmp")
+            try:
+                os.write(_fd, _snap_content)
+                os.fsync(_fd)
+                os.close(_fd)
+                _fd = -1
+                os.replace(_tmp_name, str(_snap_path))
+            except BaseException:
+                if _fd >= 0:
+                    os.close(_fd)
+                with contextlib.suppress(OSError):
+                    os.unlink(_tmp_name)
+                raise
             logger.info("Ranking snapshot written to %s", _snap_path)
-        except Exception as _snap_exc:  # pragma: no cover — diagnostic only
-            logger.warning("Failed to write ranking snapshot: %s", _snap_exc)
+        except Exception:  # pragma: no cover — diagnostic only
+            logger.warning(
+                "Failed to write ranking snapshot to %s",
+                _snap_path or _snap_dir,
+                exc_info=True,
+            )
 
     # Enrich v2 candidates with historical hit rates + regime
     for row in ranked_v2:

@@ -10,11 +10,14 @@ All notable changes to this project are documented in this file.
 
 Add an opt-in snapshot writer to `open_prep/run_open_prep.py` that
 captures the **exact** inputs passed to `rank_candidates_v2` (quotes,
-bias, top_n, news side-channels, sector context, weight_label,
-vix_level) plus the resulting ranked / filtered_out outputs. Triggered
-via env var `OPEN_PREP_DUMP_SNAPSHOT=1` (defaults off — no production
-behaviour change). Output goes to
-`artifacts/open_prep/snapshots/ranking_snapshot_<YYYYMMDD_HHMMSSZ>.json`.
+bias, top_n, news side-channels, sector context, weight_label) plus
+the resulting ranked / filtered_out outputs and a diagnostic context
+block (`regime`, `run_date_utc`, `vix_level`; the latter is observed in
+this code path but not currently passed into `rank_candidates_v2`).
+Triggered via env var `OPEN_PREP_DUMP_SNAPSHOT=1` (defaults off — no
+production behaviour change). Output goes to
+`artifacts/open_prep/snapshots/ranking_snapshot_<YYYYMMDD_HHMMSS_%fZ>_<pid>.json`
+via an atomic temp-file write + replace.
 
 Purpose: prerequisite for a planned real-day smoke-anchor golden test
 (follow-up to PR #2138 once that PR merges). The fixture-based golden
