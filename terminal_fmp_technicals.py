@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import logging
 import os
+import hashlib
 import threading
 import time
 from typing import Any
@@ -59,13 +60,32 @@ def _get_api_key() -> str:
 
 
 # ── Cache (separate from TradingView cache) ─────────────────────────
-_fmp_cache: dict[tuple[str, str], tuple[float, dict[str, Any]]] = {}
+# Audit 2026-05-10 (PR-I): cache keys are scoped per-API-key fingerprint.
+# Pre-PR-I the key was (symbol, interval) and the cache was a single
+# module-global dict shared across every FMP account, so a technical-
+# indicator snapshot fetched under one API key was silently served to
+# callers using a different key (cross-account leakage class-equivalent
+# to PR-C #2124 / PR-E #2129).
+_fmp_cache: dict[tuple[str, str, str], tuple[float, dict[str, Any]]] = {}
 _FMP_CACHE_TTL = 180.0  # 3 minutes
 _fmp_cache_lock = threading.Lock()
 
 
-def _cache_get(sym: str, interval: str) -> dict[str, Any] | None:
-    key = (sym.upper(), interval)
+def _client_fingerprint(api_key: str) -> str:
+    """Short, stable, non-reversible fingerprint of the API key for
+    use as a cache-partition discriminator. Mirrors the helper added
+    in PR-C #2124 (terminal_databento). Kept inline here to avoid a
+    cross-module import dependency."""
+    if not api_key:
+        return "no-api-key"
+    return hashlib.sha256(str(api_key).encode("utf-8")).hexdigest()[:16]
+
+
+def _cache_get(
+    sym: str, interval: str, api_key: str,
+) -> dict[str, Any] | None:
+    fp = _client_fingerprint(api_key)
+    key = (fp, sym.upper().strip(), interval)
     with _fmp_cache_lock:
         entry = _fmp_cache.get(key)
         if entry and (time.time() - entry[0]) < _FMP_CACHE_TTL:
@@ -73,8 +93,11 @@ def _cache_get(sym: str, interval: str) -> dict[str, Any] | None:
     return None
 
 
-def _cache_set(sym: str, interval: str, result: dict[str, Any]) -> None:
-    key = (sym.upper(), interval)
+def _cache_set(
+    sym: str, interval: str, api_key: str, result: dict[str, Any],
+) -> None:
+    fp = _client_fingerprint(api_key)
+    key = (fp, sym.upper().strip(), interval)
     with _fmp_cache_lock:
         _fmp_cache[key] = (time.time(), result)
         # Evict old entries
@@ -227,7 +250,7 @@ def fetch_fmp_technicals(symbol: str, interval: str = "1D") -> dict[str, Any] | 
         return None
 
     # Check cache first
-    cached = _cache_get(symbol, interval)
+    cached = _cache_get(symbol, interval, api_key)
     if cached is not None:
         return cached
 
@@ -386,5 +409,5 @@ def fetch_fmp_technicals(symbol: str, interval: str = "1D") -> dict[str, Any] | 
         "error": "",
     }
 
-    _cache_set(sym, interval, result)
+    _cache_set(sym, interval, api_key, result)
     return result

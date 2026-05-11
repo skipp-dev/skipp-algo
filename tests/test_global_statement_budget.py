@@ -40,10 +40,6 @@ _DIR_EXCLUDE = frozenset(
         "node_modules",
         "artifacts",
         "docs",
-        # Note: ``scripts/`` is intentionally **NOT** excluded — V5 audit
-        # (F-V5-G1, 2026-05-01) found that excluding it had hidden a
-        # production regression in ``scripts/databento_production_export.py``.
-        # Test-suite helpers under ``tests/`` are still excluded since
         # module-level fixtures legitimately use ``global`` for test setup.
         "tests",
         "SMC++",
