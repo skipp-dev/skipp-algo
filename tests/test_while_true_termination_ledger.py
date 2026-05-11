@@ -83,7 +83,10 @@ def _while_true_sites() -> set[tuple[str, int]]:
 #   now no-ops; net additions / removals still fail closed.
 WHILE_TRUE_LEDGER: dict[str, int] = {
     "databento_volatility_screener.py": 1,
-    "terminal_background_poller.py": 2,
+    # PR #2125 extracts the enqueue retry loop into bounded helper
+    # ``_enqueue_batch`` (``for`` loop), leaving only the deliberate
+    # ``drain()`` consumer loop as ``while True`` in this module.
+    "terminal_background_poller.py": 1,
     "databento_universe.py": 1,
     "open_prep/realtime_signals.py": 1,
     "open_prep/macro.py": 1,
