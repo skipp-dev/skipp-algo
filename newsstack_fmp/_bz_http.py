@@ -114,7 +114,7 @@ def _log_transient_warning_throttled(key: str, message: str, *args: Any) -> None
             _transient_log_state[key] = (ts, suppressed + 1)
             return
         if suppressed > 0:
-            logger.warning("Benzinga transient errors: suppressed %d duplicate log(s) for %s", suppressed, key)
+            logger.warning("Transient HTTP errors: suppressed %d duplicate log(s) for %s", suppressed, key)
         _transient_log_state[key] = (now, 0)
     logger.warning(message, *args)
 
@@ -269,11 +269,18 @@ def _bz_delay_from_exc(exc: BaseException) -> float | None:
     return None
 
 
-def _bz_on_retry(exc: BaseException, attempt: int, delay: float) -> None:
+def _on_http_retry(exc: BaseException, attempt: int, delay: float) -> None:
+    """Provider-agnostic transient-retry warning.
+
+    audit-fix-followup-2 (2026-05-10, S2): renamed from ``_bz_on_retry``
+    and stripped the ``"Benzinga"`` literal because PR #2120 (F2) added
+    Unusual Whales as a second caller of ``_request_with_status_retry``.
+    Operators were seeing ``"Benzinga HTTP 429"`` for UW failures.
+    """
     if isinstance(exc, _BzRetryableStatusError):
         _log_transient_warning_throttled(
             f"http_{exc.status_code}",
-            "Benzinga HTTP %s (attempt %d/%d) – retrying in %.1fs",
+            "HTTP %s (attempt %d/%d) – retrying in %.1fs",
             exc.status_code,
             attempt,
             _MAX_ATTEMPTS,
@@ -282,7 +289,7 @@ def _bz_on_retry(exc: BaseException, attempt: int, delay: float) -> None:
     else:
         _log_transient_warning_throttled(
             f"network_{type(exc).__name__}",
-            "Benzinga network error (attempt %d/%d): %s – retrying in %.1fs",
+            "Network error (attempt %d/%d): %s – retrying in %.1fs",
             attempt,
             _MAX_ATTEMPTS,
             _sanitize_exc(exc),  # type: ignore[arg-type]
@@ -303,7 +310,7 @@ def _bz_on_failure(exc: BaseException) -> httpx.Response:
     max_delay=60.0,
     exceptions=(httpx.ConnectError, httpx.ReadTimeout, _BzRetryableStatusError),
     delay_from_exc=_bz_delay_from_exc,
-    on_retry=_bz_on_retry,
+    on_retry=_on_http_retry,
     on_failure=_bz_on_failure,
     # Route jitter + sleep through module-level seams so tests can
     # patch ``_bz_http._rng`` / ``_bz_http._sleep`` directly. The

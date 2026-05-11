@@ -17,6 +17,7 @@ import os
 import re
 import threading
 import time
+from collections.abc import Callable, Iterable
 from typing import Any
 
 from .common_types import NewsItem
@@ -296,17 +297,55 @@ def _newsapi_operator_status(
     )
 
 
+def _filter_new_by_watermark(
+    items: Iterable[Any],
+    last_seen_epoch: float | None,
+    get_epoch: Callable[[Any], float | None],
+) -> list:
+    """Inclusive (``>=``) watermark filter — single source of truth.
+
+    Audit-fix-followup-2 (2026-05-10): consolidates the 5 watermark sites
+    (UW news + FMP senate/house/8K/13F) onto one helper so the inclusivity
+    invariant is unit-testable in one place and cannot regress per-site.
+
+    Mirrors prior fixes:
+
+    - F5 (2026-05-10, PR #2119): UW news ``>`` → ``>=``.
+    - 2026-05-09: FMP senate/house/8K/13F ``>`` → ``>=``.
+
+    ``mark_seen()`` remains the authoritative per-item dedup, so the
+    watermark only needs to bracket the candidate window inclusively.
+
+    Args:
+        items: iterable of records (typically NewsItem instances).
+        last_seen_epoch: int/float epoch, or ``None`` to disable filtering
+            (returns all items — used on the very first poll).
+        get_epoch: callable mapping a record to its epoch (or ``None`` to
+            drop the record from the result).
+
+    Returns:
+        List of records with ``epoch >= last_seen_epoch``.
+    """
+    if last_seen_epoch is None:
+        return [it for it in items if get_epoch(it) is not None]
+    out: list = []
+    for it in items:
+        ep = get_epoch(it)
+        if ep is None:
+            continue
+        if ep >= last_seen_epoch:  # inclusive — see audit-fix-followup-2
+            out.append(it)
+    return out
+
+
 def _filter_uw_news_new(items: list, last_seen: float) -> list:
     """Filter UW news items newer-or-equal-to the watermark.
 
-    Audit-fix (2026-05-10, F5): inclusive (``>=``) so same-second items
-    aren't dropped on the next poll. ``mark_seen()`` is the authoritative
-    per-item dedup, so the watermark only needs to bracket the candidate
-    window. Mirrors the FMP Senate/House watermark fix from 2026-05-09.
-    Extracted so the watermark inclusivity is unit-testable against the
-    real production helper rather than a re-implemented comprehension.
+    Thin wrapper around :func:`_filter_new_by_watermark` preserved for
+    backwards-compat with the existing UW regression test
+    (``test_uw_watermark_is_inclusive_for_same_epoch``).
     """
-    return [it for it in items if it.updated_ts >= last_seen]
+    return _filter_new_by_watermark(items, last_seen, lambda it: it.updated_ts)
 
 
 # ── Core: process a batch of NewsItem objects ───────────────────
@@ -706,12 +745,12 @@ def poll_once(
                 for rec in senate_raw
             ]
             senate_items = [it for it in senate_items if it.is_valid]
-            # Audit-fix (2026-05-09): >= not > so same-day records (FMP returns
-            # date-only granularity for senate/house) aren't dropped on next poll.
-            # mark_seen() is the authoritative per-item dedup.
-            senate_new = [
-                it for it in senate_items if it.updated_ts >= fmp_senate_last
-            ]
+            # Audit-fix-followup-2 (2026-05-10): consolidated >= filter; see
+            # _filter_new_by_watermark. FMP returns date-only granularity for
+            # senate/house, so inclusive avoids same-day drops.
+            senate_new = _filter_new_by_watermark(
+                senate_items, fmp_senate_last, lambda it: it.updated_ts
+            )
             new_fmp_senate_max = max(
                 (it.updated_ts for it in senate_new),
                 default=fmp_senate_last,
@@ -737,10 +776,10 @@ def poll_once(
                 for rec in house_raw
             ]
             house_items = [it for it in house_items if it.is_valid]
-            # Audit-fix (2026-05-09): >= not > (date-only granularity).
-            house_new = [
-                it for it in house_items if it.updated_ts >= fmp_house_last
-            ]
+            # Audit-fix-followup-2 (2026-05-10): consolidated >= filter.
+            house_new = _filter_new_by_watermark(
+                house_items, fmp_house_last, lambda it: it.updated_ts
+            )
             new_fmp_house_max = max(
                 (it.updated_ts for it in house_new),
                 default=fmp_house_last,
@@ -762,10 +801,10 @@ def poll_once(
                 normalize_fmp_filing_8k(rec) for rec in eight_k_raw
             ]
             eight_k_items = [it for it in eight_k_items if it.is_valid]
-            # Audit-fix (2026-05-09): >= for safety; mark_seen() dedups per id.
-            eight_k_new = [
-                it for it in eight_k_items if it.updated_ts >= fmp_8k_last
-            ]
+            # Audit-fix-followup-2 (2026-05-10): consolidated >= filter.
+            eight_k_new = _filter_new_by_watermark(
+                eight_k_items, fmp_8k_last, lambda it: it.updated_ts
+            )
             new_fmp_8k_max = max(
                 (it.updated_ts for it in eight_k_new),
                 default=fmp_8k_last,
@@ -787,10 +826,10 @@ def poll_once(
                 normalize_fmp_filing_13f(rec) for rec in thirteen_f_raw
             ]
             thirteen_f_items = [it for it in thirteen_f_items if it.is_valid]
-            # Audit-fix (2026-05-09): >= for safety; mark_seen() dedups per id.
-            thirteen_f_new = [
-                it for it in thirteen_f_items if it.updated_ts >= fmp_13f_last
-            ]
+            # Audit-fix-followup-2 (2026-05-10): consolidated >= filter.
+            thirteen_f_new = _filter_new_by_watermark(
+                thirteen_f_items, fmp_13f_last, lambda it: it.updated_ts
+            )
             new_fmp_13f_max = max(
                 (it.updated_ts for it in thirteen_f_new),
                 default=fmp_13f_last,

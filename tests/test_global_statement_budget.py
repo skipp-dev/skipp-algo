@@ -40,10 +40,6 @@ _DIR_EXCLUDE = frozenset(
         "node_modules",
         "artifacts",
         "docs",
-        # Note: ``scripts/`` is intentionally **NOT** excluded — V5 audit
-        # (F-V5-G1, 2026-05-01) found that excluding it had hidden a
-        # production regression in ``scripts/databento_production_export.py``.
-        # Test-suite helpers under ``tests/`` are still excluded since
         # module-level fixtures legitimately use ``global`` for test setup.
         "tests",
         "SMC++",
@@ -83,20 +79,20 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
     {
         ("databento_reference.py", 113, ("_STATE_CACHE_MTIME", "_STATE_CACHE_PATH", "_STATE_CACHE_VALUE")),
         ("databento_reference.py", 121, ("_STATE_CACHE_MTIME", "_STATE_CACHE_PATH", "_STATE_CACHE_VALUE")),
-        ("newsstack_fmp/pipeline.py", 68, ("_store",)),
-        ("newsstack_fmp/pipeline.py", 78, ("_fmp_adapter", "_fmp_adapter_key")),
-        ("newsstack_fmp/pipeline.py", 93, ("_bz_rest_adapter", "_bz_rest_adapter_key")),
-        ("newsstack_fmp/pipeline.py", 109, ("_bz_ws_adapter", "_bz_ws_adapter_key")),
-        ("newsstack_fmp/pipeline.py", 135, ("_enricher",)),
-        ("newsstack_fmp/pipeline.py", 1029, ("_last_meta",)),
+        ("newsstack_fmp/pipeline.py", 69, ("_store",)),
+        ("newsstack_fmp/pipeline.py", 79, ("_fmp_adapter", "_fmp_adapter_key")),
+        ("newsstack_fmp/pipeline.py", 94, ("_bz_rest_adapter", "_bz_rest_adapter_key")),
+        ("newsstack_fmp/pipeline.py", 110, ("_bz_ws_adapter", "_bz_ws_adapter_key")),
+        ("newsstack_fmp/pipeline.py", 136, ("_enricher",)),
+        ("newsstack_fmp/pipeline.py", 1068, ("_last_meta",)),
         (
             "newsstack_fmp/pipeline.py",
-            1118,
+            1157,
             ("_bz_rest_adapter", "_bz_ws_adapter", "_enricher", "_fmp_adapter", "_last_meta", "_store"),
         ),
         (
             "newsstack_fmp/pipeline.py",
-            1119,
+            1158,
             ("_bz_rest_adapter_key", "_bz_ws_adapter_key", "_fmp_adapter_key"),
         ),
         ("open_prep/regime.py", 129, ("_prev_regime",)),
@@ -130,7 +126,6 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
             ("btc_available", "databento_available", "ensure_rt_engine_running", "newsapi_available", "tv_available"),
         ),
         ("terminal_bitcoin.py", 97, ("_client",)),
-        ("terminal_databento.py", 131, ("_quote_cache", "_quote_cache_ts")),
         (
             "terminal_finnhub.py",
             187,
@@ -150,7 +145,7 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ),
         ("terminal_technicals.py", 245, ("_tv_consecutive_429s",)),
         ("terminal_technicals.py", 262, ("_tv_cooldown_ended_at", "_tv_last_call_ts")),
-        ("terminal_tradingview_news.py", 351, ("_last_request_ts",)),
+        ("terminal_tradingview_news.py", 403, ("_last_request_ts",)),
     }
 )
 

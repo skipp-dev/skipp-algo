@@ -198,35 +198,87 @@ def _source_rank(provider: str) -> int:
 
 
 # ── In-memory cache ──────────────────────────────────────────────
+#
+# Audit 2026-05-10 (PR-G): the cache MUST distinguish three states:
+#   1. unknown          -> caller should fetch
+#   2. known-empty/miss -> caller should NOT fetch (back-off TTL)
+#   3. known-hit        -> caller should use the cached value
+#
+# Pre-PR-G the API was ``_get_cached(key) -> list | None`` which
+# collapsed (1) and (2) into ``None``: a cached failure could not be
+# expressed, so every caller after a transient error re-issued
+# ``_fetch_raw`` -> thundering-herd against TradingView and uncapped
+# burns of the ``_health`` failure counter.
+#
+# The current API returns ``tuple[bool, list[TVHeadline]]`` where the
+# first element is the hit-flag. ``_set_cached_miss(key)`` records a
+# negative result with ``_MISS_TTL_S`` (much shorter than the success
+# TTL) so the back-off self-recovers without intervention.
 
-_cache: dict[str, tuple[float, list[TVHeadline]]] = {}
+_MISS_SENTINEL: object = object()
+_MISS_TTL_S: float = 30.0  # negative-cache TTL: short, self-healing
+
+_cache: dict[str, tuple[float, list[TVHeadline] | object]] = {}
 _cache_lock = threading.Lock()
 
 
-def _get_cached(key: str) -> list[TVHeadline] | None:
+def _get_cached(key: str) -> tuple[bool, list[TVHeadline]]:
+    """Return ``(hit, value)``.
+
+    * ``(True, [...])``  -> cached success; caller MUST use this value.
+    * ``(True, [])``     -> cached MISS within ``_MISS_TTL_S``;
+                             caller MUST short-circuit with an empty
+                             list and MUST NOT re-issue the upstream
+                             fetch (negative cache).
+    * ``(False, [])``    -> no entry / expired entry; caller may fetch.
+    """
     with _cache_lock:
         entry = _cache.get(key)
         if entry is None:
-            return None
+            return (False, [])
         ts, val = entry
+        if val is _MISS_SENTINEL:
+            if time.time() - ts > _MISS_TTL_S:
+                del _cache[key]
+                return (False, [])
+            return (True, [])
         if time.time() - ts > _CACHE_TTL:
             del _cache[key]
-            return None
-        return val
+            return (False, [])
+        # Type-narrow: non-sentinel branch implies list[TVHeadline].
+        return (True, val)  # type: ignore[return-value]
 
 
 def _set_cached(key: str, val: list[TVHeadline]) -> None:
     with _cache_lock:
         _cache[key] = (time.time(), val)
+        _evict_locked()
+
+
+def _set_cached_miss(key: str) -> None:
+    """Record a negative result so the next call within
+    ``_MISS_TTL_S`` short-circuits without re-issuing upstream
+    requests. See PR-G audit 2026-05-10."""
+    with _cache_lock:
+        _cache[key] = (time.time(), _MISS_SENTINEL)
+        _evict_locked()
+
+
+def _evict_locked() -> None:
+    """Eviction helper. CALLER MUST HOLD ``_cache_lock``."""
+    if len(_cache) > _CACHE_MAX_SIZE:
+        now = time.time()
+        expired = [
+            k for k, (ts, v) in _cache.items()
+            if (v is _MISS_SENTINEL and now - ts > _MISS_TTL_S)
+            or (v is not _MISS_SENTINEL and now - ts > _CACHE_TTL)
+        ]
+        for k in expired:
+            del _cache[k]
         if len(_cache) > _CACHE_MAX_SIZE:
-            now = time.time()
-            expired = [k for k, (ts, _) in _cache.items() if now - ts > _CACHE_TTL]
-            for k in expired:
+            oldest = sorted(_cache, key=lambda k: _cache[k][0])
+            for k in oldest[:len(_cache) - _CACHE_MAX_SIZE]:
                 del _cache[k]
-            if len(_cache) > _CACHE_MAX_SIZE:
-                oldest = sorted(_cache, key=lambda k: _cache[k][0])
-                for k in oldest[:len(_cache) - _CACHE_MAX_SIZE]:
-                    del _cache[k]
 
 
 # ── Health monitoring ────────────────────────────────────────────
@@ -454,8 +506,8 @@ def fetch_tv_headlines(
     (health state is updated for monitoring).
     """
     cache_key = f"tv:{ticker.upper()}"
-    cached = _get_cached(cache_key)
-    if cached is not None:
+    hit, cached = _get_cached(cache_key)
+    if hit:
         return cached[:max_items]
 
     try:
@@ -476,6 +528,11 @@ def fetch_tv_headlines(
             "fetch_tv(%s) failed; recorded health failure: %s",
             ticker, exc,
         )
+        # PR-G audit 2026-05-10: cache the failure with a short TTL so
+        # subsequent calls within ``_MISS_TTL_S`` do NOT re-issue
+        # upstream requests (thundering-herd / repeated health-failure
+        # accounting against TradingView outages).
+        _set_cached_miss(cache_key)
         return []
     # Single source of truth for TV health metrics -- see audit
     # 2026-05-10. Success is recorded here (and only here) so retries /

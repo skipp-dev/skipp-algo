@@ -41,16 +41,38 @@ def _cache_key(question: str, context_digest: str, model: str) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()[:24]
 
 
-def _get_cached(key: str) -> str | None:
+# Audit 2026-05-10 (PR-G): negative-cache miss sentinel. Pre-PR-G the
+# cache could not distinguish ``unknown`` from ``known-failure``, so
+# every call after a transient OpenAI error re-issued the request and
+# burned API budget / quota. ``_set_cached_miss`` records a short-TTL
+# negative entry that self-heals after ``_MISS_TTL_S``.
+_MISS_SENTINEL: object = object()
+_MISS_TTL_S: float = 30.0
+
+
+def _get_cached(key: str) -> tuple[bool, str]:
+    """Return ``(hit, value)``.
+
+    * ``(True, text)`` -> cached success; caller MUST use this value.
+    * ``(True, "")``   -> cached MISS within ``_MISS_TTL_S``;
+                          caller MUST short-circuit and MUST NOT
+                          re-issue the upstream LLM call.
+    * ``(False, "")``  -> no entry / expired; caller may fetch.
+    """
     with _cache_lock:
         entry = _cache.get(key)
         if entry is None:
-            return None
+            return (False, "")
         ts, text = entry
+        if text is _MISS_SENTINEL:
+            if time.time() - ts > _MISS_TTL_S:
+                del _cache[key]
+                return (False, "")
+            return (True, "")
         if time.time() - ts > _CACHE_TTL_S:
             del _cache[key]
-            return None
-        return text
+            return (False, "")
+        return (True, text)  # type: ignore[return-value]
 
 
 def _set_cached(key: str, text: str) -> None:
@@ -61,6 +83,14 @@ def _set_cached(key: str, text: str) -> None:
             for k in expired:
                 del _cache[k]
         _cache[key] = (time.time(), text)
+
+
+def _set_cached_miss(key: str) -> None:
+    """Record a negative LLM result so the next call within
+    ``_MISS_TTL_S`` short-circuits without re-issuing the upstream
+    OpenAI request. See PR-G audit 2026-05-10."""
+    with _cache_lock:
+        _cache[key] = (time.time(), _MISS_SENTINEL)
 
 
 # ---------------------------------------------------------------------------
@@ -416,8 +446,8 @@ def query_fmp_llm(
     # Check cache
     digest = hashlib.sha256(context_json.encode()).hexdigest()[:16]
     ck = _cache_key(question, digest, model)
-    cached_text = _get_cached(ck)
-    if cached_text is not None:
+    hit, cached_text = _get_cached(ck)
+    if hit:
         return FMPLLMResponse(
             answer=cached_text, model=model, cached=True,
             context_articles=n_articles, context_tickers=n_tickers,
@@ -445,6 +475,8 @@ def query_fmp_llm(
     try:
         answer = _call_openai_chat(payload, api_key)
     except httpx.ReadTimeout:
+        # PR-G audit 2026-05-10: negative-cache the failure.
+        _set_cached_miss(ck)
         return FMPLLMResponse(
             answer="", model=model, cached=False,
             context_articles=n_articles, context_tickers=n_tickers,
@@ -454,6 +486,8 @@ def query_fmp_llm(
     except httpx.HTTPStatusError as exc:
         _safe = _APIKEY_RE.sub(r"\1=***", str(exc))
         logger.warning("OpenAI API error (FMP AI): %s", _safe, exc_info=True)
+        # PR-G audit 2026-05-10: negative-cache the failure.
+        _set_cached_miss(ck)
         return FMPLLMResponse(
             answer="", model=model, cached=False,
             context_articles=n_articles, context_tickers=n_tickers,
@@ -461,6 +495,8 @@ def query_fmp_llm(
             error=f"OpenAI API error: {exc.response.status_code}",
         )
     except _OpenAIEmptyChoicesError:
+        # PR-G audit 2026-05-10: negative-cache the empty-choices result.
+        _set_cached_miss(ck)
         return FMPLLMResponse(
             answer="", model=model, cached=False,
             context_articles=n_articles, context_tickers=n_tickers,
@@ -470,6 +506,8 @@ def query_fmp_llm(
     except Exception as exc:
         _safe = _APIKEY_RE.sub(r"\1=***", str(exc))
         logger.warning("OpenAI query failed (FMP AI): %s", _safe, exc_info=True)
+        # PR-G audit 2026-05-10: negative-cache the failure.
+        _set_cached_miss(ck)
         return FMPLLMResponse(
             answer="", model=model, cached=False,
             context_articles=n_articles, context_tickers=n_tickers,
