@@ -3706,6 +3706,108 @@ class TestUWNewsHeadlines(unittest.TestCase):
             f"missing drop warning in {cm.output!r}",
         )
 
+    def test_unwrap_list_empty_dict_returns_empty_silently(self):
+        """audit-fix-followup-2 S4: empty `{}` is a legitimate empty response.
+
+        Without the early-return added in PR audit-fix-followup-2, every
+        quiet poll cycle spammed the "no recognized wrapper key" drift
+        warning. This test pins the silent-empty-dict behavior.
+        """
+        import logging
+
+        from newsstack_fmp.ingest_unusual_whales import UnusualWhalesAdapter
+
+        logger_name = "newsstack_fmp.ingest_unusual_whales"
+        uw_logger = logging.getLogger(logger_name)
+        # Capture WARNINGs but accept that none are emitted; assertLogs
+        # would FAIL if no record appeared, so use a manual handler.
+        records: list[logging.LogRecord] = []
+
+        class _Capture(logging.Handler):
+            def emit(self, record: logging.LogRecord) -> None:
+                records.append(record)
+
+        handler = _Capture(level=logging.WARNING)
+        uw_logger.addHandler(handler)
+        try:
+            out = UnusualWhalesAdapter._unwrap_list({})
+        finally:
+            uw_logger.removeHandler(handler)
+        self.assertEqual(out, [])
+        self.assertEqual(
+            [r.getMessage() for r in records],
+            [],
+            "empty {} payload must not log any WARNING",
+        )
+
+    # ── audit-fix-followup-2 (2026-05-10): S1 watermark parity ──
+
+    def _assert_watermark_inclusive(self, last_seen=1715000000):
+        """Helper for the FMP-sibling watermark parity tests.
+
+        Mirrors ``test_uw_watermark_is_inclusive_for_same_epoch`` but
+        exercises the consolidated ``_filter_new_by_watermark`` so any
+        regression to ``>`` on the shared helper trips ALL 5 watermark
+        tests at once.
+        """
+        from newsstack_fmp.pipeline import _filter_new_by_watermark
+
+        items = [
+            MagicMock(updated_ts=last_seen, is_valid=True),
+            MagicMock(updated_ts=last_seen + 5, is_valid=True),
+            MagicMock(updated_ts=last_seen - 1, is_valid=True),
+        ]
+        new_items = _filter_new_by_watermark(
+            items, last_seen, lambda it: it.updated_ts
+        )
+        self.assertEqual(len(new_items), 2)
+        kept_ts = sorted(it.updated_ts for it in new_items)
+        self.assertEqual(kept_ts, [last_seen, last_seen + 5])
+
+    def test_senate_watermark_is_inclusive_for_same_epoch(self):
+        """Parity with UW: FMP Senate trades watermark must be inclusive."""
+        self._assert_watermark_inclusive()
+
+    def test_house_watermark_is_inclusive_for_same_epoch(self):
+        """Parity with UW: FMP House trades watermark must be inclusive."""
+        self._assert_watermark_inclusive()
+
+    def test_eight_k_watermark_is_inclusive_for_same_epoch(self):
+        """Parity with UW: FMP 8-K filings watermark must be inclusive."""
+        self._assert_watermark_inclusive()
+
+    def test_thirteen_f_watermark_is_inclusive_for_same_epoch(self):
+        """Parity with UW: FMP 13F-HR filings watermark must be inclusive."""
+        self._assert_watermark_inclusive()
+
+    def test_filter_new_by_watermark_skips_none_epoch(self):
+        """Records whose get_epoch returns None are dropped silently."""
+        from newsstack_fmp.pipeline import _filter_new_by_watermark
+
+        items = [
+            MagicMock(updated_ts=1715000000),
+            MagicMock(updated_ts=None),
+            MagicMock(updated_ts=1715000010),
+        ]
+        new_items = _filter_new_by_watermark(
+            items, 1715000000, lambda it: it.updated_ts
+        )
+        self.assertEqual(len(new_items), 2)
+
+    def test_filter_new_by_watermark_none_last_seen_returns_all(self):
+        """``last_seen_epoch=None`` (first-poll) keeps every valid record."""
+        from newsstack_fmp.pipeline import _filter_new_by_watermark
+
+        items = [
+            MagicMock(updated_ts=1),
+            MagicMock(updated_ts=2),
+            MagicMock(updated_ts=3),
+        ]
+        new_items = _filter_new_by_watermark(
+            items, None, lambda it: it.updated_ts
+        )
+        self.assertEqual(len(new_items), 3)
+
 
 # ── PR3: FMP extras (B4 general / B5 Senate+House / B7 8-K) ──
 

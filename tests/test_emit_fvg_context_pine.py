@@ -247,13 +247,17 @@ def test_main_under_min_events_marks_insufficient(tmp_path: Path) -> None:
     assert "_STATUS = \"INSUF\"" in txt
 
 
-def test_main_returns_one_on_malformed_ledger(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_main_tolerates_malformed_ledger_and_emits_awaiting(tmp_path: Path) -> None:
     ledger = tmp_path / "events_bad_5m.jsonl"
     ledger.write_text("{not-json\n")
     out = tmp_path / "out" / "fvg_context_health.pine"
     rc = main(["--ledger", str(ledger), "--output", str(out)])
-    assert rc == 1
-    assert "ERROR" in capsys.readouterr().err
+    assert rc == 0
+    txt = out.read_text(encoding="utf-8")
+    assert f'{PINE_STATUS_KEY} = "awaiting_first_run"' in txt
+    sidecar = out.with_suffix(".json")
+    assert sidecar.exists()
+    assert json.loads(sidecar.read_text(encoding="utf-8")) == {"status": "awaiting_first_run"}
 
 
 def test_default_min_events_matches_plan() -> None:

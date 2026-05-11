@@ -92,7 +92,7 @@ def _dynamic_getattr_sites() -> set[tuple[str, int]]:
 # small ``Mapping[str, Callable]`` / TypedDict accessor so the set of
 # valid names is statically visible.
 DYNAMIC_GETATTR_LEDGER: set[tuple[str, int]] = {
-    ("smc_core/event_ledger.py", 73),
+    ("smc_core/event_ledger.py", 76),
     ("smc_core/scoring.py", 291),
     ("streamlit_terminal_alerts.py", 41),
     ("terminal_attention_state.py", 45),

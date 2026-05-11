@@ -70,7 +70,8 @@ class TestSocialSentimentStatus:
 
     def test_rate_limited(self) -> None:
         terminal_finnhub._social_sentiment_blocked = False
-        terminal_finnhub._rate_limit_backoff_until = time.time() + 999
+        # PR-J4: backoff is a monotonic deadline, not a wall-clock epoch.
+        terminal_finnhub._rate_limit_backoff_until = time.monotonic() + 999
         with mock.patch.dict("os.environ", {"FINNHUB_API_KEY": "test_key"}):
             assert terminal_finnhub.social_sentiment_status() == "rate_limited"
         terminal_finnhub._rate_limit_backoff_until = 0.0
@@ -307,8 +308,9 @@ class TestCacheMissSentinel:
 
     def test_cached_miss_expires_after_ttl(self) -> None:
         # Write the entry with a back-dated timestamp so it is already stale.
+        # PR-J4: cache timestamps are monotonic, not wall-clock.
         with terminal_finnhub._cache_lock:
-            terminal_finnhub._cache["k-stale"] = (time.time() - 120.0, None)
+            terminal_finnhub._cache["k-stale"] = (time.monotonic() - 120.0, None)
         found, value = terminal_finnhub._get_cached("k-stale", ttl=60.0)
         assert found is False
         assert value is None
