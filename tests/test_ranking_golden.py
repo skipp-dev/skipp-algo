@@ -10,10 +10,11 @@ module-level mutable state) when called with ``dirty_manager=None`` and
 regression anchor.
 
 The fixture in ``tests/fixtures/ranking_archetypes_input.json`` contains
-seven quote archetypes that exercise distinct branches of the pipeline:
+nine quote archetypes that exercise distinct branches of the pipeline:
 
     MEGA_CAP_EARNINGS, SECTOR_LEADER, SECTOR_LAGGARD,
-    NEWS_PUMP, ENERGY_RISK_OFF, PENNY_REJECT, SEVERE_GAP_DOWN_REJECT
+    NEWS_PUMP, ENERGY_RISK_OFF, PENNY_REJECT, SEVERE_GAP_DOWN_REJECT,
+    TIER_2_NEWS, COUNTER_TREND
 
 The expected output is captured in
 ``tests/fixtures/ranking_archetypes_golden.json``. Any change to scoring
@@ -216,4 +217,29 @@ def test_known_archetype_filter_decisions() -> None:
     scores = [r["score"] for r in actual["ranked"]]
     assert scores == sorted(scores, reverse=True), (
         "Ranked output is not sorted by score descending"
+    )
+
+
+def test_counter_trend_and_rumor_penalties_stack() -> None:
+    """CTRD archetype triggers BOTH multiplicative final-score penalties.
+
+    momentum_z_score = -3.5  → counter_trend_penalty > 0 (gap is positive
+        but momentum is strongly negative).
+    news_source_tier = TIER_3 with news_score = 0.6 ≥ 0.5
+        → low_tier_news_rumor_penalty > 0.
+
+    Both penalties must show up in the score_breakdown for the same row,
+    proving they compose multiplicatively rather than one masking the other.
+    """
+    actual = _run_pipeline()
+    ctrd_rows = [r for r in actual["ranked"] if r["symbol"] == "CTRD"]
+    assert len(ctrd_rows) == 1, "CTRD archetype missing from ranked output"
+    breakdown = ctrd_rows[0].get("score_breakdown", {})
+    assert breakdown.get("counter_trend_penalty", 0.0) > 0.0, (
+        "counter_trend_penalty did not fire on CTRD (expected momentum_z=-3.5 "
+        "to trigger penalty)"
+    )
+    assert breakdown.get("low_tier_news_rumor_penalty", 0.0) > 0.0, (
+        "low_tier_news_rumor_penalty did not fire on CTRD (expected TIER_3 "
+        "news with score 0.6 to trigger penalty)"
     )
