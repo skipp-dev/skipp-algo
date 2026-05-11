@@ -5407,15 +5407,17 @@ def generate_open_prep_result(
 
     # Optional snapshot dump (opt-in via env var) — captures the EXACT inputs
     # passed to ``rank_candidates_v2`` plus the resulting ranked/filtered
-    # outputs, for use as a real-day smoke-anchor golden fixture (see PR #2138
-    # follow-up: tests/test_ranking_golden.py).
+    # outputs, intended as a real-day smoke-anchor for a planned follow-up
+    # golden test (see PR #2138).
     if os.getenv("OPEN_PREP_DUMP_SNAPSHOT", "").strip().lower() in {"1", "true", "yes"}:
         try:
             import json as _json_snap
             _snap_dir = Path("artifacts/open_prep/snapshots")
             _snap_dir.mkdir(parents=True, exist_ok=True)
-            _snap_ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%SZ")
-            _snap_path = _snap_dir / f"ranking_snapshot_{_snap_ts}.json"
+            # Microsecond + pid suffix to avoid race overwrites when two
+            # processes write within the same second.
+            _snap_ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S_%fZ")
+            _snap_path = _snap_dir / f"ranking_snapshot_{_snap_ts}_{os.getpid()}.json"
             _snapshot = {
                 "schema_version": 1,
                 "captured_at_utc": datetime.now(UTC).isoformat(),
@@ -5428,7 +5430,6 @@ def generate_open_prep_result(
                     "sector_changes": sector_changes_map,
                     "symbol_sectors": symbol_sectors,
                     "weight_label": "_regime_adjusted",
-                    "vix_level": vix_level,
                 },
                 "outputs": {
                     "ranked": ranked_v2,

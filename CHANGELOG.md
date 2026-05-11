@@ -16,11 +16,11 @@ via env var `OPEN_PREP_DUMP_SNAPSHOT=1` (defaults off — no production
 behaviour change). Output goes to
 `artifacts/open_prep/snapshots/ranking_snapshot_<YYYYMMDD_HHMMSSZ>.json`.
 
-Purpose: prerequisite for a future real-day smoke-anchor golden test
-(follow-up to PR #2138). The fixture-based 12-archetype golden covers
-all known scorer branches; this snapshot path will let a real
-production run be replayed deterministically as a second golden once
-captured.
+Purpose: prerequisite for a planned real-day smoke-anchor golden test
+(follow-up to PR #2138 once that PR merges). The fixture-based golden
+in PR #2138 covers all known scorer branches synthetically; this
+snapshot path will let a real production run be replayed
+deterministically as a second golden once captured.
 
 No tests added — the dump path is diagnostic-only, opt-in, and wraps
 its work in a broad `except` so any failure logs a warning without
