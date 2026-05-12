@@ -453,42 +453,12 @@ def _uw_headers(key: str) -> dict[str, str]:
     }
 
 
-def probe_uw_options_flow() -> tuple[str, str]:
-    """Unusual Whales /api/option-trades/flow-alerts — active UOA source.
-
-    v3 P-3c: replaces the retired Benzinga ``/api/v2.1/calendar/options_activity``
-    feed in production. Uses Bearer auth with ``UNUSUAL_WHALES_API_KEY``.
-    """
-    import httpx
-    key = os.getenv("UNUSUAL_WHALES_API_KEY", "").strip()
-    if not key:
-        return ("SKIP", "UNUSUAL_WHALES_API_KEY missing")
-    try:
-        r = httpx.get(
-            "https://api.unusualwhales.com/api/option-trades/flow-alerts",
-            params={"ticker_symbol": "AAPL", "limit": "1"},
-            headers=_uw_headers(key),
-            timeout=15.0,
-        )
-    except httpx.HTTPError as exc:
-        return ("FAIL", f"HTTP error: {exc}")
-    if r.status_code == 401:
-        return ("FAIL", "HTTP 401 — UW key invalid")
-    if r.status_code == 403:
-        return ("WARN", "HTTP 403 — endpoint not in plan tier")
-    if r.status_code == 429:
-        return ("WARN", "HTTP 429 — rate-limited")
-    if r.status_code != 200:
-        return ("FAIL", f"HTTP {r.status_code}: {r.text[:80]}")
-    try:
-        data = r.json()
-    except Exception:
-        return ("WARN", "non-JSON response")
-    if isinstance(data, dict):
-        recs = data.get("data") or data.get("flow_alerts") or []
-    else:
-        recs = data if isinstance(data, list) else []
-    return ("OK", f"AAPL flow-alerts {len(recs) if isinstance(recs, list) else '?'} record(s)")
+# probe_uw_options_flow removed 2026-05-12: /api/option-trades/flow-alerts is
+# no longer consumed in production. The Databento OPRA.PILLAR UOA detector
+# is the canonical options-flow source (see scripts/probe_databento_entitlement.py
+# and open_prep/opra_uoa.py introduced in PRs #2155 and #2157). The other UW
+# endpoints (darkpool, spot-GEX, market-tide, insider) remain probed below
+# because their UI tabs are still wired — dormant when no key is configured.
 
 
 def _uw_probe(path: str, params: dict[str, str] | None, label: str) -> tuple[str, str]:
@@ -755,9 +725,8 @@ PROBES: list[Probe] = [
     Probe("Benzinga /api/v2/news/channels", probe_bz_news_channels, critical=False),
     Probe("Benzinga /api/v2/newsquantified", probe_bz_news_quantified, critical=False),
     Probe("Benzinga /api/v2.1/calendar/options_activity", probe_bz_options_activity, critical=False),
-    # Unusual Whales — v3 P-3c: active UOA source replacing retired Benzinga options_activity
-    Probe("UnusualWhales /api/option-trades/flow-alerts", probe_uw_options_flow, critical=True),
-    # v3 P-4b/d: new UW surfaces — Basic-tier entitlement verified 2026-05-01
+    # Unusual Whales — flow-alerts probe removed 2026-05-12 (replaced by OPRA.PILLAR).
+    # v3 P-4b/d: surviving UW surfaces — Basic-tier entitlement verified 2026-05-01
     # but not contractually guaranteed, so left non-critical.
     Probe("UnusualWhales /api/darkpool/{ticker}", probe_uw_darkpool, critical=False),
     Probe("UnusualWhales /api/stock/{ticker}/spot-exposures/strike", probe_uw_spot_gex, critical=False),
