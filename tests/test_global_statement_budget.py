@@ -135,7 +135,7 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
                 "_social_sentiment_blocked",
             ),
         ),
-        ("terminal_finnhub.py", 623, ("_social_sentiment_blocked",)),
+        ("terminal_finnhub.py", 571, ("_social_sentiment_blocked",)),
         ("terminal_spike_scanner.py", 96, ("_YF_UNIVERSE_CACHE",)),
         ("terminal_technicals.py", 212, ("_tv_consecutive_429s", "_tv_cooldown_until")),
         (
