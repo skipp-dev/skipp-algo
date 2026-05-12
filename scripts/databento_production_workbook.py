@@ -174,7 +174,7 @@ def create_excel_workbook_bytes(
             chunk_rows = min(end_row, rows) - start_row
             _emit(
                 f"sheet {sheet_index}/{total_sheets} '{sheet_name}' chunk {chunk_index} "
-                f"rows={start_row}-{min(end_row, rows)} ({chunk_rows} rows) to_excel begin"
+                f"rows=[{start_row}:{min(end_row, rows)}) ({chunk_rows} rows) to_excel begin"
             )
             chunk_t0 = perf_counter()
             prepared.iloc[start_row:end_row].to_excel(writer, sheet_name=chunk_sheet_name, index=False)

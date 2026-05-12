@@ -325,7 +325,7 @@ def test_create_excel_workbook_bytes_emits_progress_per_sheet() -> None:
     assert "'manifest' rows=1 begin" in joined, joined
     # Per-chunk heartbeats emitted by _write_chunked_sheet (diagnostic for
     # GHA no-output-watchdog at lookback=30 — see runs 25568632083 et al.).
-    assert "chunk 1 rows=0-1" in joined, joined
+    assert "chunk 1 rows=[0:1)" in joined, joined
     assert "chunk 1 to_excel done in" in joined, joined
     # Styling-pass markers with header/col_width split timing.
     assert "styling ws 1/3 'summary'" in joined, joined
