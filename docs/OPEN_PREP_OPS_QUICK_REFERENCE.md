@@ -127,6 +127,29 @@ Nach einem gesunden Lauf sollten folgende Dateien aktuell sein:
 - `TERMINAL_JSONL_PATH`
 - `TERMINAL_MAX_ITEMS` (default `500`)
 
+### Databento entitlement (2026-05-12 provider audit)
+
+- `DATABENTO_API_KEY` (Pflicht für OPRA UOA, equities OHLCV, definition schema)
+- `ENABLE_OPRA_UOA` (default `0`) — wenn `1` + Key gesetzt, ersetzt Unusual Whales
+  durch self-hosted OPRA.PILLAR UOA-Detector. Voraussetzung: Key muss
+  `OPRA.PILLAR` entitled sein — verifizieren mit:
+
+  ```
+  DATABENTO_API_KEY=... python -m scripts.probe_databento_entitlement
+  ```
+
+  Output zeigt alle entitled datasets + Cross-Tab mit Audit-Focus schemas
+  (`mbo`, `mbp-1`, `mbp-10`, `definition`, `statistics`, `imbalance`,
+  `cmbp-1`, `cbbo-1s`, `trades`).
+
+- **Audit-empfohlene High-Leverage Schemas** (Stand 2026-05-12):
+  - `imbalance` — Auction-Imbalance Pre-Market Signal, niedrige Kosten
+  - `definition` — ersetzt FMP `/stable/profile` round-trips (authoritative)
+  - `statistics` — günstiger als trades re-aggregation für daily OHLC+bid/ask
+  - `mbo` / `mbp-1` / `mbp-10` — SMC liquidity-context (Order-Book microstructure)
+  - `cmbp-1` / `cbbo-1s` — NBBO 1s touch-tape (spread/liquidity granularity)
+  - `OPRA.PILLAR` + `trades` — ersetzt Unusual Whales flow vollständig
+
 ---
 
 ## 5) Realtime Engine — Start / Verify / Restart
