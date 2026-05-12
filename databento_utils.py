@@ -375,3 +375,26 @@ def choose_default_dataset(
     if normalized:
         return normalized[0]
     return requested_normalized or PREFERRED_DATABENTO_DATASETS[0]
+
+
+def list_datasets_normalized(client: Any) -> set[str]:
+    """Return the client's dataset list as a normalized ``set[str]``.
+
+    ``client.metadata.list_datasets()`` may return non-string items (vendor
+    SDK changes have historically alternated between ``list[str]`` and a
+    list of typed records). Membership tests like ``"OPRA.PILLAR" in
+    datasets`` therefore have a silent-false-FAIL hazard if the items are
+    not strings.
+
+    This helper centralizes the normalization (R11 from
+    ``docs/AUDIT_L1_REVIEW_RETROSPECTIVE_2026-05-12.md``) so every probe
+    and dataset-selection call-site can use the same contract::
+
+        from databento_utils import list_datasets_normalized
+        datasets = list_datasets_normalized(client)
+        if "OPRA.PILLAR" not in datasets:
+            ...
+    """
+    raw = client.metadata.list_datasets()
+    return {str(item).strip() for item in raw if str(item).strip()}
+

@@ -62,16 +62,16 @@ def _probe(path: str, params: dict[str, str], api_key: str) -> dict[str, object]
     sanitized = url.replace(api_key, "***")
     try:
         request = Request(url, headers={"User-Agent": "skipp-algo-13f-probe/1.0"})
-        with urlopen(request, timeout=15.0) as response:  # noqa: S310 — known host
+        with urlopen(request, timeout=15.0) as response:
             status = response.status
             body = response.read(2048).decode("utf-8", errors="replace")
-    except Exception as exc:  # noqa: BLE001 — discovery loop
+    except Exception as exc:
         code = getattr(exc, "code", None)
         body = ""
         if hasattr(exc, "fp") and exc.fp is not None:  # type: ignore[attr-defined]
             try:
                 body = exc.fp.read(2048).decode("utf-8", errors="replace")  # type: ignore[attr-defined]
-            except Exception:  # noqa: BLE001
+            except Exception:
                 body = ""
         return {
             "path": path,
@@ -104,7 +104,7 @@ def main() -> int:
         if result["ok"]:
             any_ok = True
         print(
-            f"{str(result['status']):>5}  {result['path']:<60}  "
+            f"{result['status']!s:>5}  {result['path']:<60}  "
             f"{str(result.get('body_head', ''))[:120]}",
         )
 
