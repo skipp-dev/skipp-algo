@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from open_prep.opra_uoa import (
+from newsstack_fmp.opra_uoa import (
     OpraDefinitionRecord,
     detect_unusual_options_activity,
 )

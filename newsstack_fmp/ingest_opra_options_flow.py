@@ -4,7 +4,7 @@ Public surface mirrors ``ingest_unusual_whales.fetch_uw_options_flow`` so
 ``streamlit_monitor._cached_bz_options_op`` can swap providers behind a
 feature flag (``ENABLE_OPRA_UOA``) with zero downstream renderer changes.
 
-The detector lives in ``open_prep.opra_uoa`` and is I/O-free; this module
+The detector lives in ``newsstack_fmp.opra_uoa`` and is I/O-free; this module
 is the I/O shell that:
 
 1.  Resolves the ticker list and parent-symbology symbols (``AAPL.OPT``).
@@ -33,7 +33,7 @@ import os
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from open_prep.opra_uoa import (
+from newsstack_fmp.opra_uoa import (
     OpraDefinitionRecord,
     detect_unusual_options_activity,
 )
@@ -171,7 +171,7 @@ def fetch_opra_options_flow(
         output so sweep-cluster context isn't truncated.
     min_premium
         Optional dollar gate forwarded to the detector. ``None`` = $25k
-        default (see :pyfunc:`open_prep.opra_uoa.detect_unusual_options_activity`).
+        default (see :pyfunc:`newsstack_fmp.opra_uoa.detect_unusual_options_activity`).
     window_minutes
         Look-back window in minutes. Defaults to ``OPRA_UOA_TRADES_WINDOW_MIN``
         env var or 15 minutes.
