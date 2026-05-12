@@ -375,26 +375,19 @@ def fetch_social_sentiment_batch(
 # All four use the same generic 403/404 DISABLED-path short-circuit
 # landed earlier in this file so quota-locked endpoints auto-suppress.
 
-_NEWS_TTL = 300         # 5 min  — company news refreshes intra-day
+# _NEWS_TTL removed 2026-05-12 (Option B): the Finnhub /company-news
+# fetcher had no production consumers and is fully covered by FMP
+# /stable/news/stock-latest (wired in newsstack_fmp/pipeline.py).
 _SENTIMENT_TTL = 1800   # 30 min — news sentiment is a slower aggregate
 _RECO_TTL = 21600       # 6 h    — recommendation trends update infrequently
 _INSIDER_TTL = 21600    # 6 h    — insider sentiment is monthly
 
 
-@dataclass(frozen=True, slots=True)
-class CompanyNewsItem:
-    """One Finnhub /company-news article."""
-
-    symbol: str
-    item_id: int
-    datetime_epoch: float
-    headline: str
-    summary: str
-    source: str
-    url: str
-    category: str
-    related: str
-    image: str
+# CompanyNewsItem removed 2026-05-12 (Option B). The Finnhub /company-news
+# endpoint is fully duplicative with FMP /stable/news/stock-latest, which
+# is the canonical newsstack source (see newsstack_fmp/pipeline.py and
+# scripts/probe_providers.py::probe_fmp_news). The dataclass had no
+# production consumer outside of its own fetch_company_news() helper.
 
 
 @dataclass(frozen=True, slots=True)
@@ -444,56 +437,11 @@ def _ymd_window(days_back: int) -> tuple[str, str]:
     return start.isoformat(), today.isoformat()
 
 
-def fetch_company_news(
-    symbol: str,
-    *,
-    days_back: int = 7,
-    max_items: int = 50,
-) -> list[CompanyNewsItem]:
-    """GET /company-news?symbol=&from=&to= — recent per-symbol headlines.
-
-    Returns up to *max_items* most-recent articles within *days_back*.
-    Returns ``[]`` on HTTP error / quota lock / non-equity symbol /
-    missing API key.  Caches per ``(symbol, days_back, max_items)`` for
-    5 minutes (max_items included so callers with different limits do not
-    collide on a previously-cached truncated list).
-    """
-    if not is_equity_symbol(symbol):
-        return []
-    sym = symbol.upper().strip()
-    # Audit-fix (2026-05-09): include max_items in cache key so callers with
-    # different limits don't collide on a previously-cached truncated list.
-    cache_key = f"company_news:{sym}:{days_back}:{max_items}"
-    found, cached = _get_cached(cache_key, _NEWS_TTL)
-    if found:
-        return cached  # type: ignore[return-value]
-    frm, to = _ymd_window(days_back)
-    raw = _get("/company-news", {"symbol": sym, "from": frm, "to": to})
-    if not isinstance(raw, list):
-        return []
-    items: list[CompanyNewsItem] = []
-    for rec in raw[:max_items]:
-        if not isinstance(rec, dict):
-            continue
-        try:
-            items.append(
-                CompanyNewsItem(
-                    symbol=sym,
-                    item_id=int(rec.get("id") or 0),
-                    datetime_epoch=float(rec.get("datetime") or 0.0),
-                    headline=str(rec.get("headline") or "").strip(),
-                    summary=str(rec.get("summary") or "").strip(),
-                    source=str(rec.get("source") or "").strip(),
-                    url=str(rec.get("url") or "").strip(),
-                    category=str(rec.get("category") or "").strip(),
-                    related=str(rec.get("related") or "").strip(),
-                    image=str(rec.get("image") or "").strip(),
-                )
-            )
-        except (TypeError, ValueError):
-            continue
-    _set_cached(cache_key, items)
-    return items
+# fetch_company_news() removed 2026-05-12 (Option B). Replacement:
+# the FMP /stable/news/stock-latest endpoint is the canonical newsstack
+# source via newsstack_fmp/pipeline.py. The Finnhub variant had no
+# production consumers and the /company-news endpoint is a Finnhub
+# free-tier feature that frequently rate-limits during market hours.
 
 
 def fetch_news_sentiment(symbol: str) -> NewsSentimentSummary | None:

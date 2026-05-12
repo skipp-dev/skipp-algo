@@ -91,8 +91,16 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("newsstack_fmp/ingest_benzinga.py", 207),
         ("newsstack_fmp/ingest_fmp.py", 136),
         ("newsstack_fmp/ingest_fmp.py", 154),
-        ("newsstack_fmp/ingest_fmp_filings.py", 121),
-        ("newsstack_fmp/ingest_fmp_filings.py", 134),
+        # PR #2154: ingest_fmp_filings.py shifted +8 (121→129, 134→142)
+        # by the FMP-13F probe instrumentation + retry-after-Header parser.
+        # Both sleeps remain legit retry-backoff (HTTP 429 + connect error).
+        ("newsstack_fmp/ingest_fmp_filings.py", 129),
+        ("newsstack_fmp/ingest_fmp_filings.py", 142),
+        # PR #2154: open_prep/macro.py shifted +35/+36 (726→761, 744→780)
+        # by FMP-13F probe instrumentation. Sleeps unchanged: legit
+        # retry-backoff (HTTP 429 + connect error).
+        ("open_prep/macro.py", 761),
+        ("open_prep/macro.py", 780),
         ("newsstack_fmp/ingest_fmp_political.py", 122),
         ("newsstack_fmp/ingest_fmp_political.py", 135),
         ("newsstack_fmp/shared_fetch.py", 279),
@@ -102,8 +110,6 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/alerts.py", 408),
         ("open_prep/alerts.py", 418),
         ("open_prep/error_taxonomy.py", 117),
-        ("open_prep/macro.py", 726),
-        ("open_prep/macro.py", 744),
         ("open_prep/realtime_signals.py", 267),
         ("open_prep/realtime_signals.py", 340),
         ("open_prep/realtime_signals.py", 1595),

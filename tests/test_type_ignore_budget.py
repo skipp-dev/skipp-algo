@@ -105,7 +105,7 @@ _FROZEN_FILE_COUNTS: dict[str, int] = {
     "terminal_ai_insights.py": 1,  # PR #2128: tuple-return (bool, T) miss-cache helper signature confuses generic narrowing.
     "terminal_bitcoin.py": 18,
     "terminal_export.py": 1,
-    "terminal_finnhub.py": 5,
+    "terminal_finnhub.py": 4,
     "terminal_fmp_insights.py": 1,  # PR #2128: tuple-return (bool, T) miss-cache helper signature confuses generic narrowing.
     "terminal_forecast.py": 2,
     "terminal_poller.py": 13,

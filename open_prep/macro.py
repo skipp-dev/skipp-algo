@@ -669,6 +669,11 @@ class FMPClient:
     stable_base_url: str = "https://financialmodelingprep.com"
     _circuit_breaker: _CircuitBreaker = field(default_factory=_CircuitBreaker, init=False, repr=False)
     _last_quote_fetch_diagnostics: dict[str, Any] = field(default_factory=dict, init=False, repr=False)
+    # G6 (2026-05-12): per-endpoint usage counters for provider-utilization audits.
+    # Tracks {endpoint_path: {"calls": int, "errors": int, "empty_responses": int}}.
+    # Read via get_endpoint_usage_stats(); intentionally process-local (no daemon
+    # threads, no persistence) so it stays cheap and side-effect-free.
+    _endpoint_usage_stats: dict[str, dict[str, int]] = field(default_factory=dict, init=False, repr=False)
 
     @classmethod
     def from_env(cls) -> FMPClient:
@@ -705,8 +710,38 @@ class FMPClient:
             payload = response.read().decode("utf-8")
         return self._parse_payload(path, payload)
 
+    def _record_endpoint_event(self, path: str, *, calls: int = 0, errors: int = 0, empty_responses: int = 0) -> None:
+        """Increment per-endpoint counters (G6 instrumentation).
+
+        Aggregates by exact ``path`` (e.g. "/stable/quote", "/stable/profile").
+        Cheap dict mutation; safe to call from any code path. Not thread-safe
+        across processes but fine within a single producer run.
+        """
+
+        bucket = self._endpoint_usage_stats.setdefault(
+            path, {"calls": 0, "errors": 0, "empty_responses": 0}
+        )
+        if calls:
+            bucket["calls"] += calls
+        if errors:
+            bucket["errors"] += errors
+        if empty_responses:
+            bucket["empty_responses"] += empty_responses
+
+    def get_endpoint_usage_stats(self) -> dict[str, dict[str, int]]:
+        """Return a deep copy of per-endpoint usage counters (G6).
+
+        Producer-side audit hook: callers can log this at end-of-run to capture
+        which FMP paths were actually exercised in a given pipeline invocation.
+        Empty when no calls have been made on this client instance.
+        """
+
+        return {path: dict(stats) for path, stats in self._endpoint_usage_stats.items()}
+
     def _execute_get(self, path: str, params: dict[str, Any], *, use_circuit_breaker: bool) -> Any:
+        self._record_endpoint_event(path, calls=1)
         if use_circuit_breaker and not self._circuit_breaker.allow_request():
+            self._record_endpoint_event(path, errors=1)
             raise RuntimeError(f"FMP API circuit open for {path}")
         max_attempts = max(self.retry_attempts, 1)
         for attempt in range(max_attempts):
@@ -738,6 +773,7 @@ class FMPClient:
                         body = exc.fp.read().decode("utf-8")
                     except Exception:
                         body = ""
+                self._record_endpoint_event(path, errors=1)
                 raise RuntimeError(f"FMP API HTTP {exc.code} on {path}: {body or exc.msg or 'HTTP error'}") from exc
             except urllib.error.URLError as exc:
                 if attempt + 1 < max_attempts:
@@ -745,10 +781,12 @@ class FMPClient:
                     continue
                 if use_circuit_breaker:
                     self._circuit_breaker.on_failure()
+                self._record_endpoint_event(path, errors=1)
                 raise RuntimeError(f"FMP API network error on {path}: {exc}") from exc
             except UpstreamPayloadError:
                 if use_circuit_breaker:
                     self._circuit_breaker.on_failure()
+                self._record_endpoint_event(path, errors=1)
                 raise
             except RuntimeError:
                 # Parse errors / schema drift are NOT upstream outages; let
@@ -1940,6 +1978,31 @@ class FMPClient:
 
 @dataclass
 class FinnhubClient:
+    """Open-prep facade over the Finnhub REST API.
+
+    Delegates HTTP I/O to :pyfunc:`terminal_finnhub._get` so the same
+    DISABLED-pattern (auto-mute on 403/404), rate-limit backoff and
+    API-key handling apply to the open-prep run as to the terminal UI.
+    Each method returns the *raw* Finnhub JSON shape so existing callers
+    in ``open_prep.run_open_prep`` (which already destructure ``data`` /
+    ``points`` / ``levels`` / ``technicalAnalysis``) keep working.
+
+    Provider-audit decision (2026-05-12, Option A):
+        Finnhub ``/stock/recommendation``, ``/news-sentiment``,
+        ``/stock/social-sentiment`` and ``/stock/insider-sentiment``
+        carry signals that are **not** 1:1 replicated in FMP, so the
+        previous empty-stub shape was actively dropping data on the
+        floor. These methods are now wired to live HTTP. Failures still
+        return the documented empty shape (``[]`` / ``{}``) so callers
+        do not need defensive try/except for the network path.
+
+    The thin facade pattern (rather than importing ``terminal_finnhub``
+    free functions directly) is kept because callers already pass a
+    ``FinnhubClient`` instance through the open-prep dataflow; switching
+    to module-level functions would touch every call site in
+    ``run_open_prep`` for no benefit.
+    """
+
     api_key: str = ""
 
     @classmethod
@@ -1949,29 +2012,125 @@ class FinnhubClient:
     def available(self) -> bool:
         return bool(self.api_key)
 
-    def get_insider_sentiment(self, symbol: str, from_date: str, to_date: str) -> list[dict[str, Any]]:
-        _ = (symbol, from_date, to_date)
-        return []
+    # ── internal HTTP shim ──
+    #
+    # We import ``terminal_finnhub`` lazily so the open-prep package can
+    # be imported in environments where the terminal stack is not
+    # available (e.g. CI smoke tests, headless cron runners that don't
+    # ship Streamlit). On import failure we fall back to the original
+    # stub behaviour so the run keeps moving — the audit decision to
+    # surface Finnhub signals must not break offline runs.
+    def _http_get(self, path: str, params: dict[str, Any] | None = None) -> Any:
+        if not self.api_key:
+            return None
+        try:
+            from terminal_finnhub import _get as _finnhub_get
+        except Exception:  # pragma: no cover - environmental fallback
+            logger.debug(
+                "FinnhubClient: terminal_finnhub unavailable; returning empty payload",
+                exc_info=True,
+            )
+            return None
+        # ``terminal_finnhub._get`` reads ``FINNHUB_API_KEY`` from the
+        # environment, not from the dataclass field. Push our key into
+        # the env so callers can still pass an explicit value via
+        # ``FinnhubClient(api_key=...)`` without surprising the shim.
+        prev = os.environ.get("FINNHUB_API_KEY")
+        try:
+            if self.api_key:
+                os.environ["FINNHUB_API_KEY"] = self.api_key
+            return _finnhub_get(path, params or {})
+        except Exception:
+            logger.debug("Finnhub %s call failed", path, exc_info=True)
+            return None
+        finally:
+            if prev is None:
+                os.environ.pop("FINNHUB_API_KEY", None)
+            else:
+                os.environ["FINNHUB_API_KEY"] = prev
+
+    def get_insider_sentiment(
+        self, symbol: str, from_date: str, to_date: str,
+    ) -> dict[str, Any]:
+        """Return the raw ``/stock/insider-sentiment`` payload.
+
+        Finnhub returns ``{"data": [{"symbol", "year", "month", "mspr",
+        "positiveChange", "negativeChange", ...}, ...], "symbol": ...}``.
+        Callers in ``run_open_prep._fetch_insider_sentiment`` destructure
+        ``raw["data"]`` directly, so we return the unwrapped dict.
+        """
+        sym = (symbol or "").strip().upper()
+        if not sym or not self.api_key:
+            return {}
+        raw = self._http_get(
+            "/stock/insider-sentiment",
+            {"symbol": sym, "from": from_date, "to": to_date},
+        )
+        return raw if isinstance(raw, dict) else {}
 
     def get_peers(self, symbol: str) -> list[str]:
-        _ = symbol
-        return []
+        """Return the company-peers list from ``/stock/peers``."""
+        sym = (symbol or "").strip().upper()
+        if not sym or not self.api_key:
+            return []
+        raw = self._http_get("/stock/peers", {"symbol": sym})
+        return [str(p) for p in raw if isinstance(p, str)] if isinstance(raw, list) else []
 
     def get_social_sentiment(self, symbol: str) -> dict[str, Any]:
-        _ = symbol
-        return {}
+        """Return raw ``/stock/social-sentiment`` payload.
 
-    def get_pattern_recognition(self, symbol: str) -> list[dict[str, Any]]:
-        _ = symbol
-        return []
+        Note: this endpoint requires a Finnhub paid tier; the
+        ``terminal_finnhub._get`` shim records a permanent DISABLED flag
+        on the first 403 so subsequent calls short-circuit without
+        burning quota.
+        """
+        sym = (symbol or "").strip().upper()
+        if not sym or not self.api_key:
+            return {}
+        raw = self._http_get("/stock/social-sentiment", {"symbol": sym})
+        return raw if isinstance(raw, dict) else {}
+
+    def get_pattern_recognition(self, symbol: str) -> dict[str, Any]:
+        """Return raw ``/scan/pattern`` payload (``points`` list inside)."""
+        sym = (symbol or "").strip().upper()
+        if not sym or not self.api_key:
+            return {}
+        raw = self._http_get(
+            "/scan/pattern", {"symbol": sym, "resolution": "D"},
+        )
+        return raw if isinstance(raw, dict) else {}
 
     def get_support_resistance(self, symbol: str) -> dict[str, Any]:
-        _ = symbol
-        return {}
+        """Return raw ``/scan/support-resistance`` payload."""
+        sym = (symbol or "").strip().upper()
+        if not sym or not self.api_key:
+            return {}
+        raw = self._http_get(
+            "/scan/support-resistance",
+            {"symbol": sym, "resolution": "D"},
+        )
+        return raw if isinstance(raw, dict) else {}
 
     def get_aggregate_indicators(self, symbol: str) -> dict[str, Any]:
-        _ = symbol
-        return {}
+        """Return raw ``/scan/technical-indicator`` payload."""
+        sym = (symbol or "").strip().upper()
+        if not sym or not self.api_key:
+            return {}
+        raw = self._http_get(
+            "/scan/technical-indicator",
+            {"symbol": sym, "resolution": "D"},
+        )
+        return raw if isinstance(raw, dict) else {}
 
     def get_fda_calendar(self) -> list[dict[str, Any]]:
+        """Return ``/fda-advisory-committee-meeting-calendar`` rows.
+
+        Finnhub returns a list of dicts; older plans return 403 which
+        the shim auto-mutes via the DISABLED-pattern.
+        """
+        if not self.api_key:
+            return []
+        raw = self._http_get("/fda-advisory-committee-meeting-calendar")
+        if isinstance(raw, list):
+            return [r for r in raw if isinstance(r, dict)]
         return []
