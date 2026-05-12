@@ -171,17 +171,36 @@ def create_excel_workbook_bytes(
             else:
                 suffix = f"_{chunk_index:03d}"
                 chunk_sheet_name = f"{base_name[: max(0, 31 - len(suffix))]}{suffix}"
+            chunk_rows = min(end_row, rows) - start_row
+            _emit(
+                f"sheet {sheet_index}/{total_sheets} '{sheet_name}' chunk {chunk_index} "
+                f"rows=[{start_row}:{min(end_row, rows)}) ({chunk_rows} rows) to_excel begin"
+            )
+            chunk_t0 = perf_counter()
             prepared.iloc[start_row:end_row].to_excel(writer, sheet_name=chunk_sheet_name, index=False)
+            _emit(
+                f"sheet {sheet_index}/{total_sheets} '{sheet_name}' chunk {chunk_index} "
+                f"to_excel done in {perf_counter() - chunk_t0:.2f}s"
+            )
         _emit(f"sheet {sheet_index}/{total_sheets} '{sheet_name}' rows={rows} done")
 
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         for idx, (name, frame) in enumerate(planned_sheets, start=1):
             _write_chunked_sheet(writer, frame, sheet_name=name, sheet_index=idx)
-        _emit("all sheets written, applying header styling")
 
         workbook = writer.book
-        for worksheet in workbook.worksheets:
+        total_ws = len(workbook.worksheets)
+        _emit(f"all sheets written, applying header styling (worksheets={total_ws})")
+        styling_t0 = perf_counter()
+        for ws_idx, worksheet in enumerate(workbook.worksheets, start=1):
+            ws_t0 = perf_counter()
+            rows_ct = worksheet.max_row
+            cols_ct = worksheet.max_column
+            _emit(
+                f"styling ws {ws_idx}/{total_ws} '{worksheet.title}' "
+                f"rows={rows_ct} cols={cols_ct} begin"
+            )
             worksheet.freeze_panes = "A2"
             worksheet.auto_filter.ref = worksheet.dimensions
             header_fill = PatternFill(fill_type="solid", fgColor="1F4E78")
@@ -190,10 +209,19 @@ def create_excel_workbook_bytes(
                 cell.fill = header_fill
                 cell.font = header_font
                 cell.alignment = Alignment(horizontal="center")
+            header_done = perf_counter()
             for column_cells in worksheet.columns:
                 max_length = max(len(str(cell.value or "")) for cell in column_cells)
                 worksheet.column_dimensions[get_column_letter(column_cells[0].column)].width = min(max(max_length + 2, 12), 28)
+            width_done = perf_counter()
+            _emit(
+                f"styling ws {ws_idx}/{total_ws} '{worksheet.title}' done "
+                f"(header={header_done - ws_t0:.2f}s col_width={width_done - header_done:.2f}s "
+                f"total={width_done - ws_t0:.2f}s)"
+            )
+        _emit(f"styling pass total {perf_counter() - styling_t0:.2f}s")
 
+        cf_t0 = perf_counter()
         summary_sheet = workbook["summary"]
         headers = {cell.value: idx + 1 for idx, cell in enumerate(summary_sheet[1])}
         heat_columns = [
@@ -223,6 +251,7 @@ def create_excel_workbook_bytes(
                     end_color="63BE7B",
                 ),
             )
+        _emit(f"conditional formatting applied in {perf_counter() - cf_t0:.2f}s")
 
         # Pin docProps/core.xml timestamps so byte output is deterministic for a
         # fixed generated_at. Without this, openpyxl writes datetime.utcnow()
@@ -232,7 +261,9 @@ def create_excel_workbook_bytes(
             pinned = datetime.fromtimestamp(float(generated_at), tz=UTC).replace(tzinfo=None)
             workbook.properties.created = pinned
             workbook.properties.modified = pinned
-    _emit("openpyxl context exit complete")
+        _emit("openpyxl writer __exit__ begin (XML serialization)")
+        _exit_started = perf_counter()
+    _emit(f"openpyxl writer __exit__ complete in {perf_counter() - _exit_started:.2f}s")
     raw = output.getvalue()
     if generated_at is not None:
         _emit(f"normalize_xlsx_zip_timestamps begin (raw_bytes={len(raw)})")
