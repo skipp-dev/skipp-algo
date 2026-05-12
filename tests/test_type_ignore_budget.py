@@ -95,7 +95,7 @@ _FROZEN_FILE_COUNTS: dict[str, int] = {
     "newsstack_fmp/store_sqlite.py": 3,
     "open_prep/alerts.py": 1,
     "open_prep/diff.py": 1,
-    "open_prep/streamlit_monitor.py": 25,  # rebaselined 2026-05-02 (was 18; +7 since last sync)
+    "open_prep/streamlit_monitor.py": 25,  # rebaselined 2026-05-12 PR #2163 (was 26; -1 for UW removal `_fetch_uw_options = None  # type: ignore[assignment]` shim — OPRA UOA shim _fetch_opra_options still present)
     "rl/agents/ppo_slicer.py": 4,
     "rl/agents/sac_sizer.py": 2,
     "smc_adapters/regime_bridge.py": 2,
@@ -105,7 +105,7 @@ _FROZEN_FILE_COUNTS: dict[str, int] = {
     "terminal_ai_insights.py": 1,  # PR #2128: tuple-return (bool, T) miss-cache helper signature confuses generic narrowing.
     "terminal_bitcoin.py": 18,
     "terminal_export.py": 1,
-    "terminal_finnhub.py": 5,
+    "terminal_finnhub.py": 4,
     "terminal_fmp_insights.py": 1,  # PR #2128: tuple-return (bool, T) miss-cache helper signature confuses generic narrowing.
     "terminal_forecast.py": 2,
     "terminal_poller.py": 13,

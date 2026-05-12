@@ -248,6 +248,76 @@ def probe_fmp_technical() -> tuple[str, str]:
     return ("OK", f"AAPL rsi(14)={row['rsi']:.2f}")
 
 
+def _probe_fmp_list(path: str, label: str, expected_min: int = 1) -> tuple[str, str]:
+    """Shared boilerplate for FMP list endpoints (movers + eod-bulk).
+
+    2026-05-12 G2/D3 re-check: verifies that ``/stable/biggest-gainers``,
+    ``/stable/biggest-losers``, ``/stable/most-actives`` and ``/stable/eod-bulk``
+    — consumed by ``open_prep/run_open_prep.py::_build_mover_seed`` /
+    ``_incremental_atr_from_eod_bulk`` and by ``terminal_spike_scanner.py``
+    — remain reachable on the production FMP plan.
+    """
+    import httpx
+    key = os.getenv("FMP_API_KEY", "")
+    if not key:
+        return ("SKIP", "FMP_API_KEY missing")
+    params: dict[str, str] = {"apikey": key}
+    if path == "/stable/eod-bulk":
+        params["datatype"] = "json"
+        params["date"] = date.today().isoformat()
+    try:
+        r = httpx.get(
+            f"https://financialmodelingprep.com{path}",
+            params=params,
+            timeout=15.0,
+        )
+    except httpx.HTTPError as exc:
+        return ("FAIL", f"HTTP error: {exc}")
+    if r.status_code == 401:
+        return ("FAIL", "HTTP 401 — FMP key invalid")
+    if r.status_code == 402:
+        return ("WARN", f"HTTP 402 — {label} not in plan tier")
+    if r.status_code == 429:
+        return ("WARN", "HTTP 429 — rate-limited")
+    if r.status_code != 200:
+        return ("FAIL", f"HTTP {r.status_code}: {r.text[:80]}")
+    try:
+        data = r.json()
+    except Exception:
+        return ("WARN", "non-JSON response")
+    if not isinstance(data, list):
+        return ("WARN", f"unexpected payload type={type(data).__name__}")
+    # eod-bulk is empty outside trading days — treat as WARN not FAIL.
+    if len(data) < expected_min:
+        return ("WARN", f"only {len(data)} rows (empty outside trading day for eod-bulk)")
+    sample_sym = data[0].get("symbol") if isinstance(data[0], dict) else "n/a"
+    return ("OK", f"{label} {len(data)} rows, sample={sample_sym}")
+
+
+def probe_fmp_biggest_gainers() -> tuple[str, str]:
+    """FMP /stable/biggest-gainers — mover-seed for run_open_prep."""
+    return _probe_fmp_list("/stable/biggest-gainers", "biggest-gainers")
+
+
+def probe_fmp_biggest_losers() -> tuple[str, str]:
+    """FMP /stable/biggest-losers — mover-seed for run_open_prep."""
+    return _probe_fmp_list("/stable/biggest-losers", "biggest-losers")
+
+
+def probe_fmp_most_actives() -> tuple[str, str]:
+    """FMP /stable/most-actives — premarket-mover seed (FMPClient.get_premarket_movers)."""
+    return _probe_fmp_list("/stable/most-actives", "most-actives")
+
+
+def probe_fmp_eod_bulk() -> tuple[str, str]:
+    """FMP /stable/eod-bulk — incremental ATR feed for run_open_prep.
+
+    Empty outside trading days; non-empty payload only required when the
+    probe runs on a US session day.
+    """
+    return _probe_fmp_list("/stable/eod-bulk", "eod-bulk", expected_min=0)
+
+
 def probe_databento_metadata() -> tuple[str, str]:
     """Databento metadata.list_datasets — auth + reachability."""
     key = os.getenv("DATABENTO_API_KEY", "")
@@ -453,42 +523,13 @@ def _uw_headers(key: str) -> dict[str, str]:
     }
 
 
-def probe_uw_options_flow() -> tuple[str, str]:
-    """Unusual Whales /api/option-trades/flow-alerts — active UOA source.
-
-    v3 P-3c: replaces the retired Benzinga ``/api/v2.1/calendar/options_activity``
-    feed in production. Uses Bearer auth with ``UNUSUAL_WHALES_API_KEY``.
-    """
-    import httpx
-    key = os.getenv("UNUSUAL_WHALES_API_KEY", "").strip()
-    if not key:
-        return ("SKIP", "UNUSUAL_WHALES_API_KEY missing")
-    try:
-        r = httpx.get(
-            "https://api.unusualwhales.com/api/option-trades/flow-alerts",
-            params={"ticker_symbol": "AAPL", "limit": "1"},
-            headers=_uw_headers(key),
-            timeout=15.0,
-        )
-    except httpx.HTTPError as exc:
-        return ("FAIL", f"HTTP error: {exc}")
-    if r.status_code == 401:
-        return ("FAIL", "HTTP 401 — UW key invalid")
-    if r.status_code == 403:
-        return ("WARN", "HTTP 403 — endpoint not in plan tier")
-    if r.status_code == 429:
-        return ("WARN", "HTTP 429 — rate-limited")
-    if r.status_code != 200:
-        return ("FAIL", f"HTTP {r.status_code}: {r.text[:80]}")
-    try:
-        data = r.json()
-    except Exception:
-        return ("WARN", "non-JSON response")
-    if isinstance(data, dict):
-        recs = data.get("data") or data.get("flow_alerts") or []
-    else:
-        recs = data if isinstance(data, list) else []
-    return ("OK", f"AAPL flow-alerts {len(recs) if isinstance(recs, list) else '?'} record(s)")
+# probe_uw_options_flow removed 2026-05-12: /api/option-trades/flow-alerts is
+# no longer consumed in production. The Databento OPRA.PILLAR UOA detector
+# is the canonical options-flow source (see scripts/probe_databento_entitlement.py
+# and newsstack_fmp/opra_uoa.py introduced in PRs #2155 and #2157;
+# ingestion wrapper: newsstack_fmp/ingest_opra_options_flow.py). The other UW
+# endpoints (darkpool, spot-GEX, market-tide, insider) remain probed below
+# because their UI tabs are still wired — dormant when no key is configured.
 
 
 def _uw_probe(path: str, params: dict[str, str] | None, label: str) -> tuple[str, str]:
@@ -740,6 +781,13 @@ PROBES: list[Probe] = [
     Probe("FMP /stable/news/press-releases", probe_fmp_press, critical=True),
     Probe("FMP /stable/company-screener", probe_fmp_screener, critical=True),
     Probe("FMP /stable/technical-indicators", probe_fmp_technical, critical=True),
+    # G2/D3 re-check 2026-05-12: mover seed + incremental ATR feeders.
+    # Critical because run_open_prep falls back to per-symbol ATR fetches
+    # (10× slower) if eod-bulk is missing, and mover_seed becomes empty.
+    Probe("FMP /stable/biggest-gainers", probe_fmp_biggest_gainers, critical=True),
+    Probe("FMP /stable/biggest-losers", probe_fmp_biggest_losers, critical=True),
+    Probe("FMP /stable/most-actives", probe_fmp_most_actives, critical=True),
+    Probe("FMP /stable/eod-bulk", probe_fmp_eod_bulk, critical=True),
     # Databento — primary market data
     Probe("Databento metadata.list_datasets", probe_databento_metadata, critical=True),
     Probe("Databento ohlcv-1d (AAPL,MSFT)", probe_databento_daily_bars, critical=True),
@@ -755,9 +803,8 @@ PROBES: list[Probe] = [
     Probe("Benzinga /api/v2/news/channels", probe_bz_news_channels, critical=False),
     Probe("Benzinga /api/v2/newsquantified", probe_bz_news_quantified, critical=False),
     Probe("Benzinga /api/v2.1/calendar/options_activity", probe_bz_options_activity, critical=False),
-    # Unusual Whales — v3 P-3c: active UOA source replacing retired Benzinga options_activity
-    Probe("UnusualWhales /api/option-trades/flow-alerts", probe_uw_options_flow, critical=True),
-    # v3 P-4b/d: new UW surfaces — Basic-tier entitlement verified 2026-05-01
+    # Unusual Whales — flow-alerts probe removed 2026-05-12 (replaced by OPRA.PILLAR).
+    # v3 P-4b/d: surviving UW surfaces — Basic-tier entitlement verified 2026-05-01
     # but not contractually guaranteed, so left non-critical.
     Probe("UnusualWhales /api/darkpool/{ticker}", probe_uw_darkpool, critical=False),
     Probe("UnusualWhales /api/stock/{ticker}/spot-exposures/strike", probe_uw_spot_gex, critical=False),

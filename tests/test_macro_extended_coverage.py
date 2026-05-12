@@ -1367,8 +1367,17 @@ def test_get_last_quote_fetch_diagnostics_returns_copy() -> None:
 
 
 # ---------------------------------------------------------------------------
-# FinnhubClient stubs (all return empty defaults)
+# FinnhubClient — Option-A facade (Finnhub HTTP delegation)
 # ---------------------------------------------------------------------------
+#
+# Provider audit 2026-05-12: the previous "stub returns empty" contract was
+# replaced by a thin facade over ``terminal_finnhub._get``. Tests now cover:
+#   (1) the no-key short-circuit (every getter returns its documented empty),
+#   (2) the with-key path delegating to the shim, with the shim mocked.
+# Removed pins that previously asserted ``get_insider_sentiment == []`` and
+# ``get_pattern_recognition == []`` because both now return the raw Finnhub
+# payload (dict with ``data`` / ``points`` keys) which is what callers in
+# ``open_prep.run_open_prep`` actually destructure.
 
 
 def test_finnhub_client_from_env_and_available(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1381,14 +1390,120 @@ def test_finnhub_client_from_env_and_available(monkeypatch: pytest.MonkeyPatch) 
     assert FinnhubClient.from_env().available() is False
 
 
-def test_finnhub_client_all_getters_return_empty_defaults() -> None:
-    client = FinnhubClient(api_key="K")
-    assert client.get_insider_sentiment("AAPL", "2026-01-01", "2026-04-23") == []
+def test_finnhub_client_no_key_returns_documented_empty_defaults() -> None:
+    """Without an API key, every getter must short-circuit to empty."""
+    client = FinnhubClient(api_key="")
+    assert client.get_insider_sentiment("AAPL", "2026-01-01", "2026-04-23") == {}
     assert client.get_peers("AAPL") == []
     assert client.get_social_sentiment("AAPL") == {}
-    assert client.get_pattern_recognition("AAPL") == []
+    assert client.get_pattern_recognition("AAPL") == {}
     assert client.get_support_resistance("AAPL") == {}
     assert client.get_aggregate_indicators("AAPL") == {}
+    assert client.get_fda_calendar() == []
+
+
+def test_finnhub_client_empty_symbol_returns_empty_defaults() -> None:
+    """Symbol-scoped getters must short-circuit on blank symbol input."""
+    client = FinnhubClient(api_key="K")
+    assert client.get_insider_sentiment("  ", "2026-01-01", "2026-04-23") == {}
+    assert client.get_peers("") == []
+    assert client.get_social_sentiment("") == {}
+    assert client.get_pattern_recognition(" ") == {}
+    assert client.get_support_resistance("") == {}
+    assert client.get_aggregate_indicators("") == {}
+
+
+def test_finnhub_client_delegates_to_terminal_finnhub_shim(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With a key set, each getter must call ``terminal_finnhub._get``.
+
+    The shim already owns DISABLED-on-403/404 muting + rate-limit backoff,
+    so the facade does not need to re-test that; we only need to confirm
+    delegation occurs with the right path + params.
+    """
+    import terminal_finnhub as _tf  # imported lazily by FinnhubClient._http_get
+
+    calls: list[tuple[str, dict[str, Any]]] = []
+
+    def _fake_get(path: str, params: dict[str, Any] | None = None) -> Any:
+        calls.append((path, dict(params or {})))
+        if path == "/stock/insider-sentiment":
+            return {"data": [{"mspr": 12.5}], "symbol": "AAPL"}
+        if path == "/stock/peers":
+            return ["MSFT", "NVDA"]
+        if path == "/scan/pattern":
+            return {"points": [{"patternname": "Doji"}]}
+        if path == "/fda-advisory-committee-meeting-calendar":
+            return [{"event": "AdCom"}]
+        return {"signal": "buy"}
+
+    monkeypatch.setattr(_tf, "_get", _fake_get)
+
+    client = FinnhubClient(api_key="K")
+    insider = client.get_insider_sentiment("aapl", "2026-01-01", "2026-04-23")
+    assert insider == {"data": [{"mspr": 12.5}], "symbol": "AAPL"}
+    assert client.get_peers("aapl") == ["MSFT", "NVDA"]
+    assert client.get_social_sentiment("aapl") == {"signal": "buy"}
+    pattern = client.get_pattern_recognition("aapl")
+    assert pattern == {"points": [{"patternname": "Doji"}]}
+    assert client.get_support_resistance("aapl") == {"signal": "buy"}
+    assert client.get_aggregate_indicators("aapl") == {"signal": "buy"}
+    assert client.get_fda_calendar() == [{"event": "AdCom"}]
+
+    # Verify path discipline + symbol uppercasing on the way through.
+    seen_paths = [c[0] for c in calls]
+    assert seen_paths == [
+        "/stock/insider-sentiment",
+        "/stock/peers",
+        "/stock/social-sentiment",
+        "/scan/pattern",
+        "/scan/support-resistance",
+        "/scan/technical-indicator",
+        "/fda-advisory-committee-meeting-calendar",
+    ]
+    assert calls[0][1] == {
+        "symbol": "AAPL", "from": "2026-01-01", "to": "2026-04-23",
+    }
+    assert calls[1][1] == {"symbol": "AAPL"}
+    assert calls[3][1] == {"symbol": "AAPL", "resolution": "D"}
+
+
+def test_finnhub_client_restores_env_after_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``_http_get`` pushes ``api_key`` into the env for the shim; verify it
+    restores the previous value (or unsets it) on the way out."""
+    import terminal_finnhub as _tf
+
+    monkeypatch.setattr(_tf, "_get", lambda path, params=None: [])
+    monkeypatch.setenv("FINNHUB_API_KEY", "ORIGINAL")
+
+    client = FinnhubClient(api_key="OVERRIDE")
+    client.get_peers("AAPL")
+    import os as _os
+    assert _os.environ.get("FINNHUB_API_KEY") == "ORIGINAL"
+
+    monkeypatch.delenv("FINNHUB_API_KEY", raising=False)
+    client.get_peers("AAPL")
+    assert _os.environ.get("FINNHUB_API_KEY") is None
+
+
+def test_finnhub_client_swallows_shim_exception(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If the shim raises, the facade must still return the documented empty."""
+    import terminal_finnhub as _tf
+
+    def _boom(path: str, params: dict[str, Any] | None = None) -> Any:
+        raise RuntimeError("network down")
+
+    monkeypatch.setattr(_tf, "_get", _boom)
+    client = FinnhubClient(api_key="K")
+    assert client.get_insider_sentiment("AAPL", "2026-01-01", "2026-04-23") == {}
+    assert client.get_peers("AAPL") == []
+    assert client.get_social_sentiment("AAPL") == {}
+    assert client.get_pattern_recognition("AAPL") == {}
     assert client.get_fda_calendar() == []
 
 

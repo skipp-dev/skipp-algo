@@ -123,55 +123,9 @@ class TestBackoff:
 _mock = mock
 
 
-class TestCompanyNews:
-    def setup_method(self) -> None:
-        terminal_finnhub._cache.clear()
-        terminal_finnhub.clear_blocked_paths()
-
-    def test_non_equity_returns_empty(self) -> None:
-        assert terminal_finnhub.fetch_company_news("BTC") == []
-
-    def test_parses_records(self) -> None:
-        payload = [
-            {
-                "id": 7, "datetime": 1700000000, "headline": "AAPL beats",
-                "summary": "x", "source": "Reuters", "url": "https://e",
-                "category": "company", "related": "AAPL", "image": "",
-            },
-            {"id": 8, "datetime": 1700000100, "headline": "more", "summary": "",
-             "source": "WSJ", "url": "u", "category": "c", "related": "AAPL",
-             "image": ""},
-        ]
-        with _mock.patch.object(terminal_finnhub, "_get", return_value=payload):
-            items = terminal_finnhub.fetch_company_news("AAPL", days_back=3)
-        assert len(items) == 2
-        assert items[0].symbol == "AAPL"
-        assert items[0].headline == "AAPL beats"
-        assert items[0].item_id == 7
-
-    def test_max_items_cap(self) -> None:
-        payload = [{"id": i, "datetime": 1, "headline": f"h{i}", "summary": "",
-                    "source": "s", "url": "u", "category": "", "related": "",
-                    "image": ""} for i in range(100)]
-        with _mock.patch.object(terminal_finnhub, "_get", return_value=payload):
-            items = terminal_finnhub.fetch_company_news("MSFT", max_items=5)
-        assert len(items) == 5
-
-    def test_empty_payload(self) -> None:
-        with _mock.patch.object(terminal_finnhub, "_get", return_value=[]):
-            assert terminal_finnhub.fetch_company_news("AAPL") == []
-
-    def test_caches_per_window(self) -> None:
-        calls = {"n": 0}
-        def fake_get(_p, _q):
-            calls["n"] += 1
-            return [{"id": 1, "datetime": 1, "headline": "h", "summary": "",
-                     "source": "s", "url": "u", "category": "", "related": "",
-                     "image": ""}]
-        with _mock.patch.object(terminal_finnhub, "_get", side_effect=fake_get):
-            terminal_finnhub.fetch_company_news("AAPL", days_back=1)
-            terminal_finnhub.fetch_company_news("AAPL", days_back=1)
-        assert calls["n"] == 1
+# TestCompanyNews removed 2026-05-12 (Option B): fetch_company_news and
+# CompanyNewsItem have been deleted in favour of FMP /stable/news/stock-latest
+# (the canonical newsstack source). See terminal_finnhub.py removal markers.
 
 
 class TestNewsSentiment:

@@ -113,10 +113,66 @@ Nach einem gesunden Lauf sollten folgende Dateien aktuell sein:
 ### Newsstack
 
 - `ENABLE_FMP` (default `1`)
+- `ENABLE_FMP_ARTICLES` (default `1`)
+- `ENABLE_FMP_GENERAL` (default `1`) — `/stable/news/general-latest`
 - `ENABLE_BENZINGA_REST` (default `0`)
 - `ENABLE_BENZINGA_WS` (default `0`)
 - `BENZINGA_API_KEY` (wenn REST/WS aktiviert)
+- `ENABLE_NEWSAPI_AI` (default `1`), `NEWSAPI_AI_KEY`
+  - **Dual-state cross-reference (audit L-1, finding #40)**: NewsAPI.ai
+    has TWO files in this repo and ops triage MUST check both paths:
+    - `terminal_newsapi.py` (~60 LOC) — **decommissioned stub**, all
+      functions return empty/False so legacy callers don't crash. Not
+      consumed by the live pipeline.
+    - `scripts/smc_newsapi_ai.py` (~810 LOC) — **active** ingestion
+      path, consumed by `scripts/smc_live_news_bus.py` and gated by the
+      `ENABLE_NEWSAPI_AI` env var above.
+    - Cross-ref pinned by `tests/test_terminal_newsapi_stub_marker.py`.
+- `ENABLE_TRADINGVIEW_NEWS` (default `0`)
+- `ENABLE_UW_NEWS` (default `0`) — Unusual Whales `/news/headlines` (Plan-Tier-abhängig)
 - `POLL_INTERVAL_S`, `TOP_N_EXPORT`, `SCORE_ENRICH_THRESHOLD`
+
+#### FMP Plan-Tier Feature Gates (`newsstack_fmp/config.py`)
+
+Diese Gates schalten FMP-Endpoints, die **Ultimate-Tier** (oder höher) bzw. ein
+dediziertes Add-on erfordern. Default = `0` (OFF), weil sie ohne passendes Plan-
+Tier 401/403/404 zurückliefern. Die DISABLED-Pattern-Logik in `mark_fmp_*_disabled`
+supprimiert wiederholte Failures, aber das macht es schwer zu erkennen, dass das
+Feature gar nicht eingeschaltet ist. **Vor Aktivierung Plan-Tier prüfen.**
+
+| Env | Default | Endpoint | Plan-Tier |
+|---|---|---|---|
+| `ENABLE_FMP_SENATE_TRADES` | `0` | `/stable/senate-latest` | Ultimate |
+| `ENABLE_FMP_HOUSE_TRADES`  | `0` | `/stable/house-latest`  | Ultimate |
+| `ENABLE_FMP_8K`            | `0` | `/sec-filings-8k`       | Standard+ (PR3) |
+| `ENABLE_FMP_13F`           | `0` | `/sec-filings-13f` (path unverified, siehe `scripts/probe_fmp_13f_endpoints.py`) | Standard+ |
+
+Aktivierung erfolgt per Workflow-Secret bzw. `--env`-Override im Cron-Lauf,
+nicht per `gh workflow run -f` ohne explizite User-Freigabe.
+
+#### Political Trades Enrichment (`open_prep/run_open_prep.py`)
+
+Die Open-Prep-Pipeline ruft zusätzlich `_fetch_political_trades(...)` (Zeile
+5034) **ungated** auf — d. h. unabhängig von den oben genannten
+`ENABLE_FMP_SENATE_TRADES` / `ENABLE_FMP_HOUSE_TRADES` Newsstack-Gates. Bei
+FMP-Plänen ohne Ultimate-Add-on liefern die Endpoints stillschweigend `[]`
+(via `_log_feature_unavailable_once` in `open_prep/macro.py:1656/1671`) und
+alle `politician_*` Quote-Felder bleiben Default-Werte (`False` / `0` / `""`).
+
+Konsequenz für Ops:
+
+- **Plan-Tier ohne Senate/House**: nichts zu tun, Pipeline läuft normal, Quote-
+  Felder sind leer — keine Alerts erforderlich.
+- **Plan-Tier mit Senate/House aktiv**: `politician_recent` / `politician_net`
+  in `latest_open_prep_run.json` sollten >0 Symbole zeigen. Wenn Plan aktiv
+  ist aber Felder leer bleiben, prüfen:
+  - `FMP_API_KEY` korrekt? (gleicher Key wie für Newsstack)
+  - In `latest_open_prep_run.json` Stage-Logs nach `Political trades fetch failed`
+    grep'en.
+  - Manueller Probe: `curl "https://financialmodelingprep.com/stable/senate-latest?page=0&limit=10&apikey=$FMP_API_KEY"`
+- **Feature deaktivieren**: aktuell nicht via Env-Flag möglich (TODO G4-Follow-up
+  — Patch wäre `ENABLE_FMP_POLITICAL=0` Gate um den `_fetch_political_trades`
+  Call). Bis dahin: keine Aktion notwendig, da silent no-op.
 
 ### Terminal
 
@@ -126,6 +182,29 @@ Nach einem gesunden Lauf sollten folgende Dateien aktuell sein:
 - `TERMINAL_SQLITE_PATH`
 - `TERMINAL_JSONL_PATH`
 - `TERMINAL_MAX_ITEMS` (default `500`)
+
+### Databento entitlement (2026-05-12 provider audit)
+
+- `DATABENTO_API_KEY` (Pflicht für OPRA UOA, equities OHLCV, definition schema)
+- `ENABLE_OPRA_UOA` (default `1` seit 2026-05-12 PR #2155 commit 6d6196cf) — wenn `1` + Key gesetzt, ersetzt Unusual Whales
+  durch self-hosted OPRA.PILLAR UOA-Detector. Voraussetzung: Key muss
+  `OPRA.PILLAR` entitled sein — verifizieren mit:
+
+  ```
+  DATABENTO_API_KEY=... python -m scripts.probe_databento_entitlement
+  ```
+
+  Output zeigt alle entitled datasets + Cross-Tab mit Audit-Focus schemas
+  (`mbo`, `mbp-1`, `mbp-10`, `definition`, `statistics`, `imbalance`,
+  `cmbp-1`, `cbbo-1s`, `trades`).
+
+- **Audit-empfohlene High-Leverage Schemas** (Stand 2026-05-12):
+  - `imbalance` — Auction-Imbalance Pre-Market Signal, niedrige Kosten
+  - `definition` — ersetzt FMP `/stable/profile` round-trips (authoritative)
+  - `statistics` — günstiger als trades re-aggregation für daily OHLC+bid/ask
+  - `mbo` / `mbp-1` / `mbp-10` — SMC liquidity-context (Order-Book microstructure)
+  - `cmbp-1` / `cbbo-1s` — NBBO 1s touch-tape (spread/liquidity granularity)
+  - `OPRA.PILLAR` + `trades` — ersetzt Unusual Whales flow vollständig
 
 ---
 
@@ -297,3 +376,14 @@ Wenn’s brennt:
 3. bei Bedarf degraded weiterlaufen lassen (fail-open) statt blind stoppen
 4. nach Recovery auf Timestamps + Kandidaten + Warnungen verifizieren
 5. Bei stale Preisen in Pre-/After-Market: `BENZINGA_API_KEY` + `market_session()` prüfen
+
+---
+
+## 13) Provider Decision Matrix (Audit L-1 Follow-ups)
+
+| Provider | Module | Status (2026-05-12) | Re-evaluate |
+|---|---|---|---|
+| Unusual Whales (UOA flow) | `newsstack_fmp/ingest_unusual_whales.py` (see removal comment ~line 35: `# UW_FLOW_ALERTS_PATH removed 2026-05-12`) | **DECOMMISSIONED** — replaced by self-hosted Databento OPRA UOA in `newsstack_fmp/opra_uoa.py` (PRs #2155 / #2157 / #2163) | n/a |
+| Unusual Whales (other adapters: darkpool, spot-GEX, market-tide, insider-transactions, news-headlines) | `newsstack_fmp/ingest_unusual_whales.py` `UnusualWhalesAdapter` | **DORMANT** — silently returns `[]` after subscription cancel (DISABLED-on-401 pattern). No production consumer left. | **2026-Q3 (by 2026-08-31, owner: ops)** — drop entire module + `UNUSUAL_WHALES_API_KEY` if no consumer reactivated. See `# .. todo:: 2026-Q3-uw-review` block at top of `newsstack_fmp/ingest_unusual_whales.py`. |
+| NewsAPI.ai | `terminal_newsapi.py` (stub, ~60 LOC) **vs.** `scripts/smc_newsapi_ai.py` (active, ~810 LOC) | **DUAL-STATE** — terminal_newsapi.py is decommissioned no-op; live ingestion in scripts/smc_newsapi_ai.py via `scripts/smc_live_news_bus.py`, gated by `ENABLE_NEWSAPI_AI` (default `1`). | n/a — pinned by `tests/test_terminal_newsapi_stub_marker.py`. |
+| OPRA UOA detector | `newsstack_fmp/opra_uoa.py` + ingestion wrapper `newsstack_fmp/ingest_opra_options_flow.py` | **ACTIVE** — gated by `ENABLE_OPRA_UOA` (default `1` since 2026-05-12 PR #2155 commit 6d6196cf). Consumes Databento OPRA.PILLAR. | n/a |
