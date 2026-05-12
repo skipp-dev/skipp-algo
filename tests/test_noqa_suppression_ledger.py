@@ -157,6 +157,13 @@ _FROZEN_SITES: dict[str, int] = {
     # surface the original error message in the probe report. BLE001
     # noqa is justified by the diagnostic-only nature of the script.
     "scripts/probe_databento_entitlement.py": 1,
+    # 2026-05-12 PR #2154: scripts/probe_fmp_13f_endpoints.py needs 3
+    # noqa suppressions: 1× S310 for the urllib.request.urlopen call
+    # (probe whitelisted-domain via deliberate URL inspection) and 2×
+    # BLE001 for the discovery loop's generic exception-catch (probe
+    # must surface every endpoint's error, not let one tear down the
+    # report). Diagnostic-only script.
+    "scripts/probe_fmp_13f_endpoints.py": 3,
 }
 _FROZEN_TOTAL = sum(_FROZEN_SITES.values())
 

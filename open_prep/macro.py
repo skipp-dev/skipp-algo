@@ -669,6 +669,11 @@ class FMPClient:
     stable_base_url: str = "https://financialmodelingprep.com"
     _circuit_breaker: _CircuitBreaker = field(default_factory=_CircuitBreaker, init=False, repr=False)
     _last_quote_fetch_diagnostics: dict[str, Any] = field(default_factory=dict, init=False, repr=False)
+    # G6 (2026-05-12): per-endpoint usage counters for provider-utilization audits.
+    # Tracks {endpoint_path: {"calls": int, "errors": int, "empty_responses": int}}.
+    # Read via get_endpoint_usage_stats(); intentionally process-local (no daemon
+    # threads, no persistence) so it stays cheap and side-effect-free.
+    _endpoint_usage_stats: dict[str, dict[str, int]] = field(default_factory=dict, init=False, repr=False)
 
     @classmethod
     def from_env(cls) -> FMPClient:
@@ -705,8 +710,38 @@ class FMPClient:
             payload = response.read().decode("utf-8")
         return self._parse_payload(path, payload)
 
+    def _record_endpoint_event(self, path: str, *, calls: int = 0, errors: int = 0, empty_responses: int = 0) -> None:
+        """Increment per-endpoint counters (G6 instrumentation).
+
+        Aggregates by exact ``path`` (e.g. "/stable/quote", "/stable/profile").
+        Cheap dict mutation; safe to call from any code path. Not thread-safe
+        across processes but fine within a single producer run.
+        """
+
+        bucket = self._endpoint_usage_stats.setdefault(
+            path, {"calls": 0, "errors": 0, "empty_responses": 0}
+        )
+        if calls:
+            bucket["calls"] += calls
+        if errors:
+            bucket["errors"] += errors
+        if empty_responses:
+            bucket["empty_responses"] += empty_responses
+
+    def get_endpoint_usage_stats(self) -> dict[str, dict[str, int]]:
+        """Return a deep copy of per-endpoint usage counters (G6).
+
+        Producer-side audit hook: callers can log this at end-of-run to capture
+        which FMP paths were actually exercised in a given pipeline invocation.
+        Empty when no calls have been made on this client instance.
+        """
+
+        return {path: dict(stats) for path, stats in self._endpoint_usage_stats.items()}
+
     def _execute_get(self, path: str, params: dict[str, Any], *, use_circuit_breaker: bool) -> Any:
+        self._record_endpoint_event(path, calls=1)
         if use_circuit_breaker and not self._circuit_breaker.allow_request():
+            self._record_endpoint_event(path, errors=1)
             raise RuntimeError(f"FMP API circuit open for {path}")
         max_attempts = max(self.retry_attempts, 1)
         for attempt in range(max_attempts):
@@ -738,6 +773,7 @@ class FMPClient:
                         body = exc.fp.read().decode("utf-8")
                     except Exception:
                         body = ""
+                self._record_endpoint_event(path, errors=1)
                 raise RuntimeError(f"FMP API HTTP {exc.code} on {path}: {body or exc.msg or 'HTTP error'}") from exc
             except urllib.error.URLError as exc:
                 if attempt + 1 < max_attempts:
@@ -745,10 +781,12 @@ class FMPClient:
                     continue
                 if use_circuit_breaker:
                     self._circuit_breaker.on_failure()
+                self._record_endpoint_event(path, errors=1)
                 raise RuntimeError(f"FMP API network error on {path}: {exc}") from exc
             except UpstreamPayloadError:
                 if use_circuit_breaker:
                     self._circuit_breaker.on_failure()
+                self._record_endpoint_event(path, errors=1)
                 raise
             except RuntimeError:
                 # Parse errors / schema drift are NOT upstream outages; let
