@@ -1,3 +1,4 @@
+# live-window: off-hours-only  # F-V6-F2.1 (2026-05-02) — control-plane only (dispatches mutating heavy export); no contents/PR/issues writes
 # ---------------------------------------------------------------------------
 # smc-export-cron-watchdog
 #
@@ -20,8 +21,10 @@
 # DESIGN:
 #   - Watchdog runs on `ubuntu-latest` (small, reliable pool — separate
 #     scheduler queue from the heavy workflow).
-#   - Watchdog ticks every 15 min during a +0..+90 min window after each
-#     scheduled slot (12:00 UTC and 16:00 UTC, Mon-Fri).
+#   - Watchdog ticks every 15 min during a +45..+90 min window after each
+#     scheduled slot (12:00 UTC -> 12:45/13:00/13:15/13:30 ticks; 16:00 UTC
+#     -> 16:45/17:00/17:15/17:30 ticks; Mon-Fri only). Ticks before +45 min
+#     are intentionally absent — the threshold logic would no-op them anyway.
 #   - Threshold for "cron has failed to fire": 45 min after slot start.
 #     - 30 min would be too aggressive (gestern's 109 min delay was real,
 #       so cron MAY still fire late).
@@ -89,11 +92,14 @@ jobs:
           TODAY_UTC=$(date -u +%Y-%m-%d)
           DOW=$(date -u +%u)  # 1=Mon..7=Sun
 
-          echo "now_utc=$NOW_UTC_ISO (epoch=$NOW_UTC_EPOCH dow=$DOW)"
+          echo "now_utc=$NOW_UTC_ISO (epoch=$NOW_UTC_EPOCH dow=$DOW) force_dispatch=$FORCE_DISPATCH"
 
-          # Weekday gate: Mon-Fri only
-          if [ "$DOW" -gt 5 ]; then
-            echo "weekend — no-op"
+          # Weekday gate: Mon-Fri only.
+          # `workflow_dispatch` with `force_dispatch=true` bypasses the
+          # weekend gate so end-to-end testing on Sat/Sun actually exercises
+          # the dispatch path instead of silently no-op'ing.
+          if [ "$DOW" -gt 5 ] && [ "$FORCE_DISPATCH" != "true" ]; then
+            echo "weekend — no-op (set force_dispatch=true to bypass)"
             echo "decision=skip" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -135,12 +141,16 @@ jobs:
             exit 0
           fi
 
-          # Race-condition guard: any run for the heavy workflow
-          # created at or after the slot start counts as "already triggered".
-          # We do NOT filter by status — queued/in_progress/completed all
-          # mean "the cron got there or we already dispatched in a prior tick".
+          # Race-condition guard: any run for the heavy workflow on the
+          # `main` branch created at or after the slot start counts as
+          # "already triggered". We do NOT filter by status —
+          # queued/in_progress/completed all mean "the cron got there or we
+          # already dispatched in a prior tick".
+          # Branch filter is required: a `workflow_dispatch` of the heavy
+          # workflow on a feature branch during the slot window must NOT
+          # cause the watchdog to no-op the `main` backstop dispatch.
           RUN_COUNT=$(gh api "repos/${TARGET_REPO}/actions/workflows/${TARGET_WORKFLOW}/runs?per_page=20" \
-            --jq "[.workflow_runs[] | select(.created_at >= \"${ACTIVE_SLOT}\")] | length")
+            --jq "[.workflow_runs[] | select(.head_branch == \"main\" and .created_at >= \"${ACTIVE_SLOT}\")] | length")
           echo "runs_in_slot=$RUN_COUNT"
           echo "runs_in_slot=$RUN_COUNT" >> "$GITHUB_OUTPUT"
 
