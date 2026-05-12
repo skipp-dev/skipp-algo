@@ -10,13 +10,15 @@ use the same producer logic.
 
 from __future__ import annotations
 
+import logging
+import sys
 import zipfile
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
 from time import perf_counter
-from collections.abc import Callable
 from typing import Any
 
 import pandas as pd
@@ -24,6 +26,13 @@ from openpyxl.formatting.rule import ColorScaleRule
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from pandas.api.types import is_datetime64_any_dtype
+
+try:
+    import psutil  # type: ignore[import-not-found]
+
+    _PSUTIL_AVAILABLE = True
+except ImportError:  # pragma: no cover - graceful fallback if psutil absent
+    _PSUTIL_AVAILABLE = False
 
 from scripts.load_databento_export_bundle import load_export_bundle
 
@@ -110,6 +119,46 @@ def prepare_frame_for_excel(frame: pd.DataFrame) -> pd.DataFrame:
     return sanitized
 
 
+def _memory_snapshot() -> str:
+    """Return a one-line memory-usage snapshot for diagnostic emits.
+
+    Reports RSS (resident set size), VMS (virtual memory size), and USS
+    (unique set size, what cgroup oomd actually sees) when psutil is
+    available. Falls back to resource.getrusage when psutil is missing
+    or if psutil raises (rare; debug-logged so the swallow is observable).
+    USS requires a proc-walk so it's measurably more expensive than RSS,
+    but per-sheet cost is negligible (sheets are 10s-100s of MB events).
+    """
+    if _PSUTIL_AVAILABLE:
+        try:
+            proc = psutil.Process()
+            mi = proc.memory_info()
+            try:
+                uss = proc.memory_full_info().uss / 1024 / 1024
+                return (
+                    f"rss={mi.rss / 1024 / 1024:.0f}MB "
+                    f"vms={mi.vms / 1024 / 1024:.0f}MB "
+                    f"uss={uss:.0f}MB"
+                )
+            except Exception as exc:  # pragma: no cover - permission/platform edge
+                logging.debug("memory_full_info unavailable: %s", exc)
+                return (
+                    f"rss={mi.rss / 1024 / 1024:.0f}MB "
+                    f"vms={mi.vms / 1024 / 1024:.0f}MB"
+                )
+        except Exception as exc:  # pragma: no cover
+            logging.debug("psutil memory snapshot failed, falling back: %s", exc)
+    try:
+        import resource
+
+        ru = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        # Linux reports KiB; macOS reports bytes.
+        rss_mb = ru / 1024 / 1024 if sys.platform == "darwin" else ru / 1024
+        return f"rss_max={rss_mb:.0f}MB"
+    except Exception as exc:  # pragma: no cover
+        logging.debug("resource.getrusage failed: %s", exc)
+        return "rss=unknown"
+
 def create_excel_workbook_bytes(
     summary: pd.DataFrame,
     *,
@@ -145,7 +194,7 @@ def create_excel_workbook_bytes(
     if second_detail is not None and not second_detail.empty:
         planned_sheets.append(("second_detail", second_detail))
     total_sheets = len(planned_sheets)
-    _emit(f"begin openpyxl write, sheets={total_sheets}")
+    _emit(f"begin openpyxl write, sheets={total_sheets} mem={_memory_snapshot()}")
 
     def _write_chunked_sheet(
         writer: pd.ExcelWriter,
@@ -156,10 +205,16 @@ def create_excel_workbook_bytes(
     ) -> None:
         prepared = prepare_frame_for_excel(frame)
         rows = len(prepared)
-        _emit(f"sheet {sheet_index}/{total_sheets} '{sheet_name}' rows={rows} begin")
+        _emit(
+            f"sheet {sheet_index}/{total_sheets} '{sheet_name}' rows={rows} begin "
+            f"mem={_memory_snapshot()}"
+        )
         if prepared.empty:
             prepared.to_excel(writer, sheet_name=sheet_name, index=False)
-            _emit(f"sheet {sheet_index}/{total_sheets} '{sheet_name}' rows=0 done")
+            _emit(
+                f"sheet {sheet_index}/{total_sheets} '{sheet_name}' rows=0 done "
+                f"mem={_memory_snapshot()}"
+            )
             return
         # Pandas writes a header row, so data rows must stay below the worksheet max.
         max_data_rows_per_sheet = max(1, EXCEL_MAX_ROWS_PER_SHEET - 1)
@@ -182,7 +237,10 @@ def create_excel_workbook_bytes(
                 f"sheet {sheet_index}/{total_sheets} '{sheet_name}' chunk {chunk_index} "
                 f"to_excel done in {perf_counter() - chunk_t0:.2f}s"
             )
-        _emit(f"sheet {sheet_index}/{total_sheets} '{sheet_name}' rows={rows} done")
+        _emit(
+            f"sheet {sheet_index}/{total_sheets} '{sheet_name}' rows={rows} done "
+            f"mem={_memory_snapshot()}"
+        )
 
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
@@ -261,9 +319,14 @@ def create_excel_workbook_bytes(
             pinned = datetime.fromtimestamp(float(generated_at), tz=UTC).replace(tzinfo=None)
             workbook.properties.created = pinned
             workbook.properties.modified = pinned
-        _emit("openpyxl writer __exit__ begin (XML serialization)")
+        _emit(
+            f"openpyxl writer __exit__ begin (XML serialization) mem={_memory_snapshot()}"
+        )
         _exit_started = perf_counter()
-    _emit(f"openpyxl writer __exit__ complete in {perf_counter() - _exit_started:.2f}s")
+    _emit(
+        f"openpyxl writer __exit__ complete in {perf_counter() - _exit_started:.2f}s "
+        f"mem={_memory_snapshot()}"
+    )
     raw = output.getvalue()
     if generated_at is not None:
         _emit(f"normalize_xlsx_zip_timestamps begin (raw_bytes={len(raw)})")

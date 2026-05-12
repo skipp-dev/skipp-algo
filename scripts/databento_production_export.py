@@ -3249,8 +3249,26 @@ def _write_canonical_production_workbook(
         "intraday_all": intraday,
         "ranked": ranked,
         "daily_symbol_features_full_universe": daily_symbol_features_full_universe,
-        "full_universe_second_detail_open": full_universe_second_detail_open,
-        "full_universe_second_detail_close": full_universe_second_detail_close,
+        # Q5b (2026-05-12): full_universe_second_detail_open and
+        # full_universe_second_detail_close intentionally excluded from the
+        # canonical xlsx workbook to avoid runner OOM. Heartbeat-diagnostic
+        # probe run 25693860630 (workbook-heartbeat-diagnostic, lookback=30,
+        # 64 GB ubuntu-latest-l) was killed (exit 143 / SIGTERM) mid-chunk
+        # 4-of-7 of `full_universe_second_detail_open` (7,270,261 rows ×
+        # ~10 cols), 9m20s into Step 10/10c. Root cause is *likely* memory
+        # pressure (cgroup / systemd-oomd on the hosted runner) but is not
+        # formally confirmed; alternatives considered but not falsified
+        # include the GHA process watchdog, hosted-runner eviction, and
+        # /mnt disk pressure. The symptom-fix (skip these sheets) is valid
+        # regardless of the exact mechanism: the same data is exported as
+        # parquet artifacts via _write_exact_named_exports() in Step 10/10b
+        # (<export_dir>/full_universe_second_detail_open.parquet,
+        #  <export_dir>/full_universe_second_detail_close.parquet),
+        # which remains the authoritative path for all downstream consumers
+        # (verified consumer audit: smc_integration/, scripts/, docs/, README).
+        # Function params `full_universe_second_detail_open` /
+        # `_close` retained because their row counts are surfaced in
+        # output_summary.
         # Q5a (2026-05-09): full_universe_close_trade_detail intentionally
         # excluded from the canonical xlsx workbook to avoid runner OOM.
         # Validation run 25593357307 (Q3a HEAD f843f7a3, 6-shard matrix)
@@ -3287,6 +3305,11 @@ def _write_canonical_production_workbook(
         progress_callback(
             "workbook: skipping full_universe_close_trade_detail "
             "(parquet retained via Step 10/10b, Q5a OOM mitigation)"
+        )
+        progress_callback(
+            "workbook: skipping full_universe_second_detail_open + "
+            "full_universe_second_detail_close "
+            "(parquets retained via Step 10/10b, Q5b OOM mitigation)"
         )
     workbook_minute_detail = minute_detail
     workbook_second_detail = second_detail
