@@ -1,11 +1,14 @@
 # Audit L-1 Merge-Train — Code-Review Retrospective & Remediation Plan
 
 **Date:** 2026-05-12
+**Revision:** v2 (incorporates senior-engineer review feedback — see
+*Revision history* at end of doc).
 **Scope:** 18 PRs merged today (#2146 → #2165), inclusive of the
 "provider-rationalization" merge train (#2153–#2164) and the wrap-up #2165.
 **Reviewer signal source:** GitHub Copilot inline-review comments fetched via
 `gh api repos/.../pulls/<N>/comments --paginate` plus
-`reviewThreads` GraphQL (per `/memories/copilot-review-comments.md`).
+`reviewThreads` GraphQL (protocol committed as
+`docs/COPILOT_REVIEW_TRIAGE_PROTOCOL.md` per R14 step 0).
 
 > **Quick numbers**
 >
@@ -30,7 +33,7 @@ the remediation plan.
 
 | PR    | Title (short)                                        | Findings | Notable cluster(s)         |
 |-------|------------------------------------------------------|---------:|----------------------------|
-| #2148 | F-V8-Q5b skip oversized second_detail sheets         | 2        | C1 (psutil claim), C7 (eager arg) |
+| #2148 | F-V8-Q5b skip oversized second_detail sheets         | 2        | C7 (eager arg); psutil finding STALE-AT-REVIEW (`requirements.txt:16` already had `psutil>=5.9.0` from #2151) |
 | #2153 | smc-export-cron-watchdog                             | 7        | C1, C3 (race, branch-agnostic guard) |
 | #2154 | provider-utilization audit follow-up (G3/G4/G6)      | 7        | C3, C4, C1                 |
 | #2155 | OPRA.PILLAR UOA detector (replaces UW flow)          | **21**   | C1, C2, C6, C7, C8         |
@@ -71,13 +74,14 @@ The largest cluster. Sub-categories:
   (#2153); permission rationale claims `gh workflow run` while actual call is
   `gh api .../dispatches` (#2153 ×2).
 - **PR description ↔ implementation mismatch** —
-  `ENABLE_OPRA_UOA` "default 0 for safe rollout" in PR body, but **all 3 code
+  `ENABLE_OPRA_UOA` "default 0 for safe rollout" in PR body, but **all 4 code
   sites and `Config.enable_opra_uoa` default to "1"** (#2155 ×3, #2163 ×1).
   Confirmed today on `main`:
   ```text
-  open_prep/streamlit_monitor.py:677  os.environ.get("ENABLE_OPRA_UOA", "1")
-  open_prep/streamlit_monitor.py:2277 os.environ.get("ENABLE_OPRA_UOA", "1")
-  newsstack_fmp/config.py:66          os.getenv("ENABLE_OPRA_UOA", "1") == "1"
+  scripts/probe_providers.py:344       os.getenv("ENABLE_OPRA_UOA", "1")
+  open_prep/streamlit_monitor.py:677   os.environ.get("ENABLE_OPRA_UOA", "1")
+  open_prep/streamlit_monitor.py:2277  os.environ.get("ENABLE_OPRA_UOA", "1")
+  newsstack_fmp/config.py:66           os.getenv("ENABLE_OPRA_UOA", "1") == "1"
   ```
 - **CHANGELOG arithmetic / citation error** — "#2154 → #2161 (8 PRs) +
   #2163" is internally inconsistent (range already accounts for 8) (#2165).
@@ -88,21 +92,32 @@ The largest cluster. Sub-categories:
   `UW_FLOW_ALERTS_PATH` cited in `docs/OPEN_PREP_OPS_QUICK_REFERENCE.md` (#2164).
 
 ### C2 — Default-value / configuration inconsistency (≈5 findings)
-- Three independent `os.environ.get("ENABLE_OPRA_UOA", "1")` call-sites — no
-  single source of truth. Drift inevitable when default changes.
-- `Config.enable_opra_uoa` flag introduced (#2155) but **never wired** —
-  every consumer reads `os.environ` directly. Dead config.
+- **Four** independent default-reading call-sites for `ENABLE_OPRA_UOA`
+  (see C1 PR↔impl block above). No single source of truth — drift inevitable
+  when default changes.
+- `Config.enable_opra_uoa` flag introduced (#2155) but **has zero importers in
+  the repo** — verified via `git grep -nE "enable_opra_uoa" --include="*.py"`
+  which returns only the definition line itself. Every consumer reads
+  `os.environ` directly. Dead config.
 
 ### C3 — Concurrency / shared-state safety (3 findings, all real bugs)
 Confirmed today on `main`:
 
 - **`FMPClient._endpoint_usage_stats`** (#2154 ×2): mutated unsynchronized from
   `_record_endpoint_event` while `get_batch_quotes()` submits via
-  `ThreadPoolExecutor`. Read–modify–write increments will silently lose
-  counts and can `RuntimeError: dictionary changed size during iteration` from
-  `get_endpoint_usage_stats()` snapshotting.
-  Spot-checked: no `threading.Lock` guards `_endpoint_usage_stats` in
-  [open_prep/macro.py](open_prep/macro.py#L676).
+  `ThreadPoolExecutor`. The current code carries an explicit comment that
+  reads (verified on `main`):
+  > *"Cheap dict mutation; safe to call from any code path. Not thread-safe
+  > across processes but fine within a single producer run."*
+
+  This assumption is **wrong intra-process too**: nested `bucket["count"] += 1`
+  is read-modify-write at the Python level and is racy under threads regardless
+  of the GIL (the GIL only guarantees single-bytecode atomicity, not
+  LOAD_ATTR + INPLACE_ADD + STORE_ATTR sequences). Symptoms: silent counter
+  loss + occasional `RuntimeError: dictionary changed size during iteration`
+  from `get_endpoint_usage_stats()` snapshotting.
+  Spot-checked: `FMPClient._lock` exists but `_record_endpoint_event` does not
+  acquire it (`open_prep/macro.py:~676`).
 - **`_http_get` env-var mutation** (#2156): `open_prep/macro.py` line 2041
   temporarily writes `FINNHUB_API_KEY` into `os.environ` around the call into
   `terminal_finnhub._get`. Process-global mutation under concurrent fetch is
@@ -119,8 +134,14 @@ Confirmed today on `main`:
   [scripts/probe_fmp_13f_endpoints.py](scripts/probe_fmp_13f_endpoints.py)
   silently fails when key contains characters that `urlencode` percent-escapes
   (#2154).
-- `psutil` claimed-imported but **not in `requirements.txt`** (#2148) — not a
-  secret leak, but the same class of "claim ≠ reality" hazard.
+
+> **Note on the #2148 `psutil` finding:** initially listed under "claim ≠
+> reality" in this cluster, but verification against current `main` shows
+> `requirements.txt:16` already declares `psutil>=5.9.0` (added by #2151,
+> which landed *before* the #2148 review pass). The Copilot finding was
+> **stale at review time** — it is not C4 evidence. It is, however, a
+> direct confirmation of the R14 hypothesis that ~60% of unresolved
+> Copilot threads are stale at retrospective time.
 
 ### C5 — Lint-budget bypass / dead code (5 findings)
 - `import json` unused in `scripts/probe_databento_entitlement.py` (#2157 ×2).
@@ -162,6 +183,29 @@ from the Ruff include-pattern in `pyproject.toml`, so F401/RUF100 don't fire.
   in the repo we normalize via `str(d)` before comparison. The new OPRA probe
   in #2165 does `"OPRA.PILLAR" not in datasets` raw — possible false-FAIL
   (#2165, my own code).
+
+---
+
+## 2.1. Failure-risk matrix (blast-radius per cluster)
+
+Frequency alone is a misleading prioritization signal — a single C4 leak
+outranks 20 C1 doc-drift findings on operational impact. The matrix below
+re-justifies the T1/T2 sequencing in §5 by **blast-radius**:
+
+| Cluster | Findings | Blast-radius if a fresh one slips through                                              | Severity |
+|---------|---------:|----------------------------------------------------------------------------------------|----------|
+| C1 doc/code drift     | ~35 | Audit-trail debt; reviewer trust erosion; future grep-citations may break             | LOW      |
+| C2 defaults inconsistency | ~5 | Silent flag-flip skew between modules; "works on monitor, not on probe" debugging     | MED      |
+| **C3 concurrency**       | 3  | **Silent counter loss + sporadic `RuntimeError` in production producer runs**          | **HIGH** |
+| **C4 secret leakage**    | 3  | **API key in CI log forever; rotate-credentials response required**                    | **HIGH** |
+| C5 lint-budget bypass    | 5  | Dead code accumulates; future refactors trip on phantom imports                       | LOW      |
+| C6 test gaps             | 3  | New code paths regress invisibly; coverage metrics stale                              | MED      |
+| **C7 boundary bugs**     | 3  | **Production monitor fails to start (import-time `ValueError`); probe IndexError**     | **HIGH** |
+| C8 wrong import path     | 2  | Silent degradation (fallback constant, false-FAIL probe); slow to detect              | MED      |
+
+**Implication for §5 ordering:** R5/R6/R10 (covering C3/C7) deserve T1
+rather than the original frequency-based T2 placement. The §5 timeline
+below is updated accordingly.
 
 ---
 
@@ -212,7 +256,7 @@ ledger test file, find ``backtick-quoted ``module.function`` references in
 comments, attempt `importlib.import_module(...)` + `getattr(...)`, fail
 loudly if the symbol no longer exists. Catches #2155 ×2 directly.
 
-### R3 (T1) — PR-template "Defaults Table" + grep-gate
+### R3 (T1 best-effort + T2 hardening) — PR-template "Defaults Table" + gate
 
 Add to `.github/PULL_REQUEST_TEMPLATE.md`:
 
@@ -223,10 +267,19 @@ Add to `.github/PULL_REQUEST_TEMPLATE.md`:
 | ENABLE_OPRA_UOA | "1" | "1" |
 ```
 
-Add CI step `tools/check_defaults_table.py` that `gh pr view --json body`s
-the current PR, extracts the table, and `grep`s the diff for matching
-`os.environ.get("<KEY>", "<X>")` — fails the build if claimed-default ≠
-code-default. Catches #2155 ×3 + #2163 ×1.
+**T1 (best-effort)** — `tools/check_defaults_table.py` regex-grep'es the diff
+for `os\.environ\.get\("<KEY>",\s*"<X>"\)` and `os\.getenv\("<KEY>",\s*"<X>"\)`
+and cross-checks against the table. Lands fast; catches the obvious cases
+(#2155 ×3 + #2163 ×1).
+
+**T2 (hardening)** — replace the regex with an AST-walker over the diff'd
+files. Reason: regex misses values flowing through helpers
+(`_env_int(...)`, `_env_bool(...)`, module-level constants like
+`_DEFAULT_OPRA = "1"; os.environ.get(KEY, _DEFAULT_OPRA)`) and would clear a
+PR that is silently inconsistent. The AST pass resolves call targets and
+the constant-assignment graph, then asserts equality with the table. Mark
+the T1 gate **non-blocking warning** until the T2 AST pass lands; flip to
+blocking once T2 is green.
 
 ### R4 (T2) — Single feature-flag source of truth
 
@@ -238,14 +291,32 @@ exposes typed booleans and is the **only** module allowed to call
 `os.environ.get("ENABLE_*"` appears outside `feature_flags.py`.
 Wires `Config.enable_opra_uoa` into reality. Kills C2 entirely.
 
-### R5 (T2) — Concurrency safety for `FMPClient._endpoint_usage_stats`
+### R5 (T1, promoted from T2 — see §2.1) — Concurrency safety for `FMPClient._endpoint_usage_stats`
 
-Add `self._stats_lock = threading.Lock()` to `FMPClient.__post_init__`.
-Wrap `_record_endpoint_event` mutation and `get_endpoint_usage_stats`
-snapshot under the lock. Add regression test
-`tests/test_fmpclient_stats_concurrency.py` that hammers
-`_record_endpoint_event` from 32 threads × 1000 ops and asserts the
-recorded count equals `32_000`. Real bug, real fix.
+Add `self._stats_lock = threading.Lock()` to `FMPClient.__post_init__` (or
+reuse the existing `self._lock`; pick one and document). Wrap
+`_record_endpoint_event` mutation and `get_endpoint_usage_stats` snapshot
+under the lock. Snapshot must defensive-copy under the lock
+(`{k: dict(v) for k, v in self._endpoint_usage_stats.items()}`).
+
+**Test design — reviewer-strengthened:** a naive 32-threads × 1000-ops
+increment test will likely be GREEN even *without* the lock, because the
+GIL serializes individual bytecodes and the contention window for
+LOAD_ATTR + INPLACE_ADD + STORE_ATTR is sub-microsecond. The test must
+*manufacture* contention in one of two ways:
+
+1. **Sleep injection** — monkey-patch the bucket update to perform
+   `value = bucket["count"]; time.sleep(0.0001); bucket["count"] = value + 1`
+   (i.e. expand the read-modify-write window). Without the lock, ≥1 lost
+   increment is statistically guaranteed at 32×1000.
+2. **Atomic-counter baseline** — run the same workload against a
+   `collections.Counter` guarded by `threading.Lock`, then against the
+   under-test code, and assert recorded counts agree. Any divergence
+   exposes the unsynchronized path.
+
+Land both: (1) gives a deterministic regression for the lock removal
+failure mode; (2) gives a robustness oracle. Without these, the test is
+security-theatre.
 
 ### R6 (T2) — Eliminate `os.environ` mutation in `_http_get`
 
@@ -257,12 +328,25 @@ allow-deny ledger in `tests/test_os_environ_mutation_ledger.py`.
 ### R7 (T1) — Mandatory error-message redaction in probes
 
 Add to `tests/test_secret_leakage_probes.py`: AST-scan every
-`scripts/probe_*.py`; flag any `print(<…str(exc)…>)` or
-`return (..., str(exc))` that is not wrapped in `_redact_sensitive_error_text`
-or equivalent. Land the missing wrapping in
-`scripts/probe_databento_entitlement.py::_try_call` and
-`scripts/probe_fmp_13f_endpoints.py` (use `urllib.parse` redaction
-instead of `str.replace`). Kills C4.
+`scripts/probe_*.py` and flag every exception-stringification path that is
+not wrapped in `_redact_sensitive_error_text` (or an explicit allowlist
+entry). The heuristic must catch all of the following — naive
+`str(exc)`-only matching is insufficient:
+
+| Pattern                                                  | AST shape to detect |
+|----------------------------------------------------------|---------------------|
+| `print(f"err: {exc}")`                                   | `JoinedStr` containing `Name(exc)` inside `Call(print)` |
+| `print("err:", exc)`                                     | `Call(print)` with `Name(exc)` positional arg |
+| `print(f"err: {exc.args}")`                              | `JoinedStr` containing `Attribute(value=Name(exc), attr="args")` |
+| `return (..., str(exc))` / `return (..., repr(exc))`     | `Return(Tuple)` with `Call(str|repr, [Name(exc)])` |
+| `return (..., f"...{exc}...")`                           | `Return(Tuple)` containing `JoinedStr(...Name(exc)...)` |
+| `logger.error("...", exc_info=True)`                     | `Call(Attribute(logger, error\|warning\|info))` with `keyword(arg="exc_info", value=True)` |
+| `raise RuntimeError(str(exc))` re-raise into report dict | `Raise` with `Call(str, [Name(exc)])` |
+
+Allowlist is opt-in per-line via `# noqa: SECLEAK` with reason. Land the
+missing wrapping in `scripts/probe_databento_entitlement.py::_try_call` and
+`scripts/probe_fmp_13f_endpoints.py` (use `urllib.parse` redaction instead
+of `str.replace`). Kills C4.
 
 ### R8 (T1) — Expand Ruff include scope to `scripts/probe_*.py`
 
@@ -286,8 +370,10 @@ Catches the C6 gap from #2155 directly.
 env vars unset and selected parseable env vars deliberately mis-set
 (`OPRA_UOA_TRADES_WINDOW_MIN=not-an-int`), `importlib.import_module` every
 `newsstack_fmp/`, `open_prep/`, `scripts/` module. Assert no exception.
-Forces `int(os.getenv(...))` style import-time parsing into
-`_safe_int_env` helpers (which already exist in `newsstack_fmp/config.py`).
+Forces `int(os.getenv(...))` style import-time parsing into the existing
+`_env_int(...)` / `_env_bool(...)` helpers in
+[newsstack_fmp/config.py](newsstack_fmp/config.py) (note: helper is named
+`_env_int`, **not** `_safe_int_env` — clarified after reviewer feedback).
 Kills C7 sub-issue.
 
 ### R11 (T1) — `databento.metadata.list_datasets()` normalization helper
@@ -315,9 +401,17 @@ pushing any edit to a YAML/Markdown file with header comments, run
 just the diff context. We already know this trap from F-V8-C4; today it
 re-appeared in the watchdog header comment (#2153) and in #2161's TL;DR.
 
-### R14 (T2) — Resolve the 56 outstanding Copilot threads
+### R14 (T1 step 0 + T2 triage) — Resolve the 56 outstanding Copilot threads
 
-Per `/memories/copilot-review-comments.md` triage protocol:
+**Step 0 (T1, prerequisite — kills the knowledge-silo risk):** the triage
+protocol currently lives only in operator-local Copilot memory
+(`/memories/copilot-review-comments.md`). That makes it invisible to other
+maintainers and to a fresh checkout. Commit it as
+`docs/COPILOT_REVIEW_TRIAGE_PROTOCOL.md` in this repo so it is versioned,
+reviewable, and reproducible across machines. The memory file remains the
+operator's quick-reference; the repo doc is the source of truth.
+
+**Triage (T2):**
 1. For each unresolved thread, `read_file` the cited line on `main`.
 2. If suggestion already implemented (drift / stale), resolve via
    `resolveReviewThread` mutation — no code change.
@@ -325,33 +419,42 @@ Per `/memories/copilot-review-comments.md` triage protocol:
 
 Expectation based on prior audits: ~60% stale / ~40% actionable,
 i.e. ~22 fresh fixes. Group by file; aim for one chore-PR per cluster.
+Evidence for the 60%-stale base rate: see the C4 `psutil` finding above —
+stale at review time, would have been a no-op fix.
 
 ---
 
 ## 5. Prioritized remediation timeline
 
-| Order | Item | Tier | Est. LOC / effort |
-|------:|------|------|-------------------|
-| 1 | R1 — citation validator | T1 | ~80 LOC |
-| 2 | R2 — pin-test symbol validator | T1 | ~40 LOC |
-| 3 | R7 — probe secret-leak guard + redact wrapping | T1 | ~60 LOC |
-| 4 | R8 — Ruff scope to `scripts/probe_*.py` | T1 | 1 line + drift fixes |
-| 5 | R10 — import-safety sweep | T1 | ~60 LOC |
-| 6 | R11 — `list_datasets_normalized` helper | T1 | ~20 LOC |
-| 7 | R3 — PR-template Defaults Table + gate | T1 | ~50 LOC |
-| 8 | R13 — codify whole-file grep into memory | T1 | docs only |
-| 9 | R14 — triage 56 unresolved threads | T1/T2 | mostly resolutions |
-|10 | R5 — `_endpoint_usage_stats` lock + concurrency test | T2 | ~50 LOC |
-|11 | R6 — eliminate `FINNHUB_API_KEY` mutation | T2 | ~30 LOC + ledger entry |
-|12 | R4 — `feature_flags.py` SSOT | T2 | ~80 LOC |
-|13 | R9 — module-coverage tripwire | T2 | ~60 LOC |
-|14 | R12 — audit-doc-follows-code CI guard | T2 | ~70 LOC |
+Reordered after reviewer feedback to weight by **blast-radius** (§2.1)
+rather than frequency alone. C3/C7 items (R5, R6, R10) are promoted to T1.
 
-**T1 set (items 1–9) collectively prevents ~58 of today's 70 findings**
-(every C1, C4, C5, C7-import, C8 finding plus the structural Defaults gap).
+| Order | Item | Tier | Est. LOC / effort | Drives down cluster |
+|------:|------|------|-------------------|---------------------|
+|  1 | R7 — probe secret-leak guard + redact wrapping | T1 | ~60 LOC + AST-walker | C4 (HIGH) |
+|  2 | R10 — import-safety sweep | T1 | ~60 LOC | C7 (HIGH) |
+|  3 | R5 — `_endpoint_usage_stats` lock + sleep-injection test | T1 | ~50 LOC + test | C3 (HIGH) |
+|  4 | R6 — eliminate `FINNHUB_API_KEY` env-mutation | T1 | ~30 LOC + ledger entry | C3 (HIGH) |
+|  5 | R14-step0 — commit triage protocol as repo doc | T1 | docs only | meta |
+|  6 | R1 — citation validator | T1 | ~80 LOC | C1 |
+|  7 | R2 — pin-test symbol validator | T1 | ~40 LOC | C1 |
+|  8 | R8 — Ruff scope to `scripts/probe_*.py` | T1 | 1 line + drift fixes | C5 |
+|  9 | R11 — `list_datasets_normalized` helper | T1 | ~20 LOC | C8 |
+| 10 | R3 (regex part) — PR-template Defaults Table + warn-gate | T1 | ~50 LOC | C2 |
+| 11 | R13 — codify whole-file grep into memory | T1 | docs only | C1 |
+| 12 | R3 (AST part) — replace regex gate with AST-walker | T2 | ~120 LOC | C2 |
+| 13 | R4 — `feature_flags.py` SSOT | T2 | ~80 LOC | C2 |
+| 14 | R9 — module-coverage tripwire | T2 | ~60 LOC | C6 |
+| 15 | R12 — audit-doc-follows-code CI guard | T2 | ~70 LOC | C1 (audit-doc class) |
+| 16 | R14 — triage 56 unresolved threads | T2 | mostly resolutions | meta |
 
-**T2 set (items 10–14) prevents the remaining structural classes**
-(concurrency, env-var mutation, missing tests, doc-leads-code).
+**T1 set (items 1–11) collectively prevents ~60 of today's 70 findings**
+and additionally addresses the three HIGH-blast-radius clusters (C3, C4, C7)
+on day one.
+
+**T2 set (items 12–16) closes the remaining structural classes** (defaults
+SSOT, missing tests, doc-leads-code) and converts the R3 warn-gate into a
+blocking AST-validated gate.
 
 ---
 
@@ -371,19 +474,30 @@ After landing T1 + T2:
 
 ---
 
-## 7. Lessons codified into memory
+## 7. Lessons codified into memory **and into the repo**
 
-The following will be (or already are) added to `~/.../memories/`:
+Operator memory is convenient but invisible to other maintainers. Each
+lesson below has both a memory entry (fast-access for the active operator)
+**and** a planned repo-versioned counterpart (R14 step 0 + R12) so it
+survives a fresh checkout / new contributor onboarding.
 
-- `copilot-review-comments.md`: ✅ existing — re-emphasize the
-  whole-file grep before pushing YAML/MD header edits (R13).
-- `debugging.md`: doc-leads-code is a recurring trap; audit docs must land
-  with or after the code they describe (R12).
-- New: `feature-flag-defaults.md` — "single SSOT, never grep-distribute
-  defaults" (R4).
-- New: `concurrency-shared-mutables.md` — "any module-level mutable dict/list
-  touched from a `ThreadPoolExecutor` or `asyncio` callback needs an
-  explicit lock + concurrency test" (R5/R6).
+- `copilot-review-comments.md` (memory) → planned
+  `docs/COPILOT_REVIEW_TRIAGE_PROTOCOL.md` (repo, R14 step 0).
+  Re-emphasizes the whole-file grep before pushing YAML/MD header edits
+  (R13).
+- `debugging.md` (memory): doc-leads-code is a recurring trap; audit docs
+  must land with or after the code they describe — codified into CI by R12.
+- New: `feature-flag-defaults.md` (memory) — "single SSOT, never
+  grep-distribute defaults" (R4). Repo counterpart: the `feature_flags.py`
+  module + `tests/test_feature_flag_centralization.py` themselves serve
+  as the versioned spec.
+- New: `concurrency-shared-mutables.md` (memory) — "any module-level
+  mutable dict/list touched from a `ThreadPoolExecutor` or `asyncio`
+  callback needs an explicit lock + sleep-injected concurrency test"
+  (R5/R6). Repo counterpart: the test files themselves
+  (`tests/test_fmpclient_stats_concurrency.py`,
+  `tests/test_os_environ_mutation_ledger.py`) plus a short section in
+  `docs/COPILOT_REVIEW_TRIAGE_PROTOCOL.md`.
 
 ---
 
@@ -397,3 +511,30 @@ Captured at retrospective time for traceability:
 gh api repos/skippALGO/skipp-algo/pulls/<N>/comments --paginate \
   | python3 -c "import sys,json;[print(f\"{c['path']}:{c.get('line')} {c['body']}\") for c in json.load(sys.stdin) if 'opilot' in c['user']['login'].lower()]"
 ```
+
+---
+
+## 9. Revision history
+
+### v2 — 2026-05-12, post senior-engineer review
+
+Reviewer findings (8) and how each is addressed in this revision:
+
+| # | Reviewer finding                                                                 | Fix in v2                                                                                       |
+|---|----------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------|
+| 1 | C4 `psutil` evidence is stale (`requirements.txt:16` already had it from #2151)  | Removed from C4 bullet list; added explanatory note re-attributing it to R14's stale-thread thesis. §1 cluster column for #2148 updated. |
+| 2 | R10 cited `_safe_int_env` but actual helper is `_env_int`                        | R10 corrected; clarification note added.                                                        |
+| 3 | C2 said "three" call-sites but actually four (incl. `scripts/probe_providers.py:344`); also missed proof that `Config.enable_opra_uoa` has 0 importers | C1 PR↔impl block expanded to four sites with file paths + line numbers; C2 bullet rewritten with the `git grep` evidence. |
+| 4 | C3 #1 should cite the explicit "fine within a single producer run" comment and refute it, not silently treat the bug as "nobody thought about it" | C3 #1 now block-quotes the comment, then refutes with the bytecode-level argument (LOAD_ATTR + INPLACE_ADD + STORE_ATTR is not single-bytecode-atomic). |
+| 5 | R3 regex-based gate is bypassed by helper-wrapped or constant-mediated defaults | R3 split into T1 (regex, warn-only) + T2 (AST-walker, blocking). Timeline reflects both rows.   |
+| 6 | R7 AST heuristic too narrow — misses f-strings, `exc.args`, `logger.error(..., exc_info=True)`, return-tuples | R7 expanded with a 7-row pattern table covering every exception-stringification path.            |
+| 7 | R14 protocol lives in operator-local memory only — knowledge silo                | R14 step 0 added: commit `docs/COPILOT_REVIEW_TRIAGE_PROTOCOL.md` to repo. §7 reframed to pair every memory file with a versioned repo counterpart. |
+| 8 | Frequency-only prioritization undersells C3/C4/C7 blast-radius                   | New §2.1 Failure-risk matrix with explicit blast-radius column. §5 timeline reordered: R5/R6/R7/R10 promoted to T1. |
+
+Bonus reviewer point (R5 test design): naive 32×1000 thread test with GIL +
+`setdefault` may pass even without the lock → "security theatre". R5 test
+spec rewritten to require sleep-injection between read-modify-write **and**
+an `Atomic-Counter` baseline-comparison oracle.
+
+### v1 — 2026-05-12, initial submission
+Original report opened as PR #2166.
