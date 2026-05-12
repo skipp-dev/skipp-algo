@@ -34,12 +34,15 @@ UW_BASE_URL = "https://api.unusualwhales.com/api"
 # Endpoint paths (kept as constants for grep/refactor).
 # UW_FLOW_ALERTS_PATH removed 2026-05-12: the /option-trades/flow-alerts
 # endpoint is replaced by the self-hosted Databento OPRA.PILLAR UOA
-# detector in `open_prep.opra_uoa`. The remaining UnusualWhalesAdapter
-# methods (darkpool, spot-GEX, market-tide, insider-transactions,
-# news-headlines) stay because no OPRA equivalent exists for them —
-# they silently return [] now that the subscription is cancelled, via
-# the existing DISABLED-on-401 pattern in `_get_json`.
-UW_FLOW_RECENT_PATH = "/stock/{ticker}/flow-recent"
+# detector in `newsstack_fmp.opra_uoa` (ingestion wrapper:
+# `newsstack_fmp.ingest_opra_options`). The remaining
+# UnusualWhalesAdapter methods (darkpool, spot-GEX, market-tide,
+# insider-transactions, news-headlines) stay because no OPRA
+# equivalent exists for them — they silently return [] now that
+# the subscription is cancelled, via the existing DISABLED-on-401
+# pattern in `_get_json`.
+# UW_FLOW_RECENT_PATH also removed: the /stock/<ticker>/flow-recent
+# endpoint had no remaining consumers in production.
 # v3 P-4b: dark-pool prints + dealer-gamma-by-strike
 UW_DARKPOOL_TICKER_PATH = "/darkpool/{ticker}"
 UW_DARKPOOL_RECENT_PATH = "/darkpool/recent"
