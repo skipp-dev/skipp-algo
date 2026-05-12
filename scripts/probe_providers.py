@@ -347,8 +347,10 @@ def probe_databento_opra_entitlement() -> tuple[str, str]:
     if not key:
         return ("SKIP", "DATABENTO_API_KEY missing (env-blocked outside production CI)")
     from databento_client import _make_databento_client
+    from databento_utils import list_datasets_normalized
+
     client = _make_databento_client(key)
-    datasets = client.metadata.list_datasets()
+    datasets = list_datasets_normalized(client)
     if "OPRA.PILLAR" not in datasets:
         return (
             "FAIL",

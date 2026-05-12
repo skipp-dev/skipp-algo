@@ -38,7 +38,6 @@ zero so the failure is visible.
 
 from __future__ import annotations
 
-import json
 import os
 import sys
 from typing import Any
@@ -95,7 +94,7 @@ def _try_call(label: str, fn, *args, **kwargs) -> Any:
     """
     try:
         return fn(*args, **kwargs)
-    except Exception as exc:  # noqa: BLE001 \u2014 probe wants the message
+    except Exception as exc:
         return {"_error": f"{label} failed: {type(exc).__name__}: {exc}"}
 
 
