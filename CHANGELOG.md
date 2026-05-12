@@ -6,6 +6,46 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-12) — CI: smc-export-cron-watchdog backup workflow
+
+New workflow `.github/workflows/smc-export-cron-watchdog.yml` acts as a
+safety-net for missed/delayed scheduled triggers of
+`smc-databento-production-export`. The heavy export runs on the scarce
+`ubuntu-latest-l` (64 GB) larger-runner pool, where GHA scheduled events
+are observably delayed under load
+(documented:
+https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#schedule).
+
+**Empirical evidence motivating this:**
+
+- 2026-05-11 16:00 UTC slot fired at 17:49 UTC = **109 min delay** (run
+  25687318767).
+- 2026-05-12 12:00 UTC slot did not fire at all by +11 min — manual
+  dispatch was used instead (run 25733577369).
+- All other small-runner schedule events on 2026-05-12 (08:04, 08:05,
+  08:06, 08:50, 08:52, 10:06, 10:37, 10:41, 11:22, 11:50) fired on
+  time — confirms the issue is the larger-runner pool, not the GHA
+  scheduler in general.
+
+**Design:**
+
+- Watchdog runs on `ubuntu-latest` (separate, reliable pool).
+- Ticks at 12:45 / 13:00 / 13:15 / 13:30 UTC and 16:45 / 17:00 / 17:15 /
+  17:30 UTC (Mon-Fri).
+- Threshold: 45 min after slot start before dispatching (gives the cron
+  a realistic chance to fire late).
+- Race-condition guard: queries the heavy workflow's run list filtered
+  by `created_at >= slot_start`. If ANY run exists in the slot — queued,
+  in_progress, or completed regardless of conclusion — the watchdog
+  no-ops. Prevents duplicate dispatch + Databento double-billing when
+  cron is merely late, not missing.
+- Original `schedule:` triggers in
+  `smc-databento-production-export.yml` are intentionally **kept**.
+  Watchdog is a backup, not a replacement.
+
+Permissions: `actions: write` (for `gh workflow run`), `contents: read`.
+Concurrency-grouped to prevent overlapping watchdog ticks. 5-min timeout.
+
 ### Changed (2026-05-12) — F-V8-Q5b: skip oversized second_detail sheets from canonical workbook
 
 `scripts/databento_production_export.py::_write_canonical_production_workbook`

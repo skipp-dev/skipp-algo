@@ -4,7 +4,7 @@ A workflow is considered "orphan" if no file under tests/ references its
 basename. Every other workflow has at least one test that pins some part
 of its contract (cron schedule, on-block, jobs, env, permissions, etc.).
 
-The four orphans listed below are intentional:
+The orphans listed below are intentional:
 
 - ``g23-ab-watchdog``: external A/B drift watcher with no fixed contract
   surface (it shells out to a runtime decision tree); coverage lives in
@@ -13,6 +13,10 @@ The four orphans listed below are intentional:
   outputs a markdown summary, not a programmatic artifact.
 - ``regime-stratification-validation``: experimental regime sweep, kept
   out of the gate set deliberately while the methodology stabilises.
+- ``smc-export-cron-watchdog``: backup safety-net that dispatches
+  ``smc-databento-production-export.yml`` if its cron slot is missed.
+  Contract is the dispatch behaviour, not the YAML surface; coverage
+  lives in the parent workflow's pins + posture marker tests.
 
 Adding a new orphan must be a deliberate ALLOW_LIST edit. Adding a test
 for an existing orphan must drop it from ALLOW_LIST in the same PR.
@@ -32,6 +36,7 @@ ALLOWED_ORPHANS: frozenset[str] = frozenset({
     "g23-ab-watchdog.yml",
     "phase-b-promotion-readiness.yml",
     "regime-stratification-validation.yml",
+    "smc-export-cron-watchdog.yml",
 })
 
 

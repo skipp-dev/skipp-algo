@@ -1,0 +1,198 @@
+# live-window: off-hours-only  # F-V6-F2.1 (2026-05-02) — control-plane only (dispatches mutating heavy export); no contents/PR/issues writes
+# ---------------------------------------------------------------------------
+# smc-export-cron-watchdog
+#
+# Backup safety-net for `smc-databento-production-export.yml` cron triggers.
+#
+# WHY THIS EXISTS (empirical evidence, 2026-05-11/12):
+#   - The heavy export runs on `ubuntu-latest-l` (64 GB / 16 CPU). That
+#     larger-runner pool is observably scarcer than `ubuntu-latest`, and
+#     GitHub-hosted scheduled events on it are subject to documented delays
+#     under high load
+#     (https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#schedule).
+#   - 2026-05-11 16:00 UTC slot fired at 17:49 UTC = 109 min delay
+#     (run 25687318767).
+#   - 2026-05-12 12:00 UTC slot did NOT fire by 12:11 UTC; manual dispatch
+#     was used (run 25733577369).
+#   - Other small-runner schedule events (08:04, 08:05, 08:06, 08:50, 08:52,
+#     10:06, 10:37, 10:41, 11:22, 11:50 on 2026-05-12) all fired on time.
+#     => problem is the larger-runner pool, not the GHA scheduler in general.
+#
+# DESIGN:
+#   - Watchdog runs on `ubuntu-latest` (small, reliable pool — separate
+#     scheduler queue from the heavy workflow).
+#   - Watchdog ticks every 15 min during a +45..+90 min window after each
+#     scheduled slot (12:00 UTC -> 12:45/13:00/13:15/13:30 ticks; 16:00 UTC
+#     -> 16:45/17:00/17:15/17:30 ticks; Mon-Fri only). Ticks before +45 min
+#     are intentionally absent — the threshold logic would no-op them anyway.
+#   - Threshold for "cron has failed to fire": 45 min after slot start.
+#     - 30 min would be too aggressive (gestern's 109 min delay was real,
+#       so cron MAY still fire late).
+#     - 60 min would burn too much latency budget.
+#   - Race-condition guard: BEFORE dispatching, query the heavy workflow's
+#     run list filtered by `--created` to the slot window. If ANY run
+#     exists in the window — regardless of status (queued / in_progress /
+#     completed / success / failure) — we no-op. status==success-only would
+#     create duplicate dispatches when a real cron run is mid-flight.
+#   - The original `schedule:` triggers in
+#     `smc-databento-production-export.yml` are intentionally KEPT. This
+#     watchdog is a backup, not a replacement.
+# ---------------------------------------------------------------------------
+
+name: smc-export-cron-watchdog
+
+on:
+  schedule:
+    # 12:00 UTC slot watchdog ticks: 12:45, 13:00, 13:15, 13:30
+    - cron: "45 12 * * 1-5"
+    - cron: "0,15,30 13 * * 1-5"
+    # 16:00 UTC slot watchdog ticks: 16:45, 17:00, 17:15, 17:30
+    - cron: "45 16 * * 1-5"
+    - cron: "0,15,30 17 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      force_dispatch:
+        description: "Force dispatch even if a run already exists in slot (testing only)"
+        required: false
+        default: "false"
+
+permissions:
+  actions: write   # required for `gh workflow run` against target workflow
+  contents: read
+
+concurrency:
+  group: smc-export-cron-watchdog
+  cancel-in-progress: false
+
+env:
+  TARGET_WORKFLOW: smc-databento-production-export.yml
+  TARGET_REPO: ${{ github.repository }}
+  # Scheduled slot hours (UTC) for the heavy workflow
+  SLOT_HOURS: "12 16"
+  # Threshold in minutes after slot start before watchdog will dispatch
+  WATCHDOG_THRESHOLD_MIN: 45
+  # Max minutes after slot start before watchdog gives up (no-op)
+  WATCHDOG_WINDOW_MAX_MIN: 90
+
+jobs:
+  watchdog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Determine current slot and decide
+        id: decide
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FORCE_DISPATCH: ${{ github.event.inputs.force_dispatch || 'false' }}
+        run: |
+          set -euo pipefail
+
+          NOW_UTC_EPOCH=$(date -u +%s)
+          NOW_UTC_ISO=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          TODAY_UTC=$(date -u +%Y-%m-%d)
+          DOW=$(date -u +%u)  # 1=Mon..7=Sun
+
+          echo "now_utc=$NOW_UTC_ISO (epoch=$NOW_UTC_EPOCH dow=$DOW) force_dispatch=$FORCE_DISPATCH"
+
+          # Weekday gate: Mon-Fri only.
+          # `workflow_dispatch` with `force_dispatch=true` bypasses the
+          # weekend gate so end-to-end testing on Sat/Sun actually exercises
+          # the dispatch path instead of silently no-op'ing.
+          if [ "$DOW" -gt 5 ] && [ "$FORCE_DISPATCH" != "true" ]; then
+            echo "weekend — no-op (set force_dispatch=true to bypass)"
+            echo "decision=skip" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Find the most recent slot start (12:00 or 16:00 UTC today) that
+          # we are currently past. Pick the latest one.
+          ACTIVE_SLOT=""
+          ACTIVE_SLOT_EPOCH=0
+          for HOUR in $SLOT_HOURS; do
+            SLOT_ISO="${TODAY_UTC}T$(printf '%02d' "$HOUR"):00:00Z"
+            SLOT_EPOCH=$(date -u -d "$SLOT_ISO" +%s 2>/dev/null || \
+              python3 -c "import datetime,sys;print(int(datetime.datetime.strptime(sys.argv[1],'%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=datetime.timezone.utc).timestamp()))" "$SLOT_ISO")
+            if [ "$NOW_UTC_EPOCH" -ge "$SLOT_EPOCH" ] && [ "$SLOT_EPOCH" -gt "$ACTIVE_SLOT_EPOCH" ]; then
+              ACTIVE_SLOT="$SLOT_ISO"
+              ACTIVE_SLOT_EPOCH="$SLOT_EPOCH"
+            fi
+          done
+
+          if [ -z "$ACTIVE_SLOT" ]; then
+            echo "no slot has started yet today — no-op"
+            echo "decision=skip" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          ELAPSED_MIN=$(( (NOW_UTC_EPOCH - ACTIVE_SLOT_EPOCH) / 60 ))
+          echo "active_slot=$ACTIVE_SLOT elapsed_min=$ELAPSED_MIN"
+          echo "active_slot=$ACTIVE_SLOT" >> "$GITHUB_OUTPUT"
+          echo "elapsed_min=$ELAPSED_MIN" >> "$GITHUB_OUTPUT"
+
+          # Window check
+          if [ "$ELAPSED_MIN" -lt "$WATCHDOG_THRESHOLD_MIN" ]; then
+            echo "still within grace period (<${WATCHDOG_THRESHOLD_MIN}min) — no-op"
+            echo "decision=skip" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$ELAPSED_MIN" -gt "$WATCHDOG_WINDOW_MAX_MIN" ]; then
+            echo "past window (>${WATCHDOG_WINDOW_MAX_MIN}min) — give up, no-op"
+            echo "decision=skip" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Race-condition guard: any run for the heavy workflow on the
+          # `main` branch created at or after the slot start counts as
+          # "already triggered". We do NOT filter by status —
+          # queued/in_progress/completed all mean "the cron got there or we
+          # already dispatched in a prior tick".
+          # Branch filter is required: a `workflow_dispatch` of the heavy
+          # workflow on a feature branch during the slot window must NOT
+          # cause the watchdog to no-op the `main` backstop dispatch.
+          RUN_COUNT=$(gh api "repos/${TARGET_REPO}/actions/workflows/${TARGET_WORKFLOW}/runs?per_page=20" \
+            --jq "[.workflow_runs[] | select(.head_branch == \"main\" and .created_at >= \"${ACTIVE_SLOT}\")] | length")
+          echo "runs_in_slot=$RUN_COUNT"
+          echo "runs_in_slot=$RUN_COUNT" >> "$GITHUB_OUTPUT"
+
+          if [ "$RUN_COUNT" -gt 0 ] && [ "$FORCE_DISPATCH" != "true" ]; then
+            echo "already $RUN_COUNT run(s) in slot — no-op"
+            echo "decision=skip" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "decision=dispatch" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch heavy workflow
+        if: steps.decide.outputs.decision == 'dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTIVE_SLOT: ${{ steps.decide.outputs.active_slot }}
+          ELAPSED_MIN: ${{ steps.decide.outputs.elapsed_min }}
+        run: |
+          set -euo pipefail
+          echo "::notice::watchdog: dispatching ${TARGET_WORKFLOW} (slot=${ACTIVE_SLOT}, elapsed=${ELAPSED_MIN}min, threshold=${WATCHDOG_THRESHOLD_MIN}min)"
+          gh api "repos/${TARGET_REPO}/actions/workflows/${TARGET_WORKFLOW}/dispatches" \
+            -f ref=main \
+            -f "inputs[lookback_days]=30"
+          echo "::notice::dispatch fired — verify on Actions tab"
+
+      - name: Summary
+        if: always()
+        env:
+          DECISION: ${{ steps.decide.outputs.decision }}
+          ACTIVE_SLOT: ${{ steps.decide.outputs.active_slot }}
+          ELAPSED_MIN: ${{ steps.decide.outputs.elapsed_min }}
+          RUNS_IN_SLOT: ${{ steps.decide.outputs.runs_in_slot }}
+        run: |
+          {
+            echo "### smc-export-cron-watchdog summary"
+            echo ""
+            echo "| field | value |"
+            echo "| --- | --- |"
+            echo "| decision | ${DECISION:-unknown} |"
+            echo "| active_slot | ${ACTIVE_SLOT:-n/a} |"
+            echo "| elapsed_min | ${ELAPSED_MIN:-n/a} |"
+            echo "| runs_in_slot | ${RUNS_IN_SLOT:-n/a} |"
+            echo "| threshold_min | ${WATCHDOG_THRESHOLD_MIN} |"
+            echo "| window_max_min | ${WATCHDOG_WINDOW_MAX_MIN} |"
+          } >> "$GITHUB_STEP_SUMMARY"
