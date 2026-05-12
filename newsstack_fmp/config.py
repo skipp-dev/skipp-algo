@@ -54,6 +54,16 @@ class Config:
     # B1: Unusual Whales /news/headlines (default-OFF — endpoint availability
     # depends on UW plan tier; DISABLED-pattern auto-suppresses on 401/403/404).
     enable_uw_news: bool = field(default_factory=lambda: os.getenv("ENABLE_UW_NEWS", "0") == "1")
+    # OPRA UOA replacement (2026-05-12 provider audit). When ON, the
+    # streamlit_monitor options-flow tab consumes ``ingest_opra_options_flow``
+    # (Databento OPRA.PILLAR) instead of the now-defunct UW flow-alerts path.
+    # Flipped 1 (2026-05-12 post-audit follow-up): UW subscription cancelled
+    # and replacement code path is the new canonical route. The downstream
+    # ``_cached_bz_options_op`` selector still requires ``DATABENTO_API_KEY``
+    # to be present, so missing-entitlement environments degrade to an empty
+    # list instead of hitting the dead UW endpoint. Override to 0 only when
+    # explicitly forcing the legacy Benzinga shim during local debug.
+    enable_opra_uoa: bool = field(default_factory=lambda: os.getenv("ENABLE_OPRA_UOA", "1") == "1")
     # B4/B5/B7 (PR3 2026-05-09) — FMP extras. general-latest is default-ON
     # (pure value-add macro coverage); Senate/House/8-K default-OFF since
     # they require dedicated FMP plan tiers (DISABLED-pattern auto-suppresses).

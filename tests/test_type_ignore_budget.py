@@ -95,7 +95,7 @@ _FROZEN_FILE_COUNTS: dict[str, int] = {
     "newsstack_fmp/store_sqlite.py": 3,
     "open_prep/alerts.py": 1,
     "open_prep/diff.py": 1,
-    "open_prep/streamlit_monitor.py": 25,  # rebaselined 2026-05-02 (was 18; +7 since last sync)
+    "open_prep/streamlit_monitor.py": 26,  # rebaselined 2026-05-12 (was 25; +1 for OPRA UOA optional-import shim `_fetch_opra_options = None  # type: ignore[assignment]`)
     "rl/agents/ppo_slicer.py": 4,
     "rl/agents/sac_sizer.py": 2,
     "smc_adapters/regime_bridge.py": 2,

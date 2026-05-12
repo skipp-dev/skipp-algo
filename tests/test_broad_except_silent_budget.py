@@ -85,6 +85,10 @@ _FROZEN_SITE_COUNTS: dict[str, int] = {
     "open_prep/alerts.py": 1,
     "open_prep/run_open_prep.py": 1,
     "open_prep/streamlit_monitor.py": 2,
+    # 2026-05-12 OPRA UOA replacement: detector falls back through a
+    # narrow int-cast on non-Timestamp timestamp inputs. Documented
+    # contract; see opra_uoa._ts_to_ns().
+    "newsstack_fmp/opra_uoa.py": 1,
 }
 
 
