@@ -10,27 +10,29 @@ use the same producer logic.
 
 from __future__ import annotations
 
+import logging
+import sys
 import zipfile
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
 from time import perf_counter
-from collections.abc import Callable
 from typing import Any
-
-try:
-    import psutil  # type: ignore[import-not-found]
-
-    _PSUTIL_AVAILABLE = True
-except ImportError:  # pragma: no cover - psutil is in requirements.txt
-    _PSUTIL_AVAILABLE = False
 
 import pandas as pd
 from openpyxl.formatting.rule import ColorScaleRule
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from pandas.api.types import is_datetime64_any_dtype
+
+try:
+    import psutil  # type: ignore[import-not-found]
+
+    _PSUTIL_AVAILABLE = True
+except ImportError:  # pragma: no cover - graceful fallback if psutil absent
+    _PSUTIL_AVAILABLE = False
 
 from scripts.load_databento_export_bundle import load_export_bundle
 
@@ -127,8 +129,6 @@ def _memory_snapshot() -> str:
     USS requires a proc-walk so it's measurably more expensive than RSS,
     but per-sheet cost is negligible (sheets are 10s-100s of MB events).
     """
-    import logging
-
     if _PSUTIL_AVAILABLE:
         try:
             proc = psutil.Process()
@@ -150,7 +150,6 @@ def _memory_snapshot() -> str:
             logging.debug("psutil memory snapshot failed, falling back: %s", exc)
     try:
         import resource
-        import sys
 
         ru = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         # Linux reports KiB; macOS reports bytes.
@@ -159,7 +158,6 @@ def _memory_snapshot() -> str:
     except Exception as exc:  # pragma: no cover
         logging.debug("resource.getrusage failed: %s", exc)
         return "rss=unknown"
-
 
 def create_excel_workbook_bytes(
     summary: pd.DataFrame,

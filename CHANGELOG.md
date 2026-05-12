@@ -49,6 +49,9 @@ emits a per-sheet memory snapshot (`rss=…MB vms=…MB uss=…MB` via
 fallback when psutil is unavailable) at workbook begin, before/after
 every sheet, before openpyxl context-exit, and after context-exit. This
 gives a per-sheet memory-delta trace for any future bottleneck hunt.
+`psutil>=5.9.0` is now declared explicitly in `requirements.txt` (it
+was previously only available transitively, which made the diagnostic
+silently fall back on the production runner).
 
 Workflow docstring (`.github/workflows/smc-databento-production-export.yml`)
 updated to reference Q5b and corrected from `32 GB / 300 GB` to the
