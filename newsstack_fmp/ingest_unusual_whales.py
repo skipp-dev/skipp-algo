@@ -34,6 +34,8 @@ UW_BASE_URL = "https://api.unusualwhales.com/api"
 # Endpoint paths (kept as constants for grep/refactor).
 # UW_FLOW_ALERTS_PATH removed 2026-05-12: the /option-trades/flow-alerts
 # endpoint is replaced by the self-hosted Databento OPRA.PILLAR UOA
+# UW_FLOW_ALERTS_PATH removed 2026-05-12: the /option-trades/flow-alerts
+# endpoint is replaced by the self-hosted Databento OPRA.PILLAR UOA
 # detector in `newsstack_fmp.opra_uoa` (ingestion wrapper:
 # `newsstack_fmp.ingest_opra_options`). The remaining
 # UnusualWhalesAdapter methods (darkpool, spot-GEX, market-tide,

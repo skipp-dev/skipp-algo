@@ -168,8 +168,8 @@ _FROZEN_ENV_SUBSCRIPT_SITES: frozenset[tuple[str, int]] = frozenset(
         # save-set-restores it around each call. Hard-fail-on-miss is
         # intentional here — both writes are inside a try/finally that
         # always sees prev defined, so KeyError can never occur.
-        ("open_prep/macro.py", 2003),
-        ("open_prep/macro.py", 2012),
+        ("open_prep/macro.py", 2041),
+        ("open_prep/macro.py", 2050),
         ("open_prep/realtime_signals.py", 2611),
         ("open_prep/streamlit_monitor.py", 74),
         ("streamlit_terminal.py", 326),
