@@ -152,6 +152,11 @@ _FROZEN_SITES: dict[str, int] = {
     # `from scripts.smc_atomic_write import atomic_write_json` import
     # which must follow the sys.path bootstrap (see import-order ledger).
     "scripts/databento_production_merge_shards.py": 1,
+    # 2026-05-12 PR #2157: Databento entitlement probe wraps each
+    # provider request in a generic ``except Exception`` so it can
+    # surface the original error message in the probe report. BLE001
+    # noqa is justified by the diagnostic-only nature of the script.
+    "scripts/probe_databento_entitlement.py": 1,
     # 2026-05-12 PR #2154: scripts/probe_fmp_13f_endpoints.py needs 3
     # noqa suppressions: 1× S310 for the urllib.request.urlopen call
     # (probe whitelisted-domain via deliberate URL inspection) and 2×
