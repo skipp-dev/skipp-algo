@@ -113,10 +113,57 @@ Nach einem gesunden Lauf sollten folgende Dateien aktuell sein:
 ### Newsstack
 
 - `ENABLE_FMP` (default `1`)
+- `ENABLE_FMP_ARTICLES` (default `1`)
+- `ENABLE_FMP_GENERAL` (default `1`) — `/stable/news/general-latest`
 - `ENABLE_BENZINGA_REST` (default `0`)
 - `ENABLE_BENZINGA_WS` (default `0`)
 - `BENZINGA_API_KEY` (wenn REST/WS aktiviert)
+- `ENABLE_NEWSAPI_AI` (default `1`), `NEWSAPI_AI_KEY`
+- `ENABLE_TRADINGVIEW_NEWS` (default `0`)
+- `ENABLE_UW_NEWS` (default `0`) — Unusual Whales `/news/headlines` (Plan-Tier-abhängig)
 - `POLL_INTERVAL_S`, `TOP_N_EXPORT`, `SCORE_ENRICH_THRESHOLD`
+
+#### FMP Plan-Tier Feature Gates (`newsstack_fmp/config.py`)
+
+Diese Gates schalten FMP-Endpoints, die **Ultimate-Tier** (oder höher) bzw. ein
+dediziertes Add-on erfordern. Default = `0` (OFF), weil sie ohne passendes Plan-
+Tier 401/403/404 zurückliefern. Die DISABLED-Pattern-Logik in `mark_fmp_*_disabled`
+supprimiert wiederholte Failures, aber das macht es schwer zu erkennen, dass das
+Feature gar nicht eingeschaltet ist. **Vor Aktivierung Plan-Tier prüfen.**
+
+| Env | Default | Endpoint | Plan-Tier |
+|---|---|---|---|
+| `ENABLE_FMP_SENATE_TRADES` | `0` | `/stable/senate-latest` | Ultimate |
+| `ENABLE_FMP_HOUSE_TRADES`  | `0` | `/stable/house-latest`  | Ultimate |
+| `ENABLE_FMP_8K`            | `0` | `/sec-filings-8k`       | Standard+ (PR3) |
+| `ENABLE_FMP_13F`           | `0` | `/sec-filings-13f` (path unverified, siehe `scripts/probe_fmp_13f_endpoints.py`) | Standard+ |
+
+Aktivierung erfolgt per Workflow-Secret bzw. `--env`-Override im Cron-Lauf,
+nicht per `gh workflow run -f` ohne explizite User-Freigabe.
+
+#### Political Trades Enrichment (`open_prep/run_open_prep.py`)
+
+Die Open-Prep-Pipeline ruft zusätzlich `_fetch_political_trades(...)` (Zeile
+5034) **ungated** auf — d. h. unabhängig von den oben genannten
+`ENABLE_FMP_SENATE_TRADES` / `ENABLE_FMP_HOUSE_TRADES` Newsstack-Gates. Bei
+FMP-Plänen ohne Ultimate-Add-on liefern die Endpoints stillschweigend `[]`
+(via `_log_feature_unavailable_once` in `open_prep/macro.py:1656/1671`) und
+alle `politician_*` Quote-Felder bleiben Default-Werte (`False` / `0` / `""`).
+
+Konsequenz für Ops:
+
+- **Plan-Tier ohne Senate/House**: nichts zu tun, Pipeline läuft normal, Quote-
+  Felder sind leer — keine Alerts erforderlich.
+- **Plan-Tier mit Senate/House aktiv**: `politician_recent` / `politician_net`
+  in `latest_open_prep_run.json` sollten >0 Symbole zeigen. Wenn Plan aktiv
+  ist aber Felder leer bleiben, prüfen:
+  - `FMP_API_KEY` korrekt? (gleicher Key wie für Newsstack)
+  - In `latest_open_prep_run.json` Stage-Logs nach `Political trades fetch failed`
+    grep'en.
+  - Manueller Probe: `curl "https://financialmodelingprep.com/stable/senate-latest?page=0&limit=10&apikey=$FMP_API_KEY"`
+- **Feature deaktivieren**: aktuell nicht via Env-Flag möglich (TODO G4-Follow-up
+  — Patch wäre `ENABLE_FMP_POLITICAL=0` Gate um den `_fetch_political_trades`
+  Call). Bis dahin: keine Aktion notwendig, da silent no-op.
 
 ### Terminal
 
