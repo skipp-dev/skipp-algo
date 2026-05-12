@@ -657,18 +657,22 @@ def _cached_bz_options_op(api_key: str, tickers: str) -> list[dict[str, Any]]:
     """Cache options activity for 3 minutes.
 
     Provider precedence (2026-05-12 OPRA replacement audit):
-      1. **Databento OPRA.PILLAR** — enabled when ``ENABLE_OPRA_UOA=1`` and
-         a Databento key is configured. This is the post-UW-cancellation
-         primary path.
-      2. **Unusual Whales** — legacy path. Returns ``[]`` when the UW key
-         is absent or has been cancelled (subscription cancelled 2026-05-12).
+      1. **Databento OPRA.PILLAR** — default-ON (``ENABLE_OPRA_UOA``
+         defaults to ``1`` since 2026-05-12). Active when a Databento
+         key is also configured. Primary post-UW-cancellation path.
+      2. **Unusual Whales** — legacy path, retained as a safety fallback
+         when ``ENABLE_OPRA_UOA=0`` is forced. Returns ``[]`` once the
+         UW key is absent (subscription cancelled 2026-05-12).
       3. **Benzinga options_activity** — retired upstream, returns ``[]``.
 
     Function name retained for Streamlit cache-key stability.
     """
     # ── OPRA.PILLAR (preferred when feature flag is set) ──
+    # Default 1 since 2026-05-12 (UW subscription cancelled). Set
+    # ``ENABLE_OPRA_UOA=0`` only to force the legacy fallback path during
+    # local debug.
     if (
-        os.environ.get("ENABLE_OPRA_UOA", "0").strip() == "1"
+        os.environ.get("ENABLE_OPRA_UOA", "1").strip() == "1"
         and _fetch_opra_options is not None
         and os.environ.get("DATABENTO_API_KEY", "").strip()
     ):
@@ -2276,7 +2280,7 @@ def main() -> None:
                     # _source tag (set by OPRA wrapper). Falls back to the
                     # legacy UW / Benzinga detection for empty results.
                     _opra_active = (
-                        os.environ.get("ENABLE_OPRA_UOA", "0").strip() == "1"
+                        os.environ.get("ENABLE_OPRA_UOA", "1").strip() == "1"
                         and os.environ.get("DATABENTO_API_KEY", "").strip()
                     )
                     if opt_data and (opt_data[0].get("_source") == "databento_opra"):
