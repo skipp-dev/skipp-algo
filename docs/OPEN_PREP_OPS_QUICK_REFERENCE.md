@@ -186,7 +186,7 @@ Konsequenz für Ops:
 ### Databento entitlement (2026-05-12 provider audit)
 
 - `DATABENTO_API_KEY` (Pflicht für OPRA UOA, equities OHLCV, definition schema)
-- `ENABLE_OPRA_UOA` (default `0`) — wenn `1` + Key gesetzt, ersetzt Unusual Whales
+- `ENABLE_OPRA_UOA` (default `1` seit 2026-05-12 PR #2155 commit 6d6196cf) — wenn `1` + Key gesetzt, ersetzt Unusual Whales
   durch self-hosted OPRA.PILLAR UOA-Detector. Voraussetzung: Key muss
   `OPRA.PILLAR` entitled sein — verifizieren mit:
 
@@ -383,7 +383,7 @@ Wenn’s brennt:
 
 | Provider | Module | Status (2026-05-12) | Re-evaluate |
 |---|---|---|---|
-| Unusual Whales (UOA flow) | `newsstack_fmp/ingest_unusual_whales.py` `UW_FLOW_ALERTS_PATH` | **DECOMMISSIONED** — replaced by self-hosted Databento OPRA UOA in `newsstack_fmp/opra_uoa.py` (PRs #2155 / #2157 / #2163) | n/a |
+| Unusual Whales (UOA flow) | `newsstack_fmp/ingest_unusual_whales.py` (see removal comment ~line 35: `# UW_FLOW_ALERTS_PATH removed 2026-05-12`) | **DECOMMISSIONED** — replaced by self-hosted Databento OPRA UOA in `newsstack_fmp/opra_uoa.py` (PRs #2155 / #2157 / #2163) | n/a |
 | Unusual Whales (other adapters: darkpool, spot-GEX, market-tide, insider-transactions, news-headlines) | `newsstack_fmp/ingest_unusual_whales.py` `UnusualWhalesAdapter` | **DORMANT** — silently returns `[]` after subscription cancel (DISABLED-on-401 pattern). No production consumer left. | **2026-Q3 (by 2026-08-31, owner: ops)** — drop entire module + `UNUSUAL_WHALES_API_KEY` if no consumer reactivated. See `# .. todo:: 2026-Q3-uw-review` block at top of `newsstack_fmp/ingest_unusual_whales.py`. |
 | NewsAPI.ai | `terminal_newsapi.py` (stub, ~60 LOC) **vs.** `scripts/smc_newsapi_ai.py` (active, ~810 LOC) | **DUAL-STATE** — terminal_newsapi.py is decommissioned no-op; live ingestion in scripts/smc_newsapi_ai.py via `scripts/smc_live_news_bus.py`, gated by `ENABLE_NEWSAPI_AI` (default `1`). | n/a — pinned by `tests/test_terminal_newsapi_stub_marker.py`. |
-| OPRA UOA detector | `newsstack_fmp/opra_uoa.py` + ingestion wrapper `newsstack_fmp/ingest_opra_options.py` | **ACTIVE** — gated by `ENABLE_OPRA_UOA` (default `1` since 2026-05-12 PR #2155 commit 6d6196cf). Consumes Databento OPRA.PILLAR. | n/a |
+| OPRA UOA detector | `newsstack_fmp/opra_uoa.py` + ingestion wrapper `newsstack_fmp/ingest_opra_options_flow.py` | **ACTIVE** — gated by `ENABLE_OPRA_UOA` (default `1` since 2026-05-12 PR #2155 commit 6d6196cf). Consumes Databento OPRA.PILLAR. | n/a |

@@ -527,7 +527,7 @@ def _uw_headers(key: str) -> dict[str, str]:
 # no longer consumed in production. The Databento OPRA.PILLAR UOA detector
 # is the canonical options-flow source (see scripts/probe_databento_entitlement.py
 # and newsstack_fmp/opra_uoa.py introduced in PRs #2155 and #2157;
-# ingestion wrapper: newsstack_fmp/ingest_opra_options.py). The other UW
+# ingestion wrapper: newsstack_fmp/ingest_opra_options_flow.py). The other UW
 # endpoints (darkpool, spot-GEX, market-tide, insider) remain probed below
 # because their UI tabs are still wired — dormant when no key is configured.
 
