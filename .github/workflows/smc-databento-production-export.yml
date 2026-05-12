@@ -52,8 +52,14 @@ on:
     # consecutive cap-busts at 120 min (n=1/n=2/n=3, runs 25438174407,
     # 25446229916, 25450506584) showed the producer cannot reliably
     # complete inside a 2 h window with the current Step 6/6b/8 backend
-    # bias. RAM/disk are not constraints (32 GB / 300 GB on ubuntu-latest-l;
-    # peak RSS observed 18.6 GB). Halving cron frequency frees a 4 h
+    # bias. RAM/disk are not constraints (64 GB / 600 GB on ubuntu-latest-l;
+    # peak RSS observed 18.6 GB at F-V8-C4 time, but see F-V8-Q5b
+    # (2026-05-12) — heartbeat-diagnostic probe run 25693860630 was killed
+    # by exit 143 / SIGTERM mid-write of full_universe_second_detail_open
+    # (7.27 M rows × ~10 cols), root cause likely cgroup memory pressure
+    # but not formally confirmed; that sheet is now skipped from the
+    # canonical workbook and exported via parquet only). Halving cron
+    # frequency frees a 4 h
     # handoff window per tick — enough headroom to absorb the worst
     # observed runtime (~2 h 0 min) plus a generous safety margin without
     # ever feeding the consumer a stale or partial export. See F-V8-C4 in

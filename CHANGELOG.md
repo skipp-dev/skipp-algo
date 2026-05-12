@@ -6,6 +6,54 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-05-12) — F-V8-Q5b: skip oversized second_detail sheets from canonical workbook
+
+`scripts/databento_production_export.py::_write_canonical_production_workbook`
+now omits `full_universe_second_detail_open` and
+`full_universe_second_detail_close` from the canonical xlsx workbook's
+`additional_sheets` dict. Both data series remain available as parquet
+artifacts written by `_write_exact_named_exports()` in Step 10/10b
+(`<export_dir>/full_universe_second_detail_{open,close}.parquet`), which
+is the path all known consumers already use (verified consumer audit
+across `smc_integration/`, `scripts/`, `docs/`, `README.md`).
+
+**Trigger:** five consecutive failures of `smc-databento-production-export`
+on cron lookback=30 (2026-05-07 / 2026-05-08). Heartbeat-diagnostic probe
+run **25693860630** (branch `workbook-heartbeat-diagnostic`, PR #2146,
+landed as `cc5f6f9d`) ran for 141 min on 64 GB `ubuntu-latest-l` and was
+killed by **exit 143 / SIGTERM** at chunk 4-of-7 of sheet 8
+(`full_universe_second_detail_open`, 7,270,261 rows × ~10 cols), 9 min
+20 s into Step 10/10c. All per-chunk and per-styling-step heartbeats fired
+right up to the kill, falsifying the GHA no-output watchdog hypothesis.
+
+**Root cause:** *likely* memory pressure (cgroup / systemd-oomd on the
+hosted runner, openpyxl is non-streaming and accumulates every written
+sheet in memory), but **not formally confirmed**. Alternative hypotheses
+considered but **not falsified**: GHA process watchdog, hosted-runner
+eviction, `/mnt` disk pressure. The symptom-fix (skip these sheets) is
+valid regardless of the exact mechanism — the workbook cannot
+accommodate sheets of this size on the production runner, the parquet
+path is the source of truth for downstream consumers anyway, and
+manual inspection of a chunk-split 7.27 M-row sheet in Excel is
+unusable in practice.
+
+Mirrors the F-V8-Q5a precedent from 2026-05-09
+(`full_universe_close_trade_detail`, killed at peak RSS ~6.9 GB on the
+old 7 GB runner). The producer emits a second `progress_callback` line
+documenting the skip, so the canonical Step 10/10c log shows both Q5a
+and Q5b suppressions explicitly.
+
+**Bonus diagnostics:** `scripts/databento_production_workbook.py` now
+emits a per-sheet memory snapshot (`rss=…MB vms=…MB uss=…MB` via
+`psutil.Process().memory_full_info()`, with a `resource.getrusage`
+fallback when psutil is unavailable) at workbook begin, before/after
+every sheet, before openpyxl context-exit, and after context-exit. This
+gives a per-sheet memory-delta trace for any future bottleneck hunt.
+
+Workflow docstring (`.github/workflows/smc-databento-production-export.yml`)
+updated to reference Q5b and corrected from `32 GB / 300 GB` to the
+actual `64 GB / 600 GB` runner spec.
+
 ### Added (2026-05-11) — Real-day ranking snapshot dump (opt-in)
 
 Add an opt-in snapshot writer to `open_prep/run_open_prep.py` that
