@@ -33,7 +33,10 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 _REQUIREMENTS = _REPO_ROOT / "requirements.txt"
 
 # Frozen budget — bump consciously when adding deps. Unit: dep-lines.
-_DEP_LINE_BUDGET = 23
+# 2026-05-12 (F-V8-Q5b, PR #2148): bumped 23 -> 24 to add psutil>=5.9.0
+# for the per-sheet RSS/USS memory-snapshot diagnostic in
+# scripts/databento_production_workbook.py::_memory_snapshot.
+_DEP_LINE_BUDGET = 24
 
 _SPECIFIER_RE = re.compile(r"[<>=~!]")
 
