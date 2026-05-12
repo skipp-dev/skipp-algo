@@ -119,6 +119,15 @@ Nach einem gesunden Lauf sollten folgende Dateien aktuell sein:
 - `ENABLE_BENZINGA_WS` (default `0`)
 - `BENZINGA_API_KEY` (wenn REST/WS aktiviert)
 - `ENABLE_NEWSAPI_AI` (default `1`), `NEWSAPI_AI_KEY`
+  - **Dual-state cross-reference (audit L-1, finding #40)**: NewsAPI.ai
+    has TWO files in this repo and ops triage MUST check both paths:
+    - `terminal_newsapi.py` (~60 LOC) — **decommissioned stub**, all
+      functions return empty/False so legacy callers don't crash. Not
+      consumed by the live pipeline.
+    - `scripts/smc_newsapi_ai.py` (~810 LOC) — **active** ingestion
+      path, consumed by `scripts/smc_live_news_bus.py` and gated by the
+      `ENABLE_NEWSAPI_AI` env var above.
+    - Cross-ref pinned by `tests/test_terminal_newsapi_stub_marker.py`.
 - `ENABLE_TRADINGVIEW_NEWS` (default `0`)
 - `ENABLE_UW_NEWS` (default `0`) — Unusual Whales `/news/headlines` (Plan-Tier-abhängig)
 - `POLL_INTERVAL_S`, `TOP_N_EXPORT`, `SCORE_ENRICH_THRESHOLD`
@@ -367,3 +376,14 @@ Wenn’s brennt:
 3. bei Bedarf degraded weiterlaufen lassen (fail-open) statt blind stoppen
 4. nach Recovery auf Timestamps + Kandidaten + Warnungen verifizieren
 5. Bei stale Preisen in Pre-/After-Market: `BENZINGA_API_KEY` + `market_session()` prüfen
+
+---
+
+## 13) Provider Decision Matrix (Audit L-1 Follow-ups)
+
+| Provider | Module | Status (2026-05-12) | Re-evaluate |
+|---|---|---|---|
+| Unusual Whales (UOA flow) | `newsstack_fmp/ingest_unusual_whales.py` `UW_FLOW_ALERTS_PATH` | **DECOMMISSIONED** — replaced by self-hosted Databento OPRA UOA in `newsstack_fmp/opra_uoa.py` (PRs #2155 / #2157 / #2163) | n/a |
+| Unusual Whales (other adapters: darkpool, spot-GEX, market-tide, insider-transactions, news-headlines) | `newsstack_fmp/ingest_unusual_whales.py` `UnusualWhalesAdapter` | **DORMANT** — silently returns `[]` after subscription cancel (DISABLED-on-401 pattern). No production consumer left. | **2026-Q3 (by 2026-08-31, owner: ops)** — drop entire module + `UNUSUAL_WHALES_API_KEY` if no consumer reactivated. See `# .. todo:: 2026-Q3-uw-review` block at top of `newsstack_fmp/ingest_unusual_whales.py`. |
+| NewsAPI.ai | `terminal_newsapi.py` (stub, ~60 LOC) **vs.** `scripts/smc_newsapi_ai.py` (active, ~810 LOC) | **DUAL-STATE** — terminal_newsapi.py is decommissioned no-op; live ingestion in scripts/smc_newsapi_ai.py via `scripts/smc_live_news_bus.py`, gated by `ENABLE_NEWSAPI_AI` (default `1`). | n/a — pinned by `tests/test_terminal_newsapi_stub_marker.py`. |
+| OPRA UOA detector | `newsstack_fmp/opra_uoa.py` + ingestion wrapper `newsstack_fmp/ingest_opra_options.py` | **ACTIVE** — gated by `ENABLE_OPRA_UOA` (default `1` since 2026-05-12 PR #2155 commit 6d6196cf). Consumes Databento OPRA.PILLAR. | n/a |

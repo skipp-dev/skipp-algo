@@ -74,8 +74,8 @@ _OP_POP = "POP"       # os.environ.pop(K, default)
 _FROZEN_SITES: dict[tuple[str, str], int] = {
     ("databento_client.py", _OP_WRITE): 1,
     ("databento_volatility_screener.py", _OP_WRITE): 1,
-    ("open_prep/macro.py", _OP_WRITE): 3,  # CA-bundle (148) + FinnhubClient save-set-restore (2003, 2012)
-    ("open_prep/macro.py", _OP_POP): 1,    # FinnhubClient restore branch when prev was unset (2010)
+    ("open_prep/macro.py", _OP_WRITE): 3,  # CA-bundle (148) + FinnhubClient save-set-restore (2041, 2050)
+    ("open_prep/macro.py", _OP_POP): 1,    # FinnhubClient restore branch when prev was unset (2048)
     ("open_prep/realtime_signals.py", _OP_WRITE): 1,
     ("open_prep/streamlit_monitor.py", _OP_WRITE): 1,
     ("streamlit_terminal.py", _OP_WRITE): 1,

@@ -13,6 +13,21 @@ Plan note
 Personal-use restriction applies on Basic/Advanced tiers per UW ToS.
 
 Public docs: https://api.unusualwhales.com/docs
+
+.. todo:: 2026-Q3-uw-review
+   The /option-trades/flow-alerts endpoint was decommissioned on
+   2026-05-12 (PR #2163) in favour of self-hosted Databento OPRA
+   UOA. The remaining UnusualWhalesAdapter methods (darkpool,
+   spot-GEX, market-tide, insider-transactions, news-headlines)
+   are RETAINED only because no OPRA-equivalent self-host path
+   exists for them yet, and they silently return ``[]`` after the
+   subscription was cancelled (DISABLED-on-401 pattern in
+   ``_get_json``).
+
+   Re-evaluate in Q3 2026 (review owner: ops): if no consumer
+   re-activated these adapters by 2026-08-31, drop the entire
+   module + UNUSUAL_WHALES_API_KEY env-var. See ops decision
+   matrix row in docs/OPEN_PREP_OPS_QUICK_REFERENCE.md.
 """
 
 from __future__ import annotations
@@ -34,11 +49,13 @@ UW_BASE_URL = "https://api.unusualwhales.com/api"
 # Endpoint paths (kept as constants for grep/refactor).
 # UW_FLOW_ALERTS_PATH removed 2026-05-12: the /option-trades/flow-alerts
 # endpoint is replaced by the self-hosted Databento OPRA.PILLAR UOA
-# detector in `open_prep.opra_uoa`. The remaining UnusualWhalesAdapter
-# methods (darkpool, spot-GEX, market-tide, insider-transactions,
-# news-headlines) stay because no OPRA equivalent exists for them —
-# they silently return [] now that the subscription is cancelled, via
-# the existing DISABLED-on-401 pattern in `_get_json`.
+# detector in `newsstack_fmp.opra_uoa` (ingestion wrapper:
+# `newsstack_fmp.ingest_opra_options`). The remaining
+# UnusualWhalesAdapter methods (darkpool, spot-GEX, market-tide,
+# insider-transactions, news-headlines) stay because no OPRA
+# equivalent exists for them — they silently return [] now that
+# the subscription is cancelled, via the existing DISABLED-on-401
+# pattern in `_get_json`.
 UW_FLOW_RECENT_PATH = "/stock/{ticker}/flow-recent"
 # v3 P-4b: dark-pool prints + dealer-gamma-by-strike
 UW_DARKPOOL_TICKER_PATH = "/darkpool/{ticker}"
@@ -226,10 +243,10 @@ class UnusualWhalesAdapter:
         return []
 
     # _to_benzinga_shape removed 2026-05-12 — the Benzinga-shaped UOA
-    # output is now emitted by `open_prep.opra_uoa` from Databento OPRA
-    # trades (with `_opra_raw` replacing `_uw_raw`). The legacy mapper
-    # below is kept only as a historical reference comment; live code
-    # paths that imported it have been deleted.
+    # output is now emitted by `newsstack_fmp.opra_uoa` from Databento
+    # OPRA trades (with `_opra_raw` replacing `_uw_raw`). The legacy
+    # mapper below is kept only as a historical reference comment; live
+    # code paths that imported it have been deleted.
     @staticmethod
     def _to_benzinga_shape_DEPRECATED(rec: dict[str, Any]) -> dict[str, Any]:
         """Map a UW flow record to Benzinga ``options_activity`` field names.
