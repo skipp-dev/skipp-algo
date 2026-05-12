@@ -193,6 +193,16 @@ except ImportError:  # pragma: no cover
     _fetch_uw_options = None  # type: ignore[assignment]
     _uw_configured = lambda: False  # type: ignore[assignment]
 
+# 2026-05-12 OPRA UOA replacement: when ENABLE_OPRA_UOA=1 and a Databento
+# key is configured, prefer the self-hosted OPRA.PILLAR-backed UOA
+# detector over the (now-cancelled) Unusual Whales flow-alerts feed.
+try:
+    from newsstack_fmp.ingest_opra_options_flow import (
+        fetch_opra_options_flow as _fetch_opra_options,
+    )
+except ImportError:  # pragma: no cover
+    _fetch_opra_options = None  # type: ignore[assignment]
+
 # v3 P-4b/d: dark-pool prints, dealer-gamma-by-strike, marketwide tide.
 try:
     from newsstack_fmp.ingest_unusual_whales import (
@@ -646,10 +656,32 @@ def _cached_defense_wl_op(api_key: str) -> list[dict[str, Any]]:
 def _cached_bz_options_op(api_key: str, tickers: str) -> list[dict[str, Any]]:
     """Cache options activity for 3 minutes.
 
-    v3 P-3b: prefers Unusual Whales (UNUSUAL_WHALES_API_KEY) when set,
-    falls back to the Benzinga path (which is now retired and returns
-    [] anyway).  Function name retained for cache-key stability.
+    Provider precedence (2026-05-12 OPRA replacement audit):
+      1. **Databento OPRA.PILLAR** — enabled when ``ENABLE_OPRA_UOA=1`` and
+         a Databento key is configured. This is the post-UW-cancellation
+         primary path.
+      2. **Unusual Whales** — legacy path. Returns ``[]`` when the UW key
+         is absent or has been cancelled (subscription cancelled 2026-05-12).
+      3. **Benzinga options_activity** — retired upstream, returns ``[]``.
+
+    Function name retained for Streamlit cache-key stability.
     """
+    # ── OPRA.PILLAR (preferred when feature flag is set) ──
+    if (
+        os.environ.get("ENABLE_OPRA_UOA", "0").strip() == "1"
+        and _fetch_opra_options is not None
+        and os.environ.get("DATABENTO_API_KEY", "").strip()
+    ):
+        try:
+            recs = _fetch_opra_options(api_key, tickers) or []
+            if recs:
+                return recs
+            # On empty result (e.g. outside market hours) fall through to
+            # the UW path so the user still sees data when Databento has
+            # nothing fresh and a UW key is somehow still live.
+        except Exception:
+            logger.warning("_cached_bz_options_op (OPRA) failed", exc_info=True)
+
     uw_key = os.environ.get("UNUSUAL_WHALES_API_KEY", "").strip()
     if uw_key and _fetch_uw_options is not None:
         try:
@@ -2240,18 +2272,34 @@ def main() -> None:
                 )
                 if _opt_tickers.strip():
                     opt_data = _cached_bz_options_op(bz_key, _opt_tickers.strip())
-                    _src = "Unusual Whales" if _uw_configured() else "Benzinga (retired)"
+                    # Resolve display source label from the first record's
+                    # _source tag (set by OPRA wrapper). Falls back to the
+                    # legacy UW / Benzinga detection for empty results.
+                    _opra_active = (
+                        os.environ.get("ENABLE_OPRA_UOA", "0").strip() == "1"
+                        and os.environ.get("DATABENTO_API_KEY", "").strip()
+                    )
+                    if opt_data and (opt_data[0].get("_source") == "databento_opra"):
+                        _src = "Databento OPRA.PILLAR"
+                    elif _opra_active:
+                        _src = "Databento OPRA.PILLAR (no rows in window)"
+                    elif _uw_configured():
+                        _src = "Unusual Whales"
+                    else:
+                        _src = "Benzinga (retired)"
                     if opt_data:
                         df_o = pd.DataFrame(opt_data)
-                        # Hide the raw UW payload column from the table view.
-                        if "_uw_raw" in df_o.columns:
-                            df_o = df_o.drop(columns=["_uw_raw"])
+                        # Hide raw payload columns (UW or OPRA) from the table view.
+                        for _raw_col in ("_uw_raw", "_opra_raw"):
+                            if _raw_col in df_o.columns:
+                                df_o = df_o.drop(columns=[_raw_col])
                         st.caption(f"{len(df_o)} options activity record(s) — source: {_src}")
                         st.dataframe(df_o, width="stretch", height=min(400, 40 + 35 * len(df_o)))
                     else:
                         st.info(
                             f"No options activity found (source: {_src}). "
-                            "Set UNUSUAL_WHALES_API_KEY to enable UW flow alerts."
+                            "Set ENABLE_OPRA_UOA=1 + DATABENTO_API_KEY for OPRA, "
+                            "or UNUSUAL_WHALES_API_KEY for the legacy UW path."
                         )
                 else:
                     st.info("Enter ticker(s) above to view options activity.")
