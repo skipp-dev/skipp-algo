@@ -35,7 +35,15 @@ FMP_8K_LATEST_PATH = "/sec-filings-8k"
 # The constant is retained so existing tests that reference it as a label
 # keep working; the first live call will 404 and the existing
 # `mark_fmp_filings_disabled` mechanism will quietly silence the endpoint.
-# Follow-up (B6): locate or request the correct FMP 13F bulk path.
+#
+# Follow-up (B6, G3 2026-05-12): additional candidates surfaced from third-
+# party FMP SDK docs (PowerShell FinancialModelingPrep module references
+# ``/stable/institutional-ownership/dates``; fmpcloudr R package references
+# legacy ``/api/v3/form-thirteen-date/{cik}``; FMP's own /api/v3 docs still
+# expose ``/api/v3/cik_list`` and ``/api/v3/form-thirteen/{cik}``). Run
+# ``python -m scripts.probe_fmp_13f_endpoints`` with a valid FMP_API_KEY to
+# probe these empirically and update this comment with the working path.
+# Until then ``ENABLE_FMP_13F`` should remain ``0``.
 FMP_13F_LATEST_PATH = "/sec-filings-13f"
 
 _APIKEY_RE = re.compile(r"(apikey|api_key|token|key)=[^&]+", re.IGNORECASE)
