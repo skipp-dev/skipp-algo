@@ -54,6 +54,7 @@ _DIR_EXCLUDE = frozenset(
 
 _OP_WRITE = "WRITE"   # os.environ[K] = V
 _OP_SDFLT = "SDFLT"   # os.environ.setdefault(K, V)
+_OP_POP = "POP"       # os.environ.pop(K, default)
 
 # Per-file ledger: (rel_path, op_kind) -> exact count.
 #
@@ -63,12 +64,18 @@ _OP_SDFLT = "SDFLT"   # os.environ.setdefault(K, V)
 #     open_prep/streamlit_monitor, open_prep/realtime_signals).
 #   * SDFLT sites are explicit "respect operator-set value" defaults for
 #     NewsAPI / Streamlit / probe scripts.
+#   * POP sites belong to the FinnhubClient adapter shim in open_prep/macro.py:
+#     ``terminal_finnhub._get`` reads ``FINNHUB_API_KEY`` from the env (not from
+#     a parameter), so the FinnhubClient.from_env adapter does a save-set-restore
+#     around each call: 1× WRITE on entry, 1× POP (or 1× WRITE) on restore.
+#     This pairs with the 2× new WRITE sites in the same finally block.
 #
 # Adding/removing any site MUST update this ledger in the same PR.
 _FROZEN_SITES: dict[tuple[str, str], int] = {
     ("databento_client.py", _OP_WRITE): 1,
     ("databento_volatility_screener.py", _OP_WRITE): 1,
-    ("open_prep/macro.py", _OP_WRITE): 1,
+    ("open_prep/macro.py", _OP_WRITE): 3,  # CA-bundle (148) + FinnhubClient save-set-restore (2041, 2050)
+    ("open_prep/macro.py", _OP_POP): 1,    # FinnhubClient restore branch when prev was unset (2048)
     ("open_prep/realtime_signals.py", _OP_WRITE): 1,
     ("open_prep/streamlit_monitor.py", _OP_WRITE): 1,
     ("streamlit_terminal.py", _OP_WRITE): 1,
@@ -80,7 +87,7 @@ _FROZEN_TOTAL = sum(_FROZEN_SITES.values())
 
 # Operator kinds that are not currently used and should not be introduced
 # without an explicit ledger entry. Any new kind found here trips a test.
-_ALLOWED_OP_KINDS = frozenset({_OP_WRITE, _OP_SDFLT})
+_ALLOWED_OP_KINDS = frozenset({_OP_WRITE, _OP_SDFLT, _OP_POP})
 
 
 def _iter_first_party_py_files() -> list[Path]:
