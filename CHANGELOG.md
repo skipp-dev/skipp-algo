@@ -6,6 +6,42 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-05-12) — Audit L-1 finalization: provider-rationalization train + post-audit follow-ups
+
+End-to-end consolidation of the Audit L-1 provider stack. Eight PRs landed on
+main as a focused merge train (#2154 → #2161, #2163), plus #2153 (Watchdog),
+#2152, and #2164 (post-audit follow-ups):
+
+- **Unusual Whales options-flow DECOMMISSIONED** — replaced by self-hosted
+  Databento OPRA.PILLAR UOA detector in `newsstack_fmp/opra_uoa.py` (PRs
+  #2155 / #2157 / #2163). The remaining `UnusualWhalesAdapter` methods
+  (darkpool, spot-GEX, market-tide, insider-transactions, news-headlines)
+  are DORMANT (silently return `[]` after subscription cancel; no production
+  consumer left). Sunset-TODO `2026-Q3-uw-review` filed at top of
+  `newsstack_fmp/ingest_unusual_whales.py` (owner: ops, deadline 2026-08-31)
+  to drop the entire module + `UNUSUAL_WHALES_API_KEY` if no consumer
+  reactivated.
+- **OPRA UOA detector ACTIVE** — gated by `ENABLE_OPRA_UOA` (default `1`
+  since 2026-05-12 PR #2155 commit 6d6196cf). Consumes Databento
+  OPRA.PILLAR via the ingestion wrapper
+  `newsstack_fmp/ingest_opra_options_flow.py`.
+- **Finnhub adapter Option-B duplicate-drop** (PR #2160) and **macro g5
+  stub removal** (PR #2156) — line-pinned ledgers reconciled in
+  `tests/test_mutable_defaults_and_loads_pins.py` and
+  `tests/test_os_environ_mutation_ledger.py` (PR #2164).
+- **Probe coverage** — `scripts/probe_providers.py` gains a
+  `probe_databento_opra_entitlement` mock-friendly probe (SKIPs on missing
+  key / disabled feature; FAILs only when `ENABLE_OPRA_UOA=1` but the key
+  lacks `OPRA.PILLAR` entitlement). Replaces the pre-decommission
+  `probe_uw_options_flow`.
+- **Operator runbook** — `docs/OPEN_PREP_OPS_QUICK_REFERENCE.md` §13
+  "Provider Decision Matrix" captures the new state of all four provider
+  surfaces (UW UOA flow, UW dormant adapters, NewsAPI.ai dual-state,
+  OPRA UOA detector); `ENABLE_OPRA_UOA` default reconciled (`0` → `1`).
+
+No runtime regressions: pin-tests, posture markers, and orphan-inventory
+all green.
+
 ### Added (2026-05-12) — CI: smc-export-cron-watchdog backup workflow
 
 New workflow `.github/workflows/smc-export-cron-watchdog.yml` acts as a
