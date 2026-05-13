@@ -113,7 +113,7 @@ und trotzdem profitabel sein.
 > profitabler Reaktionen.
 >
 > **Umsetzung (2026-04-22, Commit folgt):** zweite Label-Variante
-> `label_fvg_partial_50(zone_low, zone_high, direction, highs, lows, closes, > *, fill_threshold=0.5)` ist in `smc_core/scoring.py` (Sibling von > `label_fvg_mitigation`) implementiert und in
+> `label_fvg_partial_50(zone_low, zone_high, direction, highs, lows, closes, *, fill_threshold=0.5)` ist in `smc_core/scoring.py` (Sibling von `label_fvg_mitigation`) implementiert und in
 > `tests/test_smc_scoring.py::TestLabelFvgPartial50` mit 12 Tests abgedeckt.
 > Die Funktion teilt die 2-Bar-Invalidierungsregel mit dem alten Label, sodass
 > ein A/B-Diff den Fill-Tiefen-Effekt isoliert. **Nächster Schritt:**

@@ -2,9 +2,7 @@
 
 > **Version:** 1.0 (2026-05-13)
 > **Owner:** ops
-> **Cadence:** consult before pushing any branch that touches docs / shell
-> snippets in docs / `_progress`-style sibling functions / line-pinned
-> ledger tests
+> **Cadence:** consult before pushing any branch that touches `docs/` or shell snippets in docs or `_progress`-style sibling functions or line-pinned ledger tests
 > **Related:**
 > - `docs/COPILOT_REVIEW_TRIAGE_PROTOCOL.md` §§5.6, 5.7, 5.8
 > - Operator-local memory `~/.copilot/memories/copilot-review-comments.md`
@@ -76,10 +74,10 @@ Common cases:
 
 | Pipeline | Wrong | Right |
 |---|---|---|
-| Top-N PRs | `gh pr list ... \| sort \| head` | `... \| sort -n \| head` |
-| Semver tags | `git tag \| sort \| tail` | `git tag \| sort -V \| tail` |
-| Run IDs | `gh run list ... \| sort \| head` | `... \| sort -n \| head` |
-| Alphabetical token list | `... \| sort \| uniq` | OK with `# lex-sort intentional: alphabetical token list` |
+| Top-N PRs | <code>gh pr list ... &#124; sort &#124; head</code> | <code>... &#124; sort -n &#124; head</code> |
+| Semver tags | <code>git tag &#124; sort &#124; tail</code> | <code>git tag &#124; sort -V &#124; tail</code> |
+| Run IDs | <code>gh run list ... &#124; sort &#124; head</code> | <code>... &#124; sort -n &#124; head</code> |
+| Alphabetical token list | <code>... &#124; sort &#124; uniq</code> | OK with comment: `# lex-sort intentional: alphabetical token list` |
 
 ---
 
@@ -99,6 +97,7 @@ Whenever you touch ANY `_progress` (or analogous) function, grep the
 **whole repo** for sibling implementations:
 
 ```bash
+# `sort` here is lex-sort intentional: alphabetical file-path listing.
 grep -nE 'def _progress\(' scripts/ tests/ | sort
 ```
 

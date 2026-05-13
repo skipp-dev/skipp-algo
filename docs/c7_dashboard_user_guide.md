@@ -72,7 +72,8 @@ generated yet (e.g. a variant is too new to have a permutation null).
 Surfaces the C8 drift detector output (`compute_live_drift.py` →
 `cache/live/drift_<date>.json`).
 
-* **Verdict counts** — `🟢 pass / 🟡 acceptable / 🟠 concerning / 🔴 fail / ⚪ insufficient_sample`. * **Per-variant table** — backtest Sharpe, live Sharpe, drift
+* **Verdict counts** — `🟢 pass / 🟡 acceptable / 🟠 concerning / 🔴 fail / ⚪ insufficient_sample`.
+* **Per-variant table** — backtest Sharpe, live Sharpe, drift
   (live − backtest), live trade count, verdict.
 
 While Phase-A has not started this tab shows the
