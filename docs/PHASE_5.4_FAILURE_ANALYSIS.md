@@ -1,8 +1,8 @@
 # Phase 5.4 — Failure Analysis: Run #25752310158 + recurring SIGTERM pattern
 
-**Status**: Diagnosis (root cause identified, fix deferred to PHASE_5.4_PLAN)
-**Date**: 2026-05-13
-**Companion to**: [PHASE_5.4_SCOPING.md](PHASE_5.4_SCOPING.md)
+**Status**: Diagnosis (root cause identified, fix deferred to PHASE_5.4_PLAN.md, to be created)  
+**Date**: 2026-05-13  
+**Companion to**: [PHASE_5.4_SCOPING.md](PHASE_5.4_SCOPING.md) (PR #2173, merged) and PHASE_5.4_PLAN.md (to be created next session after fresh D-profile lands)  
 **Workflow**: `smc-databento-production-export.yml`
 
 ---
@@ -100,11 +100,15 @@ events, not deltas.
 Rather than a vanilla `gh workflow run smc-databento-production-export.yml`,
 the fresh D-profile must include one of:
 
-* **Option A — Guard with smaller window**: dispatch with a 1–2 day
-  universe window via `workflow_dispatch` inputs (if available; check
-  `gh workflow view smc-databento-production-export.yml --yaml`). Goal:
+* **Option A — Guard with smaller window**: dispatch with a small
+  `lookback_days` value via the existing `workflow_dispatch` input
+  (`.github/workflows/smc-databento-production-export.yml` declares
+  `lookback_days` with default `'30'`; pass e.g. `2` or `5`). Goal:
   complete inside 90min so we get clean step-lifetime data. Caveat:
-  smaller window may shift bottleneck profile — annotate accordingly.
+  smaller window may shift bottleneck profile (e.g. Step 8/10b
+  close-window second detail row count scales with `lookback_days`) —
+  annotate any tabulation accordingly. Command:
+  `gh workflow run smc-databento-production-export.yml -f lookback_days=2`.
 * **Option B — Add per-step `time.monotonic()` flushed-prints**: a
   surgical PR adding `print(..., flush=True)` after every numbered step
   with `MEM_RSS=` from `/proc/self/status`. Even if the run dies, we
