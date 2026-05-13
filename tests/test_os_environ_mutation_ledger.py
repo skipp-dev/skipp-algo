@@ -64,18 +64,17 @@ _OP_POP = "POP"       # os.environ.pop(K, default)
 #     open_prep/streamlit_monitor, open_prep/realtime_signals).
 #   * SDFLT sites are explicit "respect operator-set value" defaults for
 #     NewsAPI / Streamlit / probe scripts.
-#   * POP sites belong to the FinnhubClient adapter shim in open_prep/macro.py:
-#     ``terminal_finnhub._get`` reads ``FINNHUB_API_KEY`` from the env (not from
-#     a parameter), so the FinnhubClient.from_env adapter does a save-set-restore
-#     around each call: 1× WRITE on entry, 1× POP (or 1× WRITE) on restore.
-#     This pairs with the 2× new WRITE sites in the same finally block.
+#   * POP sites: previously the FinnhubClient adapter shim in open_prep/macro.py
+#     wrote/popped ``FINNHUB_API_KEY`` around each call. R6 (2026-05-12)
+#     removed this racy shim by extending ``terminal_finnhub._get`` with an
+#     explicit ``api_key=`` kwarg, so open_prep/macro.py no longer has any
+#     POP sites and only the single CA-bundle WRITE remains.
 #
 # Adding/removing any site MUST update this ledger in the same PR.
 _FROZEN_SITES: dict[tuple[str, str], int] = {
     ("databento_client.py", _OP_WRITE): 1,
     ("databento_volatility_screener.py", _OP_WRITE): 1,
-    ("open_prep/macro.py", _OP_WRITE): 3,  # CA-bundle (148) + FinnhubClient save-set-restore (2041, 2050)
-    ("open_prep/macro.py", _OP_POP): 1,    # FinnhubClient restore branch when prev was unset (2048)
+    ("open_prep/macro.py", _OP_WRITE): 1,  # CA-bundle (148) — R6 removed FinnhubClient save-set-restore
     ("open_prep/realtime_signals.py", _OP_WRITE): 1,
     ("open_prep/streamlit_monitor.py", _OP_WRITE): 1,
     ("streamlit_terminal.py", _OP_WRITE): 1,

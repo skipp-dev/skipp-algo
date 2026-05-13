@@ -674,6 +674,10 @@ class FMPClient:
     # Read via get_endpoint_usage_stats(); intentionally process-local (no daemon
     # threads, no persistence) so it stays cheap and side-effect-free.
     _endpoint_usage_stats: dict[str, dict[str, int]] = field(default_factory=dict, init=False, repr=False)
+    # R5 (2026-05-12): guards _endpoint_usage_stats against the
+    # ThreadPoolExecutor in get_batch_quotes(). See
+    # docs/AUDIT_L1_REVIEW_RETROSPECTIVE_2026-05-12.md.
+    _lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
 
     @classmethod
     def from_env(cls) -> FMPClient:
@@ -714,19 +718,25 @@ class FMPClient:
         """Increment per-endpoint counters (G6 instrumentation).
 
         Aggregates by exact ``path`` (e.g. "/stable/quote", "/stable/profile").
-        Cheap dict mutation; safe to call from any code path. Not thread-safe
-        across processes but fine within a single producer run.
+        Guarded by ``self._lock`` because ``get_batch_quotes()`` submits work
+        through a ``ThreadPoolExecutor`` and the nested
+        ``bucket["count"] += n`` is read-modify-write at the Python level
+        (LOAD_ATTR + INPLACE_ADD + STORE_ATTR is not single-bytecode-atomic
+        even under the GIL). Without the lock, increments are silently
+        lost under contention. See R5 in
+        ``docs/AUDIT_L1_REVIEW_RETROSPECTIVE_2026-05-12.md``.
         """
 
-        bucket = self._endpoint_usage_stats.setdefault(
-            path, {"calls": 0, "errors": 0, "empty_responses": 0}
-        )
-        if calls:
-            bucket["calls"] += calls
-        if errors:
-            bucket["errors"] += errors
-        if empty_responses:
-            bucket["empty_responses"] += empty_responses
+        with self._lock:
+            bucket = self._endpoint_usage_stats.setdefault(
+                path, {"calls": 0, "errors": 0, "empty_responses": 0}
+            )
+            if calls:
+                bucket["calls"] += calls
+            if errors:
+                bucket["errors"] += errors
+            if empty_responses:
+                bucket["empty_responses"] += empty_responses
 
     def get_endpoint_usage_stats(self) -> dict[str, dict[str, int]]:
         """Return a deep copy of per-endpoint usage counters (G6).
@@ -734,9 +744,14 @@ class FMPClient:
         Producer-side audit hook: callers can log this at end-of-run to capture
         which FMP paths were actually exercised in a given pipeline invocation.
         Empty when no calls have been made on this client instance.
+
+        Snapshot is taken under ``self._lock`` to avoid
+        ``RuntimeError: dictionary changed size during iteration`` when a
+        concurrent ``_record_endpoint_event`` call inserts a new path bucket.
         """
 
-        return {path: dict(stats) for path, stats in self._endpoint_usage_stats.items()}
+        with self._lock:
+            return {path: dict(stats) for path, stats in self._endpoint_usage_stats.items()}
 
     def _execute_get(self, path: str, params: dict[str, Any], *, use_circuit_breaker: bool) -> Any:
         self._record_endpoint_event(path, calls=1)
@@ -2031,23 +2046,18 @@ class FinnhubClient:
                 exc_info=True,
             )
             return None
-        # ``terminal_finnhub._get`` reads ``FINNHUB_API_KEY`` from the
-        # environment, not from the dataclass field. Push our key into
-        # the env so callers can still pass an explicit value via
-        # ``FinnhubClient(api_key=...)`` without surprising the shim.
-        prev = os.environ.get("FINNHUB_API_KEY")
+        # R6 (2026-05-12): pass the API key explicitly via the new ``api_key=``
+        # kwarg added in ``terminal_finnhub._get``. The previous shim wrote
+        # ``self.api_key`` into ``os.environ["FINNHUB_API_KEY"]`` and restored
+        # it in a ``finally`` block; that pattern was racy under concurrent
+        # FinnhubClient instances and violated the
+        # ``tests/test_os_environ_mutation_ledger.py`` spirit. See R6 in
+        # ``docs/AUDIT_L1_REVIEW_RETROSPECTIVE_2026-05-12.md``.
         try:
-            if self.api_key:
-                os.environ["FINNHUB_API_KEY"] = self.api_key
-            return _finnhub_get(path, params or {})
+            return _finnhub_get(path, params or {}, api_key=self.api_key)
         except Exception:
             logger.debug("Finnhub %s call failed", path, exc_info=True)
             return None
-        finally:
-            if prev is None:
-                os.environ.pop("FINNHUB_API_KEY", None)
-            else:
-                os.environ["FINNHUB_API_KEY"] = prev
 
     def get_insider_sentiment(
         self, symbol: str, from_date: str, to_date: str,
