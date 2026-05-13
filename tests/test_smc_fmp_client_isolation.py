@@ -294,6 +294,16 @@ class TestV4PackagesOpenPrepFree:
 
         pkg = Path(__file__).resolve().parent.parent / "newsstack_fmp"
         violations = self._scan_package(str(pkg))
+        # Exemption (audit-L-1 PR-D R4 SSOT, #2171): newsstack_fmp/config.py
+        # imports the ENABLE_* feature-flag SSOT helper
+        # ``open_prep.feature_flags.is_opra_uoa_enabled`` at module load so
+        # the dataclass ``field(default_factory=...)`` can reference it
+        # directly. Dynamic ``__import__(...)`` is forbidden by the
+        # dunder-import budget pin, so the static import is the canonical
+        # form. ``feature_flags`` is a leaf module (no transitive deps) so
+        # the import does not pull open_prep code into newsstack_fmp.
+        allowed = {str(pkg / "config.py")}
+        violations = [v for v in violations if v not in allowed]
         assert violations == [], f"newsstack_fmp files with open_prep: {violations}"
 
 

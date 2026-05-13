@@ -16,8 +16,14 @@ concurrency:
 # F-V6-A2.1 (2026-05-02): top-level PYTHONUNBUFFERED so setup-python and
 # pip steps stream their output unbuffered. Required by
 # tests/test_workflow_python_unbuffered.py.
+#
+# PYTHONPATH: required by tests/test_workflow_invoked_scripts_importable.py
+# because the lint script lives under scripts/ and any sibling import
+# (`from scripts.X import Y`) would crash with ModuleNotFoundError without
+# the workspace on sys.path.
 env:
   PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
 
 jobs:
   inline-backticks:
