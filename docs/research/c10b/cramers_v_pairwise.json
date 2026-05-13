@@ -1,0 +1,95 @@
+{
+  "schema_version": "1.0",
+  "corpus": {
+    "source": "/tmp/c10b_local_run/measurement_benchmark",
+    "timeframe": "1D",
+    "n_events": 410,
+    "n_distinct_bars": 314,
+    "n_symbols": 20,
+    "date_range_unix": {
+      "min": 1769472000.0,
+      "max": 1772668800.0
+    },
+    "family_counts": {
+      "OB": 96,
+      "FVG": 147,
+      "SWEEP": 125,
+      "BOS": 42
+    }
+  },
+  "method": "Pairwise Cram\u00e9r's V on 2x2 contingency tables of binary outcomes (TP-Hit-before-SL) per family, restricted to bars where both families fired.",
+  "pairwise": {
+    "BOS__OB": {
+      "contingency": {
+        "a_true_b_true": 7,
+        "a_true_b_false": 5,
+        "a_false_b_true": 0,
+        "a_false_b_false": 0
+      },
+      "n_bars_with_both": 12,
+      "cramers_v": 0.0,
+      "chi2": 0.0
+    },
+    "BOS__FVG": {
+      "contingency": {
+        "a_true_b_true": 5,
+        "a_true_b_false": 6,
+        "a_false_b_true": 0,
+        "a_false_b_false": 1
+      },
+      "n_bars_with_both": 12,
+      "cramers_v": 0.2548235957188128,
+      "chi2": 0.7792207792207793
+    },
+    "BOS__SWEEP": {
+      "contingency": {
+        "a_true_b_true": 6,
+        "a_true_b_false": 0,
+        "a_false_b_true": 0,
+        "a_false_b_false": 0
+      },
+      "n_bars_with_both": 6,
+      "cramers_v": 0.0,
+      "chi2": 0.0
+    },
+    "OB__FVG": {
+      "contingency": {
+        "a_true_b_true": 1,
+        "a_true_b_false": 3,
+        "a_false_b_true": 0,
+        "a_false_b_false": 1
+      },
+      "n_bars_with_both": 5,
+      "cramers_v": 0.25,
+      "chi2": 0.31250000000000006
+    },
+    "OB__SWEEP": {
+      "contingency": {
+        "a_true_b_true": 15,
+        "a_true_b_false": 3,
+        "a_false_b_true": 4,
+        "a_false_b_false": 2
+      },
+      "n_bars_with_both": 24,
+      "cramers_v": 0.1777046633277277,
+      "chi2": 0.7578947368421052
+    },
+    "FVG__SWEEP": {
+      "contingency": {
+        "a_true_b_true": 10,
+        "a_true_b_false": 1,
+        "a_false_b_true": 9,
+        "a_false_b_false": 4
+      },
+      "n_bars_with_both": 24,
+      "cramers_v": 0.26596952180515004,
+      "chi2": 1.6977548767022446
+    }
+  },
+  "verdict": {
+    "max_cramers_v": 0.26596952180515004,
+    "all_below_0.2": false,
+    "any_above_0.5": false,
+    "decision": "INCONCLUSIVE_ZONE (0.2 .. 0.5)"
+  }
+}
