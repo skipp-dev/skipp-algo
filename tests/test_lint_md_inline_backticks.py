@@ -28,6 +28,7 @@ def lint_module():
         "commonmark_inline.md",
         "tilde_fences.md",
         "backtick_fence.md",
+        "blockquote_fences.md",
     ],
 )
 def test_known_good_fixtures_have_zero_findings(lint_module, fixture_name):

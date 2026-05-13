@@ -57,6 +57,12 @@ from typing import Iterable, NamedTuple
 # tolerated by hand-counting indent in the caller if ever needed.
 _FENCE_OPENER_RE = re.compile(r"^\s*(?P<token>`{3,}|~{3,})")
 
+# Blockquote prefix — CommonMark §5.1 allows fences and inline code spans inside
+# blockquotes (`> ```bash`, `> some `code` here`). We strip the leading
+# `>`-prefix(es) before fence/inline-balance checks so blockquote-nested fences
+# are recognized correctly.
+_BLOCKQUOTE_PREFIX_RE = re.compile(r"^(?:\s*>\s?)+")
+
 # Strip *any* fully-balanced inline span on a single line first, including
 # spans delimited by 1, 2, or 3+ backticks. CommonMark §6 says a span is
 # delimited by matching runs of the same length, so we walk runs greedily.
@@ -141,7 +147,14 @@ def lint_file(path: Path) -> list[Finding]:
         return findings
 
     for lineno, raw in enumerate(text.splitlines(), start=1):
-        m = _FENCE_OPENER_RE.match(raw)
+        # Strip leading blockquote markers (`> `, `>> `, etc.) before checking
+        # for fence opener / inline balance. CommonMark §5.1 allows fences and
+        # inline-code inside blockquotes; without this strip both a `> ```bash`
+        # opener and a `> ` ` `` `` `inline` ` `` ` span are mis-flagged.
+        prefix_match = _BLOCKQUOTE_PREFIX_RE.match(raw)
+        prefix_len = prefix_match.end() if prefix_match is not None else 0
+        line = raw[prefix_len:]
+        m = _FENCE_OPENER_RE.match(line)
         if m is not None:
             tok = m.group("token")[0]
             if not in_fence:
@@ -156,7 +169,7 @@ def lint_file(path: Path) -> list[Finding]:
         if in_fence:
             continue
 
-        stripped = _strip_balanced_inline_runs(raw)
+        stripped = _strip_balanced_inline_runs(line)
         leftover = _RUN_RE.search(stripped)
         if leftover is None:
             continue
@@ -166,7 +179,7 @@ def lint_file(path: Path) -> list[Finding]:
             Finding(
                 path=path,
                 line=lineno,
-                column=leftover.start() + 1,
+                column=leftover.start() + 1 + prefix_len,
                 snippet=snippet,
                 rule="unbalanced-inline-backticks",
             )
