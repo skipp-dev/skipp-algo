@@ -3366,10 +3366,22 @@ def run_production_export_pipeline(
     resolved_bullish_cfg = build_default_bullish_quality_config(score_profile=bullish_score_profile)
     resolved_skip_cost_estimate = True if skip_cost_estimate is None else bool(skip_cost_estimate)
 
+    # P5.4 Option B: timestamp every progress line with elapsed wallclock + RSS so
+    # that even when the runner is killed by SIGTERM (exit 143) mid-pipeline — see
+    # docs/PHASE_5.4_FAILURE_ANALYSIS.md, 7 of 8 recent runs killed at workbook
+    # stage — the partial step-lifetime tabulation and last-completed step are
+    # recoverable from the GHA log. sys.stdout.flush() defends against buffered
+    # output being lost when the runner shuts down.
+    _pipeline_t0 = time_module.perf_counter()
+
     def _progress(msg: str) -> None:
-        logger.info(msg)
+        elapsed = time_module.perf_counter() - _pipeline_t0
+        rss_pair = _fmt_rss_pair()
+        stamped = f"[t+{elapsed:.0f}s {rss_pair}] {msg}"
+        logger.info(stamped)
+        sys.stdout.flush()
         if progress_callback is not None:
-            progress_callback(msg)
+            progress_callback(stamped)
 
     resolved_cache_dir = cache_dir or (REPO_ROOT / "artifacts" / "databento_volatility_cache")
     resolved_export_dir = export_dir or default_export_directory()
