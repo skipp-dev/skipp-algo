@@ -29,6 +29,9 @@ so it gets its own dedicated test module.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
+import pandas as pd
 import pytest
 
 import scripts.databento_production_export as export_mod
@@ -38,6 +41,7 @@ from scripts.databento_production_export import (
     DEFAULT_SLIM_CANONICAL_WORKBOOK_SHEET_NAMES,
     _resolve_canonical_workbook_sheet_whitelist,
 )
+from scripts.databento_production_workbook import WorkbookWriteResult
 
 
 # ---------------------------------------------------------------------------
@@ -240,3 +244,243 @@ def test_module_exports_whitelist_symbols() -> None:
             f"{name} disappeared from scripts.databento_production_export — "
             "bridge-1c contract broken"
         )
+
+
+# ---------------------------------------------------------------------------
+# consumer-level tests — exercise the slim-whitelist branch inside
+# ``_write_canonical_production_workbook`` (smc_base_only=False path).
+# Mirrors the fixture pattern in test_databento_production_workbook_shared.py
+# but focuses on the env-resolved whitelist behaviour added by Bridge 1c.
+# ---------------------------------------------------------------------------
+
+
+def _placeholder_frame() -> pd.DataFrame:
+    """One-row placeholder so additional_sheets keys carry payload."""
+    return pd.DataFrame([{"trade_date": "2026-03-26", "symbol": "AAPL"}])
+
+
+def _invoke_write_canonical_workbook(
+    *,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    progress_callback=None,
+) -> dict[str, object]:
+    """Drive ``_write_canonical_production_workbook`` with stubbed writer.
+
+    Returns the kwargs captured by the fake writer so callers can assert
+    on the resulting ``additional_sheets`` / minute_detail / second_detail
+    after the slim-whitelist filter has been applied.
+    """
+    recorded: dict[str, object] = {}
+
+    def _fake_writer(**kwargs):
+        recorded.update(kwargs)
+        out_path = Path(kwargs["output_path"])
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_bytes(b"ok")
+        return WorkbookWriteResult(
+            output_path=out_path,
+            generated_at="2026-03-26T00:00:00+00:00",
+            row_counts={"summary": len(kwargs["summary"])},
+            sheet_names=["summary"],
+            canonical_upstream_artifact="databento_production_export_bundle",
+        )
+
+    monkeypatch.setattr(
+        export_mod,
+        "write_databento_production_workbook_from_frames",
+        _fake_writer,
+    )
+
+    export_mod._write_canonical_production_workbook(
+        export_dir=tmp_path,
+        summary=pd.DataFrame([{"symbol": "AAPL"}]),
+        minute_detail=pd.DataFrame(
+            [{"timestamp": "2026-03-26T13:30:00Z", "price": 1.0}]
+        ),
+        second_detail=pd.DataFrame(
+            [{"timestamp": "2026-03-26T13:30:00Z", "price": 1.0}]
+        ),
+        manifest={"dataset": "DBEQ.BASIC"},
+        raw_universe=_placeholder_frame(),
+        daily_bars=_placeholder_frame(),
+        intraday=_placeholder_frame(),
+        ranked=_placeholder_frame(),
+        daily_symbol_features_full_universe=_placeholder_frame(),
+        full_universe_second_detail_open=_placeholder_frame(),
+        full_universe_second_detail_close=_placeholder_frame(),
+        full_universe_close_trade_detail=_placeholder_frame(),
+        full_universe_close_outcome_minute=_placeholder_frame(),
+        close_imbalance_features_full_universe=_placeholder_frame(),
+        close_imbalance_outcomes_full_universe=_placeholder_frame(),
+        premarket_features_full_universe=_placeholder_frame(),
+        premarket_window_features_full_universe=_placeholder_frame(),
+        symbol_day_diagnostics=_placeholder_frame(),
+        research_event_flags_full_universe=_placeholder_frame(),
+        research_event_flag_coverage=_placeholder_frame(),
+        research_event_flag_trade_date_distribution=_placeholder_frame(),
+        research_event_flag_outcome_slices=_placeholder_frame(),
+        research_news_flags_full_universe=_placeholder_frame(),
+        research_news_flag_coverage=_placeholder_frame(),
+        research_news_flag_trade_date_distribution=_placeholder_frame(),
+        research_news_flag_outcome_slices=_placeholder_frame(),
+        core_vs_benzinga_news_side_by_side=_placeholder_frame(),
+        core_vs_benzinga_news_overlap_stats=_placeholder_frame(),
+        quality_window_status=_placeholder_frame(),
+        batl_debug={"ok": True},
+        output_summary={"rows": 1},
+        smc_base_only=False,
+        progress_callback=progress_callback,
+    )
+    return recorded
+
+
+def test_write_canonical_workbook_slims_to_default_whitelist_when_env_unset(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Default behaviour (env unset): drop everything except the 4 slim sheets.
+
+    This is the contract that keeps the cron from another OOM. If a future
+    refactor accidentally widens the default, this test catches it before
+    the cron does.
+    """
+    monkeypatch.delenv(CANONICAL_WORKBOOK_SHEETS_ENV_VAR, raising=False)
+
+    recorded = _invoke_write_canonical_workbook(
+        tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    additional = recorded["additional_sheets"]
+    assert isinstance(additional, dict)
+    # `manifest` / `daily_bars` survive; `batl_debug` / `output_checks`
+    # are added by the writer downstream from a dict, not via
+    # additional_sheets, so they are *not* expected here.
+    assert "manifest" in additional
+    assert "daily_bars" in additional
+    # The OOM-driving 24+ sheets must all be filtered out at this layer.
+    for forbidden in (
+        "universe",
+        "intraday_all",
+        "ranked",
+        "daily_symbol_features_full_universe",
+        "premarket_window_features_full_universe",
+        "symbol_day_diagnostics",
+    ):
+        assert forbidden not in additional, (
+            f"slim-whitelist regressed: {forbidden!r} leaked into the "
+            "canonical workbook — would re-trigger the cron OOM"
+        )
+    # minute_detail / second_detail are not in the default slim list and
+    # MUST be suppressed.
+    assert recorded["minute_detail"].empty
+    assert recorded["second_detail"].empty
+
+
+def test_write_canonical_workbook_emits_dropped_progress_marker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Progress callback receives a `slim-whitelist active` marker when sheets are dropped."""
+    monkeypatch.delenv(CANONICAL_WORKBOOK_SHEETS_ENV_VAR, raising=False)
+    messages: list[str] = []
+
+    _invoke_write_canonical_workbook(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+        progress_callback=messages.append,
+    )
+
+    slim_msgs = [m for m in messages if "slim-whitelist active" in m]
+    assert slim_msgs, (
+        "Slim-whitelist progress marker was not emitted — operators rely on "
+        "it to confirm the cron is running the slim path."
+    )
+    joined = "\n".join(slim_msgs)
+    assert "kept=" in joined and "dropped=" in joined
+    assert CANONICAL_WORKBOOK_SHEETS_ENV_VAR in joined
+
+
+def test_write_canonical_workbook_honours_env_override_csv(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``CANONICAL_WORKBOOK_SHEETS=manifest`` keeps only manifest."""
+    monkeypatch.setenv(CANONICAL_WORKBOOK_SHEETS_ENV_VAR, "manifest")
+
+    recorded = _invoke_write_canonical_workbook(
+        tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    additional = recorded["additional_sheets"]
+    assert isinstance(additional, dict)
+    assert set(additional.keys()) == {"manifest"}
+    assert recorded["minute_detail"].empty
+    assert recorded["second_detail"].empty
+
+
+def test_write_canonical_workbook_env_all_retains_full_sheet_set(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``CANONICAL_WORKBOOK_SHEETS=all`` restores historic full-workbook path.
+
+    No filtering, no whitelist progress marker, and minute_detail /
+    second_detail are forwarded unchanged.
+    """
+    monkeypatch.setenv(
+        CANONICAL_WORKBOOK_SHEETS_ENV_VAR,
+        CANONICAL_WORKBOOK_SHEETS_ALL_TOKEN,
+    )
+    messages: list[str] = []
+
+    recorded = _invoke_write_canonical_workbook(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+        progress_callback=messages.append,
+    )
+
+    additional = recorded["additional_sheets"]
+    assert isinstance(additional, dict)
+    # Sample of sheets that the slim-whitelist would have dropped — all
+    # must remain in the `all` path.
+    for retained in (
+        "manifest",
+        "daily_bars",
+        "universe",
+        "premarket_window_features_full_universe",
+    ):
+        assert retained in additional, (
+            f"`CANONICAL_WORKBOOK_SHEETS=all` regressed: {retained!r} "
+            "dropped from the full-workbook path"
+        )
+    assert not recorded["minute_detail"].empty
+    assert not recorded["second_detail"].empty
+    assert not any(
+        "slim-whitelist active" in m for m in messages
+    ), "slim-whitelist progress marker leaked into the `all` path"
+
+
+def test_write_canonical_workbook_env_minute_detail_keeps_minute_detail_frame(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """If the whitelist names ``minute_detail`` explicitly, the frame is kept.
+
+    Exercises the conditional re-assignment of ``workbook_minute_detail`` /
+    ``workbook_second_detail`` inside the slim-whitelist branch.
+    """
+    monkeypatch.setenv(
+        CANONICAL_WORKBOOK_SHEETS_ENV_VAR,
+        "manifest,minute_detail,second_detail",
+    )
+
+    recorded = _invoke_write_canonical_workbook(
+        tmp_path=tmp_path, monkeypatch=monkeypatch
+    )
+
+    assert not recorded["minute_detail"].empty, (
+        "minute_detail was named in CANONICAL_WORKBOOK_SHEETS but the "
+        "writer received an empty frame — the positional-suppression "
+        "branch incorrectly fired"
+    )
+    assert not recorded["second_detail"].empty, (
+        "second_detail was named in CANONICAL_WORKBOOK_SHEETS but the "
+        "writer received an empty frame — the positional-suppression "
+        "branch incorrectly fired"
+    )
