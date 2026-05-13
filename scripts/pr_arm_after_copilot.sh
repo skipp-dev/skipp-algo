@@ -27,6 +27,14 @@ if ! command -v gh >/dev/null 2>&1; then
   exit 3
 fi
 
+# Require `git` too, otherwise the rev-parse below would fail with a misleading
+# "not a git work tree" message (the failing `git` lookup is indistinguishable
+# from a non-repo directory).
+if ! command -v git >/dev/null 2>&1; then
+  echo "[pr_arm_after_copilot] error: 'git' not found in PATH" >&2
+  exit 3
+fi
+
 # Anchor to the repo root containing this script so it works no matter the
 # caller's CWD (the script may be invoked via absolute path from anywhere).
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
