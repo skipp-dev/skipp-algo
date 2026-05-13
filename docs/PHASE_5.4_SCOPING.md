@@ -47,29 +47,40 @@ bottleneck was elsewhere — only 1 of 4 edits was wired).
 Listed with the file/region to inspect AFTER the next D-profile run pins
 which one is dominant. **Do NOT pre-emptively fix any of these.**
 
-### H1 — Step 8 OPRA UOA detection (post-Q5b residual)
+### H1 — Step 8/10b close-window second detail collection (post-Q5b residual)
 
-* **Where**: `newsstack_fmp/opra_uoa.py::detect_unusual_options_activity`
-  (~76.5M rows scanned per run in #25422978658)
-* **Hypothesis**: Even after Q5b skips the second-detail xlsx writes, the
-  Step 8 detection scan over the OPRA.PILLAR feed remains O(N) over the
-  full UOA candidate window. Vectorising the per-symbol z-score loop
-  (`for sym in candidates:` → groupby) could cut wall by ≥50%.
-* **Falsifier**: Fresh D-profile shows Step 8 < 10min wall — H1 is dead and
-  Q5b alone fixed it.
+* **Where**: `scripts/databento_production_export.py` around Step 8/10b
+  (close-window second detail collection — see
+  `Step 8/10b complete:` log line, currently around line 3618). This was
+  the ~76.5M-row scan in D-profile #25422978658, NOT OPRA UOA —
+  `grep -nE 'opra|uoa' scripts/databento_production_export.py` returns
+  zero matches, so the prior OPRA UOA framing was wrong.
+* **Hypothesis**: Even after Q5b skips the second-detail xlsx writes,
+  the underlying close-window second detail _collection_ over the full
+  Databento second-bar feed still loads ~76.5M rows into memory before
+  the parquet/skipped-xlsx fan-out. Memory peak from this collection is
+  the proximate trigger for the SIGTERM kill documented in
+  `docs/PHASE_5.4_FAILURE_ANALYSIS.md`. Streaming the second-bar window
+  through a per-symbol generator (instead of a single concat) could cut
+  peak RSS by ~60%.
+* **Falsifier**: Fresh D-profile shows Step 8/10b < 10min wall AND peak
+  RSS < 20 GiB — H1 is dead.
 * **Cost if pursued**: ~1 day, requires regression test against current
-  detector output (numerical equivalence, not just shape).
+  parquet output (numerical equivalence, not just shape).
 
-### H2 — Step 10/10c parquet write fan-out
+### H2 — Step 10/10b parquet write fan-out (vs Step 10/10c workbook)
 
-* **Where**: `scripts/databento_production_export.py` parquet write loop
-  (post-Q5b: still writes the second-detail series as parquet, just not
-  xlsx). Confirm the line range with `grep -nE "second_detail.*parquet"
-  scripts/databento_production_export.py`.
+* **Where**: `scripts/databento_production_export.py` Step 10/10b is the
+  parquet write loop; Step 10/10c is the canonical xlsx workbook write
+  (the latter already has Q5a + Q5b skips for oversized sheets). For
+  this hypothesis the focus is Step 10/10b (parquet) — even with the
+  workbook largely skipped, the parquet writes still fan out across
+  many per-day files. Confirm line range with `grep -nE 'Step 10/10b
+  complete:' scripts/databento_production_export.py`.
 * **Hypothesis**: PyArrow's per-file fsync overhead on the larger-runner
   pool (network-mounted `/home/runner/work`) dominates. Batching into a
   single multi-file dataset directory could amortise.
-* **Falsifier**: D-profile shows parquet writes < 5% of cap.
+* **Falsifier**: D-profile shows Step 10/10b parquet writes < 5% of cap.
 * **Cost if pursued**: ~½ day, mostly test surface (the parquet readers
   on the consumer side need to accept the new directory shape).
 
@@ -102,14 +113,24 @@ Before writing a fix plan, the following must be in hand:
    current `main` (post-Q5b, post-Audit-L-1). Triggered manually or via
    the cron + watchdog. Run ID recorded here once available.
 2. **Step-lifetime tabulation** of that run: `(step name, start, end,
-   delta, % of 240-min cap)`. Generated via
-   `gh run view <id> --log | grep -E "STEP [0-9]+|Step [0-9]+ (start|end)"`
-   piped into a sort/awk pipeline (see `~/.claude/memory/debugging.md`
-   "Concrete protocol").
+   delta, % of 240-min cap)`. After PR #2176 the progress lines carry a
+   `[t+Xs rss=peak/current MiB]` prefix, so the tabulation pipeline is:
+   ```bash
+   gh run view <id> --log \
+     | grep -E 'Step [0-9]+/[0-9]+[a-z]?(:| complete)' \
+     | sort -k1,1 -k2,2
+   ```
+   For each step, the difference between the `Step N/10x:` start line
+   and the matching `Step N/10x complete:` line gives the wall delta.
+   Step labels actually emitted by the exporter:
+   `Step 1/10` through `Step 8/10` plus `Step 8/10[a-e]` sub-stages, and
+   `Step 9/10`, `Step 10/10b` (parquet), `Step 10/10c` (workbook).
 3. **Failure analysis of Run #25752310158** (failed 2026-05-12 17:53→20:42
-   UTC) — needed to confirm the failure mode is unrelated to whichever
-   step the new D-profile fingers as dominant. If the failure is in the
-   same step, the fix plan must address both.
+   UTC) — see `docs/PHASE_5.4_FAILURE_ANALYSIS.md`. Confirms the failure
+   is a runner-level SIGTERM at the workbook stage, recurring on 7 of 8
+   most recent runs. Blocks naive D-profile retrigger; PR #2176 shipped
+   the prerequisite `_progress()` instrumentation so even a SIGTERM-
+   killed run yields recoverable step-lifetime data.
 
 Only when steps 1-3 are complete should this scoping note be promoted to a
 `docs/PHASE_5.4_PLAN.md` with concrete fix selection.
