@@ -154,6 +154,79 @@ A single `ENABLE_*` env var must have **one** default-source-of-truth
 `os.environ.get("ENABLE_*", "<default>")` in business-logic modules; use
 the typed flag.
 
+### 5.6 Pre-flight Markdown lint (inline-backtick spans)
+
+Cross-line inline-backtick spans render as raw `` ` `` characters and were
+the dominant Copilot finding-class in the P5.4 doc-train (PRs #2173–#2179).
+The repo-resident lint catches them before push:
+
+```bash
+python scripts/lint_md_inline_backticks.py docs/                # warn
+python scripts/lint_md_inline_backticks.py --strict docs/       # fail
+python scripts/lint_md_inline_backticks.py --format github docs/  # GHA annotations
+```
+
+CI runs the warn-only mode on every PR touching `docs/**` via
+`.github/workflows/docs-lint.yml`. Whenever you edit Markdown, run
+`--strict` locally before pushing.
+
+### 5.7 Pre-flight `sort` ordering check (shell snippets in docs)
+
+Plain `sort` is **lex-sort**: `10 < 2 < 9`. In any shell snippet that
+ranks numeric / version-tagged values (PR numbers, run IDs, line
+numbers, semver tags, byte counts), use one of:
+
+- `sort -n` — numeric sort
+- `sort -V` — version sort (handles `v1.10.0 > v1.9.0`)
+- explicit `# lex-sort intentional: <reason>` comment
+
+Forbidden in docs / CI / scripts unless justified inline:
+
+```bash
+... | sort | head    # ⛔ lex-sort surprise
+```
+
+Required:
+
+```bash
+... | sort -n | head   # ✅ numeric
+... | sort -V | head   # ✅ semver
+... | sort | head      # ✅ with comment: "# lex-sort intentional: alphabetical token list"
+```
+
+Pre-flight grep before pushing any docs / shell-script edit:
+
+```bash
+grep -nE 'sort\b' <edited-file> | grep -vE -- '-n|-V|lex-sort intentional'
+```
+
+Zero hits required.
+
+### 5.8 Pre-flight dual-stream-flush check (sibling `_progress` functions)
+
+The canonical `_progress` flush pattern (P5.3-A6, P5.4-A1) is:
+
+```python
+logger.info(message)        # writes to stderr (logger basicConfig)
+sys.stderr.flush()          # CRITICAL: logger goes to stderr
+sys.stdout.flush()          # defensive: progress_callback / stdout writers
+```
+
+Whenever you touch ANY `_progress` (or analogous) function, grep the
+**whole repo** for sibling implementations and verify they all carry the
+dual-stream flush:
+
+```bash
+grep -nE 'def _progress\(' scripts/ tests/ | sort
+# For each result, read ±10 lines and confirm both flushes are present.
+```
+
+The P5.4 deep-review found 3 sibling implementations
+(`databento_production_export.py`, `databento_preopen_fast.py`,
+`generate_smc_micro_base_from_databento.py`,
+`smc_microstructure_base_runtime.py`) — only one had the canonical
+flush pair. Whole-repo grep is the lowest-cost insurance.
+
 ## 6. PR-author checkpoint (before declaring "done")
 
 Before saying "PR #N done":
