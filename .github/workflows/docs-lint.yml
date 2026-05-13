@@ -38,9 +38,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+      # Use the repo's canonical setup-python composite action so the Python
+      # version stays aligned with the rest of CI (currently 3.12, pinned via
+      # actions/setup-python@v6). The lint script imports only stdlib, so we
+      # do not pass `cache: pip` — pip caching stays opt-in at the call site
+      # and is not active for this job. Migrating per Copilot review on PR #2185.
+      - uses: ./.github/actions/setup-python-pinned
 
       # WARN-ONLY (B1+B3 phase). Findings appear as ::warning:: GHA
       # annotations; the job exits 0. After the bulk-fix PR (B2) lands and

@@ -73,6 +73,10 @@ env:
   WATCHDOG_THRESHOLD_MIN: 45
   # Max minutes after slot start before watchdog gives up (no-op)
   WATCHDOG_WINDOW_MAX_MIN: 90
+  # F-V6-A2.1 (2026-05-02): top-level PYTHONUNBUFFERED so any inline
+  # `python -c` step (and pip / setup-python in future revisions) streams
+  # stderr/stdout unbuffered. Required by tests/test_workflow_python_unbuffered.py.
+  PYTHONUNBUFFERED: "1"
 
 jobs:
   watchdog:

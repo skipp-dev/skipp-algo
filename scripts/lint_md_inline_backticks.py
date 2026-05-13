@@ -11,8 +11,9 @@ on line N+1. GitHub renders this as a broken span and copy-paste of the
 quoted command no longer works.
 
 A whole-`docs/` sweep (deep-review § C2 with user-corrected count) found
-**48 such lines**. This lint reproduces the sweep so the same finding-class
-cannot regress.
+dozens of such lines (the original sweep counted 48; the bulk-fix in
+PR #2187 mechanically resolved most of them). This lint reproduces the
+sweep so the same finding-class cannot regress.
 
 Edge cases handled (per deep-review CORR-4)
 -------------------------------------------
@@ -139,6 +140,7 @@ def lint_file(path: Path) -> list[Finding]:
     findings: list[Finding] = []
     in_fence = False
     fence_token: str | None = None  # "`" or "~"
+    fence_len = 0  # opening-fence length; closer must be >= this (CommonMark §4.5)
 
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
@@ -156,16 +158,27 @@ def lint_file(path: Path) -> list[Finding]:
         line = raw[prefix_len:]
         m = _FENCE_OPENER_RE.match(line)
         if m is not None:
-            tok = m.group("token")[0]
+            token_run = m.group("token")
+            tok = token_run[0]
+            run_len = len(token_run)
             if not in_fence:
                 in_fence = True
                 fence_token = tok
+                fence_len = run_len
                 continue
-            if fence_token is not None and tok == fence_token:
+            # CommonMark §4.5: a closing code-fence must use the same token
+            # AND be at least as long as the opener. A shorter run inside the
+            # fence is content (e.g. ``` inside a ```` block).
+            if (
+                fence_token is not None
+                and tok == fence_token
+                and run_len >= fence_len
+            ):
                 in_fence = False
                 fence_token = None
+                fence_len = 0
                 continue
-            # Different fence-token while inside a fence — leave as content.
+            # Different fence-token, or shorter run — leave as content.
         if in_fence:
             continue
 

@@ -29,6 +29,7 @@ def lint_module():
         "tilde_fences.md",
         "backtick_fence.md",
         "blockquote_fences.md",
+        "long_open_fence.md",
     ],
 )
 def test_known_good_fixtures_have_zero_findings(lint_module, fixture_name):
