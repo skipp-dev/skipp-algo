@@ -21,6 +21,7 @@ from dotenv import load_dotenv
 
 load_dotenv(REPO_ROOT / ".env")
 
+from scripts._progress_flush import flush_progress_streams
 from scripts.generate_smc_micro_profiles import load_schema
 from scripts.smc_atomic_write import atomic_write_csv, atomic_write_text
 from scripts.smc_enrichment_types import EnrichmentDict
@@ -1512,14 +1513,7 @@ def finalize_pipeline(
 
     def _progress(message: str) -> None:
         logger.info(message)
-        # scripts/_logging_init.py::init_cli_logging() configures
-        # basicConfig(stream=sys.stderr) (line numbers move; reference by
-        # function name to avoid brittle line-pin).
-        # Without an explicit flush, GHA SIGTERM/SIGKILL drops the last 4-8KB
-        # stderr buffer and hides the dominant bottleneck step in D-profiles.
-        # Mirrors the canonical fix in databento_production_export.py:3384-3385.
-        sys.stderr.flush()
-        sys.stdout.flush()
+        flush_progress_streams()
         if progress_callback is not None:
             progress_callback(message)
 

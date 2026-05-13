@@ -36,6 +36,7 @@ from databento_volatility_screener import (
     list_accessible_datasets,
     normalize_symbol_for_databento,
 )
+from scripts._progress_flush import flush_progress_streams
 from scripts.bullish_quality_config import (
     DEFAULT_BULLISH_QUALITY_SCORE_PROFILE,
     build_default_bullish_quality_config,
@@ -652,14 +653,7 @@ def run_preopen_fast_refresh(
 ) -> dict[str, Any]:
     def _progress(message: str) -> None:
         logger.info(message)
-        # scripts/_logging_init.py::init_cli_logging() configures
-        # basicConfig(stream=sys.stderr) (line numbers move; reference by
-        # function name to avoid brittle line-pin).
-        # Without an explicit flush, GHA SIGTERM/SIGKILL drops the last 4-8KB
-        # stderr buffer and hides the dominant bottleneck step in D-profiles.
-        # Mirrors the canonical fix in databento_production_export.py::_progress.
-        sys.stderr.flush()
-        sys.stdout.flush()
+        flush_progress_streams()
         if progress_callback is not None:
             progress_callback(message)
 
