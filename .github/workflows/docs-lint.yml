@@ -50,6 +50,10 @@ jobs:
       # the docs/ corpus is clean, flip to --strict in a separate PR. This
       # gating is documented in docs/COPILOT_REVIEW_TRIAGE_PROTOCOL.md
       # (Phase B) and the deep-review report 2026-05-13 § B3.
-      - name: Run lint_md_inline_backticks.py (warn-only)
+      #
+      # 2026-05-13: Phase B2 (PR #2187) cleared the corpus; this workflow
+      # now runs in --strict mode so any new unbalanced inline-backtick
+      # span fails the build.
+      - name: Run lint_md_inline_backticks.py (strict)
         run: |
-          python scripts/lint_md_inline_backticks.py --format github docs/
+          python scripts/lint_md_inline_backticks.py --strict --format github docs/
