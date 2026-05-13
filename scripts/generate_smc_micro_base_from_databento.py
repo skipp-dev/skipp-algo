@@ -1512,6 +1512,12 @@ def finalize_pipeline(
 
     def _progress(message: str) -> None:
         logger.info(message)
+        # scripts/_logging_init.py:62 configures basicConfig(stream=sys.stderr).
+        # Without an explicit flush, GHA SIGTERM/SIGKILL drops the last 4-8KB
+        # stderr buffer and hides the dominant bottleneck step in D-profiles.
+        # Mirrors the canonical fix in databento_production_export.py:3384-3385.
+        sys.stderr.flush()
+        sys.stdout.flush()
         if progress_callback is not None:
             progress_callback(message)
 

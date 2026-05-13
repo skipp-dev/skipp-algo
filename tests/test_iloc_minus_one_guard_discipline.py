@@ -110,8 +110,8 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         ("scripts/generate_databento_watchlist.py", 143),
         # scripts/smc_microstructure_base_runtime.py — OHLC reduction
         # over a full closed frame (open from first row, close from
-        # last row).
-        ("scripts/smc_microstructure_base_runtime.py", 817),
+        # last row). PR #2180 added `import sys` (1 line) shifting 817 -> 818.
+        ("scripts/smc_microstructure_base_runtime.py", 818),
     }
 )
 
