@@ -128,7 +128,7 @@ class OpraDefinitionRecord:
             strike=float(row.get("strike_price") or row.get("strike") or 0.0),
             expiration=str(row.get("expiration") or row.get("expiry") or ""),
             option_type=opt_type,
-            raw_symbol=str(row.get("raw_symbol") or "") or None,
+            raw_symbol=str(row.get("raw_symbol") or row.get("symbol") or "") or None,
         )
 
 

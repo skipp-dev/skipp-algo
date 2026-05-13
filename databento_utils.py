@@ -396,5 +396,5 @@ def list_datasets_normalized(client: Any) -> set[str]:
             ...
     """
     raw = client.metadata.list_datasets()
-    return {str(item).strip() for item in raw if str(item).strip()}
+    return {s for s in (str(item).strip() for item in raw) if s}
 

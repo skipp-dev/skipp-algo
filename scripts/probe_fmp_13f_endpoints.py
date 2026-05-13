@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -50,6 +51,15 @@ CANDIDATES: tuple[tuple[str, dict[str, str]], ...] = (
 
 BASE_STABLE = "https://financialmodelingprep.com"
 
+# Match `apikey=<value>` in a URL query string. Tolerates URL-encoded characters
+# in the key value (which `url.replace(api_key, "***")` does NOT). Anchored to
+# `apikey=` so we never redact unrelated path segments.
+_APIKEY_RE = re.compile(r"(apikey=)[^&\s]+", re.IGNORECASE)
+
+
+def _redact_apikey(url: str) -> str:
+    return _APIKEY_RE.sub(r"\1***", url)
+
 
 def _build_url(path: str, params: dict[str, str], api_key: str) -> str:
     query = dict(params)
@@ -59,7 +69,7 @@ def _build_url(path: str, params: dict[str, str], api_key: str) -> str:
 
 def _probe(path: str, params: dict[str, str], api_key: str) -> dict[str, object]:
     url = _build_url(path, params, api_key)
-    sanitized = url.replace(api_key, "***")
+    sanitized = _redact_apikey(url)
     try:
         request = Request(url, headers={"User-Agent": "skipp-algo-13f-probe/1.0"})
         with urlopen(request, timeout=15.0) as response:

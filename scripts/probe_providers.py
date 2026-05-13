@@ -32,6 +32,8 @@ from typing import Any
 
 from dotenv import load_dotenv
 
+from databento_utils import _redact_sensitive_error_text
+
 # ── Pretty output ───────────────────────────────────────────────────
 
 GREEN = "\033[32m"
@@ -94,7 +96,9 @@ def _run(probe: Probe, *, quiet: bool = False) -> ProbeResult:
         status, detail = probe.fn()
     except Exception as exc:
         latency_ms = (time.monotonic() - t0) * 1000
-        msg = f"{type(exc).__name__}: {exc}"  # noqa: SECLEAK — truncated to 120 chars and used in operator preflight diagnostic only
+        # Redact first (URL/header tokens), then truncate. The redactor strips
+        # known secret patterns (apikey=, token=, Bearer …) before the slice.
+        msg = _redact_sensitive_error_text(f"{type(exc).__name__}: {exc}")
         if len(msg) > 120:
             msg = msg[:117] + "..."
         _emit(probe.name, "FAIL", latency_ms, msg, quiet=quiet)
@@ -272,7 +276,9 @@ def _probe_fmp_list(path: str, label: str, expected_min: int = 1) -> tuple[str, 
             timeout=15.0,
         )
     except httpx.HTTPError as exc:
-        return ("FAIL", f"HTTP error: {exc}")  # noqa: SECLEAK — httpx.HTTPError stringifies to status+url; FMP key passed via header, not URL
+        # FMP passes apikey via query string (params={"apikey": key}); a stringified
+        # httpx error can include the URL with the key. Redact before returning.
+        return ("FAIL", f"HTTP error: {_redact_sensitive_error_text(str(exc))}")
     if r.status_code == 401:
         return ("FAIL", "HTTP 401 — FMP key invalid")
     if r.status_code == 402:
@@ -287,9 +293,15 @@ def _probe_fmp_list(path: str, label: str, expected_min: int = 1) -> tuple[str, 
         return ("WARN", "non-JSON response")
     if not isinstance(data, list):
         return ("WARN", f"unexpected payload type={type(data).__name__}")
-    # eod-bulk is empty outside trading days — treat as WARN not FAIL.
+    # eod-bulk is empty outside trading days — treat as WARN/OK depending on
+    # the configured floor. Defensive: handle the empty-list case BEFORE
+    # accessing data[0] (audit-L-1 §R14: Copilot #66).
+    if not data:
+        if expected_min == 0:
+            return ("OK", f"{label} 0 rows (empty payload accepted; expected_min=0)")
+        return ("WARN", f"only 0 rows for {label} (expected_min={expected_min})")
     if len(data) < expected_min:
-        return ("WARN", f"only {len(data)} rows (empty outside trading day for eod-bulk)")
+        return ("WARN", f"only {len(data)} rows for {label} (expected_min={expected_min})")
     sample_sym = data[0].get("symbol") if isinstance(data[0], dict) else "n/a"
     return ("OK", f"{label} {len(data)} rows, sample={sample_sym}")
 
@@ -579,7 +591,9 @@ def _uw_probe(path: str, params: dict[str, str] | None, label: str) -> tuple[str
             timeout=15.0,
         )
     except httpx.HTTPError as exc:
-        return ("FAIL", f"HTTP error: {exc}")  # noqa: SECLEAK — httpx.HTTPError stringifies to status+url; UW key passed via header, not URL
+        # Defensive: even if the UW key is sent via header, a transport-level
+        # HTTPError can sometimes embed the prepared URL. Redact to be safe.
+        return ("FAIL", f"HTTP error: {_redact_sensitive_error_text(str(exc))}")
     if r.status_code == 401:
         return ("FAIL", "HTTP 401 — UW key invalid")
     if r.status_code == 403:
