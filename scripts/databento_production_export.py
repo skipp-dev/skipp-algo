@@ -3370,8 +3370,10 @@ def run_production_export_pipeline(
     # that even when the runner is killed by SIGTERM (exit 143) mid-pipeline — see
     # docs/PHASE_5.4_FAILURE_ANALYSIS.md, 7 of 8 recent runs killed at workbook
     # stage — the partial step-lifetime tabulation and last-completed step are
-    # recoverable from the GHA log. sys.stdout.flush() defends against buffered
-    # output being lost when the runner shuts down.
+    # recoverable from the GHA log. We flush BOTH stderr (where logging goes per
+    # scripts/_logging_init.py:60-65 `stream=sys.stderr`) AND stdout (defensive,
+    # in case progress_callback or any other handler writes there) so buffered
+    # output is not lost when the runner shuts down.
     _pipeline_t0 = time_module.perf_counter()
 
     def _progress(msg: str) -> None:
@@ -3379,7 +3381,8 @@ def run_production_export_pipeline(
         rss_pair = _fmt_rss_pair()
         stamped = f"[t+{elapsed:.0f}s {rss_pair}] {msg}"
         logger.info(stamped)
-        sys.stdout.flush()
+        sys.stderr.flush()  # logger writes to stderr — this is the critical flush
+        sys.stdout.flush()  # defensive: progress_callback or stdout-writers
         if progress_callback is not None:
             progress_callback(stamped)
 
