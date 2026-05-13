@@ -1426,7 +1426,15 @@ def test_finnhub_client_delegates_to_terminal_finnhub_shim(
 
     calls: list[tuple[str, dict[str, Any]]] = []
 
-    def _fake_get(path: str, params: dict[str, Any] | None = None) -> Any:
+    def _fake_get(
+        path: str,
+        params: dict[str, Any] | None = None,
+        *,
+        api_key: str | None = None,
+    ) -> Any:
+        # R6 (2026-05-12): facade now forwards api_key explicitly via kwarg
+        # instead of mutating ``os.environ["FINNHUB_API_KEY"]``.
+        assert api_key == "K", f"FinnhubClient must forward api_key kwarg, got {api_key!r}"
         calls.append((path, dict(params or {})))
         if path == "/stock/insider-sentiment":
             return {"data": [{"mspr": 12.5}], "symbol": "AAPL"}
@@ -1469,24 +1477,39 @@ def test_finnhub_client_delegates_to_terminal_finnhub_shim(
     assert calls[3][1] == {"symbol": "AAPL", "resolution": "D"}
 
 
-def test_finnhub_client_restores_env_after_call(
+def test_finnhub_client_passes_api_key_kwarg(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """``_http_get`` pushes ``api_key`` into the env for the shim; verify it
-    restores the previous value (or unsets it) on the way out."""
+    """R6 (2026-05-12): ``_http_get`` must forward ``api_key=`` to the shim
+    instead of save-set-restore-ing ``os.environ["FINNHUB_API_KEY"]``.
+
+    The previous shim was racy under concurrent ``FinnhubClient`` instances
+    and tripped the os.environ-mutation ledger. See R6 in
+    ``docs/AUDIT_L1_REVIEW_RETROSPECTIVE_2026-05-12.md``.
+    """
+    import os as _os
     import terminal_finnhub as _tf
 
-    monkeypatch.setattr(_tf, "_get", lambda path, params=None: [])
+    seen: list[str | None] = []
+
+    def _capture(
+        path: str,
+        params: dict[str, Any] | None = None,
+        *,
+        api_key: str | None = None,
+    ) -> Any:
+        seen.append(api_key)
+        return []
+
+    monkeypatch.setattr(_tf, "_get", _capture)
     monkeypatch.setenv("FINNHUB_API_KEY", "ORIGINAL")
 
     client = FinnhubClient(api_key="OVERRIDE")
     client.get_peers("AAPL")
-    import os as _os
+    # The facade forwarded the dataclass api_key, NOT the env value.
+    assert seen == ["OVERRIDE"]
+    # And it never touched the env var.
     assert _os.environ.get("FINNHUB_API_KEY") == "ORIGINAL"
-
-    monkeypatch.delenv("FINNHUB_API_KEY", raising=False)
-    client.get_peers("AAPL")
-    assert _os.environ.get("FINNHUB_API_KEY") is None
 
 
 def test_finnhub_client_swallows_shim_exception(
@@ -1495,7 +1518,12 @@ def test_finnhub_client_swallows_shim_exception(
     """If the shim raises, the facade must still return the documented empty."""
     import terminal_finnhub as _tf
 
-    def _boom(path: str, params: dict[str, Any] | None = None) -> Any:
+    def _boom(
+        path: str,
+        params: dict[str, Any] | None = None,
+        *,
+        api_key: str | None = None,
+    ) -> Any:
         raise RuntimeError("network down")
 
     monkeypatch.setattr(_tf, "_get", _boom)

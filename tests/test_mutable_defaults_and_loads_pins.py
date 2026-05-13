@@ -163,13 +163,12 @@ _FROZEN_ENV_SUBSCRIPT_SITES: frozenset[tuple[str, int]] = frozenset(
         ("databento_client.py", 60),
         ("databento_volatility_screener.py", 853),
         ("open_prep/macro.py", 148),
-        # FinnhubClient adapter shim: ``terminal_finnhub._get`` reads
-        # ``FINNHUB_API_KEY`` from os.environ, so FinnhubClient.from_env
-        # save-set-restores it around each call. Hard-fail-on-miss is
-        # intentional here — both writes are inside a try/finally that
-        # always sees prev defined, so KeyError can never occur.
-        ("open_prep/macro.py", 2041),
-        ("open_prep/macro.py", 2050),
+        # R6 (2026-05-12): the FinnhubClient adapter shim used to save-set-restore
+        # ``FINNHUB_API_KEY`` around each ``terminal_finnhub._get`` call. That
+        # shim has been replaced by an explicit ``api_key=`` kwarg passed
+        # through to ``terminal_finnhub._get``, so the previous entries at
+        # macro.py:2041 and macro.py:2050 are gone. See
+        # ``docs/AUDIT_L1_REVIEW_RETROSPECTIVE_2026-05-12.md`` § R6.
         ("open_prep/realtime_signals.py", 2611),
         ("open_prep/streamlit_monitor.py", 74),
         ("streamlit_terminal.py", 326),

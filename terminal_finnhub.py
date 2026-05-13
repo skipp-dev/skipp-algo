@@ -163,8 +163,15 @@ def is_available() -> bool:
 _BASE = "https://finnhub.io/api/v1"
 
 
-def _get(path: str, params: dict[str, Any] | None = None) -> Any:
+def _get(path: str, params: dict[str, Any] | None = None, *, api_key: str | None = None) -> Any:
     """GET from Finnhub.  Returns parsed JSON or empty dict on error.
+
+    The optional ``api_key`` keyword lets callers pass a key explicitly
+    instead of relying on the process-global ``FINNHUB_API_KEY`` env var.
+    Added in R6 (2026-05-12) to eliminate the racy
+    ``os.environ["FINNHUB_API_KEY"] = ...`` shim that was previously used
+    by ``open_prep.macro.FinnhubClient._http_get``. See
+    ``docs/AUDIT_L1_REVIEW_RETROSPECTIVE_2026-05-12.md``.
 
     NOTE (E-3 audit, ``smc_core.resilient``):
         This function is intentionally **not** wrapped with
@@ -193,7 +200,7 @@ def _get(path: str, params: dict[str, Any] | None = None) -> Any:
     # place (was previously one declaration mid-function plus a second
     # nested inside the 403 branch).
     global _rate_limit_backoff_until, _consecutive_429_count, _social_sentiment_blocked
-    key = _api_key()
+    key = (api_key or "").strip() or _api_key()
     if not key:
         return {}
     # PR4: generalised DISABLED-path short-circuit (any 403/404 path stays muted).
