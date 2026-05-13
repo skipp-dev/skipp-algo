@@ -227,6 +227,40 @@ The P5.4 deep-review found 3 sibling implementations
 `smc_microstructure_base_runtime.py`) — only one had the canonical
 flush pair. Whole-repo grep is the lowest-cost insurance.
 
+### 5.9 Auto-merge race wait constant
+
+Copilot does not auto-re-review after a `git push`. When you arm
+`gh pr merge --auto` immediately after PR creation, the PR can squash
+before Copilot has emitted its first review — and any actionable
+inline comment Copilot would have left is silently lost.
+
+**Wait constant: `8 minutes`** between PR creation and arming
+auto-merge. Derived from the last 30 merged PRs in this repo:
+
+- N = 30 PRs with at least one Copilot review.
+- p50 latency (PR created → first Copilot review): ~155s (2.6min).
+- p95 latency: 399s (6.7min).
+- p95 + 20% safety margin: 479s (8.0min) → rounded to **8 minutes**.
+
+The +20% margin absorbs Copilot review-queue spikes. If Copilot has
+not emitted a review after 8 minutes, the auto-merge is safe to arm
+(in practice the queue rarely exceeds 7min).
+
+Mechanism options:
+
+```bash
+# Option A — manual: open PR, wait, then arm
+gh pr create ...
+sleep 480
+gh pr merge --squash --delete-branch --auto
+
+# Option B — script for batch work (preferred)
+./scripts/pr_arm_after_copilot.sh <pr-number>
+```
+
+PRs armed without this wait MUST be re-checked post-merge for missed
+Copilot comments using the §1 query.
+
 ## 6. PR-author checkpoint (before declaring "done")
 
 Before saying "PR #N done":
