@@ -112,9 +112,12 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # ``_fmt_rss_pair`` helpers added for current+peak RSS instrumentation
         # (see commit 9e93416c). Q1 obs(workbook): line shifted 781→782 by
         # ``Callable`` import added for ``progress_callback`` plumbing.
+        # P5.4 A3 (PR #2194): line shifted 782→783 by the
+        # ``from scripts._progress_flush import flush_progress_streams``
+        # import added near the top for the extracted SSOT flush helper.
         (
             "scripts/databento_production_export.py",
-            782,
+            783,
             ("_DEFAULT_BULLISH_QUALITY_CFG",),
         ),
         ("smc_tv_bridge/smc_api.py", 184, ("_candle_provider",)),
