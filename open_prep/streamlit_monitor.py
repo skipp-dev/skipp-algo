@@ -672,9 +672,10 @@ def _cached_bz_options_op(api_key: str, tickers: str) -> list[dict[str, Any]]:
     # ── OPRA.PILLAR (preferred when feature flag is set) ──
     # Default 1 since 2026-05-12 (UW subscription cancelled). Set
     # ``ENABLE_OPRA_UOA=0`` only to force the legacy fallback path during
-    # local debug.
+    # local debug. Read via the SSOT helper (audit-L-1 R4).
+    from open_prep.feature_flags import is_opra_uoa_enabled
     if (
-        os.environ.get("ENABLE_OPRA_UOA", "1").strip() == "1"
+        is_opra_uoa_enabled()
         and _fetch_opra_options is not None
         and os.environ.get("DATABENTO_API_KEY", "").strip()
     ):
@@ -2273,8 +2274,10 @@ def main() -> None:
                     # Resolve display source label from the first record's
                     # `_source` tag (set by OPRA wrapper). Falls back to a
                     # Benzinga (retired) caption when OPRA is disabled.
+                    # Read via SSOT helper (audit-L-1 R4).
+                    from open_prep.feature_flags import is_opra_uoa_enabled
                     _opra_active = (
-                        os.environ.get("ENABLE_OPRA_UOA", "1").strip() == "1"
+                        is_opra_uoa_enabled()
                         and os.environ.get("DATABENTO_API_KEY", "").strip()
                     )
                     if opt_data and (opt_data[0].get("_source") == "databento_opra"):

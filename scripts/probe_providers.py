@@ -341,7 +341,10 @@ def probe_databento_opra_entitlement() -> tuple[str, str]:
     present but the dataset is not entitled — i.e. the operator misconfiguration
     case the matrix in docs/OPEN_PREP_OPS_QUICK_REFERENCE.md §13 calls out.
     """
-    if os.getenv("ENABLE_OPRA_UOA", "1") != "1":
+    # SSOT helper (audit-L-1 R4) so the probe agrees with streamlit_monitor
+    # + newsstack_fmp.config on whitespace handling.
+    from open_prep.feature_flags import is_opra_uoa_enabled
+    if not is_opra_uoa_enabled():
         return ("SKIP", "ENABLE_OPRA_UOA != '1' (feature disabled)")
     key = os.getenv("DATABENTO_API_KEY", "")
     if not key:

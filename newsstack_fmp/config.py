@@ -9,6 +9,13 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 
+# SSOT for ENABLE_* feature flags (audit-L-1 R4). Imported at module
+# load (cheap, leaf module with no transitive deps) so the dataclass
+# field default_factory can reference the helper directly without a
+# dynamic ``__import__(...)`` (which the dunder-import budget pin
+# would flag).
+from open_prep.feature_flags import is_opra_uoa_enabled
+
 
 def _env_float(key: str, default: float) -> float:
     """Read an env var as float, returning *default* on parse failure."""
@@ -63,7 +70,9 @@ class Config:
     # to be present, so missing-entitlement environments degrade to an empty
     # list instead of hitting the dead UW endpoint. Override to 0 only when
     # explicitly forcing the legacy Benzinga shim during local debug.
-    enable_opra_uoa: bool = field(default_factory=lambda: os.getenv("ENABLE_OPRA_UOA", "1") == "1")
+    # SSOT: routes through ``open_prep.feature_flags.is_opra_uoa_enabled``
+    # (audit-L-1 R4) to keep the four call sites uniform.
+    enable_opra_uoa: bool = field(default_factory=is_opra_uoa_enabled)
     # B4/B5/B7 (PR3 2026-05-09) — FMP extras. general-latest is default-ON
     # (pure value-add macro coverage); Senate/House/8-K default-OFF since
     # they require dedicated FMP plan tiers (DISABLED-pattern auto-suppresses).
