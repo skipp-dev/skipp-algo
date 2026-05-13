@@ -18,6 +18,7 @@ import pandas as pd
 
 from databento_provider import list_recent_trading_days
 from databento_utils import US_EASTERN_TZ
+from scripts._progress_flush import flush_progress_streams
 from scripts.databento_production_export import run_production_export_pipeline
 from scripts.generate_smc_micro_profiles import load_schema, run_generation
 from scripts.load_databento_export_bundle import load_export_bundle
@@ -2226,14 +2227,7 @@ def run_databento_base_scan_pipeline(
 ) -> dict[str, Any]:
     def _progress(message: str) -> None:
         logger.info(message)
-        # scripts/_logging_init.py::init_cli_logging() configures
-        # basicConfig(stream=sys.stderr) (line numbers move; reference by
-        # function name to avoid brittle line-pin).
-        # Without an explicit flush, GHA SIGTERM/SIGKILL drops the last 4-8KB
-        # stderr buffer and hides the dominant bottleneck step in D-profiles.
-        # Mirrors the canonical fix in databento_production_export.py:3384-3385.
-        sys.stderr.flush()
-        sys.stdout.flush()
+        flush_progress_streams()
         if progress_callback is not None:
             progress_callback(message)
 

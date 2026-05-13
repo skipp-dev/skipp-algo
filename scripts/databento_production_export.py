@@ -156,6 +156,7 @@ from databento_volatility_screener import (
 )
 from newsstack_fmp.ingest_benzinga import BenzingaRestAdapter
 from open_prep_boundary import make_fmp_client
+from scripts._progress_flush import flush_progress_streams
 from scripts.bullish_quality_config import (
     DEFAULT_BULLISH_QUALITY_SCORE_PROFILE,
     BullishQualityConfig,
@@ -3370,10 +3371,9 @@ def run_production_export_pipeline(
     # that even when the runner is killed by SIGTERM (exit 143) mid-pipeline — see
     # docs/PHASE_5.4_FAILURE_ANALYSIS.md, 7 of 8 recent runs killed at workbook
     # stage — the partial step-lifetime tabulation and last-completed step are
-    # recoverable from the GHA log. We flush BOTH stderr (where logging goes per
-    # scripts/_logging_init.py:60-65 `stream=sys.stderr`) AND stdout (defensive,
-    # in case progress_callback or any other handler writes there) so buffered
-    # output is not lost when the runner shuts down.
+    # recoverable from the GHA log. Stream-flush is delegated to
+    # flush_progress_streams() (see scripts/_progress_flush.py) which covers
+    # both stderr (where logging goes) and stdout (defensive).
     _pipeline_t0 = time_module.perf_counter()
 
     def _progress(msg: str) -> None:
@@ -3381,8 +3381,7 @@ def run_production_export_pipeline(
         rss_pair = _fmt_rss_pair()
         stamped = f"[t+{elapsed:.0f}s {rss_pair}] {msg}"
         logger.info(stamped)
-        sys.stderr.flush()  # logger writes to stderr — this is the critical flush
-        sys.stdout.flush()  # defensive: progress_callback or stdout-writers
+        flush_progress_streams()
         if progress_callback is not None:
             progress_callback(stamped)
 
