@@ -90,11 +90,11 @@ _FROZEN_DUNDER_IMPORT_SITES: frozenset[tuple[str, int]] = frozenset(
         # comment expansions in _cached_bz_options_op shifted everything
         # below it down by ~36 lines. Same 5 lazy ``time`` imports inside
         # the Streamlit re-render loop; no semantic change.
-        ("open_prep/streamlit_monitor.py", 1229),
-        ("open_prep/streamlit_monitor.py", 1241),
-        ("open_prep/streamlit_monitor.py", 1276),
-        ("open_prep/streamlit_monitor.py", 1279),
-        ("open_prep/streamlit_monitor.py", 1304),
+        ("open_prep/streamlit_monitor.py", 1230),
+        ("open_prep/streamlit_monitor.py", 1242),
+        ("open_prep/streamlit_monitor.py", 1277),
+        ("open_prep/streamlit_monitor.py", 1280),
+        ("open_prep/streamlit_monitor.py", 1305),
     }
 )
 
