@@ -153,9 +153,34 @@ Before pushing any branch:
 3. Run **§4** if any `_progress`-style function was touched.
 4. Run **§5** if any header / docstring / line-pinned ledger entry was
    touched.
+5. Run **§6.1** below before arming `gh pr merge --auto` on any new PR.
 
 Zero output from the pre-flight greps is required before commit. CI
 will catch regressions but the goal is to never land them.
+
+### 6.1 Auto-merge race wait
+
+Copilot does not auto-re-review after a `git push`. Arming
+`gh pr merge --auto` immediately after PR creation can race Copilot's
+first review and silently drop actionable inline comments.
+
+**Wait constant: 8 minutes** (p95 + 20% margin from a 30-PR latency
+dataset; full derivation in `docs/COPILOT_REVIEW_TRIAGE_PROTOCOL.md`
+§5.9).
+
+```bash
+# Preferred: helper script handles the wait + early-exit on first review.
+scripts/pr_arm_after_copilot.sh <pr-number>
+
+# Manual fallback:
+gh pr create ...
+sleep 480
+gh pr merge --squash --delete-branch --auto
+```
+
+PRs armed without this wait must be re-checked post-merge for missed
+Copilot inline comments using the `COPILOT_REVIEW_TRIAGE_PROTOCOL.md`
+§1 query.
 
 ---
 
