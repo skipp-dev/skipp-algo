@@ -217,11 +217,12 @@ Whenever you touch ANY `_progress` (or analogous) function, grep the
 dual-stream flush:
 
 ```bash
+# `sort` here is lex-sort intentional: alphabetical file-path listing.
 grep -nE 'def _progress\(' scripts/ tests/ | sort
 # For each result, read ±10 lines and confirm both flushes are present.
 ```
 
-The P5.4 deep-review found 3 sibling implementations
+The P5.4 deep-review found 4 sibling implementations
 (`databento_production_export.py`, `databento_preopen_fast.py`,
 `generate_smc_micro_base_from_databento.py`,
 `smc_microstructure_base_runtime.py`) — only one had the canonical

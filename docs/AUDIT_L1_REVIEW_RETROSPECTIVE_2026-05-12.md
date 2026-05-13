@@ -166,7 +166,8 @@ from the Ruff include-pattern in `pyproject.toml`, so F401/RUF100 don't fire.
 - Detector input contract (DataFrame vs iterable) was never tested.
 
 ### C7 — Boundary / edge-case bugs (3 findings)
-- `expected_min=0` in `probe_fmp_eod_bulk` bypasses the `len(data) < expected_min` check, then crashes on `data[0]` (#2159, **real bug**). - `_memory_snapshot()` evaluated inside f-string args passed to `_emit(...)`,
+- `expected_min=0` in `probe_fmp_eod_bulk` bypasses the `len(data) < expected_min` check, then crashes on `data[0]` (#2159, **real bug**).
+- `_memory_snapshot()` evaluated inside f-string args passed to `_emit(...)`,
   so the snapshot **always runs** even when `progress_callback is None`
   (#2148, defeats the early-exit cost guard).
 - `int(os.getenv("OPRA_UOA_TRADES_WINDOW_MIN"))` evaluated **at import time**
