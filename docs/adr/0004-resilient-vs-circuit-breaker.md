@@ -108,9 +108,7 @@ candidate either:
   that the calling workflow surfaces in the run report. The retry is a
   **side product** of the audit, not the goal.
 - Failure semantics are recorded — never raised — and the function
-  always returns a result envelope (`status: "reconnected" | "failed"
-  | "disabled"`).
-- `time_module.sleep` is patched out by tests via the module-level
+  always returns a result envelope (`status: "reconnected" | "failed" | "disabled"`). - `time_module.sleep` is patched out by tests via the module-level
   rebinding (`time_module = time`).
 
 Forcing this through `@resilient` would lose the audit trail, change

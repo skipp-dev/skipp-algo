@@ -113,9 +113,7 @@ und trotzdem profitabel sein.
 > profitabler Reaktionen.
 >
 > **Umsetzung (2026-04-22, Commit folgt):** zweite Label-Variante
-> `label_fvg_partial_50(zone_low, zone_high, direction, highs, lows, closes,
-> *, fill_threshold=0.5)` ist in `smc_core/scoring.py` (Sibling von
-> `label_fvg_mitigation`) implementiert und in
+> `label_fvg_partial_50(zone_low, zone_high, direction, highs, lows, closes, > *, fill_threshold=0.5)` ist in `smc_core/scoring.py` (Sibling von > `label_fvg_mitigation`) implementiert und in
 > `tests/test_smc_scoring.py::TestLabelFvgPartial50` mit 12 Tests abgedeckt.
 > Die Funktion teilt die 2-Bar-Invalidierungsregel mit dem alten Label, sodass
 > ein A/B-Diff den Fill-Tiefen-Effekt isoliert. **Nächster Schritt:**
@@ -446,9 +444,7 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
 - [x] Pine-Exports: `ZONE_HR_OB`, `ZONE_HR_FVG`, `ZONE_HR_BOS`, `ZONE_HR_SWEEP`
       direkt aus `family_stats[<FAM>].weighted_hit_rate`. Quelle:
       `scripts/smc_zone_priority_consumer.py::compute_per_family_hit_rates`.
-- [x] Smoke 2026-04-22: `ZONE_HR_OB=0.8636 ZONE_HR_FVG=0.5937 ZONE_HR_BOS=0.9130
-      ZONE_HR_SWEEP=0.8333` — FVG-Schwäche jetzt auf Pine-Ebene sichtbar.
-      **P0-Fix 2026-04-22:** diese 258-Event-Werte werden über das neue
+- [x] Smoke 2026-04-22: `ZONE_HR_OB=0.8636 ZONE_HR_FVG=0.5937 ZONE_HR_BOS=0.9130 ZONE_HR_SWEEP=0.8333` — FVG-Schwäche jetzt auf Pine-Ebene sichtbar. **P0-Fix 2026-04-22:** diese 258-Event-Werte werden über das neue
       Trust-Gate (`ZONE_CAL_CONFIDENCE < 0.30`) ab sofort als
       `HR_SENTINEL_DEGRADED = -1.0` ausgeliefert; Pine rendert sie als
       „—" (siehe ADR „Degrade per-family HR display on sub-saturation

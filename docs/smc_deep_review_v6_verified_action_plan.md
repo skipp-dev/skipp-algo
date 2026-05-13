@@ -143,10 +143,7 @@ Korrektur:
 Korrektur:
 
 - Nicht `Key-Pfad vereinheitlichen`
-- Sondern `Library-NewsAPI-Failure-Reason explizit instrumentieren und gegen den
-  Live-News-Pfad vergleichen`
-
-### K-3: `TradingView Token setzen` ist kein verifizierter Action Item
+- Sondern `Library-NewsAPI-Failure-Reason explizit instrumentieren und gegen den Live-News-Pfad vergleichen` ### K-3: `TradingView Token setzen` ist kein verifizierter Action Item
 
 Korrektur:
 

@@ -148,9 +148,7 @@ only the Python 3.13 standard library**. Specifically:
 
 ## Verification
 
-1. The pure-stdlib constraint is verified at runtime by `python -c
-   "import scripts.run_ab_comparison"` succeeding in a venv that has
-   only stdlib + `pytest` installed.
+1. The pure-stdlib constraint is verified at runtime by `python -c "import scripts.run_ab_comparison"` succeeding in a venv that has only stdlib + `pytest` installed.
 2. The byte-identity guards
    `test_compare_advisory_only_does_not_change_recommendation` and
    `test_fdr_layer_advisory_only_byte_identity_recommendation_sprt`

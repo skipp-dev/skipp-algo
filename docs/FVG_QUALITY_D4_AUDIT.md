@@ -287,9 +287,7 @@ v3-Snapshot mit `--label-source partial_50 --signed-weights`:
 | Acceptance      | PENDING (alle 3)  | PENDING (1 von 3)|
 
 Direction-Tabelle für strict (alle 5 = **−1**):
-`gap_size_atr=-1, htf_aligned=-1, distance_to_price_atr=-1,
-is_full_body=-1, hurst_50=-1`. Lesart: jede Feature-Komponente in
-`smc_core/fvg_quality.py::score_fvg` ist unter strict label mit
+`gap_size_atr=-1, htf_aligned=-1, distance_to_price_atr=-1, is_full_body=-1, hurst_50=-1`. Lesart: jede Feature-Komponente in `smc_core/fvg_quality.py::score_fvg` ist unter strict label mit
 *umgekehrtem* Vorzeichen kalibriert — die aktuelle Production-Spiegel
 würde unter strict den Score genau falsch bauen. Die Direction-Liste
 ist damit der maschinelle Audit-Output für den Re-Calibration-PR.
