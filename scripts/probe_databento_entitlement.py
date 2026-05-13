@@ -95,7 +95,12 @@ def _try_call(label: str, fn, *args, **kwargs) -> Any:
     try:
         return fn(*args, **kwargs)
     except Exception as exc:
-        return {"_error": f"{label} failed: {type(exc).__name__}: {exc}"}
+        from databento_utils import _redact_sensitive_error_text
+        return {
+            "_error": _redact_sensitive_error_text(
+                f"{label} failed: {type(exc).__name__}: {exc}",
+            ),
+        }
 
 
 def _format_section(title: str) -> str:
@@ -108,12 +113,12 @@ def main() -> int:
     try:
         from databento_client import _make_databento_client
     except Exception as exc:
-        sys.stderr.write(f"ERROR: cannot import databento_client: {exc}\n")
+        sys.stderr.write(f"ERROR: cannot import databento_client: {exc}\n")  # noqa: SECLEAK — ImportError text contains module path only, no key/secret
         return 2
     try:
         client = _make_databento_client(api_key)
     except Exception as exc:
-        sys.stderr.write(f"ERROR: cannot construct Databento client: {exc}\n")
+        sys.stderr.write(f"ERROR: cannot construct Databento client: {exc}\n")  # noqa: SECLEAK — _make_databento_client raises ValueError on missing config; no key/secret in message
         return 2
 
     print(_format_section("Databento entitlement probe \u2014 2026-05-12"))
@@ -206,7 +211,7 @@ def main() -> int:
     try:
         from databento_client import PREFERRED_DATABENTO_DATASETS as _PREF
     except Exception as exc:
-        print(f"  (could not import PREFERRED_DATABENTO_DATASETS: {exc})")
+        print(f"  (could not import PREFERRED_DATABENTO_DATASETS: {exc})")  # noqa: SECLEAK — ImportError text only
     else:
         picked = None
         for ds in _PREF:

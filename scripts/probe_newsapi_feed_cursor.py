@@ -182,7 +182,7 @@ def _run_feed_attempt(
             client=client,
         )
     except NewsApiAiProviderError as exc:
-        return {
+        return {  # noqa: SECLEAK — exposes provider_status + detail (operator-facing diagnostic), no API key in either field
             "record_count": 0,
             "cursor_uri": "",
             "error": {
