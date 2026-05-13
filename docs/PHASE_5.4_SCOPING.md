@@ -75,8 +75,7 @@ which one is dominant. **Do NOT pre-emptively fix any of these.**
   (the latter already has Q5a + Q5b skips for oversized sheets). For
   this hypothesis the focus is Step 10/10b (parquet) — even with the
   workbook largely skipped, the parquet writes still fan out across
-  many per-day files. Confirm line range with `grep -nE 'Step 10/10b
-  complete:' scripts/databento_production_export.py`.
+  many per-day files. Confirm line range with `grep -nE 'Step 10/10b complete:' scripts/databento_production_export.py`.
 * **Hypothesis**: PyArrow's per-file fsync overhead on the larger-runner
   pool (network-mounted `/home/runner/work`) dominates. Batching into a
   single multi-file dataset directory could amortise.
@@ -112,13 +111,13 @@ Before writing a fix plan, the following must be in hand:
 1. **Fresh D-profile run** of `smc-databento-production-export.yml` on
    current `main` (post-Q5b, post-Audit-L-1). Triggered manually or via
    the cron + watchdog. Run ID recorded here once available.
-2. **Step-lifetime tabulation** of that run: `(step name, start, end,
-   delta, % of 240-min cap)`. After PR #2176 the progress lines carry a
+2. **Step-lifetime tabulation** of that run: `(step name, start, end, delta, % of 240-min cap)`. After PR #2176 the progress lines carry a
    `[t+Xs rss=peak/current MiB]` prefix, so the tabulation pipeline is:
    ```bash
+   # GHA log lines are already in temporal order; preserve that order
+   # (lex-sort on the `[t+Xs]` prefix would order t+100s before t+99s).
    gh run view <id> --log \
-     | grep -E 'Step [0-9]+/[0-9]+[a-z]?(:| complete)' \
-     | sort -k1,1 -k2,2
+     | grep -E 'Step [0-9]+/[0-9]+[a-z]?(:| complete)'
    ```
    For each step, the difference between the `Step N/10x:` start line
    and the matching `Step N/10x complete:` line gives the wall delta.
