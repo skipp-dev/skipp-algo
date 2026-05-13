@@ -14,7 +14,7 @@ FAMILIES = ["BOS", "OB", "FVG", "SWEEP"]
 # ---- Load all events ----
 records = []
 for fp in sorted(CORPUS_ROOT.glob("*/1D/events_*_1D.jsonl")):
-    for line in fp.read_text().splitlines():
+    for line in fp.read_text(encoding="utf-8").splitlines():
         if line.strip():
             records.append(json.loads(line))
 
