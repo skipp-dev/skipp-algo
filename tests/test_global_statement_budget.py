@@ -112,7 +112,10 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # ``_fmt_rss_pair`` helpers added for current+peak RSS instrumentation
         # (see commit 9e93416c). Q1 obs(workbook): line shifted 781→782 by
         # ``Callable`` import added for ``progress_callback`` plumbing.
-        # Bridge 1c (PR #2197): line shifted 782→844 by the
+        # P5.4 A3 (PR #2194): line shifted 782→783 by the
+        # ``from scripts._progress_flush import flush_progress_streams``
+        # import added near the top for the extracted SSOT flush helper.
+        # Bridge 1c (PR #2197): line shifted 783→844 by the
         # ``DEFAULT_SLIM_CANONICAL_WORKBOOK_SHEET_NAMES`` + env-resolver
         # block inserted next to ``SMC_BASE_ONLY_CANONICAL_WORKBOOK_SHEET_NAMES``
         # to fix the 5 consecutive cron OOMs 2026-05-11 → 2026-05-13.

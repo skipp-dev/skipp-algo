@@ -123,7 +123,18 @@ _SECRET_NAME_RE = re.compile(
     r"(^|/)(\.env(\..*)?|.*\.pem|.*\.key|id_rsa(\.pub)?|.*_secret.*|.*\.p12|.*\.pfx)$",
     re.IGNORECASE,
 )
-_SECRET_BASENAME_ALLOW = frozenset({".env.example", ".env.sample", ".env.template"})
+# ``test_secret_leakage_probes.py`` is itself a guard test that scans the
+# repo for committed secrets; its filename matches ``.*_secret.*`` only by
+# virtue of describing what it probes for. It contains no secret material
+# and is allow-listed by basename here.
+_SECRET_BASENAME_ALLOW = frozenset(
+    {
+        ".env.example",
+        ".env.sample",
+        ".env.template",
+        "test_secret_leakage_probes.py",
+    }
+)
 
 
 def test_no_secret_shaped_files_tracked_in_git() -> None:

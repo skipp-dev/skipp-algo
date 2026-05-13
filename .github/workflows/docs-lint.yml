@@ -1,3 +1,4 @@
+# live-window: any-trigger  # PR-only docs lint, no mutating writes (drive-by repair on PR #2194)
 name: docs-lint
 
 on:
