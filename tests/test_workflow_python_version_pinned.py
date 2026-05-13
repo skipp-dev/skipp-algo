@@ -31,6 +31,9 @@ _PHASE1_WORKFLOWS = (
     _REPO_ROOT / ".github" / "workflows" / "smc-databento-production-export.yml",
     _REPO_ROOT / ".github" / "workflows" / "smc-library-refresh.yml",
     _REPO_ROOT / ".github" / "workflows" / "f2-promotion-gate-daily.yml",
+    # Migrated 2026-05-13 (Copilot review on PR #2185): docs-lint.yml now
+    # uses the composite action instead of a raw actions/setup-python@v5 pin.
+    _REPO_ROOT / ".github" / "workflows" / "docs-lint.yml",
 )
 _COMPOSITE_USES_REF = "./.github/actions/setup-python-pinned"
 
