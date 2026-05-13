@@ -103,11 +103,11 @@ Drei Ja/Nein-Antworten ergeben einen Empfehlungs-Vektor. Konsens → klare Empfe
 |---|---|---|---|---|
 | 0 | Diese Doc anlegen, committen, pushen | ☑ | 2026-05-13 | `docs/sprints/c10b_family_partition_validation.md` (PR #2196) |
 | 1 | Event-Ledger-Snapshot lokalisieren oder Pipeline-Lauf anstoßen (`events_*.jsonl`) | ☑ | 2026-05-13 | Status-Block-Eintrag "Event-Ledger-Lokalisierung (Schritt 2a)" unten. Findings: SMC-Live-Ledger leer, Open-Prep-Ledger gefüllt (235 Records, 7 Tage, 63 % Hit-Rate), Variant-Family-Map enthält 1 Eintrag |
-| 2 | Co-Firing-Matrix berechnen | ☐ | | `docs/research/c10b/co_firing_matrix.json` + Tabelle in dieser Doc |
-| 3 | Outcome-Korrelation auf Co-Firing-Bars | ☐ | | `docs/research/c10b/cramers_v_pairwise.json` |
-| 4 | Feature-Divergenz (PSI) auf Solo-Firing-Bars | ☐ | | `docs/research/c10b/feature_psi_per_family.json` |
-| 5 | Architektur-Entscheidung treffen, in dieser Doc unter "Entscheidung + Begründung" eintragen | ☐ | | dieser Abschnitt unten |
-| 6 | Falls Entscheidung ≠ Beibehalt: Folge-Sprint C10c als separate Doc skizzieren | ☐ | | `docs/sprints/c10c_<entscheidung>_migration.md` |
+| 2 | Co-Firing-Matrix berechnen | ◱ | 2026-05-13 | Technisch blockiert auf leerem Roh-Ledger; logischer Teil via Hit-Rate-Vergleich in Step 2c abgedeckt |
+| 3 | Outcome-Korrelation auf Co-Firing-Bars (= Step 2c, neu interpretiert auf Aggregat) | ☑ | 2026-05-13 | `docs/research/c10b/family_partition_analysis_v4_corpus.json` (paarweise z-Tests) |
+| 4 | Feature-Divergenz (PSI / Variance-Decomposition) (= Step 2d) | ☑ | 2026-05-13 | `docs/research/c10b/family_partition_analysis_v4_corpus.json` (within_family_context_dispersion + η²-Decomp) |
+| 5 | Architektur-Entscheidung treffen, in dieser Doc unter "Entscheidung + Begründung" eintragen (= Step 2e) | ☑ | 2026-05-13 | Abschnitt "Entscheidung + Begründung" unten |
+| 6 | Falls Entscheidung ≠ Beibehalt: Folge-Sprint C10c als separate Doc skizzieren | ☐ | | `docs/sprints/c10c_<entscheidung>_migration.md` (nur nötig für OB-Pfad) |
 
 ---
 
@@ -170,14 +170,147 @@ _Dieser Block wird bei jedem Folge-Run ergänzt, nicht überschrieben. Datum als
 
 ---
 
+### 2026-05-13 (späterer Abend) — Korrektur: der richtige Event-Ledger
+
+**Was 2a/2b oben fehlt geht:** Wir haben den falschen Ledger gehuntet. Die Open-Prep-`fi_samples_*.jsonl`-Spur ist real und der Producer-Bug ist real, aber dieser Strom ist **nicht** das Material, auf dem dieser Sprint die 4-Familien-Hypothese testet. Der **kanonische** SMC-Event-Ledger ist:
+
+- **Producer (im Prozess):** `smc_integration/measurement_evidence.py::build_measurement_evidence()` baut `events_by_family: dict[EventFamily, list[dict]]` mit `EventFamily ∈ {"BOS","OB","FVG","SWEEP"}`. Familien-Tag steht **direkt im Record** (`events_by_family["BOS"].append(evaluated)` Z. 1279, OB Z. 1327, FVG Z. 1381, SWEEP Z. 1466).
+- **Producer (auf Disk):** `smc_core/event_ledger.py::write_event_ledger()` schreibt JSONL mit Schema `EventLedgerRecord(schema_version, event_id, symbol, timeframe, family, timestamp, predicted_prob, outcome, context, raw_score, raw_score_name, features, outcome_extras)`.
+- **Pfad:** `ledger_path_for_pair(pair_dir, symbol, timeframe) → pair_dir / f"events_{symbol}_{timeframe}.jsonl"`. Glob `events_*_*.jsonl` (siehe `scripts/emit_fvg_context_pine.py:83`).
+- **Aufrufer:** `scripts/run_smc_measurement_benchmark.py:381` (Wochen-Cron `smc-measurement-benchmark.yml`, Sa 08:00 UTC).
+- **Konsumenten dieses Ledgers:** `scripts/fvg_quality_quartile_gate.py`, `scripts/fvg_quality_d4_audit.py`, `scripts/fvg_quality_recalibration.py`, `scripts/fvg_session_artifact_diagnosis.py`, `scripts/fvg_label_audit.py` lesen alle `record["family"] == "FVG"`.
+
+**Was 2a über diesen Ledger sagen muss:**
+- Die `cache/live/incubation_*.jsonl`-Spur (Phase-B-Trade-Ledger) und der `events_*_*.jsonl`-Strom sind zwei verschiedene Datenflüsse. Phase-B misst Live-Trade-Outcomes auf Variants, dieser Ledger misst strukturelle SMC-Events pro Bar. **Beide sind unabhängig leer** — aber aus unterschiedlichen Gründen, und nur der zweite gehört zu dieser Sprint-Frage. Die Open-Prep-Befunde aus 2b bleiben als eigenständiger Nebenbefund stehen (Producer-Bug echt, Ticket lohnt sich), sind aber **nicht** Eingabe für die c10b-Entscheidung.
+
+**Lokaler On-Disk-Status der `events_*_*.jsonl`-Strom heute:**
+- Im Repo: kein einziges `events_*_*.jsonl` (weder im Workspace noch unter `artifacts/`).
+- Letzter erfolgreicher CI-Lauf des Producer-Workflows: `smc-measurement-benchmark` Run #25597656274 (2026-05-09 09:26 UTC). Artifact `smc-measurement-benchmark-71` enthält 80 Pair-Verzeichnisse (20 Symbole × 4 Timeframes), jedes mit dem erwarteten `events_<SYM>_<TF>.jsonl` — **alle 80 Dateien null Zeilen**.
+- Root Cause: `measurement_summary_*.json` aller 80 Pairs zeigt `bars_source_mode = "none"`, `measurement_evidence_present = false`, Warnung `"no bar source available for measurement evidence"`. CI hat weder Production-Bundle (`artifacts/smc_microstructure_exports/`) noch Workbook-Pfad — `_load_source_bars()` returnt einen leeren DataFrame, `build_measurement_evidence()` bricht vor der Familien-Schleife ab, `write_event_ledger()` schreibt eine leere Datei. Genau das Verhalten, vor dem der Code-Kommentar Z. 226–238 von `_load_source_bars` warnt.
+- Letzter Rolling-Bench-Lauf (Run #25792331943, 2026-05-13 10:05 UTC) **failed**, Artifact `smc-measurement-benchmark-rolling-2026-05-13` enthält identisches Muster: 80 leere Ledgers, derselbe `bars_source_mode = none`. Seit 2026-05-04 zehn aufeinanderfolgende Rolling-Cron-Failures (alle pre-Bridge-PR-#2197).
+
+**Folge daraus:**
+- Der `events_*_*.jsonl`-Strom existiert in CI **als leere Schale**, nicht als gefüllter Ledger. Die Cron-Brücke PR #2197 ist nicht hinreichend, um diesen Strom zu füllen — sie repariert nur den Produktions-Workbook-Export. Damit `events_*_*.jsonl` füllt, müssen die CI-Runs entweder das Production-Bundle hydratisieren (SAS-URL-Path im 4-23-Commit) oder ein lokaler Run gegen den vorhandenen Workbook-Path durchlaufen.
+- **Einzige verfügbare Auswertungsbasis 2026-05-13:** Das commitete v4-Korpus-Aggregat `artifacts/ci/measurement_benchmark_combined_2026-04-23/` (Commit `16e6d5c2`, 2026-04-24). 80 Pair-Verzeichnisse mit Per-Event-Ledger wurden lokal generiert (vor dem Repo-Commit), die Roh-Per-Event-JSONLs sind **nicht** im Repo — committet wurden nur die Aggregate (`zone_priority_*`), die aus `scoring_*.json`-Bins rekonstruiert sind (siehe `scripts/smc_zone_priority_calibration.py:567–604`, Methode `binned_aggregate_reconstruction`). Damit ist Co-Firing-pro-Bar **nicht direkt** rechenbar (kein `bar_timestamp` × Familie-Set in den committeten Aggregaten). Dafür sind die Per-Familie-Hit-Raten und die Per-Kontext-Per-Familie-Hit-Raten auf n=10 064 Events vorhanden — und damit die Antworten auf die zwei zentralen Sub-Fragen dieser Sprint-Doc:
+  1. Sind die 4 Familien **statistisch unterscheidbar** in ihren Outcomes? (Step 2c)
+  2. Verhalten sich Setups einer Familie **systematisch anders** als Setups anderer Familien — auch dann, wenn man die Familie kontrolliert über Kontext disaggregiert? (Step 2d, PSI-Proxy via Context-Decomposition)
+
+### 2026-05-13 (späterer Abend) — Schritt 2c: Outcome-Korrelation pro Familie + zwischen Familien
+
+**Datenbasis:** v4-Korpus, n=10 064 Events, 319 Pair-Runs, aus `zone_priority_calibration.json` (Aggregat) + `zone_priority_contextual_calibration.json` (Per-Bucket). Analyse-Artifact: `docs/research/c10b/family_partition_analysis_v4_corpus.json`.
+
+**Per-Familie-Basis-Hit-Raten mit 95 %-Wald-CIs:**
+
+| Familie | n     | Hits | Hit-Rate | 95 %-CI         | Kalibriertes Gewicht |
+|---------|------:|-----:|---------:|-----------------|---------------------:|
+| BOS     | 1 614 | 1 383| 0.8569   | [0.8398, 0.8740]| 0.8428               |
+| SWEEP   | 1 774 | 1 164| 0.6561   | [0.6340, 0.6782]| 0.6783               |
+| FVG     | 5 710 | 3 255| 0.5701   | [0.5573, 0.5829]| 0.5820               |
+| OB      | 966   | 308  | 0.3188   | [0.2894, 0.3482]| 0.4692               |
+
+**Paarweise Zwei-Anteils-Z-Tests** (gepoolt, zweiseitig, Bonferroni-α=0.05/6=0.00833):
+
+| Paar          | Δ Hit-Rate | z     | p-Wert | Reject@Bonf |
+|---------------|-----------:|------:|-------:|:-----------:|
+| BOS vs OB     | +0.5381    | 27.84 | ~0     | ja          |
+| BOS vs FVG    | +0.2868    | 21.11 | ~0     | ja          |
+| BOS vs SWEEP  | +0.2008    | 13.51 | ~0     | ja          |
+| OB vs FVG     | −0.2513    | −14.48| ~0     | ja          |
+| OB vs SWEEP   | −0.3373    | −16.92| ~0     | ja          |
+| FVG vs SWEEP  | −0.0860    | −6.43 | ~0     | ja          |
+
+**Verdict 2c:** Alle 6 Familien-Paare sind in ihren Outcome-Hit-Raten **hochsignifikant verschieden** (Bonferroni-korrigiert). Kein CI überlappt mit einem anderen. Die Range von OB (31.9 %) zu BOS (85.7 %) ist 54 Prozentpunkte. **Das spricht klar gegen pooled-Strategie-Level-Promotion (Option A der Schnitt-Alternativen):** Eine Pool-Hit-Rate von 0.607 würde OB-Setups massiv überbewerten (×1.9) und BOS-Setups massiv unterbewerten (×0.71) — das ist nicht Pool-Rauschen, das ist eine Population-Verschmelzung über vier strukturell verschiedene Verteilungen.
+
+**Was 2c nicht beantwortet:** Co-Firing-Korrelation auf gleicher Bar (Cramér's V auf Co-Firing-Subset) ist auf den committeten Aggregaten **nicht** direkt rechenbar — die `scoring_*.json`-Bins sind über alle Events einer Pair-Run aggregiert, kein `bar_timestamp`-Schlüssel mehr da. Diese spezifische Sub-Analyse braucht den (heute leeren) Roh-`events_*_*.jsonl`-Strom und ist als **technisch blockiert** zu vermerken, **nicht** als logisch erledigt.
+
+### 2026-05-13 (späterer Abend) — Schritt 2d: Feature-Divergenz / PSI — unterscheiden sich Setups derselben Familie systematisch von anderen Familien
+
+**Datenbasis identisch**, plus `zone_priority_contextual_calibration.json` (Per-Bucket × Per-Familie Hit-Rates für 8 Kontext-Buckets: htf_bias ∈ {BEARISH,BULLISH}, session ∈ {ASIA,LONDON,NY_AM}, vol_regime ∈ {HIGH_VOL,LOW_VOL,NORMAL}).
+
+**Within-Family-Context-Dispersion** (Spannweite der Hit-Rate **derselben Familie** über die 8 Kontexte hinweg):
+
+| Familie | Globaler Weight | Context-Mean | Context-Range | Context-Std | PSI-ähnliches Maß |
+|---------|----------------:|-------------:|--------------:|------------:|-------------------:|
+| BOS     | 0.8428          | 0.8596       | 0.0665        | 0.0204      | 0.0006             |
+| SWEEP   | 0.6783          | 0.6722       | 0.1914        | 0.0556      | 0.0064             |
+| FVG     | 0.5820          | 0.5848       | 0.2046        | 0.0552      | 0.0087             |
+| OB      | 0.4692          | 0.4590       | 0.3975        | 0.1245      | 0.0613             |
+
+**Variance-Decomposition über alle 32 (Familie × Kontext)-Zellen** (η² als Anteil an Total Sum of Squares der kalibrierten Gewichte):
+
+| Quelle                  | SS      | η²    |
+|-------------------------|--------:|------:|
+| Between Family          | 0.6793  | 0.7944|
+| Between Context         | 0.0948  | 0.1109|
+| Residual (Interaktion)  | 0.0810  | 0.0947|
+| **Total**               | 0.8551  | 1.000 |
+
+**Rang-Inversionen** (verändert irgendein Kontext die globale Familien-Rangordnung BOS>SWEEP>FVG>OB?):
+
+| Kontext       | Globaler Rang        | Rang in diesem Kontext | Interpretation |
+|---------------|----------------------|------------------------|----------------|
+| session:ASIA  | BOS,SWEEP,FVG,OB     | BOS,SWEEP,OB,FVG       | OB↑↑ über FVG (Asia n=289, kleiner Bucket) |
+| session:LONDON| BOS,SWEEP,FVG,OB     | BOS,FVG,SWEEP,OB       | FVG↑ über SWEEP |
+| (alle anderen)| BOS,SWEEP,FVG,OB     | BOS,SWEEP,FVG,OB       | identisch      |
+
+**Verdict 2d:** 
+- **79.4 % der Varianz der kalibrierten Per-Familie-Per-Kontext-Gewichte stammen aus der Familien-Achse, nur 11.1 % aus der Kontext-Achse**, 9.5 % aus Interaktion. Die Familien-Achse ist also die dominante Trennachse — Setups derselben Familie verhalten sich über alle 8 Kontexte ähnlich (BOS-Std nur 0.020 ≈ 2.4 % vom Mean), Setups verschiedener Familien verhalten sich systematisch verschieden.
+- **Option D (Regime-Schnitt statt Familien-Schnitt) verliert in der Variance-Decomposition deutlich:** Wenn das Regime die dominante Edge-Quelle wäre, müsste η²_context > η²_family sein. Tatsächlich ist es 1:7.2.
+- **OB ist die Ausnahme:** Context-Std=0.124 und PSI=0.061 (10–60× höher als die anderen drei). OB-Performance kollabiert in LONDON/NY_AM (≈0.38) und schnellt in ASIA hoch (0.77). Das ist ein eigenes Signal: Wenn OB überhaupt verwertbar ist, dann nur Context-gekoppelt — innerhalb der Familie ist OB nicht stationär. Das macht **Option C (MoE mit family_id + Interaktionen)** als pragmatischen Default attraktiver als Beibehalt für OB, ohne die anderen drei Familien zu zerstören.
+- **Zwei Rang-Inversionen** treten auf, beide an den unteren zwei Familien-Rängen (FVG ↔ OB in ASIA, SWEEP ↔ FVG in LONDON). Keine Inversion betrifft BOS, das in allen 8 Kontexten unangefochten oben steht. Die Schnitt-Alternative B (Hierarchical Bayes mit Partial Pooling) würde dies sauber adressieren: Globaler Prior pro Familie, Context-Shift als hierarchische Abweichung — aber für BOS, SWEEP, FVG ist der Gewinn marginal (Context-Std bereits ≤ 0.06). Lohnt sich primär für OB.
+
+### 2026-05-13 (späterer Abend) — Schritt 2e: Verdict gegen die 4 Schnitt-Alternativen
+
+**Was die Daten sagen (auf n=10 064 v4-Korpus):**
+
+| Option | Gewinn-Bedingung (laut Doc) | Gemessen | Verdict |
+|---|---|---|---|
+| **Beibehalt** (4 separate Klassifikatoren) | Co-Firing<5%, OutcomeKorr<0.2, hohe Feature-Divergenz | Familien-η²=79.4 %, alle Hit-Rate-Paare signifikant verschieden bei Bonf-α, keine Rang-Inversion an Top-2-Familien | **Stützt sich auf 3-von-4 Familien** (BOS, SWEEP, FVG sind context-stabil), zerbricht aber an OB |
+| **A — Pooled** | Co-Firing hoch, Outcome-Korr hoch, Features ähnlich | OB→BOS 54 Prozentpunkte Δ Hit-Rate, η²_family=79.4 % vs η²_context=11.1 % | **Verworfen.** Pooling verschmiert eine reale 4-Cluster-Struktur. |
+| **B — Hierarchical Bayes** | Mittlere Korrelation, MCMC-Budget vorhanden | Drei Familien brauchen kaum Partial Pooling (Context-Std≤0.06), OB braucht es stark (Std=0.124) | **Teilweise gerechtfertigt**, aber nur für OB nötig. Kosten/Nutzen über ML-Stack fragwürdig, wenn 3/4 Familien fast stationär sind. |
+| **C — Single MoE** (LightGBM mit family_id + Interaktionen) | Pragmatischer Mittelweg | family_id würde 79.4 % der Varianz aufnehmen, Kontext-Interaktion 11.1 %, Residual 9.5 % | **Lebensfähig.** Behält die Familien-Separation als Feature, lässt OB-Context-Kopplung über Tree-Splits emergieren, eine Pipeline statt vier. |
+| **D — Regime-Schnitt** | Edge ist Regime, nicht Familie | η²_family=79.4 % ≫ η²_context=11.1 % | **Verworfen.** Regime ist eindeutig untergeordnete Achse. |
+
+**Empfohlene Option (provisorisch, vor Co-Firing-Roh-Analyse):**
+
+**Beibehalt für BOS/SWEEP/FVG, gesonderte Behandlung für OB.** Konkret:
+- BOS, SWEEP, FVG: heutige Per-Familie-Klassifikatoren bleiben — die Context-Std ≤ 0.06 zeigt, dass Partial Pooling oder MoE-Interaktion kaum Mehrwert über den Aufwand bringt.
+- OB: Context-Std=0.124 und Rang-Inversionen → entweder Hierarchical-Bayes-Partial-Pooling **nur für OB** oder OB-Familie in zwei Subgruppen splitten (z. B. `OB_session_ASIA` vs `OB_session_other`) und einzeln promotieren. Welche der beiden bevorzugt ist, entscheidet sich nach C8-Phase-B-Daten zu OB — heute haben wir 0 Trades.
+- Promotion-Gate `check_c12_trigger.py` (90 Tage × 30 Trades pro Familie) bleibt für BOS/SWEEP/FVG. Für OB sollte das Promotion-Kriterium **kontext-konditioniert** sein, sobald genug OB-Trades pro Session existieren.
+
+**Was diese Empfehlung explizit nicht entscheidet:**
+- Co-Firing-Anteil (1 vs 2 vs 3 vs 4 Familien auf gleicher Bar) — braucht den Roh-`events_*_*.jsonl`-Strom. Bleibt **offen** bis nächster Producer-Cron-Lauf mit befüllter Source.
+- Cramér's V auf paarweisen Outcome-Labels (Co-Firing-Bars) — gleicher Block.
+- Per-Symbol-Heterogenität — die Aggregate haben pair_count=80, aber kein per-Pair-Hit-Rate-Detail im committeten Korpus. Pair-Heterogenität müsste über die einzelnen `scoring_*.json` der Pair-Verzeichnisse gerechnet werden (nicht im Repo committed, nur im Artifact).
+
+**Risiko-Notiz zur Empfehlung:** Die Aggregate kommen aus einer einzigen lokalen Run (v4, 2026-04-23). Eine zweite, unabhängige Korpus-Generation (z. B. nach erfolgreicher Cron-Brücke #2197 + Production-Bundle-Hydration in CI) muss diese Verdikte replizieren, **bevor** Migration angeordnet wird. Wenn der nächste Lauf η²_family unter 0.5 drückt oder OB nicht mehr ausreißt, ist die Empfehlung neu zu fassen.
+
+**Beziehung zum Hauptziel:** "Wenn die SMC-Calibration-Track-Record nicht eindeutig profitable Setups zeigt — dann habe ich nichts zu verkaufen." Die v4-Aggregate **zeigen** zwar profitable Setups (BOS 85.7 %, SWEEP 65.6 %, FVG 57.0 % über n=10 064), aber sie zeigen sie auf einem **rekonstruierten** Aggregat, nicht auf einem aktuellen Live-Track-Record. Der c10b-Sprint hat damit die **Methodik-Frage** beantwortet (4 disjunkte Populationen — ja, mit OB als Sonderfall) und die **Daten-Frage** offen gelassen (kein aktueller Roh-Stream). Ohne Cron-Brücke gibt es kein frisches Beweis-Material. Mit gefüllter Cron-Brücke wäre Co-Firing-Analyse die nächste Stufe — heute ist sie technisch nicht möglich.
+
+**Referenz-Artifact:** `docs/research/c10b/family_partition_analysis_v4_corpus.json` (alle Roh-Zahlen, alle Tests, alle Decompositions reproduzierbar).
+
+---
+
 ## Entscheidung + Begründung
 
-_Wird ausgefüllt nach Abschluss Schritte 1-4. Bis dahin: offen._
+**Empfohlene Option (provisorisch, datenbasiert auf v4-Korpus n=10 064, 2026-05-13):**
+**Beibehalt für BOS / SWEEP / FVG; gesonderte Behandlung für OB.**
 
-**Empfohlene Option:** _(offen)_
-**Drei Analyse-Ergebnisse:** _(offen)_
-**Begründung:** _(offen)_
-**Konsequenzen für `ml/`, `rl/`, Promotion-Gate, C8-Phase-B-Kriterien:** _(offen)_
+**Drei Analyse-Ergebnisse:**
+1. Co-Firing-Anteil: **offen / technisch blockiert** — Roh-`events_*_*.jsonl`-Stream auf Disk heute leer, Aggregate enthalten keine Bar-Timestamps. Wird nach gefüllter Cron-Brücke (#2197 → grüner Producer-Cron mit Production-Bundle-Hydration) nachgereicht.
+2. Outcome-Korrelation pro Familie und zwischen Familien (Step 2c): **alle 6 Paare hochsignifikant verschieden** unter Bonferroni-α=0.00833, Δ Hit-Rate-Range 8.6 bis 53.8 Prozentpunkte. Spricht klar gegen Option A (Pooled).
+3. Feature-Divergenz / Variance-Decomposition (Step 2d): **η²_family = 79.4 %, η²_context = 11.1 %**, drei von vier Familien context-stabil (Std ≤ 0.06), OB ist die Ausnahme (Std = 0.124, zwei Rang-Inversionen). Spricht klar gegen Option D (Regime).
+
+**Begründung:** Die statistische Evidenz ist eindeutig genug, um Optionen A (Pooled) und D (Regime-Schnitt) zu **verwerfen**. Optionen Beibehalt, B (Hier. Bayes) und C (MoE) sind alle data-konsistent — der Tie-Breaker ist Aufwand/Nutzen: BOS, SWEEP, FVG zeigen so kleine Within-Family-Context-Streuung, dass weder Partial Pooling noch MoE einen messbaren Gewinn versprechen. OB ist der eine echte Problemfall — und der wird **nicht** durch eine Architektur-Schnitt-Änderung an allen vier Familien gelöst, sondern durch eine OB-spezifische Hierarchisierung (Hier. Bayes nur für OB) oder einen OB-internen Subgruppen-Split (`OB_session_ASIA` vs Rest). Welche der zwei: entscheidbar erst mit Phase-B-OB-Daten.
+
+**Konsequenzen für `ml/`, `rl/`, Promotion-Gate, C8-Phase-B-Kriterien:**
+- `ml/training/xgb_family_trainer.py` + `ml/training/lgbm_family_trainer.py`: **keine strukturelle Änderung** für BOS/SWEEP/FVG.
+- `scripts/run_smc_live_incubation.py:125–149` `PHASE_B_CRITERIA`: bleibt für BOS/SWEEP/FVG. Für OB ist ein context-konditionales Gate zu konzipieren, sobald ≥ 1 OB-Trade pro Session vorliegt.
+- `scripts/check_c12_trigger.py`: Logik "requires per family all of (90d, 30 trades, 0 kill-switch, drift pass)" bleibt für 3/4 Familien. OB-Pfad bekommt einen TODO-Hook, aktuell kein Code-Eingriff.
+- `smc_integration/release_policy.py` Promotion-Gate: keine Änderung.
+- C8-Runbook: keine Änderung; Phase-B-Sammlung läuft per Familie weiter, der einzige Unterschied ist, dass OB einen eigenen Folge-Schritt bekommt, sobald Phase-B-Daten existieren.
+
+**Voraussetzung für endgültige (statt provisorische) Festlegung:** Replikation der Variance-Decomposition auf einem zweiten, unabhängig generierten Korpus nach erfolgreichem Producer-Cron-Lauf. Bis dahin ist die Empfehlung als **provisorisch / data-basiert auf v4** zu lesen.
 
 ---
 

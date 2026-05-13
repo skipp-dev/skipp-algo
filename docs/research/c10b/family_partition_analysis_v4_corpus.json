@@ -1,0 +1,361 @@
+{
+  "corpus": "measurement_benchmark_combined_2026-04-23 (v4)",
+  "n_events_total": 10064,
+  "n_pair_runs": 319,
+  "baseline_family_hit_rates": {
+    "BOS": {
+      "n": 1614,
+      "hits": 1383,
+      "hit_rate": 0.8569,
+      "ci95": [
+        0.8398,
+        0.874
+      ],
+      "weight": 0.8428
+    },
+    "OB": {
+      "n": 966,
+      "hits": 308,
+      "hit_rate": 0.3188,
+      "ci95": [
+        0.2894,
+        0.3482
+      ],
+      "weight": 0.4692
+    },
+    "FVG": {
+      "n": 5710,
+      "hits": 3255,
+      "hit_rate": 0.5701,
+      "ci95": [
+        0.5573,
+        0.5829
+      ],
+      "weight": 0.582
+    },
+    "SWEEP": {
+      "n": 1774,
+      "hits": 1164,
+      "hit_rate": 0.6561,
+      "ci95": [
+        0.634,
+        0.6782
+      ],
+      "weight": 0.6783
+    }
+  },
+  "pairwise_between_family_tests_bonf_alpha": 0.00833,
+  "pairwise_between_family": [
+    {
+      "pair": "BOS vs OB",
+      "delta_hit_rate": 0.5381,
+      "z": 27.835,
+      "p_value": 0.0,
+      "reject_pool_at_bonf_0.05": true
+    },
+    {
+      "pair": "BOS vs FVG",
+      "delta_hit_rate": 0.2868,
+      "z": 21.111,
+      "p_value": 0.0,
+      "reject_pool_at_bonf_0.05": true
+    },
+    {
+      "pair": "BOS vs SWEEP",
+      "delta_hit_rate": 0.2008,
+      "z": 13.513,
+      "p_value": 0.0,
+      "reject_pool_at_bonf_0.05": true
+    },
+    {
+      "pair": "OB vs FVG",
+      "delta_hit_rate": -0.2513,
+      "z": -14.48,
+      "p_value": 0.0,
+      "reject_pool_at_bonf_0.05": true
+    },
+    {
+      "pair": "OB vs SWEEP",
+      "delta_hit_rate": -0.3373,
+      "z": -16.918,
+      "p_value": 0.0,
+      "reject_pool_at_bonf_0.05": true
+    },
+    {
+      "pair": "FVG vs SWEEP",
+      "delta_hit_rate": -0.086,
+      "z": -6.434,
+      "p_value": 0.0,
+      "reject_pool_at_bonf_0.05": true
+    }
+  ],
+  "within_family_context_dispersion": {
+    "BOS": {
+      "global_weight": 0.8428,
+      "context_range": 0.0665,
+      "context_std": 0.0204,
+      "context_mean": 0.8596,
+      "per_bucket": [
+        [
+          "htf_bias:BEARISH",
+          0.8418
+        ],
+        [
+          "htf_bias:BULLISH",
+          0.8708
+        ],
+        [
+          "session:ASIA",
+          0.8637
+        ],
+        [
+          "session:LONDON",
+          0.8265
+        ],
+        [
+          "session:NY_AM",
+          0.893
+        ],
+        [
+          "vol_regime:HIGH_VOL",
+          0.8791
+        ],
+        [
+          "vol_regime:LOW_VOL",
+          0.8428
+        ],
+        [
+          "vol_regime:NORMAL",
+          0.8593
+        ]
+      ]
+    },
+    "OB": {
+      "global_weight": 0.4692,
+      "context_range": 0.3975,
+      "context_std": 0.1245,
+      "context_mean": 0.459,
+      "per_bucket": [
+        [
+          "htf_bias:BEARISH",
+          0.4044
+        ],
+        [
+          "htf_bias:BULLISH",
+          0.3918
+        ],
+        [
+          "session:ASIA",
+          0.7708
+        ],
+        [
+          "session:LONDON",
+          0.3733
+        ],
+        [
+          "session:NY_AM",
+          0.3796
+        ],
+        [
+          "vol_regime:HIGH_VOL",
+          0.4908
+        ],
+        [
+          "vol_regime:LOW_VOL",
+          0.4692
+        ],
+        [
+          "vol_regime:NORMAL",
+          0.3917
+        ]
+      ]
+    },
+    "FVG": {
+      "global_weight": 0.582,
+      "context_range": 0.2046,
+      "context_std": 0.0552,
+      "context_mean": 0.5848,
+      "per_bucket": [
+        [
+          "htf_bias:BEARISH",
+          0.5741
+        ],
+        [
+          "htf_bias:BULLISH",
+          0.5622
+        ],
+        [
+          "session:ASIA",
+          0.7012
+        ],
+        [
+          "session:LONDON",
+          0.6271
+        ],
+        [
+          "session:NY_AM",
+          0.4966
+        ],
+        [
+          "vol_regime:HIGH_VOL",
+          0.568
+        ],
+        [
+          "vol_regime:LOW_VOL",
+          0.582
+        ],
+        [
+          "vol_regime:NORMAL",
+          0.5671
+        ]
+      ]
+    },
+    "SWEEP": {
+      "global_weight": 0.6783,
+      "context_range": 0.1914,
+      "context_std": 0.0549,
+      "context_mean": 0.6698,
+      "per_bucket": [
+        [
+          "htf_bias:BEARISH",
+          0.6663
+        ],
+        [
+          "htf_bias:BULLISH",
+          0.6603
+        ],
+        [
+          "session:ASIA",
+          0.8008
+        ],
+        [
+          "session:LONDON",
+          0.6094
+        ],
+        [
+          "session:NY_AM",
+          0.6656
+        ],
+        [
+          "vol_regime:HIGH_VOL",
+          0.6144
+        ],
+        [
+          "vol_regime:LOW_VOL",
+          0.6783
+        ],
+        [
+          "vol_regime:NORMAL",
+          0.6635
+        ]
+      ]
+    }
+  },
+  "between_family_rank_inversion_by_context": {
+    "session:ASIA": {
+      "global_rank": [
+        "BOS",
+        "SWEEP",
+        "FVG",
+        "OB"
+      ],
+      "context_rank": [
+        "BOS",
+        "SWEEP",
+        "OB",
+        "FVG"
+      ],
+      "weights": {
+        "OB": 0.7708,
+        "FVG": 0.7012,
+        "BOS": 0.8637,
+        "SWEEP": 0.8008
+      }
+    },
+    "session:LONDON": {
+      "global_rank": [
+        "BOS",
+        "SWEEP",
+        "FVG",
+        "OB"
+      ],
+      "context_rank": [
+        "BOS",
+        "FVG",
+        "SWEEP",
+        "OB"
+      ],
+      "weights": {
+        "OB": 0.3733,
+        "FVG": 0.6271,
+        "BOS": 0.8265,
+        "SWEEP": 0.6094
+      }
+    }
+  },
+  "variance_decomposition_on_contextual_weights": {
+    "ss_total": 0.855069,
+    "ss_between_family": 0.67927,
+    "ss_between_context": 0.094823,
+    "ss_residual": 0.080976,
+    "eta_squared_family": 0.7944,
+    "eta_squared_context": 0.1109,
+    "eta_squared_residual": 0.0947
+  },
+  "psi_like_within_family_over_contexts": {
+    "BOS": 0.0006,
+    "OB": 0.0613,
+    "FVG": 0.0087,
+    "SWEEP": 0.0064
+  },
+  "calibration_per_context_bucket": {
+    "htf_bias:BEARISH": {
+      "n_events": 4134,
+      "smooth_ece": 0.137049,
+      "positive_rate": 0.611756,
+      "status": "ok"
+    },
+    "htf_bias:BULLISH": {
+      "n_events": 5930,
+      "smooth_ece": 0.139175,
+      "positive_rate": 0.603879,
+      "status": "ok"
+    },
+    "session:ASIA": {
+      "n_events": 289,
+      "smooth_ece": 0.201952,
+      "positive_rate": 0.809689,
+      "status": "ok"
+    },
+    "session:LONDON": {
+      "n_events": 4249,
+      "smooth_ece": 0.232841,
+      "positive_rate": 0.671217,
+      "status": "ok"
+    },
+    "session:NY_AM": {
+      "n_events": 5526,
+      "smooth_ece": 0.083256,
+      "positive_rate": 0.547231,
+      "status": "ok"
+    },
+    "vol_regime:HIGH_VOL": {
+      "n_events": 255,
+      "smooth_ece": 0.168128,
+      "positive_rate": 0.603922,
+      "status": "ok"
+    },
+    "vol_regime:LOW_VOL": {
+      "n_events": 24,
+      "smooth_ece": null,
+      "positive_rate": null,
+      "status": "insufficient_events"
+    },
+    "vol_regime:NORMAL": {
+      "n_events": 9785,
+      "smooth_ece": 0.137216,
+      "positive_rate": 0.606745,
+      "status": "ok"
+    }
+  }
+}
