@@ -6,6 +6,40 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-13) — P5.4 doc-train: Copilot-review hardening + repo-resident MD lint
+
+End-to-end remediation of recurring Copilot review-comment classes via
+the P5.4 doc-train (PRs #2173–#2179) plus deep-review follow-ups
+(#2184 = sibling `_progress` flush parity, #2185 = repo-resident MD lint
+warn-only, #2186 = bulk-fix existing doc findings, #2187 = protocol +
+standing-orders + this CHANGELOG entry).
+
+- **MD inline-backtick lint** — `scripts/lint_md_inline_backticks.py`
+  (PR #2185) catches the cross-line inline-backtick spans that were the
+  dominant Copilot finding-class through the P5.3 / P5.4 trains. Ships
+  warn-only via `.github/workflows/docs-lint.yml`; flips to `--strict`
+  once the existing `docs/` corpus is clean (PR #2188).
+- **Sibling `_progress` flush parity** — all four sibling `_progress`
+  implementations (`databento_production_export.py`,
+  `databento_preopen_fast.py`,
+  `generate_smc_micro_base_from_databento.py`,
+  `smc_microstructure_base_runtime.py`) now carry the canonical
+  `sys.stderr.flush(); sys.stdout.flush()` pair after `logger.info(...)`
+  (PR #2184). Closes the silent-buffering gap discovered when only the
+  canonical site had the flush.
+- **Triage-protocol expansion** — `docs/COPILOT_REVIEW_TRIAGE_PROTOCOL.md`
+  §5.6 (pre-flight MD lint), §5.7 (pre-flight `sort -n`/`-V` check),
+  §5.8 (pre-flight dual-stream-flush check) added so future authors
+  catch these classes before push, not after Copilot does (PR #2187).
+- **New repo-anchored protocol** —
+  `docs/PRE_FLIGHT_LINT_PROTOCOL.md` (PR #2187) is the repo-resident
+  sibling to the operator-local memory note, ensuring any maintainer
+  can run the pre-flight gates without operator-local context.
+
+Rationale for filing under P5.4 (not P5.3): CHANGELOG is phase-blind;
+this entry exists for audit-trail completeness of the doc-train. It is
+**not** claiming P5.3 also documented this — that section never existed.
+
 ### Changed (2026-05-12) — Audit L-1 finalization: provider-rationalization train + post-audit follow-ups
 
 End-to-end consolidation of the Audit L-1 provider stack. Eight PRs landed on
