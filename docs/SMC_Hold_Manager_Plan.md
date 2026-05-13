@@ -160,9 +160,7 @@ Der **vollständige 4-Tupel-Return** von `resolve_long_invalidation_state()`
   Kein Library-Symbol nötig.
 - Falls man explizite Lifecycle-Flags als eigene BUS-Series wünscht
   (sauberer Trigger, weniger StateCode-Mapping im Konsumenten), wäre das
-  ein separates Mini-PR im SMC Core: `plot(long_invalidated_now ? 1 : 0,
-  "BUS LongInvalidatedNow")` etc. Drei zusätzliche `plot()`-Lines, kein
-  Lifecycle-Refactor.
+  ein separates Mini-PR im SMC Core: `plot(long_invalidated_now ? 1 : 0, "BUS LongInvalidatedNow")` etc. Drei zusätzliche `plot()`-Lines, kein Lifecycle-Refactor.
 
 ### Bekannt verfügbar in `mp.*` (validiert in `SMC_Long_Strategy.pine`)
 - `mp.TRADE_STATE` (z. B. "BLOCKED")

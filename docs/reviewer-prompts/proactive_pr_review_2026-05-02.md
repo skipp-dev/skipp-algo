@@ -67,9 +67,7 @@ For every changed `.github/workflows/*.yml` and
    ordering.** When env blocks are merged from two branches, eyeball
    the resulting key set against `main` — duplicates are the silent
    killer (see §1.1).
-8. **Mutation workflows lacking guard.** Any `gh pr create`, `gh pr
-   merge`, `git push`, `gh release create` step needs the
-   environment+permissions+conditional triad. If guard is missing or
+8. **Mutation workflows lacking guard.** Any `gh pr create`, `gh pr merge`, `git push`, `gh release create` step needs the environment+permissions+conditional triad. If guard is missing or
    was stripped during rebase, BLOCKER.
 
 ## §2 — Documentation factual traps (FACTUAL class)
@@ -100,9 +98,7 @@ audit follow-ups (`*_FOLLOWUP.md`, `*_PLAN.md`, `*_GAP_ANALYSE.md`):
    as configurable, verify the call sites — if it's a constant in
    code, the doc must say "hardcoded; do not override unless …".
 6. **HTTP status-code claims.** Don't assert `401 Unauthorized` when
-   the code path actually returns `404 Not Found` or `400 Bad
-   Request`. Pull the most recent run's `provider_failures.jsonl` if
-   in doubt; otherwise hedge ("expected per docs / may be enforced").
+   the code path actually returns `404 Not Found` or `400 Bad Request`. Pull the most recent run's `provider_failures.jsonl` if in doubt; otherwise hedge ("expected per docs / may be enforced").
 7. **Section / heading numbering.** When inserting sections into a
    numbered doc, confirm the renumbered indices end at the correct
    value. Today's failure: 8 → 11/12 instead of 8 → 9/10.
@@ -115,9 +111,7 @@ audit follow-ups (`*_FOLLOWUP.md`, `*_PLAN.md`, `*_GAP_ANALYSE.md`):
 10. **German Umlaute transliteration.** In any German prose doc
     (`*.md` containing "und", "die", "wir"), search for `ae`, `oe`,
     `ue`, `Ae`, `Oe`, `Ue`, `ss` patterns inside German words and
-    flag transliterations like `aendern → ändern`, `klaeren →
-    klären`, `koennen → können`, `muessen → müssen`, `groesse →
-    größe`. Skip code identifiers and English words.
+    flag transliterations like `aendern → ändern`, `klaeren → klären`, `koennen → können`, `muessen → müssen`, `groesse → größe`. Skip code identifiers and English words.
 11. **Doc-path mismatch in PR description.** PR description's "see
     docs/foo/bar.md" must match the actual added file location. Today
     `docs/ci-proposals/` vs `memories/repo/proposals/` mixed up.
@@ -138,16 +132,12 @@ For every changed `tests/test_*.py` (esp. workflow / lint guards):
 3. **`encoding="utf-8"` on `read_text`.** Locale-dependent reads
    bite on Windows CI runners and on macOS in C locale. Always pass
    `encoding="utf-8"`.
-4. **Fail-loud on YAML parse errors.** `try: yaml.safe_load(...)
-   except yaml.YAMLError: continue` masks exactly the bug we want
-   to catch. Re-raise (or `pytest.fail`) with the file path.
+4. **Fail-loud on YAML parse errors.** `try: yaml.safe_load(...) except yaml.YAMLError: continue` masks exactly the bug we want to catch. Re-raise (or `pytest.fail`) with the file path.
 5. **Subset/superset checks for cron specs.** `_is_pure_cron(events)`
    returning True on `["push","schedule"]` is wrong. Require the
    trigger set to equal `{"schedule"}` (or be a subset of an
    explicit allowlist).
-6. **Strong assertions over presence checks.** `assert "concurrency"
-   in data` is weak. Also assert the `group` and `cancel-in-progress`
-   values are what you claim.
+6. **Strong assertions over presence checks.** `assert "concurrency" in data` is weak. Also assert the `group` and `cancel-in-progress` values are what you claim.
 7. **Per-file failure messages.** When a guard test iterates over N
    files, the assertion message must include the file path, else
    debug time explodes.
@@ -164,9 +154,7 @@ For every changed `.py` outside `tests/`:
 2. **Wrapper duplication.** Two functions whose body differs only by
    a flag value should consolidate via the flag. Flag if you see
    `def get_stock_news(...): return _stock_news_impl(latest=False)`
-   alongside `def get_stock_latest_news(...): return
-   _stock_news_impl(latest=True)` is fine; flag if both bodies are
-   copy-pasted.
+   alongside `def get_stock_latest_news(...): return _stock_news_impl(latest=True)` is fine; flag if both bodies are copy-pasted.
 3. **Missing test assertions for new params.** When a function gains
    a new optional parameter (`include_articles`, `include_events`),
    the corresponding test must assert that the parameter is
@@ -273,8 +261,7 @@ For every PR the reviewer touches:
 
 3. **`jq` is unsafe for Copilot bodies.** Copilot inline-comment
    bodies often contain literal control characters (newlines inside
-   ` ```code``` ` blocks) that crash `jq` mid-stream. Use Python
-   with `json.loads(raw, strict=False)` instead.
+   triple-backtick fenced code blocks) that crash `jq` mid-stream. Use Python with `json.loads(raw, strict=False)` instead.
 
 4. **Re-verify after every push.** Copilot does NOT auto-re-review
    after a force-push. The `unresolved` count never drops on its own.

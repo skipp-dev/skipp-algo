@@ -36,9 +36,7 @@ and sets the monitoring cadence for future runs.
 
 The initial runs failed with `bars_source_mode: none` because the terminal
 used conda Python (`/opt/anaconda3/bin/python`) with pyarrow 19.0.0, which
-could not read the production parquet files (error: `Repetition level histogram
-size mismatch`). The fix was to use venv Python (`~/.venv/bin/python`) with
-pyarrow 23.0.1. **CI uses the venv Python and is not affected.**
+could not read the production parquet files (error: `Repetition level histogram size mismatch`). The fix was to use venv Python (`~/.venv/bin/python`) with pyarrow 23.0.1. **CI uses the venv Python and is not affected.**
 
 ### Manifest Contamination Fix
 

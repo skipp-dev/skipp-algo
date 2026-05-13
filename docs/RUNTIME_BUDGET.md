@@ -55,9 +55,7 @@ channels (`LtfDeltaState`, `SafeTrendState`, `MicroProfileCode`,
 `ReadyBlockerCode`, `StrictBlockerCode`, `VolExpansionState`,
 `DdviContextState`), direct diagnostic/detail channels, and LeanPackA/B while
 deriving `Debug Flags` and `Long Debug` locally from dashboard mirror toggles,
-`Long Triggers` and `Risk Plan` locally from existing plan levels, `Signal
-Quality` bounds locally as the fixed `25 / 100` display policy, and `Event
-Risk` locally from `LeanPackA.slot2`.
+`Long Triggers` and `Risk Plan` locally from existing plan levels, `Signal Quality` bounds locally as the fixed `25 / 100` display policy, and `Event Risk` locally from `LeanPackA.slot2`.
 
 ### Phase C C1: Declaration-Only Visual Input Cleanup (11 inputs)
 

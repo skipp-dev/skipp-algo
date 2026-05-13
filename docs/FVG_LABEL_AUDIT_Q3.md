@@ -176,10 +176,7 @@ gegen den v3-Snapshot):
 Das Source-Bundle `full_universe_second_detail_open` deckt nur
 11–14 UTC ab (US-Open-Fenster); echte ASIA-Trades (22–07 UTC) sind
 nicht enthalten. Die 109 ASIA-Events sind ausschließlich 15m-
-Resampler-Synthetic-Bars an Tagesgrenzen mit `timestamp == 00:00:00
-UTC`.
-
-**Schritt 2 — Real-Daten ASIA-Sample** (`scripts/fvg_asia_real_sample.py`,
+Resampler-Synthetic-Bars an Tagesgrenzen mit `timestamp == 00:00:00 UTC`. **Schritt 2 — Real-Daten ASIA-Sample** (`scripts/fvg_asia_real_sample.py`,
 60 Tage × 9 Symbole × 3 TF, **direkter** Databento DBEQ.BASIC `ohlcv-1m`
 Fetch über alle 24 h, dann auf 5m geresampled; 20 045 FVG-Events,
 Artifact `artifacts/ci/fvg_asia_real_sample_60d.json`):
@@ -238,9 +235,7 @@ Q3-Blocker.
    aber Promotion verschiebt sämtliche kalibrierten FVG-Gewichte. Wenn
    Promotion: einen kompletten Re-Calibration-Run + Snapshot pinnen,
    bevor der Scorer umgestellt wird. ✅ DONE (2026-04-22) — Production
-   `smc_core/fvg_quality.py` jetzt auf `WEIGHT_VERSION =
-   "strict_v1_no_hurst"`, `recalibrate()` defaults
-   `label_source="partial_50"`. Pine-Spiegel separat (Disjunktion).
+   `smc_core/fvg_quality.py` jetzt auf `WEIGHT_VERSION = "strict_v1_no_hurst"`, `recalibrate()` defaults `label_source="partial_50"`. Pine-Spiegel separat (Disjunktion).
    Details `docs/FVG_QUALITY_D4_AUDIT.md` §6 +
    `docs/D3_PROMOTION_REVIEW_2026-04-22.md`.
 6. **ASIA-Inversion (n=109, Δ −0.083)**: ✅ DONE — zwei-Stufen

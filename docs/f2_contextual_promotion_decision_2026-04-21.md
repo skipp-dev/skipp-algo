@@ -118,10 +118,7 @@ Pinned by
 
 The first rolling-bench run on `main` after this PR merges will
 publish `f2-dual-arm-<DATE>`. The next 10:00 UTC promotion-gate run
-will then exit with `decision ∈ {insufficient_data, hold, promote,
-rollback}` instead of `status=skipped`.
-
-> ### 2026-04-23 follow-up — countdown does NOT start with this PR
+will then exit with `decision ∈ {insufficient_data, hold, promote, rollback}` instead of `status=skipped`. > ### 2026-04-23 follow-up — countdown does NOT start with this PR
 >
 > A pre-merge audit of the dual-arm chain found three statistical
 > defects that make the *first* set of dual-arm Brier/ECE deltas

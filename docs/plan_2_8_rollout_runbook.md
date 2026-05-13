@@ -99,9 +99,7 @@ python scripts/plan_2_8_q4_gate_bundle_builder.py \
 ```
 
 Bucket keys default to the intersection of TF×family slices present
-in both rollups, sorted deterministically. Use repeated `--bucket
-<tf>/<family>` flags (e.g. `--bucket 5m/FVG --bucket 4H/BOS`) to
-restrict the set the W13 gate evaluates.
+in both rollups, sorted deterministically. Use repeated `--bucket <tf>/<family>` flags (e.g. `--bucket 5m/FVG --bucket 4H/BOS`) to restrict the set the W13 gate evaluates.
 
 ## Status quick-check
 

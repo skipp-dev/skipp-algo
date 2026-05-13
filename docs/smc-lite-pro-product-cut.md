@@ -553,9 +553,7 @@ Definition of Done:
 Definition of Done:
 
 - Der Product-Cut ist in Code, Artefakten, Specs, Docs und Tests deckungsgleich.
-- Die typische Review-Frage `welche Datei gehoert zu Lite, Pro oder
-  operator-only und wo ist das abgesichert?` laesst sich direkt aus dem Repo
-  selbst beantworten.
+- Die typische Review-Frage `welche Datei gehoert zu Lite, Pro oder operator-only und wo ist das abgesichert?` laesst sich direkt aus dem Repo selbst beantworten.
 
 ### Reihenfolge Mit Hoechstem Hebel
 
