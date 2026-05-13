@@ -1,0 +1,46 @@
+name: docs-lint
+
+on:
+  pull_request:
+    paths:
+      - "docs/**"
+      - "scripts/lint_md_inline_backticks.py"
+      - ".github/workflows/docs-lint.yml"
+  workflow_dispatch:
+
+# Concurrency: cancel superseded PR runs to keep CI minutes low.
+concurrency:
+  group: docs-lint-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# F-V6-A2.1 (2026-05-02): top-level PYTHONUNBUFFERED so setup-python and
+# pip steps stream their output unbuffered. Required by
+# tests/test_workflow_python_unbuffered.py.
+env:
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  inline-backticks:
+    name: lint inline backticks (warn-only)
+    # Operator-override hook (tests/test_workflow_runner_pinned.py): runner
+    # label is overridable via the SMC_GH_HOSTED_RUNNER repo variable; default
+    # is the larger ubuntu-latest-l runner per project standard.
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # WARN-ONLY (B1+B3 phase). Findings appear as ::warning:: GHA
+      # annotations; the job exits 0. After the bulk-fix PR (B2) lands and
+      # the docs/ corpus is clean, flip to --strict in a separate PR. This
+      # gating is documented in docs/COPILOT_REVIEW_TRIAGE_PROTOCOL.md
+      # (Phase B) and the deep-review report 2026-05-13 § B3.
+      - name: Run lint_md_inline_backticks.py (warn-only)
+        run: |
+          python scripts/lint_md_inline_backticks.py --format github docs/
