@@ -25,10 +25,14 @@ mechanical and is described below.
 
 ```bash
 # 1. Inline review comments (line-pinned) — paginated
-gh api repos/skippALGO/skipp-algo/pulls/<N>/comments --paginate \
+# `gh api --paginate` concatenates JSON arrays into a stream of separate
+# top-level arrays (NOT a single valid JSON document), so use --slurp to
+# join them into one outer array before json.loads.
+gh api repos/skippALGO/skipp-algo/pulls/<N>/comments --paginate --slurp \
   | python3 -c "
 import sys, json
-data = json.loads(sys.stdin.read(), strict=False)
+pages = json.loads(sys.stdin.read(), strict=False)
+data = [c for page in pages for c in page]
 copilot = [c for c in data if 'opilot' in (c.get('user',{}).get('login') or '').lower()]
 for c in copilot:
     body = (c.get('body') or '').replace(chr(10), ' ')

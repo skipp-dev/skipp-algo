@@ -197,13 +197,19 @@ def test_r1_cited_paths_exist_on_disk() -> None:
     """Every cited workspace path must exist (or be allowlisted)."""
 
     misses: list[tuple[str, str]] = []  # (citing_file, missing_path)
+    stale_allowlist: set[str] = set()  # paths in allowlist that DO now exist
     for doc in _iter_r1_files():
         text = _extract_text_to_scan(doc)
         for match in _PATH_RE.finditer(text):
             cited = match.group("path")
-            if cited in _ALLOWLISTED_PATHS:
-                continue
+            # Check existence FIRST so the allowlist cannot silently mask a
+            # later deletion of a currently-existing file (audit-L-1 §R14:
+            # Copilot #4).
             if (_REPO_ROOT / cited).exists():
+                if cited in _ALLOWLISTED_PATHS:
+                    stale_allowlist.add(cited)
+                continue
+            if cited in _ALLOWLISTED_PATHS:
                 continue
             misses.append((str(doc.relative_to(_REPO_ROOT)), cited))
 

@@ -68,7 +68,7 @@ _FROZEN_SITES: dict[str, int] = {
     # 2026-05-12 OPRA UOA replacement: detector parses pd.Timestamp
     # nanosecond conversion via .value attribute and falls back through
     # int(value) cast on non-Timestamp inputs. The narrow swallow is the
-    # documented contract; see opra_uoa._ts_to_ns().
+    # documented contract; see opra_uoa._normalize_ts().
     "newsstack_fmp/opra_uoa.py": 1,
     "open_prep/alerts.py": 1,
     "open_prep/run_open_prep.py": 1,

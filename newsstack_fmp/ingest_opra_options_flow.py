@@ -40,10 +40,35 @@ from newsstack_fmp.opra_uoa import (
 
 logger = logging.getLogger(__name__)
 
+
+def _safe_int_env(name: str, default: int) -> int:
+    """Tolerant ``int(os.getenv(...))`` for module-import-time defaults.
+
+    A malformed env var (e.g. ``OPRA_UOA_TRADES_WINDOW_MIN=fifteen``) must
+    not raise ``ValueError`` here — ``open_prep/streamlit_monitor.py``
+    imports this module optionally and previously caught only ``ImportError``,
+    so a parse failure used to crash the dashboard at startup. We now fall
+    back to ``default`` and log a warning. (audit-L-1 §R14: Copilot #52/#60)
+    """
+    raw = os.getenv(name)
+    if raw is None or raw == "":
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        logger.warning(
+            "Invalid integer env %s=%r; falling back to default %d",
+            name,
+            raw,
+            default,
+        )
+        return default
+
+
 # Default trailing trades window. OPRA volume is ~1B trades/day so we keep
 # the look-back tight to avoid 100MB+ pulls per refresh. 15 minutes mirrors
 # the UW flow-alerts feed's typical alert lifetime.
-_DEFAULT_TRADES_WINDOW_MIN = int(os.getenv("OPRA_UOA_TRADES_WINDOW_MIN", "15"))
+_DEFAULT_TRADES_WINDOW_MIN = _safe_int_env("OPRA_UOA_TRADES_WINDOW_MIN", 15)
 
 # Databento dataset + schemas.
 _OPRA_DATASET = "OPRA.PILLAR"

@@ -159,7 +159,10 @@ def _find_leaks(source: str, exc_names_global: set[str]) -> list[tuple[int, str]
                     and isinstance(arg0.value, ast.Name)
                     and arg0.value.id in scoped
                 ):
-                    findings.append((ln, f"P1:{node.func.id}({arg0_repr(arg0)})"))
+                    # Skip if any ancestor passes the value into the central
+                    # redactor (e.g. ``_redact_sensitive_error_text(str(exc))``).
+                    if not _wrapped_in_redact(node):
+                        findings.append((ln, f"P1:{node.func.id}({arg0_repr(arg0)})"))
 
         # Pattern 2: f-string referencing exc
         if isinstance(node, ast.JoinedStr):
@@ -169,7 +172,15 @@ def _find_leaks(source: str, exc_names_global: set[str]) -> list[tuple[int, str]
             if _wrapped_in_redact(node):
                 continue
             for value in node.values:
-                if isinstance(value, ast.FormattedValue) and _references_exc(value.value, scoped):
+                if not isinstance(value, ast.FormattedValue):
+                    continue
+                # Per-slot redaction: ``f"prefix: {_redact_sensitive_error_text(str(exc))}"``
+                # is safe even though the JoinedStr itself is not wrapped —
+                # the FormattedValue's expression IS the redactor call.
+                inner = value.value
+                if isinstance(inner, ast.Call) and _is_redacted_call(inner):
+                    continue
+                if _references_exc(inner, scoped):
                     findings.append((ln, "P2:f-string"))
                     break
 
@@ -234,9 +245,23 @@ def arg0_repr(node: ast.AST) -> str:
 
 
 def _line_has_marker(source_lines: list[str], lineno: int) -> bool:
+    """Return True iff the marker is present AND has a non-empty reason.
+
+    A bare ``# noqa: SECLEAK`` (no em-dash + rationale) is treated as missing
+    so reviewers cannot silence the guard without recording WHY the leak is
+    acceptable (audit-L-1 §R14: Copilot #6).
+    """
+
     if lineno < 1 or lineno > len(source_lines):
         return False
-    return _NOQA_MARKER in source_lines[lineno - 1]
+    line = source_lines[lineno - 1]
+    idx = line.find(_NOQA_MARKER)
+    if idx == -1:
+        return False
+    suffix = line[idx + len(_NOQA_MARKER) :]
+    # Strip leading em-dash, hyphen, colon, whitespace before checking the reason.
+    suffix = suffix.lstrip(" \t\u2014-:")
+    return bool(suffix.strip())
 
 
 @pytest.mark.parametrize(

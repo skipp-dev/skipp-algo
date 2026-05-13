@@ -149,7 +149,7 @@ jobs:
           # Branch filter is required: a `workflow_dispatch` of the heavy
           # workflow on a feature branch during the slot window must NOT
           # cause the watchdog to no-op the `main` backstop dispatch.
-          RUN_COUNT=$(gh api "repos/${TARGET_REPO}/actions/workflows/${TARGET_WORKFLOW}/runs?per_page=20" \
+          RUN_COUNT=$(gh api "repos/${TARGET_REPO}/actions/workflows/${TARGET_WORKFLOW}/runs?per_page=100" \
             --jq "[.workflow_runs[] | select(.head_branch == \"main\" and .created_at >= \"${ACTIVE_SLOT}\")] | length")
           echo "runs_in_slot=$RUN_COUNT"
           echo "runs_in_slot=$RUN_COUNT" >> "$GITHUB_OUTPUT"

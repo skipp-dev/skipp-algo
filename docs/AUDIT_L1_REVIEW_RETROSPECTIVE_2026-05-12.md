@@ -126,12 +126,12 @@ Confirmed today on `main`:
   `RUN_COUNT` can be paged out and the watchdog double-dispatches.
 
 ### C4 — Secret leakage via error/log surfaces (3 findings)
-- `_try_call` in [scripts/probe_databento_entitlement.py](scripts/probe_databento_entitlement.py)
+- `_try_call` in [scripts/probe_databento_entitlement.py](../scripts/probe_databento_entitlement.py)
   returns `str(exc)` directly into the report. Databento client errors can
   embed request URLs/headers — leaks key. Repo already has
   `databento_client._redact_sensitive_error_text()` that was not used (#2157).
 - `url.replace(api_key, "***")` redaction in
-  [scripts/probe_fmp_13f_endpoints.py](scripts/probe_fmp_13f_endpoints.py)
+  [scripts/probe_fmp_13f_endpoints.py](../scripts/probe_fmp_13f_endpoints.py)
   silently fails when key contains characters that `urlencode` percent-escapes
   (#2154).
 
@@ -252,7 +252,7 @@ Failure mode caught: every "wrong module path" finding from #2155, #2163,
 ### R2 (T1) — Pin-test function-name reference validator (kills `_ts_to_ns` class)
 
 Extend `tests/test_citation_freshness.py` with a second pass: for each pin/
-ledger test file, find ``backtick-quoted ``module.function`` references in
+ledger test file, find backtick-quoted `module.function` references in
 comments, attempt `importlib.import_module(...)` + `getattr(...)`, fail
 loudly if the symbol no longer exists. Catches #2155 ×2 directly.
 
