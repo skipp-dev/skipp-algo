@@ -80,7 +80,10 @@ env:
 
 jobs:
   watchdog:
-    runs-on: ubuntu-latest
+    # Operator-override hook (tests/test_workflow_runner_pinned.py): runner
+    # label is overridable via the SMC_GH_HOSTED_RUNNER repo variable; default
+    # is the larger ubuntu-latest-l runner per project standard.
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
     timeout-minutes: 5
     steps:
       - name: Determine current slot and decide
