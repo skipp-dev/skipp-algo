@@ -94,7 +94,7 @@ def _run(probe: Probe, *, quiet: bool = False) -> ProbeResult:
         status, detail = probe.fn()
     except Exception as exc:
         latency_ms = (time.monotonic() - t0) * 1000
-        msg = f"{type(exc).__name__}: {exc}"
+        msg = f"{type(exc).__name__}: {exc}"  # noqa: SECLEAK — truncated to 120 chars and used in operator preflight diagnostic only
         if len(msg) > 120:
             msg = msg[:117] + "..."
         _emit(probe.name, "FAIL", latency_ms, msg, quiet=quiet)
@@ -272,7 +272,7 @@ def _probe_fmp_list(path: str, label: str, expected_min: int = 1) -> tuple[str, 
             timeout=15.0,
         )
     except httpx.HTTPError as exc:
-        return ("FAIL", f"HTTP error: {exc}")
+        return ("FAIL", f"HTTP error: {exc}")  # noqa: SECLEAK — httpx.HTTPError stringifies to status+url; FMP key passed via header, not URL
     if r.status_code == 401:
         return ("FAIL", "HTTP 401 — FMP key invalid")
     if r.status_code == 402:
@@ -576,7 +576,7 @@ def _uw_probe(path: str, params: dict[str, str] | None, label: str) -> tuple[str
             timeout=15.0,
         )
     except httpx.HTTPError as exc:
-        return ("FAIL", f"HTTP error: {exc}")
+        return ("FAIL", f"HTTP error: {exc}")  # noqa: SECLEAK — httpx.HTTPError stringifies to status+url; UW key passed via header, not URL
     if r.status_code == 401:
         return ("FAIL", "HTTP 401 — UW key invalid")
     if r.status_code == 403:
@@ -915,7 +915,7 @@ def preflight_or_die(
             try:
                 _notify_blocking(blocking)
             except Exception:
-                logger.exception("preflight notification dispatch failed")
+                logger.exception("preflight notification dispatch failed")  # noqa: SECLEAK — dispatcher error, no API key in stack frame
         if raise_on_block:
             raise SystemExit(1)
     return results
@@ -1061,7 +1061,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             _notify_blocking([r for r in results if r.is_blocking])
         except Exception:
-            logger.exception("notification dispatch failed")
+            logger.exception("notification dispatch failed")  # noqa: SECLEAK — dispatcher error, no API key in stack frame
 
     if args.preflight:
         return 1 if counts["BLOCKING"] > 0 else 0
