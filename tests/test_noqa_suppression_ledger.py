@@ -90,6 +90,10 @@ _FROZEN_SITES: dict[str, int] = {
     "newsstack_fmp/pipeline.py": 1,
     "open_prep/run_open_prep.py": 1,
     "smc_tv_bridge/smc_api.py": 1,
+    # 2026-05-13 (#2171 follow-up): module-import-time hardening for the
+    # OPRA-options-flow integration so streamlit_monitor stays importable
+    # even when the optional ingest module fails to import. Single BLE001.
+    "open_prep/streamlit_monitor.py": 1,
     "scripts/scan_manifests_for_pytest_provenance.py": 3,
     "governance/run_manifest.py": 1,
     "open_prep/realtime_signals.py": 2,
@@ -128,7 +132,7 @@ _FROZEN_SITES: dict[str, int] = {
     # Rebaselined 2026-05-03 (after PR #2035): bumped 1 → 3, see e2e_smoke_ci.py.
     "scripts/fvg_quality_recalibration.py": 3,
     "scripts/generate_performance_report.py": 1,
-    "scripts/probe_newsapi_feed_cursor.py": 4,
+    "scripts/probe_newsapi_feed_cursor.py": 5,
     "scripts/run_smc_e2e_smoke_test.py": 1,
     "scripts/run_smc_measurement_benchmark.py": 1,
     # Rebaselined 2026-05-03 (after PR #2035): bumped 1 → 3, see e2e_smoke_ci.py.
@@ -156,7 +160,12 @@ _FROZEN_SITES: dict[str, int] = {
     # provider request in a generic ``except Exception`` so it can
     # surface the original error message in the probe report. BLE001
     # noqa is justified by the diagnostic-only nature of the script.
-    "scripts/probe_databento_entitlement.py": 1,
+    # Rebaselined 2026-05-13: bumped 1 → 3 to cover ImportError surface
+    # in __main__ guard (`databento_client` import + `_make_databento_client`
+    # construction + `PREFERRED_DATABENTO_DATASETS` import) — each is a
+    # diagnostic-only ``# noqa: SECLEAK`` because the surfaced text contains
+    # only module/path identifiers, not credentials.
+    "scripts/probe_databento_entitlement.py": 3,
     # 2026-05-12 PR #2154: scripts/probe_fmp_13f_endpoints.py needs 3
     # noqa suppressions: 1× S310 for the urllib.request.urlopen call
     # (probe whitelisted-domain via deliberate URL inspection) and 2×
@@ -164,6 +173,13 @@ _FROZEN_SITES: dict[str, int] = {
     # must surface every endpoint's error, not let one tear down the
     # report). Diagnostic-only script.
     "scripts/probe_fmp_13f_endpoints.py": 3,
+    # 2026-05-13: scripts/probe_providers.py preflight + notification
+    # dispatcher catches ``Exception`` deliberately (broad logging.exception
+    # in two error-recovery paths) so a transient dispatcher failure does
+    # not abort the multi-provider preflight run. Each call site carries
+    # ``# noqa: SECLEAK`` because the dispatcher logs only the exception
+    # type / message (no API keys live in the exception stack frame).
+    "scripts/probe_providers.py": 2,
 }
 _FROZEN_TOTAL = sum(_FROZEN_SITES.values())
 

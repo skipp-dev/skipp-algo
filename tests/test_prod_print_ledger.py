@@ -60,6 +60,12 @@ _FROZEN_PRINT_COUNTS: dict[str, int] = {
     "open_prep/outcome_backfill.py": 4,
     "open_prep/candidate_weights.py": 4,
     "open_prep/feature_importance_report.py": 4,
+    # 2026-05-12 (#2171 audit-L-1 PR-D R12+R3): consistency check CLI tools
+    # that print a human-readable findings report and exit 0/1. Both are
+    # invoked as ``python tools/check_*.py`` from CI; print() is the
+    # documented output channel.
+    "tools/check_audit_doc_consistency.py": 4,
+    "tools/check_defaults_table.py": 4,
 }
 _FROZEN_PRINT_TOTAL = sum(_FROZEN_PRINT_COUNTS.values())
 
