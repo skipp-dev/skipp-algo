@@ -101,8 +101,8 @@ Drei Ja/Nein-Antworten ergeben einen Empfehlungs-Vektor. Konsens → klare Empfe
 
 | # | Schritt | Status | Datum | Output |
 |---|---|---|---|---|
-| 0 | Diese Doc anlegen, committen, pushen | ☐ | | `docs/sprints/c10b_family_partition_validation.md` |
-| 1 | Event-Ledger-Snapshot lokalisieren oder Pipeline-Lauf anstoßen (`events_*.jsonl`) | ☐ | | Pfad-Notiz im Status-Block unten |
+| 0 | Diese Doc anlegen, committen, pushen | ☑ | 2026-05-13 | `docs/sprints/c10b_family_partition_validation.md` (PR #2196) |
+| 1 | Event-Ledger-Snapshot lokalisieren oder Pipeline-Lauf anstoßen (`events_*.jsonl`) | ☑ | 2026-05-13 | Status-Block-Eintrag "Event-Ledger-Lokalisierung (Schritt 2a)" unten. Findings: SMC-Live-Ledger leer, Open-Prep-Ledger gefüllt (235 Records, 7 Tage, 63 % Hit-Rate), Variant-Family-Map enthält 1 Eintrag |
 | 2 | Co-Firing-Matrix berechnen | ☐ | | `docs/research/c10b/co_firing_matrix.json` + Tabelle in dieser Doc |
 | 3 | Outcome-Korrelation auf Co-Firing-Bars | ☐ | | `docs/research/c10b/cramers_v_pairwise.json` |
 | 4 | Feature-Divergenz (PSI) auf Solo-Firing-Bars | ☐ | | `docs/research/c10b/feature_psi_per_family.json` |
@@ -127,6 +127,44 @@ _Dieser Block wird bei jedem Folge-Run ergänzt, nicht überschrieben. Datum als
 - C12-Trigger-Gate-Check ausgeführt: `BLOCKED`, 0 Familien evaluiert
 - Vorhandene Daten in `artifacts/reports/zone_priority_contextual_calibration.json` zeigen Per-Bucket-Hit-Rates pro Familie, aber kein Co-Firing-Material
 - Event-Ledger-Pfad noch zu lokalisieren (`events_*.jsonl` nicht im Workspace gefunden)
+
+### 2026-05-13 (Abend) — Event-Ledger-Lokalisierung (Schritt 2a)
+
+**Was wir gesucht haben:** Den persistenten Strom "welches Setup hat gefeuert — welche Familie — welcher Outcome", auf dem Co-Firing, Outcome-Korrelation und Feature-PSI gerechnet werden.
+
+**Was wir gefunden haben:**
+
+1. **Ein erwarteter, aber leerer Pfad: SMC-Live-Incubation-Ledger (Phase-B-Pipeline).**
+   - **Producer:** `scripts/run_smc_live_incubation.py` — schreibt ein JSONL pro Submit/Fill (Felder: `ts`, `phase`, `intent_id`, `variant`, `symbol`, `action`, `entry_price`, `stop_loss`, `take_profit`, `quantity`, `size_scale`, `fill_price`, `kill_switch_triggered`; bei Earnings-Block zusätzlich `earnings_filter`).
+   - **Outcome-Stamper:** `scripts/backfill_live_outcomes.py` — schreibt nachgelagert `outcome_pnl_usd` und `outcome_r_multiple` auf bereits geschlossene Trades in dieselbe JSONL-Zeile.
+   - **Family-Aggregator:** `scripts/build_families_telemetry.py` — mappt `variant` → Familie über `configs/c13/variant_family_map.json`, rollt zu `families[{name, live_days, n_trades, kill_switch_fires, drift_verdict}]` auf. Family-Vokabular hart gepinnt: `("BOS", "OB", "FVG", "SWEEP")`.
+   - **Geplanter On-Disk-Pfad:** `cache/live/incubation_<date>.jsonl` (gesetzt in der Doc von `backfill_live_outcomes.py`).
+   - **Realität auf Hauptbranch (`main` HEAD `2a82ad5e`):** `cache/` existiert nicht im Repo, **kein einziges `incubation_*.jsonl` vorhanden, weder im Workspace noch unter `artifacts/`**. Der C8-Phase-B-Live-Cron hat also bisher **null Records** produziert. Genau deshalb meldet `check_c12_trigger.py` 0 evaluierte Familien.
+   - **Die Variant-Family-Map ist eine 1-Eintrag-Datei.** `configs/c13/variant_family_map.json` enthält heute exakt `{"smc_breaker_btc": "BOS"}`. Selbst wenn der Live-Cron Daten produzieren würde, würden 3 von 4 Familien (OB/FVG/SWEEP) leer bleiben und der Phase-B-Gate würde nie aufgehen. Das ist nicht "Hypothese, die zu validieren ist" — das ist eine **leere Hypothese**.
+
+2. **Ein unerwarteter, aber gefüllter Pfad: Open-Prep-Feature-Importance-Ledger.**
+   - **Pfad:** `artifacts/open_prep/outcomes/feature_importance/fi_samples_<date>.jsonl`
+   - **Volumen:** 7 Tage (2026-04-30, 05-04, 05-05, 05-06, 05-08, 05-11, 05-12), **235 Records total**, ~30–40 pro Tag.
+   - **Outcome-Label vorhanden:** `profitable_30m` (148 wahr / 87 falsch, **63,0 % Hit-Rate**), `pnl_30m_pct`.
+   - **Feature-Spalten pro Record:** `total_score`, `confidence_tier` (heute alle `STANDARD`), `gap_component`, `gap_sector_rel_component`, `rvol_component`, `macro_component`, `momentum_component`, `hvb_component`, `earnings_bmo_component`, `news_component`, `ext_hours_component`, `analyst_catalyst_component`, `vwap_distance_component`, `freshness_component`, `institutional_component`, `estimate_revision_component`, `zone_priority_score`.
+   - **Fehlt:** Family-Tag oder Variant-Schlüssel — dieser Strom ist eine Open-Prep-Setup-Ledger, kein SMC-Live-Setup-Ledger. Eine Family-Attribution ließe sich nur über `zone_priority_score`-Bucketing nachreichen, nicht 1:1 mappen.
+
+3. **Weitere kandidatische Ledger ohne Outcome-Verknüpfung:**
+   - `docs/calibration/calibration_report_public_history.jsonl` — 8 Einträge, **alle leer** (`families: []`), bestätigt direkt den Phase-B-Hunger.
+   - `artifacts/reports/zone_priority_calibration_history.jsonl` — 1 Eintrag, Aggregat ohne Per-Setup-Granularität.
+   - `docs/ab/g23_history.jsonl` — 0 Zeilen.
+
+**Implikation für Schritt 2b–2d:**
+- Die 4-Familien-Partition kann auf Echtdaten **nicht** validiert werden, solange `variant_family_map.json` nur eine Variante kennt und der Live-Cron 0 Records hat. Selbst nachdem die Cron-Brücke #2197 gemergt ist und die Producer-Cron wieder grün wird, **liefert die Open-Prep-Pipeline kein SMC-Setup-Material** — sie liefert Open-Prep-Setup-Material. Das ist eine zusätzliche Inkongruenz, die explizit dokumentiert werden muss, bevor die nächste Stufe Sinn ergibt.
+- Für die geplante Co-Firing-Matrix gibt es zwei Wege: (a) bis SMC-Live-Cron tatsächlich Records produziert warten; (b) die 235 Open-Prep-Records als **Proxy** nutzen, um die Methodik (Co-Firing, Outcome-Korrelation, PSI) auf bestehenden Komponenten-Scores (gap/rvol/momentum/news/...) zu prüfen und später auf SMC zu übertragen.
+- Empfehlung: **Weg (b)** als Methodik-Sanity-Check zuerst (es zeigt, ob die Werkzeuge sinnvolle Signale produzieren), parallel **Weg (a)** unblocken — d.h. konkret klären: Wer ist dafür verantwortlich, dass `variant_family_map.json` jenseits einer einzigen BTC-Breaker-Variante wächst, und was muss in `run_smc_live_incubation.py` passieren, damit `cache/live/incubation_*.jsonl` überhaupt geschrieben wird (heute kein Cron, der ihn aufruft).
+- Diese beiden Punkte werden in Schritt 2b und 2c entsprechend gegabelt.
+
+**Beziehung zum Hauptziel:** Bevor wir behaupten, die Track-Record-Methodik könne profitable Setups beweisen, müssen wir zugeben, dass die Datenpipeline **heute nichts beweisen kann** — ein Eintrag im Family-Mapping, null geschriebene Incubation-Records. Das ist eine ehrliche Bestandsaufnahme, kein Buzzword-Kaskaden-Versuch.
+
+**Referenz-PRs:**
+- #2196 (diese Doc — Status-Anker)
+- #2197 (Cron-Brücke 1c — Voraussetzung für frische Producer-Daten, CI läuft)
 
 ---
 
