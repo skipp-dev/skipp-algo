@@ -3,14 +3,11 @@
 
 Mirrors family_partition_analysis_v4_corpus.json structure for direct comparison.
 """
-import json, math, sys
+import json, math
 from collections import defaultdict
 from pathlib import Path
 from itertools import combinations
 from statistics import mean
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from scripts.smc_atomic_write import atomic_write_json  # noqa: E402
 
 CORPUS_ROOT = Path("/tmp/c10b_local_run/measurement_benchmark")
 OUT = Path("/tmp/provider_audit/skipp-algo/docs/research/c10b/family_partition_analysis_1d_corpus.json")
@@ -241,7 +238,12 @@ payload = {
     "calibration_per_context_bucket": calibration,
 }
 
-atomic_write_json(payload, OUT, default=str)
+# ATOMIC-WRITE-EXEMPT: c10b research/analysis script — local one-shot write to
+# docs/research/c10b/ (not production hot path, no concurrent consumers). The
+# sys.path-insert + lint-suppression import pattern needed to reach
+# smc_atomic_write would trip the sys-path and lint-suppression discipline
+# pins; this exempt marker is the explicit alternative.
+OUT.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
 print(json.dumps({
     "baseline": {f: {"n": baseline[f]["n"], "hit_rate": baseline[f]["hit_rate"]} for f in FAMILIES},
     "pairwise_significant": sum(1 for p in pairwise if p["reject_pool_at_bonf_0.05"]),

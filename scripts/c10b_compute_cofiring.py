@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
 """Compute Co-Firing matrix + pairwise Cramér's V on 1D corpus."""
-import json, math, glob, sys
+import json, math, glob
 from collections import defaultdict, Counter
 from itertools import combinations
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from scripts.smc_atomic_write import atomic_write_json  # noqa: E402
 
 CORPUS_ROOT = Path("/tmp/c10b_local_run/measurement_benchmark")
 OUT_DIR = Path("/tmp/provider_audit/skipp-algo/docs/research/c10b")
@@ -157,8 +154,18 @@ cramers_payload = {
     },
 }
 
-atomic_write_json(cofiring_payload, OUT_DIR / "co_firing_matrix.json", default=str)
-atomic_write_json(cramers_payload, OUT_DIR / "cramers_v_pairwise.json", default=str)
+# ATOMIC-WRITE-EXEMPT: c10b research/analysis script — local one-shot writes to
+# docs/research/c10b/ (not production hot path, no concurrent consumers). The
+# sys.path-insert + lint-suppression import pattern needed to reach
+# smc_atomic_write would trip the sys-path and lint-suppression discipline
+# pins; this exempt marker is the explicit alternative.
+(OUT_DIR / "co_firing_matrix.json").write_text(
+    json.dumps(cofiring_payload, indent=2, default=str), encoding="utf-8"
+)
+# ATOMIC-WRITE-EXEMPT: same rationale as above (c10b research artifact).
+(OUT_DIR / "cramers_v_pairwise.json").write_text(
+    json.dumps(cramers_payload, indent=2, default=str), encoding="utf-8"
+)
 
 print("\n=== Co-Firing summary ===")
 print(json.dumps(cofiring_payload["family_count_distribution"], indent=2))
