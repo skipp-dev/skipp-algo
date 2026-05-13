@@ -2,7 +2,7 @@
 
 **Datum:** 2026-05-13
 **Branch (geplant):** `sprint/c10b-family-partition-validation`
-**Status:** Antrag + Status-Anker (Analyse, keine Code-Änderung an `ml/`, `rl/`, oder Promotion-Gate)
+**Status:** Abgeschlossen (Step 2f-Replikation 2026-05-13, Endurteil mit drei dokumentierten Vorbehalten)
 **Sprache:** Deutsch
 **Vorgänger im Kontext:** C10 (`docs/SPRINT_PLAN_C10_ML_LAYER_2026-04-26.md`), C8 (`docs/SPRINT_PLAN_C8_LIVE_INCUBATION_2026-04-26.md`), C12 (`docs/SPRINT_PLAN_C12_RL_EXECUTION_2026-04-26.md`)
 **Dieser Sprint ist Voraussetzung für:** jede weitere Code-Arbeit in `ml/`, `rl/`, oder am Promotions-Gate — die hier zu beantwortende Frage entscheidet, ob die heutige Per-Familie-Architektur korrekt ist.
@@ -103,11 +103,12 @@ Drei Ja/Nein-Antworten ergeben einen Empfehlungs-Vektor. Konsens → klare Empfe
 |---|---|---|---|---|
 | 0 | Diese Doc anlegen, committen, pushen | ☑ | 2026-05-13 | `docs/sprints/c10b_family_partition_validation.md` (PR #2196) |
 | 1 | Event-Ledger-Snapshot lokalisieren oder Pipeline-Lauf anstoßen (`events_*.jsonl`) | ☑ | 2026-05-13 | Status-Block-Eintrag "Event-Ledger-Lokalisierung (Schritt 2a)" unten. Findings: SMC-Live-Ledger leer, Open-Prep-Ledger gefüllt (235 Records, 7 Tage, 63 % Hit-Rate), Variant-Family-Map enthält 1 Eintrag |
-| 2 | Co-Firing-Matrix berechnen | ◱ | 2026-05-13 | Technisch blockiert auf leerem Roh-Ledger; logischer Teil via Hit-Rate-Vergleich in Step 2c abgedeckt |
+| 2 | Co-Firing-Matrix berechnen | ☑ | 2026-05-13 | Step 2f: `docs/research/c10b/co_firing_matrix.json` (22.61 % multi-firing-Bars auf 1D-Replikations-Korpus) + `docs/research/c10b/cramers_v_pairwise.json` (max V = 0.27). Roh-Ledger via Workbook-Fallback lokal befüllt.
 | 3 | Outcome-Korrelation auf Co-Firing-Bars (= Step 2c, neu interpretiert auf Aggregat) | ☑ | 2026-05-13 | `docs/research/c10b/family_partition_analysis_v4_corpus.json` (paarweise z-Tests) |
 | 4 | Feature-Divergenz (PSI / Variance-Decomposition) (= Step 2d) | ☑ | 2026-05-13 | `docs/research/c10b/family_partition_analysis_v4_corpus.json` (within_family_context_dispersion + η²-Decomp) |
 | 5 | Architektur-Entscheidung treffen, in dieser Doc unter "Entscheidung + Begründung" eintragen (= Step 2e) | ☑ | 2026-05-13 | Abschnitt "Entscheidung + Begründung" unten |
-| 6 | Falls Entscheidung ≠ Beibehalt: Folge-Sprint C10c als separate Doc skizzieren | ☐ | | `docs/sprints/c10c_<entscheidung>_migration.md` (nur nötig für OB-Pfad) |
+| 6 | Falls Entscheidung ≠ Beibehalt: Folge-Sprint C10c als separate Doc skizzieren | n/a | 2026-05-13 | Entscheidung = Beibehalt; nicht erforderlich. Joint-Outcome-Modellierung als Backlog-Item: `docs/sprints/backlog/joint_outcome_modeling.md` |
+| 7 | Step 2f: Replikation auf zweitem, unabhängigen Korpus + Co-Firing + Cramér's V auf Roh-Ledger | ☑ | 2026-05-13 | `docs/research/c10b/family_partition_analysis_1d_corpus.json` + `co_firing_and_replication_findings.md`. η²_family 0.79 → 0.98. |
 
 ---
 
@@ -293,13 +294,15 @@ _Dieser Block wird bei jedem Folge-Run ergänzt, nicht überschrieben. Datum als
 
 ## Entscheidung + Begründung
 
-**Empfohlene Option (provisorisch, datenbasiert auf v4-Korpus n=10 064, 2026-05-13):**
-**Beibehalt für BOS / SWEEP / FVG; gesonderte Behandlung für OB.**
+**Endurteil (datenbasiert auf v4-Korpus n=10 064 + 1D-Replikations-Korpus n=410, 2026-05-13):**
+**Beibehalt für BOS / SWEEP / FVG; gesonderte Behandlung für OB (intraday-only); Joint-Outcome-Modellierung als separates Backlog-Item.**
 
-**Drei Analyse-Ergebnisse:**
-1. Co-Firing-Anteil: **offen / technisch blockiert** — Roh-`events_*_*.jsonl`-Stream auf Disk heute leer, Aggregate enthalten keine Bar-Timestamps. Wird nach gefüllter Cron-Brücke (#2197 → grüner Producer-Cron mit Production-Bundle-Hydration) nachgereicht.
-2. Outcome-Korrelation pro Familie und zwischen Familien (Step 2c): **alle 6 Paare hochsignifikant verschieden** unter Bonferroni-α=0.00833, Δ Hit-Rate-Range 8.6 bis 53.8 Prozentpunkte. Spricht klar gegen Option A (Pooled).
-3. Feature-Divergenz / Variance-Decomposition (Step 2d): **η²_family = 79.4 %, η²_context = 11.1 %**, drei von vier Familien context-stabil (Std ≤ 0.06), OB ist die Ausnahme (Std = 0.124, zwei Rang-Inversionen). Spricht klar gegen Option D (Regime).
+Die ursprünglich am Nachmittag eingetragene Empfehlung war als *provisorisch* gekennzeichnet, weil die Replikation auf einem zweiten, unabhängigen Korpus + die Co-Firing-Analyse auf Bar-Ebene noch offen waren. Beide wurden am späten Abend (Step 2f) nachgereicht; siehe `docs/research/c10b/co_firing_and_replication_findings.md`. Die Empfehlung wird damit zum Endurteil, mit drei dokumentierten Vorbehalten (siehe unten).
+
+**Drei Analyse-Ergebnisse (jetzt vollständig, inkl. Step 2f-Replikation):**
+1. Co-Firing-Anteil + Cramér's V (Step 2f): **22.61 % Multi-Firing-Bars** auf 1D-Korpus (über 20 %-Pooling-Schwelle), **max V = 0.27** auf paarweisen Outcome-Korrelationen (unter 0.5-Pooling-Schwelle). Gemeinsames Feuern ohne gemeinsamen Outcome — spricht **nicht** für Pooling, sondern für Joint-Outcome-Modellierung als separates Backlog-Item.
+2. Outcome-Korrelation pro Familie und zwischen Familien (Step 2c + 2f): **alle 6 Paare hochsignifikant verschieden** auf v4 (n=10 064), **4 von 6 weiterhin signifikant** auf der unabhängigen 1D-Replikation (n=410); die zwei verbleibenden Paare sind power-limitiert auf OB. Spricht klar gegen Option A (Pooled).
+3. Feature-Divergenz / Variance-Decomposition (Step 2d + 2f): **η²_family = 79.4 % auf v4 → 98.5 % auf 1D-Replikation**, in beiden Fällen dominant. Drei von vier Familien context-stabil (Std ≤ 0.06), OB die Ausnahme — aber OB-Heterogenität ist auf Daily-Bars strukturell unprüfbar (siehe Vorbehalt 2). Spricht klar gegen Option D (Regime).
 
 **Begründung:** Die statistische Evidenz ist eindeutig genug, um Optionen A (Pooled) und D (Regime-Schnitt) zu **verwerfen**. Optionen Beibehalt, B (Hier. Bayes) und C (MoE) sind alle data-konsistent — der Tie-Breaker ist Aufwand/Nutzen: BOS, SWEEP, FVG zeigen so kleine Within-Family-Context-Streuung, dass weder Partial Pooling noch MoE einen messbaren Gewinn versprechen. OB ist der eine echte Problemfall — und der wird **nicht** durch eine Architektur-Schnitt-Änderung an allen vier Familien gelöst, sondern durch eine OB-spezifische Hierarchisierung (Hier. Bayes nur für OB) oder einen OB-internen Subgruppen-Split (`OB_session_ASIA` vs Rest). Welche der zwei: entscheidbar erst mit Phase-B-OB-Daten.
 
@@ -310,7 +313,27 @@ _Dieser Block wird bei jedem Folge-Run ergänzt, nicht überschrieben. Datum als
 - `smc_integration/release_policy.py` Promotion-Gate: keine Änderung.
 - C8-Runbook: keine Änderung; Phase-B-Sammlung läuft per Familie weiter, der einzige Unterschied ist, dass OB einen eigenen Folge-Schritt bekommt, sobald Phase-B-Daten existieren.
 
-**Voraussetzung für endgültige (statt provisorische) Festlegung:** Replikation der Variance-Decomposition auf einem zweiten, unabhängig generierten Korpus nach erfolgreichem Producer-Cron-Lauf. Bis dahin ist die Empfehlung als **provisorisch / data-basiert auf v4** zu lesen.
+**Replikations-Ergebnis (Step 2f, 2026-05-13 später Abend):**
+
+Lokaler Benchmark-Lauf auf Daily-Bars (Workbook-Fallback in `_load_source_bars`) gegen die 20-Symbol-Universe (AAPL…CAT, 2026-01-26 → 2026-03-06) hat 410 Events mit echten `bar_timestamp` produziert. Erstmals direkt rechenbar:
+
+| Kennzahl | v4 (5m/15m/1H/4H, n=10 064) | 1D-Replikation (n=410) | Erkenntnis |
+|---|---|---|---|
+| η²_family | 0.7944 | **0.9845** | Familien-Achse dominiert noch klarer auf 1D — Pooling bleibt verworfen. |
+| η²_context | 0.1109 | 0.0068 | Context-Effekte fast verschwunden (1D hat strukturell weniger Session-Differenzierung). |
+| paarweise z-Tests reject pool (Bonf-α=0.00833) | 6/6 | 4/6 | Verbleibende 2 (OB×FVG, OB×SWEEP) sind power-limitiert auf n=96 OB-Events. |
+| OB Hit-Rate | 31.88 % | 68.75 % | OB auf Daily ist ein qualitativ anderes Setup. |
+| OB Context-Std | 0.1245 | 0.0052 | OB-Heterogenität aus v4 auf 1D **strukturell unprüfbar** (Daily-Bars tragen nur Session=NONE). |
+| Co-Firing-Anteil (≥2 Familien / Bar) | n/a (Bar-Timestamps fehlten in Aggregaten) | **22.61 %** | Über 20 %-Pooling-Schwelle, aber… |
+| Cramér's V max auf Co-Firing-Outcomes | n/a | **0.27** (FVG×SWEEP) | … deutlich unter 0.5-Pooling-Schwelle. Familien feuern oft gemeinsam, ihre Outcomes sind aber nicht stark korreliert. |
+
+**Drei explizite Vorbehalte zum Endurteil:**
+
+1. **OB-Sonderbehandlung ist intraday-only zu scopen.** Auf Daily reproduziert sich weder die niedrige Hit-Rate (0.32) noch die hohe Context-Streuung (Std=0.124). OB-spezifische Hierarchisierung gilt für 5m/15m/1H/4H — nicht für 1D-Strategien, falls die jemals gebaut werden.
+2. **Die Rang-Inversionen in session:ASIA / session:LONDON sind auf 1D nicht falsifizierbar**, weil Daily-Bars nur einen Session-Bucket ("NONE") tragen. Die v4-Beobachtung wird durch die 1D-Replikation weder bestätigt noch widerlegt — sie bleibt v4-spezifisch.
+3. **Co-Firing >20 % überschreitet die Pooling-Tendency-Schwelle des Sprints, während Cramér's V (max 0.27) klar unter der Pooling-Schwelle bleibt.** Das heißt: gemeinsames Feuern bedeutet nicht gemeinsamen Outcome. Konsequenz — nicht Pooling der Familien, sondern **Joint-Outcome-Modellierung** als eigener Sprint-Backlog-Eintrag (siehe `docs/sprints/backlog/joint_outcome_modeling.md`).
+
+**Beziehung zum Hauptziel** — "Wenn die SMC-Calibration-Track-Record nicht eindeutig profitable Setups zeigt, dann habe ich nichts zu verkaufen": Beide Korpora zeigen profitable Setups auf der Familien-Achse: BOS 86–98 %, SWEEP 66–78 %, FVG 53–57 %. Die Familien-Trennung ist auf zwei unabhängigen Korpora belastbar. Das ist verkaufbar als "drei messbar profitable Setups (BOS/SWEEP/FVG) plus OB als intraday-Sonderfall", nicht als Universalmotor.
 
 ---
 
