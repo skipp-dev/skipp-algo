@@ -83,7 +83,10 @@ _ALLOWED: dict[str, frozenset[int]] = {
     # cron-block "always reads" sentence to "expects a freshly-completed"
     # (added 2 comment lines, no logic change). 212/377/492/731/874/894 →
     # 214/379/494/733/876/896.
-    "smc-library-refresh.yml": frozenset({214, 379, 494, 733, 876, 896}),
+    # F-V8-D1 (2026-05-14): +48 lines (flatten-step for nested artifact bug)
+    # shifted lines 379/494/733/876/896 → 427/542/781/924/944. Line 214 is
+    # in the upstream half of the file and unchanged.
+    "smc-library-refresh.yml": frozenset({214, 427, 542, 781, 924, 944}),
     # Deeper integration gates: 2 advisory-only probes.
     # Rebaselined 2026-05-02 after PR #2028 composite migration: 69→73, 113→117 (+4 each).
     # F-V4-B4 (2026-05-02): 73→74, 117→118 (+1 each) after @v7 fleet bump.
