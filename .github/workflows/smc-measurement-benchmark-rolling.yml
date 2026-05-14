@@ -35,6 +35,14 @@ on:
 
 permissions:
   contents: read
+  # F-V8-D2 (2026-05-14): Required by dawidd6/action-download-artifact in
+  # the "Restore Databento production export bundle" steps below — it calls
+  # the GitHub Actions REST API to enumerate the producer workflow's runs
+  # and download the resolved artifact. Without `actions: read` the
+  # cross-workflow pull silently fails with
+  # `Resource not accessible by integration` (403). Matches the
+  # permissions block in smc-library-refresh.yml.
+  actions: read
 
 concurrency:
   group: smc-measurement-benchmark-rolling
