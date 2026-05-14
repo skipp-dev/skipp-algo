@@ -52,7 +52,7 @@ on:
     # consecutive cap-busts at 120 min (n=1/n=2/n=3, runs 25438174407,
     # 25446229916, 25450506584) showed the producer cannot reliably
     # complete inside a 2 h window with the current Step 6/6b/8 backend
-    # bias. RAM/disk are not constraints (64 GB / 600 GB on ubuntu-latest-l;
+    # bias. RAM/disk are not constraints (64 GB / 600 GB on ubuntu-latest;
     # peak RSS observed 18.6 GB at F-V8-C4 time, but see F-V8-Q5b
     # (2026-05-12) — heartbeat-diagnostic probe run 25693860630 was killed
     # by exit 143 / SIGTERM mid-write of full_universe_second_detail_open
@@ -100,10 +100,10 @@ env:
   PYTHONPATH: ${{ github.workspace }}
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   EXPORT_DIR: artifacts/smc_microstructure_exports
-  PRODUCER_RUNNER_LABEL: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
+  PRODUCER_RUNNER_LABEL: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
 jobs:
   export:
-    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     # F-V8-C3.1 (2026-05-02): bumped 60→120 after 12 consecutive runs were
     # killed by the 60-min cap with runtimes 62–75 min (no successful run for
     # days). The intent of the F-V6-C3 tight cap was protecting the consumer

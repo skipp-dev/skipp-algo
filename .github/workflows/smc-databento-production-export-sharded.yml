@@ -69,7 +69,7 @@ env:
 jobs:
   plan:
     name: plan shards
-    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
     outputs:
       matrix: ${{ steps.compute.outputs.matrix }}
@@ -121,7 +121,7 @@ jobs:
     name: producer (shard ${{ matrix.shard_id }}/${{ matrix.shard_of }})
     needs: plan
     if: needs.plan.outputs.shard_count != '0'
-    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     # Per-shard cap. The original 1-job producer hit a ~120min platform
     # wall (A9-grep / A9e probe falsified internal-timeout hypothesis).
     # Q4 (post-Probe-v3): bumped 90→120 to absorb the v3 cap-hit margin
@@ -209,7 +209,7 @@ jobs:
     # an empty reduce when the plan produced an empty matrix (zero shards
     # also skip the producer job per its own condition).
     if: always() && needs.plan.result == 'success' && needs.plan.outputs.shard_count != '0'
-    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 15
     steps:
       - name: Checkout

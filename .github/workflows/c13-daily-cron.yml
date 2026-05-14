@@ -60,7 +60,7 @@ env:
 
 jobs:
   daily-pipeline:
-    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 20
     env:
       LIVE_DIR: cache/live

@@ -5,7 +5,7 @@
 # Backup safety-net for `smc-databento-production-export.yml` cron triggers.
 #
 # WHY THIS EXISTS (empirical evidence, 2026-05-11/12):
-#   - The heavy export runs on `ubuntu-latest-l` (64 GB / 16 CPU). That
+#   - The heavy export runs on `ubuntu-latest` (64 GB / 16 CPU). That
 #     larger-runner pool is observably scarcer than `ubuntu-latest`, and
 #     GitHub-hosted scheduled events on it are subject to documented delays
 #     under high load
@@ -82,8 +82,8 @@ jobs:
   watchdog:
     # Operator-override hook (tests/test_workflow_runner_pinned.py): runner
     # label is overridable via the SMC_GH_HOSTED_RUNNER repo variable; default
-    # is the larger ubuntu-latest-l runner per project standard.
-    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
+    # is the larger ubuntu-latest runner per project standard.
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
     steps:
       - name: Determine current slot and decide

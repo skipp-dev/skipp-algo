@@ -39,7 +39,7 @@ env:
   PYTHONPATH: ${{ github.workspace }}
 jobs:
   q4-gate-dryrun:
-    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
     steps:
       - name: Checkout

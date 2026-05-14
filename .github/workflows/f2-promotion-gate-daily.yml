@@ -67,7 +67,7 @@ env:
   PYTHONPATH: ${{ github.workspace }}
 jobs:
   promotion-gate:
-    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 15
     steps:
       - name: Checkout

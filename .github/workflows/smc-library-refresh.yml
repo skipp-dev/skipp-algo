@@ -100,7 +100,7 @@ env:
   PYTHONPATH: ${{ github.workspace }}
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   REFRESH_DATE: ""   # set dynamically in the date step
-  SMC_REFRESH_RUNNER_LABEL: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
+  SMC_REFRESH_RUNNER_LABEL: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
   SMC_INCREMENTAL_BASE_SEED_CACHE_VERSION: v1
 jobs:
   refresh:
@@ -108,7 +108,7 @@ jobs:
     # succeeded. Manual workflow_dispatch and scheduled cron bypass this
     # guard (cron already implies "no upstream signal to gate on").
     if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
-    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     # F-V8-C4 (2026-05-06): bumped 120→240 in lockstep with the producer.
     # Pin test enforces producer ≤ consumer, so the two move together.
     # 240 = exactly the new 4 h cron interval — back-to-back runs touch

@@ -35,7 +35,7 @@ env:
   PYTHONPATH: ${{ github.workspace }}
 jobs:
   monthly-digest:
-    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
 
