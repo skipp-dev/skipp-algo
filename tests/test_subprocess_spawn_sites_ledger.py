@@ -18,7 +18,7 @@ Why pin sites (in addition to the existing kwarg-shape invariants):
 Today the entire production tree spawns external commands from
 exactly three locations:
 
-* ``smc_integration/release_policy.py:1071`` — read git HEAD SHA
+* ``smc_integration/release_policy.py:1085`` — read git HEAD SHA
   (``git rev-parse HEAD``) for release manifest provenance.
 * ``open_prep/realtime_signals.py:183`` — locate the realtime
   signals daemon by scanning the process list (``pgrep``).
@@ -133,7 +133,7 @@ def _subprocess_alias_or_direct_import_sites() -> set[tuple[str, int, str]]:
 # Locked surface — every entry is a reviewed external command.
 SUBPROCESS_RUN_LEDGER: set[tuple[str, int]] = {
     # `git rev-parse HEAD` for release-manifest provenance.
-    ("smc_integration/release_policy.py", 1072),
+    ("smc_integration/release_policy.py", 1085),
     # `pgrep` to discover the realtime-signals daemon PID.
     ("open_prep/realtime_signals.py", 183),
 }

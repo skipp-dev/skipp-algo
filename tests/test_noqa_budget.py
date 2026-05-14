@@ -110,7 +110,7 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("open_prep/realtime_signals.py", 327, ("S603",)),
         # smc_integration/release_policy.py:1072 — Bandit S603 false
         # positive: ``git rev-parse HEAD`` via shutil.which("git").
-        ("smc_integration/release_policy.py", 1072, ("S603",)),
+        ("smc_integration/release_policy.py", 1085, ("S603",)),
         # open_prep/streamlit_monitor.py:205 — module-import-time hardening:
         # the OPRA-options-flow integration is wrapped in a try/except so
         # that ImportError, env-parse ValueError, or any other startup
