@@ -22,6 +22,9 @@ collect_ignore = (
         "tests/test_realtime_signals_uplift.py",
         "tests/test_realtime_signals_uplift_b.py",
         "tests/test_smoke_v2_features.py",
+        # test_dst_fallback_loudness imports open_prep.realtime_signals which
+        # unconditionally imports fcntl (POSIX-only) at module level.
+        "tests/test_dst_fallback_loudness.py",
     ]
     if sys.platform == "win32"
     else []

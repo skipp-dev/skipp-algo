@@ -109,8 +109,13 @@ def test_reduce_downloads_all_shard_artifacts_separately() -> None:
     ]
     assert matches, "reduce job must include actions/download-artifact"
     # Pin to v7 per repo discipline (matches upload-artifact@v7).
+    # Accept the SHA-pinned equivalent produced by the ci/pin-action-shas PR.
+    _DOWNLOAD_V7_SHA = "37930b1c2abaa49bbe596cd826c3c89aef350131"
     for s in matches:
-        assert s["uses"] == "actions/download-artifact@v7", (
+        assert s["uses"] in {
+            "actions/download-artifact@v7",
+            f"actions/download-artifact@{_DOWNLOAD_V7_SHA}",
+        }, (
             f"reduce must pin actions/download-artifact@v7; got {s['uses']!r}"
         )
     with_block = matches[0].get("with", {})
