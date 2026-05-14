@@ -83,7 +83,11 @@ jobs:
       - name: Install test dependencies
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
-          uv pip install --system -r requirements.txt pytest
+          # Use PATH Python (tool-cache) explicitly — uv --system alone picks
+          # the py.exe-registered system Python which is in Program Files and
+          # not writable without admin on the self-hosted Windows runner.
+          PY=$(python -c 'import sys; print(sys.executable)')
+          uv pip install --system --python "$PY" -r requirements.txt pytest
       # Coverage adds ~25-35% test wall-time. Keep it on `main` pushes (where
       # the report has value) and skip on PRs to shorten the feedback loop.
       - name: Run Python tests (PR — no coverage)

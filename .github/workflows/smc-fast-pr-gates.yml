@@ -86,7 +86,11 @@ jobs:
       - name: Install dependencies
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
-          uv pip install --system -r requirements.txt pytest
+          # Use PATH Python (tool-cache) explicitly — uv --system alone picks
+          # the py.exe-registered system Python which is in Program Files and
+          # not writable without admin on the self-hosted Windows runner.
+          PY=$(python -c 'import sys; print(sys.executable)')
+          uv pip install --system --python "$PY" -r requirements.txt pytest
 
       - name: Run fast provider and smoke health checks
         if: steps.gate.outputs.run_heavy == 'true'
