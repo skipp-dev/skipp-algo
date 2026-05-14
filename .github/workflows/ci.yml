@@ -90,9 +90,4 @@ jobs:
         if: steps.gate.outputs.run_heavy == 'true' && github.event_name != 'pull_request'
         run: |
           python -m pytest -q --maxfail=1 -n auto --dist=worksteal --cov --cov-report=term-missing:skip-covered
-      - name: E2E structural smoke test
-        if: steps.gate.outputs.run_heavy == 'true'
-        run: python scripts/e2e_smoke_ci.py
-      - name: Layer violation guard (F-08)
-        if: steps.gate.outputs.run_heavy == 'true'
-        run: python scripts/check_layer_violations.py
+

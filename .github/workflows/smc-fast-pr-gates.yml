@@ -146,6 +146,10 @@ jobs:
             tests/test_streamlit_terminal_pure_functions.py \
             | tee artifacts/ci/terminal_coverage.txt
 
+      - name: Layer violation guard (F-08)
+        if: steps.gate.outputs.run_heavy == 'true'
+        run: python scripts/check_layer_violations.py
+
       - name: Render fast gate summary
         if: always() && steps.gate.outputs.run_heavy == 'true'
         run: |
