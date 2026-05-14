@@ -115,9 +115,13 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # P5.4 A3 (PR #2194): line shifted 782→783 by the
         # ``from scripts._progress_flush import flush_progress_streams``
         # import added near the top for the extracted SSOT flush helper.
+        # Bridge 1c (PR #2197): line shifted 783→844 by the
+        # ``DEFAULT_SLIM_CANONICAL_WORKBOOK_SHEET_NAMES`` + env-resolver
+        # block inserted next to ``SMC_BASE_ONLY_CANONICAL_WORKBOOK_SHEET_NAMES``
+        # to fix the 5 consecutive cron OOMs 2026-05-11 → 2026-05-13.
         (
             "scripts/databento_production_export.py",
-            783,
+            844,
             ("_DEFAULT_BULLISH_QUALITY_CFG",),
         ),
         ("smc_tv_bridge/smc_api.py", 184, ("_candle_provider",)),

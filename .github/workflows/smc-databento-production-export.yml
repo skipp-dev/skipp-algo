@@ -168,6 +168,23 @@ jobs:
           # Mirrors the sharded-probe env contract — without this the
           # legacy producer cron has been at the 240min cap since 2026-05-06.
           DATABENTO_DAILY_MAX_WORKERS: "4"
+          # Bridge 1c (2026-05-13): restrict the canonical xlsx workbook to
+          # the four sheets that are either consumed downstream
+          # (`daily_bars` — read by smc_integration/structure_batch.py and
+          # scripts/export_smc_structure_artifact.py) or required for
+          # diagnostics (manifest, batl_debug, output_checks). All other 24
+          # sheets remain available as parquet via Step 10/10b. This is the
+          # direct fix for the 5 consecutive cron OOMs 2026-05-11 → 2026-05-13
+          # (runs 25687318767, 25733577369, 25738826438, 25752310158,
+          # 25785343691), all SIGTERM during openpyxl.__exit__ XML
+          # serialization at lookback_days=30 (RSS 41–56 GB on 64 GB runner).
+          # To restore the historic full-workbook behaviour for manual
+          # workflow_dispatch debugging only, override this env to `all`
+          # (case-insensitive). The slim default lives in
+          # DEFAULT_SLIM_CANONICAL_WORKBOOK_SHEET_NAMES in
+          # scripts/databento_production_export.py and is covered by
+          # tests/test_databento_production_workbook_slim_whitelist.py.
+          CANONICAL_WORKBOOK_SHEETS: "manifest,daily_bars,batl_debug,output_checks"
         run: |
           set -euo pipefail
           mkdir -p "${EXPORT_DIR}" artifacts/ci

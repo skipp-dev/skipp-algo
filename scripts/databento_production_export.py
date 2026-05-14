@@ -343,6 +343,67 @@ SMC_BASE_ONLY_CANONICAL_WORKBOOK_SHEET_NAMES = (
     "output_checks",
 )
 
+# Slim default whitelist for the canonical xlsx workbook, applied to the
+# *full* production-export path (i.e. when `smc_base_only=False`). The full
+# 28-sheet workbook has been the root cause of 5 consecutive cron failures
+# on `smc-databento-production-export.yml` (2026-05-11 → 2026-05-13, runs
+# 25687318767, 25733577369, 25738826438, 25752310158, 25785343691), all with
+# exit 143 / SIGTERM during openpyxl `__exit__` XML serialization at
+# `lookback_days=30`. PR #2148 (Q5b) already excluded 3 oversized sheets;
+# remaining 28-sheet write still climbs RSS 39 → 56 GB on the 64 GB
+# `ubuntu-latest-l` runner and the `__exit__` second-spike kills the job.
+#
+# The only downstream consumers of the canonical xlsx that were found
+# during the 2026-05-13 audit are:
+#   - smc_integration/structure_batch.py:86,500  reads `daily_bars`
+#   - scripts/export_smc_structure_artifact.py:164  reads `daily_bars`
+# All other sheets are retained as parquet via Step 10/10b (exact-named
+# parquet exports) and remain accessible to humans / downstream tooling
+# without going through the OOM-prone xlsx write.
+#
+# This whitelist is overridable via the `CANONICAL_WORKBOOK_SHEETS` env
+# variable (comma-separated names, or `all` to restore the historic
+# pre-2026-05-13 full-workbook behaviour for ad-hoc debugging via
+# workflow_dispatch). The `summary` sheet is always written (it is the
+# first positional argument to `create_excel_workbook_bytes`, not part of
+# `additional_sheets`).
+DEFAULT_SLIM_CANONICAL_WORKBOOK_SHEET_NAMES = (
+    "manifest",
+    "daily_bars",
+    "batl_debug",
+    "output_checks",
+)
+
+CANONICAL_WORKBOOK_SHEETS_ENV_VAR = "CANONICAL_WORKBOOK_SHEETS"
+CANONICAL_WORKBOOK_SHEETS_ALL_TOKEN = "all"
+
+
+def _resolve_canonical_workbook_sheet_whitelist() -> frozenset[str] | None:
+    """Resolve the active canonical-workbook sheet whitelist.
+
+    Returns:
+        - ``None`` if the env override is set to ``all`` (no filtering,
+          historic behaviour, retained for manual debugging only).
+        - A ``frozenset`` of sheet names to retain otherwise. By default
+          this is the slim 4-sheet whitelist that covers all known
+          downstream xlsx consumers (`daily_bars`) plus diagnostic context
+          (`manifest`, `batl_debug`, `output_checks`).
+
+    The slim default is chosen so the cron is green from the next run
+    onward without code changes anywhere except this module.
+    """
+    raw = os.environ.get(CANONICAL_WORKBOOK_SHEETS_ENV_VAR, "").strip()
+    if not raw:
+        return frozenset(DEFAULT_SLIM_CANONICAL_WORKBOOK_SHEET_NAMES)
+    if raw.lower() == CANONICAL_WORKBOOK_SHEETS_ALL_TOKEN:
+        return None
+    names = tuple(
+        chunk.strip() for chunk in raw.split(",") if chunk.strip()
+    )
+    if not names:
+        return frozenset(DEFAULT_SLIM_CANONICAL_WORKBOOK_SHEET_NAMES)
+    return frozenset(names)
+
 SECOND_DETAIL_EXPORT_COLUMNS = [
     "trade_date",
     "symbol",
@@ -3321,6 +3382,36 @@ def _write_canonical_production_workbook(
         }
         workbook_minute_detail = pd.DataFrame()
         workbook_second_detail = pd.DataFrame()
+    else:
+        # Apply the slim-workbook whitelist resolved from
+        # CANONICAL_WORKBOOK_SHEETS env (default: 4-sheet slim list, see
+        # the `DEFAULT_SLIM_CANONICAL_WORKBOOK_SHEET_NAMES` block above
+        # for the audit trail). Setting `CANONICAL_WORKBOOK_SHEETS=all`
+        # restores the historic full-workbook behaviour for manual
+        # workflow_dispatch debugging only.
+        slim_whitelist = _resolve_canonical_workbook_sheet_whitelist()
+        if slim_whitelist is not None:
+            dropped = sorted(set(additional_sheets) - slim_whitelist)
+            additional_sheets = {
+                name: frame
+                for name, frame in additional_sheets.items()
+                if name in slim_whitelist
+            }
+            # `minute_detail` / `second_detail` are positional, not part
+            # of additional_sheets. Suppress them too unless the
+            # whitelist explicitly names them.
+            if "minute_detail" not in slim_whitelist:
+                workbook_minute_detail = pd.DataFrame()
+            if "second_detail" not in slim_whitelist:
+                workbook_second_detail = pd.DataFrame()
+            if progress_callback is not None and dropped:
+                progress_callback(
+                    "workbook: slim-whitelist active via "
+                    f"{CANONICAL_WORKBOOK_SHEETS_ENV_VAR}; "
+                    f"kept={sorted(slim_whitelist)} "
+                    f"dropped={dropped} "
+                    "(parquet retained via Step 10/10b)"
+                )
     workbook_result = write_databento_production_workbook_from_frames(
         summary=summary,
         output_path=canonical_workbook,
