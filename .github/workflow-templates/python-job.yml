@@ -1,0 +1,80 @@
+# live-window: any-trigger  # REPLACE-WITH-FEATURE-FLAG (YYYY-MM-DD)
+# Template: standard Python job
+# Copy this file, rename it, and replace every <replace-me> placeholder.
+# See .github/copilot-instructions.md for authoring rules.
+name: "<replace-me: workflow name>"
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1-5"  # 06:00 UTC weekdays — adjust or remove
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false  # set true if safe to interrupt mid-run
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  run:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 20  # adjust per job complexity (lint=5, full-pytest=45)
+
+    steps:
+      # ── Bot / data-only PR short-circuit ─────────────────────────────────
+      # Remove this block if the workflow is NOT a required status check.
+      - name: Determine if heavy steps should run
+        id: gate
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" && \
+                "${{ github.head_ref }}" == bot/* ]]; then
+            echo "Bot data-only PR detected; skipping heavy steps."
+            echo "run_heavy=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_heavy=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.gate.outputs.run_heavy == 'true'
+        uses: actions/checkout@v6
+
+      # ── Python environment ────────────────────────────────────────────────
+      - name: Set up Python
+        if: steps.gate.outputs.run_heavy == 'true'
+        uses: ./.github/actions/setup-python-pinned
+
+      - name: Install uv
+        if: steps.gate.outputs.run_heavy == 'true'
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "requirements*.txt"
+
+      - name: Install dependencies
+        if: steps.gate.outputs.run_heavy == 'true'
+        run: uv pip install --system -r requirements.txt
+
+      # ── Main step(s) ──────────────────────────────────────────────────────
+      - name: <replace-me: step name>
+        if: steps.gate.outputs.run_heavy == 'true'
+        run: |
+          python scripts/<replace-me>.py
+
+      # ── Artefact upload (optional) ────────────────────────────────────────
+      - name: Upload report
+        if: always() && steps.gate.outputs.run_heavy == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: <replace-me>-report
+          path: artifacts/<replace-me>/
+          if-no-files-found: ignore

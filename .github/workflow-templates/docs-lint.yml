@@ -1,0 +1,54 @@
+# live-window: any-trigger  # REPLACE-WITH-FEATURE-FLAG (YYYY-MM-DD)
+# Template: docs / markdown lint workflow
+# Copy this file, rename it, and replace every <replace-me> placeholder.
+# See .github/copilot-instructions.md for authoring rules.
+name: "<replace-me: lint name>"
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "**/*.md"
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "**/*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  lint:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      # ── Lint step(s) ──────────────────────────────────────────────────────
+      # Examples — keep only what you need:
+
+      # Option A: inline grep guard
+      - name: <replace-me: lint step>
+        run: |
+          if grep -rnE '<replace-me: pattern>' --include='*.md' docs/; then
+            echo "::error::Found disallowed pattern — <replace-me: explanation>."
+            exit 1
+          fi
+          echo "OK"
+
+      # Option B: Python script
+      # - name: <replace-me: check name>
+      #   run: python scripts/<replace-me>.py
