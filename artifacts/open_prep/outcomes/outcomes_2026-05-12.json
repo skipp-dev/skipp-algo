@@ -12,8 +12,8 @@
     "regime_at_entry": "NEUTRAL",
     "zone_priority_rank": "B",
     "zone_priority_score": 51,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": false,
+    "pnl_30m_pct": 0.0
   },
   {
     "date": "2026-05-12",
@@ -28,8 +28,8 @@
     "regime_at_entry": "NEUTRAL",
     "zone_priority_rank": "B",
     "zone_priority_score": 51,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": false,
+    "pnl_30m_pct": -6.2292
   },
   {
     "date": "2026-05-12",
@@ -44,8 +44,8 @@
     "regime_at_entry": "NEUTRAL",
     "zone_priority_rank": "B",
     "zone_priority_score": 51,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": true,
+    "pnl_30m_pct": 50.6008
   },
   {
     "date": "2026-05-12",
@@ -60,8 +60,8 @@
     "regime_at_entry": "NEUTRAL",
     "zone_priority_rank": "B",
     "zone_priority_score": 51,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": false,
+    "pnl_30m_pct": -3.1901
   },
   {
     "date": "2026-05-12",
@@ -76,8 +76,8 @@
     "regime_at_entry": "NEUTRAL",
     "zone_priority_rank": "B",
     "zone_priority_score": 51,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": true,
+    "pnl_30m_pct": 2.4112
   },
   {
     "date": "2026-05-12",
@@ -92,8 +92,8 @@
     "regime_at_entry": "NEUTRAL",
     "zone_priority_rank": "B",
     "zone_priority_score": 51,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": true,
+    "pnl_30m_pct": 7.362
   },
   {
     "date": "2026-05-12",
@@ -108,8 +108,8 @@
     "regime_at_entry": "NEUTRAL",
     "zone_priority_rank": "B",
     "zone_priority_score": 51,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": false,
+    "pnl_30m_pct": -2.0348
   },
   {
     "date": "2026-05-12",
@@ -124,8 +124,8 @@
     "regime_at_entry": "NEUTRAL",
     "zone_priority_rank": "B",
     "zone_priority_score": 51,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": false,
+    "pnl_30m_pct": -1.0155
   },
   {
     "date": "2026-05-12",
@@ -140,8 +140,8 @@
     "regime_at_entry": "NEUTRAL",
     "zone_priority_rank": "B",
     "zone_priority_score": 51,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": false,
+    "pnl_30m_pct": -1.2399
   },
   {
     "date": "2026-05-12",
@@ -156,7 +156,7 @@
     "regime_at_entry": "NEUTRAL",
     "zone_priority_rank": "B",
     "zone_priority_score": 51,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": false,
+    "pnl_30m_pct": -5.1288
   }
 ]

@@ -100,8 +100,10 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         # site 2314 -> 2343.
         # A8.1 (PR #2078): _rss_current_mib + _fmt_rss_pair helpers added
         # for current+peak RSS instrumentation, shifting site 2348 -> 2395.
-        # PR #2198 main churn added 1 line near top, shifting 2396 -> 2397.
-        ("scripts/databento_production_export.py", 2397),
+        # PR #2198 main churn added 1 line near top (-> 2397) and
+        # Bridge 1c (PR #2197) inserted DEFAULT_SLIM_CANONICAL_WORKBOOK_SHEET_NAMES
+        # + env-resolver block (~61 lines), shifting 2397 -> 2458.
+        ("scripts/databento_production_export.py", 2458),
         # scripts/generate_bullish_quality_scanner.py — manifest scalar
         # lookups (source_data_fetched_at / latest window_tag); not bar
         # data.
