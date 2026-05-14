@@ -86,6 +86,7 @@ _ALLOWED_RAW_WRITE_FILES: dict[str, str] = {
     "scripts/run_smc_live_incubation.py": "audit JSONL append (mode='a', append-only ledger)",
     "scripts/build_backtest_slippage_samples.py": "mkstemp + fdopen + os.replace atomic pattern (slippage samples JSON)",
     "scripts/smoke_smc_to_ibkr_adapter.py": "mkstemp + fdopen + os.replace atomic pattern (smoke audit JSONL append)",
+    "scripts/c10c_aggregate_per_bar.py": "mkstemp + fdopen + os.replace atomic pattern (C10c co-firing per-bar JSONL)",
     # smc_atomic_write itself implements the primitive — exempt by definition.
     "scripts/smc_atomic_write.py": "implements the atomic write primitive",
     # --- open_prep/ surface (Deep-Review 2026-04-27 scope expansion) ---

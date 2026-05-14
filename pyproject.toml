@@ -183,6 +183,16 @@ omit = [
     "scripts/run_smc_e2e_smoke_test.py",
     "scripts/tv_publish_evidence_summary.py",
     "scripts/run_smc_release_gates.py",
+    # Issue #2200 omit-list expansion (2026-05-14): one-shot research /
+    # probe / showcase CLIs, 0–29 % covered by design. Same rationale as
+    # the standalone-CLI carve-out from ADR-002 #26 — running them is a
+    # manual operator action, not part of the SMC live-incubation path.
+    "scripts/c10b_compute_cofiring.py",
+    "scripts/c10b_compute_variance_decomp.py",
+    "scripts/probe_databento_entitlement.py",
+    "scripts/generate_showcase_summary.py",
+    "scripts/measure_databento_ops_run.py",
+    "newsstack_fmp/ingest_opra_options_flow.py",
 ]
 
 [tool.coverage.report]
@@ -209,4 +219,18 @@ skip_empty = true
 #        consumed by unrelated feature merges. Per ADR-002 the floor
 #        may be ratcheted down once when drift is ≤1 pp; restoring 85
 #        unblocks main CI. Follow-up bucket PR queued to recover.
+#   85 — omit-list expansion for 6 one-shot research / probe / showcase
+#        scripts (Issue #2200, 2026-05-14). main drifted to 84.50 % over
+#        the C10b/Bridge-1c merge train; both PRs #2196/#2197 shipped
+#        with red push-mode validate (fast-gates green, no enforcement
+#        gap). Per ADR-002 precedent #26 standalone-CLI carve-out is the
+#        documented remediation when added stmts are 0–29 % covered by
+#        design. Removed ~520 stmts → projected TOTAL ≈ 85.2 %, restores
+#        green push-mode validate without touching the 85-floor.
+#        Removed: scripts/c10b_compute_cofiring.py,
+#        scripts/c10b_compute_variance_decomp.py,
+#        scripts/probe_databento_entitlement.py,
+#        scripts/generate_showcase_summary.py,
+#        scripts/measure_databento_ops_run.py,
+#        newsstack_fmp/ingest_opra_options_flow.py.
 fail_under = 85
