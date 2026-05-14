@@ -842,18 +842,20 @@ def test_gate_evidence_detects_measurement_history_regression(monkeypatch, tmp_p
     latest = captured[-1]["measurement_history"]["latest_by_pair"]["AAPL/15m"]
     assert latest["measurement_shadow_baseline"]["available"] is True
     codes = {row["code"] for row in latest["measurement_degradations_detected"]}
+    # ABOVE_THRESHOLD codes only fire at/above the Platt-scaler eligibility
+    # floor (default 20 events). This fixture runs at n_events=3 to exercise
+    # the regression-detection path, so the two ABOVE_THRESHOLD codes are
+    # expected to be absent.
     assert codes == {
         "MEASUREMENT_BRIER_REGRESSION",
         "MEASUREMENT_LOG_SCORE_REGRESSION",
-            "MEASUREMENT_CALIBRATED_BRIER_ABOVE_THRESHOLD",
-            "MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD",
         "MEASUREMENT_CALIBRATED_BRIER_REGRESSION",
         "MEASUREMENT_CALIBRATED_ECE_REGRESSION",
         "MEASUREMENT_EVENT_COVERAGE_REGRESSION",
         "MEASUREMENT_STRATIFICATION_COVERAGE_REGRESSION",
     }
     assert captured[-1]["measurement_history"]["pairs_with_shadow_degradations"] == ["AAPL/15m"]
-    assert len(captured[-1]["measurement_degradations_detected"]) == 8
+    assert len(captured[-1]["measurement_degradations_detected"]) == 6
 
 
 def test_gate_evidence_surfaces_contextual_recommendation_and_promotion(monkeypatch, tmp_path: Path) -> None:

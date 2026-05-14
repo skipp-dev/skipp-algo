@@ -296,6 +296,9 @@ class TestMeasurementShadowGovernance:
             max_calibrated_brier_regression_abs=0.05,
             max_calibrated_ece_regression_abs=0.04,
             min_history_runs=2,
+            # legacy: keep calibrated-threshold eligibility at 1 event so this
+            # fixture (n_events=8) continues to trigger ABOVE_THRESHOLD rows.
+            min_events_for_calibrated_thresholds=1,
         )
         current = {
             "calibrated_brier_score": 0.19,
@@ -341,6 +344,9 @@ class TestMeasurementShadowGovernance:
             max_calibrated_brier_score=0.20,
             max_calibrated_ece=0.10,
             min_scoring_events=1,
+            # legacy: keep calibrated-threshold eligibility at 1 event so this
+            # fixture (n_events=6) continues to trigger ABOVE_THRESHOLD rows.
+            min_events_for_calibrated_thresholds=1,
             min_populated_stratification_buckets=1,
             min_history_runs=2,
             max_brier_regression_abs=0.05,
@@ -377,6 +383,9 @@ class TestMeasurementShadowGovernance:
             max_calibrated_brier_score=0.20,
             max_calibrated_ece=0.10,
             min_scoring_events=1,
+            # legacy: this test predates the calibrated-threshold eligibility
+            # floor; pin to 1 event so n_events=1 still trips the gate.
+            min_events_for_calibrated_thresholds=1,
             min_history_runs=5,
         )
 
@@ -405,6 +414,9 @@ class TestMeasurementShadowGovernance:
             max_calibrated_brier_score=0.60,
             max_calibrated_ece=0.30,
             min_scoring_events=1,
+            # legacy: keep calibrated-threshold eligibility at 1 event so this
+            # fixture (n_events=3) still emits ABOVE_THRESHOLD codes.
+            min_events_for_calibrated_thresholds=1,
             min_populated_stratification_buckets=1,
             min_history_runs=2,
             max_brier_regression_abs=0.05,
@@ -482,6 +494,57 @@ class TestMeasurementShadowGovernance:
             "MEASUREMENT_EVENT_COVERAGE_LOW",
             "MEASUREMENT_STRATIFICATION_COVERAGE_LOW",
         }
+
+    def test_calibrated_thresholds_skipped_below_platt_floor_default(self) -> None:
+        # Default eligibility floor is 20 events (the Platt-scaler minimum in
+        # smc_core.scoring._MIN_PLATT_EVENTS). Below that the calibration code
+        # path falls back to beta_bin and emits warnings; calibrated_ece is
+        # statistically meaningless (e.g. n=1 with positive_rate=0 yields
+        # 0.333333), so the ABOVE_THRESHOLD hard-blocks must not fire.
+        thresholds = MeasurementShadowThresholds()  # all defaults
+        degradations, baseline = assess_measurement_shadow_degradations(
+            {
+                "brier_score": 0.38,
+                "log_score": 0.97,
+                "calibrated_brier_score": 0.11,
+                "calibrated_ece": 0.333333,  # the failing-run 4H value
+                "n_events": 1,
+                "stratification_coverage": {"populated_bucket_count": 0},
+            },
+            [],
+            thresholds=thresholds,
+        )
+
+        assert baseline["available"] is False
+        codes = {row["code"] for row in degradations}
+        # Sparse-data warnings still fire (advisory), but the calibrated
+        # ABOVE_THRESHOLD hard-block codes do not.
+        assert "MEASUREMENT_CALIBRATED_BRIER_ABOVE_THRESHOLD" not in codes
+        assert "MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD" not in codes
+        # Stratification coverage gate still fires (advisory) — note that
+        # MEASUREMENT_EVENT_COVERAGE_LOW does not, because the default
+        # min_scoring_events=1 is met by the n_events=1 fixture.
+        assert "MEASUREMENT_STRATIFICATION_COVERAGE_LOW" in codes
+
+    def test_calibrated_thresholds_apply_at_or_above_platt_floor_default(self) -> None:
+        # At/above the Platt-scaler floor (n_events=20) the calibrated
+        # ABOVE_THRESHOLD hard-blocks fire as before.
+        thresholds = MeasurementShadowThresholds()
+        degradations, _baseline = assess_measurement_shadow_degradations(
+            {
+                "brier_score": 0.25,
+                "log_score": 0.50,
+                "calibrated_brier_score": 0.70,  # > 0.60 default
+                "calibrated_ece": 0.40,           # > 0.30 default
+                "n_events": 20,
+                "stratification_coverage": {"populated_bucket_count": 3},
+            },
+            [],
+            thresholds=thresholds,
+        )
+        codes = {row["code"] for row in degradations}
+        assert "MEASUREMENT_CALIBRATED_BRIER_ABOVE_THRESHOLD" in codes
+        assert "MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD" in codes
 
 
 class TestContextualCalibrationGovernance:
@@ -800,6 +863,9 @@ class TestHardBlockingMeasurementDegradations:
         thresholds = MeasurementShadowThresholds(
             max_calibrated_brier_score=0.30,
             min_scoring_events=1,
+            # legacy: keep calibrated-threshold eligibility at 1 event so the
+            # n_events=5 fixture still trips the hard-block ABOVE_THRESHOLD.
+            min_events_for_calibrated_thresholds=1,
         )
         current = {
             "brier_score": 0.25,
