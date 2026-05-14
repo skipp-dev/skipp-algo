@@ -1,0 +1,42 @@
+{
+  "schema_version": "1.0",
+  "corpus": {
+    "source": "/tmp/c10b_local_run/measurement_benchmark",
+    "timeframe": "1D",
+    "n_events": 410,
+    "n_distinct_bars": 314,
+    "n_symbols": 20,
+    "date_range_unix": {
+      "min": 1769472000.0,
+      "max": 1772668800.0
+    },
+    "family_counts": {
+      "OB": 96,
+      "FVG": 147,
+      "SWEEP": 125,
+      "BOS": 42
+    }
+  },
+  "family_count_distribution": {
+    "bars_with_1_family": 243,
+    "bars_with_2_families": 65,
+    "bars_with_3_families": 6,
+    "bars_with_4_families": 0
+  },
+  "co_firing": {
+    "n_multi_firing_bars": 71,
+    "n_total_bars": 314,
+    "multi_firing_pct": 22.611464968152866,
+    "threshold_low_pct": 5.0,
+    "threshold_high_pct": 20.0,
+    "verdict": "POOLING_TENDENCY (multi-firing >20%)"
+  },
+  "pairwise_cooccurrence_counts": {
+    "BOS__FVG": 12,
+    "BOS__OB": 12,
+    "BOS__SWEEP": 6,
+    "FVG__OB": 5,
+    "FVG__SWEEP": 24,
+    "OB__SWEEP": 24
+  }
+}

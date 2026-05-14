@@ -1,0 +1,250 @@
+{
+  "corpus": "local_workbook_fallback_1D_2026-05-13 (replication)",
+  "corpus_metadata": {
+    "source": "/tmp/c10b_local_run/measurement_benchmark",
+    "timeframe": "1D",
+    "n_symbols": 20,
+    "date_range_unix": {
+      "min": 1769472000.0,
+      "max": 1772668800.0
+    },
+    "bars_source_mode": "workbook_fallback",
+    "production_workbook": "databento_volatility_production_20260307_114724.xlsx"
+  },
+  "n_events_total": 410,
+  "baseline_family_hit_rates": {
+    "BOS": {
+      "n": 42,
+      "hits": 41,
+      "hit_rate": 0.9762,
+      "ci95": [
+        0.8768,
+        0.9958
+      ],
+      "weight": 0.9762
+    },
+    "OB": {
+      "n": 96,
+      "hits": 66,
+      "hit_rate": 0.6875,
+      "ci95": [
+        0.5891,
+        0.7715
+      ],
+      "weight": 0.6875
+    },
+    "FVG": {
+      "n": 147,
+      "hits": 78,
+      "hit_rate": 0.5306,
+      "ci95": [
+        0.4502,
+        0.6095
+      ],
+      "weight": 0.5306
+    },
+    "SWEEP": {
+      "n": 125,
+      "hits": 98,
+      "hit_rate": 0.784,
+      "ci95": [
+        0.704,
+        0.8471
+      ],
+      "weight": 0.784
+    }
+  },
+  "pairwise_between_family_tests_bonf_alpha": 0.008333333333333333,
+  "pairwise_between_family": [
+    {
+      "pair": "BOS vs OB",
+      "delta_hit_rate": 0.2887,
+      "z": 3.739,
+      "p_value": 0.000185,
+      "reject_pool_at_bonf_0.05": true
+    },
+    {
+      "pair": "BOS vs FVG",
+      "delta_hit_rate": 0.4456,
+      "z": 5.274,
+      "p_value": 0.0,
+      "reject_pool_at_bonf_0.05": true
+    },
+    {
+      "pair": "BOS vs SWEEP",
+      "delta_hit_rate": 0.1922,
+      "z": 2.885,
+      "p_value": 0.003919,
+      "reject_pool_at_bonf_0.05": true
+    },
+    {
+      "pair": "OB vs FVG",
+      "delta_hit_rate": 0.1569,
+      "z": 2.433,
+      "p_value": 0.014964,
+      "reject_pool_at_bonf_0.05": false
+    },
+    {
+      "pair": "OB vs SWEEP",
+      "delta_hit_rate": -0.0965,
+      "z": -1.625,
+      "p_value": 0.104082,
+      "reject_pool_at_bonf_0.05": false
+    },
+    {
+      "pair": "FVG vs SWEEP",
+      "delta_hit_rate": -0.2534,
+      "z": -4.358,
+      "p_value": 1.3e-05,
+      "reject_pool_at_bonf_0.05": true
+    }
+  ],
+  "within_family_context_dispersion": {
+    "BOS": {
+      "global_weight": 0.9762,
+      "context_range": 0.0385,
+      "context_std": 0.0194,
+      "context_mean": 0.9792,
+      "per_bucket": [
+        [
+          "htf_bias:BEARISH",
+          0.9615
+        ],
+        [
+          "htf_bias:BULLISH",
+          1.0
+        ],
+        [
+          "vol_regime:NORMAL",
+          0.9762
+        ]
+      ]
+    },
+    "OB": {
+      "global_weight": 0.6875,
+      "context_range": 0.0101,
+      "context_std": 0.0052,
+      "context_mean": 0.6859,
+      "per_bucket": [
+        [
+          "htf_bias:BEARISH",
+          0.6901
+        ],
+        [
+          "htf_bias:BULLISH",
+          0.68
+        ],
+        [
+          "vol_regime:NORMAL",
+          0.6875
+        ]
+      ]
+    },
+    "FVG": {
+      "global_weight": 0.5306,
+      "context_range": 0.0132,
+      "context_std": 0.0069,
+      "context_mean": 0.5328,
+      "per_bucket": [
+        [
+          "htf_bias:BEARISH",
+          0.5273
+        ],
+        [
+          "htf_bias:BULLISH",
+          0.5405
+        ],
+        [
+          "vol_regime:NORMAL",
+          0.5306
+        ]
+      ]
+    },
+    "SWEEP": {
+      "global_weight": 0.784,
+      "context_range": 0.0876,
+      "context_std": 0.0454,
+      "context_mean": 0.7978,
+      "per_bucket": [
+        [
+          "htf_bias:BEARISH",
+          0.7609
+        ],
+        [
+          "htf_bias:BULLISH",
+          0.8485
+        ],
+        [
+          "vol_regime:NORMAL",
+          0.784
+        ]
+      ]
+    }
+  },
+  "between_family_rank_inversion_by_context": {},
+  "variance_decomposition_on_contextual_weights": {
+    "ss_total": 0.323371,
+    "ss_between_family": 0.318344,
+    "ss_between_context": 0.0022,
+    "ss_residual": 0.002827,
+    "eta_squared_family": 0.9845,
+    "eta_squared_context": 0.0068,
+    "eta_squared_residual": 0.0087
+  },
+  "psi_like_within_family_over_contexts": {
+    "BOS": 0.0008,
+    "OB": 0.0001,
+    "FVG": 0.0002,
+    "SWEEP": 0.0052
+  },
+  "calibration_per_context_bucket": {
+    "htf_bias:BEARISH": {
+      "n_events": 299,
+      "smooth_ece": 0.186421,
+      "positive_rate": 0.675585,
+      "status": "ok"
+    },
+    "htf_bias:BULLISH": {
+      "n_events": 111,
+      "smooth_ece": 0.228649,
+      "positive_rate": 0.72973,
+      "status": "ok"
+    },
+    "session:ASIA": {
+      "n_events": 0,
+      "smooth_ece": null,
+      "positive_rate": null,
+      "status": "insufficient_events"
+    },
+    "session:LONDON": {
+      "n_events": 0,
+      "smooth_ece": null,
+      "positive_rate": null,
+      "status": "insufficient_events"
+    },
+    "session:NY_AM": {
+      "n_events": 0,
+      "smooth_ece": null,
+      "positive_rate": null,
+      "status": "insufficient_events"
+    },
+    "vol_regime:HIGH_VOL": {
+      "n_events": 0,
+      "smooth_ece": null,
+      "positive_rate": null,
+      "status": "insufficient_events"
+    },
+    "vol_regime:LOW_VOL": {
+      "n_events": 0,
+      "smooth_ece": null,
+      "positive_rate": null,
+      "status": "insufficient_events"
+    },
+    "vol_regime:NORMAL": {
+      "n_events": 410,
+      "smooth_ece": 0.197854,
+      "positive_rate": 0.690244,
+      "status": "ok"
+    }
+  }
+}
