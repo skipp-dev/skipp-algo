@@ -265,7 +265,7 @@ class TestGeneratedImportSnippet:
             universe_size=0,
             enrichment=None,
         )
-        return (tmp_path / "lib.pine").read_text()
+        return (tmp_path / "lib.pine").read_text(encoding="utf-8")
 
     def test_import_comment_present(self, pine_text: str):
         assert "import preuss_steffen/smc_micro_profiles_generated/1 as mp" in pine_text

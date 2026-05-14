@@ -304,7 +304,11 @@ def test_run_generation_writes_expected_outputs(tmp_path) -> None:
     assert manifest["universe_size"] == 3
     assert manifest["list_counts"]["weak_afterhours"] == 1
     assert manifest["recommended_import_path"] == "preuss_steffen/smc_micro_profiles_generated/1"
-    assert manifest["core_import_snippet"].endswith("pine/generated/smc_micro_profiles_core_import_snippet.pine")
+    # Normalise path separators before comparison: Windows uses backslashes
+    # while the assertion was written for POSIX paths.
+    assert manifest["core_import_snippet"].replace("\\", "/").endswith(
+        "pine/generated/smc_micro_profiles_core_import_snippet.pine"
+    )
     assert "import preuss_steffen/smc_micro_profiles_generated/1 as mp" in snippet
     assert set(lists_csv["list_name"]) == {
         "clean_reclaim",
