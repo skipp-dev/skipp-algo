@@ -102,6 +102,10 @@ env:
   REFRESH_DATE: ""   # set dynamically in the date step
   SMC_REFRESH_RUNNER_LABEL: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
   SMC_INCREMENTAL_BASE_SEED_CACHE_VERSION: v1
+defaults:
+  run:
+    shell: bash
+
 jobs:
   refresh:
     # F-V4-J3: when triggered by workflow_run, only proceed if producer

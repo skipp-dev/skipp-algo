@@ -33,6 +33,10 @@ concurrency:
 env:
   PYTHONUNBUFFERED: "1"  # F-V5-A2 (2026-05-01)
   PYTHONPATH: ${{ github.workspace }}
+defaults:
+  run:
+    shell: bash
+
 jobs:
   monthly-digest:
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}

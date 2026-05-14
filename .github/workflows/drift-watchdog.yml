@@ -38,6 +38,10 @@ concurrency:
   group: drift-watchdog
   cancel-in-progress: false
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   drift-watchdog:
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}

@@ -78,6 +78,10 @@ env:
   # stderr/stdout unbuffered. Required by tests/test_workflow_python_unbuffered.py.
   PYTHONUNBUFFERED: "1"
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   watchdog:
     # Operator-override hook (tests/test_workflow_runner_pinned.py): runner

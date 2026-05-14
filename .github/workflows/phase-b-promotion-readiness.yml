@@ -30,6 +30,10 @@ env:
   # in CI in near-real-time rather than after a buffer flush at process exit.
   PYTHONUNBUFFERED: "1"
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   check-readiness:
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}

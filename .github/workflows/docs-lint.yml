@@ -26,6 +26,10 @@ env:
   PYTHONUNBUFFERED: "1"
   PYTHONPATH: ${{ github.workspace }}
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   inline-backticks:
     name: lint inline backticks (strict)

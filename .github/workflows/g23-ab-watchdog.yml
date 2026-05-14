@@ -35,6 +35,10 @@ concurrency:
 env:
   PYTHONUNBUFFERED: "1"  # F-V5-A2 (2026-05-01)
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+defaults:
+  run:
+    shell: bash
+
 jobs:
   watchdog:
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
