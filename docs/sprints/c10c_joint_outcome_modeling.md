@@ -1,6 +1,6 @@
 # Sprint C10c — Joint-Outcome-Modellierung bei Co-Firing
 
-**Status:** Aktiv (Pure-Analysis-Phase, Schritte 1–3)
+**Status:** Abgeschlossen (Pure-Analysis-Phase, Schritte 1–3 — Schritte 4+5 entfallen per Sprint-Regel)
 **Eltern-Sprint:** C10b — Family-Partition-Validation (abgeschlossen 2026-05-13, PR #2196)
 **Backlog-Anker:** `docs/sprints/backlog/joint_outcome_modeling.md`
 **Sprache:** Deutsch
@@ -106,4 +106,15 @@ Beide Outcomes sind dokumentationswürdig.
 
 ## Verdikt
 
-(Wird am Ende dieses Sprints eingetragen — vorerst leer.)
+**Faktorisierungs-Annahme nicht zurückweisbar auf dem 1D-Korpus.** Detail-Findings in `docs/research/co_firing/co_firing_joint_outcome_findings.md`.
+
+Kurzform:
+- **Schritt 2 (Konfidenz-Vermutung):** 0/4 Familien zeigen signifikanten Hitrate-Lift in Co-Firing-Bars (Bonferroni α=0.0125). Beste Tendenz: OB +8.2 pp (p=0.40), schlechteste: FVG −15.1 pp (p=0.12). Keine belastbare Aussage.
+- **Schritt 3 (Komplementaritäts-Vermutung):** 0/4 testbare Paare reject H₀ unter α=0.01. Alle 4 testbaren Paare zusätzlich underpowered (E < 5 in mindestens einer Zelle). 2 Paare unter n<10-Cutoff verworfen.
+- **Konsequenz:** Schritte 4 (Stacking-Skizze) und 5 (Architekturvorschlag) entfallen. C10d wird **nicht** eröffnet, bevor ein erweiterter Korpus (Intraday-Schicht oder vollständiges 965-Symbole-Universe) erneut den G-Test durchläuft und mindestens *einen* Paar-Reject mit p<0.01 produziert.
+- **Faktorisierbarkeit als Methodik-Aussage:** provisorisch akzeptiert, mit dem ehrlichen Caveat *"underpowered"*. Nicht als Marketing-Claim verwendbar, ohne den Korpus zu erweitern.
+- **C10b-Architektur (Per-Familie-Klassifikatoren, Beibehalt für BOS/SWEEP/FVG, OB intraday-only) bleibt unberührt.**
+
+### Folgeticket
+
+`docs/sprints/backlog/c10c_replication_widened_corpus.md` — wenn die Methodik-Achse weiter ausgebaut werden soll. Bis dahin: kein Code-Eingriff in Promotion-Gate, kein Refactor in `ml/`.

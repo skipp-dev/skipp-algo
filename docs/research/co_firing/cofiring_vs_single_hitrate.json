@@ -1,0 +1,82 @@
+{
+  "n_total_bars": 314,
+  "alpha_fwer": 0.05,
+  "alpha_per_test_bonferroni": 0.0125,
+  "n_families": 4,
+  "n_significant": 0,
+  "per_family": [
+    {
+      "family": "BOS",
+      "single_firing": {
+        "hits": 18,
+        "n": 18,
+        "hit_rate": 1.0
+      },
+      "co_firing": {
+        "hits": 23,
+        "n": 24,
+        "hit_rate": 0.9583333333333334
+      },
+      "diff_pp_co_minus_single": -4.1666666666666625,
+      "z_stat": 0.8765230646861651,
+      "p_value_two_sided": 0.38074574326485666,
+      "reject_pool_at_alpha_per_test": false,
+      "alpha_per_test_bonferroni": 0.0125
+    },
+    {
+      "family": "FVG",
+      "single_firing": {
+        "hits": 63,
+        "n": 111,
+        "hit_rate": 0.5675675675675675
+      },
+      "co_firing": {
+        "hits": 15,
+        "n": 36,
+        "hit_rate": 0.4166666666666667
+      },
+      "diff_pp_co_minus_single": -15.090090090090087,
+      "z_stat": 1.5764906270825774,
+      "p_value_two_sided": 0.11491277715915427,
+      "reject_pool_at_alpha_per_test": false,
+      "alpha_per_test_bonferroni": 0.0125
+    },
+    {
+      "family": "OB",
+      "single_firing": {
+        "hits": 38,
+        "n": 58,
+        "hit_rate": 0.6551724137931034
+      },
+      "co_firing": {
+        "hits": 28,
+        "n": 38,
+        "hit_rate": 0.7368421052631579
+      },
+      "diff_pp_co_minus_single": 8.166969147005442,
+      "z_stat": -0.8442473991735976,
+      "p_value_two_sided": 0.3985311727854195,
+      "reject_pool_at_alpha_per_test": false,
+      "alpha_per_test_bonferroni": 0.0125
+    },
+    {
+      "family": "SWEEP",
+      "single_firing": {
+        "hits": 43,
+        "n": 56,
+        "hit_rate": 0.7678571428571429
+      },
+      "co_firing": {
+        "hits": 39,
+        "n": 50,
+        "hit_rate": 0.78
+      },
+      "diff_pp_co_minus_single": 1.2142857142857122,
+      "z_stat": -0.14912150803273078,
+      "p_value_two_sided": 0.881457754685079,
+      "reject_pool_at_alpha_per_test": false,
+      "alpha_per_test_bonferroni": 0.0125
+    }
+  ],
+  "verdict": "no per-family hit-rate lift from co-firing detected"
+}

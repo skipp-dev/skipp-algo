@@ -1,0 +1,189 @@
+{
+  "alpha_reject": 0.01,
+  "min_cofiring_bars": 10,
+  "min_expected_cell": 5,
+  "n_pairs_total": 6,
+  "n_pairs_tested": 0,
+  "n_pairs_underpowered": 4,
+  "n_pairs_skipped_below_min_n": 2,
+  "n_pairs_reject_independence": 0,
+  "pair_reports": [
+    {
+      "pair": [
+        "BOS",
+        "FVG"
+      ],
+      "n_cofiring_bars": 12,
+      "table_observed": [
+        [
+          1,
+          0
+        ],
+        [
+          6,
+          5
+        ]
+      ],
+      "table_expected_under_independence": [
+        [
+          0.5833333333333334,
+          0.4166666666666667
+        ],
+        [
+          6.416666666666667,
+          4.583333333333333
+        ]
+      ],
+      "marginal_hit_rate_a": 0.9166666666666666,
+      "marginal_hit_rate_b": 0.4166666666666667,
+      "G_stat": 1.14243513731013,
+      "p_value": 0.28513835820996747,
+      "underpowered": true,
+      "min_expected_cell": 5,
+      "reject_independence_at_alpha": false,
+      "alpha_reject": 0.01
+    },
+    {
+      "pair": [
+        "BOS",
+        "OB"
+      ],
+      "n_cofiring_bars": 12,
+      "table_observed": [
+        [
+          0,
+          0
+        ],
+        [
+          5,
+          7
+        ]
+      ],
+      "table_expected_under_independence": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          5.0,
+          7.0
+        ]
+      ],
+      "marginal_hit_rate_a": 1.0,
+      "marginal_hit_rate_b": 0.5833333333333334,
+      "G_stat": 0.0,
+      "p_value": 1.0,
+      "underpowered": true,
+      "min_expected_cell": 5,
+      "reject_independence_at_alpha": false,
+      "alpha_reject": 0.01
+    },
+    {
+      "pair": [
+        "BOS",
+        "SWEEP"
+      ],
+      "n_cofiring_bars": 6,
+      "skipped_reason": "n<10",
+      "table_observed": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          6
+        ]
+      ]
+    },
+    {
+      "pair": [
+        "FVG",
+        "OB"
+      ],
+      "n_cofiring_bars": 5,
+      "skipped_reason": "n<10",
+      "table_observed": [
+        [
+          1,
+          3
+        ],
+        [
+          0,
+          1
+        ]
+      ]
+    },
+    {
+      "pair": [
+        "FVG",
+        "SWEEP"
+      ],
+      "n_cofiring_bars": 24,
+      "table_observed": [
+        [
+          4,
+          9
+        ],
+        [
+          1,
+          10
+        ]
+      ],
+      "table_expected_under_independence": [
+        [
+          2.7083333333333335,
+          10.291666666666666
+        ],
+        [
+          2.2916666666666665,
+          8.708333333333334
+        ]
+      ],
+      "marginal_hit_rate_a": 0.4583333333333333,
+      "marginal_hit_rate_b": 0.7916666666666666,
+      "G_stat": 1.813243369363529,
+      "p_value": 0.17811964650999265,
+      "underpowered": true,
+      "min_expected_cell": 5,
+      "reject_independence_at_alpha": false,
+      "alpha_reject": 0.01
+    },
+    {
+      "pair": [
+        "OB",
+        "SWEEP"
+      ],
+      "n_cofiring_bars": 24,
+      "table_observed": [
+        [
+          3,
+          3
+        ],
+        [
+          3,
+          15
+        ]
+      ],
+      "table_expected_under_independence": [
+        [
+          1.5,
+          4.5
+        ],
+        [
+          4.5,
+          13.5
+        ]
+      ],
+      "marginal_hit_rate_a": 0.75,
+      "marginal_hit_rate_b": 0.75,
+      "G_stat": 2.4541172557964885,
+      "p_value": 0.1172170494656336,
+      "underpowered": true,
+      "min_expected_cell": 5,
+      "reject_independence_at_alpha": false,
+      "alpha_reject": 0.01
+    }
+  ],
+  "verdict": "no interaction detected \u2014 outcomes look factorisable across co-firing pairs on the 1D corpus"
+}
