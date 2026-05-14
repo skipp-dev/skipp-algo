@@ -71,10 +71,6 @@ jobs:
           fi
           echo "OK: all workflow files declare shell: bash"
 
-      - name: Set up Python
-        if: steps.gate.outputs.run_heavy == 'true'
-        uses: ./.github/actions/setup-python-pinned
-
       - name: Install uv
         if: steps.gate.outputs.run_heavy == 'true'
         uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3
@@ -86,11 +82,18 @@ jobs:
       - name: Install dependencies
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
-          # Use PATH Python (tool-cache) explicitly — uv --system alone picks
-          # the py.exe-registered system Python which is in Program Files and
-          # not writable without admin on the self-hosted Windows runner.
-          PY=$(python -c 'import sys; print(sys.executable)')
-          uv pip install --system --python "$PY" -r requirements.txt pytest
+          # Create a virtual environment from the system Python.
+          # We do NOT use actions/setup-python because setup-python@v6 tries
+          # to remove HKLM registry entries during its install cycle, which
+          # requires admin rights this self-hosted Windows runner does not have.
+          python -m venv .venv
+          uv pip install --python .venv -r requirements.txt pytest
+          # Expose venv for all subsequent steps in this job
+          if [[ -d "$GITHUB_WORKSPACE/.venv/Scripts" ]]; then
+            echo "$GITHUB_WORKSPACE/.venv/Scripts" >> "$GITHUB_PATH"
+          else
+            echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
+          fi
 
       - name: Run fast provider and smoke health checks
         if: steps.gate.outputs.run_heavy == 'true'
