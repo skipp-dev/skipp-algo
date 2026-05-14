@@ -20,14 +20,44 @@ Output schema (one line = one bar):
 If two events of the same family hit the same bar (rare, defensive guard),
 the latest one wins (events are read in JSONL order).
 """
+from __future__ import annotations
+
+import contextlib
 import glob
 import json
+import os
+import tempfile
 from collections import defaultdict
 from pathlib import Path
 
 CORPUS_ROOT = Path("/tmp/c10b_local_run/measurement_benchmark")
 OUT = Path("docs/research/co_firing/per_bar_predictions.jsonl")
 OUT.parent.mkdir(parents=True, exist_ok=True)
+
+
+def _atomic_write_jsonl(path: Path, lines: list[str]) -> None:
+    """Atomically write ``lines`` (each already including a trailing newline)
+    to ``path`` via the mkstemp + fsync + os.replace pattern.
+
+    Mirrors the pattern used in ``scripts/build_backtest_slippage_samples.py``
+    (smc_atomic_write is parquet/csv specific; this is the JSONL equivalent).
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=path.name + ".", suffix=".tmp", dir=str(path.parent)
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            # ATOMIC-WRITE-EXEMPT: hand-rolled mkstemp+fsync+os.replace.
+            for line in lines:
+                fh.write(line)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp_name, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp_name)
+        raise
 
 # bar_key -> dict of family -> event
 per_bar: dict[tuple[str, float], dict[str, dict]] = defaultdict(dict)
@@ -67,14 +97,13 @@ for (symbol, ts), fams in per_bar.items():
 # Sort by (symbol, timestamp) for diff-stability.
 records.sort(key=lambda r: (r["symbol"], r["timestamp"]))
 
-# ATOMIC-WRITE-EXEMPT: c10c research/analysis script — local one-shot write
-# to docs/research/co_firing/ (not production hot path, no concurrent
-# consumers). The sys.path-insert + lint-suppression import pattern needed
-# to reach smc_atomic_write would trip the sys-path and lint-suppression
-# discipline pins; this exempt marker is the explicit alternative.
-with OUT.open("w", encoding="utf-8") as out_fh:
-    for rec in records:
-        out_fh.write(json.dumps(rec, sort_keys=True) + "\n")
+# Atomic JSONL write via mkstemp + fsync + os.replace (smc_atomic_write is
+# parquet/csv specific; the JSONL equivalent lives in _atomic_write_jsonl
+# above and mirrors scripts/build_backtest_slippage_samples.py).
+_atomic_write_jsonl(
+    OUT,
+    [json.dumps(rec, sort_keys=True) + "\n" for rec in records],
+)
 
 print(f"Loaded {n_events} events into {len(per_bar)} unique bars")
 print(f"Wrote {OUT}")
