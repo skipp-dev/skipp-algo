@@ -71,6 +71,97 @@ jobs:
           echo "run_date=${RUN_DATE}" >> "$GITHUB_OUTPUT"
           echo "out_dir=artifacts/ci/measurement_benchmark_rolling/${RUN_DATE}" >> "$GITHUB_OUTPUT"
 
+      # F-V8-D1 (2026-05-14): The rolling benchmark calls
+      # `scripts/run_smc_measurement_benchmark.py --require-evidence`, which
+      # via `smc_integration.measurement_evidence.build_measurement_evidence`
+      # loads source bars from the canonical Databento production export
+      # bundle at `artifacts/smc_microstructure_exports/`. Without that bundle
+      # the run produces zero-event pairs across all symbols/TFs and the
+      # --require-evidence guard hard-fails. Until 2026-05-14 this workflow
+      # had NO download-step at all — explaining the red streak since the
+      # F-V5-D2/D3 cutover from actions/cache to upload/download-artifact.
+      #
+      # Mirror the library-refresh fetch + flatten pattern: pull today's
+      # producer artifact (or the most recent same-prefix fallback), then
+      # flatten the dawidd6/action-download-artifact@v6 `name_is_regexp: true`
+      # nested subdir into the export-dir root so the non-recursive
+      # `_manifest_candidates` glob can find the manifest.
+      - name: Restore Databento production export bundle (today)
+        id: restore_export_bundle_today
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: smc-databento-production-export.yml
+          name: smc-databento-production-export-${{ steps.meta.outputs.run_date }}-
+          name_is_regexp: true
+          path: artifacts/smc_microstructure_exports
+          workflow_conclusion: success
+          if_no_artifact_found: warn
+
+      - name: Restore Databento production export bundle (latest fallback)
+        id: restore_export_bundle_fallback
+        if: steps.restore_export_bundle_today.outputs.found_artifact != 'true'
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: smc-databento-production-export.yml
+          name: ^smc-databento-production-export-
+          name_is_regexp: true
+          path: artifacts/smc_microstructure_exports
+          workflow_conclusion: success
+          if_no_artifact_found: warn
+
+      # Flatten the nested `<root>/smc-databento-production-export-*/...`
+      # layout produced by dawidd6/action-download-artifact@v6 when
+      # `name_is_regexp: true` is used (see main.js:269). Hard-fail on
+      # collisions: silent overwrite would lose data. Skip when no artifact
+      # was found — verify_export_bundle below produces the canonical
+      # missing-bundle annotation.
+      - name: Flatten downloaded Databento export bundle
+        id: flatten_export_bundle
+        if: |
+          steps.restore_export_bundle_today.outputs.found_artifact == 'true'
+          || steps.restore_export_bundle_fallback.outputs.found_artifact == 'true'
+        run: |
+          set -euo pipefail
+          ROOT=artifacts/smc_microstructure_exports
+          shopt -s nullglob
+          moved=0
+          for sub in "$ROOT"/smc-databento-production-export-*; do
+            [ -d "$sub" ] || continue
+            echo "==> Flattening $sub"
+            for entry in "$sub"/* "$sub"/.[!.]*; do
+              [ -e "$entry" ] || continue
+              base=$(basename "$entry")
+              if [ -e "$ROOT/$base" ]; then
+                echo "::error::Refusing to overwrite existing $ROOT/$base when flattening $sub"
+                exit 1
+              fi
+              mv "$entry" "$ROOT/$base"
+              moved=$((moved + 1))
+            done
+            rmdir "$sub"
+          done
+          echo "==> Flattened $moved entries"
+          echo "moved_entries=$moved" >> "$GITHUB_OUTPUT"
+
+      # Hard-fail when the canonical bundle is missing: --require-evidence
+      # below would fail anyway, but with a confusing "no pair produced
+      # measurement evidence" message that hides the real upstream cause.
+      # Surfacing the clickable annotation pointing at the producer workflow
+      # keeps triage in the right place.
+      - name: Verify Databento production export bundle is present
+        id: verify_export_bundle
+        run: |
+          set -euo pipefail
+          if ls artifacts/smc_microstructure_exports/databento_volatility_production_*_manifest.json >/dev/null 2>&1; then
+            NEWEST=$(ls -1t artifacts/smc_microstructure_exports/databento_volatility_production_*_manifest.json | head -1)
+            echo "bundle_present=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Restored Databento production manifest: ${NEWEST}"
+            exit 0
+          fi
+          echo "bundle_present=false" >> "$GITHUB_OUTPUT"
+          echo "::error file=.github/workflows/smc-databento-production-export.yml::Producer artifact missing for ${{ steps.meta.outputs.run_date }}; rolling benchmark aborted. Re-run smc-databento-production-export and then re-trigger smc-measurement-benchmark-rolling."
+          exit 1
+
       - name: Run daily rolling benchmark
         env:
           DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
