@@ -136,7 +136,15 @@ _ALLOWED: dict[str, frozenset[int]] = {
     # Audit unbreaker (2026-05-03): +3 to all entries below the new
     # `# CONTINUE-ON-ERROR-INTENTIONAL:` marker re-anchored on Step 1b
     # backfill_progress (line 97 entry is BEFORE the marker, unshifted).
-    "c13-daily-cron.yml": frozenset({97, 136, 159, 174, 198, 215, 242}),
+    # C13/T4 bootstrap (2026-05-14, PR #2205): inserted Step 3b
+    # (build_backtest_slippage_samples advisory) between Step 3 and
+    # Step 4. Net effect on inventory:
+    #   * +1 new continue-on-error site for Step 3b at line 200
+    #   * Step 4 (drift) shifts 198 -> 220 (+22)
+    #   * Step 5a (families) shifts 215 -> 250 (+35) — also gained a
+    #     longer `if:` block that picks up --slippage-reference
+    #   * Step 5b (emit_public) shifts 242 -> 277 (+35).
+    "c13-daily-cron.yml": frozenset({97, 136, 159, 174, 200, 220, 250, 277}),
     # Producer cache: second save under the date-only canonical key is best-effort
     # because actions/cache rejects re-writes for an existing key (benign 409).
     # Surfaced by PR-D8 (Copilot review of PR #1939) — was previously invisible
