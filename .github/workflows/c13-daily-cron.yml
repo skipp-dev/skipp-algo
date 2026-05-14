@@ -70,7 +70,7 @@ jobs:
       LIVE_DIR: cache/live
       CALIB_DIR: cache/calibration
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - uses: ./.github/actions/setup-python-pinned
         with:
@@ -259,7 +259,7 @@ jobs:
 
       - name: Upload daily artefacts
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: c13-daily-${{ steps.date.outputs.date }}
           path: |

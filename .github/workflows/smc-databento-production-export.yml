@@ -31,7 +31,7 @@
 #   handoff window — enough headroom for the worst observed runtime
 #   (~2 h 0 min, n=1/n=2/n=3 cap-busts at 120 min). The handoff itself is
 #   artifact-based: the producer publishes via `actions/upload-artifact`
-#   and the consumer fetches via `dawidd6/action-download-artifact@v6`
+#   and the consumer fetches via `dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6`
 #   (regex match on the latest successful run for the same ref). The
 #   `actions/cache/restore` step in the consumer is for an unrelated
 #   `incremental_base_seed` cache, not the producer→consumer handoff.
@@ -134,7 +134,7 @@ jobs:
           echo "::notice::Producer job running on label '${PRODUCER_RUNNER_LABEL}' (runner='${{ runner.name }}')."
 
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           token: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
           persist-credentials: false
@@ -204,7 +204,7 @@ jobs:
 
       - name: Upload export stdout log (always)
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: smc-databento-production-export-stdout-${{ env.EXPORT_DATE }}-${{ github.run_id }}
           path: artifacts/ci/databento_production_export_stdout.log
@@ -229,7 +229,7 @@ jobs:
       # silently dropped restores for non-default-branch consumer runs.
       - name: Upload export bundle as workflow artifact
         if: success()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: smc-databento-production-export-${{ env.EXPORT_DATE }}-${{ github.run_id }}
           path: ${{ env.EXPORT_DIR }}/

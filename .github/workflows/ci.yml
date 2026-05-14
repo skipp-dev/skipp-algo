@@ -54,7 +54,7 @@ jobs:
           fi
       - name: Checkout
         if: steps.gate.outputs.run_heavy == 'true'
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Validate Pine scripts
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
@@ -64,7 +64,7 @@ jobs:
           grep -q "^//@version=6" SMC_Long_Strategy.pine
       - name: Set up Python
         if: steps.gate.outputs.run_heavy == 'true'
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           python-version: "3.12"
           # F-V8-C5-C (2026-05-07): pip wheel cache. Belt-and-braces alongside
@@ -75,7 +75,7 @@ jobs:
           cache-dependency-path: "**/requirements*.txt"
       - name: Install uv
         if: steps.gate.outputs.run_heavy == 'true'
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3
         with:
           enable-cache: true
           cache-dependency-glob: |
