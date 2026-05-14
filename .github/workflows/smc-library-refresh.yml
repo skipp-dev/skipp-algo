@@ -357,11 +357,21 @@ jobs:
       # so the nested layout is invisible to them. Flatten the bundle into
       # the export-dir root before the verify-step runs.
       #
-      # Hard-fail on collisions: if a same-named file already exists at the
-      # root we MUST surface that — silent overwrite would lose data.
-      # Skip when neither download step found an artifact: flatten then is a
-      # no-op and `verify_export_bundle` produces the canonical missing-bundle
-      # error annotation pointing at the producer workflow.
+      # F-V8-D3 (2026-05-14): The library-refresh workflow's earlier
+      # "Generate SMC library" step (run_databento_base_scan_pipeline
+      # --incremental-base-only) writes its own working-set artifacts into
+      # the same export-dir (e.g. `daily_symbol_features_full_universe.parquet`).
+      # These intentionally share filenames with the canonical producer
+      # bundle entries because the producer is the source-of-truth: when
+      # both are present the producer copy must win. Previously this was
+      # implicit because `actions/cache/restore` overwrote silently; the
+      # F-V5-D3 cutover to dawidd6/action-download-artifact retained the
+      # same intent. Use `mv -f` and emit a `::notice::` annotation that
+      # lists each overwrite so audits stay visible.
+      #
+      # Skip when neither download step found an artifact: flatten is then
+      # a no-op and `verify_export_bundle` produces the canonical
+      # missing-bundle error annotation pointing at the producer workflow.
       - name: Flatten downloaded Databento export bundle
         id: flatten_export_bundle
         if: |
@@ -377,6 +387,7 @@ jobs:
           # This keeps unrelated co-located subdirs (none today, but defensive)
           # untouched.
           moved=0
+          overwritten=0
           for sub in "$ROOT"/smc-databento-production-export-*; do
             [ -d "$sub" ] || continue
             echo "==> Flattening $sub"
@@ -384,16 +395,17 @@ jobs:
               [ -e "$entry" ] || continue
               base=$(basename "$entry")
               if [ -e "$ROOT/$base" ]; then
-                echo "::error::Refusing to overwrite existing $ROOT/$base when flattening $sub"
-                exit 1
+                echo "::notice::Producer bundle overrides local working-set copy: $ROOT/$base"
+                overwritten=$((overwritten + 1))
               fi
-              mv "$entry" "$ROOT/$base"
+              mv -f "$entry" "$ROOT/$base"
               moved=$((moved + 1))
             done
             rmdir "$sub"
           done
-          echo "==> Flattened $moved entries"
+          echo "==> Flattened $moved entries ($overwritten overwrote a local working-set copy)"
           echo "moved_entries=$moved" >> "$GITHUB_OUTPUT"
+          echo "overwritten_entries=$overwritten" >> "$GITHUB_OUTPUT"
 
       - name: Verify Databento production export bundle is present
         id: verify_export_bundle
