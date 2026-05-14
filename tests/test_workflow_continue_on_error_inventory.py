@@ -86,7 +86,10 @@ _ALLOWED: dict[str, frozenset[int]] = {
     # F-V8-D1 (2026-05-14): +48 lines (flatten-step for nested artifact bug)
     # shifted lines 379/494/733/876/896 → 427/542/781/924/944. Line 214 is
     # in the upstream half of the file and unchanged.
-    "smc-library-refresh.yml": frozenset({214, 427, 542, 781, 924, 944}),
+    # F-V8-D3 (2026-05-14): +12 lines (flatten-step now does mv -f with
+    # ::notice:: instead of hard-fail on collision; added overwritten counter)
+    # shifted 427/542/781/924/944 → 439/554/793/936/956.
+    "smc-library-refresh.yml": frozenset({214, 439, 554, 793, 936, 956}),
     # Deeper integration gates: 2 advisory-only probes.
     # Rebaselined 2026-05-02 after PR #2028 composite migration: 69→73, 113→117 (+4 each).
     # F-V4-B4 (2026-05-02): 73→74, 117→118 (+1 each) after @v7 fleet bump.
