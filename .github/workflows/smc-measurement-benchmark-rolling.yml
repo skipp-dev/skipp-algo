@@ -119,10 +119,18 @@ jobs:
 
       # Flatten the nested `<root>/smc-databento-production-export-*/...`
       # layout produced by dawidd6/action-download-artifact@v6 when
-      # `name_is_regexp: true` is used (see main.js:269). Hard-fail on
-      # collisions: silent overwrite would lose data. Skip when no artifact
-      # was found — verify_export_bundle below produces the canonical
-      # missing-bundle annotation.
+      # `name_is_regexp: true` is used (see main.js:269).
+      #
+      # F-V8-D3 (2026-05-14): The repo ships a baseline
+      # `artifacts/smc_microstructure_exports/smc_live_news_snapshot.json`
+      # (and `_state.json`) which is also present in the producer bundle.
+      # The producer copy is always the canonical source-of-truth; pre-
+      # F-V5-D3 the actions/cache restore overwrote silently. Use `mv -f`
+      # and emit `::notice::` annotations listing each overwrite so audits
+      # stay visible.
+      #
+      # Skip when no artifact was found — verify_export_bundle below
+      # produces the canonical missing-bundle annotation.
       - name: Flatten downloaded Databento export bundle
         id: flatten_export_bundle
         if: |
@@ -133,6 +141,7 @@ jobs:
           ROOT=artifacts/smc_microstructure_exports
           shopt -s nullglob
           moved=0
+          overwritten=0
           for sub in "$ROOT"/smc-databento-production-export-*; do
             [ -d "$sub" ] || continue
             echo "==> Flattening $sub"
@@ -140,16 +149,17 @@ jobs:
               [ -e "$entry" ] || continue
               base=$(basename "$entry")
               if [ -e "$ROOT/$base" ]; then
-                echo "::error::Refusing to overwrite existing $ROOT/$base when flattening $sub"
-                exit 1
+                echo "::notice::Producer bundle overrides existing $ROOT/$base"
+                overwritten=$((overwritten + 1))
               fi
-              mv "$entry" "$ROOT/$base"
+              mv -f "$entry" "$ROOT/$base"
               moved=$((moved + 1))
             done
             rmdir "$sub"
           done
-          echo "==> Flattened $moved entries"
+          echo "==> Flattened $moved entries ($overwritten overwrote a pre-existing file)"
           echo "moved_entries=$moved" >> "$GITHUB_OUTPUT"
+          echo "overwritten_entries=$overwritten" >> "$GITHUB_OUTPUT"
 
       # Hard-fail when the canonical bundle is missing: --require-evidence
       # below would fail anyway, but with a confusing "no pair produced
