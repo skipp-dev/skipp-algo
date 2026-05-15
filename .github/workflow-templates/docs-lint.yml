@@ -98,7 +98,7 @@ jobs:
       # Examples — keep only what you need:
 
       # Option A: inline grep guard
-      - name: <replace-me: lint step>
+      - name: "<replace-me: lint step>"
         run: |
           if grep -rnE '<replace-me: pattern>' --include='*.md' docs/; then
             echo "::error::Found disallowed pattern — <replace-me: explanation>."
