@@ -6,8 +6,12 @@ on:
     paths:
       - "docs/**"
       - "scripts/lint_md_inline_backticks.py"
+      - "scripts/resolve_workflow_runner.py"
       - ".github/workflows/docs-lint.yml"
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 # Concurrency: cancel superseded PR runs to keep CI minutes low.
 concurrency:
@@ -31,24 +35,80 @@ defaults:
     shell: bash
 
 jobs:
+  select-runner:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    outputs:
+      runs_on_json: ${{ steps.resolve.outputs.runs_on_json }}
+      runner_environment: ${{ steps.resolve.outputs.runner_environment }}
+      resolution_reason: ${{ steps.resolve.outputs.resolution_reason }}
+      matched_runner_name: ${{ steps.resolve.outputs.matched_runner_name }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: ./.github/actions/setup-python-pinned
+
+      - name: Resolve worker runner
+        id: resolve
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+        run: |
+          python scripts/resolve_workflow_runner.py \
+            --repository "${{ github.repository }}" \
+            --hosted-runner "${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}" \
+            --custom-label "${{ vars.SMC_SELF_HOSTED_LABEL }}"
+
   inline-backticks:
     name: lint inline backticks (strict)
     # Operator-override hook (tests/test_workflow_runner_pinned.py): runner
     # label is overridable via the SMC_GH_HOSTED_RUNNER repo variable; default
     # is the larger ubuntu-latest runner per project standard.
-    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    needs: select-runner
+    runs-on: ${{ fromJson(needs.select-runner.outputs.runs_on_json) }}
     timeout-minutes: 5
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
+      - name: Announce selected runner
+        run: |
+          echo "runner_environment=${{ needs.select-runner.outputs.runner_environment }}"
+          echo "resolution_reason=${{ needs.select-runner.outputs.resolution_reason }}"
+          echo "matched_runner_name=${{ needs.select-runner.outputs.matched_runner_name }}"
+
       # Use the repo's canonical setup-python composite action so the Python
       # version stays aligned with the rest of CI (currently 3.12, pinned via
       # actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6). The lint script imports only stdlib, so we
       # do not pass `cache: pip` — pip caching stays opt-in at the call site
       # and is not active for this job. Migrating per Copilot review on PR #2185.
-      - uses: ./.github/actions/setup-python-pinned
+      - name: Set up pinned Python (GitHub-hosted)
+        if: needs.select-runner.outputs.runner_environment == 'github-hosted'
+        uses: ./.github/actions/setup-python-pinned
+
+      - name: Resolve Python 3.12 interpreter
+        run: |
+          if [[ "${{ needs.select-runner.outputs.runner_environment }}" == "github-hosted" ]]; then
+            python -c "import sys; raise SystemExit('GitHub-hosted Python bootstrap did not resolve Python 3.12.' if sys.version_info[:2] != (3, 12) else 0)"
+            echo "SMC_PYTHON_BIN=python" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          if command -v python >/dev/null 2>&1; then
+            if python -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 12) else 1)"; then
+              echo "SMC_PYTHON_BIN=python" >> "$GITHUB_ENV"
+              exit 0
+            fi
+          fi
+
+          if command -v py >/dev/null 2>&1; then
+            python_bin="$(py -3.12 -c "import sys; print(sys.executable)")"
+            echo "SMC_PYTHON_BIN=$python_bin" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          echo "::error::Self-hosted runner is missing a usable Python 3.12 interpreter (tried \`python\` and \`py -3.12\`)."
+          exit 1
 
       # STRICT mode (Phase B3 active since 2026-05-13). Phase B2 (PR #2187)
       # mechanically cleared the docs/ corpus of unbalanced inline-backtick
@@ -59,4 +119,4 @@ jobs:
       # (Phase B) and the deep-review report 2026-05-13 § B3.
       - name: Run lint_md_inline_backticks.py (strict)
         run: |
-          python scripts/lint_md_inline_backticks.py --strict --format github docs/
+          "$SMC_PYTHON_BIN" scripts/lint_md_inline_backticks.py --strict --format github docs/
