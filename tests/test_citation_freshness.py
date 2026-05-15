@@ -106,6 +106,11 @@ _ALLOWLISTED_PATHS: frozenset[str] = frozenset(
         "open_prep/latest/latest_vd_signals.json",
         "open_prep/latest/news_result.json",
         "open_prep/outcomes/outcomes_YYYY-MM-DD.json",
+        # The R1 regex intentionally starts at ``open_prep/...`` and therefore
+        # also matches the runtime-artifact suffixes inside the longer
+        # ``artifacts/open_prep/...`` paths cited by the ops quick reference.
+        "open_prep/feature_importance/latest.json",
+        "open_prep/outcomes/feature_importance/fi_samples_YYYY-MM-DD.json",
         # Workflow-generated history JSONs (committed by automation, may not
         # exist in a fresh clone or before first run).
         "docs/calibration/calibration_report_public_history.json",
