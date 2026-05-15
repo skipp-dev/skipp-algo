@@ -27,6 +27,13 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo as _ZoneInfo
 
+import numpy as np
+
+try:
+    import cupy as cp
+except Exception:  # pragma: no cover - optional GPU dependency
+    cp = None  # type: ignore[assignment]
+
 from .utils import to_float as _safe_float
 
 logger = logging.getLogger("open_prep.outcomes")
@@ -341,6 +348,10 @@ FEATURE_TO_WEIGHT_KEY: dict[str, str] = {
 
 FEATURE_IMPORTANCE_DIR = OUTCOMES_DIR / "feature_importance"
 _MAX_RING_BUFFER = 100_000
+FI_BACKEND_AUTO = "auto"
+FI_BACKEND_CPU = "cpu"
+FI_BACKEND_GPU = "gpu"
+_FI_BACKEND_CHOICES = frozenset({FI_BACKEND_AUTO, FI_BACKEND_CPU, FI_BACKEND_GPU})
 
 
 class FeatureImportanceCollector:
@@ -444,6 +455,191 @@ def _pearson_r(xs: list[float], ys: list[float]) -> float:
     return cov / (sx * sy)
 
 
+def _normalize_fi_backend_name(value: str | None) -> str:
+    normalized = str(value or "").strip().lower()
+    if normalized in _FI_BACKEND_CHOICES:
+        return normalized
+    return FI_BACKEND_AUTO
+
+
+def _to_python_float(value: Any) -> float:
+    with contextlib.suppress(TypeError, ValueError, AttributeError):
+        return float(value.item())
+    with contextlib.suppress(TypeError, ValueError, AttributeError):
+        return float(value.get())
+    return float(value)
+
+
+def _decode_cuda_device_name(raw: Any) -> str | None:
+    if raw is None:
+        return None
+    if isinstance(raw, bytes):
+        with contextlib.suppress(UnicodeDecodeError):
+            return raw.decode("utf-8")
+        return raw.decode("utf-8", errors="replace")
+    return str(raw)
+
+
+def _resolve_feature_importance_backend(requested_backend: str | None = None) -> dict[str, Any]:
+    requested = _normalize_fi_backend_name(
+        requested_backend or os.getenv("OPEN_PREP_FI_BACKEND", FI_BACKEND_AUTO),
+    )
+    device_raw = str(os.getenv("OPEN_PREP_FI_GPU_DEVICE", "0") or "0").strip()
+    try:
+        device_id = int(device_raw)
+    except ValueError as exc:
+        if requested == FI_BACKEND_GPU:
+            raise RuntimeError(
+                f"OPEN_PREP_FI_GPU_DEVICE must be an integer, got {device_raw!r}",
+            ) from exc
+        return {
+            "requested": requested,
+            "used": FI_BACKEND_CPU,
+            "reason": f"invalid_gpu_device:{device_raw}",
+            "device_id": None,
+            "device_name": None,
+        }
+
+    if requested == FI_BACKEND_CPU:
+        return {
+            "requested": requested,
+            "used": FI_BACKEND_CPU,
+            "reason": "requested_cpu",
+            "device_id": None,
+            "device_name": None,
+        }
+
+    if cp is None:
+        if requested == FI_BACKEND_GPU:
+            raise RuntimeError(
+                "OPEN_PREP_FI_BACKEND=gpu requested but CuPy is not installed. "
+                "Install requirements-gpu.txt on the GPU runner.",
+            )
+        return {
+            "requested": requested,
+            "used": FI_BACKEND_CPU,
+            "reason": "cupy_unavailable",
+            "device_id": None,
+            "device_name": None,
+        }
+
+    try:
+        device_count = int(cp.cuda.runtime.getDeviceCount())
+        if device_count <= 0:
+            raise RuntimeError("no CUDA devices detected")
+        if device_id < 0 or device_id >= device_count:
+            raise RuntimeError(
+                f"GPU device index {device_id} is out of range for {device_count} device(s)",
+            )
+
+        with cp.cuda.Device(device_id):
+            probe = cp.asarray([1.0, 2.0, 3.0], dtype=cp.float64)
+            float(cp.sum(probe * probe).item())
+            properties = cp.cuda.runtime.getDeviceProperties(device_id)
+
+        device_name_raw = properties.get("name") if isinstance(properties, dict) else None
+        device_name = _decode_cuda_device_name(device_name_raw)
+        return {
+            "requested": requested,
+            "used": FI_BACKEND_GPU,
+            "reason": f"cuda_device:{device_id}",
+            "device_id": device_id,
+            "device_name": device_name,
+        }
+    except Exception as exc:
+        if requested == FI_BACKEND_GPU:
+            raise RuntimeError(f"GPU backend requested but unavailable: {exc}") from exc
+        return {
+            "requested": requested,
+            "used": FI_BACKEND_CPU,
+            "reason": f"gpu_probe_failed:{type(exc).__name__}",
+            "device_id": None,
+            "device_name": None,
+        }
+
+
+def _build_feature_importance_arrays(
+    labeled: list[dict[str, Any]],
+) -> tuple[np.ndarray, np.ndarray]:
+    feature_matrix = np.asarray(
+        [[_safe_float(sample.get(key)) for key in FEATURE_KEYS] for sample in labeled],
+        dtype=np.float64,
+    )
+    outcomes = np.asarray(
+        [1.0 if sample["profitable_30m"] else 0.0 for sample in labeled],
+        dtype=np.float64,
+    )
+    return feature_matrix, outcomes
+
+
+def _compute_feature_statistics(
+    feature_matrix: Any,
+    outcomes: Any,
+    *,
+    xp: Any,
+) -> dict[str, dict[str, float]]:
+    stats: dict[str, dict[str, float]] = {}
+    outcomes = outcomes.astype(xp.float64, copy=False)
+    win_mask = outcomes > 0.5
+    loss_mask = ~win_mask
+
+    for index, key in enumerate(FEATURE_KEYS):
+        vals = feature_matrix[:, index].astype(xp.float64, copy=False)
+
+        centered_vals = vals - xp.mean(vals)
+        centered_outcomes = outcomes - xp.mean(outcomes)
+        denom = xp.sqrt(xp.sum(centered_vals * centered_vals)) * xp.sqrt(
+            xp.sum(centered_outcomes * centered_outcomes),
+        )
+        denom_value = _to_python_float(denom) if vals.size >= 3 else 0.0
+        pearson = (
+            _to_python_float(xp.sum(centered_vals * centered_outcomes)) / denom_value
+            if vals.size >= 3 and denom_value > 0.0
+            else 0.0
+        )
+
+        wins = vals[win_mask]
+        losses = vals[loss_mask]
+        mean_win = _to_python_float(xp.mean(wins)) if int(wins.size) else 0.0
+        mean_loss = _to_python_float(xp.mean(losses)) if int(losses.size) else 0.0
+        if int(wins.size) > 1:
+            variance = xp.sum((wins - mean_win) ** 2) / max(int(wins.size) - 1, 1)
+            std_win = max(_to_python_float(xp.sqrt(variance)), 0.001)
+        else:
+            std_win = 0.001
+        separation = abs(mean_win - mean_loss) / max(std_win, 0.001)
+
+        stats[key] = {
+            "pearson_r": round(float(pearson), 4),
+            "mean_separation": round(float(separation), 4),
+            "mean_win": round(float(mean_win), 4),
+            "mean_loss": round(float(mean_loss), 4),
+        }
+
+    return stats
+
+
+def _compute_feature_statistics_cpu(
+    feature_matrix: np.ndarray,
+    outcomes: np.ndarray,
+) -> dict[str, dict[str, float]]:
+    return _compute_feature_statistics(feature_matrix, outcomes, xp=np)
+
+
+def _compute_feature_statistics_gpu(
+    feature_matrix: np.ndarray,
+    outcomes: np.ndarray,
+    *,
+    device_id: int,
+) -> dict[str, dict[str, float]]:
+    if cp is None:  # pragma: no cover - guarded by backend resolution
+        raise RuntimeError("CuPy is unavailable")
+    with cp.cuda.Device(device_id):
+        gpu_features = cp.asarray(feature_matrix, dtype=cp.float64)
+        gpu_outcomes = cp.asarray(outcomes, dtype=cp.float64)
+        return _compute_feature_statistics(gpu_features, gpu_outcomes, xp=cp)
+
+
 def compute_feature_importance(
     lookback_days: int = 30,
 ) -> dict[str, Any]:
@@ -457,8 +653,12 @@ def compute_feature_importance(
 
     Returns a dict with per-feature stats + calibration recommendations.
     """
+    backend = _resolve_feature_importance_backend()
     if not FEATURE_IMPORTANCE_DIR.exists():
-        return {"error": "no feature importance data found"}
+        return {
+            "error": "no feature importance data found",
+            "backend": backend,
+        }
 
     files = sorted(FEATURE_IMPORTANCE_DIR.glob("fi_samples_*.jsonl"), reverse=True)
     samples: list[dict[str, Any]] = []
@@ -483,44 +683,33 @@ def compute_feature_importance(
             "error": "insufficient labeled samples",
             "total_samples": len(samples),
             "labeled_samples": len(labeled),
+            "backend": backend,
         }
 
-    outcomes = [1.0 if s["profitable_30m"] else 0.0 for s in labeled]
+    feature_matrix, outcomes = _build_feature_importance_arrays(labeled)
 
     report: dict[str, Any] = {
         "total_samples": len(samples),
         "labeled_samples": len(labeled),
         "features": {},
         "recommendations": [],
+        "backend": backend,
     }
 
-    importance_scores: dict[str, float] = {}
-
-    for key in FEATURE_KEYS:
-        vals = [_safe_float(s.get(key)) for s in labeled]
-
-        # Pearson correlation with binary outcome
-        r = _pearson_r(vals, outcomes)
-
-        # Mean-separation importance
-        wins = [v for v, o in zip(vals, outcomes, strict=False) if o > 0.5]
-        losses = [v for v, o in zip(vals, outcomes, strict=False) if o <= 0.5]
-        mean_win = (sum(wins) / len(wins)) if wins else 0.0
-        mean_loss = (sum(losses) / len(losses)) if losses else 0.0
-        std_win = (
-            math.sqrt(sum((x - mean_win) ** 2 for x in wins) / max(len(wins) - 1, 1))
-            if len(wins) > 1
-            else 0.001
+    if backend["used"] == FI_BACKEND_GPU:
+        feature_stats = _compute_feature_statistics_gpu(
+            feature_matrix,
+            outcomes,
+            device_id=int(backend["device_id"] or 0),
         )
-        separation = abs(mean_win - mean_loss) / max(std_win, 0.001)
+    else:
+        feature_stats = _compute_feature_statistics_cpu(feature_matrix, outcomes)
 
-        report["features"][key] = {
-            "pearson_r": round(r, 4),
-            "mean_separation": round(separation, 4),
-            "mean_win": round(mean_win, 4),
-            "mean_loss": round(mean_loss, 4),
-        }
-        importance_scores[key] = separation
+    importance_scores = {
+        key: float(stats["mean_separation"])
+        for key, stats in feature_stats.items()
+    }
+    report["features"] = feature_stats
 
     # Normalize importance to [0, 1]
     max_imp = max(importance_scores.values()) if importance_scores else 1.0
