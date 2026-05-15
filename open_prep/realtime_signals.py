@@ -35,10 +35,9 @@ Usage::
 from __future__ import annotations
 
 try:
-    import fcntl as _fcntl  # POSIX only
+    import fcntl  # POSIX only
     _FLOCK_SUPPORTED = True
 except ImportError:  # Windows
-    _fcntl = None  # type: ignore[assignment]
     _FLOCK_SUPPORTED = False
 import hashlib
 import json
@@ -259,7 +258,7 @@ def ensure_rt_engine_running(
     lock_fd = open(_RT_ENGINE_LOCK_FILE, "w", encoding="utf-8")
     if _FLOCK_SUPPORTED:
         try:
-            _fcntl.flock(lock_fd, _fcntl.LOCK_EX | _fcntl.LOCK_NB)  # type: ignore[union-attr]
+            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)  # type: ignore[possibly-undefined]
         except OSError:
             # Another process holds the lock — wait briefly and verify that a
             # running engine actually becomes visible before claiming success.
@@ -286,7 +285,7 @@ def ensure_rt_engine_running(
         )
     finally:
         if _FLOCK_SUPPORTED:
-            _fcntl.flock(lock_fd, _fcntl.LOCK_UN)  # type: ignore[union-attr]
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)  # type: ignore[possibly-undefined]
         lock_fd.close()
 
 

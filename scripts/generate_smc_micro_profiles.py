@@ -1354,10 +1354,10 @@ def write_manifest(
     def _rel(p: Path) -> str:
         if relative_to is not None:
             try:
-                return str(p.resolve().relative_to(relative_to.resolve()))
+                return p.resolve().relative_to(relative_to.resolve()).as_posix()
             except ValueError:
                 pass
-        return str(p)
+        return p.as_posix()
 
     normalized_input_path = _rel(input_path).replace("\\", "/")
     event_risk_source = "smc_event_risk_builder" if (normalized_enrichment or {}).get("event_risk") else "defaults"

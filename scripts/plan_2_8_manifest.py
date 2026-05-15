@@ -59,8 +59,8 @@ def scan(repo_root: Path) -> dict[str, Any]:
         with contextlib.suppress(OSError):
             flags = _extract_flags(script.read_text(encoding="utf-8"))
         rows.append({
-            "script":     str(script.relative_to(repo_root)),
-            "test":       str(paired.relative_to(repo_root))
+            "script":     script.relative_to(repo_root).as_posix(),
+            "test":       paired.relative_to(repo_root).as_posix()
                           if paired is not None else None,
             "has_test":   paired is not None,
             "cli_flags":  flags,
