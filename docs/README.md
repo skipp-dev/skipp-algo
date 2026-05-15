@@ -36,6 +36,7 @@ Start here for the canonical mainline setup path:
 
 Use these files as the starting point before changing the split architecture or the bus contract:
 
+- [self_hosted_runner_reservation_runbook.md](self_hosted_runner_reservation_runbook.md)
 - [smc-lite-pro-product-cut.md](smc-lite-pro-product-cut.md)
 - [TRADINGVIEW_STRATEGY_GUIDE.md](TRADINGVIEW_STRATEGY_GUIDE.md)
 - [smc-owner-review-2026-04-14.md](smc-owner-review-2026-04-14.md)

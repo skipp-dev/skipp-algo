@@ -128,6 +128,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
         run: |
+          # The producer has documented high-RSS/OOM history during canonical
+          # export generation, so prefer the priority cron Windows runner when
+          # it is online and idle.
           python scripts/resolve_workflow_runner.py \
             --repository "${{ github.repository }}" \
             --hosted-runner "${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}" \

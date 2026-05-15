@@ -8,8 +8,8 @@ Most workflows stay on the hosted runner expression::
 
 The merge-critical workflows (`ci.yml`, `docs-lint.yml`,
 `manifest-pytest-poison-scan.yml`, `smc-fast-pr-gates.yml`) and the
-priority cron workflows backing Databento / Open Prep / live news refresh
-are special:
+priority cron workflows backing Databento / Open Prep / live news refresh /
+measurement benchmarks are special:
 
 * a small hosted `select-runner` control-plane job decides whether a matching
   self-hosted Windows runner is online and idle;
@@ -33,14 +33,20 @@ _WORKFLOWS_DIR = _REPO_ROOT / ".github" / "workflows"
 
 _HOSTED_RUNS_ON = "${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}"
 _RESOLVED_RUNS_ON = "${{ fromJson(needs.select-runner.outputs.runs_on_json) }}"
+_HEAVY_CI_CUSTOM_LABEL_EXPR = "${{ vars.SMC_CI_SELF_HOSTED_LABEL || vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || '' }}"
+_PRIORITY_CRON_CUSTOM_LABEL_EXPR = "${{ vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || vars.SMC_SELF_HOSTED_LABEL }}"
 _ROUTED_WORKFLOWS = {
     "ci.yml": {"worker_jobs": {"validate"}},
     "docs-lint.yml": {"worker_jobs": {"inline-backticks"}},
     "manifest-pytest-poison-scan.yml": {"worker_jobs": {"scan"}},
     "smc-fast-pr-gates.yml": {"worker_jobs": {"fast-gates"}},
+    "smc-release-gates.yml": {"worker_jobs": {"release-gates"}},
     "feature-importance-daily.yml": {"worker_jobs": {"feature-importance-report"}},
     "open-prep-outcome-backfill.yml": {"worker_jobs": {"backfill"}},
     "run-open-prep-daily.yml": {"worker_jobs": {"run"}},
+    "smc-library-refresh.yml": {"worker_jobs": {"refresh"}},
+    "smc-measurement-benchmark.yml": {"worker_jobs": {"measurement-benchmark"}},
+    "smc-measurement-benchmark-rolling.yml": {"worker_jobs": {"rolling-benchmark"}},
     "smc-databento-production-export.yml": {"worker_jobs": {"export"}},
     "smc-live-newsapi-refresh.yml": {"worker_jobs": {"refresh"}},
 }
@@ -69,6 +75,18 @@ def _needs_list(job: dict) -> list[str]:
     if isinstance(needs, list):
         return [item for item in needs if isinstance(item, str)]
     return []
+
+
+def _step_run(job: dict, step_name: str) -> str:
+    for step in job.get("steps") or []:
+        if not isinstance(step, dict):
+            continue
+        if step.get("name") != step_name:
+            continue
+        run = step.get("run")
+        assert isinstance(run, str), f"{step_name!r} must define a run script"
+        return run
+    raise AssertionError(f"job is missing step {step_name!r}")
 
 
 @pytest.mark.parametrize("path", _workflow_files(), ids=lambda p: p.name)
@@ -127,3 +145,20 @@ def test_no_bare_ubuntu_latest_runs_on() -> None:
         "Found bare ``runs-on: ubuntu-latest`` (no operator override or selector hook):\n"
         + "\n".join(offenders)
     )
+
+
+@pytest.mark.parametrize("workflow_name", ["ci.yml", "smc-fast-pr-gates.yml", "smc-release-gates.yml"])
+def test_heavy_ci_workflows_prefer_ci_specific_self_hosted_selector(workflow_name: str) -> None:
+    workflow = yaml.safe_load((_WORKFLOWS_DIR / workflow_name).read_text(encoding="utf-8"))
+    resolve_script = _step_run(_jobs(workflow)["select-runner"], "Resolve worker runner")
+
+    assert f'--custom-label "{_HEAVY_CI_CUSTOM_LABEL_EXPR}"' in resolve_script
+    assert '--custom-label "${{ vars.SMC_SELF_HOSTED_LABEL }}"' not in resolve_script
+
+
+@pytest.mark.parametrize("workflow_name", ["run-open-prep-daily.yml", "smc-library-refresh.yml", "smc-measurement-benchmark.yml", "smc-measurement-benchmark-rolling.yml", "smc-databento-production-export.yml"])
+def test_priority_cron_workflows_prefer_priority_cron_self_hosted_selector(workflow_name: str) -> None:
+    workflow = yaml.safe_load((_WORKFLOWS_DIR / workflow_name).read_text(encoding="utf-8"))
+    resolve_script = _step_run(_jobs(workflow)["select-runner"], "Resolve worker runner")
+
+    assert f'--custom-label "{_PRIORITY_CRON_CUSTOM_LABEL_EXPR}"' in resolve_script

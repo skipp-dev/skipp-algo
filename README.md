@@ -1032,6 +1032,7 @@ skipp-algo/
 ### Terminal & Operations
 
 - [Terminal Architecture Plan](docs/BLOOMBERG_TERMINAL_PLAN.md)
+- [Self-Hosted Runner Reservation Runbook](docs/self_hosted_runner_reservation_runbook.md)
 - [Databento Volatility Suite Guide](docs/DATABENTO_VOLATILITY_SUITE.md)
 - [Open Prep Suite — Technical Reference](docs/OPEN_PREP_SUITE_TECHNICAL_REFERENCE.md)
 - [Open Prep Suite — Ops Quick Reference](docs/OPEN_PREP_OPS_QUICK_REFERENCE.md)

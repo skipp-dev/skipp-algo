@@ -100,19 +100,46 @@ env:
   PYTHONPATH: ${{ github.workspace }}
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   REFRESH_DATE: ""   # set dynamically in the date step
-  SMC_REFRESH_RUNNER_LABEL: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
   SMC_INCREMENTAL_BASE_SEED_CACHE_VERSION: v1
 defaults:
   run:
     shell: bash
 
 jobs:
+  select-runner:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    outputs:
+      runs_on_json: ${{ steps.resolve.outputs.runs_on_json }}
+      runner_environment: ${{ steps.resolve.outputs.runner_environment }}
+      resolution_reason: ${{ steps.resolve.outputs.resolution_reason }}
+      matched_runner_name: ${{ steps.resolve.outputs.matched_runner_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Set up pinned Python
+        uses: ./.github/actions/setup-python-pinned
+
+      - name: Resolve worker runner
+        id: resolve
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+        run: |
+          # Library refresh is a long-running cron/workflow_run batch job, so
+          # prefer the priority cron Windows runner when one is online and idle.
+          python scripts/resolve_workflow_runner.py \
+            --repository "${{ github.repository }}" \
+            --hosted-runner "${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}" \
+            --custom-label "${{ vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || vars.SMC_SELF_HOSTED_LABEL }}"
+
   refresh:
     # F-V4-J3: when triggered by workflow_run, only proceed if producer
     # succeeded. Manual workflow_dispatch and scheduled cron bypass this
     # guard (cron already implies "no upstream signal to gate on").
     if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
-    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    needs: select-runner
+    runs-on: ${{ fromJson(needs.select-runner.outputs.runs_on_json) }}
     # F-V8-C4 (2026-05-06): bumped 120→240 in lockstep with the producer.
     # Pin test enforces producer ≤ consumer, so the two move together.
     # 240 = exactly the new 4 h cron interval — back-to-back runs touch
@@ -129,7 +156,10 @@ jobs:
 
       - name: Emit runner selection
         run: |
-          echo "::notice::SMC refresh job running on label '${{ env.SMC_REFRESH_RUNNER_LABEL }}' (runner='${{ runner.name }}')."
+          echo "runner_environment=${{ needs.select-runner.outputs.runner_environment }}"
+          echo "resolution_reason=${{ needs.select-runner.outputs.resolution_reason }}"
+          echo "matched_runner_name=${{ needs.select-runner.outputs.matched_runner_name }}"
+          echo "::notice::SMC refresh job running on '${{ needs.select-runner.outputs.runner_environment }}' (matched='${{ needs.select-runner.outputs.matched_runner_name || runner.name }}', reason='${{ needs.select-runner.outputs.resolution_reason }}')."
 
       # ── Checkout ────────────────────────────────────────────────
       - name: Checkout
@@ -139,8 +169,33 @@ jobs:
           persist-credentials: false
 
       # ── Python + Node setup ─────────────────────────────────────
-      - name: Set up Python
+      - name: Set up pinned Python (GitHub-hosted)
+        if: needs.select-runner.outputs.runner_environment == 'github-hosted'
         uses: ./.github/actions/setup-python-pinned
+
+      - name: Resolve Python 3.12 interpreter
+        run: |
+          if [[ "${{ needs.select-runner.outputs.runner_environment }}" == "github-hosted" ]]; then
+            python -c "import sys; raise SystemExit('GitHub-hosted Python bootstrap did not resolve Python 3.12.' if sys.version_info[:2] != (3, 12) else 0)"
+            echo "SMC_PYTHON_BIN=python" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          if command -v python >/dev/null 2>&1; then
+            if python -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 12) else 1)"; then
+              echo "SMC_PYTHON_BIN=python" >> "$GITHUB_ENV"
+              exit 0
+            fi
+          fi
+
+          if command -v py >/dev/null 2>&1; then
+            python_bin="$(py -3.12 -c "import sys; print(sys.executable)")"
+            echo "SMC_PYTHON_BIN=$python_bin" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          echo "::error::Self-hosted runner is missing a usable Python 3.12 interpreter (tried \`python\` and \`py -3.12\`)."
+          exit 1
 
       - name: Set up Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
@@ -149,8 +204,8 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt pytest
+          "$SMC_PYTHON_BIN" -m pip install --upgrade pip
+          "$SMC_PYTHON_BIN" -m pip install -r requirements.txt pytest
 
       - name: Install Node dependencies
         run: npm ci
@@ -188,7 +243,7 @@ jobs:
           NEWSAPI_AI_KEY: ${{ secrets.NEWSAPI_AI_KEY }}
           DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
         run: |
-          python scripts/generate_smc_micro_base_from_databento.py \
+          "$SMC_PYTHON_BIN" scripts/generate_smc_micro_base_from_databento.py \
             --run-scan \
             --incremental-base-only \
             --enrich-all \
@@ -231,7 +286,7 @@ jobs:
             exit 1
           fi
           set +e
-          python -m pytest -q --maxfail=1 "${tests[@]}" 2>&1 | tee artifacts/ci/smc_refresh_gate_pytest.log
+          "$SMC_PYTHON_BIN" -m pytest -q --maxfail=1 "${tests[@]}" 2>&1 | tee artifacts/ci/smc_refresh_gate_pytest.log
           GATE_RC=${PIPESTATUS[0]}
           set -e
 
@@ -253,7 +308,7 @@ jobs:
       - name: Collect gate evidence
         if: always()
         run: |
-          python scripts/collect_smc_gate_evidence.py \
+          "$SMC_PYTHON_BIN" scripts/collect_smc_gate_evidence.py \
             --input-glob "artifacts/ci/smc_*_report.json" \
             --output artifacts/ci/smc_refresh_evidence_summary.json
 
@@ -292,7 +347,7 @@ jobs:
         if: steps.diff.outputs.changed == 'true'
         run: |
           set +e
-          DECISION=$(python scripts/smc_version_governance.py \
+          DECISION=$("$SMC_PYTHON_BIN" scripts/smc_version_governance.py \
             --old-manifest /tmp/manifest_before.json \
             --new-manifest pine/generated/smc_micro_profiles_generated.json \
             --old-library /tmp/library_before.pine \
@@ -446,7 +501,7 @@ jobs:
             echo "::warning::Skipping release reference artifact refresh: export bundle missing."
             exit 0
           fi
-          python scripts/run_smc_pre_release_artifact_refresh.py \
+          "$SMC_PYTHON_BIN" scripts/run_smc_pre_release_artifact_refresh.py \
             --export-bundle-root artifacts/smc_microstructure_exports \
             --warn-on-empty-artifacts \
             --output artifacts/ci/smc_pre_release_artifact_refresh_report.json
@@ -455,7 +510,7 @@ jobs:
         id: pre_release_gates
         if: steps.diff.outputs.changed == 'true'
         run: |
-          python scripts/run_smc_release_gates.py \
+          "$SMC_PYTHON_BIN" scripts/run_smc_release_gates.py \
             --output artifacts/ci/smc_pre_release_gates_report.json
 
       # ── Dated snapshot archival ─────────────────────────────────
@@ -480,7 +535,7 @@ jobs:
           TV_STORAGE_STATE_SECRET: ${{ secrets.TV_STORAGE_STATE }}
         run: |
           mkdir -p automation/tradingview/auth
-          python - <<'PY'
+          "$SMC_PYTHON_BIN" - <<'PY'
           import base64
           import gzip
           import json
@@ -512,7 +567,7 @@ jobs:
       - name: Validate TradingView storage state JSON
         if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && github.ref == 'refs/heads/main'
         run: |
-          python - <<'PY'
+          "$SMC_PYTHON_BIN" - <<'PY'
           import json
           from pathlib import Path
 
@@ -570,7 +625,7 @@ jobs:
         id: tv_post_release
         if: always() && steps.publish.outcome == 'success' && steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && github.ref == 'refs/heads/main'
         run: |
-          python scripts/run_smc_post_release_validation.py \
+          "$SMC_PYTHON_BIN" scripts/run_smc_post_release_validation.py \
             --release-manifest artifacts/tradingview/library_release_manifest.json \
             --validation-report artifacts/tradingview/tv_post_release_validation.json \
             --ci-mode \
@@ -580,21 +635,21 @@ jobs:
         id: release_gates
         if: always() && steps.publish.outcome == 'success' && steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && github.ref == 'refs/heads/main'
         run: |
-          python scripts/run_smc_release_gates.py \
+          "$SMC_PYTHON_BIN" scripts/run_smc_release_gates.py \
             --post-release-validation-report artifacts/ci/smc_post_release_validation_report.json \
             --output artifacts/ci/smc_post_release_gates_report.json
 
       - name: Refresh gate evidence summary after post-release validation
         if: always()
         run: |
-          python scripts/collect_smc_gate_evidence.py \
+          "$SMC_PYTHON_BIN" scripts/collect_smc_gate_evidence.py \
             --input-glob "artifacts/ci/smc_*_report.json" \
             --output artifacts/ci/smc_refresh_evidence_summary.json
 
       - name: Extract provider health signals
         if: always()
         run: |
-          python - <<'PY'
+          "$SMC_PYTHON_BIN" - <<'PY'
           import json
           import os
           from pathlib import Path
@@ -804,7 +859,7 @@ jobs:
           ALERT_EMAIL_FROM: ${{ secrets.ALERT_EMAIL_FROM }}
           ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO }}
         run: |
-          python scripts/smc_alert_notifier.py \
+          "$SMC_PYTHON_BIN" scripts/smc_alert_notifier.py \
             --library pine/generated/smc_micro_profiles_generated.pine \
             --state-file artifacts/ci/alert_last_state.json \
             --post-release-report artifacts/ci/smc_post_release_validation_report.json \
@@ -851,7 +906,9 @@ jobs:
             echo ""
             echo "| Step | Status |"
             echo "|------|--------|"
-            echo "| Runner | ${{ env.SMC_REFRESH_RUNNER_LABEL }} |"
+            echo "| Runner environment | ${{ needs.select-runner.outputs.runner_environment }} |"
+            echo "| Runner resolution | ${{ needs.select-runner.outputs.resolution_reason }} |"
+            echo "| Runner name | ${{ needs.select-runner.outputs.matched_runner_name || runner.name }} |"
             echo "| Ref | ${{ github.ref_name }} |"
             echo "| Generation (base + enrichment + event-risk) | ${{ steps.gates.outcome == 'success' && '✅' || steps.gates.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
             echo "| Evidence gates | ${{ steps.gates.outcome == 'success' && '✅ passed' || '❌ failed' }} |"

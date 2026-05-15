@@ -65,7 +65,7 @@ jobs:
           python scripts/resolve_workflow_runner.py \
             --repository "${{ github.repository }}" \
             --hosted-runner "${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}" \
-            --custom-label "${{ vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || vars.SMC_SELF_HOSTED_LABEL }}"
+            --custom-label "${{ vars.SMC_SELF_HOSTED_LABEL }}"
 
   refresh:
     needs: select-runner
