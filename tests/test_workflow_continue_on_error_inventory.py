@@ -44,12 +44,14 @@ _COE_LINE_RE = re.compile(r"^continue-on-error:\s+true(?:\s+#.*)?$")
 # justifies the silent-fail tolerance (typically: best-effort notification
 # step, optional gate, or non-blocking observability hop).
 _ALLOWED: dict[str, frozenset[int]] = {
+    # PR #2234 rebaseline (2026-05-15): workflow body/comment churn shifted
+    # these anchors; continue-on-error inventory is unchanged.
     # Best-effort live news refresh: NewsAPI 5xx is tolerated to keep cron green.
     # Rebaselined 2026-05-02: 107 → 111 (+4) after upstream env edit.
     # F-V4-B4 (2026-05-02): 111 → 113 (+2) after actions/upload-artifact@v4 → @v7 fleet bump.
     # F-V4-A2 (2026-05-01, rebased 2026-05-02): 113 → 114 (+1) after PYTHONUNBUFFERED env addition.
     # F-V?-A2 cascade (2026-05-03): 114 → 109 (-5) after PYTHONUNBUFFERED dedup (PR #2033) trimmed duplicate env keys across the workflow.
-    "smc-live-newsapi-refresh.yml": frozenset({109}),
+    "smc-live-newsapi-refresh.yml": frozenset({172}),
     # Library refresh: 6 best-effort hops (gates probe, TV publish, telegram pings).
     # Lines 165 → 166 (alerts dispatch), 376 → 303 sequence shifted by upstream
     # rearrangement (PR #1937 cascade), and a NEW best-effort hop at 303 added
@@ -89,20 +91,20 @@ _ALLOWED: dict[str, frozenset[int]] = {
     # F-V8-D3 (2026-05-14): +12 lines (flatten-step now does mv -f with
     # ::notice:: instead of hard-fail on collision; added overwritten counter)
     # shifted 427/542/781/924/944 → 439/554/793/936/956.
-    "smc-library-refresh.yml": frozenset({214, 439, 554, 793, 936, 956}),
+    "smc-library-refresh.yml": frozenset({218, 443, 558, 797, 940, 960}),
     # Deeper integration gates: 2 advisory-only probes.
     # Rebaselined 2026-05-02 after PR #2028 composite migration: 69→73, 113→117 (+4 each).
     # F-V4-B4 (2026-05-02): 73→74, 117→118 (+1 each) after @v7 fleet bump.
     # F-V4-A4 (2026-05-02): 118 → 120 (+2) after hygiene intent comment.
     # F-V4-A2 (2026-05-01, rebased 2026-05-02): 74→75, 120→121 (+1 each) after PYTHONUNBUFFERED.
     # F-V?-A2 cascade (2026-05-03): -5 each after PYTHONUNBUFFERED dedup (PR #2033).
-    "smc-deeper-integration-gates.yml": frozenset({70, 116}),
+    "smc-deeper-integration-gates.yml": frozenset({74, 120}),
     # Weekly digest: 3 best-effort delivery hops.
     # Rebaselined 2026-05-02: 447→451, 664→668, 943→947 (+4 each).
     # F-V4-B4 (2026-05-02): 451→458, 668→675, 947→954 (+7 each) after @v7 fleet bump.
     # F-V4-A2 (2026-05-01, rebased 2026-05-02): +1 each after PYTHONUNBUFFERED.
     # F-V?-A2 cascade (2026-05-03): -5 each after PYTHONUNBUFFERED dedup (PR #2033).
-    "plan-2-8-weekly-digest.yml": frozenset({456, 673, 952}),
+    "plan-2-8-weekly-digest.yml": frozenset({460, 677, 956}),
     # Release gates: 1 advisory metric collection hop.
     # Rebaselined 2026-05-02: 173→177 (+4).
     # F-V4-B4 (2026-05-02): 177 → 178 (+1) after @v7 fleet bump.
@@ -110,7 +112,7 @@ _ALLOWED: dict[str, frozenset[int]] = {
     # F-V4-A2 (2026-05-01, rebased 2026-05-02): 179 → 180 (+1) after PYTHONUNBUFFERED.
     # F-V?-A2 cascade (2026-05-03): 180 → 175 (-5) after PYTHONUNBUFFERED dedup (PR #2033).
     # F-V8-C5-B (2026-05-07): 175 → 177 (+2) after pip-cache add to setup-python (PR-A2 cron-batch).
-    "smc-release-gates.yml": frozenset({177}),
+    "smc-release-gates.yml": frozenset({181}),
     # Drift watchdog: red verdict is intentionally non-fatal so the follow-up
     # step can convert it into a GitHub issue (silent-fail by design — see C9/T4).
     # Line shifted 52 → 54 after adding CONTINUE-ON-ERROR-INTENTIONAL marker comment
@@ -120,7 +122,7 @@ _ALLOWED: dict[str, frozenset[int]] = {
     # F-V3-12 (PR #1982, 2026-05-02): +2 from new live-window header comment → 67 → 69.
     # F-V4-A2 (2026-05-01, rebased 2026-05-02): 69 → 73 (+4) after PYTHONUNBUFFERED env block addition.
     # F-V?-A2 cascade (2026-05-03): 73 → 69 (-4) after PYTHONUNBUFFERED dedup (PR #2033).
-    "drift-watchdog.yml": frozenset({69}),
+    "drift-watchdog.yml": frozenset({73}),
     # C13 daily-cron: 4 best-effort steps so partial failures still upload
     # artefacts and let the issue-opener step report exactly which step
     # failed; soft-skip rc=78 paths are also gated through these.
@@ -136,7 +138,7 @@ _ALLOWED: dict[str, frozenset[int]] = {
     # Audit unbreaker (2026-05-03): +3 to all entries below the new
     # `# CONTINUE-ON-ERROR-INTENTIONAL:` marker re-anchored on Step 1b
     # backfill_progress (line 97 entry is BEFORE the marker, unshifted).
-    "c13-daily-cron.yml": frozenset({97, 136, 159, 174, 198, 215, 242}),
+    "c13-daily-cron.yml": frozenset({101, 140, 163, 178, 202, 219, 246}),
     # Producer cache: second save under the date-only canonical key is best-effort
     # because actions/cache rejects re-writes for an existing key (benign 409).
     # Surfaced by PR-D8 (Copilot review of PR #1939) — was previously invisible
