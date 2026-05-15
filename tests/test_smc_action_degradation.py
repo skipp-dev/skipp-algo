@@ -230,7 +230,7 @@ class TestPineLibraryEmission:
             universe_size=0,
             enrichment={"providers": {"provider_count": 0, "stale_providers": ""}},
         )
-        text = out.read_text()
+        text = out.read_text(encoding="utf-8")
         assert "// ── Action Degradation (ENG-WS2-04) ──" in text
         assert 'export const string ACTION_DEGRADATION_TIER = "none"' in text
         assert 'export const string ACTION_DEGRADATION_REASON = ""' in text
@@ -262,7 +262,7 @@ class TestPineLibraryEmission:
             universe_size=0,
             enrichment=enrichment,
         )
-        text = out.read_text()
+        text = out.read_text(encoding="utf-8")
         assert 'export const string ACTION_DEGRADATION_TIER = "watchlist"' in text
         assert (
             'export const string ACTION_DEGRADATION_REASON = "Structure artifact older than 24h"'
@@ -296,7 +296,7 @@ class TestPineLibraryEmission:
             universe_size=0,
             enrichment=enrichment,
         )
-        text = out.read_text()
+        text = out.read_text(encoding="utf-8")
         assert 'export const string ACTION_DEGRADATION_TIER = "no_trade"' in text
         assert 'export const string ACTION_DEGRADATION_REASON = "Structure missing"' in text
         assert 'export const string ACTION_DEGRADATION_DERIVED_FROM = "unavailable"' in text

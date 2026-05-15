@@ -133,7 +133,7 @@ jobs:
 
       # ── Checkout ────────────────────────────────────────────────
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           token: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
           persist-credentials: false
@@ -143,7 +143,7 @@ jobs:
         uses: ./.github/actions/setup-python-pinned
 
       - name: Set up Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: "20"
 
@@ -173,7 +173,7 @@ jobs:
           fi
 
       - name: Restore incremental base seed
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: artifacts/smc_microstructure_exports/incremental_base_seed
           key: ${{ runner.os }}-smc-incremental-base-seed-${{ env.SMC_INCREMENTAL_BASE_SEED_CACHE_VERSION }}-${{ github.ref_name }}-${{ github.run_id }}
@@ -204,7 +204,7 @@ jobs:
 
       - name: Save incremental base seed
         if: success()
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: artifacts/smc_microstructure_exports/incremental_base_seed
           key: ${{ runner.os }}-smc-incremental-base-seed-${{ env.SMC_INCREMENTAL_BASE_SEED_CACHE_VERSION }}-${{ github.ref_name }}-${{ github.run_id }}
@@ -328,7 +328,7 @@ jobs:
       - name: Restore Databento production export bundle (today)
         id: restore_export_bundle_today
         if: steps.diff.outputs.changed == 'true'
-        uses: dawidd6/action-download-artifact@v6
+        uses: dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6
         with:
           workflow: smc-databento-production-export.yml
           name: smc-databento-production-export-${{ env.REFRESH_DATE }}-
@@ -342,7 +342,7 @@ jobs:
         if: |
           steps.diff.outputs.changed == 'true'
           && steps.restore_export_bundle_today.outputs.found_artifact != 'true'
-        uses: dawidd6/action-download-artifact@v6
+        uses: dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6
         with:
           workflow: smc-databento-production-export.yml
           name: ^smc-databento-production-export-
@@ -351,7 +351,7 @@ jobs:
           workflow_conclusion: success
           if_no_artifact_found: warn
 
-      # F-V8-D1 (2026-05-14): dawidd6/action-download-artifact@v6 with
+      # F-V8-D1 (2026-05-14): dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6 with
       # name_is_regexp: true unconditionally nests each downloaded artifact
       # under `<path>/<artifact-name>/...` (see main.js:269). Consumer
       # scripts (smc_integration.{structure_batch,measurement_evidence,
@@ -820,7 +820,7 @@ jobs:
       # ── Upload CI artifacts ─────────────────────────────────────
       - name: Upload gate evidence + library artifacts
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: smc-refresh-${{ env.REFRESH_DATE }}-${{ github.run_number }}
           path: |
@@ -831,7 +831,7 @@ jobs:
 
       - name: Upload TradingView validation artifacts
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: smc-tradingview-${{ env.REFRESH_DATE }}-${{ github.run_number }}
           path: |

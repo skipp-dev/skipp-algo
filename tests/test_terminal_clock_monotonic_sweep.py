@@ -33,7 +33,7 @@ def test_no_executable_time_time_in_cache_paths(module_path, allowed):
     """Source-pin: no executable ``time.time()`` calls remain in the
     cache / backoff hot paths of either module. Comments referring
     to ``time.time()`` for documentation purposes are allowed."""
-    src = Path(module_path).read_text()
+    src = Path(module_path).read_text(encoding="utf-8")
     executable = []
     for lineno, line in enumerate(src.splitlines(), start=1):
         stripped = line.lstrip()

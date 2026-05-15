@@ -26,7 +26,11 @@ import yaml
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _COMPOSITE_PATH = _REPO_ROOT / ".github" / "actions" / "setup-python-pinned" / "action.yml"
 _PHASE1_WORKFLOWS = (
-    _REPO_ROOT / ".github" / "workflows" / "smc-fast-pr-gates.yml",
+    # smc-fast-pr-gates.yml is intentionally excluded here: it runs on the
+    # self-hosted Windows runner which does not have the HKLM admin rights
+    # that actions/setup-python@v6 requires. The workflow instead uses a
+    # `python -m venv .venv` approach and does NOT reference the composite.
+    # See: ci/pin-action-shas PR, "Remove setup-python – Windows venv fix".
     _REPO_ROOT / ".github" / "workflows" / "c13-daily-cron.yml",
     _REPO_ROOT / ".github" / "workflows" / "smc-databento-production-export.yml",
     _REPO_ROOT / ".github" / "workflows" / "smc-library-refresh.yml",

@@ -1117,7 +1117,10 @@ class TestStructureArtifactJson:
         from smc_integration.sources.structure_artifact_json import _optional_path
 
         result = _optional_path("/some/path")
-        assert result == Path("/some/path")
+        # _optional_path calls .resolve() which on Windows prepends the current
+        # drive letter.  Compare against the resolved form of the same path so
+        # the assertion holds on both POSIX and Windows.
+        assert result == Path("/some/path").resolve()
 
     def test_iter_manifest_artifacts_deterministic_fallback(self, tmp_path: Path) -> None:
         from smc_integration.sources import structure_artifact_json as mod

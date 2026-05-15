@@ -125,8 +125,14 @@ def test_producer_uploads_artifact_unconditionally() -> None:
         assert step.get("if") == "always()", (
             f"producer upload-artifact step must use `if: always()`; got {step.get('if')!r}"
         )
-        assert step["uses"] == "actions/upload-artifact@v7", (
-            "uniform-version guard: must use actions/upload-artifact@v7"
+        # Accept both floating tag and its SHA-pinned equivalent so the
+        # test keeps passing after actions are pinned to full commit SHAs.
+        _UPLOAD_V7_SHA = "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+        assert step["uses"] in {
+            "actions/upload-artifact@v7",
+            f"actions/upload-artifact@{_UPLOAD_V7_SHA}",
+        }, (
+            f"uniform-version guard: must use actions/upload-artifact@v7; got {step['uses']!r}"
         )
 
 

@@ -85,7 +85,12 @@ def test_tv_validation_has_classification_step() -> None:
 def test_release_gates_has_attestation_step() -> None:
     workflow_text = _read(WORKFLOW_PATH)
     assert '- name: Attest release gate report (WP-R20)' in workflow_text
-    assert 'actions/attest-build-provenance@v2' in workflow_text
+    # Accept both the floating tag and its SHA-pinned equivalent.
+    _ATTEST_V2_SHA = "e8998f949152b193b063cb0ec769d69d929409be"
+    assert (
+        'actions/attest-build-provenance@v2' in workflow_text
+        or f'actions/attest-build-provenance@{_ATTEST_V2_SHA}' in workflow_text
+    ), "must reference actions/attest-build-provenance@v2 (or its SHA-pinned equivalent)"
     assert 'smc_release_gates_report.json' in workflow_text
 
 

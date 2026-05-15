@@ -42,7 +42,7 @@ def _collect_script_imports(py_file: Path) -> list[tuple[str, str]]:
     except SyntaxError:
         return []
 
-    rel = str(py_file.relative_to(SMC_INTEGRATION))
+    rel = py_file.relative_to(SMC_INTEGRATION).as_posix()
     violations: list[tuple[str, str]] = []
 
     for node in ast.walk(tree):

@@ -63,10 +63,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           python-version: "3.12"
           cache: pip
@@ -95,12 +95,12 @@ jobs:
       #
       # Mirror the library-refresh fetch + flatten pattern: pull today's
       # producer artifact (or the most recent same-prefix fallback), then
-      # flatten the dawidd6/action-download-artifact@v6 `name_is_regexp: true`
+      # flatten the dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6 `name_is_regexp: true`
       # nested subdir into the export-dir root so the non-recursive
       # `_manifest_candidates` glob can find the manifest.
       - name: Restore Databento production export bundle (today)
         id: restore_export_bundle_today
-        uses: dawidd6/action-download-artifact@v6
+        uses: dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6
         with:
           workflow: smc-databento-production-export.yml
           name: smc-databento-production-export-${{ steps.meta.outputs.run_date }}-
@@ -112,7 +112,7 @@ jobs:
       - name: Restore Databento production export bundle (latest fallback)
         id: restore_export_bundle_fallback
         if: steps.restore_export_bundle_today.outputs.found_artifact != 'true'
-        uses: dawidd6/action-download-artifact@v6
+        uses: dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6
         with:
           workflow: smc-databento-production-export.yml
           name: ^smc-databento-production-export-
@@ -122,7 +122,7 @@ jobs:
           if_no_artifact_found: warn
 
       # Flatten the nested `<root>/smc-databento-production-export-*/...`
-      # layout produced by dawidd6/action-download-artifact@v6 when
+      # layout produced by dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6 when
       # `name_is_regexp: true` is used (see main.js:269).
       #
       # F-V8-D3 (2026-05-14): The repo ships a baseline
@@ -299,7 +299,7 @@ jobs:
 
       - name: Upload rolling benchmark artifacts
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: smc-measurement-benchmark-rolling-${{ steps.meta.outputs.run_date }}
           path: ${{ steps.meta.outputs.out_dir }}
@@ -350,7 +350,7 @@ jobs:
         # (`dawidd6/action-download-artifact` or `gh run download`,
         # depending on the consumer).
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: f2-dual-arm-${{ steps.meta.outputs.run_date }}
           path: artifacts/ci/f2/

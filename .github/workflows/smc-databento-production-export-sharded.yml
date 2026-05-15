@@ -80,7 +80,7 @@ jobs:
       shard_count: ${{ steps.compute.outputs.shard_count }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
 
@@ -114,7 +114,7 @@ jobs:
 
       - name: Upload shard plan
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: a9b-2a-shard-plan
           path: shards.json
@@ -149,7 +149,7 @@ jobs:
           echo "::notice::Shard ${{ matrix.shard_id }}/${{ matrix.shard_of }} window=${{ matrix.start_date }}..${{ matrix.end_date }} runner='${{ runner.name }}'"
 
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           token: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
           persist-credentials: false
@@ -193,7 +193,7 @@ jobs:
 
       - name: Upload shard artifact (always)
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: a9b-2b-shard-${{ matrix.shard_id }}-of-${{ matrix.shard_of }}
           path: |
@@ -217,7 +217,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
 
@@ -230,7 +230,7 @@ jobs:
         # overwrites shard-K-1 in the workspace. Pattern matches every
         # producer-emitted artifact regardless of how many shards the
         # plan dispatched.
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           pattern: a9b-2b-shard-*-of-*
           path: shard-artifacts/
@@ -295,7 +295,7 @@ jobs:
 
       - name: Upload merged manifest
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: a9b-2b-merged-manifest
           path: artifacts/merged/

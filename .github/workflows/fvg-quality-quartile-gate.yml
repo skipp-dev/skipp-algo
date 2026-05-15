@@ -45,7 +45,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           # Use GH_PAT when available so the persisted credential matches
           # the token used to push the auto-PR branch (F-05 fix). Falls
@@ -54,7 +54,7 @@ jobs:
           token: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           python-version: "3.12"
           cache: pip
@@ -90,7 +90,7 @@ jobs:
         # F-V4-D2 (2026-05-01): always() so a failed gate run still leaves the
         # partial release_gate.json/.md behind for postmortem inspection.
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: fvg-quality-release-gate
           path: |
@@ -137,7 +137,7 @@ jobs:
 
       - name: Open issue when release-gate flips to PASS
         if: steps.decision.outputs.release_gate == 'PASS'
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
             const fs = require('fs');

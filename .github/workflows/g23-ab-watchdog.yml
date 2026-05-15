@@ -45,10 +45,10 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           python-version: "3.12"
           cache: pip
@@ -86,7 +86,7 @@ jobs:
         # must be preserved even when an unexpected exit code surfaces, so we
         # can debug what the watcher saw before failing.
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: g23-ab-watchdog
           path: |
@@ -128,7 +128,7 @@ jobs:
 
       - name: Open issue on §G2 rollback signal
         if: steps.watchdog.outputs.exit_code == '2'
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
             const fs = require('fs');
@@ -145,7 +145,7 @@ jobs:
 
       - name: Open issue on §G3 promotion-ready signal
         if: steps.watchdog.outputs.exit_code == '3'
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
             const fs = require('fs');
@@ -162,7 +162,7 @@ jobs:
 
       - name: Open issue on §G3 futility signal
         if: steps.watchdog.outputs.exit_code == '4'
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
             const fs = require('fs');

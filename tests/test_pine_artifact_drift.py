@@ -18,7 +18,7 @@ def test_committed_pine_matches_generator():
     generation (which depends on the asof_date used), we verify that the
     committed artifact has all expected v5.5 section headers.
     """
-    actual = COMMITTED_PINE.read_text()
+    actual = COMMITTED_PINE.read_text(encoding="utf-8")
     assert "smc_micro_profiles_generated" in actual
     assert "export const string ASOF_DATE" in actual
     assert "// ── Signal Quality (v5.5b) ──" in actual

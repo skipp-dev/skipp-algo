@@ -199,7 +199,7 @@ class TestPineLibraryEmission:
             universe_size=0,
             enrichment={"providers": {"provider_count": 0, "stale_providers": ""}},
         )
-        text = out.read_text()
+        text = out.read_text(encoding="utf-8")
         assert "// ── Trust State (ENG-WS2-02) ──" in text
         assert 'export const string TRUST_STATE = "healthy"' in text
         assert 'export const string TRUST_ACTION_IMPACT = "none"' in text
@@ -233,7 +233,7 @@ class TestPineLibraryEmission:
             universe_size=0,
             enrichment=enrichment,
         )
-        text = out.read_text()
+        text = out.read_text(encoding="utf-8")
         assert 'export const string TRUST_STATE = "watch_only"' in text
         assert 'export const string TRUST_ACTION_IMPACT = "no_new_entries"' in text
         assert 'export const string TRUST_CAUSE_CODE = "STALE_MANIFEST_GENERATED_AT"' in text

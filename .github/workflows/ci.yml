@@ -54,7 +54,7 @@ jobs:
           fi
       - name: Checkout
         if: steps.gate.outputs.run_heavy == 'true'
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Validate Pine scripts
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
@@ -62,20 +62,9 @@ jobs:
           grep -q "^//@version=6" SMC_Core_Engine.pine
           test -f SMC_Long_Strategy.pine
           grep -q "^//@version=6" SMC_Long_Strategy.pine
-      - name: Set up Python
-        if: steps.gate.outputs.run_heavy == 'true'
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-          # F-V8-C5-C (2026-05-07): pip wheel cache. Belt-and-braces alongside
-          # the uv cache below — `pip` itself is still invoked transitively
-          # by some test-time installs and by setup-python's own bootstrap.
-          # Mirrors the F-V8-C5-B pattern from the cron-batch (PR #2075).
-          cache: "pip"
-          cache-dependency-path: "**/requirements*.txt"
       - name: Install uv
         if: steps.gate.outputs.run_heavy == 'true'
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3
         with:
           enable-cache: true
           cache-dependency-glob: |
@@ -83,7 +72,18 @@ jobs:
       - name: Install test dependencies
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
-          uv pip install --system -r requirements.txt pytest
+          # Create a virtual environment from the system Python.
+          # We do NOT use actions/setup-python because setup-python@v6 tries
+          # to remove HKLM registry entries during its install cycle, which
+          # requires admin rights this self-hosted Windows runner does not have.
+          python -m venv .venv
+          uv pip install --python .venv -r requirements.txt pytest
+          # Expose venv for all subsequent steps in this job
+          if [[ -d "$GITHUB_WORKSPACE/.venv/Scripts" ]]; then
+            echo "$GITHUB_WORKSPACE/.venv/Scripts" >> "$GITHUB_PATH"
+          else
+            echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
+          fi
       # Coverage adds ~25-35% test wall-time. Keep it on `main` pushes (where
       # the report has value) and skip on PRs to shorten the feedback loop.
       - name: Run Python tests (PR — no coverage)
