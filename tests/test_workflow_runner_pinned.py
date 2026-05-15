@@ -164,3 +164,109 @@ def test_priority_cron_workflows_prefer_priority_cron_self_hosted_selector(workf
     resolve_script = _step_run(_jobs(workflow)["select-runner"], "Resolve worker runner")
 
     assert f'--custom-label "{_PRIORITY_CRON_CUSTOM_LABEL_EXPR}"' in resolve_script
+
+
+# F2.1 — pin the GPU-priority custom-label expression for the GPU-routed family.
+_GPU_CRON_CUSTOM_LABEL_EXPR = (
+    "${{ vars.SMC_PRIORITY_CRON_GPU_SELF_HOSTED_LABEL || "
+    "vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || "
+    "vars.SMC_SELF_HOSTED_LABEL }}"
+)
+
+
+@pytest.mark.parametrize(
+    "workflow_name", ["feature-importance-daily.yml", "open-prep-outcome-backfill.yml"]
+)
+def test_gpu_priority_cron_workflows_prefer_gpu_self_hosted_selector(workflow_name: str) -> None:
+    workflow = yaml.safe_load((_WORKFLOWS_DIR / workflow_name).read_text(encoding="utf-8"))
+    resolve_script = _step_run(_jobs(workflow)["select-runner"], "Resolve worker runner")
+
+    assert f'--custom-label "{_GPU_CRON_CUSTOM_LABEL_EXPR}"' in resolve_script
+
+
+@pytest.mark.parametrize(
+    "workflow_name", ["ml-family-research.yml", "rl-research-training.yml"]
+)
+def test_research_workflows_route_gpu_modes_to_gpu_label(workflow_name: str) -> None:
+    # These workflows pick the GPU label conditionally inside a shell `if`
+    # branch (mode == 'train' / GPU runs) and otherwise fall back to the
+    # priority-cron label, so we pin the GPU branch as a substring rather than
+    # the whole `--custom-label` line.
+    text = (_WORKFLOWS_DIR / workflow_name).read_text(encoding="utf-8")
+    assert f'CUSTOM_LABEL="{_GPU_CRON_CUSTOM_LABEL_EXPR}"' in text, (
+        f"{workflow_name} must wire the GPU custom-label branch to "
+        f"SMC_PRIORITY_CRON_GPU_SELF_HOSTED_LABEL with cron+generic fallbacks"
+    )
+    assert '--custom-label "$CUSTOM_LABEL"' in text
+
+
+# F1.1 — every routed workflow's `select-runner` job must declare the
+# `administration: read` permission, otherwise the GitHub Actions REST call
+# `GET /repos/{owner}/{repo}/actions/runners` returns 403 with the default
+# GITHUB_TOKEN. The resolver swallows that error and silently falls back to
+# hosted across the entire repository, which is invisible in a normal run.
+@pytest.mark.parametrize("workflow_name", sorted(_ROUTED_WORKFLOWS))
+def test_select_runner_job_grants_administration_read(workflow_name: str) -> None:
+    workflow = yaml.safe_load((_WORKFLOWS_DIR / workflow_name).read_text(encoding="utf-8"))
+    select_runner = _jobs(workflow)["select-runner"]
+    perms = select_runner.get("permissions")
+    assert isinstance(perms, dict), (
+        f"{workflow_name}:select-runner must declare an explicit permissions block"
+    )
+    assert perms.get("administration") == "read", (
+        f"{workflow_name}:select-runner must grant `administration: read` so the "
+        f"runner-listing REST call works with the default GITHUB_TOKEN"
+    )
+    assert perms.get("contents") == "read", (
+        f"{workflow_name}:select-runner must grant `contents: read` for checkout"
+    )
+
+
+# F2.2 — workflows that route to self-hosted and use the portable Python
+# bootstrap pattern must gate the `actions/setup-python` action on
+# `runner_environment == 'github-hosted'`. Otherwise the hosted-only
+# setup-python step would also execute on self-hosted runners and silently
+# bypass the `Resolve Python 3.12 interpreter` portable-bootstrap path that
+# self-hosted depends on.
+_PORTABLE_PYTHON_BOOTSTRAP_WORKFLOWS = (
+    "smc-release-gates.yml",
+    "smc-library-refresh.yml",
+    "smc-databento-production-export.yml",
+    "smc-measurement-benchmark.yml",
+    "smc-measurement-benchmark-rolling.yml",
+)
+
+
+@pytest.mark.parametrize("workflow_name", _PORTABLE_PYTHON_BOOTSTRAP_WORKFLOWS)
+def test_hosted_only_setup_python_step_is_gated_to_github_hosted(workflow_name: str) -> None:
+    workflow = yaml.safe_load((_WORKFLOWS_DIR / workflow_name).read_text(encoding="utf-8"))
+    jobs = _jobs(workflow)
+    routed = _ROUTED_WORKFLOWS[workflow_name]
+    found_gated_hosted_step = False
+    found_portable_resolver_step = False
+    for worker_job_name in routed["worker_jobs"]:
+        job = jobs[worker_job_name]
+        for step in job.get("steps") or []:
+            if not isinstance(step, dict):
+                continue
+            name = step.get("name") or ""
+            uses = step.get("uses") or ""
+            cond = step.get("if") or ""
+            if name == "Set up pinned Python (GitHub-hosted)":
+                assert uses == "./.github/actions/setup-python-pinned", (
+                    f"{workflow_name}:{worker_job_name} hosted setup-python must use "
+                    f"the pinned composite action"
+                )
+                assert "needs.select-runner.outputs.runner_environment == 'github-hosted'" in cond, (
+                    f"{workflow_name}:{worker_job_name} hosted setup-python is missing "
+                    f"the runner_environment guard; got if={cond!r}"
+                )
+                found_gated_hosted_step = True
+            if name == "Resolve Python 3.12 interpreter":
+                found_portable_resolver_step = True
+    assert found_gated_hosted_step, (
+        f"{workflow_name} is missing the gated 'Set up pinned Python (GitHub-hosted)' step"
+    )
+    assert found_portable_resolver_step, (
+        f"{workflow_name} is missing the 'Resolve Python 3.12 interpreter' portable bootstrap step"
+    )

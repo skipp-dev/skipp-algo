@@ -42,7 +42,7 @@ Operational consequence:
 That means the routing policy is mainly about **who gets first claim when the
 self-hosted pool is idle**, not about building an internal queue.
 
-## Recommended production shape today (single runner, shared opportunistically)
+## One-runner shared opportunistic option (recommended today)
 
 This is the recommended setup while the repository has exactly one self-hosted
 Windows runner.
@@ -80,6 +80,30 @@ Do **not** add these labels on the single-runner shared setup:
 
 This shape gives the repository more self-hosted usage without reserving the
 single machine so aggressively that CI loses its opportunistic speed-up.
+
+### When to switch to safety-first mode
+
+Leave the shared opportunistic profile in place unless one of the following
+concrete triggers is observed; if any trigger fires, switch the repo variable
+`SMC_CI_SELF_HOSTED_LABEL` to `ci-heavy` (without applying that label to the
+runner) so the CI family fails over to GitHub-hosted and stops competing for
+the `priority-cron` box.
+
+Triggers (any one is sufficient):
+
+- **Producer hosted-fallback rate**: `smc-databento-production-export` resolves
+  `runner_environment=github-hosted` for **≥3 successful runs in any 7-day
+  window**.
+- **Producer OOM / SIGTERM on hosted**: any `smc-databento-production-export`
+  run on hosted exits with code 137 or 143, or hits the 120-min cap, in the
+  last **14 days** (this is the F-V8-Q5b / F-V8-C4 failure mode).
+- **Library refresh handoff slip**: any week where `smc-library-refresh` PR
+  cycle missed its release-gates handoff window because the producer ran on
+  hosted and dragged the chain.
+
+Switching back to shared opportunistic is symmetric: clear
+`SMC_CI_SELF_HOSTED_LABEL` and confirm none of the triggers above have fired
+in the trailing 30 days.
 
 ## One-runner safety-first option
 
@@ -263,6 +287,38 @@ move to the next reservation profile:
 
 If CI is the only family that keeps missing self-hosted windows, the current
 shared opportunistic mode is still working as designed.
+
+#### Quick fallback audit (copy-paste)
+
+List the most recent producer runs with their conclusion / timestamp:
+
+```bash
+gh run list -R skippALGO/skipp-algo \
+  --workflow smc-databento-production-export.yml \
+  --limit 50 \
+  --json databaseId,conclusion,createdAt,displayTitle,headBranch \
+  --jq '.[] | [.createdAt, .conclusion, .databaseId, .displayTitle] | @tsv'
+```
+
+For any individual run, inspect the `select-runner` job log to see why the
+resolver chose hosted vs. self-hosted:
+
+```bash
+RUN_ID=<paste-databaseId>
+gh run view "$RUN_ID" -R skippALGO/skipp-algo --log \
+  | grep -E 'runner_environment|resolution_reason|matched_runner_name'
+```
+
+A healthy single-runner shared profile shows mostly
+`resolution_reason=matched_idle_self_hosted_runner` for the producer; a
+string of `no_idle_matching_self_hosted_runner` or
+`runner_inventory_unavailable:*` for the producer is the signal to switch to
+the safety-first profile (see *When to switch to safety-first mode* above).
+
+> If the resolver consistently reports `runner_inventory_unavailable:HTTPError`
+> the issue is not contention but token scope: confirm the `select-runner`
+> job still declares `permissions: { administration: read }` and that any
+> `GH_PAT` override (if set) has the `administration:read` scope on the repo.
 
 ## Anti-patterns
 

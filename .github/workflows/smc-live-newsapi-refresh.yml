@@ -43,6 +43,9 @@ jobs:
   select-runner:
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
+    permissions:
+      contents: read
+      administration: read
     outputs:
       runs_on_json: ${{ steps.resolve.outputs.runs_on_json }}
       runner_environment: ${{ steps.resolve.outputs.runner_environment }}
