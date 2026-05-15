@@ -51,7 +51,7 @@ _ALLOWED: dict[str, frozenset[int]] = {
     # F-V4-B4 (2026-05-02): 111 → 113 (+2) after actions/upload-artifact@v4 → @v7 fleet bump.
     # F-V4-A2 (2026-05-01, rebased 2026-05-02): 113 → 114 (+1) after PYTHONUNBUFFERED env addition.
     # F-V?-A2 cascade (2026-05-03): 114 → 109 (-5) after PYTHONUNBUFFERED dedup (PR #2033) trimmed duplicate env keys across the workflow.
-    "smc-live-newsapi-refresh.yml": frozenset({172}),
+    "smc-live-newsapi-refresh.yml": frozenset({174}),
     # Library refresh: 6 best-effort hops (gates probe, TV publish, telegram pings).
     # Lines 165 → 166 (alerts dispatch), 376 → 303 sequence shifted by upstream
     # rearrangement (PR #1937 cascade), and a NEW best-effort hop at 303 added
@@ -94,7 +94,9 @@ _ALLOWED: dict[str, frozenset[int]] = {
     # PR #2233 rebaseline (2026-05-15): runner-routing workflow edits shifted
     # the current library-refresh anchors further down without changing the
     # actual continue-on-error inventory.
-    "smc-library-refresh.yml": frozenset({273, 498, 613, 852, 997, 1017}),
+    # Follow-up 2026-05-15: adjacent header/comment churn shifted the same
+    # six advisory anchors by +2 without changing behavior.
+    "smc-library-refresh.yml": frozenset({275, 500, 615, 854, 999, 1019}),
     # Deeper integration gates: 2 advisory-only probes.
     # Rebaselined 2026-05-02 after PR #2028 composite migration: 69→73, 113→117 (+4 each).
     # F-V4-B4 (2026-05-02): 73→74, 117→118 (+1 each) after @v7 fleet bump.
@@ -117,7 +119,9 @@ _ALLOWED: dict[str, frozenset[int]] = {
     # F-V8-C5-B (2026-05-07): 175 → 177 (+2) after pip-cache add to setup-python (PR-A2 cron-batch).
     # PR #2233 rebaseline (2026-05-15): runner-routing edits shifted the
     # advisory metric-collection anchor deeper into the workflow.
-    "smc-release-gates.yml": frozenset({239}),
+    # Follow-up 2026-05-15: adjacent header/comment churn shifted the
+    # advisory anchor by +2 without changing behavior.
+    "smc-release-gates.yml": frozenset({241}),
     # Drift watchdog: red verdict is intentionally non-fatal so the follow-up
     # step can convert it into a GitHub issue (silent-fail by design — see C9/T4).
     # Line shifted 52 → 54 after adding CONTINUE-ON-ERROR-INTENTIONAL marker comment
