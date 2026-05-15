@@ -18,7 +18,7 @@ def test_workflow_file_exists() -> None:
 
 
 def test_workflow_runs_recal_script_in_shadow_mode() -> None:
-    text = WF.read_text()
+    text = WF.read_text(encoding="utf-8")
     assert "scripts/fvg_quality_recalibration.py" in text
     # Output target is the shadow JSON, not the production calibration JSON.
     assert "fvg_quality_calibration_shadow.json" in text
@@ -35,14 +35,14 @@ def test_workflow_runs_recal_script_in_shadow_mode() -> None:
 
 
 def test_workflow_parses_recal_status_tokens() -> None:
-    text = WF.read_text()
+    text = WF.read_text(encoding="utf-8")
     # These tokens are emitted by scripts/fvg_quality_recalibration.py main().
     for token in ("status=", "acceptance=", "n_with_label=", "n_with_features="):
         assert token in text, f"workflow does not parse `{token}` from recal output"
 
 
 def test_workflow_uploads_shadow_artifact() -> None:
-    text = WF.read_text()
+    text = WF.read_text(encoding="utf-8")
     # Major-version pin uniformity is owned by
     # tests/test_workflow_upload_artifact_uniform_version.py — assert
     # only that the action is referenced here, not the frozen major.
@@ -52,7 +52,7 @@ def test_workflow_uploads_shadow_artifact() -> None:
 
 
 def test_workflow_writes_step_summary() -> None:
-    text = WF.read_text()
+    text = WF.read_text(encoding="utf-8")
     assert "GITHUB_STEP_SUMMARY" in text
     # Operator-visible status row.
     assert "recal status" in text
@@ -60,14 +60,14 @@ def test_workflow_writes_step_summary() -> None:
 
 
 def test_workflow_is_fail_soft_on_empty_corpus() -> None:
-    text = WF.read_text()
+    text = WF.read_text(encoding="utf-8")
     # Corpus discovery has an explicit empty-dir fallback.
     assert "empty-fallback" in text
     assert "_empty_corpus" in text
 
 
 def test_workflow_runs_after_rolling_bench() -> None:
-    text = WF.read_text()
+    text = WF.read_text(encoding="utf-8")
     # Cron must be later than rolling-bench (07:30 UTC) so its corpus
     # is available. Pin "0 8 * * 1-5" — change loud if schedule shifts.
     assert 'cron: "0 8 * * 1-5"' in text
@@ -76,6 +76,6 @@ def test_workflow_runs_after_rolling_bench() -> None:
 
 
 def test_workflow_supports_dispatch_overrides() -> None:
-    text = WF.read_text()
+    text = WF.read_text(encoding="utf-8")
     for inp in ("corpus-dir", "label-source", "acceptance-mode"):
         assert inp in text, f"missing workflow_dispatch input: {inp}"

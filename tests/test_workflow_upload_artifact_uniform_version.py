@@ -12,6 +12,11 @@ audit time 2026-05-01).
 If a future bump is needed, change ``_FROZEN_MAJOR`` in this file in the
 SAME PR that updates the workflows. Mixed states are not allowed.
 
+SHA pins are allowed only via an explicit allow-list mapping
+``<40-char sha> -> major`` in this file. That keeps the uniform-major
+contract enforceable even when workflows pin a full commit for supply-chain
+hardening.
+
 Defense-only — no production behavior change.
 """
 
@@ -32,6 +37,13 @@ _UPLOAD_RE = re.compile(
     r"uses:\s*actions/upload-artifact@(?P<ref>[A-Za-z0-9._\-]+)"
 )
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+
+# Explicitly reviewed SHA -> major map.
+# 043fb46d1a93c77aae656e7c1c64a875d1fc6a0a is actions/upload-artifact v7
+# and is the single repo-wide pin at the time of the 2026-05-15 drift sweep.
+_SHA_MAJOR_ALLOWLIST: dict[str, str] = {
+    "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a": "v7",
+}
 
 
 def _iter_workflow_files() -> list[Path]:
@@ -57,11 +69,8 @@ def _iter_pins() -> list[tuple[Path, int, str]]:
 def _ref_is_on_frozen_major(ref: str) -> bool:
     if ref == _FROZEN_MAJOR or ref.startswith(f"{_FROZEN_MAJOR}."):
         return True
-    # SHA pins are intentionally rejected here: a SHA hides which major
-    # the action resolves to, defeating the point of this ledger. If a
-    # SHA pin is ever required (e.g. for a security advisory), update
-    # this test in the SAME PR with an explicit allow-list mapping
-    # SHA -> major and assert membership.
+    if _SHA_RE.match(ref):
+        return _SHA_MAJOR_ALLOWLIST.get(ref) == _FROZEN_MAJOR
     return False
 
 

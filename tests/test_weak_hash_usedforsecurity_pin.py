@@ -74,7 +74,7 @@ def _collect_weak_hash_calls() -> list[tuple[str, int, ast.Call]]:
             tree = ast.parse(p.read_text(encoding="utf-8"))
         except (OSError, SyntaxError):
             continue
-        rel = str(p.relative_to(REPO))
+        rel = p.relative_to(REPO).as_posix()
         for node in ast.walk(tree):
             if _is_weak_hash_call(node):
                 out.append((rel, node.lineno, node))

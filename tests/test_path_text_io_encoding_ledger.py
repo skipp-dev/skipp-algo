@@ -54,8 +54,9 @@ _DIR_EXCLUDE = {
 #   - scripts/phase5_perf_trend.py: NEW file with 1 site (line 163).
 #     write_text on a Markdown report — pure ASCII content, but encoding=
 #     should still be added in a follow-up; freezing here to unblock CI.
+#   - open_prep/realtime_signals.py: FIXED 2026-05-15 by adding
+#     `encoding="utf-8"` to the PID-file `read_text(...)` call.
 _FROZEN_SITES: dict[str, frozenset[int]] = {
-    "open_prep/realtime_signals.py": frozenset({172}),
     "pine_apply_surface_reduction.py": frozenset({53, 87, 397, 471, 502, 555}),
     "pine_input_surface.py": frozenset({129, 156, 187, 260, 270, 344}),
     "scripts/fvg_label_audit_q3.py": frozenset({58}),

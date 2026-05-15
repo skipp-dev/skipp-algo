@@ -173,7 +173,7 @@ def _detect_rt_engine_pid() -> int | None:
 
     if _RT_ENGINE_PID_FILE.exists():
         try:
-            pid = int(_RT_ENGINE_PID_FILE.read_text().strip())
+            pid = int(_RT_ENGINE_PID_FILE.read_text(encoding="utf-8").strip())
             os.kill(pid, 0)
             return pid
         except (ValueError, OSError):

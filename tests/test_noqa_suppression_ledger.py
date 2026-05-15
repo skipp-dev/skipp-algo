@@ -73,6 +73,10 @@ _NOQA_RE = re.compile(r"#\s*noqa\b", re.IGNORECASE)
 #   ``git rev-parse HEAD`` via a ``shutil.which("git")``-resolved
 #   executable with a hardcoded argv list. Bandit S603 is a false
 #   positive.
+# * ``scripts/resolve_workflow_runner.py``: queries the fixed GitHub
+#   Actions runners REST endpoint via ``urllib.request.urlopen``. The
+#   single S310 suppression documents that the URL is fixed to
+#   ``api.github.com`` and does not contain user-controlled host input.
 # * ``scripts/start_open_prep_suite.py``: launches the open-prep run
 #   (``python_exe -m open_prep.run_open_prep``), stops any prior
 #   streamlit monitor (``shutil.which("pkill")``), and spawns a
@@ -166,13 +170,12 @@ _FROZEN_SITES: dict[str, int] = {
     # diagnostic-only ``# noqa: SECLEAK`` because the surfaced text contains
     # only module/path identifiers, not credentials.
     "scripts/probe_databento_entitlement.py": 3,
-    # 2026-05-12 PR #2154: scripts/probe_fmp_13f_endpoints.py needs 3
-    # noqa suppressions: 1× S310 for the urllib.request.urlopen call
-    # (probe whitelisted-domain via deliberate URL inspection) and 2×
-    # BLE001 for the discovery loop's generic exception-catch (probe
-    # must surface every endpoint's error, not let one tear down the
-    # report). Diagnostic-only script.
-    "scripts/probe_fmp_13f_endpoints.py": 3,
+    # 2026-05-12 PR #2154, rebaselined 2026-05-15: the script now carries
+    # a single SECLEAK suppression on the diagnostic return payload so the
+    # probe can surface the exception type without tripping the secret-leak
+    # heuristic. The earlier multi-suppression comment became stale after
+    # follow-on cleanup removed the other noqa sites.
+    "scripts/probe_fmp_13f_endpoints.py": 1,
     # 2026-05-13: scripts/probe_providers.py preflight + notification
     # dispatcher catches ``Exception`` deliberately (broad logging.exception
     # in two error-recovery paths) so a transient dispatcher failure does
@@ -180,6 +183,15 @@ _FROZEN_SITES: dict[str, int] = {
     # ``# noqa: SECLEAK`` because the dispatcher logs only the exception
     # type / message (no API keys live in the exception stack frame).
     "scripts/probe_providers.py": 2,
+    "scripts/resolve_workflow_runner.py": 1,
+    # 2026-05-15: ML/RL research CLIs added with repo-root/sys.path bootstrap.
+    # Their noqa surface is entirely ``# noqa: E402`` on first-party imports
+    # that must remain below the bootstrap block for path-invoked runnability.
+    "scripts/ml_research_common.py": 2,
+    "scripts/run_ml_explainability_report.py": 3,
+    "scripts/run_ml_family_training.py": 3,
+    "scripts/run_ml_optuna_tuning.py": 3,
+    "scripts/run_rl_research_training.py": 6,
 }
 _FROZEN_TOTAL = sum(_FROZEN_SITES.values())
 

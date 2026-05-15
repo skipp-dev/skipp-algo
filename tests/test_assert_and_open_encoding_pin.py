@@ -85,7 +85,7 @@ def _scan_asserts() -> dict[str, int]:
             continue
         n = sum(1 for node in ast.walk(tree) if isinstance(node, ast.Assert))
         if n:
-            out[str(p.relative_to(ROOT))] = n
+            out[p.relative_to(ROOT).as_posix()] = n
     return out
 
 
@@ -180,7 +180,7 @@ def _scan_open_no_encoding() -> dict[str, int]:
             if "encoding" not in kw_names:
                 n += 1
         if n:
-            out[str(p.relative_to(ROOT))] = n
+            out[p.relative_to(ROOT).as_posix()] = n
     return out
 
 

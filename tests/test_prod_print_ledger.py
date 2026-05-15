@@ -86,7 +86,7 @@ def _scan_prints() -> dict[str, int]:
             ):
                 n += 1
         if n:
-            out[str(p.relative_to(ROOT))] = n
+            out[p.relative_to(ROOT).as_posix()] = n
     return out
 
 

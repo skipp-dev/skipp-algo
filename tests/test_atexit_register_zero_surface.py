@@ -68,7 +68,7 @@ def _atexit_register_sites() -> set[tuple[str, int]]:
             value = func.value
             if not isinstance(value, ast.Name) or value.id != "atexit":
                 continue
-            sites.add((str(path.relative_to(ROOT)), node.lineno))
+            sites.add((path.relative_to(ROOT).as_posix(), node.lineno))
     return sites
 
 

@@ -75,7 +75,7 @@ def _globals_call_sites() -> set[tuple[str, int]]:
             func = node.func
             if not isinstance(func, ast.Name) or func.id != "globals":
                 continue
-            sites.add((str(path.relative_to(ROOT)), node.lineno))
+            sites.add((path.relative_to(ROOT).as_posix(), node.lineno))
     return sites
 
 

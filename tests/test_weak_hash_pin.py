@@ -95,7 +95,7 @@ def _scan_all() -> dict[str, int]:
     for p in _iter_first_party_py():
         n = _count_weak_hash_calls(p)
         if n:
-            rel = str(p.relative_to(REPO))
+            rel = p.relative_to(REPO).as_posix()
             counts[rel] = n
     return counts
 

@@ -79,7 +79,7 @@ def _scan() -> tuple[list[tuple[str, int]], list[tuple[str, int]]]:
             tree = ast.parse(p.read_text(encoding="utf-8"))
         except SyntaxError:
             continue
-        rel = str(p.relative_to(_REPO_ROOT))
+        rel = p.relative_to(_REPO_ROOT).as_posix()
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
                 continue

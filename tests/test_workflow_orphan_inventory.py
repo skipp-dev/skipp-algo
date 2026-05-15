@@ -24,7 +24,6 @@ for an existing orphan must drop it from ALLOW_LIST in the same PR.
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -46,20 +45,17 @@ def _has_test_reference(workflow_basename_no_ext: str) -> bool:
     Excludes this file itself, which lists every orphan basename literally
     in ``ALLOWED_ORPHANS`` and would otherwise trivially "reference" them.
     """
-    res = subprocess.run(
-        [
-            "grep",
-            "-rln",
-            "--include=*.py",
-            f"--exclude={Path(__file__).name}",
-            workflow_basename_no_ext,
-            str(TESTS_DIR),
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    return res.returncode == 0 and bool(res.stdout.strip())
+    self_name = Path(__file__).name
+    for path in TESTS_DIR.rglob("*.py"):
+        if path.name == self_name:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        if workflow_basename_no_ext in text:
+            return True
+    return False
 
 
 def test_orphan_workflow_set_matches_allowlist() -> None:
