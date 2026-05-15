@@ -121,7 +121,7 @@ jobs:
           fi
 
       # ── Main step(s) ──────────────────────────────────────────────────────
-      - name: <replace-me: step name>
+      - name: "<replace-me: step name>"
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
           python scripts/<replace-me>.py
