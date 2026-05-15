@@ -30,6 +30,15 @@ links to those branch-only workflow files until they actually merge.
 
 This index anchors the current producer/consumer contract documentation for the SMC split.
 
+Additional implementation guides for the current Python runtime layers:
+
+- [`../ml/README.md`](../ml/README.md) — synthetic ML family research, SHAP,
+	Optuna, and requested-vs-resolved device semantics
+- [`../rl/README.md`](../rl/README.md) — synthetic RL execution research,
+	CUDA torch override contract, and workflow artifact shape
+- [`OPEN_PREP_OPS_QUICK_REFERENCE.md`](OPEN_PREP_OPS_QUICK_REFERENCE.md) —
+	operator quick reference for the recurring Open-Prep outputs
+
 Start here for the canonical mainline setup path:
 
 - [smc-mainline-setup-runbook.md](smc-mainline-setup-runbook.md)

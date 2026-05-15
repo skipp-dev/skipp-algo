@@ -106,9 +106,8 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("governance/run_manifest.py", 73, ("S603",)),
         # open_prep/realtime_signals.py:190,336 — Bandit S603 false
         # positives: hardcoded pgrep / sys.executable -m argv lists.
-        # Rebaselined 2026-05-15 after nearby helper/comment edits shifted
-        # both suppression lines by +4 / +6 respectively, then +3 more when
-        # the optional fcntl/type-ignore cleanup removed inline suppressions.
+        # Rebaselined 2026-05-15 after PR #2233 mainline merge restored the
+        # older realtime_signals layout used by this branch.
         ("open_prep/realtime_signals.py", 190, ("S603",)),
         ("open_prep/realtime_signals.py", 336, ("S603",)),
         # smc_integration/release_policy.py:1072 — Bandit S603 false

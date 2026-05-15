@@ -135,15 +135,13 @@ SUBPROCESS_RUN_LEDGER: set[tuple[str, int]] = {
     # `git rev-parse HEAD` for release-manifest provenance.
     ("smc_integration/release_policy.py", 1072),
     # `pgrep` to discover the realtime-signals daemon PID.
-    # Rebaselined 2026-05-15 after nearby helper/comment edits shifted the site by +4,
-    # then +3 more when the optional fcntl/type-ignore cleanup removed inline suppressions.
+    # Rebaselined 2026-05-15 after PR #2233 mainline merge restored the
+    # branch-local realtime_signals layout.
     ("open_prep/realtime_signals.py", 190),
 }
 
 SUBPROCESS_POPEN_LEDGER: set[tuple[str, int]] = {
     # Detached re-launch of the realtime-signals daemon.
-    # Rebaselined 2026-05-15 after nearby helper/comment edits shifted the site by +6,
-    # then +3 more when the optional fcntl/type-ignore cleanup removed inline suppressions.
     ("open_prep/realtime_signals.py", 336),
 }
 

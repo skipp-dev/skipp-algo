@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import open_prep.feature_importance_report as fr
+
 WF = Path(".github/workflows/feature-importance-daily.yml")
 
 
@@ -47,3 +49,9 @@ def test_workflow_forces_gpu_backend_on_self_hosted() -> None:
     assert "requirements-gpu.txt" in text
     assert "OPEN_PREP_FI_BACKEND=gpu" in text
     assert "OPEN_PREP_FI_BACKEND=cpu" in text
+
+
+def test_workflow_uploads_generated_report_artifact() -> None:
+    text = WF.read_text(encoding="utf-8").replace("\\", "/")
+    assert f"{fr.FI_REPORT_DIR.as_posix()}/latest.json" in text
+    assert "artifacts/open_prep/outcomes/feature_importance/latest.json" not in text

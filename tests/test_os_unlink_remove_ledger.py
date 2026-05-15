@@ -1,7 +1,7 @@
 """Defense ledger for ``os.unlink(...)`` / ``os.remove(...)`` call sites.
 
 File deletion is destructive and irreversible. The repository currently
-has 24 production call sites across the open-prep pipeline, the
+has 23 production call sites across the open-prep pipeline, the
 terminal export module, and a couple of newsstack helpers. Locking
 those locations with a ledger means:
 

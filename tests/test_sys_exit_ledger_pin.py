@@ -8,13 +8,11 @@ Today: 9 sites, all in legitimate CLI dispatch / `__main__` guards:
 
 | File | Line | Context |
 |---|---|---|
-| `open_prep/candidate_weights.py` | 240 | `if __name__ == "__main__": sys.exit(main())` |
+| `open_prep/candidate_weights.py` | 241 | `if __name__ == "__main__": sys.exit(main())` |
 | `open_prep/feature_importance_report.py` | 358 | same |
 | `open_prep/outcome_backfill.py` | 529 | same |
 | `pine_input_surface.py` | 400, 402 | argparse `args.cmd` dispatch |
 | `test_usi_lint.py` | 94, 97 | top-level CLI script |
-| `tools/check_audit_doc_consistency.py` | 136 | strict-mode CLI wrapper |
-| `tools/check_defaults_table.py` | 250 | strict-mode CLI wrapper |
 
 Any new site requires a ledger entry — review opportunity to confirm
 it's a real CLI entry-point, not library code.

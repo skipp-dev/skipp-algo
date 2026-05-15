@@ -43,6 +43,44 @@ from ml.training import XGBFamilyTrainer, LogisticBaseline
 trainer_cls = XGBFamilyTrainer if XGBFamilyTrainer.available else LogisticBaseline
 ```
 
+## GPU research workflow and artifacts
+
+The routed workflow `.github/workflows/ml-family-research.yml` exercises the
+synthetic family datasets in three modes:
+
+- `train` → `artifacts/ml/research/training/latest.json`
+- `explainability` → `artifacts/ml/research/explainability/latest.json`
+  plus `latest.md`
+- `tune` → `artifacts/ml/research/optuna/latest.json`
+
+The runtime device selector is `SKIPP_ML_DEVICE=auto|cpu|cuda`. Important
+contract: `cuda` is a **request**, not a guarantee. The payload and workflow
+summary surface the actual outcome via:
+
+- top-level `resolved_devices`
+- per-family `resolved_device`
+- per-family `device_fallback_reason`
+
+Typical fallback reasons:
+
+- `logistic_cpu_only` — logistic baseline has no GPU implementation
+- `requested_cuda_unavailable` — explicit CUDA request fell back to CPU
+- `auto_cuda_unavailable` — `auto` tried CUDA first and then used CPU
+
+`xgboost` is the most reliable GPU backend on the Windows/self-hosted runner.
+`lightgbm` is supported on a best-effort basis and may still resolve to CPU on
+some local installations even when `prefer_gpu=true`; that is why the workflow
+probes the backend and then writes the resolved device into the artifact.
+
+Example local runs:
+
+```powershell
+$env:SKIPP_ML_DEVICE = "cuda"
+python scripts/run_ml_family_training.py --backend xgboost --device $env:SKIPP_ML_DEVICE
+python scripts/run_ml_explainability_report.py --backend xgboost --device $env:SKIPP_ML_DEVICE
+python scripts/run_ml_optuna_tuning.py --backend xgboost --device $env:SKIPP_ML_DEVICE --trials 12
+```
+
 ## Live-data readiness
 
 The contract is designed so that switching from synthetic smoke tests to live
@@ -65,6 +103,7 @@ fixtures. Additional focused validation lives in
 ## Sources
 
 - Master plan: [`docs/SPRINT_PLAN_C10_ML_LAYER_2026-04-26.md`](../docs/SPRINT_PLAN_C10_ML_LAYER_2026-04-26.md)
+- Routed workflow: [`.github/workflows/ml-family-research.yml`](../.github/workflows/ml-family-research.yml)
 - EventFamily / FamilyScoringMetrics: [`smc_core/scoring.py`](../smc_core/scoring.py)
 - HERO vocabulary: [`scripts/smc_hero_state.py`](../scripts/smc_hero_state.py)
 - HERO drift test: [`tests/test_hero_observed_vocab_pin.py`](../tests/test_hero_observed_vocab_pin.py)

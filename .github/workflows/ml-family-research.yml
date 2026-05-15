@@ -1,0 +1,433 @@
+# live-window: off-hours-only  # ML-RESEARCH-GPU (2026-05-15)
+name: ml-family-research
+
+on:
+  schedule:
+    - cron: "30 10 * * 0"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Research mode: train | explainability | tune"
+        required: false
+        default: "explainability"
+        type: choice
+        options:
+          - train
+          - explainability
+          - tune
+      backend:
+        description: "Model backend: logistic | xgboost | lightgbm"
+        required: false
+        default: "xgboost"
+        type: choice
+        options:
+          - logistic
+          - xgboost
+          - lightgbm
+      families:
+        description: "Comma-separated family list"
+        required: false
+        default: "BOS,OB,FVG,SWEEP"
+        type: string
+      prefer_gpu:
+        description: "Prefer the GPU-labelled self-hosted runner when available"
+        required: false
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+      samples_per_family:
+        description: "Synthetic samples per family"
+        required: false
+        default: "900"
+        type: string
+      feature_count:
+        description: "Synthetic feature count"
+        required: false
+        default: "16"
+        type: string
+      trials:
+        description: "Optuna trials when mode=tune"
+        required: false
+        default: "12"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ml-family-research
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  select-runner:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    outputs:
+      runs_on_json: ${{ steps.resolve.outputs.runs_on_json }}
+      runner_environment: ${{ steps.resolve.outputs.runner_environment }}
+      resolution_reason: ${{ steps.resolve.outputs.resolution_reason }}
+      matched_runner_name: ${{ steps.resolve.outputs.matched_runner_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: ./.github/actions/setup-python-pinned
+
+      - name: Resolve worker runner
+        id: resolve
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+        run: |
+          PREFER_GPU="${{ inputs.prefer_gpu || 'true' }}"
+          if [[ "$PREFER_GPU" == "true" ]]; then
+            CUSTOM_LABEL="${{ vars.SMC_PRIORITY_CRON_GPU_SELF_HOSTED_LABEL || vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || vars.SMC_SELF_HOSTED_LABEL }}"
+          else
+            CUSTOM_LABEL="${{ vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || vars.SMC_SELF_HOSTED_LABEL }}"
+          fi
+          python scripts/resolve_workflow_runner.py \
+            --repository "${{ github.repository }}" \
+            --hosted-runner "${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}" \
+            --custom-label "$CUSTOM_LABEL"
+
+  research:
+    needs: select-runner
+    runs-on: ${{ fromJson(needs.select-runner.outputs.runs_on_json) }}
+    timeout-minutes: 45
+    steps:
+      - name: Announce selected runner
+        run: |
+          echo "runner_environment=${{ needs.select-runner.outputs.runner_environment }}"
+          echo "resolution_reason=${{ needs.select-runner.outputs.resolution_reason }}"
+          echo "matched_runner_name=${{ needs.select-runner.outputs.matched_runner_name }}"
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Set up pinned Python (GitHub-hosted)
+        if: needs.select-runner.outputs.runner_environment == 'github-hosted'
+        uses: ./.github/actions/setup-python-pinned
+        with:
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-ml.txt
+
+      - name: Resolve Python 3.12 interpreter
+        run: |
+          if [[ "${{ needs.select-runner.outputs.runner_environment }}" == "github-hosted" ]]; then
+            python -c "import sys; raise SystemExit('GitHub-hosted Python bootstrap did not resolve Python 3.12.' if sys.version_info[:2] != (3, 12) else 0)"
+            echo "SMC_PYTHON_BIN=python" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          if command -v python >/dev/null 2>&1; then
+            if python -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 12) else 1)"; then
+              echo "SMC_PYTHON_BIN=python" >> "$GITHUB_ENV"
+              exit 0
+            fi
+          fi
+
+          if command -v py >/dev/null 2>&1; then
+            python_bin="$(py -3.12 -c \"import sys; print(sys.executable)\")"
+            echo "SMC_PYTHON_BIN=$python_bin" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          echo "::error::Self-hosted runner is missing a usable Python 3.12 interpreter (tried \`python\` and \`py -3.12\`)."
+          exit 1
+
+      - name: Install dependencies
+        run: |
+          "$SMC_PYTHON_BIN" -m pip install --upgrade pip
+          "$SMC_PYTHON_BIN" -m pip install -r requirements.txt
+          "$SMC_PYTHON_BIN" -m pip install -r requirements-ml.txt
+
+      - name: Resolve research parameters
+        id: params
+        run: |
+          MODE="${{ inputs.mode || 'explainability' }}"
+          BACKEND="${{ inputs.backend || 'xgboost' }}"
+          FAMILIES="${{ inputs.families || 'BOS,OB,FVG,SWEEP' }}"
+          PREFER_GPU="${{ inputs.prefer_gpu || 'true' }}"
+          if [[ "$PREFER_GPU" == "true" ]]; then
+            REQUESTED_DEVICE="cuda"
+          else
+            REQUESTED_DEVICE="cpu"
+          fi
+          SAMPLES="${{ inputs.samples_per_family || '900' }}"
+          FEATURES="${{ inputs.feature_count || '16' }}"
+          TRIALS="${{ inputs.trials || '12' }}"
+          case "$MODE" in
+            train) ARTIFACT_DIR="artifacts/ml/research/training" ;;
+            explainability) ARTIFACT_DIR="artifacts/ml/research/explainability" ;;
+            tune) ARTIFACT_DIR="artifacts/ml/research/optuna" ;;
+            *)
+              echo "::error::Unsupported mode $MODE"
+              exit 1
+              ;;
+          esac
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+          echo "backend=$BACKEND" >> "$GITHUB_OUTPUT"
+          echo "families=$FAMILIES" >> "$GITHUB_OUTPUT"
+          echo "prefer_gpu=$PREFER_GPU" >> "$GITHUB_OUTPUT"
+          echo "requested_device=$REQUESTED_DEVICE" >> "$GITHUB_OUTPUT"
+          echo "samples=$SAMPLES" >> "$GITHUB_OUTPUT"
+          echo "features=$FEATURES" >> "$GITHUB_OUTPUT"
+          echo "trials=$TRIALS" >> "$GITHUB_OUTPUT"
+          echo "artifact_dir=$ARTIFACT_DIR" >> "$GITHUB_OUTPUT"
+
+      - name: Probe ML runtime
+        id: runtime
+        run: |
+          set -euo pipefail
+          if [[ "${{ needs.select-runner.outputs.runner_environment }}" != "self-hosted" || "${{ steps.params.outputs.prefer_gpu }}" != "true" ]]; then
+            echo "cuda_ready=false" >> "$GITHUB_OUTPUT"
+            echo "probe_reason=cpu_path_selected" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          ML_BACKEND="${{ steps.params.outputs.backend }}" "$SMC_PYTHON_BIN" - <<'PY'
+          import os
+          from pathlib import Path
+
+          import numpy as np
+
+          output_path = Path(os.environ["GITHUB_OUTPUT"])
+          backend = os.environ["ML_BACKEND"]
+          cuda_ready = False
+          reason = "unsupported_backend"
+
+          if backend == "logistic":
+              reason = "logistic_cpu_only"
+          else:
+              X = np.asarray(
+                  [
+                      [0.0, 0.0, 0.0, 0.0],
+                      [0.0, 1.0, 0.0, 1.0],
+                      [1.0, 0.0, 1.0, 0.0],
+                      [1.0, 1.0, 1.0, 1.0],
+                      [0.2, 0.8, 0.1, 0.9],
+                      [0.8, 0.2, 0.9, 0.1],
+                      [0.3, 0.7, 0.2, 0.8],
+                      [0.7, 0.3, 0.8, 0.2],
+                  ],
+                  dtype=float,
+              )
+              y = np.asarray([0, 0, 1, 1, 0, 1, 0, 1], dtype=int)
+              try:
+                  if backend == "xgboost":
+                      import xgboost as xgb  # type: ignore
+
+                      model = xgb.XGBClassifier(
+                          max_depth=2,
+                          learning_rate=0.1,
+                          n_estimators=4,
+                          subsample=1.0,
+                          colsample_bytree=1.0,
+                          reg_lambda=1.0,
+                          objective="binary:logistic",
+                          eval_metric="logloss",
+                          random_state=0,
+                          tree_method="hist",
+                          device="cuda",
+                      )
+                  elif backend == "lightgbm":
+                      import lightgbm as lgb  # type: ignore
+
+                      model = lgb.LGBMClassifier(
+                          num_leaves=15,
+                          learning_rate=0.1,
+                          n_estimators=4,
+                          feature_fraction=1.0,
+                          bagging_fraction=1.0,
+                          reg_lambda=1.0,
+                          objective="binary",
+                          metric="binary_logloss",
+                          random_state=0,
+                          verbose=-1,
+                          device_type="gpu",
+                      )
+                  else:
+                      raise ValueError(f"unsupported backend {backend!r}")
+
+                  model.fit(X, y)
+                  model.predict_proba(X[:2])
+                  cuda_ready = True
+                  reason = "probe_succeeded"
+              except Exception as exc:
+                  reason = f"{backend}_cuda_unavailable:{type(exc).__name__}"
+
+          with output_path.open("a", encoding="utf-8") as fh:
+              fh.write(f"cuda_ready={'true' if cuda_ready else 'false'}\n")
+              fh.write(f"probe_reason={reason}\n")
+          PY
+
+      - name: Select ML device
+        run: |
+          echo "SKIPP_ML_DEVICE=${{ steps.params.outputs.requested_device }}" >> "$GITHUB_ENV"
+          if [[ "${{ steps.params.outputs.requested_device }}" != "cuda" ]]; then
+            echo "::notice::ML research is running on the CPU path."
+          elif [[ "${{ needs.select-runner.outputs.runner_environment }}" == "self-hosted" && "${{ steps.runtime.outputs.cuda_ready }}" == "true" ]]; then
+            echo "::notice::ML research requested the GPU backend (${{ steps.params.outputs.backend }}) and the probe succeeded."
+          elif [[ "${{ needs.select-runner.outputs.runner_environment }}" == "self-hosted" ]]; then
+            echo "::warning::ML research requested GPU but the backend probe failed (${{ steps.runtime.outputs.probe_reason }}). The workflow keeps requested_device=cuda so the artifact can show the CPU fallback honestly."
+          else
+            echo "::warning::ML research requested GPU but the hosted fallback runner was selected. The workflow keeps requested_device=cuda so the artifact can show the CPU fallback honestly."
+          fi
+
+      - name: Run research mode
+        run: |
+          set -euo pipefail
+          case "${{ steps.params.outputs.mode }}" in
+            train)
+              "$SMC_PYTHON_BIN" -m scripts.run_ml_family_training \
+                --backend "${{ steps.params.outputs.backend }}" \
+                --device "$SKIPP_ML_DEVICE" \
+                --families "${{ steps.params.outputs.families }}" \
+                --samples-per-family "${{ steps.params.outputs.samples }}" \
+                --feature-count "${{ steps.params.outputs.features }}" \
+                --output-path "${{ steps.params.outputs.artifact_dir }}/latest.json" \
+                2>&1 | tee ml_family_research.log
+              ;;
+            explainability)
+              "$SMC_PYTHON_BIN" -m scripts.run_ml_explainability_report \
+                --backend "${{ steps.params.outputs.backend }}" \
+                --device "$SKIPP_ML_DEVICE" \
+                --families "${{ steps.params.outputs.families }}" \
+                --samples-per-family "${{ steps.params.outputs.samples }}" \
+                --feature-count "${{ steps.params.outputs.features }}" \
+                --output-path "${{ steps.params.outputs.artifact_dir }}/latest.json" \
+                --markdown-path "${{ steps.params.outputs.artifact_dir }}/latest.md" \
+                2>&1 | tee ml_family_research.log
+              ;;
+            tune)
+              "$SMC_PYTHON_BIN" -m scripts.run_ml_optuna_tuning \
+                --backend "${{ steps.params.outputs.backend }}" \
+                --device "$SKIPP_ML_DEVICE" \
+                --families "${{ steps.params.outputs.families }}" \
+                --samples-per-family "${{ steps.params.outputs.samples }}" \
+                --feature-count "${{ steps.params.outputs.features }}" \
+                --trials "${{ steps.params.outputs.trials }}" \
+                --output-path "${{ steps.params.outputs.artifact_dir }}/latest.json" \
+                2>&1 | tee ml_family_research.log
+              ;;
+          esac
+
+      - name: Summarise ML artifact
+        id: artifact
+        if: always()
+        env:
+          ML_ARTIFACT_PATH: ${{ steps.params.outputs.artifact_dir }}/latest.json
+        run: |
+          set -euo pipefail
+          if [[ ! -f "$ML_ARTIFACT_PATH" ]]; then
+            echo "requested_device=${SKIPP_ML_DEVICE:-unknown}" >> "$GITHUB_OUTPUT"
+            echo "resolved_devices=unknown" >> "$GITHUB_OUTPUT"
+            echo "gpu_requested_but_not_used=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "fallback_reasons<<EOF"
+              echo "none"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          "$SMC_PYTHON_BIN" - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          output_path = Path(os.environ["GITHUB_OUTPUT"])
+          artifact_path = Path(os.environ["ML_ARTIFACT_PATH"])
+          payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+          requested = str(payload.get("requested_device") or os.environ.get("SKIPP_ML_DEVICE") or "unknown")
+
+          resolved: set[str] = set()
+          fallbacks: list[str] = []
+          mode = str(payload.get("mode") or "")
+          if mode in {"train", "explainability"}:
+              for row in payload.get("family_reports", []):
+                  dev = row.get("resolved_device")
+                  if dev:
+                      resolved.add(str(dev))
+                  reason = row.get("device_fallback_reason")
+                  if reason:
+                      fallbacks.append(f"{row.get('family', '?')}:{reason}")
+          elif mode == "tune":
+              for dev in payload.get("best_resolved_devices", []) or []:
+                  resolved.add(str(dev))
+              if not resolved:
+                  for trial in payload.get("trial_summaries", []):
+                      for dev in trial.get("resolved_devices", []):
+                          resolved.add(str(dev))
+              best_trial_number = payload.get("best_trial_number")
+              for trial in payload.get("trial_summaries", []):
+                  if best_trial_number is not None and trial.get("number") != best_trial_number:
+                      continue
+                  for family, metrics in (trial.get("family_metrics") or {}).items():
+                      reason = metrics.get("device_fallback_reason")
+                      if reason:
+                          fallbacks.append(f"{family}:{reason}")
+
+          resolved_devices = ",".join(sorted(resolved)) or "unknown"
+          fallback_text = "; ".join(sorted(dict.fromkeys(fallbacks))) if fallbacks else "none"
+          gpu_requested_but_not_used = requested == "cuda" and "cuda" not in resolved
+
+          with output_path.open("a", encoding="utf-8") as fh:
+              fh.write(f"requested_device={requested}\n")
+              fh.write(f"resolved_devices={resolved_devices}\n")
+              fh.write(f"gpu_requested_but_not_used={'true' if gpu_requested_but_not_used else 'false'}\n")
+              fh.write("fallback_reasons<<EOF\n")
+              fh.write(fallback_text + "\n")
+              fh.write("EOF\n")
+          PY
+
+      - name: Warn on ML fallback
+        if: ${{ always() && (steps.artifact.outputs.gpu_requested_but_not_used == 'true' || steps.artifact.outputs.fallback_reasons != 'none') }}
+        run: |
+          echo "::warning::ML research requested device=${{ steps.artifact.outputs.requested_device || 'unknown' }} resolved devices=${{ steps.artifact.outputs.resolved_devices }} fallback_reasons=${{ steps.artifact.outputs.fallback_reasons }}"
+
+      - name: Write step summary
+        if: always()
+        run: |
+          REQUESTED_DEVICE="${{ steps.artifact.outputs.requested_device || '' }}"
+          if [[ -z "$REQUESTED_DEVICE" ]]; then
+            REQUESTED_DEVICE="${SKIPP_ML_DEVICE:-unknown}"
+          fi
+          {
+            echo "## ml-family-research"
+            echo ""
+            echo "- mode: \`${{ steps.params.outputs.mode }}\`"
+            echo "- backend: \`${{ steps.params.outputs.backend }}\`"
+            echo "- requested device: \`$REQUESTED_DEVICE\`"
+            echo "- resolved devices: \`${{ steps.artifact.outputs.resolved_devices || 'unknown' }}\`"
+            echo "- fallback reasons: \`${{ steps.artifact.outputs.fallback_reasons || 'none' }}\`"
+            echo "- GPU probe: \`${{ steps.runtime.outputs.probe_reason || 'not-run' }}\`"
+            echo "- runner environment: \`${{ needs.select-runner.outputs.runner_environment }}\`"
+            echo "- artifact dir: \`${{ steps.params.outputs.artifact_dir }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload research artifact
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ml-family-research-${{ steps.params.outputs.mode }}-${{ github.run_id }}
+          path: |
+            ml_family_research.log
+            ${{ steps.params.outputs.artifact_dir }}/
+          if-no-files-found: ignore
+          retention-days: 30

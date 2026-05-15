@@ -2,13 +2,11 @@
 
 Pine Script v6 Signal Engine · Real-Time News Intelligence Dashboard · Pre-Open Briefing Pipeline
 
-SkippALGO is a modular trading intelligence platform combining three operator-facing systems plus two implementation layers:
+SkippALGO is a modular trading intelligence platform combining three core systems:
 
 1. **SkippALGO Pine Script** — non-repainting signal engine with a decision-first HUD plus Lite Outlook and Forecast panels for TradingView.
-2. **Real-Time News Intelligence Dashboard** — an AI-supported **Research & Monitoring Terminal** with 11 active top-level tabs for **News Intelligence + Alerting** and operational market monitoring.
+2. **Real-Time News Intelligence Dashboard** — an AI-supported **Research & Monitoring Terminal** with 19 tabs for **News Intelligence + Alerting** and operational market monitoring.
 3. **Open-Prep Pipeline** — automated pre-open briefing system with ranked candidates, macro context, and structured trade cards.
-4. **ML Layer (C10)** — probability, calibration, stacking, and drift scaffolding for family-level setup prediction.
-5. **RL Execution Layer (C12)** — execution/sizing scaffolding with deterministic baselines, safety rails, and optional PPO/SAC backends.
 
 ## Product Positioning & Compliance Notes
 
@@ -29,25 +27,19 @@ SkippALGO is a modular trading intelligence platform combining three operator-fa
 Use a repo-local `.venv` so VS Code tasks, the Testing panel, and the Python
 extension all resolve the same interpreter.
 
-Supported bootstrap paths:
+Supported bootstrap commands:
 
 ```bash
-# macOS / Linux (and Git Bash on Windows)
+# macOS / Linux
 SKIPP_VENV=.venv ./scripts/bootstrap_venv.sh
 
-# Windows PowerShell (manual fallback; no tracked bootstrap_venv.ps1 is shipped)
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-pip install -r requirements.txt
+# Windows PowerShell
+./scripts/bootstrap_venv.ps1 -VenvPath .venv
 ```
 
-The tracked shell bootstrap script creates (or reuses) a venv, installs every
-runtime + test dependency from `requirements.txt`, and verifies that the
-provider modules used by the terminal (`databento`, `tradingview_ta`, `httpx`,
-…) are importable. The PowerShell fallback above gives Windows users the same
-repo-local `.venv` layout even though there is no tracked `bootstrap_venv.ps1`
-in this repository.
+Both commands create (or reuse) a venv, install every runtime + test
+dependency from `requirements.txt`, and verify that the provider modules used
+by the terminal (`databento`, `tradingview_ta`, `httpx`, …) are importable.
 
 Optional GPU acceleration for the Open-Prep feature-importance loop is kept in
 `requirements-gpu.txt`. On a CUDA-capable self-hosted runner (for example the
@@ -56,24 +48,62 @@ local RTX-based Actions runner), install that file and set
 `auto`, `cpu`, and `gpu`; `OPEN_PREP_FI_GPU_DEVICE` optionally selects the CUDA
 device index when more than one GPU is visible.
 
-PowerShell-safe Open-Prep example:
+Optional offline research stacks are split out so production installs stay
+lean:
+
+- `requirements-ml.txt` for XGBoost / LightGBM / SHAP / Optuna family-model
+  experiments
+- `requirements-rl.txt` for PPO / SAC execution-agent research
+- `requirements-rl-gpu.txt` as the CUDA-enabled torch override for the
+  self-hosted RL GPU runner
+
+Common research/runtime selectors:
+
+| Variable | Accepted values | Used by | Notes |
+| --- | --- | --- | --- |
+| `OPEN_PREP_FI_BACKEND` | `auto`, `cpu`, `gpu` | `open_prep.feature_importance_report` | GPU path requires `requirements-gpu.txt` |
+| `OPEN_PREP_FI_GPU_DEVICE` | integer device index | `open_prep.outcomes` GPU backend | Optional; defaults to device `0` |
+| `SKIPP_ML_DEVICE` | `auto`, `cpu`, `cuda` | `scripts/run_ml_*` | `cuda` is a request; inspect `resolved_devices` + `device_fallback_reason` in the JSON artifact |
+| `SKIPP_RL_DEVICE` | `auto`, `cpu`, `cuda` | `scripts/run_rl_research_training.py` | `cuda` is only honored when torch reports CUDA availability |
+
+For RL specifically, install `requirements-rl-gpu.txt` after
+`requirements-rl.txt` if you want a CUDA-enabled PyTorch build; the generic
+Windows wheel from PyPI is CPU-only.
+
+PowerShell-safe examples:
 
 ```powershell
+# Open Prep feature-importance on the CuPy backend
 $env:OPEN_PREP_FI_BACKEND = "gpu"
 $env:OPEN_PREP_FI_GPU_DEVICE = "0"
 python -m open_prep.feature_importance_report --lookback 30
+
+# ML family research (requested device is recorded separately from resolved devices)
+$env:SKIPP_ML_DEVICE = "cuda"
+python scripts/run_ml_family_training.py --backend xgboost --device $env:SKIPP_ML_DEVICE
+
+# RL research with the CUDA torch override on Windows/self-hosted
+python -m pip install -r requirements-rl.txt
+python -m pip install --force-reinstall -r requirements-rl-gpu.txt
+$env:SKIPP_RL_DEVICE = "cuda"
+python scripts/run_rl_research_training.py --agent ppo --device $env:SKIPP_RL_DEVICE
 ```
 
-This mainline branch already contains the `ml/` and `rl/` implementation
-layers, but the synthetic GPU research automation workstream currently lives on
-the parallel branch `fix/live-runner-routing-unblock-ml-rl-gpu`. Do not assume
-that `ml-family-research.yml`, `rl-research-training.yml`, or the newer
-`scripts/run_ml_*` / `scripts/run_rl_research_training.py` entrypoints are
-present on this branch until that work is merged.
+For the offline research workflows, the canonical artifact roots are:
 
-If you use VS Code, point the Python extension and the Testing panel at the
-repo-local `.venv` interpreter so the editor, tasks, and terminal runs stay in
-sync.
+- `artifacts/ml/research/training/latest.json`
+- `artifacts/ml/research/explainability/latest.json`
+- `artifacts/ml/research/explainability/latest.md`
+- `artifacts/ml/research/optuna/latest.json`
+- `artifacts/rl/research/latest.json`
+
+The GPU-enabled workflows surface the requested device separately from the
+runtime result. Check `resolved_devices` / `resolved_device` and any
+`device_fallback_reason` fields instead of assuming that `cuda` was actually
+used.
+
+For convenience inside VS Code, there is also a task named
+`python: bootstrap repo .venv`.
 
 > **Why a script and not `pip install -e .`?** `pyproject.toml` only declares
 > the optional `vol-regime` extra; runtime dependencies live exclusively in
@@ -123,9 +153,7 @@ The canonical SMC TradingView gate is `npm run tv:preflight:smc-mainline`.
 It validates the active mainline path `SMC_Core_Engine.pine` +
 `SMC_Dashboard.pine` + `SMC_Long_Strategy.pine` against the product-cut
 manifest.
-Automation evidence snapshots live under `automation/tradingview/reports/`.
-Regenerate fresh mainline evidence locally with
-`npm run tv:preflight:smc-mainline` before relying on a stored report.
+The latest fully green SMC mainline evidence is `automation/tradingview/reports/preflight-2026-04-08T12-37-12-028Z.json`.
 
 Product-cut reference docs:
 
@@ -199,8 +227,6 @@ report and the Pine dashboard, on US-equity intraday data.
 - [Real-Time News Intelligence Dashboard](#real-time-news-intelligence-dashboard)
 - [Open-Prep Pipeline](#open-prep-pipeline)
 - [Databento Volatility Suite](#databento-volatility-suite)
-- [Machine Learning Layer](#machine-learning-layer-c10)
-- [RL Execution Layer](#rl-execution-layer-c12)
 - [SkippALGO Pine Script](#skippalgo-pine-script)
 - [Developer Guide](#developer-guide)
 - [Documentation Index](#documentation-index)
@@ -213,13 +239,12 @@ A self-hosted, AI-supported financial intelligence dashboard built with Streamli
 
 ### Architecture
 
-The terminal is composed of a central UI driver plus dedicated provider,
-polling, export, and tab-rendering modules:
+The terminal is composed of 16 Python modules organized around a central UI driver:
 
 ```text
 ┌──────────────────────────────────────────────────────────────────┐
-│                    streamlit_terminal.py                         │
-│              (main UI driver · 11 top-level tabs)                │
+│                    streamlit_terminal.py                          │
+│                  (4 700+ lines · 19 tabs · main UI)              │
 ├──────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  ┌─────────────────┐  ┌──────────────────┐  ┌────────────────┐  │
@@ -252,7 +277,7 @@ polling, export, and tab-rendering modules:
 │  └──────────────────┘  └──────────────────┘  └────────────────┘ │
 │                                                                  │
 │  ┌──────────────────────────────────────────────────────────────┐ │
-│  │ terminal_tabs/  (tab modules + subordinate views)           │ │
+│  │ terminal_tabs/  (18 tab modules — ~2 300 lines)             │ │
 │  │  tab_feed · tab_ai · tab_rankings · tab_segments · ...      │ │
 │  └──────────────────────────────────────────────────────────────┘ │
 │                                                                  │
@@ -268,7 +293,7 @@ polling, export, and tab-rendering modules:
 
 | Module | Lines | Purpose |
 | ------ | ----- | ------- |
-| `streamlit_terminal.py` | ~4 700 | Main Streamlit UI — 11 top-level tabs, sidebar, polling orchestration, alert evaluation |
+| `streamlit_terminal.py` | ~4 700 | Main Streamlit UI — 19 tabs, sidebar, polling orchestration, alert evaluation |
 | `terminal_poller.py` | ~1 300 | Polling engine — REST/FMP ingestion, dedup, classification, sector perf, defense watchlist, tomorrow outlook, power gaps |
 | `terminal_bitcoin.py` | ~950 | Bitcoin data — 10 fetch functions (quote, OHLCV, technicals, news, social, F&G, movers, exchange listings) |
 | `terminal_newsapi.py` | ~1 150 | NewsAPI.ai — breaking events, trending concepts, NLP sentiment, event-clustered news, social score ranking |
@@ -282,28 +307,32 @@ polling, export, and tab-rendering modules:
 | `terminal_background_poller.py` | ~270 | Background poller — threaded async poll loop for Streamlit session state |
 | `terminal_ui_helpers.py` | ~490 | UI formatting — sentiment badges, Streamlit column utilities |
 | `terminal_ai_insights.py` | ~285 | AI Insights engine — LLM-powered market reasoning over live feed data |
-| `terminal_tabs/` | ~2 300 | Tab rendering modules plus subordinate / shared tab views |
+| `terminal_tabs/` | ~2 300 | Tab rendering modules — one module per tab (feed, AI, rankings, etc.) |
 | `newsstack_fmp/` | ~2 500 | News pipeline — Benzinga adapters (REST, WS, calendar, financial), FMP adapter, SQLite store, scoring, enrichment |
 
-### Tabs Overview (11 active top-level tabs)
+### Tabs Overview
 
 | # | Tab | Description |
 | - | --- | ----------- |
-| 1 | 🏆 **Rankings** | Symbol-level ranking and cross-signal prioritization across the current feed |
-| 2 | 🎯 **Actionable** | High-conviction items filtered from the live feed for operator review |
-| 3 | 🧠 **AI Insights** | LLM-supported reasoning over live feed and enrichment context |
-| 4 | 🏗️ **Segments** | News grouped by event category with drill-down by segment |
-| 5 | 🔮 **Outlook** | Today and next-trading-day macro / regime summary |
-| 6 | 📰 **Live Feed** | Real-time Benzinga + FMP news with search, filters, and badge semantics |
-| 7 | ₿ **Bitcoin** | BTC quote, technicals, sentiment, and crypto-mover surfaces |
-| 8 | ⚡ **Alerts** | Alert builder, firing log, and operational alert controls |
-| 9 | 📊 **Data Table** | Export-oriented full feed table with enrichment columns |
-| 10 | 📜 **Signal Replay** | Historical replay / outcome inspection for signal review |
-| 11 | 🩺 **Provider Health** | Provider status, freshness, and health diagnostics |
-
-Some legacy surfaces such as movers, spikes, and provider-specific diagnostics
-now live as sections or subordinate views inside these active top-level tabs
-instead of separate primary tabs.
+| 1 | 📰 **Live Feed** | Real-time Benzinga + FMP news with 16-category NLP classifier, full-text search, and date filters |
+| 2 | 🤖 **AI Insights** | LLM-powered market analysis — structured reasoning over live feed + TradingView technicals with cached responses |
+| 3 | 🏆 **Rankings** | Symbol-level news scoring with aggregated sentiment, volume signals, and RT quote overlay |
+| 4 | � **Actionable** | High-conviction trade setups ranked by composite news + technical score with Tech badges |
+| 5 | �🏗️ **Segments** | News items grouped by 16 event categories (earnings, M&A, FDA, macro, etc.) |
+| 6 | ₿ **Bitcoin** | BTC dashboard: price, chart, technicals, Fear & Greed, news, social sentiment, crypto movers |
+| 7 | ⚡ **RT Spikes** | Sub-minute real-time price spike detection from consecutive quote snapshots |
+| 8 | 🚨 **Spikes** | FMP biggest gainers/losers/most-actives with batch-quote enrichment |
+| 9 | 🗺️ **Heatmap** | Plotly treemap sector heatmap of market performance |
+| 10 | 📅 **Calendar** | FMP economic calendar with impact filters |
+| 11 | 🔮 **Outlook** | Today & next-trading-day composite forecast (traffic light system) |
+| 12 | 🔥 **Top Movers** | FMP gainers/losers enriched with Benzinga delayed quotes during extended hours |
+| 13 | 💹 **Movers** | Benzinga movers with gainers/losers sub-tabs + Tech badges |
+| 14 | 🛡️ **Defense & Aerospace** | A&D watchlist quotes + industry performance screen + Tech badges |
+| 15 | 🔴 **Breaking** | NewsAPI.ai breaking events with article counts, sentiment, social scores |
+| 16 | 📈 **Trending** | NewsAPI.ai trending concepts and entities across global news |
+| 17 | 🔥 **Social** | Social sentiment scoring and viral article detection |
+| 18 | ⚡ **Alerts** | Compound alert builder with configurable rules and webhook dispatch |
+| 19 | 📊 **Data Table** | Full data export table with all enrichment columns |
 
 ### Live Feed Score Badge Semantics
 
@@ -350,8 +379,8 @@ cd skipp-algo
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# 2. Create `.env` manually
-# (the repo does not currently ship a tracked `.env.example`)
+# 2. Configure API keys
+cp .env.example .env   # or create .env manually
 # Required:
 #   BENZINGA_API_KEY=your_key
 # Optional (enables more tabs / surfaces):
@@ -722,68 +751,6 @@ For the full operational and technical workflow, see `docs/DATABENTO_VOLATILITY_
 
 ---
 
-## Machine Learning Layer (C10)
-
-`ml/` contains the family-level probability layer that sits downstream of the
-SMC scoring vocabulary. The always-on path is pure NumPy
-(`LogisticBaseline`), while heavier backends are optional and live behind
-`requirements-ml.txt`.
-
-Current implemented surfaces include:
-
-- calibration (`PlattCalibrator`, `IsotonicCalibrator`, conformal wrappers)
-- constrained stacking (`ml/stacking/meta_learner.py`)
-- probability drift evaluation (`MLDriftDetector`, PSI trend helpers)
-- thread-safe inference registry (`ml/inference/family_predictor.py`)
-
-Start here:
-
-- `ml/README.md`
-- `docs/SPRINT_PLAN_C10_ML_LAYER_2026-04-26.md`
-- `tests/test_ml_layer_smoke.py`
-- `tests/test_conformal_coverage.py`
-- `tests/test_meta_learner_smoke.py`
-
-Optional heavy backends:
-
-```bash
-pip install -r requirements-ml.txt
-```
-
----
-
-## RL Execution Layer (C12)
-
-`rl/` contains execution/sizing scaffolding that sits downstream of the
-signal + ML stack. The deterministic baseline path is NumPy-first
-(TWAP/VWAP slicers, Almgren-Chriss calibrator, execution simulator,
-hard-constraint safety layer); PPO/SAC agents are optional and gated behind
-`requirements-rl.txt`.
-
-Current implemented surfaces include:
-
-- deterministic baselines (`rl/baselines/twap.py`, `rl/baselines/vwap.py`)
-- optional agents (`rl/agents/ppo_slicer.py`, `rl/agents/sac_sizer.py`)
-- safety guardrails (`rl/safety.HardConstraintLayer`)
-- C12.1 extensions (`rl/extensions.py` for CVaR, adversarial replay,
-  walk-forward, and constraint-hit logs)
-
-Start here:
-
-- `rl/README.md`
-- `docs/SPRINT_PLAN_C12_RL_EXECUTION_2026-04-26.md`
-- `scripts/check_c12_trigger.py`
-- `tests/test_rl_execution_smoke.py`
-- `tests/test_rl_extensions_c12_1.py`
-
-Optional heavy backends:
-
-```bash
-pip install -r requirements-rl.txt
-```
-
----
-
 ## SkippALGO Pine Script
 
 - **Latest (v6.3.13 — Pine Script v6)**
@@ -799,16 +766,10 @@ Pine Script v6 signal engine with non-repainting core logic and intrabar alerts/
 
 ### Quick Start (Pine)
 
-1. Add the canonical SMC mainline stack to your TradingView chart:
-  - `SMC_Core_Engine.pine`
-  - `SMC_Dashboard.pine`
-  - `SMC_Long_Strategy.pine`
+1. Add `SkippALGO.pine` to your TradingView chart.
 2. Start with default horizons (1m–1d) and `predBins=3`.
 3. Let calibration warm up (watch sample sufficiency in Forecast rows).
 4. Read **Outlook first**, then confirm with **Forecast** probabilities.
-
-For the reproducible setup and publish path, see
-`docs/smc-mainline-setup-runbook.md` and `docs/README.md`.
 
 ### Signal Modes
 
@@ -861,19 +822,18 @@ The long-dip engine now uses a four-layer model so the same confluence is not co
 
 This keeps Ready as the main handoff point: lifecycle must be valid, hard gates must release, context quality must pass, and only then can Best or Strict add their own upgrade modules.
 
-### Representative tracked Pine entry points
+### Additional Pine Scripts
 
 | Script | Description |
 | ------ | ----------- |
-| `SMC_Core_Engine.pine` | Canonical core consumer for the active SMC mainline |
-| `SMC_Dashboard.pine` | Decision-first dashboard / HUD surface |
-| `SMC_Long_Strategy.pine` | Strategy / staging layer for the SMC mainline |
-| `SMC_Hold_Manager.pine` | Hold-management companion surface |
-| `SMC_Breakout_Overlay.pine` | Breakout visualization overlay |
-| `SMC_Imbalance_Context.pine` | Imbalance-context visualization |
-| `SMC_Orderflow_Overlay.pine` | Orderflow / microstructure overlay |
-| `SMC_TV_Bridge.pine` | TradingView bridge surface |
-| `SkippALGO_Confluence.pine` | Legacy confluence-oriented Pine surface kept in-tree |
+| `SkippALGO_Strategy.pine` | Strategy version with backtesting |
+| `SkippALGO_Lite.pine` | Lightweight variant |
+| `SkippALGO_Mid.pine` / `SkippALGO_Mid_Strategy.pine` | Mid-tier variants |
+| `QuickALGO.pine` | Score+Verify optimized logic |
+| `VWAP_Long_Reclaim_*.pine` | VWAP reclaim strategies (BUY/EXIT/SHORT/COVER alerts) |
+| `CHOCH-*.pine` | Change-of-Character variants (fast mode with Same-Bar Verify + early context markers) |
+| `USI-CHOCH.pine` | USI + CHoCH hybrid with VWAP context, BEST Bullish CHoCH, Anticipation (A↑/A↓), Momentum Pre-CHoCH (M↑/M↓), and dedicated early-signal alerts |
+| `BTC 3m EV Scalper BALANCED (Harmonized).pine` | BTC scalper |
 
 ---
 
@@ -882,11 +842,8 @@ This keeps Ready as the main handoff point: lifecycle must be valid, hard gates 
 ### Tests
 
 ```bash
-# Focused file (repo default is xdist `-n 4 --dist=loadfile`)
+# Focused file / VS Code Testing panel (serial on purpose)
 python -m pytest tests/test_production_gatekeeper.py -q
-
-# Interactive debugging / breakpoints
-python -m pytest tests/test_production_gatekeeper.py -q -n0
 
 # Local fast sweep (explicit parallelism)
 python -m pytest tests/ -q --maxfail=1 -n 8 --dist=worksteal
@@ -899,15 +856,16 @@ python -m pytest tests/ -q --maxfail=1 -n auto --dist=worksteal \
   --cov --cov-report=term-missing:skip-covered
 ```
 
-Local default pytest addopts are pinned in `pyproject.toml` to
-`-n 4 --dist=loadfile`. That gives fast local parallelism while keeping each
-test file on a single worker. For interactive debugging (`pdb`, breakpoints,
-single-worker determinism), override with `-n0`. CI still overrides to
-`-n auto` explicitly on the workflow command line.
+The repo now keeps the default local pytest configuration serial so focused
+suite runs from the VS Code Testing panel do not inherit a global xdist
+configuration that can underutilize hardware on a single large test file.
+Use the VS Code tasks for explicit local modes:
 
-The repository does not currently ship tracked VS Code task definitions, so
-any local tasks you use for pytest/bootstrap should be treated as
-workspace-specific helpers rather than canonical repo interfaces.
+- `pytest: focused current file`
+- `pytest: debug current file`
+- `pytest: local fast (8 workers)`
+- `pytest: CI parity (PR)`
+- `pytest: push-like coverage`
 
 For GPU validation of the Open-Prep feature-importance path, install
 `requirements-gpu.txt` into `.venv` and run the recurring report with
@@ -916,11 +874,36 @@ Generated reports are written to `artifacts/open_prep/feature_importance/`,
 while the raw daily feature-importance samples continue to accumulate under
 `artifacts/open_prep/outcomes/feature_importance/`.
 
-The ML/RL READMEs in this branch describe the implementation-layer contracts and
-the currently landed scaffolding. The routed GPU research workflows and their
-dedicated command-line entrypoints remain a parallel-branch concern for now, so
-keep mainline documentation branch-real and avoid linking to absent workflow
-files.
+For offline ML / RL research on the same runner, install the optional stacks
+and invoke the dedicated scripts directly:
+
+```bash
+# GPU-capable family-model training (XGBoost / LightGBM / logistic fallback)
+python scripts/run_ml_family_training.py --backend xgboost --device cuda
+
+# SHAP explainability report for the same synthetic family datasets
+python scripts/run_ml_explainability_report.py --backend xgboost --device cuda
+
+# Optuna sweeps over the family-model hyperparameters
+python scripts/run_ml_optuna_tuning.py --backend xgboost --device cuda --trials 12
+
+# Research-only RL training (PPO or SAC) on the synthetic execution env
+python scripts/run_rl_research_training.py --agent ppo --device cuda --total-timesteps 5000
+```
+
+The matching routed workflows are `.github/workflows/ml-family-research.yml`
+and `.github/workflows/rl-research-training.yml`. Both prefer the GPU-labelled
+self-hosted runner when `prefer_gpu=true`, but both now also publish the actual
+resolved device in the step summary and artifact payload so CPU fallbacks are
+visible instead of silently implied away.
+
+For a full CUDA RL stack on the self-hosted runner, install the GPU override
+after the base RL requirements:
+
+```bash
+python -m pip install -r requirements-rl.txt
+python -m pip install --force-reinstall -r requirements-rl-gpu.txt
+```
 
 ### Linting & Type Checking
 
@@ -940,7 +923,7 @@ Configuration is centralized in `pyproject.toml`.
 
 ```text
 skipp-algo/
-├── streamlit_terminal.py          # Real-Time News Intelligence Dashboard (11 top-level tabs)
+├── streamlit_terminal.py          # Real-Time News Intelligence Dashboard (19 tabs)
 ├── terminal_poller.py             # Polling engine (news + FMP + classification)
 ├── terminal_bitcoin.py            # Bitcoin data (10 sources)
 ├── terminal_newsapi.py            # NewsAPI.ai integration
@@ -955,7 +938,7 @@ skipp-algo/
 ├── terminal_ai_insights.py        # AI Insights engine (LLM reasoning)
 ├── terminal_ui_helpers.py         # UI formatting + sentiment helpers
 │
-├── terminal_tabs/                 # Tab rendering modules + shared helpers
+├── terminal_tabs/                 # Tab rendering modules (19 tabs)
 │   ├── tab_feed.py                # 📰 Live Feed tab
 │   ├── tab_ai.py                  # 🤖 AI Insights tab
 │   ├── tab_rankings.py            # 🏆 Rankings tab
@@ -986,15 +969,12 @@ skipp-algo/
 │   ├── alerts.py                  # Alert configuration
 │   └── watchlist.py               # Symbol watchlist management
 │
-├── ml/                            # C10 ML layer (calibration / stacking / drift)
-├── rl/                            # C12 RL execution layer (baselines / simulator / safety)
-│
 ├── databento_volatility_screener.py      # Core Databento screener engine + exports + Streamlit UI logic
 ├── streamlit_databento_volatility_screener.py # Standalone Streamlit launcher for the Databento screener
 ├── terminal_databento.py                 # Databento quote helpers for the main terminal and Open-Prep monitor
 ├── strategy_config.py                    # Long-Dip watchlist and execution defaults
 │
-├── tests/                         # Contract, regression, workflow, and smoke suites
+├── tests/                         # 1 681 tests
 ├── scripts/                       # Automation, export, watchlist, and IBKR execution scripts
 │   ├── databento_production_export.py    # Full-universe export pipeline
 │   ├── databento_smoke_test.py           # Minimal end-to-end Databento smoke run
@@ -1005,8 +985,6 @@ skipp-algo/
 ├── docs/                          # Technical docs, reviews, runbooks
 ├── *.pine                         # TradingView Pine Script v6
 ├── pyproject.toml                 # Centralized config (pytest/ruff/mypy)
-├── requirements-ml.txt            # Optional heavy ML backends
-├── requirements-rl.txt            # Optional heavy RL backends
 ├── requirements.txt               # Python dependencies
 └── CHANGELOG.md                   # Full changelog
 ```
@@ -1015,30 +993,16 @@ skipp-algo/
 
 ## Documentation Index
 
-### Repo Entry Points
-
-- [Root README](README.md)
-- [Docs Index (`docs/README.md`)](docs/README.md)
-
-### ML & RL
-
-- [ML Layer README](ml/README.md)
-- [RL Layer README](rl/README.md)
-- [Sprint Plan C10 — ML Layer](docs/SPRINT_PLAN_C10_ML_LAYER_2026-04-26.md)
-- [Sprint Plan C12 — RL Execution](docs/SPRINT_PLAN_C12_RL_EXECUTION_2026-04-26.md)
-- Parallel GPU research automation branch (not merged into this mainline yet):
-  `fix/live-runner-routing-unblock-ml-rl-gpu`
-
 ### Terminal & Operations
 
 - [Terminal Architecture Plan](docs/BLOOMBERG_TERMINAL_PLAN.md)
-- [Self-Hosted Runner Reservation Runbook](docs/self_hosted_runner_reservation_runbook.md)
 - [Databento Volatility Suite Guide](docs/DATABENTO_VOLATILITY_SUITE.md)
+- [ML Layer Guide](ml/README.md)
 - [Open Prep Suite — Technical Reference](docs/OPEN_PREP_SUITE_TECHNICAL_REFERENCE.md)
 - [Open Prep Suite — Ops Quick Reference](docs/OPEN_PREP_OPS_QUICK_REFERENCE.md)
 - [Open Prep Suite — Incident Runbook Matrix](docs/OPEN_PREP_INCIDENT_RUNBOOK_MATRIX.md)
 - [Open Prep Suite — Incident Runbook (One-Page)](docs/OPEN_PREP_INCIDENT_RUNBOOK_ONEPAGE.md)
-- [Open Prep Feature-Importance Samples](artifacts/open_prep/outcomes/feature_importance/README.md)
+- [RL Execution Guide](rl/README.md)
 - [TradersPost Integration](docs/TRADERSPOST_INTEGRATION.md)
 - [TradingView Strategy Guide](docs/TRADINGVIEW_STRATEGY_GUIDE.md)
 - [Troubleshooting Guide](docs/TROUBLESHOOTING.md)
@@ -1046,7 +1010,7 @@ skipp-algo/
 ### Pine Script
 
 - [Deep Technical Documentation](docs/SkippALGO_Deep_Technical_Documentation.md)
-- [Deep Technical Documentation (v6.2.22, archive)](docs/archive/SkippALGO_Deep_Technical_Documentation_v6.2.22.md)
+- [Deep Technical Documentation (v6.2.22)](docs/SkippALGO_Deep_Technical_Documentation_v6.2.22.md)
 - [Market Structure Guide](docs/SkippALGO_Market_Structure.md)
 - [SMC++ Dashboard Guide (DE)](docs/SMC_Dashboard_Long_Dip_Guide_DE.md)
 - [SMC Decision-First UX PRD](docs/smc-tradingview-decision-first-prd.md)

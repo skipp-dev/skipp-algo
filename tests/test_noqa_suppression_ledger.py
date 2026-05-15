@@ -84,6 +84,10 @@ _NOQA_RE = re.compile(r"#\s*noqa\b", re.IGNORECASE)
 #   streamlit binary derived from the same Python sibling path. All
 #   three sites use hardcoded argv lists; Bandit S603 is a false
 #   positive in each.
+# * ``scripts/resolve_workflow_runner.py``: queries the fixed GitHub
+#   Actions runners REST endpoint via ``urllib.request.urlopen``.
+#   Bandit S310 is a false positive because the URL is a hardcoded
+#   GitHub API path and never comes from user input.
 # * ``smc_integration/release_policy.py``: invokes ``git rev-parse HEAD``
 #   via a ``shutil.which("git")``-resolved executable with a hardcoded
 #   argv list. Bandit S603 is a false positive.
@@ -105,6 +109,7 @@ _FROZEN_SITES: dict[str, int] = {
     "scripts/resolve_workflow_runner.py": 1,
     "scripts/ib_client_id.py": 2,
     "scripts/measure_databento_ops_run.py": 2,
+    "scripts/resolve_workflow_runner.py": 1,
     "scripts/smc_micro_publish_guard.py": 1,
     "scripts/smc_zone_priority_calibration.py": 2,
     "scripts/start_open_prep_suite.py": 3,

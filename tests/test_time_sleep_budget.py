@@ -5,7 +5,7 @@ appropriate for **rate-limiting / retry-backoff / throttling** on a
 worker thread the caller owns; using it inside an event loop, an
 asyncio coroutine, or on the request-serving thread is a bug.
 
-Current production codebase has 29 ``time.sleep(...)`` call sites, all
+Current production codebase has 26 ``time.sleep(...)`` call sites, all
 of which fall into the rate-limit / retry-backoff / inter-poll-throttle
 category.  This pin freezes that inventory:
 
