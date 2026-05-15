@@ -85,7 +85,18 @@ Priority cron workflows use `vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL`
 workflows (`feature-importance-daily.yml`, `open-prep-outcome-backfill.yml`)
 prefer `vars.SMC_PRIORITY_CRON_GPU_SELF_HOSTED_LABEL` (target value:
 `priority-gpu`) and install `requirements-gpu.txt` on the self-hosted
-runner before forcing `OPEN_PREP_FI_BACKEND=gpu`.
+runner before forcing `OPEN_PREP_FI_BACKEND=gpu`. Keep the generated report
+artifact path aligned with `open_prep.feature_importance_report.FI_REPORT_DIR`
+(`artifacts/open_prep/feature_importance/`), not the raw sample directory under
+`artifacts/open_prep/outcomes/feature_importance/`.
+
+The `ml/` and `rl/` implementation layers are present on this branch, but the
+synthetic GPU research automation workstream currently lives on the parallel
+branch `fix/live-runner-routing-unblock-ml-rl-gpu`. Until that work lands here,
+do not document or reference `.github/workflows/ml-family-research.yml`,
+`.github/workflows/rl-research-training.yml`, or the newer `scripts/run_ml_*`
+and `scripts/run_rl_research_training.py` entrypoints as if they already
+existed on mainline.
 
 `SMC_GH_HOSTED_RUNNER` is the **hosted fallback** runner label (currently
 `ubuntu-latest`). Repository-variable fallback is **not** availability fallback;
@@ -182,7 +193,8 @@ Only use raw `actions/setup-python@...` inside the composite action itself.
   real credentials.
 - Optional local GPU backend for Open Prep feature-importance:
   install `requirements-gpu.txt` into `.venv` and set
-  `OPEN_PREP_FI_BACKEND=gpu`.
+  `OPEN_PREP_FI_BACKEND=gpu`. Accepted values are `auto|cpu|gpu`; use
+  `OPEN_PREP_FI_GPU_DEVICE=<index>` when the runner has multiple visible GPUs.
 
 ### Testing
 

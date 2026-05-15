@@ -1,5 +1,27 @@
 # SMC Documentation Index
 
+> **Repo-wide entry point:**
+> [../README.md](../README.md)
+>
+> This file is intentionally SMC / TradingView focused. For the broader
+> platform surfaces (terminal, Open-Prep, Databento, ML, RL), start with the
+> root README and then branch into the topic-specific docs below.
+
+## Repo-wide starting points
+
+- [../README.md](../README.md) — top-level platform overview and operator quick starts
+- [OPEN_PREP_SUITE_TECHNICAL_REFERENCE.md](OPEN_PREP_SUITE_TECHNICAL_REFERENCE.md)
+- [DATABENTO_VOLATILITY_SUITE.md](DATABENTO_VOLATILITY_SUITE.md)
+- [../ml/README.md](../ml/README.md)
+- [../rl/README.md](../rl/README.md)
+- [../artifacts/open_prep/outcomes/feature_importance/README.md](../artifacts/open_prep/outcomes/feature_importance/README.md)
+
+The ML/RL READMEs above describe the implementation layers that are already
+checked into mainline. The routed GPU research workflows and their dedicated
+entrypoints currently live on the parallel branch
+`fix/live-runner-routing-unblock-ml-rl-gpu`, so keep mainline docs free of
+links to those branch-only workflow files until they actually merge.
+
 > **Canonical documentation map:**
 > [smc_documentation_map_2026-04-16.md](smc_documentation_map_2026-04-16.md)
 >
