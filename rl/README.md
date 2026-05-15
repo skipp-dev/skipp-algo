@@ -6,7 +6,7 @@
 
 - `rl/types.py` — Typed Contracts (`ExecutionState`, `ExecutionAction`, `SlippageEstimate`, `TradeRecord`, `TradeBlotter`).
 - `rl/slippage/` — `AlmgrenChrissCalibrator` (Bayesian linear regression, half-normal Prior, BPS-Output mit 95 %-Konfidenzintervall).
-- `rl/simulator/` — `ExecutionEnv` mit gymnasium-kompatibler `reset()`/`step()`-Schnittstelle. Reward = `−ImplementationShortfallₘᵦᵖₛ − λ·variance`.
+- `rl/simulator/` — `ExecutionEnv` mit echter gymnasium-/SB3-Kompatibilität, sobald `gymnasium` installiert ist (inkl. `action_space` / `observation_space`); ohne Heavy-Dependency bleibt derselbe numpy-only Vertrag erhalten. Reward = `−ImplementationShortfallₘᵦᵖₛ − λ·variance`.
 - `rl/baselines/` — `TWAPSlicer`, `VWAPSlicer` (volumenprofil-gewichtet, Profil wird auf Env-Horizont interpoliert).
 - `rl/agents/` — `EpsilonGreedyTwapAgent` (always-on numpy), `PPOSlicer` und `SACSizer` (try-import sb3, `available`-Flag, `RuntimeError` ohne Backend).
 - `rl/safety/` — `HardConstraintLayer` (Veto-Schicht: Größen-Cap, Drawdown-Cap, Slice/Order-Type-Whitelist).
@@ -23,6 +23,12 @@ stable-baselines3>=2.3.0
 torch>=2.2.0
 optuna>=3.5.0
 ```
+
+Für den echten GPU-Pfad auf dem self-hosted Runner kommt danach
+`requirements-rl-gpu.txt` dazu. Diese Datei ersetzt die generische CPU-Torch-
+Installation durch das offizielle CUDA-Wheel aus dem PyTorch-Index. Der
+Workflow `rl-research-training.yml` installiert und prüft diesen Override
+explizit, bevor `SKIPP_RL_DEVICE=cuda` gesetzt wird.
 
 Solange diese nicht installiert sind, ist die gesamte Pipeline trotzdem lauffähig: TWAP/VWAP-Baselines, ε-greedy Slicer, Slippage-Kalibrator, Simulator, Safety-Layer und Drift-Monitor laufen nur auf numpy. Der `available`-Flag-Vertrag (siehe `tests/test_rl_execution_smoke.py::test_optional_agent_dep_contract`) garantiert, dass Konsumenten den Optional-Pfad sauber detektieren und auf den ε-greedy-Fallback ausweichen können.
 

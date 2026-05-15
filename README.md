@@ -46,6 +46,23 @@ Optional GPU acceleration for the Open-Prep feature-importance loop is kept in
 local RTX-based Actions runner), install that file and set
 `OPEN_PREP_FI_BACKEND=gpu` to force the CuPy backend.
 
+Optional offline research stacks are split out so production installs stay
+lean:
+
+- `requirements-ml.txt` for XGBoost / LightGBM / SHAP / Optuna family-model
+  experiments
+- `requirements-rl.txt` for PPO / SAC execution-agent research
+- `requirements-rl-gpu.txt` as the CUDA-enabled torch override for the
+  self-hosted RL GPU runner
+
+For local GPU experiments, set `SKIPP_ML_DEVICE=cuda` or `SKIPP_RL_DEVICE=cuda`
+before invoking the corresponding `scripts/run_ml_*` or
+`scripts/run_rl_research_training.py` entrypoint.
+
+For RL specifically, install `requirements-rl-gpu.txt` after
+`requirements-rl.txt` if you want a CUDA-enabled PyTorch build; the generic
+Windows wheel from PyPI is CPU-only.
+
 For convenience inside VS Code, there is also a task named
 `python: bootstrap repo .venv`.
 
@@ -814,6 +831,31 @@ Use the VS Code tasks for explicit local modes:
 For GPU validation of the Open-Prep feature-importance path, install
 `requirements-gpu.txt` into `.venv` and run the recurring report with
 `OPEN_PREP_FI_BACKEND=gpu python -m open_prep.feature_importance_report --lookback 30`.
+
+For offline ML / RL research on the same runner, install the optional stacks
+and invoke the dedicated scripts directly:
+
+```bash
+# GPU-capable family-model training (XGBoost / LightGBM / logistic fallback)
+python scripts/run_ml_family_training.py --backend xgboost --device cuda
+
+# SHAP explainability report for the same synthetic family datasets
+python scripts/run_ml_explainability_report.py --backend xgboost --device cuda
+
+# Optuna sweeps over the family-model hyperparameters
+python scripts/run_ml_optuna_tuning.py --backend xgboost --device cuda --trials 12
+
+# Research-only RL training (PPO or SAC) on the synthetic execution env
+python scripts/run_rl_research_training.py --agent ppo --device cuda --total-timesteps 5000
+```
+
+For a full CUDA RL stack on the self-hosted runner, install the GPU override
+after the base RL requirements:
+
+```bash
+python -m pip install -r requirements-rl.txt
+python -m pip install --force-reinstall -r requirements-rl-gpu.txt
+```
 
 ### Linting & Type Checking
 

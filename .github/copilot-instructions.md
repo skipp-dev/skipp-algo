@@ -87,6 +87,26 @@ prefer `vars.SMC_PRIORITY_CRON_GPU_SELF_HOSTED_LABEL` (target value:
 `priority-gpu`) and install `requirements-gpu.txt` on the self-hosted
 runner before forcing `OPEN_PREP_FI_BACKEND=gpu`.
 
+The GPU research workflows follow the same routed-runner contract:
+
+- `ml-family-research.yml` exposes `mode=train|explainability|tune` over the
+  synthetic `ml/` dataset scaffold and prefers
+  `vars.SMC_PRIORITY_CRON_GPU_SELF_HOSTED_LABEL` whenever `prefer_gpu=true`.
+- `rl-research-training.yml` trains the research-only PPO/SAC agents from
+  `rl/` against the synthetic execution env and also prefers the GPU label
+  when `prefer_gpu=true`.
+
+`rl-research-training.yml` must install `requirements-rl-gpu.txt` on the
+self-hosted GPU runner and only set `SKIPP_RL_DEVICE=cuda` after probing
+that `torch.cuda.is_available()` is actually true. The generic
+`requirements-rl.txt` torch dependency alone is not sufficient on Windows
+because the PyPI wheel is CPU-only.
+
+Their entrypoints are `scripts/run_ml_family_training.py`,
+`scripts/run_ml_explainability_report.py`, `scripts/run_ml_optuna_tuning.py`,
+and `scripts/run_rl_research_training.py`. Keep them synthetic/offline unless
+the live dataset swap is implemented deliberately.
+
 `SMC_GH_HOSTED_RUNNER` is the **hosted fallback** runner label (currently
 `ubuntu-latest`). Repository-variable fallback is **not** availability fallback;
 do not point it at `self-hosted` and assume GitHub will fail over automatically.
@@ -183,6 +203,12 @@ Only use raw `actions/setup-python@...` inside the composite action itself.
 - Optional local GPU backend for Open Prep feature-importance:
   install `requirements-gpu.txt` into `.venv` and set
   `OPEN_PREP_FI_BACKEND=gpu`.
+- Optional ML research stack: install `requirements-ml.txt` and use
+  `SKIPP_ML_DEVICE=cuda` (or `cpu`) with the `run_ml_*` scripts.
+- Optional RL research stack: install `requirements-rl.txt` and use
+  `SKIPP_RL_DEVICE=cuda` (or `cpu`) with `scripts/run_rl_research_training.py`.
+- For CUDA-enabled RL locally or on the self-hosted runner, install
+  `requirements-rl-gpu.txt` after `requirements-rl.txt`.
 
 ### Testing
 
