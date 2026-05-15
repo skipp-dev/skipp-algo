@@ -188,9 +188,14 @@ def test_reduce_checkout_pinned_v6() -> None:
     steps = _reduce_steps()
     checkouts = [s for s in steps if str(s.get("uses", "")).startswith("actions/checkout@")]
     assert checkouts, "reduce must check out the repo to access scripts/"
+    # Accept either the mutable tag or the SHA-pinned equivalent (repo enforces SHA pinning).
+    _CHECKOUT_V6_REFS = {
+        "actions/checkout@v6",
+        "actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",  # SHA pin for v6
+    }
     for s in checkouts:
-        assert s["uses"] == "actions/checkout@v6", (
-            f"reduce checkout must be pinned @v6; got {s['uses']!r}"
+        assert s["uses"] in _CHECKOUT_V6_REFS, (
+            f"reduce checkout must be pinned @v6 (or its SHA equivalent); got {s['uses']!r}"
         )
 
 
