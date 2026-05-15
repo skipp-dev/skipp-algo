@@ -41,6 +41,13 @@ def test_workflow_surfaces_resolved_devices_and_fallbacks() -> None:
     assert "Warn on ML fallback" in text
 
 
+def test_workflow_preserves_requested_device_intent() -> None:
+    text = WF.read_text(encoding="utf-8")
+    assert 'echo "requested_device=$REQUESTED_DEVICE" >> "$GITHUB_OUTPUT"' in text
+    assert 'payload.get("requested_device")' in text
+    assert "keeps requested_device=cuda" in text
+
+
 def test_workflow_uploads_research_artifacts() -> None:
     text = WF.read_text(encoding="utf-8")
     assert "actions/upload-artifact" in text

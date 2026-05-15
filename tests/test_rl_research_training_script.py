@@ -63,3 +63,31 @@ def test_run_training_wires_agent_to_execution_env(monkeypatch: pytest.MonkeyPat
     assert fit_env.cfg.default_order_type == "market"
     assert captured["timesteps"] == 64
     assert payload["evaluation"]["steps"] > 0
+
+
+def test_run_training_preserves_requested_device_intent(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeAgent:
+        resolved_device = "cpu"
+
+        def fit(self, env, total_timesteps: int) -> None:
+            return None
+
+        def predict(self, obs):
+            return 0.5
+
+    monkeypatch.setattr(rl_script, "_resolve_training_device", lambda requested: "cpu")
+    monkeypatch.setattr(rl_script, "_build_agent", lambda **kwargs: FakeAgent())
+
+    payload = rl_script.run_training(
+        agent_name="ppo",
+        requested_device="cuda",
+        training_records=40,
+        total_timesteps=32,
+        parent_qty=1000.0,
+        horizon_steps=4,
+        order_type="market",
+        seed=13,
+    )
+
+    assert payload["requested_device"] == "cuda"
+    assert payload["resolved_device"] == "cpu"

@@ -163,6 +163,11 @@ jobs:
           BACKEND="${{ inputs.backend || 'xgboost' }}"
           FAMILIES="${{ inputs.families || 'BOS,OB,FVG,SWEEP' }}"
           PREFER_GPU="${{ inputs.prefer_gpu || 'true' }}"
+          if [[ "$PREFER_GPU" == "true" ]]; then
+            REQUESTED_DEVICE="cuda"
+          else
+            REQUESTED_DEVICE="cpu"
+          fi
           SAMPLES="${{ inputs.samples_per_family || '900' }}"
           FEATURES="${{ inputs.feature_count || '16' }}"
           TRIALS="${{ inputs.trials || '12' }}"
@@ -179,6 +184,7 @@ jobs:
           echo "backend=$BACKEND" >> "$GITHUB_OUTPUT"
           echo "families=$FAMILIES" >> "$GITHUB_OUTPUT"
           echo "prefer_gpu=$PREFER_GPU" >> "$GITHUB_OUTPUT"
+          echo "requested_device=$REQUESTED_DEVICE" >> "$GITHUB_OUTPUT"
           echo "samples=$SAMPLES" >> "$GITHUB_OUTPUT"
           echo "features=$FEATURES" >> "$GITHUB_OUTPUT"
           echo "trials=$TRIALS" >> "$GITHUB_OUTPUT"
@@ -272,15 +278,15 @@ jobs:
 
       - name: Select ML device
         run: |
-          if [[ "${{ needs.select-runner.outputs.runner_environment }}" == "self-hosted" && "${{ steps.params.outputs.prefer_gpu }}" == "true" && "${{ steps.runtime.outputs.cuda_ready }}" == "true" ]]; then
-            echo "SKIPP_ML_DEVICE=cuda" >> "$GITHUB_ENV"
-            echo "::notice::ML research will request the GPU backend (${{ steps.params.outputs.backend }})."
-          elif [[ "${{ needs.select-runner.outputs.runner_environment }}" == "self-hosted" && "${{ steps.params.outputs.prefer_gpu }}" == "true" ]]; then
-            echo "SKIPP_ML_DEVICE=cpu" >> "$GITHUB_ENV"
-            echo "::warning::ML research requested GPU but backend probe failed (${{ steps.runtime.outputs.probe_reason }}). Falling back to CPU."
-          else
-            echo "SKIPP_ML_DEVICE=cpu" >> "$GITHUB_ENV"
+          echo "SKIPP_ML_DEVICE=${{ steps.params.outputs.requested_device }}" >> "$GITHUB_ENV"
+          if [[ "${{ steps.params.outputs.requested_device }}" != "cuda" ]]; then
             echo "::notice::ML research is running on the CPU path."
+          elif [[ "${{ needs.select-runner.outputs.runner_environment }}" == "self-hosted" && "${{ steps.runtime.outputs.cuda_ready }}" == "true" ]]; then
+            echo "::notice::ML research requested the GPU backend (${{ steps.params.outputs.backend }}) and the probe succeeded."
+          elif [[ "${{ needs.select-runner.outputs.runner_environment }}" == "self-hosted" ]]; then
+            echo "::warning::ML research requested GPU but the backend probe failed (${{ steps.runtime.outputs.probe_reason }}). The workflow keeps requested_device=cuda so the artifact can show the CPU fallback honestly."
+          else
+            echo "::warning::ML research requested GPU but the hosted fallback runner was selected. The workflow keeps requested_device=cuda so the artifact can show the CPU fallback honestly."
           fi
 
       - name: Run research mode
@@ -329,6 +335,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ ! -f "$ML_ARTIFACT_PATH" ]]; then
+            echo "requested_device=${SKIPP_ML_DEVICE:-unknown}" >> "$GITHUB_OUTPUT"
             echo "resolved_devices=unknown" >> "$GITHUB_OUTPUT"
             echo "gpu_requested_but_not_used=false" >> "$GITHUB_OUTPUT"
             {
@@ -347,6 +354,7 @@ jobs:
           output_path = Path(os.environ["GITHUB_OUTPUT"])
           artifact_path = Path(os.environ["ML_ARTIFACT_PATH"])
           payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+          requested = str(payload.get("requested_device") or os.environ.get("SKIPP_ML_DEVICE") or "unknown")
 
           resolved: set[str] = set()
           fallbacks: list[str] = []
@@ -377,9 +385,10 @@ jobs:
 
           resolved_devices = ",".join(sorted(resolved)) or "unknown"
           fallback_text = "; ".join(sorted(dict.fromkeys(fallbacks))) if fallbacks else "none"
-          gpu_requested_but_not_used = payload.get("requested_device") == "cuda" and "cuda" not in resolved
+          gpu_requested_but_not_used = requested == "cuda" and "cuda" not in resolved
 
           with output_path.open("a", encoding="utf-8") as fh:
+              fh.write(f"requested_device={requested}\n")
               fh.write(f"resolved_devices={resolved_devices}\n")
               fh.write(f"gpu_requested_but_not_used={'true' if gpu_requested_but_not_used else 'false'}\n")
               fh.write("fallback_reasons<<EOF\n")
@@ -390,17 +399,21 @@ jobs:
       - name: Warn on ML fallback
         if: ${{ always() && (steps.artifact.outputs.gpu_requested_but_not_used == 'true' || steps.artifact.outputs.fallback_reasons != 'none') }}
         run: |
-          echo "::warning::ML research resolved devices=${{ steps.artifact.outputs.resolved_devices }} fallback_reasons=${{ steps.artifact.outputs.fallback_reasons }}"
+          echo "::warning::ML research requested device=${{ steps.artifact.outputs.requested_device || 'unknown' }} resolved devices=${{ steps.artifact.outputs.resolved_devices }} fallback_reasons=${{ steps.artifact.outputs.fallback_reasons }}"
 
       - name: Write step summary
         if: always()
         run: |
+          REQUESTED_DEVICE="${{ steps.artifact.outputs.requested_device || '' }}"
+          if [[ -z "$REQUESTED_DEVICE" ]]; then
+            REQUESTED_DEVICE="${SKIPP_ML_DEVICE:-unknown}"
+          fi
           {
             echo "## ml-family-research"
             echo ""
             echo "- mode: \`${{ steps.params.outputs.mode }}\`"
             echo "- backend: \`${{ steps.params.outputs.backend }}\`"
-            echo "- requested device: \`${SKIPP_ML_DEVICE:-cpu}\`"
+            echo "- requested device: \`$REQUESTED_DEVICE\`"
             echo "- resolved devices: \`${{ steps.artifact.outputs.resolved_devices || 'unknown' }}\`"
             echo "- fallback reasons: \`${{ steps.artifact.outputs.fallback_reasons || 'none' }}\`"
             echo "- GPU probe: \`${{ steps.runtime.outputs.probe_reason || 'not-run' }}\`"

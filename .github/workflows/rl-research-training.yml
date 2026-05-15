@@ -169,26 +169,32 @@ jobs:
         run: |
           AGENT="${{ inputs.agent || 'ppo' }}"
           PREFER_GPU="${{ inputs.prefer_gpu || 'true' }}"
+          if [[ "$PREFER_GPU" == "true" ]]; then
+            REQUESTED_DEVICE="cuda"
+          else
+            REQUESTED_DEVICE="cpu"
+          fi
           TOTAL_TIMESTEPS="${{ inputs.total_timesteps || '5000' }}"
           TRAINING_RECORDS="${{ inputs.training_records || '400' }}"
           ORDER_TYPE="${{ inputs.order_type || 'limit_at_mid' }}"
           echo "agent=$AGENT" >> "$GITHUB_OUTPUT"
           echo "prefer_gpu=$PREFER_GPU" >> "$GITHUB_OUTPUT"
+          echo "requested_device=$REQUESTED_DEVICE" >> "$GITHUB_OUTPUT"
           echo "total_timesteps=$TOTAL_TIMESTEPS" >> "$GITHUB_OUTPUT"
           echo "training_records=$TRAINING_RECORDS" >> "$GITHUB_OUTPUT"
           echo "order_type=$ORDER_TYPE" >> "$GITHUB_OUTPUT"
 
       - name: Select RL device
         run: |
-          if [[ "${{ needs.select-runner.outputs.runner_environment }}" == "self-hosted" && "${{ steps.params.outputs.prefer_gpu }}" == "true" && "${{ steps.runtime.outputs.cuda_available }}" == "true" ]]; then
-            echo "SKIPP_RL_DEVICE=cuda" >> "$GITHUB_ENV"
-            echo "::notice::RL research will request the GPU backend (torch=${{ steps.runtime.outputs.torch_version }}, cuda=${{ steps.runtime.outputs.cuda_version }})."
-          elif [[ "${{ needs.select-runner.outputs.runner_environment }}" == "self-hosted" && "${{ steps.params.outputs.prefer_gpu }}" == "true" ]]; then
-            echo "SKIPP_RL_DEVICE=cpu" >> "$GITHUB_ENV"
-            echo "::warning::RL research requested GPU but torch CUDA is unavailable (torch=${{ steps.runtime.outputs.torch_version }}, cuda_available=${{ steps.runtime.outputs.cuda_available }}). Falling back to CPU."
-          else
-            echo "SKIPP_RL_DEVICE=cpu" >> "$GITHUB_ENV"
+          echo "SKIPP_RL_DEVICE=${{ steps.params.outputs.requested_device }}" >> "$GITHUB_ENV"
+          if [[ "${{ steps.params.outputs.requested_device }}" != "cuda" ]]; then
             echo "::notice::RL research is running on the CPU path."
+          elif [[ "${{ needs.select-runner.outputs.runner_environment }}" == "self-hosted" && "${{ steps.runtime.outputs.cuda_available }}" == "true" ]]; then
+            echo "::notice::RL research requested the GPU backend (torch=${{ steps.runtime.outputs.torch_version }}, cuda=${{ steps.runtime.outputs.cuda_version }})."
+          elif [[ "${{ needs.select-runner.outputs.runner_environment }}" == "self-hosted" ]]; then
+            echo "::warning::RL research requested GPU but torch CUDA is unavailable (torch=${{ steps.runtime.outputs.torch_version }}, cuda_available=${{ steps.runtime.outputs.cuda_available }}). The workflow keeps requested_device=cuda so the artifact can show the CPU fallback honestly."
+          else
+            echo "::warning::RL research requested GPU but the hosted fallback runner was selected. The workflow keeps requested_device=cuda so the artifact can show the CPU fallback honestly."
           fi
 
       - name: Run RL research training
@@ -211,6 +217,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ ! -f "$RL_ARTIFACT_PATH" ]]; then
+            echo "requested_device=${SKIPP_RL_DEVICE:-unknown}" >> "$GITHUB_OUTPUT"
             echo "resolved_device=unknown" >> "$GITHUB_OUTPUT"
             echo "cuda_requested_but_not_used=false" >> "$GITHUB_OUTPUT"
             exit 0
@@ -224,10 +231,11 @@ jobs:
           output_path = Path(os.environ["GITHUB_OUTPUT"])
           artifact_path = Path(os.environ["RL_ARTIFACT_PATH"])
           payload = json.loads(artifact_path.read_text(encoding="utf-8"))
-          requested = str(payload.get("requested_device") or "cpu")
+          requested = str(payload.get("requested_device") or os.environ.get("SKIPP_RL_DEVICE") or "unknown")
           resolved = str(payload.get("resolved_device") or "unknown")
 
           with output_path.open("a", encoding="utf-8") as fh:
+              fh.write(f"requested_device={requested}\n")
               fh.write(f"resolved_device={resolved}\n")
               fh.write(
                   f"cuda_requested_but_not_used={'true' if requested == 'cuda' and resolved != 'cuda' else 'false'}\n"
@@ -237,16 +245,20 @@ jobs:
       - name: Warn on RL fallback
         if: ${{ always() && steps.artifact.outputs.cuda_requested_but_not_used == 'true' }}
         run: |
-          echo "::warning::RL research requested CUDA but the artifact resolved device=${{ steps.artifact.outputs.resolved_device }}."
+          echo "::warning::RL research requested device=${{ steps.artifact.outputs.requested_device || 'unknown' }} but the artifact resolved device=${{ steps.artifact.outputs.resolved_device }}."
 
       - name: Write step summary
         if: always()
         run: |
+          REQUESTED_DEVICE="${{ steps.artifact.outputs.requested_device || '' }}"
+          if [[ -z "$REQUESTED_DEVICE" ]]; then
+            REQUESTED_DEVICE="${SKIPP_RL_DEVICE:-unknown}"
+          fi
           {
             echo "## rl-research-training"
             echo ""
             echo "- agent: \`${{ steps.params.outputs.agent }}\`"
-            echo "- requested device: \`${SKIPP_RL_DEVICE:-cpu}\`"
+            echo "- requested device: \`$REQUESTED_DEVICE\`"
             echo "- resolved device: \`${{ steps.artifact.outputs.resolved_device || 'unknown' }}\`"
             echo "- torch: \`${{ steps.runtime.outputs.torch_version || 'unknown' }}\`"
             echo "- torch cuda available: \`${{ steps.runtime.outputs.cuda_available || 'false' }}\`"

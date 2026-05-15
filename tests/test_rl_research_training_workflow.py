@@ -22,8 +22,9 @@ def test_workflow_installs_rl_stack_and_runs_training_script() -> None:
 def test_workflow_probes_torch_cuda_before_requesting_gpu() -> None:
     text = WF.read_text(encoding="utf-8")
     assert "torch.cuda.is_available()" in text
-    assert "SKIPP_RL_DEVICE=cuda" in text
-    assert "Falling back to CPU" in text
+    assert "requested_device=cuda" in text
+    assert "torch CUDA is unavailable" in text
+    assert "CPU fallback honestly" in text
 
 
 def test_workflow_step_summary_surfaces_torch_runtime() -> None:
@@ -38,6 +39,13 @@ def test_workflow_surfaces_resolved_device_from_artifact() -> None:
     assert "Summarise RL artifact" in text
     assert "resolved_device" in text
     assert "Warn on RL fallback" in text
+
+
+def test_workflow_preserves_requested_device_intent() -> None:
+    text = WF.read_text(encoding="utf-8")
+    assert 'echo "requested_device=$REQUESTED_DEVICE" >> "$GITHUB_OUTPUT"' in text
+    assert 'payload.get("requested_device")' in text
+    assert "keeps requested_device=cuda" in text
 
 
 def test_workflow_exposes_agent_choices() -> None:

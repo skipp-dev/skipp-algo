@@ -4,7 +4,10 @@ import numpy as np
 
 from scripts.ml_research_common import build_dataset_bundle, parse_families
 from scripts.run_ml_explainability_report import build_parser as build_explainability_parser
-from scripts.run_ml_family_training import build_parser as build_training_parser
+from scripts.run_ml_family_training import (
+    build_parser as build_training_parser,
+    run_training as run_training_payload,
+)
 from scripts.run_ml_optuna_tuning import build_parser as build_tuning_parser
 
 
@@ -23,6 +26,20 @@ def test_training_parser_defaults_to_training_artifact() -> None:
     args = build_training_parser().parse_args([])
     assert args.backend == "xgboost"
     assert str(args.output_path).replace("\\", "/").endswith("artifacts/ml/research/training/latest.json")
+
+
+def test_training_payload_preserves_requested_device_intent() -> None:
+    payload = run_training_payload(
+        backend="logistic",
+        device="cuda",
+        families_raw="BOS",
+        samples_per_family=120,
+        feature_count=6,
+        seed=11,
+    )
+    assert payload["requested_device"] == "cuda"
+    assert payload["resolved_devices"] == ["cpu"]
+    assert payload["family_reports"][0]["device_fallback_reason"] == "logistic_cpu_only"
 
 
 def test_explainability_parser_defaults_to_json_and_markdown() -> None:

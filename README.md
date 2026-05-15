@@ -905,24 +905,6 @@ python -m pip install -r requirements-rl.txt
 python -m pip install --force-reinstall -r requirements-rl-gpu.txt
 ```
 
-The repo now keeps the default local pytest configuration serial so focused
-suite runs from the VS Code Testing panel do not inherit a global xdist
-configuration that can underutilize hardware on a single large test file.
-Use the VS Code tasks for explicit local modes:
-
-- `pytest: focused current file`
-- `pytest: debug current file`
-- `pytest: local fast (8 workers)`
-- `pytest: CI parity (PR)`
-- `pytest: push-like coverage`
-
-For GPU validation of the Open-Prep feature-importance path, install
-`requirements-gpu.txt` into `.venv` and run the recurring report with
-`OPEN_PREP_FI_BACKEND=gpu python -m open_prep.feature_importance_report --lookback 30`.
-Generated reports are written to `artifacts/open_prep/feature_importance/`,
-while the raw daily feature-importance samples continue to accumulate under
-`artifacts/open_prep/outcomes/feature_importance/`.
-
 ### Linting & Type Checking
 
 ```bash
