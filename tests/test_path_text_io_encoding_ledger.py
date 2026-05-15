@@ -55,7 +55,7 @@ _DIR_EXCLUDE = {
 #     write_text on a Markdown report — pure ASCII content, but encoding=
 #     should still be added in a follow-up; freezing here to unblock CI.
 _FROZEN_SITES: dict[str, frozenset[int]] = {
-    "open_prep/realtime_signals.py": frozenset({172}),
+    "open_prep/realtime_signals.py": frozenset({176}),
     "pine_apply_surface_reduction.py": frozenset({53, 87, 397, 471, 502, 555}),
     "pine_input_surface.py": frozenset({129, 156, 187, 260, 270, 344}),
     "scripts/fvg_label_audit_q3.py": frozenset({58}),

@@ -5,7 +5,7 @@ appropriate for **rate-limiting / retry-backoff / throttling** on a
 worker thread the caller owns; using it inside an event loop, an
 asyncio coroutine, or on the request-serving thread is a bug.
 
-Current production codebase has 26 ``time.sleep(...)`` call sites, all
+Current production codebase has 29 ``time.sleep(...)`` call sites, all
 of which fall into the rate-limit / retry-backoff / inter-poll-throttle
 category.  This pin freezes that inventory:
 
@@ -110,11 +110,11 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/alerts.py", 408),
         ("open_prep/alerts.py", 418),
         ("open_prep/error_taxonomy.py", 117),
-        ("open_prep/realtime_signals.py", 267),
-        ("open_prep/realtime_signals.py", 340),
-        ("open_prep/realtime_signals.py", 1595),
-        ("open_prep/realtime_signals.py", 2692),
-        ("open_prep/realtime_signals.py", 2705),
+        ("open_prep/realtime_signals.py", 272),
+        ("open_prep/realtime_signals.py", 346),
+        ("open_prep/realtime_signals.py", 1601),
+        ("open_prep/realtime_signals.py", 2698),
+        ("open_prep/realtime_signals.py", 2711),
         ("open_prep/run_open_prep.py", 1943),
         ("open_prep/run_open_prep.py", 1945),
         ("newsstack_fmp/_bz_http.py", 44),
