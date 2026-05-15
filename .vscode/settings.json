@@ -25,5 +25,13 @@
     "notebook.formatOnSave.enabled": true,
     "workbench.editor.highlightModifiedTabs": true,
     "genieai.enableConversationHistory": true,
-    "python.REPL.enableREPLSmartSend": false
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv",
+    "python.envFile": "${workspaceFolder}/.env",
+    "python.REPL.enableREPLSmartSend": false,
+    "python.testing.pytestEnabled": true,
+    "python.testing.unittestEnabled": false,
+    "python.testing.cwd": "${workspaceFolder}",
+    "python.testing.pytestArgs": [
+        "-q"
+    ]
 }

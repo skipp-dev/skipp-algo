@@ -47,29 +47,15 @@ packages = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-# Default to parallel execution to match CI (`pytest -n auto --dist=loadfile`).
-# Rationale (chore/pytest-xdist-local-default):
-#   * pytest-xdist is already required in requirements.txt (>=3.6.0) and
-#     used by `.github/workflows/ci.yml` for the validate job.
-#   * `--dist=loadfile` keeps every test in a file on the same worker, which
-#     preserves module-level fixture state and is required by tests that
-#     touch shared on-disk artifacts (see repo-memory
-#     `structure-batch-pytest-canonical-write-guard.md`).
-#   * Determinism is guarded by `tests/test_pytest_xdist_parametrize_determinism.py`
-#     (AST pin landed in PR #104), so non-deterministic parametrize sources
-#     can no longer regress and break worker collection.
-# Override locally with `pytest -n0` for interactive debugging (pdb /
-# breakpoints do not work under xdist workers). To disable the plugin
-# entirely, also clear addopts: `pytest -o addopts= -p no:xdist`.
-#
-# Local memory cap (2026-04-28): pinned to `-n 4` instead of `-n auto`.
-#   * Mac dev box (16 GB RAM, 12 cores) was OOM-thrashing under `-n auto`:
-#     12 workers × ~180-450 MB RSS = 2-5 GB peak just for SMC suite.
-#   * CI overrides this back to `-n auto` by passing `-n auto` on the
-#     `python -m pytest ...` command line in `.github/workflows/ci.yml`.
-#   * Override locally for full parallelism: `pytest -n auto ...` or
-#     `PYTEST_XDIST_AUTO_NUM_WORKERS=8 pytest -n auto ...`.
-addopts = "-n 4 --dist=loadfile"
+# Keep local defaults serial so VS Code focused runs, single-file invocations,
+# and breakpoint-driven debugging do not pay xdist worker startup overhead or
+# end up pinned to one worker by `--dist=loadfile` on a single large test file.
+# Broader local sweeps should opt into parallelism explicitly via VS Code tasks
+# or CLI flags:
+#   * Local fast: `pytest -n 8 --dist=worksteal --maxfail=1`
+#   * CI parity:  `pytest -n auto --dist=worksteal --maxfail=1`
+# CI already passes explicit worker flags in `.github/workflows/ci.yml`, so
+# removing a global xdist default here does not change CI behavior.
 filterwarnings = [
     "ignore:Microstructure base asof_date is .* days old:UserWarning",
 ]
