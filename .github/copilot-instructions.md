@@ -52,17 +52,39 @@ parse bash syntax (`[[ ]]`, `set -o pipefail`, heredocs, etc.).  On
 The `fast-gates` required status check blocks any PR that adds a workflow file
 missing this declaration.
 
-### Runner label
+### Runner contract
 
-Always use the repository variable — never hard-code a runner name:
+Use one of these two patterns:
+
+1. **Hosted-only / scheduled / background workflows** keep the direct hosted expression:
 
 ```yaml
 runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
 ```
 
-`SMC_GH_HOSTED_RUNNER` is currently `self-hosted` (local Windows runner).
-`ubuntu-latest` is the fallback when that runner is offline.
-**Never** use `ubuntu-latest-l` — that label is retired and causes jobs to hang.
+2. **Merge-critical PR workflows** (`ci.yml`, `docs-lint.yml`,
+   `manifest-pytest-poison-scan.yml`, `smc-fast-pr-gates.yml`) must use a
+   hosted `select-runner` control-plane job plus a resolved worker runner:
+
+```yaml
+jobs:
+  select-runner:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+
+  validate:
+    needs: select-runner
+    runs-on: ${{ fromJson(needs.select-runner.outputs.runs_on_json) }}
+```
+
+The selector uses `scripts/resolve_workflow_runner.py` to prefer an idle
+`self-hosted/windows/x64` runner (plus optional `vars.SMC_SELF_HOSTED_LABEL`)
+and falls back to the hosted runner defined by `SMC_GH_HOSTED_RUNNER`.
+
+`SMC_GH_HOSTED_RUNNER` is the **hosted fallback** runner label (currently
+`ubuntu-latest`). Repository-variable fallback is **not** availability fallback;
+do not point it at `self-hosted` and assume GitHub will fail over automatically.
+
+**Never** use `ubuntu-latest-l` or `ubuntu-latest-m` — both labels are retired.
 
 ### Permissions
 
@@ -110,15 +132,31 @@ Then add `if: steps.gate.outputs.run_heavy == 'true'` to every subsequent step.
 
 ### Python setup
 
-Use the composite action for a consistent, pinned Python version:
+For hosted-only workflows, use the composite action for a consistent, pinned
+Python version:
 
 ```yaml
 - name: Set up Python
   uses: ./.github/actions/setup-python-pinned
 ```
 
-Only use `actions/setup-python@v6` directly when you also need the pip cache
-(currently only `ci.yml` does this).
+For merge-critical routed workflows, split bootstrap by runner environment:
+
+```yaml
+- name: Set up pinned Python (GitHub-hosted)
+  if: needs.select-runner.outputs.runner_environment == 'github-hosted'
+  uses: ./.github/actions/setup-python-pinned
+
+- name: Resolve Python 3.12 interpreter
+  run: |
+    # export SMC_PYTHON_BIN here; self-hosted Windows falls back to py -3.12
+```
+
+The routed worker must export `SMC_PYTHON_BIN` and use that interpreter to
+create the venv or invoke standalone scripts. The loud failure message for a
+missing self-hosted Python 3.12 interpreter is part of the contract.
+
+Only use raw `actions/setup-python@...` inside the composite action itself.
 
 ---
 

@@ -1,31 +1,24 @@
-"""Pin: every workflow runs on the unified ``SMC_GH_HOSTED_RUNNER`` expression.
+"""Pin the hybrid runner contract for merge-critical workflows.
 
-V8 audit follow-up (2026-05-02) — F-V8-C3.1 PR C / runner-tier maximization.
+Hybrid strategy (2026-05-15)
+----------------------------
+Most workflows stay on the hosted runner expression::
 
-Background
-----------
-GitHub-hosted ``ubuntu-latest-m`` (4 vCPU / 16 GB) is eviction-prone and
-caused 12 consecutive Databento producer timeouts. ``ubuntu-latest-l``
-(8 vCPU / 32 GB) is the next tier and the new default.
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
 
-GitHub composite actions cannot abstract ``runs-on:`` (it is a job-level
-key, not a step-level key). The closest single-source-of-truth mechanism
-GitHub Actions provides is a repo-scoped variable plus a literal fallback.
-This test pins **all** workflow jobs to the exact expression::
+The merge-critical workflows (`ci.yml`, `docs-lint.yml`,
+`manifest-pytest-poison-scan.yml`, `smc-fast-pr-gates.yml`) are special:
 
-    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}
+* a small hosted `select-runner` control-plane job decides whether a matching
+  self-hosted Windows runner is online and idle;
+* the worker job then uses `fromJson(needs.select-runner.outputs.runs_on_json)`
+  so it can prefer self-hosted when available and fall back cleanly to hosted
+  when not.
 
-so that:
-
-* a future "harmless" `runs-on: ubuntu-latest` (or `-m`) cannot silently
-  regress the runner tier or fork the source of truth;
-* operators retain a 1-click rollback by setting
-  ``vars.SMC_GH_HOSTED_RUNNER`` in repo Settings without touching code;
-* a future bump (e.g. ``-xl``) is a single ``sed`` away.
-
-If a workflow legitimately needs a different runner (self-hosted, macOS,
-windows, GPU), add it to ``_ALLOWED_OVERRIDES`` with a justification.
+This test prevents regressions back to the old stale `ubuntu-latest-l` lore and
+ensures the selector pattern only appears where intended.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -36,18 +29,18 @@ import yaml
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _WORKFLOWS_DIR = _REPO_ROOT / ".github" / "workflows"
 
-# The single authoritative ``runs-on:`` expression every job must use.
-_PINNED_RUNS_ON = "${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}"
-
-# Jobs allowed to opt out of the pinned expression. Map of
-# ``workflow_filename -> {job_id: justification}``.
-_ALLOWED_OVERRIDES: dict[str, dict[str, str]] = {}
+_HOSTED_RUNS_ON = "${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}"
+_RESOLVED_RUNS_ON = "${{ fromJson(needs.select-runner.outputs.runs_on_json) }}"
+_ROUTED_WORKFLOWS = {
+    "ci.yml": {"worker_jobs": {"validate"}},
+    "docs-lint.yml": {"worker_jobs": {"inline-backticks"}},
+    "manifest-pytest-poison-scan.yml": {"worker_jobs": {"scan"}},
+    "smc-fast-pr-gates.yml": {"worker_jobs": {"fast-gates"}},
+}
 
 
 def _workflow_files() -> list[Path]:
-    files = sorted(_WORKFLOWS_DIR.glob("*.yml")) + sorted(
-        _WORKFLOWS_DIR.glob("*.yaml")
-    )
+    files = sorted(_WORKFLOWS_DIR.glob("*.yml")) + sorted(_WORKFLOWS_DIR.glob("*.yaml"))
     assert files, f"no workflow files found under {_WORKFLOWS_DIR}"
     return files
 
@@ -60,62 +53,70 @@ def _jobs(workflow: dict) -> dict[str, dict]:
     }
 
 
+def _needs_list(job: dict) -> list[str]:
+    needs = job.get("needs")
+    if needs is None:
+        return []
+    if isinstance(needs, str):
+        return [needs]
+    if isinstance(needs, list):
+        return [item for item in needs if isinstance(item, str)]
+    return []
+
+
 @pytest.mark.parametrize("path", _workflow_files(), ids=lambda p: p.name)
-def test_workflow_runs_on_is_pinned(path: Path) -> None:
-    """Every job must use the unified ``runs-on:`` expression."""
+def test_workflow_runs_on_contract(path: Path) -> None:
     workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
-    overrides = _ALLOWED_OVERRIDES.get(path.name, {})
+    jobs = _jobs(workflow)
+
+    if path.name in _ROUTED_WORKFLOWS:
+        routed = _ROUTED_WORKFLOWS[path.name]
+        assert "select-runner" in jobs, f"{path.name} must define a select-runner job"
+        assert jobs["select-runner"].get("runs-on") == _HOSTED_RUNS_ON, (
+            f"{path.name}:select-runner must stay on hosted control-plane runner {_HOSTED_RUNS_ON!r}"
+        )
+        for worker_job in routed["worker_jobs"]:
+            assert worker_job in jobs, f"{path.name} missing worker job {worker_job!r}"
+            job = jobs[worker_job]
+            assert job.get("runs-on") == _RESOLVED_RUNS_ON, (
+                f"{path.name}:{worker_job} must use resolved runs-on {_RESOLVED_RUNS_ON!r}"
+            )
+            assert "select-runner" in _needs_list(job), (
+                f"{path.name}:{worker_job} must depend on select-runner"
+            )
+        return
+
     offenders: list[str] = []
-    for job_id, job in _jobs(workflow).items():
-        runs_on = job.get("runs-on")
-        if job_id in overrides:
-            continue
-        if runs_on != _PINNED_RUNS_ON:
-            offenders.append(f"  {job_id}: runs-on = {runs_on!r}")
+    for job_id, job in jobs.items():
+        if job.get("runs-on") != _HOSTED_RUNS_ON:
+            offenders.append(f"  {job_id}: runs-on = {job.get('runs-on')!r}")
     assert not offenders, (
-        f"{path.name} has jobs with non-pinned runs-on:\n"
+        f"{path.name} has jobs with non-pinned hosted runs-on:\n"
         + "\n".join(offenders)
-        + f"\n\nExpected exactly: {_PINNED_RUNS_ON!r}\n"
-        "If a different runner is required, add the job to "
-        "_ALLOWED_OVERRIDES with a justification."
+        + f"\n\nExpected exactly: {_HOSTED_RUNS_ON!r}"
     )
 
 
-def test_no_raw_ubuntu_latest_m_literal() -> None:
-    """No workflow may pin ``ubuntu-latest-m`` as a literal fallback.
-
-    The audit raised the default to ``ubuntu-latest-l`` after eviction
-    incidents. Re-introducing ``-m`` as a literal would silently
-    downgrade the tier whenever ``vars.SMC_GH_HOSTED_RUNNER`` is unset.
-    """
+def test_no_stale_ubuntu_latest_tier_literals() -> None:
     offenders: list[str] = []
     for path in _workflow_files():
         text = path.read_text(encoding="utf-8")
         for lineno, line in enumerate(text.splitlines(), start=1):
-            if "ubuntu-latest-m" in line:
+            if "ubuntu-latest-l" in line or "ubuntu-latest-m" in line:
                 offenders.append(f"  {path.name}:{lineno}: {line.strip()}")
     assert not offenders, (
-        "Found ``ubuntu-latest-m`` literal(s) — eviction-prone tier "
-        "must not be the default after the V8 audit:\n" + "\n".join(offenders)
+        "Found retired hosted-runner tier literal(s):\n" + "\n".join(offenders)
     )
 
 
 def test_no_bare_ubuntu_latest_runs_on() -> None:
-    """No job may declare ``runs-on: ubuntu-latest`` (literal).
-
-    Bare ``ubuntu-latest`` bypasses the ``vars.SMC_GH_HOSTED_RUNNER``
-    operator override, fragmenting the source of truth.
-    """
     offenders: list[str] = []
     for path in _workflow_files():
         workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
-        overrides = _ALLOWED_OVERRIDES.get(path.name, {})
         for job_id, job in _jobs(workflow).items():
-            if job_id in overrides:
-                continue
             if job.get("runs-on") == "ubuntu-latest":
                 offenders.append(f"  {path.name}:{job_id}")
     assert not offenders, (
-        "Found bare ``runs-on: ubuntu-latest`` (no operator override "
-        "hook):\n" + "\n".join(offenders)
+        "Found bare ``runs-on: ubuntu-latest`` (no operator override or selector hook):\n"
+        + "\n".join(offenders)
     )
