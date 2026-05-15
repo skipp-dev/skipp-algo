@@ -22,9 +22,9 @@ def test_workflow_prefers_gpu_label_via_repo_variable() -> None:
 def test_workflow_installs_ml_stack_and_runs_scripts() -> None:
     text = WF.read_text(encoding="utf-8")
     assert "requirements-ml.txt" in text
-    assert "run_ml_family_training.py" in text
-    assert "run_ml_explainability_report.py" in text
-    assert "run_ml_optuna_tuning.py" in text
+    assert "-m scripts.run_ml_family_training" in text
+    assert "-m scripts.run_ml_explainability_report" in text
+    assert "-m scripts.run_ml_optuna_tuning" in text
 
 
 def test_workflow_probes_ml_backend_before_requesting_gpu() -> None:

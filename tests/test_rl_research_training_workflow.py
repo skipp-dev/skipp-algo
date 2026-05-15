@@ -15,7 +15,7 @@ def test_workflow_installs_rl_stack_and_runs_training_script() -> None:
     text = WF.read_text(encoding="utf-8")
     assert "requirements-rl.txt" in text
     assert "requirements-rl-gpu.txt" in text
-    assert "run_rl_research_training.py" in text
+    assert "-m scripts.run_rl_research_training" in text
     assert "workflow_dispatch" in text
 
 
