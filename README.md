@@ -24,16 +24,30 @@ SkippALGO is a modular trading intelligence platform combining three core system
 
 ## Local Python setup
 
-The single supported bootstrap path for the Python side of the repo is:
+Use a repo-local `.venv` so VS Code tasks, the Testing panel, and the Python
+extension all resolve the same interpreter.
+
+Supported bootstrap commands:
 
 ```bash
-./scripts/bootstrap_venv.sh
+# macOS / Linux
+SKIPP_VENV=.venv ./scripts/bootstrap_venv.sh
+
+# Windows PowerShell
+./scripts/bootstrap_venv.ps1 -VenvPath .venv
 ```
 
-This creates (or reuses) a venv at `${SKIPP_VENV:-$HOME/.venv}`, installs every
-runtime + test dependency from `requirements.txt`, and verifies that the
-provider modules used by the terminal (`databento`, `tradingview_ta`, `httpx`,
-…) are importable.
+Both commands create (or reuse) a venv, install every runtime + test
+dependency from `requirements.txt`, and verify that the provider modules used
+by the terminal (`databento`, `tradingview_ta`, `httpx`, …) are importable.
+
+Optional GPU acceleration for the Open-Prep feature-importance loop is kept in
+`requirements-gpu.txt`. On a CUDA-capable self-hosted runner (for example the
+local RTX-based Actions runner), install that file and set
+`OPEN_PREP_FI_BACKEND=gpu` to force the CuPy backend.
+
+For convenience inside VS Code, there is also a task named
+`python: bootstrap repo .venv`.
 
 > **Why a script and not `pip install -e .`?** `pyproject.toml` only declares
 > the optional `vol-regime` extra; runtime dependencies live exclusively in
@@ -772,17 +786,34 @@ This keeps Ready as the main handoff point: lifecycle must be valid, hard gates 
 ### Tests
 
 ```bash
-# Full test suite (1 681 tests)
-python -m pytest tests/ -q
-
-# Single test
+# Focused file / VS Code Testing panel (serial on purpose)
 python -m pytest tests/test_production_gatekeeper.py -q
 
-# With coverage
-python -m pytest tests/ -q \
-  --cov=newsstack_fmp --cov=terminal_poller --cov=terminal_export \
-  --cov-report=term-missing
+# Local fast sweep (explicit parallelism)
+python -m pytest tests/ -q --maxfail=1 -n 8 --dist=worksteal
+
+# CI parity for PR-like local runs
+python -m pytest tests/ -q --maxfail=1 -n auto --dist=worksteal
+
+# Push-like local run with coverage (slower, mirrors CI push mode)
+python -m pytest tests/ -q --maxfail=1 -n auto --dist=worksteal \
+  --cov --cov-report=term-missing:skip-covered
 ```
+
+The repo now keeps the default local pytest configuration serial so focused
+suite runs from the VS Code Testing panel do not inherit a global xdist
+configuration that can underutilize hardware on a single large test file.
+Use the VS Code tasks for explicit local modes:
+
+- `pytest: focused current file`
+- `pytest: debug current file`
+- `pytest: local fast (8 workers)`
+- `pytest: CI parity (PR)`
+- `pytest: push-like coverage`
+
+For GPU validation of the Open-Prep feature-importance path, install
+`requirements-gpu.txt` into `.venv` and run the recurring report with
+`OPEN_PREP_FI_BACKEND=gpu python -m open_prep.feature_importance_report --lookback 30`.
 
 ### Linting & Type Checking
 

@@ -107,3 +107,11 @@ def test_runner_matches_required_labels_is_case_insensitive() -> None:
         runner,
         ["self-hosted", "windows", "x64", "skipp-local"],
     )
+
+
+def test_build_required_labels_supports_gpu_priority_label() -> None:
+    module = _load_module()
+
+    labels = module.build_required_labels("priority-gpu")
+
+    assert labels == ["self-hosted", "windows", "x64", "priority-gpu"]

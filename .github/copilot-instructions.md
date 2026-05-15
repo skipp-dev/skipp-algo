@@ -80,6 +80,13 @@ The selector uses `scripts/resolve_workflow_runner.py` to prefer an idle
 `self-hosted/windows/x64` runner (plus optional `vars.SMC_SELF_HOSTED_LABEL`)
 and falls back to the hosted runner defined by `SMC_GH_HOSTED_RUNNER`.
 
+Priority cron workflows use `vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL`
+(target value: `priority-cron`). GPU-backed Open-Prep feature-importance
+workflows (`feature-importance-daily.yml`, `open-prep-outcome-backfill.yml`)
+prefer `vars.SMC_PRIORITY_CRON_GPU_SELF_HOSTED_LABEL` (target value:
+`priority-gpu`) and install `requirements-gpu.txt` on the self-hosted
+runner before forcing `OPEN_PREP_FI_BACKEND=gpu`.
+
 `SMC_GH_HOSTED_RUNNER` is the **hosted fallback** runner label (currently
 `ubuntu-latest`). Repository-variable fallback is **not** availability fallback;
 do not point it at `self-hosted` and assume GitHub will fail over automatically.
@@ -162,13 +169,41 @@ Only use raw `actions/setup-python@...` inside the composite action itself.
 
 ## Code authoring rules
 
+### Python environment
+
+- For local Python work in VS Code, use a repo-local virtual environment at
+  `.venv` so tasks, the Testing panel, and terminal commands share one
+  interpreter.
+- Bootstrap on Windows with
+  `./scripts/bootstrap_venv.ps1 -VenvPath .venv`.
+- Bootstrap on macOS/Linux with
+  `SKIPP_VENV=.venv ./scripts/bootstrap_venv.sh`.
+- The workspace uses `.env` from the repo root for local secrets; never commit
+  real credentials.
+- Optional local GPU backend for Open Prep feature-importance:
+  install `requirements-gpu.txt` into `.venv` and set
+  `OPEN_PREP_FI_BACKEND=gpu`.
+
 ### Testing
 
 - Every new Python module must have a corresponding test file in `tests/`.
 - Tests must be deterministic — no live API calls, no network I/O, no `time.sleep`.
 - Mark timing-sensitive tests with `@pytest.mark.flaky(reruns=2)`.
-- Run the full suite locally with `python -m pytest -n auto --dist=loadfile`
-  before opening a PR.
+- Focused suite / current file / VS Code Testing panel: run serial
+  (`python -m pytest -q <file>`). Do not add xdist for single-file or debug
+  runs.
+- Debug current file with `python -m pytest -vv -s --maxfail=1 <file>`.
+- Local fast sweep: `python -m pytest -q --maxfail=1 -n 8 --dist=worksteal tests`.
+- CI parity (PR-like local run):
+  `python -m pytest -q --maxfail=1 -n auto --dist=worksteal tests`.
+- Push-like local coverage run:
+  `python -m pytest -q --maxfail=1 -n auto --dist=worksteal --cov --cov-report=term-missing:skip-covered tests`.
+- Prefer the matching VS Code tasks when available:
+  `python: bootstrap repo .venv`, `pytest: focused current file`,
+  `pytest: debug current file`, `pytest: local fast (8 workers)`,
+  `pytest: CI parity (PR)`, `pytest: push-like coverage`.
+- Do not reintroduce a global xdist default in `pyproject.toml`; focused runs
+  are intentionally serial because the repo has many very large test files.
 
 ### Imports / layer violations
 

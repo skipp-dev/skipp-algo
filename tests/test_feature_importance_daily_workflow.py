@@ -30,3 +30,16 @@ def test_workflow_writes_step_summary() -> None:
     text = WF.read_text()
     assert "GITHUB_STEP_SUMMARY" in text
     assert "ranking_drift" in text
+
+
+def test_workflow_prefers_gpu_labeled_runner() -> None:
+    text = WF.read_text()
+    assert "SMC_PRIORITY_CRON_GPU_SELF_HOSTED_LABEL" in text
+    assert "priority-gpu" not in text  # variable-driven, not hard-coded
+
+
+def test_workflow_forces_gpu_backend_on_self_hosted() -> None:
+    text = WF.read_text()
+    assert "requirements-gpu.txt" in text
+    assert "OPEN_PREP_FI_BACKEND=gpu" in text
+    assert "OPEN_PREP_FI_BACKEND=cpu" in text

@@ -210,6 +210,7 @@ def generate_report(
         "labeled_samples": int(raw.get("labeled_samples") or 0),
         "total_samples": int(raw.get("total_samples") or 0),
         "status": status,
+        "backend": raw.get("backend"),
         "report": raw if status == "ok" else None,
         "shortfall": (
             max(0, int(min_samples) - int(raw.get("labeled_samples") or 0))
@@ -320,11 +321,18 @@ def main(argv: list[str] | None = None) -> int:
     drift = record.get("ranking_drift") or {}
     drift_status = drift.get("status", "unknown")
     drift_max = drift.get("max_position_delta", 0)
+    backend = record.get("backend") or {}
+    backend_used = backend.get("used", "n/a")
+    backend_reason = backend.get("reason", "n/a")
+    backend_device = backend.get("device_name") or backend.get("device_id") or "n/a"
     print(
         f"FI report status={record['status']} "
         f"labeled={record['labeled_samples']} "
         f"threshold={record['min_samples_threshold']} "
         f"shortfall={record['shortfall']} "
+        f"backend={backend_used} "
+        f"backend_reason={backend_reason} "
+        f"backend_device={backend_device} "
         f"drift_status={drift_status} "
         f"drift_max_delta={drift_max}"
     )

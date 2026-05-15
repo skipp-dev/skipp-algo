@@ -40,24 +40,83 @@ defaults:
     shell: bash
 
 jobs:
-  refresh:
+  select-runner:
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
-    timeout-minutes: 10
-
+    timeout-minutes: 5
+    outputs:
+      runs_on_json: ${{ steps.resolve.outputs.runs_on_json }}
+      runner_environment: ${{ steps.resolve.outputs.runner_environment }}
+      resolution_reason: ${{ steps.resolve.outputs.resolution_reason }}
+      matched_runner_name: ${{ steps.resolve.outputs.matched_runner_name }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        uses: ./.github/actions/setup-python-pinned
+
+      - name: Resolve worker runner
+        id: resolve
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+        run: |
+          python scripts/resolve_workflow_runner.py \
+            --repository "${{ github.repository }}" \
+            --hosted-runner "${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}" \
+            --custom-label "${{ vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || vars.SMC_SELF_HOSTED_LABEL }}"
+
+  refresh:
+    needs: select-runner
+    runs-on: ${{ fromJson(needs.select-runner.outputs.runs_on_json) }}
+    timeout-minutes: 10
+
+    steps:
+      - name: Announce selected runner
+        run: |
+          echo "runner_environment=${{ needs.select-runner.outputs.runner_environment }}"
+          echo "resolution_reason=${{ needs.select-runner.outputs.resolution_reason }}"
+          echo "matched_runner_name=${{ needs.select-runner.outputs.matched_runner_name }}"
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Set up pinned Python (GitHub-hosted)
+        if: needs.select-runner.outputs.runner_environment == 'github-hosted'
+        uses: ./.github/actions/setup-python-pinned
         with:
-          python-version: "3.12"
           cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Resolve Python 3.12 interpreter
+        run: |
+          if [[ "${{ needs.select-runner.outputs.runner_environment }}" == "github-hosted" ]]; then
+            python -c "import sys; raise SystemExit('GitHub-hosted Python bootstrap did not resolve Python 3.12.' if sys.version_info[:2] != (3, 12) else 0)"
+            echo "SMC_PYTHON_BIN=python" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          if command -v python >/dev/null 2>&1; then
+            if python -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 12) else 1)"; then
+              echo "SMC_PYTHON_BIN=python" >> "$GITHUB_ENV"
+              exit 0
+            fi
+          fi
+
+          if command -v py >/dev/null 2>&1; then
+            python_bin="$(py -3.12 -c "import sys; print(sys.executable)")"
+            echo "SMC_PYTHON_BIN=$python_bin" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          echo "::error::Self-hosted runner is missing a usable Python 3.12 interpreter (tried \`python\` and \`py -3.12\`)."
+          exit 1
 
       - name: Install Python dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          "$SMC_PYTHON_BIN" -m pip install --upgrade pip
+          "$SMC_PYTHON_BIN" -m pip install -r requirements.txt
 
       - name: Refresh NewsAPI.ai live snapshot
         env:
@@ -78,7 +137,7 @@ jobs:
             echo "Reset persisted live-news state before export."
           fi
 
-          python scripts/export_smc_live_news_snapshot.py \
+          "$SMC_PYTHON_BIN" scripts/export_smc_live_news_snapshot.py \
             --symbols "$SYMBOLS" \
             --export-dir artifacts/smc_microstructure_exports \
             --symbol-limit "$SYMBOL_LIMIT" \

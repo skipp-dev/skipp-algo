@@ -1,4 +1,4 @@
-"""Pin the hybrid runner contract for merge-critical workflows.
+"""Pin the hybrid runner contract for merge-critical and priority cron workflows.
 
 Hybrid strategy (2026-05-15)
 ----------------------------
@@ -7,7 +7,9 @@ Most workflows stay on the hosted runner expression::
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
 
 The merge-critical workflows (`ci.yml`, `docs-lint.yml`,
-`manifest-pytest-poison-scan.yml`, `smc-fast-pr-gates.yml`) are special:
+`manifest-pytest-poison-scan.yml`, `smc-fast-pr-gates.yml`) and the
+priority cron workflows backing Databento / Open Prep / live news refresh
+are special:
 
 * a small hosted `select-runner` control-plane job decides whether a matching
   self-hosted Windows runner is online and idle;
@@ -36,6 +38,11 @@ _ROUTED_WORKFLOWS = {
     "docs-lint.yml": {"worker_jobs": {"inline-backticks"}},
     "manifest-pytest-poison-scan.yml": {"worker_jobs": {"scan"}},
     "smc-fast-pr-gates.yml": {"worker_jobs": {"fast-gates"}},
+    "feature-importance-daily.yml": {"worker_jobs": {"feature-importance-report"}},
+    "open-prep-outcome-backfill.yml": {"worker_jobs": {"backfill"}},
+    "run-open-prep-daily.yml": {"worker_jobs": {"run"}},
+    "smc-databento-production-export.yml": {"worker_jobs": {"export"}},
+    "smc-live-newsapi-refresh.yml": {"worker_jobs": {"refresh"}},
 }
 
 

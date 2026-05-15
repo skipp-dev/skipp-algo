@@ -55,6 +55,22 @@ class TestGenerateReport:
         assert rec["labeled_samples"] == 150
         assert rec["shortfall"] == 0
 
+    def test_backend_metadata_is_bubbled_up_even_without_full_report(self, monkeypatch) -> None:
+        monkeypatch.setattr(
+            fr,
+            "compute_feature_importance",
+            lambda **kw: {
+                "error": "insufficient labeled samples",
+                "labeled_samples": 7,
+                "backend": {"used": "gpu", "reason": "cuda_device:0", "device_name": "Test GPU"},
+            },
+        )
+        rec = fr.generate_report(lookback_days=30, min_samples=30)
+        assert rec["status"] == "insufficient_labels"
+        assert rec["report"] is None
+        assert rec["backend"]["used"] == "gpu"
+        assert rec["backend"]["device_name"] == "Test GPU"
+
 
 # ── Persistence ──────────────────────────────────────────────────────
 
@@ -114,6 +130,25 @@ class TestMain:
         assert rc == 0
         assert not (tmp_path / "latest.json").exists()
 
+    def test_main_prints_backend_details(self, monkeypatch, tmp_path: Path, capsys) -> None:
+        monkeypatch.setattr(fr, "FI_REPORT_DIR", tmp_path)
+        monkeypatch.setattr(
+            fr,
+            "compute_feature_importance",
+            lambda **kw: {
+                "labeled_samples": 35,
+                "total_samples": 40,
+                "features": {"x": {"pearson_r": 0.1, "importance_normalized": 1.0}},
+                "backend": {"used": "gpu", "reason": "cuda_device:0", "device_name": "Test GPU"},
+            },
+        )
+        rc = fr.main(["--dry-run"])
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "backend=gpu" in out
+        assert "backend_reason=cuda_device:0" in out
+        assert "backend_device=Test GPU" in out
+
 
 # ── Workflow integration ─────────────────────────────────────────────
 
@@ -121,8 +156,48 @@ class TestMain:
 class TestWorkflowIntegration:
     def test_workflow_runs_fi_report_step(self) -> None:
         text = Path(".github/workflows/open-prep-outcome-backfill.yml").read_text(encoding="utf-8")
-        assert "python -m open_prep.feature_importance_report" in text
+        assert "-m open_prep.feature_importance_report" in text
         assert "artifacts/open_prep/feature_importance/" in text
+
+
+class TestBackendSelection:
+    def test_cpu_backend_is_selected_explicitly(self, monkeypatch) -> None:
+        import open_prep.outcomes as outcomes
+
+        monkeypatch.setenv("OPEN_PREP_FI_BACKEND", "cpu")
+        backend = outcomes._resolve_feature_importance_backend()
+
+        assert backend["used"] == "cpu"
+        assert backend["reason"] == "requested_cpu"
+
+    def test_compute_feature_importance_reports_backend(self, monkeypatch, tmp_path: Path) -> None:
+        import open_prep.outcomes as outcomes
+
+        monkeypatch.setattr(outcomes, "FEATURE_IMPORTANCE_DIR", tmp_path)
+        sample_path = tmp_path / "fi_samples_2026-05-15.jsonl"
+        sample_path.write_text(
+            "\n".join(
+                json.dumps(
+                    {
+                        "symbol": f"SYM{i}",
+                        "date": "2026-05-15",
+                        "profitable_30m": bool(i % 2),
+                        **{key: float(i + idx) for idx, key in enumerate(outcomes.FEATURE_KEYS)},
+                    }
+                )
+                for i in range(12)
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("OPEN_PREP_FI_BACKEND", "cpu")
+
+        report = outcomes.compute_feature_importance(lookback_days=1)
+
+        assert report["backend"]["used"] == "cpu"
+        assert report["backend"]["reason"] == "requested_cpu"
+        assert report["labeled_samples"] == 12
+        assert set(outcomes.FEATURE_KEYS).issubset(report["features"].keys())
 
 
 # ── Ranking drift detection (E4) ─────────────────────────────────────
