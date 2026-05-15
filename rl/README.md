@@ -30,7 +30,43 @@ Installation durch das offizielle CUDA-Wheel aus dem PyTorch-Index. Der
 Workflow `rl-research-training.yml` installiert und prüft diesen Override
 explizit, bevor `SKIPP_RL_DEVICE=cuda` gesetzt wird.
 
+Die lokale Install-Reihenfolge ist absichtlich exakt dieselbe wie im Workflow:
+
+```powershell
+python -m pip install -r requirements-rl.txt
+python -m pip install --force-reinstall -r requirements-rl-gpu.txt
+```
+
+Ohne den `--force-reinstall`-Schritt kann auf Windows leicht wieder die
+generische CPU-Torch-Variante aus PyPI aktiv bleiben.
+
 Solange diese nicht installiert sind, ist die gesamte Pipeline trotzdem lauffähig: TWAP/VWAP-Baselines, ε-greedy Slicer, Slippage-Kalibrator, Simulator, Safety-Layer und Drift-Monitor laufen nur auf numpy. Der `available`-Flag-Vertrag (siehe `tests/test_rl_execution_smoke.py::test_optional_agent_dep_contract`) garantiert, dass Konsumenten den Optional-Pfad sauber detektieren und auf den ε-greedy-Fallback ausweichen können.
+
+## GPU research workflow and artifact contract
+
+Der geroutete Workflow `.github/workflows/rl-research-training.yml` trainiert
+die synthetischen PPO-/SAC-Agenten per `workflow_dispatch` und schreibt das
+Ergebnis nach `artifacts/rl/research/latest.json`.
+
+Wichtige Laufzeitfelder im JSON-/Workflow-Vertrag:
+
+- `requested_device`
+- `resolved_device`
+- `torch.version`
+- `torch.cuda_available`
+- `torch.cuda_version`
+
+Damit gilt auch hier: `SKIPP_RL_DEVICE=cuda` ist ein Wunschzettel, nicht die
+Garantie. Der Workflow setzt CUDA nur, wenn die Laufzeitprobe erfolgreich ist,
+und die Step Summary schreibt den tatsächlich aufgelösten Device-Wert separat
+aus.
+
+Beispiel lokaler GPU-Run:
+
+```powershell
+$env:SKIPP_RL_DEVICE = "cuda"
+python scripts/run_rl_research_training.py --agent ppo --device $env:SKIPP_RL_DEVICE --total-timesteps 5000
+```
 
 ## Live-Daten-Wiring
 
@@ -43,6 +79,7 @@ Heute füttern Tests den `TradeBlotter` mit synthetischen Trades. Live wird ders
 ## Quellen
 
 - Master-Plan: [`docs/SPRINT_PLAN_C12_RL_EXECUTION_2026-04-26.md`](../docs/SPRINT_PLAN_C12_RL_EXECUTION_2026-04-26.md)
+- Routed workflow: [`.github/workflows/rl-research-training.yml`](../.github/workflows/rl-research-training.yml)
 - ML-Schwester-Schicht: [`ml/README.md`](../ml/README.md)
 - Trigger-Check-Skript: [`scripts/check_c12_trigger.py`](../scripts/check_c12_trigger.py)
 - Smoke-Tests: [`tests/test_rl_execution_smoke.py`](../tests/test_rl_execution_smoke.py)

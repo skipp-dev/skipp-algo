@@ -203,6 +203,42 @@ jobs:
             --output-path "artifacts/rl/research/latest.json" \
             2>&1 | tee rl_research_training.log
 
+      - name: Summarise RL artifact
+        id: artifact
+        if: always()
+        env:
+          RL_ARTIFACT_PATH: artifacts/rl/research/latest.json
+        run: |
+          set -euo pipefail
+          if [[ ! -f "$RL_ARTIFACT_PATH" ]]; then
+            echo "resolved_device=unknown" >> "$GITHUB_OUTPUT"
+            echo "cuda_requested_but_not_used=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          "$SMC_PYTHON_BIN" - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          output_path = Path(os.environ["GITHUB_OUTPUT"])
+          artifact_path = Path(os.environ["RL_ARTIFACT_PATH"])
+          payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+          requested = str(payload.get("requested_device") or "cpu")
+          resolved = str(payload.get("resolved_device") or "unknown")
+
+          with output_path.open("a", encoding="utf-8") as fh:
+              fh.write(f"resolved_device={resolved}\n")
+              fh.write(
+                  f"cuda_requested_but_not_used={'true' if requested == 'cuda' and resolved != 'cuda' else 'false'}\n"
+              )
+          PY
+
+      - name: Warn on RL fallback
+        if: ${{ always() && steps.artifact.outputs.cuda_requested_but_not_used == 'true' }}
+        run: |
+          echo "::warning::RL research requested CUDA but the artifact resolved device=${{ steps.artifact.outputs.resolved_device }}."
+
       - name: Write step summary
         if: always()
         run: |
@@ -211,6 +247,7 @@ jobs:
             echo ""
             echo "- agent: \`${{ steps.params.outputs.agent }}\`"
             echo "- requested device: \`${SKIPP_RL_DEVICE:-cpu}\`"
+            echo "- resolved device: \`${{ steps.artifact.outputs.resolved_device || 'unknown' }}\`"
             echo "- torch: \`${{ steps.runtime.outputs.torch_version || 'unknown' }}\`"
             echo "- torch cuda available: \`${{ steps.runtime.outputs.cuda_available || 'false' }}\`"
             echo "- torch cuda version: \`${{ steps.runtime.outputs.cuda_version || 'none' }}\`"

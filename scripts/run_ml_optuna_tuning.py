@@ -161,6 +161,16 @@ def run_tuning(
             }
         )
 
+    observed_resolved_devices = sorted(
+        {
+            str(device_name)
+            for row in trial_rows
+            for device_name in row["resolved_devices"]
+            if device_name is not None
+        }
+    )
+    best_resolved_devices = [str(item) for item in study.best_trial.user_attrs.get("resolved_devices", [])]
+
     return {
         "generated_at": iso_now(),
         "mode": "tune",
@@ -171,8 +181,11 @@ def run_tuning(
         "feature_count": feature_count,
         "trials_requested": trials,
         "trials_completed": len(study.trials),
+        "best_trial_number": int(study.best_trial.number),
         "best_value": float(study.best_value),
         "best_params": dict(study.best_params),
+        "best_resolved_devices": best_resolved_devices,
+        "observed_resolved_devices": observed_resolved_devices,
         "trial_summaries": trial_rows,
     }
 
@@ -192,7 +205,7 @@ def main() -> int:
     output_path = Path(args.output_path).expanduser()
     atomic_write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", output_path)
 
-    best_devices = payload["trial_summaries"][0]["resolved_devices"] if payload["trial_summaries"] else []
+    best_devices = payload.get("best_resolved_devices", [])
     print(f"mode={payload['mode']}")
     print(f"backend={payload['backend']}")
     print(f"requested_device={payload['requested_device']}")

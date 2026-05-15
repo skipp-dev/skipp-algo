@@ -28,8 +28,16 @@ def test_workflow_probes_torch_cuda_before_requesting_gpu() -> None:
 
 def test_workflow_step_summary_surfaces_torch_runtime() -> None:
     text = WF.read_text(encoding="utf-8")
+    assert "resolved device" in text
     assert "torch cuda available" in text
     assert "torch cuda version" in text
+
+
+def test_workflow_surfaces_resolved_device_from_artifact() -> None:
+    text = WF.read_text(encoding="utf-8")
+    assert "Summarise RL artifact" in text
+    assert "resolved_device" in text
+    assert "Warn on RL fallback" in text
 
 
 def test_workflow_exposes_agent_choices() -> None:

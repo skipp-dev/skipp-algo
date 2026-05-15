@@ -85,13 +85,19 @@ Priority cron workflows use `vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL`
 workflows (`feature-importance-daily.yml`, `open-prep-outcome-backfill.yml`)
 prefer `vars.SMC_PRIORITY_CRON_GPU_SELF_HOSTED_LABEL` (target value:
 `priority-gpu`) and install `requirements-gpu.txt` on the self-hosted
-runner before forcing `OPEN_PREP_FI_BACKEND=gpu`.
+runner before forcing `OPEN_PREP_FI_BACKEND=gpu`. Keep the generated report
+artifact path aligned with `open_prep.feature_importance_report.FI_REPORT_DIR`
+(`artifacts/open_prep/feature_importance/`), not the raw sample directory under
+`artifacts/open_prep/outcomes/feature_importance/`.
 
 The GPU research workflows follow the same routed-runner contract:
 
 - `ml-family-research.yml` exposes `mode=train|explainability|tune` over the
   synthetic `ml/` dataset scaffold and prefers
   `vars.SMC_PRIORITY_CRON_GPU_SELF_HOSTED_LABEL` whenever `prefer_gpu=true`.
+  The workflow must probe the selected backend first and then surface the
+  actual `resolved_devices` plus any `device_fallback_reason` values in the
+  step summary / artifact contract.
 - `rl-research-training.yml` trains the research-only PPO/SAC agents from
   `rl/` against the synthetic execution env and also prefers the GPU label
   when `prefer_gpu=true`.
@@ -202,13 +208,17 @@ Only use raw `actions/setup-python@...` inside the composite action itself.
   real credentials.
 - Optional local GPU backend for Open Prep feature-importance:
   install `requirements-gpu.txt` into `.venv` and set
-  `OPEN_PREP_FI_BACKEND=gpu`.
+  `OPEN_PREP_FI_BACKEND=gpu`. Accepted values are `auto|cpu|gpu`; use
+  `OPEN_PREP_FI_GPU_DEVICE=<index>` when the runner has multiple visible GPUs.
 - Optional ML research stack: install `requirements-ml.txt` and use
-  `SKIPP_ML_DEVICE=cuda` (or `cpu`) with the `run_ml_*` scripts.
+  `SKIPP_ML_DEVICE=auto|cpu|cuda` with the `run_ml_*` scripts. Treat `cuda`
+  as a request and inspect `resolved_devices` / `device_fallback_reason`
+  instead of assuming the backend really stayed on GPU.
 - Optional RL research stack: install `requirements-rl.txt` and use
-  `SKIPP_RL_DEVICE=cuda` (or `cpu`) with `scripts/run_rl_research_training.py`.
+  `SKIPP_RL_DEVICE=auto|cpu|cuda` with `scripts/run_rl_research_training.py`.
 - For CUDA-enabled RL locally or on the self-hosted runner, install
-  `requirements-rl-gpu.txt` after `requirements-rl.txt`.
+  `requirements-rl-gpu.txt` after `requirements-rl.txt` with
+  `python -m pip install --force-reinstall -r requirements-rl-gpu.txt`.
 
 ### Testing
 

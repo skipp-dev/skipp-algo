@@ -184,11 +184,100 @@ jobs:
           echo "trials=$TRIALS" >> "$GITHUB_OUTPUT"
           echo "artifact_dir=$ARTIFACT_DIR" >> "$GITHUB_OUTPUT"
 
+      - name: Probe ML runtime
+        id: runtime
+        run: |
+          set -euo pipefail
+          if [[ "${{ needs.select-runner.outputs.runner_environment }}" != "self-hosted" || "${{ steps.params.outputs.prefer_gpu }}" != "true" ]]; then
+            echo "cuda_ready=false" >> "$GITHUB_OUTPUT"
+            echo "probe_reason=cpu_path_selected" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          ML_BACKEND="${{ steps.params.outputs.backend }}" "$SMC_PYTHON_BIN" - <<'PY'
+          import os
+          from pathlib import Path
+
+          import numpy as np
+
+          output_path = Path(os.environ["GITHUB_OUTPUT"])
+          backend = os.environ["ML_BACKEND"]
+          cuda_ready = False
+          reason = "unsupported_backend"
+
+          if backend == "logistic":
+              reason = "logistic_cpu_only"
+          else:
+              X = np.asarray(
+                  [
+                      [0.0, 0.0, 0.0, 0.0],
+                      [0.0, 1.0, 0.0, 1.0],
+                      [1.0, 0.0, 1.0, 0.0],
+                      [1.0, 1.0, 1.0, 1.0],
+                      [0.2, 0.8, 0.1, 0.9],
+                      [0.8, 0.2, 0.9, 0.1],
+                      [0.3, 0.7, 0.2, 0.8],
+                      [0.7, 0.3, 0.8, 0.2],
+                  ],
+                  dtype=float,
+              )
+              y = np.asarray([0, 0, 1, 1, 0, 1, 0, 1], dtype=int)
+              try:
+                  if backend == "xgboost":
+                      import xgboost as xgb  # type: ignore
+
+                      model = xgb.XGBClassifier(
+                          max_depth=2,
+                          learning_rate=0.1,
+                          n_estimators=4,
+                          subsample=1.0,
+                          colsample_bytree=1.0,
+                          reg_lambda=1.0,
+                          objective="binary:logistic",
+                          eval_metric="logloss",
+                          random_state=0,
+                          tree_method="hist",
+                          device="cuda",
+                      )
+                  elif backend == "lightgbm":
+                      import lightgbm as lgb  # type: ignore
+
+                      model = lgb.LGBMClassifier(
+                          num_leaves=15,
+                          learning_rate=0.1,
+                          n_estimators=4,
+                          feature_fraction=1.0,
+                          bagging_fraction=1.0,
+                          reg_lambda=1.0,
+                          objective="binary",
+                          metric="binary_logloss",
+                          random_state=0,
+                          verbose=-1,
+                          device_type="gpu",
+                      )
+                  else:
+                      raise ValueError(f"unsupported backend {backend!r}")
+
+                  model.fit(X, y)
+                  model.predict_proba(X[:2])
+                  cuda_ready = True
+                  reason = "probe_succeeded"
+              except Exception as exc:
+                  reason = f"{backend}_cuda_unavailable:{type(exc).__name__}"
+
+          with output_path.open("a", encoding="utf-8") as fh:
+              fh.write(f"cuda_ready={'true' if cuda_ready else 'false'}\n")
+              fh.write(f"probe_reason={reason}\n")
+          PY
+
       - name: Select ML device
         run: |
-          if [[ "${{ needs.select-runner.outputs.runner_environment }}" == "self-hosted" && "${{ steps.params.outputs.prefer_gpu }}" == "true" ]]; then
+          if [[ "${{ needs.select-runner.outputs.runner_environment }}" == "self-hosted" && "${{ steps.params.outputs.prefer_gpu }}" == "true" && "${{ steps.runtime.outputs.cuda_ready }}" == "true" ]]; then
             echo "SKIPP_ML_DEVICE=cuda" >> "$GITHUB_ENV"
-            echo "::notice::ML research will request the GPU backend."
+            echo "::notice::ML research will request the GPU backend (${{ steps.params.outputs.backend }})."
+          elif [[ "${{ needs.select-runner.outputs.runner_environment }}" == "self-hosted" && "${{ steps.params.outputs.prefer_gpu }}" == "true" ]]; then
+            echo "SKIPP_ML_DEVICE=cpu" >> "$GITHUB_ENV"
+            echo "::warning::ML research requested GPU but backend probe failed (${{ steps.runtime.outputs.probe_reason }}). Falling back to CPU."
           else
             echo "SKIPP_ML_DEVICE=cpu" >> "$GITHUB_ENV"
             echo "::notice::ML research is running on the CPU path."
@@ -232,6 +321,77 @@ jobs:
               ;;
           esac
 
+      - name: Summarise ML artifact
+        id: artifact
+        if: always()
+        env:
+          ML_ARTIFACT_PATH: ${{ steps.params.outputs.artifact_dir }}/latest.json
+        run: |
+          set -euo pipefail
+          if [[ ! -f "$ML_ARTIFACT_PATH" ]]; then
+            echo "resolved_devices=unknown" >> "$GITHUB_OUTPUT"
+            echo "gpu_requested_but_not_used=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "fallback_reasons<<EOF"
+              echo "none"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          "$SMC_PYTHON_BIN" - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          output_path = Path(os.environ["GITHUB_OUTPUT"])
+          artifact_path = Path(os.environ["ML_ARTIFACT_PATH"])
+          payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+
+          resolved: set[str] = set()
+          fallbacks: list[str] = []
+          mode = str(payload.get("mode") or "")
+          if mode in {"train", "explainability"}:
+              for row in payload.get("family_reports", []):
+                  dev = row.get("resolved_device")
+                  if dev:
+                      resolved.add(str(dev))
+                  reason = row.get("device_fallback_reason")
+                  if reason:
+                      fallbacks.append(f"{row.get('family', '?')}:{reason}")
+          elif mode == "tune":
+              for dev in payload.get("best_resolved_devices", []) or []:
+                  resolved.add(str(dev))
+              if not resolved:
+                  for trial in payload.get("trial_summaries", []):
+                      for dev in trial.get("resolved_devices", []):
+                          resolved.add(str(dev))
+              best_trial_number = payload.get("best_trial_number")
+              for trial in payload.get("trial_summaries", []):
+                  if best_trial_number is not None and trial.get("number") != best_trial_number:
+                      continue
+                  for family, metrics in (trial.get("family_metrics") or {}).items():
+                      reason = metrics.get("device_fallback_reason")
+                      if reason:
+                          fallbacks.append(f"{family}:{reason}")
+
+          resolved_devices = ",".join(sorted(resolved)) or "unknown"
+          fallback_text = "; ".join(sorted(dict.fromkeys(fallbacks))) if fallbacks else "none"
+          gpu_requested_but_not_used = payload.get("requested_device") == "cuda" and "cuda" not in resolved
+
+          with output_path.open("a", encoding="utf-8") as fh:
+              fh.write(f"resolved_devices={resolved_devices}\n")
+              fh.write(f"gpu_requested_but_not_used={'true' if gpu_requested_but_not_used else 'false'}\n")
+              fh.write("fallback_reasons<<EOF\n")
+              fh.write(fallback_text + "\n")
+              fh.write("EOF\n")
+          PY
+
+      - name: Warn on ML fallback
+        if: ${{ always() && (steps.artifact.outputs.gpu_requested_but_not_used == 'true' || steps.artifact.outputs.fallback_reasons != 'none') }}
+        run: |
+          echo "::warning::ML research resolved devices=${{ steps.artifact.outputs.resolved_devices }} fallback_reasons=${{ steps.artifact.outputs.fallback_reasons }}"
+
       - name: Write step summary
         if: always()
         run: |
@@ -241,6 +401,9 @@ jobs:
             echo "- mode: \`${{ steps.params.outputs.mode }}\`"
             echo "- backend: \`${{ steps.params.outputs.backend }}\`"
             echo "- requested device: \`${SKIPP_ML_DEVICE:-cpu}\`"
+            echo "- resolved devices: \`${{ steps.artifact.outputs.resolved_devices || 'unknown' }}\`"
+            echo "- fallback reasons: \`${{ steps.artifact.outputs.fallback_reasons || 'none' }}\`"
+            echo "- GPU probe: \`${{ steps.runtime.outputs.probe_reason || 'not-run' }}\`"
             echo "- runner environment: \`${{ needs.select-runner.outputs.runner_environment }}\`"
             echo "- artifact dir: \`${{ steps.params.outputs.artifact_dir }}\`"
           } >> "$GITHUB_STEP_SUMMARY"

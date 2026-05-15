@@ -44,7 +44,9 @@ by the terminal (`databento`, `tradingview_ta`, `httpx`, …) are importable.
 Optional GPU acceleration for the Open-Prep feature-importance loop is kept in
 `requirements-gpu.txt`. On a CUDA-capable self-hosted runner (for example the
 local RTX-based Actions runner), install that file and set
-`OPEN_PREP_FI_BACKEND=gpu` to force the CuPy backend.
+`OPEN_PREP_FI_BACKEND=gpu` to force the CuPy backend. The accepted values are
+`auto`, `cpu`, and `gpu`; `OPEN_PREP_FI_GPU_DEVICE` optionally selects the CUDA
+device index when more than one GPU is visible.
 
 Optional offline research stacks are split out so production installs stay
 lean:
@@ -55,13 +57,50 @@ lean:
 - `requirements-rl-gpu.txt` as the CUDA-enabled torch override for the
   self-hosted RL GPU runner
 
-For local GPU experiments, set `SKIPP_ML_DEVICE=cuda` or `SKIPP_RL_DEVICE=cuda`
-before invoking the corresponding `scripts/run_ml_*` or
-`scripts/run_rl_research_training.py` entrypoint.
+Common research/runtime selectors:
+
+| Variable | Accepted values | Used by | Notes |
+| --- | --- | --- | --- |
+| `OPEN_PREP_FI_BACKEND` | `auto`, `cpu`, `gpu` | `open_prep.feature_importance_report` | GPU path requires `requirements-gpu.txt` |
+| `OPEN_PREP_FI_GPU_DEVICE` | integer device index | `open_prep.outcomes` GPU backend | Optional; defaults to device `0` |
+| `SKIPP_ML_DEVICE` | `auto`, `cpu`, `cuda` | `scripts/run_ml_*` | `cuda` is a request; inspect `resolved_devices` + `device_fallback_reason` in the JSON artifact |
+| `SKIPP_RL_DEVICE` | `auto`, `cpu`, `cuda` | `scripts/run_rl_research_training.py` | `cuda` is only honored when torch reports CUDA availability |
 
 For RL specifically, install `requirements-rl-gpu.txt` after
 `requirements-rl.txt` if you want a CUDA-enabled PyTorch build; the generic
 Windows wheel from PyPI is CPU-only.
+
+PowerShell-safe examples:
+
+```powershell
+# Open Prep feature-importance on the CuPy backend
+$env:OPEN_PREP_FI_BACKEND = "gpu"
+$env:OPEN_PREP_FI_GPU_DEVICE = "0"
+python -m open_prep.feature_importance_report --lookback 30
+
+# ML family research (requested device is recorded separately from resolved devices)
+$env:SKIPP_ML_DEVICE = "cuda"
+python scripts/run_ml_family_training.py --backend xgboost --device $env:SKIPP_ML_DEVICE
+
+# RL research with the CUDA torch override on Windows/self-hosted
+python -m pip install -r requirements-rl.txt
+python -m pip install --force-reinstall -r requirements-rl-gpu.txt
+$env:SKIPP_RL_DEVICE = "cuda"
+python scripts/run_rl_research_training.py --agent ppo --device $env:SKIPP_RL_DEVICE
+```
+
+For the offline research workflows, the canonical artifact roots are:
+
+- `artifacts/ml/research/training/latest.json`
+- `artifacts/ml/research/explainability/latest.json`
+- `artifacts/ml/research/explainability/latest.md`
+- `artifacts/ml/research/optuna/latest.json`
+- `artifacts/rl/research/latest.json`
+
+The GPU-enabled workflows surface the requested device separately from the
+runtime result. Check `resolved_devices` / `resolved_device` and any
+`device_fallback_reason` fields instead of assuming that `cuda` was actually
+used.
 
 For convenience inside VS Code, there is also a task named
 `python: bootstrap repo .venv`.
@@ -831,6 +870,9 @@ Use the VS Code tasks for explicit local modes:
 For GPU validation of the Open-Prep feature-importance path, install
 `requirements-gpu.txt` into `.venv` and run the recurring report with
 `OPEN_PREP_FI_BACKEND=gpu python -m open_prep.feature_importance_report --lookback 30`.
+Generated reports are written to `artifacts/open_prep/feature_importance/`,
+while the raw daily feature-importance samples continue to accumulate under
+`artifacts/open_prep/outcomes/feature_importance/`.
 
 For offline ML / RL research on the same runner, install the optional stacks
 and invoke the dedicated scripts directly:
@@ -848,6 +890,12 @@ python scripts/run_ml_optuna_tuning.py --backend xgboost --device cuda --trials 
 # Research-only RL training (PPO or SAC) on the synthetic execution env
 python scripts/run_rl_research_training.py --agent ppo --device cuda --total-timesteps 5000
 ```
+
+The matching routed workflows are `.github/workflows/ml-family-research.yml`
+and `.github/workflows/rl-research-training.yml`. Both prefer the GPU-labelled
+self-hosted runner when `prefer_gpu=true`, but both now also publish the actual
+resolved device in the step summary and artifact payload so CPU fallbacks are
+visible instead of silently implied away.
 
 For a full CUDA RL stack on the self-hosted runner, install the GPU override
 after the base RL requirements:
@@ -949,10 +997,12 @@ skipp-algo/
 
 - [Terminal Architecture Plan](docs/BLOOMBERG_TERMINAL_PLAN.md)
 - [Databento Volatility Suite Guide](docs/DATABENTO_VOLATILITY_SUITE.md)
+- [ML Layer Guide](ml/README.md)
 - [Open Prep Suite — Technical Reference](docs/OPEN_PREP_SUITE_TECHNICAL_REFERENCE.md)
 - [Open Prep Suite — Ops Quick Reference](docs/OPEN_PREP_OPS_QUICK_REFERENCE.md)
 - [Open Prep Suite — Incident Runbook Matrix](docs/OPEN_PREP_INCIDENT_RUNBOOK_MATRIX.md)
 - [Open Prep Suite — Incident Runbook (One-Page)](docs/OPEN_PREP_INCIDENT_RUNBOOK_ONEPAGE.md)
+- [RL Execution Guide](rl/README.md)
 - [TradersPost Integration](docs/TRADERSPOST_INTEGRATION.md)
 - [TradingView Strategy Guide](docs/TRADINGVIEW_STRATEGY_GUIDE.md)
 - [Troubleshooting Guide](docs/TROUBLESHOOTING.md)

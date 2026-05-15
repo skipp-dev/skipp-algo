@@ -27,6 +27,20 @@ def test_workflow_installs_ml_stack_and_runs_scripts() -> None:
     assert "run_ml_optuna_tuning.py" in text
 
 
+def test_workflow_probes_ml_backend_before_requesting_gpu() -> None:
+    text = WF.read_text(encoding="utf-8")
+    assert "Probe ML runtime" in text
+    assert "cuda_ready" in text
+    assert "probe_reason" in text
+
+
+def test_workflow_surfaces_resolved_devices_and_fallbacks() -> None:
+    text = WF.read_text(encoding="utf-8")
+    assert "resolved devices" in text
+    assert "fallback reasons" in text
+    assert "Warn on ML fallback" in text
+
+
 def test_workflow_uploads_research_artifacts() -> None:
     text = WF.read_text(encoding="utf-8")
     assert "actions/upload-artifact" in text
