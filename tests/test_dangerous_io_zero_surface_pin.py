@@ -60,6 +60,7 @@ def _attr_call_sites(attr_owner: str, attr_name: str) -> set[tuple[str, int]]:
 
     sites: set[tuple[str, int]] = set()
     for path in _iter_py_files():
+        rel = str(path.relative_to(ROOT)).replace("\\", "/")
         try:
             tree = ast.parse(path.read_text(encoding="utf-8"))
         except (SyntaxError, UnicodeDecodeError):
@@ -73,7 +74,7 @@ def _attr_call_sites(attr_owner: str, attr_name: str) -> set[tuple[str, int]]:
             value = func.value
             if not isinstance(value, ast.Name) or value.id != attr_owner:
                 continue
-            sites.add((str(path.relative_to(ROOT)), node.lineno))
+            sites.add((rel, node.lineno))
     return sites
 
 
@@ -87,8 +88,8 @@ def _attr_call_sites(attr_owner: str, attr_name: str) -> set[tuple[str, int]]:
 # New non-zero ``os.kill`` callers must be explicitly added below with
 # justification.
 OS_KILL_ALLOWED: set[tuple[str, int]] = {
-    ("open_prep/realtime_signals.py", 173),
-    ("open_prep/realtime_signals.py", 200),
+    ("open_prep/realtime_signals.py", 177),
+    ("open_prep/realtime_signals.py", 204),
     # Signal-0 PID liveness probe for the IB-client-id leasing registry
     # (claims an IB API client_id slot only if the previous owner is gone).
     ("scripts/ib_client_id.py", 64),

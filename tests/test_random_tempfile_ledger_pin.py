@@ -60,9 +60,9 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     ("open_prep/outcome_backfill.py", 531, "mkstemp"),
     ("open_prep/outcomes.py", 121, "mkstemp"),
     ("open_prep/outcomes.py", 396, "mkstemp"),
-    ("open_prep/realtime_signals.py", 109, "mkstemp"),
-    ("open_prep/realtime_signals.py", 2497, "mkstemp"),
-    ("open_prep/realtime_signals.py", 2538, "mkstemp"),
+    ("open_prep/realtime_signals.py", 113, "mkstemp"),
+    ("open_prep/realtime_signals.py", 2503, "mkstemp"),
+    ("open_prep/realtime_signals.py", 2544, "mkstemp"),
     ("open_prep/watchlist.py", 63, "mkstemp"),
     ("smc_core/inference/null_cache.py", 96, "mkstemp"),
     ("terminal_export.py", 177, "mkstemp"),
@@ -87,11 +87,11 @@ def _scan() -> tuple[set[tuple[str, int]], set[tuple[str, int, str]]]:
     random_sites: set[tuple[str, int]] = set()
     tempfile_sites: set[tuple[str, int, str]] = set()
     for p in _iter_prod_py():
+        rel = str(p.relative_to(_REPO_ROOT)).replace("\\", "/")
         try:
             tree = ast.parse(p.read_text(encoding="utf-8"))
         except (SyntaxError, UnicodeDecodeError):
             continue
-        rel = str(p.relative_to(_REPO_ROOT))
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
                 continue
