@@ -102,11 +102,11 @@ def generate_summary() -> dict[str, Any]:
         entry: dict[str, Any] = {
             "library": lib,
             "import_path": f"preuss_steffen/{lib}/1",
-            "publish_report": str(publish_path.relative_to(ROOT)) if publish_path else None,
+            "publish_report": publish_path.relative_to(ROOT).as_posix() if publish_path else None,
             "publish_ok": publish_status["publish_ok"],
             "compile_ok": publish_status["compile_ok"],
             "publish_evidence_stale": publish_stale,
-            "screenshot": str(screenshot.relative_to(ROOT)) if screenshot else None,
+            "screenshot": screenshot.relative_to(ROOT).as_posix() if screenshot else None,
         }
         library_evidence.append(entry)
 
@@ -139,7 +139,7 @@ def generate_summary() -> dict[str, Any]:
             "overall_operational_status": "GREEN" if (all_published and preflight_green and not preflight_stale) else "YELLOW" if all_published else "RED",
         },
         "preflight": {
-            "report": str(preflight_path.relative_to(ROOT)) if preflight_path else None,
+            "report": preflight_path.relative_to(ROOT).as_posix() if preflight_path else None,
             "stale": preflight_stale,
             **preflight_status,
         },
