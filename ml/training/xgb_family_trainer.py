@@ -15,6 +15,15 @@ except Exception:  # pragma: no cover - the absence is the tested path locally
     xgb = None  # type: ignore
     _HAS_XGB = False
 
+_VALID_DEVICES = {"auto", "cpu", "cuda"}
+
+
+def _normalise_device(device: str) -> str:
+    value = device.strip().lower()
+    if value not in _VALID_DEVICES:
+        raise ValueError(f"device must be one of {_VALID_DEVICES}, got {device!r}")
+    return value
+
 
 class XGBFamilyTrainer(BaseFamilyTrainer):
     """Gradient-boosted-tree trainer.
@@ -39,6 +48,7 @@ class XGBFamilyTrainer(BaseFamilyTrainer):
         subsample: float = 0.8,
         colsample_bytree: float = 0.8,
         reg_lambda: float = 1.0,
+        device: str = "auto",
     ) -> None:
         if not _HAS_XGB:
             raise RuntimeError(
@@ -58,11 +68,48 @@ class XGBFamilyTrainer(BaseFamilyTrainer):
             "random_state": int(seed),
             "tree_method": "hist",
         }
+        self.requested_device = _normalise_device(device)
+        self.resolved_device = "pending"
+        self.device_fallback_reason: str | None = None
+
+    def _candidate_devices(self) -> tuple[str, ...]:
+        if self.device_fallback_reason is not None and self.resolved_device == "cpu":
+            return ("cpu",)
+        if self.requested_device == "cpu":
+            return ("cpu",)
+        if self.requested_device == "cuda":
+            return ("cuda", "cpu")
+        return ("cuda", "cpu")
+
+    def _classifier_for_device(self, device: str) -> Any:
+        params = dict(self.params)
+        if device == "cuda":
+            params["device"] = "cuda"
+        else:
+            params.pop("device", None)
+        return xgb.XGBClassifier(**params)
 
     def _fit_one(self, X: np.ndarray, y: np.ndarray) -> Any:  # pragma: no cover
-        clf = xgb.XGBClassifier(**self.params)
-        clf.fit(X, y, verbose=False)
-        return clf
+        last_exc: Exception | None = None
+        for device in self._candidate_devices():
+            try:
+                clf = self._classifier_for_device(device)
+                clf.fit(X, y, verbose=False)
+                self.resolved_device = device
+                if device == "cpu" and self.requested_device == "cuda":
+                    self.device_fallback_reason = "requested_cuda_unavailable"
+                elif device == "cpu" and self.requested_device == "auto":
+                    self.device_fallback_reason = "auto_cuda_unavailable"
+                return clf
+            except Exception as exc:
+                last_exc = exc
+                if device == "cpu":
+                    break
+        if last_exc is None:
+            raise RuntimeError("xgboost training did not start")
+        raise RuntimeError(
+            f"xgboost training failed (requested_device={self.requested_device}): {last_exc}"
+        ) from last_exc
 
     @staticmethod
     def _predict_proba(payload: Any, X: np.ndarray) -> np.ndarray:  # pragma: no cover

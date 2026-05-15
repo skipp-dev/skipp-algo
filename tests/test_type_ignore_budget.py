@@ -95,9 +95,13 @@ _FROZEN_FILE_COUNTS: dict[str, int] = {
     "newsstack_fmp/store_sqlite.py": 3,
     "open_prep/alerts.py": 1,
     "open_prep/diff.py": 1,
+    "open_prep/outcomes.py": 1,
+    "open_prep/realtime_signals.py": 2,
     "open_prep/streamlit_monitor.py": 25,  # rebaselined 2026-05-12 PR #2163 (was 26; -1 for UW removal `_fetch_uw_options = None  # type: ignore[assignment]` shim — OPRA UOA shim _fetch_opra_options still present)
     "rl/agents/ppo_slicer.py": 4,
     "rl/agents/sac_sizer.py": 2,
+    "rl/simulator/execution_env.py": 5,
+    "rl/simulator/sb3_execution_env.py": 5,
     "smc_adapters/regime_bridge.py": 2,
     "smc_core/layering.py": 1,
     "smc_core/resilient.py": 2,

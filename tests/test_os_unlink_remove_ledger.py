@@ -77,7 +77,7 @@ def _os_delete_sites() -> set[tuple[str, int, str]]:
             value = func.value
             if not isinstance(value, ast.Name) or value.id != "os":
                 continue
-            sites.add((str(path.relative_to(ROOT)), node.lineno, func.attr))
+            sites.add((path.relative_to(ROOT).as_posix(), node.lineno, func.attr))
     return sites
 
 
@@ -92,14 +92,14 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     ("open_prep/alerts.py", 79, "unlink"),
     ("open_prep/candidate_weights.py", 154, "unlink"),
     ("open_prep/diff.py", 68, "unlink"),
-    ("open_prep/feature_importance_report.py", 256, "unlink"),
+    ("open_prep/feature_importance_report.py", 257, "unlink"),
     ("open_prep/outcome_backfill.py", 97, "unlink"),
     ("open_prep/outcome_backfill.py", 539, "unlink"),
-    ("open_prep/outcomes.py", 130, "unlink"),
-    ("open_prep/outcomes.py", 408, "unlink"),
-    ("open_prep/realtime_signals.py", 117, "remove"),
-    ("open_prep/realtime_signals.py", 2512, "unlink"),
-    ("open_prep/realtime_signals.py", 2551, "unlink"),
+    ("open_prep/outcomes.py", 137, "unlink"),
+    ("open_prep/outcomes.py", 419, "unlink"),
+    ("open_prep/realtime_signals.py", 121, "remove"),
+    ("open_prep/realtime_signals.py", 2518, "unlink"),
+    ("open_prep/realtime_signals.py", 2557, "unlink"),
     ("open_prep/run_open_prep.py", 2217, "unlink"),
     ("open_prep/run_open_prep.py", 3013, "unlink"),
     ("open_prep/run_open_prep.py", 3349, "unlink"),
