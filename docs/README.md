@@ -16,6 +16,12 @@
 - [../rl/README.md](../rl/README.md)
 - [../artifacts/open_prep/outcomes/feature_importance/README.md](../artifacts/open_prep/outcomes/feature_importance/README.md)
 
+The ML/RL READMEs above describe the implementation layers that are already
+checked into mainline. The routed GPU research workflows and their dedicated
+entrypoints currently live on the parallel branch
+`fix/live-runner-routing-unblock-ml-rl-gpu`, so keep mainline docs free of
+links to those branch-only workflow files until they actually merge.
+
 > **Canonical documentation map:**
 > [smc_documentation_map_2026-04-16.md](smc_documentation_map_2026-04-16.md)
 >

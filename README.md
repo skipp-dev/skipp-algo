@@ -52,7 +52,24 @@ in this repository.
 Optional GPU acceleration for the Open-Prep feature-importance loop is kept in
 `requirements-gpu.txt`. On a CUDA-capable self-hosted runner (for example the
 local RTX-based Actions runner), install that file and set
-`OPEN_PREP_FI_BACKEND=gpu` to force the CuPy backend.
+`OPEN_PREP_FI_BACKEND=gpu` to force the CuPy backend. The accepted values are
+`auto`, `cpu`, and `gpu`; `OPEN_PREP_FI_GPU_DEVICE` optionally selects the CUDA
+device index when more than one GPU is visible.
+
+PowerShell-safe Open-Prep example:
+
+```powershell
+$env:OPEN_PREP_FI_BACKEND = "gpu"
+$env:OPEN_PREP_FI_GPU_DEVICE = "0"
+python -m open_prep.feature_importance_report --lookback 30
+```
+
+This mainline branch already contains the `ml/` and `rl/` implementation
+layers, but the synthetic GPU research automation workstream currently lives on
+the parallel branch `fix/live-runner-routing-unblock-ml-rl-gpu`. Do not assume
+that `ml-family-research.yml`, `rl-research-training.yml`, or the newer
+`scripts/run_ml_*` / `scripts/run_rl_research_training.py` entrypoints are
+present on this branch until that work is merged.
 
 If you use VS Code, point the Python extension and the Testing panel at the
 repo-local `.venv` interpreter so the editor, tasks, and terminal runs stay in
@@ -895,6 +912,15 @@ workspace-specific helpers rather than canonical repo interfaces.
 For GPU validation of the Open-Prep feature-importance path, install
 `requirements-gpu.txt` into `.venv` and run the recurring report with
 `OPEN_PREP_FI_BACKEND=gpu python -m open_prep.feature_importance_report --lookback 30`.
+Generated reports are written to `artifacts/open_prep/feature_importance/`,
+while the raw daily feature-importance samples continue to accumulate under
+`artifacts/open_prep/outcomes/feature_importance/`.
+
+The ML/RL READMEs in this branch describe the implementation-layer contracts and
+the currently landed scaffolding. The routed GPU research workflows and their
+dedicated command-line entrypoints remain a parallel-branch concern for now, so
+keep mainline documentation branch-real and avoid linking to absent workflow
+files.
 
 ### Linting & Type Checking
 
@@ -1000,6 +1026,8 @@ skipp-algo/
 - [RL Layer README](rl/README.md)
 - [Sprint Plan C10 — ML Layer](docs/SPRINT_PLAN_C10_ML_LAYER_2026-04-26.md)
 - [Sprint Plan C12 — RL Execution](docs/SPRINT_PLAN_C12_RL_EXECUTION_2026-04-26.md)
+- Parallel GPU research automation branch (not merged into this mainline yet):
+  `fix/live-runner-routing-unblock-ml-rl-gpu`
 
 ### Terminal & Operations
 
