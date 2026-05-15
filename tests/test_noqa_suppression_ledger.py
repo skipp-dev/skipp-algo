@@ -109,7 +109,6 @@ _FROZEN_SITES: dict[str, int] = {
     "scripts/resolve_workflow_runner.py": 1,
     "scripts/ib_client_id.py": 2,
     "scripts/measure_databento_ops_run.py": 2,
-    "scripts/resolve_workflow_runner.py": 1,
     "scripts/smc_micro_publish_guard.py": 1,
     "scripts/smc_zone_priority_calibration.py": 2,
     "scripts/start_open_prep_suite.py": 3,
