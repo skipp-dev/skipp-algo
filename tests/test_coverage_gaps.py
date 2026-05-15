@@ -100,7 +100,7 @@ class TestPollAndClassifyMulti(unittest.TestCase):
         self.db = SqliteStore(os.path.join(self._tmpdir.name, "test.db"))
 
     def tearDown(self) -> None:
-        self.db.close()
+        self.db.close(force=True)  # force=True actually closes on-disk connections (Windows file-lock fix)
         self._tmpdir.cleanup()
 
     def test_benzinga_only_returns_classified(self) -> None:
@@ -963,7 +963,7 @@ class TestSqliteStorePrune(unittest.TestCase):
         self.store = SqliteStore(os.path.join(self._tmpdir.name, "prune.db"))
 
     def tearDown(self) -> None:
-        self.store.close()
+        self.store.close(force=True)  # force=True actually closes on-disk connections (Windows file-lock fix)
         self._tmpdir.cleanup()
 
     def test_prune_seen_removes_old_entries(self) -> None:
@@ -1023,7 +1023,11 @@ class TestSqliteStorePrune(unittest.TestCase):
         for i in range(10):
             self.store.mark_seen("p", f"item_{i}", now - i * 10)
 
-        self.store.prune_seen(keep_seconds=50)  # keep last 50s
+        # Use keep_seconds=45 so the cutoff falls midway between item_4 (40s
+        # old) and item_5 (50s old).  keep_seconds=50 would place the cutoff
+        # at exactly item_5's timestamp; SQL uses strict-less-than so the
+        # result is timing-dependent (flaky on fast machines).
+        self.store.prune_seen(keep_seconds=45)
         count = self.store.conn.execute("SELECT COUNT(*) FROM seen").fetchone()[0]
         self.assertEqual(count, 5)  # items 0-4 (0s, 10s, 20s, 30s, 40s ago)
 
@@ -1053,7 +1057,7 @@ class TestSqliteStoreClusterTouch(unittest.TestCase):
         self.store = SqliteStore(os.path.join(self._tmpdir.name, "cluster.db"))
 
     def tearDown(self) -> None:
-        self.store.close()
+        self.store.close(force=True)  # force=True actually closes on-disk connections (Windows file-lock fix)
         self._tmpdir.cleanup()
 
     def test_first_touch_returns_count_one(self) -> None:
