@@ -69,7 +69,7 @@ def test_handoff_workflow_uses_no_cache_for_bundle(workflow_name: str) -> None:
     """
     workflow_path = WORKFLOWS_DIR / workflow_name
     assert workflow_path.exists(), f"missing workflow: {workflow_name}"
-    text = workflow_path.read_text()
+    text = workflow_path.read_text(encoding="utf-8")
     offending_lines = [
         f"  L{idx}: {line.strip()}"
         for idx, line in enumerate(text.splitlines(), start=1)

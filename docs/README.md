@@ -1,5 +1,27 @@
 # SMC Documentation Index
 
+> **Repo-wide entry point:**
+> [../README.md](../README.md)
+>
+> This file is intentionally SMC / TradingView focused. For the broader
+> platform surfaces (terminal, Open-Prep, Databento, ML, RL), start with the
+> root README and then branch into the topic-specific docs below.
+
+## Repo-wide starting points
+
+- [../README.md](../README.md) — top-level platform overview and operator quick starts
+- [OPEN_PREP_SUITE_TECHNICAL_REFERENCE.md](OPEN_PREP_SUITE_TECHNICAL_REFERENCE.md)
+- [DATABENTO_VOLATILITY_SUITE.md](DATABENTO_VOLATILITY_SUITE.md)
+- [../ml/README.md](../ml/README.md)
+- [../rl/README.md](../rl/README.md)
+- [../artifacts/open_prep/outcomes/feature_importance/README.md](../artifacts/open_prep/outcomes/feature_importance/README.md)
+
+The ML/RL READMEs above describe the implementation layers that are already
+checked into mainline. The routed GPU research workflows and their dedicated
+entrypoints currently live on the parallel branch
+`fix/live-runner-routing-unblock-ml-rl-gpu`, so keep mainline docs free of
+links to those branch-only workflow files until they actually merge.
+
 > **Canonical documentation map:**
 > [smc_documentation_map_2026-04-16.md](smc_documentation_map_2026-04-16.md)
 >
@@ -23,6 +45,7 @@ Start here for the canonical mainline setup path:
 
 Use these files as the starting point before changing the split architecture or the bus contract:
 
+- [self_hosted_runner_reservation_runbook.md](self_hosted_runner_reservation_runbook.md)
 - [smc-lite-pro-product-cut.md](smc-lite-pro-product-cut.md)
 - [TRADINGVIEW_STRATEGY_GUIDE.md](TRADINGVIEW_STRATEGY_GUIDE.md)
 - [smc-owner-review-2026-04-14.md](smc-owner-review-2026-04-14.md)
@@ -74,8 +97,8 @@ Primary TradingView automation entry points:
 
 Current workspace caveat:
 
-- the TradingView automation layer, reports path, and auth artifacts are present in this checkout, so the documented preflight and micro-library publish paths are reproducible locally again; inspect the latest staged report before assuming every run covered binding and runtime scopes
-- latest fully green SMC mainline evidence: `automation/tradingview/reports/preflight-2026-04-08T12-37-12-028Z.json`
+- the TradingView automation layer, reports path, and auth artifacts are present in this checkout, so the documented preflight and micro-library publish paths are reproducible locally again; inspect `../automation/tradingview/reports/` before assuming an older snapshot still reflects the current binding/runtime scope
+- regenerate fresh SMC mainline evidence with `npm run tv:preflight:smc-mainline` when you need a current validation artifact
 
 Current deep-review planning documents:
 

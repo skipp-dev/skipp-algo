@@ -16,13 +16,17 @@ synthetic data, ready to plug into live data without further structural changes.
   - `lgbm_family_trainer.py` — LightGBM (optional, `try`-import).
 - `ml/calibration/`
   - `probability_calibrator.py` — `PlattCalibrator`, `IsotonicCalibrator` (PAV).
+  - `conformal.py` — `SplitConformalClassifier`, `AdaptiveConformalClassifier`.
   - `online_recalibrator.py` — PSI / Brier-regret refit decision.
 - `ml/inference/family_predictor.py` — Thread-safe per-family registry with
   atomic swap and hot-reload semantics.
 - `ml/features/` — `microstructure.py` (Bid-Ask/Volume Imbalance, VPIN),
   `volatility.py` (Realized, Garman-Klass, Parkinson),
   `temporal.py` (cyclical encoding, session marker).
-- `ml/drift/` — `MLDriftDetector` (PSI two-tier alerts, mirrors C9 contract).
+- `ml/drift/` — `MLDriftDetector` (PSI two-tier alerts, mirrors C9 contract)
+  plus `trend.py` for PSI slope alerts and importance-weighted PSI helpers.
+- `ml/stacking/meta_learner.py` — constrained logistic meta-learner for
+  combining per-family probabilities.
 - `ml/schemas/v1_input_schema.json`, `ml/schemas/v1_hero_features.json` —
   SHA pins on the source-of-truth feature contracts.
 
@@ -93,7 +97,8 @@ incubation data is a **dataset swap**, not a refactor:
    refit / rollback loop.
 
 `tests/test_ml_layer_smoke.py` exercises every step end-to-end on numpy-only
-fixtures.
+fixtures. Additional focused validation lives in
+`tests/test_conformal_coverage.py` and `tests/test_meta_learner_smoke.py`.
 
 ## Sources
 
@@ -104,3 +109,5 @@ fixtures.
 - HERO drift test: [`tests/test_hero_observed_vocab_pin.py`](../tests/test_hero_observed_vocab_pin.py)
 - Schema pin test: [`tests/test_ml_input_schema_pin.py`](../tests/test_ml_input_schema_pin.py)
 - End-to-end smoke: [`tests/test_ml_layer_smoke.py`](../tests/test_ml_layer_smoke.py)
+- Conformal coverage test: [`tests/test_conformal_coverage.py`](../tests/test_conformal_coverage.py)
+- Meta-learner smoke: [`tests/test_meta_learner_smoke.py`](../tests/test_meta_learner_smoke.py)
