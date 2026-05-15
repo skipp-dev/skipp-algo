@@ -4218,23 +4218,41 @@ def test_read_cached_frame_ttl_returns_data_when_within_limit(tmp_path) -> None:
 
 
 def test_write_cached_frame_uses_unique_temp_paths_for_concurrent_writers(tmp_path, monkeypatch) -> None:
-    """Concurrent writes to the same cache key should not race on a shared temp file."""
-    cache_path = tmp_path / "shared_cache.parquet"
-    barrier = threading.Barrier(2)
-    original_replace = os.replace
-    errors: list[Exception] = []
+    """Each concurrent writer must use a unique temp file (no shared-temp race).
 
-    def blocking_replace(src, dst) -> None:
-        barrier.wait(timeout=2)
-        original_replace(src, dst)
+    The original test used a threading.Barrier to force both threads into
+    os.replace() at the same moment.  On Linux, rename(2) is atomic so two
+    concurrent renames to the same destination are safe.  On Windows,
+    MoveFileExW with MOVEFILE_REPLACE_EXISTING is NOT atomic for concurrent
+    callers, so that version raised PermissionError (ERROR_ACCESS_DENIED).
+
+    What we actually care about is that every writer creates its *own* temp
+    file (mkstemp uniqueness), not that two concurrent renames to the same
+    destination succeed.  This version records which temp paths were used and
+    serialises the final os.replace() so the test is stable on all platforms,
+    then verifies the uniqueness invariant.
+    """
+    cache_path = tmp_path / "shared_cache.parquet"
+    temp_paths: list[str] = []
+    original_replace = os.replace
+    record_lock = threading.Lock()
+    replace_serial = threading.Lock()  # serialise replace on Windows (MoveFileExW is not concurrency-safe)
+
+    def recording_replace(src, dst) -> None:
+        with record_lock:
+            temp_paths.append(str(src))
+        with replace_serial:
+            original_replace(src, dst)
+
+    monkeypatch.setattr("databento_volatility_screener.os.replace", recording_replace)
+
+    errors: list[Exception] = []
 
     def writer(value: int) -> None:
         try:
             _write_cached_frame(cache_path, pd.DataFrame({"x": [value]}))
         except Exception as exc:
             errors.append(exc)
-
-    monkeypatch.setattr("databento_volatility_screener.os.replace", blocking_replace)
 
     first = threading.Thread(target=writer, args=(1,))
     second = threading.Thread(target=writer, args=(2,))
@@ -4244,6 +4262,9 @@ def test_write_cached_frame_uses_unique_temp_paths_for_concurrent_writers(tmp_pa
     second.join()
 
     assert errors == []
+    # Each writer must have used a distinct temp file — that's the race guard.
+    assert len(temp_paths) == 2, f"expected 2 replace calls, got {temp_paths!r}"
+    assert len(set(temp_paths)) == 2, f"writers must not share a temp path; got {temp_paths!r}"
 
     result = pd.read_parquet(cache_path)
     assert result.iloc[0]["x"] in {1, 2}
