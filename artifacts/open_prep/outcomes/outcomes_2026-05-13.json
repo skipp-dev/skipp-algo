@@ -12,8 +12,8 @@
     "regime_at_entry": "ROTATION",
     "zone_priority_rank": "C",
     "zone_priority_score": 48,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": true,
+    "pnl_30m_pct": 5.4054
   },
   {
     "date": "2026-05-13",
@@ -28,8 +28,8 @@
     "regime_at_entry": "ROTATION",
     "zone_priority_rank": "C",
     "zone_priority_score": 48,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": false,
+    "pnl_30m_pct": -7.084
   },
   {
     "date": "2026-05-13",
@@ -44,8 +44,8 @@
     "regime_at_entry": "ROTATION",
     "zone_priority_rank": "C",
     "zone_priority_score": 48,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": true,
+    "pnl_30m_pct": 12.1149
   },
   {
     "date": "2026-05-13",
@@ -60,8 +60,8 @@
     "regime_at_entry": "ROTATION",
     "zone_priority_rank": "C",
     "zone_priority_score": 48,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": true,
+    "pnl_30m_pct": 5.6728
   },
   {
     "date": "2026-05-13",
@@ -92,8 +92,8 @@
     "regime_at_entry": "ROTATION",
     "zone_priority_rank": "C",
     "zone_priority_score": 48,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": true,
+    "pnl_30m_pct": 12.3567
   },
   {
     "date": "2026-05-13",
@@ -108,8 +108,8 @@
     "regime_at_entry": "ROTATION",
     "zone_priority_rank": "C",
     "zone_priority_score": 48,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": false,
+    "pnl_30m_pct": -2.3481
   },
   {
     "date": "2026-05-13",
@@ -124,8 +124,8 @@
     "regime_at_entry": "ROTATION",
     "zone_priority_rank": "C",
     "zone_priority_score": 48,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": true,
+    "pnl_30m_pct": 4.01
   },
   {
     "date": "2026-05-13",
@@ -140,8 +140,8 @@
     "regime_at_entry": "ROTATION",
     "zone_priority_rank": "C",
     "zone_priority_score": 48,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": false,
+    "pnl_30m_pct": -1.1145
   },
   {
     "date": "2026-05-13",
@@ -156,7 +156,7 @@
     "regime_at_entry": "ROTATION",
     "zone_priority_rank": "C",
     "zone_priority_score": 48,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": true,
+    "pnl_30m_pct": 13.5741
   }
 ]
