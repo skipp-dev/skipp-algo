@@ -1,21 +1,33 @@
-# `rl/` — RL-Execution-Schicht (C12, aktive Implementierung)
+# `rl/` — RL Execution Layer (C12, active implementation)
 
-**Status:** Aktive Implementierung. Pipeline durchgängig in numpy lauffähig (Slippage-Kalibrator, Simulator, TWAP-/VWAP-Baselines, Safety-Layer, Drift-Monitor). PPO/SAC-Agenten sind als optionale `stable-baselines3`-Backends gegated; live geht der Schalter durch Datensatz-Swap (synthetic → blotter).
+**Status:** Active implementation. The pipeline is end-to-end runnable on
+NumPy alone (slippage calibrator, simulator, TWAP/VWAP baselines, safety
+layer, drift monitor). PPO/SAC agents are gated behind optional
+`stable-baselines3` backends; live onboarding is a dataset swap
+(`synthetic -> blotter`), not a structural refactor.
 
-## Module
+## Modules
 
-- `rl/types.py` — Typed Contracts (`ExecutionState`, `ExecutionAction`, `SlippageEstimate`, `TradeRecord`, `TradeBlotter`).
-- `rl/slippage/` — `AlmgrenChrissCalibrator` (Bayesian linear regression, half-normal Prior, BPS-Output mit 95 %-Konfidenzintervall).
-- `rl/simulator/` — `ExecutionEnv` mit gymnasium-kompatibler `reset()`/`step()`-Schnittstelle. Reward = `−ImplementationShortfallₘᵦᵖₛ − λ·variance`.
-- `rl/baselines/` — `TWAPSlicer`, `VWAPSlicer` (volumenprofil-gewichtet, Profil wird auf Env-Horizont interpoliert).
-- `rl/agents/` — `EpsilonGreedyTwapAgent` (always-on numpy), `PPOSlicer` und `SACSizer` (try-import sb3, `available`-Flag, `RuntimeError` ohne Backend).
-- `rl/safety/` — `HardConstraintLayer` (Veto-Schicht: Größen-Cap, Drawdown-Cap, Slice/Order-Type-Whitelist).
-- `rl/drift/` — `RLDriftDetector` (PSI auf Slice-Size-Verteilungen, warn/alarm).
-- `rl/schemas/v1_execution_state.json` — eingefrorene Schema-Datei für State- und Action-Space.
+- `rl/types.py` — typed contracts (`ExecutionState`, `ExecutionAction`,
+  `SlippageEstimate`, `TradeRecord`, `TradeBlotter`).
+- `rl/slippage/almgren_chriss_calibrator.py` — `AlmgrenChrissCalibrator`
+  (Bayesian linear regression, half-normal prior, BPS output with 95% CI).
+- `rl/simulator/execution_env.py` — `ExecutionEnv` with a
+  gymnasium-compatible `reset()` / `step()` interface.
+- `rl/baselines/` — `TWAPSlicer`, `VWAPSlicer`.
+- `rl/agents/` — `EpsilonGreedyTwapAgent` (always-on NumPy), `PPOSlicer`, and
+  `SACSizer` (optional SB3-backed agents exposing `available`).
+- `rl/safety/__init__.py` — `HardConstraintLayer`, `GuardResult`, sizing
+  decisions, and order-type whitelist.
+- `rl/drift/action_drift.py` — `RLDriftDetector` for PSI-based action/slice
+  drift alerts.
+- `rl/extensions.py` — C12.1 extensions: `cvar_reward`,
+  `adversarial_bar_replay`, `RLWalkForwardConfig`, `ConstraintHitLog`.
+- `rl/schemas/v1_execution_state.json` — frozen execution-state schema.
 
-## Optionale Heavy-Backends
+## Optional heavy backends
 
-In `requirements-rl.txt`:
+`requirements-rl.txt` pins:
 
 ```
 gymnasium>=0.29.0
@@ -24,19 +36,30 @@ torch>=2.2.0
 optuna>=3.5.0
 ```
 
-Solange diese nicht installiert sind, ist die gesamte Pipeline trotzdem lauffähig: TWAP/VWAP-Baselines, ε-greedy Slicer, Slippage-Kalibrator, Simulator, Safety-Layer und Drift-Monitor laufen nur auf numpy. Der `available`-Flag-Vertrag (siehe `tests/test_rl_execution_smoke.py::test_optional_agent_dep_contract`) garantiert, dass Konsumenten den Optional-Pfad sauber detektieren und auf den ε-greedy-Fallback ausweichen können.
+Without these packages the pipeline is still fully usable: TWAP/VWAP
+baselines, the epsilon-greedy slicer, slippage calibrator, simulator,
+safety layer, and drift monitor all run on NumPy alone. The `available`
+contract (see `tests/test_rl_execution_smoke.py::test_optional_agent_dep_contract`)
+guarantees that consumers can detect optional backends cleanly and fall back
+to the deterministic path.
 
-## Live-Daten-Wiring
+## Live-data wiring
 
-Heute füttern Tests den `TradeBlotter` mit synthetischen Trades. Live wird derselbe Blotter aus dem Order-Lifecycle (`smc_*` / `terminal_*`) befüllt. Kein Code-Pfad-Swap nötig — nur Datensatz-Swap.
+Today the tests feed `TradeBlotter` with synthetic trades. Live the same
+blotter is populated from the order lifecycle (`smc_*` / `terminal_*`)
+without swapping code paths — only the dataset source changes.
 
-## Trigger-Gate
+## Trigger gate
 
-`scripts/check_c12_trigger.py` prüft separat, ob Live-Roll-out auf reale Order-Flow-Daten zulässig ist (≥ 4 Wochen Inkubation einer SMC-Familie aus C8). Solange das Gate `BLOCKED` zurückgibt, läuft die Pipeline auf synthetischen Daten und gegen den Simulator — vollständig deterministisch unter Seed.
+`scripts/check_c12_trigger.py` checks whether live rollout on real order-flow
+data is allowed (>= 4 weeks incubation of an SMC family from C8). Until that
+gate returns `BLOCKED`, the RL layer stays on synthetic data and the simulator,
+fully deterministic under seed.
 
-## Quellen
+## Sources
 
-- Master-Plan: [`docs/SPRINT_PLAN_C12_RL_EXECUTION_2026-04-26.md`](../docs/SPRINT_PLAN_C12_RL_EXECUTION_2026-04-26.md)
-- ML-Schwester-Schicht: [`ml/README.md`](../ml/README.md)
-- Trigger-Check-Skript: [`scripts/check_c12_trigger.py`](../scripts/check_c12_trigger.py)
-- Smoke-Tests: [`tests/test_rl_execution_smoke.py`](../tests/test_rl_execution_smoke.py)
+- Master plan: [`docs/SPRINT_PLAN_C12_RL_EXECUTION_2026-04-26.md`](../docs/SPRINT_PLAN_C12_RL_EXECUTION_2026-04-26.md)
+- ML sister layer: [`ml/README.md`](../ml/README.md)
+- Trigger-check script: [`scripts/check_c12_trigger.py`](../scripts/check_c12_trigger.py)
+- RL smoke tests: [`tests/test_rl_execution_smoke.py`](../tests/test_rl_execution_smoke.py)
+- C12.1 extension tests: [`tests/test_rl_extensions_c12_1.py`](../tests/test_rl_extensions_c12_1.py)
