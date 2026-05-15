@@ -20,9 +20,9 @@ exactly three locations:
 
 * ``smc_integration/release_policy.py:1071`` — read git HEAD SHA
   (``git rev-parse HEAD``) for release manifest provenance.
-* ``open_prep/realtime_signals.py:187`` — locate the realtime
+* ``open_prep/realtime_signals.py:190`` — locate the realtime
   signals daemon by scanning the process list (``pgrep``).
-* ``open_prep/realtime_signals.py:333`` — re-launch the realtime
+* ``open_prep/realtime_signals.py:336`` — re-launch the realtime
   signals daemon as a detached child (``Popen`` of
   ``python -m open_prep.realtime_signals``).
 
@@ -135,14 +135,16 @@ SUBPROCESS_RUN_LEDGER: set[tuple[str, int]] = {
     # `git rev-parse HEAD` for release-manifest provenance.
     ("smc_integration/release_policy.py", 1072),
     # `pgrep` to discover the realtime-signals daemon PID.
-    # Rebaselined 2026-05-15 after nearby helper/comment edits shifted the site by +4.
-    ("open_prep/realtime_signals.py", 187),
+    # Rebaselined 2026-05-15 after nearby helper/comment edits shifted the site by +4,
+    # then +3 more when the optional fcntl/type-ignore cleanup removed inline suppressions.
+    ("open_prep/realtime_signals.py", 190),
 }
 
 SUBPROCESS_POPEN_LEDGER: set[tuple[str, int]] = {
     # Detached re-launch of the realtime-signals daemon.
-    # Rebaselined 2026-05-15 after nearby helper/comment edits shifted the site by +6.
-    ("open_prep/realtime_signals.py", 333),
+    # Rebaselined 2026-05-15 after nearby helper/comment edits shifted the site by +6,
+    # then +3 more when the optional fcntl/type-ignore cleanup removed inline suppressions.
+    ("open_prep/realtime_signals.py", 336),
 }
 
 
