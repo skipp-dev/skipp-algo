@@ -3,19 +3,16 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+from rl.agents import PPOSlicer, SACSizer
+from rl.simulator import EnvConfig, ExecutionEnv
+from rl.slippage import AlmgrenChrissCalibrator
+from rl.types import TradeBlotter, TradeRecord
+from scripts.ml_research_common import iso_now
+from scripts.smc_atomic_write import atomic_write_text
 
-from rl.agents import PPOSlicer, SACSizer  # noqa: E402
-from rl.simulator import EnvConfig, ExecutionEnv  # noqa: E402
-from rl.slippage import AlmgrenChrissCalibrator  # noqa: E402
-from rl.types import TradeBlotter, TradeRecord  # noqa: E402
-from scripts.ml_research_common import iso_now  # noqa: E402
-from scripts.smc_atomic_write import atomic_write_text  # noqa: E402
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def build_parser() -> argparse.ArgumentParser:

@@ -200,7 +200,7 @@ jobs:
       - name: Run RL research training
         run: |
           set -euo pipefail
-          "$SMC_PYTHON_BIN" scripts/run_rl_research_training.py \
+          "$SMC_PYTHON_BIN" -m scripts.run_rl_research_training \
             --agent "${{ steps.params.outputs.agent }}" \
             --device "$SKIPP_RL_DEVICE" \
             --training-records "${{ steps.params.outputs.training_records }}" \

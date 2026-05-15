@@ -294,7 +294,7 @@ jobs:
           set -euo pipefail
           case "${{ steps.params.outputs.mode }}" in
             train)
-              "$SMC_PYTHON_BIN" scripts/run_ml_family_training.py \
+              "$SMC_PYTHON_BIN" -m scripts.run_ml_family_training \
                 --backend "${{ steps.params.outputs.backend }}" \
                 --device "$SKIPP_ML_DEVICE" \
                 --families "${{ steps.params.outputs.families }}" \
@@ -304,7 +304,7 @@ jobs:
                 2>&1 | tee ml_family_research.log
               ;;
             explainability)
-              "$SMC_PYTHON_BIN" scripts/run_ml_explainability_report.py \
+              "$SMC_PYTHON_BIN" -m scripts.run_ml_explainability_report \
                 --backend "${{ steps.params.outputs.backend }}" \
                 --device "$SKIPP_ML_DEVICE" \
                 --families "${{ steps.params.outputs.families }}" \
@@ -315,7 +315,7 @@ jobs:
                 2>&1 | tee ml_family_research.log
               ;;
             tune)
-              "$SMC_PYTHON_BIN" scripts/run_ml_optuna_tuning.py \
+              "$SMC_PYTHON_BIN" -m scripts.run_ml_optuna_tuning \
                 --backend "${{ steps.params.outputs.backend }}" \
                 --device "$SKIPP_ML_DEVICE" \
                 --families "${{ steps.params.outputs.families }}" \

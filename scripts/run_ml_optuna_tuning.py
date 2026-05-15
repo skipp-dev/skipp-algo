@@ -3,23 +3,19 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import sys
 from pathlib import Path
 from typing import Any
 
 import numpy as np
-
-REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
-
-from ml.training import LGBMFamilyTrainer, LogisticBaseline, XGBFamilyTrainer  # noqa: E402
-from scripts.ml_research_common import (  # noqa: E402
+from ml.training import LGBMFamilyTrainer, LogisticBaseline, XGBFamilyTrainer
+from scripts.ml_research_common import (
     build_dataset_bundle,
     iso_now,
     parse_families,
 )
-from scripts.smc_atomic_write import atomic_write_text  # noqa: E402
+from scripts.smc_atomic_write import atomic_write_text
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def build_parser() -> argparse.ArgumentParser:

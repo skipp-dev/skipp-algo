@@ -1,18 +1,11 @@
 from __future__ import annotations
 
-import sys
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import cast
 
 import numpy as np
-
-REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
-
-from ml.training import FamilyDataset  # noqa: E402
-from ml.types import EventFamily, TrainingReport  # noqa: E402
+from ml.training import FamilyDataset
+from ml.types import EventFamily, TrainingReport
 
 DEFAULT_RESEARCH_FAMILIES: tuple[EventFamily, ...] = ("BOS", "OB", "FVG", "SWEEP")
 _FAMILY_BIAS: dict[EventFamily, float] = {
