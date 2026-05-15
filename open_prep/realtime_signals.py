@@ -34,7 +34,12 @@ Usage::
 """
 from __future__ import annotations
 
-import fcntl
+try:
+    import fcntl as _fcntl  # POSIX only
+    _FLOCK_SUPPORTED = True
+except ImportError:  # Windows
+    _fcntl = None  # type: ignore[assignment]
+    _FLOCK_SUPPORTED = False
 import hashlib
 import json
 import logging
@@ -252,26 +257,27 @@ def ensure_rt_engine_running(
     # Use a file lock to prevent TOCTOU race between concurrent callers
     _RT_ENGINE_LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
     lock_fd = open(_RT_ENGINE_LOCK_FILE, "w", encoding="utf-8")
-    try:
-        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except OSError:
-        # Another process holds the lock — wait briefly and verify that a
-        # running engine actually becomes visible before claiming success.
-        lock_fd.close()
-        deadline = time.monotonic() + 2.0
-        while time.monotonic() < deadline:
-            pid = _detect_rt_engine_pid()
-            if pid is not None:
-                _update_rt_engine_status(running=True, pid=pid, error=None)
-                return True
-            time.sleep(0.2)
-        _update_rt_engine_status(
-            running=False,
-            pid=None,
-            error="RT engine startup lock held, but no running process became visible.",
-        )
-        logger.warning("RT engine lock held but no running process became visible within the wait window")
-        return False
+    if _FLOCK_SUPPORTED:
+        try:
+            _fcntl.flock(lock_fd, _fcntl.LOCK_EX | _fcntl.LOCK_NB)  # type: ignore[union-attr]
+        except OSError:
+            # Another process holds the lock — wait briefly and verify that a
+            # running engine actually becomes visible before claiming success.
+            lock_fd.close()
+            deadline = time.monotonic() + 2.0
+            while time.monotonic() < deadline:
+                pid = _detect_rt_engine_pid()
+                if pid is not None:
+                    _update_rt_engine_status(running=True, pid=pid, error=None)
+                    return True
+                time.sleep(0.2)
+            _update_rt_engine_status(
+                running=False,
+                pid=None,
+                error="RT engine startup lock held, but no running process became visible.",
+            )
+            logger.warning("RT engine lock held but no running process became visible within the wait window")
+            return False
 
     try:
         return _ensure_rt_engine_running_locked(
@@ -279,7 +285,8 @@ def ensure_rt_engine_running(
             project_root=project_root,
         )
     finally:
-        fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        if _FLOCK_SUPPORTED:
+            _fcntl.flock(lock_fd, _fcntl.LOCK_UN)  # type: ignore[union-attr]
         lock_fd.close()
 
 
