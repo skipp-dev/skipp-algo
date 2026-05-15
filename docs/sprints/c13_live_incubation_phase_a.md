@@ -5,6 +5,8 @@
 **Voraussetzung:** PR #331 grün und gemerged
 **Ziel:** Vom „methodisch komplett“ zum ersten echten Track-Record-Datenpunkt
 
+**Status (2026-05-14):** **CLOSED — NO-GO** am Sprint-Tag 16 von 28. Sign-off-Dokument: [`docs/c8_phase_a_signoff_2026-05-14.md`](../c8_phase_a_signoff_2026-05-14.md). Begründung: T1 (IBKR Paper-Onboarding) blockiert die gesamte Daten-Aufnahme; 0 closed trades in allen 4 Familien an Tag 16; alle 9 Cron-Runs schreiben leere Records (`metrics={}, n_events=null`). Folge-Sprint: **C13b — Daten-Aufnahme entsperren** ([`docs/sprints/c13b_data_intake_unblock.md`](c13b_data_intake_unblock.md)).
+
 ## Warum dieser Sprint
 
 Die SMC-Calibration-Pipeline ist methodisch fertig (C1–C12 + Cross-Cutting). Was fehlt, ist **das Einschalten**: die produktive Schleife aus realen Setups → IBKR-Submissions → Outcomes → Drift-Berechnung → Calibration-Report. Solange diese Schleife nicht läuft, bleibt der C12-Trigger BLOCKED, der Phase-B-Promotion-Gate aus PR #331 läuft trocken, und der Track-Record-Gate sieht keine Daten.
