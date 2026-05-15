@@ -200,25 +200,25 @@ def test_research_workflows_route_gpu_modes_to_gpu_label(workflow_name: str) -> 
     assert '--custom-label "$CUSTOM_LABEL"' in text
 
 
-# F1.1 — every routed workflow's `select-runner` job must declare the
-# `administration: read` permission, otherwise the GitHub Actions REST call
-# `GET /repos/{owner}/{repo}/actions/runners` returns 403 with the default
-# GITHUB_TOKEN. The resolver swallows that error and silently falls back to
-# hosted across the entire repository, which is invisible in a normal run.
+# F1.1 — every routed workflow's `select-runner` job should keep a minimal,
+# valid permissions block (`contents: read`) and must never declare
+# unsupported permission keys (for example `administration`, which is not a
+# valid GitHub Actions workflow-permissions key and causes workflow-file
+# validation failure before any job starts).
 @pytest.mark.parametrize("workflow_name", sorted(_ROUTED_WORKFLOWS))
-def test_select_runner_job_grants_administration_read(workflow_name: str) -> None:
+def test_select_runner_job_permissions_are_valid(workflow_name: str) -> None:
     workflow = yaml.safe_load((_WORKFLOWS_DIR / workflow_name).read_text(encoding="utf-8"))
     select_runner = _jobs(workflow)["select-runner"]
     perms = select_runner.get("permissions")
     assert isinstance(perms, dict), (
         f"{workflow_name}:select-runner must declare an explicit permissions block"
     )
-    assert perms.get("administration") == "read", (
-        f"{workflow_name}:select-runner must grant `administration: read` so the "
-        f"runner-listing REST call works with the default GITHUB_TOKEN"
-    )
     assert perms.get("contents") == "read", (
         f"{workflow_name}:select-runner must grant `contents: read` for checkout"
+    )
+    assert "administration" not in perms, (
+        f"{workflow_name}:select-runner must not declare `permissions.administration` "
+        f"(unsupported key; breaks workflow-file validation)"
     )
 
 

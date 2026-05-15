@@ -316,9 +316,11 @@ string of `no_idle_matching_self_hosted_runner` or
 the safety-first profile (see *When to switch to safety-first mode* above).
 
 > If the resolver consistently reports `runner_inventory_unavailable:HTTPError`
-> the issue is not contention but token scope: confirm the `select-runner`
-> job still declares `permissions: { administration: read }` and that any
-> `GH_PAT` override (if set) has the `administration:read` scope on the repo.
+> the issue is usually token scope, not contention: confirm the
+> `select-runner` job keeps a valid permissions block (`contents: read`, with
+> no unsupported keys such as `administration`) and that any `GH_PAT`
+> override (if set) has sufficient repository-admin Actions scope to list
+> self-hosted runners.
 
 ## Anti-patterns
 
