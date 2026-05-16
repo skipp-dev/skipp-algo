@@ -25,7 +25,29 @@ def _first_symbol() -> str:
     return str(row["symbol"]).strip().upper()
 
 
-def test_structure_source_status_is_deterministic() -> None:
+def test_structure_source_status_is_deterministic(
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+) -> None:
+    # Issue #2201 hermetic isolation: discover_structure_source_status() reads
+    # reports/smc_structure_artifacts/manifest_*.json if present, and the
+    # NONCANONICAL_MANIFEST_WORKBOOK_PATH health issue is sensitive to the
+    # manifest's resolved_inputs.workbook_path field. With Bridge 1c (PR
+    # #2197) on main, any prior test in the same xdist worker that exercises
+    # the manifest writer leaves a stale manifest_15m.json behind, breaking
+    # this test's determinism contract on the second call. Redirecting both
+    # STRUCTURE_ARTIFACTS_DIR and STRUCTURE_ARTIFACT_JSON at a clean tmp_path
+    # makes the test hermetic regardless of repo state.
+    artifact_dir = tmp_path / "reports" / "smc_structure_artifacts"
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(structure_artifact_json, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACTS_DIR", artifact_dir)
+    monkeypatch.setattr(
+        structure_artifact_json,
+        "STRUCTURE_ARTIFACT_JSON",
+        tmp_path / "reports" / "smc_structure_artifact.json",
+    )
+
     one = discover_structure_source_status()
     two = discover_structure_source_status()
     assert one == two
