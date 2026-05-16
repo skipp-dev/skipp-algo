@@ -96,7 +96,11 @@ _ALLOWED: dict[str, frozenset[int]] = {
     # actual continue-on-error inventory.
     # Follow-up 2026-05-15: adjacent header/comment churn shifted the same
     # six advisory anchors by +2 without changing behavior.
-    "smc-library-refresh.yml": frozenset({275, 500, 615, 854, 999, 1019}),
+    # F-V8-C5-B follow-up (2026-05-16): +3 each after wiring
+    # `cache: pip` / `cache-dependency-path: requirements.txt` onto the
+    # heavy-job composite invocation (hosted-runner pip cache; no logic
+    # change). 275/500/615/854/999/1019 → 278/503/618/857/1002/1022.
+    "smc-library-refresh.yml": frozenset({278, 503, 618, 857, 1002, 1022}),
     # Deeper integration gates: 2 advisory-only probes.
     # Rebaselined 2026-05-02 after PR #2028 composite migration: 69→73, 113→117 (+4 each).
     # F-V4-B4 (2026-05-02): 73→74, 117→118 (+1 each) after @v7 fleet bump.
