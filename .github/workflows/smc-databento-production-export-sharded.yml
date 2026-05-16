@@ -301,3 +301,70 @@ jobs:
           path: artifacts/merged/
           retention-days: 30
           if-no-files-found: error
+
+      # F-V8-D5 (2026-05-16): A9b.5 cutover compat-layer.
+      # Re-publishes the merged export bundle under the legacy artifact
+      # name `smc-databento-production-export-<DATE>-<RUN_ID>` so that
+      # existing downstream consumers (notably
+      # smc-measurement-benchmark-rolling.yml's
+      # `Restore Databento production export bundle` step, which globs on
+      # the `smc-databento-production-export-` prefix) keep working when
+      # the production cron is moved from the monolithic workflow to this
+      # sharded one. This is intentionally a thin alias — same payload
+      # tree, no logical change — and is gated on a full-success run
+      # (no `partial_run`) to match the original monolithic semantics,
+      # since current consumers have no partial-run handling.
+      - name: Stage compat export bundle (legacy artifact name)
+        id: compat_stage
+        if: success()
+        run: |
+          set -euo pipefail
+          COMPAT_DIR="artifacts/export-compat"
+          mkdir -p "${COMPAT_DIR}"
+
+          # Detect partial_run from the merged manifest; skip compat upload
+          # when partial so legacy consumers don't see a silently-incomplete
+          # day.
+          MERGED_MANIFEST="artifacts/merged/databento_volatility_production_merged_manifest.json"
+          if [ ! -f "${MERGED_MANIFEST}" ]; then
+            echo "::warning::merged manifest not found at ${MERGED_MANIFEST}; skipping compat upload"
+            echo "skip_compat=true" >>"${GITHUB_OUTPUT}"
+            echo "export_date=" >>"${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          PARTIAL=$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(bool(d.get('partial_run') or d.get('manifest', {}).get('partial_run')))" "${MERGED_MANIFEST}")
+          if [ "${PARTIAL}" = "True" ]; then
+            echo "::notice::merged manifest has partial_run=true; skipping legacy compat upload (consumers have no partial-run handling yet)"
+            echo "skip_compat=true" >>"${GITHUB_OUTPUT}"
+            echo "export_date=" >>"${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          # Flatten per-shard export contents into a single dir mirroring
+          # the monolithic workflow's EXPORT_DIR/ layout. Shards are
+          # partition-disjoint at the symbol level, so later-wins on the
+          # rare path collision is acceptable.
+          shopt -s nullglob
+          for shard_root in shard-artifacts/a9b-2b-shard-*/smc_microstructure_exports/; do
+            cp -R "${shard_root}". "${COMPAT_DIR}/"
+          done
+
+          # Drop the merged manifest in at the root so the consumer's
+          # non-recursive `databento_volatility_production_*_manifest.json`
+          # glob picks it up (the `*` matches `merged_`).
+          cp "${MERGED_MANIFEST}" "${COMPAT_DIR}/"
+
+          EXPORT_DATE=$(date -u +%Y%m%d)
+          echo "export_date=${EXPORT_DATE}" >>"${GITHUB_OUTPUT}"
+          echo "skip_compat=false" >>"${GITHUB_OUTPUT}"
+          echo "::notice::Compat bundle staged at ${COMPAT_DIR} for date ${EXPORT_DATE}"
+          ls -la "${COMPAT_DIR}/" | head -40
+
+      - name: Upload compat export bundle (legacy artifact name)
+        if: success() && steps.compat_stage.outputs.skip_compat == 'false'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: smc-databento-production-export-${{ steps.compat_stage.outputs.export_date }}-${{ github.run_id }}
+          path: artifacts/export-compat/
+          retention-days: 7
+          if-no-files-found: error
