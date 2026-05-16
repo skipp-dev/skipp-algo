@@ -35,13 +35,10 @@ on:
 
 permissions:
   contents: read
-  # F-V8-D2 (2026-05-14): Required by dawidd6/action-download-artifact in
-  # the "Restore Databento production export bundle" steps below — it calls
-  # the GitHub Actions REST API to enumerate the producer workflow's runs
-  # and download the resolved artifact. Without `actions: read` the
-  # cross-workflow pull silently fails with
-  # `Resource not accessible by integration` (403). Matches the
-  # permissions block in smc-library-refresh.yml.
+  # Required by the restore step below: it calls the GitHub Actions REST API
+  # to enumerate and download producer artifacts by id. Without `actions: read`
+  # the cross-workflow pull fails with `Resource not accessible by integration`
+  # (403). Matches the permissions block in smc-library-refresh.yml.
   actions: read
 
 concurrency:
@@ -156,35 +153,146 @@ jobs:
       #
       # Mirror the library-refresh fetch + flatten pattern: pull today's
       # producer artifact (or the most recent same-prefix fallback), then
-      # flatten the dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6 `name_is_regexp: true`
-      # nested subdir into the export-dir root so the non-recursive
-      # `_manifest_candidates` glob can find the manifest.
-      - name: Restore Databento production export bundle (today)
-        id: restore_export_bundle_today
-        uses: dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6
-        with:
-          workflow: smc-databento-production-export.yml
-          name: smc-databento-production-export-${{ steps.meta.outputs.run_date }}-
-          name_is_regexp: true
-          path: artifacts/smc_microstructure_exports
-          workflow_conclusion: success
-          if_no_artifact_found: warn
+      # flatten the nested subdir into the export-dir root so the
+      # non-recursive `_manifest_candidates` glob can find the manifest.
+      #
+      # F-V8-D4 (2026-05-16): replace direct action unzip with an explicit
+      # REST-download + zip-validate loop to survive transient artifact
+      # download corruption (e.g. `Invalid LOC header`) without relying on
+      # control-plane reruns.
+      - name: Restore Databento production export bundle (today + fallback with retry)
+        id: restore_export_bundle
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          RUN_DATE: ${{ steps.meta.outputs.run_date }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/smc_microstructure_exports
 
-      - name: Restore Databento production export bundle (latest fallback)
-        id: restore_export_bundle_fallback
-        if: steps.restore_export_bundle_today.outputs.found_artifact != 'true'
-        uses: dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6
-        with:
-          workflow: smc-databento-production-export.yml
-          name: ^smc-databento-production-export-
-          name_is_regexp: true
-          path: artifacts/smc_microstructure_exports
-          workflow_conclusion: success
-          if_no_artifact_found: warn
+          "$SMC_PYTHON_BIN" - <<'PY'
+          from __future__ import annotations
+
+          import io
+          import json
+          import os
+          import shutil
+          import sys
+          import time
+          import urllib.error
+          import urllib.request
+          import zipfile
+          from pathlib import Path
+
+          repo = os.environ["GITHUB_REPOSITORY"]
+          token = os.environ["GH_TOKEN"]
+          run_date = os.environ["RUN_DATE"]
+          root = Path("artifacts/smc_microstructure_exports")
+          output_path = Path(os.environ["GITHUB_OUTPUT"])
+
+          prefix = "smc-databento-production-export-"
+          today_prefix = f"{prefix}{run_date}-"
+
+          def emit(key: str, value: str) -> None:
+            with output_path.open("a", encoding="utf-8") as fh:
+              fh.write(f"{key}={value}\\n")
+
+          def api_get_json(path: str) -> dict:
+            req = urllib.request.Request(
+              f"https://api.github.com/{path}",
+              headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+                "User-Agent": "smc-measurement-benchmark-rolling",
+              },
+              method="GET",
+            )
+            with urllib.request.urlopen(req, timeout=60) as resp:
+              return json.loads(resp.read().decode("utf-8"))
+
+          def download_zip(artifact_id: int) -> bytes:
+            req = urllib.request.Request(
+              f"https://api.github.com/repos/{repo}/actions/artifacts/{artifact_id}/zip",
+              headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+                "User-Agent": "smc-measurement-benchmark-rolling",
+              },
+              method="GET",
+            )
+            with urllib.request.urlopen(req, timeout=120) as resp:
+              return resp.read()
+
+          artifacts: list[dict] = []
+          for page in range(1, 4):
+            payload = api_get_json(f"repos/{repo}/actions/artifacts?per_page=100&page={page}")
+            batch = payload.get("artifacts") or []
+            if not batch:
+              break
+            for item in batch:
+              name = str(item.get("name") or "")
+              if not name.startswith(prefix):
+                continue
+              if bool(item.get("expired")):
+                continue
+              workflow_run = item.get("workflow_run") or {}
+              if str(workflow_run.get("head_branch") or "") != "main":
+                continue
+              artifacts.append(item)
+            if len(batch) < 100:
+              break
+
+          artifacts.sort(key=lambda item: str(item.get("created_at") or ""), reverse=True)
+          preferred = [item for item in artifacts if str(item.get("name") or "").startswith(today_prefix)]
+          fallback = [item for item in artifacts if item not in preferred]
+          candidates = preferred + fallback
+
+          if not candidates:
+            print("::warning::No Databento producer artifact candidates found (today or fallback).")
+            emit("found_artifact", "false")
+            sys.exit(0)
+
+          errors: list[str] = []
+          for item in candidates[:20]:
+            artifact_id = int(item["id"])
+            artifact_name = str(item.get("name") or "")
+            run_id = int((item.get("workflow_run") or {}).get("id") or 0)
+            mode = "today" if artifact_name.startswith(today_prefix) else "fallback"
+            for attempt in (1, 2, 3):
+              target_dir = root / artifact_name
+              if target_dir.exists():
+                shutil.rmtree(target_dir, ignore_errors=True)
+              try:
+                blob = download_zip(artifact_id)
+                with zipfile.ZipFile(io.BytesIO(blob)) as zf:
+                  bad_entry = zf.testzip()
+                  if bad_entry:
+                    raise zipfile.BadZipFile(f"corrupt entry {bad_entry!r}")
+                  zf.extractall(target_dir)
+
+                print(
+                  f"::notice::Restored Databento export artifact {artifact_name} "
+                  f"(run_id={run_id}, mode={mode}, attempt={attempt})."
+                )
+                emit("found_artifact", "true")
+                emit("artifact_name", artifact_name)
+                emit("artifact_run_id", str(run_id))
+                emit("artifact_mode", mode)
+                sys.exit(0)
+              except (zipfile.BadZipFile, urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
+                errors.append(f"{artifact_name}#{attempt}: {exc}")
+                if attempt < 3:
+                  time.sleep(attempt * 2)
+
+          print("::warning::All Databento producer artifact download attempts failed; verify step will enforce manifest presence.")
+          for line in errors[:5]:
+            print(f"::warning::{line}")
+          emit("found_artifact", "false")
+          PY
 
       # Flatten the nested `<root>/smc-databento-production-export-*/...`
-      # layout produced by dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6 when
-      # `name_is_regexp: true` is used (see main.js:269).
+      # layout from the restored producer artifact directory.
       #
       # F-V8-D3 (2026-05-14): The repo ships a baseline
       # `artifacts/smc_microstructure_exports/smc_live_news_snapshot.json`
@@ -194,13 +302,11 @@ jobs:
       # and emit `::notice::` annotations listing each overwrite so audits
       # stay visible.
       #
-      # Skip when no artifact was found — verify_export_bundle below
+      # Skip when no artifact was restored — verify_export_bundle below
       # produces the canonical missing-bundle annotation.
       - name: Flatten downloaded Databento export bundle
         id: flatten_export_bundle
-        if: |
-          steps.restore_export_bundle_today.outputs.found_artifact == 'true'
-          || steps.restore_export_bundle_fallback.outputs.found_artifact == 'true'
+        if: steps.restore_export_bundle.outputs.found_artifact == 'true'
         run: |
           set -euo pipefail
           ROOT=artifacts/smc_microstructure_exports
