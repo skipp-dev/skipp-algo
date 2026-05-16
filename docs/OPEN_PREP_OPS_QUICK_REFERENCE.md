@@ -79,6 +79,9 @@ Nach einem gesunden Lauf sollten folgende Dateien aktuell sein:
 - `artifacts/open_prep/latest/latest_realtime_signals.json`
 - `artifacts/open_prep/latest/latest_vd_signals.jsonl`
 - `artifacts/open_prep/outcomes/outcomes_YYYY-MM-DD.json`
+- `artifacts/open_prep/feature_importance/latest.json` (generierter Report)
+- `artifacts/open_prep/outcomes/feature_importance/fi_samples_YYYY-MM-DD.jsonl`
+  (Rohsamples für den Report)
 
 ---
 
@@ -109,6 +112,10 @@ Nach einem gesunden Lauf sollten folgende Dateien aktuell sein:
 - `OPEN_PREP_BEA_AUDIT` (`1/0`)
 - `OPEN_PREP_PMH_FETCH_TIMEOUT_SECONDS`
 - `OPEN_PREP_OUTCOME_RETENTION_DAYS`
+- `OPEN_PREP_FI_BACKEND` (`auto`/`cpu`/`gpu`) — Backend-Auswahl für die
+  wiederkehrenden Feature-Importance-Läufe
+- `OPEN_PREP_FI_GPU_DEVICE` (optional, Integer) — CUDA-Device-Index für den
+  CuPy-Backend-Pfad
 
 ### Newsstack
 
@@ -343,7 +350,7 @@ Wichtig: Fail-open bedeutet **nicht** „alles gut“, sondern „laufend, aber 
 
 ### Weekly
 
-- Feature-Importance Report prüfen
+- Feature-Importance Report prüfen (`artifacts/open_prep/feature_importance/latest.json`)
 - Weight-Drift (`_regime_adjusted`) plausibilisieren
 - Outcome-Retention/Artefaktgröße kontrollieren
 - Alert-Throttling und Ziel-Webhook Health prüfen

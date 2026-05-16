@@ -116,13 +116,26 @@ def test_refresh_workflow_runs_post_release_validation_before_commit() -> None:
     assert '- name: Refresh gate evidence summary after post-release validation' in workflow_text
     assert 'TV_STORAGE_STATE_MAX_AGE_HOURS: "72"' in workflow_text
     assert 'tv_post_release_validation.json' in workflow_text
-    assert 'python scripts/run_smc_post_release_validation.py' in workflow_text
+    assert '"$SMC_PYTHON_BIN" scripts/run_smc_post_release_validation.py' in workflow_text
     assert '--ci-mode' in workflow_text
     assert 'smc_post_release_validation_report.json' in workflow_text
     assert 'TradingView post-release validation' in workflow_text
     assert 'TradingView post-release validation failed' in workflow_text
     assert "steps.tv_post_release.outcome == 'success'" in workflow_text
     assert "steps.release_gates.outcome == 'success'" in workflow_text
+
+
+def test_refresh_workflow_prefers_priority_cron_runner_with_portable_python() -> None:
+    workflow_text = _read(WORKFLOW_PATH)
+
+    assert '- name: Resolve worker runner' in workflow_text
+    assert '--custom-label "${{ vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || vars.SMC_SELF_HOSTED_LABEL }}"' in workflow_text
+    assert '- name: Set up pinned Python (GitHub-hosted)' in workflow_text
+    assert '- name: Resolve Python 3.12 interpreter' in workflow_text
+    assert 'SMC_PYTHON_BIN=python' in workflow_text
+    assert 'py -3.12' in workflow_text
+    assert '"$SMC_PYTHON_BIN" -m pip install --upgrade pip' in workflow_text
+    assert 'SMC_REFRESH_RUNNER_LABEL' not in workflow_text
 
 
 def test_refresh_workflow_passes_post_release_report_to_release_gates() -> None:

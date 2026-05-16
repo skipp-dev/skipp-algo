@@ -29,10 +29,11 @@ from zoneinfo import ZoneInfo as _ZoneInfo
 
 import numpy as np
 
+cp: Any | None
 try:
     import cupy as cp
 except Exception:  # pragma: no cover - optional GPU dependency
-    cp = None  # type: ignore[assignment]
+    cp = None
 
 from .utils import to_float as _safe_float
 

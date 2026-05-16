@@ -37,6 +37,8 @@ jobs:
   select-runner:
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
+    permissions:
+      contents: read
     outputs:
       runs_on_json: ${{ steps.resolve.outputs.runs_on_json }}
       runner_environment: ${{ steps.resolve.outputs.runner_environment }}
@@ -54,10 +56,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
         run: |
+          # Heavy validate runs are the best fit for the Windows self-hosted
+          # pool, so CI bypasses the repo-wide generic-hosted-only label.
+          # Operators can still pin a dedicated CI label; otherwise we reuse
+          # the priority-cron runner before falling back to any idle
+          # Windows/x64 self-hosted runner.
           python scripts/resolve_workflow_runner.py \
             --repository "${{ github.repository }}" \
             --hosted-runner "${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}" \
-            --custom-label "${{ vars.SMC_SELF_HOSTED_LABEL }}"
+            --custom-label "${{ vars.SMC_CI_SELF_HOSTED_LABEL || vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || '' }}"
 
   validate:
     needs: select-runner
