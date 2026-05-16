@@ -68,6 +68,13 @@ def test_producer_uses_databento_api_key_secret():
     assert found, "Producer workflow must inject secrets.DATABENTO_API_KEY"
 
 
+def test_producer_prefers_priority_cron_self_hosted_runner() -> None:
+    text = PRODUCER_WF.read_text(encoding="utf-8")
+
+    assert '--custom-label "${{ vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || vars.SMC_SELF_HOSTED_LABEL }}"' in text
+    assert '--custom-label "${{ vars.SMC_SELF_HOSTED_LABEL }}"' not in text
+
+
 def test_producer_writes_to_export_dir():
     text = PRODUCER_WF.read_text(encoding="utf-8")
     assert EXPORT_DIR in text, (
