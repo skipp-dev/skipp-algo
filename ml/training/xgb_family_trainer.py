@@ -8,12 +8,15 @@ import numpy as np
 
 from ml.training.base import BaseFamilyTrainer
 
-try:  # pragma: no cover - exercised in environments with xgboost
-    import xgboost as xgb  # type: ignore
+xgb: Any | None
 
+try:  # pragma: no cover - exercised in environments with xgboost
+    import xgboost as _xgb  # type: ignore[import-not-found]
+
+    xgb = _xgb
     _HAS_XGB = True
 except Exception:  # pragma: no cover - the absence is the tested path locally
-    xgb = None  # type: ignore
+    xgb = None
     _HAS_XGB = False
 
 _VALID_DEVICES = {"auto", "cpu", "cuda"}
