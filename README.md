@@ -993,6 +993,20 @@ skipp-algo/
 
 ## Documentation Index
 
+### Repo Entry Points
+
+- [Root README](README.md)
+- [Docs Index (`docs/README.md`)](docs/README.md)
+
+### ML & RL
+
+- [ML Layer README](ml/README.md)
+- [RL Layer README](rl/README.md)
+- [Sprint Plan C10 — ML Layer](docs/SPRINT_PLAN_C10_ML_LAYER_2026-04-26.md)
+- [Sprint Plan C12 — RL Execution](docs/SPRINT_PLAN_C12_RL_EXECUTION_2026-04-26.md)
+- Parallel GPU research automation branch (not merged into this mainline yet):
+  `fix/live-runner-routing-unblock-ml-rl-gpu`
+
 ### Terminal & Operations
 
 - [Terminal Architecture Plan](docs/BLOOMBERG_TERMINAL_PLAN.md)
