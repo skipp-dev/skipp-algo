@@ -37,13 +37,17 @@ Usage::
 from __future__ import annotations
 
 import contextlib
-import fcntl
 import json
 import os
 import random
 import time
 from collections.abc import Iterable
 from pathlib import Path
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - exercised by monkeypatch on Windows path
+    fcntl = None  # type: ignore[assignment]
 
 DEFAULT_REGISTRY_PATH = Path.home() / "client_id_registry.json"
 DEFAULT_PROCESS_TIMEOUT_SECONDS = 300
@@ -117,6 +121,9 @@ def allocate_ib_client_id(
     Returns an int in ``preferred_range``. Falls back to a random pick
     inside the range if the registry file cannot be locked / written.
     """
+    if fcntl is None:
+        return random.randint(*preferred_range)
+
     path = registry_path or _registry_path()
     lock_path = path.with_suffix(path.suffix + ".lock")
     lock_path.parent.mkdir(parents=True, exist_ok=True)
@@ -180,6 +187,9 @@ def release_ib_client_id(
     client_id: int, *, registry_path: Path | None = None
 ) -> bool:
     """Best-effort release of ``client_id`` from the registry."""
+    if fcntl is None:
+        return False
+
     path = registry_path or _registry_path()
     if not path.exists():
         return False

@@ -108,9 +108,9 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/diff.py", 79),
         ("open_prep/outcome_backfill.py", 61),
         ("open_prep/outcome_backfill.py", 81),
-        ("open_prep/outcomes.py", 174),
-        ("open_prep/realtime_signals.py", 1467),
-        ("open_prep/realtime_signals.py", 2581),
+        ("open_prep/outcomes.py", 175),
+        ("open_prep/realtime_signals.py", 1470),
+        ("open_prep/realtime_signals.py", 2584),
         ("open_prep/scorer.py", 118),
         ("open_prep/watchlist.py", 53),
     }
@@ -169,7 +169,7 @@ _FROZEN_ENV_SUBSCRIPT_SITES: frozenset[tuple[str, int]] = frozenset(
         # through to ``terminal_finnhub._get``, so the previous entries at
         # macro.py:2041 and macro.py:2050 are gone. See
         # ``docs/AUDIT_L1_REVIEW_RETROSPECTIVE_2026-05-12.md`` § R6.
-        ("open_prep/realtime_signals.py", 2617),
+        ("open_prep/realtime_signals.py", 2620),
         ("open_prep/streamlit_monitor.py", 74),
         ("streamlit_terminal.py", 326),
     }

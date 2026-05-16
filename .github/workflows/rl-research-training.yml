@@ -1,0 +1,281 @@
+# live-window: off-hours-only  # RL-RESEARCH-GPU (2026-05-15)
+name: rl-research-training
+
+on:
+  workflow_dispatch:
+    inputs:
+      agent:
+        description: "Research agent: ppo | sac"
+        required: false
+        default: "ppo"
+        type: choice
+        options:
+          - ppo
+          - sac
+      prefer_gpu:
+        description: "Prefer the GPU-labelled self-hosted runner when available"
+        required: false
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+      total_timesteps:
+        description: "Total SB3 timesteps"
+        required: false
+        default: "5000"
+        type: string
+      training_records:
+        description: "Synthetic blotter size"
+        required: false
+        default: "400"
+        type: string
+      order_type:
+        description: "Execution action type"
+        required: false
+        default: "limit_at_mid"
+        type: choice
+        options:
+          - limit_at_mid
+          - limit_aggressive
+          - market
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rl-research-training
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  select-runner:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      runs_on_json: ${{ steps.resolve.outputs.runs_on_json }}
+      runner_environment: ${{ steps.resolve.outputs.runner_environment }}
+      resolution_reason: ${{ steps.resolve.outputs.resolution_reason }}
+      matched_runner_name: ${{ steps.resolve.outputs.matched_runner_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: ./.github/actions/setup-python-pinned
+
+      - name: Resolve worker runner
+        id: resolve
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+        run: |
+          PREFER_GPU="${{ inputs.prefer_gpu || 'true' }}"
+          if [[ "$PREFER_GPU" == "true" ]]; then
+            CUSTOM_LABEL="${{ vars.SMC_PRIORITY_CRON_GPU_SELF_HOSTED_LABEL || vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || vars.SMC_SELF_HOSTED_LABEL }}"
+          else
+            CUSTOM_LABEL="${{ vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || vars.SMC_SELF_HOSTED_LABEL }}"
+          fi
+          python scripts/resolve_workflow_runner.py \
+            --repository "${{ github.repository }}" \
+            --hosted-runner "${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}" \
+            --custom-label "$CUSTOM_LABEL"
+
+  research:
+    needs: select-runner
+    runs-on: ${{ fromJson(needs.select-runner.outputs.runs_on_json) }}
+    timeout-minutes: 60
+    steps:
+      - name: Announce selected runner
+        run: |
+          echo "runner_environment=${{ needs.select-runner.outputs.runner_environment }}"
+          echo "resolution_reason=${{ needs.select-runner.outputs.resolution_reason }}"
+          echo "matched_runner_name=${{ needs.select-runner.outputs.matched_runner_name }}"
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Set up pinned Python (GitHub-hosted)
+        if: needs.select-runner.outputs.runner_environment == 'github-hosted'
+        uses: ./.github/actions/setup-python-pinned
+        with:
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-rl.txt
+            requirements-rl-gpu.txt
+
+      - name: Resolve Python 3.12 interpreter
+        run: |
+          if [[ "${{ needs.select-runner.outputs.runner_environment }}" == "github-hosted" ]]; then
+            python -c "import sys; raise SystemExit('GitHub-hosted Python bootstrap did not resolve Python 3.12.' if sys.version_info[:2] != (3, 12) else 0)"
+            echo "SMC_PYTHON_BIN=python" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          if command -v python >/dev/null 2>&1; then
+            if python -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 12) else 1)"; then
+              echo "SMC_PYTHON_BIN=python" >> "$GITHUB_ENV"
+              exit 0
+            fi
+          fi
+
+          if command -v py >/dev/null 2>&1; then
+            python_bin="$(py -3.12 -c \"import sys; print(sys.executable)\")"
+            echo "SMC_PYTHON_BIN=$python_bin" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          echo "::error::Self-hosted runner is missing a usable Python 3.12 interpreter (tried \`python\` and \`py -3.12\`)."
+          exit 1
+
+      - name: Install dependencies
+        run: |
+          "$SMC_PYTHON_BIN" -m pip install --upgrade pip
+          "$SMC_PYTHON_BIN" -m pip install -r requirements.txt
+          "$SMC_PYTHON_BIN" -m pip install -r requirements-rl.txt
+
+      - name: Install CUDA-enabled torch
+        if: needs.select-runner.outputs.runner_environment == 'self-hosted' && (inputs.prefer_gpu || 'true') == 'true'
+        run: |
+          "$SMC_PYTHON_BIN" -m pip install --force-reinstall -r requirements-rl-gpu.txt
+
+      - name: Probe RL runtime
+        id: runtime
+        run: |
+          set -euo pipefail
+          TORCH_JSON="$($SMC_PYTHON_BIN -c "import json, torch; print(json.dumps({'version': torch.__version__, 'cuda_available': bool(torch.cuda.is_available()), 'cuda_device_count': int(torch.cuda.device_count()), 'cuda_version': torch.version.cuda}))")"
+          echo "torch_json=$TORCH_JSON" >> "$GITHUB_OUTPUT"
+          TORCH_VERSION="$($SMC_PYTHON_BIN -c "import torch; print(torch.__version__)")"
+          CUDA_AVAILABLE="$($SMC_PYTHON_BIN -c "import torch; print('true' if torch.cuda.is_available() else 'false')")"
+          CUDA_DEVICE_COUNT="$($SMC_PYTHON_BIN -c "import torch; print(torch.cuda.device_count())")"
+          CUDA_VERSION="$($SMC_PYTHON_BIN -c "import torch; print(torch.version.cuda or '')")"
+          echo "torch_version=$TORCH_VERSION" >> "$GITHUB_OUTPUT"
+          echo "cuda_available=$CUDA_AVAILABLE" >> "$GITHUB_OUTPUT"
+          echo "cuda_device_count=$CUDA_DEVICE_COUNT" >> "$GITHUB_OUTPUT"
+          echo "cuda_version=$CUDA_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve training parameters
+        id: params
+        run: |
+          AGENT="${{ inputs.agent || 'ppo' }}"
+          PREFER_GPU="${{ inputs.prefer_gpu || 'true' }}"
+          if [[ "$PREFER_GPU" == "true" ]]; then
+            REQUESTED_DEVICE="cuda"
+          else
+            REQUESTED_DEVICE="cpu"
+          fi
+          TOTAL_TIMESTEPS="${{ inputs.total_timesteps || '5000' }}"
+          TRAINING_RECORDS="${{ inputs.training_records || '400' }}"
+          ORDER_TYPE="${{ inputs.order_type || 'limit_at_mid' }}"
+          echo "agent=$AGENT" >> "$GITHUB_OUTPUT"
+          echo "prefer_gpu=$PREFER_GPU" >> "$GITHUB_OUTPUT"
+          echo "requested_device=$REQUESTED_DEVICE" >> "$GITHUB_OUTPUT"
+          echo "total_timesteps=$TOTAL_TIMESTEPS" >> "$GITHUB_OUTPUT"
+          echo "training_records=$TRAINING_RECORDS" >> "$GITHUB_OUTPUT"
+          echo "order_type=$ORDER_TYPE" >> "$GITHUB_OUTPUT"
+
+      - name: Select RL device
+        run: |
+          echo "SKIPP_RL_DEVICE=${{ steps.params.outputs.requested_device }}" >> "$GITHUB_ENV"
+          if [[ "${{ steps.params.outputs.requested_device }}" != "cuda" ]]; then
+            echo "::notice::RL research is running on the CPU path."
+          elif [[ "${{ needs.select-runner.outputs.runner_environment }}" == "self-hosted" && "${{ steps.runtime.outputs.cuda_available }}" == "true" ]]; then
+            echo "::notice::RL research requested the GPU backend (torch=${{ steps.runtime.outputs.torch_version }}, cuda=${{ steps.runtime.outputs.cuda_version }})."
+          elif [[ "${{ needs.select-runner.outputs.runner_environment }}" == "self-hosted" ]]; then
+            echo "::warning::RL research requested GPU but torch CUDA is unavailable (torch=${{ steps.runtime.outputs.torch_version }}, cuda_available=${{ steps.runtime.outputs.cuda_available }}). The workflow keeps requested_device=cuda so the artifact can show the CPU fallback honestly."
+          else
+            echo "::warning::RL research requested GPU but the hosted fallback runner was selected. The workflow keeps requested_device=cuda so the artifact can show the CPU fallback honestly."
+          fi
+
+      - name: Run RL research training
+        run: |
+          set -euo pipefail
+          "$SMC_PYTHON_BIN" -m scripts.run_rl_research_training \
+            --agent "${{ steps.params.outputs.agent }}" \
+            --device "$SKIPP_RL_DEVICE" \
+            --training-records "${{ steps.params.outputs.training_records }}" \
+            --total-timesteps "${{ steps.params.outputs.total_timesteps }}" \
+            --order-type "${{ steps.params.outputs.order_type }}" \
+            --output-path "artifacts/rl/research/latest.json" \
+            2>&1 | tee rl_research_training.log
+
+      - name: Summarise RL artifact
+        id: artifact
+        if: always()
+        env:
+          RL_ARTIFACT_PATH: artifacts/rl/research/latest.json
+        run: |
+          set -euo pipefail
+          if [[ ! -f "$RL_ARTIFACT_PATH" ]]; then
+            echo "requested_device=${SKIPP_RL_DEVICE:-unknown}" >> "$GITHUB_OUTPUT"
+            echo "resolved_device=unknown" >> "$GITHUB_OUTPUT"
+            echo "cuda_requested_but_not_used=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          "$SMC_PYTHON_BIN" - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          output_path = Path(os.environ["GITHUB_OUTPUT"])
+          artifact_path = Path(os.environ["RL_ARTIFACT_PATH"])
+          payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+          requested = str(payload.get("requested_device") or os.environ.get("SKIPP_RL_DEVICE") or "unknown")
+          resolved = str(payload.get("resolved_device") or "unknown")
+
+          with output_path.open("a", encoding="utf-8") as fh:
+              fh.write(f"requested_device={requested}\n")
+              fh.write(f"resolved_device={resolved}\n")
+              fh.write(
+                  f"cuda_requested_but_not_used={'true' if requested == 'cuda' and resolved != 'cuda' else 'false'}\n"
+              )
+          PY
+
+      - name: Warn on RL fallback
+        if: ${{ always() && steps.artifact.outputs.cuda_requested_but_not_used == 'true' }}
+        run: |
+          echo "::warning::RL research requested device=${{ steps.artifact.outputs.requested_device || 'unknown' }} but the artifact resolved device=${{ steps.artifact.outputs.resolved_device }}."
+
+      - name: Write step summary
+        if: always()
+        run: |
+          REQUESTED_DEVICE="${{ steps.artifact.outputs.requested_device || '' }}"
+          if [[ -z "$REQUESTED_DEVICE" ]]; then
+            REQUESTED_DEVICE="${SKIPP_RL_DEVICE:-unknown}"
+          fi
+          {
+            echo "## rl-research-training"
+            echo ""
+            echo "- agent: \`${{ steps.params.outputs.agent }}\`"
+            echo "- requested device: \`$REQUESTED_DEVICE\`"
+            echo "- resolved device: \`${{ steps.artifact.outputs.resolved_device || 'unknown' }}\`"
+            echo "- torch: \`${{ steps.runtime.outputs.torch_version || 'unknown' }}\`"
+            echo "- torch cuda available: \`${{ steps.runtime.outputs.cuda_available || 'false' }}\`"
+            echo "- torch cuda version: \`${{ steps.runtime.outputs.cuda_version || 'none' }}\`"
+            echo "- runner environment: \`${{ needs.select-runner.outputs.runner_environment }}\`"
+            echo "- artifact dir: \`artifacts/rl/research\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload RL artifact
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: rl-research-training-${{ steps.params.outputs.agent }}-${{ github.run_id }}
+          path: |
+            rl_research_training.log
+            artifacts/rl/research/
+          if-no-files-found: ignore
+          retention-days: 30
