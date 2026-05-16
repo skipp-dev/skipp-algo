@@ -115,3 +115,66 @@ def test_build_required_labels_supports_gpu_priority_label() -> None:
     labels = module.build_required_labels("priority-gpu")
 
     assert labels == ["self-hosted", "windows", "x64", "priority-gpu"]
+
+
+def test_main_forces_required_self_hosted_when_inventory_unavailable(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+
+    output_path = tmp_path / "github_output.txt"
+    monkeypatch.setenv("GH_TOKEN", "fake-token")
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
+
+    def _raise_inventory_error(*args, **kwargs):
+        raise ValueError("simulated inventory failure")
+
+    monkeypatch.setattr(module, "_fetch_repository_runners", _raise_inventory_error)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "resolve_workflow_runner.py",
+            "--repository",
+            "owner/repo",
+            "--custom-label",
+            "priority-cron",
+            "--inventory-unavailable-fallback",
+            "required-self-hosted",
+        ],
+    )
+
+    exit_code = module.main()
+
+    assert exit_code == 0
+    payload = output_path.read_text(encoding="utf-8")
+    assert 'runs_on_json=["self-hosted", "windows", "x64", "priority-cron"]' in payload
+    assert "runner_environment=self-hosted" in payload
+    assert "resolution_reason=runner_inventory_unavailable:ValueError:forced_required_self_hosted" in payload
+
+
+def test_main_forces_required_self_hosted_when_token_missing(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+
+    output_path = tmp_path / "github_output.txt"
+    monkeypatch.delenv("GH_TOKEN", raising=False)
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "resolve_workflow_runner.py",
+            "--repository",
+            "owner/repo",
+            "--custom-label",
+            "priority-cron",
+            "--inventory-unavailable-fallback",
+            "required-self-hosted",
+        ],
+    )
+
+    exit_code = module.main()
+
+    assert exit_code == 0
+    payload = output_path.read_text(encoding="utf-8")
+    assert 'runs_on_json=["self-hosted", "windows", "x64", "priority-cron"]' in payload
+    assert "runner_environment=self-hosted" in payload
+    assert "resolution_reason=missing_token_env:GH_TOKEN:forced_required_self_hosted" in payload

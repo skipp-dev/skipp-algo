@@ -72,6 +72,7 @@ def test_producer_prefers_priority_cron_self_hosted_runner() -> None:
     text = PRODUCER_WF.read_text(encoding="utf-8")
 
     assert '--custom-label "${{ vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || vars.SMC_SELF_HOSTED_LABEL }}"' in text
+    assert "--inventory-unavailable-fallback required-self-hosted" in text
     assert '--custom-label "${{ vars.SMC_SELF_HOSTED_LABEL }}"' not in text
 
 

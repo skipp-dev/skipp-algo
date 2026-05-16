@@ -136,7 +136,8 @@ jobs:
           python scripts/resolve_workflow_runner.py \
             --repository "${{ github.repository }}" \
             --hosted-runner "${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}" \
-            --custom-label "${{ vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || vars.SMC_SELF_HOSTED_LABEL }}"
+            --custom-label "${{ vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || vars.SMC_SELF_HOSTED_LABEL }}" \
+            --inventory-unavailable-fallback required-self-hosted
 
   export:
     needs: select-runner
@@ -250,6 +251,12 @@ jobs:
           # scripts/databento_production_export.py and is covered by
           # tests/test_databento_production_workbook_slim_whitelist.py.
           CANONICAL_WORKBOOK_SHEETS: "manifest,daily_bars,batl_debug,output_checks"
+          # F-V8-C5 (2026-05-16): serialize Step 8 sub-steps on the legacy producer
+          # path. Recent schedule failures (exit 143) were concentrated during the
+          # parallel 10a-d layer while close-trade detail expanded toward ~78M rows,
+          # so we trade throughput for lower peak RSS until sustained green history
+          # is re-established.
+          DATABENTO_STEP8_SUBSTEP_PARALLELISM: "1"
         run: |
           set -euo pipefail
           mkdir -p "${EXPORT_DIR}" artifacts/ci
