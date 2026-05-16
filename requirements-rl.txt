@@ -1,6 +1,10 @@
 # Optional RL dependencies for the C12 RL-Execution layer.
 # The rl/ pipeline runs end-to-end on numpy alone (TWAP/VWAP/eps-greedy
 # baselines). Install only when training PPO/SAC agents.
+#
+# Note: the generic PyPI `torch` wheel on Windows is CPU-only. For the
+# self-hosted GPU runner, install `requirements-rl-gpu.txt` after this file
+# to replace the CPU build with the CUDA wheel from the official PyTorch index.
 gymnasium>=0.29.0
 stable-baselines3>=2.3.0
 torch>=2.2.0

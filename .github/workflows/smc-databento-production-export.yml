@@ -109,6 +109,8 @@ jobs:
   select-runner:
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
+    permissions:
+      contents: read
     outputs:
       runs_on_json: ${{ steps.resolve.outputs.runs_on_json }}
       runner_environment: ${{ steps.resolve.outputs.runner_environment }}
@@ -128,6 +130,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
         run: |
+          # The producer has documented high-RSS/OOM history during canonical
+          # export generation, so prefer the priority cron Windows runner when
+          # it is online and idle.
           python scripts/resolve_workflow_runner.py \
             --repository "${{ github.repository }}" \
             --hosted-runner "${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}" \

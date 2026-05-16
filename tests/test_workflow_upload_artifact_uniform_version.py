@@ -24,6 +24,12 @@ ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS_DIR = ROOT / ".github" / "workflows"
 
 _FROZEN_MAJOR: str = "v7"
+_SHA_TO_MAJOR_ALLOWLIST: dict[str, str] = {
+    # Pinned SHA for actions/upload-artifact v7 (explicitly annotated as
+    # ``# v7`` across workflows). Keep the mapping here so a future SHA
+    # bump stays a deliberate review decision instead of silently passing.
+    "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a": "v7",
+}
 
 # Match every actions/upload-artifact reference, whatever the ref shape
 # (vN, vN.M, vN.M.P, branch, or 40-char SHA pin). The previous regex
@@ -57,12 +63,7 @@ def _iter_pins() -> list[tuple[Path, int, str]]:
 def _ref_is_on_frozen_major(ref: str) -> bool:
     if ref == _FROZEN_MAJOR or ref.startswith(f"{_FROZEN_MAJOR}."):
         return True
-    # SHA pins are intentionally rejected here: a SHA hides which major
-    # the action resolves to, defeating the point of this ledger. If a
-    # SHA pin is ever required (e.g. for a security advisory), update
-    # this test in the SAME PR with an explicit allow-list mapping
-    # SHA -> major and assert membership.
-    return False
+    return _SHA_TO_MAJOR_ALLOWLIST.get(ref) == _FROZEN_MAJOR
 
 
 def test_upload_artifact_pin_is_uniform() -> None:
@@ -90,4 +91,14 @@ def test_upload_artifact_pin_is_uniform() -> None:
         + f"\n\nIf the bump is intentional, update _FROZEN_MAJOR in "
         f"tests/test_workflow_upload_artifact_uniform_version.py in the "
         f"same PR."
+    )
+
+
+def test_upload_artifact_sha_allowlist_has_no_stale_entries() -> None:
+    pins = _iter_pins()
+    observed_sha_refs = {ref for _, _, ref in pins if _SHA_RE.match(ref)}
+    stale = sorted(set(_SHA_TO_MAJOR_ALLOWLIST) - observed_sha_refs)
+    assert not stale, (
+        "Stale upload-artifact SHA allow-list entries — remove them from "
+        f"_SHA_TO_MAJOR_ALLOWLIST: {stale}"
     )
