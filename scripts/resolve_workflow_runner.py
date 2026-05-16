@@ -114,18 +114,36 @@ def main() -> int:
         default="GH_TOKEN",
         help="Environment variable that stores the token used to query runner inventory.",
     )
+    parser.add_argument(
+        "--inventory-unavailable-fallback",
+        choices=["hosted", "required-self-hosted"],
+        default="hosted",
+        help=(
+            "Fallback mode when runner inventory cannot be queried. "
+            "'hosted' preserves legacy behavior; 'required-self-hosted' routes directly "
+            "to required self-hosted labels instead."
+        ),
+    )
     args = parser.parse_args()
 
     custom_label = args.custom_label.strip() or None
     required_labels = build_required_labels(custom_label)
     token = os.getenv(args.token_env, "").strip()
+    force_required_self_hosted = args.inventory_unavailable_fallback == "required-self-hosted"
 
     if not token:
-        resolution = RunnerResolution(
-            runs_on=args.hosted_runner,
-            runner_environment="github-hosted",
-            reason=f"missing_token_env:{args.token_env}",
-        )
+        if force_required_self_hosted:
+            resolution = RunnerResolution(
+                runs_on=required_labels,
+                runner_environment="self-hosted",
+                reason=f"missing_token_env:{args.token_env}:forced_required_self_hosted",
+            )
+        else:
+            resolution = RunnerResolution(
+                runs_on=args.hosted_runner,
+                runner_environment="github-hosted",
+                reason=f"missing_token_env:{args.token_env}",
+            )
     else:
         try:
             runners = _fetch_repository_runners(args.repository, token)
@@ -135,11 +153,18 @@ def main() -> int:
                 hosted_runner=args.hosted_runner,
             )
         except (HTTPError, URLError, OSError, TimeoutError, ValueError) as exc:
-            resolution = RunnerResolution(
-                runs_on=args.hosted_runner,
-                runner_environment="github-hosted",
-                reason=f"runner_inventory_unavailable:{type(exc).__name__}",
-            )
+            if force_required_self_hosted:
+                resolution = RunnerResolution(
+                    runs_on=required_labels,
+                    runner_environment="self-hosted",
+                    reason=f"runner_inventory_unavailable:{type(exc).__name__}:forced_required_self_hosted",
+                )
+            else:
+                resolution = RunnerResolution(
+                    runs_on=args.hosted_runner,
+                    runner_environment="github-hosted",
+                    reason=f"runner_inventory_unavailable:{type(exc).__name__}",
+                )
 
     _append_github_output(os.getenv("GITHUB_OUTPUT"), resolution, required_labels)
     print(

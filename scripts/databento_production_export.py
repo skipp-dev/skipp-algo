@@ -3764,11 +3764,24 @@ def run_production_export_pipeline(
         if not smc_base_only:
             substep_jobs.append(_run_close_outcome_substep)
 
+        step8_parallelism_raw = os.environ.get(
+            "DATABENTO_STEP8_SUBSTEP_PARALLELISM",
+            str(STEP8_SUBSTEP_PARALLELISM),
+        )
+        try:
+            step8_parallelism = max(1, int(step8_parallelism_raw))
+        except ValueError:
+            step8_parallelism = STEP8_SUBSTEP_PARALLELISM
+            _progress(
+                f"Step 8/10: WARN ignoring DATABENTO_STEP8_SUBSTEP_PARALLELISM={step8_parallelism_raw!r} "
+                f"(not an int); defaulting to {STEP8_SUBSTEP_PARALLELISM}"
+            )
+
         step8_layer_started_at = time_module.perf_counter()
         step8_rss_before_mib = _rss_mib_snapshot()
         step8_substep_results: dict[str, pd.DataFrame] = {}
         with ThreadPoolExecutor(
-            max_workers=STEP8_SUBSTEP_PARALLELISM,
+            max_workers=step8_parallelism,
             thread_name_prefix="step8_substep",
         ) as step8_executor:
             step8_futures = [step8_executor.submit(job) for job in substep_jobs]
@@ -3790,7 +3803,7 @@ def run_production_export_pipeline(
         _progress(
             f"Step 8 parallel layer complete (10a-d) in "
             f"{time_module.perf_counter() - step8_layer_started_at:.1f}s "
-            f"(workers={STEP8_SUBSTEP_PARALLELISM}, jobs={len(substep_jobs)}{rss_delta_msg})"
+            f"(workers={step8_parallelism}, jobs={len(substep_jobs)}{rss_delta_msg})"
         )
 
         full_universe_second_detail_raw = step8_substep_results["10a"]
