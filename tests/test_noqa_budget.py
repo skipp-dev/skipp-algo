@@ -104,10 +104,10 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # subprocess.check_output called with a ``shutil.which("git")``
         # executable and a hardcoded argv list. No untrusted input.
         ("governance/run_manifest.py", 73, ("S603",)),
-        # open_prep/realtime_signals.py:183,327 — Bandit S603 false
+        # open_prep/realtime_signals.py:187,333 — Bandit S603 false
         # positives: hardcoded pgrep / sys.executable -m argv lists.
-        ("open_prep/realtime_signals.py", 183, ("S603",)),
-        ("open_prep/realtime_signals.py", 327, ("S603",)),
+        ("open_prep/realtime_signals.py", 187, ("S603",)),
+        ("open_prep/realtime_signals.py", 333, ("S603",)),
         # smc_integration/release_policy.py:1072 — Bandit S603 false
         # positive: ``git rev-parse HEAD`` via shutil.which("git").
         ("smc_integration/release_policy.py", 1085, ("S603",)),
