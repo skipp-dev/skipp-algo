@@ -163,9 +163,24 @@ def test_reduce_uploads_merged_manifest_artifact() -> None:
         s for s in steps if str(s.get("uses", "")).startswith("actions/upload-artifact@")
     ]
     assert uploads, "reduce job must upload the merged manifest as an artifact"
+    # The reduce job may now have multiple upload-artifact steps (canonical
+    # merged manifest + an optional compat-export bundle gated on
+    # partial_run=false). This test guards only the canonical merged-manifest
+    # upload, which must remain `if: always()` so partial runs are still
+    # captured for triage. Other uploads (e.g. the compat-export bundle) are
+    # intentionally gated and are validated by their own dedicated tests
+    # (see tests/test_workflow_a9b5_sharded_compat.py).
+    canonical = [
+        u for u in uploads
+        if str(u.get("with", {}).get("name", "")).startswith("a9b-2b-merged-manifest")
+    ]
+    assert canonical, (
+        "reduce must upload an artifact named 'a9b-2b-merged-manifest' "
+        f"(got upload names: {[str(u.get('with', {}).get('name')) for u in uploads]!r})"
+    )
     # Accept both the floating tag and its SHA-pinned equivalent.
     _UPLOAD_V7_SHA = "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
-    for s in uploads:
+    for s in canonical:
         assert s["uses"] in {
             "actions/upload-artifact@v7",
             f"actions/upload-artifact@{_UPLOAD_V7_SHA}",
@@ -173,11 +188,11 @@ def test_reduce_uploads_merged_manifest_artifact() -> None:
             f"reduce upload-artifact must be pinned @v7; got {s['uses']!r}"
         )
         assert str(s.get("if", "")).strip() == "always()", (
-            f"reduce upload-artifact must run with if: always() so partial "
-            f"merged manifests are still captured for triage; got "
+            f"reduce merged-manifest upload-artifact must run with if: always() "
+            f"so partial merged manifests are still captured for triage; got "
             f"{s.get('if')!r}"
         )
-    names = {u["with"]["name"] for u in uploads}
+    names = {u["with"]["name"] for u in canonical}
     assert "a9b-2b-merged-manifest" in names, (
         f"reduce must upload artifact named 'a9b-2b-merged-manifest'; "
         f"got {names!r}"
