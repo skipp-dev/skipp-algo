@@ -1,0 +1,6 @@
+# Optional CUDA-enabled torch override for RL research.
+# Install this AFTER `requirements-rl.txt` on the self-hosted GPU runner.
+# The PyPI torch wheel on Windows resolves to a CPU build, so we pin the
+# official CUDA wheel explicitly via the PyTorch index.
+--index-url https://download.pytorch.org/whl/cu128
+torch==2.11.0+cu128

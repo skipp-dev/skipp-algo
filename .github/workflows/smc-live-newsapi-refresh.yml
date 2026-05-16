@@ -43,6 +43,8 @@ jobs:
   select-runner:
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
+    permissions:
+      contents: read
     outputs:
       runs_on_json: ${{ steps.resolve.outputs.runs_on_json }}
       runner_environment: ${{ steps.resolve.outputs.runner_environment }}
@@ -65,7 +67,7 @@ jobs:
           python scripts/resolve_workflow_runner.py \
             --repository "${{ github.repository }}" \
             --hosted-runner "${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}" \
-            --custom-label "${{ vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || vars.SMC_SELF_HOSTED_LABEL }}"
+            --custom-label "${{ vars.SMC_SELF_HOSTED_LABEL }}"
 
   refresh:
     needs: select-runner

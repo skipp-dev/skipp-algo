@@ -4,12 +4,12 @@ Library code must not call `sys.exit()` (or worse, the bare `exit()`
 / `quit()` builtins) — these are CLI/REPL helpers. Library functions
 should `raise` an exception so callers can decide how to handle it.
 
-Today: 7 sites, all in legitimate CLI dispatch / `__main__` guards:
+Today: 9 sites, all in legitimate CLI dispatch / `__main__` guards:
 
 | File | Line | Context |
 |---|---|---|
 | `open_prep/candidate_weights.py` | 241 | `if __name__ == "__main__": sys.exit(main())` |
-| `open_prep/feature_importance_report.py` | 351 | same |
+| `open_prep/feature_importance_report.py` | 358 | same |
 | `open_prep/outcome_backfill.py` | 529 | same |
 | `pine_input_surface.py` | 400, 402 | argparse `args.cmd` dispatch |
 | `test_usi_lint.py` | 94, 97 | top-level CLI script |
@@ -40,7 +40,7 @@ _DIR_EXCLUDE = frozenset({
 # Frozen ledger of legitimate `sys.exit()` sites (CLI entry-points only).
 _SYS_EXIT_LEDGER: frozenset[tuple[str, int]] = frozenset({
     ("open_prep/candidate_weights.py", 240),
-    ("open_prep/feature_importance_report.py", 350),
+    ("open_prep/feature_importance_report.py", 358),
     ("open_prep/outcome_backfill.py", 546),
     ("pine_input_surface.py", 400),
     ("pine_input_surface.py", 402),
@@ -75,7 +75,7 @@ def _scan() -> tuple[set[tuple[str, int]], set[tuple[str, int, str]]]:
             tree = ast.parse(p.read_text(encoding="utf-8"))
         except (SyntaxError, UnicodeDecodeError):
             continue
-        rel = str(p.relative_to(_REPO_ROOT))
+        rel = p.relative_to(_REPO_ROOT).as_posix()
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
                 continue
