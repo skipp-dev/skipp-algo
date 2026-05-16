@@ -92,7 +92,7 @@ OS_KILL_ALLOWED: set[tuple[str, int]] = {
     ("open_prep/realtime_signals.py", 207),
     # Signal-0 PID liveness probe for the IB-client-id leasing registry
     # (claims an IB API client_id slot only if the previous owner is gone).
-    ("scripts/ib_client_id.py", 64),
+    ("scripts/ib_client_id.py", 68),
 }
 
 
