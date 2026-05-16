@@ -18,13 +18,13 @@ Why pin sites (in addition to the existing kwarg-shape invariants):
 Today the entire production tree spawns external commands from
 exactly three locations:
 
-* ``smc_integration/release_policy.py:1071`` — read git HEAD SHA
-  (``git rev-parse HEAD``) for release manifest provenance.
+* ``smc_integration/release_policy.py:1072`` — read git HEAD SHA
+    (``git rev-parse HEAD``) for release manifest provenance.
 * ``open_prep/realtime_signals.py:190`` — locate the realtime
-  signals daemon by scanning the process list (``pgrep``).
+    signals daemon by scanning the process list (``pgrep``).
 * ``open_prep/realtime_signals.py:336`` — re-launch the realtime
-  signals daemon as a detached child (``Popen`` of
-  ``python -m open_prep.realtime_signals``).
+    signals daemon as a detached child (``Popen`` of
+    ``python -m open_prep.realtime_signals``).
 
 Defense-only — no production changes.
 """
