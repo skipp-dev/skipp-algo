@@ -3,10 +3,11 @@ name: feature-importance-daily
 
 # A1.D — G1 Feature-Importance Baseline Seed (Amendment A1.D).
 #
-# Runs the recurring feature-importance report so the daily samples in
-# artifacts/open_prep/outcomes/feature_importance/ accumulate. Without
-# this cron the FI directory stays empty and G1/G2/G3 in the Q3/Q4 plan
-# cannot start.
+# Runs the recurring feature-importance report so the raw daily samples in
+# artifacts/open_prep/outcomes/feature_importance/ accumulate and the
+# generated report in artifacts/open_prep/feature_importance/ stays fresh.
+# Without this cron the FI feedback loop stays stale and G1/G2/G3 in the
+# Q3/Q4 plan cannot start.
 #
 # This workflow is fail-soft: status=no_data is an annotation, not a
 # job failure, so the wall-clock countdown to the G1 acceptance gate
@@ -50,6 +51,8 @@ jobs:
   select-runner:
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
+    permissions:
+      contents: read
     outputs:
       runs_on_json: ${{ steps.resolve.outputs.runs_on_json }}
       runner_environment: ${{ steps.resolve.outputs.runner_environment }}
@@ -201,6 +204,6 @@ jobs:
           name: feature-importance-report-${{ github.run_id }}
           path: |
             fi_report.log
-            artifacts/open_prep/outcomes/feature_importance/latest.json
+            artifacts/open_prep/feature_importance/latest.json
           if-no-files-found: ignore
           retention-days: 30

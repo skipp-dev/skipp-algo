@@ -10,6 +10,28 @@ def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def test_release_gates_workflow_prefers_heavy_self_hosted_selector() -> None:
+    workflow_text = _read(WORKFLOW_PATH)
+
+    assert '- name: Resolve worker runner' in workflow_text
+    assert "--custom-label \"${{ vars.SMC_CI_SELF_HOSTED_LABEL || vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || '' }}\"" in workflow_text
+    assert '- name: Announce selected runner' in workflow_text
+
+
+def test_release_gates_workflow_uses_portable_python_bootstrap() -> None:
+    workflow_text = _read(WORKFLOW_PATH)
+
+    assert 'actions/setup-python@' not in workflow_text
+    assert '- name: Set up pinned Python (GitHub-hosted)' in workflow_text
+    assert '- name: Resolve Python 3.12 interpreter' in workflow_text
+    assert 'SMC_PYTHON_BIN=python' in workflow_text
+    assert 'py -3.12' in workflow_text
+    assert '"$SMC_PYTHON_BIN" -m pip install --upgrade pip' in workflow_text
+    assert '"$SMC_PYTHON_BIN" -m pytest -q --maxfail=1 "${tests[@]}"' in workflow_text
+    assert '"$SMC_PYTHON_BIN" scripts/run_smc_release_gates.py' in workflow_text
+    assert '"$SMC_PYTHON_BIN" scripts/render_ci_gate_summary.py' in workflow_text
+
+
 def test_release_gates_workflow_runs_tradingview_post_release_validation() -> None:
     workflow_text = _read(WORKFLOW_PATH)
 
@@ -20,7 +42,7 @@ def test_release_gates_workflow_runs_tradingview_post_release_validation() -> No
     assert 'TV_STORAGE_STATE_SECRET: ${{ secrets.TV_STORAGE_STATE }}' in workflow_text
     assert '- name: Run TradingView post-release validation' in workflow_text
     assert 'tv_post_release_validation.json' in workflow_text
-    assert 'python scripts/verify_tradingview_post_release.py' in workflow_text
+    assert '"$SMC_PYTHON_BIN" scripts/verify_tradingview_post_release.py' in workflow_text
     assert 'artifacts/ci/smc_tradingview_post_release_report.json' in workflow_text
 
 

@@ -63,6 +63,11 @@ _NOQA_RE = re.compile(r"#\s*noqa\b", re.IGNORECASE)
 #   existing instance via ``shutil.which("pgrep")`` with hardcoded
 #   argv. Bandit S603 is a false positive in both trusted-binary,
 #   fixed-args contexts.
+# * ``scripts/resolve_workflow_runner.py``: queries the fixed GitHub REST
+#   runner-inventory endpoint via ``urllib.request.urlopen`` with a
+#   repository argument and auth header assembled by trusted workflow
+#   control-plane code. Bandit S310 is a false positive in this
+#   fixed-domain GitHub API context.
 # * ``scripts/measure_databento_ops_run.py``: invokes
 #   ``sys.executable -c <runner>`` with a hardcoded inline runner script.
 #   Bandit S603 is a false positive (no untrusted argv element).
@@ -79,10 +84,10 @@ _NOQA_RE = re.compile(r"#\s*noqa\b", re.IGNORECASE)
 #   streamlit binary derived from the same Python sibling path. All
 #   three sites use hardcoded argv lists; Bandit S603 is a false
 #   positive in each.
-# * ``scripts/resolve_workflow_runner.py``: fetches runner inventory
-#   from the fixed GitHub REST API endpoint with ``urllib.request``;
-#   Bandit S310 is a false positive because the URL is hardcoded and
-#   never derived from untrusted input.
+# * ``scripts/resolve_workflow_runner.py``: queries the fixed GitHub
+#   Actions runners REST endpoint via ``urllib.request.urlopen``.
+#   Bandit S310 is a false positive because the URL is a hardcoded
+#   GitHub API path and never comes from user input.
 # * ``smc_integration/release_policy.py``: invokes ``git rev-parse HEAD``
 #   via a ``shutil.which("git")``-resolved executable with a hardcoded
 #   argv list. Bandit S603 is a false positive.
@@ -101,12 +106,12 @@ _FROZEN_SITES: dict[str, int] = {
     "scripts/scan_manifests_for_pytest_provenance.py": 3,
     "governance/run_manifest.py": 1,
     "open_prep/realtime_signals.py": 2,
+    "scripts/resolve_workflow_runner.py": 1,
     "scripts/ib_client_id.py": 2,
     "scripts/measure_databento_ops_run.py": 2,
     "scripts/smc_micro_publish_guard.py": 1,
     "scripts/smc_zone_priority_calibration.py": 2,
     "scripts/start_open_prep_suite.py": 3,
-    "scripts/resolve_workflow_runner.py": 1,
     "smc_integration/release_policy.py": 1,
     # E402 after sys.path bootstrap (system review 2026-04-30):
     # both scripts insert repo root into sys.path before importing
