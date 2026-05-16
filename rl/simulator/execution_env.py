@@ -1,10 +1,12 @@
-"""Order-slicing execution environment (gymnasium-compatible interface).
+"""Order-slicing execution environment (optionally a real gymnasium env).
 
 Provides ``reset(seed=None) -> (obs, info)`` and
 ``step(action) -> (obs, reward, terminated, truncated, info)`` so a future
 ``stable_baselines3.PPO`` can be plugged in without an interface adapter.
-The class never imports gymnasium; it duck-types the interface so it works
-on machines without the heavy dependency.
+When ``gymnasium`` is installed the class also exposes real
+``action_space`` / ``observation_space`` metadata and accepts continuous
+actions directly, making it consumable by SB3 without a shim. Without the
+optional dependency it keeps the same numpy-only interface.
 
 Reward = -ImplementationShortfall (in bps) - lambda_var * realized_variance,
 matching the Almgren-Chriss mean-variance objective.
@@ -16,7 +18,21 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from rl.slippage import AlmgrenChrissCalibrator
-from rl.types import ExecutionAction
+from rl.types import ExecutionAction, OrderType
+
+try:  # pragma: no cover - exercised only in RL research environments
+    import gymnasium as gym  # type: ignore
+    from gymnasium import spaces  # type: ignore
+
+    _HAS_GYM = True
+    _EnvBase = gym.Env  # type: ignore[misc]
+except Exception:  # pragma: no cover - absence is the common CI path
+    gym = None  # type: ignore
+    spaces = None  # type: ignore
+    _HAS_GYM = False
+
+    class _EnvBase:  # pragma: no cover - trivial fallback base class
+        pass
 
 
 @dataclass
@@ -29,11 +45,12 @@ class EnvConfig:
     lambda_var: float = 0.01
     base_volatility_bps: float = 5.0
     base_volume_per_step: float = 5_000.0
+    default_order_type: OrderType = "limit_at_mid"
     seed: int = 0
 
 
 @dataclass
-class ExecutionEnv:
+class ExecutionEnv(_EnvBase):
     """Order-slicing environment for a single parent order.
 
     The slippage model is supplied by the caller; if absent, a deterministic
@@ -44,20 +61,41 @@ class ExecutionEnv:
     cfg: EnvConfig = field(default_factory=EnvConfig)
     slippage: AlmgrenChrissCalibrator | None = None
 
+    metadata = {"render_modes": []}
+
     def __post_init__(self) -> None:
+        super_init = getattr(super(), "__init__", None)
+        if callable(super_init):
+            super_init()
         self._rng = np.random.default_rng(self.cfg.seed)
+        self.action_space = None
+        self.observation_space = None
+        if _HAS_GYM:
+            self.action_space = spaces.Box(
+                low=np.asarray([0.0], dtype=np.float32),
+                high=np.asarray([1.0], dtype=np.float32),
+                dtype=np.float32,
+            )
+            obs_low = np.asarray([0.0, 0.0, 0.0, 0.0, -1.0], dtype=np.float32)
+            obs_high = np.asarray(
+                [1.0, 1.0, np.finfo(np.float32).max, np.finfo(np.float32).max, 1.0],
+                dtype=np.float32,
+            )
+            self.observation_space = spaces.Box(low=obs_low, high=obs_high, dtype=np.float32)
         self._reset_state()
 
     # gymnasium-compatible -------------------------------------------------
-    def reset(self, *, seed: int | None = None):
+    def reset(self, *, seed: int | None = None, options: dict | None = None):
+        del options
         if seed is not None:
             self._rng = np.random.default_rng(seed)
         self._reset_state()
         return self._obs(), self._info()
 
-    def step(self, action: ExecutionAction):
+    def step(self, action: ExecutionAction | np.ndarray | list[float] | tuple[float, ...] | float | int):
         if self._done:
             raise RuntimeError("step() called after termination; call reset()")
+        action = self._coerce_action(action)
         slice_qty = float(action.slice_size) * self._remaining_qty
         # Final step forces full liquidation regardless of action.
         if self._step_idx >= self.cfg.horizon_steps - 1:
@@ -135,7 +173,24 @@ class ExecutionEnv:
         """Sum of per-step variance contributions consumed by the reward."""
         return float(self._var_accum)
 
+    def render(self):
+        return None
+
+    def close(self) -> None:
+        return None
+
     # internals ------------------------------------------------------------
+    def _coerce_action(
+        self,
+        action: ExecutionAction | np.ndarray | list[float] | tuple[float, ...] | float | int,
+    ) -> ExecutionAction:
+        if isinstance(action, ExecutionAction):
+            return action
+        arr = np.asarray(action, dtype=float).reshape(-1)
+        raw = float(arr[0]) if arr.size else 0.0
+        slice_size = float(np.clip(raw, 0.0, 1.0))
+        return ExecutionAction(slice_size=slice_size, order_type=self.cfg.default_order_type)
+
     def _reset_state(self) -> None:
         self._mid = float(self.cfg.starting_mid)
         self._anchor_mid = float(self.cfg.starting_mid)

@@ -30,12 +30,22 @@ links to those branch-only workflow files until they actually merge.
 
 This index anchors the current producer/consumer contract documentation for the SMC split.
 
+Additional implementation guides for the current Python runtime layers:
+
+- [`../ml/README.md`](../ml/README.md) — synthetic ML family research, SHAP,
+	Optuna, and requested-vs-resolved device semantics
+- [`../rl/README.md`](../rl/README.md) — synthetic RL execution research,
+	CUDA torch override contract, and workflow artifact shape
+- [`OPEN_PREP_OPS_QUICK_REFERENCE.md`](OPEN_PREP_OPS_QUICK_REFERENCE.md) —
+	operator quick reference for the recurring Open-Prep outputs
+
 Start here for the canonical mainline setup path:
 
 - [smc-mainline-setup-runbook.md](smc-mainline-setup-runbook.md)
 
 Use these files as the starting point before changing the split architecture or the bus contract:
 
+- [self_hosted_runner_reservation_runbook.md](self_hosted_runner_reservation_runbook.md)
 - [smc-lite-pro-product-cut.md](smc-lite-pro-product-cut.md)
 - [TRADINGVIEW_STRATEGY_GUIDE.md](TRADINGVIEW_STRATEGY_GUIDE.md)
 - [smc-owner-review-2026-04-14.md](smc-owner-review-2026-04-14.md)
@@ -87,8 +97,8 @@ Primary TradingView automation entry points:
 
 Current workspace caveat:
 
-- the TradingView automation layer, reports path, and auth artifacts are present in this checkout, so the documented preflight and micro-library publish paths are reproducible locally again; inspect the latest staged report before assuming every run covered binding and runtime scopes
-- latest fully green SMC mainline evidence: `automation/tradingview/reports/preflight-2026-04-08T12-37-12-028Z.json`
+- the TradingView automation layer, reports path, and auth artifacts are present in this checkout, so the documented preflight and micro-library publish paths are reproducible locally again; inspect `../automation/tradingview/reports/` before assuming an older snapshot still reflects the current binding/runtime scope
+- regenerate fresh SMC mainline evidence with `npm run tv:preflight:smc-mainline` when you need a current validation artifact
 
 Current deep-review planning documents:
 

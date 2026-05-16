@@ -90,13 +90,28 @@ artifact path aligned with `open_prep.feature_importance_report.FI_REPORT_DIR`
 (`artifacts/open_prep/feature_importance/`), not the raw sample directory under
 `artifacts/open_prep/outcomes/feature_importance/`.
 
-The `ml/` and `rl/` implementation layers are present on this branch, but the
-synthetic GPU research automation workstream currently lives on the parallel
-branch `fix/live-runner-routing-unblock-ml-rl-gpu`. Until that work lands here,
-do not document or reference `.github/workflows/ml-family-research.yml`,
-`.github/workflows/rl-research-training.yml`, or the newer `scripts/run_ml_*`
-and `scripts/run_rl_research_training.py` entrypoints as if they already
-existed on mainline.
+The GPU research workflows follow the same routed-runner contract:
+
+- `ml-family-research.yml` exposes `mode=train|explainability|tune` over the
+  synthetic `ml/` dataset scaffold and prefers
+  `vars.SMC_PRIORITY_CRON_GPU_SELF_HOSTED_LABEL` whenever `prefer_gpu=true`.
+  The workflow must probe the selected backend first and then surface the
+  actual `resolved_devices` plus any `device_fallback_reason` values in the
+  step summary / artifact contract.
+- `rl-research-training.yml` trains the research-only PPO/SAC agents from
+  `rl/` against the synthetic execution env and also prefers the GPU label
+  when `prefer_gpu=true`.
+
+`rl-research-training.yml` must install `requirements-rl-gpu.txt` on the
+self-hosted GPU runner and only set `SKIPP_RL_DEVICE=cuda` after probing
+that `torch.cuda.is_available()` is actually true. The generic
+`requirements-rl.txt` torch dependency alone is not sufficient on Windows
+because the PyPI wheel is CPU-only.
+
+Their entrypoints are `scripts/run_ml_family_training.py`,
+`scripts/run_ml_explainability_report.py`, `scripts/run_ml_optuna_tuning.py`,
+and `scripts/run_rl_research_training.py`. Keep them synthetic/offline unless
+the live dataset swap is implemented deliberately.
 
 `SMC_GH_HOSTED_RUNNER` is the **hosted fallback** runner label (currently
 `ubuntu-latest`). Repository-variable fallback is **not** availability fallback;
@@ -195,6 +210,15 @@ Only use raw `actions/setup-python@...` inside the composite action itself.
   install `requirements-gpu.txt` into `.venv` and set
   `OPEN_PREP_FI_BACKEND=gpu`. Accepted values are `auto|cpu|gpu`; use
   `OPEN_PREP_FI_GPU_DEVICE=<index>` when the runner has multiple visible GPUs.
+- Optional ML research stack: install `requirements-ml.txt` and use
+  `SKIPP_ML_DEVICE=auto|cpu|cuda` with the `run_ml_*` scripts. Treat `cuda`
+  as a request and inspect `resolved_devices` / `device_fallback_reason`
+  instead of assuming the backend really stayed on GPU.
+- Optional RL research stack: install `requirements-rl.txt` and use
+  `SKIPP_RL_DEVICE=auto|cpu|cuda` with `scripts/run_rl_research_training.py`.
+- For CUDA-enabled RL locally or on the self-hosted runner, install
+  `requirements-rl-gpu.txt` after `requirements-rl.txt` with
+  `python -m pip install --force-reinstall -r requirements-rl-gpu.txt`.
 
 ### Testing
 

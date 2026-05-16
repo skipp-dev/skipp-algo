@@ -14,12 +14,15 @@ Why pin file locks:
 * ``flock`` is the only file-locking primitive used in this tree —
   every entry below is a deliberate, reviewed pair.
 
-Today exactly two production modules acquire/release advisory locks:
+Today exactly three production/script modules acquire/release advisory locks:
 
-* ``open_prep/realtime_signals.py:256`` (``LOCK_EX|LOCK_NB``) +
-  ``:280`` (``LOCK_UN``) — daemon PID-file singleton lock.
+* ``open_prep/realtime_signals.py:264`` (``LOCK_EX|LOCK_NB``) +
+* ``:291`` (``LOCK_UN``) — daemon PID-file singleton lock.
 * ``open_prep/watchlist.py:41`` (``LOCK_EX``) + ``:44`` (``LOCK_UN``) —
   watchlist read/write critical section.
+* ``scripts/ib_client_id.py`` uses guarded POSIX ``flock`` for the IBKR
+    client-id registry and falls back to random allocation when ``fcntl`` is not
+    available (Windows/self-hosted portability path).
 
 A new ``flock`` caller forces a deliberate allow-list update and a
 matching unlock-pair review.
@@ -47,7 +50,6 @@ _DIR_EXCLUDE = {
     "docs",
     "tests",
     "SMC++",
-    "scripts",
 }
 
 
@@ -127,11 +129,16 @@ def _fcntl_alias_or_direct_import_sites() -> set[tuple[str, int, str]]:
 # Locked surface — every entry is a reviewed advisory-lock leg.
 FCNTL_FLOCK_ALLOWED: set[tuple[str, int]] = {
     # Realtime-signals daemon PID-file singleton lock.
-    ("open_prep/realtime_signals.py", 261),  # LOCK_EX | LOCK_NB
-    ("open_prep/realtime_signals.py", 288),  # LOCK_UN
+    ("open_prep/realtime_signals.py", 264),  # LOCK_EX | LOCK_NB
+    ("open_prep/realtime_signals.py", 291),  # LOCK_UN
     # Watchlist read/write critical section.
     ("open_prep/watchlist.py", 41),  # LOCK_EX
     ("open_prep/watchlist.py", 44),  # LOCK_UN
+    # IBKR client-id registry lease lock (guarded; random fallback on no fcntl).
+    ("scripts/ib_client_id.py", 138),  # LOCK_EX | LOCK_NB
+    ("scripts/ib_client_id.py", 182),  # LOCK_UN
+    ("scripts/ib_client_id.py", 203),  # LOCK_EX | LOCK_NB
+    ("scripts/ib_client_id.py", 215),  # LOCK_UN
 }
 
 

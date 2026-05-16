@@ -8,8 +8,8 @@ Most workflows stay on the hosted runner expression::
 
 The merge-critical workflows (`ci.yml`, `docs-lint.yml`,
 `manifest-pytest-poison-scan.yml`, `smc-fast-pr-gates.yml`) and the
-priority cron workflows backing Databento / Open Prep / live news refresh
-are special:
+priority cron workflows backing Databento / Open Prep / live news refresh /
+measurement benchmarks are special:
 
 * a small hosted `select-runner` control-plane job decides whether a matching
   self-hosted Windows runner is online and idle;
@@ -33,14 +33,22 @@ _WORKFLOWS_DIR = _REPO_ROOT / ".github" / "workflows"
 
 _HOSTED_RUNS_ON = "${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}"
 _RESOLVED_RUNS_ON = "${{ fromJson(needs.select-runner.outputs.runs_on_json) }}"
+_HEAVY_CI_CUSTOM_LABEL_EXPR = "${{ vars.SMC_CI_SELF_HOSTED_LABEL || vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || '' }}"
+_PRIORITY_CRON_CUSTOM_LABEL_EXPR = "${{ vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || vars.SMC_SELF_HOSTED_LABEL }}"
 _ROUTED_WORKFLOWS = {
     "ci.yml": {"worker_jobs": {"validate"}},
     "docs-lint.yml": {"worker_jobs": {"inline-backticks"}},
     "manifest-pytest-poison-scan.yml": {"worker_jobs": {"scan"}},
+    "ml-family-research.yml": {"worker_jobs": {"research"}},
     "smc-fast-pr-gates.yml": {"worker_jobs": {"fast-gates"}},
+    "smc-release-gates.yml": {"worker_jobs": {"release-gates"}},
     "feature-importance-daily.yml": {"worker_jobs": {"feature-importance-report"}},
     "open-prep-outcome-backfill.yml": {"worker_jobs": {"backfill"}},
+    "rl-research-training.yml": {"worker_jobs": {"research"}},
     "run-open-prep-daily.yml": {"worker_jobs": {"run"}},
+    "smc-library-refresh.yml": {"worker_jobs": {"refresh"}},
+    "smc-measurement-benchmark.yml": {"worker_jobs": {"measurement-benchmark"}},
+    "smc-measurement-benchmark-rolling.yml": {"worker_jobs": {"rolling-benchmark"}},
     "smc-databento-production-export.yml": {"worker_jobs": {"export"}},
     "smc-live-newsapi-refresh.yml": {"worker_jobs": {"refresh"}},
 }
@@ -69,6 +77,18 @@ def _needs_list(job: dict) -> list[str]:
     if isinstance(needs, list):
         return [item for item in needs if isinstance(item, str)]
     return []
+
+
+def _step_run(job: dict, step_name: str) -> str:
+    for step in job.get("steps") or []:
+        if not isinstance(step, dict):
+            continue
+        if step.get("name") != step_name:
+            continue
+        run = step.get("run")
+        assert isinstance(run, str), f"{step_name!r} must define a run script"
+        return run
+    raise AssertionError(f"job is missing step {step_name!r}")
 
 
 @pytest.mark.parametrize("path", _workflow_files(), ids=lambda p: p.name)
@@ -126,4 +146,127 @@ def test_no_bare_ubuntu_latest_runs_on() -> None:
     assert not offenders, (
         "Found bare ``runs-on: ubuntu-latest`` (no operator override or selector hook):\n"
         + "\n".join(offenders)
+    )
+
+
+@pytest.mark.parametrize("workflow_name", ["ci.yml", "smc-fast-pr-gates.yml", "smc-release-gates.yml"])
+def test_heavy_ci_workflows_prefer_ci_specific_self_hosted_selector(workflow_name: str) -> None:
+    workflow = yaml.safe_load((_WORKFLOWS_DIR / workflow_name).read_text(encoding="utf-8"))
+    resolve_script = _step_run(_jobs(workflow)["select-runner"], "Resolve worker runner")
+
+    assert f'--custom-label "{_HEAVY_CI_CUSTOM_LABEL_EXPR}"' in resolve_script
+    assert '--custom-label "${{ vars.SMC_SELF_HOSTED_LABEL }}"' not in resolve_script
+
+
+@pytest.mark.parametrize("workflow_name", ["run-open-prep-daily.yml", "smc-library-refresh.yml", "smc-measurement-benchmark.yml", "smc-measurement-benchmark-rolling.yml", "smc-databento-production-export.yml"])
+def test_priority_cron_workflows_prefer_priority_cron_self_hosted_selector(workflow_name: str) -> None:
+    workflow = yaml.safe_load((_WORKFLOWS_DIR / workflow_name).read_text(encoding="utf-8"))
+    resolve_script = _step_run(_jobs(workflow)["select-runner"], "Resolve worker runner")
+
+    assert f'--custom-label "{_PRIORITY_CRON_CUSTOM_LABEL_EXPR}"' in resolve_script
+
+
+# F2.1 — pin the GPU-priority custom-label expression for the GPU-routed family.
+_GPU_CRON_CUSTOM_LABEL_EXPR = (
+    "${{ vars.SMC_PRIORITY_CRON_GPU_SELF_HOSTED_LABEL || "
+    "vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || "
+    "vars.SMC_SELF_HOSTED_LABEL }}"
+)
+
+
+@pytest.mark.parametrize(
+    "workflow_name", ["feature-importance-daily.yml", "open-prep-outcome-backfill.yml"]
+)
+def test_gpu_priority_cron_workflows_prefer_gpu_self_hosted_selector(workflow_name: str) -> None:
+    workflow = yaml.safe_load((_WORKFLOWS_DIR / workflow_name).read_text(encoding="utf-8"))
+    resolve_script = _step_run(_jobs(workflow)["select-runner"], "Resolve worker runner")
+
+    assert f'--custom-label "{_GPU_CRON_CUSTOM_LABEL_EXPR}"' in resolve_script
+
+
+@pytest.mark.parametrize(
+    "workflow_name", ["ml-family-research.yml", "rl-research-training.yml"]
+)
+def test_research_workflows_route_gpu_modes_to_gpu_label(workflow_name: str) -> None:
+    # These workflows pick the GPU label conditionally inside a shell `if`
+    # branch (mode == 'train' / GPU runs) and otherwise fall back to the
+    # priority-cron label, so we pin the GPU branch as a substring rather than
+    # the whole `--custom-label` line.
+    text = (_WORKFLOWS_DIR / workflow_name).read_text(encoding="utf-8")
+    assert f'CUSTOM_LABEL="{_GPU_CRON_CUSTOM_LABEL_EXPR}"' in text, (
+        f"{workflow_name} must wire the GPU custom-label branch to "
+        f"SMC_PRIORITY_CRON_GPU_SELF_HOSTED_LABEL with cron+generic fallbacks"
+    )
+    assert '--custom-label "$CUSTOM_LABEL"' in text
+
+
+# F1.1 — every routed workflow's `select-runner` job should keep a minimal,
+# valid permissions block (`contents: read`) and must never declare
+# unsupported permission keys (for example `administration`, which is not a
+# valid GitHub Actions workflow-permissions key and causes workflow-file
+# validation failure before any job starts).
+@pytest.mark.parametrize("workflow_name", sorted(_ROUTED_WORKFLOWS))
+def test_select_runner_job_permissions_are_valid(workflow_name: str) -> None:
+    workflow = yaml.safe_load((_WORKFLOWS_DIR / workflow_name).read_text(encoding="utf-8"))
+    select_runner = _jobs(workflow)["select-runner"]
+    perms = select_runner.get("permissions")
+    assert isinstance(perms, dict), (
+        f"{workflow_name}:select-runner must declare an explicit permissions block"
+    )
+    assert perms.get("contents") == "read", (
+        f"{workflow_name}:select-runner must grant `contents: read` for checkout"
+    )
+    assert "administration" not in perms, (
+        f"{workflow_name}:select-runner must not declare `permissions.administration` "
+        f"(unsupported key; breaks workflow-file validation)"
+    )
+
+
+# F2.2 — workflows that route to self-hosted and use the portable Python
+# bootstrap pattern must gate the `actions/setup-python` action on
+# `runner_environment == 'github-hosted'`. Otherwise the hosted-only
+# setup-python step would also execute on self-hosted runners and silently
+# bypass the `Resolve Python 3.12 interpreter` portable-bootstrap path that
+# self-hosted depends on.
+_PORTABLE_PYTHON_BOOTSTRAP_WORKFLOWS = (
+    "smc-release-gates.yml",
+    "smc-library-refresh.yml",
+    "smc-databento-production-export.yml",
+    "smc-measurement-benchmark.yml",
+    "smc-measurement-benchmark-rolling.yml",
+)
+
+
+@pytest.mark.parametrize("workflow_name", _PORTABLE_PYTHON_BOOTSTRAP_WORKFLOWS)
+def test_hosted_only_setup_python_step_is_gated_to_github_hosted(workflow_name: str) -> None:
+    workflow = yaml.safe_load((_WORKFLOWS_DIR / workflow_name).read_text(encoding="utf-8"))
+    jobs = _jobs(workflow)
+    routed = _ROUTED_WORKFLOWS[workflow_name]
+    found_gated_hosted_step = False
+    found_portable_resolver_step = False
+    for worker_job_name in routed["worker_jobs"]:
+        job = jobs[worker_job_name]
+        for step in job.get("steps") or []:
+            if not isinstance(step, dict):
+                continue
+            name = step.get("name") or ""
+            uses = step.get("uses") or ""
+            cond = step.get("if") or ""
+            if name == "Set up pinned Python (GitHub-hosted)":
+                assert uses == "./.github/actions/setup-python-pinned", (
+                    f"{workflow_name}:{worker_job_name} hosted setup-python must use "
+                    f"the pinned composite action"
+                )
+                assert "needs.select-runner.outputs.runner_environment == 'github-hosted'" in cond, (
+                    f"{workflow_name}:{worker_job_name} hosted setup-python is missing "
+                    f"the runner_environment guard; got if={cond!r}"
+                )
+                found_gated_hosted_step = True
+            if name == "Resolve Python 3.12 interpreter":
+                found_portable_resolver_step = True
+    assert found_gated_hosted_step, (
+        f"{workflow_name} is missing the gated 'Set up pinned Python (GitHub-hosted)' step"
+    )
+    assert found_portable_resolver_step, (
+        f"{workflow_name} is missing the 'Resolve Python 3.12 interpreter' portable bootstrap step"
     )
