@@ -104,6 +104,9 @@ jobs:
       - name: Set up pinned Python (GitHub-hosted)
         if: steps.gate.outputs.run_heavy == 'true' && needs.select-runner.outputs.runner_environment == 'github-hosted'
         uses: ./.github/actions/setup-python-pinned
+        with:
+          cache: pip
+          cache-dependency-path: requirements.txt
       - name: Install uv
         if: steps.gate.outputs.run_heavy == 'true'
         uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3

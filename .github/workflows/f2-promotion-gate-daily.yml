@@ -88,6 +88,9 @@ jobs:
       # plan-review.
       - name: Setup Python
         uses: ./.github/actions/setup-python-pinned
+        with:
+          cache: pip
+          cache-dependency-path: requirements.txt
 
       - name: Install dependencies
         # F-V8-B1.1 (2026-05-02): requirements.txt MUST come before `pip install -e .`
