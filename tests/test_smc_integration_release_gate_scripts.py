@@ -354,10 +354,18 @@ def test_measurement_gate_uses_real_evidence(monkeypatch, tmp_path: Path) -> Non
     measurement_dir = measurement_root / "AAPL" / "15m"
     manifest_path = measurement_dir / "measurement_manifest.json"
 
-    # After governance promotion (77ac1652), calibrated ECE 0.333 > 0.30 triggers
-    # MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD which is now a hard-blocking gate.
-    assert gate["status"] == "fail"
-    assert gate["blocking"] is True
+    # Governance promotion (77ac1652) made MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD
+    # a hard-blocking gate. The subsequent eligibility-floor fix added
+    # ``min_events_for_calibrated_thresholds=20`` (matching Platt
+    # ``_MIN_PLATT_EVENTS``); below that floor the calibrated absolute-threshold
+    # codes are suppressed because beta_bin fallback emits a statistically
+    # meaningless calibrated_ece. This fixture runs at n_events=1, so the gate
+    # is expected to surface the calibrated_ece warning as advisory (status
+    # ``warn``) rather than hard-blocking. Hard-block coverage at/above the
+    # floor is exercised by
+    # ``tests/test_smc_integration_release_policy.py::TestMeasurementShadowDegradations::test_calibrated_thresholds_apply_at_or_above_platt_floor_default``.
+    assert gate["status"] == "warn"
+    assert gate["blocking"] is False
     assert gate["details"]["measurement_evidence_present"] is True
     assert gate["details"]["benchmark_event_counts"]["BOS"] == 1
     assert gate["details"]["benchmark_event_counts"]["SWEEP"] == 1
@@ -371,7 +379,12 @@ def test_measurement_gate_uses_real_evidence(monkeypatch, tmp_path: Path) -> Non
     assert gate["details"]["scoring_artifact_path"] == "measurement/AAPL/15m/scoring_AAPL_15m.json"
     assert gate["details"]["measurement_manifest_path"] == "measurement/AAPL/15m/measurement_manifest.json"
     assert gate["details"]["stratification_coverage"]["dimensions_present"] == ["htf_bias"]
-    assert any("calibrated_ece" in warning for warning in gate["details"]["warnings"])
+    # The eligibility-floor fix suppresses the calibrated_ece ABOVE_THRESHOLD
+    # code at n_events<20, so the advisory warning is no longer emitted in
+    # gate["details"]["warnings"]. The calibration row still reports the
+    # raw beta_bin fallback warnings via gate["details"]["calibration"]["warnings"].
+    calibration_warnings = gate["details"].get("calibration", {}).get("warnings") or []
+    assert any("beta_bin" in w or "insufficient_events" in w for w in calibration_warnings)
     assert (measurement_dir / "benchmark_AAPL_15m.json").exists()
     assert (measurement_dir / "manifest.json").exists()
     assert (measurement_dir / "scoring_AAPL_15m.json").exists()
@@ -496,9 +509,13 @@ def test_measurement_gate_warns_brier_above_soft_threshold(monkeypatch, tmp_path
 
     brier_warnings = [w for w in gate["details"]["warnings"] if "Brier score" in w and "soft threshold" in w]
     assert len(brier_warnings) >= 1, f"Expected Brier soft warning, got: {gate['details']['warnings']}"
-    # Gate is blocking because calibrated ECE > 0.30 triggers the hard ECE gate.
-    # The Brier soft-warning is still correctly emitted alongside the hard gate.
-    assert gate["blocking"] is True
+    # Soft-warn coverage is independent of the calibrated-ECE hard-block.
+    # With the eligibility-floor fix (min_events_for_calibrated_thresholds=20)
+    # this n_events=4 fixture no longer triggers the hard ECE gate, so the
+    # gate is non-blocking but still emits the Brier soft warning. Hard-block
+    # coverage at/above the floor is exercised by
+    # ``tests/test_smc_integration_release_policy.py::TestMeasurementShadowDegradations::test_calibrated_thresholds_apply_at_or_above_platt_floor_default``.
+    assert gate["blocking"] is False
 
 
 def test_measurement_gate_warns_coverage_below_soft_threshold(monkeypatch, tmp_path: Path) -> None:
@@ -526,9 +543,11 @@ def test_measurement_gate_warns_coverage_below_soft_threshold(monkeypatch, tmp_p
 
     coverage_warnings = [w for w in gate["details"]["warnings"] if "Event coverage" in w and "soft threshold" in w]
     assert len(coverage_warnings) >= 1, f"Expected coverage soft warning, got: {gate['details']['warnings']}"
-    # Gate is blocking because calibrated ECE > 0.30 triggers the hard ECE gate.
-    # The coverage soft-warning is still correctly emitted alongside the hard gate.
-    assert gate["blocking"] is True
+    # Soft-warn coverage is independent of the calibrated-ECE hard-block.
+    # With the eligibility-floor fix (min_events_for_calibrated_thresholds=20)
+    # this n_events=1 fixture no longer triggers the hard ECE gate, so the
+    # gate is non-blocking but still emits the coverage soft warning.
+    assert gate["blocking"] is False
 
 
 def test_soft_warn_thresholds_are_configurable() -> None:
