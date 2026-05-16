@@ -2,10 +2,57 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
+import os
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
+
+_LOGGER = logging.getLogger(__name__)
+
+# F-V8-D5 (2026-05-16): A9b.5 cutover - the sharded producer can emit a
+# merged manifest with `partial_run=true` and a populated `failed_shard_ids`
+# list when one or more producer shards die before writing their manifest.
+# The historical monolithic producer had no such mode, so existing callers
+# of `load_export_bundle` implicitly assumed complete coverage. This helper
+# makes the contract explicit: fail-fast by default; allow opt-in lenient
+# mode via the SMC_ALLOW_PARTIAL_BUNDLE env var so an operator can
+# deliberately accept a partial bundle (e.g. for a dry-run or audit) without
+# editing source.
+_ALLOW_PARTIAL_ENV = "SMC_ALLOW_PARTIAL_BUNDLE"
+
+
+def assert_bundle_is_complete(
+    payload: dict[str, Any],
+    *,
+    scope: str = "export bundle",
+) -> None:
+    """Raise if the loaded bundle's manifest reports a partial sharded run.
+
+    Pass `scope` (e.g. "baseline bundle") for a more specific error
+    message. Set ``SMC_ALLOW_PARTIAL_BUNDLE=1`` in the environment to
+    downgrade the failure to a warning.
+    """
+
+    manifest = payload.get("manifest") if isinstance(payload.get("manifest"), dict) else {}
+    if not manifest.get("partial_run"):
+        return
+    inner = manifest.get("manifest") if isinstance(manifest.get("manifest"), dict) else {}
+    failed = manifest.get("failed_shard_ids") or inner.get("failed_shard_ids") or []
+    expected = manifest.get("expected_shard_count")
+    actual = manifest.get("shard_count")
+    msg = (
+        f"{scope} manifest reports partial_run=true "
+        f"(shard_count={actual!r}, expected_shard_count={expected!r}, "
+        f"failed_shard_ids={failed!r}). This script assumes complete shard "
+        f"coverage. Re-run the sharded producer for the missing shards, or "
+        f"set {_ALLOW_PARTIAL_ENV}=1 to proceed with degraded data."
+    )
+    if os.environ.get(_ALLOW_PARTIAL_ENV) == "1":
+        _LOGGER.warning("%s (override: %s=1)", msg, _ALLOW_PARTIAL_ENV)
+        return
+    raise RuntimeError(msg)
 
 
 def _manifest_frame_names(manifest_path: Path) -> set[str]:

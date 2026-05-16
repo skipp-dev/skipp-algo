@@ -453,6 +453,12 @@ def write_databento_production_workbook(
 
     bundle_ref = export_bundle_path if export_bundle_path is not None else DEFAULT_PRODUCTION_EXPORT_DIR
     payload = load_export_bundle(bundle_ref, manifest_prefix="databento_volatility_production_")
+    # F-V8-D5 (2026-05-16): A9b.5 cutover - fail fast on partial sharded
+    # merges (override: SMC_ALLOW_PARTIAL_BUNDLE=1). Workbook readers expect
+    # full-universe frames; partial data would silently underreport.
+    from scripts.load_databento_export_bundle import assert_bundle_is_complete
+
+    assert_bundle_is_complete(payload, scope="production workbook input bundle")
     frames = payload["frames"]
 
     summary = frames.get("summary", pd.DataFrame())

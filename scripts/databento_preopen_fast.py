@@ -669,6 +669,14 @@ def run_preopen_fast_refresh(
         required_frames=("daily_symbol_features_full_universe", "daily_bars"),
         manifest_prefix="databento_volatility_production_",
     )
+    # F-V8-D5 (2026-05-16): A9b.5 cutover - refuse to silently consume a
+    # partial sharded merge unless explicitly opted in via
+    # SMC_ALLOW_PARTIAL_BUNDLE=1. Fast-refresh logic assumes complete
+    # coverage when picking scope symbols and resolving the target trade
+    # date, so a partial bundle would produce a corrupted preopen scope.
+    from scripts.load_databento_export_bundle import assert_bundle_is_complete
+
+    assert_bundle_is_complete(payload, scope="baseline export bundle")
     frames = payload["frames"]
     baseline_manifest = payload.get("manifest") if isinstance(payload.get("manifest"), dict) else {}
 
