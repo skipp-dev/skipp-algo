@@ -87,7 +87,12 @@ _ALLOWED_RAW_WRITE_FILES: dict[str, str] = {
     "scripts/run_smc_live_incubation.py": "audit JSONL append (mode='a', append-only ledger)",
     "scripts/build_backtest_slippage_samples.py": "mkstemp + fdopen + os.replace atomic pattern (slippage samples JSON)",
     "scripts/smoke_smc_to_ibkr_adapter.py": "mkstemp + fdopen + os.replace atomic pattern (smoke audit JSONL append)",
-    "scripts/c10c_aggregate_per_bar.py": "mkstemp + fdopen + os.replace atomic pattern (C10c co-firing per-bar JSONL)",
+    # C10c research/analysis one-shot: aggregates per-bar predictions
+    # to docs/research/co_firing/per_bar_predictions.jsonl for the
+    # joint-outcome-modeling sprint. Not pipeline-consumed; carries the
+    # ATOMIC-WRITE-EXEMPT marker inline. Added 2026-05-14 alongside the
+    # C13/T4 cron wiring so push-mode validate stops shipping red.
+    "scripts/c10c_aggregate_per_bar.py": "c10c research/analysis one-shot (ATOMIC-WRITE-EXEMPT, local jsonl write)",
     # smc_atomic_write itself implements the primitive — exempt by definition.
     "scripts/smc_atomic_write.py": "implements the atomic write primitive",
     # --- open_prep/ surface (Deep-Review 2026-04-27 scope expansion) ---
@@ -228,3 +233,4 @@ def test_allowlist_is_pruned() -> None:
         f"Allowlist contains files that no longer perform raw writes: {stale}. "
         "Remove them from _ALLOWED_RAW_WRITE_FILES."
     )
+
