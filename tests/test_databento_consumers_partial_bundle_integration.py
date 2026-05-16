@@ -103,13 +103,13 @@ def test_override_env_lets_consumers_proceed_past_assert(
         lambda *args, **kwargs: _partial_payload(),
     )
 
-    raised: BaseException | None = None
+    raised: Exception | None = None
     try:
         production_workbook.write_databento_production_workbook(
             export_bundle_path=Path("synthetic"),
             output_path=Path("synthetic/out.xlsx"),
         )
-    except BaseException as exc:  # noqa: BLE001 - want to inspect any error
+    except Exception as exc:  # inspect regular runtime errors; don't catch system-exiting exceptions
         raised = exc
 
     if raised is not None and "partial_run=true" in str(raised):
