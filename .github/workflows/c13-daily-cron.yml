@@ -194,6 +194,28 @@ jobs:
             --output        "${CALIB_DIR}/backtest_reference_${DATE}.json"
           echo "rc=$?" >> "$GITHUB_OUTPUT"
 
+      - name: Step 3b — refresh Phase-B slippage sample (advisory, C13/T4)
+        id: slippage_sample
+        if: steps.backtest_ref.outputs.rc == '0'
+        # CONTINUE-ON-ERROR-INTENTIONAL: mixed-mode is total: it falls
+        # back to deterministic replay samples when no real fills are
+        # available. The only way this step can fail is a hard import
+        # error; surface it via the issue-opener and continue.
+        continue-on-error: true
+        run: |
+          set +e
+          DATE="${{ steps.date.outputs.date }}"
+          # mixed mode = real_fills (if audit JSONL present) +
+          # deterministic replay top-up to min-per-family (default 200).
+          # Phase-B promotion gate (PR #331) only checks for
+          # ``slippage_ks_reference_type == "backtest_samples"``; the
+          # source field (real_fills | replay | mixed) is advisory.
+          python -m scripts.build_backtest_slippage_samples \
+            --source     mixed \
+            --audit-glob "${LIVE_DIR}/audit_*.jsonl" \
+            --output     "${CALIB_DIR}/backtest_slippage_samples_${DATE}.json"
+          echo "rc=$?" >> "$GITHUB_OUTPUT"
+
       - name: Step 4 — compute live drift (advisory)
         id: drift
         if: steps.backtest_ref.outputs.rc == '0'
@@ -203,10 +225,23 @@ jobs:
         run: |
           set +e
           DATE="${{ steps.date.outputs.date }}"
-          python -m scripts.compute_live_drift \
-            --live-jsonl           "${LIVE_DIR}/drift_input_${DATE}.jsonl" \
-            --backtest-calibration "${CALIB_DIR}/backtest_reference_${DATE}.json" \
-            --output               "${LIVE_DIR}/drift_${DATE}.json"
+          SLIP="${CALIB_DIR}/backtest_slippage_samples_${DATE}.json"
+          # Pass --slippage-reference iff the slippage step succeeded
+          # AND produced today's file. Without it, drift falls back to
+          # synthetic_normal and the Phase-B gate stays BLOCKED.
+          if [ "${{ steps.slippage_sample.outputs.rc }}" = "0" ] && [ -f "${SLIP}" ]; then
+            python -m scripts.compute_live_drift \
+              --live-jsonl           "${LIVE_DIR}/drift_input_${DATE}.jsonl" \
+              --backtest-calibration "${CALIB_DIR}/backtest_reference_${DATE}.json" \
+              --slippage-reference   "${SLIP}" \
+              --output               "${LIVE_DIR}/drift_${DATE}.json"
+          else
+            echo "No backtest_slippage_samples for ${DATE} — drift falls back to synthetic_normal (Phase-B gate stays BLOCKED)."
+            python -m scripts.compute_live_drift \
+              --live-jsonl           "${LIVE_DIR}/drift_input_${DATE}.jsonl" \
+              --backtest-calibration "${CALIB_DIR}/backtest_reference_${DATE}.json" \
+              --output               "${LIVE_DIR}/drift_${DATE}.json"
+          fi
           echo "rc=$?" >> "$GITHUB_OUTPUT"
 
       - name: Step 5a — build families telemetry (advisory)
