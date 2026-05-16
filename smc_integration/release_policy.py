@@ -390,6 +390,16 @@ class MeasurementShadowThresholds:
     max_calibrated_brier_score: float = 0.60
     max_calibrated_ece: float = 0.30
     min_scoring_events: int = 1
+    # Calibrated Brier/ECE thresholds only apply when n_events meets the
+    # Platt-scaler floor (``_MIN_PLATT_EVENTS`` in ``smc_core.scoring`` = 20).
+    # Below this floor the calibration code path falls back to ``beta_bin``
+    # and emits ``insufficient_events_for_platt_scaling`` /
+    # ``single_class_outcomes_used_beta_bin_fallback`` warnings, in which
+    # case calibrated ECE is statistically meaningless (e.g. n=1 with
+    # positive_rate=0 trivially produces ECE=0.333). Hard-blocking on those
+    # values would block releases on data sparsity rather than on real
+    # calibration drift. Set to 1 to restore the legacy behavior.
+    min_events_for_calibrated_thresholds: int = 20
     min_populated_stratification_buckets: int = 1
     min_history_runs: int = 2
     max_brier_regression_abs: float = 0.08
@@ -818,7 +828,10 @@ def assess_measurement_shadow_degradations(
     current_calibrated_ece = _finite_metric(current_entry.get("calibrated_ece"))
     current_events = _int_metric(current_entry.get("n_events"))
     current_buckets = _populated_bucket_count(current_entry)
-    calibrated_thresholds_eligible = current_events is not None and current_events >= resolved.min_scoring_events
+    calibrated_thresholds_eligible = (
+        current_events is not None
+        and current_events >= resolved.min_events_for_calibrated_thresholds
+    )
 
     if current_brier is not None and current_brier > resolved.max_brier_score:
         degradations.append(
