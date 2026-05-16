@@ -174,6 +174,9 @@ jobs:
       - name: Set up pinned Python (GitHub-hosted)
         if: needs.select-runner.outputs.runner_environment == 'github-hosted'
         uses: ./.github/actions/setup-python-pinned
+        with:
+          cache: pip
+          cache-dependency-path: requirements.txt
 
       - name: Resolve Python 3.12 interpreter
         run: |
