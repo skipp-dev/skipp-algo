@@ -34,10 +34,14 @@ Usage::
 """
 from __future__ import annotations
 
+from typing import Any
+
+fcntl: Any | None
 try:
     import fcntl  # POSIX only
     _FLOCK_SUPPORTED = True
 except ImportError:  # Windows
+    fcntl = None
     _FLOCK_SUPPORTED = False
 import hashlib
 import json
@@ -51,7 +55,6 @@ from collections import deque
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 from .macro import FMPClient
 from .signal_decay import adaptive_freshness_decay
@@ -256,9 +259,9 @@ def ensure_rt_engine_running(
     # Use a file lock to prevent TOCTOU race between concurrent callers
     _RT_ENGINE_LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
     lock_fd = open(_RT_ENGINE_LOCK_FILE, "w", encoding="utf-8")
-    if _FLOCK_SUPPORTED:
+    if _FLOCK_SUPPORTED and fcntl is not None:
         try:
-            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)  # type: ignore[possibly-undefined]
+            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError:
             # Another process holds the lock — wait briefly and verify that a
             # running engine actually becomes visible before claiming success.
@@ -284,8 +287,8 @@ def ensure_rt_engine_running(
             project_root=project_root,
         )
     finally:
-        if _FLOCK_SUPPORTED:
-            fcntl.flock(lock_fd, fcntl.LOCK_UN)  # type: ignore[possibly-undefined]
+        if _FLOCK_SUPPORTED and fcntl is not None:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
         lock_fd.close()
 
 
