@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import types
+
 import numpy as np
 
 from scripts.ml_research_common import build_dataset_bundle, parse_families
@@ -40,6 +42,49 @@ def test_training_payload_preserves_requested_device_intent() -> None:
     assert payload["requested_device"] == "cuda"
     assert payload["resolved_devices"] == ["cpu"]
     assert payload["family_reports"][0]["device_fallback_reason"] == "logistic_cpu_only"
+
+
+def test_training_payload_detects_xgboost_silent_cpu_fallback(monkeypatch) -> None:
+    import ml.training.xgb_family_trainer as xgb_family_trainer
+
+    class FakeBooster:
+        def save_config(self) -> str:
+            return '{"learner": {"generic_param": {"device": "cpu"}}}'
+
+    class FakeClassifier:
+        def __init__(self, **params) -> None:
+            self.params = params
+
+        def fit(self, X, y, verbose=False):
+            return self
+
+        def predict_proba(self, X):
+            rows = int(X.shape[0])
+            return np.column_stack((np.full(rows, 0.4), np.full(rows, 0.6)))
+
+        def get_booster(self):
+            return FakeBooster()
+
+    monkeypatch.setattr(xgb_family_trainer, "_HAS_XGB", True)
+    monkeypatch.setattr(
+        xgb_family_trainer,
+        "xgb",
+        types.SimpleNamespace(XGBClassifier=FakeClassifier),
+    )
+
+    payload = run_training_payload(
+        backend="xgboost",
+        device="cuda",
+        families_raw="BOS",
+        samples_per_family=120,
+        feature_count=6,
+        seed=11,
+    )
+
+    assert payload["requested_device"] == "cuda"
+    assert payload["resolved_devices"] == ["cpu"]
+    assert payload["family_reports"][0]["resolved_device"] == "cpu"
+    assert payload["family_reports"][0]["device_fallback_reason"] == "requested_cuda_unavailable"
 
 
 def test_explainability_parser_defaults_to_json_and_markdown() -> None:
