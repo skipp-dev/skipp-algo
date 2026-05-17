@@ -101,22 +101,11 @@ jobs:
 
       # Guard: every workflow file must declare `defaults: run: shell: bash`
       # so jobs behave identically on the Windows self-hosted runner and on
-      # ubuntu-latest. Sub-second; fails the gate on any new file that omits it.
+      # ubuntu-latest. YAML-aware (rejects the string-in-comment false-pass
+      # that the previous `grep -q` loop accepted); sub-second.
       - name: Lint workflow shell defaults
         if: steps.gate.outputs.run_heavy == 'true'
-        run: |
-          missing=()
-          for f in .github/workflows/*.yml; do
-            if ! grep -q 'shell: bash' "$f"; then
-              missing+=("$f")
-            fi
-          done
-          if [ ${#missing[@]} -gt 0 ]; then
-            echo "::error::These workflow files are missing 'defaults: run: shell: bash':"
-            printf '  %s\n' "${missing[@]}"
-            exit 1
-          fi
-          echo "OK: all workflow files declare shell: bash"
+        run: python scripts/lint_workflow_defaults.py
 
       - name: Install uv
         if: steps.gate.outputs.run_heavy == 'true'
