@@ -85,7 +85,8 @@ def _scan_loopback() -> dict[str, int]:
             if _LOOPBACK.search(line):
                 n += 1
         if n:
-            counts[str(p.relative_to(ROOT))] = n
+            # POSIX form keeps the key stable across OSes (#2244).
+            counts[p.relative_to(ROOT).as_posix()] = n
     return counts
 
 
