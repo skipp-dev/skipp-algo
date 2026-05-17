@@ -1,18 +1,22 @@
 """XGBoost trainer (optional dependency)."""
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import numpy as np
 
 from ml.training.base import BaseFamilyTrainer
 
-try:  # pragma: no cover - exercised in environments with xgboost
-    import xgboost as xgb  # type: ignore
+xgb: Any | None
 
+try:  # pragma: no cover - exercised in environments with xgboost
+    import xgboost as _xgb  # type: ignore[import-not-found]
+
+    xgb = _xgb
     _HAS_XGB = True
 except Exception:  # pragma: no cover - the absence is the tested path locally
-    xgb = None  # type: ignore
+    xgb = None
     _HAS_XGB = False
 
 _VALID_DEVICES = {"auto", "cpu", "cuda"}
@@ -23,6 +27,42 @@ def _normalise_device(device: str) -> str:
     if value not in _VALID_DEVICES:
         raise ValueError(f"device must be one of {_VALID_DEVICES}, got {device!r}")
     return value
+
+
+def _coerce_runtime_device(value: object) -> str | None:
+    if value is None:
+        return None
+    normalised = str(value).strip().lower()
+    if not normalised:
+        return None
+    if normalised.startswith("cuda") or normalised.startswith("gpu"):
+        return "cuda"
+    if normalised.startswith("cpu"):
+        return "cpu"
+    return None
+
+
+def _resolved_booster_device(payload: Any) -> str | None:
+    if not hasattr(payload, "get_booster"):
+        return None
+
+    try:
+        booster = payload.get_booster()
+    except Exception:
+        return None
+    if booster is None or not hasattr(booster, "save_config"):
+        return None
+
+    try:
+        config = json.loads(booster.save_config())
+    except Exception:
+        return None
+
+    learner = config.get("learner", {}) if isinstance(config, dict) else {}
+    generic_param = learner.get("generic_param", {}) if isinstance(learner, dict) else {}
+    if not isinstance(generic_param, dict):
+        return None
+    return _coerce_runtime_device(generic_param.get("device"))
 
 
 class XGBFamilyTrainer(BaseFamilyTrainer):
@@ -95,10 +135,11 @@ class XGBFamilyTrainer(BaseFamilyTrainer):
             try:
                 clf = self._classifier_for_device(device)
                 clf.fit(X, y, verbose=False)
-                self.resolved_device = device
-                if device == "cpu" and self.requested_device == "cuda":
+                resolved_device = _resolved_booster_device(clf) or device
+                self.resolved_device = resolved_device
+                if resolved_device == "cpu" and self.requested_device == "cuda":
                     self.device_fallback_reason = "requested_cuda_unavailable"
-                elif device == "cpu" and self.requested_device == "auto":
+                elif resolved_device == "cpu" and self.requested_device == "auto":
                     self.device_fallback_reason = "auto_cuda_unavailable"
                 return clf
             except Exception as exc:

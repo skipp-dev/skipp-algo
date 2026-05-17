@@ -86,7 +86,7 @@ _FROZEN_FILE_COUNTS: dict[str, int] = {
     "governance/run_manifest.py": 1,
     "ml/calibration/probability_calibrator.py": 1,
     "ml/training/lgbm_family_trainer.py": 2,
-    "ml/training/xgb_family_trainer.py": 2,
+    "ml/training/xgb_family_trainer.py": 1,  # PR #2241: 2 bare ignores replaced by 1 specific `[import-not-found]` on `import xgboost`.
     "ml/walkforward.py": 1,
     "newsstack_fmp/_bz_http.py": 2,
     "newsstack_fmp/ingest_benzinga.py": 1,
