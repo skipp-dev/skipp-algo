@@ -193,6 +193,19 @@ omit = [
     "scripts/generate_showcase_summary.py",
     "scripts/measure_databento_ops_run.py",
     "newsstack_fmp/ingest_opra_options_flow.py",
+    # PR #2258 omit-list expansion: workflow-time lint CLIs that replaced
+    # the two deleted pytest pins. They are invoked only by
+    # .github/workflows/smc-fast-pr-gates.yml against the *.yml files in
+    # .github/workflows/, are not imported by any production module
+    # (verified), and have no automated test coverage by design — same
+    # standalone-CLI carve-out rationale as ADR-002 #26 / Issue #2200.
+    # The YAML-parsing semantics they share are exercised end-to-end via
+    # tests/test_workflow_continue_on_error_inventory.py and
+    # tests/test_workflow_continue_on_error_semantics.py (rewritten in
+    # this PR to use the tests/_workflow_yaml.py helper).
+    "scripts/lint_workflow_permissions.py",
+    "scripts/lint_workflow_pythonunbuffered.py",
+    "scripts/lint_workflow_defaults.py",
 ]
 
 [tool.coverage.report]
