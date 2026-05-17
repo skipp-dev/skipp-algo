@@ -61,7 +61,7 @@ jobs:
           # Operators can still pin a dedicated CI label; otherwise we reuse
           # the priority-cron runner before falling back to any idle
           # Windows/x64 self-hosted runner.
-r          # F-V8-C5-B (2026-05-17): heavy `validate` belongs on the Windows
+          # F-V8-C5-B (2026-05-17): heavy `validate` belongs on the Windows
           # self-hosted pool. If no runner is currently idle, queue the job
           # against the required labels instead of falling through to a
           # github-hosted ubuntu runner (which historically masked the
