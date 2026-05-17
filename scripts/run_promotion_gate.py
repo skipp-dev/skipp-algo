@@ -37,24 +37,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, get_args
 
-# Bootstrap so `python scripts/run_promotion_gate.py` works without an
-# installed package, mirroring scripts/f2_run_promotion_gate.py.
-try:
-    from governance.promotion_gate import (  # noqa: F401
-        DECISION_SCHEMA_VERSION,
-        FamilyMetrics,
-        GateThresholds,
-        PromotionGate,
-    )
-except ImportError:  # script-style invocation
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from governance.promotion_gate import (  # type: ignore[no-redef]
-        DECISION_SCHEMA_VERSION,
-        FamilyMetrics,
-        GateThresholds,
-        PromotionGate,
-    )
-
+from governance.promotion_gate import (
+    DECISION_SCHEMA_VERSION,
+    FamilyMetrics,
+    GateThresholds,
+    PromotionGate,
+)
 from governance.types import Decision, EventFamily
 from scripts.smc_atomic_write import atomic_write_json
 
