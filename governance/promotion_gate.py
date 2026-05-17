@@ -14,7 +14,7 @@ contract.
 """
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 
 from governance.types import Blocker, Decision, EventFamily, Posture
@@ -53,6 +53,12 @@ DEFAULT_PSR_MIN = 0.95
 DEFAULT_MINTRL_MAX_YEARS = 2.0
 DEFAULT_PSI_MAX = 0.25
 DEFAULT_LIVE_VS_WF_RATIO_MAX = 1.5
+# Sprint C9.1: PSI-trend thresholds. Defaults mirror ml.drift.trend.
+# Pure slope on the trailing ``psi_trend_window`` samples (per uniform
+# time step, typically one observation per day).
+DEFAULT_PSI_TREND_WINDOW = 7
+DEFAULT_PSI_TREND_SLOPE_WARN = 0.005
+DEFAULT_PSI_TREND_SLOPE_ALARM = 0.015
 
 
 @dataclass(frozen=True)
@@ -64,6 +70,9 @@ class GateThresholds:
     mintrl_max_years: float = DEFAULT_MINTRL_MAX_YEARS
     psi_max: float = DEFAULT_PSI_MAX
     live_vs_wf_ratio_max: float = DEFAULT_LIVE_VS_WF_RATIO_MAX
+    psi_trend_window: int = DEFAULT_PSI_TREND_WINDOW
+    psi_trend_slope_warn: float = DEFAULT_PSI_TREND_SLOPE_WARN
+    psi_trend_slope_alarm: float = DEFAULT_PSI_TREND_SLOPE_ALARM
 
 
 @dataclass
@@ -85,6 +94,10 @@ class FamilyMetrics:
     psr: float | None = None
     mintrl_years: float | None = None
     psi: float | None = None
+    # Sprint C9.1: optional trailing PSI samples (one per uniform time
+    # step, typically per day). When at least 2 samples are present the
+    # consolidator additionally evaluates a slope-based trend alert.
+    psi_history: Sequence[float] = field(default_factory=tuple)
     live_brier: float | None = None
     walkforward_brier: float | None = None
     extras: dict[str, float] = field(default_factory=dict)
@@ -227,26 +240,83 @@ class PromotionGate:
             label="psi",
         )
 
+        # Sprint C9.1: PSI-trend alert on top of the level check. A
+        # slow-creeping climb (0.05 -> 0.20 over 14 days) stays below
+        # ``psi_max`` the entire time but should still degrade posture
+        # and, at ``trend_alarm``, block promotion. We only run the
+        # trend check when the caller supplied >= 2 samples so default
+        # callers (no history) keep their previous behaviour.
+        if snapshot.psi_history and len(snapshot.psi_history) >= 2:
+            from ml.drift.trend import psi_trend_alert
+            trend = psi_trend_alert(
+                snapshot.psi_history,
+                window=t.psi_trend_window,
+                slope_warn=t.psi_trend_slope_warn,
+                slope_alarm=t.psi_trend_slope_alarm,
+            )
+            metrics["psi_slope_per_day"] = float(trend.slope_per_day)
+            if trend.severity == "trend_alarm":
+                blockers.append({
+                    "check": "psi_trend",
+                    "severity": "blocker",
+                    "observed": float(trend.slope_per_day),
+                    "threshold": float(t.psi_trend_slope_alarm),
+                    "message": (
+                        f"psi slope {trend.slope_per_day:+.4f}/step exceeds "
+                        f"alarm {t.psi_trend_slope_alarm:+.4f}"
+                    ),
+                })
+                ok_psi = False
+            elif trend.severity == "trend_warn":
+                blockers.append({
+                    "check": "psi_trend",
+                    "severity": "warning",
+                    "observed": float(trend.slope_per_day),
+                    "threshold": float(t.psi_trend_slope_warn),
+                    "message": (
+                        f"psi slope {trend.slope_per_day:+.4f}/step exceeds "
+                        f"warn {t.psi_trend_slope_warn:+.4f}"
+                    ),
+                })
+
         # Live-vs-WF ratio: needs both sides to exist; computed here since
-        # neither sprint owns it standalone.
+        # neither sprint owns it standalone. The math is delegated to
+        # ``scripts.forward_test_tracking.expected_vs_realized_ratio`` so
+        # both PromotionGate and the C8.1 forward-test tracker share a
+        # single edge-case-safe implementation (wf<=0 / non-finite => None).
+        from scripts.forward_test_tracking import expected_vs_realized_ratio
         if snapshot.live_brier is not None and snapshot.walkforward_brier is not None:
-            wf = max(snapshot.walkforward_brier, 1e-9)
-            ratio = snapshot.live_brier / wf
-            metrics["live_vs_wf_ratio"] = float(ratio)
-            if ratio > t.live_vs_wf_ratio_max:
+            ratio = expected_vs_realized_ratio(
+                snapshot.live_brier, snapshot.walkforward_brier
+            )
+            if ratio is None:
                 blockers.append({
                     "check": "live_vs_wf_ratio",
-                    "severity": "blocker",
-                    "observed": float(ratio),
+                    "severity": "info",
+                    "observed": None,
                     "threshold": float(t.live_vs_wf_ratio_max),
                     "message": (
-                        f"live/wf brier ratio={ratio:.2f} exceeds "
-                        f"{t.live_vs_wf_ratio_max:.2f}"
+                        "live_vs_wf_ratio undefined "
+                        "(walkforward_brier <= 0 or non-finite input)"
                     ),
                 })
                 ok_live = False
             else:
-                ok_live = True
+                metrics["live_vs_wf_ratio"] = float(ratio)
+                if ratio > t.live_vs_wf_ratio_max:
+                    blockers.append({
+                        "check": "live_vs_wf_ratio",
+                        "severity": "blocker",
+                        "observed": float(ratio),
+                        "threshold": float(t.live_vs_wf_ratio_max),
+                        "message": (
+                            f"live/wf brier ratio={ratio:.2f} exceeds "
+                            f"{t.live_vs_wf_ratio_max:.2f}"
+                        ),
+                    })
+                    ok_live = False
+                else:
+                    ok_live = True
         else:
             blockers.append({
                 "check": "live_vs_wf_ratio",
