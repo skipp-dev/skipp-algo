@@ -117,6 +117,113 @@ def test_build_required_labels_supports_gpu_priority_label() -> None:
     assert labels == ["self-hosted", "windows", "x64", "priority-gpu"]
 
 
+def test_resolve_runs_on_prefers_least_specific_idle_runner(monkeypatch) -> None:
+    """Non-GPU cron jobs must not monopolise the GPU-labelled runner."""
+    module = _load_module()
+
+    runners = [
+        {
+            "name": "ASUS",  # GPU runner, registered first
+            "status": "online",
+            "busy": False,
+            "labels": [
+                {"name": "self-hosted"}, {"name": "windows"}, {"name": "x64"},
+                {"name": "skipp-self-hosted"},
+                {"name": "priority-cron"},
+                {"name": "priority-gpu"},
+            ],
+        },
+        {
+            "name": "ASUS-2",  # non-GPU runner, registered later
+            "status": "online",
+            "busy": False,
+            "labels": [
+                {"name": "self-hosted"}, {"name": "windows"}, {"name": "x64"},
+                {"name": "skipp-self-hosted"},
+                {"name": "priority-cron"},
+            ],
+        },
+    ]
+
+    monkeypatch.delenv("GITHUB_RUN_ID", raising=False)
+    resolution = module.resolve_runs_on(
+        runners=runners,
+        custom_label="priority-cron",
+        hosted_runner="ubuntu-latest",
+    )
+
+    assert resolution.matched_runner_name == "ASUS-2"
+    assert resolution.runner_environment == "self-hosted"
+
+
+def test_resolve_runs_on_round_robin_tiebreaker_across_equal_runners(monkeypatch) -> None:
+    """When two runners are equally specific, GITHUB_RUN_ID rotates the choice."""
+    module = _load_module()
+
+    runners = [
+        {
+            "name": "ASUS-2",
+            "status": "online", "busy": False,
+            "labels": [
+                {"name": "self-hosted"}, {"name": "windows"}, {"name": "x64"},
+                {"name": "skipp-self-hosted"},
+            ],
+        },
+        {
+            "name": "ASUS-3",
+            "status": "online", "busy": False,
+            "labels": [
+                {"name": "self-hosted"}, {"name": "windows"}, {"name": "x64"},
+                {"name": "skipp-self-hosted"},
+            ],
+        },
+    ]
+
+    picks = set()
+    for run_id in (1000, 1001, 1002, 1003):
+        monkeypatch.setenv("GITHUB_RUN_ID", str(run_id))
+        resolution = module.resolve_runs_on(
+            runners=runners,
+            custom_label="skipp-self-hosted",
+            hosted_runner="ubuntu-latest",
+        )
+        picks.add(resolution.matched_runner_name)
+
+    assert picks == {"ASUS-2", "ASUS-3"}, f"Round-robin should hit both runners; got {picks}"
+
+
+def test_resolve_runs_on_gpu_required_still_picks_gpu_runner() -> None:
+    module = _load_module()
+
+    runners = [
+        {
+            "name": "ASUS-2",  # non-GPU – must NOT match a priority-gpu request
+            "status": "online", "busy": False,
+            "labels": [
+                {"name": "self-hosted"}, {"name": "windows"}, {"name": "x64"},
+                {"name": "skipp-self-hosted"}, {"name": "priority-cron"},
+            ],
+        },
+        {
+            "name": "ASUS",
+            "status": "online", "busy": False,
+            "labels": [
+                {"name": "self-hosted"}, {"name": "windows"}, {"name": "x64"},
+                {"name": "skipp-self-hosted"},
+                {"name": "priority-cron"}, {"name": "priority-gpu"},
+            ],
+        },
+    ]
+
+    resolution = module.resolve_runs_on(
+        runners=runners,
+        custom_label="priority-gpu",
+        hosted_runner="ubuntu-latest",
+    )
+
+    assert resolution.matched_runner_name == "ASUS"
+
+
 def test_main_forces_required_self_hosted_when_inventory_unavailable(monkeypatch, tmp_path: Path) -> None:
     module = _load_module()
 

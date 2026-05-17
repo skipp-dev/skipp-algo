@@ -51,18 +51,48 @@ def resolve_runs_on(
     hosted_runner: str,
 ) -> RunnerResolution:
     required_labels = build_required_labels(custom_label)
-    for runner in runners:
+    required_lc = {label.lower() for label in required_labels}
+
+    candidates: list[tuple[int, int, int, str, dict[str, Any]]] = []
+    for index, runner in enumerate(runners):
         if str(runner.get("status", "")).lower() != "online":
             continue
         if bool(runner.get("busy")):
             continue
         if not runner_matches_required_labels(runner, required_labels):
             continue
+        runner_lc = {
+            str(label.get("name", "")).strip().lower()
+            for label in runner.get("labels") or []
+            if str(label.get("name", "")).strip()
+        }
+        # Prefer the runner whose label set most tightly matches the requirement
+        # (fewest "extra" labels). This stops non-GPU jobs from monopolising the
+        # GPU-labelled runner and starving the GPU queue.
+        extra_labels = len(runner_lc - required_lc)
+        candidates.append((extra_labels, index, 0, str(runner.get("name", "")), runner))
+
+    if candidates:
+        # Round-robin tiebreaker across equally-specific candidates so both
+        # runners get used over time. GITHUB_RUN_ID is monotonically increasing
+        # and unique per workflow run, so modulo gives a stable rotation
+        # without any external state.
+        try:
+            run_id = int(os.getenv("GITHUB_RUN_ID", "0"))
+        except ValueError:
+            run_id = 0
+        n = len(candidates)
+        candidates = [
+            (extra, (run_id + idx) % n, idx, name, runner)
+            for (extra, idx, _zero, name, runner) in candidates
+        ]
+        candidates.sort(key=lambda item: (item[0], item[1], item[2], item[3]))
+        chosen = candidates[0][4]
         return RunnerResolution(
             runs_on=required_labels,
             runner_environment="self-hosted",
             reason="matched_idle_self_hosted_runner",
-            matched_runner_name=str(runner.get("name", "")).strip() or None,
+            matched_runner_name=str(chosen.get("name", "")).strip() or None,
         )
     return RunnerResolution(
         runs_on=hosted_runner,

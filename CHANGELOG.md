@@ -6,7 +6,44 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
-### Added (2026-05-13) — P5.4 doc-train: Copilot-review hardening + repo-resident MD lint
+### Added (2026-05-17) — Two-runner self-hosted setup + smarter selector
+
+Operationalised the two-runner ideal split described in
+`docs/self_hosted_runner_reservation_runbook.md` on the `ASUS` Windows host
+and made `scripts/resolve_workflow_runner.py` pick between idle runners on
+merit instead of registration order.
+
+- **Second runner live** — `ASUS-2`
+  (`actions.runner.skippALGO-skipp-algo.ASUS-2`, install dir
+  `C:\Users\preus\actions-runner-2`, account `LocalSystem`, labels
+  `self-hosted, Windows, X64, skipp-self-hosted, priority-cron`, no
+  `priority-gpu`). Provisioned via the new
+  `C:\Users\preus\actions-runner\register-runner-2.ps1` (shared
+  `C:\actions-cache` `.env`, `--runasservice`, auto-rewrite of the service
+  account to `LocalSystem` so the runner under `C:\Users\preus\…` can start
+  past Win32 1068).
+- **Host-level tuning script** — `optimize-runner-admin.ps1` discovers every
+  `actions.runner.skippALGO-skipp-algo.*` service, enables
+  `LongPathsEnabled`, registers Microsoft Defender path/process exclusions
+  for every runner root + `_work` + `C:\actions-cache`, sets 3x failure
+  recovery, and restarts all runner services so the shared `.env`
+  (`PIP_CACHE_DIR`, `HF_HOME`, `TORCH_HOME`, `XDG_CACHE_HOME`, `TMP/TEMP`,
+  `CUDA_MODULE_LOADING=LAZY`) becomes effective.
+- **Resolver: least-specific-match + round-robin** —
+  `scripts/resolve_workflow_runner.py::resolve_runs_on` now picks the idle
+  candidate with the fewest *extra* labels beyond the requirement (so
+  non-GPU cron jobs route to `ASUS-2` and leave `ASUS` free for GPU work)
+  and uses `(GITHUB_RUN_ID + index) % n_candidates` as a deterministic,
+  stateless round-robin tiebreaker for equally-specific candidates. Hard
+  filter on required labels is unchanged: `priority-gpu` requests still
+  only match `ASUS`. Covered by three new tests in
+  `tests/test_resolve_workflow_runner.py` (10/10 green).
+- **Runbook refresh** — `docs/self_hosted_runner_reservation_runbook.md`
+  now documents the current physical setup (services, accounts, helper
+  scripts, shared cache layout, verification cheatsheet) and the new
+  resolver tiebreakers.
+
+
 
 End-to-end remediation of recurring Copilot review-comment classes via
 the P5.4 doc-train (PRs #2173–#2179) plus deep-review follow-ups

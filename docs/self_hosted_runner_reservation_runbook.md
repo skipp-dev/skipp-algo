@@ -1,6 +1,6 @@
 # Self-Hosted Runner Reservation Runbook
 
-Stand: 2026-05-15
+Stand: 2026-05-17
 
 ## Goal
 
@@ -34,10 +34,26 @@ matching runner is both:
 Otherwise the workflow falls back immediately to
 `${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}`.
 
+When **more than one** idle runner satisfies the required labels, the resolver
+applies two deterministic tiebreakers (added 2026-05-17):
+
+1. **Least-specific match wins.** The candidate whose label set has the
+   *fewest* extra labels beyond the required set is preferred. In practice
+   this stops non-GPU priority-cron jobs from monopolising the GPU runner:
+   given two idle candidates `ASUS` (carries `priority-gpu`) and `ASUS-2`
+   (does not), a `priority-cron` job routes to `ASUS-2` and `ASUS` stays
+   available for the next GPU job.
+2. **Round-robin tiebreaker** across equally-specific candidates via
+   `(GITHUB_RUN_ID + index) % n_candidates`. This is stateless and stable per
+   workflow run, so consecutive runs of the same workflow rotate across
+   eligible runners instead of always pinning to the oldest registration.
+
 Operational consequence:
 
 - a busy self-hosted runner does **not** create queueing at workflow start
 - it causes immediate fallback to GitHub-hosted instead
+- when multiple idle runners match, the GPU runner is protected from
+  cron / memory load by default
 
 That means the routing policy is mainly about **who gets first claim when the
 self-hosted pool is idle**, not about building an internal queue.
@@ -234,6 +250,64 @@ refresh memory spikes or with merge-critical CI gates.
 | 3 | dedicated CI + batch + GPU lanes | removes cross-family contention completely |
 
 ## Operator steps
+
+### 0. Current physical setup (2026-05-17)
+
+The two-runner ideal split is **live** on the `ASUS` Windows host
+(`ROG Strix G16 G615LR`, 24 cores, 64 GB RAM, RTX 5070 Ti 12 GB). Both
+runners share the same host but run as independent Windows services so that
+GPU + cron workloads can be served in parallel.
+
+| Runner | Service name | Install dir | Account | Labels | Role |
+| --- | --- | --- | --- | --- | --- |
+| `ASUS`   | `actions.runner.skippALGO-skipp-algo.ASUS`   | `C:\Users\preus\actions-runner`   | `LocalSystem` | `self-hosted, Windows, X64, skipp-self-hosted, priority-cron, priority-gpu` | GPU + batch fallback |
+| `ASUS-2` | `actions.runner.skippALGO-skipp-algo.ASUS-2` | `C:\Users\preus\actions-runner-2` | `LocalSystem` | `self-hosted, Windows, X64, skipp-self-hosted, priority-cron`               | Non-GPU cron / batch |
+
+Both services are configured `StartType=Automatic` (ASUS-2 is `Delayed`) with
+3x failure-restart recovery and survive reboots.
+
+#### Helper scripts (live in the runner-1 folder)
+
+| Script | Purpose | Needs admin |
+| --- | --- | --- |
+| `C:\Users\preus\actions-runner\register-runner.ps1`   | Register the primary runner (`ASUS`) for the repo. | only for `-InstallService` |
+| `C:\Users\preus\actions-runner\register-runner-2.ps1` | Provision the secondary runner (`ASUS-2`): downloads the same runner version, writes the shared `.env`, registers with non-GPU labels, optionally installs the service. On `-Replace -InstallService` it also rewrites the service account to `LocalSystem` (Windows default `NetworkService` cannot traverse `C:\Users\preus\` and fails with Win32 1068). | yes |
+| `C:\Users\preus\actions-runner\optimize-runner-admin.ps1` | Idempotent host-level tuning: enable `LongPathsEnabled`, add Microsoft Defender exclusions for every detected runner root + `_work` + `C:\actions-cache`, configure 3x failure recovery, restart **all** discovered runner services so the shared `.env` takes effect. | yes |
+
+Refresh a runner token via
+`gh api -X POST /repos/skippALGO/skipp-algo/actions/runners/registration-token --jq .token`
+or the GitHub UI (registration tokens are single-use and valid for 1 hour).
+
+#### Shared cache layout (`C:\actions-cache`)
+
+Both runners load the same `.env` (one copy per runner root) pointing all
+heavy caches at a single host-wide directory:
+
+| Variable | Path |
+| --- | --- |
+| `PIP_CACHE_DIR` | `C:\actions-cache\pip` |
+| `HF_HOME`, `HUGGINGFACE_HUB_CACHE`, `TRANSFORMERS_CACHE` | `C:\actions-cache\hf` |
+| `TORCH_HOME` | `C:\actions-cache\torch` |
+| `XDG_CACHE_HOME` | `C:\actions-cache\xdg` |
+| `TMP`, `TEMP` | `C:\actions-cache\tmp` |
+
+Plus `PYTHONUTF8=1`, `PYTHONUNBUFFERED=1`, `PIP_PROGRESS_BAR=off`,
+`PIP_DISABLE_PIP_VERSION_CHECK=1`, `CUDA_MODULE_LOADING=LAZY`.
+
+#### Verification cheatsheet
+
+```powershell
+# Both runners online?
+Get-Service | Where-Object Name -Like 'actions.runner.skippALGO*' |
+  Format-Table Name,Status,StartType -AutoSize
+
+# Each runner actually listening?
+Get-Content (Get-ChildItem C:\Users\preus\actions-runner\_diag\Runner_*.log   | Sort LastWriteTime -Desc | Select -First 1) -Tail 3
+Get-Content (Get-ChildItem C:\Users\preus\actions-runner-2\_diag\Runner_*.log | Sort LastWriteTime -Desc | Select -First 1) -Tail 3
+```
+
+Expect `Running` for both services and `Listening for Jobs` at the tail of
+each diag log.
 
 ### 1. Set repository variables
 
