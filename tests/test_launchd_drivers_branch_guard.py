@@ -20,10 +20,19 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 import textwrap
 from pathlib import Path
 
 import pytest
+
+# launchd is macOS-only; the driver shell scripts under automation/launchd/
+# are LaunchAgents and only run on Darwin. Skip on Linux/Windows so the suite
+# is green on every developer machine and on Linux CI runners (#2244).
+pytestmark = pytest.mark.skipif(
+    sys.platform != "darwin",
+    reason="launchd drivers are macOS-only (see #2244)",
+)
 
 REPO = Path(__file__).resolve().parents[1]
 DRIVERS = [
