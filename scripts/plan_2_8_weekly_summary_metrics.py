@@ -43,6 +43,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from scripts._logging_init import init_cli_logging
 from scripts.smc_atomic_write import atomic_write_text
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -155,6 +156,7 @@ def collect(summary: Path) -> dict[str, Any]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    init_cli_logging()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--summary", type=Path, required=True)
     parser.add_argument("--output", type=Path, default=None)
