@@ -4914,9 +4914,6 @@ else:
             _winners: list[dict[str, Any]] = [
                 r for r in _with_outcome if r.get("profitable_30m") is True
             ]
-            _losers_replay: list[dict[str, Any]] = [
-                r for r in _with_outcome if r.get("profitable_30m") is False
-            ]
             _pending = _total - len(_with_outcome)
 
             _hit_rate = len(_winners) / len(_with_outcome) if _with_outcome else 0.0
