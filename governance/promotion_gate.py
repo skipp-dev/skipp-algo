@@ -321,7 +321,11 @@ class PromotionGate:
         else:
             # wf > 0 — happy path, ratio is well-defined
             ratio = expected_vs_realized_ratio(live, wf)
-            assert ratio is not None  # input was pre-classified as finite + wf>0
+            if ratio is None:  # defensive: should be unreachable after pre-classification
+                raise RuntimeError(
+                    "expected_vs_realized_ratio returned None despite "
+                    f"pre-classified finite live/wf inputs (live={live!r}, wf={wf!r})"
+                )
             metrics["live_vs_wf_ratio"] = float(ratio)
             if ratio > t.live_vs_wf_ratio_max:
                 blockers.append({
