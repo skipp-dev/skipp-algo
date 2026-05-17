@@ -74,8 +74,9 @@ def test_journals_live_under_artifacts_ci_f2() -> None:
     """Both helpers write their journals under the CI-uploaded dir."""
     revert = importlib.import_module("scripts.f2_revert_contextual_weights")
     promote = importlib.import_module("scripts.f2_promote_contextual_weights")
-    assert str(revert.JOURNAL_DEFAULT).startswith("artifacts/ci/f2/")
-    assert str(promote.JOURNAL_DEFAULT).startswith("artifacts/ci/f2/")
+    # ``as_posix`` keeps the assertion stable on Windows where ``str(Path)`` uses ``\``.
+    assert revert.JOURNAL_DEFAULT.as_posix().startswith("artifacts/ci/f2/")
+    assert promote.JOURNAL_DEFAULT.as_posix().startswith("artifacts/ci/f2/")
     # Distinct files (don't accidentally clobber each other).
     assert revert.JOURNAL_DEFAULT != promote.JOURNAL_DEFAULT
 
