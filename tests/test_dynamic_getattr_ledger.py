@@ -82,7 +82,8 @@ def _dynamic_getattr_sites() -> set[tuple[str, int]]:
             name_arg = node.args[1]
             if isinstance(name_arg, ast.Constant) and isinstance(name_arg.value, str):
                 continue
-            sites.add((str(path.relative_to(ROOT)), node.lineno))
+            # POSIX form keeps the ledger stable across OSes (#2244).
+            sites.add((path.relative_to(ROOT).as_posix(), node.lineno))
     return sites
 
 
