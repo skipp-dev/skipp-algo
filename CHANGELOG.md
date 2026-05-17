@@ -6,6 +6,38 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-17) — W1.b: PromotionGate daily producer path
+
+End-to-end wiring of the W1 schema-v2 `PromotionGate` contract into a
+real daily producer (PR #2261). Closes the gap audited in
+`/memories/repo/promotion-gate-adoption-audit-2026-05-17.md` where the
+gate had zero non-test callers on `main`.
+
+- **Bundler** — `scripts/build_promotion_gate_bundle.py` reads
+  `artifacts/ci/measurement_benchmark_rolling/<DATE>/plan_2_8_tf_family_rollup.json`
+  and emits a `FamilyMetrics`-shaped JSON list, one entry per
+  `EventFamily` (BOS / OB / FVG / SWEEP). Unmeasured W1 metrics
+  (Brier/ECE/PSI/conformal/...) pass through as `None`; per-family event
+  totals land in `extras.n_events_total`; `provenance` names the source
+  artifact + run date.
+- **Daily workflow** — `.github/workflows/promotion-gate-daily.yml`
+  runs at 09:30 UTC (between rolling-bench at 07:30 and F2 gate at
+  10:00), downloads the most-recent `smc-measurement-benchmark-rolling-<DATE>`
+  artifact via `gh run list/download`, runs the bundler + gate, and
+  publishes a dated report plus the stable
+  `artifacts/promotion_decisions.json` alias consumed by the
+  Decision-First Streamlit tab.
+- **Advisory strict semantics** — workflow keeps
+  `strict_provenance=True`. Gate `rc=2` (blocked / metrics missing)
+  emits `::warning::` + step summary but does **not** fail CI; only
+  `rc=1` (config error) fails. The honest "red" report is the product.
+- **E2E test** — `tests/test_promotion_gate_producer_e2e.py` pins the
+  full chain (bundler → runner → loader → panel) via public CLI / loader
+  surfaces only.
+- **#2251 superseded** — the C9 PSI-trend signal feeds in as a
+  precomputed scalar (`psi_slope`) per W1 schema v2 rather than as raw
+  `psi_history` inside the gate.
+
 ### Added (2026-05-13) — P5.4 doc-train: Copilot-review hardening + repo-resident MD lint
 
 End-to-end remediation of recurring Copilot review-comment classes via
