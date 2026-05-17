@@ -121,24 +121,27 @@ jobs:
             requirements*.txt
       - name: Resolve Python 3.12 interpreter
         if: steps.gate.outputs.run_heavy == 'true'
+        id: resolve_py
+        shell: bash
         run: |
           if [[ "${{ needs.select-runner.outputs.runner_environment }}" == "github-hosted" ]]; then
             python -c "import sys; raise SystemExit('GitHub-hosted Python bootstrap did not resolve Python 3.12.' if sys.version_info[:2] != (3, 12) else 0)"
             echo "SMC_PYTHON_BIN=python" >> "$GITHUB_ENV"
+            echo "found=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          # Self-hosted: probe a wider set of well-known interpreters before
-          # falling back to the `py` launcher. Each candidate is verified to
-          # be Python 3.12 before being accepted; the loud-fail policy
-          # (pinned by tests/test_workflow_python_version_pinned.py) remains
-          # if none of them are available.
+          # Self-hosted: probe a wide set of well-known interpreters
+          # (including the `py` launcher) before delegating to the
+          # setup-python install fallback below. Each candidate is verified
+          # to be Python 3.12 before being accepted.
           probe_312() {
             "$1" -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 12) else 1)" >/dev/null 2>&1
           }
           for cand in python python3 python3.12 "/c/Python312/python.exe" "$LOCALAPPDATA/Programs/Python/Python312/python.exe" "$ProgramFiles/Python312/python.exe"; do
             if [[ -n "$cand" ]] && command -v "$cand" >/dev/null 2>&1 && probe_312 "$cand"; then
               echo "SMC_PYTHON_BIN=$cand" >> "$GITHUB_ENV"
+              echo "found=true" >> "$GITHUB_OUTPUT"
               exit 0
             fi
           done
@@ -147,12 +150,22 @@ jobs:
             python_bin="$(py -3.12 -c "import sys; print(sys.executable)" 2>/dev/null || true)"
             if [[ -n "$python_bin" ]]; then
               echo "SMC_PYTHON_BIN=$python_bin" >> "$GITHUB_ENV"
+              echo "found=true" >> "$GITHUB_OUTPUT"
               exit 0
             fi
           fi
 
-          echo "::error::Self-hosted runner is missing a usable Python 3.12 interpreter (tried \`python\`, \`python3\`, \`python3.12\`, common Windows install paths, and \`py -3.12\`)."
-          exit 1
+          echo "::notice::No pre-installed Python 3.12 on self-hosted runner — falling back to actions/setup-python install."
+          echo "found=false" >> "$GITHUB_OUTPUT"
+      - name: Install Python 3.12 (self-hosted fallback)
+        if: steps.gate.outputs.run_heavy == 'true' && needs.select-runner.outputs.runner_environment != 'github-hosted' && steps.resolve_py.outputs.found != 'true'
+        uses: ./.github/actions/setup-python-pinned
+      - name: Confirm Python 3.12 after install
+        if: steps.gate.outputs.run_heavy == 'true' && needs.select-runner.outputs.runner_environment != 'github-hosted' && steps.resolve_py.outputs.found != 'true'
+        shell: bash
+        run: |
+          python -c "import sys; raise SystemExit('Fallback install did not yield Python 3.12.' if sys.version_info[:2] != (3, 12) else 0)"
+          echo "SMC_PYTHON_BIN=python" >> "$GITHUB_ENV"
       - name: Install test dependencies
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
