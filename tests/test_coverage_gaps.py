@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import queue
+import sys
 import tempfile
 import time
 import unittest
@@ -1277,6 +1278,7 @@ class TestEffectiveTs(unittest.TestCase):
 class TestSingletonGetters(unittest.TestCase):
     """Tests for pipeline singleton getters (lines 44-78)."""
 
+    @unittest.skipIf(sys.platform == "win32", "Windows file-lock collision on shared SQLite path tracked in #2269")
     def test_get_store_creates_on_first_call(self) -> None:
         from newsstack_fmp import pipeline
         from newsstack_fmp.config import Config
