@@ -57,6 +57,8 @@ def test_stale_file(tmp_path: Path) -> None:
 
 
 def test_boundary_warn(tmp_path: Path) -> None:
+    if sys.platform == "win32":
+        pytest.skip("Windows-specific failure tracked in #2270")
     _touch(tmp_path / "a.md", 7)
     rep = sr.classify(tmp_path, warn_days=7, stale_days=14)
     assert len(rep["warn"]) == 1

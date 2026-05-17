@@ -1,6 +1,7 @@
 """Tests for ProviderTracker / ProviderStatus health primitives."""
 from __future__ import annotations
 
+import sys
 import threading
 import time
 
@@ -134,6 +135,8 @@ class TestTrackContextManager:
         assert "boom" in s.last_error
 
     def test_latency_recorded_via_context(self) -> None:
+        if sys.platform == "win32":
+            pytest.skip("Windows timer resolution truncates avg_latency_ms; tracked in #2271")
         t = ProviderTracker()
         with t.track("svc"):
             time.sleep(0.01)
