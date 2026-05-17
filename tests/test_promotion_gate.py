@@ -113,3 +113,63 @@ def test_metrics_dict_contains_all_observed_values() -> None:
         "psi",
         "live_vs_wf_ratio",
     }
+
+
+# ---------------------------------------------------------------------------
+# live_vs_wf_ratio edge cases: walkforward_brier <= 0 / non-finite must
+# surface as an info-severity blocker with observed=None, instead of being
+# silently clamped to ``1e-9`` (which produced a ~1e+9 ratio that tripped
+# the threshold but masked the underlying data-quality issue).
+# The arithmetic is delegated to
+# ``scripts.forward_test_tracking.expected_vs_realized_ratio`` so this also
+# pins the contract between the gate and that helper.
+# ---------------------------------------------------------------------------
+def _live_vs_wf_blocker(d) -> dict:
+    matches = [b for b in d["blockers"] if b["check"] == "live_vs_wf_ratio"]
+    assert len(matches) == 1, d["blockers"]
+    return matches[0]
+
+
+def test_live_vs_wf_ratio_undefined_when_wf_is_zero() -> None:
+    snap = _green_snapshot()
+    snap.walkforward_brier = 0.0
+    d = PromotionGate().evaluate(snap)
+    b = _live_vs_wf_blocker(d)
+    assert b["severity"] == "info"
+    assert b["observed"] is None
+    assert "live_vs_wf_ratio" not in d["metrics"]
+    assert d["promoted"] is False
+
+
+def test_live_vs_wf_ratio_undefined_when_wf_is_negative() -> None:
+    snap = _green_snapshot()
+    snap.walkforward_brier = -0.05
+    d = PromotionGate().evaluate(snap)
+    b = _live_vs_wf_blocker(d)
+    assert b["severity"] == "info"
+    assert b["observed"] is None
+    assert "live_vs_wf_ratio" not in d["metrics"]
+    assert d["promoted"] is False
+
+
+def test_live_vs_wf_ratio_undefined_when_wf_is_non_finite() -> None:
+    snap = _green_snapshot()
+    snap.walkforward_brier = float("nan")
+    d = PromotionGate().evaluate(snap)
+    b = _live_vs_wf_blocker(d)
+    assert b["severity"] == "info"
+    assert b["observed"] is None
+
+
+def test_live_vs_wf_ratio_normal_path_unchanged() -> None:
+    # Regression guard: valid inputs still compute the ratio identically
+    # to the pre-refactor ``live_brier / walkforward_brier`` formula.
+    snap = _green_snapshot()
+    snap.live_brier = 0.20
+    snap.walkforward_brier = 0.10
+    d = PromotionGate().evaluate(snap)
+    b = _live_vs_wf_blocker(d)
+    assert b["severity"] == "blocker"
+    assert b["observed"] == pytest.approx(2.0)
+    assert d["metrics"]["live_vs_wf_ratio"] == pytest.approx(2.0)
+    assert d["promoted"] is False

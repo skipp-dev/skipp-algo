@@ -228,25 +228,49 @@ class PromotionGate:
         )
 
         # Live-vs-WF ratio: needs both sides to exist; computed here since
-        # neither sprint owns it standalone.
+        # neither sprint owns it standalone. The math is delegated to
+        # ``scripts.forward_test_tracking.expected_vs_realized_ratio`` so
+        # PromotionGate and the C8.1 forward-test tracker share a single
+        # edge-case-safe implementation. Previously this block silently
+        # clamped ``walkforward_brier`` to ``1e-9`` for non-positive inputs,
+        # producing a ratio near ``1e+9`` that tripped the threshold but
+        # surfaced as a numeric ``observed`` value — masking the underlying
+        # "walkforward Brier is non-positive or non-finite" data quality
+        # issue. The shared helper returns ``None`` instead, which we surface
+        # as an info-severity blocker.
+        from scripts.forward_test_tracking import expected_vs_realized_ratio
         if snapshot.live_brier is not None and snapshot.walkforward_brier is not None:
-            wf = max(snapshot.walkforward_brier, 1e-9)
-            ratio = snapshot.live_brier / wf
-            metrics["live_vs_wf_ratio"] = float(ratio)
-            if ratio > t.live_vs_wf_ratio_max:
+            ratio = expected_vs_realized_ratio(
+                snapshot.live_brier, snapshot.walkforward_brier
+            )
+            if ratio is None:
                 blockers.append({
                     "check": "live_vs_wf_ratio",
-                    "severity": "blocker",
-                    "observed": float(ratio),
+                    "severity": "info",
+                    "observed": None,
                     "threshold": float(t.live_vs_wf_ratio_max),
                     "message": (
-                        f"live/wf brier ratio={ratio:.2f} exceeds "
-                        f"{t.live_vs_wf_ratio_max:.2f}"
+                        "live_vs_wf_ratio undefined "
+                        "(walkforward_brier <= 0 or non-finite input)"
                     ),
                 })
                 ok_live = False
             else:
-                ok_live = True
+                metrics["live_vs_wf_ratio"] = float(ratio)
+                if ratio > t.live_vs_wf_ratio_max:
+                    blockers.append({
+                        "check": "live_vs_wf_ratio",
+                        "severity": "blocker",
+                        "observed": float(ratio),
+                        "threshold": float(t.live_vs_wf_ratio_max),
+                        "message": (
+                            f"live/wf brier ratio={ratio:.2f} exceeds "
+                            f"{t.live_vs_wf_ratio_max:.2f}"
+                        ),
+                    })
+                    ok_live = False
+                else:
+                    ok_live = True
         else:
             blockers.append({
                 "check": "live_vs_wf_ratio",
