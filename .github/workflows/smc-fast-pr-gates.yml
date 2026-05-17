@@ -115,6 +115,20 @@ jobs:
         if: steps.gate.outputs.run_heavy == 'true'
         run: python scripts/lint_workflow_defaults.py
 
+      # Guard: every workflow must declare `permissions:` (top-level or per-job)
+      # so GITHUB_TOKEN runs at least-privilege. OWASP A05; replaces the
+      # legacy pytest pin (deleted in this PR) with a fast-failing CI lint.
+      - name: Lint workflow permissions
+        if: steps.gate.outputs.run_heavy == 'true'
+        run: python scripts/lint_workflow_permissions.py
+
+      # Guard: every workflow must set `env.PYTHONUNBUFFERED` (top-level or
+      # per-job) so Python stdout/stderr reaches the GHA log in real time.
+      # F-V5-A2 / F-CI-O1; replaces the legacy pytest pin (deleted in this PR).
+      - name: Lint workflow PYTHONUNBUFFERED
+        if: steps.gate.outputs.run_heavy == 'true'
+        run: python scripts/lint_workflow_pythonunbuffered.py
+
       - name: Install uv
         if: steps.gate.outputs.run_heavy == 'true'
         uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3
