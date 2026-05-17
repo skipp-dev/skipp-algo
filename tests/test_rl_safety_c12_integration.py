@@ -1,6 +1,7 @@
 """Sprint C12 regression tests: HardConstraintLayer audit sink + CVaR risk metric."""
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
 from rl.extensions import ConstraintHitLog
@@ -96,11 +97,11 @@ def test_execution_env_cvar5_runs_to_completion() -> None:
     env = ExecutionEnv(cfg)
     total = _run_episode(env)
     # Pure smoke: episode completes and produces a finite reward.
-    assert total == total  # not NaN
+    assert not math.isnan(total)
 
 
 def test_execution_env_cvar1_runs_to_completion() -> None:
     cfg = EnvConfig(risk_metric="cvar1")
     env = ExecutionEnv(cfg)
     total = _run_episode(env)
-    assert total == total
+    assert math.isfinite(total)
