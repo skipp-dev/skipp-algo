@@ -35,7 +35,7 @@ def hero_map() -> dict:
 def test_surface_assignments_visible_and_in_documented_group(hero_map, pine_file):
     spec = hero_map["files"][pine_file]
     assignments = spec["assignments"]
-    inputs = {inp.varname: inp for inp in parse_inputs((REPO_ROOT / pine_file).read_text().splitlines())}
+    inputs = {inp.varname: inp for inp in parse_inputs((REPO_ROOT / pine_file).read_text(encoding="utf-8").splitlines())}
 
     for varname, want in assignments.items():
         assert varname in inputs, f"{pine_file}: declared surface input '{varname}' missing from file"
@@ -54,7 +54,7 @@ def test_operator_only_groups_are_display_none(hero_map, pine_file):
     if not spec.get("operator_only_must_be_display_none"):
         pytest.skip("operator_only_must_be_display_none disabled for this file")
     op_groups = set(spec["operator_only_groups"])
-    inputs = parse_inputs((REPO_ROOT / pine_file).read_text().splitlines())
+    inputs = parse_inputs((REPO_ROOT / pine_file).read_text(encoding="utf-8").splitlines())
 
     leaks = [
         f"{inp.varname} (group={inp.group!r}, line {inp.lineno})"
@@ -68,6 +68,6 @@ def test_operator_only_groups_are_display_none(hero_map, pine_file):
 
 def test_hero_state_consumers_are_referenced_in_dashboard(hero_map):
     """Every advertised mp.HERO_* consumer must actually be read by the dashboard."""
-    dash = (REPO_ROOT / "SMC_Dashboard.pine").read_text()
+    dash = (REPO_ROOT / "SMC_Dashboard.pine").read_text(encoding="utf-8")
     missing = [name for name in hero_map["hero_state_consumers"] if name not in dash]
     assert not missing, f"SMC_Dashboard.pine does not reference advertised hero consumers: {missing}"

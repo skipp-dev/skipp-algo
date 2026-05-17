@@ -23,7 +23,7 @@ def _load(name: str) -> list:
     fp = ROOT / name
     if not fp.exists():
         pytest.skip(f"{name} not found")
-    return parse_inputs(fp.read_text().splitlines())
+    return parse_inputs(fp.read_text(encoding="utf-8").splitlines())
 
 
 # ── grouping: 100 % of inputs must belong to a group ──────────────────
@@ -89,7 +89,7 @@ def test_version_tag(script):
     fp = ROOT / script
     if not fp.exists():
         pytest.skip(f"{script} not found")
-    text = fp.read_text()
+    text = fp.read_text(encoding="utf-8")
     assert "//@version=5" in text or "//@version=6" in text, (
         f"{script}: missing //@version tag"
     )
