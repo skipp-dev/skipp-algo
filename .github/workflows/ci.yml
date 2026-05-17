@@ -111,7 +111,12 @@ jobs:
         if: steps.gate.outputs.run_heavy == 'true'
         uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3
         with:
-          enable-cache: true
+          # GHA cache backend returns HTTP 400 on the Windows self-hosted
+          # runner ("Failed to restore: Cache service responded with 400").
+          # uv falls back to its local on-disk cache (UV_CACHE_DIR) which the
+          # self-hosted runner has anyway; opting out of the GHA cache layer
+          # there silences the noise without losing local cache reuse.
+          enable-cache: ${{ needs.select-runner.outputs.runner_environment == 'github-hosted' && 'true' || 'false' }}
           cache-dependency-glob: |
             requirements*.txt
       - name: Resolve Python 3.12 interpreter
@@ -123,20 +128,30 @@ jobs:
             exit 0
           fi
 
-          if command -v python >/dev/null 2>&1; then
-            if python -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 12) else 1)"; then
-              echo "SMC_PYTHON_BIN=python" >> "$GITHUB_ENV"
+          # Self-hosted: probe a wider set of well-known interpreters before
+          # falling back to the `py` launcher. Each candidate is verified to
+          # be Python 3.12 before being accepted; the loud-fail policy
+          # (pinned by tests/test_workflow_python_version_pinned.py) remains
+          # if none of them are available.
+          probe_312() {
+            "$1" -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 12) else 1)" >/dev/null 2>&1
+          }
+          for cand in python python3 python3.12 "/c/Python312/python.exe" "$LOCALAPPDATA/Programs/Python/Python312/python.exe" "$ProgramFiles/Python312/python.exe"; do
+            if [[ -n "$cand" ]] && command -v "$cand" >/dev/null 2>&1 && probe_312 "$cand"; then
+              echo "SMC_PYTHON_BIN=$cand" >> "$GITHUB_ENV"
+              exit 0
+            fi
+          done
+
+          if command -v py >/dev/null 2>&1; then
+            python_bin="$(py -3.12 -c "import sys; print(sys.executable)" 2>/dev/null || true)"
+            if [[ -n "$python_bin" ]]; then
+              echo "SMC_PYTHON_BIN=$python_bin" >> "$GITHUB_ENV"
               exit 0
             fi
           fi
 
-          if command -v py >/dev/null 2>&1; then
-            python_bin="$(py -3.12 -c "import sys; print(sys.executable)")"
-            echo "SMC_PYTHON_BIN=$python_bin" >> "$GITHUB_ENV"
-            exit 0
-          fi
-
-          echo "::error::Self-hosted runner is missing a usable Python 3.12 interpreter (tried \`python\` and \`py -3.12\`)."
+          echo "::error::Self-hosted runner is missing a usable Python 3.12 interpreter (tried \`python\`, \`python3\`, \`python3.12\`, common Windows install paths, and \`py -3.12\`)."
           exit 1
       - name: Install test dependencies
         if: steps.gate.outputs.run_heavy == 'true'
