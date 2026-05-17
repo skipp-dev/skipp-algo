@@ -53,6 +53,30 @@ Im naechsten CI-Lauf sollte ein Workflow mit 4+ Jobs sichtbar bis zu
 - ML-Training / `pytest -n auto`: nicht ueber 4, weil jeder Job intern
   bereits alle Kerne nutzt -> sonst Thread-Thrashing.
 
+## Runner-Labels (wichtig fuer tatsaechliche Auslastung)
+
+Die Resolver in `scripts/resolve_workflow_runner.py` matchen einen Runner nur,
+wenn er **alle** geforderten Labels traegt. Repo-Vars steuern den Custom-Cap:
+
+| Repo-Var | Default-Wert | Trifft Workflow-Familie |
+| --- | --- | --- |
+| `SMC_PRIORITY_CRON_SELF_HOSTED_LABEL` | `priority-cron` | databento-export, library-refresh, measurement-benchmark, run-open-prep-daily, ci.yml-Fallback |
+| `SMC_PRIORITY_CRON_GPU_SELF_HOSTED_LABEL` | `priority-gpu` | feature-importance-daily, ml-family-research, rl-research-training |
+| `SMC_CI_SELF_HOSTED_LABEL` | leer / `ci-heavy` | CI-Familien (ci.yml, smc-fast-pr-gates, smc-release-gates) |
+
+Konkret muss **jeder** Self-Hosted-Runner mindestens diese Labels haben,
+sonst nimmt er nichts an:
+
+- `self-hosted`, `Windows`, `X64`  (vom Resolver-Default)
+- `priority-cron`                  (alle Heavy-Cron-Workflows)
+- `gpu`, `priority-gpu`            (alle GPU-Workflows)
+
+Das Setup-Skript setzt diese Labels jetzt per Default. Fuer bereits
+installierte Runner ohne diese Labels (z. B. ASUS-3 / ASUS-4 aus einer
+frueheren Script-Version): in GitHub Settings -> Actions -> Runners ->
+`<runner>` -> *Labels* die fehlenden Labels nachtragen (keine Service-
+Restart noetig).
+
 ## Worker-Cap fuer pytest-xdist
 
 Default `pytest -n auto` = `os.cpu_count()` = 24 Worker pro Job.

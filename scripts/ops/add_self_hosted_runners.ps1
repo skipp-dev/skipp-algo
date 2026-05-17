@@ -35,7 +35,10 @@
 param(
     [string]$Token,
     [int]$Count = 4,
-    [string]$Labels = "self-hosted,Windows,X64,asus",
+    # Muss zur Konvention in docs/self_hosted_runner_reservation_runbook.md
+    # passen, sonst matchen die Resolver-Custom-Labels (priority-cron, gpu,
+    # priority-gpu) den Runner nicht und der Runner bleibt idle.
+    [string]$Labels = "self-hosted,Windows,X64,priority-cron,gpu,priority-gpu,asus",
     [string]$Repo = "skippALGO/skipp-algo",
     [switch]$SkipDefender
 )
