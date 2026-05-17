@@ -99,6 +99,14 @@ jobs:
           cache: pip
           cache-dependency-path: requirements.txt
 
+      # YAML-aware workflow lints below need PyYAML. The full dev install runs
+      # only after `Install uv` further down; install just PyYAML here so the
+      # lints stay an early-failing pre-flight check (~1s extra) instead of
+      # being deferred until after the heavier resolve/install steps.
+      - name: Install workflow-lint deps (PyYAML)
+        if: steps.gate.outputs.run_heavy == 'true'
+        run: python -m pip install --quiet "pyyaml>=6.0"
+
       # Guard: every workflow file must declare `defaults: run: shell: bash`
       # so jobs behave identically on the Windows self-hosted runner and on
       # ubuntu-latest. YAML-aware (rejects the string-in-comment false-pass
