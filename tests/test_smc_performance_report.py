@@ -63,7 +63,7 @@ class TestPerformanceReport:
         result = generate_performance_report(_good_summary(), out)
         assert result == out
         assert out.exists()
-        text = out.read_text()
+        text = out.read_text(encoding="utf-8")
         assert "# SMC Performance Report — AAPL / 15" in text
         assert "Brier Score" in text
         assert "0.1800" in text
@@ -90,7 +90,7 @@ class TestPerformanceReport:
         }
         out = tmp_path / "sparse.md"
         generate_performance_report(sparse, out)
-        text = out.read_text()
+        text = out.read_text(encoding="utf-8")
         assert "— " in text or "—" in text  # fallback dash
         assert "No scored events" in text or "warning(s)" in text
         assert "No stratified calibration dimensions" in text
@@ -98,7 +98,7 @@ class TestPerformanceReport:
     def test_markdown_structure(self, tmp_path: Path) -> None:
         out = tmp_path / "structure.md"
         generate_performance_report(_good_summary(), out)
-        text = out.read_text()
+        text = out.read_text(encoding="utf-8")
         expected_headings = [
             "# SMC Performance Report",
             "## Signal Quality",
