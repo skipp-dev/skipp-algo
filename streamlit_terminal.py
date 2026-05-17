@@ -340,6 +340,11 @@ from newsstack_fmp._bz_http import _WARNED_ENDPOINTS
 from newsstack_fmp.ingest_benzinga import BenzingaRestAdapter
 from newsstack_fmp.ingest_fmp import FmpAdapter
 from newsstack_fmp.store_sqlite import SqliteStore
+from dashboard.decision_first_panel import (
+    DEFAULT_PROMOTION_DECISIONS_PATH,
+    load_decisions_from_report,
+    render_panel as render_decision_first_panel,
+)
 from open_prep.log_redaction import apply_global_log_redaction
 from open_prep.outcomes import _load_outcomes_range, compute_hit_rates
 from open_prep.playbook import classify_recency as _classify_recency
@@ -2998,10 +3003,11 @@ else:
             st.code(_tb.format_exc(), language="python")
             logger.exception("Tab %s render error", label)
 
-    tab_rank, tab_actionable, tab_ai, tab_segments, tab_outlook, tab_feed, tab_bitcoin, tab_alerts, tab_table, tab_replay, tab_health = st.tabs(
+    tab_rank, tab_actionable, tab_ai, tab_segments, tab_outlook, tab_feed, tab_bitcoin, tab_alerts, tab_table, tab_replay, tab_health, tab_decisions = st.tabs(
         ["🏆 Rankings", "🎯 Actionable", "🧠 AI Insights", "🏗️ Segments", "🔮 Outlook",
          "📰 Live Feed", "₿ Bitcoin",
-         "⚡ Alerts", "📊 Data Table", "📜 Signal Replay", "🩺 Provider Health"],
+         "⚡ Alerts", "📊 Data Table", "📜 Signal Replay", "🩺 Provider Health",
+         "🪪 Decision-First"],
     )
 
     # ── TAB: Live Feed (with search + date filter) ──────────
@@ -4907,9 +4913,12 @@ else:
         else:
             # ── Aggregate metrics ───────────────────────────────
             _total = len(_replay_records)
-            _with_outcome = [r for r in _replay_records if r.get("profitable_30m") is not None]
-            _winners = [r for r in _with_outcome if r.get("profitable_30m") is True]
-            _losers = [r for r in _with_outcome if r.get("profitable_30m") is False]
+            _with_outcome: list[dict[str, Any]] = [
+                r for r in _replay_records if r.get("profitable_30m") is not None
+            ]
+            _winners: list[dict[str, Any]] = [
+                r for r in _with_outcome if r.get("profitable_30m") is True
+            ]
             _pending = _total - len(_with_outcome)
 
             _hit_rate = len(_winners) / len(_with_outcome) if _with_outcome else 0.0
@@ -4945,8 +4954,8 @@ else:
             st.subheader("Daily Signal Timeline")
             _by_date: dict[str, list[dict[str, Any]]] = {}
             for r in _replay_records:
-                d = str(r.get("date", "unknown"))
-                _by_date.setdefault(d, []).append(r)
+                _date_key = str(r.get("date", "unknown"))
+                _by_date.setdefault(_date_key, []).append(r)
 
             for _rd in sorted(_by_date.keys(), reverse=True):
                 _day_records = _by_date[_rd]
@@ -4985,7 +4994,7 @@ else:
         st.caption("Live provider status, domain visibility, staleness, failure semantics, and fallback chains.")
 
         try:
-            _health_report = run_provider_health_check()
+            _health_report: dict[str, Any] | None = run_provider_health_check()
         except Exception as _health_exc:
             st.error(f"Health check failed: {_health_exc}")
             _health_report = None
@@ -5087,6 +5096,49 @@ else:
                         "Description": _fs.description,
                     })
                 st.dataframe(pd.DataFrame(_sem_rows), hide_index=True, use_container_width=True)
+
+    # ── TAB: Decision-First Panel (C7.1 / W1 wiring) ─────────────────────
+    with tab_decisions, _tab_guard("Decision-First"):
+        st.header("🪪 Decision-First Panel")
+        st.caption(
+            "One card per family: posture, top blocker, walk-forward Brier sparkline, "
+            "headline metrics. Source = governance.promotion_gate decisions."
+        )
+
+        _decisions_override = st.session_state.get("promotion_decisions")
+        _histories = st.session_state.get("promotion_walkforward_histories") or {}
+        _decisions: list[dict[str, object]] = []
+        _decisions_origin = "session_state"
+
+        if _decisions_override:
+            _decisions = [dict(d) for d in list(_decisions_override)]
+        else:
+            try:
+                _decisions = [dict(d) for d in load_decisions_from_report()]
+                _decisions_origin = str(DEFAULT_PROMOTION_DECISIONS_PATH)
+            except FileNotFoundError:
+                _decisions = []
+            except ValueError as _dec_exc:
+                st.warning(f"Could not parse {DEFAULT_PROMOTION_DECISIONS_PATH}: {_dec_exc}")
+                _decisions = []
+
+        if not _decisions:
+            st.info(
+                "No promotion decisions available yet. Run `scripts/run_promotion_gate.py` "
+                f"or drop a report at `{DEFAULT_PROMOTION_DECISIONS_PATH}`. "
+                "`st.session_state['promotion_decisions']` remains an in-memory override."
+            )
+        else:
+            try:
+                _panel_text = render_decision_first_panel(
+                    _decisions,
+                    walkforward_histories=_histories,
+                )
+                st.caption(f"Source: `{_decisions_origin}` · {len(_decisions)} families")
+                st.code(_panel_text, language="text")
+            except Exception as _panel_exc:
+                st.error(f"Decision-First panel failed: {_panel_exc}")
+                logger.exception("Decision-First panel render error")
 
 
 # ── Auto-refresh trigger ───────────────────────────────────────

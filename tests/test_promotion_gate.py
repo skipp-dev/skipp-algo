@@ -8,8 +8,9 @@ from governance.promotion_gate import (
     DECISION_SCHEMA_VERSION,
     FamilyMetrics,
     GateThresholds,
+    REQUIRED_PROVENANCE_KEYS,
 )
-from governance.types import EventFamily
+from governance.types import Blocker, Decision, EventFamily
 
 
 def _green_snapshot(family: EventFamily = "BOS") -> FamilyMetrics:
@@ -24,6 +25,24 @@ def _green_snapshot(family: EventFamily = "BOS") -> FamilyMetrics:
         live_brier=0.19,
         walkforward_brier=0.18,
     )
+
+
+def _strict_snapshot(family: EventFamily = "BOS") -> FamilyMetrics:
+    """Green snapshot that also clears every W1.a check in strict mode."""
+    snap = _green_snapshot(family)
+    snap.regime_degraded = False
+    snap.psi_slope = 0.01
+    snap.conformal_coverage = 0.92
+    snap.conformal_target = 0.90
+    snap.provenance = {
+        "wf_scheme": "purged_kfold",
+        "wf_embargo_bars": 32,
+        "bootstrap_method": "bca",
+        "block_size": 64,
+        "psr_method": "minIS",
+        "stacked_used": True,
+    }
+    return snap
 
 
 def test_green_snapshot_promotes() -> None:
@@ -60,7 +79,6 @@ def test_missing_metrics_emit_info_not_blocker() -> None:
     assert d["promoted"] is False
     severities = {b["severity"] for b in d["blockers"]}
     assert severities == {"info"}
-    # 7 missing checks (brier, ece, fdr, psr, mintrl, psi, live_vs_wf) -> yellow
     assert d["posture"] == "yellow"
 
 
@@ -222,3 +240,83 @@ def test_live_vs_wf_ratio_normal_path_unchanged() -> None:
     assert b["observed"] == pytest.approx(2.0)
     assert d["metrics"]["live_vs_wf_ratio"] == pytest.approx(2.0)
     assert d["promoted"] is False
+
+
+# ---------------------------------------------------------------------------
+# Sprint W1.a: schema v2 + provenance + strict-mode gating.
+# ---------------------------------------------------------------------------
+def test_decision_schema_version_is_two() -> None:
+    assert DECISION_SCHEMA_VERSION == 2
+    d = PromotionGate().evaluate(_green_snapshot())
+    assert d["schema_version"] == 2
+
+
+def test_decision_includes_provenance_dict() -> None:
+    d = PromotionGate().evaluate(_green_snapshot())
+    assert "provenance" in d
+    assert d["provenance"] == {}
+
+
+def test_lax_mode_ignores_missing_w1a_fields() -> None:
+    d = PromotionGate().evaluate(_green_snapshot())
+    assert d["promoted"] is True
+    assert d["posture"] == "green"
+
+
+def test_strict_mode_blocks_when_w1a_fields_missing() -> None:
+    gate = PromotionGate(GateThresholds(strict_provenance=True))
+    d = gate.evaluate(_green_snapshot())
+    assert d["promoted"] is False
+    checks = {b["check"] for b in d["blockers"]}
+    assert "regime_degraded" in checks
+    assert "psi_slope_threshold" in checks
+    assert "conformal_coverage" in checks
+    for key in REQUIRED_PROVENANCE_KEYS:
+        assert f"provenance.{key}" in checks
+
+
+def test_strict_mode_passes_when_all_fields_present() -> None:
+    gate = PromotionGate(GateThresholds(strict_provenance=True))
+    d = gate.evaluate(_strict_snapshot())
+    assert d["promoted"] is True
+    assert d["posture"] == "green"
+    assert d["blockers"] == []
+    assert d["provenance"]["wf_scheme"] == "purged_kfold"
+    assert d["provenance"]["stacked_used"] is True
+
+
+def test_regime_degraded_true_is_hard_blocker_in_lax_mode() -> None:
+    snap = _green_snapshot()
+    snap.regime_degraded = True
+    d = PromotionGate().evaluate(snap)
+    severities = {b["check"]: b["severity"] for b in d["blockers"]}
+    assert d["promoted"] is False
+    assert severities.get("regime_degraded") == "blocker"
+
+
+def test_psi_slope_above_threshold_blocks() -> None:
+    snap = _strict_snapshot()
+    snap.psi_slope = 0.20  # above default 0.05 cap
+    d = PromotionGate(GateThresholds(strict_provenance=True)).evaluate(snap)
+    assert d["promoted"] is False
+    assert any(
+        b["check"] == "psi_slope_threshold" and b["severity"] == "blocker"
+        for b in d["blockers"]
+    )
+
+
+def test_conformal_coverage_below_floor_blocks() -> None:
+    snap = _strict_snapshot()
+    snap.conformal_coverage = 0.80  # target 0.90 minus tolerance 0.02 → floor 0.88
+    d = PromotionGate(GateThresholds(strict_provenance=True)).evaluate(snap)
+    assert d["promoted"] is False
+    blockers = [b for b in d["blockers"] if b["check"] == "conformal_coverage"]
+    assert blockers and blockers[0]["severity"] == "blocker"
+
+
+def test_provenance_passes_through_in_lax_mode() -> None:
+    snap = _green_snapshot()
+    snap.provenance = {"wf_scheme": "purged_kfold", "psr_method": "minIS"}
+    d = PromotionGate().evaluate(snap)
+    assert d["provenance"] == {"wf_scheme": "purged_kfold", "psr_method": "minIS"}
+    assert d["promoted"] is True

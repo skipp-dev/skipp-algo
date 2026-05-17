@@ -13,7 +13,7 @@ The panel consumes ``Decision`` dicts from
 ``governance.promotion_gate.PromotionGate.evaluate(...)`` (Sprint X2)
 as its only source of truth. To stay independent of an X2 import
 order we duck-type the Decision dict (the schema is pinned at
-``governance.types.Decision`` schema_version=1).
+``governance.types.Decision`` with schema_version>=1).
 
 The renderer is a pure text mode; snapshot tests assert this output
 verbatim. A streamlit-aware mode can wrap this output later if needed.
@@ -24,6 +24,13 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from pathlib import Path
+from typing import cast
+
+from governance.promotion_report import (
+    DEFAULT_PROMOTION_DECISIONS_PATH,
+    load_decisions_from_report as _load_decisions_from_report,
+)
 
 POSTURE_GLYPH: dict[str, str] = {
     "green": "[GREEN]",
@@ -92,8 +99,10 @@ def build_card(
     walkforward_history: Sequence[float] | None = None,
 ) -> FamilyCard:
     """Construct a ``FamilyCard`` from a ``Decision`` dict + optional history."""
-    blockers = list(decision.get("blockers") or [])  # type: ignore[arg-type]
-    metrics = dict(decision.get("metrics") or {})  # type: ignore[arg-type]
+    raw_blockers = decision.get("blockers") or ()
+    raw_metrics = decision.get("metrics") or {}
+    blockers = list(cast("Iterable[Mapping[str, object]]", raw_blockers))
+    metrics = dict(cast("Mapping[str, float]", raw_metrics))
     posture = str(decision.get("posture", "red"))
     family = decision.get("family")
     if family is None:
@@ -149,10 +158,19 @@ def render_panel(
     return "\n\n".join(blocks)
 
 
+def load_decisions_from_report(
+    path: str | Path = DEFAULT_PROMOTION_DECISIONS_PATH,
+) -> list[Mapping[str, object]]:
+    """Load the decision list from the shared PromotionGate report contract."""
+    return _load_decisions_from_report(path)
+
+
 __all__ = [
+    "DEFAULT_PROMOTION_DECISIONS_PATH",
     "POSTURE_GLYPH",
     "FamilyCard",
     "build_card",
+    "load_decisions_from_report",
     "render_card",
     "render_panel",
     "sparkline",
