@@ -61,10 +61,18 @@ jobs:
           # Operators can still pin a dedicated CI label; otherwise we reuse
           # the priority-cron runner before falling back to any idle
           # Windows/x64 self-hosted runner.
+          # F-V8-C5-B (2026-05-17): heavy `validate` belongs on the Windows
+          # self-hosted pool. If no runner is currently idle, queue the job
+          # against the required labels instead of falling through to a
+          # github-hosted ubuntu runner (which historically masked the
+          # self-hosted pool's availability during brief restart/race
+          # windows). Inventory-unavailable still falls back to hosted so a
+          # GitHub API outage cannot wedge CI.
           python scripts/resolve_workflow_runner.py \
             --repository "${{ github.repository }}" \
             --hosted-runner "${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}" \
-            --custom-label "${{ vars.SMC_CI_SELF_HOSTED_LABEL || vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || '' }}"
+            --custom-label "${{ vars.SMC_CI_SELF_HOSTED_LABEL || vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || '' }}" \
+            --no-idle-fallback required-self-hosted
 
   validate:
     needs: select-runner
