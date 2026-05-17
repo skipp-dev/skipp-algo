@@ -1,11 +1,13 @@
 """Shared TypedDicts for the governance package."""
 from __future__ import annotations
 
-from typing import Literal, TypedDict
+from typing import Literal, TypedDict, Union
 
 EventFamily = Literal["BOS", "OB", "FVG", "SWEEP"]
 Posture = Literal["green", "yellow", "orange", "red"]
 BlockerSeverity = Literal["info", "warning", "blocker"]
+
+ProvenanceValue = Union[str, int, float, bool]
 
 
 class Blocker(TypedDict):
@@ -22,7 +24,12 @@ class Blocker(TypedDict):
 
 
 class Decision(TypedDict):
-    """Aggregated promotion decision for one event family."""
+    """Aggregated promotion decision for one event family.
+
+    ``provenance`` was added at schema_version=2 (Sprint W1.a) to carry
+    non-numeric hardening metadata (e.g. ``wf_scheme``, ``bootstrap_method``,
+    ``psr_method``). Stays an empty dict for legacy callers.
+    """
 
     schema_version: int
     family: EventFamily
@@ -30,3 +37,4 @@ class Decision(TypedDict):
     posture: Posture
     blockers: list[Blocker]
     metrics: dict[str, float]
+    provenance: dict[str, ProvenanceValue]
