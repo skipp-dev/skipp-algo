@@ -97,7 +97,7 @@ def _read_cached_frame(path: Path, *, max_age_seconds: int | None = None) -> pd.
         return None
     if max_age_seconds is not None:
         age = (datetime.now(UTC) - datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)).total_seconds()
-        if age > max_age_seconds:
+        if age >= max_age_seconds:
             logger.info("Cache expired (%.1f h old, TTL %.1f h): %s", age / 3600, max_age_seconds / 3600, path.name)
             return None
     try:
