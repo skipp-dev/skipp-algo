@@ -1,6 +1,13 @@
 # Self-Hosted Runner Reservation Runbook
 
-Stand: 2026-05-15
+Stand: 2026-05-17
+
+> **Aktueller Stand (2026-05-17):** Vier Self-Hosted-Runner laufen auf dem
+> ASUS-Host (`ASUS`, `ASUS-2`, `ASUS-3`, `ASUS-4`) als LocalSystem-Services.
+> Setup + Throughput-Notizen siehe
+> [docs/ops/self_hosted_runner_throughput.md](./ops/self_hosted_runner_throughput.md);
+> Installer ist [scripts/ops/add_self_hosted_runners.ps1](../scripts/ops/add_self_hosted_runners.ps1).
+> Empfohlenes Profil: **Four-runner ideal split** (siehe unten).
 
 ## Goal
 
@@ -224,6 +231,56 @@ Keep the same variable values as the two-runner model:
 This keeps GPU experiments from competing with Databento export / library
 refresh memory spikes or with merge-critical CI gates.
 
+## Four-runner shared pool (current production)
+
+Use this when all self-hosted runners live on the *same physical host*
+(e.g. four `Runner.Listener` services on the ASUS box). Isolating labels
+per service would fragment idle capacity without giving any real lane
+separation, because every service shares the same CPU / RAM / disk.
+
+### Repository variables
+
+| Variable | Four-runner value |
+| --- | --- |
+| `SMC_SELF_HOSTED_LABEL` | `generic-hosted-only` |
+| `SMC_PRIORITY_CRON_SELF_HOSTED_LABEL` | `priority-cron` |
+| `SMC_PRIORITY_CRON_GPU_SELF_HOSTED_LABEL` | `priority-gpu` |
+| `SMC_CI_SELF_HOSTED_LABEL` | unset / blank (opportunistic CI) |
+
+### Labels on every runner (`ASUS`, `ASUS-2`, `ASUS-3`, `ASUS-4`)
+
+- `self-hosted`, `Windows`, `X64` (default, applied at registration)
+- `priority-cron`
+- `gpu`
+- `priority-gpu`
+
+Do **not** apply `generic-hosted-only` or `ci-heavy` to any runner.
+
+### Why no dedicated CI lane on one host
+
+Since all four services share the same machine, a dedicated `ci-heavy`
+runner does not actually shield the producer from CI memory spikes -
+it only changes which queue the CI job sits in. Keeping the pool
+uniform lets the resolver pick whichever runner is idle, which on the
+shared host is the only optimisation that matters.
+
+If the producer chain starts losing windows (see *When to switch to
+safety-first mode*), set `SMC_CI_SELF_HOSTED_LABEL=ci-heavy` *without*
+adding that label to any runner. CI then fails over to GitHub-hosted
+and the four services are reserved for cron / GPU work. This is the
+same escape hatch as in the single-runner mode.
+
+### Throughput notes
+
+- Set `PYTEST_XDIST_AUTO_NUM_WORKERS=6` in every runner `.env`. With four
+  jobs in flight that is exactly `4 x 6 = 24` worker processes on the
+  24 logical cores of the host - no oversubscription.
+- Add Windows Defender exclusions for the runner workfolders and the
+  shared cache root (`C:\actions-cache`); the installer script does this
+  automatically when run elevated.
+- A second physical host ("ASUS-2 box") would justify revisiting the
+  three-runner split, with the second host carrying `ci-heavy` only.
+
 ## Decision table
 
 | Available self-hosted runners | Recommended policy | Why |
@@ -232,6 +289,7 @@ refresh memory spikes or with merge-critical CI gates.
 | 1 with producer instability | safety-first (`SMC_CI_SELF_HOSTED_LABEL=ci-heavy`, but no runner has that label) | protects the memory-critical cron chain |
 | 2 | dedicated CI split (`ci-heavy` + `priority-cron`) | first point where separate labels materially help |
 | 3 | dedicated CI + batch + GPU lanes | removes cross-family contention completely |
+| 4 (current) | shared pool with all runners labeled `priority-cron`, `gpu`, `priority-gpu` (CI co-located via `SMC_CI_SELF_HOSTED_LABEL` unset) | hosts a single physical box, so isolating labels would only fragment idle capacity; resolver picks any idle runner |
 
 ## Operator steps
 
@@ -250,11 +308,19 @@ Minimum recommended current production values:
 
 Label each self-hosted runner according to its lane.
 
-For the current single-runner shared setup, the one Windows runner should carry:
+For the current four-runner shared pool (one host, services `ASUS`,
+`ASUS-2`, `ASUS-3`, `ASUS-4`), every runner should carry:
 
 - `priority-cron`
 - `gpu`
 - `priority-gpu`
+
+New runners installed via
+[scripts/ops/add_self_hosted_runners.ps1](../scripts/ops/add_self_hosted_runners.ps1)
+get these labels automatically from the `--Labels` default. Existing
+runners can be patched in the GitHub UI:
+Settings -> Actions -> Runners -> `<runner>` -> *Labels*. No service
+restart is required.
 
 ### 3. Verify the selected runner
 
@@ -333,12 +399,21 @@ the safety-first profile (see *When to switch to safety-first mode* above).
 
 ## Current recommendation summary
 
-Today, with one self-hosted Windows box, keep:
+Heute, mit vier Self-Hosted-Runnern (`ASUS`, `ASUS-2`, `ASUS-3`, `ASUS-4`)
+auf einem Host:
 
-- `priority-cron` for heavy cron / memory workflows
-- `priority-gpu` for GPU-oriented jobs
-- CI self-hosted usage as best-effort via the existing fallback chain
+- Alle vier Runner tragen die Labels `priority-cron`, `gpu`, `priority-gpu`
+  (plus `self-hosted`, `Windows`, `X64`).
+- `SMC_CI_SELF_HOSTED_LABEL` bleibt **leer**, damit CI die freien Slots
+  opportunistisch mitnutzen kann.
+- Worker-Cap: `.env` jedes Runners setzt `PYTEST_XDIST_AUTO_NUM_WORKERS=6`,
+  damit 4 parallele Jobs x 6 Worker = 24 logische Kerne ohne Oversubscription
+  laufen.
+- Vor dem Aufruf von `add_self_hosted_runners.ps1` mit `-Count 5+` zuerst
+  pruefen, ob mehrere Hosts existieren; auf einem einzigen Host sind 4 das
+  praktische Maximum fuer Pytest-/ML-Workloads (Thread-Thrashing-Grenze).
 
-Only introduce a dedicated CI label (`ci-heavy`) when a second runner exists or
-when protecting the memory-critical cron chain matters more than opportunistic
-CI acceleration.
+Fuer Operator-Schritte zum tatsaechlichen Aufbau / Erweitern siehe
+[docs/ops/self_hosted_runner_throughput.md](./ops/self_hosted_runner_throughput.md).
+Nur dann auf `ci-heavy` umschalten, wenn die Producer-Chain durch CI-Last
+beeintraechtigt wird (siehe *When to switch to safety-first mode*).
