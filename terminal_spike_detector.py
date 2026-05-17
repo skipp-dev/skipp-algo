@@ -323,4 +323,6 @@ def format_time_et(epoch: float) -> str:
 
     _et = ZoneInfo("America/New_York")
     dt = datetime.fromtimestamp(epoch, tz=_et)
-    return dt.strftime("%-I:%M:%S %p")
+    # ``%-I`` (no leading zero) is GNU-only; Windows raises ``ValueError``.
+    hour12 = dt.hour % 12 or 12
+    return f"{hour12}:{dt:%M:%S %p}"
