@@ -22,4 +22,7 @@ certifi>=2024.0.0
 coverage>=7.6.0
 pytest-cov>=6.0.0
 pytest-xdist>=3.6.0
+# pytest-testmon powers the opt-in PR fast-feedback lane (vars.SMC_TESTMON_PR_LANE).
+# Always installed; only invoked when the var is set. See docs/perf/testmon_pr_lane.md.
+pytest-testmon>=2.1.0
 PyYAML>=6.0
