@@ -1,9 +1,10 @@
-"""Contract tests for the smc-databento-production-export workflow.
+"""Contract tests for the Databento producer/consumer workflow contract.
 
 These tests guard the cache-key handshake between
 
-  - .github/workflows/smc-databento-production-export.yml   (producer)
-  - .github/workflows/smc-library-refresh.yml               (consumer)
+    - .github/workflows/smc-databento-production-export-sharded.yml (canonical producer)
+    - .github/workflows/smc-databento-production-export.yml         (legacy fallback)
+    - .github/workflows/smc-library-refresh.yml                     (consumer)
 
 so that we never reintroduce the failure mode that surfaced on
 2026-04-30 (library-refresh red since 2026-04-24 because the canonical
@@ -27,7 +28,8 @@ import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PRODUCER_WF = REPO_ROOT / ".github" / "workflows" / "smc-databento-production-export.yml"
+LEGACY_PRODUCER_WF = REPO_ROOT / ".github" / "workflows" / "smc-databento-production-export.yml"
+SHARDED_PRODUCER_WF = REPO_ROOT / ".github" / "workflows" / "smc-databento-production-export-sharded.yml"
 CONSUMER_WF = REPO_ROOT / ".github" / "workflows" / "smc-library-refresh.yml"
 PRODUCER_SCRIPT = REPO_ROOT / "scripts" / "databento_production_export.py"
 
@@ -48,8 +50,13 @@ def _flatten_steps(workflow: dict) -> list[dict]:
     return steps
 
 
-def test_producer_workflow_exists():
-    assert PRODUCER_WF.is_file(), f"Missing producer workflow: {PRODUCER_WF}"
+def test_producer_workflows_exist():
+    assert SHARDED_PRODUCER_WF.is_file(), (
+        f"Missing canonical producer workflow: {SHARDED_PRODUCER_WF}"
+    )
+    assert LEGACY_PRODUCER_WF.is_file(), (
+        f"Missing legacy producer workflow: {LEGACY_PRODUCER_WF}"
+    )
 
 
 def test_consumer_workflow_exists():
@@ -57,7 +64,7 @@ def test_consumer_workflow_exists():
 
 
 def test_producer_uses_databento_api_key_secret():
-    wf = _load_yaml(PRODUCER_WF)
+    wf = _load_yaml(LEGACY_PRODUCER_WF)
     found = False
     for step in _flatten_steps(wf):
         env = step.get("env") or {}
@@ -69,7 +76,7 @@ def test_producer_uses_databento_api_key_secret():
 
 
 def test_producer_prefers_priority_cron_self_hosted_runner() -> None:
-    text = PRODUCER_WF.read_text(encoding="utf-8")
+    text = LEGACY_PRODUCER_WF.read_text(encoding="utf-8")
 
     assert '--custom-label "${{ vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || vars.SMC_SELF_HOSTED_LABEL }}"' in text
     assert "--inventory-unavailable-fallback required-self-hosted" in text
@@ -77,7 +84,7 @@ def test_producer_prefers_priority_cron_self_hosted_runner() -> None:
 
 
 def test_producer_writes_to_export_dir():
-    text = PRODUCER_WF.read_text(encoding="utf-8")
+    text = LEGACY_PRODUCER_WF.read_text(encoding="utf-8")
     assert EXPORT_DIR in text, (
         f"Producer workflow must materialize exports under {EXPORT_DIR}/"
     )
@@ -97,7 +104,7 @@ def test_producer_saves_cache_with_canonical_key_pattern():
     # `main` from going green. We keep the test but invert it to lock in
     # the absence of `actions/cache/save` in the producer workflow, so a
     # future accidental re-introduction would be caught.
-    wf = _load_yaml(PRODUCER_WF)
+    wf = _load_yaml(LEGACY_PRODUCER_WF)
     cache_save_steps = [
         step
         for step in _flatten_steps(wf)
@@ -165,23 +172,24 @@ def test_producer_script_exposes_export_dir_flag():
     )
 
 
-def test_producer_schedule_runs_before_library_refresh():
-    """Producer→Consumer coupling.
+def test_sharded_producer_drives_library_refresh_workflow_run():
+    """Cutover contract: sharded producer is canonical, monolith is fallback.
 
-    Originally enforced cron-before-cron timing. After F-V4-J3 (2026-05-01)
-    the consumer (smc-library-refresh) was switched from 4 daily crons to
-    `workflow_run` triggered by the producer; the producer keeps its own
-    crons and gates the cascade. The new contract:
+    F-V8-cutover (2026-05-18) moved the canonical cron from the monolithic
+    producer to the sharded producer. The new contract:
 
-    1. Producer must still declare schedule.cron entries.
-    2. Consumer must declare a `workflow_run` trigger naming the producer
-       and gating on conclusion=='success'.
+    1. Sharded producer keeps the live schedule.cron entries.
+    2. Legacy monolithic producer remains workflow_dispatch-only fallback.
+    3. Consumer declares `workflow_run` on the sharded producer and gates
+       on conclusion=='success'.
     """
-    producer = _load_yaml(PRODUCER_WF)
+    producer = _load_yaml(SHARDED_PRODUCER_WF)
+    legacy = _load_yaml(LEGACY_PRODUCER_WF)
     consumer = _load_yaml(CONSUMER_WF)
 
     # PyYAML parses bare `on:` as the boolean True. Look up either form.
     p_on = producer.get("on") or producer.get(True)
+    l_on = legacy.get("on") or legacy.get(True)
     c_on = consumer.get("on") or consumer.get(True)
 
     def _crons(on_block) -> list[str]:
@@ -189,15 +197,26 @@ def test_producer_schedule_runs_before_library_refresh():
         return [entry.get("cron", "") for entry in sched]
 
     p_crons = _crons(p_on)
-    assert p_crons, "Producer must declare schedule.cron entries"
+    assert p_crons, "Canonical sharded producer must declare schedule.cron entries"
 
-    # F-V4-J3: consumer must be workflow_run-coupled to the producer.
+    legacy_triggers = set((l_on or {}).keys())
+    assert "workflow_dispatch" in legacy_triggers, (
+        "Legacy monolithic producer must keep workflow_dispatch as the "
+        "emergency fallback trigger."
+    )
+    assert "schedule" not in legacy_triggers, (
+        "Legacy monolithic producer must not keep schedule after the sharded "
+        "cutover."
+    )
+
+    # F-V8-cutover: consumer must be workflow_run-coupled to the canonical
+    # sharded producer, not the deprecated monolith.
     wfr = (c_on or {}).get("workflow_run")
     assert wfr, (
         "Consumer must declare a workflow_run trigger (F-V4-J3). "
         "Got on: " + repr(list((c_on or {}).keys()))
     )
-    producer_name = producer.get("name") or PRODUCER_WF.stem
+    producer_name = producer.get("name") or SHARDED_PRODUCER_WF.stem
     assert producer_name in (wfr.get("workflows") or []), (
         f"Consumer workflow_run.workflows must reference producer "
         f"{producer_name!r}; got {wfr.get('workflows')!r}"
@@ -217,6 +236,27 @@ def test_producer_schedule_runs_before_library_refresh():
         f"Consumer jobs.refresh.if must gate workflow_run on "
         f"conclusion == 'success' (exact equality); got: {refresh_if!r}"
     )
+
+
+def test_consumer_restores_artifacts_from_sharded_workflow() -> None:
+    wf = _load_yaml(CONSUMER_WF)
+    restore_steps = [
+        step
+        for step in _flatten_steps(wf)
+        if step.get("name") in {
+            "Restore Databento production export bundle (today)",
+            "Restore Databento production export bundle (latest fallback)",
+        }
+    ]
+    assert len(restore_steps) == 2, (
+        "Expected both Databento export restore steps in the consumer workflow."
+    )
+    for step in restore_steps:
+        workflow_name = str((step.get("with") or {}).get("workflow") or "")
+        assert workflow_name == SHARDED_PRODUCER_WF.name, (
+            f"{step.get('name')} must resolve artifacts from "
+            f"{SHARDED_PRODUCER_WF.name!r}; got {workflow_name!r}"
+        )
 
 
 def test_export_dir_is_gitignored():
