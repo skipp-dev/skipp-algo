@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from governance.promotion_gate import DECISION_SCHEMA_VERSION
+from governance.promotion_report import DEFAULT_PROMOTION_DECISIONS_PATH
 from scripts import run_promotion_gate as runner
 
 
@@ -80,7 +81,7 @@ def test_load_bundle_parses_numeric_and_provenance(tmp_path: Path) -> None:
     assert snap.psi_slope == pytest.approx(0.01)
     assert snap.regime_degraded is False
     assert snap.provenance == {"wf_scheme": "purged_kfold"}
-    assert snap.extras == {"sharpe_oos": pytest.approx(1.23)}
+    assert snap.extras["sharpe_oos"] == pytest.approx(1.23)
 
 
 # ---------------------------------------------------------------------------
@@ -88,7 +89,7 @@ def test_load_bundle_parses_numeric_and_provenance(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _full_snapshot_dict(family: str) -> dict:
+def _full_snapshot_dict(family: str) -> dict[str, object]:
     return {
         "family": family,
         "brier": 0.18,
@@ -187,19 +188,11 @@ def test_build_report_no_strict_mode_keeps_legacy_compat(tmp_path: Path) -> None
 # ---------------------------------------------------------------------------
 
 
-def test_cli_writes_report_and_returns_zero_when_promoted(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_cli_writes_report_and_returns_zero_when_promoted(tmp_path: Path) -> None:
     bundle_path = tmp_path / "bundle.json"
     output_path = tmp_path / "report.json"
-    bundle_path.write_text(
-        json.dumps([_full_snapshot_dict("BOS")]),
-        encoding="utf-8",
-    )
-    rc = runner.main([
-        "--metrics", str(bundle_path),
-        "--output", str(output_path),
-    ])
+    bundle_path.write_text(json.dumps([_full_snapshot_dict("BOS")]), encoding="utf-8")
+    rc = runner.main(["--metrics", str(bundle_path), "--output", str(output_path)])
     assert rc == 0
     assert output_path.exists()
     report = json.loads(output_path.read_text(encoding="utf-8"))
@@ -208,38 +201,37 @@ def test_cli_writes_report_and_returns_zero_when_promoted(
     assert report["decisions"][0]["promoted"] is True
 
 
-def test_cli_returns_two_when_any_family_blocked(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_cli_defaults_output_to_contract_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    bundle_path = tmp_path / "bundle.json"
+    bundle_path.write_text(json.dumps([_full_snapshot_dict("BOS")]), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    rc = runner.main(["--metrics", str(bundle_path)])
+    output_path = tmp_path / DEFAULT_PROMOTION_DECISIONS_PATH
+    assert rc == 0
+    assert output_path.exists()
+
+
+def test_cli_returns_two_when_any_family_blocked(tmp_path: Path) -> None:
     bundle_path = tmp_path / "bundle.json"
     output_path = tmp_path / "report.json"
-    # Legacy snapshot → blocked under default strict mode.
-    bundle_path.write_text(
-        json.dumps([{"family": "BOS", "brier": 0.18}]),
-        encoding="utf-8",
-    )
-    rc = runner.main([
-        "--metrics", str(bundle_path),
-        "--output", str(output_path),
-    ])
+    bundle_path.write_text(json.dumps([{"family": "BOS", "brier": 0.18}]), encoding="utf-8")
+    rc = runner.main(["--metrics", str(bundle_path), "--output", str(output_path)])
     assert rc == 2
     report = json.loads(output_path.read_text(encoding="utf-8"))
     assert report["decisions"][0]["promoted"] is False
 
 
-def test_cli_returns_one_on_missing_input(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_cli_returns_one_on_missing_input(tmp_path: Path) -> None:
     rc = runner.main([
-        "--metrics", str(tmp_path / "missing.json"),
-        "--output", str(tmp_path / "out.json"),
+        "--metrics",
+        str(tmp_path / "missing.json"),
+        "--output",
+        str(tmp_path / "out.json"),
     ])
     assert rc == 1
 
 
-def test_cli_no_strict_flag_promotes_legacy_snapshot(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_cli_no_strict_flag_promotes_legacy_snapshot(tmp_path: Path) -> None:
     bundle_path = tmp_path / "bundle.json"
     output_path = tmp_path / "report.json"
     bundle_path.write_text(
@@ -259,8 +251,10 @@ def test_cli_no_strict_flag_promotes_legacy_snapshot(
         encoding="utf-8",
     )
     rc = runner.main([
-        "--metrics", str(bundle_path),
-        "--output", str(output_path),
+        "--metrics",
+        str(bundle_path),
+        "--output",
+        str(output_path),
         "--no-strict",
     ])
     assert rc == 0
