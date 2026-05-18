@@ -126,33 +126,61 @@ jobs:
         if: steps.gate.outputs.run_heavy == 'true'
         uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3
         with:
-          enable-cache: true
+          # GHA cache backend returns HTTP 400 on the Windows self-hosted
+          # runner ("Failed to restore: Cache service responded with 400").
+          # uv falls back to its local on-disk cache (UV_CACHE_DIR) which the
+          # self-hosted runner has anyway; opting out of the GHA cache layer
+          # there silences the noise without losing local cache reuse.
+          enable-cache: ${{ needs.select-runner.outputs.runner_environment == 'github-hosted' && 'true' || 'false' }}
           cache-dependency-glob: |
             requirements*.txt
       - name: Resolve Python 3.12 interpreter
         if: steps.gate.outputs.run_heavy == 'true'
+        id: resolve_py
+        shell: bash
         run: |
           if [[ "${{ needs.select-runner.outputs.runner_environment }}" == "github-hosted" ]]; then
             python -c "import sys; raise SystemExit('GitHub-hosted Python bootstrap did not resolve Python 3.12.' if sys.version_info[:2] != (3, 12) else 0)"
             echo "SMC_PYTHON_BIN=python" >> "$GITHUB_ENV"
+            echo "found=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          if command -v python >/dev/null 2>&1; then
-            if python -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 12) else 1)"; then
-              echo "SMC_PYTHON_BIN=python" >> "$GITHUB_ENV"
+          # Self-hosted: probe a wide set of well-known interpreters
+          # (including the `py` launcher) before delegating to the
+          # setup-python install fallback below. Each candidate is verified
+          # to be Python 3.12 before being accepted.
+          probe_312() {
+            "$1" -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 12) else 1)" >/dev/null 2>&1
+          }
+          for cand in python python3 python3.12 "/c/Python312/python.exe" "$LOCALAPPDATA/Programs/Python/Python312/python.exe" "$ProgramFiles/Python312/python.exe"; do
+            if [[ -n "$cand" ]] && command -v "$cand" >/dev/null 2>&1 && probe_312 "$cand"; then
+              echo "SMC_PYTHON_BIN=$cand" >> "$GITHUB_ENV"
+              echo "found=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+
+          if command -v py >/dev/null 2>&1; then
+            python_bin="$(py -3.12 -c "import sys; print(sys.executable)" 2>/dev/null || true)"
+            if [[ -n "$python_bin" ]]; then
+              echo "SMC_PYTHON_BIN=$python_bin" >> "$GITHUB_ENV"
+              echo "found=true" >> "$GITHUB_OUTPUT"
               exit 0
             fi
           fi
 
-          if command -v py >/dev/null 2>&1; then
-            python_bin="$(py -3.12 -c "import sys; print(sys.executable)")"
-            echo "SMC_PYTHON_BIN=$python_bin" >> "$GITHUB_ENV"
-            exit 0
-          fi
-
-          echo "::error::Self-hosted runner is missing a usable Python 3.12 interpreter (tried \`python\` and \`py -3.12\`)."
-          exit 1
+          echo "::notice::No pre-installed Python 3.12 on self-hosted runner — falling back to actions/setup-python install."
+          echo "found=false" >> "$GITHUB_OUTPUT"
+      - name: Install Python 3.12 (self-hosted fallback)
+        if: steps.gate.outputs.run_heavy == 'true' && needs.select-runner.outputs.runner_environment != 'github-hosted' && steps.resolve_py.outputs.found != 'true'
+        uses: ./.github/actions/setup-python-pinned
+      - name: Confirm Python 3.12 after install
+        if: steps.gate.outputs.run_heavy == 'true' && needs.select-runner.outputs.runner_environment != 'github-hosted' && steps.resolve_py.outputs.found != 'true'
+        shell: bash
+        run: |
+          python -c "import sys; raise SystemExit('Fallback install did not yield Python 3.12.' if sys.version_info[:2] != (3, 12) else 0)"
+          echo "SMC_PYTHON_BIN=python" >> "$GITHUB_ENV"
       - name: Install test dependencies
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
