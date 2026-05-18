@@ -9,10 +9,13 @@ Enforces:
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Literal
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Literal
 
 from rl.types import ExecutionAction, OrderType
+
+if TYPE_CHECKING:  # avoid an import cycle at runtime; only used for typing
+    from rl.extensions import ConstraintHitLog
 
 VALID_ORDER_TYPES: tuple[OrderType, ...] = ("limit_at_mid", "limit_aggressive", "market")
 SizingDecision = Literal["accept", "clamped", "rejected"]
@@ -32,9 +35,21 @@ class HardConstraintLayer:
     max_size_fraction: float = 0.01
     max_drawdown_pct: float = 0.10
     safe_order_type: OrderType = "limit_at_mid"
+    # Sprint C12: optional audit sink. When provided, every clamp /
+    # rejection in ``guard_action`` / ``guard_size_fraction`` is
+    # appended as a ``ConstraintHit``. Kept optional so the legacy
+    # constructor signature (no audit) keeps working.
+    hit_log: "ConstraintHitLog | None" = field(default=None, repr=False)
 
     def guard_action(self, action: ExecutionAction, *, drawdown_pct: float = 0.0) -> GuardResult:
         if drawdown_pct >= self.max_drawdown_pct:
+            self._log(
+                constraint="drawdown",
+                requested=float(drawdown_pct),
+                enforced=float(self.max_drawdown_pct),
+                reason=f"drawdown {drawdown_pct:.4f} >= cap {self.max_drawdown_pct}",
+                extras={"order_type": str(action.order_type)},
+            )
             return GuardResult(
                 ExecutionAction(slice_size=0.0, order_type=self.safe_order_type),
                 "rejected",
@@ -53,6 +68,17 @@ class HardConstraintLayer:
             order_type = self.safe_order_type
             clamped = True
         new_action = ExecutionAction(slice_size=slice_size, order_type=order_type)
+        if clamped:
+            self._log(
+                constraint="slice_size_or_order_type",
+                requested=float(action.slice_size),
+                enforced=float(slice_size),
+                reason="clamped to safe range",
+                extras={
+                    "requested_order_type": str(action.order_type),
+                    "enforced_order_type": str(order_type),
+                },
+            )
         return GuardResult(
             new_action,
             "clamped" if clamped else "accept",
@@ -61,10 +87,45 @@ class HardConstraintLayer:
 
     def guard_size_fraction(self, requested_fraction: float) -> tuple[float, SizingDecision, str]:
         if requested_fraction < 0.0:
+            self._log(
+                constraint="size_fraction",
+                requested=float(requested_fraction),
+                enforced=0.0,
+                reason="negative size requested",
+            )
             return 0.0, "rejected", "negative size requested"
         if requested_fraction > self.max_size_fraction:
+            self._log(
+                constraint="size_fraction",
+                requested=float(requested_fraction),
+                enforced=float(self.max_size_fraction),
+                reason="size exceeded hard cap",
+            )
             return self.max_size_fraction, "clamped", "size exceeded hard cap"
         return float(requested_fraction), "accept", "ok"
+
+    def _log(
+        self,
+        *,
+        constraint: str,
+        requested: float,
+        enforced: float,
+        reason: str,
+        extras: dict | None = None,
+    ) -> None:
+        if self.hit_log is None:
+            return
+        try:
+            self.hit_log.record_clamp(
+                constraint=constraint,
+                requested=requested,
+                enforced=enforced,
+                reason=reason,
+                extras=extras or {},
+            )
+        except Exception:
+            # An audit-log failure must never block the guard decision.
+            pass
 
 
 __all__ = ["VALID_ORDER_TYPES", "GuardResult", "HardConstraintLayer", "SizingDecision"]
