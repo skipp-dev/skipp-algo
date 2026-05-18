@@ -10,7 +10,7 @@ from governance.promotion_gate import (
     GateThresholds,
     REQUIRED_PROVENANCE_KEYS,
 )
-from governance.types import Blocker, Decision, EventFamily
+from governance.types import EventFamily
 
 
 def _green_snapshot(family: EventFamily = "BOS") -> FamilyMetrics:
