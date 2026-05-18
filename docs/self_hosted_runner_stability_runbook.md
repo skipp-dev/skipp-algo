@@ -68,6 +68,7 @@ powershell -ExecutionPolicy Bypass -File scripts/harden-self-hosted-runner.ps1
 | NIC power mgmt    | `Set-NetAdapterPowerManagement -AllowComputerToTurnOffDevice Disabled` on every physical adapter | NIC stays alive on idle |
 | TCP KeepAlive     | `HKLM\...\Tcpip\Parameters\KeepAliveTime=300000` (5 min), `KeepAliveInterval=1000`, `TcpMaxDataRetransmissions=5` | Idle TCP probed every 5 min instead of 2 h (effective after reboot) |
 | Time sync         | Starts `W32Time` if stopped, `w32tm /resync /force`, prints status     | Clock drift < 5 min |
+| Defender excl.    | `Add-MpPreference -ExclusionPath` for each runner `_work` + uv/pip cache + Python install; `-ExclusionProcess` for `python.exe`, `pytest.exe`, `uv.exe`, `git.exe`, `bash.exe` | Eliminates per-file real-time scanning on pytest tmp files (typically 20–40 % validate wall-time) |
 
 ### Reboot semantics
 
@@ -138,9 +139,42 @@ Get-NetAdapter -Physical | Get-NetAdapterPowerManagement | ForEach-Object {
 
 # Restore TCP KeepAlive defaults (delete the values; OS falls back to 2 h)
 Remove-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters' -Name KeepAliveTime,KeepAliveInterval,TcpMaxDataRetransmissions -ErrorAction SilentlyContinue
+
+# Remove Defender exclusions
+Get-MpPreference | Select-Object -ExpandProperty ExclusionPath    | ForEach-Object { Remove-MpPreference -ExclusionPath $_ }
+'python.exe','pytest.exe','uv.exe','git.exe','bash.exe' | ForEach-Object { Remove-MpPreference -ExclusionProcess $_ -ErrorAction SilentlyContinue }
 ```
 
-## 7. Open questions / follow-ups
+## 7. Topology — all four runners share one laptop
+
+`actions.runner.skippALGO-skipp-algo.{ASUS,ASUS-2,ASUS-3,ASUS-4}` all run on
+the same physical host. Running >1 concurrent job can saturate CPU/disk/RAM
+even though a single idle snapshot looked moderate (CPU 30 %, free RAM 42 GB
+with two concurrent jobs).
+
+Use [scripts/manage-self-hosted-runner-topology.ps1](../scripts/manage-self-hosted-runner-topology.ps1)
+to reduce concurrency safely:
+
+```powershell
+# Report current state (no changes)
+pwsh -File scripts/manage-self-hosted-runner-topology.ps1
+
+# Keep only ASUS active; stop the other 3 and set them to Manual startup
+pwsh -File scripts/manage-self-hosted-runner-topology.ps1 -KeepOnly ASUS -Apply
+
+# Re-enable all four (revert)
+pwsh -File scripts/manage-self-hosted-runner-topology.ps1 -RestartAuto
+```
+
+Recommended baseline:
+
+- Start at 4 active runners; if CPU saturation is observed during a real heavy
+  cron + CI overlap, drop to 2 (`-KeepOnly ASUS,ASUS-2`).
+- If self-hosted pool needs to be fully drained (e.g. for OS patching), use
+  `-KeepOnly _` (impossible match) to stop all four, then `-RestartAuto` to
+  bring them back.
+
+## 8. Open questions / follow-ups
 
 - Re-evaluate after one week of green validate runs whether the chronic drop
   is fully resolved. If a 401 reappears, capture exact `Worker_*.log` and
