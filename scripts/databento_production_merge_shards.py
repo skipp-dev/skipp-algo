@@ -508,13 +508,17 @@ def merge_shard_payloads(
         )
         return {}
 
+    # Lazy import to keep CLI startup cheap when the reducer is invoked
+    # in manifest-only mode (no payloads to merge).
+    from scripts.smc_atomic_write import atomic_write_parquet
+
     summary: dict[str, int] = {}
     for frame, paths in by_frame.items():
         frames_df = [pd.read_parquet(p) for p in paths]
         concat_df = pd.concat(frames_df, ignore_index=True, sort=False)
         deduped = _dedupe_frame(frame, concat_df)
         out_path = output_dir / f"{merged_basename}__{frame}.parquet"
-        deduped.to_parquet(out_path, index=False)
+        atomic_write_parquet(deduped, out_path, index=False)
         summary[frame] = len(deduped)
         print(
             f"{_LOG_PREFIX}{frame}: merged {len(paths)} shard(s) → "

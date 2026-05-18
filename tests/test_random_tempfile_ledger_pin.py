@@ -48,7 +48,7 @@ _ALLOWED_TEMPFILE_METHODS: frozenset[str] = frozenset({"mkstemp"})
 
 _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     ("databento_reference.py", 100, "mkstemp"),
-    ("databento_utils.py", 124, "mkstemp"),
+    ("databento_utils.py", 141, "mkstemp"),
     # Line shifted 373 → 389 (F-V8-cutover branch, 2026-05-18).
     ("databento_volatility_screener.py", 389, "mkstemp"),
     ("governance/alpha_ledger.py", 70, "mkstemp"),
