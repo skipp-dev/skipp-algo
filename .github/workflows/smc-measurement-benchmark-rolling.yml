@@ -129,10 +129,18 @@ jobs:
           echo "::error::Self-hosted runner is missing a usable Python 3.12 interpreter (tried \`python\` and \`py -3.12\`)."
           exit 1
 
-      - name: Install dependencies
+      # F-V8-perf (2026-05-18): uv installer (mirrors ci.yml + smc-library-refresh).
+      # On GitHub-hosted we enable the built-in wheel cache; on self-hosted we
+      # rely on the local on-disk uv cache and skip the actions/cache layer.
+      - name: Install uv
+        uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3
+        with:
+          enable-cache: ${{ needs.select-runner.outputs.runner_environment == 'github-hosted' && 'true' || 'false' }}
+          cache-dependency-glob: requirements*.txt
+
+      - name: Install Python dependencies
         run: |
-          "$SMC_PYTHON_BIN" -m pip install --upgrade pip
-          "$SMC_PYTHON_BIN" -m pip install -r requirements.txt pytest
+          uv pip install --python "$SMC_PYTHON_BIN" -r requirements.txt pytest
 
       - name: Resolve run date + output dir
         id: meta
@@ -167,129 +175,10 @@ jobs:
           RUN_DATE: ${{ steps.meta.outputs.run_date }}
         run: |
           set -euo pipefail
-          mkdir -p artifacts/smc_microstructure_exports
-
-          "$SMC_PYTHON_BIN" - <<'PY'
-          from __future__ import annotations
-
-          import io
-          import json
-          import os
-          import shutil
-          import sys
-          import time
-          import urllib.error
-          import urllib.request
-          import zipfile
-          from pathlib import Path
-
-          repo = os.environ["GITHUB_REPOSITORY"]
-          token = os.environ["GH_TOKEN"]
-          run_date = os.environ["RUN_DATE"]
-          root = Path("artifacts/smc_microstructure_exports")
-          output_path = Path(os.environ["GITHUB_OUTPUT"])
-
-          prefix = "smc-databento-production-export-"
-          today_prefix = f"{prefix}{run_date}-"
-
-          def emit(key: str, value: str) -> None:
-            with output_path.open("a", encoding="utf-8") as fh:
-              fh.write(f"{key}={value}\\n")
-
-          def api_get_json(path: str) -> dict:
-            req = urllib.request.Request(
-              f"https://api.github.com/{path}",
-              headers={
-                "Authorization": f"Bearer {token}",
-                "Accept": "application/vnd.github+json",
-                "X-GitHub-Api-Version": "2022-11-28",
-                "User-Agent": "smc-measurement-benchmark-rolling",
-              },
-              method="GET",
-            )
-            with urllib.request.urlopen(req, timeout=60) as resp:
-              return json.loads(resp.read().decode("utf-8"))
-
-          def download_zip(artifact_id: int) -> bytes:
-            req = urllib.request.Request(
-              f"https://api.github.com/repos/{repo}/actions/artifacts/{artifact_id}/zip",
-              headers={
-                "Authorization": f"Bearer {token}",
-                "Accept": "application/vnd.github+json",
-                "X-GitHub-Api-Version": "2022-11-28",
-                "User-Agent": "smc-measurement-benchmark-rolling",
-              },
-              method="GET",
-            )
-            with urllib.request.urlopen(req, timeout=120) as resp:
-              return resp.read()
-
-          artifacts: list[dict] = []
-          for page in range(1, 4):
-            payload = api_get_json(f"repos/{repo}/actions/artifacts?per_page=100&page={page}")
-            batch = payload.get("artifacts") or []
-            if not batch:
-              break
-            for item in batch:
-              name = str(item.get("name") or "")
-              if not name.startswith(prefix):
-                continue
-              if bool(item.get("expired")):
-                continue
-              workflow_run = item.get("workflow_run") or {}
-              if str(workflow_run.get("head_branch") or "") != "main":
-                continue
-              artifacts.append(item)
-            if len(batch) < 100:
-              break
-
-          artifacts.sort(key=lambda item: str(item.get("created_at") or ""), reverse=True)
-          preferred = [item for item in artifacts if str(item.get("name") or "").startswith(today_prefix)]
-          fallback = [item for item in artifacts if item not in preferred]
-          candidates = preferred + fallback
-
-          if not candidates:
-            print("::warning::No Databento producer artifact candidates found (today or fallback).")
-            emit("found_artifact", "false")
-            sys.exit(0)
-
-          errors: list[str] = []
-          for item in candidates[:20]:
-            artifact_id = int(item["id"])
-            artifact_name = str(item.get("name") or "")
-            run_id = int((item.get("workflow_run") or {}).get("id") or 0)
-            mode = "today" if artifact_name.startswith(today_prefix) else "fallback"
-            for attempt in (1, 2, 3):
-              target_dir = root / artifact_name
-              if target_dir.exists():
-                shutil.rmtree(target_dir, ignore_errors=True)
-              try:
-                blob = download_zip(artifact_id)
-                with zipfile.ZipFile(io.BytesIO(blob)) as zf:
-                  bad_entry = zf.testzip()
-                  if bad_entry:
-                    raise zipfile.BadZipFile(f"corrupt entry {bad_entry!r}")
-                  zf.extractall(target_dir)
-
-                print(
-                  f"::notice::Restored Databento export artifact {artifact_name} "
-                  f"(run_id={run_id}, mode={mode}, attempt={attempt})."
-                )
-                emit("found_artifact", "true")
-                emit("artifact_name", artifact_name)
-                emit("artifact_run_id", str(run_id))
-                emit("artifact_mode", mode)
-                sys.exit(0)
-              except (zipfile.BadZipFile, urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
-                errors.append(f"{artifact_name}#{attempt}: {exc}")
-                if attempt < 3:
-                  time.sleep(attempt * 2)
-
-          print("::warning::All Databento producer artifact download attempts failed; verify step will enforce manifest presence.")
-          for line in errors[:5]:
-            print(f"::warning::{line}")
-          emit("found_artifact", "false")
-          PY
+          # F-V8-perf (2026-05-18): extracted to scripts/restore_databento_export_bundle.py
+          # for lintability / unit-test coverage. Behavior is bit-identical to the
+          # pre-extraction heredoc (see F-V8-D4 above).
+          "$SMC_PYTHON_BIN" scripts/restore_databento_export_bundle.py
 
       # Flatten the nested `<root>/smc-databento-production-export-*/...`
       # layout from the restored producer artifact directory.
