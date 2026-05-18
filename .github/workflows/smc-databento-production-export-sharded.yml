@@ -192,6 +192,11 @@ jobs:
           # Producer pipeline is then expected to land well under the
           # 120min cap (Q4 #2097) on lookback_days=10 num_shards=2.
           DATABENTO_DAILY_MAX_WORKERS: "4"
+          # F-V8-perf-3.5 (2026-05-18): cache-probe-log. Records every
+          # cache lookup path per shard for cross-day overlap analysis
+          # to size the post-cutover sharded-file-cache (Folge-PR).
+          # Off-hours probe-cron load only — no production impact.
+          DATABENTO_CACHE_PROBE_LOG: "artifacts/ci/cache_probe_shard_${{ matrix.shard_id }}.jsonl"
         run: |
           set -euo pipefail
           mkdir -p "${EXPORT_DIR}" artifacts/ci
@@ -212,6 +217,7 @@ jobs:
           name: a9b-2b-shard-${{ matrix.shard_id }}-of-${{ matrix.shard_of }}
           path: |
             artifacts/ci/databento_production_export_stdout.log
+            artifacts/ci/cache_probe_shard_${{ matrix.shard_id }}.jsonl
             ${{ env.EXPORT_DIR }}/
           retention-days: 7
           if-no-files-found: warn

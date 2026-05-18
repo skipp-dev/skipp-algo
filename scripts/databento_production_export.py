@@ -4417,6 +4417,15 @@ def main(argv: Sequence[str] | None = None) -> None:
         from scripts._logging_init import init_cli_logging  # type: ignore[no-redef]
     init_cli_logging()
 
+    # F-V8-perf-3.5 (2026-05-18): Cache-probe-log opt-in. When the env var
+    # is set (e.g. by the sharded probe-cron workflow), every cache lookup
+    # is recorded and dumped to JSONL at end of run for cross-run hit-rate
+    # analysis feeding the post-cutover sharded-file-cache decision.
+    _cache_probe_log_path = os.environ.get("DATABENTO_CACHE_PROBE_LOG", "").strip()
+    if _cache_probe_log_path:
+        from databento_volatility_screener import enable_cache_probe_log
+        enable_cache_probe_log()
+
     load_dotenv(REPO_ROOT / ".env")
 
     parser = argparse.ArgumentParser(description="Run the Databento production export pipeline.")
@@ -4584,6 +4593,11 @@ def main(argv: Sequence[str] | None = None) -> None:
     print("BATL_DEBUG", result["batl_debug"])
     for key, path in sorted(result["exported_paths"].items()):
         print(key.upper(), path)
+
+    if _cache_probe_log_path:
+        from databento_volatility_screener import dump_cache_probe_log
+        n = dump_cache_probe_log(_cache_probe_log_path)
+        print(f"CACHE_PROBE_LOG {n} {_cache_probe_log_path}")
 
 
 if __name__ == "__main__":

@@ -53,6 +53,41 @@ from strategy_config import (
 logger = logging.getLogger(__name__)
 
 
+# F-V8-perf-3.5 (2026-05-18): Cache-probe-log. When enabled via
+# enable_cache_probe_log(), every call into _read_cached_frame() records
+# the cache path and whether the file existed at lookup time. The
+# producer dumps the log as JSONL at end of run via dump_cache_probe_log().
+# Purpose: feed the post-cutover sharded-file-cache architecture decision
+# (Folge-PR to #2289/#2290) with real data. Cross-day path-overlap
+# computed from two consecutive probe-cron runs estimates the hit-rate a
+# persistent date-bucket cache would deliver, decoupled from TTL/freshness
+# logic (which is independent of cache persistence between runs).
+_CACHE_PROBE_LOG: list[dict[str, object]] | None = None
+
+
+def enable_cache_probe_log() -> None:
+    global _CACHE_PROBE_LOG
+    if _CACHE_PROBE_LOG is None:
+        _CACHE_PROBE_LOG = []
+
+
+def _record_cache_probe(path: Path, *, hit: bool) -> None:
+    if _CACHE_PROBE_LOG is None:
+        return
+    _CACHE_PROBE_LOG.append({"path": str(path), "hit": bool(hit)})
+
+
+def dump_cache_probe_log(out_path: str | Path) -> int:
+    if _CACHE_PROBE_LOG is None:
+        return 0
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with out.open("w", encoding="utf-8") as fh:
+        for entry in _CACHE_PROBE_LOG:
+            fh.write(json.dumps(entry) + "\n")
+    return len(_CACHE_PROBE_LOG)
+
+
 # A8 telemetry mirror of scripts/databento_production_export.py:_rss_*_snapshot
 # Used by build_daily_features_full_universe() Step 9/10a sub-step markers to
 # diagnose the SIGTERM-after-39min-silence failure observed in n=4 Run 25462396194.
@@ -338,7 +373,9 @@ def build_cache_path(
 
 
 def _read_cached_frame(path: Path, *, max_age_seconds: int | None = None) -> pd.DataFrame | None:
-    if not path.exists():
+    exists = path.exists()
+    _record_cache_probe(path, hit=exists)
+    if not exists:
         return None
     if max_age_seconds is not None:
         # ``max_age_seconds == 0`` is the "force-expire" sentinel used to
