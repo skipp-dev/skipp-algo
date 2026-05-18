@@ -6,7 +6,14 @@ Real-time news intelligence dashboard powered by **Benzinga REST polling** + **F
 existing open\_prep intelligence classifiers.  Runs as a standalone Streamlit app
 (`streamlit_terminal.py`), separate from the batch-oriented `streamlit_monitor.py`.
 
-**Status:** Fully implemented and operational (Feb 2026).
+**Status:** Partially implemented (as of May 2026). The Benzinga REST polling pipeline,
+the 11 production tabs (Rankings · Actionable · AI Insights · Segments · Outlook ·
+Live Feed · Bitcoin · Alerts · Data Table · Signal Replay · Provider Health) and the
+notification/export paths are live in `streamlit_terminal.py`. Items still tracked
+against this plan — extracted `terminal_tabs/*` adoption beyond `tab_fmp_ai`, the
+WebSocket Benzinga ingest, and several roadmap-only governance hooks — are **not yet
+wired into the running terminal**. Treat the sections below as the target
+architecture, not as a description of the deployed state.
 
 ---
 
