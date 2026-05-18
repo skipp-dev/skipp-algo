@@ -1190,3 +1190,121 @@ class TestEvaluateSweepEmptyFuture:
         )
         # The NaN bars get dropped by _to_epoch_seconds, so this returns None (only 1 bar left)
         assert result is None
+
+
+def _three_bar_frame() -> pd.DataFrame:
+    return measurement_evidence._to_epoch_seconds(pd.DataFrame([
+        {"symbol": "A", "timestamp": "2024-01-01", "open": 100, "high": 101, "low": 99, "close": 100, "volume": 1},
+        {"symbol": "A", "timestamp": "2024-01-02", "open": 100, "high": 102, "low": 99, "close": 101, "volume": 1},
+        {"symbol": "A", "timestamp": "2024-01-03", "open": 101, "high": 103, "low": 100, "close": 102, "volume": 1},
+    ]))
+
+
+class TestObContextPriceGuard:
+    """Guard against current_price <= 0 / non-finite producing inflated distances."""
+
+    def _call(self, current_price: float) -> dict:
+        bars = _three_bar_frame()
+        ts2 = float(bars["timestamp"].iloc[1])
+        return measurement_evidence._ob_context_light_for_event(
+            current_event={"id": "evt"},
+            family="OB",
+            orderblocks=[{"id": "ob1", "anchor_ts": float(bars["timestamp"].iloc[0]),
+                          "low": 99.0, "high": 100.0, "dir": "BULL"}],
+            bars=bars,
+            anchor_idx=1,
+            anchor_ts=ts2,
+            current_price=current_price,
+            diagnostics_by_id={},
+        )
+
+    def test_zero_price_short_circuits_to_none_payload(self) -> None:
+        result = self._call(0.0)
+        assert result == {
+            "PRIMARY_OB_SIDE": "NONE",
+            "PRIMARY_OB_DISTANCE": 0.0,
+            "OB_FRESH": False,
+            "OB_AGE_BARS": 0,
+            "OB_MITIGATION_STATE": "stale",
+        }
+
+    def test_negative_price_short_circuits(self) -> None:
+        assert self._call(-1.0)["PRIMARY_OB_SIDE"] == "NONE"
+
+    def test_nan_price_short_circuits(self) -> None:
+        assert self._call(float("nan"))["PRIMARY_OB_SIDE"] == "NONE"
+
+
+class TestFvgLifecyclePriceGuard:
+    """Guard against current_price <= 0 / non-finite in FVG distance calc."""
+
+    def _call(self, current_price: float) -> dict:
+        bars = _three_bar_frame()
+        ts2 = float(bars["timestamp"].iloc[1])
+        return measurement_evidence._fvg_lifecycle_light_for_event(
+            current_event={"id": "evt"},
+            family="FVG",
+            fvgs=[{"id": "fvg1", "anchor_ts": float(bars["timestamp"].iloc[0]),
+                   "low": 99.0, "high": 100.0, "dir": "BULL"}],
+            bars=bars,
+            anchor_idx=1,
+            anchor_ts=ts2,
+            current_price=current_price,
+            diagnostics_by_id={},
+        )
+
+    def test_zero_price_short_circuits_to_none_payload(self) -> None:
+        assert self._call(0.0) == {
+            "PRIMARY_FVG_SIDE": "NONE",
+            "PRIMARY_FVG_DISTANCE": 0.0,
+            "FVG_FILL_PCT": 0.0,
+            "FVG_MATURITY_LEVEL": 0,
+            "FVG_FRESH": False,
+            "FVG_INVALIDATED": False,
+        }
+
+    def test_inf_price_short_circuits(self) -> None:
+        assert self._call(float("inf"))["PRIMARY_FVG_SIDE"] == "NONE"
+
+
+class TestFvgQualityIsFullBody:
+    """Zero-range bars (dojis) must not be labelled is_full_body=True."""
+
+    def _bars_with_anchor(self, open_v: float, high: float, low: float, close: float) -> pd.DataFrame:
+        return measurement_evidence._to_epoch_seconds(pd.DataFrame([
+            {"symbol": "A", "timestamp": "2024-01-01", "open": 100, "high": 101, "low": 99, "close": 100, "volume": 1},
+            {"symbol": "A", "timestamp": "2024-01-02",
+             "open": open_v, "high": high, "low": low, "close": close, "volume": 1},
+            {"symbol": "A", "timestamp": "2024-01-03", "open": 101, "high": 103, "low": 100, "close": 102, "volume": 1},
+        ]))
+
+    def test_zero_range_doji_is_not_full_body(self) -> None:
+        # high == low → range 0; previously max(rng, 1e-9) inflated body/rng to ~1e9
+        # and silently set is_full_body=True for every doji.
+        bars = self._bars_with_anchor(open_v=100.0, high=100.0, low=100.0, close=100.0)
+        features = measurement_evidence._fvg_quality_features(
+            event={},
+            bars=bars,
+            anchor_idx=1,
+            low=99.0,
+            high=100.0,
+            direction="BULL",
+            event_context={},
+            bias_direction="BULLISH",
+        )
+        assert features["is_full_body"] is False
+
+    def test_genuine_full_body_still_detected(self) -> None:
+        # body 1.0 / range 1.0 = 1.0 >= 0.7
+        bars = self._bars_with_anchor(open_v=100.0, high=101.0, low=100.0, close=101.0)
+        features = measurement_evidence._fvg_quality_features(
+            event={},
+            bars=bars,
+            anchor_idx=1,
+            low=99.0,
+            high=100.0,
+            direction="BULL",
+            event_context={},
+            bias_direction="BULLISH",
+        )
+        assert features["is_full_body"] is True

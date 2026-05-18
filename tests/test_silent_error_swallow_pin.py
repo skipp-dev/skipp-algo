@@ -76,6 +76,9 @@ _FROZEN_SITES: dict[str, int] = {
     "scripts/generate_smc_micro_base_from_databento.py": 3,
     "smc_tv_bridge/smc_api.py": 1,
     "streamlit_terminal_alerts.py": 1,
+    # 2026-05-17 C12.1 ConstraintHitLog wiring: an audit-log write
+    # failure must never block a guard decision. See HardConstraintLayer._log.
+    "rl/safety/__init__.py": 1,
 }
 
 _FROZEN_TOTAL = sum(_FROZEN_SITES.values())
