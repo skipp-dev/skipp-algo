@@ -91,6 +91,63 @@ def test_resolve_runs_on_falls_back_when_runner_is_busy_or_offline() -> None:
     assert resolution.matched_runner_name is None
 
 
+def test_resolve_runs_on_no_idle_fallback_required_self_hosted_routes_to_labels() -> None:
+    module = _load_module()
+
+    runners = [
+        {
+            "name": "busy-runner",
+            "status": "online",
+            "busy": True,
+            "labels": [
+                {"name": "self-hosted"},
+                {"name": "windows"},
+                {"name": "x64"},
+            ],
+        },
+    ]
+
+    resolution = module.resolve_runs_on(
+        runners=runners,
+        custom_label="",
+        hosted_runner="ubuntu-latest",
+        no_idle_fallback="required-self-hosted",
+    )
+
+    assert resolution.runs_on == ["self-hosted", "windows", "x64"]
+    assert resolution.runner_environment == "self-hosted"
+    assert resolution.reason == "no_idle_matching_self_hosted_runner:forced_required_self_hosted"
+    assert resolution.matched_runner_name is None
+
+
+def test_resolve_runs_on_no_idle_fallback_hosted_preserves_legacy_behavior() -> None:
+    module = _load_module()
+
+    runners = [
+        {
+            "name": "offline-runner",
+            "status": "offline",
+            "busy": False,
+            "labels": [
+                {"name": "self-hosted"},
+                {"name": "windows"},
+                {"name": "x64"},
+            ],
+        },
+    ]
+
+    resolution = module.resolve_runs_on(
+        runners=runners,
+        custom_label="",
+        hosted_runner="ubuntu-latest",
+        no_idle_fallback="hosted",
+    )
+
+    assert resolution.runs_on == "ubuntu-latest"
+    assert resolution.runner_environment == "github-hosted"
+    assert resolution.reason == "no_idle_matching_self_hosted_runner"
+
+
 def test_runner_matches_required_labels_is_case_insensitive() -> None:
     module = _load_module()
 
@@ -178,3 +235,51 @@ def test_main_forces_required_self_hosted_when_token_missing(monkeypatch, tmp_pa
     assert 'runs_on_json=["self-hosted", "windows", "x64", "priority-cron"]' in payload
     assert "runner_environment=self-hosted" in payload
     assert "resolution_reason=missing_token_env:GH_TOKEN:forced_required_self_hosted" in payload
+
+
+def test_main_no_idle_fallback_required_self_hosted_routes_when_all_busy(
+    monkeypatch, tmp_path: Path
+) -> None:
+    module = _load_module()
+
+    output_path = tmp_path / "github_output.txt"
+    monkeypatch.setenv("GH_TOKEN", "fake-token")
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
+
+    def _busy_inventory(*args, **kwargs):
+        return [
+            {
+                "name": "busy-runner",
+                "status": "online",
+                "busy": True,
+                "labels": [
+                    {"name": "self-hosted"},
+                    {"name": "windows"},
+                    {"name": "x64"},
+                ],
+            },
+        ]
+
+    monkeypatch.setattr(module, "_fetch_repository_runners", _busy_inventory)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "resolve_workflow_runner.py",
+            "--repository",
+            "owner/repo",
+            "--no-idle-fallback",
+            "required-self-hosted",
+        ],
+    )
+
+    exit_code = module.main()
+
+    assert exit_code == 0
+    payload = output_path.read_text(encoding="utf-8")
+    assert 'runs_on_json=["self-hosted", "windows", "x64"]' in payload
+    assert "runner_environment=self-hosted" in payload
+    assert (
+        "resolution_reason=no_idle_matching_self_hosted_runner:forced_required_self_hosted"
+        in payload
+    )
