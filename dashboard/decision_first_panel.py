@@ -13,7 +13,7 @@ The panel consumes ``Decision`` dicts from
 ``governance.promotion_gate.PromotionGate.evaluate(...)`` (Sprint X2)
 as its only source of truth. To stay independent of an X2 import
 order we duck-type the Decision dict (the schema is pinned at
-``governance.types.Decision`` schema_version=1).
+``governance.types.Decision`` with schema_version>=1).
 
 The renderer is a pure text mode; snapshot tests assert this output
 verbatim. A streamlit-aware mode can wrap this output later if needed.
@@ -27,6 +27,11 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
+
+from governance.promotion_report import (
+    DEFAULT_PROMOTION_DECISIONS_PATH,
+    load_decisions_from_report as _load_decisions_from_report,
+)
 
 POSTURE_GLYPH: dict[str, str] = {
     "green": "[GREEN]",
@@ -154,33 +159,15 @@ def render_panel(
     return "\n\n".join(blocks)
 
 
-def load_decisions_from_report(path: str | Path) -> list[Mapping[str, object]]:
-    """Load the list of Decision dicts from a W1.b promotion-gate report.
-
-    The report is the JSON document written by
-    ``scripts/run_promotion_gate.py``. Schema is validated minimally
-    (must be a dict with a ``decisions`` list); per-decision validation
-    is left to ``build_card`` which already tolerates missing keys.
-
-    Raises ``ValueError`` on a malformed top-level shape so the panel
-    fails loud rather than rendering an empty placeholder.
-    """
-    raw = json.loads(Path(path).read_text(encoding="utf-8"))
-    if not isinstance(raw, dict) or "decisions" not in raw:
-        raise ValueError(
-            f"promotion-gate report {path} must be a dict with a 'decisions' "
-            f"key (got {type(raw).__name__})"
-        )
-    decisions = raw["decisions"]
-    if not isinstance(decisions, list):
-        raise ValueError(
-            f"promotion-gate report {path} 'decisions' must be a list "
-            f"(got {type(decisions).__name__})"
-        )
-    return [dict(d) for d in decisions]
+def load_decisions_from_report(
+    path: str | Path = DEFAULT_PROMOTION_DECISIONS_PATH,
+) -> list[Mapping[str, object]]:
+    """Load the decision list from the shared PromotionGate report contract."""
+    return _load_decisions_from_report(path)
 
 
 __all__ = [
+    "DEFAULT_PROMOTION_DECISIONS_PATH",
     "POSTURE_GLYPH",
     "FamilyCard",
     "build_card",

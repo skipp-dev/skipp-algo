@@ -340,6 +340,11 @@ from newsstack_fmp._bz_http import _WARNED_ENDPOINTS
 from newsstack_fmp.ingest_benzinga import BenzingaRestAdapter
 from newsstack_fmp.ingest_fmp import FmpAdapter
 from newsstack_fmp.store_sqlite import SqliteStore
+from dashboard.decision_first_panel import (
+    DEFAULT_PROMOTION_DECISIONS_PATH,
+    load_decisions_from_report,
+    render_panel as render_decision_first_panel,
+)
 from open_prep.log_redaction import apply_global_log_redaction
 from open_prep.outcomes import _load_outcomes_range, compute_hit_rates
 from open_prep.playbook import classify_recency as _classify_recency
@@ -3002,7 +3007,7 @@ else:
         ["🏆 Rankings", "🎯 Actionable", "🧠 AI Insights", "🏗️ Segments", "🔮 Outlook",
          "📰 Live Feed", "₿ Bitcoin",
          "⚡ Alerts", "📊 Data Table", "📜 Signal Replay", "🩺 Provider Health",
-         "🚦 Decision-First"],
+         "🪪 Decision-First"],
     )
 
     # ── TAB: Live Feed (with search + date filter) ──────────
@@ -5092,45 +5097,44 @@ else:
                     })
                 st.dataframe(pd.DataFrame(_sem_rows), hide_index=True, use_container_width=True)
 
-    # ── TAB: Decision-First Panel (C7.1) ────────────────────────
+    # ── TAB: Decision-First Panel (C7.1 / W1 wiring) ─────────────────────
     with tab_decisions, _tab_guard("Decision-First"):
-        st.header("🚦 Decision-First Panel")
+        st.header("🪪 Decision-First Panel")
         st.caption(
             "One card per family: posture, top blocker, walk-forward Brier sparkline, "
             "headline metrics. Source = governance.promotion_gate decisions."
         )
 
-        _decisions_src = st.session_state.get("promotion_decisions")
-        _decisions_path = Path("artifacts") / "promotion_decisions.json"
+        _decisions_override = st.session_state.get("promotion_decisions")
+        _histories = st.session_state.get("promotion_walkforward_histories") or {}
+        _decisions: list[dict[str, object]] = []
         _decisions_origin = "session_state"
-        if not _decisions_src and _decisions_path.is_file():
-            try:
-                _decisions_payload = json.loads(_decisions_path.read_text(encoding="utf-8"))
-                _decisions_src = (
-                    _decisions_payload.get("decisions")
-                    if isinstance(_decisions_payload, dict)
-                    else _decisions_payload
-                )
-                _decisions_origin = str(_decisions_path)
-            except Exception as _dec_exc:
-                st.warning(f"Could not parse {_decisions_path}: {_dec_exc}")
-                _decisions_src = None
 
-        if not _decisions_src:
+        if _decisions_override:
+            _decisions = [dict(d) for d in list(_decisions_override)]
+        else:
+            try:
+                _decisions = [dict(d) for d in load_decisions_from_report()]
+                _decisions_origin = str(DEFAULT_PROMOTION_DECISIONS_PATH)
+            except FileNotFoundError:
+                _decisions = []
+            except ValueError as _dec_exc:
+                st.warning(f"Could not parse {DEFAULT_PROMOTION_DECISIONS_PATH}: {_dec_exc}")
+                _decisions = []
+
+        if not _decisions:
             st.info(
-                "No promotion decisions available yet. Drop a JSON list of `Decision` "
-                f"dicts at `{_decisions_path}` or push them into "
-                "`st.session_state['promotion_decisions']`."
+                "No promotion decisions available yet. Run `scripts/run_promotion_gate.py` "
+                f"or drop a report at `{DEFAULT_PROMOTION_DECISIONS_PATH}`. "
+                "`st.session_state['promotion_decisions']` remains an in-memory override."
             )
         else:
             try:
-                from dashboard.decision_first_panel import render_panel as _render_dec_panel
-                _histories = st.session_state.get("promotion_walkforward_histories") or {}
-                _panel_text = _render_dec_panel(
-                    list(_decisions_src),
+                _panel_text = render_decision_first_panel(
+                    _decisions,
                     walkforward_histories=_histories,
                 )
-                st.caption(f"Source: `{_decisions_origin}` · {len(list(_decisions_src))} families")
+                st.caption(f"Source: `{_decisions_origin}` · {len(_decisions)} families")
                 st.code(_panel_text, language="text")
             except Exception as _panel_exc:
                 st.error(f"Decision-First panel failed: {_panel_exc}")
