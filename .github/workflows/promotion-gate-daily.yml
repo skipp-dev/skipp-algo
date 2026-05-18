@@ -1,0 +1,235 @@
+# live-window: off-hours-only  # 09:30 UTC daily — between rolling-bench (07:30) and f2-promotion-gate-daily (10:00)
+name: promotion-gate-daily
+
+# Sprint W1.b — daily PromotionGate evaluation.
+#
+# Plan reference:
+#   /memories/session/plan.md (W1 PR Framing & Producer Path)
+#
+# Each day this workflow:
+#   1. Resolves the run date (UTC today, override via workflow_dispatch).
+#   2. Downloads the most-recent `smc-measurement-benchmark-rolling-<DATE>`
+#      artifact (or the freshest one if today's is not yet produced).
+#   3. Builds a FamilyMetrics bundle from the rolling-bench scoring root
+#      via `scripts/build_promotion_gate_bundle.py`.
+#   4. Runs `scripts/run_promotion_gate.py` in strict-provenance mode.
+#   5. Publishes the report twice:
+#        * dated report  (`artifacts/reports/promotion_gate_<DATE>.json`)
+#        * stable alias  (`artifacts/promotion_decisions.json`)
+#      so the Streamlit Decision-First tab and dashboards always have
+#      a "latest" pointer in addition to historical snapshots.
+#
+# Advisory strict semantics (W1.b first cut):
+#   * gate exit code 2 (one or more families blocked / metrics missing)
+#     is treated as expected during W1: we surface ::warning:: + step
+#     summary but do NOT fail the workflow. The honest "red" report is
+#     the product, not a CI failure.
+#   * gate exit code 1 (config / load error) is a real bug — workflow
+#     fails.
+#   * missing upstream artifact => status=skipped, exit 0, ::warning::.
+#
+# Nothing in this workflow mutates production calibration or pushes to
+# git. The dashboard consumer pulls the artifact out-of-band.
+
+on:
+  schedule:
+    - cron: "30 9 * * *"
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Override target date (YYYY-MM-DD). Default: today UTC."
+        required: false
+        default: ""
+      no_strict:
+        description: "Disable strict_provenance for this run (debug only)."
+        required: false
+        default: "false"
+
+permissions:
+  contents: read
+  actions: read  # gh run list/download against the rolling-bench workflow
+
+concurrency:
+  group: promotion-gate-daily
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  promotion-gate:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Setup Python (pinned 3.12)
+        uses: ./.github/actions/setup-python-pinned
+        with:
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+
+      - name: Resolve target date
+        id: date
+        run: |
+          if [ -n "${{ inputs.date }}" ]; then
+            echo "value=${{ inputs.date }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download rolling-benchmark artifact
+        id: download
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO:  ${{ github.repository }}
+          DATE:     ${{ steps.date.outputs.value }}
+        run: |
+          set +e
+          mkdir -p artifacts/ci
+          ART_NAME="smc-measurement-benchmark-rolling-${DATE}"
+          # Iterate the last 8 completed rolling-bench runs and pick the
+          # first one whose artifact actually downloads. Same pattern as
+          # f2-promotion-gate-daily.yml (audit H7 fix).
+          RUN_IDS=$(gh run list \
+            --workflow smc-measurement-benchmark-rolling.yml \
+            --branch main \
+            --limit 8 \
+            --json databaseId,status \
+            --jq '.[] | select(.status=="completed") | .databaseId')
+          if [ -z "${RUN_IDS}" ]; then
+            echo "status=skipped" >> "$GITHUB_OUTPUT"
+            echo "reason=no_recent_run" >> "$GITHUB_OUTPUT"
+            echo "::warning title=promotion-gate-daily::no recent completed rolling-bench run on main"
+            exit 0
+          fi
+          for rid in ${RUN_IDS}; do
+            rm -rf artifacts/ci/_attempt
+            mkdir -p artifacts/ci/_attempt
+            if gh run download "${rid}" \
+                --name "${ART_NAME}" \
+                --dir  artifacts/ci/_attempt/ 2>/dev/null; then
+              mkdir -p "artifacts/ci/measurement_benchmark_rolling/${DATE}"
+              cp -R artifacts/ci/_attempt/. "artifacts/ci/measurement_benchmark_rolling/${DATE}/" 2>/dev/null || true
+              rm -rf artifacts/ci/_attempt
+              echo "status=ready" >> "$GITHUB_OUTPUT"
+              echo "run_id=${rid}" >> "$GITHUB_OUTPUT"
+              echo "scoring_root=artifacts/ci/measurement_benchmark_rolling/${DATE}" >> "$GITHUB_OUTPUT"
+              echo "::notice title=promotion-gate-daily::artifact ${ART_NAME} fetched from run ${rid}"
+              break
+            fi
+          done
+          rm -rf artifacts/ci/_attempt
+          if ! grep -q "^status=ready" "$GITHUB_OUTPUT"; then
+            echo "status=skipped" >> "$GITHUB_OUTPUT"
+            echo "reason=artifact_not_found" >> "$GITHUB_OUTPUT"
+            echo "::warning title=promotion-gate-daily::artifact ${ART_NAME} not found in the last 8 completed rolling-bench runs"
+          fi
+          exit 0
+
+      - name: Skip — rolling-bench artifact unavailable
+        if: steps.download.outputs.status == 'skipped'
+        run: |
+          echo "## promotion-gate-daily: SKIPPED" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Reason: \`${{ steps.download.outputs.reason }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Date:   \`${{ steps.date.outputs.value }}\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Build FamilyMetrics bundle
+        if: steps.download.outputs.status == 'ready'
+        id: bundle
+        run: |
+          mkdir -p artifacts
+          BUNDLE="artifacts/promotion_gate_bundle_${{ steps.date.outputs.value }}.json"
+          python scripts/build_promotion_gate_bundle.py \
+            --scoring-root "${{ steps.download.outputs.scoring_root }}" \
+            --output       "${BUNDLE}" \
+            --date         "${{ steps.date.outputs.value }}"
+          echo "path=${BUNDLE}" >> "$GITHUB_OUTPUT"
+
+      - name: Run PromotionGate
+        if: steps.download.outputs.status == 'ready'
+        id: gate
+        run: |
+          set +e
+          mkdir -p artifacts/reports
+          DATED_REPORT="artifacts/reports/promotion_gate_${{ steps.date.outputs.value }}.json"
+          STRICT_FLAG=""
+          if [ "${{ inputs.no_strict }}" = "true" ]; then
+            STRICT_FLAG="--no-strict"
+          fi
+          python scripts/run_promotion_gate.py \
+            --metrics "${{ steps.bundle.outputs.path }}" \
+            --output  "${DATED_REPORT}" \
+            ${STRICT_FLAG}
+          rc=$?
+          echo "rc=${rc}" >> "$GITHUB_OUTPUT"
+          echo "dated_report=${DATED_REPORT}" >> "$GITHUB_OUTPUT"
+          # Publish the stable "latest" alias the Decision-First panel
+          # reads by default. Copy is intentional (artifact upload picks
+          # up both paths separately).
+          mkdir -p artifacts
+          cp "${DATED_REPORT}" artifacts/promotion_decisions.json
+          # Exit-code policy (W1.b advisory):
+          #   0 = all families promoted                           -> CI green
+          #   2 = some blocked / missing                          -> CI green + warning
+          #   1 = config / load error                             -> CI red
+          if [ "${rc}" -eq 0 ]; then
+            exit 0
+          fi
+          if [ "${rc}" -eq 2 ]; then
+            echo "::warning title=promotion-gate-daily::gate exited rc=2 (blocked or metrics missing) — advisory in W1.b first cut"
+            exit 0
+          fi
+          echo "::error::promotion gate emitted unexpected return code ${rc} (expected 0=pass, 2=blocked, 1=config-error)"
+          exit 1
+
+      - name: Step summary — gate decisions
+        if: steps.download.outputs.status == 'ready' && always()
+        run: |
+          REPORT="${{ steps.gate.outputs.dated_report }}"
+          if [ ! -f "${REPORT}" ]; then
+            echo "## promotion-gate-daily: NO REPORT" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json, os
+          p = "${{ steps.gate.outputs.dated_report }}"
+          r = json.load(open(p))
+          print(f"## promotion-gate-daily: {os.path.basename(p)}")
+          print()
+          print(f"- schema_version: `{r.get('schema_version')}`")
+          print(f"- gate_schema_version: `{r.get('gate_schema_version')}`")
+          print(f"- generated_at: `{r.get('generated_at')}`")
+          print(f"- strict_provenance: `{r.get('strict_provenance')}`")
+          print()
+          print("| family | promoted | posture | blockers |")
+          print("|---|---|---|---|")
+          for d in r.get("decisions", []):
+              blockers = d.get("blockers", []) or []
+              print(f"| {d.get('family')} | {d.get('promoted')} | {d.get('posture')} | {len(blockers)} |")
+          PY
+
+      - name: Upload promotion-gate artifacts
+        if: steps.download.outputs.status == 'ready' && always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: promotion-gate-daily-${{ steps.date.outputs.value }}
+          path: |
+            artifacts/promotion_decisions.json
+            artifacts/reports/promotion_gate_${{ steps.date.outputs.value }}.json
+            artifacts/promotion_gate_bundle_${{ steps.date.outputs.value }}.json
+          retention-days: 45
+          if-no-files-found: warn

@@ -19,9 +19,14 @@ from __future__ import annotations
 import math
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Union
 
-from governance.types import Blocker, Decision, EventFamily, Posture
+from governance.types import (
+    Blocker,
+    Decision,
+    EventFamily,
+    Posture,
+    ProvenanceValue,
+)
 
 DECISION_SCHEMA_VERSION = 2
 
@@ -81,15 +86,11 @@ DEFAULT_LIVE_VS_WF_RATIO_MAX = 1.5
 # without blocking otherwise-passing promotions on a single suspicious
 # ratio.
 DEFAULT_LIVE_VS_WF_RATIO_MIN = 0.05
-
 # Sprint W1.a additions — conservative starting thresholds; tighten when
 # the corresponding sprint modules publish their own constants.
-#   psi_slope: per-period PSI drift slope. C9.1 alarms at >0.05/period
-#              (ml/drift/trend.py::psi_trend_alert default), gate caps
-#              at the same value.
+#   psi_slope: per-period PSI drift slope. C9.1 alarms at >0.05/period.
 #   conformal_coverage_tolerance: how far observed coverage may fall
-#              below ``conformal_target`` before the gate blocks. 0.02
-#              gives a 2pp slack on the nominal 90/95% conformal sets.
+#              below ``conformal_target`` before the gate blocks.
 DEFAULT_PSI_SLOPE_MAX = 0.05
 DEFAULT_CONFORMAL_COVERAGE_TOLERANCE = 0.02
 
@@ -107,10 +108,9 @@ class GateThresholds:
     psi_slope_max: float = DEFAULT_PSI_SLOPE_MAX
     conformal_coverage_tolerance: float = DEFAULT_CONFORMAL_COVERAGE_TOLERANCE
     # Sprint W1.a: when True, missing provenance keys and missing W1.a
-    # fields (regime_degraded, psi_slope, conformal_coverage) emit
-    # ``info`` blockers and prevent promotion. Default False so legacy
-    # callers keep their existing posture; W1.b's CLI flips this to True
-    # for the production pipeline.
+    # fields emit ``info`` blockers and prevent promotion. Default False
+    # so legacy callers keep their existing posture; W1.b's CLI flips
+    # this to True for the production pipeline.
     strict_provenance: bool = False
 
 
@@ -151,7 +151,7 @@ class FamilyMetrics:
     # W1.a: non-numeric hardening metadata (wf_scheme, bootstrap_method,
     # psr_method, ...). Keys listed in REQUIRED_PROVENANCE_KEYS are
     # required under strict mode.
-    provenance: dict[str, Union[str, int, float, bool]] = field(default_factory=dict)
+    provenance: dict[str, ProvenanceValue] = field(default_factory=dict)
     extras: dict[str, float] = field(default_factory=dict)
 
 
@@ -415,11 +415,12 @@ class PromotionGate:
             metrics[f"extra.{k}"] = float(v)
 
         # ---- W1.a additions ----------------------------------------------
-        provenance_out: dict[str, Union[str, int, float, bool]] = dict(snapshot.provenance)
+        provenance_out = dict(snapshot.provenance)
 
         # C5.1 regime degradation: True is always a hard blocker; None is
         # only blocking when strict_provenance is on.
         if snapshot.regime_degraded is True:
+            metrics["regime_degraded"] = 1.0
             blockers.append({
                 "check": "regime_degraded",
                 "severity": "blocker",
@@ -441,8 +442,8 @@ class PromotionGate:
             else:
                 ok_regime = True
         else:
-            ok_regime = True
             metrics["regime_degraded"] = 0.0
+            ok_regime = True
 
         # C9.1 PSI-trend slope.
         if snapshot.psi_slope is None:
@@ -469,10 +470,7 @@ class PromotionGate:
             )
 
         # C10.1 conformal coverage vs target.
-        if (
-            snapshot.conformal_coverage is None
-            or snapshot.conformal_target is None
-        ):
+        if snapshot.conformal_coverage is None or snapshot.conformal_target is None:
             if t.strict_provenance:
                 blockers.append({
                     "check": "conformal_coverage",
@@ -495,7 +493,10 @@ class PromotionGate:
         else:
             metrics["conformal_coverage"] = float(snapshot.conformal_coverage)
             metrics["conformal_target"] = float(snapshot.conformal_target)
-            floor = float(snapshot.conformal_target) - float(t.conformal_coverage_tolerance)
+            floor = (
+                float(snapshot.conformal_target)
+                - float(t.conformal_coverage_tolerance)
+            )
             if snapshot.conformal_coverage < floor:
                 blockers.append({
                     "check": "conformal_coverage",
@@ -524,16 +525,25 @@ class PromotionGate:
                         "threshold": 0.0,
                         "message": f"provenance.{key} not declared",
                     })
-            ok_provenance = all(
-                key in provenance_out for key in REQUIRED_PROVENANCE_KEYS
-            )
+            ok_provenance = all(key in provenance_out for key in REQUIRED_PROVENANCE_KEYS)
         else:
             ok_provenance = True
 
-        promoted = all((
-            ok_brier, ok_ece, ok_fdr, ok_psr, ok_mintrl, ok_psi, ok_live,
-            ok_regime, ok_psi_slope, ok_conformal, ok_provenance,
-        ))
+        promoted = all(
+            (
+                ok_brier,
+                ok_ece,
+                ok_fdr,
+                ok_psr,
+                ok_mintrl,
+                ok_psi,
+                ok_live,
+                ok_regime,
+                ok_psi_slope,
+                ok_conformal,
+                ok_provenance,
+            )
+        )
         decision: Decision = {
             "schema_version": DECISION_SCHEMA_VERSION,
             "family": snapshot.family,

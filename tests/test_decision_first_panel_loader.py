@@ -7,12 +7,13 @@ from pathlib import Path
 import pytest
 
 from dashboard.decision_first_panel import (
+    DEFAULT_PROMOTION_DECISIONS_PATH,
     load_decisions_from_report,
     render_panel,
 )
 
 
-def _sample_report() -> dict:
+def _sample_report() -> dict[str, object]:
     return {
         "schema_version": 1,
         "gate_schema_version": 2,
@@ -56,6 +57,15 @@ def test_load_decisions_round_trips_report(tmp_path: Path) -> None:
     assert [d["family"] for d in decisions] == ["BOS", "OB"]
     assert decisions[0]["promoted"] is True
     assert decisions[1]["posture"] == "orange"
+
+
+def test_load_decisions_uses_default_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    p = tmp_path / DEFAULT_PROMOTION_DECISIONS_PATH
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(_sample_report()), encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    decisions = load_decisions_from_report()
+    assert [d["family"] for d in decisions] == ["BOS", "OB"]
 
 
 def test_load_decisions_rejects_non_dict_top_level(tmp_path: Path) -> None:

@@ -6,10 +6,11 @@ PSI-trend, conformal calibration) and emits a single Decision bundle
 report. This is the runtime hook that turns the X2 consolidator from
 a tests-only artifact into a real promotion-decision producer.
 
-The bundle file is a JSON list of `FamilyMetrics`-shaped dicts; one
+The bundle file is a JSON list of ``FamilyMetrics``-shaped dicts; one
 entry per ``EventFamily``. The CLI runs ``PromotionGate.evaluate(...)``
 in strict mode by default (``--no-strict`` disables) and writes the
-report to the path passed via ``--output`` (also echoed to stdout).
+report to ``artifacts/promotion_decisions.json`` unless ``--output``
+overrides it.
 
 Output shape (``REPORT_SCHEMA_VERSION = 1``)::
 
@@ -43,10 +44,12 @@ from governance.promotion_gate import (
     GateThresholds,
     PromotionGate,
 )
+from governance.promotion_report import (
+    DEFAULT_PROMOTION_DECISIONS_PATH,
+    REPORT_SCHEMA_VERSION,
+)
 from governance.types import Decision, EventFamily
 from scripts.smc_atomic_write import atomic_write_json
-
-REPORT_SCHEMA_VERSION = 1
 
 _VALID_FAMILIES = set(get_args(EventFamily))
 
@@ -147,8 +150,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--output",
         type=Path,
-        required=True,
-        help="Path to write the promotion-gate report JSON.",
+        default=DEFAULT_PROMOTION_DECISIONS_PATH,
+        help=(
+            "Path to write the promotion-gate report JSON "
+            f"(default: {DEFAULT_PROMOTION_DECISIONS_PATH.as_posix()})."
+        ),
     )
     parser.add_argument(
         "--no-strict",
