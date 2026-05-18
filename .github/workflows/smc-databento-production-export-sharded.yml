@@ -1,4 +1,4 @@
-# live-window: manual-only
+# live-window: off-hours-probe-cron  # F-V8-perf (2026-05-18)
 # ---------------------------------------------------------------------------
 # smc-databento-production-export-sharded  (A9b.2a + A9b.2b)
 #
@@ -40,6 +40,17 @@
 name: smc-databento-production-export-sharded
 
 on:
+  # F-V8-perf (2026-05-18): probe cron. Runs the sharded producer once per
+  # weekday at 02:00 UTC — fully off-hours, no overlap with the monolithic
+  # producer (12:00/16:00 UTC) or the library-refresh consumer (16:00/20:00
+  # UTC). The compat-upload step is gated on github.event_name !=
+  # 'schedule' so the probe NEVER poisons the canonical artifact pool the
+  # consumer globs on. Purpose: collect 7 days of plan/producer/reduce
+  # success-rate + merged-manifest telemetry to validate the A9b.5
+  # cron-cutover. After cutover this block flips to 12:00/16:00 UTC and
+  # the compat-upload gate is removed.
+  schedule:
+    - cron: "0 2 * * 1-5"   # 02:00 UTC weekdays — off-hours probe
   workflow_dispatch:
     inputs:
       lookback_days:
@@ -91,8 +102,11 @@ jobs:
         id: compute
         run: |
           set -euo pipefail
-          LOOKBACK="${{ inputs.lookback_days }}"
-          NUM="${{ inputs.num_shards }}"
+          # `inputs.*` are empty on schedule triggers; fall back to the same
+          # defaults documented in workflow_dispatch.inputs so probe-cron runs
+          # exercise the cutover-target config (lookback_days=30, num_shards=6).
+          LOOKBACK="${{ inputs.lookback_days || '30' }}"
+          NUM="${{ inputs.num_shards || '6' }}"
           echo "::notice::Planning shards: lookback_days=${LOOKBACK} num_shards=${NUM}"
           python scripts/databento_plan_shards.py \
             --lookback-days "${LOOKBACK}" \
@@ -157,10 +171,16 @@ jobs:
       - name: Set up Python
         uses: ./.github/actions/setup-python-pinned
 
+      # F-V8-perf (2026-05-18): uv installer (mirrors ci.yml + #2285/#2286).
+      - name: Install uv
+        uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: requirements*.txt
+
       - name: Install Python dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          uv pip install --python python -r requirements.txt
 
       - name: Run Databento production export (sharded)
         env:
@@ -316,7 +336,12 @@ jobs:
       # since current consumers have no partial-run handling.
       - name: Stage compat export bundle (legacy artifact name)
         id: compat_stage
-        if: success()
+        # F-V8-perf (2026-05-18): on schedule (probe) triggers, do NOT stage
+        # or upload the legacy-compat bundle — the canonical artifact pool
+        # is still owned by the monolithic producer until A9b.5 cutover.
+        # workflow_dispatch keeps the original full-success behaviour for
+        # manual debugging / cutover-rehearsal runs.
+        if: success() && github.event_name != 'schedule'
         run: |
           set -euo pipefail
           COMPAT_DIR="artifacts/export-compat"
@@ -361,7 +386,7 @@ jobs:
           ls -la "${COMPAT_DIR}/" | head -40
 
       - name: Upload compat export bundle (legacy artifact name)
-        if: success() && steps.compat_stage.outputs.skip_compat == 'false'
+        if: success() && github.event_name != 'schedule' && steps.compat_stage.outputs.skip_compat == 'false'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: smc-databento-production-export-${{ steps.compat_stage.outputs.export_date }}-${{ github.run_id }}
