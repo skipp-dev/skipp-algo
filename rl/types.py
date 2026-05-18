@@ -84,18 +84,48 @@ class TradeBlotter:
 
         Features: [signed_pct_of_volume, sqrt_duration, abs_signed_pct].
         Target:   slippage in bps from mid_at_signal.
+
+        Records with ``mid_at_signal <= 0`` or non-finite
+        ``mid_at_signal``/``fill_price`` are dropped: a zero/negative mid
+        cannot be used as a denominator for bps conversion (would produce
+        a ~1e16 silent garbage target via a defensive epsilon floor), and
+        a non-finite fill makes the target undefined. A ``RuntimeWarning``
+        surfaces the drop count so upstream tick-quality issues are not
+        silently absorbed into the calibrator's training set.
         """
+        import math
+        import warnings
+
         import numpy as np
 
         if not self.records:
             raise ValueError("empty blotter")
         X_rows: list[list[float]] = []
         y_vals: list[float] = []
+        dropped = 0
         for r in self.records:
+            mid = r.mid_at_signal
+            if mid <= 0 or not math.isfinite(mid) or not math.isfinite(r.fill_price):
+                dropped += 1
+                continue
             v = max(r.volume_at_signal, 1.0)
             spct = (r.side * r.quantity) / v
             dur = max(r.duration_s, 1e-6)
             X_rows.append([spct, dur**0.5, abs(spct)])
-            slip = (r.fill_price - r.mid_at_signal) / max(r.mid_at_signal, 1e-12) * 1e4
+            slip = (r.fill_price - mid) / mid * 1e4
             y_vals.append(r.side * slip)  # positive = adverse
+        if dropped:
+            warnings.warn(
+                f"TradeBlotter.to_features_targets: dropped {dropped}/"
+                f"{len(self.records)} records (mid_at_signal <= 0 or non-finite "
+                "mid/fill); calibrator trained on the survivors. Investigate "
+                "upstream tick quality.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+        if not X_rows:
+            raise ValueError(
+                f"all {len(self.records)} blotter records dropped due to "
+                "invalid mid_at_signal/fill_price"
+            )
         return np.asarray(X_rows, dtype=float), np.asarray(y_vals, dtype=float)

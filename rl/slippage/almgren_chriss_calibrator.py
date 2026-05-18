@@ -47,8 +47,12 @@ class AlmgrenChrissCalibrator:
     def fit(self, X: np.ndarray, y_bps: np.ndarray) -> AlmgrenChrissCalibrator:
         if self.prior_precision <= 0:
             raise ValueError("prior_precision must be > 0")
-        if self.noise_variance < 0:
-            raise ValueError("noise_variance must be >= 0")
+        if self.noise_variance <= 0:
+            # Zero observation noise is a degenerate Bayesian prior
+            # (infinite-precision likelihood); the previous defensive
+            # ``max(noise_variance, 1e-9)`` floor silently produced a
+            # near-singular Sigma_inv. Require strict positivity instead.
+            raise ValueError("noise_variance must be > 0")
         X = np.asarray(X, dtype=float)
         y = np.asarray(y_bps, dtype=float)
         if X.ndim != 2 or X.shape[0] != y.shape[0]:
@@ -57,7 +61,7 @@ class AlmgrenChrissCalibrator:
             raise ValueError("need at least as many trades as features")
         d = X.shape[1]
         Lambda = self.prior_precision * np.eye(d)
-        sigma2 = max(self.noise_variance, 1e-9)
+        sigma2 = self.noise_variance
         Sigma_inv = X.T @ X / sigma2 + Lambda
         rhs = (X.T @ y) / sigma2
         try:
