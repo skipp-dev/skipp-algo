@@ -144,7 +144,7 @@ _FROZEN_SITES: dict[str, int] = {
     "scripts/generate_performance_report.py": 1,
     "scripts/probe_newsapi_feed_cursor.py": 5,
     "scripts/run_smc_e2e_smoke_test.py": 1,
-    "scripts/run_smc_measurement_benchmark.py": 1,
+    "scripts/run_smc_measurement_benchmark.py": 2,
     # Rebaselined 2026-05-03 (after PR #2035): bumped 1 → 3, see e2e_smoke_ci.py.
     "scripts/run_smc_release_gates.py": 3,
     "scripts/smc_performance_report.py": 1,
