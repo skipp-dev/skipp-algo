@@ -1,44 +1,30 @@
 """Pin: every ``continue-on-error: true`` step has advisory-grade naming.
 
-Background
-==========
+PR #124 introduced a name-allowlist for CoE-true steps and this test
+extends it with a *semantic* check: the step's ``name:`` (or, when
+missing, its ``id:``) MUST contain at least one keyword that signals an
+advisory / best-effort / notification intent. This stops a future
+contributor from sneaking a critical step under ``continue-on-error:
+true`` (which would silently swallow real failures).
 
-PR #124 introduced a name-allowlist for ``continue-on-error: true``
-steps in workflow files. This test extends the discipline with a
-*semantic* check: the step's ``name:`` MUST contain at least one
-keyword that signals an advisory / best-effort / notification
-intent. This stops a future contributor from sneaking a critical
-step under ``continue-on-error: true`` (which would silently swallow
-real failures).
-
-The acceptable keywords reflect the four legitimate
-``continue-on-error: true`` use cases observed in this repo:
-
-1. **Notify** — Telegram/Slack/email side-effect after the gate.
-2. **Send** — push artifact/payload to external system.
-3. **Publish** — TradingView post-release publish (advisory).
-4. **Telegram** — explicit Telegram delivery (Plan M-2).
-5. **Probe** — preflight readiness check.
-6. **Summary** — end-of-run digest.
-7. **Advisory** — explicitly labelled advisory step.
-8. **Best-effort** / **Best.effort** — explicit best-effort label.
-9. **Download** — fetch prior artifact (404 expected on first run).
-10. **Commit** — push snapshot updates (race-tolerant).
-11. **Run evidence gate** / **Run TradingView** / **Run deeper** /
-    **Run E2E** — gates that are gated downstream by their own
-    artifact presence (legacy advisory pattern; see
-    /memories/repo/smc-refresh-workflow-status-reporting.md).
+The walker is YAML-aware (see ``tests/_workflow_yaml.py``) so the check
+is no longer fooled by indentation, comments, or step-boundary edge
+cases that the previous regex-based scan had to special-case.
 """
 
 from __future__ import annotations
 
-import re
-from pathlib import Path
+from tests._workflow_yaml import (
+    has_continue_on_error_true,
+    iter_steps,
+    iter_workflow_files,
+    load_workflow,
+)
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
-
-_ADVISORY_KEYWORDS = (
+# Reflects the four legitimate CoE-true use cases in this repo:
+# notification side-effects, advisory probes, downloads of optional
+# prior artefacts, and explicitly-labelled best-effort hops.
+_ADVISORY_KEYWORDS: tuple[str, ...] = (
     "notify",
     "send",
     "publish",
@@ -57,90 +43,49 @@ _ADVISORY_KEYWORDS = (
     "run e2e",
 )
 
-_NAME_RE = re.compile(r"^\s*-\s*name:\s*(.+?)\s*$")
-_COE_RE = re.compile(r"^\s*continue-on-error:\s*true\s*$", re.IGNORECASE)
+
+def _step_handle(step: dict[str, object]) -> str:
+    """Human-readable handle for diagnostics."""
+    name = step.get("name")
+    if isinstance(name, str) and name:
+        return name
+    sid = step.get("id")
+    if isinstance(sid, str) and sid:
+        return f"<id:{sid}>"
+    return "<unnamed step>"
 
 
-def _iter_workflows() -> list[Path]:
-    return sorted(WORKFLOWS_DIR.glob("*.yml"))
-
-
-# Matches a step-start line that is NOT ``- name:`` — i.e. a step that
-# elected to omit ``name:`` and identifies itself only by ``- uses:`` /
-# ``- run:`` / ``- id:`` / ``- if:`` etc. We use this to RESET
-# ``last_name`` so the nearest-preceding-name heuristic cannot leak a
-# name across step boundaries (Copilot review on PR #126).
-_STEP_START_NON_NAME_RE = re.compile(
-    r"^\s*-\s+(?!name\b)(uses|run|id|if|with|env|shell|working-directory|continue-on-error|timeout-minutes)\s*:"
-)
-
-
-def _step_pairs(text: str) -> list[tuple[int, str | None]]:
-    """Return list of ``(line_no, name)`` for every ``continue-on-error: true``.
-
-    Walks the file forward and tracks step boundaries explicitly:
-
-    * ``- name: <X>`` → remember ``<X>`` as the current step's name.
-    * Any other step-start line (``- uses:``, ``- run:``, ``- id:``,
-      ``- if:`` …) → reset the current step's name to ``None``. This
-      guarantees a ``continue-on-error: true`` line cannot inherit a
-      ``name:`` from the *previous* step when the current step omits
-      it (Copilot review on PR #126).
-    * ``continue-on-error: true`` → emit ``(line_no, current_name)``.
-
-    The 40-line distance heuristic is kept as a belt-and-braces
-    safeguard for unanticipated YAML formatting.
-    """
-    lines = text.splitlines()
-    last_name: str | None = None
-    last_name_line = -1
-    out: list[tuple[int, str | None]] = []
-    for idx, line in enumerate(lines):
-        m = _NAME_RE.match(line)
-        if m:
-            last_name = m.group(1).strip().strip('"').strip("'")
-            last_name_line = idx
-            continue
-        # Reset step boundary: a non-name step-start line means we have
-        # entered a new step that did NOT declare ``name:``. Any
-        # subsequent ``continue-on-error: true`` belongs to THIS step,
-        # not to the previous one.
-        if _STEP_START_NON_NAME_RE.match(line):
-            last_name = None
-            last_name_line = idx
-            continue
-        if _COE_RE.match(line):
-            # Belt-and-braces: a step block does not exceed ~40 lines;
-            # if the last name is more than 40 lines back, we must have
-            # skipped into another step.
-            if last_name is None or (idx - last_name_line) > 40:
-                out.append((idx + 1, None))
-            else:
-                out.append((idx + 1, last_name))
-    return out
+def _advisory_text(step: dict[str, object]) -> str:
+    """Lower-cased text we accept advisory keywords from (name first, then id)."""
+    parts: list[str] = []
+    for key in ("name", "id"):
+        value = step.get(key)
+        if isinstance(value, str):
+            parts.append(value)
+    return " ".join(parts).lower()
 
 
 def test_continue_on_error_steps_have_advisory_naming() -> None:
-    """Every CoE-true step must carry an advisory keyword in its name."""
     failures: list[str] = []
-    for workflow in _iter_workflows():
-        text = workflow.read_text(encoding="utf-8")
-        pairs = _step_pairs(text)
-        for line_no, name in pairs:
-            if name is None:
+    for workflow in iter_workflow_files():
+        data = load_workflow(workflow)
+        for job_id, step in iter_steps(data):
+            if not has_continue_on_error_true(step):
+                continue
+            handle = _step_handle(step)
+            text = _advisory_text(step)
+            if not text:
                 failures.append(
-                    f"{workflow.name}:{line_no}: continue-on-error: true "
-                    "without a discoverable preceding `- name:` step"
+                    f"{workflow.name}::{job_id}::{handle}: continue-on-error: "
+                    "true on a step without a discoverable name/id"
                 )
                 continue
-            lower = name.lower()
-            if not any(kw in lower for kw in _ADVISORY_KEYWORDS):
+            if not any(kw in text for kw in _ADVISORY_KEYWORDS):
                 failures.append(
-                    f"{workflow.name}:{line_no}: step name {name!r} on a "
-                    "continue-on-error: true line does not match any "
-                    f"advisory keyword ({_ADVISORY_KEYWORDS}). Either "
-                    "rename the step to express intent or remove the "
-                    "continue-on-error flag — silent failure is not OK."
+                    f"{workflow.name}::{job_id}::{handle}: step name does not "
+                    f"match any advisory keyword ({_ADVISORY_KEYWORDS}). "
+                    "Either rename the step to express intent or remove "
+                    "the continue-on-error flag — silent failure is not OK."
                 )
     assert not failures, (
         "Workflow CoE-semantics violations:\n  " + "\n  ".join(failures)
@@ -148,10 +93,13 @@ def test_continue_on_error_steps_have_advisory_naming() -> None:
 
 
 def test_at_least_one_continue_on_error_step_exists() -> None:
-    """Belt-and-braces: ensure the heuristic actually finds CoE steps."""
-    total = sum(len(_step_pairs(p.read_text(encoding="utf-8"))) for p in _iter_workflows())
+    total = 0
+    for workflow in iter_workflow_files():
+        for _job_id, step in iter_steps(load_workflow(workflow)):
+            if has_continue_on_error_true(step):
+                total += 1
     assert total > 0, (
         "No `continue-on-error: true` steps found in any workflow file. "
         "If the discipline was removed deliberately, delete this pin; "
-        "otherwise the regex has drifted."
+        "otherwise the YAML walker has drifted."
     )

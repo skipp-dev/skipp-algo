@@ -2998,10 +2998,11 @@ else:
             st.code(_tb.format_exc(), language="python")
             logger.exception("Tab %s render error", label)
 
-    tab_rank, tab_actionable, tab_ai, tab_segments, tab_outlook, tab_feed, tab_bitcoin, tab_alerts, tab_table, tab_replay, tab_health = st.tabs(
+    tab_rank, tab_actionable, tab_ai, tab_segments, tab_outlook, tab_feed, tab_bitcoin, tab_alerts, tab_table, tab_replay, tab_health, tab_decisions = st.tabs(
         ["🏆 Rankings", "🎯 Actionable", "🧠 AI Insights", "🏗️ Segments", "🔮 Outlook",
          "📰 Live Feed", "₿ Bitcoin",
-         "⚡ Alerts", "📊 Data Table", "📜 Signal Replay", "🩺 Provider Health"],
+         "⚡ Alerts", "📊 Data Table", "📜 Signal Replay", "🩺 Provider Health",
+         "🚦 Decision-First"],
     )
 
     # ── TAB: Live Feed (with search + date filter) ──────────
@@ -4907,9 +4908,12 @@ else:
         else:
             # ── Aggregate metrics ───────────────────────────────
             _total = len(_replay_records)
-            _with_outcome = [r for r in _replay_records if r.get("profitable_30m") is not None]
-            _winners = [r for r in _with_outcome if r.get("profitable_30m") is True]
-            _losers = [r for r in _with_outcome if r.get("profitable_30m") is False]
+            _with_outcome: list[dict[str, Any]] = [
+                r for r in _replay_records if r.get("profitable_30m") is not None
+            ]
+            _winners: list[dict[str, Any]] = [
+                r for r in _with_outcome if r.get("profitable_30m") is True
+            ]
             _pending = _total - len(_with_outcome)
 
             _hit_rate = len(_winners) / len(_with_outcome) if _with_outcome else 0.0
@@ -4945,8 +4949,8 @@ else:
             st.subheader("Daily Signal Timeline")
             _by_date: dict[str, list[dict[str, Any]]] = {}
             for r in _replay_records:
-                d = str(r.get("date", "unknown"))
-                _by_date.setdefault(d, []).append(r)
+                _date_key = str(r.get("date", "unknown"))
+                _by_date.setdefault(_date_key, []).append(r)
 
             for _rd in sorted(_by_date.keys(), reverse=True):
                 _day_records = _by_date[_rd]
@@ -4985,7 +4989,7 @@ else:
         st.caption("Live provider status, domain visibility, staleness, failure semantics, and fallback chains.")
 
         try:
-            _health_report = run_provider_health_check()
+            _health_report: dict[str, Any] | None = run_provider_health_check()
         except Exception as _health_exc:
             st.error(f"Health check failed: {_health_exc}")
             _health_report = None
@@ -5087,6 +5091,50 @@ else:
                         "Description": _fs.description,
                     })
                 st.dataframe(pd.DataFrame(_sem_rows), hide_index=True, use_container_width=True)
+
+    # ── TAB: Decision-First Panel (C7.1) ────────────────────────
+    with tab_decisions, _tab_guard("Decision-First"):
+        st.header("🚦 Decision-First Panel")
+        st.caption(
+            "One card per family: posture, top blocker, walk-forward Brier sparkline, "
+            "headline metrics. Source = governance.promotion_gate decisions."
+        )
+
+        _decisions_src = st.session_state.get("promotion_decisions")
+        _decisions_path = Path("artifacts") / "promotion_decisions.json"
+        _decisions_origin = "session_state"
+        if not _decisions_src and _decisions_path.is_file():
+            try:
+                _decisions_payload = json.loads(_decisions_path.read_text(encoding="utf-8"))
+                _decisions_src = (
+                    _decisions_payload.get("decisions")
+                    if isinstance(_decisions_payload, dict)
+                    else _decisions_payload
+                )
+                _decisions_origin = str(_decisions_path)
+            except Exception as _dec_exc:
+                st.warning(f"Could not parse {_decisions_path}: {_dec_exc}")
+                _decisions_src = None
+
+        if not _decisions_src:
+            st.info(
+                "No promotion decisions available yet. Drop a JSON list of `Decision` "
+                f"dicts at `{_decisions_path}` or push them into "
+                "`st.session_state['promotion_decisions']`."
+            )
+        else:
+            try:
+                from dashboard.decision_first_panel import render_panel as _render_dec_panel
+                _histories = st.session_state.get("promotion_walkforward_histories") or {}
+                _panel_text = _render_dec_panel(
+                    list(_decisions_src),
+                    walkforward_histories=_histories,
+                )
+                st.caption(f"Source: `{_decisions_origin}` · {len(list(_decisions_src))} families")
+                st.code(_panel_text, language="text")
+            except Exception as _panel_exc:
+                st.error(f"Decision-First panel failed: {_panel_exc}")
+                logger.exception("Decision-First panel render error")
 
 
 # ── Auto-refresh trigger ───────────────────────────────────────
