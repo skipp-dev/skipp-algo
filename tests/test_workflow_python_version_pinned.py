@@ -2,9 +2,18 @@
 
 The composite action `.github/actions/setup-python-pinned/action.yml` remains
 the single literal source of truth for Python 3.12. The merge-critical routed
-workflows use that composite only on GitHub-hosted runners, then resolve a
-local Python 3.12 interpreter explicitly when the selector chooses the Windows
+workflows use that composite on GitHub-hosted runners, then resolve a local
+Python 3.12 interpreter explicitly when the selector chooses the Windows
 self-hosted runner.
+
+On self-hosted, a workflow may either:
+  (A) fail loudly when no local Python 3.12 interpreter is found (legacy
+      policy — operator pre-provisions the runner), OR
+  (B) fall back to installing Python 3.12 via the pinned composite action
+      (auto-install policy — see ci.yml).
+
+Both policies route through the same composite for the version pin, so the
+single-source-of-truth invariant is preserved either way.
 """
 
 from __future__ import annotations
@@ -76,12 +85,25 @@ def test_merge_critical_workflow_uses_hosted_bootstrap_and_portable_resolver(wor
     for job_name, job in worker_jobs.items():
         raw_setup_steps: list[tuple[str, int]] = []
         hosted_composite_steps: list[dict] = []
+        selfhosted_install_composite_steps: list[dict] = []
         for idx, step in enumerate(job.get("steps", []) or []):
             uses = str(step.get("uses", ""))
             if uses.startswith("actions/setup-python@"):
                 raw_setup_steps.append((job_name, idx))
-            elif uses == _COMPOSITE_USES_REF and "github-hosted" in str(step.get("if", "")):
-                hosted_composite_steps.append(step)
+            elif uses == _COMPOSITE_USES_REF:
+                if_expr = str(step.get("if", ""))
+                # Distinguish hosted-only invocation (== 'github-hosted')
+                # from the self-hosted install fallback (!= 'github-hosted').
+                # Both expressions contain the substring "github-hosted", so
+                # comparison-operator detection is required.
+                if "== 'github-hosted'" in if_expr or '== "github-hosted"' in if_expr:
+                    hosted_composite_steps.append(step)
+                elif "!= 'github-hosted'" in if_expr or '!= "github-hosted"' in if_expr:
+                    selfhosted_install_composite_steps.append(step)
+                elif "github-hosted" in if_expr:
+                    # Unknown guard shape — treat as hosted to preserve the
+                    # existing-policy assertion below.
+                    hosted_composite_steps.append(step)
 
         assert not raw_setup_steps, (
             f"{workflow_path.name}:{job_name} still uses raw actions/setup-python at "
@@ -110,6 +132,15 @@ def test_merge_critical_workflow_uses_hosted_bootstrap_and_portable_resolver(wor
         assert "github-hosted" in run_text, (
             f"{workflow_path.name}:{job_name} resolver step must branch on github-hosted vs self-hosted"
         )
-        assert "Self-hosted runner is missing a usable Python 3.12 interpreter" in run_text, (
-            f"{workflow_path.name}:{job_name} resolver step must fail loudly when Python 3.12 is unavailable"
+
+        # Policy A (loud-fail) OR Policy B (auto-install via composite
+        # fallback). Exactly one of these two outcomes must be guaranteed
+        # so that downstream steps never silently run without Python 3.12.
+        loud_fail_message = "Self-hosted runner is missing a usable Python 3.12 interpreter"
+        has_loud_fail = loud_fail_message in run_text
+        has_install_fallback = bool(selfhosted_install_composite_steps)
+        assert has_loud_fail or has_install_fallback, (
+            f"{workflow_path.name}:{job_name} must either fail loudly with the message "
+            f"{loud_fail_message!r} when Python 3.12 is missing on self-hosted, "
+            f"or install it via the '{_COMPOSITE_USES_REF}' composite as a fallback."
         )
