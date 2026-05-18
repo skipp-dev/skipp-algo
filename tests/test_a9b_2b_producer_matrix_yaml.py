@@ -121,9 +121,21 @@ def test_producer_uploads_artifact_unconditionally() -> None:
         and s["uses"].startswith("actions/upload-artifact@")
     ]
     assert upload_steps, "producer must have an upload-artifact step"
+    # Accepted `if:` values:
+    #   * ``always()`` - the original A9b.2b OOM/timeout guarantee for the
+    #     primary shard-bundle upload.
+    #   * ``always() && github.event_name == 'schedule'`` - the F-011 (PR
+    #     #2288) probe-cron-only dedicated cache-probe-log upload. It is
+    #     still ``always()``-prefixed so producer crashes don't lose
+    #     telemetry, but only fires on the probe-cron trigger.
+    _ALLOWED_UPLOAD_IFS = {
+        "always()",
+        "always() && github.event_name == 'schedule'",
+    }
     for step in upload_steps:
-        assert step.get("if") == "always()", (
-            f"producer upload-artifact step must use `if: always()`; got {step.get('if')!r}"
+        assert step.get("if") in _ALLOWED_UPLOAD_IFS, (
+            f"producer upload-artifact step uses unexpected `if:` value; "
+            f"got {step.get('if')!r}, expected one of {sorted(_ALLOWED_UPLOAD_IFS)}"
         )
         # Accept both floating tag and its SHA-pinned equivalent so the
         # test keeps passing after actions are pinned to full commit SHAs.
@@ -136,14 +148,17 @@ def test_producer_uploads_artifact_unconditionally() -> None:
         )
 
 
-def test_workflow_remains_dispatch_only_after_2b() -> None:
-    """A9b.2b regression-guard: producer addition must not introduce schedule."""
+def test_workflow_triggers_after_2b_and_probe_cron() -> None:
+    """PR #2288 contract: producer matrix + probe-cron schedule. The
+    canonical-artifact compat-stage MUST stay gated on a non-schedule
+    event so probe-cron runs don't publish artifacts.
+    """
     doc = _yaml_doc()
     on_key = True if True in doc else "on"
     triggers = doc[on_key]
     assert isinstance(triggers, dict)
-    assert list(triggers.keys()) == ["workflow_dispatch"], (
-        f"sharded workflow must remain workflow_dispatch-only; got {list(triggers.keys())}"
+    assert set(triggers.keys()) == {"schedule", "workflow_dispatch"}, (
+        f"sharded workflow trigger set drifted; got {sorted(triggers.keys())}"
     )
 
 

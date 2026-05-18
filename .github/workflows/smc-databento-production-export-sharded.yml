@@ -217,10 +217,26 @@ jobs:
           name: a9b-2b-shard-${{ matrix.shard_id }}-of-${{ matrix.shard_of }}
           path: |
             artifacts/ci/databento_production_export_stdout.log
-            artifacts/ci/cache_probe_shard_${{ matrix.shard_id }}.jsonl
             ${{ env.EXPORT_DIR }}/
           retention-days: 7
           if-no-files-found: warn
+
+      # F-011 (2026-05-18): probe-log gets its own upload step with
+      # ``if-no-files-found: error`` so a silent telemetry-gap (producer
+      # crashes before atexit fires, or env var typo'd) is loudly visible
+      # rather than hidden in the bundled-artifact warning. Gated on the
+      # probe-cron schedule trigger only — manual workflow_dispatch runs
+      # also produce the JSONL (the env var is unconditional) but the
+      # hard-error gate is the contract for the cron telemetry-collection
+      # path, not for ad-hoc debugging.
+      - name: Upload cache-probe log (probe-cron telemetry)
+        if: always() && github.event_name == 'schedule'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cache-probe-shard-${{ matrix.shard_id }}-of-${{ matrix.shard_of }}
+          path: artifacts/ci/cache_probe_shard_${{ matrix.shard_id }}.jsonl
+          retention-days: 14
+          if-no-files-found: error
 
   reduce:
     name: reduce shard manifests

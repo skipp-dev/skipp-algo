@@ -210,12 +210,12 @@ def test_main_required_args_missing_exits_2_via_argparse() -> None:
 _SHARDED_WORKFLOW_BASENAME = "smc-databento-production-export-sharded"
 
 
-def test_sharded_workflow_yaml_is_workflow_dispatch_only() -> None:
-    """A9b.2a invariant: sharded YAML must NEVER carry a `schedule:` trigger.
-
-    The probe workflow runs only on manual dispatch until A9b.5 (cron
-    cutover); a stray cron in a draft/probe workflow could publish
-    partial canonical artifacts.
+def test_sharded_workflow_yaml_triggers_match_contract() -> None:
+    """Triggers must match the PR #2288 contract: `workflow_dispatch` for
+    ad-hoc runs PLUS the off-hours probe-cron schedule. The compat-bundle
+    stage MUST be gated on ``github.event_name != 'schedule'`` so the
+    probe-cron never poisons the canonical artifact pool (validated by
+    tests/test_smc_databento_production_export_sharded_workflow.py).
     """
     yaml = pytest.importorskip("yaml")
     path = (
@@ -230,12 +230,17 @@ def test_sharded_workflow_yaml_is_workflow_dispatch_only() -> None:
     on_key = True if True in doc else "on"
     triggers = doc[on_key]
     assert isinstance(triggers, dict)
-    assert list(triggers.keys()) == [
-        "workflow_dispatch"
-    ], f"sharded workflow must be workflow_dispatch-only; got {list(triggers.keys())}"
+    assert set(triggers.keys()) == {"schedule", "workflow_dispatch"}, (
+        f"sharded workflow trigger set drifted; got {sorted(triggers.keys())}"
+    )
     inputs = triggers["workflow_dispatch"].get("inputs") or {}
     assert "lookback_days" in inputs
     assert "num_shards" in inputs
+    text = path.read_text()
+    assert "github.event_name != 'schedule'" in text, (
+        "compat-stage / upload must be gated on non-schedule triggers "
+        "so probe-cron does not publish canonical artifacts"
+    )
 
 
 def test_sharded_workflow_plan_job_invokes_planner_script() -> None:

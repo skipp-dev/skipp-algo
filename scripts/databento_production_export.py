@@ -4421,10 +4421,33 @@ def main(argv: Sequence[str] | None = None) -> None:
     # is set (e.g. by the sharded probe-cron workflow), every cache lookup
     # is recorded and dumped to JSONL at end of run for cross-run hit-rate
     # analysis feeding the post-cutover sharded-file-cache decision.
+    #
+    # F-V8-perf-3.5 hardening (2026-05-18, finding F-001): register the
+    # dump via ``atexit`` so the probe data survives SystemExit, KeyboardInterrupt
+    # and any uncaught exception inside the export pipeline. The previous
+    # implementation only dumped after the happy-path print loop, which
+    # would silently lose telemetry in exactly the failure modes the probe
+    # cron was supposed to measure.
     _cache_probe_log_path = os.environ.get("DATABENTO_CACHE_PROBE_LOG", "").strip()
     if _cache_probe_log_path:
-        from databento_volatility_screener import enable_cache_probe_log
+        import atexit
+
+        from databento_volatility_screener import (
+            dump_cache_probe_log,
+            enable_cache_probe_log,
+        )
+
         enable_cache_probe_log()
+
+        def _flush_cache_probe_log_atexit(path: str = _cache_probe_log_path) -> None:
+            try:
+                n = dump_cache_probe_log(path)
+            except Exception as exc:  # pragma: no cover - defensive log
+                print(f"CACHE_PROBE_LOG dump failed: {exc!r}")
+                return
+            print(f"CACHE_PROBE_LOG {n} {path}")
+
+        atexit.register(_flush_cache_probe_log_atexit)
 
     load_dotenv(REPO_ROOT / ".env")
 
@@ -4594,10 +4617,9 @@ def main(argv: Sequence[str] | None = None) -> None:
     for key, path in sorted(result["exported_paths"].items()):
         print(key.upper(), path)
 
-    if _cache_probe_log_path:
-        from databento_volatility_screener import dump_cache_probe_log
-        n = dump_cache_probe_log(_cache_probe_log_path)
-        print(f"CACHE_PROBE_LOG {n} {_cache_probe_log_path}")
+    # F-001 (2026-05-18): the atexit handler registered above is now the
+    # sole writer of the probe JSONL; the previous synchronous dump here
+    # has been removed so the file is produced exactly once per process.
 
 
 if __name__ == "__main__":

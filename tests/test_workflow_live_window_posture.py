@@ -10,10 +10,14 @@ schedule to reconstruct it. This pin makes the posture explicit at the top
 of every workflow file, so a reviewer can see at a glance whether a
 ``permissions:`` change or a new cron entry violates the declared contract.
 
-Posture vocabulary (5 values)
+Posture vocabulary (6 values)
 -----------------------------
 - ``off-hours-only`` — schedule-only AND no contents/pull-requests/issues
   writes (read-only telemetry / report generation).
+- ``off-hours-probe-cron`` — schedule-driven telemetry-collection cron
+  that runs off-hours and is explicitly gated to NOT publish canonical
+  artifacts (compat-bundle steps carry ``if: ... github.event_name !=
+  'schedule'``). Introduced by PR #2288 for the F-V8-perf-3.5 probe-cron.
 - ``mutating-on-cron`` — schedule-triggered AND has at least one write
   permission (commits artifacts, opens PRs, files issues).
 - ``any-trigger`` — fires on push/pull_request (CI gates, ephemeral).
@@ -37,6 +41,7 @@ _WF_DIR = _REPO_ROOT / ".github" / "workflows"
 _MARKER_RE = re.compile(r"^# live-window:\s+(\S+)")
 _VALID_POSTURES = {
     "off-hours-only",
+    "off-hours-probe-cron",
     "mutating-on-cron",
     "any-trigger",
     "manual-only",
