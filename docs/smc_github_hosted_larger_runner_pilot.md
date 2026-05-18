@@ -42,10 +42,36 @@ Reason:
 3. Pick the 4-core size.
 4. Give the runner a stable name such as `ubuntu-24.04-4core`.
 5. Grant the runner group access to the repository `skippALGO/skipp-algo`.
-6. Update `.github/workflows/smc-library-refresh.yml` so that `runs-on`
-   points to that exact runner label.
-7. Trigger `smc-library-refresh` manually once and compare runtime against the
-   current baseline.
+
+### Two ways to route refresh to the new runner
+
+**A) Persistent (recommended after a successful pilot):**
+
+Set the repository variable `SMC_GH_HOSTED_RUNNER` to the new runner label
+(e.g. `ubuntu-24.04-4core`). All SMC workflows that reference
+`vars.SMC_GH_HOSTED_RUNNER` will pick it up on the next run; no workflow
+file change is required.
+
+```bash
+gh variable set SMC_GH_HOSTED_RUNNER --body "ubuntu-24.04-4core" \
+  --repo skippALGO/skipp-algo
+```
+
+**B) One-off pilot run (no repo variable change):**
+
+`smc-library-refresh` exposes a `workflow_dispatch` input
+`hosted_runner_override`. Use it to pilot a single run against the new
+runner without affecting the rest of the SMC pipeline:
+
+```bash
+gh workflow run smc-library-refresh.yml \
+  --repo skippALGO/skipp-algo \
+  -f hosted_runner_override=ubuntu-24.04-4core
+```
+
+Inspect the `Emit runner selection` notice in the resulting run and
+compare wall-clock time against the current baseline (108 min). Promote
+to option A once the delta justifies the cost.
 
 ## Verification
 
@@ -58,8 +84,8 @@ The workflow exposes the selected runner in two places:
 
 Rollback is immediate:
 
-1. change `runs-on` in `.github/workflows/smc-library-refresh.yml` back to
-   `ubuntu-24.04`
-2. push the workflow change
+- For option A: `gh variable delete SMC_GH_HOSTED_RUNNER --repo skippALGO/skipp-algo`
+  (workflow falls back to `ubuntu-latest`).
+- For option B: nothing to do — the override only lives for one run.
 
 No organization-level runner teardown is required for rollback.
