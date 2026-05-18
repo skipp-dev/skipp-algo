@@ -130,35 +130,84 @@ def _live_vs_wf_blocker(d) -> dict:
     return matches[0]
 
 
-def test_live_vs_wf_ratio_undefined_when_wf_is_zero() -> None:
+def test_live_vs_wf_ratio_wf_zero_with_live_positive_is_blocker() -> None:
+    # wf == 0, live > 0 → ratio undefined AND live calibration has clearly
+    # degraded relative to an impossible-to-beat baseline. Hard blocker.
     snap = _green_snapshot()
-    snap.walkforward_brier = 0.0
+    snap.walkforward_brier = 0.0  # live_brier stays at 0.19 from fixture
     d = PromotionGate().evaluate(snap)
     b = _live_vs_wf_blocker(d)
-    assert b["severity"] == "info"
+    assert b["severity"] == "blocker"
+    assert "live_degraded_undefined" in b["message"]
     assert b["observed"] is None
     assert "live_vs_wf_ratio" not in d["metrics"]
     assert d["promoted"] is False
 
 
-def test_live_vs_wf_ratio_undefined_when_wf_is_negative() -> None:
+def test_live_vs_wf_ratio_wf_negative_is_data_integrity_blocker() -> None:
+    # Brier is mathematically in [0, 1]; negative values upstream are
+    # data corruption and must surface as a blocker, not info.
     snap = _green_snapshot()
     snap.walkforward_brier = -0.05
     d = PromotionGate().evaluate(snap)
     b = _live_vs_wf_blocker(d)
-    assert b["severity"] == "info"
+    assert b["severity"] == "blocker"
+    assert "data_integrity_violation" in b["message"]
     assert b["observed"] is None
-    assert "live_vs_wf_ratio" not in d["metrics"]
     assert d["promoted"] is False
 
 
-def test_live_vs_wf_ratio_undefined_when_wf_is_non_finite() -> None:
+def test_live_vs_wf_ratio_wf_non_finite_is_data_integrity_blocker() -> None:
     snap = _green_snapshot()
     snap.walkforward_brier = float("nan")
     d = PromotionGate().evaluate(snap)
     b = _live_vs_wf_blocker(d)
-    assert b["severity"] == "info"
+    assert b["severity"] == "blocker"
+    assert "data_integrity_violation" in b["message"]
     assert b["observed"] is None
+    assert d["promoted"] is False
+
+
+def test_live_vs_wf_ratio_live_non_finite_is_data_integrity_blocker() -> None:
+    snap = _green_snapshot()
+    snap.live_brier = float("inf")
+    d = PromotionGate().evaluate(snap)
+    b = _live_vs_wf_blocker(d)
+    assert b["severity"] == "blocker"
+    assert "data_integrity_violation" in b["message"]
+    assert d["promoted"] is False
+
+
+def test_live_vs_wf_ratio_both_zero_is_warning_and_does_not_block() -> None:
+    # Both Brier scores at zero = perfect calibration on both sides.
+    # Theoretically possible but suspicious; flag as warning, don't block.
+    snap = _green_snapshot()
+    snap.live_brier = 0.0
+    snap.walkforward_brier = 0.0
+    d = PromotionGate().evaluate(snap)
+    b = _live_vs_wf_blocker(d)
+    assert b["severity"] == "warning"
+    assert "degenerate_both_perfect" in b["message"]
+    assert b["observed"] is None
+    # All other green-snapshot checks pass → warning alone must not block.
+    assert d["promoted"] is True
+    assert d["posture"] == "yellow"  # warning downgrades posture from green
+
+
+def test_live_vs_wf_ratio_too_good_to_be_true_is_warning_and_does_not_block() -> None:
+    # ratio < live_vs_wf_ratio_min (0.05) means live calibration is
+    # implausibly better than walk-forward. Flag, don't block.
+    snap = _green_snapshot()
+    snap.live_brier = 0.001
+    snap.walkforward_brier = 0.10  # ratio = 0.01 < 0.05
+    d = PromotionGate().evaluate(snap)
+    b = _live_vs_wf_blocker(d)
+    assert b["severity"] == "warning"
+    assert "too_good_to_be_true" in b["message"]
+    assert b["observed"] == pytest.approx(0.01)
+    assert d["metrics"]["live_vs_wf_ratio"] == pytest.approx(0.01)
+    assert d["promoted"] is True
+    assert d["posture"] == "yellow"
 
 
 def test_live_vs_wf_ratio_normal_path_unchanged() -> None:

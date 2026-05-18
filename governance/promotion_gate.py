@@ -14,6 +14,7 @@ contract.
 """
 from __future__ import annotations
 
+import math
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
@@ -53,6 +54,13 @@ DEFAULT_PSR_MIN = 0.95
 DEFAULT_MINTRL_MAX_YEARS = 2.0
 DEFAULT_PSI_MAX = 0.25
 DEFAULT_LIVE_VS_WF_RATIO_MAX = 1.5
+# Lower sanity-floor on live/wf Brier ratio. A live calibration that is
+# more than ~20x better than walk-forward is statistically suspicious
+# (data-leakage, lookahead bias, regime-fit artefact). Surfaced as a
+# ``warning`` (visible but non-blocking) so an operator can investigate
+# without blocking otherwise-passing promotions on a single suspicious
+# ratio.
+DEFAULT_LIVE_VS_WF_RATIO_MIN = 0.05
 
 
 @dataclass(frozen=True)
@@ -64,6 +72,7 @@ class GateThresholds:
     mintrl_max_years: float = DEFAULT_MINTRL_MAX_YEARS
     psi_max: float = DEFAULT_PSI_MAX
     live_vs_wf_ratio_max: float = DEFAULT_LIVE_VS_WF_RATIO_MAX
+    live_vs_wf_ratio_min: float = DEFAULT_LIVE_VS_WF_RATIO_MIN
 
 
 @dataclass
@@ -227,51 +236,31 @@ class PromotionGate:
             label="psi",
         )
 
-        # Live-vs-WF ratio: needs both sides to exist; computed here since
-        # neither sprint owns it standalone. The math is delegated to
-        # ``scripts.forward_test_tracking.expected_vs_realized_ratio`` so
-        # PromotionGate and the C8.1 forward-test tracker share a single
-        # edge-case-safe implementation. Previously this block silently
-        # clamped ``walkforward_brier`` to ``1e-9`` for non-positive inputs,
-        # producing a ratio near ``1e+9`` that tripped the threshold but
-        # surfaced as a numeric ``observed`` value — masking the underlying
-        # "walkforward Brier is non-positive or non-finite" data quality
-        # issue. The shared helper returns ``None`` instead, which we surface
-        # as an info-severity blocker.
+        # Live-vs-WF ratio: classifies the input shape *before* delegating
+        # the arithmetic, so each pathological case maps to a distinct
+        # severity instead of a single info-blocker for everything that
+        # isn't the happy path. The arithmetic for the happy path is still
+        # delegated to ``scripts.forward_test_tracking.expected_vs_realized_ratio``
+        # so PromotionGate and the C8.1 forward-test tracker share one
+        # implementation.
+        #
+        # Severity map (Brier is mathematically in [0, 1]):
+        #   live or wf missing      → info     (not measured yet, blocks)
+        #   live or wf non-finite   → blocker  (data_integrity_violation)
+        #   wf < 0                  → blocker  (data_integrity_violation)
+        #   wf == 0 and live == 0   → warning  (degenerate_both_perfect, non-blocking)
+        #   wf == 0 and live > 0    → blocker  (live_degraded_undefined)
+        #   wf > 0, ratio > MAX     → blocker  (threshold breach)
+        #   wf > 0, ratio < MIN     → warning  (too_good_to_be_true, non-blocking)
+        #   otherwise               → ok
+        #
+        # ``warning`` is the only severity here that does NOT flip
+        # ``ok_live``; everything else blocks promotion.
         from scripts.forward_test_tracking import expected_vs_realized_ratio
-        if snapshot.live_brier is not None and snapshot.walkforward_brier is not None:
-            ratio = expected_vs_realized_ratio(
-                snapshot.live_brier, snapshot.walkforward_brier
-            )
-            if ratio is None:
-                blockers.append({
-                    "check": "live_vs_wf_ratio",
-                    "severity": "info",
-                    "observed": None,
-                    "threshold": float(t.live_vs_wf_ratio_max),
-                    "message": (
-                        "live_vs_wf_ratio undefined "
-                        "(walkforward_brier <= 0 or non-finite input)"
-                    ),
-                })
-                ok_live = False
-            else:
-                metrics["live_vs_wf_ratio"] = float(ratio)
-                if ratio > t.live_vs_wf_ratio_max:
-                    blockers.append({
-                        "check": "live_vs_wf_ratio",
-                        "severity": "blocker",
-                        "observed": float(ratio),
-                        "threshold": float(t.live_vs_wf_ratio_max),
-                        "message": (
-                            f"live/wf brier ratio={ratio:.2f} exceeds "
-                            f"{t.live_vs_wf_ratio_max:.2f}"
-                        ),
-                    })
-                    ok_live = False
-                else:
-                    ok_live = True
-        else:
+
+        live = snapshot.live_brier
+        wf = snapshot.walkforward_brier
+        if live is None or wf is None:
             blockers.append({
                 "check": "live_vs_wf_ratio",
                 "severity": "info",
@@ -280,6 +269,91 @@ class PromotionGate:
                 "message": "live or walkforward brier not yet measured",
             })
             ok_live = False
+        elif not (math.isfinite(live) and math.isfinite(wf)):
+            blockers.append({
+                "check": "live_vs_wf_ratio",
+                "severity": "blocker",
+                "observed": None,
+                "threshold": float(t.live_vs_wf_ratio_max),
+                "message": (
+                    "live_vs_wf_ratio data_integrity_violation: "
+                    "non-finite live or walkforward brier (NaN/Inf)"
+                ),
+            })
+            ok_live = False
+        elif wf < 0.0:
+            blockers.append({
+                "check": "live_vs_wf_ratio",
+                "severity": "blocker",
+                "observed": None,
+                "threshold": float(t.live_vs_wf_ratio_max),
+                "message": (
+                    f"live_vs_wf_ratio data_integrity_violation: "
+                    f"walkforward_brier={wf:.4f} < 0 (Brier must be in [0, 1])"
+                ),
+            })
+            ok_live = False
+        elif wf == 0.0 and live == 0.0:
+            blockers.append({
+                "check": "live_vs_wf_ratio",
+                "severity": "warning",
+                "observed": None,
+                "threshold": float(t.live_vs_wf_ratio_max),
+                "message": (
+                    "live_vs_wf_ratio degenerate_both_perfect: "
+                    "live and walkforward brier both 0 (perfect calibration) "
+                    "— verify upstream metric pipeline"
+                ),
+            })
+            ok_live = True  # warning does not block
+        elif wf == 0.0:
+            blockers.append({
+                "check": "live_vs_wf_ratio",
+                "severity": "blocker",
+                "observed": None,
+                "threshold": float(t.live_vs_wf_ratio_max),
+                "message": (
+                    f"live_vs_wf_ratio live_degraded_undefined: "
+                    f"walkforward_brier=0 with live_brier={live:.4f} > 0"
+                ),
+            })
+            ok_live = False
+        else:
+            # wf > 0 — happy path, ratio is well-defined
+            ratio = expected_vs_realized_ratio(live, wf)
+            if ratio is None:  # defensive: should be unreachable after pre-classification
+                raise RuntimeError(
+                    "expected_vs_realized_ratio returned None despite "
+                    f"pre-classified finite live/wf inputs (live={live!r}, wf={wf!r})"
+                )
+            metrics["live_vs_wf_ratio"] = float(ratio)
+            if ratio > t.live_vs_wf_ratio_max:
+                blockers.append({
+                    "check": "live_vs_wf_ratio",
+                    "severity": "blocker",
+                    "observed": float(ratio),
+                    "threshold": float(t.live_vs_wf_ratio_max),
+                    "message": (
+                        f"live/wf brier ratio={ratio:.2f} exceeds "
+                        f"{t.live_vs_wf_ratio_max:.2f}"
+                    ),
+                })
+                ok_live = False
+            elif ratio < t.live_vs_wf_ratio_min:
+                blockers.append({
+                    "check": "live_vs_wf_ratio",
+                    "severity": "warning",
+                    "observed": float(ratio),
+                    "threshold": float(t.live_vs_wf_ratio_min),
+                    "message": (
+                        f"live_vs_wf_ratio too_good_to_be_true: "
+                        f"ratio={ratio:.4f} below {t.live_vs_wf_ratio_min:.2f} "
+                        "(live calibration suspiciously better than walkforward)"
+                    ),
+                })
+                ok_live = True  # warning does not block
+            else:
+                ok_live = True
 
         for k, v in snapshot.extras.items():
             metrics[f"extra.{k}"] = float(v)
