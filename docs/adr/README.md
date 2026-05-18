@@ -23,10 +23,11 @@ old one and update the table below.
 | 0005 | [Pure-stdlib measurement runtime](0005-pure-stdlib-measurement-runtime.md) | Accepted | 2026-04 | `tests/test_adr_0005_pure_stdlib_runtime.py` + `tests/test_check_adr_0005_pure_stdlib_cli.py` |
 | 0006 | [HERO Vocab Discipline](0006-hero-vocab-discipline.md) | Accepted | 2026-04-24 | `tests/test_hero_observed_vocab_pin.py` |
 | 0007 | [HERO Field Invariants](0007-hero-field-invariants.md) | Accepted | 2026-04-24 | `tests/test_hero_risk_vocab_and_reachability_pin.py`, `tests/test_hero_schema_fingerprint.py` |
+| 0008 | [PromotionGate threshold origins and recalibration policy](0008-promotion-gate-thresholds.md) | Accepted | 2026-05-17 | `governance/promotion_gate.py` (constants); ADR is doc-only |
 
 ## Reservation rule
 
-The next free ADR number is **0008**. To avoid concurrent-PR collisions:
+The next free ADR number is **0009**. To avoid concurrent-PR collisions:
 
 1. Reserve the next number by opening the PR with the file already named
    (e.g. `docs/adr/0008-foo.md`) before the rebase race window closes.
