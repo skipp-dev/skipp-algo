@@ -66,3 +66,26 @@ Result:
 - Use `npm run tv:storage-state` when you want a portable reusable session file.
 - Use `npm run tv:profile-login` when storage-state capture is unreliable and the persistent browser profile is the intended fallback.
 - If the report says `fresh_login`, fix auth first and rerun preflight.
+
+## Storage-State Security Contract
+
+Playwright storage-state files contain plaintext TradingView auth material
+(cookies, localStorage, and IndexedDB-derived state). The local default path
+`automation/tradingview/auth/storage-state.json` is intentionally ignored by
+git and must not be committed or uploaded as a release artifact.
+
+Allowed handling:
+
+- local ignored file under `automation/tradingview/auth/`
+- local ignored persistent profile under `automation/tradingview/auth/chromium-profile/`
+- encrypted GitHub secret materialized only inside a trusted workflow step
+
+Required guard:
+
+```bash
+npm run tv:auth-security
+```
+
+The guard fails if a tracked repository file is a TradingView/Playwright
+storage-state artifact. If it fails, remove the file from git history/current
+index as appropriate and rotate the TradingView session before reuse.

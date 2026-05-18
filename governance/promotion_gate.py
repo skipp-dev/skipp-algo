@@ -81,10 +81,10 @@ DEFAULT_PSI_MAX = 0.25
 DEFAULT_LIVE_VS_WF_RATIO_MAX = 1.5
 # Lower sanity-floor on live/wf Brier ratio. A live calibration that is
 # more than ~20x better than walk-forward is statistically suspicious
-# (data-leakage, lookahead bias, regime-fit artefact). Surfaced as a
-# ``warning`` (visible but non-blocking) so an operator can investigate
-# without blocking otherwise-passing promotions on a single suspicious
-# ratio.
+# (data-leakage, lookahead bias, regime-fit artefact). Surfaced via the
+# dedicated ``suspicious_too_good`` warning check (visible but
+# non-blocking) so an operator can investigate without blocking
+# otherwise-passing promotions on a single suspicious ratio.
 DEFAULT_LIVE_VS_WF_RATIO_MIN = 0.05
 # Sprint W1.a additions — conservative starting thresholds; tighten when
 # the corresponding sprint modules publish their own constants.
@@ -303,11 +303,9 @@ class PromotionGate:
         # Severity map (Brier is mathematically in [0, 1]):
         #   live or wf missing      → info     (not measured yet, blocks)
         #   live or wf non-finite   → blocker  (data_integrity_violation)
-        #   wf < 0                  → blocker  (data_integrity_violation)
-        #   wf == 0 and live == 0   → warning  (degenerate_both_perfect, non-blocking)
-        #   wf == 0 and live > 0    → blocker  (live_degraded_undefined)
+        #   wf <= 0                 → blocker  (invalid ratio denominator)
         #   wf > 0, ratio > MAX     → blocker  (threshold breach)
-        #   wf > 0, ratio < MIN     → warning  (too_good_to_be_true, non-blocking)
+        #   wf > 0, ratio < MIN     → warning  (suspicious_too_good, non-blocking)
         #   otherwise               → ok
         #
         # ``warning`` is the only severity here that does NOT flip
@@ -337,7 +335,7 @@ class PromotionGate:
                 ),
             })
             ok_live = False
-        elif wf < 0.0:
+        elif wf <= 0.0:
             blockers.append({
                 "check": "live_vs_wf_ratio",
                 "severity": "blocker",
@@ -345,32 +343,7 @@ class PromotionGate:
                 "threshold": float(t.live_vs_wf_ratio_max),
                 "message": (
                     f"live_vs_wf_ratio data_integrity_violation: "
-                    f"walkforward_brier={wf:.4f} < 0 (Brier must be in [0, 1])"
-                ),
-            })
-            ok_live = False
-        elif wf == 0.0 and live == 0.0:
-            blockers.append({
-                "check": "live_vs_wf_ratio",
-                "severity": "warning",
-                "observed": None,
-                "threshold": float(t.live_vs_wf_ratio_max),
-                "message": (
-                    "live_vs_wf_ratio degenerate_both_perfect: "
-                    "live and walkforward brier both 0 (perfect calibration) "
-                    "— verify upstream metric pipeline"
-                ),
-            })
-            ok_live = True  # warning does not block
-        elif wf == 0.0:
-            blockers.append({
-                "check": "live_vs_wf_ratio",
-                "severity": "blocker",
-                "observed": None,
-                "threshold": float(t.live_vs_wf_ratio_max),
-                "message": (
-                    f"live_vs_wf_ratio live_degraded_undefined: "
-                    f"walkforward_brier=0 with live_brier={live:.4f} > 0"
+                    f"walkforward_brier={wf:.4f} <= 0 makes live/wf ratio invalid"
                 ),
             })
             ok_live = False
@@ -397,12 +370,12 @@ class PromotionGate:
                 ok_live = False
             elif ratio < t.live_vs_wf_ratio_min:
                 blockers.append({
-                    "check": "live_vs_wf_ratio",
+                    "check": "suspicious_too_good",
                     "severity": "warning",
                     "observed": float(ratio),
                     "threshold": float(t.live_vs_wf_ratio_min),
                     "message": (
-                        f"live_vs_wf_ratio too_good_to_be_true: "
+                        f"live_vs_wf_ratio suspicious_too_good: "
                         f"ratio={ratio:.4f} below {t.live_vs_wf_ratio_min:.2f} "
                         "(live calibration suspiciously better than walkforward)"
                     ),
