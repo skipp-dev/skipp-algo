@@ -20,6 +20,11 @@ if str(REPO_ROOT) not in sys.path:
 # above must happen before any first-party `from scripts.` import.
 from scripts.smc_atomic_write import atomic_write_text  # noqa: E402
 
+from governance.run_manifest import (  # noqa: E402
+    attach as attach_run_manifest,
+    build_manifest as build_run_manifest,
+    fingerprint_data,
+)
 from smc_core.benchmark import BenchmarkResult, build_benchmark, export_benchmark_artifacts
 from smc_core.ensemble_quality import EnsembleQualityResult, export_ensemble_quality_artifact
 from smc_core.event_ledger import ledger_path_for_pair, write_event_ledger
@@ -560,6 +565,27 @@ def main() -> int:
         ],
         "artifacts": [summary_csv_path.name, "benchmark_run_manifest.json"],
     }
+    # Sprint X3: attach the canonical reproducibility header
+    # (governance.run_manifest) under the ``run_manifest`` key so every
+    # benchmark artifact carries (git_sha, schema_version, seed,
+    # dataset_fingerprint, wf_*, created_at, python_version, platform).
+    _seed = int(getattr(args, "seed", 0) or 0)
+    _dataset_fp = fingerprint_data(
+        {"symbols": sorted(symbols), "timeframes": sorted(timeframes)}
+    )
+    _gov_manifest = build_run_manifest(
+        sprint="smc_measurement_benchmark",
+        seed=_seed,
+        dataset_fingerprint=_dataset_fp,
+        wf_scheme=str(getattr(args, "wf_scheme", "expanding") or "expanding"),
+        wf_embargo=int(getattr(args, "wf_embargo", 1) or 1),
+        extras={
+            "generator": "scripts/run_smc_measurement_benchmark.py",
+            "n_symbols": len(symbols),
+            "n_timeframes": len(timeframes),
+        },
+    )
+    run_manifest = attach_run_manifest(run_manifest, _gov_manifest)
     _write_json(output_root / "benchmark_run_manifest.json", run_manifest)
     print(json.dumps(run_manifest, indent=2, sort_keys=True))
 
