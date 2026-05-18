@@ -23,12 +23,28 @@
 #   * Lowers TCP KeepAliveTime to 5 min and KeepAliveInterval to 1 s in the
 #     registry (effective after reboot; logged either way).
 #   * Forces a w32tm resync and reports clock offset.
+#   * Registers Windows Defender exclusions for the runner _work directories,
+#     the uv / pip caches, the Python install, and the python.exe / pytest.exe
+#     / uv.exe processes. Real-time scanning of pytest's many small tmp files
+#     is consistently the dominant Windows-side cost in the validate suite.
 #
 # Must be run elevated. Designed to pair with setup-self-hosted-runner.ps1.
 
 [CmdletBinding()]
 param(
-    [string] $ServicePattern = 'actions.runner.skippALGO-skipp-algo.*'
+    [string] $ServicePattern = 'actions.runner.skippALGO-skipp-algo.*',
+    [string[]] $RunnerWorkRoots = @(
+        'C:\Users\preus\actions-runner-1\_work',
+        'C:\Users\preus\actions-runner-2\_work',
+        'C:\Users\preus\actions-runner-3\_work',
+        'C:\Users\preus\actions-runner-4\_work'
+    ),
+    [string[]] $ExtraDefenderPaths = @(
+        'C:\Users\preus\AppData\Local\uv',
+        'C:\Users\preus\AppData\Local\Programs\Python\Python312',
+        'C:\Users\preus\AppData\Local\pip\Cache'
+    ),
+    [string[]] $DefenderProcessExclusions = @('python.exe','pytest.exe','uv.exe','git.exe','bash.exe')
 )
 
 $ErrorActionPreference = 'Stop'
@@ -126,6 +142,38 @@ try {
 } catch { Write-Warn2 "w32tm resync failed: $($_.Exception.Message)" }
 w32tm /query /status | Select-String -Pattern 'Source|Last Successful|Phase Offset|Stratum'
 
+# ----------------------------------------------- 6) Defender perf exclusions
+Write-Step 'Registering Windows Defender exclusions for runner workloads'
+$defenderAvailable = $false
+try {
+    $null = Get-Command Add-MpPreference -ErrorAction Stop
+    $defenderAvailable = $true
+} catch {
+    Write-Warn2 'Defender cmdlets (Add-MpPreference) not available; skipping exclusions.'
+}
+if ($defenderAvailable) {
+    $pathExclusions = @()
+    foreach ($p in $RunnerWorkRoots + $ExtraDefenderPaths) {
+        if (Test-Path $p) { $pathExclusions += $p } else { Write-Skip "path not present, skipping: $p" }
+    }
+    foreach ($p in $pathExclusions) {
+        try {
+            Add-MpPreference -ExclusionPath $p -ErrorAction Stop
+            Write-Ok "ExclusionPath  : $p"
+        } catch { Write-Warn2 "ExclusionPath  : $p -> $($_.Exception.Message)" }
+    }
+    foreach ($proc in $DefenderProcessExclusions) {
+        try {
+            Add-MpPreference -ExclusionProcess $proc -ErrorAction Stop
+            Write-Ok "ExclusionProc  : $proc"
+        } catch { Write-Warn2 "ExclusionProc  : $proc -> $($_.Exception.Message)" }
+    }
+    Write-Step 'Effective Defender exclusion sets'
+    $prefs = Get-MpPreference
+    'Paths    : ' + (($prefs.ExclusionPath    | Sort-Object -Unique) -join ', ')
+    'Processes: ' + (($prefs.ExclusionProcess | Sort-Object -Unique) -join ', ')
+}
+
 Write-Host ''
 Write-Host 'Hardening complete. TCP-KeepAlive changes require a reboot to take effect.' -ForegroundColor Cyan
-Write-Host 'Verify with: powercfg /requestsoverride ; powercfg /requests' -ForegroundColor Cyan
+Write-Host 'Verify with: powercfg /requestsoverride ; powercfg /requests ; Get-MpPreference | Select ExclusionPath,ExclusionProcess' -ForegroundColor Cyan
