@@ -71,6 +71,17 @@ on:
     types: [completed]
     branches: [main]
   workflow_dispatch:
+    inputs:
+      hosted_runner_override:
+        description: >-
+          Optional one-off override for the github-hosted fallback runner
+          label (e.g. 'ubuntu-24.04-4core'). Empty value falls back to
+          vars.SMC_GH_HOSTED_RUNNER or 'ubuntu-latest'. Only takes effect
+          when no idle self-hosted runner is available. Used to pilot
+          larger hosted runners without changing the repo variable.
+        required: false
+        type: string
+        default: ''
 
 # F-V8-C3.1-D (2026-05-02): serialize consumer runs per ref. Mirrors the
 # producer guard (smc-databento-production-export) so a slow handoff
@@ -132,7 +143,7 @@ jobs:
           # prefer the priority cron Windows runner when one is online and idle.
           python scripts/resolve_workflow_runner.py \
             --repository "${{ github.repository }}" \
-            --hosted-runner "${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}" \
+            --hosted-runner "${{ inputs.hosted_runner_override != '' && inputs.hosted_runner_override || (vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest') }}" \
             --custom-label "${{ vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || vars.SMC_SELF_HOSTED_LABEL }}"
 
   refresh:
