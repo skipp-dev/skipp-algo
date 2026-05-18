@@ -77,12 +77,10 @@ def _all_counts() -> dict[str, int]:
 
 
 # Frozen ``# type: ignore`` count per file at the time this pin landed.
-# Total: 81 suppressions across 19 files.
+# Reductions are welcome; keep this ledger aligned with the current scan.
 # Reductions are welcome — when a file's count drops, lower its entry
 # (or remove it entirely if the count reaches 0).
 _FROZEN_FILE_COUNTS: dict[str, int] = {
-    # 2026-05-17 PR-08 typing cleanup: removed both `# type: ignore`
-    # from dashboard/decision_first_panel.py via `cast(...)` calls.
     "databento_volatility_screener.py": 1,  # A8-Telemetry-Mini: optional ``import resource`` shim for non-POSIX (CI is POSIX-only).
     "governance/run_manifest.py": 1,
     "ml/calibration/probability_calibrator.py": 1,
