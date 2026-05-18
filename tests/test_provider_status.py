@@ -1,8 +1,8 @@
 """Tests for ProviderTracker / ProviderStatus health primitives."""
+
 from __future__ import annotations
 
 import threading
-import time
 
 import pytest
 
@@ -10,6 +10,7 @@ from smc_tv_bridge.provider_status import (
     _DOWN_CONSECUTIVE,
     ProviderTracker,
 )
+
 
 # ── Basic lifecycle ─────────────────────────────────────────────────────────
 
@@ -73,7 +74,6 @@ class TestAvailabilityClassification:
 
     def test_degraded_on_partial_failures(self) -> None:
         t = ProviderTracker()
-        # 7 successes + 3 failures = 30% failure rate → degraded
         for _ in range(7):
             t.record_success("svc")
         for _ in range(3):
@@ -86,7 +86,6 @@ class TestAvailabilityClassification:
         for _ in range(_DOWN_CONSECUTIVE):
             t.record_failure("svc", error="x")
         assert t.status("svc").availability == "down"
-        # Enough successes to dilute failure ratio
         for _ in range(20):
             t.record_success("svc")
         assert t.status("svc").availability == "up"
@@ -100,11 +99,10 @@ class TestLatencyMetrics:
         t = ProviderTracker()
         for _i in range(10):
             t.record_success("svc", latency_s=0.01)
-        # Several slow calls so they land above the 95th percentile index
         for _ in range(3):
             t.record_success("svc", latency_s=1.0)
         s = t.status("svc")
-        assert s.p95_latency_ms >= 100  # the outlier is captured
+        assert s.p95_latency_ms >= 100
 
     def test_empty_latency_is_zero(self) -> None:
         t = ProviderTracker()
@@ -120,7 +118,7 @@ class TestTrackContextManager:
     def test_success_via_context(self) -> None:
         t = ProviderTracker()
         with t.track("svc"):
-            pass  # no exception → success
+            pass
         s = t.status("svc")
         assert s.availability == "up"
         assert s.total_calls == 1
@@ -133,12 +131,20 @@ class TestTrackContextManager:
         assert s.total_failures == 1
         assert "boom" in s.last_error
 
-    def test_latency_recorded_via_context(self) -> None:
+    def test_latency_recorded_via_context(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ticks = iter((100.0, 100.01))
+        monkeypatch.setattr(
+            "smc_tv_bridge.provider_status.time.monotonic",
+            lambda: next(ticks),
+        )
         t = ProviderTracker()
         with t.track("svc"):
-            time.sleep(0.01)
+            pass
         s = t.status("svc")
-        assert s.avg_latency_ms > 0
+        assert s.avg_latency_ms == pytest.approx(10.0, abs=0.01)
 
 
 # ── Multi-provider / registry ──────────────────────────────────────────────
@@ -198,7 +204,10 @@ class TestThreadSafety:
             except Exception as e:
                 errors.append(e)
 
-        threads = [threading.Thread(target=worker, args=(f"svc_{i}",)) for i in range(4)]
+        threads = [
+            threading.Thread(target=worker, args=(f"svc_{i}",))
+            for i in range(4)
+        ]
         for th in threads:
             th.start()
         for th in threads:

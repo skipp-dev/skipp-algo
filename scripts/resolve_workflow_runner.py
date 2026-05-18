@@ -49,6 +49,7 @@ def resolve_runs_on(
     runners: list[dict[str, Any]],
     custom_label: str | None,
     hosted_runner: str,
+    no_idle_fallback: str = "hosted",
 ) -> RunnerResolution:
     required_labels = build_required_labels(custom_label)
     for runner in runners:
@@ -63,6 +64,12 @@ def resolve_runs_on(
             runner_environment="self-hosted",
             reason="matched_idle_self_hosted_runner",
             matched_runner_name=str(runner.get("name", "")).strip() or None,
+        )
+    if no_idle_fallback == "required-self-hosted":
+        return RunnerResolution(
+            runs_on=required_labels,
+            runner_environment="self-hosted",
+            reason="no_idle_matching_self_hosted_runner:forced_required_self_hosted",
         )
     return RunnerResolution(
         runs_on=hosted_runner,
@@ -124,6 +131,17 @@ def main() -> int:
             "to required self-hosted labels instead."
         ),
     )
+    parser.add_argument(
+        "--no-idle-fallback",
+        choices=["hosted", "required-self-hosted"],
+        default="hosted",
+        help=(
+            "Fallback mode when runner inventory was queried successfully but no "
+            "runner matched online+idle+required-labels. 'hosted' preserves legacy "
+            "behavior (route to github-hosted); 'required-self-hosted' routes to "
+            "required self-hosted labels so the job queues until a runner is free."
+        ),
+    )
     args = parser.parse_args()
 
     custom_label = args.custom_label.strip() or None
@@ -151,6 +169,7 @@ def main() -> int:
                 runners=runners,
                 custom_label=custom_label,
                 hosted_runner=args.hosted_runner,
+                no_idle_fallback=args.no_idle_fallback,
             )
         except (HTTPError, URLError, OSError, TimeoutError, ValueError) as exc:
             if force_required_self_hosted:
