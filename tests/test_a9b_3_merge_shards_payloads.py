@@ -159,8 +159,15 @@ def test_merge_shard_payloads_concats_by_frame(mod, tmp_path):
         "2026-04-23",
     }
     assert set(daily_bars["symbol"]) == {"AAPL", "MSFT"}
-    # Deterministic sort: trade_date is in the dedupe key, so rows must be sorted by it.
-    assert list(daily_bars["trade_date"]) == sorted(daily_bars["trade_date"])
+    # Dedupe key is (symbol, trade_date) so sort_values orders by symbol
+    # primary, then trade_date secondary — each symbol's slice is itself
+    # date-sorted, which is what the loader (and humans diffing the bundle)
+    # actually care about.
+    for sym in ("AAPL", "MSFT"):
+        sym_dates = daily_bars.loc[daily_bars["symbol"] == sym, "trade_date"].tolist()
+        assert sym_dates == sorted(sym_dates), (
+            f"per-symbol trade_date order must be ascending; got {sym_dates}"
+        )
 
 
 def test_merge_shard_payloads_drops_duplicates(mod, tmp_path):
