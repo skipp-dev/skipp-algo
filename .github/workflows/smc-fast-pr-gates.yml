@@ -99,24 +99,35 @@ jobs:
           cache: pip
           cache-dependency-path: requirements.txt
 
+      # YAML-aware workflow lints below need PyYAML. The full dev install runs
+      # only after `Install uv` further down; install just PyYAML here so the
+      # lints stay an early-failing pre-flight check (~1s extra) instead of
+      # being deferred until after the heavier resolve/install steps.
+      - name: Install workflow-lint deps (PyYAML)
+        if: steps.gate.outputs.run_heavy == 'true'
+        run: python -m pip install --quiet "pyyaml>=6.0"
+
       # Guard: every workflow file must declare `defaults: run: shell: bash`
       # so jobs behave identically on the Windows self-hosted runner and on
-      # ubuntu-latest. Sub-second; fails the gate on any new file that omits it.
+      # ubuntu-latest. YAML-aware (rejects the string-in-comment false-pass
+      # that the previous `grep -q` loop accepted); sub-second.
       - name: Lint workflow shell defaults
         if: steps.gate.outputs.run_heavy == 'true'
-        run: |
-          missing=()
-          for f in .github/workflows/*.yml; do
-            if ! grep -q 'shell: bash' "$f"; then
-              missing+=("$f")
-            fi
-          done
-          if [ ${#missing[@]} -gt 0 ]; then
-            echo "::error::These workflow files are missing 'defaults: run: shell: bash':"
-            printf '  %s\n' "${missing[@]}"
-            exit 1
-          fi
-          echo "OK: all workflow files declare shell: bash"
+        run: python scripts/lint_workflow_defaults.py
+
+      # Guard: every workflow must declare `permissions:` (top-level or per-job)
+      # so GITHUB_TOKEN runs at least-privilege. OWASP A05; replaces the
+      # legacy pytest pin (deleted in this PR) with a fast-failing CI lint.
+      - name: Lint workflow permissions
+        if: steps.gate.outputs.run_heavy == 'true'
+        run: python scripts/lint_workflow_permissions.py
+
+      # Guard: every workflow must set `env.PYTHONUNBUFFERED` (top-level or
+      # per-job) so Python stdout/stderr reaches the GHA log in real time.
+      # F-V5-A2 / F-CI-O1; replaces the legacy pytest pin (deleted in this PR).
+      - name: Lint workflow PYTHONUNBUFFERED
+        if: steps.gate.outputs.run_heavy == 'true'
+        run: python scripts/lint_workflow_pythonunbuffered.py
 
       - name: Install uv
         if: steps.gate.outputs.run_heavy == 'true'
