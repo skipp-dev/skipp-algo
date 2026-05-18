@@ -5,7 +5,7 @@ Pine Script v6 Signal Engine · Real-Time News Intelligence Dashboard · Pre-Ope
 SkippALGO is a modular trading intelligence platform combining three core systems:
 
 1. **SkippALGO Pine Script** — non-repainting signal engine with a decision-first HUD plus Lite Outlook and Forecast panels for TradingView.
-2. **Real-Time News Intelligence Dashboard** — an AI-supported **Research & Monitoring Terminal** with 19 tabs for **News Intelligence + Alerting** and operational market monitoring.
+2. **Real-Time News Intelligence Dashboard** — an AI-supported **Research & Monitoring Terminal** with 11 tabs for **News Intelligence + Alerting** and operational market monitoring.
 3. **Open-Prep Pipeline** — automated pre-open briefing system with ranked candidates, macro context, and structured trade cards.
 
 ## Product Positioning & Compliance Notes
@@ -239,12 +239,12 @@ A self-hosted, AI-supported financial intelligence dashboard built with Streamli
 
 ### Architecture
 
-The terminal is composed of 16 Python modules organized around a central UI driver:
+The terminal is composed of ~25 `terminal_*` Python modules plus a `terminal_tabs/` package, organised around a central UI driver:
 
 ```text
 ┌──────────────────────────────────────────────────────────────────┐
 │                    streamlit_terminal.py                          │
-│                  (4 700+ lines · 19 tabs · main UI)              │
+│                  (~4 670 lines · 11 tabs · main UI)              │
 ├──────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  ┌─────────────────┐  ┌──────────────────┐  ┌────────────────┐  │
@@ -277,8 +277,16 @@ The terminal is composed of 16 Python modules organized around a central UI driv
 │  └──────────────────┘  └──────────────────┘  └────────────────┘ │
 │                                                                  │
 │  ┌──────────────────────────────────────────────────────────────┐ │
-│  │ terminal_tabs/  (18 tab modules — ~2 300 lines)             │ │
-│  │  tab_feed · tab_ai · tab_rankings · tab_segments · ...      │ │
+│  │ terminal_tabs/  (extracted tab + C7 dashboard modules)      │ │
+│  │  tab_rankings · tab_segments · tab_outlook · tab_bitcoin ·  │ │
+│  │  tab_alerts · tab_data_table · tab_fmp_ai · tab_movers ·    │ │
+│  │  tab_spikes · tab_rt_spikes · tab_heatmap · tab_calendar ·  │ │
+│  │  tab_bz_movers · tab_defense · tab_breaking · tab_trending ·│ │
+│  │  tab_social · tab_track_record · tab_live_incubation ·      │ │
+│  │  tab_calibration_detail · methodology_drawer · _shared      │ │
+│  │  (most are imported lazily; only ``tab_fmp_ai`` is wired    │ │
+│  │  into ``streamlit_terminal.py`` today — the remaining tabs  │ │
+│  │  are still inlined or consumed by ``streamlit_dashboard.py``│ │
 │  └──────────────────────────────────────────────────────────────┘ │
 │                                                                  │
 ├──────────────────────────────────────────────────────────────────┤
@@ -293,7 +301,7 @@ The terminal is composed of 16 Python modules organized around a central UI driv
 
 | Module | Lines | Purpose |
 | ------ | ----- | ------- |
-| `streamlit_terminal.py` | ~4 700 | Main Streamlit UI — 19 tabs, sidebar, polling orchestration, alert evaluation |
+| `streamlit_terminal.py` | ~4 670 | Main Streamlit UI — 11 tabs (Rankings · Actionable · AI Insights · Segments · Outlook · Live Feed · Bitcoin · Alerts · Data Table · Signal Replay · Provider Health), sidebar, polling orchestration, alert evaluation |
 | `terminal_poller.py` | ~1 300 | Polling engine — REST/FMP ingestion, dedup, classification, sector perf, defense watchlist, tomorrow outlook, power gaps |
 | `terminal_bitcoin.py` | ~950 | Bitcoin data — 10 fetch functions (quote, OHLCV, technicals, news, social, F&G, movers, exchange listings) |
 | `terminal_newsapi.py` | ~1 150 | NewsAPI.ai — breaking events, trending concepts, NLP sentiment, event-clustered news, social score ranking |
@@ -923,7 +931,7 @@ Configuration is centralized in `pyproject.toml`.
 
 ```text
 skipp-algo/
-├── streamlit_terminal.py          # Real-Time News Intelligence Dashboard (19 tabs)
+├── streamlit_terminal.py          # Real-Time News Intelligence Dashboard (11 tabs)
 ├── terminal_poller.py             # Polling engine (news + FMP + classification)
 ├── terminal_bitcoin.py            # Bitcoin data (10 sources)
 ├── terminal_newsapi.py            # NewsAPI.ai integration
@@ -938,12 +946,30 @@ skipp-algo/
 ├── terminal_ai_insights.py        # AI Insights engine (LLM reasoning)
 ├── terminal_ui_helpers.py         # UI formatting + sentiment helpers
 │
-├── terminal_tabs/                 # Tab rendering modules (19 tabs)
-│   ├── tab_feed.py                # 📰 Live Feed tab
-│   ├── tab_ai.py                  # 🤖 AI Insights tab
+├── terminal_tabs/                 # Tab rendering modules + C7 dashboard panels
 │   ├── tab_rankings.py            # 🏆 Rankings tab
+│   ├── tab_segments.py            # 🏗️ Segments tab
+│   ├── tab_outlook.py             # 🔮 Outlook tab
 │   ├── tab_bitcoin.py             # ₿ Bitcoin tab
-│   ├── tab_*.py                   # … remaining 14 tabs
+│   ├── tab_alerts.py              # ⚡ Alerts tab
+│   ├── tab_data_table.py          # 📊 Data Table tab
+│   ├── tab_fmp_ai.py              # 🧠 FMP AI Insights renderer
+│   ├── tab_movers.py              # Movers (consumer-side)
+│   ├── tab_spikes.py              # Spike scanner
+│   ├── tab_rt_spikes.py           # Realtime spikes
+│   ├── tab_heatmap.py             # Sector heatmap
+│   ├── tab_calendar.py            # Calendar
+│   ├── tab_bz_movers.py           # Benzinga movers overlay
+│   ├── tab_defense.py             # Defense watchlist
+│   ├── tab_breaking.py            # Breaking news (legacy NewsAPI.ai)
+│   ├── tab_trending.py            # Trending (legacy NewsAPI.ai)
+│   ├── tab_social.py              # Social (legacy NewsAPI.ai)
+│   ├── tab_track_record.py        # C7 — Track Record dashboard panel
+│   ├── tab_live_incubation.py     # C7 — Live Incubation dashboard panel
+│   ├── tab_calibration_detail.py  # C7 — Calibration Detail panel
+│   ├── methodology_drawer.py      # C7 — Methodology drawer
+│   ├── dashboard_cache.py         # Shared TTL cache for the C7 dashboard
+│   ├── drift_loader.py            # Drift artifact loader for C7 panels
 │   └── _shared.py                 # Shared tab utilities
 │
 ├── newsstack_fmp/                 # News pipeline library
