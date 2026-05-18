@@ -198,8 +198,28 @@ jobs:
       # the report has value) and use the faster no-coverage suite on PRs and
       # non-main branch pushes to shorten feedback loops while preserving the
       # audit-trail CI run.
+      #
+      # Optional: when vars.SMC_TESTMON_PR_LANE == 'true', PR / non-main pushes
+      # run only the tests that pytest-testmon thinks are affected by the
+      # diff. This skips xdist (testmon needs to see every test for selection).
+      # Stale-DB risk is bounded by the unconditional full-suite run on every
+      # `main` push below. The .testmondata file is restored from / saved to
+      # the actions/cache keyed on the base ref.
+      - name: Restore testmon database
+        if: steps.gate.outputs.run_heavy == 'true' && (github.event_name == 'pull_request' || github.ref != 'refs/heads/main') && vars.SMC_TESTMON_PR_LANE == 'true'
+        uses: actions/cache@v4
+        with:
+          path: .testmondata
+          key: testmondata-${{ runner.os }}-${{ github.base_ref || github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            testmondata-${{ runner.os }}-${{ github.base_ref || github.ref_name }}-
+            testmondata-${{ runner.os }}-main-
+      - name: Run Python tests (PR / non-main push — testmon fast lane)
+        if: steps.gate.outputs.run_heavy == 'true' && (github.event_name == 'pull_request' || github.ref != 'refs/heads/main') && vars.SMC_TESTMON_PR_LANE == 'true'
+        run: |
+          python -m pytest -q --maxfail=1 --testmon
       - name: Run Python tests (PR / non-main push — no coverage)
-        if: steps.gate.outputs.run_heavy == 'true' && (github.event_name == 'pull_request' || github.ref != 'refs/heads/main')
+        if: steps.gate.outputs.run_heavy == 'true' && (github.event_name == 'pull_request' || github.ref != 'refs/heads/main') && vars.SMC_TESTMON_PR_LANE != 'true'
         run: |
           python -m pytest -q --maxfail=1 -n auto --dist=worksteal
       - name: Run Python tests (main push — with coverage)
