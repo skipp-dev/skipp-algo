@@ -199,3 +199,39 @@ def test_rl_drift_detector_flags_action_distribution_shift():
     assert a_ok.severity in ("ok", "warn")
     assert a_bad.severity == "alarm"
     assert a_bad.psi > a_ok.psi
+
+
+def test_blotter_drops_records_with_invalid_mid_at_signal():
+    bl = TradeBlotter()
+    bl.add(TradeRecord(order_id="bad-zero", family="BOS", side=1, quantity=100.0,
+                       mid_at_signal=0.0, fill_price=100.5, volume_at_signal=1000.0, duration_s=10.0))
+    bl.add(TradeRecord(order_id="bad-neg", family="BOS", side=1, quantity=100.0,
+                       mid_at_signal=-1.0, fill_price=100.5, volume_at_signal=1000.0, duration_s=10.0))
+    bl.add(TradeRecord(order_id="bad-nan", family="BOS", side=1, quantity=100.0,
+                       mid_at_signal=float("nan"), fill_price=100.5, volume_at_signal=1000.0, duration_s=10.0))
+    bl.add(TradeRecord(order_id="bad-fill", family="BOS", side=1, quantity=100.0,
+                       mid_at_signal=100.0, fill_price=float("inf"), volume_at_signal=1000.0, duration_s=10.0))
+    bl.add(TradeRecord(order_id="ok", family="BOS", side=1, quantity=100.0,
+                       mid_at_signal=100.0, fill_price=100.05, volume_at_signal=1000.0, duration_s=10.0))
+    with pytest.warns(RuntimeWarning, match="dropped 4/5"):
+        X, y = bl.to_features_targets()
+    assert X.shape[0] == 1
+    assert y.shape[0] == 1
+
+
+def test_blotter_raises_when_all_records_invalid():
+    bl = TradeBlotter()
+    bl.add(TradeRecord(order_id="x", family="BOS", side=1, quantity=100.0,
+                       mid_at_signal=0.0, fill_price=100.5, volume_at_signal=1000.0, duration_s=10.0))
+    with pytest.warns(RuntimeWarning):
+        with pytest.raises(ValueError, match="all 1 blotter records dropped"):
+            bl.to_features_targets()
+
+
+def test_almgren_chriss_rejects_zero_noise_variance():
+    bl = _make_synthetic_blotter(n=50, seed=3)
+    X, y = bl.to_features_targets()
+    with pytest.raises(ValueError, match="noise_variance must be > 0"):
+        AlmgrenChrissCalibrator(prior_precision=0.01, noise_variance=0.0).fit(X, y)
+    with pytest.raises(ValueError, match="noise_variance must be > 0"):
+        AlmgrenChrissCalibrator(prior_precision=0.01, noise_variance=-1.0).fit(X, y)

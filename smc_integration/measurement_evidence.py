@@ -590,6 +590,18 @@ def _ob_context_light_for_event(
     current_price: float,
     diagnostics_by_id: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
+    # Distance scaling below divides by ``current_price`` (with a defensive
+    # ``max(..., 1e-9)`` previously). A non-positive or non-finite price
+    # makes distance meaningless and used to silently demote candidates
+    # via inflated distances; short-circuit to the empty payload instead.
+    if not (math.isfinite(current_price) and current_price > 0):
+        return {
+            "PRIMARY_OB_SIDE": "NONE",
+            "PRIMARY_OB_DISTANCE": 0.0,
+            "OB_FRESH": False,
+            "OB_AGE_BARS": 0,
+            "OB_MITIGATION_STATE": "stale",
+        }
     best: tuple[tuple[int, int, int, float, int], dict[str, Any]] | None = None
     current_id = str(current_event.get("id", "")).strip()
 
@@ -611,7 +623,7 @@ def _ob_context_light_for_event(
         age_bars = max(anchor_idx - candidate_idx, 0)
         mitigated = _candidate_mitigated_at_anchor(candidate, diagnostics_by_id, anchor_ts=anchor_ts)
         midpoint = (low + high) / 2.0
-        distance = 0.0 if candidate_id == current_id and family == "OB" else abs(current_price - midpoint) / max(current_price, 1e-9) * 100.0
+        distance = 0.0 if candidate_id == current_id and family == "OB" else abs(current_price - midpoint) / current_price * 100.0
         priority = (
             0 if candidate_id == current_id and family == "OB" else 1,
             0 if not mitigated else 1,
@@ -649,6 +661,15 @@ def _fvg_lifecycle_light_for_event(
     current_price: float,
     diagnostics_by_id: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
+    if not (math.isfinite(current_price) and current_price > 0):
+        return {
+            "PRIMARY_FVG_SIDE": "NONE",
+            "PRIMARY_FVG_DISTANCE": 0.0,
+            "FVG_FILL_PCT": 0.0,
+            "FVG_MATURITY_LEVEL": 0,
+            "FVG_FRESH": False,
+            "FVG_INVALIDATED": False,
+        }
     best: tuple[tuple[int, int, float, int], dict[str, Any]] | None = None
     current_id = str(current_event.get("id", "")).strip()
 
@@ -669,7 +690,7 @@ def _fvg_lifecycle_light_for_event(
             continue
         invalidated = _candidate_mitigated_at_anchor(candidate, diagnostics_by_id, anchor_ts=anchor_ts)
         midpoint = (low + high) / 2.0
-        distance = 0.0 if candidate_id == current_id and family == "FVG" else abs(current_price - midpoint) / max(current_price, 1e-9) * 100.0
+        distance = 0.0 if candidate_id == current_id and family == "FVG" else abs(current_price - midpoint) / current_price * 100.0
         fill_pct = 1.0 if invalidated else 0.0
         maturity = 3 if invalidated else 0
         priority = (
@@ -1000,9 +1021,11 @@ def _fvg_quality_features(
         close_ = float(pd.to_numeric(bars["close"].iloc[anchor_idx], errors="coerce"))
         bar_high = float(pd.to_numeric(bars["high"].iloc[anchor_idx], errors="coerce"))
         bar_low = float(pd.to_numeric(bars["low"].iloc[anchor_idx], errors="coerce"))
-        rng = max(bar_high - bar_low, 1e-9)
-        body = abs(close_ - open_)
-        features["is_full_body"] = bool(body / rng >= 0.7)
+        # Zero-range bar (doji at low liquidity) cannot be "full body".
+        # The previous ``max(rng, 1e-9)`` floor inflated body/range to ~1e9,
+        # silently labelling every doji as full-body.
+        rng = bar_high - bar_low
+        features["is_full_body"] = bool(rng > 0 and abs(close_ - open_) / rng >= 0.7)
     except (KeyError, ValueError, TypeError):
         features["is_full_body"] = False
 
