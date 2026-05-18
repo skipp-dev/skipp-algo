@@ -135,9 +135,9 @@ def test_metrics_dict_contains_all_observed_values() -> None:
 
 # ---------------------------------------------------------------------------
 # live_vs_wf_ratio edge cases: walkforward_brier <= 0 / non-finite must
-# surface as an info-severity blocker with observed=None, instead of being
-# silently clamped to ``1e-9`` (which produced a ~1e+9 ratio that tripped
-# the threshold but masked the underlying data-quality issue).
+# surface as blocker-severity data-quality failures with observed=None,
+# instead of being silently clamped to ``1e-9`` (which produced a ~1e+9
+# ratio that tripped the threshold but masked the underlying issue).
 # The arithmetic is delegated to
 # ``scripts.forward_test_tracking.expected_vs_realized_ratio`` so this also
 # pins the contract between the gate and that helper.
@@ -148,23 +148,29 @@ def _live_vs_wf_blocker(d) -> dict:
     return matches[0]
 
 
+def _single_check(d, check: str) -> dict:
+    matches = [b for b in d["blockers"] if b["check"] == check]
+    assert len(matches) == 1, d["blockers"]
+    return matches[0]
+
+
 def test_live_vs_wf_ratio_wf_zero_with_live_positive_is_blocker() -> None:
-    # wf == 0, live > 0 → ratio undefined AND live calibration has clearly
-    # degraded relative to an impossible-to-beat baseline. Hard blocker.
+    # wf == 0 makes the denominator invalid. Hard blocker, not info.
     snap = _green_snapshot()
     snap.walkforward_brier = 0.0  # live_brier stays at 0.19 from fixture
     d = PromotionGate().evaluate(snap)
     b = _live_vs_wf_blocker(d)
     assert b["severity"] == "blocker"
-    assert "live_degraded_undefined" in b["message"]
+    assert "data_integrity_violation" in b["message"]
+    assert "<= 0" in b["message"]
     assert b["observed"] is None
     assert "live_vs_wf_ratio" not in d["metrics"]
     assert d["promoted"] is False
 
 
 def test_live_vs_wf_ratio_wf_negative_is_data_integrity_blocker() -> None:
-    # Brier is mathematically in [0, 1]; negative values upstream are
-    # data corruption and must surface as a blocker, not info.
+    # The ratio denominator must be strictly positive; negative values
+    # upstream are data corruption and must surface as a blocker, not info.
     snap = _green_snapshot()
     snap.walkforward_brier = -0.05
     d = PromotionGate().evaluate(snap)
@@ -196,32 +202,33 @@ def test_live_vs_wf_ratio_live_non_finite_is_data_integrity_blocker() -> None:
     assert d["promoted"] is False
 
 
-def test_live_vs_wf_ratio_both_zero_is_warning_and_does_not_block() -> None:
-    # Both Brier scores at zero = perfect calibration on both sides.
-    # Theoretically possible but suspicious; flag as warning, don't block.
+def test_live_vs_wf_ratio_both_zero_is_blocker() -> None:
+    # Even if both Brier scores are zero, live/wf ratio is undefined when
+    # the walk-forward denominator is zero. This is a blocker now.
     snap = _green_snapshot()
     snap.live_brier = 0.0
     snap.walkforward_brier = 0.0
     d = PromotionGate().evaluate(snap)
     b = _live_vs_wf_blocker(d)
-    assert b["severity"] == "warning"
-    assert "degenerate_both_perfect" in b["message"]
+    assert b["severity"] == "blocker"
+    assert "data_integrity_violation" in b["message"]
+    assert "<= 0" in b["message"]
     assert b["observed"] is None
-    # All other green-snapshot checks pass → warning alone must not block.
-    assert d["promoted"] is True
-    assert d["posture"] == "yellow"  # warning downgrades posture from green
+    assert d["promoted"] is False
+    assert d["posture"] == "orange"
 
 
 def test_live_vs_wf_ratio_too_good_to_be_true_is_warning_and_does_not_block() -> None:
     # ratio < live_vs_wf_ratio_min (0.05) means live calibration is
-    # implausibly better than walk-forward. Flag, don't block.
+    # implausibly better than walk-forward. Flag as suspicious_too_good,
+    # don't block.
     snap = _green_snapshot()
     snap.live_brier = 0.001
     snap.walkforward_brier = 0.10  # ratio = 0.01 < 0.05
     d = PromotionGate().evaluate(snap)
-    b = _live_vs_wf_blocker(d)
+    b = _single_check(d, "suspicious_too_good")
     assert b["severity"] == "warning"
-    assert "too_good_to_be_true" in b["message"]
+    assert "suspicious_too_good" in b["message"]
     assert b["observed"] == pytest.approx(0.01)
     assert d["metrics"]["live_vs_wf_ratio"] == pytest.approx(0.01)
     assert d["promoted"] is True
