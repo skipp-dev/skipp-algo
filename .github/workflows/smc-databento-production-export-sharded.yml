@@ -1,4 +1,4 @@
-# live-window: off-hours-probe-cron  # F-V8-perf (2026-05-18)
+# live-window: live-cron  # F-V8-cutover (2026-05-18)
 # ---------------------------------------------------------------------------
 # smc-databento-production-export-sharded  (A9b.2a + A9b.2b)
 #
@@ -40,17 +40,13 @@
 name: smc-databento-production-export-sharded
 
 on:
-  # F-V8-perf (2026-05-18): probe cron. Runs the sharded producer once per
-  # weekday at 02:00 UTC — fully off-hours, no overlap with the monolithic
-  # producer (12:00/16:00 UTC) or the library-refresh consumer (16:00/20:00
-  # UTC). The compat-upload step is gated on github.event_name !=
-  # 'schedule' so the probe NEVER poisons the canonical artifact pool the
-  # consumer globs on. Purpose: collect 7 days of plan/producer/reduce
-  # success-rate + merged-manifest telemetry to validate the A9b.5
-  # cron-cutover. After cutover this block flips to 12:00/16:00 UTC and
-  # the compat-upload gate is removed.
+  # F-V8-cutover (2026-05-18): promoted from off-hours probe (02:00 UTC)
+  # to the canonical 2x/day cron — same schedule the monolithic producer
+  # used before deprecation. 240-min handoff window to the library-refresh
+  # consumer (16:00/20:00 UTC) is preserved.
   schedule:
-    - cron: "0 2 * * 1-5"   # 02:00 UTC weekdays — off-hours probe
+    - cron: "0 12 * * 1-5"   # 12:00 UTC – 240 min ahead of library-refresh 16:00 tick
+    - cron: "0 16 * * 1-5"   # 16:00 UTC – 240 min ahead of library-refresh 20:00 tick
   workflow_dispatch:
     inputs:
       lookback_days:
@@ -198,6 +194,15 @@ jobs:
           # Producer pipeline is then expected to land well under the
           # 120min cap (Q4 #2097) on lookback_days=10 num_shards=2.
           DATABENTO_DAILY_MAX_WORKERS: "4"
+          # F-V8-cutover (2026-05-18): per-shard windows are ~5 trading days
+          # (30-day rolling / 6 shards), well below the 30-day window that
+          # historically triggered the OOMs which forced the monolith to
+          # DATABENTO_STEP8_SUBSTEP_PARALLELISM=1. Each shard's peak RSS is
+          # naturally bounded by its smaller window, so we re-enable Step-8
+          # parallelism here (=2, conservative). If shard runs show RSS
+          # headroom in the first week of post-cutover telemetry this can
+          # be bumped to 4.
+          DATABENTO_STEP8_SUBSTEP_PARALLELISM: "2"
         run: |
           set -euo pipefail
           mkdir -p "${EXPORT_DIR}" artifacts/ci
@@ -336,12 +341,10 @@ jobs:
       # since current consumers have no partial-run handling.
       - name: Stage compat export bundle (legacy artifact name)
         id: compat_stage
-        # F-V8-perf (2026-05-18): on schedule (probe) triggers, do NOT stage
-        # or upload the legacy-compat bundle — the canonical artifact pool
-        # is still owned by the monolithic producer until A9b.5 cutover.
-        # workflow_dispatch keeps the original full-success behaviour for
-        # manual debugging / cutover-rehearsal runs.
-        if: success() && github.event_name != 'schedule'
+        # F-V8-cutover (2026-05-18): probe gate removed — this workflow is
+        # now the canonical producer, so EVERY successful run must republish
+        # under the legacy artifact name the consumer globs on.
+        if: success()
         run: |
           set -euo pipefail
           COMPAT_DIR="artifacts/export-compat"
@@ -386,7 +389,7 @@ jobs:
           ls -la "${COMPAT_DIR}/" | head -40
 
       - name: Upload compat export bundle (legacy artifact name)
-        if: success() && github.event_name != 'schedule' && steps.compat_stage.outputs.skip_compat == 'false'
+        if: success() && steps.compat_stage.outputs.skip_compat == 'false'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: smc-databento-production-export-${{ steps.compat_stage.outputs.export_date }}-${{ github.run_id }}
