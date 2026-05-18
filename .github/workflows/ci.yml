@@ -183,15 +183,17 @@ jobs:
           echo "SMC_PYTHON_BIN=python" >> "$GITHUB_ENV"
       - name: Install test dependencies
         if: steps.gate.outputs.run_heavy == 'true'
-        run: |
-          "$SMC_PYTHON_BIN" -m venv .venv
-          uv pip install --python .venv -r requirements.txt pytest
-          # Expose venv for all subsequent steps in this job
-          if [[ -d "$GITHUB_WORKSPACE/.venv/Scripts" ]]; then
-            echo "$GITHUB_WORKSPACE/.venv/Scripts" >> "$GITHUB_PATH"
-          else
-            echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
-          fi
+        uses: ./.github/actions/setup-persistent-venv
+        with:
+          python-bin: ${{ env.SMC_PYTHON_BIN }}
+          requirements-file: requirements.txt
+          extra-packages: pytest
+          # When SMC_PERSISTENT_VENV_ROOT is unset, the composite falls back
+          # to the historical behavior (fresh venv under $GITHUB_WORKSPACE/.venv),
+          # so this is a no-op until an operator opts in by setting the var
+          # on the self-hosted runner host (e.g. 'C:\runner-venvs\skipp-algo').
+          persistent-root: ${{ vars.SMC_PERSISTENT_VENV_ROOT }}
+          runner-environment: ${{ needs.select-runner.outputs.runner_environment }}
       # Coverage adds ~25-35% test wall-time. Keep it on `main` pushes (where
       # the report has value) and use the faster no-coverage suite on PRs and
       # non-main branch pushes to shorten feedback loops while preserving the

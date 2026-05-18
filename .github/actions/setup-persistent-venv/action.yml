@@ -1,0 +1,108 @@
+name: Setup persistent Python venv
+description: >-
+  Create-or-reuse a Python venv stored outside the runner _work tree so that
+  repeated jobs on the same self-hosted runner skip the full
+  `uv pip install` step when requirements.txt has not changed. Falls back to
+  a fresh in-workspace venv on github-hosted runners or when no persistent
+  root is configured. Designed for Windows self-hosted runners but works on
+  Linux too.
+
+inputs:
+  python-bin:
+    description: Path or name of the Python 3.12 interpreter to use.
+    required: true
+  requirements-file:
+    description: Path (relative to the workspace) to the requirements file to install.
+    required: false
+    default: requirements.txt
+  extra-packages:
+    description: Whitespace-separated list of extra package specs to install alongside the requirements file.
+    required: false
+    default: pytest
+  persistent-root:
+    description: >-
+      Host-stable directory to keep the cached venv in. Empty disables
+      persistence (a fresh venv is created under $GITHUB_WORKSPACE/.venv).
+    required: false
+    default: ""
+  runner-environment:
+    description: >-
+      'self-hosted' or 'github-hosted'. github-hosted runners ignore the
+      persistent-root and always create a fresh venv (caching is handled by
+      setup-uv on those runners).
+    required: false
+    default: self-hosted
+
+outputs:
+  venv-path:
+    description: Absolute path to the venv that subsequent steps should use.
+    value: ${{ steps.materialize.outputs.venv_path }}
+  cache-hit:
+    description: '"true" if the persistent venv was reused, "false" if it was rebuilt.'
+    value: ${{ steps.materialize.outputs.cache_hit }}
+
+runs:
+  using: composite
+  steps:
+    - name: Materialize venv
+      id: materialize
+      shell: bash
+      env:
+        PERSISTENT_ROOT_INPUT: ${{ inputs.persistent-root }}
+        REQUIREMENTS_FILE: ${{ inputs.requirements-file }}
+        EXTRA_PACKAGES: ${{ inputs.extra-packages }}
+        PYTHON_BIN_INPUT: ${{ inputs.python-bin }}
+        RUNNER_ENV: ${{ inputs.runner-environment }}
+      run: |
+        set -euo pipefail
+
+        if [[ ! -f "$REQUIREMENTS_FILE" ]]; then
+          echo "::error::requirements file not found: $REQUIREMENTS_FILE"
+          exit 1
+        fi
+
+        py_version="$("$PYTHON_BIN_INPUT" -c 'import sys; print(".".join(map(str, sys.version_info[:3])))')"
+        req_hash="$( ( "$PYTHON_BIN_INPUT" -c "import hashlib,sys;h=hashlib.sha256();h.update(open(sys.argv[1],'rb').read());h.update(sys.argv[2].encode());h.update(sys.argv[3].encode());print(h.hexdigest()[:16])" "$REQUIREMENTS_FILE" "$py_version" "$EXTRA_PACKAGES" ) )"
+
+        use_persistent="false"
+        if [[ "$RUNNER_ENV" != "github-hosted" && -n "$PERSISTENT_ROOT_INPUT" ]]; then
+          use_persistent="true"
+        fi
+
+        if [[ "$use_persistent" == "true" ]]; then
+          mkdir -p "$PERSISTENT_ROOT_INPUT"
+          venv_dir="$PERSISTENT_ROOT_INPUT/$req_hash/.venv"
+          stamp_file="$PERSISTENT_ROOT_INPUT/$req_hash/.complete"
+        else
+          venv_dir="$GITHUB_WORKSPACE/.venv"
+          stamp_file=""
+        fi
+
+        cache_hit="false"
+        if [[ -n "$stamp_file" && -f "$stamp_file" && -x "$venv_dir/Scripts/python.exe" ]] \
+            || [[ -n "$stamp_file" && -f "$stamp_file" && -x "$venv_dir/bin/python" ]]; then
+          cache_hit="true"
+          echo "[persistent-venv] cache hit: $venv_dir"
+        else
+          echo "[persistent-venv] (re)creating venv: $venv_dir"
+          rm -rf "$venv_dir"
+          mkdir -p "$(dirname "$venv_dir")"
+          "$PYTHON_BIN_INPUT" -m venv "$venv_dir"
+          uv pip install --python "$venv_dir" -r "$REQUIREMENTS_FILE" $EXTRA_PACKAGES
+          if [[ -n "$stamp_file" ]]; then
+            date -u +"%Y-%m-%dT%H:%M:%SZ" > "$stamp_file"
+          fi
+        fi
+
+        if [[ -d "$venv_dir/Scripts" ]]; then
+          bin_dir="$venv_dir/Scripts"
+        else
+          bin_dir="$venv_dir/bin"
+        fi
+
+        echo "$bin_dir" >> "$GITHUB_PATH"
+        echo "VIRTUAL_ENV=$venv_dir" >> "$GITHUB_ENV"
+        echo "venv_path=$venv_dir" >> "$GITHUB_OUTPUT"
+        echo "cache_hit=$cache_hit" >> "$GITHUB_OUTPUT"
+
+        echo "::notice::persistent-venv cache_hit=$cache_hit path=$venv_dir hash=$req_hash"
