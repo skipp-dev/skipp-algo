@@ -183,9 +183,21 @@ jobs:
           echo "SMC_PYTHON_BIN=python" >> "$GITHUB_ENV"
       - name: Install test dependencies
         if: steps.gate.outputs.run_heavy == 'true'
+        env:
+          # When 'true', installs from the fully-pinned requirements.lock
+          # (deterministic, faster resolve). Empty/anything else falls back
+          # to requirements.txt — historical behavior. Regenerate the lock
+          # with 'python scripts/regenerate_requirements_lock.py'.
+          SMC_USE_REQUIREMENTS_LOCK: ${{ vars.SMC_USE_REQUIREMENTS_LOCK }}
         run: |
           "$SMC_PYTHON_BIN" -m venv .venv
-          uv pip install --python .venv -r requirements.txt pytest
+          if [[ "$SMC_USE_REQUIREMENTS_LOCK" == "true" && -f requirements.lock ]]; then
+            echo "[deps] installing from requirements.lock"
+            uv pip install --python .venv -r requirements.lock pytest
+          else
+            echo "[deps] installing from requirements.txt"
+            uv pip install --python .venv -r requirements.txt pytest
+          fi
           # Expose venv for all subsequent steps in this job
           if [[ -d "$GITHUB_WORKSPACE/.venv/Scripts" ]]; then
             echo "$GITHUB_WORKSPACE/.venv/Scripts" >> "$GITHUB_PATH"
