@@ -24,6 +24,7 @@ DEFAULT_PSR_MIN                = 0.95
 DEFAULT_MINTRL_MAX_YEARS       = 2.0
 DEFAULT_PSI_MAX                = 0.25
 DEFAULT_LIVE_VS_WF_RATIO_MAX   = 1.5
+DEFAULT_LIVE_VS_WF_RATIO_MIN   = 0.05
 ```
 
 The audit ("welche dieser Schwellen sind empirisch verankert, welche
@@ -128,9 +129,22 @@ Each threshold is classified by **anchor type**:
 |---------------------|-----------------------------------------------------------------------|
 | Source of truth     | `governance/promotion_gate.py::DEFAULT_LIVE_VS_WF_RATIO_MAX`          |
 | Sprint of origin    | C8 incubation (see `docs/SPRINT_PLAN_C8_LIVE_INCUBATION_2026-04-26.md`) |
-| Empirical anchor    | **None — operator judgment, no empirical anchor.** 1.5 was chosen as "50 % degradation of live Brier vs. the walk-forward expectation is the maximum tolerable before we suspect the model is overfitting the WF window or the live regime has shifted materially." No paper grounds this; no in-repo distribution was used. |
+| Calibration source  | [`docs/research/promotion_gate/live_vs_wf_ratio_calibration_2026-05-18.md`](../research/promotion_gate/live_vs_wf_ratio_calibration_2026-05-18.md) |
+| Empirical anchor    | **None yet — accepted operator-prior baseline.** The 2026-05-18 calibration note records that no committed live-promotion distribution with paired positive finite `live_brier` / `walkforward_brier` observations exists yet. 1.5 is therefore intentionally labeled as an operator prior: "50 % degradation of live Brier vs. the walk-forward expectation is the maximum tolerable before we suspect the model is overfitting the WF window or the live regime has shifted materially." No paper grounds this; no in-repo distribution was used. |
 | Operator margin     | n/a (entire value is operator judgment)                               |
-| Recalibration trigger | **Fixed cadence: every 100 live promotions OR every 6 months.** Re-derive by computing the empirical distribution of `live_brier / walkforward_brier` across all promoted families over the prior window. Re-anchor at Q90; round up to one decimal. A *lower bound* ("too good to be true") should be added in a separate ADR + code change if the empirical distribution shows Q05 < 0.5 — i.e. live materially out-performing WF should also be flagged, because it almost always indicates a data-leakage or single-regime overfit. |
+| Recalibration trigger | **Fixed cadence: every 100 live promotions OR every 6 months.** Re-derive by computing the empirical distribution of `live_brier / walkforward_brier` across all promoted families over the prior window. Re-anchor at Q90; round up to one decimal. The first empirical recalibration must include `n`, Q05, Q50, Q75, Q90, Q95, max, and per-family breakdown. |
+
+### 8 · `live_vs_wf_ratio_min = 0.05` — anchor: **O**
+
+| Item                | Value                                                                 |
+|---------------------|-----------------------------------------------------------------------|
+| Source of truth     | `governance/promotion_gate.py::DEFAULT_LIVE_VS_WF_RATIO_MIN`          |
+| Sprint of origin    | QPG follow-up hardening, 2026-05-18                                   |
+| Calibration source  | [`docs/research/promotion_gate/live_vs_wf_ratio_calibration_2026-05-18.md`](../research/promotion_gate/live_vs_wf_ratio_calibration_2026-05-18.md) |
+| Empirical anchor    | **None — operator judgment, warning-only sanity floor.** `0.05` means live Brier is more than 20x better than walk-forward Brier. That is unlikely to be a stable model-quality signal; it is more likely to indicate leakage, lookahead, a single-regime artifact, or an upstream metric pipeline issue. |
+| Operator margin     | n/a (entire value is operator judgment)                               |
+| Gate effect         | Emits `check="suspicious_too_good"`, `severity="warning"`; downgrades posture to at least `yellow` but does **not** block promotion by itself. |
+| Recalibration trigger | Re-evaluate together with `live_vs_wf_ratio_max` on the same 100-live-promotions / 6-month cadence, or sooner if repeated `suspicious_too_good` warnings are explained by a measurement bug or by a validated new live-calibration regime. |
 
 ## Decision
 
@@ -161,8 +175,9 @@ Each threshold is classified by **anchor type**:
 - Operators can answer "is this threshold empirically anchored or
   operator judgment?" without reading sprint plans.
 - Recalibration of operator-judgment thresholds (`mintrl_max_years`,
-  `live_vs_wf_ratio_max`) is now a **scheduled obligation**, not a
-  vague "we should look at this someday".
+  `live_vs_wf_ratio_max`, `live_vs_wf_ratio_min`) is now a
+  **scheduled obligation**, not a vague "we should look at this
+  someday".
 - A future edit to any constant in
   [`governance/promotion_gate.py`](../../governance/promotion_gate.py)
   must:
@@ -171,8 +186,7 @@ Each threshold is classified by **anchor type**:
   2. If the anchor type changes (e.g. an **O** becomes **E** because
      a backtest distribution now grounds it), update both the row and
      this ADR's "Decision" section.
-- A future addition of a `live_vs_wf_ratio_min` lower bound — or any
-  new threshold to `GateThresholds` — must add a new row to the
+- Any future addition to `GateThresholds` must add a new row to the
   per-threshold record table in the **same commit** that adds the
   constant. Reviewers should reject PRs that grow `GateThresholds`
   without growing this ADR.
@@ -182,5 +196,10 @@ Each threshold is classified by **anchor type**:
 Append entries when an operator-judgment threshold is recalibrated.
 Format: `YYYY-MM-DD · <threshold> · old → new · evidence (commit SHA / report path)`.
 
-- (none yet — first recalibration due by 2026-11-17 OR after 100 live
-  promotions, whichever comes first)
+- 2026-05-18 · `live_vs_wf_ratio_max` · 1.5 → 1.5 · operator-prior
+  baseline retained because no committed paired live/WF promotion
+  distribution exists yet; evidence:
+  `docs/research/promotion_gate/live_vs_wf_ratio_calibration_2026-05-18.md`.
+- 2026-05-18 · `live_vs_wf_ratio_min` · n/a → 0.05 · warning-only
+  `suspicious_too_good` sanity floor added; evidence:
+  `docs/research/promotion_gate/live_vs_wf_ratio_calibration_2026-05-18.md`.
