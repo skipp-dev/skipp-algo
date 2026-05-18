@@ -26,6 +26,7 @@ import json
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 POSTURE_GLYPH: dict[str, str] = {
     "green": "[GREEN]",
@@ -94,8 +95,10 @@ def build_card(
     walkforward_history: Sequence[float] | None = None,
 ) -> FamilyCard:
     """Construct a ``FamilyCard`` from a ``Decision`` dict + optional history."""
-    blockers = list(decision.get("blockers") or [])  # type: ignore[arg-type]
-    metrics = dict(decision.get("metrics") or {})  # type: ignore[arg-type]
+    raw_blockers = decision.get("blockers") or ()
+    raw_metrics = decision.get("metrics") or {}
+    blockers = list(cast("Iterable[Mapping[str, object]]", raw_blockers))
+    metrics = dict(cast("Mapping[str, float]", raw_metrics))
     posture = str(decision.get("posture", "red"))
     family = decision.get("family")
     if family is None:
