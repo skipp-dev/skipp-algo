@@ -86,7 +86,8 @@ def _scan_prints() -> dict[str, int]:
             ):
                 n += 1
         if n:
-            out[str(p.relative_to(ROOT))] = n
+            # ``as_posix`` so Windows ``\`` doesn't desync from the POSIX-keyed ledger.
+            out[p.relative_to(ROOT).as_posix()] = n
     return out
 
 
