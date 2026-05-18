@@ -216,6 +216,40 @@ jobs:
       # downstream library-refresh consumer pulls it via
       # dawidd6/action-download-artifact (F-V5-D3).
 
+      # F-V8-perf (2026-05-18): warm the Databento on-disk file-cache between
+      # github-hosted runs. The producer sets `use_file_cache=True` and uses
+      # `REPO_ROOT/artifacts/databento_volatility_cache/` as cache_dir
+      # (databento_production_export.py:4572; gitignored at line 54). On
+      # self-hosted runners the cache survives between runs naturally on disk,
+      # so this step is skipped there. The per-day key gives same-day re-runs
+      # an exact hit; the `databento-cache-<os>-` restore-keys prefix gives
+      # cross-day partial hits (most bar files are unchanged across consecutive
+      # 30-day-rolling windows). `--force-refresh` on workflow_dispatch still
+      # bypasses the cache content at runtime regardless of restore.
+      - name: Restore Databento file cache (github-hosted only)
+        if: needs.select-runner.outputs.runner_environment == 'github-hosted'
+        id: databento_file_cache
+        uses: actions/cache@v4
+        with:
+          path: artifacts/databento_volatility_cache
+          key: databento-cache-${{ runner.os }}-${{ env.EXPORT_DATE }}-${{ github.run_id }}
+          restore-keys: |
+            databento-cache-${{ runner.os }}-${{ env.EXPORT_DATE }}-
+            databento-cache-${{ runner.os }}-
+
+      - name: Report Databento cache-restore telemetry
+        if: needs.select-runner.outputs.runner_environment == 'github-hosted'
+        run: |
+          set +e
+          CACHE_DIR="artifacts/databento_volatility_cache"
+          if [ -d "$CACHE_DIR" ]; then
+            FILE_COUNT=$(find "$CACHE_DIR" -type f | wc -l)
+            BYTES=$(du -sb "$CACHE_DIR" 2>/dev/null | awk '{print $1}')
+            echo "::notice::databento file-cache restored: files=${FILE_COUNT} bytes=${BYTES:-0} matched-key='${{ steps.databento_file_cache.outputs.cache-matched-key }}' hit=${{ steps.databento_file_cache.outputs.cache-hit }}"
+          else
+            echo "::notice::databento file-cache: cold start (no prior cache restored)"
+          fi
+
       - name: Run Databento production export
         env:
           DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
