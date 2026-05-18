@@ -89,6 +89,9 @@ _FROZEN_SITE_COUNTS: dict[str, int] = {
     # narrow int-cast on non-Timestamp timestamp inputs. Documented
     # contract; see opra_uoa._normalize_ts().
     "newsstack_fmp/opra_uoa.py": 1,
+    # 2026-05-17 C12.1 ConstraintHitLog wiring: an audit-log write
+    # failure must never block a guard decision. See HardConstraintLayer._log.
+    "rl/safety/__init__.py": 1,
 }
 
 
