@@ -36,6 +36,7 @@ _FROZEN_FILE_COUNTS: dict[str, int] = {
     "tests/test_plan_2_8_digest_symlink_count.py": 1,
     "tests/test_plan_2_8_runbook_link_check.py": 1,
     "tests/test_plan_2_8_runbook_sections.py": 1,
+    "tests/test_plan_2_8_weekly_summary_metrics.py": 2,
     "tests/test_plan_2_8_weekly_summary_sha256.py": 1,
     "tests/test_ranking_golden.py": 1,
     "tests/test_scorer_tuning.py": 1,
