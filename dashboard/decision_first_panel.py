@@ -22,8 +22,10 @@ Roadmap: docs/IMPROVEMENTS_C2_C12_ROADMAP_2026-04-26.md#c71
 """
 from __future__ import annotations
 
+import json
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from typing import cast
 
 POSTURE_GLYPH: dict[str, str] = {
@@ -152,10 +154,37 @@ def render_panel(
     return "\n\n".join(blocks)
 
 
+def load_decisions_from_report(path: str | Path) -> list[Mapping[str, object]]:
+    """Load the list of Decision dicts from a W1.b promotion-gate report.
+
+    The report is the JSON document written by
+    ``scripts/run_promotion_gate.py``. Schema is validated minimally
+    (must be a dict with a ``decisions`` list); per-decision validation
+    is left to ``build_card`` which already tolerates missing keys.
+
+    Raises ``ValueError`` on a malformed top-level shape so the panel
+    fails loud rather than rendering an empty placeholder.
+    """
+    raw = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(raw, dict) or "decisions" not in raw:
+        raise ValueError(
+            f"promotion-gate report {path} must be a dict with a 'decisions' "
+            f"key (got {type(raw).__name__})"
+        )
+    decisions = raw["decisions"]
+    if not isinstance(decisions, list):
+        raise ValueError(
+            f"promotion-gate report {path} 'decisions' must be a list "
+            f"(got {type(decisions).__name__})"
+        )
+    return [dict(d) for d in decisions]
+
+
 __all__ = [
     "POSTURE_GLYPH",
     "FamilyCard",
     "build_card",
+    "load_decisions_from_report",
     "render_card",
     "render_panel",
     "sparkline",
