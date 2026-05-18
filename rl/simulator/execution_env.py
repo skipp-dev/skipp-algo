@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from rl.extensions import RiskMetric, cvar
 from rl.slippage import AlmgrenChrissCalibrator
 from rl.types import ExecutionAction, OrderType
 
@@ -47,6 +48,11 @@ class EnvConfig:
     base_volume_per_step: float = 5_000.0
     default_order_type: OrderType = "limit_at_mid"
     seed: int = 0
+    # Sprint C12: select the risk term applied to the per-episode reward.
+    # ``variance`` keeps the legacy Almgren-Chriss per-step variance
+    # penalty; ``cvar5`` / ``cvar1`` defer the risk term to the terminal
+    # step and penalise the worst alpha-tail of step returns instead.
+    risk_metric: RiskMetric = "variance"
 
 
 @dataclass
@@ -137,14 +143,22 @@ class ExecutionEnv(_EnvBase):
         share = slice_qty / max(self.cfg.parent_qty, 1.0)
         var_step = (price_drift_bps ** 2) * share
         self._var_accum += var_step
-        # Reward = -ImpactShortfall - lambda * variance (per-step)
-        reward = -(notional_bps * share)
-        reward -= self.cfg.lambda_var * var_step
+        # Reward = -ImpactShortfall - lambda * risk_term
+        base_reward = -(notional_bps * share)
+        self._step_returns.append(base_reward)
+        reward = base_reward
+        if self.cfg.risk_metric == "variance":
+            reward -= self.cfg.lambda_var * var_step
+        # else: CVaR risk term is applied once at episode end (below).
         self._step_idx += 1
         terminated = self._remaining_qty <= 1e-9
         truncated = self._step_idx >= self.cfg.horizon_steps and not terminated
         if terminated or truncated:
             self._done = True
+            if self.cfg.risk_metric in ("cvar5", "cvar1"):
+                alpha = 0.05 if self.cfg.risk_metric == "cvar5" else 0.01
+                tail_loss = abs(min(0.0, cvar(self._step_returns, alpha=alpha)))
+                reward -= self.cfg.lambda_var * tail_loss
         info = self._info()
         info.update(
             {
@@ -199,6 +213,7 @@ class ExecutionEnv(_EnvBase):
         self._step_idx = 0
         self._is_accum = 0.0
         self._var_accum = 0.0
+        self._step_returns: list[float] = []
         self._done = False
 
     def _obs(self) -> np.ndarray:
