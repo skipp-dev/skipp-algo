@@ -148,7 +148,7 @@ class TestStrategyBacktestModeInput(unittest.TestCase):
         if not strategy_path.exists():
             self.skipTest("SMC_Long_Strategy.pine not found")
 
-        content = strategy_path.read_text()
+        content = strategy_path.read_text(encoding="utf-8")
         self.assertIn('input.bool(false, "Backtest Mode (Ignore Library)"', content)
         self.assertIn("backtest_mode", content)
 
@@ -159,7 +159,7 @@ class TestStrategyBacktestModeInput(unittest.TestCase):
         if not strategy_path.exists():
             self.skipTest("SMC_Long_Strategy.pine not found")
 
-        content = strategy_path.read_text()
+        content = strategy_path.read_text(encoding="utf-8")
         # The regime gate should check backtest_mode
         self.assertIn("not backtest_mode", content)
 
@@ -179,7 +179,7 @@ class TestLookAheadBiasDisclaimer(unittest.TestCase):
         if not strategy_path.exists():
             self.skipTest("SMC_Long_Strategy.pine not found")
 
-        content = strategy_path.read_text()
+        content = strategy_path.read_text(encoding="utf-8")
         self.assertIn("BACKTEST NOTE", content)
         self.assertIn("snapshot of a single day", content.lower())
 
@@ -190,7 +190,7 @@ class TestLookAheadBiasDisclaimer(unittest.TestCase):
         if not guide_path.exists():
             self.skipTest("SMC_GETTING_STARTED.md not found")
 
-        content = guide_path.read_text()
+        content = guide_path.read_text(encoding="utf-8")
         self.assertIn("Backtesting", content)
         self.assertIn("look-ahead bias", content)
         self.assertIn("Backtest Mode", content)
