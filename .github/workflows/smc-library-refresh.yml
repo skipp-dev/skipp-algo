@@ -206,17 +206,57 @@ jobs:
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: "20"
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3
+        with:
+          # Mirrors ci.yml: GHA cache backend returns HTTP 400 on the
+          # Windows self-hosted runner. Disable the GHA cache layer there;
+          # uv keeps its on-disk cache regardless.
+          enable-cache: ${{ needs.select-runner.outputs.runner_environment == 'github-hosted' && 'true' || 'false' }}
+          cache-dependency-glob: |
+            requirements*.txt
 
       - name: Install Python dependencies
         run: |
-          "$SMC_PYTHON_BIN" -m pip install --upgrade pip
-          "$SMC_PYTHON_BIN" -m pip install -r requirements.txt pytest
+          # F-V8-perf (2026-05-18): pip -> uv. uv installs into the same
+          # interpreter site-packages (no venv needed here), preserving the
+          # downstream "$SMC_PYTHON_BIN script.py" contract.
+          uv pip install --python "$SMC_PYTHON_BIN" -r requirements.txt pytest
 
       - name: Install Node dependencies
         run: npm ci
 
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+      - name: Resolve Playwright version
+        id: pw_version
+        run: |
+          version="$(npx --no-install playwright --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n1)"
+          if [ -z "$version" ]; then
+            # Fall back to package.json so the cache key stays stable even
+            # if the npx probe ever changes its output format.
+            version="$(node -p "require('./node_modules/playwright/package.json').version")"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Playwright browsers cache
+        id: pw_cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-browsers-${{ steps.pw_version.outputs.version }}
+
+      - name: Install Playwright browsers (cache miss)
+        if: steps.pw_cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
+
+      - name: Install Playwright system deps
+        # apt install of Chromium system libs is fast on github-hosted but
+        # cannot be cached across runs (apt state lives outside _work).
+        # On self-hosted Windows there are no deps to install; the command
+        # is a no-op so it's safe to run unconditionally.
+        run: npx playwright install-deps chromium
 
       # ── Snapshot pre-generation state ───────────────────────────
       - name: Snapshot library + manifest before generation
@@ -291,7 +331,11 @@ jobs:
             exit 1
           fi
           set +e
-          "$SMC_PYTHON_BIN" -m pytest -q --maxfail=1 "${tests[@]}" 2>&1 | tee artifacts/ci/smc_refresh_gate_pytest.log
+          # F-V8-perf (2026-05-18): xdist parallelism on the gate tests. The
+          # integration/structure/core suites are already parallel-safe (same
+          # pattern as ci.yml's validate job). worksteal keeps long tests from
+          # bottlenecking a single worker.
+          "$SMC_PYTHON_BIN" -m pytest -q --maxfail=1 -n auto --dist=worksteal "${tests[@]}" 2>&1 | tee artifacts/ci/smc_refresh_gate_pytest.log
           GATE_RC=${PIPESTATUS[0]}
           set -e
 
