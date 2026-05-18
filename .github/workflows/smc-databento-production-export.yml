@@ -204,10 +204,18 @@ jobs:
           echo "::error::Self-hosted runner is missing a usable Python 3.12 interpreter (tried \`python\` and \`py -3.12\`)."
           exit 1
 
+      # F-V8-perf (2026-05-18): uv installer (mirrors ci.yml + #2285/#2286).
+      # Cache enabled only on GitHub-hosted; self-hosted relies on the local
+      # on-disk uv cache.
+      - name: Install uv
+        uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3
+        with:
+          enable-cache: ${{ needs.select-runner.outputs.runner_environment == 'github-hosted' && 'true' || 'false' }}
+          cache-dependency-glob: requirements*.txt
+
       - name: Install Python dependencies
         run: |
-          "$SMC_PYTHON_BIN" -m pip install --upgrade pip
-          "$SMC_PYTHON_BIN" -m pip install -r requirements.txt
+          uv pip install --python "$SMC_PYTHON_BIN" -r requirements.txt
 
       # F-V5-D2 (2026-05-01): the previous handoff used actions/cache as a
       # cross-workflow conduit, which is unsupported on github.com (caches are
