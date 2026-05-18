@@ -1,0 +1,266 @@
+"""Sprint W1.b tests — `scripts.run_promotion_gate` CLI + helpers.
+
+Includes the W1.c tripwire that fails if anyone removes the
+``governance.promotion_gate`` import from the production entry point.
+"""
+from __future__ import annotations
+
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+
+import pytest
+
+from governance.promotion_gate import DECISION_SCHEMA_VERSION
+from scripts import run_promotion_gate as runner
+
+
+# ---------------------------------------------------------------------------
+# Tripwire (W1.c) — keep the script wired to the X2 gate.
+# ---------------------------------------------------------------------------
+
+
+def test_runner_module_imports_promotion_gate() -> None:
+    """If someone deletes the import, this test breaks instead of silently
+    detaching the production pipeline from the X2 consolidator."""
+    src = Path(runner.__file__).read_text(encoding="utf-8")
+    assert "from governance.promotion_gate import" in src
+    assert "PromotionGate" in src
+
+
+# ---------------------------------------------------------------------------
+# Bundle loader.
+# ---------------------------------------------------------------------------
+
+
+def test_load_bundle_rejects_unknown_family(tmp_path: Path) -> None:
+    p = tmp_path / "bundle.json"
+    p.write_text(json.dumps([{"family": "UNKNOWN"}]), encoding="utf-8")
+    with pytest.raises(ValueError, match="unknown or missing 'family'"):
+        runner._load_bundle(p)
+
+
+def test_load_bundle_rejects_non_list(tmp_path: Path) -> None:
+    p = tmp_path / "bundle.json"
+    p.write_text(json.dumps({"family": "BOS"}), encoding="utf-8")
+    with pytest.raises(ValueError, match="must be a JSON list"):
+        runner._load_bundle(p)
+
+
+def test_load_bundle_rejects_duplicate_family(tmp_path: Path) -> None:
+    p = tmp_path / "bundle.json"
+    p.write_text(
+        json.dumps([{"family": "BOS"}, {"family": "BOS"}]),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="duplicate family"):
+        runner._load_bundle(p)
+
+
+def test_load_bundle_parses_numeric_and_provenance(tmp_path: Path) -> None:
+    p = tmp_path / "bundle.json"
+    p.write_text(
+        json.dumps([
+            {
+                "family": "BOS",
+                "brier": 0.18,
+                "psi_slope": 0.01,
+                "regime_degraded": False,
+                "provenance": {"wf_scheme": "purged_kfold"},
+                "extras": {"sharpe_oos": 1.23},
+            }
+        ]),
+        encoding="utf-8",
+    )
+    snaps = runner._load_bundle(p)
+    assert len(snaps) == 1
+    snap = snaps[0]
+    assert snap.family == "BOS"
+    assert snap.brier == pytest.approx(0.18)
+    assert snap.psi_slope == pytest.approx(0.01)
+    assert snap.regime_degraded is False
+    assert snap.provenance == {"wf_scheme": "purged_kfold"}
+    assert snap.extras == {"sharpe_oos": pytest.approx(1.23)}
+
+
+# ---------------------------------------------------------------------------
+# Report builder + exit code.
+# ---------------------------------------------------------------------------
+
+
+def _full_snapshot_dict(family: str) -> dict:
+    return {
+        "family": family,
+        "brier": 0.18,
+        "ece": 0.03,
+        "fdr_pvalue": 0.01,
+        "psr": 0.97,
+        "mintrl_years": 1.4,
+        "psi": 0.12,
+        "live_brier": 0.19,
+        "walkforward_brier": 0.18,
+        "regime_degraded": False,
+        "psi_slope": 0.01,
+        "conformal_coverage": 0.92,
+        "conformal_target": 0.90,
+        "provenance": {
+            "wf_scheme": "purged_kfold",
+            "wf_embargo_bars": 32,
+            "bootstrap_method": "bca",
+            "block_size": 64,
+            "psr_method": "minIS",
+            "stacked_used": True,
+        },
+    }
+
+
+def test_build_report_strict_mode_promotes_full_snapshot(tmp_path: Path) -> None:
+    bundle_path = tmp_path / "bundle.json"
+    bundle_path.write_text(
+        json.dumps([_full_snapshot_dict("BOS"), _full_snapshot_dict("OB")]),
+        encoding="utf-8",
+    )
+    snaps = runner._load_bundle(bundle_path)
+    report = runner.build_report(
+        snaps,
+        strict_provenance=True,
+        now=datetime(2026, 5, 17, 18, 0, 0, tzinfo=timezone.utc),
+    )
+    assert report["schema_version"] == runner.REPORT_SCHEMA_VERSION
+    assert report["gate_schema_version"] == DECISION_SCHEMA_VERSION
+    assert report["strict_provenance"] is True
+    assert report["generated_at"] == "2026-05-17T18:00:00+00:00"
+    assert len(report["decisions"]) == 2
+    assert all(d["promoted"] for d in report["decisions"])
+    assert runner._report_exit_code(report) == 0
+
+
+def test_build_report_strict_mode_blocks_when_w1a_fields_missing(tmp_path: Path) -> None:
+    bundle_path = tmp_path / "bundle.json"
+    bundle_path.write_text(
+        json.dumps([
+            {
+                "family": "BOS",
+                "brier": 0.18,
+                "ece": 0.03,
+                "fdr_pvalue": 0.01,
+                "psr": 0.97,
+                "mintrl_years": 1.4,
+                "psi": 0.12,
+                "live_brier": 0.19,
+                "walkforward_brier": 0.18,
+            }
+        ]),
+        encoding="utf-8",
+    )
+    snaps = runner._load_bundle(bundle_path)
+    report = runner.build_report(snaps, strict_provenance=True)
+    assert report["decisions"][0]["promoted"] is False
+    assert runner._report_exit_code(report) == 2
+
+
+def test_build_report_no_strict_mode_keeps_legacy_compat(tmp_path: Path) -> None:
+    bundle_path = tmp_path / "bundle.json"
+    bundle_path.write_text(
+        json.dumps([
+            {
+                "family": "BOS",
+                "brier": 0.18,
+                "ece": 0.03,
+                "fdr_pvalue": 0.01,
+                "psr": 0.97,
+                "mintrl_years": 1.4,
+                "psi": 0.12,
+                "live_brier": 0.19,
+                "walkforward_brier": 0.18,
+            }
+        ]),
+        encoding="utf-8",
+    )
+    snaps = runner._load_bundle(bundle_path)
+    report = runner.build_report(snaps, strict_provenance=False)
+    assert report["decisions"][0]["promoted"] is True
+
+
+# ---------------------------------------------------------------------------
+# CLI end-to-end.
+# ---------------------------------------------------------------------------
+
+
+def test_cli_writes_report_and_returns_zero_when_promoted(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    bundle_path = tmp_path / "bundle.json"
+    output_path = tmp_path / "report.json"
+    bundle_path.write_text(
+        json.dumps([_full_snapshot_dict("BOS")]),
+        encoding="utf-8",
+    )
+    rc = runner.main([
+        "--metrics", str(bundle_path),
+        "--output", str(output_path),
+    ])
+    assert rc == 0
+    assert output_path.exists()
+    report = json.loads(output_path.read_text(encoding="utf-8"))
+    assert report["schema_version"] == runner.REPORT_SCHEMA_VERSION
+    assert report["strict_provenance"] is True
+    assert report["decisions"][0]["promoted"] is True
+
+
+def test_cli_returns_two_when_any_family_blocked(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    bundle_path = tmp_path / "bundle.json"
+    output_path = tmp_path / "report.json"
+    # Legacy snapshot → blocked under default strict mode.
+    bundle_path.write_text(
+        json.dumps([{"family": "BOS", "brier": 0.18}]),
+        encoding="utf-8",
+    )
+    rc = runner.main([
+        "--metrics", str(bundle_path),
+        "--output", str(output_path),
+    ])
+    assert rc == 2
+    report = json.loads(output_path.read_text(encoding="utf-8"))
+    assert report["decisions"][0]["promoted"] is False
+
+
+def test_cli_returns_one_on_missing_input(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rc = runner.main([
+        "--metrics", str(tmp_path / "missing.json"),
+        "--output", str(tmp_path / "out.json"),
+    ])
+    assert rc == 1
+
+
+def test_cli_no_strict_flag_promotes_legacy_snapshot(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    bundle_path = tmp_path / "bundle.json"
+    output_path = tmp_path / "report.json"
+    bundle_path.write_text(
+        json.dumps([
+            {
+                "family": "BOS",
+                "brier": 0.18,
+                "ece": 0.03,
+                "fdr_pvalue": 0.01,
+                "psr": 0.97,
+                "mintrl_years": 1.4,
+                "psi": 0.12,
+                "live_brier": 0.19,
+                "walkforward_brier": 0.18,
+            }
+        ]),
+        encoding="utf-8",
+    )
+    rc = runner.main([
+        "--metrics", str(bundle_path),
+        "--output", str(output_path),
+        "--no-strict",
+    ])
+    assert rc == 0

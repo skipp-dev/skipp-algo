@@ -55,10 +55,10 @@ _FROZEN_BARE_TYPE_IGNORE_SITES: frozenset[tuple[str, int]] = frozenset(
         # rl.simulator.* env wrappers follow the same optional gymnasium
         # dependency pattern: bare ignores are limited to import-time fallback
         # shims and the ``None`` assignments in the ImportError path. C12 RL-Layer.
-        ("rl/simulator/execution_env.py", 24),
         ("rl/simulator/execution_env.py", 25),
-        ("rl/simulator/execution_env.py", 30),
+        ("rl/simulator/execution_env.py", 26),
         ("rl/simulator/execution_env.py", 31),
+        ("rl/simulator/execution_env.py", 32),
         ("rl/simulator/sb3_execution_env.py", 17),
         ("rl/simulator/sb3_execution_env.py", 18),
         ("rl/simulator/sb3_execution_env.py", 22),
