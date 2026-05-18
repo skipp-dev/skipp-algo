@@ -165,13 +165,15 @@ jobs:
             echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
           fi
       # Coverage adds ~25-35% test wall-time. Keep it on `main` pushes (where
-      # the report has value) and skip on PRs to shorten the feedback loop.
-      - name: Run Python tests (PR — no coverage)
-        if: steps.gate.outputs.run_heavy == 'true' && github.event_name == 'pull_request'
+      # the report has value) and use the faster no-coverage suite on PRs and
+      # non-main branch pushes to shorten feedback loops while preserving the
+      # audit-trail CI run.
+      - name: Run Python tests (PR / non-main push — no coverage)
+        if: steps.gate.outputs.run_heavy == 'true' && (github.event_name == 'pull_request' || github.ref != 'refs/heads/main')
         run: |
           python -m pytest -q --maxfail=1 -n auto --dist=worksteal
-      - name: Run Python tests (push — with coverage)
-        if: steps.gate.outputs.run_heavy == 'true' && github.event_name != 'pull_request'
+      - name: Run Python tests (main push — with coverage)
+        if: steps.gate.outputs.run_heavy == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           python -m pytest -q --maxfail=1 -n auto --dist=worksteal --cov --cov-report=term-missing:skip-covered
 

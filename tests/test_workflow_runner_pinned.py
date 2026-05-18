@@ -270,3 +270,26 @@ def test_hosted_only_setup_python_step_is_gated_to_github_hosted(workflow_name: 
     assert found_portable_resolver_step, (
         f"{workflow_name} is missing the 'Resolve Python 3.12 interpreter' portable bootstrap step"
     )
+
+
+def test_ci_validate_coverage_scope_matches_documented_policy() -> None:
+    workflow = yaml.safe_load((_WORKFLOWS_DIR / "ci.yml").read_text(encoding="utf-8"))
+    validate_steps = _jobs(workflow)["validate"].get("steps") or []
+
+    no_coverage = next(
+        step for step in validate_steps
+        if step.get("name") == "Run Python tests (PR / non-main push — no coverage)"
+    )
+    main_coverage = next(
+        step for step in validate_steps
+        if step.get("name") == "Run Python tests (main push — with coverage)"
+    )
+
+    assert no_coverage.get("if") == (
+        "steps.gate.outputs.run_heavy == 'true' && "
+        "(github.event_name == 'pull_request' || github.ref != 'refs/heads/main')"
+    )
+    assert main_coverage.get("if") == (
+        "steps.gate.outputs.run_heavy == 'true' && "
+        "github.event_name == 'push' && github.ref == 'refs/heads/main'"
+    )
