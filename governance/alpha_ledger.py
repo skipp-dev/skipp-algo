@@ -5,15 +5,19 @@ stratification, C10 per-family ML) consume Type-I error budget
 independently. Without a central ledger nothing prevents the same
 α=0.05 from being silently spent five times across the pipeline.
 
-This module is the ledger. Each call site that consumes alpha registers
-a TypedDict ``AlphaReservation`` at import time; the file
-``governance/alpha_ledger.json`` is the persistent inventory and the
-test ``tests/test_alpha_budget_inventory.py`` enforces:
+This module is the ledger. ``governance/alpha_ledger.json`` is the
+**static, hand-curated** inventory of reservations (one entry per call
+site that consumes alpha); the test ``tests/test_alpha_budget_inventory.py``
+enforces:
 - global sum ≤ 0.05
 - per-family sum ≤ 0.025
 
-The ledger does not change Bonferroni/Holm logic (that lives in C4).
-It is purely an audit-and-budget layer.
+``register(...)`` is also exposed as an API for callers that want to
+mutate the ledger programmatically, but no production code path does so
+today — adding a reservation is an intentional governance change and
+goes through the JSON file plus a PR review. The ledger does not change
+Bonferroni/Holm logic (that lives in C4); it is purely an
+audit-and-budget layer.
 
 Roadmap: docs/IMPROVEMENTS_C2_C12_ROADMAP_2026-04-26.md#x1
 """

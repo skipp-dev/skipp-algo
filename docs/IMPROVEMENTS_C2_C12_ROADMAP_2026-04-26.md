@@ -28,10 +28,10 @@ Reihenfolge ist nach Impact × Aufwand priorisiert. **Top-3 (X2, C3.1, C4.1)** s
 **Motivation:** C4 (Permutation, FDR) und C6 (PSR-Significance) verbrauchen unabhängig voneinander Type-I-Error-Budget. Sobald C5 (Regime-Stratifikation) und C10 (Per-Familie-ML) zusätzliche Hypothesen-Familien einführen, wird α stillschweigend mehrfach verwendet — keine Stelle in `tests/` schlägt heute Alarm.
 
 **Scope-Vertrag:**
-- Neu: `governance/alpha_ledger.py` — TypedDict `AlphaReservation(sprint, family, alpha, method, rationale)` + `register(reservation)` mit Persistenz unter `governance/alpha_ledger.json`.
+- Neu: `governance/alpha_ledger.py` — TypedDict `AlphaReservation(sprint, family, alpha, method, rationale)` + `register(reservation)`-API mit Persistenz unter `governance/alpha_ledger.json`.
 - Neu: `tests/test_alpha_budget_inventory.py` — Sum-Check ≤ 0.05 global, ≤ 0.025 per family.
-- Migration: C4/C6/C10 registrieren ihren Verbrauch beim Modul-Import (idempotent).
-- Out of Scope: Bonferroni/Holm-Routinen ändern (das macht weiterhin C4).
+- Operativ: `governance/alpha_ledger.json` wird **statisch** als Inventar gepflegt (Governance-PR, kein Auto-Mutate). Die `register(...)`-API bleibt verfügbar, wird aber von Produktionscode aktuell nicht aufgerufen — eine neue Reservation ist eine bewusste Governance-Änderung und durchläuft Review.
+- Out of Scope: Bonferroni/Holm-Routinen ändern (das macht weiterhin C4). Automatische Registrierung beim Modul-Import wird ausdrücklich **nicht** verfolgt (Load-Order- und Test-Isolations-Risiko).
 
 **PR-Skelett:**
 - Branch: `sprint/x1-alpha-budget-ledger`
@@ -169,7 +169,7 @@ Reihenfolge ist nach Impact × Aufwand priorisiert. **Top-3 (X2, C3.1, C4.1)** s
 
 **Scope-Vertrag:**
 - Erweiterung: `compute_psr(returns, *, slippage_bps_series: np.ndarray | None = None)`.
-- Erweiterung: `moments_estimator: Literal["sample", "winsorized", "hodges_lehmann"] = "sample"`.
+- Erweiterung: `moments_estimator: Literal["sample", "winsorized"] = "sample"`. Der ursprünglich geplante `"hodges_lehmann"`-Estimator ist **deferred**: ohne harten Outlier-Befund im Live-Streaming-Set überwiegt die zusätzliche Implementations- und Test-Last den marginalen Stabilitätsgewinn gegenüber `"winsorized"`. Wieder aufnehmen, sobald PSR-Flackern in Produktion ≥ Bar-Outlier-Threshold dokumentiert wird.
 - Out of Scope: Backfill alter PSR-Werte.
 
 **PR-Skelett:**
