@@ -91,17 +91,14 @@ def _warnings_simplefilter_sites() -> set[tuple[str, int, str]]:
 # ``warnings.catch_warnings()`` block. New entries must also be
 # ``"always"`` (or the parallel silent-warnings bundle will also fail).
 WARNINGS_SIMPLEFILTER_LEDGER: set[tuple[str, int, str]] = {
-    # A8.1 (PR #2078): all five databento_volatility_screener.py sites
-    # shifted +36 by _rss_current_mib + _fmt_rss_pair helpers + 13 step9a
-    # markers added for current+peak RSS instrumentation (commit 9e93416c).
-    ("databento_volatility_screener.py", 626, "always"),
-    ("databento_volatility_screener.py", 1685, "always"),
-    ("databento_volatility_screener.py", 2279, "always"),
-    # Phase-5.2 Quickfix B (PR #2058): Item 1 inserted batch_size kwarg + comment
-    # block above _iter_symbol_batches call in collect_full_universe_close_trade_detail,
-    # shifting the two surrounding warnings.simplefilter sites by +7.
-    ("databento_volatility_screener.py", 2732, "always"),
-    ("databento_volatility_screener.py", 2849, "always"),
+    # F-V8-cutover branch (2026-05-18): all five databento_volatility_screener.py
+    # sites shifted by +16 lines after the producer/cache instrumentation
+    # rebase. Action remains "always" (loud / safe).
+    ("databento_volatility_screener.py", 642, "always"),
+    ("databento_volatility_screener.py", 1701, "always"),
+    ("databento_volatility_screener.py", 2295, "always"),
+    ("databento_volatility_screener.py", 2748, "always"),
+    ("databento_volatility_screener.py", 2865, "always"),
     ("databento_universe.py", 162, "always"),
 }
 
