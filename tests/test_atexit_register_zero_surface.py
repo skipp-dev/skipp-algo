@@ -68,15 +68,19 @@ def _atexit_register_sites() -> set[tuple[str, int]]:
             value = func.value
             if not isinstance(value, ast.Name) or value.id != "atexit":
                 continue
-            sites.add((str(path.relative_to(ROOT)), node.lineno))
+            sites.add((path.relative_to(ROOT).as_posix(), node.lineno))
     return sites
 
 
 # Single legitimate caller: closes the lazily-created httpx client used by
 # the bitcoin terminal helpers. This handler is parameter-less, idempotent,
 # and tolerates a connection that has already been closed.
+# F-V8-perf-3.5 (2026-05-19, PR #2292): single-flush cache-probe-log dump for
+# the sharded producer. Handler is parameter-less, idempotent (dump_cache_probe_log
+# disables the singleton after writing) and bounded (one parquet write).
 ATEXIT_REGISTER_ALLOWED: set[tuple[str, int]] = {
     ("terminal_bitcoin.py", 106),
+    ("scripts/databento_production_export.py", 4450),
 }
 
 
