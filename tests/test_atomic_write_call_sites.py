@@ -75,6 +75,7 @@ _ALLOWED_RAW_WRITE_FILES: dict[str, str] = {
     "scripts/plan_2_8_status_ledger.py": "JSONL status ledger append (mode='a', not pipeline-consumed)",
     "scripts/render_ci_gate_summary.py": "GitHub Actions $GITHUB_STEP_SUMMARY append (mode='a')",
     "scripts/resolve_workflow_runner.py": "GitHub Actions $GITHUB_OUTPUT append for runner-selection outputs (mode='a')",
+    "scripts/restore_databento_export_bundle.py": "GitHub Actions $GITHUB_OUTPUT append in Databento artifact-restore helper (mode='a')",
     "scripts/backfill_live_outcomes.py": "fdopen + os.replace atomic pattern (audit JSON snapshots)",
     "scripts/build_families_telemetry.py": "fdopen + os.replace atomic pattern (C13 families telemetry JSON)",
     "scripts/collect_opening_imbalances.py": "mkstemp + os.replace atomic pattern (C13 imbalance JSONL/JSON snapshots)",

@@ -85,6 +85,10 @@ _FROZEN_SITES: dict[tuple[str, str], int] = {
     # via a one-shot `icacls` token-list call. No shell=True, no untrusted
     # input, dev/CI gate only.
     ("scripts/check_tradingview_storage_state_security.py", "run"): 1,
+    # perf(ci) PR #2283: lockfile regenerator wraps two `uv pip compile`
+    # invocations (compile + verify). Token-list args, no shell=True, dev/CI
+    # helper only; both call sites marked with `# noqa: S603`.
+    ("scripts/regenerate_requirements_lock.py", "run"): 2,
     ("scripts/scan_manifests_for_pytest_provenance.py", "check_output"): 2,
     ("scripts/smc_micro_publish_guard.py", "run"): 1,
     ("scripts/smc_zone_priority_calibration.py", "run"): 1,

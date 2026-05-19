@@ -131,7 +131,7 @@ def _has_timeout_kwarg(node: ast.Call) -> bool:
 _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
     {
         ("databento_universe.py", 306),
-        ("databento_volatility_screener.py", 1198),
+        ("databento_volatility_screener.py", 1264),
         ("open_prep/bea.py", 94),
         # open_prep/macro.py:691 — shifted by ruff RUF046/B904/SIM103 cleanup;
         # was 692 after audit/discipline-pattern-v4 (originally 600).

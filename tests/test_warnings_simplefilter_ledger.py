@@ -91,14 +91,14 @@ def _warnings_simplefilter_sites() -> set[tuple[str, int, str]]:
 # ``warnings.catch_warnings()`` block. New entries must also be
 # ``"always"`` (or the parallel silent-warnings bundle will also fail).
 WARNINGS_SIMPLEFILTER_LEDGER: set[tuple[str, int, str]] = {
-    # F-V8-cutover branch (2026-05-18): all five databento_volatility_screener.py
-    # sites shifted by +16 lines after the producer/cache instrumentation
-    # rebase. Action remains "always" (loud / safe).
-    ("databento_volatility_screener.py", 642, "always"),
-    ("databento_volatility_screener.py", 1701, "always"),
-    ("databento_volatility_screener.py", 2295, "always"),
-    ("databento_volatility_screener.py", 2748, "always"),
-    ("databento_volatility_screener.py", 2865, "always"),
+    # Recent Databento producer/cache instrumentation plus follow-on workflow
+    # fixes shifted the five screener warning sites downward; action remains
+    # the loud / safe ``"always"``.
+    ("databento_volatility_screener.py", 708, "always"),
+    ("databento_volatility_screener.py", 1767, "always"),
+    ("databento_volatility_screener.py", 2361, "always"),
+    ("databento_volatility_screener.py", 2814, "always"),
+    ("databento_volatility_screener.py", 2931, "always"),
     ("databento_universe.py", 162, "always"),
 }
 

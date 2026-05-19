@@ -135,7 +135,10 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # F-V8-perf-3.5 (2026-05-19): opt-in cache probe log for the sharded
         # producer. The singleton stays disabled (`None`) until the workflow
         # sets DATABENTO_CACHE_PROBE_LOG and the producer explicitly enables it.
-        ("databento_volatility_screener.py", 5601, ("_CACHE_PROBE_LOG",)),
+        # F-002 (PR #2295): extracted enable/reset helpers; the original
+        # 5601-site relocated to enable_cache_probe_log()/reset_cache_probe_log().
+        ("databento_volatility_screener.py", 87, ("_CACHE_PROBE_LOG",)),
+        ("databento_volatility_screener.py", 94, ("_CACHE_PROBE_LOG",)),
         ("terminal_bitcoin.py", 97, ("_client",)),
         (
             "terminal_finnhub.py",

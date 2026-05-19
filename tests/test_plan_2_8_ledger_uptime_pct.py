@@ -38,6 +38,15 @@ def _rec(days_ago: float, status: str) -> dict[str, Any]:
     return {"captured_at": ts, "status": status}
 
 
+def _rec_now(days_ago: float, status: str) -> dict[str, Any]:
+    # CLI tests cannot inject ``now``; anchor records to wall-clock so the
+    # window always covers them (avoids a time-bomb at NOW + weeks).
+    ts = (_dt.datetime.now(_dt.UTC) - _dt.timedelta(days=days_ago)).strftime(
+        "%Y-%m-%dT%H:%M:%S%z",
+    )
+    return {"captured_at": ts, "status": status}
+
+
 def test_no_records_zero_uptime() -> None:
     rep = up.compute([], weeks=4, now=NOW)
     assert rep["uptime_pct"] == 0.0
@@ -98,7 +107,7 @@ def test_cli_json_output(tmp_path: Path) -> None:
     p = tmp_path / "l.jsonl"
     p.write_text(
         "\n".join(json.dumps(r) for r in [
-            _rec(7, "green"), _rec(0, "green"),
+            _rec_now(7, "green"), _rec_now(0, "green"),
         ]) + "\n",
         encoding="utf-8",
     )
@@ -116,7 +125,7 @@ def test_cli_fail_below(tmp_path: Path) -> None:
     p = tmp_path / "l.jsonl"
     p.write_text(
         "\n".join(json.dumps(r) for r in [
-            _rec(7, "amber"), _rec(0, "amber"),
+            _rec_now(7, "amber"), _rec_now(0, "amber"),
         ]) + "\n",
         encoding="utf-8",
     )
@@ -131,7 +140,7 @@ def test_cli_fail_below_pass(tmp_path: Path) -> None:
     p = tmp_path / "l.jsonl"
     p.write_text(
         "\n".join(json.dumps(r) for r in [
-            _rec(7, "green"), _rec(0, "green"),
+            _rec_now(7, "green"), _rec_now(0, "green"),
         ]) + "\n",
         encoding="utf-8",
     )
