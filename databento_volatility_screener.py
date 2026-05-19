@@ -53,6 +53,70 @@ from strategy_config import (
 logger = logging.getLogger(__name__)
 
 
+# F-V8-perf-3.5 (2026-05-18): Cache-probe-log.
+#
+# Module-level singleton, opt-in via ``enable_cache_probe_log()``. Once
+# enabled, every ``_read_cached_frame()`` call appends ``{path, hit}`` to
+# ``_CACHE_PROBE_LOG``; the producer dumps it to JSONL at end of run via
+# ``dump_cache_probe_log()``. Purpose: feed the post-cutover sharded-
+# file-cache architecture decision (Folge-PR to #2289/#2290). Cross-day
+# path-overlap computed from two consecutive probe-cron runs estimates the
+# hit-rate a persistent date-bucket cache would deliver, decoupled from
+# TTL/freshness logic.
+#
+# Lifecycle contract (pinned by tests/test_databento_cache_probe_log.py):
+#   - ``enable_cache_probe_log()`` is idempotent: a second call does NOT
+#     wipe an already-active log (so the CLI can re-enter ``main()`` in
+#     tests without losing entries).
+#   - ``reset_cache_probe_log()`` is the only way to clear state; tests
+#     MUST call it between cases to avoid cross-test bleed-through.
+#   - ``dump_cache_probe_log()`` is safe to call multiple times; it always
+#     writes the full current buffer. ``atexit`` registration is the
+#     producer's responsibility (see scripts/databento_production_export.py)
+#     so a SIGTERM/exception mid-run still flushes the probe data.
+#
+# Thread-safety: the underlying ``list.append`` is atomic in CPython, but
+# this module does NOT claim multi-process safety. If the producer ever
+# moves cache lookups into multiple processes, the log must be aggregated
+# from per-process files instead of from this in-memory singleton.
+_CACHE_PROBE_LOG: list[dict[str, object]] | None = None
+
+
+def enable_cache_probe_log() -> None:
+    """Activate cache-probe recording. Idempotent (no reset on re-enable)."""
+    global _CACHE_PROBE_LOG
+    if _CACHE_PROBE_LOG is None:
+        _CACHE_PROBE_LOG = []
+
+
+def reset_cache_probe_log() -> None:
+    """Disable + clear the probe log. Primarily for tests."""
+    global _CACHE_PROBE_LOG
+    _CACHE_PROBE_LOG = None
+
+
+def cache_probe_log_size() -> int:
+    """Return the current number of recorded probe entries (0 if disabled)."""
+    return 0 if _CACHE_PROBE_LOG is None else len(_CACHE_PROBE_LOG)
+
+
+def _record_cache_probe(path: Path, *, hit: bool) -> None:
+    if _CACHE_PROBE_LOG is None:
+        return
+    _CACHE_PROBE_LOG.append({"path": str(path), "hit": bool(hit)})
+
+
+def dump_cache_probe_log(out_path: str | Path) -> int:
+    if _CACHE_PROBE_LOG is None:
+        return 0
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with out.open("w", encoding="utf-8") as fh:
+        for entry in _CACHE_PROBE_LOG:
+            fh.write(json.dumps(entry) + "\n")
+    return len(_CACHE_PROBE_LOG)
+
+
 # A8 telemetry mirror of scripts/databento_production_export.py:_rss_*_snapshot
 # Used by build_daily_features_full_universe() Step 9/10a sub-step markers to
 # diagnose the SIGTERM-after-39min-silence failure observed in n=4 Run 25462396194.
@@ -338,7 +402,9 @@ def build_cache_path(
 
 
 def _read_cached_frame(path: Path, *, max_age_seconds: int | None = None) -> pd.DataFrame | None:
-    if not (_record_cache_probe(path, hit=(exists := path.exists())) or exists):
+    exists = path.exists()
+    _record_cache_probe(path, hit=exists)
+    if not exists:
         return None
     if max_age_seconds is not None:
         # ``max_age_seconds == 0`` is the "force-expire" sentinel used to
@@ -5586,38 +5652,6 @@ def run_streamlit_app() -> None:
             st.text("\n".join(st.session_state["dvs_run_logs"]))
         else:
             st.caption("No actions executed in this session yet.")
-
-
-# F-V8-perf-3.5 (2026-05-19): cache-probe-log. When enabled via
-# ``enable_cache_probe_log()``, every call into ``_read_cached_frame()`` records
-# the cache path and whether the file existed at lookup time. The producer dumps
-# the collected rows as JSONL via ``dump_cache_probe_log()`` for cross-run
-# overlap analysis of a prospective sharded file-cache. Disabled by default —
-# the cold path pays only the existing ``path.exists()`` check.
-_CACHE_PROBE_LOG: list[dict[str, object]] | None = None
-
-
-def enable_cache_probe_log() -> None:
-    global _CACHE_PROBE_LOG
-    if _CACHE_PROBE_LOG is None:
-        _CACHE_PROBE_LOG = []
-
-
-def _record_cache_probe(path: Path, *, hit: bool) -> None:
-    if _CACHE_PROBE_LOG is None:
-        return
-    _CACHE_PROBE_LOG.append({"path": str(path), "hit": bool(hit)})
-
-
-def dump_cache_probe_log(out_path: str | Path) -> int:
-    if _CACHE_PROBE_LOG is None:
-        return 0
-    out = Path(out_path)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    with out.open("w", encoding="utf-8") as fh:
-        for entry in _CACHE_PROBE_LOG:
-            fh.write(json.dumps(entry) + "\n")
-    return len(_CACHE_PROBE_LOG)
 
 
 # ── Canonical sources ──────────────────────────────────────────────────────
