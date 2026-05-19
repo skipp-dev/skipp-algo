@@ -182,11 +182,15 @@ jobs:
           python -c "import sys; raise SystemExit('Fallback install did not yield Python 3.12.' if sys.version_info[:2] != (3, 12) else 0)"
           echo "SMC_PYTHON_BIN=python" >> "$GITHUB_ENV"
       - name: Install test dependencies
+        # When vars.SMC_USE_REQUIREMENTS_LOCK == 'true' the composite installs from
+        # the fully-pinned requirements.lock (deterministic, faster resolve). Otherwise
+        # it falls back to requirements.txt (historical behavior). Regenerate the lock
+        # with 'python scripts/regenerate_requirements_lock.py'.
         if: steps.gate.outputs.run_heavy == 'true'
         uses: ./.github/actions/setup-persistent-venv
         with:
           python-bin: ${{ env.SMC_PYTHON_BIN }}
-          requirements-file: requirements.txt
+          requirements-file: ${{ vars.SMC_USE_REQUIREMENTS_LOCK == 'true' && 'requirements.lock' || 'requirements.txt' }}
           extra-packages: pytest
           # When SMC_PERSISTENT_VENV_ROOT is unset, the composite falls back
           # to the historical behavior (fresh venv under $GITHUB_WORKSPACE/.venv),
