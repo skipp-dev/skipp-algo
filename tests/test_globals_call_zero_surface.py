@@ -97,8 +97,8 @@ GLOBALS_CALL_ALLOWED: set[tuple[str, int]] = {
     # Sidebar-toggle bridge: _INTEL_ENABLED is set in the sidebar render
     # block and read by tab content rendered later in the same script
     # pass. Read-only globals().get(...) lookup, no mutation.
-    # Line shifted 2208 → 2225 (system review 2026-04-30).
-    ("streamlit_terminal.py", 2225),
+    # Line shifted 2225 → 2230 (F-V8-cutover branch, 2026-05-18).
+    ("streamlit_terminal.py", 2230),
     ("terminal_tabs/__init__.py", 57),
     ("terminal_tabs/__init__.py", 60),
 }

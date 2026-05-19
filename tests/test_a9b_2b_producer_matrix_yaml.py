@@ -9,7 +9,7 @@ These tests guard the structural wiring of the sharded workflow's
 * per-shard ``timeout-minutes: 120`` (Q4 bumped 90→120 post-Probe-v3)
 * per-shard artifact name template includes both shard-id and shard-of
 * producer call carries the four sharding CLI flags introduced in A9b.1
-* ``workflow_dispatch`` remains the only trigger (no ``schedule``)
+* ``workflow_dispatch`` remains available even after scheduled phases land
 
 The orphan-inventory guard already sees the workflow basename via the
 A9b.2a smoke tests in ``test_a9b_2a_plan_shards.py``.
@@ -136,14 +136,18 @@ def test_producer_uploads_artifact_unconditionally() -> None:
         )
 
 
-def test_workflow_remains_dispatch_only_after_2b() -> None:
-    """A9b.2b regression-guard: producer addition must not introduce schedule."""
+def test_workflow_keeps_dispatch_surface_after_2b() -> None:
+    """A9b.2b regression-guard: producer addition must keep manual dispatch."""
     doc = _yaml_doc()
     on_key = True if True in doc else "on"
     triggers = doc[on_key]
     assert isinstance(triggers, dict)
-    assert list(triggers.keys()) == ["workflow_dispatch"], (
-        f"sharded workflow must remain workflow_dispatch-only; got {list(triggers.keys())}"
+    assert "workflow_dispatch" in triggers, (
+        f"sharded workflow must keep workflow_dispatch; got {list(triggers.keys())}"
+    )
+    assert set(triggers.keys()).issubset({"workflow_dispatch", "schedule"}), (
+        f"sharded workflow may only expose workflow_dispatch plus optional schedule; "
+        f"got {list(triggers.keys())}"
     )
 
 

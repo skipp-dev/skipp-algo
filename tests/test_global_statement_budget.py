@@ -129,7 +129,7 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("smc_tv_bridge/smc_api.py", 200, ("_tech_provider",)),
         (
             "streamlit_terminal.py",
-            591,
+            596,
             ("btc_available", "databento_available", "ensure_rt_engine_running", "newsapi_available", "tv_available"),
         ),
         ("terminal_bitcoin.py", 97, ("_client",)),

@@ -210,12 +210,13 @@ def test_main_required_args_missing_exits_2_via_argparse() -> None:
 _SHARDED_WORKFLOW_BASENAME = "smc-databento-production-export-sharded"
 
 
-def test_sharded_workflow_yaml_is_workflow_dispatch_only() -> None:
-    """A9b.2a invariant: sharded YAML must NEVER carry a `schedule:` trigger.
+def test_sharded_workflow_yaml_keeps_dispatch_inputs() -> None:
+    """workflow_dispatch must remain available across probe/cutover phases.
 
-    The probe workflow runs only on manual dispatch until A9b.5 (cron
-    cutover); a stray cron in a draft/probe workflow could publish
-    partial canonical artifacts.
+    The sharded producer graduated from dispatch-only to scheduled probe/
+    live-cron phases, but manual dispatch remains part of the operational
+    contract for ad-hoc recovery and smoke runs. The trigger surface is
+    therefore limited to ``workflow_dispatch`` plus optional ``schedule``.
     """
     yaml = pytest.importorskip("yaml")
     path = (
@@ -230,9 +231,13 @@ def test_sharded_workflow_yaml_is_workflow_dispatch_only() -> None:
     on_key = True if True in doc else "on"
     triggers = doc[on_key]
     assert isinstance(triggers, dict)
-    assert list(triggers.keys()) == [
-        "workflow_dispatch"
-    ], f"sharded workflow must be workflow_dispatch-only; got {list(triggers.keys())}"
+    assert "workflow_dispatch" in triggers, (
+        f"sharded workflow must keep workflow_dispatch; got {list(triggers.keys())}"
+    )
+    assert set(triggers.keys()).issubset({"workflow_dispatch", "schedule"}), (
+        f"sharded workflow may only expose workflow_dispatch plus optional schedule; "
+        f"got {list(triggers.keys())}"
+    )
     inputs = triggers["workflow_dispatch"].get("inputs") or {}
     assert "lookback_days" in inputs
     assert "num_shards" in inputs

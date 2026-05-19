@@ -285,9 +285,16 @@ def test_ci_validate_coverage_scope_matches_documented_policy() -> None:
         if step.get("name") == "Run Python tests (main push — with coverage)"
     )
 
+    # The PR / non-main `no_coverage` step runs only when the testmon
+    # PR-lane is NOT enabled. When `vars.SMC_TESTMON_PR_LANE == 'true'`,
+    # the parallel testmon-flavoured step (cached `.testmondata`,
+    # different coverage stance) owns the same gate. Without the
+    # `!= 'true'` clause both steps would execute the test run twice on
+    # every PR.
     assert no_coverage.get("if") == (
         "steps.gate.outputs.run_heavy == 'true' && "
-        "(github.event_name == 'pull_request' || github.ref != 'refs/heads/main')"
+        "(github.event_name == 'pull_request' || github.ref != 'refs/heads/main') && "
+        "vars.SMC_TESTMON_PR_LANE != 'true'"
     )
     assert main_coverage.get("if") == (
         "steps.gate.outputs.run_heavy == 'true' && "

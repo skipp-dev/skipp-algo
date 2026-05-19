@@ -49,6 +49,31 @@ if _REPO_ROOT not in sys.path:
 
 from scripts.smc_atomic_write import atomic_write_json  # noqa: E402
 
+_LOG_PREFIX = "[merge-shards] "
+
+# Canonical merged bundle basename. The matching manifest filename is
+# `{MERGED_BASENAME}_manifest.json`; payload parquets emitted by
+# `merge_shard_payloads` are named `{MERGED_BASENAME}__<frame>.parquet`
+# so `load_databento_export_bundle.load_export_bundle` (which globs
+# `{base_prefix}__*.parquet` next to the resolved manifest) finds the
+# union-merged frames rather than any single shard's slice.
+MERGED_BASENAME = "databento_volatility_production_merged"
+
+# Columns used to deduplicate concatenated shard parquets, tried in order.
+# Each tuple represents a candidate key; the first one whose columns are
+# all present in the concatenated frame wins. The fallback (empty tuple)
+# means "do not dedupe" — used when none of the candidates match, which is
+# acceptable because the planner guarantees shard windows are calendar-
+# day-disjoint, so cross-shard duplicates are not expected.
+_DEDUPE_KEY_CANDIDATES: tuple[tuple[str, ...], ...] = (
+    ("symbol", "trade_date"),
+    ("symbol", "date"),
+    ("symbol", "ts_event"),
+    ("ts_event",),
+    ("trade_date",),
+    ("date",),
+)
+
 # ---------------------------------------------------------------------------
 # Override table — single source of truth for classification deviations
 # from the auto-classifier.
@@ -399,6 +424,110 @@ def _parse_shard_id_from_dir(name: str) -> int | None:
 
 
 # ---------------------------------------------------------------------------
+# Payload merge (frame-level parquet concat across shards)
+# ---------------------------------------------------------------------------
+
+def _discover_shard_parquets(
+    manifest_paths: Sequence[Path],
+) -> dict[str, list[Path]]:
+    """Group per-shard parquet payloads by frame name.
+
+    For every manifest at ``{dir}/{basename}_manifest.json`` we look up the
+    sibling files matching ``{basename}__*.parquet`` and bucket them by the
+    frame suffix (the part after ``__``). Returns ``{frame: [path, ...]}``
+    sorted by frame name; per-frame lists preserve manifest order so a
+    deterministic concat order can be applied downstream.
+    """
+    by_frame: dict[str, list[Path]] = {}
+    for manifest_path in manifest_paths:
+        basename = manifest_path.name.removesuffix("_manifest.json")
+        for parquet in sorted(manifest_path.parent.glob(f"{basename}__*.parquet")):
+            frame = parquet.stem.split("__", 1)[1]
+            by_frame.setdefault(frame, []).append(parquet)
+    return dict(sorted(by_frame.items()))
+
+
+def _dedupe_frame(frame_name: str, df):  # type: ignore[no-untyped-def]
+    """Drop_duplicates on the first matching key candidate; return df.
+
+    Falls back to no dedupe (with a stdout note) when no candidate matches
+    the frame's columns.
+    """
+    cols = set(df.columns)
+    for key in _DEDUPE_KEY_CANDIDATES:
+        if key and all(col in cols for col in key):
+            before = len(df)
+            df = df.drop_duplicates(subset=list(key), keep="last")
+            after = len(df)
+            if before != after:
+                print(
+                    f"{_LOG_PREFIX}{frame_name}: dropped {before - after} "
+                    f"duplicate row(s) on key={list(key)}"
+                )
+            return df.sort_values(list(key), kind="mergesort").reset_index(drop=True)
+    print(
+        f"{_LOG_PREFIX}{frame_name}: no dedupe key matched columns "
+        f"{sorted(cols)[:8]}…; keeping all rows (planner contract: shards "
+        f"are calendar-day-disjoint, so cross-shard duplicates are unexpected)"
+    )
+    return df.reset_index(drop=True)
+
+
+def merge_shard_payloads(
+    manifest_paths: Sequence[Path],
+    output_dir: Path,
+    *,
+    merged_basename: str = MERGED_BASENAME,
+) -> dict[str, int]:
+    """Concat per-shard frame parquets into a canonical merged bundle.
+
+    For each frame found across the supplied shards, loads every sibling
+    parquet, concatenates them, dedupes by the first matching key in
+    :data:`_DEDUPE_KEY_CANDIDATES`, and writes the result to
+    ``{output_dir}/{merged_basename}__{frame}.parquet``.
+
+    Returns ``{frame: row_count}`` so the caller can log a summary. Frames
+    that exist in some shards but not others are still merged (best-effort:
+    union of what's available); the missing shards simply contribute zero
+    rows.
+
+    Heavy deps (``pandas``, parquet engine) are imported lazily so the
+    manifest-only merge path stays import-cheap.
+    """
+    import pandas as pd  # noqa: PLC0415
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    by_frame = _discover_shard_parquets(manifest_paths)
+    if not by_frame:
+        print(
+            f"{_LOG_PREFIX}no per-shard parquet payloads discovered; "
+            "merged bundle will contain only the manifest. Downstream "
+            "consumers using load_export_bundle(required_frames=...) will "
+            "raise FileNotFoundError, which is the correct behaviour for "
+            "a manifest-only bundle."
+        )
+        return {}
+
+    # Lazy import to keep CLI startup cheap when the reducer is invoked
+    # in manifest-only mode (no payloads to merge).
+    from scripts.smc_atomic_write import atomic_write_parquet
+
+    summary: dict[str, int] = {}
+    for frame, paths in by_frame.items():
+        frames_df = [pd.read_parquet(p) for p in paths]
+        concat_df = pd.concat(frames_df, ignore_index=True, sort=False)
+        deduped = _dedupe_frame(frame, concat_df)
+        out_path = output_dir / f"{merged_basename}__{frame}.parquet"
+        atomic_write_parquet(deduped, out_path, index=False)
+        summary[frame] = len(deduped)
+        print(
+            f"{_LOG_PREFIX}{frame}: merged {len(paths)} shard(s) → "
+            f"{len(deduped)} row(s) → {out_path.name}"
+        )
+    return summary
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -447,6 +576,20 @@ def _build_argparser() -> argparse.ArgumentParser:
             "consumers (and the reduce-job log) can detect degraded output."
         ),
     )
+    p.add_argument(
+        "--payload-output-dir",
+        type=Path,
+        default=None,
+        help=(
+            "When set, concatenate per-shard frame parquets and write a "
+            "canonical merged bundle (manifest sibling files named "
+            f"`{MERGED_BASENAME}__<frame>.parquet`) into this directory. "
+            "Without this flag, only the merged manifest JSON is emitted; "
+            "downstream consumers that load via load_export_bundle("
+            "required_frames=...) would then resolve a per-shard manifest "
+            "covering only one date slice, silently halving coverage."
+        ),
+    )
     return p
 
 
@@ -473,6 +616,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
     atomic_write_json(merged, args.output, indent=2, sort_keys=True)
+    if args.payload_output_dir is not None:
+        try:
+            merge_shard_payloads(
+                [p for _, p in pairs],
+                args.payload_output_dir,
+                merged_basename=MERGED_BASENAME,
+            )
+        except Exception as exc:  # noqa: BLE001
+            print(
+                f"ERROR: payload merge failed: {exc}",
+                file=sys.stderr,
+            )
+            return 2
     if merged.get("partial_run"):
         # Emit a clearly-greppable WARNING line so the reduce-job log makes
         # partial outputs unmistakable. Stdout (not stderr) keeps argparse

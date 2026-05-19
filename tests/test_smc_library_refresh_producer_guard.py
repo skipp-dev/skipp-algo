@@ -43,11 +43,14 @@ def test_verify_export_bundle_step_hard_fails_on_missing_producer() -> None:
         "branch — workflow would silently publish against stale data "
         "(F-V5-D1)."
     )
-    assert "::error file=.github/workflows/smc-databento-production-export.yml" in step_body, (
+    assert "::error file=.github/workflows/smc-databento-production-export-sharded.yml" in step_body, (
         "verify_export_bundle: missing clickable `::error file=...::` "
-        "annotation pointing at the producer workflow. Without the "
-        "`file=` parameter the GHA UI doesn't surface a clickable link "
-        "and triage time balloons (F-V5-D1)."
+        "annotation pointing at the canonical sharded producer workflow. "
+        "F-V8-cutover (2026-05-18) moved the live cron to the sharded "
+        "workflow; the consumer's hard-fail annotation must point there "
+        "so triage opens the right workflow file. Without the `file=` "
+        "parameter the GHA UI doesn't surface a clickable link and "
+        "triage time balloons (F-V5-D1)."
     )
     # Defensive: the old fake-success exit MUST NOT have crept back.
     assert "set +e" not in step_body, (
