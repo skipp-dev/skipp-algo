@@ -4,7 +4,10 @@
 # Runs 2x per trading day at 16:00 / 20:00 UTC on weekdays — restructured
 # 4×→2× in F-V8-C4 (2026-05-06) to give the producer a dedicated 240-min
 # handoff window (prior schedules: 13/15/17/19 UTC per F-V6-C3, and
-# 12:30/14:30/16:30/18:30 UTC before that). See cron block below for
+# 12:30/14:30/16:30/18:30 UTC before that). F-V8-cutover (2026-05-18)
+# then moved the canonical producer cron to
+# smc-databento-production-export-sharded.yml while keeping the legacy
+# artifact name for downstream compatibility. See cron block below for
 # rationale and CHANGELOG.md F-V8-C4 entry for the lockstep producer
 # restructure. Within the handoff window the consumer expects a
 # freshly-completed producer artifact (see
@@ -53,7 +56,8 @@ name: smc-library-refresh
 on:
   schedule:
     # F-V8-C4 (2026-05-06): cron restructure 4×→2× to match producer's
-    # new 240-min budget (see smc-databento-production-export.yml). Each
+    # new 240-min budget (see smc-databento-production-export-sharded.yml).
+    # Each
     # producer tick gets a consumer follow-up exactly 240 min later, so
     # within the handoff window the consumer expects a freshly-completed
     # export even if the producer uses its full new cap. Workflow_run
@@ -62,12 +66,13 @@ on:
     - cron: "0 20 * * 1-5"   # 20:00 UTC – 240 min after producer 16:00 tick
   # F-V4-J3 (2026-05-01) blast-radius reduction (kept alongside the
   # F-V6-C3 cron schedule above as belt-and-suspenders): consumer also
-  # fires immediately when the producer (smc-databento-production-export)
-  # completes successfully, gated by the job-level `if:` below. Refresh
-  # is idempotent so back-to-back fires (workflow_run + nearby cron) are
-  # safe; concurrency guard above prevents overlap.
+  # fires immediately when the canonical sharded producer
+  # (smc-databento-production-export-sharded) completes successfully,
+  # gated by the job-level `if:` below. Refresh is idempotent so
+  # back-to-back fires (workflow_run + nearby cron) are safe;
+  # concurrency guard above prevents overlap.
   workflow_run:
-    workflows: ["smc-databento-production-export"]
+    workflows: ["smc-databento-production-export-sharded"]
     types: [completed]
     branches: [main]
   workflow_dispatch:
@@ -84,7 +89,7 @@ on:
         default: ''
 
 # F-V8-C3.1-D (2026-05-02): serialize consumer runs per ref. Mirrors the
-# producer guard (smc-databento-production-export) so a slow handoff
+# producer guard (smc-databento-production-export-sharded) so a slow handoff
 # cannot be raced by the next 2-hour cron tick. cancel-in-progress=false
 # because the consumer commits artifacts and opens PRs — killing it
 # mid-run would leave a half-written artifact tree on the runner and a
@@ -217,17 +222,57 @@ jobs:
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: "20"
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3
+        with:
+          # Mirrors ci.yml: GHA cache backend returns HTTP 400 on the
+          # Windows self-hosted runner. Disable the GHA cache layer there;
+          # uv keeps its on-disk cache regardless.
+          enable-cache: ${{ needs.select-runner.outputs.runner_environment == 'github-hosted' && 'true' || 'false' }}
+          cache-dependency-glob: |
+            requirements*.txt
 
       - name: Install Python dependencies
         run: |
-          "$SMC_PYTHON_BIN" -m pip install --upgrade pip
-          "$SMC_PYTHON_BIN" -m pip install -r requirements.txt pytest
+          # F-V8-perf (2026-05-18): pip -> uv. uv installs into the same
+          # interpreter site-packages (no venv needed here), preserving the
+          # downstream "$SMC_PYTHON_BIN script.py" contract.
+          uv pip install --python "$SMC_PYTHON_BIN" -r requirements.txt pytest
 
       - name: Install Node dependencies
         run: npm ci
 
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+      - name: Resolve Playwright version
+        id: pw_version
+        run: |
+          version="$(npx --no-install playwright --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n1)"
+          if [ -z "$version" ]; then
+            # Fall back to package.json so the cache key stays stable even
+            # if the npx probe ever changes its output format.
+            version="$(node -p "require('./node_modules/playwright/package.json').version")"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Playwright browsers cache
+        id: pw_cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-browsers-${{ steps.pw_version.outputs.version }}
+
+      - name: Install Playwright browsers (cache miss)
+        if: steps.pw_cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
+
+      - name: Install Playwright system deps
+        # apt install of Chromium system libs is fast on github-hosted but
+        # cannot be cached across runs (apt state lives outside _work).
+        # On self-hosted Windows there are no deps to install; the command
+        # is a no-op so it's safe to run unconditionally.
+        run: npx playwright install-deps chromium
 
       # ── Snapshot pre-generation state ───────────────────────────
       - name: Snapshot library + manifest before generation
@@ -302,7 +347,11 @@ jobs:
             exit 1
           fi
           set +e
-          "$SMC_PYTHON_BIN" -m pytest -q --maxfail=1 "${tests[@]}" 2>&1 | tee artifacts/ci/smc_refresh_gate_pytest.log
+          # F-V8-perf (2026-05-18): xdist parallelism on the gate tests. The
+          # integration/structure/core suites are already parallel-safe (same
+          # pattern as ci.yml's validate job). worksteal keeps long tests from
+          # bottlenecking a single worker.
+          "$SMC_PYTHON_BIN" -m pytest -q --maxfail=1 -n auto --dist=worksteal "${tests[@]}" 2>&1 | tee artifacts/ci/smc_refresh_gate_pytest.log
           GATE_RC=${PIPESTATUS[0]}
           set -e
 
@@ -387,9 +436,9 @@ jobs:
 
       # ── Restore canonical Databento production export bundle ────
       # F-V5-D3 (2026-05-01): switched from actions/cache/restore to
-      # dawidd6/action-download-artifact. The producer workflow
-      # (smc-databento-production-export.yml) publishes its bundle as a
-      # workflow artifact named
+      # dawidd6/action-download-artifact. The canonical sharded producer
+      # workflow (smc-databento-production-export-sharded.yml) publishes
+      # its compat-layer bundle under the legacy workflow-artifact name
       # `smc-databento-production-export-<DATE>-<RUN_ID>` (F-V5-D2). We
       # search the producer workflow's recent runs for the newest
       # successful artifact whose name matches today's date; if none is
@@ -401,7 +450,7 @@ jobs:
         if: steps.diff.outputs.changed == 'true'
         uses: dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6
         with:
-          workflow: smc-databento-production-export.yml
+          workflow: smc-databento-production-export-sharded.yml
           name: smc-databento-production-export-${{ env.REFRESH_DATE }}-
           name_is_regexp: true
           path: artifacts/smc_microstructure_exports
@@ -415,7 +464,7 @@ jobs:
           && steps.restore_export_bundle_today.outputs.found_artifact != 'true'
         uses: dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6
         with:
-          workflow: smc-databento-production-export.yml
+          workflow: smc-databento-production-export-sharded.yml
           name: ^smc-databento-production-export-
           name_is_regexp: true
           path: artifacts/smc_microstructure_exports
@@ -499,7 +548,7 @@ jobs:
           # bundle. Hard-fail with a clickable annotation that points at
           # the upstream workflow so triage starts in the right place.
           echo "bundle_present=false" >> "$GITHUB_OUTPUT"
-          echo "::error file=.github/workflows/smc-databento-production-export.yml::Producer artifact missing for ${REFRESH_DATE}; refresh aborted. Re-run smc-databento-production-export and then re-trigger smc-library-refresh."
+          echo "::error file=.github/workflows/smc-databento-production-export-sharded.yml::Producer artifact missing for ${REFRESH_DATE}; refresh aborted. Re-run smc-databento-production-export-sharded and then re-trigger smc-library-refresh."
           exit 1
 
       # ── Release-reference artifact refresh + strict gates ───────

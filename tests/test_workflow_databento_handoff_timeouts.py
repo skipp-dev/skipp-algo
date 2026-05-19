@@ -4,11 +4,14 @@ Audit follow-up to **F-V6-C3 / F-V6-C4 (2026-05-02)**.
 
 Background
 ----------
-``smc-databento-production-export.yml`` (producer) writes the daily
-microstructure exports that ``smc-library-refresh.yml`` (consumer) reads
-240 minutes later — F-V8-C4 (2026-05-06) restructured both cron schedules
-from 4×/day to 2×/day, so the producer ticks at 12:00 / 16:00 UTC and the
-consumer follows at 16:00 / 20:00 UTC.
+``smc-databento-production-export-sharded.yml`` (canonical producer)
+writes the daily microstructure exports that
+``smc-library-refresh.yml`` (consumer) reads 240 minutes later —
+F-V8-C4 (2026-05-06) restructured both cron schedules from 4×/day to
+2×/day, and F-V8-cutover (2026-05-18) moved the producer cron from the
+monolith to the sharded workflow while keeping the legacy artifact name
+for downstream compatibility. The producer ticks at 12:00 / 16:00 UTC
+and the consumer follows at 16:00 / 20:00 UTC.
 
 Before the F-V6-C3 / F-V6-C4 audit:
 
@@ -31,7 +34,7 @@ import pytest
 import yaml
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
-_PRODUCER = _REPO_ROOT / ".github" / "workflows" / "smc-databento-production-export.yml"
+_PRODUCER = _REPO_ROOT / ".github" / "workflows" / "smc-databento-production-export-sharded.yml"
 _CONSUMER = _REPO_ROOT / ".github" / "workflows" / "smc-library-refresh.yml"
 
 # F-V8-C4 (2026-05-06) — bumped both caps from 120/120 to 240/240 after
