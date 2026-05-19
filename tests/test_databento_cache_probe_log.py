@@ -15,7 +15,6 @@ producer's atexit dump (`scripts/databento_production_export.py`):
 """
 from __future__ import annotations
 
-import atexit
 import json
 import subprocess
 import sys
