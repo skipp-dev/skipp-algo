@@ -267,7 +267,10 @@ jobs:
         # an open issue with the f2-rollback label and either comments
         # or creates a new one. Failures here MUST NOT mask the gate
         # failure -- the workflow still exits 2 because of the gate step.
-        if: steps.locate.outputs.status == 'ready' && steps.gate.outputs.rc == '2'
+        # WF-003 fix: needs always() because the gate step exits 2 on
+        # rollback (run is marked failed); without always() this step
+        # is skipped and the operator never gets the ping.
+        if: always() && steps.locate.outputs.status == 'ready' && steps.gate.outputs.rc == '2'
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO:  ${{ github.repository }}
@@ -297,7 +300,9 @@ jobs:
         # journal the action. No-op when the artifact does not exist
         # yet (chicken-and-egg) or is already shadow. Failure here
         # MUST NOT mask the gate exit code.
-        if: steps.locate.outputs.status == 'ready' && steps.gate.outputs.rc == '2'
+        # WF-003 fix: needs always() because the gate step exits 2 on
+        # rollback; without always() the revert is silently skipped.
+        if: always() && steps.locate.outputs.status == 'ready' && steps.gate.outputs.rc == '2'
         run: |
           set +e
           mkdir -p artifacts/ci/f2
