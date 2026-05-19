@@ -210,12 +210,13 @@ def test_main_required_args_missing_exits_2_via_argparse() -> None:
 _SHARDED_WORKFLOW_BASENAME = "smc-databento-production-export-sharded"
 
 
-def test_sharded_workflow_yaml_triggers_match_contract() -> None:
-    """Triggers must match the PR #2288 contract: `workflow_dispatch` for
-    ad-hoc runs PLUS the off-hours probe-cron schedule. The compat-bundle
-    stage MUST be gated on ``github.event_name != 'schedule'`` so the
-    probe-cron never poisons the canonical artifact pool (validated by
-    tests/test_smc_databento_production_export_sharded_workflow.py).
+def test_sharded_workflow_yaml_keeps_dispatch_inputs() -> None:
+    """workflow_dispatch must remain available across probe/cutover phases.
+
+    The sharded producer graduated from dispatch-only to scheduled probe/
+    live-cron phases, but manual dispatch remains part of the operational
+    contract for ad-hoc recovery and smoke runs. The trigger surface is
+    therefore limited to ``workflow_dispatch`` plus optional ``schedule``.
     """
     yaml = pytest.importorskip("yaml")
     path = (
@@ -230,17 +231,16 @@ def test_sharded_workflow_yaml_triggers_match_contract() -> None:
     on_key = True if True in doc else "on"
     triggers = doc[on_key]
     assert isinstance(triggers, dict)
-    assert set(triggers.keys()) == {"schedule", "workflow_dispatch"}, (
-        f"sharded workflow trigger set drifted; got {sorted(triggers.keys())}"
+    assert "workflow_dispatch" in triggers, (
+        f"sharded workflow must keep workflow_dispatch; got {list(triggers.keys())}"
+    )
+    assert set(triggers.keys()).issubset({"workflow_dispatch", "schedule"}), (
+        f"sharded workflow may only expose workflow_dispatch plus optional schedule; "
+        f"got {list(triggers.keys())}"
     )
     inputs = triggers["workflow_dispatch"].get("inputs") or {}
     assert "lookback_days" in inputs
     assert "num_shards" in inputs
-    text = path.read_text()
-    assert "github.event_name != 'schedule'" in text, (
-        "compat-stage / upload must be gated on non-schedule triggers "
-        "so probe-cron does not publish canonical artifacts"
-    )
 
 
 def test_sharded_workflow_plan_job_invokes_planner_script() -> None:

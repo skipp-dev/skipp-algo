@@ -69,10 +69,20 @@ runs:
           use_persistent="true"
         fi
 
+        # F-V8-cutover (2026-05-18, HR-002): partition the persistent
+        # venv path by runner name so two self-hosted runner services on
+        # the same host can never race each other rebuilding / deleting
+        # the shared `$req_hash/.venv` directory. Trades a bit of cache
+        # sharing across runner services for crash-safety with zero
+        # lock-file complexity (Windows + bash + multiple PID 1 services
+        # = no portable atomic lock primitive worth depending on).
+        runner_name_safe="${RUNNER_NAME:-default}"
+        runner_name_safe="${runner_name_safe//[^A-Za-z0-9._-]/_}"
+
         if [[ "$use_persistent" == "true" ]]; then
           mkdir -p "$PERSISTENT_ROOT_INPUT"
-          venv_dir="$PERSISTENT_ROOT_INPUT/$req_hash/.venv"
-          stamp_file="$PERSISTENT_ROOT_INPUT/$req_hash/.complete"
+          venv_dir="$PERSISTENT_ROOT_INPUT/$runner_name_safe/$req_hash/.venv"
+          stamp_file="$PERSISTENT_ROOT_INPUT/$runner_name_safe/$req_hash/.complete"
         else
           venv_dir="$GITHUB_WORKSPACE/.venv"
           stamp_file=""

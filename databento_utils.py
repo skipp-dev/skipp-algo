@@ -96,7 +96,24 @@ def _read_cached_frame(path: Path, *, max_age_seconds: int | None = None) -> pd.
     if not path.exists():
         return None
     if max_age_seconds is not None:
-        age = (datetime.now(UTC) - datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)).total_seconds()
+        # ``max_age_seconds == 0`` is the "force-expire" sentinel used to
+        # bypass the cache regardless of mtime precision. The Windows
+        # NTFS clock has ~10 ms granularity and can record an
+        # ``st_mtime`` slightly *in the future* of ``datetime.now(UTC)``
+        # right after ``_write_cached_frame`` returns; that would
+        # produce a negative ``age`` and incorrectly keep the cache
+        # alive against the caller's stated TTL of zero. Short-circuit
+        # before the arithmetic. Mirrors the same fix in
+        # ``databento_volatility_screener._read_cached_frame`` (#2277).
+        if max_age_seconds <= 0:
+            logger.info("Cache forcibly expired (TTL=0): %s", path.name)
+            return None
+        # Clamp non-positive ages to zero so an mtime slightly in the
+        # future never *extends* the effective TTL.
+        age = max(
+            (datetime.now(UTC) - datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)).total_seconds(),
+            0.0,
+        )
         if age >= max_age_seconds:
             logger.info("Cache expired (%.1f h old, TTL %.1f h): %s", age / 3600, max_age_seconds / 3600, path.name)
             return None

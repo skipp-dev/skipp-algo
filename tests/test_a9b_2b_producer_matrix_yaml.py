@@ -9,7 +9,7 @@ These tests guard the structural wiring of the sharded workflow's
 * per-shard ``timeout-minutes: 120`` (Q4 bumped 90→120 post-Probe-v3)
 * per-shard artifact name template includes both shard-id and shard-of
 * producer call carries the four sharding CLI flags introduced in A9b.1
-* ``workflow_dispatch`` remains the only trigger (no ``schedule``)
+* ``workflow_dispatch`` remains available even after scheduled phases land
 
 The orphan-inventory guard already sees the workflow basename via the
 A9b.2a smoke tests in ``test_a9b_2a_plan_shards.py``.
@@ -121,21 +121,9 @@ def test_producer_uploads_artifact_unconditionally() -> None:
         and s["uses"].startswith("actions/upload-artifact@")
     ]
     assert upload_steps, "producer must have an upload-artifact step"
-    # Accepted `if:` values:
-    #   * ``always()`` - the original A9b.2b OOM/timeout guarantee for the
-    #     primary shard-bundle upload.
-    #   * ``always() && github.event_name == 'schedule'`` - the F-011 (PR
-    #     #2288) probe-cron-only dedicated cache-probe-log upload. It is
-    #     still ``always()``-prefixed so producer crashes don't lose
-    #     telemetry, but only fires on the probe-cron trigger.
-    _ALLOWED_UPLOAD_IFS = {
-        "always()",
-        "always() && github.event_name == 'schedule'",
-    }
     for step in upload_steps:
-        assert step.get("if") in _ALLOWED_UPLOAD_IFS, (
-            f"producer upload-artifact step uses unexpected `if:` value; "
-            f"got {step.get('if')!r}, expected one of {sorted(_ALLOWED_UPLOAD_IFS)}"
+        assert step.get("if") == "always()", (
+            f"producer upload-artifact step must use `if: always()`; got {step.get('if')!r}"
         )
         # Accept both floating tag and its SHA-pinned equivalent so the
         # test keeps passing after actions are pinned to full commit SHAs.
@@ -148,17 +136,18 @@ def test_producer_uploads_artifact_unconditionally() -> None:
         )
 
 
-def test_workflow_triggers_after_2b_and_probe_cron() -> None:
-    """PR #2288 contract: producer matrix + probe-cron schedule. The
-    canonical-artifact compat-stage MUST stay gated on a non-schedule
-    event so probe-cron runs don't publish artifacts.
-    """
+def test_workflow_keeps_dispatch_surface_after_2b() -> None:
+    """A9b.2b regression-guard: producer addition must keep manual dispatch."""
     doc = _yaml_doc()
     on_key = True if True in doc else "on"
     triggers = doc[on_key]
     assert isinstance(triggers, dict)
-    assert set(triggers.keys()) == {"schedule", "workflow_dispatch"}, (
-        f"sharded workflow trigger set drifted; got {sorted(triggers.keys())}"
+    assert "workflow_dispatch" in triggers, (
+        f"sharded workflow must keep workflow_dispatch; got {list(triggers.keys())}"
+    )
+    assert set(triggers.keys()).issubset({"workflow_dispatch", "schedule"}), (
+        f"sharded workflow may only expose workflow_dispatch plus optional schedule; "
+        f"got {list(triggers.keys())}"
     )
 
 

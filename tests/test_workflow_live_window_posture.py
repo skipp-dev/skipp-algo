@@ -10,18 +10,18 @@ schedule to reconstruct it. This pin makes the posture explicit at the top
 of every workflow file, so a reviewer can see at a glance whether a
 ``permissions:`` change or a new cron entry violates the declared contract.
 
-Posture vocabulary (6 values)
+Posture vocabulary (7 values)
 -----------------------------
 - ``off-hours-only`` — schedule-only AND no contents/pull-requests/issues
   writes (read-only telemetry / report generation).
-- ``off-hours-probe-cron`` — schedule-driven telemetry-collection cron
-  that runs off-hours and is explicitly gated to NOT publish canonical
-  artifacts (compat-bundle steps carry ``if: ... github.event_name !=
-  'schedule'``). Introduced by PR #2288 for the F-V8-perf-3.5 probe-cron.
 - ``mutating-on-cron`` — schedule-triggered AND has at least one write
   permission (commits artifacts, opens PRs, files issues).
+- ``live-cron`` — schedule-triggered workflow intentionally running inside
+    the live trading handoff window (Databento producer cutover).
 - ``any-trigger`` — fires on push/pull_request (CI gates, ephemeral).
 - ``manual-only`` — workflow_dispatch / workflow_call only.
+- ``deprecated-workflow_dispatch-only`` — legacy manual-only workflow kept
+    temporarily for rollback / compat until downstream cutover is complete.
 - ``release-driven`` — fires on release events.
 
 The marker MUST appear within the first 10 lines and match the regex
@@ -41,10 +41,11 @@ _WF_DIR = _REPO_ROOT / ".github" / "workflows"
 _MARKER_RE = re.compile(r"^# live-window:\s+(\S+)")
 _VALID_POSTURES = {
     "off-hours-only",
-    "off-hours-probe-cron",
     "mutating-on-cron",
+    "live-cron",
     "any-trigger",
     "manual-only",
+    "deprecated-workflow_dispatch-only",
     "release-driven",
 }
 _WRITE_PERMS_OF_INTEREST = {"contents", "pull-requests", "issues"}
@@ -139,6 +140,36 @@ def test_mutating_on_cron_has_schedule_and_write(path: Path) -> None:
         f"{path.name} declares `# live-window: mutating-on-cron` but has no "
         "write permissions on contents/pull-requests/issues. Either grant a "
         "write permission or change the marker to `off-hours-only`."
+    )
+
+
+@pytest.mark.parametrize("path", _all_workflow_files(), ids=lambda p: p.name)
+def test_live_cron_has_schedule(path: Path) -> None:
+    posture = _read_marker(path)
+    if posture != "live-cron":
+        return
+    wf = _load_yaml(path)
+    triggers = _trigger_keys(wf)
+    assert "schedule" in triggers, (
+        f"{path.name} declares `# live-window: live-cron` but has no schedule "
+        f"trigger (triggers={sorted(triggers)})."
+    )
+
+
+@pytest.mark.parametrize("path", _all_workflow_files(), ids=lambda p: p.name)
+def test_deprecated_dispatch_only_has_no_schedule(path: Path) -> None:
+    posture = _read_marker(path)
+    if posture != "deprecated-workflow_dispatch-only":
+        return
+    wf = _load_yaml(path)
+    triggers = _trigger_keys(wf)
+    assert "workflow_dispatch" in triggers, (
+        f"{path.name} declares deprecated dispatch-only posture but has no "
+        f"workflow_dispatch trigger (triggers={sorted(triggers)})."
+    )
+    assert "schedule" not in triggers, (
+        f"{path.name} declares deprecated dispatch-only posture but still has "
+        f"a schedule trigger (triggers={sorted(triggers)})."
     )
 
 

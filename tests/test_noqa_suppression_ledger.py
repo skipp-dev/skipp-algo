@@ -162,10 +162,15 @@ _FROZEN_SITES: dict[str, int] = {
     "scripts/emit_fvg_context_pine.py": 2,
     "scripts/fvg_quality_quartile_gate.py": 2,
     "scripts/g23_ab_watchdog.py": 2,
-    # A9b.3 reduce-step: single `# noqa: E402` for the
+    # A9b.3 reduce-step: 1× `# noqa: E402` for the
     # `from scripts.smc_atomic_write import atomic_write_json` import
     # which must follow the sys.path bootstrap (see import-order ledger).
-    "scripts/databento_production_merge_shards.py": 1,
+    # F-V8-cutover: bumped 1 → 3 to cover the new payload-merge step:
+    # 1× `# noqa: PLC0415` for the lazy `import pandas as pd` (heavy
+    # dep, only needed when payloads exist) + 1× `# noqa: BLE001` for
+    # the discovery-step generic `except Exception` (must surface every
+    # shard's error in the partial-fail report, not abort the merge).
+    "scripts/databento_production_merge_shards.py": 3,
     # 2026-05-12 PR #2157: Databento entitlement probe wraps each
     # provider request in a generic ``except Exception`` so it can
     # surface the original error message in the probe report. BLE001
@@ -176,13 +181,11 @@ _FROZEN_SITES: dict[str, int] = {
     # diagnostic-only ``# noqa: SECLEAK`` because the surfaced text contains
     # only module/path identifiers, not credentials.
     "scripts/probe_databento_entitlement.py": 3,
-    # 2026-05-12 PR #2154: scripts/probe_fmp_13f_endpoints.py needs 3
-    # noqa suppressions: 1× S310 for the urllib.request.urlopen call
-    # (probe whitelisted-domain via deliberate URL inspection) and 2×
-    # BLE001 for the discovery loop's generic exception-catch (probe
-    # must surface every endpoint's error, not let one tear down the
-    # report). Diagnostic-only script.
-    "scripts/probe_fmp_13f_endpoints.py": 3,
+    # 2026-05-12 PR #2154: scripts/probe_fmp_13f_endpoints.py needed 3
+    # noqa suppressions originally. Rebaselined to 1 after upstream main
+    # consolidated the discovery loop's two BLE001 catches into a single
+    # SECLEAK-marked dict construction (only 1× `# noqa: SECLEAK` remains).
+    "scripts/probe_fmp_13f_endpoints.py": 1,
     # 2026-05-13: scripts/probe_providers.py preflight + notification
     # dispatcher catches ``Exception`` deliberately (broad logging.exception
     # in two error-recovery paths) so a transient dispatcher failure does
@@ -190,6 +193,11 @@ _FROZEN_SITES: dict[str, int] = {
     # ``# noqa: SECLEAK`` because the dispatcher logs only the exception
     # type / message (no API keys live in the exception stack frame).
     "scripts/probe_providers.py": 2,
+    # Dev-only profiling helpers (subprocess.run on locally-constructed
+    # argv) ship a single `# noqa: S603` each. Both are CI-invocable
+    # convenience scripts, not on any production hot path.
+    "scripts/profile_cron_with_pyspy.py": 1,
+    "scripts/profile_pytest_durations.py": 1,
 }
 _FROZEN_TOTAL = sum(_FROZEN_SITES.values())
 

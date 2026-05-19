@@ -130,6 +130,11 @@ npx tsx scripts/create_tradingview_storage_state.ts \
 
 The capture step now validates that the saved state actually looks authenticated and that the active page is a TradingView chart. If it still detects an anonymous session or sign-in page, it fails instead of writing a misleading storage-state file. In non-interactive runs it waits and polls for a real logged-in chart session instead of immediately failing on the old Enter prompt path.
 
+The storage-state file is plaintext Playwright auth material. It is ignored by
+git and must stay local or be transported only as an encrypted CI secret. Run
+`npm run tv:auth-security` (or the matching pytest guard) before release work if
+you need to verify that no plaintext TradingView auth state is tracked.
+
 If TradingView still does not persist enough auth state into `storage-state.json`, use a persistent Chromium profile instead:
 
 ```bash

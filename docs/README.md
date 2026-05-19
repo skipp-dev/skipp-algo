@@ -94,11 +94,24 @@ Primary TradingView automation entry points:
 - `npm run tv:preflight` for mutating repo-source validation
 - `npm run tv:preflight:smc-mainline` for the canonical SMC mainline gate
 - `npm run tv:smoke-readonly` for non-writing existing-script smoke validation
+- `npm run tv:auth-security` for the plaintext storage-state tracking guard
 
 Current workspace caveat:
 
 - the TradingView automation layer, reports path, and auth artifacts are present in this checkout, so the documented preflight and micro-library publish paths are reproducible locally again; inspect `../automation/tradingview/reports/` before assuming an older snapshot still reflects the current binding/runtime scope
 - regenerate fresh SMC mainline evidence with `npm run tv:preflight:smc-mainline` when you need a current validation artifact
+
+Current quantitative governance / audit anchors:
+
+- [adr/0008-promotion-gate-thresholds.md](adr/0008-promotion-gate-thresholds.md) — PromotionGate threshold provenance and recalibration policy
+- [research/promotion_gate/live_vs_wf_ratio_calibration_2026-05-18.md](research/promotion_gate/live_vs_wf_ratio_calibration_2026-05-18.md) — live-vs-WF ratio operator-prior calibration note
+- [coverage/coverage_omit_audit_2026-05-18.md](coverage/coverage_omit_audit_2026-05-18.md) — coverage omit audit contract
+- [sprints/backlog/quant_promotion_gate_followup.md](sprints/backlog/quant_promotion_gate_followup.md) — closed QPG follow-up findings
+
+Current sprint / backlog anchors:
+
+- [sprints/backlog/c14_phase_b_promotion.md](sprints/backlog/c14_phase_b_promotion.md) — Phase-B promotion backlog anchor
+- [sprints/backlog/joint_outcome_modeling.md](sprints/backlog/joint_outcome_modeling.md) — co-firing joint-outcome modeling backlog anchor
 
 Current deep-review planning documents:
 
