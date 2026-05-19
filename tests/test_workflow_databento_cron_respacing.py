@@ -6,7 +6,7 @@ land independently).
 
 Background
 ----------
-Producer (`smc-databento-production-export.yml`) writes the daily
+Producer (`smc-databento-production-export-sharded.yml`) writes the daily
 microstructure exports that the consumer (`smc-library-refresh.yml`)
 reads on its next tick.
 
@@ -26,7 +26,11 @@ from pathlib import Path
 import yaml
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
-_PRODUCER = _REPO_ROOT / ".github" / "workflows" / "smc-databento-production-export.yml"
+# F-V8-cutover (2026-05-18): the canonical scheduled producer is the
+# sharded workflow. The monolithic `smc-databento-production-export.yml`
+# is workflow_dispatch-only fallback and intentionally schedule-free, so
+# this respacing contract is asserted against the sharded variant.
+_PRODUCER = _REPO_ROOT / ".github" / "workflows" / "smc-databento-production-export-sharded.yml"
 _CONSUMER = _REPO_ROOT / ".github" / "workflows" / "smc-library-refresh.yml"
 
 # Floor-pin (NOT equals-pin): the consumer must wait *at least* this long
