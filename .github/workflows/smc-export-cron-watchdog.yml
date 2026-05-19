@@ -2,7 +2,12 @@
 # ---------------------------------------------------------------------------
 # smc-export-cron-watchdog
 #
-# Backup safety-net for `smc-databento-production-export.yml` cron triggers.
+# Backup safety-net for the canonical sharded producer cron triggers in
+# `smc-databento-production-export-sharded.yml` (F-V8-cutover 2026-05-18).
+# The monolithic `smc-databento-production-export.yml` workflow no longer
+# carries a cron schedule and is workflow_dispatch-only for emergencies;
+# the watchdog MUST NOT dispatch it automatically or it would re-introduce
+# the deprecated topology.
 #
 # WHY THIS EXISTS (empirical evidence, 2026-05-11/12):
 #   - The heavy export runs on `ubuntu-latest` (64 GB / 16 CPU). That
@@ -34,9 +39,12 @@
 #     exists in the window — regardless of status (queued / in_progress /
 #     completed / success / failure) — we no-op. status==success-only would
 #     create duplicate dispatches when a real cron run is mid-flight.
-#   - The original `schedule:` triggers in
-#     `smc-databento-production-export.yml` are intentionally KEPT. This
-#     watchdog is a backup, not a replacement.
+#   - The canonical `schedule:` triggers live in
+#     `smc-databento-production-export-sharded.yml` (F-V8-cutover 2026-05-18).
+#     This watchdog is a backup for that sharded producer, not a
+#     replacement. The dispatch payload includes `inputs[num_shards]=6` to
+#     match the production shard fan-out so a backup-recovered run produces
+#     the same artifact shape as the scheduled one.
 # ---------------------------------------------------------------------------
 
 name: smc-export-cron-watchdog
@@ -65,7 +73,10 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  TARGET_WORKFLOW: smc-databento-production-export.yml
+  # F-V8-cutover (2026-05-18): canonical producer is the sharded workflow.
+  # The monolithic `smc-databento-production-export.yml` is dispatch-only
+  # fallback and MUST NOT be the watchdog target.
+  TARGET_WORKFLOW: smc-databento-production-export-sharded.yml
   TARGET_REPO: ${{ github.repository }}
   # Scheduled slot hours (UTC) for the heavy workflow
   SLOT_HOURS: "12 16"
@@ -182,9 +193,13 @@ jobs:
         run: |
           set -euo pipefail
           echo "::notice::watchdog: dispatching ${TARGET_WORKFLOW} (slot=${ACTIVE_SLOT}, elapsed=${ELAPSED_MIN}min, threshold=${WATCHDOG_THRESHOLD_MIN}min)"
+          # F-V8-cutover (2026-05-18): canonical producer is sharded with
+          # num_shards=6 in production; backup dispatch must mirror that
+          # fan-out so the recovered run produces a complete merged bundle.
           gh api "repos/${TARGET_REPO}/actions/workflows/${TARGET_WORKFLOW}/dispatches" \
             -f ref=main \
-            -f "inputs[lookback_days]=30"
+            -f "inputs[lookback_days]=30" \
+            -f "inputs[num_shards]=6"
           echo "::notice::dispatch fired — verify on Actions tab"
 
       - name: Summary

@@ -4,7 +4,10 @@
 # Runs 2x per trading day at 16:00 / 20:00 UTC on weekdays — restructured
 # 4×→2× in F-V8-C4 (2026-05-06) to give the producer a dedicated 240-min
 # handoff window (prior schedules: 13/15/17/19 UTC per F-V6-C3, and
-# 12:30/14:30/16:30/18:30 UTC before that). See cron block below for
+# 12:30/14:30/16:30/18:30 UTC before that). F-V8-cutover (2026-05-18)
+# then moved the canonical producer cron to
+# smc-databento-production-export-sharded.yml while keeping the legacy
+# artifact name for downstream compatibility. See cron block below for
 # rationale and CHANGELOG.md F-V8-C4 entry for the lockstep producer
 # restructure. Within the handoff window the consumer expects a
 # freshly-completed producer artifact (see
@@ -53,7 +56,8 @@ name: smc-library-refresh
 on:
   schedule:
     # F-V8-C4 (2026-05-06): cron restructure 4×→2× to match producer's
-    # new 240-min budget (see smc-databento-production-export.yml). Each
+    # new 240-min budget (see smc-databento-production-export-sharded.yml).
+    # Each
     # producer tick gets a consumer follow-up exactly 240 min later, so
     # within the handoff window the consumer expects a freshly-completed
     # export even if the producer uses its full new cap. Workflow_run
@@ -62,12 +66,13 @@ on:
     - cron: "0 20 * * 1-5"   # 20:00 UTC – 240 min after producer 16:00 tick
   # F-V4-J3 (2026-05-01) blast-radius reduction (kept alongside the
   # F-V6-C3 cron schedule above as belt-and-suspenders): consumer also
-  # fires immediately when the producer (smc-databento-production-export)
-  # completes successfully, gated by the job-level `if:` below. Refresh
-  # is idempotent so back-to-back fires (workflow_run + nearby cron) are
-  # safe; concurrency guard above prevents overlap.
+  # fires immediately when the canonical sharded producer
+  # (smc-databento-production-export-sharded) completes successfully,
+  # gated by the job-level `if:` below. Refresh is idempotent so
+  # back-to-back fires (workflow_run + nearby cron) are safe;
+  # concurrency guard above prevents overlap.
   workflow_run:
-    workflows: ["smc-databento-production-export"]
+    workflows: ["smc-databento-production-export-sharded"]
     types: [completed]
     branches: [main]
   workflow_dispatch:
@@ -84,7 +89,7 @@ on:
         default: ''
 
 # F-V8-C3.1-D (2026-05-02): serialize consumer runs per ref. Mirrors the
-# producer guard (smc-databento-production-export) so a slow handoff
+# producer guard (smc-databento-production-export-sharded) so a slow handoff
 # cannot be raced by the next 2-hour cron tick. cancel-in-progress=false
 # because the consumer commits artifacts and opens PRs — killing it
 # mid-run would leave a half-written artifact tree on the runner and a
@@ -431,9 +436,9 @@ jobs:
 
       # ── Restore canonical Databento production export bundle ────
       # F-V5-D3 (2026-05-01): switched from actions/cache/restore to
-      # dawidd6/action-download-artifact. The producer workflow
-      # (smc-databento-production-export.yml) publishes its bundle as a
-      # workflow artifact named
+      # dawidd6/action-download-artifact. The canonical sharded producer
+      # workflow (smc-databento-production-export-sharded.yml) publishes
+      # its compat-layer bundle under the legacy workflow-artifact name
       # `smc-databento-production-export-<DATE>-<RUN_ID>` (F-V5-D2). We
       # search the producer workflow's recent runs for the newest
       # successful artifact whose name matches today's date; if none is
@@ -445,7 +450,7 @@ jobs:
         if: steps.diff.outputs.changed == 'true'
         uses: dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6
         with:
-          workflow: smc-databento-production-export.yml
+          workflow: smc-databento-production-export-sharded.yml
           name: smc-databento-production-export-${{ env.REFRESH_DATE }}-
           name_is_regexp: true
           path: artifacts/smc_microstructure_exports
@@ -459,7 +464,7 @@ jobs:
           && steps.restore_export_bundle_today.outputs.found_artifact != 'true'
         uses: dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6
         with:
-          workflow: smc-databento-production-export.yml
+          workflow: smc-databento-production-export-sharded.yml
           name: ^smc-databento-production-export-
           name_is_regexp: true
           path: artifacts/smc_microstructure_exports
@@ -543,7 +548,7 @@ jobs:
           # bundle. Hard-fail with a clickable annotation that points at
           # the upstream workflow so triage starts in the right place.
           echo "bundle_present=false" >> "$GITHUB_OUTPUT"
-          echo "::error file=.github/workflows/smc-databento-production-export.yml::Producer artifact missing for ${REFRESH_DATE}; refresh aborted. Re-run smc-databento-production-export and then re-trigger smc-library-refresh."
+          echo "::error file=.github/workflows/smc-databento-production-export-sharded.yml::Producer artifact missing for ${REFRESH_DATE}; refresh aborted. Re-run smc-databento-production-export-sharded and then re-trigger smc-library-refresh."
           exit 1
 
       # ── Release-reference artifact refresh + strict gates ───────

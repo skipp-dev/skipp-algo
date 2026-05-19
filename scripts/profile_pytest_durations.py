@@ -125,6 +125,9 @@ def main(argv: list[str] | None = None) -> int:
 
     out_path = args.output or _default_output_path()
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    # ATOMIC-WRITE-EXEMPT: dev-only profiling helper writes a single
+    # human-readable durations report per invocation; no concurrent
+    # reader, a torn write would only affect this run's own report.
     out_path.write_text(report, encoding="utf-8")
     print(f"[profile] wrote {out_path}", file=sys.stderr)
     print(f"[profile] pytest exit code: {completed.returncode}", file=sys.stderr)

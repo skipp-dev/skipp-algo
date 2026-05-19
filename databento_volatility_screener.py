@@ -338,7 +338,7 @@ def build_cache_path(
 
 
 def _read_cached_frame(path: Path, *, max_age_seconds: int | None = None) -> pd.DataFrame | None:
-    if not path.exists():
+    if not (_record_cache_probe(path, hit=(exists := path.exists())) or exists):
         return None
     if max_age_seconds is not None:
         # ``max_age_seconds == 0`` is the "force-expire" sentinel used to
@@ -5586,6 +5586,38 @@ def run_streamlit_app() -> None:
             st.text("\n".join(st.session_state["dvs_run_logs"]))
         else:
             st.caption("No actions executed in this session yet.")
+
+
+# F-V8-perf-3.5 (2026-05-19): cache-probe-log. When enabled via
+# ``enable_cache_probe_log()``, every call into ``_read_cached_frame()`` records
+# the cache path and whether the file existed at lookup time. The producer dumps
+# the collected rows as JSONL via ``dump_cache_probe_log()`` for cross-run
+# overlap analysis of a prospective sharded file-cache. Disabled by default —
+# the cold path pays only the existing ``path.exists()`` check.
+_CACHE_PROBE_LOG: list[dict[str, object]] | None = None
+
+
+def enable_cache_probe_log() -> None:
+    global _CACHE_PROBE_LOG
+    if _CACHE_PROBE_LOG is None:
+        _CACHE_PROBE_LOG = []
+
+
+def _record_cache_probe(path: Path, *, hit: bool) -> None:
+    if _CACHE_PROBE_LOG is None:
+        return
+    _CACHE_PROBE_LOG.append({"path": str(path), "hit": bool(hit)})
+
+
+def dump_cache_probe_log(out_path: str | Path) -> int:
+    if _CACHE_PROBE_LOG is None:
+        return 0
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with out.open("w", encoding="utf-8") as fh:
+        for entry in _CACHE_PROBE_LOG:
+            fh.write(json.dumps(entry) + "\n")
+    return len(_CACHE_PROBE_LOG)
 
 
 # ── Canonical sources ──────────────────────────────────────────────────────
