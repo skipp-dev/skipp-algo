@@ -23,10 +23,11 @@
 #                           principle); the merged manifest then carries
 #                           partial_run=true + failed_shard_ids=[...].
 #
-# Trigger: workflow_dispatch ONLY. No `schedule:` block on purpose
-# until A9b.5 (cron cutover); a draft/probe workflow must never fire on
-# its own and risk producing partial canonical artifacts that downstream
-# consumers might pick up.
+# Trigger: cron (2x/day, 12:00 + 16:00 UTC weekdays — see F-V8-cutover
+# 2026-05-18) + workflow_dispatch. Pre-cutover this was workflow_dispatch-
+# only (probe workflow); the cron block was added when the monolithic
+# producer was deprecated and this sharded workflow became canonical. The
+# 240-min handoff window to library-refresh (16:00/20:00 UTC) is preserved.
 #
 # Probe flow:
 #   gh workflow run smc-databento-production-export-sharded.yml \
