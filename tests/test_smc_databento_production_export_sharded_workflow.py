@@ -5,8 +5,12 @@ cutover to the live 12:00/16:00 UTC schedule:
 
 * the canonical weekday crons stay fixed at 12:00 + 16:00 UTC,
 * manual ``workflow_dispatch`` remains available,
-* each shard writes its probe JSONL to a shard-specific path,
-* the probe JSONL is uploaded via its own hard-error artifact step,
+* the probe is opt-in via the ``enable_cache_probe`` dispatch input —
+  scheduled runs leave the env empty and skip the probe entirely,
+* when enabled, each shard writes its probe JSONL to a shard-specific path,
+* the probe JSONL is uploaded via its own dedicated step that stays
+  ``always()`` (survives shard OOM/timeout) but is ``if-no-files-found:
+  ignore`` so schedule runs which produce no JSONL don't fail the shard,
 * the shard bundle artifact does not silently hide probe-log loss.
 """
 
@@ -36,18 +40,46 @@ def test_manual_dispatch_remains_available() -> None:
     assert "num_shards:" in text
 
 
-def test_cache_probe_env_var_is_shard_specific() -> None:
+def test_cache_probe_env_var_is_shard_specific_and_opt_in() -> None:
     text = _read()
-    expected = 'DATABENTO_CACHE_PROBE_LOG: "artifacts/ci/cache_probe_shard_${{ matrix.shard_id }}.jsonl"'
-    assert expected in text, "cache-probe path must be partitioned by matrix.shard_id"
+    expected = (
+        "DATABENTO_CACHE_PROBE_LOG: ${{ inputs.enable_cache_probe == 'true' "
+        "&& format('artifacts/ci/cache_probe_shard_{0}.jsonl', matrix.shard_id) || '' }}"
+    )
+    assert expected in text, (
+        "cache-probe path must be partitioned by matrix.shard_id AND gated on "
+        "the enable_cache_probe input so schedule runs skip probe IO"
+    )
 
 
-def test_cache_probe_log_has_dedicated_hard_error_upload_step() -> None:
+def test_enable_cache_probe_input_is_opt_in_default_false() -> None:
+    text = _read()
+    # Pin the dispatch surface: the toggle exists, is boolean, defaults to
+    # false (= probe off on every schedule run, opt-in for baseline runs).
+    assert "enable_cache_probe:" in text
+    block_start = text.index("enable_cache_probe:")
+    # Window is intentionally tight (next input or section break is well
+    # within 400 chars) so we don't accidentally match neighbouring inputs.
+    block = text[block_start : block_start + 400]
+    assert "type: boolean" in block, "enable_cache_probe must be typed boolean"
+    assert "default: false" in block, "enable_cache_probe must default to false (opt-in)"
+
+
+def test_cache_probe_log_has_dedicated_soft_upload_step() -> None:
     text = _read()
     assert "- name: Upload cache-probe log" in text
     assert "name: cache-probe-shard-${{ matrix.shard_id }}-of-${{ matrix.shard_of }}" in text
     assert "path: artifacts/ci/cache_probe_shard_${{ matrix.shard_id }}.jsonl" in text
-    assert "if-no-files-found: error" in text
+    # Locate the probe upload step and assert its `if-no-files-found` is
+    # `ignore` (was `error` pre-PR-A; schedule runs intentionally produce
+    # no JSONL when the opt-in toggle is off and must not fail the shard).
+    step_start = text.index("- name: Upload cache-probe log")
+    step_block = text[step_start : step_start + 800]
+    assert "if-no-files-found: ignore" in step_block
+    assert "if-no-files-found: error" not in step_block
+    # The step itself stays unconditional so an OOM/timeout shard with the
+    # toggle on still publishes whatever JSONL it managed to flush.
+    assert "if: always()" in step_block
 
 
 

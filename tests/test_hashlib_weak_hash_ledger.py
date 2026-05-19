@@ -54,7 +54,7 @@ _FROZEN_SITES: dict[str, dict[str, frozenset[int]]] = {
     "databento_utils.py": {"sha1": frozenset({85})},
     # Phase-A cache-probe instrumentation moved the three cache-key sha1 uses
     # downward in the file; semantics stay non-security cache fingerprinting.
-    "databento_volatility_screener.py": {"sha1": frozenset({394, 532, 550})},
+    "databento_volatility_screener.py": {"sha1": frozenset({393, 531, 549})},
     "newsstack_fmp/normalize.py": {
         "md5": frozenset({130, 253}),
         "sha1": frozenset({334, 420, 458, 502}),

@@ -58,6 +58,11 @@ on:
         description: "Number of producer shards in the matrix (default 6)"
         required: false
         default: "6"
+      enable_cache_probe:
+        description: "Opt-in: write per-shard cache-probe JSONL (baseline / validation runs)."
+        required: false
+        type: boolean
+        default: false
 
 # Per-ref serialization mirrors the live producer cron's discipline so a
 # slow plan-job (it shouldn't be slow, but cheap insurance) cannot be
@@ -204,11 +209,13 @@ jobs:
           # headroom in the first week of post-cutover telemetry this can
           # be bumped to 4.
           DATABENTO_STEP8_SUBSTEP_PARALLELISM: "2"
-          # F-V8-perf-3.5 (2026-05-19): record every file-cache lookup per
-          # shard so cross-run path overlap can estimate the hit-rate of a
-          # future persistent sharded cache. This now runs on the canonical
-          # 12:00/16:00 UTC producer schedule — no probe-only carve-out left.
-          DATABENTO_CACHE_PROBE_LOG: "artifacts/ci/cache_probe_shard_${{ matrix.shard_id }}.jsonl"
+          # F-V8-perf-3.5 PR-A (2026-05-19): cache-probe is opt-in via the
+          # `enable_cache_probe` workflow_dispatch input. On schedule triggers
+          # (and dispatches without the toggle) the env stays empty, so the
+          # producer skips the probe entirely — no probe-shaped IO on the hot
+          # path. Flip the toggle for the Phase-B baseline run and the Phase-D
+          # post-cache validation runs.
+          DATABENTO_CACHE_PROBE_LOG: ${{ inputs.enable_cache_probe == 'true' && format('artifacts/ci/cache_probe_shard_{0}.jsonl', matrix.shard_id) || '' }}
         run: |
           set -euo pipefail
           mkdir -p "${EXPORT_DIR}" artifacts/ci
@@ -234,13 +241,18 @@ jobs:
           if-no-files-found: warn
 
       - name: Upload cache-probe log
+        # Stay unconditional (`always()`) so the step survives shard OOM /
+        # timeout, but downgrade to `ignore` so schedule runs (which set the
+        # probe env to '' above and therefore produce no JSONL) don't fail
+        # the shard. The dedicated test pin lives in
+        # tests/test_smc_databento_production_export_sharded_workflow.py.
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: cache-probe-shard-${{ matrix.shard_id }}-of-${{ matrix.shard_of }}
           path: artifacts/ci/cache_probe_shard_${{ matrix.shard_id }}.jsonl
           retention-days: 14
-          if-no-files-found: error
+          if-no-files-found: ignore
 
   reduce:
     name: reduce shard manifests
