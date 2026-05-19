@@ -337,7 +337,7 @@ def _write_arm(
         # Relative to ``out_dir`` so the on-disk JSON is byte-stable across
         # runs from different working directories (CI vs local vs tmp).
         summary["artifact_dir"] = rel_dir
-        atomic_write_text(json.dumps(summary, indent=2, sort_keys=True, allow_nan=False), summary_path)
+        atomic_write_text(json.dumps(summary, indent=2, sort_keys=True), summary_path)
         pair_runs.append({
             "symbol": symbol,
             "timeframe": timeframe,
@@ -355,7 +355,7 @@ def _write_arm(
         "pair_runs": pair_runs,
     }
     manifest_path = out_dir / "benchmark_run_manifest.json"
-    atomic_write_text(json.dumps(manifest, indent=2, sort_keys=True, allow_nan=False), manifest_path)
+    atomic_write_text(json.dumps(manifest, indent=2, sort_keys=True), manifest_path)
     return manifest
 
 

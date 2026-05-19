@@ -300,9 +300,7 @@ def _write_pair_summary_csv(path: Path, summary: dict[str, Any]) -> None:
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    # allow_nan=False: NaN/Inf in JSON are non-standard and break strict consumers
-    # (e.g. promotion-gate scripts using json.loads with allow_nan defaults).
-    atomic_write_text(json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + "\n", path)
+    atomic_write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", path)
 
 
 def _build_pair_summary(
