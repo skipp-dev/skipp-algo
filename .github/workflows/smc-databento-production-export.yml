@@ -206,7 +206,7 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          uv pip install --python "$SMC_PYTHON_BIN" -r requirements.txt
+          uv pip install --system -r requirements.txt
 
       # F-V5-D2 (2026-05-01): the previous handoff used actions/cache as a
       # cross-workflow conduit, which is unsupported on github.com (caches are
