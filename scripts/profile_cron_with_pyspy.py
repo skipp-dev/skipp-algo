@@ -136,6 +136,10 @@ def main(argv: list[str] | None = None) -> int:
     print(f"[pyspy] flamegraph: {flamegraph}", file=sys.stderr)
 
     notes = out_dir / "README.md"
+    # ATOMIC-WRITE-EXEMPT: dev-only profiling helper; the README is a
+    # one-shot annotation file written into a freshly created per-run
+    # directory (`out_dir`) and never read concurrently. A torn write
+    # would only affect this profile run's own notes.
     notes.write_text(
         (
             f"# py-spy profile: {slug}\n\n"

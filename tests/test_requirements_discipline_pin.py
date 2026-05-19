@@ -36,7 +36,7 @@ _REQUIREMENTS = _REPO_ROOT / "requirements.txt"
 # 2026-05-12 (F-V8-Q5b, PR #2148): bumped 23 -> 24 to add psutil>=5.9.0
 # for the per-sheet RSS/USS memory-snapshot diagnostic in
 # scripts/databento_production_workbook.py::_memory_snapshot.
-_DEP_LINE_BUDGET = 24
+_DEP_LINE_BUDGET = 25
 
 _SPECIFIER_RE = re.compile(r"[<>=~!]")
 

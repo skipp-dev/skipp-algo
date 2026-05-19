@@ -134,7 +134,11 @@ def test_refresh_workflow_prefers_priority_cron_runner_with_portable_python() ->
     assert '- name: Resolve Python 3.12 interpreter' in workflow_text
     assert 'SMC_PYTHON_BIN=python' in workflow_text
     assert 'py -3.12' in workflow_text
-    assert '"$SMC_PYTHON_BIN" -m pip install --upgrade pip' in workflow_text
+    # F-V8-cutover follow-up: main switched to uv-managed installs
+    # (`uv pip install --python "$SMC_PYTHON_BIN"`) for cold-cache speed.
+    # Pin the new contract; the legacy `python -m pip install --upgrade pip`
+    # surface is gone.
+    assert 'uv pip install --python "$SMC_PYTHON_BIN"' in workflow_text
     assert 'SMC_REFRESH_RUNNER_LABEL' not in workflow_text
 
 

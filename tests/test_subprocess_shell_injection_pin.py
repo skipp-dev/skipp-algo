@@ -73,6 +73,18 @@ _FROZEN_SITES: dict[tuple[str, str], int] = {
     # compute the larger-runner perf trend artifact (review-v3 phase 5).
     # Token-list args, no shell=True, dev-only/manually invoked.
     ("scripts/phase5_perf_trend.py", "check_output"): 1,
+    # perf(tools): local/manual pytest-duration profiling helper. Args are
+    # assembled from argparse + shlex into a token-list command, cwd is pinned
+    # to the repo root, and shell=True remains forbidden.
+    ("scripts/profile_pytest_durations.py", "run"): 1,
+    # perf(tools) helper: py-spy wrapper for profiling cron entry points
+    # (#2281). Token-list args (argparse + shlex.split), no shell=True,
+    # dev-only/manually invoked from a self-hosted runner.
+    ("scripts/profile_cron_with_pyspy.py", "run"): 1,
+    # security helper: verifies TradingView storage-state file permissions
+    # via a one-shot `icacls` token-list call. No shell=True, no untrusted
+    # input, dev/CI gate only.
+    ("scripts/check_tradingview_storage_state_security.py", "run"): 1,
     ("scripts/scan_manifests_for_pytest_provenance.py", "check_output"): 2,
     ("scripts/smc_micro_publish_guard.py", "run"): 1,
     ("scripts/smc_zone_priority_calibration.py", "run"): 1,
