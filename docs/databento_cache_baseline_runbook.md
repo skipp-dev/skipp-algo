@@ -60,13 +60,22 @@ gh run view <RUN1_ID> --json jobs `
 ## §3 Auswertung
 
 ```pwsh
-python scripts/baseline_cache_probe.py baseline/run1 baseline/run2
+python scripts/baseline_cache_probe.py `
+  --expected-shards 6 --require-same-shards --min-lookups 1 `
+  baseline/run1 baseline/run2
 ```
+
+Coverage-Guards (failen statt still durchzurechnen):
+
+- `--expected-shards 6` — jeder Run muss exakt 6 `cache_probe_shard_*.jsonl` haben (Matrix-Größe). Eine fehlende Shard bedeutet ein Producer-Matrix-Fail oder ein verlorener Probe-Upload → Re-Run.
+- `--require-same-shards` — Run 1 und Run 2 müssen dieselben Shard-IDs abdecken (sonst Äpfel-vs-Birnen).
+- `--min-lookups 1` — leere JSONLs (typisch wenn `enable_cache_probe=false` durchgerutscht ist) failen sofort.
+- Strict-JSON ist Default; nur für legacy-pre-#2305-Artefakte `--no-strict-json` setzen.
 
 Output (Beispiel):
 ```
-Run 1 (baseline/run1):   12345 lookups    3456 unique paths
-Run 2 (baseline/run2):   12567 lookups    3489 unique paths
+Run 1 (baseline/run1):   12345 lookups    3456 unique paths   shards=[0, 1, 2, 3, 4, 5]
+Run 2 (baseline/run2):   12567 lookups    3489 unique paths   shards=[0, 1, 2, 3, 4, 5]
 Hit-rate (set-overlap, conservative):   67.42 %
 Hit-rate (lookup-weighted, realistic):  71.18 %
 Phase-C gate (>= 60 % lookup-weighted): PASS — proceed to Phase C.
