@@ -146,6 +146,26 @@ Each threshold is classified by **anchor type**:
 | Gate effect         | Emits `check="suspicious_too_good"`, `severity="warning"`; downgrades posture to at least `yellow` but does **not** block promotion by itself. |
 | Recalibration trigger | Re-evaluate together with `live_vs_wf_ratio_max` on the same 100-live-promotions / 6-month cadence, or sooner if repeated `suspicious_too_good` warnings are explained by a measurement bug or by a validated new live-calibration regime. |
 
+### 9 · `psi_slope_max` — anchor: **R**
+
+| Item                | Value                                                                 |
+|---------------------|-----------------------------------------------------------------------|
+| Source of truth     | `governance/promotion_gate.py::DEFAULT_PSI_SLOPE_MAX`                  |
+| Sprint of origin    | C9.1 drift-trend extension to C9 drift layer                          |
+| Empirical anchor    | Reference convention: a positive trend slope on the rolling PSI window indicates monotonically worsening feature drift. The cap is set such that a stable / mean-reverting PSI trajectory passes while a sustained upward drift triggers the blocker. |
+| Operator margin     | None at the gate level; the per-feature alarm thresholds inside `ml/drift/` fire earlier and are diagnostic. |
+| Recalibration trigger | If C9.1 telemetry shows the slope check firing systematically on healthy families (false-positive cluster), or never firing on a known drift incident (false-negative). Re-derive from the empirical distribution of `psi_slope` across the prior 100 evaluate() calls and re-anchor at Q90. |
+
+### 10 · `conformal_coverage_tolerance` — anchor: **R**
+
+| Item                | Value                                                                 |
+|---------------------|-----------------------------------------------------------------------|
+| Source of truth     | `governance/promotion_gate.py::DEFAULT_CONFORMAL_COVERAGE_TOLERANCE`   |
+| Sprint of origin    | C10.1 conformal-coverage extension to C10 calibration layer            |
+| Empirical anchor    | Reference convention: the gate checks `conformal_coverage >= conformal_target - tolerance`. The tolerance is the maximum allowed undercoverage relative to the per-family target before the family is blocked. Set conservatively so a single-window stochastic dip does not block while a sustained miscalibration does. |
+| Operator margin     | The conformal layer enforces tighter per-call alarms upstream; this gate value is the last-line global cap. |
+| Recalibration trigger | If C10.1 telemetry shows the coverage check firing on families whose conformal predictor is verifiably within spec on out-of-sample data (false-positive cluster), or never firing on a known undercoverage incident (false-negative). Re-derive from the empirical distribution of `target - observed` across the prior 100 evaluate() calls and re-anchor at Q90 of the *under*coverage tail. |
+
 ## Decision
 
 1. Every threshold in `GateThresholds` has an entry in this ADR with

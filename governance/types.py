@@ -9,6 +9,29 @@ BlockerSeverity = Literal["info", "warning", "blocker"]
 
 ProvenanceValue = Union[str, int, float, bool]
 
+# F-008 (2026-05-18): closed inventory of check names that
+# ``PromotionGate.evaluate()`` may emit on a Blocker. Dashboard / report
+# consumers parse these strings, so renaming any of them is a contract
+# break. ``provenance.<key>`` is a prefix; the per-key suffix comes from
+# ``REQUIRED_PROVENANCE_KEYS`` in ``governance.promotion_gate``.
+#
+# Pinned by ``tests/test_promotion_gate_check_name_inventory.py``: any new
+# check name MUST be added here in the same commit that emits it.
+BLOCKER_CHECK_NAMES: frozenset[str] = frozenset({
+    "brier_threshold",
+    "ece_threshold",
+    "fdr_significance",
+    "psr_minimum",
+    "mintrl_horizon",
+    "psi_drift",
+    "live_vs_wf_ratio",
+    "suspicious_too_good",
+    "regime_degraded",
+    "psi_slope_threshold",
+    "conformal_coverage",
+})
+BLOCKER_CHECK_NAME_PREFIXES: tuple[str, ...] = ("provenance.",)
+
 
 class Blocker(TypedDict):
     """A single failed gate check."""
