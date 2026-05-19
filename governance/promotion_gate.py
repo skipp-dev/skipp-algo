@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 
 from governance.types import (
     Blocker,
+    BlockerSeverity,
     Decision,
     EventFamily,
     Posture,
@@ -191,6 +192,27 @@ def _check(
             "message": f"{label}={observed:.4f} fails {direction} {threshold:.4f}",
         })
     return ok
+
+
+def _emit(
+    blockers: list[Blocker],
+    *,
+    check: str,
+    severity: BlockerSeverity,
+    observed: float | None,
+    threshold: float,
+    message: str,
+) -> None:
+    """Append a Blocker with the given severity. F-009: deduplicates the
+    per-severity dict construction so the warning/blocker/info call sites
+    (especially the live-vs-wf branch) share one constructor."""
+    blockers.append({
+        "check": check,
+        "severity": severity,
+        "observed": observed,
+        "threshold": float(threshold),
+        "message": message,
+    })
 
 
 def _posture(blockers: Iterable[Blocker]) -> Posture:
