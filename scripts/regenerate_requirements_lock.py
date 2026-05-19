@@ -77,6 +77,7 @@ def main(argv: list[str] | None = None) -> int:
         regenerated = (_REPO_ROOT / _REQ_OUT).read_text(encoding="utf-8")
         if existing != regenerated:
             print("error: requirements.lock is out of date. Re-run without --check to update.", file=sys.stderr)
+            # ATOMIC-WRITE-EXEMPT: dev-tooling --check restore of the original lock content after a temp regen overwrote it; not a data write to a downstream consumer.
             (_REPO_ROOT / _REQ_OUT).write_text(existing, encoding="utf-8")
             return 1
         return 0
