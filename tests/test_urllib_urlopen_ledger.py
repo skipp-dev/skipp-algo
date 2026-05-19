@@ -46,6 +46,7 @@ _DIR_EXCLUDE = frozenset(
 
 # Frozen ledger: (relative posix path) -> frozenset of linenos.
 _FROZEN_SITES: dict[str, frozenset[int]] = {
+    "scripts/restore_databento_export_bundle.py": frozenset({62, 77}),
     "scripts/smc_alert_notifier.py": frozenset({481}),
     "scripts/verify_branch_protection.py": frozenset({104}),
     "terminal_notifications.py": frozenset({255, 319}),
