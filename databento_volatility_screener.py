@@ -110,10 +110,9 @@ def dump_cache_probe_log(out_path: str | Path) -> int:
     if _CACHE_PROBE_LOG is None:
         return 0
     out = Path(out_path)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    with out.open("w", encoding="utf-8") as fh:
-        for entry in _CACHE_PROBE_LOG:
-            fh.write(json.dumps(entry) + "\n")
+    payload = "".join(json.dumps(entry) + "\n" for entry in _CACHE_PROBE_LOG)
+    # Atomic swap so a SIGTERM mid-write cannot leave a half-line.
+    _write_text_atomic(out, payload)
     return len(_CACHE_PROBE_LOG)
 
 
