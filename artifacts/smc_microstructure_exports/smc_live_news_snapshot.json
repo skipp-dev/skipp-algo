@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-18T01:50:26.275182Z",
+  "generated_at": "2026-05-19T13:31:21.932446Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -20,11 +20,11 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776468209.0,
+    "newsapi_ai": 1779196311.0,
     "tv": 0.0,
-    "legacy_cursor": 1776468209.0
+    "legacy_cursor": 1779196311.0
   },
-  "legacy_cursor": 1776468209.0,
+  "legacy_cursor": 1779196311.0,
   "providers": {
     "benzinga": {
       "ok": false,
@@ -64,9 +64,9 @@
     "newsapi_ai": {
       "ok": true,
       "error": "",
-      "raw_count": 47,
-      "new_item_count": 1,
-      "cursor": 1776468209.0,
+      "raw_count": 40,
+      "new_item_count": 40,
+      "cursor": 1779196311.0,
       "last_seen_news_uri": "",
       "provider_status": "ok",
       "status_detail": "",
@@ -82,14 +82,14 @@
   },
   "stories": [
     {
-      "story_key": "c5ff6cec212cabe71e08301fb2fa3add7c48cc62:5921453",
-      "headline": "VantagePoint Vantagepoint A.I. Hot Stocks Outlook for April 17, 2026 Stocks $QQQ, $AOSL, $AMZN, $NVDA, $CAR",
+      "story_key": "d02bb9a8049405c96bd5c92c2c57d8a5fc1b4b55:5930645",
+      "headline": "JPM upgrades ams-Osram to \"overweight\" on AI photonics, smart glasses growth By Investing.com",
       "tickers": [
-        "AMZN"
+        "JPM"
       ],
-      "published_at": "2026-04-17T14:28:48Z",
-      "published_ts": 1776436128.0,
-      "age_minutes": 681.6,
+      "published_at": "2026-05-19T12:28:15Z",
+      "published_ts": 1779193695.0,
+      "age_minutes": 63.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -98,492 +98,36 @@
         "newsapi_ai"
       ],
       "sources": [
-        "VantagePoint"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "guidance",
-      "event_class": "GUIDANCE",
-      "event_label": "VantagePoint Vantagepoint A.I. Hot Stocks Outlook for April 17, 2026 Stocks $QQQ, $AOSL, $AMZN, $NVDA, $CAR",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.88,
-      "clarity": 0.8,
-      "relevance": 0.886,
-      "news_catalyst_score": 0.4331,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.vantagepointsoftware.com/blog/vantagepoint-hot-stocks-outlook-for-the-week-of-april-17-2026/",
-      "first_seen_at": "2026-04-17T17:15:58.059177Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "8e6759797ba55d62cdc8df01d09c5cfd3c513367:5921520",
-      "headline": "Apple vs Broadcom (AAPL vs AVGO): Dividend & AI Analysis 2026",
-      "tickers": [
-        "AAPL"
-      ],
-      "published_at": "2026-04-17T20:00:21Z",
-      "published_ts": 1776456021.0,
-      "age_minutes": 350.1,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "\u308b\u306a\u3066\u3061"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "dividend",
-      "event_class": "DIVIDEND",
-      "event_label": "Apple vs Broadcom (AAPL vs AVGO): Dividend & AI Analysis 2026",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.82,
-      "clarity": 0.8,
-      "relevance": 0.859,
-      "news_catalyst_score": 0.4146,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.techi.com/apple-vs-broadcom/",
-      "first_seen_at": "2026-04-17T22:59:04.501252Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "b323b0507924a8a2c045c040388c6239c4b7d1c4:5921494",
-      "headline": "Aggressive Buying As Hormuz Strait Opens; Trump Says Inflation Is Fake - Apple (NASDAQ:AAPL)",
-      "tickers": [
-        "AAPL"
-      ],
-      "published_at": "2026-04-17T17:52:47Z",
-      "published_ts": 1776448367.0,
-      "age_minutes": 477.7,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "macro",
-      "event_class": "MACRO",
-      "event_label": "Aggressive Buying As Hormuz Strait Opens; Trump Says Inflation Is Fake - Apple (NASDAQ:AAPL)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.78,
-      "clarity": 0.6,
-      "relevance": 0.781,
-      "news_catalyst_score": 0.4049,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/Opinion/26/04/51894062/aggressive-buying-as-hormuz-strait-opens-trump-says-inflation-is-fake",
-      "first_seen_at": "2026-04-17T21:10:38.493801Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "8cccfbd300fbc03d94968a227e2d646375fddc7f:5921436",
-      "headline": "Amazon Could Re-Rate After Earnings Again (Preview) (NASDAQ:AMZN)",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-17T13:00:00Z",
-      "published_ts": 1776430800.0,
-      "age_minutes": 770.4,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Seeking Alpha"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "earnings",
-      "event_class": "EARNINGS",
-      "event_label": "Amazon Could Re-Rate After Earnings Again (Preview) (NASDAQ:AMZN)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.8,
-      "clarity": 0.6,
-      "relevance": 0.79,
-      "news_catalyst_score": 0.3836,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://seekingalpha.com/article/4891560-amazon-could-re-rate-after-earnings-again-preview",
-      "first_seen_at": "2026-04-17T14:08:24.633108Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "b96292136ddb95e94c40b58dc7d12305a0ec1972:5921395",
-      "headline": "MSFT Stock Is Down 30% from Its Peak While Wall Street's Average Price Target Is $587  --  Here's What's Actually Going On",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-17T09:36:54Z",
-      "published_ts": 1776418614.0,
-      "age_minutes": 973.5,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Financial News"
+        "Investing.com Nigeria"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "analyst",
       "event_class": "ANALYST",
-      "event_label": "MSFT Stock Is Down 30% from Its Peak While Wall Street's Average Price Target Is $587 -- Here's What's Actually Going On",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.65,
-      "clarity": 0.8,
-      "relevance": 0.7825,
-      "news_catalyst_score": 0.362,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.financial-news.co.uk/msft-stock-is-down-30-from-its-peak-while-wall-streets-average-price-target-is-587-heres-whats-actually-going-on/",
-      "first_seen_at": "2026-04-17T11:28:17.578937Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "7fce8cea4ea3e47b82a546d684e6ddc6d2aa3606:5921396",
-      "headline": "Amazon.com (NASDAQ:AMZN) CEO Douglas Herrington Sells 20,500 Shares",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-17T09:42:46Z",
-      "published_ts": 1776418966.0,
-      "age_minutes": 967.7,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "InsiderTrades.com"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "management",
-      "event_class": "MANAGEMENT",
-      "event_label": "Amazon.com (NASDAQ:AMZN) CEO Douglas Herrington Sells 20,500 Shares",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.6,
-      "clarity": 0.8,
-      "relevance": 0.76,
-      "news_catalyst_score": 0.3465,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.insidertrades.com/alerts/nasdaq-amzn-insider-buying-and-selling-2026-04-17/",
-      "first_seen_at": "2026-04-17T11:28:17.578937Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "1952a2ee3e0033fcf3d8adc032ea79504abda2c5:5921455",
-      "headline": "NextEra Energy: The Utility Story Just Changed (Rating Upgrade) (NYSE:NEE)",
-      "tickers": [
-        "NEE"
-      ],
-      "published_at": "2026-04-17T14:39:31Z",
-      "published_ts": 1776436771.0,
-      "age_minutes": 670.9,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Seeking Alpha"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "analyst",
-      "event_class": "ANALYST",
-      "event_label": "NextEra Energy: The Utility Story Just Changed (Rating Upgrade) (NYSE:NEE)",
+      "event_label": "JPM upgrades ams-Osram to \"overweight\" on AI photonics, smart glasses growth By Investing.com",
       "sentiment_label": "bullish",
       "polarity": 0.2062,
       "impact": 0.65,
       "clarity": 0.6,
       "relevance": 0.7225,
-      "news_catalyst_score": 0.3372,
+      "news_catalyst_score": 0.4889,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://seekingalpha.com/article/4891585-nextera-energy-the-utility-story-just-changed-rating-upgrade",
-      "first_seen_at": "2026-04-17T17:15:58.059177Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "0c7dd781c82304081b3d41dc6b077526c8e836eb:5921560",
-      "headline": "Massive News for Meta Stock and Broadcom Stock Investors",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-17T23:23:29Z",
-      "published_ts": 1776468209.0,
-      "age_minutes": 147.0,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "NASDAQ Stock Market"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Massive News for Meta Stock and Broadcom Stock Investors",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.221,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.nasdaq.com/articles/massive-news-meta-stock-and-broadcom-stock-investors",
-      "first_seen_at": "2026-04-18T01:50:26.275182Z",
+      "url": "https://ng.investing.com/news/stock-market-news/jpm-upgrades-amsosram-to-overweight-on-ai-photonics-smart-glasses-growth-2518841",
+      "first_seen_at": "2026-05-19T13:31:21.932446Z",
       "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "3a06ee5f432de7118205a80edfb325660767a998:5921491",
-      "headline": "7 Industrials Stocks Whale Activity In Today's Session - Boeing (NYSE:BA), Caterpillar (NYSE:CAT)",
-      "tickers": [
-        "CAT"
-      ],
-      "published_at": "2026-04-17T17:35:29Z",
-      "published_ts": 1776447329.0,
-      "age_minutes": 495.0,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "7 Industrials Stocks Whale Activity In Today's Session - Boeing (NYSE:BA), Caterpillar (NYSE:CAT)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.2193,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/insights/options/26/04/51893489/7-industrials-stocks-whale-activity-in-todays-session",
-      "first_seen_at": "2026-04-17T21:10:38.493801Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "0a1b6d7b92a88dc05d2f3f6bc685ab3718f4c7ee:5921436",
-      "headline": "Amazon To Rally More Than 14%? Here Are 10 Top Analyst Forecasts For Friday - Amazon.com (NASDAQ:AMZN), A",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-17T13:00:30Z",
-      "published_ts": 1776430830.0,
-      "age_minutes": 769.9,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Amazon To Rally More Than 14%? Here Are 10 Top Analyst Forecasts For Friday - Amazon.com (NASDAQ:AMZN), A",
-      "sentiment_label": "bullish",
-      "polarity": 0.1375,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.2193,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/analyst-stock-ratings/price-target/26/04/51881324/amazon-to-rally-more-than-14-here-are-10-top-analyst-forecasts-for-friday",
-      "first_seen_at": "2026-04-17T14:08:24.633108Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "17608e7ff4a3a4d544cad48a9f0f21401df0e2ab:5921346",
-      "headline": "Gaxos (GXAI) Stock Surges Over 19% After Hours: Why Is It Moving? - Amazon.com (NASDAQ:AMZN), Gaxos.AI (N",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-17T05:34:30Z",
-      "published_ts": 1776404070.0,
-      "age_minutes": 1215.9,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Gaxos (GXAI) Stock Surges Over 19% After Hours: Why Is It Moving? - Amazon.com (NASDAQ:AMZN), Gaxos.AI (N",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.2193,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/markets/equities/26/04/51876163/gaxos-gxai-stock-surges-over-19-after-hours-why-is-it-moving",
-      "first_seen_at": "2026-04-17T08:57:27.090615Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "37b4ed8f45efbe625331f62e69d21aae0b91647f:5921498",
-      "headline": "Roundhill MSFT WeeklyPay ETF (MSFW) Stock Price, Quote, News & History | Benzinga",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-17T18:13:30Z",
-      "published_ts": 1776449610.0,
-      "age_minutes": 456.9,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Roundhill MSFT WeeklyPay ETF (MSFW) Stock Price, Quote, News & History | Benzinga",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1946,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/quote/MSFW",
-      "first_seen_at": "2026-04-17T21:10:38.493801Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "ab074b70d98fcde864424e1e9ff013d20c9f41b7:5921497",
-      "headline": "What's Going On With Microsoft Stock Friday? - Microsoft (NASDAQ:MSFT)",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-17T18:08:16Z",
-      "published_ts": 1776449296.0,
-      "age_minutes": 462.2,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "What's Going On With Microsoft Stock Friday? - Microsoft (NASDAQ:MSFT)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1946,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/markets/large-cap/26/04/51894566/whats-going-on-with-microsoft-stock-friday",
-      "first_seen_at": "2026-04-17T21:10:38.493801Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "fa0df741d083123274c73c14ec193a9efac6ef7a:5921481",
-      "headline": "Apple Leans Into Edge AI With M5 Chip Push, BofA Calls It 'Meaningful Step' - Apple (NASDAQ:AAPL)",
+      "story_key": "e264989160ba0bde7654da14f11ccfa4d5edd26f:5930615",
+      "headline": "Soaring Smartphone Prices Kill Upgrade Demand In China - Apple (NASDAQ:AAPL)",
       "tickers": [
         "AAPL"
       ],
-      "published_at": "2026-04-17T16:48:45Z",
-      "published_ts": 1776444525.0,
-      "age_minutes": 541.7,
+      "published_at": "2026-05-19T09:55:43Z",
+      "published_ts": 1779184543.0,
+      "age_minutes": 215.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -596,32 +140,32 @@
       ],
       "source_tier": "TIER_2",
       "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Apple Leans Into Edge AI With M5 Chip Push, BofA Calls It 'Meaningful Step' - Apple (NASDAQ:AAPL)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
+      "category": "analyst",
+      "event_class": "ANALYST",
+      "event_label": "Soaring Smartphone Prices Kill Upgrade Demand In China - Apple (NASDAQ:AAPL)",
+      "sentiment_label": "bullish",
+      "polarity": 0.2062,
+      "impact": 0.65,
       "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1946,
+      "relevance": 0.7225,
+      "news_catalyst_score": 0.4346,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://www.benzinga.com/analyst-stock-ratings/reiteration/26/04/51891844/apple-leans-into-edge-ai-with-m5-chip-push-bofa-calls-it-meaningful-step",
-      "first_seen_at": "2026-04-17T17:15:58.059177Z",
-      "is_new": false,
+      "url": "https://www.benzinga.com/analyst-stock-ratings/analyst-color/26/05/52655589/soaring-smartphone-prices-kill-upgrade-demand-in-china",
+      "first_seen_at": "2026-05-19T13:31:21.932446Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "370c5ddab1f0c2d761b4d61bad278ab63e4710eb:5921481",
-      "headline": "Why Is Exxon Mobil Stock Dropping Friday? Oil Sell-Off Hits Energy Names - Exxon Mobil (NYSE:XOM)",
+      "story_key": "de72445e207ddd78fb718f8afc25a6c5e7b069b0:5930385",
+      "headline": "Exxon Mobil XOM stock: Q1 beat and key dividend update",
       "tickers": [
         "XOM"
       ],
-      "published_at": "2026-04-17T16:46:38Z",
-      "published_ts": 1776444398.0,
-      "age_minutes": 543.8,
+      "published_at": "2026-05-18T14:47:02Z",
+      "published_ts": 1779115622.0,
+      "age_minutes": 1364.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -630,302 +174,36 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Why Is Exxon Mobil Stock Dropping Friday? Oil Sell-Off Hits Energy Names - Exxon Mobil (NYSE:XOM)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1946,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/trading-ideas/movers/26/04/51891838/why-is-exxon-mobil-stock-dropping-friday-oil-sell-off-hits-energy-names",
-      "first_seen_at": "2026-04-17T17:15:58.059177Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "74c93e611534115d2e0ddc82a8459d54588dc9f5:5921426",
-      "headline": "Qualcomm, Amazon And Netflix On CNBC's 'Final Trades' - Amazon.com (NASDAQ:AMZN), Netflix (NASDAQ:NFLX)",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-17T12:14:16Z",
-      "published_ts": 1776428056.0,
-      "age_minutes": 816.2,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Qualcomm, Amazon And Netflix On CNBC's 'Final Trades' - Amazon.com (NASDAQ:AMZN), Netflix (NASDAQ:NFLX)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1946,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/analyst-stock-ratings/analyst-color/26/04/51880301/qualcomm-amazon-netflix-on-cnbc-final-trades",
-      "first_seen_at": "2026-04-17T14:08:24.633108Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "eb6fc7234701630650cba56f81a1a7f2aa354475:5921399",
-      "headline": "Comparing Microsoft With Industry Competitors In Software Industry - Microsoft (NASDAQ:MSFT)",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-17T09:59:06Z",
-      "published_ts": 1776419946.0,
-      "age_minutes": 951.3,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Comparing Microsoft With Industry Competitors In Software Industry - Microsoft (NASDAQ:MSFT)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1946,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/insights/news/26/04/51877763/comparing-microsoft-with-industry-competitors-in-software-industry",
-      "first_seen_at": "2026-04-17T11:28:17.578937Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "6e61e39fa8489bb73690472365bcc27b2e8fc4d8:5921396",
-      "headline": "Apple Defies China Smartphone Slump With Fastest Growth - Apple (NASDAQ:AAPL), Xiaomi (OTC:XIACF)",
-      "tickers": [
-        "AAPL"
-      ],
-      "published_at": "2026-04-17T09:43:09Z",
-      "published_ts": 1776418989.0,
-      "age_minutes": 967.3,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Apple Defies China Smartphone Slump With Fastest Growth - Apple (NASDAQ:AAPL), Xiaomi (OTC:XIACF)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1946,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/analyst-stock-ratings/analyst-color/26/04/51877661/apple-defies-china-smartphone-slump-with-fastest-growth",
-      "first_seen_at": "2026-04-17T11:28:17.578937Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "d2ee109eb5cd433cb51054d9a7ae04baeb2634d0:5921399",
-      "headline": "In-Depth Analysis: Amazon.com Versus Competitors In Broadline Retail Industry - Amazon.com (NASDAQ:AMZN)",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-17T09:58:56Z",
-      "published_ts": 1776419936.0,
-      "age_minutes": 951.5,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "In-Depth Analysis: Amazon.com Versus Competitors In Broadline Retail Industry - Amazon.com (NASDAQ:AMZN)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.4554,
-      "news_catalyst_score": 0.1919,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/insights/news/26/04/51877756/in-depth-analysis-amazon-com-versus-competitors-in-broadline-retail-industry",
-      "first_seen_at": "2026-04-17T11:28:17.578937Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "8dd7bfd3acc4dd027ac845bfdb6637ae1f15f283:5921488",
-      "headline": "Microsoft: Don't Buy The Dip, A 30% Correction Is Still Ahead (NASDAQ:MSFT)",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-17T17:22:03Z",
-      "published_ts": 1776446523.0,
-      "age_minutes": 508.4,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Seeking Alpha"
+        "Rolling Out"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Microsoft: Don't Buy The Dip, A 30% Correction Is Still Ahead (NASDAQ:MSFT)",
+      "category": "dividend",
+      "event_class": "DIVIDEND",
+      "event_label": "Exxon Mobil XOM stock: Q1 beat and key dividend update",
       "sentiment_label": "neutral",
       "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.1918,
+      "impact": 0.82,
+      "clarity": 0.6,
+      "relevance": 0.799,
+      "news_catalyst_score": 0.3898,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://seekingalpha.com/article/4891641-microsoft-don-t-buy-the-dip-a-30-percent-correction-is-still-ahead",
-      "first_seen_at": "2026-04-17T21:10:38.493801Z",
-      "is_new": false,
+      "url": "https://rollingout.com/2026/05/18/exxonmobil-stock-worth-buying-40-surge/",
+      "first_seen_at": "2026-05-19T13:31:21.932446Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "2dc8b205dc808ea982135eccd49b70d4a3e7e5bd:5921475",
-      "headline": "Microsoft: Not Like Meta In 2022 (NASDAQ:MSFT)",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-17T16:15:22Z",
-      "published_ts": 1776442522.0,
-      "age_minutes": 575.1,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Seeking Alpha"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Microsoft: Not Like Meta In 2022 (NASDAQ:MSFT)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.1918,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://seekingalpha.com/article/4891618-microsoft-not-like-meta-in-2022",
-      "first_seen_at": "2026-04-17T17:15:58.059177Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "495b2f7a25a288a1f3190b237808433f8d2b216d:5921464",
-      "headline": "Amazon (AMZN) Stock Positioned to Lead Magnificent 7 on AI and Cloud Strength, Says Barclays - Blockonomi",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-17T15:21:36Z",
-      "published_ts": 1776439296.0,
-      "age_minutes": 628.8,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Blockonomi"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Amazon (AMZN) Stock Positioned to Lead Magnificent 7 on AI and Cloud Strength, Says Barclays - Blockonomi",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.1918,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://blockonomi.com/amazon-amzn-stock-positioned-to-lead-magnificent-7-on-ai-and-cloud-strength-says-barclays/",
-      "first_seen_at": "2026-04-17T17:15:58.059177Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "148e0ee649f304b327a9911ea1e7144ecfa2cf39:5921420",
-      "headline": "As Mark Zuckerberg Moves His Desk to the AI Lab to Double Down on Innovation, META Stock Lags the S&P 500. Should You Bet on a Turnaround?",
+      "story_key": "21398081834e091325d1179c2850054f4cdca961:5930654",
+      "headline": "Meta Stock Is Off Its Highs, and Could be Cheap - What's the Best META Play?",
       "tickers": [
         "META"
       ],
-      "published_at": "2026-04-17T11:41:37Z",
-      "published_ts": 1776426097.0,
-      "age_minutes": 848.8,
+      "published_at": "2026-05-19T13:11:51Z",
+      "published_ts": 1779196311.0,
+      "age_minutes": 19.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -940,7 +218,273 @@
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "As Mark Zuckerberg Moves His Desk to the AI Lab to Double Down on Innovation, META Stock Lags the S&P 500. Should You Be",
+      "event_label": "Meta Stock Is Off Its Highs, and Could be Cheap - What's the Best META Play?",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.243,
+      "materiality": "LOW",
+      "recency_bucket": "WARM",
+      "is_actionable": false,
+      "url": "https://www.barchart.com/story/news/2014861/meta-stock-is-off-its-highs-and-could-be-cheap-what-s-the-best-meta-play",
+      "first_seen_at": "2026-05-19T13:31:21.932446Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "5c0b19a4f63f77f7856c1d7e12830ccc3278b3be:5930459",
+      "headline": "Elon Musk Loses OpenAI Lawsuit-What The Trial Revealed About AI Investing - Amazon.com (NASDAQ:AMZN), Alp",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-05-18T20:57:32Z",
+      "published_ts": 1779137852.0,
+      "age_minutes": 993.8,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "lawsuit",
+      "event_class": "LEGAL",
+      "event_label": "Elon Musk Loses OpenAI Lawsuit-What The Trial Revealed About AI Investing - Amazon.com (NASDAQ:AMZN), Alp",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.25,
+      "clarity": 0.6,
+      "relevance": 0.5425,
+      "news_catalyst_score": 0.241,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/Opinion/26/05/52650955/elon-musk-loses-openai-lawsuit-what-the-trial-revealed-about-ai-investing",
+      "first_seen_at": "2026-05-19T13:31:21.932446Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "06cb6f9bde21017b1427fdc0f0710d8f887a6d03:5930635",
+      "headline": "NextEra Energy: Buying The Dominion Deal (NYSE:NEE)",
+      "tickers": [
+        "NEE"
+      ],
+      "published_at": "2026-05-19T11:39:38Z",
+      "published_ts": 1779190778.0,
+      "age_minutes": 111.7,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "NextEra Energy: Buying The Dominion Deal (NYSE:NEE)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2299,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://seekingalpha.com/article/4906388-nextera-energy-buying-the-dominion-deal",
+      "first_seen_at": "2026-05-19T13:31:21.932446Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "b59debcd7b05f2f287adb8cea223b935b37b5305:5930412",
+      "headline": "Viking Global Opens Nearly $1 Billion Apple Stake As Big Tech Trade Returns - Apple (NASDAQ:AAPL), CoreWe",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_at": "2026-05-18T17:01:44Z",
+      "published_ts": 1779123704.0,
+      "age_minutes": 1229.6,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Viking Global Opens Nearly $1 Billion Apple Stake As Big Tech Trade Returns - Apple (NASDAQ:AAPL), CoreWe",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.2193,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/markets/hedge-funds/26/05/52642693/viking-global-opens-fresh-apple-stake-worth-nearly-1-billion-as-big-tech-trade-roars-back",
+      "first_seen_at": "2026-05-19T13:31:21.932446Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "6754baf5eb671a3546cec67018b56459048a9347:5930422",
+      "headline": "Amazon (NASDAQ: AMZN) Faces Headwind Amid Class Action Lawsuit Alleging Tariff Costs Were Illegally Passed",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-05-18T17:50:00Z",
+      "published_ts": 1779126600.0,
+      "age_minutes": 1181.4,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Foreign Policy Journal"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "lawsuit",
+      "event_class": "LEGAL",
+      "event_label": "Amazon (NASDAQ: AMZN) Faces Headwind Amid Class Action Lawsuit Alleging Tariff Costs Were Illegally Passed",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.25,
+      "clarity": 0.6,
+      "relevance": 0.5425,
+      "news_catalyst_score": 0.2135,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.foreignpolicyjournal.com/2026/05/18/amazon-nasdaq-amzn-faces-headwind-amid-class-action-lawsuit-alleging-tariff-costs-were-illegally-passed/",
+      "first_seen_at": "2026-05-19T13:31:21.932446Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "0dbaab60f1b535f04e811274a561f0efd5fc0ee1:5930430",
+      "headline": "Microsoft Stock Edges Higher After Jury Rules Against Musk In OpenAI Trial - Microsoft (NASDAQ:MSFT)",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-05-18T18:32:39Z",
+      "published_ts": 1779129159.0,
+      "age_minutes": 1138.7,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Microsoft Stock Edges Higher After Jury Rules Against Musk In OpenAI Trial - Microsoft (NASDAQ:MSFT)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1946,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/trading-ideas/movers/26/05/52646021/microsoft-stock-edges-higher-after-jury-rules-against-musk-in-openai-trial",
+      "first_seen_at": "2026-05-19T13:31:21.932446Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "7b1a0347376a6ff44c87c63d6e306bf225f40ca5:5930378",
+      "headline": "Stanley Druckenmiller Dumps Amazon, Alphabet; Buys Commodities - Amazon.com (NASDAQ:AMZN), Alphabet (NASD",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-05-18T14:12:25Z",
+      "published_ts": 1779113545.0,
+      "age_minutes": 1398.9,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Stanley Druckenmiller Dumps Amazon, Alphabet; Buys Commodities - Amazon.com (NASDAQ:AMZN), Alphabet (NASD",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1946,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/markets/hedge-funds/26/05/52635654/stanley-druckenmiller-dumps-amazon-and-alphabet-while-loading-up-on-commodities-argentina-and-biotech",
+      "first_seen_at": "2026-05-19T13:31:21.932446Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "51c23171561110c6d7e1bb9c521906dd18efddce:5930525",
+      "headline": "Gates Foundation Exits Microsoft (NASDAQ: MSFT) Stock Entirely as EVP Amy Coleman Sells $519,000 in Shares",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-05-19T02:26:00Z",
+      "published_ts": 1779157560.0,
+      "age_minutes": 665.4,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Foreign Policy Journal"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Gates Foundation Exits Microsoft (NASDAQ: MSFT) Stock Entirely as EVP Amy Coleman Sells $519,000 in Shares",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
@@ -950,20 +494,20 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://www.barchart.com/story/news/1364098/as-mark-zuckerberg-moves-his-desk-to-the-ai-lab-to-double-down-on-innovation-meta-stock-lags-the-s-p-500-should-you-bet-on-a-turnaround",
-      "first_seen_at": "2026-04-17T14:08:24.633108Z",
-      "is_new": false,
+      "url": "https://www.foreignpolicyjournal.com/2026/05/18/gates-foundation-exits-microsoft-nasdaq-msft-stock-entirely-as-evp-amy-coleman-sells-519000-in-shares/",
+      "first_seen_at": "2026-05-19T13:31:21.932446Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "4d80778388f0e553d3bf336dbc044034d08db128:5921392",
-      "headline": "Apple (AAPL) Leads China's Smartphone Market With 20% iPhone Growth in Q1 2026 - Blockonomi",
+      "story_key": "be3261ae6f57798551a873c23db5fe4ec6c9e996:5930426",
+      "headline": "Amazon Stock (AMZN) Gains Momentum With $370 Top Forecast - Blockonomi",
       "tickers": [
-        "AAPL"
+        "AMZN"
       ],
-      "published_at": "2026-04-17T09:20:48Z",
-      "published_ts": 1776417648.0,
-      "age_minutes": 989.6,
+      "published_at": "2026-05-18T18:12:49Z",
+      "published_ts": 1779127969.0,
+      "age_minutes": 1158.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -978,7 +522,7 @@
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Apple (AAPL) Leads China's Smartphone Market With 20% iPhone Growth in Q1 2026 - Blockonomi",
+      "event_label": "Amazon Stock (AMZN) Gains Momentum With $370 Top Forecast - Blockonomi",
       "sentiment_label": "bullish",
       "polarity": 0.1375,
       "impact": 0.1,
@@ -988,58 +532,20 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://blockonomi.com/apple-aapl-leads-chinas-smartphone-market-with-20-iphone-growth-in-q1-2026/",
-      "first_seen_at": "2026-04-17T11:28:17.578937Z",
-      "is_new": false,
+      "url": "https://blockonomi.com/amazon-stock-amzn-gains-momentum-with-370-top-forecast/",
+      "first_seen_at": "2026-05-19T13:31:21.932446Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "13242c3246e2837788930ac071dd1b73fbb7cf96:5921385",
-      "headline": "Meta Stock 2026: Buy or Sell? Wall Street Says Strong Buy as AI and Ads Fuel Rally Toward $800+",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-17T08:49:00Z",
-      "published_ts": 1776415740.0,
-      "age_minutes": 1021.4,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "International Business Times AU"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta Stock 2026: Buy or Sell? Wall Street Says Strong Buy as AI and Ads Fuel Rally Toward $800+",
-      "sentiment_label": "bullish",
-      "polarity": 0.275,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.1918,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.ibtimes.com.au/meta-stock-2026-buy-sell-wall-street-says-strong-buy-ai-ads-fuel-rally-toward-800-1866847",
-      "first_seen_at": "2026-04-17T11:28:17.578937Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "9e3e623c85d1e0bcce3d8cd77b4260ea0e2edf29:5921339",
-      "headline": "Here's Why Microsoft (MSFT) Stock Rallied Today - April 16, 2026",
+      "story_key": "87a5ca36ea9ae67c8ab5ea2c8f5e556f94186140:5930385",
+      "headline": "Microsoft (MSFT) Stock Down 30% From Peak: Why Bulls See $600 Ahead - Blockonomi",
       "tickers": [
         "MSFT"
       ],
-      "published_at": "2026-04-17T04:56:47Z",
-      "published_ts": 1776401807.0,
-      "age_minutes": 1253.7,
+      "published_at": "2026-05-18T14:49:39Z",
+      "published_ts": 1779115779.0,
+      "age_minutes": 1361.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1048,13 +554,13 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Markets Insider"
+        "Blockonomi"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Here's Why Microsoft (MSFT) Stock Rallied Today - April 16, 2026",
+      "event_label": "Microsoft (MSFT) Stock Down 30% From Peak: Why Bulls See $600 Ahead - Blockonomi",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
@@ -1064,136 +570,20 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://markets.businessinsider.com/news/stocks/here-s-why-microsoft-msft-stock-rallied-today-april-16-2026-1036031732",
-      "first_seen_at": "2026-04-17T05:29:41.583375Z",
-      "is_new": false,
+      "url": "https://blockonomi.com/microsoft-msft-stock-down-30-from-peak-why-bulls-see-600-ahead/",
+      "first_seen_at": "2026-05-19T13:31:21.932446Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "9f55b686374205531bc839b8a20efc8e987674cf:5921435",
-      "headline": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA",
-      "tickers": [
-        "AAPL",
-        "META",
-        "MSFT"
-      ],
-      "published_at": "2026-04-17T12:59:22Z",
-      "published_ts": 1776430762.0,
-      "age_minutes": 771.1,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.3561,
-      "news_catalyst_score": 0.1782,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/Opinion/26/04/51881252/trade-strategy-for-spy-qqq-aapl-msft-nvda-googl-meta-and-tsla-8",
-      "first_seen_at": "2026-04-17T14:08:24.633108Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "90ed51c39940ebcfc939f409ffde93b764e3465f:5921533",
-      "headline": "Can Muse Spark Supercharge Meta Platforms (META)'s Ad Business?",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-17T21:09:55Z",
-      "published_ts": 1776460195.0,
-      "age_minutes": 280.5,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Yahoo! Finance"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Can Muse Spark Supercharge Meta Platforms (META)'s Ad Business?",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1745,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://ca.finance.yahoo.com/news/muse-spark-supercharge-meta-platforms-210955944.html",
-      "first_seen_at": "2026-04-17T22:59:04.501252Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "592cfc850a0954cdc9669de72a61604675b30eb2:5921470",
-      "headline": "Microsoft Just Opened Doors at the Most Powerful AI Data Center in the World. What Does That Mean for MSFT Stock?",
+      "story_key": "609146d588541291d0f14f9eaab486765fb9319b:5930611",
+      "headline": "Microsoft: Heavy AI Buildout Vs. The Enterprise Moat (NASDAQ:MSFT)",
       "tickers": [
         "MSFT"
       ],
-      "published_at": "2026-04-17T15:53:49Z",
-      "published_ts": 1776441229.0,
-      "age_minutes": 596.6,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Barchart.com"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Microsoft Just Opened Doors at the Most Powerful AI Data Center in the World. What Does That Mean for MSFT Stock?",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.barchart.com/story/news/1369661/microsoft-just-opened-doors-at-the-most-powerful-ai-data-center-in-the-world-what-does-that-mean-for-msft-stock",
-      "first_seen_at": "2026-04-17T17:15:58.059177Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "d11c40d7ecbe0e28958b66500c94b634b3591bbf:5921456",
-      "headline": "Johnson & Johnson: Why I See Downside Ahead (NYSE:JNJ)",
-      "tickers": [
-        "JNJ"
-      ],
-      "published_at": "2026-04-17T14:42:35Z",
-      "published_ts": 1776436955.0,
-      "age_minutes": 667.9,
+      "published_at": "2026-05-19T09:35:59Z",
+      "published_ts": 1779183359.0,
+      "age_minutes": 235.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1208,69 +598,30 @@
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Johnson & Johnson: Why I See Downside Ahead (NYSE:JNJ)",
+      "event_label": "Microsoft: Heavy AI Buildout Vs. The Enterprise Moat (NASDAQ:MSFT)",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
+      "news_catalyst_score": 0.1916,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://seekingalpha.com/article/4891588-johnson-and-johnson-why-i-see-downside-ahead",
-      "first_seen_at": "2026-04-17T17:15:58.059177Z",
-      "is_new": false,
+      "url": "https://seekingalpha.com/article/4906346-microsoft-heavy-ai-buildout-vs-the-enterprise-moat",
+      "first_seen_at": "2026-05-19T13:31:21.932446Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "ac9888ae0d975e912780cf594721505dce074ffb:5921433",
-      "headline": "JPM stays constructive on French telcos with or without consolidation By Investing.com",
+      "story_key": "96306d97a8eb31b150fa6b06715c4452eacfe076:5930581",
+      "headline": "XOM Stock Hits Record Highs: Is Exxon Mobil's Rally Just Getting Started?",
       "tickers": [
-        "JPM"
+        "XOM"
       ],
-      "published_at": "2026-04-17T12:45:20Z",
-      "published_ts": 1776429920.0,
-      "age_minutes": 785.1,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Investing.com",
-        "Investing.com UK"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "JPM stays constructive on French telcos with or without consolidation By Investing.com",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.investing.com/news/stock-market-news/jpm-stays-constructive-on-french-telcos-with-or-without-consolidation-4620269",
-      "first_seen_at": "2026-04-17T14:08:24.633108Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "7ce89506822879ea8e4e589b88534924411320ea:5921365",
-      "headline": "AMZN Stock Is Quietly Hitting Record Highs  --  Here's What Wall Street Isn't Telling You",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-17T07:06:01Z",
-      "published_ts": 1776409561.0,
-      "age_minutes": 1124.4,
+      "published_at": "2026-05-19T07:05:35Z",
+      "published_ts": 1779174335.0,
+      "age_minutes": 385.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1285,9 +636,9 @@
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "AMZN Stock Is Quietly Hitting Record Highs -- Here's What Wall Street Isn't Telling You",
+      "event_label": "XOM Stock Hits Record Highs: Is Exxon Mobil's Rally Just Getting Started?",
       "sentiment_label": "bullish",
-      "polarity": 0.1375,
+      "polarity": 0.275,
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
@@ -1295,20 +646,20 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://www.abcmoney.co.uk/2026/04/amzn-stock-is-quietly-hitting-record-highs-heres-what-wall-street-isnt-telling-you/",
-      "first_seen_at": "2026-04-17T08:57:27.090615Z",
-      "is_new": false,
+      "url": "https://www.abcmoney.co.uk/2026/05/xom-stock-hits-record-highs-is-exxon-mobils-rally-just-getting-started/",
+      "first_seen_at": "2026-05-19T13:31:21.932446Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "a9a23c12c24d2321d3a419a7f31fff2b9905168c:5921352",
-      "headline": "Meta Platforms Stock (META) Sinks as VR Headset Prices Rise",
+      "story_key": "c9ef88a47d07834d073088afe76f88dcf8e7a121:5930542",
+      "headline": "Don't Go Apple Shopping Now (NASDAQ:AAPL)",
       "tickers": [
-        "META"
+        "AAPL"
       ],
-      "published_at": "2026-04-17T06:04:35Z",
-      "published_ts": 1776405875.0,
-      "age_minutes": 1185.9,
+      "published_at": "2026-05-19T03:50:33Z",
+      "published_ts": 1779162633.0,
+      "age_minutes": 580.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1317,13 +668,13 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Markets Insider"
+        "Seeking Alpha"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Meta Platforms Stock (META) Sinks as VR Headset Prices Rise",
+      "event_label": "Don't Go Apple Shopping Now (NASDAQ:AAPL)",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
@@ -1333,20 +684,20 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://markets.businessinsider.com/news/stocks/meta-platforms-stock-meta-sinks-as-vr-headset-prices-rise-1036032018",
-      "first_seen_at": "2026-04-17T08:57:27.090615Z",
-      "is_new": false,
+      "url": "https://seekingalpha.com/article/4906278-dont-go-apple-stock-shopping-now-rating-downgrade-hold",
+      "first_seen_at": "2026-05-19T13:31:21.932446Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "633c2b84b146cb1529064bc99631263b31d989b6:5921339",
-      "headline": "Will Microsoft Stock (MSFT) Continue Its Rally? William Power Weighs In",
+      "story_key": "40da8e27e615bee4586c5e6482dde29e7e36c904:5930450",
+      "headline": "US regulators set to revamp CAMELS ratings process for banks - report (JPM:NYSE)",
       "tickers": [
-        "MSFT"
+        "JPM"
       ],
-      "published_at": "2026-04-17T04:56:47Z",
-      "published_ts": 1776401807.0,
-      "age_minutes": 1253.7,
+      "published_at": "2026-05-18T20:10:04Z",
+      "published_ts": 1779135004.0,
+      "age_minutes": 1041.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1355,13 +706,279 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Markets Insider"
+        "Seeking Alpha"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Will Microsoft Stock (MSFT) Continue Its Rally? William Power Weighs In",
+      "event_label": "US regulators set to revamp CAMELS ratings process for banks - report (JPM:NYSE)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1671,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://seekingalpha.com/news/4594632-us-regulators-set-to-revamp-camels-ratings-process-for-banks-report",
+      "first_seen_at": "2026-05-19T13:31:21.932446Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "4c36792b77c04b466dade8517e77da2fc3d6778c:5930439",
+      "headline": "Berkshire Hathaway Doubles Down on GOOG Stock While Dumping AMZN. You Probably Shouldn't.",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-05-18T19:18:46Z",
+      "published_ts": 1779131926.0,
+      "age_minutes": 1092.6,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Barchart.com"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Berkshire Hathaway Doubles Down on GOOG Stock While Dumping AMZN. You Probably Shouldn't.",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1671,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.barchart.com/story/news/2000135/berkshire-hathaway-doubles-down-on-goog-stock-while-dumping-amzn-you-probably-shouldnt",
+      "first_seen_at": "2026-05-19T13:31:21.932446Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "c759fcbdae9fc4c2e80d80e0b61f10e11e385169:5930421",
+      "headline": "Tim Cook's Beijing Trip Signals Apple (NASDAQ: AAPL) Is All-In on Keeping China Happy",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_at": "2026-05-18T17:47:38Z",
+      "published_ts": 1779126458.0,
+      "age_minutes": 1183.7,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Foreign Policy Journal"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Tim Cook's Beijing Trip Signals Apple (NASDAQ: AAPL) Is All-In on Keeping China Happy",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1671,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.foreignpolicyjournal.com/2026/05/18/tim-cooks-beijing-trip-signals-apple-nasdaq-aapl-is-all-in-on-keeping-china-happy/",
+      "first_seen_at": "2026-05-19T13:31:21.932446Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "3e3a8f82b8d3c62c36a3a636fc1b686eba2871dd:5930416",
+      "headline": "Third Point Q1 top holdings & exit check: Quant Ratings on AMZN, TDS, CRH, TSM",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-05-18T17:20:21Z",
+      "published_ts": 1779124821.0,
+      "age_minutes": 1211.0,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Third Point Q1 top holdings & exit check: Quant Ratings on AMZN, TDS, CRH, TSM",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1671,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://seekingalpha.com/news/4594547-third-point-q1-top-holdings-exit-check-quant-ratings-on-amzn-tds-crh-tsm",
+      "first_seen_at": "2026-05-19T13:31:21.932446Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "e8078d5a59a5a8b55af53eaaaddab14152125ac7:5930400",
+      "headline": "Quant ratings on Soros Fund Management's top holdings: SPY, AMZN, XLE, CRWV",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-05-18T16:00:29Z",
+      "published_ts": 1779120029.0,
+      "age_minutes": 1290.9,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Quant ratings on Soros Fund Management's top holdings: SPY, AMZN, XLE, CRWV",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1671,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://seekingalpha.com/news/4594475-quant-ratings-on-soros-fund-managements-top-holdings-spy-amzn-xle-crwv",
+      "first_seen_at": "2026-05-19T13:31:21.932446Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "a8af66ca611bdb718de6f2ad21adc5409d21e3aa:5930392",
+      "headline": "Quant check on Eminence Capital's top Q1 holdings: SE, AMZN, PFGC, CPNG",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-05-18T15:22:26Z",
+      "published_ts": 1779117746.0,
+      "age_minutes": 1328.9,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Quant check on Eminence Capital's top Q1 holdings: SE, AMZN, PFGC, CPNG",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1671,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://seekingalpha.com/news/4594410-quant-check-on-eminence-capitals-top-q1-holdings-se-amzn-pfgc-cpng",
+      "first_seen_at": "2026-05-19T13:31:21.932446Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "94daaec37ddac21b08e91757c98689f180891bd8:5930384",
+      "headline": "MSFT Stock Alert: What to Know as Bill Ackman Adds Microsoft Position",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-05-18T14:40:41Z",
+      "published_ts": 1779115241.0,
+      "age_minutes": 1370.7,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Barchart.com"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "MSFT Stock Alert: What to Know as Bill Ackman Adds Microsoft Position",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1671,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.barchart.com/story/news/1995524/msft-stock-alert-what-to-know-as-bill-ackman-adds-microsoft-position",
+      "first_seen_at": "2026-05-19T13:31:21.932446Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "80aedc956dcebd0408b4d67ec39f9f2121cb25b9:5930372",
+      "headline": "Microsoft: How Ditching OpenAI Unlocks New AI Growth Catalysts (NASDAQ:MSFT)",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-05-18T13:42:29Z",
+      "published_ts": 1779111749.0,
+      "age_minutes": 1428.9,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Microsoft: How Ditching OpenAI Unlocks New AI Growth Catalysts (NASDAQ:MSFT)",
       "sentiment_label": "bullish",
       "polarity": 0.1375,
       "impact": 0.1,
@@ -1371,137 +988,111 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://markets.businessinsider.com/news/stocks/will-microsoft-stock-msft-continue-its-rally-william-power-weighs-in-1036031715",
-      "first_seen_at": "2026-04-17T05:29:41.583375Z",
-      "is_new": false,
+      "url": "https://seekingalpha.com/article/4906016-microsoft-msft-how-ditching-openai-unlocks-new-ai-growth-catalysts",
+      "first_seen_at": "2026-05-19T13:31:21.932446Z",
+      "is_new": true,
       "provider_count": 1
     }
   ],
   "news_catalyst_by_symbol": {
     "AAPL": {
-      "news_catalyst_score": 0.5346,
+      "news_catalyst_score": 0.5246,
       "sentiment_label": "neutral",
-      "event_class": "DIVIDEND",
-      "event_label": "Apple vs Broadcom (AAPL vs AVGO): Dividend & AI Analysis 2026",
+      "event_class": "ANALYST",
+      "event_label": "Soaring Smartphone Prices Kill Upgrade Demand In China - Apple (NASDAQ:AAPL)",
       "materiality": "LOW",
       "recency_bucket": "AGING",
-      "source_tier": "TIER_3",
-      "mentions_24h": 6,
+      "source_tier": "TIER_2",
+      "mentions_24h": 4,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "8e6759797ba55d62cdc8df01d09c5cfd3c513367:5921520"
+      "story_key": "e264989160ba0bde7654da14f11ccfa4d5edd26f:5930615"
     },
     "AMZN": {
-      "news_catalyst_score": 0.5531,
+      "news_catalyst_score": 0.361,
       "sentiment_label": "neutral",
-      "event_class": "GUIDANCE",
-      "event_label": "VantagePoint Vantagepoint A.I. Hot Stocks Outlook for April 17, 2026 Stocks $QQQ, $AOSL, $AMZN, $NVDA, $CAR",
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "source_tier": "TIER_3",
-      "mentions_24h": 9,
-      "is_actionable": false,
-      "first_provider": "newsapi_ai",
-      "story_key": "c5ff6cec212cabe71e08301fb2fa3add7c48cc62:5921453"
-    },
-    "CAT": {
-      "news_catalyst_score": 0.2193,
-      "sentiment_label": "neutral",
-      "event_class": "UNKNOWN",
-      "event_label": "7 Industrials Stocks Whale Activity In Today's Session - Boeing (NYSE:BA), Caterpillar (NYSE:CAT)",
+      "event_class": "LEGAL",
+      "event_label": "Elon Musk Loses OpenAI Lawsuit-What The Trial Revealed About AI Investing - Amazon.com (NASDAQ:AMZN), Alp",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_2",
-      "mentions_24h": 1,
+      "mentions_24h": 8,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "3a06ee5f432de7118205a80edfb325660767a998:5921491"
-    },
-    "JNJ": {
-      "news_catalyst_score": 0.1671,
-      "sentiment_label": "neutral",
-      "event_class": "UNKNOWN",
-      "event_label": "Johnson & Johnson: Why I See Downside Ahead (NYSE:JNJ)",
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "source_tier": "TIER_3",
-      "mentions_24h": 1,
-      "is_actionable": false,
-      "first_provider": "newsapi_ai",
-      "story_key": "d11c40d7ecbe0e28958b66500c94b634b3591bbf:5921456"
+      "story_key": "5c0b19a4f63f77f7856c1d7e12830ccc3278b3be:5930459"
     },
     "JPM": {
-      "news_catalyst_score": 0.1671,
-      "sentiment_label": "neutral",
-      "event_class": "UNKNOWN",
-      "event_label": "JPM stays constructive on French telcos with or without consolidation By Investing.com",
+      "news_catalyst_score": 0.5189,
+      "sentiment_label": "bullish",
+      "event_class": "ANALYST",
+      "event_label": "JPM upgrades ams-Osram to \"overweight\" on AI photonics, smart glasses growth By Investing.com",
       "materiality": "LOW",
       "recency_bucket": "AGING",
+      "source_tier": "TIER_3",
+      "mentions_24h": 2,
+      "is_actionable": false,
+      "first_provider": "newsapi_ai",
+      "story_key": "d02bb9a8049405c96bd5c92c2c57d8a5fc1b4b55:5930645"
+    },
+    "META": {
+      "news_catalyst_score": 0.243,
+      "sentiment_label": "neutral",
+      "event_class": "UNKNOWN",
+      "event_label": "Meta Stock Is Off Its Highs, and Could be Cheap - What's the Best META Play?",
+      "materiality": "LOW",
+      "recency_bucket": "WARM",
       "source_tier": "TIER_3",
       "mentions_24h": 1,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "ac9888ae0d975e912780cf594721505dce074ffb:5921433"
+      "story_key": "21398081834e091325d1179c2850054f4cdca961:5930654"
     },
-    "META": {
-      "news_catalyst_score": 0.341,
+    "MSFT": {
+      "news_catalyst_score": 0.3146,
       "sentiment_label": "neutral",
       "event_class": "UNKNOWN",
-      "event_label": "Massive News for Meta Stock and Broadcom Stock Investors",
+      "event_label": "Microsoft Stock Edges Higher After Jury Rules Against Musk In OpenAI Trial - Microsoft (NASDAQ:MSFT)",
       "materiality": "LOW",
       "recency_bucket": "AGING",
-      "source_tier": "TIER_3",
+      "source_tier": "TIER_2",
       "mentions_24h": 6,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "0c7dd781c82304081b3d41dc6b077526c8e836eb:5921560"
-    },
-    "MSFT": {
-      "news_catalyst_score": 0.482,
-      "sentiment_label": "neutral",
-      "event_class": "ANALYST",
-      "event_label": "MSFT Stock Is Down 30% from Its Peak While Wall Street's Average Price Target Is $587 -- Here's What's Actually Going On",
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "source_tier": "TIER_3",
-      "mentions_24h": 10,
-      "is_actionable": false,
-      "first_provider": "newsapi_ai",
-      "story_key": "b96292136ddb95e94c40b58dc7d12305a0ec1972:5921395"
+      "story_key": "0dbaab60f1b535f04e811274a561f0efd5fc0ee1:5930430"
     },
     "NEE": {
-      "news_catalyst_score": 0.3372,
-      "sentiment_label": "bullish",
-      "event_class": "ANALYST",
-      "event_label": "NextEra Energy: The Utility Story Just Changed (Rating Upgrade) (NYSE:NEE)",
+      "news_catalyst_score": 0.2299,
+      "sentiment_label": "neutral",
+      "event_class": "UNKNOWN",
+      "event_label": "NextEra Energy: Buying The Dominion Deal (NYSE:NEE)",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
       "mentions_24h": 1,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "1952a2ee3e0033fcf3d8adc032ea79504abda2c5:5921455"
+      "story_key": "06cb6f9bde21017b1427fdc0f0710d8f887a6d03:5930635"
     },
     "XOM": {
-      "news_catalyst_score": 0.1946,
-      "sentiment_label": "neutral",
-      "event_class": "UNKNOWN",
-      "event_label": "Why Is Exxon Mobil Stock Dropping Friday? Oil Sell-Off Hits Energy Names - Exxon Mobil (NYSE:XOM)",
+      "news_catalyst_score": 0.4198,
+      "sentiment_label": "bullish",
+      "event_class": "DIVIDEND",
+      "event_label": "Exxon Mobil XOM stock: Q1 beat and key dividend update",
       "materiality": "LOW",
       "recency_bucket": "AGING",
-      "source_tier": "TIER_2",
-      "mentions_24h": 1,
+      "source_tier": "TIER_3",
+      "mentions_24h": 2,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "370c5ddab1f0c2d761b4d61bad278ab63e4710eb:5921481"
+      "story_key": "de72445e207ddd78fb718f8afc25a6c5e7b069b0:5930385"
     }
   },
   "summary": {
-    "active_story_count": 34,
-    "new_story_count": 1,
+    "active_story_count": 24,
+    "new_story_count": 24,
     "actionable_story_count": 0,
     "actionable_symbols": [],
-    "symbol_count": 9
+    "symbol_count": 7
   },
   "symbol_scope": {
     "mode": "release_policy_fallback",
@@ -1509,9 +1100,5 @@
     "base_csv_path": null,
     "base_manifest_path": null,
     "export_dir": "artifacts/smc_microstructure_exports"
-  },
-  "asof_strategy": "now",
-  "notes": [
-    "asof_strategy=now: loader stamps meta asof_ts with current time so this CI fixture never trips _META_DOMAIN_STALE_HOURS=48h. Article-level published_ts preserved for sentiment scoring."
-  ]
+  }
 }
