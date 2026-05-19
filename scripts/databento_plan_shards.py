@@ -44,6 +44,16 @@ def _today_utc() -> date:
     return datetime.now(timezone.utc).date()
 
 
+def _shard_has_weekday(start: date, end: date) -> bool:
+    """Return True if [start, end] inclusive contains at least one Mon-Fri."""
+    cur = start
+    while cur <= end:
+        if cur.weekday() < 5:
+            return True
+        cur = cur + timedelta(days=1)
+    return False
+
+
 def plan_shards(
     *, lookback_days: int, num_shards: int, end_date: date
 ) -> list[dict[str, object]]:
@@ -95,6 +105,13 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         default=None,
         help="Inclusive end of the window (YYYY-MM-DD). Defaults to today (UTC).",
     )
+    parser.add_argument(
+        "--require-weekday-coverage",
+        action="store_true",
+        help="Fail (rc=2) if any shard's calendar window maps to weekend-only days; "
+             "otherwise emit a stderr warning. Use in cron-driven matrices where a "
+             "weekend-only shard would silently produce an empty manifest.",
+    )
     return parser.parse_args(list(argv) if argv is not None else None)
 
 
@@ -110,6 +127,24 @@ def main(argv: Sequence[str] | None = None) -> int:
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    weekend_only = [
+        s for s in shards
+        if not _shard_has_weekday(
+            date.fromisoformat(str(s["start_date"])),
+            date.fromisoformat(str(s["end_date"])),
+        )
+    ]
+    if weekend_only:
+        ids = [s["shard_id"] for s in weekend_only]
+        msg = (
+            f"weekend-only shards detected (shard_ids={ids}); these will produce "
+            "empty manifests because list_recent_trading_days filters them out. "
+            "Consider --lookback-days >= 7 * num_shards, or accept the empty shards."
+        )
+        if getattr(args, "require_weekday_coverage", False):
+            print(f"error: {msg}", file=sys.stderr)
+            return 2
+        print(f"warning: {msg}", file=sys.stderr)
     # Emit via print/json.dumps rather than json.dump(stdout, ...) per
     # tests/test_no_direct_to_csv_in_production.py discipline (avoids the
     # need for an `# ATOMIC-WRITE-EXEMPT:` marker for a tiny CLI helper).

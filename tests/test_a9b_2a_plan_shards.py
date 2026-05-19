@@ -203,6 +203,42 @@ def test_main_required_args_missing_exits_2_via_argparse() -> None:
     assert exc.value.code == 2
 
 
+# -------------------------------------------- weekday-coverage validator (WF-011)
+
+
+def test_weekday_only_window_emits_no_warning() -> None:
+    # Window 2026-05-04 .. 2026-05-08 is Mon-Fri (all weekdays).
+    rc, _out, err = _run_main(
+        ["--lookback-days", "5", "--num-shards", "5", "--end-date", "2026-05-08"]
+    )
+    assert rc == 0
+    assert "weekend-only" not in err
+
+
+def test_weekend_only_shard_emits_stderr_warning_but_rc0() -> None:
+    # 2026-05-09 is Saturday, 2026-05-10 is Sunday. lookback=2,num=2 gives one
+    # 1-day shard per side: Sat (weekend-only) + Sun (weekend-only).
+    rc, out, err = _run_main(
+        ["--lookback-days", "2", "--num-shards", "2", "--end-date", "2026-05-10"]
+    )
+    assert rc == 0
+    assert out  # still emits the plan
+    assert "weekend-only" in err
+    assert "shard_ids=[1, 2]" in err
+
+
+def test_weekend_only_shard_with_require_flag_fails_rc2() -> None:
+    rc, out, err = _run_main(
+        [
+            "--lookback-days", "2", "--num-shards", "2", "--end-date", "2026-05-10",
+            "--require-weekday-coverage",
+        ]
+    )
+    assert rc == 2
+    assert out == ""
+    assert "weekend-only" in err
+
+
 # --------------------------------------------------------------- workflow YAML
 
 # Module-level constant kept here so the orphan-inventory guard
