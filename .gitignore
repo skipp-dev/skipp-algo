@@ -90,3 +90,4 @@ artifacts/ops_run_measure.py
 .import_linter_cache/
 
 .tmp_failed.log
+.ci_failed*.log
