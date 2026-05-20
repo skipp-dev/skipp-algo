@@ -215,7 +215,19 @@ jobs:
           # producer skips the probe entirely — no probe-shaped IO on the hot
           # path. Flip the toggle for the Phase-B baseline run and the Phase-D
           # post-cache validation runs.
-          DATABENTO_CACHE_PROBE_LOG: ${{ inputs.enable_cache_probe == 'true' && format('artifacts/ci/cache_probe_shard_{0}.jsonl', matrix.shard_id) || '' }}
+          #
+          # GHA-quirk pin (2026-05-20, Phase-B Run 1 post-mortem): for
+          # ``type: boolean`` workflow_dispatch inputs GHA exposes the value
+          # as a real boolean in the ``${{ inputs.* }}`` context, NOT the
+          # string form. The original PR-A form compared the input with a
+          # quoted string literal and therefore always evaluated false
+          # (string-vs-boolean compare) — the env stayed empty even on
+          # dispatches with ``-f enable_cache_probe=true``, silently dropping
+          # every probe artifact. Use the bare truthy form below;
+          # null/false/missing all collapse to '' through the short-circuit
+          # ``&& format(...) || ''`` fallback,
+          # which is exactly what the producer treats as "probe disabled".
+          DATABENTO_CACHE_PROBE_LOG: ${{ inputs.enable_cache_probe && format('artifacts/ci/cache_probe_shard_{0}.jsonl', matrix.shard_id) || '' }}
         run: |
           set -euo pipefail
           mkdir -p "${EXPORT_DIR}" artifacts/ci
