@@ -383,9 +383,9 @@ jobs:
             echo "::error::scheduled run: merged manifest missing at ${MERGED_MANIFEST}"
             exit 1
           fi
-          PARTIAL=$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(bool(d.get('partial_run') or d.get('manifest', {}).get('partial_run')))" "${MERGED_MANIFEST}")
+          PARTIAL=$(python -c "import json,sys; d=json.load(open(sys.argv[1])); print(bool(d.get('partial_run') or d.get('manifest', {}).get('partial_run')))" "${MERGED_MANIFEST}")
           if [ "${PARTIAL}" = "True" ]; then
-            FAILED=$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(','.join(str(x) for x in (d.get('failed_shard_ids') or (d.get('manifest') or {}).get('failed_shard_ids') or [])))" "${MERGED_MANIFEST}")
+            FAILED=$(python -c "import json,sys; d=json.load(open(sys.argv[1])); print(','.join(str(x) for x in (d.get('failed_shard_ids') or (d.get('manifest') or {}).get('failed_shard_ids') or [])))" "${MERGED_MANIFEST}")
             echo "::error file=.github/workflows/smc-databento-production-export-sharded.yml::scheduled run produced partial_run=true (failed_shard_ids=${FAILED:-unknown}); refusing to publish a degraded canonical artifact. Re-run the failed shards or dispatch manually."
             exit 1
           fi
@@ -433,7 +433,7 @@ jobs:
             echo "export_date=" >>"${GITHUB_OUTPUT}"
             exit 0
           fi
-          PARTIAL=$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(bool(d.get('partial_run') or d.get('manifest', {}).get('partial_run')))" "${MERGED_MANIFEST}")
+          PARTIAL=$(python -c "import json,sys; d=json.load(open(sys.argv[1])); print(bool(d.get('partial_run') or d.get('manifest', {}).get('partial_run')))" "${MERGED_MANIFEST}")
           if [ "${PARTIAL}" = "True" ]; then
             echo "::notice::merged manifest has partial_run=true; skipping legacy compat upload (consumers have no partial-run handling yet)"
             echo "skip_compat=true" >>"${GITHUB_OUTPUT}"
