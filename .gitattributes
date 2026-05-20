@@ -1,2 +1,9 @@
-artifacts/**/*.parquet filter=lfs diff=lfs merge=lfs -text
-artifacts/**/*.xlsx filter=lfs diff=lfs merge=lfs -text
+# WF-012 (2026-05-20): do not mark checked-in artifact fixtures as Git LFS.
+# This repository currently has zero LFS pointer files, while thousands of
+# historical artifact parquet/xlsx files are committed as normal Git blobs.
+# The stale filter caused every checkout to emit
+# "Encountered <N> files that should have been pointers, but weren't", and
+# GitHub Copilot Code Review failed with stderr maxBuffer overflow while
+# checking out PR branches. Keep artifact uploads in Actions artifacts, not
+# repo-level LFS attributes, unless a future migration converts the files into
+# real LFS pointers in the same commit.

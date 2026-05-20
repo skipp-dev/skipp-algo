@@ -225,6 +225,22 @@ def test_reduce_uses_python_pinned_action() -> None:
     )
 
 
+def test_reduce_installs_python_dependencies_before_merging_payloads() -> None:
+    """The reducer imports pandas/pyarrow when concatenating parquet payloads."""
+    steps = _reduce_steps()
+    names = [str(step.get("name", "")) for step in steps]
+    install_uv_idx = names.index("Install uv")
+    install_deps_idx = names.index("Install Python dependencies")
+    reduce_idx = names.index("Reduce per-shard manifests into one canonical manifest")
+
+    assert install_uv_idx < install_deps_idx < reduce_idx
+    install_run = steps[install_deps_idx].get("run", "")
+    assert "uv pip install --system -r requirements.txt" in install_run, (
+        "reduce must install requirements.txt before invoking the merge script; "
+        "otherwise pandas/pyarrow imports fail after all shard artifacts download"
+    )
+
+
 def test_reduce_shard_dir_basename_encodes_shard_id() -> None:
     """
     Regression-guard for the shard-id parse bug:

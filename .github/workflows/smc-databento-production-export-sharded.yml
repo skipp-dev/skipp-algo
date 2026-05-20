@@ -276,6 +276,20 @@ jobs:
       - name: Set up Python
         uses: ./.github/actions/setup-python-pinned
 
+      # WF-012 (2026-05-20): the reducer imports pandas/pyarrow while
+      # concatenating shard parquet payloads. Producer shards installed
+      # requirements.txt, but reduce only set up bare Python and failed with
+      # ``No module named 'pandas'`` after downloading every shard artifact.
+      - name: Install uv
+        uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: requirements*.txt
+
+      - name: Install Python dependencies
+        run: |
+          uv pip install --system -r requirements.txt
+
       - name: Download all producer shard artifacts
         # `merge-multiple: false` keeps each shard's manifest in its own
         # subdirectory; otherwise basenames collide and shard-K silently
