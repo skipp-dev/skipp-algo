@@ -368,6 +368,7 @@ jobs:
           # herring. Missing fallback path only warns (default behavior).
           name: smc-measurement-benchmark-rolling-${{ steps.meta.outputs.run_date || 'unknown' }}
           path: ${{ steps.meta.outputs.out_dir || 'artifacts/ci/measurement_benchmark_rolling' }}
+          if-no-files-found: warn
           retention-days: 30
           # Idempotent same-day reruns (manual or backfill) must not 409.
           overwrite: true
