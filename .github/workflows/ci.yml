@@ -34,56 +34,11 @@ defaults:
     shell: bash
 
 jobs:
-  select-runner:
-    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
-    timeout-minutes: 5
-    permissions:
-      contents: read
-    outputs:
-      runs_on_json: ${{ steps.resolve.outputs.runs_on_json }}
-      runner_environment: ${{ steps.resolve.outputs.runner_environment }}
-      resolution_reason: ${{ steps.resolve.outputs.resolution_reason }}
-      matched_runner_name: ${{ steps.resolve.outputs.matched_runner_name }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-
-      - name: Set up pinned Python
-        uses: ./.github/actions/setup-python-pinned
-
-      - name: Resolve worker runner
-        id: resolve
-        env:
-          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
-        run: |
-          # Heavy validate runs are the best fit for the Windows self-hosted
-          # pool, so CI bypasses the repo-wide generic-hosted-only label.
-          # Operators can still pin a dedicated CI label; otherwise we reuse
-          # the priority-cron runner before falling back to any idle
-          # Windows/x64 self-hosted runner.
-          # F-V8-C5-B (2026-05-17): heavy `validate` belongs on the Windows
-          # self-hosted pool. If no runner is currently idle, queue the job
-          # against the required labels instead of falling through to a
-          # github-hosted ubuntu runner (which historically masked the
-          # self-hosted pool's availability during brief restart/race
-          # windows). Inventory-unavailable ALSO routes to required
-          # self-hosted because the default `github.token` lacks
-          # admin-scope to read /actions/runners, which would otherwise
-          # 403 on every PR and silently fall back to hosted. Trade-off:
-          # an extended GitHub API outage queues `validate` against the
-          # self-hosted labels until a runner is free or `timeout-minutes`
-          # cancels the job. Acceptable because the alternative is
-          # silently consuming hosted minutes on every CI run.
-          python scripts/resolve_workflow_runner.py \
-            --repository "${{ github.repository }}" \
-            --hosted-runner "${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}" \
-            --custom-label "${{ vars.SMC_CI_SELF_HOSTED_LABEL || vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || '' }}" \
-            --inventory-unavailable-fallback required-self-hosted \
-            --no-idle-fallback required-self-hosted
-
   validate:
-    needs: select-runner
-    runs-on: ${{ fromJson(needs.select-runner.outputs.runs_on_json) }}
+    # Runner policy (2026-05-20): CI should use the native GitHub-hosted
+    # runner by default. Reserve self-hosted routing for workflows that
+    # genuinely need local Windows/GPU/cache characteristics.
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 45
     steps:
       # Bot data-only PRs (e.g. `bot/run-open-prep-*`, `bot/outcome-backfill-*`)
@@ -106,9 +61,9 @@ jobs:
       - name: Announce selected runner
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
-          echo "runner_environment=${{ needs.select-runner.outputs.runner_environment }}"
-          echo "resolution_reason=${{ needs.select-runner.outputs.resolution_reason }}"
-          echo "matched_runner_name=${{ needs.select-runner.outputs.matched_runner_name }}"
+          echo "runner_environment=github-hosted"
+          echo "resolution_reason=ci_policy_github_hosted"
+          echo "runner_name=${{ runner.name }}"
       - name: Validate Pine scripts
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
@@ -117,7 +72,7 @@ jobs:
           test -f SMC_Long_Strategy.pine
           grep -q "^//@version=6" SMC_Long_Strategy.pine
       - name: Set up pinned Python (GitHub-hosted)
-        if: steps.gate.outputs.run_heavy == 'true' && needs.select-runner.outputs.runner_environment == 'github-hosted'
+        if: steps.gate.outputs.run_heavy == 'true'
         uses: ./.github/actions/setup-python-pinned
         with:
           cache: pip
@@ -126,12 +81,7 @@ jobs:
         if: steps.gate.outputs.run_heavy == 'true'
         uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3
         with:
-          # GHA cache backend returns HTTP 400 on the Windows self-hosted
-          # runner ("Failed to restore: Cache service responded with 400").
-          # uv falls back to its local on-disk cache (UV_CACHE_DIR) which the
-          # self-hosted runner has anyway; opting out of the GHA cache layer
-          # there silences the noise without losing local cache reuse.
-          enable-cache: ${{ needs.select-runner.outputs.runner_environment == 'github-hosted' && 'true' || 'false' }}
+          enable-cache: true
           cache-dependency-glob: |
             requirements*.txt
       - name: Resolve Python 3.12 interpreter
@@ -139,47 +89,7 @@ jobs:
         id: resolve_py
         shell: bash
         run: |
-          if [[ "${{ needs.select-runner.outputs.runner_environment }}" == "github-hosted" ]]; then
-            python -c "import sys; raise SystemExit('GitHub-hosted Python bootstrap did not resolve Python 3.12.' if sys.version_info[:2] != (3, 12) else 0)"
-            echo "SMC_PYTHON_BIN=python" >> "$GITHUB_ENV"
-            echo "found=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          # Self-hosted: probe a wide set of well-known interpreters
-          # (including the `py` launcher) before delegating to the
-          # setup-python install fallback below. Each candidate is verified
-          # to be Python 3.12 before being accepted.
-          probe_312() {
-            "$1" -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 12) else 1)" >/dev/null 2>&1
-          }
-          for cand in python python3 python3.12 "/c/Python312/python.exe" "$LOCALAPPDATA/Programs/Python/Python312/python.exe" "$ProgramFiles/Python312/python.exe"; do
-            if [[ -n "$cand" ]] && command -v "$cand" >/dev/null 2>&1 && probe_312 "$cand"; then
-              echo "SMC_PYTHON_BIN=$cand" >> "$GITHUB_ENV"
-              echo "found=true" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-          done
-
-          if command -v py >/dev/null 2>&1; then
-            python_bin="$(py -3.12 -c "import sys; print(sys.executable)" 2>/dev/null || true)"
-            if [[ -n "$python_bin" ]]; then
-              echo "SMC_PYTHON_BIN=$python_bin" >> "$GITHUB_ENV"
-              echo "found=true" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-          fi
-
-          echo "::notice::No pre-installed Python 3.12 on self-hosted runner — falling back to actions/setup-python install."
-          echo "found=false" >> "$GITHUB_OUTPUT"
-      - name: Install Python 3.12 (self-hosted fallback)
-        if: steps.gate.outputs.run_heavy == 'true' && needs.select-runner.outputs.runner_environment != 'github-hosted' && steps.resolve_py.outputs.found != 'true'
-        uses: ./.github/actions/setup-python-pinned
-      - name: Confirm Python 3.12 after install
-        if: steps.gate.outputs.run_heavy == 'true' && needs.select-runner.outputs.runner_environment != 'github-hosted' && steps.resolve_py.outputs.found != 'true'
-        shell: bash
-        run: |
-          python -c "import sys; raise SystemExit('Fallback install did not yield Python 3.12.' if sys.version_info[:2] != (3, 12) else 0)"
+          python -c "import sys; raise SystemExit('GitHub-hosted Python bootstrap did not resolve Python 3.12.' if sys.version_info[:2] != (3, 12) else 0)"
           echo "SMC_PYTHON_BIN=python" >> "$GITHUB_ENV"
       - name: Install test dependencies
         # When vars.SMC_USE_REQUIREMENTS_LOCK == 'true' the composite installs from
@@ -192,12 +102,10 @@ jobs:
           python-bin: ${{ env.SMC_PYTHON_BIN }}
           requirements-file: ${{ vars.SMC_USE_REQUIREMENTS_LOCK == 'true' && 'requirements.lock' || 'requirements.txt' }}
           extra-packages: pytest
-          # When SMC_PERSISTENT_VENV_ROOT is unset, the composite falls back
-          # to the historical behavior (fresh venv under $GITHUB_WORKSPACE/.venv),
-          # so this is a no-op until an operator opts in by setting the var
-          # on the self-hosted runner host (e.g. 'C:\runner-venvs\skipp-algo').
-          persistent-root: ${{ vars.SMC_PERSISTENT_VENV_ROOT }}
-          runner-environment: ${{ needs.select-runner.outputs.runner_environment }}
+          # CI validate is intentionally GitHub-hosted; setup-persistent-venv
+          # ignores persistent roots for this runner-environment and creates a
+          # fresh workspace venv while Actions cache handles hosted-runner reuse.
+          runner-environment: github-hosted
       # Coverage adds ~25-35% test wall-time. Keep it on `main` pushes (where
       # the report has value) and use the faster no-coverage suite on PRs and
       # non-main branch pushes to shorten feedback loops while preserving the
