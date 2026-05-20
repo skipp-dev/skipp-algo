@@ -140,7 +140,12 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          uv pip install --python "$SMC_PYTHON_BIN" -r requirements.txt pytest
+          # WF-012 (2026-05-20): ``uv pip install --python python ...`` on a
+          # GitHub-hosted setup-python interpreter expects an existing venv and
+          # fails with "No virtual environment found". Install into the resolved
+          # interpreter's system environment instead; this mirrors the producer
+          # workflows and keeps self-hosted Python-path resolution intact.
+          uv pip install --python "$SMC_PYTHON_BIN" --system -r requirements.txt pytest
 
       - name: Resolve run date + output dir
         id: meta
@@ -357,8 +362,12 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: smc-measurement-benchmark-rolling-${{ steps.meta.outputs.run_date }}
-          path: ${{ steps.meta.outputs.out_dir }}
+          # If an early bootstrap step fails before `meta` runs, keep
+          # upload-artifact syntactically valid so the real failure remains the
+          # earlier step instead of a secondary "Input required: path" red
+          # herring. Missing fallback path only warns (default behavior).
+          name: smc-measurement-benchmark-rolling-${{ steps.meta.outputs.run_date || 'unknown' }}
+          path: ${{ steps.meta.outputs.out_dir || 'artifacts/ci/measurement_benchmark_rolling' }}
           retention-days: 30
           # Idempotent same-day reruns (manual or backfill) must not 409.
           overwrite: true

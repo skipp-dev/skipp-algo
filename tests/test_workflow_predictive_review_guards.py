@@ -39,6 +39,20 @@ def test_rolling_benchmark_error_annotation_points_to_sharded_producer() -> None
     assert "Re-run smc-databento-production-export and then" not in body
 
 
+def test_rolling_benchmark_uv_install_targets_system_interpreter() -> None:
+    body = _read_workflow("smc-measurement-benchmark-rolling.yml")
+    assert 'uv pip install --python "$SMC_PYTHON_BIN" --system -r requirements.txt pytest' in body
+    assert 'uv pip install --python "$SMC_PYTHON_BIN" -r requirements.txt pytest' not in body
+
+
+def test_rolling_benchmark_artifact_upload_has_meta_fallbacks() -> None:
+    body = _read_workflow("smc-measurement-benchmark-rolling.yml")
+    upload_start = body.index("- name: Upload rolling benchmark artifacts")
+    upload_block = body[upload_start : upload_start + 700]
+    assert "steps.meta.outputs.run_date || 'unknown'" in upload_block
+    assert "steps.meta.outputs.out_dir || 'artifacts/ci/measurement_benchmark_rolling'" in upload_block
+
+
 def test_live_news_secret_is_in_step_env_not_inline_shell() -> None:
     body = _read_workflow("smc-live-newsapi-refresh.yml")
     assert "NEWSAPI_AI_KEY: ${{ secrets.NEWSAPI_AI_KEY }}" in body
