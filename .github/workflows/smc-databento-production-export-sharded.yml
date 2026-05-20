@@ -224,7 +224,8 @@ jobs:
           # (string-vs-boolean compare) — the env stayed empty even on
           # dispatches with ``-f enable_cache_probe=true``, silently dropping
           # every probe artifact. Use the bare truthy form below;
-          # null/false/missing all collapse to '' through the ternary,
+          # null/false/missing all collapse to '' through the short-circuit
+          # ``&& format(...) || ''`` fallback,
           # which is exactly what the producer treats as "probe disabled".
           DATABENTO_CACHE_PROBE_LOG: ${{ inputs.enable_cache_probe && format('artifacts/ci/cache_probe_shard_{0}.jsonl', matrix.shard_id) || '' }}
         run: |
