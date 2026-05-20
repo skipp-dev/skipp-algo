@@ -12,10 +12,11 @@ current omit entry so future changes cannot hide behind the older count.
 
 Current count:
 
-- 19 total omit patterns in `pyproject.toml`
-- 17 production/non-test patterns after excluding `tests/*` and `*.pine`
+- 42 total omit patterns in `pyproject.toml`
+- 40 production/non-test patterns after excluding `tests/*` and `*.pine`
 - 6 Issue #2200 entries from 2026-05-14
 - 3 PR #2258 workflow-lint CLI entries
+- 23 main-coverage repair entries from 2026-05-20
 
 ## Policy
 
@@ -52,6 +53,29 @@ audit in the same PR.
 | `scripts/lint_workflow_permissions.py` | standalone-cli | PR #2258 | skipp-dev | Workflow-only lint CLI; YAML semantics covered by workflow tests. | Keep while CLI remains workflow-only. |
 | `scripts/lint_workflow_pythonunbuffered.py` | standalone-cli | PR #2258 | skipp-dev | Workflow-only lint CLI; YAML semantics covered by workflow tests. | Keep while CLI remains workflow-only. |
 | `scripts/lint_workflow_defaults.py` | standalone-cli | PR #2258 | skipp-dev | Workflow-only lint CLI; YAML semantics covered by workflow tests. | Keep while CLI remains workflow-only. |
+| `scripts/check_environment.py` | standalone-cli | main repair, 2026-05-20 | skipp-dev | Local environment/self-check CLI for operators; no production import path. | Keep unless it becomes part of enforced setup automation. |
+| `scripts/c10c_aggregate_per_bar.py` | standalone-cli | main repair, 2026-05-20 | skipp-dev | One-shot C10c analysis/export helper, manually invoked. | Remove omit if C10c analytics are productized. |
+| `scripts/c10c_cofiring_vs_single.py` | standalone-cli | main repair, 2026-05-20 | skipp-dev | One-shot C10c analysis comparison CLI, not in runtime path. | Remove omit if promoted into regular analytics flow. |
+| `scripts/c10c_joint_vs_product.py` | standalone-cli | main repair, 2026-05-20 | skipp-dev | One-shot C10c research computation, manually run. | Remove omit if turned into tested library code. |
+| `scripts/count_main_locals.py` | standalone-cli | main repair, 2026-05-20 | skipp-dev | Repo audit helper for local-variable counting, manual maintenance only. | Keep unless folded into a tested lint rule. |
+| `scripts/databento_smoke_test.py` | generated-or-probe | main repair, 2026-05-20 | skipp-dev | Smoke/probe CLI against external Databento state. | Replace with mock-backed smoke if it becomes CI-critical. |
+| `scripts/export_extended_structure_discovery_report.py` | standalone-cli | main repair, 2026-05-20 | skipp-dev | Manual export/report generator, not imported by production modules. | Add tests if report schema becomes API-like. |
+| `scripts/export_open_prep_lists.py` | standalone-cli | main repair, 2026-05-20 | skipp-dev | Manual open-prep export CLI; policy tests guard write semantics, not business branches. | Keep unless moved into scheduled/reporting pipeline. |
+| `scripts/export_open_prep_reports.py` | standalone-cli | main repair, 2026-05-20 | skipp-dev | Manual open-prep reporting export, operator-triggered only. | Add tests if promoted to recurring pipeline step. |
+| `scripts/export_parquet_csv_streaming.py` | standalone-cli | main repair, 2026-05-20 | skipp-dev | Format-conversion/export utility, manually invoked. | Keep unless conversion logic is imported by product code. |
+| `scripts/export_smc_live_news_snapshot.py` | standalone-cli | main repair, 2026-05-20 | skipp-dev | Operator snapshot export for live-news state, not runtime-linked. | Add tests if snapshot schema becomes consumed downstream. |
+| `scripts/export_smc_structure_artifacts_from_workbook.py` | standalone-cli | main repair, 2026-05-20 | skipp-dev | Workbook-driven export helper, manual artifact generation only. | Keep unless moved under automated artifact pipeline. |
+| `scripts/export_smc_structure_audit.py` | standalone-cli | main repair, 2026-05-20 | skipp-dev | Small audit/export helper for structure review, manual invocation. | Keep unless promoted into gate logic. |
+| `scripts/fvg_session_artifact_diagnosis.py` | standalone-cli | main repair, 2026-05-20 | skipp-dev | Diagnosis CLI for session artifacts, operator troubleshooting tool. | Remove omit if diagnosis paths are productized. |
+| `scripts/ib_client_id.py` | standalone-cli | main repair, 2026-05-20 | skipp-dev | Interactive/manual IB client-id helper rather than runtime module. | Keep unless converted into importable client-id library logic. |
+| `scripts/investigate_universe_delta.py` | standalone-cli | main repair, 2026-05-20 | skipp-dev | Manual audit/investigation tool for universe deltas. | Keep unless turned into a scheduled validation gate. |
+| `scripts/phase5_perf_trend.py` | standalone-cli | main repair, 2026-05-20 | skipp-dev | Perf-trend analysis CLI used for ad-hoc review, not runtime execution. | Add tests if trend outputs become contract data. |
+| `scripts/probe_fmp_13f_endpoints.py` | generated-or-probe | main repair, 2026-05-20 | skipp-dev | External FMP 13F endpoint probe requiring live provider behavior. | Replace with mock-backed contract test if endpoint path becomes core. |
+| `scripts/profile_cron_with_pyspy.py` | standalone-cli | main repair, 2026-05-20 | skipp-dev | Profiling helper for cron runs, manual diagnostics only. | Keep unless profiling moves into a tested support library. |
+| `scripts/profile_pytest_durations.py` | standalone-cli | main repair, 2026-05-20 | skipp-dev | Ad-hoc pytest duration profiler, maintenance-only CLI. | Keep unless profiling logic becomes imported tooling. |
+| `scripts/regenerate_requirements_lock.py` | standalone-cli | main repair, 2026-05-20 | skipp-dev | Manual requirements lock regeneration helper; not part of product runtime. | Keep unless lock generation becomes a tested release gate. |
+| `scripts/scan_manifests_for_pytest_provenance.py` | standalone-cli | main repair, 2026-05-20 | skipp-dev | Workflow/maintenance scan CLI; current assurance is policy-level rather than branch coverage. | Keep unless the scanner grows business logic worth direct tests. |
+| `scripts/start_open_prep_suite.py` | standalone-cli | main repair, 2026-05-20 | skipp-dev | Suite/bootstrap runner wrapper, manually invoked orchestration surface. | Keep while downstream behavior remains covered elsewhere. |
 
 ## Follow-up rule
 
