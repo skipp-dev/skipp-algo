@@ -43,12 +43,24 @@ def test_manual_dispatch_remains_available() -> None:
 def test_cache_probe_env_var_is_shard_specific_and_opt_in() -> None:
     text = _read()
     expected = (
-        "DATABENTO_CACHE_PROBE_LOG: ${{ inputs.enable_cache_probe == 'true' "
+        "DATABENTO_CACHE_PROBE_LOG: ${{ inputs.enable_cache_probe "
         "&& format('artifacts/ci/cache_probe_shard_{0}.jsonl', matrix.shard_id) || '' }}"
     )
     assert expected in text, (
         "cache-probe path must be partitioned by matrix.shard_id AND gated on "
         "the enable_cache_probe input so schedule runs skip probe IO"
+    )
+    # GHA-quirk regression-guard (Phase-B Run 1 post-mortem, 2026-05-20):
+    # for ``type: boolean`` workflow_dispatch inputs GHA exposes the value
+    # as a real boolean in ``${{ inputs.* }}``, NOT the string "true".
+    # The string-compare form ``inputs.enable_cache_probe == 'true'`` is
+    # therefore always false on dispatches with the toggle on, and silently
+    # drops every probe artifact (root cause of Run 26145436063 producing
+    # 0 probe files despite ``-f enable_cache_probe=true``).
+    assert "inputs.enable_cache_probe == 'true'" not in text, (
+        "GHA-quirk: boolean-typed workflow inputs are NOT compared with "
+        "the string 'true'. Use the bare truthy form "
+        "(``inputs.enable_cache_probe && ... || ''``) instead."
     )
 
 
