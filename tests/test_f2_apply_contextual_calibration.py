@@ -15,6 +15,7 @@ import pytest
 
 from scripts.f2_apply_contextual_calibration import (
     apply_contextual_calibration,
+    _write_arm,
     blend_prob,
     rescore_pair,
 )
@@ -295,6 +296,64 @@ def test_end_to_end_promotion_gate_runs_against_post_processed_dirs(
     )
     assert report["decision"] in {"promote", "hold", "rollback", "insufficient_data"}
     assert report["decision"] != "skipped"  # the bug we're fixing
+
+
+def test_write_arm_sanitizes_non_finite_metrics_to_null(tmp_path: Path) -> None:
+    summary = {
+        "schema_version": "1.0",
+        "generated_at": 0.0,
+        "generator": "tests",
+        "symbol": "AAPL",
+        "timeframe": "5m",
+        "artifact_dir": "",
+        "scoring": {
+            "n_events": 0,
+            "brier_score": float("nan"),
+            "log_score": float("inf"),
+            "hit_rate": float("-inf"),
+            "families_present": ["OB"],
+            "family_metrics": {
+                "OB": {
+                    "family": "OB",
+                    "n_events": 0,
+                    "brier_score": float("nan"),
+                    "log_score": float("inf"),
+                    "hit_rate": float("-inf"),
+                }
+            },
+            "calibration": {},
+            "stratified_calibration": {},
+            "stratified_calibration_summary": {"dimensions_present": []},
+            "contextual_calibration": {},
+            "contextual_calibration_summary": {"dimensions_present": []},
+        },
+        "ensemble_quality": {},
+        "stratification_coverage": {"dimensions_present": [], "populated_bucket_count": 0},
+        "warnings": [],
+    }
+
+    manifest = _write_arm(
+        tmp_path / "control",
+        pair_summaries=[("AAPL", "5m", summary)],
+        blend_alpha=1.0,
+        arm_name="control",
+    )
+
+    manifest_text = (tmp_path / "control" / "benchmark_run_manifest.json").read_text(encoding="utf-8")
+    summary_text = (tmp_path / "control" / "AAPL" / "5m" / "measurement_summary_AAPL_5m.json").read_text(encoding="utf-8")
+    assert "NaN" not in manifest_text
+    assert "Infinity" not in manifest_text
+    assert "NaN" not in summary_text
+    assert "Infinity" not in summary_text
+
+    payload = json.loads(summary_text)
+    assert payload["scoring"]["brier_score"] is None
+    assert payload["scoring"]["log_score"] is None
+    assert payload["scoring"]["hit_rate"] is None
+    assert payload["scoring"]["family_metrics"]["OB"]["brier_score"] is None
+    assert payload["scoring"]["family_metrics"]["OB"]["log_score"] is None
+    assert payload["scoring"]["family_metrics"]["OB"]["hit_rate"] is None
+    assert manifest["pair_runs"][0]["summary_path"] == "AAPL/5m/measurement_summary_AAPL_5m.json"
 
 
 # ── Helper-level invariants ────────────────────────────────────────────────

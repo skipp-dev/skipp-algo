@@ -19,6 +19,7 @@ if str(REPO_ROOT) not in sys.path:
 # invoked as `python scripts/X.py` (no PYTHONPATH=.) — sys.path.insert
 # above must happen before any first-party `from scripts.` import.
 from scripts.smc_atomic_write import atomic_write_text  # noqa: E402
+from scripts.strict_json import dumps_strict_json  # noqa: E402
 
 from governance.run_manifest import (  # noqa: E402
     attach as attach_run_manifest,
@@ -300,7 +301,7 @@ def _write_pair_summary_csv(path: Path, summary: dict[str, Any]) -> None:
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", path)
+    atomic_write_text(dumps_strict_json(payload, indent=2, sort_keys=True) + "\n", path)
 
 
 def _build_pair_summary(
@@ -587,7 +588,7 @@ def main() -> int:
     )
     run_manifest = attach_run_manifest(run_manifest, _gov_manifest)
     _write_json(output_root / "benchmark_run_manifest.json", run_manifest)
-    print(json.dumps(run_manifest, indent=2, sort_keys=True))
+    print(dumps_strict_json(run_manifest, indent=2, sort_keys=True))
 
     if getattr(args, "require_evidence", False):
         # Fail-loud guard (2026-04-23): the rolling-bench workflow ran
