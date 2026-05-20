@@ -237,7 +237,7 @@ jobs:
             exit 0
           fi
           echo "bundle_present=false" >> "$GITHUB_OUTPUT"
-          echo "::error file=.github/workflows/smc-databento-production-export.yml::Producer artifact missing for ${{ steps.meta.outputs.run_date }}; rolling benchmark aborted. Re-run smc-databento-production-export and then re-trigger smc-measurement-benchmark-rolling."
+          echo "::error file=.github/workflows/smc-databento-production-export-sharded.yml::Producer artifact missing for ${{ steps.meta.outputs.run_date }}; rolling benchmark aborted. Re-run smc-databento-production-export-sharded and then re-trigger smc-measurement-benchmark-rolling."
           exit 1
 
       - name: Run daily rolling benchmark

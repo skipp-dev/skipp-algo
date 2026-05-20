@@ -144,7 +144,11 @@ _FROZEN_SITES: dict[str, int] = {
     "scripts/generate_performance_report.py": 1,
     "scripts/probe_newsapi_feed_cursor.py": 5,
     "scripts/run_smc_e2e_smoke_test.py": 1,
-    "scripts/run_smc_measurement_benchmark.py": 2,
+    # WF-008 strict-json follow-up (2026-05-20): the benchmark CLI inserts
+    # repo root into sys.path before first-party imports so path invocation
+    # works without PYTHONPATH. Adding scripts.strict_json introduced one
+    # additional E402 import after that bootstrap.
+    "scripts/run_smc_measurement_benchmark.py": 3,
     # Rebaselined 2026-05-03 (after PR #2035): bumped 1 → 3, see e2e_smoke_ci.py.
     "scripts/run_smc_release_gates.py": 3,
     "scripts/smc_performance_report.py": 1,
@@ -198,6 +202,14 @@ _FROZEN_SITES: dict[str, int] = {
     # convenience scripts, not on any production hot path.
     "scripts/profile_cron_with_pyspy.py": 1,
     "scripts/profile_pytest_durations.py": 1,
+    # 2026-05-20: requirements.lock regeneration helper shells out to
+    # repo-local Python commands with fully constructed argv lists. Bandit
+    # S603 is a false positive; the helper is developer/CI maintenance only.
+    "scripts/regenerate_requirements_lock.py": 2,
+    # 2026-05-20: Databento artifact restore helper performs fixed-domain
+    # GitHub API downloads (api.github.com) with explicit timeouts. The
+    # corresponding urllib ledger pins these two urlopen sites separately.
+    "scripts/restore_databento_export_bundle.py": 2,
 }
 _FROZEN_TOTAL = sum(_FROZEN_SITES.values())
 

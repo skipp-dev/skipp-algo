@@ -142,13 +142,12 @@ jobs:
 
       - name: Refresh NewsAPI.ai live snapshot
         env:
+          NEWSAPI_AI_KEY: ${{ secrets.NEWSAPI_AI_KEY }}
           INPUT_SYMBOLS: ${{ github.event.inputs.symbols }}
           INPUT_SYMBOL_LIMIT: ${{ github.event.inputs.symbol_limit }}
           INPUT_RESET_STATE: ${{ github.event.inputs.reset_state }}
           NEWSAPI_AI_SHARED_CACHE_TTL_SECONDS: "25"
         run: |
-          NEWSAPI_AI_KEY='${{ secrets.NEWSAPI_AI_KEY }}'
-          export NEWSAPI_AI_KEY
           test -n "${NEWSAPI_AI_KEY}" || { echo "::error::NEWSAPI_AI_KEY secret is required"; exit 1; }
 
           SYMBOLS="${INPUT_SYMBOLS:-}"
@@ -226,6 +225,11 @@ jobs:
           if git push --force-with-lease=refs/heads/bot/live-news-snapshot origin "HEAD:refs/heads/bot/live-news-snapshot"; then
             echo "Pushed live-news snapshot to bot/live-news-snapshot."
           else
-            echo "::error::live-news snapshot push failed (will retry next cron tick)"
+            echo "::warning::live-news snapshot push failed; artifact upload remains available, but bot/live-news-snapshot state may be stale and the next tick can replay stories."
+            {
+              echo "### ⚠ live-news state persistence warning"
+              echo ""
+              echo "The snapshot artifact uploaded, but the rolling bot/live-news-snapshot branch push failed. The next cron tick may restore stale story-window state and replay already-seen stories."
+            } >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi

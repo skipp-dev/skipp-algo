@@ -122,7 +122,9 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # E402 outliers — late imports after sys.path/streamlit setup
         # blocks that pyproject's per-file-ignores cannot easily cover
         # without disabling E402 for too-broad surface area.
-        ("databento_volatility_screener.py", 123, ("E402",)),
+        # PR #2309 / follow-up: mainline import/header growth shifted the
+        # same delayed first-party import from 123 to 186; code set unchanged.
+        ("databento_volatility_screener.py", 186, ("E402",)),
         ("newsstack_fmp/pipeline.py", 1183, ("E402",)),
         ("open_prep/run_open_prep.py", 472, ("E402",)),
         ("smc_tv_bridge/smc_api.py", 176, ("E402", "I001")),

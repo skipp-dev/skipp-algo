@@ -4,7 +4,10 @@ Pulls today's ``smc-databento-production-export-<RUN_DATE>-*`` GitHub Actions
 artifact from the ``main`` branch (or the most recent same-prefix fallback)
 and extracts it into ``artifacts/smc_microstructure_exports/``. Survives
 transient zip corruption by retrying each candidate up to 3 times before
-falling back to the next-newer artifact.
+falling back to the next-newer artifact. Only artifacts produced by the
+canonical sharded producer workflow are eligible; emergency/manual artifacts
+from the deprecated monolith use the same legacy prefix but must not feed the
+rolling benchmark.
 
 Replaces the inline heredoc previously embedded in
 ``.github/workflows/smc-measurement-benchmark-rolling.yml`` (F-V8-D4,
@@ -38,6 +41,8 @@ import zipfile
 from pathlib import Path
 
 _PREFIX = "smc-databento-production-export-"
+_CANONICAL_WORKFLOW_FILE = "smc-databento-production-export-sharded.yml"
+_CANONICAL_WORKFLOW_NAME = "smc-databento-production-export-sharded"
 _ROOT = Path("artifacts/smc_microstructure_exports")
 _USER_AGENT = "smc-measurement-benchmark-rolling"
 _API_VERSION = "2022-11-28"
@@ -78,8 +83,27 @@ def _download_zip(token: str, repo: str, artifact_id: int) -> bytes:
         return resp.read()
 
 
+def _is_canonical_producer_run(token: str, repo: str, run_id: int, cache: dict[int, bool]) -> bool:
+    """Return whether ``run_id`` belongs to the canonical sharded producer."""
+    if run_id <= 0:
+        return False
+    if run_id in cache:
+        return cache[run_id]
+    payload = _api_get_json(token, f"repos/{repo}/actions/runs/{run_id}")
+    workflow_path = str(payload.get("path") or "")
+    workflow_name = str(payload.get("name") or "")
+    ok = (
+        workflow_path.endswith(f"/{_CANONICAL_WORKFLOW_FILE}")
+        or workflow_path == _CANONICAL_WORKFLOW_FILE
+        or workflow_name == _CANONICAL_WORKFLOW_NAME
+    )
+    cache[run_id] = ok
+    return ok
+
+
 def _list_candidates(token: str, repo: str, today_prefix: str) -> list[dict]:
     artifacts: list[dict] = []
+    run_workflow_cache: dict[int, bool] = {}
     for page in range(1, 4):
         payload = _api_get_json(token, f"repos/{repo}/actions/artifacts?per_page=100&page={page}")
         batch = payload.get("artifacts") or []
@@ -93,6 +117,9 @@ def _list_candidates(token: str, repo: str, today_prefix: str) -> list[dict]:
                 continue
             workflow_run = item.get("workflow_run") or {}
             if str(workflow_run.get("head_branch") or "") != "main":
+                continue
+            run_id = int(workflow_run.get("id") or 0)
+            if not _is_canonical_producer_run(token, repo, run_id, run_workflow_cache):
                 continue
             artifacts.append(item)
         if len(batch) < 100:

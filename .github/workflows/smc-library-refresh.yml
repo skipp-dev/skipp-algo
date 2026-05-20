@@ -471,6 +471,18 @@ jobs:
           workflow_conclusion: success
           if_no_artifact_found: warn
 
+      - name: Reject stale Databento fallback on automated refresh
+        id: reject_stale_export_fallback
+        if: |
+          steps.diff.outputs.changed == 'true'
+          && github.event_name != 'workflow_dispatch'
+          && steps.restore_export_bundle_today.outputs.found_artifact != 'true'
+          && steps.restore_export_bundle_fallback.outputs.found_artifact == 'true'
+        run: |
+          set -euo pipefail
+          echo "::error file=.github/workflows/smc-library-refresh.yml::Automated library refresh resolved only a fallback Databento export for REFRESH_DATE=${REFRESH_DATE}. Refusing to publish against a stale producer bundle; wait for smc-databento-production-export-sharded to publish today's compat artifact, or rerun manually if an older bundle is intentional."
+          exit 1
+
       # F-V8-D1 (2026-05-14): dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6 with
       # name_is_regexp: true unconditionally nests each downloaded artifact
       # under `<path>/<artifact-name>/...` (see main.js:269). Consumer
