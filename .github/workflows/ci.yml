@@ -102,11 +102,9 @@ jobs:
           python-bin: ${{ env.SMC_PYTHON_BIN }}
           requirements-file: ${{ vars.SMC_USE_REQUIREMENTS_LOCK == 'true' && 'requirements.lock' || 'requirements.txt' }}
           extra-packages: pytest
-          # When SMC_PERSISTENT_VENV_ROOT is unset, the composite falls back
-          # to the historical behavior (fresh venv under $GITHUB_WORKSPACE/.venv),
-          # so this is a no-op until an operator opts in by setting the var
-          # on a future runner host (e.g. 'C:\runner-venvs\skipp-algo').
-          persistent-root: ${{ vars.SMC_PERSISTENT_VENV_ROOT }}
+          # CI validate is intentionally GitHub-hosted; setup-persistent-venv
+          # ignores persistent roots for this runner-environment and creates a
+          # fresh workspace venv while Actions cache handles hosted-runner reuse.
           runner-environment: github-hosted
       # Coverage adds ~25-35% test wall-time. Keep it on `main` pushes (where
       # the report has value) and use the faster no-coverage suite on PRs and

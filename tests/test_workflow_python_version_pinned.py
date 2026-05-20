@@ -6,14 +6,10 @@ GitHub-hosted. The remaining merge-critical routed workflows use that composite
 on GitHub-hosted runners, then resolve a local Python 3.12 interpreter
 explicitly when the selector chooses the Windows self-hosted runner.
 
-On self-hosted, a workflow may either:
-  (A) fail loudly when no local Python 3.12 interpreter is found (legacy
-      policy — operator pre-provisions the runner), OR
-  (B) fall back to installing Python 3.12 via the pinned composite action
-      (auto-install policy — see ci.yml).
-
-Both policies route through the same composite for the version pin, so the
-single-source-of-truth invariant is preserved either way.
+On self-hosted, routed workflows currently fail loudly when no local Python
+3.12 interpreter is found; the operator pre-provisions those runners. The
+contract test below also permits a future workflow-local auto-install fallback,
+but CI itself is no longer a self-hosted Policy-B example.
 """
 
 from __future__ import annotations
