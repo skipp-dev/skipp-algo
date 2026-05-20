@@ -1,10 +1,10 @@
 """Pin the Python bootstrap contract for merge-critical workflows.
 
 The composite action `.github/actions/setup-python-pinned/action.yml` remains
-the single literal source of truth for Python 3.12. The merge-critical routed
-workflows use that composite on GitHub-hosted runners, then resolve a local
-Python 3.12 interpreter explicitly when the selector chooses the Windows
-self-hosted runner.
+the single literal source of truth for Python 3.12. CI is intentionally
+GitHub-hosted. The remaining merge-critical routed workflows use that composite
+on GitHub-hosted runners, then resolve a local Python 3.12 interpreter
+explicitly when the selector chooses the Windows self-hosted runner.
 
 On self-hosted, a workflow may either:
   (A) fail loudly when no local Python 3.12 interpreter is found (legacy
@@ -25,13 +25,16 @@ import yaml
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _COMPOSITE_PATH = _REPO_ROOT / ".github" / "actions" / "setup-python-pinned" / "action.yml"
-_MERGE_CRITICAL_WORKFLOWS = (
+_HOSTED_ONLY_MERGE_CRITICAL_WORKFLOWS = (
     _REPO_ROOT / ".github" / "workflows" / "ci.yml",
+)
+_ROUTED_MERGE_CRITICAL_WORKFLOWS = (
     _REPO_ROOT / ".github" / "workflows" / "docs-lint.yml",
     _REPO_ROOT / ".github" / "workflows" / "manifest-pytest-poison-scan.yml",
     _REPO_ROOT / ".github" / "workflows" / "smc-fast-pr-gates.yml",
 )
 _COMPOSITE_USES_REF = "./.github/actions/setup-python-pinned"
+_HOSTED_RUNS_ON = "${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}"
 
 
 def _load(path: Path) -> dict:
@@ -67,7 +70,21 @@ def test_composite_action_exists_and_pins_one_python_version() -> None:
     )
 
 
-@pytest.mark.parametrize("workflow_path", _MERGE_CRITICAL_WORKFLOWS, ids=lambda p: p.name)
+@pytest.mark.parametrize("workflow_path", _HOSTED_ONLY_MERGE_CRITICAL_WORKFLOWS, ids=lambda p: p.name)
+def test_hosted_only_merge_critical_workflow_uses_pinned_bootstrap(workflow_path: Path) -> None:
+    """CI must stay on GitHub-hosted and use the pinned Python composite."""
+    assert workflow_path.is_file(), f"Merge-critical workflow missing: {workflow_path}"
+    workflow = _load(workflow_path)
+    jobs = workflow.get("jobs", {}) or {}
+    assert "select-runner" not in jobs, f"{workflow_path.name} must not route CI through self-hosted selector"
+    validate = jobs.get("validate")
+    assert isinstance(validate, dict), f"{workflow_path.name} must define validate job"
+    assert validate.get("runs-on") == _HOSTED_RUNS_ON
+    assert any(step.get("uses") == _COMPOSITE_USES_REF for step in validate.get("steps", []) or [])
+    assert not any(str(step.get("uses", "")).startswith("actions/setup-python@") for step in validate.get("steps", []) or [])
+
+
+@pytest.mark.parametrize("workflow_path", _ROUTED_MERGE_CRITICAL_WORKFLOWS, ids=lambda p: p.name)
 def test_merge_critical_workflow_uses_hosted_bootstrap_and_portable_resolver(workflow_path: Path) -> None:
     """Merge-critical workflow must use hosted-only composite bootstrap and a self-hosted resolver."""
     assert workflow_path.is_file(), f"Merge-critical workflow missing: {workflow_path}"

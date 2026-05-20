@@ -6,10 +6,10 @@ Most workflows stay on the hosted runner expression::
 
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
 
-The merge-critical workflows (`ci.yml`, `docs-lint.yml`,
-`manifest-pytest-poison-scan.yml`, `smc-fast-pr-gates.yml`) and the
-priority cron workflows backing Databento / Open Prep / live news refresh /
-measurement benchmarks are special:
+CI (`ci.yml`) is intentionally GitHub-hosted. The remaining merge-critical
+quick gates (`docs-lint.yml`, `manifest-pytest-poison-scan.yml`,
+`smc-fast-pr-gates.yml`) and the priority cron workflows backing Databento /
+Open Prep / live news refresh / measurement benchmarks are special:
 
 * a small hosted `select-runner` control-plane job decides whether a matching
   self-hosted Windows runner is online and idle;
@@ -36,7 +36,6 @@ _RESOLVED_RUNS_ON = "${{ fromJson(needs.select-runner.outputs.runs_on_json) }}"
 _HEAVY_CI_CUSTOM_LABEL_EXPR = "${{ vars.SMC_CI_SELF_HOSTED_LABEL || vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || '' }}"
 _PRIORITY_CRON_CUSTOM_LABEL_EXPR = "${{ vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || vars.SMC_SELF_HOSTED_LABEL }}"
 _ROUTED_WORKFLOWS = {
-    "ci.yml": {"worker_jobs": {"validate"}},
     "docs-lint.yml": {"worker_jobs": {"inline-backticks"}},
     "manifest-pytest-poison-scan.yml": {"worker_jobs": {"scan"}},
     "ml-family-research.yml": {"worker_jobs": {"research"}},
@@ -149,13 +148,26 @@ def test_no_bare_ubuntu_latest_runs_on() -> None:
     )
 
 
-@pytest.mark.parametrize("workflow_name", ["ci.yml", "smc-fast-pr-gates.yml", "smc-release-gates.yml"])
+@pytest.mark.parametrize("workflow_name", ["smc-fast-pr-gates.yml", "smc-release-gates.yml"])
 def test_heavy_ci_workflows_prefer_ci_specific_self_hosted_selector(workflow_name: str) -> None:
     workflow = yaml.safe_load((_WORKFLOWS_DIR / workflow_name).read_text(encoding="utf-8"))
     resolve_script = _step_run(_jobs(workflow)["select-runner"], "Resolve worker runner")
 
     assert f'--custom-label "{_HEAVY_CI_CUSTOM_LABEL_EXPR}"' in resolve_script
     assert '--custom-label "${{ vars.SMC_SELF_HOSTED_LABEL }}"' not in resolve_script
+
+
+def test_ci_validate_runs_on_github_hosted_without_self_hosted_selector() -> None:
+    workflow = yaml.safe_load((_WORKFLOWS_DIR / "ci.yml").read_text(encoding="utf-8"))
+    jobs = _jobs(workflow)
+    assert set(jobs) == {"validate"}
+    validate = jobs["validate"]
+    assert validate.get("runs-on") == _HOSTED_RUNS_ON
+    assert "needs" not in validate
+    text = (_WORKFLOWS_DIR / "ci.yml").read_text(encoding="utf-8")
+    assert "required-self-hosted" not in text
+    assert "needs.select-runner" not in text
+    assert "runner-environment: github-hosted" in text
 
 
 @pytest.mark.parametrize("workflow_name", ["run-open-prep-daily.yml", "smc-library-refresh.yml", "smc-measurement-benchmark.yml", "smc-measurement-benchmark-rolling.yml", "smc-databento-production-export.yml"])
