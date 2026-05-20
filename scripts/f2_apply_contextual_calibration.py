@@ -90,6 +90,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from scripts.smc_atomic_write import atomic_write_text
+from scripts.strict_json import dumps_strict_json
 from scripts.smc_zone_priority_calibration import (
     ContextualCalibrationResult,
     resolve_contextual_weight,
@@ -337,7 +338,7 @@ def _write_arm(
         # Relative to ``out_dir`` so the on-disk JSON is byte-stable across
         # runs from different working directories (CI vs local vs tmp).
         summary["artifact_dir"] = rel_dir
-        atomic_write_text(json.dumps(summary, indent=2, sort_keys=True), summary_path)
+        atomic_write_text(dumps_strict_json(summary, indent=2, sort_keys=True), summary_path)
         pair_runs.append({
             "symbol": symbol,
             "timeframe": timeframe,
@@ -355,7 +356,7 @@ def _write_arm(
         "pair_runs": pair_runs,
     }
     manifest_path = out_dir / "benchmark_run_manifest.json"
-    atomic_write_text(json.dumps(manifest, indent=2, sort_keys=True), manifest_path)
+    atomic_write_text(dumps_strict_json(manifest, indent=2, sort_keys=True), manifest_path)
     return manifest
 
 
@@ -508,7 +509,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: malformed calibration input: {exc}", file=sys.stderr)
         return 1
 
-    print(json.dumps(result, indent=2, sort_keys=True))
+    print(dumps_strict_json(result, indent=2, sort_keys=True))
     if result["n_events"] == 0:
         return 2
     return 0

@@ -152,6 +152,13 @@ def test_require_evidence_fails_loud_when_no_pair_has_evidence(monkeypatch, tmp_
     assert rc == 1
     # Artifacts should still be written so the failure is debuggable.
     assert (tmp_path / "measurement_benchmark" / "benchmark_run_manifest.json").exists()
+    summary_path = tmp_path / "measurement_benchmark" / "AAPL" / "15m" / "measurement_summary_AAPL_15m.json"
+    summary_text = summary_path.read_text(encoding="utf-8")
+    assert "NaN" not in summary_text
+    summary = json.loads(summary_text)
+    assert summary["scoring"]["brier_score"] is None
+    assert summary["scoring"]["log_score"] is None
+    assert summary["scoring"]["hit_rate"] is None
 
 
 def test_require_evidence_passes_when_at_least_one_pair_has_evidence(monkeypatch, tmp_path: Path) -> None:
