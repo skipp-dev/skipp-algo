@@ -7,8 +7,10 @@ addressed by the dedicated pin tests landed alongside this document.
 **Audit input:** External "SkippALGO Repository Quant Audit Report" dated
 2026-05-21. The report follows a generic AI-templated structure and cites
 several invented file paths (`backtest_engine.py`, `candidate_ranking.py`,
-`incident_response/`, `ml/walkforward.py` "lacks embargo") that do not match
-the actual repository state.
+`incident_response/`) that do not match the actual repository state. It also
+makes a factually incorrect claim that `ml/walkforward.py` "lacks embargo" —
+the file does exist (see Claim #1 below) and López-de-Prado embargo + purging
+is implemented and regression-tested.
 
 ## Per-claim verdicts
 
