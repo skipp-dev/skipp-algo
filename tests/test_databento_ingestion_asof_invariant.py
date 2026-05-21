@@ -44,11 +44,14 @@ class TestClampRequestEndAsofInvariant:
 
 
 class TestDailyRequestEndExclusiveAsofInvariant:
-    def test_daily_end_clamped_to_available_end(self) -> None:
+    def test_daily_end_clamped_to_exact_calendar_day(self) -> None:
+        # available_end at 2026-05-20T20:00 UTC must clamp to calendar end 2026-05-21
+        # (intra-day clamped timestamp -> +1 day exclusive end). Asserting equality
+        # rather than <= catches both future-leak AND off-by-one regressions that
+        # would silently drop the last available trading day.
         last_trading_day = date(2026, 5, 21)
         available = pd.Timestamp("2026-05-20T20:00:00Z")
-        end_date = _daily_request_end_exclusive(last_trading_day, available)
-        assert end_date <= date(2026, 5, 21)
+        assert _daily_request_end_exclusive(last_trading_day, available) == date(2026, 5, 21)
 
     def test_daily_end_unbounded_when_available_unknown(self) -> None:
         last_trading_day = date(2026, 5, 21)
