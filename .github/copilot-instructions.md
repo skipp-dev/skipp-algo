@@ -43,28 +43,40 @@ copy-paste starting point for the two most common job shapes.
 
 ### Shell default (enforced by fast-gates lint)
 
-Every workflow must have `defaults: run: shell: bash` before `jobs:`.  The
-repository uses a Windows self-hosted runner (`SMC_GH_HOSTED_RUNNER`); without
-this declaration every `run:` step defaults to PowerShell (`pwsh`), which cannot
-parse bash syntax (`[[ ]]`, `set -o pipefail`, heredocs, etc.).  On
-`ubuntu-latest` the block is a no-op.
+Every workflow must have `defaults: run: shell: bash` before `jobs:`.  Most jobs
+run on native GitHub-hosted Linux (`SMC_GH_HOSTED_RUNNER`, currently
+`ubuntu-latest`), while a few explicitly routed workloads may run on Windows
+self-hosted runners. Without this declaration, any job that does land on
+Windows defaults to PowerShell (`pwsh`), which cannot parse bash syntax
+(`[[ ]]`, `set -o pipefail`, heredocs, etc.). On `ubuntu-latest` the block is a
+no-op.
 
 The `fast-gates` required status check blocks any PR that adds a workflow file
 missing this declaration.
 
 ### Runner contract
 
-Use one of these two patterns:
+Use one of these patterns:
 
-1. **Hosted-only / scheduled / background workflows** keep the direct hosted expression:
+1. **Hosted/default workflows** keep the direct hosted expression:
 
 ```yaml
 runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
 ```
 
-2. **Merge-critical PR workflows** (`ci.yml`, `docs-lint.yml`,
-   `manifest-pytest-poison-scan.yml`, `smc-fast-pr-gates.yml`) must use a
-   hosted `select-runner` control-plane job plus a resolved worker runner:
+This includes `ci.yml`. CI validate is intentionally GitHub-hosted; do not route
+it through a self-hosted selector.
+
+2. **GitHub Copilot Code Review / Copilot reviewer** is a GitHub-managed
+  dynamic workflow named `Copilot`, not a repository-authored workflow file.
+  Do **not** create or edit repository workflows to route Copilot review jobs
+  to `self-hosted`, and do not document Copilot reviewer as using the local
+  Windows runner. The AI reviewer should execute on GitHub-managed
+  infrastructure.
+
+3. **Routed workflows that genuinely need local Windows/GPU/cache
+  characteristics** may use a hosted `select-runner` control-plane job plus a
+  resolved worker runner:
 
 ```yaml
 jobs:
@@ -79,6 +91,9 @@ jobs:
 The selector uses `scripts/resolve_workflow_runner.py` to prefer an idle
 `self-hosted/windows/x64` runner (plus optional `vars.SMC_SELF_HOSTED_LABEL`)
 and falls back to the hosted runner defined by `SMC_GH_HOSTED_RUNNER`.
+Do not add `--inventory-unavailable-fallback required-self-hosted` or
+`--no-idle-fallback required-self-hosted` unless the workflow truly cannot run
+correctly on GitHub-hosted infrastructure.
 
 Priority cron workflows use `vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL`
 (target value: `priority-cron`). GPU-backed Open-Prep feature-importance
