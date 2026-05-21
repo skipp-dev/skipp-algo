@@ -1,7 +1,7 @@
 # G2/G3 A/B Watchdog — Status
 
-_Generated: `2026-05-20T08:40:38.159820+00:00`_
-_Source commit: `eae81bc`_
+_Generated: `2026-05-21T07:27:12.478143+00:00`_
+_Source commit: `424cb74`_
 
 ## Plan-mandated signals
 
