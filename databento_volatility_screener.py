@@ -1492,14 +1492,13 @@ def load_daily_bars(
         f"begin trading_days={len(trading_days)} universe={len(universe_symbols)} "
         f"max_workers={max_workers}"
     )
-    symbol_scope = _symbol_scope_token(universe_symbols)
     start_date = trading_days[0] - timedelta(days=14)
     end_date = trading_days[-1]
     cache_path = build_cache_path(
         cache_dir,
         "daily_bars",
         dataset=dataset,
-        parts=[start_date.strftime("%Y%m%d"), end_date.strftime("%Y%m%d"), symbol_scope],
+        parts=[start_date.strftime("%Y%m%d"), end_date.strftime("%Y%m%d")],
     )
     frame: pd.DataFrame | None = None
     if use_file_cache and not force_refresh:
@@ -1838,7 +1837,6 @@ def _process_intraday_day(
     universe_symbols: set[str],
     runtime_unsupported_symbols: set[str],
     available_end_1s: Any,
-    symbol_scope: str,
     display_timezone: str,
     window_start: time | None,
     window_end: time | None,
@@ -1868,7 +1866,6 @@ def _process_intraday_day(
             day_ws.strftime("%H%M%S"),
             day_we.strftime("%H%M%S"),
             premarket_anchor_et.strftime("%H%M%S"),
-            symbol_scope,
         ],
     )
     day_frame: pd.DataFrame | None = None
@@ -1929,7 +1926,6 @@ def run_intraday_screen(
 ) -> pd.DataFrame:
     client = _make_databento_client(databento_api_key)
     available_end_1s = _get_schema_available_end(client, dataset, "ohlcv-1s")
-    symbol_scope = _symbol_scope_token(universe_symbols)
     runtime_unsupported_symbols: set[str] = set()
     prev_close_lookup = {
         (row.trade_date, row.symbol): _safe_float(row.previous_close)
@@ -1956,7 +1952,6 @@ def run_intraday_screen(
             universe_symbols=universe_symbols,
             runtime_unsupported_symbols=runtime_unsupported_symbols,
             available_end_1s=available_end_1s,
-            symbol_scope=symbol_scope,
             display_timezone=display_timezone,
             window_start=window_start,
             window_end=window_end,
@@ -2297,7 +2292,11 @@ def collect_full_universe_open_window_second_detail(
         trade_day: set(group["symbol"].astype(str).tolist())
         for trade_day, group in normalized_scope.groupby("trade_date", sort=False)
     } if not normalized_scope.empty else {}
-    symbol_scope = _symbol_day_scope_token(normalized_scope) if scope_by_day else _symbol_scope_token(universe_symbols)
+    # #2334: the universe-fallback scope token used to vary day-to-day with the
+    # volatility-screener output, evicting every cache file. Only the explicit
+    # per-day scope (when caller supplied ``symbol_day_scope``) is real key
+    # material -- the full-universe case is content-addressed without a token.
+    symbol_scope: str | None = _symbol_day_scope_token(normalized_scope) if scope_by_day else None
     previous_close_lookup = {
         (row.trade_date, row.symbol): _safe_float(row.previous_close)
         for row in daily_bars.itertuples(index=False)
@@ -2315,18 +2314,20 @@ def collect_full_universe_open_window_second_detail(
             default_pre_open_minutes=_DEFAULT_OPEN_WINDOW_PRE_OPEN_MINUTES,
             default_post_open_seconds=_DEFAULT_OPEN_WINDOW_POST_OPEN_SECONDS,
         )
+        open_parts = [
+            trade_day.isoformat(),
+            display_timezone,
+            day_ws.strftime("%H%M%S"),
+            day_we.strftime("%H%M%S"),
+            premarket_anchor_et.strftime("%H%M%S"),
+        ]
+        if symbol_scope is not None:
+            open_parts.append(symbol_scope)
         cache_path = build_cache_path(
             cache_dir,
             "full_universe_open_second_detail",
             dataset=dataset,
-            parts=[
-                trade_day.isoformat(),
-                display_timezone,
-                day_ws.strftime("%H%M%S"),
-                day_we.strftime("%H%M%S"),
-                premarket_anchor_et.strftime("%H%M%S"),
-                symbol_scope,
-            ],
+            parts=open_parts,
         )
         day_frame: pd.DataFrame | None = None
         if use_file_cache and not force_refresh:
@@ -2761,7 +2762,8 @@ def collect_full_universe_close_trade_detail(
         trade_day: set(group["symbol"].astype(str).tolist())
         for trade_day, group in normalized_scope.groupby("trade_date", sort=False)
     } if not normalized_scope.empty else {}
-    symbol_scope = _symbol_day_scope_token(normalized_scope) if scope_by_day else _symbol_scope_token(universe_symbols)
+    # #2334: see ``_universe_open_second_detail`` for rationale.
+    symbol_scope: str | None = _symbol_day_scope_token(normalized_scope) if scope_by_day else None
 
     display_tz = resolve_display_timezone(display_timezone)
     all_rows: list[pd.DataFrame] = []
@@ -2781,7 +2783,9 @@ def collect_full_universe_close_trade_detail(
         fetch_end_utc = _clamp_request_end(pd.Timestamp(local_end.astimezone(UTC)), available_end)
         if fetch_end_utc <= fetch_start_utc:
             continue
-        cache_parts = [trade_day.isoformat(), display_timezone, symbol_scope]
+        cache_parts: list[str] = [trade_day.isoformat(), display_timezone]
+        if symbol_scope is not None:
+            cache_parts.append(symbol_scope)
         if not uses_default_window:
             cache_parts.extend([window_start.strftime("%H%M%S"), window_end.strftime("%H%M%S")])
         cache_path = build_cache_path(
@@ -2892,7 +2896,8 @@ def collect_full_universe_close_outcome_minute_detail(
         trade_day: set(group["symbol"].astype(str).tolist())
         for trade_day, group in normalized_scope.groupby("trade_date", sort=False)
     } if not normalized_scope.empty else {}
-    symbol_scope = _symbol_day_scope_token(normalized_scope) if scope_by_day else _symbol_scope_token(universe_symbols)
+    # #2334: see ``_universe_open_second_detail`` for rationale.
+    symbol_scope: str | None = _symbol_day_scope_token(normalized_scope) if scope_by_day else None
     display_tz = resolve_display_timezone(display_timezone)
     all_rows: list[pd.DataFrame] = []
     runtime_unsupported_symbols: set[str] = set()
@@ -2908,11 +2913,14 @@ def collect_full_universe_close_outcome_minute_detail(
         fetch_end_utc = _clamp_request_end(pd.Timestamp(local_end.astimezone(UTC)), available_end)
         if fetch_end_utc <= fetch_start_utc:
             continue
+        outcome_parts = [trade_day.isoformat(), display_timezone]
+        if symbol_scope is not None:
+            outcome_parts.append(symbol_scope)
         cache_path = build_cache_path(
             cache_dir,
             "full_universe_close_outcome_minute_detail",
             dataset=dataset,
-            parts=[trade_day.isoformat(), display_timezone, symbol_scope],
+            parts=outcome_parts,
         )
         day_frame: pd.DataFrame | None = None
         if use_file_cache and not force_refresh:

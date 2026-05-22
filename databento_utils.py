@@ -50,12 +50,15 @@ def resolve_display_timezone(display_timezone: str) -> tzinfo:
 
 CACHE_VERSION = "v1"
 CACHE_VERSION_BY_CATEGORY = {
-    "daily_bars": "v2",
+    # v3 categories: universe-scope token removed from `parts` (#2334) so the
+    # filename is invariant under daily volatility-screener rotation. Bumping
+    # the version invalidates v2 cache files that still carry the old token.
+    "daily_bars": "v3",
     "symbol_support": "v2",
-    "full_universe_open_second_detail": "v2",
-    "full_universe_close_trade_detail": "v1",
-    "full_universe_close_outcome_minute_detail": "v1",
-    "intraday_summary": "v2",
+    "full_universe_open_second_detail": "v3",
+    "full_universe_close_trade_detail": "v2",
+    "full_universe_close_outcome_minute_detail": "v2",
+    "intraday_summary": "v3",
     "symbol_detail_second": "v2",
     "symbol_detail_minute": "v2",
 }

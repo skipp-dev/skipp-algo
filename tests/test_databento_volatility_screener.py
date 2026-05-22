@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import threading
 import warnings
 from datetime import UTC, date, datetime, time
@@ -370,6 +371,43 @@ def test_daily_bar_cache_path_uses_separate_version_namespace(tmp_path) -> None:
     daily = build_cache_path(tmp_path, "daily_bars", dataset="DBEQ.BASIC", parts=["2025-01-01", "2025-01-31", "10_deadbeef"])
     intraday = build_cache_path(tmp_path, "intraday_summary", dataset="DBEQ.BASIC", parts=["2025-01-01", "Europe/Berlin", "152000"])
     assert daily != intraday
+
+
+def test_universe_keyed_cache_paths_carry_no_scope_token(tmp_path) -> None:
+    """#2334 regression: after the cache-key redesign no production call site
+    embeds a ``_symbol_scope_token`` segment (``<count>_<12hex>``) in the parts
+    of a universe-keyed cache path. The trailing ``__<12hex>`` content digest
+    is excluded from the check.
+    """
+    scope_token_re = re.compile(r"^\d+_[0-9a-f]{12}$")
+    trailing_digest_re = re.compile(r"__[0-9a-f]{12}$")
+
+    fixtures = [
+        ("daily_bars", ["20260408", "20260424"]),
+        ("intraday_summary", ["2026-04-22", "Europe/Berlin", "152900", "153559", "040000"]),
+        ("full_universe_open_second_detail", ["2026-04-22", "Europe/Berlin", "152900", "153559", "040000"]),
+        ("full_universe_close_trade_detail", ["2026-04-22", "Europe/Berlin"]),
+        ("full_universe_close_outcome_minute_detail", ["2026-04-22", "Europe/Berlin"]),
+    ]
+    for category, parts in fixtures:
+        path = build_cache_path(tmp_path, category, dataset="XNAS.ITCH", parts=parts)
+        stem = trailing_digest_re.sub("", path.stem)
+        for segment in stem.split("__"):
+            assert not scope_token_re.match(segment), (
+                f"{category}: scope-token segment {segment!r} leaked into cache path {path.name}"
+            )
+
+
+def test_universe_keyed_cache_paths_are_invariant_under_universe_rotation(tmp_path) -> None:
+    """#2334: producing a cache path for the same trade-day must NOT depend on
+    the daily volatility-screener universe membership. Two calls with the same
+    parts list must produce the same filename even when the caller's universe
+    has changed (which it does daily in production).
+    """
+    parts = ["2026-04-22", "Europe/Berlin", "152900", "153559", "040000"]
+    a = build_cache_path(tmp_path, "intraday_summary", dataset="XNAS.ITCH", parts=parts)
+    b = build_cache_path(tmp_path, "intraday_summary", dataset="XNAS.ITCH", parts=parts)
+    assert a == b
 
 
 def test_choose_default_dataset_prefers_requested_then_priority_order() -> None:
