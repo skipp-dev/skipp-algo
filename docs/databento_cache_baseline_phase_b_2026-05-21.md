@@ -20,6 +20,20 @@ shard cache would not produce the >=30 % wallclock win that motivates Phase C.
 | Phase-C gate (>= 60 % lookup-weighted)                | **FAIL**  |
 | Intra-run hit-rate (within Run 2 only)                |  8.7 %    |
 
+**Definitions**
+
+- *Hit-rate (lookup-weighted)*: (# probe lines in Run 2 whose `path` also
+  appears in any Run-1 probe line) / (total Run-2 probe lines). Computed by
+  `scripts/baseline_cache_probe.py` over the per-shard JSONLs; ignores the
+  per-line `hit` flag (which is intra-run only).
+- *Hit-rate (set-overlap)*: |unique R1 paths ∩ unique R2 paths| /
+  |unique R2 paths|. Same script, deduplicated.
+- *Intra-run hit-rate (within Run 2 only)*: lines with `hit=true` /
+  total lines, restricted to Run-2 shards. This counts the producer's own
+  within-shard reuse and is **not** emitted by `baseline_cache_probe.py`;
+  compute as `jq -s '[.[] | select(.hit==true)] | length' baseline/run2/**/*.jsonl`
+  divided by total Run-2 line count.
+
 ## Run metadata
 
 | Run | ID            | Dispatched (UTC)        | Duration (slowest shard) | All probe artifacts |
@@ -44,15 +58,21 @@ universe hash (`280_da722703946c`) is small and stable. The bulk universe
 buckets (`full_universe_*`, `intraday_summary`, `daily_bars`) regenerate
 filenames whenever the universe snapshot changes.
 
-Hits-by-bucket in Run 2:
+Hits-by-bucket in Run 2 (a *hit* here = a Run-2 probe line whose `path` is
+also present in Run 1, grouped by the first subdirectory under
+`artifacts/databento_volatility_cache/`):
+
 - `full_universe_open_second_detail`: 21
 - everything else: 0
 
 ## Implications
 
 1. A naive persistent file-cache keyed on existing filenames will reuse
-   ~12 % of lookups across days. Wallclock win is bounded by the same fraction;
-   well below the 30 % gate.
+   ~12 % of lookups across days. Wallclock win is bounded by the same
+   fraction; well below the **>=30 % wallclock-win bar** that motivates
+   Phase C (separate from the >=60 % hit-rate gate above — the wallclock
+   bar is the downstream business target, the hit-rate gate is the upstream
+   precondition for reaching it).
 2. The current wallclock baseline (median ~34 min, max 46 min) is already
    reasonable on `ubuntu-latest`. Cache work is not the highest-leverage
    optimization right now.
