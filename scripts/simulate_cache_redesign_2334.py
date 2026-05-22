@@ -16,7 +16,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from collections import Counter, defaultdict
+from collections import defaultdict
 from pathlib import Path
 
 # CACHE_VERSION_BY_CATEGORY mirror -- needed to recompute the trailing
@@ -82,7 +82,16 @@ def _strip_scope_token(parts: list[str]) -> tuple[list[str], bool]:
 
 
 def _canonical_key(category: str, dataset: str, parts: list[str]) -> str:
-    """Re-build a content-addressed filename (universe-scope stripped)."""
+    """Re-build a content-addressed filename (universe-scope stripped).
+
+    Note: ``dataset`` here is the *sanitized* directory segment recovered
+    from the cache path (dots/slashes replaced with underscores), not the
+    raw dataset string that production ``build_cache_path`` hashes. This
+    is intentional for the simulation: both Run 1 and Run 2 sanitize the
+    same way, so cross-run set-overlap comparisons remain valid. The
+    simulated digest does not need to match production byte-for-byte, only
+    to be consistent across the two runs being compared.
+    """
     version = CACHE_VERSION_BY_CATEGORY.get(category, DEFAULT_CACHE_VERSION)
     digest = _digest(parts, version=version, category=category, dataset=dataset)
     base = "__".join([*parts, digest]) if parts else digest
