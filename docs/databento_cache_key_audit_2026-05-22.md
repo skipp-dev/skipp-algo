@@ -13,17 +13,22 @@ sharing.
 
 ## How filenames are built
 
-Single chokepoint: `build_cache_path` in `databento_utils.py`.
+Primary chokepoint: `build_cache_path` in `databento_utils.py`. Note that
+`databento_volatility_screener.py` defines a **second** `build_cache_path`
+(line 382) used by its own bulk-category call sites; any redesign must
+update both copies in lock-step or one of them will silently drift.
 
 ```python
-# databento_utils.py, lines 74-92
+# databento_utils.py, lines 74-92 (essential lines; trailing branches elided)
 def build_cache_path(cache_dir, category, *, dataset, parts, suffix=".parquet"):
+    normalized = [_normalize_part(p) for p in parts]  # see _normalize_part above
     cache_version = CACHE_VERSION_BY_CATEGORY.get(category, CACHE_VERSION)
     digest = hashlib.sha1(
         "|".join([cache_version, category, dataset, *normalized]).encode("utf-8"),
         usedforsecurity=False,
     ).hexdigest()[:12]
     filename = "__".join([*normalized, digest]) + suffix
+    # ... directory join + return elided ...
 ```
 
 The universe hash leaks into the filename via two paths:
@@ -52,7 +57,7 @@ The token comes from `_symbol_scope_token` in `databento_volatility_screener.py`
 | `symbol_detail_second`                      | no — keyed on single symbol      | 2089 |
 | `symbol_detail_minute`                      | no — keyed on single symbol      | 2095 |
 | `symbol_support`                            | no — static literal              | universe.py:95 / vol_screener.py:619 |
-| `fundamental_reference`                     | no — static literal              | vol_screener.py:2787-area |
+| `fundamental_reference`                     | no — static literal              | scripts/databento_production_export.py:1289 (`_fundamental_reference_cache_path`) |
 
 This matches the Phase-B baseline observation that the 12.40 % hit-rate is
 carried almost entirely by `full_universe_open_second_detail` (the universe
@@ -91,8 +96,9 @@ Cost:
 
 ### Option B — sidecar index / symlink (compromise)
 
-Keep the bulk file. Write a sidecar JSON `(symbol, date, window) → bulk-file
-pointer + row-offset`. On read, before fetching, check sidecar for an existing
+Keep the bulk file. Write a sidecar JSON mapping `(symbol, date, window)` to
+a bulk-file pointer plus row-offset. On read, before fetching, check sidecar
+for an existing
 bulk file that already contains the symbol's row, and `pd.read_parquet` only
 that file.
 
@@ -146,7 +152,11 @@ Filing this as a separate consideration; not blocking #2334.
 
 ## Pointers
 
-- `databento_utils.py::build_cache_path` — the only filename chokepoint.
+- `databento_utils.py::build_cache_path` (line 74) — primary filename
+  chokepoint.
+- `databento_volatility_screener.py::build_cache_path` (line 382) — second
+  in-tree implementation used by the bulk-category call sites; redesign
+  must touch both.
 - `databento_volatility_screener.py::_symbol_scope_token` (line 528) and
   `_symbol_day_scope_token` (line 538) — where the volatile token is minted.
 - `databento_volatility_screener.py::_read_cached_frame` /
