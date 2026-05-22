@@ -62,8 +62,15 @@ Hits-by-bucket in Run 2 (a *hit* here = a Run-2 probe line whose `path` is
 also present in Run 1, grouped by the first subdirectory under
 `artifacts/databento_volatility_cache/`):
 
-- `full_universe_open_second_detail`: 21
-- everything else: 0
+- `full_universe_open_second_detail`: 21 (dominant; all `XNAS_ITCH` slices
+  whose hash-suffix matched across the two runs)
+- long-tail buckets (`fundamental_reference/FMP_PROFILE_BULK`,
+  `XASE_PILLAR/full_universe_open_second_detail`, sporadic `daily_bars`
+  re-emissions): together account for the remaining ~9 lookup-weighted
+  hits that close the gap to the 12.40 % headline number. Exact per-bucket
+  counts are not enumerated here; re-derive from the JSONLs with
+  `jq -r .path baseline/run{1,2}/**/*.jsonl | sort | uniq -c | sort -rn`
+  if needed.
 
 ## Implications
 
