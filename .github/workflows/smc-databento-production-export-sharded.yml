@@ -350,7 +350,13 @@ jobs:
           )
           ARGS=()
           for d in "${SHARD_DIRS[@]}"; do
-            if find "$d" -name '*_manifest.json' -print -quit | grep -q .; then
+            # Capture first match to a variable; the pipe-to-grep-q
+            # existence-check pattern is fragile under `set -euo pipefail`
+            # because grep can close the pipe before find finishes,
+            # SIGPIPEing find -> non-zero -> pipefail trips the if even
+            # though manifests exist. See #2332.
+            first_manifest="$(find "$d" -name '*_manifest.json' -print -quit)"
+            if [ -n "$first_manifest" ]; then
               ARGS+=(--shard-dir "$d")
             else
               echo "::warning::No manifest under $d; skipping"
