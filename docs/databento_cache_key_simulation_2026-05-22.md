@@ -93,6 +93,14 @@ work". This simulation refines that:
 
 ## Reproduce
 
+PowerShell (Windows):
+
 ```powershell
 & .venv\Scripts\python.exe scripts\simulate_cache_redesign_2334.py
+```
+
+Bash (macOS / Linux):
+
+```bash
+.venv/bin/python scripts/simulate_cache_redesign_2334.py
 ```
