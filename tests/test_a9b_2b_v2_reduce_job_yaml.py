@@ -287,6 +287,28 @@ def test_reduce_does_not_pass_smc_microstructure_exports_subdir() -> None:
     )
 
 
+def test_reduce_existence_check_is_pipefail_safe() -> None:
+    """Regression for #2332.
+
+    Under ``set -euo pipefail`` the existence-check
+    ``find ... -print -quit | grep -q .`` is racy: ``grep -q`` closes
+    the pipe after the first byte, ``find`` may still be writing and
+    catches SIGPIPE -> non-zero exit -> pipefail propagates -> the if
+    test evaluates false even though manifests exist. This false
+    negative was observed on run 26243919882 (2026-05-21) and silently
+    dropped the merged-manifest output for the day. Guard the fix by
+    asserting the brittle pipeline pattern is not reintroduced.
+    """
+    steps = _reduce_steps()
+    run_text = "\n".join(str(s.get("run", "")) for s in steps if "run" in s)
+    assert "-print -quit | grep -q" not in run_text, (
+        "regression #2332: 'find ... -print -quit | grep -q .' inside "
+        "'set -euo pipefail' is SIGPIPE-racy and can spuriously drop all "
+        "shard manifests; capture the find result to a variable and test "
+        "it with [ -n \"$var\" ] instead"
+    )
+
+
 def test_run_blocks_do_not_reference_unresolvable_template_expressions() -> None:
     """Regression for GHA template-engine crash on intra-job needs.* refs.
 
