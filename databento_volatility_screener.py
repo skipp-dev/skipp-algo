@@ -2389,7 +2389,18 @@ def collect_full_universe_open_window_second_detail(
     latest_trade_day = max(trading_days) if trading_days else None
 
     for trade_day in trading_days:
-        day_universe_symbols = scope_by_day.get(trade_day, set(universe_symbols)) if scope_by_day else set(universe_symbols)
+        # #2338: normalize requested symbols to Databento symbology BEFORE coverage check
+        # so cached/fetched (already-normalized) frames match. Without this, raw aliases
+        # (e.g. ``BRK-B``) or tokens that normalize to ``""`` would force perpetual
+        # partial coverage and ``.isin(day_universe_symbols)`` could drop valid rows.
+        _raw_day_universe = (
+            scope_by_day.get(trade_day, set(universe_symbols)) if scope_by_day else set(universe_symbols)
+        )
+        day_universe_symbols = {
+            normalized
+            for symbol in _raw_day_universe
+            if (normalized := normalize_symbol_for_databento(str(symbol)))
+        }
         if not day_universe_symbols:
             continue
         day_ws, day_we = _resolve_window_for_date(
@@ -2880,7 +2891,18 @@ def collect_full_universe_close_trade_detail(
         and window_end == DEFAULT_CLOSE_IMBALANCE_WINDOW_END_ET
     )
     for trade_day in trading_days:
-        day_universe_symbols = scope_by_day.get(trade_day, set(universe_symbols)) if scope_by_day else set(universe_symbols)
+        # #2338: normalize requested symbols to Databento symbology BEFORE coverage check
+        # so cached/fetched (already-normalized) frames match. Without this, raw aliases
+        # (e.g. ``BRK-B``) or tokens that normalize to ``""`` would force perpetual
+        # partial coverage and ``.isin(day_universe_symbols)`` could drop valid rows.
+        _raw_day_universe = (
+            scope_by_day.get(trade_day, set(universe_symbols)) if scope_by_day else set(universe_symbols)
+        )
+        day_universe_symbols = {
+            normalized
+            for symbol in _raw_day_universe
+            if (normalized := normalize_symbol_for_databento(str(symbol)))
+        }
         if not day_universe_symbols:
             continue
         local_start = datetime.combine(trade_day, window_start, tzinfo=US_EASTERN_TZ).astimezone(display_tz)
@@ -3033,7 +3055,18 @@ def collect_full_universe_close_outcome_minute_detail(
     latest_trade_day = max(trading_days) if trading_days else None
 
     for trade_day in trading_days:
-        day_universe_symbols = scope_by_day.get(trade_day, set(universe_symbols)) if scope_by_day else set(universe_symbols)
+        # #2338: normalize requested symbols to Databento symbology BEFORE coverage check
+        # so cached/fetched (already-normalized) frames match. Without this, raw aliases
+        # (e.g. ``BRK-B``) or tokens that normalize to ``""`` would force perpetual
+        # partial coverage and ``.isin(day_universe_symbols)`` could drop valid rows.
+        _raw_day_universe = (
+            scope_by_day.get(trade_day, set(universe_symbols)) if scope_by_day else set(universe_symbols)
+        )
+        day_universe_symbols = {
+            normalized
+            for symbol in _raw_day_universe
+            if (normalized := normalize_symbol_for_databento(str(symbol)))
+        }
         if not day_universe_symbols:
             continue
         local_start = datetime.combine(trade_day, DEFAULT_CLOSE_IMBALANCE_AUCTION_TIME_ET, tzinfo=US_EASTERN_TZ).astimezone(display_tz)
