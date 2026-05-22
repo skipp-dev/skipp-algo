@@ -21,7 +21,11 @@ update both copies in lock-step or one of them will silently drift.
 ```python
 # databento_utils.py, lines 74-92 (essential lines; trailing branches elided)
 def build_cache_path(cache_dir, category, *, dataset, parts, suffix=".parquet"):
-    normalized = [_normalize_part(p) for p in parts]  # see _normalize_part above
+    safe_dataset = dataset.replace(".", "_").replace("/", "_")
+    normalized = [
+        str(part).replace(":", "-").replace("/", "_").replace(" ", "_")
+        for part in parts
+    ]
     cache_version = CACHE_VERSION_BY_CATEGORY.get(category, CACHE_VERSION)
     digest = hashlib.sha1(
         "|".join([cache_version, category, dataset, *normalized]).encode("utf-8"),
@@ -67,9 +71,11 @@ the snapshot id differs) and the always-stable narrow slices.
 ## Why this is not a 1-day refactor
 
 The 5 universe-keyed categories don't just *name* a file with the snapshot id —
-they **store one parquet per (date, window) tuple containing data for the
-entire universe**. The snapshot id in the filename is not cosmetic; it
-faithfully describes the file's content (which symbols are inside).
+they **store one parquet per bulk-fetch key (typically a (date, window) tuple,
+or a (start_date, end_date, symbol_scope) range for `daily_bars`) containing
+data for the entire universe**. The snapshot id in the filename is not
+cosmetic; it faithfully describes the file's content (which symbols are
+inside).
 
 To re-key from `(snapshot, date, window)` to `(symbol, date, window)` you must
 change one of two things:
