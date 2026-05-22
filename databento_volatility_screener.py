@@ -195,12 +195,12 @@ US_EASTERN_TZ = ZoneInfo("America/New_York")
 DEFAULT_DISPLAY_TZ = "Europe/Berlin"
 CACHE_VERSION = "v1"
 CACHE_VERSION_BY_CATEGORY = {
-    "daily_bars": "v2",
+    "daily_bars": "v3",
     "symbol_support": "v2",
-    "full_universe_open_second_detail": "v2",
-    "full_universe_close_trade_detail": "v1",
-    "full_universe_close_outcome_minute_detail": "v1",
-    "intraday_summary": "v2",
+    "full_universe_open_second_detail": "v3",
+    "full_universe_close_trade_detail": "v2",
+    "full_universe_close_outcome_minute_detail": "v2",
+    "intraday_summary": "v3",
     "symbol_detail_second": "v2",
     "symbol_detail_minute": "v2",
 }
@@ -2429,7 +2429,13 @@ def collect_full_universe_open_window_second_detail(
                 _write_cached_frame(cache_path, day_frame)
 
         if day_frame is not None and not day_frame.empty:
-            all_rows.append(day_frame)
+            # #2334: cache file may contain a superset universe (key no longer
+            # carries scope token in full-universe case); restrict to current
+            # day_universe_symbols so callers never see out-of-scope rows.
+            if symbol_scope is None and "symbol" in day_frame.columns:
+                day_frame = day_frame[day_frame["symbol"].isin(day_universe_symbols)]
+            if not day_frame.empty:
+                all_rows.append(day_frame)
 
     return pd.concat(all_rows, ignore_index=True) if all_rows else pd.DataFrame(
         columns=[
@@ -2762,7 +2768,7 @@ def collect_full_universe_close_trade_detail(
         trade_day: set(group["symbol"].astype(str).tolist())
         for trade_day, group in normalized_scope.groupby("trade_date", sort=False)
     } if not normalized_scope.empty else {}
-    # #2334: see ``_universe_open_second_detail`` for rationale.
+    # #2334: see ``collect_full_universe_open_window_second_detail`` for rationale.
     symbol_scope: str | None = _symbol_day_scope_token(normalized_scope) if scope_by_day else None
 
     display_tz = resolve_display_timezone(display_timezone)
@@ -2868,7 +2874,13 @@ def collect_full_universe_close_trade_detail(
                 _write_cached_frame(cache_path, day_frame)
 
         if day_frame is not None and not day_frame.empty:
-            all_rows.append(day_frame)
+            # #2334: cache file may contain a superset universe (key no longer
+            # carries scope token in full-universe case); restrict to current
+            # day_universe_symbols so callers never see out-of-scope rows.
+            if symbol_scope is None and "symbol" in day_frame.columns:
+                day_frame = day_frame[day_frame["symbol"].isin(day_universe_symbols)]
+            if not day_frame.empty:
+                all_rows.append(day_frame)
 
     return pd.concat(all_rows, ignore_index=True) if all_rows else pd.DataFrame(columns=output_columns)
 
@@ -2896,7 +2908,7 @@ def collect_full_universe_close_outcome_minute_detail(
         trade_day: set(group["symbol"].astype(str).tolist())
         for trade_day, group in normalized_scope.groupby("trade_date", sort=False)
     } if not normalized_scope.empty else {}
-    # #2334: see ``_universe_open_second_detail`` for rationale.
+    # #2334: see ``collect_full_universe_open_window_second_detail`` for rationale.
     symbol_scope: str | None = _symbol_day_scope_token(normalized_scope) if scope_by_day else None
     display_tz = resolve_display_timezone(display_timezone)
     all_rows: list[pd.DataFrame] = []
@@ -2977,7 +2989,13 @@ def collect_full_universe_close_outcome_minute_detail(
                 _write_cached_frame(cache_path, day_frame)
 
         if day_frame is not None and not day_frame.empty:
-            all_rows.append(day_frame)
+            # #2334: cache file may contain a superset universe (key no longer
+            # carries scope token in full-universe case); restrict to current
+            # day_universe_symbols so callers never see out-of-scope rows.
+            if symbol_scope is None and "symbol" in day_frame.columns:
+                day_frame = day_frame[day_frame["symbol"].isin(day_universe_symbols)]
+            if not day_frame.empty:
+                all_rows.append(day_frame)
 
     return pd.concat(all_rows, ignore_index=True) if all_rows else pd.DataFrame(columns=output_columns)
 

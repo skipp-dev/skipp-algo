@@ -374,10 +374,14 @@ def test_daily_bar_cache_path_uses_separate_version_namespace(tmp_path) -> None:
 
 
 def test_universe_keyed_cache_paths_carry_no_scope_token(tmp_path) -> None:
-    """#2334 regression: after the cache-key redesign no production call site
-    embeds a ``_symbol_scope_token`` segment (``<count>_<12hex>``) in the parts
-    of a universe-keyed cache path. The trailing ``__<12hex>`` content digest
-    is excluded from the check.
+    """#2334 regression: after the cache-key redesign, the *full-universe*
+    call sites (no ``symbol_day_scope`` passed) no longer embed the
+    volatility-screener-derived ``_symbol_scope_token`` segment
+    (``<count>_<12hex>``) in the parts of a universe-keyed cache path. The
+    fixtures below mirror that no-scope case; the per-day scope token minted
+    by ``_symbol_day_scope_token`` when callers *do* pass ``symbol_day_scope``
+    has the same shape and is intentionally retained -- this test does not
+    cover that branch. The trailing ``__<12hex>`` content digest is excluded.
     """
     scope_token_re = re.compile(r"^\d+_[0-9a-f]{12}$")
     trailing_digest_re = re.compile(r"__[0-9a-f]{12}$")
