@@ -161,7 +161,9 @@ def test_no_stale_json_load_ledger_entries() -> None:
 _FROZEN_ENV_SUBSCRIPT_SITES: frozenset[tuple[str, int]] = frozenset(
     {
         ("databento_client.py", 60),
-        ("databento_volatility_screener.py", 934),
+        # 2026-05-23 PR #2338: shifted +35 (934→969) by partial-cache
+        # marker / coverage-validation block in _load_daily_bars.
+        ("databento_volatility_screener.py", 969),
         ("open_prep/macro.py", 148),
         # R6 (2026-05-12): the FinnhubClient adapter shim used to save-set-restore
         # ``FINNHUB_API_KEY`` around each ``terminal_finnhub._get`` call. That
