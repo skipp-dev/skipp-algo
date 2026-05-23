@@ -168,6 +168,41 @@ def _write_cached_frame(path: Path, frame: pd.DataFrame) -> None:
     _write_parquet_atomic(path, frame)
 
 
+def _cached_frame_coverage(
+    cache_path: Path,
+    requested_symbols: Any,
+    *,
+    max_age_seconds: int | None = None,
+    symbol_col: str = "symbol",
+) -> tuple[pd.DataFrame | None, set[str]]:
+    """Return ``(cached_frame, missing_symbols)`` for a per-key cache file.
+
+    Used by callers whose cache key no longer encodes the requested symbol
+    set (#2334) to detect when a cached file is a strict *subset* of the
+    current request — in which case the caller must delta-fetch and merge
+    the missing symbols rather than silently returning incomplete data.
+
+    Outcomes:
+      - ``(None, set(requested))``        cache missing/expired/corrupt → full fetch
+      - ``(frame, set())``                cache covers every requested symbol → use as-is
+      - ``(frame, missing_subset)``       cache is a subset → delta-fetch ``missing_subset``
+
+    Coverage is determined by the distinct values in ``symbol_col``. A cached
+    frame missing that column is treated as corrupt and forces a full fetch.
+    """
+    cached = _read_cached_frame(cache_path, max_age_seconds=max_age_seconds)
+    requested_set = {str(s) for s in requested_symbols}
+    if cached is None:
+        return None, requested_set
+    if symbol_col not in cached.columns:
+        logger.warning(
+            "Cache file missing %r column, forcing refetch: %s", symbol_col, cache_path.name
+        )
+        return None, requested_set
+    cached_syms = {str(s) for s in cached[symbol_col].dropna().unique()}
+    return cached, requested_set - cached_syms
+
+
 # ── Symbol normalization ────────────────────────────────────────────────────
 
 MAX_SYMBOLS_PER_REQUEST = 2000

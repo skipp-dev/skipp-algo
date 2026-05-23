@@ -83,12 +83,14 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # PR #2309 / follow-up: strict-json + open-prep mainline changes
         # shifted the same four closure-progress sites by +65 lines. The
         # nonlocal names and owning closure are unchanged.
-        # PR #2338: cache-pollution filter blocks in 3 collectors shifted these
-        # sites by +26 lines (5005-5008 -> 5031-5034).
-        ("databento_volatility_screener.py", 5031, ("_fast_progress_pct",)),
-        ("databento_volatility_screener.py", 5032, ("_fast_progress_step",)),
-        ("databento_volatility_screener.py", 5033, ("_fast_progress_total",)),
-        ("databento_volatility_screener.py", 5034, ("_fast_eta_smooth_seconds",)),
+        # #2334 (PR #2338): cache-pollution filter blocks in 3 collectors shifted these
+        # sites by +26 lines (5005-5008 -> 5031-5034). #2334 (PR #2338): the
+        # main-merge into the cache-redesign branch + the _cached_frame_coverage
+        # helper inserts shifted them again to 5162-5165.
+        ("databento_volatility_screener.py", 5162, ("_fast_progress_pct",)),
+        ("databento_volatility_screener.py", 5163, ("_fast_progress_step",)),
+        ("databento_volatility_screener.py", 5164, ("_fast_progress_total",)),
+        ("databento_volatility_screener.py", 5165, ("_fast_eta_smooth_seconds",)),
         ("smc_core/ensemble_quality.py", 171, ("active_weight", "weighted_total")),
     }
 )

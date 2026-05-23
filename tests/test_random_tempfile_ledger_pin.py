@@ -54,7 +54,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # (``_make_atomic_temp_path``). F-V8-perf-3.5 PR-A (this branch) re-routed
     # ``dump_cache_probe_log`` via ``_write_text_atomic`` and dropped its
     # redundant ``mkdir``/``open`` body; net shift 389 → 455 → 454.
-    ("databento_volatility_screener.py", 454, "mkstemp"),
+    ("databento_volatility_screener.py", 489, "mkstemp"),
     ("governance/alpha_ledger.py", 70, "mkstemp"),
     ("newsstack_fmp/open_prep_export.py", 25, "mkstemp"),
     ("open_prep/alerts.py", 68, "mkstemp"),
