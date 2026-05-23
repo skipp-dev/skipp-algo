@@ -50,12 +50,15 @@ def resolve_display_timezone(display_timezone: str) -> tzinfo:
 
 CACHE_VERSION = "v1"
 CACHE_VERSION_BY_CATEGORY = {
-    "daily_bars": "v2",
+    # v3 categories: universe-scope token removed from `parts` (#2334) so the
+    # filename is invariant under daily volatility-screener rotation. Bumping
+    # the version invalidates v2 cache files that still carry the old token.
+    "daily_bars": "v3",
     "symbol_support": "v2",
-    "full_universe_open_second_detail": "v2",
-    "full_universe_close_trade_detail": "v1",
-    "full_universe_close_outcome_minute_detail": "v1",
-    "intraday_summary": "v2",
+    "full_universe_open_second_detail": "v3",
+    "full_universe_close_trade_detail": "v2",
+    "full_universe_close_outcome_minute_detail": "v2",
+    "intraday_summary": "v3",
     "symbol_detail_second": "v2",
     "symbol_detail_minute": "v2",
 }
@@ -163,6 +166,41 @@ def _write_parquet_atomic(path: Path, frame: pd.DataFrame) -> None:
 
 def _write_cached_frame(path: Path, frame: pd.DataFrame) -> None:
     _write_parquet_atomic(path, frame)
+
+
+def _cached_frame_coverage(
+    cache_path: Path,
+    requested_symbols: Any,
+    *,
+    max_age_seconds: int | None = None,
+    symbol_col: str = "symbol",
+) -> tuple[pd.DataFrame | None, set[str]]:
+    """Return ``(cached_frame, missing_symbols)`` for a per-key cache file.
+
+    Used by callers whose cache key no longer encodes the requested symbol
+    set (#2334) to detect when a cached file is a strict *subset* of the
+    current request — in which case the caller must delta-fetch and merge
+    the missing symbols rather than silently returning incomplete data.
+
+    Outcomes:
+      - ``(None, set(requested))``        cache missing/expired/corrupt → full fetch
+      - ``(frame, set())``                cache covers every requested symbol → use as-is
+      - ``(frame, missing_subset)``       cache is a subset → delta-fetch ``missing_subset``
+
+    Coverage is determined by the distinct values in ``symbol_col``. A cached
+    frame missing that column is treated as corrupt and forces a full fetch.
+    """
+    cached = _read_cached_frame(cache_path, max_age_seconds=max_age_seconds)
+    requested_set = {str(s) for s in requested_symbols}
+    if cached is None:
+        return None, requested_set
+    if symbol_col not in cached.columns:
+        logger.warning(
+            "Cache file missing %r column, forcing refetch: %s", symbol_col, cache_path.name
+        )
+        return None, requested_set
+    cached_syms = {str(s) for s in cached[symbol_col].dropna().unique()}
+    return cached, requested_set - cached_syms
 
 
 # ── Symbol normalization ────────────────────────────────────────────────────

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import threading
 import warnings
 from datetime import UTC, date, datetime, time
@@ -26,6 +27,7 @@ from databento_volatility_screener import (
     SymbolDayState,
     _augment_watchlist_result_with_intraday_context,
     _build_focus_window_coverage_series,
+    _cached_frame_coverage,
     _build_open_pattern_status_series,
     _build_tradingview_watchlist_text,
     _build_watchlist_snapshot_panel_frames,
@@ -370,6 +372,83 @@ def test_daily_bar_cache_path_uses_separate_version_namespace(tmp_path) -> None:
     daily = build_cache_path(tmp_path, "daily_bars", dataset="DBEQ.BASIC", parts=["2025-01-01", "2025-01-31", "10_deadbeef"])
     intraday = build_cache_path(tmp_path, "intraday_summary", dataset="DBEQ.BASIC", parts=["2025-01-01", "Europe/Berlin", "152000"])
     assert daily != intraday
+
+
+def test_universe_keyed_cache_paths_carry_no_scope_token(tmp_path) -> None:
+    """#2334 regression: after the cache-key redesign, the *full-universe*
+    call sites (no ``symbol_day_scope`` passed) no longer embed the
+    volatility-screener-derived ``_symbol_scope_token`` segment
+    (``<count>_<12hex>``) in the parts of a universe-keyed cache path. The
+    fixtures below mirror that no-scope case; the per-day scope token minted
+    by ``_symbol_day_scope_token`` when callers *do* pass ``symbol_day_scope``
+    has the same shape and is intentionally retained -- this test does not
+    cover that branch. The trailing ``__<12hex>`` content digest is excluded.
+    """
+    scope_token_re = re.compile(r"^\d+_[0-9a-f]{12}$")
+    trailing_digest_re = re.compile(r"__[0-9a-f]{12}$")
+
+    fixtures = [
+        ("daily_bars", ["20260408", "20260424"]),
+        ("intraday_summary", ["2026-04-22", "Europe/Berlin", "152900", "153559", "040000"]),
+        ("full_universe_open_second_detail", ["2026-04-22", "Europe/Berlin", "152900", "153559", "040000"]),
+        ("full_universe_close_trade_detail", ["2026-04-22", "Europe/Berlin"]),
+        ("full_universe_close_outcome_minute_detail", ["2026-04-22", "Europe/Berlin"]),
+    ]
+    for category, parts in fixtures:
+        path = build_cache_path(tmp_path, category, dataset="XNAS.ITCH", parts=parts)
+        stem = trailing_digest_re.sub("", path.stem)
+        for segment in stem.split("__"):
+            assert not scope_token_re.match(segment), (
+                f"{category}: scope-token segment {segment!r} leaked into cache path {path.name}"
+            )
+
+
+def test_universe_keyed_cache_paths_are_invariant_under_universe_rotation(tmp_path) -> None:
+    """#2334: producing a cache path for the same trade-day must NOT depend on
+    the daily volatility-screener universe membership. Two calls with the same
+    parts list must produce the same filename even when the caller's universe
+    has changed (which it does daily in production).
+    """
+    parts = ["2026-04-22", "Europe/Berlin", "152900", "153559", "040000"]
+    a = build_cache_path(tmp_path, "intraday_summary", dataset="XNAS.ITCH", parts=parts)
+    b = build_cache_path(tmp_path, "intraday_summary", dataset="XNAS.ITCH", parts=parts)
+    assert a == b
+
+
+def test_cached_frame_coverage_full_partial_miss(tmp_path) -> None:
+    """#2334: ``_cached_frame_coverage`` is the chokepoint that prevents the
+    universe-key redesign from silently returning subset data on cache hits.
+    Three behaviors must hold:
+      - miss/no file       -> ``(None, set(requested))``
+      - full coverage      -> ``(frame, set())``
+      - partial coverage   -> ``(frame, requested - cached_syms)``
+    The third case is what the Copilot reviewer flagged; without it the cache
+    would silently return incomplete data when the universe grows between runs.
+    """
+    cache_path = tmp_path / "intraday_summary" / "XNAS_ITCH" / "test.parquet"
+    cache_path.parent.mkdir(parents=True)
+
+    # miss
+    cached, missing = _cached_frame_coverage(cache_path, {"AAPL", "MSFT"})
+    assert cached is None
+    assert missing == {"AAPL", "MSFT"}
+
+    # full coverage
+    pd.DataFrame({"symbol": ["AAPL", "MSFT"], "v": [1, 2]}).to_parquet(cache_path, index=False)
+    cached, missing = _cached_frame_coverage(cache_path, {"AAPL", "MSFT"})
+    assert cached is not None and len(cached) == 2
+    assert missing == set()
+
+    # partial coverage (universe grew to add NVDA, TSLA)
+    cached, missing = _cached_frame_coverage(cache_path, {"AAPL", "MSFT", "NVDA", "TSLA"})
+    assert cached is not None and set(cached["symbol"]) == {"AAPL", "MSFT"}
+    assert missing == {"NVDA", "TSLA"}
+
+    # corrupt cache (no symbol column) -> forced full fetch
+    pd.DataFrame({"other": [1, 2]}).to_parquet(cache_path, index=False)
+    cached, missing = _cached_frame_coverage(cache_path, {"AAPL"})
+    assert cached is None
+    assert missing == {"AAPL"}
 
 
 def test_choose_default_dataset_prefers_requested_then_priority_order() -> None:
