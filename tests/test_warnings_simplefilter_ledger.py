@@ -95,11 +95,14 @@ WARNINGS_SIMPLEFILTER_LEDGER: set[tuple[str, int, str]] = {
     # 5 screener warning sites again; action remains the loud / safe
     # ``"always"``. Coverage-bug fix added a 3-line comment in load_daily_bars
     # which shifted 4 of the 5 sites by +3.
+    # 2026-05-23 PR #2338 follow-up: partial-cache block landed in three
+    # post-742 collectors, shifting 2452->2463 (+11), 2931->2953 (+22) and
+    # 3075->3108 (+33); 742 and 1832 are above the inserts and unchanged.
     ("databento_volatility_screener.py", 742, "always"),
     ("databento_volatility_screener.py", 1832, "always"),
-    ("databento_volatility_screener.py", 2452, "always"),
-    ("databento_volatility_screener.py", 2931, "always"),
-    ("databento_volatility_screener.py", 3075, "always"),
+    ("databento_volatility_screener.py", 2463, "always"),
+    ("databento_volatility_screener.py", 2953, "always"),
+    ("databento_volatility_screener.py", 3108, "always"),
     ("databento_universe.py", 162, "always"),
 }
 

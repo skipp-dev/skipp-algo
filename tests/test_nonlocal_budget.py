@@ -88,10 +88,12 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # main-merge into the cache-redesign branch + the _cached_frame_coverage
         # helper inserts shifted them again to 5162-5165. Coverage-bug fix added
         # a 3-line comment in load_daily_bars -> 5165-5168.
-        ("databento_volatility_screener.py", 5165, ("_fast_progress_pct",)),
-        ("databento_volatility_screener.py", 5166, ("_fast_progress_step",)),
-        ("databento_volatility_screener.py", 5167, ("_fast_progress_total",)),
-        ("databento_volatility_screener.py", 5168, ("_fast_eta_smooth_seconds",)),
+        # 2026-05-23 PR #2338 follow-up: partial-cache block shifted these
+        # four nonlocal sites by another +33 (5165-5168 -> 5198-5201).
+        ("databento_volatility_screener.py", 5198, ("_fast_progress_pct",)),
+        ("databento_volatility_screener.py", 5199, ("_fast_progress_step",)),
+        ("databento_volatility_screener.py", 5200, ("_fast_progress_total",)),
+        ("databento_volatility_screener.py", 5201, ("_fast_eta_smooth_seconds",)),
         ("smc_core/ensemble_quality.py", 171, ("active_weight", "weighted_total")),
     }
 )

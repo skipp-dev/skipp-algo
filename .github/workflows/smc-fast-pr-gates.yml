@@ -213,6 +213,59 @@ jobs:
           fi
           echo "OK: no redundant same-TF request.security() patterns."
 
+      - name: Run pin / ledger drift guard
+        # Frontloads every line-pinned ledger / budget / discipline test
+        # (~60s, 630 tests). Drift here means a PR shifted a pinned call
+        # site without updating the corresponding ledger; surfacing this
+        # in fast-gates blocks merge under main-governance instead of
+        # being discovered ~6 min later in the slow validate job.
+        # See PR #2348 for the regression that motivated this gate.
+        if: steps.gate.outputs.run_heavy == 'true'
+        run: |
+          python -m pytest -q --maxfail=1 \
+            -n auto --dist=worksteal \
+            -p no:cacheprovider \
+            tests/test_assert_and_open_encoding_pin.py \
+            tests/test_assert_in_production_budget.py \
+            tests/test_bare_type_ignore_ledger.py \
+            tests/test_broad_except_silent_budget.py \
+            tests/test_builtin_open_encoding_ledger.py \
+            tests/test_dynamic_getattr_ledger.py \
+            tests/test_dynamic_import_and_todo_tripwires.py \
+            tests/test_global_statement_budget.py \
+            tests/test_hashlib_weak_hash_ledger.py \
+            tests/test_http_client_discipline.py \
+            tests/test_http_post_egress_ledger.py \
+            tests/test_loopback_and_baseimage_pin.py \
+            tests/test_mutable_defaults_and_loads_pins.py \
+            tests/test_nonlocal_budget.py \
+            tests/test_noqa_budget.py \
+            tests/test_noqa_suppression_ledger.py \
+            tests/test_os_environ_mutation_ledger.py \
+            tests/test_os_unlink_remove_ledger.py \
+            tests/test_path_text_io_encoding_ledger.py \
+            tests/test_pine_alertcondition_and_declaration_pin.py \
+            tests/test_pine_request_security_htf_pin.py \
+            tests/test_pine_var_budget_pin.py \
+            tests/test_prod_print_ledger.py \
+            tests/test_pytest_skip_budget.py \
+            tests/test_random_tempfile_ledger_pin.py \
+            tests/test_realtime_signals_sister_ledger_guardrail.py \
+            tests/test_silent_error_swallow_pin.py \
+            tests/test_silent_security_and_boundary_bundle.py \
+            tests/test_socket_bind_loopback_pin.py \
+            tests/test_subprocess_shell_injection_pin.py \
+            tests/test_subprocess_spawn_sites_ledger.py \
+            tests/test_sys_exit_ledger_pin.py \
+            tests/test_sys_path_mutation_ledger.py \
+            tests/test_time_sleep_budget.py \
+            tests/test_type_ignore_budget.py \
+            tests/test_urllib_urlopen_ledger.py \
+            tests/test_warnings_simplefilter_ledger.py \
+            tests/test_weak_hash_pin.py \
+            tests/test_while_true_termination_ledger.py \
+            tests/test_workflow_upload_artifact_uniform_version.py
+
       - name: Run fast SMC integration tests
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
