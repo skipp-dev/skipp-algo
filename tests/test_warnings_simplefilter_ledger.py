@@ -91,13 +91,15 @@ def _warnings_simplefilter_sites() -> set[tuple[str, int, str]]:
 # ``warnings.catch_warnings()`` block. New entries must also be
 # ``"always"`` (or the parallel silent-warnings bundle will also fail).
 WARNINGS_SIMPLEFILTER_LEDGER: set[tuple[str, int, str]] = {
-    # Recent Databento producer/cache instrumentation moved the five screener
-    # warning sites downward; action remains the loud / safe ``"always"``.
-    ("databento_volatility_screener.py", 707, "always"),
-    ("databento_volatility_screener.py", 1766, "always"),
-    ("databento_volatility_screener.py", 2360, "always"),
-    ("databento_volatility_screener.py", 2813, "always"),
-    ("databento_volatility_screener.py", 2930, "always"),
+    # #2334 (PR #2338): cache-pollution filter blocks in 3 collectors shifted the
+    # 5 screener warning sites again; action remains the loud / safe
+    # ``"always"``. Coverage-bug fix added a 3-line comment in load_daily_bars
+    # which shifted 4 of the 5 sites by +3.
+    ("databento_volatility_screener.py", 742, "always"),
+    ("databento_volatility_screener.py", 1832, "always"),
+    ("databento_volatility_screener.py", 2452, "always"),
+    ("databento_volatility_screener.py", 2931, "always"),
+    ("databento_volatility_screener.py", 3075, "always"),
     ("databento_universe.py", 162, "always"),
 }
 

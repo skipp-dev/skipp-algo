@@ -51,10 +51,14 @@ _WEAK_DIGESTS = frozenset({"md5", "sha1"})
 
 # Frozen ledger: {rel_posix_path: {algo: frozenset[lineno]}}.
 _FROZEN_SITES: dict[str, dict[str, frozenset[int]]] = {
-    "databento_utils.py": {"sha1": frozenset({85})},
+    # #2334: the cache-version comment block was added above
+    # CACHE_VERSION_BY_CATEGORY (not inside build_cache_path), which shifted
+    # the sha1 call by 3 lines (85 -> 88); semantics unchanged (non-security
+    # cache key fingerprint).
+    "databento_utils.py": {"sha1": frozenset({88})},
     # Phase-A cache-probe instrumentation moved the three cache-key sha1 uses
     # downward in the file; semantics stay non-security cache fingerprinting.
-    "databento_volatility_screener.py": {"sha1": frozenset({393, 531, 549})},
+    "databento_volatility_screener.py": {"sha1": frozenset({393, 566, 584})},
     "newsstack_fmp/normalize.py": {
         "md5": frozenset({130, 253}),
         "sha1": frozenset({334, 420, 458, 502}),

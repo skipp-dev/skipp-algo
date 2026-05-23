@@ -27,7 +27,7 @@ from datetime import UTC, date, datetime, time, timedelta, tzinfo
 from io import BytesIO
 from pathlib import Path
 from typing import Any
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
 
@@ -195,12 +195,12 @@ US_EASTERN_TZ = ZoneInfo("America/New_York")
 DEFAULT_DISPLAY_TZ = "Europe/Berlin"
 CACHE_VERSION = "v1"
 CACHE_VERSION_BY_CATEGORY = {
-    "daily_bars": "v2",
+    "daily_bars": "v3",
     "symbol_support": "v2",
-    "full_universe_open_second_detail": "v2",
-    "full_universe_close_trade_detail": "v1",
-    "full_universe_close_outcome_minute_detail": "v1",
-    "intraday_summary": "v2",
+    "full_universe_open_second_detail": "v3",
+    "full_universe_close_trade_detail": "v2",
+    "full_universe_close_outcome_minute_detail": "v2",
+    "intraday_summary": "v3",
     "symbol_detail_second": "v2",
     "symbol_detail_minute": "v2",
 }
@@ -447,6 +447,41 @@ def _trade_day_cache_max_age_seconds(trade_day: date, latest_trade_day: date | N
 
 def _write_cached_frame(path: Path, frame: pd.DataFrame) -> None:
     _write_parquet_atomic(path, frame)
+
+
+def _cached_frame_coverage(
+    cache_path: Path,
+    requested_symbols: Iterable[str],
+    *,
+    max_age_seconds: int | None = None,
+    symbol_col: str = "symbol",
+) -> tuple[pd.DataFrame | None, set[str]]:
+    """Return ``(cached_frame, missing_symbols)`` for delta-fetch decisions.
+
+    Mirrors :func:`databento_utils._cached_frame_coverage` but routes the read
+    through the screener-local :func:`_read_cached_frame` so the cache probe
+    still records the hit/miss. Required because #2334 removed the
+    universe-scope token from several cache keys — a cached file may now be a
+    strict *subset* of the current request and callers must delta-fetch the
+    missing symbols instead of silently returning an incomplete frame.
+
+    Outcomes:
+      - ``(None, set(requested))``        miss/expired/corrupt → full fetch
+      - ``(frame, set())``                full coverage → use as-is
+      - ``(frame, missing_subset)``       partial coverage → fetch ``missing_subset``
+                                          then ``pd.concat([frame, fetched])``
+    """
+    cached = _read_cached_frame(cache_path, max_age_seconds=max_age_seconds)
+    requested_set = {str(s) for s in requested_symbols}
+    if cached is None:
+        return None, requested_set
+    if symbol_col not in cached.columns:
+        logger.warning(
+            "Cache file missing %r column, forcing refetch: %s", symbol_col, cache_path.name
+        )
+        return None, requested_set
+    cached_syms = {str(s) for s in cached[symbol_col].dropna().unique()}
+    return cached, requested_set - cached_syms
 
 
 def _make_atomic_temp_path(path: Path) -> Path:
@@ -1492,29 +1527,50 @@ def load_daily_bars(
         f"begin trading_days={len(trading_days)} universe={len(universe_symbols)} "
         f"max_workers={max_workers}"
     )
-    symbol_scope = _symbol_scope_token(universe_symbols)
     start_date = trading_days[0] - timedelta(days=14)
     end_date = trading_days[-1]
     cache_path = build_cache_path(
         cache_dir,
         "daily_bars",
         dataset=dataset,
-        parts=[start_date.strftime("%Y%m%d"), end_date.strftime("%Y%m%d"), symbol_scope],
+        parts=[start_date.strftime("%Y%m%d"), end_date.strftime("%Y%m%d")],
     )
-    frame: pd.DataFrame | None = None
+    # #2334: ``normalize_symbol_for_databento`` returns ``""`` (not ``None``) for
+    # invalid encodings; filter on truthiness so empty strings cannot leak into
+    # ``missing_symbols`` and force a perpetual partial-coverage fetch.
+    normalized_universe_symbols = {
+        normalized
+        for symbol in universe_symbols
+        if (normalized := normalize_symbol_for_databento(symbol))
+    }
+    cached_frame: pd.DataFrame | None = None
+    missing_symbols: set[str] = set(normalized_universe_symbols)
     if use_file_cache and not force_refresh:
-        frame = _read_cached_frame(cache_path, max_age_seconds=DATA_CACHE_TTL_SECONDS)
-    if frame is not None:
-        _emit(f"cache HIT path={cache_path} rows={len(frame)}")
+        cached_frame, missing_symbols = _cached_frame_coverage(
+            cache_path,
+            normalized_universe_symbols,
+            max_age_seconds=DATA_CACHE_TTL_SECONDS,
+        )
+    if cached_frame is not None and not missing_symbols:
+        _emit(f"cache HIT path={cache_path} rows={len(cached_frame)}")
+        frame = cached_frame
     else:
-        _emit(f"cache MISS path={cache_path} (force_refresh={force_refresh})")
+        if cached_frame is not None:
+            _emit(
+                f"cache PARTIAL path={cache_path} cached_rows={len(cached_frame)} "
+                f"missing_symbols={len(missing_symbols)}"
+            )
+            fetch_symbols: list[str] | set[str] = sorted(missing_symbols)
+        else:
+            _emit(f"cache MISS path={cache_path} (force_refresh={force_refresh})")
+            fetch_symbols = universe_symbols
         client = _make_databento_client(databento_api_key)
         schema_end = _get_schema_available_end(client, dataset, "ohlcv-1d")
         end_date = _daily_request_end_exclusive(end_date, schema_end)
         if end_date <= start_date:
             _emit("schema_end collapsed window; returning empty frame")
             return pd.DataFrame(columns=["trade_date", "symbol", "open", "high", "low", "close", "volume", "previous_close"])
-        batches = list(_iter_symbol_batches(universe_symbols))
+        batches = list(_iter_symbol_batches(fetch_symbols))
         effective_workers = max(1, min(int(max_workers), len(batches)))
         mode = "parallel" if effective_workers > 1 else "sequential"
         _emit(f"fetching {len(batches)} batches mode={mode} workers={effective_workers}")
@@ -1556,18 +1612,28 @@ def load_daily_bars(
         ok = sum(1 for f in results if f is not None)
         failed = sum(1 for f in results if f is None)
         _emit(f"fetch complete batches_ok={ok} batches_failed_or_empty={failed}")
-        frame = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
-        if use_file_cache and not frame.empty:
-            _write_cached_frame(cache_path, frame)
-            _emit(f"wrote cache rows={len(frame)}")
+        fetched_frame = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+        if cached_frame is not None and not fetched_frame.empty:
+            # #2334: merge delta-fetched missing symbols into the cached subset
+            # so future reads see a complete superset and downstream callers
+            # never observe partial coverage.
+            fetched_frame["symbol"] = fetched_frame.get("symbol", "").map(normalize_symbol_for_databento)
+            frame = pd.concat([cached_frame, fetched_frame], ignore_index=True)
+            if use_file_cache and not frame.empty:
+                _write_cached_frame(cache_path, frame)
+                _emit(f"wrote cache rows={len(frame)} (merged cached+delta)")
+        elif cached_frame is not None:
+            # delta-fetch returned nothing for missing symbols → keep cached
+            # as-is; the missing symbols are simply unavailable upstream.
+            frame = cached_frame
+        else:
+            frame = fetched_frame
+            if use_file_cache and not frame.empty:
+                _write_cached_frame(cache_path, frame)
+                _emit(f"wrote cache rows={len(frame)}")
     if frame.empty:
         _emit("complete rows=0 (empty after fetch)")
         return pd.DataFrame(columns=["trade_date", "symbol", "open", "high", "low", "close", "volume", "previous_close"])
-    normalized_universe_symbols = {
-        normalized
-        for symbol in universe_symbols
-        if (normalized := normalize_symbol_for_databento(symbol)) is not None
-    }
     frame["symbol"] = frame.get("symbol", "").map(normalize_symbol_for_databento)
     frame = frame[frame["symbol"].isin(normalized_universe_symbols)].copy()
     frame["trade_date"] = frame["ts"].dt.date
@@ -1838,7 +1904,6 @@ def _process_intraday_day(
     universe_symbols: set[str],
     runtime_unsupported_symbols: set[str],
     available_end_1s: Any,
-    symbol_scope: str,
     display_timezone: str,
     window_start: time | None,
     window_end: time | None,
@@ -1868,21 +1933,28 @@ def _process_intraday_day(
             day_ws.strftime("%H%M%S"),
             day_we.strftime("%H%M%S"),
             premarket_anchor_et.strftime("%H%M%S"),
-            symbol_scope,
         ],
     )
-    day_frame: pd.DataFrame | None = None
+    cached_frame: pd.DataFrame | None = None
+    missing_symbols: set[str] = set(universe_symbols)
     cache_hit = False
     if use_file_cache and not force_refresh:
-        day_frame = _read_cached_frame(
+        cached_frame, missing_symbols = _cached_frame_coverage(
             cache_path,
+            universe_symbols,
             max_age_seconds=_trade_day_cache_max_age_seconds(trade_day, latest_trade_day),
         )
-        cache_hit = day_frame is not None
-    if day_frame is None:
+        cache_hit = cached_frame is not None and not missing_symbols
+    if cached_frame is not None and not missing_symbols:
+        day_frame: pd.DataFrame = cached_frame
+    else:
         states: dict[str, SymbolDayState] = {}
-        active_symbols = set(universe_symbols) - runtime_unsupported_symbols
-        for symbols_batch in _iter_symbol_batches(active_symbols, batch_size=INTRADAY_SUMMARY_BATCH_SIZE):
+        if cached_frame is not None:
+            # #2334: only fetch symbols missing from cached subset; merge below.
+            fetch_pool = missing_symbols - runtime_unsupported_symbols
+        else:
+            fetch_pool = set(universe_symbols) - runtime_unsupported_symbols
+        for symbols_batch in _iter_symbol_batches(fetch_pool, batch_size=INTRADAY_SUMMARY_BATCH_SIZE):
             _load_intraday_summary_batch(
                 client,
                 dataset=dataset,
@@ -1894,9 +1966,17 @@ def _process_intraday_day(
                 runtime_unsupported_symbols=runtime_unsupported_symbols,
             )
         day_rows = [summarize_symbol_day(state, previous_close=None) for state in states.values()]
-        day_frame = pd.DataFrame(day_rows) if day_rows else _empty_intraday_frame()
-        if use_file_cache and not day_frame.empty:
-            _write_cached_frame(cache_path, day_frame)
+        fetched_frame = pd.DataFrame(day_rows) if day_rows else _empty_intraday_frame()
+        if cached_frame is not None and not fetched_frame.empty:
+            day_frame = pd.concat([cached_frame, fetched_frame], ignore_index=True)
+            if use_file_cache:
+                _write_cached_frame(cache_path, day_frame)
+        elif cached_frame is not None:
+            day_frame = cached_frame
+        else:
+            day_frame = fetched_frame
+            if use_file_cache and not day_frame.empty:
+                _write_cached_frame(cache_path, day_frame)
     if day_frame.empty:
         return [], 0, cache_hit
     filtered = day_frame[day_frame["symbol"].isin(universe_symbols)].copy()
@@ -1929,7 +2009,6 @@ def run_intraday_screen(
 ) -> pd.DataFrame:
     client = _make_databento_client(databento_api_key)
     available_end_1s = _get_schema_available_end(client, dataset, "ohlcv-1s")
-    symbol_scope = _symbol_scope_token(universe_symbols)
     runtime_unsupported_symbols: set[str] = set()
     prev_close_lookup = {
         (row.trade_date, row.symbol): _safe_float(row.previous_close)
@@ -1956,7 +2035,6 @@ def run_intraday_screen(
             universe_symbols=universe_symbols,
             runtime_unsupported_symbols=runtime_unsupported_symbols,
             available_end_1s=available_end_1s,
-            symbol_scope=symbol_scope,
             display_timezone=display_timezone,
             window_start=window_start,
             window_end=window_end,
@@ -2297,7 +2375,11 @@ def collect_full_universe_open_window_second_detail(
         trade_day: set(group["symbol"].astype(str).tolist())
         for trade_day, group in normalized_scope.groupby("trade_date", sort=False)
     } if not normalized_scope.empty else {}
-    symbol_scope = _symbol_day_scope_token(normalized_scope) if scope_by_day else _symbol_scope_token(universe_symbols)
+    # #2334: the universe-fallback scope token used to vary day-to-day with the
+    # volatility-screener output, evicting every cache file. Only the explicit
+    # per-day scope (when caller supplied ``symbol_day_scope``) is real key
+    # material -- the full-universe case is content-addressed without a token.
+    symbol_scope: str | None = _symbol_day_scope_token(normalized_scope) if scope_by_day else None
     previous_close_lookup = {
         (row.trade_date, row.symbol): _safe_float(row.previous_close)
         for row in daily_bars.itertuples(index=False)
@@ -2307,7 +2389,18 @@ def collect_full_universe_open_window_second_detail(
     latest_trade_day = max(trading_days) if trading_days else None
 
     for trade_day in trading_days:
-        day_universe_symbols = scope_by_day.get(trade_day, set(universe_symbols)) if scope_by_day else set(universe_symbols)
+        # #2338: normalize requested symbols to Databento symbology BEFORE coverage check
+        # so cached/fetched (already-normalized) frames match. Without this, raw aliases
+        # (e.g. ``BRK-B``) or tokens that normalize to ``""`` would force perpetual
+        # partial coverage and ``.isin(day_universe_symbols)`` could drop valid rows.
+        _raw_day_universe = (
+            scope_by_day.get(trade_day, set(universe_symbols)) if scope_by_day else set(universe_symbols)
+        )
+        day_universe_symbols = {
+            normalized
+            for symbol in _raw_day_universe
+            if (normalized := normalize_symbol_for_databento(str(symbol)))
+        }
         if not day_universe_symbols:
             continue
         day_ws, day_we = _resolve_window_for_date(
@@ -2315,27 +2408,33 @@ def collect_full_universe_open_window_second_detail(
             default_pre_open_minutes=_DEFAULT_OPEN_WINDOW_PRE_OPEN_MINUTES,
             default_post_open_seconds=_DEFAULT_OPEN_WINDOW_POST_OPEN_SECONDS,
         )
+        open_parts = [
+            trade_day.isoformat(),
+            display_timezone,
+            day_ws.strftime("%H%M%S"),
+            day_we.strftime("%H%M%S"),
+            premarket_anchor_et.strftime("%H%M%S"),
+        ]
+        if symbol_scope is not None:
+            open_parts.append(symbol_scope)
         cache_path = build_cache_path(
             cache_dir,
             "full_universe_open_second_detail",
             dataset=dataset,
-            parts=[
-                trade_day.isoformat(),
-                display_timezone,
-                day_ws.strftime("%H%M%S"),
-                day_we.strftime("%H%M%S"),
-                premarket_anchor_et.strftime("%H%M%S"),
-                symbol_scope,
-            ],
+            parts=open_parts,
         )
-        day_frame: pd.DataFrame | None = None
+        cached_frame: pd.DataFrame | None = None
+        missing_symbols: set[str] = set(day_universe_symbols)
         if use_file_cache and not force_refresh:
-            day_frame = _read_cached_frame(
+            cached_frame, missing_symbols = _cached_frame_coverage(
                 cache_path,
+                day_universe_symbols,
                 max_age_seconds=_trade_day_cache_max_age_seconds(trade_day, latest_trade_day),
             )
 
-        if day_frame is None:
+        if cached_frame is not None and not missing_symbols:
+            day_frame: pd.DataFrame = cached_frame
+        else:
             window = build_window_definition(
                 trade_day,
                 display_timezone=display_timezone,
@@ -2348,7 +2447,11 @@ def collect_full_universe_open_window_second_detail(
                 symbol: previous_close_lookup.get((trade_day, symbol))
                 for symbol in day_universe_symbols
             }
-            active_symbols = set(day_universe_symbols) - runtime_unsupported_symbols
+            # #2334: delta-fetch only the symbols missing from the cached subset.
+            fetch_pool = (
+                missing_symbols if cached_frame is not None else set(day_universe_symbols)
+            )
+            active_symbols = fetch_pool - runtime_unsupported_symbols
             clamped_end_1s = _clamp_request_end(
                 _exclusive_ohlcv_1s_end(window.window_end_local.astimezone(UTC)), available_end_1s,
             )
@@ -2423,12 +2526,27 @@ def collect_full_universe_open_window_second_detail(
                     ].reset_index(drop=True)
                 )
 
-            day_frame = pd.concat(day_parts, ignore_index=True) if day_parts else pd.DataFrame()
-            if use_file_cache and not day_frame.empty:
-                _write_cached_frame(cache_path, day_frame)
+            fetched_frame = pd.concat(day_parts, ignore_index=True) if day_parts else pd.DataFrame()
+            if cached_frame is not None and not fetched_frame.empty:
+                # #2334: merge delta-fetched missing symbols into cached subset.
+                day_frame = pd.concat([cached_frame, fetched_frame], ignore_index=True)
+                if use_file_cache:
+                    _write_cached_frame(cache_path, day_frame)
+            elif cached_frame is not None:
+                day_frame = cached_frame
+            else:
+                day_frame = fetched_frame
+                if use_file_cache and not day_frame.empty:
+                    _write_cached_frame(cache_path, day_frame)
 
         if day_frame is not None and not day_frame.empty:
-            all_rows.append(day_frame)
+            # #2334: cache file may contain a superset universe (key no longer
+            # carries scope token in full-universe case); restrict to current
+            # day_universe_symbols so callers never see out-of-scope rows.
+            if symbol_scope is None and "symbol" in day_frame.columns:
+                day_frame = day_frame[day_frame["symbol"].isin(day_universe_symbols)]
+            if not day_frame.empty:
+                all_rows.append(day_frame)
 
     return pd.concat(all_rows, ignore_index=True) if all_rows else pd.DataFrame(
         columns=[
@@ -2761,7 +2879,8 @@ def collect_full_universe_close_trade_detail(
         trade_day: set(group["symbol"].astype(str).tolist())
         for trade_day, group in normalized_scope.groupby("trade_date", sort=False)
     } if not normalized_scope.empty else {}
-    symbol_scope = _symbol_day_scope_token(normalized_scope) if scope_by_day else _symbol_scope_token(universe_symbols)
+    # #2334: see ``collect_full_universe_open_window_second_detail`` for rationale.
+    symbol_scope: str | None = _symbol_day_scope_token(normalized_scope) if scope_by_day else None
 
     display_tz = resolve_display_timezone(display_timezone)
     all_rows: list[pd.DataFrame] = []
@@ -2772,7 +2891,18 @@ def collect_full_universe_close_trade_detail(
         and window_end == DEFAULT_CLOSE_IMBALANCE_WINDOW_END_ET
     )
     for trade_day in trading_days:
-        day_universe_symbols = scope_by_day.get(trade_day, set(universe_symbols)) if scope_by_day else set(universe_symbols)
+        # #2338: normalize requested symbols to Databento symbology BEFORE coverage check
+        # so cached/fetched (already-normalized) frames match. Without this, raw aliases
+        # (e.g. ``BRK-B``) or tokens that normalize to ``""`` would force perpetual
+        # partial coverage and ``.isin(day_universe_symbols)`` could drop valid rows.
+        _raw_day_universe = (
+            scope_by_day.get(trade_day, set(universe_symbols)) if scope_by_day else set(universe_symbols)
+        )
+        day_universe_symbols = {
+            normalized
+            for symbol in _raw_day_universe
+            if (normalized := normalize_symbol_for_databento(str(symbol)))
+        }
         if not day_universe_symbols:
             continue
         local_start = datetime.combine(trade_day, window_start, tzinfo=US_EASTERN_TZ).astimezone(display_tz)
@@ -2781,7 +2911,9 @@ def collect_full_universe_close_trade_detail(
         fetch_end_utc = _clamp_request_end(pd.Timestamp(local_end.astimezone(UTC)), available_end)
         if fetch_end_utc <= fetch_start_utc:
             continue
-        cache_parts = [trade_day.isoformat(), display_timezone, symbol_scope]
+        cache_parts: list[str] = [trade_day.isoformat(), display_timezone]
+        if symbol_scope is not None:
+            cache_parts.append(symbol_scope)
         if not uses_default_window:
             cache_parts.extend([window_start.strftime("%H%M%S"), window_end.strftime("%H%M%S")])
         cache_path = build_cache_path(
@@ -2790,16 +2922,24 @@ def collect_full_universe_close_trade_detail(
             dataset=dataset,
             parts=cache_parts,
         )
-        day_frame: pd.DataFrame | None = None
+        cached_frame: pd.DataFrame | None = None
+        missing_symbols: set[str] = set(day_universe_symbols)
         if use_file_cache and not force_refresh:
-            day_frame = _read_cached_frame(
+            cached_frame, missing_symbols = _cached_frame_coverage(
                 cache_path,
+                day_universe_symbols,
                 max_age_seconds=_trade_day_cache_max_age_seconds(trade_day, latest_trade_day),
             )
 
-        if day_frame is None:
+        if cached_frame is not None and not missing_symbols:
+            day_frame: pd.DataFrame = cached_frame
+        else:
             day_parts: list[pd.DataFrame] = []
-            active_symbols = set(day_universe_symbols) - runtime_unsupported_symbols
+            # #2334: delta-fetch only the symbols missing from the cached subset.
+            fetch_pool = (
+                missing_symbols if cached_frame is not None else set(day_universe_symbols)
+            )
+            active_symbols = fetch_pool - runtime_unsupported_symbols
             # Phase-5.2 Quickfix Item 1: explicit batch_size to align 8/10c with the
             # 8/10a/b INTRADAY_SUMMARY_BATCH_SIZE sweet-spot. Default
             # MAX_SYMBOLS_PER_REQUEST (2000) combined with schema=trades yields
@@ -2859,12 +2999,27 @@ def collect_full_universe_close_trade_detail(
                 frame.insert(0, "trade_date", trade_day)
                 day_parts.append(frame[output_columns].reset_index(drop=True))
 
-            day_frame = pd.concat(day_parts, ignore_index=True) if day_parts else pd.DataFrame(columns=output_columns)
-            if use_file_cache and not day_frame.empty:
-                _write_cached_frame(cache_path, day_frame)
+            fetched_frame = pd.concat(day_parts, ignore_index=True) if day_parts else pd.DataFrame(columns=output_columns)
+            if cached_frame is not None and not fetched_frame.empty:
+                # #2334: merge delta-fetched missing symbols into cached subset.
+                day_frame = pd.concat([cached_frame, fetched_frame], ignore_index=True)
+                if use_file_cache:
+                    _write_cached_frame(cache_path, day_frame)
+            elif cached_frame is not None:
+                day_frame = cached_frame
+            else:
+                day_frame = fetched_frame
+                if use_file_cache and not day_frame.empty:
+                    _write_cached_frame(cache_path, day_frame)
 
         if day_frame is not None and not day_frame.empty:
-            all_rows.append(day_frame)
+            # #2334: cache file may contain a superset universe (key no longer
+            # carries scope token in full-universe case); restrict to current
+            # day_universe_symbols so callers never see out-of-scope rows.
+            if symbol_scope is None and "symbol" in day_frame.columns:
+                day_frame = day_frame[day_frame["symbol"].isin(day_universe_symbols)]
+            if not day_frame.empty:
+                all_rows.append(day_frame)
 
     return pd.concat(all_rows, ignore_index=True) if all_rows else pd.DataFrame(columns=output_columns)
 
@@ -2892,14 +3047,26 @@ def collect_full_universe_close_outcome_minute_detail(
         trade_day: set(group["symbol"].astype(str).tolist())
         for trade_day, group in normalized_scope.groupby("trade_date", sort=False)
     } if not normalized_scope.empty else {}
-    symbol_scope = _symbol_day_scope_token(normalized_scope) if scope_by_day else _symbol_scope_token(universe_symbols)
+    # #2334: see ``collect_full_universe_open_window_second_detail`` for rationale.
+    symbol_scope: str | None = _symbol_day_scope_token(normalized_scope) if scope_by_day else None
     display_tz = resolve_display_timezone(display_timezone)
     all_rows: list[pd.DataFrame] = []
     runtime_unsupported_symbols: set[str] = set()
     latest_trade_day = max(trading_days) if trading_days else None
 
     for trade_day in trading_days:
-        day_universe_symbols = scope_by_day.get(trade_day, set(universe_symbols)) if scope_by_day else set(universe_symbols)
+        # #2338: normalize requested symbols to Databento symbology BEFORE coverage check
+        # so cached/fetched (already-normalized) frames match. Without this, raw aliases
+        # (e.g. ``BRK-B``) or tokens that normalize to ``""`` would force perpetual
+        # partial coverage and ``.isin(day_universe_symbols)`` could drop valid rows.
+        _raw_day_universe = (
+            scope_by_day.get(trade_day, set(universe_symbols)) if scope_by_day else set(universe_symbols)
+        )
+        day_universe_symbols = {
+            normalized
+            for symbol in _raw_day_universe
+            if (normalized := normalize_symbol_for_databento(str(symbol)))
+        }
         if not day_universe_symbols:
             continue
         local_start = datetime.combine(trade_day, DEFAULT_CLOSE_IMBALANCE_AUCTION_TIME_ET, tzinfo=US_EASTERN_TZ).astimezone(display_tz)
@@ -2908,22 +3075,33 @@ def collect_full_universe_close_outcome_minute_detail(
         fetch_end_utc = _clamp_request_end(pd.Timestamp(local_end.astimezone(UTC)), available_end)
         if fetch_end_utc <= fetch_start_utc:
             continue
+        outcome_parts = [trade_day.isoformat(), display_timezone]
+        if symbol_scope is not None:
+            outcome_parts.append(symbol_scope)
         cache_path = build_cache_path(
             cache_dir,
             "full_universe_close_outcome_minute_detail",
             dataset=dataset,
-            parts=[trade_day.isoformat(), display_timezone, symbol_scope],
+            parts=outcome_parts,
         )
-        day_frame: pd.DataFrame | None = None
+        cached_frame: pd.DataFrame | None = None
+        missing_symbols: set[str] = set(day_universe_symbols)
         if use_file_cache and not force_refresh:
-            day_frame = _read_cached_frame(
+            cached_frame, missing_symbols = _cached_frame_coverage(
                 cache_path,
+                day_universe_symbols,
                 max_age_seconds=_trade_day_cache_max_age_seconds(trade_day, latest_trade_day),
             )
 
-        if day_frame is None:
+        if cached_frame is not None and not missing_symbols:
+            day_frame: pd.DataFrame = cached_frame
+        else:
             day_parts: list[pd.DataFrame] = []
-            active_symbols = set(day_universe_symbols) - runtime_unsupported_symbols
+            # #2334: delta-fetch only the symbols missing from the cached subset.
+            fetch_pool = (
+                missing_symbols if cached_frame is not None else set(day_universe_symbols)
+            )
+            active_symbols = fetch_pool - runtime_unsupported_symbols
             for symbols_batch in _iter_symbol_batches(active_symbols):
                 try:
                     with warnings.catch_warnings(record=True) as caught_warnings:
@@ -2964,12 +3142,27 @@ def collect_full_universe_close_outcome_minute_detail(
                 frame["timestamp"] = frame["ts"].dt.tz_convert(display_tz)
                 frame.insert(0, "trade_date", trade_day)
                 day_parts.append(frame[output_columns].reset_index(drop=True))
-            day_frame = pd.concat(day_parts, ignore_index=True) if day_parts else pd.DataFrame(columns=output_columns)
-            if use_file_cache and not day_frame.empty:
-                _write_cached_frame(cache_path, day_frame)
+            fetched_frame = pd.concat(day_parts, ignore_index=True) if day_parts else pd.DataFrame(columns=output_columns)
+            if cached_frame is not None and not fetched_frame.empty:
+                # #2334: merge delta-fetched missing symbols into cached subset.
+                day_frame = pd.concat([cached_frame, fetched_frame], ignore_index=True)
+                if use_file_cache:
+                    _write_cached_frame(cache_path, day_frame)
+            elif cached_frame is not None:
+                day_frame = cached_frame
+            else:
+                day_frame = fetched_frame
+                if use_file_cache and not day_frame.empty:
+                    _write_cached_frame(cache_path, day_frame)
 
         if day_frame is not None and not day_frame.empty:
-            all_rows.append(day_frame)
+            # #2334: cache file may contain a superset universe (key no longer
+            # carries scope token in full-universe case); restrict to current
+            # day_universe_symbols so callers never see out-of-scope rows.
+            if symbol_scope is None and "symbol" in day_frame.columns:
+                day_frame = day_frame[day_frame["symbol"].isin(day_universe_symbols)]
+            if not day_frame.empty:
+                all_rows.append(day_frame)
 
     return pd.concat(all_rows, ignore_index=True) if all_rows else pd.DataFrame(columns=output_columns)
 
