@@ -1535,10 +1535,13 @@ def load_daily_bars(
         dataset=dataset,
         parts=[start_date.strftime("%Y%m%d"), end_date.strftime("%Y%m%d")],
     )
+    # #2334: ``normalize_symbol_for_databento`` returns ``""`` (not ``None``) for
+    # invalid encodings; filter on truthiness so empty strings cannot leak into
+    # ``missing_symbols`` and force a perpetual partial-coverage fetch.
     normalized_universe_symbols = {
         normalized
         for symbol in universe_symbols
-        if (normalized := normalize_symbol_for_databento(symbol)) is not None
+        if (normalized := normalize_symbol_for_databento(symbol))
     }
     cached_frame: pd.DataFrame | None = None
     missing_symbols: set[str] = set(normalized_universe_symbols)

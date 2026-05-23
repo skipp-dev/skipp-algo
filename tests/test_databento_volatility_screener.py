@@ -27,6 +27,7 @@ from databento_volatility_screener import (
     SymbolDayState,
     _augment_watchlist_result_with_intraday_context,
     _build_focus_window_coverage_series,
+    _cached_frame_coverage,
     _build_open_pattern_status_series,
     _build_tradingview_watchlist_text,
     _build_watchlist_snapshot_panel_frames,
@@ -424,30 +425,28 @@ def test_cached_frame_coverage_full_partial_miss(tmp_path) -> None:
     The third case is what the Copilot reviewer flagged; without it the cache
     would silently return incomplete data when the universe grows between runs.
     """
-    import databento_volatility_screener as dvs
-
     cache_path = tmp_path / "intraday_summary" / "XNAS_ITCH" / "test.parquet"
     cache_path.parent.mkdir(parents=True)
 
     # miss
-    cached, missing = dvs._cached_frame_coverage(cache_path, {"AAPL", "MSFT"})
+    cached, missing = _cached_frame_coverage(cache_path, {"AAPL", "MSFT"})
     assert cached is None
     assert missing == {"AAPL", "MSFT"}
 
     # full coverage
     pd.DataFrame({"symbol": ["AAPL", "MSFT"], "v": [1, 2]}).to_parquet(cache_path, index=False)
-    cached, missing = dvs._cached_frame_coverage(cache_path, {"AAPL", "MSFT"})
+    cached, missing = _cached_frame_coverage(cache_path, {"AAPL", "MSFT"})
     assert cached is not None and len(cached) == 2
     assert missing == set()
 
     # partial coverage (universe grew to add NVDA, TSLA)
-    cached, missing = dvs._cached_frame_coverage(cache_path, {"AAPL", "MSFT", "NVDA", "TSLA"})
+    cached, missing = _cached_frame_coverage(cache_path, {"AAPL", "MSFT", "NVDA", "TSLA"})
     assert cached is not None and set(cached["symbol"]) == {"AAPL", "MSFT"}
     assert missing == {"NVDA", "TSLA"}
 
     # corrupt cache (no symbol column) -> forced full fetch
     pd.DataFrame({"other": [1, 2]}).to_parquet(cache_path, index=False)
-    cached, missing = dvs._cached_frame_coverage(cache_path, {"AAPL"})
+    cached, missing = _cached_frame_coverage(cache_path, {"AAPL"})
     assert cached is None
     assert missing == {"AAPL"}
 

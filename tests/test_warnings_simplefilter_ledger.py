@@ -93,12 +93,13 @@ def _warnings_simplefilter_sites() -> set[tuple[str, int, str]]:
 WARNINGS_SIMPLEFILTER_LEDGER: set[tuple[str, int, str]] = {
     # #2334 (PR #2338): cache-pollution filter blocks in 3 collectors shifted the
     # 5 screener warning sites again; action remains the loud / safe
-    # ``"always"``.
+    # ``"always"``. Coverage-bug fix added a 3-line comment in load_daily_bars
+    # which shifted 4 of the 5 sites by +3.
     ("databento_volatility_screener.py", 742, "always"),
-    ("databento_volatility_screener.py", 1829, "always"),
-    ("databento_volatility_screener.py", 2449, "always"),
-    ("databento_volatility_screener.py", 2928, "always"),
-    ("databento_volatility_screener.py", 3072, "always"),
+    ("databento_volatility_screener.py", 1832, "always"),
+    ("databento_volatility_screener.py", 2452, "always"),
+    ("databento_volatility_screener.py", 2931, "always"),
+    ("databento_volatility_screener.py", 3075, "always"),
     ("databento_universe.py", 162, "always"),
 }
 
