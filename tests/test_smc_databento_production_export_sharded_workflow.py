@@ -109,3 +109,23 @@ def test_dispatch_input_fallbacks_still_exist() -> None:
     text = _read()
     assert "${{ inputs.lookback_days || '30' }}" in text
     assert "${{ inputs.num_shards || '6' }}" in text
+
+
+def test_databento_volatility_cache_is_warmed_across_runs() -> None:
+    # Phase-C re-validation (#2334): without an actions/cache step for the
+    # parquet cache directory every shard starts cold and the probe hit-rate
+    # cannot reach the 86.8% sim-target. The primary key MUST rotate per
+    # window-end and the restore-keys fallback MUST be shard-scoped so a
+    # new day inherits the prior day's cache for delta-fetch.
+    text = _read()
+    assert "- name: Restore databento volatility cache" in text
+    step_start = text.index("- name: Restore databento volatility cache")
+    step_block = text[step_start : step_start + 800]
+    assert "uses: actions/cache@" in step_block
+    assert "path: artifacts/databento_volatility_cache" in step_block
+    assert (
+        "key: dbnv-cache-shard-${{ matrix.shard_id }}-of-${{ matrix.shard_of }}-${{ matrix.end_date }}"
+        in step_block
+    )
+    assert "restore-keys:" in step_block
+    assert "dbnv-cache-shard-${{ matrix.shard_id }}-of-${{ matrix.shard_of }}-" in step_block

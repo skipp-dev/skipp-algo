@@ -184,6 +184,22 @@ jobs:
         run: |
           uv pip install --system -r requirements.txt
 
+      # Phase-C re-validation (#2334): warm the databento_volatility_cache
+      # across runs so cache-probe hit-rate can actually be measured against
+      # the 86.8% sim-target. Without this, every shard starts cold and
+      # cross-run hits are impossible (only in-run dedup hits, ~9% rate).
+      # Primary key rotates daily on end_date; restore-keys falls back to
+      # the most recent cache for this shard, so a new day inherits the
+      # prior day's parquets and the post-#2338 coverage-validation path
+      # delta-fetches only the new tail.
+      - name: Restore databento volatility cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: artifacts/databento_volatility_cache
+          key: dbnv-cache-shard-${{ matrix.shard_id }}-of-${{ matrix.shard_of }}-${{ matrix.end_date }}
+          restore-keys: |
+            dbnv-cache-shard-${{ matrix.shard_id }}-of-${{ matrix.shard_of }}-
+
       - name: Run Databento production export (sharded)
         env:
           DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
