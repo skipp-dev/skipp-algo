@@ -125,18 +125,25 @@ def test_load_daily_bars_emits_step_5_progress_markers(patched_screener):
 
 
 def test_load_daily_bars_cache_hit_emits_marker(patched_screener, monkeypatch):
-    """When the file cache returns a frame, the function emits 'cache HIT'."""
+    """When the file cache fully covers the universe, the function emits 'cache HIT'."""
+    # Post-#2338 the cache path validates coverage against the requested
+    # universe before declaring a hit; a partial cache now correctly emits
+    # 'cache PARTIAL' and triggers a delta-fetch. To pin the HIT marker the
+    # mocked cached frame must cover every requested symbol.
+    universe = sorted(_common_call_kwargs()["universe_symbols"])
+    ts = pd.Timestamp(datetime(2026, 3, 6, 14, 0, tzinfo=timezone.utc))
     cached = pd.DataFrame(
         [
             {
-                "symbol": "SYM001",
-                "ts": pd.Timestamp(datetime(2026, 3, 6, 14, 0, tzinfo=timezone.utc)),
+                "symbol": sym,
+                "ts": ts,
                 "open": 1.0,
                 "high": 1.0,
                 "low": 1.0,
                 "close": 1.0,
                 "volume": 1,
             }
+            for sym in universe
         ]
     )
     monkeypatch.setattr(
