@@ -115,17 +115,29 @@ def test_databento_volatility_cache_is_warmed_across_runs() -> None:
     # Phase-C re-validation (#2334): without an actions/cache step for the
     # parquet cache directory every shard starts cold and the probe hit-rate
     # cannot reach the 86.8% sim-target. The primary key MUST rotate per
-    # window-end and the restore-keys fallback MUST be shard-scoped so a
-    # new day inherits the prior day's cache for delta-fetch.
+    # window-end AND per run_id so each run always uploads a fresh cache
+    # entry containing newly delta-fetched parquets. The restore-keys
+    # fallback MUST be OS-partitioned and shard-scoped so a new day inherits
+    # the prior day's cache for delta-fetch.
     text = _read()
     assert "- name: Restore databento volatility cache" in text
     step_start = text.index("- name: Restore databento volatility cache")
-    step_block = text[step_start : step_start + 800]
+    step_block = text[step_start : step_start + 1000]
     assert "uses: actions/cache@" in step_block
     assert "path: artifacts/databento_volatility_cache" in step_block
     assert (
-        "key: dbnv-cache-shard-${{ matrix.shard_id }}-of-${{ matrix.shard_of }}-${{ matrix.end_date }}"
+        "key: dbnv-cache-${{ runner.os }}-shard-${{ matrix.shard_id }}-of-${{ matrix.shard_of }}-${{ matrix.end_date }}-${{ github.run_id }}"
         in step_block
     )
     assert "restore-keys:" in step_block
-    assert "dbnv-cache-shard-${{ matrix.shard_id }}-of-${{ matrix.shard_of }}-" in step_block
+    # Most-specific fallback: same OS, same shard, same end_date (any run_id).
+    assert (
+        "dbnv-cache-${{ runner.os }}-shard-${{ matrix.shard_id }}-of-${{ matrix.shard_of }}-${{ matrix.end_date }}-"
+        in step_block
+    )
+    # Broader fallback: same OS, same shard (any end_date / any run_id) so
+    # a new window-end inherits the prior day's parquets.
+    assert (
+        "dbnv-cache-${{ runner.os }}-shard-${{ matrix.shard_id }}-of-${{ matrix.shard_of }}-"
+        in step_block
+    )

@@ -11,11 +11,16 @@ import pathlib
 import re
 import sys
 
-FAMILY_RE = re.compile(r"/databento_volatility_cache/([^/]+)/")
+# Normalize separators so the same regex works on Linux/macOS (`/`) probe
+# logs and any future Windows runs (`\\`). The leading `(?:^|/)` lets the
+# pattern match probe paths that are either absolute, relative, or stored
+# without a leading slash.
+FAMILY_RE = re.compile(r"(?:^|/)databento_volatility_cache/([^/]+)/")
 
 
 def fam(p: str) -> str:
-    m = FAMILY_RE.search(p)
+    normalized = p.replace("\\", "/")
+    m = FAMILY_RE.search(normalized)
     return m.group(1) if m else "unknown"
 
 
@@ -27,7 +32,7 @@ def analyze(root: pathlib.Path) -> None:
         by_fam: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
         n = 0
         for shard in sorted(run.glob("cache-probe-shard-*/*.jsonl")):
-            for line in shard.read_text().splitlines():
+            for line in shard.read_text(encoding="utf-8").splitlines():
                 if not line.strip():
                     continue
                 rec = json.loads(line)
