@@ -133,7 +133,9 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("databento_universe.py", 306),
         # 2026-05-23 PR #2338: shifted +35 (1263→1298) by partial-cache
         # marker / coverage-validation block in _load_daily_bars.
-        ("databento_volatility_screener.py", 1298),
+        # PR #2339: +103 (1298→1401) by universe-version metadata helpers and
+        # drift detector block above build_cache_path.
+        ("databento_volatility_screener.py", 1401),
         ("open_prep/bea.py", 94),
         # open_prep/macro.py:691 — shifted by ruff RUF046/B904/SIM103 cleanup;
         # was 692 after audit/discipline-pattern-v4 (originally 600).

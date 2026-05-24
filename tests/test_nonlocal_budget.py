@@ -90,10 +90,13 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # a 3-line comment in load_daily_bars -> 5165-5168.
         # 2026-05-23 PR #2338 follow-up: partial-cache block shifted these
         # four nonlocal sites by another +33 (5165-5168 -> 5198-5201).
-        ("databento_volatility_screener.py", 5198, ("_fast_progress_pct",)),
-        ("databento_volatility_screener.py", 5199, ("_fast_progress_step",)),
-        ("databento_volatility_screener.py", 5200, ("_fast_progress_total",)),
-        ("databento_volatility_screener.py", 5201, ("_fast_eta_smooth_seconds",)),
+        # PR #2339: +148 (5198→5346) by universe-version metadata helpers,
+        # drift detector, and per-collector captured/current symbol wiring
+        # in the cache-coverage funnels above the fast-progress callback.
+        ("databento_volatility_screener.py", 5346, ("_fast_progress_pct",)),
+        ("databento_volatility_screener.py", 5347, ("_fast_progress_step",)),
+        ("databento_volatility_screener.py", 5348, ("_fast_progress_total",)),
+        ("databento_volatility_screener.py", 5349, ("_fast_eta_smooth_seconds",)),
         ("smc_core/ensemble_quality.py", 171, ("active_weight", "weighted_total")),
     }
 )
