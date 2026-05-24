@@ -636,3 +636,65 @@ def list_universe_snapshots(root: str | Path | None = None) -> list[date]:
             continue
     return sorted(dates)
 
+
+# ── Backtest snapshot consumer (#2352 / re-audit F2) ──────────────────────
+
+class MissingUniverseSnapshotError(RuntimeError):
+    """Raised when a backtest requires a snapshot for ``trade_date`` and none exists."""
+
+    def __init__(self, trade_date: date, snapshot_root: Path) -> None:
+        super().__init__(
+            f"No persisted universe snapshot for trade_date={trade_date.isoformat()} "
+            f"under {snapshot_root}; refusing to run in strict mode (survivorship-bias "
+            f"protection, #2352). Persist a snapshot first or rerun without --strict-universe."
+        )
+        self.trade_date = trade_date
+        self.snapshot_root = snapshot_root
+
+
+def load_universe_for_backtest(
+    trade_date: date,
+    *,
+    strict: bool = False,
+    snapshot_root: str | Path | None = None,
+    fmp_api_key: str = "",
+    min_market_cap: float | None = None,
+    exchanges: str = "NASDAQ,NYSE,AMEX",
+) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """Resolve the universe a backtest should use for ``trade_date``.
+
+    Resolution contract:
+
+    * **Snapshot present** → strictly used (no vendor call), regardless of
+      ``strict``. Metadata carries ``source="universe_snapshot"`` and
+      ``survivorship_bias_risk=False``.
+    * **Snapshot absent + strict=True** → raises :class:`MissingUniverseSnapshotError`.
+      CI mode must use this to refuse silently survivorship-biased runs.
+    * **Snapshot absent + strict=False** → logs a WARNING and falls back to
+      :func:`fetch_us_equity_universe_with_metadata` with ``active_only=False``;
+      the returned metadata carries ``survivorship_bias_risk=True`` so downstream
+      consumers can flag the result in their reports.
+    """
+    snapshot = load_universe_snapshot(trade_date, root=snapshot_root)
+    if snapshot is None and strict:
+        raise MissingUniverseSnapshotError(
+            trade_date,
+            _resolve_snapshot_root(snapshot_root),
+        )
+    if snapshot is None:
+        logger.warning(
+            "Backtest for trade_date=%s requested without a persisted universe snapshot; "
+            "falling back to active_only=False vendor data. Result carries survivorship-bias risk (#2352). "
+            "Use --strict-universe to refuse in CI mode.",
+            trade_date.isoformat(),
+        )
+    return fetch_us_equity_universe_with_metadata(
+        fmp_api_key,
+        min_market_cap=min_market_cap,
+        exchanges=exchanges,
+        active_only=False,
+        trade_date=trade_date,
+        snapshot_root=snapshot_root,
+    )
+
+
