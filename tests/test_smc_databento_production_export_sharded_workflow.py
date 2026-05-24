@@ -141,3 +141,47 @@ def test_databento_volatility_cache_is_warmed_across_runs() -> None:
         "dbnv-cache-${{ runner.os }}-shard-${{ matrix.shard_id }}-of-${{ matrix.shard_of }}-"
         in step_block
     )
+
+
+def test_reduce_has_swap_allocation_and_heartbeat() -> None:
+    # WF-026 (2026-05-24): the reduce job was killed mid-merge by a runner
+    # shutdown signal (run 26336694008, frame `full_universe_close_outcome_minute`).
+    # Two structural guards prevent silent recurrence:
+    # 1. an explicit 6GB swapfile is allocated before the merge so pandas
+    #    concat peaks don't reap the runner VM via OOM, and
+    # 2. a heartbeat sidecar prints merge RSS + system memory every 15s so
+    #    the *next* OOM kill (if any) names the exact frame.
+    text = _read()
+    assert "- name: Allocate runtime swap (defensive OOM headroom)" in text
+    assert "/swapfile.smc" in text
+    assert "MERGE_LOG=\"artifacts/merged/_merge.log\"" in text
+    assert "HEART_LOG=\"artifacts/merged/_heartbeat.log\"" in text
+    assert "merge_rss_kb=" in text
+
+
+def test_compat_publish_is_independent_job() -> None:
+    # WF-026 (2026-05-24): the legacy `smc-databento-production-export-*`
+    # compat artifact MUST live in its own job so a runner-shutdown / OOM
+    # during the heavy merge can no longer silently drop it. The new
+    # `publish-compat` job needs both `plan` and `reduce` (so its
+    # `runs-on` evaluates), only runs when reduce fully succeeded, and
+    # re-downloads the merged-manifest artifact on a fresh runner.
+    import yaml
+
+    text = _read()
+    doc = yaml.safe_load(text)
+    jobs = doc["jobs"]
+    assert "publish-compat" in jobs, "publish-compat job missing"
+    pc = jobs["publish-compat"]
+    assert pc["needs"] == ["plan", "reduce"]
+    assert pc["if"] == "needs.reduce.result == 'success'"
+    step_names = [str(s.get("name") or "") for s in pc["steps"]]
+    assert "Download merged manifest artifact" in step_names
+    assert "Stage compat export bundle (legacy artifact name)" in step_names
+    assert "Upload compat export bundle (legacy artifact name)" in step_names
+
+    # And the `reduce` job MUST no longer carry the compat upload step,
+    # otherwise we'd double-publish (and double-fail on flake).
+    reduce_step_names = [str(s.get("name") or "") for s in jobs["reduce"]["steps"]]
+    assert "Stage compat export bundle (legacy artifact name)" not in reduce_step_names
+    assert "Upload compat export bundle (legacy artifact name)" not in reduce_step_names

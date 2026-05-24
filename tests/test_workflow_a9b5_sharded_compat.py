@@ -23,10 +23,19 @@ SHARDED_WORKFLOW = WORKFLOWS_DIR / "smc-databento-production-export-sharded.yml"
 
 
 def _reduce_steps() -> list[dict]:
+    """Return steps for the job that publishes the legacy compat artifact.
+
+    WF-026 (2026-05-24): the compat stage/upload were split out of the
+    `reduce` job into a dedicated `publish-compat` job so a runner-shutdown
+    during the heavy merge can no longer silently drop the legacy
+    `smc-databento-production-export-*` artifact downstream consumers
+    glob on. The semantic guards in this file still apply — they just
+    look at the new job now.
+    """
     with SHARDED_WORKFLOW.open(encoding="utf-8") as fh:
         data = yaml.safe_load(fh)
-    reduce_job = (data.get("jobs") or {}).get("reduce") or {}
-    return [s for s in (reduce_job.get("steps") or []) if isinstance(s, dict)]
+    publish_job = (data.get("jobs") or {}).get("publish-compat") or {}
+    return [s for s in (publish_job.get("steps") or []) if isinstance(s, dict)]
 
 
 def test_compat_stage_step_present() -> None:

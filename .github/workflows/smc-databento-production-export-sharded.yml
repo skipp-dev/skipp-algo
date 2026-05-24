@@ -344,6 +344,44 @@ jobs:
           done
           echo '---------------------------------'
 
+      # WF-026 (2026-05-24): GH-hosted Ubuntu runners ship ~7GB RAM +
+      # ~4GB default swap. The reduce-merge processes 6 shards × wide-frame
+      # parquets (pandas concat). Observed runner-shutdown-signal mid-merge
+      # on the `full_universe_close_outcome_minute` frame (run 26336694008,
+      # 2026-05-23) — almost certainly an OOM-reap of the runner VM. Adding
+      # 6GB explicit swap absorbs the concat peak without changing runner SKU
+      # or refactoring the merge script. Skipped on self-hosted (no sudo
+      # assumption) and on non-Linux. Failures are non-fatal: if swap setup
+      # can't proceed the merge step still runs, just without the headroom.
+      - name: Allocate runtime swap (defensive OOM headroom)
+        run: |
+          set -euo pipefail
+          if [ "${RUNNER_OS:-}" != "Linux" ]; then
+            echo "::notice::swap allocation skipped (RUNNER_OS=${RUNNER_OS:-unknown})"
+            exit 0
+          fi
+          if ! command -v sudo >/dev/null 2>&1; then
+            echo "::notice::swap allocation skipped (no sudo)"
+            exit 0
+          fi
+          if [ -e /swapfile.smc ]; then
+            echo "::notice::swap already provisioned at /swapfile.smc"
+            free -h || true
+            exit 0
+          fi
+          if ! sudo fallocate -l 6G /swapfile.smc 2>/dev/null; then
+            echo "::warning::fallocate failed; trying dd fallback"
+            sudo dd if=/dev/zero of=/swapfile.smc bs=1M count=6144 status=none || {
+              echo "::warning::swap allocation failed; continuing without extra headroom"
+              exit 0
+            }
+          fi
+          sudo chmod 600 /swapfile.smc
+          sudo mkswap /swapfile.smc >/dev/null
+          sudo swapon /swapfile.smc
+          echo '----- memory after swap setup -----'
+          free -h || true
+
       - name: Reduce per-shard manifests into one canonical manifest
         env:
           EXPECTED: ${{ needs.plan.outputs.shard_count }}
@@ -389,12 +427,55 @@ jobs:
           # next to the merged manifest, so downstream consumers loading
           # via load_export_bundle(manifest_prefix='databento_volatility_production_')
           # resolve a complete bundle and not a single shard's date slice.
-          python scripts/databento_production_merge_shards.py \
+          #
+          # WF-026 (2026-05-24): wrap the merge in a heartbeat. When run
+          # 26336694008's reduce was killed mid-merge by a runner-shutdown
+          # signal there was a 42-second log gap between the last merged-
+          # frame line and the kill — pure black-box. The heartbeat
+          # background process prints RSS + system-memory every 15s into a
+          # sidecar log so the *next* OOM kill names the exact frame that
+          # tipped the runner over.
+          MERGE_LOG="artifacts/merged/_merge.log"
+          HEART_LOG="artifacts/merged/_heartbeat.log"
+          : >"${MERGE_LOG}"
+          : >"${HEART_LOG}"
+          python -u scripts/databento_production_merge_shards.py \
             "${ARGS[@]}" \
             --expected-shard-count "${EXPECTED}" \
             --allow-partial \
             --output artifacts/merged/databento_volatility_production_merged_manifest.json \
-            --payload-output-dir artifacts/merged/
+            --payload-output-dir artifacts/merged/ \
+            >"${MERGE_LOG}" 2>&1 &
+          MERGE_PID=$!
+          (
+            while kill -0 "${MERGE_PID}" 2>/dev/null; do
+              rss_kb=$(ps -o rss= -p "${MERGE_PID}" 2>/dev/null | tr -d ' ')
+              rss_kb=${rss_kb:-0}
+              mem_line=$(free -m 2>/dev/null | awk 'NR==2 {printf "used=%dMB free=%dMB total=%dMB", $3, $4, $2}')
+              swap_line=$(free -m 2>/dev/null | awk 'NR==3 {printf "swap_used=%dMB swap_total=%dMB", $3, $2}')
+              ts=$(date -u +%H:%M:%S)
+              last_log=$(tail -n 1 "${MERGE_LOG}" 2>/dev/null | sed 's/[[:cntrl:]]//g' | cut -c1-200)
+              echo "[heartbeat ${ts}] merge_rss_kb=${rss_kb} ${mem_line} ${swap_line} last=${last_log}" \
+                | tee -a "${HEART_LOG}"
+              sleep 15
+            done
+          ) &
+          HEART_PID=$!
+          set +e
+          wait "${MERGE_PID}"
+          MERGE_RC=$?
+          set -e
+          kill "${HEART_PID}" 2>/dev/null || true
+          wait "${HEART_PID}" 2>/dev/null || true
+          echo '----- merge log -----'
+          cat "${MERGE_LOG}" || true
+          echo '----- heartbeat tail (last 20) -----'
+          tail -n 20 "${HEART_LOG}" || true
+          echo '-----------------------------------'
+          if [ "${MERGE_RC}" -ne 0 ]; then
+            echo "::error::merge script exited with rc=${MERGE_RC}"
+            exit "${MERGE_RC}"
+          fi
           echo '----- merged manifest head -----'
           python - <<'PY'
           import json
@@ -441,6 +522,41 @@ jobs:
           echo "::notice::scheduled run: merged manifest is complete (partial_run=false)"
 
       # F-V8-D5 (2026-05-16): A9b.5 cutover compat-layer.
+      # WF-026 (2026-05-24): SPLIT OUT into the dedicated `publish-compat`
+      # job below. Keeping the compat upload in the same job as the
+      # heavy merge meant every runner-shutdown / OOM during the merge
+      # silently dropped the legacy `smc-databento-production-export-*`
+      # artifact downstream consumers glob on, even though `Upload merged
+      # manifest` (above, `if: always()`) could still rescue the canonical
+      # `a9b-2b-merged-manifest` artifact. The separate job re-downloads
+      # that artifact on a fresh runner and is independently retry-able
+      # via `gh run rerun --failed`.
+
+  publish-compat:
+    name: publish compat export bundle (legacy artifact name)
+    needs: [plan, reduce]
+    # Only republish when reduce completed end-to-end. A failed reduce
+    # means the canonical merged manifest is either missing or incomplete;
+    # consumers are better served by the existing "Producer artifact
+    # missing" annotation in `smc-measurement-benchmark-rolling.yml` than
+    # by a silently-degraded compat bundle. `needs.reduce.result` covers
+    # both `failure` and `cancelled` (runner-shutdown) — we explicitly
+    # require `success`, matching the previous in-job `if: success()` gate.
+    if: needs.reduce.result == 'success'
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Download merged manifest artifact
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: a9b-2b-merged-manifest
+          path: artifacts/merged/
+
       # Re-publishes the merged export bundle under the legacy artifact
       # name `smc-databento-production-export-<DATE>-<RUN_ID>` so that
       # existing downstream consumers (notably
@@ -461,11 +577,11 @@ jobs:
         # F-V8-cutover (2026-05-18): probe gate removed — this workflow is
         # now the canonical producer, so EVERY successful run must republish
         # under the legacy artifact name the consumer globs on. The earlier
-        # "Fail scheduled run on partial merged manifest" gate guarantees
-        # we never get here on a scheduled tick with partial_run=true, so
-        # the manual-dispatch lane is the only path where partial_run can
-        # still skip the compat upload.
-        if: success()
+        # "Fail scheduled run on partial merged manifest" gate in `reduce`
+        # guarantees we never get here on a scheduled tick with
+        # partial_run=true (reduce would have failed and this job would
+        # be skipped); the manual-dispatch lane is the only path where
+        # partial_run can still skip the compat upload.
         run: |
           set -euo pipefail
           COMPAT_DIR="artifacts/export-compat"
@@ -473,8 +589,8 @@ jobs:
 
           # Detect partial_run from the merged manifest; skip compat upload
           # when partial so legacy consumers don't see a silently-incomplete
-          # day. (Scheduled runs are already hard-failed above; this guard
-          # covers manual workflow_dispatch lanes only.)
+          # day. (Scheduled runs are already hard-failed in `reduce`; this
+          # guard covers manual workflow_dispatch lanes only.)
           MERGED_MANIFEST="artifacts/merged/databento_volatility_production_merged_manifest.json"
           if [ ! -f "${MERGED_MANIFEST}" ]; then
             echo "::warning::merged manifest not found at ${MERGED_MANIFEST}; skipping compat upload"
@@ -497,6 +613,10 @@ jobs:
           # sibling parquets the loader would prefer over the merged ones,
           # silently regressing the consumer to a single shard's coverage.
           cp -R artifacts/merged/. "${COMPAT_DIR}/"
+          # Drop the diagnostic sidecars produced by the reduce job's
+          # heartbeat (WF-026); they belong with `a9b-2b-merged-manifest`,
+          # not in the legacy compat bundle consumers glob on.
+          rm -f "${COMPAT_DIR}/_merge.log" "${COMPAT_DIR}/_heartbeat.log"
 
           # Hard-fail when no parquet payload made it into the compat dir.
           # The reducer's payload concat is best-effort per-frame and could
