@@ -179,6 +179,12 @@ def test_compat_publish_is_independent_job() -> None:
     assert "Download merged manifest artifact" in step_names
     assert "Stage compat export bundle (legacy artifact name)" in step_names
     assert "Upload compat export bundle (legacy artifact name)" in step_names
+    # The staging script calls `python` to parse the merged manifest's
+    # partial_run flag; ubuntu-latest only ships `python3` on PATH, so the
+    # pinned setup-python step must be present to expose `python`.
+    assert "Set up Python" in step_names, "publish-compat must run setup-python (uses `python` in stage script)"
+    setup_step = next(s for s in pc["steps"] if s.get("name") == "Set up Python")
+    assert setup_step.get("uses") == "./.github/actions/setup-python-pinned"
 
     # And the `reduce` job MUST no longer carry the compat upload step,
     # otherwise we'd double-publish (and double-fail on flake).
