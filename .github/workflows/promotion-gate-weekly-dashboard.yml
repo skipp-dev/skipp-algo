@@ -1,3 +1,4 @@
+# live-window: off-hours-only  # Sundays 06:00 UTC — outside trading window 13:30–20:00 UTC (F-V6-F2.1, 2026-05-25)
 # Weekly promotion-gate dashboard (PQ Re-Audit A8 / #2354)
 #
 # Runs every Sunday 06:00 UTC. Re-aggregates the last 12 ISO weeks of
