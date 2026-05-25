@@ -46,8 +46,10 @@ collide with the numeric ``rollback_history.json`` schema that
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
-import sys
+import os
+import tempfile
 from contextlib import suppress
 from datetime import datetime, timezone
 from pathlib import Path
@@ -73,8 +75,23 @@ def _append_journal(path: Path, entry: dict[str, Any]) -> None:
 
 
 def _reset_rollback_history(path: Path) -> None:
+    # Atomic write via tempfile + os.replace (matches
+    # scripts.f2_rotate_rollback_history). Path.write_text is banned in
+    # scripts/ by tests/test_no_direct_to_csv_in_production.py.
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("[]\n", encoding="utf-8")
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
+    try:
+        os.write(fd, b"[]\n")
+        os.fsync(fd)
+        os.close(fd)
+        fd = -1
+        os.replace(tmp, str(path))
+    except BaseException:
+        if fd >= 0:
+            os.close(fd)
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
 
 
 def flip_status(

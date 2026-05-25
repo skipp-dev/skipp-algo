@@ -114,16 +114,32 @@ jobs:
             echo "value=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Restore previous spec-status (flip detection cache)
+        # #45 follow-up: last_spec_status.txt is ephemeral per runner.
+        # Without restoring from a cross-run cache, PREVIOUS would
+        # always equal CURRENT on fresh runners and plumbing_only->live
+        # flips would never be detected. Using the unified cache action
+        # (restore on pre-step, save on post-step) so the next run sees
+        # whatever CURRENT we persist in the flip-detect step below.
+        id: restore-last-spec-status
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809
+        with:
+          path: artifacts/ci/f2/last_spec_status.txt
+          key: f2-last-spec-status-v1-${{ github.run_id }}
+          restore-keys: |
+            f2-last-spec-status-v1-
+
       - name: Detect spec-status flip and reset SPRT state (#45)
         # Issue #45: when the F2 contextual-promotion spec is edited
         # from status=plumbing_only to status=live, persisted SPRT
         # state from the plumbing-only corpus must be discarded before
         # the live gate runs. We persist the previous status in
-        # `artifacts/ci/f2/last_spec_status.txt`; on every run we
-        # compare current vs previous and call scripts/f2_flip_status.py
-        # to journal the transition and (on plumbing_only -> live)
-        # delete artifacts/ci/f2/sprt_state.json. Helper is fail-soft
-        # so missing files do not break the cron.
+        # `artifacts/ci/f2/last_spec_status.txt` (cross-run via the
+        # cache step above); on every run we compare current vs
+        # previous and call scripts/f2_flip_status.py to journal the
+        # transition and (on plumbing_only -> live) delete
+        # artifacts/ci/f2/sprt_state.json. Helper is fail-soft so
+        # missing files do not break the cron.
         run: |
           set +e
           mkdir -p artifacts/ci/f2
@@ -146,7 +162,18 @@ jobs:
             --state-file       artifacts/ci/f2/sprt_state.json \
             --journal          artifacts/ci/f2/status_flip_journal.jsonl \
             --rollback-history artifacts/ci/f2/rollback_history.json
-          printf '%s' "${CURRENT}" > "${LAST_FILE}"
+          FLIP_RC=$?
+          # Only persist CURRENT to the cache file when the helper
+          # succeeded; otherwise a transient helper error would mask the
+          # next real flip detection (PREVIOUS would advance to CURRENT
+          # despite no journal entry being written). On helper failure
+          # leave the prior value intact so the flip is re-detected on
+          # the next run.
+          if [ "${FLIP_RC}" -eq 0 ]; then
+            printf '%s' "${CURRENT}" > "${LAST_FILE}"
+          else
+            echo "::warning title=f2-flip-status::helper exited ${FLIP_RC}; preserving prior last_spec_status"
+          fi
 
       - name: Download F2 dual-arm artifact (from rolling-bench)
         # Plan §2.4 G3 — the rolling-bench workflow publishes
