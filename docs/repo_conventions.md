@@ -336,4 +336,69 @@ will catch any stray workflow reference left behind.
 ..\.venv\Scripts\python.exe -m pytest tests/test_workflow_issue_labels_exist.py -q
 ```
 
+## 7. Branch and commit naming
+
+No CI guard enforces these — they are review conventions. Following them
+keeps the funnel readable, the auto-merge labels predictable, and the
+release notes generator happy.
+
+### Branch names
+
+Format: `<kind>/<scope>-YYYY-MM-DD`
+
+`<kind>` is one of:
+
+| `<kind>` | Use for                                                    |
+| -------- | ---------------------------------------------------------- |
+| `feat`   | Net-new production behavior or new public surface          |
+| `fix`    | Bug fix in production code, schema, or workflow            |
+| `test`   | Test-only additions (property tests, regression coverage)  |
+| `docs`   | Documentation only (no code or workflow changes)           |
+| `chore`  | Dependency bumps, generated artifacts, formatter passes    |
+| `ci`     | Workflow-only edits with no behavior change                |
+| `auto`   | Bot-generated branches (e.g. `auto/<workflow>-<run-id>`)   |
+
+`<scope>` is a short kebab-case slug. When a branch closes a tracked
+issue, prefix the slug with `issue-<NN>-`:
+
+```
+feat/issue-2353-smc-strategy-snapshot-scaffolding-2026-05-25
+fix/issue-2269-windows-sqlite-filelock-2026-05-25
+test/timeframes-invariants-property-2026-05-25
+docs/repo-conventions-2026-05-25
+```
+
+The trailing `YYYY-MM-DD` is the branch's creation date in local time.
+It exists to make stale branches obvious at a glance in
+`git branch --sort=-committerdate` and to give two contributors working
+on the same issue collision-free names.
+
+### Commit messages
+
+Format: `<type>(<scope>): <subject>` (Conventional Commits).
+
+`<type>` mirrors the branch `<kind>` vocabulary plus `refactor`,
+`perf`, and `revert`. `<scope>` is optional but encouraged — usually
+the top-level package or subsystem (`ml`, `f2`, `pine`, `ci`,
+`databento`, `tests`, `docs`, `deps`). Issue references go inside the
+subject when the commit fully closes one, or in the body otherwise:
+
+```
+test(ml): property invariants for pure-numpy metrics helpers (#2383)
+feat(f2): SPRT state reset on plumbing_only->live spec flip (closes #45)
+fix(ci): split reduce/publish-compat + swap + heartbeat in producer (WF-026)
+chore(deps): bump qs from 6.14.2 to 6.15.2 in /smc_tv_bridge
+```
+
+Keep the subject under 72 characters and in the imperative mood
+("add", not "added"). Body lines wrap at 100. Squash-merge is the
+default merge mode, so the PR title doubles as the merge commit
+subject — keep it conformant too.
+
+### PR titles
+
+Use the same `<type>(<scope>): <subject>` format as commit messages.
+Auto-merge squashes the PR using the title, so a malformed title
+becomes a malformed `main` history entry.
+
 
