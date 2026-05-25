@@ -73,6 +73,7 @@ _ALLOWED_RAW_WRITE_FILES: dict[str, str] = {
     "scripts/run_smc_measurement_benchmark.py": "benchmark CSV (one-shot, not pipeline-consumed)",
     "scripts/plan_2_8_history_archive.py": "JSONL history append (mode='a', not pipeline-consumed)",
     "scripts/plan_2_8_status_ledger.py": "JSONL status ledger append (mode='a', not pipeline-consumed)",
+    "scripts/f2_flip_status.py": "JSONL flip-status journal append (mode='a', append-only audit ledger; issue #45)",
     "scripts/render_ci_gate_summary.py": "GitHub Actions $GITHUB_STEP_SUMMARY append (mode='a')",
     "scripts/resolve_workflow_runner.py": "GitHub Actions $GITHUB_OUTPUT append for runner-selection outputs (mode='a')",
     "scripts/restore_databento_export_bundle.py": "GitHub Actions $GITHUB_OUTPUT append in Databento artifact-restore helper (mode='a')",
