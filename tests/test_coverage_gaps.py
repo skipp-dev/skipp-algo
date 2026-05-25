@@ -1278,7 +1278,6 @@ class TestEffectiveTs(unittest.TestCase):
 class TestSingletonGetters(unittest.TestCase):
     """Tests for pipeline singleton getters (lines 44-78)."""
 
-    @unittest.skipIf(sys.platform == "win32", "Windows file-lock collision on shared SQLite path tracked in #2269")
     def test_get_store_creates_on_first_call(self) -> None:
         from newsstack_fmp import pipeline
         from newsstack_fmp.config import Config
@@ -1297,7 +1296,7 @@ class TestSingletonGetters(unittest.TestCase):
                     # Second call returns same instance
                     store2 = pipeline._get_store(cfg_mock)
                     self.assertIs(store, store2)
-                    store.close()
+                    store.close(force=True)  # force=True actually releases the on-disk handle (Windows file-lock fix, #2269)
         finally:
             pipeline._store = orig_store
 
