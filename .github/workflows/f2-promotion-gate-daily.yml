@@ -114,6 +114,40 @@ jobs:
             echo "value=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Detect spec-status flip and reset SPRT state (#45)
+        # Issue #45: when the F2 contextual-promotion spec is edited
+        # from status=plumbing_only to status=live, persisted SPRT
+        # state from the plumbing-only corpus must be discarded before
+        # the live gate runs. We persist the previous status in
+        # `artifacts/ci/f2/last_spec_status.txt`; on every run we
+        # compare current vs previous and call scripts/f2_flip_status.py
+        # to journal the transition and (on plumbing_only -> live)
+        # delete artifacts/ci/f2/sprt_state.json. Helper is fail-soft
+        # so missing files do not break the cron.
+        run: |
+          set +e
+          mkdir -p artifacts/ci/f2
+          SPEC=artifacts/experiments/f2_contextual_promotion.json
+          if [ ! -f "${SPEC}" ]; then
+            echo "::notice title=f2-flip-status::spec missing, skipping flip detection"
+            exit 0
+          fi
+          CURRENT=$(python -c "import json,sys; print((json.load(open('${SPEC}')) or {}).get('status','registered'))")
+          LAST_FILE=artifacts/ci/f2/last_spec_status.txt
+          if [ -f "${LAST_FILE}" ]; then
+            PREVIOUS=$(cat "${LAST_FILE}")
+          else
+            PREVIOUS="${CURRENT}"  # first run: treat as no-op
+          fi
+          echo "::notice title=f2-flip-status::previous=${PREVIOUS} current=${CURRENT}"
+          python scripts/f2_flip_status.py \
+            --from "${PREVIOUS}" \
+            --to   "${CURRENT}" \
+            --state-file       artifacts/ci/f2/sprt_state.json \
+            --journal          artifacts/ci/f2/status_flip_journal.jsonl \
+            --rollback-history artifacts/ci/f2/rollback_history.json
+          printf '%s' "${CURRENT}" > "${LAST_FILE}"
+
       - name: Download F2 dual-arm artifact (from rolling-bench)
         # Plan §2.4 G3 — the rolling-bench workflow publishes
         # `f2-dual-arm-<DATE>` containing the two artifact dirs the gate
