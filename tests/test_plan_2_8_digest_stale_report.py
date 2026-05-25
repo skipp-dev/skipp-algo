@@ -105,7 +105,9 @@ def test_markdown_none_placeholder(tmp_path: Path) -> None:
 
 
 def test_cli_fail_on_stale(tmp_path: Path) -> None:
-    _touch(tmp_path / "a.md", 20)
+    # CLI uses real datetime.now(); anchor mtime to real now so the
+    # 20-day age classification is independent of wall-clock drift.
+    _touch(tmp_path / "a.md", 20, now=dt.datetime.now(tz=dt.UTC))
     rc = sr.main([
         "--artifact-dir", str(tmp_path),
         "--warn-days", "7",
@@ -116,7 +118,7 @@ def test_cli_fail_on_stale(tmp_path: Path) -> None:
 
 
 def test_cli_json(tmp_path: Path) -> None:
-    _touch(tmp_path / "a.md", 1)
+    _touch(tmp_path / "a.md", 1, now=dt.datetime.now(tz=dt.UTC))
     out = tmp_path / "o.json"
     rc = sr.main([
         "--artifact-dir", str(tmp_path),
