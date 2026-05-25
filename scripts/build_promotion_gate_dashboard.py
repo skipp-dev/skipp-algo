@@ -278,6 +278,7 @@ def build(
         datetime.combine(reference, datetime.min.time(), tzinfo=timezone.utc)
     )
     json_path = output_dir / f"promotion_gate_dashboard_{reference_week}.json"
+    # ATOMIC-WRITE-EXEMPT: weekly CI artifact, single producer per run, no concurrent writers; consumed only by the upload-artifact step downstream.
     json_path.write_text(
         json.dumps(payload, indent=2, sort_keys=False) + "\n", encoding="utf-8"
     )
