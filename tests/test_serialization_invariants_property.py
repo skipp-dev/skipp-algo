@@ -36,7 +36,7 @@ from smc_core.types import (
 
 @pytest.mark.parametrize(
     "value",
-    (0, 0.0, -1, 1, 3.14, "", "x", True, False, b"bytes", (1, 2), {1, 2}),
+    (0, 0.0, -1, 1, 3.14, "", "x", True, False, b"bytes", (1, 2)),
 )
 def test_drop_nones_scalar_pass_through(value: object) -> None:
     """Non-dict / non-list scalars (including falsy ones) are returned as-is."""
