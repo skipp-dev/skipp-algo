@@ -188,7 +188,8 @@ def test_build_report_no_strict_mode_keeps_legacy_compat(tmp_path: Path) -> None
 # ---------------------------------------------------------------------------
 
 
-def test_cli_writes_report_and_returns_zero_when_promoted(tmp_path: Path) -> None:
+def test_cli_writes_report_and_returns_zero_when_promoted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
     bundle_path = tmp_path / "bundle.json"
     output_path = tmp_path / "report.json"
     bundle_path.write_text(json.dumps([_full_snapshot_dict("BOS")]), encoding="utf-8")
@@ -211,7 +212,8 @@ def test_cli_defaults_output_to_contract_path(tmp_path: Path, monkeypatch: pytes
     assert output_path.exists()
 
 
-def test_cli_returns_two_when_any_family_blocked(tmp_path: Path) -> None:
+def test_cli_returns_two_when_any_family_blocked(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
     bundle_path = tmp_path / "bundle.json"
     output_path = tmp_path / "report.json"
     bundle_path.write_text(json.dumps([{"family": "BOS", "brier": 0.18}]), encoding="utf-8")
@@ -231,7 +233,8 @@ def test_cli_returns_one_on_missing_input(tmp_path: Path) -> None:
     assert rc == 1
 
 
-def test_cli_no_strict_flag_promotes_legacy_snapshot(tmp_path: Path) -> None:
+def test_cli_no_strict_flag_promotes_legacy_snapshot(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
     bundle_path = tmp_path / "bundle.json"
     output_path = tmp_path / "report.json"
     bundle_path.write_text(

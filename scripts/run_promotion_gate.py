@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -151,14 +152,15 @@ def _archive_stamp(generated_at: str) -> str:
 
 
 def _archive_report(
-    report: dict[str, Any], archive_dir: Path | None
+    report: dict[str, Any], archive_dir: str | os.PathLike[str] | None
 ) -> Path | None:
     """Write a timestamped copy of *report* to *archive_dir*, if configured."""
-    if archive_dir is None or str(archive_dir) == "":
+    if archive_dir is None or str(archive_dir).strip() == "":
         return None
-    archive_dir.mkdir(parents=True, exist_ok=True)
+    target_dir = Path(archive_dir)
+    target_dir.mkdir(parents=True, exist_ok=True)
     stamp = _archive_stamp(str(report["generated_at"]))
-    archive_path = archive_dir / f"promotion_decisions_{stamp}.json"
+    archive_path = target_dir / f"promotion_decisions_{stamp}.json"
     atomic_write_json(report, archive_path, indent=2, sort_keys=False)
     return archive_path
 
@@ -189,8 +191,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--archive-dir",
-        type=Path,
-        default=DEFAULT_PROMOTION_DECISIONS_ARCHIVE_DIR,
+        type=str,
+        default=str(DEFAULT_PROMOTION_DECISIONS_ARCHIVE_DIR),
         help=(
             "Directory the timestamped report copy is written into for the "
             "weekly dashboard (#2354). Pass '' to disable."
