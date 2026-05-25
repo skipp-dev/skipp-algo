@@ -123,6 +123,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.apply:
         cols = ["bar_index", *SIGNAL_STRING_COLS, *SIGNAL_FLOAT_COLS]
+        # ATOMIC-WRITE-EXEMPT: one-shot dev CLI (--apply regen of golden fixture); operator-supervised, no concurrent writers, not pipeline-consumed.
         actual[cols].to_csv(expected_path, index=False)
         print(f"wrote {expected_path} ({len(actual)} rows) — cross-validate vs Pine before committing.")
         return EXIT_OK
