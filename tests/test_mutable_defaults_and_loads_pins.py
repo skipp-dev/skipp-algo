@@ -163,10 +163,10 @@ _FROZEN_ENV_SUBSCRIPT_SITES: frozenset[tuple[str, int]] = frozenset(
         ("databento_client.py", 60),
         # 2026-05-23 PR #2338: shifted +35 (934→969) by partial-cache
         # marker / coverage-validation block in _load_daily_bars.
-        # 2026-05-25 PR #2339: shifted +103 (969→1072) by the
+        # 2026-05-25 PR #2339: shifted +125 (969→1094) by the
         # _build_universe_metadata helper + 10 write-site kwarg wirings
         # for the universe-version drift detector.
-        ("databento_volatility_screener.py", 1084),
+        ("databento_volatility_screener.py", 1094),
         ("open_prep/macro.py", 148),
         # R6 (2026-05-12): the FinnhubClient adapter shim used to save-set-restore
         # ``FINNHUB_API_KEY`` around each ``terminal_finnhub._get`` call. That

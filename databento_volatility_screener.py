@@ -555,7 +555,17 @@ def _cached_frame_coverage(
     if current_universe_symbols is not None and cache_path.exists():
         meta = _read_universe_metadata(cache_path)
         if meta is not None:
-            captured_payload = meta.get(f"{_UNIVERSE_META_PREFIX}captured_universe_symbols", "")
+            symbols_key = f"{_UNIVERSE_META_PREFIX}captured_universe_symbols"
+            if symbols_key not in meta:
+                logger.warning(
+                    "cache file has skipp.* metadata but no %s key; forcing refetch: %s",
+                    symbols_key,
+                    cache_path.name,
+                )
+                with contextlib.suppress(OSError):
+                    cache_path.unlink()
+                return None, requested_set
+            captured_payload = meta.get(symbols_key, "")
             captured_set = {s for s in captured_payload.split(",") if s}
             current_set = {str(s) for s in current_universe_symbols if str(s)}
             missing_in_captured = current_set - captured_set

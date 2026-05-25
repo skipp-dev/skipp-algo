@@ -98,14 +98,14 @@ WARNINGS_SIMPLEFILTER_LEDGER: set[tuple[str, int, str]] = {
     # 2026-05-23 PR #2338 follow-up: partial-cache block landed in three
     # post-742 collectors, shifting 2452->2463 (+11), 2931->2953 (+22) and
     # 3075->3108 (+33); 742 and 1832 are above the inserts and unchanged.
-    # 2026-05-25 PR #2355 (drift-detector / universe-version-metadata branch):
+    # 2026-05-25 PR #2339 (drift-detector / universe-version-metadata branch):
     # additional helpers landed across the screener, shifting all five sites
     # downward by +115/+124/+134/+143/+152 — action remains ``"always"``.
-    ("databento_volatility_screener.py", 857, "always"),
-    ("databento_volatility_screener.py", 1956, "always"),
-    ("databento_volatility_screener.py", 2597, "always"),
-    ("databento_volatility_screener.py", 3096, "always"),
-    ("databento_volatility_screener.py", 3260, "always"),
+    ("databento_volatility_screener.py", 867, "always"),
+    ("databento_volatility_screener.py", 1966, "always"),
+    ("databento_volatility_screener.py", 2607, "always"),
+    ("databento_volatility_screener.py", 3106, "always"),
+    ("databento_volatility_screener.py", 3270, "always"),
     ("databento_universe.py", 162, "always"),
 }
 

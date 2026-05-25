@@ -90,16 +90,16 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # a 3-line comment in load_daily_bars -> 5165-5168.
         # 2026-05-23 PR #2338 follow-up: partial-cache block shifted these
         # four nonlocal sites by another +33 (5165-5168 -> 5198-5201).
-        # PR #2339: +148 (5198→5346) by universe-version metadata helpers,
+        # PR #2339: +170 (5198→5368) by universe-version metadata helpers,
         # drift detector, and per-collector captured/current symbol wiring
-        # in the cache-coverage funnels above the fast-progress callback.
-        # PR #2355: +12 (5346→5358) — drift-detector helpers + urlopen-ledger
-        # alignment shifted the four ``_fast_progress_*`` sites further down
-        # the file. No semantic change to the progress closure itself.
-        ("databento_volatility_screener.py", 5358, ("_fast_progress_pct",)),
-        ("databento_volatility_screener.py", 5359, ("_fast_progress_step",)),
-        ("databento_volatility_screener.py", 5360, ("_fast_progress_total",)),
-        ("databento_volatility_screener.py", 5361, ("_fast_eta_smooth_seconds",)),
+        # in the cache-coverage funnels above the fast-progress callback,
+        # plus drift-detector helpers + urlopen-ledger alignment shifting
+        # the four ``_fast_progress_*`` sites further down the file. No
+        # semantic change to the progress closure itself.
+        ("databento_volatility_screener.py", 5368, ("_fast_progress_pct",)),
+        ("databento_volatility_screener.py", 5369, ("_fast_progress_step",)),
+        ("databento_volatility_screener.py", 5370, ("_fast_progress_total",)),
+        ("databento_volatility_screener.py", 5371, ("_fast_eta_smooth_seconds",)),
         ("smc_core/ensemble_quality.py", 171, ("active_weight", "weighted_total")),
     }
 )

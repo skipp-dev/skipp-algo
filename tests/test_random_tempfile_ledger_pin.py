@@ -53,10 +53,10 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # ``databento_volatility_screener.py`` shifted the only ``mkstemp`` site
     # (``_make_atomic_temp_path``). F-V8-perf-3.5 PR-A re-routed
     # ``dump_cache_probe_log`` via ``_write_text_atomic`` and dropped its
-    # redundant ``mkdir``/``open`` body; PR #2355 (universe-version
+    # redundant ``mkdir``/``open`` body; PR #2339 (universe-version
     # metadata) added the drift detector / version-bump persistence
-    # block above the helper which shifted the site further: 489 → 575.
-    ("databento_volatility_screener.py", 587, "mkstemp"),
+    # block above the helper which shifted the site further: 489 → 597.
+    ("databento_volatility_screener.py", 597, "mkstemp"),
     ("governance/alpha_ledger.py", 70, "mkstemp"),
     ("newsstack_fmp/open_prep_export.py", 25, "mkstemp"),
     ("open_prep/alerts.py", 68, "mkstemp"),
