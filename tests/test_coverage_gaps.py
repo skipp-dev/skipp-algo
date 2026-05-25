@@ -102,8 +102,10 @@ class TestPollAndClassifyMulti(unittest.TestCase):
         self.db = SqliteStore(os.path.join(self._tmpdir.name, "test.db"))
 
     def tearDown(self) -> None:
-        self.db.close(force=True)  # force=True actually closes on-disk connections (Windows file-lock fix)
-        self._tmpdir.cleanup()
+        try:
+            self.db.close(force=True)  # force=True actually closes on-disk connections (Windows file-lock fix)
+        finally:
+            self._tmpdir.cleanup()
 
     def test_benzinga_only_returns_classified(self) -> None:
         """With only benzinga adapter, items are classified."""
@@ -965,8 +967,10 @@ class TestSqliteStorePrune(unittest.TestCase):
         self.store = SqliteStore(os.path.join(self._tmpdir.name, "prune.db"))
 
     def tearDown(self) -> None:
-        self.store.close(force=True)  # force=True actually closes on-disk connections (Windows file-lock fix)
-        self._tmpdir.cleanup()
+        try:
+            self.store.close(force=True)  # force=True actually closes on-disk connections (Windows file-lock fix)
+        finally:
+            self._tmpdir.cleanup()
 
     def test_prune_seen_removes_old_entries(self) -> None:
         now = time.time()
@@ -1059,8 +1063,10 @@ class TestSqliteStoreClusterTouch(unittest.TestCase):
         self.store = SqliteStore(os.path.join(self._tmpdir.name, "cluster.db"))
 
     def tearDown(self) -> None:
-        self.store.close(force=True)  # force=True actually closes on-disk connections (Windows file-lock fix)
-        self._tmpdir.cleanup()
+        try:
+            self.store.close(force=True)  # force=True actually closes on-disk connections (Windows file-lock fix)
+        finally:
+            self._tmpdir.cleanup()
 
     def test_first_touch_returns_count_one(self) -> None:
         count, first_ts = self.store.cluster_touch("new_hash", 1000.0)

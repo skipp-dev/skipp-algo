@@ -9,7 +9,7 @@ service orchestration:
   * :func:`smc_core.bias_merge.merge_bias`
 
 Continues the PQ Re-Audit Tier-1 spillover series
-(PR #2350, #2363, #2366, #2370, #2371). Pure stdlib; ≤ 1s runtime.
+(PR #2350, #2363, #2366, #2370, #2371). Stdlib + pytest + ``smc_core.bias_merge``; ≤ 1s runtime.
 """
 
 from __future__ import annotations
