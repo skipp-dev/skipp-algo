@@ -343,13 +343,14 @@ def test_score_fvg_tier_ladder_lenient(
     ),
 )
 def test_tier_ladder_thresholds_via_synthetic_score(
-    score: float, expected_tier: str, monkeypatch
+    score: float, expected_tier: str
 ) -> None:
     """Tier ladder cutoffs HIGH ≥ 0.70, MEDIUM ≥ 0.50, else LOW.
 
-    Routed through ``score_fvg`` by patching the lenient component
-    weights to produce a deterministic interior score; this avoids
-    coupling the test to the inverted strict semantics.
+    Routed through ``score_fvg`` by passing a custom lenient weights
+    dict (htf_aligned carries the full score) to produce a deterministic
+    interior score; this avoids coupling the test to the inverted strict
+    semantics.
     """
     # Drive the score directly via htf_aligned (binary 0/1) and tweak
     # the lenient weights so htf carries the full score.
