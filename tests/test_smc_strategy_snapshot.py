@@ -1,9 +1,10 @@
 """Snapshot tests for the SMC strategy Python mirror (#2353).
 
 The mirror under ``python/strategies/smc_mirror/`` does not exist yet
-(2026-05-25). These tests are skipped at collection time until the
-mirror is published; once it is, the skip guard at the top of the
-module is removed and the rest of the file is exercised verbatim.
+(2026-05-25). Tests in this module are gated by a runtime
+``pytest.mark.skipif`` (``pytestmark`` below) that auto-clears once
+``python.strategies.smc_mirror`` becomes importable — no source edit
+required when the mirror lands.
 
 The contract pinned here is documented in
 `tests/fixtures/smc_strategy/README.md`:
@@ -81,7 +82,8 @@ def test_smc_strategy_snapshot_matches_fixture(strategy: str) -> None:
     actual = _run_mirror(strategy, input_frame)
 
     required_cols = {*SIGNAL_STRING_COLS, *SIGNAL_FLOAT_COLS, "bar_index"}
-    missing_cols = required_cols - set(actual.columns)
+    actual_cols = set(actual.columns)
+    missing_cols = required_cols - actual_cols
     assert not missing_cols, (
         f"mirror output missing columns {sorted(missing_cols)}; got {list(actual.columns)}"
     )
@@ -106,6 +108,8 @@ def test_smc_strategy_snapshot_matches_fixture(strategy: str) -> None:
             a = actual[col].to_numpy(dtype=float)
             e = expected[col].to_numpy(dtype=float)
             mismatch_mask = ~np.isclose(a, e, rtol=1e-9, atol=1e-9, equal_nan=True)
+            if not mismatch_mask.any():  # safety: e.g. all-NaN both sides
+                continue
             worst = int(np.argmax(mismatch_mask))
             pytest.fail(
                 f"{col} diverged beyond rtol=atol=1e-9; "

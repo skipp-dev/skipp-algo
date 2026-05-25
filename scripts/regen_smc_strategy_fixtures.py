@@ -26,6 +26,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from scripts.smc_atomic_write import atomic_write_csv
+
 FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "smc_strategy"
 SIGNAL_STRING_COLS = ("signal_type",)
 SIGNAL_FLOAT_COLS = ("sl", "tp", "confidence")
@@ -61,6 +63,14 @@ def _compare(actual: pd.DataFrame, expected: pd.DataFrame) -> list[str]:
     if len(actual) != len(expected):
         diffs.append(f"row count mismatch: actual={len(actual)} expected={len(expected)}")
         return diffs
+    required = ("bar_index", *SIGNAL_STRING_COLS, *SIGNAL_FLOAT_COLS)
+    missing_actual = [c for c in required if c not in actual.columns]
+    missing_expected = [c for c in required if c not in expected.columns]
+    if missing_actual or missing_expected:
+        diffs.append(
+            f"schema mismatch: missing_actual={missing_actual} missing_expected={missing_expected}"
+        )
+        return diffs
     if list(actual["bar_index"]) != list(expected["bar_index"]):
         diffs.append("bar_index drift")
         return diffs
@@ -76,6 +86,8 @@ def _compare(actual: pd.DataFrame, expected: pd.DataFrame) -> list[str]:
         e = expected[col].to_numpy(dtype=float)
         if not np.allclose(a, e, rtol=1e-9, atol=1e-9, equal_nan=True):
             mismatch_mask = ~np.isclose(a, e, rtol=1e-9, atol=1e-9, equal_nan=True)
+            if not mismatch_mask.any():  # safety: all-NaN both sides
+                continue
             worst = int(np.argmax(mismatch_mask))
             diffs.append(
                 f"{col} diverged beyond rtol=atol=1e-9; "
@@ -123,8 +135,14 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.apply:
         cols = ["bar_index", *SIGNAL_STRING_COLS, *SIGNAL_FLOAT_COLS]
-        # ATOMIC-WRITE-EXEMPT: one-shot dev CLI (--apply regen of golden fixture); operator-supervised, no concurrent writers, not pipeline-consumed.
-        actual[cols].to_csv(expected_path, index=False)
+        missing = [c for c in cols if c not in actual.columns]
+        if missing:
+            print(
+                f"ERROR: mirror output missing required columns: {missing}",
+                file=sys.stderr,
+            )
+            return EXIT_MISMATCH
+        atomic_write_csv(actual[cols], expected_path, index=False)
         print(f"wrote {expected_path} ({len(actual)} rows) — cross-validate vs Pine before committing.")
         return EXIT_OK
 
