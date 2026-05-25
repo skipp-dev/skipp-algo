@@ -9,7 +9,9 @@ snapshot pipeline:
         — relative-volume → volume-regime label + thin-fraction
 
 Continues the PQ Re-Audit Tier-1 spillover series (PR #2350, #2363,
-#2366, #2370). Pure stdlib (``math`` + ``random``); ≤ 1s runtime.
+#2366, #2370). No hypothesis dependency (uses ``math`` + ``random`` for
+the in-test sample generation); imports pytest plus ``smc_core.vol_regime``
+(which in turn pulls pandas at import time). ≤ 1s runtime.
 """
 
 from __future__ import annotations
