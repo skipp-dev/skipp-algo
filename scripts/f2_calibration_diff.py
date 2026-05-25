@@ -189,7 +189,7 @@ def main(argv: list[str] | None = None) -> int:
         new_manifest=_load_json(args.new_manifest),
     )
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(md, encoding="utf-8")
+    args.out.write_text(md, encoding="utf-8")  # ATOMIC-WRITE-EXEMPT: CI-only PR-body scratch file under /tmp; no production artifact
     return 0
 
 
