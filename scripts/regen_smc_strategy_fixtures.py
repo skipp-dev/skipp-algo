@@ -75,8 +75,8 @@ def _compare(actual: pd.DataFrame, expected: pd.DataFrame) -> list[str]:
         a = actual[col].to_numpy(dtype=float)
         e = expected[col].to_numpy(dtype=float)
         if not np.allclose(a, e, rtol=1e-9, atol=1e-9, equal_nan=True):
-            d = np.abs(a - e)
-            worst = int(np.nanargmax(d))
+            mismatch_mask = ~np.isclose(a, e, rtol=1e-9, atol=1e-9, equal_nan=True)
+            worst = int(np.argmax(mismatch_mask))
             diffs.append(
                 f"{col} diverged beyond rtol=atol=1e-9; "
                 f"worst bar_index={int(actual.loc[worst, 'bar_index'])}, "
