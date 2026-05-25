@@ -49,7 +49,7 @@ def test_drop_nones_top_level_none_is_returned_unchanged() -> None:
 
 
 def test_drop_nones_nan_pass_through() -> None:
-    """NaN is a finite Python float and must pass through (not be confused with None)."""
+    """NaN is a Python float (non-finite) and must pass through unchanged (not be confused with None)."""
     out = _drop_nones(float("nan"))
     assert isinstance(out, float)
     assert math.isnan(out)
