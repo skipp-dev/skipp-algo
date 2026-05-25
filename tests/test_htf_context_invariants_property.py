@@ -283,8 +283,10 @@ def test_compute_calendar_boundaries_iso_week_vs_calendar_month_diverge() -> Non
 
 
 def test_compute_calendar_boundaries_subset_relationships() -> None:
-    """Month boundaries ⊆ week boundaries ⊆ day boundaries
-    (any new month implies new day; any new week implies new day)."""
+    """Month boundaries ⊆ day boundaries AND week boundaries ⊆ day boundaries
+    (a new month or new ISO week always implies a new day; month and week
+    are independent — a new month does not imply a new ISO week and vice
+    versa)."""
     # 5 bars across a month + week + day transition.
     ts = [
         int(pd.Timestamp("2025-03-30", tz="UTC").timestamp()),  # Sun, ISO week 13, month 03
