@@ -117,3 +117,114 @@ Before opening a PR that touches workflows, scripts, or tests:
 
 All three are pure-stdlib / fast (~5 s combined) and run on every CI
 job — failing any of them blocks merge.
+
+## 4. Source-pin ledgers (frozen call-site inventories)
+
+**Guards:** every `tests/test_*_ledger.py` / `tests/test_*_ledger_pin.py`
+file (~18 ledgers as of 2026-05-25), plus
+[tests/test_pytest_skip_budget.py](../tests/test_pytest_skip_budget.py).
+
+Repo policy freezes the **inventory of certain risky or audit-relevant
+call sites** so any new use is a forced, reviewed decision. Examples
+currently pinned:
+
+| Ledger                                          | What it freezes                                                                |
+| ----------------------------------------------- | ------------------------------------------------------------------------------ |
+| `test_hashlib_weak_hash_ledger.py`              | `hashlib.md5/sha1` direct calls (non-security fingerprints only).              |
+| `test_random_tempfile_ledger_pin.py`            | `tempfile.mkstemp` / random-temp call sites.                                   |
+| `test_urllib_urlopen_ledger.py`                 | `urllib.request.urlopen` call sites (HTTP egress audit).                       |
+| `test_http_post_egress_ledger.py`               | HTTP POST sites that leave the repo boundary.                                  |
+| `test_os_environ_mutation_ledger.py`            | `os.environ[...] = ...` subscript writes (process-global side effects).        |
+| `test_os_unlink_remove_ledger.py`               | `os.unlink` / `os.remove` (destructive filesystem ops).                        |
+| `test_subprocess_spawn_sites_ledger.py`         | `subprocess.run/Popen` spawn sites.                                            |
+| `test_sys_exit_ledger_pin.py`                   | `sys.exit` call sites (CLI exit-code contracts).                               |
+| `test_sys_path_mutation_ledger.py`              | `sys.path` mutations (import-graph rewrites).                                  |
+| `test_warnings_simplefilter_ledger.py`          | `warnings.simplefilter/filterwarnings` overrides.                              |
+| `test_builtin_open_encoding_ledger.py`          | `open(...)` without explicit `encoding=`.                                      |
+| `test_path_text_io_encoding_ledger.py`          | `Path.read_text/write_text` without explicit `encoding=`.                      |
+| `test_dynamic_getattr_ledger.py`                | `getattr(obj, dynamic_str, ...)` (audit dynamic dispatch).                     |
+| `test_bare_type_ignore_ledger.py`               | `# type: ignore` without an error-code suffix.                                 |
+| `test_noqa_suppression_ledger.py`               | `# noqa` without an error-code suffix.                                         |
+| `test_while_true_termination_ledger.py`         | `while True:` loop sites (must declare a termination path).                    |
+| `test_prod_print_ledger.py`                     | Production `print(...)` (vs structured logging).                               |
+| `test_nonlocal_budget.py`                       | `nonlocal` closure-state mutations.                                            |
+| `test_mutable_defaults_and_loads_pins.py`       | Mutable default arguments + `json.loads` audit sites.                          |
+| `test_http_client_discipline.py`                | HTTP-client `timeout=` / `headers=` pinning.                                   |
+| `test_pytest_skip_budget.py`                    | Per-file `pytest.skip` / `@pytest.mark.skip` counts.                           |
+
+### How a ledger fails
+
+Each ledger declares a frozen inventory, typically `_FROZEN_SITES` or
+`_FROZEN_FILE_COUNTS`, and runs three families of assertions:
+
+1. **`test_no_new_*_files`** — a new file appears in the live inventory
+   that the ledger doesn't know about. Forces the contributor to either
+   refactor away the new use OR add it to the ledger with a justifying
+   comment.
+2. **`test_no_removed_*_files`** — a file in the ledger no longer
+   contains any pinned site (good — migrated away — but the entry must
+   shrink to keep the ledger truthful).
+3. **`test_frozen_*_linenos_still_match`** — line-number drift in an
+   existing file (someone inserted/removed code above a pinned call).
+   The call itself is unchanged, but the cached line number is stale.
+4. Often a fourth **`test_total_count_pinned`** — sum-of-counts didn't
+   match `_FROZEN_TOTAL`; catches additions/removals that happen to
+   leave individual file counts unchanged.
+
+### How to update a ledger correctly
+
+When a ledger test fails, decide which case applies:
+
+**Case A — pure line drift (no new/removed call site).**
+You moved code above a pinned line. The call's *semantics* are unchanged.
+Fix: open the ledger file, update the frozen `lineno` set / file count
+to the new live value, add a one-line comment explaining the shift, e.g.
+
+```python
+# #2334: cache-version comment block above CACHE_VERSION_BY_CATEGORY
+# shifted sha1 call by 3 lines (85 -> 88); semantics unchanged.
+"databento_utils.py": {"sha1": frozenset({88})},
+```
+
+The comment must reference the PR / issue causing the shift so future
+auditors can reconstruct the drift history.
+
+**Case B — new call site you intentionally added.**
+The pinned category is opt-in for new uses. First decide whether the
+new use is justified (the ledger docstring lists the criteria — e.g.
+weak-hash ledger explicitly allows non-security fingerprints). If yes,
+add the file + line(s) to the frozen inventory with a justifying
+comment. If no, refactor (e.g. switch `sha1` → `sha256`).
+
+**Case C — call site you removed (migration).**
+Either delete the entry entirely (file no longer has any pinned call)
+or shrink it (some lines removed, others remain). Update the comment.
+
+### Skip-budget ledger specifics
+
+`test_pytest_skip_budget.py` pins per-file counts of `pytest.skip(...)`
+and `@pytest.mark.skip`. **Reductions are encouraged** — when a skip
+goes away, drop or decrement the entry. **Increases require justification
+in the PR description** (typically: optional dependency missing on a
+runner, sparse-checkout artifact gap).
+
+### Drift-comment hygiene
+
+When you update a ledger, the explanatory comment is the audit trail.
+Two recurring failure modes seen in review:
+
+- **Wrong PR number** — copy-pasting an old comment block referencing
+  a closed PR. Always update to the current PR number before pushing.
+- **Stale line-shift math** — comment says `489 → 575` but the new
+  pinned line is actually `587`. Recompute the actual delta from the
+  diff before committing.
+
+### Verifying a ledger update locally
+
+```powershell
+..\.venv\Scripts\python.exe -m pytest tests/test_<ledger_name>.py -q
+```
+
+Each ledger test is pure-AST / pure-regex and runs in well under 1 s,
+so iterate freely until green.
+
