@@ -4,7 +4,8 @@
 agree on the terminal log-likelihood-ratio for any Bernoulli sequence:
 
 * Streaming: :func:`evaluate` / :func:`update` (per-observation increment).
-* Closed-form: :func:`terminal_decision` (``k·ln(p1/p0) + (n−k)·ln((1−p1)/(1−p0))``).
+* Closed-form: :func:`terminal_decision` (``k·ln(p1/p0) + (n−k)·ln((1−p1)/(1−p0))``)
+  — returns a ``(SPRTState, Decision)`` tuple; the LLR is ``state.llr``.
 
 A stealth refactor that swaps the streaming increment sign, reorders
 ``p1``/``p0`` in the log, or drops the ``1−p`` complement would silently
@@ -21,10 +22,10 @@ Properties pinned here
 1. **Order independence**: streaming LLR is invariant under any permutation
    of the outcome sequence (Bernoulli LLR is a sum of i.i.d. increments).
 2. **Streaming ≡ closed-form**: streaming terminal LLR equals
-   ``terminal_decision(n, k).llr`` bit-close for every ``(n, k)`` with
+   ``terminal_decision(n, k)[0].llr`` bit-close for every ``(n, k)`` with
    ``0 ≤ k ≤ n``.
 3. **Monotone in k**: for fixed ``n > 0`` and fixed config with ``p1 > p0``,
-   ``terminal_decision(n, k+1).llr > terminal_decision(n, k).llr`` (every
+   ``terminal_decision(n, k+1)[0].llr > terminal_decision(n, k)[0].llr`` (every
    additional hit raises evidence for H1; a sign error in either log term
    breaks this).
 4. **Paired evaluator ignores concordant pairs**: appending any number of
@@ -38,7 +39,6 @@ from __future__ import annotations
 
 import math
 import random
-from itertools import product
 
 import pytest
 
@@ -62,8 +62,17 @@ _CONFIGS: tuple[SPRTConfig, ...] = (
 )
 
 # (n, k) grid covering edge counts (0 hits, all hits) plus interior values.
+# Deduplicated so small-n rows don't re-run the same (n, k) parametrization
+# (e.g. n=1 with k tuple (0, 1, 0, 0, 1) collapses to two cases).
 _NK_CASES: tuple[tuple[int, int], ...] = tuple(
-    (n, k) for n in (1, 2, 5, 17, 100) for k in (0, 1, n // 2, n - 1, n) if 0 <= k <= n
+    sorted(
+        {
+            (n, k)
+            for n in (1, 2, 5, 17, 100)
+            for k in (0, 1, n // 2, n - 1, n)
+            if 0 <= k <= n
+        }
+    )
 )
 
 
@@ -216,8 +225,9 @@ def test_evaluate_paired_ignores_concordant_pairs(
         f"concordant pairs inflated discordant count: "
         f"baseline n={baseline_state.n}, augmented n={aug_state.n}"
     )
-    # Decision can only differ if early-stop fired mid-stream on the
-    # augmented order; with the same final state the decision must match.
+    # ``evaluate_paired`` filters concordant pairs out before streaming
+    # evaluation, so the effective outcome stream/order is identical to
+    # baseline; decision must therefore match exactly.
     assert aug_decision == baseline_decision
 
 
