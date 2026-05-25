@@ -9,8 +9,10 @@ tests must follow them or CI will block.
 **Guard:** [tests/test_workflow_live_window_posture.py](../tests/test_workflow_live_window_posture.py)
 
 Every file in `.github/workflows/*.yml` / `*.yaml` MUST declare its
-operational posture as the first comment line, within the first 10 lines,
-matching the regex `^# live-window: (\S+)`.
+operational posture as a comment line within the first 10 lines,
+matching the regex `^# live-window: (\S+)`. Convention is to put it at
+the very top (line 1 or 2), but the guard only checks the first 10
+lines, not a specific position.
 
 Accepted vocabulary (7 values):
 
@@ -43,21 +45,28 @@ called out in the PR.
 **Guard:** [tests/test_no_direct_to_csv_in_production.py](../tests/test_no_direct_to_csv_in_production.py)
 
 Production-flavoured code in `scripts/` MUST NOT call non-atomic writers
-directly. Forbidden patterns include:
+directly. The guard rejects exactly these AST patterns:
 
-- `DataFrame.to_csv(...)` / `DataFrame.to_parquet(...)` / `DataFrame.to_json(...)`
-- `Path.write_text(...)` / `Path.write_bytes(...)`
-- `json.dump(...)` to a final destination path
+- `<anything>.to_csv(...)` — pandas `DataFrame.to_csv`
+- `<anything>.to_parquet(...)` — pandas `DataFrame.to_parquet`
+- `<anything>.write_text(...)` — `pathlib.Path.write_text`
+- `json.dump(...)` — bare `json.dump` call (the `open(..., "w")` companion)
 
 Use the helpers in [`scripts/smc_atomic_write.py`](../scripts/smc_atomic_write.py)
-instead: `atomic_write_csv`, `atomic_write_json`, `atomic_write_text`,
-`atomic_write_bytes`. They write to a unique temp file and `os.replace`
+instead: `atomic_write_csv`, `atomic_write_parquet`, `atomic_write_text`,
+`atomic_write_json`. They write to a unique temp file and `os.replace`
 to the final path so a torn write can never produce a half-written
 artifact consumed by CI / tests.
 
+Not covered by the guard (use atomic helpers anyway when persisting
+shared artifacts): `DataFrame.to_json`, `Path.write_bytes`,
+low-level `os.write` / `open(..., "wb").write(...)`. Add them to the
+guard if a real regression appears.
+
 If the call site is genuinely exempt (one-shot operator CLI, CI-only
-scratch under `/tmp`, etc.), add a single-line marker **on the same line
-or immediately above** the write:
+scratch under `/tmp`, etc.), add an `ATOMIC-WRITE-EXEMPT:` marker
+comment within the **6 lines preceding** the call (the guard looks at
+the 6 source lines before the call's line number):
 
 ```python
 # ATOMIC-WRITE-EXEMPT: one-shot dev CLI (--apply regen of golden fixture); operator-supervised, no concurrent writers, not pipeline-consumed.
@@ -90,7 +99,9 @@ Non-deterministic call sources the guard rejects:
 Fix pattern:
 
 ```python
-# BAD — dict.items() iteration order is implementation-defined under xdist
+# BAD — .items() rejected by the guard: the upstream dict may have been
+# built from a non-deterministic source (set comprehension, os.listdir),
+# in which case workers see different parameter orderings under xdist.
 @pytest.mark.parametrize("regime, score", _VOL_REGIME_BASE_SCORES.items())
 def test_score_present(regime, score): ...
 
@@ -98,6 +109,12 @@ def test_score_present(regime, score): ...
 @pytest.mark.parametrize("regime, score", sorted(_VOL_REGIME_BASE_SCORES.items()))
 def test_score_present(regime, score): ...
 ```
+
+(Note: dict iteration itself is insertion-ordered in Python 3.7+. The
+guard is deliberately conservative — it can't tell from the AST whether
+the dict was built deterministically, so it requires the explicit
+`sorted(...)` wrap on every `.items()` / `.keys()` / `.values()` used
+as a parametrize source.)
 
 The same rule applies to set literals used as parameter sources — replace
 `{1, 2}` with `(1, 2)` (tuple) or wrap as `sorted({1, 2})` if dedup is
