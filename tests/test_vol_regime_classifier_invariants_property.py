@@ -62,7 +62,10 @@ def test_classify_monotone_non_decreasing(seed: int) -> None:
     """``r1 <= r2`` ⇒ ``order(_classify(r1)) <= order(_classify(r2))``."""
     rng = random.Random(seed)
     ratios = sorted(rng.uniform(0.0, 3.5) for _ in range(40))
-    levels = [_REGIME_ORDER[_classify(r)] for r in ratios]
+    labels = [_classify(r) for r in ratios]
+    for lbl, r in zip(labels, ratios, strict=True):
+        assert lbl in _REGIME_ORDER, f"_classify({r!r}) returned unknown label {lbl!r}"
+    levels = [_REGIME_ORDER[lbl] for lbl in labels]
     for i in range(1, len(levels)):
         assert levels[i] >= levels[i - 1], (
             f"classify not monotone at r={ratios[i - 1]!r} → {ratios[i]!r}: "
@@ -165,7 +168,10 @@ def test_volume_regime_label_monotone_non_decreasing(seed: int) -> None:
     order = {"HOLIDAY_SUSPECT": 0, "LOW_VOLUME": 1, "NORMAL": 2}
     rng = random.Random(seed)
     rvols = sorted(rng.uniform(1e-6, 3.0) for _ in range(30))
-    levels = [order[classify_volume_regime_from_rvol(r)[0]] for r in rvols]
+    labels = [classify_volume_regime_from_rvol(r)[0] for r in rvols]
+    for lbl, r in zip(labels, rvols, strict=True):
+        assert lbl in order, f"classify_volume_regime_from_rvol({r!r}) returned unknown label {lbl!r}"
+    levels = [order[lbl] for lbl in labels]
     for i in range(1, len(levels)):
         assert levels[i] >= levels[i - 1], (
             f"volume label not monotone at r={rvols[i - 1]!r} → {rvols[i]!r}: "
