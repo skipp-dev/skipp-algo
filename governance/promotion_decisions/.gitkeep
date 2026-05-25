@@ -1,0 +1,2 @@
+# Tracked so the directory exists in checkouts before the first
+# promotion-gate run lands an archived report here (#2354).

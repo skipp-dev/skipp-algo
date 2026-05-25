@@ -47,11 +47,12 @@ typically resolve themselves on the next cycle.
 
 ## Seeding the archive
 
-`governance/promotion_decisions/` is empty in the current repo. Until
-the production promotion-gate runs start archiving their reports there,
-the weekly cron will emit an empty-but-valid dashboard JSON and a
-placeholder PNG. This is intentional fail-soft behaviour so the cron
-stays green while the archive seeds itself.
+`governance/promotion_decisions/` is populated automatically by
+[scripts/run_promotion_gate.py](../../scripts/run_promotion_gate.py),
+which writes a timestamped copy of every report it produces (in
+addition to the live `artifacts/promotion_decisions.json` snapshot).
+Pass `--archive-dir ''` to that script to opt out of archiving for a
+single run.
 
 ## Running locally
 

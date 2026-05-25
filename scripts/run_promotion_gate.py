@@ -53,6 +53,11 @@ from scripts.smc_atomic_write import atomic_write_json
 
 _VALID_FAMILIES = set(get_args(EventFamily))
 
+# PQ Re-Audit A8 (#2354): every gate run also archives a timestamped copy
+# of the report here so the weekly dashboard has a real history to aggregate.
+# Pass --archive-dir '' to opt out (legacy single-file behaviour).
+DEFAULT_PROMOTION_DECISIONS_ARCHIVE_DIR = Path("governance") / "promotion_decisions"
+
 # Numeric / bool FamilyMetrics fields accepted in the bundle JSON.
 # ``family``, ``provenance`` and ``extras`` are handled separately.
 _NUMERIC_FIELDS = (
@@ -137,6 +142,27 @@ def _report_exit_code(report: dict[str, Any]) -> int:
     return 2
 
 
+def _archive_stamp(generated_at: str) -> str:
+    """Filename-safe UTC stamp derived from the report's generated_at field."""
+    # Strip timezone offset / fractional seconds, then drop punctuation so the
+    # name sorts lexicographically (e.g. 20260525T123456Z).
+    cleaned = generated_at.split("+", 1)[0].split(".", 1)[0]
+    return cleaned.replace("-", "").replace(":", "") + "Z"
+
+
+def _archive_report(
+    report: dict[str, Any], archive_dir: Path | None
+) -> Path | None:
+    """Write a timestamped copy of *report* to *archive_dir*, if configured."""
+    if archive_dir is None or str(archive_dir) == "":
+        return None
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    stamp = _archive_stamp(str(report["generated_at"]))
+    archive_path = archive_dir / f"promotion_decisions_{stamp}.json"
+    atomic_write_json(report, archive_path, indent=2, sort_keys=False)
+    return archive_path
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Sprint W1.b: run the X2 PromotionGate over a family bundle."
@@ -161,6 +187,15 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Disable strict_provenance (legacy behaviour; do not use in prod).",
     )
+    parser.add_argument(
+        "--archive-dir",
+        type=Path,
+        default=DEFAULT_PROMOTION_DECISIONS_ARCHIVE_DIR,
+        help=(
+            "Directory the timestamped report copy is written into for the "
+            "weekly dashboard (#2354). Pass '' to disable."
+        ),
+    )
     args = parser.parse_args(argv)
 
     if not args.metrics.exists():
@@ -175,6 +210,9 @@ def main(argv: list[str] | None = None) -> int:
 
     report = build_report(snapshots, strict_provenance=not args.no_strict)
     atomic_write_json(report, args.output, indent=2, sort_keys=False)
+    archive_path = _archive_report(report, args.archive_dir)
+    if archive_path is not None:
+        print(f"archived: {archive_path}", file=sys.stderr)
     print(json.dumps(report, indent=2))
     return _report_exit_code(report)
 
