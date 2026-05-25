@@ -228,3 +228,55 @@ Two recurring failure modes seen in review:
 Each ledger test is pure-AST / pure-regex and runs in well under 1 s,
 so iterate freely until green.
 
+## 5. `scripts/smc_atomic_write` — helper API
+
+**Module:** [scripts/smc_atomic_write.py](../scripts/smc_atomic_write.py)
+
+The four public helpers below replace the forbidden direct-write calls
+listed in §2. All four follow the same contract: write to a unique
+`tempfile.mkstemp` in the destination directory, set the file mode to
+match the existing target (or a sane default for a new file), then
+`os.replace` to the final path. Reader processes either see the prior
+version or the new version — never a torn write.
+
+| Helper                 | Signature                                                                                                | Replaces                                              |
+| ---------------------- | -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `atomic_write_parquet` | `(df: pd.DataFrame, target: str \| PathLike, **kwargs) -> None`                                          | `df.to_parquet(target, ...)`                          |
+| `atomic_write_csv`     | `(df: pd.DataFrame, target: str \| PathLike, **kwargs) -> None`                                          | `df.to_csv(target, ...)`                              |
+| `atomic_write_text`    | `(text: str, target: str \| PathLike, *, encoding="utf-8", newline=None) -> None`                        | `Path(target).write_text(text)`                       |
+| `atomic_write_json`    | `(payload: Any, target: str \| PathLike, *, indent=2, sort_keys=False, ensure_ascii=True, default=None) -> None` | `json.dump(payload, open(target, "w"))`        |
+
+Notes:
+
+- `**kwargs` on the DataFrame helpers are forwarded verbatim to the
+  underlying pandas `to_parquet` / `to_csv` writer — pass `index=False`,
+  `compression="zstd"`, etc. as you normally would.
+- `atomic_write_json` is a thin wrapper over `atomic_write_text` + a
+  preconfigured `json.dumps`. Defaults match the repo's serialization
+  style (2-space indent, key order preserved, ASCII-safe). For
+  byte-identical comparisons across runs set `sort_keys=True`.
+- Parent directories are created (`mkdir(parents=True, exist_ok=True)`)
+  before the temp file is opened — callers don't need to `mkdir` first.
+- Any exception raised during the write deletes the temp file before
+  re-raising. The destination is never left half-written.
+
+Typical migration pattern:
+
+```python
+# BEFORE — flagged by tests/test_no_direct_to_csv_in_production.py
+import json
+from pathlib import Path
+
+Path(out_path).write_text(json.dumps(report, indent=2), encoding="utf-8")
+
+# AFTER — atomic, mode-preserving, parent-creating
+from scripts.smc_atomic_write import atomic_write_json
+
+atomic_write_json(report, out_path)
+```
+
+The helpers themselves live in `scripts/` and are exempt from the
+guard (registered in the guard's `_FILE_LEVEL_EXEMPT`). Importing them
+from production modules outside `scripts/` is fine.
+
+
