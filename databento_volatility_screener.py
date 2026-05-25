@@ -453,6 +453,18 @@ def _trade_day_cache_max_age_seconds(trade_day: date, latest_trade_day: date | N
 # that gap by writing the captured universe as parquet schema metadata and
 # refetching on the read path when the current universe is not a subset of
 # the captured one.
+#
+# Persisted parquet schema-metadata keys (stable contract — readers must
+# look for exactly these names; tests pin the spelling):
+#   * skipp.captured_universe_hash    — sha1 of sorted, comma-joined symbols
+#   * skipp.captured_universe_size    — int count
+#   * skipp.captured_universe_symbols — sorted, comma-joined symbols payload
+#   * skipp.captured_at               — UTC ISO timestamp of write
+# Note: an early issue draft referred to a `skipp.universe.*` namespace plus
+# `universe_version` / `producer` fields; the shipped contract intentionally
+# uses the flat `skipp.captured_universe_*` namespace above. Any future
+# rename must update _read_universe_metadata + every cache-writer call site
+# in this module in lockstep.
 _UNIVERSE_META_PREFIX = "skipp."
 
 
