@@ -160,14 +160,17 @@ def test_pav_preserves_total_weighted_sum(values: list[float]) -> None:
     Each pool merge replaces members with their weighted mean, which
     preserves the merged-block's weighted sum exactly. A regression
     that, say, averaged unweighted instead of weighted would break this.
+    Uses non-uniform weights so unweighted-mean regressions are
+    actually detectable (uniform weights make the two formulas identical).
     """
-    weights = [1.0] * len(values)
+    weight_cycle = (0.5, 2.0, 1.25, 3.5, 0.75)
+    weights = [weight_cycle[i % len(weight_cycle)] for i in range(len(values))]
     fitted = _pool_adjacent_violators(values, weights)
     original_sum = sum(w * v for w, v in zip(weights, values, strict=True))
     fitted_sum = sum(w * f for w, f in zip(weights, fitted, strict=True))
     assert math.isclose(original_sum, fitted_sum, rel_tol=1e-12, abs_tol=1e-12), (
-        f"PAV failed to preserve weighted sum on input={values}: "
-        f"original={original_sum!r}, fitted={fitted_sum!r}"
+        f"PAV failed to preserve weighted sum on input={values} "
+        f"weights={weights}: original={original_sum!r}, fitted={fitted_sum!r}"
     )
 
 
