@@ -8,6 +8,7 @@ tempfile.TemporaryDirectory for file-based tests, imports at test level.
 
 from __future__ import annotations
 
+import gc
 import json
 import os
 import queue
@@ -1278,10 +1279,10 @@ class TestEffectiveTs(unittest.TestCase):
 class TestSingletonGetters(unittest.TestCase):
     """Tests for pipeline singleton getters (lines 44-78)."""
 
-    @unittest.skipIf(sys.platform == "win32", "Windows file-lock collision on shared SQLite path tracked in #2269")
     def test_get_store_creates_on_first_call(self) -> None:
         from newsstack_fmp import pipeline
         from newsstack_fmp.config import Config
+        from newsstack_fmp.store_sqlite import _instances, _instances_lock
 
         orig_store = pipeline._store
         try:
@@ -1289,15 +1290,30 @@ class TestSingletonGetters(unittest.TestCase):
             with tempfile.TemporaryDirectory() as tmpdir, patch.dict(os.environ, {
                     "NEWSSTACK_SQLITE_PATH": os.path.join(tmpdir, "test.db"),
                 }):
+                    db_path = os.path.join(tmpdir, "test.db")
                     cfg_mock = MagicMock(spec=Config)
-                    cfg_mock.sqlite_path = os.path.join(tmpdir, "test.db")
+                    cfg_mock.sqlite_path = db_path
 
                     store = pipeline._get_store(cfg_mock)
                     self.assertIsNotNone(store)
                     # Second call returns same instance
                     store2 = pipeline._get_store(cfg_mock)
                     self.assertIs(store, store2)
-                    store.close()
+
+                    # Release all SQLite handles BEFORE the tempfile cleanup so
+                    # Windows can unlink the .db / .db-wal / .db-shm files.
+                    # POSIX allows unlink while an fd is open; Windows refuses
+                    # with PermissionError [WinError 32]. (#2269)
+                    #
+                    # SqliteStore.close() defaults to a no-op on disk-backed
+                    # paths to avoid churn in long-running apps — pass
+                    # force=True to actually drop the connection here.
+                    store.close(force=True)
+                    pipeline._store = None
+                    with _instances_lock:
+                        _instances.pop(os.path.realpath(db_path), None)
+                    del store, store2
+                    gc.collect()
         finally:
             pipeline._store = orig_store
 
