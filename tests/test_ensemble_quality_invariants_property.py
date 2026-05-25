@@ -193,7 +193,7 @@ def test_vol_regime_component_empty_label_returns_none(bad: str | None) -> None:
     assert detail["label"] is None
 
 
-@pytest.mark.parametrize("label", tuple(_VOL_REGIME_BASE_SCORES.keys()))
+@pytest.mark.parametrize("label", tuple(sorted(_VOL_REGIME_BASE_SCORES.keys())))
 def test_vol_regime_component_confidence_zero_is_neutral_half(label: str) -> None:
     """``confidence == 0`` collapses any label to neutral 0.5."""
     value, _ = _vol_regime_component(label, 0.0)
@@ -201,7 +201,7 @@ def test_vol_regime_component_confidence_zero_is_neutral_half(label: str) -> Non
 
 
 @pytest.mark.parametrize(
-    "label,base", tuple(_VOL_REGIME_BASE_SCORES.items()),
+    "label,base", tuple(sorted(_VOL_REGIME_BASE_SCORES.items())),
 )
 def test_vol_regime_component_full_confidence_returns_base(
     label: str, base: float
