@@ -32,8 +32,8 @@ from pathlib import Path
 from governance.promotion_gate import GateThresholds
 from governance.promotion_report import (
     REPORT_SCHEMA_VERSION,
-    load_decisions_from_report,
 )
+from scripts.smc_atomic_write import atomic_write_json
 
 DASHBOARD_SCHEMA_VERSION = 1
 
@@ -278,10 +278,7 @@ def build(
         datetime.combine(reference, datetime.min.time(), tzinfo=timezone.utc)
     )
     json_path = output_dir / f"promotion_gate_dashboard_{reference_week}.json"
-    # ATOMIC-WRITE-EXEMPT: weekly CI artifact, single producer per run, no concurrent writers; consumed only by the upload-artifact step downstream.
-    json_path.write_text(
-        json.dumps(payload, indent=2, sort_keys=False) + "\n", encoding="utf-8"
-    )
+    atomic_write_json(payload, json_path, sort_keys=False)
 
     written: dict[str, Path] = {"json": json_path}
     if render_png:

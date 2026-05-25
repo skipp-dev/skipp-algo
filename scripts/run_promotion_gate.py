@@ -145,9 +145,11 @@ def _report_exit_code(report: dict[str, Any]) -> int:
 
 def _archive_stamp(generated_at: str) -> str:
     """Filename-safe UTC stamp derived from the report's generated_at field."""
-    # Strip timezone offset / fractional seconds, then drop punctuation so the
-    # name sorts lexicographically (e.g. 20260525T123456Z).
-    cleaned = generated_at.split("+", 1)[0].split(".", 1)[0]
+    # Strip timezone offset / fractional seconds and any trailing 'Z', then
+    # drop punctuation so the name sorts lexicographically (e.g.
+    # 20260525T123456Z) without producing a double-Z for ISO inputs that
+    # already end in 'Z'.
+    cleaned = generated_at.split("+", 1)[0].split(".", 1)[0].rstrip("Z")
     return cleaned.replace("-", "").replace(":", "") + "Z"
 
 
