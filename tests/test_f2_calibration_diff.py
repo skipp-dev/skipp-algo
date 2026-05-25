@@ -21,7 +21,7 @@ def _write(path: Path, payload: dict[str, object]) -> Path:
 _NEW = {
     "global_weights": {"BOS": 0.55, "CHOCH": 0.48, "FVG": 0.50},
     "promoted_buckets": ["htf_bias=bull", "session=NY"],
-    "frozen_at": "2026-05-25T06:00:00Z",
+    "frozen_provenance": {"frozen_at": "2026-05-25T06:00:00Z"},
 }
 
 
@@ -122,7 +122,7 @@ def test_build_markdown_renders_metadata_section_keys(tmp_path: Path) -> None:
 
 def test_frozen_at_change_appears_in_metadata(tmp_path: Path) -> None:
     md = build_markdown(
-        old={**_NEW, "frozen_at": "2026-02-01T00:00:00Z"},
+        old={**_NEW, "frozen_provenance": {"frozen_at": "2026-02-01T00:00:00Z"}},
         new=_NEW,
         old_manifest=None,
         new_manifest=None,

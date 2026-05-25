@@ -109,9 +109,20 @@ def _n_events_line(
     return f"- **n_events**: {old_n} → {new_n} ({sign}{diff})"
 
 
+def _frozen_at(payload: dict[str, Any] | None) -> str | None:
+    """Extract ``frozen_at`` from the nested ``frozen_provenance`` block.
+
+    Tolerates the historical top-level key for backwards compatibility.
+    """
+    if not payload:
+        return None
+    prov = payload.get("frozen_provenance") or {}
+    return prov.get("frozen_at") or payload.get("frozen_at")
+
+
 def _frozen_at_line(old: dict[str, Any] | None, new: dict[str, Any]) -> str:
-    new_f = new.get("frozen_at") or "n/a"
-    old_f = (old or {}).get("frozen_at") or "n/a"
+    new_f = _frozen_at(new) or "n/a"
+    old_f = _frozen_at(old) or "n/a"
     return f"- **frozen_at**: `{old_f}` → `{new_f}`"
 
 
@@ -145,7 +156,7 @@ def build_markdown(
     no_change = (
         new_w == old_w
         and set(new.get("promoted_buckets") or []) == set(old.get("promoted_buckets") or [])
-        and (new.get("frozen_at") == old.get("frozen_at"))
+        and (_frozen_at(new) == _frozen_at(old))
     )
     header = (
         "## f2 frozen-artifact bootstrap — no change vs. prior artifact"
