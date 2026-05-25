@@ -25,7 +25,9 @@ Output shape (``REPORT_SCHEMA_VERSION = 1``)::
 Exit codes
 ----------
 0 : all families promoted (and the report was written).
-1 : configuration error (bad input file, unknown family, etc.).
+1 : configuration error (bad input file, unknown family, etc.) OR
+    --strict-universe pre-flight failed (no snapshot for the requested
+    trade date, #2352).
 2 : at least one family blocked. Useful as a CI signal so the wrapping
     workflow can branch on the rolling-benchmark result.
 """
@@ -34,9 +36,14 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, get_args
+
+from databento_universe import (
+    MissingUniverseSnapshotError,
+    load_universe_for_backtest,
+)
 
 from governance.promotion_gate import (
     DECISION_SCHEMA_VERSION,
@@ -161,7 +168,47 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Disable strict_provenance (legacy behaviour; do not use in prod).",
     )
+    parser.add_argument(
+        "--universe-trade-date",
+        type=date.fromisoformat,
+        default=None,
+        help=(
+            "ISO trade date (YYYY-MM-DD) to validate against the per-day "
+            "universe snapshot store before running the gate (#2352)."
+        ),
+    )
+    parser.add_argument(
+        "--strict-universe",
+        action="store_true",
+        help=(
+            "Pre-flight: require a persisted universe snapshot for "
+            "--universe-trade-date. Exits with code 1 if absent (#2352)."
+        ),
+    )
+    parser.add_argument(
+        "--snapshot-root",
+        type=Path,
+        default=None,
+        help="Override the universe snapshot root directory (#2352).",
+    )
     args = parser.parse_args(argv)
+
+    if args.strict_universe and args.universe_trade_date is None:
+        print(
+            "ERROR: --strict-universe requires --universe-trade-date (#2352)",
+            file=sys.stderr,
+        )
+        return 1
+    if args.universe_trade_date is not None:
+        try:
+            load_universe_for_backtest(
+                args.universe_trade_date,
+                strict=args.strict_universe,
+                snapshot_root=args.snapshot_root,
+            )
+        except MissingUniverseSnapshotError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 1
 
     if not args.metrics.exists():
         print(f"ERROR: metrics file does not exist: {args.metrics}", file=sys.stderr)
