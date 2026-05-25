@@ -236,12 +236,29 @@ def test_sigmoid_antisymmetric_around_half(x: float) -> None:
 @pytest.mark.parametrize("x", _SIGMOID_XS)
 def test_sigmoid_matches_naive_form_where_safe(x: float) -> None:
     """The overflow-safe branched form agrees with ``1/(1+exp(-x))``
-    wherever the naive form is computable without overflow."""
-    try:
-        naive = 1.0 / (1.0 + math.exp(-x))
-    except OverflowError:
-        pytest.skip(f"naive form overflows at x={x}")
+    wherever the naive form is computable without overflow.
+
+    ``_SIGMOID_XS`` is bounded to ``|x| <= 50`` so the naive form
+    cannot overflow in float64 (``exp(50) ≈ 5e21`` is far below the
+    ``~1.8e308`` finite ceiling). We therefore compute it directly
+    instead of guarding with ``pytest.skip`` — keeping an unreachable
+    skip site only inflates the repo's skip ledger without coverage.
+    """
+    naive = 1.0 / (1.0 + math.exp(-x))
     assert math.isclose(_sigmoid(x), naive, rel_tol=1e-12, abs_tol=1e-12)
+
+
+@pytest.mark.parametrize("x", (-800.0, -1500.0, -10_000.0))
+def test_sigmoid_naive_form_would_overflow_at_extreme_negative(x: float) -> None:
+    """At ``x <= ~-708`` the naive ``1/(1+exp(-x))`` form overflows in
+    float64, but the branched safe form must return a finite value in
+    ``[0, 1]``. If ``_sigmoid`` is ever refactored back to the naive
+    expression this test fires immediately with ``OverflowError``."""
+    with pytest.raises(OverflowError):
+        _ = 1.0 / (1.0 + math.exp(-x))
+    y = _sigmoid(x)
+    assert math.isfinite(y)
+    assert 0.0 <= y <= 1.0
 
 
 # ---------------------------------------------------------------------------
