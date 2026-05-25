@@ -256,11 +256,14 @@ def test_emit_value_status_pair_interleaved_per_cell() -> None:
 
 
 def test_emit_renders_percent_with_round_half_to_even() -> None:
-    """Hit-rate percent uses Python's banker's rounding (`round`)."""
-    # 17/20 = 0.85 → 85
-    report = _report([{"session": "X", "vol_regime": "Y", "n_events": 20, "hits": 17}])
+    """Hit-rate percent uses Python's banker's rounding (``round``).
+
+    5/40 = 0.125 → 12.5%. Banker's rounding rounds 12.5 to the nearest
+    even integer = 12 (a non-banker round-half-up would yield 13).
+    """
+    report = _report([{"session": "X", "vol_regime": "Y", "n_events": 40, "hits": 5}])
     block = emit_fvg_pine_block(report)
-    assert f'{PINE_PREFIX}_X_Y = "85% (n=20)"' in block
+    assert f'{PINE_PREFIX}_X_Y = "12% (n=40)"' in block
 
 
 def test_emit_insufficient_uses_dedicated_string() -> None:
