@@ -417,7 +417,10 @@ def test_build_ensemble_quality_score_in_unit_interval() -> None:
 
 
 def test_build_ensemble_quality_tier_matches_score_ladder() -> None:
-    """``result.tier == _tier_from_score(result.score)`` is an invariant."""
+    """``result.tier`` is consistent with ``_tier_from_score(result.score)``
+    up to the 6-dp rounding of ``result.score`` (tiers are derived from the
+    unrounded internal score, so right at a cutoff the rounded score may
+    sit on the neighbouring tier)."""
     result = build_ensemble_quality(
         heuristic_quality=0.6,
         bias_direction="BULLISH",
@@ -425,7 +428,12 @@ def test_build_ensemble_quality_tier_matches_score_ladder() -> None:
         vol_regime_label="NORMAL",
         vol_regime_confidence=0.8,
     )
-    assert result.tier == _tier_from_score(result.score)
+    candidates = {
+        _tier_from_score(result.score - 1e-6),
+        _tier_from_score(result.score),
+        _tier_from_score(result.score + 1e-6),
+    }
+    assert result.tier in candidates
 
 
 def test_build_ensemble_quality_contributions_normalised_by_active_weight() -> None:
@@ -515,5 +523,13 @@ def test_build_ensemble_quality_property_random_inputs(seed: int) -> None:
         )
         assert 0.0 <= result.score <= 1.0
         assert result.tier in {"low", "ok", "good", "high"}
-        assert result.tier == _tier_from_score(result.score)
+        # ``result.score`` is rounded to 6dp while ``result.tier`` is derived
+        # from the unrounded internal score — right at a cutoff the rounded
+        # value can sit on the neighbouring tier, so we tolerate ±1e-6.
+        candidates = {
+            _tier_from_score(result.score - 1e-6),
+            _tier_from_score(result.score),
+            _tier_from_score(result.score + 1e-6),
+        }
+        assert result.tier in candidates
         assert math.isfinite(result.score)
