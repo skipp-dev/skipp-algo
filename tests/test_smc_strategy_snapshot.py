@@ -80,8 +80,10 @@ def test_smc_strategy_snapshot_matches_fixture(strategy: str) -> None:
     expected = _load_expected(strategy)
     actual = _run_mirror(strategy, input_frame)
 
-    assert list(actual.columns) >= [*SIGNAL_STRING_COLS, *SIGNAL_FLOAT_COLS, "bar_index"], (
-        f"mirror output missing columns; got {list(actual.columns)}"
+    required_cols = {*SIGNAL_STRING_COLS, *SIGNAL_FLOAT_COLS, "bar_index"}
+    missing_cols = required_cols - set(actual.columns)
+    assert not missing_cols, (
+        f"mirror output missing columns {sorted(missing_cols)}; got {list(actual.columns)}"
     )
     assert len(actual) == len(expected), (
         f"row count mismatch: actual={len(actual)} expected={len(expected)}"
@@ -101,10 +103,10 @@ def test_smc_strategy_snapshot_matches_fixture(strategy: str) -> None:
             atol=1e-9,
             equal_nan=True,
         ):
-            diffs = np.abs(
-                actual[col].to_numpy(dtype=float) - expected[col].to_numpy(dtype=float)
-            )
-            worst = int(np.nanargmax(diffs))
+            a = actual[col].to_numpy(dtype=float)
+            e = expected[col].to_numpy(dtype=float)
+            mismatch_mask = ~np.isclose(a, e, rtol=1e-9, atol=1e-9, equal_nan=True)
+            worst = int(np.argmax(mismatch_mask))
             pytest.fail(
                 f"{col} diverged beyond rtol=atol=1e-9; "
                 f"worst bar_index={int(actual.loc[worst, 'bar_index'])}, "
