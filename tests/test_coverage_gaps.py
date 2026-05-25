@@ -1287,10 +1287,9 @@ class TestSingletonGetters(unittest.TestCase):
         orig_store = pipeline._store
         try:
             pipeline._store = None
-            with tempfile.TemporaryDirectory() as tmpdir, patch.dict(os.environ, {
-                    "NEWSSTACK_SQLITE_PATH": os.path.join(tmpdir, "test.db"),
-                }):
-                    db_path = os.path.join(tmpdir, "test.db")
+            with tempfile.TemporaryDirectory() as tmpdir:
+                db_path = os.path.join(tmpdir, "test.db")
+                with patch.dict(os.environ, {"NEWSSTACK_SQLITE_PATH": db_path}):
                     cfg_mock = MagicMock(spec=Config)
                     cfg_mock.sqlite_path = db_path
 
@@ -1304,10 +1303,6 @@ class TestSingletonGetters(unittest.TestCase):
                     # Windows can unlink the .db / .db-wal / .db-shm files.
                     # POSIX allows unlink while an fd is open; Windows refuses
                     # with PermissionError [WinError 32]. (#2269)
-                    #
-                    # SqliteStore.close() defaults to a no-op on disk-backed
-                    # paths to avoid churn in long-running apps — pass
-                    # force=True to actually drop the connection here.
                     store.close(force=True)
                     pipeline._store = None
                     with _instances_lock:
