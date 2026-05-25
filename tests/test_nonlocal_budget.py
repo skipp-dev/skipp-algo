@@ -93,10 +93,13 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # PR #2339: +148 (5198→5346) by universe-version metadata helpers,
         # drift detector, and per-collector captured/current symbol wiring
         # in the cache-coverage funnels above the fast-progress callback.
-        ("databento_volatility_screener.py", 5346, ("_fast_progress_pct",)),
-        ("databento_volatility_screener.py", 5347, ("_fast_progress_step",)),
-        ("databento_volatility_screener.py", 5348, ("_fast_progress_total",)),
-        ("databento_volatility_screener.py", 5349, ("_fast_eta_smooth_seconds",)),
+        # PR #2355: +12 (5346→5358) — drift-detector helpers + urlopen-ledger
+        # alignment shifted the four ``_fast_progress_*`` sites further down
+        # the file. No semantic change to the progress closure itself.
+        ("databento_volatility_screener.py", 5358, ("_fast_progress_pct",)),
+        ("databento_volatility_screener.py", 5359, ("_fast_progress_step",)),
+        ("databento_volatility_screener.py", 5360, ("_fast_progress_total",)),
+        ("databento_volatility_screener.py", 5361, ("_fast_eta_smooth_seconds",)),
         ("smc_core/ensemble_quality.py", 171, ("active_weight", "weighted_total")),
     }
 )
