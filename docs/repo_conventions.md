@@ -1,6 +1,6 @@
 # Repository conventions
 
-Three repo-wide conventions that are enforced by CI guards but were not
+Repo-wide conventions that are enforced by CI guards but were not
 previously documented in a single place. New code, new workflows, and new
 tests must follow them or CI will block.
 
@@ -278,5 +278,62 @@ atomic_write_json(report, out_path)
 The helpers themselves live in `scripts/` and are exempt from the
 guard (registered in the guard's `_FILE_LEVEL_EXEMPT`). Importing them
 from production modules outside `scripts/` is fine.
+
+## 6. Workflow → GitHub label contract (`PINNED_KNOWN_LABELS`)
+
+**Guard:** [tests/test_workflow_issue_labels_exist.py](../tests/test_workflow_issue_labels_exist.py)
+
+Every literal `--label <name>` argument passed to `gh issue create` (or
+any other `gh` subcommand) from a workflow in `.github/workflows/*.yml`
+MUST reference a label that actually exists in the repository. If `gh`
+is handed an unknown label it exits non-zero, the alerter step fails,
+and the alert that prompted the issue creation is silently lost — the
+exact failure-mode of Bug-Hunt 2026-05-01 Finding F-04 (workflows were
+posting to `c13`, `critical`, `drift`, `drift-alert`, `plan-2.8`,
+`f2-rollback`, none of which existed).
+
+The guard parses every workflow file, extracts each `--label` argument
+(quoted, unquoted, comma-separated, `=`-form all supported), and
+asserts each literal token is present in `PINNED_KNOWN_LABELS` — a
+frozenset snapshot of `gh label list --json name` taken on 2026-05-01.
+Dynamic labels (`${{ ... }}`, `$(...)`, `$VAR`) are skipped on purpose;
+static guards cannot prove their runtime values.
+
+### When you add a new label
+
+The label and its pin MUST land in the **same PR** as the workflow that
+first references it. Two-PR splits will fail CI on the workflow PR.
+
+1. Create the label in the repo:
+
+   ```powershell
+   gh label create <name> --description "<purpose>" --color <hex>
+   ```
+
+2. Add `"<name>"` to the `PINNED_KNOWN_LABELS` frozenset in
+   [tests/test_workflow_issue_labels_exist.py](../tests/test_workflow_issue_labels_exist.py),
+   keeping the set alphabetically sorted.
+3. Commit both changes together with the workflow edit.
+
+### When you remove a label
+
+Mirror the addition: remove every workflow reference, remove the entry
+from `PINNED_KNOWN_LABELS`, then `gh label delete <name>`. The guard
+will catch any stray workflow reference left behind.
+
+### Out of scope
+
+- Dynamic label expressions (`--label ${{ matrix.severity }}`) — the
+  guard cannot evaluate them. Reviewer must confirm by hand that every
+  possible runtime value is a known label.
+- Labels applied via the REST API (`gh api -X POST .../labels`) — not
+  parsed. Stick to `--label` on `gh issue create` / `gh issue edit` so
+  the guard sees them.
+
+### Verifying locally
+
+```powershell
+..\.venv\Scripts\python.exe -m pytest tests/test_workflow_issue_labels_exist.py -q
+```
 
 
