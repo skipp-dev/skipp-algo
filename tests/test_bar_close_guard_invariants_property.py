@@ -172,11 +172,12 @@ def test_guard_all_bars_in_progress_returns_empty_slice() -> None:
 def test_guard_drops_only_contiguous_trailing_suffix() -> None:
     """Mid-frame stale bar (close > now) is preserved — only the trailing
     contiguous in-progress suffix is dropped (documented invariant)."""
-    # Bar at 600 closes at 900 (> now=700) but bar at 1200 (way in the
-    # future) is also in-progress. The mid-frame "future" bar at index 1
-    # would *look* in-progress too, but the guard scans from the tail and
-    # stops at the first closed bar. So a [closed, future, closed, future]
-    # frame should only have the trailing [future] dropped.
+    # Frame is [0, 999999, 300, 999999] with interval=5m (300s) and now=700.
+    # Closes: 0→300 (≤700 closed), 999999→far future (in-progress, mid-frame),
+    # 300→600 (≤700 closed), 999999→far future (in-progress, trailing).
+    # The guard scans from the tail and stops at the first closed bar, so
+    # only the trailing in-progress bar is dropped — the mid-frame
+    # "future" bar at index 1 is preserved.
     df = _frame([0.0, 999999.0, 300.0, 999999.0])
     out = guard_closed_bars(df, interval="5m", now=700.0)
     # Walking from tail: 999999 → in-progress (drop). 300 → closed at 600
