@@ -632,7 +632,7 @@ class TestFinalizePipelineE2E:
         manifest_files = list(tmp_path.rglob("smc_micro_profiles_generated.json"))
         assert manifest_files, "No manifest file written by finalize_pipeline"
         manifest = json.loads(manifest_files[0].read_text(encoding="utf-8"))
-        assert manifest.get("library_field_version") == "v5.5c"
+        assert manifest.get("library_field_version") == "v6.0a"
 
     def test_no_enrichment_still_generates_pine(self, base_result, tmp_path):
         result = finalize_pipeline(
@@ -1167,4 +1167,4 @@ class TestSmokeFullV4Pipeline:
         manifest_files = list(tmp_path.rglob("smc_micro_profiles_generated.json"))
         assert manifest_files
         manifest = json.loads(manifest_files[0].read_text(encoding="utf-8"))
-        assert manifest.get("library_field_version") == "v5.5c"
+        assert manifest.get("library_field_version") == "v6.0a"

@@ -1401,10 +1401,10 @@ def write_manifest(
         "exported_lists": LIST_EXPORTS,
         "list_counts": {name: len(symbols) for name, symbols in lists.items()},
         "enrichment_blocks": sorted((normalized_enrichment or {}).keys()),
-        "library_field_version": "v5.5c",
+        "library_field_version": "v6.0a",
         "deprecated_field_policy": {
             "mode": "compatibility_only",
-            "preferred_field_version": "v5.5c",
+            "preferred_field_version": "v6.0a",
             "extension_allowed": False,
             "deprecated_groups": DEPRECATED_COMPATIBILITY_GROUPS,
         },

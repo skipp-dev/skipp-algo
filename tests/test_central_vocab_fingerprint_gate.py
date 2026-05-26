@@ -72,7 +72,7 @@ def _collect_vocabularies() -> dict[str, tuple[int, str]]:
 # (Pine surface, dashboard renderers, alert payloads) understand the change.
 _BASELINE: dict[str, tuple[int, str]] = {
     "HERO_TRUST_VOCAB": (5, "48a4c6ef8fd2ce23"),
-    "HERO_SETUP_QUALITY_VOCAB": (4, "d54835b9936e97f3"),
+    "HERO_SETUP_QUALITY_VOCAB": (5, "e70266fdb4d5ad40"),
     "HERO_ACTION_VOCAB": (4, "33eb5f031c240e98"),
     "HERO_DEFAULTS_KEYS": (7, "5c89a97d90299b42"),
     "TRUST_STATE_VALUES": (5, "d63b52bbd00d2bb7"),

@@ -37,6 +37,6 @@ def test_committed_manifest_version():
 
     manifest = Path("pine/generated/smc_micro_profiles_generated.json")
     data = json.loads(manifest.read_text())
-    assert data["library_field_version"] == "v5.5c", (
+    assert data["library_field_version"] == "v6.0a", (
         f"Manifest version is {data['library_field_version']!r}, expected 'v5.5c'"
     )

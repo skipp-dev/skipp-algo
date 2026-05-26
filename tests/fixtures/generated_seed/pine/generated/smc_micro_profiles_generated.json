@@ -37,10 +37,10 @@
     "fast_decay": 1
   },
   "enrichment_blocks": [],
-  "library_field_version": "v5.5c",
+  "library_field_version": "v6.0a",
   "deprecated_field_policy": {
     "mode": "compatibility_only",
-    "preferred_field_version": "v5.5c",
+    "preferred_field_version": "v6.0a",
     "extension_allowed": false,
     "deprecated_groups": []
   },

@@ -5,13 +5,26 @@ fields that Desktop and Mobile dashboards can read without shadow logic.
 
 Hero fields
 -----------
-HERO_MARKET_MODE   : str   — e.g. "BULLISH", "BEARISH", "NEUTRAL", "RISK_OFF"
-HERO_BIAS          : str   — "LONG", "SHORT", "FLAT"
+HERO_MARKET_MODE   : str   — e.g. "BULLISH", "BEARISH", "NEUTRAL", "RISK_OFF", "UNKNOWN" (sentinel)
+HERO_BIAS          : str   — "LONG", "SHORT", "FLAT", "UNKNOWN" (sentinel)
 HERO_TRUST         : str   — "healthy", "warmup", "degraded", "stale", "unavailable"
-HERO_SETUP_QUALITY : str   — "high", "good", "ok", "low"
+HERO_SETUP_QUALITY : str   — "high", "good", "ok", "low", "unavailable" (sentinel)
 HERO_WHY_NOW       : str   — compact catalyst/reason text
 HERO_RISK          : str   — dominant risk factor
 HERO_ACTION        : str   — "ACTIVE", "WATCH", "AVOID", "BLOCKED"
+
+Waiting-state sentinels (issue #55 / WS3-UI)
+--------------------------------------------
+The ``UNKNOWN`` (for HERO_MARKET_MODE / HERO_BIAS) and ``unavailable``
+(for HERO_SETUP_QUALITY) values are emitted whenever no upstream
+enrichment block is available yet (default state). Pine consumers
+render these as grey "awaiting first enrichment run" markers, so
+users can distinguish "market truly is neutral / bias truly is flat /
+setup truly is low" from "we have no data yet".
+
+This is a MAJOR ``library_field_version`` bump from v5.5c → v6.0a
+because Pine ``== "NEUTRAL"`` / ``== "FLAT"`` / ``== "low"`` literal
+gates change semantics.
 
 Vocabulary pins
 ---------------
@@ -39,10 +52,13 @@ if TYPE_CHECKING:
 
 
 DEFAULTS: dict[str, str] = {
-    "HERO_MARKET_MODE": "NEUTRAL",
-    "HERO_BIAS": "FLAT",
+    # Sentinel: "no data yet" — distinct from upstream "NEUTRAL".
+    "HERO_MARKET_MODE": "UNKNOWN",
+    # Sentinel: "no data yet" — distinct from upstream "FLAT".
+    "HERO_BIAS": "UNKNOWN",
     "HERO_TRUST": "unavailable",
-    "HERO_SETUP_QUALITY": "low",
+    # Sentinel: "no data yet" — distinct from low-tier signal "low".
+    "HERO_SETUP_QUALITY": "unavailable",
     "HERO_WHY_NOW": "",
     "HERO_RISK": "",
     "HERO_ACTION": "WATCH",
@@ -103,12 +119,15 @@ HERO_SETUP_QUALITY_HIGH: str = "high"
 HERO_SETUP_QUALITY_GOOD: str = "good"
 HERO_SETUP_QUALITY_OK: str = "ok"
 HERO_SETUP_QUALITY_LOW: str = "low"
+# Waiting-state sentinel (#55) — "no enrichment run yet", distinct from "low".
+HERO_SETUP_QUALITY_UNAVAILABLE: str = "unavailable"
 
 HERO_SETUP_QUALITY_VOCAB: frozenset[str] = frozenset({
     HERO_SETUP_QUALITY_HIGH,
     HERO_SETUP_QUALITY_GOOD,
     HERO_SETUP_QUALITY_OK,
     HERO_SETUP_QUALITY_LOW,
+    HERO_SETUP_QUALITY_UNAVAILABLE,
 })
 
 HERO_QUALITY_A_TO_B: dict[str, str] = {
@@ -116,6 +135,9 @@ HERO_QUALITY_A_TO_B: dict[str, str] = {
     HERO_SETUP_QUALITY_GOOD: "good",
     HERO_SETUP_QUALITY_OK: "limited",
     HERO_SETUP_QUALITY_LOW: "avoid",
+    # Waiting-state sentinel maps to Producer-B's "avoid" \u2014 semantically
+    # "no data yet" is closer to \u201edon't act\u201c than to any active tier.
+    HERO_SETUP_QUALITY_UNAVAILABLE: "avoid",
 }
 
 
@@ -151,11 +173,14 @@ HERO_ACTION_VOCAB: frozenset[str] = frozenset({
 HERO_BIAS_LONG: str = "LONG"
 HERO_BIAS_SHORT: str = "SHORT"
 HERO_BIAS_FLAT: str = "FLAT"
+# Waiting-state sentinel (#55) — "no enrichment run yet", distinct from "FLAT".
+HERO_BIAS_UNKNOWN: str = "UNKNOWN"
 
 HERO_BIAS_VOCAB: frozenset[str] = frozenset({
     HERO_BIAS_LONG,
     HERO_BIAS_SHORT,
     HERO_BIAS_FLAT,
+    HERO_BIAS_UNKNOWN,
 })
 
 
@@ -175,12 +200,15 @@ HERO_MARKET_MODE_BULLISH: str = "BULLISH"
 HERO_MARKET_MODE_BEARISH: str = "BEARISH"
 HERO_MARKET_MODE_NEUTRAL: str = "NEUTRAL"
 HERO_MARKET_MODE_RISK_OFF: str = "RISK_OFF"
+# Waiting-state sentinel (#55) — "no enrichment run yet", distinct from "NEUTRAL".
+HERO_MARKET_MODE_UNKNOWN: str = "UNKNOWN"
 
 HERO_MARKET_MODE_VOCAB: frozenset[str] = frozenset({
     HERO_MARKET_MODE_BULLISH,
     HERO_MARKET_MODE_BEARISH,
     HERO_MARKET_MODE_NEUTRAL,
     HERO_MARKET_MODE_RISK_OFF,
+    HERO_MARKET_MODE_UNKNOWN,
 })
 
 
