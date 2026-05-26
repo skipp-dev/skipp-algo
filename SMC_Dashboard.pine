@@ -1774,9 +1774,12 @@ if show_table and barstate.islast
         color h_why_bg = h_why != "" ? color.new(CLR_BULL_ALT, 85) : header_bg
 
         string h_quality = mp.HERO_SETUP_QUALITY
-        // Issue #55 — "unavailable" is the waiting-state sentinel (distinct from "low").
-        int h_quality_state = (h_quality == "high" or h_quality == "good") ? 5 : h_quality == "ok" ? 3 : h_quality == "unavailable" ? -1 : 0
+        // Issue #55 — "unavailable" is the waiting-state sentinel (distinct from
+        // "low"); it MUST resolve to a neutral background, not the bearish -1
+        // bucket that status_bg renders for actual negative states.
+        int h_quality_state = (h_quality == "high" or h_quality == "good") ? 5 : h_quality == "ok" ? 3 : 0
         string h_quality_line = h_quality == "unavailable" ? "⚪ awaiting data" : h_quality
+        color h_quality_bg = h_quality == "unavailable" ? color.new(color.gray, 80) : status_bg(h_quality_state)
 
         string h_trust = mp.HERO_TRUST
         // ENG-WS2-03: hero trust row now also carries the canonical product
@@ -1818,7 +1821,7 @@ if show_table and barstate.islast
         dashboard_row(smc_dashboard, 2, "Market", h_market_line, h_market_bg, txt)
         dashboard_row(smc_dashboard, 3, "Action", h_action_line, h_action_bg, txt)
         dashboard_row(smc_dashboard, 4, "Why now", h_why_line, h_why_bg, txt)
-        dashboard_row(smc_dashboard, 5, "Setup Quality", h_quality_line, status_bg(h_quality_state), txt)
+        dashboard_row(smc_dashboard, 5, "Setup Quality", h_quality_line, h_quality_bg, txt)
         dashboard_row(smc_dashboard, 6, "Trust", h_trust_line, status_bg(h_trust_state), txt)
         dashboard_row(smc_dashboard, 7, "Risk", h_risk_line, status_bg(h_risk_state), txt)
         dashboard_row(smc_dashboard, 8, "Risk Plan", dashboard_compact_risk_plan_text(actionable_state, src_trigger, src_stop_level, src_target_1, src_target_2), status_bg(actionable_state ? 5 : 0), txt)

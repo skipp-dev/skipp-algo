@@ -874,7 +874,7 @@ class TestV55bContractSync:
             (ROOT / "pine/generated/smc_micro_profiles_generated.json").read_text()
         )
         assert manifest["library_field_version"] == "v6.0a", (
-            f"Manifest library_field_version should be v5.5c, got {manifest['library_field_version']}"
+            f"Manifest library_field_version should be v6.0a, got {manifest['library_field_version']}"
         )
 
     def test_contract_doc_references_v55b(self):
