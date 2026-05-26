@@ -31,8 +31,12 @@ from typing import Any
 PINE_PREFIX = "FVG_HEALTH"
 
 
-def _safe_token(raw: str) -> str:
-    """Normalise a context value to a Pine identifier-safe token."""
+def _safe_token(raw: object) -> str:
+    """Normalise a context value to a Pine identifier-safe token.
+
+    Accepts any input; ``str(raw)`` is called to coerce non-string values
+    (``int``, ``bool``, ``None``, ...) before normalisation.
+    """
     cleaned = "".join(ch for ch in str(raw).upper() if ch.isalnum() or ch == "_")
     return cleaned or "UNKNOWN"
 
