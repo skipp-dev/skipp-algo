@@ -12,7 +12,6 @@ import gc
 import json
 import os
 import queue
-import sys
 import tempfile
 import time
 import unittest
