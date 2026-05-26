@@ -383,16 +383,97 @@ def fetch_us_equity_universe(
     *,
     min_market_cap: float | None = None,
     exchanges: str = "NASDAQ,NYSE,AMEX",
+    active_only: bool = True,
+    trade_date: date | None = None,
+    snapshot_root: str | Path | None = None,
 ) -> pd.DataFrame:
     frame, _metadata = fetch_us_equity_universe_with_metadata(
         fmp_api_key,
         min_market_cap=min_market_cap,
         exchanges=exchanges,
+        active_only=active_only,
+        trade_date=trade_date,
+        snapshot_root=snapshot_root,
     )
     return frame
 
 
 def fetch_us_equity_universe_with_metadata(
+    fmp_api_key: str = "",
+    *,
+    min_market_cap: float | None = None,
+    exchanges: str = "NASDAQ,NYSE,AMEX",
+    active_only: bool = True,
+    trade_date: date | None = None,
+    snapshot_root: str | Path | None = None,
+) -> tuple[pd.DataFrame, dict[str, Any]]:
+    # Backtest replay path: when caller opts out of active-only and provides a
+    # trade_date, prefer a previously persisted per-day universe snapshot to
+    # avoid survivorship bias (#2351 / re-audit F2).
+    if not active_only and trade_date is not None:
+        snapshot = load_universe_snapshot(trade_date, root=snapshot_root)
+        if snapshot is not None:
+            symbols = [str(s) for s in snapshot.get("symbols", [])]
+            frame = pd.DataFrame({col: ["" if col != "market_cap" else np.nan] * len(symbols) for col in UNIVERSE_COLUMNS})
+            frame["symbol"] = symbols
+            return (
+                frame.reset_index(drop=True),
+                {
+                    "source": "universe_snapshot",
+                    "fallback_source": None,
+                    "scope_definition": (
+                        f"Persisted universe snapshot for trade_date={trade_date.isoformat()} "
+                        f"loaded from {snapshot.get('source_schema', 'unknown')} captured at "
+                        f"{snapshot.get('captured_at', 'unknown')}."
+                    ),
+                    "min_market_cap_requested": float(min_market_cap) if min_market_cap is not None else None,
+                    "min_market_cap_effective": None,
+                    "min_market_cap_applied": False,
+                    "selection_reason": "historical_snapshot",
+                    "active_only": False,
+                    "trade_date": trade_date.isoformat(),
+                    "survivorship_bias_risk": False,
+                    "snapshot_captured_at": snapshot.get("captured_at"),
+                    "snapshot_source_schema": snapshot.get("source_schema"),
+                },
+            )
+        logger.warning(
+            "No persisted universe snapshot for trade_date=%s; falling back to current vendor data. "
+            "Backtest results will carry survivorship-bias risk (#2351).",
+            trade_date.isoformat(),
+        )
+
+    survivorship_bias_risk = (not active_only) and trade_date is not None
+    frame, metadata = _fetch_us_equity_universe_live(
+        fmp_api_key,
+        min_market_cap=min_market_cap,
+        exchanges=exchanges,
+    )
+    metadata["active_only"] = bool(active_only)
+    metadata["trade_date"] = trade_date.isoformat() if trade_date is not None else None
+    metadata["survivorship_bias_risk"] = survivorship_bias_risk
+
+    # Live-screening write path: persist today's resolved universe as a snapshot
+    # so future backtests can replay it (idempotent; existing file is kept).
+    if active_only and not frame.empty and "symbol" in frame.columns:
+        try:
+            snapshot_date = trade_date or datetime.now(UTC).date()
+            symbols_to_persist = [str(s) for s in frame["symbol"].dropna().astype(str).tolist() if str(s).strip()]
+            if symbols_to_persist:
+                save_universe_snapshot(
+                    symbols_to_persist,
+                    trade_date=snapshot_date,
+                    source_schema=str(metadata.get("source", "unknown")),
+                    root=snapshot_root,
+                    overwrite=False,
+                )
+        except Exception:  # pragma: no cover - persistence is best-effort
+            logger.warning("Universe-snapshot persistence failed for %s", snapshot_date, exc_info=True)
+
+    return frame, metadata
+
+
+def _fetch_us_equity_universe_live(
     fmp_api_key: str = "",
     *,
     min_market_cap: float | None = None,
@@ -471,3 +552,149 @@ def fetch_us_equity_universe_with_metadata(
             "selection_reason": "no_available_source",
         },
     )
+
+
+# ── Per-day universe snapshots (#2351 / re-audit F2) ──────────────────────
+
+UNIVERSE_SNAPSHOT_ROOT = Path("artifacts/universe")
+UNIVERSE_SNAPSHOT_SCHEMA_VERSION = 1
+
+
+def _resolve_snapshot_root(root: str | Path | None) -> Path:
+    return Path(root) if root is not None else UNIVERSE_SNAPSHOT_ROOT
+
+
+def _universe_snapshot_path(trade_date: date, root: str | Path | None = None) -> Path:
+    return _resolve_snapshot_root(root) / f"{trade_date.isoformat()}.json"
+
+
+def save_universe_snapshot(
+    symbols: list[str] | tuple[str, ...] | set[str],
+    *,
+    trade_date: date,
+    source_schema: str,
+    root: str | Path | None = None,
+    overwrite: bool = False,
+) -> Path:
+    """Persist a per-day universe snapshot under ``artifacts/universe/{date}.json``.
+
+    Idempotent: when the target file already exists and ``overwrite`` is False,
+    the existing path is returned unchanged so the live screening read path can
+    invoke this on every run without re-writing.
+    """
+    path = _universe_snapshot_path(trade_date, root)
+    if path.exists() and not overwrite:
+        return path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    normalized = sorted({str(s).strip() for s in symbols if str(s).strip()})
+    payload = {
+        "schema_version": UNIVERSE_SNAPSHOT_SCHEMA_VERSION,
+        "trade_date": trade_date.isoformat(),
+        "captured_at": datetime.now(UTC).isoformat(),
+        "source_schema": str(source_schema),
+        "symbols": normalized,
+        "size": len(normalized),
+    }
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.replace(path)
+    return path
+
+
+def load_universe_snapshot(
+    trade_date: date,
+    *,
+    root: str | Path | None = None,
+) -> dict[str, Any] | None:
+    """Return the persisted snapshot for ``trade_date`` or ``None`` when absent."""
+    path = _universe_snapshot_path(trade_date, root)
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        logger.warning("Universe snapshot at %s is unreadable; ignoring.", path, exc_info=True)
+        return None
+    if not isinstance(payload, dict) or "symbols" not in payload:
+        return None
+    payload["symbols"] = [str(s) for s in payload.get("symbols", [])]
+    return payload
+
+
+def list_universe_snapshots(root: str | Path | None = None) -> list[date]:
+    """List trade-dates for which a snapshot file exists, ascending."""
+    snapshot_root = _resolve_snapshot_root(root)
+    if not snapshot_root.exists():
+        return []
+    dates: list[date] = []
+    for entry in snapshot_root.iterdir():
+        if entry.suffix != ".json":
+            continue
+        try:
+            dates.append(date.fromisoformat(entry.stem))
+        except ValueError:
+            continue
+    return sorted(dates)
+
+
+# ── Backtest snapshot consumer (#2352 / re-audit F2) ──────────────────────
+
+class MissingUniverseSnapshotError(RuntimeError):
+    """Raised when a backtest requires a snapshot for ``trade_date`` and none exists."""
+
+    def __init__(self, trade_date: date, snapshot_root: Path) -> None:
+        super().__init__(
+            f"No persisted universe snapshot for trade_date={trade_date.isoformat()} "
+            f"under {snapshot_root}; refusing to run in strict mode (survivorship-bias "
+            f"protection, #2352). Persist a snapshot first or rerun without --strict-universe."
+        )
+        self.trade_date = trade_date
+        self.snapshot_root = snapshot_root
+
+
+def load_universe_for_backtest(
+    trade_date: date,
+    *,
+    strict: bool = False,
+    snapshot_root: str | Path | None = None,
+    fmp_api_key: str = "",
+    min_market_cap: float | None = None,
+    exchanges: str = "NASDAQ,NYSE,AMEX",
+) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """Resolve the universe a backtest should use for ``trade_date``.
+
+    Resolution contract:
+
+    * **Snapshot present** → strictly used (no vendor call), regardless of
+      ``strict``. Metadata carries ``source="universe_snapshot"`` and
+      ``survivorship_bias_risk=False``.
+    * **Snapshot absent + strict=True** → raises :class:`MissingUniverseSnapshotError`.
+      CI mode must use this to refuse silently survivorship-biased runs.
+    * **Snapshot absent + strict=False** → logs a WARNING and falls back to
+      :func:`fetch_us_equity_universe_with_metadata` with ``active_only=False``;
+      the returned metadata carries ``survivorship_bias_risk=True`` so downstream
+      consumers can flag the result in their reports.
+    """
+    snapshot = load_universe_snapshot(trade_date, root=snapshot_root)
+    if snapshot is None and strict:
+        raise MissingUniverseSnapshotError(
+            trade_date,
+            _resolve_snapshot_root(snapshot_root),
+        )
+    if snapshot is None:
+        logger.warning(
+            "Backtest for trade_date=%s requested without a persisted universe snapshot; "
+            "falling back to active_only=False vendor data. Result carries survivorship-bias risk (#2352). "
+            "Use --strict-universe to refuse in CI mode.",
+            trade_date.isoformat(),
+        )
+    return fetch_us_equity_universe_with_metadata(
+        fmp_api_key,
+        min_market_cap=min_market_cap,
+        exchanges=exchanges,
+        active_only=False,
+        trade_date=trade_date,
+        snapshot_root=snapshot_root,
+    )
+
+

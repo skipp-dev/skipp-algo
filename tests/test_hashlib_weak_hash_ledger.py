@@ -58,7 +58,10 @@ _FROZEN_SITES: dict[str, dict[str, frozenset[int]]] = {
     "databento_utils.py": {"sha1": frozenset({88})},
     # Phase-A cache-probe instrumentation moved the three cache-key sha1 uses
     # downward in the file; semantics stay non-security cache fingerprinting.
-    "databento_volatility_screener.py": {"sha1": frozenset({393, 566, 584})},
+    # PR #2339 added _build_universe_metadata (sha1 universe fingerprint, line
+    # 475) and shifted the two cache-probe sites by ~100 lines (cache-pollution
+    # filter + drift detector block). Still non-security fingerprinting.
+    "databento_volatility_screener.py": {"sha1": frozenset({393, 475, 691, 709})},
     "newsstack_fmp/normalize.py": {
         "md5": frozenset({130, 253}),
         "sha1": frozenset({334, 420, 458, 502}),

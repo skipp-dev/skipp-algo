@@ -62,8 +62,6 @@ def test_markdown_shape(tmp_path: Path) -> None:
 
 
 def test_cli_json(tmp_path: Path) -> None:
-    if sys.platform == "win32":
-        pytest.skip("Windows CRLF vs LF SHA mismatch tracked in #2268")
     p = tmp_path / "s.md"
     # ``write_bytes`` so Windows does not translate ``\n`` to ``\r\n`` and shift the sha256.
     p.write_bytes(b"hi\n")
