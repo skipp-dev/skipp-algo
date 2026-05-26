@@ -6,6 +6,37 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-05-26) — WS3-UI #55: HERO waiting-state sentinels + `library_field_version` v6.0a (BREAKING for Pine consumers)
+
+`HERO_MARKET_MODE`, `HERO_BIAS`, and `HERO_SETUP_QUALITY` now distinguish a
+*waiting state* (no enrichment data yet) from a substantive neutral / flat
+/ low reading:
+
+- `HERO_MARKET_MODE` default: `NEUTRAL` → `UNKNOWN`
+- `HERO_BIAS` default: `FLAT` → `UNKNOWN`
+- `HERO_SETUP_QUALITY` default: `low` → `unavailable`
+
+The three sentinels are first-class vocab members (`HERO_MARKET_MODE_VOCAB`
+3 → 4, `HERO_BIAS_VOCAB` 4 → 5, `HERO_SETUP_QUALITY_VOCAB` 4 → 5) and the
+Producer-A → Producer-B action map gains
+`HERO_QUALITY_A_TO_B["unavailable"] = "avoid"`.
+
+Pine dashboards (`SMC_Dashboard.pine`, `SMC_Mobile_Dashboard.pine`) render
+`⚪ awaiting data` (grey-80 background) for the sentinel; the bias chip is
+suppressed for both `FLAT` and `UNKNOWN`.
+
+This is a breaking change to Pine literal gates → `library_field_version`
+bumped **v5.5c → v6.0a** (MAJOR) and the
+`deprecated_field_policy.preferred_field_version` follows. Regenerated
+artifacts: `pine/generated/smc_micro_profiles_generated.{pine,json}`,
+`tests/fixtures/generated_seed/...`, `artifacts/tradingview/smc_product_cut_manifest.json`.
+Snapshot/fingerprint pins regenerated:
+`tests/governance/vocab_fingerprint.json`,
+`tests/test_hero_schema_fingerprint.py`,
+`tests/test_central_vocab_fingerprint_gate.py`. Closes #55. See
+[ADR-0007 §2026-05-26 amendment](docs/adr/0007-hero-field-invariants.md)
+for the full rationale.
+
 ### Added (2026-05-17) — W1.b: PromotionGate daily producer path
 
 End-to-end wiring of the W1 schema-v2 `PromotionGate` contract into a
