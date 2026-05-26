@@ -445,8 +445,79 @@ def _trade_day_cache_max_age_seconds(trade_day: date, latest_trade_day: date | N
     return None
 
 
-def _write_cached_frame(path: Path, frame: pd.DataFrame) -> None:
-    _write_parquet_atomic(path, frame)
+# --- #2339: universe-version metadata in parquet payloads ------------------
+# PR #2338 added a read-side filter that drops out-of-scope rows when the
+# cached universe is a *superset* of the current request. The reverse case —
+# current universe gained a symbol not present in the cached snapshot — was
+# explicitly out of scope and silently produced under-coverage. #2339 closes
+# that gap by writing the captured universe as parquet schema metadata and
+# refetching on the read path when the current universe is not a subset of
+# the captured one.
+#
+# Persisted parquet schema-metadata keys (stable contract — readers must
+# look for exactly these names; tests pin the spelling):
+#   * skipp.captured_universe_hash    — sha1 of sorted, comma-joined symbols
+#   * skipp.captured_universe_size    — int count
+#   * skipp.captured_universe_symbols — sorted, comma-joined symbols payload
+#   * skipp.captured_at               — UTC ISO timestamp of write
+# Note: an early issue draft referred to a `skipp.universe.*` namespace plus
+# `universe_version` / `producer` fields; the shipped contract intentionally
+# uses the flat `skipp.captured_universe_*` namespace above. Any future
+# rename must update _read_universe_metadata + every cache-writer call site
+# in this module in lockstep.
+_UNIVERSE_META_PREFIX = "skipp."
+
+
+def _build_universe_metadata(symbols: Iterable[str]) -> dict[str, str]:
+    sorted_syms = sorted({str(s) for s in symbols if str(s)})
+    payload = ",".join(sorted_syms)
+    return {
+        f"{_UNIVERSE_META_PREFIX}captured_universe_hash": hashlib.sha1(
+            payload.encode("utf-8"), usedforsecurity=False
+        ).hexdigest(),
+        f"{_UNIVERSE_META_PREFIX}captured_universe_size": str(len(sorted_syms)),
+        f"{_UNIVERSE_META_PREFIX}captured_universe_symbols": payload,
+        f"{_UNIVERSE_META_PREFIX}captured_at": datetime.now(UTC).isoformat(),
+    }
+
+
+def _read_universe_metadata(path: Path) -> dict[str, str] | None:
+    """Read ``skipp.*`` parquet schema metadata without loading row data.
+
+    Returns ``None`` when the file has no skipp metadata (pre-#2339 cache)
+    or when the parquet schema cannot be parsed (corrupt file).
+    """
+    try:
+        import pyarrow.parquet as pq
+
+        schema = pq.read_schema(path)
+    except Exception:
+        return None
+    raw = schema.metadata
+    if not raw:
+        return None
+    decoded: dict[str, str] = {}
+    for k, v in raw.items():
+        ks = k.decode("utf-8", errors="ignore") if isinstance(k, (bytes, bytearray)) else str(k)
+        if not ks.startswith(_UNIVERSE_META_PREFIX):
+            continue
+        vs = v.decode("utf-8", errors="ignore") if isinstance(v, (bytes, bytearray)) else str(v)
+        decoded[ks] = vs
+    return decoded or None
+
+
+def _write_cached_frame(
+    path: Path,
+    frame: pd.DataFrame,
+    *,
+    captured_universe_symbols: Iterable[str] | None = None,
+) -> None:
+    metadata = (
+        _build_universe_metadata(captured_universe_symbols)
+        if captured_universe_symbols is not None
+        else None
+    )
+    _write_parquet_atomic(path, frame, metadata=metadata)
 
 
 def _cached_frame_coverage(
@@ -455,6 +526,7 @@ def _cached_frame_coverage(
     *,
     max_age_seconds: int | None = None,
     symbol_col: str = "symbol",
+    current_universe_symbols: Iterable[str] | None = None,
 ) -> tuple[pd.DataFrame | None, set[str]]:
     """Return ``(cached_frame, missing_symbols)`` for delta-fetch decisions.
 
@@ -465,14 +537,50 @@ def _cached_frame_coverage(
     strict *subset* of the current request and callers must delta-fetch the
     missing symbols instead of silently returning an incomplete frame.
 
+    When ``current_universe_symbols`` is supplied (#2339), the cache file's
+    embedded universe snapshot is compared to the current universe *before*
+    the row data is read: if the current universe contains symbols that were
+    not present at capture time, the file is treated as a miss and removed
+    so the caller refetches a fresh snapshot (silent under-coverage guard).
+
     Outcomes:
-      - ``(None, set(requested))``        miss/expired/corrupt → full fetch
+      - ``(None, set(requested))``        miss/expired/corrupt/drift → full fetch
       - ``(frame, set())``                full coverage → use as-is
       - ``(frame, missing_subset)``       partial coverage → fetch ``missing_subset``
                                           then ``pd.concat([frame, fetched])``
     """
-    cached = _read_cached_frame(cache_path, max_age_seconds=max_age_seconds)
     requested_set = {str(s) for s in requested_symbols}
+    # #2339: universe-drift check runs before _read_cached_frame so a drift
+    # refetch does not register a spurious hit on the cache-probe ledger.
+    if current_universe_symbols is not None and cache_path.exists():
+        meta = _read_universe_metadata(cache_path)
+        if meta is not None:
+            symbols_key = f"{_UNIVERSE_META_PREFIX}captured_universe_symbols"
+            if symbols_key not in meta:
+                logger.warning(
+                    "cache file has skipp.* metadata but no %s key; forcing refetch: %s",
+                    symbols_key,
+                    cache_path.name,
+                )
+                with contextlib.suppress(OSError):
+                    cache_path.unlink()
+                return None, requested_set
+            captured_payload = meta.get(symbols_key, "")
+            captured_set = {s for s in captured_payload.split(",") if s}
+            current_set = {str(s) for s in current_universe_symbols if str(s)}
+            missing_in_captured = current_set - captured_set
+            if missing_in_captured:
+                logger.warning(
+                    "cache drift refetch (#2339): path=%s captured_size=%d current_size=%d new_symbols=%d",
+                    cache_path.name,
+                    len(captured_set),
+                    len(current_set),
+                    len(missing_in_captured),
+                )
+                with contextlib.suppress(OSError):
+                    cache_path.unlink()
+                return None, requested_set
+    cached = _read_cached_frame(cache_path, max_age_seconds=max_age_seconds)
     if cached is None:
         return None, requested_set
     if symbol_col not in cached.columns:
@@ -516,9 +624,26 @@ def _write_bytes_atomic(path: Path, content: bytes) -> None:
     _replace_atomic(path, write_temp)
 
 
-def _write_parquet_atomic(path: Path, frame: pd.DataFrame) -> None:
+def _write_parquet_atomic(
+    path: Path,
+    frame: pd.DataFrame,
+    *,
+    metadata: dict[str, str] | None = None,
+) -> None:
     def write_temp(temp_path: Path) -> None:
-        frame.to_parquet(temp_path, index=False)
+        if metadata is None:
+            frame.to_parquet(temp_path, index=False)
+            return
+        # #2339: embed skipp.* universe metadata into the parquet schema.
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+
+        table = pa.Table.from_pandas(frame, preserve_index=False)
+        existing = dict(table.schema.metadata or {})
+        for k, v in metadata.items():
+            existing[k.encode("utf-8")] = v.encode("utf-8")
+        table = table.replace_schema_metadata(existing)
+        pq.write_table(table, temp_path)
 
     _replace_atomic(path, write_temp)
 
@@ -1550,6 +1675,7 @@ def load_daily_bars(
             cache_path,
             normalized_universe_symbols,
             max_age_seconds=DATA_CACHE_TTL_SECONDS,
+            current_universe_symbols=normalized_universe_symbols,
         )
     if cached_frame is not None and not missing_symbols:
         _emit(f"cache HIT path={cache_path} rows={len(cached_frame)}")
@@ -1620,7 +1746,11 @@ def load_daily_bars(
             fetched_frame["symbol"] = fetched_frame.get("symbol", "").map(normalize_symbol_for_databento)
             frame = pd.concat([cached_frame, fetched_frame], ignore_index=True)
             if use_file_cache and not frame.empty:
-                _write_cached_frame(cache_path, frame)
+                _write_cached_frame(
+                    cache_path,
+                    frame,
+                    captured_universe_symbols=normalized_universe_symbols,
+                )
                 _emit(f"wrote cache rows={len(frame)} (merged cached+delta)")
         elif cached_frame is not None:
             # delta-fetch returned nothing for missing symbols → keep cached
@@ -1629,7 +1759,11 @@ def load_daily_bars(
         else:
             frame = fetched_frame
             if use_file_cache and not frame.empty:
-                _write_cached_frame(cache_path, frame)
+                _write_cached_frame(
+                    cache_path,
+                    frame,
+                    captured_universe_symbols=normalized_universe_symbols,
+                )
                 _emit(f"wrote cache rows={len(frame)}")
     if frame.empty:
         _emit("complete rows=0 (empty after fetch)")
@@ -1943,6 +2077,7 @@ def _process_intraday_day(
             cache_path,
             universe_symbols,
             max_age_seconds=_trade_day_cache_max_age_seconds(trade_day, latest_trade_day),
+            current_universe_symbols=universe_symbols,
         )
         cache_hit = cached_frame is not None and not missing_symbols
     if cached_frame is not None and not missing_symbols:
@@ -1970,13 +2105,21 @@ def _process_intraday_day(
         if cached_frame is not None and not fetched_frame.empty:
             day_frame = pd.concat([cached_frame, fetched_frame], ignore_index=True)
             if use_file_cache:
-                _write_cached_frame(cache_path, day_frame)
+                _write_cached_frame(
+                    cache_path,
+                    day_frame,
+                    captured_universe_symbols=universe_symbols,
+                )
         elif cached_frame is not None:
             day_frame = cached_frame
         else:
             day_frame = fetched_frame
             if use_file_cache and not day_frame.empty:
-                _write_cached_frame(cache_path, day_frame)
+                _write_cached_frame(
+                    cache_path,
+                    day_frame,
+                    captured_universe_symbols=universe_symbols,
+                )
     if day_frame.empty:
         return [], 0, cache_hit
     filtered = day_frame[day_frame["symbol"].isin(universe_symbols)].copy()
@@ -2430,6 +2573,7 @@ def collect_full_universe_open_window_second_detail(
                 cache_path,
                 day_universe_symbols,
                 max_age_seconds=_trade_day_cache_max_age_seconds(trade_day, latest_trade_day),
+                current_universe_symbols=day_universe_symbols,
             )
 
         if cached_frame is not None and not missing_symbols:
@@ -2531,13 +2675,21 @@ def collect_full_universe_open_window_second_detail(
                 # #2334: merge delta-fetched missing symbols into cached subset.
                 day_frame = pd.concat([cached_frame, fetched_frame], ignore_index=True)
                 if use_file_cache:
-                    _write_cached_frame(cache_path, day_frame)
+                    _write_cached_frame(
+                        cache_path,
+                        day_frame,
+                        captured_universe_symbols=day_universe_symbols,
+                    )
             elif cached_frame is not None:
                 day_frame = cached_frame
             else:
                 day_frame = fetched_frame
                 if use_file_cache and not day_frame.empty:
-                    _write_cached_frame(cache_path, day_frame)
+                    _write_cached_frame(
+                        cache_path,
+                        day_frame,
+                        captured_universe_symbols=day_universe_symbols,
+                    )
 
         if day_frame is not None and not day_frame.empty:
             # #2334: cache file may contain a superset universe (key no longer
@@ -2929,6 +3081,7 @@ def collect_full_universe_close_trade_detail(
                 cache_path,
                 day_universe_symbols,
                 max_age_seconds=_trade_day_cache_max_age_seconds(trade_day, latest_trade_day),
+                current_universe_symbols=day_universe_symbols,
             )
 
         if cached_frame is not None and not missing_symbols:
@@ -3004,13 +3157,21 @@ def collect_full_universe_close_trade_detail(
                 # #2334: merge delta-fetched missing symbols into cached subset.
                 day_frame = pd.concat([cached_frame, fetched_frame], ignore_index=True)
                 if use_file_cache:
-                    _write_cached_frame(cache_path, day_frame)
+                    _write_cached_frame(
+                        cache_path,
+                        day_frame,
+                        captured_universe_symbols=day_universe_symbols,
+                    )
             elif cached_frame is not None:
                 day_frame = cached_frame
             else:
                 day_frame = fetched_frame
                 if use_file_cache and not day_frame.empty:
-                    _write_cached_frame(cache_path, day_frame)
+                    _write_cached_frame(
+                        cache_path,
+                        day_frame,
+                        captured_universe_symbols=day_universe_symbols,
+                    )
 
         if day_frame is not None and not day_frame.empty:
             # #2334: cache file may contain a superset universe (key no longer
@@ -3091,6 +3252,7 @@ def collect_full_universe_close_outcome_minute_detail(
                 cache_path,
                 day_universe_symbols,
                 max_age_seconds=_trade_day_cache_max_age_seconds(trade_day, latest_trade_day),
+                current_universe_symbols=day_universe_symbols,
             )
 
         if cached_frame is not None and not missing_symbols:
@@ -3147,13 +3309,21 @@ def collect_full_universe_close_outcome_minute_detail(
                 # #2334: merge delta-fetched missing symbols into cached subset.
                 day_frame = pd.concat([cached_frame, fetched_frame], ignore_index=True)
                 if use_file_cache:
-                    _write_cached_frame(cache_path, day_frame)
+                    _write_cached_frame(
+                        cache_path,
+                        day_frame,
+                        captured_universe_symbols=day_universe_symbols,
+                    )
             elif cached_frame is not None:
                 day_frame = cached_frame
             else:
                 day_frame = fetched_frame
                 if use_file_cache and not day_frame.empty:
-                    _write_cached_frame(cache_path, day_frame)
+                    _write_cached_frame(
+                        cache_path,
+                        day_frame,
+                        captured_universe_symbols=day_universe_symbols,
+                    )
 
         if day_frame is not None and not day_frame.empty:
             # #2334: cache file may contain a superset universe (key no longer

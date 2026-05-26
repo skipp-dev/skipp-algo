@@ -39,7 +39,10 @@ _DIR_EXCLUDE = frozenset(
 # Frozen ledger: {relative_path: count_of_md5_or_sha1_call_sites}
 _FROZEN_LEDGER: dict[str, int] = {
     "databento_utils.py": 1,
-    "databento_volatility_screener.py": 3,
+    # PR #2339: +1 (3→4) — _build_universe_metadata adds a sha1 fingerprint
+    # of the sorted universe symbol list for parquet schema metadata
+    # (non-security; cache-version stamp).
+    "databento_volatility_screener.py": 4,
     "newsstack_fmp/normalize.py": 6,
     "newsstack_fmp/scoring.py": 1,
     "newsstack_fmp/shared_fetch.py": 2,
@@ -48,7 +51,7 @@ _FROZEN_LEDGER: dict[str, int] = {
     "terminal_poller.py": 2,
 }
 
-_TOTAL_BUDGET = sum(_FROZEN_LEDGER.values())  # = 17
+_TOTAL_BUDGET = sum(_FROZEN_LEDGER.values())  # = 18
 
 
 def _is_weak_hash_call(node: ast.AST) -> bool:
