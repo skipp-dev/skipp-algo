@@ -11,11 +11,23 @@ from __future__ import annotations
 _DAILY_ALIASES = frozenset({"1D", "D", "DAILY", "1DAY"})
 
 
-def is_daily_timeframe(timeframe: str) -> bool:
+class WorkbookFallbackTimeframeError(ValueError):
+    """Raised when the workbook fallback is asked for a non-daily timeframe.
+
+    Subclass of :class:`ValueError` so existing ``except ValueError`` handlers
+    continue to work — callers that want to bucket gate rejects separately
+    from genuine input errors (telemetry, dashboards) can narrow to this type.
+    """
+
+
+def is_daily_timeframe(timeframe: str | None) -> bool:
     """Return True if ``timeframe`` denotes a daily bar stream.
 
     Accepts the canonical ``"1D"`` plus common casing / synonym variants so
     a single surface decides whether the daily workbook fallback is legal.
+    ``None`` and empty strings are treated as non-daily (safe-default-reject).
     """
 
+    if timeframe is None:
+        return False
     return str(timeframe).strip().upper() in _DAILY_ALIASES

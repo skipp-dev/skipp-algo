@@ -861,10 +861,11 @@ class TestWorkbookFallbackGate:
     @pytest.mark.parametrize("intraday_tf", ["5m", "15m", "1H", "4H", "30m"])
     def test_workbook_fallback_rejects_intraday_timeframe(self, tmp_path: Path, monkeypatch, intraday_tf: str) -> None:
         from smc_integration import structure_batch as mod
+        from smc_integration.timeframes import WorkbookFallbackTimeframeError
 
         monkeypatch.setattr(mod, "_load_symbol_bars_from_canonical_exports", lambda *a, **kw: None)
         wb = make_minimal_workbook(tmp_path)
-        with pytest.raises(ValueError, match="only supported for 1D"):
+        with pytest.raises(WorkbookFallbackTimeframeError, match="only supported for 1D") as excinfo:
             mod.build_single_symbol_structure_artifact(
                 workbook=wb,
                 export_bundle_root=None,
@@ -872,6 +873,8 @@ class TestWorkbookFallbackGate:
                 timeframe=intraday_tf,
                 generated_at=0.0,
             )
+        # Must still be catchable as plain ValueError for existing handlers.
+        assert isinstance(excinfo.value, ValueError)
 
     @pytest.mark.parametrize("daily_tf", ["1D", "1d", " 1D ", "D", "daily", "DAILY", "1day"])
     def test_workbook_fallback_accepts_daily_synonyms(self, tmp_path: Path, monkeypatch, daily_tf: str) -> None:
@@ -910,6 +913,48 @@ class TestWorkbookFallbackGate:
         assert not is_daily_timeframe("1H")
         assert not is_daily_timeframe("")
         assert not is_daily_timeframe("1W")
+
+    @pytest.mark.parametrize(
+        "bad",
+        [None, "", "  ", "1W", "weekly", "1wk", "2D", "1M", "monthly"],
+    )
+    def test_is_daily_timeframe_rejects_non_daily(self, bad) -> None:
+        from smc_integration.timeframes import is_daily_timeframe
+
+        assert is_daily_timeframe(bad) is False
+
+    def test_batch_manifest_carries_workbook_fallback_rejects(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        """When the workbook fallback rejects all symbols (intraday timeframe,
+        no export bundle), the batch manifest must expose an aggregate
+        ``workbook_fallback_rejects`` bucket so on-call operators triage at a
+        glance instead of grepping per-symbol log lines.
+        """
+        from smc_integration import structure_batch as mod
+
+        monkeypatch.setattr(
+            mod, "_load_symbol_bars_from_canonical_exports", lambda *a, **kw: None
+        )
+        workbook = make_minimal_workbook(tmp_path)
+        symbols = _sample_symbols(workbook, limit=2)
+        output_dir = tmp_path / "output"
+
+        manifest = write_structure_artifacts_from_workbook(
+            workbook=workbook,
+            timeframe="15m",
+            symbols=symbols,
+            output_dir=output_dir,
+            generated_at=1709254000.0,
+        )
+
+        rejects = manifest["workbook_fallback_rejects"]
+        assert rejects["count"] == len(symbols)
+        assert rejects["requested_timeframe"] == "15m"
+        assert len(rejects["sample_messages"]) <= 5
+        assert all(
+            "only supported for 1D" in msg for msg in rejects["sample_messages"]
+        )
 
 
 class TestBuildStructureArtifactBatchEdges:
