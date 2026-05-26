@@ -14,7 +14,7 @@ from scripts.explicit_structure_profiles import EVENT_LOGIC_VERSION, validate_st
 from scripts.load_databento_export_bundle import load_export_bundle
 from smc_core.schema_version import SCHEMA_VERSION
 from smc_integration.artifact_resolution import resolve_structure_artifact_inputs
-from smc_integration.timeframes import is_daily_timeframe
+from smc_integration.timeframes import WorkbookFallbackTimeframeError, is_daily_timeframe
 
 logger = logging.getLogger(__name__)
 DEFAULT_WORKBOOK = Path("artifacts/smc_microstructure_exports/databento_volatility_production_workbook.xlsx")
@@ -237,7 +237,7 @@ def build_single_symbol_structure_artifact(
             # verbose on purpose: this error surfaces through the per-symbol
             # ``errors[]`` of the batch manifest, so an on-call operator must be
             # able to triage and remediate from a single log line.
-            raise ValueError(
+            raise WorkbookFallbackTimeframeError(
                 f"Workbook fallback is only supported for 1D (daily) timeframe; "
                 f"got timeframe={timeframe!r} for symbol={resolved_symbol}. "
                 "The production workbook contains only the 'daily_bars' sheet, so "
@@ -335,6 +335,7 @@ def build_structure_artifact_manifest(
     warnings: list[dict[str, Any]],
     resolution_mode: str,
     symbols_requested: list[str],
+    workbook_fallback_rejects: list[str] | None = None,
 ) -> dict[str, Any]:
     coverage_summary = {
         "symbols_with_bos": sum(1 for row in artifacts if row.has_bos),
@@ -399,6 +400,11 @@ def build_structure_artifact_manifest(
         "artifacts": artifacts_rows,
         "errors": list(errors),
         "warnings": list(warnings),
+        "workbook_fallback_rejects": {
+            "count": len(workbook_fallback_rejects or []),
+            "requested_timeframe": timeframe,
+            "sample_messages": list((workbook_fallback_rejects or [])[:5]),
+        },
     }
 
 
@@ -504,6 +510,7 @@ def write_structure_artifacts_from_workbook(
 
     artifact_rows: list[StructureArtifactRow] = []
     errors: list[dict[str, Any]] = []
+    workbook_fallback_rejects: list[str] = []
 
     if resolved_workbook is None and resolved_bundle_root is None:
         existing = _existing_artifact_rows(output_dir, requested_symbols, resolved_timeframe)
@@ -591,6 +598,8 @@ def write_structure_artifacts_from_workbook(
                 )
             )
         except Exception as exc:
+            if isinstance(exc, WorkbookFallbackTimeframeError):
+                workbook_fallback_rejects.append(str(exc))
             errors.append({
                 "code": "BUILD_SYMBOL_ARTIFACT_FAILED",
                 "symbol": symbol,
@@ -608,6 +617,7 @@ def write_structure_artifacts_from_workbook(
         warnings=warnings,
         resolution_mode=str(resolved_inputs.get("resolution_mode", "canonical")),
         symbols_requested=requested_symbols,
+        workbook_fallback_rejects=workbook_fallback_rejects,
     )
 
     manifest_path = output_dir / _manifest_file_name(resolved_timeframe)
