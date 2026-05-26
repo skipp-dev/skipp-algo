@@ -35,7 +35,7 @@ def test_schedule_is_sunday_06_utc() -> None:
     # PyYAML parses bare ``on`` as boolean True — accept both keys.
     on_block = data.get("on") or data.get(True)
     crons = [entry["cron"] for entry in on_block["schedule"]]
-    assert crons == ["0 6 * * SUN"], crons
+    assert crons == ["0 6 * * 0"], crons
 
 
 def test_dashboard_job_invokes_build_script() -> None:
