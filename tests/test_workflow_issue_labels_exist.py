@@ -43,6 +43,7 @@ PINNED_KNOWN_LABELS: frozenset[str] = frozenset(
         "documentation",
         "duplicate",
         "enhancement",
+        "f2-recalibration",
         "good first issue",
         "help wanted",
         "invalid",
