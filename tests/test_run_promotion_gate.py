@@ -188,7 +188,8 @@ def test_build_report_no_strict_mode_keeps_legacy_compat(tmp_path: Path) -> None
 # ---------------------------------------------------------------------------
 
 
-def test_cli_writes_report_and_returns_zero_when_promoted(tmp_path: Path) -> None:
+def test_cli_writes_report_and_returns_zero_when_promoted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
     bundle_path = tmp_path / "bundle.json"
     output_path = tmp_path / "report.json"
     bundle_path.write_text(json.dumps([_full_snapshot_dict("BOS")]), encoding="utf-8")
@@ -211,7 +212,8 @@ def test_cli_defaults_output_to_contract_path(tmp_path: Path, monkeypatch: pytes
     assert output_path.exists()
 
 
-def test_cli_returns_two_when_any_family_blocked(tmp_path: Path) -> None:
+def test_cli_returns_two_when_any_family_blocked(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
     bundle_path = tmp_path / "bundle.json"
     output_path = tmp_path / "report.json"
     bundle_path.write_text(json.dumps([{"family": "BOS", "brier": 0.18}]), encoding="utf-8")
@@ -231,7 +233,8 @@ def test_cli_returns_one_on_missing_input(tmp_path: Path) -> None:
     assert rc == 1
 
 
-def test_cli_no_strict_flag_promotes_legacy_snapshot(tmp_path: Path) -> None:
+def test_cli_no_strict_flag_promotes_legacy_snapshot(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
     bundle_path = tmp_path / "bundle.json"
     output_path = tmp_path / "report.json"
     bundle_path.write_text(
@@ -258,3 +261,52 @@ def test_cli_no_strict_flag_promotes_legacy_snapshot(tmp_path: Path) -> None:
         "--no-strict",
     ])
     assert rc == 0
+
+
+# ---------------------------------------------------------------------------
+# PQ Re-Audit A8 (#2354) — dashboard archive hook.
+# ---------------------------------------------------------------------------
+
+
+def test_cli_archives_timestamped_copy_for_dashboard(tmp_path: Path) -> None:
+    bundle_path = tmp_path / "bundle.json"
+    output_path = tmp_path / "report.json"
+    archive_dir = tmp_path / "promotion_decisions"
+    bundle_path.write_text(json.dumps([_full_snapshot_dict("BOS")]), encoding="utf-8")
+
+    rc = runner.main([
+        "--metrics", str(bundle_path),
+        "--output", str(output_path),
+        "--archive-dir", str(archive_dir),
+    ])
+
+    assert rc == 0
+    archived = list(archive_dir.glob("promotion_decisions_*.json"))
+    assert len(archived) == 1
+    archived_payload = json.loads(archived[0].read_text(encoding="utf-8"))
+    live_payload = json.loads(output_path.read_text(encoding="utf-8"))
+    assert archived_payload == live_payload
+
+
+def test_cli_skips_archive_when_disabled(tmp_path: Path) -> None:
+    bundle_path = tmp_path / "bundle.json"
+    output_path = tmp_path / "report.json"
+    archive_dir = tmp_path / "promotion_decisions"
+    bundle_path.write_text(json.dumps([_full_snapshot_dict("BOS")]), encoding="utf-8")
+
+    rc = runner.main([
+        "--metrics", str(bundle_path),
+        "--output", str(output_path),
+        "--archive-dir", "",
+    ])
+
+    assert rc == 0
+    assert not archive_dir.exists()
+
+
+def test_archive_stamp_is_filename_safe_and_sortable() -> None:
+    a = runner._archive_stamp("2026-05-25T06:00:00+00:00")
+    b = runner._archive_stamp("2026-05-25T06:00:01+00:00")
+    assert a == "20260525T060000Z"
+    assert "/" not in a and ":" not in a and "+" not in a
+    assert b > a
