@@ -56,21 +56,11 @@ def test_pre_existing_flags_remain(monkeypatch: pytest.MonkeyPatch) -> None:
     assert ns.require_evidence is False
 
 
-def test_main_raises_not_implemented_for_contextual(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        "sys.argv",
-        ["run_smc_measurement_benchmark.py", "--weights-mode", "contextual"],
-    )
-    with pytest.raises(NotImplementedError, match=r"#28"):
-        main()
-
-
 def test_main_raises_on_missing_weights_artifact(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
     missing = tmp_path / "does_not_exist.json"
+    out_dir = tmp_path / "out"
     monkeypatch.setattr(
         "sys.argv",
         [
@@ -82,8 +72,36 @@ def test_main_raises_on_missing_weights_artifact(
             "--timeframes",
             "",
             "--output-dir",
-            str(tmp_path / "out"),
+            str(out_dir),
         ],
     )
     with pytest.raises(FileNotFoundError, match=r"weights-artifact"):
         main()
+    # Fast-fail: validation must happen before any side effects, so the
+    # output directory must NOT have been created.
+    assert not out_dir.exists(), (
+        "main() must validate --weights-artifact before mkdir; an empty "
+        "output dir was left behind."
+    )
+
+
+def test_main_raises_before_mkdir_for_contextual_mode(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    out_dir = tmp_path / "out"
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "run_smc_measurement_benchmark.py",
+            "--weights-mode",
+            "contextual",
+            "--output-dir",
+            str(out_dir),
+        ],
+    )
+    with pytest.raises(NotImplementedError, match=r"#28"):
+        main()
+    assert not out_dir.exists(), (
+        "main() must reject --weights-mode=contextual before mkdir; an "
+        "empty output dir was left behind."
+    )

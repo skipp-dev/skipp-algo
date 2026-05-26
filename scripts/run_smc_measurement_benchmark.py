@@ -528,8 +528,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--weights-artifact",
         default=None,
         help=(
-            "Optional override path for the calibration JSON. Defaults to the "
-            "canonical artifact for the selected --weights-mode."
+            "Optional override path for the calibration JSON. SCAFFOLDING: "
+            "the path is validated to exist (fast-fail) but is not yet "
+            "plumbed into the scoring pipeline \u2014 wiring lands in the #28 "
+            "follow-up PR alongside --weights-mode=contextual. Defaults to "
+            "the canonical artifact for the selected --weights-mode."
         ),
     )
     return parser
@@ -537,11 +540,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = build_parser().parse_args()
-    symbols = parse_csv(str(args.symbols), normalize_upper=True)
-    timeframes = parse_csv(str(args.timeframes), normalize_upper=False)
-    output_root = Path(args.output_dir)
-    output_root.mkdir(parents=True, exist_ok=True)
-
+    # Issue #28 scaffolding: validate the new flags BEFORE any side effect
+    # (mkdir, file writes) so a contextual-mode invocation or a missing
+    # --weights-artifact does not leave behind an empty output directory.
     weights_mode = str(getattr(args, "weights_mode", "static_global"))
     weights_artifact = getattr(args, "weights_artifact", None)
     if weights_mode == "contextual":
@@ -554,6 +555,11 @@ def main() -> int:
         raise FileNotFoundError(
             f"--weights-artifact path does not exist: {weights_artifact}"
         )
+
+    symbols = parse_csv(str(args.symbols), normalize_upper=True)
+    timeframes = parse_csv(str(args.timeframes), normalize_upper=False)
+    output_root = Path(args.output_dir)
+    output_root.mkdir(parents=True, exist_ok=True)
 
     pair_runs: list[dict[str, Any]] = []
     for symbol in symbols:
