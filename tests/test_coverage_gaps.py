@@ -8,6 +8,7 @@ tempfile.TemporaryDirectory for file-based tests, imports at test level.
 
 from __future__ import annotations
 
+import gc
 import json
 import os
 import queue
@@ -101,8 +102,10 @@ class TestPollAndClassifyMulti(unittest.TestCase):
         self.db = SqliteStore(os.path.join(self._tmpdir.name, "test.db"))
 
     def tearDown(self) -> None:
-        self.db.close(force=True)  # force=True actually closes on-disk connections (Windows file-lock fix)
-        self._tmpdir.cleanup()
+        try:
+            self.db.close(force=True)  # force=True actually closes on-disk connections (Windows file-lock fix)
+        finally:
+            self._tmpdir.cleanup()
 
     def test_benzinga_only_returns_classified(self) -> None:
         """With only benzinga adapter, items are classified."""
@@ -964,8 +967,10 @@ class TestSqliteStorePrune(unittest.TestCase):
         self.store = SqliteStore(os.path.join(self._tmpdir.name, "prune.db"))
 
     def tearDown(self) -> None:
-        self.store.close(force=True)  # force=True actually closes on-disk connections (Windows file-lock fix)
-        self._tmpdir.cleanup()
+        try:
+            self.store.close(force=True)  # force=True actually closes on-disk connections (Windows file-lock fix)
+        finally:
+            self._tmpdir.cleanup()
 
     def test_prune_seen_removes_old_entries(self) -> None:
         now = time.time()
@@ -1058,8 +1063,10 @@ class TestSqliteStoreClusterTouch(unittest.TestCase):
         self.store = SqliteStore(os.path.join(self._tmpdir.name, "cluster.db"))
 
     def tearDown(self) -> None:
-        self.store.close(force=True)  # force=True actually closes on-disk connections (Windows file-lock fix)
-        self._tmpdir.cleanup()
+        try:
+            self.store.close(force=True)  # force=True actually closes on-disk connections (Windows file-lock fix)
+        finally:
+            self._tmpdir.cleanup()
 
     def test_first_touch_returns_count_one(self) -> None:
         count, first_ts = self.store.cluster_touch("new_hash", 1000.0)
@@ -1278,26 +1285,36 @@ class TestEffectiveTs(unittest.TestCase):
 class TestSingletonGetters(unittest.TestCase):
     """Tests for pipeline singleton getters (lines 44-78)."""
 
-    @unittest.skipIf(sys.platform == "win32", "Windows file-lock collision on shared SQLite path tracked in #2269")
     def test_get_store_creates_on_first_call(self) -> None:
         from newsstack_fmp import pipeline
         from newsstack_fmp.config import Config
+        from newsstack_fmp.store_sqlite import _instances, _instances_lock
 
         orig_store = pipeline._store
         try:
             pipeline._store = None
-            with tempfile.TemporaryDirectory() as tmpdir, patch.dict(os.environ, {
-                    "NEWSSTACK_SQLITE_PATH": os.path.join(tmpdir, "test.db"),
-                }):
+            with tempfile.TemporaryDirectory() as tmpdir:
+                db_path = os.path.join(tmpdir, "test.db")
+                with patch.dict(os.environ, {"NEWSSTACK_SQLITE_PATH": db_path}):
                     cfg_mock = MagicMock(spec=Config)
-                    cfg_mock.sqlite_path = os.path.join(tmpdir, "test.db")
+                    cfg_mock.sqlite_path = db_path
 
                     store = pipeline._get_store(cfg_mock)
                     self.assertIsNotNone(store)
                     # Second call returns same instance
                     store2 = pipeline._get_store(cfg_mock)
                     self.assertIs(store, store2)
-                    store.close()
+
+                    # Release all SQLite handles BEFORE the tempfile cleanup so
+                    # Windows can unlink the .db / .db-wal / .db-shm files.
+                    # POSIX allows unlink while an fd is open; Windows refuses
+                    # with PermissionError [WinError 32]. (#2269)
+                    store.close(force=True)
+                    pipeline._store = None
+                    with _instances_lock:
+                        _instances.pop(os.path.realpath(db_path), None)
+                    del store, store2
+                    gc.collect()
         finally:
             pipeline._store = orig_store
 
