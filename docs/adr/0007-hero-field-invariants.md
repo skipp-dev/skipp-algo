@@ -17,7 +17,7 @@ The Python builder [`build_hero_state`](../../scripts/smc_hero_state.py) MUST em
 
 | # | HERO field | Vocab constant | Default | Sentinel? | Pine consumers |
 | - | ---------- | -------------- | ------- | --------- | -------------- |
-| 1 | `HERO_MARKET_MODE` | `HERO_MARKET_MODE_VOCAB` | `"UNKNOWN"` | **`"UNKNOWN"` ≡ waiting-state** (rendered as `⚪ awaiting data`) | `SMC_Mobile_Dashboard.pine:79`, `SMC_Dashboard.pine` Hero block |
+| 1 | `HERO_MARKET_MODE` | `HERO_MARKET_MODE_VOCAB` | `"UNKNOWN"` | **`"UNKNOWN"` ≡ waiting-state** (rendered as `⚪ awaiting data`) | `SMC_Mobile_Dashboard.pine` Mobile context block, `SMC_Dashboard.pine` Hero block |
 | 2 | `HERO_BIAS` | `HERO_BIAS_VOCAB` | `"UNKNOWN"` | **`"UNKNOWN"` ≡ waiting-state** (excluded from bias chip; rendered as `⚪ awaiting data`) | `SMC_Dashboard.pine`, `SMC_Mobile_Dashboard.pine` |
 | 3 | `HERO_TRUST` | `HERO_TRUST_VOCAB` | `"unavailable"` | derived | `SMC_Dashboard.pine:1769` (gates blocker on `degraded`/`stale`) |
 | 4 | `HERO_SETUP_QUALITY` | `HERO_SETUP_QUALITY_VOCAB` | `"unavailable"` | **`"unavailable"` ≡ waiting-state** (rendered as `⚪ awaiting data`; maps to `avoid` on the Producer-B action table) | dashboard tier color |
@@ -46,4 +46,4 @@ The Python builder [`build_hero_state`](../../scripts/smc_hero_state.py) MUST em
 
 ## 2026-05-26 amendment — waiting-state sentinels (WS3-UI #55)
 
-Defaults for `HERO_MARKET_MODE`, `HERO_BIAS`, and `HERO_SETUP_QUALITY` were switched from the substantive values (`NEUTRAL`, `FLAT`, `low`) to dedicated waiting-state sentinels (`UNKNOWN`, `UNKNOWN`, `unavailable`) so consumers can tell *“no enrichment data yet”* apart from a real neutral / flat / low reading. The sentinels are first-class vocab members (frozenset size 3→4, 4→5, 4→5) and round-trip through the Producer-B action table via `HERO_QUALITY_A_TO_B["unavailable"] = "avoid"`. Pine dashboards render `⚪ awaiting data` (grey-80) for the sentinel; the bias chip is suppressed entirely for both `FLAT` and `UNKNOWN`. This was a breaking change to Pine literal gates and shipped with the `v5.5c → v6.0a` MAJOR version bump.
+Defaults for `HERO_MARKET_MODE`, `HERO_BIAS`, and `HERO_SETUP_QUALITY` were switched from the substantive values (`NEUTRAL`, `FLAT`, `low`) to dedicated waiting-state sentinels (`UNKNOWN`, `UNKNOWN`, `unavailable`) so consumers can tell *“no enrichment data yet”* apart from a real neutral / flat / low reading. The sentinels are first-class vocab members (frozenset size 4→5, 3→4, 4→5 for market / bias / quality respectively) and round-trip through the Producer-B action table via `HERO_QUALITY_A_TO_B["unavailable"] = "avoid"`. Pine dashboards render `⚪ awaiting data` (grey-80) for the sentinel; the bias chip is suppressed entirely for both `FLAT` and `UNKNOWN`. This was a breaking change to Pine literal gates and shipped with the `v5.5c → v6.0a` MAJOR version bump.

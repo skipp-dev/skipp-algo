@@ -17,7 +17,7 @@ All notable changes to this project are documented in this file.
 - `HERO_SETUP_QUALITY` default: `low` → `unavailable`
 
 The three sentinels are first-class vocab members (`HERO_MARKET_MODE_VOCAB`
-3 → 4, `HERO_BIAS_VOCAB` 4 → 5, `HERO_SETUP_QUALITY_VOCAB` 4 → 5) and the
+4 → 5, `HERO_BIAS_VOCAB` 3 → 4, `HERO_SETUP_QUALITY_VOCAB` 4 → 5) and the
 Producer-A → Producer-B action map gains
 `HERO_QUALITY_A_TO_B["unavailable"] = "avoid"`.
 

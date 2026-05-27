@@ -188,9 +188,11 @@ HERO_BIAS_VOCAB: frozenset[str] = frozenset({
 #
 # Producer-A vocabulary — passthrough of the upstream ``regime`` field
 # (see ``scripts/smc_hero_market_mode.py::_regime_label``). Pine
-# consumers (``SMC_Mobile_Dashboard.pine:79``) compare against the
-# literals ``"BULLISH"``, ``"BEARISH"``, ``"RISK_OFF"``; ``"NEUTRAL"``
-# is the default sentinel used when no upstream regime is known.
+# consumers (``SMC_Mobile_Dashboard.pine`` Mobile context block,
+# ``SMC_Dashboard.pine`` Hero block) compare against the literals
+# ``"BULLISH"``, ``"BEARISH"``, ``"NEUTRAL"``, ``"RISK_OFF"``; ``"UNKNOWN"``
+# is the waiting-state sentinel emitted when no enrichment run has yet
+# produced a regime (#55). ``"NEUTRAL"`` is substantive (resolved-neutral).
 #
 # This vocab is NORMATIVE for downstream Pine consumers but NOT
 # enforced at write time — ``_regime_label`` will pass through any
