@@ -1,5 +1,5 @@
 {
-  "schema_version": "v1",
+  "schema_version": "v2",
   "purpose": "Pin the HERO vocabulary frozensets that future ML-layer trainers (C10) will consume as categorical feature inputs.",
   "source_module": "scripts/smc_hero_state.py",
   "source_symbols": [
@@ -10,7 +10,7 @@
     "HERO_MARKET_MODE_VOCAB",
     "HERO_RISK_VOCAB"
   ],
-  "pinned_source_sha256": "fd1c51b323ae88d62e9b79c0e2c7686f4f6a83f62e95c624b24251852f4a93e4",
+  "pinned_source_sha256": "80b89eecb99dd68048eb7d693bc0ec8d1f27587cb8bac8a6480f285c3b8df165",
   "sha_method": {
     "tool": "ast.unparse",
     "scope": "module-level AnnAssign or Assign nodes whose target name starts with HERO_ and ends with _VOCAB",
@@ -26,10 +26,10 @@
   },
   "vocabularies": {
     "HERO_TRUST_VOCAB": ["healthy", "warmup", "degraded", "stale", "unavailable"],
-    "HERO_SETUP_QUALITY_VOCAB": ["high", "good", "ok", "low"],
+    "HERO_SETUP_QUALITY_VOCAB": ["high", "good", "ok", "low", "unavailable"],
     "HERO_ACTION_VOCAB": ["ACTIVE", "WATCH", "AVOID", "BLOCKED"],
-    "HERO_BIAS_VOCAB": ["LONG", "SHORT", "FLAT"],
-    "HERO_MARKET_MODE_VOCAB": ["BULLISH", "BEARISH", "NEUTRAL", "RISK_OFF"],
+    "HERO_BIAS_VOCAB": ["LONG", "SHORT", "FLAT", "UNKNOWN"],
+    "HERO_MARKET_MODE_VOCAB": ["BULLISH", "BEARISH", "NEUTRAL", "RISK_OFF", "UNKNOWN"],
     "HERO_RISK_VOCAB": ["", "DATA_STALE", "EVENT_RISK", "VOLATILITY", "PROVIDER_GAPS"],
     "HERO_RISK_VOCAB_note": "Empty string is a Pine-gated sentinel meaning 'no dominant risk' (gated by ``!= \"\"`` on the consumer side)."
   },

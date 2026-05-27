@@ -37,6 +37,10 @@ Snapshot/fingerprint pins regenerated:
 [ADR-0007 §2026-05-26 amendment](docs/adr/0007-hero-field-invariants.md)
 for the full rationale.
 
+ML schema pin `ml/schemas/v1_hero_features.json` bumped to
+`schema_version: v2` (per drift policy `new_vocab_value_added`) with new
+`pinned_source_sha256` and the three new vocab members listed.
+
 ### Added (2026-05-17) — W1.b: PromotionGate daily producer path
 
 End-to-end wiring of the W1 schema-v2 `PromotionGate` contract into a
