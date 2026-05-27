@@ -1,8 +1,8 @@
 # §D4 FVG Quality Quartile — Release Gate
 
-_Generated: `2026-05-26T10:13:24.345874+00:00`_
+_Generated: `2026-05-27T10:11:03.361551+00:00`_
 _Source root: `None`_
-_Source commit: `ab0b405`_
+_Source commit: `7fad1ae`_
 
 **Decision: `AWAITING_DATA`**
 
