@@ -24,9 +24,10 @@
     "good",
     "high",
     "low",
-    "ok"
+    "ok",
+    "unavailable"
   ],
-  "HERO_SETUP_QUALITY_VOCAB_FINGERPRINT": "sha256:d54835b9936e97f310ac47ed9928ce91856b2136f3dc8324e2615f3ef0a37dd2",
+  "HERO_SETUP_QUALITY_VOCAB_FINGERPRINT": "sha256:e70266fdb4d5ad40870bcada618f61f1223b3623e77943d5bdcbcea1a4a00b4d",
   "HERO_ACTION_VOCAB": [
     "ACTIVE",
     "AVOID",
@@ -38,9 +39,10 @@
     "high": "excellent",
     "good": "good",
     "ok": "limited",
-    "low": "avoid"
+    "low": "avoid",
+    "unavailable": "avoid"
   },
-  "HERO_QUALITY_A_TO_B_FINGERPRINT": "sha256:246ec7ab1bc3ad2de59095d72292f70cfef4f4e978336d06920c3ea9668ba5c1",
+  "HERO_QUALITY_A_TO_B_FINGERPRINT": "sha256:63d8e5f22232677b27b90ed6a03fbb8f69335b01567ee2c1c5055766d4cbd2c7",
   "ENGINE_BUS_CHANNELS": [
     "SchemaVersion",
     "ZoneActive",

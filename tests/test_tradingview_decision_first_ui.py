@@ -100,7 +100,7 @@ def test_dashboard_hero_surface_pins_one_liner_row_and_shifted_row_order() -> No
     assert 'dashboard_row(smc_dashboard, 2, "Market", h_market_line,' in source
     assert 'dashboard_row(smc_dashboard, 3, "Action", h_action_line,' in source
     assert 'dashboard_row(smc_dashboard, 4, "Why now", h_why_line,' in source
-    assert 'dashboard_row(smc_dashboard, 5, "Setup Quality", h_quality,' in source
+    assert 'dashboard_row(smc_dashboard, 5, "Setup Quality", h_quality_line,' in source
     assert 'dashboard_row(smc_dashboard, 6, "Trust", h_trust_line,' in source
     assert 'dashboard_row(smc_dashboard, 7, "Risk", h_risk_line,' in source
     assert 'dashboard_row(smc_dashboard, 8, "Risk Plan", dashboard_compact_risk_plan_text(' in source

@@ -48,10 +48,10 @@ bool actionable = state_code >= 5
 // HERO_ACTION vocab anchor (cross-checked by tests/test_pine_python_vocab_cross_check.py):
 //   "ACTIVE", "WATCH", "AVOID", "BLOCKED"  ← keep in sync with scripts/smc_hero_state.py::HERO_ACTION_VOCAB
 // HERO_BIAS vocab anchor:
-//   "LONG", "SHORT", "FLAT"
+//   "LONG", "SHORT", "FLAT", "UNKNOWN" (waiting-state sentinel, #55)
 string hero_action_m = mp.HERO_ACTION
 string hero_bias_m = mp.HERO_BIAS
-string action_text = hero_action_m == "ACTIVE" ? (hero_bias_m == "LONG" ? "🟢 ACTIVE LONG" : hero_bias_m == "SHORT" ? "🟢 ACTIVE SHORT" : "🟢 ACTIVE") : hero_action_m == "BLOCKED" ? "🔴 BLOCKED" : hero_action_m == "AVOID" ? "🔴 AVOID" : "⚪ WATCH"
+string action_text = hero_action_m == "ACTIVE" ? (hero_bias_m == "LONG" ? "🟢 ACTIVE LONG" : hero_bias_m == "SHORT" ? "🟢 ACTIVE SHORT" : "🟢 ACTIVE") : hero_action_m == "BLOCKED" ? "🔴 BLOCKED" : hero_action_m == "AVOID" ? "🔴 AVOID" : hero_bias_m == "UNKNOWN" ? "⚪ awaiting data" : "⚪ WATCH"
 color  action_bg   = hero_action_m == "ACTIVE" ? color.new(M_BULL, 65) : hero_action_m == "BLOCKED" or hero_action_m == "AVOID" ? color.new(M_BEAR, 65) : color.new(M_NEUTRAL, 75)
 
 // ── Levels ──
@@ -59,8 +59,10 @@ string levels_text = actionable and not na(src_trigger) ? str.tostring(src_trigg
 
 // ── Market context from hero state ──
 // HERO_MARKET_MODE vocab anchor (cross-checked by tests/test_pine_python_vocab_cross_check.py):
-//   "BULLISH", "BEARISH", "NEUTRAL", "RISK_OFF"  ← keep in sync with scripts/smc_hero_state.py
+//   "BULLISH", "BEARISH", "NEUTRAL", "RISK_OFF", "UNKNOWN" (waiting-state sentinel, #55)
+//   ← keep in sync with scripts/smc_hero_state.py
 string hero_market_m = mp.HERO_MARKET_MODE
+string hero_market_display = hero_market_m == "UNKNOWN" ? "⚪ awaiting data" : hero_market_m
 string hero_trust_m = mp.HERO_TRUST
 // ENG-WS2-03: surface the canonical product trust state on mobile too so
 // stale/degraded/watch-only is visible without opening Audit View. The
@@ -68,11 +70,13 @@ string hero_trust_m = mp.HERO_TRUST
 // this is safe to read unconditionally.
 string product_trust_m = mp.TRUST_STATE
 string product_trust_emoji_m = product_trust_m == "healthy" ? "✓" : product_trust_m == "degraded" ? "⚠ degraded" : product_trust_m == "stale" ? "⚠ stale" : product_trust_m == "watch_only" ? "⛔ watch-only" : product_trust_m == "unavailable" ? "⛔ no data" : "?"
-string context_text = hero_market_m + " · " + product_trust_emoji_m
+string context_text = hero_market_display + " · " + product_trust_emoji_m
 bool product_trust_bad_m = product_trust_m == "degraded" or product_trust_m == "stale" or product_trust_m == "watch_only" or product_trust_m == "unavailable"
 
 // ── Quality from hero state ──
-string hero_quality_m = mp.HERO_SETUP_QUALITY
+// HERO_SETUP_QUALITY vocab anchor: "high", "good", "ok", "low", "unavailable" (waiting-state sentinel, #55)
+string hero_quality_raw_m = mp.HERO_SETUP_QUALITY
+string hero_quality_m = hero_quality_raw_m == "unavailable" ? "⚪ awaiting data" : hero_quality_raw_m
 
 // ── Why now / Risk from hero state ──
 string hero_why_m = mp.HERO_WHY_NOW

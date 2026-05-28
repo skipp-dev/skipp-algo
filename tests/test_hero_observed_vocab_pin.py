@@ -32,12 +32,17 @@ _HERO_STATE_PATH = REPO_ROOT / "scripts" / "smc_hero_state.py"
 
 # Source-of-truth pin. Drift here = breaking change requiring CHANGELOG
 # entry + library_field_version bump in smc_micro_profiles_generated.pine.
-_EXPECTED_BIAS_VOCAB: frozenset[str] = frozenset({"LONG", "SHORT", "FLAT"})
+# Issue #55 — "UNKNOWN" sentinels added as waiting-state markers (v6.0a bump).
+# The sentinels are emitted only by DEFAULTS[]; the derive functions never
+# return them, so the derive-symmetric test pins the "active" subset.
+_EXPECTED_BIAS_ACTIVE_VOCAB: frozenset[str] = frozenset({"LONG", "SHORT", "FLAT"})
+_EXPECTED_BIAS_VOCAB: frozenset[str] = _EXPECTED_BIAS_ACTIVE_VOCAB | {"UNKNOWN"}
 _EXPECTED_MARKET_MODE_VOCAB: frozenset[str] = frozenset({
     "BULLISH",
     "BEARISH",
     "NEUTRAL",
     "RISK_OFF",
+    "UNKNOWN",
 })
 
 _BIAS_DERIVE_FN = "_derive_bias"
@@ -124,15 +129,15 @@ def test_derive_bias_returns_only_vocab_members() -> None:
         f"Could not extract any return values from {_BIAS_DERIVE_FN}() — "
         "file structure changed?"
     )
-    extra = observed - _EXPECTED_BIAS_VOCAB
-    missing = _EXPECTED_BIAS_VOCAB - observed
+    extra = observed - _EXPECTED_BIAS_ACTIVE_VOCAB
+    missing = _EXPECTED_BIAS_ACTIVE_VOCAB - observed
     assert not extra, (
-        f"{_BIAS_DERIVE_FN} returns NEW values outside HERO_BIAS_VOCAB: "
-        f"{sorted(extra)}. Add them to HERO_BIAS_VOCAB (with CHANGELOG + "
-        "library_field_version bump) or remove from the function."
+        f"{_BIAS_DERIVE_FN} returns NEW values outside the active bias "
+        f"vocab: {sorted(extra)}. Add them to HERO_BIAS_VOCAB (with "
+        "CHANGELOG + library_field_version bump) or remove from the function."
     )
     assert not missing, (
-        f"HERO_BIAS_VOCAB pins {sorted(missing)} that {_BIAS_DERIVE_FN} "
+        f"Active bias vocab pins {sorted(missing)} that {_BIAS_DERIVE_FN} "
         "no longer emits. Either restore the branch or shrink the vocab."
     )
 

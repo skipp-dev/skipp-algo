@@ -17,17 +17,17 @@ The Python builder [`build_hero_state`](../../scripts/smc_hero_state.py) MUST em
 
 | # | HERO field | Vocab constant | Default | Sentinel? | Pine consumers |
 | - | ---------- | -------------- | ------- | --------- | -------------- |
-| 1 | `HERO_MARKET_MODE` | `HERO_MARKET_MODE_VOCAB` | `"NEUTRAL"` | passthrough | `SMC_Mobile_Dashboard.pine:79` |
-| 2 | `HERO_BIAS` | `HERO_BIAS_VOCAB` | `"FLAT"` | derived | `SMC_Dashboard.pine` |
+| 1 | `HERO_MARKET_MODE` | `HERO_MARKET_MODE_VOCAB` | `"UNKNOWN"` | **`"UNKNOWN"` ≡ waiting-state** (rendered as `⚪ awaiting data`) | `SMC_Mobile_Dashboard.pine` Mobile context block, `SMC_Dashboard.pine` Hero block |
+| 2 | `HERO_BIAS` | `HERO_BIAS_VOCAB` | `"UNKNOWN"` | **`"UNKNOWN"` ≡ waiting-state** (excluded from bias chip; rendered as `⚪ awaiting data`) | `SMC_Dashboard.pine`, `SMC_Mobile_Dashboard.pine` |
 | 3 | `HERO_TRUST` | `HERO_TRUST_VOCAB` | `"unavailable"` | derived | `SMC_Dashboard.pine:1769` (gates blocker on `degraded`/`stale`) |
-| 4 | `HERO_SETUP_QUALITY` | `HERO_SETUP_QUALITY_VOCAB` | `"low"` | passthrough | dashboard tier color |
+| 4 | `HERO_SETUP_QUALITY` | `HERO_SETUP_QUALITY_VOCAB` | `"unavailable"` | **`"unavailable"` ≡ waiting-state** (rendered as `⚪ awaiting data`; maps to `avoid` on the Producer-B action table) | dashboard tier color |
 | 5 | `HERO_WHY_NOW` | *(free-form string)* | `""` | none | dashboard caption |
 | 6 | `HERO_RISK` | `HERO_RISK_VOCAB` (incl. `""`) | `""` | **`""` ≡ `HERO_RISK_NONE`** | `SMC_Dashboard.pine:1769` (gates blocker on `!= ""`) |
 | 7 | `HERO_ACTION` | `HERO_ACTION_VOCAB` | `"WATCH"` | derived | `SMC_Dashboard.pine` |
 
 ### Rules
 
-1. **Field count is part of the contract.** Adding or removing a HERO field requires a *major* `library_field_version` bump (`v5.5c` → `v5.6a`) and a parallel Pine-consumer update in the same PR.
+1. **Field count *and* vocabulary membership are part of the contract.** Adding or removing a HERO field — *or* adding/removing a vocab value (including sentinel additions) — requires a *major* `library_field_version` bump (e.g. `v5.5c` → `v6.0a` for the WS3-UI #55 sentinel rollout) and a parallel Pine-consumer update in the same PR.
 2. **The empty-string sentinel for `HERO_RISK` is normative.** `SMC_Dashboard.pine:1769` reads `mp.HERO_RISK != "" ? mp.HERO_RISK : ...` to decide whether to render the blocker badge. Renaming `""` → `"NONE"` requires a Pine-side migration; it is *not* a refactor that can be done Python-side alone.
 3. **Vocab membership is enforced by tests.** Every controlled-vocabulary HERO field is pinned by [tests/test_hero_observed_vocab_pin.py](../../tests/test_hero_observed_vocab_pin.py) and [tests/test_hero_risk_vocab_and_reachability_pin.py](../../tests/test_hero_risk_vocab_and_reachability_pin.py). All values returned by the `_derive_*` helpers must be vocab members.
 4. **Reachability is enforced.** Every vocab member must be reachable from at least one branch of its derive helper (dead-vocab check). Adding a vocab member that no branch returns is a contract violation.
@@ -43,3 +43,7 @@ The Python builder [`build_hero_state`](../../scripts/smc_hero_state.py) MUST em
 
 - The non-HERO library fields (microstructure, regime, calendar, etc.) keep their existing `library_field_version`-bump discipline (ADR-0003) but are not enumerated here.
 - The `HERO_MARKET_MODE` and `HERO_SETUP_QUALITY` *passthrough* nature is documented but not enforced beyond vocabulary membership; upstream sources are expected to police their own emit sets.
+
+## 2026-05-26 amendment — waiting-state sentinels (WS3-UI #55)
+
+Defaults for `HERO_MARKET_MODE`, `HERO_BIAS`, and `HERO_SETUP_QUALITY` were switched from the substantive values (`NEUTRAL`, `FLAT`, `low`) to dedicated waiting-state sentinels (`UNKNOWN`, `UNKNOWN`, `unavailable`) so consumers can tell *“no enrichment data yet”* apart from a real neutral / flat / low reading. The sentinels are first-class vocab members (frozenset size 4→5, 3→4, 4→5 for market / bias / quality respectively) and round-trip through the Producer-B action table via `HERO_QUALITY_A_TO_B["unavailable"] = "avoid"`. Pine dashboards render `⚪ awaiting data` (grey-80) for the sentinel; the bias chip is suppressed entirely for both `FLAT` and `UNKNOWN`. This was a breaking change to Pine literal gates and shipped with the `v5.5c → v6.0a` MAJOR version bump.

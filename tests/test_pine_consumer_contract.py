@@ -858,23 +858,25 @@ class TestV55DriftGuard:
             assert field not in text, f"Legacy alias reappeared in engine: {field}"
 
 
-class TestV55bContractSync:
-    """Ensure repo docs, generator, and manifest stay aligned at v5.5c.
+class TestV60aContractSync:
+    """Ensure repo docs, generator, and manifest stay aligned at v6.0a.
 
-    v5.5c (F-3, Boundary-Contract Plan 2026-04-23) additively exports
-    ``HR_SENTINEL_DEGRADED`` so Pine consumers can reference the sentinel
-    by symbol instead of hardcoding ``-1.0``. The lean-contract principles
-    (Signal Quality Primacy, No Shadow Logic, etc.) are unchanged, so
-    ``docs/v5_5_lean_contract.md`` continues to describe the surface.
+    v6.0a (#55, 2026-05-26) is a MAJOR bump from v5.5c introducing
+    waiting-state sentinels for ``HERO_MARKET_MODE`` / ``HERO_BIAS`` /
+    ``HERO_SETUP_QUALITY`` — Pine literal gates change, hence MAJOR. The
+    earlier v5.5c additive export of ``HR_SENTINEL_DEGRADED`` and the
+    lean-contract principles (Signal Quality Primacy, No Shadow Logic,
+    etc.) carry over unchanged; ``docs/v5_5_lean_contract.md`` continues
+    to describe the surface.
     """
 
-    def test_manifest_field_version_is_v55c(self):
+    def test_manifest_field_version_is_v6_0a(self):
         import json
         manifest = json.loads(
             (ROOT / "pine/generated/smc_micro_profiles_generated.json").read_text()
         )
-        assert manifest["library_field_version"] == "v5.5c", (
-            f"Manifest library_field_version should be v5.5c, got {manifest['library_field_version']}"
+        assert manifest["library_field_version"] == "v6.0a", (
+            f"Manifest library_field_version should be v6.0a, got {manifest['library_field_version']}"
         )
 
     def test_contract_doc_references_v55b(self):

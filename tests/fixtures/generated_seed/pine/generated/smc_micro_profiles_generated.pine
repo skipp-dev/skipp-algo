@@ -261,10 +261,10 @@ export const string INSIDER_BUYING_TICKERS = ""
 export const string INSIDER_SELLING_HEAVY_TICKERS = ""
 
 // ── Hero State ──
-export const string HERO_MARKET_MODE = "NEUTRAL"
-export const string HERO_BIAS = "FLAT"
+export const string HERO_MARKET_MODE = "UNKNOWN"
+export const string HERO_BIAS = "UNKNOWN"
 export const string HERO_TRUST = "unavailable"
-export const string HERO_SETUP_QUALITY = "low"
+export const string HERO_SETUP_QUALITY = "unavailable"
 export const string HERO_WHY_NOW = ""
 export const string HERO_RISK = ""
 export const string HERO_ACTION = "WATCH"

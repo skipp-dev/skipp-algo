@@ -84,4 +84,6 @@ def test_mobile_dashboard_consumes_product_trust_state() -> None:
 
 def test_mobile_context_text_uses_product_trust_emoji() -> None:
     source = _read(MOBILE)
-    assert 'string context_text = hero_market_m + " · " + product_trust_emoji_m' in source
+    # #55: mobile context surfaces the awaiting-data sentinel via
+    # hero_market_display ("⚪ awaiting data" when HERO_MARKET_MODE == "UNKNOWN").
+    assert 'string context_text = hero_market_display + " · " + product_trust_emoji_m' in source

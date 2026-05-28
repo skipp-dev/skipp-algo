@@ -174,12 +174,19 @@ def test_derive_trust_reaches_every_vocab_member() -> None:
 
 
 def test_derive_bias_reaches_every_vocab_member() -> None:
-    """Reachability: every :data:`HERO_BIAS_VOCAB` member is returned somewhere."""
-    from scripts.smc_hero_state import HERO_BIAS_VOCAB
+    """Reachability: every active :data:`HERO_BIAS_VOCAB` member is returned somewhere.
+
+    Issue #55 added the ``"UNKNOWN"`` waiting-state sentinel as a vocab
+    member. The sentinel is only emitted via ``DEFAULTS["HERO_BIAS"]``
+    when no enrichment has run yet, never from ``_derive_bias`` itself,
+    so we exclude it from the reachability check.
+    """
+    from scripts.smc_hero_state import HERO_BIAS_UNKNOWN, HERO_BIAS_VOCAB
 
     source = _HERO_STATE_PATH.read_text(encoding="utf-8")
     observed = _resolve_returns(source, "_derive_bias")
-    missing = HERO_BIAS_VOCAB - observed
+    active_vocab = HERO_BIAS_VOCAB - {HERO_BIAS_UNKNOWN}
+    missing = active_vocab - observed
     assert not missing, (
         f"HERO_BIAS_VOCAB pins {sorted(missing)} that _derive_bias "
         "never returns. Dead vocab member."
