@@ -829,11 +829,42 @@ jobs:
           TV_HEADLESS: "1"
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
           TV_STORAGE_STATE_MAX_AGE_HOURS: "72"
+          TV_STEP_TIMEOUT_MS: "90000"
+          TV_PREFLIGHT_MAX_ATTEMPTS: "3"
         run: |
-          npx tsx scripts/tv_preflight.ts \
-            --config automation/tradingview/preflight-smc-mainline.json \
-            --execution-mode readonly \
-            --out artifacts/tradingview/tv_preflight_ci.json
+          # Retry wrapper: TV/Playwright steps occasionally flake (e.g. addCurrentScriptToChart
+          # timing out while the chart iframe is still hydrating). Retry the whole preflight
+          # process up to TV_PREFLIGHT_MAX_ATTEMPTS with exponential backoff before failing
+          # the job, so a single transient browser hiccup does not silently re-stall the
+          # publish pipeline (see PR #2415 for the surfacing fix that exposed this flake).
+          set +e
+          max_attempts="${TV_PREFLIGHT_MAX_ATTEMPTS:-3}"
+          attempt=1
+          backoff=10
+          status=1
+          while [ "$attempt" -le "$max_attempts" ]; do
+            echo "::group::TradingView readonly preflight (attempt ${attempt}/${max_attempts})"
+            npx tsx scripts/tv_preflight.ts \
+              --config automation/tradingview/preflight-smc-mainline.json \
+              --execution-mode readonly \
+              --out artifacts/tradingview/tv_preflight_ci.json
+            status=$?
+            echo "::endgroup::"
+            if [ "$status" -eq 0 ]; then
+              echo "preflight succeeded on attempt ${attempt}"
+              break
+            fi
+            if [ "$attempt" -lt "$max_attempts" ]; then
+              echo "::warning title=TradingView preflight flake::attempt ${attempt} failed (exit ${status}); retrying in ${backoff}s"
+              sleep "$backoff"
+              backoff=$(( backoff * 3 ))
+            fi
+            attempt=$(( attempt + 1 ))
+          done
+          if [ "$status" -ne 0 ]; then
+            echo "::error title=TradingView preflight failed::All ${max_attempts} attempts failed (last exit ${status})"
+          fi
+          exit "$status"
 
       - name: Publish library to TradingView
         id: publish
