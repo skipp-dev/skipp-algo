@@ -240,7 +240,11 @@ jobs:
           # F-V8-perf (2026-05-18): pip -> uv. uv installs into the same
           # interpreter site-packages (no venv needed here), preserving the
           # downstream "$SMC_PYTHON_BIN script.py" contract.
-          uv pip install --python "$SMC_PYTHON_BIN" -r requirements.txt pytest
+          # WF-012 (2026-05-20): on the GitHub-hosted fallback the resolved
+          # interpreter has no venv; --system is required so uv installs into
+          # the system site-packages instead of erroring out. Mirrors the
+          # rolling-benchmark and producer workflows.
+          uv pip install --python "$SMC_PYTHON_BIN" --system -r requirements.txt pytest
 
       - name: Install Node dependencies
         run: npm ci
