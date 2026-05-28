@@ -137,6 +137,75 @@ Commit and push changes -> success
 If the gate still blocks, re-read the `reasons` array — there may be
 additional drift you missed.
 
+## Operator workflow with auto-PR (since PR #2415, F-V8-N1)
+
+Before #2415 the workflow silently skipped publish/commit steps when the
+gate fired — runs stayed green and no human got notified. Three bumps
+(`v5.5b → v5.5c → v6.0a → v7.0a`) stacked up over five weeks before the
+loophole was spotted. The current workflow now:
+
+1. Annotates the run with `::error file=…,title=Breaking change blocks publish`
+   plus a Before/After table in `$GITHUB_STEP_SUMMARY`.
+2. Drops `artifacts/ci/release_pending.flag` as a sticky artifact.
+3. Opens a `bot/library-release-pending-<RUN_ID>` PR labelled
+   `release-pending` + `breaking-change` + `automated`, carrying the
+   regenerated `pine/generated/` artifacts.
+4. Gates all downstream publish steps on a single `publish_allowed` output
+   from the `Compute publish gate` step.
+5. Honors the `allow_breaking_publish=true` `workflow_dispatch` input —
+   only on `refs/heads/main` — as the explicit operator override.
+
+### Operator checklist (after seeing a blocked refresh run)
+
+1. Review the auto-opened `bot/library-release-pending-*` PR. Verify the
+   bump is intentional (compare `library_field_version` old → new in
+   `artifacts/ci/version_governance_<DATE>.json`).
+2. Merge the release-pending PR. This documents the bump for downstream
+   reviewers; it does NOT publish to TradingView on its own.
+3. Re-run `smc-library-refresh.yml` via `workflow_dispatch` with
+   `allow_breaking_publish=true`. The override is only honored on
+   `refs/heads/main` (defence-in-depth: schedule + workflow_run runs can
+   never publish a breaking change silently).
+4. Confirm the publish step succeeded (`Publish library to TradingView`
+   shows `success`, `artifacts/tradingview/library_release_manifest.json`
+   reflects the new `publishedVersion`).
+5. Open the consumer-import bump PR — see next section.
+
+## Consumer-import bump (after a successful republish)
+
+When TradingView's `publishedVersion` ticks up (e.g. `1 → 2`), all Pine
+consumers of the `preuss_steffen/smc_micro_profiles_generated` library
+must update their import line. Use the existing helper:
+
+```bash
+# From repo root, AFTER the TV publish succeeded:
+./scripts/bump_pine_library_import.sh 1 2
+```
+
+**Namespace note:** `SMC_Hold_Manager.pine` imports
+`skippALGO/smc_micro_profiles_generated/1` from a **separate, manually
+managed TradingView namespace** (documented in
+`scripts/smc_bus_manifest.py:333`). It is intentionally excluded from
+the auto-bump workflow + this helper. If the `skippALGO` library is
+ever republished, bump it explicitly:
+
+```bash
+./scripts/bump_pine_library_import.sh 1 2 skippALGO/smc_micro_profiles_generated
+```
+
+The helper is idempotent — running it twice is safe.
+
+Verify only `import` lines changed before committing:
+
+```bash
+git diff -U0 -- '*.pine' | grep -E '^[-+]' | grep -v '^[-+]import' | head
+# (should be empty)
+git add -u && git commit -m "chore(pine): bump smc_micro_profiles_generated import /1 -> /2"
+```
+
+Open as a separate PR (label `pine-consumer-bump`). This is the
+follow-up to issue [#59](https://github.com/skippALGO/skipp-algo/issues/59).
+
 ## References
 
 - `scripts/smc_version_governance.py:124-129` — escalation logic
@@ -144,6 +213,11 @@ additional drift you missed.
 - `smc_core/schema_version.py:69` — `auto_commit_allowed()`
 - `tests/test_smc_version_governance.py` — gate behavior pin tests
 - `tests/test_smc_schema_version_enforcement.py` — enforcement of inline pins
+- `scripts/bump_pine_library_import.sh` — consumer-import bump helper
 - Issue [#16](https://github.com/skippALGO/skipp-algo/issues/16) — first
   documented production trigger of this gate (Phase-H ZONE_CAL_TRUST)
+- Issue [#59](https://github.com/skippALGO/skipp-algo/issues/59) — consumer-import
+  bump follow-up
+- PR [#2415](https://github.com/skippALGO/skipp-algo/pull/2415) — F-V8-N1
+  auto-PR + override + error-annotation surface
 - `.github/workflows/smc-library-refresh.yml` — workflow that runs the gate
