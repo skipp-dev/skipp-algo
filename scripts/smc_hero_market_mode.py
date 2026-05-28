@@ -21,6 +21,13 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from scripts.smc_hero_state import (
+    HERO_TRUST_DEGRADED,
+    HERO_TRUST_HEALTHY,
+    HERO_TRUST_STALE,
+    HERO_TRUST_UNAVAILABLE,
+    project_trust_state_to_hero,
+)
 from smc_integration.trust_state import TrustState, derive_trust_state
 
 # ── Vocabulary ────────────────────────────────────────────────────────
@@ -39,17 +46,23 @@ def _classify_bias(macro_bias: float) -> str:
     return "neutral"
 
 
-_TRUST_LABEL: Mapping[TrustState, str] = {
-    TrustState.HEALTHY: "trusted",
-    TrustState.DEGRADED: "advisory",
-    TrustState.STALE: "stale",
-    TrustState.WATCH_ONLY: "watch_only",
-    TrustState.UNAVAILABLE: "unavailable",
-}
+# HERO_MARKET_TRUST vocabulary (#58 convergence onto HERO_TRUST).
+# Derives from canonical TrustState via project_trust_state_to_hero(),
+# which collapses WATCH_ONLY → "degraded" (info-loss documented in
+# scripts/smc_hero_state.py). "warmup" is HERO_TRUST-only (Hero-local
+# freshness signal with no TrustState counterpart) and therefore absent
+# here. Pin: tests/test_hero_trust_market_trust_alignment.py enforces
+# HERO_MARKET_TRUST_VOCAB == HERO_TRUST_VOCAB - {"warmup"}.
+HERO_MARKET_TRUST_VOCAB: frozenset[str] = frozenset({
+    HERO_TRUST_HEALTHY,
+    HERO_TRUST_DEGRADED,
+    HERO_TRUST_STALE,
+    HERO_TRUST_UNAVAILABLE,
+})
 
 
 def _trust_label(state: TrustState) -> str:
-    return _TRUST_LABEL.get(state, "advisory")
+    return project_trust_state_to_hero(state)
 
 
 _FRESH_FROM_TRUST: Mapping[TrustState, str] = {
@@ -195,6 +208,7 @@ def render_hero_market_mode_block_lines(
 
 
 __all__ = [
+    "HERO_MARKET_TRUST_VOCAB",
     "PINE_HERO_MARKET_FIELDS",
     "HeroMarketMode",
     "derive_hero_market_mode",

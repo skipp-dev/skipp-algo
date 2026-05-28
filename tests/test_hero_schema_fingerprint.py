@@ -36,12 +36,12 @@ HERO_FIELD_ORDER: tuple[str, ...] = (
 )
 
 # Pinned library_field_version literal from generate_smc_micro_profiles.py.
-EXPECTED_LIBRARY_FIELD_VERSION = "v6.0a"
+EXPECTED_LIBRARY_FIELD_VERSION = "v7.0a"
 
 # Pinned digest. Update via:
 #   python -c "from tests.test_hero_schema_fingerprint import compute_fingerprint; \
 #              print(compute_fingerprint())"
-EXPECTED_FINGERPRINT = "aff138b32e748cc4020def489aff072bbf382ceb46126b50ef2835178abc2fe7"
+EXPECTED_FINGERPRINT = "4cefc5ca621c6f9a8d62783e0709ffe4695493fcc89a60e418de3839f804f939"
 
 
 def compute_fingerprint() -> str:
