@@ -264,7 +264,12 @@ jobs:
             tests/test_warnings_simplefilter_ledger.py \
             tests/test_weak_hash_pin.py \
             tests/test_while_true_termination_ledger.py \
-            tests/test_workflow_upload_artifact_uniform_version.py
+            tests/test_workflow_upload_artifact_uniform_version.py \
+            tests/test_workflow_issue_labels_exist.py \
+            tests/test_workflow_no_fake_push_success.py \
+            tests/test_smc_library_refresh_workflow.py \
+            tests/test_schema_version_manifest_alignment.py \
+            tests/test_fast_gates_silent_skip_coverage.py
 
       - name: Run fast SMC integration tests
         if: steps.gate.outputs.run_heavy == 'true'
