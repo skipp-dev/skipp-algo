@@ -251,6 +251,7 @@ def main(argv: list[str] | None = None) -> int:
         from pathlib import Path
 
         Path(args.output).parent.mkdir(parents=True, exist_ok=True)
+        # ATOMIC-WRITE-EXEMPT: monitoring CLI output to operator-supplied path; not a production dataset
         Path(args.output).write_text(rendered + "\n", encoding="utf-8")
 
     if report.overall == "error":
