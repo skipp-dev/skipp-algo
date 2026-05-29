@@ -252,6 +252,7 @@ def main(argv: list[str] | None = None) -> int:
     print(rendered)
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
+        # ATOMIC-WRITE-EXEMPT: monitoring CLI output to operator-supplied path; not a production dataset
         args.output.write_text(rendered + "\n", encoding="utf-8")
 
     if report.overall == "stale":
