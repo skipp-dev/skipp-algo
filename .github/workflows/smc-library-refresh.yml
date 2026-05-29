@@ -846,19 +846,46 @@ jobs:
           # process up to TV_PREFLIGHT_MAX_ATTEMPTS with exponential backoff before failing
           # the job, so a single transient browser hiccup does not silently re-stall the
           # publish pipeline (see PR #2415 for the surfacing fix that exposed this flake).
+          #
+          # Bundle B telemetry: emit one JSONL line per attempt to
+          # artifacts/tradingview/preflight_retry_log.jsonl and preserve each
+          # attempt's preflight JSON as tv_preflight_ci.attempt_${n}.json so a
+          # post-mortem can distinguish "1x flake then green" from "3x identical
+          # deterministic failure = real DOM drift" without parsing log strings.
           set +e
+          mkdir -p artifacts/tradingview
+          retry_log="artifacts/tradingview/preflight_retry_log.jsonl"
+          : > "$retry_log"
           max_attempts="${TV_PREFLIGHT_MAX_ATTEMPTS:-3}"
           attempt=1
           backoff=10
           status=1
           while [ "$attempt" -le "$max_attempts" ]; do
             echo "::group::TradingView readonly preflight (attempt ${attempt}/${max_attempts})"
+            started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            start_ns=$(date +%s)
             npx tsx scripts/tv_preflight.ts \
               --config automation/tradingview/preflight-smc-mainline.json \
               --execution-mode readonly \
               --out artifacts/tradingview/tv_preflight_ci.json
             status=$?
+            end_ns=$(date +%s)
+            ended_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            duration=$(( end_ns - start_ns ))
+            preserved="artifacts/tradingview/tv_preflight_ci.attempt_${attempt}.json"
+            if [ -f artifacts/tradingview/tv_preflight_ci.json ]; then
+              cp artifacts/tradingview/tv_preflight_ci.json "$preserved"
+            else
+              preserved=""
+            fi
             echo "::endgroup::"
+            will_retry="false"
+            if [ "$status" -ne 0 ] && [ "$attempt" -lt "$max_attempts" ]; then
+              will_retry="true"
+            fi
+            env A="$attempt" M="$max_attempts" S="$status" SA="$started_at" EA="$ended_at" D="$duration" P="$preserved" WR="$will_retry" \
+              python -c "import json,os,sys; json.dump({'attempt':int(os.environ['A']),'max_attempts':int(os.environ['M']),'exit_code':int(os.environ['S']),'started_at':os.environ['SA'],'ended_at':os.environ['EA'],'duration_seconds':int(os.environ['D']),'output_preserved_as':os.environ['P'] or None,'will_retry':os.environ['WR']=='true'}, sys.stdout); sys.stdout.write('\n')" \
+              >> "$retry_log"
             if [ "$status" -eq 0 ]; then
               echo "preflight succeeded on attempt ${attempt}"
               break
@@ -872,6 +899,19 @@ jobs:
           done
           if [ "$status" -ne 0 ]; then
             echo "::error title=TradingView preflight failed::All ${max_attempts} attempts failed (last exit ${status})"
+            # Emit a compact summary so a reader can immediately tell flake vs
+            # deterministic-failure without downloading the artifact bundle.
+            if [ -f "$retry_log" ]; then
+              {
+                echo ""
+                echo "### TradingView preflight retry log"
+                echo ""
+                echo '```jsonl'
+                cat "$retry_log"
+                echo ''
+                echo '```'
+              } >> "$GITHUB_STEP_SUMMARY"
+            fi
           fi
           exit "$status"
 
