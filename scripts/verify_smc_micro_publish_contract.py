@@ -7,7 +7,7 @@ from pathlib import Path
 
 IMPORT_RE = re.compile(r"^\s*import\s+([A-Za-z0-9_/-]+)\s+as\s+([A-Za-z_][A-Za-z0-9_]*)\s*$")
 EXPECTED_DEPRECATED_POLICY_MODE = "compatibility_only"
-EXPECTED_DEPRECATED_FIELD_VERSION = "v6.0a"
+EXPECTED_DEPRECATED_FIELD_VERSION = "v7.0a"
 
 
 def _read_text(path: Path) -> str:
@@ -135,7 +135,7 @@ def _load_deprecated_field_policy(manifest: dict[str, object]) -> dict[str, obje
         )
     if payload.get("preferred_field_version") != EXPECTED_DEPRECATED_FIELD_VERSION:
         raise RuntimeError(
-            "Generated manifest deprecated_field_policy.preferred_field_version must stay v6.0a"
+            "Generated manifest deprecated_field_policy.preferred_field_version must stay v7.0a"
         )
     if payload.get("extension_allowed") is not False:
         raise RuntimeError(
