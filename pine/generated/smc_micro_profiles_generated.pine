@@ -111,7 +111,7 @@ export const string ACTION_DEGRADATION_DERIVED_FROM = "healthy"
 export const string HERO_MARKET_REGIME = "NEUTRAL"
 export const string HERO_MARKET_BIAS = "neutral"
 export const string HERO_MARKET_SESSION = "unknown"
-export const string HERO_MARKET_TRUST = "trusted"
+export const string HERO_MARKET_TRUST = "healthy"
 export const string HERO_MARKET_FRESHNESS = "fresh"
 
 // ── Hero Setup Quality (ENG-WS3-04) ──

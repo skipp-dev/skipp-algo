@@ -298,7 +298,7 @@ def test_product_cut_payload_exports_governance_metadata() -> None:
     }
     assert payload['deprecatedFieldPolicy'] == MANIFEST.DEPRECATED_FIELD_POLICY
     assert payload['deprecatedFieldPolicy']['mode'] == 'compatibility_only'
-    assert payload['deprecatedFieldPolicy']['preferredFieldVersion'] == 'v6.0a'
+    assert payload['deprecatedFieldPolicy']['preferredFieldVersion'] == 'v7.0a'
     assert payload['deprecatedFieldPolicy']['extensionAllowed'] is False
     assert payload['deprecatedFieldPolicy']['deprecatedGroups'] == []
 

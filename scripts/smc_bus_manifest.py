@@ -85,7 +85,7 @@ VALIDATION_EVIDENCE_EDITOR_SCREENSHOTS_ALLOWED = False
 
 DEPRECATED_FIELD_POLICY: dict[str, Any] = {
     'mode': 'compatibility_only',
-    'preferredFieldVersion': 'v6.0a',
+    'preferredFieldVersion': 'v7.0a',
     'extensionAllowed': False,
     'sunset_date': '2026-04-14',
     'sunset_action': 'removed',
