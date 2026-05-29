@@ -590,6 +590,15 @@ jobs:
 
           CI is skipped for \`bot/*\` PRs (validation already happened inside the refresh workflow)."
 
+          # Idempotently ensure required labels exist; first run after this
+          # workflow was introduced failed because the repo had none of them.
+          gh label create release-pending --color B60205 \
+            --description "Library publish gated by breaking-change governance; awaiting human ack before /N -> /N+1" 2>/dev/null || true
+          gh label create breaking-change --color B60205 \
+            --description "Pine library MAJOR schema/field bump; requires consumer-import refresh" 2>/dev/null || true
+          gh label create automated --color FBCA04 \
+            --description "Bot-generated PR (auto-merge, skip heavy CI)" 2>/dev/null || true
+
           if ! gh pr create \
             --base main \
             --head "$BRANCH" \
