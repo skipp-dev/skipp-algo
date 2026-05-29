@@ -6,6 +6,39 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-05-28) — WS3 #58: `HERO_MARKET_TRUST` vocab converges onto `HERO_TRUST` + `library_field_version` v7.0a (BREAKING for Pine consumers)
+
+`HERO_MARKET_TRUST` (Producer B, `scripts/smc_hero_market_mode.py`) now
+derives from the canonical `TrustState` via
+`scripts.smc_hero_state.project_trust_state_to_hero` instead of a
+parallel label table. Label changes on the Pine export:
+
+- `HEALTHY` → `"healthy"` (was `"trusted"`)
+- `DEGRADED` → `"degraded"` (was `"advisory"`)
+- `WATCH_ONLY` → `"degraded"` (collapse, was `"watch_only"`) — matches the
+  intentional info-loss already documented for `HERO_TRUST` via
+  `project_trust_state_to_hero`.
+- `STALE` → `"stale"` (unchanged)
+- `UNAVAILABLE` → `"unavailable"` (unchanged)
+
+New module-level pin `scripts.smc_hero_market_mode.HERO_MARKET_TRUST_VOCAB`
+locks the convergence:
+
+    HERO_MARKET_TRUST_VOCAB == HERO_TRUST_VOCAB - {"warmup"}
+
+(`"warmup"` is Hero-local with no `TrustState` counterpart). Enforced by
+`tests/test_hero_trust_market_trust_alignment.py` (5 parametrized
+TrustState mappings + 3 vocab-set invariants).
+
+This is a breaking change to the Pine `export const string HERO_MARKET_TRUST`
+literal → `library_field_version` bumped **v6.0a → v7.0a** (MAJOR) and the
+`deprecated_field_policy.preferred_field_version` follows. Regenerated
+artifacts: `pine/generated/smc_micro_profiles_generated.{pine,json}`,
+`tests/fixtures/generated_seed/...`,
+`artifacts/tradingview/smc_product_cut_manifest.json`. No Pine consumer
+currently gates on `HERO_MARKET_TRUST` values (only the export constant
+exists in non-generated Pine), so this is a producer-only contract change.
+
 ### Changed (2026-05-26) — WS3-UI #55: HERO waiting-state sentinels + `library_field_version` v6.0a (BREAKING for Pine consumers)
 
 `HERO_MARKET_MODE`, `HERO_BIAS`, and `HERO_SETUP_QUALITY` now distinguish a
