@@ -28,7 +28,11 @@ name: fvg-quality-recal-shadow-daily
 
 on:
   schedule:
-    - cron: "0 8 * * 1-5"
+    # 13:30 UTC Mon-Fri — must run AFTER smc-measurement-benchmark-rolling
+    # (13:00 UTC Mon-Fri) so the corpus is in place. The shadow JSON is
+    # fail-soft on missing corpus, but waiting avoids a noisy `no_data`
+    # row every day.
+    - cron: "30 13 * * 1-5"
   workflow_dispatch:
     inputs:
       corpus-dir:

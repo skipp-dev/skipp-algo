@@ -48,12 +48,20 @@ def test_live_window_marker_mutating_on_cron() -> None:
     )
 
 
-def test_cron_is_daily_10_utc() -> None:
-    """10:00 UTC — runs AFTER rolling-bench (07:30) + FI-daily (09:00)."""
+def test_cron_runs_after_databento_producer_mon_fri() -> None:
+    """14:30 UTC Mon-Fri — must run AFTER smc-measurement-benchmark-rolling
+    (13:00 UTC Mon-Fri) so the dual-arm artefact is published before the
+    promotion gate downloads it. Mon-Fri matches the upstream Databento
+    producer's cadence (12:00 UTC Mon-Fri). Pre-#2447 layout (`0 10 * * *`)
+    fired BEFORE the producer every day and aborted every run on the
+    missing-artefact guard. The producer\u2192consumer ordering invariant is
+    enforced by tests/test_workflow_databento_consumer_cron_ordering.py.
+    """
     crons = [e["cron"] for e in _on(_load())["schedule"]]
-    assert crons == ["0 10 * * *"], (
-        f"f2 gate cron drifted to {crons}; must remain 10:00 UTC so dual-arm "
-        "artefacts from rolling-bench (07:30) + FI-daily (09:00) are in place"
+    assert crons == ["30 14 * * 1-5"], (
+        f"f2 gate cron drifted to {crons}; must remain '30 14 * * 1-5' so the "
+        "dual-arm artefact from rolling-bench (13:00 UTC Mon-Fri) is in place "
+        "and weekend ticks (when the producer doesn't run) are skipped"
     )
 
 

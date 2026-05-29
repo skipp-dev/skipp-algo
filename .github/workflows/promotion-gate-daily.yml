@@ -1,4 +1,4 @@
-# live-window: off-hours-only  # 09:30 UTC daily — between rolling-bench (07:30) and f2-promotion-gate-daily (10:00)
+# live-window: off-hours-only  # 14:00 UTC Mon-Fri — after smc-measurement-benchmark-rolling (13:00 UTC Mon-Fri) and before f2-promotion-gate-daily (14:30 UTC Mon-Fri)
 name: promotion-gate-daily
 
 # Sprint W1.b — daily PromotionGate evaluation.
@@ -33,7 +33,11 @@ name: promotion-gate-daily
 
 on:
   schedule:
-    - cron: "30 9 * * *"
+    # 14:00 UTC Mon-Fri — must run AFTER smc-measurement-benchmark-rolling
+    # (13:00 UTC Mon-Fri, ~60 min runtime) so the rolling-bench artifact
+    # is published before this job's `gh run download` lookup. Restricted
+    # to Mon-Fri to match the upstream Databento producer's cadence.
+    - cron: "0 14 * * 1-5"
   workflow_dispatch:
     inputs:
       date:

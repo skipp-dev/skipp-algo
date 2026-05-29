@@ -34,6 +34,8 @@ _PRODUCER = _REPO_ROOT / ".github" / "workflows" / "smc-databento-production-exp
 _CONSUMERS = (
     _REPO_ROOT / ".github" / "workflows" / "smc-measurement-benchmark-rolling.yml",
     _REPO_ROOT / ".github" / "workflows" / "f2-promotion-gate-daily.yml",
+    _REPO_ROOT / ".github" / "workflows" / "promotion-gate-daily.yml",
+    _REPO_ROOT / ".github" / "workflows" / "fvg-quality-recal-shadow-daily.yml",
 )
 
 # Minutes of slack the producer needs to finish + upload its artifact
