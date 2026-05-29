@@ -37,6 +37,7 @@ PINNED_KNOWN_LABELS: frozenset[str] = frozenset(
     {
         "automated",
         "boundary-contract",
+        "breaking-change",
         "bug",
         "cron-failure",
         "dependencies",
@@ -49,6 +50,7 @@ PINNED_KNOWN_LABELS: frozenset[str] = frozenset(
         "invalid",
         "javascript",
         "question",
+        "release-pending",
         "tech-debt",
         "wontfix",
     }
