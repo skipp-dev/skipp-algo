@@ -1,0 +1,183 @@
+name: workflow-freshness-monitor
+
+# Daily out-of-band freshness probe for the critical-path crons in this
+# repo. Direct mitigation for the 2026-04-13 -> 2026-05-28 silent
+# publish-skip regression (post-mortem PR #2415, audit issue #2422):
+# the smc-library-refresh cron silently stopped producing successful
+# runs for 5 weeks because the job conclusion stayed green even when
+# the gate effectively skipped. There was no out-of-band observer.
+#
+# This workflow IS that observer. It cannot suffer the same silent-skip
+# failure mode it detects because it does not use set +e -- if any
+# monitored workflow is stale, the job FAILS (exit 2), filing an
+# operator issue. If the GH API call itself fails, the job FAILS too
+# (exit 1). The script lives at scripts/check_workflow_freshness.py.
+#
+# Budgets are deliberately conservative: a daily cron's budget is set
+# to 30h, not 24h, to absorb GitHub scheduler jitter (the export
+# watchdog post-mortem at smc-export-cron-watchdog.yml documented a
+# real 109 min delay on a larger-runner schedule slot, so 24h would
+# false-positive). Adjust per workflow when adding a row.
+
+on:
+  schedule:
+    # 06:30 UTC -- 30 min after credential-health-check so its issue
+    # (if any) is already filed before this one runs. Both fire well
+    # before the first downstream consumer cron (~08:00 UTC).
+    - cron: "30 6 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: workflow-freshness-monitor
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v5.0.0
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@e348410e00f449f3bb50f72fda1d4f7600fc1b04  # v6.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Probe workflow freshness
+        id: probe
+        env:
+          # Prefer GH_PAT (broader scope -- can read private repo
+          # workflow runs reliably); the default GITHUB_TOKEN works too.
+          GITHUB_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          mkdir -p artifacts/ci
+          # The script's own exit codes are the contract:
+          #   0 = all fresh, 2 = at least one stale/missing, 1 = api/config error.
+          # We capture rc with `set +e` ONLY around the script call so
+          # we can attach the report to the step summary BEFORE the
+          # job fails. The final `exit $rc` re-surfaces the failure --
+          # this is the explicit-exit-check pattern that Bundle D's
+          # global invariant test enforces.
+          set +e
+          python scripts/check_workflow_freshness.py \
+            --output artifacts/ci/workflow_freshness.json \
+            smc-library-refresh.yml=30 \
+            credential-health-check.yml=30 \
+            c13-daily-cron.yml=30 \
+            run-open-prep-daily.yml=30 \
+            promotion-gate-daily.yml=30 \
+            f2-promotion-gate-daily.yml=30 \
+            fvg-quality-recal-shadow-daily.yml=30 \
+            feature-importance-daily.yml=30
+          rc=$?
+          set -e
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          if [ -f artifacts/ci/workflow_freshness.json ]; then
+            overall=$(python -c "import json; print(json.load(open('artifacts/ci/workflow_freshness.json'))['overall'])")
+          else
+            overall="error"
+          fi
+          echo "overall=$overall" >> "$GITHUB_OUTPUT"
+          # Do NOT exit here -- subsequent steps need to run with always().
+          # The final "Fail job on stale or error" step surfaces $rc.
+
+      - name: Annotate stale workflows
+        if: always() && steps.probe.outputs.rc != ''
+        run: |
+          if [ ! -f artifacts/ci/workflow_freshness.json ]; then
+            echo "::error title=workflow-freshness::probe produced no report -- script crashed before writing output"
+            exit 0
+          fi
+          python - <<'PY'
+          import json
+          rep = json.load(open("artifacts/ci/workflow_freshness.json"))
+          for wf in rep["workflows"]:
+              name = wf["workflow"]
+              status = wf["status"]
+              if status == "fresh":
+                  age = wf.get("age_hours")
+                  print(f"::notice title=workflow-freshness::{name}: fresh ({age}h ago)")
+              elif status == "stale":
+                  print(f"::error title=workflow-freshness::{name}: STALE -- last success {wf.get('age_hours')}h ago, budget {wf.get('budget_hours')}h")
+              elif status == "missing":
+                  print(f"::error title=workflow-freshness::{name}: NO successful runs in API window")
+              else:
+                  print(f"::error title=workflow-freshness::{name}: api_error -- {wf.get('detail')}")
+          PY
+          {
+            echo "## Workflow freshness probe"
+            echo ""
+            echo "Overall: \`${{ steps.probe.outputs.overall }}\`"
+            echo ""
+            echo '```json'
+            cat artifacts/ci/workflow_freshness.json
+            echo ''
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload report artifact
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: workflow-freshness-report
+          path: artifacts/ci/workflow_freshness.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Open / update issue on stale or error
+        if: always() && (steps.probe.outputs.overall == 'stale' || steps.probe.outputs.overall == 'error')
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          GH_REPO: ${{ github.repository }}
+          OVERALL: ${{ steps.probe.outputs.overall }}
+        run: |
+          set -euo pipefail
+          TITLE="workflow-freshness: ${OVERALL} -- daily probe ($(date -u +%Y-%m-%d))"
+          BODY_FILE=$(mktemp)
+          {
+            echo "Daily workflow-freshness-monitor found at least one critical-path cron in **${OVERALL}** state."
+            echo ""
+            echo "Run: https://github.com/${GH_REPO}/actions/runs/${{ github.run_id }}"
+            echo ""
+            echo "### Freshness report"
+            echo ""
+            echo '```json'
+            cat artifacts/ci/workflow_freshness.json
+            echo ''
+            echo '```'
+            echo ""
+            echo "### Why this matters"
+            echo ""
+            echo "This workflow exists because the 2026-04-13 -> 2026-05-28 silent publish-skip"
+            echo "regression in smc-library-refresh.yml (post-mortem PR #2415) went unnoticed for"
+            echo "5 weeks: the job conclusion stayed green even though the cron effectively"
+            echo "stopped publishing. Any stale workflow here is the same shape of failure --"
+            echo "investigate BEFORE it silently invalidates downstream promotion/SPRT decisions."
+          } > "$BODY_FILE"
+
+          existing=$(gh issue list --repo "$GH_REPO" --state open \
+            --search "$TITLE in:title" --json number --jq '.[0].number' || echo "")
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$GH_REPO" --body-file "$BODY_FILE"
+          else
+            gh issue create --repo "$GH_REPO" \
+              --title "$TITLE" --body-file "$BODY_FILE" \
+              --label cron-failure --label automated
+          fi
+
+      - name: Fail job on stale or error
+        if: always() && steps.probe.outputs.rc != '0' && steps.probe.outputs.rc != ''
+        run: |
+          echo "::error title=workflow-freshness::probe rc=${{ steps.probe.outputs.rc }} overall=${{ steps.probe.outputs.overall }}"
+          exit "${{ steps.probe.outputs.rc }}"
