@@ -1,0 +1,17 @@
+{
+  "schema_version_old": "2.0.0",
+  "schema_version_new": "3.0.0",
+  "schema_change_type": "major",
+  "effective_change_type": "major",
+  "auto_commit_allowed": false,
+  "pr_required": true,
+  "manifest_auto_commit_allowed": false,
+  "field_version_old": "v7.0a",
+  "field_version_new": "v7.0a",
+  "field_count_old": 201,
+  "field_count_new": 202,
+  "reasons": [
+    "schema_version major bump: 2.0.0 \u2192 3.0.0",
+    "export field count changed: 201 \u2192 202"
+  ]
+}

@@ -360,7 +360,11 @@ jobs:
         # Demote the treatment artifact from production -> shadow and
         # journal the action. No-op when the artifact does not exist
         # yet (chicken-and-egg) or is already shadow. Failure here
-        # MUST NOT mask the gate exit code.
+        # MUST NOT mask the gate exit code (gate's own rc=2 is the
+        # primary signal), BUT a silently-failed revert is itself a
+        # critical operator-visible event — surface it as ::error::
+        # annotation while keeping the step rc=0 so the gate signal
+        # wins. (Bundle A hardening 2026-05-28.)
         # WF-003 fix: needs always() because the gate step exits 2 on
         # rollback; without always() the revert is silently skipped.
         if: always() && steps.locate.outputs.status == 'ready' && steps.gate.outputs.rc == '2'
@@ -371,9 +375,13 @@ jobs:
             --spec    artifacts/experiments/f2_contextual_promotion.json \
             --report  "${{ steps.gate.outputs.report }}" \
             --journal artifacts/ci/f2/revert_journal.jsonl
-          # Tolerate non-zero so the workflow's own rc=2 stays the
-          # primary signal.
-          true
+          revert_rc=$?
+          if [ "$revert_rc" -ne 0 ]; then
+            echo "::error title=f2-promotion-gate::auto-revert FAILED (rc=$revert_rc) — treatment artifact may still be flagged production; investigate scripts/f2_revert_contextual_weights.py log above"
+          fi
+          # Exit 0 unconditionally so the workflow's own rc=2 stays
+          # the primary signal (revert is auxiliary).
+          exit 0
 
       - name: Annotate decision
         if: always() && steps.locate.outputs.status == 'ready'
@@ -386,12 +394,20 @@ jobs:
         # otherwise silently extend the 30-day countdown. Failure here
         # MUST NOT mask the gate exit code; the script itself never
         # returns non-zero on alert (it emits ::warning::).
+        # Bundle A hardening 2026-05-28: a NON-alert script crash (e.g.
+        # import/parse error) used to be silently swallowed by
+        # `|| true` — surface as ::error:: while keeping step rc=0.
         if: always()
         run: |
+          set +e
           python scripts/f2_status_alert.py \
             --reports-dir artifacts/reports \
             --threshold   3 \
-            > artifacts/ci/f2/status_alert.json || true
+            > artifacts/ci/f2/status_alert.json
+          alert_rc=$?
+          if [ "$alert_rc" -ne 0 ]; then
+            echo "::error title=f2-promotion-gate::f2_status_alert.py CRASHED (rc=$alert_rc) — stalled-gate streak detection is offline this run; investigate stderr above"
+          fi
           if [ -f artifacts/ci/f2/status_alert.json ] && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
             {
               echo '## F2 stalled-gate streak alert'
@@ -402,6 +418,9 @@ jobs:
               echo '```'
             } >> "${GITHUB_STEP_SUMMARY}"
           fi
+          # Step must succeed unconditionally so gate's own rc stays the
+          # primary signal; crashes were already surfaced as ::error:: above.
+          exit 0
 
       - name: Pipeline status summary
         # Always runs (even on skip / rollback / config error) so each

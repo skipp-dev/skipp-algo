@@ -26,7 +26,12 @@ defaults:
     shell: bash
 
 jobs:
-  validate:
+  # Job-id intentionally distinct from CI's "validate" so the check-context
+  # names emitted by GitHub Actions do not collide. Branch-protection
+  # required-checks match by context name; a collision would let either
+  # workflow's run satisfy the requirement (or, when only one runs,
+  # leave the other "pending" forever). See audit 2026-05-29.
+  regime-validate:
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 10
     steps:

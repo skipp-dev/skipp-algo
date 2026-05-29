@@ -110,8 +110,58 @@ def test_auto_revert_only_on_rc_two() -> None:
     # Must tolerate failure so the gate's rc=2 stays the primary signal.
     run = step["run"]
     assert "set +e" in run
-    # Trailing safety net so the step exits 0 even if revert fails.
-    assert run.rstrip().endswith("true")
+    # Bundle A 2026-05-28: revert failures MUST be surfaced as
+    # ::error:: annotations (loud), but the step MUST still exit 0 so
+    # the gate's own rc=2 stays the primary workflow signal. We assert
+    # both invariants — the surfacing line AND the explicit exit 0.
+    assert "revert_rc=$?" in run, (
+        "Auto-revert step must capture revert exit code into $revert_rc "
+        "so non-zero can be surfaced (see Bundle A hardening 2026-05-28)."
+    )
+    assert "::error title=f2-promotion-gate::auto-revert FAILED" in run, (
+        "Auto-revert failures MUST emit an ::error:: annotation — "
+        "silent revert-failures were the smoking gun in the "
+        "2026-05-28 silent-skip post-mortem."
+    )
+    assert run.rstrip().endswith("exit 0"), (
+        "Auto-revert step must end with explicit `exit 0` so the "
+        "gate's rc=2 stays the primary signal; a bare `true` is too "
+        "fragile (a later edit could append a failing command)."
+    )
+
+
+def test_stalled_gate_alert_surfaces_script_crash() -> None:
+    """Bundle A 2026-05-28: f2_status_alert.py is a critical-path
+    advisory. A non-zero exit (e.g. import / parse crash) used to be
+    silently swallowed by ``|| true``. We now require:
+
+      * Explicit rc capture (``alert_rc=$?``)
+      * ``::error::`` annotation on non-zero
+      * Final ``exit 0`` so the step's rc cannot mask the gate's rc.
+    """
+    step = _step_by_name("Stalled-gate streak alert")
+    assert step.get("if") == "always()"
+    run = step["run"]
+    assert "set +e" in run
+    assert "alert_rc=$?" in run, (
+        "Stalled-gate alert step must capture script exit code so a "
+        "crash (vs. a no-alert outcome) can be surfaced."
+    )
+    assert "::error title=f2-promotion-gate::f2_status_alert.py CRASHED" in run, (
+        "A f2_status_alert.py crash MUST emit an ::error:: annotation — "
+        "the script is the only signal we have for multi-day stalled "
+        "promotion streaks. Silent crash = silent regression."
+    )
+    assert run.rstrip().endswith("exit 0"), (
+        "Stalled-gate alert step must end with explicit `exit 0` so a "
+        "tooling crash cannot mask the gate's primary rc."
+    )
+    # Guard against the regression: the pre-Bundle-A pattern was
+    # `python ... > status_alert.json || true`. We must never go back.
+    assert "> artifacts/ci/f2/status_alert.json || true" not in run, (
+        "Reverted to pre-Bundle-A silent-swallow pattern — see "
+        "tests/test_f2_workflow_yaml_contract.py rationale."
+    )
 
 
 def test_annotate_and_summary_run_on_always() -> None:

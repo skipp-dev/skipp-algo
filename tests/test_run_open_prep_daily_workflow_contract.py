@@ -1,0 +1,115 @@
+"""Contract pin: ``run-open-prep-daily.yml`` (Bundle D-2 from issue #2422).
+
+This workflow is the daily producer that grows the FI labeled-sample
+corpus. Its schedule, mutation surface, and bot-PR push pattern have
+non-obvious requirements (notably: the push must use GH_PAT so the
+spawned PR triggers required checks — observed regression in PR #103,
+run 24894798260).
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import yaml
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_WF_PATH = _REPO_ROOT / ".github" / "workflows" / "run-open-prep-daily.yml"
+
+
+def _load() -> dict:
+    return yaml.safe_load(_WF_PATH.read_text(encoding="utf-8"))
+
+
+def _on(data: dict) -> dict:
+    return data.get("on") or data.get(True)
+
+
+def test_workflow_file_exists() -> None:
+    assert _WF_PATH.is_file(), f"missing workflow: {_WF_PATH}"
+
+
+def test_live_window_marker_mutating_on_cron() -> None:
+    head = _WF_PATH.read_text(encoding="utf-8").splitlines()[0]
+    assert "live-window: mutating-on-cron" in head, (
+        "first-line live-window marker required by F-V6-F2.1; this workflow "
+        "mutates git on cron and must declare it"
+    )
+
+
+def test_cron_is_weekday_13_utc() -> None:
+    """13:00 UTC weekdays — 30 min before RTH open (EDT) / 90 min (EST)."""
+    on_block = _on(_load())
+    crons = [entry["cron"] for entry in on_block["schedule"]]
+    assert crons == ["0 13 * * 1-5"], (
+        f"open-prep cron drifted to {crons}; must be ``0 13 * * 1-5`` so the "
+        "downstream outcome-backfill has a fresh outcomes_<date>.json to label"
+    )
+
+
+def test_concurrency_does_not_cancel_in_progress() -> None:
+    """Cron mutators must never cancel themselves mid-write."""
+    concurrency = _load()["concurrency"]
+    assert concurrency["group"] == "run-open-prep-daily"
+    assert concurrency["cancel-in-progress"] is False, (
+        "cron mutators must NOT cancel-in-progress (partial git push corrupts state)"
+    )
+
+
+def test_permissions_allow_pr_creation() -> None:
+    perms = _load()["permissions"]
+    assert perms.get("contents") == "write", (
+        "needs contents:write to push the bot/* branch"
+    )
+    assert perms.get("pull-requests") == "write", (
+        "needs pull-requests:write to open the auto-merge PR"
+    )
+
+
+def test_jobs_select_runner_then_run() -> None:
+    jobs = _load()["jobs"]
+    assert list(jobs.keys()) == ["select-runner", "run"], (
+        "job topology drifted; expected select-runner -> run"
+    )
+    assert jobs["run"]["needs"] == "select-runner", (
+        "``run`` must depend on ``select-runner`` resolution"
+    )
+    assert jobs["run"]["timeout-minutes"] == 35
+    assert jobs["select-runner"]["timeout-minutes"] == 5
+
+
+def test_checkout_uses_gh_pat_for_bot_pr_trigger() -> None:
+    """GH_PAT regression guard: PR #103 / run 24894798260 stuck in BLOCKED."""
+    text = _WF_PATH.read_text(encoding="utf-8")
+    # The ``run`` job's checkout must pull a token (PAT-or-fallback) — without
+    # this, ``git push`` -> ``gh pr create`` does not spawn the fast-gates run.
+    assert "secrets.GH_PAT != ''" in text, (
+        "GH_PAT-or-default token pattern missing; bot PR will stall in BLOCKED "
+        "(fast-gates 'expected' forever)"
+    )
+    assert "persist-credentials: true" in text, (
+        "run job's checkout must persist-credentials so subsequent git push "
+        "uses the PAT, not the anonymous token"
+    )
+
+
+def test_run_step_invokes_open_prep_module() -> None:
+    steps = _load()["jobs"]["run"]["steps"]
+    runs = " ".join(s.get("run", "") for s in steps)
+    assert "open_prep.run_open_prep" in runs, (
+        "entrypoint script renamed; downstream FI corpus growth will silently halt"
+    )
+    assert "--pre-open-only" in runs, "pre-open mode flag dropped"
+
+
+def test_run_step_uploads_outcomes_artifact_always() -> None:
+    upload_steps = [
+        s for s in _load()["jobs"]["run"]["steps"]
+        if "actions/upload-artifact" in (s.get("uses") or "")
+    ]
+    assert len(upload_steps) == 1
+    step = upload_steps[0]
+    assert step["if"] == "always()", (
+        "outcome upload must run on failure too (partial outcomes are useful for triage)"
+    )
+    assert "artifacts/open_prep/outcomes/" in step["with"]["path"]
