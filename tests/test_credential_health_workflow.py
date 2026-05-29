@@ -65,6 +65,19 @@ def test_workflow_probe_step_invokes_the_script(workflow_text: str) -> None:
     )
 
 
+def test_workflow_exposes_all_vendor_secrets(workflow_text: str) -> None:
+    # The probe step must pass every vendor secret through env: so the
+    # script can run all probes. Missing one would silently skip it.
+    for env_line in (
+        "TV_STORAGE_STATE: ${{ secrets.TV_STORAGE_STATE }}",
+        "GH_PAT: ${{ secrets.GH_PAT }}",
+        "DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}",
+        "FMP_API_KEY: ${{ secrets.FMP_API_KEY }}",
+        "NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}",
+    ):
+        assert env_line in workflow_text, f"probe step missing env: {env_line}"
+
+
 def test_workflow_does_not_silently_swallow_probe_failure(workflow_text: str) -> None:
     # Bundle A lesson: never lose a non-zero rc behind ``|| true`` / ``; true``.
     # We allow ``set +e`` because the workflow captures $? immediately after.

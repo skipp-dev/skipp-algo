@@ -239,6 +239,165 @@ def probe_github_pat(token: str, opener: Any = None) -> ProbeResult:
     )
 
 
+# -- Vendor-API probes ------------------------------------------------------
+#
+# Each vendor probe hits the lightest-weight endpoint that still exercises
+# the auth path, so daily polling burns ~1 call/day against the vendor
+# quota. The per-vendor error model is shared:
+#
+#   * empty key                  -> error (config gap; consuming jobs will fail)
+#   * HTTP 401 / 403             -> error (key invalid / revoked / scope)
+#   * HTTP 429                   -> warn  (rate-limit; probe inconclusive
+#                                          but signals real upstream issue)
+#   * HTTP 5xx                   -> warn  (vendor outage; inconclusive)
+#   * network / timeout          -> warn  (inconclusive)
+#   * HTTP 200                   -> ok
+#   * other (e.g. 404, 422)      -> warn  (unexpected; should not happen on
+#                                          the metadata endpoints we hit)
+#
+# This keeps "real key broken" loud (error) and noise from rate-limits or
+# vendor outages quiet (warn) so a daily flap does not page the operator.
+
+
+def _probe_http_vendor(
+    *,
+    name: str,
+    label: str,
+    key: str,
+    url: str,
+    headers: dict[str, str],
+    opener: Any = None,
+    timeout: float = 10.0,
+) -> ProbeResult:
+    """Generic vendor-credential probe.
+
+    ``label`` is the human-readable vendor name used in the message
+    (e.g. "Databento", "FMP", "NewsAPI"). ``headers`` MUST already
+    contain the authenticated form of ``key`` — the caller decides
+    whether the key goes in Basic-Auth, a query param, or a header.
+    ``key`` is checked only for empty/whitespace before the request.
+    """
+    if not key or not key.strip():
+        return ProbeResult(
+            name,
+            "error",
+            f"{label} API key secret is empty or missing — consuming jobs will fail",
+        )
+
+    base_headers = {"User-Agent": "skipp-algo-credential-health-check/1"}
+    base_headers.update(headers)
+    req = urllib.request.Request(url, headers=base_headers)
+    _opener = opener or urllib.request.build_opener()
+    try:
+        with _opener.open(req, timeout=timeout) as resp:  # nosec B310 - URL is literal per call site
+            status = resp.getcode()
+    except urllib.error.HTTPError as exc:
+        status = exc.code
+        if status in (401, 403):
+            return ProbeResult(
+                name,
+                "error",
+                f"{label} rejected the API key (HTTP {status} {exc.reason}) — rotate the secret",
+                {"status": status, "reason": exc.reason},
+            )
+        if status == 429:
+            return ProbeResult(
+                name,
+                "warn",
+                f"{label} rate-limited the probe (HTTP 429) — probe inconclusive, but quota pressure is real",
+                {"status": status},
+            )
+        if 500 <= status < 600:
+            return ProbeResult(
+                name,
+                "warn",
+                f"{label} returned HTTP {status} — vendor-side issue, probe inconclusive",
+                {"status": status},
+            )
+        return ProbeResult(
+            name,
+            "warn",
+            f"{label} returned unexpected HTTP {status} ({exc.reason}) — probe inconclusive",
+            {"status": status, "reason": exc.reason},
+        )
+    except (urllib.error.URLError, TimeoutError) as exc:
+        return ProbeResult(
+            name,
+            "warn",
+            f"could not reach {label}: {exc} — probe inconclusive (network / vendor status)",
+        )
+
+    if status == 200:
+        return ProbeResult(
+            name,
+            "ok",
+            f"{label} API key valid (HTTP 200)",
+            {"status": status},
+        )
+    # 2xx other than 200 from a metadata endpoint is unexpected.
+    return ProbeResult(
+        name,
+        "warn",
+        f"{label} returned HTTP {status} — unexpected, probe inconclusive",
+        {"status": status},
+    )
+
+
+def probe_databento(key: str, opener: Any = None) -> ProbeResult:
+    """Probe a Databento API key against the metadata endpoint.
+
+    ``list_publishers`` is a free, low-quota metadata call. Auth is
+    HTTP Basic with the API key as the username and an empty password.
+    """
+    import base64
+
+    token = base64.b64encode(f"{key.strip()}:".encode("utf-8")).decode("ascii") if key and key.strip() else ""
+    return _probe_http_vendor(
+        name="databento_api_key",
+        label="Databento",
+        key=key,
+        url="https://hist.databento.com/v0/metadata.list_publishers",
+        headers={"Authorization": f"Basic {token}"} if token else {},
+        opener=opener,
+    )
+
+
+def probe_fmp(key: str, opener: Any = None) -> ProbeResult:
+    """Probe a Financial-Modeling-Prep API key.
+
+    ``/api/v3/is-the-market-open`` is the cheapest authenticated
+    endpoint (returns market-status JSON, counts as one call against
+    the daily quota).
+    """
+    safe_key = (key or "").strip()
+    url = f"https://financialmodelingprep.com/api/v3/is-the-market-open?apikey={safe_key}"
+    return _probe_http_vendor(
+        name="fmp_api_key",
+        label="FMP",
+        key=key,
+        url=url,
+        headers={},
+        opener=opener,
+    )
+
+
+def probe_newsapi(key: str, opener: Any = None) -> ProbeResult:
+    """Probe a NewsAPI key.
+
+    ``/v2/top-headlines?country=us&pageSize=1`` is the cheapest
+    authenticated call. On the free tier this consumes 1/100 daily
+    requests.
+    """
+    return _probe_http_vendor(
+        name="newsapi_key",
+        label="NewsAPI",
+        key=key,
+        url="https://newsapi.org/v2/top-headlines?country=us&pageSize=1",
+        headers={"X-Api-Key": key.strip()} if key and key.strip() else {},
+        opener=opener,
+    )
+
+
 def _build_report(results: list[ProbeResult]) -> dict[str, Any]:
     severities = [r.severity for r in results]
     if "error" in severities:
@@ -284,6 +443,36 @@ def main(argv: list[str] | None = None) -> int:
         help="Skip the GitHub PAT probe (offline mode)",
     )
     parser.add_argument(
+        "--databento-key-env",
+        default="DATABENTO_API_KEY",
+        help="Env var name holding the Databento API key (default: DATABENTO_API_KEY)",
+    )
+    parser.add_argument(
+        "--skip-databento",
+        action="store_true",
+        help="Skip the Databento API-key probe",
+    )
+    parser.add_argument(
+        "--fmp-key-env",
+        default="FMP_API_KEY",
+        help="Env var name holding the Financial-Modeling-Prep API key (default: FMP_API_KEY)",
+    )
+    parser.add_argument(
+        "--skip-fmp",
+        action="store_true",
+        help="Skip the FMP API-key probe",
+    )
+    parser.add_argument(
+        "--newsapi-key-env",
+        default="NEWSAPI_KEY",
+        help="Env var name holding the NewsAPI key (default: NEWSAPI_KEY)",
+    )
+    parser.add_argument(
+        "--skip-newsapi",
+        action="store_true",
+        help="Skip the NewsAPI key probe",
+    )
+    parser.add_argument(
         "--output",
         help="Write JSON report to this path (in addition to stdout)",
     )
@@ -307,6 +496,15 @@ def main(argv: list[str] | None = None) -> int:
     if not args.skip_gh_pat:
         token = os.environ.get(args.gh_pat_env, "")
         results.append(probe_github_pat(token))
+
+    if not args.skip_databento:
+        results.append(probe_databento(os.environ.get(args.databento_key_env, "")))
+
+    if not args.skip_fmp:
+        results.append(probe_fmp(os.environ.get(args.fmp_key_env, "")))
+
+    if not args.skip_newsapi:
+        results.append(probe_newsapi(os.environ.get(args.newsapi_key_env, "")))
 
     if not results:
         # All probes disabled. That is a configuration error.

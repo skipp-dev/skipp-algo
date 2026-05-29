@@ -21,7 +21,10 @@ import pytest
 from scripts.credential_health_check import (
     WARN_FRACTION,
     ProbeResult,
+    probe_databento,
+    probe_fmp,
     probe_github_pat,
+    probe_newsapi,
     probe_tv_storage_state,
 )
 
@@ -206,3 +209,153 @@ def test_probe_result_serializable() -> None:
 
     d = asdict(r)
     assert d == {"name": "name", "severity": "ok", "message": "msg", "details": {"k": 1}}
+
+
+# -- Vendor-API probes ------------------------------------------------------
+#
+# Shared error model contract (see _probe_http_vendor docstring):
+#   empty key -> error; 401/403 -> error; 429 -> warn; 5xx -> warn;
+#   network -> warn; 200 -> ok; other -> warn.
+# We test the contract once per vendor with the cheapest signal each.
+
+
+@pytest.mark.parametrize(
+    "probe, label, name",
+    [
+        (probe_databento, "Databento", "databento_api_key"),
+        (probe_fmp, "FMP", "fmp_api_key"),
+        (probe_newsapi, "NewsAPI", "newsapi_key"),
+    ],
+)
+def test_vendor_empty_key_is_error(probe, label, name) -> None:
+    r = probe("")
+    assert r.severity == "error"
+    assert r.name == name
+    assert label in r.message
+    assert "empty" in r.message or "missing" in r.message
+
+
+@pytest.mark.parametrize("probe", [probe_databento, probe_fmp, probe_newsapi])
+def test_vendor_http_200_is_ok(probe) -> None:
+    r = probe("dummy-key", opener=_fake_opener(status=200, body={}))
+    assert r.severity == "ok"
+    assert r.details["status"] == 200
+
+
+@pytest.mark.parametrize("probe, label", [(probe_databento, "Databento"), (probe_fmp, "FMP"), (probe_newsapi, "NewsAPI")])
+def test_vendor_401_is_error(probe, label) -> None:
+    import urllib.error
+
+    exc = urllib.error.HTTPError(
+        url="https://example.com",
+        code=401,
+        msg="Unauthorized",
+        hdrs=None,  # type: ignore[arg-type]
+        fp=io.BytesIO(b""),
+    )
+    r = probe("dummy-key", opener=_fake_opener(raise_exc=exc))
+    assert r.severity == "error"
+    assert "rejected" in r.message
+    assert label in r.message
+    assert r.details["status"] == 401
+
+
+@pytest.mark.parametrize("probe", [probe_databento, probe_fmp, probe_newsapi])
+def test_vendor_403_is_error(probe) -> None:
+    import urllib.error
+
+    exc = urllib.error.HTTPError(
+        url="https://example.com",
+        code=403,
+        msg="Forbidden",
+        hdrs=None,  # type: ignore[arg-type]
+        fp=io.BytesIO(b""),
+    )
+    r = probe("dummy-key", opener=_fake_opener(raise_exc=exc))
+    assert r.severity == "error"
+
+
+@pytest.mark.parametrize("probe", [probe_databento, probe_fmp, probe_newsapi])
+def test_vendor_429_is_warn(probe) -> None:
+    import urllib.error
+
+    exc = urllib.error.HTTPError(
+        url="https://example.com",
+        code=429,
+        msg="Too Many Requests",
+        hdrs=None,  # type: ignore[arg-type]
+        fp=io.BytesIO(b""),
+    )
+    r = probe("dummy-key", opener=_fake_opener(raise_exc=exc))
+    assert r.severity == "warn"
+    assert "rate-limited" in r.message
+    assert r.details["status"] == 429
+
+
+@pytest.mark.parametrize("probe", [probe_databento, probe_fmp, probe_newsapi])
+def test_vendor_5xx_is_warn(probe) -> None:
+    import urllib.error
+
+    exc = urllib.error.HTTPError(
+        url="https://example.com",
+        code=503,
+        msg="Service Unavailable",
+        hdrs=None,  # type: ignore[arg-type]
+        fp=io.BytesIO(b""),
+    )
+    r = probe("dummy-key", opener=_fake_opener(raise_exc=exc))
+    assert r.severity == "warn"
+    assert "vendor-side" in r.message
+    assert r.details["status"] == 503
+
+
+@pytest.mark.parametrize("probe", [probe_databento, probe_fmp, probe_newsapi])
+def test_vendor_network_error_is_warn(probe) -> None:
+    import urllib.error
+
+    r = probe("dummy-key", opener=_fake_opener(raise_exc=urllib.error.URLError("dns fail")))
+    assert r.severity == "warn"
+    assert "inconclusive" in r.message
+
+
+@pytest.mark.parametrize("probe", [probe_databento, probe_fmp, probe_newsapi])
+def test_vendor_unexpected_status_is_warn(probe) -> None:
+    import urllib.error
+
+    exc = urllib.error.HTTPError(
+        url="https://example.com",
+        code=418,
+        msg="I'm a teapot",
+        hdrs=None,  # type: ignore[arg-type]
+        fp=io.BytesIO(b""),
+    )
+    r = probe("dummy-key", opener=_fake_opener(raise_exc=exc))
+    assert r.severity == "warn"
+    assert "unexpected" in r.message
+
+
+def test_databento_uses_basic_auth_header() -> None:
+    opener = _fake_opener(status=200, body={})
+    probe_databento("my-secret-key", opener=opener)
+    req = opener.open.call_args[0][0]
+    auth = req.headers.get("Authorization") or req.headers.get("authorization")
+    assert auth is not None and auth.startswith("Basic "), f"got {auth!r}"
+    import base64 as _b64
+
+    decoded = _b64.b64decode(auth.split(" ", 1)[1]).decode()
+    assert decoded == "my-secret-key:"
+
+
+def test_fmp_puts_key_in_query_string() -> None:
+    opener = _fake_opener(status=200, body={})
+    probe_fmp("my-secret-key", opener=opener)
+    req = opener.open.call_args[0][0]
+    assert "apikey=my-secret-key" in req.full_url
+
+
+def test_newsapi_uses_x_api_key_header() -> None:
+    opener = _fake_opener(status=200, body={})
+    probe_newsapi("my-secret-key", opener=opener)
+    req = opener.open.call_args[0][0]
+    # urllib normalises header names to title-case.
+    assert req.headers.get("X-api-key") == "my-secret-key"
