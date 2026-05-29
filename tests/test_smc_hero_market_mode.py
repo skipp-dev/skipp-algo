@@ -19,13 +19,13 @@ class TestDataclass:
     def test_as_dict_carries_five_keys(self) -> None:
         head = HeroMarketMode(
             regime="RISK_ON", bias="long", session="us_open",
-            trust="trusted", freshness="fresh",
+            trust="healthy", freshness="fresh",
         )
         assert head.as_dict() == {
             "regime": "RISK_ON",
             "bias": "long",
             "session": "us_open",
-            "trust": "trusted",
+            "trust": "healthy",
             "freshness": "fresh",
         }
 
@@ -58,10 +58,10 @@ class TestTrustAndFreshnessLabels:
     @pytest.mark.parametrize(
         "state,expected_trust,expected_freshness",
         [
-            ("healthy", "trusted", "fresh"),
-            ("degraded", "advisory", "fresh"),
+            ("healthy", "healthy", "fresh"),
+            ("degraded", "degraded", "fresh"),
             ("stale", "stale", "stale"),
-            ("watch_only", "watch_only", "stale"),
+            ("watch_only", "degraded", "stale"),
             ("unavailable", "unavailable", "missing"),
         ],
     )
@@ -100,7 +100,7 @@ class TestTrustAndFreshnessLabels:
                 "derived_from_overall_status": "ok",
             }
         })
-        assert head.trust == "trusted"
+        assert head.trust == "healthy"
 
 
 # ── Regime / Session ──────────────────────────────────────────────────
@@ -158,7 +158,7 @@ class TestEmptyEnrichmentDefaults:
             regime="NEUTRAL",
             bias="neutral",
             session="unknown",
-            trust="trusted",
+            trust="healthy",
             freshness="fresh",
         )
 
@@ -195,7 +195,7 @@ class TestPineRendering:
         assert 'HERO_MARKET_REGIME = "RISK_OFF"' in text
         assert 'HERO_MARKET_BIAS = "short"' in text
         assert 'HERO_MARKET_SESSION = "us_close"' in text
-        assert 'HERO_MARKET_TRUST = "watch_only"' in text
+        assert 'HERO_MARKET_TRUST = "degraded"' in text
         assert 'HERO_MARKET_FRESHNESS = "stale"' in text
 
 
@@ -223,7 +223,7 @@ class TestPineLibraryEmission:
         assert 'export const string HERO_MARKET_REGIME = "RISK_ON"' in text
         assert 'export const string HERO_MARKET_BIAS = "long"' in text
         assert 'export const string HERO_MARKET_SESSION = "us_open"' in text
-        assert 'export const string HERO_MARKET_TRUST = "trusted"' in text
+        assert 'export const string HERO_MARKET_TRUST = "healthy"' in text
         assert 'export const string HERO_MARKET_FRESHNESS = "fresh"' in text
 
     def test_pine_library_emits_default_hero_market_block(self, tmp_path: Path) -> None:
@@ -241,5 +241,5 @@ class TestPineLibraryEmission:
         assert 'export const string HERO_MARKET_REGIME = "NEUTRAL"' in text
         assert 'export const string HERO_MARKET_BIAS = "neutral"' in text
         assert 'export const string HERO_MARKET_SESSION = "unknown"' in text
-        assert 'export const string HERO_MARKET_TRUST = "trusted"' in text
+        assert 'export const string HERO_MARKET_TRUST = "healthy"' in text
         assert 'export const string HERO_MARKET_FRESHNESS = "fresh"' in text

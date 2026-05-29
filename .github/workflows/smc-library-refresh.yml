@@ -87,6 +87,18 @@ on:
         required: false
         type: string
         default: ''
+      allow_breaking_publish:
+        description: >-
+          Operator override: when 'true', the version-governance breaking-
+          change gate is bypassed and the library publishes despite
+          field-version / schema-version / field-count escalations.
+          Only honored on workflow_dispatch against refs/heads/main.
+          Use after merging a release-pending PR that documents the
+          breaking bump (see auto-opened bot/library-release-pending-*
+          PR). NEVER set true on scheduled or workflow_run triggers.
+        required: false
+        type: boolean
+        default: false
 
 # F-V8-C3.1-D (2026-05-02): serialize consumer runs per ref. Mirrors the
 # producer guard (smc-databento-production-export-sharded) so a slow handoff
@@ -424,12 +436,40 @@ jobs:
           RC=$?
           set -e
 
+          mkdir -p artifacts/ci
           echo "$DECISION" | tee artifacts/ci/version_governance_${REFRESH_DATE}.json
 
           if [ "$RC" -ne 0 ]; then
             BREAKING="true"
             REASON=$(echo "$DECISION" | jq -r '.reasons | join("; ")')
-            echo "::warning::Breaking change detected — auto-commit blocked. ${REASON}"
+            SCHEMA_OLD=$(echo "$DECISION" | jq -r '.schema_version_old')
+            SCHEMA_NEW=$(echo "$DECISION" | jq -r '.schema_version_new')
+            FIELD_OLD=$(echo "$DECISION" | jq -r '.field_version_old')
+            FIELD_NEW=$(echo "$DECISION" | jq -r '.field_version_new')
+            # F-V8-N1 (2026-05-28): elevate visibility from ::warning to
+            # ::error file-annotation so blocked publishes show as a red
+            # marker on the run UI and not just a silently-skipped step
+            # chain. Pair with the GITHUB_STEP_SUMMARY block + the
+            # release_pending.flag artifact + the auto-opened
+            # bot/library-release-pending-* PR below.
+            echo "::error file=.github/workflows/smc-library-refresh.yml,title=Breaking change blocks publish::Breaking change detected — auto-publish blocked. ${REASON}"
+            {
+              echo "## :no_entry: Library publish blocked — breaking change"
+              echo ""
+              echo "| Field | Before | After |"
+              echo "|---|---|---|"
+              echo "| schema_version | \`${SCHEMA_OLD}\` | \`${SCHEMA_NEW}\` |"
+              echo "| library_field_version | \`${FIELD_OLD}\` | \`${FIELD_NEW}\` |"
+              echo ""
+              echo "**Reasons:** ${REASON}"
+              echo ""
+              echo "A release-pending PR will be opened automatically (label \`release-pending\`)."
+              echo "Review, merge it, then re-run this workflow via \`workflow_dispatch\` with"
+              echo "\`allow_breaking_publish=true\` to release the bump to TradingView."
+            } >> "$GITHUB_STEP_SUMMARY"
+            # Sticky artifact channel so operators see the pending-publish state
+            # even when scrolling Actions list (the run still shows green).
+            printf '%s\n' "$DECISION" > artifacts/ci/release_pending.flag
           else
             BREAKING="false"
             REASON=""
@@ -438,6 +478,129 @@ jobs:
           echo "breaking=${BREAKING}" >> "$GITHUB_OUTPUT"
           echo "reason=${REASON}" >> "$GITHUB_OUTPUT"
 
+      # F-V8-N1 (2026-05-28): single source of truth for the publish gate.
+      # Combines the breaking-change classification with the operator
+      # override input so every downstream `if:` condition can reference
+      # one boolean instead of repeating the same conjunction 9 times.
+      # Override is only honored on workflow_dispatch against
+      # refs/heads/main (defence-in-depth: schedule + workflow_run can
+      # never publish a breaking change silently, regardless of inputs).
+      - name: Compute publish gate
+        id: publish_gate
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          BREAKING: ${{ steps.breaking.outputs.breaking }}
+          IS_DISPATCH: ${{ github.event_name == 'workflow_dispatch' }}
+          IS_MAIN: ${{ github.ref == 'refs/heads/main' }}
+          ALLOW_BREAKING: ${{ inputs.allow_breaking_publish }}
+        run: |
+          set -euo pipefail
+          OVERRIDE="false"
+          if [ "$IS_DISPATCH" = "true" ] && [ "$IS_MAIN" = "true" ] && [ "$ALLOW_BREAKING" = "true" ]; then
+            OVERRIDE="true"
+          fi
+
+          if [ "$BREAKING" != "true" ]; then
+            PUBLISH_ALLOWED="true"
+          elif [ "$OVERRIDE" = "true" ]; then
+            PUBLISH_ALLOWED="true"
+            echo "::warning title=Operator override active::allow_breaking_publish=true bypasses the breaking-change gate on this dispatch. Ensure a release-pending PR has been reviewed + merged."
+          else
+            PUBLISH_ALLOWED="false"
+          fi
+
+          echo "publish_allowed=${PUBLISH_ALLOWED}" >> "$GITHUB_OUTPUT"
+          echo "override_active=${OVERRIDE}" >> "$GITHUB_OUTPUT"
+
+      # F-V8-N1 (2026-05-28): when the breaking-change gate blocks publish,
+      # open a `bot/library-release-pending-*` PR carrying the regenerated
+      # library + manifest. This was the missing link that caused 5+ weeks
+      # of silent skipped publishes (HR_SENTINEL_DEGRADED #51, WS3 #55,
+      # WS3 #58 all stacked up because no human got a PR to merge after
+      # the gate fired). The PR uses the existing GH_PAT pattern so
+      # downstream checks fire correctly.
+      - name: Open release-pending PR (on breaking change)
+        id: release_pending_pr
+        if: |
+          steps.diff.outputs.changed == 'true'
+          && steps.breaking.outputs.breaking == 'true'
+          && steps.publish_gate.outputs.publish_allowed != 'true'
+          && github.event_name != 'pull_request'
+          && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          REASON: ${{ steps.breaking.outputs.reason }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local --unset-all http.https://github.com/.extraheader || true
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          BRANCH="bot/library-release-pending-${GITHUB_RUN_ID}"
+          # Idempotency: a duplicate run on the same SHA reuses the branch.
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            echo "::notice::Release-pending branch ${BRANCH} already exists — skipping re-open."
+            exit 0
+          fi
+
+          GIT_LFS_SKIP_SMUDGE=1 git -c filter.lfs.smudge= -c filter.lfs.process= -c filter.lfs.required=false restore --source=HEAD --worktree --staged -- \
+            artifacts/databento_volatility_cache/ \
+            artifacts/smc_microstructure_exports/smc_live_news_snapshot.json \
+            artifacts/smc_microstructure_exports/smc_live_news_state.json || true
+
+          git add pine/generated/ \
+            artifacts/ci/version_governance_${REFRESH_DATE}.json \
+            artifacts/ci/release_pending.flag
+          if git diff --cached --quiet; then
+            echo "::notice::No release-pending changes to commit (already on main)."
+            exit 0
+          fi
+
+          git checkout -b "$BRANCH"
+          COMMIT_MSG="chore(library): release-pending ${REFRESH_DATE} (breaking) (run ${{ github.run_number }})
+
+          Auto-opened by smc-library-refresh after the version-governance gate
+          classified this refresh as a breaking change. Reasons:
+
+            ${REASON}
+
+          Merging this PR documents the bump for downstream reviewers. After
+          merge, re-run smc-library-refresh via workflow_dispatch with
+          allow_breaking_publish=true to release the new library version to
+          TradingView. The follow-up consumer-import bump (smc_micro_profiles_
+          generated/N -> /N+1) lands as a separate sed-style PR per issue #59."
+          git commit -m "$COMMIT_MSG"
+          git push -u origin "$BRANCH"
+
+          PR_BODY="Automated release-pending PR opened by \`smc-library-refresh\` (run ${GITHUB_RUN_ID}).
+
+          The version-governance gate (\`scripts/smc_version_governance.py\`) classified
+          this refresh as a **breaking change** and blocked the TradingView publish.
+
+          **Reasons:** ${REASON}
+
+          ### Operator workflow
+          1. Review the regenerated \`pine/generated/\` artifacts in this PR.
+          2. Verify the bump is intentional (see \`artifacts/ci/version_governance_${REFRESH_DATE}.json\`).
+          3. Merge this PR.
+          4. Re-run [smc-library-refresh.yml](.github/workflows/smc-library-refresh.yml) via \`workflow_dispatch\` with **\`allow_breaking_publish=true\`** to publish to TradingView.
+          5. After publish succeeds, follow up with the consumer-import bump per issue #59.
+
+          CI is skipped for \`bot/*\` PRs (validation already happened inside the refresh workflow)."
+
+          if ! gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --label release-pending \
+            --label breaking-change \
+            --label automated \
+            --title "chore(library): release-pending ${REFRESH_DATE} (breaking) (run ${{ github.run_number }})" \
+            --body "$PR_BODY"; then
+            echo "::error file=.github/workflows/smc-library-refresh.yml::gh pr create failed for release-pending branch ${BRANCH} — see step log for stderr"
+            exit 1
+          fi
       # ── Restore canonical Databento production export bundle ────
       # F-V5-D3 (2026-05-01): switched from actions/cache/restore to
       # dawidd6/action-download-artifact. The canonical sharded producer
@@ -611,7 +774,7 @@ jobs:
 
       # ── Publish to TradingView (skip when unchanged or breaking) ─
       - name: Write TradingView storage state
-        if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && github.ref == 'refs/heads/main'
+        if: steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && github.ref == 'refs/heads/main'
         env:
           TV_STORAGE_STATE_SECRET: ${{ secrets.TV_STORAGE_STATE }}
         run: |
@@ -646,7 +809,7 @@ jobs:
           PY
 
       - name: Validate TradingView storage state JSON
-        if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && github.ref == 'refs/heads/main'
+        if: steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && github.ref == 'refs/heads/main'
         run: |
           "$SMC_PYTHON_BIN" - <<'PY'
           import json
@@ -661,20 +824,51 @@ jobs:
 
       - name: Run TradingView readonly preflight
         id: tv_preflight
-        if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && github.ref == 'refs/heads/main'
+        if: steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && github.ref == 'refs/heads/main'
         env:
           TV_HEADLESS: "1"
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
           TV_STORAGE_STATE_MAX_AGE_HOURS: "72"
+          TV_STEP_TIMEOUT_MS: "90000"
+          TV_PREFLIGHT_MAX_ATTEMPTS: "3"
         run: |
-          npx tsx scripts/tv_preflight.ts \
-            --config automation/tradingview/preflight-smc-mainline.json \
-            --execution-mode readonly \
-            --out artifacts/tradingview/tv_preflight_ci.json
+          # Retry wrapper: TV/Playwright steps occasionally flake (e.g. addCurrentScriptToChart
+          # timing out while the chart iframe is still hydrating). Retry the whole preflight
+          # process up to TV_PREFLIGHT_MAX_ATTEMPTS with exponential backoff before failing
+          # the job, so a single transient browser hiccup does not silently re-stall the
+          # publish pipeline (see PR #2415 for the surfacing fix that exposed this flake).
+          set +e
+          max_attempts="${TV_PREFLIGHT_MAX_ATTEMPTS:-3}"
+          attempt=1
+          backoff=10
+          status=1
+          while [ "$attempt" -le "$max_attempts" ]; do
+            echo "::group::TradingView readonly preflight (attempt ${attempt}/${max_attempts})"
+            npx tsx scripts/tv_preflight.ts \
+              --config automation/tradingview/preflight-smc-mainline.json \
+              --execution-mode readonly \
+              --out artifacts/tradingview/tv_preflight_ci.json
+            status=$?
+            echo "::endgroup::"
+            if [ "$status" -eq 0 ]; then
+              echo "preflight succeeded on attempt ${attempt}"
+              break
+            fi
+            if [ "$attempt" -lt "$max_attempts" ]; then
+              echo "::warning title=TradingView preflight flake::attempt ${attempt} failed (exit ${status}); retrying in ${backoff}s"
+              sleep "$backoff"
+              backoff=$(( backoff * 3 ))
+            fi
+            attempt=$(( attempt + 1 ))
+          done
+          if [ "$status" -ne 0 ]; then
+            echo "::error title=TradingView preflight failed::All ${max_attempts} attempts failed (last exit ${status})"
+          fi
+          exit "$status"
 
       - name: Publish library to TradingView
         id: publish
-        if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && github.ref == 'refs/heads/main'
+        if: steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && github.ref == 'refs/heads/main'
         env:
           TV_HEADLESS: "1"
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
@@ -687,7 +881,7 @@ jobs:
 
       - name: Run TradingView post-release validation
         id: tv_post_release_raw
-        if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && github.ref == 'refs/heads/main'
+        if: steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && github.ref == 'refs/heads/main'
         # CONTINUE-ON-ERROR-INTENTIONAL: TV automation is flaky external integration;
         # outcome is consumed by downstream alert step (steps.tv_post_release_raw.outcome)
         # rather than treated as hard fail.
@@ -704,7 +898,7 @@ jobs:
 
       - name: Normalize TradingView post-release validation
         id: tv_post_release
-        if: always() && steps.publish.outcome == 'success' && steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && github.ref == 'refs/heads/main'
+        if: always() && steps.publish.outcome == 'success' && steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && github.ref == 'refs/heads/main'
         run: |
           "$SMC_PYTHON_BIN" scripts/run_smc_post_release_validation.py \
             --release-manifest artifacts/tradingview/library_release_manifest.json \
@@ -714,7 +908,7 @@ jobs:
 
       - name: Run strict release gates
         id: release_gates
-        if: always() && steps.publish.outcome == 'success' && steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && github.ref == 'refs/heads/main'
+        if: always() && steps.publish.outcome == 'success' && steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && github.ref == 'refs/heads/main'
         run: |
           "$SMC_PYTHON_BIN" scripts/run_smc_release_gates.py \
             --post-release-validation-report artifacts/ci/smc_post_release_validation_report.json \
@@ -809,7 +1003,7 @@ jobs:
 
       # ── Version bump + commit (skip when unchanged or breaking) ─
       - name: Bump library version in all pine consumers
-        if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && github.ref == 'refs/heads/main'
+        if: steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && github.ref == 'refs/heads/main'
         run: |
           NEW_VERSION=$(jq -r '.library_version' pine/generated/smc_micro_profiles_generated.json)
           PIN_PATTERN='import preuss_steffen/smc_micro_profiles_generated/[0-9]*'
@@ -841,7 +1035,7 @@ jobs:
 
       - name: Commit and push changes
         id: commit_push
-        if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && steps.tv_post_release.outcome == 'success' && steps.release_gates.outcome == 'success' && github.ref == 'refs/heads/main'
+        if: steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && steps.tv_post_release.outcome == 'success' && steps.release_gates.outcome == 'success' && github.ref == 'refs/heads/main'
         env:
           # GH_PAT is required so the bot/* push + `gh pr create` below
           # actually trigger downstream workflows (notably fast-gates).
@@ -926,7 +1120,7 @@ jobs:
       # ── Signal alerts (non-blocking) ────────────────────────────
       - name: Evaluate and send alerts
         id: alerts
-        if: always() && steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && github.ref == 'refs/heads/main'
+        if: always() && steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && github.ref == 'refs/heads/main'
         # CONTINUE-ON-ERROR-INTENTIONAL: alert dispatch is best-effort notification;
         # missing TELEGRAM/SMTP secrets or transient delivery errors must not fail
         # the refresh job (artifacts already produced).

@@ -173,6 +173,93 @@ def test_refresh_workflow_alert_step_consumes_post_release_report_even_after_fai
     assert "if: always() && steps.diff.outputs.changed == 'true'" in workflow_text
 
 
+# -- F-V8-N1: Surface blocked-publish state on breaking-change classification ---
+# Regression guard for 2026-04-13 -> 2026-05-28 silent publish-skip incident
+# (TradingView publishedVersion stuck at v1 while v5.5c/v6.0a/v7.0a stacked
+# unpublished). Pins three escape hatches: ::error annotation + summary block,
+# auto-opened release-pending PR, operator-override dispatch input.
+
+
+def test_breaking_change_emits_error_annotation_not_warning() -> None:
+    workflow_text = _read(WORKFLOW_PATH)
+
+    assert "::error file=.github/workflows/smc-library-refresh.yml,title=Breaking change blocks publish::" in workflow_text
+    # Silent ::warning::-only path was the bug — must not regress.
+    assert "::warning::Breaking change detected" not in workflow_text
+
+
+def test_breaking_change_writes_step_summary_block() -> None:
+    workflow_text = _read(WORKFLOW_PATH)
+
+    assert "Library publish blocked — breaking change" in workflow_text
+    assert '>> "$GITHUB_STEP_SUMMARY"' in workflow_text
+    # Sticky artifact channel — surfaces blocked state even after run scrolls off list.
+    assert "artifacts/ci/release_pending.flag" in workflow_text
+
+
+def test_workflow_dispatch_allow_breaking_publish_input_exists() -> None:
+    workflow_text = _read(WORKFLOW_PATH)
+
+    assert "allow_breaking_publish:" in workflow_text
+    assert "Only honored on workflow_dispatch against refs/heads/main" in workflow_text
+
+
+def test_publish_gate_combines_breaking_with_operator_override() -> None:
+    workflow_text = _read(WORKFLOW_PATH)
+
+    # Single source of truth for the publish gate.
+    assert "- name: Compute publish gate" in workflow_text
+    assert "id: publish_gate" in workflow_text
+    # Override is only honored on workflow_dispatch against main (defence in depth).
+    assert 'IS_DISPATCH: ${{ github.event_name == \'workflow_dispatch\' }}' in workflow_text
+    assert 'IS_MAIN: ${{ github.ref == \'refs/heads/main\' }}' in workflow_text
+    assert "ALLOW_BREAKING: ${{ inputs.allow_breaking_publish }}" in workflow_text
+    # Loud notification when override is in effect.
+    assert "Operator override active" in workflow_text
+
+
+def test_publish_steps_consume_publish_gate_not_raw_breaking_flag() -> None:
+    workflow_text = _read(WORKFLOW_PATH)
+
+    # All publish/bump/commit gates flow through publish_gate so the
+    # operator-override path can never be skipped piecemeal.
+    publish_gate_refs = workflow_text.count("steps.publish_gate.outputs.publish_allowed == 'true'")
+    assert publish_gate_refs >= 9, (
+        f"expected >=9 publish-gate references (one per publish/bump/commit/validation step), "
+        f"got {publish_gate_refs}"
+    )
+    # The raw breaking-flag conditional must NOT be used on any publish step —
+    # everything routes through publish_gate so the override input takes effect.
+    assert "steps.breaking.outputs.breaking != 'true'" not in workflow_text
+
+
+def test_workflow_opens_release_pending_pr_on_breaking() -> None:
+    workflow_text = _read(WORKFLOW_PATH)
+
+    assert "- name: Open release-pending PR (on breaking change)" in workflow_text
+    assert "id: release_pending_pr" in workflow_text
+    assert "bot/library-release-pending-${GITHUB_RUN_ID}" in workflow_text
+    assert "--label release-pending" in workflow_text
+    assert "--label breaking-change" in workflow_text
+    assert "--label automated" in workflow_text
+    # Must use GH_PAT-with-fallback pattern so downstream checks fire.
+    # The auto-PR step is the first user of that pattern *after* the gate;
+    # an exact match would over-constrain — assert the substring instead.
+    assert "secrets.GH_PAT != '' && secrets.GH_PAT || github.token" in workflow_text
+    # MUST NOT silently swallow PR-creation failure (F-V6-I2.1 lesson).
+    assert "gh pr create failed for release-pending branch" in workflow_text
+
+
+def test_release_pending_pr_step_only_runs_when_publish_blocked() -> None:
+    workflow_text = _read(WORKFLOW_PATH)
+
+    # Auto-PR must NOT open when override is active (we're publishing instead).
+    # The if: condition must reference publish_allowed != 'true' as the gate.
+    assert "steps.publish_gate.outputs.publish_allowed != 'true'" in workflow_text
+    # Never on pull_request triggers (no write perms / would loop).
+    assert "github.event_name != 'pull_request'" in workflow_text
+
+
 # -- WP8: Drift-safe artifact policy tests ----------------------------------
 
 def test_drift_classes_are_bounded() -> None:
