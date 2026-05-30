@@ -34,7 +34,6 @@ from newsstack_fmp.ingest_benzinga_financial import (
     fetch_benzinga_financials,
     fetch_benzinga_fundamentals,
     fetch_benzinga_logos,
-    fetch_benzinga_options_activity,
     fetch_benzinga_price_history,
     fetch_benzinga_ticker_detail,
 )
@@ -262,14 +261,6 @@ class TestMarketData:
             result = adapter.fetch_ticker_detail("AAPL")
             assert len(result) == 1
 
-    def test_fetch_options_activity(self, adapter: BenzingaFinancialAdapter):
-        data = {"options_activity": [
-            {"ticker": "AAPL", "type": "CALL", "strike": 200, "volume": 5000},
-        ]}
-        with patch.object(adapter.client, "get", return_value=_mock_response(data)):
-            result = adapter.fetch_options_activity("AAPL")
-            assert len(result) == 1
-            assert result[0]["type"] == "CALL"
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -326,15 +317,6 @@ class TestEdgeCases:
             params = call_args[1]["params"] if "params" in call_args[1] else call_args[0][1]
             assert params.get("isin") == "US0378331005" or "US0378331005" in str(params)
 
-    def test_options_activity_date_params(self, adapter: BenzingaFinancialAdapter):
-        """Options activity date filters should be passed correctly."""
-        with patch.object(adapter.client, "get", return_value=_mock_response([])) as mock_get:
-            adapter.fetch_options_activity("AAPL", date_from="2025-01-01", date_to="2025-01-31")
-            call_args = mock_get.call_args
-            params = call_args[1]["params"] if "params" in call_args[1] else call_args[0][1]
-            assert "2025-01-01" in str(params)
-            assert "2025-01-31" in str(params)
-
 
 # ═══════════════════════════════════════════════════════════════
 # Standalone wrapper functions
@@ -371,15 +353,6 @@ class TestStandaloneWrappers:
             MockAdapter.return_value = mock_inst
 
             result = fetch_benzinga_company_profile("key", "AAPL")
-            assert len(result) == 1
-
-    def test_fetch_benzinga_options_activity(self):
-        with patch("newsstack_fmp.ingest_benzinga_financial.BenzingaFinancialAdapter") as MockAdapter:
-            mock_inst = MagicMock()
-            mock_inst.fetch_options_activity.return_value = [{"type": "CALL"}]
-            MockAdapter.return_value = mock_inst
-
-            result = fetch_benzinga_options_activity("key", "AAPL")
             assert len(result) == 1
 
     def test_fetch_benzinga_ticker_detail(self):
