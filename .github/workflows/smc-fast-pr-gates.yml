@@ -267,6 +267,16 @@ jobs:
             tests/test_workflow_upload_artifact_uniform_version.py \
             tests/test_workflow_issue_labels_exist.py \
             tests/test_workflow_no_fake_push_success.py \
+            tests/test_workflow_runner_pinned.py \
+            tests/test_workflow_set_plus_e_inventory.py \
+            tests/test_workflow_orphan_inventory.py \
+            tests/test_workflow_pythonpath_for_direct_invoke.py \
+            tests/test_workflow_concurrency_cron_no_cancel.py \
+            tests/test_workflow_invoked_scripts_importable.py \
+            tests/test_workflow_python_unbuffered.py \
+            tests/test_workflow_freshness_monitor_workflow.py \
+            tests/test_workflow_continue_on_error_inventory.py \
+            tests/test_workflow_permissions_present.py \
             tests/test_smc_library_refresh_workflow.py \
             tests/test_schema_version_manifest_alignment.py \
             tests/test_fast_gates_silent_skip_coverage.py
