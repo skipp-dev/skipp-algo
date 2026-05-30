@@ -139,17 +139,20 @@ line = 176
 codes = ["E402", "I001"]
 
 # ---------------------------------------------------------------------------
-# test_workflow_orphan_inventory.py — workflows without test coverage.
-# Most historical entries gained coverage during the 2026-05-30 CI
-# hardening sprint; g23-ab-watchdog remains an orphan and is the only
-# allowlist entry today. The ledger continues to act as a tripwire for
-# any new orphan.
+# test_workflow_orphan_inventory.py — workflows without a test that
+# references the workflow basename *verbatim* (hyphenated filename).
+# g23-ab-watchdog.yml has a behavioural test (test_g23_ab_watchdog.py) but
+# that file spells the name with underscores, so the verbatim-reference
+# tripwire still classes it as an orphan. Kept as the sole allowlist entry
+# with this rationale; the ledger keeps tripping for any NEW orphan.
+# (Prior to ADR-0009 this entry was masked by an incidental hyphenated
+# mention inside the set+e ledger's _ALLOWED dict, now moved to TOML.)
 # ---------------------------------------------------------------------------
 [workflow_orphan_inventory]
 allowed = [
-    # g23-ab-watchdog.yml: deferred ratchet test — workflow exists and
-    # runs in CI but no per-workflow contract pin yet. Tracked for a
-    # follow-up; meanwhile do not regress to silent.
+    # g23-ab-watchdog.yml: covered behaviourally by test_g23_ab_watchdog.py,
+    # but that test references the underscore form, so the verbatim-basename
+    # orphan tripwire does not see it. Explicit allowlist entry.
     "g23-ab-watchdog.yml",
 ]
 
