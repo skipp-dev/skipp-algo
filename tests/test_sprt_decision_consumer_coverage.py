@@ -57,11 +57,15 @@ _SINGLE_BRANCH_ALLOWLIST: dict[str, str] = {
     "scripts/forward_test_tracking.py": (
         "emits own promotion-decision vocab; only shares 'continue' literal"
     ),
-    # analyze_tv_preflight_retries.py: TV preflight log analyzer. Only
-    # references 'inconclusive' as a homonym (TV CAPTCHA outcome label),
-    # not the SPRT sentinel — wrong-vocab false positive.
+    # analyze_tv_preflight_retries.py: classifies TradingView preflight
+    # retry runs into its own vocab (success / flake_recovered /
+    # deterministic_failure / flake_with_progression / inconclusive). The
+    # name "inconclusive" overlaps with the SPRT sentinel by coincidence
+    # only; this script never imports smc_sprt_stop_rule and never reads
+    # SPRT decision payloads.
     "scripts/analyze_tv_preflight_retries.py": (
-        "'inconclusive' is a TV CAPTCHA outcome label, not the SPRT sentinel"
+        "emits own TV-preflight retry-verdict vocab; 'inconclusive' is a "
+        "homonym, not the SPRT sentinel"
     ),
 }
 
