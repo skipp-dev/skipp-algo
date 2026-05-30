@@ -40,6 +40,7 @@ _FROZEN_FILE_COUNTS: dict[str, int] = {
     "tests/test_ranking_golden.py": 1,
     "tests/test_schema_version_manifest_alignment.py": 1,
     "tests/test_scorer_tuning.py": 1,
+    "tests/test_schema_version_manifest_alignment.py": 1,
     "tests/test_six_zero_tripwires_bundle.py": 1,
     "tests/test_smc_schema_version_enforcement.py": 1,
     "tests/test_smc_trust_badges_dashboard.py": 1,
