@@ -74,12 +74,15 @@ _SET_PLUS_E_RE = re.compile(r"(?m)^\s*set\s+\+e(?:\s|$)")
 _ALLOWED: dict[str, int] = {
     # Daily heavy-compute crons with per-section fault tolerance.
     "c13-daily-cron.yml": 7,
+    # New audit/probe workflows with single fault-tolerant probe step that
+    # captures rc, emits ::error::, and exits 0 (post-PR #2426 pattern).
+    "credential-health-check.yml": 1,
     "drift-watchdog.yml": 1,
     # F2 promotion-gate cron: per-output-section fault tolerance plus
     # auto-revert / status-alert blocks that PR #2426 hardened to emit
     # ::error:: on failure. New occurrences in this file should follow
     # the PR #2426 pattern (capture rc, emit annotation, exit 0).
-    "f2-promotion-gate-daily.yml": 7,
+    "f2-promotion-gate-daily.yml": 8,
     "f2-weekly-digest.yml": 1,
     "feature-importance-daily.yml": 1,
     "fvg-quality-recal-shadow-daily.yml": 1,
@@ -104,6 +107,9 @@ _ALLOWED: dict[str, int] = {
     "smc-library-refresh.yml": 3,
     "smc-live-newsapi-refresh.yml": 1,
     "smc-measurement-benchmark-rolling.yml": 5,
+    # Workflow freshness monitor: single probe step (set +e + capture rc +
+    # ::error:: annotation) checking GitHub Actions API for stalled crons.
+    "workflow-freshness-monitor.yml": 1,
 }
 
 

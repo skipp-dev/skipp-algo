@@ -28,8 +28,6 @@ TESTS_DIR = REPO_ROOT / "tests"
 
 # Frozen — see module docstring for rationale per entry.
 ALLOWED_ORPHANS: frozenset[str] = frozenset({
-    "g23-ab-watchdog.yml",
-    "phase-b-promotion-readiness.yml",
     "regime-stratification-validation.yml",
 })
 

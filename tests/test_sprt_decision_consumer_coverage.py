@@ -57,6 +57,12 @@ _SINGLE_BRANCH_ALLOWLIST: dict[str, str] = {
     "scripts/forward_test_tracking.py": (
         "emits own promotion-decision vocab; only shares 'continue' literal"
     ),
+    # analyze_tv_preflight_retries.py: TV preflight log analyzer. Only
+    # references 'inconclusive' as a homonym (TV CAPTCHA outcome label),
+    # not the SPRT sentinel — wrong-vocab false positive.
+    "scripts/analyze_tv_preflight_retries.py": (
+        "'inconclusive' is a TV CAPTCHA outcome label, not the SPRT sentinel"
+    ),
 }
 
 
