@@ -1,4 +1,5 @@
 name: workflow-freshness-monitor
+# live-window: mutating-on-cron  # F-V6-F2.1 (schedule-only + issues:write)
 
 # Daily out-of-band freshness probe for the critical-path crons in this
 # repo. Direct mitigation for the 2026-04-13 -> 2026-05-28 silent
