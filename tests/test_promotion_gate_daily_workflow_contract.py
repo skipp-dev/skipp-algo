@@ -36,12 +36,19 @@ def test_live_window_marker_off_hours() -> None:
     )
 
 
-def test_cron_is_daily_09_30_utc() -> None:
-    """09:30 UTC — slot between rolling-bench (07:30) and f2-gate (10:00)."""
+def test_cron_runs_after_rolling_bench_mon_fri() -> None:
+    """14:00 UTC Mon-Fri — must run AFTER smc-measurement-benchmark-rolling
+    (13:00 UTC Mon-Fri). Pre-#2447 this job ran at 09:30 UTC daily, BEFORE
+    the upstream Databento producer (12:00 UTC Mon-Fri) and rolling-bench
+    (07:30 daily, also pre-producer) — always-skip pattern. Producer→consumer
+    ordering is now enforced by
+    tests/test_workflow_databento_consumer_cron_ordering.py.
+    """
     crons = [e["cron"] for e in _on(_load())["schedule"]]
-    assert crons == ["30 9 * * *"], (
-        f"promotion-gate-daily cron drifted to {crons}; must be 09:30 UTC to "
-        "stay between rolling-bench (07:30) and f2-promotion-gate-daily (10:00)"
+    assert crons == ["0 14 * * 1-5"], (
+        f"promotion-gate-daily cron drifted to {crons}; must remain "
+        "'0 14 * * 1-5' so rolling-bench (13:00 UTC Mon-Fri) has time to "
+        "publish its artifact before this job downloads it"
     )
 
 

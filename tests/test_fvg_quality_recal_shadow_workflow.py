@@ -72,9 +72,11 @@ def test_workflow_is_fail_soft_on_empty_corpus() -> None:
 
 def test_workflow_runs_after_rolling_bench() -> None:
     text = _workflow_text()
-    # Cron must be later than rolling-bench (07:30 UTC) so its corpus
-    # is available. Pin "0 8 * * 1-5" — change loud if schedule shifts.
-    assert 'cron: "0 8 * * 1-5"' in text
+    # Cron must be later than rolling-bench (13:00 UTC Mon-Fri, post-#2447)
+    # so its corpus is available. Mon-Fri matches the upstream Databento
+    # producer's cadence. Pre-#2447 layout was "0 8 * * 1-5" — BEFORE the
+    # 12:00 UTC producer, which made the corpus permanently stale.
+    assert 'cron: "30 13 * * 1-5"' in text
     # Discovery references the rolling-bench workflow by filename.
     assert "smc-measurement-benchmark-rolling.yml" in text
 

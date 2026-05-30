@@ -49,12 +49,19 @@ def test_workflow_yaml_is_loadable() -> None:
     assert wf["name"] == "f2-promotion-gate-daily"
 
 
-def test_workflow_runs_at_10utc_daily() -> None:
+def test_workflow_runs_after_databento_producer_mon_fri() -> None:
+    """14:30 UTC Mon-Fri — must run AFTER smc-measurement-benchmark-rolling
+    (13:00 UTC Mon-Fri), which itself runs AFTER the Databento producer
+    (12:00 UTC Mon-Fri). Pre-#2447 this asserted '0 10 * * *' (10:00 UTC
+    daily) which fired BEFORE the producer — always-skip pattern. The
+    producer→consumer handoff invariant is now pinned in
+    tests/test_workflow_databento_consumer_cron_ordering.py.
+    """
     wf = _load()
     # PyYAML parses bare 'on:' as the boolean True under YAML 1.1.
     schedule = wf.get("on", wf.get(True))["schedule"]
     crons = [s["cron"] for s in schedule]
-    assert "0 10 * * *" in crons
+    assert "30 14 * * 1-5" in crons
 
 
 def test_workflow_grants_issues_write() -> None:
