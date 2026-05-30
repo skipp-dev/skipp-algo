@@ -18,9 +18,13 @@ name: smc-measurement-benchmark-rolling
 
 on:
   schedule:
-    # 07:30 UTC daily — after the US cash session close and the
-    # outcome-backfill run have had time to land yesterday's labels.
-    - cron: "30 7 * * *"
+    # 13:00 UTC Mon-Fri — must run AFTER the producer
+    # smc-databento-production-export-sharded (12:00 UTC Mon-Fri),
+    # otherwise the producer-artifact lookup at the 'Restore producer
+    # artifact' step aborts with "Producer artifact missing for <date>".
+    # Restricted to Mon-Fri to match the producer's cadence (no producer
+    # runs on weekends → no fresh artifact to consume).
+    - cron: "0 13 * * 1-5"
   workflow_dispatch:
     inputs:
       symbols:
