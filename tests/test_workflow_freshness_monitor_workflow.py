@@ -111,7 +111,7 @@ def test_uses_pinned_action_shas(text: str) -> None:
     # same SHA discipline as the credential-health workflow.
     assert "actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5" in text
     assert "actions/setup-python@e348410e00f449f3bb50f72fda1d4f7600fc1b04" in text
-    assert "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02" in text
+    assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a" in text
 
 
 def test_token_prefers_gh_pat_with_fallback(text: str) -> None:
