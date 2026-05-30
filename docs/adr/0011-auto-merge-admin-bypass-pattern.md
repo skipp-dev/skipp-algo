@@ -2,7 +2,7 @@
 
 | Field      | Value                                                                 |
 |------------|-----------------------------------------------------------------------|
-| Status     | Accepted (Option C)                                                   |
+| Status     | Accepted (Option C) — verifier aligned                                |
 | Date       | 2026-05-30                                                            |
 | Deciders   | skipp-dev                                                             |
 | Related    | branch protection on `main`, `gh pr merge --auto`, `gh api -X PUT pulls/{n}/merge` |
@@ -79,3 +79,24 @@ bot) is adopted immediately.
 - C is the most honest small-team choice and keeps the door open for B
   later.
 - D is the worst of both worlds for a solo committer.
+
+## Implementation
+
+The decision is reflected in the live `main` branch-protection config
+(required reviews absent; only the `fast-gates` status check required) and
+in the audit tooling that verifies it:
+
+- `scripts/verify_branch_protection.py` now treats **absence of required
+  reviews as the expected Option-C baseline** rather than a failure. The
+  `pull_request_reviews` result is reported informationally (`warn`); the
+  single hard gate remains the required `fast-gates` status check. Before
+  this change the verifier asserted required reviews as a hard `error`,
+  which directly contradicted this ADR and would have reported a spurious
+  FAIL against a correctly-configured `main`.
+- `tests/test_verify_branch_protection.py` pins both shapes: required
+  reviews present (stricter — still passes) and required reviews absent
+  (the baseline — passes, reported as `warn`, never `error`).
+
+When a second maintainer joins, reopen this ADR and adopt Option B (a
+dedicated CI bot that approves after `fast-gates` is green); the verifier's
+review check then tightens back to a hard requirement.

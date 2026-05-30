@@ -153,12 +153,22 @@ def _check_branch_protection(token: str, report: ProtectionReport) -> None:
 
     report.add("branch_protection_enabled", True, "Branch protection rule exists.")
 
-    # --- PR requirement ---
+    # --- PR review requirement (ADR-0011) ---
+    # ADR-0011 (Option C) intentionally drops required reviews on `main`: the
+    # repo is single-committer and the real merge gate is the `fast-gates`
+    # required status check, not an approval. Absence of required reviews is
+    # therefore the EXPECTED baseline, not a failure — reported informationally
+    # here. The hard gate is the required status-check assertion below.
     pr_reviews = data.get("required_pull_request_reviews")
     report.add(
-        "require_pull_request",
-        pr_reviews is not None,
-        "PR required before merge." if pr_reviews else "PR requirement is NOT enabled.",
+        "pull_request_reviews",
+        True,
+        (
+            "Required reviews enabled (stricter than the ADR-0011 baseline)."
+            if pr_reviews is not None
+            else "No required reviews — matches ADR-0011 (Option C) single-committer baseline."
+        ),
+        severity="warn",
     )
 
     # --- Required status checks ---

@@ -83,6 +83,25 @@ class TestCheckBranchProtection:
         assert errors == [], [r.name for r in errors]
         assert report.passed is True
 
+    def test_absent_required_reviews_still_passes(self, mod: types.ModuleType) -> None:
+        """ADR-0011 (Option C): no required reviews is the EXPECTED baseline.
+
+        The single-committer policy relies on `fast-gates` as the merge gate,
+        not approvals; absence of required reviews must not fail the verifier.
+        """
+        data = json.loads(json.dumps(_FULL_PROTECTION_RESPONSE))
+        data["required_pull_request_reviews"] = None
+        report = mod.ProtectionReport()
+        with patch.object(mod, "_github_get", return_value=(200, data)):
+            mod._check_branch_protection("fake-token", report)
+
+        errors = [r for r in report.results if r.severity == "error" and not r.passed]
+        assert errors == [], [r.name for r in errors]
+        assert report.passed is True
+        # The review status is reported informationally (warn), never as error.
+        review_results = [r for r in report.results if r.name == "pull_request_reviews"]
+        assert review_results and all(r.severity == "warn" for r in review_results)
+
     def test_api_403_is_warn_not_error(self, mod: types.ModuleType) -> None:
         report = mod.ProtectionReport()
         with patch.object(mod, "_github_get", return_value=(403, {"message": "forbidden"})):
