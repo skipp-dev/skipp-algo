@@ -27,11 +27,13 @@ WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"
 TESTS_DIR = REPO_ROOT / "tests"
 
 # Frozen — see module docstring for rationale per entry.
-ALLOWED_ORPHANS: frozenset[str] = frozenset({
-    "g23-ab-watchdog.yml",
-    "phase-b-promotion-readiness.yml",
-    "regime-stratification-validation.yml",
-})
+#
+# All three previous entries (g23-ab-watchdog, phase-b-promotion-readiness,
+# regime-stratification-validation) gained structural-pin tests under
+# tests/ during the 2026-05-30 CI hardening sprint and are no longer
+# orphans. Keep the constant defined for future entries — the discipline
+# test fails if it drifts in either direction.
+ALLOWED_ORPHANS: frozenset[str] = frozenset()
 
 
 def _has_test_reference(workflow_basename_no_ext: str) -> bool:
