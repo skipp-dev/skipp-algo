@@ -53,6 +53,9 @@ _FROZEN_SITES: dict[str, frozenset[int]] = {
     "scripts/smc_alert_notifier.py": frozenset({481}),
     "scripts/verify_branch_protection.py": frozenset({104}),
     "terminal_notifications.py": frozenset({255, 319}),
+    # Workflow freshness monitor (2026-05-29): GitHub Actions API call to
+    # detect stalled scheduled workflows. HTTPS-only, explicit timeout=15.
+    "scripts/check_workflow_freshness.py": frozenset({70}),
 }
 
 _FROZEN_TOTAL = sum(len(v) for v in _FROZEN_SITES.values())
