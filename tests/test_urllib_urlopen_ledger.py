@@ -50,6 +50,9 @@ _FROZEN_SITES: dict[str, frozenset[int]] = {
     # filtering added helper code above the two GitHub API calls, shifting
     # the fixed api.github.com urlopen sites +5 lines; timeout= remains.
     "scripts/restore_databento_export_bundle.py": frozenset({67, 82}),
+    # Workflow-freshness monitor (#2433, 2026-05): GET to api.github.com
+    # /repos/.../actions/workflows/{wf}/runs for silent-skip detection.
+    "scripts/check_workflow_freshness.py": frozenset({70}),
     "scripts/smc_alert_notifier.py": frozenset({481}),
     "scripts/verify_branch_protection.py": frozenset({104}),
     # workflow-freshness monitor polls the GitHub Actions REST API once per

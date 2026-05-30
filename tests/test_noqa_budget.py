@@ -113,12 +113,12 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # smc_integration/release_policy.py:1085 — Bandit S603 false
         # positive: ``git rev-parse HEAD`` via shutil.which("git").
         ("smc_integration/release_policy.py", 1085, ("S603",)),
-        # open_prep/streamlit_monitor.py:205 — module-import-time hardening:
+        # open_prep/streamlit_monitor.py:203 — module-import-time hardening:
         # the OPRA-options-flow integration is wrapped in a try/except so
         # that ImportError, env-parse ValueError, or any other startup
         # failure degrades gracefully and keeps streamlit_monitor
         # importable. BLE001 noqa documents the deliberate broad catch.
-        ("open_prep/streamlit_monitor.py", 205, ("BLE001",)),
+        ("open_prep/streamlit_monitor.py", 203, ("BLE001",)),
         # E402 outliers — late imports after sys.path/streamlit setup
         # blocks that pyproject's per-file-ignores cannot easily cover
         # without disabling E402 for too-broad surface area.
