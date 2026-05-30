@@ -74,12 +74,17 @@ _SET_PLUS_E_RE = re.compile(r"(?m)^\s*set\s+\+e(?:\s|$)")
 _ALLOWED: dict[str, int] = {
     # Daily heavy-compute crons with per-section fault tolerance.
     "c13-daily-cron.yml": 7,
+    # Bundle C credential probe: ONE set+e wraps the probe script call so
+    # the next step (annotation + issue filing) runs before the job
+    # fails. The script's rc is re-surfaced by the final fail-the-job
+    # step. Pattern matches workflow-freshness-monitor (Bundle D).
+    "credential-health-check.yml": 1,
     "drift-watchdog.yml": 1,
     # F2 promotion-gate cron: per-output-section fault tolerance plus
     # auto-revert / status-alert blocks that PR #2426 hardened to emit
-    # ::error:: on failure. New occurrences in this file should follow
-    # the PR #2426 pattern (capture rc, emit annotation, exit 0).
-    "f2-promotion-gate-daily.yml": 7,
+    # ::error:: on failure. Bundle A added one further surface-errors
+    # capture block (8 vs prior 7).
+    "f2-promotion-gate-daily.yml": 8,
     "f2-weekly-digest.yml": 1,
     "feature-importance-daily.yml": 1,
     "fvg-quality-recal-shadow-daily.yml": 1,
@@ -104,6 +109,12 @@ _ALLOWED: dict[str, int] = {
     "smc-library-refresh.yml": 3,
     "smc-live-newsapi-refresh.yml": 1,
     "smc-measurement-benchmark-rolling.yml": 5,
+    # Bundle D freshness monitor: ONE set+e wraps the probe script so
+    # the annotate-and-summarise step can attach the report to
+    # GITHUB_STEP_SUMMARY before the final fail-the-job step re-surfaces
+    # rc. The job itself is the silent-skip detector for other crons --
+    # it must NEVER itself silently skip.
+    "workflow-freshness-monitor.yml": 1,
 }
 
 
