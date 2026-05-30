@@ -2,7 +2,7 @@
 
 | Field      | Value                                                                 |
 |------------|-----------------------------------------------------------------------|
-| Status     | Proposed                                                              |
+| Status     | Accepted (Option B)                                                   |
 | Date       | 2026-05-30                                                            |
 | Deciders   | skipp-dev                                                             |
 | Related    | `.github/workflows/smc-fast-pr-gates.yml`, `.github/workflows/ci.yml`, branch protection on `main` |
@@ -69,7 +69,11 @@ clock time on green runs goes up.
 
 ## Decision
 
-*(pending operator)*
+**Option B — Disjoint via pytest markers.** `fast-gates` runs the
+default set (no marker); `validate` runs `pytest -m slow`. A meta-
+test asserts every test file resolves to exactly one bucket so marker
+drift cannot silently exclude tests. Once stable, `validate` is
+promoted to required (closes Operator-Punkt 1).
 
 ## Consequences
 

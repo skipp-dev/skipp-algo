@@ -2,7 +2,7 @@
 
 | Field      | Value                                                                 |
 |------------|-----------------------------------------------------------------------|
-| Status     | Proposed                                                              |
+| Status     | Accepted (Option C)                                                   |
 | Date       | 2026-05-30                                                            |
 | Deciders   | skipp-dev                                                             |
 | Related    | branch protection on `main`, `gh pr merge --auto`, `gh api -X PUT pulls/{n}/merge` |
@@ -64,7 +64,12 @@ human, so no genuine second pair of eyes.
 
 ## Decision
 
-*(pending operator)*
+**Option C — Drop required-reviews on `main`.** Repository is single-
+committer; the actual safety net is the `fast-gates` required status
+check, not the review approval. Removing reviews ends the admin-API
+bypass habit and restores a normal audit log. When a second
+maintainer joins, this ADR is reopened and Option B (dedicated CI
+bot) is adopted immediately.
 
 ## Consequences
 

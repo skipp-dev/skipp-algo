@@ -2,7 +2,7 @@
 
 | Field      | Value                                                                 |
 |------------|-----------------------------------------------------------------------|
-| Status     | Proposed                                                              |
+| Status     | Accepted (Option C)                                                   |
 | Date       | 2026-05-30                                                            |
 | Deciders   | skipp-dev                                                             |
 | Related    | PR #2449 (4-concern bundle), PR #2450, PR #2445 (both BLOCKED by #2449 conflicts) |
@@ -65,7 +65,11 @@ a solo committer.
 
 ## Decision
 
-*(pending operator)*
+**Option C — One concern per PR.** Bundles like #2449 (concurrency
++ marker + SHA bump across 3 workflows) are split: one PR per
+concern, even if it touches many workflows. PR titles use the
+convention `concern(scope): …` to make the rule self-checking at
+review time.
 
 ## Consequences
 

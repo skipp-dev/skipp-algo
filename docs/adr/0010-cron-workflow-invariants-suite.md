@@ -2,7 +2,7 @@
 
 | Field      | Value                                                                 |
 |------------|-----------------------------------------------------------------------|
-| Status     | Proposed                                                              |
+| Status     | Accepted (Option C)                                                   |
 | Date       | 2026-05-30                                                            |
 | Deciders   | skipp-dev                                                             |
 | Related    | `tests/test_credential_health_workflow.py`, `tests/test_ci_workflow_structural_pin.py`, `tests/test_run_open_prep_daily_workflow_contract.py`, `tests/test_promotion_gate_daily_workflow_contract.py`, `tests/test_phase_b_promotion_readiness_workflow_contract.py`, `tests/test_f2_promotion_gate_daily_workflow_contract.py`, `tests/test_workflow_freshness_monitor_workflow_contract.py`, F-V5-C2, F-V6-F2.1, F-V8 |
@@ -68,7 +68,12 @@ the pin-ledger philosophy; not version-controllable as test data.
 
 ## Decision
 
-*(pending operator)*
+**Option C — Hybrid.** A parametrised generic suite covers the
+universal invariants (concurrency, timeout, permissions, on-schedule,
+upload-artifact version, SMC_GH_HOSTED_RUNNER selector). Workflow-
+specific contract tests stay for special markers (e.g. live-window
+marker on credential-health, freshness-monitor URL pin). New global
+invariants land in one place; existing files shrink incrementally.
 
 ## Consequences
 

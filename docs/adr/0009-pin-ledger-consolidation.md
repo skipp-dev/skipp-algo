@@ -2,7 +2,7 @@
 
 | Field      | Value                                                                 |
 |------------|-----------------------------------------------------------------------|
-| Status     | Proposed                                                              |
+| Status     | Accepted (Option B)                                                   |
 | Date       | 2026-05-30                                                            |
 | Deciders   | skipp-dev                                                             |
 | Related    | `tests/test_pytest_skip_budget.py`, `tests/test_urllib_urlopen_ledger.py`, `tests/test_noqa_budget.py`, `tests/test_workflow_orphan_inventory.py`, `tests/test_workflow_set_plus_e_inventory.py`, `tests/test_subprocess_shell_injection_pin.py`, `tests/test_workflow_upload_artifact_uniform_version.py` |
@@ -59,7 +59,12 @@ site before approving.
 
 ## Decision
 
-*(pending operator)*
+**Option B — Single `pin_registry.toml`** at repo root, loaded by all
+ledger tests. Drift pain has materialised three times in one week
+(#2451, #2452, #2453); a TOML single source of truth eliminates the
+shotgun-edit pattern and keeps every drift change reviewable in one
+diff. Migration scheduled as a dedicated follow-up PR (one ledger per
+commit, all 7 in one PR per ADR-0013 «one concern» rule).
 
 ## Consequences
 
