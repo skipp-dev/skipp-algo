@@ -42,10 +42,10 @@ collect_ignore = (
 )
 
 
-def pytest_collection_modifyitems(  # noqa: D401 - pytest hook
+def pytest_collection_modifyitems(
     config: pytest.Config, items: list[pytest.Item]
 ) -> None:
-    """ADR-0012 Phase 1: auto-mark non-fast test files as ``slow``.
+    """Auto-mark non-fast test files as ``slow`` (ADR-0012 Phase 1).
 
     Membership is sourced from :mod:`tests._fast_inventory`. Items
     already carrying the ``slow`` marker (explicit ``@pytest.mark.slow``
