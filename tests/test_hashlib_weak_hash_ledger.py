@@ -76,7 +76,7 @@ _FROZEN_SITES: dict[str, dict[str, frozenset[int]]] = {
     # #2334: offline simulation script mirrors build_cache_path's digest
     # computation to re-key probe paths. Non-security cache-fingerprint use.
     "scripts/simulate_cache_redesign_2334.py": {"sha1": frozenset({49})},
-    "terminal_poller.py": {"md5": frozenset({197, 236})},
+    "terminal_poller.py": {"md5": frozenset({195, 234})},
 }
 
 _FROZEN_TOTAL = sum(

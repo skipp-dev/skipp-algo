@@ -175,11 +175,9 @@ except ImportError:  # pragma: no cover
 
 try:
     from newsstack_fmp.ingest_benzinga_financial import (
-        fetch_benzinga_options_activity as _fetch_bz_options,
         fetch_benzinga_insider_transactions as _fetch_bz_insider,
     )
 except ImportError:  # pragma: no cover
-    _fetch_bz_options = None  # type: ignore[assignment]
     _fetch_bz_insider = None  # type: ignore[assignment]
 
 # 2026-05-12 UW flow-alerts removal: the `fetch_uw_options_flow` symbol
@@ -658,21 +656,20 @@ def _cached_defense_wl_op(api_key: str) -> list[dict[str, Any]]:
 def _cached_bz_options_op(api_key: str, tickers: str) -> list[dict[str, Any]]:
     """Cache options activity for 3 minutes.
 
-    Provider precedence (post-2026-05-12 OPRA replacement, UW removed):
-      1. **Databento OPRA.PILLAR** — default-ON (``ENABLE_OPRA_UOA``
-         defaults to ``1`` since 2026-05-12). Active when a Databento
-         key is configured. Canonical options-flow path.
-      2. **Benzinga options_activity** — retired upstream, returns ``[]``.
+    Sole provider (since 2026-05-12): **Databento OPRA.PILLAR** via
+    :func:`newsstack_fmp.ingest_opra_options_flow.fetch_opra_options_flow`,
+    gated on ``ENABLE_OPRA_UOA`` (default 1) and a configured
+    ``DATABENTO_API_KEY``.
 
-    The Unusual Whales flow-alerts branch was removed in PR #2158
-    (subscription cancelled 2026-05-12, code path replaced by OPRA UOA
-    detector in PR #2155). Function name retained for Streamlit
-    cache-key stability.
+    Historical paths (removed):
+      - Unusual Whales flow-alerts (PR #2158, subscription cancelled)
+      - Benzinga ``/api/v2.1/calendar/options_activity`` (retired upstream
+        2026-04-30, dead-code removed in chore/dead-code-benzinga-options-activity)
+
+    Function name retained for Streamlit cache-key stability; the
+    ``api_key`` parameter is the Benzinga key, kept in signature so callers
+    do not need refactoring even though it is unused on the OPRA path.
     """
-    # ── OPRA.PILLAR (preferred when feature flag is set) ──
-    # Default 1 since 2026-05-12 (UW subscription cancelled). Set
-    # ``ENABLE_OPRA_UOA=0`` only to force the legacy fallback path during
-    # local debug. Read via the SSOT helper (audit-L-1 R4).
     from open_prep.feature_flags import is_opra_uoa_enabled
     if (
         is_opra_uoa_enabled()
@@ -680,21 +677,10 @@ def _cached_bz_options_op(api_key: str, tickers: str) -> list[dict[str, Any]]:
         and os.environ.get("DATABENTO_API_KEY", "").strip()
     ):
         try:
-            recs = _fetch_opra_options(api_key, tickers) or []
-            if recs:
-                return recs
-            # On empty result (e.g. outside market hours) fall through to
-            # the Benzinga path which silently returns [].
+            return _fetch_opra_options(api_key, tickers) or []
         except Exception:
             logger.warning("_cached_bz_options_op (OPRA) failed", exc_info=True)
-
-    if _fetch_bz_options is None:
-        return []
-    try:
-        return _fetch_bz_options(api_key, tickers) or []
-    except Exception:
-        logger.warning("_cached_bz_options_op (Benzinga fallback) failed", exc_info=True)
-        return []
+    return []
 
 
 def _get_bz_quotes_for_symbols(
