@@ -66,6 +66,10 @@ _FROZEN_SITES: dict[tuple[str, str], int] = {
     # process to stamp the run manifest. Token-list args, no shell=True,
     # 2.0s timeout, stderr discarded, lru_cached.
     ("governance/run_manifest.py", "check_output"): 1,
+    # scripts/analyze_publish_cadence.py runs `git log --format=%ct\t%h --`
+    # once per pathspec to compute publish-cadence stats. Token-list args,
+    # no shell=True, read-only dev/analysis helper.
+    ("scripts/analyze_publish_cadence.py", "run"): 1,
     ("open_prep/realtime_signals.py", "Popen"): 1,
     ("open_prep/realtime_signals.py", "run"): 1,
     ("scripts/measure_databento_ops_run.py", "run"): 1,
