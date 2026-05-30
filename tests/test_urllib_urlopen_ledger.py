@@ -55,6 +55,11 @@ _FROZEN_SITES: dict[str, frozenset[int]] = {
     "scripts/check_workflow_freshness.py": frozenset({70}),
     "scripts/smc_alert_notifier.py": frozenset({481}),
     "scripts/verify_branch_protection.py": frozenset({104}),
+    # workflow-freshness monitor polls the GitHub Actions REST API once per
+    # cron tick to find scheduled workflows whose last successful run is
+    # older than the per-workflow SLO. https-only, explicit timeout=15s,
+    # B310 nosec'd at the call site (constant URL).
+    "scripts/check_workflow_freshness.py": frozenset({70}),
     "terminal_notifications.py": frozenset({255, 319}),
 }
 
