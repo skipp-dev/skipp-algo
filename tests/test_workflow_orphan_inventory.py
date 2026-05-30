@@ -11,8 +11,6 @@ The orphans listed below are intentional:
   the underlying script's unit tests.
 - ``phase-b-promotion-readiness``: human-gated promotion checklist;
   outputs a markdown summary, not a programmatic artifact.
-- ``regime-stratification-validation``: experimental regime sweep, kept
-  out of the gate set deliberately while the methodology stabilises.
 
 Adding a new orphan must be a deliberate ALLOW_LIST edit. Adding a test
 for an existing orphan must drop it from ALLOW_LIST in the same PR.
@@ -27,11 +25,7 @@ WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"
 TESTS_DIR = REPO_ROOT / "tests"
 
 # Frozen — see module docstring for rationale per entry.
-ALLOWED_ORPHANS: frozenset[str] = frozenset({
-    "g23-ab-watchdog.yml",
-    "phase-b-promotion-readiness.yml",
-    "regime-stratification-validation.yml",
-})
+ALLOWED_ORPHANS: frozenset[str] = frozenset()
 
 
 def _has_test_reference(workflow_basename_no_ext: str) -> bool:
