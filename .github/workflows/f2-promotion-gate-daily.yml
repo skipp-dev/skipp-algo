@@ -38,10 +38,12 @@ name: f2-promotion-gate-daily
 
 on:
   schedule:
-    # 10:00 UTC daily — runs after smc-measurement-benchmark-rolling
-    # (07:30 UTC) and feature-importance-daily (09:00 UTC) so the
-    # dual-arm artifact dirs are guaranteed to be in place.
-    - cron: "0 10 * * *"
+    # 14:30 UTC Mon-Fri — must run AFTER smc-measurement-benchmark-rolling
+    # (13:00 UTC Mon-Fri, ~60 min runtime) so the dual-arm artifact is
+    # published before the promotion gate tries to download it. The
+    # rolling-bench cadence is gated by the upstream Databento producer
+    # (12:00 UTC Mon-Fri), so this job follows the same Mon-Fri window.
+    - cron: "30 14 * * 1-5"
   workflow_dispatch:
     inputs:
       date:

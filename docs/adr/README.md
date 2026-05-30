@@ -24,10 +24,15 @@ old one and update the table below.
 | 0006 | [HERO Vocab Discipline](0006-hero-vocab-discipline.md) | Accepted | 2026-04-24 | `tests/test_hero_observed_vocab_pin.py` |
 | 0007 | [HERO Field Invariants](0007-hero-field-invariants.md) | Accepted | 2026-04-24 | `tests/test_hero_risk_vocab_and_reachability_pin.py`, `tests/test_hero_schema_fingerprint.py` |
 | 0008 | [PromotionGate threshold origins and recalibration policy](0008-promotion-gate-thresholds.md) | Accepted | 2026-05-17 | `governance/promotion_gate.py` (constants); ADR is doc-only |
+| 0009 | [Pin-ledger consolidation vs. per-domain ledger files](0009-pin-ledger-consolidation.md) | Accepted (B) | 2026-05-30 | (pending implementation: `pin_registry.toml`) |
+| 0010 | [Cron-workflow invariants — per-workflow contract tests vs. generative suite](0010-cron-workflow-invariants-suite.md) | Accepted (C) | 2026-05-30 | (pending implementation: hybrid generic suite) |
+| 0011 | [Auto-merge + admin-bypass pattern for single-developer PRs](0011-auto-merge-admin-bypass-pattern.md) | Accepted (C) | 2026-05-30 | branch-protection: required-reviews disabled, `fast-gates` required |
+| 0012 | [`fast-gates` vs `validate` job separation policy](0012-fast-gates-vs-validate-separation.md) | Accepted (B) | 2026-05-30 | (pending implementation: `@pytest.mark.slow`) |
+| 0013 | [Atomic vs cross-cutting workflow PRs](0013-atomic-vs-cross-cutting-workflow-prs.md) | Accepted (C) | 2026-05-30 | PR-title convention `concern(scope): …` |
 
 ## Reservation rule
 
-The next free ADR number is **0009**. To avoid concurrent-PR collisions:
+The next free ADR number is **0014**. To avoid concurrent-PR collisions:
 
 1. Reserve the next number by opening the PR with the file already named
    (e.g. `docs/adr/0008-foo.md`) before the rebase race window closes.
