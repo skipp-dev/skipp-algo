@@ -29,8 +29,12 @@ Other:
     - Logos:                  ``/api/v2/logos``
     - Movers:                 ``/api/v1/market/movers``
     - Ticker Detail:          ``/api/v2/tickerDetail``
-    - Options Activity:       ``/api/v2.1/calendar/options_activity``
     - SEC Insider Transactions: ``/api/v2.1/ownership``
+
+    Note: ``/api/v2.1/calendar/options_activity`` was retired by Benzinga
+    (HTTP 404 since 2026-04-30 audit). The canonical UOA source is now the
+    self-hosted Databento OPRA.PILLAR detector in
+    :mod:`newsstack_fmp.opra_uoa`.
 
 All adapters are **optional** — they are only called when
 ``BENZINGA_API_KEY`` is set.
@@ -62,7 +66,6 @@ SECURITY_URL = "https://api.benzinga.com/api/v2/security"
 INSTRUMENTS_URL = "https://api.benzinga.com/api/v2.1/instruments"
 LOGOS_URL = "https://api.benzinga.com/api/v2/logos"
 TICKER_DETAIL_URL = "https://api.benzinga.com/api/v2/tickerDetail"
-OPTIONS_ACTIVITY_URL = "https://api.benzinga.com/api/v2.1/calendar/options_activity"
 OWNERSHIP_URL = "https://api.benzinga.com/api/v2.1/ownership"
 
 
@@ -541,46 +544,6 @@ class BenzingaFinancialAdapter:
         data = self._fetch_json(TICKER_DETAIL_URL, params, label="Benzinga ticker_detail")
         return self._extract_list(data, "result", "data", "tickers")
 
-    def fetch_options_activity(
-        self,
-        tickers: str,
-        *,
-        page_size: int = 100,
-        page: int = 0,
-        date: str | None = None,
-        date_from: str | None = None,
-        date_to: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """Fetch options activity (unusual flow, large trades).
-
-        Parameters
-        ----------
-        tickers : str
-            Ticker symbol(s).
-        page_size : int
-            Max results (API limit 1000).
-        date, date_from, date_to : str, optional
-            Date filters in ``"YYYY-MM-DD"`` format.
-
-        Returns
-        -------
-        list[dict]
-            Options activity records.
-        """
-        params: dict[str, Any] = {
-            "parameters[tickers]": tickers,
-            "pagesize": str(page_size),
-            "page": str(page),
-        }
-        if date:
-            params["parameters[date]"] = date
-        if date_from:
-            params["parameters[date_from]"] = date_from
-        if date_to:
-            params["parameters[date_to]"] = date_to
-        data = self._fetch_json(OPTIONS_ACTIVITY_URL, params, label="Benzinga options_activity")
-        return self._extract_list(data, "options_activity", "result", "data")
-
     # ── SEC Insider Transactions (Ownership API) ────────────
 
     def fetch_insider_transactions(
@@ -681,22 +644,6 @@ def fetch_benzinga_company_profile(
         return adapter.fetch_company_profile(tickers, **kwargs)
     except Exception as exc:
         log_fetch_warning("Benzinga company_profile", exc)
-        return []
-    finally:
-        adapter.close()
-
-
-def fetch_benzinga_options_activity(
-    api_key: str,
-    tickers: str,
-    **kwargs: Any,
-) -> list[dict[str, Any]]:
-    """Fetch options activity — standalone wrapper."""
-    adapter = BenzingaFinancialAdapter(api_key)
-    try:
-        return adapter.fetch_options_activity(tickers, **kwargs)
-    except Exception as exc:
-        log_fetch_warning("Benzinga options activity", exc)
         return []
     finally:
         adapter.close()

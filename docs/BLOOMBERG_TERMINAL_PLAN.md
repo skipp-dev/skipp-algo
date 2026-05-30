@@ -203,8 +203,9 @@ architecture, not as a description of the deployed state.
 - `BenzingaFinancialAdapter` with 20+ methods:
   - `fetch_fundamentals()`, `fetch_financials()`, `fetch_valuation_ratios()`, `fetch_company_profiles()`
   - `fetch_price_history()`, `fetch_chart()`, `fetch_auto_complete()`, `fetch_security()`
-  - `fetch_instruments()`, `fetch_logos()`, `fetch_ticker_detail()`, `fetch_options_activity()`
-- Eight standalone wrapper functions for direct use: `fetch_benzinga_fundamentals()`, `fetch_benzinga_financials()`, `fetch_benzinga_ratios()`, `fetch_benzinga_profiles()`, `fetch_benzinga_options_activity()`, `fetch_benzinga_price_history()`, `fetch_benzinga_logos()`, `fetch_benzinga_ticker_detail()`
+  - `fetch_instruments()`, `fetch_logos()`, `fetch_ticker_detail()`
+  - Options flow (UOA) is sourced from Databento OPRA.PILLAR (`newsstack_fmp/opra_uoa.py`) since 2026-05-12; Benzinga's `options_activity` endpoint was retired upstream and removed from this adapter.
+- Seven standalone wrapper functions for direct use: `fetch_benzinga_fundamentals()`, `fetch_benzinga_financials()`, `fetch_benzinga_ratios()`, `fetch_benzinga_profiles()`, `fetch_benzinga_price_history()`, `fetch_benzinga_logos()`, `fetch_benzinga_ticker_detail()`
 - Full retry/backoff via httpx, consistent error handling
 
 ### L) Open Prep Benzinga Intelligence

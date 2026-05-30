@@ -94,7 +94,7 @@ _FROZEN_FILE_COUNTS: dict[str, int] = {
     "newsstack_fmp/store_sqlite.py": 3,
     "open_prep/alerts.py": 1,
     "open_prep/diff.py": 1,
-    "open_prep/streamlit_monitor.py": 25,  # rebaselined 2026-05-12 PR #2163 (was 26; -1 for UW removal `_fetch_uw_options = None  # type: ignore[assignment]` shim — OPRA UOA shim _fetch_opra_options still present)
+    "open_prep/streamlit_monitor.py": 24,  # rebaselined 2026-05-30 PR #2451 (was 25; -1 for benzinga dead-code removal)
     "rl/agents/ppo_slicer.py": 4,
     "rl/agents/sac_sizer.py": 2,
     "rl/simulator/execution_env.py": 5,
@@ -109,7 +109,7 @@ _FROZEN_FILE_COUNTS: dict[str, int] = {
     "terminal_finnhub.py": 4,
     "terminal_fmp_insights.py": 1,  # PR #2128: tuple-return (bool, T) miss-cache helper signature confuses generic narrowing.
     "terminal_forecast.py": 2,
-    "terminal_poller.py": 13,
+    "terminal_poller.py": 12,  # rebaselined 2026-05-30 PR #2451 (was 13; -1 for dead-code removal)
     "terminal_spike_scanner.py": 1,
     "terminal_tabs/tab_live_incubation.py": 1,
     "terminal_technicals.py": 2,
