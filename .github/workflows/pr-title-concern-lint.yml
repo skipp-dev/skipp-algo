@@ -1,0 +1,39 @@
+# live-window: any-trigger
+# ADR-0013 enforcement: reject PRs whose title does not declare exactly one
+# concern via the `concern(scope): subject` convention. See
+# docs/adr/0013-atomic-vs-cross-cutting-workflow-prs.md and
+# scripts/check_pr_title_concern.py.
+name: pr-title-concern-lint
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-title-concern-lint-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  lint-title:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Validate PR title declares one concern (ADR-0013)
+        # PR title is passed via env (never interpolated into the shell) to
+        # avoid script injection through a malicious title.
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: python scripts/check_pr_title_concern.py
