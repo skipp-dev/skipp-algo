@@ -26,12 +26,12 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"
 TESTS_DIR = REPO_ROOT / "tests"
 
-# Frozen — see module docstring for rationale per entry.
-ALLOWED_ORPHANS: frozenset[str] = frozenset({
-    "g23-ab-watchdog.yml",
-    "phase-b-promotion-readiness.yml",
-    "regime-stratification-validation.yml",
-})
+# Source of truth: pin_registry.toml (ADR-0009). The 2026-05-30 CI
+# hardening sprint reduced the allowlist to a single entry
+# (g23-ab-watchdog.yml); all other historical entries gained coverage.
+from tests._pin_registry import workflow_allowed_orphans
+
+ALLOWED_ORPHANS: frozenset[str] = workflow_allowed_orphans()
 
 
 def _has_test_reference(workflow_basename_no_ext: str) -> bool:
