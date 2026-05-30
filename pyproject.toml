@@ -57,6 +57,16 @@ pythonpath = ["."]
 filterwarnings = [
     "ignore:Microstructure base asof_date is .* days old:UserWarning",
 ]
+# ADR-0012: `slow` marker partitions the test suite for the
+# fast-gates vs validate split (Option B — disjoint via marker).
+# A test marked @pytest.mark.slow runs in `validate` only;
+# unmarked tests run in `fast-gates` (no `-m` selector). The
+# inventory of slow-marked test FILES is pinned in
+# tests/test_pytest_marker_bucket_discipline.py so adding a new
+# slow test is a deliberate, reviewable change.
+markers = [
+    "slow: long-running test; partitioned to the `validate` job (ADR-0012).",
+]
 
 [tool.ruff]
 target-version = "py312"

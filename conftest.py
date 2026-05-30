@@ -1,12 +1,23 @@
 """Root pytest configuration.
 
-This file is intentionally minimal — it only handles platform-specific
-collection guards that cannot be expressed in pyproject.toml addopts.
+This file handles:
+
+1. Platform-specific collection guards that cannot be expressed in
+   pyproject.toml addopts (Windows ``fcntl``).
+2. The ADR-0012 fast/slow auto-marking (Phase 1): every collected test
+   item whose file basename is **not** in
+   :mod:`tests._fast_inventory` is marked ``pytest.mark.slow`` at
+   collection time. Lets developers / CI run ``pytest -m "not slow"``
+   to get exactly the fast-gates set without having to maintain
+   per-file decorators across ~1000 test files.
 """
 
 from __future__ import annotations
 
 import sys
+from pathlib import Path
+
+import pytest
 
 # scripts/ib_client_id.py and open_prep/realtime_signals.py import ``fcntl``
 # unconditionally at module level. ``fcntl`` is a POSIX-only stdlib module
@@ -29,3 +40,42 @@ collect_ignore = (
     if sys.platform == "win32"
     else []
 )
+
+
+def pytest_collection_modifyitems(  # noqa: D401 - pytest hook
+    config: pytest.Config, items: list[pytest.Item]
+) -> None:
+    """ADR-0012 Phase 1: auto-mark non-fast test files as ``slow``.
+
+    Membership is sourced from :mod:`tests._fast_inventory`. Items
+    already carrying the ``slow`` marker (explicit ``@pytest.mark.slow``
+    or module-level ``pytestmark``) are left untouched.
+    """
+    try:
+        from tests._fast_inventory import is_fast
+    except Exception:
+        # If the inventory module fails to import we deliberately do
+        # NOT mark anything — surfacing the import error via the
+        # bucket-discipline test is preferable to silently shifting
+        # the partition.
+        return
+
+    slow_marker = pytest.mark.slow
+    for item in items:
+        # Only consider items physically located under tests/. Items
+        # collected from other paths (e.g. doctest plugins) keep their
+        # original marker state.
+        path = Path(str(item.fspath))
+        try:
+            rel_parts = path.relative_to(Path(__file__).parent).parts
+        except ValueError:
+            continue
+        if not rel_parts or rel_parts[0] != "tests":
+            continue
+        basename = path.name
+        if is_fast(basename):
+            continue
+        if "slow" in item.keywords:
+            continue
+        item.add_marker(slow_marker)
+
