@@ -28,6 +28,8 @@ from pathlib import Path
 
 import pytest
 
+from tests._pin_registry import noqa_sites
+
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
 _DIR_EXCLUDE = frozenset(
@@ -83,53 +85,10 @@ def _all_sites() -> list[tuple[str, int, tuple[str, ...]]]:
     return out
 
 
-# Frozen inventory of noqa-suppression sites at the time this pin landed.
-# Each tuple is ``(rel, lineno, sorted-code-tuple)``.
-#
-# As of the RUF100 cleanup wave (April 2026), the codebase contains a
-# small set of intentional first-party noqa suppressions. The
-# ledger remains as a tripwire: any new suppression will trip
-# ``test_no_new_noqa_sites`` and force a deliberate review + ledger
-# update in the same PR.
-#
-# Sister ledger ``test_noqa_suppression_ledger.py`` carries the same
-# entries with explanatory rationale; both must be kept in sync.
-_FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
-    {
-        # streamlit_terminal_alerts.py:76 — Bandit S104 false positive:
-        # validates a webhook URL host string ("0.0.0.0") rather than
-        # binding a server.
-        ("streamlit_terminal_alerts.py", 76, ("S104",)),
-        # governance/run_manifest.py:73 — Bandit S603 false positive:
-        # subprocess.check_output called with a ``shutil.which("git")``
-        # executable and a hardcoded argv list. No untrusted input.
-        ("governance/run_manifest.py", 73, ("S603",)),
-        # open_prep/realtime_signals.py:190,336 — Bandit S603 false
-        # positives: hardcoded pgrep / sys.executable -m argv lists.
-        # Rebaselined 2026-05-15 after PR #2233 mainline merge restored the
-        # older realtime_signals layout used by this branch.
-        ("open_prep/realtime_signals.py", 190, ("S603",)),
-        ("open_prep/realtime_signals.py", 336, ("S603",)),
-        # smc_integration/release_policy.py:1085 — Bandit S603 false
-        # positive: ``git rev-parse HEAD`` via shutil.which("git").
-        ("smc_integration/release_policy.py", 1085, ("S603",)),
-        # open_prep/streamlit_monitor.py:203 — module-import-time hardening:
-        # the OPRA-options-flow integration is wrapped in a try/except so
-        # that ImportError, env-parse ValueError, or any other startup
-        # failure degrades gracefully and keeps streamlit_monitor
-        # importable. BLE001 noqa documents the deliberate broad catch.
-        ("open_prep/streamlit_monitor.py", 203, ("BLE001",)),
-        # E402 outliers — late imports after sys.path/streamlit setup
-        # blocks that pyproject's per-file-ignores cannot easily cover
-        # without disabling E402 for too-broad surface area.
-        # PR #2309 / follow-up: mainline import/header growth shifted the
-        # same delayed first-party import from 123 to 186; code set unchanged.
-        ("databento_volatility_screener.py", 186, ("E402",)),
-        ("newsstack_fmp/pipeline.py", 1183, ("E402",)),
-        ("open_prep/run_open_prep.py", 472, ("E402",)),
-        ("smc_tv_bridge/smc_api.py", 176, ("E402", "I001")),
-    }
-)
+# Frozen inventory of noqa-suppression sites.
+# Source of truth: pin_registry.toml (ADR-0009). Rationale comments
+# live next to each entry in the registry.
+_FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = noqa_sites()
 
 
 def test_no_new_noqa_sites() -> None:

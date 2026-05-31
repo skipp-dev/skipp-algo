@@ -1,0 +1,306 @@
+# pin_registry.toml — single source of truth for ledger-style audit pins.
+#
+# Migrated from per-test _FROZEN_* constants per
+# docs/adr/0009-pin-ledger-consolidation.md (Option B).
+#
+# Each top-level table corresponds to exactly one ledger test under
+# tests/. The slice is loaded via tests/_pin_registry.py — do not parse
+# this file from other locations to keep the schema enforceable.
+#
+# Editing rules:
+#   * Bump counts / add entries only with a CHANGELOG / PR-description
+#     note explaining why the new drift is acceptable.
+#   * Removing an entry is fine if the underlying site disappeared;
+#     the corresponding ledger test will flag stale entries.
+#   * Duplicate keys in a single table will fail TOML parsing — drift
+#     across two PRs that both add the same path will surface here
+#     instead of silently overwriting.
+
+# ---------------------------------------------------------------------------
+# test_pytest_skip_budget.py — per-file pytest.skip() budget.
+# ---------------------------------------------------------------------------
+[pytest_skip_budget.file_counts]
+"tests/test_c11_resume_anchor.py" = 2
+"tests/test_c9_threshold_finalisation_anchor.py" = 1
+"tests/test_c9_threshold_lock_status.py" = 1
+"tests/test_credential_health_workflow.py" = 1
+"tests/test_e2e_smoke_ci.py" = 1
+"tests/test_generate_smc_micro_profiles.py" = 2
+"tests/test_hero_surface_input_map.py" = 1
+"tests/test_performance_report.py" = 1
+"tests/test_pine_boundary_literals.py" = 1
+"tests/test_pine_input_surface.py" = 2
+"tests/test_plan_2_8_digest_symlink_count.py" = 1
+"tests/test_plan_2_8_runbook_link_check.py" = 1
+"tests/test_plan_2_8_runbook_sections.py" = 1
+"tests/test_plan_2_8_weekly_summary_metrics.py" = 2
+"tests/test_ranking_golden.py" = 1
+"tests/test_schema_version_manifest_alignment.py" = 1
+"tests/test_scorer_tuning.py" = 1
+"tests/test_six_zero_tripwires_bundle.py" = 1
+"tests/test_smc_schema_version_enforcement.py" = 1
+"tests/test_smc_trust_badges_dashboard.py" = 1
+"tests/test_workflow_freshness_monitor_workflow_contract.py" = 1
+"tests/test_workflow_live_window_posture.py" = 2
+"tests/test_workflow_pythonpath_for_direct_invoke.py" = 1
+"tests/test_zone_priority_calibration.py" = 1
+
+# ---------------------------------------------------------------------------
+# test_urllib_urlopen_ledger.py — frozen urlopen call sites.
+# Value is the sorted list of line numbers in the file.
+# ---------------------------------------------------------------------------
+[urllib_urlopen_ledger.sites]
+# WF predictive-review hardening (2026-05-20): canonical-workflow
+# filtering added helper code above the two GitHub API calls, shifting
+# the fixed api.github.com urlopen sites +5 lines; timeout= remains.
+"scripts/restore_databento_export_bundle.py" = [67, 82]
+# Workflow-freshness monitor (#2433, 2026-05): polls GitHub Actions
+# REST API once per cron tick for silent-skip detection. https-only,
+# explicit timeout=15s, B310 nosec'd at the call site (constant URL).
+"scripts/check_workflow_freshness.py" = [70]
+"scripts/smc_alert_notifier.py" = [481]
+"scripts/verify_branch_protection.py" = [104]
+"terminal_notifications.py" = [255, 319]
+
+# ---------------------------------------------------------------------------
+# test_noqa_budget.py — frozen noqa-suppression sites.
+# Each entry is {file, line, codes} so adding a code to an existing
+# suppression also trips the ledger.
+# ---------------------------------------------------------------------------
+# streamlit_terminal_alerts.py:76 — Bandit S104 false positive: validates
+# a webhook URL host string ("0.0.0.0") rather than binding a server.
+[[noqa_budget.sites]]
+file = "streamlit_terminal_alerts.py"
+line = 76
+codes = ["S104"]
+
+# governance/run_manifest.py:73 — Bandit S603 false positive:
+# subprocess.check_output called with a shutil.which("git") executable
+# and a hardcoded argv list. No untrusted input.
+[[noqa_budget.sites]]
+file = "governance/run_manifest.py"
+line = 73
+codes = ["S603"]
+
+# open_prep/realtime_signals.py:190,336 — Bandit S603 false positives:
+# hardcoded pgrep / sys.executable -m argv lists. Rebaselined 2026-05-15
+# after PR #2233 mainline merge restored the older realtime_signals
+# layout used by this branch.
+[[noqa_budget.sites]]
+file = "open_prep/realtime_signals.py"
+line = 190
+codes = ["S603"]
+
+[[noqa_budget.sites]]
+file = "open_prep/realtime_signals.py"
+line = 336
+codes = ["S603"]
+
+# smc_integration/release_policy.py:1085 — Bandit S603 false positive:
+# git rev-parse HEAD via shutil.which("git").
+[[noqa_budget.sites]]
+file = "smc_integration/release_policy.py"
+line = 1085
+codes = ["S603"]
+
+# open_prep/streamlit_monitor.py:203 — module-import-time hardening:
+# OPRA-options-flow integration wrapped in a try/except so ImportError,
+# env-parse ValueError, or any other startup failure degrades
+# gracefully and keeps streamlit_monitor importable. BLE001 noqa
+# documents the deliberate broad catch.
+[[noqa_budget.sites]]
+file = "open_prep/streamlit_monitor.py"
+line = 203
+codes = ["BLE001"]
+
+# E402 outliers — late imports after sys.path/streamlit setup blocks
+# that pyproject's per-file-ignores cannot easily cover without
+# disabling E402 for too-broad surface area. PR #2309 / follow-up:
+# mainline import/header growth shifted the same delayed first-party
+# import from 123 to 186; code set unchanged.
+[[noqa_budget.sites]]
+file = "databento_volatility_screener.py"
+line = 186
+codes = ["E402"]
+
+[[noqa_budget.sites]]
+file = "newsstack_fmp/pipeline.py"
+line = 1183
+codes = ["E402"]
+
+[[noqa_budget.sites]]
+file = "open_prep/run_open_prep.py"
+line = 472
+codes = ["E402"]
+
+[[noqa_budget.sites]]
+file = "smc_tv_bridge/smc_api.py"
+line = 176
+codes = ["E402", "I001"]
+
+# ---------------------------------------------------------------------------
+# test_workflow_orphan_inventory.py — workflows without a test that
+# references the workflow basename *verbatim* (hyphenated filename).
+# g23-ab-watchdog.yml has a behavioural test (test_g23_ab_watchdog.py) but
+# that file spells the name with underscores, so the verbatim-reference
+# tripwire still classes it as an orphan. Kept as the sole allowlist entry
+# with this rationale; the ledger keeps tripping for any NEW orphan.
+# (Prior to ADR-0009 this entry was masked by an incidental hyphenated
+# mention inside the set+e ledger's _ALLOWED dict, now moved to TOML.)
+# ---------------------------------------------------------------------------
+[workflow_orphan_inventory]
+allowed = [
+    # g23-ab-watchdog.yml: covered behaviourally by test_g23_ab_watchdog.py,
+    # but that test references the underscore form, so the verbatim-basename
+    # orphan tripwire does not see it. Explicit allowlist entry.
+    "g23-ab-watchdog.yml",
+]
+
+# ---------------------------------------------------------------------------
+# test_workflow_set_plus_e_inventory.py — workflows allowed to use
+# `set +e` and how many times. New occurrences require an entry here.
+# ---------------------------------------------------------------------------
+[workflow_set_plus_e_inventory.allowed]
+# Daily heavy-compute crons with per-section fault tolerance.
+"c13-daily-cron.yml" = 7
+# credential-health-check.yml: single fail-soft step that pings each
+# credential provider and continues on transient HTTP errors; the
+# downstream summary step surfaces individual failures via
+# ::error::, so silent-skip risk is bounded.
+"credential-health-check.yml" = 1
+"drift-watchdog.yml" = 1
+# F2 promotion-gate cron: per-output-section fault tolerance plus
+# auto-revert / status-alert blocks (PR #2426). +1 from baseline
+# reflects the additional auto-revert capture block.
+"f2-promotion-gate-daily.yml" = 8
+"f2-weekly-digest.yml" = 1
+"feature-importance-daily.yml" = 1
+"fvg-quality-recal-shadow-daily.yml" = 1
+"g23-ab-watchdog.yml" = 1
+# Fault-tolerant rendering pipelines (Plan 2.8 digest family).
+# Each step is independent and uploads its own artefact; one
+# rendering failure must not cascade and hide successful peers.
+"plan-2-8-monthly-digest.yml" = 4
+"plan-2-8-weekly-digest.yml" = 382
+# Promotion-gate daily: post-#2421 baseline.
+"promotion-gate-daily.yml" = 2
+"smc-databento-production-export-sharded.yml" = 1
+"smc-databento-production-export.yml" = 1
+"smc-deeper-integration-gates.yml" = 1
+# Library refresh: F-V8-N1 preflight retry wrapper (PR #2418) plus
+# breaking/gates capture blocks (PR #2415).
+"smc-library-refresh.yml" = 3
+"smc-live-newsapi-refresh.yml" = 1
+"smc-measurement-benchmark-rolling.yml" = 5
+# workflow-freshness-monitor.yml: single best-effort step that
+# tolerates GitHub API hiccups while polling per-workflow run
+# freshness; outcome is surfaced via the dedicated alert step.
+"workflow-freshness-monitor.yml" = 1
+
+# ---------------------------------------------------------------------------
+# test_subprocess_shell_injection_pin.py — frozen subprocess call sites.
+# Entries are {file, attr, count} where attr is run / Popen / check_output
+# / check_call.
+# ---------------------------------------------------------------------------
+# governance/run_manifest.py: `git rev-parse HEAD` once per process.
+# Token-list args, no shell=True, 2.0s timeout.
+[[subprocess_shell_injection_pin.sites]]
+file = "governance/run_manifest.py"
+attr = "check_output"
+count = 1
+
+# scripts/analyze_publish_cadence.py: `git log` per pathspec for
+# publish-cadence stats. Token-list args, read-only dev helper.
+[[subprocess_shell_injection_pin.sites]]
+file = "scripts/analyze_publish_cadence.py"
+attr = "run"
+count = 1
+
+[[subprocess_shell_injection_pin.sites]]
+file = "open_prep/realtime_signals.py"
+attr = "Popen"
+count = 1
+
+[[subprocess_shell_injection_pin.sites]]
+file = "open_prep/realtime_signals.py"
+attr = "run"
+count = 1
+
+[[subprocess_shell_injection_pin.sites]]
+file = "scripts/measure_databento_ops_run.py"
+attr = "run"
+count = 1
+
+# scripts/phase5_perf_trend.py wraps `gh run list` once per workflow
+# (review-v3 phase 5). Token-list args, dev-only.
+[[subprocess_shell_injection_pin.sites]]
+file = "scripts/phase5_perf_trend.py"
+attr = "check_output"
+count = 1
+
+# perf(tools): local/manual pytest-duration profiling helper. Args from
+# argparse + shlex into token-list command, cwd pinned to repo root.
+[[subprocess_shell_injection_pin.sites]]
+file = "scripts/profile_pytest_durations.py"
+attr = "run"
+count = 1
+
+# perf(tools): py-spy wrapper for profiling cron entry points (#2281).
+# Token-list args, dev-only/manually invoked from self-hosted runner.
+[[subprocess_shell_injection_pin.sites]]
+file = "scripts/profile_cron_with_pyspy.py"
+attr = "run"
+count = 1
+
+# security helper: TradingView storage-state permissions via icacls.
+[[subprocess_shell_injection_pin.sites]]
+file = "scripts/check_tradingview_storage_state_security.py"
+attr = "run"
+count = 1
+
+# perf(ci) PR #2283: lockfile regenerator (compile + verify).
+[[subprocess_shell_injection_pin.sites]]
+file = "scripts/regenerate_requirements_lock.py"
+attr = "run"
+count = 2
+
+[[subprocess_shell_injection_pin.sites]]
+file = "scripts/scan_manifests_for_pytest_provenance.py"
+attr = "check_output"
+count = 2
+
+[[subprocess_shell_injection_pin.sites]]
+file = "scripts/smc_micro_publish_guard.py"
+attr = "run"
+count = 1
+
+[[subprocess_shell_injection_pin.sites]]
+file = "scripts/smc_zone_priority_calibration.py"
+attr = "run"
+count = 1
+
+[[subprocess_shell_injection_pin.sites]]
+file = "scripts/start_open_prep_suite.py"
+attr = "Popen"
+count = 1
+
+[[subprocess_shell_injection_pin.sites]]
+file = "scripts/start_open_prep_suite.py"
+attr = "run"
+count = 2
+
+[[subprocess_shell_injection_pin.sites]]
+file = "smc_integration/release_policy.py"
+attr = "run"
+count = 1
+
+# ---------------------------------------------------------------------------
+# test_workflow_upload_artifact_uniform_version.py — pinned major and
+# SHA→major translation table for actions/upload-artifact.
+# ---------------------------------------------------------------------------
+[workflow_upload_artifact_uniform_version]
+frozen_major = "v7"
+
+[workflow_upload_artifact_uniform_version.sha_to_major_allowlist]
+# actions/upload-artifact v7 (annotated `# v7` across workflows).
+"043fb46d1a93c77aae656e7c1c64a875d1fc6a0a" = "v7"
