@@ -40,6 +40,7 @@ defaults:
 jobs:
   monthly-digest:
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 10  # F-V10 cron runaway guard; matches plan-2-8-weekly-digest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
