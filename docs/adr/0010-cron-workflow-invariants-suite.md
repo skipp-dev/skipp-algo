@@ -2,7 +2,7 @@
 
 | Field      | Value                                                                 |
 |------------|-----------------------------------------------------------------------|
-| Status     | Accepted (Option C)                                                   |
+| Status     | Accepted (Option C) — initial suite implemented                       |
 | Date       | 2026-05-30                                                            |
 | Deciders   | skipp-dev                                                             |
 | Related    | `tests/test_credential_health_workflow.py`, `tests/test_ci_workflow_structural_pin.py`, `tests/test_run_open_prep_daily_workflow_contract.py`, `tests/test_promotion_gate_daily_workflow_contract.py`, `tests/test_phase_b_promotion_readiness_workflow_contract.py`, `tests/test_f2_promotion_gate_daily_workflow_contract.py`, `tests/test_workflow_freshness_monitor_workflow_contract.py`, F-V5-C2, F-V6-F2.1, F-V8 |
@@ -82,3 +82,21 @@ invariants land in one place; existing files shrink incrementally.
 - C is the safe incremental path: roll out the universal suite, leave
   existing tests, retire boilerplate over time.
 - D fundamentally re-locates the contract; may conflict with ADR-0009.
+
+## Implementation
+
+`tests/test_cron_workflow_invariants.py` is the universal suite. It
+parametrises over every pure-cron workflow (shared `_is_pure_cron`
+definition with `test_workflow_concurrency_cron_no_cancel.py`) and owns
+the **net-new** universal invariant: F-V10 — every cron job must declare
+a sane `timeout-minutes` runaway guard. The other universal invariants
+named in the Decision are *already* enforced generically by dedicated
+parametrized guards (`test_workflow_concurrency_cron_no_cancel`,
+`test_workflow_permissions_present`, `test_workflow_python_unbuffered`,
+`test_workflow_runner_pinned`); the suite cross-references those rather
+than duplicating them, to avoid two enforcement sites drifting. As the
+contract files shrink over time, additional universal pins migrate here.
+
+Rollout also closed the one pre-existing gap the new invariant exposed:
+`plan-2-8-monthly-digest.yml` had no `timeout-minutes` on its sole job
+(now `10`, matching the sibling `plan-2-8-weekly-digest.yml`).
