@@ -174,6 +174,38 @@ class TestCheckRulesets:
         assert any(r.name == "ruleset_pr_required" and r.passed for r in report.results)
         assert any(r.name == "ruleset_force_push_blocked" and r.passed for r in report.results)
         assert any("fast-gates" in r.name and r.passed for r in report.results)
+        # ADR-0011: review count 0 is the expected baseline -> check passes.
+        assert any(r.name == "ruleset_no_required_reviews" and r.passed for r in report.results)
+
+    def test_ruleset_required_reviews_fails(self, mod: types.ModuleType) -> None:
+        """ADR-0011: a ruleset requiring approvals must FAIL the verifier."""
+        rulesets_list = [
+            {"id": 1, "name": "main-governance", "enforcement": "active"},
+        ]
+        ruleset_detail = {
+            "id": 1,
+            "name": "main-governance",
+            "enforcement": "active",
+            "rules": [
+                {"type": "pull_request", "parameters": {"required_approving_review_count": 1}},
+                {"type": "required_status_checks", "parameters": {
+                    "required_status_checks": [{"context": "fast-gates"}]
+                }},
+            ],
+        }
+
+        def _mock_get(path: str, token: str) -> tuple[int, Any]:
+            if "/rulesets/1" in path:
+                return 200, ruleset_detail
+            return 200, rulesets_list
+
+        report = mod.ProtectionReport()
+        with patch.object(mod, "_github_get", side_effect=_mock_get):
+            mod._check_rulesets("fake-token", report)
+
+        assert not report.passed
+        failed = [r.name for r in report.results if not r.passed and r.severity == "error"]
+        assert "ruleset_no_required_reviews" in failed
 
     def test_no_rulesets_warns_only(self, mod: types.ModuleType) -> None:
         report = mod.ProtectionReport()

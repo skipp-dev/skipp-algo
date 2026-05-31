@@ -281,6 +281,11 @@ def _check_rulesets(token: str, report: ProtectionReport) -> None:
     has_non_ff = False
     has_deletion = False
     found_check_contexts: list[str] = []
+    # Highest required-review count seen across any active ruleset PR rule.
+    # ADR-0011 (Option C) mandates this stays 0 on `main`: a non-zero count is
+    # never legitimately satisfiable for a single-committer repo and only
+    # trains the admin-bypass reflex (see ADR-0011 rationale).
+    max_ruleset_review_count = 0
 
     for rs in active:
         rs_id = rs.get("id")
@@ -296,6 +301,11 @@ def _check_rulesets(token: str, report: ProtectionReport) -> None:
             rtype = rule.get("type", "")
             if rtype == "pull_request":
                 has_pr_rule = True
+                review_count = rule.get("parameters", {}).get(
+                    "required_approving_review_count", 0
+                )
+                if isinstance(review_count, int):
+                    max_ruleset_review_count = max(max_ruleset_review_count, review_count)
             elif rtype == "required_status_checks":
                 has_required_checks = True
                 for chk in rule.get("parameters", {}).get("required_status_checks", []):
@@ -311,6 +321,22 @@ def _check_rulesets(token: str, report: ProtectionReport) -> None:
         "ruleset_pr_required",
         has_pr_rule,
         "PR required via ruleset." if has_pr_rule else "No PR requirement in any ruleset.",
+    )
+    # ADR-0011 (Option C): required reviews must stay disabled. A ruleset can
+    # silently re-introduce an approval requirement that the classic-protection
+    # check above cannot see; this is the only place that gap is caught.
+    report.add(
+        "ruleset_no_required_reviews",
+        max_ruleset_review_count == 0,
+        (
+            "No required reviews in any ruleset \u2014 matches ADR-0011 baseline."
+            if max_ruleset_review_count == 0
+            else (
+                f"A ruleset requires {max_ruleset_review_count} approving review(s); "
+                "ADR-0011 (Option C) mandates 0 for this single-committer repo "
+                "(non-zero only trains the admin-bypass reflex)."
+            )
+        ),
     )
     report.add(
         "ruleset_required_checks",
