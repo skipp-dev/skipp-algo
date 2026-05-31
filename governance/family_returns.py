@@ -37,7 +37,7 @@ Roadmap pointer: Edge-Validation Roadmap, Phase 2 / story EV-06b.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any, TypedDict
+from typing import Any, Literal, TypedDict
 
 from governance.family_walkforward import family_outcome_horizon
 from governance.types import EventFamily
@@ -51,6 +51,14 @@ DEFAULT_COST_BPS = 5.0
 # produced a return series.
 RETURN_RULE = "touch_then_horizon_close"
 
+# Entry conventions. Two SMC event geometries need two rules:
+#   - "retest_touch" (zone families OB/FVG): wait for price to retest the
+#     zone, enter at the zone midpoint on first touch. This is variant A.
+#   - "immediate" (level families BOS/SWEEP): the signal IS the anchor bar
+#     (a break / a sweep already happened); enter at the event level price
+#     at the anchor, no retest wait. Second load-bearing assumption.
+EntryMode = Literal["retest_touch", "immediate"]
+
 _BULLISH = {"UP", "BULL", "BULLISH", "LONG"}
 _BEARISH = {"DOWN", "BEAR", "BEARISH", "SHORT"}
 
@@ -62,12 +70,18 @@ class FamilyEvent(TypedDict, total=False):
     ``smc_integration.measurement_evidence._future_price_lists``).
     ``forward_timestamps`` is optional; when present it is leak-checked
     against ``anchor_ts``.
+
+    Zone families (OB/FVG) supply ``zone_low``/``zone_high`` and use the
+    default ``entry_mode="retest_touch"``. Level families (BOS/SWEEP)
+    supply ``entry_price`` and ``entry_mode="immediate"``.
     """
 
     family: EventFamily
     direction: str
+    entry_mode: EntryMode
     zone_low: float
     zone_high: float
+    entry_price: float
     anchor_ts: float
     forward_highs: list[float]
     forward_lows: list[float]
@@ -127,32 +141,51 @@ def _assert_forward_after_anchor(event: FamilyEvent) -> None:
 
 
 def realized_return(event: FamilyEvent, *, cost_bps: float = DEFAULT_COST_BPS) -> float | None:
-    """Realized return for a single event under variant A.
+    """Realized return for a single event.
 
-    Returns ``None`` when the setup did not trigger (no touch) or is
-    degenerate (non-positive entry / no exit bar) — those are not trades.
+    Dispatches on ``entry_mode`` (default ``"retest_touch"`` for zone
+    families). Returns ``None`` when the setup did not trigger (no touch),
+    or is degenerate (non-positive entry / no exit bar) — those are not
+    trades and must not be counted as zero.
     """
-    family = event["family"]
-    zone_low = float(event["zone_low"])
-    zone_high = float(event["zone_high"])
-    if zone_low <= 0.0 or zone_high <= 0.0 or zone_high < zone_low:
-        return None
-
     sign = _direction_sign(str(event.get("direction", "")))
     if sign == 0:
         return None
 
     _assert_forward_after_anchor(event)
 
+    family = event["family"]
+    closes = [float(x) for x in event.get("forward_closes", [])]
+    horizon = family_outcome_horizon(family)
+    mode: EntryMode = event.get("entry_mode", "retest_touch")
+
+    if mode == "immediate":
+        entry_price = float(event.get("entry_price", 0.0))
+        if entry_price <= 0.0:
+            return None
+        # The break/sweep is the anchor bar; the first forward close is one
+        # bar after the anchor, so the exit ``horizon`` bars later sits at
+        # index ``horizon - 1`` (clamped to the last available close).
+        if not closes:
+            return None
+        exit_idx = min(horizon - 1, len(closes) - 1)
+        exit_price = closes[exit_idx]
+        gross = sign * (exit_price - entry_price) / entry_price
+        return gross - cost_bps / 1e4
+
+    # Default: zone retest-touch (variant A).
+    zone_low = float(event["zone_low"])
+    zone_high = float(event["zone_high"])
+    if zone_low <= 0.0 or zone_high <= 0.0 or zone_high < zone_low:
+        return None
+
     highs = [float(x) for x in event.get("forward_highs", [])]
     lows = [float(x) for x in event.get("forward_lows", [])]
-    closes = [float(x) for x in event.get("forward_closes", [])]
 
     touch_idx = _first_touch_index(sign, zone_low, zone_high, highs, lows)
     if touch_idx is None:
         return None
 
-    horizon = family_outcome_horizon(family)
     exit_idx = min(touch_idx + horizon, len(closes) - 1)
     if exit_idx <= touch_idx or exit_idx >= len(closes):
         # No close available after the touch -> trade cannot be marked out.
@@ -222,6 +255,7 @@ def _epoch_to_iso(epoch_seconds: float) -> str:
 __all__ = [
     "DEFAULT_COST_BPS",
     "RETURN_RULE",
+    "EntryMode",
     "FamilyEvent",
     "extract_family_returns",
     "realized_return",

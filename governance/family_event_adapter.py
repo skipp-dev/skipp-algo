@@ -1,0 +1,233 @@
+"""EV-07 wiring adapter: real SMC structure + bars -> ``FamilyEvent``.
+
+This module is the bridge between *detected* SMC structure (BOS / OB / FVG /
+SWEEP events, as produced from Pine artifacts via
+``smc_adapters.ingest.build_structure_from_raw`` or recomputed in Python via
+``scripts.explicit_structure_from_bars.build_explicit_structure_from_bars``)
+and the realized-return machinery in :mod:`governance.family_returns`.
+
+It fabricates nothing. Detection happens upstream; this adapter only:
+
+  1. locates each event's anchor bar (first bar at-or-after the event time),
+  2. extracts the forward bars strictly *after* the anchor, and
+  3. emits a :class:`~governance.family_returns.FamilyEvent` with the exact
+     same geometry the live scorer uses
+     (:func:`smc_integration.measurement_evidence._find_bar_index` /
+     ``_future_price_lists``), mirrored here so this module carries no heavy
+     import chain and stays trivially testable.
+
+Two event geometries map to two entry rules (see ``family_returns``):
+
+  * **Zone families** OB / FVG -> ``entry_mode="retest_touch"`` using the
+    detected ``low``/``high`` zone.
+  * **Level families** BOS / SWEEP -> ``entry_mode="immediate"`` using the
+    detected break / sweep ``price`` as the entry level. SWEEP direction is
+    the *reversal* of the swept side, matching the live scorer.
+
+The production path feeds REAL databento bars and REAL detected structure;
+unit tests may feed synthetic bars, but the adapter logic never invents
+prices, touches, or outcomes.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Mapping, Sequence
+from typing import Any, TypedDict
+
+from governance.family_returns import FamilyEvent
+
+# Lookahead windows, mirrored from
+# ``smc_integration.measurement_evidence`` so the forward bars handed to the
+# return calculator match exactly what the live scorer observes.
+_BOS_LOOKAHEAD_BARS = 8
+_ZONE_LOOKAHEAD_BARS = 12
+_FVG_LOOKAHEAD_BARS = 20
+_SWEEP_LOOKAHEAD_BARS = 8
+
+# Raw-structure container keys (Pine ingest / explicit recompute share these).
+_BOS_KEY = "bos"
+_OB_KEY = "orderblocks"
+_FVG_KEY = "fvg"
+_SWEEP_KEY = "liquidity_sweeps"
+
+
+class BarRow(TypedDict):
+    """A single OHLC bar. ``timestamp`` is epoch seconds (UTC)."""
+
+    timestamp: float
+    high: float
+    low: float
+    close: float
+
+
+def _bar_index_at_or_after(timestamps: Sequence[float], anchor_ts: float) -> int | None:
+    """First bar index whose timestamp is at-or-after ``anchor_ts``.
+
+    Mirror of ``measurement_evidence._find_bar_index``.
+    """
+    target = float(anchor_ts)
+    for idx, ts in enumerate(timestamps):
+        if float(ts) >= target:
+            return idx
+    return None
+
+
+def _forward_window(
+    bars: Sequence[Mapping[str, Any]], *, anchor_idx: int, lookahead_bars: int
+) -> tuple[list[float], list[float], list[float], list[float]]:
+    """Bars strictly AFTER ``anchor_idx`` (mirror of ``_future_price_lists``)."""
+    window = bars[anchor_idx + 1 : anchor_idx + 1 + int(lookahead_bars)]
+    highs = [float(b["high"]) for b in window]
+    lows = [float(b["low"]) for b in window]
+    closes = [float(b["close"]) for b in window]
+    timestamps = [float(b["timestamp"]) for b in window]
+    return highs, lows, closes, timestamps
+
+
+def _anchor_ts(event: Mapping[str, Any]) -> float:
+    return float(event.get("anchor_ts", event.get("time", 0.0)) or 0.0)
+
+
+def _sweep_direction(side: str) -> str:
+    # Mirror of ``_expected_reversal_direction``: a swept sell-side liquidity
+    # pool is expected to reverse up (long); otherwise short.
+    return "LONG" if str(side).strip().upper() == "SELL_SIDE" else "SHORT"
+
+
+def _zone_event_to_family(
+    event: Mapping[str, Any],
+    bars: Sequence[Mapping[str, Any]],
+    timestamps: Sequence[float],
+    *,
+    family: str,
+    lookahead_bars: int,
+) -> FamilyEvent | None:
+    low = float(event.get("low", 0.0) or 0.0)
+    high = float(event.get("high", 0.0) or 0.0)
+    anchor_ts = _anchor_ts(event)
+    direction = str(event.get("dir", "")).strip()
+    if low <= 0.0 or high <= 0.0 or high < low or anchor_ts <= 0.0:
+        return None
+
+    anchor_idx = _bar_index_at_or_after(timestamps, anchor_ts)
+    if anchor_idx is None or anchor_idx >= len(bars) - 1:
+        return None
+
+    highs, lows, closes, fwd_ts = _forward_window(
+        bars, anchor_idx=anchor_idx, lookahead_bars=lookahead_bars
+    )
+    if not closes:
+        return None
+
+    return FamilyEvent(
+        family=family,  # type: ignore[typeddict-item]
+        direction=direction,
+        entry_mode="retest_touch",
+        zone_low=low,
+        zone_high=high,
+        anchor_ts=anchor_ts,
+        forward_highs=highs,
+        forward_lows=lows,
+        forward_closes=closes,
+        forward_timestamps=fwd_ts,
+    )
+
+
+def _level_event_to_family(
+    event: Mapping[str, Any],
+    bars: Sequence[Mapping[str, Any]],
+    timestamps: Sequence[float],
+    *,
+    family: str,
+    direction: str,
+    lookahead_bars: int,
+) -> FamilyEvent | None:
+    price = float(event.get("price", 0.0) or 0.0)
+    anchor_ts = _anchor_ts(event)
+    if price <= 0.0 or anchor_ts <= 0.0 or not direction:
+        return None
+
+    anchor_idx = _bar_index_at_or_after(timestamps, anchor_ts)
+    if anchor_idx is None or anchor_idx >= len(bars) - 1:
+        return None
+
+    highs, lows, closes, fwd_ts = _forward_window(
+        bars, anchor_idx=anchor_idx, lookahead_bars=lookahead_bars
+    )
+    if not closes:
+        return None
+
+    return FamilyEvent(
+        family=family,  # type: ignore[typeddict-item]
+        direction=direction,
+        entry_mode="immediate",
+        entry_price=price,
+        anchor_ts=anchor_ts,
+        forward_highs=highs,
+        forward_lows=lows,
+        forward_closes=closes,
+        forward_timestamps=fwd_ts,
+    )
+
+
+def family_events_from_structure(
+    structure: Mapping[str, Any],
+    bars: Sequence[Mapping[str, Any]],
+) -> list[FamilyEvent]:
+    """Convert a detected SMC structure + bars into ``FamilyEvent`` records.
+
+    ``structure`` is the raw container with keys ``bos``, ``orderblocks``,
+    ``fvg`` and ``liquidity_sweeps`` (Pine ingest or explicit recompute).
+    ``bars`` is an ordered sequence of OHLC bars with epoch-second
+    ``timestamp`` fields. Events that cannot be anchored (no bar at-or-after
+    the event time, or no forward bar) or are degenerate are dropped, exactly
+    as the live scorer drops them.
+    """
+    timestamps = [float(b["timestamp"]) for b in bars]
+    events: list[FamilyEvent] = []
+
+    for raw in structure.get(_BOS_KEY, []) or []:
+        mapped = _level_event_to_family(
+            raw,
+            bars,
+            timestamps,
+            family="BOS",
+            direction=str(raw.get("dir", "")).strip(),
+            lookahead_bars=_BOS_LOOKAHEAD_BARS,
+        )
+        if mapped is not None:
+            events.append(mapped)
+
+    for raw in structure.get(_OB_KEY, []) or []:
+        mapped = _zone_event_to_family(
+            raw, bars, timestamps, family="OB", lookahead_bars=_ZONE_LOOKAHEAD_BARS
+        )
+        if mapped is not None:
+            events.append(mapped)
+
+    for raw in structure.get(_FVG_KEY, []) or []:
+        mapped = _zone_event_to_family(
+            raw, bars, timestamps, family="FVG", lookahead_bars=_FVG_LOOKAHEAD_BARS
+        )
+        if mapped is not None:
+            events.append(mapped)
+
+    for raw in structure.get(_SWEEP_KEY, []) or []:
+        mapped = _level_event_to_family(
+            raw,
+            bars,
+            timestamps,
+            family="SWEEP",
+            direction=_sweep_direction(str(raw.get("side", ""))),
+            lookahead_bars=_SWEEP_LOOKAHEAD_BARS,
+        )
+        if mapped is not None:
+            events.append(mapped)
+
+    return events
+
+
+__all__ = [
+    "BarRow",
+    "family_events_from_structure",
+]
