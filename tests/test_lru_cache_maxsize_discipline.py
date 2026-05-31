@@ -43,6 +43,8 @@ _BASELINE_LRU_CACHE_SITES: frozenset[tuple[str, str]] = frozenset({
     ("scripts/smc_newsapi_ai.py", "_strict_market_context_pattern"),
     ("newsstack_fmp/_market_cal.py", "us_equity_market_holidays"),
     ("governance/run_manifest.py", "_git_sha"),
+    # maxsize=1 — single process-wide pin_registry.toml snapshot (ADR-0009).
+    ("tests/_pin_registry.py", "_load"),
 })
 
 
