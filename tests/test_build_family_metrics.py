@@ -257,3 +257,83 @@ def test_bundle_threads_calibration_per_family() -> None:
     assert by_family["OB"]["brier"] is None
 
 
+# ---- EV-16 conformal slice ---------------------------------------------
+
+
+def _conformal_block(alpha: float = 0.1, seed: int = 41) -> dict[str, object]:
+    cal = _calibrated_pairs(n=120, seed=seed)
+    test = _calibrated_pairs(n=120, seed=seed + 1)
+    return {
+        "alpha": alpha,
+        "calibration": cal,
+        "test": test,
+    }
+
+
+def test_conformal_fills_coverage_and_target() -> None:
+    metrics = build_family_metrics_from_returns(
+        "BOS",
+        _positive_edge_returns(),
+        conformal=_conformal_block(alpha=0.1),
+    )
+    assert metrics["conformal_coverage"] is not None
+    assert 0.0 <= metrics["conformal_coverage"] <= 1.0
+    assert metrics["conformal_target"] == pytest.approx(0.9)
+    assert metrics["provenance"]["conformal_method"] == "split_conformal_vovk"
+
+
+def test_no_conformal_leaves_fields_none() -> None:
+    metrics = build_family_metrics_from_returns("FVG", _positive_edge_returns())
+    assert metrics["conformal_coverage"] is None
+    assert metrics["conformal_target"] is None
+    assert "conformal_method" not in metrics["provenance"]
+
+
+def test_conformal_rejects_bad_alpha() -> None:
+    block = _conformal_block()
+    block["alpha"] = 1.5
+    with pytest.raises(ValueError, match="conformal alpha must be in"):
+        build_family_metrics_from_returns(
+            "BOS", _positive_edge_returns(), conformal=block
+        )
+
+
+def test_conformal_requires_both_sets() -> None:
+    with pytest.raises(ValueError, match="both 'calibration' and 'test'"):
+        build_family_metrics_from_returns(
+            "BOS",
+            _positive_edge_returns(),
+            conformal={"calibration": _calibrated_pairs(seed=51)},
+        )
+
+
+def test_conformal_marginal_coverage_holds() -> None:
+    # Split-conformal guarantees marginal coverage >= 1 - alpha (finite-sample,
+    # with the (n+1) correction). On well-calibrated data with large sets it
+    # should comfortably meet the target.
+    metrics = build_family_metrics_from_returns(
+        "BOS",
+        _positive_edge_returns(),
+        conformal=_conformal_block(alpha=0.2, seed=61),
+    )
+    assert metrics["conformal_coverage"] >= metrics["conformal_target"] - 0.15
+
+
+def test_bundle_threads_conformal_per_family() -> None:
+    spec = {
+        "periods_per_year": 252,
+        "families": {
+            "BOS": {
+                "returns": _positive_edge_returns(seed=1),
+                "conformal": _conformal_block(seed=71),
+            },
+            "OB": {"returns": _positive_edge_returns(seed=2)},
+        },
+    }
+    bundle = build_bundle(spec)
+    by_family = {m["family"]: m for m in bundle}
+    assert by_family["BOS"]["conformal_coverage"] is not None
+    assert by_family["OB"]["conformal_coverage"] is None
+
+
+
