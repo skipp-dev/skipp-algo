@@ -17,38 +17,15 @@ from pathlib import Path
 
 import pytest
 
+from tests._pin_registry import pytest_skip_file_counts
+
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _TESTS_DIR = _REPO_ROOT / "tests"
 
 _SKIP_RE = re.compile(r"@pytest\.mark\.skip\b|pytest\.skip\s*\(")
 
-_FROZEN_FILE_COUNTS: dict[str, int] = {
-    "tests/test_c11_resume_anchor.py": 2,
-    "tests/test_c9_threshold_finalisation_anchor.py": 1,
-    "tests/test_c9_threshold_lock_status.py": 1,
-    "tests/test_credential_health_workflow.py": 1,
-    "tests/test_e2e_smoke_ci.py": 1,
-    "tests/test_generate_smc_micro_profiles.py": 2,
-    "tests/test_hero_surface_input_map.py": 1,
-    "tests/test_performance_report.py": 1,
-    "tests/test_pine_boundary_literals.py": 1,
-    "tests/test_pine_input_surface.py": 2,
-    "tests/test_plan_2_8_digest_symlink_count.py": 1,
-    "tests/test_plan_2_8_runbook_link_check.py": 1,
-    "tests/test_plan_2_8_runbook_sections.py": 1,
-    "tests/test_plan_2_8_weekly_summary_metrics.py": 2,
-    "tests/test_ranking_golden.py": 1,
-    "tests/test_schema_version_manifest_alignment.py": 1,
-    "tests/test_scorer_tuning.py": 1,
-    "tests/test_schema_version_manifest_alignment.py": 1,
-    "tests/test_six_zero_tripwires_bundle.py": 1,
-    "tests/test_smc_schema_version_enforcement.py": 1,
-    "tests/test_smc_trust_badges_dashboard.py": 1,
-    "tests/test_workflow_freshness_monitor_workflow_contract.py": 1,
-    "tests/test_workflow_live_window_posture.py": 2,
-    "tests/test_workflow_pythonpath_for_direct_invoke.py": 1,
-    "tests/test_zone_priority_calibration.py": 1,
-}
+# Source of truth: pin_registry.toml (ADR-0009).
+_FROZEN_FILE_COUNTS: dict[str, int] = pytest_skip_file_counts()
 
 _TOTAL_BUDGET = sum(_FROZEN_FILE_COUNTS.values())
 
