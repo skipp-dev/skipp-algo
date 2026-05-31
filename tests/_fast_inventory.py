@@ -86,6 +86,7 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_workflow_set_plus_e_inventory.py",
     "test_smc_library_refresh_workflow.py",
     "test_schema_version_manifest_alignment.py",
+    "test_edge_hypotheses_frozen.py",
     "test_fast_gates_silent_skip_coverage.py",
     # Fast SMC integration suite
     "test_smc_action_degradation.py",
