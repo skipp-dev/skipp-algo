@@ -2,7 +2,7 @@
 
 | Field      | Value                                                                 |
 |------------|-----------------------------------------------------------------------|
-| Status     | Accepted (Option C)                                                   |
+| Status     | Accepted (Option C) — enforcement implemented                         |
 | Date       | 2026-05-30                                                            |
 | Deciders   | skipp-dev                                                             |
 | Related    | PR #2449 (4-concern bundle), PR #2450, PR #2445 (both BLOCKED by #2449 conflicts) |
@@ -80,3 +80,24 @@ review time.
   single-committer flow.
 - Whichever path, after this ADR is accepted the practice becomes:
   no more 4-concern workflow PRs like #2449.
+
+## Implementation
+
+The convention is no longer convention-only. It is enforced in CI:
+
+- `scripts/check_pr_title_concern.py` — tested validator. A PR title must
+  match `concern(scope): subject` where `concern` is one of the accepted
+  Conventional-Commit types and `scope` (the part that names the single
+  concern) is non-empty. GitHub's auto-generated `Revert "…"` titles are
+  accepted as-is.
+- `.github/workflows/pr-title-concern-lint.yml` — runs on
+  `pull_request: [opened, edited, reopened, synchronize]` and fails the
+  check if the title does not declare exactly one concern. The PR title is
+  passed via the `PR_TITLE` environment variable (never interpolated into
+  the shell) to avoid script injection.
+- `tests/test_check_pr_title_concern.py` — pins the validator's accept/reject
+  behaviour and asserts the companion workflow ships with it.
+
+This makes the rule self-checking at PR-open time rather than relying on
+reviewer memory; "same concern" judgement still applies to the *body* of
+the change, but the title can no longer silently bundle concerns.
