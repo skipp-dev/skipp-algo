@@ -133,17 +133,34 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
 )
 
 
+def _strip_comments(text: str) -> str:
+    """Drop YAML / shell comment content from each line.
+
+    A ``#`` at line start or preceded by whitespace begins a comment in
+    both YAML and POSIX shell. Removing that tail prevents a test name
+    that only appears in a comment — or in a commented-out pytest line —
+    from counting as a live reference in the drift-guard step.
+    """
+    cleaned: list[str] = []
+    for line in text.splitlines():
+        stripped = re.sub(r"(^|\s)#.*$", "", line)
+        cleaned.append(stripped)
+    return "\n".join(cleaned)
+
+
 def _drift_guard_step_text() -> str:
     """Return only the 'Run pin / ledger drift guard' step body.
 
     Scoping to the step (rather than the whole YAML) prevents a false
     pass where a test name appears only in a comment elsewhere in the
     workflow instead of in the required tripwire pytest invocation.
+    Comment content is stripped so a test commented out *inside* the
+    step is not mistaken for a live reference.
     """
     text = FAST_GATES_WORKFLOW.read_text(encoding="utf-8")
     start = text.index("Run pin / ledger drift guard")
     end = text.index("Run fast SMC integration tests", start)
-    return text[start:end]
+    return _strip_comments(text[start:end])
 
 
 def test_silent_skip_class_tests_are_pinned_in_fast_gates() -> None:
@@ -181,4 +198,16 @@ def test_full_tripwire_roster_pinned_in_fast_gates() -> None:
         "Re-add them to the step's pytest invocation, or — if a tripwire is "
         "being intentionally retired — remove it from "
         "FULL_REQUIRED_PATH_TRIPWIRES in this file in the same PR (audit trail)."
+    )
+
+    extra = sorted(t for t in referenced if t not in FULL_REQUIRED_PATH_TRIPWIRES)
+    assert not extra, (
+        "smc-fast-pr-gates.yml 'Run pin / ledger drift guard' step references "
+        "tripwire(s) absent from FULL_REQUIRED_PATH_TRIPWIRES. Without this "
+        "reverse check the roster is not a complete source of truth: a newly "
+        "added required-path tripwire could later be silently removed and no "
+        "guard would notice.\n\n"
+        f"Referenced but unregistered: {extra}\n\n"
+        "Add them to FULL_REQUIRED_PATH_TRIPWIRES in this file (same PR) so the "
+        "complete roster stays frozen in both directions."
     )
