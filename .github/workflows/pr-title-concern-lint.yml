@@ -13,12 +13,13 @@ permissions:
   contents: read
 
 concurrency:
-  group: pr-title-concern-lint-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   PYTHONUNBUFFERED: "1"
   PYTHONPATH: ${{ github.workspace }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 defaults:
   run:
@@ -30,6 +31,9 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up pinned Python toolchain
+        uses: ./.github/actions/setup-python-pinned
 
       - name: Validate PR title declares one concern (ADR-0013)
         # PR title is passed via env (never interpolated into the shell) to
