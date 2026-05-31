@@ -283,6 +283,7 @@ jobs:
             tests/test_point_in_time_integrity.py \
             tests/test_family_walkforward_config.py \
             tests/test_build_family_metrics.py \
+            tests/test_family_returns.py \
             tests/test_fast_gates_silent_skip_coverage.py \
             tests/test_pytest_marker_bucket_discipline.py
 
