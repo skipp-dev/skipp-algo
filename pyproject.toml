@@ -57,13 +57,16 @@ pythonpath = ["."]
 filterwarnings = [
     "ignore:Microstructure base asof_date is .* days old:UserWarning",
 ]
-# ADR-0012: `slow` marker partitions the test suite for the
+# ADR-0012: the `slow` marker partitions the suite for a future
 # fast-gates vs validate split (Option B — disjoint via marker).
-# A test marked @pytest.mark.slow runs in `validate` only;
-# unmarked tests run in `fast-gates` (no `-m` selector). The
-# inventory of slow-marked test FILES is pinned in
-# tests/test_pytest_marker_bucket_discipline.py so adding a new
-# slow test is a deliberate, reviewable change.
+# Phase 1: CI selection is UNCHANGED — `fast-gates` runs an explicit
+# file list and `validate` runs the full suite; the marker is not yet
+# a CI `-m` selector. conftest.py auto-marks every file NOT in the
+# FAST inventory as `slow`, so `pytest -m "not slow"` approximates the
+# fast lane locally. The FAST inventory is pinned in
+# tests/_fast_inventory.py and guarded by
+# tests/test_pytest_marker_bucket_discipline.py so partition changes
+# are deliberate and reviewable.
 markers = [
     "slow: long-running test; partitioned to the `validate` job (ADR-0012).",
 ]

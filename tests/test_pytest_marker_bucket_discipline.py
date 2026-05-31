@@ -8,14 +8,18 @@ The repository partitions its test suite between two CI jobs:
 The partition is sourced from :mod:`tests._fast_inventory`. The root
 ``conftest.py`` auto-marks every test file **not** in that inventory
 as ``slow`` at collection time, so devs can run ``pytest -m "not slow"``
-locally and get exactly the fast-gates set.
+locally and approximate the fast-gates set. NOTE (Phase 1): CI job
+selection is unchanged — ``fast-gates`` runs an explicit file list and
+``validate`` runs the full suite; the marker does not yet drive CI.
 
-This test guards two invariants:
+This test guards these invariants:
 
-1. The fast inventory stays in lock-step with the file list inside
-   ``.github/workflows/smc-fast-pr-gates.yml``. A new test added to
-   the workflow file must also appear in the inventory (and vice
-   versa).
+1. Every test/glob referenced in the ``fast-gates`` workflow is present
+   in the inventory, so the conftest auto-marker never marks a
+   fast-gates test ``slow``. The inventory MAY be a superset (it also
+   pins this discipline test, which runs only in ``validate``), so the
+   relationship is one-directional (workflow ⊆ inventory), not
+   bidirectional.
 2. The ``slow`` marker is registered in ``pyproject.toml`` so
    ``pytest --strict-markers`` does not error out.
 
@@ -25,6 +29,7 @@ See ``docs/adr/0012-fast-gates-vs-validate-separation.md``.
 from __future__ import annotations
 
 import re
+import tomllib
 from pathlib import Path
 
 from tests._fast_inventory import FAST_TEST_FILES, FAST_TEST_GLOBS
@@ -77,10 +82,26 @@ def test_fast_globs_match_at_least_one_file() -> None:
     )
 
 
+def test_fast_globs_are_referenced_by_workflow() -> None:
+    """Each FAST_TEST_GLOBS pattern must appear in the fast-gates workflow.
+
+    Guards against the inventory's glob lane drifting from what CI
+    actually expands (e.g. ``tests/test_smc_integration_*.py``).
+    """
+    text = WORKFLOW.read_text(encoding="utf-8")
+    unreferenced = [pat for pat in FAST_TEST_GLOBS if f"tests/{pat}" not in text]
+    assert not unreferenced, (
+        "FAST_TEST_GLOBS patterns not referenced in smc-fast-pr-gates.yml: "
+        f"{unreferenced}. Keep the inventory glob lane in lock-step with the "
+        "workflow so the conftest auto-marker matches CI (ADR-0012)."
+    )
+
+
 def test_slow_marker_is_registered() -> None:
     """pyproject.toml MUST register ``slow`` for ``--strict-markers``."""
-    pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    assert '"slow:' in pyproject or "'slow:" in pyproject, (
+    pyproject = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    markers = pyproject.get("tool", {}).get("pytest", {}).get("ini_options", {}).get("markers", [])
+    assert any(str(m).startswith("slow:") for m in markers), (
         "pyproject.toml [tool.pytest.ini_options].markers MUST declare a "
         "``slow:`` marker (ADR-0012)."
     )

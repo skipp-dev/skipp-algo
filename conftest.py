@@ -7,9 +7,12 @@ This file handles:
 2. The ADR-0012 fast/slow auto-marking (Phase 1): every collected test
    item whose file basename is **not** in
    :mod:`tests._fast_inventory` is marked ``pytest.mark.slow`` at
-   collection time. Lets developers / CI run ``pytest -m "not slow"``
-   to get exactly the fast-gates set without having to maintain
-   per-file decorators across ~1000 test files.
+   collection time. This lets developers run ``pytest -m "not slow"``
+   locally to approximate the fast-gates set without maintaining
+   per-file decorators across ~1000 test files. NOTE (Phase 1): CI
+   selection is unchanged — ``fast-gates`` still runs an explicit file
+   list and ``validate`` runs the full suite; the marker does not yet
+   drive CI job selection.
 """
 
 from __future__ import annotations
@@ -53,11 +56,13 @@ def pytest_collection_modifyitems(
     """
     try:
         from tests._fast_inventory import is_fast
-    except Exception:
+    except ImportError:
         # If the inventory module fails to import we deliberately do
         # NOT mark anything — surfacing the import error via the
         # bucket-discipline test is preferable to silently shifting
-        # the partition.
+        # the partition. Narrowed to ImportError so genuine bugs in the
+        # inventory module (SyntaxError, etc.) crash collection loudly
+        # instead of being swallowed here.
         return
 
     slow_marker = pytest.mark.slow
@@ -65,7 +70,8 @@ def pytest_collection_modifyitems(
         # Only consider items physically located under tests/. Items
         # collected from other paths (e.g. doctest plugins) keep their
         # original marker state.
-        path = Path(str(item.fspath))
+        item_path = getattr(item, "path", None)
+        path = Path(item_path) if item_path is not None else Path(str(item.fspath))
         try:
             rel_parts = path.relative_to(Path(__file__).parent).parts
         except ValueError:
