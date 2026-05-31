@@ -285,6 +285,7 @@ jobs:
             tests/test_build_family_metrics.py \
             tests/test_family_returns.py \
             tests/test_family_event_adapter.py \
+            tests/test_family_verdict.py \
             tests/test_fast_gates_silent_skip_coverage.py \
             tests/test_pytest_marker_bucket_discipline.py
 
