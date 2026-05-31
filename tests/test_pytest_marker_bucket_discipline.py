@@ -22,6 +22,13 @@ This test guards these invariants:
    bidirectional.
 2. The ``slow`` marker is registered in ``pyproject.toml`` so
    ``pytest --strict-markers`` does not error out.
+3. The ``_KNOWN_NON_FAST_WF_REFS`` allowlist stays honest: every entry
+   is still referenced in the workflow (no dead entries that could mask
+   a missing inventory entry) and is disjoint from ``FAST_TEST_FILES``
+   (no basename claimed as both fast and intentionally-not-fast).
+4. ``is_fast`` — the public API the conftest auto-marker relies on —
+   agrees with the inventory data, so a refactor cannot silently
+   reshuffle the partition at collection time.
 
 See ``docs/adr/0012-fast-gates-vs-validate-separation.md``.
 """
@@ -32,7 +39,7 @@ import re
 import tomllib
 from pathlib import Path
 
-from tests._fast_inventory import FAST_TEST_FILES, FAST_TEST_GLOBS
+from tests._fast_inventory import FAST_TEST_FILES, FAST_TEST_GLOBS, is_fast
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "smc-fast-pr-gates.yml"
@@ -45,9 +52,19 @@ _WF_TEST_RE = re.compile(r"tests/(test_[A-Za-z0-9_]+\.py)")
 _KNOWN_NON_FAST_WF_REFS: frozenset[str] = frozenset()
 
 
-def _workflow_referenced_test_basenames() -> set[str]:
+def _workflow_raw_test_basenames() -> set[str]:
+    """All ``tests/test_*.py`` basenames referenced in the workflow.
+
+    Unlike :func:`_workflow_referenced_test_basenames`, this does NOT
+    subtract :data:`_KNOWN_NON_FAST_WF_REFS`, so it is the ground truth
+    used to validate the allowlist itself.
+    """
     text = WORKFLOW.read_text(encoding="utf-8")
-    return set(_WF_TEST_RE.findall(text)) - _KNOWN_NON_FAST_WF_REFS
+    return set(_WF_TEST_RE.findall(text))
+
+
+def _workflow_referenced_test_basenames() -> set[str]:
+    return _workflow_raw_test_basenames() - _KNOWN_NON_FAST_WF_REFS
 
 
 def test_fast_inventory_matches_workflow_file_list() -> None:
@@ -104,4 +121,67 @@ def test_slow_marker_is_registered() -> None:
     assert any(str(m).startswith("slow:") for m in markers), (
         "pyproject.toml [tool.pytest.ini_options].markers MUST declare a "
         "``slow:`` marker (ADR-0012)."
+    )
+
+
+def test_known_non_fast_allowlist_entries_are_referenced() -> None:
+    """Every ``_KNOWN_NON_FAST_WF_REFS`` entry must exist in the workflow.
+
+    The allowlist exists to subtract workflow refs that intentionally
+    stay out of the fast lane. A dead entry (one no longer present in
+    the workflow) is dangerous: it would silently subtract a basename
+    that, if re-added to the workflow later, must instead be caught by
+    ``test_fast_inventory_matches_workflow_file_list``. Keep the
+    allowlist honest so it can never mask a genuinely missing inventory
+    entry.
+    """
+    referenced = _workflow_raw_test_basenames()
+    dead = _KNOWN_NON_FAST_WF_REFS - referenced
+    assert not dead, (
+        "_KNOWN_NON_FAST_WF_REFS entries no longer referenced in "
+        f"smc-fast-pr-gates.yml: {sorted(dead)}. Remove them so the "
+        "allowlist cannot mask a missing FAST_TEST_FILES entry (ADR-0012)."
+    )
+
+
+def test_known_non_fast_allowlist_disjoint_from_fast_inventory() -> None:
+    """An allowlisted non-fast ref must not also claim fast membership.
+
+    Being in both ``_KNOWN_NON_FAST_WF_REFS`` (intentionally NOT fast)
+    and ``FAST_TEST_FILES`` (fast) is contradictory and would make the
+    partition ambiguous.
+    """
+    contradictory = _KNOWN_NON_FAST_WF_REFS & FAST_TEST_FILES
+    assert not contradictory, (
+        "Basenames declared both non-fast (allowlist) and fast "
+        f"(FAST_TEST_FILES): {sorted(contradictory)}. Pick one lane "
+        "(ADR-0012)."
+    )
+
+
+def test_is_fast_agrees_with_inventory() -> None:
+    """``is_fast`` — the API the conftest auto-marker relies on — must
+    agree with the inventory data it is built from.
+
+    Pins the public contract so a refactor of ``is_fast`` cannot quietly
+    diverge from :data:`FAST_TEST_FILES` / :data:`FAST_TEST_GLOBS` and
+    silently reshuffle the fast/slow partition at collection time.
+    """
+    not_fast = [name for name in FAST_TEST_FILES if not is_fast(name)]
+    assert not not_fast, (
+        f"is_fast() returned False for FAST_TEST_FILES entries: {sorted(not_fast)}."
+    )
+
+    tests_dir = REPO_ROOT / "tests"
+    for pat in FAST_TEST_GLOBS:
+        for match in tests_dir.glob(pat):
+            assert is_fast(match.name), (
+                f"is_fast() returned False for {match.name} matching glob {pat!r}."
+            )
+
+    # A basename matching neither the file set nor any glob must be slow.
+    sentinel = "test_definitely_not_in_the_fast_lane_zzz.py"
+    assert sentinel not in FAST_TEST_FILES
+    assert not is_fast(sentinel), (
+        f"is_fast() unexpectedly classified sentinel {sentinel!r} as fast."
     )
