@@ -42,6 +42,7 @@ from open_prep.stats_helpers import (
     min_trl,
     probabilistic_sharpe,
 )
+from scripts.smc_atomic_write import atomic_write_json
 
 # PSR method tag recorded in provenance for audit (matches the gate's
 # expected ``psr_method`` provenance key, C6.1).
@@ -75,6 +76,21 @@ def build_family_metrics_from_returns(
     Returns a ``FamilyMetrics``-shaped dict (numeric fields it does not
     measure are set to ``None``).
     """
+    if periods_per_year <= 0:
+        raise ValueError(
+            f"{family}: periods_per_year must be positive, got {periods_per_year}"
+        )
+    if not 0.0 < alpha < 1.0:
+        raise ValueError(f"{family}: alpha must be in (0, 1), got {alpha}")
+
+    # The EV-04 lookahead guard needs BOTH sides of the boundary. Supplying
+    # only one silently skips the tripwire, so reject the half-specified case
+    # rather than computing metrics with no point-in-time proof.
+    if (timestamps is None) != (as_of is None):
+        raise ValueError(
+            f"{family}: timestamps and as_of must be provided together "
+            "(or both omitted) for the EV-04 point-in-time guard"
+        )
     if timestamps is not None and as_of is not None:
         if len(timestamps) != len(returns):
             raise ValueError(
@@ -101,13 +117,15 @@ def build_family_metrics_from_returns(
     skew = psr_res["skew"]
     kurtosis = psr_res["kurtosis"]
 
-    try:
+    if sr_hat <= sr_star:
+        # No detectable edge → MinTRL undefined. Leave None so the gate blocks
+        # on "not measured" honestly. Any OTHER min_trl failure (bad alpha,
+        # collapsed non-Gaussian variance term) is a real error and must
+        # propagate rather than masquerade as an unmeasured edge.
+        mintrl_years: float | None = None
+    else:
         n_needed = min_trl(sr_hat, sr_star, skew, kurtosis, alpha=alpha)
-        mintrl_years: float | None = n_needed / periods_per_year
-    except ValueError:
-        # sr_hat <= sr_star: no detectable edge → MinTRL undefined.
-        # Leave None so the gate blocks on "not measured" honestly.
-        mintrl_years = None
+        mintrl_years = n_needed / periods_per_year
 
     return {
         "family": family,
@@ -204,9 +222,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(
-        json.dumps(bundle, indent=2, sort_keys=False) + "\n", encoding="utf-8"
-    )
+    atomic_write_json(bundle, args.output, indent=2, sort_keys=False)
     print(f"wrote {len(bundle)} family metric(s) to {args.output}")
     return 0
 

@@ -90,8 +90,15 @@ def _anchor_ts(event: Mapping[str, Any]) -> float:
 
 def _sweep_direction(side: str) -> str:
     # Mirror of ``_expected_reversal_direction``: a swept sell-side liquidity
-    # pool is expected to reverse up (long); otherwise short.
-    return "LONG" if str(side).strip().upper() == "SELL_SIDE" else "SHORT"
+    # pool is expected to reverse up (long), a buy-side pool down (short).
+    # Any other / malformed side returns "" so the level builder drops the
+    # event rather than coercing a bad record into a spurious short.
+    normalized = str(side).strip().upper()
+    if normalized == "SELL_SIDE":
+        return "LONG"
+    if normalized == "BUY_SIDE":
+        return "SHORT"
+    return ""
 
 
 def _zone_event_to_family(

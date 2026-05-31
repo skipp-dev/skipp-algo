@@ -102,6 +102,27 @@ def test_anchor_on_last_bar_is_dropped() -> None:
     assert family_events_from_structure(structure, bars) == []
 
 
+def test_buy_side_sweep_maps_to_short() -> None:
+    closes = [100.0 - i for i in range(20)]
+    bars = _bars(closes)
+    structure = {"liquidity_sweeps": [{"id": "s1", "time": _T0 + 4 * _STEP, "price": 96.0, "side": "BUY_SIDE"}]}
+
+    events = family_events_from_structure(structure, bars)
+
+    assert len(events) == 1
+    assert events[0]["family"] == "SWEEP"
+    assert events[0]["direction"] == "SHORT"
+
+
+def test_unknown_sweep_side_is_dropped() -> None:
+    bars = _bars([100.0 + i for i in range(20)])
+    # A malformed side must not coerce into a spurious short.
+    structure = {"liquidity_sweeps": [{"id": "s1", "time": _T0 + 4 * _STEP, "price": 104.0, "side": "MIDDLE"}]}
+
+    assert family_events_from_structure(structure, bars) == []
+
+
+
 def test_round_trip_through_build_family_metrics() -> None:
     bos_events = []
     for i in range(40):
