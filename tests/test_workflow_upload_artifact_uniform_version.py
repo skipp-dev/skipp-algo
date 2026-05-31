@@ -20,16 +20,19 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from tests._pin_registry import (
+    upload_artifact_frozen_major,
+    upload_artifact_sha_allowlist,
+)
+
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS_DIR = ROOT / ".github" / "workflows"
 
-_FROZEN_MAJOR: str = "v7"
-_SHA_TO_MAJOR_ALLOWLIST: dict[str, str] = {
-    # Pinned SHA for actions/upload-artifact v7 (explicitly annotated as
-    # ``# v7`` across workflows). Keep the mapping here so a future SHA
-    # bump stays a deliberate review decision instead of silently passing.
-    "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a": "v7",
-}
+# Source of truth: pin_registry.toml (ADR-0009). Keep the mapping there
+# so a future SHA bump stays a deliberate review decision instead of
+# silently passing.
+_FROZEN_MAJOR: str = upload_artifact_frozen_major()
+_SHA_TO_MAJOR_ALLOWLIST: dict[str, str] = upload_artifact_sha_allowlist()
 
 # Match every actions/upload-artifact reference, whatever the ref shape
 # (vN, vN.M, vN.M.P, branch, or 40-char SHA pin). The previous regex

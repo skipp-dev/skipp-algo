@@ -55,67 +55,26 @@ from tests._workflow_yaml import (
     iter_workflow_files,
     load_workflow,
 )
+from tests._pin_registry import workflow_set_plus_e_allowed
 
 # Matches `set +e` at the start of a line in a shell script (any
 # indentation). The only form ever used in this repo.
 _SET_PLUS_E_RE = re.compile(r"(?m)^\s*set\s+\+e(?:\s|$)")
 
 
-# Snapshot baseline captured 2026-05-29 during Bundle D from issue #2422.
-# Format: ``filename -> total_set_plus_e_count``.
+# Source of truth: pin_registry.toml (ADR-0009). Format is
+# ``filename -> total_set_plus_e_count``; rationale per entry lives
+# next to the entry in the registry.
 #
 # Adding a new key (= a workflow gained the pattern for the first time)
-# requires a one-line rationale here AND a `# silent-skip-ok: <why>`
-# comment in the workflow alongside the first new occurrence.
+# requires a one-line rationale in the registry AND a
+# `# silent-skip-ok: <why>` comment in the workflow alongside the first
+# new occurrence.
 #
 # Mutating an existing value requires a CHANGELOG / PR-description note
 # explaining whether the change is hardening (count down) or a deliberate
 # new fail-soft surface (count up).
-_ALLOWED: dict[str, int] = {
-    # Daily heavy-compute crons with per-section fault tolerance.
-    "c13-daily-cron.yml": 7,
-    # Bundle C credential probe: ONE set+e wraps the probe script call so
-    # the next step (annotation + issue filing) runs before the job
-    # fails. The script's rc is re-surfaced by the final fail-the-job
-    # step. Pattern matches workflow-freshness-monitor (Bundle D).
-    "credential-health-check.yml": 1,
-    "drift-watchdog.yml": 1,
-    # F2 promotion-gate cron: per-output-section fault tolerance plus
-    # auto-revert / status-alert blocks that PR #2426 hardened to emit
-    # ::error:: on failure. Bundle A added one further surface-errors
-    # capture block (8 vs prior 7).
-    "f2-promotion-gate-daily.yml": 8,
-    "f2-weekly-digest.yml": 1,
-    "feature-importance-daily.yml": 1,
-    "fvg-quality-recal-shadow-daily.yml": 1,
-    "g23-ab-watchdog.yml": 1,
-    # Fault-tolerant rendering pipelines (Plan 2.8 digest family).
-    # Every step is independent and uploads its own artefact; one
-    # rendering failure must not cascade and hide successful peers.
-    # The 382-count baseline for the weekly digest reflects ~50 small
-    # rendering / metric / summary sub-steps each with its own
-    # set +e | exit 0 envelope. Growth here is acceptable as long as the
-    # individual step still uploads a marker artefact.
-    "plan-2-8-monthly-digest.yml": 4,
-    "plan-2-8-weekly-digest.yml": 382,
-    # Promotion-gate daily: covered separately by issue #2422 finding A.
-    # Count is the post-#2421 baseline.
-    "promotion-gate-daily.yml": 2,
-    "smc-databento-production-export-sharded.yml": 1,
-    "smc-databento-production-export.yml": 1,
-    "smc-deeper-integration-gates.yml": 1,
-    # Library refresh: includes the F-V8-N1 preflight retry wrapper
-    # (PR #2418) plus the breaking/gates capture blocks (PR #2415).
-    "smc-library-refresh.yml": 3,
-    "smc-live-newsapi-refresh.yml": 1,
-    "smc-measurement-benchmark-rolling.yml": 5,
-    # Bundle D freshness monitor: ONE set+e wraps the probe script so
-    # the annotate-and-summarise step can attach the report to
-    # GITHUB_STEP_SUMMARY before the final fail-the-job step re-surfaces
-    # rc. The job itself is the silent-skip detector for other crons --
-    # it must NEVER itself silently skip.
-    "workflow-freshness-monitor.yml": 1,
-}
+_ALLOWED: dict[str, int] = workflow_set_plus_e_allowed()
 
 
 def _scan_inventory() -> dict[str, int]:
