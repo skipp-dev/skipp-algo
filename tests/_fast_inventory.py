@@ -88,6 +88,8 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_schema_version_manifest_alignment.py",
     "test_edge_hypotheses_frozen.py",
     "test_point_in_time_integrity.py",
+    "test_family_walkforward_config.py",
+    "test_build_family_metrics.py",
     "test_fast_gates_silent_skip_coverage.py",
     # Fast SMC integration suite
     "test_smc_action_degradation.py",
