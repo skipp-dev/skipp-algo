@@ -96,3 +96,28 @@ def test_build_bundle_round_trip_and_gate_loadable() -> None:
 def test_build_bundle_requires_returns() -> None:
     with pytest.raises(ValueError, match="returns"):
         build_bundle({"families": {"BOS": {}}})
+
+
+def test_non_positive_periods_per_year_raises() -> None:
+    with pytest.raises(ValueError, match="periods_per_year must be positive"):
+        build_family_metrics_from_returns(
+            "BOS", _positive_edge_returns(), periods_per_year=0
+        )
+
+
+def test_alpha_out_of_range_raises() -> None:
+    with pytest.raises(ValueError, match="alpha must be in"):
+        build_family_metrics_from_returns("BOS", _positive_edge_returns(), alpha=1.5)
+
+
+def test_one_sided_timestamp_guard_raises() -> None:
+    returns = _positive_edge_returns(n=40)
+    # timestamps without as_of must not silently skip the EV-04 guard.
+    with pytest.raises(ValueError, match="provided together"):
+        build_family_metrics_from_returns(
+            "BOS", returns, timestamps=["2026-01-01T00:00:00"] * 40
+        )
+    # as_of without timestamps is equally rejected.
+    with pytest.raises(ValueError, match="provided together"):
+        build_family_metrics_from_returns("BOS", returns, as_of="2026-06-30")
+
