@@ -321,6 +321,14 @@ def _check_rulesets(token: str, report: ProtectionReport) -> None:
         "ruleset_pr_required",
         has_pr_rule,
         "PR required via ruleset." if has_pr_rule else "No PR requirement in any ruleset.",
+        # Informational, mirroring the classic `pull_request_reviews` check
+        # above. Under ADR-0011 (Option C) the hard merge gate is the
+        # `fast-gates` required status check, not the existence of a
+        # pull_request ruleset rule (which governs squash-only / thread
+        # resolution). Flagging its absence as a hard error would let the
+        # verifier exit 1 even on an otherwise ADR-compliant rulesets-only
+        # setup, so it is reported as a warning for consistency.
+        severity="warn",
     )
     # ADR-0011 (Option C): required reviews must stay disabled. A ruleset can
     # silently re-introduce an approval requirement that the classic-protection

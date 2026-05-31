@@ -2,7 +2,7 @@
 
 | Field      | Value                                                                 |
 |------------|-----------------------------------------------------------------------|
-| Status     | Accepted (Option C) — verifier aligned                                |
+| Status     | Accepted (Option C)                                                   |
 | Date       | 2026-05-30                                                            |
 | Deciders   | skipp-dev                                                             |
 | Related    | branch protection on `main`, `gh pr merge --auto`, `gh api -X PUT pulls/{n}/merge` |
