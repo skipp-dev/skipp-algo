@@ -1,0 +1,42 @@
+[
+  {
+    "family": "BOS",
+    "h0": "Break-of-structure long-dip setups have non-positive cost-adjusted expectancy out-of-sample.",
+    "h1": "BOS long-dip setups deliver a positive cost-adjusted edge whose annualised PSR lower bound exceeds 0.95 over a >=1y out-of-sample window.",
+    "primary_metric": "psr",
+    "min_sample_n": 200,
+    "benchmark": "regime-matched SPY buy-and-hold, 5bps round-trip costs",
+    "frozen_at": "2026-05-31",
+    "rationale": "C4 block-permutation already scores BOS structure significance; the registered edge claim ties that to a PSR-positive forward window so the gate's psr_minimum check is the falsifier."
+  },
+  {
+    "family": "OB",
+    "h0": "Order-block reaction entries have non-positive cost-adjusted expectancy out-of-sample.",
+    "h1": "OB entries deliver a positive cost-adjusted edge whose annualised PSR lower bound exceeds 0.95 over a >=1y out-of-sample window.",
+    "primary_metric": "psr",
+    "min_sample_n": 200,
+    "benchmark": "regime-matched SPY buy-and-hold, 5bps round-trip costs",
+    "frozen_at": "2026-05-31",
+    "rationale": "C4 permutation test covers OB edge significance; PSR lower bound is the primary forward-test falsifier consumed by the gate."
+  },
+  {
+    "family": "FVG",
+    "h0": "Fair-value-gap fill setups have non-positive cost-adjusted expectancy out-of-sample.",
+    "h1": "FVG setups deliver a positive cost-adjusted edge whose annualised PSR lower bound exceeds 0.95 over a >=1y out-of-sample window.",
+    "primary_metric": "psr",
+    "min_sample_n": 150,
+    "benchmark": "regime-matched SPY buy-and-hold, 5bps round-trip costs",
+    "frozen_at": "2026-05-31",
+    "rationale": "C6 already uses a probabilistic-Sharpe lower bound on FVG TRL; this registers PSR as the frozen primary metric so MinTRL/PSR jointly falsify the claim."
+  },
+  {
+    "family": "SWEEP",
+    "h0": "Liquidity-sweep reversal setups have non-positive cost-adjusted expectancy out-of-sample after capacity/slippage.",
+    "h1": "SWEEP setups deliver a positive cost-adjusted edge whose annualised PSR lower bound exceeds 0.95 over a >=1y out-of-sample window, net of Almgren-Chriss slippage.",
+    "primary_metric": "psr",
+    "min_sample_n": 120,
+    "benchmark": "regime-matched SPY buy-and-hold, Almgren-Chriss slippage model",
+    "frozen_at": "2026-05-31",
+    "rationale": "Sweep setups are the most liquidity-sensitive family; the hypothesis explicitly requires the edge to survive realistic slippage, not mid-price fills."
+  }
+]
