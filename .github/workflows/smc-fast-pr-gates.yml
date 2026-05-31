@@ -280,6 +280,7 @@ jobs:
             tests/test_smc_library_refresh_workflow.py \
             tests/test_schema_version_manifest_alignment.py \
             tests/test_edge_hypotheses_frozen.py \
+            tests/test_point_in_time_integrity.py \
             tests/test_fast_gates_silent_skip_coverage.py \
             tests/test_pytest_marker_bucket_discipline.py
 
