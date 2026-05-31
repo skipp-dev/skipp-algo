@@ -28,7 +28,7 @@ old one and update the table below.
 | 0010 | [Cron-workflow invariants — per-workflow contract tests vs. generative suite](0010-cron-workflow-invariants-suite.md) | Accepted (C) | 2026-05-30 | (pending implementation: hybrid generic suite) |
 | 0011 | [Auto-merge + admin-bypass pattern for single-developer PRs](0011-auto-merge-admin-bypass-pattern.md) | Accepted (C) | 2026-05-30 | branch-protection: required-reviews disabled, `fast-gates` required |
 | 0012 | [`fast-gates` vs `validate` job separation policy](0012-fast-gates-vs-validate-separation.md) | Accepted (B) | 2026-05-30 | `@pytest.mark.slow` (`conftest.py`) + `tests/_fast_inventory.py` |
-| 0013 | [Atomic vs cross-cutting workflow PRs](0013-atomic-vs-cross-cutting-workflow-prs.md) | Accepted (C) | 2026-05-30 | PR-title convention `concern(scope): …` |
+| 0013 | [Atomic vs cross-cutting workflow PRs](0013-atomic-vs-cross-cutting-workflow-prs.md) | Accepted (C) | 2026-05-30 | `scripts/check_pr_title_concern.py` + `.github/workflows/pr-title-concern-lint.yml` (PR-title convention `concern(scope): …`) |
 
 ## Reservation rule
 
