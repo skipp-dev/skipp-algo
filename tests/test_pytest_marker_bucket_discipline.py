@@ -16,10 +16,12 @@ This test guards these invariants:
 
 1. Every test/glob referenced in the ``fast-gates`` workflow is present
    in the inventory, so the conftest auto-marker never marks a
-   fast-gates test ``slow``. The inventory MAY be a superset (it also
-   pins this discipline test, which runs only in ``validate``), so the
-   relationship is one-directional (workflow ⊆ inventory), not
-   bidirectional.
+   fast-gates test ``slow``. The inventory MAY be a superset of the
+   workflow refs, so the relationship is one-directional
+   (workflow ⊆ inventory), not bidirectional. This discipline test is
+   itself both in the inventory AND executed on the required
+   ``fast-gates`` path (drift-guard step), so the partition is
+   validated before merge rather than only post-merge in ``validate``.
 2. The ``slow`` marker is registered in ``pyproject.toml`` so
    ``pytest --strict-markers`` does not error out.
 3. The ``_KNOWN_NON_FAST_WF_REFS`` allowlist stays honest: every entry

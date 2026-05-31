@@ -102,9 +102,10 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_streamlit_terminal_feed_state.py",
     "test_streamlit_terminal_pure_functions.py",
     # Discipline test itself — kept in the FAST inventory so the
-    # conftest auto-marker never marks it `slow`. NOTE (Phase 1):
-    # fast-gates does not currently execute this test (it runs an
-    # explicit file list); it runs in the full `validate` suite.
+    # conftest auto-marker never marks it `slow`, and executed on the
+    # required `fast-gates` path (drift-guard step) so the fast/slow
+    # partition is validated before merge, not only post-merge in
+    # `validate`.
     "test_pytest_marker_bucket_discipline.py",
 })
 
