@@ -52,6 +52,25 @@ listed in the drift-guard step, the completeness check runs on the
 required path: dropping any tripwire fails fast-gates immediately, not
 post-merge in ``validate``. Intentionally retiring a tripwire requires a
 conscious edit to :data:`FULL_REQUIRED_PATH_TRIPWIRES` (audit trail).
+
+Self-pin bootstrap limit (acknowledged)
+---------------------------------------
+This guard cannot fully pin *its own* presence on the required path:
+if a change drops ``test_fast_gates_silent_skip_coverage.py`` from the
+drift-guard step, that same change also stops fast-gates from running
+this assertion, so the removal cannot fail the required check in the
+same PR. This is the inherent "who watches the watcher" bootstrap
+problem. It is mitigated, not eliminated:
+
+* The file is itself a member of :data:`FULL_REQUIRED_PATH_TRIPWIRES`,
+  so its removal from the step is still caught whenever this test runs —
+  including the full ``validate`` suite (post-merge) — converting a
+  silent drop into a loud, attributable failure rather than a no-op.
+* Full *pre-merge* closure would require a SECOND required status check
+  that re-runs this assertion independently. The repository deliberately
+  keeps ``fast-gates`` as the single required check (ADR-0011), so that
+  trade-off is intentional: the residual exposure is one post-merge
+  ``validate`` cycle, not an undetectable gap.
 """
 
 from __future__ import annotations
