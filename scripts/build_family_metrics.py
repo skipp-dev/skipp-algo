@@ -24,15 +24,16 @@ same return series (C4). The raw per-family p-value is computed by
 across the families in :func:`build_bundle`, because a false discovery
 rate is only defined over a set of tests, never one in isolation.
 
-The remaining gate metrics (brier, ece, psi, conformal, live/wf) stay
-``None`` — the gate then honestly blocks the family as "not yet fully
-measured" rather than being told a fabricated pass. Those need ML
-calibration probabilities and feature distributions this producer does
-not have; they are filled by their own C-sprint producers (C3 BCa
-bootstrap brier intervals, C9 PSI, C10 conformal) as the roadmap
-progresses.
+The remaining gate metrics (brier, ece, psi, live/wf) are filled by the
+EV-15 calibration slice ONLY when the caller supplies genuine
+``(probability, outcome)`` pairs per family; absent that evidence they
+stay ``None`` and the gate honestly blocks the family as "not yet fully
+measured" rather than being told a fabricated pass. The conformal and
+psi_slope fields stay ``None`` — they need the C10 conformal predictor
+and the C9 PSI-trend producer, which this script does not own.
 
-Roadmap pointer: Edge-Validation Roadmap, Phase 2 / stories EV-06, EV-14.
+Roadmap pointer: Edge-Validation Roadmap, Phase 2 / stories EV-06, EV-14,
+EV-15.
 """
 from __future__ import annotations
 
@@ -48,6 +49,11 @@ from governance.family_significance import (
 )
 from governance.family_walkforward import family_outcome_horizon, get_family_config
 from governance.point_in_time import TimestampLike, assert_point_in_time
+from ml.metrics import (
+    brier_score,
+    expected_calibration_error,
+    population_stability_index,
+)
 from ml.walkforward import walk_forward_from_config
 from open_prep.stats_helpers import (
     MIN_OBSERVATIONS_FOR_PSR,
@@ -67,6 +73,104 @@ FDR_METHOD_TAG = "benjamini_hochberg"
 # p-value resolution of ~1/2001 — well below the 0.05 FDR-q threshold.
 DEFAULT_SIGNIFICANCE_B = 2000
 
+# C3/C9 calibration provenance tag. Recorded only when the caller supplies
+# genuine (probability, outcome) pairs so brier/ece/psi/live-wf are measured
+# empirically rather than fabricated.
+CALIBRATION_METHOD_TAG = "empirical_brier_ece_psi"
+
+
+def _binary_calibration_pairs(
+    label: str, block: dict[str, Any]
+) -> tuple[list[float], list[float]]:
+    """Validate and extract a ``(probabilities, outcomes)`` calibration pair.
+
+    Refuses anything that would make the resulting Brier/ECE a fabrication
+    rather than a measurement: missing keys, length mismatch, empty input,
+    probabilities outside ``[0, 1]`` or outcomes that are not binary.
+    """
+    probs = block.get("probabilities")
+    outcomes = block.get("outcomes")
+    if probs is None or outcomes is None:
+        raise ValueError(
+            f"{label}: calibration block needs both 'probabilities' and 'outcomes'"
+        )
+    p = [float(x) for x in probs]
+    y = [float(x) for x in outcomes]
+    if len(p) != len(y):
+        raise ValueError(
+            f"{label}: probabilities length {len(p)} != outcomes length {len(y)}"
+        )
+    if not p:
+        raise ValueError(f"{label}: calibration block must be non-empty")
+    if any(not 0.0 <= v <= 1.0 for v in p):
+        raise ValueError(f"{label}: probabilities must lie in [0, 1]")
+    if any(v not in (0.0, 1.0) for v in y):
+        raise ValueError(f"{label}: outcomes must be binary (0 or 1)")
+    return p, y
+
+
+def _calibration_slice(
+    family: str, calibration: dict[str, Any] | None
+) -> dict[str, float | None]:
+    """Compute the brier/ece/psi/live-wf gate slice from supplied pairs.
+
+    Each sub-block is optional and filled ONLY from real data the caller
+    provides; anything not supplied stays ``None`` so the gate keeps
+    blocking on "not yet measured" rather than a fabricated pass.
+
+      * ``walkforward`` {probabilities, outcomes} -> brier, ece,
+        walkforward_brier (the headline gate Brier IS the walk-forward
+        out-of-sample Brier; both slots carry the same measurement).
+      * ``live`` {probabilities, outcomes} -> live_brier.
+      * ``reference_probabilities`` (+ a ``live`` block) -> psi, the
+        population-stability drift of the live probability distribution
+        against the reference (training) distribution.
+    """
+    slice_out: dict[str, float | None] = {
+        "brier": None,
+        "ece": None,
+        "walkforward_brier": None,
+        "live_brier": None,
+        "psi": None,
+        "calibration_method": None,
+    }
+    if calibration is None:
+        return slice_out
+
+    wf = calibration.get("walkforward")
+    if wf is not None:
+        p, y = _binary_calibration_pairs(f"{family} walkforward", wf)
+        wf_brier = brier_score(y, p)
+        slice_out["brier"] = wf_brier
+        slice_out["walkforward_brier"] = wf_brier
+        slice_out["ece"] = expected_calibration_error(y, p)
+        slice_out["calibration_method"] = CALIBRATION_METHOD_TAG
+
+    live_probs: list[float] | None = None
+    live = calibration.get("live")
+    if live is not None:
+        lp, ly = _binary_calibration_pairs(f"{family} live", live)
+        slice_out["live_brier"] = brier_score(ly, lp)
+        live_probs = lp
+        slice_out["calibration_method"] = CALIBRATION_METHOD_TAG
+
+    reference = calibration.get("reference_probabilities")
+    if reference is not None:
+        if live_probs is None:
+            raise ValueError(
+                f"{family}: PSI needs calibration.live.probabilities as the "
+                "live distribution to compare against reference_probabilities"
+            )
+        ref = [float(x) for x in reference]
+        if not ref:
+            raise ValueError(f"{family}: reference_probabilities must be non-empty")
+        if any(not 0.0 <= v <= 1.0 for v in ref):
+            raise ValueError(f"{family}: reference_probabilities must lie in [0, 1]")
+        slice_out["psi"] = population_stability_index(ref, live_probs)
+        slice_out["calibration_method"] = CALIBRATION_METHOD_TAG
+
+    return slice_out
+
 
 def build_family_metrics_from_returns(
     family: str,
@@ -79,6 +183,7 @@ def build_family_metrics_from_returns(
     as_of: TimestampLike | None = None,
     significance_B: int = DEFAULT_SIGNIFICANCE_B,
     significance_seed: int = 0,
+    calibration: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Compute the PSR/MinTRL slice of a ``FamilyMetrics`` dict for *family*.
 
@@ -93,6 +198,14 @@ def build_family_metrics_from_returns(
         When both are given, the return timestamps are asserted to be at
         or before ``as_of`` (EV-04 lookahead tripwire) before any stat is
         computed.
+    calibration:
+        Optional per-family calibration evidence (EV-15). A mapping with
+        any of ``walkforward`` / ``live`` (each ``{probabilities,
+        outcomes}``) and ``reference_probabilities``. Supplied blocks are
+        turned into ``brier``/``ece``/``walkforward_brier`` (walkforward),
+        ``live_brier`` (live) and ``psi`` (reference-vs-live). Omitted
+        blocks leave their gate fields ``None`` so the gate keeps blocking
+        on "not yet measured".
 
     Returns a ``FamilyMetrics``-shaped dict (numeric fields it does not
     measure are set to ``None``).
@@ -161,31 +274,41 @@ def build_family_metrics_from_returns(
         n_needed = min_trl(sr_hat, sr_star, skew, kurtosis, alpha=alpha)
         mintrl_years = n_needed / periods_per_year
 
+    # EV-15 calibration slice: brier/ece/psi/live-wf measured ONLY from the
+    # genuine (probability, outcome) pairs the caller supplies. Anything not
+    # supplied stays None below so the gate still blocks on "not measured".
+    cal = _calibration_slice(family, calibration)
+
+    provenance: dict[str, Any] = {
+        "wf_scheme": config.scheme,
+        "wf_embargo_bars": config.embargo_bars,
+        "psr_method": PSR_METHOD_TAG,
+        "significance_method": SIGNIFICANCE_METHOD_TAG,
+        "significance_block_bars": int(min(horizon, n - 1)),
+        "fdr_method": FDR_METHOD_TAG,
+    }
+    if cal["calibration_method"] is not None:
+        provenance["calibration_method"] = cal["calibration_method"]
+
     return {
         "family": family,
         "psr": psr_res["psr"],
         "mintrl_years": mintrl_years,
-        # Honestly not measured by this producer (other C-sprints own them):
-        "brier": None,
-        "ece": None,
+        # EV-15: filled from supplied calibration pairs, else None.
+        "brier": cal["brier"],
+        "ece": cal["ece"],
         # fdr_pvalue stays None per family: a false discovery rate is only
         # defined over a SET of tests. build_bundle fills it by applying the
         # Benjamini-Hochberg adjustment to extras.raw_pvalue across families.
         "fdr_pvalue": None,
-        "psi": None,
-        "live_brier": None,
-        "walkforward_brier": None,
+        "psi": cal["psi"],
+        "live_brier": cal["live_brier"],
+        "walkforward_brier": cal["walkforward_brier"],
+        # Honestly not measured by this producer (other C-sprints own them):
         "psi_slope": None,
         "conformal_coverage": None,
         "conformal_target": None,
-        "provenance": {
-            "wf_scheme": config.scheme,
-            "wf_embargo_bars": config.embargo_bars,
-            "psr_method": PSR_METHOD_TAG,
-            "significance_method": SIGNIFICANCE_METHOD_TAG,
-            "significance_block_bars": int(min(horizon, n - 1)),
-            "fdr_method": FDR_METHOD_TAG,
-        },
+        "provenance": provenance,
         "extras": {
             "sharpe_hat": sr_hat,
             "skew": skew,
@@ -207,7 +330,12 @@ def build_bundle(spec: dict[str, Any]) -> list[dict[str, Any]]:
           "significance_seed": 0,      # optional, bootstrap determinism
           "significance_B": 2000,      # optional, bootstrap resamples
           "families": {
-            "BOS": {"returns": [...], "timestamps": [...]?, "as_of": "..."?},
+            "BOS": {"returns": [...], "timestamps": [...]?, "as_of": "..."?,
+                    "calibration": {                  # optional, EV-15
+                       "walkforward": {"probabilities": [...], "outcomes": [...]},
+                       "live": {"probabilities": [...], "outcomes": [...]},
+                       "reference_probabilities": [...]
+                    }},
             ...
           }
         }
@@ -237,6 +365,7 @@ def build_bundle(spec: dict[str, Any]) -> list[dict[str, Any]]:
                 as_of=payload.get("as_of"),
                 significance_B=significance_B,
                 significance_seed=significance_seed,
+                calibration=payload.get("calibration"),
             )
         )
 
