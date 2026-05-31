@@ -25,6 +25,8 @@ from pathlib import Path
 
 import pytest
 
+from tests._pin_registry import urllib_urlopen_sites
+
 ROOT = Path(__file__).resolve().parent.parent
 
 _DIR_EXCLUDE = frozenset(
@@ -44,24 +46,8 @@ _DIR_EXCLUDE = frozenset(
     }
 )
 
-# Frozen ledger: (relative posix path) -> frozenset of linenos.
-_FROZEN_SITES: dict[str, frozenset[int]] = {
-    # WF predictive-review hardening (2026-05-20): canonical-workflow
-    # filtering added helper code above the two GitHub API calls, shifting
-    # the fixed api.github.com urlopen sites +5 lines; timeout= remains.
-    "scripts/restore_databento_export_bundle.py": frozenset({67, 82}),
-    # Workflow-freshness monitor (#2433, 2026-05): GET to api.github.com
-    # /repos/.../actions/workflows/{wf}/runs for silent-skip detection.
-    "scripts/check_workflow_freshness.py": frozenset({70}),
-    "scripts/smc_alert_notifier.py": frozenset({481}),
-    "scripts/verify_branch_protection.py": frozenset({104}),
-    # workflow-freshness monitor polls the GitHub Actions REST API once per
-    # cron tick to find scheduled workflows whose last successful run is
-    # older than the per-workflow SLO. https-only, explicit timeout=15s,
-    # B310 nosec'd at the call site (constant URL).
-    "scripts/check_workflow_freshness.py": frozenset({70}),
-    "terminal_notifications.py": frozenset({255, 319}),
-}
+# Source of truth: pin_registry.toml (ADR-0009).
+_FROZEN_SITES: dict[str, frozenset[int]] = urllib_urlopen_sites()
 
 _FROZEN_TOTAL = sum(len(v) for v in _FROZEN_SITES.values())
 

@@ -23,6 +23,8 @@ from pathlib import Path
 
 import pytest
 
+from tests._pin_registry import subprocess_shell_sites
+
 ROOT = Path(__file__).resolve().parent.parent
 
 _DIR_EXCLUDE = frozenset(
@@ -52,6 +54,9 @@ _SPAWN_ATTRS = frozenset(
 # Per-(file, subprocess.attr) ledger of call counts in first-party
 # production / scripts / streamlit code.
 #
+# Source of truth: pin_registry.toml (ADR-0009). Rationale per entry
+# lives next to each entry in the registry.
+#
 # Convention on this repo today:
 #   * ``run`` is the default — ``check=True`` is the recommended idiom.
 #   * ``Popen`` is reserved for genuinely streaming or non-blocking flows
@@ -60,46 +65,8 @@ _SPAWN_ATTRS = frozenset(
 #   * ``check_output`` only appears in ``scan_manifests_for_pytest_provenance``
 #     because the script needs the captured stdout for grep-style scans.
 #
-# Adding/removing any site MUST update this ledger in the same PR.
-_FROZEN_SITES: dict[tuple[str, str], int] = {
-    # governance/run_manifest.py captures `git rev-parse HEAD` once per
-    # process to stamp the run manifest. Token-list args, no shell=True,
-    # 2.0s timeout, stderr discarded, lru_cached.
-    ("governance/run_manifest.py", "check_output"): 1,
-    # scripts/analyze_publish_cadence.py runs `git log --format=%ct\t%h --`
-    # once per pathspec to compute publish-cadence stats. Token-list args,
-    # no shell=True, read-only dev/analysis helper.
-    ("scripts/analyze_publish_cadence.py", "run"): 1,
-    ("open_prep/realtime_signals.py", "Popen"): 1,
-    ("open_prep/realtime_signals.py", "run"): 1,
-    ("scripts/measure_databento_ops_run.py", "run"): 1,
-    # scripts/phase5_perf_trend.py wraps `gh run list` once per workflow to
-    # compute the larger-runner perf trend artifact (review-v3 phase 5).
-    # Token-list args, no shell=True, dev-only/manually invoked.
-    ("scripts/phase5_perf_trend.py", "check_output"): 1,
-    # perf(tools): local/manual pytest-duration profiling helper. Args are
-    # assembled from argparse + shlex into a token-list command, cwd is pinned
-    # to the repo root, and shell=True remains forbidden.
-    ("scripts/profile_pytest_durations.py", "run"): 1,
-    # perf(tools) helper: py-spy wrapper for profiling cron entry points
-    # (#2281). Token-list args (argparse + shlex.split), no shell=True,
-    # dev-only/manually invoked from a self-hosted runner.
-    ("scripts/profile_cron_with_pyspy.py", "run"): 1,
-    # security helper: verifies TradingView storage-state file permissions
-    # via a one-shot `icacls` token-list call. No shell=True, no untrusted
-    # input, dev/CI gate only.
-    ("scripts/check_tradingview_storage_state_security.py", "run"): 1,
-    # perf(ci) PR #2283: lockfile regenerator wraps two `uv pip compile`
-    # invocations (compile + verify). Token-list args, no shell=True, dev/CI
-    # helper only; both call sites marked with `# noqa: S603`.
-    ("scripts/regenerate_requirements_lock.py", "run"): 2,
-    ("scripts/scan_manifests_for_pytest_provenance.py", "check_output"): 2,
-    ("scripts/smc_micro_publish_guard.py", "run"): 1,
-    ("scripts/smc_zone_priority_calibration.py", "run"): 1,
-    ("scripts/start_open_prep_suite.py", "Popen"): 1,
-    ("scripts/start_open_prep_suite.py", "run"): 2,
-    ("smc_integration/release_policy.py", "run"): 1,
-}
+# Adding/removing any site MUST update the registry in the same PR.
+_FROZEN_SITES: dict[tuple[str, str], int] = subprocess_shell_sites()
 _FROZEN_TOTAL = sum(_FROZEN_SITES.values())
 
 
