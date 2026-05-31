@@ -25,15 +25,17 @@ across the families in :func:`build_bundle`, because a false discovery
 rate is only defined over a set of tests, never one in isolation.
 
 The remaining gate metrics (brier, ece, psi, live/wf) are filled by the
-EV-15 calibration slice ONLY when the caller supplies genuine
-``(probability, outcome)`` pairs per family; absent that evidence they
-stay ``None`` and the gate honestly blocks the family as "not yet fully
-measured" rather than being told a fabricated pass. The conformal and
-psi_slope fields stay ``None`` — they need the C10 conformal predictor
-and the C9 PSI-trend producer, which this script does not own.
+EV-15 calibration slice and the conformal coverage by the EV-16 conformal
+slice — both ONLY when the caller supplies genuine ``(probability,
+outcome)`` pairs per family; absent that evidence they stay ``None`` and
+the gate honestly blocks the family as "not yet fully measured" rather
+than being told a fabricated pass. The ``psi_slope`` field stays ``None``
+(it needs the C9 PSI-trend producer), as do the strict-mode provenance
+keys ``bootstrap_method``/``block_size``/``stacked_used`` which this
+script does not own.
 
 Roadmap pointer: Edge-Validation Roadmap, Phase 2 / stories EV-06, EV-14,
-EV-15.
+EV-15, EV-16.
 """
 from __future__ import annotations
 
@@ -49,6 +51,7 @@ from governance.family_significance import (
 )
 from governance.family_walkforward import family_outcome_horizon, get_family_config
 from governance.point_in_time import TimestampLike, assert_point_in_time
+from ml.calibration.conformal import SplitConformalClassifier
 from ml.metrics import (
     brier_score,
     expected_calibration_error,
@@ -77,6 +80,10 @@ DEFAULT_SIGNIFICANCE_B = 2000
 # genuine (probability, outcome) pairs so brier/ece/psi/live-wf are measured
 # empirically rather than fabricated.
 CALIBRATION_METHOD_TAG = "empirical_brier_ece_psi"
+
+# C10 conformal provenance tag. Recorded only when the caller supplies a
+# split-conformal calibration + test set so coverage is measured, not assumed.
+CONFORMAL_METHOD_TAG = "split_conformal_vovk"
 
 
 def _binary_calibration_pairs(
@@ -172,6 +179,47 @@ def _calibration_slice(
     return slice_out
 
 
+def _conformal_slice(
+    family: str, conformal: dict[str, Any] | None
+) -> dict[str, float | None]:
+    """Compute the conformal coverage gate slice from supplied pairs.
+
+    Split-conformal (Vovk) is calibrated on the ``calibration`` block and
+    its empirical marginal coverage is measured on the held-out ``test``
+    block. The gate target is ``1 - alpha`` (the conformal guarantee).
+    Returns all-``None`` when no conformal block is supplied so the gate
+    keeps blocking on "not yet measured".
+    """
+    slice_out: dict[str, float | None] = {
+        "conformal_coverage": None,
+        "conformal_target": None,
+        "conformal_method": None,
+    }
+    if conformal is None:
+        return slice_out
+
+    alpha = float(conformal.get("alpha", 0.1))
+    if not 0.0 < alpha < 1.0:
+        raise ValueError(f"{family}: conformal alpha must be in (0, 1), got {alpha}")
+    cal = conformal.get("calibration")
+    test = conformal.get("test")
+    if cal is None or test is None:
+        raise ValueError(
+            f"{family}: conformal block needs both 'calibration' and 'test' "
+            "{{probabilities, outcomes}} sets"
+        )
+    cal_p, cal_y = _binary_calibration_pairs(f"{family} conformal calibration", cal)
+    test_p, test_y = _binary_calibration_pairs(f"{family} conformal test", test)
+
+    clf = SplitConformalClassifier(alpha=alpha)
+    clf.calibrate(cal_p, cal_y)
+    report = clf.evaluate(test_p, test_y)
+    slice_out["conformal_coverage"] = float(report.empirical_coverage)
+    slice_out["conformal_target"] = float(1.0 - alpha)
+    slice_out["conformal_method"] = CONFORMAL_METHOD_TAG
+    return slice_out
+
+
 def build_family_metrics_from_returns(
     family: str,
     returns: list[float],
@@ -184,6 +232,7 @@ def build_family_metrics_from_returns(
     significance_B: int = DEFAULT_SIGNIFICANCE_B,
     significance_seed: int = 0,
     calibration: dict[str, Any] | None = None,
+    conformal: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Compute the PSR/MinTRL slice of a ``FamilyMetrics`` dict for *family*.
 
@@ -206,6 +255,13 @@ def build_family_metrics_from_returns(
         ``live_brier`` (live) and ``psi`` (reference-vs-live). Omitted
         blocks leave their gate fields ``None`` so the gate keeps blocking
         on "not yet measured".
+    conformal:
+        Optional per-family conformal evidence (EV-16). A mapping with
+        ``alpha`` (default 0.1) plus ``calibration`` and ``test`` blocks
+        (each ``{probabilities, outcomes}``). Split-conformal is fitted on
+        the calibration block and its empirical coverage is measured on
+        the test block, filling ``conformal_coverage`` and
+        ``conformal_target`` (= 1 - alpha). Omitted leaves both ``None``.
 
     Returns a ``FamilyMetrics``-shaped dict (numeric fields it does not
     measure are set to ``None``).
@@ -279,6 +335,10 @@ def build_family_metrics_from_returns(
     # supplied stays None below so the gate still blocks on "not measured".
     cal = _calibration_slice(family, calibration)
 
+    # EV-16 conformal slice: empirical split-conformal coverage vs target,
+    # measured ONLY from supplied calibration+test pairs, else None.
+    conf = _conformal_slice(family, conformal)
+
     provenance: dict[str, Any] = {
         "wf_scheme": config.scheme,
         "wf_embargo_bars": config.embargo_bars,
@@ -289,6 +349,8 @@ def build_family_metrics_from_returns(
     }
     if cal["calibration_method"] is not None:
         provenance["calibration_method"] = cal["calibration_method"]
+    if conf["conformal_method"] is not None:
+        provenance["conformal_method"] = conf["conformal_method"]
 
     return {
         "family": family,
@@ -306,8 +368,8 @@ def build_family_metrics_from_returns(
         "walkforward_brier": cal["walkforward_brier"],
         # Honestly not measured by this producer (other C-sprints own them):
         "psi_slope": None,
-        "conformal_coverage": None,
-        "conformal_target": None,
+        "conformal_coverage": conf["conformal_coverage"],
+        "conformal_target": conf["conformal_target"],
         "provenance": provenance,
         "extras": {
             "sharpe_hat": sr_hat,
@@ -335,6 +397,11 @@ def build_bundle(spec: dict[str, Any]) -> list[dict[str, Any]]:
                        "walkforward": {"probabilities": [...], "outcomes": [...]},
                        "live": {"probabilities": [...], "outcomes": [...]},
                        "reference_probabilities": [...]
+                    },
+                    "conformal": {                    # optional, EV-16
+                       "alpha": 0.1,
+                       "calibration": {"probabilities": [...], "outcomes": [...]},
+                       "test": {"probabilities": [...], "outcomes": [...]}
                     }},
             ...
           }
@@ -366,6 +433,7 @@ def build_bundle(spec: dict[str, Any]) -> list[dict[str, Any]]:
                 significance_B=significance_B,
                 significance_seed=significance_seed,
                 calibration=payload.get("calibration"),
+                conformal=payload.get("conformal"),
             )
         )
 
