@@ -156,20 +156,37 @@ def _check_branch_protection(token: str, report: ProtectionReport) -> None:
     # --- PR review requirement (ADR-0011) ---
     # ADR-0011 (Option C) intentionally drops required reviews on `main`: the
     # repo is single-committer and the real merge gate is the `fast-gates`
-    # required status check, not an approval. Absence of required reviews is
-    # therefore the EXPECTED baseline, not a failure — reported informationally
-    # here. The hard gate is the required status-check assertion below.
+    # required status check, not an approval. A NON-ZERO approval requirement is
+    # not "stricter" — it recreates the exact self-approval / admin-bypass
+    # failure mode the ADR eliminates, so it is a hard error (mirrors the
+    # ruleset_no_required_reviews assertion). Absence of a required-review block,
+    # or a block with 0 required approvals, is the EXPECTED baseline.
     pr_reviews = data.get("required_pull_request_reviews")
-    report.add(
-        "pull_request_reviews",
-        True,
-        (
-            "Required reviews enabled (stricter than the ADR-0011 baseline)."
-            if pr_reviews is not None
-            else "No required reviews — matches ADR-0011 (Option C) single-committer baseline."
-        ),
-        severity="warn",
-    )
+    review_count = (pr_reviews or {}).get("required_approving_review_count", 0)
+    if pr_reviews is not None and review_count > 0:
+        report.add(
+            "pull_request_reviews",
+            False,
+            (
+                f"Classic branch protection requires {review_count} approving "
+                "review(s) — recreates the self-approval / admin-bypass failure "
+                "mode ADR-0011 (Option C) eliminates. Set "
+                "required_approving_review_count to 0."
+            ),
+            severity="error",
+        )
+    else:
+        report.add(
+            "pull_request_reviews",
+            True,
+            (
+                "No required reviews — matches ADR-0011 (Option C) single-committer baseline."
+                if pr_reviews is None
+                else "Required-review block present but approval count is 0 — no "
+                "approval gate, matches ADR-0011 baseline."
+            ),
+            severity="warn",
+        )
 
     # --- Required status checks ---
     status_checks = data.get("required_status_checks")

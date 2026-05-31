@@ -58,7 +58,8 @@ class TestProtectionReport:
 # ---------------------------------------------------------------------------
 
 _FULL_PROTECTION_RESPONSE = {
-    "required_pull_request_reviews": {"required_approving_review_count": 1},
+    # ADR-0011 (Option C): 0 required approvals is the correct baseline.
+    "required_pull_request_reviews": {"required_approving_review_count": 0},
     "required_status_checks": {
         "strict": True,
         "checks": [
@@ -101,6 +102,23 @@ class TestCheckBranchProtection:
         # The review status is reported informationally (warn), never as error.
         review_results = [r for r in report.results if r.name == "pull_request_reviews"]
         assert review_results and all(r.severity == "warn" for r in review_results)
+
+    def test_classic_required_reviews_positive_fails(self, mod: types.ModuleType) -> None:
+        """ADR-0011 (Option C): a non-zero classic approval requirement is a hard error.
+
+        A positive ``required_approving_review_count`` recreates the exact
+        self-approval / admin-bypass failure mode the ADR eliminates, so the
+        verifier must fail rather than treat it as "stricter".
+        """
+        data = json.loads(json.dumps(_FULL_PROTECTION_RESPONSE))
+        data["required_pull_request_reviews"] = {"required_approving_review_count": 1}
+        report = mod.ProtectionReport()
+        with patch.object(mod, "_github_get", return_value=(200, data)):
+            mod._check_branch_protection("fake-token", report)
+
+        assert report.passed is False
+        failures = [r for r in report.results if r.name == "pull_request_reviews" and not r.passed]
+        assert failures and all(r.severity == "error" for r in failures)
 
     def test_api_403_is_warn_not_error(self, mod: types.ModuleType) -> None:
         report = mod.ProtectionReport()

@@ -86,16 +86,17 @@ The decision is reflected in the live `main` branch-protection config
 (required reviews absent; only the `fast-gates` status check required) and
 in the audit tooling that verifies it:
 
-- `scripts/verify_branch_protection.py` now treats **absence of required
-  reviews as the expected Option-C baseline** rather than a failure. The
-  `pull_request_reviews` result is reported informationally (`warn`); the
-  single hard gate remains the required `fast-gates` status check. Before
-  this change the verifier asserted required reviews as a hard `error`,
-  which directly contradicted this ADR and would have reported a spurious
-  FAIL against a correctly-configured `main`.
-- `tests/test_verify_branch_protection.py` pins both shapes: required
-  reviews present (stricter — still passes) and required reviews absent
-  (the baseline — passes, reported as `warn`, never `error`).
+- `scripts/verify_branch_protection.py` treats **absence of a required-review
+  block (or a block with 0 required approvals) as the expected Option-C
+  baseline**, reported informationally (`warn`). A **non-zero approval
+  requirement is a hard `error`**, not "stricter": a positive approval count
+  recreates the exact self-approval / admin-bypass failure mode this ADR
+  eliminates. The single hard merge gate remains the required `fast-gates`
+  status check.
+- `tests/test_verify_branch_protection.py` pins all three shapes: required
+  reviews absent (baseline — passes, `warn`), present with 0 approvals
+  (passes, `warn`), and present with a positive approval count (fails,
+  `error`).
 
 When a second maintainer joins, reopen this ADR and adopt Option B (a
 dedicated CI bot that approves after `fast-gates` is green); the verifier's
