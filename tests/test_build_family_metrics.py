@@ -146,3 +146,114 @@ def test_one_sided_timestamp_guard_raises() -> None:
     with pytest.raises(ValueError, match="provided together"):
         build_family_metrics_from_returns("BOS", returns, as_of="2026-06-30")
 
+
+# ---- EV-15 calibration slice -------------------------------------------
+
+
+def _calibrated_pairs(n: int = 60, seed: int = 11) -> dict[str, list[float]]:
+    """A well-calibrated synthetic (probabilities, outcomes) pair."""
+    rng = random.Random(seed)
+    probs: list[float] = []
+    outcomes: list[float] = []
+    for _ in range(n):
+        p = rng.uniform(0.05, 0.95)
+        probs.append(p)
+        outcomes.append(1.0 if rng.random() < p else 0.0)
+    return {"probabilities": probs, "outcomes": outcomes}
+
+
+def test_calibration_fills_brier_ece_when_supplied() -> None:
+    wf = _calibrated_pairs(seed=21)
+    metrics = build_family_metrics_from_returns(
+        "BOS",
+        _positive_edge_returns(),
+        calibration={"walkforward": wf},
+    )
+    # brier and walkforward_brier are the SAME measurement (WF out-of-sample).
+    assert metrics["brier"] is not None
+    assert 0.0 <= metrics["brier"] <= 1.0
+    assert metrics["walkforward_brier"] == metrics["brier"]
+    assert metrics["ece"] is not None
+    assert 0.0 <= metrics["ece"] <= 1.0
+    assert metrics["provenance"]["calibration_method"] == "empirical_brier_ece_psi"
+    # not supplied → still honestly None
+    assert metrics["live_brier"] is None
+    assert metrics["psi"] is None
+
+
+def test_calibration_live_and_psi() -> None:
+    wf = _calibrated_pairs(seed=22)
+    live = _calibrated_pairs(seed=23)
+    metrics = build_family_metrics_from_returns(
+        "OB",
+        _positive_edge_returns(seed=4),
+        calibration={
+            "walkforward": wf,
+            "live": live,
+            "reference_probabilities": wf["probabilities"],
+        },
+    )
+    assert metrics["live_brier"] is not None
+    assert 0.0 <= metrics["live_brier"] <= 1.0
+    assert metrics["psi"] is not None
+    assert metrics["psi"] >= 0.0
+
+
+def test_no_calibration_leaves_calibration_fields_none() -> None:
+    metrics = build_family_metrics_from_returns("FVG", _positive_edge_returns())
+    for field in ("brier", "ece", "psi", "live_brier", "walkforward_brier"):
+        assert metrics[field] is None
+    assert "calibration_method" not in metrics["provenance"]
+
+
+def test_calibration_rejects_out_of_range_probability() -> None:
+    bad = {"probabilities": [0.2, 1.5, 0.4], "outcomes": [0.0, 1.0, 1.0]}
+    with pytest.raises(ValueError, match=r"probabilities must lie in \[0, 1\]"):
+        build_family_metrics_from_returns(
+            "BOS", _positive_edge_returns(), calibration={"walkforward": bad}
+        )
+
+
+def test_calibration_rejects_non_binary_outcome() -> None:
+    bad = {"probabilities": [0.2, 0.6, 0.4], "outcomes": [0.0, 0.5, 1.0]}
+    with pytest.raises(ValueError, match="outcomes must be binary"):
+        build_family_metrics_from_returns(
+            "BOS", _positive_edge_returns(), calibration={"live": bad}
+        )
+
+
+def test_calibration_length_mismatch_raises() -> None:
+    bad = {"probabilities": [0.2, 0.6], "outcomes": [0.0]}
+    with pytest.raises(ValueError, match="length"):
+        build_family_metrics_from_returns(
+            "BOS", _positive_edge_returns(), calibration={"walkforward": bad}
+        )
+
+
+def test_psi_without_live_distribution_raises() -> None:
+    with pytest.raises(ValueError, match=r"PSI needs calibration\.live"):
+        build_family_metrics_from_returns(
+            "BOS",
+            _positive_edge_returns(),
+            calibration={"reference_probabilities": [0.2, 0.4, 0.6]},
+        )
+
+
+def test_bundle_threads_calibration_per_family() -> None:
+    spec = {
+        "periods_per_year": 252,
+        "families": {
+            "BOS": {
+                "returns": _positive_edge_returns(seed=1),
+                "calibration": {"walkforward": _calibrated_pairs(seed=31)},
+            },
+            "OB": {"returns": _positive_edge_returns(seed=2)},
+        },
+    }
+    bundle = build_bundle(spec)
+    by_family = {m["family"]: m for m in bundle}
+    # BOS got calibration → brier measured; OB did not → stays None.
+    assert by_family["BOS"]["brier"] is not None
+    assert by_family["OB"]["brier"] is None
+
+
