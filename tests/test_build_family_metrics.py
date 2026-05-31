@@ -37,6 +37,10 @@ def test_produces_psr_and_mintrl_fields() -> None:
     # honestly-unmeasured fields stay None
     assert metrics["brier"] is None
     assert metrics["fdr_pvalue"] is None
+    # C4: the RAW per-family p-value is computed and carried in extras; the
+    # FDR-adjusted fdr_pvalue is filled only at the bundle level.
+    assert 0.0 < metrics["extras"]["raw_pvalue"] <= 1.0
+    assert metrics["provenance"]["fdr_method"] == "benjamini_hochberg"
 
 
 def test_too_few_returns_raises() -> None:
@@ -96,6 +100,27 @@ def test_build_bundle_round_trip_and_gate_loadable() -> None:
 def test_build_bundle_requires_returns() -> None:
     with pytest.raises(ValueError, match="returns"):
         build_bundle({"families": {"BOS": {}}})
+
+
+def test_bundle_fills_bh_adjusted_fdr_pvalue() -> None:
+    spec = {
+        "periods_per_year": 252,
+        "families": {
+            "BOS": {"returns": _positive_edge_returns(seed=1)},
+            "OB": {"returns": _positive_edge_returns(seed=2)},
+            "FVG": {"returns": _positive_edge_returns(seed=3)},
+        },
+    }
+    bundle = build_bundle(spec)
+    by_family = {m["family"]: m for m in bundle}
+    for fam, metric in by_family.items():
+        q = metric["fdr_pvalue"]
+        raw = metric["extras"]["raw_pvalue"]
+        # fdr_pvalue is now populated (no longer None) and is a valid q-value.
+        assert q is not None
+        assert 0.0 <= q <= 1.0
+        # BH adjustment never makes a p-value MORE significant than its raw.
+        assert q >= raw - 1e-12, f"{fam}: q {q} < raw {raw}"
 
 
 def test_non_positive_periods_per_year_raises() -> None:
