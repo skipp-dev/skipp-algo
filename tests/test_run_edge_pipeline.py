@@ -50,6 +50,16 @@ def test_coerce_as_of_accepts_epoch_iso_and_none() -> None:
     assert _coerce_as_of("2023-11-14T22:13:20+00:00") == pytest.approx(1_700_000_000.0)
 
 
+def test_coerce_as_of_treats_naive_iso_as_utc() -> None:
+    # A naive ISO string must resolve to the SAME epoch as its explicit-UTC
+    # form, independent of the host timezone — otherwise as_of would be
+    # shifted by the local UTC offset and mis-arm the EV-04 guard.
+    naive = _coerce_as_of("2023-11-14T22:13:20")
+    aware = _coerce_as_of("2023-11-14T22:13:20+00:00")
+    assert naive == pytest.approx(aware)
+    assert naive == pytest.approx(1_700_000_000.0)
+
+
 def test_coerce_as_of_rejects_bool_and_garbage() -> None:
     with pytest.raises(ValueError):
         _coerce_as_of(True)

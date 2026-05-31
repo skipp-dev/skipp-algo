@@ -39,7 +39,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -54,6 +54,7 @@ from scripts.run_promotion_gate import (
     _report_exit_code,
     build_report,
 )
+from scripts.smc_atomic_write import atomic_write_json
 
 _STRUCTURE_KEYS = ("bos", "orderblocks", "fvg", "liquidity_sweeps")
 
@@ -72,7 +73,14 @@ def _coerce_as_of(value: object) -> float | None:
     if isinstance(value, (int, float)):
         return float(value)
     if isinstance(value, str):
-        return datetime.fromisoformat(value).timestamp()
+        parsed = datetime.fromisoformat(value)
+        # A naive ISO string is interpreted as UTC, matching the UTC epoch
+        # rendering used for the event anchor timestamps in to_build_spec.
+        # Using the bare local-time .timestamp() here would shift as_of by
+        # the host's UTC offset and silently mis-arm the EV-04 PIT guard.
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=UTC)
+        return parsed.timestamp()
     raise ValueError(f"as_of must be a number or ISO string, got {type(value).__name__}")
 
 
@@ -186,9 +194,7 @@ def main(argv: list[str] | None = None) -> int:
     report = result["report"]
     if args.output is not None:
         args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(
-            json.dumps(report, indent=2, sort_keys=False) + "\n", encoding="utf-8"
-        )
+        atomic_write_json(report, args.output, indent=2, sort_keys=False)
 
     archived = result["archived_path"]
     summary = result["verdict_report"].get("summary", {})
