@@ -94,6 +94,7 @@ FAST_TEST_FILES: frozenset[str] = frozenset({
     "test_family_event_adapter.py",
     "test_family_verdict.py",
     "test_verdict_panel.py",
+    "test_run_edge_pipeline.py",
     "test_fast_gates_silent_skip_coverage.py",
     # Fast SMC integration suite
     "test_smc_action_degradation.py",
