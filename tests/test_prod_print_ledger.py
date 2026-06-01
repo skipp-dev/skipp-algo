@@ -66,6 +66,10 @@ _FROZEN_PRINT_COUNTS: dict[str, int] = {
     # documented output channel.
     "tools/check_audit_doc_consistency.py": 4,
     "tools/check_defaults_table.py": 4,
+    # 2026-06-01 (EV-04/EV-08): family_verdict CLI main() prints the verdict
+    # report JSON to stdout when --output is omitted (documented CLI output
+    # channel, invoked as ``python governance/family_verdict.py --report ...``).
+    "governance/family_verdict.py": 1,
 }
 _FROZEN_PRINT_TOTAL = sum(_FROZEN_PRINT_COUNTS.values())
 

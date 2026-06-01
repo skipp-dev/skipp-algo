@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 from scripts.smc_price_action_engine import canonical_timeframe, detect_bos_from_pivots, normalize_bars
@@ -379,6 +380,16 @@ def detect_liquidity_sweeps_from_lines(
     out: list[dict[str, Any]] = []
     consumed_lines: set[str] = set()
 
+    # Vectorized rewrite of the original O(lines * bars) double loop, which did
+    # one pandas `.iloc[i]` scalar lookup per (line, bar). Pull the columns into
+    # numpy once and find the first qualifying bar per line with a boolean mask.
+    # `normalize_bars` sorts ascending by timestamp, so the first masked index is
+    # the earliest sweep -- identical to the original break-on-first behaviour.
+    ts_arr = bars["timestamp"].to_numpy(dtype="int64")
+    high_arr = bars["high"].to_numpy(dtype=float)
+    low_arr = bars["low"].to_numpy(dtype=float)
+    close_arr = bars["close"].to_numpy(dtype=float)
+
     sorted_lines = sorted(liquidity_lines, key=lambda row: (int(row.get("anchor_ts", 0)), str(row.get("id", ""))))
     for line in sorted_lines:
         line_id = str(line.get("id", "")).strip()
@@ -389,60 +400,40 @@ def detect_liquidity_sweeps_from_lines(
         price = float(line.get("price", 0.0))
         anchor_ts = int(line.get("anchor_ts", 0))
 
-        for i in range(len(bars)):
-            row = bars.iloc[i]
-            ts = int(row["timestamp"])
-            if ts <= anchor_ts:
-                continue
+        after = ts_arr > anchor_ts
+        if side == "SELL_SIDE":
+            cond = after & (low_arr < price) & (close_arr > price)
+        elif side == "BUY_SIDE":
+            cond = after & (high_arr > price) & (close_arr < price)
+        else:
+            continue
 
-            sell_side_sweep = side == "SELL_SIDE" and float(row["low"]) < price and float(row["close"]) > price
-            buy_side_sweep = side == "BUY_SIDE" and float(row["high"]) > price and float(row["close"]) < price
+        hits = np.flatnonzero(cond)
+        if not hits.size:
+            continue
 
-            if sell_side_sweep:
-                out.append(
-                    {
-                        "id": sweep_id(
-                            symbol=symbol_name,
-                            timeframe=tf,
-                            anchor_ts=float(ts),
-                            side="SELL_SIDE",
-                            price=price,
-                            ticksize=ticksize,
-                            asset_class=asset_class,
-                            session_tz=session_tz,
-                        ),
-                        "time": float(ts),
-                        "price": price,
-                        "side": "SELL_SIDE",
-                        "source_liquidity_id": line_id,
-                        "source": "pivot3_close_back",
-                    }
-                )
-                consumed_lines.add(line_id)
-                break
-
-            if buy_side_sweep:
-                out.append(
-                    {
-                        "id": sweep_id(
-                            symbol=symbol_name,
-                            timeframe=tf,
-                            anchor_ts=float(ts),
-                            side="BUY_SIDE",
-                            price=price,
-                            ticksize=ticksize,
-                            asset_class=asset_class,
-                            session_tz=session_tz,
-                        ),
-                        "time": float(ts),
-                        "price": price,
-                        "side": "BUY_SIDE",
-                        "source_liquidity_id": line_id,
-                        "source": "pivot3_close_back",
-                    }
-                )
-                consumed_lines.add(line_id)
-                break
+        i = int(hits[0])
+        ts = int(ts_arr[i])
+        out.append(
+            {
+                "id": sweep_id(
+                    symbol=symbol_name,
+                    timeframe=tf,
+                    anchor_ts=float(ts),
+                    side=side,
+                    price=price,
+                    ticksize=ticksize,
+                    asset_class=asset_class,
+                    session_tz=session_tz,
+                ),
+                "time": float(ts),
+                "price": price,
+                "side": side,
+                "source_liquidity_id": line_id,
+                "source": "pivot3_close_back",
+            }
+        )
+        consumed_lines.add(line_id)
 
     for line in liquidity_lines:
         if str(line.get("id", "")) in consumed_lines:

@@ -7,9 +7,9 @@
 #
 # It fabricates nothing. For each requested symbol it:
 #   1. pulls REAL Databento OHLCV + detects canonical SMC structure
-#      (the scripts.pull_databento_edge_input CLI, EV-13), then
+#      (scripts/pull_databento_edge_input.py, EV-13), then
 #   2. runs the full edge pipeline -> promotion gate -> honest verdict and
-#      archives the timestamped decision (the scripts.run_edge_pipeline CLI, EV-10).
+#      archives the timestamped decision (scripts/run_edge_pipeline.py, EV-10).
 #
 # Exit-code contract (mirrors run_edge_pipeline / run_promotion_gate):
 #   0 = all families promoted, 2 = at least one family blocked (the EXPECTED,
@@ -24,7 +24,7 @@
 # real evidence before it lands. The reports are also uploaded as a workflow
 # artifact for inspection regardless of the PR path.
 #
-# See the edge first-real-run runbook under docs/ for the operator procedure.
+# See docs/edge_first_real_run_runbook.md for the operator procedure.
 
 name: edge-pipeline-real-run
 
@@ -146,7 +146,16 @@ jobs:
         env:
           DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
         run: |
+          # NOTE: GitHub's `shell: bash` default invokes `bash -eo pipefail`, so
+          # errexit is ON unless we disable it. This step DELIBERATELY captures
+          # non-zero exit codes (RC_PULL/RC_RUN) — in particular run_edge_pipeline
+          # exit 2 (family blocked) is the EXPECTED honest result and MUST NOT
+          # abort the step. Turn errexit OFF; keep nounset + pipefail.
           set -uo pipefail
+          # silent-skip-ok: rc captured per symbol (RC_PULL/RC_RUN) and surfaced
+          # via ::warning:: + the report summary; exit 2 = family blocked is the
+          # expected honest result, not a failure. Pinned in pin_registry.toml.
+          set +e
           DATASET="${{ inputs.dataset }}"
           SCHEMA="${{ inputs.schema }}"
           TF="${{ inputs.timeframe }}"
@@ -225,16 +234,20 @@ jobs:
 
       - name: Build PR / summary body
         if: ${{ always() && steps.run.outputs.archived != '' && steps.run.outputs.archived != '0' }}
+        env:
+          RAN_SYMBOLS: ${{ steps.run.outputs.ran }}
         run: |
           set -uo pipefail
           python - <<'PY' > /tmp/edge_body.md
           import json
+          import os
           from pathlib import Path
 
           reports = sorted(Path("artifacts/edge_runs").glob("*_report.json"))
           print("## EV-20 — first real Databento edge-pipeline run\n")
           print("Real archived promotion decisions (governed; NOT auto-merged).\n")
-          print(f"- symbols ran: `{__import__('os').environ.get('GITHUB_RUN_ID','')}`")
+          ran = os.environ.get("RAN_SYMBOLS", "").strip()
+          print(f"- symbols ran: `{ran or '(none)'}`")
           print(f"- dataset: `${{ inputs.dataset }}` · schema: `${{ inputs.schema }}` · timeframe: `${{ inputs.timeframe }}`")
           print(f"- window: `${{ inputs.start }}` → `${{ inputs.end }}`\n")
           print("| symbol | family | promoted | primary blocker(s) |")
