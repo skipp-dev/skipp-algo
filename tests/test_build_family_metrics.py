@@ -404,3 +404,103 @@ def test_bundle_threads_provenance_per_family() -> None:
     assert by_family["BOS"]["provenance"]["stacked_used"] is True
     assert "stacked_used" not in by_family["OB"]["provenance"]
 
+
+# EV-18 (C9) — PSI-trend slope producer.
+
+
+def _drifting_windows(
+    base: float = 0.3, step: float = 0.05, k: int = 5, n: int = 40, seed: int = 3
+) -> dict[str, object]:
+    """Reference + k windows whose mean probability drifts upward each step.
+
+    Increasing drift over windows yields a positive PSI slope (worsening
+    stability), which is what the gate alarms on.
+    """
+    rng = random.Random(seed)
+    reference = [rng.uniform(0.2, 0.4) for _ in range(n)]
+    windows: list[list[float]] = []
+    for w in range(k):
+        centre = base + step * w
+        windows.append(
+            [min(0.99, max(0.01, rng.gauss(centre, 0.03))) for _ in range(n)]
+        )
+    return {"reference_probabilities": reference, "windows": windows}
+
+
+def test_psi_trend_fills_psi_slope_when_supplied() -> None:
+    metrics = build_family_metrics_from_returns(
+        "BOS",
+        _positive_edge_returns(),
+        psi_trend=_drifting_windows(),
+    )
+    assert metrics["psi_slope"] is not None
+    # Upward drift → positive slope.
+    assert metrics["psi_slope"] > 0.0
+    assert metrics["provenance"]["psi_trend_method"] == "ols_psi_window_slope"
+
+
+def test_no_psi_trend_leaves_slope_none() -> None:
+    metrics = build_family_metrics_from_returns("FVG", _positive_edge_returns())
+    assert metrics["psi_slope"] is None
+    assert "psi_trend_method" not in metrics["provenance"]
+
+
+def test_psi_trend_stable_windows_give_near_zero_slope() -> None:
+    # No drift between windows → slope should sit near zero.
+    metrics = build_family_metrics_from_returns(
+        "BOS",
+        _positive_edge_returns(),
+        psi_trend=_drifting_windows(step=0.0, seed=9),
+    )
+    assert metrics["psi_slope"] == pytest.approx(0.0, abs=0.05)
+
+
+def test_psi_trend_requires_two_windows() -> None:
+    with pytest.raises(ValueError, match="at least 2 windows"):
+        build_family_metrics_from_returns(
+            "BOS",
+            _positive_edge_returns(),
+            psi_trend={
+                "reference_probabilities": [0.3, 0.4, 0.5],
+                "windows": [[0.3, 0.4, 0.5]],
+            },
+        )
+
+
+def test_psi_trend_requires_reference_and_windows() -> None:
+    with pytest.raises(ValueError, match="needs both 'reference_probabilities'"):
+        build_family_metrics_from_returns(
+            "BOS",
+            _positive_edge_returns(),
+            psi_trend={"windows": [[0.3], [0.4]]},
+        )
+
+
+def test_psi_trend_rejects_out_of_range_window() -> None:
+    with pytest.raises(ValueError, match=r"windows\[1\] must lie in \[0, 1\]"):
+        build_family_metrics_from_returns(
+            "BOS",
+            _positive_edge_returns(),
+            psi_trend={
+                "reference_probabilities": [0.3, 0.4, 0.5],
+                "windows": [[0.3, 0.4], [0.4, 1.5]],
+            },
+        )
+
+
+def test_bundle_threads_psi_trend_per_family() -> None:
+    spec = {
+        "periods_per_year": 252,
+        "families": {
+            "BOS": {
+                "returns": _positive_edge_returns(seed=1),
+                "psi_trend": _drifting_windows(seed=4),
+            },
+            "OB": {"returns": _positive_edge_returns(seed=2)},
+        },
+    }
+    bundle = build_bundle(spec)
+    by_family = {m["family"]: m for m in bundle}
+    assert by_family["BOS"]["psi_slope"] is not None
+    assert by_family["OB"]["psi_slope"] is None
+
