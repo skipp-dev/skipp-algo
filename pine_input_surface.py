@@ -373,6 +373,68 @@ def cmd_lint_parity(files: list[Path]) -> int:
     return errors
 
 
+# ── provenance command ────────────────────────────────────────────────
+def build_provenance(files: list[Path], repo_root: Path | None = None) -> dict:
+    """Build a deterministic, machine-readable input-provenance map.
+
+    For every input across ``files`` this records its declaring file, line,
+    variable name, kind, human label, group, whether it is hidden
+    (``display=display.none``) and its policy visibility class. This is the
+    audit artifact that gives hidden/operator inputs explicit provenance.
+    """
+    from scripts.pine_input_surface_policy import classify_group
+
+    root = repo_root or Path.cwd()
+    file_entries: list[dict] = []
+    for fp in sorted(files, key=lambda p: p.name):
+        lines = fp.read_text(encoding="utf-8", errors="replace").splitlines()
+        inputs = parse_inputs(lines)
+        try:
+            rel = fp.resolve().relative_to(root.resolve()).as_posix()
+        except ValueError:
+            rel = fp.name
+        input_entries = [
+            {
+                "lineno": inp.lineno,
+                "varname": inp.varname,
+                "kind": inp.kind,
+                "label": inp.label,
+                "group": inp.group,
+                "has_display_none": inp.has_display_none,
+                "visibility": (
+                    v.value if (v := classify_group(inp.group)) is not None else None
+                ),
+            }
+            for inp in inputs
+        ]
+        file_entries.append(
+            {
+                "file": rel,
+                "input_count": len(input_entries),
+                "hidden_count": sum(
+                    1 for e in input_entries if e["has_display_none"]
+                ),
+                "inputs": input_entries,
+            }
+        )
+    return {
+        "schema": "pine-input-provenance/v1",
+        "total_inputs": sum(f["input_count"] for f in file_entries),
+        "total_hidden": sum(f["hidden_count"] for f in file_entries),
+        "files": file_entries,
+    }
+
+
+def cmd_provenance(files: list[Path], out: Path | None) -> None:
+    data = build_provenance(files, repo_root=Path.cwd())
+    text = json.dumps(data, indent=2, ensure_ascii=False, sort_keys=False) + "\n"
+    if out:
+        out.write_text(text, encoding="utf-8")
+        print(f"Wrote provenance for {data['total_inputs']} inputs to {out}")
+    else:
+        sys.stdout.write(text)
+
+
 # ── main ──────────────────────────────────────────────────────────────
 def main() -> None:
     parser = argparse.ArgumentParser(description="Pine Script input surface-area tool")
@@ -390,6 +452,12 @@ def main() -> None:
     p_lint.add_argument("files", nargs="+", type=Path)
     p_lint.add_argument("--parity", action="store_true", help="Check parity between files")
 
+    p_prov = sub.add_parser(
+        "provenance", help="Emit machine-readable input provenance JSON"
+    )
+    p_prov.add_argument("files", nargs="+", type=Path)
+    p_prov.add_argument("--out", type=Path, default=None, help="Write JSON to this path")
+
     args = parser.parse_args()
     if args.cmd == "audit":
         cmd_audit(args.files)
@@ -400,6 +468,8 @@ def main() -> None:
             sys.exit(cmd_lint_parity(args.files))
         else:
             sys.exit(cmd_lint(args.files))
+    elif args.cmd == "provenance":
+        cmd_provenance(args.files, args.out)
     else:
         parser.print_help()
 

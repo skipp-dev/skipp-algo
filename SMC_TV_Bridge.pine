@@ -1,4 +1,4 @@
-// @version=5
+//@version=5
 // Product role: internal bridge helper outside the user-facing Lite/Pro rollout.
 indicator("SMC + Regime + News (skipp)", overlay = true, max_lines_count = 500, max_boxes_count = 500, max_labels_count = 500)
 
