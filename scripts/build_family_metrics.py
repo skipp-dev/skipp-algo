@@ -30,12 +30,20 @@ slice — both ONLY when the caller supplies genuine ``(probability,
 outcome)`` pairs per family; absent that evidence they stay ``None`` and
 the gate honestly blocks the family as "not yet fully measured" rather
 than being told a fabricated pass. The ``psi_slope`` field stays ``None``
-(it needs the C9 PSI-trend producer), as do the strict-mode provenance
-keys ``bootstrap_method``/``block_size``/``stacked_used`` which this
-script does not own.
+(it needs the C9 PSI-trend producer).
+
+The strict-mode provenance keys ``bootstrap_method``/``block_size``/
+``stacked_used`` are NOT computed here — they describe upstream modelling
+choices this producer cannot observe (it only receives the resulting
+series). EV-17 therefore passes them through from a caller-declared
+``provenance`` block, validated but never fabricated: absent → the key
+stays undeclared → the strict gate blocks honestly. The producer still
+refuses any caller attempt to override a key it computes itself
+(:data:`PRODUCER_OWNED_PROVENANCE_KEYS`) so the audit trail cannot be
+forged.
 
 Roadmap pointer: Edge-Validation Roadmap, Phase 2 / stories EV-06, EV-14,
-EV-15, EV-16.
+EV-15, EV-16, EV-17.
 """
 from __future__ import annotations
 
@@ -84,6 +92,62 @@ CALIBRATION_METHOD_TAG = "empirical_brier_ece_psi"
 # C10 conformal provenance tag. Recorded only when the caller supplies a
 # split-conformal calibration + test set so coverage is measured, not assumed.
 CONFORMAL_METHOD_TAG = "split_conformal_vovk"
+
+# EV-17 provenance architecture.
+#
+# Provenance splits into two ownership classes:
+#
+#   1. PRODUCER-OWNED — keys this script COMPUTES from real config/data and
+#      therefore declares itself. The caller must never override these, else
+#      it could silently forge the audit trail (e.g. claim "purged_kfold"
+#      while the producer actually ran "expanding").
+#
+#   2. CALLER-DECLARED — upstream MODELLING metadata this producer cannot
+#      know because it only receives the resulting return/probability series,
+#      not the training pipeline that produced them. The gate's strict mode
+#      requires three such keys, each owned by an upstream sprint:
+#        * bootstrap_method  → C3.1 BCa bootstrap for brier CIs
+#        * block_size        → C4.1 block-permutation block size
+#        * stacked_used      → C10.1 whether a stacking ensemble was used
+#      These are PASSED THROUGH from spec.provenance, validated but never
+#      fabricated: absent → the key stays absent → strict gate honestly
+#      blocks the family as "provenance not declared".
+PRODUCER_OWNED_PROVENANCE_KEYS = frozenset({
+    "wf_scheme",
+    "wf_embargo_bars",
+    "psr_method",
+    "significance_method",
+    "significance_block_bars",
+    "fdr_method",
+    "calibration_method",
+    "conformal_method",
+})
+
+
+def _merge_caller_provenance(
+    family: str,
+    producer_provenance: dict[str, Any],
+    caller_provenance: dict[str, Any] | None,
+) -> None:
+    """Merge caller-declared upstream provenance into ``producer_provenance``.
+
+    Mutates ``producer_provenance`` in place. Refuses any key the producer
+    owns itself (:data:`PRODUCER_OWNED_PROVENANCE_KEYS`) so a caller cannot
+    overwrite a computed audit value with a fabricated one. Everything else
+    (e.g. ``bootstrap_method``/``block_size``/``stacked_used`` plus any extra
+    upstream metadata) is copied through verbatim.
+    """
+    if caller_provenance is None:
+        return
+    if not isinstance(caller_provenance, dict):
+        raise ValueError(f"{family}: provenance must be a mapping")
+    collisions = PRODUCER_OWNED_PROVENANCE_KEYS & caller_provenance.keys()
+    if collisions:
+        raise ValueError(
+            f"{family}: provenance may not override producer-owned keys "
+            f"{sorted(collisions)} (these are computed from real config/data)"
+        )
+    producer_provenance.update(caller_provenance)
 
 
 def _binary_calibration_pairs(
@@ -233,6 +297,7 @@ def build_family_metrics_from_returns(
     significance_seed: int = 0,
     calibration: dict[str, Any] | None = None,
     conformal: dict[str, Any] | None = None,
+    provenance: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Compute the PSR/MinTRL slice of a ``FamilyMetrics`` dict for *family*.
 
@@ -262,6 +327,14 @@ def build_family_metrics_from_returns(
         the calibration block and its empirical coverage is measured on
         the test block, filling ``conformal_coverage`` and
         ``conformal_target`` (= 1 - alpha). Omitted leaves both ``None``.
+    provenance:
+        Optional caller-declared upstream provenance (EV-17): metadata the
+        producer cannot compute because it only receives the resulting
+        series, not the training pipeline (e.g. ``bootstrap_method``,
+        ``block_size``, ``stacked_used`` for the strict gate). Merged into
+        the output provenance after validation; keys the producer owns
+        itself are refused to prevent audit-trail forgery. Omitted leaves
+        the strict provenance keys undeclared so the gate blocks honestly.
 
     Returns a ``FamilyMetrics``-shaped dict (numeric fields it does not
     measure are set to ``None``).
@@ -339,7 +412,7 @@ def build_family_metrics_from_returns(
     # measured ONLY from supplied calibration+test pairs, else None.
     conf = _conformal_slice(family, conformal)
 
-    provenance: dict[str, Any] = {
+    provenance_out: dict[str, Any] = {
         "wf_scheme": config.scheme,
         "wf_embargo_bars": config.embargo_bars,
         "psr_method": PSR_METHOD_TAG,
@@ -348,9 +421,14 @@ def build_family_metrics_from_returns(
         "fdr_method": FDR_METHOD_TAG,
     }
     if cal["calibration_method"] is not None:
-        provenance["calibration_method"] = cal["calibration_method"]
+        provenance_out["calibration_method"] = cal["calibration_method"]
     if conf["conformal_method"] is not None:
-        provenance["conformal_method"] = conf["conformal_method"]
+        provenance_out["conformal_method"] = conf["conformal_method"]
+
+    # EV-17: merge caller-declared upstream provenance (bootstrap_method,
+    # block_size, stacked_used, ...) the producer cannot compute itself.
+    # Refuses collisions with producer-owned keys; absent keys stay absent.
+    _merge_caller_provenance(family, provenance_out, provenance)
 
     return {
         "family": family,
@@ -370,7 +448,7 @@ def build_family_metrics_from_returns(
         "psi_slope": None,
         "conformal_coverage": conf["conformal_coverage"],
         "conformal_target": conf["conformal_target"],
-        "provenance": provenance,
+        "provenance": provenance_out,
         "extras": {
             "sharpe_hat": sr_hat,
             "skew": skew,
@@ -402,6 +480,11 @@ def build_bundle(spec: dict[str, Any]) -> list[dict[str, Any]]:
                        "alpha": 0.1,
                        "calibration": {"probabilities": [...], "outcomes": [...]},
                        "test": {"probabilities": [...], "outcomes": [...]}
+                    },
+                    "provenance": {                   # optional, EV-17
+                       "bootstrap_method": "bca",      # C3.1 (caller-declared)
+                       "block_size": 64,              # C4.1 (caller-declared)
+                       "stacked_used": true           # C10.1 (caller-declared)
                     }},
             ...
           }
@@ -434,6 +517,7 @@ def build_bundle(spec: dict[str, Any]) -> list[dict[str, Any]]:
                 significance_seed=significance_seed,
                 calibration=payload.get("calibration"),
                 conformal=payload.get("conformal"),
+                provenance=payload.get("provenance"),
             )
         )
 

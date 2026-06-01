@@ -336,4 +336,71 @@ def test_bundle_threads_conformal_per_family() -> None:
     assert by_family["OB"]["conformal_coverage"] is None
 
 
+# EV-17 — caller-declared upstream provenance pass-through.
+
+_STRICT_PROVENANCE = {
+    "bootstrap_method": "bca",
+    "block_size": 64,
+    "stacked_used": True,
+}
+
+
+def test_caller_provenance_is_passed_through() -> None:
+    metrics = build_family_metrics_from_returns(
+        "BOS",
+        _positive_edge_returns(),
+        provenance=dict(_STRICT_PROVENANCE),
+    )
+    prov = metrics["provenance"]
+    # Caller-declared upstream keys appear verbatim...
+    assert prov["bootstrap_method"] == "bca"
+    assert prov["block_size"] == 64
+    assert prov["stacked_used"] is True
+    # ...alongside the keys the producer computes itself.
+    assert prov["psr_method"] == "bailey_lopez_de_prado_2012"
+    assert prov["wf_scheme"] is not None
+
+
+def test_no_caller_provenance_leaves_strict_keys_undeclared() -> None:
+    metrics = build_family_metrics_from_returns("FVG", _positive_edge_returns())
+    prov = metrics["provenance"]
+    # Absent → undeclared → the strict gate blocks honestly.
+    assert "bootstrap_method" not in prov
+    assert "block_size" not in prov
+    assert "stacked_used" not in prov
+
+
+def test_caller_provenance_cannot_override_producer_owned_keys() -> None:
+    with pytest.raises(ValueError, match="may not override producer-owned keys"):
+        build_family_metrics_from_returns(
+            "BOS",
+            _positive_edge_returns(),
+            provenance={"wf_scheme": "forged", "bootstrap_method": "bca"},
+        )
+
+
+def test_caller_provenance_rejects_non_mapping() -> None:
+    with pytest.raises(ValueError, match="provenance must be a mapping"):
+        build_family_metrics_from_returns(
+            "BOS",
+            _positive_edge_returns(),
+            provenance=["bca"],  # type: ignore[arg-type]
+        )
+
+
+def test_bundle_threads_provenance_per_family() -> None:
+    spec = {
+        "periods_per_year": 252,
+        "families": {
+            "BOS": {
+                "returns": _positive_edge_returns(seed=1),
+                "provenance": dict(_STRICT_PROVENANCE),
+            },
+            "OB": {"returns": _positive_edge_returns(seed=2)},
+        },
+    }
+    bundle = build_bundle(spec)
+    by_family = {m["family"]: m for m in bundle}
+    assert by_family["BOS"]["provenance"]["stacked_used"] is True
+    assert "stacked_used" not in by_family["OB"]["provenance"]
 
