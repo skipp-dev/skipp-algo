@@ -231,16 +231,20 @@ jobs:
 
       - name: Build PR / summary body
         if: ${{ always() && steps.run.outputs.archived != '' && steps.run.outputs.archived != '0' }}
+        env:
+          RAN_SYMBOLS: ${{ steps.run.outputs.ran }}
         run: |
           set -uo pipefail
           python - <<'PY' > /tmp/edge_body.md
           import json
+          import os
           from pathlib import Path
 
           reports = sorted(Path("artifacts/edge_runs").glob("*_report.json"))
           print("## EV-20 — first real Databento edge-pipeline run\n")
           print("Real archived promotion decisions (governed; NOT auto-merged).\n")
-          print(f"- symbols ran: `{__import__('os').environ.get('GITHUB_RUN_ID','')}`")
+          ran = os.environ.get("RAN_SYMBOLS", "").strip()
+          print(f"- symbols ran: `{ran or '(none)'}`")
           print(f"- dataset: `${{ inputs.dataset }}` · schema: `${{ inputs.schema }}` · timeframe: `${{ inputs.timeframe }}`")
           print(f"- window: `${{ inputs.start }}` → `${{ inputs.end }}`\n")
           print("| symbol | family | promoted | primary blocker(s) |")
