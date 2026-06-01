@@ -123,6 +123,38 @@ def _first_touch_index(
     return None
 
 
+def _first_invalidation_index(
+    direction_sign: int,
+    zone_low: float,
+    zone_high: float,
+    forward_closes: list[float],
+    *,
+    consecutive: int,
+) -> int | None:
+    """First forward-bar index at which the zone is invalidated by a close breach.
+
+    Long zone: a close below ``zone_low`` breaches the setup; short zone: a
+    close above ``zone_high``. ``consecutive`` breaching closes are required to
+    invalidate (1 for order blocks, 2 for FVGs) — mirroring
+    :func:`smc_core.scoring._zone_touch_before_invalidation` and
+    :func:`smc_core.scoring.label_fvg_mitigation` exactly. For the two-close
+    rule the returned index is the *first* of the two consecutive breaches,
+    matching the label functions' ``invalid_idx = idx - 1`` convention.
+    """
+    if direction_sign == 0:
+        return None
+    streak = 0
+    for idx, close in enumerate(forward_closes):
+        breached = close < zone_low if direction_sign > 0 else close > zone_high
+        if breached:
+            streak += 1
+            if streak >= consecutive:
+                return idx - (consecutive - 1)
+        else:
+            streak = 0
+    return None
+
+
 def _assert_forward_after_anchor(event: FamilyEvent) -> None:
     """Reject forward bars timestamped at or before the anchor.
 
@@ -184,6 +216,17 @@ def realized_return(event: FamilyEvent, *, cost_bps: float = DEFAULT_COST_BPS) -
 
     touch_idx = _first_touch_index(sign, zone_low, zone_high, highs, lows)
     if touch_idx is None:
+        return None
+
+    # Variant-A fix: a retest touch that lands *after* the setup has already
+    # been invalidated is not a tradable mitigation. Mirror the SMC label
+    # semantics exactly — order blocks invalidate on a single close breach,
+    # FVGs on two consecutive close breaches.
+    invalidation_consecutive = 2 if family == "FVG" else 1
+    invalid_idx = _first_invalidation_index(
+        sign, zone_low, zone_high, closes, consecutive=invalidation_consecutive
+    )
+    if invalid_idx is not None and touch_idx > invalid_idx:
         return None
 
     exit_idx = min(touch_idx + horizon, len(closes) - 1)

@@ -24,6 +24,20 @@ Two event geometries map to two entry rules (see ``family_returns``):
     detected break / sweep ``price`` as the entry level. SWEEP direction is
     the *reversal* of the swept side, matching the live scorer.
 
+**Anchor requirement (honest limitation).** Every event needs a formation
+timestamp (``anchor_ts``, or legacy ``time``) to locate its anchor bar; an
+event without one cannot be anchored without fabricating a position in time,
+so it is *dropped* (never anchored to bar 0 or "now"). BOS and SWEEP carry a
+``time`` in the SMC type model and the explicit-recompute path
+(:func:`scripts.explicit_structure_from_bars.build_explicit_structure_from_bars`)
+emits ``anchor_ts`` for OB/FVG zones too — so both anchor cleanly. The raw
+**Pine** OB/FVG serialization (``smc_adapters.pine._ob_entry`` /
+``_fvg_entry``), however, carries no time field because
+:class:`smc_core.types.Orderblock` / :class:`~smc_core.types.Fvg` have none.
+OB/FVG zones taken straight from Pine artifacts are therefore silently
+unanchorable and dropped: use the explicit-recompute path for zone returns
+until the zone types/serialization grow a formation timestamp.
+
 The production path feeds REAL databento bars and REAL detected structure;
 unit tests may feed synthetic bars, but the adapter logic never invents
 prices, touches, or outcomes.

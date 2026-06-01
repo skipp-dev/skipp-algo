@@ -70,6 +70,27 @@ def _to_datetime(value: TimestampLike) -> datetime:
     raise TypeError(f"unsupported timestamp type: {type(value).__name__}")
 
 
+def _as_of_boundary(value: TimestampLike) -> datetime:
+    """Coerce an ``as_of`` boundary to a ``datetime``, end-of-day for bare dates.
+
+    A bare calendar date as a boundary means "all information available
+    through the end of that day". Widening it to midnight (as :func:`_to_datetime`
+    does for record timestamps) would wrongly flag *same-day intraday*
+    timestamps — e.g. ``2026-05-31T15:00:00`` against ``as_of=date(2026, 5, 31)``
+    — as future leaks. Datetimes (and ISO strings carrying a time component)
+    keep their exact instant.
+    """
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, date):
+        return datetime(value.year, value.month, value.day, 23, 59, 59, 999999)
+    if isinstance(value, str) and "T" not in value and ":" not in value:
+        # Date-only ISO string ("YYYY-MM-DD") → treat as end-of-day boundary.
+        parsed = datetime.fromisoformat(value)
+        return parsed.replace(hour=23, minute=59, second=59, microsecond=999999)
+    return _to_datetime(value)
+
+
 def _compare(ts: datetime, as_of: datetime) -> bool:
     """Return True iff ``ts`` is strictly after ``as_of`` (a leak).
 
@@ -98,7 +119,7 @@ def assert_point_in_time(
     sequence of feature/news/label timestamps before they feed a
     backtest metric.
     """
-    boundary = _to_datetime(as_of)
+    boundary = _as_of_boundary(as_of)
     violations: list[tuple[int, datetime]] = []
     for idx, raw in enumerate(timestamps):
         ts = _to_datetime(raw)
@@ -121,7 +142,7 @@ def assert_records_point_in_time(
     or carrying ``None`` is treated as a hard error (a record whose
     point-in-time validity cannot be established must not pass silently).
     """
-    boundary = _to_datetime(as_of)
+    boundary = _as_of_boundary(as_of)
     violations: list[tuple[int, datetime]] = []
     for idx, record in enumerate(records):
         if timestamp_key not in record or record[timestamp_key] is None:
@@ -150,7 +171,7 @@ def filter_point_in_time[T](
     ``databento_reference``'s inline ``date <= as_of`` filter), never as a
     substitute for the tripwire on data that should already be clean.
     """
-    boundary = _to_datetime(as_of)
+    boundary = _as_of_boundary(as_of)
     kept: list[T] = []
     for record in records:
         ts = _to_datetime(key(record))

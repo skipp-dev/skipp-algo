@@ -114,6 +114,28 @@ def test_not_promoted_with_measured_primary_is_no_edge() -> None:
     assert v["blocker_checks"] == ["psr_minimum"]
 
 
+def test_not_promoted_measured_but_underpowered_is_inconclusive_not_no_edge() -> None:
+    family, min_n = _psr_family()
+    # Gate did not promote and the primary metric is measured, but the sample
+    # is below the pre-registered minimum -> we cannot honestly claim "no edge"
+    # on an underpowered sample; the verdict must be inconclusive.
+    report = _report([
+        _decision(
+            family,
+            promoted=False,
+            metrics={"psr": 0.40, "extra.n_returns": float(min_n - 1)},
+            blockers=[{"check": "psr_minimum", "severity": "blocker", "observed": 0.40, "threshold": 0.95, "message": "x"}],
+        )
+    ])
+
+    v = next(x for x in build_verdicts(report) if x["family"] == family)
+
+    assert v["verdict"] == "inconclusive"
+    assert v["sample_adequate"] is False
+    assert any("no_edge claim withheld" in note for note in v["notes"])
+
+
+
 def test_not_promoted_unmeasured_primary_is_inconclusive() -> None:
     family, _ = _psr_family()
     report = _report([_decision(family, promoted=False, metrics={})])

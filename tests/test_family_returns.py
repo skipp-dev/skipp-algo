@@ -153,3 +153,60 @@ def test_default_cost_is_applied() -> None:
     with_default = realized_return(ev)
     explicit = realized_return(ev, cost_bps=DEFAULT_COST_BPS)
     assert with_default == explicit
+
+
+def _invalidated_then_touched_long(family: str) -> FamilyEvent:
+    """Long zone [100, 101]: bar 0 closes below the zone (a breach) without
+    touching it, then bar 1's low dips into the zone (a late retest touch)."""
+    horizon = family_outcome_horizon(family)
+    n = horizon + 4
+    zone_low, zone_high = 100.0, 101.0
+    forward_lows = [98.0, 100.5] + [102.0 + i for i in range(n - 2)]
+    forward_highs = [99.0, 101.0] + [103.0 + i for i in range(n - 2)]
+    forward_closes = [99.0, 100.8] + [101.5 + 0.5 * i for i in range(n - 2)]
+    return {
+        "family": family,  # type: ignore[typeddict-item]
+        "direction": "BULL",
+        "zone_low": zone_low,
+        "zone_high": zone_high,
+        "anchor_ts": 1.0,
+        "forward_highs": forward_highs,
+        "forward_lows": forward_lows,
+        "forward_closes": forward_closes,
+    }
+
+
+def test_orderblock_touch_after_single_close_invalidation_is_excluded() -> None:
+    # OB invalidates on a SINGLE close breach (mirrors smc_core.scoring
+    # label_orderblock_mitigation); the retest touch lands after invalidation
+    # -> not a tradable mitigation, must be excluded rather than counted.
+    assert realized_return(_invalidated_then_touched_long("OB")) is None
+
+
+def test_fvg_survives_single_close_breach_then_touch() -> None:
+    # FVG needs TWO consecutive close breaches to invalidate; a lone breach
+    # before the touch does not kill the setup, so a return is produced.
+    r = realized_return(_invalidated_then_touched_long("FVG"))
+    assert r is not None
+
+
+def test_fvg_two_consecutive_close_breaches_invalidate_before_touch() -> None:
+    horizon = family_outcome_horizon("FVG")
+    n = horizon + 4
+    # Bars 0 and 1 both close below the zone (two consecutive breaches ->
+    # invalidation), bar 2 then retests the zone -> touch is excluded.
+    forward_lows = [98.0, 97.0, 100.5] + [102.0 + i for i in range(n - 3)]
+    forward_highs = [99.0, 98.0, 101.0] + [103.0 + i for i in range(n - 3)]
+    forward_closes = [99.0, 98.5, 100.8] + [101.5 + 0.5 * i for i in range(n - 3)]
+    ev: FamilyEvent = {
+        "family": "FVG",  # type: ignore[typeddict-item]
+        "direction": "BULL",
+        "zone_low": 100.0,
+        "zone_high": 101.0,
+        "anchor_ts": 1.0,
+        "forward_highs": forward_highs,
+        "forward_lows": forward_lows,
+        "forward_closes": forward_closes,
+    }
+    assert realized_return(ev) is None
+

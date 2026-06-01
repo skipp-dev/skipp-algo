@@ -53,6 +53,20 @@ def test_iso_string_and_date_inputs() -> None:
         assert_point_in_time(["2026-06-01T00:00:00"], AS_OF)
 
 
+def test_bare_date_as_of_includes_same_day_intraday() -> None:
+    # A bare-date as_of means "through end of that day"; same-day intraday
+    # timestamps must NOT be flagged as future leaks (EOD boundary semantics).
+    assert_point_in_time(
+        [datetime(2026, 5, 31, 15, 0), datetime(2026, 5, 31, 23, 59, 59)],
+        date(2026, 5, 31),
+    )
+    # A date-only ISO string boundary behaves identically.
+    assert_point_in_time([datetime(2026, 5, 31, 15, 0)], "2026-05-31")
+    # The next calendar day is still a leak.
+    with pytest.raises(LookaheadError):
+        assert_point_in_time([datetime(2026, 6, 1, 0, 0, 1)], date(2026, 5, 31))
+
+
 def test_naive_vs_aware_mismatch_is_loud() -> None:
     aware = datetime(2026, 5, 31, 12, 0, tzinfo=UTC)
     with pytest.raises(ValueError, match="naive and tz-aware"):
