@@ -49,6 +49,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any, TypedDict
 
 from governance.family_returns import FamilyEvent
+from governance.types import EventFamily
 
 # Lookahead windows, mirrored from
 # ``smc_integration.measurement_evidence`` so the forward bars handed to the
@@ -120,7 +121,7 @@ def _zone_event_to_family(
     bars: Sequence[Mapping[str, Any]],
     timestamps: Sequence[float],
     *,
-    family: str,
+    family: EventFamily,
     lookahead_bars: int,
 ) -> FamilyEvent | None:
     low = float(event.get("low", 0.0) or 0.0)
@@ -141,7 +142,7 @@ def _zone_event_to_family(
         return None
 
     return FamilyEvent(
-        family=family,  # type: ignore[typeddict-item]
+        family=family,
         direction=direction,
         entry_mode="retest_touch",
         zone_low=low,
@@ -159,7 +160,7 @@ def _level_event_to_family(
     bars: Sequence[Mapping[str, Any]],
     timestamps: Sequence[float],
     *,
-    family: str,
+    family: EventFamily,
     direction: str,
     lookahead_bars: int,
 ) -> FamilyEvent | None:
@@ -179,7 +180,7 @@ def _level_event_to_family(
         return None
 
     return FamilyEvent(
-        family=family,  # type: ignore[typeddict-item]
+        family=family,
         direction=direction,
         entry_mode="immediate",
         entry_price=price,
