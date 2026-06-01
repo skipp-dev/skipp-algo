@@ -7,9 +7,9 @@
 #
 # It fabricates nothing. For each requested symbol it:
 #   1. pulls REAL Databento OHLCV + detects canonical SMC structure
-#      (scripts/pull_databento_edge_input.py, EV-13), then
+#      (the scripts.pull_databento_edge_input CLI, EV-13), then
 #   2. runs the full edge pipeline -> promotion gate -> honest verdict and
-#      archives the timestamped decision (scripts/run_edge_pipeline.py, EV-10).
+#      archives the timestamped decision (the scripts.run_edge_pipeline CLI, EV-10).
 #
 # Exit-code contract (mirrors run_edge_pipeline / run_promotion_gate):
 #   0 = all families promoted, 2 = at least one family blocked (the EXPECTED,
@@ -24,7 +24,7 @@
 # real evidence before it lands. The reports are also uploaded as a workflow
 # artifact for inspection regardless of the PR path.
 #
-# See docs/edge_first_real_run_runbook.md for the operator procedure.
+# See the edge first-real-run runbook under docs/ for the operator procedure.
 
 name: edge-pipeline-real-run
 
