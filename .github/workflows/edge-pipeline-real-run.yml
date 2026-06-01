@@ -146,7 +146,13 @@ jobs:
         env:
           DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
         run: |
+          # NOTE: GitHub's `shell: bash` default invokes `bash -eo pipefail`, so
+          # errexit is ON unless we disable it. This step DELIBERATELY captures
+          # non-zero exit codes (RC_PULL/RC_RUN) — in particular run_edge_pipeline
+          # exit 2 (family blocked) is the EXPECTED honest result and MUST NOT
+          # abort the step. Turn errexit OFF; keep nounset + pipefail.
           set -uo pipefail
+          set +e
           DATASET="${{ inputs.dataset }}"
           SCHEMA="${{ inputs.schema }}"
           TF="${{ inputs.timeframe }}"
