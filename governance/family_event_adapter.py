@@ -48,6 +48,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any, TypedDict
 
+from governance.family_event_score import raw_score
 from governance.family_returns import FamilyEvent
 from governance.types import EventFamily
 
@@ -141,7 +142,7 @@ def _zone_event_to_family(
     if not closes:
         return None
 
-    return FamilyEvent(
+    mapped = FamilyEvent(
         family=family,
         direction=direction,
         entry_mode="retest_touch",
@@ -153,6 +154,12 @@ def _zone_event_to_family(
         forward_closes=closes,
         forward_timestamps=fwd_ts,
     )
+    score = raw_score(
+        family, bars=bars, anchor_idx=anchor_idx, zone_low=low, zone_high=high
+    )
+    if score is not None:
+        mapped["score"] = score
+    return mapped
 
 
 def _level_event_to_family(
@@ -179,7 +186,7 @@ def _level_event_to_family(
     if not closes:
         return None
 
-    return FamilyEvent(
+    mapped = FamilyEvent(
         family=family,
         direction=direction,
         entry_mode="immediate",
@@ -190,6 +197,10 @@ def _level_event_to_family(
         forward_closes=closes,
         forward_timestamps=fwd_ts,
     )
+    score = raw_score(family, bars=bars, anchor_idx=anchor_idx)
+    if score is not None:
+        mapped["score"] = score
+    return mapped
 
 
 def family_events_from_structure(

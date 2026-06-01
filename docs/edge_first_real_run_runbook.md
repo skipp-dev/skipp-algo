@@ -129,6 +129,41 @@ for a *strict* promotion is the upstream `regime_degraded` boolean (C5), which
 the metrics producer does not compute — it must come from the regime detector,
 never be set blindly to clear the gate.
 
+### 4a. EV-24 — brier / ece are now MEASURED, not "not yet measured"
+
+Before EV-24 the real-run path emitted purely *structural* events with no
+per-event score, so `brier` / `ece` stayed `None` and the gate blocked every
+decision on "calibration not yet measured". EV-24 closes that loop **without
+fabricating anything**:
+
+1. `family_event_adapter` attaches a single, transparent **raw score** per event
+   — an ATR-normalised geometry-strength feature
+   (`atr_normalised_geometry_strength_v1`, `governance/family_event_score.py`).
+   It is point-in-time (trailing ATR only) and is omitted when ATR cannot be
+   computed; the event then stays unscored, never invented.
+2. `family_calibration.walk_forward_calibration` maps that raw score to an
+   **out-of-sample** probability with a 2-parameter Platt logistic fit
+   walk-forward, with a **time-aware purge + family embargo** on the label
+   window so overlapping-label leakage cannot inflate the metric (review GAP 1;
+   López de Prado 2018, ch. 7). Below `MIN_OOS_SAMPLES = 40` pooled OOS points
+   it emits **no block**, leaving the family honestly "not yet measured".
+3. The pooled `(probability, outcome)` pairs flow through `to_build_spec` into
+   the gate, so `brier` / `ece` become a real measurement.
+
+**Honest caveats (do not over-read the number):**
+
+- The calibration target is `sign(return)` — a **win-rate diagnostic, NOT an
+  edge proof** (review GAP 2). A well-calibrated win-rate says nothing about
+  PnL; **PSR / MinTRL / FDR remain the primary edge gate.** This is recorded in
+  the `ev24_calibration_target = sign_return_secondary_diagnostic` provenance.
+- ECE is biased and binning-dependent at small n — prefer **Brier** (GAP 3).
+- A **measured fail is a success of the method, not a failure to fix.** The v1
+  score must NOT be tuned to clear the Brier/ECE caps; doing so would convert an
+  honest measurement back into fabricated evidence.
+- Still deferred (genuinely absent → still `None`): `conformal`, `psi_slope`,
+  `live` / `reference_probabilities` (PSI), and the block-bootstrap Brier CI
+  gate (GAP 4 follow-up).
+
 ---
 
 ## 5. Known load-bearing assumptions (review before trusting numbers)

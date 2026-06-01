@@ -210,3 +210,69 @@ def test_fvg_two_consecutive_close_breaches_invalidate_before_touch() -> None:
     }
     assert realized_return(ev) is None
 
+
+# --- EV-24: calibration block flows through to_build_spec -> build_bundle ---
+
+_DAY = 86_400.0
+
+
+def _scored_immediate_bos(idx: int) -> FamilyEvent:
+    """An immediate-entry BOS event carrying a raw score correlated with its
+    outcome, spaced far enough apart that the walk-forward purge keeps prior
+    training events (guard window << inter-event gap)."""
+    horizon = family_outcome_horizon("BOS")
+    n = horizon + 1
+    anchor = 1_700_000_000.0 + idx * 40.0 * _DAY  # 40d gap >> ~24d guard window
+    win = idx % 2 == 0
+    entry = 100.0
+    close = 101.0 if win else 99.0  # +1% win / -1% loss before cost
+    jitter = 0.1 * ((idx % 5) - 2)  # deterministic, score stays family-separable
+    event: FamilyEvent = {
+        "family": "BOS",  # type: ignore[typeddict-item]
+        "direction": "BULL",
+        "entry_mode": "immediate",
+        "entry_price": entry,
+        "zone_low": 0.0,
+        "zone_high": 0.0,
+        "anchor_ts": anchor,
+        "forward_highs": [close + 1.0] * n,
+        "forward_lows": [close - 1.0] * n,
+        "forward_closes": [close] * n,
+        "forward_timestamps": [anchor + (j + 1) * _DAY for j in range(n)],
+        "score": (2.0 if win else 0.5) + jitter,
+    }
+    return event
+
+
+def test_to_build_spec_emits_calibration_block_and_ev24_provenance() -> None:
+    events = [_scored_immediate_bos(i) for i in range(160)]
+    spec = to_build_spec(events, as_of=1_700_000_000.0 + 200.0 * 40.0 * _DAY)
+
+    bos = spec["families"]["BOS"]
+    block = bos["calibration"]["walkforward"]
+    probs, outcomes = block["probabilities"], block["outcomes"]
+    assert len(probs) == len(outcomes) >= 40
+    assert all(0.0 <= p <= 1.0 for p in probs)
+    assert all(o in (0.0, 1.0) for o in outcomes)
+
+    # EV-24 audit-only provenance is attached alongside the block.
+    prov = bos["provenance"]
+    assert prov["ev24_calibrator"] == "platt_logistic_standardised_v1"
+    assert prov["ev24_calibration_target"] == "sign_return_secondary_diagnostic"
+    assert "ev24_score_source" in prov and "ev24_fold_scheme" in prov
+
+
+def test_calibration_block_yields_measured_brier_in_bundle() -> None:
+    from scripts.build_family_metrics import build_bundle
+
+    events = [_scored_immediate_bos(i) for i in range(160)]
+    spec = to_build_spec(events, as_of=1_700_000_000.0 + 200.0 * 40.0 * _DAY)
+    bundle = build_bundle(spec)
+
+    bos = next(m for m in bundle if m["family"] == "BOS")
+    # The headline gate Brier is now MEASURED (no longer "not yet measured").
+    assert bos["brier"] is not None
+    assert bos["ece"] is not None
+    # Separable score -> out-of-sample Brier beats the 0.25 coin-flip baseline.
+    assert bos["brier"] < 0.25
+
