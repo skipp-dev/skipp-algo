@@ -1,0 +1,309 @@
+# live-window: manual-only  # EV-20 governed first-real-run edge pipeline (Edge-Validation Roadmap Phase 2)
+# EV-20 — first REAL Databento edge-pipeline run (governed, manual-only).
+#
+# This is the credential-bound on-ramp the EV-04..EV-19 stack was built
+# toward: it turns the synthetic/unit-tested evidence machine into the first
+# REAL archived promotion decision under governance/promotion_decisions/.
+#
+# It fabricates nothing. For each requested symbol it:
+#   1. pulls REAL Databento OHLCV + detects canonical SMC structure
+#      (scripts/pull_databento_edge_input.py, EV-13), then
+#   2. runs the full edge pipeline -> promotion gate -> honest verdict and
+#      archives the timestamped decision (scripts/run_edge_pipeline.py, EV-10).
+#
+# Exit-code contract (mirrors run_edge_pipeline / run_promotion_gate):
+#   0 = all families promoted, 2 = at least one family blocked (the EXPECTED,
+#   honest first result), 1 = configuration error (bad input / lookahead leak).
+# A run that produces only exit-2 decisions is a SUCCESS here: it proves the
+# pipeline runs end-to-end on real data and archives a real decision without
+# fabricating a pass. The job fails only on a true config error (exit 1) or if
+# NO decision was archived at all (nothing honest to show).
+#
+# Archiving is a GOVERNED event: the archived decisions are opened as an
+# auto-PR against main and are NOT auto-merged — a human reviews the first
+# real evidence before it lands. The reports are also uploaded as a workflow
+# artifact for inspection regardless of the PR path.
+#
+# See docs/edge_first_real_run_runbook.md for the operator procedure.
+
+name: edge-pipeline-real-run
+
+on:
+  workflow_dispatch:
+    inputs:
+      symbols:
+        description: "Comma-separated instrument symbols. Pick liquid names + a long window so families clear the >=30-triggered-returns PSR floor."
+        required: false
+        type: string
+        default: "AAPL,MSFT,NVDA,AMZN,TSLA"
+      dataset:
+        description: "Databento dataset (e.g. XNAS.ITCH)."
+        required: false
+        type: string
+        default: "XNAS.ITCH"
+      schema:
+        description: "Databento fetch granularity (must be <= timeframe)."
+        required: false
+        type: choice
+        default: "ohlcv-1m"
+        options:
+          - ohlcv-1s
+          - ohlcv-1m
+          - ohlcv-1h
+          - ohlcv-1d
+      timeframe:
+        description: "Structure timeframe (5m/15m/1H/4H/1D)."
+        required: false
+        type: string
+        default: "15m"
+      start:
+        description: "Inclusive window start (ISO date, YYYY-MM-DD, UTC)."
+        required: true
+        type: string
+      end:
+        description: "Exclusive window end (ISO date, YYYY-MM-DD, UTC)."
+        required: true
+        type: string
+      as_of:
+        description: "Point-in-time boundary (ISO or epoch). Empty = last bar timestamp (EV-04 guard auto-armed)."
+        required: false
+        type: string
+        default: ""
+      archive:
+        description: "How to surface the archived decisions."
+        required: false
+        type: choice
+        default: "pr"
+        options:
+          - pr            # open a governed auto-PR against main (NOT auto-merged)
+          - artifact-only # upload reports only; commit nothing
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: edge-pipeline-real-run
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  edge-run:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: ./.github/actions/setup-python-pinned
+        with:
+          cache: "pip"
+          cache-dependency-path: "requirements.txt"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+
+      - name: Validate inputs
+        id: validate
+        run: |
+          set -uo pipefail
+          START="${{ inputs.start }}"
+          END="${{ inputs.end }}"
+          SYMBOLS="${{ inputs.symbols }}"
+          if ! [[ "$START" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+            echo "::error::start must be YYYY-MM-DD; got '$START'"
+            exit 1
+          fi
+          if ! [[ "$END" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+            echo "::error::end must be YYYY-MM-DD; got '$END'"
+            exit 1
+          fi
+          if [[ "$START" > "$END" || "$START" == "$END" ]]; then
+            echo "::error::start ($START) must be strictly before end ($END)"
+            exit 1
+          fi
+          if [ -z "${SYMBOLS// /}" ]; then
+            echo "::error::symbols must be non-empty"
+            exit 1
+          fi
+
+      - name: Run edge pipeline per symbol (REAL Databento)
+        id: run
+        env:
+          DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
+        run: |
+          set -uo pipefail
+          DATASET="${{ inputs.dataset }}"
+          SCHEMA="${{ inputs.schema }}"
+          TF="${{ inputs.timeframe }}"
+          START="${{ inputs.start }}"
+          END="${{ inputs.end }}"
+          AS_OF="${{ inputs.as_of }}"
+          AS_OF_FLAG=()
+          if [ -n "${AS_OF// /}" ]; then
+            AS_OF_FLAG=(--as-of "$AS_OF")
+          fi
+
+          mkdir -p artifacts/edge_runs governance/promotion_decisions
+
+          IFS=',' read -ra SYMS <<< "${{ inputs.symbols }}"
+          ARCHIVED=0
+          CONFIG_ERROR=0
+          declare -a NO_STRUCTURE=()
+          declare -a RAN=()
+
+          for raw in "${SYMS[@]}"; do
+            SYM="$(echo "$raw" | xargs)"
+            [ -z "$SYM" ] && continue
+            IN="artifacts/edge_runs/${SYM}_input.json"
+            REP="artifacts/edge_runs/${SYM}_report.json"
+
+            echo "::group::pull ${SYM}"
+            python -m scripts.pull_databento_edge_input \
+              --symbol "$SYM" \
+              --dataset "$DATASET" \
+              --schema "$SCHEMA" \
+              --timeframe "$TF" \
+              --start "$START" \
+              --end "$END" \
+              "${AS_OF_FLAG[@]}" \
+              --output "$IN"
+            RC_PULL=$?
+            echo "::endgroup::"
+            if [ "$RC_PULL" -ne 0 ]; then
+              echo "::warning::${SYM}: no resampled bars / no detected structure (pull rc=${RC_PULL}); skipping (honest empty, not a failure)"
+              NO_STRUCTURE+=("$SYM")
+              continue
+            fi
+
+            echo "::group::pipeline ${SYM}"
+            python -m scripts.run_edge_pipeline \
+              --input "$IN" \
+              --output "$REP" \
+              --archive-dir governance/promotion_decisions
+            RC_RUN=$?
+            echo "::endgroup::"
+            if [ "$RC_RUN" -eq 1 ]; then
+              echo "::error::${SYM}: pipeline configuration error (rc=1) — see log"
+              CONFIG_ERROR=1
+              continue
+            fi
+            # rc 0 (promoted) or 2 (blocked) both archive a real decision.
+            ARCHIVED=$((ARCHIVED + 1))
+            RAN+=("$SYM")
+          done
+
+          {
+            echo "archived=$ARCHIVED"
+            echo "config_error=$CONFIG_ERROR"
+            echo "ran=${RAN[*]}"
+            echo "no_structure=${NO_STRUCTURE[*]}"
+          } >> "$GITHUB_OUTPUT"
+
+          if [ "$CONFIG_ERROR" -eq 1 ]; then
+            echo "::error::at least one symbol hit a pipeline configuration error; failing loudly"
+            exit 1
+          fi
+          if [ "$ARCHIVED" -eq 0 ]; then
+            echo "::error::no decision was archived (every symbol yielded no structure); nothing honest to show"
+            exit 1
+          fi
+
+      - name: Build PR / summary body
+        if: ${{ always() && steps.run.outputs.archived != '' && steps.run.outputs.archived != '0' }}
+        run: |
+          set -uo pipefail
+          python - <<'PY' > /tmp/edge_body.md
+          import json
+          from pathlib import Path
+
+          reports = sorted(Path("artifacts/edge_runs").glob("*_report.json"))
+          print("## EV-20 — first real Databento edge-pipeline run\n")
+          print("Real archived promotion decisions (governed; NOT auto-merged).\n")
+          print(f"- symbols ran: `{__import__('os').environ.get('GITHUB_RUN_ID','')}`")
+          print(f"- dataset: `${{ inputs.dataset }}` · schema: `${{ inputs.schema }}` · timeframe: `${{ inputs.timeframe }}`")
+          print(f"- window: `${{ inputs.start }}` → `${{ inputs.end }}`\n")
+          print("| symbol | family | promoted | primary blocker(s) |")
+          print("|--------|--------|----------|--------------------|")
+          for rep in reports:
+              sym = rep.name.replace("_report.json", "")
+              try:
+                  payload = json.loads(rep.read_text(encoding="utf-8"))
+              except Exception as exc:  # noqa: BLE001 - surface, don't crash the body
+                  print(f"| {sym} | — | — | unreadable report: {exc} |")
+                  continue
+              decisions = payload.get("decisions") or []
+              if not decisions:
+                  print(f"| {sym} | — | — | no families measured |")
+              for d in decisions:
+                  fam = d.get("family", "?")
+                  promoted = d.get("promoted", False)
+                  blockers = d.get("blockers") or []
+                  names = ", ".join(sorted({b.get("check", "?") for b in blockers})) or "—"
+                  print(f"| {sym} | {fam} | {'yes' if promoted else 'no'} | {names} |")
+          print("\n> Exit-2 (blocked) decisions are the EXPECTED honest first result. ")
+          print("> `governance/promotion_decisions/` was empty before this run.")
+          PY
+          {
+            echo ""
+            echo "---"
+            echo "_Opened by \`edge-pipeline-real-run\` workflow (run ${GITHUB_RUN_ID}). Governed evidence event — review before merge._"
+          } >> /tmp/edge_body.md
+          cat /tmp/edge_body.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload edge-run artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: edge-run-${{ github.run_id }}
+          path: |
+            artifacts/edge_runs/
+            governance/promotion_decisions/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Open governed decision PR
+        if: ${{ inputs.archive == 'pr' && steps.run.outputs.archived != '' && steps.run.outputs.archived != '0' }}
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+        run: |
+          set -uo pipefail
+          BRANCH="data/edge-real-run-${GITHUB_RUN_ID}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local --unset-all http.https://github.com/.extraheader || true
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git checkout -b "$BRANCH"
+          git add governance/promotion_decisions
+          if git diff --cached --quiet; then
+            echo "::notice::no new archived decision files to commit; skipping PR"
+            exit 0
+          fi
+          git commit -m "data(ev-20): first real Databento edge-pipeline decision(s) (run ${GITHUB_RUN_ID})"
+          if ! git push -u origin "$BRANCH"; then
+            echo "::error::git push failed for ${BRANCH}"
+            exit 1
+          fi
+          if ! gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "data(ev-20): first real Databento edge-pipeline decision(s) (run ${GITHUB_RUN_ID})" \
+            --body-file /tmp/edge_body.md; then
+            echo "::error::gh pr create failed for ${BRANCH}"
+            exit 1
+          fi
