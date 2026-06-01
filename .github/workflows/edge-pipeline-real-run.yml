@@ -152,6 +152,9 @@ jobs:
           # exit 2 (family blocked) is the EXPECTED honest result and MUST NOT
           # abort the step. Turn errexit OFF; keep nounset + pipefail.
           set -uo pipefail
+          # silent-skip-ok: rc captured per symbol (RC_PULL/RC_RUN) and surfaced
+          # via ::warning:: + the report summary; exit 2 = family blocked is the
+          # expected honest result, not a failure. Pinned in pin_registry.toml.
           set +e
           DATASET="${{ inputs.dataset }}"
           SCHEMA="${{ inputs.schema }}"
