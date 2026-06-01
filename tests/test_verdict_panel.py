@@ -164,10 +164,20 @@ def test_render_verdict_panel_missing_decision_is_not_evaluated(
 
 
 def test_render_panel_from_archive_end_to_end(tmp_path: Path) -> None:
+    # A no_edge verdict is an affirmative claim ("measured enough samples,
+    # found no edge"), so it requires an adequate observed sample size
+    # (extra.n_returns >= min_sample_n). Without it the honest verdict is
+    # inconclusive, not no_edge.
     _write_report(
         tmp_path,
         "2026-06-08T00-00-00",
-        [_decision("BOS", promoted=False, metrics={"psr": 0.10})],
+        [
+            _decision(
+                "BOS",
+                promoted=False,
+                metrics={"psr": 0.10, "extra.n_returns": 250},
+            )
+        ],
     )
     panel = render_panel_from_archive(tmp_path)
     assert "BOS" in panel
