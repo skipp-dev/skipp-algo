@@ -39,7 +39,14 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any, Literal, TypedDict
 
-from governance.family_walkforward import family_outcome_horizon
+from governance.family_calibration import (
+    CALIBRATOR_TAG,
+    FOLD_SCHEME_TAG,
+    TARGET_TAG,
+    walk_forward_calibration,
+)
+from governance.family_event_score import SCORE_SOURCE
+from governance.family_walkforward import family_outcome_horizon, get_family_config
 from governance.types import EventFamily
 
 # Fixed round-turn transaction cost (bps) subtracted from every realized
@@ -87,6 +94,13 @@ class FamilyEvent(TypedDict, total=False):
     forward_lows: list[float]
     forward_closes: list[float]
     forward_timestamps: list[float]
+    # Optional point-in-time RAW score (EV-24): a single ATR-normalised
+    # geometry-strength feature attached by ``family_event_adapter`` (see
+    # ``governance.family_event_score``). Uncalibrated and unsquashed -- the
+    # walk-forward Platt calibrator maps it to a probability downstream. Absent
+    # when trailing ATR could not be computed (event keeps no score, stays
+    # "not yet measured"). Never invented.
+    score: float
 
 
 def _direction_sign(direction: str) -> int:
@@ -265,6 +279,65 @@ def extract_family_returns(
     return out
 
 
+def _event_bar_interval(forward_timestamps: list[float]) -> float:
+    """Median positive spacing between an event's forward bars (seconds).
+
+    Used to translate the family embargo (in bars) into wall-clock time so the
+    walk-forward purge can guard the label window. ``0.0`` when the window has
+    fewer than two timestamps (embargo then collapses to the label end only).
+    """
+    diffs = sorted(
+        d for first, second in zip(forward_timestamps, forward_timestamps[1:])
+        if (d := float(second) - float(first)) > 0.0
+    )
+    if not diffs:
+        return 0.0
+    return diffs[len(diffs) // 2]
+
+
+def extract_family_calibration_samples(
+    events: list[FamilyEvent], *, cost_bps: float = DEFAULT_COST_BPS
+) -> dict[str, dict[str, list[float]]]:
+    """Per family, collect the inputs the walk-forward calibrator needs.
+
+    For every event that BOTH triggered (a realized return exists) AND carries
+    a raw ``score`` AND forward timestamps, emit a parallel-list bundle
+    ``{family: {"scores", "returns", "anchor_ts", "guard_end_ts"}}``.
+
+    ``guard_end_ts`` is the event's label-window end (the last forward
+    timestamp) PLUS the family embargo expressed in time (``embargo_bars`` *
+    the event's own median bar spacing). The downstream purge keeps a training
+    event only when its ``guard_end_ts`` resolves strictly before a test fold
+    begins, which prevents overlapping-label leakage across the train/test
+    boundary (senior-quant review GAP 1; Lopez de Prado 2018, ch. 7). Events
+    without a score or forward timestamps are excluded -- they cannot be
+    calibrated leak-safely and are never invented into the sample.
+    """
+    out: dict[str, dict[str, list[float]]] = {}
+    for event in events:
+        if "score" not in event:
+            continue
+        forward_ts = event.get("forward_timestamps")
+        if not forward_ts:
+            continue
+        ret = realized_return(event, cost_bps=cost_bps)
+        if ret is None:
+            continue
+        family = event["family"]
+        fts = [float(t) for t in forward_ts]
+        embargo_bars = get_family_config(family).embargo_bars
+        guard_end = fts[-1] + embargo_bars * _event_bar_interval(fts)
+        bucket = out.setdefault(
+            family,
+            {"scores": [], "returns": [], "anchor_ts": [], "guard_end_ts": []},
+        )
+        bucket["scores"].append(float(event["score"]))
+        bucket["returns"].append(ret)
+        bucket["anchor_ts"].append(float(event["anchor_ts"]))
+        bucket["guard_end_ts"].append(guard_end)
+    return out
+
+
 def to_build_spec(
     events: list[FamilyEvent],
     *,
@@ -278,14 +351,42 @@ def to_build_spec(
     downstream PSR producer runs its point-in-time guard against the
     event entry timestamps. Epoch-second floats (``anchor_ts`` / ``as_of``)
     are emitted as ISO-8601 UTC strings, the form the EV-04 guard accepts.
+
+    When events carry raw scores (EV-24), a per-family ``calibration`` block
+    with walk-forward out-of-sample ``(probabilities, outcomes)`` is also
+    emitted so the gate can measure Brier/ECE. Families with too few
+    out-of-sample points emit no block and stay honestly "not yet measured".
+    The calibration target is ``sign(return)`` -- a WIN-RATE diagnostic, NOT an
+    edge proof; PSR/MinTRL/FDR remain the primary edge gate (review GAP 2).
     """
     grouped = extract_family_returns(events, cost_bps=cost_bps)
+    calibration_samples = extract_family_calibration_samples(events, cost_bps=cost_bps)
     families: dict[str, Any] = {}
     for family, bucket in grouped.items():
         entry: dict[str, Any] = {"returns": bucket["returns"]}
         if as_of is not None:
             entry["timestamps"] = [_epoch_to_iso(t) for t in bucket["timestamps"]]
             entry["as_of"] = _epoch_to_iso(as_of)
+        samples = calibration_samples.get(family)
+        if samples is not None:
+            block = walk_forward_calibration(
+                samples["scores"],
+                samples["returns"],
+                samples["anchor_ts"],
+                samples["guard_end_ts"],
+            )
+            if block is not None:
+                entry["calibration"] = block
+                # EV-24 audit-only provenance (the gate ignores unknown keys;
+                # the producer copies these through verbatim). Records exactly
+                # how the calibration probabilities were produced so the OOS
+                # guarantee and the win-rate-not-edge caveat are auditable.
+                entry["provenance"] = {
+                    "ev24_score_source": SCORE_SOURCE,
+                    "ev24_calibrator": CALIBRATOR_TAG,
+                    "ev24_fold_scheme": FOLD_SCHEME_TAG,
+                    "ev24_calibration_target": TARGET_TAG,
+                }
         families[family] = entry
     return {"periods_per_year": periods_per_year, "families": families}
 
