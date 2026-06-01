@@ -29,8 +29,10 @@ EV-15 calibration slice and the conformal coverage by the EV-16 conformal
 slice — both ONLY when the caller supplies genuine ``(probability,
 outcome)`` pairs per family; absent that evidence they stay ``None`` and
 the gate honestly blocks the family as "not yet fully measured" rather
-than being told a fabricated pass. The ``psi_slope`` field stays ``None``
-(it needs the C9 PSI-trend producer).
+than being told a fabricated pass. The ``psi_slope`` field is filled by
+the C9 PSI-trend slice (OLS slope of PSI over consecutive monitoring
+windows) ONLY when the caller supplies those windows, else it stays
+``None`` and the strict gate keeps blocking on "not measured".
 
 The strict-mode provenance keys ``bootstrap_method``/``block_size``/
 ``stacked_used`` are NOT computed here — they describe upstream modelling
@@ -43,7 +45,7 @@ refuses any caller attempt to override a key it computes itself
 forged.
 
 Roadmap pointer: Edge-Validation Roadmap, Phase 2 / stories EV-06, EV-14,
-EV-15, EV-16, EV-17.
+EV-15, EV-16, EV-17, EV-18 (C9 psi_slope).
 """
 from __future__ import annotations
 
@@ -93,6 +95,11 @@ CALIBRATION_METHOD_TAG = "empirical_brier_ece_psi"
 # split-conformal calibration + test set so coverage is measured, not assumed.
 CONFORMAL_METHOD_TAG = "split_conformal_vovk"
 
+# C9 PSI-trend provenance tag. Recorded only when the caller supplies a
+# reference distribution plus >=2 consecutive monitoring windows so the PSI
+# drift slope is measured by OLS, not assumed.
+PSI_TREND_METHOD_TAG = "ols_psi_window_slope"
+
 # EV-17 provenance architecture.
 #
 # Provenance splits into two ownership classes:
@@ -121,6 +128,7 @@ PRODUCER_OWNED_PROVENANCE_KEYS = frozenset({
     "fdr_method",
     "calibration_method",
     "conformal_method",
+    "psi_trend_method",
 })
 
 
@@ -243,6 +251,83 @@ def _calibration_slice(
     return slice_out
 
 
+def _ols_slope(values: list[float]) -> float:
+    """OLS slope of ``values`` regressed on their 0-based index.
+
+    Pure-Python (the module deliberately avoids a numpy dependency). The
+    caller guarantees ``len(values) >= 2`` so the index variance ``den`` is
+    strictly positive.
+    """
+    n = len(values)
+    xbar = (n - 1) / 2.0
+    ybar = sum(values) / n
+    num = 0.0
+    den = 0.0
+    for i, v in enumerate(values):
+        dx = i - xbar
+        num += dx * (v - ybar)
+        den += dx * dx
+    return num / den
+
+
+def _psi_trend_slice(
+    family: str, psi_trend: dict[str, Any] | None
+) -> dict[str, Any]:
+    """Compute the C9 PSI-trend slope from a sequence of monitoring windows.
+
+    Measures whether population drift is WORSENING over time rather than the
+    single-snapshot drift that :func:`_calibration_slice` reports. PSI is
+    computed for each consecutive monitoring window against a fixed reference
+    (training) distribution, an OLS line is fit to that PSI series, and its
+    per-window slope is returned as ``psi_slope``. A positive slope means
+    drift is accelerating; the gate alarms above ``psi_slope_max``
+    (0.05/window by default).
+
+    Filled ONLY from supplied data; absent → ``psi_slope`` stays ``None`` so
+    the strict gate keeps blocking the family on "not yet measured" rather
+    than a fabricated stable trend.
+    """
+    slice_out: dict[str, Any] = {"psi_slope": None, "psi_trend_method": None}
+    if psi_trend is None:
+        return slice_out
+
+    reference = psi_trend.get("reference_probabilities")
+    windows = psi_trend.get("windows")
+    if reference is None or windows is None:
+        raise ValueError(
+            f"{family}: psi_trend needs both 'reference_probabilities' and "
+            "'windows'"
+        )
+    ref = [float(x) for x in reference]
+    if not ref:
+        raise ValueError(
+            f"{family}: psi_trend reference_probabilities must be non-empty"
+        )
+    if any(not 0.0 <= v <= 1.0 for v in ref):
+        raise ValueError(
+            f"{family}: psi_trend reference_probabilities must lie in [0, 1]"
+        )
+    if not isinstance(windows, list) or len(windows) < 2:
+        raise ValueError(
+            f"{family}: psi_trend.windows needs at least 2 windows to fit a slope"
+        )
+
+    psi_series: list[float] = []
+    for idx, window in enumerate(windows):
+        w = [float(x) for x in window]
+        if not w:
+            raise ValueError(f"{family}: psi_trend.windows[{idx}] must be non-empty")
+        if any(not 0.0 <= v <= 1.0 for v in w):
+            raise ValueError(
+                f"{family}: psi_trend.windows[{idx}] must lie in [0, 1]"
+            )
+        psi_series.append(population_stability_index(ref, w))
+
+    slice_out["psi_slope"] = _ols_slope(psi_series)
+    slice_out["psi_trend_method"] = PSI_TREND_METHOD_TAG
+    return slice_out
+
+
 def _conformal_slice(
     family: str, conformal: dict[str, Any] | None
 ) -> dict[str, float | None]:
@@ -297,6 +382,7 @@ def build_family_metrics_from_returns(
     significance_seed: int = 0,
     calibration: dict[str, Any] | None = None,
     conformal: dict[str, Any] | None = None,
+    psi_trend: dict[str, Any] | None = None,
     provenance: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Compute the PSR/MinTRL slice of a ``FamilyMetrics`` dict for *family*.
@@ -327,6 +413,13 @@ def build_family_metrics_from_returns(
         the calibration block and its empirical coverage is measured on
         the test block, filling ``conformal_coverage`` and
         ``conformal_target`` (= 1 - alpha). Omitted leaves both ``None``.
+    psi_trend:
+        Optional per-family PSI-trend evidence (C9). A mapping with
+        ``reference_probabilities`` plus ``windows`` (a list of >=2
+        consecutive monitoring probability arrays). PSI is computed per
+        window against the reference and an OLS slope is fit to the series,
+        filling ``psi_slope``. Omitted leaves ``psi_slope`` ``None`` so the
+        gate keeps blocking on "not yet measured".
     provenance:
         Optional caller-declared upstream provenance (EV-17): metadata the
         producer cannot compute because it only receives the resulting
@@ -412,6 +505,11 @@ def build_family_metrics_from_returns(
     # measured ONLY from supplied calibration+test pairs, else None.
     conf = _conformal_slice(family, conformal)
 
+    # C9 PSI-trend slice: OLS slope of PSI over consecutive monitoring
+    # windows vs a fixed reference, measured ONLY from supplied windows,
+    # else None so the strict gate keeps blocking on "not measured".
+    psi_trend_res = _psi_trend_slice(family, psi_trend)
+
     provenance_out: dict[str, Any] = {
         "wf_scheme": config.scheme,
         "wf_embargo_bars": config.embargo_bars,
@@ -424,6 +522,8 @@ def build_family_metrics_from_returns(
         provenance_out["calibration_method"] = cal["calibration_method"]
     if conf["conformal_method"] is not None:
         provenance_out["conformal_method"] = conf["conformal_method"]
+    if psi_trend_res["psi_trend_method"] is not None:
+        provenance_out["psi_trend_method"] = psi_trend_res["psi_trend_method"]
 
     # EV-17: merge caller-declared upstream provenance (bootstrap_method,
     # block_size, stacked_used, ...) the producer cannot compute itself.
@@ -444,8 +544,8 @@ def build_family_metrics_from_returns(
         "psi": cal["psi"],
         "live_brier": cal["live_brier"],
         "walkforward_brier": cal["walkforward_brier"],
-        # Honestly not measured by this producer (other C-sprints own them):
-        "psi_slope": None,
+        # C9: filled from supplied PSI monitoring windows, else None.
+        "psi_slope": psi_trend_res["psi_slope"],
         "conformal_coverage": conf["conformal_coverage"],
         "conformal_target": conf["conformal_target"],
         "provenance": provenance_out,
@@ -480,6 +580,10 @@ def build_bundle(spec: dict[str, Any]) -> list[dict[str, Any]]:
                        "alpha": 0.1,
                        "calibration": {"probabilities": [...], "outcomes": [...]},
                        "test": {"probabilities": [...], "outcomes": [...]}
+                    },
+                    "psi_trend": {                    # optional, C9
+                       "reference_probabilities": [...],
+                       "windows": [[...], [...], ...]  # >=2 windows
                     },
                     "provenance": {                   # optional, EV-17
                        "bootstrap_method": "bca",      # C3.1 (caller-declared)
@@ -517,6 +621,7 @@ def build_bundle(spec: dict[str, Any]) -> list[dict[str, Any]]:
                 significance_seed=significance_seed,
                 calibration=payload.get("calibration"),
                 conformal=payload.get("conformal"),
+                psi_trend=payload.get("psi_trend"),
                 provenance=payload.get("provenance"),
             )
         )
