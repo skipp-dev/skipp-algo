@@ -122,6 +122,21 @@ def test_unknown_sweep_side_is_dropped() -> None:
     assert family_events_from_structure(structure, bars) == []
 
 
+def test_pine_style_zone_without_anchor_is_dropped() -> None:
+    # Raw Pine OB/FVG payloads carry no time/anchor_ts (smc_core.types.Orderblock
+    # / Fvg have no formation timestamp). Such zones cannot be anchored without
+    # fabricating a position in time, so the adapter drops them rather than
+    # anchoring to bar 0. Zone returns require the explicit-recompute path,
+    # which emits anchor_ts. This guards the documented honest limitation.
+    bars = _bars([100.0 + i for i in range(20)])
+    structure = {
+        "orderblocks": [{"id": "ob1", "low": 99.0, "high": 101.0, "dir": "BULL"}],
+        "fvg": [{"id": "f1", "low": 99.0, "high": 101.0, "dir": "BULL"}],
+    }
+
+    assert family_events_from_structure(structure, bars) == []
+
+
 
 def test_round_trip_through_build_family_metrics() -> None:
     bos_events = []

@@ -155,10 +155,15 @@ def _build_one(
                 "edge claim withheld"
             )
     else:
-        if measured:
+        if measured and sample_adequate:
             base["verdict"] = "no_edge"
         else:
             base["verdict"] = "inconclusive"
+            if measured and not sample_adequate:
+                base["notes"].append(
+                    "gate did not promote but pre-registered sample size "
+                    "not met; no_edge claim withheld"
+                )
 
     return base
 

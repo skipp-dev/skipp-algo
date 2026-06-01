@@ -18,7 +18,7 @@ in `governance/promotion_decisions/` — the thing that turns "tool" into
 | --- | --- |
 | `DATABENTO_API_KEY` exported in the shell | `echo $env:DATABENTO_API_KEY` is non-empty |
 | Databento entitlement for the target dataset/schema | dataset access confirmed in the Databento portal |
-| Python venv active | `& c:\Users\preus\skipp-algo\.venv\Scripts\python.exe -V` |
+| Python venv active | `& ..\.venv\Scripts\python.exe -V` |
 | Working dir | run all commands from the nested `skipp-algo/skipp-algo` code dir |
 
 The API key is read from the environment. **Never** pass it on the command
@@ -35,7 +35,7 @@ on — not the raw fetch granularity — so the pipeline's anchor / forward-wind
 arithmetic matches the live scorer.
 
 ```powershell
-& c:\Users\preus\skipp-algo\.venv\Scripts\python.exe -m scripts.pull_databento_edge_input `
+& ..\.venv\Scripts\python.exe -m scripts.pull_databento_edge_input `
   --symbol AAPL `
   --dataset XNAS.ITCH `
   --schema ohlcv-1m `
@@ -68,7 +68,7 @@ window long enough that the families you care about clear 30 triggered events.
 ## 2. Run the pipeline → archive the decision + verdict
 
 ```powershell
-& c:\Users\preus\skipp-algo\.venv\Scripts\python.exe -m scripts.run_edge_pipeline `
+& ..\.venv\Scripts\python.exe -m scripts.run_edge_pipeline `
   --input  artifacts/edge_runs/AAPL_15m_input.json `
   --output artifacts/edge_runs/AAPL_15m_report.json `
   --archive-dir governance/promotion_decisions
@@ -95,7 +95,7 @@ archived: governance/promotion_decisions/promotion_decisions_2026-06-01T....json
 The archived report drives the EV-08 verdict and the EV-09 panel:
 
 ```powershell
-& c:\Users\preus\skipp-algo\.venv\Scripts\python.exe -m governance.family_verdict `
+& ..\.venv\Scripts\python.exe -m governance.family_verdict `
   --report (Get-ChildItem governance/promotion_decisions/promotion_decisions_*.json | Sort-Object Name | Select-Object -Last 1).FullName
 ```
 
@@ -111,15 +111,23 @@ Verdict semantics (anti-HARKing, EV-08):
 
 ## 4. Expected first-run outcome (set expectations)
 
-`scripts/build_family_metrics.py` is an EV-06 **scaffold**: it measures only
-**PSR** and **MinTRL**. The remaining gate metrics (brier, ece, fdr_pvalue, psi,
-conformal, live/wf) are honestly left `None`, so the gate will block those
-families as "not yet fully measured". **A first run that returns exit `2` with
-mostly `inconclusive` verdicts is the correct, honest result** — it proves the
-pipeline runs end-to-end on real data and archives a real decision, without
-fabricating a pass. `edge_supported` only becomes reachable once the C-sprint
-metric producers (C3 BCa bootstrap, C4 block permutation, C9 PSI, C10 conformal)
-are wired in.
+`scripts/build_family_metrics.py` started as an EV-06 scaffold but the C-sprint
+producers are now wired: it computes **PSR** and **MinTRL** from the returns
+directly, the raw per-family p-value whose **`fdr_pvalue`** is filled as a
+Benjamini–Hochberg q-value at the bundle level (EV-16), and — *when the caller
+supplies the corresponding evidence* — **brier / ece / psi** (EV-15 calibration
+pairs), **conformal** (EV-17 block) and **`psi_slope`** (EV-18 monitoring
+windows). None of these are hardcoded `None` any more; a metric is left `None`
+only when its evidence is genuinely absent, and the gate then blocks that family
+honestly rather than guessing.
+
+**A first run that returns exit `2` with mostly `inconclusive` verdicts is still
+a correct, honest result** when the optional calibration/conformal/psi_trend
+evidence is not yet assembled — it proves the pipeline runs end-to-end on real
+data and archives a real decision without fabricating a pass. The remaining gap
+for a *strict* promotion is the upstream `regime_degraded` boolean (C5), which
+the metrics producer does not compute — it must come from the regime detector,
+never be set blindly to clear the gate.
 
 ---
 

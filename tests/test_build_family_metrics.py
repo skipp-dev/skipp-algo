@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 
+from governance.point_in_time import LookaheadError
 from scripts.build_family_metrics import (
     build_bundle,
     build_family_metrics_from_returns,
@@ -53,7 +54,7 @@ def test_lookahead_timestamp_is_rejected() -> None:
     # Last timestamp is after as_of → must raise (EV-04 negative control).
     timestamps = [f"2026-01-{(i % 28) + 1:02d}T10:00:00" for i in range(40)]
     timestamps[-1] = "2026-12-31T10:00:00"
-    with pytest.raises(Exception):  # noqa: B017 - LookaheadError subclasses ValueError
+    with pytest.raises(LookaheadError, match="lookahead leak"):
         build_family_metrics_from_returns(
             "BOS", returns, timestamps=timestamps, as_of="2026-06-30T23:59:59"
         )
