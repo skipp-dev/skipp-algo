@@ -209,3 +209,170 @@ def test_verdict_report_uses_real_register_metric() -> None:
         hyp = get_hypothesis(verdict["family"])
         assert verdict["primary_metric"] == hyp["primary_metric"]
         assert verdict["min_sample_n"] == hyp["min_sample_n"]
+
+
+# --- ADR-0015 two-tier taxonomy -------------------------------------------
+
+
+def test_calibration_only_block_is_tier1_edge_not_tier2() -> None:
+    # Gate did NOT promote, blocked solely by a calibration check
+    # (brier_threshold). The edge proof is intact -> tier-1 edge_supported,
+    # but tier-2 risk_sizeable is withheld.
+    family, min_n = _psr_family()
+    report = _report([
+        _decision(
+            family,
+            promoted=False,
+            metrics={"psr": 0.97, "extra.n_returns": float(min_n)},
+            blockers=[{
+                "check": "brier_threshold",
+                "severity": "blocker",
+                "observed": 0.24,
+                "threshold": 0.22,
+                "message": "brier above bar",
+            }],
+        )
+    ])
+
+    v = next(x for x in build_verdicts(report) if x["family"] == family)
+
+    assert v["verdict"] == "edge_supported"
+    assert v["risk_sizeable"] is False
+    assert any("risk_sizeable withheld" in note for note in v["notes"])
+
+
+def test_fully_promoted_is_tier2_risk_sizeable() -> None:
+    family, min_n = _psr_family()
+    report = _report([
+        _decision(
+            family,
+            promoted=True,
+            metrics={"psr": 0.97, "extra.n_returns": float(min_n)},
+        )
+    ])
+
+    v = next(x for x in build_verdicts(report) if x["family"] == family)
+
+    assert v["verdict"] == "edge_supported"
+    assert v["risk_sizeable"] is True
+
+
+def test_edge_blocker_stays_no_edge_and_not_sizeable() -> None:
+    # A real edge blocker (psr_minimum) keeps the family out of both tiers.
+    family, min_n = _psr_family()
+    report = _report([
+        _decision(
+            family,
+            promoted=False,
+            metrics={"psr": 0.40, "extra.n_returns": float(min_n)},
+            blockers=[{
+                "check": "psr_minimum",
+                "severity": "blocker",
+                "observed": 0.40,
+                "threshold": 0.95,
+                "message": "x",
+            }],
+        )
+    ])
+
+    v = next(x for x in build_verdicts(report) if x["family"] == family)
+
+    assert v["verdict"] == "no_edge"
+    assert v["risk_sizeable"] is False
+
+
+def test_calibration_only_block_is_not_a_contradiction(tmp_path) -> None:
+    # A tier-1 edge_supported family the gate did not fully promote (calibration
+    # block) must NOT trip the contradiction CI gate (promoted is False).
+    family, min_n = _psr_family()
+    report = _report([
+        _decision(
+            family,
+            promoted=False,
+            metrics={"psr": 0.97, "extra.n_returns": float(min_n)},
+            blockers=[{
+                "check": "ece_threshold",
+                "severity": "blocker",
+                "observed": 0.08,
+                "threshold": 0.05,
+                "message": "ece above bar",
+            }],
+        )
+    ])
+    report_path = tmp_path / "report.json"
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+
+    rc = main(["--report", str(report_path)])
+
+    assert rc == 0
+
+
+def test_edge_metrics_clear_but_integrity_unmeasured_is_inconclusive() -> None:
+    # Mirrors the real archive: strong edge metrics, only calibration hard
+    # blockers, but integrity/provenance guards are unmeasured (info). The
+    # honest verdict is inconclusive (cannot certify the edge), NOT no_edge
+    # and NOT edge_supported.
+    family, min_n = _psr_family()
+    report = _report([
+        _decision(
+            family,
+            promoted=False,
+            metrics={"psr": 0.99, "extra.n_returns": float(min_n)},
+            blockers=[
+                {"check": "brier_threshold", "severity": "blocker",
+                 "observed": 0.24, "threshold": 0.22, "message": "x"},
+                {"check": "regime_degraded", "severity": "info",
+                 "observed": None, "threshold": 0.0, "message": "unmeasured"},
+                {"check": "conformal_coverage", "severity": "info",
+                 "observed": None, "threshold": 0.0, "message": "unmeasured"},
+            ],
+        )
+    ])
+
+    v = next(x for x in build_verdicts(report) if x["family"] == family)
+
+    assert v["verdict"] == "inconclusive"
+    assert v["risk_sizeable"] is False
+    assert any("not yet measured" in note for note in v["notes"])
+
+
+def test_unmeasured_calibration_is_tier1_not_inconclusive_not_sizeable() -> None:
+    # Strong edge metrics, integrity guards clear, but a calibration check is
+    # merely *unmeasured* (info severity). ADR-0015: calibration must not veto
+    # tier 1, so the verdict is edge_supported -- NOT inconclusive -- while
+    # tier-2 risk_sizeable stays withheld (calibration not measured-and-clear).
+    family, min_n = _psr_family()
+    report = _report([
+        _decision(
+            family,
+            promoted=False,
+            metrics={"psr": 0.99, "extra.n_returns": float(min_n)},
+            blockers=[
+                {"check": "brier_ci_upper", "severity": "info",
+                 "observed": None, "threshold": 0.22, "message": "unmeasured"},
+            ],
+        )
+    ])
+
+    v = next(x for x in build_verdicts(report) if x["family"] == family)
+
+    assert v["verdict"] == "edge_supported"
+    assert v["risk_sizeable"] is False
+    assert any("risk_sizeable" in note and "brier_ci_upper" in note
+               for note in v["notes"])
+
+
+def test_risk_sizeable_count_in_report() -> None:
+    family, min_n = _psr_family()
+    built = build_verdict_report(
+        _report([
+            _decision(
+                family,
+                promoted=True,
+                metrics={"psr": 0.97, "extra.n_returns": float(min_n)},
+            )
+        ])
+    )
+
+    assert built["risk_sizeable_count"] == 1
+
