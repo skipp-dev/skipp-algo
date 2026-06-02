@@ -6,6 +6,27 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-02) — ADR-0019 step 2: record the order-flow feature for the A/B
+
+Builds on step 1 (the `relative_volume_at` extractor). Captures the candidate
+feature on every real event and pairs it with outcomes, so the pre-registered
+purged walk-forward A/B (ADR-0019) has the per-event `(feature, outcome)` data
+it needs — still **without** touching the v1 score, `SCORE_SOURCE`, or the gate.
+
+- `governance/family_event_adapter` now records an optional `relative_volume`
+  on each `FamilyEvent` (mirroring how `score` / `regime` are attached),
+  computed leak-free from the trailing bars and omitted when volume is absent.
+- New optional `FamilyEvent` field `relative_volume` (recorded only — not a
+  calibration input, not a gate input).
+- New pure `governance/family_returns.extract_family_feature_samples`: per
+  family, collects the recorded feature paired with the binary sign-of-return
+  `outcomes` label (the same target `family_calibration` grades the v1 score
+  on) plus `anchor_ts`. Measurement groundwork for the A/B; it does not
+  calibrate, score, or gate anything.
+- 5 new tests pin the recording and extraction semantics
+  (`tests/test_family_relative_volume_recording.py`); existing adapter/score
+  suites stay green.
+
 ### Added (2026-06-02) — ADR-0019 step 1: point-in-time order-flow extractor (family score v2)
 
 The verified resolution feature-gap analysis
