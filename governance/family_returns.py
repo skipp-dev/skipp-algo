@@ -36,6 +36,7 @@ Roadmap pointer: Edge-Validation Roadmap, Phase 2 / story EV-06b.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any, Literal, TypedDict
 
@@ -109,6 +110,15 @@ class FamilyEvent(TypedDict, total=False):
     # trailing window is too short or perfectly flat. Used to stratify realized
     # returns for the C5.1 ``regime_degraded`` gate check. Never invented.
     regime: str
+    # Optional point-in-time order-flow feature (ADR-0019 v2 candidate): the
+    # formation-bar volume over its trailing mean (see
+    # ``governance.family_score_features_v2.relative_volume_at``). RECORDED
+    # ONLY -- it is NOT a calibration input and does NOT feed the gate; it is
+    # captured alongside outcomes so the pre-registered purged walk-forward A/B
+    # (ADR-0019) can evaluate whether it lifts resolution before any wiring.
+    # Absent when volume is missing or the trailing baseline is degenerate.
+    # Never invented.
+    relative_volume: float
 
 
 def _direction_sign(direction: str) -> int:
@@ -386,6 +396,58 @@ def extract_family_regime_samples(
         )
         bucket["returns"].append(ret)
         bucket["regimes"].append(str(regime))
+        bucket["anchor_ts"].append(float(event["anchor_ts"]))
+    return out
+
+
+class FeatureSamples(TypedDict):
+    """Per-family parallel lists the ADR-0019 A/B harness consumes.
+
+    ``outcomes`` is the binary sign-of-return label (1.0 iff the realized net
+    return is positive), matching ``family_calibration``'s target so the A/B
+    measures resolution against the same label the v1 score is graded on.
+    """
+
+    feature: list[float]
+    outcomes: list[float]
+    anchor_ts: list[float]
+
+
+def extract_family_feature_samples(
+    events: list[FamilyEvent],
+    *,
+    feature_key: str = "relative_volume",
+    cost_bps: float = DEFAULT_COST_BPS,
+) -> dict[str, FeatureSamples]:
+    """Per family, collect a recorded v2 candidate feature paired with outcomes.
+
+    For every event that BOTH triggered (a realized return exists) AND carries
+    the recorded ``feature_key`` (e.g. the ADR-0019 ``relative_volume``), emit
+    a parallel-list bundle ``{family: {"feature", "outcomes", "anchor_ts"}}``.
+    ``outcomes`` is the binary sign-of-return label (1.0 iff the net return is
+    positive), the same target ``family_calibration`` grades the v1 score on.
+
+    This is **measurement groundwork only**: it does not calibrate, score, or
+    gate anything. It hands the pre-registered purged walk-forward A/B
+    (ADR-0019) the per-event ``(feature, outcome, anchor_ts)`` it needs to test
+    whether the candidate feature lifts resolution. Events without the feature
+    are excluded -- the feature is recorded omitted-not-zero-filled upstream and
+    is never invented into the sample here.
+    """
+    out: dict[str, FeatureSamples] = {}
+    for event in events:
+        if feature_key not in event:
+            continue
+        ret = realized_return(event, cost_bps=cost_bps)
+        if ret is None:
+            continue
+        family = event["family"]
+        bucket = out.setdefault(
+            family, {"feature": [], "outcomes": [], "anchor_ts": []}
+        )
+        event_view: Mapping[str, Any] = event
+        bucket["feature"].append(float(event_view[feature_key]))
+        bucket["outcomes"].append(1.0 if ret > 0.0 else 0.0)
         bucket["anchor_ts"].append(float(event["anchor_ts"]))
     return out
 
