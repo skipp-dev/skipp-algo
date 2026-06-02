@@ -336,6 +336,32 @@ def test_edge_metrics_clear_but_integrity_unmeasured_is_inconclusive() -> None:
     assert any("not yet measured" in note for note in v["notes"])
 
 
+def test_unmeasured_calibration_is_tier1_not_inconclusive_not_sizeable() -> None:
+    # Strong edge metrics, integrity guards clear, but a calibration check is
+    # merely *unmeasured* (info severity). ADR-0015: calibration must not veto
+    # tier 1, so the verdict is edge_supported -- NOT inconclusive -- while
+    # tier-2 risk_sizeable stays withheld (calibration not measured-and-clear).
+    family, min_n = _psr_family()
+    report = _report([
+        _decision(
+            family,
+            promoted=False,
+            metrics={"psr": 0.99, "extra.n_returns": float(min_n)},
+            blockers=[
+                {"check": "brier_ci_upper", "severity": "info",
+                 "observed": None, "threshold": 0.22, "message": "unmeasured"},
+            ],
+        )
+    ])
+
+    v = next(x for x in build_verdicts(report) if x["family"] == family)
+
+    assert v["verdict"] == "edge_supported"
+    assert v["risk_sizeable"] is False
+    assert any("risk_sizeable" in note and "brier_ci_upper" in note
+               for note in v["notes"])
+
+
 def test_risk_sizeable_count_in_report() -> None:
     family, min_n = _psr_family()
     built = build_verdict_report(

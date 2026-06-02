@@ -154,18 +154,29 @@ def _build_one(
     # is an *unmeasured* guard (strict-provenance "not yet measured"), which
     # cannot certify an edge but is not itself a failure. A ``warning`` never
     # prevents promotion and is excluded.
+    #
+    # Concern matters as much as severity: the calibration checks evidence
+    # tier-2 sizing only, so neither a *measured* calibration failure nor an
+    # *unmeasured* calibration check may veto tier-1 ``edge_supported`` (they
+    # withhold ``risk_sizeable`` instead). Only the non-calibration guards
+    # gate tier 1.
     hard_blocking = {
         str(b.get("check"))
         for b in blockers
         if isinstance(b, Mapping) and b.get("severity") == "blocker"
     }
-    unmeasured_guards = sorted(
+    unmeasured = {
         str(b.get("check"))
         for b in blockers
         if isinstance(b, Mapping) and b.get("severity") == "info"
-    )
+    }
+    # Tier-1 gating: a genuine edge failure (hard, non-calibration).
     edge_hard_blocking = sorted(hard_blocking - _CALIBRATION_CHECKS)
-    calibration_hard_blocking = sorted(hard_blocking & _CALIBRATION_CHECKS)
+    # Tier-1 gating: a non-calibration guard the gate could not yet measure.
+    unmeasured_guards = sorted(unmeasured - _CALIBRATION_CHECKS)
+    # Tier-2 gating: calibration that either failed (measured) or is not yet
+    # measured. Either state withholds sizing but never vetoes the edge proof.
+    calibration_blocking = sorted((hard_blocking | unmeasured) & _CALIBRATION_CHECKS)
 
     # The gate only writes a metric label into ``metrics`` when it was
     # genuinely measured; a None metric surfaces as an info-blocker instead.
@@ -195,10 +206,11 @@ def _build_one(
 
     # ADR-0015 two-tier verdict. The order of checks is load-bearing:
     #   1. a genuine *edge-failure* hard blocker -> no_edge,
-    #   2. else an *unmeasured* integrity/provenance guard -> inconclusive
+    #   2. else an *unmeasured* non-calibration guard -> inconclusive
     #      (strong edge metrics cannot be certified without the guards),
     #   3. else tier-1 edge_supported; tier-2 risk_sizeable additionally
-    #      requires the calibration checks (brier/ece) to clear.
+    #      requires the calibration checks (brier/ece) to be measured and
+    #      clear.
     if measured and sample_adequate:
         if edge_hard_blocking:
             base["verdict"] = "no_edge"
@@ -207,19 +219,19 @@ def _build_one(
             base["verdict"] = "inconclusive"
             base["risk_sizeable"] = False
             base["notes"].append(
-                "edge metrics clear but integrity/provenance guards "
+                "edge metrics clear but guards "
                 f"{unmeasured_guards} not yet measured; edge certification "
-                "withheld (ADR-0015 tier-1 requires measured integrity)"
+                "withheld (ADR-0015 tier-1 requires these measured)"
             )
         else:
             base["verdict"] = "edge_supported"
-            base["risk_sizeable"] = not calibration_hard_blocking
-            if calibration_hard_blocking:
+            base["risk_sizeable"] = not calibration_blocking
+            if calibration_blocking:
                 base["notes"].append(
                     "tier-1 edge_supported: primary edge metrics and "
-                    "integrity guards clear; tier-2 risk_sizeable withheld "
-                    f"\u2014 calibration checks {calibration_hard_blocking} "
-                    "still block (ADR-0015)"
+                    "non-calibration guards clear; tier-2 risk_sizeable "
+                    f"withheld \u2014 calibration checks {calibration_blocking} "
+                    "not measured-and-clear (ADR-0015)"
                 )
     else:
         base["verdict"] = "inconclusive"
