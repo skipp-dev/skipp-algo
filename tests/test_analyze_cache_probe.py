@@ -134,3 +134,125 @@ def test_main_legacy_mode_iterates_root(
     assert "run_a" in out
     assert "rate=50.00%" in out
     assert "daily_bars" in out
+
+
+# --- #2398 symbol-drift mode ------------------------------------------------
+
+_SD_MIN = "databento_volatility_cache/symbol_detail_minute/XNAS_ITCH"
+_SD_SEC = "databento_volatility_cache/symbol_detail_second/XNAS_ITCH"
+
+
+def _sd_path(family_dir: str, date: str, sym: str) -> str:
+    return f"/cache/{family_dir}/{date}__{sym}__Europe_Berlin__152000__abc.parquet"
+
+
+def test_parse_symbol_date_extracts_symbol_and_date() -> None:
+    parsed = acp.parse_symbol_date(_sd_path(_SD_MIN, "2026-04-24", "CHARR"))
+    assert parsed == ("symbol_detail_minute", "CHARR", "2026-04-24")
+
+
+def test_parse_symbol_date_handles_windows_separators() -> None:
+    p = r"C:\cache\databento_volatility_cache\symbol_detail_second\XNAS\2026-05-01__UZX__tz__x.parquet"
+    assert acp.parse_symbol_date(p) == ("symbol_detail_second", "UZX", "2026-05-01")
+
+
+def test_parse_symbol_date_returns_none_for_universe_wide_path() -> None:
+    # No `<date>__<symbol>__` prefix -> not a per-symbol path.
+    p = "/cache/databento_volatility_cache/intraday_summary/XNAS/summary.parquet"
+    assert acp.parse_symbol_date(p) is None
+
+
+def test_parse_symbol_date_returns_none_for_unrelated_path() -> None:
+    assert acp.parse_symbol_date("/tmp/2026-01-01__X__y.parquet") is None
+
+
+def test_symbol_drift_report_quantifies_selection_drift(
+    tmp_path: pathlib.Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    run1 = tmp_path / "run1"
+    run2 = tmp_path / "run2"
+    # 3 symbols in run1, 1 stable (CHARR same date) + 2 dropped; run2 adds 2 new.
+    _write_shard(run1, 1, [
+        {"path": _sd_path(_SD_MIN, "2026-04-24", "CHARR"), "hit": False},
+        {"path": _sd_path(_SD_MIN, "2026-04-30", "ORGNW"), "hit": False},
+        {"path": _sd_path(_SD_MIN, "2026-05-05", "YMAT"), "hit": False},
+    ])
+    _write_shard(run2, 1, [
+        {"path": _sd_path(_SD_MIN, "2026-04-24", "CHARR"), "hit": True},
+        {"path": _sd_path(_SD_MIN, "2026-05-10", "BNCWZ"), "hit": False},
+        {"path": _sd_path(_SD_MIN, "2026-05-12", "TLIH"), "hit": False},
+    ])
+    rc = acp.symbol_drift_report([run1, run2], "symbol_detail_")
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "symbol_detail_minute" in out
+    assert "stable=['CHARR']" in out
+    assert "new=['BNCWZ', 'TLIH']" in out
+    assert "dropped=['ORGNW', 'YMAT']" in out
+    # symbol Jaccard = |{CHARR}| / |{CHARR,ORGNW,YMAT,BNCWZ,TLIH}| = 1/5 = 20%
+    assert "symbol_jaccard= 20.00%" in out
+    # (symbol,date) overlap = {(CHARR,2026-04-24)} / 3 = 33.33%
+    assert "overlap=1/3 =  33.33%" in out
+
+
+def test_symbol_drift_report_filters_by_prefix(
+    tmp_path: pathlib.Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    run1 = tmp_path / "run1"
+    run2 = tmp_path / "run2"
+    rows1 = [
+        {"path": _sd_path(_SD_SEC, "2026-04-24", "CHARR"), "hit": False},
+        {"path": "/cache/databento_volatility_cache/daily_bars/XNAS/d.parquet", "hit": True},
+    ]
+    rows2 = [
+        {"path": _sd_path(_SD_SEC, "2026-04-24", "CHARR"), "hit": True},
+    ]
+    _write_shard(run1, 1, rows1)
+    _write_shard(run2, 1, rows2)
+    rc = acp.symbol_drift_report([run1, run2], "symbol_detail_")
+    out = capsys.readouterr().out
+    assert rc == 0
+    # Only the symbol_detail_second family is reported; daily_bars is excluded.
+    assert "symbol_detail_second" in out
+    assert "daily_bars" not in out
+
+
+def test_symbol_drift_report_rejects_single_run(
+    tmp_path: pathlib.Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    run = tmp_path / "only"
+    _write_shard(run, 1, [{"path": _sd_path(_SD_MIN, "2026-04-24", "CHARR"), "hit": False}])
+    rc = acp.symbol_drift_report([run], "symbol_detail_")
+    err = capsys.readouterr().err
+    assert rc == 2
+    assert "at least two" in err
+
+
+def test_symbol_drift_report_rejects_no_matching_family(
+    tmp_path: pathlib.Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    run1 = tmp_path / "run1"
+    run2 = tmp_path / "run2"
+    _write_shard(run1, 1, [
+        {"path": "/cache/databento_volatility_cache/daily_bars/XNAS/d.parquet", "hit": True},
+    ])
+    _write_shard(run2, 1, [
+        {"path": "/cache/databento_volatility_cache/daily_bars/XNAS/d.parquet", "hit": True},
+    ])
+    rc = acp.symbol_drift_report([run1, run2], "symbol_detail_")
+    err = capsys.readouterr().err
+    assert rc == 2
+    assert "no per-symbol records" in err
+
+
+def test_main_symbol_drift_mode(
+    tmp_path: pathlib.Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    run1 = tmp_path / "run1"
+    run2 = tmp_path / "run2"
+    _write_shard(run1, 1, [{"path": _sd_path(_SD_MIN, "2026-04-24", "CHARR"), "hit": False}])
+    _write_shard(run2, 1, [{"path": _sd_path(_SD_MIN, "2026-04-24", "CHARR"), "hit": True}])
+    rc = acp.main(["--symbol-drift", str(run1), str(run2)])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "overlap=1/1 = 100.00%" in out
