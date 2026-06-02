@@ -75,6 +75,22 @@ TARGET_TAG = "sign_return_secondary_diagnostic"  # GAP 2: win-rate, not edge.
 LIVE_TAIL_MIN_SAMPLES = 20
 LIVE_SOURCE_TAG = "ev25_walkforward_oos_recent_tail_v1"
 
+# EV-26 / C10.1 split-conformal coverage (ADR-0018). The pooled walk-forward
+# OOS pairs are an independent view of the SAME chronological pool used for the
+# live surrogate: the earlier half calibrates the split-conformal conformity
+# quantile (Vovk) and the held-out later half measures the empirical marginal
+# coverage against the 1-alpha guarantee. ``CONFORMAL_ALPHA = 0.1`` targets 90%
+# coverage (matches the producer/ml.calibration.conformal default); a 50/50
+# chronological split keeps both sides adequately powered. Honest by design:
+# a low-resolution score yields WIDE prediction sets, so high coverage is the
+# expected, non-flattering outcome -- coverage measures calibration of the set,
+# NOT discrimination. Emitted only when both sides clear ``CONFORMAL_MIN_SIDE``;
+# otherwise no block and ``conformal_coverage`` stays "not yet measured".
+CONFORMAL_ALPHA = 0.1
+CONFORMAL_CALIBRATION_FRACTION = 0.5
+CONFORMAL_MIN_SIDE = MIN_OOS_SAMPLES
+CONFORMAL_SOURCE_TAG = "ev26_walkforward_oos_split_conformal_v1"
+
 # C9 PSI-trend window construction (EV#6). The reference distribution is a
 # FIXED calibrator fit on the earliest chronological block; the monitoring
 # windows are successive chronological slices scored through that SAME fixed
@@ -254,6 +270,50 @@ def partition_live_tail(
     }
 
 
+def partition_conformal(
+    block: dict[str, dict[str, list[float]]],
+    *,
+    alpha: float = CONFORMAL_ALPHA,
+    cal_fraction: float = CONFORMAL_CALIBRATION_FRACTION,
+    min_side: int = CONFORMAL_MIN_SIDE,
+) -> dict[str, Any] | None:
+    """Split a pooled walk-forward block into a split-conformal block (ADR-0018).
+
+    The pooled OOS pairs from :func:`walk_forward_calibration` are chronological,
+    so the earlier ``cal_fraction`` slice calibrates the split-conformal (Vovk)
+    conformity quantile and the held-out later slice measures empirical marginal
+    coverage against the ``1 - alpha`` guarantee. This is an INDEPENDENT view of
+    the same OOS pool used by :func:`partition_live_tail` -- coverage and live
+    Brier-drift are different diagnostics on the same evidence.
+
+    Returns the producer-shaped block
+    ``{"alpha", "calibration": {...}, "test": {...}}`` only when BOTH sides
+    clear ``min_side`` (adequately powered calibration quantile and coverage
+    estimate). Otherwise returns ``None`` so the caller omits the block and the
+    family's ``conformal_coverage`` stays honestly "not yet measured".
+    """
+    wf = block.get("walkforward")
+    if wf is None:
+        return None
+    probs = wf["probabilities"]
+    outcomes = wf["outcomes"]
+    n = len(probs)
+    cut = int(n * cal_fraction)
+    if cut < min_side or (n - cut) < min_side:
+        return None
+    return {
+        "alpha": alpha,
+        "calibration": {
+            "probabilities": probs[:cut],
+            "outcomes": outcomes[:cut],
+        },
+        "test": {
+            "probabilities": probs[cut:],
+            "outcomes": outcomes[cut:],
+        },
+    }
+
+
 def walk_forward_psi_trend(
     scores: list[float],
     returns: list[float],
@@ -327,6 +387,10 @@ def walk_forward_psi_trend(
 
 __all__ = [
     "CALIBRATOR_TAG",
+    "CONFORMAL_ALPHA",
+    "CONFORMAL_CALIBRATION_FRACTION",
+    "CONFORMAL_MIN_SIDE",
+    "CONFORMAL_SOURCE_TAG",
     "FOLD_SCHEME_TAG",
     "LIVE_SOURCE_TAG",
     "LIVE_TAIL_MIN_SAMPLES",
@@ -337,6 +401,7 @@ __all__ = [
     "PSI_TREND_MIN_WINDOW_SAMPLES",
     "PSI_TREND_SOURCE_TAG",
     "TARGET_TAG",
+    "partition_conformal",
     "partition_live_tail",
     "walk_forward_calibration",
     "walk_forward_psi_trend",

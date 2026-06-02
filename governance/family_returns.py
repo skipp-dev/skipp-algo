@@ -42,10 +42,12 @@ from typing import Any, Literal, TypedDict
 
 from governance.family_calibration import (
     CALIBRATOR_TAG,
+    CONFORMAL_SOURCE_TAG,
     FOLD_SCHEME_TAG,
     LIVE_SOURCE_TAG,
     PSI_TREND_SOURCE_TAG,
     TARGET_TAG,
+    partition_conformal,
     partition_live_tail,
     walk_forward_calibration,
     walk_forward_psi_trend,
@@ -554,6 +556,13 @@ def to_build_spec(
                 samples["guard_end_ts"],
             )
             if block is not None:
+                # ADR-0018 / EV-26: split-conformal coverage on the SAME pooled
+                # OOS pairs (independent view of the live surrogate). Computed
+                # from the full pool BEFORE the live-tail reassignment below.
+                conformal = partition_conformal(block)
+                if conformal is not None:
+                    entry["conformal"] = conformal
+                    provenance["ev26_conformal_source"] = CONFORMAL_SOURCE_TAG
                 # ADR-0017 / EV-25: declare the most recent OOS window as a
                 # live-incubation surrogate so live_vs_wf_ratio is measured.
                 # Only splits when both partitions stay adequately powered;

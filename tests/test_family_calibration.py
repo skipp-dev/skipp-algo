@@ -5,11 +5,13 @@ from __future__ import annotations
 import random
 
 from governance.family_calibration import (
+    CONFORMAL_MIN_SIDE,
     LIVE_TAIL_MIN_SAMPLES,
     MIN_OOS_SAMPLES,
     PSI_TREND_MIN_WINDOWS,
     _fit_logistic,
     _predict,
+    partition_conformal,
     partition_live_tail,
     walk_forward_calibration,
     walk_forward_psi_trend,
@@ -143,6 +145,46 @@ def test_partition_live_tail_keeps_walkforward_above_oos_floor() -> None:
 
 def test_partition_live_tail_none_for_missing_walkforward() -> None:
     assert partition_live_tail({}) is None
+
+
+# ---------------------------------------------------------------------------
+# ADR-0018 / EV-26: split-conformal coverage (partition_conformal).
+# ---------------------------------------------------------------------------
+
+
+def test_partition_conformal_splits_pool_into_calibration_and_test() -> None:
+    n = 2 * CONFORMAL_MIN_SIDE + 11
+    block = _pooled_block(n)
+    conf = partition_conformal(block)
+    assert conf is not None
+    assert 0.0 < conf["alpha"] < 1.0
+    cal = conf["calibration"]
+    test = conf["test"]
+    cut = int(n * 0.5)
+    # Earlier half calibrates, later half is the held-out coverage test.
+    assert cal["probabilities"] == block["walkforward"]["probabilities"][:cut]
+    assert test["probabilities"] == block["walkforward"]["probabilities"][cut:]
+    assert cal["outcomes"] == block["walkforward"]["outcomes"][:cut]
+    # No pair is lost or duplicated across the split.
+    assert len(cal["probabilities"]) + len(test["probabilities"]) == n
+
+
+def test_partition_conformal_both_sides_clear_min_side() -> None:
+    n = 2 * CONFORMAL_MIN_SIDE
+    conf = partition_conformal(_pooled_block(n))
+    assert conf is not None
+    assert len(conf["calibration"]["probabilities"]) >= CONFORMAL_MIN_SIDE
+    assert len(conf["test"]["probabilities"]) >= CONFORMAL_MIN_SIDE
+
+
+def test_partition_conformal_none_when_a_side_underpowered() -> None:
+    # One pair short of two full sides -> the test half drops below min_side.
+    n = 2 * CONFORMAL_MIN_SIDE - 1
+    assert partition_conformal(_pooled_block(n)) is None
+
+
+def test_partition_conformal_none_for_missing_walkforward() -> None:
+    assert partition_conformal({}) is None
 
 
 # ---------------------------------------------------------------------------
