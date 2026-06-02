@@ -15,6 +15,7 @@ from governance.point_in_time import (
     assert_point_in_time,
     assert_records_point_in_time,
     filter_point_in_time,
+    observed_span_seconds,
 )
 
 AS_OF = datetime(2026, 5, 31, 16, 0, 0)
@@ -112,3 +113,34 @@ def test_filter_drops_future_keeps_boundary() -> None:
 
 def test_filter_empty() -> None:
     assert filter_point_in_time([], AS_OF, key=lambda r: r) == []
+
+
+# ── observed_span_seconds ───────────────────────────────────────────────
+
+
+def test_observed_span_seconds_measures_range() -> None:
+    span = observed_span_seconds(
+        [datetime(2026, 5, 1), datetime(2026, 5, 3), datetime(2026, 5, 2)]
+    )
+    assert span == 2 * 24 * 60 * 60  # 1 May → 3 May = 2 days
+
+
+def test_observed_span_seconds_iso_strings() -> None:
+    span = observed_span_seconds(
+        ["2026-05-01T00:00:00", "2026-05-01T01:00:00"]
+    )
+    assert span == 60 * 60  # one hour
+
+
+def test_observed_span_seconds_single_instant_is_none() -> None:
+    assert observed_span_seconds([datetime(2026, 5, 1)]) is None
+
+
+def test_observed_span_seconds_zero_span_is_none() -> None:
+    # All identical timestamps → collapsed span → None (no cadence).
+    same = datetime(2026, 5, 1, 12, 0, 0)
+    assert observed_span_seconds([same, same, same]) is None
+
+
+def test_observed_span_seconds_empty_is_none() -> None:
+    assert observed_span_seconds([]) is None
