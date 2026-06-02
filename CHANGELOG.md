@@ -6,7 +6,27 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
-### Added (2026-06-02) — promotion-gate archives carry per-symbol run context (REPORT_SCHEMA_VERSION 2)
+### Added (2026-06-02) — EV-20 time-basis diagnostic: observed events-per-year cadence
+
+The per-family return series the edge pipeline scores is **event-driven** (one
+return per SMC event), but the producer annualized its Sharpe/MinTRL against the
+caller-declared `periods_per_year` (default `252`, a *daily-bar* basis). When the
+true event cadence is several hundred per year, any annualized Sharpe read off a
+`252` basis stands on the wrong time-basis — not investor-grade (EV-20 audit).
+
+- `governance/point_in_time.py` adds `observed_span_seconds(timestamps)`: the
+  `max - min` span of a timestamp series in seconds (absolute offset cancels, so
+  naive/aware both yield a correct span), `None` for fewer than two timestamps or
+  a collapsed span.
+- `scripts/build_family_metrics.py` — `build_family_metrics_from_returns` now
+  derives the **realized** events-per-year from the supplied event-timestamp span
+  and surfaces it as `extras.observed_periods_per_year` (omitted when timestamps
+  are absent or the span collapses). Purely diagnostic: the declared
+  `periods_per_year` and the gate's MinTRL arithmetic are **unchanged**, so any
+  annualized Sharpe in the decision JSON can now be re-annualized on its true
+  cadence without touching promotion semantics.
+
+
 
 The `edge-pipeline-real-run` workflow archives one promotion-decisions report
 **per symbol** into `governance/promotion_decisions/`, but neither the filename
