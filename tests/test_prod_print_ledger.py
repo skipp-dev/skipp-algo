@@ -54,7 +54,11 @@ def _iter_prod_py() -> Iterator[Path]:
 # function is the bare Name `print` (not `pprint.print`, not `something.print`).
 _FROZEN_PRINT_COUNTS: dict[str, int] = {
     "pine_apply_surface_reduction.py": 8,
-    "pine_input_surface.py": 15,
+    # 2026-06-02 (pine-tv-bridge): export_provenance() CLI prints a one-line
+    # "Wrote provenance ... to <path>" confirmation to stdout when --out is
+    # given (documented CLI output channel, invoked as
+    # ``python pine_input_surface.py --out ...``). 15 -> 16.
+    "pine_input_surface.py": 16,
     "test_usi_lint.py": 3,
     "smc_integration/provider_health.py": 1,
     "open_prep/outcome_backfill.py": 4,
@@ -66,6 +70,10 @@ _FROZEN_PRINT_COUNTS: dict[str, int] = {
     # documented output channel.
     "tools/check_audit_doc_consistency.py": 4,
     "tools/check_defaults_table.py": 4,
+    # 2026-06-01 (EV-04/EV-08): family_verdict CLI main() prints the verdict
+    # report JSON to stdout when --output is omitted (documented CLI output
+    # channel, invoked as ``python governance/family_verdict.py --report ...``).
+    "governance/family_verdict.py": 1,
 }
 _FROZEN_PRINT_TOTAL = sum(_FROZEN_PRINT_COUNTS.values())
 
