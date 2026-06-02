@@ -27,6 +27,44 @@ calibration.
 - This closes the GAP-4 follow-up explicitly deferred in
   `governance/family_calibration.py`.
 
+### Fixed (2026-06-01) — `SMC_TV_Bridge.pine` malformed `//@version` directive + Pine version/provenance guards
+
+`SMC_TV_Bridge.pine` declared `// @version=5` (stray space after `//`).
+Pine only honours the exact form `//@version=N`; the malformed variant is
+parsed as a plain comment, silently downgrading the script to the oldest
+language version. Two prior reviews missed this because the existing check
+(`tests/test_pine_input_surface.py::test_version_tag`) only asserted a
+*substring* match on a single file. Directive corrected to `//@version=6`
+(matching the rest of the active suite).
+
+New regression guards:
+
+- `tests/test_pine_version_directive.py` — anchored regex pinned to the
+  *supported* set `^//@version=(?:5|6)\s*$` across the active suite
+  (repo-root `*.pine` **and** the `pine/skipp_*.pine` libraries); fails on
+  malformed directives (e.g. the stray-space form) *and* on unsupported
+  versions (e.g. `//@version=999`), with an explanatory message. Closes the
+  substring-match blind spot.
+- `tests/test_pine_tv_bridge_fail_closed.py` — fail-closed guards for the
+  untrusted-JSON bridge: `request.get` must not appear in live code (network
+  stays opt-in/inert), numeric reads carry explicit `str.tonumber(_, default)`
+  fallbacks, drawing blocks are gated on non-empty payloads, plus a faithful
+  Python reference port of `f_getField` pinned against malformed JSON
+  (empty/missing-key/unterminated-string/garbage → fail closed to `""`).
+
+New machine-readable input-provenance artifact (closes the hidden-input
+provenance gap from the SMC Suite review):
+
+- `pine_input_surface.py` gains a `provenance` subcommand emitting per-input
+  provenance JSON (file, line, varname, kind, label, group,
+  `has_display_none`, policy visibility) for the whole suite.
+- `reports/pine_input_provenance.json` — committed artifact covering 526
+  inputs incl. hidden operator inputs.
+- `tests/test_pine_input_provenance.py` — drift guard that regenerates the
+  map from source and compares against the committed artifact (ledger
+  discipline: any added/removed/renamed/regrouped/hidden input requires a
+  deliberate `provenance --out` refresh).
+
 ### Changed (2026-05-28) — WS3 #58: `HERO_MARKET_TRUST` vocab converges onto `HERO_TRUST` + `library_field_version` v7.0a (BREAKING for Pine consumers)
 
 `HERO_MARKET_TRUST` (Producer B, `scripts/smc_hero_market_mode.py`) now
