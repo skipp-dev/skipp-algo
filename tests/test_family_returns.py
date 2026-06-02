@@ -276,3 +276,38 @@ def test_calibration_block_yields_measured_brier_in_bundle() -> None:
     # Separable score -> out-of-sample Brier beats the 0.25 coin-flip baseline.
     assert bos["brier"] < 0.25
 
+
+# --- EV#6: C9 psi_trend block flows through to_build_spec -> build_bundle ---
+
+
+def test_to_build_spec_emits_psi_trend_block_and_source_provenance() -> None:
+    events = [_scored_immediate_bos(i) for i in range(160)]
+    spec = to_build_spec(events, as_of=1_700_000_000.0 + 200.0 * 40.0 * _DAY)
+
+    bos = spec["families"]["BOS"]
+    psi_trend = bos["psi_trend"]
+    assert len(psi_trend["reference_probabilities"]) > 0
+    assert len(psi_trend["windows"]) >= 2
+    for window in psi_trend["windows"]:
+        assert all(0.0 <= p <= 1.0 for p in window)
+
+    # The EV#6 source tag rides alongside the EV-24 calibration provenance.
+    assert (
+        bos["provenance"]["ev24_psi_trend_source"]
+        == "ev24_fixed_reference_calibrator_chronological_windows_v1"
+    )
+
+
+def test_psi_trend_block_yields_measured_psi_slope_in_bundle() -> None:
+    from scripts.build_family_metrics import build_bundle
+
+    events = [_scored_immediate_bos(i) for i in range(160)]
+    spec = to_build_spec(events, as_of=1_700_000_000.0 + 200.0 * 40.0 * _DAY)
+    bundle = build_bundle(spec)
+
+    bos = next(m for m in bundle if m["family"] == "BOS")
+    # The C9 drift slope is now MEASURED (no longer "not yet measured"), and
+    # the producer's slope-fit method is recorded in provenance.
+    assert bos["psi_slope"] is not None
+    assert bos["provenance"]["psi_trend_method"] == "ols_psi_window_slope"
+

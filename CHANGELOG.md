@@ -34,6 +34,37 @@ could collide on the timestamp-only filename.
   the downstream archive is fully self-describing. Non-CLI callers that omit the
   window get explicit `None` placeholders.
 
+### Added (2026-06-02) — EV#6: real PSI-trend (C9 `psi_slope`) producer
+
+The promotion gate's C9 population-stability-trend slot was wired on the
+consumer side but every family reported "not yet measured" because no
+producer emitted a `psi_trend` block. EV#6 now produces one from **real**
+data — the EV-24 walk-forward score series — so `psi_slope` becomes a
+measured, monotonic (block-only) gate input. See
+`docs/adr/0014-ev6-psi-trend-source-and-ev7-regime-deferral.md`.
+
+- `governance/family_calibration.py` adds `walk_forward_psi_trend(...)`: a
+  **fixed reference Platt calibrator** is fit on the earliest chronological
+  block and applied to that block *and* to each later monitoring window, so
+  the PSI series isolates score-**population** drift from per-fold
+  calibrator-refit drift (standard fixed-reference / moving-window PSI). The
+  series is split into `k + 1` equal segments (`k` ∈ [2, 4], each ≥
+  `max(MIN_TRAIN_SAMPLES, 10)` events); it abstains (`None`) below threshold
+  or on a single-class / degenerate reference block, keeping the gate
+  blocking honestly.
+- `governance/family_returns.to_build_spec` attaches `entry["psi_trend"]`
+  and audit-only provenance
+  `ev24_psi_trend_source = ev24_fixed_reference_calibrator_chronological_windows_v1`,
+  flowing through `build_bundle` → `build_family_metrics` → measured
+  `psi_slope` (+ `psi_trend_method` provenance).
+- **EV#7 (regime-conditional degradation) is explicitly DEFERRED** — the
+  edge-pipeline family-event path carries no per-event regime label, so the
+  rule cannot be measured without a new regime-classifier producer. No
+  fabrication; the slot stays "not yet measured". Documented in ADR-0014.
+- Tests: producer abstention/validity/drift-detection in
+  `tests/test_family_calibration.py`; end-to-end spec→bundle wiring in
+  `tests/test_family_returns.py`.
+
 ### Fixed (2026-06-02) — promotion-gate CLI tests leaked archives into the real repo tree
 
 `scripts/run_promotion_gate.py` archives a timestamped copy of every run to

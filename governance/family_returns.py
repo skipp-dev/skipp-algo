@@ -42,8 +42,10 @@ from typing import Any, Literal, TypedDict
 from governance.family_calibration import (
     CALIBRATOR_TAG,
     FOLD_SCHEME_TAG,
+    PSI_TREND_SOURCE_TAG,
     TARGET_TAG,
     walk_forward_calibration,
+    walk_forward_psi_trend,
 )
 from governance.family_event_score import SCORE_SOURCE
 from governance.family_walkforward import family_outcome_horizon, get_family_config
@@ -375,18 +377,34 @@ def to_build_spec(
                 samples["anchor_ts"],
                 samples["guard_end_ts"],
             )
+            provenance: dict[str, Any] = {}
             if block is not None:
                 entry["calibration"] = block
                 # EV-24 audit-only provenance (the gate ignores unknown keys;
                 # the producer copies these through verbatim). Records exactly
                 # how the calibration probabilities were produced so the OOS
                 # guarantee and the win-rate-not-edge caveat are auditable.
-                entry["provenance"] = {
-                    "ev24_score_source": SCORE_SOURCE,
-                    "ev24_calibrator": CALIBRATOR_TAG,
-                    "ev24_fold_scheme": FOLD_SCHEME_TAG,
-                    "ev24_calibration_target": TARGET_TAG,
-                }
+                provenance.update(
+                    {
+                        "ev24_score_source": SCORE_SOURCE,
+                        "ev24_calibrator": CALIBRATOR_TAG,
+                        "ev24_fold_scheme": FOLD_SCHEME_TAG,
+                        "ev24_calibration_target": TARGET_TAG,
+                    }
+                )
+            # EV#6 C9 PSI-trend: drift-over-time of the score population scored
+            # through a fixed reference lens. Absent (too few events / single
+            # outcome class) -> no block, family stays "not yet measured".
+            psi_trend_block = walk_forward_psi_trend(
+                samples["scores"],
+                samples["returns"],
+                samples["anchor_ts"],
+            )
+            if psi_trend_block is not None:
+                entry["psi_trend"] = psi_trend_block
+                provenance["ev24_psi_trend_source"] = PSI_TREND_SOURCE_TAG
+            if provenance:
+                entry["provenance"] = provenance
         families[family] = entry
     return {"periods_per_year": periods_per_year, "families": families}
 

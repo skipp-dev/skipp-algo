@@ -6,9 +6,11 @@ import random
 
 from governance.family_calibration import (
     MIN_OOS_SAMPLES,
+    PSI_TREND_MIN_WINDOWS,
     _fit_logistic,
     _predict,
     walk_forward_calibration,
+    walk_forward_psi_trend,
 )
 
 
@@ -88,3 +90,94 @@ def test_overlapping_label_purge_removes_leaking_train_events() -> None:
     # Same data, non-overlapping guard windows -> a block IS produced.
     tight_guard = [ts + 1.0 for ts in a]
     assert walk_forward_calibration(s, r, a, tight_guard) is not None
+
+
+# ---------------------------------------------------------------------------
+# EV#6: C9 PSI-trend producer (walk_forward_psi_trend).
+# ---------------------------------------------------------------------------
+
+
+def _population_samples(n: int, *, drift: bool, bar: float = 900.0):
+    """Chronological (score, return, anchor) samples.
+
+    A "high" event carries score ~2.0 and a positive return; a "low" event
+    ~0.5 and a negative return, so a reference Platt lens fit on the earliest
+    block learns high-score -> win. When ``drift`` is set, the SHARE of high
+    events rises over time, shifting the score *population* (not the
+    score->outcome map) so the fixed-lens probability distribution drifts
+    upward -- exactly what PSI-trend must detect. ``drift=False`` holds the
+    share at 0.5 so the population is stationary.
+    """
+    rng = random.Random(7)
+    base = 1_700_000_000.0
+    scores: list[float] = []
+    returns: list[float] = []
+    anchor_ts: list[float] = []
+    for i in range(n):
+        anchor_ts.append(base + i * 10 * bar)
+        frac = i / (n - 1)
+        p_high = (0.2 + 0.7 * frac) if drift else 0.5
+        high = rng.random() < p_high
+        scores.append((2.0 if high else 0.5) + rng.uniform(-0.15, 0.15))
+        returns.append(0.01 if high else -0.01)
+    return scores, returns, anchor_ts
+
+
+def test_psi_trend_returns_none_below_min_samples() -> None:
+    # Too few events to form a reference block plus >= 2 monitoring windows.
+    s, r, a = _population_samples(20, drift=False)
+    assert walk_forward_psi_trend(s, r, a) is None
+
+
+def test_psi_trend_emits_reference_and_at_least_two_windows() -> None:
+    s, r, a = _population_samples(200, drift=False)
+    block = walk_forward_psi_trend(s, r, a)
+    assert block is not None
+    ref = block["reference_probabilities"]
+    windows = block["windows"]
+    assert len(ref) > 0
+    assert all(0.0 <= p <= 1.0 for p in ref)
+    assert len(windows) >= PSI_TREND_MIN_WINDOWS
+    for w in windows:
+        assert len(w) > 0
+        assert all(0.0 <= p <= 1.0 for p in w)
+
+
+def test_psi_trend_none_when_reference_block_is_single_class() -> None:
+    # Every event a winner -> the reference lens has one outcome class and the
+    # calibrator refuses to fabricate a mapping -> no block.
+    rng = random.Random(3)
+    base = 1_700_000_000.0
+    s = [2.0 + rng.uniform(-0.1, 0.1) for _ in range(200)]
+    r = [0.01 for _ in range(200)]
+    a = [base + i * 9000.0 for i in range(200)]
+    assert walk_forward_psi_trend(s, r, a) is None
+
+
+def test_psi_trend_length_mismatch_raises() -> None:
+    try:
+        walk_forward_psi_trend([1.0, 2.0], [0.01], [1.0, 2.0])
+    except ValueError as exc:
+        assert "length mismatch" in str(exc)
+    else:  # pragma: no cover - the call must raise
+        raise AssertionError("expected ValueError on mismatched input lengths")
+
+
+def test_psi_trend_block_feeds_slice_and_detects_drift() -> None:
+    """End-to-end: the producer block is consumed by the gate's PSI-trend
+    slice, and a drifting score population yields a markedly larger positive
+    slope than a stationary one -- the measurement is real, not cosmetic."""
+    from scripts.build_family_metrics import _psi_trend_slice
+
+    drift_block = walk_forward_psi_trend(*_population_samples(240, drift=True))
+    stable_block = walk_forward_psi_trend(*_population_samples(240, drift=False))
+    assert drift_block is not None and stable_block is not None
+
+    drift_slope = _psi_trend_slice("BOS", drift_block)["psi_slope"]
+    stable_slope = _psi_trend_slice("BOS", stable_block)["psi_slope"]
+    assert drift_slope is not None and stable_slope is not None
+    # Drift is detected as a rising PSI trend, and clearly above the stationary
+    # baseline (which should hover near zero).
+    assert drift_slope > 0.0
+    assert drift_slope > stable_slope
+
