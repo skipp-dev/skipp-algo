@@ -12,14 +12,15 @@ in strict mode by default (``--no-strict`` disables) and writes the
 report to ``artifacts/promotion_decisions.json`` unless ``--output``
 overrides it.
 
-Output shape (``REPORT_SCHEMA_VERSION = 1``)::
+Output shape (``REPORT_SCHEMA_VERSION = 2``)::
 
     {
-      "schema_version": 1,
+      "schema_version": 2,
       "gate_schema_version": <DECISION_SCHEMA_VERSION>,
       "generated_at": "<ISO-8601 UTC, sortable>",
       "strict_provenance": true,
-      "decisions": [<Decision>, ...]
+      "decisions": [<Decision>, ...],
+      "context": {<symbol/dataset/schema/window>, ...}  # optional, omitted when absent
     }
 
 Exit codes
@@ -36,7 +37,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
+from collections.abc import Mapping
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, get_args
@@ -130,19 +133,30 @@ def build_report(
     *,
     strict_provenance: bool = True,
     now: datetime | None = None,
+    context: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Run the gate on every snapshot and assemble the report dict."""
+    """Run the gate on every snapshot and assemble the report dict.
+
+    ``context`` (optional) records the run's data provenance — symbol,
+    dataset, schema, timeframe, window — so per-symbol archives written by the
+    edge pipeline are self-describing and a multi-symbol dashboard scan can
+    filter heterogeneous runs apart. Omitted entirely on context-less runs so
+    the loader contract is unchanged (schema_version 2).
+    """
     thresholds = GateThresholds(strict_provenance=strict_provenance)
     gate = PromotionGate(thresholds)
     decisions: list[Decision] = [gate.evaluate(snap) for snap in snapshots]
     ts = (now or datetime.now(timezone.utc)).isoformat(timespec="seconds")
-    return {
+    report: dict[str, Any] = {
         "schema_version": REPORT_SCHEMA_VERSION,
         "gate_schema_version": DECISION_SCHEMA_VERSION,
         "generated_at": ts,
         "strict_provenance": bool(strict_provenance),
         "decisions": [dict(d) for d in decisions],
     }
+    if context is not None:
+        report["context"] = dict(context)
+    return report
 
 
 def _report_exit_code(report: dict[str, Any]) -> int:
@@ -161,16 +175,44 @@ def _archive_stamp(generated_at: str) -> str:
     return cleaned.replace("-", "").replace(":", "") + "Z"
 
 
+def _label_slug(label: str | None) -> str:
+    """Filename-safe slug from an archive label (e.g. a symbol).
+
+    Keeps ``[A-Za-z0-9]`` only, uppercases, and caps length so the archive
+    filename stays portable across filesystems. Returns ``""`` when nothing
+    usable remains (caller then falls back to the unlabelled filename).
+    """
+    if not label:
+        return ""
+    return re.sub(r"[^A-Za-z0-9]", "", str(label)).upper()[:24]
+
+
 def _archive_report(
-    report: dict[str, Any], archive_dir: str | os.PathLike[str] | None
+    report: dict[str, Any],
+    archive_dir: str | os.PathLike[str] | None,
+    *,
+    label: str | None = None,
 ) -> Path | None:
-    """Write a timestamped copy of *report* to *archive_dir*, if configured."""
+    """Write a timestamped copy of *report* to *archive_dir*, if configured.
+
+    When *label* (e.g. the symbol) is supplied it is slugged into the filename
+    — ``promotion_decisions_<LABEL>_<stamp>.json`` — so per-symbol runs written
+    in the same second don't overwrite each other and the archive is auditable
+    by name alone. The ``promotion_decisions_*.json`` glob every consumer uses
+    still matches.
+    """
     if archive_dir is None or str(archive_dir).strip() == "":
         return None
     target_dir = Path(archive_dir)
     target_dir.mkdir(parents=True, exist_ok=True)
     stamp = _archive_stamp(str(report["generated_at"]))
-    archive_path = target_dir / f"promotion_decisions_{stamp}.json"
+    slug = _label_slug(label)
+    name = (
+        f"promotion_decisions_{slug}_{stamp}.json"
+        if slug
+        else f"promotion_decisions_{stamp}.json"
+    )
+    archive_path = target_dir / name
     atomic_write_json(report, archive_path, indent=2, sort_keys=False)
     return archive_path
 

@@ -154,6 +154,10 @@ def structure_and_bars_to_pipeline_input(
     periods_per_year: int = 252,
     cost_bps: float = DEFAULT_COST_BPS,
     structure_profile: str = "hybrid_default",
+    dataset: str | None = None,
+    schema: str | None = None,
+    start: str | None = None,
+    end: str | None = None,
 ) -> dict[str, Any]:
     """Build a :mod:`scripts.run_edge_pipeline` input payload from real bars.
 
@@ -194,6 +198,13 @@ def structure_and_bars_to_pipeline_input(
             "structure_profile": structure_profile,
             "source": "databento",
             "bar_count": len(bars),
+            # Full fetch context so the downstream governance archive is
+            # self-describing and a multi-symbol dashboard scan can filter
+            # heterogeneous runs apart (omitted keys stay ``None`` for
+            # non-CLI callers that don't know the fetch window).
+            "dataset": dataset,
+            "schema": schema,
+            "window": {"start": start, "end": end},
         },
     }
     return payload
@@ -301,6 +312,10 @@ def main(argv: list[str] | None = None) -> int:
             periods_per_year=args.periods_per_year,
             cost_bps=args.cost_bps,
             structure_profile=args.structure_profile,
+            dataset=args.dataset,
+            schema=args.schema,
+            start=args.start,
+            end=args.end,
         )
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)

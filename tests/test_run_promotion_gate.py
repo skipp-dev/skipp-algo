@@ -116,6 +116,13 @@ def _full_snapshot_dict(family: str) -> dict[str, object]:
     }
 
 
+_NOW = datetime(2026, 5, 17, 18, 0, 0, tzinfo=timezone.utc)
+
+
+def _full_snapshot(family: str):
+    return runner._family_metrics_from_dict(_full_snapshot_dict(family))
+
+
 def test_build_report_strict_mode_promotes_full_snapshot(tmp_path: Path) -> None:
     bundle_path = tmp_path / "bundle.json"
     bundle_path.write_text(
@@ -311,3 +318,41 @@ def test_archive_stamp_is_filename_safe_and_sortable() -> None:
     assert a == "20260525T060000Z"
     assert "/" not in a and ":" not in a and "+" not in a
     assert b > a
+
+
+def test_label_slug_is_filename_safe() -> None:
+    assert runner._label_slug("aapl") == "AAPL"
+    assert runner._label_slug("BRK.B") == "BRKB"
+    assert runner._label_slug("es=f") == "ESF"
+    assert runner._label_slug("a" * 40) == "A" * 24
+    assert runner._label_slug(None) == ""
+    assert runner._label_slug("///") == ""
+
+
+def test_archive_filename_embeds_label_and_stays_globbable(tmp_path: Path) -> None:
+    report = runner.build_report([_full_snapshot("BOS")], now=_NOW)
+    path = runner._archive_report(report, tmp_path, label="aapl")
+    assert path is not None
+    assert path.name.startswith("promotion_decisions_AAPL_")
+    # The shared consumer glob still matches the labelled filename.
+    assert path in set(tmp_path.glob("promotion_decisions_*.json"))
+
+
+def test_archive_filename_falls_back_without_label(tmp_path: Path) -> None:
+    report = runner.build_report([_full_snapshot("BOS")], now=_NOW)
+    path = runner._archive_report(report, tmp_path, label=None)
+    assert path is not None
+    assert path.name.startswith("promotion_decisions_2")  # timestamp-led
+
+
+def test_build_report_embeds_context_when_provided() -> None:
+    context = {"symbol": "AAPL", "dataset": "XNAS.ITCH", "schema": "ohlcv-1m"}
+    report = runner.build_report([_full_snapshot("BOS")], now=_NOW, context=context)
+    assert report["schema_version"] == 2
+    assert report["context"] == context
+
+
+def test_build_report_omits_context_key_when_absent() -> None:
+    report = runner.build_report([_full_snapshot("BOS")], now=_NOW)
+    assert "context" not in report
+

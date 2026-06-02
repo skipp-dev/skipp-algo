@@ -6,6 +6,34 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-02) — promotion-gate archives carry per-symbol run context (REPORT_SCHEMA_VERSION 2)
+
+The `edge-pipeline-real-run` workflow archives one promotion-decisions report
+**per symbol** into `governance/promotion_decisions/`, but neither the filename
+nor the payload recorded *which* symbol/dataset/schema/window produced it. That
+made the governance archive hard to audit and caused
+`scripts/build_promotion_gate_dashboard.py` (which scans **all**
+`governance/promotion_decisions/*.json`) to aggregate heterogeneous symbol runs
+together with no way to filter — and two symbols archiving in the same second
+could collide on the timestamp-only filename.
+
+- `governance/promotion_report.py` bumps `REPORT_SCHEMA_VERSION` to `2`: reports
+  may now carry an optional top-level `context` object (symbol/dataset/schema/
+  timeframe/window). The key is **omitted** on context-less runs, so the loader
+  contract ("dict with a `decisions` list") is unchanged.
+- `scripts/run_promotion_gate.py` — `build_report(..., context=...)` embeds the
+  run context only when supplied; new `_label_slug()` helper and
+  `_archive_report(..., label=...)` slug the symbol into the filename
+  (`promotion_decisions_<LABEL>_<stamp>.json`) so per-symbol runs are
+  self-describing and can't overwrite each other within the same second. The
+  shared `promotion_decisions_*.json` consumer glob still matches.
+- `scripts/run_edge_pipeline.py` threads the input payload's `provenance` into
+  the report `context` and uses its `symbol` as the archive label.
+- `scripts/pull_databento_edge_input.py` records `dataset`, `schema` and the
+  fetch `window` (start/end) in the payload provenance alongside the symbol, so
+  the downstream archive is fully self-describing. Non-CLI callers that omit the
+  window get explicit `None` placeholders.
+
 ### Fixed (2026-06-02) — promotion-gate CLI tests leaked archives into the real repo tree
 
 `scripts/run_promotion_gate.py` archives a timestamped copy of every run to
