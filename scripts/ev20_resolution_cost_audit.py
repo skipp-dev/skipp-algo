@@ -19,6 +19,13 @@ Reads archived promotion-decision JSONs and, from the aggregate metrics alone
     "regime-matched SPY buy-and-hold". We recompute PSR against a non-zero SPY
     per-period Sharpe to show how much of the 0.99 PSR is "beats zero" vs
     "beats buy-and-hold".
+
+  Time-basis (EV-20 ppy fix, PR #2513): the per-event Sharpe is annualised two
+    ways - the legacy daily-bar basis (sr*sqrt(252)) and the TRUE event-cadence
+    basis (sr*sqrt(evt/yr)). The cadence is read from the measured
+    extra.observed_periods_per_year when present (src=obs), else approximated as
+    n/1.62 (src=~n). SRtrue is the investor-grade number; SR252 is shown only to
+    expose how far the legacy headline sat from the real basis.
 """
 
 from __future__ import annotations
@@ -30,6 +37,7 @@ from statistics import mean
 
 DEC_DIR = Path("artifacts/ev20_audit")  # populated by the caller (git show)
 SPY_ANNUAL_SHARPE = 0.55  # conservative regime-neutral SPY buy-and-hold proxy
+MINTRL_WINDOW_YEARS = 1.62  # legacy n/window fallback when no observed cadence
 
 
 def _phi(x: float) -> float:
@@ -53,6 +61,9 @@ def audit(files: list[Path]) -> None:
             skew = m.get("extra.skew")
             kurt = m.get("extra.kurtosis")
             ppy = m.get("extra.periods_per_year", 252.0)
+            # EV-20 ppy fix: measured realised events/year, present only on
+            # runs produced after PR #2513. None/absent on legacy archives.
+            obs_ppy = m.get("extra.observed_periods_per_year")
             row = {
                 "brier": m.get("brier"),
                 "ece": m.get("ece"),
@@ -62,14 +73,16 @@ def audit(files: list[Path]) -> None:
                 "skew": skew,
                 "kurt": kurt,
                 "ppy": ppy,
+                "obs_ppy": obs_ppy,
             }
             per_family.setdefault(fam, []).append(row)
 
     spy_per_period = SPY_ANNUAL_SHARPE / math.sqrt(252.0)
 
     print(f"{'FAM':5} {'brier':>7} {'ece':>6} {'Resol_lo':>9} {'Resol_hi':>9} "
-          f"{'SR/yr':>6} {'evt/yr':>7} {'PSR0':>6} {'PSR_spy':>8} {'n':>5}")
-    print("-" * 86)
+          f"{'evt/yr':>7} {'src':>4} {'SR252':>6} {'SRtrue':>7} "
+          f"{'PSR0':>6} {'PSR_spy':>8} {'n':>5}")
+    print("-" * 96)
     for fam, rows in per_family.items():
         brier = mean(r["brier"] for r in rows)
         ece = mean(r["ece"] for r in rows)
@@ -77,7 +90,6 @@ def audit(files: list[Path]) -> None:
         n = mean(r["n"] for r in rows)
         skew = mean(r["skew"] for r in rows)
         kurt = mean(r["kurt"] for r in rows)
-        ppy = rows[0]["ppy"]
 
         # Brier = Uncertainty - Resolution + Reliability, base rate ~0.5 ->
         # Uncertainty = 0.25. Reliability (squared gaps) is much smaller than
@@ -88,20 +100,34 @@ def audit(files: list[Path]) -> None:
         resol_lo = uncertainty - brier
         resol_hi = uncertainty - brier + ece
 
-        sr_annual = sr * math.sqrt(ppy)
-        evt_per_year = n / 1.62  # mintrl window ~1.62y; reveals ppy=252 mismatch
+        # EV-20 time-basis: prefer the measured realised cadence when every
+        # decision in the family carries it (mean of the observed values);
+        # otherwise fall back to the legacy n/window approximation and flag it.
+        observed = [r["obs_ppy"] for r in rows if r["obs_ppy"] is not None]
+        if observed:
+            evt_per_year = mean(observed)
+            src = "obs"
+        else:
+            evt_per_year = n / MINTRL_WINDOW_YEARS
+            src = "~n"
+
+        sr_252 = sr * math.sqrt(252.0)  # legacy daily-bar headline basis
+        sr_true = sr * math.sqrt(evt_per_year)  # true event-cadence basis
         psr0 = _phi(psr_z(sr, 0.0, n, skew, kurt))
         psr_spy = _phi(psr_z(sr, spy_per_period, n, skew, kurt))
 
         print(f"{fam:5} {brier:7.4f} {ece:6.4f} {resol_lo:9.4f} {resol_hi:9.4f} "
-              f"{sr_annual:6.2f} {evt_per_year:7.0f} {psr0:6.3f} {psr_spy:8.3f} {int(n):5d}")
+              f"{evt_per_year:7.0f} {src:>4} {sr_252:6.2f} {sr_true:7.2f} "
+              f"{psr0:6.3f} {psr_spy:8.3f} {int(n):5d}")
 
     print()
     print(f"SPY benchmark assumed: annual Sharpe {SPY_ANNUAL_SHARPE} "
           f"(per-period {spy_per_period:.4f}).")
     print("Uncertainty=0.25 (base rate ~0.5). Resol_lo/hi = resolution band; <=0 means")
     print("no better than a coin flip. Brier<=0.22 gate needs resolution-reliability>=0.03.")
-    print("evt/yr vs ppy=252: if evt/yr != 252 the annualised SR time-basis is suspect.")
+    print("evt/yr src=obs -> measured extra.observed_periods_per_year (PR #2513);")
+    print("src=~n -> legacy n/1.62 approximation (no measured cadence in archive).")
+    print("SR252 = sr*sqrt(252) legacy headline; SRtrue = sr*sqrt(evt/yr) true basis.")
     print("PSR0 = archived benchmark (SR>0). PSR_spy = recomputed vs SPY buy-and-hold.")
 
 
