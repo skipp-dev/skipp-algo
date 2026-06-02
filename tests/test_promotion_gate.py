@@ -34,6 +34,7 @@ def _strict_snapshot(family: EventFamily = "BOS") -> FamilyMetrics:
     snap.psi_slope = 0.01
     snap.conformal_coverage = 0.92
     snap.conformal_target = 0.90
+    snap.brier_ci_upper = 0.21  # block-bootstrap CI upper still under bar
     snap.provenance = {
         "wf_scheme": "purged_kfold",
         "wf_embargo_bars": 32,
@@ -278,6 +279,7 @@ def test_strict_mode_blocks_when_w1a_fields_missing() -> None:
     assert "regime_degraded" in checks
     assert "psi_slope_threshold" in checks
     assert "conformal_coverage" in checks
+    assert "brier_ci_upper" in checks
     for key in REQUIRED_PROVENANCE_KEYS:
         assert f"provenance.{key}" in checks
 
@@ -290,6 +292,36 @@ def test_strict_mode_passes_when_all_fields_present() -> None:
     assert d["blockers"] == []
     assert d["provenance"]["wf_scheme"] == "purged_kfold"
     assert d["provenance"]["stacked_used"] is True
+
+
+def test_brier_ci_upper_breach_blocks_even_in_lax_mode() -> None:
+    # Point Brier is fine, but the block-bootstrap CI upper bound pokes above
+    # the bar: once measured, that is serial-dependence-aware evidence the true
+    # Brier may exceed threshold, so it blocks regardless of strict mode.
+    snap = _green_snapshot()
+    snap.brier_ci_upper = 0.30  # > DEFAULT_BRIER_CI_UPPER_MAX (0.22)
+    d = PromotionGate().evaluate(snap)
+    assert d["promoted"] is False
+    checks = {b["check"]: b["severity"] for b in d["blockers"]}
+    assert checks["brier_ci_upper"] == "blocker"
+
+
+def test_brier_ci_upper_under_bar_passes() -> None:
+    snap = _green_snapshot()
+    snap.brier_ci_upper = 0.21  # <= 0.22
+    d = PromotionGate().evaluate(snap)
+    assert d["promoted"] is True
+    assert d["metrics"]["brier_ci_upper"] == 0.21
+
+
+def test_brier_ci_upper_missing_is_lax_passthrough_strict_block() -> None:
+    # Missing CI: lax mode lets it pass (legacy snapshots stay valid), strict
+    # mode blocks it as "not yet measured" with info severity.
+    snap = _green_snapshot()  # brier_ci_upper defaults to None
+    assert PromotionGate().evaluate(snap)["promoted"] is True
+    strict = PromotionGate(GateThresholds(strict_provenance=True)).evaluate(snap)
+    info = {b["check"]: b["severity"] for b in strict["blockers"]}
+    assert info["brier_ci_upper"] == "info"
 
 
 def test_regime_degraded_true_is_hard_blocker_in_lax_mode() -> None:

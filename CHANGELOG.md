@@ -6,6 +6,27 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-02) — GAP-4: block-bootstrap Brier confidence-interval gate
+
+The promotion gate now blocks on the **upper bound of a block-bootstrap CI
+on the Brier score**, not just the point estimate. At the few-hundred-event
+scale the Brier sampling distribution is wide under serial dependence
+(Bailey & López de Prado 2012; Wilks 2010), so a point estimate below the
+0.22 bar with a CI poking above it is not 95 %-confident evidence of
+calibration.
+
+- `scripts/build_family_metrics.py` resamples the per-event Brier-loss series
+  `(p − y)²` with the stationary block bootstrap (Politis–Romano 1994, seed 42,
+  B = 2000, mean block length 5) and reports the 95th-percentile upper bound as
+  `brier_ci_upper` (+ provenance `brier_ci_method`). Stays `None` below 30 OOS
+  events ("not yet measured") rather than shipping a noisy interval.
+- `governance/promotion_gate.py` adds `brier_ci_upper` to `FamilyMetrics` and
+  `brier_ci_upper_max` (= `brier_max` = 0.22) to `GateThresholds`. Once
+  measured a breach always blocks; when unmeasured it only blocks under
+  `strict_provenance` so legacy snapshots stay valid. Documented in ADR-0008.
+- This closes the GAP-4 follow-up explicitly deferred in
+  `governance/family_calibration.py`.
+
 ### Changed (2026-05-28) — WS3 #58: `HERO_MARKET_TRUST` vocab converges onto `HERO_TRUST` + `library_field_version` v7.0a (BREAKING for Pine consumers)
 
 `HERO_MARKET_TRUST` (Producer B, `scripts/smc_hero_market_mode.py`) now

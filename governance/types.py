@@ -19,6 +19,7 @@ ProvenanceValue = Union[str, int, float, bool]
 # check name MUST be added here in the same commit that emits it.
 BLOCKER_CHECK_NAMES: frozenset[str] = frozenset({
     "brier_threshold",
+    "brier_ci_upper",
     "ece_threshold",
     "fdr_significance",
     "psr_minimum",
