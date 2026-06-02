@@ -6,6 +6,23 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-06-02) — promotion-gate CLI tests leaked archives into the real repo tree
+
+`scripts/run_promotion_gate.py` archives a timestamped copy of every run to
+`governance/promotion_decisions/` resolved **relative to the current working
+directory** (`--archive-dir` default). Four CLI/E2E tests invoked `main()`
+without isolating cwd, so each run wrote a stray
+`promotion_decisions_*.json` into the committed `governance/` tree instead of
+a temp dir.
+
+- Added an `autouse` `monkeypatch.chdir(tmp_path)` fixture to
+  `tests/test_promotion_gate_producer_e2e.py` and
+  `tests/test_run_promotion_gate_strict_universe.py` so the cwd-relative
+  archive lands under each test's `tmp_path`. Future tests added to these
+  modules inherit the isolation.
+- No production change: the archive contract (cwd-relative default,
+  `--archive-dir ''` to opt out) is unchanged.
+
 ### Added (2026-06-02) — GAP-4: block-bootstrap Brier confidence-interval gate
 
 The promotion gate now blocks on the **upper bound of a block-bootstrap CI
