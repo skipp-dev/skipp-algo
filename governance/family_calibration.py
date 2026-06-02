@@ -220,7 +220,10 @@ def walk_forward_psi_trend(
     The series is partitioned into ``k + 1`` equal chronological segments (one
     reference + ``k`` monitoring windows) sorted by ``anchor_ts``; ``k`` is the
     largest value in ``[PSI_TREND_MIN_WINDOWS, max_windows]`` for which every
-    segment still holds at least ``max(min_train, min_window)`` events. The last
+    segment still holds at least ``max(min_train, min_window,
+    MIN_TRAIN_SAMPLES)`` events. The reference fit itself always enforces
+    ``MIN_TRAIN_SAMPLES`` (in :func:`_fit_logistic`), so the guard includes that
+    floor to avoid accepting segments the fitter would then reject. The last
     window absorbs any integer-division remainder.
 
     Returns the ``{"reference_probabilities", "windows"}`` shape that
@@ -236,7 +239,9 @@ def walk_forward_psi_trend(
     if not (n == len(returns) == len(anchor_ts)):
         raise ValueError("walk_forward_psi_trend: input lists length mismatch")
 
-    min_segment = max(min_train, min_window)
+    # Honour the fitter's own floor: _fit_logistic always rejects < MIN_TRAIN_SAMPLES,
+    # so a smaller min_train must not let window-selection accept doomed segments.
+    min_segment = max(min_train, min_window, MIN_TRAIN_SAMPLES)
     k = 0
     for cand in range(max_windows, PSI_TREND_MIN_WINDOWS - 1, -1):
         if n // (cand + 1) >= min_segment:
