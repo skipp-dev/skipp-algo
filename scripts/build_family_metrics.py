@@ -237,7 +237,7 @@ def _brier_block_bootstrap_ci_upper(
 
 def _calibration_slice(
     family: str, calibration: dict[str, Any] | None
-) -> dict[str, float | None]:
+) -> dict[str, float | str | None]:
     """Compute the brier/ece/psi/live-wf gate slice from supplied pairs.
 
     Each sub-block is optional and filled ONLY from real data the caller
@@ -252,7 +252,7 @@ def _calibration_slice(
         population-stability drift of the live probability distribution
         against the reference (training) distribution.
     """
-    slice_out: dict[str, float | None] = {
+    slice_out: dict[str, float | str | None] = {
         "brier": None,
         "brier_ci_upper": None,
         "brier_ci_method": None,
@@ -383,7 +383,7 @@ def _psi_trend_slice(
 
 def _conformal_slice(
     family: str, conformal: dict[str, Any] | None
-) -> dict[str, float | None]:
+) -> dict[str, float | str | None]:
     """Compute the conformal coverage gate slice from supplied pairs.
 
     Split-conformal (Vovk) is calibrated on the ``calibration`` block and
@@ -392,7 +392,7 @@ def _conformal_slice(
     Returns all-``None`` when no conformal block is supplied so the gate
     keeps blocking on "not yet measured".
     """
-    slice_out: dict[str, float | None] = {
+    slice_out: dict[str, float | str | None] = {
         "conformal_coverage": None,
         "conformal_target": None,
         "conformal_method": None,
