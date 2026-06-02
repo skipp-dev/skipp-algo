@@ -95,10 +95,21 @@ DEFAULT_LIVE_VS_WF_RATIO_MIN = 0.05
 DEFAULT_PSI_SLOPE_MAX = 0.05
 DEFAULT_CONFORMAL_COVERAGE_TOLERANCE = 0.02
 
+# GAP-4 (small-sample Brier instability). The headline Brier is a point
+# estimate whose sampling distribution is wide under serial dependence at the
+# few-hundred-event scale typical here (Bailey & Lopez de Prado 2012; Wilks
+# 2010). The block-bootstrap CI upper bound (95th percentile of the
+# stationary-block-bootstrapped Brier; see scripts/build_family_metrics.py)
+# must ALSO sit under this bar, i.e. we require 95% confidence that the true
+# Brier is below threshold rather than trusting a lucky point estimate. Set
+# equal to the point-estimate bar by default so the whole CI must clear it.
+DEFAULT_BRIER_CI_UPPER_MAX = DEFAULT_BRIER_MAX
+
 
 @dataclass(frozen=True)
 class GateThresholds:
     brier_max: float = DEFAULT_BRIER_MAX
+    brier_ci_upper_max: float = DEFAULT_BRIER_CI_UPPER_MAX
     ece_max: float = DEFAULT_ECE_MAX
     fdr_q: float = DEFAULT_FDR_Q
     psr_min: float = DEFAULT_PSR_MIN
@@ -134,6 +145,10 @@ class FamilyMetrics:
 
     family: EventFamily
     brier: float | None = None
+    # GAP-4: 95th-percentile upper bound of the block-bootstrapped Brier.
+    # Enforced like the W1.a metrics: once measured a breach always blocks;
+    # when unmeasured it only blocks under strict_provenance.
+    brier_ci_upper: float | None = None
     ece: float | None = None
     fdr_pvalue: float | None = None
     psr: float | None = None
@@ -268,6 +283,32 @@ class PromotionGate:
             metrics=metrics,
             label="brier",
         )
+        # GAP-4: block-bootstrap Brier CI upper bound. Once measured, a CI that
+        # pokes above the bar always blocks (serial-dependence-aware evidence
+        # that the true Brier may exceed threshold). When unmeasured it only
+        # blocks under strict_provenance so legacy snapshots stay valid.
+        if snapshot.brier_ci_upper is None:
+            if t.strict_provenance:
+                blockers.append({
+                    "check": "brier_ci_upper",
+                    "severity": "info",
+                    "observed": None,
+                    "threshold": float(t.brier_ci_upper_max),
+                    "message": "brier_ci_upper not yet measured",
+                })
+                ok_brier_ci = False
+            else:
+                ok_brier_ci = True
+        else:
+            ok_brier_ci = _check(
+                name="brier_ci_upper",
+                observed=snapshot.brier_ci_upper,
+                threshold=t.brier_ci_upper_max,
+                lower_is_better=True,
+                blockers=blockers,
+                metrics=metrics,
+                label="brier_ci_upper",
+            )
         ok_ece = _check(
             name="ece_threshold",
             observed=snapshot.ece,
@@ -527,6 +568,7 @@ class PromotionGate:
         promoted = all(
             (
                 ok_brier,
+                ok_brier_ci,
                 ok_ece,
                 ok_fdr,
                 ok_psr,
@@ -566,6 +608,7 @@ class PromotionGate:
 
 __all__ = [
     "DECISION_SCHEMA_VERSION",
+    "DEFAULT_BRIER_CI_UPPER_MAX",
     "DEFAULT_CONFORMAL_COVERAGE_TOLERANCE",
     "DEFAULT_PSI_SLOPE_MAX",
     "FamilyMetrics",

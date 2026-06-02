@@ -70,6 +70,7 @@ DEFAULT_PROMOTION_DECISIONS_ARCHIVE_DIR = Path("governance") / "promotion_decisi
 # ``family``, ``provenance`` and ``extras`` are handled separately.
 _NUMERIC_FIELDS = (
     "brier",
+    "brier_ci_upper",
     "ece",
     "fdr_pvalue",
     "psr",

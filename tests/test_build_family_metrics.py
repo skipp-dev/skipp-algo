@@ -17,6 +17,7 @@ from governance.point_in_time import LookaheadError
 from scripts.build_family_metrics import (
     build_bundle,
     build_family_metrics_from_returns,
+    _brier_block_bootstrap_ci_upper,
 )
 from scripts.run_promotion_gate import _load_bundle
 
@@ -182,6 +183,44 @@ def test_calibration_fills_brier_ece_when_supplied() -> None:
     assert metrics["psi"] is None
 
 
+def test_brier_ci_upper_computed_and_brackets_point_estimate() -> None:
+    # 60 samples (> BRIER_CI_MIN_SAMPLES) → CI is measured. The block-bootstrap
+    # upper bound must be a valid probability and sit at or above the point
+    # Brier (an upper confidence bound is never below the central estimate).
+    wf = _calibrated_pairs(n=60, seed=21)
+    metrics = build_family_metrics_from_returns(
+        "BOS", _positive_edge_returns(), calibration={"walkforward": wf}
+    )
+    assert metrics["brier_ci_upper"] is not None
+    assert 0.0 <= metrics["brier_ci_upper"] <= 1.0
+    assert metrics["brier_ci_upper"] >= metrics["brier"] - 1e-9
+    assert (
+        metrics["provenance"]["brier_ci_method"]
+        == "stationary_block_bootstrap_brier_p95"
+    )
+
+
+def test_brier_ci_upper_is_deterministic() -> None:
+    # Pinned seed → identical CI across runs (audit reproducibility).
+    pairs = _calibrated_pairs(n=80, seed=5)
+    p, y = pairs["probabilities"], pairs["outcomes"]
+    assert _brier_block_bootstrap_ci_upper(p, y) == _brier_block_bootstrap_ci_upper(
+        p, y
+    )
+
+
+def test_brier_ci_upper_none_below_min_samples() -> None:
+    # Too few OOS events → the interval is too noisy to trust, so it stays
+    # "not yet measured" (None) rather than shipping a misleading bound.
+    wf = _calibrated_pairs(n=20, seed=21)
+    metrics = build_family_metrics_from_returns(
+        "BOS", _positive_edge_returns(), calibration={"walkforward": wf}
+    )
+    assert metrics["brier"] is not None  # point estimate still measured
+    assert metrics["brier_ci_upper"] is None
+    assert "brier_ci_method" not in metrics["provenance"]
+
+
 def test_calibration_live_and_psi() -> None:
     wf = _calibrated_pairs(seed=22)
     live = _calibrated_pairs(seed=23)
@@ -202,7 +241,14 @@ def test_calibration_live_and_psi() -> None:
 
 def test_no_calibration_leaves_calibration_fields_none() -> None:
     metrics = build_family_metrics_from_returns("FVG", _positive_edge_returns())
-    for field in ("brier", "ece", "psi", "live_brier", "walkforward_brier"):
+    for field in (
+        "brier",
+        "brier_ci_upper",
+        "ece",
+        "psi",
+        "live_brier",
+        "walkforward_brier",
+    ):
         assert metrics[field] is None
     assert "calibration_method" not in metrics["provenance"]
 

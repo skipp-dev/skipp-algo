@@ -93,6 +93,7 @@ def _full_snapshot_dict(family: str) -> dict[str, object]:
     return {
         "family": family,
         "brier": 0.18,
+        "brier_ci_upper": 0.21,
         "ece": 0.03,
         "fdr_pvalue": 0.01,
         "psr": 0.97,

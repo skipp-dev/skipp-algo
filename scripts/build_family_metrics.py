@@ -74,6 +74,7 @@ from open_prep.stats_helpers import (
     probabilistic_sharpe,
 )
 from scripts.smc_atomic_write import atomic_write_json
+from scripts.bootstrap_methods import stationary_block_bootstrap
 
 # PSR method tag recorded in provenance for audit (matches the gate's
 # expected ``psr_method`` provenance key, C6.1).
@@ -90,6 +91,22 @@ DEFAULT_SIGNIFICANCE_B = 2000
 # genuine (probability, outcome) pairs so brier/ece/psi/live-wf are measured
 # empirically rather than fabricated.
 CALIBRATION_METHOD_TAG = "empirical_brier_ece_psi"
+
+# GAP-4 block-bootstrap Brier CI (deferred follow-up in the EV-24 calibration
+# review, now wired). The headline Brier is a point estimate; under serial
+# dependence its sampling distribution is wide at the few-hundred-event scale.
+# We resample the per-event Brier loss series with the stationary block
+# bootstrap (Politis-Romano 1994) to preserve autocorrelation, then gate on
+# the 95th-percentile upper bound. Constants are pinned for determinism.
+BRIER_CI_B = 2000
+BRIER_CI_MEAN_BLOCK_LENGTH = 5
+BRIER_CI_ALPHA = 0.05  # upper bound = (1 - alpha) quantile = 95th percentile
+BRIER_CI_SEED = 42
+# Below this many OOS events the block-bootstrap CI is too noisy to trust, so
+# we leave ``brier_ci_upper`` as None ("not yet measured") rather than ship a
+# misleadingly tight or wild interval. Mirrors MIN_EVENTS_FOR_BOOTSTRAP.
+BRIER_CI_MIN_SAMPLES = 30
+BRIER_CI_METHOD_TAG = "stationary_block_bootstrap_brier_p95"
 
 # C10 conformal provenance tag. Recorded only when the caller supplies a
 # split-conformal calibration + test set so coverage is measured, not assumed.
@@ -188,6 +205,36 @@ def _binary_calibration_pairs(
     return p, y
 
 
+def _brier_block_bootstrap_ci_upper(
+    probabilities: list[float], outcomes: list[float]
+) -> float | None:
+    """Upper bound of the block-bootstrap CI on the Brier score (GAP-4).
+
+    Brier = mean of the per-event squared error ``(p - y)**2``. We resample
+    that loss series with the stationary block bootstrap so within-block serial
+    dependence is preserved, take each resample's mean (a bootstrapped Brier),
+    and return the ``(1 - BRIER_CI_ALPHA)`` quantile as the one-sided upper
+    bound the gate blocks on. Returns ``None`` below ``BRIER_CI_MIN_SAMPLES``
+    so a too-noisy interval is reported as "not yet measured", never faked.
+    """
+    n = len(probabilities)
+    if n < BRIER_CI_MIN_SAMPLES:
+        return None
+    import numpy as np
+
+    p = np.asarray(probabilities, dtype=np.float64)
+    y = np.asarray(outcomes, dtype=np.float64)
+    squared_error = (p - y) ** 2
+    resamples = stationary_block_bootstrap(
+        squared_error,
+        mean_block_length=BRIER_CI_MEAN_BLOCK_LENGTH,
+        B=BRIER_CI_B,
+        seed=BRIER_CI_SEED,
+    )
+    brier_distribution = resamples.mean(axis=1)
+    return float(np.quantile(brier_distribution, 1.0 - BRIER_CI_ALPHA))
+
+
 def _calibration_slice(
     family: str, calibration: dict[str, Any] | None
 ) -> dict[str, float | None]:
@@ -207,6 +254,8 @@ def _calibration_slice(
     """
     slice_out: dict[str, float | None] = {
         "brier": None,
+        "brier_ci_upper": None,
+        "brier_ci_method": None,
         "ece": None,
         "walkforward_brier": None,
         "live_brier": None,
@@ -223,6 +272,10 @@ def _calibration_slice(
         slice_out["brier"] = wf_brier
         slice_out["walkforward_brier"] = wf_brier
         slice_out["ece"] = expected_calibration_error(y, p)
+        brier_ci_upper = _brier_block_bootstrap_ci_upper(p, y)
+        slice_out["brier_ci_upper"] = brier_ci_upper
+        if brier_ci_upper is not None:
+            slice_out["brier_ci_method"] = BRIER_CI_METHOD_TAG
         slice_out["calibration_method"] = CALIBRATION_METHOD_TAG
 
     live_probs: list[float] | None = None
@@ -520,6 +573,8 @@ def build_family_metrics_from_returns(
     }
     if cal["calibration_method"] is not None:
         provenance_out["calibration_method"] = cal["calibration_method"]
+    if cal["brier_ci_method"] is not None:
+        provenance_out["brier_ci_method"] = cal["brier_ci_method"]
     if conf["conformal_method"] is not None:
         provenance_out["conformal_method"] = conf["conformal_method"]
     if psi_trend_res["psi_trend_method"] is not None:
@@ -536,6 +591,8 @@ def build_family_metrics_from_returns(
         "mintrl_years": mintrl_years,
         # EV-15: filled from supplied calibration pairs, else None.
         "brier": cal["brier"],
+        # GAP-4: block-bootstrap Brier CI upper bound, else None.
+        "brier_ci_upper": cal["brier_ci_upper"],
         "ece": cal["ece"],
         # fdr_pvalue stays None per family: a false discovery rate is only
         # defined over a SET of tests. build_bundle fills it by applying the
