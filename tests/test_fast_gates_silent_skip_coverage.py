@@ -92,15 +92,22 @@ REQUIRED_PINNED_TESTS: tuple[str, ...] = (
 # drift guard" step in smc-fast-pr-gates.yml. This is an *independent*
 # source of truth: it deliberately duplicates the YAML so that removing
 # a test from the workflow (without also editing this tuple) is caught.
-# Snapshot taken 2026-05-31 from main @ c5ed32eb (55 tests).
+# Snapshot taken 2026-06-02 from main after the EV#6/EV#7 edge-pipeline
+# merge (65 tests; +10 family/edge tripwires referenced by the drift guard).
 FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_assert_and_open_encoding_pin.py",
     "tests/test_assert_in_production_budget.py",
     "tests/test_bare_type_ignore_ledger.py",
     "tests/test_broad_except_silent_budget.py",
+    "tests/test_build_family_metrics.py",
     "tests/test_builtin_open_encoding_ledger.py",
     "tests/test_dynamic_getattr_ledger.py",
     "tests/test_dynamic_import_and_todo_tripwires.py",
+    "tests/test_edge_hypotheses_frozen.py",
+    "tests/test_family_event_adapter.py",
+    "tests/test_family_returns.py",
+    "tests/test_family_verdict.py",
+    "tests/test_family_walkforward_config.py",
     "tests/test_fast_gates_silent_skip_coverage.py",
     "tests/test_global_statement_budget.py",
     "tests/test_hashlib_weak_hash_ledger.py",
@@ -117,10 +124,13 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_pine_alertcondition_and_declaration_pin.py",
     "tests/test_pine_request_security_htf_pin.py",
     "tests/test_pine_var_budget_pin.py",
+    "tests/test_point_in_time_integrity.py",
     "tests/test_prod_print_ledger.py",
+    "tests/test_pytest_marker_bucket_discipline.py",
     "tests/test_pytest_skip_budget.py",
     "tests/test_random_tempfile_ledger_pin.py",
     "tests/test_realtime_signals_sister_ledger_guardrail.py",
+    "tests/test_run_edge_pipeline.py",
     "tests/test_schema_version_manifest_alignment.py",
     "tests/test_silent_error_swallow_pin.py",
     "tests/test_silent_security_and_boundary_bundle.py",
@@ -133,6 +143,7 @@ FULL_REQUIRED_PATH_TRIPWIRES: tuple[str, ...] = (
     "tests/test_time_sleep_budget.py",
     "tests/test_type_ignore_budget.py",
     "tests/test_urllib_urlopen_ledger.py",
+    "tests/test_verdict_panel.py",
     "tests/test_warnings_simplefilter_ledger.py",
     "tests/test_weak_hash_pin.py",
     "tests/test_while_true_termination_ledger.py",
