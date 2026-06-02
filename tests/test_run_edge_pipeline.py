@@ -71,7 +71,7 @@ def test_run_pipeline_end_to_end_produces_report_and_verdicts(tmp_path: Path) ->
     result = run_pipeline(_payload_with_bos_events(), archive_dir=tmp_path)
 
     report = result["report"]
-    assert report["schema_version"] == 1
+    assert report["schema_version"] == 2
     families = {d["family"] for d in report["decisions"]}
     assert "BOS" in families
 
@@ -90,6 +90,28 @@ def test_run_pipeline_end_to_end_produces_report_and_verdicts(tmp_path: Path) ->
     archived = list(tmp_path.glob("promotion_decisions_*.json"))
     assert len(archived) == 1
     assert result["events"] == 40
+
+
+def test_run_pipeline_threads_provenance_into_context_and_filename(tmp_path: Path) -> None:
+    """A payload with provenance embeds it as report context and slugs the symbol
+    into the archive filename so per-symbol runs are self-describing and don't
+    collide within the same second."""
+    payload = _payload_with_bos_events()
+    payload["provenance"] = {
+        "symbol": "aapl",
+        "dataset": "XNAS.ITCH",
+        "schema": "ohlcv-1m",
+        "window": {"start": "2023-12-01", "end": "2023-12-31"},
+    }
+
+    result = run_pipeline(payload, archive_dir=tmp_path)
+
+    report = result["report"]
+    assert report["context"] == payload["provenance"]
+
+    archived = list(tmp_path.glob("promotion_decisions_*.json"))
+    assert len(archived) == 1
+    assert archived[0].name.startswith("promotion_decisions_AAPL_")
 
 
 def test_run_pipeline_archiving_disabled(tmp_path: Path) -> None:
