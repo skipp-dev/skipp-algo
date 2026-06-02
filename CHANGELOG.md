@@ -6,6 +6,24 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-02) — fractional differentiation feature transform
+
+Standalone, pure-numpy fixed-width fractional differentiation (López de Prado
+2018, ch. 5) as a candidate feature transform. Stationary-but-memory-
+preserving inputs are the one transform class that can plausibly add
+*discrimination* (the binding promotion blocker), so this is wired to be
+graded by the ADR-0019 A/B harness as just another `feature_key` — it earns
+its place only on a `candidate_lifts_resolution` verdict, never by assertion.
+
+- New `ml/features/frac_diff` with `ffd_weights` (binomial-recursion weights,
+  threshold-truncated to a fixed window) and `frac_diff_ffd` (window
+  convolution; `nan` warm-up region, `d=0` identity, `d=1` ≈ first difference).
+- Re-exported from `ml/features/__init__`.
+- 8 property tests pin the weight recursion, the identity/first-difference
+  edge cases, the warm-up masking, and that fractional differencing reduces
+  random-walk lag-1 autocorrelation (`tests/test_frac_diff.py`).
+- No change to `SCORE_SOURCE`, the v1 score, or any gate.
+
 ### Added (2026-06-02) — ADR-0019 step 2: record the order-flow feature for the A/B
 
 Builds on step 1 (the `relative_volume_at` extractor). Captures the candidate
