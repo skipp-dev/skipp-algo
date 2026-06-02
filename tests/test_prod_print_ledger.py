@@ -54,7 +54,11 @@ def _iter_prod_py() -> Iterator[Path]:
 # function is the bare Name `print` (not `pprint.print`, not `something.print`).
 _FROZEN_PRINT_COUNTS: dict[str, int] = {
     "pine_apply_surface_reduction.py": 8,
-    "pine_input_surface.py": 15,
+    # 2026-06-02 (pine-tv-bridge): export_provenance() CLI prints a one-line
+    # "Wrote provenance ... to <path>" confirmation to stdout when --out is
+    # given (documented CLI output channel, invoked as
+    # ``python pine_input_surface.py --out ...``). 15 -> 16.
+    "pine_input_surface.py": 16,
     "test_usi_lint.py": 3,
     "smc_integration/provider_health.py": 1,
     "open_prep/outcome_backfill.py": 4,

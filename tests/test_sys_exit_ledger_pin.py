@@ -11,7 +11,7 @@ Today: 9 sites, all in legitimate CLI dispatch / `__main__` guards:
 | `open_prep/candidate_weights.py` | 241 | `if __name__ == "__main__": sys.exit(main())` |
 | `open_prep/feature_importance_report.py` | 358 | same |
 | `open_prep/outcome_backfill.py` | 529 | same |
-| `pine_input_surface.py` | 400, 402 | argparse `args.cmd` dispatch |
+| `pine_input_surface.py` | 468, 470 | argparse `args.cmd` dispatch |
 | `test_usi_lint.py` | 94, 97 | top-level CLI script |
 
 Any new site requires a ledger entry — review opportunity to confirm
@@ -42,8 +42,10 @@ _SYS_EXIT_LEDGER: frozenset[tuple[str, int]] = frozenset({
     ("open_prep/candidate_weights.py", 240),
     ("open_prep/feature_importance_report.py", 358),
     ("open_prep/outcome_backfill.py", 546),
-    ("pine_input_surface.py", 400),
-    ("pine_input_surface.py", 402),
+    # 2026-06-02 (#2497): +68 lines after the `provenance` subcommand block
+    # was inserted above the lint dispatch (was 400, 402).
+    ("pine_input_surface.py", 468),
+    ("pine_input_surface.py", 470),
     ("test_usi_lint.py", 94),
     ("test_usi_lint.py", 97),
     # 2026-05-12 (#2171 audit-L-1 PR-D R12+R3): consistency-check CLI tools
