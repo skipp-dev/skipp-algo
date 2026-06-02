@@ -311,3 +311,109 @@ def test_psi_trend_block_yields_measured_psi_slope_in_bundle() -> None:
     assert bos["psi_slope"] is not None
     assert bos["provenance"]["psi_trend_method"] == "ols_psi_window_slope"
 
+
+# --- EV#7: C5.1 regime_degraded flows through to_build_spec -> build_bundle ---
+
+
+def _regime_bos(idx: int, *, regime: str, win: bool) -> FamilyEvent:
+    """An immediate-entry BOS event carrying a regime label and a controlled
+    win/loss outcome, spaced like ``_scored_immediate_bos``."""
+    horizon = family_outcome_horizon("BOS")
+    n = horizon + 1
+    anchor = 1_700_000_000.0 + idx * 40.0 * _DAY
+    entry = 100.0
+    close = 105.0 if win else 99.0  # +5% win / -1% loss before cost
+    event: FamilyEvent = {
+        "family": "BOS",  # type: ignore[typeddict-item]
+        "direction": "BULL",
+        "entry_mode": "immediate",
+        "entry_price": entry,
+        "zone_low": 0.0,
+        "zone_high": 0.0,
+        "anchor_ts": anchor,
+        "forward_highs": [close + 1.0] * n,
+        "forward_lows": [close - 1.0] * n,
+        "forward_closes": [close] * n,
+        "forward_timestamps": [anchor + (j + 1) * _DAY for j in range(n)],
+        "regime": regime,
+    }
+    return event
+
+
+def test_regime_degradation_unit_rules() -> None:
+    from governance.family_returns import regime_degradation
+
+    # No labelled events -> not yet measurable.
+    assert regime_degradation([], [], []) is None
+
+    # Pooled mean <= 0 -> a global no-edge problem, not regime-conditional.
+    assert (
+        regime_degradation([-0.01] * 30, ["RANGING"] * 30, list(range(30))) is False
+    )
+
+    # Pooled edge positive, but the CURRENT (latest) regime has >=20 samples
+    # and a non-positive mean -> degraded.
+    returns = [0.05] * 25 + [-0.01] * 25  # pooled mean > 0
+    regimes = ["TRENDING"] * 25 + ["RANGING"] * 25
+    anchor = list(range(50))  # RANGING events are the most recent
+    assert regime_degradation(returns, regimes, anchor) is True
+
+    # Same pooled edge but the current regime is itself positive -> not degraded.
+    returns2 = [-0.01] * 25 + [0.05] * 25
+    regimes2 = ["RANGING"] * 25 + ["TRENDING"] * 25
+    assert regime_degradation(returns2, regimes2, list(range(50))) is False
+
+    # Current regime under-sampled (<20) -> not yet measurable.
+    returns3 = [0.05] * 40 + [-0.01] * 5
+    regimes3 = ["TRENDING"] * 40 + ["RANGING"] * 5
+    assert regime_degradation(returns3, regimes3, list(range(45))) is None
+
+
+def test_regime_degradation_length_mismatch_raises() -> None:
+    from governance.family_returns import regime_degradation
+
+    with pytest.raises(ValueError, match="length mismatch"):
+        regime_degradation([0.01, 0.02], ["TRENDING"], [0.0, 1.0])
+
+
+def test_extract_family_regime_samples_drops_unlabelled() -> None:
+    from governance.family_returns import extract_family_regime_samples
+
+    labelled = _regime_bos(0, regime="TRENDING", win=True)
+    unlabelled = _scored_immediate_bos(1)  # carries score but NO regime
+    samples = extract_family_regime_samples([labelled, unlabelled])
+
+    bos = samples["BOS"]
+    assert len(bos["returns"]) == 1
+    assert bos["regimes"] == ["TRENDING"]
+    assert len(bos["anchor_ts"]) == 1
+
+
+def test_to_build_spec_emits_regime_degraded_and_provenance() -> None:
+    # Older TRENDING winners (pooled edge), most-recent RANGING losers with
+    # >=20 samples -> the family is degraded in the regime it would trade next.
+    events = [_regime_bos(i, regime="TRENDING", win=True) for i in range(25)]
+    events += [_regime_bos(25 + i, regime="RANGING", win=False) for i in range(25)]
+    spec = to_build_spec(events, as_of=1_700_000_000.0 + 200.0 * 40.0 * _DAY)
+
+    bos = spec["families"]["BOS"]
+    assert bos["regime_degraded"] is True
+    assert (
+        bos["provenance"]["ev24_regime_source"]
+        == "kaufman_efficiency_ratio_trailing_closes_v1"
+    )
+
+
+def test_regime_degraded_flows_through_bundle_as_blocker() -> None:
+    from scripts.build_family_metrics import build_bundle
+
+    events = [_regime_bos(i, regime="TRENDING", win=True) for i in range(25)]
+    events += [_regime_bos(25 + i, regime="RANGING", win=False) for i in range(25)]
+    spec = to_build_spec(events, as_of=1_700_000_000.0 + 200.0 * 40.0 * _DAY)
+    bundle = build_bundle(spec)
+
+    bos = next(m for m in bundle if m["family"] == "BOS")
+    # The C5.1 verdict is now MEASURED and rides through to the gate payload.
+    assert bos["regime_degraded"] is True
+
+

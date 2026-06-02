@@ -436,6 +436,7 @@ def build_family_metrics_from_returns(
     calibration: dict[str, Any] | None = None,
     conformal: dict[str, Any] | None = None,
     psi_trend: dict[str, Any] | None = None,
+    regime_degraded: bool | None = None,
     provenance: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Compute the PSR/MinTRL slice of a ``FamilyMetrics`` dict for *family*.
@@ -473,6 +474,12 @@ def build_family_metrics_from_returns(
         window against the reference and an OLS slope is fit to the series,
         filling ``psi_slope``. Omitted leaves ``psi_slope`` ``None`` so the
         gate keeps blocking on "not yet measured".
+    regime_degraded:
+        Optional per-family C5.1 regime-degradation verdict (EV#7): a caller-
+        computed ``bool`` (``True`` = the family has no edge in the regime it
+        would trade next; ``False`` = measured, not degraded). Passed through
+        verbatim to the gate. Omitted/``None`` leaves it undeclared so the gate
+        keeps blocking on "regime_degraded not yet measured".
     provenance:
         Optional caller-declared upstream provenance (EV-17): metadata the
         producer cannot compute because it only receives the resulting
@@ -603,6 +610,9 @@ def build_family_metrics_from_returns(
         "walkforward_brier": cal["walkforward_brier"],
         # C9: filled from supplied PSI monitoring windows, else None.
         "psi_slope": psi_trend_res["psi_slope"],
+        # C5.1: caller-supplied regime-degradation verdict (EV#7), passed
+        # through verbatim. None keeps the gate blocking "not yet measured".
+        "regime_degraded": regime_degraded,
         "conformal_coverage": conf["conformal_coverage"],
         "conformal_target": conf["conformal_target"],
         "provenance": provenance_out,
@@ -679,6 +689,7 @@ def build_bundle(spec: dict[str, Any]) -> list[dict[str, Any]]:
                 calibration=payload.get("calibration"),
                 conformal=payload.get("conformal"),
                 psi_trend=payload.get("psi_trend"),
+                regime_degraded=payload.get("regime_degraded"),
                 provenance=payload.get("provenance"),
             )
         )

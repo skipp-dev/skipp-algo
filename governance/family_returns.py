@@ -47,7 +47,7 @@ from governance.family_calibration import (
     walk_forward_calibration,
     walk_forward_psi_trend,
 )
-from governance.family_event_score import SCORE_SOURCE
+from governance.family_event_score import REGIME_SOURCE, SCORE_SOURCE
 from governance.family_walkforward import family_outcome_horizon, get_family_config
 from governance.types import EventFamily
 
@@ -103,6 +103,12 @@ class FamilyEvent(TypedDict, total=False):
     # when trailing ATR could not be computed (event keeps no score, stays
     # "not yet measured"). Never invented.
     score: float
+    # Optional point-in-time market regime label (EV#7): TRENDING / RANGING /
+    # NEUTRAL, derived from the trailing closes ending at the anchor bar (see
+    # ``governance.family_event_score.point_in_time_regime``). Absent when the
+    # trailing window is too short or perfectly flat. Used to stratify realized
+    # returns for the C5.1 ``regime_degraded`` gate check. Never invented.
+    regime: str
 
 
 def _direction_sign(direction: str) -> int:
@@ -340,6 +346,95 @@ def extract_family_calibration_samples(
     return out
 
 
+# Minimum realized events the prevailing regime must carry before its mean
+# return is trustworthy enough to flag degradation. Below this the current
+# regime stays "not yet measured" (None) and the strict gate keeps blocking.
+REGIME_MIN_SAMPLES = 20
+
+
+def extract_family_regime_samples(
+    events: list[FamilyEvent], *, cost_bps: float = DEFAULT_COST_BPS
+) -> dict[str, dict[str, list[Any]]]:
+    """Per family, collect the inputs the regime-degradation verdict needs.
+
+    For every event that BOTH triggered (a realized return exists) AND carries
+    a point-in-time ``regime`` label, emit a parallel-list bundle
+    ``{family: {"returns", "regimes", "anchor_ts"}}``. Unlike the calibration
+    samples this does NOT require a ``score`` -- the regime stratification is
+    independent of the calibration feature. Events without a regime label are
+    excluded (never invented into a regime).
+    """
+    out: dict[str, dict[str, list[Any]]] = {}
+    for event in events:
+        regime = event.get("regime")
+        if not regime:
+            continue
+        ret = realized_return(event, cost_bps=cost_bps)
+        if ret is None:
+            continue
+        family = event["family"]
+        bucket = out.setdefault(
+            family, {"returns": [], "regimes": [], "anchor_ts": []}
+        )
+        bucket["returns"].append(ret)
+        bucket["regimes"].append(str(regime))
+        bucket["anchor_ts"].append(float(event["anchor_ts"]))
+    return out
+
+
+def regime_degradation(
+    returns: list[float],
+    regimes: list[str],
+    anchor_ts: list[float],
+    *,
+    min_regime_samples: int = REGIME_MIN_SAMPLES,
+) -> bool | None:
+    """C5.1 verdict: is the family's edge absent in the regime it would trade?
+
+    Stratifies realized net ``returns`` by the regime label that prevailed
+    when each event formed, then asks a single, monotone question: *if the
+    pooled edge is positive, does it survive in the regime we would actually
+    deploy into?* The "current" regime is the one that prevailed at the
+    chronologically most-recent event (``max(anchor_ts)``) -- the honest,
+    lookahead-free proxy for the regime promotion would trade next.
+
+    Returns:
+
+    * ``True``  -- the pooled mean net return is > 0 (an edge the gate is being
+      asked to promote) BUT the mean net return *within the current regime* is
+      <= 0: the pooled edge is carried by other regimes and the family has no
+      demonstrated edge in the one it would trade -> degraded, block.
+    * ``False`` -- measured and not degraded: either there is no pooled edge to
+      protect (<= 0; PSR/MinTRL handle that globally, not a regime problem), or
+      the current regime itself shows a positive mean.
+    * ``None``  -- not yet measurable: no labelled events, or the current
+      regime carries fewer than ``min_regime_samples`` events. The strict gate
+      keeps blocking on "regime_degraded not yet measured" rather than guessing.
+
+    The verdict can only ADD a blocker (``True``); it never relaxes the gate.
+    """
+    if not (len(returns) == len(regimes) == len(anchor_ts)):
+        raise ValueError("regime_degradation: input lists length mismatch")
+    n = len(returns)
+    if n == 0:
+        return None
+
+    pooled_mean = sum(returns) / n
+    if pooled_mean <= 0.0:
+        # No pooled edge to protect -- a global failure the PSR/MinTRL checks
+        # already own. Not a regime-conditional degradation. Measured: False.
+        return False
+
+    # The regime prevailing at the most recent event = what we would trade next.
+    current_regime = regimes[max(range(n), key=lambda i: anchor_ts[i])]
+    current = [r for r, g in zip(returns, regimes) if g == current_regime]
+    if len(current) < min_regime_samples:
+        return None  # current regime not yet sufficiently observed
+
+    current_mean = sum(current) / len(current)
+    return current_mean <= 0.0
+
+
 def to_build_spec(
     events: list[FamilyEvent],
     *,
@@ -363,12 +458,14 @@ def to_build_spec(
     """
     grouped = extract_family_returns(events, cost_bps=cost_bps)
     calibration_samples = extract_family_calibration_samples(events, cost_bps=cost_bps)
+    regime_samples = extract_family_regime_samples(events, cost_bps=cost_bps)
     families: dict[str, Any] = {}
     for family, bucket in grouped.items():
         entry: dict[str, Any] = {"returns": bucket["returns"]}
         if as_of is not None:
             entry["timestamps"] = [_epoch_to_iso(t) for t in bucket["timestamps"]]
             entry["as_of"] = _epoch_to_iso(as_of)
+        provenance: dict[str, Any] = {}
         samples = calibration_samples.get(family)
         if samples is not None:
             block = walk_forward_calibration(
@@ -377,7 +474,6 @@ def to_build_spec(
                 samples["anchor_ts"],
                 samples["guard_end_ts"],
             )
-            provenance: dict[str, Any] = {}
             if block is not None:
                 entry["calibration"] = block
                 # EV-24 audit-only provenance (the gate ignores unknown keys;
@@ -403,8 +499,20 @@ def to_build_spec(
             if psi_trend_block is not None:
                 entry["psi_trend"] = psi_trend_block
                 provenance["ev24_psi_trend_source"] = PSI_TREND_SOURCE_TAG
-            if provenance:
-                entry["provenance"] = provenance
+        # EV#7 C5.1 regime degradation: stratify realized returns by the
+        # point-in-time regime label. Independent of the calibration feature,
+        # so it runs even when no score was attached. None (no labels / current
+        # regime under-sampled) -> not attached, family stays "not yet measured".
+        rsamples = regime_samples.get(family)
+        if rsamples is not None:
+            verdict = regime_degradation(
+                rsamples["returns"], rsamples["regimes"], rsamples["anchor_ts"]
+            )
+            if verdict is not None:
+                entry["regime_degraded"] = verdict
+                provenance["ev24_regime_source"] = REGIME_SOURCE
+        if provenance:
+            entry["provenance"] = provenance
         families[family] = entry
     return {"periods_per_year": periods_per_year, "families": families}
 
@@ -416,10 +524,13 @@ def _epoch_to_iso(epoch_seconds: float) -> str:
 
 __all__ = [
     "DEFAULT_COST_BPS",
+    "REGIME_MIN_SAMPLES",
     "RETURN_RULE",
     "EntryMode",
     "FamilyEvent",
+    "extract_family_regime_samples",
     "extract_family_returns",
     "realized_return",
+    "regime_degradation",
     "to_build_spec",
 ]
