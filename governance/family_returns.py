@@ -50,6 +50,7 @@ from governance.family_calibration import (
 )
 from governance.family_event_score import REGIME_SOURCE, SCORE_SOURCE
 from governance.family_walkforward import family_outcome_horizon, get_family_config
+from governance.promotion_gate import PIPELINE_CLASS_KEY, SMC_DIRECT_NO_ML
 from governance.types import EventFamily
 
 # Fixed round-turn transaction cost (bps) subtracted from every realized
@@ -536,6 +537,12 @@ def to_build_spec(
             entry["timestamps"] = [_epoch_to_iso(t) for t in bucket["timestamps"]]
             entry["as_of"] = _epoch_to_iso(as_of)
         provenance: dict[str, Any] = {}
+        # ADR-0016: this producer builds SMC-direct families -- returns come
+        # straight from events, scores are raw event scores, no ML/stacking
+        # layer. Declare the pipeline class so the gate treats the ML-modelling
+        # provenance keys (bootstrap_method/block_size/stacked_used) as
+        # not-applicable instead of blocking on them as "not declared".
+        provenance[PIPELINE_CLASS_KEY] = SMC_DIRECT_NO_ML
         samples = calibration_samples.get(family)
         if samples is not None:
             block = walk_forward_calibration(
