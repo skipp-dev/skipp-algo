@@ -37,6 +37,7 @@ Roadmap pointer: Edge-Validation Roadmap, Phase 2 / story EV-06b.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from itertools import pairwise
 from typing import Any, Literal, TypedDict
 
 from governance.family_calibration import (
@@ -299,7 +300,7 @@ def _event_bar_interval(forward_timestamps: list[float]) -> float:
     fewer than two timestamps (embargo then collapses to the label end only).
     """
     diffs = sorted(
-        d for first, second in zip(forward_timestamps, forward_timestamps[1:])
+        d for first, second in pairwise(forward_timestamps)
         if (d := float(second) - float(first)) > 0.0
     )
     if not diffs:
