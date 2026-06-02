@@ -36,6 +36,7 @@ Roadmap pointer: Edge-Validation Roadmap, Phase 2 / story EV-06b.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any, Literal, TypedDict
 
@@ -444,7 +445,8 @@ def extract_family_feature_samples(
         bucket = out.setdefault(
             family, {"feature": [], "outcomes": [], "anchor_ts": []}
         )
-        bucket["feature"].append(float(event[feature_key]))  # type: ignore[literal-required]
+        event_view: Mapping[str, Any] = event
+        bucket["feature"].append(float(event_view[feature_key]))
         bucket["outcomes"].append(1.0 if ret > 0.0 else 0.0)
         bucket["anchor_ts"].append(float(event["anchor_ts"]))
     return out
