@@ -345,6 +345,18 @@ def test_brier_ci_upper_max_can_be_decoupled_explicitly() -> None:
     assert t.brier_ci_upper_max == 0.25
 
 
+def test_brier_ci_upper_max_is_always_a_concrete_float() -> None:
+    # The stored attribute must never surface the tracking sentinel (or None):
+    # both default and overridden construction resolve to a concrete float so
+    # downstream code never has to re-narrow ``float | None``.
+    default = GateThresholds()
+    assert isinstance(default.brier_ci_upper_max, float)
+    assert default.brier_ci_upper_max == default.brier_max
+    overridden = GateThresholds(brier_max=0.18)
+    assert isinstance(overridden.brier_ci_upper_max, float)
+    assert overridden.brier_ci_upper_max == 0.18
+
+
 def test_regime_degraded_true_is_hard_blocker_in_lax_mode() -> None:
     snap = _green_snapshot()
     snap.regime_degraded = True
