@@ -60,7 +60,11 @@ from governance.family_significance import (
     family_fdr_qvalues,
 )
 from governance.family_walkforward import family_outcome_horizon, get_family_config
-from governance.point_in_time import TimestampLike, assert_point_in_time
+from governance.point_in_time import (
+    TimestampLike,
+    assert_point_in_time,
+    observed_span_seconds,
+)
 from ml.calibration.conformal import SplitConformalClassifier
 from ml.metrics import (
     brier_score,
@@ -73,12 +77,16 @@ from open_prep.stats_helpers import (
     min_trl,
     probabilistic_sharpe,
 )
-from scripts.smc_atomic_write import atomic_write_json
 from scripts.bootstrap_methods import stationary_block_bootstrap
+from scripts.smc_atomic_write import atomic_write_json
 
 # PSR method tag recorded in provenance for audit (matches the gate's
 # expected ``psr_method`` provenance key, C6.1).
 PSR_METHOD_TAG = "bailey_lopez_de_prado_2012"
+
+# Seconds in an average Gregorian year (365.25 days), used only to convert the
+# observed event-timestamp span into an annual cadence diagnostic.
+SECONDS_PER_YEAR = 365.25 * 24 * 60 * 60
 
 # C4 significance provenance tags.
 SIGNIFICANCE_METHOD_TAG = "stationary_block_bootstrap_one_sided"
@@ -515,6 +523,21 @@ def build_family_metrics_from_returns(
             )
         assert_point_in_time(timestamps, as_of, label=f"{family} return")
 
+    # Observed sampling cadence (EV-20 time-basis diagnostic). The return
+    # series is event-driven, not daily bars, so the declared
+    # ``periods_per_year`` (the annualization basis the gate uses for MinTRL)
+    # may not match how often the events actually fire. When event timestamps
+    # are supplied we derive the REALIZED events-per-year from their span and
+    # surface it alongside the declared basis so any annualized Sharpe can be
+    # read on its true time-basis. Purely diagnostic — it does NOT change the
+    # gate's MinTRL arithmetic. ``None`` when timestamps are absent or the
+    # span collapses (single instant carries no cadence).
+    observed_ppy: float | None = None
+    if timestamps is not None:
+        span_seconds = observed_span_seconds(timestamps)
+        if span_seconds is not None:
+            observed_ppy = len(returns) / (span_seconds / SECONDS_PER_YEAR)
+
     n = len(returns)
     if n < MIN_OBSERVATIONS_FOR_PSR:
         raise ValueError(
@@ -623,6 +646,15 @@ def build_family_metrics_from_returns(
             "n_returns": float(n),
             "periods_per_year": float(periods_per_year),
             "raw_pvalue": raw_pvalue,
+            # EV-20 time-basis diagnostic: realized events-per-year derived
+            # from the event-timestamp span. Only present when timestamps were
+            # supplied and span > 0; lets a reader re-annualize sharpe_hat on
+            # the true cadence instead of assuming the declared periods_per_year.
+            **(
+                {"observed_periods_per_year": observed_ppy}
+                if observed_ppy is not None
+                else {}
+            ),
         },
     }
 
