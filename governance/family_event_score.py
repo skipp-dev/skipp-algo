@@ -136,3 +136,80 @@ def raw_score(
         return tr / atr
 
     return None
+
+
+# ---------------------------------------------------------------------------
+# EV#7: point-in-time market regime label (trend vs range)
+# ---------------------------------------------------------------------------
+#
+# A single bar-derived regime label per event, computed strictly from the
+# trailing closes *ending at* the anchor bar (inclusive) -- the same
+# point-in-time discipline ``atr_at`` uses, so it is leak-free by construction
+# and needs NO external data (no VIX / macro / sector feed the structural
+# adapter cannot supply). It stratifies the family's realized returns by the
+# regime that prevailed when each event formed, which is what the C5.1 gate
+# check (``regime_degraded``) consumes downstream.
+#
+# Measure: the Kaufman Efficiency Ratio (ER) over the trailing window --
+#   ER = |close[anchor] - close[anchor - window]| / sum_i |close[i] - close[i-1]|
+# the net directional travel divided by the total path length. ER -> 1 is a
+# clean trend; ER -> 0 is choppy/range-bound. This is a single, transparent,
+# low-degrees-of-freedom formula (one window, two conventional bands), in the
+# same spirit as the deliberately-weak raw score above.
+#
+# Deliberate deviation (documented honesty): the repo already has
+# ``open_prep.technical_analysis.detect_symbol_regime`` (ADX + Bollinger-band
+# width). Reusing it would drag the heavy ``open_prep`` import chain (macro /
+# VIX / sentiment deps) into this trivially-testable governance module and
+# require re-deriving ADX (Wilder-smoothed +DM/-DM/TR) and BB width from bars
+# -- more surface and bug-risk for an identically-intentioned trend/range
+# split. ER reproduces the same trend-vs-range distinction from closes alone.
+# Revisit only if a shared, dependency-free ADX/BBwidth helper is extracted.
+
+# Trailing window for the regime measure. Reuses the ATR lookback so the score
+# and the regime share one trailing horizon and the module keeps a single
+# point-in-time window constant (no per-family tuning).
+REGIME_WINDOW = ATR_PERIOD
+
+# Conventional Kaufman Efficiency-Ratio bands (cf. the fixed VIX/ADX/BB bands
+# in ``detect_symbol_regime``): trending above, ranging below, uncertain
+# between. Conventions, not values fitted to this project's data.
+REGIME_TRENDING_ER = 0.5
+REGIME_RANGING_ER = 0.3
+
+REGIME_TRENDING = "TRENDING"
+REGIME_RANGING = "RANGING"
+REGIME_NEUTRAL = "NEUTRAL"
+
+# Provenance tag recording how each event's regime label was produced.
+REGIME_SOURCE = "kaufman_efficiency_ratio_trailing_closes_v1"
+
+
+def point_in_time_regime(
+    bars: Sequence[Mapping[str, Any]],
+    anchor_idx: int,
+    *,
+    window: int = REGIME_WINDOW,
+) -> str | None:
+    """Trend/range regime label from the trailing closes ending at the anchor.
+
+    Strictly point-in-time: reads only closes at indices
+    ``[anchor_idx - window, anchor_idx]`` (inclusive), never a bar after the
+    anchor, so the label is leak-free and consistent with the EV-04 lookahead
+    guard. Returns one of ``TRENDING`` / ``RANGING`` / ``NEUTRAL``, or ``None``
+    when there is not enough leading history or the path length is zero (a
+    perfectly flat window carries no regime and is never invented into one).
+    """
+    if window <= 0 or anchor_idx < window or anchor_idx >= len(bars):
+        return None
+    closes = [float(bars[k]["close"]) for k in range(anchor_idx - window, anchor_idx + 1)]
+    net = abs(closes[-1] - closes[0])
+    path = sum(abs(closes[i] - closes[i - 1]) for i in range(1, len(closes)))
+    if path <= 0.0:
+        return None
+    er = net / path
+    if er >= REGIME_TRENDING_ER:
+        return REGIME_TRENDING
+    if er <= REGIME_RANGING_ER:
+        return REGIME_RANGING
+    return REGIME_NEUTRAL
