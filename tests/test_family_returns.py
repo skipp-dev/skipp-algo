@@ -262,6 +262,56 @@ def test_to_build_spec_emits_calibration_block_and_ev24_provenance() -> None:
     assert "ev24_score_source" in prov and "ev24_fold_scheme" in prov
 
 
+def test_to_build_spec_emits_live_surrogate_block_and_ev25_provenance() -> None:
+    from governance.family_calibration import (
+        LIVE_SOURCE_TAG,
+        LIVE_TAIL_MIN_SAMPLES,
+    )
+
+    events = [_scored_immediate_bos(i) for i in range(160)]
+    spec = to_build_spec(events, as_of=1_700_000_000.0 + 200.0 * 40.0 * _DAY)
+
+    bos = spec["families"]["BOS"]
+    calibration = bos["calibration"]
+    # ADR-0017: the most-recent OOS window is declared the live surrogate.
+    assert "live" in calibration
+    live = calibration["live"]
+    assert len(live["probabilities"]) == LIVE_TAIL_MIN_SAMPLES
+    assert len(live["outcomes"]) == LIVE_TAIL_MIN_SAMPLES
+    assert all(0.0 <= p <= 1.0 for p in live["probabilities"])
+    assert all(o in (0.0, 1.0) for o in live["outcomes"])
+    # The walk-forward remainder stays adequately powered.
+    assert len(calibration["walkforward"]["probabilities"]) >= 40
+    # The EV-25 source tag rides alongside the EV-24 provenance.
+    assert bos["provenance"]["ev25_live_source"] == LIVE_SOURCE_TAG
+
+
+def test_to_build_spec_omits_live_surrogate_when_pool_too_small() -> None:
+    # 72 events -> OOS pool below LIVE_TAIL_MIN_SAMPLES + MIN_OOS_SAMPLES, so no
+    # split: the full pooled walk-forward is kept and live stays unmeasured.
+    events = [_scored_immediate_bos(i) for i in range(72)]
+    spec = to_build_spec(events, as_of=1_700_000_000.0 + 200.0 * 40.0 * _DAY)
+
+    bos = spec["families"]["BOS"]
+    calibration = bos["calibration"]
+    assert "walkforward" in calibration
+    assert "live" not in calibration
+    assert "ev25_live_source" not in bos.get("provenance", {})
+
+
+def test_live_surrogate_yields_measured_live_brier_in_bundle() -> None:
+    from scripts.build_family_metrics import build_bundle
+
+    events = [_scored_immediate_bos(i) for i in range(160)]
+    spec = to_build_spec(events, as_of=1_700_000_000.0 + 200.0 * 40.0 * _DAY)
+    bundle = build_bundle(spec)
+
+    bos = next(m for m in bundle if m["family"] == "BOS")
+    # The live Brier is now MEASURED (no longer "not yet measured"), enabling
+    # the live_vs_wf_ratio gate check to evaluate instead of info-blocking.
+    assert bos["live_brier"] is not None
+
+
 def test_calibration_block_yields_measured_brier_in_bundle() -> None:
     from scripts.build_family_metrics import build_bundle
 

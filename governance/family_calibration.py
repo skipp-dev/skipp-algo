@@ -62,6 +62,19 @@ CALIBRATOR_TAG = "platt_logistic_standardised_v1"
 FOLD_SCHEME_TAG = "walkforward_purged_embargo_time"
 TARGET_TAG = "sign_return_secondary_diagnostic"  # GAP 2: win-rate, not edge.
 
+# EV-25 / C8 live-incubation surrogate (ADR-0017). In an offline backtest there
+# is no real live trading feed, so the most recent chronological slice of the
+# pooled walk-forward OOS pairs is DECLARED as a "live" proxy and the older
+# remainder is the walk-forward reference. This makes ``live_vs_wf_ratio`` an
+# honest recent-vs-historical OOS calibration-drift measure (a coarse 1.5x
+# alarm, NOT a precise threshold -- the tail is small, so the live Brier has
+# wide sampling error). A true live feed supersedes the surrogate when one
+# exists. The split is emitted only when both partitions stay adequately
+# powered; otherwise the family keeps the full pooled block and ``live_brier``
+# stays honestly "not yet measured".
+LIVE_TAIL_MIN_SAMPLES = 20
+LIVE_SOURCE_TAG = "ev25_walkforward_oos_recent_tail_v1"
+
 # C9 PSI-trend window construction (EV#6). The reference distribution is a
 # FIXED calibrator fit on the earliest chronological block; the monitoring
 # windows are successive chronological slices scored through that SAME fixed
@@ -198,6 +211,49 @@ def walk_forward_calibration(
     return {"walkforward": {"probabilities": oos_probs, "outcomes": oos_outcomes}}
 
 
+def partition_live_tail(
+    block: dict[str, dict[str, list[float]]],
+    *,
+    live_min: int = LIVE_TAIL_MIN_SAMPLES,
+    wf_min: int = MIN_OOS_SAMPLES,
+) -> dict[str, dict[str, list[float]]] | None:
+    """Split a pooled walk-forward block into ``{walkforward, live}`` (ADR-0017).
+
+    The pooled OOS pairs produced by :func:`walk_forward_calibration` are in
+    CHRONOLOGICAL order (earliest fold first, latest fold last), so the last
+    ``live_min`` pairs are the most recent out-of-sample window. They are
+    DECLARED as the live-incubation surrogate (there is no real live feed in an
+    offline backtest); the older remainder is the walk-forward reference.
+
+    Returns the two-block dict only when the pool is large enough to leave BOTH
+    partitions adequately powered (``len >= live_min + wf_min``). Otherwise
+    returns ``None`` -- the caller then keeps the full pooled block and
+    ``live_brier`` stays honestly "not yet measured" rather than splitting a
+    small sample into two noisy halves. The live tail is intentionally small,
+    so the resulting ``live_vs_wf_ratio`` is a coarse drift alarm, not a precise
+    threshold (see module-level ``LIVE_SOURCE_TAG`` note).
+    """
+    wf = block.get("walkforward")
+    if wf is None:
+        return None
+    probs = wf["probabilities"]
+    outcomes = wf["outcomes"]
+    n = len(probs)
+    if n < live_min + wf_min:
+        return None
+    cut = n - live_min
+    return {
+        "walkforward": {
+            "probabilities": probs[:cut],
+            "outcomes": outcomes[:cut],
+        },
+        "live": {
+            "probabilities": probs[cut:],
+            "outcomes": outcomes[cut:],
+        },
+    }
+
+
 def walk_forward_psi_trend(
     scores: list[float],
     returns: list[float],
@@ -272,6 +328,8 @@ def walk_forward_psi_trend(
 __all__ = [
     "CALIBRATOR_TAG",
     "FOLD_SCHEME_TAG",
+    "LIVE_SOURCE_TAG",
+    "LIVE_TAIL_MIN_SAMPLES",
     "MIN_OOS_SAMPLES",
     "MIN_TRAIN_SAMPLES",
     "PSI_TREND_MAX_WINDOWS",
@@ -279,6 +337,7 @@ __all__ = [
     "PSI_TREND_MIN_WINDOW_SAMPLES",
     "PSI_TREND_SOURCE_TAG",
     "TARGET_TAG",
+    "partition_live_tail",
     "walk_forward_calibration",
     "walk_forward_psi_trend",
 ]

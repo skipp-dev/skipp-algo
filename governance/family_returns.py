@@ -42,8 +42,10 @@ from typing import Any, Literal, TypedDict
 from governance.family_calibration import (
     CALIBRATOR_TAG,
     FOLD_SCHEME_TAG,
+    LIVE_SOURCE_TAG,
     PSI_TREND_SOURCE_TAG,
     TARGET_TAG,
+    partition_live_tail,
     walk_forward_calibration,
     walk_forward_psi_trend,
 )
@@ -483,6 +485,15 @@ def to_build_spec(
                 samples["guard_end_ts"],
             )
             if block is not None:
+                # ADR-0017 / EV-25: declare the most recent OOS window as a
+                # live-incubation surrogate so live_vs_wf_ratio is measured.
+                # Only splits when both partitions stay adequately powered;
+                # otherwise the full pooled walk-forward block is kept and
+                # live_brier stays honestly "not yet measured".
+                split = partition_live_tail(block)
+                if split is not None:
+                    block = split
+                    provenance["ev25_live_source"] = LIVE_SOURCE_TAG
                 entry["calibration"] = block
                 # EV-24 audit-only provenance (the gate ignores unknown keys;
                 # the producer copies these through verbatim). Records exactly
