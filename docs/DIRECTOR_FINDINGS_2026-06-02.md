@@ -118,6 +118,64 @@ Gate zwischen uns und der ersten promotbaren Strategie.
 > Tool/Prompt). Die *Auswertung* bestehender Decisions braucht keinen Key und
 > ist oben bereits erfolgt.
 
+## 6.1 EV-20 — Vertiefung (Step-1+2-Audit) und Korrektur
+
+Eine rigorose Zerlegung der Aggregate (`scripts/ev20_resolution_cost_audit.py`,
+5-Run-Mittel) **präzisiert und korrigiert** die obige „Kalibrierung"-Verkürzung.
+Beide Audits brauchen **keinen** API-Key.
+
+| Familie | brier | Resolution-Band¹ | Sharpe/J² | PSR vs 0 | PSR vs SPY³ | Events/J⁴ |
+|---------|------:|-----------------:|----------:|---------:|------------:|----------:|
+| BOS | 0.242 | 0.008–0.043 (3–17 %) | 1.96 | 1.000 | 0.996 | 571 |
+| OB  | 0.241 | 0.010–0.047 (4–19 %) | 2.86 | 1.000 | 1.000 | 431 |
+| FVG | 0.235 | 0.015–0.052 (6–21 %) | 3.68 | 1.000 | 1.000 | 483 |
+| SWEEP | 0.257 | −0.007–0.134 (Untergrenze < 0) | 4.07 | 0.996 | 0.990 | 62 |
+
+¹ Brier-Zerlegung `Brier = Uncertainty(0.25) − Resolution + Reliability`; da
+Reliability (quadratische Gaps) ≪ ECE (absolute Gaps), liegt der realistische
+Wert nahe der **Untergrenze**. ² annualisiert über `ppy=252`. ³ neu gerechnet
+gegen SPY-Buy-and-Hold (annual Sharpe 0.55). ⁴ `n_returns / 1.62 J` Fenster.
+
+**Korrektur 1 — es ist Trennschärfe, nicht „Eichung".** `ece ≈ 0.034–0.044` ist
+**niedrig**, die Wahrscheinlichkeiten sind also im Mittel korrekt geeicht. Der
+bindende Blocker ist die **brier-Schwelle (≤ 0.22)**, und die wird verfehlt, weil
+die **Resolution (Trennschärfe) schwach** ist: realistisch nur **3–6 %** der
+Gesamt-Unsicherheit für BOS/OB/FVG, bei SWEEP an der Untergrenze sogar negativ.
+Im Klartext: Das System trennt gewinnende kaum von verlierenden Setups. Eine
+reine Recalibration-Kurve brächte **nichts** (ECE ist ja schon gut) — es braucht
+**diskriminierendere Features**.
+
+**Korrektur 2 — der Return-Edge überlebt den richtigen Benchmark.** Die gestrige
+Vermutung „PSR sättigt nur, weil gegen Null getestet" ist **falsch**: PSR bleibt
+0.99–1.00 **auch gegen SPY-Buy-and-Hold**. Der primäre Return-Edge ist real und
+benchmark-robust — das ist der verkaufbare Kern.
+
+**Korrektur 3 — die Zahl, die noch nicht investor-tauglich ist.** Die
+annualisierten Sharpes (1.96–4.07) stehen auf einer **fragwürdigen Zeitbasis**:
+die Annualisierung nutzt `ppy=252`, die tatsächliche Event-Kadenz ist aber
+431–571/Jahr. **Vor jedem Investoren-Gespräch muss `ppy` gegen die echte Kadenz
+abgeglichen werden** — sonst ist keine Sharpe-Zahl belastbar.
+
+**Wichtig für die Story:** Das Calibration-Target ist als
+`sign_return_secondary_diagnostic` deklariert — der blockierende brier-Check misst
+einen **Sekundär-Diagnostik-Score**, nicht den primären Return-Edge.
+
+### Strategische Gabel (investor-tauglich, mit Daten entscheiden)
+
+- **A) Signal schärfen.** Wenn scharfe Wahrscheinlichkeiten für Sizing/Risk
+  gewollt sind, ist das Sekundär-Gate richtig → **M1 = brier < 0.22** durch
+  diskriminierende Features (Confluence-Stärke, HTF-Alignment, Liquiditätskontext);
+  Resolution muss grob verdoppelt werden.
+- **B) Gate korrigieren.** Wenn ein starker, benchmark-robuster Return-Edge nicht
+  an einer **Sekundär**-sign-Wahrscheinlichkeit scheitern soll → ADR-Entscheid, ob
+  brier auf dem Sekundär-Diagnostik `info` statt `blocker` ist. Mit Evidenz.
+
+Vorbedingung für **beide**: Zeitbasis-/`ppy`-Fix, sonst ist keine SR-Zahl
+belastbar. Der nächste Live-Run (erweitertes Universum/Fenster, damit SWEEP
+≥ 120 Trigger erreicht) liefert dann das **zweite** Verdict — und damit den
+Kandidaten für **M1: erste Familie auf `edge_supported`**, das erste Objekt mit
+Verkaufswert.
+
 ## 7. Anti-Kreisverkehr-Mechanismus
 
 Dieses Memo + der `DECISIONS.md`-Eintrag sind die durable Referenz. Vor jeder
