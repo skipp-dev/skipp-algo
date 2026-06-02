@@ -75,7 +75,7 @@ ADR-0015 tier-1 `inconclusive` on three guards that are *not-applicable*, not
   `conformal_coverage` is unchanged — it is computed on the OOS pairs and
   remains an applicable, measured guard.
 - `governance/family_returns.to_build_spec` declares
-  `pipeline_class = smc_direct_no_ml` on every family it builds, so the
+  `pipeline_class = "smc_direct_no_ml"` on every family it builds, so the
   classification flows end-to-end into the gate snapshot.
 - New tests pin the waiver, the unknown-class non-waiver, the
   pipeline-agnostic keys staying required, conformal staying required, and the
