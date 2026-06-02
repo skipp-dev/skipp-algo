@@ -119,14 +119,15 @@ def test_regime_is_point_in_time_ignores_future_bars() -> None:
     # Trending trailing window; whatever happens AFTER the anchor must not
     # change the label (leak-free by construction).
     trailing = [100.0 + i for i in range(REGIME_WINDOW + 1)]
-    anchor = REGIME_WINDOW
-    quiet_future = _bars_from_closes(trailing + [anchor + 100.0] * 5)
+    anchor_idx = REGIME_WINDOW
+    future_base_close = 200.0  # distinct price level for the post-anchor bars
+    quiet_future = _bars_from_closes(trailing + [future_base_close] * 5)
     wild_future = _bars_from_closes(
-        trailing + [anchor + 100.0 + (5.0 if i % 2 else -5.0) for i in range(5)]
+        trailing + [future_base_close + (5.0 if i % 2 else -5.0) for i in range(5)]
     )
     assert (
-        point_in_time_regime(quiet_future, anchor)
-        == point_in_time_regime(wild_future, anchor)
+        point_in_time_regime(quiet_future, anchor_idx)
+        == point_in_time_regime(wild_future, anchor_idx)
         == "TRENDING"
     )
 

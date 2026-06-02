@@ -111,9 +111,13 @@ fabrication.
 
 - EV#6 `psi_slope` is now a **measured** gate input for families with enough
   chronological history; sparse families abstain (still blocked).
-- EV#7 `regime_degraded` is now a **measured** gate input for families with a
-  current-regime sample ≥ 20; families below that, or with no pooled edge,
-  abstain to `False`/`None` without fabricating a regime label.
+- EV#7 `regime_degraded` is now a **measured** gate input. A family with no
+  pooled edge (pooled mean ≤ 0) returns a *measured* `False` — the
+  regime-conditional check defers to PSR/MinTRL, which already own the
+  no-edge case. Only a family whose **current** regime is under-sampled
+  (< 20 events), or that carries no labelled events at all, abstains to
+  `None` (not yet measurable, still blocked under strict provenance). No
+  regime label is ever fabricated.
 - The change is additive and monotonic — no existing pass can flip to a fail
   for the wrong reason, and no fail can flip to a pass.
 - The regime label is derived from bars only (Kaufman ER); no external

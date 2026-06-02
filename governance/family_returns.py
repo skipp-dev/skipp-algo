@@ -352,9 +352,17 @@ def extract_family_calibration_samples(
 REGIME_MIN_SAMPLES = 20
 
 
+class RegimeSamples(TypedDict):
+    """Per-family parallel lists the regime-degradation verdict consumes."""
+
+    returns: list[float]
+    regimes: list[str]
+    anchor_ts: list[float]
+
+
 def extract_family_regime_samples(
     events: list[FamilyEvent], *, cost_bps: float = DEFAULT_COST_BPS
-) -> dict[str, dict[str, list[Any]]]:
+) -> dict[str, RegimeSamples]:
     """Per family, collect the inputs the regime-degradation verdict needs.
 
     For every event that BOTH triggered (a realized return exists) AND carries
@@ -364,7 +372,7 @@ def extract_family_regime_samples(
     independent of the calibration feature. Events without a regime label are
     excluded (never invented into a regime).
     """
-    out: dict[str, dict[str, list[Any]]] = {}
+    out: dict[str, RegimeSamples] = {}
     for event in events:
         regime = event.get("regime")
         if not regime:
@@ -528,6 +536,7 @@ __all__ = [
     "RETURN_RULE",
     "EntryMode",
     "FamilyEvent",
+    "RegimeSamples",
     "extract_family_regime_samples",
     "extract_family_returns",
     "realized_return",
