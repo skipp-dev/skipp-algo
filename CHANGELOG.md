@@ -27,8 +27,10 @@ discrimination component) — the binding promotion deficit. Changes **no** scor
   leak-safe by construction.
 - New module `governance/family_feature_ab`: the `resolution` metric plus
   `family_feature_ab` / `family_feature_ab_report`, which return a shadow
-  verdict (`candidate_lifts_resolution` / `no_lift` / `regresses_calibration` /
-  `insufficient_sample`). No-regression guards are a Brier proper-scoring check
+  verdict (`candidate_lifts_resolution` / `no_lift` / `regresses_calibration`).
+  A family with too few shared OOS points is not measurable yet: `family_feature_ab`
+  returns `None` and `family_feature_ab_report` omits it (never silently scored).
+  No-regression guards are a Brier proper-scoring check
   plus an **absolute** ECE ceiling (deliberately not relative to the baseline —
   a near-constant baseline trivially wins ECE and would perversely veto a sharp,
   discriminating candidate).

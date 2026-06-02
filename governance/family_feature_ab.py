@@ -23,7 +23,9 @@ Design (pre-registered, honest, non-gating):
   well-discriminating forecaster. A feature that discriminates but is itself
   badly miscalibrated is still rejected.
 - SAMPLE-POWER guard: below ``min_oos`` shared out-of-sample points the family
-  is reported ``insufficient_sample`` and yields no verdict (GAP 3/4).
+  is not measurable yet -- :func:`family_feature_ab` returns ``None`` and
+  :func:`family_feature_ab_report` omits it, so a thin family is never silently
+  scored or assigned a verdict (GAP 3/4).
 - SCOPE: this slice compares feature-ALONE vs score-ALONE. The *incremental*
   question (does the feature add resolution ON TOP of the score, i.e. a 2-D /
   meta-label model) is deliberately out of scope here and is the next slice.
@@ -55,7 +57,6 @@ Verdict = Literal[
     "candidate_lifts_resolution",
     "no_lift",
     "regresses_calibration",
-    "insufficient_sample",
 ]
 
 
@@ -136,8 +137,9 @@ def family_feature_ab(
 
     - ``candidate_lifts_resolution`` -- resolution lift >= ``min_resolution_lift``
       AND no calibration/Brier regression beyond tolerance;
-    - ``regresses_calibration`` -- the candidate worsens ECE or Brier beyond
-      tolerance (a discrimination gain that costs calibration is rejected);
+    - ``regresses_calibration`` -- the candidate regresses the proper-scoring
+      Brier beyond ``brier_tolerance`` OR breaches the absolute ECE ceiling
+      ``ece_ceiling`` (a discrimination gain that costs calibration is rejected);
     - ``no_lift`` -- calibration is fine but the resolution lift is too small.
     """
     ab = walk_forward_ab(
