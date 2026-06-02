@@ -300,8 +300,11 @@ class PromotionGate:
         # that the true Brier may exceed threshold). When unmeasured it only
         # blocks under strict_provenance so legacy snapshots stay valid.
         # ``brier_ci_upper_max`` is resolved to a float in ``__post_init__``.
+        # Defensive re-narrowing (no ``assert``: stripped under ``-O``) keeps
+        # the type checker happy and falls back to the point-estimate bar.
         brier_ci_upper_max = t.brier_ci_upper_max
-        assert brier_ci_upper_max is not None  # noqa: S101 — guaranteed by __post_init__
+        if brier_ci_upper_max is None:  # pragma: no cover — set in __post_init__
+            brier_ci_upper_max = t.brier_max
         if snapshot.brier_ci_upper is None:
             if t.strict_provenance:
                 blockers.append({
