@@ -105,15 +105,24 @@ DEFAULT_CONFORMAL_COVERAGE_TOLERANCE = 0.02
 # equal to the point-estimate bar by default so the whole CI must clear it.
 DEFAULT_BRIER_CI_UPPER_MAX = DEFAULT_BRIER_MAX
 
+# Out-of-range sentinel for ``GateThresholds.brier_ci_upper_max``: a Brier
+# score lives in ``[0, 1]``, so a negative default unambiguously means "track
+# ``brier_max``" without overloading ``None``. ``__post_init__`` resolves it to
+# a concrete float, so the stored attribute is ALWAYS a plain ``float`` and no
+# call site has to re-narrow ``float | None``.
+_TRACK_BRIER_MAX = -1.0
+
 
 @dataclass(frozen=True)
 class GateThresholds:
     brier_max: float = DEFAULT_BRIER_MAX
-    # Defaults to ``None`` so it TRACKS ``brier_max``: a caller that tightens
-    # (or loosens) the point-estimate bar automatically moves the CI bar with
-    # it, rather than silently leaving the CI check at 0.22. Pass an explicit
-    # float to decouple the two knobs. Resolved in ``__post_init__``.
-    brier_ci_upper_max: float | None = None
+    # Defaults to the ``_TRACK_BRIER_MAX`` sentinel so it TRACKS ``brier_max``:
+    # a caller that tightens (or loosens) the point-estimate bar automatically
+    # moves the CI bar with it, rather than silently leaving the CI check at
+    # 0.22. Pass an explicit float to decouple the two knobs. The sentinel is
+    # resolved to a concrete float in ``__post_init__``, so the stored value is
+    # always a plain ``float``.
+    brier_ci_upper_max: float = _TRACK_BRIER_MAX
     ece_max: float = DEFAULT_ECE_MAX
     fdr_q: float = DEFAULT_FDR_Q
     psr_min: float = DEFAULT_PSR_MIN
@@ -131,10 +140,11 @@ class GateThresholds:
 
     def __post_init__(self) -> None:
         # Couple the Brier CI bar to the point-estimate bar unless the caller
-        # explicitly decoupled it. ``DEFAULT_BRIER_CI_UPPER_MAX == DEFAULT_BRIER_MAX``
-        # so the default-construction posture is unchanged; this only ensures a
-        # ``brier_max`` override flows through to the CI check too.
-        if self.brier_ci_upper_max is None:
+        # explicitly set it. The sentinel resolves to ``brier_max`` here so the
+        # default-construction posture is unchanged; this only ensures a
+        # ``brier_max`` override flows through to the CI check too, and leaves
+        # the stored attribute a plain ``float``.
+        if self.brier_ci_upper_max == _TRACK_BRIER_MAX:
             object.__setattr__(self, "brier_ci_upper_max", self.brier_max)
 
 
@@ -299,19 +309,16 @@ class PromotionGate:
         # pokes above the bar always blocks (serial-dependence-aware evidence
         # that the true Brier may exceed threshold). When unmeasured it only
         # blocks under strict_provenance so legacy snapshots stay valid.
-        # ``brier_ci_upper_max`` is resolved to a float in ``__post_init__``.
-        # Defensive re-narrowing (no ``assert``: stripped under ``-O``) keeps
-        # the type checker happy and falls back to the point-estimate bar.
-        brier_ci_upper_max = t.brier_ci_upper_max
-        if brier_ci_upper_max is None:  # pragma: no cover — set in __post_init__
-            brier_ci_upper_max = t.brier_max
+        # ``brier_ci_upper_max`` is resolved to a concrete float in
+        # ``__post_init__`` (the ``_TRACK_BRIER_MAX`` sentinel is coupled to
+        # ``brier_max`` there), so it is always a plain float here.
         if snapshot.brier_ci_upper is None:
             if t.strict_provenance:
                 blockers.append({
                     "check": "brier_ci_upper",
                     "severity": "info",
                     "observed": None,
-                    "threshold": float(brier_ci_upper_max),
+                    "threshold": float(t.brier_ci_upper_max),
                     "message": "brier_ci_upper not yet measured",
                 })
                 ok_brier_ci = False
@@ -321,7 +328,7 @@ class PromotionGate:
             ok_brier_ci = _check(
                 name="brier_ci_upper",
                 observed=snapshot.brier_ci_upper,
-                threshold=brier_ci_upper_max,
+                threshold=t.brier_ci_upper_max,
                 lower_is_better=True,
                 blockers=blockers,
                 metrics=metrics,
