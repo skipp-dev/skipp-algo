@@ -6,8 +6,9 @@ Reads archived promotion-decision JSONs and, from the aggregate metrics alone
   Step 1 - Resolution audit via the Murphy/Brier two-component decomposition:
       Brier = Uncertainty - Resolution + Reliability
     With a sign-return target the base rate p is ~0.5, so Uncertainty = p*(1-p).
-    Reliability is bounded by the reported ECE (reliability ~ mean squared gap,
-    ECE = mean abs gap, so reliability <= ECE * max_gap; we bound it two ways).
+    Reliability (mean SQUARED calibration gap) is bounded above by the reported
+    ECE (mean ABSOLUTE gap), since squared gaps <= absolute gaps for gaps in
+    [0, 1]; the resolution band therefore brackets reliability in [0, ECE].
     Resolution = Uncertainty - Brier + Reliability. Near-zero resolution means
     the probability score does NOT separate winners from losers.
 
@@ -17,8 +18,9 @@ Reads archived promotion-decision JSONs and, from the aggregate metrics alone
           sqrt(1 - skew*SR_hat + (kurt-1)/4 * SR_hat^2)
     The archived PSR uses SR_bench = 0. The pre-registered H1 benchmark is
     "regime-matched SPY buy-and-hold". We recompute PSR against a non-zero SPY
-    per-period Sharpe to show how much of the 0.99 PSR is "beats zero" vs
-    "beats buy-and-hold".
+    per-period Sharpe - de-annualised onto each family's own event cadence so
+    the strategy SR and the benchmark SR share one time basis - to show how
+    much of the 0.99 PSR is "beats zero" vs "beats buy-and-hold".
 
   Time-basis (EV-20 ppy fix, PR #2513): the per-event Sharpe is annualised two
     ways - the legacy daily-bar basis (sr*sqrt(252)) and the TRUE event-cadence
@@ -60,7 +62,6 @@ def audit(files: list[Path]) -> None:
             n = m.get("extra.n_returns")
             skew = m.get("extra.skew")
             kurt = m.get("extra.kurtosis")
-            ppy = m.get("extra.periods_per_year", 252.0)
             # EV-20 ppy fix: measured realised events/year, present only on
             # runs produced after PR #2513. None/absent on legacy archives.
             obs_ppy = m.get("extra.observed_periods_per_year")
@@ -72,12 +73,9 @@ def audit(files: list[Path]) -> None:
                 "n": n,
                 "skew": skew,
                 "kurt": kurt,
-                "ppy": ppy,
                 "obs_ppy": obs_ppy,
             }
             per_family.setdefault(fam, []).append(row)
-
-    spy_per_period = SPY_ANNUAL_SHARPE / math.sqrt(252.0)
 
     print(f"{'FAM':5} {'brier':>7} {'ece':>6} {'Resol_lo':>9} {'Resol_hi':>9} "
           f"{'evt/yr':>7} {'src':>4} {'SR252':>6} {'SRtrue':>7} "
@@ -113,6 +111,9 @@ def audit(files: list[Path]) -> None:
 
         sr_252 = sr * math.sqrt(252.0)  # legacy daily-bar headline basis
         sr_true = sr * math.sqrt(evt_per_year)  # true event-cadence basis
+        # De-annualise the SPY hurdle onto THIS family's event cadence so the
+        # strategy SR (per event) and the benchmark SR share one time basis.
+        spy_per_period = SPY_ANNUAL_SHARPE / math.sqrt(evt_per_year)
         psr0 = _phi(psr_z(sr, 0.0, n, skew, kurt))
         psr_spy = _phi(psr_z(sr, spy_per_period, n, skew, kurt))
 
@@ -121,8 +122,8 @@ def audit(files: list[Path]) -> None:
               f"{psr0:6.3f} {psr_spy:8.3f} {int(n):5d}")
 
     print()
-    print(f"SPY benchmark assumed: annual Sharpe {SPY_ANNUAL_SHARPE} "
-          f"(per-period {spy_per_period:.4f}).")
+    print(f"SPY benchmark assumed: annual Sharpe {SPY_ANNUAL_SHARPE}, "
+          f"de-annualised to each family's event cadence (evt/yr) for PSR_spy.")
     print("Uncertainty=0.25 (base rate ~0.5). Resol_lo/hi = resolution band; <=0 means")
     print("no better than a coin flip. Brier<=0.22 gate needs resolution-reliability>=0.03.")
     print("evt/yr src=obs -> measured extra.observed_periods_per_year (PR #2513);")
