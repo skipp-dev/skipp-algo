@@ -44,7 +44,7 @@ Jede Zeile unten ist gegen den realen Code verifiziert:
 | Triple-Barrier-Returns | ja | `governance/family_returns.py` (`realized_return`, Variante B) |
 | Meta-Labeling / Kalibrierung | ja | `governance/family_calibration.py` (purged walk-forward) |
 | Ensembling/Stacking | ja | `ml/stacking/meta_learner.py` |
-| Deflated Sharpe / PSR | ja | `stats_helpers.py`, `open_prep/psr_robust.py` |
+| Deflated Sharpe / PSR | ja | `open_prep/stats_helpers.py`, `open_prep/psr_robust.py` |
 | Probability-Calibration / Conformal | ja | `ml/calibration/` |
 | Drift (PSI) | ja | `ml/drift/`, `ml/metrics.py` |
 | Hyperparam-Tuning | ja | `scripts/run_ml_optuna_tuning.py` |
@@ -76,6 +76,8 @@ tragen, das vollständig differenzierte Returns zerstören. Das ist genau
 das richtige Werkzeug gegen einen *Discrimination*-Defizit. ~40 Zeilen
 numpy. **Direkt durch den ADR-0019-A/B-Harness testbar** — es ist nur ein
 weiterer `feature_key` für `extract_family_ab_samples` / `family_feature_ab`.
+(Diese Harness-Symbole werden durch ADR-0019 Slice 3, PR #2528, eingeführt;
+zum Zeitpunkt dieser Notiz noch nicht auf `main` gemerged.)
 Niedriger Aufwand, höchster Erwartungswert *für den Blocker*.
 
 ### (B) Sample-Uniqueness / Time-Decay-Weights — Mess-Integrität, KEIN Signal
