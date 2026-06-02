@@ -6,6 +6,170 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-02) — promotion-gate archives carry per-symbol run context (REPORT_SCHEMA_VERSION 2)
+
+The `edge-pipeline-real-run` workflow archives one promotion-decisions report
+**per symbol** into `governance/promotion_decisions/`, but neither the filename
+nor the payload recorded *which* symbol/dataset/schema/window produced it. That
+made the governance archive hard to audit and caused
+`scripts/build_promotion_gate_dashboard.py` (which scans **all**
+`governance/promotion_decisions/*.json`) to aggregate heterogeneous symbol runs
+together with no way to filter — and two symbols archiving in the same second
+could collide on the timestamp-only filename.
+
+- `governance/promotion_report.py` bumps `REPORT_SCHEMA_VERSION` to `2`: reports
+  may now carry an optional top-level `context` object (symbol/dataset/schema/
+  timeframe/window). The key is **omitted** on context-less runs, so the loader
+  contract ("dict with a `decisions` list") is unchanged.
+- `scripts/run_promotion_gate.py` — `build_report(..., context=...)` embeds the
+  run context only when supplied; new `_label_slug()` helper and
+  `_archive_report(..., label=...)` slug the symbol into the filename
+  (`promotion_decisions_<LABEL>_<stamp>.json`) so per-symbol runs are
+  self-describing and can't overwrite each other within the same second. The
+  shared `promotion_decisions_*.json` consumer glob still matches.
+- `scripts/run_edge_pipeline.py` threads the input payload's `provenance` into
+  the report `context` and uses its `symbol` as the archive label.
+- `scripts/pull_databento_edge_input.py` records `dataset`, `schema` and the
+  fetch `window` (start/end) in the payload provenance alongside the symbol, so
+  the downstream archive is fully self-describing. Non-CLI callers that omit the
+  window get explicit `None` placeholders.
+
+### Added (2026-06-02) — EV#7: regime-conditional degradation (C5.1 `regime_degraded`)
+
+The promotion gate's C5.1 regime-degradation slot was consumed by the gate
+but always reported "not yet measured" because the family-event path carried
+no per-event regime label. EV#7 now derives one **from the same bars the
+event already reads** — no external macro/VIX data, no fabrication — and
+emits a measured, monotonic (block-only) `regime_degraded` verdict. See
+`docs/adr/0014-ev6-psi-trend-source-and-ev7-regime-deferral.md`.
+
+- `governance/family_event_score.point_in_time_regime(...)` labels each
+  anchor with the Kaufman **Efficiency Ratio** over the trailing
+  `REGIME_WINDOW = ATR_PERIOD` closes ending at the anchor (same leak-free
+  trailing read as `atr_at`): `TRENDING` (ER ≥ 0.5), `RANGING` (ER ≤ 0.3),
+  else `NEUTRAL`; abstains (`None`) below the window or on a flat path. Tag
+  `kaufman_efficiency_ratio_trailing_closes_v1`. ER reproduces the
+  trend/range split from closes alone, so it pulls **no** `open_prep`
+  macro/VIX import chain into the governance module (deliberate deviation).
+- `governance/family_event_adapter` attaches `regime` to each family event;
+  `governance/family_returns` adds `extract_family_regime_samples(...)` and
+  `regime_degradation(...)`: pooled mean ≤ 0 → `False` (no pooled edge;
+  PSR/MinTRL own it); otherwise the **current** regime (regime of the
+  chronologically last event) must hold ≥ 20 samples → returns
+  `current_mean ≤ 0` (degraded), else `None`. Lookahead-free and monotonic.
+- `to_build_spec` attaches `entry["regime_degraded"]` + provenance
+  `ev24_regime_source = kaufman_efficiency_ratio_trailing_closes_v1`,
+  flowing through `build_family_metrics` to the gate verbatim. This
+  **supersedes the EV#7 DEFERRED note** in the EV#6 entry below and in
+  ADR-0014.
+
+### Added (2026-06-02) — EV#6: real PSI-trend (C9 `psi_slope`) producer
+
+The promotion gate's C9 population-stability-trend slot was wired on the
+consumer side but every family reported "not yet measured" because no
+producer emitted a `psi_trend` block. EV#6 now produces one from **real**
+data — the EV-24 walk-forward score series — so `psi_slope` becomes a
+measured, monotonic (block-only) gate input. See
+`docs/adr/0014-ev6-psi-trend-source-and-ev7-regime-deferral.md`.
+
+- `governance/family_calibration.py` adds `walk_forward_psi_trend(...)`: a
+  **fixed reference Platt calibrator** is fit on the earliest chronological
+  block and applied to that block *and* to each later monitoring window, so
+  the PSI series isolates score-**population** drift from per-fold
+  calibrator-refit drift (standard fixed-reference / moving-window PSI). The
+  series is split into `k + 1` equal segments (`k` ∈ [2, 4], each ≥
+  `max(MIN_TRAIN_SAMPLES, 10)` events); it abstains (`None`) below threshold
+  or on a single-class / degenerate reference block, keeping the gate
+  blocking honestly.
+- `governance/family_returns.to_build_spec` attaches `entry["psi_trend"]`
+  and audit-only provenance
+  `ev24_psi_trend_source = ev24_fixed_reference_calibrator_chronological_windows_v1`,
+  flowing through `build_bundle` → `build_family_metrics` → measured
+  `psi_slope` (+ `psi_trend_method` provenance).
+- **EV#7 (regime-conditional degradation) is explicitly DEFERRED** — the
+  edge-pipeline family-event path carries no per-event regime label, so the
+  rule cannot be measured without a new regime-classifier producer. No
+  fabrication; the slot stays "not yet measured". Documented in ADR-0014.
+- Tests: producer abstention/validity/drift-detection in
+  `tests/test_family_calibration.py`; end-to-end spec→bundle wiring in
+  `tests/test_family_returns.py`.
+
+### Fixed (2026-06-02) — promotion-gate CLI tests leaked archives into the real repo tree
+
+`scripts/run_promotion_gate.py` archives a timestamped copy of every run to
+`governance/promotion_decisions/` resolved **relative to the current working
+directory** (`--archive-dir` default). Four CLI/E2E tests invoked `main()`
+without isolating cwd, so each run wrote a stray
+`promotion_decisions_*.json` into the committed `governance/` tree instead of
+a temp dir.
+
+- Added an `autouse` `monkeypatch.chdir(tmp_path)` fixture to
+  `tests/test_promotion_gate_producer_e2e.py` and
+  `tests/test_run_promotion_gate_strict_universe.py` so the cwd-relative
+  archive lands under each test's `tmp_path`. Future tests added to these
+  modules inherit the isolation.
+- No production change: the archive contract (cwd-relative default,
+  `--archive-dir ''` to opt out) is unchanged.
+
+### Added (2026-06-02) — GAP-4: block-bootstrap Brier confidence-interval gate
+
+The promotion gate now blocks on the **upper bound of a block-bootstrap CI
+on the Brier score**, not just the point estimate. At the few-hundred-event
+scale the Brier sampling distribution is wide under serial dependence
+(Bailey & López de Prado 2012; Wilks 2010), so a point estimate below the
+0.22 bar with a CI poking above it is not 95 %-confident evidence of
+calibration.
+
+- `scripts/build_family_metrics.py` resamples the per-event Brier-loss series
+  `(p − y)²` with the stationary block bootstrap (Politis–Romano 1994, seed 42,
+  B = 2000, mean block length 5) and reports the 95th-percentile upper bound as
+  `brier_ci_upper` (+ provenance `brier_ci_method`). Stays `None` below 30 OOS
+  events ("not yet measured") rather than shipping a noisy interval.
+- `governance/promotion_gate.py` adds `brier_ci_upper` to `FamilyMetrics` and
+  `brier_ci_upper_max` (= `brier_max` = 0.22) to `GateThresholds`. Once
+  measured a breach always blocks; when unmeasured it only blocks under
+  `strict_provenance` so legacy snapshots stay valid. Documented in ADR-0008.
+- This closes the GAP-4 follow-up explicitly deferred in
+  `governance/family_calibration.py`.
+
+### Fixed (2026-06-01) — `SMC_TV_Bridge.pine` malformed `//@version` directive + Pine version/provenance guards
+
+`SMC_TV_Bridge.pine` declared `// @version=5` (stray space after `//`).
+Pine only honours the exact form `//@version=N`; the malformed variant is
+parsed as a plain comment, silently downgrading the script to the oldest
+language version. Two prior reviews missed this because the existing check
+(`tests/test_pine_input_surface.py::test_version_tag`) only asserted a
+*substring* match on a single file. Directive corrected to `//@version=6`
+(matching the rest of the active suite).
+
+New regression guards:
+
+- `tests/test_pine_version_directive.py` — anchored regex pinned to the
+  *supported* set `^//@version=(?:5|6)\s*$` across the active suite
+  (repo-root `*.pine` **and** the `pine/skipp_*.pine` libraries); fails on
+  malformed directives (e.g. the stray-space form) *and* on unsupported
+  versions (e.g. `//@version=999`), with an explanatory message. Closes the
+  substring-match blind spot.
+- `tests/test_pine_tv_bridge_fail_closed.py` — fail-closed guards for the
+  untrusted-JSON bridge: `request.get` must not appear in live code (network
+  stays opt-in/inert), numeric reads carry explicit `str.tonumber(_, default)`
+  fallbacks, drawing blocks are gated on non-empty payloads, plus a faithful
+  Python reference port of `f_getField` pinned against malformed JSON
+  (empty/missing-key/unterminated-string/garbage → fail closed to `""`).
+
+New machine-readable input-provenance artifact (closes the hidden-input
+provenance gap from the SMC Suite review):
+
+- `pine_input_surface.py` gains a `provenance` subcommand emitting per-input
+  provenance JSON (file, line, varname, kind, label, group,
+  `has_display_none`, policy visibility) for the whole suite.
+- `reports/pine_input_provenance.json` — committed artifact covering 526
+  inputs incl. hidden operator inputs.
+- `tests/test_pine_input_provenance.py` — drift guard that regenerates the
+  map from source and compares against the committed artifact (ledger
+  discipline: any added/removed/renamed/regrouped/hidden input requires a
+  deliberate `provenance --out` refresh).
+
 ### Changed (2026-05-28) — WS3 #58: `HERO_MARKET_TRUST` vocab converges onto `HERO_TRUST` + `library_field_version` v7.0a (BREAKING for Pine consumers)
 
 `HERO_MARKET_TRUST` (Producer B, `scripts/smc_hero_market_mode.py`) now

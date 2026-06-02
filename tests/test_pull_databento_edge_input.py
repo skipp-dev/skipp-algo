@@ -108,6 +108,45 @@ def test_bars_match_resampled_structure_frame(monkeypatch: pytest.MonkeyPatch) -
     assert payload["structure"]["bos"] == canned["bos"]
 
 
+def test_provenance_threads_fetch_context(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fetch window/dataset/schema land in provenance so archives are auditable."""
+    df = normalize_ohlcv_frame(_raw_minute_frame(n=180), symbol="AAPL")
+    monkeypatch.setattr(
+        wrapper,
+        "build_explicit_structure_from_bars",
+        lambda *a, **k: {"bos": [{"id": "b1", "time": _T0, "price": 100.0, "dir": "UP"}]},
+    )
+    payload = structure_and_bars_to_pipeline_input(
+        df,
+        symbol="aapl",
+        timeframe="15m",
+        dataset="XNAS.ITCH",
+        schema="ohlcv-1m",
+        start="2023-12-01",
+        end="2023-12-31",
+    )
+    prov = payload["provenance"]
+    assert prov["symbol"] == "AAPL"
+    assert prov["dataset"] == "XNAS.ITCH"
+    assert prov["schema"] == "ohlcv-1m"
+    assert prov["window"] == {"start": "2023-12-01", "end": "2023-12-31"}
+
+
+def test_provenance_fetch_context_defaults_to_none(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Non-CLI callers that omit the window get explicit ``None`` placeholders."""
+    df = normalize_ohlcv_frame(_raw_minute_frame(n=180), symbol="AAPL")
+    monkeypatch.setattr(
+        wrapper,
+        "build_explicit_structure_from_bars",
+        lambda *a, **k: {"bos": [{"id": "b1", "time": _T0, "price": 100.0, "dir": "UP"}]},
+    )
+    payload = structure_and_bars_to_pipeline_input(df, symbol="AAPL", timeframe="15m")
+    prov = payload["provenance"]
+    assert prov["dataset"] is None
+    assert prov["schema"] is None
+    assert prov["window"] == {"start": None, "end": None}
+
+
 def test_explicit_as_of_is_preserved(monkeypatch: pytest.MonkeyPatch) -> None:
     df = normalize_ohlcv_frame(_raw_minute_frame(n=180), symbol="AAPL")
     monkeypatch.setattr(

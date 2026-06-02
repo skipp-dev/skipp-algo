@@ -46,6 +46,7 @@ Calibrator. A 2-parameter logistic (Platt) on the standardised raw score,
 from __future__ import annotations
 
 import math
+from typing import Any
 
 # Pooled out-of-sample sample-count guard (GAP 3/4). Below this we refuse to
 # emit a Brier/ECE and the family stays "not yet measured". Conservative but
@@ -60,6 +61,17 @@ MIN_TRAIN_SAMPLES = 20
 CALIBRATOR_TAG = "platt_logistic_standardised_v1"
 FOLD_SCHEME_TAG = "walkforward_purged_embargo_time"
 TARGET_TAG = "sign_return_secondary_diagnostic"  # GAP 2: win-rate, not edge.
+
+# C9 PSI-trend window construction (EV#6). The reference distribution is a
+# FIXED calibrator fit on the earliest chronological block; the monitoring
+# windows are successive chronological slices scored through that SAME fixed
+# lens, so the resulting PSI series isolates SCORE-POPULATION drift from
+# per-fold calibrator-refit drift. Below these guards we emit no block and the
+# family stays honestly "not yet measured".
+PSI_TREND_MIN_WINDOWS = 2
+PSI_TREND_MAX_WINDOWS = 4
+PSI_TREND_MIN_WINDOW_SAMPLES = 10
+PSI_TREND_SOURCE_TAG = "ev24_fixed_reference_calibrator_chronological_windows_v1"
 
 _GD_ITERS = 500
 _GD_LR = 0.1
@@ -186,11 +198,87 @@ def walk_forward_calibration(
     return {"walkforward": {"probabilities": oos_probs, "outcomes": oos_outcomes}}
 
 
+def walk_forward_psi_trend(
+    scores: list[float],
+    returns: list[float],
+    anchor_ts: list[float],
+    *,
+    max_windows: int = PSI_TREND_MAX_WINDOWS,
+    min_window: int = PSI_TREND_MIN_WINDOW_SAMPLES,
+    min_train: int = MIN_TRAIN_SAMPLES,
+) -> dict[str, Any] | None:
+    """Build a C9 ``psi_trend`` block from the EV-24 score series (EV#6).
+
+    Population-stability-over-time measured through a FIXED reference lens: a
+    single Platt calibrator is fit on the earliest chronological block and
+    applied BOTH to that block (the reference probability distribution) and to
+    each successive chronological monitoring window of later scores. Because
+    every window is scored through the *same* fixed model, the resulting PSI
+    series reflects drift in the SCORE POPULATION, not per-fold calibrator
+    refitting -- the honest decomposition for a drift watchdog.
+
+    The series is partitioned into ``k + 1`` equal chronological segments (one
+    reference + ``k`` monitoring windows) sorted by ``anchor_ts``; ``k`` is the
+    largest value in ``[PSI_TREND_MIN_WINDOWS, max_windows]`` for which every
+    segment still holds at least ``max(min_train, min_window,
+    MIN_TRAIN_SAMPLES)`` events. The reference fit itself always enforces
+    ``MIN_TRAIN_SAMPLES`` (in :func:`_fit_logistic`), so the guard includes that
+    floor to avoid accepting segments the fitter would then reject. The last
+    window absorbs any integer-division remainder.
+
+    Returns the ``{"reference_probabilities", "windows"}`` shape that
+    :func:`build_family_metrics._psi_trend_slice` validates, or ``None`` (family
+    stays "not yet measured") when there are too few events to fit the reference
+    lens or to form ``PSI_TREND_MIN_WINDOWS`` non-trivial windows, or when the
+    reference block carries a single outcome class / degenerate score (the
+    calibrator refuses to fabricate a mapping). The reference lens is fit on
+    ``sign(return)`` -- the same WIN-RATE target as EV-24 calibration (GAP 2: a
+    diagnostic, not an edge proof).
+    """
+    n = len(scores)
+    if not (n == len(returns) == len(anchor_ts)):
+        raise ValueError("walk_forward_psi_trend: input lists length mismatch")
+
+    # Honour the fitter's own floor: _fit_logistic always rejects < MIN_TRAIN_SAMPLES,
+    # so a smaller min_train must not let window-selection accept doomed segments.
+    min_segment = max(min_train, min_window, MIN_TRAIN_SAMPLES)
+    k = 0
+    for cand in range(max_windows, PSI_TREND_MIN_WINDOWS - 1, -1):
+        if n // (cand + 1) >= min_segment:
+            k = cand
+            break
+    if k < PSI_TREND_MIN_WINDOWS:
+        return None
+
+    order = sorted(range(n), key=lambda i: anchor_ts[i])
+    s = [scores[i] for i in order]
+    y = [1.0 if returns[i] > 0.0 else 0.0 for i in order]
+
+    seg = n // (k + 1)
+    model = _fit_logistic(s[:seg], y[:seg])
+    if model is None:
+        return None
+
+    reference_probabilities = _predict(model, s[:seg])
+    windows: list[list[float]] = []
+    for w in range(k):
+        start = seg * (w + 1)
+        end = seg * (w + 2) if w < k - 1 else n  # last window absorbs remainder
+        windows.append(_predict(model, s[start:end]))
+
+    return {"reference_probabilities": reference_probabilities, "windows": windows}
+
+
 __all__ = [
     "CALIBRATOR_TAG",
     "FOLD_SCHEME_TAG",
     "MIN_OOS_SAMPLES",
     "MIN_TRAIN_SAMPLES",
+    "PSI_TREND_MAX_WINDOWS",
+    "PSI_TREND_MIN_WINDOWS",
+    "PSI_TREND_MIN_WINDOW_SAMPLES",
+    "PSI_TREND_SOURCE_TAG",
     "TARGET_TAG",
     "walk_forward_calibration",
+    "walk_forward_psi_trend",
 ]

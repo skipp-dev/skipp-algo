@@ -134,8 +134,16 @@ def run_pipeline(
 
     bundle = build_bundle(spec)
     snapshots = [_family_metrics_from_dict(item) for item in bundle]
-    report = build_report(snapshots, strict_provenance=strict_provenance, now=now)
-    archived_path = _archive_report(report, archive_dir)
+    provenance = payload.get("provenance")
+    context = provenance if isinstance(provenance, dict) else None
+    label = context.get("symbol") if context else None
+    report = build_report(
+        snapshots,
+        strict_provenance=strict_provenance,
+        now=now,
+        context=context,
+    )
+    archived_path = _archive_report(report, archive_dir, label=label)
     verdict_report = build_verdict_report(report)
 
     return {
