@@ -324,6 +324,27 @@ def test_brier_ci_upper_missing_is_lax_passthrough_strict_block() -> None:
     assert info["brier_ci_upper"] == "info"
 
 
+def test_brier_ci_upper_max_tracks_brier_max_override() -> None:
+    # Coupling: overriding only brier_max must flow through to the CI bar so
+    # the CI check is never silently left looser than the point-estimate bar.
+    t = GateThresholds(brier_max=0.18)
+    assert t.brier_ci_upper_max == 0.18
+    # A CI upper bound that clears the old default (0.22) but breaches the
+    # tightened bar (0.18) must now block.
+    snap = _green_snapshot()
+    snap.brier = 0.17
+    snap.brier_ci_upper = 0.20  # under 0.22, over the tightened 0.18
+    d = PromotionGate(t).evaluate(snap)
+    checks = {b["check"]: b["severity"] for b in d["blockers"]}
+    assert checks["brier_ci_upper"] == "blocker"
+
+
+def test_brier_ci_upper_max_can_be_decoupled_explicitly() -> None:
+    # Passing an explicit float decouples the two knobs.
+    t = GateThresholds(brier_max=0.18, brier_ci_upper_max=0.25)
+    assert t.brier_ci_upper_max == 0.25
+
+
 def test_regime_degraded_true_is_hard_blocker_in_lax_mode() -> None:
     snap = _green_snapshot()
     snap.regime_degraded = True
