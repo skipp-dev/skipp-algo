@@ -34,6 +34,14 @@ def _stub_live_vendor(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+@pytest.fixture(autouse=True)
+def _isolate_archive_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """``run_promotion_gate`` archives a timestamped copy to the default
+    ``governance/promotion_decisions`` dir resolved *relative to cwd*. Chdir
+    into ``tmp_path`` so these CLI tests never write into the real repo tree."""
+    monkeypatch.chdir(tmp_path)
+
+
 def _bundle_path(tmp_path: Path) -> Path:
     path = tmp_path / "bundle.json"
     path.write_text("[]", encoding="utf-8")

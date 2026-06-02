@@ -169,6 +169,12 @@ allowed = [
 # ::error::, so silent-skip risk is bounded.
 "credential-health-check.yml" = 1
 "drift-watchdog.yml" = 1
+# edge-pipeline-real-run.yml: single deliberate fail-soft step — the real
+# Databento per-symbol loop captures RC_PULL/RC_RUN explicitly because
+# run_edge_pipeline exit 2 (family blocked) is the EXPECTED honest result and
+# must not abort the run; each rc is surfaced via ::warning:: / the report
+# summary, so silent-skip risk is bounded.
+"edge-pipeline-real-run.yml" = 1
 # F2 promotion-gate cron: per-output-section fault tolerance plus
 # auto-revert / status-alert blocks (PR #2426). +1 from baseline
 # reflects the additional auto-revert capture block.

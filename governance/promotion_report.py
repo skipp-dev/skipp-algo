@@ -6,7 +6,12 @@ from collections.abc import Mapping
 from pathlib import Path
 
 DEFAULT_PROMOTION_DECISIONS_PATH = Path("artifacts") / "promotion_decisions.json"
-REPORT_SCHEMA_VERSION = 1
+# v2 (2026-06-02): reports may carry an optional top-level ``context`` object
+# (symbol/dataset/schema/timeframe/window) so per-symbol archives written by the
+# edge pipeline are self-describing and a multi-symbol dashboard scan can tell
+# heterogeneous runs apart. The key is omitted on context-less runs, so the
+# loader contract ("dict with a ``decisions`` list") is unchanged.
+REPORT_SCHEMA_VERSION = 2
 
 
 def load_decisions_from_report(
