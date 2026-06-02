@@ -6,6 +6,32 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-02) — ADR-0018 split-conformal coverage from walk-forward OOS
+
+The promotion gate's `conformal_coverage` check could never evaluate: the
+SMC-direct producer never emitted a `conformal` block, so coverage was always
+"not yet measured" and the guard held every family at ADR-0015 tier-1
+`inconclusive` (see ADR-0018).
+
+- `governance/family_calibration.partition_conformal` splits the pooled
+  chronological walk-forward OOS pairs at `CONFORMAL_CALIBRATION_FRACTION`
+  (0.5): the earlier half calibrates the split-conformal (Vovk) conformity
+  quantile, the held-out later half measures empirical marginal coverage
+  against the `1 - alpha` guarantee (`CONFORMAL_ALPHA` = 0.1 -> 90% target).
+- The block is emitted ONLY when both sides clear `CONFORMAL_MIN_SIDE`
+  (= `MIN_OOS_SAMPLES`, 40), i.e. the pool holds at least 80 OOS pairs. Below
+  that no block is emitted and `conformal_coverage` stays honestly unmeasured.
+- `governance/family_returns.to_build_spec` computes the conformal split from
+  the full pooled block (independent view of the ADR-0017 live surrogate) and
+  tags it with audit-only provenance `ev26_conformal_source`. The producer's
+  existing `_conformal_slice` then measures `conformal_coverage` /
+  `conformal_target`, enabling the gate check to evaluate.
+- Honesty preserved: a low-resolution score yields wide prediction sets, so
+  coverage is high by design (certifies set calibration, NOT discrimination).
+  A family can clear `conformal_coverage` and still fail the tier-2 Brier bar;
+  this removes only the "not yet measured" info-block and never promotes a
+  family on its own.
+
 ### Added (2026-06-02) — ADR-0017 live-incubation surrogate for `live_vs_wf_ratio`
 
 In an offline backtest there is no real live feed, so `live_brier` was always

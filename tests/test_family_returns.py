@@ -312,6 +312,56 @@ def test_live_surrogate_yields_measured_live_brier_in_bundle() -> None:
     assert bos["live_brier"] is not None
 
 
+def test_to_build_spec_emits_conformal_block_and_ev26_provenance() -> None:
+    from governance.family_calibration import (
+        CONFORMAL_MIN_SIDE,
+        CONFORMAL_SOURCE_TAG,
+    )
+
+    events = [_scored_immediate_bos(i) for i in range(160)]
+    spec = to_build_spec(events, as_of=1_700_000_000.0 + 200.0 * 40.0 * _DAY)
+
+    bos = spec["families"]["BOS"]
+    conformal = bos["conformal"]
+    # ADR-0018: split-conformal block with calibration + held-out test sets.
+    assert 0.0 < conformal["alpha"] < 1.0
+    cal = conformal["calibration"]
+    test = conformal["test"]
+    assert len(cal["probabilities"]) >= CONFORMAL_MIN_SIDE
+    assert len(test["probabilities"]) >= CONFORMAL_MIN_SIDE
+    assert all(0.0 <= p <= 1.0 for p in cal["probabilities"] + test["probabilities"])
+    assert all(o in (0.0, 1.0) for o in cal["outcomes"] + test["outcomes"])
+    # The EV-26 source tag rides alongside the EV-24/EV-25 provenance.
+    assert bos["provenance"]["ev26_conformal_source"] == CONFORMAL_SOURCE_TAG
+
+
+def test_to_build_spec_omits_conformal_when_pool_too_small() -> None:
+    # 90 events -> OOS pool below 2 * CONFORMAL_MIN_SIDE, so no conformal split:
+    # conformal_coverage stays "not yet measured".
+    events = [_scored_immediate_bos(i) for i in range(90)]
+    spec = to_build_spec(events, as_of=1_700_000_000.0 + 200.0 * 40.0 * _DAY)
+
+    bos = spec["families"]["BOS"]
+    assert "conformal" not in bos
+    assert "ev26_conformal_source" not in bos.get("provenance", {})
+
+
+def test_conformal_block_yields_measured_coverage_in_bundle() -> None:
+    from scripts.build_family_metrics import build_bundle
+
+    events = [_scored_immediate_bos(i) for i in range(160)]
+    spec = to_build_spec(events, as_of=1_700_000_000.0 + 200.0 * 40.0 * _DAY)
+    bundle = build_bundle(spec)
+
+    bos = next(m for m in bundle if m["family"] == "BOS")
+    # Coverage and target are now MEASURED (no longer "not yet measured"),
+    # enabling the conformal_coverage gate check to evaluate.
+    assert bos["conformal_coverage"] is not None
+    assert bos["conformal_target"] is not None
+    assert 0.0 <= bos["conformal_coverage"] <= 1.0
+    assert bos["provenance"]["conformal_method"] == "split_conformal_vovk"
+
+
 def test_calibration_block_yields_measured_brier_in_bundle() -> None:
     from scripts.build_family_metrics import build_bundle
 
