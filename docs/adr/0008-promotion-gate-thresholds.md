@@ -18,6 +18,7 @@ in `DEFAULT_*` module-level names and re-exposed via the
 
 ```python
 DEFAULT_BRIER_MAX              = 0.22
+DEFAULT_BRIER_CI_UPPER_MAX     = 0.22  # = DEFAULT_BRIER_MAX
 DEFAULT_ECE_MAX                = 0.05
 DEFAULT_FDR_Q                  = 0.05
 DEFAULT_PSR_MIN                = 0.95
@@ -165,6 +166,16 @@ Each threshold is classified by **anchor type**:
 | Empirical anchor    | Reference convention: the gate checks `conformal_coverage >= conformal_target - tolerance`. The tolerance is the maximum allowed undercoverage relative to the per-family target before the family is blocked. Set conservatively so a single-window stochastic dip does not block while a sustained miscalibration does. |
 | Operator margin     | The conformal layer enforces tighter per-call alarms upstream; this gate value is the last-line global cap. |
 | Recalibration trigger | If C10.1 telemetry shows the coverage check firing on families whose conformal predictor is verifiably within spec on out-of-sample data (false-positive cluster), or never firing on a known undercoverage incident (false-negative). Re-derive from the empirical distribution of `target - observed` across the prior 100 evaluate() calls and re-anchor at Q90 of the *under*coverage tail. |
+
+### 11 · `brier_ci_upper_max = 0.22` — anchor: **E (partial)**
+
+| Item                | Value                                                                 |
+|---------------------|-----------------------------------------------------------------------|
+| Source of truth     | `governance/promotion_gate.py::DEFAULT_BRIER_CI_UPPER_MAX`             |
+| Sprint of origin    | EV-24 GAP-4 follow-up (block-bootstrap Brier CI), closed in the edge-validation roadmap |
+| Empirical anchor    | Tied to `brier_max`: the upper bound of the stationary-block-bootstrap CI on the Brier (95th percentile, see `scripts/build_family_metrics.py::_brier_block_bootstrap_ci_upper`) must clear the SAME bar as the point estimate. Rationale: at the few-hundred-event scale the Brier sampling distribution is wide under serial dependence (Bailey & López de Prado 2012; Wilks 2010), so a lucky point estimate below 0.22 with a CI poking above it is not 95%-confident evidence of calibration. Gating the CI upper bound rather than the point estimate is the conservative, honest choice. |
+| Operator margin     | None beyond the shared `brier_max` bar; the bootstrap is seed-pinned (B=2000, mean block length 5, seed 42) for audit reproducibility and stays `None` below 30 OOS events ("not yet measured"). |
+| Recalibration trigger | Moves in lock-step with `brier_max` — if that bar is re-anchored from an empirical Brier distribution, re-anchor this to the same value. Independently revisit the block length if autocorrelation diagnostics on the per-event Brier-loss series show the mean-5 stationary block is mis-sized for the realised event spacing. |
 
 ## Decision
 
