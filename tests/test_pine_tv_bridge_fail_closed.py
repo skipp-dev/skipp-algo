@@ -17,6 +17,7 @@ exercised against malformed-JSON inputs.
 """
 from __future__ import annotations
 
+import hashlib
 import re
 from pathlib import Path
 
@@ -141,3 +142,82 @@ class TestFieldExtractorFailClosed:
 
     def test_numeric_field_before_brace(self) -> None:
         assert _ref_get_field('{"news":0.4}', "news") == "0.4"
+
+
+# ── (2d) f_getField drift tripwire ────────────────────────────────────
+#
+# The Python ``_ref_get_field`` port above must stay in lock-step with the
+# Pine ``f_getField``. Pine cannot be executed here, so we fingerprint the
+# Pine function body: if it changes, this tripwire fails and forces a human
+# to re-verify the port and re-pin the hash. This converts a silent semantic
+# drift into a loud, reviewable failure.
+
+# sha256 of the normalised Pine ``f_getField`` body. Regenerate (and re-verify
+# that ``_ref_get_field`` still mirrors the logic) whenever f_getField changes.
+_FGETFIELD_FINGERPRINT = "98829dd38d93a2046b5f4cf47168e77637bf88287b69a19cc3736f2a038c9fdd"
+
+
+def _extract_pine_function(src: str, name: str) -> str:
+    """Return the normalised body of a Pine ``name(...) =>`` function.
+
+    Collects the signature line plus every following indented/blank line up to
+    the next top-level (column-0, non-blank) statement. Lines are right-stripped
+    and joined with ``\\n`` so the fingerprint is insensitive to trailing
+    whitespace and line-ending differences but sensitive to any logic change.
+    """
+    lines = src.splitlines()
+    out: list[str] = []
+    capturing = False
+    for line in lines:
+        if not capturing:
+            if re.match(rf"^{re.escape(name)}\s*\(", line):
+                capturing = True
+                out.append(line.rstrip())
+            continue
+        # Stop at the next top-level statement (no leading whitespace, non-blank).
+        if line.strip() and not line[:1].isspace():
+            break
+        out.append(line.rstrip())
+    # Drop trailing blank lines.
+    while out and not out[-1].strip():
+        out.pop()
+    return "\n".join(out)
+
+
+def test_f_getfield_port_in_lockstep(bridge_src: str) -> None:
+    body = _extract_pine_function(bridge_src, "f_getField")
+    assert body, "could not locate f_getField in SMC_TV_Bridge.pine"
+    digest = hashlib.sha256(body.encode("utf-8")).hexdigest()
+    assert digest == _FGETFIELD_FINGERPRINT, (
+        "f_getField in SMC_TV_Bridge.pine changed (fingerprint "
+        f"{digest}). Re-verify that the Python reference port "
+        "`_ref_get_field` still mirrors the new logic, then update "
+        "_FGETFIELD_FINGERPRINT to this value. Do NOT bump the hash "
+        "without re-checking the port — that is the whole point of this guard."
+    )
+
+
+# ── (3) suite-wide network-egress fail-closed guard ───────────────────
+#
+# Generalises the bridge's network-inert property to the entire active Pine
+# suite: no active script may ship a *live* external HTTP egress
+# (``request.get``/``request.post``). request.security/security_lower_tf are
+# legitimate market-data reads and are NOT external egress, so they are allowed.
+
+_ACTIVE_PINE = sorted(
+    set(_REPO_ROOT.glob("*.pine")) | set(_REPO_ROOT.glob("pine/skipp_*.pine"))
+)
+_EGRESS_RE = re.compile(r"request\.(get|post)\s*\(")
+
+
+@pytest.mark.parametrize("pine_path", _ACTIVE_PINE, ids=lambda p: p.name)
+def test_no_live_external_http_egress(pine_path: Path) -> None:
+    live = _strip_comments(pine_path.read_text(encoding="utf-8", errors="replace"))
+    hit = _EGRESS_RE.search(live)
+    assert hit is None, (
+        f"{pine_path.name} activates live external HTTP egress "
+        f"({hit.group(0) if hit else ''}). Active suite scripts must stay "
+        "network-inert (fail closed); gate any external fetch behind a "
+        "commented placeholder until an operator deliberately enables a "
+        "vetted endpoint."
+    )
