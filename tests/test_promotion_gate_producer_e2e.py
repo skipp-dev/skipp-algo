@@ -17,12 +17,23 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from dashboard.decision_first_panel import (
     load_decisions_from_report,
     render_panel,
 )
 from scripts.build_promotion_gate_bundle import main as build_bundle_main
 from scripts.run_promotion_gate import main as run_gate_main
+
+
+@pytest.fixture(autouse=True)
+def _isolate_archive_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """``run_promotion_gate`` archives a timestamped copy to the default
+    ``governance/promotion_decisions`` dir resolved *relative to cwd*. Chdir
+    into ``tmp_path`` so this end-to-end CLI test never writes into the real
+    repo tree."""
+    monkeypatch.chdir(tmp_path)
 
 
 def _write_rollup(scoring_root: Path) -> None:
