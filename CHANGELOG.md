@@ -6,6 +6,50 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-06-02) — EV-08 verdict adopts the ADR-0015 two-tier taxonomy (`risk_sizeable`)
+
+`governance/family_verdict` previously fused "has an edge" with "is calibrated
+for sizing": a family the gate blocked solely on the calibration checks
+(`brier_threshold` / `brier_ci_upper` / `ece_threshold`) was reported as
+`no_edge`, letting a documented `sign_return_secondary_diagnostic` veto the
+primary PSR edge proof (see ADR-0015).
+
+- `edge_supported` (tier 1) is now keyed on the **edge** evidence only —
+  primary metric measured, sample adequate, no edge-failure blocker, and the
+  integrity/provenance guards measured and clear. Calibration blockers no
+  longer gate it.
+- New boolean field `risk_sizeable` (tier 2, strictly stronger) is tier 1
+  **plus** the calibration checks cleared — i.e. the gate's full `promoted`
+  decision on a measured, adequately-powered family. `build_verdict_report`
+  gains a top-level `risk_sizeable_count`.
+- Honesty preserved: when the edge metrics are strong but an integrity guard
+  is merely *unmeasured* (strict-provenance `info`), the verdict is
+  `inconclusive` — never an over-claimed `no_edge`. No threshold is changed;
+  the calibration checks are mapped to the tier they evidence (sizing).
+- 6 new tests pin the tier mapping (`tests/test_family_verdict.py`); the
+  `tests/test_verdict_panel.py` end-to-end fixture now carries a realistic
+  `psr_minimum` edge blocker for its `no_edge` assertion.
+
+### Added (2026-06-02) — EV-20 time-basis diagnostic: observed events-per-year cadence
+
+The per-family return series the edge pipeline scores is **event-driven** (one
+return per SMC event), but the producer annualized its Sharpe/MinTRL against the
+caller-declared `periods_per_year` (default `252`, a *daily-bar* basis). When the
+true event cadence is several hundred per year, any annualized Sharpe read off a
+`252` basis stands on the wrong time-basis — not investor-grade (EV-20 audit).
+
+- `governance/point_in_time.py` adds `observed_span_seconds(timestamps)`: the
+  `max - min` span of a timestamp series in seconds (absolute offset cancels, so
+  naive/aware both yield a correct span), `None` for fewer than two timestamps or
+  a collapsed span.
+- `scripts/build_family_metrics.py` — `build_family_metrics_from_returns` now
+  derives the **realized** events-per-year from the supplied event-timestamp span
+  and surfaces it as `extras.observed_periods_per_year` (omitted when timestamps
+  are absent or the span collapses). Purely diagnostic: the declared
+  `periods_per_year` and the gate's MinTRL arithmetic are **unchanged**, so any
+  annualized Sharpe in the decision JSON can now be re-annualized on its true
+  cadence without touching promotion semantics.
+
 ### Added (2026-06-02) — promotion-gate archives carry per-symbol run context (REPORT_SCHEMA_VERSION 2)
 
 The `edge-pipeline-real-run` workflow archives one promotion-decisions report
