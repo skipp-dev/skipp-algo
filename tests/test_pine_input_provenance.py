@@ -13,8 +13,9 @@ hidden/unhidden therefore requires a deliberate artifact refresh:
     python pine_input_surface.py provenance <suite *.pine> \
         --out reports/pine_input_provenance.json
 
-Scope matches ``tests/test_pine_version_directive.py``: top-level ``*.pine``
-files in the repo root, excluding non-script fragments.
+Scope: top-level ``*.pine`` files in the repo root, excluding non-script
+fragments. (This is narrower than ``tests/test_pine_version_directive.py``,
+which additionally guards the ``pine/skipp_*.pine`` libraries.)
 """
 from __future__ import annotations
 

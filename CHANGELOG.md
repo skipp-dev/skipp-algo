@@ -13,14 +13,17 @@ Pine only honours the exact form `//@version=N`; the malformed variant is
 parsed as a plain comment, silently downgrading the script to the oldest
 language version. Two prior reviews missed this because the existing check
 (`tests/test_pine_input_surface.py::test_version_tag`) only asserted a
-*substring* match on a single file. Directive corrected to `//@version=5`.
+*substring* match on a single file. Directive corrected to `//@version=6`
+(matching the rest of the active suite).
 
 New regression guards:
 
-- `tests/test_pine_version_directive.py` — anchored regex
-  `^//@version=\d+\s*$` across every top-level suite `.pine` file; fails on
-  malformed directives (e.g. the stray-space form) with an explanatory
-  message. Closes the substring-match blind spot.
+- `tests/test_pine_version_directive.py` — anchored regex pinned to the
+  *supported* set `^//@version=(?:5|6)\s*$` across the active suite
+  (repo-root `*.pine` **and** the `pine/skipp_*.pine` libraries); fails on
+  malformed directives (e.g. the stray-space form) *and* on unsupported
+  versions (e.g. `//@version=999`), with an explanatory message. Closes the
+  substring-match blind spot.
 - `tests/test_pine_tv_bridge_fail_closed.py` — fail-closed guards for the
   untrusted-JSON bridge: `request.get` must not appear in live code (network
   stays opt-in/inert), numeric reads carry explicit `str.tonumber(_, default)`

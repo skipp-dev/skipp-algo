@@ -48,7 +48,9 @@ _VALID_DIRECTIVE_RE = re.compile(
 # unsupported version like ``//@version=999``).
 _LOOSE_DIRECTIVE_RE = re.compile(r"^\s*//\s*@version\s*=\s*\d+.*$", re.MULTILINE)
 
-# Top-level non-script fragments that legitimately carry no version directive.
+# Root-level files that are not part of the active SMC suite being guarded
+# (e.g. ``test_div.pine`` is a parser fixture per PINE_LEGACY.md). They carry
+# their own ``//@version`` but are intentionally out of scope here.
 _EXCLUDE_NAMES = frozenset({"test_div.pine"})
 
 
