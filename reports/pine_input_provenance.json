@@ -1,0 +1,4881 @@
+{
+  "schema": "pine-input-provenance/v1",
+  "total_inputs": 526,
+  "total_hidden": 321,
+  "files": [
+    {
+      "file": "SMC_Breakout_Overlay.pine",
+      "input_count": 17,
+      "hidden_count": 0,
+      "inputs": [
+        {
+          "lineno": 30,
+          "varname": "use_bos",
+          "kind": "bool",
+          "label": "Trigger on BOS",
+          "group": "g_trig",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 31,
+          "varname": "use_choch",
+          "kind": "bool",
+          "label": "Trigger on CHoCH",
+          "group": "g_trig",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 32,
+          "varname": "minHold",
+          "kind": "int",
+          "label": "Min level age (bars)",
+          "group": "g_trig",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 36,
+          "varname": "rangeLen",
+          "kind": "int",
+          "label": "Range lookback (bars)",
+          "group": "g_box",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 38,
+          "varname": "thrPct",
+          "kind": "float",
+          "label": "Threshold band %",
+          "group": "g_box",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 42,
+          "varname": "colUp",
+          "kind": "color",
+          "label": "Breakout (bull) color",
+          "group": "g_vis",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 43,
+          "varname": "colDn",
+          "kind": "color",
+          "label": "Breakdown (bear) color",
+          "group": "g_vis",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 44,
+          "varname": "lineW",
+          "kind": "int",
+          "label": "Line width",
+          "group": "g_vis",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 45,
+          "varname": "lstyle",
+          "kind": "string",
+          "label": "Line style",
+          "group": null,
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 47,
+          "varname": "show_arrows",
+          "kind": "bool",
+          "label": "Show ▲/▼ markers",
+          "group": "g_vis",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 48,
+          "varname": "show_volemoji",
+          "kind": "bool",
+          "label": "Show volume sentiment emoji",
+          "group": "g_vis",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 52,
+          "varname": "sim_on",
+          "kind": "bool",
+          "label": "Enable tracker",
+          "group": "g_sim",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 53,
+          "varname": "rr",
+          "kind": "float",
+          "label": "RR ratio",
+          "group": "g_sim",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 54,
+          "varname": "atrLen",
+          "kind": "int",
+          "label": "ATR length",
+          "group": "g_sim",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 55,
+          "varname": "atrMult",
+          "kind": "float",
+          "label": "ATR × mult → SL",
+          "group": "g_sim",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 56,
+          "varname": "sl_on_close",
+          "kind": "bool",
+          "label": "SL on close (else high/low)",
+          "group": "g_sim",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 57,
+          "varname": "show_table",
+          "kind": "bool",
+          "label": "Show stats table",
+          "group": "g_sim",
+          "has_display_none": false,
+          "visibility": null
+        }
+      ]
+    },
+    {
+      "file": "SMC_Core_Engine.pine",
+      "input_count": 252,
+      "hidden_count": 240,
+      "inputs": [
+        {
+          "lineno": 2543,
+          "varname": "signal_mode",
+          "kind": "enum",
+          "label": "Signal Mode",
+          "group": "g_mode",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 2544,
+          "varname": "long_user_preset",
+          "kind": "string",
+          "label": "Standard",
+          "group": "g_mode",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 2545,
+          "varname": "compact_mode",
+          "kind": "bool",
+          "label": "Focus View",
+          "group": "g_mode",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 2546,
+          "varname": "color_theme",
+          "kind": "string",
+          "label": "Standard",
+          "group": "g_mode",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 2571,
+          "varname": "quickstart_preset",
+          "kind": "string",
+          "label": "Custom",
+          "group": "g_mode",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 2618,
+          "varname": "show_dashboard",
+          "kind": "bool",
+          "label": "Show Decision Brief",
+          "group": "g_output",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 2619,
+          "varname": "enable_dynamic_alerts",
+          "kind": "bool",
+          "label": "Enable dynamic alerts",
+          "group": "g_output",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 2622,
+          "varname": "target1_r",
+          "kind": "float",
+          "label": "Target 1 (R)",
+          "group": "g_trade_plan",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 2623,
+          "varname": "target2_r",
+          "kind": "float",
+          "label": "Target 2 (R)",
+          "group": "g_trade_plan",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 2626,
+          "varname": "use_trade_session_gate",
+          "kind": "bool",
+          "label": "Use Trade Session Gate",
+          "group": "g_session_gate",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 2629,
+          "varname": "performance_mode",
+          "kind": "string",
+          "label": "Balanced",
+          "group": "g_runtime",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 2632,
+          "varname": "enable_ltf_sampling",
+          "kind": "bool",
+          "label": "Use lower timeframe sampling",
+          "group": "g_ltf",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2633,
+          "varname": "use_ltf_for_strict_entry",
+          "kind": "bool",
+          "label": "Use LTF for strict entry",
+          "group": "g_ltf",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2634,
+          "varname": "allow_strict_entry_without_ltf",
+          "kind": "bool",
+          "label": "Allow strict entry without LTF when unavailable",
+          "group": "g_ltf",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2635,
+          "varname": "use_ltf_for_dynamic_alerts",
+          "kind": "bool",
+          "label": "Use LTF in dynamic alerts",
+          "group": "g_ltf",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2636,
+          "varname": "ltf_auto_select",
+          "kind": "bool",
+          "label": "Auto-select lower timeframe",
+          "group": "g_ltf",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2637,
+          "varname": "ltf_timeframe",
+          "kind": "timeframe",
+          "label": "Lower timeframe",
+          "group": "g_ltf",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 2638,
+          "varname": "ltf_bias_hint",
+          "kind": "float",
+          "label": "Bull share hint",
+          "group": "g_ltf",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2653,
+          "varname": "enable_trend_tf_0",
+          "kind": "bool",
+          "label": "Enable 2H pre-trend layer (Q4-gated)",
+          "group": "g_mtf",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2654,
+          "varname": "mtf_trend_tf0",
+          "kind": "timeframe",
+          "label": "Trend TF 0 (optional 2H)",
+          "group": "g_mtf",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2655,
+          "varname": "mtf_trend_tf1",
+          "kind": "timeframe",
+          "label": "Trend TF 1",
+          "group": "g_mtf",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2656,
+          "varname": "mtf_trend_tf2",
+          "kind": "timeframe",
+          "label": "Trend TF 2",
+          "group": "g_mtf",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2657,
+          "varname": "mtf_trend_tf3",
+          "kind": "timeframe",
+          "label": "Trend TF 3",
+          "group": "g_mtf",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2660,
+          "varname": "show_dashboard_ltf",
+          "kind": "bool",
+          "label": "Show LTF details",
+          "group": "g_dashboard",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2663,
+          "varname": "enable_live_break_alerts",
+          "kind": "bool",
+          "label": "Enable intrabar live break alerts",
+          "group": "g_alerts",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2664,
+          "varname": "dynamic_long_alert_mode",
+          "kind": "string",
+          "label": "Priority",
+          "group": "g_alerts",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2667,
+          "varname": "render_visible_only",
+          "kind": "bool",
+          "label": "Render visible range only",
+          "group": "g_perf",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2668,
+          "varname": "keep_visual_history",
+          "kind": "bool",
+          "label": "Keep structure label history",
+          "group": "g_perf",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2669,
+          "varname": "object_gc_cycle",
+          "kind": "int",
+          "label": "Object GC Cycle",
+          "group": "g_perf",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2670,
+          "varname": "max_ltf_ratio",
+          "kind": "int",
+          "label": "Max LTF Ratio",
+          "group": "g_perf",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2671,
+          "varname": "max_ltf_samples_per_bar",
+          "kind": "int",
+          "label": "Max LTF Samples / Bar",
+          "group": "g_perf",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2674,
+          "varname": "volume_quality_lookback",
+          "kind": "int",
+          "label": "Volume Quality Lookback",
+          "group": "g_data",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2675,
+          "varname": "min_nonzero_volume_bars",
+          "kind": "int",
+          "label": "Min Non-Zero Volume Bars",
+          "group": "g_data",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2676,
+          "varname": "allow_relvol_without_volume_data",
+          "kind": "bool",
+          "label": "Ignore RelVol when volume unavailable",
+          "group": "g_data",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2679,
+          "varname": "stop_buffer_atr_mult",
+          "kind": "float",
+          "label": "Stop Buffer ATR x",
+          "group": "g_risk",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2682,
+          "varname": "use_vwap_filter",
+          "kind": "bool",
+          "label": "Use VWAP Filter",
+          "group": "g_session",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2683,
+          "varname": "show_session_vwap",
+          "kind": "bool",
+          "label": "Show VWAP",
+          "group": "g_session",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2684,
+          "varname": "vwap_session",
+          "kind": "session",
+          "label": "0930-1600",
+          "group": "g_session",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2685,
+          "varname": "trade_entry_session",
+          "kind": "session",
+          "label": "0935-1130,1400-1530",
+          "group": "g_session",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2686,
+          "varname": "block_entries_outside_session",
+          "kind": "bool",
+          "label": "Block outside session",
+          "group": "g_session",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2687,
+          "varname": "use_opening_range_gate",
+          "kind": "bool",
+          "label": "Use Opening Range Gate",
+          "group": "g_session",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2688,
+          "varname": "opening_range_minutes",
+          "kind": "int",
+          "label": "OR min",
+          "group": "g_session",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2689,
+          "varname": "opening_range_bias_mode",
+          "kind": "string",
+          "label": "Above OR Mid",
+          "group": "g_session",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2692,
+          "varname": "use_microstructure_profiles",
+          "kind": "bool",
+          "label": "Use ticker microstructure profiles",
+          "group": "g_micro",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2917,
+          "varname": "micro_midday_block_session",
+          "kind": "session",
+          "label": "1130-1330",
+          "group": "g_micro",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2918,
+          "varname": "micro_premarket_session",
+          "kind": "session",
+          "label": "0400-0929",
+          "group": "g_micro",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2919,
+          "varname": "micro_afterhours_session",
+          "kind": "session",
+          "label": "1601-2000",
+          "group": "g_micro",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2920,
+          "varname": "micro_stop_hunt_ob_sweep_depth",
+          "kind": "float",
+          "label": "Stop-hunt OB sweep depth",
+          "group": "g_micro",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2921,
+          "varname": "micro_stop_hunt_fvg_sweep_depth",
+          "kind": "float",
+          "label": "Stop-hunt FVG sweep depth",
+          "group": "g_micro",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2922,
+          "varname": "micro_stop_hunt_relvol_min",
+          "kind": "float",
+          "label": "Stop-hunt min RelVol",
+          "group": "g_micro",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2923,
+          "varname": "micro_stop_hunt_invalidation_atr",
+          "kind": "float",
+          "label": "Stop-hunt invalidation ATR x",
+          "group": "g_micro",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2924,
+          "varname": "micro_stop_hunt_force_close_confirm",
+          "kind": "bool",
+          "label": "Stop-hunt: force close confirm",
+          "group": "g_micro",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2925,
+          "varname": "micro_stop_hunt_disable_live_invalid",
+          "kind": "bool",
+          "label": "Stop-hunt: disable live invalidation",
+          "group": "g_micro",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2926,
+          "varname": "micro_fast_decay_setup_age_max",
+          "kind": "int",
+          "label": "Fast-decay max armed age",
+          "group": "g_micro",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2927,
+          "varname": "micro_fast_decay_confirm_age_max",
+          "kind": "int",
+          "label": "Fast-decay max confirmed age",
+          "group": "g_micro",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2928,
+          "varname": "show_microstructure_debug",
+          "kind": "bool",
+          "label": "Show microstructure debug",
+          "group": "g_micro",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2931,
+          "varname": "use_index_gate",
+          "kind": "bool",
+          "label": "Use Index Gate",
+          "group": "g_market",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2932,
+          "varname": "index_gate_symbol",
+          "kind": "symbol",
+          "label": "AMEX:SPY",
+          "group": "g_market",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2933,
+          "varname": "use_sector_gate",
+          "kind": "bool",
+          "label": "Use Sector Gate",
+          "group": "g_market",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2934,
+          "varname": "sector_gate_symbol",
+          "kind": "symbol",
+          "label": "NASDAQ:QQQ",
+          "group": "g_market",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2935,
+          "varname": "use_breadth_symbol_gate",
+          "kind": "bool",
+          "label": "Use Breadth Symbol",
+          "group": "g_market",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2936,
+          "varname": "breadth_gate_symbol",
+          "kind": "string",
+          "label": ", ",
+          "group": "g_market",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2937,
+          "varname": "breadth_gate_mode",
+          "kind": "string",
+          "label": "Above Zero",
+          "group": "g_market",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2938,
+          "varname": "block_on_missing_market_symbol",
+          "kind": "bool",
+          "label": "Block on missing symbol",
+          "group": "g_market",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2939,
+          "varname": "breadth_gate_len",
+          "kind": "int",
+          "label": "Breadth EMA Len",
+          "group": "g_market",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2940,
+          "varname": "market_gate_fast_len",
+          "kind": "int",
+          "label": "Fast EMA",
+          "group": "g_market",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2941,
+          "varname": "market_gate_slow_len",
+          "kind": "int",
+          "label": "Slow EMA",
+          "group": "g_market",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2945,
+          "varname": "show_long_engine_debug",
+          "kind": "bool",
+          "label": "Show long engine debug",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2946,
+          "varname": "long_engine_debug_mode",
+          "kind": "string",
+          "label": "Compact",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2947,
+          "varname": "long_marker_history_limit",
+          "kind": "int",
+          "label": "Marker History Limit",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2948,
+          "varname": "auto_scale_marker_gaps",
+          "kind": "bool",
+          "label": "Auto Scale Gaps",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2949,
+          "varname": "reclaim_marker_spacing_bars",
+          "kind": "int",
+          "label": "Reclaim Marker Gap",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2950,
+          "varname": "confirm_marker_spacing_bars",
+          "kind": "int",
+          "label": "Confirm Marker Gap",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2951,
+          "varname": "ready_marker_spacing_bars",
+          "kind": "int",
+          "label": "Ready/Fail Gap",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2952,
+          "varname": "marker_gap_reference_minutes",
+          "kind": "int",
+          "label": "Auto Scale Base TF Min",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2953,
+          "varname": "marker_gap_max_scale",
+          "kind": "float",
+          "label": "Max Scale",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2956,
+          "varname": "long_signal_window",
+          "kind": "int",
+          "label": "Signal Window Bars",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2957,
+          "varname": "long_confirm_lookback",
+          "kind": "int",
+          "label": "Confirm Break Lookback",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2958,
+          "varname": "long_setup_expiry_bars",
+          "kind": "int",
+          "label": "Setup Expiry Bars",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2959,
+          "varname": "long_confirm_expiry_bars",
+          "kind": "int",
+          "label": "Confirmed Expiry Bars",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2960,
+          "varname": "long_invalidation_atr_mult",
+          "kind": "float",
+          "label": "Invalidation Buffer ATR x",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2961,
+          "varname": "long_zone_scan_limit",
+          "kind": "int",
+          "label": "Zone Scan Depth",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2962,
+          "varname": "max_bars_arm_to_confirm",
+          "kind": "int",
+          "label": "Max Bars Armed -> Confirm",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2963,
+          "varname": "max_bars_confirm_to_ready",
+          "kind": "int",
+          "label": "Max Bars Confirm -> Ready",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2964,
+          "varname": "max_zone_touches_for_entry",
+          "kind": "int",
+          "label": "Max Zone Touches For Entry",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2965,
+          "varname": "block_third_touch",
+          "kind": "bool",
+          "label": "Block 3rd+ Touch",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2966,
+          "varname": "min_headroom_r",
+          "kind": "float",
+          "label": "Min Headroom To Overhead Zone (R)",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2967,
+          "varname": "use_overhead_zone_filter",
+          "kind": "bool",
+          "label": "Block Overhead Zone",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2968,
+          "varname": "use_strict_sequence",
+          "kind": "bool",
+          "label": "Strict: Zone -> Reclaim -> Internal Break",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2969,
+          "varname": "tighten_armed_stage",
+          "kind": "bool",
+          "label": "Tighten Armed Stage",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2970,
+          "varname": "allow_same_bar_zone_reclaim",
+          "kind": "bool",
+          "label": "Allow same-bar reclaim",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2971,
+          "varname": "use_strict_sweep_for_zone_reclaim",
+          "kind": "bool",
+          "label": "Strict sweep for OB/FVG reclaim",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2972,
+          "varname": "allow_armed_source_upgrade",
+          "kind": "bool",
+          "label": "Allow Armed Source Upgrade",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2973,
+          "varname": "min_source_upgrade_quality_gain",
+          "kind": "float",
+          "label": "Min Q Gain",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2974,
+          "varname": "ob_reclaim_min_penetration",
+          "kind": "float",
+          "label": "OB depth",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2975,
+          "varname": "fvg_reclaim_min_penetration",
+          "kind": "float",
+          "label": "FVG depth",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2976,
+          "varname": "use_strict_confirm_guard",
+          "kind": "bool",
+          "label": "Strict confirm guard vs bearish breaks",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2977,
+          "varname": "show_strict_debug_markers",
+          "kind": "bool",
+          "label": "Debug markers",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2980,
+          "varname": "use_vola_compression_gate",
+          "kind": "bool",
+          "label": "Use Compression -> Expansion Gate",
+          "group": "g_vola",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2981,
+          "varname": "vola_baseline_len",
+          "kind": "int",
+          "label": "Baseline",
+          "group": "g_vola",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2982,
+          "varname": "compression_ratio_max",
+          "kind": "float",
+          "label": "Compression max ratio",
+          "group": "g_vola",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2983,
+          "varname": "compression_recent_bars",
+          "kind": "int",
+          "label": "Compression recent bars",
+          "group": "g_vola",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2984,
+          "varname": "expansion_range_mult",
+          "kind": "float",
+          "label": "Expansion range x",
+          "group": "g_vola",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2985,
+          "varname": "require_expansion_on_confirm_or_ready",
+          "kind": "bool",
+          "label": "Require expansion now",
+          "group": "g_vola",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2988,
+          "varname": "use_context_quality_score",
+          "kind": "bool",
+          "label": "Show Context Quality Diagnostics",
+          "group": "g_quality",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2989,
+          "varname": "min_context_quality_score",
+          "kind": "int",
+          "label": "Diag Reference Min Score",
+          "group": "g_quality",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2990,
+          "varname": "use_lean_signal_quality_gate",
+          "kind": "bool",
+          "label": "Use Signal Quality Gate",
+          "group": "g_quality",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2991,
+          "varname": "use_lean_context_gates",
+          "kind": "bool",
+          "label": "Use Lean Context Consensus",
+          "group": "g_quality",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2992,
+          "varname": "use_scoring_over_blocking",
+          "kind": "bool",
+          "label": "Scoring over Blocking (v5.5)",
+          "group": "g_quality",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2993,
+          "varname": "score_weight_structure",
+          "kind": "int",
+          "label": "Structure",
+          "group": "g_quality",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2994,
+          "varname": "score_weight_htf",
+          "kind": "int",
+          "label": "HTF",
+          "group": "g_quality",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2995,
+          "varname": "score_weight_ema",
+          "kind": "int",
+          "label": "EMA",
+          "group": "g_quality",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2996,
+          "varname": "score_weight_adx",
+          "kind": "int",
+          "label": "ADX",
+          "group": "g_quality",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2997,
+          "varname": "score_weight_close",
+          "kind": "int",
+          "label": "Close",
+          "group": "g_quality",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2998,
+          "varname": "score_weight_relvol",
+          "kind": "int",
+          "label": "RelVol",
+          "group": "g_quality",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 2999,
+          "varname": "min_htf_alignment_count",
+          "kind": "int",
+          "label": "HTF Bias Min Count",
+          "group": "g_quality",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3002,
+          "varname": "require_internal_break_for_confirm",
+          "kind": "bool",
+          "label": "Require Internal Break For Confirm",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3003,
+          "varname": "require_main_break_for_ready",
+          "kind": "bool",
+          "label": "Require Main BOS For Ready",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3004,
+          "varname": "use_live_confirm_break",
+          "kind": "bool",
+          "label": "Live Confirm Uses High",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3005,
+          "varname": "use_live_invalidation_break",
+          "kind": "bool",
+          "label": "Live Invalidation Uses Low",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3006,
+          "varname": "long_internal_structure_mode",
+          "kind": "string",
+          "label": "Internal CHoCH only",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3009,
+          "varname": "show_ema_support",
+          "kind": "bool",
+          "label": "Show EMA Support",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3010,
+          "varname": "ema_fast_len",
+          "kind": "int",
+          "label": "Fast",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3011,
+          "varname": "ema_slow_len",
+          "kind": "int",
+          "label": "Slow",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3014,
+          "varname": "use_adx",
+          "kind": "bool",
+          "label": "Use ADX",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3015,
+          "varname": "adx_len",
+          "kind": "int",
+          "label": "Length",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3016,
+          "varname": "adx_trend_min",
+          "kind": "float",
+          "label": "Trend",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3017,
+          "varname": "adx_strong_min",
+          "kind": "float",
+          "label": "Strong",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3020,
+          "varname": "use_rel_volume",
+          "kind": "bool",
+          "label": "Use Relative Volume",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3021,
+          "varname": "relvol_len",
+          "kind": "int",
+          "label": "Length",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3022,
+          "varname": "relvol_good",
+          "kind": "float",
+          "label": "Good x",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3025,
+          "varname": "use_strong_close_filter",
+          "kind": "bool",
+          "label": "Use Strong Close Filter",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3026,
+          "varname": "min_close_in_range_pct",
+          "kind": "float",
+          "label": "Min Close In Range",
+          "group": "g_long",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3029,
+          "varname": "use_accel_module",
+          "kind": "bool",
+          "label": "Use acceleration timing module",
+          "group": "g_accel",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3030,
+          "varname": "accel_len_fast",
+          "kind": "int",
+          "label": "Fast length",
+          "group": "g_accel",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3031,
+          "varname": "accel_len_mid1",
+          "kind": "int",
+          "label": "Mid 1",
+          "group": "g_accel",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3032,
+          "varname": "accel_len_mid2",
+          "kind": "int",
+          "label": "Mid 2",
+          "group": "g_accel",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3033,
+          "varname": "accel_len_slow",
+          "kind": "int",
+          "label": "Slow",
+          "group": "g_accel",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3034,
+          "varname": "accel_smooth_len",
+          "kind": "int",
+          "label": "Smooth",
+          "group": "g_accel",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3035,
+          "varname": "accel_cross_threshold",
+          "kind": "float",
+          "label": "Zero threshold",
+          "group": "g_accel",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3036,
+          "varname": "accel_integration_mode",
+          "kind": "string",
+          "label": "Early only",
+          "group": "g_accel",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3037,
+          "varname": "require_accel_above_zero_for_ready",
+          "kind": "bool",
+          "label": "Ready requires accel > 0",
+          "group": "g_accel",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3038,
+          "varname": "accel_recent_cross_bars",
+          "kind": "int",
+          "label": "Recent cross bars",
+          "group": "g_accel",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3039,
+          "varname": "accel_close_safe_only",
+          "kind": "bool",
+          "label": "Acceleration close-safe only",
+          "group": "g_accel",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3040,
+          "varname": "accel_use_for_early",
+          "kind": "bool",
+          "label": "Map to Early",
+          "group": "g_accel",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3041,
+          "varname": "accel_use_for_ready",
+          "kind": "bool",
+          "label": "Map to Ready",
+          "group": "g_accel",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3042,
+          "varname": "accel_use_for_entry_best",
+          "kind": "bool",
+          "label": "Map to Entry Best",
+          "group": "g_accel",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3043,
+          "varname": "accel_use_for_entry_strict",
+          "kind": "bool",
+          "label": "Map to Entry Strict",
+          "group": "g_accel",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3046,
+          "varname": "use_sd_confluence",
+          "kind": "bool",
+          "label": "Use second-derivative confluence",
+          "group": "g_sd",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3047,
+          "varname": "sd_lr_len",
+          "kind": "int",
+          "label": "LR length",
+          "group": "g_sd",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3048,
+          "varname": "sd_smooth_len",
+          "kind": "int",
+          "label": "Smooth",
+          "group": "g_sd",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3049,
+          "varname": "sd_pivot_len",
+          "kind": "int",
+          "label": "Pivot length",
+          "group": "g_sd",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3050,
+          "varname": "sd_recent_window",
+          "kind": "int",
+          "label": "Recent window bars",
+          "group": "g_sd",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3051,
+          "varname": "sd_higher_low_steps_required",
+          "kind": "int",
+          "label": "Higher-low steps required",
+          "group": "g_sd",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3052,
+          "varname": "sd_require_for_armed",
+          "kind": "bool",
+          "label": "Require SD confluence for Armed",
+          "group": "g_sd",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3053,
+          "varname": "sd_require_for_early",
+          "kind": "bool",
+          "label": "Require SD confluence for Early",
+          "group": "g_sd",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3054,
+          "varname": "sd_require_for_confirmed",
+          "kind": "bool",
+          "label": "Require SD confluence for Confirmed",
+          "group": "g_sd",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3055,
+          "varname": "sd_require_for_ready",
+          "kind": "bool",
+          "label": "Require SD confluence for Ready",
+          "group": "g_sd",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3056,
+          "varname": "sd_require_for_entry_best",
+          "kind": "bool",
+          "label": "Require SD confluence for Entry Best",
+          "group": "g_sd",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3057,
+          "varname": "sd_require_both_for_entry_strict",
+          "kind": "bool",
+          "label": "Entry Strict requires BOTH signals",
+          "group": "g_sd",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3058,
+          "varname": "sd_require_osc_rising_for_ready",
+          "kind": "bool",
+          "label": "Ready requires oscillator rising",
+          "group": "g_sd",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3061,
+          "varname": "use_volatility_regime",
+          "kind": "bool",
+          "label": "Use volatility regime filter",
+          "group": "g_volreg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3062,
+          "varname": "vol_ma_mode",
+          "kind": "string",
+          "label": "EMA",
+          "group": "g_volreg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3063,
+          "varname": "vol_ma_len_1",
+          "kind": "int",
+          "label": "MA 1",
+          "group": "g_volreg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3064,
+          "varname": "vol_ma_len_2",
+          "kind": "int",
+          "label": "MA 2",
+          "group": "g_volreg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3065,
+          "varname": "vol_ma_len_3",
+          "kind": "int",
+          "label": "MA 3",
+          "group": "g_volreg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3066,
+          "varname": "vol_ma_len_4",
+          "kind": "int",
+          "label": "MA 4",
+          "group": "g_volreg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3067,
+          "varname": "vol_require_all_stack_slopes",
+          "kind": "bool",
+          "label": "Require all stack slopes rising",
+          "group": "g_volreg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3068,
+          "varname": "vol_bb_len",
+          "kind": "int",
+          "label": "BB length",
+          "group": "g_volreg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3069,
+          "varname": "vol_bb_mult",
+          "kind": "float",
+          "label": "BB mult",
+          "group": "g_volreg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3070,
+          "varname": "vol_kc_len",
+          "kind": "int",
+          "label": "KC length",
+          "group": "g_volreg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3071,
+          "varname": "vol_kc_mult",
+          "kind": "float",
+          "label": "KC mult",
+          "group": "g_volreg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3072,
+          "varname": "vol_squeeze_recent_bars",
+          "kind": "int",
+          "label": "Squeeze recent bars",
+          "group": "g_volreg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3073,
+          "varname": "vol_release_recent_bars",
+          "kind": "int",
+          "label": "Release recent bars",
+          "group": "g_volreg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3074,
+          "varname": "vol_momentum_len",
+          "kind": "int",
+          "label": "Momentum length",
+          "group": "g_volreg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3075,
+          "varname": "vol_momentum_smooth",
+          "kind": "int",
+          "label": "Smooth",
+          "group": "g_volreg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3076,
+          "varname": "vol_require_squeeze_for_watchlist",
+          "kind": "bool",
+          "label": "Watchlist prefers squeeze context",
+          "group": "g_volreg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3077,
+          "varname": "vol_require_squeeze_for_ready",
+          "kind": "bool",
+          "label": "Ready requires squeeze context",
+          "group": "g_volreg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3078,
+          "varname": "vol_require_release_for_entry_best",
+          "kind": "bool",
+          "label": "Entry Best requires squeeze release",
+          "group": "g_volreg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3079,
+          "varname": "vol_require_release_for_entry_strict",
+          "kind": "bool",
+          "label": "Entry Strict requires squeeze release",
+          "group": "g_volreg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3082,
+          "varname": "use_stretch_context",
+          "kind": "bool",
+          "label": "Use stretch context",
+          "group": "g_stretch",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3083,
+          "varname": "stretch_len",
+          "kind": "int",
+          "label": "Mean / StdDev length",
+          "group": "g_stretch",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3084,
+          "varname": "lower_extreme_z",
+          "kind": "float",
+          "label": "Lower extreme z",
+          "group": "g_stretch",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3085,
+          "varname": "lower_extreme_recent_bars",
+          "kind": "int",
+          "label": "Lower extreme recent bars",
+          "group": "g_stretch",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3086,
+          "varname": "anti_chase_max_z_ready",
+          "kind": "float",
+          "label": "Ready max z",
+          "group": "g_stretch",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3087,
+          "varname": "anti_chase_max_z_best",
+          "kind": "float",
+          "label": "Best max z",
+          "group": "g_stretch",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3088,
+          "varname": "anti_chase_max_z_strict",
+          "kind": "float",
+          "label": "Strict max z",
+          "group": "g_stretch",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3089,
+          "varname": "stretch_require_lower_extreme_for_watchlist",
+          "kind": "bool",
+          "label": "Watchlist prefers lower extreme",
+          "group": "g_stretch",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3090,
+          "varname": "stretch_require_lower_extreme_for_ready",
+          "kind": "bool",
+          "label": "Ready requires lower extreme context",
+          "group": "g_stretch",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3091,
+          "varname": "stretch_require_lower_extreme_for_entry_best",
+          "kind": "bool",
+          "label": "Entry Best requires lower extreme context",
+          "group": "g_stretch",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3092,
+          "varname": "stretch_require_lower_extreme_for_entry_strict",
+          "kind": "bool",
+          "label": "Entry Strict requires lower extreme context",
+          "group": "g_stretch",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3093,
+          "varname": "show_mean_target_overlay",
+          "kind": "bool",
+          "label": "Show mean target overlay",
+          "group": "g_stretch",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3096,
+          "varname": "use_ddvi_context",
+          "kind": "bool",
+          "label": "Use DDVI context",
+          "group": "g_ddvi_ctx",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3097,
+          "varname": "ddvi_di_length",
+          "kind": "int",
+          "label": "DDVI DI Length",
+          "group": "g_ddvi_ctx",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3098,
+          "varname": "ddvi_advx_smooth",
+          "kind": "int",
+          "label": "ADVX Smooth",
+          "group": "g_ddvi_ctx",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3099,
+          "varname": "ddvi_ma_select",
+          "kind": "enum",
+          "label": "DDVI MA",
+          "group": "g_ddvi_ctx",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3100,
+          "varname": "ddvi_ma_len",
+          "kind": "int",
+          "label": "Length",
+          "group": "g_ddvi_ctx",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3101,
+          "varname": "ddvi_bb_ma_select",
+          "kind": "enum",
+          "label": "DDVI BB MA",
+          "group": "g_ddvi_ctx",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3102,
+          "varname": "ddvi_bb_len",
+          "kind": "int",
+          "label": "BB Length",
+          "group": "g_ddvi_ctx",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3103,
+          "varname": "ddvi_bb_mult",
+          "kind": "float",
+          "label": "BB Stdev",
+          "group": "g_ddvi_ctx",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3104,
+          "varname": "ddvi_lower_extreme_lookback",
+          "kind": "int",
+          "label": "Lower extreme context bars",
+          "group": "g_ddvi_ctx",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3105,
+          "varname": "use_ddvi_hidden_bull",
+          "kind": "bool",
+          "label": "Use hidden bull divergence",
+          "group": "g_ddvi_ctx",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3106,
+          "varname": "use_ddvi_strong_bull",
+          "kind": "bool",
+          "label": "Use strong bull divergence",
+          "group": "g_ddvi_ctx",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3107,
+          "varname": "ddvi_pivot_left",
+          "kind": "int",
+          "label": "Pivot Left",
+          "group": "g_ddvi_ctx",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3108,
+          "varname": "ddvi_pivot_right",
+          "kind": "int",
+          "label": "Right",
+          "group": "g_ddvi_ctx",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3109,
+          "varname": "ddvi_div_min_range",
+          "kind": "int",
+          "label": "Div Min",
+          "group": "g_ddvi_ctx",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3110,
+          "varname": "ddvi_div_max_range",
+          "kind": "int",
+          "label": "Max",
+          "group": "g_ddvi_ctx",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3111,
+          "varname": "ddvi_eq_zone_len",
+          "kind": "int",
+          "label": "Equal zone length",
+          "group": "g_ddvi_ctx",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3112,
+          "varname": "ddvi_eq_zone_atr_mult",
+          "kind": "float",
+          "label": "Price ATR x",
+          "group": "g_ddvi_ctx",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3113,
+          "varname": "ddvi_eq_zone_dev_mult",
+          "kind": "float",
+          "label": "DDVI Dev x",
+          "group": "g_ddvi_ctx",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3114,
+          "varname": "ddvi_close_safe_only",
+          "kind": "bool",
+          "label": "DDVI events close-safe only",
+          "group": "g_ddvi_ctx",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3117,
+          "varname": "show_Structure",
+          "kind": "bool",
+          "label": "Show Market Structure",
+          "group": "g_struct",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3118,
+          "varname": "show_bull",
+          "kind": "string",
+          "label": "All",
+          "group": "g_struct",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3121,
+          "varname": "show_swing_points",
+          "kind": "bool",
+          "label": "Show Swing Points (HH/LH/HL/LL)",
+          "group": "g_struct",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3122,
+          "varname": "swing_length",
+          "kind": "int",
+          "label": "Swing Size",
+          "group": "g_struct",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3123,
+          "varname": "show_internals",
+          "kind": "bool",
+          "label": "Show Internal Structure",
+          "group": "g_struct",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3124,
+          "varname": "internal_length",
+          "kind": "int",
+          "label": "Internal Size",
+          "group": "g_struct",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3125,
+          "varname": "show_latest_swings_levels",
+          "kind": "bool",
+          "label": "Show Strong/Weak High/Low",
+          "group": "g_struct",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3131,
+          "varname": "show_ob",
+          "kind": "bool",
+          "label": "Show Order Blocks",
+          "group": "g_ob",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3132,
+          "varname": "bull_ob_css",
+          "kind": "color",
+          "label": ", group = g_ob, inline = ",
+          "group": "g_ob",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3133,
+          "varname": "bull_ob_css_line",
+          "kind": "color",
+          "label": ", group = g_ob, inline = ",
+          "group": "g_ob",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3134,
+          "varname": "ob_showlast",
+          "kind": "int",
+          "label": "Show last",
+          "group": "g_ob",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3135,
+          "varname": "show_ob_debug",
+          "kind": "bool",
+          "label": "Show OB debug",
+          "group": "g_ob",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3136,
+          "varname": "show_fvg_debug",
+          "kind": "bool",
+          "label": "Show FVG debug",
+          "group": "Fair",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3137,
+          "varname": "ob_filter_min_mult",
+          "kind": "float",
+          "label": "Size Filter (ATR x) Min",
+          "group": "g_ob",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3138,
+          "varname": "ob_filter_max_mult",
+          "kind": "float",
+          "label": "Max",
+          "group": "g_ob",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3140,
+          "varname": "ob_extend_until_broken",
+          "kind": "bool",
+          "label": "Extend until broken",
+          "group": "g_ob",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3141,
+          "varname": "ob_keep_broken",
+          "kind": "bool",
+          "label": "Keep broken",
+          "group": "g_ob",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3142,
+          "varname": "ob_keep_broken_max",
+          "kind": "int",
+          "label": ", minval = 0, group = g_ob, inline = ",
+          "group": "g_ob",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3143,
+          "varname": "bull_ob_css_broken",
+          "kind": "color",
+          "label": ", group = g_ob, inline = ",
+          "group": "g_ob",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3145,
+          "varname": "use_ob_profile",
+          "kind": "bool",
+          "label": "Use profiles",
+          "group": "g_ob",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3146,
+          "varname": "use_ob_soft_confirm",
+          "kind": "bool",
+          "label": "Use soft confirm",
+          "group": "g_ob",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3149,
+          "varname": "use_retracements_with_FVG_out",
+          "kind": "bool",
+          "label": "Use retracements with FVG-out as trend-supporting OB",
+          "group": "g_ob",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 3150,
+          "varname": "use_ob_engine",
+          "kind": "bool",
+          "label": "Use OB engine",
+          "group": "g_ob",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 4553,
+          "varname": "show_fvg",
+          "kind": "bool",
+          "label": "Show Fair Value Gaps",
+          "group": "g_fvg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 4554,
+          "varname": "fvg_showlast",
+          "kind": "int",
+          "label": "Show last",
+          "group": "g_fvg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 4555,
+          "varname": "fvg_extend_until_filled",
+          "kind": "bool",
+          "label": "Extend until filled",
+          "group": "g_fvg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 4556,
+          "varname": "fvg_keep_filled",
+          "kind": "bool",
+          "label": "Keep filled",
+          "group": "g_fvg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 4557,
+          "varname": "fvg_keep_filled_max",
+          "kind": "int",
+          "label": ", minval = 1, group = g_fvg, inline = ",
+          "group": "g_fvg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 4558,
+          "varname": "bull_fvg_css",
+          "kind": "color",
+          "label": ", group = g_fvg, inline = ",
+          "group": "g_fvg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 4559,
+          "varname": "bull_fvg_line_css",
+          "kind": "color",
+          "label": ", group = g_fvg, inline = ",
+          "group": "g_fvg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 4560,
+          "varname": "bull_fvg_css_filled",
+          "kind": "color",
+          "label": ", group = g_fvg, inline = ",
+          "group": "g_fvg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 4577,
+          "varname": "filter_insignificant_fvgs",
+          "kind": "bool",
+          "label": "Filter: min size",
+          "group": "g_fvg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 4578,
+          "varname": "min_fvg_size_atr_len",
+          "kind": "int",
+          "label": "ATR Length",
+          "group": "g_fvg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 4579,
+          "varname": "min_fvg_size_atr_mult",
+          "kind": "float",
+          "label": ", minval = 0, step = 0.1, group = g_fvg, inline = ",
+          "group": "g_fvg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 4583,
+          "varname": "fvg_fill_target_pct",
+          "kind": "float",
+          "label": "Filled at %",
+          "group": "g_fvg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 4585,
+          "varname": "use_fvg_engine",
+          "kind": "bool",
+          "label": "Use FVG engine",
+          "group": "g_fvg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 4668,
+          "varname": "show_htf_fvg",
+          "kind": "bool",
+          "label": "Show Fair Value Gaps (HTF)",
+          "group": "g_htf_fvg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 4669,
+          "varname": "fvg_htf",
+          "kind": "timeframe",
+          "label": "1D",
+          "group": "g_htf_fvg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 4670,
+          "varname": "htf_fvg_showlast",
+          "kind": "int",
+          "label": "Show last",
+          "group": "g_htf_fvg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 4671,
+          "varname": "htf_fvg_keep_filled",
+          "kind": "bool",
+          "label": "Keep filled",
+          "group": "g_htf_fvg",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 4672,
+          "varname": "htf_fvg_keep_filled_max",
+          "kind": "int",
+          "label": ", minval = 1, group = g_htf_fvg, inline = ",
+          "group": "g_htf_fvg",
+          "has_display_none": true,
+          "visibility": null
+        }
+      ]
+    },
+    {
+      "file": "SMC_Dashboard.pine",
+      "input_count": 81,
+      "hidden_count": 67,
+      "inputs": [
+        {
+          "lineno": 32,
+          "varname": "tm_enable",
+          "kind": "bool",
+          "label": "Enable Trade-Mgmt rows",
+          "group": "g_trade_mgmt",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 33,
+          "varname": "tm_tp1_r",
+          "kind": "float",
+          "label": "TP1 (R-multiple)",
+          "group": "g_trade_mgmt",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 34,
+          "varname": "tm_tp2_r",
+          "kind": "float",
+          "label": "TP2 (R-multiple)",
+          "group": "g_trade_mgmt",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 35,
+          "varname": "tm_be_after_t1",
+          "kind": "bool",
+          "label": "Move stop to break-even after TP1",
+          "group": "g_trade_mgmt",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 37,
+          "varname": "surface_mode",
+          "kind": "string",
+          "label": "Decision Brief",
+          "group": "g_surface",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 38,
+          "varname": "show_table",
+          "kind": "bool",
+          "label": "Show Brief Panel",
+          "group": "g_surface",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 39,
+          "varname": "show_risk_lines",
+          "kind": "bool",
+          "label": "Show Trade Plan",
+          "group": "g_surface",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 40,
+          "varname": "show_state_bg",
+          "kind": "bool",
+          "label": "Highlight Live Setup",
+          "group": "g_surface",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 41,
+          "varname": "compact_dashboard",
+          "kind": "bool",
+          "label": "Compact Dashboard",
+          "group": "g_surface",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 42,
+          "varname": "color_theme",
+          "kind": "string",
+          "label": "Standard",
+          "group": "g_surface",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 43,
+          "varname": "hero_token_order",
+          "kind": "string",
+          "label": "BIAS,TRUST,FAM,ZONE,BLOCKER",
+          "group": "g_surface",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 44,
+          "varname": "calibration_sha",
+          "kind": "string",
+          "label": ", ",
+          "group": "g_surface",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 45,
+          "varname": "calibration_breach_banner",
+          "kind": "bool",
+          "label": "Calibration Breach Banner",
+          "group": "g_surface",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 46,
+          "varname": "fvg_context_health_text",
+          "kind": "string",
+          "label": ", ",
+          "group": "g_surface",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 71,
+          "varname": "src_bus_schema_version",
+          "kind": "source",
+          "label": "BUS SchemaVersion",
+          "group": "g_bus_lifecycle",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 72,
+          "varname": "src_zone_active",
+          "kind": "source",
+          "label": "BUS ZoneActive",
+          "group": "g_bus_lifecycle",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 73,
+          "varname": "src_armed",
+          "kind": "source",
+          "label": "BUS Armed",
+          "group": "g_bus_lifecycle",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 74,
+          "varname": "src_confirmed",
+          "kind": "source",
+          "label": "BUS Confirmed",
+          "group": "g_bus_lifecycle",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 75,
+          "varname": "src_ready",
+          "kind": "source",
+          "label": "BUS Ready",
+          "group": "g_bus_lifecycle",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 76,
+          "varname": "src_entry_best",
+          "kind": "source",
+          "label": "BUS EntryBest",
+          "group": "g_bus_lifecycle",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 77,
+          "varname": "src_entry_strict",
+          "kind": "source",
+          "label": "BUS EntryStrict",
+          "group": "g_bus_lifecycle",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 78,
+          "varname": "src_trigger",
+          "kind": "source",
+          "label": "BUS Trigger",
+          "group": "g_bus_lifecycle",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 79,
+          "varname": "src_invalidation",
+          "kind": "source",
+          "label": "BUS Invalidation",
+          "group": "g_bus_lifecycle",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 80,
+          "varname": "src_quality_score",
+          "kind": "source",
+          "label": "BUS QualityScore",
+          "group": "g_bus_lifecycle",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 81,
+          "varname": "src_source_kind",
+          "kind": "source",
+          "label": "BUS SourceKind",
+          "group": "g_bus_lifecycle",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 82,
+          "varname": "src_state_code",
+          "kind": "source",
+          "label": "BUS StateCode",
+          "group": "g_bus_lifecycle",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 83,
+          "varname": "src_trend_pack",
+          "kind": "source",
+          "label": "BUS TrendPack",
+          "group": "g_bus_lifecycle",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 84,
+          "varname": "src_meta_pack",
+          "kind": "source",
+          "label": "BUS MetaPack",
+          "group": "g_bus_lifecycle",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 85,
+          "varname": "src_session_gate_row",
+          "kind": "source",
+          "label": "BUS SessionGateRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 86,
+          "varname": "src_market_gate_row",
+          "kind": "source",
+          "label": "BUS MarketGateRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 87,
+          "varname": "src_vola_gate_row",
+          "kind": "source",
+          "label": "BUS VolaGateRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 88,
+          "varname": "src_micro_session_gate_row",
+          "kind": "source",
+          "label": "BUS MicroSessionGateRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 89,
+          "varname": "src_micro_fresh_row",
+          "kind": "source",
+          "label": "BUS MicroFreshRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 90,
+          "varname": "src_volume_data_row",
+          "kind": "source",
+          "label": "BUS VolumeDataRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 91,
+          "varname": "src_quality_env_row",
+          "kind": "source",
+          "label": "BUS QualityEnvRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 92,
+          "varname": "src_quality_strict_row",
+          "kind": "source",
+          "label": "BUS QualityStrictRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 93,
+          "varname": "src_close_strength_row",
+          "kind": "source",
+          "label": "BUS CloseStrengthRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 94,
+          "varname": "src_ema_support_row",
+          "kind": "source",
+          "label": "BUS EmaSupportRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 95,
+          "varname": "src_adx_row",
+          "kind": "source",
+          "label": "BUS AdxRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 96,
+          "varname": "src_relvol_row",
+          "kind": "source",
+          "label": "BUS RelVolRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 97,
+          "varname": "src_vwap_row",
+          "kind": "source",
+          "label": "BUS VwapRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 98,
+          "varname": "src_context_quality_row",
+          "kind": "source",
+          "label": "BUS ContextQualityRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 99,
+          "varname": "src_quality_clean_row",
+          "kind": "source",
+          "label": "BUS QualityCleanRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 100,
+          "varname": "src_quality_score_row",
+          "kind": "source",
+          "label": "BUS QualityScoreRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 101,
+          "varname": "src_sd_confluence_row",
+          "kind": "source",
+          "label": "BUS SdConfluenceRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 102,
+          "varname": "src_sd_osc_row",
+          "kind": "source",
+          "label": "BUS SdOscRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 103,
+          "varname": "src_vol_regime_row",
+          "kind": "source",
+          "label": "BUS VolRegimeRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 104,
+          "varname": "src_vol_squeeze_row",
+          "kind": "source",
+          "label": "BUS VolSqueezeRow",
+          "group": "g_bus_diag_rows",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 105,
+          "varname": "src_ltf_delta_state",
+          "kind": "source",
+          "label": "BUS LtfDeltaState",
+          "group": "g_bus_diag",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 106,
+          "varname": "src_safe_trend_state",
+          "kind": "source",
+          "label": "BUS SafeTrendState",
+          "group": "g_bus_diag",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 107,
+          "varname": "src_micro_profile_code",
+          "kind": "source",
+          "label": "BUS MicroProfileCode",
+          "group": "g_bus_diag",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 108,
+          "varname": "src_ready_blocker_code",
+          "kind": "source",
+          "label": "BUS ReadyBlockerCode",
+          "group": "g_bus_diag",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 109,
+          "varname": "src_strict_blocker_code",
+          "kind": "source",
+          "label": "BUS StrictBlockerCode",
+          "group": "g_bus_diag",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 110,
+          "varname": "src_vol_expansion_state",
+          "kind": "source",
+          "label": "BUS VolExpansionState",
+          "group": "g_bus_diag",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 111,
+          "varname": "src_ddvi_context_state",
+          "kind": "source",
+          "label": "BUS DdviContextState",
+          "group": "g_bus_diag",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 112,
+          "varname": "src_stop_level",
+          "kind": "source",
+          "label": "BUS StopLevel",
+          "group": "g_bus_plan",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 113,
+          "varname": "src_target_1",
+          "kind": "source",
+          "label": "BUS Target1",
+          "group": "g_bus_plan",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 114,
+          "varname": "src_target_2",
+          "kind": "source",
+          "label": "BUS Target2",
+          "group": "g_bus_plan",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 115,
+          "varname": "src_zone_ob_top",
+          "kind": "source",
+          "label": "BUS ZoneObTop",
+          "group": "g_bus_detail",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 116,
+          "varname": "src_zone_ob_bottom",
+          "kind": "source",
+          "label": "BUS ZoneObBottom",
+          "group": "g_bus_detail",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 117,
+          "varname": "src_zone_fvg_top",
+          "kind": "source",
+          "label": "BUS ZoneFvgTop",
+          "group": "g_bus_detail",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 118,
+          "varname": "src_zone_fvg_bottom",
+          "kind": "source",
+          "label": "BUS ZoneFvgBottom",
+          "group": "g_bus_detail",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 119,
+          "varname": "src_session_vwap",
+          "kind": "source",
+          "label": "BUS SessionVwap",
+          "group": "g_bus_detail",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 120,
+          "varname": "src_adx_value",
+          "kind": "source",
+          "label": "BUS AdxValue",
+          "group": "g_bus_detail",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 121,
+          "varname": "src_relvol_value",
+          "kind": "source",
+          "label": "BUS RelVolValue",
+          "group": "g_bus_detail",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 122,
+          "varname": "src_stretch_z",
+          "kind": "source",
+          "label": "BUS StretchZ",
+          "group": "g_bus_detail",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 123,
+          "varname": "src_stretch_support_mask",
+          "kind": "source",
+          "label": "BUS StretchSupportMask",
+          "group": "g_bus_detail",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 124,
+          "varname": "src_ltf_bull_share",
+          "kind": "source",
+          "label": "BUS LtfBullShare",
+          "group": "g_bus_detail",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 125,
+          "varname": "src_ltf_bias_hint",
+          "kind": "source",
+          "label": "BUS LtfBiasHint",
+          "group": "g_bus_detail",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 126,
+          "varname": "src_ltf_volume_delta",
+          "kind": "source",
+          "label": "BUS LtfVolumeDelta",
+          "group": "g_bus_detail",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 127,
+          "varname": "src_objects_count_pack",
+          "kind": "source",
+          "label": "BUS ObjectsCountPack",
+          "group": "g_bus_detail",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 128,
+          "varname": "src_lean_pack_a",
+          "kind": "source",
+          "label": "BUS LeanPackA",
+          "group": "g_bus_lean",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 129,
+          "varname": "src_lean_pack_b",
+          "kind": "source",
+          "label": "BUS LeanPackB",
+          "group": "g_bus_lean",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 136,
+          "varname": "src_preset_class_code",
+          "kind": "source",
+          "label": "BUS PresetClassCode",
+          "group": "g_bus_preset",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 137,
+          "varname": "src_preset_rvol_min",
+          "kind": "source",
+          "label": "BUS PresetRvolMin",
+          "group": "g_bus_preset",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 138,
+          "varname": "src_preset_htf_bias_min",
+          "kind": "source",
+          "label": "BUS PresetHtfBiasMin",
+          "group": "g_bus_preset",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 139,
+          "varname": "src_preset_fvg_qual_gate",
+          "kind": "source",
+          "label": "BUS PresetFvgQualGate",
+          "group": "g_bus_preset",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 140,
+          "varname": "src_preset_vol_regime_def",
+          "kind": "source",
+          "label": "BUS PresetVolRegimeDef",
+          "group": "g_bus_preset",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 142,
+          "varname": "local_ob_debug_enabled",
+          "kind": "bool",
+          "label": "OB Debug Enabled",
+          "group": "g_local_debug",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 143,
+          "varname": "local_fvg_debug_enabled",
+          "kind": "bool",
+          "label": "FVG Debug Enabled",
+          "group": "g_local_debug",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 144,
+          "varname": "local_engine_debug_enabled",
+          "kind": "bool",
+          "label": "Long Engine Debug Enabled",
+          "group": "g_local_debug",
+          "has_display_none": true,
+          "visibility": null
+        }
+      ]
+    },
+    {
+      "file": "SMC_Event_Overlay.pine",
+      "input_count": 10,
+      "hidden_count": 0,
+      "inputs": [
+        {
+          "lineno": 30,
+          "varname": "show_event_line",
+          "kind": "bool",
+          "label": "Show event vertical line",
+          "group": "g_ev",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 31,
+          "varname": "show_event_zone",
+          "kind": "bool",
+          "label": "Show pre/post event zone",
+          "group": "g_ev",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 32,
+          "varname": "show_event_label",
+          "kind": "bool",
+          "label": "Show event label",
+          "group": "g_ev",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 33,
+          "varname": "high_impact_only",
+          "kind": "bool",
+          "label": "High-impact events only",
+          "group": "g_ev",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 34,
+          "varname": "col_event_line",
+          "kind": "color",
+          "label": "Event line color",
+          "group": "g_ev",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 35,
+          "varname": "col_zone_pre",
+          "kind": "color",
+          "label": "Pre-event zone",
+          "group": "g_ev",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 36,
+          "varname": "col_zone_post",
+          "kind": "color",
+          "label": "Post-event zone",
+          "group": "g_ev",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 37,
+          "varname": "col_label_text",
+          "kind": "color",
+          "label": "Label text color",
+          "group": "g_ev",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 38,
+          "varname": "src_lean_pack_a",
+          "kind": "source",
+          "label": "BUS LeanPackA",
+          "group": "g_ev",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 41,
+          "varname": "barCloseOnly",
+          "kind": "bool",
+          "label": "Alerts nur am Bar-Close",
+          "group": "g_alerts",
+          "has_display_none": false,
+          "visibility": null
+        }
+      ]
+    },
+    {
+      "file": "SMC_Exit_Signal.pine",
+      "input_count": 14,
+      "hidden_count": 0,
+      "inputs": [
+        {
+          "lineno": 26,
+          "varname": "tp1_r",
+          "kind": "float",
+          "label": "TP1 (R-multiple)",
+          "group": "g_plan",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 27,
+          "varname": "tp2_r",
+          "kind": "float",
+          "label": "TP2 (R-multiple)",
+          "group": "g_plan",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 28,
+          "varname": "move_be_after_tp1",
+          "kind": "bool",
+          "label": "Move stop to break-even after TP1",
+          "group": "g_plan",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 29,
+          "varname": "use_defensive_exit",
+          "kind": "bool",
+          "label": "Defensive exit on setup invalidation",
+          "group": "g_plan",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 30,
+          "varname": "defensive_grace_bars",
+          "kind": "int",
+          "label": "Defensive grace bars",
+          "group": "g_plan",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 31,
+          "varname": "confirm_bars_only",
+          "kind": "bool",
+          "label": "Evaluate on confirmed bars only",
+          "group": "g_plan",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 33,
+          "varname": "show_levels",
+          "kind": "bool",
+          "label": "Show Stop/TP1/TP2 lines while in trade",
+          "group": "g_visual",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 34,
+          "varname": "show_labels",
+          "kind": "bool",
+          "label": "Show ENTER / EXIT labels",
+          "group": "g_visual",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 35,
+          "varname": "show_table",
+          "kind": "bool",
+          "label": "Show status table",
+          "group": "g_visual",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 37,
+          "varname": "src_armed",
+          "kind": "source",
+          "label": "BUS Armed",
+          "group": "g_bus_state",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 38,
+          "varname": "src_confirmed",
+          "kind": "source",
+          "label": "BUS Confirmed",
+          "group": "g_bus_state",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 39,
+          "varname": "src_ready",
+          "kind": "source",
+          "label": "BUS Ready",
+          "group": "g_bus_state",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 40,
+          "varname": "src_trigger",
+          "kind": "source",
+          "label": "BUS Trigger",
+          "group": "g_bus_plan",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 41,
+          "varname": "src_invalidation",
+          "kind": "source",
+          "label": "BUS Invalidation",
+          "group": "g_bus_plan",
+          "has_display_none": false,
+          "visibility": null
+        }
+      ]
+    },
+    {
+      "file": "SMC_HTF_Confluence.pine",
+      "input_count": 6,
+      "hidden_count": 0,
+      "inputs": [
+        {
+          "lineno": 27,
+          "varname": "show_atr_regime",
+          "kind": "bool",
+          "label": "Show ATR regime",
+          "group": "g_htf",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 28,
+          "varname": "show_squeeze",
+          "kind": "bool",
+          "label": "Show squeeze markers",
+          "group": "g_htf",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 29,
+          "varname": "show_reversal",
+          "kind": "bool",
+          "label": "Show reversal context",
+          "group": "g_htf",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 30,
+          "varname": "col_compression",
+          "kind": "color",
+          "label": "Compression",
+          "group": "g_htf",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 31,
+          "varname": "col_expansion",
+          "kind": "color",
+          "label": "Expansion",
+          "group": "g_htf",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 32,
+          "varname": "col_exhaustion",
+          "kind": "color",
+          "label": "Exhaustion",
+          "group": "g_htf",
+          "has_display_none": false,
+          "visibility": null
+        }
+      ]
+    },
+    {
+      "file": "SMC_Hold_Manager.pine",
+      "input_count": 13,
+      "hidden_count": 0,
+      "inputs": [
+        {
+          "lineno": 30,
+          "varname": "i_arm_long",
+          "kind": "bool",
+          "label": "Arm Long (Webhook-Toggle)",
+          "group": "gIn",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 31,
+          "varname": "i_entry",
+          "kind": "price",
+          "label": "Entry / Trigger",
+          "group": "gIn",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 33,
+          "varname": "i_stop",
+          "kind": "price",
+          "label": "Initial Invalidation",
+          "group": "gIn",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 35,
+          "varname": "i_t1_R",
+          "kind": "float",
+          "label": "Target-1 (R)",
+          "group": "gIn",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 36,
+          "varname": "i_t2_R",
+          "kind": "float",
+          "label": "Target-2 (R)",
+          "group": "gIn",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 39,
+          "varname": "i_simple_mode",
+          "kind": "bool",
+          "label": "Simple Mode (BE-after-T1 only)",
+          "group": "gMgmt",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 41,
+          "varname": "i_use_chand",
+          "kind": "bool",
+          "label": "ATR-Chandelier-Trail aktiv",
+          "group": "gMgmt",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 44,
+          "varname": "i_atr_mult",
+          "kind": "float",
+          "label": "ATR-Mult (TODO: family-aware in v3)",
+          "group": "gMgmt",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 45,
+          "varname": "i_breakeven",
+          "kind": "bool",
+          "label": "Breakeven nach T1",
+          "group": "gMgmt",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 46,
+          "varname": "i_t1_partial",
+          "kind": "float",
+          "label": "Partial-Exit % @ T1",
+          "group": "gMgmt",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 47,
+          "varname": "i_use_tstop",
+          "kind": "bool",
+          "label": "Time-Stop aktiv",
+          "group": "gMgmt",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 52,
+          "varname": "i_reset_now",
+          "kind": "bool",
+          "label": "Force Reset (Trade beenden)",
+          "group": "gSafe",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 54,
+          "varname": "i_close_only",
+          "kind": "bool",
+          "label": "Trigger nur bei barstate.isconfirmed",
+          "group": null,
+          "has_display_none": false,
+          "visibility": null
+        }
+      ]
+    },
+    {
+      "file": "SMC_Imbalance_Context.pine",
+      "input_count": 8,
+      "hidden_count": 0,
+      "inputs": [
+        {
+          "lineno": 27,
+          "varname": "show_fvg_zones",
+          "kind": "bool",
+          "label": "Show FVG zones",
+          "group": "g_im",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 28,
+          "varname": "show_bpr_zone",
+          "kind": "bool",
+          "label": "Show BPR zone",
+          "group": "g_im",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 29,
+          "varname": "show_liq_voids",
+          "kind": "bool",
+          "label": "Show liquidity voids",
+          "group": "g_im",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 30,
+          "varname": "show_state_label",
+          "kind": "bool",
+          "label": "Show imbalance state label",
+          "group": "g_im",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 31,
+          "varname": "col_bull_fvg",
+          "kind": "color",
+          "label": "Bull FVG",
+          "group": "g_im",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 32,
+          "varname": "col_bear_fvg",
+          "kind": "color",
+          "label": "Bear FVG",
+          "group": "g_im",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 33,
+          "varname": "col_bpr",
+          "kind": "color",
+          "label": "BPR zone",
+          "group": "g_im",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 34,
+          "varname": "col_liq_void",
+          "kind": "color",
+          "label": "Liquidity void",
+          "group": "g_im",
+          "has_display_none": false,
+          "visibility": null
+        }
+      ]
+    },
+    {
+      "file": "SMC_Liquidity_Context.pine",
+      "input_count": 5,
+      "hidden_count": 0,
+      "inputs": [
+        {
+          "lineno": 27,
+          "varname": "show_primary_levels",
+          "kind": "bool",
+          "label": "Show primary S/R levels",
+          "group": "g_zn",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 28,
+          "varname": "show_zone_label",
+          "kind": "bool",
+          "label": "Show zone context label",
+          "group": "g_zn",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 29,
+          "varname": "show_sweep_markers",
+          "kind": "bool",
+          "label": "Show sweep/mitigation info",
+          "group": "g_zn",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 30,
+          "varname": "col_support",
+          "kind": "color",
+          "label": "Support color",
+          "group": "g_zn",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 31,
+          "varname": "col_resistance",
+          "kind": "color",
+          "label": "Resistance color",
+          "group": "g_zn",
+          "has_display_none": false,
+          "visibility": null
+        }
+      ]
+    },
+    {
+      "file": "SMC_Liquidity_Structure.pine",
+      "input_count": 7,
+      "hidden_count": 0,
+      "inputs": [
+        {
+          "lineno": 29,
+          "varname": "show_sweeps",
+          "kind": "bool",
+          "label": "Show sweep markers",
+          "group": "g_ls",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 30,
+          "varname": "show_pool_imb",
+          "kind": "bool",
+          "label": "Show pool imbalance",
+          "group": "g_ls",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 31,
+          "varname": "show_magnet",
+          "kind": "bool",
+          "label": "Show magnet direction",
+          "group": "g_ls",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 32,
+          "varname": "show_quality",
+          "kind": "bool",
+          "label": "Show quality score bar",
+          "group": "g_ls",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 33,
+          "varname": "col_bullish",
+          "kind": "color",
+          "label": "Bullish color",
+          "group": "g_ls",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 34,
+          "varname": "col_bearish",
+          "kind": "color",
+          "label": "Bearish color",
+          "group": "g_ls",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 35,
+          "varname": "col_neutral",
+          "kind": "color",
+          "label": "Neutral color",
+          "group": "g_ls",
+          "has_display_none": false,
+          "visibility": null
+        }
+      ]
+    },
+    {
+      "file": "SMC_Long_Strategy.pine",
+      "input_count": 16,
+      "hidden_count": 0,
+      "inputs": [
+        {
+          "lineno": 22,
+          "varname": "entry_mode",
+          "kind": "string",
+          "label": "Strict",
+          "group": "g_setup",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 23,
+          "varname": "min_quality_score",
+          "kind": "float",
+          "label": "Minimum Quality Score",
+          "group": "g_setup",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 24,
+          "varname": "use_regime_gate",
+          "kind": "bool",
+          "label": "Respect Regime Gate",
+          "group": "g_setup",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 25,
+          "varname": "backtest_mode",
+          "kind": "bool",
+          "label": "Backtest Mode (Ignore Library)",
+          "group": "g_setup",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 26,
+          "varname": "strict_universe_entries",
+          "kind": "bool",
+          "label": "Strict Universe Mode",
+          "group": "g_setup",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 27,
+          "varname": "use_take_profit",
+          "kind": "bool",
+          "label": "Use Take Profit",
+          "group": "g_trade_plan",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 28,
+          "varname": "take_profit_r",
+          "kind": "float",
+          "label": "Take Profit (R)",
+          "group": "g_trade_plan",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 30,
+          "varname": "src_armed",
+          "kind": "source",
+          "label": "BUS Armed",
+          "group": "g_bus_entry",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 31,
+          "varname": "src_confirmed",
+          "kind": "source",
+          "label": "BUS Confirmed",
+          "group": "g_bus_entry",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 32,
+          "varname": "src_ready",
+          "kind": "source",
+          "label": "BUS Ready",
+          "group": "g_bus_entry",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 33,
+          "varname": "src_entry_best",
+          "kind": "source",
+          "label": "BUS EntryBest",
+          "group": "g_bus_entry",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 34,
+          "varname": "src_entry_strict",
+          "kind": "source",
+          "label": "BUS EntryStrict",
+          "group": "g_bus_entry",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 35,
+          "varname": "src_quality_score",
+          "kind": "source",
+          "label": "BUS QualityScore",
+          "group": "g_bus_entry",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 36,
+          "varname": "src_trigger",
+          "kind": "source",
+          "label": "BUS Trigger",
+          "group": "g_bus_plan",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 37,
+          "varname": "src_invalidation",
+          "kind": "source",
+          "label": "BUS Invalidation",
+          "group": "g_bus_plan",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 118,
+          "varname": "show_performance",
+          "kind": "bool",
+          "label": "Show Performance Table",
+          "group": "g_perf",
+          "has_display_none": false,
+          "visibility": null
+        }
+      ]
+    },
+    {
+      "file": "SMC_Mobile_Dashboard.pine",
+      "input_count": 13,
+      "hidden_count": 8,
+      "inputs": [
+        {
+          "lineno": 14,
+          "varname": "color_theme",
+          "kind": "string",
+          "label": "Standard",
+          "group": "g_mobile_surface",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 24,
+          "varname": "src_bus_schema_version",
+          "kind": "source",
+          "label": "BUS SchemaVersion",
+          "group": "g_bus",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 25,
+          "varname": "src_state_code",
+          "kind": "source",
+          "label": "BUS StateCode",
+          "group": "g_bus",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 26,
+          "varname": "src_armed",
+          "kind": "source",
+          "label": "BUS Armed",
+          "group": "g_bus",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 27,
+          "varname": "src_confirmed",
+          "kind": "source",
+          "label": "BUS Confirmed",
+          "group": "g_bus",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 28,
+          "varname": "src_ready",
+          "kind": "source",
+          "label": "BUS Ready",
+          "group": "g_bus",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 29,
+          "varname": "src_quality_score",
+          "kind": "source",
+          "label": "BUS QualityScore",
+          "group": "g_bus",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 30,
+          "varname": "src_trigger",
+          "kind": "source",
+          "label": "BUS Trigger",
+          "group": "g_bus",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 31,
+          "varname": "src_invalidation",
+          "kind": "source",
+          "label": "BUS Invalidation",
+          "group": "g_bus",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 34,
+          "varname": "tm_enable",
+          "kind": "bool",
+          "label": "Enable Trade-Mgmt rows",
+          "group": "g_trade_mgmt",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 35,
+          "varname": "tm_tp1_r",
+          "kind": "float",
+          "label": "TP1 (R-multiple)",
+          "group": "g_trade_mgmt",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 36,
+          "varname": "tm_tp2_r",
+          "kind": "float",
+          "label": "TP2 (R-multiple)",
+          "group": "g_trade_mgmt",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 37,
+          "varname": "tm_be_after_t1",
+          "kind": "bool",
+          "label": "Move stop to break-even after TP1",
+          "group": "g_trade_mgmt",
+          "has_display_none": false,
+          "visibility": null
+        }
+      ]
+    },
+    {
+      "file": "SMC_Orderflow_Overlay.pine",
+      "input_count": 7,
+      "hidden_count": 0,
+      "inputs": [
+        {
+          "lineno": 28,
+          "varname": "show_rel_vol",
+          "kind": "bool",
+          "label": "Show relative volume bar",
+          "group": "g_fl",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 29,
+          "varname": "show_delta_proxy",
+          "kind": "bool",
+          "label": "Show delta proxy",
+          "group": "g_fl",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 30,
+          "varname": "show_ats_state",
+          "kind": "bool",
+          "label": "Show ATS state",
+          "group": "g_fl",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 31,
+          "varname": "show_flow_direction",
+          "kind": "bool",
+          "label": "Show flow direction markers",
+          "group": "g_fl",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 32,
+          "varname": "col_bullish",
+          "kind": "color",
+          "label": "Bullish color",
+          "group": "g_fl",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 33,
+          "varname": "col_bearish",
+          "kind": "color",
+          "label": "Bearish color",
+          "group": "g_fl",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 34,
+          "varname": "col_neutral",
+          "kind": "color",
+          "label": "Neutral color",
+          "group": "g_fl",
+          "has_display_none": false,
+          "visibility": null
+        }
+      ]
+    },
+    {
+      "file": "SMC_Profile_Context.pine",
+      "input_count": 9,
+      "hidden_count": 0,
+      "inputs": [
+        {
+          "lineno": 29,
+          "varname": "show_grade",
+          "kind": "bool",
+          "label": "Show ticker grade",
+          "group": "g_pc",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 30,
+          "varname": "show_vwap",
+          "kind": "bool",
+          "label": "Show VWAP position",
+          "group": "g_pc",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 31,
+          "varname": "show_spread",
+          "kind": "bool",
+          "label": "Show spread regime",
+          "group": "g_pc",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 32,
+          "varname": "show_score",
+          "kind": "bool",
+          "label": "Show context score bar",
+          "group": "g_pc",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 33,
+          "varname": "col_grade_a",
+          "kind": "color",
+          "label": "Grade A",
+          "group": "g_pc",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 34,
+          "varname": "col_grade_b",
+          "kind": "color",
+          "label": "Grade B",
+          "group": "g_pc",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 35,
+          "varname": "col_grade_c",
+          "kind": "color",
+          "label": "Grade C",
+          "group": "g_pc",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 36,
+          "varname": "col_grade_d",
+          "kind": "color",
+          "label": "Grade D",
+          "group": "g_pc",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 37,
+          "varname": "col_neutral",
+          "kind": "color",
+          "label": "Neutral",
+          "group": "g_pc",
+          "has_display_none": false,
+          "visibility": null
+        }
+      ]
+    },
+    {
+      "file": "SMC_Session_Context.pine",
+      "input_count": 8,
+      "hidden_count": 0,
+      "inputs": [
+        {
+          "lineno": 29,
+          "varname": "show_session_label",
+          "kind": "bool",
+          "label": "Show session label",
+          "group": "g_sc",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 30,
+          "varname": "show_killzone_bg",
+          "kind": "bool",
+          "label": "Show killzone background",
+          "group": "g_sc",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 31,
+          "varname": "show_mss_markers",
+          "kind": "bool",
+          "label": "Show MSS markers",
+          "group": "g_sc",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 32,
+          "varname": "show_context_score",
+          "kind": "bool",
+          "label": "Show context score bar",
+          "group": "g_sc",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 33,
+          "varname": "col_bullish",
+          "kind": "color",
+          "label": "Bullish color",
+          "group": "g_sc",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 34,
+          "varname": "col_bearish",
+          "kind": "color",
+          "label": "Bearish color",
+          "group": "g_sc",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 35,
+          "varname": "col_neutral",
+          "kind": "color",
+          "label": "Neutral color",
+          "group": "g_sc",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 36,
+          "varname": "col_killzone",
+          "kind": "color",
+          "label": "Killzone bg",
+          "group": "g_sc",
+          "has_display_none": false,
+          "visibility": null
+        }
+      ]
+    },
+    {
+      "file": "SMC_Setup_Check.pine",
+      "input_count": 6,
+      "hidden_count": 0,
+      "inputs": [
+        {
+          "lineno": 19,
+          "varname": "src_schema",
+          "kind": "source",
+          "label": "BUS SchemaVersion",
+          "group": "g_bus",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 20,
+          "varname": "src_state",
+          "kind": "source",
+          "label": "BUS StateCode",
+          "group": "g_bus",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 21,
+          "varname": "src_armed",
+          "kind": "source",
+          "label": "BUS Armed",
+          "group": "g_bus",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 22,
+          "varname": "src_quality",
+          "kind": "source",
+          "label": "BUS QualityScore",
+          "group": "g_bus",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 23,
+          "varname": "src_trigger",
+          "kind": "source",
+          "label": "BUS Trigger",
+          "group": "g_bus",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 24,
+          "varname": "src_invalid",
+          "kind": "source",
+          "label": "BUS Invalidation",
+          "group": "g_bus",
+          "has_display_none": false,
+          "visibility": null
+        }
+      ]
+    },
+    {
+      "file": "SMC_Structure_Context.pine",
+      "input_count": 8,
+      "hidden_count": 0,
+      "inputs": [
+        {
+          "lineno": 27,
+          "varname": "show_state_label",
+          "kind": "bool",
+          "label": "Show structure state label",
+          "group": "g_st",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 28,
+          "varname": "show_choch_markers",
+          "kind": "bool",
+          "label": "Show CHoCH markers",
+          "group": "g_st",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 29,
+          "varname": "show_bos_markers",
+          "kind": "bool",
+          "label": "Show BOS markers",
+          "group": "g_st",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 30,
+          "varname": "show_sr_levels",
+          "kind": "bool",
+          "label": "Show support/resistance",
+          "group": "g_st",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 31,
+          "varname": "show_fresh_badge",
+          "kind": "bool",
+          "label": "Show freshness badge",
+          "group": "g_st",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 32,
+          "varname": "col_bullish",
+          "kind": "color",
+          "label": "Bullish color",
+          "group": "g_st",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 33,
+          "varname": "col_bearish",
+          "kind": "color",
+          "label": "Bearish color",
+          "group": "g_st",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 34,
+          "varname": "col_neutral",
+          "kind": "color",
+          "label": "Neutral color",
+          "group": "g_st",
+          "has_display_none": false,
+          "visibility": null
+        }
+      ]
+    },
+    {
+      "file": "SMC_TV_Bridge.pine",
+      "input_count": 5,
+      "hidden_count": 0,
+      "inputs": [
+        {
+          "lineno": 6,
+          "varname": "i_sym",
+          "kind": "symbol",
+          "label": "Backend Symbol",
+          "group": null,
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 7,
+          "varname": "i_tf",
+          "kind": "string",
+          "label": "15m",
+          "group": null,
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 8,
+          "varname": "i_apiUrl",
+          "kind": "string",
+          "label": "https://your-node-host/smc_tv",
+          "group": null,
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 9,
+          "varname": "i_enabled",
+          "kind": "bool",
+          "label": "Enable overlay",
+          "group": null,
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 10,
+          "varname": "i_refresh",
+          "kind": "int",
+          "label": "Refresh (sec)",
+          "group": null,
+          "has_display_none": false,
+          "visibility": null
+        }
+      ]
+    },
+    {
+      "file": "SMC_VRVP_Overlay.pine",
+      "input_count": 24,
+      "hidden_count": 0,
+      "inputs": [
+        {
+          "lineno": 28,
+          "varname": "rowSize",
+          "kind": "int",
+          "label": "Rows",
+          "group": "g_in",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 30,
+          "varname": "volMode",
+          "kind": "string",
+          "label": "Up/Down",
+          "group": null,
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 32,
+          "varname": "vaPct",
+          "kind": "int",
+          "label": "Value Area %",
+          "group": "g_in",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 33,
+          "varname": "distMode",
+          "kind": "string",
+          "label": "Typical Price Weighted",
+          "group": null,
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 38,
+          "varname": "widthPct",
+          "kind": "int",
+          "label": "Profile width (% of visible bars)",
+          "group": null,
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 40,
+          "varname": "placement",
+          "kind": "string",
+          "label": "Right",
+          "group": null,
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 42,
+          "varname": "upColor",
+          "kind": "color",
+          "label": "Up volume",
+          "group": "g_st",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 43,
+          "varname": "dnColor",
+          "kind": "color",
+          "label": "Down volume",
+          "group": "g_st",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 44,
+          "varname": "vaUpColor",
+          "kind": "color",
+          "label": "VA up",
+          "group": "g_st",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 45,
+          "varname": "vaDnColor",
+          "kind": "color",
+          "label": "VA down",
+          "group": "g_st",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 46,
+          "varname": "pocColor",
+          "kind": "color",
+          "label": "POC color",
+          "group": "g_st",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 47,
+          "varname": "vahColor",
+          "kind": "color",
+          "label": "VAH color",
+          "group": "g_st",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 48,
+          "varname": "valColor",
+          "kind": "color",
+          "label": "VAL color",
+          "group": "g_st",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 51,
+          "varname": "pocCount",
+          "kind": "int",
+          "label": "Number of POCs",
+          "group": "g_poc",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 52,
+          "varname": "pocMode",
+          "kind": "string",
+          "label": "Volume Nodes",
+          "group": null,
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 55,
+          "varname": "minSepIn",
+          "kind": "int",
+          "label": "Min node separation (rows)",
+          "group": "g_poc",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 57,
+          "varname": "poc2Color",
+          "kind": "color",
+          "label": "POC 2",
+          "group": "g_poc",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 58,
+          "varname": "poc3Color",
+          "kind": "color",
+          "label": "POC 3",
+          "group": "g_poc",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 59,
+          "varname": "poc4Color",
+          "kind": "color",
+          "label": "POC 4",
+          "group": "g_poc",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 60,
+          "varname": "poc5Color",
+          "kind": "color",
+          "label": "POC 5",
+          "group": "g_poc",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 61,
+          "varname": "poc6Color",
+          "kind": "color",
+          "label": "POC 6",
+          "group": "g_poc",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 62,
+          "varname": "poc7Color",
+          "kind": "color",
+          "label": "POC 7",
+          "group": "g_poc",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 63,
+          "varname": "poc8Color",
+          "kind": "color",
+          "label": "POC 8",
+          "group": "g_poc",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 64,
+          "varname": "showPocLab",
+          "kind": "bool",
+          "label": "Show POC price labels",
+          "group": "g_poc",
+          "has_display_none": false,
+          "visibility": null
+        }
+      ]
+    },
+    {
+      "file": "SkippALGO_Confluence.pine",
+      "input_count": 17,
+      "hidden_count": 6,
+      "inputs": [
+        {
+          "lineno": 30,
+          "varname": "show_table",
+          "kind": "bool",
+          "label": "Show Confluence Panel",
+          "group": "g_display",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 31,
+          "varname": "show_bg",
+          "kind": "bool",
+          "label": "Highlight Confluence BG",
+          "group": "g_display",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 34,
+          "varname": "barCloseOnly",
+          "kind": "bool",
+          "label": "Alerts nur am Bar-Close",
+          "group": "g_alerts",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 37,
+          "varname": "src_schema",
+          "kind": "source",
+          "label": "BUS SchemaVersion",
+          "group": "g_bus",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 38,
+          "varname": "src_state_code",
+          "kind": "source",
+          "label": "BUS StateCode",
+          "group": "g_bus",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 39,
+          "varname": "src_quality",
+          "kind": "source",
+          "label": "BUS QualityScore",
+          "group": "g_bus",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 40,
+          "varname": "src_armed",
+          "kind": "source",
+          "label": "BUS Armed",
+          "group": "g_bus",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 41,
+          "varname": "src_trigger",
+          "kind": "source",
+          "label": "BUS Trigger",
+          "group": "g_bus",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 42,
+          "varname": "src_invalid",
+          "kind": "source",
+          "label": "BUS Invalidation",
+          "group": "g_bus",
+          "has_display_none": true,
+          "visibility": null
+        },
+        {
+          "lineno": 45,
+          "varname": "ema_fast_len",
+          "kind": "int",
+          "label": "EMA Fast",
+          "group": "g_trend",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 46,
+          "varname": "ema_slow_len",
+          "kind": "int",
+          "label": "EMA Slow",
+          "group": "g_trend",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 49,
+          "varname": "rsi_len",
+          "kind": "int",
+          "label": "RSI Length",
+          "group": "g_momentum",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 50,
+          "varname": "macd_fast",
+          "kind": "int",
+          "label": "MACD Fast",
+          "group": "g_momentum",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 51,
+          "varname": "macd_slow",
+          "kind": "int",
+          "label": "MACD Slow",
+          "group": "g_momentum",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 52,
+          "varname": "macd_signal",
+          "kind": "int",
+          "label": "MACD Signal",
+          "group": "g_momentum",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 55,
+          "varname": "bb_len",
+          "kind": "int",
+          "label": "BB Length",
+          "group": "g_mr",
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 56,
+          "varname": "bb_mult",
+          "kind": "float",
+          "label": "BB StdDev",
+          "group": "g_mr",
+          "has_display_none": false,
+          "visibility": null
+        }
+      ]
+    }
+  ]
+}

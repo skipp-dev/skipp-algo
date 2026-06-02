@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, time
 from zoneinfo import ZoneInfo
 
+import numpy as np
 import pandas as pd
 
 from scripts.smc_price_action_engine import normalize_bars
@@ -163,49 +164,69 @@ def compute_htf_fvg_bias(df: pd.DataFrame) -> dict:
 
 def compute_broken_fractal_signals(df: pd.DataFrame) -> list[dict]:
     bars = normalize_bars(df)
-    if len(bars) < 5:
+    n = len(bars)
+    if n < 5:
         return []
+
+    # Vectorized rewrite of the original O(n^2) double loop. The hot path was
+    # ~n^2 pandas `.iloc[j]` scalar lookups (Arrow-backed rows cost ~tens of us
+    # each). We pull the columns into numpy once and replace the inner "first
+    # future close that breaks the fractal level" scan with a C-level slice
+    # search. Output is byte-for-byte identical to the previous implementation.
+    high = bars["high"].to_numpy(dtype=float)
+    low = bars["low"].to_numpy(dtype=float)
+    close = bars["close"].to_numpy(dtype=float)
+    ts = bars["timestamp"].to_numpy(dtype="int64")
 
     out: list[dict] = []
 
-    for i in range(1, len(bars) - 3):
-        left = bars.iloc[i - 1]
-        pivot = bars.iloc[i]
-        right = bars.iloc[i + 1]
+    for i in range(1, n - 3):
+        pivot_high = high[i]
+        pivot_low = low[i]
+        is_high_fractal = pivot_high > high[i - 1] and pivot_high > high[i + 1]
+        is_low_fractal = pivot_low < low[i - 1] and pivot_low < low[i + 1]
+        if not (is_high_fractal or is_low_fractal):
+            continue
 
-        pivot_high = float(pivot["high"])
-        pivot_low = float(pivot["low"])
-        is_high_fractal = pivot_high > float(left["high"]) and pivot_high > float(right["high"])
-        is_low_fractal = pivot_low < float(left["low"]) and pivot_low < float(right["low"])
+        seg = close[i + 2 :]
 
-        for j in range(i + 2, len(bars)):
-            probe = bars.iloc[j]
-            probe_ts = int(probe["timestamp"])
+        jh: int | None = None
+        if is_high_fractal:
+            hits = np.flatnonzero(seg > pivot_high)
+            if hits.size:
+                jh = i + 2 + int(hits[0])
 
-            if is_high_fractal and float(probe["close"]) > pivot_high:
-                out.append(
-                    {
-                        "side": "BULLISH",
-                        "anchor_ts": int(pivot["timestamp"]),
-                        "trigger_ts": probe_ts,
-                        "level": pivot_high,
-                        "zone_high": pivot_high,
-                        "zone_low": float(pivot["low"]),
-                    }
-                )
-                break
+        jl: int | None = None
+        if is_low_fractal:
+            hits = np.flatnonzero(seg < pivot_low)
+            if hits.size:
+                jl = i + 2 + int(hits[0])
 
-            if is_low_fractal and float(probe["close"]) < pivot_low:
-                out.append(
-                    {
-                        "side": "BEARISH",
-                        "anchor_ts": int(pivot["timestamp"]),
-                        "trigger_ts": probe_ts,
-                        "level": pivot_low,
-                        "zone_high": float(pivot["high"]),
-                        "zone_low": pivot_low,
-                    }
-                )
-                break
+        # The original loop checked the high condition before the low condition
+        # at each bar, so whichever break fires at the earliest bar wins. Both
+        # cannot fire on the same bar (close can't exceed pivot_high and fall
+        # below pivot_low simultaneously when pivot_high > pivot_low).
+        if jh is not None and (jl is None or jh < jl):
+            out.append(
+                {
+                    "side": "BULLISH",
+                    "anchor_ts": int(ts[i]),
+                    "trigger_ts": int(ts[jh]),
+                    "level": float(pivot_high),
+                    "zone_high": float(pivot_high),
+                    "zone_low": float(low[i]),
+                }
+            )
+        elif jl is not None:
+            out.append(
+                {
+                    "side": "BEARISH",
+                    "anchor_ts": int(ts[i]),
+                    "trigger_ts": int(ts[jl]),
+                    "level": float(pivot_low),
+                    "zone_high": float(high[i]),
+                    "zone_low": float(pivot_low),
+                }
+            )
 
     return out
