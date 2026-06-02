@@ -28,8 +28,10 @@ _BRIDGE = _REPO_ROOT / "SMC_TV_Bridge.pine"
 
 @pytest.fixture(scope="module")
 def bridge_src() -> str:
-    if not _BRIDGE.exists():
-        pytest.skip("SMC_TV_Bridge.pine not found")
+    # The bridge is a required active-suite file; its absence is a hard
+    # failure, not a skip (a skip here would silently disable every
+    # fail-closed guard below and slip past the pytest-skip budget).
+    assert _BRIDGE.exists(), f"required active-suite file missing: {_BRIDGE}"
     return _BRIDGE.read_text(encoding="utf-8", errors="replace")
 
 

@@ -33,10 +33,19 @@ import pytest
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Exact, anchored directive: no leading/trailing junk, no space after ``//``.
-_VALID_DIRECTIVE_RE = re.compile(r"^//@version=\d+\s*$", re.MULTILINE)
+# Exact, anchored directive limited to the Pine versions this repo actually
+# supports (5 and 6). A bare ``\d+`` would green-light e.g. ``//@version=999``,
+# which TradingView rejects — so the matcher pins the supported set, not just
+# "some digits", while keeping the no-space / anchored guarantee.
+_SUPPORTED_VERSIONS = (5, 6)
+_VALID_DIRECTIVE_RE = re.compile(
+    r"^//@version=(?:" + "|".join(str(v) for v in _SUPPORTED_VERSIONS) + r")\s*$",
+    re.MULTILINE,
+)
 
 # A permissive matcher used only to surface *malformed* directives in the
-# failure message (e.g. ``// @version=5`` with a stray space).
+# failure message (e.g. ``// @version=5`` with a stray space, or an
+# unsupported version like ``//@version=999``).
 _LOOSE_DIRECTIVE_RE = re.compile(r"^\s*//\s*@version\s*=\s*\d+.*$", re.MULTILINE)
 
 # Top-level non-script fragments that legitimately carry no version directive.
@@ -87,9 +96,18 @@ def test_valid_version_directive(pine_path: Path) -> None:
 
     loose = _LOOSE_DIRECTIVE_RE.search(text)
     if loose:
+        directive = loose.group(0).strip()
+        # Distinguish the two failure modes: a malformed (commented) directive
+        # vs. a well-formed directive pinned to an unsupported version.
+        if re.match(r"^//@version=\d+\s*$", directive):
+            pytest.fail(
+                f"{pine_path.name}: unsupported Pine version directive "
+                f"{directive!r}. This repo supports only "
+                f"{_SUPPORTED_VERSIONS}; pin to a supported version."
+            )
         pytest.fail(
             f"{pine_path.name}: malformed version directive "
-            f"{loose.group(0).strip()!r}. Pine only honours the exact form "
+            f"{directive!r}. Pine only honours the exact form "
             "'//@version=N' (no space after '//'); the malformed form is "
             "treated as a plain comment and the script silently downgrades "
             "to the oldest language version."
