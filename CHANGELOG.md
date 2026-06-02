@@ -6,6 +6,31 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-02) — ADR-0019 step 1: point-in-time order-flow extractor (family score v2)
+
+The verified resolution feature-gap analysis
+(`docs/governance/resolution_feature_gap_analysis.md`) found the v1 per-family
+score is pure geometry and that the largest un-tapped resolution lever is
+**order-flow / volume** — available in the data but dropped at the governance
+boundary. This lands the first ADR-0019 v2 candidate feature as a pure,
+leak-free extractor, **without** touching the v1 score or the promotion gate
+(ADR-0019 mandates a shadow-first, pre-registered purged walk-forward A/B
+before any v2 feature may join calibration).
+
+- New `governance/family_score_features_v2.relative_volume_at`: the formation
+  (anchor) bar's volume divided by its trailing `ATR_PERIOD`-bar mean volume —
+  an institutional-footprint proxy from ADR-0019's tier-1 hierarchy that needs
+  no trade-side data. Strictly point-in-time (baseline reads only bars before
+  the anchor), with honest omitted-not-zero-filled semantics
+  (`RELATIVE_VOLUME_SOURCE = "orderflow_relative_volume_v2"`).
+- `governance/family_event_adapter.BarRow` gains an optional `volume` field
+  (additive, `total=False`): bars without it stay fully supported and the v2
+  feature is simply reported as absent. No v1 score, regime, or gate behaviour
+  changes.
+- 11 new tests pin the ratio, leak-freedom, and absent-feature semantics
+  (`tests/test_family_score_features_v2.py`); the existing adapter/score
+  suites stay green.
+
 ### Changed (2026-06-02) — EV-08 verdict adopts the ADR-0015 two-tier taxonomy (`risk_sizeable`)
 
 `governance/family_verdict` previously fused "has an edge" with "is calibrated

@@ -67,13 +67,20 @@ _FVG_KEY = "fvg"
 _SWEEP_KEY = "liquidity_sweeps"
 
 
-class BarRow(TypedDict):
-    """A single OHLC bar. ``timestamp`` is epoch seconds (UTC)."""
+class BarRow(TypedDict, total=False):
+    """A single OHLC(V) bar. ``timestamp`` is epoch seconds (UTC).
+
+    ``volume`` is optional and carried point-in-time for the ADR-0019 v2
+    order-flow features (``governance.family_score_features_v2``). It does not
+    affect the v1 score, regime, or any gate; bars without it stay fully
+    supported and the v2 feature is simply reported as absent.
+    """
 
     timestamp: float
     high: float
     low: float
     close: float
+    volume: float
 
 
 def _bar_index_at_or_after(timestamps: Sequence[float], anchor_ts: float) -> int | None:
