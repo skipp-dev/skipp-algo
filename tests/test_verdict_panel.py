@@ -167,7 +167,9 @@ def test_render_panel_from_archive_end_to_end(tmp_path: Path) -> None:
     # A no_edge verdict is an affirmative claim ("measured enough samples,
     # found no edge"), so it requires an adequate observed sample size
     # (extra.n_returns >= min_sample_n). Without it the honest verdict is
-    # inconclusive, not no_edge.
+    # inconclusive, not no_edge. Per ADR-0015 it also requires a genuine
+    # *edge* blocker (here psr_minimum on psr=0.10) — a calibration-only
+    # block would instead clear tier-1 edge_supported.
     _write_report(
         tmp_path,
         "2026-06-08T00-00-00",
@@ -176,6 +178,14 @@ def test_render_panel_from_archive_end_to_end(tmp_path: Path) -> None:
                 "BOS",
                 promoted=False,
                 metrics={"psr": 0.10, "extra.n_returns": 250},
+                posture="red",
+                blockers=[{
+                    "check": "psr_minimum",
+                    "severity": "blocker",
+                    "observed": 0.10,
+                    "threshold": 0.95,
+                    "message": "psr below floor",
+                }],
             )
         ],
     )
