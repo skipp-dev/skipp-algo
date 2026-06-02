@@ -452,6 +452,76 @@ def extract_family_feature_samples(
     return out
 
 
+class ABSamples(TypedDict):
+    """Per-family parallel lists for the ADR-0019 paired A/B harness.
+
+    Carries BOTH arms on the SAME events so the walk-forward A/B compares the
+    v1 ``score`` against the v2 candidate ``feature`` over an identical fold
+    structure and purge. ``guard_end_ts`` is the calibration purge guard (label
+    end + embargo in time), exactly as :func:`extract_family_calibration_samples`
+    derives it, so the A/B inherits the same leak-safe train/test boundary.
+    """
+
+    scores: list[float]
+    features: list[float]
+    returns: list[float]
+    anchor_ts: list[float]
+    guard_end_ts: list[float]
+
+
+def extract_family_ab_samples(
+    events: list[FamilyEvent],
+    *,
+    feature_key: str = "relative_volume",
+    cost_bps: float = DEFAULT_COST_BPS,
+) -> dict[str, ABSamples]:
+    """Per family, collect the PAIRED inputs the ADR-0019 A/B harness needs.
+
+    For every event that triggered (a realized return exists) AND carries BOTH
+    a v1 ``score`` AND the recorded candidate ``feature_key`` AND forward
+    timestamps, emit a parallel-list bundle
+    ``{family: {"scores", "features", "returns", "anchor_ts", "guard_end_ts"}}``.
+
+    The pairing is deliberate: the A/B must score both arms on the *same* events
+    over the *same* purged walk-forward folds, otherwise a Brier/resolution
+    delta would confound the feature's effect with a differing event sample.
+    ``guard_end_ts`` reuses the calibration purge guard (label-window end plus
+    the family embargo in time) so the A/B is leak-safe by construction. Events
+    missing either arm are excluded -- never invented into the sample.
+    """
+    out: dict[str, ABSamples] = {}
+    for event in events:
+        if "score" not in event or feature_key not in event:
+            continue
+        forward_ts = event.get("forward_timestamps")
+        if not forward_ts:
+            continue
+        ret = realized_return(event, cost_bps=cost_bps)
+        if ret is None:
+            continue
+        family = event["family"]
+        fts = [float(t) for t in forward_ts]
+        embargo_bars = get_family_config(family).embargo_bars
+        guard_end = fts[-1] + embargo_bars * _event_bar_interval(fts)
+        event_view: Mapping[str, Any] = event
+        bucket = out.setdefault(
+            family,
+            {
+                "scores": [],
+                "features": [],
+                "returns": [],
+                "anchor_ts": [],
+                "guard_end_ts": [],
+            },
+        )
+        bucket["scores"].append(float(event_view["score"]))
+        bucket["features"].append(float(event_view[feature_key]))
+        bucket["returns"].append(ret)
+        bucket["anchor_ts"].append(float(event["anchor_ts"]))
+        bucket["guard_end_ts"].append(guard_end)
+    return out
+
+
 def regime_degradation(
     returns: list[float],
     regimes: list[str],
@@ -596,9 +666,14 @@ __all__ = [
     "DEFAULT_COST_BPS",
     "REGIME_MIN_SAMPLES",
     "RETURN_RULE",
+    "ABSamples",
     "EntryMode",
     "FamilyEvent",
+    "FeatureSamples",
     "RegimeSamples",
+    "extract_family_ab_samples",
+    "extract_family_calibration_samples",
+    "extract_family_feature_samples",
     "extract_family_regime_samples",
     "extract_family_returns",
     "realized_return",

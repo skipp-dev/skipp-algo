@@ -6,6 +6,38 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-02) — ADR-0019 step 3: paired purged walk-forward A/B harness
+
+Builds on steps 1-2 (the extractor + the recorded feature). Adds the shadow
+measurement that answers the pre-registered ADR-0019 question: over a purged
+walk-forward, does the candidate feature discriminate event outcomes better
+than the v1 `score`? Primary metric is out-of-sample **resolution** (the Murphy
+discrimination component) — the binding promotion deficit. Changes **no** score,
+`SCORE_SOURCE`, or gate; v1 stays the default until the A/B clears on real data.
+
+- New `governance/family_calibration.walk_forward_ab`: a PAIRED purged
+  walk-forward that Platt-calibrates both arms (v1 `score` vs v2 feature) on the
+  same training events over identical folds, emitting a fold only when both arms
+  fit — so the two arms share one out-of-sample index set and their Brier /
+  resolution are directly comparable (an unpaired comparison would confound the
+  feature with a differing event sample).
+- New `governance/family_returns.extract_family_ab_samples`: per family, the
+  paired `(scores, features, returns, anchor_ts, guard_end_ts)` for events
+  carrying both arms, reusing the calibration purge guard so the A/B is
+  leak-safe by construction.
+- New module `governance/family_feature_ab`: the `resolution` metric plus
+  `family_feature_ab` / `family_feature_ab_report`, which return a shadow
+  verdict (`candidate_lifts_resolution` / `no_lift` / `regresses_calibration` /
+  `insufficient_sample`). No-regression guards are a Brier proper-scoring check
+  plus an **absolute** ECE ceiling (deliberately not relative to the baseline —
+  a near-constant baseline trivially wins ECE and would perversely veto a sharp,
+  discriminating candidate).
+- Scope: this step compares feature-alone vs score-alone. The incremental
+  question (does the feature add resolution on top of the score) is the next
+  step.
+- 13 new tests (`tests/test_family_feature_ab.py`); calibration / returns /
+  adapter suites stay green.
+
 ### Added (2026-06-02) — ADR-0019 step 2: record the order-flow feature for the A/B
 
 Builds on step 1 (the `relative_volume_at` extractor). Captures the candidate
