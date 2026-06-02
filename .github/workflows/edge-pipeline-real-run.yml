@@ -307,7 +307,7 @@ jobs:
             echo "::notice::no new archived decision files to commit; skipping PR"
             exit 0
           fi
-          git commit -m "data(ev-20): first real Databento edge-pipeline decision(s) (run ${GITHUB_RUN_ID})"
+          git commit -m "chore(ev-20): first real Databento edge-pipeline decision(s) (run ${GITHUB_RUN_ID})"
           if ! git push -u origin "$BRANCH"; then
             echo "::error::git push failed for ${BRANCH}"
             exit 1
@@ -315,7 +315,7 @@ jobs:
           if ! gh pr create \
             --base main \
             --head "$BRANCH" \
-            --title "data(ev-20): first real Databento edge-pipeline decision(s) (run ${GITHUB_RUN_ID})" \
+            --title "chore(ev-20): first real Databento edge-pipeline decision(s) (run ${GITHUB_RUN_ID})" \
             --body-file /tmp/edge_body.md; then
             echo "::error::gh pr create failed for ${BRANCH}"
             exit 1
