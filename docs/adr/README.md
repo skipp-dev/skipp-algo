@@ -29,10 +29,12 @@ old one and update the table below.
 | 0011 | [Auto-merge + admin-bypass pattern for single-developer PRs](0011-auto-merge-admin-bypass-pattern.md) | Accepted (C) | 2026-05-30 | `scripts/verify_branch_protection.py` + `tests/test_verify_branch_protection.py` (branch-protection: required-reviews disabled, `fast-gates` required) |
 | 0012 | [`fast-gates` vs `validate` job separation policy](0012-fast-gates-vs-validate-separation.md) | Accepted (B) | 2026-05-30 | `@pytest.mark.slow` (`conftest.py`) + `tests/_fast_inventory.py` |
 | 0013 | [Atomic vs cross-cutting workflow PRs](0013-atomic-vs-cross-cutting-workflow-prs.md) | Accepted (C) | 2026-05-30 | `scripts/check_pr_title_concern.py` + `.github/workflows/pr-title-concern-lint.yml` (PR-title convention `concern(scope): …`) |
+| 0014 | [EV#6 PSI-trend source and EV#7 regime-degradation source](0014-ev6-psi-trend-source-and-ev7-regime-deferral.md) | Accepted | 2026-06-02 | `governance/family_calibration.py`, `governance/family_event_score.py`, `governance/family_returns.py` |
+| 0015 | [Edge proof and calibration are separate promotion tiers](0015-edge-vs-calibration-promotion-tiers.md) | Accepted (decision) | 2026-06-02 | (implementation staged: tiered `risk_sizeable` in `governance/family_verdict.py`; no gate code changed by the ADR) |
 
 ## Reservation rule
 
-The next free ADR number is **0014**. To avoid concurrent-PR collisions:
+The next free ADR number is **0016**. To avoid concurrent-PR collisions:
 
 1. Reserve the next number by opening the PR with the file already named
    (e.g. `docs/adr/0008-foo.md`) before the rebase race window closes.
