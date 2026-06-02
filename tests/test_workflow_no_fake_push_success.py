@@ -39,6 +39,26 @@ _FAKE_SUCCESS_PUSH = re.compile(
     re.IGNORECASE,
 )
 
+# `gh pr create ... || echo ...` and `gh pr create ... || true` have the
+# same failure mode as the `git push || echo` pattern above: a real
+# auth/ruleset/quota failure on PR creation is silently downgraded to a
+# warning while the step exits 0. This regression was found in
+# fvg-quality-quartile-gate.yml and fvg-context-pine-refresh.yml during
+# the silent-publish-skip post-mortem (see PR #2415 / #2418 + audit
+# 2026-05-28). The canonical fix captures stderr, exempts the benign
+# "PR already exists" case, and surfaces everything else as ::error::
+# with a non-zero exit.
+#
+# Scope: only `gh pr create` itself — `gh pr merge --auto || echo` is a
+# legitimate "already-queued" race tolerance and is covered by adjacent
+# guards. The regex permits bash line continuations (`\<newline>`) but
+# stops at the first un-escaped newline so it does not span across the
+# next command in the run-block.
+_FAKE_SUCCESS_PR_CREATE = re.compile(
+    r"gh\s+pr\s+create\b(?:\\\n|[^\n])*\|\|\s*(?:echo|true)\b",
+    re.IGNORECASE,
+)
+
 
 @pytest.mark.parametrize("workflow_path", _WORKFLOWS, ids=lambda p: p.name)
 def test_workflow_does_not_fake_push_success(workflow_path: pathlib.Path) -> None:
@@ -51,4 +71,21 @@ def test_workflow_does_not_fake_push_success(workflow_path: pathlib.Path) -> Non
         "or to a force-updated rolling `bot/<channel>` branch (high-freq "
         "snapshot). See open-prep-outcome-backfill.yml for the canonical "
         "auto-PR pattern. (F-V5-F1 / F-V3-11..15)"
+    )
+
+
+@pytest.mark.parametrize("workflow_path", _WORKFLOWS, ids=lambda p: p.name)
+def test_workflow_does_not_fake_pr_create_success(workflow_path: pathlib.Path) -> None:
+    body = workflow_path.read_text(encoding="utf-8")
+    matches = _FAKE_SUCCESS_PR_CREATE.findall(body)
+    assert not matches, (
+        f"{workflow_path.name}: contains `gh pr create ... || echo|true` "
+        "which silently swallows real PR-creation failures (auth, ruleset, "
+        "rate-limit) and lets the workflow finish green without ever "
+        "opening the PR. Use the canonical pattern from smc-library-refresh.yml's "
+        "`release_pending_pr` step or fvg-quality-quartile-gate.yml's "
+        "post-2026-05-28 commit step: capture stderr, exempt only the "
+        "literal 'a pull request for branch ... already exists' message, "
+        "and exit non-zero on every other failure with an ::error:: "
+        "annotation. (F-V5-F1 silent-skip post-mortem, audit 2026-05-28)"
     )
