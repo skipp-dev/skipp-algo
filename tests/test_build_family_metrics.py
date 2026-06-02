@@ -15,9 +15,9 @@ import pytest
 
 from governance.point_in_time import LookaheadError
 from scripts.build_family_metrics import (
+    _brier_block_bootstrap_ci_upper,
     build_bundle,
     build_family_metrics_from_returns,
-    _brier_block_bootstrap_ci_upper,
 )
 from scripts.run_promotion_gate import _load_bundle
 
@@ -67,6 +67,33 @@ def test_timestamp_length_mismatch_raises() -> None:
         build_family_metrics_from_returns(
             "BOS", returns, timestamps=["2026-01-01T00:00:00"], as_of="2026-06-30"
         )
+
+
+def test_observed_periods_per_year_derived_from_timestamp_span() -> None:
+    # 40 events spaced exactly one day apart → span = 39 days. The realized
+    # events-per-year cadence is n / (span_years) and must be surfaced as an
+    # EV-20 time-basis diagnostic WITHOUT touching the declared annualization.
+    import datetime as _dt
+
+    returns = _positive_edge_returns(n=40)
+    base = _dt.datetime(2026, 1, 1, 10, 0, 0)
+    timestamps = [(base + _dt.timedelta(days=i)).isoformat() for i in range(40)]
+    metrics = build_family_metrics_from_returns(
+        "BOS", returns, timestamps=timestamps, as_of="2026-06-30T23:59:59"
+    )
+    span_years = 39.0 / 365.25
+    expected = 40.0 / span_years
+    observed = metrics["extras"]["observed_periods_per_year"]
+    assert observed == pytest.approx(expected, rel=1e-9)
+    # The declared annualization basis is untouched (gate semantics stable).
+    assert metrics["extras"]["periods_per_year"] == 252.0
+
+
+def test_observed_periods_per_year_absent_without_timestamps() -> None:
+    # No timestamps → no cadence can be observed → diagnostic key is omitted
+    # (the key only ever appears when it was genuinely measured).
+    metrics = build_family_metrics_from_returns("BOS", _positive_edge_returns())
+    assert "observed_periods_per_year" not in metrics["extras"]
 
 
 def test_no_detectable_edge_leaves_mintrl_none() -> None:

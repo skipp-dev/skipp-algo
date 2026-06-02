@@ -180,10 +180,28 @@ def filter_point_in_time[T](
     return kept
 
 
+def observed_span_seconds(timestamps: Iterable[TimestampLike]) -> float | None:
+    """Return ``max - min`` of *timestamps* in seconds, or ``None``.
+
+    Used to derive the *observed* sampling cadence of an event-driven return
+    series (events are not daily bars). The absolute epoch offset cancels in
+    the difference, so naive and tz-aware timestamps both yield a correct span
+    as long as the caller keeps one convention (the PIT guard already enforces
+    this upstream). ``None`` when fewer than two timestamps are given or the
+    span collapses to zero (a single instant carries no cadence).
+    """
+    epochs = [_to_datetime(ts).timestamp() for ts in timestamps]
+    if len(epochs) < 2:
+        return None
+    span = max(epochs) - min(epochs)
+    return span if span > 0.0 else None
+
+
 __all__ = [
     "LookaheadError",
     "TimestampLike",
     "assert_point_in_time",
     "assert_records_point_in_time",
     "filter_point_in_time",
+    "observed_span_seconds",
 ]
