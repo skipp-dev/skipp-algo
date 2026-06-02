@@ -48,7 +48,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any, TypedDict
 
-from governance.family_event_score import raw_score
+from governance.family_event_score import point_in_time_regime, raw_score
 from governance.family_returns import FamilyEvent
 from governance.types import EventFamily
 
@@ -159,6 +159,9 @@ def _zone_event_to_family(
     )
     if score is not None:
         mapped["score"] = score
+    regime = point_in_time_regime(bars, anchor_idx)
+    if regime is not None:
+        mapped["regime"] = regime
     return mapped
 
 
@@ -200,6 +203,9 @@ def _level_event_to_family(
     score = raw_score(family, bars=bars, anchor_idx=anchor_idx)
     if score is not None:
         mapped["score"] = score
+    regime = point_in_time_regime(bars, anchor_idx)
+    if regime is not None:
+        mapped["regime"] = regime
     return mapped
 
 

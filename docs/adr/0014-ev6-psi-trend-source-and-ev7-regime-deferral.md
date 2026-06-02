@@ -1,9 +1,9 @@
-# ADR-0014: EV#6 PSI-trend data source, and EV#7 regime-degradation deferral
+# ADR-0014: EV#6 PSI-trend data source, and EV#7 regime-degradation source
 
 | Field      | Value                                                                       |
 |------------|-----------------------------------------------------------------------------|
-| Status     | Accepted — EV#6 implemented; EV#7 DEFERRED (no fabrication)                  |
-| Date       | 2026-06-02                                                                  |
+| Status     | Accepted — EV#6 implemented; EV#7 IMPLEMENTED (bar-derived regime label, no fabrication) |
+| Date       | 2026-06-02 (EV#7 superseding update 2026-06-02)                            |
 | Deciders   | skipp-dev (autonomous mandate; principal quant)                             |
 | Related    | ADR-0008 (promotion-gate thresholds, taxonomy E/R/O), EV-15/EV-24 calibration |
 
@@ -31,12 +31,13 @@ on the same edge-pipeline path that feeds the gate. The probability series
 exists; it simply was not being sliced into chronological windows. EV#6 is
 therefore buildable from **real, non-fabricated** data.
 
-EV#7 is different. `family_events_from_structure` builds family events from
-SMC structure + bars only — **no regime label per event**. The
-edge-pipeline family-event path carries no regime signal. A regime
-classifier (`open_prep.regime` / `MarketRegimeContext`) exists but is not
-wired to family events. Producing a `regime_degraded` verdict now would
-require inventing a regime label per event = fabrication.
+EV#7 was initially **deferred**: the family-event path carried no per-event
+regime label, and reusing the heavy `open_prep` regime classifier
+(`MarketRegimeContext`, ADX + Bollinger width) would drag the macro/VIX/
+sentiment import chain into the trivially-testable governance module. The
+resolution (below) is to derive the regime label **from the same bars the
+event already reads**, point-in-time at the anchor — no external data, no
+fabrication.
 
 ## Decision
 
@@ -71,26 +72,52 @@ require inventing a regime label per event = fabrication.
 - **Monotonic safety**: this can only make the gate **stricter** — a measured
   `psi_slope` adds a blocking condition; it can never tune-to-pass.
 
-### EV#7 — regime-conditional degradation (DEFERRED)
+### EV#7 — regime-conditional degradation (IMPLEMENTED)
 
-- **Status: DEFERRED**, explicitly, with no fabrication. The edge-pipeline
-  family-event path carries no per-event regime label, so the rule cannot be
-  measured today.
-- **Unblock path**: introduce a regime-classifier producer over bars that
-  labels each family event (wiring `open_prep.regime` /
-  `MarketRegimeContext` into `family_events_from_structure`), then add the
-  `regime_degraded` slice as a *new* blocking condition. Until that producer
-  exists and is validated, the slot remains "not yet measured" and the gate
-  keeps blocking honestly.
+- **Source — bar-derived, point-in-time regime label**
+  (`governance/family_event_score.point_in_time_regime`): the Kaufman
+  **Efficiency Ratio** (ER) over the trailing `REGIME_WINDOW = ATR_PERIOD`
+  closes ending **at** the anchor bar — `net_travel / path_length`, exactly
+  the same leak-free trailing read as `atr_at`. ER ≈ 1 (net ≈ path) is
+  directional/`TRENDING` (`ER ≥ 0.5`); ER ≈ 0 (much back-and-forth, little
+  net) is `RANGING` (`ER ≤ 0.3`); in between is `NEUTRAL`. Source tag
+  `kaufman_efficiency_ratio_trailing_closes_v1`.
+- **Why ER and not the `open_prep` classifier**: ER reproduces the
+  trend/range distinction from **closes alone**, so it needs no ADX/BBwidth
+  re-derivation and pulls **no** `open_prep` macro/VIX/sentiment import chain
+  into the governance module. This is a deliberate deviation, identical in
+  spirit to the geometry-strength `raw_score` deviation already documented in
+  `family_event_score`. No VIX/macro = no fabricated external data.
+- **Attachment** (`governance/family_event_adapter`): each zone/level family
+  event gets `mapped["regime"]` from `point_in_time_regime(bars, anchor_idx)`
+  when the trailing window exists; events without enough history carry no
+  label and are dropped downstream (honest abstention).
+- **Verdict** (`governance/family_returns.regime_degradation`): over the
+  family's realized returns + regime labels, compute the **pooled** mean. If
+  pooled ≤ 0 there is no pooled edge to protect → `False` (PSR/MinTRL own
+  that case). Otherwise look only at the **current** regime = the regime of
+  the chronologically **last** event (the honest proxy for what we would
+  trade next); if it holds ≥ `REGIME_MIN_SAMPLES = 20` events, return
+  `current_mean ≤ 0` (degraded), else `None` (not yet measurable).
+- **Lookahead-free & monotonic**: the verdict reads only in-path data, the
+  current regime is the last *observed* one (no peeking forward), and it can
+  only **add** a blocking `True` — never flip a fail to a pass.
+- **Wiring**: `to_build_spec` attaches `entry["regime_degraded"]` and records
+  provenance `ev24_regime_source = "kaufman_efficiency_ratio_trailing_closes_v1"`;
+  `scripts/build_family_metrics` passes the verdict through verbatim to the
+  gate (`governance/promotion_gate` already consumes `regime_degraded`).
 
 ## Consequences
 
 - EV#6 `psi_slope` is now a **measured** gate input for families with enough
   chronological history; sparse families abstain (still blocked).
+- EV#7 `regime_degraded` is now a **measured** gate input for families with a
+  current-regime sample ≥ 20; families below that, or with no pooled edge,
+  abstain to `False`/`None` without fabricating a regime label.
 - The change is additive and monotonic — no existing pass can flip to a fail
   for the wrong reason, and no fail can flip to a pass.
-- EV#7 remains an open, documented gap rather than a fabricated green. The
-  honest "measured fail / not-yet-measured" posture is preserved.
+- The regime label is derived from bars only (Kaufman ER); no external
+  macro/VIX data is introduced, preserving the no-fabrication posture.
 
 ## Tests
 
@@ -102,3 +129,13 @@ require inventing a regime label per event = fabrication.
 - `tests/test_family_returns.py`: `to_build_spec` emits the `psi_trend`
   block and `ev24_psi_trend_source` provenance, and `build_bundle` turns it
   into a measured `psi_slope` with `psi_trend_method` provenance.
+- `tests/test_family_event_score.py`: `point_in_time_regime` labels monotone
+  closes `TRENDING` (ER ≈ 1), saw-tooth closes `RANGING` (ER ≈ 0), abstains
+  (`None`) below the window or on a perfectly flat path, and is invariant to
+  post-anchor bars (point-in-time / leak-free).
+- `tests/test_family_returns.py`: `regime_degradation` returns `None` on no
+  data / under-sampled current regime, `False` when pooled ≤ 0 or the current
+  regime is itself positive, `True` when pooled > 0 but the current regime
+  mean ≤ 0, and raises on length mismatch; `extract_family_regime_samples`
+  drops unlabelled events; `to_build_spec` emits `regime_degraded` +
+  `ev24_regime_source`, and `build_bundle` carries the verdict through.
