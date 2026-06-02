@@ -18,6 +18,25 @@ A family the gate promoted but that fails (2) or (3) is reported as
 honesty rule: the gate's "promoted" flag alone is *not* sufficient to claim
 a pre-registered edge.
 
+Per ADR-0015 the verdict is a **two-tier** taxonomy that refuses to let a
+secondary calibration diagnostic veto the primary edge proof:
+
+  * ``edge_supported`` (tier 1) — the pre-registered edge is supported: the
+    primary metric was measured, the sample is adequate, no edge-failure
+    blocker fired, and the integrity/provenance guards were measured and
+    clear. Brier/ECE calibration blockers do *not* gate this tier. When the
+    edge metrics are strong but an integrity guard is merely *unmeasured*
+    (strict-provenance ``info``), the verdict is ``inconclusive`` — the edge
+    cannot be certified without the guards — never ``no_edge``.
+  * ``risk_sizeable`` (tier 2, a boolean field, strictly stronger) — tier 1
+    **and** the calibration checks (``brier_threshold`` / ``brier_ci_upper``
+    / ``ece_threshold``) also clear, so the family's probabilities are sharp
+    enough to size and risk-manage. This equals the gate's full ``promoted``
+    decision on a measured, adequately-powered family.
+
+No threshold is changed by this taxonomy; the calibration checks are mapped
+to the tier they evidence (sizing) instead of vetoing edge recognition.
+
 This module fabricates nothing. It reads a promotion-decisions report (as
 produced by ``scripts/run_promotion_gate.py``) plus the frozen register and
 emits one verdict per registered family.
@@ -38,6 +57,15 @@ from governance.edge_hypotheses import EdgeHypothesis, list_hypotheses
 # an ``extra.`` prefix in Decision.metrics).
 _OBSERVED_N_METRIC_KEY = "extra.n_returns"
 
+# ADR-0015: the gate blocker ``check`` names that evidence *calibration for
+# sizing* (tier-2 ``risk_sizeable``) rather than the *edge proof* (tier-1
+# ``edge_supported``). A family blocked only by these still clears tier 1.
+_CALIBRATION_CHECKS = frozenset({
+    "brier_threshold",
+    "brier_ci_upper",
+    "ece_threshold",
+})
+
 Verdict = Literal["edge_supported", "no_edge", "inconclusive", "not_evaluated"]
 
 
@@ -46,6 +74,7 @@ class FamilyVerdict(TypedDict):
 
     family: str
     verdict: Verdict
+    risk_sizeable: bool | None
     promoted: bool | None
     primary_metric: str
     primary_metric_measured: bool
@@ -92,6 +121,7 @@ def _build_one(
     base: FamilyVerdict = {
         "family": family,
         "verdict": "not_evaluated",
+        "risk_sizeable": None,
         "promoted": None,
         "primary_metric": primary_metric,
         "primary_metric_measured": False,
@@ -119,6 +149,35 @@ def _build_one(
         if isinstance(b, Mapping) and b.get("severity") == "blocker"
     ]
 
+    # ADR-0015: split the *promotion-preventing* blockers by severity AND
+    # concern. A hard ``blocker`` is a measured failure; an ``info`` blocker
+    # is an *unmeasured* guard (strict-provenance "not yet measured"), which
+    # cannot certify an edge but is not itself a failure. A ``warning`` never
+    # prevents promotion and is excluded.
+    #
+    # Concern matters as much as severity: the calibration checks evidence
+    # tier-2 sizing only, so neither a *measured* calibration failure nor an
+    # *unmeasured* calibration check may veto tier-1 ``edge_supported`` (they
+    # withhold ``risk_sizeable`` instead). Only the non-calibration guards
+    # gate tier 1.
+    hard_blocking = {
+        str(b.get("check"))
+        for b in blockers
+        if isinstance(b, Mapping) and b.get("severity") == "blocker"
+    }
+    unmeasured = {
+        str(b.get("check"))
+        for b in blockers
+        if isinstance(b, Mapping) and b.get("severity") == "info"
+    }
+    # Tier-1 gating: a genuine edge failure (hard, non-calibration).
+    edge_hard_blocking = sorted(hard_blocking - _CALIBRATION_CHECKS)
+    # Tier-1 gating: a non-calibration guard the gate could not yet measure.
+    unmeasured_guards = sorted(unmeasured - _CALIBRATION_CHECKS)
+    # Tier-2 gating: calibration that either failed (measured) or is not yet
+    # measured. Either state withholds sizing but never vetoes the edge proof.
+    calibration_blocking = sorted((hard_blocking | unmeasured) & _CALIBRATION_CHECKS)
+
     # The gate only writes a metric label into ``metrics`` when it was
     # genuinely measured; a None metric surfaces as an info-blocker instead.
     measured = primary_metric in metrics
@@ -145,24 +204,48 @@ def _build_one(
             f"observed_n={observed_n} below pre-registered min_sample_n={min_sample_n}"
         )
 
-    if promoted:
-        if measured and sample_adequate:
-            base["verdict"] = "edge_supported"
-        else:
-            base["verdict"] = "inconclusive"
-            base["notes"].append(
-                "gate promoted but pre-registration check failed; "
-                "edge claim withheld"
-            )
-    else:
-        if measured and sample_adequate:
+    # ADR-0015 two-tier verdict. The order of checks is load-bearing:
+    #   1. a genuine *edge-failure* hard blocker -> no_edge,
+    #   2. else an *unmeasured* non-calibration guard -> inconclusive
+    #      (strong edge metrics cannot be certified without the guards),
+    #   3. else tier-1 edge_supported; tier-2 risk_sizeable additionally
+    #      requires the calibration checks (brier/ece) to be measured and
+    #      clear.
+    if measured and sample_adequate:
+        if edge_hard_blocking:
             base["verdict"] = "no_edge"
-        else:
+            base["risk_sizeable"] = False
+        elif unmeasured_guards:
             base["verdict"] = "inconclusive"
-            if measured and not sample_adequate:
+            base["risk_sizeable"] = False
+            base["notes"].append(
+                "edge metrics clear but guards "
+                f"{unmeasured_guards} not yet measured; edge certification "
+                "withheld (ADR-0015 tier-1 requires these measured)"
+            )
+        else:
+            base["verdict"] = "edge_supported"
+            base["risk_sizeable"] = not calibration_blocking
+            if calibration_blocking:
+                base["notes"].append(
+                    "tier-1 edge_supported: primary edge metrics and "
+                    "non-calibration guards clear; tier-2 risk_sizeable "
+                    f"withheld \u2014 calibration checks {calibration_blocking} "
+                    "not measured-and-clear (ADR-0015)"
+                )
+    else:
+        base["verdict"] = "inconclusive"
+        base["risk_sizeable"] = False
+        if measured and not sample_adequate:
+            if edge_hard_blocking:
                 base["notes"].append(
                     "gate did not promote but pre-registered sample size "
                     "not met; no_edge claim withheld"
+                )
+            else:
+                base["notes"].append(
+                    "edge metrics clear but pre-registered sample size "
+                    "not met; edge claim withheld"
                 )
 
     return base
@@ -207,6 +290,7 @@ def build_verdict_report(
         "generated_from": report.get("generated_at"),
         "gate_schema_version": report.get("gate_schema_version"),
         "summary": verdict_summary(verdicts),
+        "risk_sizeable_count": sum(1 for v in verdicts if v["risk_sizeable"] is True),
         "verdicts": verdicts,
     }
 

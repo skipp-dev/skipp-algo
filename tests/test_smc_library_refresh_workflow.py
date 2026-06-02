@@ -260,6 +260,69 @@ def test_release_pending_pr_step_only_runs_when_publish_blocked() -> None:
     assert "github.event_name != 'pull_request'" in workflow_text
 
 
+def test_readonly_preflight_has_retry_wrapper() -> None:
+    """Pin the retry wrapper added in PR #2418.
+
+    The readonly TradingView preflight failed in run 26588691660 with a
+    transient Playwright timeout in ``addCurrentScriptToChart`` (45s),
+    blocking the v1→v2 publish even though PR #2415's override gate was
+    correct. PR #2418 wrapped the step in a bash retry loop with
+    exponential backoff. Without this pin the wrapper could be silently
+    reverted by an unrelated edit and the publish path becomes fragile
+    again.
+
+    Scope: ONLY the readonly preflight gets retries — the actual publish
+    and post-release validation must still surface their failures
+    immediately (no auto-retry on the mutating step).
+    """
+    workflow_text = _read(WORKFLOW_PATH)
+
+    # Env vars driving the wrapper.
+    assert 'TV_PREFLIGHT_MAX_ATTEMPTS: "3"' in workflow_text, (
+        "Readonly preflight must declare TV_PREFLIGHT_MAX_ATTEMPTS=3 so the "
+        "step retries known-flaky TV/Playwright timeouts before failing the "
+        "publish job (PR #2418)."
+    )
+    assert 'TV_STEP_TIMEOUT_MS: "90000"' in workflow_text, (
+        "Readonly preflight must bump TV_STEP_TIMEOUT_MS to 90000 (vs the "
+        "shared 45000 default) so CI's slower chart hydration does not "
+        "trip a single-attempt timeout (PR #2418)."
+    )
+
+    # Loop structure.
+    assert "max_attempts=" in workflow_text and 'TV_PREFLIGHT_MAX_ATTEMPTS' in workflow_text
+    assert "while [ \"$attempt\" -le \"$max_attempts\" ]" in workflow_text
+    # Final failure must surface as ::error::, not ::warning::.
+    assert "::error title=TradingView preflight failed::" in workflow_text
+    # Intermediate retries must surface as ::warning::, otherwise operators
+    # have no signal that the flake is recurring.
+    assert "::warning title=TradingView preflight flake::" in workflow_text
+
+    # Scope guard: the retry env vars must NOT leak onto the mutating
+    # publish step or the post-release validation. Those failures need to
+    # surface immediately. We pin the wrapper inside the readonly preflight
+    # by requiring the retry env var to appear ONLY between the readonly
+    # preflight step header and the next step ("Publish library to TradingView").
+    pre_idx = workflow_text.index("Run TradingView readonly preflight")
+    publish_idx = workflow_text.index("Publish library to TradingView", pre_idx)
+    post_idx = workflow_text.index("Run TradingView post-release validation", publish_idx)
+    preflight_block = workflow_text[pre_idx:publish_idx]
+    publish_block = workflow_text[publish_idx:post_idx]
+    post_release_block = workflow_text[post_idx:]
+    assert "TV_PREFLIGHT_MAX_ATTEMPTS" in preflight_block, (
+        "TV_PREFLIGHT_MAX_ATTEMPTS must live inside the readonly preflight step block."
+    )
+    assert "TV_PREFLIGHT_MAX_ATTEMPTS" not in publish_block, (
+        "Retry wrapper must NOT leak onto the mutating publish step — "
+        "an actual publish failure must surface on the first attempt."
+    )
+    assert "TV_PREFLIGHT_MAX_ATTEMPTS" not in post_release_block, (
+        "Retry wrapper must NOT leak onto post-release validation — that "
+        "step already has continue-on-error: true semantics and additional "
+        "retries would mask validator regressions."
+    )
+
+
 # -- WP8: Drift-safe artifact policy tests ----------------------------------
 
 def test_drift_classes_are_bounded() -> None:
