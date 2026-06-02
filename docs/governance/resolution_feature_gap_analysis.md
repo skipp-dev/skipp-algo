@@ -72,7 +72,7 @@ Available (data + extractors exist) but unused:
   `smc_core/htf_context.py`, unused. An ICT core concept.
 - **Session / killzone / time-of-day** — `session_marker` and
   `cyclical_encoding` exist in `ml/features/temporal.py`, unused.
-- **Volatility regime** — `realized_volatility`, `garman_klass`, `parkinson`
+- **Volatility regime** — `realized_volatility`, `garman_klass_volatility`, `parkinson_volatility`
   exist in `ml/features/volatility.py`, unused.
 
 Genuinely **absent** (would need building): VWAP distance (only a stub),

@@ -71,7 +71,7 @@ model — the A/B run measures which actually carry resolution.
    predictors).**
    - Session / killzone marker and cyclical time-of-day
      (`ml/features/temporal.py`).
-   - Volatility regime (`realized_volatility`, `garman_klass`, `parkinson`).
+   - Volatility regime (`realized_volatility`, `garman_klass_volatility`, `parkinson_volatility`).
 
 **Explicitly dropped:** `hurst_50` (measured zero discrimination) and a
 standalone `gap_size_atr` term (redundant with the current geometry score).
