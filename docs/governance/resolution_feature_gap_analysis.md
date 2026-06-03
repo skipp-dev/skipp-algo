@@ -111,3 +111,46 @@ two-thirds of them are geometry redundancy plus one measured dud. The real,
 un-tapped lever is **order-flow**, which a "Smart Money" strategy currently does
 not look at. Whether it actually lifts resolution must be proven by an A/B run —
 not assumed.
+
+## 5. ADR-0019 shadow-candidate A/B results (2026-06-03) — the non-volume axes are empirically exhausted
+
+The ADR-0019 purged walk-forward A/B on-ramp (`scripts/run_feature_ab.py`) has
+now run **three** close/OHLC-pure shadow candidates against the v1 `score` on
+**real EV-20 Databento bars across two independent regimes** (a calm window
+2025-01-02..2025-04-01 and the volatile Aug-2024 window 2024-07-15..2024-10-15,
+~22k recorded events). Every one returned `no_lift` across **all four** families
+(BOS, FVG, OB, SWEEP) — out-of-sample resolution did not improve and the
+candidate discriminated no better than (usually worse than) the baseline:
+
+| Candidate | Axis | Source | Verdict | Notes |
+|-----------|------|--------|---------|-------|
+| `momentum_ribbon` | smoothed-RSI trend stack | retired (#2545) | `no_lift` ×4, both regimes | candidate AUC ≤ baseline everywhere |
+| `williams_vix_fix` | downside volatility | retired (#2551) | `no_lift` ×4 | BOS 0.524<0.567, FVG 0.510<0.558, SWEEP 0.473<0.527 (sub-chance) |
+| `variance_ratio` (Lo-MacKinlay VR(2)) | serial dependence / persistence | evaluated, **not adopted** | `no_lift` ×4 | BOS 0.525<0.567, FVG 0.479<0.558, OB 0.492<0.515, SWEEP 0.513<0.527 |
+
+The Variance Ratio was the strongest available proxy for the *persistence* axis
+and was empirically confirmed orthogonal to the existing signals before testing
+(VR vs v1 `score` Spearman −0.173; VR vs WVF Spearman +0.095; 99.6% coverage on
+real bars). Its `no_lift` verdict — together with the already-measured
+`hurst_50 = 0` weight (§1, the same persistence axis) — closes the persistence
+dimension: Kaufman Efficiency Ratio, Permutation Entropy and Hurst R/S all live
+on this same axis and are not expected to behave differently. Because VR is
+close-only it needs no live plumbing, so its A/B was run pre-merge on the same
+harness and the candidate was **not merged** (no dead shadow code is carried).
+
+This is the empirical confirmation of §2/§4: the geometry, volatility and
+persistence axes that need **no volume** are now spent. The remaining un-tapped
+lever is exactly the **order-flow / volume** dimension this note named as the #1
+gap.
+
+### Blocker before order-flow can be A/B-tested: the producer drops volume
+
+`scripts/pull_databento_edge_input.py::_resampled_bars_payload` currently
+serialises only `timestamp/high/low/close` **per bar** — it **drops volume**
+(and `open`), even though volume is present in the upstream OHLCV frame. On real
+EV-20 data this makes `relative_volume_at` 0%-coverage (always honest-`None`)
+and would make Amihud illiquidity (`|r|/dollar_volume`) dead-on-arrival. So the
+rational next workstream is a **producer plumbing PR** — add
+`"volume": float(row.volume)` (and `"open"`) to `_resampled_bars_payload` and
+re-dispatch EV-20 — which unblocks **both** a genuine `relative_volume` A/B and
+the Amihud candidate, i.e. the order-flow lever itself.
