@@ -16,8 +16,6 @@ from __future__ import annotations
 
 import json
 
-import pytest
-
 from governance.family_event_adapter import family_events_from_structure
 from governance.family_event_score import ATR_PERIOD
 from governance.family_returns import extract_family_ab_samples
@@ -65,12 +63,11 @@ def test_adapter_records_momentum_ribbon() -> None:
 
 
 def test_adapter_omits_ribbon_without_history() -> None:
-    # Anchor below the ribbon warmup -> ribbon honestly absent, key omitted.
-    n = ATR_PERIOD + 4
-    anchor_bar = ATR_PERIOD + 1  # below warmup of 15 only if ATR_PERIOD small;
-    # guard: only assert when the anchor is genuinely below warmup.
-    if anchor_bar >= 15:
-        pytest.skip("anchor is above ribbon warmup for this ATR_PERIOD")
+    # Anchor below the ribbon warmup (15) but with enough ATR history
+    # (>= ATR_PERIOD) so the event is still built -> ribbon honestly absent.
+    assert ATR_PERIOD < 15  # ribbon warmup is 15; keep this path reachable
+    anchor_bar = ATR_PERIOD  # 14 < 15 ribbon warmup, >= ATR warmup
+    n = anchor_bar + 4
     bars = _bars_with_volume(n, anchor_bar)
     anchor_ts = _T0 + anchor_bar * _STEP
     structure = {

@@ -36,6 +36,7 @@ from typing import Any
 
 from governance.family_feature_ab import family_feature_ab_report
 from governance.family_returns import DEFAULT_COST_BPS, extract_family_ab_samples
+from scripts.smc_atomic_write import atomic_write_text
 
 
 def _load_events(path: str) -> list[dict[str, Any]]:
@@ -124,8 +125,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.out == "-":
         print(rendered)
     else:
-        with open(args.out, "w", encoding="utf-8") as handle:
-            handle.write(rendered + "\n")
+        atomic_write_text(rendered + "\n", args.out)
 
     return _verdict_exit_code(report)
 
