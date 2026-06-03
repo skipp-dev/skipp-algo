@@ -42,14 +42,19 @@ from typing import Any, Literal, TypedDict
 
 from governance.family_calibration import (
     CALIBRATOR_TAG,
+    CONFORMAL_SOURCE_TAG,
     FOLD_SCHEME_TAG,
+    LIVE_SOURCE_TAG,
     PSI_TREND_SOURCE_TAG,
     TARGET_TAG,
+    partition_conformal,
+    partition_live_tail,
     walk_forward_calibration,
     walk_forward_psi_trend,
 )
 from governance.family_event_score import REGIME_SOURCE, SCORE_SOURCE
 from governance.family_walkforward import family_outcome_horizon, get_family_config
+from governance.promotion_gate import PIPELINE_CLASS_KEY, SMC_DIRECT_NO_ML
 from governance.types import EventFamily
 
 # Fixed round-turn transaction cost (bps) subtracted from every realized
@@ -452,6 +457,76 @@ def extract_family_feature_samples(
     return out
 
 
+class ABSamples(TypedDict):
+    """Per-family parallel lists for the ADR-0019 paired A/B harness.
+
+    Carries BOTH arms on the SAME events so the walk-forward A/B compares the
+    v1 ``score`` against the v2 candidate ``feature`` over an identical fold
+    structure and purge. ``guard_end_ts`` is the calibration purge guard (label
+    end + embargo in time), exactly as :func:`extract_family_calibration_samples`
+    derives it, so the A/B inherits the same leak-safe train/test boundary.
+    """
+
+    scores: list[float]
+    features: list[float]
+    returns: list[float]
+    anchor_ts: list[float]
+    guard_end_ts: list[float]
+
+
+def extract_family_ab_samples(
+    events: list[FamilyEvent],
+    *,
+    feature_key: str = "relative_volume",
+    cost_bps: float = DEFAULT_COST_BPS,
+) -> dict[str, ABSamples]:
+    """Per family, collect the PAIRED inputs the ADR-0019 A/B harness needs.
+
+    For every event that triggered (a realized return exists) AND carries BOTH
+    a v1 ``score`` AND the recorded candidate ``feature_key`` AND forward
+    timestamps, emit a parallel-list bundle
+    ``{family: {"scores", "features", "returns", "anchor_ts", "guard_end_ts"}}``.
+
+    The pairing is deliberate: the A/B must score both arms on the *same* events
+    over the *same* purged walk-forward folds, otherwise a Brier/resolution
+    delta would confound the feature's effect with a differing event sample.
+    ``guard_end_ts`` reuses the calibration purge guard (label-window end plus
+    the family embargo in time) so the A/B is leak-safe by construction. Events
+    missing either arm are excluded -- never invented into the sample.
+    """
+    out: dict[str, ABSamples] = {}
+    for event in events:
+        if "score" not in event or feature_key not in event:
+            continue
+        forward_ts = event.get("forward_timestamps")
+        if not forward_ts:
+            continue
+        ret = realized_return(event, cost_bps=cost_bps)
+        if ret is None:
+            continue
+        family = event["family"]
+        fts = [float(t) for t in forward_ts]
+        embargo_bars = get_family_config(family).embargo_bars
+        guard_end = fts[-1] + embargo_bars * _event_bar_interval(fts)
+        event_view: Mapping[str, Any] = event
+        bucket = out.setdefault(
+            family,
+            {
+                "scores": [],
+                "features": [],
+                "returns": [],
+                "anchor_ts": [],
+                "guard_end_ts": [],
+            },
+        )
+        bucket["scores"].append(float(event_view["score"]))
+        bucket["features"].append(float(event_view[feature_key]))
+        bucket["returns"].append(ret)
+        bucket["anchor_ts"].append(float(event["anchor_ts"]))
+        bucket["guard_end_ts"].append(guard_end)
+    return out
+
+
 def regime_degradation(
     returns: list[float],
     regimes: list[str],
@@ -536,6 +611,12 @@ def to_build_spec(
             entry["timestamps"] = [_epoch_to_iso(t) for t in bucket["timestamps"]]
             entry["as_of"] = _epoch_to_iso(as_of)
         provenance: dict[str, Any] = {}
+        # ADR-0016: this producer builds SMC-direct families -- returns come
+        # straight from events, scores are raw event scores, no ML/stacking
+        # layer. Declare the pipeline class so the gate treats the ML-modelling
+        # provenance keys (bootstrap_method/block_size/stacked_used) as
+        # not-applicable instead of blocking on them as "not declared".
+        provenance[PIPELINE_CLASS_KEY] = SMC_DIRECT_NO_ML
         samples = calibration_samples.get(family)
         if samples is not None:
             block = walk_forward_calibration(
@@ -545,6 +626,22 @@ def to_build_spec(
                 samples["guard_end_ts"],
             )
             if block is not None:
+                # ADR-0018 / EV-26: split-conformal coverage on the SAME pooled
+                # OOS pairs (independent view of the live surrogate). Computed
+                # from the full pool BEFORE the live-tail reassignment below.
+                conformal = partition_conformal(block)
+                if conformal is not None:
+                    entry["conformal"] = conformal
+                    provenance["ev26_conformal_source"] = CONFORMAL_SOURCE_TAG
+                # ADR-0017 / EV-25: declare the most recent OOS window as a
+                # live-incubation surrogate so live_vs_wf_ratio is measured.
+                # Only splits when both partitions stay adequately powered;
+                # otherwise the full pooled walk-forward block is kept and
+                # live_brier stays honestly "not yet measured".
+                split = partition_live_tail(block)
+                if split is not None:
+                    block = split
+                    provenance["ev25_live_source"] = LIVE_SOURCE_TAG
                 entry["calibration"] = block
                 # EV-24 audit-only provenance (the gate ignores unknown keys;
                 # the producer copies these through verbatim). Records exactly
@@ -596,9 +693,14 @@ __all__ = [
     "DEFAULT_COST_BPS",
     "REGIME_MIN_SAMPLES",
     "RETURN_RULE",
+    "ABSamples",
     "EntryMode",
     "FamilyEvent",
+    "FeatureSamples",
     "RegimeSamples",
+    "extract_family_ab_samples",
+    "extract_family_calibration_samples",
+    "extract_family_feature_samples",
     "extract_family_regime_samples",
     "extract_family_returns",
     "realized_return",
