@@ -6,6 +6,40 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-02) — ADR-0019 step 3: paired purged walk-forward A/B harness
+
+Builds on steps 1-2 (the extractor + the recorded feature). Adds the shadow
+measurement that answers the pre-registered ADR-0019 question: over a purged
+walk-forward, does the candidate feature discriminate event outcomes better
+than the v1 `score`? Primary metric is out-of-sample **resolution** (the Murphy
+discrimination component) — the binding promotion deficit. Changes **no** score,
+`SCORE_SOURCE`, or gate; v1 stays the default until the A/B clears on real data.
+
+- New `governance/family_calibration.walk_forward_ab`: a PAIRED purged
+  walk-forward that Platt-calibrates both arms (v1 `score` vs v2 feature) on the
+  same training events over identical folds, emitting a fold only when both arms
+  fit — so the two arms share one out-of-sample index set and their Brier /
+  resolution are directly comparable (an unpaired comparison would confound the
+  feature with a differing event sample).
+- New `governance/family_returns.extract_family_ab_samples`: per family, the
+  paired `(scores, features, returns, anchor_ts, guard_end_ts)` for events
+  carrying both arms, reusing the calibration purge guard so the A/B is
+  leak-safe by construction.
+- New module `governance/family_feature_ab`: the `resolution` metric plus
+  `family_feature_ab` / `family_feature_ab_report`, which return a shadow
+  verdict (`candidate_lifts_resolution` / `no_lift` / `regresses_calibration`).
+  A family with too few shared OOS points is not measurable yet: `family_feature_ab`
+  returns `None` and `family_feature_ab_report` omits it (never silently scored).
+  No-regression guards are a Brier proper-scoring check
+  plus an **absolute** ECE ceiling (deliberately not relative to the baseline —
+  a near-constant baseline trivially wins ECE and would perversely veto a sharp,
+  discriminating candidate).
+- Scope: this step compares feature-alone vs score-alone. The incremental
+  question (does the feature add resolution on top of the score) is the next
+  step.
+- 13 new tests (`tests/test_family_feature_ab.py`); calibration / returns /
+  adapter suites stay green.
+
 ### Added (2026-06-02) — ADR-0019 step 2: record the order-flow feature for the A/B
 
 Builds on step 1 (the `relative_volume_at` extractor). Captures the candidate
@@ -51,6 +85,86 @@ before any v2 feature may join calibration).
 - 11 new tests pin the ratio, leak-freedom, and absent-feature semantics
   (`tests/test_family_score_features_v2.py`); the existing adapter/score
   suites stay green.
+
+### Added (2026-06-02) — ADR-0016 pipeline-provenance classes (no-ML pipelines)
+
+Under `strict_provenance` the gate required three caller-declared provenance
+keys that describe an upstream ML-modelling layer — `bootstrap_method` (BCa
+bootstrap), `block_size` (block permutation) and `stacked_used` (stacking
+ensemble). The SMC-direct edge pipeline performs no such modelling (returns
+come straight from events, scores are raw event scores, no ensemble), so those
+three keys describe work that does not exist; declaring them would fabricate
+evidence. The gate therefore held a legitimate no-ML pipeline permanently at
+ADR-0015 tier-1 `inconclusive` on three guards that are *not-applicable*, not
+*unmeasured* (ADR-0016).
+
+- `governance/promotion_gate` adds a `pipeline_class` provenance key and
+  recognised no-ML classes (`NO_ML_PIPELINE_CLASSES`, initially
+  `smc_direct_no_ml`). When a family declares such a class the three
+  `ML_MODELLING_PROVENANCE_KEYS` are treated as not-applicable: their absence
+  emits no blocker and does not fail `ok_provenance`.
+- The waiver is conditional, never a global relaxation: an absent or unknown
+  `pipeline_class` grants no waiver, and the pipeline-agnostic keys
+  (`wf_scheme`, `wf_embargo_bars`, `psr_method`) stay required for every class.
+  `conformal_coverage` is unchanged — it is computed on the OOS pairs and
+  remains an applicable, measured guard.
+- `governance/family_returns.to_build_spec` declares
+  `pipeline_class = "smc_direct_no_ml"` on every family it builds, so the
+  classification flows end-to-end into the gate snapshot.
+- New tests pin the waiver, the unknown-class non-waiver, the
+  pipeline-agnostic keys staying required, conformal staying required, and the
+  producer declaration (`tests/test_promotion_gate.py`,
+  `tests/test_family_returns.py`). See `docs/adr/0016-pipeline-provenance-classes.md`.
+
+### Added (2026-06-02) — ADR-0018 split-conformal coverage from walk-forward OOS
+
+The promotion gate's `conformal_coverage` check could never evaluate: the
+SMC-direct producer never emitted a `conformal` block, so coverage was always
+"not yet measured" and the guard held every family at ADR-0015 tier-1
+`inconclusive` (see ADR-0018).
+
+- `governance/family_calibration.partition_conformal` splits the pooled
+  chronological walk-forward OOS pairs at `CONFORMAL_CALIBRATION_FRACTION`
+  (0.5): the earlier half calibrates the split-conformal (Vovk) conformity
+  quantile, the held-out later half measures empirical marginal coverage
+  against the `1 - alpha` guarantee (`CONFORMAL_ALPHA` = 0.1 -> 90% target).
+- The block is emitted ONLY when both sides clear `CONFORMAL_MIN_SIDE`
+  (= `MIN_OOS_SAMPLES`, 40), i.e. the pool holds at least 80 OOS pairs. Below
+  that no block is emitted and `conformal_coverage` stays honestly unmeasured.
+- `governance/family_returns.to_build_spec` computes the conformal split from
+  the full pooled block (independent view of the ADR-0017 live surrogate) and
+  tags it with audit-only provenance `ev26_conformal_source`. The producer's
+  existing `_conformal_slice` then measures `conformal_coverage` /
+  `conformal_target`, enabling the gate check to evaluate.
+- Honesty preserved: a low-resolution score yields wide prediction sets, so
+  coverage is high by design (certifies set calibration, NOT discrimination).
+  A family can clear `conformal_coverage` and still fail the tier-2 Brier bar;
+  this removes only the "not yet measured" info-block and never promotes a
+  family on its own.
+
+### Added (2026-06-02) — ADR-0017 live-incubation surrogate for `live_vs_wf_ratio`
+
+In an offline backtest there is no real live feed, so `live_brier` was always
+"not yet measured" and the `live_vs_wf_ratio` drift check could never evaluate
+— it info-blocked every family indefinitely (see ADR-0017).
+
+- `governance/family_calibration.partition_live_tail` splits a pooled
+  walk-forward block into `{walkforward (older remainder), live (most-recent
+  tail)}`. The pooled out-of-sample pairs are chronological, so the last
+  `LIVE_TAIL_MIN_SAMPLES` (= 20) pairs are DECLARED the live-incubation
+  surrogate; the older remainder is the walk-forward reference.
+- The split is emitted ONLY when the pool stays adequately powered on both
+  sides (`len >= LIVE_TAIL_MIN_SAMPLES + MIN_OOS_SAMPLES`). Below that the full
+  pooled block is kept and `live_brier` stays honestly unmeasured rather than
+  splitting a small sample into two noisy halves.
+- `governance/family_returns.to_build_spec` wires the split in after
+  `walk_forward_calibration` and tags it with audit-only provenance
+  `ev25_live_source` (`LIVE_SOURCE_TAG`). The producer's existing `live`
+  consumer (`scripts/build_family_metrics._calibration_slice`) then measures
+  `live_brier`, enabling the `live_vs_wf_ratio` gate check to evaluate.
+- Honesty preserved: the live tail is intentionally small, so the resulting
+  ratio is a coarse drift alarm, not a precise threshold; it removes only the
+  "not yet measured" info-block and never promotes a family on its own.
 
 ### Changed (2026-06-02) — EV-08 verdict adopts the ADR-0015 two-tier taxonomy (`risk_sizeable`)
 
