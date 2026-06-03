@@ -14,7 +14,9 @@ import pytest
 
 from scripts import pull_databento_edge_input as wrapper
 from scripts.pull_databento_edge_input import (
+    aggregate_signed_volume,
     normalize_ohlcv_frame,
+    normalize_trades_frame,
     structure_and_bars_to_pipeline_input,
 )
 
@@ -190,3 +192,147 @@ def test_refuses_when_symbol_absent_from_frame(monkeypatch: pytest.MonkeyPatch) 
     # No resampled bars for an unseen symbol -> honest refusal, not empty payload.
     with pytest.raises(ValueError, match="no resampled"):
         structure_and_bars_to_pipeline_input(df, symbol="ZZZZ", timeframe="15m")
+
+
+# --- ADR-0016 aggressor-signed trades data path --------------------------------
+
+
+def _raw_trades_frame(
+    offsets_seconds: list[int],
+    sizes: list[float],
+    sides: list[str],
+    *,
+    symbol: str = "AAPL",
+) -> pd.DataFrame:
+    """A synthetic Databento ``trades`` frame on a DatetimeIndex."""
+    index = pd.to_datetime(
+        [(_T0 + s) * 1_000_000_000 for s in offsets_seconds], utc=True
+    )
+    return pd.DataFrame(
+        {
+            "price": np.full(len(offsets_seconds), 100.0),
+            "size": sizes,
+            "side": sides,
+            "symbol": symbol,
+        },
+        index=pd.DatetimeIndex(index, name="ts_event"),
+    )
+
+
+def test_normalize_trades_frame_from_datetime_index() -> None:
+    raw = _raw_trades_frame([0, 30, 90], [10.0, 5.0, 2.0], ["B", "a", "n"])
+    out = normalize_trades_frame(raw, symbol="aapl")
+
+    assert list(out.columns) == ["timestamp", "price", "size", "side", "symbol"]
+    assert int(out["timestamp"].iloc[0]) == _T0
+    assert int(out["timestamp"].iloc[1]) == _T0 + 30
+    # side is upper-cased to the Databento enum.
+    assert out["side"].tolist() == ["B", "A", "N"]
+    assert (out["symbol"] == "AAPL").all()
+
+
+def test_normalize_trades_frame_rejects_missing_columns() -> None:
+    raw = _raw_trades_frame([0, 30], [1.0, 1.0], ["B", "A"]).drop(columns=["side"])
+    with pytest.raises(ValueError, match="missing required columns"):
+        normalize_trades_frame(raw, symbol="AAPL")
+
+
+def test_normalize_trades_frame_rejects_empty() -> None:
+    with pytest.raises(ValueError, match="empty"):
+        normalize_trades_frame(pd.DataFrame(), symbol="AAPL")
+
+
+def test_aggregate_signed_volume_signs_and_counts() -> None:
+    # Three trades inside one 15m window (the first bucket ends at _T0+100s, the
+    # 22:15:00 boundary): B(+10), A(-4), N(0 signed, still counted).
+    raw = _raw_trades_frame([0, 60, 100], [10.0, 4.0, 7.0], ["B", "A", "N"])
+    trades = normalize_trades_frame(raw, symbol="AAPL")
+
+    agg = aggregate_signed_volume(trades, "15m")
+
+    assert len(agg) == 1
+    assert float(agg["signed_volume"].iloc[0]) == 6.0  # 10 - 4 + 0
+    assert int(agg["trade_count"].iloc[0]) == 3
+
+
+def test_aggregate_signed_volume_empty_input() -> None:
+    empty = normalize_trades_frame(
+        _raw_trades_frame([0], [1.0], ["B"]), symbol="AAPL"
+    ).iloc[0:0]
+    agg = aggregate_signed_volume(empty, "15m")
+    assert list(agg.columns) == ["timestamp", "signed_volume", "trade_count"]
+    assert agg.empty
+
+
+def test_aggregate_signed_volume_aligns_to_resampled_bars() -> None:
+    """LOAD-BEARING: trade buckets share the OHLCV resampler's bucket_end grid."""
+    df = normalize_ohlcv_frame(_raw_minute_frame(n=180), symbol="AAPL")
+    resampled, _tf = wrapper._prepare_symbol_resampled_bars(df, "AAPL", "15m")
+    bar_ts = {int(t) for t in resampled["timestamp"].tolist()}
+
+    # One trade per source minute -> every bucket timestamp must be a real bar.
+    offsets = [i * 60 for i in range(180)]
+    raw = _raw_trades_frame(offsets, [1.0] * 180, ["B"] * 180)
+    trades = normalize_trades_frame(raw, symbol="AAPL")
+
+    agg = aggregate_signed_volume(trades, "15m")
+    agg_ts = {int(t) for t in agg["timestamp"].tolist()}
+
+    # Every bucket within the resampler's horizon must be a real bar timestamp.
+    # (The OHLCV resampler trims its partial trailing bucket; the trades
+    # aggregation keeps it, but the producer merge only uses the intersection,
+    # so a bucket beyond the last bar is harmless.)
+    horizon = max(bar_ts)
+    assert {t for t in agg_ts if t <= horizon}.issubset(bar_ts)
+    assert int(agg["trade_count"].sum()) == 180
+
+
+def test_payload_embeds_signed_volume_when_trades_supplied(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    df = normalize_ohlcv_frame(_raw_minute_frame(n=180), symbol="AAPL")
+    monkeypatch.setattr(
+        wrapper,
+        "build_explicit_structure_from_bars",
+        lambda *a, **k: {"bos": [{"id": "b1", "time": _T0, "price": 100.0, "dir": "UP"}]},
+    )
+    offsets = [i * 60 for i in range(180)]
+    trades = normalize_trades_frame(
+        _raw_trades_frame(offsets, [1.0] * 180, ["B"] * 180), symbol="AAPL"
+    )
+
+    payload = structure_and_bars_to_pipeline_input(
+        df, symbol="AAPL", timeframe="15m", trades=trades
+    )
+
+    enriched = [b for b in payload["bars"] if "signed_volume" in b]
+    assert enriched, "expected at least one bar to carry signed volume"
+    for bar in enriched:
+        assert set(bar) == {
+            "timestamp",
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "signed_volume",
+            "trade_count",
+        }
+        assert bar["signed_volume"] > 0.0  # all buys
+        assert bar["trade_count"] >= 1
+    assert payload["provenance"]["with_trades"] is True
+
+
+def test_payload_omits_signed_volume_without_trades(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    df = normalize_ohlcv_frame(_raw_minute_frame(n=180), symbol="AAPL")
+    monkeypatch.setattr(
+        wrapper,
+        "build_explicit_structure_from_bars",
+        lambda *a, **k: {"bos": [{"id": "b1", "time": _T0, "price": 100.0, "dir": "UP"}]},
+    )
+    payload = structure_and_bars_to_pipeline_input(df, symbol="AAPL", timeframe="15m")
+
+    assert all("signed_volume" not in b for b in payload["bars"])
+    assert payload["provenance"]["with_trades"] is False

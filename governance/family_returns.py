@@ -124,6 +124,16 @@ class FamilyEvent(TypedDict, total=False):
     # Absent when volume is missing or the trailing baseline is degenerate.
     # Never invented.
     relative_volume: float
+    # Optional point-in-time microstructure feature (ADR-0016 / ADR-0019 v2
+    # candidate): Kyle's lambda, the OLS slope of per-bar close change on the
+    # aggressor-signed volume over the trailing window (see
+    # ``governance.family_kyle_lambda_v2.kyle_lambda_at``). RECORDED ONLY -- it
+    # is NOT a calibration input and does NOT feed the gate; it rides alongside
+    # outcomes so the pre-registered purged walk-forward A/B (ADR-0019) can
+    # evaluate whether it lifts resolution before any wiring. Absent when the
+    # bars carry no signed volume (OHLCV-only run) or the regression is
+    # degenerate. Never invented.
+    kyle_lambda: float
 
 
 def _direction_sign(direction: str) -> int:
