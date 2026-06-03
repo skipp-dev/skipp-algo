@@ -124,6 +124,15 @@ class FamilyEvent(TypedDict, total=False):
     # Absent when volume is missing or the trailing baseline is degenerate.
     # Never invented.
     relative_volume: float
+    # Optional point-in-time downside-volatility feature (ADR-0019 v2
+    # candidate): the formation-bar Williams VIX Fix, a price-only fear gauge
+    # (see ``governance.family_vix_fix_v1.williams_vix_fix_at``). RECORDED
+    # ONLY -- it is NOT a calibration input and does NOT feed the gate; it is
+    # captured alongside outcomes so the pre-registered purged walk-forward A/B
+    # (ADR-0019) can evaluate whether it lifts resolution before any wiring.
+    # Absent when trailing closes are missing or the close peak is degenerate.
+    # Never invented.
+    williams_vix_fix: float
 
 
 def _direction_sign(direction: str) -> int:

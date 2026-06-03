@@ -51,6 +51,7 @@ from typing import Any, TypedDict
 from governance.family_event_score import point_in_time_regime, raw_score
 from governance.family_returns import FamilyEvent
 from governance.family_score_features_v2 import relative_volume_at
+from governance.family_vix_fix_v1 import williams_vix_fix_at
 from governance.types import EventFamily
 
 # Lookahead windows, mirrored from
@@ -173,6 +174,9 @@ def _zone_event_to_family(
     rel_volume = relative_volume_at(bars, anchor_idx)
     if rel_volume is not None:
         mapped["relative_volume"] = rel_volume
+    wvf = williams_vix_fix_at(bars, anchor_idx)
+    if wvf is not None:
+        mapped["williams_vix_fix"] = wvf
     return mapped
 
 
@@ -220,6 +224,9 @@ def _level_event_to_family(
     rel_volume = relative_volume_at(bars, anchor_idx)
     if rel_volume is not None:
         mapped["relative_volume"] = rel_volume
+    wvf = williams_vix_fix_at(bars, anchor_idx)
+    if wvf is not None:
+        mapped["williams_vix_fix"] = wvf
     return mapped
 
 
