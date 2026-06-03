@@ -210,3 +210,61 @@ The `provider_health` gate itself stays hard. Only the cosmetic
   (`asof_strategy: "now"` marker; not part of the soft-bypass).
 
 **Status.** accepted.
+
+### 2026-06-02 - product-focus-on-edge-over-governance
+
+**Context.** Across the open PR queue (11 PRs) roughly 72% is
+infrastructure/governance meta-work (ADR enforcement, pin ledgers,
+frozen tripwire roster, silent-skip hardening, PR-title linter) plus
+auto-generated snapshot PRs carrying run-ids. Zero open PRs deliver
+demonstrable SMC trading edge. Recurring "missing module discovered
+just before workflow start" incidents (`data()` title bug #2498/#2509,
+roster referencing non-existent tests #2463, decision JSONs living only
+on branches #2508) are structural: generators emit artefacts that
+violate gates the generators do not pre-check. Full diagnosis in
+[DIRECTOR_FINDINGS_2026-06-02.md](DIRECTOR_FINDINGS_2026-06-02.md).
+
+**Decision.** We re-anchor on a single North Star: the SMC suite is a
+product only when one SMC strategy shows reproducible, out-of-sample
+positive edge on live Databento data, measured by the promotion gate —
+not by green CI. Concretely we (a) stop running auto-snapshot outputs
+as review PRs and merge the substantially-finished ADR/infra PRs to
+close those themes, (b) concentrate effort on the single EV-20
+edge-pipeline value stream and *evaluate* the 16 rescued decision JSONs
+(#2508) rather than archive them, and (c) require a reusable pre-flight
+validator (title-concern + referenced test paths + schema version) that
+every generator calls before `gh pr create`.
+
+**Alternatives considered.**
+
+- *Keep widening governance coverage first.* Rejected — a promotion
+  gate is worthless while nothing is promotable; more gates do not
+  produce edge.
+- *Fix each generator drift incident ad hoc as it surfaces.* Rejected —
+  that is the current circular pattern; #2509 fixed one title bug but
+  the class recurs without a shared pre-flight check.
+- *Pause all infra work immediately.* Rejected — the near-finished ADR
+  PRs are cheaper to land than to re-open later; we close them, then stop.
+
+**Consequences.**
+
+- Review bandwidth shifts off snapshot churn onto the EV-20 evaluation.
+- Auto-snapshot history moves from `main` commits/PRs to job artifacts;
+  diff-archaeology requires the workflow run page (acceptable, matches
+  the existing soft-push snapshot precedent above).
+- A new shared dependency: every PR-generating workflow must invoke the
+  pre-flight validator; generators that skip it are a regression.
+- Re-evaluation trigger: once the first EV-20 verdict (edge yes/no/unclear)
+  is produced, this decision is revisited to set the next value-stream target.
+
+**Evidence.**
+
+- [DIRECTOR_FINDINGS_2026-06-02.md](DIRECTOR_FINDINGS_2026-06-02.md)
+  — queue classification table + three-cause diagnosis.
+- PR [#2509](https://github.com/skippALGO/skipp-algo/pull/2509)
+  — `data(`→`chore(` generator title fix (point-fix that motivates the
+  systematic pre-flight validator).
+- PR [#2508](https://github.com/skippALGO/skipp-algo/pull/2508)
+  — 16 rescued real edge-pipeline decision JSONs (the first evaluation input).
+
+**Status.** accepted.
