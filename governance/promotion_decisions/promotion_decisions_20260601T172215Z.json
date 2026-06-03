@@ -1,0 +1,396 @@
+{
+  "schema_version": 1,
+  "gate_schema_version": 2,
+  "generated_at": "2026-06-01T17:22:15+00:00",
+  "strict_provenance": true,
+  "decisions": [
+    {
+      "schema_version": 2,
+      "family": "BOS",
+      "promoted": false,
+      "posture": "yellow",
+      "blockers": [
+        {
+          "check": "brier_threshold",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.22,
+          "message": "brier not yet measured"
+        },
+        {
+          "check": "ece_threshold",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.05,
+          "message": "ece not yet measured"
+        },
+        {
+          "check": "psi_drift",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.25,
+          "message": "psi not yet measured"
+        },
+        {
+          "check": "live_vs_wf_ratio",
+          "severity": "info",
+          "observed": null,
+          "threshold": 1.5,
+          "message": "live or walkforward brier not yet measured"
+        },
+        {
+          "check": "regime_degraded",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.0,
+          "message": "regime_degraded not yet measured"
+        },
+        {
+          "check": "psi_slope_threshold",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.05,
+          "message": "psi_slope not yet measured"
+        },
+        {
+          "check": "conformal_coverage",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.0,
+          "message": "conformal coverage or target not yet measured"
+        },
+        {
+          "check": "provenance.bootstrap_method",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.0,
+          "message": "provenance.bootstrap_method not declared"
+        },
+        {
+          "check": "provenance.block_size",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.0,
+          "message": "provenance.block_size not declared"
+        },
+        {
+          "check": "provenance.stacked_used",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.0,
+          "message": "provenance.stacked_used not declared"
+        }
+      ],
+      "metrics": {
+        "fdr_pvalue": 0.004997501249375313,
+        "psr": 0.9836760078282141,
+        "mintrl_years": 0.45634920634920634,
+        "extra.sharpe_hat": 0.15026020844481247,
+        "extra.skew": 0.565232713806189,
+        "extra.kurtosis": 7.152313866632065,
+        "extra.n_returns": 193.0,
+        "extra.periods_per_year": 252.0,
+        "extra.raw_pvalue": 0.0024987506246876563
+      },
+      "provenance": {
+        "wf_scheme": "expanding",
+        "wf_embargo_bars": 16,
+        "psr_method": "bailey_lopez_de_prado_2012",
+        "significance_method": "stationary_block_bootstrap_one_sided",
+        "significance_block_bars": 8,
+        "fdr_method": "benjamini_hochberg"
+      }
+    },
+    {
+      "schema_version": 2,
+      "family": "OB",
+      "promoted": false,
+      "posture": "yellow",
+      "blockers": [
+        {
+          "check": "brier_threshold",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.22,
+          "message": "brier not yet measured"
+        },
+        {
+          "check": "ece_threshold",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.05,
+          "message": "ece not yet measured"
+        },
+        {
+          "check": "psi_drift",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.25,
+          "message": "psi not yet measured"
+        },
+        {
+          "check": "live_vs_wf_ratio",
+          "severity": "info",
+          "observed": null,
+          "threshold": 1.5,
+          "message": "live or walkforward brier not yet measured"
+        },
+        {
+          "check": "regime_degraded",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.0,
+          "message": "regime_degraded not yet measured"
+        },
+        {
+          "check": "psi_slope_threshold",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.05,
+          "message": "psi_slope not yet measured"
+        },
+        {
+          "check": "conformal_coverage",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.0,
+          "message": "conformal coverage or target not yet measured"
+        },
+        {
+          "check": "provenance.bootstrap_method",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.0,
+          "message": "provenance.bootstrap_method not declared"
+        },
+        {
+          "check": "provenance.block_size",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.0,
+          "message": "provenance.block_size not declared"
+        },
+        {
+          "check": "provenance.stacked_used",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.0,
+          "message": "provenance.stacked_used not declared"
+        }
+      ],
+      "metrics": {
+        "fdr_pvalue": 0.001999000499750125,
+        "psr": 0.999605888700302,
+        "mintrl_years": 0.13095238095238096,
+        "extra.sharpe_hat": 0.31883148941026956,
+        "extra.skew": -0.08484180764755916,
+        "extra.kurtosis": 6.7315019571844426,
+        "extra.n_returns": 131.0,
+        "extra.periods_per_year": 252.0,
+        "extra.raw_pvalue": 0.0004997501249375312
+      },
+      "provenance": {
+        "wf_scheme": "expanding",
+        "wf_embargo_bars": 12,
+        "psr_method": "bailey_lopez_de_prado_2012",
+        "significance_method": "stationary_block_bootstrap_one_sided",
+        "significance_block_bars": 6,
+        "fdr_method": "benjamini_hochberg"
+      }
+    },
+    {
+      "schema_version": 2,
+      "family": "FVG",
+      "promoted": false,
+      "posture": "yellow",
+      "blockers": [
+        {
+          "check": "brier_threshold",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.22,
+          "message": "brier not yet measured"
+        },
+        {
+          "check": "ece_threshold",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.05,
+          "message": "ece not yet measured"
+        },
+        {
+          "check": "psi_drift",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.25,
+          "message": "psi not yet measured"
+        },
+        {
+          "check": "live_vs_wf_ratio",
+          "severity": "info",
+          "observed": null,
+          "threshold": 1.5,
+          "message": "live or walkforward brier not yet measured"
+        },
+        {
+          "check": "regime_degraded",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.0,
+          "message": "regime_degraded not yet measured"
+        },
+        {
+          "check": "psi_slope_threshold",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.05,
+          "message": "psi_slope not yet measured"
+        },
+        {
+          "check": "conformal_coverage",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.0,
+          "message": "conformal coverage or target not yet measured"
+        },
+        {
+          "check": "provenance.bootstrap_method",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.0,
+          "message": "provenance.bootstrap_method not declared"
+        },
+        {
+          "check": "provenance.block_size",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.0,
+          "message": "provenance.block_size not declared"
+        },
+        {
+          "check": "provenance.stacked_used",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.0,
+          "message": "provenance.stacked_used not declared"
+        }
+      ],
+      "metrics": {
+        "fdr_pvalue": 0.031984007996002,
+        "psr": 0.9806996117424487,
+        "mintrl_years": 0.503968253968254,
+        "extra.sharpe_hat": 0.14459507774916167,
+        "extra.skew": 0.3785725904638475,
+        "extra.kurtosis": 6.208871162708523,
+        "extra.n_returns": 200.0,
+        "extra.periods_per_year": 252.0,
+        "extra.raw_pvalue": 0.0239880059970015
+      },
+      "provenance": {
+        "wf_scheme": "expanding",
+        "wf_embargo_bars": 8,
+        "psr_method": "bailey_lopez_de_prado_2012",
+        "significance_method": "stationary_block_bootstrap_one_sided",
+        "significance_block_bars": 4,
+        "fdr_method": "benjamini_hochberg"
+      }
+    },
+    {
+      "schema_version": 2,
+      "family": "SWEEP",
+      "promoted": false,
+      "posture": "yellow",
+      "blockers": [
+        {
+          "check": "brier_threshold",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.22,
+          "message": "brier not yet measured"
+        },
+        {
+          "check": "ece_threshold",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.05,
+          "message": "ece not yet measured"
+        },
+        {
+          "check": "psi_drift",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.25,
+          "message": "psi not yet measured"
+        },
+        {
+          "check": "live_vs_wf_ratio",
+          "severity": "info",
+          "observed": null,
+          "threshold": 1.5,
+          "message": "live or walkforward brier not yet measured"
+        },
+        {
+          "check": "regime_degraded",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.0,
+          "message": "regime_degraded not yet measured"
+        },
+        {
+          "check": "psi_slope_threshold",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.05,
+          "message": "psi_slope not yet measured"
+        },
+        {
+          "check": "conformal_coverage",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.0,
+          "message": "conformal coverage or target not yet measured"
+        },
+        {
+          "check": "provenance.bootstrap_method",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.0,
+          "message": "provenance.bootstrap_method not declared"
+        },
+        {
+          "check": "provenance.block_size",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.0,
+          "message": "provenance.block_size not declared"
+        },
+        {
+          "check": "provenance.stacked_used",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.0,
+          "message": "provenance.stacked_used not declared"
+        }
+      ],
+      "metrics": {
+        "fdr_pvalue": 0.03648175912043978,
+        "psr": 0.9845654521077376,
+        "mintrl_years": 0.23412698412698413,
+        "extra.sharpe_hat": 0.20020837606107508,
+        "extra.skew": 0.9982809272964862,
+        "extra.kurtosis": 6.127276205472957,
+        "extra.n_returns": 100.0,
+        "extra.periods_per_year": 252.0,
+        "extra.raw_pvalue": 0.03648175912043978
+      },
+      "provenance": {
+        "wf_scheme": "expanding",
+        "wf_embargo_bars": 6,
+        "psr_method": "bailey_lopez_de_prado_2012",
+        "significance_method": "stationary_block_bootstrap_one_sided",
+        "significance_block_bars": 3,
+        "fdr_method": "benjamini_hochberg"
+      }
+    }
+  ]
+}
