@@ -153,13 +153,40 @@ def _check_branch_protection(token: str, report: ProtectionReport) -> None:
 
     report.add("branch_protection_enabled", True, "Branch protection rule exists.")
 
-    # --- PR requirement ---
+    # --- PR review requirement (ADR-0011) ---
+    # ADR-0011 (Option C) intentionally drops required reviews on `main`: the
+    # repo is single-committer and the real merge gate is the `fast-gates`
+    # required status check, not an approval. A NON-ZERO approval requirement is
+    # not "stricter" — it recreates the exact self-approval / admin-bypass
+    # failure mode the ADR eliminates, so it is a hard error (mirrors the
+    # ruleset_no_required_reviews assertion). Absence of a required-review block,
+    # or a block with 0 required approvals, is the EXPECTED baseline.
     pr_reviews = data.get("required_pull_request_reviews")
-    report.add(
-        "require_pull_request",
-        pr_reviews is not None,
-        "PR required before merge." if pr_reviews else "PR requirement is NOT enabled.",
-    )
+    review_count = (pr_reviews or {}).get("required_approving_review_count", 0)
+    if pr_reviews is not None and review_count > 0:
+        report.add(
+            "pull_request_reviews",
+            False,
+            (
+                f"Classic branch protection requires {review_count} approving "
+                "review(s) — recreates the self-approval / admin-bypass failure "
+                "mode ADR-0011 (Option C) eliminates. Set "
+                "required_approving_review_count to 0."
+            ),
+            severity="error",
+        )
+    else:
+        report.add(
+            "pull_request_reviews",
+            True,
+            (
+                "No required reviews — matches ADR-0011 (Option C) single-committer baseline."
+                if pr_reviews is None
+                else "Required-review block present but approval count is 0 — no "
+                "approval gate, matches ADR-0011 baseline."
+            ),
+            severity="warn",
+        )
 
     # --- Required status checks ---
     status_checks = data.get("required_status_checks")
@@ -271,6 +298,11 @@ def _check_rulesets(token: str, report: ProtectionReport) -> None:
     has_non_ff = False
     has_deletion = False
     found_check_contexts: list[str] = []
+    # Highest required-review count seen across any active ruleset PR rule.
+    # ADR-0011 (Option C) mandates this stays 0 on `main`: a non-zero count is
+    # never legitimately satisfiable for a single-committer repo and only
+    # trains the admin-bypass reflex (see ADR-0011 rationale).
+    max_ruleset_review_count = 0
 
     for rs in active:
         rs_id = rs.get("id")
@@ -286,6 +318,11 @@ def _check_rulesets(token: str, report: ProtectionReport) -> None:
             rtype = rule.get("type", "")
             if rtype == "pull_request":
                 has_pr_rule = True
+                review_count = rule.get("parameters", {}).get(
+                    "required_approving_review_count", 0
+                )
+                if isinstance(review_count, int):
+                    max_ruleset_review_count = max(max_ruleset_review_count, review_count)
             elif rtype == "required_status_checks":
                 has_required_checks = True
                 for chk in rule.get("parameters", {}).get("required_status_checks", []):
@@ -301,6 +338,30 @@ def _check_rulesets(token: str, report: ProtectionReport) -> None:
         "ruleset_pr_required",
         has_pr_rule,
         "PR required via ruleset." if has_pr_rule else "No PR requirement in any ruleset.",
+        # Informational, mirroring the classic `pull_request_reviews` check
+        # above. Under ADR-0011 (Option C) the hard merge gate is the
+        # `fast-gates` required status check, not the existence of a
+        # pull_request ruleset rule (which governs squash-only / thread
+        # resolution). Flagging its absence as a hard error would let the
+        # verifier exit 1 even on an otherwise ADR-compliant rulesets-only
+        # setup, so it is reported as a warning for consistency.
+        severity="warn",
+    )
+    # ADR-0011 (Option C): required reviews must stay disabled. A ruleset can
+    # silently re-introduce an approval requirement that the classic-protection
+    # check above cannot see; this is the only place that gap is caught.
+    report.add(
+        "ruleset_no_required_reviews",
+        max_ruleset_review_count == 0,
+        (
+            "No required reviews in any ruleset \u2014 matches ADR-0011 baseline."
+            if max_ruleset_review_count == 0
+            else (
+                f"A ruleset requires {max_ruleset_review_count} approving review(s); "
+                "ADR-0011 (Option C) mandates 0 for this single-committer repo "
+                "(non-zero only trains the admin-bypass reflex)."
+            )
+        ),
     )
     report.add(
         "ruleset_required_checks",
