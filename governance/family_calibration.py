@@ -227,6 +227,86 @@ def walk_forward_calibration(
     return {"walkforward": {"probabilities": oos_probs, "outcomes": oos_outcomes}}
 
 
+def walk_forward_ab(
+    baseline: list[float],
+    candidate: list[float],
+    returns: list[float],
+    anchor_ts: list[float],
+    guard_end_ts: list[float],
+    *,
+    n_folds: int = 5,
+    min_oos: int = MIN_OOS_SAMPLES,
+) -> dict[str, dict[str, list[float]]] | None:
+    """PAIRED purged walk-forward A/B: two arms over an identical fold set.
+
+    Mirrors :func:`walk_forward_calibration` exactly -- same chronological sort,
+    same expanding folds, same GAP-1 purge (train events whose ``guard_end_ts``
+    resolves strictly before the test fold starts) -- but Platt-calibrates BOTH
+    a ``baseline`` series (the v1 score) and a ``candidate`` series (the v2
+    feature) on the SAME purged training events and predicts the SAME test
+    events. A fold contributes its out-of-sample points only when BOTH arms fit
+    on that fold, so the two arms share an identical OOS index set and their
+    Brier / resolution are directly comparable (an unpaired comparison would
+    confound the feature's effect with a differing event sample).
+
+    Returns ``{"baseline": {"probabilities", "outcomes"}, "candidate": {...}}``
+    with identical ``outcomes`` in both arms, or ``None`` (family stays "not yet
+    measured") when the shared out-of-sample count is below ``min_oos``, no fold
+    admits both arms, or inputs are too short. This is a SHADOW measurement: it
+    calibrates nothing into the gate and changes no score.
+    """
+    n = len(baseline)
+    if not (
+        n
+        == len(candidate)
+        == len(returns)
+        == len(anchor_ts)
+        == len(guard_end_ts)
+    ):
+        raise ValueError("walk_forward_ab: input lists length mismatch")
+    if n < min_oos or n < n_folds + 1:
+        return None
+
+    order = sorted(range(n), key=lambda i: anchor_ts[i])
+    base = [baseline[i] for i in order]
+    cand = [candidate[i] for i in order]
+    a = [anchor_ts[i] for i in order]
+    g = [guard_end_ts[i] for i in order]
+    y = [1.0 if returns[i] > 0.0 else 0.0 for i in order]
+
+    val_size = max(1, n // (n_folds + 1))
+    base_probs: list[float] = []
+    cand_probs: list[float] = []
+    oos_outcomes: list[float] = []
+    for k in range(n_folds):
+        val_start = n - (n_folds - k) * val_size
+        val_end = val_start + val_size
+        if val_start <= 0:
+            continue
+        test_start_time = a[val_start]
+        train_idx = [i for i in range(val_start) if g[i] < test_start_time]
+        if len(train_idx) < MIN_TRAIN_SAMPLES:
+            continue
+        train_y = [y[i] for i in train_idx]
+        base_model = _fit_logistic([base[i] for i in train_idx], train_y)
+        cand_model = _fit_logistic([cand[i] for i in train_idx], train_y)
+        # Pairing guard: only emit the fold when BOTH arms calibrate, so the
+        # two OOS index sets stay identical and the delta is unconfounded.
+        if base_model is None or cand_model is None:
+            continue
+        val_range = range(val_start, val_end)
+        base_probs.extend(_predict(base_model, [base[i] for i in val_range]))
+        cand_probs.extend(_predict(cand_model, [cand[i] for i in val_range]))
+        oos_outcomes.extend(y[i] for i in val_range)
+
+    if len(oos_outcomes) < min_oos:
+        return None
+    return {
+        "baseline": {"probabilities": base_probs, "outcomes": oos_outcomes},
+        "candidate": {"probabilities": cand_probs, "outcomes": oos_outcomes},
+    }
+
+
 def partition_live_tail(
     block: dict[str, dict[str, list[float]]],
     *,
@@ -403,6 +483,7 @@ __all__ = [
     "TARGET_TAG",
     "partition_conformal",
     "partition_live_tail",
+    "walk_forward_ab",
     "walk_forward_calibration",
     "walk_forward_psi_trend",
 ]
