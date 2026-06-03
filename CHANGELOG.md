@@ -86,6 +86,86 @@ before any v2 feature may join calibration).
   (`tests/test_family_score_features_v2.py`); the existing adapter/score
   suites stay green.
 
+### Added (2026-06-02) — ADR-0016 pipeline-provenance classes (no-ML pipelines)
+
+Under `strict_provenance` the gate required three caller-declared provenance
+keys that describe an upstream ML-modelling layer — `bootstrap_method` (BCa
+bootstrap), `block_size` (block permutation) and `stacked_used` (stacking
+ensemble). The SMC-direct edge pipeline performs no such modelling (returns
+come straight from events, scores are raw event scores, no ensemble), so those
+three keys describe work that does not exist; declaring them would fabricate
+evidence. The gate therefore held a legitimate no-ML pipeline permanently at
+ADR-0015 tier-1 `inconclusive` on three guards that are *not-applicable*, not
+*unmeasured* (ADR-0016).
+
+- `governance/promotion_gate` adds a `pipeline_class` provenance key and
+  recognised no-ML classes (`NO_ML_PIPELINE_CLASSES`, initially
+  `smc_direct_no_ml`). When a family declares such a class the three
+  `ML_MODELLING_PROVENANCE_KEYS` are treated as not-applicable: their absence
+  emits no blocker and does not fail `ok_provenance`.
+- The waiver is conditional, never a global relaxation: an absent or unknown
+  `pipeline_class` grants no waiver, and the pipeline-agnostic keys
+  (`wf_scheme`, `wf_embargo_bars`, `psr_method`) stay required for every class.
+  `conformal_coverage` is unchanged — it is computed on the OOS pairs and
+  remains an applicable, measured guard.
+- `governance/family_returns.to_build_spec` declares
+  `pipeline_class = "smc_direct_no_ml"` on every family it builds, so the
+  classification flows end-to-end into the gate snapshot.
+- New tests pin the waiver, the unknown-class non-waiver, the
+  pipeline-agnostic keys staying required, conformal staying required, and the
+  producer declaration (`tests/test_promotion_gate.py`,
+  `tests/test_family_returns.py`). See `docs/adr/0016-pipeline-provenance-classes.md`.
+
+### Added (2026-06-02) — ADR-0018 split-conformal coverage from walk-forward OOS
+
+The promotion gate's `conformal_coverage` check could never evaluate: the
+SMC-direct producer never emitted a `conformal` block, so coverage was always
+"not yet measured" and the guard held every family at ADR-0015 tier-1
+`inconclusive` (see ADR-0018).
+
+- `governance/family_calibration.partition_conformal` splits the pooled
+  chronological walk-forward OOS pairs at `CONFORMAL_CALIBRATION_FRACTION`
+  (0.5): the earlier half calibrates the split-conformal (Vovk) conformity
+  quantile, the held-out later half measures empirical marginal coverage
+  against the `1 - alpha` guarantee (`CONFORMAL_ALPHA` = 0.1 -> 90% target).
+- The block is emitted ONLY when both sides clear `CONFORMAL_MIN_SIDE`
+  (= `MIN_OOS_SAMPLES`, 40), i.e. the pool holds at least 80 OOS pairs. Below
+  that no block is emitted and `conformal_coverage` stays honestly unmeasured.
+- `governance/family_returns.to_build_spec` computes the conformal split from
+  the full pooled block (independent view of the ADR-0017 live surrogate) and
+  tags it with audit-only provenance `ev26_conformal_source`. The producer's
+  existing `_conformal_slice` then measures `conformal_coverage` /
+  `conformal_target`, enabling the gate check to evaluate.
+- Honesty preserved: a low-resolution score yields wide prediction sets, so
+  coverage is high by design (certifies set calibration, NOT discrimination).
+  A family can clear `conformal_coverage` and still fail the tier-2 Brier bar;
+  this removes only the "not yet measured" info-block and never promotes a
+  family on its own.
+
+### Added (2026-06-02) — ADR-0017 live-incubation surrogate for `live_vs_wf_ratio`
+
+In an offline backtest there is no real live feed, so `live_brier` was always
+"not yet measured" and the `live_vs_wf_ratio` drift check could never evaluate
+— it info-blocked every family indefinitely (see ADR-0017).
+
+- `governance/family_calibration.partition_live_tail` splits a pooled
+  walk-forward block into `{walkforward (older remainder), live (most-recent
+  tail)}`. The pooled out-of-sample pairs are chronological, so the last
+  `LIVE_TAIL_MIN_SAMPLES` (= 20) pairs are DECLARED the live-incubation
+  surrogate; the older remainder is the walk-forward reference.
+- The split is emitted ONLY when the pool stays adequately powered on both
+  sides (`len >= LIVE_TAIL_MIN_SAMPLES + MIN_OOS_SAMPLES`). Below that the full
+  pooled block is kept and `live_brier` stays honestly unmeasured rather than
+  splitting a small sample into two noisy halves.
+- `governance/family_returns.to_build_spec` wires the split in after
+  `walk_forward_calibration` and tags it with audit-only provenance
+  `ev25_live_source` (`LIVE_SOURCE_TAG`). The producer's existing `live`
+  consumer (`scripts/build_family_metrics._calibration_slice`) then measures
+  `live_brier`, enabling the `live_vs_wf_ratio` gate check to evaluate.
+- Honesty preserved: the live tail is intentionally small, so the resulting
+  ratio is a coarse drift alarm, not a precise threshold; it removes only the
+  "not yet measured" info-block and never promotes a family on its own.
+
 ### Changed (2026-06-02) — EV-08 verdict adopts the ADR-0015 two-tier taxonomy (`risk_sizeable`)
 
 `governance/family_verdict` previously fused "has an edge" with "is calibrated
@@ -210,10 +290,12 @@ measured, monotonic (block-only) gate input. See
   `ev24_psi_trend_source = ev24_fixed_reference_calibrator_chronological_windows_v1`,
   flowing through `build_bundle` → `build_family_metrics` → measured
   `psi_slope` (+ `psi_trend_method` provenance).
-- **EV#7 (regime-conditional degradation) is explicitly DEFERRED** — the
-  edge-pipeline family-event path carries no per-event regime label, so the
-  rule cannot be measured without a new regime-classifier producer. No
-  fabrication; the slot stays "not yet measured". Documented in ADR-0014.
+- **EV#7 (regime-conditional degradation) is now implemented** in this same
+  release — see the EV#7 entry above. It derives a per-event regime label
+  from the bars the event already reads (Kaufman Efficiency Ratio), so the
+  C5.1 `regime_degraded` slot is measured without a new external producer.
+  This supersedes the earlier "explicitly DEFERRED" plan recorded in
+  ADR-0014.
 - Tests: producer abstention/validity/drift-detection in
   `tests/test_family_calibration.py`; end-to-end spec→bundle wiring in
   `tests/test_family_returns.py`.
