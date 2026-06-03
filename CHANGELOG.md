@@ -21,6 +21,29 @@ Recorded in `docs/governance/resolution_feature_gap_analysis.md` §5, which
 confirms the un-tapped lever is order-flow/volume and names the producer
 volume-plumbing as the next workstream.
 
+### Fixed (2026-06-03) — ADR-0019: EV-20 producer now carries `open` + `volume` per bar
+
+The real-data edge-input producer
+(`scripts/pull_databento_edge_input._resampled_bars_payload`) emitted only
+`timestamp/high/low/close` per resampled bar, silently dropping the `open`
+(first) and `volume` (sum) columns the resampler already aggregates. That
+starved every ADR-0019 order-flow candidate of its only input:
+`governance.family_score_features_v2.relative_volume_at` (and the planned
+Amihud illiquidity proxy) honestly returned `None` on every bar, so the
+order-flow axis could never be A/B-tested on real data — the one axis the
+resolution feature-gap analysis pins as the largest un-tapped signal.
+
+- `_resampled_bars_payload` now emits the full OHLCV bar
+  (`open/high/low/close/volume`), still byte-aligned with
+  `_prepare_symbol_resampled_bars` so the pipeline's anchor/lookahead
+  arithmetic is unchanged.
+- Extended `tests/test_pull_databento_edge_input.py` to assert the bar key set
+  is `{timestamp, open, high, low, close, volume}` and that the emitted `open`
+  and `volume` match the resampled frame exactly.
+- Point-in-time and leak-free by construction (volume is the bar's own
+  aggregate). Unblocks the pre-registered `relative_volume` A/B; the v1
+  `score`, `SCORE_SOURCE`, and the promotion gate are untouched.
+
 ### Removed (2026-06-03) — ADR-0019: retire the Williams VIX Fix candidate (no lift)
 
 The `williams_vix_fix` candidate (Larry Williams' public-domain "VIX Fix", a
