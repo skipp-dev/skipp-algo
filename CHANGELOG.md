@@ -176,10 +176,12 @@ measured, monotonic (block-only) gate input. See
   `ev24_psi_trend_source = ev24_fixed_reference_calibrator_chronological_windows_v1`,
   flowing through `build_bundle` → `build_family_metrics` → measured
   `psi_slope` (+ `psi_trend_method` provenance).
-- **EV#7 (regime-conditional degradation) is explicitly DEFERRED** — the
-  edge-pipeline family-event path carries no per-event regime label, so the
-  rule cannot be measured without a new regime-classifier producer. No
-  fabrication; the slot stays "not yet measured". Documented in ADR-0014.
+- **EV#7 (regime-conditional degradation) is now implemented** in this same
+  release — see the EV#7 entry above. It derives a per-event regime label
+  from the bars the event already reads (Kaufman Efficiency Ratio), so the
+  C5.1 `regime_degraded` slot is measured without a new external producer.
+  This supersedes the earlier "explicitly DEFERRED" plan recorded in
+  ADR-0014.
 - Tests: producer abstention/validity/drift-detection in
   `tests/test_family_calibration.py`; end-to-end spec→bundle wiring in
   `tests/test_family_returns.py`.
