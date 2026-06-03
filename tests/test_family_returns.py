@@ -148,6 +148,22 @@ def test_to_build_spec_feeds_real_psr() -> None:
         assert m["brier"] is None
 
 
+def test_to_build_spec_declares_smc_direct_no_ml_pipeline_class() -> None:
+    # ADR-0016: this producer builds SMC-direct families, so it declares the
+    # no-ML pipeline class on every family and it flows through to the bundle.
+    from governance.promotion_gate import PIPELINE_CLASS_KEY, SMC_DIRECT_NO_ML
+    from scripts.build_family_metrics import build_bundle
+
+    events: list[FamilyEvent] = []
+    for i in range(60):
+        events.append(_long_event("BOS", anchor_ts=float(i + 1), step=0.3))
+
+    spec = to_build_spec(events, periods_per_year=252, as_of=10_000.0)
+    assert spec["families"]["BOS"]["provenance"][PIPELINE_CLASS_KEY] == SMC_DIRECT_NO_ML
+    bundle = build_bundle(spec)
+    assert bundle[0]["provenance"][PIPELINE_CLASS_KEY] == SMC_DIRECT_NO_ML
+
+
 def test_default_cost_is_applied() -> None:
     ev = _long_event(rising=True)
     with_default = realized_return(ev)
