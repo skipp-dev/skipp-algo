@@ -48,6 +48,27 @@ REQUIRED_PROVENANCE_KEYS = (
     "stacked_used",
 )
 
+# ADR-0016: the three provenance keys that describe an upstream ML-modelling
+# layer (BCa bootstrap, block permutation, stacking ensemble). A pipeline that
+# performs no such modelling -- an SMC-direct "no-ML" pipeline whose returns
+# come straight from events and whose scores are raw event scores -- legitimately
+# cannot declare them; for such a class they are NOT-APPLICABLE rather than
+# not-declared. The remaining required keys (wf_scheme, wf_embargo_bars,
+# psr_method) are pipeline-agnostic and stay required for every class.
+ML_MODELLING_PROVENANCE_KEYS = frozenset({
+    "bootstrap_method",
+    "block_size",
+    "stacked_used",
+})
+
+# ADR-0016: provenance key by which a family declares its pipeline class, and
+# the recognised no-ML classes that waive ML_MODELLING_PROVENANCE_KEYS. The
+# waiver is conditional: an absent or UNKNOWN pipeline_class grants no waiver,
+# so the keys cannot be dropped by declaring an arbitrary string.
+PIPELINE_CLASS_KEY = "pipeline_class"
+SMC_DIRECT_NO_ML = "smc_direct_no_ml"
+NO_ML_PIPELINE_CLASSES = frozenset({SMC_DIRECT_NO_ML})
+
 # Default thresholds mirrored here for aggregation only.
 # The source of truth for each threshold is the originating sprint's
 # module and/or sprint-plan document that introduced the check; the
@@ -577,16 +598,31 @@ class PromotionGate:
         # Required provenance keys. Only enforced in strict mode; in lax
         # mode the keys are surfaced verbatim into Decision.provenance.
         if t.strict_provenance:
+            # ADR-0016: a recognised no-ML pipeline class waives the
+            # ML-modelling keys (they are not-applicable, not missing). An
+            # absent or unknown class grants no waiver.
+            no_ml_class = provenance_out.get(PIPELINE_CLASS_KEY) in NO_ML_PIPELINE_CLASSES
+
+            def _required(key: str) -> bool:
+                # ADR-0016: ML-modelling keys are not-applicable (not required)
+                # for a declared no-ML pipeline class; all other keys stay
+                # required for every class.
+                return not (no_ml_class and key in ML_MODELLING_PROVENANCE_KEYS)
+
             for key in REQUIRED_PROVENANCE_KEYS:
-                if key not in provenance_out:
-                    blockers.append({
-                        "check": f"provenance.{key}",
-                        "severity": "info",
-                        "observed": None,
-                        "threshold": 0.0,
-                        "message": f"provenance.{key} not declared",
-                    })
-            ok_provenance = all(key in provenance_out for key in REQUIRED_PROVENANCE_KEYS)
+                if key in provenance_out or not _required(key):
+                    continue
+                blockers.append({
+                    "check": f"provenance.{key}",
+                    "severity": "info",
+                    "observed": None,
+                    "threshold": 0.0,
+                    "message": f"provenance.{key} not declared",
+                })
+            ok_provenance = all(
+                key in provenance_out or not _required(key)
+                for key in REQUIRED_PROVENANCE_KEYS
+            )
         else:
             ok_provenance = True
 
@@ -636,8 +672,12 @@ __all__ = [
     "DEFAULT_BRIER_CI_UPPER_MAX",
     "DEFAULT_CONFORMAL_COVERAGE_TOLERANCE",
     "DEFAULT_PSI_SLOPE_MAX",
+    "ML_MODELLING_PROVENANCE_KEYS",
+    "NO_ML_PIPELINE_CLASSES",
+    "PIPELINE_CLASS_KEY",
+    "REQUIRED_PROVENANCE_KEYS",
+    "SMC_DIRECT_NO_ML",
     "FamilyMetrics",
     "GateThresholds",
     "PromotionGate",
-    "REQUIRED_PROVENANCE_KEYS",
 ]

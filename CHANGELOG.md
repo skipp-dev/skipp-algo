@@ -52,6 +52,36 @@ before any v2 feature may join calibration).
   (`tests/test_family_score_features_v2.py`); the existing adapter/score
   suites stay green.
 
+### Added (2026-06-02) — ADR-0016 pipeline-provenance classes (no-ML pipelines)
+
+Under `strict_provenance` the gate required three caller-declared provenance
+keys that describe an upstream ML-modelling layer — `bootstrap_method` (BCa
+bootstrap), `block_size` (block permutation) and `stacked_used` (stacking
+ensemble). The SMC-direct edge pipeline performs no such modelling (returns
+come straight from events, scores are raw event scores, no ensemble), so those
+three keys describe work that does not exist; declaring them would fabricate
+evidence. The gate therefore held a legitimate no-ML pipeline permanently at
+ADR-0015 tier-1 `inconclusive` on three guards that are *not-applicable*, not
+*unmeasured* (ADR-0016).
+
+- `governance/promotion_gate` adds a `pipeline_class` provenance key and
+  recognised no-ML classes (`NO_ML_PIPELINE_CLASSES`, initially
+  `smc_direct_no_ml`). When a family declares such a class the three
+  `ML_MODELLING_PROVENANCE_KEYS` are treated as not-applicable: their absence
+  emits no blocker and does not fail `ok_provenance`.
+- The waiver is conditional, never a global relaxation: an absent or unknown
+  `pipeline_class` grants no waiver, and the pipeline-agnostic keys
+  (`wf_scheme`, `wf_embargo_bars`, `psr_method`) stay required for every class.
+  `conformal_coverage` is unchanged — it is computed on the OOS pairs and
+  remains an applicable, measured guard.
+- `governance/family_returns.to_build_spec` declares
+  `pipeline_class = "smc_direct_no_ml"` on every family it builds, so the
+  classification flows end-to-end into the gate snapshot.
+- New tests pin the waiver, the unknown-class non-waiver, the
+  pipeline-agnostic keys staying required, conformal staying required, and the
+  producer declaration (`tests/test_promotion_gate.py`,
+  `tests/test_family_returns.py`). See `docs/adr/0016-pipeline-provenance-classes.md`.
+
 ### Changed (2026-06-02) — EV-08 verdict adopts the ADR-0015 two-tier taxonomy (`risk_sizeable`)
 
 `governance/family_verdict` previously fused "has an edge" with "is calibrated
@@ -176,10 +206,12 @@ measured, monotonic (block-only) gate input. See
   `ev24_psi_trend_source = ev24_fixed_reference_calibrator_chronological_windows_v1`,
   flowing through `build_bundle` → `build_family_metrics` → measured
   `psi_slope` (+ `psi_trend_method` provenance).
-- **EV#7 (regime-conditional degradation) is explicitly DEFERRED** — the
-  edge-pipeline family-event path carries no per-event regime label, so the
-  rule cannot be measured without a new regime-classifier producer. No
-  fabrication; the slot stays "not yet measured". Documented in ADR-0014.
+- **EV#7 (regime-conditional degradation) is now implemented** in this same
+  release — see the EV#7 entry above. It derives a per-event regime label
+  from the bars the event already reads (Kaufman Efficiency Ratio), so the
+  C5.1 `regime_degraded` slot is measured without a new external producer.
+  This supersedes the earlier "explicitly DEFERRED" plan recorded in
+  ADR-0014.
 - Tests: producer abstention/validity/drift-detection in
   `tests/test_family_calibration.py`; end-to-end spec→bundle wiring in
   `tests/test_family_returns.py`.

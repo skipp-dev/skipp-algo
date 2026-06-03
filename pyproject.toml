@@ -234,6 +234,7 @@ omit = [
     "scripts/regenerate_requirements_lock.py",
     "scripts/scan_manifests_for_pytest_provenance.py",
     "scripts/start_open_prep_suite.py",
+    "scripts/ev20_resolution_cost_audit.py",
 ]
 
 [tool.coverage.report]

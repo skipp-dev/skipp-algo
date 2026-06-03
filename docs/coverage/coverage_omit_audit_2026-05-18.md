@@ -76,6 +76,7 @@ audit in the same PR.
 | `scripts/regenerate_requirements_lock.py` | standalone-cli | main repair, 2026-05-20 | skipp-dev | Manual requirements lock regeneration helper; not part of product runtime. | Keep unless lock generation becomes a tested release gate. |
 | `scripts/scan_manifests_for_pytest_provenance.py` | standalone-cli | main repair, 2026-05-20 | skipp-dev | Workflow/maintenance scan CLI; current assurance is policy-level rather than branch coverage. | Keep unless the scanner grows business logic worth direct tests. |
 | `scripts/start_open_prep_suite.py` | standalone-cli | main repair, 2026-05-20 | skipp-dev | Suite/bootstrap runner wrapper, manually invoked orchestration surface. | Keep while downstream behavior remains covered elsewhere. |
+| `scripts/ev20_resolution_cost_audit.py` | standalone-cli | EV-20 audit, 2026-06-02 | skipp-dev | Operator diagnostic that derives the Brier resolution band and PSR benchmark reconstruction from archived promotion-decision JSONs; not imported by production modules. | Add tests if the audit output becomes a gate input or contract artifact. |
 
 ## Follow-up rule
 
