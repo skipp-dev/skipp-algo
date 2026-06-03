@@ -5,10 +5,14 @@ from __future__ import annotations
 import random
 
 from governance.family_calibration import (
+    CONFORMAL_MIN_SIDE,
+    LIVE_TAIL_MIN_SAMPLES,
     MIN_OOS_SAMPLES,
     PSI_TREND_MIN_WINDOWS,
     _fit_logistic,
     _predict,
+    partition_conformal,
+    partition_live_tail,
     walk_forward_calibration,
     walk_forward_psi_trend,
 )
@@ -90,6 +94,97 @@ def test_overlapping_label_purge_removes_leaking_train_events() -> None:
     # Same data, non-overlapping guard windows -> a block IS produced.
     tight_guard = [ts + 1.0 for ts in a]
     assert walk_forward_calibration(s, r, a, tight_guard) is not None
+
+
+# ---------------------------------------------------------------------------
+# ADR-0017 / EV-25: live-incubation surrogate (partition_live_tail).
+# ---------------------------------------------------------------------------
+
+
+def _pooled_block(n: int) -> dict[str, dict[str, list[float]]]:
+    """A synthetic pooled walk-forward block with ``n`` chronological pairs.
+
+    The probabilities ramp 0..1 so the live tail (the last entries) is the
+    distinct, most-recent slice -- this lets the split math be asserted exactly.
+    """
+    probs = [i / (n - 1) for i in range(n)]
+    outcomes = [float(i % 2) for i in range(n)]
+    return {"walkforward": {"probabilities": probs, "outcomes": outcomes}}
+
+
+def test_partition_live_tail_splits_recent_tail_as_live() -> None:
+    n = LIVE_TAIL_MIN_SAMPLES + MIN_OOS_SAMPLES + 7
+    block = _pooled_block(n)
+    split = partition_live_tail(block)
+    assert split is not None
+    wf = split["walkforward"]
+    live = split["live"]
+    # Live holds exactly the LIVE_TAIL_MIN_SAMPLES most-recent (highest) pairs.
+    assert len(live["probabilities"]) == LIVE_TAIL_MIN_SAMPLES
+    assert len(wf["probabilities"]) == n - LIVE_TAIL_MIN_SAMPLES
+    cut = n - LIVE_TAIL_MIN_SAMPLES
+    assert live["probabilities"] == block["walkforward"]["probabilities"][cut:]
+    assert wf["probabilities"] == block["walkforward"]["probabilities"][:cut]
+    assert live["outcomes"] == block["walkforward"]["outcomes"][cut:]
+    # No pair is lost or duplicated across the split.
+    assert len(wf["probabilities"]) + len(live["probabilities"]) == n
+
+
+def test_partition_live_tail_none_when_pool_too_small() -> None:
+    # One pair short of the combined floor -> no split, caller keeps full pool.
+    n = LIVE_TAIL_MIN_SAMPLES + MIN_OOS_SAMPLES - 1
+    assert partition_live_tail(_pooled_block(n)) is None
+
+
+def test_partition_live_tail_keeps_walkforward_above_oos_floor() -> None:
+    n = LIVE_TAIL_MIN_SAMPLES + MIN_OOS_SAMPLES
+    split = partition_live_tail(_pooled_block(n))
+    assert split is not None
+    assert len(split["walkforward"]["probabilities"]) >= MIN_OOS_SAMPLES
+
+
+def test_partition_live_tail_none_for_missing_walkforward() -> None:
+    assert partition_live_tail({}) is None
+
+
+# ---------------------------------------------------------------------------
+# ADR-0018 / EV-26: split-conformal coverage (partition_conformal).
+# ---------------------------------------------------------------------------
+
+
+def test_partition_conformal_splits_pool_into_calibration_and_test() -> None:
+    n = 2 * CONFORMAL_MIN_SIDE + 11
+    block = _pooled_block(n)
+    conf = partition_conformal(block)
+    assert conf is not None
+    assert 0.0 < conf["alpha"] < 1.0
+    cal = conf["calibration"]
+    test = conf["test"]
+    cut = int(n * 0.5)
+    # Earlier half calibrates, later half is the held-out coverage test.
+    assert cal["probabilities"] == block["walkforward"]["probabilities"][:cut]
+    assert test["probabilities"] == block["walkforward"]["probabilities"][cut:]
+    assert cal["outcomes"] == block["walkforward"]["outcomes"][:cut]
+    # No pair is lost or duplicated across the split.
+    assert len(cal["probabilities"]) + len(test["probabilities"]) == n
+
+
+def test_partition_conformal_both_sides_clear_min_side() -> None:
+    n = 2 * CONFORMAL_MIN_SIDE
+    conf = partition_conformal(_pooled_block(n))
+    assert conf is not None
+    assert len(conf["calibration"]["probabilities"]) >= CONFORMAL_MIN_SIDE
+    assert len(conf["test"]["probabilities"]) >= CONFORMAL_MIN_SIDE
+
+
+def test_partition_conformal_none_when_a_side_underpowered() -> None:
+    # One pair short of two full sides -> the test half drops below min_side.
+    n = 2 * CONFORMAL_MIN_SIDE - 1
+    assert partition_conformal(_pooled_block(n)) is None
+
+
+def test_partition_conformal_none_for_missing_walkforward() -> None:
+    assert partition_conformal({}) is None
 
 
 # ---------------------------------------------------------------------------
