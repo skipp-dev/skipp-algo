@@ -66,10 +66,17 @@ def test_workflow_supports_manual_dispatch(workflow: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Concurrency (F-V5-C2). The F-V6-F2.1 live-window marker pin is added
-# by the freshness-monitor follow-up PR once #2449 lands the marker on
-# main — pinning it here pre-merge would just block this PR on that one.
+# Concurrency (F-V5-C2) + F-V6-F2.1 live-window marker.
 # ---------------------------------------------------------------------------
+
+
+def test_live_window_marker_present(workflow_text: str) -> None:
+    """F-V6-F2.1: top-of-file marker MUST be present in the first 10 lines."""
+    head = "\n".join(workflow_text.splitlines()[:10])
+    assert "# live-window:" in head, (
+        "workflow-freshness-monitor.yml MUST declare the F-V6-F2.1 live-window "
+        "marker in the first 10 lines (was removed/relocated?)."
+    )
 
 
 def test_concurrency_does_not_cancel_in_progress(workflow: dict) -> None:

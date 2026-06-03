@@ -6,6 +6,76 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-02) — ADR-0019 step 2: record the order-flow feature for the A/B
+
+Builds on step 1 (the `relative_volume_at` extractor). Captures the candidate
+feature on every real event and pairs it with outcomes, so the pre-registered
+purged walk-forward A/B (ADR-0019) has the per-event `(feature, outcome)` data
+it needs — still **without** touching the v1 score, `SCORE_SOURCE`, or the gate.
+
+- `governance/family_event_adapter` now records an optional `relative_volume`
+  on each `FamilyEvent` (mirroring how `score` / `regime` are attached),
+  computed leak-free from the trailing bars and omitted when volume is absent.
+- New optional `FamilyEvent` field `relative_volume` (recorded only — not a
+  calibration input, not a gate input).
+- New pure `governance/family_returns.extract_family_feature_samples`: per
+  family, collects the recorded feature paired with the binary sign-of-return
+  `outcomes` label (the same target `family_calibration` grades the v1 score
+  on) plus `anchor_ts`. Measurement groundwork for the A/B; it does not
+  calibrate, score, or gate anything.
+- 5 new tests pin the recording and extraction semantics
+  (`tests/test_family_relative_volume_recording.py`); existing adapter/score
+  suites stay green.
+
+### Added (2026-06-02) — ADR-0019 step 1: point-in-time order-flow extractor (family score v2)
+
+The verified resolution feature-gap analysis
+(`docs/governance/resolution_feature_gap_analysis.md`) found the v1 per-family
+score is pure geometry and that the largest un-tapped resolution lever is
+**order-flow / volume** — available in the data but dropped at the governance
+boundary. This lands the first ADR-0019 v2 candidate feature as a pure,
+leak-free extractor, **without** touching the v1 score or the promotion gate
+(ADR-0019 mandates a shadow-first, pre-registered purged walk-forward A/B
+before any v2 feature may join calibration).
+
+- New `governance/family_score_features_v2.relative_volume_at`: the formation
+  (anchor) bar's volume divided by its trailing `ATR_PERIOD`-bar mean volume —
+  an institutional-footprint proxy from ADR-0019's tier-1 hierarchy that needs
+  no trade-side data. Strictly point-in-time (baseline reads only bars before
+  the anchor), with honest omitted-not-zero-filled semantics
+  (`RELATIVE_VOLUME_SOURCE = "orderflow_relative_volume_v2"`).
+- `governance/family_event_adapter.BarRow` gains an optional `volume` field
+  (additive, `total=False`): bars without it stay fully supported and the v2
+  feature is simply reported as absent. No v1 score, regime, or gate behaviour
+  changes.
+- 11 new tests pin the ratio, leak-freedom, and absent-feature semantics
+  (`tests/test_family_score_features_v2.py`); the existing adapter/score
+  suites stay green.
+
+### Changed (2026-06-02) — EV-08 verdict adopts the ADR-0015 two-tier taxonomy (`risk_sizeable`)
+
+`governance/family_verdict` previously fused "has an edge" with "is calibrated
+for sizing": a family the gate blocked solely on the calibration checks
+(`brier_threshold` / `brier_ci_upper` / `ece_threshold`) was reported as
+`no_edge`, letting a documented `sign_return_secondary_diagnostic` veto the
+primary PSR edge proof (see ADR-0015).
+
+- `edge_supported` (tier 1) is now keyed on the **edge** evidence only —
+  primary metric measured, sample adequate, no edge-failure blocker, and the
+  integrity/provenance guards measured and clear. Calibration blockers no
+  longer gate it.
+- New boolean field `risk_sizeable` (tier 2, strictly stronger) is tier 1
+  **plus** the calibration checks cleared — i.e. the gate's full `promoted`
+  decision on a measured, adequately-powered family. `build_verdict_report`
+  gains a top-level `risk_sizeable_count`.
+- Honesty preserved: when the edge metrics are strong but an integrity guard
+  is merely *unmeasured* (strict-provenance `info`), the verdict is
+  `inconclusive` — never an over-claimed `no_edge`. No threshold is changed;
+  the calibration checks are mapped to the tier they evidence (sizing).
+- 6 new tests pin the tier mapping (`tests/test_family_verdict.py`); the
+  `tests/test_verdict_panel.py` end-to-end fixture now carries a realistic
+  `psr_minimum` edge blocker for its `no_edge` assertion.
+
 ### Added (2026-06-02) — EV-20 time-basis diagnostic: observed events-per-year cadence
 
 The per-family return series the edge pipeline scores is **event-driven** (one
@@ -26,7 +96,7 @@ true event cadence is several hundred per year, any annualized Sharpe read off a
   annualized Sharpe in the decision JSON can now be re-annualized on its true
   cadence without touching promotion semantics.
 
-
+### Added (2026-06-02) — promotion-gate archives carry per-symbol run context (REPORT_SCHEMA_VERSION 2)
 
 The `edge-pipeline-real-run` workflow archives one promotion-decisions report
 **per symbol** into `governance/promotion_decisions/`, but neither the filename
@@ -106,10 +176,12 @@ measured, monotonic (block-only) gate input. See
   `ev24_psi_trend_source = ev24_fixed_reference_calibrator_chronological_windows_v1`,
   flowing through `build_bundle` → `build_family_metrics` → measured
   `psi_slope` (+ `psi_trend_method` provenance).
-- **EV#7 (regime-conditional degradation) is explicitly DEFERRED** — the
-  edge-pipeline family-event path carries no per-event regime label, so the
-  rule cannot be measured without a new regime-classifier producer. No
-  fabrication; the slot stays "not yet measured". Documented in ADR-0014.
+- **EV#7 (regime-conditional degradation) is now implemented** in this same
+  release — see the EV#7 entry above. It derives a per-event regime label
+  from the bars the event already reads (Kaufman Efficiency Ratio), so the
+  C5.1 `regime_degraded` slot is measured without a new external producer.
+  This supersedes the earlier "explicitly DEFERRED" plan recorded in
+  ADR-0014.
 - Tests: producer abstention/validity/drift-detection in
   `tests/test_family_calibration.py`; end-to-end spec→bundle wiring in
   `tests/test_family_returns.py`.
