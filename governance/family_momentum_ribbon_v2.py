@@ -224,14 +224,15 @@ def ribbon_stack_state_at(
       * ``0``  -- mixed / interleaved (no clean ordering).
 
     Returns ``None`` when the ribbon itself is absent (see
-    :func:`ribbon_values_at`). The fully-stacked states are the documented
-    high-conviction trend regimes; ``0`` is the ambiguous regime the discrete
-    feature would treat as no-signal.
+    :func:`ribbon_values_at`) or carries fewer than two lines (no pair to
+    order). The fully-stacked states are the documented high-conviction trend
+    regimes; ``0`` is the ambiguous regime the discrete feature would treat as
+    no-signal.
     """
     values = ribbon_values_at(
         bars, anchor_idx, lengths=lengths, smooth_period=smooth_period
     )
-    if values is None:
+    if values is None or len(values) < 2:
         return None
     if all(a > b for a, b in itertools.pairwise(values)):
         return 1

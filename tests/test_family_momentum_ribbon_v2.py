@@ -175,6 +175,14 @@ def test_stack_state_none_for_short_history() -> None:
     assert ribbon_stack_state_at(bars, 9) is None
 
 
+def test_stack_state_none_for_single_line() -> None:
+    # A one-line ribbon has no pair to order, so there is no meaningful stack;
+    # it must return None (consistent with ribbon_stack_score_at), never a
+    # vacuously-true bull stack from all() over an empty pairwise iterator.
+    bars = _bars([float(i) for i in range(80)])
+    assert ribbon_stack_state_at(bars, 70, lengths=(5,)) is None
+
+
 def test_stack_state_in_allowed_set() -> None:
     bars = _bars([float(i % 11) * 2.0 for i in range(90)])
     state = ribbon_stack_state_at(bars, 80)
@@ -239,7 +247,7 @@ def test_stack_score_does_not_telescope() -> None:
 # provenance / defaults                                                       #
 # --------------------------------------------------------------------------- #
 def test_source_tag_is_versioned_v2() -> None:
-    assert MOMENTUM_RIBBON_SOURCE.endswith("_v2")
+    assert MOMENTUM_RIBBON_SOURCE == "momentum_usi_ribbon_v2"
 
 
 def test_default_lengths_are_sorted_ascending() -> None:
