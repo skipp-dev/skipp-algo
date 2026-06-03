@@ -82,6 +82,56 @@ ADR-0015 tier-1 `inconclusive` on three guards that are *not-applicable*, not
   producer declaration (`tests/test_promotion_gate.py`,
   `tests/test_family_returns.py`). See `docs/adr/0016-pipeline-provenance-classes.md`.
 
+### Added (2026-06-02) — ADR-0018 split-conformal coverage from walk-forward OOS
+
+The promotion gate's `conformal_coverage` check could never evaluate: the
+SMC-direct producer never emitted a `conformal` block, so coverage was always
+"not yet measured" and the guard held every family at ADR-0015 tier-1
+`inconclusive` (see ADR-0018).
+
+- `governance/family_calibration.partition_conformal` splits the pooled
+  chronological walk-forward OOS pairs at `CONFORMAL_CALIBRATION_FRACTION`
+  (0.5): the earlier half calibrates the split-conformal (Vovk) conformity
+  quantile, the held-out later half measures empirical marginal coverage
+  against the `1 - alpha` guarantee (`CONFORMAL_ALPHA` = 0.1 -> 90% target).
+- The block is emitted ONLY when both sides clear `CONFORMAL_MIN_SIDE`
+  (= `MIN_OOS_SAMPLES`, 40), i.e. the pool holds at least 80 OOS pairs. Below
+  that no block is emitted and `conformal_coverage` stays honestly unmeasured.
+- `governance/family_returns.to_build_spec` computes the conformal split from
+  the full pooled block (independent view of the ADR-0017 live surrogate) and
+  tags it with audit-only provenance `ev26_conformal_source`. The producer's
+  existing `_conformal_slice` then measures `conformal_coverage` /
+  `conformal_target`, enabling the gate check to evaluate.
+- Honesty preserved: a low-resolution score yields wide prediction sets, so
+  coverage is high by design (certifies set calibration, NOT discrimination).
+  A family can clear `conformal_coverage` and still fail the tier-2 Brier bar;
+  this removes only the "not yet measured" info-block and never promotes a
+  family on its own.
+
+### Added (2026-06-02) — ADR-0017 live-incubation surrogate for `live_vs_wf_ratio`
+
+In an offline backtest there is no real live feed, so `live_brier` was always
+"not yet measured" and the `live_vs_wf_ratio` drift check could never evaluate
+— it info-blocked every family indefinitely (see ADR-0017).
+
+- `governance/family_calibration.partition_live_tail` splits a pooled
+  walk-forward block into `{walkforward (older remainder), live (most-recent
+  tail)}`. The pooled out-of-sample pairs are chronological, so the last
+  `LIVE_TAIL_MIN_SAMPLES` (= 20) pairs are DECLARED the live-incubation
+  surrogate; the older remainder is the walk-forward reference.
+- The split is emitted ONLY when the pool stays adequately powered on both
+  sides (`len >= LIVE_TAIL_MIN_SAMPLES + MIN_OOS_SAMPLES`). Below that the full
+  pooled block is kept and `live_brier` stays honestly unmeasured rather than
+  splitting a small sample into two noisy halves.
+- `governance/family_returns.to_build_spec` wires the split in after
+  `walk_forward_calibration` and tags it with audit-only provenance
+  `ev25_live_source` (`LIVE_SOURCE_TAG`). The producer's existing `live`
+  consumer (`scripts/build_family_metrics._calibration_slice`) then measures
+  `live_brier`, enabling the `live_vs_wf_ratio` gate check to evaluate.
+- Honesty preserved: the live tail is intentionally small, so the resulting
+  ratio is a coarse drift alarm, not a precise threshold; it removes only the
+  "not yet measured" info-block and never promotes a family on its own.
+
 ### Changed (2026-06-02) — EV-08 verdict adopts the ADR-0015 two-tier taxonomy (`risk_sizeable`)
 
 `governance/family_verdict` previously fused "has an edge" with "is calibrated
