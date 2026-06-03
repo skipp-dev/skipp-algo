@@ -1,11 +1,10 @@
 """ADR-0019 paired A/B driver: does a recorded candidate feature lift resolution?
 
-This is the on-ramp that the harness (#2528, ``governance.family_returns`` +
-``governance.family_feature_ab``) and the candidate feature (#2534,
-``governance.family_momentum_ribbon_v2`` wired into
-``governance.family_event_adapter``) were missing: a single command that turns
-recorded :class:`~governance.family_returns.FamilyEvent` records into a
-per-family pre-registered purged walk-forward A/B verdict.
+This is the on-ramp on top of the harness (#2528, ``governance.family_returns``
++ ``governance.family_feature_ab``): a single command that turns recorded
+:class:`~governance.family_returns.FamilyEvent` records into a per-family
+pre-registered purged walk-forward A/B verdict for any feature the adapter
+records (e.g. ``relative_volume``).
 
 It is SHADOW-ONLY. It reads events, runs the leak-safe paired A/B, and prints a
 verdict. It NEVER wires a feature into the gate or the score -- that wiring is
@@ -90,9 +89,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--feature-key",
-        default="momentum_ribbon",
+        default="relative_volume",
         help="recorded candidate feature to A/B against the v1 score "
-        "(default: momentum_ribbon)",
+        "(default: relative_volume)",
     )
     parser.add_argument(
         "--cost-bps",

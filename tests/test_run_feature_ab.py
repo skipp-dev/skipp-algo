@@ -1,11 +1,10 @@
 """Tests for the ADR-0019 paired-A/B on-ramp.
 
-Covers three pieces that only exist together once the harness (#2528) and the
-momentum-ribbon candidate (#2534) are merged:
+Covers the on-ramp pieces that sit on top of the harness (#2528):
 
-* the adapter now RECORDS ``momentum_ribbon`` on family events (record-only);
-* :func:`extract_family_ab_samples` pairs the v1 score against the recorded
-  ``momentum_ribbon`` when asked for that ``feature_key``;
+* the adapter RECORDS ``relative_volume`` on family events (record-only);
+* :func:`extract_family_ab_samples` pairs the v1 score against a recorded
+  candidate feature for a given ``feature_key``;
 * ``scripts/run_feature_ab`` turns recorded events into a per-family verdict
   and maps that verdict onto a process exit code.
 
@@ -41,12 +40,25 @@ def _bars_with_volume(n: int, anchor_bar: int) -> list[dict[str, float]]:
     ]
 
 
+def _bars_without_volume(n: int) -> list[dict[str, float]]:
+    closes = [100.0 + i for i in range(n)]
+    return [
+        {
+            "timestamp": _T0 + i * _STEP,
+            "high": closes[i] + 1.0,
+            "low": closes[i] - 1.0,
+            "close": closes[i],
+        }
+        for i in range(n)
+    ]
+
+
 # --------------------------------------------------------------------------- #
 # adapter records the candidate feature
 # --------------------------------------------------------------------------- #
-def test_adapter_records_momentum_ribbon() -> None:
-    n = ATR_PERIOD + 12  # anchor at 16 >= ribbon warmup (15)
-    anchor_bar = ATR_PERIOD + 2
+def test_adapter_records_relative_volume() -> None:
+    n = ATR_PERIOD + 12
+    anchor_bar = ATR_PERIOD + 2  # >= ATR_PERIOD warmup for relative_volume
     bars = _bars_with_volume(n, anchor_bar)
     anchor_ts = _T0 + anchor_bar * _STEP
     structure = {
@@ -58,17 +70,16 @@ def test_adapter_records_momentum_ribbon() -> None:
     events = family_events_from_structure(structure, bars)
 
     assert len(events) == 1
-    assert "momentum_ribbon" in events[0]
-    assert isinstance(events[0]["momentum_ribbon"], float)
+    assert "relative_volume" in events[0]
+    assert isinstance(events[0]["relative_volume"], float)
 
 
-def test_adapter_omits_ribbon_without_history() -> None:
-    # Anchor below the ribbon warmup (15) but with enough ATR history
-    # (>= ATR_PERIOD) so the event is still built -> ribbon honestly absent.
-    assert ATR_PERIOD < 15  # ribbon warmup is 15; keep this path reachable
-    anchor_bar = ATR_PERIOD  # 14 < 15 ribbon warmup, >= ATR warmup
-    n = anchor_bar + 4
-    bars = _bars_with_volume(n, anchor_bar)
+def test_adapter_omits_relative_volume_without_volume() -> None:
+    # Bars without a volume column -> relative_volume honestly absent, but the
+    # event is still built from price/structure alone.
+    n = ATR_PERIOD + 12
+    anchor_bar = ATR_PERIOD + 2
+    bars = _bars_without_volume(n)
     anchor_ts = _T0 + anchor_bar * _STEP
     structure = {
         "bos": [
@@ -78,13 +89,13 @@ def test_adapter_omits_ribbon_without_history() -> None:
 
     events = family_events_from_structure(structure, bars)
 
-    assert events == [] or "momentum_ribbon" not in events[0]
+    assert events == [] or "relative_volume" not in events[0]
 
 
 # --------------------------------------------------------------------------- #
-# extract pairs against the ribbon feature_key
+# extract pairs against the candidate feature_key
 # --------------------------------------------------------------------------- #
-def test_extract_pairs_ribbon_feature_key() -> None:
+def test_extract_pairs_relative_volume_feature_key() -> None:
     n = ATR_PERIOD + 12
     anchor_bar = ATR_PERIOD + 2
     bars = _bars_with_volume(n, anchor_bar)
@@ -96,15 +107,15 @@ def test_extract_pairs_ribbon_feature_key() -> None:
     }
 
     events = family_events_from_structure(structure, bars)
-    samples = extract_family_ab_samples(events, feature_key="momentum_ribbon")
+    samples = extract_family_ab_samples(events, feature_key="relative_volume")
 
     assert "BOS" in samples
     assert len(samples["BOS"]["features"]) == 1
     assert len(samples["BOS"]["scores"]) == 1
 
 
-def test_extract_excludes_event_missing_ribbon() -> None:
-    # An event carrying a score but no momentum_ribbon is excluded for that key.
+def test_extract_excludes_event_missing_feature() -> None:
+    # An event carrying a score but no relative_volume is excluded for that key.
     event = {
         "family": "BOS",
         "direction": "UP",
@@ -117,7 +128,7 @@ def test_extract_excludes_event_missing_ribbon() -> None:
         "forward_timestamps": [_T0 + _STEP, _T0 + 2 * _STEP],
         "score": 0.5,
     }
-    samples = extract_family_ab_samples([event], feature_key="momentum_ribbon")
+    samples = extract_family_ab_samples([event], feature_key="relative_volume")
     assert samples == {}
 
 
@@ -126,7 +137,7 @@ def test_extract_excludes_event_missing_ribbon() -> None:
 # --------------------------------------------------------------------------- #
 def _report(*, results: dict, lifted: list[str]) -> dict:
     return {
-        "feature_key": "momentum_ribbon",
+        "feature_key": "relative_volume",
         "cost_bps": 5.0,
         "families_measured": sorted(results),
         "families_lifted": lifted,
@@ -166,10 +177,10 @@ def test_build_report_thin_sample_yields_empty_results() -> None:
     events = family_events_from_structure(structure, bars)
 
     report = run_feature_ab.build_report(
-        events, feature_key="momentum_ribbon", cost_bps=5.0
+        events, feature_key="relative_volume", cost_bps=5.0
     )
 
-    assert report["feature_key"] == "momentum_ribbon"
+    assert report["feature_key"] == "relative_volume"
     assert report["results"] == {}  # one event is far below MIN_OOS
     assert report["families_lifted"] == []
 
@@ -191,12 +202,12 @@ def test_main_writes_report_and_returns_thin_exit(tmp_path) -> None:
     out_path = tmp_path / "report.json"
 
     code = run_feature_ab.main(
-        [str(events_path), "--feature-key", "momentum_ribbon", "--out", str(out_path)]
+        [str(events_path), "--feature-key", "relative_volume", "--out", str(out_path)]
     )
 
     assert code == 3  # measurable families: none (thin)
     written = json.loads(out_path.read_text(encoding="utf-8"))
-    assert written["feature_key"] == "momentum_ribbon"
+    assert written["feature_key"] == "relative_volume"
 
 
 def test_main_rejects_non_list_payload(tmp_path) -> None:
