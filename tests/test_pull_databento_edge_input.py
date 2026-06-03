@@ -101,7 +101,16 @@ def test_bars_match_resampled_structure_frame(monkeypatch: pytest.MonkeyPatch) -
     resampled, _tf = wrapper._prepare_symbol_resampled_bars(df, "AAPL", "15m")
     expected_ts = [float(t) for t in resampled["timestamp"].tolist()]
     assert [b["timestamp"] for b in payload["bars"]] == expected_ts
-    assert all(set(b) == {"timestamp", "high", "low", "close"} for b in payload["bars"])
+    # Full OHLCV bar: open + volume are carried so the ADR-0019 order-flow
+    # candidates (relative_volume / Amihud) have a point-in-time input.
+    assert all(
+        set(b) == {"timestamp", "open", "high", "low", "close", "volume"}
+        for b in payload["bars"]
+    )
+    expected_vol = [float(v) for v in resampled["volume"].tolist()]
+    assert [b["volume"] for b in payload["bars"]] == expected_vol
+    expected_open = [float(o) for o in resampled["open"].tolist()]
+    assert [b["open"] for b in payload["bars"]] == expected_open
     # as_of defaults to the last resampled bar so the EV-04 guard is always armed.
     assert payload["as_of"] == payload["bars"][-1]["timestamp"]
     assert payload["provenance"]["symbol"] == "AAPL"
