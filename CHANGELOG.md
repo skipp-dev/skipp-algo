@@ -6,6 +6,21 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-06-03) — ADR-0019: Variance Ratio evaluated on real data, not adopted (no lift)
+
+The Lo & MacKinlay (1988) Variance Ratio `VR(2)` — the strongest close-only
+proxy for the *persistence / serial-dependence* axis — was evaluated as the next
+ADR-0019 shadow candidate. Because it is close-only (no live plumbing needed),
+its pre-registered purged walk-forward A/B was run pre-merge on the same harness
+and the same REAL Databento data as the WVF/ribbon candidates (two regimes,
+~22k events, 99.6% coverage; confirmed orthogonal beforehand, VR vs `score`
+Spearman −0.173). It returned `no_lift` across **all four** families (BOS, FVG,
+OB, SWEEP), so it was **not merged** — no dead shadow code is carried. Together
+with the already-zeroed `hurst_50` weight this closes the persistence axis.
+Recorded in `docs/governance/resolution_feature_gap_analysis.md` §5, which
+confirms the un-tapped lever is order-flow/volume and names the producer
+volume-plumbing as the next workstream.
+
 ### Added (2026-06-03) — ADR-0019: Williams VIX Fix shadow candidate (downside volatility)
 
 A new v2 shadow candidate `williams_vix_fix` (Larry Williams' public-domain
