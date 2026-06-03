@@ -45,10 +45,13 @@ import pandas as pd
 
 from governance.family_returns import DEFAULT_COST_BPS
 from scripts.explicit_structure_from_bars import (
+    _TIMEFRAME_TO_PANDAS_FREQ,
+    _canonical_timeframe,
     _prepare_symbol_resampled_bars,
     build_explicit_structure_from_bars,
 )
 from scripts.smc_atomic_write import atomic_write_json
+from scripts.smc_price_action_engine import coerce_timestamps_to_epoch_seconds
 
 # Databento OHLCV schemas, smallest base granularity to largest. The fetch
 # granularity must be at or below the structure timeframe so resampling up is
@@ -64,6 +67,12 @@ _STRUCTURE_KEYS = ("bos", "orderblocks", "fvg", "liquidity_sweeps")
 _TIMESTAMP_CANDIDATES = ("ts_event", "ts_recv", "ts", "timestamp", "index")
 
 _REQUIRED_OHLCV_COLUMNS = ("open", "high", "low", "close")
+
+# ADR-0016 aggressor-signed order-flow data path. The ``trades`` schema carries
+# a real per-trade ``side`` (A=sell aggressor, B=buy aggressor, N=no side) so the
+# signed volume is sourced from the venue's book state, not a tick-rule guess.
+_TRADES_SCHEMA = "trades"
+_REQUIRED_TRADES_COLUMNS = ("price", "size", "side")
 
 
 def normalize_ohlcv_frame(raw: pd.DataFrame, *, symbol: str) -> pd.DataFrame:
@@ -124,6 +133,127 @@ def normalize_ohlcv_frame(raw: pd.DataFrame, *, symbol: str) -> pd.DataFrame:
     return out.sort_values(["symbol", "timestamp"]).reset_index(drop=True)
 
 
+def normalize_trades_frame(raw: pd.DataFrame, *, symbol: str) -> pd.DataFrame:
+    """Coerce a raw Databento ``trades`` frame into the signed-volume schema.
+
+    Returns a frame with columns ``symbol, timestamp, price, size, side`` where
+    ``timestamp`` is epoch **seconds** (matching :func:`normalize_ohlcv_frame`
+    so trade buckets and OHLCV bars share one clock). ``side`` is upper-cased to
+    the Databento enum ``{"A", "B", "N"}``; a ``DatetimeIndex`` or any known
+    ``ts_*`` column is accepted, an unrecognised frame raises rather than
+    guessing.
+    """
+    if raw.empty:
+        raise ValueError("Databento trades frame is empty; nothing to normalize")
+
+    frame = raw.copy()
+    if isinstance(frame.index, pd.DatetimeIndex):
+        frame = frame.reset_index()
+        frame = frame.rename(columns={frame.columns[0]: "ts"})
+        ts_col = "ts"
+    else:
+        ts_col = next((c for c in _TIMESTAMP_CANDIDATES if c in frame.columns), "")
+        if not ts_col:
+            raise ValueError(
+                "no timestamp column found in Databento trades frame; expected a "
+                f"DatetimeIndex or one of {_TIMESTAMP_CANDIDATES}"
+            )
+
+    missing = [c for c in _REQUIRED_TRADES_COLUMNS if c not in frame.columns]
+    if missing:
+        raise ValueError(f"Databento trades frame missing required columns: {missing}")
+
+    timestamps = pd.to_datetime(frame[ts_col], utc=True)
+    epoch_seconds = (timestamps - pd.Timestamp(0, tz="UTC")) // pd.Timedelta(seconds=1)
+    out = pd.DataFrame(
+        {
+            "timestamp": epoch_seconds,
+            "price": pd.to_numeric(frame["price"], errors="coerce"),
+            "size": pd.to_numeric(frame["size"], errors="coerce"),
+            "side": frame["side"].astype(str).str.strip().str.upper(),
+        }
+    )
+    if "symbol" in frame.columns:
+        out["symbol"] = frame["symbol"].astype(str).str.strip().str.upper()
+    else:
+        out["symbol"] = str(symbol).strip().upper()
+    out = out.dropna(subset=["timestamp", "size"])
+    if out.empty:
+        raise ValueError("Databento trades frame has no usable rows after coercion")
+    return out.sort_values(["symbol", "timestamp"]).reset_index(drop=True)
+
+
+def aggregate_signed_volume(trades: pd.DataFrame, timeframe: str) -> pd.DataFrame:
+    """Bucket signed trade volume onto the same grid the OHLCV bars use.
+
+    Reuses the resampler's exact ``bucket_end`` rule
+    (``scripts.explicit_structure_from_bars.resample_bars_to_timeframe``):
+    ``floored = ts.floor(freq)``; ``bucket_end = floored`` when the trade lands
+    exactly on the boundary, else ``floored + freq``. This left-open /
+    right-closed labelling is identical to the OHLCV resample, so the emitted
+    ``timestamp`` joins one-to-one onto the resampled bar timestamps.
+
+    Per bucket: ``signed_volume`` = ``sum(size)`` over buy aggressors (``side``
+    ``B``) minus sell aggressors (``side`` ``A``); ``N`` (auction / non-displayed
+    / no-side trades) contribute **0** to the signed sum but are still counted in
+    ``trade_count``. Returns columns ``timestamp, signed_volume, trade_count``
+    (epoch seconds). An empty input yields an empty frame.
+    """
+    columns = ["timestamp", "signed_volume", "trade_count"]
+    if trades.empty:
+        return pd.DataFrame(columns=columns)
+
+    canonical_tf = _canonical_timeframe(timeframe)
+    freq = _TIMEFRAME_TO_PANDAS_FREQ[canonical_tf]
+    offset = pd.tseries.frequencies.to_offset(freq)
+
+    ts = pd.to_datetime(trades["timestamp"], unit="s", utc=True)
+    floored = ts.dt.floor(freq)
+    bucket_end = floored.where(ts.eq(floored), floored + offset)
+
+    size = pd.to_numeric(trades["size"], errors="coerce").fillna(0.0)
+    side = trades["side"].astype(str).str.strip().str.upper()
+    # Buy aggressor (+), sell aggressor (-); anything else (N/blank) is unsigned.
+    signed = size.where(side.eq("B"), 0.0) - size.where(side.eq("A"), 0.0)
+
+    work = pd.DataFrame(
+        {"bucket_end": bucket_end, "signed": signed, "count": 1}
+    ).dropna(subset=["bucket_end"])
+    if work.empty:
+        return pd.DataFrame(columns=columns)
+
+    grouped = (
+        work.groupby("bucket_end", sort=True)
+        .agg(signed_volume=("signed", "sum"), trade_count=("count", "sum"))
+        .reset_index()
+    )
+    grouped["timestamp"] = coerce_timestamps_to_epoch_seconds(grouped["bucket_end"])
+    return grouped[columns].reset_index(drop=True)
+
+
+def _merge_signed_volume_into_bars(
+    bars: list[dict[str, float]], trades: pd.DataFrame, timeframe: str
+) -> None:
+    """Embed ``signed_volume`` + ``trade_count`` into each bar dict in place.
+
+    Additive keys only — the OHLCV keyset is untouched, so the bar-frame column
+    validators (subset checks) keep passing and the shadow extractor signature
+    ``(bars, anchor_idx)`` needs no new argument. Bars whose bucket saw no trades
+    are left as honest OHLCV-only dicts (the extractor returns honest-None there).
+    """
+    agg = aggregate_signed_volume(trades, timeframe)
+    if agg.empty:
+        return
+    lookup = {
+        int(row.timestamp): (float(row.signed_volume), int(row.trade_count))
+        for row in agg.itertuples(index=False)
+    }
+    for bar in bars:
+        signed = lookup.get(int(bar["timestamp"]))
+        if signed is not None:
+            bar["signed_volume"], bar["trade_count"] = signed
+
+
 def _resampled_bars_payload(df: pd.DataFrame, symbol: str, timeframe: str) -> list[dict[str, float]]:
     """The resampled timeframe bars the structure events anchor on.
 
@@ -167,6 +297,7 @@ def structure_and_bars_to_pipeline_input(
     schema: str | None = None,
     start: str | None = None,
     end: str | None = None,
+    trades: pd.DataFrame | None = None,
 ) -> dict[str, Any]:
     """Build a :mod:`scripts.run_edge_pipeline` input payload from real bars.
 
@@ -174,6 +305,12 @@ def structure_and_bars_to_pipeline_input(
     :func:`normalize_ohlcv_frame`). ``as_of`` arms the EV-04 point-in-time
     guard; when ``None`` it defaults to the last resampled bar's timestamp so
     the guard is always armed against the data's own horizon.
+
+    When ``trades`` (output of :func:`normalize_trades_frame`) is supplied, the
+    ADR-0016 aggressor-signed aggregates ``signed_volume`` + ``trade_count`` are
+    bucketed onto the same grid and embedded into each matching bar dict as
+    additive keys (OHLCV keyset unchanged). Bars whose bucket saw no trades stay
+    OHLCV-only.
 
     Raises ``ValueError`` when the symbol produces no resampled bars or no
     structure events (an honest empty result, never a fabricated payload).
@@ -192,6 +329,9 @@ def structure_and_bars_to_pipeline_input(
             f"symbol {symbol!r} produced no detected SMC structure "
             f"({_STRUCTURE_KEYS}); nothing to evaluate"
         )
+
+    if trades is not None and not trades.empty:
+        _merge_signed_volume_into_bars(bars, trades, timeframe)
 
     resolved_as_of = as_of if as_of is not None else bars[-1]["timestamp"]
 
@@ -214,6 +354,7 @@ def structure_and_bars_to_pipeline_input(
             "dataset": dataset,
             "schema": schema,
             "window": {"start": start, "end": end},
+            "with_trades": bool(trades is not None and not trades.empty),
         },
     }
     return payload
@@ -257,6 +398,40 @@ def fetch_ohlcv_frame(
     return normalize_ohlcv_frame(frame, symbol=symbol)
 
 
+def fetch_trades_frame(
+    symbol: str,
+    *,
+    dataset: str,
+    start: str,
+    end: str,
+    api_key: str | None = None,
+) -> pd.DataFrame:
+    """Fetch a raw ``trades`` frame from Databento (credential-bound, not unit tested).
+
+    Mirrors :func:`fetch_ohlcv_frame`: reads ``DATABENTO_API_KEY`` from the
+    environment when ``api_key`` is omitted and shims the repo's retrying client,
+    then hands the response to :func:`normalize_trades_frame`. Trades are pulled
+    from the same ``dataset`` as the OHLCV bars (e.g. ``XNAS.ITCH``).
+    """
+    from databento_client import (
+        _databento_get_range_with_retry,
+        _make_databento_client,
+    )
+
+    client = _make_databento_client(api_key)
+    store = _databento_get_range_with_retry(
+        client,
+        context="pull_databento_edge_input_trades",
+        dataset=dataset,
+        symbols=[str(symbol).strip().upper()],
+        schema=_TRADES_SCHEMA,
+        start=start,
+        end=end,
+    )
+    frame = store.to_df()
+    return normalize_trades_frame(frame, symbol=symbol)
+
+
 def _coerce_as_of_arg(value: str | None) -> float | str | None:
     """CLI ``--as-of``: passthrough ISO string / epoch, or None to auto-default."""
     if value is None or not value.strip():
@@ -298,6 +473,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--periods-per-year", type=int, default=252)
     parser.add_argument("--cost-bps", type=float, default=DEFAULT_COST_BPS)
     parser.add_argument(
+        "--with-trades",
+        action="store_true",
+        help=(
+            "Also pull the ADR-0016 aggressor-signed ``trades`` schema from the "
+            "same dataset and embed per-bar signed_volume + trade_count. Default "
+            "off keeps the OHLCV-only payload byte-for-byte unchanged."
+        ),
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         required=True,
@@ -313,6 +497,16 @@ def main(argv: list[str] | None = None) -> int:
             start=args.start,
             end=args.end,
         )
+        trades = (
+            fetch_trades_frame(
+                args.symbol,
+                dataset=args.dataset,
+                start=args.start,
+                end=args.end,
+            )
+            if args.with_trades
+            else None
+        )
         payload = structure_and_bars_to_pipeline_input(
             frame,
             symbol=args.symbol,
@@ -325,6 +519,7 @@ def main(argv: list[str] | None = None) -> int:
             schema=args.schema,
             start=args.start,
             end=args.end,
+            trades=trades,
         )
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
