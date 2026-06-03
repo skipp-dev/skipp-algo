@@ -6,6 +6,28 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Removed (2026-06-03) — ADR-0019: retire the momentum-ribbon candidate (no lift)
+
+The `momentum_ribbon` candidate (the smoothed-RSI "USI" multi-length stack
+score) was A/B-tested against the v1 `score` on REAL Databento data over two
+independent regimes via the paired purged walk-forward harness: a calm window
+(2025-01-02..2025-04-01) and a volatile one (2024-07-15..2024-10-15). Both
+returned `no_lift` across **all four** families (BOS, FVG, OB, SWEEP) — the
+candidate did not improve out-of-sample resolution and in the two cash-bearing
+families (BOS, FVG) discriminated slightly worse than the baseline. Per the
+pre-registered ADR-0019 gate, a candidate that fails to lift resolution is
+retired; it is removed rather than carried as dead shadow code.
+
+- Deleted `governance/family_momentum_ribbon_v2.py` and its tests.
+- Deleted `docs/governance/momentum_ribbon_v2_shadow_candidate.md`.
+- `governance/family_event_adapter` no longer records `momentum_ribbon`; the
+  optional `FamilyEvent.momentum_ribbon` field is removed.
+- The generic A/B on-ramp `scripts/run_feature_ab` is kept (reusable for the
+  next candidate) but its default `--feature-key` is now `relative_volume`;
+  `tests/test_run_feature_ab.py` exercises the driver against that feature.
+- No change to the v1 `score`, `SCORE_SOURCE`, the promotion gate, or the
+  generic harness (`family_returns` / `family_calibration` / `family_feature_ab`).
+
 ### Added (2026-06-02) — ADR-0019 step 3: paired purged walk-forward A/B harness
 
 Builds on steps 1-2 (the extractor + the recorded feature). Adds the shadow

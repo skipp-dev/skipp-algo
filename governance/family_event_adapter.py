@@ -49,7 +49,6 @@ from collections.abc import Mapping, Sequence
 from typing import Any, TypedDict
 
 from governance.family_event_score import point_in_time_regime, raw_score
-from governance.family_momentum_ribbon_v2 import ribbon_stack_score_at
 from governance.family_returns import FamilyEvent
 from governance.family_score_features_v2 import relative_volume_at
 from governance.types import EventFamily
@@ -174,9 +173,6 @@ def _zone_event_to_family(
     rel_volume = relative_volume_at(bars, anchor_idx)
     if rel_volume is not None:
         mapped["relative_volume"] = rel_volume
-    ribbon = ribbon_stack_score_at(bars, anchor_idx)
-    if ribbon is not None:
-        mapped["momentum_ribbon"] = ribbon
     return mapped
 
 
@@ -224,9 +220,6 @@ def _level_event_to_family(
     rel_volume = relative_volume_at(bars, anchor_idx)
     if rel_volume is not None:
         mapped["relative_volume"] = rel_volume
-    ribbon = ribbon_stack_score_at(bars, anchor_idx)
-    if ribbon is not None:
-        mapped["momentum_ribbon"] = ribbon
     return mapped
 
 

@@ -124,16 +124,6 @@ class FamilyEvent(TypedDict, total=False):
     # Absent when volume is missing or the trailing baseline is degenerate.
     # Never invented.
     relative_volume: float
-    # Optional point-in-time momentum-ribbon feature (ADR-0019 momentum_usi
-    # ribbon v2 candidate): the all-pairs signed stack score of the smoothed
-    # USI ribbon ending at the anchor bar (see
-    # ``governance.family_momentum_ribbon_v2.ribbon_stack_score_at``). RECORDED
-    # ONLY -- like ``relative_volume`` it is NOT a calibration input and does
-    # NOT feed the gate; it is captured alongside outcomes so the pre-registered
-    # purged walk-forward A/B (ADR-0019) can evaluate whether it lifts
-    # resolution before any wiring. Absent when the trailing ribbon window is
-    # too short to compute. Never invented.
-    momentum_ribbon: float
 
 
 def _direction_sign(direction: str) -> int:
