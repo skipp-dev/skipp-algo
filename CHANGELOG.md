@@ -6,6 +6,30 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-03) — ADR-0019: Williams VIX Fix shadow candidate (downside volatility)
+
+A new v2 shadow candidate `williams_vix_fix` (Larry Williams' public-domain
+"VIX Fix") is recorded alongside family outcomes for the pre-registered purged
+walk-forward A/B. It is a **price-only, leak-free** fear gauge —
+`(max(close[anchor-21..anchor]) - low[anchor]) / max(close) * 100` — capturing
+realised downside deviation, a dimension orthogonal to both the v1 geometry
+`score` and the `relative_volume` participation candidate. It needs no volume,
+no trade-side data, and no benchmark feed, so it fits the existing
+`f(bars, anchor_idx)` shadow data path with zero new plumbing.
+
+- Added `governance/family_vix_fix_v1.py` (`williams_vix_fix_at`,
+  `WILLIAMS_VIX_FIX_SOURCE = "downside_volatility_williams_vix_fix_v1"`,
+  `WVF_LOOKBACK = 22`) following the proven `relative_volume_at` pattern:
+  strictly point-in-time, honest `None` omission (never zero-filled).
+- `governance/family_event_adapter` records `williams_vix_fix` in both event
+  builders; `FamilyEvent` gains an optional `williams_vix_fix` field.
+- Added `tests/test_family_vix_fix_v1.py` (value, leak-freedom, honest-omission,
+  determinism, versioned source tag).
+- **Shadow only** — NOT wired into `score`, `SCORE_SOURCE`, or the promotion
+  gate. It is evaluated via `scripts/run_feature_ab --feature-key williams_vix_fix`
+  on REAL data and joins the calibration input only if ≥1 family lifts
+  resolution (the same gate that retired the momentum-ribbon candidate).
+
 ### Removed (2026-06-03) — ADR-0019: retire the momentum-ribbon candidate (no lift)
 
 The `momentum_ribbon` candidate (the smoothed-RSI "USI" multi-length stack
