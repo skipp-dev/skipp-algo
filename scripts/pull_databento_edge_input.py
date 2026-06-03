@@ -130,6 +130,13 @@ def _resampled_bars_payload(df: pd.DataFrame, symbol: str, timeframe: str) -> li
     Reuses the structure module's own resampler so the emitted ``bars`` list is
     byte-for-byte the frame the detector indexed — guaranteeing the pipeline's
     anchor/lookahead arithmetic matches the live scorer.
+
+    Emits the full OHLCV bar (``open`` and ``volume`` included, not just HLC).
+    The resampler already aggregates volume (sum) and open (first); dropping
+    them here previously starved the ADR-0019 order-flow candidates
+    (``governance.family_score_features_v2.relative_volume_at`` and the Amihud
+    illiquidity proxy) of their only input, forcing an honest-None on every
+    bar. Carrying volume point-in-time unblocks their pre-registered A/B.
     """
     resampled, _canonical_tf = _prepare_symbol_resampled_bars(df, symbol, timeframe)
     if resampled.empty:
@@ -137,9 +144,11 @@ def _resampled_bars_payload(df: pd.DataFrame, symbol: str, timeframe: str) -> li
     return [
         {
             "timestamp": float(row.timestamp),
+            "open": float(row.open),
             "high": float(row.high),
             "low": float(row.low),
             "close": float(row.close),
+            "volume": float(row.volume),
         }
         for row in resampled.itertuples(index=False)
     ]
