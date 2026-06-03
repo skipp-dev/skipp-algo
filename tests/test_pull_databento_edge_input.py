@@ -255,6 +255,20 @@ def test_aggregate_signed_volume_signs_and_counts() -> None:
     assert int(agg["trade_count"].iloc[0]) == 3
 
 
+def test_aggregate_signed_volume_uint32_size_no_underflow() -> None:
+    # Databento delivers `size` as uint32; a sell aggressor computed as `0 - size`
+    # on an unsigned dtype underflows to 2**32 - size. The signed sum must stay a
+    # true signed magnitude (|signed_volume| <= total traded size), never ~4.3e9.
+    raw = _raw_trades_frame([0, 60], [10.0, 4.0], ["B", "A"])
+    raw["size"] = raw["size"].astype("uint32")
+    trades = normalize_trades_frame(raw, symbol="AAPL")
+
+    agg = aggregate_signed_volume(trades, "15m")
+
+    assert float(agg["signed_volume"].iloc[0]) == 6.0  # 10 - 4, NOT 10 + (2**32 - 4)
+
+
+
 def test_aggregate_signed_volume_empty_input() -> None:
     empty = normalize_trades_frame(
         _raw_trades_frame([0], [1.0], ["B"]), symbol="AAPL"

@@ -169,7 +169,7 @@ def normalize_trades_frame(raw: pd.DataFrame, *, symbol: str) -> pd.DataFrame:
         {
             "timestamp": epoch_seconds,
             "price": pd.to_numeric(frame["price"], errors="coerce"),
-            "size": pd.to_numeric(frame["size"], errors="coerce"),
+            "size": pd.to_numeric(frame["size"], errors="coerce").astype("float64"),
             "side": frame["side"].astype(str).str.strip().str.upper(),
         }
     )
@@ -211,9 +211,12 @@ def aggregate_signed_volume(trades: pd.DataFrame, timeframe: str) -> pd.DataFram
     floored = ts.dt.floor(freq)
     bucket_end = floored.where(ts.eq(floored), floored + offset)
 
-    size = pd.to_numeric(trades["size"], errors="coerce").fillna(0.0)
+    size = pd.to_numeric(trades["size"], errors="coerce").astype("float64").fillna(0.0)
     side = trades["side"].astype(str).str.strip().str.upper()
     # Buy aggressor (+), sell aggressor (-); anything else (N/blank) is unsigned.
+    # NB: the float64 cast above is load-bearing -- Databento delivers ``size``
+    # as uint32, and ``0 - size`` on an unsigned dtype underflows to ``2**32 -
+    # size`` (a sell trade would add ~4.3e9 instead of subtracting its size).
     signed = size.where(side.eq("B"), 0.0) - size.where(side.eq("A"), 0.0)
 
     work = pd.DataFrame(
