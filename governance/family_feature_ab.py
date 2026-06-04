@@ -127,6 +127,8 @@ def family_feature_ab(
     min_resolution_lift: float = MIN_RESOLUTION_LIFT,
     ece_ceiling: float = ABS_ECE_CEILING,
     brier_tolerance: float = BRIER_REGRESSION_TOLERANCE,
+    label: Literal["direction", "magnitude"] = "direction",
+    mag_q: float = 0.5,
 ) -> FamilyABResult | None:
     """Run the paired A/B for one family. ``None`` when the sample is too thin.
 
@@ -149,6 +151,8 @@ def family_feature_ab(
         samples["anchor_ts"],
         samples["guard_end_ts"],
         min_oos=min_oos,
+        label=label,
+        mag_q=mag_q,
     )
     if ab is None:
         return None
@@ -196,6 +200,8 @@ def family_feature_ab_report(
     min_resolution_lift: float = MIN_RESOLUTION_LIFT,
     ece_ceiling: float = ABS_ECE_CEILING,
     brier_tolerance: float = BRIER_REGRESSION_TOLERANCE,
+    label: Literal["direction", "magnitude"] = "direction",
+    mag_q: float = 0.5,
 ) -> dict[str, FamilyABResult]:
     """Run the paired A/B for every family that is measurable.
 
@@ -212,6 +218,8 @@ def family_feature_ab_report(
             min_resolution_lift=min_resolution_lift,
             ece_ceiling=ece_ceiling,
             brier_tolerance=brier_tolerance,
+            label=label,
+            mag_q=mag_q,
         )
         if result is not None:
             out[family] = result

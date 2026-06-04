@@ -225,3 +225,109 @@ def test_extract_ab_samples_excludes_event_missing_feature() -> None:
     samples = extract_family_ab_samples(events)
 
     assert samples == {}
+
+
+# --------------------------------------------------------------------------- #
+# magnitude label (ADR-0020): grade move SIZE, leak-safe per-fold threshold
+# --------------------------------------------------------------------------- #
+def _anchor(n: int) -> list[float]:
+    return [float(i) for i in range(n)]
+
+
+def _guard(n: int) -> list[float]:
+    return [float(i) + 0.5 for i in range(n)]
+
+
+def test_walk_forward_ab_magnitude_grades_size_not_sign() -> None:
+    # Every return is a WIN, so the directional label is single-class and no
+    # fold can fit. The magnitude label instead grades |return| against a
+    # per-fold quantile, so the alternating small/large sizes give both classes.
+    n = 300
+    rets = [0.02 if i % 2 == 0 else 0.001 for i in range(n)]
+    feat = [1.0 if r > 0.01 else 0.0 for r in rets]  # tracks size
+    anchor, guard = _anchor(n), _guard(n)
+
+    assert (
+        walk_forward_ab(feat, feat, rets, anchor, guard, label="direction") is None
+    )
+
+    ab = walk_forward_ab(feat, feat, rets, anchor, guard, label="magnitude")
+    assert ab is not None
+    assert ab["baseline"]["outcomes"] == ab["candidate"]["outcomes"]
+    outcomes = ab["baseline"]["outcomes"]
+    assert all(o in (0.0, 1.0) for o in outcomes)
+    assert any(o == 1.0 for o in outcomes)  # some moves cleared the threshold
+    assert any(o == 0.0 for o in outcomes)  # some did not
+
+
+def test_walk_forward_ab_magnitude_threshold_is_leak_safe_per_fold() -> None:
+    # The per-fold threshold must come from TRAINING returns only. Inflating the
+    # magnitude of only the LATEST events (which never enter an early fold's
+    # expanding-window training set) must leave the earliest OOS outcomes
+    # unchanged. A leaky global/test-aware threshold would shift them.
+    n = 300
+    base = [0.02 if i % 2 == 0 else 0.001 for i in range(n)]
+    feat = [1.0 if r > 0.01 else 0.0 for r in base]
+    anchor, guard = _anchor(n), _guard(n)
+
+    ref = walk_forward_ab(feat, feat, base, anchor, guard, label="magnitude")
+    assert ref is not None
+
+    spiked = list(base)
+    for i in range(int(n * 0.6), n):  # blow up the last 40% of |returns|
+        spiked[i] = 100.0
+    out = walk_forward_ab(feat, feat, spiked, anchor, guard, label="magnitude")
+    assert out is not None
+
+    # The earliest OOS outcomes depend only on early (unmutated) data, so a
+    # leak-free per-fold threshold keeps them byte-identical.
+    prefix = 20
+    assert out["baseline"]["outcomes"][:prefix] == ref["baseline"]["outcomes"][:prefix]
+
+
+def test_walk_forward_ab_mag_q_shifts_positive_rate() -> None:
+    # A higher quantile threshold labels fewer moves "large".
+    n = 300
+    rets = [0.001 + 0.0001 * (i % 50) for i in range(n)]  # all wins, sawtooth size
+    feat = [float(i % 2) for i in range(n)]
+    anchor, guard = _anchor(n), _guard(n)
+
+    low = walk_forward_ab(feat, feat, rets, anchor, guard, label="magnitude", mag_q=0.2)
+    high = walk_forward_ab(feat, feat, rets, anchor, guard, label="magnitude", mag_q=0.8)
+    assert low is not None and high is not None
+
+    low_rate = sum(low["baseline"]["outcomes"]) / len(low["baseline"]["outcomes"])
+    high_rate = sum(high["baseline"]["outcomes"]) / len(high["baseline"]["outcomes"])
+    assert high_rate < low_rate
+
+
+def test_family_feature_ab_threads_magnitude_label() -> None:
+    # The label/mag_q selector must reach walk_forward_ab through the public
+    # entry point: all-win returns are single-class under "direction" (no
+    # result) but graded by size under "magnitude".
+    n = 300
+    rets = [0.02 if i % 2 == 0 else 0.001 for i in range(n)]
+    feat = [1.0 if r > 0.01 else 0.0 for r in rets]  # cleanly separates size
+    score = [0.5 + 0.001 * (i % 7) for i in range(n)]  # near-constant noise
+    samples = _ab_samples(scores=score, features=feat, returns=rets)
+
+    assert family_feature_ab(samples, label="direction") is None
+
+    result = family_feature_ab(samples, label="magnitude")
+    assert result is not None
+    assert result["verdict"] == "candidate_lifts_resolution"
+    assert result["candidate_auc"] > result["baseline_auc"]
+
+
+def test_family_feature_ab_report_threads_magnitude_label() -> None:
+    n = 300
+    rets = [0.02 if i % 2 == 0 else 0.001 for i in range(n)]
+    feat = [1.0 if r > 0.01 else 0.0 for r in rets]
+    score = [0.5 + 0.001 * (i % 7) for i in range(n)]
+    samples = {"BOS": _ab_samples(scores=score, features=feat, returns=rets)}
+
+    # Direction label -> single-class -> family omitted as unmeasurable.
+    assert family_feature_ab_report(samples, label="direction") == {}
+    # Magnitude label -> measurable and graded.
+    report = family_feature_ab_report(samples, label="magnitude")
+    assert "BOS" in report

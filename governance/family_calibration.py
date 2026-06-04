@@ -46,7 +46,7 @@ Calibrator. A 2-parameter logistic (Platt) on the standardised raw score,
 from __future__ import annotations
 
 import math
-from typing import Any
+from typing import Any, Literal
 
 # Pooled out-of-sample sample-count guard (GAP 3/4). Below this we refuse to
 # emit a Brier/ECE and the family stays "not yet measured". Conservative but
@@ -165,6 +165,30 @@ def _predict(model: _LogisticModel, x: list[float]) -> list[float]:
     return [_sigmoid(model.a * ((xi - model.mean) / model.std) + model.b) for xi in x]
 
 
+def _quantile(values: list[float], q: float) -> float:
+    """Linear-interpolated ``q``-quantile of ``values`` (``0 <= q <= 1``).
+
+    Sorts a copy and interpolates between the two nearest ranks (the same
+    'linear' convention as numpy's default), so the threshold is a stable,
+    deterministic function of the supplied sample alone. Raises on empty input
+    or a ``q`` outside ``[0, 1]`` -- both are caller bugs, not runtime states.
+    """
+    if not values:
+        raise ValueError("_quantile: empty values")
+    if not 0.0 <= q <= 1.0:
+        raise ValueError(f"_quantile: q must be in [0, 1], got {q}")
+    ordered = sorted(values)
+    if len(ordered) == 1:
+        return ordered[0]
+    pos = q * (len(ordered) - 1)
+    lo = math.floor(pos)
+    hi = math.ceil(pos)
+    if lo == hi:
+        return ordered[lo]
+    frac = pos - lo
+    return ordered[lo] * (1.0 - frac) + ordered[hi] * frac
+
+
 def walk_forward_calibration(
     scores: list[float],
     returns: list[float],
@@ -236,6 +260,8 @@ def walk_forward_ab(
     *,
     n_folds: int = 5,
     min_oos: int = MIN_OOS_SAMPLES,
+    label: Literal["direction", "magnitude"] = "direction",
+    mag_q: float = 0.5,
 ) -> dict[str, dict[str, list[float]]] | None:
     """PAIRED purged walk-forward A/B: two arms over an identical fold set.
 
@@ -272,7 +298,11 @@ def walk_forward_ab(
     cand = [candidate[i] for i in order]
     a = [anchor_ts[i] for i in order]
     g = [guard_end_ts[i] for i in order]
-    y = [1.0 if returns[i] > 0.0 else 0.0 for i in order]
+    r = [returns[i] for i in order]
+    # Direction label (the default) is fold-invariant, so it is precomputed once.
+    # The magnitude label is fold-RELATIVE: its threshold is a quantile of the
+    # TRAINING returns only, computed inside the fold loop to stay leak-safe.
+    direction_y = [1.0 if r[i] > 0.0 else 0.0 for i in range(n)]
 
     val_size = max(1, n // (n_folds + 1))
     base_probs: list[float] = []
@@ -287,17 +317,27 @@ def walk_forward_ab(
         train_idx = [i for i in range(val_start) if g[i] < test_start_time]
         if len(train_idx) < MIN_TRAIN_SAMPLES:
             continue
-        train_y = [y[i] for i in train_idx]
+        val_range = range(val_start, val_end)
+        # Build the labels for this fold. For the magnitude label the threshold
+        # is the ``mag_q`` quantile of |return| over the PURGED TRAINING events
+        # only -- the test fold never informs its own threshold (leak-safe), and
+        # both arms share these identical outcomes (pairing preserved).
+        if label == "magnitude":
+            tau = _quantile([abs(r[i]) for i in train_idx], mag_q)
+            train_y = [1.0 if abs(r[i]) > tau else 0.0 for i in train_idx]
+            test_y = [1.0 if abs(r[i]) > tau else 0.0 for i in val_range]
+        else:
+            train_y = [direction_y[i] for i in train_idx]
+            test_y = [direction_y[i] for i in val_range]
         base_model = _fit_logistic([base[i] for i in train_idx], train_y)
         cand_model = _fit_logistic([cand[i] for i in train_idx], train_y)
         # Pairing guard: only emit the fold when BOTH arms calibrate, so the
         # two OOS index sets stay identical and the delta is unconfounded.
         if base_model is None or cand_model is None:
             continue
-        val_range = range(val_start, val_end)
         base_probs.extend(_predict(base_model, [base[i] for i in val_range]))
         cand_probs.extend(_predict(cand_model, [cand[i] for i in val_range]))
-        oos_outcomes.extend(y[i] for i in val_range)
+        oos_outcomes.extend(test_y)
 
     if len(oos_outcomes) < min_oos:
         return None

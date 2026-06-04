@@ -31,7 +31,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from typing import Any
+from typing import Any, Literal
 
 from governance.family_feature_ab import family_feature_ab_report
 from governance.family_returns import DEFAULT_COST_BPS, extract_family_ab_samples
@@ -52,13 +52,24 @@ def _load_events(path: str) -> list[dict[str, Any]]:
 
 
 def build_report(
-    events: list[dict[str, Any]], *, feature_key: str, cost_bps: float
+    events: list[dict[str, Any]],
+    *,
+    feature_key: str,
+    cost_bps: float,
+    label: Literal["direction", "magnitude"] = "direction",
+    mag_q: float = 0.5,
 ) -> dict[str, Any]:
-    """Assemble the paired samples and run the A/B for every measurable family."""
+    """Assemble the paired samples and run the A/B for every measurable family.
+
+    ``label`` selects the outcome the A/B grades against: ``"direction"`` (the
+    sign of the net forward return, the default) or ``"magnitude"`` (whether the
+    move's size clears a per-fold ``mag_q`` quantile of |return| -- a leak-safe,
+    fold-relative volatility label). ``mag_q`` is ignored for ``"direction"``.
+    """
     ab_samples = extract_family_ab_samples(
         events, feature_key=feature_key, cost_bps=cost_bps
     )
-    report = family_feature_ab_report(ab_samples)
+    report = family_feature_ab_report(ab_samples, label=label, mag_q=mag_q)
     lifted = sorted(
         family
         for family, result in report.items()
@@ -67,6 +78,8 @@ def build_report(
     return {
         "feature_key": feature_key,
         "cost_bps": cost_bps,
+        "label": label,
+        "mag_q": mag_q,
         "families_measured": sorted(report),
         "families_lifted": lifted,
         "results": report,
@@ -100,6 +113,21 @@ def main(argv: list[str] | None = None) -> int:
         help=f"round-trip cost in basis points (default: {DEFAULT_COST_BPS})",
     )
     parser.add_argument(
+        "--label",
+        choices=("direction", "magnitude"),
+        default="direction",
+        help="outcome the A/B grades against: 'direction' (sign of the net "
+        "forward return, default) or 'magnitude' (|return| over a per-fold "
+        "quantile -- a leak-safe volatility label)",
+    )
+    parser.add_argument(
+        "--mag-q",
+        type=float,
+        default=0.5,
+        help="per-fold quantile of |return| used as the magnitude-label "
+        "threshold; ignored unless --label magnitude (default: 0.5)",
+    )
+    parser.add_argument(
         "--out",
         default="-",
         help="path to write the JSON report, or '-' for stdout (default: stdout)",
@@ -117,7 +145,11 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     report = build_report(
-        events, feature_key=args.feature_key, cost_bps=args.cost_bps
+        events,
+        feature_key=args.feature_key,
+        cost_bps=args.cost_bps,
+        label=args.label,
+        mag_q=args.mag_q,
     )
 
     rendered = json.dumps(report, indent=2, sort_keys=True)
