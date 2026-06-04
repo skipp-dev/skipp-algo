@@ -415,7 +415,7 @@ def test_normalize_opra_trades_frame_feeds_aggregation() -> None:
     assert float(agg["uoa_abs_notional"].iloc[0]) == 3200.0
 
 
-def _raw_opra_tbbo(
+def _raw_opra_tcbbo(
     offsets: list[int],
     sizes: list[float],
     prices: list[float],
@@ -424,7 +424,8 @@ def _raw_opra_tbbo(
     *,
     raw_sides: list[str] | None = None,
 ) -> pd.DataFrame:
-    """A raw OPRA ``tbbo`` frame: trade price + NBBO (``bid_px_00``/``ask_px_00``).
+    """A raw OPRA ``tcbbo`` frame: trade price + consolidated NBBO
+    (``bid_px_00``/``ask_px_00``).
 
     The raw ``side`` defaults to ``"N"`` for every row to mirror the live OPRA
     tape (no reliable aggressor flag), proving the normaliser reconstructs the
@@ -456,11 +457,11 @@ def test_quote_rule_opra_aggressor_classifies_against_nbbo() -> None:
     assert side.tolist() == ["A", "B", "N", "N", "N"]
 
 
-def test_normalize_opra_tbbo_reconstructs_side_from_quote_rule() -> None:
+def test_normalize_opra_tcbbo_reconstructs_side_from_quote_rule() -> None:
     # The raw side is uniformly "N" (the live OPRA reality); the quote rule must
     # recover A (ask-lift) and B (bid-hit) from the NBBO so the signed notional
-    # is non-degenerate -- the entire point of the trades->tbbo switch.
-    raw = _raw_opra_tbbo(
+    # is non-degenerate -- the entire point of the trades->tcbbo switch.
+    raw = _raw_opra_tcbbo(
         offsets=[0, 60, 100],
         sizes=[10.0, 4.0, 7.0],
         prices=[2.0, 3.0, 1.5],  # at/above ask, at/below bid, inside spread
@@ -477,10 +478,10 @@ def test_normalize_opra_tbbo_reconstructs_side_from_quote_rule() -> None:
     assert float(agg["uoa_abs_notional"].iloc[0]) == 4250.0  # 2000 + 1200 + 1050
 
 
-def test_normalize_opra_tbbo_quote_rule_overrides_raw_side() -> None:
+def test_normalize_opra_tcbbo_quote_rule_overrides_raw_side() -> None:
     # Even when the raw frame carries a (stale/unreliable) non-N side, the NBBO
     # quote rule is authoritative when bid/ask are present.
-    raw = _raw_opra_tbbo(
+    raw = _raw_opra_tcbbo(
         offsets=[0, 60],
         sizes=[10.0, 4.0],
         prices=[2.0, 3.0],

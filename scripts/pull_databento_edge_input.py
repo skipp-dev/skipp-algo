@@ -79,13 +79,15 @@ _REQUIRED_TRADES_COLUMNS = ("price", "size", "side")
 # returned print is already an option on the requested underlying -- no
 # ``definition`` join is needed to recover the underlying.
 #
-# SCHEMA = ``tbbo`` (trade + BBO), NOT plain ``trades``: empirically the OPRA
-# ``trades`` ``side`` field is uniformly ``N`` (the consolidated options tape
-# does not stamp a reliable aggressor flag), so a ``trades``-only pull yields
-# ``uoa_signed_notional == 0`` on every bar -- a zero-variance, A/B-useless
-# feature. ``tbbo`` emits exactly one record per trade carrying the NBBO at the
-# print (``bid_px_00`` / ``ask_px_00``), so the aggressor is reconstructed with
-# the quote rule in :func:`normalize_opra_trades_frame`:
+# SCHEMA = ``tcbbo`` (trade + consolidated BBO), NOT plain ``trades``:
+# empirically the OPRA ``trades`` ``side`` field is uniformly ``N`` (the
+# consolidated options tape does not stamp a reliable aggressor flag), so a
+# ``trades``-only pull yields ``uoa_signed_notional == 0`` on every bar -- a
+# zero-variance, A/B-useless feature. ``OPRA.PILLAR`` does not offer the
+# venue-level ``tbbo`` schema; its trade-with-quote schema is ``tcbbo`` (trades
+# stamped with the *consolidated* NBBO). It emits one record per trade carrying
+# the NBBO at the print (``bid_px_00`` / ``ask_px_00``), so the aggressor is
+# reconstructed with the quote rule in :func:`normalize_opra_trades_frame`:
 #   price >= ask -> ask-lift -> aggressive BUYER  -> ``A``
 #   price <= bid -> bid-hit  -> aggressive SELLER -> ``B``
 #   inside spread / locked / missing quote        -> ``N`` (honest unsigned)
@@ -93,13 +95,13 @@ _REQUIRED_TRADES_COLUMNS = ("price", "size", "side")
 # B=bearish seller -); that sign flip lives in
 # :func:`aggregate_signed_uoa_notional`, not here.
 _OPRA_DATASET = "OPRA.PILLAR"
-_OPRA_TRADES_SCHEMA = "tbbo"
+_OPRA_TRADES_SCHEMA = "tcbbo"
 _OPRA_PARENT_STYPE = "parent"
 _REQUIRED_OPRA_TRADES_COLUMNS = ("price", "size", "side")
-# NBBO columns carried by the ``tbbo`` schema (level-0 best bid/ask at the
-# print). When present, they drive the quote-rule aggressor reconstruction;
-# when absent (a plain ``trades`` frame, e.g. in unit tests), the raw ``side``
-# enum is passed through unchanged for back-compat.
+# NBBO columns carried by the ``tcbbo`` schema (level-0 consolidated best
+# bid/ask at the print). When present, they drive the quote-rule aggressor
+# reconstruction; when absent (a plain ``trades`` frame, e.g. in unit tests),
+# the raw ``side`` enum is passed through unchanged for back-compat.
 _OPRA_BID_PX_COL = "bid_px_00"
 _OPRA_ASK_PX_COL = "ask_px_00"
 
@@ -219,7 +221,7 @@ def _quote_rule_opra_aggressor(
 
     The consolidated OPRA tape does not stamp a reliable aggressor ``side`` (it
     is uniformly ``N``), so the side is inferred from the trade price relative to
-    the best bid/ask carried by the ``tbbo`` schema (the classic quote rule):
+    the best bid/ask carried by the ``tcbbo`` schema (the classic quote rule):
 
     * ``price >= ask`` -> the print lifted the offer -> aggressive **buyer** ->
       ``"A"`` (bullish under the INVERSE OPRA convention applied downstream).
@@ -239,7 +241,7 @@ def _quote_rule_opra_aggressor(
 
 
 def normalize_opra_trades_frame(raw: pd.DataFrame, *, underlying: str) -> pd.DataFrame:
-    """Coerce a raw OPRA ``tbbo`` frame into the signed-UOA-notional schema.
+    """Coerce a raw OPRA ``tcbbo`` frame into the signed-UOA-notional schema.
 
     Returns a frame with columns ``underlying, timestamp, price, size, side``
     where ``timestamp`` is epoch **seconds** (matching :func:`normalize_ohlcv_
@@ -253,7 +255,7 @@ def normalize_opra_trades_frame(raw: pd.DataFrame, *, underlying: str) -> pd.Dat
     ``DatetimeIndex`` or any known ``ts_*`` column is accepted; an unrecognised
     frame raises rather than guessing.
 
-    When the source frame carries the ``tbbo`` NBBO columns
+    When the source frame carries the ``tcbbo`` NBBO columns
     (``bid_px_00`` / ``ask_px_00``), ``side`` is RECONSTRUCTED from the quote
     rule (:func:`_quote_rule_opra_aggressor`) because the raw OPRA ``side`` field
     is uniformly ``N``. When those columns are absent (a plain ``trades`` frame,
@@ -282,7 +284,7 @@ def normalize_opra_trades_frame(raw: pd.DataFrame, *, underlying: str) -> pd.Dat
     timestamps = pd.to_datetime(frame[ts_col], utc=True)
     epoch_seconds = (timestamps - pd.Timestamp(0, tz="UTC")) // pd.Timedelta(seconds=1)
     price = pd.to_numeric(frame["price"], errors="coerce")
-    # Reconstruct the aggressor from the NBBO when the tbbo quote columns are
+    # Reconstruct the aggressor from the NBBO when the tcbbo quote columns are
     # present (the raw OPRA ``side`` is uniformly N); otherwise pass it through.
     if _OPRA_BID_PX_COL in frame.columns and _OPRA_ASK_PX_COL in frame.columns:
         side = _quote_rule_opra_aggressor(
@@ -715,16 +717,16 @@ def fetch_opra_trades_frame(
     end: str,
     api_key: str | None = None,
 ) -> pd.DataFrame:
-    """Fetch a raw OPRA ``tbbo`` frame for one underlying (credential-bound).
+    """Fetch a raw OPRA ``tcbbo`` frame for one underlying (credential-bound).
 
     Mirrors :func:`fetch_trades_frame` but targets the consolidated options feed
     ``OPRA.PILLAR`` and resolves the whole option chain through **parent
     symbology**: ``symbols=[f"{symbol}.OPT"], stype_in="parent"`` returns every
     OPRA print on the underlying, so the response needs no ``definition`` join to
-    recover the underlying. The ``tbbo`` schema attaches the NBBO at each print
-    so the aggressor can be reconstructed with the quote rule (the raw OPRA
-    ``side`` is uniformly ``N``). The frame is handed to
-    :func:`normalize_opra_trades_frame`.
+    recover the underlying. The ``tcbbo`` schema (trade + consolidated BBO)
+    attaches the NBBO at each print so the aggressor can be reconstructed with
+    the quote rule (the raw OPRA ``side`` is uniformly ``N``). The frame is
+    handed to :func:`normalize_opra_trades_frame`.
 
     Not unit tested against the live API (no OPRA entitlement in CI); the pure
     normaliser and the aggregation it feeds carry the tested contract.
