@@ -134,6 +134,16 @@ class FamilyEvent(TypedDict, total=False):
     # bars carry no signed volume (OHLCV-only run) or the regression is
     # degenerate. Never invented.
     kyle_lambda: float
+    # Optional point-in-time microstructure feature (ADR-0016 / ADR-0019 v2
+    # candidate): average trade size, the volume-weighted mean shares-per-trade
+    # over the trailing window (see
+    # ``governance.family_avg_trade_size_v2.average_trade_size_at``). RECORDED
+    # ONLY -- it is NOT a calibration input and does NOT feed the gate; it rides
+    # alongside outcomes so the pre-registered purged walk-forward A/B (ADR-0019)
+    # can evaluate whether it lifts resolution before any wiring. Absent when the
+    # bars carry no trade counts (OHLCV-only run) or no trades fell in the
+    # window. Never invented.
+    average_trade_size: float
 
 
 def _direction_sign(direction: str) -> int:

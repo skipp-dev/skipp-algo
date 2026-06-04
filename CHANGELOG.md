@@ -6,7 +6,26 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
-### Changed (2026-06-03) — ADR-0019: Variance Ratio evaluated on real data, not adopted (no lift)
+### Added (2026-06-04) — ADR-0019: average trade size shadow feature (recorded-only)
+
+New ADR-0019 order-flow candidate on the live aggressor-signed data path:
+**average trade size** (`governance/family_avg_trade_size_v2.average_trade_size_at`),
+the volume-weighted mean shares-per-trade `sum(volume) / sum(trade_count)` over
+the trailing `ATR_PERIOD` window ending at the anchor. This is the
+*participant-size* axis of order flow (institutional-footprint / block-trade
+proxy), orthogonal to the magnitude axis (`relative_volume`) and the
+direction/impact axis (`signed_volume` / Kyle's lambda). Because
+`volume = trade_count * avg_size` is an identity, `trade_count` alone is *not* a
+separate candidate — only the economically meaningful average size is taken
+(one new degree of freedom). The producer already embeds `trade_count`
+per-bar alongside `signed_volume`. Strictly point-in-time, leak-free and
+honest-None (returns `None` rather than fabricating when volume/trade_count are
+absent or the window's total count is zero). Recorded onto both zone and level
+family events via `family_event_adapter`; **RECORDED-ONLY** — it does not feed
+the v1 score or any gate. Pending its pre-registered purged walk-forward A/B
+verdict before any wiring is considered.
+
+
 
 The Lo & MacKinlay (1988) Variance Ratio `VR(2)` — the strongest close-only
 proxy for the *persistence / serial-dependence* axis — was evaluated as the next
