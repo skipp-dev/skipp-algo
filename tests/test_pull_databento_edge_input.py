@@ -14,6 +14,7 @@ import pytest
 
 from scripts import pull_databento_edge_input as wrapper
 from scripts.pull_databento_edge_input import (
+    _quote_rule_opra_aggressor,
     aggregate_signed_uoa_notional,
     aggregate_signed_volume,
     normalize_ohlcv_frame,
@@ -412,6 +413,85 @@ def test_normalize_opra_trades_frame_feeds_aggregation() -> None:
 
     assert float(agg["uoa_signed_notional"].iloc[0]) == 800.0  # 2000 - 1200
     assert float(agg["uoa_abs_notional"].iloc[0]) == 3200.0
+
+
+def _raw_opra_tbbo(
+    offsets: list[int],
+    sizes: list[float],
+    prices: list[float],
+    bids: list[float],
+    asks: list[float],
+    *,
+    raw_sides: list[str] | None = None,
+) -> pd.DataFrame:
+    """A raw OPRA ``tbbo`` frame: trade price + NBBO (``bid_px_00``/``ask_px_00``).
+
+    The raw ``side`` defaults to ``"N"`` for every row to mirror the live OPRA
+    tape (no reliable aggressor flag), proving the normaliser reconstructs the
+    aggressor from the quote rule rather than trusting the field.
+    """
+    n = len(offsets)
+    index = pd.to_datetime([(_T0 + o) * 1_000_000_000 for o in offsets], utc=True)
+    return pd.DataFrame(
+        {
+            "price": prices,
+            "size": sizes,
+            "side": raw_sides if raw_sides is not None else ["N"] * n,
+            "bid_px_00": bids,
+            "ask_px_00": asks,
+        },
+        index=pd.DatetimeIndex(index, name="ts_event"),
+    )
+
+
+def test_quote_rule_opra_aggressor_classifies_against_nbbo() -> None:
+    price = pd.Series([2.0, 1.0, 1.5, 1.5, 2.0])
+    bid = pd.Series([1.4, 1.4, 1.4, float("nan"), 2.0])  # row3 missing, row4 locked
+    ask = pd.Series([2.0, 2.0, 2.0, 2.0, 2.0])
+
+    side = _quote_rule_opra_aggressor(price, bid, ask)
+
+    # price>=ask -> A; price<=bid -> B; inside spread / missing quote / locked
+    # (ask==bid) -> N (honest unsigned).
+    assert side.tolist() == ["A", "B", "N", "N", "N"]
+
+
+def test_normalize_opra_tbbo_reconstructs_side_from_quote_rule() -> None:
+    # The raw side is uniformly "N" (the live OPRA reality); the quote rule must
+    # recover A (ask-lift) and B (bid-hit) from the NBBO so the signed notional
+    # is non-degenerate -- the entire point of the trades->tbbo switch.
+    raw = _raw_opra_tbbo(
+        offsets=[0, 60, 100],
+        sizes=[10.0, 4.0, 7.0],
+        prices=[2.0, 3.0, 1.5],  # at/above ask, at/below bid, inside spread
+        bids=[1.8, 3.2, 1.0],
+        asks=[2.0, 3.4, 2.0],
+    )
+
+    out = normalize_opra_trades_frame(raw, underlying="AAPL")
+    assert out["side"].tolist() == ["A", "B", "N"]
+
+    agg = aggregate_signed_uoa_notional(out, "15m")
+    # A: +2*10*100=+2000 ; B: -3*4*100=-1200 ; N: 1.5*7*100=1050 abs, 0 signed.
+    assert float(agg["uoa_signed_notional"].iloc[0]) == 800.0  # 2000 - 1200
+    assert float(agg["uoa_abs_notional"].iloc[0]) == 4250.0  # 2000 + 1200 + 1050
+
+
+def test_normalize_opra_tbbo_quote_rule_overrides_raw_side() -> None:
+    # Even when the raw frame carries a (stale/unreliable) non-N side, the NBBO
+    # quote rule is authoritative when bid/ask are present.
+    raw = _raw_opra_tbbo(
+        offsets=[0, 60],
+        sizes=[10.0, 4.0],
+        prices=[2.0, 3.0],
+        bids=[1.8, 3.2],
+        asks=[2.0, 3.4],
+        raw_sides=["B", "A"],  # deliberately the opposite of the quote-rule answer
+    )
+
+    out = normalize_opra_trades_frame(raw, underlying="AAPL")
+    # Quote rule (price>=ask -> A, price<=bid -> B) wins over the raw enum.
+    assert out["side"].tolist() == ["A", "B"]
 
 
 def test_aggregate_signed_uoa_notional_inverse_aggressor_signs() -> None:
