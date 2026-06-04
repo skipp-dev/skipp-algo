@@ -17,6 +17,7 @@ from scripts.pull_databento_edge_input import (
     aggregate_signed_uoa_notional,
     aggregate_signed_volume,
     normalize_ohlcv_frame,
+    normalize_opra_trades_frame,
     normalize_trades_frame,
     structure_and_bars_to_pipeline_input,
 )
@@ -330,6 +331,89 @@ def _raw_opra_trades(
     )
 
 
+def test_normalize_opra_trades_frame_from_datetime_index() -> None:
+    index = pd.to_datetime(
+        [(_T0 + i * 60) * 1_000_000_000 for i in range(3)], utc=True
+    )
+    raw = pd.DataFrame(
+        {"price": [2.0, 3.0, 1.0], "size": [10, 4, 7], "side": ["a", "B", "n"]},
+        index=pd.DatetimeIndex(index, name="ts_event"),
+    )
+
+    out = normalize_opra_trades_frame(raw, underlying="aapl")
+
+    assert list(out.columns) == ["timestamp", "price", "size", "side", "underlying"]
+    assert out["timestamp"].tolist() == [_T0, _T0 + 60, _T0 + 120]
+    assert out["side"].tolist() == ["A", "B", "N"]  # upper-cased Databento enum
+    assert out["size"].dtype == np.float64
+    assert (out["underlying"] == "AAPL").all()  # parent symbology stamp
+
+
+def test_normalize_opra_trades_frame_from_ts_event_column() -> None:
+    raw = pd.DataFrame(
+        {
+            "ts_event": pd.to_datetime([_T0 * 1_000_000_000], utc=True),
+            "price": [2.5],
+            "size": [3],
+            "side": ["A"],
+        }
+    )
+
+    out = normalize_opra_trades_frame(raw, underlying="MSFT")
+
+    assert out["timestamp"].tolist() == [_T0]
+    assert out["underlying"].tolist() == ["MSFT"]
+
+
+def test_normalize_opra_trades_frame_rejects_empty() -> None:
+    with pytest.raises(ValueError, match="empty"):
+        normalize_opra_trades_frame(pd.DataFrame(), underlying="AAPL")
+
+
+def test_normalize_opra_trades_frame_rejects_missing_columns() -> None:
+    raw = pd.DataFrame(
+        {"ts_event": pd.to_datetime([_T0 * 1_000_000_000], utc=True), "price": [2.0]}
+    )
+    with pytest.raises(ValueError, match="missing required columns"):
+        normalize_opra_trades_frame(raw, underlying="AAPL")
+
+
+def test_normalize_opra_trades_frame_drops_unpriced_rows() -> None:
+    raw = pd.DataFrame(
+        {
+            "ts_event": pd.to_datetime(
+                [_T0 * 1_000_000_000, (_T0 + 60) * 1_000_000_000], utc=True
+            ),
+            "price": [2.0, None],
+            "size": [10, 4],
+            "side": ["A", "B"],
+        }
+    )
+
+    out = normalize_opra_trades_frame(raw, underlying="AAPL")
+
+    # The unpriced print cannot contribute notional and is dropped.
+    assert len(out) == 1
+    assert out["timestamp"].tolist() == [_T0]
+
+
+def test_normalize_opra_trades_frame_feeds_aggregation() -> None:
+    """The normaliser output is consumed verbatim by the aggregator."""
+    index = pd.to_datetime(
+        [(_T0 + i * 60) * 1_000_000_000 for i in range(2)], utc=True
+    )
+    raw = pd.DataFrame(
+        {"price": [2.0, 3.0], "size": [10, 4], "side": ["A", "B"]},
+        index=pd.DatetimeIndex(index, name="ts_event"),
+    )
+
+    normalized = normalize_opra_trades_frame(raw, underlying="AAPL")
+    agg = aggregate_signed_uoa_notional(normalized, "15m")
+
+    assert float(agg["uoa_signed_notional"].iloc[0]) == 800.0  # 2000 - 1200
+    assert float(agg["uoa_abs_notional"].iloc[0]) == 3200.0
+
+
 def test_aggregate_signed_uoa_notional_inverse_aggressor_signs() -> None:
     # Three OPRA prints in one 15m window. OPRA convention is INVERSE of equity:
     #   A (ask-lift) = bullish (+): size 10 * price 2 * 100 = +2000
@@ -409,6 +493,26 @@ def test_payload_embeds_signed_uoa_when_opra_trades_supplied(
         # All prints are bullish (A) -> signed == abs on every embedded bar.
         assert bar["uoa_signed_notional"] == bar["uoa_abs_notional"]
         assert bar["uoa_abs_notional"] > 0.0
+
+
+def test_provenance_records_with_opra_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The ``with_opra`` provenance flag reflects whether OPRA prints were fed."""
+    df = normalize_ohlcv_frame(_raw_minute_frame(n=180), symbol="AAPL")
+    monkeypatch.setattr(
+        wrapper,
+        "build_explicit_structure_from_bars",
+        lambda *a, **k: {"bos": [{"id": "b1", "time": _T0, "price": 100.0, "dir": "UP"}]},
+    )
+
+    without = structure_and_bars_to_pipeline_input(df, symbol="AAPL", timeframe="15m")
+    assert without["provenance"]["with_opra"] is False
+
+    offsets = [i * 60 for i in range(180)]
+    raw = _raw_opra_trades(offsets, [5.0] * 180, [2.0] * 180, ["A"] * 180)
+    with_flow = structure_and_bars_to_pipeline_input(
+        df, symbol="AAPL", timeframe="15m", opra_trades=raw
+    )
+    assert with_flow["provenance"]["with_opra"] is True
 
 
 def test_payload_embeds_signed_volume_when_trades_supplied(
