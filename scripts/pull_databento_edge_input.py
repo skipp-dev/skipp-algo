@@ -196,10 +196,13 @@ def aggregate_signed_volume(trades: pd.DataFrame, timeframe: str) -> pd.DataFram
     Per bucket: ``signed_volume`` = ``sum(size)`` over buy aggressors (``side``
     ``B``) minus sell aggressors (``side`` ``A``); ``N`` (auction / non-displayed
     / no-side trades) contribute **0** to the signed sum but are still counted in
-    ``trade_count``. Returns columns ``timestamp, signed_volume, trade_count``
-    (epoch seconds). An empty input yields an empty frame.
+    ``trade_count``. ``abs_volume`` = ``sum(size)`` over **all** trades in the
+    bucket (the total traded size, an unsigned magnitude) -- the order-flow
+    imbalance denominator (ADR-0019). Returns columns
+    ``timestamp, signed_volume, trade_count, abs_volume`` (epoch seconds). An
+    empty input yields an empty frame.
     """
-    columns = ["timestamp", "signed_volume", "trade_count"]
+    columns = ["timestamp", "signed_volume", "trade_count", "abs_volume"]
     if trades.empty:
         return pd.DataFrame(columns=columns)
 
@@ -220,14 +223,18 @@ def aggregate_signed_volume(trades: pd.DataFrame, timeframe: str) -> pd.DataFram
     signed = size.where(side.eq("B"), 0.0) - size.where(side.eq("A"), 0.0)
 
     work = pd.DataFrame(
-        {"bucket_end": bucket_end, "signed": signed, "count": 1}
+        {"bucket_end": bucket_end, "signed": signed, "abs": size, "count": 1}
     ).dropna(subset=["bucket_end"])
     if work.empty:
         return pd.DataFrame(columns=columns)
 
     grouped = (
         work.groupby("bucket_end", sort=True)
-        .agg(signed_volume=("signed", "sum"), trade_count=("count", "sum"))
+        .agg(
+            signed_volume=("signed", "sum"),
+            trade_count=("count", "sum"),
+            abs_volume=("abs", "sum"),
+        )
         .reset_index()
     )
     grouped["timestamp"] = coerce_timestamps_to_epoch_seconds(grouped["bucket_end"])
@@ -237,9 +244,10 @@ def aggregate_signed_volume(trades: pd.DataFrame, timeframe: str) -> pd.DataFram
 def _merge_signed_volume_into_bars(
     bars: list[dict[str, float]], trades: pd.DataFrame, timeframe: str
 ) -> None:
-    """Embed ``signed_volume`` + ``trade_count`` into each bar dict in place.
+    """Embed ``signed_volume`` + ``trade_count`` + ``abs_volume`` into each bar
+    dict in place.
 
-    Additive keys only — the OHLCV keyset is untouched, so the bar-frame column
+    Additive keys only -- the OHLCV keyset is untouched, so the bar-frame column
     validators (subset checks) keep passing and the shadow extractor signature
     ``(bars, anchor_idx)`` needs no new argument. Bars whose bucket saw no trades
     are left as honest OHLCV-only dicts (the extractor returns honest-None there).
@@ -248,13 +256,21 @@ def _merge_signed_volume_into_bars(
     if agg.empty:
         return
     lookup = {
-        int(row.timestamp): (float(row.signed_volume), int(row.trade_count))
+        int(row.timestamp): (
+            float(row.signed_volume),
+            int(row.trade_count),
+            float(row.abs_volume),
+        )
         for row in agg.itertuples(index=False)
     }
     for bar in bars:
         signed = lookup.get(int(bar["timestamp"]))
         if signed is not None:
-            bar["signed_volume"], bar["trade_count"] = signed
+            (
+                bar["signed_volume"],
+                bar["trade_count"],
+                bar["abs_volume"],
+            ) = signed
 
 
 def _resampled_bars_payload(df: pd.DataFrame, symbol: str, timeframe: str) -> list[dict[str, float]]:

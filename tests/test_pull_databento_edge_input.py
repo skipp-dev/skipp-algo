@@ -253,6 +253,7 @@ def test_aggregate_signed_volume_signs_and_counts() -> None:
     assert len(agg) == 1
     assert float(agg["signed_volume"].iloc[0]) == 6.0  # 10 - 4 + 0
     assert int(agg["trade_count"].iloc[0]) == 3
+    assert float(agg["abs_volume"].iloc[0]) == 21.0  # 10 + 4 + 7 (unsigned sum)
 
 
 def test_aggregate_signed_volume_uint32_size_no_underflow() -> None:
@@ -266,6 +267,7 @@ def test_aggregate_signed_volume_uint32_size_no_underflow() -> None:
     agg = aggregate_signed_volume(trades, "15m")
 
     assert float(agg["signed_volume"].iloc[0]) == 6.0  # 10 - 4, NOT 10 + (2**32 - 4)
+    assert float(agg["abs_volume"].iloc[0]) == 14.0  # 10 + 4, unsigned total
 
 
 
@@ -274,7 +276,12 @@ def test_aggregate_signed_volume_empty_input() -> None:
         _raw_trades_frame([0], [1.0], ["B"]), symbol="AAPL"
     ).iloc[0:0]
     agg = aggregate_signed_volume(empty, "15m")
-    assert list(agg.columns) == ["timestamp", "signed_volume", "trade_count"]
+    assert list(agg.columns) == [
+        "timestamp",
+        "signed_volume",
+        "trade_count",
+        "abs_volume",
+    ]
     assert agg.empty
 
 
@@ -331,9 +338,11 @@ def test_payload_embeds_signed_volume_when_trades_supplied(
             "volume",
             "signed_volume",
             "trade_count",
+            "abs_volume",
         }
         assert bar["signed_volume"] > 0.0  # all buys
         assert bar["trade_count"] >= 1
+        assert bar["abs_volume"] >= bar["signed_volume"]
     assert payload["provenance"]["with_trades"] is True
 
 

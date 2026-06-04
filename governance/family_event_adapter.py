@@ -51,6 +51,7 @@ from typing import Any, TypedDict
 from governance.family_avg_trade_size_v2 import average_trade_size_at
 from governance.family_event_score import point_in_time_regime, raw_score
 from governance.family_kyle_lambda_v2 import kyle_lambda_at
+from governance.family_ofi_imbalance_v2 import ofi_imbalance_at
 from governance.family_returns import FamilyEvent
 from governance.family_score_features_v2 import relative_volume_at
 from governance.types import EventFamily
@@ -181,6 +182,9 @@ def _zone_event_to_family(
     avg_trade_size = average_trade_size_at(bars, anchor_idx)
     if avg_trade_size is not None:
         mapped["average_trade_size"] = avg_trade_size
+    ofi = ofi_imbalance_at(bars, anchor_idx)
+    if ofi is not None:
+        mapped["ofi_imbalance"] = ofi
     return mapped
 
 
@@ -234,6 +238,9 @@ def _level_event_to_family(
     avg_trade_size = average_trade_size_at(bars, anchor_idx)
     if avg_trade_size is not None:
         mapped["average_trade_size"] = avg_trade_size
+    ofi = ofi_imbalance_at(bars, anchor_idx)
+    if ofi is not None:
+        mapped["ofi_imbalance"] = ofi
     return mapped
 
 
