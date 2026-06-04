@@ -52,6 +52,7 @@ absent or the window carries no traded premium.
 
 from __future__ import annotations
 
+import enum
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -66,12 +67,18 @@ from governance.family_event_score import ATR_PERIOD
 SIGNED_UOA_NOTIONAL_SOURCE = "options_flow_signed_uoa_notional_v2"
 
 # Sentinel distinguishing "key present but corrupt" (refuse the window) from
-# "key honestly absent" (no flow on this bar -> contribute 0). A bare object is
-# used so it can never collide with a real float value.
-_CORRUPT = object()
+# "key honestly absent" (no flow on this bar -> contribute 0). A single-member
+# enum is used (rather than a bare ``object()``) so the static type checker can
+# narrow it out of the ``float | _Corrupt | None`` union after an ``is`` check —
+# a bare ``object`` would subsume ``float`` and defeat narrowing.
+class _Corrupt(enum.Enum):
+    TOKEN = enum.auto()
 
 
-def _bar_signed_notional(bar: Mapping[str, Any]) -> float | object | None:
+_CORRUPT = _Corrupt.TOKEN
+
+
+def _bar_signed_notional(bar: Mapping[str, Any]) -> float | _Corrupt | None:
     """Signed options-flow premium notional for one bar.
 
     Returns the embedded ``uoa_signed_notional`` as a float, ``None`` when the
@@ -91,7 +98,7 @@ def _bar_signed_notional(bar: Mapping[str, Any]) -> float | object | None:
     return val
 
 
-def _bar_abs_notional(bar: Mapping[str, Any]) -> float | object | None:
+def _bar_abs_notional(bar: Mapping[str, Any]) -> float | _Corrupt | None:
     """Total (unsigned) options-flow premium notional for one bar.
 
     Embedded alongside ``uoa_signed_notional`` by the producer. Must be
@@ -149,10 +156,14 @@ def signed_uoa_notional_at(
         # producer always embeds the pair together. Refuse rather than guess.
         if (signed is None) != (abs_notional is None):
             return None
-        if signed is None:  # honest gap: no prints on this bar -> no flow
+        # honest gap: no prints on this bar -> no flow. Testing both (rather
+        # than just ``signed``) lets the type checker narrow each operand to
+        # ``float`` for the sums below; the XOR guard above already proved the
+        # pair is either both-None or both-present.
+        if signed is None or abs_notional is None:
             continue
-        total_signed += signed  # type: ignore[operator]
-        total_abs += abs_notional  # type: ignore[operator]
+        total_signed += signed
+        total_abs += abs_notional
 
     if total_abs <= 0.0:
         return None
