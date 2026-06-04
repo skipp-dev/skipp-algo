@@ -74,6 +74,18 @@ _REQUIRED_OHLCV_COLUMNS = ("open", "high", "low", "close")
 _TRADES_SCHEMA = "trades"
 _REQUIRED_TRADES_COLUMNS = ("price", "size", "side")
 
+# ADR-0020 options-flow data path. OPRA option trades are pulled from the
+# consolidated options feed via PARENT symbology (``{SYMBOL}.OPT``), so every
+# returned print is already an option on the requested underlying -- no
+# ``definition`` join is needed to recover the underlying. The ``trades`` schema
+# carries the same ``side`` enum as equities, but the OPRA aggressor convention
+# is INVERSE (A=ask-lift=bullish buyer, B=bid-hit=bearish seller); that sign flip
+# lives in :func:`aggregate_signed_uoa_notional`, not here.
+_OPRA_DATASET = "OPRA.PILLAR"
+_OPRA_TRADES_SCHEMA = "trades"
+_OPRA_PARENT_STYPE = "parent"
+_REQUIRED_OPRA_TRADES_COLUMNS = ("price", "size", "side")
+
 
 def normalize_ohlcv_frame(raw: pd.DataFrame, *, symbol: str) -> pd.DataFrame:
     """Coerce a raw Databento OHLCV frame into the structure-detector schema.
@@ -183,6 +195,58 @@ def normalize_trades_frame(raw: pd.DataFrame, *, symbol: str) -> pd.DataFrame:
     return out.sort_values(["symbol", "timestamp"]).reset_index(drop=True)
 
 
+def normalize_opra_trades_frame(raw: pd.DataFrame, *, underlying: str) -> pd.DataFrame:
+    """Coerce a raw OPRA ``trades`` frame into the signed-UOA-notional schema.
+
+    Returns a frame with columns ``underlying, timestamp, price, size, side``
+    where ``timestamp`` is epoch **seconds** (matching :func:`normalize_ohlcv_
+    frame` so option-print buckets and OHLCV bars share one clock), ``price`` is
+    the per-contract premium (dollars), ``size`` the contract count, and ``side``
+    the upper-cased Databento enum ``{"A", "B", "N"}``.
+
+    Because OPRA trades are pulled via parent symbology (``{underlying}.OPT``),
+    every print already belongs to the requested underlying; the ``underlying``
+    column is stamped on for provenance rather than recovered per row. A
+    ``DatetimeIndex`` or any known ``ts_*`` column is accepted; an unrecognised
+    frame raises rather than guessing.
+    """
+    if raw.empty:
+        raise ValueError("OPRA trades frame is empty; nothing to normalize")
+
+    frame = raw.copy()
+    if isinstance(frame.index, pd.DatetimeIndex):
+        frame = frame.reset_index()
+        frame = frame.rename(columns={frame.columns[0]: "ts"})
+        ts_col = "ts"
+    else:
+        ts_col = next((c for c in _TIMESTAMP_CANDIDATES if c in frame.columns), "")
+        if not ts_col:
+            raise ValueError(
+                "no timestamp column found in OPRA trades frame; expected a "
+                f"DatetimeIndex or one of {_TIMESTAMP_CANDIDATES}"
+            )
+
+    missing = [c for c in _REQUIRED_OPRA_TRADES_COLUMNS if c not in frame.columns]
+    if missing:
+        raise ValueError(f"OPRA trades frame missing required columns: {missing}")
+
+    timestamps = pd.to_datetime(frame[ts_col], utc=True)
+    epoch_seconds = (timestamps - pd.Timestamp(0, tz="UTC")) // pd.Timedelta(seconds=1)
+    out = pd.DataFrame(
+        {
+            "timestamp": epoch_seconds,
+            "price": pd.to_numeric(frame["price"], errors="coerce"),
+            "size": pd.to_numeric(frame["size"], errors="coerce").astype("float64"),
+            "side": frame["side"].astype(str).str.strip().str.upper(),
+        }
+    )
+    out["underlying"] = str(underlying).strip().upper()
+    out = out.dropna(subset=["timestamp", "size", "price"])
+    if out.empty:
+        raise ValueError("OPRA trades frame has no usable rows after coercion")
+    return out.sort_values(["underlying", "timestamp"]).reset_index(drop=True)
+
+
 def aggregate_signed_volume(trades: pd.DataFrame, timeframe: str) -> pd.DataFrame:
     """Bucket signed trade volume onto the same grid the OHLCV bars use.
 
@@ -273,6 +337,128 @@ def _merge_signed_volume_into_bars(
             ) = signed
 
 
+# OCC standard equity-option contract multiplier (100 shares per contract).
+# Mirrors ``newsstack_fmp.opra_uoa._OCC_CONTRACT_MULTIPLIER`` so the recorded
+# ADR-0020 shadow feature and the live UOA alerts price premium identically; it
+# is duplicated (not imported) to keep this scripts module decoupled from the
+# news stack. The OCC multiplier is a fixed market convention, not a tunable.
+_OCC_CONTRACT_MULTIPLIER = 100
+
+
+def aggregate_signed_uoa_notional(
+    opra_trades: pd.DataFrame, timeframe: str
+) -> pd.DataFrame:
+    """Bucket signed OPRA options-premium notional onto the OHLCV bar grid.
+
+    Reuses the resampler's exact ``bucket_end`` rule (identical to
+    :func:`aggregate_signed_volume`), so the emitted ``timestamp`` joins
+    one-to-one onto the resampled bar timestamps of the *underlying*.
+
+    ``opra_trades`` is an OPRA ``trades`` frame already mapped to the underlying
+    (one row per option print) with columns ``timestamp`` (epoch seconds),
+    ``size`` (contracts), ``price`` (per-contract premium, dollars) and ``side``
+    (``A`` / ``B`` / ``N``). Per print the notional premium is
+    ``price * size * 100`` (the OCC multiplier).
+
+    The OPRA aggressor convention is the **inverse** of the equity tape: ``A``
+    (trade hit the ask) is the aggressive **buyer** -> ``+`` (bullish); ``B``
+    (hit the bid) is the aggressive **seller** -> ``-`` (bearish); ``N``
+    (cross / unknown) contributes ``0`` to the signed sum but is still counted in
+    ``uoa_trade_count`` and ``uoa_abs_notional``. This matches
+    ``newsstack_fmp.opra_uoa._side_to_aggressor`` exactly.
+
+    Per bucket: ``uoa_signed_notional`` = signed premium sum;
+    ``uoa_abs_notional`` = total premium sum over **all** prints (the imbalance
+    denominator, ADR-0020). Returns columns ``timestamp, uoa_signed_notional,
+    uoa_trade_count, uoa_abs_notional`` (epoch seconds). An empty input yields an
+    empty frame.
+    """
+    columns = [
+        "timestamp",
+        "uoa_signed_notional",
+        "uoa_trade_count",
+        "uoa_abs_notional",
+    ]
+    if opra_trades.empty:
+        return pd.DataFrame(columns=columns)
+
+    canonical_tf = _canonical_timeframe(timeframe)
+    freq = _TIMEFRAME_TO_PANDAS_FREQ[canonical_tf]
+    offset = pd.tseries.frequencies.to_offset(freq)
+
+    ts = pd.to_datetime(opra_trades["timestamp"], unit="s", utc=True)
+    floored = ts.dt.floor(freq)
+    bucket_end = floored.where(ts.eq(floored), floored + offset)
+
+    # float64 cast is load-bearing: Databento delivers ``size`` as uint32, and a
+    # signed subtraction on an unsigned dtype underflows (see aggregate_signed_
+    # volume). ``price`` is fixed-point but coerced for the multiply.
+    size = pd.to_numeric(opra_trades["size"], errors="coerce").astype("float64").fillna(0.0)
+    price = pd.to_numeric(opra_trades["price"], errors="coerce").astype("float64").fillna(0.0)
+    notional = size * price * float(_OCC_CONTRACT_MULTIPLIER)
+    side = opra_trades["side"].astype(str).str.strip().str.upper()
+    # INVERSE of equity: ask-side (A) is the aggressive buyer (+), bid-side (B)
+    # the aggressive seller (-); anything else (N/blank) is unsigned.
+    signed = notional.where(side.eq("A"), 0.0) - notional.where(side.eq("B"), 0.0)
+
+    work = pd.DataFrame(
+        {
+            "bucket_end": bucket_end,
+            "signed": signed,
+            "abs": notional,
+            "count": 1,
+        }
+    ).dropna(subset=["bucket_end"])
+    if work.empty:
+        return pd.DataFrame(columns=columns)
+
+    grouped = (
+        work.groupby("bucket_end", sort=True)
+        .agg(
+            uoa_signed_notional=("signed", "sum"),
+            uoa_trade_count=("count", "sum"),
+            uoa_abs_notional=("abs", "sum"),
+        )
+        .reset_index()
+    )
+    grouped["timestamp"] = coerce_timestamps_to_epoch_seconds(grouped["bucket_end"])
+    return grouped[columns].reset_index(drop=True)
+
+
+def _merge_signed_uoa_notional_into_bars(
+    bars: list[dict[str, float]], opra_trades: pd.DataFrame, timeframe: str
+) -> None:
+    """Embed ``uoa_signed_notional`` + ``uoa_trade_count`` + ``uoa_abs_notional``
+    into each matching bar dict in place.
+
+    Additive keys only -- the OHLCV keyset is untouched, so the bar-frame column
+    validators keep passing and the shadow extractor signature
+    ``(bars, anchor_idx)`` needs no new argument. Bars whose bucket saw no option
+    prints are left without the keys; the ``signed_uoa_notional_at`` extractor
+    treats those as an honest no-flow gap (contributes 0), so a window with zero
+    total premium returns honest-None.
+    """
+    agg = aggregate_signed_uoa_notional(opra_trades, timeframe)
+    if agg.empty:
+        return
+    lookup = {
+        int(row.timestamp): (
+            float(row.uoa_signed_notional),
+            int(row.uoa_trade_count),
+            float(row.uoa_abs_notional),
+        )
+        for row in agg.itertuples(index=False)
+    }
+    for bar in bars:
+        uoa = lookup.get(int(bar["timestamp"]))
+        if uoa is not None:
+            (
+                bar["uoa_signed_notional"],
+                bar["uoa_trade_count"],
+                bar["uoa_abs_notional"],
+            ) = uoa
+
+
 def _resampled_bars_payload(df: pd.DataFrame, symbol: str, timeframe: str) -> list[dict[str, float]]:
     """The resampled timeframe bars the structure events anchor on.
 
@@ -317,6 +503,7 @@ def structure_and_bars_to_pipeline_input(
     start: str | None = None,
     end: str | None = None,
     trades: pd.DataFrame | None = None,
+    opra_trades: pd.DataFrame | None = None,
 ) -> dict[str, Any]:
     """Build a :mod:`scripts.run_edge_pipeline` input payload from real bars.
 
@@ -330,6 +517,12 @@ def structure_and_bars_to_pipeline_input(
     bucketed onto the same grid and embedded into each matching bar dict as
     additive keys (OHLCV keyset unchanged). Bars whose bucket saw no trades stay
     OHLCV-only.
+
+    When ``opra_trades`` (an OPRA ``trades`` frame mapped to the underlying) is
+    supplied, the ADR-0020 ``uoa_signed_notional`` + ``uoa_abs_notional`` options
+    -flow aggregates are bucketed onto the same grid and embedded the same way,
+    feeding the recorded-only ``signed_uoa_notional_at`` shadow feature. Bars
+    whose bucket saw no option prints stay without the UOA keys.
 
     Raises ``ValueError`` when the symbol produces no resampled bars or no
     structure events (an honest empty result, never a fabricated payload).
@@ -351,6 +544,9 @@ def structure_and_bars_to_pipeline_input(
 
     if trades is not None and not trades.empty:
         _merge_signed_volume_into_bars(bars, trades, timeframe)
+
+    if opra_trades is not None and not opra_trades.empty:
+        _merge_signed_uoa_notional_into_bars(bars, opra_trades, timeframe)
 
     resolved_as_of = as_of if as_of is not None else bars[-1]["timestamp"]
 
@@ -374,6 +570,7 @@ def structure_and_bars_to_pipeline_input(
             "schema": schema,
             "window": {"start": start, "end": end},
             "with_trades": bool(trades is not None and not trades.empty),
+            "with_opra": bool(opra_trades is not None and not opra_trades.empty),
         },
     }
     return payload
@@ -451,6 +648,46 @@ def fetch_trades_frame(
     return normalize_trades_frame(frame, symbol=symbol)
 
 
+def fetch_opra_trades_frame(
+    symbol: str,
+    *,
+    start: str,
+    end: str,
+    api_key: str | None = None,
+) -> pd.DataFrame:
+    """Fetch a raw OPRA ``trades`` frame for one underlying (credential-bound).
+
+    Mirrors :func:`fetch_trades_frame` but targets the consolidated options feed
+    ``OPRA.PILLAR`` and resolves the whole option chain through **parent
+    symbology**: ``symbols=[f"{symbol}.OPT"], stype_in="parent"`` returns every
+    OPRA print on the underlying, so the response needs no ``definition`` join to
+    recover the underlying. The frame is handed to
+    :func:`normalize_opra_trades_frame`.
+
+    Not unit tested against the live API (no OPRA entitlement in CI); the pure
+    normaliser and the aggregation it feeds carry the tested contract.
+    """
+    from databento_client import (
+        _databento_get_range_with_retry,
+        _make_databento_client,
+    )
+
+    client = _make_databento_client(api_key)
+    underlying = str(symbol).strip().upper()
+    store = _databento_get_range_with_retry(
+        client,
+        context="pull_databento_edge_input_opra",
+        dataset=_OPRA_DATASET,
+        symbols=[f"{underlying}.OPT"],
+        stype_in=_OPRA_PARENT_STYPE,
+        schema=_OPRA_TRADES_SCHEMA,
+        start=start,
+        end=end,
+    )
+    frame = store.to_df()
+    return normalize_opra_trades_frame(frame, underlying=underlying)
+
+
 def _coerce_as_of_arg(value: str | None) -> float | str | None:
     """CLI ``--as-of``: passthrough ISO string / epoch, or None to auto-default."""
     if value is None or not value.strip():
@@ -501,6 +738,16 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--with-opra",
+        action="store_true",
+        help=(
+            "Also pull the ADR-0020 OPRA option ``trades`` (OPRA.PILLAR, parent "
+            "symbology {SYMBOL}.OPT) and embed per-bar uoa_signed_notional + "
+            "uoa_abs_notional. Default off keeps the payload unchanged. Requires "
+            "an OPRA-entitled key."
+        ),
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         required=True,
@@ -526,6 +773,15 @@ def main(argv: list[str] | None = None) -> int:
             if args.with_trades
             else None
         )
+        opra_trades = (
+            fetch_opra_trades_frame(
+                args.symbol,
+                start=args.start,
+                end=args.end,
+            )
+            if args.with_opra
+            else None
+        )
         payload = structure_and_bars_to_pipeline_input(
             frame,
             symbol=args.symbol,
@@ -539,6 +795,7 @@ def main(argv: list[str] | None = None) -> int:
             start=args.start,
             end=args.end,
             trades=trades,
+            opra_trades=opra_trades,
         )
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)

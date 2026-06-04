@@ -155,6 +155,18 @@ class FamilyEvent(TypedDict, total=False):
     # no traded size (OHLCV-only run) or no trades fell in the window. Never
     # invented.
     ofi_imbalance: float
+    # Optional point-in-time options-flow feature (ADR-0020 v2 candidate, the
+    # first on the OPRA options-flow datapath): signed UOA notional imbalance,
+    # sum(uoa_signed_notional) / sum(uoa_abs_notional) over the trailing window
+    # (see ``governance.family_signed_uoa_notional_v2.signed_uoa_notional_at``),
+    # in [-1, +1] -- the SIGNED direction of aggressor options premium (+ bullish
+    # ask-lifting, - bearish bid-hitting). RECORDED ONLY -- it is NOT a
+    # calibration input and does NOT feed the gate; it rides alongside outcomes
+    # so the pre-registered purged walk-forward A/B (ADR-0020) can evaluate
+    # whether it lifts resolution before any wiring. Absent when the bars carry
+    # no embedded options prints (OHLCV-only run) or no premium fell in the
+    # window. Never invented.
+    signed_uoa_notional: float
 
 
 def _direction_sign(direction: str) -> int:

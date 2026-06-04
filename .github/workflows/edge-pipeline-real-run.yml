@@ -82,6 +82,11 @@ on:
         required: false
         type: boolean
         default: false
+      with_opra:
+        description: "ADR-0020: also pull OPRA.PILLAR option trades (parent symbology) and embed aggressor-signed UOA notional per bar (signed_uoa_notional A/B input). Requires an OPRA-entitled key."
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -175,6 +180,10 @@ jobs:
           if [ "${{ inputs.with_trades }}" = "true" ]; then
             TRADES_FLAG=(--with-trades)
           fi
+          OPRA_FLAG=()
+          if [ "${{ inputs.with_opra }}" = "true" ]; then
+            OPRA_FLAG=(--with-opra)
+          fi
 
           mkdir -p artifacts/edge_runs governance/promotion_decisions
 
@@ -200,6 +209,7 @@ jobs:
               --end "$END" \
               "${AS_OF_FLAG[@]}" \
               "${TRADES_FLAG[@]}" \
+              "${OPRA_FLAG[@]}" \
               --output "$IN"
             RC_PULL=$?
             echo "::endgroup::"
