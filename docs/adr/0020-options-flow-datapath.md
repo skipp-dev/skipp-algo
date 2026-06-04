@@ -168,6 +168,19 @@ ADR + plumbing PR, gated behind the still-open ADR-0019 queue — and NOT as a
 - Doc-only. No code, no shadow feature, no candidate added to the ADR-0019
   queue. The first plumbing PR is gated behind (a) the open queue clearing and
   (b) acceptance of this ADR.
+- **ADR-0019 queue closed + first feature SHIPPED 2026-06-04.** The OHLCV-pure
+  candidate queue is formally closed (WVF #2546 and Kyle #2554 stay recorded-only
+  as controls; Amihud cancelled before any code — see the saturation verdict's
+  "Queue closure" section). The first options-flow feature, `signed_uoa_notional`,
+  is implemented **recorded-only** in PR #2563: producer
+  `scripts.pull_databento_edge_input.aggregate_signed_uoa_notional` /
+  `_merge_signed_uoa_notional_into_bars`, extractor
+  `governance.family_signed_uoa_notional_v2.signed_uoa_notional_at` (signed
+  imbalance in `[-1, +1]`, honest-None, strictly PIT), wired into the adapter at
+  both event sites. It is NOT in the v1 score or any gate; it rides alongside
+  outcomes for the pre-registered purged walk-forward A/B. The **live OPRA pull**
+  (OPRA.PILLAR fetch + `definition`→underlying mapping) is the credential-bound
+  follow-up PR, deliberately split out the same way `fetch_ohlcv_frame` is.
 - **Entitlement probe RUN 2026-06-04** (see "Entitlement ground truth" above):
   `OPRA.PILLAR` entitled; equity `mbp-10`/`mbo`/`imbalance` entitled on
   XNAS.ITCH. The L2 axis is **no longer entitlement-blocked** — only cost-gated.
