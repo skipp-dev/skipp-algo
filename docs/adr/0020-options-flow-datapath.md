@@ -92,11 +92,15 @@ ADR + plumbing PR, gated behind the still-open ADR-0019 queue — and NOT as a
       equity datasets) — the L2 axis is on the table. What remains is not a
       tier question but an engineering one: the repo `vpin` is a
       fixed-`bucket_size` approximation, not canonical volume-bar VPIN, and
-      MBP-10 depth is data-volume-massive (storage / latency / backtest cost).
-      Before any feature work, the cheap next step is now a **bounded cost
-      probe** — pull one symbol-day of `mbp-10` on XNAS.ITCH, measure record
-      volume and a canonical-VPIN proof-of-concept — to decide build-vs-defer
-      on real numbers, not entitlement guesses.
+      MBP-10 depth is data-volume-massive. A **bounded metadata cost probe**
+      (2026-06-04, AAPL 2025-09-15, XNAS.ITCH, metadata only — no bulk download)
+      now quantifies that: `mbp-10` is **1.38 M records/symbol-day** (~1,546× the
+      895 `ohlcv-1m` bars), `mbo` 4.08 M (~4,556×). **Dollar cost is trivial**
+      ($0.19/symbol-day for `mbp-10`, ~$240 for a 5-symbol × ~250-day backtest);
+      the real gate is **record volume** (~1.7 B rows to store, parse, and
+      leak-safely PIT-aggregate into bar-level features). So the L2 build-vs-defer
+      call is an **engineering-cost decision, not a budget or access one** — and
+      it ranks below options flow on effort, not on data availability.
    3. **Cross-asset lead-lag — defer.** Conceptually the most elegant "new axis"
       but the most greenfield plumbing and the highest leakage risk
       (time-aligning two asynchronous series through the single-instrument
@@ -169,3 +173,10 @@ ADR + plumbing PR, gated behind the still-open ADR-0019 queue — and NOT as a
   XNAS.ITCH. The L2 axis is **no longer entitlement-blocked** — only cost-gated.
   The next cheap step for L2 shifted from an entitlement probe to a **bounded
   MBP-10 data-volume + canonical-VPIN cost probe** before any feature build.
+- **Bounded cost probe RUN 2026-06-04** (AAPL, 2025-09-15, XNAS.ITCH, metadata
+  only): `mbp-10` = 1.38 M records/symbol-day (~1,546× `ohlcv-1m`), `$0.19`;
+  `mbo` = 4.08 M (~4,556×), `$0.26`; `trades` = 144 k (~161×), `mbp-1` = 801 k
+  (~895×). **Verdict: L2 dollar cost is trivial (~$240 for a 5-symbol × ~250-day
+  backtest); the binding constraint is record volume (~1.7 B rows) and the
+  engineering to PIT-aggregate it leak-safely.** This keeps L2 ranked #2 below
+  options flow on engineering effort, not on access or budget.
