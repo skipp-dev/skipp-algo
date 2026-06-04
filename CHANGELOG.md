@@ -6,6 +6,30 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-04) — ADR-0019: order-flow imbalance shadow feature (recorded-only)
+
+New ADR-0019 order-flow candidate on the aggressor-signed data path:
+**order-flow imbalance** (`governance/family_ofi_imbalance_v2.ofi_imbalance_at`),
+`abs(sum(signed_volume)) / sum(abs_volume)` in `[0, 1]` over the trailing
+`ATR_PERIOD` window ending at the anchor — the net one-sidedness of aggressor
+flow. This is the *direction* axis of order flow, orthogonal to turnover
+*magnitude* (`relative_volume`), price *impact* slope (Kyle's lambda) and
+*participant size* (`average_trade_size`): a deep book absorbs very one-sided
+flow at low lambda, a thin book shows high lambda at modest imbalance. It is a
+*simplified bar-level imbalance*, **not** canonical VPIN (VPIN buckets on
+equal-volume bars with bulk-volume classification; here the aggressor side is
+known per trade). To supply the honest denominator the producer
+(`scripts/pull_databento_edge_input.aggregate_signed_volume`) now also embeds
+per-bar `abs_volume` (the sum of all trade sizes, an unsigned magnitude)
+alongside `signed_volume` + `trade_count`; the OHLCV `volume` (a different
+source) is *not* used as the denominator (extended-hours mismatch). Strictly
+point-in-time, leak-free and honest-None (returns `None` rather than fabricating
+when `signed_volume`/`abs_volume` are absent or the window carries no traded
+size); the ratio is clamped to `[0, 1]`. Recorded onto both zone and level
+family events via `family_event_adapter`; **RECORDED-ONLY** — it does not feed
+the v1 score or any gate. Pending its pre-registered purged walk-forward A/B
+verdict (which requires a fresh EV-20 `with_trades` run carrying `abs_volume`).
+
 ### Added (2026-06-04) — ADR-0019: average trade size shadow feature (recorded-only)
 
 New ADR-0019 order-flow candidate on the live aggressor-signed data path:
