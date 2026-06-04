@@ -48,6 +48,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any, TypedDict
 
+from governance.family_avg_trade_size_v2 import average_trade_size_at
 from governance.family_event_score import point_in_time_regime, raw_score
 from governance.family_kyle_lambda_v2 import kyle_lambda_at
 from governance.family_returns import FamilyEvent
@@ -177,6 +178,9 @@ def _zone_event_to_family(
     kyle_lambda = kyle_lambda_at(bars, anchor_idx)
     if kyle_lambda is not None:
         mapped["kyle_lambda"] = kyle_lambda
+    avg_trade_size = average_trade_size_at(bars, anchor_idx)
+    if avg_trade_size is not None:
+        mapped["average_trade_size"] = avg_trade_size
     return mapped
 
 
@@ -227,6 +231,9 @@ def _level_event_to_family(
     kyle_lambda = kyle_lambda_at(bars, anchor_idx)
     if kyle_lambda is not None:
         mapped["kyle_lambda"] = kyle_lambda
+    avg_trade_size = average_trade_size_at(bars, anchor_idx)
+    if avg_trade_size is not None:
+        mapped["average_trade_size"] = avg_trade_size
     return mapped
 
 
