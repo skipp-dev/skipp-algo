@@ -137,6 +137,24 @@ This is not a failure: it is a cleanly evidenced "this seam is mined out, here i
 the map to the next one" — the result that stops further quarters being sunk into
 OHLCV feature tuning.
 
+### Queue closure (2026-06-04)
+
+On the strength of this verdict the ADR-0019 OHLCV-pure candidate queue is
+**formally closed**. Concretely:
+
+- **Williams VIX Fix** ([#2546](https://github.com/skippALGO/skipp-algo/pull/2546),
+  merged) and **Kyle's lambda** ([#2554](https://github.com/skippALGO/skipp-algo/pull/2554),
+  merged) remain in the tree as **recorded-only** shadow features; no further
+  A/B or promotion work is spent on them — §1–§4 already covers their label-axis
+  null. They are *not* removed; they keep riding alongside outcomes so any future
+  axis can reuse them as controls.
+- **Amihud illiquidity** (next in line) is **cancelled before any code** — it is
+  another magnitude/illiquidity formula on the same bars and would land on the
+  same saturated label. No PR was or will be opened for it.
+- The team's data-acquisition effort moves to the **options-flow datapath**
+  scoped in [ADR-0020](../adr/0020-options-flow-datapath.md) (first feature:
+  the `signed_uoa_notional` shadow on the OPRA aggressor-signed path).
+
 ## 6. Reusable methodological guardrails (the real durable output)
 
 These were the difference between an honest verdict and a shipped false positive,
