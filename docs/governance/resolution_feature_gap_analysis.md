@@ -154,3 +154,19 @@ rational next workstream is a **producer plumbing PR** — add
 `"volume": float(row.volume)` (and `"open"`) to `_resampled_bars_payload` and
 re-dispatch EV-20 — which unblocks **both** a genuine `relative_volume` A/B and
 the Amihud candidate, i.e. the order-flow lever itself.
+
+### Update (2026-06-04): the order-flow lever was unblocked, tested, and the onramp is now saturated
+
+The producer plumbing landed and the order-flow axis was exercised end-to-end:
+`relative_volume`, `kyle_lambda` (ADR-0016), `average_trade_size` and
+`ofi_imbalance` all ran their A/Bs on real two-regime EV-20 data and returned
+`no_lift` across all four families. A follow-up forensic investigation
+(magnitude-label A/B, SWEEP out-of-sample replication on a third disjoint window,
+and a regime-relative compression hypothesis with a pre-registered tradeability
+test) closes the loop: the directional axis is **saturated**, the one apparent
+magnitude exception **does not replicate OOS**, and the single durable signal
+(regime-relative compression) is **statistically real but economically
+sub-marginal**. The full evidence chain, exact numbers, and reusable
+methodological guardrails are recorded in the
+[feature-onramp saturation verdict](feature_onramp_saturation_verdict.md). The
+recommended next axis is **options flow**, not more OHLCV-derived formulas.

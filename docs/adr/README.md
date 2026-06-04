@@ -32,10 +32,15 @@ old one and update the table below.
 | 0014 | [EV#6 PSI-trend source and EV#7 regime-degradation source](0014-ev6-psi-trend-source-and-ev7-regime-deferral.md) | Accepted | 2026-06-02 | `governance/family_calibration.py`, `governance/family_event_score.py`, `governance/family_returns.py` |
 | 0015 | [Edge proof and calibration are separate promotion tiers](0015-edge-vs-calibration-promotion-tiers.md) | Accepted (decision) | 2026-06-02 | (implementation staged: tiered `risk_sizeable` in `governance/family_verdict.py`; no gate code changed by the ADR) |
 | 0016 | [Aggressor-signed order-flow data path for microstructure shadow features](0016-orderflow-aggressor-datapath.md) | Proposed | 2026-06-03 | doc-only (scopes the data path for the ADR-0019 shadow-feature workstream; no code changed) |
+| 0016 | [Pipeline-provenance classes (no-ML pipelines)](0016-pipeline-provenance-classes.md) | Accepted | 2026-06-02 | number collision with the order-flow data-path ADR above; both keep their slot per the no-renumber rule |
+| 0017 | [Live-incubation surrogate for offline backtests (live-vs-WF)](0017-live-incubation-surrogate.md) | Accepted | 2026-06-02 | live-vs-walk-forward incubation surrogate |
+| 0018 | [Split-conformal coverage from walk-forward OOS pairs](0018-split-conformal-coverage.md) | Accepted | 2026-06-02 | conformal coverage from WF OOS pairs |
+| 0019 | [Multi-feature family score v2 (meta-label) — order-flow-led resolution](0019-multi-feature-family-score-v2.md) | Proposed (draft) | 2026-06-02 | doc-only; shadow-feature A/B onramp — see [onramp saturation verdict](../governance/feature_onramp_saturation_verdict.md) |
+| 0020 | [Options-flow data path — signed UOA notional as the next orthogonal shadow-feature axis](0020-options-flow-datapath.md) | Proposed | 2026-06-04 | doc-only (ranks the three new-information axes by repo maturity; scopes the options-flow data path; no code changed) |
 
 ## Reservation rule
 
-The next free ADR number is **0017**. To avoid concurrent-PR collisions:
+The next free ADR number is **0021**. To avoid concurrent-PR collisions:
 
 1. Reserve the next number by opening the PR with the file already named
    (e.g. `docs/adr/0008-foo.md`) before the rebase race window closes.
