@@ -110,7 +110,7 @@ def test_uses_pinned_action_shas(text: str) -> None:
     # Pin checks defend against tag-mutation supply-chain risk —
     # same SHA discipline as the credential-health workflow.
     assert "actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5" in text
-    assert "actions/setup-python@e348410e00f449f3bb50f72fda1d4f7600fc1b04" in text
+    assert "actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405" in text
     assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a" in text
 
 

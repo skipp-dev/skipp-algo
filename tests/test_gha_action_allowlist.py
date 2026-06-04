@@ -47,6 +47,33 @@ _ALLOWLIST_OWNER_REPOS: frozenset[str] = frozenset(
 _USES_RE = re.compile(r"^\s*-?\s*uses:\s*([^\s#'\"]+)")
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
+# Approved-SHA drift guard (zero-network).
+#
+# The format-only SHA check above cannot tell a *resolvable* pin from a
+# typo'd / hallucinated / upstream-rebased 40-hex string. On 2026-06-03 a
+# third, divergent `actions/setup-python` pin
+# (e348410e00f449f3bb50f72fda1d4f7600fc1b04, labelled "v6.0.0") was
+# introduced next to the two established pins. It is a 40-char hex, so the
+# allowlist passed at PR time — but the SHA does not exist upstream
+# (HTTP 422), so every run that reached it failed with
+# "Unable to resolve action ... unable to find version". credential-health
+# and workflow-freshness-monitor both broke (run 26880387376 et al.).
+#
+# This guard freezes the *exact* set of SHAs each runtime-installing action
+# may pin to. Any new pin must be added here deliberately — which forces a
+# human (or this agent) to verify the SHA resolves before it can land,
+# catching the divergence at PR time WITHOUT a network call. To add a
+# legitimately bumped pin: confirm `gh api repos/<owner>/<repo>/commits/<sha>`
+# resolves, then add it below.
+_APPROVED_ACTION_SHAS: dict[str, frozenset[str]] = {
+    "actions/setup-python": frozenset(
+        {
+            "a26af69be951a213d495a4c3e4e4022e16d87065",  # v5
+            "a309ff8b426b58ec0e2a45f0f869d46889d02405",  # v6
+        }
+    ),
+}
+
 
 def _iter_workflow_files() -> list[Path]:
     if not WORKFLOWS_DIR.is_dir():
@@ -143,3 +170,64 @@ def test_workflow_inventory_sane() -> None:
         f"Expected >=10 uses-lines across .github/workflows, got {len(uses)}. "
         f"Workflow files may have been removed."
     )
+
+
+def test_runtime_action_pins_on_approved_sha_set() -> None:
+    """Every pin of a guarded runtime-installing action must reference one of
+    the deliberately frozen SHAs in ``_APPROVED_ACTION_SHAS``.
+
+    This catches a 40-hex-but-unresolvable pin (typo / hallucinated /
+    upstream-rebased SHA) at PR time without any network call. See the
+    module-level note on the 2026-06-03 dead-``setup-python`` incident.
+    """
+    violations: list[str] = []
+    for wf, ln, ref in _iter_uses():
+        if ref.startswith("./") or ref.startswith("../") or ref.startswith("docker://"):
+            continue
+        if "@" not in ref:
+            continue
+        left, _, version = ref.partition("@")
+        owner_repo = _owner_repo(left)
+        approved = _APPROVED_ACTION_SHAS.get(owner_repo)
+        if approved is None:
+            continue
+        if not _SHA_RE.match(version):
+            violations.append(
+                f"{wf.name}:{ln}: '{ref}' — guarded action '{owner_repo}' must "
+                f"be SHA-pinned (got non-SHA ref '{version}')."
+            )
+            continue
+        if version not in approved:
+            violations.append(
+                f"{wf.name}:{ln}: '{ref}' pins '{owner_repo}' to an "
+                f"unapproved SHA. Approved SHAs: "
+                f"{', '.join(sorted(approved))}. If this is a legitimate "
+                f"bump, verify it resolves upstream "
+                f"(`gh api repos/{owner_repo}/commits/{version}`) and add it "
+                f"to _APPROVED_ACTION_SHAS in this test."
+            )
+    assert not violations, (
+        "Unapproved runtime-action SHA pins (possible dead/typo'd pin):\n  "
+        + "\n  ".join(violations)
+    )
+
+
+def test_approved_sha_set_has_no_stale_entries() -> None:
+    """Every SHA in ``_APPROVED_ACTION_SHAS`` must still be pinned by at least
+    one workflow, so the frozen set cannot silently accumulate dead SHAs."""
+    used: dict[str, set[str]] = {}
+    for _, _, ref in _iter_uses():
+        if "@" not in ref:
+            continue
+        left, _, version = ref.partition("@")
+        used.setdefault(_owner_repo(left), set()).add(version)
+    stale: list[str] = []
+    for owner_repo, approved in _APPROVED_ACTION_SHAS.items():
+        used_shas = used.get(owner_repo, set())
+        for sha in sorted(approved - used_shas):
+            stale.append(f"{owner_repo}@{sha}")
+    assert not stale, (
+        "Stale entries in _APPROVED_ACTION_SHAS — no workflow pins them: "
+        + ", ".join(stale)
+    )
+
