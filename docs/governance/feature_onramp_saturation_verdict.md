@@ -130,7 +130,8 @@ only via a vol bet (§4), which is sub-marginal after premium. So this rescue is
    bars. **Options flow (`opra` / unusual-options-activity) is the top pick** —
    it is the closest forward-looking, non-OHLCV axis and the data path is the
    most reachable next step. L2 book/queue depth and cross-asset lead-lag are the
-   secondary candidates.
+   secondary candidates. The three axes are ranked by verified repo maturity and
+   scoped as data-path projects in [ADR-0020](../adr/0020-options-flow-datapath.md).
 
 This is not a failure: it is a cleanly evidenced "this seam is mined out, here is
 the map to the next one" — the result that stops further quarters being sunk into
