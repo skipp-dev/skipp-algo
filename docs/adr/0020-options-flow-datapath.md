@@ -30,8 +30,31 @@ lesson ADR-0016 recorded for the aggressor path.
 | Axis | Existing building blocks | Maturity |
 |------|--------------------------|----------|
 | **Options flow** | `newsstack_fmp/opra_uoa.py` — a fully built UOA detector on Databento `OPRA.PILLAR` `trades`: aggressor `side` (`A`/`B`/`N`), $-notional gate (`size·price·100`), 500 ms multi-exchange sweep window, multi-leg flag. Databento `OPRA.PILLAR` activated 2026-05-12; Unusual Whales subscription cancelled (self-hosted). | **High** — data path exists |
-| **L2 book / VPIN** | `ml/features/microstructure.py` (`vpin`, `bid_ask_imbalance`); `scripts/probe_databento_entitlement.py` | **Low** — formula yes, data dormant (`mbp-10`/`mbo` "NOT consumed by any cron"; entitlement unverified) |
+| **L2 book / VPIN** | `ml/features/microstructure.py` (`vpin`, `bid_ask_imbalance`); `scripts/probe_databento_entitlement.py` | **Low→Medium** — formula yes; data **confirmed entitled** (probe 2026-06-04: `mbp-10`/`mbo`/`mbp-1` YES on XNAS.ITCH, DBEQ.BASIC, GLBX.MDP3, XNYS.PILLAR), but still dormant (no cron), data-volume-massive, and the repo `vpin` is non-canonical |
 | **Cross-asset lead-lag** | "benchmark" in code = KPI stratification, **not** a second market series | **~Zero** — no second-instrument infra |
+
+### Entitlement ground truth (probe run 2026-06-04)
+
+`scripts/probe_databento_entitlement` was run with the live key. Result, now a
+recorded fact rather than an assumption:
+
+- **`OPRA.PILLAR` entitled = True** — options-flow path confirmed; `ENABLE_OPRA_UOA`
+  can be flipped on. Coverage 2013-04-01 → present; `trades` + `definition` +
+  `statistics` + `cmbp-1` + `cbbo-1s` all present.
+- **L2 depth is entitled on the equity datasets we already pull:** `mbp-10`,
+  `mbp-1` and `mbo` are **YES** on **XNAS.ITCH** (the exact dataset EV-20 uses
+  for OHLCV bars), as well as DBEQ.BASIC, GLBX.MDP3 and XNYS.PILLAR. This
+  **resolves the L2 blocker named in the first draft** — the question was never
+  "is the formula right" but "is the data even in the tier," and it is.
+- **Bonus:** the `imbalance` schema (pre-market order-imbalance signal, flagged
+  dormant-but-strategic by the 2026-05-12 audit) is **entitled** on XNAS.ITCH
+  and XNYS.PILLAR. `OPRA.PILLAR` itself has no `mbp-*`/`imbalance` (options book
+  depth is not in tier) — but equity L2 is what the VPIN/queue thesis needs.
+
+So the L2 axis is **no longer gated on entitlement**; its remaining headwinds
+are purely (a) MBP-10 data volume (storage/latency/backtest cost) and (b) the
+non-canonical fixed-`bucket_size` `vpin` approximation. The ranking below is
+updated accordingly.
 
 ### The maturity illusion to avoid (named so we do not repeat it)
 
@@ -64,15 +87,16 @@ ADR + plumbing PR, gated behind the still-open ADR-0019 queue — and NOT as a
       hold. **Next step: a narrow `signed UOA notional per symbol/bar` shadow
       feature** fed into the same A/B machinery WVF/Kyle/Amihud run through —
       **after** the current queue, as its own ADR. **NOT gamma first.**
-   2. **L2 / VPIN — gated on one fact.** Before any feature work, resolve the
-      single unknown: **is `mbp-10` entitled on the current Databento key?** Run
-      `python -m scripts.probe_databento_entitlement` (read-only, zero feature
-      work). The repo `vpin` is a fixed-`bucket_size` approximation, not the
-      canonical volume-bar VPIN, and MBP-10 depth is data-volume-massive
-      (storage / latency / backtest cost). Decide only after the entitlement
-      fact is in hand. **Blocker (2026-06-04): `DATABENTO_API_KEY` is a CI
-      secret with no local copy (`.env.example` only); the probe must be run
-      where the key lives or via a CI runner.**
+   2. **L2 / VPIN — entitlement resolved, now cost-gated.** The probe (2026-06-04)
+      confirmed `mbp-10`/`mbo` are **entitled on XNAS.ITCH** (and the other
+      equity datasets) — the L2 axis is on the table. What remains is not a
+      tier question but an engineering one: the repo `vpin` is a
+      fixed-`bucket_size` approximation, not canonical volume-bar VPIN, and
+      MBP-10 depth is data-volume-massive (storage / latency / backtest cost).
+      Before any feature work, the cheap next step is now a **bounded cost
+      probe** — pull one symbol-day of `mbp-10` on XNAS.ITCH, measure record
+      volume and a canonical-VPIN proof-of-concept — to decide build-vs-defer
+      on real numbers, not entitlement guesses.
    3. **Cross-asset lead-lag — defer.** Conceptually the most elegant "new axis"
       but the most greenfield plumbing and the highest leakage risk
       (time-aligning two asynchronous series through the single-instrument
@@ -131,15 +155,17 @@ ADR + plumbing PR, gated behind the still-open ADR-0019 queue — and NOT as a
 - Adds producer→adapter surface area (a second data series through the boundary)
   when built — more invariants to test, same cost ADR-0016 already accepted for
   the aggressor path.
-- The L2 entitlement fact remains unresolved until the key-holding environment
-  runs the probe; until then the L2 ranking is provisional.
+- The L2 axis, now confirmed entitled, carries a real MBP-10 data-volume cost
+  that is not yet measured; its build-vs-defer call waits on a bounded cost
+  probe, so its ranking below options flow is on cost/effort, not access.
 
 ## Status notes
 
 - Doc-only. No code, no shadow feature, no candidate added to the ADR-0019
   queue. The first plumbing PR is gated behind (a) the open queue clearing and
   (b) acceptance of this ADR.
-- Immediate cheapest next action that yields a fact without breaking discipline:
-  run `scripts/probe_databento_entitlement` in the key-holding environment to
-  settle whether the L2 axis is even on the table. This is read-only and
-  branch-free.
+- **Entitlement probe RUN 2026-06-04** (see "Entitlement ground truth" above):
+  `OPRA.PILLAR` entitled; equity `mbp-10`/`mbo`/`imbalance` entitled on
+  XNAS.ITCH. The L2 axis is **no longer entitlement-blocked** — only cost-gated.
+  The next cheap step for L2 shifted from an entitlement probe to a **bounded
+  MBP-10 data-volume + canonical-VPIN cost probe** before any feature build.
