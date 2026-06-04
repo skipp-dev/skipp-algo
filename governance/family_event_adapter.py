@@ -54,6 +54,7 @@ from governance.family_kyle_lambda_v2 import kyle_lambda_at
 from governance.family_ofi_imbalance_v2 import ofi_imbalance_at
 from governance.family_returns import FamilyEvent
 from governance.family_score_features_v2 import relative_volume_at
+from governance.family_signed_uoa_notional_v2 import signed_uoa_notional_at
 from governance.types import EventFamily
 
 # Lookahead windows, mirrored from
@@ -185,6 +186,9 @@ def _zone_event_to_family(
     ofi = ofi_imbalance_at(bars, anchor_idx)
     if ofi is not None:
         mapped["ofi_imbalance"] = ofi
+    signed_uoa = signed_uoa_notional_at(bars, anchor_idx)
+    if signed_uoa is not None:
+        mapped["signed_uoa_notional"] = signed_uoa
     return mapped
 
 
@@ -241,6 +245,9 @@ def _level_event_to_family(
     ofi = ofi_imbalance_at(bars, anchor_idx)
     if ofi is not None:
         mapped["ofi_imbalance"] = ofi
+    signed_uoa = signed_uoa_notional_at(bars, anchor_idx)
+    if signed_uoa is not None:
+        mapped["signed_uoa_notional"] = signed_uoa
     return mapped
 
 

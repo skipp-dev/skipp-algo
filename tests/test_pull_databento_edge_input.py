@@ -14,6 +14,7 @@ import pytest
 
 from scripts import pull_databento_edge_input as wrapper
 from scripts.pull_databento_edge_input import (
+    aggregate_signed_uoa_notional,
     aggregate_signed_volume,
     normalize_ohlcv_frame,
     normalize_trades_frame,
@@ -306,6 +307,108 @@ def test_aggregate_signed_volume_aligns_to_resampled_bars() -> None:
     horizon = max(bar_ts)
     assert {t for t in agg_ts if t <= horizon}.issubset(bar_ts)
     assert int(agg["trade_count"].sum()) == 180
+
+
+def _raw_opra_trades(
+    offsets: list[int],
+    sizes: list[float],
+    prices: list[float],
+    sides: list[str],
+) -> pd.DataFrame:
+    """A raw OPRA ``trades`` frame already mapped to the underlying.
+
+    One row per option print with epoch-second ``timestamp``, ``size``
+    (contracts), ``price`` (per-contract premium) and ``side`` (A/B/N).
+    """
+    return pd.DataFrame(
+        {
+            "timestamp": [_T0 + o for o in offsets],
+            "size": sizes,
+            "price": prices,
+            "side": sides,
+        }
+    )
+
+
+def test_aggregate_signed_uoa_notional_inverse_aggressor_signs() -> None:
+    # Three OPRA prints in one 15m window. OPRA convention is INVERSE of equity:
+    #   A (ask-lift) = bullish (+): size 10 * price 2 * 100 = +2000
+    #   B (bid-hit)  = bearish (-): size  4 * price 3 * 100 = -1200
+    #   N (cross)    = unsigned (0 signed), still counted: size 7 * price 1 * 100 = 700 abs
+    raw = _raw_opra_trades([0, 60, 100], [10.0, 4.0, 7.0], [2.0, 3.0, 1.0], ["A", "B", "N"])
+
+    agg = aggregate_signed_uoa_notional(raw, "15m")
+
+    assert len(agg) == 1
+    assert float(agg["uoa_signed_notional"].iloc[0]) == 800.0  # 2000 - 1200 + 0
+    assert int(agg["uoa_trade_count"].iloc[0]) == 3
+    assert float(agg["uoa_abs_notional"].iloc[0]) == 3900.0  # 2000 + 1200 + 700
+
+
+def test_aggregate_signed_uoa_notional_uint32_size_no_underflow() -> None:
+    # Databento delivers `size` as uint32; a bearish print computed as `0 - n`
+    # on an unsigned dtype underflows. The signed sum must stay a true signed
+    # magnitude (|signed| <= total premium), never ~4.3e9 * price * 100.
+    raw = _raw_opra_trades([0, 60], [10.0, 4.0], [2.0, 3.0], ["A", "B"])
+    raw["size"] = raw["size"].astype("uint32")
+
+    agg = aggregate_signed_uoa_notional(raw, "15m")
+
+    assert float(agg["uoa_signed_notional"].iloc[0]) == 800.0  # 2000 - 1200
+    assert float(agg["uoa_abs_notional"].iloc[0]) == 3200.0  # 2000 + 1200
+
+
+def test_aggregate_signed_uoa_notional_empty_input() -> None:
+    agg = aggregate_signed_uoa_notional(pd.DataFrame(), "15m")
+    assert list(agg.columns) == [
+        "timestamp",
+        "uoa_signed_notional",
+        "uoa_trade_count",
+        "uoa_abs_notional",
+    ]
+    assert agg.empty
+
+
+def test_aggregate_signed_uoa_notional_aligns_to_resampled_bars() -> None:
+    """LOAD-BEARING: option-print buckets share the underlying's bar grid."""
+    df = normalize_ohlcv_frame(_raw_minute_frame(n=180), symbol="AAPL")
+    resampled, _tf = wrapper._prepare_symbol_resampled_bars(df, "AAPL", "15m")
+    bar_ts = {int(t) for t in resampled["timestamp"].tolist()}
+
+    offsets = [i * 60 for i in range(180)]
+    raw = _raw_opra_trades(offsets, [1.0] * 180, [1.5] * 180, ["A"] * 180)
+
+    agg = aggregate_signed_uoa_notional(raw, "15m")
+    agg_ts = {int(t) for t in agg["timestamp"].tolist()}
+
+    horizon = max(bar_ts)
+    assert {t for t in agg_ts if t <= horizon}.issubset(bar_ts)
+    assert int(agg["uoa_trade_count"].sum()) == 180
+
+
+def test_payload_embeds_signed_uoa_when_opra_trades_supplied(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    df = normalize_ohlcv_frame(_raw_minute_frame(n=180), symbol="AAPL")
+    monkeypatch.setattr(
+        wrapper,
+        "build_explicit_structure_from_bars",
+        lambda *a, **k: {"bos": [{"id": "b1", "time": _T0, "price": 100.0, "dir": "UP"}]},
+    )
+    offsets = [i * 60 for i in range(180)]
+    raw = _raw_opra_trades(offsets, [5.0] * 180, [2.0] * 180, ["A"] * 180)
+
+    payload = structure_and_bars_to_pipeline_input(
+        df, symbol="AAPL", timeframe="15m", opra_trades=raw
+    )
+
+    embedded = [b for b in payload["bars"] if "uoa_signed_notional" in b]
+    assert embedded, "expected at least one bar to carry embedded UOA notional"
+    for bar in embedded:
+        assert "uoa_abs_notional" in bar
+        # All prints are bullish (A) -> signed == abs on every embedded bar.
+        assert bar["uoa_signed_notional"] == bar["uoa_abs_notional"]
+        assert bar["uoa_abs_notional"] > 0.0
 
 
 def test_payload_embeds_signed_volume_when_trades_supplied(

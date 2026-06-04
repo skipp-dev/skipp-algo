@@ -273,6 +273,128 @@ def _merge_signed_volume_into_bars(
             ) = signed
 
 
+# OCC standard equity-option contract multiplier (100 shares per contract).
+# Mirrors ``newsstack_fmp.opra_uoa._OCC_CONTRACT_MULTIPLIER`` so the recorded
+# ADR-0020 shadow feature and the live UOA alerts price premium identically; it
+# is duplicated (not imported) to keep this scripts module decoupled from the
+# news stack. The OCC multiplier is a fixed market convention, not a tunable.
+_OCC_CONTRACT_MULTIPLIER = 100
+
+
+def aggregate_signed_uoa_notional(
+    opra_trades: pd.DataFrame, timeframe: str
+) -> pd.DataFrame:
+    """Bucket signed OPRA options-premium notional onto the OHLCV bar grid.
+
+    Reuses the resampler's exact ``bucket_end`` rule (identical to
+    :func:`aggregate_signed_volume`), so the emitted ``timestamp`` joins
+    one-to-one onto the resampled bar timestamps of the *underlying*.
+
+    ``opra_trades`` is an OPRA ``trades`` frame already mapped to the underlying
+    (one row per option print) with columns ``timestamp`` (epoch seconds),
+    ``size`` (contracts), ``price`` (per-contract premium, dollars) and ``side``
+    (``A`` / ``B`` / ``N``). Per print the notional premium is
+    ``price * size * 100`` (the OCC multiplier).
+
+    The OPRA aggressor convention is the **inverse** of the equity tape: ``A``
+    (trade hit the ask) is the aggressive **buyer** -> ``+`` (bullish); ``B``
+    (hit the bid) is the aggressive **seller** -> ``-`` (bearish); ``N``
+    (cross / unknown) contributes ``0`` to the signed sum but is still counted in
+    ``uoa_trade_count`` and ``uoa_abs_notional``. This matches
+    ``newsstack_fmp.opra_uoa._side_to_aggressor`` exactly.
+
+    Per bucket: ``uoa_signed_notional`` = signed premium sum;
+    ``uoa_abs_notional`` = total premium sum over **all** prints (the imbalance
+    denominator, ADR-0020). Returns columns ``timestamp, uoa_signed_notional,
+    uoa_trade_count, uoa_abs_notional`` (epoch seconds). An empty input yields an
+    empty frame.
+    """
+    columns = [
+        "timestamp",
+        "uoa_signed_notional",
+        "uoa_trade_count",
+        "uoa_abs_notional",
+    ]
+    if opra_trades.empty:
+        return pd.DataFrame(columns=columns)
+
+    canonical_tf = _canonical_timeframe(timeframe)
+    freq = _TIMEFRAME_TO_PANDAS_FREQ[canonical_tf]
+    offset = pd.tseries.frequencies.to_offset(freq)
+
+    ts = pd.to_datetime(opra_trades["timestamp"], unit="s", utc=True)
+    floored = ts.dt.floor(freq)
+    bucket_end = floored.where(ts.eq(floored), floored + offset)
+
+    # float64 cast is load-bearing: Databento delivers ``size`` as uint32, and a
+    # signed subtraction on an unsigned dtype underflows (see aggregate_signed_
+    # volume). ``price`` is fixed-point but coerced for the multiply.
+    size = pd.to_numeric(opra_trades["size"], errors="coerce").astype("float64").fillna(0.0)
+    price = pd.to_numeric(opra_trades["price"], errors="coerce").astype("float64").fillna(0.0)
+    notional = size * price * float(_OCC_CONTRACT_MULTIPLIER)
+    side = opra_trades["side"].astype(str).str.strip().str.upper()
+    # INVERSE of equity: ask-side (A) is the aggressive buyer (+), bid-side (B)
+    # the aggressive seller (-); anything else (N/blank) is unsigned.
+    signed = notional.where(side.eq("A"), 0.0) - notional.where(side.eq("B"), 0.0)
+
+    work = pd.DataFrame(
+        {
+            "bucket_end": bucket_end,
+            "signed": signed,
+            "abs": notional,
+            "count": 1,
+        }
+    ).dropna(subset=["bucket_end"])
+    if work.empty:
+        return pd.DataFrame(columns=columns)
+
+    grouped = (
+        work.groupby("bucket_end", sort=True)
+        .agg(
+            uoa_signed_notional=("signed", "sum"),
+            uoa_trade_count=("count", "sum"),
+            uoa_abs_notional=("abs", "sum"),
+        )
+        .reset_index()
+    )
+    grouped["timestamp"] = coerce_timestamps_to_epoch_seconds(grouped["bucket_end"])
+    return grouped[columns].reset_index(drop=True)
+
+
+def _merge_signed_uoa_notional_into_bars(
+    bars: list[dict[str, float]], opra_trades: pd.DataFrame, timeframe: str
+) -> None:
+    """Embed ``uoa_signed_notional`` + ``uoa_trade_count`` + ``uoa_abs_notional``
+    into each matching bar dict in place.
+
+    Additive keys only -- the OHLCV keyset is untouched, so the bar-frame column
+    validators keep passing and the shadow extractor signature
+    ``(bars, anchor_idx)`` needs no new argument. Bars whose bucket saw no option
+    prints are left without the keys; the ``signed_uoa_notional_at`` extractor
+    treats those as an honest no-flow gap (contributes 0), so a window with zero
+    total premium returns honest-None.
+    """
+    agg = aggregate_signed_uoa_notional(opra_trades, timeframe)
+    if agg.empty:
+        return
+    lookup = {
+        int(row.timestamp): (
+            float(row.uoa_signed_notional),
+            int(row.uoa_trade_count),
+            float(row.uoa_abs_notional),
+        )
+        for row in agg.itertuples(index=False)
+    }
+    for bar in bars:
+        uoa = lookup.get(int(bar["timestamp"]))
+        if uoa is not None:
+            (
+                bar["uoa_signed_notional"],
+                bar["uoa_trade_count"],
+                bar["uoa_abs_notional"],
+            ) = uoa
+
+
 def _resampled_bars_payload(df: pd.DataFrame, symbol: str, timeframe: str) -> list[dict[str, float]]:
     """The resampled timeframe bars the structure events anchor on.
 
@@ -317,6 +439,7 @@ def structure_and_bars_to_pipeline_input(
     start: str | None = None,
     end: str | None = None,
     trades: pd.DataFrame | None = None,
+    opra_trades: pd.DataFrame | None = None,
 ) -> dict[str, Any]:
     """Build a :mod:`scripts.run_edge_pipeline` input payload from real bars.
 
@@ -330,6 +453,12 @@ def structure_and_bars_to_pipeline_input(
     bucketed onto the same grid and embedded into each matching bar dict as
     additive keys (OHLCV keyset unchanged). Bars whose bucket saw no trades stay
     OHLCV-only.
+
+    When ``opra_trades`` (an OPRA ``trades`` frame mapped to the underlying) is
+    supplied, the ADR-0020 ``uoa_signed_notional`` + ``uoa_abs_notional`` options
+    -flow aggregates are bucketed onto the same grid and embedded the same way,
+    feeding the recorded-only ``signed_uoa_notional_at`` shadow feature. Bars
+    whose bucket saw no option prints stay without the UOA keys.
 
     Raises ``ValueError`` when the symbol produces no resampled bars or no
     structure events (an honest empty result, never a fabricated payload).
@@ -351,6 +480,9 @@ def structure_and_bars_to_pipeline_input(
 
     if trades is not None and not trades.empty:
         _merge_signed_volume_into_bars(bars, trades, timeframe)
+
+    if opra_trades is not None and not opra_trades.empty:
+        _merge_signed_uoa_notional_into_bars(bars, opra_trades, timeframe)
 
     resolved_as_of = as_of if as_of is not None else bars[-1]["timestamp"]
 
