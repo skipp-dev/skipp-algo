@@ -136,6 +136,8 @@ def main(argv: list[str] | None = None) -> int:
     out_path = Path(args.output).expanduser()
     out_path.parent.mkdir(parents=True, exist_ok=True)
     frame.to_parquet(out_path, index=False)
+    # BAR-CLOSE-EXEMPT: CLI coverage summary only; `frame` is sorted ascending by
+    # ts_ns and these reads just report the pulled span, not a bar-close derivation.
     span_ns = int(frame["ts_ns"].iloc[-1] - frame["ts_ns"].iloc[0])
     print(
         f"{args.symbol}: {len(frame):,} ticks -> {out_path} "

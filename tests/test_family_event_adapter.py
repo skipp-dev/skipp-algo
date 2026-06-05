@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 from governance.family_event_adapter import (
     _BOS_LOOKAHEAD_BARS,
     family_events_from_structure,
@@ -289,3 +291,124 @@ def test_cross_lead_lag_degrades_when_benchmark_misaligned() -> None:
 
     assert len(events) == 1
     assert "cross_lead_lag" not in events[0]
+
+
+def _tick_tape(
+    anchor_ts: float, *, step_s: float, shift_s: float, n: int = 900, amp: float = 0.01
+) -> dict:
+    """Deterministic async trade tape ending AT ``anchor_ts``.
+
+    ``step_s`` sets the (regular but tape-specific) spacing so the two tapes land
+    on different clocks -- genuinely asynchronous input for HY. ``shift_s``
+    delays the price signal: a constituent built with ``shift_s = L`` reproduces
+    a ``shift_s = 0`` benchmark's move ``L`` seconds late, i.e. the benchmark
+    leads by ``L``.
+    """
+    period = 120.0
+    ts_ns: list[int] = []
+    price: list[float] = []
+    for k in range(n):
+        t = anchor_ts - (n - 1 - k) * step_s  # ascending; last sample == anchor_ts
+        ts_ns.append(round(t * 1_000_000_000))
+        price.append(100.0 * math.exp(amp * math.sin(2.0 * math.pi * (t - shift_s) / period)))
+    return {"ts_ns": ts_ns, "price": price}
+
+
+def test_cross_lead_lag_hy_absent_without_ticks() -> None:
+    # No tapes supplied -> tick feature honestly absent (back-compat).
+    closes = [100.0 + i + (i % 5) * 0.7 for i in range(30)]
+    bars = _bars(closes)
+    structure = _bos_structure(20, closes)
+
+    events = family_events_from_structure(structure, bars)
+
+    assert len(events) == 1
+    assert "cross_lead_lag_hy" not in events[0]
+
+
+def test_cross_lead_lag_hy_absent_with_only_one_tape() -> None:
+    # Either tape missing -> feature absent (both legs are required).
+    closes = [100.0 + i + (i % 5) * 0.7 for i in range(30)]
+    bars = _bars(closes)
+    anchor_idx = 20
+    anchor_ts = _T0 + anchor_idx * _STEP
+    structure = _bos_structure(anchor_idx, closes)
+    bench = _tick_tape(anchor_ts, step_s=0.7, shift_s=0.0)
+
+    events = family_events_from_structure(structure, bars, benchmark_ticks=bench)
+
+    assert len(events) == 1
+    assert "cross_lead_lag_hy" not in events[0]
+
+
+def test_cross_lead_lag_hy_attached_with_both_tapes() -> None:
+    # Both async tapes supplied -> feature present as a finite float. Directional
+    # recovery (ratio > 1 when the benchmark leads) is proven on randomized async
+    # tapes in tests/test_family_cross_lead_lag_hy_v3.py; here we only assert the
+    # adapter wires both legs through to a real value.
+    closes = [100.0 + i + (i % 5) * 0.7 for i in range(30)]
+    bars = _bars(closes)
+    anchor_idx = 20
+    anchor_ts = _T0 + anchor_idx * _STEP
+    structure = _bos_structure(anchor_idx, closes)
+    bench = _tick_tape(anchor_ts, step_s=0.7, shift_s=0.0)
+    cons = _tick_tape(anchor_ts, step_s=0.9, shift_s=10.0)
+
+    events = family_events_from_structure(
+        structure, bars, constituent_ticks=cons, benchmark_ticks=bench
+    )
+
+    assert len(events) == 1
+    value = events[0]["cross_lead_lag_hy"]
+    assert isinstance(value, float)
+    assert math.isfinite(value) and value > 0.0
+
+
+def test_cross_lead_lag_hy_is_point_in_time() -> None:
+    # Adapter-level leak guard: wild trades AFTER the anchor must not change the
+    # emitted feature (the estimator slices the trailing window at the anchor).
+    closes = [100.0 + i + (i % 5) * 0.7 for i in range(30)]
+    bars = _bars(closes)
+    anchor_idx = 20
+    anchor_ts = _T0 + anchor_idx * _STEP
+    structure = _bos_structure(anchor_idx, closes)
+    bench = _tick_tape(anchor_ts, step_s=0.7, shift_s=0.0)
+    cons = _tick_tape(anchor_ts, step_s=0.9, shift_s=10.0)
+
+    base = family_events_from_structure(
+        structure, bars, constituent_ticks=cons, benchmark_ticks=bench
+    )[0]["cross_lead_lag_hy"]
+
+    fut = [round((anchor_ts + d) * 1_000_000_000) for d in (1.0, 30.0, 600.0)]
+    poisoned_bench = {
+        "ts_ns": [*bench["ts_ns"], *fut],
+        "price": [*bench["price"], 999.0, 0.01, 500.0],
+    }
+    poisoned_cons = {
+        "ts_ns": [*cons["ts_ns"], *fut],
+        "price": [*cons["price"], 0.02, 888.0, 1.0],
+    }
+    poisoned = family_events_from_structure(
+        structure, bars, constituent_ticks=poisoned_cons, benchmark_ticks=poisoned_bench
+    )[0]["cross_lead_lag_hy"]
+
+    assert poisoned == base
+
+
+def test_cross_lead_lag_hy_needs_no_alignment() -> None:
+    # Tapes of different lengths/clocks (no alignment to bars or each other) are
+    # the expected input -- the feature still computes, unlike the bar benchmark.
+    closes = [100.0 + i + (i % 5) * 0.7 for i in range(30)]
+    bars = _bars(closes)
+    anchor_idx = 20
+    anchor_ts = _T0 + anchor_idx * _STEP
+    structure = _bos_structure(anchor_idx, closes)
+    bench = _tick_tape(anchor_ts, step_s=0.7, shift_s=0.0, n=700)
+    cons = _tick_tape(anchor_ts, step_s=1.1, shift_s=10.0, n=500)
+
+    events = family_events_from_structure(
+        structure, bars, constituent_ticks=cons, benchmark_ticks=bench
+    )
+
+    assert len(events) == 1
+    assert isinstance(events[0]["cross_lead_lag_hy"], float)

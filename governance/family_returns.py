@@ -205,6 +205,23 @@ class FamilyEvent(TypedDict, total=False):
     # supplied, the benchmark is length/timestamp-misaligned to the bars, or
     # either return series is degenerate. Never invented.
     cross_lead_lag: float
+    # Optional point-in-time TICK-level cross-asset lead-lag feature (ADR-0021 v3
+    # candidate; see ``governance.family_cross_lead_lag_hy_v3``). Where
+    # ``cross_lead_lag`` reads a 15m bar grid and returned a null, this reads the
+    # raw asynchronous trade tapes via the Hayashi-Yoshida estimator, which
+    # measures cross-covariance WITHOUT resampling and so survives the Epps
+    # effect that a sub-minute lead suffers on a bar grid. It is the unitless
+    # shifted-HY peak ratio max_{theta>0}|HY(theta)| / max_{theta<0}|HY(theta)|
+    # over the trailing tick window against the benchmark tape (SPY): > 1 when
+    # the benchmark leads the constituent, < 1 when the constituent leads, ~1 for
+    # symmetric co-movement. RECORDED ONLY -- not a calibration input, does NOT
+    # feed the gate; it rides alongside outcomes so the pre-registered purged
+    # walk-forward A/B (ADR-0021) can evaluate whether tick resolution recovers a
+    # lead the 15m grid washed out. Absent when either tick series is missing or
+    # the window is degenerate (too few prints, zero realized variance, undefined
+    # ratio). PIT-safe by construction: the estimator slices the trailing window
+    # ending AT the anchor instant, so no alignment guard is needed. Never invented.
+    cross_lead_lag_hy: float
 
 
 def _direction_sign(direction: str) -> int:
