@@ -56,6 +56,10 @@ def test_current_mapping_honesty_for_technical_news_and_structure() -> None:
         "ipda_range",
         "htf_fvg_bias",
         "broken_fractal_signals",
+        # ADR-0021 (commit 2bedc96a) added ``rejection_blocks`` to the structure
+        # contract's AUXILIARY_KEYS as a recorded-only category; align the honesty
+        # set so the producer contract stays the single source of truth.
+        "rejection_blocks",
     }
     assert isinstance(structure_artifact.current.mapped_structure_categories["orderblocks"], bool)
     assert isinstance(structure_artifact.current.mapped_structure_categories["fvg"], bool)
