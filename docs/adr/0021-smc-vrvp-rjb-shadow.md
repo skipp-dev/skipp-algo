@@ -17,8 +17,9 @@ saturated. Two structure-native signals were prepared as code but deliberately
 left unwired:
 
 - **VRVP (visible-range volume profile)** — `scripts/smc_volume_profile.py`
-  produces a leak-free, point-in-time `volume_profile_at(bars, anchor_idx, *,
-  period)` returning the VPOC (volume point of control), the value area
+  produces a leak-free, point-in-time
+  `volume_profile_at(bars, anchor_idx, *, period)` returning the VPOC (volume
+  point of control), the value area
   (VAL/VAH), and the profiled price range. This is *volume-by-price* context:
   it answers **where accepted value sits** relative to where price is now — an
   axis the v1 geometry score (`atr_normalised_geometry_strength_v1`) does not

@@ -65,8 +65,9 @@ new work is confined to **(a) a tick data layer** and **(b) the HY estimator**.
 
 ### 3b. HY estimator (`governance/family_cross_lead_lag_hy_v3.py`)
 - `cross_lead_lag_hy_at(tick_series_c, tick_series_b, anchor_ts, *, window_s, lag_grid_s)`.
-- Compute shifted-HY covariance over a trailing PIT window `[anchor_ts -
-  window_s, anchor_ts]` only (leak-safe: never reads past the anchor).
+- Compute shifted-HY covariance over a trailing PIT window
+  `[anchor_ts - window_s, anchor_ts]` only (leak-safe: never reads past the
+  anchor).
 - Sweep `lag_grid_s` (e.g. ±0…±60 s in 1–5 s steps); statistic = signed peak
   `argmax_θ |HY(θ)|` normalized by the zero-lag HY (a unitless lead ratio
   comparable to the v2 bar feature).
