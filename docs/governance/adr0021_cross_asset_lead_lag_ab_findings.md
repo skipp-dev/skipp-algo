@@ -120,3 +120,51 @@ features — which at least conditioned the v1 score's resolution on `SWEEP` —
   guard silently drops an unaligned benchmark, which would have produced a false
   null (0% coverage). Verifying 99.8% coverage *before* trusting the A/B was the
   step that made the null credible.
+
+## 7. Tick-level follow-up — shifted Hayashi-Yoshida (2026-06-05): also null → axis closed
+
+The lone faint signal at 15 m (SWEEP magnitude AUC 0.596) triggered the
+pre-registered escalation to tick resolution. We built a nanosecond `trades`
+data layer (`scripts/pull_tick_trades.py`, `85f462a0`), a shifted
+Hayashi-Yoshida lead-lag estimator that needs no resampling and so sidesteps the
+Epps effect (`governance/family_cross_lead_lag_hy_v3.py`, `f40020c8`), and
+threaded a recorded-only `cross_lead_lag_hy` shadow feature through the adapter
+with point-in-time leak tests (`2db13864`). The pre-registration was frozen
+**before** the run (scope doc §7, `58bbb1b4`).
+
+**Data:** SPY benchmark + 5 constituents (AAPL, AMZN, MSFT, NVDA, TSLA), XNAS.ITCH
+`trades`, 2026-02-02 → 2026-05-02, ~90 M ticks. The same 10,981 recorded
+FamilyEvents as the v2 run were regenerated with constituent + SPY tick tapes
+attached; **~95 % carried `cross_lead_lag_hy`** (per-window coverage 100 %, the
+~5 % gap is degenerate single-tick windows that honestly return None). Headline
+scalar = shifted-HY peak ratio `max_{θ>0}|HY| / max_{θ<0}|HY|`, trailing 1800 s
+window, lag grid ±{2…60} s, all frozen.
+
+**Result — null on every axis the v2 test used:**
+
+| A/B | Verdict | Detail |
+|-----|---------|--------|
+| direction | `no_lift` ×4 | candidate AUC ≤ baseline on all families (BOS .499 vs .552, FVG .471 vs .536, OB .503 vs .532, SWEEP .437 vs .519); resolution delta negative throughout. |
+| magnitude | `no_lift` ×4 | SWEEP — the one hope — *drags down* the score-alone AUC (0.565 vs 0.684) and **regresses calibration** (ECE .079 vs .064); BOS also regresses, FVG/OB flat. |
+| stratify `abs_feature` (direction) | `no_regime_effect` ×4 | resolution spread ≤ 0.0017 across `|HY|` quantiles — the feature does not even *condition* the score. |
+| stratify `abs_feature` (magnitude) | `no_regime_effect` ×4 | same: no family conditioned. |
+
+**Verdict — pre-registered kill triggered.** HY also nulls: no lift, no regime
+effect, and on the one family that flickered at 15 m it makes calibration
+*worse*. Per the frozen kill criterion the **cross-asset lead-lag axis is closed**
+for this thesis — we do **not** escalate to MBP-10 depth. The 15 m 0.596 was
+sampling noise, not under-resolved signal: looking at the same relationship with
+~100× finer time resolution and an Epps-robust estimator did not surface it.
+
+- **Lesson — a pre-registered kill makes a negative result a clean stop.** The
+  most elegant remaining version of the idea (async tick covariance, no Epps
+  contamination) was the right thing to falsify it with: the null is now
+  definitive rather than "maybe we didn't look hard enough."
+- **Lesson — `recorded-only` shadow + purged A/B caught a feature that actively
+  hurts.** Had `cross_lead_lag_hy` been wired to score on intuition, it would
+  have *degraded* SWEEP magnitude calibration in production. The discipline gate,
+  not judgement, is what kept it out.
+
+The tick infrastructure (ns `trades` pull, the HY estimator, the adapter path)
+remains in the tree as committed, reusable building blocks; only the cross-asset
+*thesis* is closed.
