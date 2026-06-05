@@ -228,8 +228,12 @@ judged" spec for the shadow phase.
 - Append **one row per family per day** to a tidy, append-only artifact (CSV or
   JSONL) under the governance artifacts area, e.g.
   `artifacts/governance/magnitude_resolution_shadow.(csv|jsonl)`.
-- Columns: `date, events_hash, seed, family, n_oos, magnitude_auc, auc_ci_low,
-  baseline_resolution, perm_null_p95, perm_p, passes, fail_reasons`.
+- Columns:
+
+  ```
+  date, events_hash, seed, family, n_oos, magnitude_auc, auc_ci_low,
+  baseline_resolution, perm_null_p95, perm_p, passes, fail_reasons
+  ```
 - Never overwrite history — drift analysis needs the full series.
 - The same numbers feed the promotion-gate snapshot fields
   (`magnitude_resolution_pass`, `magnitude_auc`) so the **gate sees them too**,
