@@ -124,6 +124,17 @@ class FamilyEvent(TypedDict, total=False):
     # Absent when volume is missing or the trailing baseline is degenerate.
     # Never invented.
     relative_volume: float
+    # Optional point-in-time microstructure feature (ADR-0019 v2 candidate): VPIN
+    # (volume-synchronized probability of informed trading), the mean absolute
+    # order imbalance across the trailing equal-volume buckets ending at the
+    # anchor (see ``governance.family_vpin_v2.vpin_at``), in [0, 1] -- higher
+    # means more one-sided (toxic) flow. RECORDED ONLY -- it is NOT a calibration
+    # input and does NOT feed the gate; it rides alongside outcomes so the
+    # pre-registered purged walk-forward A/B (ADR-0019) can evaluate whether it
+    # lifts resolution before any wiring. Absent when the bars carry no traded
+    # size (OHLCV-only run) or the trailing volume cannot fill a bucket. Never
+    # invented.
+    vpin: float
     # Optional point-in-time microstructure feature (ADR-0016 / ADR-0019 v2
     # candidate): Kyle's lambda, the OLS slope of per-bar close change on the
     # aggressor-signed volume over the trailing window (see
@@ -180,6 +191,20 @@ class FamilyEvent(TypedDict, total=False):
     # range is degenerate. Never invented.
     vrvp_vpoc_dist: float
     vrvp_va_pos: float
+    # Optional point-in-time cross-asset lead-lag feature (ADR-0021 v2 candidate,
+    # the first CROSS-INSTRUMENT signal -- every other feature reads only the
+    # instrument's own bars; see ``governance.family_cross_lead_lag_v2``). It is
+    # the lag-1 asymmetric cross-correlation ratio
+    # corr(r^benchmark_{t-1}, r^constituent_t) / corr(r^constituent_{t-1},
+    # r^benchmark_t) over the trailing window against an index-aligned benchmark
+    # (SPY): > 1 when the benchmark leads the constituent, < 1 when the
+    # constituent leads, ~1 for symmetric co-movement. RECORDED ONLY -- it is NOT
+    # a calibration input and does NOT feed the gate; it rides alongside outcomes
+    # so the pre-registered purged walk-forward A/B (ADR-0021) can evaluate
+    # whether it lifts resolution before any wiring. Absent when no benchmark is
+    # supplied, the benchmark is length/timestamp-misaligned to the bars, or
+    # either return series is degenerate. Never invented.
+    cross_lead_lag: float
 
 
 def _direction_sign(direction: str) -> int:

@@ -227,3 +227,65 @@ def test_vrvp_shadow_scalars_absent_without_volume() -> None:
     assert len(events) == 1
     assert "vrvp_vpoc_dist" not in events[0]
     assert "vrvp_va_pos" not in events[0]
+
+
+def _bos_structure(anchor_idx: int, closes: list[float]) -> dict:
+    return {
+        "bos": [
+            {
+                "id": "b1",
+                "time": _T0 + anchor_idx * _STEP,
+                "price": closes[anchor_idx],
+                "dir": "UP",
+            }
+        ]
+    }
+
+
+def test_cross_lead_lag_absent_without_benchmark() -> None:
+    # No benchmark supplied -> the cross-asset lead-lag feature is honestly
+    # absent and behaviour is identical to every existing caller (back-compat).
+    closes = [100.0 + i + (i % 5) * 0.7 for i in range(30)]
+    bars = _bars(closes)
+    anchor_idx = 20
+    structure = _bos_structure(anchor_idx, closes)
+
+    events = family_events_from_structure(structure, bars)
+
+    assert len(events) == 1
+    assert "cross_lead_lag" not in events[0]
+
+
+def test_cross_lead_lag_attached_with_aligned_benchmark() -> None:
+    # Index- and timestamp-aligned benchmark with its own curved returns ->
+    # the lead-lag ratio rides alongside the event, recorded-only.
+    closes = [100.0 + i + (i % 5) * 0.7 for i in range(30)]
+    bars = _bars(closes)
+    bench_closes = [200.0 + i * 0.5 + (i % 4) * 1.3 for i in range(30)]
+    benchmark = _bars(bench_closes)
+    anchor_idx = 20
+    structure = _bos_structure(anchor_idx, closes)
+
+    events = family_events_from_structure(structure, bars, benchmark_bars=benchmark)
+
+    assert len(events) == 1
+    assert "cross_lead_lag" in events[0]
+    assert isinstance(events[0]["cross_lead_lag"], float)
+
+
+def test_cross_lead_lag_degrades_when_benchmark_misaligned() -> None:
+    # Benchmark timestamps shifted by a second -> strict alignment fails -> the
+    # benchmark is dropped and the feature is absent (never paired misaligned).
+    closes = [100.0 + i + (i % 5) * 0.7 for i in range(30)]
+    bars = _bars(closes)
+    bench_closes = [200.0 + i * 0.5 + (i % 4) * 1.3 for i in range(30)]
+    benchmark = [
+        {**b, "timestamp": b["timestamp"] + 1.0} for b in _bars(bench_closes)
+    ]
+    anchor_idx = 20
+    structure = _bos_structure(anchor_idx, closes)
+
+    events = family_events_from_structure(structure, bars, benchmark_bars=benchmark)
+
+    assert len(events) == 1
+    assert "cross_lead_lag" not in events[0]

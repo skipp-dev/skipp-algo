@@ -257,13 +257,45 @@ infrastructure (Hayashi-Yoshida).
 
 ### Pre-conditions before coding
 
-- [ ] VPIN PR #2573 merged (clears the branch queue)
-- [ ] SPY OHLCV data verified available on `XNAS.ITCH` at the same
-      date range as the constituent pulls
-- [ ] A/B harness confirmed to handle the `--feature cross_lead_lag` flag
-      (may need a one-line registry addition)
-- [ ] Pre-register the pass criterion: same purged walk-forward protocol,
+- [x] VPIN PR #2573 merged (clears the branch queue) — merged to `main`
+- [x] SPY OHLCV data verified available on `XNAS.ITCH` at the same
+      date range as the constituent pulls — same subscription as §3.1
+- [x] A/B harness confirmed to handle the lead-lag flag — `scripts/run_feature_ab.py`
+      is generic on `--feature-key`, so it reads the `cross_lead_lag` event-dict key
+      with no registry change
+- [x] Pre-register the pass criterion: same purged walk-forward protocol,
       same MIN_OOS_SAMPLES, same no-regression guards as all ADR-0019 candidates
+      — see "Pre-registration (LOCKED)" below
+
+### Pre-registration (LOCKED 2026-06-05)
+
+This pass criterion is fixed **before** any A/B is run, exactly as for every
+ADR-0019 candidate. No post-hoc tuning of the protocol, the lag, or the
+threshold is permitted.
+
+- **Feature key:** `cross_lead_lag` (the event-dict key emitted recorded-only by
+  `governance.family_event_adapter.family_events_from_structure` when an
+  index-aligned `benchmark_bars` series is supplied).
+- **Extractor:** `governance.family_cross_lead_lag_v2.cross_lead_lag_at` — lag-1
+  asymmetric cross-correlation ratio over the trailing `ATR_PERIOD` window. Lag is
+  **fixed at one bar and is NOT optimized.**
+- **Run command:**
+
+  ```bash
+  python scripts/run_feature_ab.py <events.jsonl> --feature-key cross_lead_lag
+  ```
+
+- **Protocol:** the same purged, embargoed walk-forward used for all ADR-0019
+  candidates — identical folds, identical `MIN_OOS_SAMPLES` floor, identical
+  no-regression guards. A fold that falls below `MIN_OOS_SAMPLES` is dropped, not
+  back-filled.
+- **Pass criterion:** the candidate must lift out-of-sample resolution
+  (Brier / log-loss) on **at least one** event family **without regressing** any
+  other family beyond the no-regression tolerance, with the `MIN_OOS_SAMPLES`
+  floor satisfied on every scored fold.
+- **Status:** RECORDED-ONLY. The feature rides alongside event outcomes; it is
+  **NOT** wired into the v1 score or any gate. Wiring is considered only if this
+  pre-registered A/B passes.
 
 ### What NOT to build
 
