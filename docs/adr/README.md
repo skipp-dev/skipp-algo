@@ -37,10 +37,12 @@ old one and update the table below.
 | 0018 | [Split-conformal coverage from walk-forward OOS pairs](0018-split-conformal-coverage.md) | Accepted | 2026-06-02 | conformal coverage from WF OOS pairs |
 | 0019 | [Multi-feature family score v2 (meta-label) — order-flow-led resolution](0019-multi-feature-family-score-v2.md) | Proposed (draft) | 2026-06-02 | doc-only; shadow-feature A/B onramp — see [onramp saturation verdict](../governance/feature_onramp_saturation_verdict.md) |
 | 0020 | [Options-flow data path — signed UOA notional as the next orthogonal shadow-feature axis](0020-options-flow-datapath.md) | Proposed | 2026-06-04 | doc-only (ranks the three new-information axes by repo maturity; scopes the options-flow data path; no code changed) |
+| 0021 | [VRVP volume-profile location + Rejection Blocks as the next orthogonal shadow features](0021-smc-vrvp-rjb-shadow.md) | Proposed (draft) | 2026-06-06 | doc-only; VRVP scalars + Rejection Blocks wired recorded-only, gated on a pre-registered A/B before promotion |
+| 0022 | [Joint meta-label A/B executed — direction saturated; re-target tier-2 sizing to move-size](0022-meta-label-joint-ab-and-magnitude-retarget.md) | Proposed | 2026-06-05 | doc-only; executes ADR-0019's joint A/B (rejected on direction) and records the move-size re-targeting hypothesis — see [joint findings](../governance/adr0022_meta_label_joint_findings.md); tooling `governance/family_meta_label.py` + `scripts/run_meta_label_ab.py` |
 
 ## Reservation rule
 
-The next free ADR number is **0021**. To avoid concurrent-PR collisions:
+The next free ADR number is **0023**. To avoid concurrent-PR collisions:
 
 1. Reserve the next number by opening the PR with the file already named
    (e.g. `docs/adr/0008-foo.md`) before the rebase race window closes.
