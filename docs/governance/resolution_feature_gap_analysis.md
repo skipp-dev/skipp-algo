@@ -170,3 +170,16 @@ sub-marginal**. The full evidence chain, exact numbers, and reusable
 methodological guardrails are recorded in the
 [feature-onramp saturation verdict](feature_onramp_saturation_verdict.md). The
 recommended next axis is **options flow**, not more OHLCV-derived formulas.
+
+### Update (2026-06-05): VPIN tested on paid trade data — no lift
+
+The last microstructure candidate, **VPIN** (volume-synchronised probability of
+informed trading, [#2573](https://github.com/skippALGO/skipp-algo/pull/2573)),
+was tested on paid Databento `--with-trades` data (5 symbols, 10,981 events,
+3-month window). Result: `no_lift` ×4 on direction (candidate AUC < 0.5 —
+anti-predictive), `no_lift / regresses_calibration` on magnitude, no regime
+effect for 3/4 families. Despite being mathematically distinct from OFI
+(`vpin ≥ |ofi|` always), the distinction carries no predictive edge on SMC event
+families. VPIN stays RECORDED-ONLY. Full evidence in
+[VPIN A/B findings](adr0019_vpin_ab_findings.md). The OHLCV+trade microstructure
+axis is now comprehensively exhausted.
