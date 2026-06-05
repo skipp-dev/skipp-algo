@@ -21,6 +21,7 @@ empty response raises loudly rather than writing a vacuous file.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -135,7 +136,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     out_path = Path(args.output).expanduser()
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    frame.to_parquet(out_path, index=False)
+    # ATOMIC-WRITE-EXEMPT: Parquet is binary so the text-only smc_atomic_write
+    # helpers do not apply; instead we write to a sibling temp path and
+    # os.replace() it into place, which is atomic by construction so a crash
+    # mid-write never leaves a torn file for the downstream HY lead-lag build.
+    tmp_path = out_path.with_name(out_path.name + ".tmp")
+    frame.to_parquet(tmp_path, index=False)
+    os.replace(tmp_path, out_path)
     # BAR-CLOSE-EXEMPT: CLI coverage summary only; `frame` is sorted ascending by
     # ts_ns and these reads just report the pulled span, not a bar-close derivation.
     span_ns = int(frame["ts_ns"].iloc[-1] - frame["ts_ns"].iloc[0])
