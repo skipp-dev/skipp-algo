@@ -40,6 +40,9 @@ _DIR_EXCLUDE = frozenset({
 _RANDOM_LEDGER: frozenset[tuple[str, int]] = frozenset({
     ("open_prep/error_taxonomy.py", 111),  # retry-jitter; non-security
     ("newsstack_fmp/_bz_http.py", 35),  # retry-jitter; non-security
+    # ADR-0023 magnitude-resolution gate: seeded RNG for the bootstrap-CI /
+    # permutation-null estimators (deterministic, reproducible); non-security.
+    ("governance/magnitude_resolution_gate.py", 205),
 })
 
 # ---- Layer 2: tempfile.* ledger ----------------------------------------------

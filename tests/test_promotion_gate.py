@@ -38,6 +38,8 @@ def _strict_snapshot(family: EventFamily = "BOS") -> FamilyMetrics:
     snap.conformal_coverage = 0.92
     snap.conformal_target = 0.90
     snap.brier_ci_upper = 0.21  # block-bootstrap CI upper still under bar
+    snap.magnitude_resolution_pass = True  # ADR-0023 move-size bar cleared
+    snap.magnitude_auc = 0.62
     snap.provenance = {
         "wf_scheme": "purged_kfold",
         "wf_embargo_bars": 32,
@@ -94,6 +96,46 @@ def test_live_vs_wf_ratio_blocker() -> None:
     blockers = [b["check"] for b in d["blockers"] if b["severity"] == "blocker"]
     assert "live_vs_wf_ratio" in blockers
     assert d["metrics"]["live_vs_wf_ratio"] == pytest.approx(0.30 / 0.18)
+
+
+def test_magnitude_resolution_unmeasured_is_non_blocking_in_lax_mode() -> None:
+    # ADR-0023: the additive move-size check is a qualifier, not a regression.
+    # An unmeasured family keeps the legacy direction-only behaviour.
+    snap = _green_snapshot()
+    assert snap.magnitude_resolution_pass is None
+    d = PromotionGate().evaluate(snap)
+    assert d["promoted"] is True
+    checks = {b["check"] for b in d["blockers"]}
+    assert "magnitude_resolution_floor" not in checks
+
+
+def test_magnitude_resolution_pass_surfaces_auc_metric() -> None:
+    snap = _green_snapshot()
+    snap.magnitude_resolution_pass = True
+    snap.magnitude_auc = 0.66
+    d = PromotionGate().evaluate(snap)
+    assert d["promoted"] is True
+    assert d["metrics"]["magnitude_resolution_pass"] == 1.0
+    assert d["metrics"]["magnitude_auc"] == pytest.approx(0.66)
+
+
+def test_magnitude_resolution_failure_blocks_additively() -> None:
+    # A family that does not clear the ADR-0023 §2 bar is hard-blocked on the
+    # new check while the direction-Brier check stays green (additive design).
+    snap = _green_snapshot()
+    snap.magnitude_resolution_pass = False
+    d = PromotionGate().evaluate(snap)
+    assert d["promoted"] is False
+    blockers = [b["check"] for b in d["blockers"] if b["severity"] == "blocker"]
+    assert blockers == ["magnitude_resolution_floor"]
+    assert d["metrics"]["magnitude_resolution_pass"] == 0.0
+
+
+def test_magnitude_resolution_unmeasured_info_blocks_in_strict_mode() -> None:
+    snap = _green_snapshot()  # leaves magnitude_resolution_pass None
+    d = PromotionGate(GateThresholds(strict_provenance=True)).evaluate(snap)
+    info = {b["check"] for b in d["blockers"] if b["severity"] == "info"}
+    assert "magnitude_resolution_floor" in info
 
 
 def test_audit_string_contains_each_blocker() -> None:

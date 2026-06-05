@@ -207,6 +207,13 @@ class FamilyMetrics:
     # with conformal_coverage_tolerance slack.
     conformal_coverage: float | None = None
     conformal_target: float | None = None
+    # ADR-0023: additive tier-2 move-size sizing qualifier. ``True`` = the v1
+    # score cleared the pre-registered §2 resolution bar for this family;
+    # ``False`` = it did not (hard blocker on ``magnitude_resolution_floor``);
+    # ``None`` = not yet measured (non-blocking unless strict). ``magnitude_auc``
+    # is the score-alone OOS AUC, surfaced for transparency only.
+    magnitude_resolution_pass: bool | None = None
+    magnitude_auc: float | None = None
     # W1.a: non-numeric hardening metadata (wf_scheme, bootstrap_method,
     # psr_method, ...). Keys listed in REQUIRED_PROVENANCE_KEYS are
     # required under strict mode.
@@ -527,6 +534,41 @@ class PromotionGate:
             metrics["regime_degraded"] = 0.0
             ok_regime = True
 
+        # ADR-0023: additive move-size resolution floor. A family is move-size
+        # sizeable only if the v1 score cleared the pre-registered §2 bar
+        # (AUC floor + bootstrap CI + permutation-null resolution). Additive to
+        # ``brier_threshold`` — direction stays guarded, this never lowers a bar.
+        if snapshot.magnitude_resolution_pass is None:
+            if t.strict_provenance:
+                blockers.append({
+                    "check": "magnitude_resolution_floor",
+                    "severity": "info",
+                    "observed": None,
+                    "threshold": 1.0,
+                    "message": "magnitude_resolution not yet measured",
+                })
+                ok_magnitude = False
+            else:
+                ok_magnitude = True
+        elif snapshot.magnitude_resolution_pass:
+            metrics["magnitude_resolution_pass"] = 1.0
+            if snapshot.magnitude_auc is not None:
+                metrics["magnitude_auc"] = float(snapshot.magnitude_auc)
+            ok_magnitude = True
+        else:
+            metrics["magnitude_resolution_pass"] = 0.0
+            if snapshot.magnitude_auc is not None:
+                metrics["magnitude_auc"] = float(snapshot.magnitude_auc)
+            blockers.append({
+                "check": "magnitude_resolution_floor",
+                "severity": "blocker",
+                "observed": 0.0,
+                "threshold": 1.0,
+                "message": "family does not clear the ADR-0023 §2 move-size "
+                           "resolution bar",
+            })
+            ok_magnitude = False
+
         # C9.1 PSI-trend slope.
         if snapshot.psi_slope is None:
             if t.strict_provenance:
@@ -637,6 +679,7 @@ class PromotionGate:
                 ok_psi,
                 ok_live,
                 ok_regime,
+                ok_magnitude,
                 ok_psi_slope,
                 ok_conformal,
                 ok_provenance,
