@@ -160,3 +160,70 @@ def test_round_trip_through_build_family_metrics() -> None:
 
     bos_metrics = next(m for m in bundle if m["family"] == "BOS")
     assert bos_metrics["psr"] is not None
+
+
+def _volume_bars(closes: list[float], volumes: list[float]) -> list[dict]:
+    return [
+        {
+            "timestamp": _T0 + i * _STEP,
+            "open": closes[i],
+            "high": closes[i] + 1.0,
+            "low": closes[i] - 1.0,
+            "close": closes[i],
+            "volume": volumes[i],
+        }
+        for i in range(len(closes))
+    ]
+
+
+def test_vrvp_shadow_scalars_attached_recorded_only() -> None:
+    # 30 volume-bearing bars; a BOS anchored deep enough (idx 20) that the
+    # trailing ATR_PERIOD window is fully populated, so the VRVP profile builds.
+    closes = [100.0 + (i % 3) for i in range(30)]
+    volumes = [1000.0 for _ in range(30)]
+    bars = _volume_bars(closes, volumes)
+    anchor_idx = 20
+    structure = {
+        "bos": [
+            {
+                "id": "b1",
+                "time": _T0 + anchor_idx * _STEP,
+                "price": closes[anchor_idx],
+                "dir": "UP",
+            }
+        ]
+    }
+
+    events = family_events_from_structure(structure, bars)
+
+    assert len(events) == 1
+    event = events[0]
+    # Both VRVP shadow scalars ride alongside the event, recorded-only.
+    assert "vrvp_vpoc_dist" in event
+    assert "vrvp_va_pos" in event
+    assert isinstance(event["vrvp_vpoc_dist"], float)
+    assert event["vrvp_va_pos"] in (-1.0, 0.0, 1.0)
+
+
+def test_vrvp_shadow_scalars_absent_without_volume() -> None:
+    # OHLCV-less run (no volume key) -> the profile cannot be built -> the VRVP
+    # scalars are honestly absent, never invented.
+    closes = [100.0 + (i % 3) for i in range(30)]
+    bars = _bars(closes)
+    anchor_idx = 20
+    structure = {
+        "bos": [
+            {
+                "id": "b1",
+                "time": _T0 + anchor_idx * _STEP,
+                "price": closes[anchor_idx],
+                "dir": "UP",
+            }
+        ]
+    }
+
+    events = family_events_from_structure(structure, bars)
+
+    assert len(events) == 1
+    assert "vrvp_vpoc_dist" not in events[0]
+    assert "vrvp_va_pos" not in events[0]

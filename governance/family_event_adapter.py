@@ -56,6 +56,10 @@ from governance.family_returns import FamilyEvent
 from governance.family_score_features_v2 import relative_volume_at
 from governance.family_signed_uoa_notional_v2 import signed_uoa_notional_at
 from governance.family_vpin_v2 import vpin_at
+from governance.family_vrvp_v2 import (
+    vrvp_value_area_position_at,
+    vrvp_vpoc_distance_at,
+)
 from governance.types import EventFamily
 
 # Lookahead windows, mirrored from
@@ -193,6 +197,12 @@ def _zone_event_to_family(
     signed_uoa = signed_uoa_notional_at(bars, anchor_idx)
     if signed_uoa is not None:
         mapped["signed_uoa_notional"] = signed_uoa
+    vrvp_vpoc_dist = vrvp_vpoc_distance_at(bars, anchor_idx)
+    if vrvp_vpoc_dist is not None:
+        mapped["vrvp_vpoc_dist"] = vrvp_vpoc_dist
+    vrvp_va_pos = vrvp_value_area_position_at(bars, anchor_idx)
+    if vrvp_va_pos is not None:
+        mapped["vrvp_va_pos"] = vrvp_va_pos
     return mapped
 
 
@@ -255,6 +265,12 @@ def _level_event_to_family(
     signed_uoa = signed_uoa_notional_at(bars, anchor_idx)
     if signed_uoa is not None:
         mapped["signed_uoa_notional"] = signed_uoa
+    vrvp_vpoc_dist = vrvp_vpoc_distance_at(bars, anchor_idx)
+    if vrvp_vpoc_dist is not None:
+        mapped["vrvp_vpoc_dist"] = vrvp_vpoc_dist
+    vrvp_va_pos = vrvp_value_area_position_at(bars, anchor_idx)
+    if vrvp_va_pos is not None:
+        mapped["vrvp_va_pos"] = vrvp_va_pos
     return mapped
 
 

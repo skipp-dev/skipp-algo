@@ -203,7 +203,8 @@
         "session_pivots": { "type": "array" },
         "ipda_range": { "type": "object", "additionalProperties": true },
         "htf_fvg_bias": { "type": "object", "additionalProperties": true },
-        "broken_fractal_signals": { "type": "array" }
+        "broken_fractal_signals": { "type": "array" },
+        "rejection_blocks": { "type": "array" }
       }
     },
     "diagnostics": {

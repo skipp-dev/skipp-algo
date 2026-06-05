@@ -43,6 +43,7 @@ def test_hybrid_profile_emits_auxiliary_and_diagnostics() -> None:
         "ipda_range",
         "htf_fvg_bias",
         "broken_fractal_signals",
+        "rejection_blocks",
     }
     assert result.diagnostics["structure_profile_used"] == "hybrid_default"
     assert result.diagnostics["event_logic_version"] == "v2"

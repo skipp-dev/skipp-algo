@@ -167,6 +167,19 @@ class FamilyEvent(TypedDict, total=False):
     # no embedded options prints (OHLCV-only run) or no premium fell in the
     # window. Never invented.
     signed_uoa_notional: float
+    # Optional point-in-time VRVP volume-profile location features (ADR-0021 v2
+    # candidates on the volume-by-price datapath; see
+    # ``governance.family_vrvp_v2``). ``vrvp_vpoc_dist`` is the signed,
+    # range-normalised distance from the anchor close to the VPOC ((close - vpoc)
+    # / (price_high - price_low)); ``vrvp_va_pos`` is the discrete value-area
+    # position (-1 below VAL / 0 inside / +1 above VAH). RECORDED ONLY -- neither
+    # is a calibration input and neither feeds the gate; they ride alongside
+    # outcomes so the pre-registered purged walk-forward A/B (ADR-0021) can
+    # evaluate whether they lift resolution before any wiring. Absent when the
+    # profile cannot be built, the anchor close is missing, or the normalising
+    # range is degenerate. Never invented.
+    vrvp_vpoc_dist: float
+    vrvp_va_pos: float
 
 
 def _direction_sign(direction: str) -> int:
