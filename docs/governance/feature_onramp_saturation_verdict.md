@@ -151,6 +151,13 @@ On the strength of this verdict the ADR-0019 OHLCV-pure candidate queue is
 - **Amihud illiquidity** (next in line) is **cancelled before any code** — it is
   another magnitude/illiquidity formula on the same bars and would land on the
   same saturated label. No PR was or will be opened for it.
+- **VPIN** ([#2573](https://github.com/skippALGO/skipp-algo/pull/2573),
+  shadow-only) was the last microstructure candidate tested on this axis.
+  Ran on **paid Databento `--with-trades` data** (5 symbols, 10,981 events,
+  3-month window): `no_lift` on direction (candAUC < 0.5, anti-predictive),
+  `no_lift / regresses_calibration` on magnitude, `no_regime_effect` on 3/4
+  families. Stays RECORDED-ONLY. Full evidence in
+  [VPIN A/B findings](adr0019_vpin_ab_findings.md).
 - The team's data-acquisition effort moves to the **options-flow datapath**
   scoped in [ADR-0020](../adr/0020-options-flow-datapath.md) (first feature:
   the `signed_uoa_notional` shadow on the OPRA aggressor-signed path).

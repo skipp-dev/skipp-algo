@@ -58,8 +58,8 @@ Queue FORMALLY CLOSED (2026-06-04). Directional-Achse SATURIERT. Nächste echte 
 | Rang | Achse | Status | Gate |
 |------|-------|--------|------|
 | 1 | **Options Flow** (signed_uoa_notional) | SHIPPED + A/B FAILED (directional). Mag/regime-Label untested. | Test auf MAGNITUDE-Label oder als Regime-Filter |
-| 2 | **L2/VPIN** (mbp-10 Order Book) | Entitled auf XNAS.ITCH ✓, Dollar-Cost trivial (~$240/5-sym-250d), Engineering-gated (1.7B rows PIT-Aggregation) | Bounded MBP-10 cost probe done: 1.38M rec/sym-day, $0.19 |
-| 3 | **Cross-Asset Lead-Lag** | Deferred. Höchstes Leak-Risiko (2-Serien Zeitausrichtung) | Noch nicht begonnen |
+| 2 | **Cross-Asset Lead-Lag** | Design pass DONE. Leak-Risiko LOW bei 15m sync bars (nicht tick-level). ~1 Tag Impl. SPY auf XNAS.ITCH verfügbar. | [Design doc](governance/cross_asset_lead_lag_design.md). Pre-cond: PR #2573 merged, SPY-Daten verifiziert |
+| 3 | **L2 Depth** (mbp-10 Order Book) | Trade-level VPIN A/B DONE → no_lift. L2 depth bleibt engineering-gated (1.7B rows PIT-Aggregation) | [VPIN findings](governance/adr0019_vpin_ab_findings.md). MBP-10 cost probe: 1.38M rec/sym-day, $0.19 |
 
 ### ADR-0020 Meta-Label (C-Slice)
 - Draft vorhanden (`pending-adr-0020-meta-label.md`). NICHT committen bis ≥1 Feature `candidate_lifts_resolution` zeigt.
