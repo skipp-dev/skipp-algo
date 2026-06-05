@@ -262,7 +262,8 @@ def walk_forward_ab(
     min_oos: int = MIN_OOS_SAMPLES,
     label: Literal["direction", "magnitude"] = "direction",
     mag_q: float = 0.5,
-) -> dict[str, dict[str, list[float]]] | None:
+    regime: list[float] | None = None,
+) -> dict[str, Any] | None:
     """PAIRED purged walk-forward A/B: two arms over an identical fold set.
 
     Mirrors :func:`walk_forward_calibration` exactly -- same chronological sort,
@@ -280,6 +281,14 @@ def walk_forward_ab(
     measured") when the shared out-of-sample count is below ``min_oos``, no fold
     admits both arms, or inputs are too short. This is a SHADOW measurement: it
     calibrates nothing into the gate and changes no score.
+
+    When a per-event ``regime`` series is supplied (same length and order as the
+    inputs), the value attached to each shared out-of-sample point is collected
+    in fold order and returned under a top-level ``"regime"`` key aligned 1:1
+    with ``outcomes``. This lets a caller stratify the OOS pairs by an exogenous
+    regime WITHOUT changing the fold set or the purge -- the strata then share
+    one identical, leak-safe calibration rather than each refitting its own
+    folds. The regime values themselves never enter any fit or prediction.
     """
     n = len(baseline)
     if not (
@@ -290,6 +299,8 @@ def walk_forward_ab(
         == len(guard_end_ts)
     ):
         raise ValueError("walk_forward_ab: input lists length mismatch")
+    if regime is not None and len(regime) != n:
+        raise ValueError("walk_forward_ab: regime length mismatch")
     if n < min_oos or n < n_folds + 1:
         return None
 
@@ -299,6 +310,7 @@ def walk_forward_ab(
     a = [anchor_ts[i] for i in order]
     g = [guard_end_ts[i] for i in order]
     r = [returns[i] for i in order]
+    reg = [regime[i] for i in order] if regime is not None else None
     # Direction label (the default) is fold-invariant, so it is precomputed once.
     # The magnitude label is fold-RELATIVE: its threshold is a quantile of the
     # TRAINING returns only, computed inside the fold loop to stay leak-safe.
@@ -308,6 +320,7 @@ def walk_forward_ab(
     base_probs: list[float] = []
     cand_probs: list[float] = []
     oos_outcomes: list[float] = []
+    oos_regime: list[float] = []
     for k in range(n_folds):
         val_start = n - (n_folds - k) * val_size
         val_end = val_start + val_size
@@ -338,13 +351,18 @@ def walk_forward_ab(
         base_probs.extend(_predict(base_model, [base[i] for i in val_range]))
         cand_probs.extend(_predict(cand_model, [cand[i] for i in val_range]))
         oos_outcomes.extend(test_y)
+        if reg is not None:
+            oos_regime.extend(reg[i] for i in val_range)
 
     if len(oos_outcomes) < min_oos:
         return None
-    return {
+    block: dict[str, Any] = {
         "baseline": {"probabilities": base_probs, "outcomes": oos_outcomes},
         "candidate": {"probabilities": cand_probs, "outcomes": oos_outcomes},
     }
+    if reg is not None:
+        block["regime"] = oos_regime
+    return block
 
 
 def partition_live_tail(
