@@ -28,8 +28,9 @@ Two facts framed the open question:
   did **not** establish that a feature adds nothing **in combination**.
 - ADR-0015 put every family at tier-1 `edge_supported` (PSR 0.99–1.00) but
   blocked tier-2 `risk_sizeable` on `brier_threshold` against the
-  `sign_return_secondary_diagnostic` target (`governance/family_calibration.
-  TARGET_TAG`) — i.e. on the **direction** (win-rate) axis. ADR-0015's "Option A
+  `sign_return_secondary_diagnostic` target
+  (`governance/family_calibration.TARGET_TAG`) — i.e. on the **direction**
+  (win-rate) axis. ADR-0015's "Option A
   roadmap" to graduate a family to tier-2 was to *lift resolution above ~6 % via
   discriminating features*, implicitly on that same direction axis.
 
