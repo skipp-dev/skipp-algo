@@ -61,12 +61,21 @@ def build_report(
     *,
     feature_keys: list[str],
     cost_bps: float,
+    label: str = "direction",
+    mag_q: float = 0.5,
 ) -> dict[str, Any]:
-    """Assemble complete-case joint samples and run the meta-label A/B."""
+    """Assemble complete-case joint samples and run the meta-label A/B.
+
+    ``label`` selects the graded axis: ``"direction"`` (sign of the net forward
+    return) or ``"magnitude"`` (``|return|`` at or above the ``mag_q`` train
+    quantile). The same complete-case joint samples feed either axis.
+    """
     meta_samples = extract_family_meta_samples(
         events, feature_keys=feature_keys, cost_bps=cost_bps
     )
-    report = family_meta_ab_report(meta_samples, feature_keys)
+    report = family_meta_ab_report(
+        meta_samples, feature_keys, label=label, mag_q=mag_q
+    )
     lifted = sorted(
         family
         for family, result in report.items()
@@ -75,6 +84,8 @@ def build_report(
     return {
         "feature_keys": list(feature_keys),
         "cost_bps": cost_bps,
+        "label": label,
+        "mag_q": mag_q,
         "families_measured": sorted(report),
         "families_lifted": lifted,
         "results": report,
@@ -122,6 +133,21 @@ def main(argv: list[str] | None = None) -> int:
         help=f"round-trip cost in basis points (default: {DEFAULT_COST_BPS})",
     )
     parser.add_argument(
+        "--label",
+        choices=("direction", "magnitude"),
+        default="direction",
+        help="outcome axis the joint A/B grades against: 'direction' (sign of "
+        "the net forward return, default) or 'magnitude' (|return| at or above "
+        "the per-fold train quantile -- the move-size / volatility axis)",
+    )
+    parser.add_argument(
+        "--mag-q",
+        type=float,
+        default=0.5,
+        help="per-fold quantile of |return| used as the magnitude-label "
+        "threshold; ignored unless --label magnitude (default: 0.5)",
+    )
+    parser.add_argument(
         "--out",
         default="-",
         help="path to write the JSON report, or '-' for stdout (default: stdout)",
@@ -150,6 +176,8 @@ def main(argv: list[str] | None = None) -> int:
         events,
         feature_keys=feature_keys,
         cost_bps=args.cost_bps,
+        label=args.label,
+        mag_q=args.mag_q,
     )
 
     rendered = json.dumps(report, indent=2, sort_keys=True)

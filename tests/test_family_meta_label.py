@@ -94,6 +94,73 @@ def test_meta_length_mismatch_raises() -> None:
 
 
 # --------------------------------------------------------------------------- #
+# magnitude axis (--label magnitude): leak-safe per-fold quantile labelling
+# --------------------------------------------------------------------------- #
+def test_meta_magnitude_label_is_wired() -> None:
+    """The magnitude axis must run end-to-end and keep the two arms paired.
+
+    Magnitude grades ``|return|`` at the per-fold TRAIN quantile -- an axis the
+    sign label cannot see -- so the harness must thread it through both arms and
+    still pool the identical OOS index set.
+    """
+    n = 400
+    rng = random.Random(19)
+    scores = [rng.gauss(0.0, 1.0) for _ in range(n)]
+    fm = [[rng.gauss(0.0, 1.0)] for _ in range(n)]
+    # Move SIZE is large for half the events, small for the other half; the
+    # sign is an independent coin flip, so direction carries no size signal.
+    rets: list[float] = []
+    for i in range(n):
+        mag = 2.0 if i % 2 == 0 else 0.2
+        sign = 1.0 if rng.random() < 0.5 else -1.0
+        rets.append(sign * mag)
+    ab = walk_forward_meta_ab(
+        scores,
+        fm,
+        rets,
+        [float(i) for i in range(n)],
+        [float(i) + 0.5 for i in range(n)],
+        label="magnitude",
+        mag_q=0.5,
+    )
+    assert ab is not None
+    assert ab["baseline"]["outcomes"] == ab["candidate"]["outcomes"]
+    # The magnitude label is a genuine 0/1 over |return|: both classes appear.
+    assert set(ab["baseline"]["outcomes"]) == {0.0, 1.0}
+
+
+def test_meta_magnitude_differs_from_direction() -> None:
+    """``label`` actually switches the graded target, not a silent re-grade.
+
+    With sign decoupled from size, the direction and magnitude axes must label
+    the SAME pooled OOS events differently; equal vectors would prove the
+    magnitude path was never wired.
+    """
+    n = 400
+    rng = random.Random(23)
+    scores = [rng.gauss(0.0, 1.0) for _ in range(n)]
+    fm = [[rng.gauss(0.0, 1.0)] for _ in range(n)]
+    rets: list[float] = []
+    for i in range(n):
+        mag = 2.0 if i % 2 == 0 else 0.2
+        sign = 1.0 if rng.random() < 0.5 else -1.0
+        rets.append(sign * mag)
+    common = (
+        scores,
+        fm,
+        rets,
+        [float(i) for i in range(n)],
+        [float(i) + 0.5 for i in range(n)],
+    )
+    direction = walk_forward_meta_ab(*common, label="direction")
+    magnitude = walk_forward_meta_ab(*common, label="magnitude", mag_q=0.5)
+    assert direction is not None and magnitude is not None
+    assert (
+        direction["baseline"]["outcomes"] != magnitude["baseline"]["outcomes"]
+    )
+
+
+# --------------------------------------------------------------------------- #
 # the decisive test: orthogonal feature lifts the JOINT model
 # --------------------------------------------------------------------------- #
 def test_orthogonal_feature_lifts_joint_resolution() -> None:

@@ -42,9 +42,13 @@ Nothing here calibrates, scores, or gates production.
 from __future__ import annotations
 
 import math
-from typing import Any, Mapping, TypedDict
+from typing import Any, Literal, Mapping, TypedDict
 
-from governance.family_calibration import MIN_OOS_SAMPLES, MIN_TRAIN_SAMPLES
+from governance.family_calibration import (
+    MIN_OOS_SAMPLES,
+    MIN_TRAIN_SAMPLES,
+    _quantile,
+)
 from governance.family_feature_ab import (
     ABS_ECE_CEILING,
     BRIER_REGRESSION_TOLERANCE,
@@ -229,6 +233,8 @@ def walk_forward_meta_ab(
     *,
     n_folds: int = 5,
     min_oos: int = MIN_OOS_SAMPLES,
+    label: Literal["direction", "magnitude"] = "direction",
+    mag_q: float = 0.5,
 ) -> dict[str, dict[str, list[float]]] | None:
     """Paired purged walk-forward: score-alone vs JOINT ``[score]+features``.
 
@@ -239,6 +245,16 @@ def walk_forward_meta_ab(
     multivariate logistic over ``[score] + feature columns`` instead of a single
     feature. Returns the pooled OOS ``{"baseline", "candidate"}`` arms, or
     ``None`` when fewer than ``min_oos`` shared OOS points can be assembled.
+
+    ``label`` selects the graded outcome axis, mirroring
+    :func:`governance.family_calibration.walk_forward_ab`:
+
+    * ``"direction"`` (default): ``y = 1`` iff the net forward return is
+      positive (sign / win-rate axis).
+    * ``"magnitude"``: ``y = 1`` iff ``|return|`` is at or above the ``mag_q``
+      quantile of ``|return|`` over the PURGED TRAINING events of that fold
+      (move-size / volatility axis). The threshold is computed on train only and
+      reused on the validation fold, so no future information leaks.
     """
     n = len(scores)
     if not (
@@ -257,7 +273,10 @@ def walk_forward_meta_ab(
     fm = [feature_matrix[i] for i in order]
     a = [anchor_ts[i] for i in order]
     g = [guard_end_ts[i] for i in order]
-    y = [1.0 if returns[i] > 0.0 else 0.0 for i in order]
+    r = [returns[i] for i in order]
+    # Direction labels are global (sign is leak-free); magnitude labels are
+    # computed per fold from the train quantile inside the loop below.
+    y = [1.0 if r[i] > 0.0 else 0.0 for i in range(n)]
 
     base_probs: list[float] = []
     cand_probs: list[float] = []
@@ -274,7 +293,17 @@ def walk_forward_meta_ab(
         if len(train_idx) < MIN_TRAIN_SAMPLES:
             continue
 
-        train_y = [y[i] for i in train_idx]
+        val_idx = list(range(val_start, min(val_end, n)))
+        if not val_idx:
+            continue
+
+        if label == "magnitude":
+            tau = _quantile([abs(r[i]) for i in train_idx], mag_q)
+            train_y = [1.0 if abs(r[i]) >= tau else 0.0 for i in train_idx]
+            val_y = [1.0 if abs(r[i]) >= tau else 0.0 for i in val_idx]
+        else:
+            train_y = [y[i] for i in train_idx]
+            val_y = [y[i] for i in val_idx]
 
         base_model = _fit_logistic_1d([s[i] for i in train_idx], train_y)
         cand_model = _fit_multi_logistic(
@@ -285,14 +314,11 @@ def walk_forward_meta_ab(
         if base_model is None or cand_model is None:
             continue
 
-        val_idx = list(range(val_start, min(val_end, n)))
-        if not val_idx:
-            continue
         base_probs.extend(_predict_multi(base_model, [[s[i]] for i in val_idx]))
         cand_probs.extend(
             _predict_multi(cand_model, [[s[i]] + list(fm[i]) for i in val_idx])
         )
-        oos_outcomes.extend(y[i] for i in val_idx)
+        oos_outcomes.extend(val_y)
 
     if len(oos_outcomes) < min_oos:
         return None
@@ -322,12 +348,16 @@ def family_meta_ab(
     min_resolution_lift: float = MIN_RESOLUTION_LIFT,
     ece_ceiling: float = ABS_ECE_CEILING,
     brier_tolerance: float = BRIER_REGRESSION_TOLERANCE,
+    label: Literal["direction", "magnitude"] = "direction",
+    mag_q: float = 0.5,
 ) -> FamilyMetaResult | None:
     """Run the paired joint meta-label A/B for one family.
 
     ``None`` when the joint sample is too thin to assemble ``min_oos`` shared
     OOS points. Verdict semantics match ADR-0019 exactly:
     ``candidate_lifts_resolution`` / ``no_lift`` / ``regresses_calibration``.
+    ``label`` selects the graded axis (``"direction"`` sign vs ``"magnitude"``
+    move-size at the ``mag_q`` train quantile); see :func:`walk_forward_meta_ab`.
     """
     ab = walk_forward_meta_ab(
         samples["scores"],
@@ -336,6 +366,8 @@ def family_meta_ab(
         samples["anchor_ts"],
         samples["guard_end_ts"],
         min_oos=min_oos,
+        label=label,
+        mag_q=mag_q,
     )
     if ab is None:
         return None
@@ -438,12 +470,15 @@ def family_meta_ab_report(
     min_resolution_lift: float = MIN_RESOLUTION_LIFT,
     ece_ceiling: float = ABS_ECE_CEILING,
     brier_tolerance: float = BRIER_REGRESSION_TOLERANCE,
+    label: Literal["direction", "magnitude"] = "direction",
+    mag_q: float = 0.5,
 ) -> dict[str, FamilyMetaResult]:
     """Run the joint meta-label A/B for every measurable family.
 
     Families whose paired complete-case sample is too thin are omitted (their
     ``family_meta_ab`` returns ``None``), so the report only carries families
-    that produced a real out-of-sample verdict.
+    that produced a real out-of-sample verdict. ``label``/``mag_q`` select the
+    graded axis and are threaded to every family unchanged.
     """
     out: dict[str, FamilyMetaResult] = {}
     for family, samples in meta_samples.items():
@@ -454,6 +489,8 @@ def family_meta_ab_report(
             min_resolution_lift=min_resolution_lift,
             ece_ceiling=ece_ceiling,
             brier_tolerance=brier_tolerance,
+            label=label,
+            mag_q=mag_q,
         )
         if result is not None:
             out[family] = result
