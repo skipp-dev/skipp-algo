@@ -99,6 +99,68 @@ def test_walk_forward_ab_length_mismatch_raises() -> None:
 
 
 # --------------------------------------------------------------------------- #
+# walk_forward_ab magnitude label (ADR-0019 step 3, magnitude path)
+# --------------------------------------------------------------------------- #
+def test_walk_forward_ab_magnitude_label_is_wired() -> None:
+    """The magnitude path must run end-to-end and keep the two arms paired.
+
+    Outcome SIZE depends on the candidate while sign is a coin flip, so a
+    magnitude-labelled A/B has signal a direction-labelled one cannot see.
+    """
+    import random
+
+    rng = random.Random(9)
+    n = 600
+    base = [rng.gauss(0.0, 1.0) for _ in range(n)]
+    cand = [rng.gauss(0.0, 1.0) for _ in range(n)]
+    rets = [
+        (1.0 if rng.random() < 0.5 else -1.0) * (0.2 + 0.9 * abs(cand[i]))
+        for i in range(n)
+    ]
+    ats = [float(i) for i in range(n)]
+    gts = [float(i) + 0.5 for i in range(n)]
+    ab = walk_forward_ab(base, cand, rets, ats, gts, label="magnitude", mag_q=0.5)
+    assert ab is not None
+    # Pairing must survive the alternate label.
+    assert ab["baseline"]["outcomes"] == ab["candidate"]["outcomes"]
+    # Magnitude labels are {0,1} and not all one class at mag_q=0.5.
+    outs = ab["candidate"]["outcomes"]
+    assert set(outs) <= {0.0, 1.0}
+    assert 0.0 < sum(outs) < len(outs)
+
+
+def test_walk_forward_ab_magnitude_differs_from_direction() -> None:
+    """The label actually switches the target: magnitude != direction outcomes.
+
+    On one data set where sign and size are independent, the direction label
+    (sign of return) and the magnitude label (|return| over the train median)
+    must produce different OOS outcome vectors -- proof that ``label`` is wired
+    through to the labelling rather than silently ignored.
+    """
+    import random
+
+    rng = random.Random(4)
+    n = 500
+    base = [rng.gauss(0.0, 1.0) for _ in range(n)]
+    cand = [rng.gauss(0.0, 1.0) for _ in range(n)]
+    rets = [
+        (1.0 if rng.random() < 0.5 else -1.0) * (0.2 + abs(rng.gauss(0.0, 1.0)))
+        for _ in range(n)
+    ]
+    ats = [float(i) for i in range(n)]
+    gts = [float(i) + 0.5 for i in range(n)]
+    direction = walk_forward_ab(base, cand, rets, ats, gts, label="direction")
+    magnitude = walk_forward_ab(base, cand, rets, ats, gts, label="magnitude", mag_q=0.5)
+    assert direction is not None and magnitude is not None
+    # Same OOS index set (same folds), but a different outcome labelling.
+    assert (
+        direction["candidate"]["outcomes"] != magnitude["candidate"]["outcomes"]
+    )
+    mag_outs = magnitude["candidate"]["outcomes"]
+    assert 0.0 < sum(mag_outs) < len(mag_outs)
+
+
+# --------------------------------------------------------------------------- #
 # family_feature_ab verdicts
 # --------------------------------------------------------------------------- #
 def test_ab_flags_candidate_that_lifts_resolution() -> None:
