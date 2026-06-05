@@ -122,3 +122,37 @@ new work is confined to **(a) a tick data layer** and **(b) the HY estimator**.
 
 **Open decision for the user:** approve starting at step 1 (tick data layer), or
 review/adjust the pre-registration (lag grid, window, kill criterion) first.
+
+## 7. Locked pre-registration (step 4 — frozen 2026-06-05)
+
+Steps 1–3 are complete and committed (ns tick pull `85f462a0`, HY estimator
+`f40020c8`, adapter threading + leak tests `2db13864`). The following is frozen
+**before** the A/B is run; the parameters below match the committed estimator
+(`governance/family_cross_lead_lag_hy_v3.py`) exactly and are **not** revisited
+after seeing any result.
+
+- **Feature key:** `cross_lead_lag_hy` (recorded-only shadow; does **not** feed
+  any gate).
+- **Headline scalar:** shifted-Hayashi-Yoshida peak ratio
+  `max_{θ>0}|HY(θ)| / max_{θ<0}|HY(θ)|` — `> 1` ⇒ benchmark (SPY) leads the
+  constituent; `< 1` ⇒ constituent leads.
+- **Window (frozen):** trailing **1800 s** of ticks, `[anchor − 1800 s, anchor]`,
+  nanosecond-exact, ending strictly at the event anchor (PIT slice).
+- **Lag grid (frozen):** θ ∈ ±{2, 4, …, 60} s (step 2 s, 30 magnitudes). `argmax`
+  is taken over θ but the **grid is pre-registered**, not tuned to the outcome.
+- **Benchmark:** SPY trades tape. **Constituents:** AAPL, AMZN, MSFT, NVDA, TSLA
+  (and SPY-vs-SPY is excluded — no self lead-lag).
+- **Events:** the *same* recorded `FamilyEvent`s as the v2 cross-asset run,
+  regenerated from the identical 6 symbol bar payloads with constituent + SPY
+  benchmark ticks attached via the step-3 adapter path.
+- **Test:** `scripts/run_feature_ab.py … --feature-key cross_lead_lag_hy`, purged
+  walk-forward, same `MIN_OOS_SAMPLES` as v2, no-regression on Brier / ECE /
+  coverage. Magnitude-labelled and `--stratify-by abs_feature` passes included,
+  with **special attention to SWEEP magnitude** (the lone faint signal at 15 m,
+  AUC 0.596).
+- **Pass:** lifts OOS Brier resolution on **≥ 1 family** without regressing the
+  others — the identical bar the v2 test had to clear. Promotion is
+  recorded → score only on a clean lift.
+- **Pre-registered kill:** if HY **also** nulls (no lift, no regime effect), the
+  cross-asset axis is **closed for good** for this thesis and we do **not**
+  escalate to MBP-10 depth.
