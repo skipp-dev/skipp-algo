@@ -71,7 +71,7 @@ def test_adapt_bos_strips_extra_fields() -> None:
 
 def test_adapt_zones_strips_extra_fields() -> None:
     canonical = [
-        {"id": "ob:AAPL:15m:…", "low": 184.5, "high": 185.1, "dir": "BULL", "valid": True, "anchor_ts": 1709250000, "source": "makuchaku_ob"},
+        {"id": "ob:AAPL:15m:…", "low": 184.5, "high": 185.1, "dir": "BULL", "valid": True, "anchor_ts": 1709250000, "source": "classic_ob"},
     ]
     adapted = _adapt_zones(canonical)
     assert adapted == [{"low": 184.5, "high": 185.1, "dir": "BULL", "valid": True}]

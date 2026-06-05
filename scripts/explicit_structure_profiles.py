@@ -17,12 +17,12 @@ from scripts.explicit_structure_detectors import (
     detect_fvg_classic,
     detect_liquidity_lines_pivot3,
     detect_liquidity_sweeps_from_lines,
-    detect_orderblocks_makuchaku,
+    detect_orderblocks_classic,
 )
 from scripts.smc_price_action_engine import canonical_timeframe, normalize_bars
 
 SUPPORTED_STRUCTURE_PROFILES = {
-    "classic_makuchaku",
+    "classic",
     "session_liquidity",
     "hybrid_default",
     "conservative",
@@ -137,7 +137,7 @@ def _compose_common(
             session_tz=session_tz,
         )
     )
-    orderblocks, ob_diag = detect_orderblocks_makuchaku(
+    orderblocks, ob_diag = detect_orderblocks_classic(
         bars,
         symbol=symbol,
         timeframe=timeframe,
@@ -256,8 +256,8 @@ def build_structure_profile(
         session_tz=session_tz,
     )
 
-    if profile_name == "classic_makuchaku":
-        base.diagnostics["structure_profile_used"] = "classic_makuchaku"
+    if profile_name == "classic":
+        base.diagnostics["structure_profile_used"] = "classic"
         return base
 
     if profile_name == "session_liquidity":
