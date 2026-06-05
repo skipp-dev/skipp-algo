@@ -29,7 +29,7 @@ def _dedupe_by_id(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
-def detect_orderblocks_makuchaku(
+def detect_orderblocks_classic(
     df: pd.DataFrame,
     symbol: str,
     timeframe: str,
@@ -96,7 +96,7 @@ def detect_orderblocks_makuchaku(
                     "dir": "BULL",
                     "valid": valid,
                     "anchor_ts": int(cur_ts),
-                    "source": "makuchaku_ob",
+                    "source": "classic_ob",
                 }
             )
             diagnostics.append(
@@ -146,7 +146,7 @@ def detect_orderblocks_makuchaku(
                     "dir": "BEAR",
                     "valid": valid,
                     "anchor_ts": int(cur_ts),
-                    "source": "makuchaku_ob",
+                    "source": "classic_ob",
                 }
             )
             diagnostics.append(

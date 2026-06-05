@@ -221,7 +221,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--structure-profile",
         default="hybrid_default",
-        help="Structure profile name (classic_makuchaku, session_liquidity, hybrid_default, conservative)",
+        help="Structure profile name (classic, session_liquidity, hybrid_default, conservative)",
     )
     return parser
 
