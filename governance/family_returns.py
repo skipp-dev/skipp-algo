@@ -178,6 +178,14 @@ class FamilyEvent(TypedDict, total=False):
     # no embedded options prints (OHLCV-only run) or no premium fell in the
     # window. Never invented.
     signed_uoa_notional: float
+    # Optional unsigned options-activity ratio (ADR-0020 Path B; see
+    # ``governance.family_signed_uoa_notional_v2.abs_uoa_activity_at``): recent
+    # premium notional over its trailing baseline (>1 elevated, <1 quiet). The
+    # direction-free companion to ``signed_uoa_notional``; RECORDED ONLY -- it
+    # does NOT feed calibration or the gate, riding alongside outcomes so the
+    # pre-registered A/B can evaluate it. Absent on OHLCV-only runs or when the
+    # baseline window carried no premium. Never invented.
+    abs_uoa_activity: float
     # Optional point-in-time VRVP volume-profile location features (ADR-0021 v2
     # candidates on the volume-by-price datapath; see
     # ``governance.family_vrvp_v2``). ``vrvp_vpoc_dist`` is the signed,

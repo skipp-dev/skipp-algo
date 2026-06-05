@@ -178,4 +178,84 @@ def signed_uoa_notional_at(
     return ratio
 
 
-__all__ = ["SIGNED_UOA_NOTIONAL_SOURCE", "signed_uoa_notional_at"]
+# Provenance tag for the unsigned activity companion (ADR-0020 Path B). Distinct
+# from the signed tag so the two candidates never alias in event provenance.
+ABS_UOA_ACTIVITY_SOURCE = "options_flow_abs_uoa_activity_v2"
+
+# The activity baseline spans four ATR windows: a recent-vs-baseline ratio needs
+# a baseline long enough to be a stable "normal", and 4x keeps the short window a
+# proper sub-window of it (no extra tuning knob beyond the shared ATR horizon).
+_ABS_ACTIVITY_BASELINE_MULT = 4
+
+
+def _window_abs_total(
+    bars: Sequence[Mapping[str, Any]], lo: int, hi: int
+) -> float | None:
+    """Total unsigned premium notional over bars ``[lo, hi]`` (inclusive).
+
+    Gap-tolerant: a bar with no embedded UOA key saw no prints and adds ``0``.
+    Returns ``None`` when any bar in the window carries a corrupt value, so the
+    caller can refuse the whole window rather than under-count.
+    """
+    total = 0.0
+    for k in range(lo, hi + 1):
+        abs_notional = _bar_abs_notional(bars[k])
+        if abs_notional is _CORRUPT:
+            return None
+        if abs_notional is None:
+            continue
+        total += abs_notional
+    return total
+
+
+def abs_uoa_activity_at(
+    bars: Sequence[Mapping[str, Any]],
+    anchor_idx: int,
+    *,
+    period: int = ATR_PERIOD,
+) -> float | None:
+    """Unsigned options-activity ratio: recent premium vs its trailing baseline.
+
+    This is the **direction-free companion** to ``signed_uoa_notional_at`` and
+    the literal reading of *unusual* options activity: the mean premium notional
+    over the trailing ``period``-bar window divided by the mean over a longer
+    ``period * 4`` baseline window (the short window is a sub-window of the long
+    one, both ending at ``anchor_idx``). ``> 1`` means recent options premium is
+    elevated versus its own recent normal, ``< 1`` quiet, ``~1`` typical. Being a
+    within-symbol ratio it is comparable across underlyings (raw premium dollars
+    would merely encode which name is bigger), so a per-family pool can read it
+    as one activity axis rather than a symbol fingerprint.
+
+    Strictly point-in-time: both windows end at ``anchor_idx`` and never read a
+    later bar, so it is leak-free by construction. Gap-tolerant: a bar with no
+    embedded UOA keys contributes ``0`` (no prints, not a refusal).
+
+    Returns ``None`` (feature honestly absent) when ``period`` is below 1, there
+    is not enough trailing history for the full baseline window, any bar carries
+    a corrupt UOA value, or the baseline premium total is zero (no activity to
+    normalise against -> undefined ratio).
+    """
+    if period < 1:
+        return None
+    baseline_period = period * _ABS_ACTIVITY_BASELINE_MULT
+    if anchor_idx < baseline_period - 1 or anchor_idx >= len(bars):
+        return None
+
+    short_total = _window_abs_total(bars, anchor_idx - period + 1, anchor_idx)
+    long_total = _window_abs_total(bars, anchor_idx - baseline_period + 1, anchor_idx)
+    if short_total is None or long_total is None:
+        return None
+    if long_total <= 0.0:
+        return None
+
+    short_mean = short_total / period
+    long_mean = long_total / baseline_period
+    return short_mean / long_mean
+
+
+__all__ = [
+    "ABS_UOA_ACTIVITY_SOURCE",
+    "SIGNED_UOA_NOTIONAL_SOURCE",
+    "abs_uoa_activity_at",
+    "signed_uoa_notional_at",
+]
