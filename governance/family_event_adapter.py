@@ -56,7 +56,10 @@ from governance.family_kyle_lambda_v2 import kyle_lambda_at
 from governance.family_ofi_imbalance_v2 import ofi_imbalance_at
 from governance.family_returns import FamilyEvent
 from governance.family_score_features_v2 import relative_volume_at
-from governance.family_signed_uoa_notional_v2 import signed_uoa_notional_at
+from governance.family_signed_uoa_notional_v2 import (
+    abs_uoa_activity_at,
+    signed_uoa_notional_at,
+)
 from governance.family_vpin_v2 import vpin_at
 from governance.family_vrvp_v2 import (
     vrvp_value_area_position_at,
@@ -238,6 +241,9 @@ def _zone_event_to_family(
     signed_uoa = signed_uoa_notional_at(bars, anchor_idx)
     if signed_uoa is not None:
         mapped["signed_uoa_notional"] = signed_uoa
+    abs_uoa = abs_uoa_activity_at(bars, anchor_idx)
+    if abs_uoa is not None:
+        mapped["abs_uoa_activity"] = abs_uoa
     vrvp_vpoc_dist = vrvp_vpoc_distance_at(bars, anchor_idx)
     if vrvp_vpoc_dist is not None:
         mapped["vrvp_vpoc_dist"] = vrvp_vpoc_dist
@@ -316,6 +322,9 @@ def _level_event_to_family(
     signed_uoa = signed_uoa_notional_at(bars, anchor_idx)
     if signed_uoa is not None:
         mapped["signed_uoa_notional"] = signed_uoa
+    abs_uoa = abs_uoa_activity_at(bars, anchor_idx)
+    if abs_uoa is not None:
+        mapped["abs_uoa_activity"] = abs_uoa
     vrvp_vpoc_dist = vrvp_vpoc_distance_at(bars, anchor_idx)
     if vrvp_vpoc_dist is not None:
         mapped["vrvp_vpoc_dist"] = vrvp_vpoc_dist
