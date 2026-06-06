@@ -96,6 +96,25 @@ def test_latest_rows_ignores_rows_without_family():
     assert latest_rows_by_family(rows) == {}
 
 
+def test_latest_rows_ignores_rows_without_date():
+    rows = [
+        {"family": "BOS", "status": "PASS", "magnitude_auc": 0.63},
+        _row(date="2026-06-01", family="BOS", status="FAIL", auc=0.55),
+    ]
+    result = latest_rows_by_family(rows)
+    # The row with a valid date wins; the date-less row is skipped.
+    assert result["BOS"]["date"] == "2026-06-01"
+
+
+def test_coerce_auc_excludes_bool():
+    from scripts.magnitude_snapshot_wiring import _coerce_auc
+
+    assert _coerce_auc(True) is None
+    assert _coerce_auc(False) is None
+    assert _coerce_auc(0.63) == 0.63
+    assert _coerce_auc(None) is None
+
+
 # ---- load_magnitude_snapshots / gate_snapshots --------------------------
 
 
