@@ -68,8 +68,10 @@ _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 _APPROVED_ACTION_SHAS: dict[str, frozenset[str]] = {
     "actions/setup-python": frozenset(
         {
-            "a26af69be951a213d495a4c3e4e4022e16d87065",  # v5
-            "a309ff8b426b58ec0e2a45f0f869d46889d02405",  # v6
+            # v5 (a26af69be…, Node-20) retired 2026-06-06: Node-20 actions are
+            # deprecated (force-disabled 2026-06-16, removed 2026-09-16). All
+            # workflows now pin v6 (Node-24). See the v5→v6 sweep commit.
+            "a309ff8b426b58ec0e2a45f0f869d46889d02405",  # v6 (Node-24)
         }
     ),
 }
