@@ -26,9 +26,12 @@ away from being a P1 incident.
 from __future__ import annotations
 
 import ast
+import functools
 from pathlib import Path
 
 import pytest
+
+from tests._guard_corpus import parse_module
 
 _ROOT = Path(__file__).resolve().parents[1]
 
@@ -77,12 +80,12 @@ def _iter_python_files() -> list[Path]:
     return out
 
 
+@functools.cache
 def _collect_offenders() -> dict[str, set[int]]:
     offenders: dict[str, set[int]] = {}
     for path in _iter_python_files():
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        except (SyntaxError, UnicodeDecodeError):
+        tree = parse_module(path)
+        if tree is None:
             continue
         rel = path.relative_to(_ROOT).as_posix()
         for node in ast.walk(tree):

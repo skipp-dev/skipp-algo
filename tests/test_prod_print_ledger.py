@@ -17,10 +17,13 @@ Defense-only, no production code changes.
 from __future__ import annotations
 
 import ast
+import functools
 from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+
+from tests._guard_corpus import parse_module
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -78,12 +81,12 @@ _FROZEN_PRINT_COUNTS: dict[str, int] = {
 _FROZEN_PRINT_TOTAL = sum(_FROZEN_PRINT_COUNTS.values())
 
 
+@functools.cache
 def _scan_prints() -> dict[str, int]:
     out: dict[str, int] = {}
     for p in _iter_prod_py():
-        try:
-            tree = ast.parse(p.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, SyntaxError):
+        tree = parse_module(p)
+        if tree is None:
             continue
         n = 0
         for node in ast.walk(tree):

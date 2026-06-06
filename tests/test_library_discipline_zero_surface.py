@@ -35,6 +35,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from tests._guard_corpus import parse_module
+
 ROOT = Path(__file__).resolve().parent.parent
 
 _DIR_EXCLUDE = frozenset(
@@ -77,14 +79,7 @@ def _iter_first_party_py_files() -> list[Path]:
 
 
 def _parse(path: Path) -> ast.AST | None:
-    try:
-        source = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        return None
-    try:
-        return ast.parse(source, filename=str(path))
-    except SyntaxError:
-        return None
+    return parse_module(path)
 
 
 def _scan_module_attr_calls(
