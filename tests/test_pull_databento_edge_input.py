@@ -457,6 +457,24 @@ def test_quote_rule_opra_aggressor_classifies_against_nbbo() -> None:
     assert side.tolist() == ["A", "B", "N", "N", "N"]
 
 
+def test_quote_rule_opra_aggressor_crossed_book_stays_unsigned() -> None:
+    # LOAD-BEARING guard on the ``ask > bid`` validity check. In a CROSSED book
+    # (ask strictly < bid -- a real OPRA tape artifact, distinct from a locked
+    # ask==bid book) a single price can satisfy BOTH ``price >= ask`` AND
+    # ``price <= bid`` at once. Without the validity gate the row would be
+    # classified as A *and* B (last-write-wins -> a bogus sign); the gate must
+    # force it to honest ``N``. Also pins the still-uncovered missing-ask and
+    # missing-price branches so a future refactor cannot silently sign them.
+    price = pd.Series([1.5, 2.0, float("nan")])  # row0 inside the crossed quotes
+    bid = pd.Series([2.0, 2.0, 1.0])  # row0 bid(2.0) > ask(1.0) -> crossed
+    ask = pd.Series([1.0, float("nan"), 2.0])  # row1 missing ask; row2 valid+NaN price
+
+    side = _quote_rule_opra_aggressor(price, bid, ask)
+
+    # crossed book -> N; missing ask -> N; missing price -> N.
+    assert side.tolist() == ["N", "N", "N"]
+
+
 def test_normalize_opra_tcbbo_reconstructs_side_from_quote_rule() -> None:
     # The raw side is uniformly "N" (the live OPRA reality); the quote rule must
     # recover A (ask-lift) and B (bid-hit) from the NBBO so the signed notional
