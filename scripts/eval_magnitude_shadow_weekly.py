@@ -53,6 +53,35 @@ WEEKLY_K_DEFAULT = 3
 # window and sitting within this margin above MAG_AUC_CI_LOW_FLOOR (0.55).
 CI_LOW_MARGIN = 0.02
 
+# Sparkline anchoring range: 0.50 is a coin-flip (worthless), 0.70 is a strong
+# move-size signal. Readings are clamped into this band before quantising.
+SPARK_LO = 0.50
+SPARK_HI = 0.70
+_SPARK_BLOCKS = "▁▂▃▄▅▆▇█"
+_SPARK_GAP = "·"
+
+
+def sparkline(values: list[Any], *, lo: float = SPARK_LO, hi: float = SPARK_HI) -> str:
+    """Render a numeric series as a unicode block sparkline.
+
+    Values are clamped into ``[lo, hi]`` then quantised onto the eight block
+    glyphs. Non-numeric / missing readings render as a gap dot so the column
+    width still matches the window length. An empty series renders ``""``.
+    """
+    if hi <= lo:
+        raise ValueError("require lo < hi")
+    out: list[str] = []
+    span = hi - lo
+    last = len(_SPARK_BLOCKS) - 1
+    for v in values:
+        if not isinstance(v, (int, float)) or isinstance(v, bool):
+            out.append(_SPARK_GAP)
+            continue
+        clamped = min(hi, max(lo, float(v)))
+        idx = round((clamped - lo) / span * last)
+        out.append(_SPARK_BLOCKS[idx])
+    return "".join(out)
+
 
 def group_by_family(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
     """Group ledger rows by family, each list sorted ascending by date."""
@@ -107,6 +136,7 @@ def evaluate_family(
     latest = window[-1] if window else {}
     meets_k_of_n = pass_count >= k
     ci_low_trending = _ci_low_trends_to_floor(window)
+    auc_window = [r.get("magnitude_auc") for r in window]
 
     if is_candidate:
         # A candidate is healthy when it clears k-of-n and its lower CI bound
@@ -133,6 +163,7 @@ def evaluate_family(
         "latest_status": latest.get("status"),
         "latest_auc": latest.get("magnitude_auc"),
         "latest_ci_low": latest.get("auc_ci_low"),
+        "auc_window": auc_window,
         "healthy": healthy,
         "stage2_eligible": stage2_eligible,
     }
@@ -200,12 +231,26 @@ def render_text(report: dict[str, Any]) -> str:
         ci_s = f"{ci:.3f}" if isinstance(ci, (int, float)) else "n/a"
         health = "healthy" if v["healthy"] else "ATTENTION"
         trend = " ci-low→floor" if v["ci_low_trending_to_floor"] else ""
+        spark = sparkline(v.get("auc_window", []))
+        spark_s = f" [{spark}]" if spark else ""
         lines.append(
             f"  {family:<6}[{v['role']:<9}] "
             f"pass {v['pass_count']}/{v['window_size']} "
-            f"(need {v['k_required']}) "
+            f"(need {v['k_required']}){spark_s} "
             f"AUC={auc_s} CIlow={ci_s} {health}{trend}"
         )
+        if v["role"] == "candidate" and not v["stage2_eligible"]:
+            remaining = max(0, v["k_required"] - v["pass_count"])
+            if remaining > 0:
+                lines.append(
+                    f"         Stage-2 progress: {v['pass_count']}/"
+                    f"{v['k_required']} PASS — needs {remaining} more"
+                )
+            elif v["ci_low_trending_to_floor"]:
+                lines.append(
+                    "         Stage-2 progress: k-of-n met but CI-low "
+                    "trending to floor — blocked"
+                )
     if report["all_pass_red_flag"]:
         lines.append(
             "  RED FLAG: all families PASSED on the latest date — suspected "

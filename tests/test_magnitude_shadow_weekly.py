@@ -8,6 +8,7 @@ from scripts.eval_magnitude_shadow_weekly import (
     group_by_family,
     main,
     render_text,
+    sparkline,
 )
 
 
@@ -193,6 +194,75 @@ def test_render_text_mentions_families_and_eligibility():
     text = render_text(evaluate_weekly(rows, k=3, n=4))
     assert "BOS" in text
     assert "Stage-2 eligible: BOS" in text
+
+
+# ---- sparkline ----------------------------------------------------------
+
+
+def test_sparkline_empty_series_is_empty():
+    assert sparkline([]) == ""
+
+
+def test_sparkline_length_matches_series():
+    assert len(sparkline([0.5, 0.6, 0.7])) == 3
+
+
+def test_sparkline_monotonic_values_are_non_decreasing_glyphs():
+    blocks = "▁▂▃▄▅▆▇█"
+    spark = sparkline([0.50, 0.60, 0.70])
+    assert spark[0] == blocks[0]
+    assert spark[-1] == blocks[-1]
+    ranks = [blocks.index(ch) for ch in spark]
+    assert ranks == sorted(ranks)
+
+
+def test_sparkline_clamps_out_of_range():
+    blocks = "▁▂▃▄▅▆▇█"
+    # values below lo and above hi clamp to the extreme glyphs
+    assert sparkline([0.10, 0.99]) == blocks[0] + blocks[-1]
+
+
+def test_sparkline_non_numeric_renders_gap():
+    spark = sparkline([0.6, None, "x", True])
+    assert spark[1] == "·"
+    assert spark[2] == "·"
+    # bool is excluded even though it is an int subclass
+    assert spark[3] == "·"
+
+
+def test_sparkline_rejects_bad_range():
+    import pytest
+
+    with pytest.raises(ValueError):
+        sparkline([0.6], lo=0.7, hi=0.5)
+
+
+# ---- auc_window + Stage-2 progress render -------------------------------
+
+
+def test_evaluate_family_exposes_auc_window():
+    rows = _streak("BOS", ["PASS", "FAIL", "PASS"], auc=0.63)
+    v = evaluate_family("BOS", rows, k=2, n=4)
+    assert v["auc_window"] == [0.63, 0.63, 0.63]
+
+
+def test_render_includes_sparkline_for_family():
+    rows = _streak("BOS", ["PASS", "PASS", "PASS"], auc=0.62)
+    text = render_text(evaluate_weekly(rows, k=2, n=4))
+    # at least one block glyph appears in the rendered family line
+    assert any(ch in text for ch in "▁▂▃▄▅▆▇█")
+
+
+def test_render_shows_progress_for_incomplete_candidate():
+    rows = _streak("BOS", ["PASS", "FAIL", "FAIL"])
+    text = render_text(evaluate_weekly(rows, k=3, n=4))
+    assert "Stage-2 progress: 1/3 PASS — needs 2 more" in text
+
+
+def test_render_no_progress_line_for_eligible_candidate():
+    rows = _streak("BOS", ["PASS", "PASS", "PASS"])
+    text = render_text(evaluate_weekly(rows, k=2, n=4))
+    assert "needs" not in text
 
 
 def test_main_empty_ledger_returns_3(tmp_path):
