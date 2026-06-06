@@ -79,6 +79,8 @@ def _status_to_pass(status: Any) -> bool | None:
 
 
 def _coerce_auc(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
     return float(value) if isinstance(value, (int, float)) else None
 
 
@@ -104,8 +106,11 @@ def latest_rows_by_family(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any
         family = row.get("family")
         if not isinstance(family, str):
             continue
+        date = row.get("date")
+        if not isinstance(date, str):
+            continue
         current = latest.get(family)
-        if current is None or str(row.get("date")) >= str(current.get("date")):
+        if current is None or date >= str(current.get("date", "")):
             latest[family] = row
     return latest
 
@@ -178,7 +183,7 @@ def render_text(snapshots: dict[str, MagnitudeSnapshot]) -> str:
             f"(status={snap.status}, date={snap.date})"
         )
     if len(lines) == 1:
-        lines.append("  (no families in ledger)")
+        lines.append("  (no matching families in ledger)")
     return "\n".join(lines)
 
 
