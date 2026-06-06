@@ -30,6 +30,10 @@ BLOCKER_CHECK_NAMES: frozenset[str] = frozenset({
     "regime_degraded",
     "psi_slope_threshold",
     "conformal_coverage",
+    # ADR-0023: additive tier-2 sizing check — a family is move-size sizeable
+    # only if the v1 score clears the pre-registered §2 resolution bar. Never
+    # replaces ``brier_threshold`` (direction stays guarded).
+    "magnitude_resolution_floor",
 })
 BLOCKER_CHECK_NAME_PREFIXES: tuple[str, ...] = ("provenance.",)
 

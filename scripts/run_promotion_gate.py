@@ -84,6 +84,9 @@ _NUMERIC_FIELDS = (
     "psi_slope",
     "conformal_coverage",
     "conformal_target",
+    # ADR-0023: optional move-size resolution AUC carried alongside the
+    # additive ``magnitude_resolution_pass`` flag (both default-absent => dormant).
+    "magnitude_auc",
 )
 
 
@@ -100,6 +103,11 @@ def _family_metrics_from_dict(payload: dict[str, Any]) -> FamilyMetrics:
             kwargs[key] = float(payload[key])
     if "regime_degraded" in payload and payload["regime_degraded"] is not None:
         kwargs["regime_degraded"] = bool(payload["regime_degraded"])
+    if (
+        "magnitude_resolution_pass" in payload
+        and payload["magnitude_resolution_pass"] is not None
+    ):
+        kwargs["magnitude_resolution_pass"] = bool(payload["magnitude_resolution_pass"])
     if "provenance" in payload and payload["provenance"] is not None:
         prov = payload["provenance"]
         if not isinstance(prov, dict):
