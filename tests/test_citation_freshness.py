@@ -264,10 +264,15 @@ def test_r2_pin_test_symbol_citations_resolve(pin_test_file: str) -> None:
             "args", "kwargs", "vars", "env", "config", "request",
         }:
             continue
-        # Try progressively shorter module prefixes.
+        # Try progressively shorter module prefixes. Start at ``len(parts)`` so a
+        # bare module citation (e.g. ``smc_core.fvg_pine_emit``) resolves via
+        # ``import_module`` on the full dotted path with an empty attr chain,
+        # instead of depending on the parent package already exposing the
+        # submodule as an attribute (which is import-order dependent and made the
+        # check pass in the full suite but fail in isolation).
         parts = dotted.split(".")
         resolved = False
-        for split_at in range(len(parts) - 1, 0, -1):
+        for split_at in range(len(parts), 0, -1):
             module_path = ".".join(parts[:split_at])
             attr_path = parts[split_at:]
             try:
