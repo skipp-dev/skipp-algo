@@ -98,18 +98,21 @@ jobs:
           EVENTS_PATH: ${{ steps.events.outputs.events_path }}
           SEED: ${{ inputs.seed || '230022' }}
         run: |
-          set +e
+          set -euo pipefail
           mkdir -p artifacts/governance
           if [ -z "${EVENTS_PATH}" ]; then
             echo "status=no_data" >> "$GITHUB_OUTPUT"
             echo "::notice title=adr0023-magnitude-shadow::no events resolved; skipping ledger append (fail-soft)"
             exit 0
           fi
+          # Capture the script rc explicitly without disabling errexit:
+          # `|| rc=$?` absorbs the non-zero pipeline exit, and pipefail
+          # makes the pipeline surface the python rc (tee never fails here).
+          rc=0
           python scripts/run_magnitude_shadow_ledger.py "${EVENTS_PATH}" \
             --ledger artifacts/governance/magnitude_resolution_shadow.jsonl \
             --seed "${SEED}" \
-            2>&1 | tee ledger.log
-          rc=${PIPESTATUS[0]}
+            2>&1 | tee ledger.log || rc=$?
           # Exit codes 0 (>=1 family resolves), 2 (none resolve) and 3
           # (all thin) are all VALID shadow verdicts, not job failures.
           # Only rc 1 (usage / empty events) is a real error.
@@ -117,7 +120,11 @@ jobs:
             0) echo "status=resolved" >> "$GITHUB_OUTPUT" ;;
             2) echo "status=none_resolve" >> "$GITHUB_OUTPUT" ;;
             3) echo "status=all_thin" >> "$GITHUB_OUTPUT" ;;
-            *) echo "status=error" >> "$GITHUB_OUTPUT"; exit "$rc" ;;
+            *)
+              echo "status=error" >> "$GITHUB_OUTPUT"
+              echo "::error title=adr0023-magnitude-shadow::ledger run failed (rc=$rc)"
+              exit "$rc"
+              ;;
           esac
           exit 0
 
