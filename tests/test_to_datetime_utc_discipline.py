@@ -27,6 +27,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from tests._guard_corpus import parse_module
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 _EXCLUDE_DIR_NAMES = frozenset({
@@ -108,9 +110,8 @@ def _has_utc_kwarg(call: ast.Call) -> bool:
 
 
 def _collect_violations(path: Path) -> list[tuple[str, int, str]]:
-    try:
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-    except (SyntaxError, UnicodeDecodeError):
+    tree = parse_module(path)
+    if tree is None:
         return []
     rel = str(path.relative_to(REPO_ROOT)).replace("\\", "/")
     out: list[tuple[str, int, str]] = []
@@ -152,9 +153,8 @@ def test_pin_walks_at_least_one_to_datetime_call() -> None:
     """Belt-and-braces: ensure the AST walker actually finds calls."""
     seen = 0
     for path in _iter_python_files():
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-        except (SyntaxError, UnicodeDecodeError):
+        tree = parse_module(path)
+        if tree is None:
             continue
         for node in ast.walk(tree):
             if _is_to_datetime_call(node):

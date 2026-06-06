@@ -23,6 +23,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from tests._guard_corpus import parse_module
+
 _ROOT = Path(__file__).resolve().parents[1]
 
 _DIR_EXCLUDE = {
@@ -56,9 +58,8 @@ def _iter_python_files() -> list[Path]:
 def _scan_pickle_read_calls() -> list[tuple[str, int, str, str]]:
     offenders: list[tuple[str, int, str, str]] = []
     for path in _iter_python_files():
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        except (SyntaxError, UnicodeDecodeError):
+        tree = parse_module(path)
+        if tree is None:
             continue
         rel = path.relative_to(_ROOT).as_posix()
         for node in ast.walk(tree):
@@ -78,9 +79,8 @@ def _scan_pickle_read_calls() -> list[tuple[str, int, str, str]]:
 def _scan_eval_calls() -> list[tuple[str, int]]:
     offenders: list[tuple[str, int]] = []
     for path in _iter_python_files():
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        except (SyntaxError, UnicodeDecodeError):
+        tree = parse_module(path)
+        if tree is None:
             continue
         rel = path.relative_to(_ROOT).as_posix()
         for node in ast.walk(tree):

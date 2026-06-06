@@ -12,9 +12,12 @@ remove from this ledger; do not extend it silently.
 from __future__ import annotations
 
 import ast
+import functools
 from pathlib import Path
 
 import pytest
+
+from tests._guard_corpus import parse_module
 
 REPO = Path(__file__).resolve().parent.parent
 
@@ -86,13 +89,13 @@ def _iter_first_party_py():
 
 
 def _count_weak_hash_calls(p: Path) -> int:
-    try:
-        tree = ast.parse(p.read_text(encoding="utf-8"))
-    except (OSError, SyntaxError):
+    tree = parse_module(p)
+    if tree is None:
         return 0
     return sum(1 for node in ast.walk(tree) if _is_weak_hash_call(node))
 
 
+@functools.cache
 def _scan_all() -> dict[str, int]:
     counts: dict[str, int] = {}
     for p in _iter_first_party_py():
