@@ -24,6 +24,8 @@ import ast
 from collections.abc import Iterable
 from pathlib import Path
 
+from tests._guard_corpus import parse_module
+
 ROOT = Path(__file__).resolve().parent.parent
 
 _DIR_EXCLUDE = frozenset(
@@ -53,10 +55,7 @@ def _iter_prod_py() -> Iterable[Path]:
 
 
 def _parse(p: Path) -> ast.AST | None:
-    try:
-        return ast.parse(p.read_text(encoding="utf-8"))
-    except SyntaxError:
-        return None
+    return parse_module(p)
 
 
 def test_prod_inventory_sane() -> None:
