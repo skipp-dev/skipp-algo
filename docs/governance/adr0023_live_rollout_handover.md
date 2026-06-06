@@ -205,29 +205,39 @@ E[PnL]-after-cost secondary check (below) passes for the qualified families.
 This is the concrete "what runs each day, how it's evaluated, recorded, and
 judged" spec for the shadow phase.
 
-### 4.1 Daily job
+### 4.1 Daily job — IMPLEMENTED
+
+The Stage-1 runner exists: `scripts/run_magnitude_shadow_ledger.py`. It is the
+thin shadow wrapper around the §2 estimator and does steps 1–3 below in one
+invocation (still measure-only; nothing is wired into the promotion gate).
 
 1. **Input:** the current events file
    (`~/.local/share/skipp/vpin_followup/events_v3_abs_opra.json` today; in live
-   ops, the rolling production events export).
+   ops, the rolling production events export). Use `-` to read from stdin.
 2. **Run** (pure-python, deterministic seed):
    ```bash
    EV=~/.local/share/skipp/vpin_followup/events_v3_abs_opra.json
-   PYTHONPATH=. .venv/bin/python scripts/run_magnitude_resolution_gate.py "$EV" \
+   PYTHONPATH=. .venv/bin/python scripts/run_magnitude_shadow_ledger.py "$EV" \
      --seed 230022
    ```
-   This executes `evaluate_family_magnitude_resolution` for **each** of BOS,
-   SWEEP, FVG, OB and returns a `MagnitudeResolutionResult` per family.
-3. **Per family, capture:** `n_oos`, `magnitude_auc`, `auc_ci_low`,
-   `baseline_resolution`, `perm_null_p95`, `perm_p`, `passes` (bool),
-   `fail_reasons` (e.g. `auc_floor`, `auc_ci`), plus `seed` and the events-file
-   content hash for provenance.
+   This grades **each** of BOS, SWEEP, FVG, OB against the §2 bar and appends
+   one row per family to the ledger. Exit code: `0` if any family PASSES, `2` if
+   measurable but none passes, `3` if every sample is too thin, `1` on
+   usage/config error. The only piece still TODO is the *scheduler* that runs
+   this daily and the report in §4.5.
+3. **Per family, captured automatically:** `n_oos`, `magnitude_auc`,
+   `auc_ci_low`, `baseline_resolution`, `perm_null_p95`, `perm_p`, `passes`
+   (bool), `status` (PASS/FAIL/INCONCLUSIVE), `fail_reasons` (e.g. `auc_floor`,
+   `auc_ci`, `resolution_null`), `role` (candidate/control), plus `seed` and the
+   events content hash for provenance.
 
-### 4.2 Recording (append-only ledger)
+### 4.2 Recording (append-only ledger) — IMPLEMENTED
 
-- Append **one row per family per day** to a tidy, append-only artifact (CSV or
-  JSONL) under the governance artifacts area, e.g.
-  `artifacts/governance/magnitude_resolution_shadow.(csv|jsonl)`.
+- The runner appends **one row per family per day** to an append-only JSONL
+  ledger, default `artifacts/governance/magnitude_resolution_shadow.jsonl`
+  (override with `--ledger`). Writes go through `atomic_write_text`; re-running
+  for the same `(date, family, events_hash)` is idempotent (latest row wins) and
+  history is never truncated.
 - Columns:
 
   ```
@@ -282,8 +292,10 @@ Daily PASS/FAIL is noisy; **decisions are made weekly**, not daily:
 
 2. **The pipeline step that fills the snapshot fields.** Today
    `magnitude_resolution_pass`/`magnitude_auc` default to `None` ⇒ the gate is
-   dormant. Stage 1 requires wiring the daily runner's output into the
-   promotion-gate snapshot. This is the immediate next implementation task.
+   dormant. The Stage-1 runner (`scripts/run_magnitude_shadow_ledger.py`) now
+   produces the per-family verdicts; the remaining task is to feed the latest
+   ledger row into the promotion-gate `FamilyMetrics` snapshot (still lax in
+   Stage 1) and to schedule the runner daily.
 
 3. **Direction-Brier gate stays parallel.** The old tier-2 direction objective
    is NOT removed. Both objectives coexist; magnitude is additive. Don't delete
@@ -323,8 +335,10 @@ Daily PASS/FAIL is noisy; **decisions are made weekly**, not daily:
 | Artifact | What |
 |----------|------|
 | `governance/magnitude_resolution_gate.py` | §2 estimators (NEW, #2581) |
-| `scripts/run_magnitude_resolution_gate.py` | CLI runner / Stage-1 daily job (NEW, #2581) |
+| `scripts/run_magnitude_resolution_gate.py` | CLI runner / one-shot §2 report (NEW, #2581) |
+| `scripts/run_magnitude_shadow_ledger.py` | Stage-1 shadow ledger runner (NEW) |
 | `tests/test_magnitude_resolution_gate.py` | 11 unit tests (NEW, #2581) |
+| `tests/test_magnitude_shadow_ledger.py` | Stage-1 ledger unit tests (NEW) |
 | `governance/promotion_gate.py` | `FamilyMetrics` fields + `ok_magnitude` branch (EDIT, #2581) |
 | `governance/types.py` | `magnitude_resolution_floor` in `BLOCKER_CHECK_NAMES` (EDIT, #2581) |
 | `governance/family_verdict.py` | check added to `_CALIBRATION_CHECKS` (EDIT, #2581) |
@@ -341,9 +355,11 @@ unblockers; merges first).
 
 ## 7. Immediate next actions for the next agent
 
-1. Build the **Stage-1 daily wiring**: schedule `run_magnitude_resolution_gate.py`,
-   append results to the shadow ledger (§4.2), feed snapshot fields into the
-   promotion gate (still lax).
+1. ~~Build the **Stage-1 daily runner**~~ — **DONE**:
+   `scripts/run_magnitude_shadow_ledger.py` grades all four families and appends
+   to the append-only shadow ledger (§4.1–4.2). Remaining: **schedule** it daily
+   and **feed the latest ledger row** into the promotion-gate snapshot (still
+   lax).
 2. Stand up the **weekly Stage-1 report** (§4.5) on the existing dashboard.
 3. Start building the **E[PnL]-after-cost** secondary check (§5 / item 1) — it
    is the true blocker for any real sizing change.
