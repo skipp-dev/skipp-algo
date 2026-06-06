@@ -230,6 +230,15 @@ def test_sparkline_non_numeric_renders_gap():
     assert spark[3] == "·"
 
 
+def test_sparkline_nan_renders_gap():
+    spark = sparkline([0.6, float("nan"), 0.65])
+    assert len(spark) == 3
+    assert spark[1] == "·"
+    # Surrounding real values must still render as blocks
+    assert spark[0] in "▁▂▃▄▅▆▇█"
+    assert spark[2] in "▁▂▃▄▅▆▇█"
+
+
 def test_sparkline_rejects_bad_range():
     import pytest
 

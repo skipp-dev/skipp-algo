@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from collections import defaultdict
 from typing import Any
@@ -75,6 +76,9 @@ def sparkline(values: list[Any], *, lo: float = SPARK_LO, hi: float = SPARK_HI) 
     last = len(_SPARK_BLOCKS) - 1
     for v in values:
         if not isinstance(v, (int, float)) or isinstance(v, bool):
+            out.append(_SPARK_GAP)
+            continue
+        if math.isnan(v):
             out.append(_SPARK_GAP)
             continue
         clamped = min(hi, max(lo, float(v)))
