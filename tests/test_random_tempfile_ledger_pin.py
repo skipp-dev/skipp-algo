@@ -43,6 +43,9 @@ _RANDOM_LEDGER: frozenset[tuple[str, int]] = frozenset({
     # ADR-0023 magnitude-resolution gate: seeded RNG for the bootstrap-CI /
     # permutation-null estimators (deterministic, reproducible); non-security.
     ("governance/magnitude_resolution_gate.py", 205),
+    # ADR-0023 §5 E[PnL]-after-cost gate: seeded RNG for the bootstrap-CI of
+    # the sized/equal-weight PnL estimators (deterministic); non-security.
+    ("governance/epnl_after_cost.py", 194),
 })
 
 # ---- Layer 2: tempfile.* ledger ----------------------------------------------
