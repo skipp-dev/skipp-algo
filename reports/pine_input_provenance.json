@@ -1,6 +1,6 @@
 {
   "schema": "pine-input-provenance/v1",
-  "total_inputs": 526,
+  "total_inputs": 527,
   "total_hidden": 321,
   "files": [
     {
@@ -4444,7 +4444,7 @@
     },
     {
       "file": "SMC_TV_Bridge.pine",
-      "input_count": 5,
+      "input_count": 6,
       "hidden_count": 0,
       "inputs": [
         {
@@ -4488,6 +4488,15 @@
           "varname": "i_refresh",
           "kind": "int",
           "label": "Refresh (sec)",
+          "group": null,
+          "has_display_none": false,
+          "visibility": null
+        },
+        {
+          "lineno": 11,
+          "varname": "i_overlayMaxAge",
+          "kind": "int",
+          "label": "Overlay max age (sec)",
           "group": null,
           "has_display_none": false,
           "visibility": null
