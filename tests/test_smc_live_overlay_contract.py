@@ -94,7 +94,7 @@ def test_news_bias_constant_matches_schema() -> None:
     assert list(NEWS_BIAS_VALUES) == enum
 
 
-@pytest.mark.parametrize("missing", list(ENVELOPE_FIELDS))
+@pytest.mark.parametrize("missing", sorted(ENVELOPE_FIELDS))
 def test_missing_envelope_field_rejected_by_schema(missing: str) -> None:
     instance = _load_golden()
     del instance[missing]
