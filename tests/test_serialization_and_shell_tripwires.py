@@ -17,6 +17,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from tests._guard_corpus import parse_module
+
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
 _DIR_EXCLUDE = frozenset(
@@ -56,9 +58,8 @@ def _scan_imports_and_calls() -> tuple[
     serialization: list[tuple[str, int, str]] = []
     shell: list[tuple[str, int, str]] = []
     for path in _iter_prod_files():
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, SyntaxError):  # pragma: no cover
+        tree = parse_module(path)
+        if tree is None:
             continue
         rel = path.relative_to(_REPO_ROOT).as_posix()
         for node in ast.walk(tree):
@@ -120,9 +121,8 @@ def _collect_top_level_names(tree: ast.Module) -> set[str]:
 def _scan_all_drift() -> list[tuple[str, int, list[str]]]:
     drift: list[tuple[str, int, list[str]]] = []
     for path in _iter_prod_files():
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, SyntaxError):  # pragma: no cover
+        tree = parse_module(path)
+        if tree is None:
             continue
         all_names: list[str] | None = None
         all_lineno = 0

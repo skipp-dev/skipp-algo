@@ -30,6 +30,8 @@ from pathlib import Path
 
 import pytest
 
+from tests._guard_corpus import parse_module
+
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
 _DIR_EXCLUDE = frozenset(
@@ -74,9 +76,8 @@ def _all_dunder_import_sites() -> list[tuple[str, int]]:
     out: list[tuple[str, int]] = []
     for path in _iter_prod_files():
         rel = path.relative_to(_REPO_ROOT).as_posix()
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-        except SyntaxError:  # pragma: no cover - defensive
+        tree = parse_module(path)
+        if tree is None:  # pragma: no cover - defensive
             continue
         for node in ast.walk(tree):
             if isinstance(node, ast.Call) and _is_dunder_import_call(node):
@@ -119,7 +120,8 @@ def test_frozen_dunder_import_site_still_present(rel: str, lineno: int) -> None:
     """Stale guard: every ledger entry must still match a ``__import__`` call."""
     path = _REPO_ROOT / rel
     assert path.is_file(), f"{rel} no longer exists — refresh frozen ledger"
-    tree = ast.parse(path.read_text(encoding="utf-8"))
+    tree = parse_module(path)
+    assert tree is not None, f"{rel} no longer parses — refresh frozen ledger"
     for node in ast.walk(tree):
         if (
             isinstance(node, ast.Call)

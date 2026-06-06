@@ -28,6 +28,8 @@ from pathlib import Path
 
 import pytest
 
+from tests._guard_corpus import parse_module
+
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _DIR_EXCLUDE = frozenset({
     ".git", ".github", ".mypy_cache", ".pytest_cache", ".ruff_cache",
@@ -101,9 +103,8 @@ def _scan() -> tuple[set[tuple[str, int]], set[tuple[str, int, str]]]:
     tempfile_sites: set[tuple[str, int, str]] = set()
     for p in _iter_prod_py():
         rel = str(p.relative_to(_REPO_ROOT)).replace("\\", "/")
-        try:
-            tree = ast.parse(p.read_text(encoding="utf-8"))
-        except (SyntaxError, UnicodeDecodeError):
+        tree = parse_module(p)
+        if tree is None:
             continue
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):

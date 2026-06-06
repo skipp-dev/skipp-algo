@@ -19,6 +19,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from tests._guard_corpus import parse_module
+
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 _DIR_EXCLUDE = frozenset(
@@ -75,9 +77,8 @@ def _scan() -> tuple[list[tuple[str, int]], list[tuple[str, int]]]:
     shell_true: list[tuple[str, int]] = []
     os_popen: list[tuple[str, int]] = []
     for p in _iter_first_party_py():
-        try:
-            tree = ast.parse(p.read_text(encoding="utf-8"))
-        except SyntaxError:
+        tree = parse_module(p)
+        if tree is None:
             continue
         rel = str(p.relative_to(_REPO_ROOT))
         for node in ast.walk(tree):
