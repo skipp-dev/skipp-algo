@@ -141,6 +141,12 @@ jobs:
             echo ""
             echo "Measure-only shadow ledger (ADR-0023 §4.1). No production state mutated."
           } >> "$GITHUB_STEP_SUMMARY"
+          # Sparkline + Stage-2 progress table (fail-soft: script errors
+          # must not fail the step — the basic summary above is already
+          # written and the workflow is measure-only).
+          python scripts/render_shadow_step_summary.py \
+            --ledger artifacts/governance/magnitude_resolution_shadow.jsonl \
+            >> "$GITHUB_STEP_SUMMARY" || true
           echo "::notice title=adr0023-magnitude-shadow::status=${{ steps.ledger.outputs.status || 'unknown' }} source=${{ steps.events.outputs.source }}"
 
       - name: Upload shadow ledger + log
