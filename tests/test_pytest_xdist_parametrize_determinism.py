@@ -26,6 +26,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from tests._guard_corpus import parse_module
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TESTS_DIR = REPO_ROOT / "tests"
 
@@ -177,9 +179,8 @@ def _walk_arg_for_unsorted_source(arg: ast.expr, parents: dict[int, ast.AST]) ->
 
 
 def _collect_violations(path: Path) -> list[tuple[str, int, str, str]]:
-    try:
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-    except (SyntaxError, UnicodeDecodeError):
+    tree = parse_module(path)
+    if tree is None:
         return []
     parents = _build_parent_map(tree)
     rel = str(path.relative_to(REPO_ROOT)).replace("\\", "/")
@@ -222,9 +223,8 @@ def test_walker_visits_at_least_one_parametrize() -> None:
     """Belt-and-braces: walker must find at least one parametrize site."""
     total = 0
     for path in _iter_test_files():
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-        except (SyntaxError, UnicodeDecodeError):
+        tree = parse_module(path)
+        if tree is None:
             continue
         for node in ast.walk(tree):
             if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
