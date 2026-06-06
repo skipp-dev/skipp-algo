@@ -61,7 +61,7 @@ Push die 7 Pin-/Drift-Guards (85 Tests). **Nie `git add -A`** (untracked `synthe
 - **Parallel-safe:** ja (nur Lesen/Doku). **Liefert:** `docs/live_overlay_field_source_map.md`.
 - **Abhängigkeit:** keine — **zuerst**.
 
-### WP-A — JSON-Contract „smc-live-overlay/1"
+### WP-A — JSON-Contract "smc-live-overlay/1"
 - **Ziel:** Flaches, versioniertes Vertragsschema (Pine `f_getField` kann nur flache
   `"key":value`-Paare). Felder: `schema`, `symbol`, `tf`, `asof_ts`, `stale`, plus flache
   Daten-Keys im Stil `flow_rel_vol`, `squeeze_on`, `vix_level`, `news_bearish_count`, …
