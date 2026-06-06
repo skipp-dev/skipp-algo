@@ -92,7 +92,7 @@ Push die 7 Pin-/Drift-Guards (85 Tests). **Nie `git add -A`** (untracked `synthe
   `f_getField`-Keys exakt auf das flache WP-A-Schema ausrichten.
 - **Wichtig:** Nur die **Bridge** anfassen, nicht die Core-Libraries. **Event-Risk-Felder noch
   NICHT** verdrahten (Phase 2, Escalation-only).
-- **CI-Gate:** `npm run tv:test` / `tsc:check` bleiben grün (aktuell 116/116). **Parallel-safe:** ja.
+- **CI-Gate:** `npm run tv:test` / `tsc:check` bleiben grün (aktuell 116/116); Änderungen an `SMC_TV_Bridge.pine` sind zusätzlich durch pytest-Pins abgedeckt (z. B. `tests/test_pine_tv_bridge_fail_closed.py`). **Parallel-safe:** ja.
 - **Abhängigkeit:** WP-A (Keys). Idealerweise nach WP-B (gegen echten Endpoint testbar).
 
 ### WP-D — Fallback- & Safety-Nachweis

@@ -11,9 +11,9 @@
 
 - Enrichment-Block-Namen stammen aus dem maschinenlesbaren Sidecar
   `pine/generated/smc_micro_profiles_generated.json` → Schlüssel `enrichment_blocks`
-  (autoritativ, 41 Blöcke).
+  (autoritativ, 42 Blöcke).
 - Producer wurden per Code-Suche in `smc_integration/sources/**`, `scripts/` und
-  `measurement_evidence.py` verifiziert.
+  `smc_integration/measurement_evidence.py` verifiziert.
 - **Frische-Klassen:**
   - **`on-demand`** — pro Symbol bei Request frisch beschaffbar (echter Overlay-Mehrwert).
   - **`baked`** — nur so frisch wie der 2×/Tag-Generatorlauf (kein Overlay-Mehrwert; feldweise
@@ -26,8 +26,8 @@
 | Overlay-Feld (flach) | Enrichment-Block | Producer (verifiziert) | Artefakt | Frische | Bucket |
 |---|---|---|---|---|---|
 | `news_strength`, `news_bias` | `news` | `smc_integration/sources/live_news_snapshot_json.py::load_raw_meta_input` → `scripts/smc_news_scorer.compute_news_sentiment` | `artifacts/smc_microstructure_exports/smc_live_news_snapshot.json` | **on-demand** (~5 min; `asof_strategy="now"`-Opt-in stempelt frischen `asof_ts`) | **B1** |
-| `flow_rel_vol` | (CSV-Quelle) | `smc_integration/sources/databento_watchlist_csv.py::load_raw_meta_input` (Spalte `rel_vol`) | Databento-Microstructure-CSV | **baked** (Export-Kadenz) | **B1\*** |
-| `squeeze_on` (0/1) | `compression_regime` / `volume_regime` | `measurement_evidence.py` (Ableitung `volume_regime=="LOW_VOL" → SQUEEZE_ON`) | `smc_micro_profiles_generated.json` | **baked** | **B2** |
+| `flow_rel_vol` | `flow_qualifier` (Feld `REL_VOL`) | `scripts/smc_flow_qualifier.py::build_flow_qualifier` (eingehängt in `scripts/generate_smc_micro_base_from_databento.py`; Ratio `volume_today/volume_avg_20d`; Rohspalte `rel_vol` aus `databento_watchlist_csv.py` als Upstream-Input) | `smc_micro_profiles_generated.json` | **baked** (Generator-Kadenz) | **B1\*** |
+| `squeeze_on` (0/1) | `compression_regime` (Feld `SQUEEZE_ON`) | `scripts/smc_compression_regime.py::build_compression_regime` (eingehängt in `scripts/generate_smc_micro_base_from_databento.py`) | `smc_micro_profiles_generated.json` | **baked** | **B2** |
 | `vix_level` | `volatility_regime` / `regime` | Generator-Enrichment (`scripts/generate_smc_micro_base_from_databento.py`) | `smc_micro_profiles_generated.json` | **baked** | **B2** |
 | `flow_delta_proxy_pct` | `flow_qualifier` | Generator-Enrichment | `smc_micro_profiles_generated.json` | **baked** | **B2** |
 | `ats_state`, `ats_zscore` | `flow_qualifier` | Generator-Enrichment | `smc_micro_profiles_generated.json` | **baked** | **B2** |
