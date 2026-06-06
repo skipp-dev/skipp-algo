@@ -41,6 +41,7 @@ def _latest_n_per_family(
         if fam:
             by_family.setdefault(fam, []).append(row)
     for fam in by_family:
+        by_family[fam].sort(key=lambda r: str(r.get("date")))
         by_family[fam] = by_family[fam][-n:]
     return by_family
 
@@ -83,7 +84,7 @@ def render_summary(
 
         if role == "candidate":
             if passes >= k:
-                stage2 = "eligible"
+                stage2 = f"{k}-of-{n} met"
             else:
                 remaining = k - passes
                 stage2 = f"{passes}/{k} (need {remaining})"
@@ -99,7 +100,9 @@ def render_summary(
     lines.append(
         f"_Sparkline range: {SPARK_LO:.2f} (coin-flip) → "
         f"{SPARK_HI:.2f} (strong). "
-        f"Stage-2 requires {k}/{n} consecutive PASS._"
+        f"Stage-2 shows {k}-of-{n} PASS progress in the rolling window "
+        f"(not necessarily consecutive); the weekly k-of-n evaluator is "
+        f"authoritative for promotion._"
     )
     return "\n".join(lines)
 

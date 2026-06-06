@@ -45,7 +45,7 @@ class TestRenderSummaryTable:
     def test_candidate_eligible(self) -> None:
         rows = [_row("SWEEP", 0.65, date=f"2025-01-0{i+1}") for i in range(3)]
         md = render_summary(rows, k=3, n=4)
-        assert "eligible" in md
+        assert "3-of-4 met" in md
 
     def test_control_family_no_stage2(self) -> None:
         rows = [_row("FVG", 0.51, status="FAIL")]
@@ -90,7 +90,7 @@ class TestRenderSummaryTable:
         rows = [_row("BOS", 0.60)]
         md = render_summary(rows, k=3, n=4)
         assert "coin-flip" in md
-        assert "3/4" in md  # k/n in footnote
+        assert "3-of-4" in md  # k-of-n in footnote
 
 
 class TestRenderSummaryNoneAuc:
