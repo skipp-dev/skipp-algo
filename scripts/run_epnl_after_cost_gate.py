@@ -28,6 +28,7 @@ from typing import Any
 from governance.epnl_after_cost import (
     DEFAULT_N_BOOTSTRAP,
     DEFAULT_SEED,
+    EPNL_CI_FLOOR,
     MIN_TRADES,
     evaluate_family_epnl,
 )
@@ -82,7 +83,7 @@ def build_report(
         "min_trades": min_trades,
         "n_bootstrap": n_boot,
         "seed": seed,
-        "epnl_ci_floor": 0.0,
+        "epnl_ci_floor": EPNL_CI_FLOOR,
         "families_measured": sorted(results),
         "candidates_measured": candidates_measured,
         "candidates_passed": candidates_passed,
