@@ -76,9 +76,8 @@ def test_smc_live_omits_baked_only_fields() -> None:
     [
         (0.42, "BULLISH", 0.42),
         (-0.42, "BEARISH", 0.42),
-        (0.0, "NEUTRAL", 0.0),
-        (0.03, "NEUTRAL", 0.03),   # within deadband -> neutral
-        (-0.03, "NEUTRAL", 0.03),  # within deadband -> neutral
+        (0.03, "NEUTRAL", 0.03),   # nonzero but within deadband -> neutral bias
+        (-0.03, "NEUTRAL", 0.03),  # nonzero but within deadband -> neutral bias
         (1.5, "BULLISH", 1.0),     # strength clamped to [0, 1]
         (-2.0, "BEARISH", 1.0),    # strength clamped to [0, 1]
     ],
@@ -92,6 +91,28 @@ def test_smc_live_bias_mapping(score: float, expected_bias: str, expected_streng
     jsonschema.validate(result, _schema())
     assert result["news_bias"] == expected_bias
     assert result["news_strength"] == pytest.approx(expected_strength)
+
+
+def test_smc_live_off_universe_emits_envelope_only() -> None:
+    """A 0.0 score (off-universe / no data) omits news fields -> Pine keeps mp.*.
+
+    Emitting a fabricated ``news_strength: 0.0`` would override a real baked
+    news signal on the Pine side, loosening a gating condition with non-data;
+    the safety invariant requires degrading to the envelope only instead.
+    """
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(smc_api, "build_smc_snapshot", lambda symbol, tf: {"newsscore": 0.0})
+        result = smc_api.smc_live_endpoint(symbol="zzzz", tf="15m")
+
+    jsonschema.validate(result, _schema())
+    assert "news_strength" not in result
+    assert "news_bias" not in result
+    # Envelope is still complete and valid.
+    assert result["schema"] == "smc-live-overlay/1"
+    assert result["symbol"] == "ZZZZ"
+    assert result["tf"] == "15m"
+    assert isinstance(result["asof_ts"], int)
+    assert result["stale"] is False
 
 
 def test_smc_live_unsupported_timeframe() -> None:

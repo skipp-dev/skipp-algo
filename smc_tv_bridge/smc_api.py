@@ -379,6 +379,16 @@ def smc_live_endpoint(
     and the B2 set) are omitted so the Pine side keeps its baked ``mp.*``
     defaults for them. ``exclude_none`` keeps the payload flat and
     contract-conformant; the overlay may only add or tighten, never loosen.
+
+    Off-universe / no-data symbols yield a news score of exactly ``0.0`` (the
+    newsstack returns ``0.0`` for unknown tickers and on any lookup error). In
+    that case the news fields are omitted entirely so the response degrades to
+    the envelope only and Pine falls back to its baked ``mp.*`` news value --
+    emitting a fabricated ``0.0`` would instead override (loosen) a real baked
+    signal, violating the overlay safety invariant. ``asof_ts`` is the serve
+    time: the snapshot is built on demand, so the payload is fresh by
+    construction and ``stale`` is ``False``; transport/cache-age staleness is
+    enforced Pine-side by comparing ``asof_ts`` against ``i_overlayMaxAge``.
     """
     # Lazy submodule import (mirrors the provider getters above) so the
     # smc_tv_bridge.* import stays after the repo-root sys.path setup.
@@ -390,21 +400,27 @@ def smc_live_endpoint(
 
     snap = build_smc_snapshot(symbol, tf)
     score = float(snap.get("newsscore", 0.0) or 0.0)
-    strength = min(1.0, abs(score))
-    if score > _NEWS_BIAS_EPS:
-        bias = "BULLISH"
-    elif score < -_NEWS_BIAS_EPS:
-        bias = "BEARISH"
-    else:
-        bias = "NEUTRAL"
+
+    # Only attach news fields when there is a genuine signal; a 0.0 score means
+    # off-universe / no data -> envelope-only -> Pine keeps baked mp.* news.
+    news_fields: dict[str, Any] = {}
+    if score != 0.0:
+        strength = min(1.0, abs(score))
+        if score > _NEWS_BIAS_EPS:
+            bias = "BULLISH"
+        elif score < -_NEWS_BIAS_EPS:
+            bias = "BEARISH"
+        else:
+            bias = "NEUTRAL"
+        news_fields["news_strength"] = round(strength, 4)
+        news_fields["news_bias"] = bias
 
     payload = LiveOverlayPayload(
         symbol=symbol,
         tf=tf,
         asof_ts=int(time.time()),
         stale=False,
-        news_strength=round(strength, 4),
-        news_bias=bias,
+        **news_fields,
     )
     return flatten_overlay(payload)
 
