@@ -5,8 +5,8 @@ Validates the flat live-overlay payload served at ``/smc_live``:
   - envelope correctness (schema id, uppercased symbol, tf, asof_ts, stale)
   - news bias/strength mapping from the (signed) news score, incl. deadband
     and [0, 1] clamping
-  - omission of baked-only fields (``flow_rel_vol`` / ``squeeze_on`` / B2) so
-    the Pine side falls back to its baked ``mp.*`` defaults
+  - omission of baked-only fields (``flow_rel_vol`` / ``squeeze_on``) so the
+    Pine side falls back to its baked ``mp.*`` defaults
   - unsupported-timeframe error mirrors the existing ``/smc_tv`` contract
 
 Endpoint functions are invoked directly (repo convention — no TestClient),
@@ -27,15 +27,13 @@ import smc_tv_bridge.smc_api as smc_api
 
 _SCHEMA_PATH = Path(__file__).resolve().parents[1] / "spec" / "smc_live_overlay.schema.json"
 
-# Fields the endpoint must NOT serve (baked-only or not-yet-populated B2);
-# their absence is what lets Pine keep its baked mp.* defaults. ``tone`` (WP-G)
-# and ``vix_level`` (WP-H) are served, so they are intentionally absent here.
+# Fields the endpoint must NOT serve (baked-only); their absence is what lets
+# Pine keep its baked mp.* defaults. ``tone`` (WP-G), ``vix_level`` (WP-H) and
+# the flow-delta/ATS fields (WP-K) are served, so they are intentionally absent
+# from this list.
 _BAKED_ONLY_KEYS = (
     "flow_rel_vol",
     "squeeze_on",
-    "flow_delta_proxy_pct",
-    "ats_state",
-    "ats_zscore",
 )
 
 
@@ -89,6 +87,7 @@ def test_smc_live_bias_mapping(score: float, expected_bias: str, expected_streng
     with pytest.MonkeyPatch.context() as mp:
         mp.setattr(smc_api, "build_smc_snapshot", lambda symbol, tf: {"newsscore": score})
         mp.setattr(smc_api, "_get_vix_level", lambda: None)
+        mp.setattr(smc_api, "_get_flow_ats_fields", lambda s: None)
         result = smc_api.smc_live_endpoint(symbol="aapl", tf="15m")
 
     jsonschema.validate(result, _schema())
@@ -108,6 +107,7 @@ def test_smc_live_off_universe_emits_envelope_only() -> None:
     with pytest.MonkeyPatch.context() as mp:
         mp.setattr(smc_api, "build_smc_snapshot", lambda symbol, tf: {"newsscore": 0.0})
         mp.setattr(smc_api, "_get_vix_level", lambda: None)
+        mp.setattr(smc_api, "_get_flow_ats_fields", lambda s: None)
         result = smc_api.smc_live_endpoint(symbol="zzzz", tf="15m")
 
     jsonschema.validate(result, _schema())
@@ -115,6 +115,9 @@ def test_smc_live_off_universe_emits_envelope_only() -> None:
     assert "news_bias" not in result
     assert "tone" not in result
     assert "vix_level" not in result
+    assert "flow_delta_proxy_pct" not in result
+    assert "ats_state" not in result
+    assert "ats_zscore" not in result
     # Envelope is still complete and valid.
     assert result["schema"] == "smc-live-overlay/1"
     assert result["symbol"] == "ZZZZ"
@@ -157,6 +160,7 @@ def test_smc_live_tone_matches_canonical_layering() -> None:
     with pytest.MonkeyPatch.context() as mp:
         mp.setattr(smc_api, "build_smc_snapshot", lambda symbol, tf: snap)
         mp.setattr(smc_api, "_get_vix_level", lambda: None)
+        mp.setattr(smc_api, "_get_flow_ats_fields", lambda s: None)
         result = smc_api.smc_live_endpoint(symbol="aapl", tf="15m")
 
     expected = compute_library_layering(
@@ -198,6 +202,7 @@ def test_smc_live_vix_fetch_miss_omits_field() -> None:
         mp.setattr(smc_api, "build_smc_snapshot", lambda symbol, tf: {"newsscore": 0.0})
         mp.setattr(smc_api, "_fetch_vix_uncached", lambda: None)
         mp.setattr(smc_api, "_vix_cache", {"value": None, "fetched_at": 0.0})
+        mp.setattr(smc_api, "_get_flow_ats_fields", lambda s: None)
         result = smc_api.smc_live_endpoint(symbol="aapl", tf="15m")
 
     jsonschema.validate(result, _schema())
@@ -224,6 +229,7 @@ def test_smc_live_vix_cache_coalesces_concurrent_fetches() -> None:
         mp.setattr(smc_api, "build_smc_snapshot", lambda symbol, tf: {"newsscore": 0.0})
         mp.setattr(smc_api, "_fetch_vix_uncached", _counting_fetch)
         mp.setattr(smc_api, "_vix_cache", {"value": None, "fetched_at": 0.0})
+        mp.setattr(smc_api, "_get_flow_ats_fields", lambda s: None)
 
         n_threads = 32
         with ThreadPoolExecutor(max_workers=n_threads) as pool:
@@ -236,3 +242,75 @@ def test_smc_live_vix_cache_coalesces_concurrent_fetches() -> None:
 
     assert len(calls) == 1, f"expected a single coalesced fetch, got {len(calls)}"
     assert {r["vix_level"] for r in results} == {21.0}
+
+
+def test_smc_live_flow_ats_mock_wiring() -> None:
+    """Mock wiring serves the flow-delta + ATS fields (B2, WP-K)."""
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(smc_api, "USE_MOCK", True)
+        result = smc_api.smc_live_endpoint(symbol="aapl", tf="15m")
+
+    jsonschema.validate(result, _schema())
+    assert result["flow_delta_proxy_pct"] == pytest.approx(
+        smc_api._FLOW_MOCK_FIELDS["flow_delta_proxy_pct"]
+    )
+    assert result["ats_zscore"] == pytest.approx(smc_api._FLOW_MOCK_FIELDS["ats_zscore"])
+    assert result["ats_state"] == smc_api._FLOW_MOCK_FIELDS["ats_state"]
+
+
+def test_smc_live_flow_ats_fetch_miss_omits_fields() -> None:
+    """A flow/ATS miss omits all three fields -> Pine keeps its baked mp.*.
+
+    Serving fabricated values would override the baked fallback with non-data;
+    the safety invariant requires omitting the fields instead (never loosen).
+    """
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(smc_api, "USE_MOCK", False)
+        mp.setattr(smc_api, "build_smc_snapshot", lambda symbol, tf: {"newsscore": 0.0})
+        mp.setattr(smc_api, "_get_vix_level", lambda: None)
+        mp.setattr(smc_api, "_fetch_flow_ats_uncached", lambda s: None)
+        mp.setattr(smc_api, "_flow_cache", {})
+        result = smc_api.smc_live_endpoint(symbol="aapl", tf="15m")
+
+    jsonschema.validate(result, _schema())
+    assert "flow_delta_proxy_pct" not in result
+    assert "ats_state" not in result
+    assert "ats_zscore" not in result
+
+
+def test_smc_live_flow_ats_cache_coalesces_concurrent_fetches() -> None:
+    """A cold/expired cache triggers exactly one flow/ATS fetch per symbol.
+
+    Per-symbol flow/ATS values are cached under a per-symbol lock, so 32
+    concurrent callers for the same symbol must coalesce into a single
+    ``_fetch_flow_ats_uncached`` call and all observe the same fields. Guards
+    the shared-mutable cache against lost/duplicated fetches.
+    """
+    calls: list[int] = []
+    calls_lock = threading.Lock()
+
+    def _counting_fetch(symbol: str) -> dict[str, float | str]:
+        with calls_lock:
+            calls.append(1)
+        return {"flow_delta_proxy_pct": 5.0, "ats_zscore": 1.0, "ats_state": "SPIKE_UP"}
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(smc_api, "USE_MOCK", False)
+        mp.setattr(smc_api, "build_smc_snapshot", lambda symbol, tf: {"newsscore": 0.0})
+        mp.setattr(smc_api, "_get_vix_level", lambda: None)
+        mp.setattr(smc_api, "_fetch_flow_ats_uncached", _counting_fetch)
+        mp.setattr(smc_api, "_flow_cache", {})
+        mp.setattr(smc_api, "_flow_symbol_locks", {})
+
+        n_threads = 32
+        with ThreadPoolExecutor(max_workers=n_threads) as pool:
+            results = list(
+                pool.map(
+                    lambda _: smc_api.smc_live_endpoint(symbol="aapl", tf="15m"),
+                    range(n_threads),
+                )
+            )
+
+    assert len(calls) == 1, f"expected a single coalesced fetch, got {len(calls)}"
+    assert {r["flow_delta_proxy_pct"] for r in results} == {5.0}
+    assert {r["ats_state"] for r in results} == {"SPIKE_UP"}

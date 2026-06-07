@@ -114,6 +114,7 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/realtime_signals.py", 2584),
         ("open_prep/scorer.py", 118),
         ("open_prep/watchlist.py", 53),
+        ("smc_tv_bridge/smc_api.py", 320),
     }
 )
 

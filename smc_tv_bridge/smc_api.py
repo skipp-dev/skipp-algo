@@ -20,7 +20,7 @@ import os
 import sys
 import threading
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -285,6 +285,142 @@ def _get_vix_level() -> float | None:
         return _vix_cache["value"]
 
 
+# ── Flow-delta + ATS overlay source (per-symbol microstructure) ──────────────
+#
+# The slow baseline bakes safe ``mp.*`` flow/ATS constants into Pine. This
+# overlay re-derives today's flow-delta proxy and ATS z-score/state from *live*
+# trade microstructure (Databento), qualified against the cached 20-day ATS
+# baseline, so the bridge can tighten field-by-field. Per-symbol values are
+# cached (TTL=300s) and coalesced under a per-symbol lock so concurrent
+# /smc_live calls for the same symbol make a single upstream request while
+# different symbols still refresh in parallel. Fail-closed: any miss (no trades,
+# missing baseline row, fetch error) yields None for all three fields and the
+# bridge omits them so Pine keeps its baked ``mp.*`` fallback (never loosens).
+_FLOW_DATASET = "XNAS.ITCH"
+_FLOW_TTL_SECONDS = 300.0
+_FLOW_MOCK_FIELDS: dict[str, Any] = {
+    "flow_delta_proxy_pct": 12.0,
+    "ats_zscore": 0.75,
+    "ats_state": "ELEVATED",
+}
+_ATS_BASELINE_PATH = Path(__file__).resolve().parents[1] / "reports" / "ats_baseline_20d.json"
+_ATS_MEAN_KEY = "avg_trade_size_20d_mean"
+_ATS_STD_KEY = "avg_trade_size_20d_std"
+_flow_cache_lock = threading.Lock()
+_flow_cache: dict[str, dict[str, Any]] = {}
+_flow_symbol_locks: dict[str, threading.Lock] = {}
+
+
+def _load_ats_baseline_symbols() -> dict[str, Any]:
+    """Return the per-symbol 20-day ATS baseline mapping (fail-soft -> {})."""
+    import json
+
+    try:
+        with _ATS_BASELINE_PATH.open(encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (OSError, ValueError) as exc:
+        logger.debug("ATS baseline load skipped: %s", exc)
+        return {}
+    symbols = data.get("symbols") if isinstance(data, dict) else None
+    return symbols if isinstance(symbols, dict) else {}
+
+
+def _fetch_flow_ats_uncached(symbol: str) -> dict[str, Any] | None:
+    """Derive live flow-delta + ATS fields for ``symbol``. None on any miss.
+
+    Network seam for :func:`_get_flow_ats_fields`. Pulls today's trade
+    microstructure (Databento) and qualifies it against the cached 20-day ATS
+    baseline via the same :func:`build_flow_qualifier` that feeds the slow
+    baseline, so the live fields share the baseline's semantics. Fail-closed --
+    a missing baseline row, an empty trade window or any error yields None.
+    """
+    baseline = _load_ats_baseline_symbols().get(symbol.upper())
+    if not isinstance(baseline, dict):
+        return None
+    mean = baseline.get(_ATS_MEAN_KEY)
+    std = baseline.get(_ATS_STD_KEY)
+    if mean is None or std is None:
+        return None
+    try:
+        from scripts.smc_flow_qualifier import build_flow_qualifier
+        from scripts.smc_trades_microstructure import fetch_symbol_microstructure
+
+        today = datetime.now(UTC).date()
+        micro = fetch_symbol_microstructure(
+            symbol,
+            _FLOW_DATASET,
+            today.isoformat(),
+            (today + timedelta(days=1)).isoformat(),
+        )
+        avg_trade_size = (micro or {}).get("avg_trade_size")
+        buy_volume_pct = (micro or {}).get("buy_volume_pct")
+        if avg_trade_size is None or buy_volume_pct is None:
+            return None
+        row = pd.DataFrame(
+            [
+                {
+                    "symbol": symbol.upper(),
+                    "avg_trade_size": float(avg_trade_size),
+                    "buy_volume_pct": float(buy_volume_pct),
+                    _ATS_MEAN_KEY: float(mean),
+                    _ATS_STD_KEY: float(std),
+                }
+            ]
+        )
+        qualifier = build_flow_qualifier(snapshot=row, symbol=symbol.upper())
+    except (OSError, ValueError, KeyError, RuntimeError, TypeError) as exc:
+        logger.debug("Flow/ATS fetch skipped for %s: %s", symbol, exc)
+        return None
+    delta = qualifier.get("DELTA_PROXY_PCT")
+    zscore = qualifier.get("ATS_ZSCORE")
+    state = qualifier.get("ATS_STATE")
+    if delta is None or zscore is None or state is None:
+        return None
+    return {
+        "flow_delta_proxy_pct": float(delta),
+        "ats_zscore": float(zscore),
+        "ats_state": str(state),
+    }
+
+
+def _flow_lock_for(symbol: str) -> threading.Lock:
+    """Return the per-symbol fetch lock, created under the shared cache lock."""
+    with _flow_cache_lock:
+        lock = _flow_symbol_locks.get(symbol)
+        if lock is None:
+            lock = threading.Lock()
+            _flow_symbol_locks[symbol] = lock
+        return lock
+
+
+def _get_flow_ats_fields(symbol: str) -> dict[str, Any] | None:
+    """Cached per-symbol flow-delta + ATS fields (TTL=300s, thread-safe).
+
+    Double-checked locking: the short ``_flow_cache_lock`` guards the
+    module-level cache while the actual fetch runs under a per-symbol lock, so
+    concurrent /smc_live calls for the *same* symbol coalesce into a single
+    upstream request while different symbols still refresh in parallel. Both
+    hits and misses are throttled to once per TTL window.
+    """
+    if USE_MOCK:
+        return dict(_FLOW_MOCK_FIELDS)
+    now = time.monotonic()
+    with _flow_cache_lock:
+        entry = _flow_cache.get(symbol)
+        if entry is not None and (now - entry["fetched_at"]) < _FLOW_TTL_SECONDS:
+            return entry["value"]
+    with _flow_lock_for(symbol):
+        now = time.monotonic()
+        with _flow_cache_lock:
+            entry = _flow_cache.get(symbol)
+            if entry is not None and (now - entry["fetched_at"]) < _FLOW_TTL_SECONDS:
+                return entry["value"]
+        value = _fetch_flow_ats_uncached(symbol)
+        with _flow_cache_lock:
+            _flow_cache[symbol] = {"value": value, "fetched_at": time.monotonic()}
+        return value
+
+
 # ══════════════════════════════════════════════════════════
 # Mock provider
 # ══════════════════════════════════════════════════════════
@@ -509,6 +645,14 @@ def smc_live_endpoint(
     if vix_level is not None:
         vix_fields["vix_level"] = round(vix_level, 2)
 
+    # Per-symbol flow-delta + ATS (B2): cached live microstructure qualified
+    # against the 20-day ATS baseline. Omitted field-by-field on a miss so Pine
+    # keeps its baked ``mp.*`` flow/ATS fallback (silent fallback; never loosens).
+    flow_fields: dict[str, Any] = {}
+    flow_ats = _get_flow_ats_fields(symbol)
+    if flow_ats:
+        flow_fields = {k: v for k, v in flow_ats.items() if v is not None}
+
     payload = LiveOverlayPayload(
         symbol=symbol,
         tf=tf,
@@ -517,6 +661,7 @@ def smc_live_endpoint(
         **news_fields,
         **tone_fields,
         **vix_fields,
+        **flow_fields,
     )
     return flatten_overlay(payload)
 
