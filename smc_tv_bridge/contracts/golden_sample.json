@@ -1,0 +1,11 @@
+{
+  "schema": "smc-live-overlay/1",
+  "symbol": "NVDA",
+  "tf": "15m",
+  "asof_ts": 1733500000,
+  "stale": false,
+  "news_strength": 0.42,
+  "news_bias": "BULLISH",
+  "flow_rel_vol": 1.85,
+  "squeeze_on": 1
+}

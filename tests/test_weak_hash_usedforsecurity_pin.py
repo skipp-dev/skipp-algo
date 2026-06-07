@@ -21,6 +21,8 @@ from pathlib import Path
 
 import pytest
 
+from tests._guard_corpus import parse_module
+
 REPO = Path(__file__).resolve().parent.parent
 
 _DIR_EXCLUDE = frozenset(
@@ -70,9 +72,8 @@ def _iter_first_party_py():
 def _collect_weak_hash_calls() -> list[tuple[str, int, ast.Call]]:
     out: list[tuple[str, int, ast.Call]] = []
     for p in _iter_first_party_py():
-        try:
-            tree = ast.parse(p.read_text(encoding="utf-8"))
-        except (OSError, SyntaxError):
+        tree = parse_module(p)
+        if tree is None:
             continue
         rel = str(p.relative_to(REPO))
         for node in ast.walk(tree):

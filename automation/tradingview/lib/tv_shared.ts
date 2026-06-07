@@ -4104,6 +4104,20 @@ export async function ensurePineEditor(page: Page): Promise<void> {
         await restoreHistoricalScriptVersionIfNeeded(page);
         return;
       }
+
+      // A script pinned to an older saved version (historical/read-only view)
+      // can present WITHOUT a visible editor host — the surface shows only the
+      // version button plus Save/Publish and no Monaco/textarea. The earlier
+      // host-gated restore calls never fire in that state, so attempt the
+      // restore here before giving up. This is purely additive recovery: it
+      // no-ops when no restore affordance is present.
+      await restoreHistoricalScriptVersionIfNeeded(page).catch(() => undefined);
+      await dismissSignInModal(page);
+      diagnostics = await collectEditorDiagnostics(page);
+      if (hasVisibleEditorHost(diagnostics)) {
+        tracePageEvent(page, "pine-editor-recovery-ok", `restore-version:${attempt + 1}`);
+        return;
+      }
     }
 
     const diagnostics = await collectEditorDiagnostics(page);
@@ -4116,20 +4130,33 @@ async function restoreHistoricalScriptVersionIfNeeded(page: Page): Promise<void>
     page.getByText(/historical version of the script/i),
     page.getByText(/this script is read-only/i),
   ];
+  // The "restore this version" control is itself a reliable signal that the
+  // editor is pinned to an older saved version. TradingView has shown this
+  // control without the read-only banner text (the surface collapses to just a
+  // version button + Save/Publish), so detect on either signal instead of
+  // gating solely on the banner text, which is the fragile part.
+  const restoreControls = [
+    page.getByRole("link", { name: /restore this version/i }),
+    page.getByRole("button", { name: /restore this version/i }),
+    page.getByText(/restore this version/i),
+  ];
   const hasReadOnlyBanner = await hasVisibleLocator(readOnlySignals, 500);
-  if (!hasReadOnlyBanner) {
+  const hasRestoreControl = hasReadOnlyBanner
+    ? true
+    : await hasVisibleLocator(restoreControls, 500);
+  if (!hasReadOnlyBanner && !hasRestoreControl) {
     return;
   }
 
-  tracePageEvent(page, "pine-editor-read-only", "historical-version");
+  tracePageEvent(
+    page,
+    "pine-editor-read-only",
+    hasReadOnlyBanner ? "historical-version" : "restore-control-only",
+  );
 
   const restored = await clickVisibleWithFallback(
     page,
-    [
-      page.getByRole("link", { name: /restore this version/i }),
-      page.getByRole("button", { name: /restore this version/i }),
-      page.getByText(/restore this version/i),
-    ],
+    restoreControls,
     "pine-editor-restore-version",
     1_500,
     500,
@@ -4140,7 +4167,9 @@ async function restoreHistoricalScriptVersionIfNeeded(page: Page): Promise<void>
     await dismissSignInModal(page);
   }
 
-  const stillReadOnly = await hasVisibleLocator(readOnlySignals, 500);
+  const stillReadOnly =
+    (await hasVisibleLocator(readOnlySignals, 500)) ||
+    (await hasVisibleLocator(restoreControls, 500));
   tracePageEvent(page, stillReadOnly ? "pine-editor-read-only-still-visible" : "pine-editor-read-only-cleared");
 }
 

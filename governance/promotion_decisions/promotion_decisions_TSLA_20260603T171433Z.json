@@ -1,0 +1,339 @@
+{
+  "schema_version": 2,
+  "gate_schema_version": 2,
+  "generated_at": "2026-06-03T17:14:33+00:00",
+  "strict_provenance": true,
+  "decisions": [
+    {
+      "schema_version": 2,
+      "family": "BOS",
+      "promoted": false,
+      "posture": "red",
+      "blockers": [
+        {
+          "check": "brier_threshold",
+          "severity": "blocker",
+          "observed": 0.24502207215969324,
+          "threshold": 0.22,
+          "message": "brier=0.2450 fails <= 0.2200"
+        },
+        {
+          "check": "brier_ci_upper",
+          "severity": "blocker",
+          "observed": 0.25564499726882434,
+          "threshold": 0.22,
+          "message": "brier_ci_upper=0.2556 fails <= 0.2200"
+        },
+        {
+          "check": "ece_threshold",
+          "severity": "blocker",
+          "observed": 0.06439355537204422,
+          "threshold": 0.05,
+          "message": "ece=0.0644 fails <= 0.0500"
+        },
+        {
+          "check": "psi_drift",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.25,
+          "message": "psi not yet measured"
+        }
+      ],
+      "metrics": {
+        "brier": 0.24502207215969324,
+        "brier_ci_upper": 0.25564499726882434,
+        "ece": 0.06439355537204422,
+        "fdr_pvalue": 0.0006663334999167083,
+        "psr": 0.9999952687905003,
+        "mintrl_years": 0.31746031746031744,
+        "live_vs_wf_ratio": 0.7746361351356477,
+        "extra.sharpe_hat": 0.19765367087984995,
+        "extra.skew": -0.21917625489668524,
+        "extra.kurtosis": 9.586347805967081,
+        "extra.n_returns": 567.0,
+        "extra.periods_per_year": 252.0,
+        "extra.raw_pvalue": 0.0004997501249375312,
+        "extra.observed_periods_per_year": 2264.1257259993167,
+        "regime_degraded": 0.0,
+        "psi_slope": 0.001616790033777073,
+        "conformal_coverage": 0.9446808510638298,
+        "conformal_target": 0.9
+      },
+      "provenance": {
+        "wf_scheme": "expanding",
+        "wf_embargo_bars": 16,
+        "psr_method": "bailey_lopez_de_prado_2012",
+        "significance_method": "stationary_block_bootstrap_one_sided",
+        "significance_block_bars": 8,
+        "fdr_method": "benjamini_hochberg",
+        "calibration_method": "empirical_brier_ece_psi",
+        "brier_ci_method": "stationary_block_bootstrap_brier_p95",
+        "conformal_method": "split_conformal_vovk",
+        "psi_trend_method": "ols_psi_window_slope",
+        "pipeline_class": "smc_direct_no_ml",
+        "ev26_conformal_source": "ev26_walkforward_oos_split_conformal_v1",
+        "ev25_live_source": "ev25_walkforward_oos_recent_tail_v1",
+        "ev24_score_source": "atr_normalised_geometry_strength_v1",
+        "ev24_calibrator": "platt_logistic_standardised_v1",
+        "ev24_fold_scheme": "walkforward_purged_embargo_time",
+        "ev24_calibration_target": "sign_return_secondary_diagnostic",
+        "ev24_psi_trend_source": "ev24_fixed_reference_calibrator_chronological_windows_v1",
+        "ev24_regime_source": "kaufman_efficiency_ratio_trailing_closes_v1"
+      }
+    },
+    {
+      "schema_version": 2,
+      "family": "OB",
+      "promoted": false,
+      "posture": "red",
+      "blockers": [
+        {
+          "check": "brier_threshold",
+          "severity": "blocker",
+          "observed": 0.238341622481904,
+          "threshold": 0.22,
+          "message": "brier=0.2383 fails <= 0.2200"
+        },
+        {
+          "check": "brier_ci_upper",
+          "severity": "blocker",
+          "observed": 0.24841335946293006,
+          "threshold": 0.22,
+          "message": "brier_ci_upper=0.2484 fails <= 0.2200"
+        },
+        {
+          "check": "psi_drift",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.25,
+          "message": "psi not yet measured"
+        },
+        {
+          "check": "psi_slope_threshold",
+          "severity": "blocker",
+          "observed": 0.05922168123210893,
+          "threshold": 0.05,
+          "message": "psi_slope=0.0592 fails <= 0.0500"
+        },
+        {
+          "check": "conformal_coverage",
+          "severity": "blocker",
+          "observed": 0.8514285714285714,
+          "threshold": 0.88,
+          "message": "conformal coverage=0.8514 fails >= target 0.9000 - tolerance 0.0200"
+        }
+      ],
+      "metrics": {
+        "brier": 0.238341622481904,
+        "brier_ci_upper": 0.24841335946293006,
+        "ece": 0.03840626751224566,
+        "fdr_pvalue": 0.0006663334999167083,
+        "psr": 0.9999987793316426,
+        "mintrl_years": 0.21031746031746032,
+        "live_vs_wf_ratio": 0.9570641356537389,
+        "extra.sharpe_hat": 0.2227068169922571,
+        "extra.skew": 0.7914421693418362,
+        "extra.kurtosis": 10.561781829066748,
+        "extra.n_returns": 423.0,
+        "extra.periods_per_year": 252.0,
+        "extra.raw_pvalue": 0.0004997501249375312,
+        "extra.observed_periods_per_year": 1687.764223941739,
+        "regime_degraded": 0.0,
+        "psi_slope": 0.05922168123210893,
+        "conformal_coverage": 0.8514285714285714,
+        "conformal_target": 0.9
+      },
+      "provenance": {
+        "wf_scheme": "expanding",
+        "wf_embargo_bars": 12,
+        "psr_method": "bailey_lopez_de_prado_2012",
+        "significance_method": "stationary_block_bootstrap_one_sided",
+        "significance_block_bars": 6,
+        "fdr_method": "benjamini_hochberg",
+        "calibration_method": "empirical_brier_ece_psi",
+        "brier_ci_method": "stationary_block_bootstrap_brier_p95",
+        "conformal_method": "split_conformal_vovk",
+        "psi_trend_method": "ols_psi_window_slope",
+        "pipeline_class": "smc_direct_no_ml",
+        "ev26_conformal_source": "ev26_walkforward_oos_split_conformal_v1",
+        "ev25_live_source": "ev25_walkforward_oos_recent_tail_v1",
+        "ev24_score_source": "atr_normalised_geometry_strength_v1",
+        "ev24_calibrator": "platt_logistic_standardised_v1",
+        "ev24_fold_scheme": "walkforward_purged_embargo_time",
+        "ev24_calibration_target": "sign_return_secondary_diagnostic",
+        "ev24_psi_trend_source": "ev24_fixed_reference_calibrator_chronological_windows_v1",
+        "ev24_regime_source": "kaufman_efficiency_ratio_trailing_closes_v1"
+      }
+    },
+    {
+      "schema_version": 2,
+      "family": "FVG",
+      "promoted": false,
+      "posture": "red",
+      "blockers": [
+        {
+          "check": "brier_threshold",
+          "severity": "blocker",
+          "observed": 0.24429138519913196,
+          "threshold": 0.22,
+          "message": "brier=0.2443 fails <= 0.2200"
+        },
+        {
+          "check": "brier_ci_upper",
+          "severity": "blocker",
+          "observed": 0.2554087939793258,
+          "threshold": 0.22,
+          "message": "brier_ci_upper=0.2554 fails <= 0.2200"
+        },
+        {
+          "check": "psi_drift",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.25,
+          "message": "psi not yet measured"
+        }
+      ],
+      "metrics": {
+        "brier": 0.24429138519913196,
+        "brier_ci_upper": 0.2554087939793258,
+        "ece": 0.049971979147785846,
+        "fdr_pvalue": 0.0006663334999167083,
+        "psr": 0.9999967147849502,
+        "mintrl_years": 0.2857142857142857,
+        "live_vs_wf_ratio": 0.7221204386392949,
+        "extra.sharpe_hat": 0.20396251907736448,
+        "extra.skew": 0.1548623123887918,
+        "extra.kurtosis": 11.456728804727211,
+        "extra.n_returns": 527.0,
+        "extra.periods_per_year": 252.0,
+        "extra.raw_pvalue": 0.0004997501249375312,
+        "extra.observed_periods_per_year": 2104.3990433891354,
+        "regime_degraded": 0.0,
+        "psi_slope": 0.0001504788873438745,
+        "conformal_coverage": 0.9357798165137615,
+        "conformal_target": 0.9
+      },
+      "provenance": {
+        "wf_scheme": "expanding",
+        "wf_embargo_bars": 8,
+        "psr_method": "bailey_lopez_de_prado_2012",
+        "significance_method": "stationary_block_bootstrap_one_sided",
+        "significance_block_bars": 4,
+        "fdr_method": "benjamini_hochberg",
+        "calibration_method": "empirical_brier_ece_psi",
+        "brier_ci_method": "stationary_block_bootstrap_brier_p95",
+        "conformal_method": "split_conformal_vovk",
+        "psi_trend_method": "ols_psi_window_slope",
+        "pipeline_class": "smc_direct_no_ml",
+        "ev26_conformal_source": "ev26_walkforward_oos_split_conformal_v1",
+        "ev25_live_source": "ev25_walkforward_oos_recent_tail_v1",
+        "ev24_score_source": "atr_normalised_geometry_strength_v1",
+        "ev24_calibrator": "platt_logistic_standardised_v1",
+        "ev24_fold_scheme": "walkforward_purged_embargo_time",
+        "ev24_calibration_target": "sign_return_secondary_diagnostic",
+        "ev24_psi_trend_source": "ev24_fixed_reference_calibrator_chronological_windows_v1",
+        "ev24_regime_source": "kaufman_efficiency_ratio_trailing_closes_v1"
+      }
+    },
+    {
+      "schema_version": 2,
+      "family": "SWEEP",
+      "promoted": false,
+      "posture": "red",
+      "blockers": [
+        {
+          "check": "brier_threshold",
+          "severity": "blocker",
+          "observed": 0.31229606441923186,
+          "threshold": 0.22,
+          "message": "brier=0.3123 fails <= 0.2200"
+        },
+        {
+          "check": "brier_ci_upper",
+          "severity": "blocker",
+          "observed": 0.3599936977820627,
+          "threshold": 0.22,
+          "message": "brier_ci_upper=0.3600 fails <= 0.2200"
+        },
+        {
+          "check": "ece_threshold",
+          "severity": "blocker",
+          "observed": 0.2629744703224322,
+          "threshold": 0.05,
+          "message": "ece=0.2630 fails <= 0.0500"
+        },
+        {
+          "check": "psi_drift",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.25,
+          "message": "psi not yet measured"
+        },
+        {
+          "check": "psi_slope_threshold",
+          "severity": "blocker",
+          "observed": 0.5658149205969031,
+          "threshold": 0.05,
+          "message": "psi_slope=0.5658 fails <= 0.0500"
+        },
+        {
+          "check": "conformal_coverage",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.0,
+          "message": "conformal coverage or target not yet measured"
+        }
+      ],
+      "metrics": {
+        "brier": 0.31229606441923186,
+        "brier_ci_upper": 0.3599936977820627,
+        "ece": 0.2629744703224322,
+        "fdr_pvalue": 0.006496751624187906,
+        "psr": 0.9994501196087975,
+        "mintrl_years": 0.10714285714285714,
+        "live_vs_wf_ratio": 0.6414328587614512,
+        "extra.sharpe_hat": 0.26209773713384055,
+        "extra.skew": 2.3737955785898137,
+        "extra.kurtosis": 16.17696216120676,
+        "extra.n_returns": 100.0,
+        "extra.periods_per_year": 252.0,
+        "extra.raw_pvalue": 0.006496751624187906,
+        "extra.observed_periods_per_year": 5738.788870703765,
+        "regime_degraded": 0.0,
+        "psi_slope": 0.5658149205969031
+      },
+      "provenance": {
+        "wf_scheme": "expanding",
+        "wf_embargo_bars": 6,
+        "psr_method": "bailey_lopez_de_prado_2012",
+        "significance_method": "stationary_block_bootstrap_one_sided",
+        "significance_block_bars": 3,
+        "fdr_method": "benjamini_hochberg",
+        "calibration_method": "empirical_brier_ece_psi",
+        "brier_ci_method": "stationary_block_bootstrap_brier_p95",
+        "psi_trend_method": "ols_psi_window_slope",
+        "pipeline_class": "smc_direct_no_ml",
+        "ev25_live_source": "ev25_walkforward_oos_recent_tail_v1",
+        "ev24_score_source": "atr_normalised_geometry_strength_v1",
+        "ev24_calibrator": "platt_logistic_standardised_v1",
+        "ev24_fold_scheme": "walkforward_purged_embargo_time",
+        "ev24_calibration_target": "sign_return_secondary_diagnostic",
+        "ev24_psi_trend_source": "ev24_fixed_reference_calibrator_chronological_windows_v1",
+        "ev24_regime_source": "kaufman_efficiency_ratio_trailing_closes_v1"
+      }
+    }
+  ],
+  "context": {
+    "symbol": "TSLA",
+    "timeframe": "15m",
+    "structure_profile": "hybrid_default",
+    "source": "databento",
+    "bar_count": 4224,
+    "dataset": "XNAS.ITCH",
+    "schema": "ohlcv-1m",
+    "window": {
+      "start": "2024-07-15",
+      "end": "2024-10-15"
+    }
+  }
+}

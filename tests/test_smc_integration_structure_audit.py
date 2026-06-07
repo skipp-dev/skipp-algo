@@ -103,6 +103,10 @@ def test_gap_report_is_honest_for_current_repo_state() -> None:
         "ipda_range",
         "htf_fvg_bias",
         "broken_fractal_signals",
+        # ADR-0021 (commit 2bedc96a) added ``rejection_blocks`` to the structure
+        # contract's AUXILIARY_KEYS as a recorded-only category; keep the audit
+        # honesty set aligned with the producer contract.
+        "rejection_blocks",
     }
 
 

@@ -160,5 +160,5 @@ out_path = pathlib.Path("artifacts/review-v3/perf_trend.md")
 out_path.parent.mkdir(parents=True, exist_ok=True)
 # ATOMIC-WRITE-EXEMPT: dev-only review-artifact generator (manually invoked,
 # never on a hot/prod codepath; output is a one-shot Markdown summary).
-out_path.write_text("\n".join(md_lines) + "\n")
+out_path.write_text("\n".join(md_lines) + "\n", encoding="utf-8")
 print(f"\nWrote {out_path}")

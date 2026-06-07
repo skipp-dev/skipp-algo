@@ -1,0 +1,158 @@
+{
+  "backend": {
+    "device_id": null,
+    "device_name": null,
+    "reason": "requested_cpu",
+    "requested": "cpu",
+    "used": "cpu"
+  },
+  "generated_at_et": "2026-06-02T20:02:01.220509-04:00",
+  "labeled_samples": 659,
+  "lookback_days": 30,
+  "min_samples_threshold": 30,
+  "ranking_drift": {
+    "drifted_features": [],
+    "max_position_delta": 0,
+    "position_threshold": 3,
+    "status": "ok",
+    "top_n": 10
+  },
+  "report": {
+    "backend": {
+      "device_id": null,
+      "device_name": null,
+      "reason": "requested_cpu",
+      "requested": "cpu",
+      "used": "cpu"
+    },
+    "features": {
+      "analyst_catalyst_component": {
+        "importance_normalized": 0.0,
+        "mean_loss": 0.0,
+        "mean_separation": 0.0,
+        "mean_win": 0.0,
+        "pearson_r": 0.0
+      },
+      "earnings_bmo_component": {
+        "importance_normalized": 0.0,
+        "mean_loss": 0.0,
+        "mean_separation": 0.0,
+        "mean_win": 0.0,
+        "pearson_r": 0.0
+      },
+      "estimate_revision_component": {
+        "importance_normalized": 0.0,
+        "mean_loss": 0.0,
+        "mean_separation": 0.0,
+        "mean_win": 0.0,
+        "pearson_r": 0.0
+      },
+      "ext_hours_component": {
+        "importance_normalized": 0.0,
+        "mean_loss": 0.0,
+        "mean_separation": 0.0,
+        "mean_win": 0.0,
+        "pearson_r": 0.0
+      },
+      "freshness_component": {
+        "importance_normalized": 0.0,
+        "mean_loss": 0.0,
+        "mean_separation": 0.0,
+        "mean_win": 0.0,
+        "pearson_r": 0.0
+      },
+      "gap_component": {
+        "importance_normalized": 0.0,
+        "mean_loss": 0.0,
+        "mean_separation": 0.0,
+        "mean_win": 0.0,
+        "pearson_r": 0.0
+      },
+      "gap_sector_rel_component": {
+        "importance_normalized": 0.0,
+        "mean_loss": 0.0,
+        "mean_separation": 0.0,
+        "mean_win": 0.0,
+        "pearson_r": 0.0
+      },
+      "hvb_component": {
+        "importance_normalized": 0.0,
+        "mean_loss": 0.0,
+        "mean_separation": 0.0,
+        "mean_win": 0.0,
+        "pearson_r": 0.0
+      },
+      "institutional_component": {
+        "importance_normalized": 0.0,
+        "mean_loss": 0.0,
+        "mean_separation": 0.0,
+        "mean_win": 0.0,
+        "pearson_r": 0.0
+      },
+      "macro_component": {
+        "importance_normalized": 0.0,
+        "mean_loss": 0.0,
+        "mean_separation": 0.0,
+        "mean_win": 0.0,
+        "pearson_r": 0.0
+      },
+      "momentum_component": {
+        "importance_normalized": 0.0,
+        "mean_loss": 0.0,
+        "mean_separation": 0.0,
+        "mean_win": 0.0,
+        "pearson_r": 0.0
+      },
+      "news_component": {
+        "importance_normalized": 0.0,
+        "mean_loss": 0.0,
+        "mean_separation": 0.0,
+        "mean_win": 0.0,
+        "pearson_r": 0.0
+      },
+      "rvol_component": {
+        "importance_normalized": 0.0,
+        "mean_loss": 0.0,
+        "mean_separation": 0.0,
+        "mean_win": 0.0,
+        "pearson_r": 0.0
+      },
+      "vwap_distance_component": {
+        "importance_normalized": 0.0,
+        "mean_loss": 0.0,
+        "mean_separation": 0.0,
+        "mean_win": 0.0,
+        "pearson_r": 0.0
+      },
+      "zone_priority_score": {
+        "importance_normalized": 1.0,
+        "mean_loss": 48.0971,
+        "mean_separation": 0.0255,
+        "mean_win": 48.3775,
+        "pearson_r": 0.0123
+      }
+    },
+    "labeled_samples": 659,
+    "recommendations": [
+      "\ud83d\udd34 gap_component: weak predictor (importance=0.00). Consider reducing weight.",
+      "\ud83d\udd34 gap_sector_rel_component: weak predictor (importance=0.00). Consider reducing weight.",
+      "\ud83d\udd34 rvol_component: weak predictor (importance=0.00). Consider reducing weight.",
+      "\ud83d\udd34 macro_component: weak predictor (importance=0.00). Consider reducing weight.",
+      "\ud83d\udd34 momentum_component: weak predictor (importance=0.00). Consider reducing weight.",
+      "\ud83d\udd34 hvb_component: weak predictor (importance=0.00). Consider reducing weight.",
+      "\ud83d\udd34 earnings_bmo_component: weak predictor (importance=0.00). Consider reducing weight.",
+      "\ud83d\udd34 news_component: weak predictor (importance=0.00). Consider reducing weight.",
+      "\ud83d\udd34 ext_hours_component: weak predictor (importance=0.00). Consider reducing weight.",
+      "\ud83d\udd34 analyst_catalyst_component: weak predictor (importance=0.00). Consider reducing weight.",
+      "\ud83d\udd34 vwap_distance_component: weak predictor (importance=0.00). Consider reducing weight.",
+      "\ud83d\udd34 freshness_component: weak predictor (importance=0.00). Consider reducing weight.",
+      "\ud83d\udd34 institutional_component: weak predictor (importance=0.00). Consider reducing weight.",
+      "\ud83d\udd34 estimate_revision_component: weak predictor (importance=0.00). Consider reducing weight."
+    ],
+    "total_samples": 659
+  },
+  "run_id": "20260602T200201",
+  "shortfall": 0,
+  "status": "ok",
+  "total_samples": 659
+}

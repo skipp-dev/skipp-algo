@@ -48,9 +48,23 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any, TypedDict
 
+from governance.family_avg_trade_size_v2 import average_trade_size_at
+from governance.family_cross_lead_lag_hy_v3 import cross_lead_lag_hy_at
+from governance.family_cross_lead_lag_v2 import cross_lead_lag_at
 from governance.family_event_score import point_in_time_regime, raw_score
+from governance.family_kyle_lambda_v2 import kyle_lambda_at
+from governance.family_ofi_imbalance_v2 import ofi_imbalance_at
 from governance.family_returns import FamilyEvent
 from governance.family_score_features_v2 import relative_volume_at
+from governance.family_signed_uoa_notional_v2 import (
+    abs_uoa_activity_at,
+    signed_uoa_notional_at,
+)
+from governance.family_vpin_v2 import vpin_at
+from governance.family_vrvp_v2 import (
+    vrvp_value_area_position_at,
+    vrvp_vpoc_distance_at,
+)
 from governance.types import EventFamily
 
 # Lookahead windows, mirrored from
@@ -82,6 +96,42 @@ class BarRow(TypedDict, total=False):
     low: float
     close: float
     volume: float
+
+
+class TickSeries(TypedDict):
+    """A symbol's raw trade tape: parallel nanosecond timestamps and prices.
+
+    Consumed only by the ADR-0021 tick-level Hayashi-Yoshida lead-lag feature
+    (``governance.family_cross_lead_lag_hy_v3``). ``ts_ns`` is int64 epoch
+    nanoseconds (NOT floored to seconds -- sub-second timing is the signal) and
+    ``price`` the matching trade prints, both sorted ascending by ``ts_ns``.
+    """
+
+    ts_ns: Sequence[int]
+    price: Sequence[float]
+
+
+def _hy_cross_lead_lag(
+    constituent_ticks: TickSeries | None,
+    benchmark_ticks: TickSeries | None,
+    anchor_ts: float,
+) -> float | None:
+    """Tick-level HY lead-lag at ``anchor_ts``, or None when either tape is absent.
+
+    Unlike the bar feature there is deliberately NO alignment guard: the
+    estimator slices the trailing window ending AT ``anchor_ts`` on each tape
+    independently and is PIT-safe and asynchronous-native by construction, so
+    non-synchronous tapes are the expected input rather than an error to reject.
+    """
+    if constituent_ticks is None or benchmark_ticks is None:
+        return None
+    return cross_lead_lag_hy_at(
+        constituent_ticks["ts_ns"],
+        constituent_ticks["price"],
+        benchmark_ticks["ts_ns"],
+        benchmark_ticks["price"],
+        anchor_ts,
+    )
 
 
 def _bar_index_at_or_after(timestamps: Sequence[float], anchor_ts: float) -> int | None:
@@ -132,6 +182,9 @@ def _zone_event_to_family(
     *,
     family: EventFamily,
     lookahead_bars: int,
+    benchmark_bars: Sequence[Mapping[str, Any]] | None = None,
+    constituent_ticks: TickSeries | None = None,
+    benchmark_ticks: TickSeries | None = None,
 ) -> FamilyEvent | None:
     low = float(event.get("low", 0.0) or 0.0)
     high = float(event.get("high", 0.0) or 0.0)
@@ -173,6 +226,37 @@ def _zone_event_to_family(
     rel_volume = relative_volume_at(bars, anchor_idx)
     if rel_volume is not None:
         mapped["relative_volume"] = rel_volume
+    kyle_lambda = kyle_lambda_at(bars, anchor_idx)
+    if kyle_lambda is not None:
+        mapped["kyle_lambda"] = kyle_lambda
+    avg_trade_size = average_trade_size_at(bars, anchor_idx)
+    if avg_trade_size is not None:
+        mapped["average_trade_size"] = avg_trade_size
+    ofi = ofi_imbalance_at(bars, anchor_idx)
+    if ofi is not None:
+        mapped["ofi_imbalance"] = ofi
+    vpin = vpin_at(bars, anchor_idx)
+    if vpin is not None:
+        mapped["vpin"] = vpin
+    signed_uoa = signed_uoa_notional_at(bars, anchor_idx)
+    if signed_uoa is not None:
+        mapped["signed_uoa_notional"] = signed_uoa
+    abs_uoa = abs_uoa_activity_at(bars, anchor_idx)
+    if abs_uoa is not None:
+        mapped["abs_uoa_activity"] = abs_uoa
+    vrvp_vpoc_dist = vrvp_vpoc_distance_at(bars, anchor_idx)
+    if vrvp_vpoc_dist is not None:
+        mapped["vrvp_vpoc_dist"] = vrvp_vpoc_dist
+    vrvp_va_pos = vrvp_value_area_position_at(bars, anchor_idx)
+    if vrvp_va_pos is not None:
+        mapped["vrvp_va_pos"] = vrvp_va_pos
+    if benchmark_bars is not None:
+        cross_lead_lag = cross_lead_lag_at(bars, benchmark_bars, anchor_idx)
+        if cross_lead_lag is not None:
+            mapped["cross_lead_lag"] = cross_lead_lag
+    hy = _hy_cross_lead_lag(constituent_ticks, benchmark_ticks, anchor_ts)
+    if hy is not None:
+        mapped["cross_lead_lag_hy"] = hy
     return mapped
 
 
@@ -184,6 +268,9 @@ def _level_event_to_family(
     family: EventFamily,
     direction: str,
     lookahead_bars: int,
+    benchmark_bars: Sequence[Mapping[str, Any]] | None = None,
+    constituent_ticks: TickSeries | None = None,
+    benchmark_ticks: TickSeries | None = None,
 ) -> FamilyEvent | None:
     price = float(event.get("price", 0.0) or 0.0)
     anchor_ts = _anchor_ts(event)
@@ -220,12 +307,76 @@ def _level_event_to_family(
     rel_volume = relative_volume_at(bars, anchor_idx)
     if rel_volume is not None:
         mapped["relative_volume"] = rel_volume
+    kyle_lambda = kyle_lambda_at(bars, anchor_idx)
+    if kyle_lambda is not None:
+        mapped["kyle_lambda"] = kyle_lambda
+    avg_trade_size = average_trade_size_at(bars, anchor_idx)
+    if avg_trade_size is not None:
+        mapped["average_trade_size"] = avg_trade_size
+    ofi = ofi_imbalance_at(bars, anchor_idx)
+    if ofi is not None:
+        mapped["ofi_imbalance"] = ofi
+    vpin = vpin_at(bars, anchor_idx)
+    if vpin is not None:
+        mapped["vpin"] = vpin
+    signed_uoa = signed_uoa_notional_at(bars, anchor_idx)
+    if signed_uoa is not None:
+        mapped["signed_uoa_notional"] = signed_uoa
+    abs_uoa = abs_uoa_activity_at(bars, anchor_idx)
+    if abs_uoa is not None:
+        mapped["abs_uoa_activity"] = abs_uoa
+    vrvp_vpoc_dist = vrvp_vpoc_distance_at(bars, anchor_idx)
+    if vrvp_vpoc_dist is not None:
+        mapped["vrvp_vpoc_dist"] = vrvp_vpoc_dist
+    vrvp_va_pos = vrvp_value_area_position_at(bars, anchor_idx)
+    if vrvp_va_pos is not None:
+        mapped["vrvp_va_pos"] = vrvp_va_pos
+    if benchmark_bars is not None:
+        cross_lead_lag = cross_lead_lag_at(bars, benchmark_bars, anchor_idx)
+        if cross_lead_lag is not None:
+            mapped["cross_lead_lag"] = cross_lead_lag
+    hy = _hy_cross_lead_lag(constituent_ticks, benchmark_ticks, anchor_ts)
+    if hy is not None:
+        mapped["cross_lead_lag_hy"] = hy
     return mapped
+
+
+def _benchmark_aligned(
+    bars: Sequence[Mapping[str, Any]],
+    benchmark_bars: Sequence[Mapping[str, Any]],
+) -> bool:
+    """True only if the benchmark series is index- and timestamp-aligned to ``bars``.
+
+    The ADR-0021 cross-asset lead-lag feature reads the benchmark bar at the same
+    index as the constituent anchor. That is only point-in-time correct when both
+    series share the same length and the same timestamp at every index (same 15m
+    exchange grid). Any length mismatch, missing/invalid timestamp, or per-bar
+    timestamp disagreement makes the pairing meaningless, so the caller degrades
+    to no benchmark (every event reports the feature as honestly absent) rather
+    than silently pairing misaligned bars.
+    """
+    if len(benchmark_bars) != len(bars):
+        return False
+    for bar, bench in zip(bars, benchmark_bars):
+        bar_ts = bar.get("timestamp")
+        bench_ts = bench.get("timestamp")
+        if bar_ts is None or bench_ts is None:
+            return False
+        try:
+            if float(bar_ts) != float(bench_ts):
+                return False
+        except (TypeError, ValueError):
+            return False
+    return True
 
 
 def family_events_from_structure(
     structure: Mapping[str, Any],
     bars: Sequence[Mapping[str, Any]],
+    *,
+    benchmark_bars: Sequence[Mapping[str, Any]] | None = None,
+    constituent_ticks: TickSeries | None = None,
+    benchmark_ticks: TickSeries | None = None,
 ) -> list[FamilyEvent]:
     """Convert a detected SMC structure + bars into ``FamilyEvent`` records.
 
@@ -235,8 +386,25 @@ def family_events_from_structure(
     ``timestamp`` fields. Events that cannot be anchored (no bar at-or-after
     the event time, or no forward bar) or are degenerate are dropped, exactly
     as the live scorer drops them.
+
+    ``benchmark_bars`` is an optional index-aligned benchmark (e.g. SPY) series
+    on the same bar grid, used only by the ADR-0021 cross-asset lead-lag shadow
+    feature. When omitted, or when it fails strict length/timestamp alignment to
+    ``bars``, the lead-lag feature is reported as absent on every event (the
+    benchmark is dropped rather than paired misaligned) and behaviour is
+    identical to callers that never pass it.
+
+    ``constituent_ticks`` and ``benchmark_ticks`` are the optional raw trade
+    tapes (this symbol's and the benchmark's, e.g. SPY) feeding the ADR-0021
+    tick-level Hayashi-Yoshida lead-lag shadow feature. Both must be supplied for
+    the feature to be emitted; either missing makes it honestly absent. They
+    need NO alignment to ``bars`` or to each other -- the estimator slices each
+    tape's trailing window at the anchor instant and is PIT-safe and async-native
+    by construction.
     """
     timestamps = [float(b["timestamp"]) for b in bars]
+    if benchmark_bars is not None and not _benchmark_aligned(bars, benchmark_bars):
+        benchmark_bars = None
     events: list[FamilyEvent] = []
 
     for raw in structure.get(_BOS_KEY, []) or []:
@@ -247,20 +415,37 @@ def family_events_from_structure(
             family="BOS",
             direction=str(raw.get("dir", "")).strip(),
             lookahead_bars=_BOS_LOOKAHEAD_BARS,
+            benchmark_bars=benchmark_bars,
+            constituent_ticks=constituent_ticks,
+            benchmark_ticks=benchmark_ticks,
         )
         if mapped is not None:
             events.append(mapped)
 
     for raw in structure.get(_OB_KEY, []) or []:
         mapped = _zone_event_to_family(
-            raw, bars, timestamps, family="OB", lookahead_bars=_ZONE_LOOKAHEAD_BARS
+            raw,
+            bars,
+            timestamps,
+            family="OB",
+            lookahead_bars=_ZONE_LOOKAHEAD_BARS,
+            benchmark_bars=benchmark_bars,
+            constituent_ticks=constituent_ticks,
+            benchmark_ticks=benchmark_ticks,
         )
         if mapped is not None:
             events.append(mapped)
 
     for raw in structure.get(_FVG_KEY, []) or []:
         mapped = _zone_event_to_family(
-            raw, bars, timestamps, family="FVG", lookahead_bars=_FVG_LOOKAHEAD_BARS
+            raw,
+            bars,
+            timestamps,
+            family="FVG",
+            lookahead_bars=_FVG_LOOKAHEAD_BARS,
+            benchmark_bars=benchmark_bars,
+            constituent_ticks=constituent_ticks,
+            benchmark_ticks=benchmark_ticks,
         )
         if mapped is not None:
             events.append(mapped)
@@ -273,6 +458,9 @@ def family_events_from_structure(
             family="SWEEP",
             direction=_sweep_direction(str(raw.get("side", ""))),
             lookahead_bars=_SWEEP_LOOKAHEAD_BARS,
+            benchmark_bars=benchmark_bars,
+            constituent_ticks=constituent_ticks,
+            benchmark_ticks=benchmark_ticks,
         )
         if mapped is not None:
             events.append(mapped)
@@ -282,5 +470,6 @@ def family_events_from_structure(
 
 __all__ = [
     "BarRow",
+    "TickSeries",
     "family_events_from_structure",
 ]

@@ -21,10 +21,12 @@ none in this repo today).
 from __future__ import annotations
 
 import ast
+import functools
 from pathlib import Path
 
 import pytest
 
+from tests._guard_corpus import parse_module
 from tests._pin_registry import urllib_urlopen_sites
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -85,16 +87,10 @@ def _scan_urlopen(tree: ast.AST) -> list[tuple[int, bool]]:
 
 
 def _parse(path: Path) -> ast.AST | None:
-    try:
-        source = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        return None
-    try:
-        return ast.parse(source, filename=str(path))
-    except SyntaxError:
-        return None
+    return parse_module(path)
 
 
+@functools.cache
 def _live_inventory() -> dict[str, list[tuple[int, bool]]]:
     out: dict[str, list[tuple[int, bool]]] = {}
     for path in _iter_first_party_py_files():

@@ -42,14 +42,19 @@ from typing import Any, Literal, TypedDict
 
 from governance.family_calibration import (
     CALIBRATOR_TAG,
+    CONFORMAL_SOURCE_TAG,
     FOLD_SCHEME_TAG,
+    LIVE_SOURCE_TAG,
     PSI_TREND_SOURCE_TAG,
     TARGET_TAG,
+    partition_conformal,
+    partition_live_tail,
     walk_forward_calibration,
     walk_forward_psi_trend,
 )
 from governance.family_event_score import REGIME_SOURCE, SCORE_SOURCE
 from governance.family_walkforward import family_outcome_horizon, get_family_config
+from governance.promotion_gate import PIPELINE_CLASS_KEY, SMC_DIRECT_NO_ML
 from governance.types import EventFamily
 
 # Fixed round-turn transaction cost (bps) subtracted from every realized
@@ -119,6 +124,112 @@ class FamilyEvent(TypedDict, total=False):
     # Absent when volume is missing or the trailing baseline is degenerate.
     # Never invented.
     relative_volume: float
+    # Optional point-in-time microstructure feature (ADR-0019 v2 candidate): VPIN
+    # (volume-synchronized probability of informed trading), the mean absolute
+    # order imbalance across the trailing equal-volume buckets ending at the
+    # anchor (see ``governance.family_vpin_v2.vpin_at``), in [0, 1] -- higher
+    # means more one-sided (toxic) flow. RECORDED ONLY -- it is NOT a calibration
+    # input and does NOT feed the gate; it rides alongside outcomes so the
+    # pre-registered purged walk-forward A/B (ADR-0019) can evaluate whether it
+    # lifts resolution before any wiring. Absent when the bars carry no traded
+    # size (OHLCV-only run) or the trailing volume cannot fill a bucket. Never
+    # invented.
+    vpin: float
+    # Optional point-in-time microstructure feature (ADR-0016 / ADR-0019 v2
+    # candidate): Kyle's lambda, the OLS slope of per-bar close change on the
+    # aggressor-signed volume over the trailing window (see
+    # ``governance.family_kyle_lambda_v2.kyle_lambda_at``). RECORDED ONLY -- it
+    # is NOT a calibration input and does NOT feed the gate; it rides alongside
+    # outcomes so the pre-registered purged walk-forward A/B (ADR-0019) can
+    # evaluate whether it lifts resolution before any wiring. Absent when the
+    # bars carry no signed volume (OHLCV-only run) or the regression is
+    # degenerate. Never invented.
+    kyle_lambda: float
+    # Optional point-in-time microstructure feature (ADR-0016 / ADR-0019 v2
+    # candidate): average trade size, the volume-weighted mean shares-per-trade
+    # over the trailing window (see
+    # ``governance.family_avg_trade_size_v2.average_trade_size_at``). RECORDED
+    # ONLY -- it is NOT a calibration input and does NOT feed the gate; it rides
+    # alongside outcomes so the pre-registered purged walk-forward A/B (ADR-0019)
+    # can evaluate whether it lifts resolution before any wiring. Absent when the
+    # bars carry no trade counts (OHLCV-only run) or no trades fell in the
+    # window. Never invented.
+    average_trade_size: float
+    # Optional point-in-time microstructure feature (ADR-0016 / ADR-0019 v2
+    # candidate): order-flow imbalance, abs(sum(signed_volume)) / sum(abs_volume)
+    # over the trailing window (see
+    # ``governance.family_ofi_imbalance_v2.ofi_imbalance_at``), in [0, 1] -- the
+    # net one-sidedness of aggressor flow. RECORDED ONLY -- it is NOT a
+    # calibration input and does NOT feed the gate; it rides alongside outcomes
+    # so the pre-registered purged walk-forward A/B (ADR-0019) can evaluate
+    # whether it lifts resolution before any wiring. Absent when the bars carry
+    # no traded size (OHLCV-only run) or no trades fell in the window. Never
+    # invented.
+    ofi_imbalance: float
+    # Optional point-in-time options-flow feature (ADR-0020 v2 candidate, the
+    # first on the OPRA options-flow datapath): signed UOA notional imbalance,
+    # sum(uoa_signed_notional) / sum(uoa_abs_notional) over the trailing window
+    # (see ``governance.family_signed_uoa_notional_v2.signed_uoa_notional_at``),
+    # in [-1, +1] -- the SIGNED direction of aggressor options premium (+ bullish
+    # ask-lifting, - bearish bid-hitting). RECORDED ONLY -- it is NOT a
+    # calibration input and does NOT feed the gate; it rides alongside outcomes
+    # so the pre-registered purged walk-forward A/B (ADR-0020) can evaluate
+    # whether it lifts resolution before any wiring. Absent when the bars carry
+    # no embedded options prints (OHLCV-only run) or no premium fell in the
+    # window. Never invented.
+    signed_uoa_notional: float
+    # Optional unsigned options-activity ratio (ADR-0020 Path B; see
+    # ``governance.family_signed_uoa_notional_v2.abs_uoa_activity_at``): recent
+    # premium notional over its trailing baseline (>1 elevated, <1 quiet). The
+    # direction-free companion to ``signed_uoa_notional``; RECORDED ONLY -- it
+    # does NOT feed calibration or the gate, riding alongside outcomes so the
+    # pre-registered A/B can evaluate it. Absent on OHLCV-only runs or when the
+    # baseline window carried no premium. Never invented.
+    abs_uoa_activity: float
+    # Optional point-in-time VRVP volume-profile location features (ADR-0021 v2
+    # candidates on the volume-by-price datapath; see
+    # ``governance.family_vrvp_v2``). ``vrvp_vpoc_dist`` is the signed,
+    # range-normalised distance from the anchor close to the VPOC ((close - vpoc)
+    # / (price_high - price_low)); ``vrvp_va_pos`` is the discrete value-area
+    # position (-1 below VAL / 0 inside / +1 above VAH). RECORDED ONLY -- neither
+    # is a calibration input and neither feeds the gate; they ride alongside
+    # outcomes so the pre-registered purged walk-forward A/B (ADR-0021) can
+    # evaluate whether they lift resolution before any wiring. Absent when the
+    # profile cannot be built, the anchor close is missing, or the normalising
+    # range is degenerate. Never invented.
+    vrvp_vpoc_dist: float
+    vrvp_va_pos: float
+    # Optional point-in-time cross-asset lead-lag feature (ADR-0021 v2 candidate,
+    # the first CROSS-INSTRUMENT signal -- every other feature reads only the
+    # instrument's own bars; see ``governance.family_cross_lead_lag_v2``). It is
+    # the lag-1 asymmetric cross-correlation ratio
+    # corr(r^benchmark_{t-1}, r^constituent_t) / corr(r^constituent_{t-1},
+    # r^benchmark_t) over the trailing window against an index-aligned benchmark
+    # (SPY): > 1 when the benchmark leads the constituent, < 1 when the
+    # constituent leads, ~1 for symmetric co-movement. RECORDED ONLY -- it is NOT
+    # a calibration input and does NOT feed the gate; it rides alongside outcomes
+    # so the pre-registered purged walk-forward A/B (ADR-0021) can evaluate
+    # whether it lifts resolution before any wiring. Absent when no benchmark is
+    # supplied, the benchmark is length/timestamp-misaligned to the bars, or
+    # either return series is degenerate. Never invented.
+    cross_lead_lag: float
+    # Optional point-in-time TICK-level cross-asset lead-lag feature (ADR-0021 v3
+    # candidate; see ``governance.family_cross_lead_lag_hy_v3``). Where
+    # ``cross_lead_lag`` reads a 15m bar grid and returned a null, this reads the
+    # raw asynchronous trade tapes via the Hayashi-Yoshida estimator, which
+    # measures cross-covariance WITHOUT resampling and so survives the Epps
+    # effect that a sub-minute lead suffers on a bar grid. It is the unitless
+    # shifted-HY peak ratio max_{theta>0}|HY(theta)| / max_{theta<0}|HY(theta)|
+    # over the trailing tick window against the benchmark tape (SPY): > 1 when
+    # the benchmark leads the constituent, < 1 when the constituent leads, ~1 for
+    # symmetric co-movement. RECORDED ONLY -- not a calibration input, does NOT
+    # feed the gate; it rides alongside outcomes so the pre-registered purged
+    # walk-forward A/B (ADR-0021) can evaluate whether tick resolution recovers a
+    # lead the 15m grid washed out. Absent when either tick series is missing or
+    # the window is degenerate (too few prints, zero realized variance, undefined
+    # ratio). PIT-safe by construction: the estimator slices the trailing window
+    # ending AT the anchor instant, so no alignment guard is needed. Never invented.
+    cross_lead_lag_hy: float
 
 
 def _direction_sign(direction: str) -> int:
@@ -452,6 +563,76 @@ def extract_family_feature_samples(
     return out
 
 
+class ABSamples(TypedDict):
+    """Per-family parallel lists for the ADR-0019 paired A/B harness.
+
+    Carries BOTH arms on the SAME events so the walk-forward A/B compares the
+    v1 ``score`` against the v2 candidate ``feature`` over an identical fold
+    structure and purge. ``guard_end_ts`` is the calibration purge guard (label
+    end + embargo in time), exactly as :func:`extract_family_calibration_samples`
+    derives it, so the A/B inherits the same leak-safe train/test boundary.
+    """
+
+    scores: list[float]
+    features: list[float]
+    returns: list[float]
+    anchor_ts: list[float]
+    guard_end_ts: list[float]
+
+
+def extract_family_ab_samples(
+    events: list[FamilyEvent],
+    *,
+    feature_key: str = "relative_volume",
+    cost_bps: float = DEFAULT_COST_BPS,
+) -> dict[str, ABSamples]:
+    """Per family, collect the PAIRED inputs the ADR-0019 A/B harness needs.
+
+    For every event that triggered (a realized return exists) AND carries BOTH
+    a v1 ``score`` AND the recorded candidate ``feature_key`` AND forward
+    timestamps, emit a parallel-list bundle
+    ``{family: {"scores", "features", "returns", "anchor_ts", "guard_end_ts"}}``.
+
+    The pairing is deliberate: the A/B must score both arms on the *same* events
+    over the *same* purged walk-forward folds, otherwise a Brier/resolution
+    delta would confound the feature's effect with a differing event sample.
+    ``guard_end_ts`` reuses the calibration purge guard (label-window end plus
+    the family embargo in time) so the A/B is leak-safe by construction. Events
+    missing either arm are excluded -- never invented into the sample.
+    """
+    out: dict[str, ABSamples] = {}
+    for event in events:
+        if "score" not in event or feature_key not in event:
+            continue
+        forward_ts = event.get("forward_timestamps")
+        if not forward_ts:
+            continue
+        ret = realized_return(event, cost_bps=cost_bps)
+        if ret is None:
+            continue
+        family = event["family"]
+        fts = [float(t) for t in forward_ts]
+        embargo_bars = get_family_config(family).embargo_bars
+        guard_end = fts[-1] + embargo_bars * _event_bar_interval(fts)
+        event_view: Mapping[str, Any] = event
+        bucket = out.setdefault(
+            family,
+            {
+                "scores": [],
+                "features": [],
+                "returns": [],
+                "anchor_ts": [],
+                "guard_end_ts": [],
+            },
+        )
+        bucket["scores"].append(float(event_view["score"]))
+        bucket["features"].append(float(event_view[feature_key]))
+        bucket["returns"].append(ret)
+        bucket["anchor_ts"].append(float(event["anchor_ts"]))
+        bucket["guard_end_ts"].append(guard_end)
+    return out
+
+
 def regime_degradation(
     returns: list[float],
     regimes: list[str],
@@ -536,6 +717,12 @@ def to_build_spec(
             entry["timestamps"] = [_epoch_to_iso(t) for t in bucket["timestamps"]]
             entry["as_of"] = _epoch_to_iso(as_of)
         provenance: dict[str, Any] = {}
+        # ADR-0016: this producer builds SMC-direct families -- returns come
+        # straight from events, scores are raw event scores, no ML/stacking
+        # layer. Declare the pipeline class so the gate treats the ML-modelling
+        # provenance keys (bootstrap_method/block_size/stacked_used) as
+        # not-applicable instead of blocking on them as "not declared".
+        provenance[PIPELINE_CLASS_KEY] = SMC_DIRECT_NO_ML
         samples = calibration_samples.get(family)
         if samples is not None:
             block = walk_forward_calibration(
@@ -545,6 +732,22 @@ def to_build_spec(
                 samples["guard_end_ts"],
             )
             if block is not None:
+                # ADR-0018 / EV-26: split-conformal coverage on the SAME pooled
+                # OOS pairs (independent view of the live surrogate). Computed
+                # from the full pool BEFORE the live-tail reassignment below.
+                conformal = partition_conformal(block)
+                if conformal is not None:
+                    entry["conformal"] = conformal
+                    provenance["ev26_conformal_source"] = CONFORMAL_SOURCE_TAG
+                # ADR-0017 / EV-25: declare the most recent OOS window as a
+                # live-incubation surrogate so live_vs_wf_ratio is measured.
+                # Only splits when both partitions stay adequately powered;
+                # otherwise the full pooled walk-forward block is kept and
+                # live_brier stays honestly "not yet measured".
+                split = partition_live_tail(block)
+                if split is not None:
+                    block = split
+                    provenance["ev25_live_source"] = LIVE_SOURCE_TAG
                 entry["calibration"] = block
                 # EV-24 audit-only provenance (the gate ignores unknown keys;
                 # the producer copies these through verbatim). Records exactly
@@ -596,9 +799,14 @@ __all__ = [
     "DEFAULT_COST_BPS",
     "REGIME_MIN_SAMPLES",
     "RETURN_RULE",
+    "ABSamples",
     "EntryMode",
     "FamilyEvent",
+    "FeatureSamples",
     "RegimeSamples",
+    "extract_family_ab_samples",
+    "extract_family_calibration_samples",
+    "extract_family_feature_samples",
     "extract_family_regime_samples",
     "extract_family_returns",
     "realized_return",

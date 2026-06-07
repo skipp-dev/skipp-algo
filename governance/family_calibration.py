@@ -46,7 +46,7 @@ Calibrator. A 2-parameter logistic (Platt) on the standardised raw score,
 from __future__ import annotations
 
 import math
-from typing import Any
+from typing import Any, Literal
 
 # Pooled out-of-sample sample-count guard (GAP 3/4). Below this we refuse to
 # emit a Brier/ECE and the family stays "not yet measured". Conservative but
@@ -61,6 +61,35 @@ MIN_TRAIN_SAMPLES = 20
 CALIBRATOR_TAG = "platt_logistic_standardised_v1"
 FOLD_SCHEME_TAG = "walkforward_purged_embargo_time"
 TARGET_TAG = "sign_return_secondary_diagnostic"  # GAP 2: win-rate, not edge.
+
+# EV-25 / C8 live-incubation surrogate (ADR-0017). In an offline backtest there
+# is no real live trading feed, so the most recent chronological slice of the
+# pooled walk-forward OOS pairs is DECLARED as a "live" proxy and the older
+# remainder is the walk-forward reference. This makes ``live_vs_wf_ratio`` an
+# honest recent-vs-historical OOS calibration-drift measure (a coarse 1.5x
+# alarm, NOT a precise threshold -- the tail is small, so the live Brier has
+# wide sampling error). A true live feed supersedes the surrogate when one
+# exists. The split is emitted only when both partitions stay adequately
+# powered; otherwise the family keeps the full pooled block and ``live_brier``
+# stays honestly "not yet measured".
+LIVE_TAIL_MIN_SAMPLES = 20
+LIVE_SOURCE_TAG = "ev25_walkforward_oos_recent_tail_v1"
+
+# EV-26 / C10.1 split-conformal coverage (ADR-0018). The pooled walk-forward
+# OOS pairs are an independent view of the SAME chronological pool used for the
+# live surrogate: the earlier half calibrates the split-conformal conformity
+# quantile (Vovk) and the held-out later half measures the empirical marginal
+# coverage against the 1-alpha guarantee. ``CONFORMAL_ALPHA = 0.1`` targets 90%
+# coverage (matches the producer/ml.calibration.conformal default); a 50/50
+# chronological split keeps both sides adequately powered. Honest by design:
+# a low-resolution score yields WIDE prediction sets, so high coverage is the
+# expected, non-flattering outcome -- coverage measures calibration of the set,
+# NOT discrimination. Emitted only when both sides clear ``CONFORMAL_MIN_SIDE``;
+# otherwise no block and ``conformal_coverage`` stays "not yet measured".
+CONFORMAL_ALPHA = 0.1
+CONFORMAL_CALIBRATION_FRACTION = 0.5
+CONFORMAL_MIN_SIDE = MIN_OOS_SAMPLES
+CONFORMAL_SOURCE_TAG = "ev26_walkforward_oos_split_conformal_v1"
 
 # C9 PSI-trend window construction (EV#6). The reference distribution is a
 # FIXED calibrator fit on the earliest chronological block; the monitoring
@@ -136,6 +165,30 @@ def _predict(model: _LogisticModel, x: list[float]) -> list[float]:
     return [_sigmoid(model.a * ((xi - model.mean) / model.std) + model.b) for xi in x]
 
 
+def _quantile(values: list[float], q: float) -> float:
+    """Linear-interpolated ``q``-quantile of ``values`` (``0 <= q <= 1``).
+
+    Sorts a copy and interpolates between the two nearest ranks (the same
+    'linear' convention as numpy's default), so the threshold is a stable,
+    deterministic function of the supplied sample alone. Raises on empty input
+    or a ``q`` outside ``[0, 1]`` -- both are caller bugs, not runtime states.
+    """
+    if not values:
+        raise ValueError("_quantile: empty values")
+    if not 0.0 <= q <= 1.0:
+        raise ValueError(f"_quantile: q must be in [0, 1], got {q}")
+    ordered = sorted(values)
+    if len(ordered) == 1:
+        return ordered[0]
+    pos = q * (len(ordered) - 1)
+    lo = math.floor(pos)
+    hi = math.ceil(pos)
+    if lo == hi:
+        return ordered[lo]
+    frac = pos - lo
+    return ordered[lo] * (1.0 - frac) + ordered[hi] * frac
+
+
 def walk_forward_calibration(
     scores: list[float],
     returns: list[float],
@@ -196,6 +249,207 @@ def walk_forward_calibration(
     if len(oos_probs) < min_oos:
         return None
     return {"walkforward": {"probabilities": oos_probs, "outcomes": oos_outcomes}}
+
+
+def walk_forward_ab(
+    baseline: list[float],
+    candidate: list[float],
+    returns: list[float],
+    anchor_ts: list[float],
+    guard_end_ts: list[float],
+    *,
+    n_folds: int = 5,
+    min_oos: int = MIN_OOS_SAMPLES,
+    label: Literal["direction", "magnitude"] = "direction",
+    mag_q: float = 0.5,
+    regime: list[float] | None = None,
+) -> dict[str, Any] | None:
+    """PAIRED purged walk-forward A/B: two arms over an identical fold set.
+
+    Mirrors :func:`walk_forward_calibration` exactly -- same chronological sort,
+    same expanding folds, same GAP-1 purge (train events whose ``guard_end_ts``
+    resolves strictly before the test fold starts) -- but Platt-calibrates BOTH
+    a ``baseline`` series (the v1 score) and a ``candidate`` series (the v2
+    feature) on the SAME purged training events and predicts the SAME test
+    events. A fold contributes its out-of-sample points only when BOTH arms fit
+    on that fold, so the two arms share an identical OOS index set and their
+    Brier / resolution are directly comparable (an unpaired comparison would
+    confound the feature's effect with a differing event sample).
+
+    Returns ``{"baseline": {"probabilities", "outcomes"}, "candidate": {...}}``
+    with identical ``outcomes`` in both arms, or ``None`` (family stays "not yet
+    measured") when the shared out-of-sample count is below ``min_oos``, no fold
+    admits both arms, or inputs are too short. This is a SHADOW measurement: it
+    calibrates nothing into the gate and changes no score.
+
+    When a per-event ``regime`` series is supplied (same length and order as the
+    inputs), the value attached to each shared out-of-sample point is collected
+    in fold order and returned under a top-level ``"regime"`` key aligned 1:1
+    with ``outcomes``. This lets a caller stratify the OOS pairs by an exogenous
+    regime WITHOUT changing the fold set or the purge -- the strata then share
+    one identical, leak-safe calibration rather than each refitting its own
+    folds. The regime values themselves never enter any fit or prediction.
+    """
+    n = len(baseline)
+    if not (
+        n
+        == len(candidate)
+        == len(returns)
+        == len(anchor_ts)
+        == len(guard_end_ts)
+    ):
+        raise ValueError("walk_forward_ab: input lists length mismatch")
+    if regime is not None and len(regime) != n:
+        raise ValueError("walk_forward_ab: regime length mismatch")
+    if n < min_oos or n < n_folds + 1:
+        return None
+
+    order = sorted(range(n), key=lambda i: anchor_ts[i])
+    base = [baseline[i] for i in order]
+    cand = [candidate[i] for i in order]
+    a = [anchor_ts[i] for i in order]
+    g = [guard_end_ts[i] for i in order]
+    r = [returns[i] for i in order]
+    reg = [regime[i] for i in order] if regime is not None else None
+    # Direction label (the default) is fold-invariant, so it is precomputed once.
+    # The magnitude label is fold-RELATIVE: its threshold is a quantile of the
+    # TRAINING returns only, computed inside the fold loop to stay leak-safe.
+    direction_y = [1.0 if r[i] > 0.0 else 0.0 for i in range(n)]
+
+    val_size = max(1, n // (n_folds + 1))
+    base_probs: list[float] = []
+    cand_probs: list[float] = []
+    oos_outcomes: list[float] = []
+    oos_regime: list[float] = []
+    for k in range(n_folds):
+        val_start = n - (n_folds - k) * val_size
+        val_end = val_start + val_size
+        if val_start <= 0:
+            continue
+        test_start_time = a[val_start]
+        train_idx = [i for i in range(val_start) if g[i] < test_start_time]
+        if len(train_idx) < MIN_TRAIN_SAMPLES:
+            continue
+        val_range = range(val_start, val_end)
+        # Build the labels for this fold. For the magnitude label the threshold
+        # is the ``mag_q`` quantile of |return| over the PURGED TRAINING events
+        # only -- the test fold never informs its own threshold (leak-safe), and
+        # both arms share these identical outcomes (pairing preserved).
+        if label == "magnitude":
+            tau = _quantile([abs(r[i]) for i in train_idx], mag_q)
+            train_y = [1.0 if abs(r[i]) > tau else 0.0 for i in train_idx]
+            test_y = [1.0 if abs(r[i]) > tau else 0.0 for i in val_range]
+        else:
+            train_y = [direction_y[i] for i in train_idx]
+            test_y = [direction_y[i] for i in val_range]
+        base_model = _fit_logistic([base[i] for i in train_idx], train_y)
+        cand_model = _fit_logistic([cand[i] for i in train_idx], train_y)
+        # Pairing guard: only emit the fold when BOTH arms calibrate, so the
+        # two OOS index sets stay identical and the delta is unconfounded.
+        if base_model is None or cand_model is None:
+            continue
+        base_probs.extend(_predict(base_model, [base[i] for i in val_range]))
+        cand_probs.extend(_predict(cand_model, [cand[i] for i in val_range]))
+        oos_outcomes.extend(test_y)
+        if reg is not None:
+            oos_regime.extend(reg[i] for i in val_range)
+
+    if len(oos_outcomes) < min_oos:
+        return None
+    block: dict[str, Any] = {
+        "baseline": {"probabilities": base_probs, "outcomes": oos_outcomes},
+        "candidate": {"probabilities": cand_probs, "outcomes": oos_outcomes},
+    }
+    if reg is not None:
+        block["regime"] = oos_regime
+    return block
+
+
+def partition_live_tail(
+    block: dict[str, dict[str, list[float]]],
+    *,
+    live_min: int = LIVE_TAIL_MIN_SAMPLES,
+    wf_min: int = MIN_OOS_SAMPLES,
+) -> dict[str, dict[str, list[float]]] | None:
+    """Split a pooled walk-forward block into ``{walkforward, live}`` (ADR-0017).
+
+    The pooled OOS pairs produced by :func:`walk_forward_calibration` are in
+    CHRONOLOGICAL order (earliest fold first, latest fold last), so the last
+    ``live_min`` pairs are the most recent out-of-sample window. They are
+    DECLARED as the live-incubation surrogate (there is no real live feed in an
+    offline backtest); the older remainder is the walk-forward reference.
+
+    Returns the two-block dict only when the pool is large enough to leave BOTH
+    partitions adequately powered (``len >= live_min + wf_min``). Otherwise
+    returns ``None`` -- the caller then keeps the full pooled block and
+    ``live_brier`` stays honestly "not yet measured" rather than splitting a
+    small sample into two noisy halves. The live tail is intentionally small,
+    so the resulting ``live_vs_wf_ratio`` is a coarse drift alarm, not a precise
+    threshold (see module-level ``LIVE_SOURCE_TAG`` note).
+    """
+    wf = block.get("walkforward")
+    if wf is None:
+        return None
+    probs = wf["probabilities"]
+    outcomes = wf["outcomes"]
+    n = len(probs)
+    if n < live_min + wf_min:
+        return None
+    cut = n - live_min
+    return {
+        "walkforward": {
+            "probabilities": probs[:cut],
+            "outcomes": outcomes[:cut],
+        },
+        "live": {
+            "probabilities": probs[cut:],
+            "outcomes": outcomes[cut:],
+        },
+    }
+
+
+def partition_conformal(
+    block: dict[str, dict[str, list[float]]],
+    *,
+    alpha: float = CONFORMAL_ALPHA,
+    cal_fraction: float = CONFORMAL_CALIBRATION_FRACTION,
+    min_side: int = CONFORMAL_MIN_SIDE,
+) -> dict[str, Any] | None:
+    """Split a pooled walk-forward block into a split-conformal block (ADR-0018).
+
+    The pooled OOS pairs from :func:`walk_forward_calibration` are chronological,
+    so the earlier ``cal_fraction`` slice calibrates the split-conformal (Vovk)
+    conformity quantile and the held-out later slice measures empirical marginal
+    coverage against the ``1 - alpha`` guarantee. This is an INDEPENDENT view of
+    the same OOS pool used by :func:`partition_live_tail` -- coverage and live
+    Brier-drift are different diagnostics on the same evidence.
+
+    Returns the producer-shaped block
+    ``{"alpha", "calibration": {...}, "test": {...}}`` only when BOTH sides
+    clear ``min_side`` (adequately powered calibration quantile and coverage
+    estimate). Otherwise returns ``None`` so the caller omits the block and the
+    family's ``conformal_coverage`` stays honestly "not yet measured".
+    """
+    wf = block.get("walkforward")
+    if wf is None:
+        return None
+    probs = wf["probabilities"]
+    outcomes = wf["outcomes"]
+    n = len(probs)
+    cut = int(n * cal_fraction)
+    if cut < min_side or (n - cut) < min_side:
+        return None
+    return {
+        "alpha": alpha,
+        "calibration": {
+            "probabilities": probs[:cut],
+            "outcomes": outcomes[:cut],
+        },
+        "test": {
+            "probabilities": probs[cut:],
+            "outcomes": outcomes[cut:],
+        },
+    }
 
 
 def walk_forward_psi_trend(
@@ -271,7 +525,13 @@ def walk_forward_psi_trend(
 
 __all__ = [
     "CALIBRATOR_TAG",
+    "CONFORMAL_ALPHA",
+    "CONFORMAL_CALIBRATION_FRACTION",
+    "CONFORMAL_MIN_SIDE",
+    "CONFORMAL_SOURCE_TAG",
     "FOLD_SCHEME_TAG",
+    "LIVE_SOURCE_TAG",
+    "LIVE_TAIL_MIN_SAMPLES",
     "MIN_OOS_SAMPLES",
     "MIN_TRAIN_SAMPLES",
     "PSI_TREND_MAX_WINDOWS",
@@ -279,6 +539,9 @@ __all__ = [
     "PSI_TREND_MIN_WINDOW_SAMPLES",
     "PSI_TREND_SOURCE_TAG",
     "TARGET_TAG",
+    "partition_conformal",
+    "partition_live_tail",
+    "walk_forward_ab",
     "walk_forward_calibration",
     "walk_forward_psi_trend",
 ]

@@ -48,6 +48,27 @@ REQUIRED_PROVENANCE_KEYS = (
     "stacked_used",
 )
 
+# ADR-0016: the three provenance keys that describe an upstream ML-modelling
+# layer (BCa bootstrap, block permutation, stacking ensemble). A pipeline that
+# performs no such modelling -- an SMC-direct "no-ML" pipeline whose returns
+# come straight from events and whose scores are raw event scores -- legitimately
+# cannot declare them; for such a class they are NOT-APPLICABLE rather than
+# not-declared. The remaining required keys (wf_scheme, wf_embargo_bars,
+# psr_method) are pipeline-agnostic and stay required for every class.
+ML_MODELLING_PROVENANCE_KEYS = frozenset({
+    "bootstrap_method",
+    "block_size",
+    "stacked_used",
+})
+
+# ADR-0016: provenance key by which a family declares its pipeline class, and
+# the recognised no-ML classes that waive ML_MODELLING_PROVENANCE_KEYS. The
+# waiver is conditional: an absent or UNKNOWN pipeline_class grants no waiver,
+# so the keys cannot be dropped by declaring an arbitrary string.
+PIPELINE_CLASS_KEY = "pipeline_class"
+SMC_DIRECT_NO_ML = "smc_direct_no_ml"
+NO_ML_PIPELINE_CLASSES = frozenset({SMC_DIRECT_NO_ML})
+
 # Default thresholds mirrored here for aggregation only.
 # The source of truth for each threshold is the originating sprint's
 # module and/or sprint-plan document that introduced the check; the
@@ -186,6 +207,13 @@ class FamilyMetrics:
     # with conformal_coverage_tolerance slack.
     conformal_coverage: float | None = None
     conformal_target: float | None = None
+    # ADR-0023: additive tier-2 move-size sizing qualifier. ``True`` = the v1
+    # score cleared the pre-registered §2 resolution bar for this family;
+    # ``False`` = it did not (hard blocker on ``magnitude_resolution_floor``);
+    # ``None`` = not yet measured (non-blocking unless strict). ``magnitude_auc``
+    # is the score-alone OOS AUC, surfaced for transparency only.
+    magnitude_resolution_pass: bool | None = None
+    magnitude_auc: float | None = None
     # W1.a: non-numeric hardening metadata (wf_scheme, bootstrap_method,
     # psr_method, ...). Keys listed in REQUIRED_PROVENANCE_KEYS are
     # required under strict mode.
@@ -506,6 +534,41 @@ class PromotionGate:
             metrics["regime_degraded"] = 0.0
             ok_regime = True
 
+        # ADR-0023: additive move-size resolution floor. A family is move-size
+        # sizeable only if the v1 score cleared the pre-registered §2 bar
+        # (AUC floor + bootstrap CI + permutation-null resolution). Additive to
+        # ``brier_threshold`` — direction stays guarded, this never lowers a bar.
+        if snapshot.magnitude_resolution_pass is None:
+            if t.strict_provenance:
+                blockers.append({
+                    "check": "magnitude_resolution_floor",
+                    "severity": "info",
+                    "observed": None,
+                    "threshold": 1.0,
+                    "message": "magnitude_resolution not yet measured",
+                })
+                ok_magnitude = False
+            else:
+                ok_magnitude = True
+        elif snapshot.magnitude_resolution_pass:
+            metrics["magnitude_resolution_pass"] = 1.0
+            if snapshot.magnitude_auc is not None:
+                metrics["magnitude_auc"] = float(snapshot.magnitude_auc)
+            ok_magnitude = True
+        else:
+            metrics["magnitude_resolution_pass"] = 0.0
+            if snapshot.magnitude_auc is not None:
+                metrics["magnitude_auc"] = float(snapshot.magnitude_auc)
+            blockers.append({
+                "check": "magnitude_resolution_floor",
+                "severity": "blocker",
+                "observed": 0.0,
+                "threshold": 1.0,
+                "message": "family does not clear the ADR-0023 §2 move-size "
+                           "resolution bar",
+            })
+            ok_magnitude = False
+
         # C9.1 PSI-trend slope.
         if snapshot.psi_slope is None:
             if t.strict_provenance:
@@ -577,16 +640,31 @@ class PromotionGate:
         # Required provenance keys. Only enforced in strict mode; in lax
         # mode the keys are surfaced verbatim into Decision.provenance.
         if t.strict_provenance:
+            # ADR-0016: a recognised no-ML pipeline class waives the
+            # ML-modelling keys (they are not-applicable, not missing). An
+            # absent or unknown class grants no waiver.
+            no_ml_class = provenance_out.get(PIPELINE_CLASS_KEY) in NO_ML_PIPELINE_CLASSES
+
+            def _required(key: str) -> bool:
+                # ADR-0016: ML-modelling keys are not-applicable (not required)
+                # for a declared no-ML pipeline class; all other keys stay
+                # required for every class.
+                return not (no_ml_class and key in ML_MODELLING_PROVENANCE_KEYS)
+
             for key in REQUIRED_PROVENANCE_KEYS:
-                if key not in provenance_out:
-                    blockers.append({
-                        "check": f"provenance.{key}",
-                        "severity": "info",
-                        "observed": None,
-                        "threshold": 0.0,
-                        "message": f"provenance.{key} not declared",
-                    })
-            ok_provenance = all(key in provenance_out for key in REQUIRED_PROVENANCE_KEYS)
+                if key in provenance_out or not _required(key):
+                    continue
+                blockers.append({
+                    "check": f"provenance.{key}",
+                    "severity": "info",
+                    "observed": None,
+                    "threshold": 0.0,
+                    "message": f"provenance.{key} not declared",
+                })
+            ok_provenance = all(
+                key in provenance_out or not _required(key)
+                for key in REQUIRED_PROVENANCE_KEYS
+            )
         else:
             ok_provenance = True
 
@@ -601,6 +679,7 @@ class PromotionGate:
                 ok_psi,
                 ok_live,
                 ok_regime,
+                ok_magnitude,
                 ok_psi_slope,
                 ok_conformal,
                 ok_provenance,
@@ -636,8 +715,12 @@ __all__ = [
     "DEFAULT_BRIER_CI_UPPER_MAX",
     "DEFAULT_CONFORMAL_COVERAGE_TOLERANCE",
     "DEFAULT_PSI_SLOPE_MAX",
+    "ML_MODELLING_PROVENANCE_KEYS",
+    "NO_ML_PIPELINE_CLASSES",
+    "PIPELINE_CLASS_KEY",
+    "REQUIRED_PROVENANCE_KEYS",
+    "SMC_DIRECT_NO_ML",
     "FamilyMetrics",
     "GateThresholds",
     "PromotionGate",
-    "REQUIRED_PROVENANCE_KEYS",
 ]

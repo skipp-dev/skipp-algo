@@ -51,6 +51,7 @@ def test_structure_artifact_contract_is_schema_valid_and_consistent() -> None:
     assert "ipda_range" not in payload["structure"]
     assert "htf_fvg_bias" not in payload["structure"]
     assert "broken_fractal_signals" not in payload["structure"]
+    assert "rejection_blocks" not in payload["structure"]
 
     assert set(payload["auxiliary"].keys()) == {
         "liquidity_lines",
@@ -59,6 +60,7 @@ def test_structure_artifact_contract_is_schema_valid_and_consistent() -> None:
         "ipda_range",
         "htf_fvg_bias",
         "broken_fractal_signals",
+        "rejection_blocks",
     }
 
     diagnostics = payload["diagnostics"]

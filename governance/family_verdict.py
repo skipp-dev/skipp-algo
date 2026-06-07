@@ -64,6 +64,10 @@ _CALIBRATION_CHECKS = frozenset({
     "brier_threshold",
     "brier_ci_upper",
     "ece_threshold",
+    # ADR-0023: move-size resolution is a calibration-for-sizing concern, so a
+    # family failing it loses tier-2 ``risk_sizeable`` while keeping tier-1
+    # ``edge_supported``. Additive — direction-Brier (``brier_threshold``) stays.
+    "magnitude_resolution_floor",
 })
 
 Verdict = Literal["edge_supported", "no_edge", "inconclusive", "not_evaluated"]

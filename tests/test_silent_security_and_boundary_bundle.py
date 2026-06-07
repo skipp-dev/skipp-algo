@@ -32,6 +32,8 @@ from pathlib import Path
 
 import pytest
 
+from tests._guard_corpus import parse_module
+
 ROOT = Path(__file__).resolve().parents[1]
 
 _DIR_EXCLUDE = frozenset({
@@ -52,10 +54,7 @@ def _iter_prod_py() -> list[Path]:
 
 
 def _parse(p: Path) -> ast.AST | None:
-    try:
-        return ast.parse(p.read_text(encoding="utf-8"))
-    except SyntaxError:
-        return None
+    return parse_module(p)
 
 
 # ---------------------------------------------------------------------------

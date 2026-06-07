@@ -21,6 +21,8 @@ from pathlib import Path
 
 import pytest
 
+from tests._guard_corpus import parse_module
+
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
 _DIR_EXCLUDE = frozenset(
@@ -78,9 +80,8 @@ def _is_mutable_default(node: ast.AST) -> str | None:
 def test_no_mutable_default_arguments() -> None:
     hits: list[tuple[str, int, str, str]] = []
     for path in _iter_prod_py():
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, SyntaxError):  # pragma: no cover
+        tree = parse_module(path)
+        if tree is None:
             continue
         rel = path.relative_to(_REPO_ROOT).as_posix()
         for node in ast.walk(tree):
@@ -184,9 +185,8 @@ _FROZEN_ENV_SUBSCRIPT_SITES: frozenset[tuple[str, int]] = frozenset(
 def _measured_env_subscript_sites() -> set[tuple[str, int]]:
     out: set[tuple[str, int]] = set()
     for path in _iter_prod_py():
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, SyntaxError):  # pragma: no cover
+        tree = parse_module(path)
+        if tree is None:
             continue
         rel = path.relative_to(_REPO_ROOT).as_posix()
         for node in ast.walk(tree):

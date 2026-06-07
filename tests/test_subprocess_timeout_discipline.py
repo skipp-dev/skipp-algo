@@ -37,6 +37,8 @@ from pathlib import Path
 
 import pytest
 
+from tests._guard_corpus import parse_module, read_source
+
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
 _DIR_EXCLUDE: frozenset[str] = frozenset(
@@ -109,13 +111,11 @@ def _has_timeout_kwarg(node: ast.Call) -> bool:
 
 
 def _collect_violations(path: Path) -> list[tuple[int, str]]:
-    try:
-        text = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
+    text = read_source(path)
+    if text is None:
         return []
-    try:
-        tree = ast.parse(text)
-    except SyntaxError:
+    tree = parse_module(path)
+    if tree is None:
         return []
     lines = text.splitlines()
     out: list[tuple[int, str]] = []

@@ -6,9 +6,12 @@ import pytest
 from governance import PromotionGate
 from governance.promotion_gate import (
     DECISION_SCHEMA_VERSION,
+    ML_MODELLING_PROVENANCE_KEYS,
+    PIPELINE_CLASS_KEY,
+    REQUIRED_PROVENANCE_KEYS,
+    SMC_DIRECT_NO_ML,
     FamilyMetrics,
     GateThresholds,
-    REQUIRED_PROVENANCE_KEYS,
 )
 from governance.types import EventFamily
 
@@ -35,6 +38,8 @@ def _strict_snapshot(family: EventFamily = "BOS") -> FamilyMetrics:
     snap.conformal_coverage = 0.92
     snap.conformal_target = 0.90
     snap.brier_ci_upper = 0.21  # block-bootstrap CI upper still under bar
+    snap.magnitude_resolution_pass = True  # ADR-0023 move-size bar cleared
+    snap.magnitude_auc = 0.62
     snap.provenance = {
         "wf_scheme": "purged_kfold",
         "wf_embargo_bars": 32,
@@ -91,6 +96,46 @@ def test_live_vs_wf_ratio_blocker() -> None:
     blockers = [b["check"] for b in d["blockers"] if b["severity"] == "blocker"]
     assert "live_vs_wf_ratio" in blockers
     assert d["metrics"]["live_vs_wf_ratio"] == pytest.approx(0.30 / 0.18)
+
+
+def test_magnitude_resolution_unmeasured_is_non_blocking_in_lax_mode() -> None:
+    # ADR-0023: the additive move-size check is a qualifier, not a regression.
+    # An unmeasured family keeps the legacy direction-only behaviour.
+    snap = _green_snapshot()
+    assert snap.magnitude_resolution_pass is None
+    d = PromotionGate().evaluate(snap)
+    assert d["promoted"] is True
+    checks = {b["check"] for b in d["blockers"]}
+    assert "magnitude_resolution_floor" not in checks
+
+
+def test_magnitude_resolution_pass_surfaces_auc_metric() -> None:
+    snap = _green_snapshot()
+    snap.magnitude_resolution_pass = True
+    snap.magnitude_auc = 0.66
+    d = PromotionGate().evaluate(snap)
+    assert d["promoted"] is True
+    assert d["metrics"]["magnitude_resolution_pass"] == 1.0
+    assert d["metrics"]["magnitude_auc"] == pytest.approx(0.66)
+
+
+def test_magnitude_resolution_failure_blocks_additively() -> None:
+    # A family that does not clear the ADR-0023 §2 bar is hard-blocked on the
+    # new check while the direction-Brier check stays green (additive design).
+    snap = _green_snapshot()
+    snap.magnitude_resolution_pass = False
+    d = PromotionGate().evaluate(snap)
+    assert d["promoted"] is False
+    blockers = [b["check"] for b in d["blockers"] if b["severity"] == "blocker"]
+    assert blockers == ["magnitude_resolution_floor"]
+    assert d["metrics"]["magnitude_resolution_pass"] == 0.0
+
+
+def test_magnitude_resolution_unmeasured_info_blocks_in_strict_mode() -> None:
+    snap = _green_snapshot()  # leaves magnitude_resolution_pass None
+    d = PromotionGate(GateThresholds(strict_provenance=True)).evaluate(snap)
+    info = {b["check"] for b in d["blockers"] if b["severity"] == "info"}
+    assert "magnitude_resolution_floor" in info
 
 
 def test_audit_string_contains_each_blocker() -> None:
@@ -292,6 +337,76 @@ def test_strict_mode_passes_when_all_fields_present() -> None:
     assert d["blockers"] == []
     assert d["provenance"]["wf_scheme"] == "purged_kfold"
     assert d["provenance"]["stacked_used"] is True
+
+
+def _no_ml_strict_snapshot(family: EventFamily = "BOS") -> FamilyMetrics:
+    """Strict snapshot for an SMC-direct no-ML pipeline (ADR-0016).
+
+    Clears every W1.a numeric check, declares the pipeline class, and supplies
+    ONLY the pipeline-agnostic provenance keys -- the ML-modelling keys
+    (bootstrap_method/block_size/stacked_used) are deliberately absent because
+    no such modelling layer exists.
+    """
+    snap = _strict_snapshot(family)
+    snap.provenance = {
+        "wf_scheme": "purged_kfold",
+        "wf_embargo_bars": 32,
+        "psr_method": "minIS",
+        PIPELINE_CLASS_KEY: SMC_DIRECT_NO_ML,
+    }
+    return snap
+
+
+def test_no_ml_class_waives_ml_modelling_provenance_keys() -> None:
+    # ADR-0016: a declared no-ML pipeline is not blocked by the three
+    # ML-modelling keys -- they are not-applicable, not missing.
+    d = PromotionGate(GateThresholds(strict_provenance=True)).evaluate(
+        _no_ml_strict_snapshot()
+    )
+    checks = {b["check"] for b in d["blockers"]}
+    for key in ML_MODELLING_PROVENANCE_KEYS:
+        assert f"provenance.{key}" not in checks
+    assert d["promoted"] is True
+    assert d["posture"] == "green"
+    assert d["provenance"][PIPELINE_CLASS_KEY] == SMC_DIRECT_NO_ML
+
+
+def test_unknown_pipeline_class_grants_no_waiver() -> None:
+    # An arbitrary/unknown class value must NOT unlock the waiver, so the
+    # ML-modelling keys stay required.
+    snap = _no_ml_strict_snapshot()
+    snap.provenance = dict(snap.provenance)
+    snap.provenance[PIPELINE_CLASS_KEY] = "totally_made_up_class"
+    d = PromotionGate(GateThresholds(strict_provenance=True)).evaluate(snap)
+    checks = {b["check"] for b in d["blockers"]}
+    for key in ML_MODELLING_PROVENANCE_KEYS:
+        assert f"provenance.{key}" in checks
+    assert d["promoted"] is False
+
+
+def test_no_ml_class_still_requires_pipeline_agnostic_keys() -> None:
+    # The waiver is scoped to the ML-modelling keys only; the pipeline-agnostic
+    # keys (wf_scheme/wf_embargo_bars/psr_method) stay required for every class.
+    snap = _no_ml_strict_snapshot()
+    snap.provenance = {PIPELINE_CLASS_KEY: SMC_DIRECT_NO_ML}
+    d = PromotionGate(GateThresholds(strict_provenance=True)).evaluate(snap)
+    checks = {b["check"] for b in d["blockers"]}
+    assert "provenance.wf_scheme" in checks
+    assert "provenance.wf_embargo_bars" in checks
+    assert "provenance.psr_method" in checks
+    assert d["promoted"] is False
+
+
+def test_no_ml_class_does_not_waive_conformal_coverage() -> None:
+    # ADR-0016 changes only the provenance-key requirement; conformal coverage
+    # is computed on the OOS pairs and stays an applicable, measured guard.
+    snap = _no_ml_strict_snapshot()
+    snap.conformal_coverage = None
+    snap.conformal_target = None
+    d = PromotionGate(GateThresholds(strict_provenance=True)).evaluate(snap)
+    checks = {b["check"] for b in d["blockers"]}
+    assert "conformal_coverage" in checks
+    assert d["promoted"] is False
 
 
 def test_brier_ci_upper_breach_blocks_even_in_lax_mode() -> None:

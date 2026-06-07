@@ -116,6 +116,32 @@ jobs:
             echo "No changes to commit."
             exit 0
           fi
+          # No-op snapshot guard: the gate rewrites volatile provenance
+          # (generated_at / source.commit_sha / source.workflow_run in the JSON;
+          # _Generated: / _Source commit: in the Markdown) on EVERY run, so
+          # `git diff --staged --quiet` is never empty even when the release-gate
+          # decision is unchanged. Without this guard the cron opens a fresh
+          # AWAITING_DATA PR each run — pure timestamp churn that burns a ~23min
+          # CI cycle + a merge-queue slot for zero information (post-mortem: PR
+          # #2486 closed as superseded no-op). Strip the +/- diff body of the
+          # file-header lines and the volatile provenance fields; if nothing
+          # substantive remains the snapshot is content-identical to main, so
+          # skip the commit/PR. A real decision change (release_gate value,
+          # quartile thresholds, event counts) is NOT exempted and still lands.
+          substantive=$(git diff --staged -- \
+              docs/fvg_quality/release_gate.json \
+              docs/fvg_quality/release_gate.md \
+            | grep -E '^[+-]' \
+            | grep -vE '^[+-]{3} ' \
+            | grep -vE '^[+-]( *"(generated_at|commit_sha|workflow_run)":|_(Generated|Source commit):)' \
+            || true)
+          if [ -z "$substantive" ]; then
+            echo "Only volatile provenance changed (timestamp/run id); content-identical release-gate. Skipping no-op PR."
+            git restore --staged --worktree \
+              docs/fvg_quality/release_gate.json \
+              docs/fvg_quality/release_gate.md || true
+            exit 0
+          fi
           git commit -m "chore(docs): D4 fvg quality release-gate ${GITHUB_RUN_ID}"
           BRANCH="auto/fvg-quality-quartile-gate-${GITHUB_RUN_ID}"
           if git push -u origin "HEAD:${BRANCH}" 2>&1; then
