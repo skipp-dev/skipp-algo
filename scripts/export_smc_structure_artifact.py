@@ -13,6 +13,7 @@ from scripts.databento_production_workbook import resolve_production_workbook_pa
 from scripts.explicit_structure_from_bars import build_explicit_structure_from_bars
 from scripts.explicit_structure_profiles import EVENT_LOGIC_VERSION, validate_structure_profile
 from scripts.smc_atomic_write import atomic_write_text
+from smc_core.cached_workbook_reader import read_daily_bars
 from smc_core.schema_version import SCHEMA_VERSION
 
 DEFAULT_WORKBOOK = Path("artifacts/smc_microstructure_exports/databento_volatility_production_workbook.xlsx")
@@ -161,7 +162,7 @@ def build_structure_artifact_payload(
     structure_profile = validate_structure_profile(structure_profile)
     workbook = resolve_production_workbook_path(workbook=workbook, repo_root=Path(__file__).resolve().parents[1])
 
-    daily_bars = pd.read_excel(workbook, sheet_name="daily_bars")
+    daily_bars = read_daily_bars(workbook)
     entries = _build_entries(daily_bars, structure_profile=structure_profile)
 
     aggregate_structure = {
