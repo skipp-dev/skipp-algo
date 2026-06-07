@@ -22,6 +22,9 @@ certifi>=2024.0.0
 coverage>=7.6.0
 pytest-cov>=6.0.0
 pytest-xdist>=3.6.0
+# pytest-split powers the duration-balanced matrix sharding of the `validate`
+# job (4 shards via --splits/--group). See docs/perf and .test_durations.
+pytest-split>=0.11.0
 # pytest-testmon powers the opt-in PR fast-feedback lane (vars.SMC_TESTMON_PR_LANE).
 # Always installed; only invoked when the var is set. See docs/perf/testmon_pr_lane.md.
 pytest-testmon>=2.1.0
