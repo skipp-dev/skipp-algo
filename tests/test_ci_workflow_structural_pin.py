@@ -173,11 +173,22 @@ def test_pytest_lanes_pinned(validate_job: dict) -> None:
         "validate MUST keep at least two pytest invocation lanes "
         "(PR-no-coverage + main-with-coverage); a testmon fast lane is optional."
     )
-    fast_lanes = [run for _, run in pytest_runs if "-n auto" in run and "--dist=worksteal" in run]
+    # The full-suite lanes are duration-balanced and sharded across the matrix
+    # (pytest-split). `--dist=loadscope` keeps a module's tests on a single
+    # xdist worker so module-level caches stay warm within a shard.
+    fast_lanes = [
+        run
+        for _, run in pytest_runs
+        if "-n auto" in run
+        and "--dist=loadscope" in run
+        and "--splits 4" in run
+        and "--group" in run
+    ]
     assert len(fast_lanes) >= 2, (
         "Both the PR-no-coverage and main-with-coverage pytest lanes MUST use "
-        "`-n auto --dist=worksteal` for parallel work-stealing execution; "
-        "without it the validate job exceeds its 45-min budget on full suites."
+        "`-n auto --dist=loadscope --splits 4 --group ${{ matrix.group }}` so the "
+        "full suite is sharded across the matrix; without it the validate job "
+        "exceeds its 45-min budget on full suites."
     )
     for run in fast_lanes:
         assert "--maxfail=1" in run, (

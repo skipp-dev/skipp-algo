@@ -35,6 +35,19 @@ defaults:
 
 jobs:
   validate:
+    # Duration-balanced matrix sharding (pytest-split): the full test suite is
+    # split into 4 groups that run in parallel on standard GitHub-hosted
+    # runners, turning the ~40 min single-runner validate into ~10-12 min wall
+    # time. The matrix is static (a single `validate` job, no fan-out job) to
+    # satisfy the single-job CI contract. All three test lanes (testmon PR
+    # fast lane, PR no-coverage, main coverage) shard across the 4 groups via
+    # pytest-split, so every lane runs 4-way parallel and stays well under the
+    # 45 min job timeout even when testmon's selection collapses to the full
+    # suite (e.g. a requirements / widely-imported-module change).
+    strategy:
+      fail-fast: false
+      matrix:
+        group: ['1', '2', '3', '4']
     # Runner policy (2026-05-20): CI should use the native GitHub-hosted
     # runner by default. Reserve self-hosted routing for workflows that
     # genuinely need local Windows/GPU/cache characteristics.
@@ -129,13 +142,34 @@ jobs:
       - name: Run Python tests (PR / non-main push — testmon fast lane)
         if: steps.gate.outputs.run_heavy == 'true' && (github.event_name == 'pull_request' || github.ref != 'refs/heads/main') && vars.SMC_TESTMON_PR_LANE == 'true'
         run: |
-          python -m pytest -q --maxfail=1 --testmon
+          # pytest-split first partitions the suite into 4 duration-balanced
+          # groups; testmon then deselects unaffected tests within this shard's
+          # quarter. This parallelises selection (and any cold-cache full run)
+          # across all 4 matrix shards instead of running single-process on one
+          # runner, which previously hit the 45 min job timeout whenever a diff
+          # invalidated testmon's selection (e.g. requirements / a widely
+          # imported module changed) and forced a full-suite re-run.
+          python -m pytest -q --maxfail=1 --testmon --splits 4 --group "${{ matrix.group }}"
       - name: Run Python tests (PR / non-main push — no coverage)
         if: steps.gate.outputs.run_heavy == 'true' && (github.event_name == 'pull_request' || github.ref != 'refs/heads/main') && vars.SMC_TESTMON_PR_LANE != 'true'
         run: |
-          python -m pytest -q --maxfail=1 -n auto --dist=worksteal
+          # Duration-balanced shard of the full suite (pytest-split). --dist=loadscope
+          # keeps a module's tests on one xdist worker so fixture / module-level
+          # caches (e.g. the daily_bars workbook reader) stay warm within a shard.
+          python -m pytest -q --maxfail=1 -n auto --dist=loadscope --splits 4 --group "${{ matrix.group }}"
       - name: Run Python tests (main push — with coverage)
         if: steps.gate.outputs.run_heavy == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          # coverage.py 7.x can drive measurement through CPython 3.12's
+          # sys.monitoring (PEP 669) instead of the legacy sys.settrace hook,
+          # which is markedly cheaper. Safe here because this lane is pinned to
+          # Python 3.12.
+          COVERAGE_CORE: sysmon
         run: |
-          python -m pytest -q --maxfail=1 -n auto --dist=worksteal --cov --cov-report=term-missing:skip-covered
+          # Each shard measures coverage for its own slice only; the per-shard
+          # term-missing report is therefore partial (the union across all four
+          # shards equals full coverage). Coverage is an audit artefact, not a
+          # required gate, so cross-shard .coverage merging is intentionally
+          # left out to keep the matrix simple.
+          python -m pytest -q --maxfail=1 -n auto --dist=loadscope --splits 4 --group "${{ matrix.group }}" --cov --cov-report=term-missing:skip-covered
 

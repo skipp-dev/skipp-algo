@@ -372,13 +372,16 @@ def smc_live_endpoint(
     symbol: str = Query(..., description="Ticker symbol"),
     tf: str = Query("15m", description="Timeframe: 5m, 15m, 1H, 4H"),
 ) -> dict[str, Any]:
-    """Flat ``smc-live-overlay/1`` payload for the Pine bridge (B1 news fields).
+    """Flat ``smc-live-overlay/1`` payload for the Pine bridge.
 
-    Serves only the genuinely on-demand news fields (``news_strength``,
-    ``news_bias``). Baked-only overlay fields (``flow_rel_vol``, ``squeeze_on``
-    and the B2 set) are omitted so the Pine side keeps its baked ``mp.*``
-    defaults for them. ``exclude_none`` keeps the payload flat and
-    contract-conformant; the overlay may only add or tighten, never loosen.
+    Serves the on-demand news fields (``news_strength``, ``news_bias``) plus the
+    canonical overlay ``tone`` (B2), computed through the same layering function
+    that bakes ``mp.tone`` so the live tone shares the baseline's weighting and
+    thresholds (identical semantics, fresher inputs). The remaining baked-only
+    overlay fields (``flow_rel_vol``, ``squeeze_on`` and the rest of the B2 set)
+    are omitted so the Pine side keeps its baked ``mp.*`` defaults for them.
+    ``exclude_none`` keeps the payload flat and contract-conformant; the overlay
+    may only add or tighten, never loosen.
 
     Off-universe / no-data symbols yield a news score of exactly ``0.0`` (the
     newsstack returns ``0.0`` for unknown tickers and on any lookup error). In
@@ -401,19 +404,40 @@ def smc_live_endpoint(
     snap = build_smc_snapshot(symbol, tf)
     score = float(snap.get("newsscore", 0.0) or 0.0)
 
+    # Directional news bias from the signed score, with a neutral deadband.
+    if score > _NEWS_BIAS_EPS:
+        news_bias = "BULLISH"
+    elif score < -_NEWS_BIAS_EPS:
+        news_bias = "BEARISH"
+    else:
+        news_bias = "NEUTRAL"
+
     # Only attach news fields when there is a genuine signal; a 0.0 score means
     # off-universe / no data -> envelope-only -> Pine keeps baked mp.* news.
     news_fields: dict[str, Any] = {}
     if score != 0.0:
-        strength = min(1.0, abs(score))
-        if score > _NEWS_BIAS_EPS:
-            bias = "BULLISH"
-        elif score < -_NEWS_BIAS_EPS:
-            bias = "BEARISH"
-        else:
-            bias = "NEUTRAL"
-        news_fields["news_strength"] = round(strength, 4)
-        news_fields["news_bias"] = bias
+        news_fields["news_strength"] = round(min(1.0, abs(score)), 4)
+        news_fields["news_bias"] = news_bias
+
+    # Canonical overlay tone: reuse the same layering function that bakes
+    # ``mp.tone`` so the live tone shares the baseline's weighting/thresholds
+    # (identical semantics, fresher inputs). Omit it on no-data (flat technical
+    # score *and* zero news) so Pine keeps its baked ``mp.tone`` instead of
+    # receiving a fabricated NEUTRAL override -- mirroring the news-field rule.
+    tech_score = float(snap.get("technicalscore", 0.5) or 0.5)
+    tech_signal = str(snap.get("technicalsignal", "NEUTRAL") or "NEUTRAL")
+    tone_fields: dict[str, Any] = {}
+    if tech_score != 0.5 or score != 0.0:
+        from scripts.smc_library_layering import compute_library_layering
+
+        regime = snap.get("regime") or {}
+        layering = compute_library_layering(
+            news=news_bias,
+            technical_strength=min(1.0, abs(tech_score - 0.5) * 2.0),
+            technical_bias=tech_signal,
+            volume_regime=str(regime.get("volume_regime", "NORMAL")),
+        )
+        tone_fields["tone"] = layering["tone"]
 
     payload = LiveOverlayPayload(
         symbol=symbol,
@@ -421,6 +445,7 @@ def smc_live_endpoint(
         asof_ts=int(time.time()),
         stale=False,
         **news_fields,
+        **tone_fields,
     )
     return flatten_overlay(payload)
 

@@ -22,6 +22,7 @@ from scripts.smc_structure_state import build_structure_state
 from scripts.smc_structure_state_light import build_structure_state_light
 from smc_core.benchmark import EventFamily
 from smc_core.bias_merge import merge_bias
+from smc_core.cached_workbook_reader import read_daily_bars
 from smc_core.ensemble_quality import build_ensemble_quality, serialize_ensemble_quality
 from smc_core.htf_context import build_htf_bias_context
 from smc_core.scoring import (
@@ -207,7 +208,7 @@ def _load_source_bars(symbol: str, timeframe: str, resolved_inputs: dict[str, An
 
     if daily and isinstance(workbook_path, Path) and workbook_path.exists():
         try:
-            daily_bars = pd.read_excel(workbook_path, sheet_name="daily_bars")
+            daily_bars = read_daily_bars(workbook_path)
         except Exception as exc:
             logger.warning(
                 "workbook daily_bars sheet unreadable for symbol=%s workbook_path=%s: %s",
