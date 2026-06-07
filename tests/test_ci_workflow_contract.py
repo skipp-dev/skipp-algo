@@ -111,8 +111,8 @@ def test_three_pytest_invocation_lanes_present() -> None:
     assert "--cov" in joined and "--cov-report=term-missing:skip-covered" in joined, (
         "coverage lane removed or report format changed"
     )
-    assert joined.count("-n auto --dist=worksteal") == 2, (
-        "xdist parallelism dropped from non-testmon lanes"
+    assert joined.count("-n auto --dist=loadscope --splits 4 --group") == 2, (
+        "xdist parallelism or pytest-split sharding dropped from non-testmon lanes"
     )
 
 
