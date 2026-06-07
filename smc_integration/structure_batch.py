@@ -12,6 +12,7 @@ import pandas as pd
 from scripts.explicit_structure_from_bars import build_explicit_structure_from_bars
 from scripts.explicit_structure_profiles import EVENT_LOGIC_VERSION, validate_structure_profile
 from scripts.load_databento_export_bundle import load_export_bundle
+from smc_core.cached_workbook_reader import read_daily_bars
 from smc_core.schema_version import SCHEMA_VERSION
 from smc_integration.artifact_resolution import resolve_structure_artifact_inputs
 from smc_integration.timeframes import WorkbookFallbackTimeframeError, is_daily_timeframe
@@ -83,7 +84,7 @@ def _load_symbol_bars_from_workbook(workbook: Path, symbol: str) -> pd.DataFrame
     intentionally daily-only. Callers MUST NOT use it for intraday timeframes
     or they will silently feed daily OHLC into intraday structure detection.
     """
-    daily_bars = pd.read_excel(workbook, sheet_name="daily_bars")
+    daily_bars = read_daily_bars(workbook)
     bars = daily_bars.copy()
     bars["symbol"] = bars.get("symbol", "").astype(str).str.strip().str.upper()
     bars = bars.loc[bars["symbol"].eq(str(symbol).strip().upper())].copy()
@@ -504,7 +505,7 @@ def write_structure_artifacts_from_workbook(
 
     requested_symbols = _normalize_symbols(symbols) if symbols else []
     if not requested_symbols and resolved_workbook is not None:
-        daily_bars = pd.read_excel(resolved_workbook, sheet_name="daily_bars")
+        daily_bars = read_daily_bars(resolved_workbook)
         requested_symbols = _derive_symbols_from_workbook(daily_bars)
     if not requested_symbols:
         raise ValueError("symbols must not be empty when workbook is unavailable")

@@ -45,6 +45,9 @@ _BASELINE_LRU_CACHE_SITES: frozenset[tuple[str, str]] = frozenset({
     ("governance/run_manifest.py", "_git_sha"),
     # maxsize=1 — single process-wide pin_registry.toml snapshot (ADR-0009).
     ("tests/_pin_registry.py", "_load"),
+    # maxsize=8 — memoizes the daily_bars workbook parse per (path, mtime);
+    # domain is the handful of production workbooks read during a run.
+    ("smc_core/cached_workbook_reader.py", "_read_daily_bars_cached"),
 })
 
 
