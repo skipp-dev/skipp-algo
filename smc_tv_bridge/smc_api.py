@@ -15,8 +15,10 @@ Start (mock — no FMP key needed):
 from __future__ import annotations
 
 import logging
+import math
 import os
 import sys
+import threading
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -220,6 +222,65 @@ def _get_news_score(symbol: str) -> float:
         return float(get_news_score(symbol))
     except Exception:
         return 0.0
+
+
+# ── VIX (market-wide volatility) overlay source ─────────────
+# VIX is market-wide, so one fetch serves every symbol within the TTL window.
+# The value is cached (TTL=300s) and refreshed under a lock so a cold/expired
+# cache coalesces concurrent /smc_live calls into a single upstream request,
+# capping FMP load. Fail-closed: any miss yields None and the overlay omits
+# ``vix_level`` so Pine keeps its baked ``mp.*`` fallback (never loosens).
+_VIX_SYMBOL = "^VIX"
+_VIX_TTL_SECONDS = 300.0
+_VIX_MOCK_LEVEL = 18.5
+_vix_lock = threading.Lock()
+_vix_cache: dict[str, float | None] = {"value": None, "fetched_at": 0.0}
+
+
+def _fetch_vix_uncached() -> float | None:
+    """Fetch the current VIX level via the shared FMP client. None on miss.
+
+    Network seam for :func:`_get_vix_level`; reuses the candle provider's FMP
+    client (same ``getattr(..., "_client")`` access pattern as
+    :func:`build_smc_snapshot`). Fail-closed -- any error or a non-positive /
+    non-finite price yields None.
+    """
+    try:
+        fmp_client = getattr(_get_candle_provider(), "_client", None)
+        if fmp_client is None:
+            return None
+        quote = fmp_client.get_index_quote(_VIX_SYMBOL)
+        price = (quote or {}).get("price")
+        if price is None:
+            return None
+        level = float(price)
+    except (ValueError, TypeError, KeyError, RuntimeError, OSError) as exc:
+        logger.debug("VIX fetch skipped: %s", exc)
+        return None
+    if not math.isfinite(level) or level <= 0.0:
+        return None
+    return level
+
+
+def _get_vix_level() -> float | None:
+    """Cached market-wide VIX level (TTL=300s, thread-safe). None when down.
+
+    The fetch is coalesced under ``_vix_lock`` so a cold or expired cache makes
+    exactly one upstream request even under concurrent load; both successes and
+    misses are throttled to once per TTL. Holding the lock across the (bounded-
+    timeout) FMP fetch is acceptable because VIX is market-wide and refreshed at
+    most once per TTL window.
+    """
+    if USE_MOCK:
+        return _VIX_MOCK_LEVEL
+    now = time.monotonic()
+    with _vix_lock:
+        fetched_at = _vix_cache["fetched_at"] or 0.0
+        if fetched_at > 0.0 and (now - fetched_at) < _VIX_TTL_SECONDS:
+            return _vix_cache["value"]
+        _vix_cache["value"] = _fetch_vix_uncached()
+        _vix_cache["fetched_at"] = time.monotonic()
+        return _vix_cache["value"]
 
 
 # ══════════════════════════════════════════════════════════
@@ -439,6 +500,13 @@ def smc_live_endpoint(
         )
         tone_fields["tone"] = layering["tone"]
 
+    # Market-wide VIX (B2): cached and symbol-independent. Omitted on a fetch
+    # miss so Pine keeps its baked ``mp.vix`` (silent fallback; never loosens).
+    vix_fields: dict[str, Any] = {}
+    vix_level = _get_vix_level()
+    if vix_level is not None:
+        vix_fields["vix_level"] = round(vix_level, 2)
+
     payload = LiveOverlayPayload(
         symbol=symbol,
         tf=tf,
@@ -446,6 +514,7 @@ def smc_live_endpoint(
         stale=False,
         **news_fields,
         **tone_fields,
+        **vix_fields,
     )
     return flatten_overlay(payload)
 
