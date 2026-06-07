@@ -78,6 +78,21 @@ def _lock_pins() -> dict[str, str]:
     return pins
 
 
+def _pinned_direct_requirements() -> list[Requirement]:
+    """Direct deps that are present in the lock (drift is covered separately).
+
+    Parametrizing the specifier check over this subset keeps it free of
+    ``pytest.skip`` — the missing-pin case is asserted by
+    ``test_direct_dep_is_pinned_in_lock``.
+    """
+    pins = _lock_pins()
+    return [
+        req
+        for req in _direct_requirements()
+        if canonicalize_name(req.name) in pins
+    ]
+
+
 def test_requirements_and_lock_exist() -> None:
     assert _REQUIREMENTS.is_file(), f"missing {_REQUIREMENTS}"
     assert _LOCK.is_file(), f"missing {_LOCK}"
@@ -122,7 +137,7 @@ def test_direct_dep_is_pinned_in_lock(requirement: Requirement) -> None:
 
 @pytest.mark.parametrize(
     "requirement",
-    _direct_requirements(),
+    _pinned_direct_requirements(),
     ids=lambda r: canonicalize_name(r.name),
 )
 def test_lock_pin_satisfies_source_specifier(requirement: Requirement) -> None:
@@ -130,13 +145,12 @@ def test_lock_pin_satisfies_source_specifier(requirement: Requirement) -> None:
 
     A stale lock pinning a version below the declared floor (e.g.
     ``pytest-testmon>=2.1.0`` but lock ``==2.0.0``) would install a build the
-    project explicitly forbids.
+    project explicitly forbids. Only deps actually present in the lock are
+    parametrized here; missing pins are caught by
+    ``test_direct_dep_is_pinned_in_lock``.
     """
     name = canonicalize_name(requirement.name)
-    pins = _lock_pins()
-    if name not in pins:
-        pytest.skip("covered by test_direct_dep_is_pinned_in_lock")
-    locked = pins[name]
+    locked = _lock_pins()[name]
     # ``prereleases=True`` so a locked rc/post build is still evaluated
     # against the specifier rather than being silently excluded.
     assert requirement.specifier.contains(Version(locked), prereleases=True), (
