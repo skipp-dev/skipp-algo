@@ -26,7 +26,7 @@ import math
 import sys
 from collections import defaultdict
 from collections.abc import Iterable, Mapping
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 from governance.promotion_gate import GateThresholds
@@ -90,8 +90,8 @@ def _parse_generated_at(value: object) -> datetime | None:
     except ValueError:
         return None
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
 
 
 def _iso_week_label(moment: datetime) -> str:
@@ -103,7 +103,7 @@ def _iso_week_label(moment: datetime) -> str:
 def _iso_week_window(reference: date, lookback_weeks: int) -> set[str]:
     """Enumerate the ISO-week labels in the trailing window ending today."""
     window: set[str] = set()
-    cursor = datetime.combine(reference, datetime.min.time(), tzinfo=timezone.utc)
+    cursor = datetime.combine(reference, datetime.min.time(), tzinfo=UTC)
     for offset in range(lookback_weeks):
         window.add(_iso_week_label(cursor - timedelta(weeks=offset)))
     return window
@@ -257,7 +257,7 @@ def build(
     if lookback_weeks <= 0:
         raise ValueError("lookback_weeks must be positive")
 
-    reference = reference_date or datetime.now(timezone.utc).date()
+    reference = reference_date or datetime.now(UTC).date()
     window = _iso_week_window(reference, lookback_weeks)
     points = _collect_points(source_dir, window)
 
@@ -265,7 +265,7 @@ def build(
     payload = {
         "schema_version": DASHBOARD_SCHEMA_VERSION,
         "report_schema_version": REPORT_SCHEMA_VERSION,
-        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "reference_date": reference.isoformat(),
         "lookback_weeks": lookback_weeks,
         "source_dir": str(source_dir),
@@ -275,7 +275,7 @@ def build(
 
     output_dir.mkdir(parents=True, exist_ok=True)
     reference_week = _iso_week_label(
-        datetime.combine(reference, datetime.min.time(), tzinfo=timezone.utc)
+        datetime.combine(reference, datetime.min.time(), tzinfo=UTC)
     )
     json_path = output_dir / f"promotion_gate_dashboard_{reference_week}.json"
     atomic_write_json(payload, json_path, sort_keys=False)
