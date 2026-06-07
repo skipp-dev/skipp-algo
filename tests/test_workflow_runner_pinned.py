@@ -34,6 +34,7 @@ _WORKFLOWS_DIR = _REPO_ROOT / ".github" / "workflows"
 _HOSTED_RUNS_ON = "${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}"
 _RESOLVED_RUNS_ON = "${{ fromJson(needs.select-runner.outputs.runs_on_json) }}"
 _HEAVY_CI_CUSTOM_LABEL_EXPR = "${{ vars.SMC_CI_SELF_HOSTED_LABEL || vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || '' }}"
+_FAST_GATES_CUSTOM_LABEL_EXPR = "${{ vars.SMC_CI_SELF_HOSTED_LABEL || '' }}"
 _PRIORITY_CRON_CUSTOM_LABEL_EXPR = "${{ vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || vars.SMC_SELF_HOSTED_LABEL }}"
 _ROUTED_WORKFLOWS = {
     "docs-lint.yml": {"worker_jobs": {"inline-backticks"}},
@@ -148,7 +149,19 @@ def test_no_bare_ubuntu_latest_runs_on() -> None:
     )
 
 
-@pytest.mark.parametrize("workflow_name", ["smc-fast-pr-gates.yml", "smc-release-gates.yml"])
+def test_fast_gates_prefers_github_hosted_selector() -> None:
+    # fast-gates is merge-critical: it must NOT fall back to priority-cron.
+    # A dead self-hosted runner keeps the merge queue blocked for up to 6h
+    # because timeout-minutes is only enforced by the runner itself.
+    workflow = yaml.safe_load((_WORKFLOWS_DIR / "smc-fast-pr-gates.yml").read_text(encoding="utf-8"))
+    resolve_script = _step_run(_jobs(workflow)["select-runner"], "Resolve worker runner")
+
+    assert f'--custom-label "{_FAST_GATES_CUSTOM_LABEL_EXPR}"' in resolve_script
+    assert "SMC_PRIORITY_CRON_SELF_HOSTED_LABEL" not in resolve_script
+    assert '--custom-label "${{ vars.SMC_SELF_HOSTED_LABEL }}"' not in resolve_script
+
+
+@pytest.mark.parametrize("workflow_name", ["smc-release-gates.yml"])
 def test_heavy_ci_workflows_prefer_ci_specific_self_hosted_selector(workflow_name: str) -> None:
     workflow = yaml.safe_load((_WORKFLOWS_DIR / workflow_name).read_text(encoding="utf-8"))
     resolve_script = _step_run(_jobs(workflow)["select-runner"], "Resolve worker runner")
