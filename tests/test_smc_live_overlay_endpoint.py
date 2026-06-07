@@ -25,8 +25,9 @@ import smc_tv_bridge.smc_api as smc_api
 
 _SCHEMA_PATH = Path(__file__).resolve().parents[1] / "spec" / "smc_live_overlay.schema.json"
 
-# Fields the Phase-1 endpoint must NOT serve (baked-only or B2 forward-compat);
-# their absence is what lets Pine keep its baked mp.* defaults.
+# Fields the endpoint must NOT serve (baked-only or not-yet-populated B2);
+# their absence is what lets Pine keep its baked mp.* defaults. ``tone`` is
+# served (WP-G), so it is intentionally absent from this set.
 _BAKED_ONLY_KEYS = (
     "flow_rel_vol",
     "squeeze_on",
@@ -34,7 +35,6 @@ _BAKED_ONLY_KEYS = (
     "flow_delta_proxy_pct",
     "ats_state",
     "ats_zscore",
-    "tone",
 )
 
 
@@ -98,7 +98,9 @@ def test_smc_live_off_universe_emits_envelope_only() -> None:
 
     Emitting a fabricated ``news_strength: 0.0`` would override a real baked
     news signal on the Pine side, loosening a gating condition with non-data;
-    the safety invariant requires degrading to the envelope only instead.
+    the safety invariant requires degrading to the envelope only instead. With
+    no technical score either (defaulting to the neutral 0.5), ``tone`` is also
+    omitted so Pine keeps its baked ``mp.tone``.
     """
     with pytest.MonkeyPatch.context() as mp:
         mp.setattr(smc_api, "build_smc_snapshot", lambda symbol, tf: {"newsscore": 0.0})
@@ -107,12 +109,59 @@ def test_smc_live_off_universe_emits_envelope_only() -> None:
     jsonschema.validate(result, _schema())
     assert "news_strength" not in result
     assert "news_bias" not in result
+    assert "tone" not in result
     # Envelope is still complete and valid.
     assert result["schema"] == "smc-live-overlay/1"
     assert result["symbol"] == "ZZZZ"
     assert result["tf"] == "15m"
     assert isinstance(result["asof_ts"], int)
     assert result["stale"] is False
+
+
+def test_smc_live_tone_mock_wiring() -> None:
+    """Mock wiring serves a canonical ``tone`` (B2, WP-G).
+
+    The mock snapshot (technical score 0.68 BULLISH, news score +0.42) yields a
+    bullish global heat, so the layering tone is ``BULLISH``. The tone is
+    derived through the same ``compute_library_layering`` function that bakes
+    ``mp.tone``, so the live overlay shares the baseline's weighting/thresholds.
+    """
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(smc_api, "USE_MOCK", True)
+        result = smc_api.smc_live_endpoint(symbol="aapl", tf="15m")
+
+    jsonschema.validate(result, _schema())
+    assert result["tone"] in {"BULLISH", "BEARISH", "NEUTRAL"}
+    assert result["tone"] == "BULLISH"
+
+
+def test_smc_live_tone_matches_canonical_layering() -> None:
+    """The served tone equals ``compute_library_layering`` for the same inputs.
+
+    Guards against drift between the endpoint's tone mapping and the canonical
+    baking path: both must agree field-for-field on identical scores.
+    """
+    from scripts.smc_library_layering import compute_library_layering
+
+    snap = {
+        "newsscore": -0.30,
+        "technicalscore": 0.20,
+        "technicalsignal": "BEARISH",
+        "regime": {"volume_regime": "NORMAL"},
+    }
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(smc_api, "build_smc_snapshot", lambda symbol, tf: snap)
+        result = smc_api.smc_live_endpoint(symbol="aapl", tf="15m")
+
+    expected = compute_library_layering(
+        news="BEARISH",
+        technical_strength=min(1.0, abs(0.20 - 0.5) * 2.0),
+        technical_bias="BEARISH",
+        volume_regime="NORMAL",
+    )
+    jsonschema.validate(result, _schema())
+    assert result["tone"] == expected["tone"]
+    assert result["tone"] == "BEARISH"
 
 
 def test_smc_live_unsupported_timeframe() -> None:
