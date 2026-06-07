@@ -54,9 +54,8 @@ _DIR_EXCLUDE = {
 # Drift since last baseline:
 #   - scripts/run_smc_e2e_smoke_test.py: 3 sites shifted by +3 lines
 #     (53 → 56, 97 → 100, 133 → 136) due to header edits; count unchanged.
-#   - scripts/phase5_perf_trend.py: NEW file with 1 site (line 163).
-#     write_text on a Markdown report — pure ASCII content, but encoding=
-#     should still be added in a follow-up; freezing here to unblock CI.
+#   - scripts/phase5_perf_trend.py: FIXED (encoding="utf-8" added, line 163);
+#     entry removed from _FROZEN_SITES.
 _FROZEN_SITES: dict[str, frozenset[int]] = {
     "open_prep/realtime_signals.py": frozenset({179}),
     "pine_apply_surface_reduction.py": frozenset({53, 87, 397, 471, 502, 555}),
@@ -64,7 +63,6 @@ _FROZEN_SITES: dict[str, frozenset[int]] = {
     "scripts/fvg_label_audit_q3.py": frozenset({58}),
     "scripts/fvg_session_artifact_diagnosis.py": frozenset({36}),
     "scripts/investigate_universe_delta.py": frozenset({28}),
-    "scripts/phase5_perf_trend.py": frozenset({163}),
     "scripts/run_smc_e2e_smoke_test.py": frozenset({56, 100, 136}),
     "streamlit_terminal.py": frozenset({1618, 2010, 2027}),
 }
