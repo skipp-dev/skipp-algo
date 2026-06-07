@@ -125,9 +125,12 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
             844,
             ("_DEFAULT_BULLISH_QUALITY_CFG",),
         ),
-        ("smc_tv_bridge/smc_api.py", 184, ("_candle_provider",)),
-        ("smc_tv_bridge/smc_api.py", 192, ("_regime_provider",)),
-        ("smc_tv_bridge/smc_api.py", 200, ("_tech_provider",)),
+        # WP-H (PR #2612): lines shifted 184/192/200 -> 186/194/202 by the
+        # ``import math``/``import threading`` + VIX overlay helper block added
+        # above the lazy provider getters in smc_api.py.
+        ("smc_tv_bridge/smc_api.py", 186, ("_candle_provider",)),
+        ("smc_tv_bridge/smc_api.py", 194, ("_regime_provider",)),
+        ("smc_tv_bridge/smc_api.py", 202, ("_tech_provider",)),
         (
             "streamlit_terminal.py",
             596,
