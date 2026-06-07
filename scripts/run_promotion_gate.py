@@ -40,7 +40,7 @@ import os
 import re
 import sys
 from collections.abc import Mapping
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, get_args
 
@@ -48,7 +48,6 @@ from databento_universe import (
     MissingUniverseSnapshotError,
     load_universe_for_backtest,
 )
-
 from governance.promotion_gate import (
     DECISION_SCHEMA_VERSION,
     FamilyMetrics,
@@ -154,7 +153,7 @@ def build_report(
     thresholds = GateThresholds(strict_provenance=strict_provenance)
     gate = PromotionGate(thresholds)
     decisions: list[Decision] = [gate.evaluate(snap) for snap in snapshots]
-    ts = (now or datetime.now(timezone.utc)).isoformat(timespec="seconds")
+    ts = (now or datetime.now(UTC)).isoformat(timespec="seconds")
     report: dict[str, Any] = {
         "schema_version": REPORT_SCHEMA_VERSION,
         "gate_schema_version": DECISION_SCHEMA_VERSION,

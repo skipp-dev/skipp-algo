@@ -67,7 +67,7 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Iterable, Mapping
 
 logger = logging.getLogger(__name__)
@@ -186,7 +186,7 @@ def _normalize_ts(value: Any) -> int:
         except Exception:
             pass
     if isinstance(value, datetime):
-        return int(value.replace(tzinfo=value.tzinfo or timezone.utc).timestamp() * 1_000_000_000)
+        return int(value.replace(tzinfo=value.tzinfo or UTC).timestamp() * 1_000_000_000)
     try:
         return int(value)
     except (TypeError, ValueError):
@@ -198,7 +198,7 @@ def _ts_to_iso(ns: int) -> str:
     if ns <= 0:
         return ""
     try:
-        return datetime.fromtimestamp(ns / 1_000_000_000, tz=timezone.utc).strftime(
+        return datetime.fromtimestamp(ns / 1_000_000_000, tz=UTC).strftime(
             "%Y-%m-%dT%H:%M:%SZ"
         )
     except (OverflowError, OSError, ValueError):

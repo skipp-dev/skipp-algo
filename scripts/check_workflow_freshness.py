@@ -32,7 +32,7 @@ import sys
 import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Callable
 
 
@@ -87,7 +87,7 @@ def check_workflow(
     fetcher: Fetcher | None = None,
 ) -> WorkflowFreshness:
     """Look up the most recent successful run of one workflow."""
-    now = now or datetime.now(tz=timezone.utc)
+    now = now or datetime.now(tz=UTC)
     fetcher = fetcher or _default_fetcher
     url = (
         f"https://api.github.com/repos/{repo}/actions/workflows/"
@@ -150,7 +150,7 @@ def check_all(
     fetcher: Fetcher | None = None,
 ) -> FreshnessReport:
     """Check a list of ``(workflow_file, budget_hours)`` pairs."""
-    now = now or datetime.now(tz=timezone.utc)
+    now = now or datetime.now(tz=UTC)
     results = [
         check_workflow(
             repo=repo,

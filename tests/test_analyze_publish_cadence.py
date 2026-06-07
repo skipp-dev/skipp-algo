@@ -7,7 +7,7 @@ tests run entirely off synthetic commit timelines.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -20,8 +20,7 @@ from scripts.analyze_publish_cadence import (
     main,
 )
 
-
-NOW = datetime(2026, 5, 29, 12, 0, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 5, 29, 12, 0, 0, tzinfo=UTC)
 
 
 def _fake_log(commits_age_days: list[float]):

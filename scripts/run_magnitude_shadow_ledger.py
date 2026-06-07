@@ -43,7 +43,7 @@ import argparse
 import hashlib
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from governance.family_returns import DEFAULT_COST_BPS
@@ -87,7 +87,7 @@ LEDGER_COLUMNS = (
 
 
 def _today_utc() -> str:
-    return datetime.now(timezone.utc).date().isoformat()
+    return datetime.now(UTC).date().isoformat()
 
 
 def events_content_hash(events: list[dict[str, Any]]) -> str:

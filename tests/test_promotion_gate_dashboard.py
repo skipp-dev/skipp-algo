@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -14,7 +14,6 @@ from scripts.build_promotion_gate_dashboard import (
     build,
     main,
 )
-
 
 FAMILIES = ("BOS", "OB", "FVG")
 REFERENCE = date(2026, 5, 25)  # Monday, ISO week 2026-W22.
@@ -52,7 +51,7 @@ def _synthetic_report(generated_at: datetime, week_index: int) -> dict[str, obje
 
 def _seed_archive(source_dir: Path, weeks: int) -> None:
     source_dir.mkdir(parents=True, exist_ok=True)
-    anchor = datetime.combine(REFERENCE, datetime.min.time(), tzinfo=timezone.utc)
+    anchor = datetime.combine(REFERENCE, datetime.min.time(), tzinfo=UTC)
     for offset in range(weeks):
         moment = anchor - timedelta(weeks=offset)
         report = _synthetic_report(moment, week_index=offset)
