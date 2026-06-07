@@ -241,6 +241,34 @@ def test_calibration_only_block_is_tier1_edge_not_tier2() -> None:
     assert any("risk_sizeable withheld" in note for note in v["notes"])
 
 
+def test_magnitude_resolution_block_is_tier1_edge_not_tier2() -> None:
+    # ADR-0023: a family blocked solely by the additive move-size check keeps
+    # its tier-1 edge proof but loses tier-2 risk_sizeable (the gate grades the
+    # sizing axis, not the existence-of-edge axis).
+    family, min_n = _psr_family()
+    report = _report([
+        _decision(
+            family,
+            promoted=False,
+            metrics={"psr": 0.97, "extra.n_returns": float(min_n)},
+            blockers=[{
+                "check": "magnitude_resolution_floor",
+                "severity": "blocker",
+                "observed": 0.0,
+                "threshold": 1.0,
+                "message": "family does not clear the ADR-0023 §2 move-size "
+                           "resolution bar",
+            }],
+        )
+    ])
+
+    v = next(x for x in build_verdicts(report) if x["family"] == family)
+
+    assert v["verdict"] == "edge_supported"
+    assert v["risk_sizeable"] is False
+    assert any("risk_sizeable withheld" in note for note in v["notes"])
+
+
 def test_fully_promoted_is_tier2_risk_sizeable() -> None:
     family, min_n = _psr_family()
     report = _report([

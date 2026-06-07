@@ -6,6 +6,166 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-04) — ADR-0019: order-flow imbalance shadow feature (recorded-only)
+
+New ADR-0019 order-flow candidate on the aggressor-signed data path:
+**order-flow imbalance** (`governance/family_ofi_imbalance_v2.ofi_imbalance_at`),
+`abs(sum(signed_volume)) / sum(abs_volume)` in `[0, 1]` over the trailing
+`ATR_PERIOD` window ending at the anchor — the net one-sidedness of aggressor
+flow. This is the *direction* axis of order flow, orthogonal to turnover
+*magnitude* (`relative_volume`), price *impact* slope (Kyle's lambda) and
+*participant size* (`average_trade_size`): a deep book absorbs very one-sided
+flow at low lambda, a thin book shows high lambda at modest imbalance. It is a
+*simplified bar-level imbalance*, **not** canonical VPIN (VPIN buckets on
+equal-volume bars with bulk-volume classification; here the aggressor side is
+known per trade). To supply the honest denominator the producer
+(`scripts/pull_databento_edge_input.aggregate_signed_volume`) now also embeds
+per-bar `abs_volume` (the sum of all trade sizes, an unsigned magnitude)
+alongside `signed_volume` + `trade_count`; the OHLCV `volume` (a different
+source) is *not* used as the denominator (extended-hours mismatch). Strictly
+point-in-time, leak-free and honest-None (returns `None` rather than fabricating
+when `signed_volume`/`abs_volume` are absent or the window carries no traded
+size); the ratio is clamped to `[0, 1]`. Recorded onto both zone and level
+family events via `family_event_adapter`; **RECORDED-ONLY** — it does not feed
+the v1 score or any gate. Pending its pre-registered purged walk-forward A/B
+verdict (which requires a fresh EV-20 `with_trades` run carrying `abs_volume`).
+
+### Added (2026-06-04) — ADR-0019: average trade size shadow feature (recorded-only)
+
+New ADR-0019 order-flow candidate on the live aggressor-signed data path:
+**average trade size** (`governance/family_avg_trade_size_v2.average_trade_size_at`),
+the volume-weighted mean shares-per-trade `sum(volume) / sum(trade_count)` over
+the trailing `ATR_PERIOD` window ending at the anchor. This is the
+*participant-size* axis of order flow (institutional-footprint / block-trade
+proxy), orthogonal to the magnitude axis (`relative_volume`) and the
+direction/impact axis (`signed_volume` / Kyle's lambda). Because
+`volume = trade_count * avg_size` is an identity, `trade_count` alone is *not* a
+separate candidate — only the economically meaningful average size is taken
+(one new degree of freedom). The producer already embeds `trade_count`
+per-bar alongside `signed_volume`. Strictly point-in-time, leak-free and
+honest-None (returns `None` rather than fabricating when volume/trade_count are
+absent or the window's total count is zero). Recorded onto both zone and level
+family events via `family_event_adapter`; **RECORDED-ONLY** — it does not feed
+the v1 score or any gate. Pending its pre-registered purged walk-forward A/B
+verdict before any wiring is considered.
+
+
+
+The Lo & MacKinlay (1988) Variance Ratio `VR(2)` — the strongest close-only
+proxy for the *persistence / serial-dependence* axis — was evaluated as the next
+ADR-0019 shadow candidate. Because it is close-only (no live plumbing needed),
+its pre-registered purged walk-forward A/B was run pre-merge on the same harness
+and the same REAL Databento data as the WVF/ribbon candidates (two regimes,
+~22k events, 99.6% coverage; confirmed orthogonal beforehand, VR vs `score`
+Spearman −0.173). It returned `no_lift` across **all four** families (BOS, FVG,
+OB, SWEEP), so it was **not merged** — no dead shadow code is carried. Together
+with the already-zeroed `hurst_50` weight this closes the persistence axis.
+Recorded in `docs/governance/resolution_feature_gap_analysis.md` §5, which
+confirms the un-tapped lever is order-flow/volume and names the producer
+volume-plumbing as the next workstream.
+
+### Fixed (2026-06-03) — ADR-0019: EV-20 producer now carries `open` + `volume` per bar
+
+The real-data edge-input producer
+(`scripts/pull_databento_edge_input._resampled_bars_payload`) emitted only
+`timestamp/high/low/close` per resampled bar, silently dropping the `open`
+(first) and `volume` (sum) columns the resampler already aggregates. That
+starved every ADR-0019 order-flow candidate of its only input:
+`governance.family_score_features_v2.relative_volume_at` (and the planned
+Amihud illiquidity proxy) honestly returned `None` on every bar, so the
+order-flow axis could never be A/B-tested on real data — the one axis the
+resolution feature-gap analysis pins as the largest un-tapped signal.
+
+- `_resampled_bars_payload` now emits the full OHLCV bar
+  (`open/high/low/close/volume`), still byte-aligned with
+  `_prepare_symbol_resampled_bars` so the pipeline's anchor/lookahead
+  arithmetic is unchanged.
+- Extended `tests/test_pull_databento_edge_input.py` to assert the bar key set
+  is `{timestamp, open, high, low, close, volume}` and that the emitted `open`
+  and `volume` match the resampled frame exactly.
+- Point-in-time and leak-free by construction (volume is the bar's own
+  aggregate). Unblocks the pre-registered `relative_volume` A/B; the v1
+  `score`, `SCORE_SOURCE`, and the promotion gate are untouched.
+
+### Removed (2026-06-03) — ADR-0019: retire the Williams VIX Fix candidate (no lift)
+
+The `williams_vix_fix` candidate (Larry Williams' public-domain "VIX Fix", a
+price-only downside-deviation fear gauge,
+`(max(close[anchor-21..anchor]) - low[anchor]) / max(close) * 100`) was
+A/B-tested against the v1 `score` on REAL Databento data over two independent
+regimes via the paired purged walk-forward harness: a calm window
+(2025-01-02..2025-04-01) and a volatile one (2024-07-15..2024-10-15). Over
+22,114 recorded events it returned `no_lift` across **all four** families (BOS,
+FVG, OB, SWEEP) — out-of-sample resolution did not improve and the candidate
+discriminated worse than baseline in every family (e.g. BOS AUC 0.524 vs 0.567,
+FVG 0.510 vs 0.558, SWEEP 0.473 vs 0.527). Per the pre-registered ADR-0019 gate,
+a candidate that fails to lift resolution is retired rather than carried as dead
+shadow code.
+
+- Deleted `governance/family_vix_fix_v1.py` and `tests/test_family_vix_fix_v1.py`.
+- `governance/family_event_adapter` no longer records `williams_vix_fix`; the
+  optional `FamilyEvent.williams_vix_fix` field is removed.
+- The generic A/B on-ramp `scripts/run_feature_ab` is kept (reusable for the
+  next OHLC-pure candidate); default `--feature-key` stays `relative_volume`.
+- No change to the v1 `score`, `SCORE_SOURCE`, the promotion gate, or the
+  generic harness (`family_returns` / `family_calibration` / `family_feature_ab`).
+
+### Removed (2026-06-03) — ADR-0019: retire the momentum-ribbon candidate (no lift)
+
+The `momentum_ribbon` candidate (the smoothed-RSI "USI" multi-length stack
+score) was A/B-tested against the v1 `score` on REAL Databento data over two
+independent regimes via the paired purged walk-forward harness: a calm window
+(2025-01-02..2025-04-01) and a volatile one (2024-07-15..2024-10-15). Both
+returned `no_lift` across **all four** families (BOS, FVG, OB, SWEEP) — the
+candidate did not improve out-of-sample resolution and in the two cash-bearing
+families (BOS, FVG) discriminated slightly worse than the baseline. Per the
+pre-registered ADR-0019 gate, a candidate that fails to lift resolution is
+retired; it is removed rather than carried as dead shadow code.
+
+- Deleted `governance/family_momentum_ribbon_v2.py` and its tests.
+- Deleted `docs/governance/momentum_ribbon_v2_shadow_candidate.md`.
+- `governance/family_event_adapter` no longer records `momentum_ribbon`; the
+  optional `FamilyEvent.momentum_ribbon` field is removed.
+- The generic A/B on-ramp `scripts/run_feature_ab` is kept (reusable for the
+  next candidate) but its default `--feature-key` is now `relative_volume`;
+  `tests/test_run_feature_ab.py` exercises the driver against that feature.
+- No change to the v1 `score`, `SCORE_SOURCE`, the promotion gate, or the
+  generic harness (`family_returns` / `family_calibration` / `family_feature_ab`).
+
+### Added (2026-06-02) — ADR-0019 step 3: paired purged walk-forward A/B harness
+
+Builds on steps 1-2 (the extractor + the recorded feature). Adds the shadow
+measurement that answers the pre-registered ADR-0019 question: over a purged
+walk-forward, does the candidate feature discriminate event outcomes better
+than the v1 `score`? Primary metric is out-of-sample **resolution** (the Murphy
+discrimination component) — the binding promotion deficit. Changes **no** score,
+`SCORE_SOURCE`, or gate; v1 stays the default until the A/B clears on real data.
+
+- New `governance/family_calibration.walk_forward_ab`: a PAIRED purged
+  walk-forward that Platt-calibrates both arms (v1 `score` vs v2 feature) on the
+  same training events over identical folds, emitting a fold only when both arms
+  fit — so the two arms share one out-of-sample index set and their Brier /
+  resolution are directly comparable (an unpaired comparison would confound the
+  feature with a differing event sample).
+- New `governance/family_returns.extract_family_ab_samples`: per family, the
+  paired `(scores, features, returns, anchor_ts, guard_end_ts)` for events
+  carrying both arms, reusing the calibration purge guard so the A/B is
+  leak-safe by construction.
+- New module `governance/family_feature_ab`: the `resolution` metric plus
+  `family_feature_ab` / `family_feature_ab_report`, which return a shadow
+  verdict (`candidate_lifts_resolution` / `no_lift` / `regresses_calibration`).
+  A family with too few shared OOS points is not measurable yet: `family_feature_ab`
+  returns `None` and `family_feature_ab_report` omits it (never silently scored).
+  No-regression guards are a Brier proper-scoring check
+  plus an **absolute** ECE ceiling (deliberately not relative to the baseline —
+  a near-constant baseline trivially wins ECE and would perversely veto a sharp,
+  discriminating candidate).
+- Scope: this step compares feature-alone vs score-alone. The incremental
+  question (does the feature add resolution on top of the score) is the next
+  step.
+- 13 new tests (`tests/test_family_feature_ab.py`); calibration / returns /
+  adapter suites stay green.
+
 ### Fixed (2026-06-02) — f2 bootstrap PR title fails the ADR-0013 title lint
 
 The `workflow_dispatch` regeneration workflow

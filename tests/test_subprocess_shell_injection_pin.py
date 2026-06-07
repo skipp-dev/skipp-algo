@@ -18,11 +18,13 @@ Defense-only — no production code changes.
 from __future__ import annotations
 
 import ast
+import functools
 from collections import Counter
 from pathlib import Path
 
 import pytest
 
+from tests._guard_corpus import parse_module
 from tests._pin_registry import subprocess_shell_sites
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -104,13 +106,8 @@ def _scan_file(path: Path) -> tuple[Counter[tuple[str, str]], list[int]]:
     """Return ((site_counts, shell_true_lines)) for this file."""
     counts: Counter[tuple[str, str]] = Counter()
     shell_true_lines: list[int] = []
-    try:
-        source = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        return counts, shell_true_lines
-    try:
-        tree = ast.parse(source, filename=str(path))
-    except SyntaxError:
+    tree = parse_module(path)
+    if tree is None:
         return counts, shell_true_lines
     rel = path.relative_to(ROOT).as_posix()
     for node in ast.walk(tree):
@@ -125,6 +122,7 @@ def _scan_file(path: Path) -> tuple[Counter[tuple[str, str]], list[int]]:
     return counts, shell_true_lines
 
 
+@functools.cache
 def _observed_counts() -> dict[tuple[str, str], int]:
     out: Counter[tuple[str, str]] = Counter()
     for path in _iter_first_party_py_files():

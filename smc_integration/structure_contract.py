@@ -11,6 +11,7 @@ AUXILIARY_KEYS = (
     "ipda_range",
     "htf_fvg_bias",
     "broken_fractal_signals",
+    "rejection_blocks",
 )
 DEFAULT_STRUCTURE_PROFILE = "hybrid_default"
 DEFAULT_EVENT_LOGIC_VERSION = "v2"
@@ -69,6 +70,7 @@ def _auxiliary(raw: Any) -> dict[str, Any]:
         "ipda_range": dict(ipda_value),
         "htf_fvg_bias": dict(raw.get("htf_fvg_bias", {})) if isinstance(raw.get("htf_fvg_bias"), dict) else {},
         "broken_fractal_signals": list(raw.get("broken_fractal_signals", [])) if isinstance(raw.get("broken_fractal_signals"), list) else [],
+        "rejection_blocks": list(raw.get("rejection_blocks", [])) if isinstance(raw.get("rejection_blocks"), list) else [],
     }
 
 
@@ -101,6 +103,7 @@ def _counts(canonical_structure: dict[str, list[dict[str, Any]]], auxiliary: dic
         "session_ranges": len(auxiliary["session_ranges"]),
         "session_pivots": len(auxiliary["session_pivots"]),
         "broken_fractal_signals": len(auxiliary["broken_fractal_signals"]),
+        "rejection_blocks": len(auxiliary["rejection_blocks"]),
     }
 
 

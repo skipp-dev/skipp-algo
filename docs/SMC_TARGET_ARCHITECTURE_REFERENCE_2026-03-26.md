@@ -8,8 +8,8 @@ This document is the implementation reference for the next producer phase.
 It records the intended module split, canonical contracts, and rule sources so refactors can be compared against a stable target.
 
 ## Primary Functional References
-- Structure core (OB/FVG/BOS/qualifiers): Super OrderBlock / FVG / BoS Tools by makuchaku & eFe
-- Liquidity levels/sweeps: Liquidity by makuchaku & eFe
+- Structure core (OB/FVG/BOS/qualifiers): community SMC structure tooling (Super OrderBlock / FVG / BoS pattern)
+- Liquidity levels/sweeps: community liquidity-sweep tooling
 - Session/killzone context: ICT Killzones & Pivots [TFO]
 - HTF directional context: FVG Trend
 - Fractal qualifier: Broken Fractal

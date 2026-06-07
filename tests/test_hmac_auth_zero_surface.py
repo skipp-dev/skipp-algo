@@ -24,6 +24,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from tests._guard_corpus import parse_module
+
 ROOT = Path(__file__).resolve().parent.parent
 
 # Each entry is (relative_path, line_number, attribute_name).
@@ -67,9 +69,8 @@ def _iter_py_files() -> list[Path]:
 def _hmac_calls() -> set[tuple[str, int, str]]:
     found: set[tuple[str, int, str]] = set()
     for path in _iter_py_files():
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-        except (SyntaxError, UnicodeDecodeError):
+        tree = parse_module(path)
+        if tree is None:
             continue
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):

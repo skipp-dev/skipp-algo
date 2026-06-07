@@ -91,6 +91,32 @@ jobs:
             echo "No changes to commit."
             exit 0
           fi
+          # No-op snapshot guard: the emitter rewrites volatile provenance
+          # (generated_at / source_commit_sha / source_workflow_run) on EVERY
+          # run, so `git diff --staged --quiet` is never empty even when the
+          # substantive FVG health status is unchanged. Without this guard the
+          # cron opens a fresh awaiting_first_run PR each run — pure timestamp
+          # churn that burns a ~23min CI cycle + a merge-queue slot for zero
+          # information (post-mortem: PRs #2514/#2536 closed as no-ops).
+          # Strip the +/- diff body of the file-header lines and the three
+          # volatile provenance comments; if nothing substantive remains, the
+          # snapshot is content-identical to main, so skip the commit/PR. Real
+          # data changes HEALTH_STATUS / total_events / the emitted constants,
+          # which are NOT exempted and therefore still land a PR.
+          substantive=$(git diff --staged -- \
+              pine/generated/fvg_context_health.pine \
+              pine/generated/fvg_context_health.json \
+            | grep -E '^[+-]' \
+            | grep -vE '^[+-]{3} ' \
+            | grep -vE '^[+-]// (generated_at|source_commit_sha|source_workflow_run):' \
+            || true)
+          if [ -z "$substantive" ]; then
+            echo "Only volatile provenance changed (timestamp/run id); content-identical snapshot. Skipping no-op PR."
+            git restore --staged --worktree \
+              pine/generated/fvg_context_health.pine \
+              pine/generated/fvg_context_health.json || true
+            exit 0
+          fi
           git commit -m "chore(pine): FVG context health snapshot ${GITHUB_RUN_ID}"
           BRANCH="auto/fvg-context-pine-refresh-${GITHUB_RUN_ID}"
           if git push -u origin "HEAD:${BRANCH}" 2>&1; then

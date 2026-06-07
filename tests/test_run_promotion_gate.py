@@ -105,6 +105,8 @@ def _full_snapshot_dict(family: str) -> dict[str, object]:
         "psi_slope": 0.01,
         "conformal_coverage": 0.92,
         "conformal_target": 0.90,
+        "magnitude_resolution_pass": True,
+        "magnitude_auc": 0.62,
         "provenance": {
             "wf_scheme": "purged_kfold",
             "wf_embargo_bars": 32,

@@ -77,6 +77,16 @@ on:
         options:
           - pr            # open a governed auto-PR against main (NOT auto-merged)
           - artifact-only # upload reports only; commit nothing
+      with_trades:
+        description: "ADR-0016: also pull the trades schema and embed aggressor-signed volume per bar (Kyle's lambda A/B input)."
+        required: false
+        type: boolean
+        default: false
+      with_opra:
+        description: "ADR-0020: also pull OPRA.PILLAR option trades (parent symbology) and embed aggressor-signed UOA notional per bar (signed_uoa_notional A/B input). Requires an OPRA-entitled key."
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -166,6 +176,14 @@ jobs:
           if [ -n "${AS_OF// /}" ]; then
             AS_OF_FLAG=(--as-of "$AS_OF")
           fi
+          TRADES_FLAG=()
+          if [ "${{ inputs.with_trades }}" = "true" ]; then
+            TRADES_FLAG=(--with-trades)
+          fi
+          OPRA_FLAG=()
+          if [ "${{ inputs.with_opra }}" = "true" ]; then
+            OPRA_FLAG=(--with-opra)
+          fi
 
           mkdir -p artifacts/edge_runs governance/promotion_decisions
 
@@ -190,6 +208,8 @@ jobs:
               --start "$START" \
               --end "$END" \
               "${AS_OF_FLAG[@]}" \
+              "${TRADES_FLAG[@]}" \
+              "${OPRA_FLAG[@]}" \
               --output "$IN"
             RC_PULL=$?
             echo "::endgroup::"

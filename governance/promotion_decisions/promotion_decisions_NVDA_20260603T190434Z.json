@@ -1,0 +1,304 @@
+{
+  "schema_version": 2,
+  "gate_schema_version": 2,
+  "generated_at": "2026-06-03T19:04:34+00:00",
+  "strict_provenance": true,
+  "decisions": [
+    {
+      "schema_version": 2,
+      "family": "BOS",
+      "promoted": false,
+      "posture": "red",
+      "blockers": [
+        {
+          "check": "brier_threshold",
+          "severity": "blocker",
+          "observed": 0.23820903964646803,
+          "threshold": 0.22,
+          "message": "brier=0.2382 fails <= 0.2200"
+        },
+        {
+          "check": "brier_ci_upper",
+          "severity": "blocker",
+          "observed": 0.24689699333983878,
+          "threshold": 0.22,
+          "message": "brier_ci_upper=0.2469 fails <= 0.2200"
+        },
+        {
+          "check": "psi_drift",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.25,
+          "message": "psi not yet measured"
+        }
+      ],
+      "metrics": {
+        "brier": 0.23820903964646803,
+        "brier_ci_upper": 0.24689699333983878,
+        "ece": 0.03770239575141221,
+        "fdr_pvalue": 0.0004997501249375312,
+        "psr": 0.9999999720828845,
+        "mintrl_years": 0.21825396825396826,
+        "live_vs_wf_ratio": 0.9777801203123384,
+        "extra.sharpe_hat": 0.2120822227658164,
+        "extra.skew": 0.8469905822395772,
+        "extra.kurtosis": 7.76519319483114,
+        "extra.n_returns": 589.0,
+        "extra.periods_per_year": 252.0,
+        "extra.raw_pvalue": 0.0004997501249375312,
+        "extra.observed_periods_per_year": 2354.3885088919287,
+        "regime_degraded": 0.0,
+        "psi_slope": -0.00580588802607912,
+        "conformal_coverage": 0.9183673469387755,
+        "conformal_target": 0.9
+      },
+      "provenance": {
+        "wf_scheme": "expanding",
+        "wf_embargo_bars": 16,
+        "psr_method": "bailey_lopez_de_prado_2012",
+        "significance_method": "stationary_block_bootstrap_one_sided",
+        "significance_block_bars": 8,
+        "fdr_method": "benjamini_hochberg",
+        "calibration_method": "empirical_brier_ece_psi",
+        "brier_ci_method": "stationary_block_bootstrap_brier_p95",
+        "conformal_method": "split_conformal_vovk",
+        "psi_trend_method": "ols_psi_window_slope",
+        "pipeline_class": "smc_direct_no_ml",
+        "ev26_conformal_source": "ev26_walkforward_oos_split_conformal_v1",
+        "ev25_live_source": "ev25_walkforward_oos_recent_tail_v1",
+        "ev24_score_source": "atr_normalised_geometry_strength_v1",
+        "ev24_calibrator": "platt_logistic_standardised_v1",
+        "ev24_fold_scheme": "walkforward_purged_embargo_time",
+        "ev24_calibration_target": "sign_return_secondary_diagnostic",
+        "ev24_psi_trend_source": "ev24_fixed_reference_calibrator_chronological_windows_v1",
+        "ev24_regime_source": "kaufman_efficiency_ratio_trailing_closes_v1"
+      }
+    },
+    {
+      "schema_version": 2,
+      "family": "OB",
+      "promoted": false,
+      "posture": "red",
+      "blockers": [
+        {
+          "check": "brier_threshold",
+          "severity": "blocker",
+          "observed": 0.23583858677491393,
+          "threshold": 0.22,
+          "message": "brier=0.2358 fails <= 0.2200"
+        },
+        {
+          "check": "brier_ci_upper",
+          "severity": "blocker",
+          "observed": 0.24648800125944165,
+          "threshold": 0.22,
+          "message": "brier_ci_upper=0.2465 fails <= 0.2200"
+        },
+        {
+          "check": "psi_drift",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.25,
+          "message": "psi not yet measured"
+        }
+      ],
+      "metrics": {
+        "brier": 0.23583858677491393,
+        "brier_ci_upper": 0.24648800125944165,
+        "ece": 0.018861955799704358,
+        "fdr_pvalue": 0.0004997501249375312,
+        "psr": 0.9999952355754366,
+        "mintrl_years": 0.23015873015873015,
+        "live_vs_wf_ratio": 1.0707838976442507,
+        "extra.sharpe_hat": 0.22098313197761607,
+        "extra.skew": 0.21105430016506027,
+        "extra.kurtosis": 6.771433312103361,
+        "extra.n_returns": 412.0,
+        "extra.periods_per_year": 252.0,
+        "extra.raw_pvalue": 0.0004997501249375312,
+        "extra.observed_periods_per_year": 1645.747095010253,
+        "regime_degraded": 0.0,
+        "psi_slope": -0.004954464568478922,
+        "conformal_coverage": 1.0,
+        "conformal_target": 0.9
+      },
+      "provenance": {
+        "wf_scheme": "expanding",
+        "wf_embargo_bars": 12,
+        "psr_method": "bailey_lopez_de_prado_2012",
+        "significance_method": "stationary_block_bootstrap_one_sided",
+        "significance_block_bars": 6,
+        "fdr_method": "benjamini_hochberg",
+        "calibration_method": "empirical_brier_ece_psi",
+        "brier_ci_method": "stationary_block_bootstrap_brier_p95",
+        "conformal_method": "split_conformal_vovk",
+        "psi_trend_method": "ols_psi_window_slope",
+        "pipeline_class": "smc_direct_no_ml",
+        "ev26_conformal_source": "ev26_walkforward_oos_split_conformal_v1",
+        "ev25_live_source": "ev25_walkforward_oos_recent_tail_v1",
+        "ev24_score_source": "atr_normalised_geometry_strength_v1",
+        "ev24_calibrator": "platt_logistic_standardised_v1",
+        "ev24_fold_scheme": "walkforward_purged_embargo_time",
+        "ev24_calibration_target": "sign_return_secondary_diagnostic",
+        "ev24_psi_trend_source": "ev24_fixed_reference_calibrator_chronological_windows_v1",
+        "ev24_regime_source": "kaufman_efficiency_ratio_trailing_closes_v1"
+      }
+    },
+    {
+      "schema_version": 2,
+      "family": "FVG",
+      "promoted": false,
+      "posture": "red",
+      "blockers": [
+        {
+          "check": "brier_threshold",
+          "severity": "blocker",
+          "observed": 0.23268114892111622,
+          "threshold": 0.22,
+          "message": "brier=0.2327 fails <= 0.2200"
+        },
+        {
+          "check": "brier_ci_upper",
+          "severity": "blocker",
+          "observed": 0.24691575143889075,
+          "threshold": 0.22,
+          "message": "brier_ci_upper=0.2469 fails <= 0.2200"
+        },
+        {
+          "check": "psi_drift",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.25,
+          "message": "psi not yet measured"
+        }
+      ],
+      "metrics": {
+        "brier": 0.23268114892111622,
+        "brier_ci_upper": 0.24691575143889075,
+        "ece": 0.04844110539836708,
+        "fdr_pvalue": 0.0004997501249375312,
+        "psr": 0.9999999999995975,
+        "mintrl_years": 0.10317460317460317,
+        "live_vs_wf_ratio": 0.9587783420146535,
+        "extra.sharpe_hat": 0.31973091502579903,
+        "extra.skew": 0.926309705735169,
+        "extra.kurtosis": 9.114703931853107,
+        "extra.n_returns": 458.0,
+        "extra.periods_per_year": 252.0,
+        "extra.raw_pvalue": 0.0004997501249375312,
+        "extra.observed_periods_per_year": 1828.662263721248,
+        "regime_degraded": 0.0,
+        "psi_slope": 0.04383535591326312,
+        "conformal_coverage": 0.9210526315789473,
+        "conformal_target": 0.9
+      },
+      "provenance": {
+        "wf_scheme": "expanding",
+        "wf_embargo_bars": 8,
+        "psr_method": "bailey_lopez_de_prado_2012",
+        "significance_method": "stationary_block_bootstrap_one_sided",
+        "significance_block_bars": 4,
+        "fdr_method": "benjamini_hochberg",
+        "calibration_method": "empirical_brier_ece_psi",
+        "brier_ci_method": "stationary_block_bootstrap_brier_p95",
+        "conformal_method": "split_conformal_vovk",
+        "psi_trend_method": "ols_psi_window_slope",
+        "pipeline_class": "smc_direct_no_ml",
+        "ev26_conformal_source": "ev26_walkforward_oos_split_conformal_v1",
+        "ev25_live_source": "ev25_walkforward_oos_recent_tail_v1",
+        "ev24_score_source": "atr_normalised_geometry_strength_v1",
+        "ev24_calibrator": "platt_logistic_standardised_v1",
+        "ev24_fold_scheme": "walkforward_purged_embargo_time",
+        "ev24_calibration_target": "sign_return_secondary_diagnostic",
+        "ev24_psi_trend_source": "ev24_fixed_reference_calibrator_chronological_windows_v1",
+        "ev24_regime_source": "kaufman_efficiency_ratio_trailing_closes_v1"
+      }
+    },
+    {
+      "schema_version": 2,
+      "family": "SWEEP",
+      "promoted": false,
+      "posture": "red",
+      "blockers": [
+        {
+          "check": "ece_threshold",
+          "severity": "blocker",
+          "observed": 0.12460904121827124,
+          "threshold": 0.05,
+          "message": "ece=0.1246 fails <= 0.0500"
+        },
+        {
+          "check": "psi_drift",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.25,
+          "message": "psi not yet measured"
+        },
+        {
+          "check": "live_vs_wf_ratio",
+          "severity": "blocker",
+          "observed": 1.972326043987465,
+          "threshold": 1.5,
+          "message": "live/wf brier ratio=1.97 exceeds 1.50"
+        },
+        {
+          "check": "conformal_coverage",
+          "severity": "info",
+          "observed": null,
+          "threshold": 0.0,
+          "message": "conformal coverage or target not yet measured"
+        }
+      ],
+      "metrics": {
+        "brier": 0.15343116876129087,
+        "brier_ci_upper": 0.1893669105088286,
+        "ece": 0.12460904121827124,
+        "fdr_pvalue": 0.0004997501249375312,
+        "psr": 0.9999984213355343,
+        "mintrl_years": 0.05555555555555555,
+        "live_vs_wf_ratio": 1.972326043987465,
+        "extra.sharpe_hat": 0.4380972065603765,
+        "extra.skew": 0.5825437629239612,
+        "extra.kurtosis": 3.7111407154074594,
+        "extra.n_returns": 100.0,
+        "extra.periods_per_year": 252.0,
+        "extra.raw_pvalue": 0.0004997501249375312,
+        "extra.observed_periods_per_year": 5932.994923857868,
+        "regime_degraded": 0.0,
+        "psi_slope": -0.023149897906951367
+      },
+      "provenance": {
+        "wf_scheme": "expanding",
+        "wf_embargo_bars": 6,
+        "psr_method": "bailey_lopez_de_prado_2012",
+        "significance_method": "stationary_block_bootstrap_one_sided",
+        "significance_block_bars": 3,
+        "fdr_method": "benjamini_hochberg",
+        "calibration_method": "empirical_brier_ece_psi",
+        "brier_ci_method": "stationary_block_bootstrap_brier_p95",
+        "psi_trend_method": "ols_psi_window_slope",
+        "pipeline_class": "smc_direct_no_ml",
+        "ev25_live_source": "ev25_walkforward_oos_recent_tail_v1",
+        "ev24_score_source": "atr_normalised_geometry_strength_v1",
+        "ev24_calibrator": "platt_logistic_standardised_v1",
+        "ev24_fold_scheme": "walkforward_purged_embargo_time",
+        "ev24_calibration_target": "sign_return_secondary_diagnostic",
+        "ev24_psi_trend_source": "ev24_fixed_reference_calibrator_chronological_windows_v1",
+        "ev24_regime_source": "kaufman_efficiency_ratio_trailing_closes_v1"
+      }
+    }
+  ],
+  "context": {
+    "symbol": "NVDA",
+    "timeframe": "15m",
+    "structure_profile": "hybrid_default",
+    "source": "databento",
+    "bar_count": 4224,
+    "dataset": "XNAS.ITCH",
+    "schema": "ohlcv-1m",
+    "window": {
+      "start": "2024-07-15",
+      "end": "2024-10-15"
+    }
+  }
+}

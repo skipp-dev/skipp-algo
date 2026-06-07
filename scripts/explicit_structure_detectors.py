@@ -29,7 +29,7 @@ def _dedupe_by_id(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
-def detect_orderblocks_makuchaku(
+def detect_orderblocks_classic(
     df: pd.DataFrame,
     symbol: str,
     timeframe: str,
@@ -96,7 +96,7 @@ def detect_orderblocks_makuchaku(
                     "dir": "BULL",
                     "valid": valid,
                     "anchor_ts": int(cur_ts),
-                    "source": "makuchaku_ob",
+                    "source": "classic_ob",
                 }
             )
             diagnostics.append(
@@ -146,7 +146,7 @@ def detect_orderblocks_makuchaku(
                     "dir": "BEAR",
                     "valid": valid,
                     "anchor_ts": int(cur_ts),
-                    "source": "makuchaku_ob",
+                    "source": "classic_ob",
                 }
             )
             diagnostics.append(
@@ -159,6 +159,183 @@ def detect_orderblocks_makuchaku(
                     "left_anchor_ts": prev_ts,
                 }
             )
+
+    return _dedupe_by_id(out), diagnostics
+
+
+# Rejection Blocks mark the *wick* (rejection) zone of an order-block formation
+# rather than the candle body.  ``_RJB_WICK_COVER_FRACTION`` is the share of the
+# trapped candle's wick the signal candle may cover and still qualify as a
+# "trapped-wick" rejection (ported verbatim from the SMC rejection-block study).
+_RJB_WICK_COVER_FRACTION = 0.2
+
+
+def detect_rejection_blocks_classic(
+    df: pd.DataFrame,
+    symbol: str,
+    timeframe: str,
+    *,
+    ticksize: float | None = None,
+    asset_class: str | None = None,
+    session_tz: str | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Detect Smart-Money Rejection Blocks (RJB).
+
+    An RJB is the wick zone left behind by an order-block formation: a two-bar
+    trap (``trapped`` then ``signal``) where price rejected sharply.  Two
+    variants are emitted, mirroring the source study:
+
+    * ``trapped_wick`` -- the signal only grazed the trapped candle's wick
+      (penetration < ``_RJB_WICK_COVER_FRACTION``); the zone is the trapped wick.
+    * ``signal_wick``  -- the signal ran past the trapped candle's extreme; the
+      zone is the signal candle's own wick.
+
+    The two variants are mutually exclusive, so at most one RJB is emitted per
+    direction per bar; degenerate (zero-height) wick zones are skipped.
+
+    RECORDED-ONLY: produces structure records and is not wired into any score or
+    gate.  Mirrors :func:`detect_orderblocks_classic` for mitigation /
+    invalidation bookkeeping and reuses :func:`ob_id` for geometry-stable IDs.
+    """
+    bars = normalize_bars(df)
+    tf = canonical_timeframe(timeframe)
+    symbol_name = str(symbol).strip().upper()
+
+    out: list[dict[str, Any]] = []
+    diagnostics: list[dict[str, Any]] = []
+
+    for i in range(1, len(bars)):
+        prev = bars.iloc[i - 1]
+        cur = bars.iloc[i]
+
+        prev_open = float(prev["open"])
+        prev_close = float(prev["close"])
+        prev_high = float(prev["high"])
+        prev_low = float(prev["low"])
+        cur_open = float(cur["open"])
+        cur_close = float(cur["close"])
+        cur_high = float(cur["high"])
+        cur_low = float(cur["low"])
+        cur_ts = float(cur["timestamp"])
+        prev_ts = int(prev["timestamp"])
+
+        # Bullish RJB: down (trapped) then up (signal) closing above the trap.
+        if _is_down(prev_open, prev_close) and _is_up(cur_open, cur_close) and cur_close > prev_high:
+            variant: str | None = None
+            low = high = 0.0
+            if cur_low > prev_close - _RJB_WICK_COVER_FRACTION * (prev_close - prev_low):
+                variant = "trapped_wick"
+                low, high = prev_low, prev_close
+            elif cur_low < prev_low:
+                variant = "signal_wick"
+                low, high = cur_low, cur_open
+            if variant is not None and high > low:
+                zone_id = ob_id(
+                    symbol=symbol_name,
+                    timeframe=tf,
+                    anchor_ts=cur_ts,
+                    direction="BULL",
+                    low=low,
+                    high=high,
+                    ticksize=ticksize,
+                    asset_class=asset_class,
+                    session_tz=session_tz,
+                )
+                valid = True
+                mitigated = False
+                mitigated_ts: int | None = None
+                for j in range(i + 1, len(bars)):
+                    probe = bars.iloc[j]
+                    probe_close = float(probe["close"])
+                    probe_low = float(probe["low"])
+                    probe_ts = int(probe["timestamp"])
+                    if not mitigated and low <= probe_low <= high:
+                        mitigated = True
+                        mitigated_ts = probe_ts
+                    if probe_close < low:
+                        valid = False
+                        break
+                out.append(
+                    {
+                        "id": zone_id,
+                        "low": low,
+                        "high": high,
+                        "dir": "BULL",
+                        "valid": valid,
+                        "anchor_ts": int(cur_ts),
+                        "source": "classic_rjb",
+                    }
+                )
+                diagnostics.append(
+                    {
+                        "id": zone_id,
+                        "kind": "REJECTIONBLOCK",
+                        "mitigated": mitigated,
+                        "mitigated_ts": mitigated_ts,
+                        "invalidation_rule": "close_below_low",
+                        "left_anchor_ts": prev_ts,
+                        "variant": variant,
+                    }
+                )
+
+        # Bearish RJB: up (trapped) then down (signal) closing below the trap.
+        if _is_up(prev_open, prev_close) and _is_down(cur_open, cur_close) and cur_close < prev_low:
+            variant = None
+            low = high = 0.0
+            if cur_high < prev_close + _RJB_WICK_COVER_FRACTION * (prev_high - prev_close):
+                variant = "trapped_wick"
+                low, high = prev_close, prev_high
+            elif cur_high > prev_high:
+                variant = "signal_wick"
+                low, high = cur_open, cur_high
+            if variant is not None and high > low:
+                zone_id = ob_id(
+                    symbol=symbol_name,
+                    timeframe=tf,
+                    anchor_ts=cur_ts,
+                    direction="BEAR",
+                    low=low,
+                    high=high,
+                    ticksize=ticksize,
+                    asset_class=asset_class,
+                    session_tz=session_tz,
+                )
+                valid = True
+                mitigated = False
+                mitigated_ts = None
+                for j in range(i + 1, len(bars)):
+                    probe = bars.iloc[j]
+                    probe_close = float(probe["close"])
+                    probe_high = float(probe["high"])
+                    probe_ts = int(probe["timestamp"])
+                    if not mitigated and low <= probe_high <= high:
+                        mitigated = True
+                        mitigated_ts = probe_ts
+                    if probe_close > high:
+                        valid = False
+                        break
+                out.append(
+                    {
+                        "id": zone_id,
+                        "low": low,
+                        "high": high,
+                        "dir": "BEAR",
+                        "valid": valid,
+                        "anchor_ts": int(cur_ts),
+                        "source": "classic_rjb",
+                    }
+                )
+                diagnostics.append(
+                    {
+                        "id": zone_id,
+                        "kind": "REJECTIONBLOCK",
+                        "mitigated": mitigated,
+                        "mitigated_ts": mitigated_ts,
+                        "invalidation_rule": "close_above_high",
+                        "left_anchor_ts": prev_ts,
+                        "variant": variant,
+                    }
+                )
 
     return _dedupe_by_id(out), diagnostics
 

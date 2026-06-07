@@ -28,6 +28,8 @@ from pathlib import Path
 
 import pytest
 
+from tests._guard_corpus import parse_module
+
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _DIR_EXCLUDE = frozenset({
     ".git", ".github", ".mypy_cache", ".pytest_cache", ".ruff_cache",
@@ -40,6 +42,12 @@ _DIR_EXCLUDE = frozenset({
 _RANDOM_LEDGER: frozenset[tuple[str, int]] = frozenset({
     ("open_prep/error_taxonomy.py", 111),  # retry-jitter; non-security
     ("newsstack_fmp/_bz_http.py", 35),  # retry-jitter; non-security
+    # ADR-0023 magnitude-resolution gate: seeded RNG for the bootstrap-CI /
+    # permutation-null estimators (deterministic, reproducible); non-security.
+    ("governance/magnitude_resolution_gate.py", 205),
+    # ADR-0023 §5 E[PnL]-after-cost gate: seeded RNG for the bootstrap-CI of
+    # the sized/equal-weight PnL estimators (deterministic); non-security.
+    ("governance/epnl_after_cost.py", 194),
 })
 
 # ---- Layer 2: tempfile.* ledger ----------------------------------------------
@@ -95,9 +103,8 @@ def _scan() -> tuple[set[tuple[str, int]], set[tuple[str, int, str]]]:
     tempfile_sites: set[tuple[str, int, str]] = set()
     for p in _iter_prod_py():
         rel = str(p.relative_to(_REPO_ROOT)).replace("\\", "/")
-        try:
-            tree = ast.parse(p.read_text(encoding="utf-8"))
-        except (SyntaxError, UnicodeDecodeError):
+        tree = parse_module(p)
+        if tree is None:
             continue
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
