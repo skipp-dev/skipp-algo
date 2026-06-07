@@ -39,10 +39,11 @@ jobs:
     # split into 4 groups that run in parallel on standard GitHub-hosted
     # runners, turning the ~40 min single-runner validate into ~10-12 min wall
     # time. The matrix is static (a single `validate` job, no fan-out job) to
-    # satisfy the single-job CI contract. On the testmon PR fast lane only
-    # group '1' does work (testmon is already incremental); groups 2-4 still
-    # spin up and set up but skip the test step. That costs a few runner-minutes
-    # but adds no wall-time, since the shards run concurrently.
+    # satisfy the single-job CI contract. All three test lanes (testmon PR
+    # fast lane, PR no-coverage, main coverage) shard across the 4 groups via
+    # pytest-split, so every lane runs 4-way parallel and stays well under the
+    # 45 min job timeout even when testmon's selection collapses to the full
+    # suite (e.g. a requirements / widely-imported-module change).
     strategy:
       fail-fast: false
       matrix:
@@ -139,9 +140,16 @@ jobs:
             testmondata-${{ runner.os }}-${{ github.base_ref || github.ref_name }}-
             testmondata-${{ runner.os }}-main-
       - name: Run Python tests (PR / non-main push — testmon fast lane)
-        if: steps.gate.outputs.run_heavy == 'true' && (github.event_name == 'pull_request' || github.ref != 'refs/heads/main') && vars.SMC_TESTMON_PR_LANE == 'true' && matrix.group == '1'
+        if: steps.gate.outputs.run_heavy == 'true' && (github.event_name == 'pull_request' || github.ref != 'refs/heads/main') && vars.SMC_TESTMON_PR_LANE == 'true'
         run: |
-          python -m pytest -q --maxfail=1 --testmon
+          # pytest-split first partitions the suite into 4 duration-balanced
+          # groups; testmon then deselects unaffected tests within this shard's
+          # quarter. This parallelises selection (and any cold-cache full run)
+          # across all 4 matrix shards instead of running single-process on one
+          # runner, which previously hit the 45 min job timeout whenever a diff
+          # invalidated testmon's selection (e.g. requirements / a widely
+          # imported module changed) and forced a full-suite re-run.
+          python -m pytest -q --maxfail=1 --testmon --splits 4 --group "${{ matrix.group }}"
       - name: Run Python tests (PR / non-main push — no coverage)
         if: steps.gate.outputs.run_heavy == 'true' && (github.event_name == 'pull_request' || github.ref != 'refs/heads/main') && vars.SMC_TESTMON_PR_LANE != 'true'
         run: |
