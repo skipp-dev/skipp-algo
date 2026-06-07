@@ -49,15 +49,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
         run: |
-          # Merge-critical fast-gates runs are also a good fit for the Windows
-          # self-hosted pool, so this workflow bypasses the repo-wide
-          # generic-hosted-only label. Operators can still pin a dedicated CI
-          # label; otherwise we reuse the priority-cron runner before falling
-          # back to any idle Windows/x64 self-hosted runner.
+          # fast-gates is merge-critical: always prefer github-hosted so a
+          # crashed/offline self-hosted runner cannot hold the merge queue
+          # indefinitely (self-hosted timeout-minutes is only enforced by the
+          # runner itself; a dead runner causes a 6h hang).
+          # SMC_CI_SELF_HOSTED_LABEL can still force a dedicated label when set;
+          # the PRIORITY_CRON fallback is intentionally excluded here.
           python scripts/resolve_workflow_runner.py \
             --repository "${{ github.repository }}" \
             --hosted-runner "${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}" \
-            --custom-label "${{ vars.SMC_CI_SELF_HOSTED_LABEL || vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || '' }}"
+            --custom-label "${{ vars.SMC_CI_SELF_HOSTED_LABEL || '' }}"
 
   fast-gates:
     needs: select-runner
