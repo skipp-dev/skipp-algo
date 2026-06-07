@@ -38,9 +38,8 @@ import sys
 import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
-
 
 # Warn at 80% of TTL, fail (error) at 100%.
 WARN_FRACTION = 0.80
@@ -64,8 +63,8 @@ def _parse_iso(value: str) -> datetime | None:
     except (TypeError, ValueError):
         return None
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
 
 
 def probe_tv_storage_state(
@@ -79,7 +78,7 @@ def probe_tv_storage_state(
     ISO-8601 UTC timestamp (the same field consumed by
     automation/tradingview/lib/tv_validation_model.ts).
     """
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     name = "tv_storage_state_age"
 
     try:
@@ -206,7 +205,7 @@ def probe_github_pat(token: str, opener: Any = None) -> ProbeResult:
             details,
         )
 
-    days_left = (expires_at - datetime.now(timezone.utc)).total_seconds() / 86400.0
+    days_left = (expires_at - datetime.now(UTC)).total_seconds() / 86400.0
     details["expires_at"] = expires_at.isoformat()
     details["days_left"] = round(days_left, 2)
 
@@ -408,7 +407,7 @@ def _build_report(results: list[ProbeResult]) -> dict[str, Any]:
         overall = "ok"
     return {
         "schema_version": "1",
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "overall_severity": overall,
         "probes": [asdict(r) for r in results],
     }

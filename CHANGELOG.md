@@ -166,6 +166,25 @@ discrimination component) — the binding promotion deficit. Changes **no** scor
 - 13 new tests (`tests/test_family_feature_ab.py`); calibration / returns /
   adapter suites stay green.
 
+### Fixed (2026-06-02) — f2 bootstrap PR title fails the ADR-0013 title lint
+
+The `workflow_dispatch` regeneration workflow
+`f2-frozen-artifact-bootstrap.yml` opened its PR with a `data(f2): …`
+title, but `data` is not in `ACCEPTED_CONCERNS`
+(`scripts/check_pr_title_concern.py`), so every recalibration PR would
+have been blocked by `pr-title-concern-lint`. Switched the commit message
+and PR title to the `chore(f2)` concern (matching how
+`edge-pipeline-real-run.yml` already uses `chore(ev-20)` for the same
+artifact-regeneration class). Root fix on the generator — the governance
+lint is unchanged.
+
+- `f2-frozen-artifact-bootstrap.yml`: `git commit -m` and `gh pr create
+  --title` now use `chore(f2): …`.
+- Contract test `test_pr_creation_uses_canonical_gh_pat_pattern_and_label`
+  updated in lockstep to pin the `chore(f2)` title.
+- Historical recipe in `docs/f2_contextual_promotion_decision_2026-04-21.md`
+  updated to match.
+
 ### Added (2026-06-02) — ADR-0019 step 2: record the order-flow feature for the A/B
 
 Builds on step 1 (the `relative_volume_at` extractor). Captures the candidate

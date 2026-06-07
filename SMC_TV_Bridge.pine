@@ -8,6 +8,7 @@ i_tf      = input.string("15m", "SMC TF", options = ["5m", "15m", "1H", "4H"])
 i_apiUrl  = input.string("https://your-node-host/smc_tv", "Backend URL")
 i_enabled = input.bool(true, "Enable overlay")
 i_refresh = input.int(10, "Refresh (sec)", minval = 5, maxval = 120)
+i_overlayMaxAge = input.int(600, "Overlay max age (sec)", minval = 30, maxval = 3600)
 
 // ── Persistent state ──────────────────────────────────
 var string lastBody  = ""
@@ -65,9 +66,28 @@ regimeStr = f_getField(body, "regime")
 techStr   = f_getField(body, "tech")
 newsStr   = f_getField(body, "news")
 
+// ── Live-overlay fields (smc-live-overlay/1, optional /smc_live endpoint) ──
+// Empty while the fetch above stays stubbed → every field falls back to the
+// baked baseline (fail-closed: the overlay may only add or tighten, never loosen).
+asofStr  = f_getField(body, "asof_ts")
+staleStr = f_getField(body, "stale")
+nstrStr  = f_getField(body, "news_strength")
+frvStr   = f_getField(body, "flow_rel_vol")
+sqzStr   = f_getField(body, "squeeze_on")
+
 tech = str.tonumber(techStr, 0.5)
 news = str.tonumber(newsStr, 0.0)
 heat = (tech - 0.5) * 0.7 + (news - 0.5) * 0.3
+
+// ── Live-overlay freshness gate + field resolution ────
+// overlayFresh is false whenever the payload is missing, server-marked stale,
+// or older than i_overlayMaxAge → resolved fields collapse to na and the chart
+// shows the baked baseline only.
+asofNum      = str.tonumber(asofStr, 0.0)
+overlayFresh = i_enabled and asofNum > 0 and (timenow / 1000.0 - asofNum) <= i_overlayMaxAge and staleStr != "true"
+newsStrength = overlayFresh and nstrStr != "" ? str.tonumber(nstrStr, 0.0) : na
+flowRelVol   = overlayFresh and frvStr  != "" ? str.tonumber(frvStr, na)  : na
+squeezeOn    = overlayFresh and sqzStr  != "" ? str.tonumber(sqzStr, 0.0) : na
 
 // ── Background colour (regime + heat) ─────────────────
 bgCol = regimeStr == "HOLIDAY_SUSPECT" ? color.new(color.gray, 92) :
@@ -130,7 +150,7 @@ if barstate.islast and sweepStr != ""
             label.new(bar_index, pr, "", style = stl, color = clr, size = size.tiny)
 
 // ── Dashboard table ───────────────────────────────────
-var table dash = table.new(position.top_right, 2, 4, bgcolor = color.new(color.black, 80))
+var table dash = table.new(position.top_right, 2, 7, bgcolor = color.new(color.black, 80))
 if barstate.islast
     table.cell(dash, 0, 0, "Regime",    text_color = color.white, text_size = size.small)
     table.cell(dash, 1, 0, regimeStr != "" ? regimeStr : "–", text_color = color.yellow, text_size = size.small)
@@ -140,3 +160,9 @@ if barstate.islast
     table.cell(dash, 1, 2, newsStr != "" ? newsStr : "–", text_color = color.aqua, text_size = size.small)
     table.cell(dash, 0, 3, "Heat",      text_color = color.white, text_size = size.small)
     table.cell(dash, 1, 3, str.tostring(math.round(heat, 2)), text_color = heat > 0 ? color.lime : color.red, text_size = size.small)
+    table.cell(dash, 0, 4, "OvlNews",   text_color = color.white, text_size = size.small)
+    table.cell(dash, 1, 4, na(newsStrength) ? "–" : str.tostring(math.round(newsStrength, 2)), text_color = color.aqua, text_size = size.small)
+    table.cell(dash, 0, 5, "FlowRV",    text_color = color.white, text_size = size.small)
+    table.cell(dash, 1, 5, na(flowRelVol) ? "–" : str.tostring(math.round(flowRelVol, 2)), text_color = color.aqua, text_size = size.small)
+    table.cell(dash, 0, 6, "Sqz",       text_color = color.white, text_size = size.small)
+    table.cell(dash, 1, 6, na(squeezeOn) ? "–" : (squeezeOn == 1 ? "ON" : "off"), text_color = color.aqua, text_size = size.small)

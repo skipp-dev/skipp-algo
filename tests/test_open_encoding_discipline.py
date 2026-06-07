@@ -32,6 +32,8 @@ from pathlib import Path
 
 import pytest
 
+from tests._guard_corpus import parse_module, read_source
+
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Top-level entries excluded entirely (tests, tooling, vendored).
@@ -114,13 +116,11 @@ def _is_open_call(call: ast.Call) -> bool:
 
 def _collect_violations(path: Path) -> list[tuple[int, str]]:
     """Return ``(lineno, snippet)`` pairs for missing-encoding ``open`` calls."""
-    try:
-        text = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
+    text = read_source(path)
+    if text is None:
         return []
-    try:
-        tree = ast.parse(text)
-    except SyntaxError:
+    tree = parse_module(path)
+    if tree is None:
         return []
     lines = text.splitlines()
     violations: list[tuple[int, str]] = []

@@ -32,6 +32,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from tests._guard_corpus import parse_module
+
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
 _DIR_EXCLUDE = frozenset(
@@ -58,9 +60,8 @@ def _iter_first_party_trees():
     for path in _REPO_ROOT.rglob("*.py"):
         if any(part in _DIR_EXCLUDE for part in path.relative_to(_REPO_ROOT).parts):
             continue
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-        except (SyntaxError, UnicodeDecodeError, OSError):
+        tree = parse_module(path)
+        if tree is None:
             continue
         yield path.relative_to(_REPO_ROOT), tree
 

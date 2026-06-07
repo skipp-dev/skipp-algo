@@ -13,6 +13,8 @@ from pathlib import Path
 
 import pytest
 
+from tests._guard_corpus import parse_module
+
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
 _DIR_EXCLUDE = frozenset(
@@ -46,9 +48,8 @@ def _iter_prod_files() -> list[Path]:
 def _all_nonlocal_sites() -> list[tuple[str, int, tuple[str, ...]]]:
     sites: list[tuple[str, int, tuple[str, ...]]] = []
     for path in _iter_prod_files():
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, SyntaxError):  # pragma: no cover
+        tree = parse_module(path)
+        if tree is None:  # pragma: no cover
             continue
         for node in ast.walk(tree):
             if isinstance(node, ast.Nonlocal):
@@ -122,10 +123,9 @@ def test_frozen_nonlocal_site_still_present(
     rel, lineno, names = site
     path = _REPO_ROOT / rel
     assert path.is_file(), f"{rel} no longer exists — refresh _FROZEN_SITES"
-    try:
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-    except SyntaxError as exc:
-        pytest.fail(f"{rel} no longer parses: {exc}")
+    tree = parse_module(path)
+    if tree is None:
+        pytest.fail(f"{rel} no longer parses")
     found = [
         (n.lineno, tuple(sorted(n.names)))
         for n in ast.walk(tree)

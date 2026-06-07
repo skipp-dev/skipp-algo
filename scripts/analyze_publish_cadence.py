@@ -30,7 +30,7 @@ import json
 import subprocess
 import sys
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -94,7 +94,7 @@ def _parse_git_log(raw: str) -> list[tuple[datetime, str]]:
             continue
         ts_str, _, sha = line.partition("\t")
         try:
-            ts = datetime.fromtimestamp(int(ts_str), tz=timezone.utc)
+            ts = datetime.fromtimestamp(int(ts_str), tz=UTC)
         except (TypeError, ValueError):
             continue
         commits.append((ts, sha))
@@ -110,7 +110,7 @@ def analyze_path(
     git_log: callable | None = None,
 ) -> PathCadence:
     """Classify one path's publish cadence."""
-    now = now or datetime.now(tz=timezone.utc)
+    now = now or datetime.now(tz=UTC)
     runner = git_log or (lambda p: _run_git_log(p, repo_root))
     try:
         raw = runner(path)
@@ -173,7 +173,7 @@ def analyze_all(
     now: datetime | None = None,
     git_log: callable | None = None,
 ) -> CadenceReport:
-    now = now or datetime.now(tz=timezone.utc)
+    now = now or datetime.now(tz=UTC)
     results = [
         analyze_path(
             path=p,

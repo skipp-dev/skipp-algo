@@ -249,13 +249,13 @@ jobs:
             echo "::notice::no artifact changes to commit; skipping PR"
             exit 0
           fi
-          git commit -m "data(f2): regenerate frozen contextual calibration artifact (corpus ${START}--${END})"
+          git commit -m "chore(f2): regenerate frozen contextual calibration artifact (corpus ${START}--${END})"
           git push -u origin "$BRANCH"
           if ! gh pr create \
             --base main \
             --head "$BRANCH" \
             --label f2-recalibration \
-            --title "data(f2): regenerate frozen contextual calibration artifact (corpus ${START}--${END})" \
+            --title "chore(f2): regenerate frozen contextual calibration artifact (corpus ${START}--${END})" \
             --body-file /tmp/pr_body.md; then
             echo "::error file=.github/workflows/f2-frozen-artifact-bootstrap.yml::gh pr create failed for ${BRANCH}"
             exit 1

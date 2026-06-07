@@ -25,10 +25,13 @@ Defense-only, no production code changes.
 from __future__ import annotations
 
 import ast
+import functools
 from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+
+from tests._guard_corpus import parse_module
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -59,10 +62,7 @@ def _iter_prod_py() -> Iterator[Path]:
 
 
 def _parse(p: Path) -> ast.AST | None:
-    try:
-        return ast.parse(p.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, SyntaxError):
-        return None
+    return parse_module(p)
 
 
 # ---------------------------------------------------------------------------
@@ -77,6 +77,7 @@ _FROZEN_ASSERT_COUNTS: dict[str, int] = {}
 _FROZEN_ASSERT_TOTAL = sum(_FROZEN_ASSERT_COUNTS.values())
 
 
+@functools.cache
 def _scan_asserts() -> dict[str, int]:
     out: dict[str, int] = {}
     for p in _iter_prod_py():
@@ -161,6 +162,7 @@ def _is_text_mode(node: ast.Call) -> bool:
     return "b" not in mode_value
 
 
+@functools.cache
 def _scan_open_no_encoding() -> dict[str, int]:
     out: dict[str, int] = {}
     for p in _iter_prod_py():

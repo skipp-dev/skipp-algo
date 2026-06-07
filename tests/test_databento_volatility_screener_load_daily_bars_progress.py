@@ -13,7 +13,7 @@ and to prove the parallel mode produces the same row set as sequential mode.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import pandas as pd
 import pytest
@@ -31,7 +31,7 @@ def synthetic_store_factory():
     """
 
     def _make(symbols: list[str]) -> pd.DataFrame:
-        ts = pd.Timestamp(datetime(2026, 3, 6, 14, 0, tzinfo=timezone.utc))
+        ts = pd.Timestamp(datetime(2026, 3, 6, 14, 0, tzinfo=UTC))
         rows = []
         for sym in symbols:
             rows.append(
@@ -131,7 +131,7 @@ def test_load_daily_bars_cache_hit_emits_marker(patched_screener, monkeypatch):
     # 'cache PARTIAL' and triggers a delta-fetch. To pin the HIT marker the
     # mocked cached frame must cover every requested symbol.
     universe = sorted(_common_call_kwargs()["universe_symbols"])
-    ts = pd.Timestamp(datetime(2026, 3, 6, 14, 0, tzinfo=timezone.utc))
+    ts = pd.Timestamp(datetime(2026, 3, 6, 14, 0, tzinfo=UTC))
     cached = pd.DataFrame(
         [
             {

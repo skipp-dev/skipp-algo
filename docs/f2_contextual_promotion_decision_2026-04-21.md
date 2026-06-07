@@ -245,7 +245,7 @@ Commit only the four files under `artifacts/reports/`:
 git add artifacts/reports/zone_priority_calibration.json \
         artifacts/reports/zone_priority_calibration.md \
         artifacts/reports/zone_priority_contextual_calibration.json
-git commit -m "data(f2): regenerate frozen contextual calibration artifact (corpus <START>–<END>)"
+git commit -m "chore(f2): regenerate frozen contextual calibration artifact (corpus <START>–<END>)"
 ```
 
 Do **NOT** commit the `artifacts/ci/measurement_benchmark_combined_<END>/`

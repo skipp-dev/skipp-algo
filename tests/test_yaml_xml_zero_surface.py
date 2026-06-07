@@ -35,6 +35,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from tests._guard_corpus import parse_module
+
 ROOT = Path(__file__).resolve().parent.parent
 
 _DIR_EXCLUDE = frozenset(
@@ -118,14 +120,7 @@ def _scan_xml_imports(tree: ast.AST) -> list[tuple[str, int]]:
 
 
 def _parse(path: Path) -> ast.AST | None:
-    try:
-        source = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        return None
-    try:
-        return ast.parse(source, filename=str(path))
-    except SyntaxError:
-        return None
+    return parse_module(path)
 
 
 def test_no_yaml_unsafe_load_calls() -> None:

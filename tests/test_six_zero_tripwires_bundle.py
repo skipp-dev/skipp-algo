@@ -27,6 +27,8 @@ from pathlib import Path
 
 import pytest
 
+from tests._guard_corpus import parse_module
+
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
 _DIR_EXCLUDE = frozenset(
@@ -73,9 +75,8 @@ def _iter_pine() -> list[Path]:
 def test_no_python_star_imports_in_prod() -> None:
     hits: list[tuple[str, int, str]] = []
     for path in _iter_prod_py():
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, SyntaxError):  # pragma: no cover
+        tree = parse_module(path)
+        if tree is None:
             continue
         rel = path.relative_to(_REPO_ROOT).as_posix()
         for node in ast.walk(tree):
