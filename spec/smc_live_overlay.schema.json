@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skipp-algo.local/spec/smc_live_overlay.schema.json",
+  "title": "SMC live-overlay payload (smc-live-overlay/1)",
+  "description": "Flat, Pine-friendly live-overlay payload served at GET /smc_live. It augments the 2x/day baked mp.* baseline that SMC_TV_Bridge.pine already carries. Every data field is optional and nullable: an absent or null field means the overlay has nothing fresher to say and Pine falls back to the baked mp.* value. The overlay may only add or tighten signals, never loosen them; a stale or unreachable endpoint degrades silently to the baked baseline.",
+  "type": "object",
+  "required": ["schema", "symbol", "tf", "asof_ts", "stale"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "description": "Contract identifier; consumers reject payloads whose schema they do not understand.",
+      "const": "smc-live-overlay/1"
+    },
+    "symbol": {
+      "description": "Ticker the overlay describes, e.g. NVDA.",
+      "type": "string",
+      "minLength": 1
+    },
+    "tf": {
+      "description": "Chart timeframe the overlay was computed for.",
+      "type": "string",
+      "enum": ["5m", "15m", "1H", "4H"]
+    },
+    "asof_ts": {
+      "description": "Unix epoch seconds at which the overlay was produced. Pine compares this against OVERLAY_MAX_AGE_SEC to decide freshness.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "stale": {
+      "description": "Server-side freshness verdict. True means the producer already knows the payload is older than its target refresh budget; Pine must treat the overlay as fallback-only.",
+      "type": "boolean"
+    },
+    "news_strength": {
+      "description": "B1. On-demand news intensity in [0,1] (live snapshot, ~5min fresh). Null when no fresh reading is available.",
+      "type": ["number", "null"],
+      "minimum": 0,
+      "maximum": 1
+    },
+    "news_bias": {
+      "description": "B1. Directional news bias from the live snapshot. Null when undetermined.",
+      "type": ["string", "null"],
+      "enum": ["BULLISH", "BEARISH", "NEUTRAL", null]
+    },
+    "flow_rel_vol": {
+      "description": "B1. Relative volume vs baseline (>=0). Null when not served fresh (then Pine uses baked mp.flow_rel_vol).",
+      "type": ["number", "null"],
+      "minimum": 0
+    },
+    "squeeze_on": {
+      "description": "B1. Volatility-squeeze flag derived from the live volume regime (1=on, 0=off). Null when not served fresh.",
+      "type": ["integer", "null"],
+      "enum": [0, 1, null]
+    },
+    "vix_level": {
+      "description": "B2 (forward-compat, baked in Phase 1). Spot VIX level. Null until an on-demand producer is wired.",
+      "type": ["number", "null"],
+      "minimum": 0
+    },
+    "flow_delta_proxy_pct": {
+      "description": "B2 (forward-compat, baked in Phase 1). Signed order-flow delta proxy in percent. Null until served fresh.",
+      "type": ["number", "null"]
+    },
+    "ats_state": {
+      "description": "B2 (forward-compat, baked in Phase 1). Adaptive-trend-strength state label. Null until served fresh.",
+      "type": ["string", "null"]
+    },
+    "ats_zscore": {
+      "description": "B2 (forward-compat, baked in Phase 1). Adaptive-trend-strength z-score. Null until served fresh.",
+      "type": ["number", "null"]
+    },
+    "tone": {
+      "description": "B2 (forward-compat, baked in Phase 1). Aggregate market-tone label. Null until served fresh.",
+      "type": ["string", "null"]
+    }
+  }
+}
