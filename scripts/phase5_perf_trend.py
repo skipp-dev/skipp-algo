@@ -7,11 +7,11 @@ Cutoff: merge-commit 573863c56e74df38f59a24767138ba41264f154c
 from __future__ import annotations
 
 import json
-import subprocess
 import statistics
-from datetime import datetime, timezone
+import subprocess
+from datetime import UTC, datetime
 
-CUTOFF = datetime(2026, 4, 30, 21, 2, 1, tzinfo=timezone.utc)
+CUTOFF = datetime(2026, 4, 30, 21, 2, 1, tzinfo=UTC)
 REPO = "skippALGO/skipp-algo"
 WORKFLOWS = [
     "c13-daily-cron",
@@ -156,6 +156,7 @@ md_lines += [
 ]
 
 import pathlib
+
 out_path = pathlib.Path("artifacts/review-v3/perf_trend.md")
 out_path.parent.mkdir(parents=True, exist_ok=True)
 # ATOMIC-WRITE-EXEMPT: dev-only review-artifact generator (manually invoked,

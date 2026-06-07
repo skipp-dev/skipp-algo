@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from newsstack_fmp.opra_uoa import (
@@ -111,12 +111,12 @@ def _parent_symbol(ticker: str) -> str:
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _format_ts(ts: datetime) -> str:
     """Render a UTC datetime as Databento ``YYYY-MM-DDTHH:MM:SS`` ISO."""
-    return ts.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+    return ts.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S")
 
 
 def _store_to_rows(store: Any) -> list[dict[str, Any]]:

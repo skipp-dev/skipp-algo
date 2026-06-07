@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import urllib.error
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -23,8 +23,7 @@ from scripts.check_workflow_freshness import (
     main,
 )
 
-
-NOW = datetime(2026, 5, 29, 12, 0, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 5, 29, 12, 0, 0, tzinfo=UTC)
 
 
 def _ok_fetcher(age_hours: float):

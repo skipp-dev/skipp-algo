@@ -6,7 +6,7 @@ Includes the W1.c tripwire that fails if anyone removes the
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -14,7 +14,6 @@ import pytest
 from governance.promotion_gate import DECISION_SCHEMA_VERSION
 from governance.promotion_report import DEFAULT_PROMOTION_DECISIONS_PATH
 from scripts import run_promotion_gate as runner
-
 
 # ---------------------------------------------------------------------------
 # Tripwire (W1.c) — keep the script wired to the X2 gate.
@@ -118,7 +117,7 @@ def _full_snapshot_dict(family: str) -> dict[str, object]:
     }
 
 
-_NOW = datetime(2026, 5, 17, 18, 0, 0, tzinfo=timezone.utc)
+_NOW = datetime(2026, 5, 17, 18, 0, 0, tzinfo=UTC)
 
 
 def _full_snapshot(family: str):
@@ -135,7 +134,7 @@ def test_build_report_strict_mode_promotes_full_snapshot(tmp_path: Path) -> None
     report = runner.build_report(
         snaps,
         strict_provenance=True,
-        now=datetime(2026, 5, 17, 18, 0, 0, tzinfo=timezone.utc),
+        now=datetime(2026, 5, 17, 18, 0, 0, tzinfo=UTC),
     )
     assert report["schema_version"] == runner.REPORT_SCHEMA_VERSION
     assert report["gate_schema_version"] == DECISION_SCHEMA_VERSION
