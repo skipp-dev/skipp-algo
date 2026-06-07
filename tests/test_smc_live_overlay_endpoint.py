@@ -197,7 +197,7 @@ def test_smc_live_vix_fetch_miss_omits_field() -> None:
         mp.setattr(smc_api, "USE_MOCK", False)
         mp.setattr(smc_api, "build_smc_snapshot", lambda symbol, tf: {"newsscore": 0.0})
         mp.setattr(smc_api, "_fetch_vix_uncached", lambda: None)
-        smc_api._vix_cache.update({"value": None, "fetched_at": 0.0})
+        mp.setattr(smc_api, "_vix_cache", {"value": None, "fetched_at": 0.0})
         result = smc_api.smc_live_endpoint(symbol="aapl", tf="15m")
 
     jsonschema.validate(result, _schema())
@@ -223,7 +223,7 @@ def test_smc_live_vix_cache_coalesces_concurrent_fetches() -> None:
         mp.setattr(smc_api, "USE_MOCK", False)
         mp.setattr(smc_api, "build_smc_snapshot", lambda symbol, tf: {"newsscore": 0.0})
         mp.setattr(smc_api, "_fetch_vix_uncached", _counting_fetch)
-        smc_api._vix_cache.update({"value": None, "fetched_at": 0.0})
+        mp.setattr(smc_api, "_vix_cache", {"value": None, "fetched_at": 0.0})
 
         n_threads = 32
         with ThreadPoolExecutor(max_workers=n_threads) as pool:

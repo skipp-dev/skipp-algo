@@ -250,11 +250,13 @@ def _fetch_vix_uncached() -> float | None:
         if fmp_client is None:
             return None
         quote = fmp_client.get_index_quote(_VIX_SYMBOL)
-        price = (quote or {}).get("price")
+        if not isinstance(quote, dict):
+            return None
+        price = quote.get("price")
         if price is None:
             return None
         level = float(price)
-    except (ValueError, TypeError, KeyError, RuntimeError, OSError) as exc:
+    except (ValueError, TypeError, KeyError, AttributeError, RuntimeError, OSError) as exc:
         logger.debug("VIX fetch skipped: %s", exc)
         return None
     if not math.isfinite(level) or level <= 0.0:
