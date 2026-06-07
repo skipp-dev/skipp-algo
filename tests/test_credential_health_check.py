@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import io
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -28,7 +28,6 @@ from scripts.credential_health_check import (
     probe_tv_storage_state,
 )
 
-
 # -- TV storage_state probe -------------------------------------------------
 
 
@@ -37,7 +36,7 @@ def _make_cookie(age_hours: float | None, *, drop_meta: bool = False) -> str:
         return json.dumps({"cookies": [], "origins": []})
     if age_hours is None:
         return json.dumps({"meta": {}, "cookies": [], "origins": []})
-    validated_at = datetime.now(timezone.utc) - timedelta(hours=age_hours)
+    validated_at = datetime.now(UTC) - timedelta(hours=age_hours)
     return json.dumps(
         {
             "meta": {"authValidatedAt": validated_at.isoformat()},
@@ -99,7 +98,7 @@ def test_tv_storage_state_handles_trailing_z_iso_format() -> None:
     r = probe_tv_storage_state(
         payload,
         max_age_hours=72.0,
-        now=datetime(2026, 5, 28, 13, 0, 0, tzinfo=timezone.utc),
+        now=datetime(2026, 5, 28, 13, 0, 0, tzinfo=UTC),
     )
     assert r.severity == "ok"
     assert r.details["age_hours"] == pytest.approx(1.0, abs=0.05)
@@ -148,28 +147,28 @@ def test_github_pat_ok_when_no_expiry_header() -> None:
 
 
 def test_github_pat_ok_when_far_from_expiry() -> None:
-    future = (datetime.now(timezone.utc) + timedelta(days=180)).isoformat()
+    future = (datetime.now(UTC) + timedelta(days=180)).isoformat()
     r = probe_github_pat("ghp_dummy", opener=_fake_opener(expiration_header=future))
     assert r.severity == "ok"
     assert r.details["days_left"] > 90
 
 
 def test_github_pat_warn_at_30_days_left() -> None:
-    future = (datetime.now(timezone.utc) + timedelta(days=20)).isoformat()
+    future = (datetime.now(UTC) + timedelta(days=20)).isoformat()
     r = probe_github_pat("ghp_dummy", opener=_fake_opener(expiration_header=future))
     assert r.severity == "warn"
     assert "rotation" in r.message.lower() or "expires" in r.message.lower()
 
 
 def test_github_pat_error_at_7_days_left() -> None:
-    future = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()
+    future = (datetime.now(UTC) + timedelta(days=3)).isoformat()
     r = probe_github_pat("ghp_dummy", opener=_fake_opener(expiration_header=future))
     assert r.severity == "error"
     assert "IMMEDIATELY" in r.message
 
 
 def test_github_pat_error_when_already_expired() -> None:
-    past = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+    past = (datetime.now(UTC) - timedelta(days=1)).isoformat()
     r = probe_github_pat("ghp_dummy", opener=_fake_opener(expiration_header=past))
     assert r.severity == "error"
     assert "EXPIRED" in r.message

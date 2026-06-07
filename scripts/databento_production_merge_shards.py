@@ -142,7 +142,7 @@ def _is_per_shard_key(key: str) -> bool:
 
 
 def _now_utc_iso() -> str:
-    return dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+    return dt.datetime.now(dt.UTC).isoformat(timespec="seconds")
 
 
 def _all_equal(values: Sequence[Any]) -> bool:
