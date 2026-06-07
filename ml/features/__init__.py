@@ -1,4 +1,5 @@
 """Feature engineering: microstructure, volatility, temporal."""
+from ml.features.frac_diff import ffd_weights, frac_diff_ffd
 from ml.features.microstructure import (
     bid_ask_imbalance,
     volume_imbalance,
@@ -14,6 +15,8 @@ from ml.features.volatility import (
 __all__ = [
     "bid_ask_imbalance",
     "cyclical_encoding",
+    "ffd_weights",
+    "frac_diff_ffd",
     "garman_klass_volatility",
     "parkinson_volatility",
     "realized_volatility",
