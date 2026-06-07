@@ -99,7 +99,7 @@ def test_pr_creation_uses_canonical_gh_pat_pattern_and_label() -> None:
     # PR is labeled and titled per the issue spec
     assert "--label f2-recalibration" in text
     assert (
-        'data(f2): regenerate frozen contextual calibration artifact (corpus ${START}--${END})'
+        'chore(f2): regenerate frozen contextual calibration artifact (corpus ${START}--${END})'
         in text
     )
     # PR is opened via gh pr create with --body-file (diff summary)
