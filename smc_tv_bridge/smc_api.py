@@ -311,6 +311,105 @@ _flow_cache: dict[str, dict[str, Any]] = {}
 _flow_symbol_locks: dict[str, threading.Lock] = {}
 
 
+# Per-symbol event-risk-light (lean v5.5) served on the overlay. Mirrors the
+# flow/ATS cache: a short ``_event_cache_lock`` guards the module cache while the
+# resolve runs under a per-symbol lock so concurrent /smc_live calls for the same
+# symbol coalesce. Fail-closed + tighten-only: no data / resolve error yields an
+# empty dict and the endpoint omits every event field so Pine keeps its baked
+# ``mp.*`` event posture; the two block booleans are emitted only when True so the
+# overlay can assert a block but never lift the baked one.
+_EVENT_TTL_SECONDS = 300.0
+_EVENT_MOCK_FIELDS: dict[str, Any] = {
+    "event_window_state": "PRE_EVENT",
+    "event_risk_level": "HIGH",
+    "next_event_name": "AAPL Q3 Earnings",
+    "next_event_time": "2026-06-09T20:00:00Z",
+    "symbol_event_blocked": True,
+    "event_provider_status": "ok",
+}
+_event_cache_lock = threading.Lock()
+_event_cache: dict[str, dict[str, Any]] = {}
+_event_symbol_locks: dict[str, threading.Lock] = {}
+
+
+def _event_lock_for(symbol: str) -> threading.Lock:
+    with _event_cache_lock:
+        lock = _event_symbol_locks.get(symbol)
+        if lock is None:
+            lock = threading.Lock()
+            _event_symbol_locks[symbol] = lock
+        return lock
+
+
+def _event_light_to_overlay_fields(light: dict[str, Any]) -> dict[str, Any]:
+    """Map the 7 UPPERCASE event-risk-light fields to flat overlay keys.
+
+    Fail-closed + tighten-only: when the provider reports ``no_data`` every field
+    is omitted so Pine keeps its baked posture. ``market_event_blocked`` and
+    ``symbol_event_blocked`` are emitted only when True so the overlay can assert
+    a block but never lift the baked one.
+    """
+    status = str(light.get("EVENT_PROVIDER_STATUS", "no_data") or "no_data").strip()
+    if status == "no_data":
+        return {}
+    fields: dict[str, Any] = {}
+    for src, dst in (
+        ("EVENT_WINDOW_STATE", "event_window_state"),
+        ("EVENT_RISK_LEVEL", "event_risk_level"),
+        ("NEXT_EVENT_NAME", "next_event_name"),
+        ("NEXT_EVENT_TIME", "next_event_time"),
+    ):
+        value = str(light.get(src, "") or "").strip()
+        if value:
+            fields[dst] = value
+    if bool(light.get("MARKET_EVENT_BLOCKED")):
+        fields["market_event_blocked"] = True
+    if bool(light.get("SYMBOL_EVENT_BLOCKED")):
+        fields["symbol_event_blocked"] = True
+    fields["event_provider_status"] = status
+    return fields
+
+
+def _fetch_event_risk_uncached(symbol: str) -> dict[str, Any]:
+    """Resolve the live event-risk-light for ``symbol`` (fail-closed -> {})."""
+    from scripts.smc_event_risk_light import build_event_risk_light
+
+    try:
+        from databento_reference import get_reference_event_risk_snapshot
+        from scripts.smc_event_risk_builder import build_event_risk
+
+        snapshot = get_reference_event_risk_snapshot([symbol])
+        if isinstance(snapshot, dict):
+            light = build_event_risk_light(event_risk=build_event_risk(reference=snapshot))
+        else:
+            light = build_event_risk_light(event_risk={"EVENT_PROVIDER_STATUS": "no_data"})
+    except (OSError, ValueError, KeyError, RuntimeError, TypeError) as exc:
+        logger.debug("Event-risk resolve skipped for %s: %s", symbol, exc)
+        return {}
+    return _event_light_to_overlay_fields(light)
+
+
+def _get_event_risk(symbol: str) -> dict[str, Any]:
+    """Cached per-symbol event-risk overlay fields (TTL=300s, thread-safe)."""
+    if USE_MOCK:
+        return dict(_EVENT_MOCK_FIELDS)
+    now = time.monotonic()
+    with _event_cache_lock:
+        entry = _event_cache.get(symbol)
+        if entry is not None and (now - entry["fetched_at"]) < _EVENT_TTL_SECONDS:
+            return entry["value"]
+    with _event_lock_for(symbol):
+        now = time.monotonic()
+        with _event_cache_lock:
+            entry = _event_cache.get(symbol)
+            if entry is not None and (now - entry["fetched_at"]) < _EVENT_TTL_SECONDS:
+                return entry["value"]
+        value = _fetch_event_risk_uncached(symbol)
+        with _event_cache_lock:
+            _event_cache[symbol] = {"value": value, "fetched_at": time.monotonic()}
+        return value
+
+
 def _load_ats_baseline_symbols() -> dict[str, Any]:
     """Return the per-symbol 20-day ATS baseline mapping (fail-soft -> {})."""
     import json
@@ -659,6 +758,12 @@ def smc_live_endpoint(
     if flow_ats:
         flow_fields = {k: v for k, v in flow_ats.items() if v is not None}
 
+    # Per-symbol event-risk-light (lean v5.5): macro/earnings window state, risk
+    # level, next-event name/time, block flags and provider health. Fail-closed +
+    # tighten-only — every field omitted on no-data/error so Pine keeps its baked
+    # ``mp.*`` event posture; block flags surface only when True.
+    event_fields = _get_event_risk(symbol)
+
     payload = LiveOverlayPayload(
         symbol=symbol,
         tf=tf,
@@ -668,6 +773,7 @@ def smc_live_endpoint(
         **tone_fields,
         **vix_fields,
         **flow_fields,
+        **event_fields,
     )
     return flatten_overlay(payload)
 
