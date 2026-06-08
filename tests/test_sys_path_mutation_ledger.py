@@ -101,6 +101,9 @@ _FROZEN_SITES: dict[str, int] = {
     # triple-quoted subprocess runner string — AST sees only the real call.
     "scripts/measure_databento_ops_run.py": 1,
     "scripts/probe_newsapi_feed_cursor.py": 1,
+    # Fast overlay refresh: inserts REPO_ROOT so scripts.* imports resolve
+    # when invoked as `python scripts/refresh_overlay_enrichment.py`.
+    "scripts/refresh_overlay_enrichment.py": 1,
     "scripts/run_smc_ci_health_checks.py": 1,
     "scripts/run_smc_e2e_smoke_test.py": 1,
     "scripts/run_smc_measurement_benchmark.py": 1,
