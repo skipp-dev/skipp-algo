@@ -24,6 +24,7 @@
     "tv:publish-context-resolvers-library": "tsx scripts/tv_publish_context_resolvers_library.ts",
     "tv:publish-context-resolvers-library:profile": "TV_PERSISTENT_PROFILE_DIR=automation/tradingview/auth/chromium-profile tsx scripts/tv_publish_context_resolvers_library.ts",
     "tv:publish-micro-library": "tsx scripts/tv_publish_micro_library.ts",
+    "tv:publish-overlay-library": "tsx scripts/tv_publish_overlay_library.ts",
     "tv:storage-state": "tsx scripts/create_tradingview_storage_state.ts",
     "tv:auth-security": "python3 scripts/check_tradingview_storage_state_security.py",
     "tv:profile-login": "TV_PERSISTENT_PROFILE_DIR=automation/tradingview/auth/chromium-profile tsx scripts/create_tradingview_storage_state.ts --persistent-profile-dir automation/tradingview/auth/chromium-profile",
