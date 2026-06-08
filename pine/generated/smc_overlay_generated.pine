@@ -1,0 +1,58 @@
+//@version=6
+library("smc_overlay_generated")
+
+// ── Usage ──────────────────────────────────────────────────────
+// FAST overlay companion to smc_micro_profiles_generated (mp).
+//
+// import preuss_steffen/smc_overlay_generated/1 as ov
+//
+// Carries ONLY the high-cadence macro / news / calendar / layering
+// fields so it can be republished intraday without reshipping the
+// heavy structural micro-profile lists. Read fields as ov.FIELD_NAME,
+// e.g. ov.NEWS_HEAT_GLOBAL, ov.VIX_LEVEL, ov.TRADE_STATE.
+//
+// ASOF_DATE / ASOF_TIME mirror the source library bake watermark so
+// consumers can detect staleness. Generated artifact — do not edit.
+// ───────────────────────────────────────────────────────────────
+
+// ── Bake Watermark ──
+export const string ASOF_DATE = "2026-05-27"
+export const string ASOF_TIME = "2026-05-28T22:15:00Z"
+
+// ── Market Regime ──
+export const string MARKET_REGIME = "NEUTRAL"
+export const float VIX_LEVEL = 15.74
+export const float MACRO_BIAS = 0.0344
+export const float MACRO_BIAS_RAW = -0.125
+export const float MACRO_BIAS_PE_ADJUSTMENT = 0.1594
+export const float MARKET_PE_FORWARD = 7.0291
+export const string MARKET_PE_REGIME = "CHEAP"
+export const float SECTOR_BREADTH = 0.7273
+
+// ── News Sentiment ──
+export const string NEWS_BULLISH_TICKERS = "ASX,CCS,COST,DELL,DHR,FCX,META,MSGS,NGL,NKE,NOW,PD,PSNL,PWR,SCCO,SHOP,SNOW,SPCE,TMO,TTI,V,ZS"
+export const string NEWS_BEARISH_TICKERS = "CM,CRM,GLW,LIFE,LITE,MA,NSC,SNPS"
+export const string NEWS_NEUTRAL_TICKERS = "AAL,AAPL,ACM,AIRJ,AMD,AMZN,APO,APP,APPN,ASAN,ASML,AVAV,AVGO,AXP,BABA,BTCT,BX,CALX,CBRS,CNI,COIN,CRWD,CRWV,CVX,DDOG,DIS,EMBC,EVGN,FUTU,GE,GOOG,GOOGL,GSK,HRL,HUBS,IBM,INTC,INTU,IREN,IRON,JPM,LAW,LLY,MCHP,MCO,MELI,MRVL,MSFT,MSTR,MU,NAVN,NBIS,NFLX,NVDA,OKTA,ONDS,ORCL,PANW,PLAB,PLTR,QMCO,RGC,RITM,RKLB,TSLA,TSM,TTEC,TXN,UPST,VRSK,WDC,WMT,XOM"
+export const float NEWS_HEAT_GLOBAL = 0.0352
+export const string TICKER_HEAT_MAP = "AAL:0.00,AAPL:0.00,ACM:0.00,AIRJ:0.00,AMD:0.10,AMZN:0.00,APO:0.00,APP:0.00,APPN:0.00,ASAN:0.00,ASML:0.00,ASX:0.14,AVAV:0.00,AVGO:0.00,AXP:0.00,BABA:0.00,BTCT:0.00,BX:0.00,CALX:0.00,CBRS:0.00,CCS:0.14,CM:-0.14,CNI:0.00,COIN:0.00,COST:0.14,CRM:-0.11,CRWD:0.00,CRWV:0.00,CVX:0.05,DDOG:0.00,DELL:0.23,DHR:0.41,DIS:0.00,EMBC:0.00,EVGN:0.00,FCX:0.28,FUTU:0.00,GE:0.00,GLW:-0.14,GOOG:0.00,GOOGL:0.00,GSK:0.00,HRL:0.00,HUBS:0.00,IBM:0.07,INTC:0.00,INTU:0.00,IREN:0.00,IRON:0.00,JPM:0.00,LAW:0.00,LIFE:-0.96,LITE:-0.14,LLY:0.05,MA:-0.11,MCHP:0.00,MCO:0.00,MELI:-0.04,META:0.23,MRVL:0.00,MSFT:0.02,MSGS:0.14,MSTR:0.00,MU:0.00,NAVN:0.00,NBIS:0.05,NFLX:0.00,NGL:0.45,NKE:0.28,NOW:0.41,NSC:-0.28,NVDA:0.03,OKTA:0.00,ONDS:0.00,ORCL:0.05,PANW:0.00,PD:0.11,PLAB:0.00,PLTR:0.05,PSNL:0.14,PWR:0.15,QMCO:0.00,RGC:0.00,RITM:0.00,RKLB:0.00,SCCO:0.28,SHOP:0.28,SNOW:0.31,SNPS:-0.41,SPCE:0.14,TMO:0.14,TSLA:0.00,TSM:0.00,TTEC:0.00,TTI:0.40,TXN:0.00,UPST:0.00,V:0.28,VRSK:0.00,WDC:0.00,WMT:0.00,XOM:0.00,ZS:0.41"
+export const string NEWS_CATEGORY_MAP = ""
+export const string NEWS_COUNT_MAP = ""
+export const string BREAKING_NEWS_TICKERS = ""
+export const int HIGH_IMPACT_NEWS_COUNT = 0
+export const string MOST_MENTIONED_TICKER = ""
+
+// ── Earnings & Macro Calendar ──
+export const string EARNINGS_TODAY_TICKERS = "ADSK,AEO,AIFA,ALAR,AMBA,AMBR,ARBEW,AREC,ASAN,ATHM,ATLN,ATS,AWF,BBW,BBY,BMR,BOSC,BTTC,BURL,CAPS,CDT,CELUW,CHA,CLGN,CM,COST,CRMT,CSHR,DELL,DLTR,DOO,DOYU,DSX,EONR,ESTC,FNGR,FRHC,FUTU,GAP,GLSI,HQY,HRL,HUBG,HUIZ,ICG,ICLR,KNDI,KNOP,KSS,LASE,LI,LTRYW,LUD,MDB,MLECW,NAMM,NGL,NRT,NTAP,OKTA,OLOX,PATH,PD,PETS,PKE,PLAB,PLUS,PN,REPL,REX,RMCF,RSVR,RSVRW,RY,S,SHIP,SLGL,SOTK,TD,UVV,VFSWW,VIVS,VSAT,WB,XCUR,XNET,XPEV,YI"
+export const string EARNINGS_TOMORROW_TICKERS = "AMWD,BKE,CGC,DLNG,ELMT,FUFU,FUFUW,GASS,GCO,MOGU,PODC,VCIG"
+export const string EARNINGS_BMO_TICKERS = ""
+export const string EARNINGS_AMC_TICKERS = ""
+export const bool HIGH_IMPACT_MACRO_TODAY = true
+export const string MACRO_EVENT_NAME = "GDP Growth Rate YoY (Q1)"
+export const string MACRO_EVENT_TIME = "02:00 ET"
+
+// ── Layering / Global Tone ──
+export const float GLOBAL_HEAT = 0.4748
+export const float GLOBAL_STRENGTH = 0.4748
+export const string TONE = "BULLISH"
+export const string TRADE_STATE = "ALLOWED"
+

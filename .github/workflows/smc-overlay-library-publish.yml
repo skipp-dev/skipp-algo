@@ -1,0 +1,166 @@
+# SMC Overlay Library Publish — Option-A fast/slow split (step 3)
+# live-window: manual-only
+#
+# Manual-only companion to smc-library-refresh.yml. Publishes the lean
+# smc_overlay_generated library (imported as `ov`) to TradingView. The overlay
+# is derived by scripts/bake_overlay_library.py from the committed slow
+# micro-profiles artifact; by default this workflow re-bakes the overlay from
+# the committed source so the published artifact always matches current source,
+# then runs the fail-closed Playwright publisher (scripts/tv_publish_overlay_library.ts).
+#
+# TradingView is a single shared external target, so this workflow is
+# workflow_dispatch ONLY (no cron) — a human deliberately triggers each publish.
+# It never pushes to the repo; it only publishes to TradingView and uploads the
+# publish report + screenshots as a run artifact.
+#
+# Required secret:
+#   TV_STORAGE_STATE — TradingView Playwright storage-state (raw JSON or gzip+base64)
+
+name: smc-overlay-library-publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      rebake:
+        description: "Re-bake the overlay from the committed micro-profiles source before publishing."
+        type: boolean
+        default: true
+      allow_create:
+        description: "Allow creating the TradingView script if it does not exist yet (first publish)."
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  # Serialize overlay publishes — TradingView is a single shared external target.
+  group: smc-overlay-library-publish
+  cancel-in-progress: false
+
+# Top-level env so PYTHONUNBUFFERED / PYTHONPATH propagate to every step,
+# including setup-python and the direct python scripts/bake_overlay_library.py
+# invoke (F-V6-A2.1 / F-V7-P1 workflow discipline pins).
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+# Force bash for every run: step. The repo can dispatch onto a Windows
+# self-hosted runner (SMC_GH_HOSTED_RUNNER), where the default shell is
+# PowerShell and cannot parse the bash syntax used below. No-op on
+# ubuntu-latest. Enforced by scripts/lint_workflow_defaults.py.
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  publish-overlay:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up pinned Python
+        uses: ./.github/actions/setup-python-pinned
+        with:
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Set up Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Install Playwright browser (chromium)
+        run: npx playwright install chromium
+
+      - name: Install Playwright system deps (chromium)
+        run: npx playwright install-deps chromium
+
+      - name: Re-bake overlay from committed source
+        if: ${{ inputs.rebake }}
+        run: |
+          python scripts/bake_overlay_library.py
+          # Surface whether the freshly-baked overlay matched the committed artifact.
+          git --no-pager diff --stat -- pine/generated/smc_overlay_generated.pine pine/generated/smc_overlay_generated.json || true
+
+      - name: Write TradingView storage state
+        env:
+          TV_STORAGE_STATE_SECRET: ${{ secrets.TV_STORAGE_STATE }}
+        run: |
+          mkdir -p automation/tradingview/auth
+          python - <<'PY'
+          import base64
+          import gzip
+          import json
+          import os
+          from pathlib import Path
+
+          raw = os.environ['TV_STORAGE_STATE_SECRET']
+          trimmed = raw.strip()
+          if not trimmed:
+            raise SystemExit('TV_STORAGE_STATE secret is empty')
+
+          if trimmed.startswith('{'):
+            payload = trimmed
+          else:
+            try:
+              payload = gzip.decompress(base64.b64decode(trimmed)).decode('utf-8')
+            except Exception as exc:
+              raise SystemExit(f'TV_STORAGE_STATE is neither raw JSON nor gzip+base64: {exc}')
+
+          try:
+            json.loads(payload)
+          except json.JSONDecodeError as exc:
+            raise SystemExit(f'Invalid TV_STORAGE_STATE JSON payload: {exc}')
+
+          output_path = Path('automation/tradingview/auth/storage-state.json')
+          output_path.write_text(payload if payload.endswith('\n') else payload + '\n', encoding='utf-8')
+          PY
+
+      - name: Validate TradingView storage state JSON
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("automation/tradingview/auth/storage-state.json")
+          try:
+              json.loads(path.read_text(encoding="utf-8"))
+          except json.JSONDecodeError as exc:
+              raise SystemExit(f"Invalid TV_STORAGE_STATE JSON in {path}: {exc}")
+          PY
+
+      - name: Publish overlay library to TradingView
+        id: publish
+        env:
+          TV_HEADLESS: "1"
+          TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
+          TV_STORAGE_STATE_MAX_AGE_HOURS: "72"
+          ALLOW_CREATE: ${{ inputs.allow_create && 'true' || 'false' }}
+        run: |
+          flags=()
+          if [ "$ALLOW_CREATE" != "true" ]; then
+            flags+=(--no-allow-create)
+          fi
+          npx tsx scripts/tv_publish_overlay_library.ts "${flags[@]}"
+
+      - name: Upload publish report + screenshots
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: overlay-publish-report
+          path: |
+            automation/tradingview/reports/publish-overlay-library-*.json
+            automation/tradingview/reports/screenshots/**
+          if-no-files-found: ignore
+          retention-days: 14

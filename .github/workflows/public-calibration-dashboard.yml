@@ -92,7 +92,7 @@ jobs:
             echo "No changes to commit."
             exit 0
           fi
-          BRANCH="bot/calibration-public-${GITHUB_RUN_ID}"
+          BRANCH="bot/calibration-public-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           git checkout -b "$BRANCH"
           git commit -m "chore(docs): public calibration report ${GITHUB_RUN_ID}"
           git push -u origin "$BRANCH"

@@ -29,6 +29,15 @@ Usage::
     python scripts/databento_plan_shards.py --lookback-days 30 --num-shards 6
     python scripts/databento_plan_shards.py --lookback-days 10 --num-shards 2 \\
         --end-date 2026-05-08
+
+Incremental mode (opt-in): pass ``--last-baked-date`` (the watermark, i.e. the
+last successfully-baked trading day) to narrow the window to only the elapsed
+days since that date. Default behaviour (flag omitted) is unchanged. When the
+narrowed window is smaller than ``--num-shards``, the shard count is clamped
+down so each shard still spans at least one calendar day::
+
+    python scripts/databento_plan_shards.py --lookback-days 30 --num-shards 6 \\
+        --last-baked-date 2026-05-27
 """
 
 from __future__ import annotations
@@ -37,11 +46,28 @@ import argparse
 import json
 import sys
 from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
 from typing import Sequence
 
 
 def _today_utc() -> date:
     return datetime.now(UTC).date()
+
+
+def _load_narrow_scan_window():
+    """Lazily import the sibling incremental-window helper.
+
+    Inserts REPO_ROOT into ``sys.path`` so ``from scripts.databento_incremental_window``
+    resolves both when invoked as a script and via importlib in tests.
+    The import is deferred so the default, non-incremental code path never
+    depends on the helper module being importable.
+    """
+    repo_root = str(Path(__file__).resolve().parent.parent)
+    if repo_root not in sys.path:
+        sys.path.insert(0, repo_root)
+    from scripts.databento_incremental_window import narrow_scan_window
+
+    return narrow_scan_window
 
 
 def _shard_has_weekday(start: date, end: date) -> bool:
@@ -112,16 +138,71 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
              "otherwise emit a stderr warning. Use in cron-driven matrices where a "
              "weekend-only shard would silently produce an empty manifest.",
     )
+    parser.add_argument(
+        "--last-baked-date",
+        type=lambda s: date.fromisoformat(s),
+        default=None,
+        help="Watermark: last successfully-baked trading day (YYYY-MM-DD). When set, "
+             "the window is narrowed to only the elapsed days since this date "
+             "(opt-in incremental mode). Omit for the default full-lookback behaviour.",
+    )
+    parser.add_argument(
+        "--safety-overlap-days",
+        type=int,
+        default=1,
+        help="Incremental mode only: re-scan this many already-baked days (inclusive) "
+             "so late revisions are captured. Default 1.",
+    )
+    parser.add_argument(
+        "--min-refresh-days",
+        type=int,
+        default=1,
+        help="Incremental mode only: smallest window to scan even when the watermark "
+             "is already current. Default 1.",
+    )
     return parser.parse_args(list(argv) if argv is not None else None)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parse_args(argv)
     end_date = args.end_date if args.end_date is not None else _today_utc()
+    lookback_days = int(args.lookback_days)
+    num_shards = int(args.num_shards)
+
+    if args.last_baked_date is not None:
+        # Opt-in incremental narrowing: shard only the window that has elapsed
+        # since the watermark instead of the full trailing lookback. The default
+        # path (flag omitted) is byte-for-byte unchanged.
+        try:
+            narrow_scan_window = _load_narrow_scan_window()
+            plan = narrow_scan_window(
+                last_baked_day=args.last_baked_date,
+                today=end_date,
+                full_lookback_days=lookback_days,
+                min_refresh_days=int(args.min_refresh_days),
+                safety_overlap_days=int(args.safety_overlap_days),
+            )
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        # The narrowed window may be smaller than the requested shard count;
+        # clamp so plan_shards' `lookback_days >= num_shards` invariant holds.
+        effective_shards = min(num_shards, plan.effective_lookback_days)
+        print(
+            f"incremental: reason={plan.reason} "
+            f"window={plan.start_date.isoformat()}..{plan.end_date.isoformat()} "
+            f"effective_lookback_days={plan.effective_lookback_days} "
+            f"(full={lookback_days}) shards={effective_shards} "
+            f"(requested={num_shards})",
+            file=sys.stderr,
+        )
+        lookback_days = plan.effective_lookback_days
+        num_shards = effective_shards
+
     try:
         shards = plan_shards(
-            lookback_days=int(args.lookback_days),
-            num_shards=int(args.num_shards),
+            lookback_days=lookback_days,
+            num_shards=num_shards,
             end_date=end_date,
         )
     except ValueError as exc:

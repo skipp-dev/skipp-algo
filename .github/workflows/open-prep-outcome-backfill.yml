@@ -210,7 +210,7 @@ jobs:
             echo "No changes to commit."
             exit 0
           fi
-          BRANCH="bot/outcome-backfill-${GITHUB_RUN_ID}"
+          BRANCH="bot/outcome-backfill-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           git checkout -b "$BRANCH"
           git commit -m "chore(open_prep): outcome backfill ${GITHUB_RUN_ID}"
           git push -u origin "$BRANCH"

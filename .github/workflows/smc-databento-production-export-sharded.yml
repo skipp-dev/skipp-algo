@@ -63,6 +63,11 @@ on:
         required: false
         type: boolean
         default: false
+      incremental_from_manifest:
+        description: "Opt-in: narrow the shard window to days since the baked manifest asof_date (--last-baked-date). Off = full lookback rescan. Every run still prints a dry-run preview of the narrowed window in the job summary, so flip this on only after the preview looks right."
+        required: false
+        type: boolean
+        default: false
 
 # Per-ref serialization mirrors the live producer cron's discipline so a
 # slow plan-job (it shouldn't be slow, but cheap insurance) cannot be
@@ -109,11 +114,77 @@ jobs:
           # exercise the cutover-target config (lookback_days=30, num_shards=6).
           LOOKBACK="${{ inputs.lookback_days || '30' }}"
           NUM="${{ inputs.num_shards || '6' }}"
-          echo "::notice::Planning shards: lookback_days=${LOOKBACK} num_shards=${NUM}"
-          python scripts/databento_plan_shards.py \
-            --lookback-days "${LOOKBACK}" \
-            --num-shards "${NUM}" \
-            > shards.json
+          # Option-b cadence (step 2b) watermark plumbing. The baked Pine
+          # manifest records the last exported trading day as asof_date.
+          # Reading it lets plan_shards narrow the scan window to only the
+          # unbaked tail via the opt-in --last-baked-date flag. INCREMENTAL is
+          # derived with the boolean-safe truthy form (same shape as the
+          # cache-probe toggle): a boolean-typed input is never compared to a
+          # string literal, and schedule triggers collapse to empty.
+          INCREMENTAL="${{ inputs.incremental_from_manifest && 'true' || '' }}"
+          MANIFEST="pine/generated/smc_micro_profiles_generated.json"
+          ASOF=""
+          if [ -f "${MANIFEST}" ]; then
+            ASOF=$(jq -r '.asof_date // empty' "${MANIFEST}" 2>/dev/null || true)
+          fi
+          echo "::notice::Planning shards: lookback_days=${LOOKBACK} num_shards=${NUM} manifest_asof=${ASOF:-<none>} incremental=${INCREMENTAL:-off}"
+
+          # --- CI dry-run preview (always; side-effect-free) --------------
+          # Print what the watermark-narrowed plan WOULD produce WITHOUT
+          # touching the matrix the producer consumes. plan_shards writes its
+          # incremental diagnostic to stderr; we tee it into the job summary
+          # so an operator can eyeball the narrowed window before flipping the
+          # toggle on. A missing/empty asof (cold manifest) safely falls
+          # through to the full-window plan.
+          if [ -n "${ASOF}" ]; then
+            echo "----- incremental dry-run preview (asof=${ASOF}) -----"
+            set +e
+            python scripts/databento_plan_shards.py \
+              --lookback-days "${LOOKBACK}" \
+              --num-shards "${NUM}" \
+              --last-baked-date "${ASOF}" \
+              > shards_incremental_preview.json 2> incremental_preview.diag
+            PREVIEW_RC=$?
+            set -e
+            cat incremental_preview.diag || true
+            if [ "${PREVIEW_RC}" -ne 0 ]; then
+              echo "::warning::incremental dry-run preview failed (rc=${PREVIEW_RC}); production matrix unaffected."
+            fi
+            {
+              echo "### Databento shard plan — incremental dry-run preview"
+              echo ""
+              echo "- manifest asof_date: \`${ASOF}\`"
+              echo "- requested: lookback_days=\`${LOOKBACK}\` num_shards=\`${NUM}\`"
+              echo "- incremental toggle: \`${INCREMENTAL:-off}\`"
+              echo ""
+              echo '```'
+              cat incremental_preview.diag 2>/dev/null || echo "(no diagnostic emitted)"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::notice::No manifest asof_date; incremental dry-run preview skipped (cold start / full-lookback path)."
+          fi
+
+          # --- production matrix -----------------------------------------
+          # The toggle-off path is byte-for-byte the original full-lookback
+          # invocation. Only an explicit opt-in AND a present watermark feed
+          # --last-baked-date into the matrix-producing call.
+          if [ -n "${INCREMENTAL}" ] && [ -n "${ASOF}" ]; then
+            echo "::notice::incremental_from_manifest ON — narrowing production matrix to the tail since ${ASOF}."
+            python scripts/databento_plan_shards.py \
+              --lookback-days "${LOOKBACK}" \
+              --num-shards "${NUM}" \
+              --last-baked-date "${ASOF}" \
+              > shards.json
+          else
+            if [ -n "${INCREMENTAL}" ]; then
+              echo "::warning::incremental_from_manifest ON but no manifest asof_date found; falling back to full lookback."
+            fi
+            python scripts/databento_plan_shards.py \
+              --lookback-days "${LOOKBACK}" \
+              --num-shards "${NUM}" \
+              > shards.json
+          fi
           echo "----- shards.json -----"
           cat shards.json
           echo "-----------------------"
