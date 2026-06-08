@@ -354,7 +354,13 @@ def _fetch_flow_ats_uncached(symbol: str) -> dict[str, Any] | None:
         )
         avg_trade_size = (micro or {}).get("avg_trade_size")
         buy_volume_pct = (micro or {}).get("buy_volume_pct")
-        if avg_trade_size is None or buy_volume_pct is None:
+        n_trades = (micro or {}).get("n_trades")
+        # Fail closed on an empty trade window: fetch_symbol_microstructure
+        # returns neutral defaults (avg_trade_size=0.0, buy_volume_pct=50.0)
+        # when n_trades == 0 (e.g. outside market hours). Emitting those would
+        # fabricate a flow/ATS overlay that overrides the baked mp.* baseline
+        # with non-data, so bail and let Pine keep its baked fallback.
+        if avg_trade_size is None or buy_volume_pct is None or not n_trades:
             return None
         row = pd.DataFrame(
             [
