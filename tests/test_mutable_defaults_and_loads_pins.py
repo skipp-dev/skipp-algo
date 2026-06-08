@@ -114,7 +114,9 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/realtime_signals.py", 2584),
         ("open_prep/scorer.py", 118),
         ("open_prep/watchlist.py", 53),
-        ("smc_tv_bridge/smc_api.py", 320),
+        # 2026-06-08 (WP-B2): +99 lines (event-risk overlay block) shifted the
+        # pre-existing ATS-baseline json.load from 320 -> 419; same reviewed site.
+        ("smc_tv_bridge/smc_api.py", 419),
     }
 )
 

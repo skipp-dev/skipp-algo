@@ -28,25 +28,34 @@ import smc_tv_bridge.smc_api as smc_api
 _SCHEMA_PATH = Path(__file__).resolve().parents[1] / "spec" / "smc_live_overlay.schema.json"
 
 # Fields the endpoint must NOT serve (baked-only); their absence is what lets
-# Pine keep its baked mp.* defaults. ``tone`` (WP-G), ``vix_level`` (WP-H) and
-# the flow-delta/ATS fields (WP-K) are served, so they are intentionally absent
-# from this list. The event-risk fields are declared in the schema/contract for
-# forward-compat (WP-B1) and are served in WP-B2, so until then they stay omitted.
+# Pine keep its baked mp.* defaults. ``tone`` (WP-G), ``vix_level`` (WP-H), the
+# flow-delta/ATS fields (WP-K) and the event-risk fields (WP-B2) are served, so
+# they are intentionally absent from this list.
 _BAKED_ONLY_KEYS = (
     "flow_rel_vol",
     "squeeze_on",
-    "event_window_state",
-    "event_risk_level",
-    "next_event_name",
-    "next_event_time",
-    "market_event_blocked",
-    "symbol_event_blocked",
-    "event_provider_status",
 )
 
 
 def _schema() -> dict:
     return json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+
+
+@pytest.fixture(autouse=True)
+def _stub_event_risk_resolver() -> object:
+    """Keep /smc_live tests hermetic w.r.t. the event-risk resolver (WP-B2).
+
+    ``_get_event_risk`` is wired into every payload build. Under ``USE_MOCK`` it
+    returns canned fields; otherwise it would resolve live reference/earnings
+    data. Default every test to a no-data resolve (-> no event fields, Pine
+    keeps its baked posture) over a clean cache so the suite stays network-free
+    and order-independent. Event-specific tests re-patch as needed.
+    """
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(smc_api, "_fetch_event_risk_uncached", lambda symbol: {})
+        mp.setattr(smc_api, "_event_cache", {})
+        mp.setattr(smc_api, "_event_symbol_locks", {})
+        yield
 
 
 def test_smc_live_schema_conformant_mock_wiring() -> None:
@@ -126,6 +135,16 @@ def test_smc_live_off_universe_emits_envelope_only() -> None:
     assert "flow_delta_proxy_pct" not in result
     assert "ats_state" not in result
     assert "ats_zscore" not in result
+    for key in (
+        "event_window_state",
+        "event_risk_level",
+        "next_event_name",
+        "next_event_time",
+        "market_event_blocked",
+        "symbol_event_blocked",
+        "event_provider_status",
+    ):
+        assert key not in result
     # Envelope is still complete and valid.
     assert result["schema"] == "smc-live-overlay/1"
     assert result["symbol"] == "ZZZZ"
@@ -372,3 +391,141 @@ def test_smc_live_flow_ats_cache_coalesces_concurrent_fetches() -> None:
     assert len(calls) == 1, f"expected a single coalesced fetch, got {len(calls)}"
     assert {r["flow_delta_proxy_pct"] for r in results} == {5.0}
     assert {r["ats_state"] for r in results} == {"SPIKE_UP"}
+
+
+def test_smc_live_event_risk_mock_wiring() -> None:
+    """Mock wiring serves the event-risk overlay fields (B2, WP-B2)."""
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(smc_api, "USE_MOCK", True)
+        result = smc_api.smc_live_endpoint(symbol="aapl", tf="15m")
+
+    jsonschema.validate(result, _schema())
+    assert result["event_window_state"] == smc_api._EVENT_MOCK_FIELDS["event_window_state"]
+    assert result["event_risk_level"] == smc_api._EVENT_MOCK_FIELDS["event_risk_level"]
+    assert result["next_event_name"] == smc_api._EVENT_MOCK_FIELDS["next_event_name"]
+    assert result["next_event_time"] == smc_api._EVENT_MOCK_FIELDS["next_event_time"]
+    assert result["symbol_event_blocked"] is True
+    assert result["event_provider_status"] == "ok"
+    # The mock omits market_event_blocked -> tighten-only (no False emitted).
+    assert "market_event_blocked" not in result
+
+
+def test_smc_live_event_risk_no_data_omits_fields() -> None:
+    """A no-data event resolve omits every event field -> Pine keeps mp.* posture.
+
+    Serving fabricated event state would override the baked posture with
+    non-data; the safety invariant requires omitting the fields instead so the
+    overlay can only tighten, never loosen, the baked gating.
+    """
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(smc_api, "USE_MOCK", False)
+        mp.setattr(smc_api, "build_smc_snapshot", lambda symbol, tf: {"newsscore": 0.0})
+        mp.setattr(smc_api, "_get_vix_level", lambda: None)
+        mp.setattr(smc_api, "_get_flow_ats_fields", lambda s: None)
+        mp.setattr(smc_api, "_fetch_event_risk_uncached", lambda s: {})
+        mp.setattr(smc_api, "_event_cache", {})
+        result = smc_api.smc_live_endpoint(symbol="aapl", tf="15m")
+
+    jsonschema.validate(result, _schema())
+    for key in (
+        "event_window_state",
+        "event_risk_level",
+        "next_event_name",
+        "next_event_time",
+        "market_event_blocked",
+        "symbol_event_blocked",
+        "event_provider_status",
+    ):
+        assert key not in result, f"event field {key!r} must be omitted on no-data"
+
+
+def test_event_light_to_overlay_fields_blocks_are_tighten_only() -> None:
+    """The mapping emits block flags only when True and drops no-data entirely.
+
+    Safety invariant: the overlay may assert a block (True) but must never emit
+    a False that could lift the baked block on the Pine side. A ``no_data``
+    provider status drops every field so Pine keeps its baked posture.
+    """
+    # no_data -> everything omitted.
+    assert smc_api._event_light_to_overlay_fields({"EVENT_PROVIDER_STATUS": "no_data"}) == {}
+
+    # False block flags are dropped; True is emitted.
+    mapped = smc_api._event_light_to_overlay_fields(
+        {
+            "EVENT_WINDOW_STATE": "PRE_EVENT",
+            "EVENT_RISK_LEVEL": "HIGH",
+            "NEXT_EVENT_NAME": "AAPL Q3 Earnings",
+            "NEXT_EVENT_TIME": "2026-06-09T20:00:00Z",
+            "MARKET_EVENT_BLOCKED": False,
+            "SYMBOL_EVENT_BLOCKED": True,
+            "EVENT_PROVIDER_STATUS": "ok",
+        }
+    )
+    assert mapped["event_window_state"] == "PRE_EVENT"
+    assert mapped["event_risk_level"] == "HIGH"
+    assert mapped["next_event_name"] == "AAPL Q3 Earnings"
+    assert mapped["next_event_time"] == "2026-06-09T20:00:00Z"
+    assert "market_event_blocked" not in mapped  # False must never be emitted
+    assert mapped["symbol_event_blocked"] is True
+    assert mapped["event_provider_status"] == "ok"
+
+    # Empty optional strings are dropped; a clean provider status still serves.
+    sparse = smc_api._event_light_to_overlay_fields(
+        {
+            "EVENT_WINDOW_STATE": "CLEAR",
+            "EVENT_RISK_LEVEL": "NONE",
+            "NEXT_EVENT_NAME": "",
+            "NEXT_EVENT_TIME": "",
+            "MARKET_EVENT_BLOCKED": False,
+            "SYMBOL_EVENT_BLOCKED": False,
+            "EVENT_PROVIDER_STATUS": "ok",
+        }
+    )
+    assert sparse == {
+        "event_window_state": "CLEAR",
+        "event_risk_level": "NONE",
+        "event_provider_status": "ok",
+    }
+
+
+def test_smc_live_event_risk_cache_coalesces_concurrent_fetches() -> None:
+    """A cold/expired cache triggers exactly one event-risk fetch per symbol.
+
+    Per-symbol event-risk fields are cached under a per-symbol lock, so 32
+    concurrent callers for the same symbol must coalesce into a single
+    ``_fetch_event_risk_uncached`` call and all observe the same fields. Guards
+    the shared-mutable cache against lost/duplicated fetches.
+    """
+    calls: list[int] = []
+    calls_lock = threading.Lock()
+
+    def _counting_fetch(symbol: str) -> dict[str, object]:
+        with calls_lock:
+            calls.append(1)
+        return {
+            "event_window_state": "ACTIVE",
+            "event_risk_level": "HIGH",
+            "event_provider_status": "ok",
+        }
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(smc_api, "USE_MOCK", False)
+        mp.setattr(smc_api, "build_smc_snapshot", lambda symbol, tf: {"newsscore": 0.0})
+        mp.setattr(smc_api, "_get_vix_level", lambda: None)
+        mp.setattr(smc_api, "_get_flow_ats_fields", lambda s: None)
+        mp.setattr(smc_api, "_fetch_event_risk_uncached", _counting_fetch)
+        mp.setattr(smc_api, "_event_cache", {})
+        mp.setattr(smc_api, "_event_symbol_locks", {})
+
+        n_threads = 32
+        with ThreadPoolExecutor(max_workers=n_threads) as pool:
+            results = list(
+                pool.map(
+                    lambda _: smc_api.smc_live_endpoint(symbol="aapl", tf="15m"),
+                    range(n_threads),
+                )
+            )
+
+    assert len(calls) == 1, f"expected a single coalesced fetch, got {len(calls)}"
+    assert {r["event_window_state"] for r in results} == {"ACTIVE"}
+    assert {r["event_risk_level"] for r in results} == {"HIGH"}
