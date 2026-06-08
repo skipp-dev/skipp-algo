@@ -57,15 +57,15 @@ def _today_utc() -> date:
 def _load_narrow_scan_window():
     """Lazily import the sibling incremental-window helper.
 
-    Tolerates both direct script execution (where ``scripts/`` is already on
-    ``sys.path[0]``) and importlib-based loading in tests (where it is not).
+    Inserts REPO_ROOT into ``sys.path`` so ``from scripts.databento_incremental_window``
+    resolves both when invoked as a script and via importlib in tests.
     The import is deferred so the default, non-incremental code path never
     depends on the helper module being importable.
     """
-    script_dir = str(Path(__file__).resolve().parent)
-    if script_dir not in sys.path:
-        sys.path.insert(0, script_dir)
-    from databento_incremental_window import narrow_scan_window
+    repo_root = str(Path(__file__).resolve().parent.parent)
+    if repo_root not in sys.path:
+        sys.path.insert(0, repo_root)
+    from scripts.databento_incremental_window import narrow_scan_window
 
     return narrow_scan_window
 

@@ -44,6 +44,7 @@ concurrency:
 env:
   PYTHONUNBUFFERED: "1"
   PYTHONPATH: ${{ github.workspace }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 # Force bash for every run: step. The repo can dispatch onto a Windows
 # self-hosted runner (SMC_GH_HOSTED_RUNNER), where the default shell is

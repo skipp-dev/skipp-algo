@@ -130,6 +130,13 @@ test("overlay contract rejects a core_import_snippet without the import line", (
   assert.throws(() => verifyOverlayPublishContract(input), /core_import_snippet must contain/);
 });
 
+test("overlay contract rejects a manifest library_version mismatch", () => {
+  const { input } = writeFixture({
+    manifest: buildOverlayManifest({ library_version: 99 }),
+  });
+  assert.throws(() => verifyOverlayPublishContract(input), /library_version mismatch/);
+});
+
 test("overlay contract rejects an invalid JSON manifest", () => {
   const { input } = writeFixture({ manifest: "{ not valid json" });
   assert.throws(() => verifyOverlayPublishContract(input), /not valid JSON/);

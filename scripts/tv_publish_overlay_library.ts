@@ -182,6 +182,11 @@ export function verifyOverlayPublishContract(cli: OverlayContractInput): Contrac
   if (!Number.isFinite(cli.version) || cli.version < 1) {
     throw new Error(`Overlay library version must be a positive integer, received: ${cli.version}`);
   }
+  if (manifest.library_version !== cli.version) {
+    throw new Error(
+      `Overlay manifest library_version mismatch: expected ${cli.version}, got ${String(manifest.library_version)}`,
+    );
+  }
 
   return {
     libraryPath: cli.library,

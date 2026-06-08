@@ -20,7 +20,7 @@ watermark idiom mirrors ``newsstack_fmp.pipeline._filter_new_by_watermark``
 This module is PURE date arithmetic — it performs no I/O and needs no Databento
 access, so it is fully unit-testable in isolation. Wiring it into the producer
 (reading the watermark from the base-snapshot manifest and feeding the result
-into ``plan_shards``) is a separate, opt-in step gated behind ``--incremental``
+into ``plan_shards``) is a separate, opt-in step gated behind ``--last-baked-day``
 so production behaviour is unchanged until explicitly enabled.
 
 Usage::

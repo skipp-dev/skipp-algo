@@ -99,6 +99,21 @@ def test_top_level_env_sets_pythonpath_and_unbuffered() -> None:
     )
 
 
+def test_top_level_env_force_node24() -> None:
+    env = _load().get("env") or {}
+    assert env.get("FORCE_JAVASCRIPT_ACTIONS_TO_NODE24") == "true", (
+        "top-level env must set FORCE_JAVASCRIPT_ACTIONS_TO_NODE24='true'"
+    )
+
+
+def test_defaults_run_shell_bash() -> None:
+    defaults = _load().get("defaults") or {}
+    run_block = defaults.get("run") or {}
+    assert run_block.get("shell") == "bash", (
+        f"defaults.run.shell must be 'bash' (got {run_block.get('shell')!r})"
+    )
+
+
 def test_publish_job_has_bounded_timeout() -> None:
     job = (_load().get("jobs") or {}).get("publish-overlay")
     assert isinstance(job, dict), "missing publish-overlay job"
