@@ -67,9 +67,11 @@ on-demand aktualisiert wird. Konservativ: in B1 mitnehmen, als „baked" markier
 > Aktualisiert §§3/4. Die offenen Punkte §4.2 und §4.3 sind entschieden.
 
 **§4.2 (On-Demand-Hook):** Es wurde **kein** dedizierter zweiter Producer gebaut.
-Der `/smc_live`-Endpoint re-serialisiert die vorhandenen Snapshot-/Enrichment-
-Artefakte (gleiche Kette wie B1) und stempelt `asof_ts`/`stale`; die B2-Felder
-werden so on-demand frisch ausgeliefert.
+Der `/smc_live`-Endpoint baut den Snapshot und leitet tone/VIX/Flow/ATS on-demand
+über dieselbe Provider-/Qualifier-Kette wie B1 ab (**kein** Re-Serialisieren
+vorberechneter Artefakte) und stempelt `asof_ts`/`stale`; die B2-Felder werden so
+on-demand frisch ausgeliefert. VIX stammt dabei aus einem dedizierten
+market-weiten `^VIX`-Quote-Pfad (TTL 300s), nicht aus dem Per-Symbol-Snapshot.
 
 **§4.3 (Schlüssel/Typen):** In `spec/smc_live_overlay.schema.json`
 (`smc-live-overlay/1`) eingefroren.

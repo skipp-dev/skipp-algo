@@ -52,24 +52,24 @@
       "enum": [0, 1, null]
     },
     "vix_level": {
-      "description": "B2. Spot VIX level from the live snapshot (>=0). Null when not served fresh (then Pine uses the baked mp.* VIX baseline).",
+      "description": "B2. Spot VIX level (>=0) from the dedicated market-wide ^VIX quote path. Absent (or null) when not served fresh (then Pine uses the baked mp.* VIX baseline).",
       "type": ["number", "null"],
       "minimum": 0
     },
     "flow_delta_proxy_pct": {
-      "description": "B2. Signed order-flow delta proxy in percent from the live microstructure read. Null when not served fresh (then Pine uses baked mp.* delta-proxy).",
+      "description": "B2. Signed order-flow delta proxy in percent from the live microstructure read. Absent (or null) when not served fresh (then Pine uses baked mp.* delta-proxy).",
       "type": ["number", "null"]
     },
     "ats_state": {
-      "description": "B2. Average-trade-size regime label (e.g. SPIKE_UP/ELEVATED/NEUTRAL) from the live microstructure read. Null when not served fresh (then Pine uses baked mp.* ats_state).",
+      "description": "B2. Average-trade-size regime label (e.g. SPIKE_UP/ELEVATED/NEUTRAL) from the live microstructure read. Absent (or null) when not served fresh (then Pine uses baked mp.* ats_state).",
       "type": ["string", "null"]
     },
     "ats_zscore": {
-      "description": "B2. Average-trade-size z-score vs the 20-day baseline from the live microstructure read. Null when not served fresh (then Pine uses baked mp.* ats_zscore).",
+      "description": "B2. Average-trade-size z-score vs the 20-day baseline from the live microstructure read. Absent (or null) when not served fresh (then Pine uses baked mp.* ats_zscore).",
       "type": ["number", "null"]
     },
     "tone": {
-      "description": "B2. Aggregate market-tone label from the live snapshot. Null when not served fresh (then Pine uses the baked mp.* tone).",
+      "description": "B2. Aggregate market-tone label from the live snapshot. Absent (or null) when not served fresh (then Pine uses the baked mp.* tone).",
       "type": ["string", "null"]
     }
   }
