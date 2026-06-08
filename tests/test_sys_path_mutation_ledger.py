@@ -67,6 +67,10 @@ _FROZEN_SITES: dict[str, int] = {
     "scripts/check_pine_legacy_drift.py": 2,
     # Rebaselined 2026-05-03 (after PR #2035): see check_pine_legacy_drift.py.
     "scripts/collect_smc_gate_evidence.py": 2,
+    # Step-2b incremental window: lazy _load_narrow_scan_window() inserts
+    # REPO_ROOT so scripts.databento_incremental_window imports both as a
+    # script and via importlib (commit b04e7d83).
+    "scripts/databento_plan_shards.py": 1,
     "scripts/databento_preopen_fast.py": 1,
     "scripts/databento_production_export.py": 1,
     # A9b.3 reduce-step needs sys.path bootstrap to import scripts.smc_atomic_write

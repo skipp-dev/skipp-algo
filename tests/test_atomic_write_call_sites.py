@@ -61,6 +61,7 @@ _SCAN_DIRS: tuple[Path, ...] = tuple(
 #
 # Keys are repo-relative POSIX paths (Deep-Review 2026-04-27).
 _ALLOWED_RAW_WRITE_FILES: dict[str, str] = {
+    "scripts/bake_overlay_library.py": "mkstemp + fdopen + os.replace atomic pattern (overlay .pine + manifest snapshots)",
     "scripts/plan_2_8_history_backfill.py": "fdopen + os.replace atomic pattern (json snapshots)",
     "scripts/plan_2_8_snooze_admin.py": "fdopen + os.replace atomic pattern (json snapshots)",
     "scripts/plan_2_8_alert_history.py": "fdopen + os.replace atomic pattern (json snapshots)",

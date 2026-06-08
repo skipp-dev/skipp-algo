@@ -190,7 +190,9 @@ allowed = [
 "plan-2-8-weekly-digest.yml" = 382
 # Promotion-gate daily: post-#2421 baseline.
 "promotion-gate-daily.yml" = 2
-"smc-databento-production-export-sharded.yml" = 1
+# Step-2b incremental activation (591c5bac): +1 from baseline for the
+# always-on dry-run preview's `set +e`/PREVIEW_RC wrap around plan_shards.
+"smc-databento-production-export-sharded.yml" = 2
 "smc-databento-production-export.yml" = 1
 "smc-deeper-integration-gates.yml" = 1
 # Library refresh: F-V8-N1 preflight retry wrapper (PR #2418) plus
