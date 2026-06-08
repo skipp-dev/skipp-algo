@@ -45,6 +45,14 @@ env:
   PYTHONUNBUFFERED: "1"
   PYTHONPATH: ${{ github.workspace }}
 
+# Force bash for every run: step. The repo can dispatch onto a Windows
+# self-hosted runner (SMC_GH_HOSTED_RUNNER), where the default shell is
+# PowerShell and cannot parse the bash syntax used below. No-op on
+# ubuntu-latest. Enforced by scripts/lint_workflow_defaults.py.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   publish-overlay:
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
