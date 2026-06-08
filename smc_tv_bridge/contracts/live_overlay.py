@@ -65,6 +65,7 @@ class LiveOverlayPayload(BaseModel):
     ats_state: str | None = None
     ats_zscore: float | None = None
     tone: str | None = None
+    global_heat: float | None = Field(default=None, ge=-1.0, le=1.0)
 
     # --- Event-risk overlay fields (declared here; served via the earnings/event calendar) ---
     event_window_state: str | None = None

@@ -82,6 +82,7 @@ feldweise von `SMC_TV_Bridge.pine` konsumiert:
 | B2-Feld | Typ | Serviert | Pine-Konsum |
 |---|---|---|---|
 | `tone` | string | WP-G (#2609) | WP-L (#2616) |
+| `global_heat` | number | C (dieser PR) | C (dieser PR) |
 | `vix_level` | number | WP-H (#2612) | WP-L (#2616) |
 | `flow_delta_proxy_pct` | number | WP-K (#2614) | WP-L (#2616) |
 | `ats_state` | string | WP-K (#2614) | WP-L (#2616) |
@@ -99,8 +100,14 @@ feldweise von `SMC_TV_Bridge.pine` konsumiert:
   oder leeres Fenster ⇒ feldweiser Fallback auf `mp.*` (Pine: Zahlen → `na`,
   Strings → `""`). `squeeze_on`/`flow_rel_vol` bleiben **baked-only** (Endpoint
   lässt sie weg; die Bridge liest sie scaffolded und erhält `na`).
-- **Offen:** `global_heat` (in §3 unter „gemischt“) bleibt unverdrahtet; aktuell
-  wird aus dieser Gruppe nur `tone` ausgeliefert/konsumiert.
+- **Erledigt (C):** `global_heat` (in §3 unter „gemischt") wird jetzt ebenfalls
+  ausgeliefert **und** Pine-konsumiert — abgeleitet über dieselbe
+  `compute_library_layering`-Funktion wie `tone` (Layering-Geschwister, identische
+  Gewichtung/Schwellen, gerundet auf 4 Nachkommastellen, Range `[-1,1]`). Auf
+  no-data (flacher Technical-Score *und* Score 0) wird es — wie `tone` —
+  weggelassen → Pine behält `mp.GLOBAL_HEAT`. Pine zeigt es diagnostisch als
+  `GblHeat`. Damit ist die §3-Gruppe „gemischt" vollständig verdrahtet
+  (`tone` + `global_heat`).
 
 ---
 

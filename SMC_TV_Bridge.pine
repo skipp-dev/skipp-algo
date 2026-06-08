@@ -76,6 +76,7 @@ frvStr   = f_getField(body, "flow_rel_vol")
 sqzStr   = f_getField(body, "squeeze_on")
 vixStr      = f_getField(body, "vix_level")
 toneStr     = f_getField(body, "tone")
+    ghStr       = f_getField(body, "global_heat")
 fdpStr      = f_getField(body, "flow_delta_proxy_pct")
 atsStateStr = f_getField(body, "ats_state")
 atszStr     = f_getField(body, "ats_zscore")
@@ -106,6 +107,7 @@ squeezeOn    = overlayFresh and sqzStr  != "" ? str.tonumber(sqzStr, 0.0) : na
 // indicators, not here — mirrors the news/flow/squeeze handling above.
 vixLevel     = overlayFresh and vixStr      != "" ? str.tonumber(vixStr, na)  : na
 toneOvl      = overlayFresh and toneStr     != "" ? toneStr                   : ""
+    globalHeatOvl = overlayFresh and ghStr       != "" ? str.tonumber(ghStr, na) : na
 flowDelta    = overlayFresh and fdpStr      != "" ? str.tonumber(fdpStr, na)  : na
 atsStateOvl  = overlayFresh and atsStateStr != "" ? atsStateStr               : ""
 atsZscore    = overlayFresh and atszStr     != "" ? str.tonumber(atszStr, na) : na
@@ -178,7 +180,7 @@ if barstate.islast and sweepStr != ""
             label.new(bar_index, pr, "", style = stl, color = clr, size = size.tiny)
 
 // ── Dashboard table ───────────────────────────────────
-var table dash = table.new(position.top_right, 2, 19, bgcolor = color.new(color.black, 80))
+var table dash = table.new(position.top_right, 2, 20, bgcolor = color.new(color.black, 80))
 if barstate.islast
     table.cell(dash, 0, 0, "Regime",    text_color = color.white, text_size = size.small)
     table.cell(dash, 1, 0, regimeStr != "" ? regimeStr : "–", text_color = color.yellow, text_size = size.small)
@@ -218,3 +220,5 @@ if barstate.islast
     table.cell(dash, 1, 17, evtSymBlk ? "BLK" : "–", text_color = evtSymBlk ? color.red : color.aqua, text_size = size.small)
     table.cell(dash, 0, 18, "EvtProv",  text_color = color.white, text_size = size.small)
     table.cell(dash, 1, 18, evtProvOvl == "" ? "–" : evtProvOvl, text_color = color.aqua, text_size = size.small)
+        table.cell(dash, 0, 19, "GblHeat",  text_color = color.white, text_size = size.small)
+        table.cell(dash, 1, 19, na(globalHeatOvl) ? "–" : str.tostring(math.round(globalHeatOvl, 2)), text_color = globalHeatOvl > 0 ? color.lime : color.red, text_size = size.small)
