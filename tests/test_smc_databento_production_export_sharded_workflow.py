@@ -111,6 +111,61 @@ def test_dispatch_input_fallbacks_still_exist() -> None:
     assert "${{ inputs.num_shards || '6' }}" in text
 
 
+def test_incremental_from_manifest_input_is_opt_in_default_false() -> None:
+    # Step-2b cadence activation (Option b): the watermark-narrowing toggle
+    # is opt-in and defaults to false, so every schedule run keeps doing a
+    # full-lookback rescan until an operator explicitly flips it on after
+    # reviewing the dry-run preview.
+    text = _read()
+    assert "incremental_from_manifest:" in text
+    block_start = text.index("incremental_from_manifest:")
+    block = text[block_start : block_start + 500]
+    assert "type: boolean" in block, "incremental_from_manifest must be typed boolean"
+    assert "default: false" in block, "incremental_from_manifest must default to false (opt-in)"
+
+
+def test_incremental_toggle_uses_boolean_safe_truthy_form() -> None:
+    # Same GHA-quirk guard as enable_cache_probe: a boolean-typed input is
+    # exposed as a real boolean, so it must use the bare truthy form and
+    # never a string compare against 'true' (which is always false and would
+    # silently keep the producer on the full-lookback path).
+    text = _read()
+    assert (
+        "INCREMENTAL=\"${{ inputs.incremental_from_manifest && 'true' || '' }}\"" in text
+    ), "incremental toggle must use the boolean-safe truthy form"
+    assert "inputs.incremental_from_manifest == 'true'" not in text, (
+        "GHA-quirk: boolean-typed workflow inputs are NOT compared with the "
+        "string 'true'. Use the bare truthy form instead."
+    )
+
+
+def test_compute_step_reads_manifest_asof_for_dry_run() -> None:
+    # The plan job must read the baked manifest's asof_date and always emit a
+    # side-effect-free incremental dry-run preview into the job summary, so
+    # the narrowed window can be reviewed before the toggle is switched on
+    # (CI dry-run before scharfschalten).
+    text = _read()
+    assert 'MANIFEST="pine/generated/smc_micro_profiles_generated.json"' in text
+    assert "jq -r '.asof_date // empty'" in text
+    assert "incremental dry-run preview" in text
+    assert '>> "$GITHUB_STEP_SUMMARY"' in text
+
+
+def test_incremental_only_feeds_matrix_when_toggle_on() -> None:
+    # The production matrix-producing plan_shards call only receives
+    # --last-baked-date when BOTH the opt-in toggle is on AND a watermark
+    # exists; otherwise it stays the byte-for-byte full-lookback invocation.
+    text = _read()
+    assert 'if [ -n "${INCREMENTAL}" ] && [ -n "${ASOF}" ]; then' in text
+    compute_start = text.index("- name: Compute shard plan")
+    compute_block = text[compute_start : text.index("- name: Upload shard plan", compute_start)]
+    assert "--last-baked-date" in compute_block
+    # Both the dry-run preview call and at least one matrix-producing call
+    # (incremental + full-lookback fall-through) keep plan_shards referenced
+    # multiple times.
+    assert compute_block.count("scripts/databento_plan_shards.py") >= 2
+
+
 def test_databento_volatility_cache_is_warmed_across_runs() -> None:
     # Phase-C re-validation (#2334): without an actions/cache step for the
     # parquet cache directory every shard starts cold and the probe hit-rate
