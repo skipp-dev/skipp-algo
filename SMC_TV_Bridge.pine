@@ -74,6 +74,11 @@ staleStr = f_getField(body, "stale")
 nstrStr  = f_getField(body, "news_strength")
 frvStr   = f_getField(body, "flow_rel_vol")
 sqzStr   = f_getField(body, "squeeze_on")
+vixStr      = f_getField(body, "vix_level")
+toneStr     = f_getField(body, "tone")
+fdpStr      = f_getField(body, "flow_delta_proxy_pct")
+atsStateStr = f_getField(body, "ats_state")
+atszStr     = f_getField(body, "ats_zscore")
 
 tech = str.tonumber(techStr, 0.5)
 news = str.tonumber(newsStr, 0.0)
@@ -88,6 +93,11 @@ overlayFresh = i_enabled and asofNum > 0 and (timenow / 1000.0 - asofNum) <= i_o
 newsStrength = overlayFresh and nstrStr != "" ? str.tonumber(nstrStr, 0.0) : na
 flowRelVol   = overlayFresh and frvStr  != "" ? str.tonumber(frvStr, na)  : na
 squeezeOn    = overlayFresh and sqzStr  != "" ? str.tonumber(sqzStr, 0.0) : na
+vixLevel     = overlayFresh and vixStr      != "" ? str.tonumber(vixStr, na)  : na
+toneOvl      = overlayFresh and toneStr     != "" ? toneStr                   : ""
+flowDelta    = overlayFresh and fdpStr      != "" ? str.tonumber(fdpStr, na)  : na
+atsStateOvl  = overlayFresh and atsStateStr != "" ? atsStateStr               : ""
+atsZscore    = overlayFresh and atszStr     != "" ? str.tonumber(atszStr, na) : na
 
 // ── Background colour (regime + heat) ─────────────────
 bgCol = regimeStr == "HOLIDAY_SUSPECT" ? color.new(color.gray, 92) :
@@ -150,7 +160,7 @@ if barstate.islast and sweepStr != ""
             label.new(bar_index, pr, "", style = stl, color = clr, size = size.tiny)
 
 // ── Dashboard table ───────────────────────────────────
-var table dash = table.new(position.top_right, 2, 7, bgcolor = color.new(color.black, 80))
+var table dash = table.new(position.top_right, 2, 12, bgcolor = color.new(color.black, 80))
 if barstate.islast
     table.cell(dash, 0, 0, "Regime",    text_color = color.white, text_size = size.small)
     table.cell(dash, 1, 0, regimeStr != "" ? regimeStr : "–", text_color = color.yellow, text_size = size.small)
@@ -166,3 +176,13 @@ if barstate.islast
     table.cell(dash, 1, 5, na(flowRelVol) ? "–" : str.tostring(math.round(flowRelVol, 2)), text_color = color.aqua, text_size = size.small)
     table.cell(dash, 0, 6, "Sqz",       text_color = color.white, text_size = size.small)
     table.cell(dash, 1, 6, na(squeezeOn) ? "–" : (squeezeOn == 1 ? "ON" : "off"), text_color = color.aqua, text_size = size.small)
+    table.cell(dash, 0, 7, "Vix",       text_color = color.white, text_size = size.small)
+    table.cell(dash, 1, 7, na(vixLevel) ? "–" : str.tostring(math.round(vixLevel, 2)), text_color = color.aqua, text_size = size.small)
+    table.cell(dash, 0, 8, "Tone",      text_color = color.white, text_size = size.small)
+    table.cell(dash, 1, 8, toneOvl == "" ? "–" : toneOvl, text_color = color.yellow, text_size = size.small)
+    table.cell(dash, 0, 9, "FlowDP",    text_color = color.white, text_size = size.small)
+    table.cell(dash, 1, 9, na(flowDelta) ? "–" : str.tostring(math.round(flowDelta, 2)), text_color = color.aqua, text_size = size.small)
+    table.cell(dash, 0, 10, "ATS",      text_color = color.white, text_size = size.small)
+    table.cell(dash, 1, 10, atsStateOvl == "" ? "–" : atsStateOvl, text_color = color.yellow, text_size = size.small)
+    table.cell(dash, 0, 11, "ATSz",     text_color = color.white, text_size = size.small)
+    table.cell(dash, 1, 11, na(atsZscore) ? "–" : str.tostring(math.round(atsZscore, 2)), text_color = color.aqua, text_size = size.small)
