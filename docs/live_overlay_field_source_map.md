@@ -82,6 +82,7 @@ feldweise von `SMC_TV_Bridge.pine` konsumiert:
 | B2-Feld | Typ | Serviert | Pine-Konsum |
 |---|---|---|---|
 | `tone` | string | WP-G (#2609) | WP-L (#2616) |
+| `global_heat` | number | C (dieser PR) | C (dieser PR) |
 | `vix_level` | number | WP-H (#2612) | WP-L (#2616) |
 | `flow_delta_proxy_pct` | number | WP-K (#2614) | WP-L (#2616) |
 | `ats_state` | string | WP-K (#2614) | WP-L (#2616) |
@@ -99,5 +100,48 @@ feldweise von `SMC_TV_Bridge.pine` konsumiert:
   oder leeres Fenster ⇒ feldweiser Fallback auf `mp.*` (Pine: Zahlen → `na`,
   Strings → `""`). `squeeze_on`/`flow_rel_vol` bleiben **baked-only** (Endpoint
   lässt sie weg; die Bridge liest sie scaffolded und erhält `na`).
-- **Offen:** `global_heat` (in §3 unter „gemischt“) bleibt unverdrahtet; aktuell
-  wird aus dieser Gruppe nur `tone` ausgeliefert/konsumiert.
+- **Erledigt (C):** `global_heat` (in §3 unter „gemischt") wird jetzt ebenfalls
+  ausgeliefert **und** Pine-konsumiert — abgeleitet über dieselbe
+  `compute_library_layering`-Funktion wie `tone` (Layering-Geschwister, identische
+  Gewichtung/Schwellen, gerundet auf 4 Nachkommastellen, Range `[-1,1]`). Auf
+  no-data (flacher Technical-Score *und* Score 0) wird es — wie `tone` —
+  weggelassen → Pine behält `mp.GLOBAL_HEAT`. Pine zeigt es diagnostisch als
+  `GblHeat`. Damit ist die §3-Gruppe „gemischt" vollständig verdrahtet
+  (`tone` + `global_heat`).
+
+---
+
+## 6. Nachtrag — Event-Risk-Light jetzt serviert **und** Pine-konsumiert (Stand 2026-06-08)
+
+> Aktualisiert §3 (letzter Punkt). Event-Risk ist **nicht mehr** „Phase 2 / bewusst
+> nicht aufgenommen“ — die Felder werden ausgeliefert und diagnostisch angezeigt.
+
+Die Event-Risk-Light-Kette (**Feature B**, #2618) deklariert, serviert und
+Pine-konsumiert sieben Felder:
+
+| Event-Feld | Typ | Domain / Form | Serviert | Pine-Konsum |
+|---|---|---|---|---|
+| `event_window_state` | string | CLEAR / PRE_EVENT / ACTIVE / COOLDOWN | WP-B2 | WP-B3 |
+| `event_risk_level` | string | NONE / LOW / ELEVATED / HIGH | WP-B2 | WP-B3 |
+| `next_event_name` | string | freier Text | WP-B2 | WP-B3 |
+| `next_event_time` | string | Uhrzeit-Label (z. B. `14:00`, börsen-lokal) | WP-B2 | WP-B3 |
+| `market_event_blocked` | boolean | True = markt-weites Event-Fenster blockt | WP-B2 | WP-B3 |
+| `symbol_event_blocked` | boolean | True = Symbol-Event (z. B. Earnings) blockt | WP-B2 | WP-B3 |
+| `event_provider_status` | string | ok / no_data / calendar_missing / news_missing | WP-B2 | WP-B3 |
+
+- **Datenquelle:** Der gewiderte Serving-Pfad leitet die Event-Risk-Light
+  ausschließlich aus dem **gecachten Databento-Reference-Snapshot**
+  (Corporate-Actions) ab (`_get_event_risk` → `build_event_risk_light`, TTL 300 s,
+  per-Symbol-Lock). Es ist **kein** Live-Earnings-/Kalender-/News-Feed angebunden —
+  das bleibt ein späterer Ausbau.
+- **Fail-closed:** `flatten_overlay`/`exclude_none` lässt bei no-data/Fehler **alle**
+  Event-Felder weg → Pine behält die gebackene `mp.*`-Event-Posture.
+- **Tighten-only:** Die beiden Block-Flags werden nur bei `True` emittiert; das
+  Overlay kann einen Block **behaupten**, aber niemals einen baked-Block aufheben.
+  In `SMC_TV_Bridge.pine` (WP-B3) erscheinen sie nur bei frischem Overlay und exakt
+  `"true"`; stale/absent ⇒ Anzeige `–`.
+- **Diagnose-only — kein Trade-Gating in dieser Kette:** WP-B3 zeigt die Felder als
+  Freshness-Diagnose-Zeilen im Bridge-Dashboard. Das **consumer-seitige Trade-Gating**
+  (tatsächliches Blocken/Skippen von Entries anhand `*_event_blocked`) ist ein
+  **separater Folge-Schritt** (analog Feature A für die B2-Felder) und **nicht** Teil
+  dieses Trains.

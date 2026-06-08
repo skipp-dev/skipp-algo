@@ -76,9 +76,17 @@ frvStr   = f_getField(body, "flow_rel_vol")
 sqzStr   = f_getField(body, "squeeze_on")
 vixStr      = f_getField(body, "vix_level")
 toneStr     = f_getField(body, "tone")
+    ghStr       = f_getField(body, "global_heat")
 fdpStr      = f_getField(body, "flow_delta_proxy_pct")
 atsStateStr = f_getField(body, "ats_state")
 atszStr     = f_getField(body, "ats_zscore")
+evtWinStr    = f_getField(body, "event_window_state")
+evtRiskStr   = f_getField(body, "event_risk_level")
+evtNameStr   = f_getField(body, "next_event_name")
+evtTimeStr   = f_getField(body, "next_event_time")
+evtMktBlkStr = f_getField(body, "market_event_blocked")
+evtSymBlkStr = f_getField(body, "symbol_event_blocked")
+evtProvStr   = f_getField(body, "event_provider_status")
 
 tech = str.tonumber(techStr, 0.5)
 news = str.tonumber(newsStr, 0.0)
@@ -99,9 +107,17 @@ squeezeOn    = overlayFresh and sqzStr  != "" ? str.tonumber(sqzStr, 0.0) : na
 // indicators, not here — mirrors the news/flow/squeeze handling above.
 vixLevel     = overlayFresh and vixStr      != "" ? str.tonumber(vixStr, na)  : na
 toneOvl      = overlayFresh and toneStr     != "" ? toneStr                   : ""
+    globalHeatOvl = overlayFresh and ghStr       != "" ? str.tonumber(ghStr, na) : na
 flowDelta    = overlayFresh and fdpStr      != "" ? str.tonumber(fdpStr, na)  : na
 atsStateOvl  = overlayFresh and atsStateStr != "" ? atsStateStr               : ""
 atsZscore    = overlayFresh and atszStr     != "" ? str.tonumber(atszStr, na) : na
+evtWindowOvl = overlayFresh and evtWinStr    != "" ? evtWinStr  : ""
+evtRiskOvl   = overlayFresh and evtRiskStr   != "" ? evtRiskStr : ""
+evtNameOvl   = overlayFresh and evtNameStr   != "" ? evtNameStr : ""
+evtTimeOvl   = overlayFresh and evtTimeStr   != "" ? evtTimeStr : ""
+evtMktBlk    = overlayFresh and evtMktBlkStr == "true"
+evtSymBlk    = overlayFresh and evtSymBlkStr == "true"
+evtProvOvl   = overlayFresh and evtProvStr   != "" ? evtProvStr : ""
 
 // ── Background colour (regime + heat) ─────────────────
 bgCol = regimeStr == "HOLIDAY_SUSPECT" ? color.new(color.gray, 92) :
@@ -164,7 +180,7 @@ if barstate.islast and sweepStr != ""
             label.new(bar_index, pr, "", style = stl, color = clr, size = size.tiny)
 
 // ── Dashboard table ───────────────────────────────────
-var table dash = table.new(position.top_right, 2, 12, bgcolor = color.new(color.black, 80))
+var table dash = table.new(position.top_right, 2, 20, bgcolor = color.new(color.black, 80))
 if barstate.islast
     table.cell(dash, 0, 0, "Regime",    text_color = color.white, text_size = size.small)
     table.cell(dash, 1, 0, regimeStr != "" ? regimeStr : "–", text_color = color.yellow, text_size = size.small)
@@ -190,3 +206,19 @@ if barstate.islast
     table.cell(dash, 1, 10, atsStateOvl == "" ? "–" : atsStateOvl, text_color = color.yellow, text_size = size.small)
     table.cell(dash, 0, 11, "ATSz",     text_color = color.white, text_size = size.small)
     table.cell(dash, 1, 11, na(atsZscore) ? "–" : str.tostring(math.round(atsZscore, 2)), text_color = color.aqua, text_size = size.small)
+    table.cell(dash, 0, 12, "EvtWin",   text_color = color.white, text_size = size.small)
+    table.cell(dash, 1, 12, evtWindowOvl == "" ? "–" : evtWindowOvl, text_color = color.yellow, text_size = size.small)
+    table.cell(dash, 0, 13, "EvtRisk",  text_color = color.white, text_size = size.small)
+    table.cell(dash, 1, 13, evtRiskOvl == "" ? "–" : evtRiskOvl, text_color = color.yellow, text_size = size.small)
+    table.cell(dash, 0, 14, "EvtName",  text_color = color.white, text_size = size.small)
+    table.cell(dash, 1, 14, evtNameOvl == "" ? "–" : evtNameOvl, text_color = color.aqua, text_size = size.small)
+    table.cell(dash, 0, 15, "EvtTime",  text_color = color.white, text_size = size.small)
+    table.cell(dash, 1, 15, evtTimeOvl == "" ? "–" : evtTimeOvl, text_color = color.aqua, text_size = size.small)
+    table.cell(dash, 0, 16, "MktBlk",   text_color = color.white, text_size = size.small)
+    table.cell(dash, 1, 16, evtMktBlk ? "BLK" : "–", text_color = evtMktBlk ? color.red : color.aqua, text_size = size.small)
+    table.cell(dash, 0, 17, "SymBlk",   text_color = color.white, text_size = size.small)
+    table.cell(dash, 1, 17, evtSymBlk ? "BLK" : "–", text_color = evtSymBlk ? color.red : color.aqua, text_size = size.small)
+    table.cell(dash, 0, 18, "EvtProv",  text_color = color.white, text_size = size.small)
+    table.cell(dash, 1, 18, evtProvOvl == "" ? "–" : evtProvOvl, text_color = color.aqua, text_size = size.small)
+        table.cell(dash, 0, 19, "GblHeat",  text_color = color.white, text_size = size.small)
+        table.cell(dash, 1, 19, na(globalHeatOvl) ? "–" : str.tostring(math.round(globalHeatOvl, 2)), text_color = globalHeatOvl > 0 ? color.lime : color.red, text_size = size.small)
