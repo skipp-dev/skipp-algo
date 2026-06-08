@@ -167,7 +167,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
-          token: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          # 2026-06-08: dropped the explicit GH_PAT token override. The
+          # producer does a plain same-repo checkout with
+          # persist-credentials:false and never pushes, so the default
+          # github.token is sufficient. The PAT was vestigial here and its
+          # expiry became a single point of failure that failed every shard
+          # at Checkout (git exit 128, run 27149544259) while plan/reduce/
+          # publish-compat — which already use the default token — stayed
+          # green. Aligning the producer with them removes the SPOF.
           persist-credentials: false
 
       - name: Set up Python
