@@ -323,7 +323,7 @@ _EVENT_MOCK_FIELDS: dict[str, Any] = {
     "event_window_state": "PRE_EVENT",
     "event_risk_level": "HIGH",
     "next_event_name": "AAPL Q3 Earnings",
-    "next_event_time": "2026-06-09T20:00:00Z",
+    "next_event_time": "20:00",
     "symbol_event_blocked": True,
     "event_provider_status": "ok",
 }

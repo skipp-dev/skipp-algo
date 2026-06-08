@@ -455,7 +455,7 @@ def test_event_light_to_overlay_fields_blocks_are_tighten_only() -> None:
             "EVENT_WINDOW_STATE": "PRE_EVENT",
             "EVENT_RISK_LEVEL": "HIGH",
             "NEXT_EVENT_NAME": "AAPL Q3 Earnings",
-            "NEXT_EVENT_TIME": "2026-06-09T20:00:00Z",
+            "NEXT_EVENT_TIME": "14:00",
             "MARKET_EVENT_BLOCKED": False,
             "SYMBOL_EVENT_BLOCKED": True,
             "EVENT_PROVIDER_STATUS": "ok",
@@ -464,7 +464,7 @@ def test_event_light_to_overlay_fields_blocks_are_tighten_only() -> None:
     assert mapped["event_window_state"] == "PRE_EVENT"
     assert mapped["event_risk_level"] == "HIGH"
     assert mapped["next_event_name"] == "AAPL Q3 Earnings"
-    assert mapped["next_event_time"] == "2026-06-09T20:00:00Z"
+    assert mapped["next_event_time"] == "14:00"
     assert "market_event_blocked" not in mapped  # False must never be emitted
     assert mapped["symbol_event_blocked"] is True
     assert mapped["event_provider_status"] == "ok"

@@ -77,7 +77,7 @@
       "type": ["string", "null"]
     },
     "event_risk_level": {
-      "description": "Event-risk. Aggregate event-risk level for the symbol (NONE/LOW/MEDIUM/HIGH). Absent (or null) when not served fresh.",
+      "description": "Event-risk. Aggregate event-risk level for the symbol (NONE/LOW/ELEVATED/HIGH). Absent (or null) when not served fresh.",
       "type": ["string", "null"]
     },
     "next_event_name": {
@@ -85,7 +85,7 @@
       "type": ["string", "null"]
     },
     "next_event_time": {
-      "description": "Event-risk. ISO-8601 UTC timestamp of the next known risk event for the symbol. Absent (or null) when none is known or not served fresh.",
+      "description": "Event-risk. Time-of-day label of the next known risk event for the symbol (e.g. \"14:00\", exchange-local). Absent (or null) when none is known or not served fresh.",
       "type": ["string", "null"]
     },
     "market_event_blocked": {
@@ -97,7 +97,7 @@
       "type": ["boolean", "null"]
     },
     "event_provider_status": {
-      "description": "Event-risk. Health of the event-calendar provider (ok/no_data/degraded). Absent (or null) when not served fresh.",
+      "description": "Event-risk. Health of the event-calendar/news provider (ok/no_data/calendar_missing/news_missing). Absent (or null) when not served fresh.",
       "type": ["string", "null"]
     }
   }
