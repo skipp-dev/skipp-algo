@@ -69,15 +69,15 @@ def test_refresh_workflow_surfaces_first_failing_gate_test() -> None:
 def test_refresh_commit_step_uses_bot_pr_auto_merge_pattern() -> None:
     """The refresh workflow no longer pushes directly to main (blocked by the
     `main-governance` ruleset / required `fast-gates` check). Instead it opens
-    a `bot/library-refresh-${run_id}` PR with the `automated` label and arms
+    a `bot/library-refresh-${run_id}-${attempt}` PR with the `automated` label and arms
     auto-merge — same pattern as `run-open-prep-daily.yml` and
     `open-prep-outcome-backfill.yml`. Pin the new mechanism so the next
     refactor doesn't silently regress us back to direct-push (which would
     fail at runtime with GH013)."""
     workflow_text = _read(WORKFLOW_PATH)
 
-    # Bot/* branch naming pinned to the workflow run id for traceability.
-    assert 'BRANCH="bot/library-refresh-${GITHUB_RUN_ID}"' in workflow_text
+    # Bot/* branch naming pinned to run id + attempt for re-run safety.
+    assert 'BRANCH="bot/library-refresh-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"' in workflow_text
     assert 'git checkout -b "$BRANCH"' in workflow_text
     assert 'git push -u origin "$BRANCH"' in workflow_text
     # PR creation with the automated label so CI skip-pattern short-circuits
