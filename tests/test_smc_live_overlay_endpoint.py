@@ -278,6 +278,56 @@ def test_smc_live_flow_ats_fetch_miss_omits_fields() -> None:
     assert "ats_zscore" not in result
 
 
+def test_smc_live_flow_ats_empty_window_omits_fields() -> None:
+    """An empty trade window (n_trades == 0) omits all three flow/ATS fields.
+
+    ``fetch_symbol_microstructure`` returns neutral defaults
+    (``avg_trade_size=0.0`` / ``buy_volume_pct=50.0``) when there are no trades
+    (e.g. outside market hours), so a None-only guard would still emit a
+    fabricated overlay. ``_fetch_flow_ats_uncached`` must fail closed on
+    ``n_trades == 0`` so Pine keeps its baked ``mp.*`` baseline (never loosen).
+    """
+
+    def _empty_window(*_args: object, **_kwargs: object) -> dict[str, float]:
+        return {
+            "buy_volume_pct": 50.0,
+            "avg_trade_size": 0.0,
+            "total_size": 0,
+            "n_trades": 0,
+            "buy_size": 0,
+            "sell_size": 0,
+        }
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(smc_api, "USE_MOCK", False)
+        mp.setattr(smc_api, "build_smc_snapshot", lambda symbol, tf: {"newsscore": 0.0})
+        mp.setattr(smc_api, "_get_vix_level", lambda: None)
+        mp.setattr(
+            smc_api,
+            "_load_ats_baseline_symbols",
+            lambda: {
+                "AAPL": {
+                    smc_api._ATS_MEAN_KEY: 100.0,
+                    smc_api._ATS_STD_KEY: 20.0,
+                }
+            },
+        )
+        mp.setattr(smc_api, "_flow_cache", {})
+        mp.setattr(smc_api, "_flow_symbol_locks", {})
+        # The fetcher is lazily imported inside _fetch_flow_ats_uncached, so
+        # patch it on its source module rather than on smc_api.
+        mp.setattr(
+            "scripts.smc_trades_microstructure.fetch_symbol_microstructure",
+            _empty_window,
+        )
+        result = smc_api.smc_live_endpoint(symbol="aapl", tf="15m")
+
+    jsonschema.validate(result, _schema())
+    assert "flow_delta_proxy_pct" not in result
+    assert "ats_state" not in result
+    assert "ats_zscore" not in result
+
+
 def test_smc_live_flow_ats_cache_coalesces_concurrent_fetches() -> None:
     """A cold/expired cache triggers exactly one flow/ATS fetch per symbol.
 
