@@ -382,18 +382,19 @@ def probe_fmp(key: str, opener: Any = None) -> ProbeResult:
 
 
 def probe_newsapi(key: str, opener: Any = None) -> ProbeResult:
-    """Probe a NewsAPI key.
+    """Probe a NewsAPI (Event Registry / newsapi.ai) key.
 
-    ``/v2/top-headlines?country=us&pageSize=1`` is the cheapest
-    authenticated call. On the free tier this consumes 1/100 daily
-    requests.
+    Uses the ``/api/v1/article/getArticles`` endpoint with
+    ``articlesCount=1`` — the cheapest authenticated call.
+    Auth is via the ``apiKey`` query parameter (not a header).
     """
+    safe_key = key.strip() if key else ""
     return _probe_http_vendor(
         name="newsapi_key",
-        label="NewsAPI",
+        label="NewsAPI (Event Registry)",
         key=key,
-        url="https://newsapi.org/v2/top-headlines?country=us&pageSize=1",
-        headers={"X-Api-Key": key.strip()} if key and key.strip() else {},
+        url=f"https://eventregistry.org/api/v1/article/getArticles?apiKey={safe_key}&resultType=articles&articlesCount=1",
+        headers={},
         opener=opener,
     )
 
