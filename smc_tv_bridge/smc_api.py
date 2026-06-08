@@ -758,10 +758,10 @@ def smc_live_endpoint(
     if flow_ats:
         flow_fields = {k: v for k, v in flow_ats.items() if v is not None}
 
-    # Per-symbol event-risk-light (lean v5.5): macro/earnings window state, risk
-    # level, next-event name/time, block flags and provider health. Fail-closed +
-    # tighten-only — every field omitted on no-data/error so Pine keeps its baked
-    # ``mp.*`` event posture; block flags surface only when True.
+    # Per-symbol event-risk-light (lean v5.5): built from the cached Databento
+    # reference snapshot (corporate actions; no earnings/calendar/news feed yet) —
+    # window state, risk level, next-event name/time, block flags, provider health.
+    # Fail-closed + tighten-only: omitted on no-data so Pine keeps its baked posture.
     event_fields = _get_event_risk(symbol)
 
     payload = LiveOverlayPayload(

@@ -46,10 +46,11 @@ def _stub_event_risk_resolver() -> object:
     """Keep /smc_live tests hermetic w.r.t. the event-risk resolver (WP-B2).
 
     ``_get_event_risk`` is wired into every payload build. Under ``USE_MOCK`` it
-    returns canned fields; otherwise it would resolve live reference/earnings
-    data. Default every test to a no-data resolve (-> no event fields, Pine
-    keeps its baked posture) over a clean cache so the suite stays network-free
-    and order-independent. Event-specific tests re-patch as needed.
+    returns canned fields; otherwise it resolves from the cached Databento
+    reference snapshot (no earnings/calendar/news feed is wired here yet). Default
+    every test to a no-data resolve (-> no event fields, Pine keeps its baked
+    posture) over a clean cache so the suite stays network-free and
+    order-independent. Event-specific tests re-patch as needed.
     """
     with pytest.MonkeyPatch.context() as mp:
         mp.setattr(smc_api, "_fetch_event_risk_uncached", lambda symbol: {})
