@@ -47,7 +47,8 @@ GET /smc_live?symbol=&tf=  ──HTTPS/JSON──►  CDN (Short-TTL-Cache)
 - **Kein Streamlit:** Das Streamlit-Terminal ist ein Menschen-UI, kann von Pine
   nicht konsumiert werden und ist per Produktentscheidung **kein**
   Auslieferungspfad.
-- **Payload-Form:** flach (`flow_rel_vol`, `squeeze_on`, …), damit der
+- **Payload-Form:** flach (`news_strength`, `flow_rel_vol`, `squeeze_on`, `vix_level`,
+  `tone`, `flow_delta_proxy_pct`, `ats_state`, `ats_zscore`, …), damit der
   vorhandene `f_getField`-Parser ohne neuen Parser wiederverwendbar bleibt.
 
 ---

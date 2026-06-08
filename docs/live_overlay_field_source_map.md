@@ -59,3 +59,43 @@ on-demand aktualisiert wird. Konservativ: in B1 mitnehmen, als „baked" markier
    baked-frisch bleiben (Strategie-Entscheidung; kein Code in dieser Phase).
 3. Exakte flache Schlüsselnamen + Typen werden in WP-A (`spec/smc_live_overlay.schema.json`)
    eingefroren.
+
+---
+
+## 5. Nachtrag — B2 jetzt live serviert **und** Pine-konsumiert (Stand 2026-06-08)
+
+> Aktualisiert §§3/4. Die offenen Punkte §4.2 und §4.3 sind entschieden.
+
+**§4.2 (On-Demand-Hook):** Es wurde **kein** dedizierter zweiter Producer gebaut.
+Der `/smc_live`-Endpoint re-serialisiert die vorhandenen Snapshot-/Enrichment-
+Artefakte (gleiche Kette wie B1) und stempelt `asof_ts`/`stale`; die B2-Felder
+werden so on-demand frisch ausgeliefert.
+
+**§4.3 (Schlüssel/Typen):** In `spec/smc_live_overlay.schema.json`
+(`smc-live-overlay/1`) eingefroren.
+
+Die folgenden **B2-Felder** werden inzwischen serverseitig ausgeliefert **und**
+feldweise von `SMC_TV_Bridge.pine` konsumiert:
+
+| B2-Feld | Typ | Serviert | Pine-Konsum |
+|---|---|---|---|
+| `tone` | string | WP-G (#2609) | WP-L (#2616) |
+| `vix_level` | number | WP-H (#2612) | WP-L (#2616) |
+| `flow_delta_proxy_pct` | number | WP-K (#2614) | WP-L (#2616) |
+| `ats_state` | string | WP-K (#2614) | WP-L (#2616) |
+| `ats_zscore` | number | WP-K (#2614) | WP-L (#2616) |
+
+- **ATS = average trade size:** Der Z-Score (`ats_zscore`) wird gegen den
+  20-Tage-Mittelwert/-Std aus `reports/ats_baseline_20d.json` (WP-J #2613)
+  gebildet. Fehlt ein Symbol dort, wird `ats_*` weggelassen → `mp.*`-Fallback.
+- **Fail-closed (#2615):** Liefert das Mikrostruktur-Fenster keine Trades
+  (`n_trades == 0`, z. B. außerhalb der Handelszeiten), gibt der Endpoint
+  **kein** fabriziertes Flow/ATS-Overlay aus – die neutralen Defaults
+  (`avg_trade_size=0.0`, `buy_volume_pct=50.0`) würden sonst die gebackene
+  `mp.*`-Baseline überschreiben –, sondern lässt die Felder weg.
+- **Invariante unverändert:** Das Overlay **augmentiert nur**. Stale, absent
+  oder leeres Fenster ⇒ feldweiser Fallback auf `mp.*` (Pine: Zahlen → `na`,
+  Strings → `""`). `squeeze_on`/`flow_rel_vol` bleiben **baked-only** (Endpoint
+  lässt sie weg; die Bridge liest sie scaffolded und erhält `na`).
+- **Offen:** `global_heat` (in §3 unter „gemischt“) bleibt unverdrahtet; aktuell
+  wird aus dieser Gruppe nur `tone` ausgeliefert/konsumiert.
