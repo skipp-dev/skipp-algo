@@ -66,6 +66,15 @@ class LiveOverlayPayload(BaseModel):
     ats_zscore: float | None = None
     tone: str | None = None
 
+    # --- Event-risk overlay fields (declared here; served via the earnings/event calendar) ---
+    event_window_state: str | None = None
+    event_risk_level: str | None = None
+    next_event_name: str | None = None
+    next_event_time: str | None = None
+    market_event_blocked: bool | None = None
+    symbol_event_blocked: bool | None = None
+    event_provider_status: str | None = None
+
 
 def flatten_overlay(payload: LiveOverlayPayload) -> dict[str, object]:
     """Serialize ``payload`` to the canonical flat dict served at ``/smc_live``.

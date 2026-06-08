@@ -71,6 +71,34 @@
     "tone": {
       "description": "B2. Aggregate market-tone label from the live snapshot. Absent (or null) when not served fresh (then Pine uses the baked mp.* tone).",
       "type": ["string", "null"]
+    },
+    "event_window_state": {
+      "description": "Event-risk. Macro/earnings event-window state for the symbol (CLEAR/PRE_EVENT/ACTIVE/COOLDOWN) from the event calendar. Absent (or null) when not served fresh (then Pine keeps the baked mp.* event posture).",
+      "type": ["string", "null"]
+    },
+    "event_risk_level": {
+      "description": "Event-risk. Aggregate event-risk level for the symbol (NONE/LOW/MEDIUM/HIGH). Absent (or null) when not served fresh.",
+      "type": ["string", "null"]
+    },
+    "next_event_name": {
+      "description": "Event-risk. Human-readable name of the next known risk event for the symbol (e.g. an earnings announcement). Absent (or null) when none is known or not served fresh.",
+      "type": ["string", "null"]
+    },
+    "next_event_time": {
+      "description": "Event-risk. ISO-8601 UTC timestamp of the next known risk event for the symbol. Absent (or null) when none is known or not served fresh.",
+      "type": ["string", "null"]
+    },
+    "market_event_blocked": {
+      "description": "Event-risk. True when a market-wide event window blocks new entries. Absent (or null) when not served fresh; the overlay may only assert a block, never lift the baked posture.",
+      "type": ["boolean", "null"]
+    },
+    "symbol_event_blocked": {
+      "description": "Event-risk. True when a symbol-specific event window (e.g. earnings inside the guard window) blocks new entries. Absent (or null) when not served fresh; the overlay may only assert a block, never lift the baked posture.",
+      "type": ["boolean", "null"]
+    },
+    "event_provider_status": {
+      "description": "Event-risk. Health of the event-calendar provider (ok/no_data/degraded). Absent (or null) when not served fresh.",
+      "type": ["string", "null"]
     }
   }
 }

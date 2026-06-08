@@ -30,10 +30,18 @@ _SCHEMA_PATH = Path(__file__).resolve().parents[1] / "spec" / "smc_live_overlay.
 # Fields the endpoint must NOT serve (baked-only); their absence is what lets
 # Pine keep its baked mp.* defaults. ``tone`` (WP-G), ``vix_level`` (WP-H) and
 # the flow-delta/ATS fields (WP-K) are served, so they are intentionally absent
-# from this list.
+# from this list. The event-risk fields are declared in the schema/contract for
+# forward-compat (WP-B1) and are served in WP-B2, so until then they stay omitted.
 _BAKED_ONLY_KEYS = (
     "flow_rel_vol",
     "squeeze_on",
+    "event_window_state",
+    "event_risk_level",
+    "next_event_name",
+    "next_event_time",
+    "market_event_blocked",
+    "symbol_event_blocked",
+    "event_provider_status",
 )
 
 
