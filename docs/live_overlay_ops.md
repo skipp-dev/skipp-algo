@@ -148,8 +148,14 @@ GET /smc_live?symbol=&tf=  ──HTTPS/JSON──►  CDN (Short-TTL-Cache)
 - **Event-Risk = escalation-only:** `MARKET_EVENT_BLOCKED` /
   `SYMBOL_EVENT_BLOCKED` sind sicherheitskritisch. Das Overlay darf einen Block
   **hinzufügen**, nie entfernen. Bei Ausfall gilt „caution", nie „clear"
-  (`effective_blocked = baked_blocked OR overlay_blocked`). In Phase 1 ist
-  Event-Risk **noch nicht** verdrahtet (Phase 2).
+  (`effective_blocked = baked_blocked OR overlay_blocked`).
+  **Stand 2026-06-08 (#2618):** Die 7 Event-Felder werden jetzt **serviert**
+  (WP-B2, Quelle: gecachter Databento-Reference-Snapshot — **kein**
+  Live-Earnings-/Kalender-/News-Feed) und in `SMC_TV_Bridge.pine` **diagnostisch
+  angezeigt** (WP-B3, `tighten-only`: Block-Flags nur bei `"true"` + frischem
+  Overlay; stale/absent ⇒ `–`). Das **consumer-seitige Trade-Gating**
+  (`effective_blocked` tatsächlich in Entry-Entscheidungen umsetzen) ist **noch
+  offen** und bleibt ein separater Folge-Schritt.
 
 ---
 
