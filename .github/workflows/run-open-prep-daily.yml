@@ -199,7 +199,7 @@ jobs:
             echo "No new outcomes to commit."
             exit 0
           fi
-          BRANCH="bot/run-open-prep-${GITHUB_RUN_ID}"
+          BRANCH="bot/run-open-prep-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           git checkout -b "$BRANCH"
           git commit -m "chore(open_prep): daily run outcomes ${GITHUB_RUN_ID}"
           git push -u origin "$BRANCH"

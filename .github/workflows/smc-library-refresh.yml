@@ -1141,7 +1141,7 @@ jobs:
             exit 0
           fi
 
-          BRANCH="bot/library-refresh-${GITHUB_RUN_ID}"
+          BRANCH="bot/library-refresh-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           git checkout -b "$BRANCH"
           git commit -m "chore: library refresh ${REFRESH_DATE} (run ${{ github.run_number }})"
           git push -u origin "$BRANCH"
