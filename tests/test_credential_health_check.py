@@ -352,9 +352,10 @@ def test_fmp_puts_key_in_query_string() -> None:
     assert "apikey=my-secret-key" in req.full_url
 
 
-def test_newsapi_uses_x_api_key_header() -> None:
+def test_newsapi_puts_key_in_query_string() -> None:
+    """NewsAPI (Event Registry) passes auth via apiKey query param."""
     opener = _fake_opener(status=200, body={})
     probe_newsapi("my-secret-key", opener=opener)
     req = opener.open.call_args[0][0]
-    # urllib normalises header names to title-case.
-    assert req.headers.get("X-api-key") == "my-secret-key"
+    assert "apiKey=my-secret-key" in req.full_url
+    assert "eventregistry.org" in req.full_url
