@@ -364,12 +364,13 @@ def probe_databento(key: str, opener: Any = None) -> ProbeResult:
 def probe_fmp(key: str, opener: Any = None) -> ProbeResult:
     """Probe a Financial-Modeling-Prep API key.
 
-    ``/api/v3/is-the-market-open`` is the cheapest authenticated
+    ``/stable/is-the-market-open`` is the cheapest authenticated
     endpoint (returns market-status JSON, counts as one call against
-    the daily quota).
+    the daily quota).  The legacy ``/api/v3/`` path was retired by FMP
+    on 2025-08-31 and returns HTTP 403 for non-legacy subscriptions.
     """
     safe_key = (key or "").strip()
-    url = f"https://financialmodelingprep.com/api/v3/is-the-market-open?apikey={safe_key}"
+    url = f"https://financialmodelingprep.com/stable/is-the-market-open?apikey={safe_key}"
     return _probe_http_vendor(
         name="fmp_api_key",
         label="FMP",
