@@ -119,8 +119,9 @@ def test_smc_live_off_universe_emits_envelope_only() -> None:
     Emitting a fabricated ``news_strength: 0.0`` would override a real baked
     news signal on the Pine side, loosening a gating condition with non-data;
     the safety invariant requires degrading to the envelope only instead. With
-    no technical score either (defaulting to the neutral 0.5), ``tone`` is also
-    omitted so Pine keeps its baked ``mp.tone``.
+    no technical score either (defaulting to the neutral 0.5), ``tone`` and
+    ``global_heat`` are also omitted so Pine keeps its baked ``mp.tone`` /
+    ``mp.GLOBAL_HEAT``.
     """
     with pytest.MonkeyPatch.context() as mp:
         mp.setattr(smc_api, "build_smc_snapshot", lambda symbol, tf: {"newsscore": 0.0})
@@ -132,6 +133,7 @@ def test_smc_live_off_universe_emits_envelope_only() -> None:
     assert "news_strength" not in result
     assert "news_bias" not in result
     assert "tone" not in result
+    assert "global_heat" not in result
     assert "vix_level" not in result
     assert "flow_delta_proxy_pct" not in result
     assert "ats_state" not in result
@@ -169,6 +171,11 @@ def test_smc_live_tone_mock_wiring() -> None:
     jsonschema.validate(result, _schema())
     assert result["tone"] in {"BULLISH", "BEARISH", "NEUTRAL"}
     assert result["tone"] == "BULLISH"
+    # global_heat (C) rides the same layering output; a bullish tone implies a
+    # positive directional heat in [-1, 1].
+    assert isinstance(result["global_heat"], float)
+    assert -1.0 <= result["global_heat"] <= 1.0
+    assert result["global_heat"] > 0.0
 
 
 def test_smc_live_tone_matches_canonical_layering() -> None:
@@ -200,6 +207,10 @@ def test_smc_live_tone_matches_canonical_layering() -> None:
     jsonschema.validate(result, _schema())
     assert result["tone"] == expected["tone"]
     assert result["tone"] == "BEARISH"
+    # global_heat (C) must equal the canonical layering's heat field-for-field
+    # (same compute, no separate rounding); a bearish read implies negative heat.
+    assert result["global_heat"] == expected["global_heat"]
+    assert result["global_heat"] < 0.0
 
 
 def test_smc_live_unsupported_timeframe() -> None:

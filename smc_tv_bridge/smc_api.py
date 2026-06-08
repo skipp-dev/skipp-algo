@@ -723,11 +723,11 @@ def smc_live_endpoint(
         news_fields["news_strength"] = round(min(1.0, abs(score)), 4)
         news_fields["news_bias"] = news_bias
 
-    # Canonical overlay tone: reuse the same layering function that bakes
-    # ``mp.tone`` so the live tone shares the baseline's weighting/thresholds
-    # (identical semantics, fresher inputs). Omit it on no-data (flat technical
-    # score *and* zero news) so Pine keeps its baked ``mp.tone`` instead of
-    # receiving a fabricated NEUTRAL override -- mirroring the news-field rule.
+    # Canonical overlay tone + global_heat (B2/C): reuse the same layering that
+    # bakes ``mp.tone`` / ``mp.GLOBAL_HEAT`` so the live values share the
+    # baseline's weighting/thresholds (fresher inputs). Omit on no-data (flat
+    # technical score *and* zero news) so Pine keeps its baked values instead
+    # of a fabricated NEUTRAL/zero override -- mirroring the news-field rule.
     tech_score = float(snap.get("technicalscore", 0.5) or 0.5)
     tech_signal = str(snap.get("technicalsignal", "NEUTRAL") or "NEUTRAL")
     tone_fields: dict[str, Any] = {}
@@ -742,6 +742,7 @@ def smc_live_endpoint(
             volume_regime=str(regime.get("volume_regime", "NORMAL")),
         )
         tone_fields["tone"] = layering["tone"]
+        tone_fields["global_heat"] = layering["global_heat"]
 
     # Market-wide VIX (B2): cached and symbol-independent. Omitted on a fetch
     # miss so Pine keeps its baked ``mp.vix`` (silent fallback; never loosens).
