@@ -93,6 +93,10 @@ overlayFresh = i_enabled and asofNum > 0 and (timenow / 1000.0 - asofNum) <= i_o
 newsStrength = overlayFresh and nstrStr != "" ? str.tonumber(nstrStr, 0.0) : na
 flowRelVol   = overlayFresh and frvStr  != "" ? str.tonumber(frvStr, na)  : na
 squeezeOn    = overlayFresh and sqzStr  != "" ? str.tonumber(sqzStr, 0.0) : na
+// This bridge is a freshness DIAGNOSTIC: it surfaces the raw overlay payload
+// (or "–" when stale/absent). The field-by-field merge onto the baked mp.*
+// baseline (overlayFresh ? overlay : mp.*) is performed by the consumer chart
+// indicators, not here — mirrors the news/flow/squeeze handling above.
 vixLevel     = overlayFresh and vixStr      != "" ? str.tonumber(vixStr, na)  : na
 toneOvl      = overlayFresh and toneStr     != "" ? toneStr                   : ""
 flowDelta    = overlayFresh and fdpStr      != "" ? str.tonumber(fdpStr, na)  : na
