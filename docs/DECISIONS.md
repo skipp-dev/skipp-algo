@@ -268,3 +268,124 @@ every generator calls before `gh pr create`.
   — 16 rescued real edge-pipeline decision JSONs (the first evaluation input).
 
 **Status.** accepted.
+
+### 2026-06-09 - sprt-rollback-signal-validates-null-candidate
+
+**Context.** The F2 promotion gate (`f2-promotion-gate-daily.yml`) has
+emitted five consecutive `rollback` decisions (2026-06-03 → 2026-06-09).
+The underlying Wald SPRT (one-sided, single-arm vs fixed baseline) ran
+with `p0 = 0.55`, `p1 = 0.60`, `alpha = 0.05`, `beta = 0.20`.
+After n = 1492 observations the test accepted H0 with
+`LLR = −9.4392` — deeply below the lower Wald boundary
+`B = ln(β / (1 − α)) ≈ −1.39`. The candidate arm's hit rate
+(54.42 %) is essentially equal to the control rate (54.43 %);
+zero uplift is detectable. The required minimum-detectable effect
+(`p1 − p0 = 5 pp`) was never approached, and the Q4-gate G1 threshold
+(≥ 3 pp HR uplift in ≥ 2/3 context buckets) is unreachable with the
+current 4-TF candidate spec.
+
+**Decision.** Accept the SPRT H0 verdict as a valid experimental
+signal. The current candidate spec does not improve on the static
+baseline. We do not override the rollback or force-promote.
+Next steps: (a) investigate whether the candidate spec's
+feature-weight delta was too small to produce measurable edge,
+(b) review the 4-TF benchmark partitioning for data-quality issues
+(bucket saturation, context leakage), and (c) design the next
+candidate iteration before re-entering the SPRT cycle.
+
+**Alternatives considered.**
+
+- *Override rollback and force-promote.* Rejected — the experiment
+  conclusively shows no improvement; promoting would entrench a
+  spec with zero edge and corrupt the promotion gate's credibility.
+- *Extend the trial (raise max_n).* Rejected — LLR = −9.44 is
+  6.8× below the lower boundary; additional observations cannot
+  plausibly reverse the verdict.
+- *Widen MDE (lower p1 to 0.57).* Deferred — a narrower MDE
+  increases the chance of detecting a real but small effect, but
+  should only be applied to a new candidate spec that has a
+  prior-justified reason for smaller expected uplift.
+
+**Consequences.**
+
+- The rollback reverts to the static baseline weights; no
+  user-visible regression because the candidate never outperformed.
+- The SPRT state must be reset before any new candidate enters the
+  gate. A spec-status flip (`plumbing_only → live`) triggers the
+  reset automatically via the "Detect spec-status flip" step.
+- The null result is itself evidence: the 4-TF scope delivers
+  no measurable edge under current market conditions. This narrows
+  the search space for the next iteration.
+
+**Evidence.**
+
+- [`scripts/smc_sprt_stop_rule.py`](../scripts/smc_sprt_stop_rule.py)
+  — SPRT engine (Wald one-sided on Bernoulli outcomes).
+- [F2 promotion-gate run 2026-06-09](https://github.com/skippALGO/skipp-algo/actions/workflows/f2-promotion-gate-daily.yml)
+  — `decision: rollback, reason: SPRT accepted H0 (n=1492, k=812, llr=-9.4392)`.
+- `f2_promotion_gate_2026-06-09.json` (CI workflow artifact, not checked in)
+  — full gate report (`hit_rate: 0.5442`, `control_hit_rate: 0.5443`,
+  `p0: 0.55`, `p1: 0.60`).
+
+**Status.** accepted.
+
+### 2026-06-09 - c13-phase-a-no-go-and-c13b-unblock-plan
+
+**Context.** Sprint C13 (Live-Inkubation Phase A, 2026-04-28 →
+2026-05-25) was signed off as **NO-GO** at sprint day 16
+([`docs/c8_phase_a_signoff_2026-05-14.md`](c8_phase_a_signoff_2026-05-14.md)).
+All four SMC families (BOS, OB, FVG, SWEEP) reported zero live days,
+zero trades, and unknown drift. The nine daily cron entries between
+2026-05-04 and 2026-05-13 all returned `metrics = {}`,
+`n_events = null`. The root cause is **T1 — IBKR Paper-Onboarding**:
+the IBKR paper-trading gateway was never connected, so no order
+submissions, fills, or outcomes reached the calibration pipeline. The
+pipeline itself functions end-to-end (T2 cron operational, T5 families
+producer running) but has nothing to process. Four of five sign-off
+criteria were NOT FULFILLED; the only passing criterion (killswitch
+never fired) is vacuously true with zero trades. Sprint C14 Phase-B
+Promotion is gated on C13 GO and is therefore BLOCKED.
+
+**Decision.** (1) Record the C13 NO-GO as a binding architectural
+fact — no Phase-B promotion can proceed until the NO-GO is resolved.
+(2) Define a minimal C13b-unblock spec
+([`spec/sprints/c13b_live_incubation_unblock.md`](../spec/sprints/c13b_live_incubation_unblock.md))
+that names the single prerequisite: complete IBKR Paper-Onboarding
+(T1) and verify at least one paper trade flows end-to-end through
+the calibration pipeline. (3) C13b is scoped to unblocking only —
+it does not re-run the full 28-day incubation window; that is C13
+phase-A replay once the pipeline receives data.
+
+**Alternatives considered.**
+
+- *Bypass C13 NO-GO and open C14 directly.* Rejected — C14 requires
+  a GO verdict with real trade data; skipping the gate undermines the
+  "Beweise oder kein Verkauf" binding contract.
+- *Replace IBKR paper-trading with synthetic replay data.* Deferred —
+  synthetic data can validate pipeline mechanics (already done) but
+  cannot substitute for real broker-fill latency and slippage in
+  the drift-score criterion.
+- *Abandon Phase-A and redesign the incubation approach.* Rejected —
+  the pipeline infrastructure is complete; the failure is a single
+  operational dependency (broker connectivity), not a design flaw.
+
+**Consequences.**
+
+- C14 remains BLOCKED until C13b is completed and C13 is re-signed.
+- The C13b spec creates a clear, single-task dependency that can be
+  tracked independently of sprint scheduling.
+- Once T1 is completed, the existing cron infrastructure will begin
+  producing real data immediately; no code changes are required.
+- The NO-GO preserves the integrity of the promotion gate system:
+  every stage must earn its verdict from data.
+
+**Evidence.**
+
+- [`docs/c8_phase_a_signoff_2026-05-14.md`](c8_phase_a_signoff_2026-05-14.md)
+  — full sign-off document with empirical data table and criteria matrix.
+- [`docs/sprints/backlog/c14_phase_b_promotion.md`](sprints/backlog/c14_phase_b_promotion.md)
+  — C14 spec showing the C13-GO prerequisite.
+- [`spec/sprints/c13b_live_incubation_unblock.md`](../spec/sprints/c13b_live_incubation_unblock.md)
+  — the unblock spec created alongside this ADR.
+
+**Status.** accepted.
