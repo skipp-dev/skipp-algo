@@ -54,7 +54,7 @@ _HOSTILE_ENV_KEYS: tuple[str, ...] = (
     "DATABENTO_API_KEY",
     "FMP_API_KEY",
     "NEWSAPI_KEY",
-    "NEWSAPI_AI_KEY",
+    "NEWSAPI_KEY",
     "BENZINGA_API_KEY",
     "UNUSUAL_WHALES_API_KEY",
     "OPENAI_API_KEY",

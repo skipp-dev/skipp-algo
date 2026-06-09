@@ -29,7 +29,7 @@ aber verbessert:
   TradingView-Token.
 - Die Review-Annahme eines separaten NewsAPI-Key-Pfads ist derzeit nicht
   belegt. Sowohl der Live-Refresh als auch der Library-Refresh lesen
-  `NEWSAPI_AI_KEY`.
+  `NEWSAPI_KEY`.
 - Zusaetzlich wurde ein echter Codefehler gefunden: Der angebliche
   TradingView-Technical-Fallback in `scripts/smc_provider_policy.py` war nicht
   unabhaengig, sondern rief intern den FMP-Fallback auf. Dieser Fehler wurde in
@@ -69,7 +69,7 @@ Belegt durch:
 - `.github/workflows/smc-library-refresh.yml`
   - `FMP_API_KEY`
   - `BENZINGA_API_KEY`
-  - `NEWSAPI_AI_KEY`
+  - `NEWSAPI_KEY`
   - `DATABENTO_API_KEY`
   werden im Generationsschritt explizit als `env` gesetzt.
 
@@ -85,7 +85,7 @@ Bewertung:
 Belegt durch:
 
 - `.github/workflows/smc-live-newsapi-refresh.yml`
-  exportiert `NEWSAPI_AI_KEY` explizit und erzwingt Nicht-Leere.
+  exportiert `NEWSAPI_KEY` explizit und erzwingt Nicht-Leere.
 - `.github/workflows/smc-library-refresh.yml`
   setzt denselben Secret-Namen fuer die Library-Generierung.
 - `scripts/generate_smc_micro_base_from_databento.py`
@@ -228,7 +228,7 @@ Arbeitspakete:
 - GitHub-Repository-Secrets fuer
   - `FMP_API_KEY`
   - `BENZINGA_API_KEY`
-  - `NEWSAPI_AI_KEY`
+  - `NEWSAPI_KEY`
   gegen echte Provider-Requests validieren.
 - Einen manuellen `smc-library-refresh`-Run auf `main` starten.
 - Das generierte Artefakt und `smc_refresh_evidence_summary.json` gegen

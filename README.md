@@ -372,7 +372,7 @@ The `🔍` badge marks **WIIM** (“Why It Matters”) enriched items.
 | **Benzinga** | `BENZINGA_API_KEY` | News (REST + WebSocket), calendar (ratings, earnings, economics, dividends, splits, IPOs, guidance, retail), financial data, delayed quotes, movers |
 | **FMP** | `FMP_API_KEY` | Quotes, sector performance, economic calendar, gainers/losers/actives, crypto, analyst targets, company profiles, insider transactions (US) |
 | **Unusual Whales** *(DEPRECATED 2026-05-12; sunset 2026-Q3)* | `UNUSUAL_WHALES_API_KEY` | **Decommissioned** — UOA flow replaced by self-hosted Databento OPRA UOA detector (`newsstack_fmp/opra_uoa.py`); remaining adapters (darkpool, spot-GEX, market-tide, insider-transactions, news-headlines) are dormant (return `[]` after 401). Safe to remove from prod secrets after `2026-Q3-uw-review` (deadline 2026-08-31, owner: ops). See `docs/OPEN_PREP_OPS_QUICK_REFERENCE.md` §13. |
-| **NewsAPI.ai** | `NEWSAPI_AI_KEY` | Event Registry article search, live article feed, event search, breaking events, trending concepts, NLP sentiment scoring |
+| **NewsAPI.ai** | `NEWSAPI_KEY` | Event Registry article search, live article feed, event search, breaking events, trending concepts, NLP sentiment scoring |
 | **TradingView** | *(none — scraper)* | Technical analysis (oscillators, moving averages) for equities and crypto |
 | **Databento** | `DATABENTO_API_KEY` | Historical + reference market data (OHLCV, corporate actions, identifier state) |
 | **yfinance** | *(none — free)* | Fallback historical OHLCV, market cap, company info |
@@ -398,7 +398,7 @@ cp .env.example .env   # or create .env manually
 #   BENZINGA_API_KEY=your_key
 # Optional (enables more tabs / surfaces):
 #   FMP_API_KEY=your_key
-#   NEWSAPI_AI_KEY=your_key
+#   NEWSAPI_KEY=your_key
 #   UNUSUAL_WHALES_API_KEY=your_key   # DEPRECATED 2026-05-12 (UOA replaced by Databento OPRA, sunset 2026-Q3 — see CHANGELOG)
 #   FINNHUB_API_KEY=your_key
 #   DATABENTO_API_KEY=your_key        # historical + reference market data
@@ -418,7 +418,7 @@ The dashboard opens at `http://localhost:8501` with a dark theme.
 | `BENZINGA_API_KEY` | Yes | Benzinga API key for primary news feed |
 | `FMP_API_KEY` | No | FMP key for quotes, calendar, sector data, crypto, insider transactions |
 | `UNUSUAL_WHALES_API_KEY` | No | **DEPRECATED 2026-05-12** — Unusual Whales Bearer token. UOA flow replaced by self-hosted Databento OPRA UOA detector (PRs #2155/#2157/#2163); remaining adapters dormant. Sunset target: 2026-Q3 (deadline 2026-08-31, owner: ops). Safe to leave unset; see `docs/OPEN_PREP_OPS_QUICK_REFERENCE.md` §13. |
-| `NEWSAPI_AI_KEY` | No | NewsAPI.ai key for Event Registry search/feed fallback, breaking/trending/NLP tabs |
+| `NEWSAPI_KEY` | No | NewsAPI.ai key for Event Registry search/feed fallback, breaking/trending/NLP tabs |
 | `DATABENTO_API_KEY` | No | Databento API key for historical OHLCV + reference market data (corporate actions, identifier state) |
 | `FINNHUB_API_KEY` | No | Finnhub key for crypto social sentiment |
 | `TERMINAL_NOTIFY_ENABLED` | No | `1` to enable push notifications |
