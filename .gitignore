@@ -91,3 +91,5 @@ artifacts/ops_run_measure.py
 
 .tmp_failed.log
 .ci_failed*.log
+.testmondata
+synthetic/
