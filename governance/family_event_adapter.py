@@ -185,6 +185,7 @@ def _zone_event_to_family(
     benchmark_bars: Sequence[Mapping[str, Any]] | None = None,
     constituent_ticks: TickSeries | None = None,
     benchmark_ticks: TickSeries | None = None,
+    news_polarity: float | None = None,
 ) -> FamilyEvent | None:
     low = float(event.get("low", 0.0) or 0.0)
     high = float(event.get("high", 0.0) or 0.0)
@@ -257,6 +258,8 @@ def _zone_event_to_family(
     hy = _hy_cross_lead_lag(constituent_ticks, benchmark_ticks, anchor_ts)
     if hy is not None:
         mapped["cross_lead_lag_hy"] = hy
+    if news_polarity is not None:
+        mapped["news_polarity"] = news_polarity
     return mapped
 
 
@@ -271,6 +274,7 @@ def _level_event_to_family(
     benchmark_bars: Sequence[Mapping[str, Any]] | None = None,
     constituent_ticks: TickSeries | None = None,
     benchmark_ticks: TickSeries | None = None,
+    news_polarity: float | None = None,
 ) -> FamilyEvent | None:
     price = float(event.get("price", 0.0) or 0.0)
     anchor_ts = _anchor_ts(event)
@@ -338,6 +342,8 @@ def _level_event_to_family(
     hy = _hy_cross_lead_lag(constituent_ticks, benchmark_ticks, anchor_ts)
     if hy is not None:
         mapped["cross_lead_lag_hy"] = hy
+    if news_polarity is not None:
+        mapped["news_polarity"] = news_polarity
     return mapped
 
 
@@ -377,6 +383,7 @@ def family_events_from_structure(
     benchmark_bars: Sequence[Mapping[str, Any]] | None = None,
     constituent_ticks: TickSeries | None = None,
     benchmark_ticks: TickSeries | None = None,
+    news_polarity: float | None = None,
 ) -> list[FamilyEvent]:
     """Convert a detected SMC structure + bars into ``FamilyEvent`` records.
 
@@ -418,6 +425,7 @@ def family_events_from_structure(
             benchmark_bars=benchmark_bars,
             constituent_ticks=constituent_ticks,
             benchmark_ticks=benchmark_ticks,
+            news_polarity=news_polarity,
         )
         if mapped is not None:
             events.append(mapped)
@@ -432,6 +440,7 @@ def family_events_from_structure(
             benchmark_bars=benchmark_bars,
             constituent_ticks=constituent_ticks,
             benchmark_ticks=benchmark_ticks,
+            news_polarity=news_polarity,
         )
         if mapped is not None:
             events.append(mapped)
@@ -446,6 +455,7 @@ def family_events_from_structure(
             benchmark_bars=benchmark_bars,
             constituent_ticks=constituent_ticks,
             benchmark_ticks=benchmark_ticks,
+            news_polarity=news_polarity,
         )
         if mapped is not None:
             events.append(mapped)
@@ -461,6 +471,7 @@ def family_events_from_structure(
             benchmark_bars=benchmark_bars,
             constituent_ticks=constituent_ticks,
             benchmark_ticks=benchmark_ticks,
+            news_polarity=news_polarity,
         )
         if mapped is not None:
             events.append(mapped)

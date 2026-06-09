@@ -412,3 +412,43 @@ def test_cross_lead_lag_hy_needs_no_alignment() -> None:
 
     assert len(events) == 1
     assert isinstance(events[0]["cross_lead_lag_hy"], float)
+
+
+# ── news_polarity (ADR-0023 prospective recording) ──────────────────
+
+
+def test_news_polarity_attached_when_provided() -> None:
+    closes = [100.0 + i for i in range(20)]
+    bars = _bars(closes)
+    structure = {
+        "bos": [{"id": "b1", "time": _T0 + 5 * _STEP, "price": 105.0, "dir": "UP"}],
+        "orderblocks": [{"id": "ob1", "time": _T0 + 5 * _STEP, "low": 99.0, "high": 101.0, "dir": "BULL"}],
+    }
+
+    events = family_events_from_structure(structure, bars, news_polarity=0.42)
+
+    assert len(events) == 2
+    for ev in events:
+        assert ev["news_polarity"] == 0.42
+
+
+def test_news_polarity_absent_when_not_provided() -> None:
+    closes = [100.0 + i for i in range(20)]
+    bars = _bars(closes)
+    structure = {"bos": [{"id": "b1", "time": _T0 + 5 * _STEP, "price": 105.0, "dir": "UP"}]}
+
+    events = family_events_from_structure(structure, bars)
+
+    assert len(events) == 1
+    assert "news_polarity" not in events[0]
+
+
+def test_news_polarity_negative_sentiment() -> None:
+    closes = [100.0 + i for i in range(20)]
+    bars = _bars(closes)
+    structure = {"liquidity_sweeps": [{"id": "s1", "time": _T0 + 4 * _STEP, "price": 104.0, "side": "SELL_SIDE"}]}
+
+    events = family_events_from_structure(structure, bars, news_polarity=-0.65)
+
+    assert len(events) == 1
+    assert events[0]["news_polarity"] == -0.65
