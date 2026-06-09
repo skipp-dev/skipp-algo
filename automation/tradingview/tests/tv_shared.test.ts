@@ -514,6 +514,39 @@ test("resolveOpenScriptIdentityEvidence reports explicit identity mode", () => {
   });
 });
 
+test("verifyOpenScriptIdentity accepts publish dialog companion texts", () => {
+  // Exact evidence from failed overlay publish run 27170210008:
+  // TradingView shows "Update '<name>' library" dialog title alongside the script name.
+  assert.equal(verifyOpenScriptIdentity("smc_overlay_generated", {
+    dialogStillVisible: false,
+    editorContextTexts: ["smc_overlay_generated", "Update 'smc_overlay_generated' library"],
+  }), true);
+
+  // With extra "Minimize Close" text appended by TradingView panel chrome
+  assert.equal(verifyOpenScriptIdentity("smc_overlay_generated", {
+    dialogStillVisible: false,
+    editorContextTexts: ["smc_overlay_generated", "Update 'smc_overlay_generated' library Minimize Close"],
+  }), true);
+
+  // "Publish '<name>'" pattern
+  assert.equal(verifyOpenScriptIdentity("smc_overlay_generated", {
+    dialogStillVisible: false,
+    editorContextTexts: ["smc_overlay_generated", "Publish 'smc_overlay_generated'"],
+  }), true);
+
+  // Publish dialog title alone (no separate script-name evidence) — identity still from dialog
+  assert.equal(verifyOpenScriptIdentity("smc_overlay_generated", {
+    dialogStillVisible: false,
+    editorContextTexts: ["Update 'smc_overlay_generated' library"],
+  }), false, "dialog title alone is not identity evidence — it's only a companion");
+
+  // Wrong script name in dialog → still conflicts
+  assert.equal(verifyOpenScriptIdentity(CORE_SCRIPT, {
+    dialogStillVisible: false,
+    editorContextTexts: [CORE_SCRIPT, "Update 'SMC Decision Board' library"],
+  }), false, "dialog title naming a different script must still conflict");
+});
+
 test("settings dialog identity check rejects mismatched titled dialogs", () => {
   assert.equal(settingsDialogTitleMatchesScriptName(CORE_SCRIPT, DECISION_BOARD_SCRIPT), false);
   assert.equal(settingsDialogTitleMatchesScriptName(CORE_SCRIPT, CORE_SCRIPT), true);
