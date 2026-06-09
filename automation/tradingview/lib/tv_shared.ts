@@ -799,6 +799,28 @@ function importReferenceCompanionMatch(scriptName: string, uiText: string): bool
   return Boolean(compactScriptName) && compactUiText(normalizedCandidate).includes(compactScriptName);
 }
 
+/**
+ * Matches TradingView publish/update dialog titles that embed the script name,
+ * e.g. "Update 'smc_overlay_generated' library" or
+ *      "Update 'smc_overlay_generated' library Minimize Close".
+ * These are non-identity companion texts that should not be flagged as
+ * conflicting editor context.
+ */
+function publishDialogCompanionMatch(scriptName: string, uiText: string): boolean {
+  const normalizedScriptName = normalizeUiText(scriptName).toLowerCase();
+  const normalizedCandidate = normalizeUiText(uiText).toLowerCase();
+  if (!normalizedScriptName || !normalizedCandidate) {
+    return false;
+  }
+  // "update '<name>' library", "publish '<name>'", "update '<name>' ..."
+  // Allow optional trailing words (Minimize, Close, etc.)
+  const escaped = escapeRegex(normalizedScriptName);
+  return new RegExp(
+    `^(?:update|publish)\\s+['\u2018\u2019\u201C\u201D"]?${escaped}['\u2018\u2019\u201C\u201D"]?(?:\\s|$)`,
+    "i",
+  ).test(normalizedCandidate);
+}
+
 function nonIdentityEditorCompanionMatch(uiText: string): boolean {
   const normalizedCandidate = normalizeUiText(uiText);
   if (!normalizedCandidate) {
@@ -943,6 +965,9 @@ function hasConflictingCanonicalEditorContext(scriptName: string, editorContextT
       return false;
     }
     if (importReferenceCompanionMatch(scriptName, candidate)) {
+      return false;
+    }
+    if (publishDialogCompanionMatch(scriptName, candidate)) {
       return false;
     }
     if (nonIdentityEditorCompanionMatch(candidate)) {
