@@ -85,13 +85,23 @@ def check_workflow(
     token: str,
     now: datetime | None = None,
     fetcher: Fetcher | None = None,
+    any_conclusion: bool = False,
 ) -> WorkflowFreshness:
-    """Look up the most recent successful run of one workflow."""
+    """Look up the most recent successful (or any completed) run of one workflow.
+
+    When *any_conclusion* is True the query uses ``status=completed``
+    instead of ``status=success``.  This is useful for workflows whose
+    non-zero exit code is an expected operational outcome (e.g. a
+    promotion gate emitting ``rollback``) rather than an infrastructure
+    failure.  The freshness contract then means "the workflow *ran*
+    recently" rather than "the workflow *succeeded* recently".
+    """
     now = now or datetime.now(tz=UTC)
     fetcher = fetcher or _default_fetcher
+    qs = "status=completed" if any_conclusion else "status=success"
     url = (
         f"https://api.github.com/repos/{repo}/actions/workflows/"
-        f"{workflow_file}/runs?status=success&per_page=1"
+        f"{workflow_file}/runs?{qs}&per_page=1"
     )
     headers = {
         "Accept": "application/vnd.github+json",
@@ -144,12 +154,12 @@ def check_workflow(
 def check_all(
     *,
     repo: str,
-    workflows: list[tuple[str, float]],
+    workflows: list[tuple[str, float, bool]],
     token: str,
     now: datetime | None = None,
     fetcher: Fetcher | None = None,
 ) -> FreshnessReport:
-    """Check a list of ``(workflow_file, budget_hours)`` pairs."""
+    """Check a list of ``(workflow_file, budget_hours, any_conclusion)`` triples."""
     now = now or datetime.now(tz=UTC)
     results = [
         check_workflow(
@@ -159,8 +169,9 @@ def check_all(
             token=token,
             now=now,
             fetcher=fetcher,
+            any_conclusion=any_conc,
         )
-        for wf, budget in workflows
+        for wf, budget, any_conc in workflows
     ]
     stale = sum(1 for r in results if r.status == "stale")
     missing = sum(1 for r in results if r.status == "missing")
@@ -184,28 +195,41 @@ def check_all(
     )
 
 
-def _parse_workflow_spec(raw: str) -> tuple[str, float]:
-    """``smc-library-refresh.yml=30`` -> ``("smc-library-refresh.yml", 30.0)``."""
+def _parse_workflow_spec(raw: str) -> tuple[str, float, bool]:
+    """Parse ``file.yml=HOURS`` or ``file.yml=HOURS:any``.
+
+    The optional ``:any`` suffix enables *any_conclusion* mode — the
+    freshness check queries ``status=completed`` instead of
+    ``status=success``.  This is intended for promotion-gate workflows
+    whose non-zero exit code is an expected operational outcome.
+
+    Returns ``(workflow_file, budget_hours, any_conclusion)``.
+    """
     if "=" not in raw:
         raise argparse.ArgumentTypeError(
             f"workflow spec must be 'file.yml=HOURS', got {raw!r}"
         )
-    name, _, hours = raw.partition("=")
+    name, _, rest = raw.partition("=")
     name = name.strip()
-    hours = hours.strip()
+    rest = rest.strip()
     if not name.endswith((".yml", ".yaml")):
         raise argparse.ArgumentTypeError(
             f"workflow file must end with .yml/.yaml, got {name!r}"
         )
+    # Optional :any suffix → any_conclusion mode
+    any_conclusion = False
+    if rest.endswith(":any"):
+        any_conclusion = True
+        rest = rest[: -len(":any")]
     try:
-        budget = float(hours)
+        budget = float(rest)
     except ValueError as exc:
         raise argparse.ArgumentTypeError(
-            f"budget hours must be numeric, got {hours!r}"
+            f"budget hours must be numeric, got {rest!r}"
         ) from exc
     if budget <= 0:
         raise argparse.ArgumentTypeError("budget hours must be positive")
-    return name, budget
+    return name, budget, any_conclusion
 
 
 def main(argv: list[str] | None = None) -> int:
