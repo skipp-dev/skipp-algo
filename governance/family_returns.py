@@ -230,6 +230,15 @@ class FamilyEvent(TypedDict, total=False):
     # ratio). PIT-safe by construction: the estimator slices the trailing window
     # ending AT the anchor instant, so no alignment guard is needed. Never invented.
     cross_lead_lag_hy: float
+    # Optional point-in-time news-sentiment feature (ADR-0023 magnitude overlay):
+    # the recency-weighted average polarity from ``smc_news_scorer`` for the
+    # event's ticker at the export snapshot, in [-1, +1] (+ bullish, - bearish,
+    # 0 neutral / absent). RECORDED ONLY -- it is NOT a calibration input and
+    # does NOT feed the gate; it rides alongside outcomes so the pre-registered
+    # purged walk-forward A/B can evaluate whether news sentiment lifts
+    # magnitude resolution before any wiring. Absent when no news snapshot is
+    # available or the ticker has no scored articles. Never invented.
+    news_polarity: float
 
 
 def _direction_sign(direction: str) -> int:

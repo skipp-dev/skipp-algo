@@ -119,7 +119,10 @@ def run_pipeline(
     cost_bps = float(payload.get("cost_bps", 5.0))
     as_of = _coerce_as_of(payload.get("as_of"))
 
-    events = family_events_from_structure(structure, bars)
+    raw_polarity = payload.get("news_polarity")
+    news_polarity: float | None = float(raw_polarity) if raw_polarity is not None else None
+
+    events = family_events_from_structure(structure, bars, news_polarity=news_polarity)
     spec = to_build_spec(
         events,
         periods_per_year=periods_per_year,
