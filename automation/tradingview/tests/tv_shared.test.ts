@@ -751,8 +751,8 @@ test("TV_SKIP_AUTH_STATE_VALIDATION emits a warning and bypasses validation", ()
 });
 
 // Regression coverage for findLegendRowWrappers. Two production fixes shipped
-// during the SMC library-refresh debugging both passed the existing 128 tests
-// yet failed in production:
+// during the SMC library-refresh debugging both passed the existing tests yet
+// failed in production:
 //   * `.//button` matched 123 ancestors (page chrome) — too broad.
 //   * `./button`  matched the empty actions-container (depth 1) — too narrow.
 // The ancestor-walk implementation must climb from the legend-settings button
@@ -771,7 +771,13 @@ function makeLegendButton(textByDepth: Record<number, string>, visible = true): 
     isVisible: async () => visible,
     locator: (selector: string) => {
       // selector arrives as `xpath=..`, `xpath=../..`, or `xpath=../../..`.
-      const xpath = selector.replace(/^xpath=/, "");
+      if (!selector.startsWith("xpath=")) {
+        throw new Error(`expected xpath= prefix, got: ${selector}`);
+      }
+      const xpath = selector.slice("xpath=".length);
+      if (!/^(\.\.)(\/\.\.)*$/.test(xpath)) {
+        throw new Error(`expected ancestor-only xpath (../.. shape), got: ${xpath}`);
+      }
       const depth = xpath.split("/").filter((segment) => segment === "..").length;
       return {
         __depth: depth,
