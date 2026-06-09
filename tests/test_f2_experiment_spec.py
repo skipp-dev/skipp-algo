@@ -28,9 +28,9 @@ def test_shipped_spec_loads_and_validates() -> None:
     assert spec.name == "f2-contextual-zone-priority-promotion"
     assert spec.control.label == "static_global_weights"
     assert spec.treatment.label.startswith("contextual_weights")
-    assert spec.sprt.p0 == 0.55
-    assert spec.sprt.p1 == 0.60
-    assert spec.sprt.max_n == 600
+    assert spec.sprt.p0 == 0.544
+    assert spec.sprt.p1 == 0.574
+    assert spec.sprt.max_n == 1200
     assert spec.rollback_gate.consecutive_worse_runs == 2
     assert spec.rollback_gate.comparison_metric == "calibrated_brier"
     assert spec.min_days == 30
