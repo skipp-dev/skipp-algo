@@ -250,7 +250,7 @@ def run_streamlit_micro_base_app() -> None:
         )
         newsapi_ai_key = st.text_input(
             "NewsAPI.ai API Key (optional)",
-            value=os.getenv("NEWSAPI_AI_KEY", ""),
+            value=os.getenv("NEWSAPI_KEY", ""),
             type="password",
         )
         export_dir_raw = st.text_input(

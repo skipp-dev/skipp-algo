@@ -65,7 +65,7 @@ Mindestens diese Secrets oder Umgebungsvariablen muessen verfuegbar sein:
 Praktisch empfohlen:
 
 1. `BENZINGA_API_KEY`
-2. `NEWSAPI_AI_KEY` optional
+2. `NEWSAPI_KEY` optional
 
 ## Live-News-Sidecar: Provider und API-Reduktion
 
@@ -78,7 +78,7 @@ Aktive Quellen im Snapshot-/Bus-Pfad:
 2. `fmp_press_latest`
 3. `fmp_articles`
 4. `benzinga_rest`
-5. `newsapi_ai` wenn `NEWSAPI_AI_KEY` gesetzt ist; nutzt Event Registry `minuteStreamArticles` fuer laufende Polls, persistiert nach Moeglichkeit `recentActivityArticlesNewsUpdatesAfterUri` und faellt fuer aeltere Cursor auf `getArticles` plus `getEvents` zurueck
+5. `newsapi_ai` wenn `NEWSAPI_KEY` gesetzt ist; nutzt Event Registry `minuteStreamArticles` fuer laufende Polls, persistiert nach Moeglichkeit `recentActivityArticlesNewsUpdatesAfterUri` und faellt fuer aeltere Cursor auf `getArticles` plus `getEvents` zurueck
 6. `tradingview` als optionaler symbol-spezifischer Supplement-Pfad
 
 Die gemeinsam genutzten Cache-Parameter koennen bei Bedarf uebersteuert werden:

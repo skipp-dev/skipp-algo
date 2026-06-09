@@ -125,7 +125,7 @@ Nach einem gesunden Lauf sollten folgende Dateien aktuell sein:
 - `ENABLE_BENZINGA_REST` (default `0`)
 - `ENABLE_BENZINGA_WS` (default `0`)
 - `BENZINGA_API_KEY` (wenn REST/WS aktiviert)
-- `ENABLE_NEWSAPI_AI` (default `1`), `NEWSAPI_AI_KEY`
+- `ENABLE_NEWSAPI_AI` (default `1`), `NEWSAPI_KEY`
   - **Dual-state cross-reference (audit L-1, finding #40)**: NewsAPI.ai
     has TWO files in this repo and ops triage MUST check both paths:
     - `terminal_newsapi.py` (~60 LOC) — **decommissioned stub**, all

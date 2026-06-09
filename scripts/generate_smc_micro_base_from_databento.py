@@ -1740,7 +1740,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--enrich-all", action="store_true", help="Enable all enrichment blocks")
     parser.add_argument("--debug", action="store_true", help="Include diagnostic fields (LOOKBACK_DAYS, UNIVERSE_ID, VOLATILITY_MODEL_SOURCE, etc.)")
     parser.add_argument("--benzinga-api-key", default=os.getenv("BENZINGA_API_KEY", ""), help="Benzinga API key for news/calendar fallback")
-    parser.add_argument("--newsapi-ai-key", default=os.getenv("NEWSAPI_AI_KEY", ""), help="NewsAPI.ai API key for optional news fallback")
+    parser.add_argument("--newsapi-ai-key", default=os.getenv("NEWSAPI_KEY", ""), help="NewsAPI.ai API key for optional news fallback")
     return parser
 
 

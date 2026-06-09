@@ -14,8 +14,8 @@ import pytest
 
 # Skip entire module if no API keys are set
 pytestmark = pytest.mark.skipif(
-    not os.environ.get("FMP_API_KEY") and not os.environ.get("NEWSAPI_AI_KEY"),
-    reason="No API keys set (FMP_API_KEY / NEWSAPI_AI_KEY) — skipping live endpoint tests",
+    not os.environ.get("FMP_API_KEY") and not os.environ.get("NEWSAPI_KEY"),
+    reason="No API keys set (FMP_API_KEY / NEWSAPI_KEY) — skipping live endpoint tests",
 )
 
 from terminal_bitcoin import (

@@ -142,13 +142,13 @@ jobs:
 
       - name: Refresh NewsAPI.ai live snapshot
         env:
-          NEWSAPI_AI_KEY: ${{ secrets.NEWSAPI_KEY }}
+          NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
           INPUT_SYMBOLS: ${{ github.event.inputs.symbols }}
           INPUT_SYMBOL_LIMIT: ${{ github.event.inputs.symbol_limit }}
           INPUT_RESET_STATE: ${{ github.event.inputs.reset_state }}
           NEWSAPI_AI_SHARED_CACHE_TTL_SECONDS: "25"
         run: |
-          test -n "${NEWSAPI_AI_KEY}" || { echo "::error::NEWSAPI_AI_KEY secret is required"; exit 1; }
+          test -n "${NEWSAPI_KEY}" || { echo "::error::NEWSAPI_KEY secret is required"; exit 1; }
 
           SYMBOLS="${INPUT_SYMBOLS:-}"
           SYMBOL_LIMIT="${INPUT_SYMBOL_LIMIT:-100}"

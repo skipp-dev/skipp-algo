@@ -142,7 +142,7 @@ Listed for transparency, deferred to a later phase:
 ## Secrets / variables visibility (names only — values not inspected)
 
 Confirmed **set** at repo level:
-- `BENZINGA_API_KEY`, `DATABENTO_API_KEY`, `FMP_API_KEY`, `GH_PAT`, `NEWSAPI_AI_KEY`, `TV_STORAGE_STATE`
+- `BENZINGA_API_KEY`, `DATABENTO_API_KEY`, `FMP_API_KEY`, `GH_PAT`, `NEWSAPI_KEY`, `TV_STORAGE_STATE`
 - Variable: `SMC_GH_HOSTED_RUNNER = ubuntu-latest-l` (set 2026-05-02)
 
 **Not set** (or not visible at repo level):

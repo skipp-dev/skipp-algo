@@ -258,9 +258,9 @@ def main() -> int:
     args = parser.parse_args()
 
     cfg = Config()
-    api_key = str(cfg.newsapi_ai_key or os.getenv("NEWSAPI_AI_KEY") or "").strip()
+    api_key = str(cfg.newsapi_ai_key or os.getenv("NEWSAPI_KEY") or "").strip()
     if not api_key:
-        parser.error("NEWSAPI_AI_KEY is required")
+        parser.error("NEWSAPI_KEY is required")
 
     base_symbols = _resolve_symbols(args, cfg)
     if not base_symbols:

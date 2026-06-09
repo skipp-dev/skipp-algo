@@ -49,7 +49,7 @@ class Config:
     benzinga_api_key: str = field(default_factory=lambda: os.getenv("BENZINGA_API_KEY", ""), repr=False)
 
     # ── Additional news credentials ────────────────────────────
-    newsapi_ai_key: str = field(default_factory=lambda: os.getenv("NEWSAPI_AI_KEY", ""), repr=False)
+    newsapi_ai_key: str = field(default_factory=lambda: os.getenv("NEWSAPI_KEY", ""), repr=False)
 
     # ── Feature flags ───────────────────────────────────────────
     enable_fmp: bool = field(default_factory=lambda: os.getenv("ENABLE_FMP", "1") == "1")
