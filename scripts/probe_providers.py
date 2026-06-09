@@ -787,9 +787,9 @@ def probe_newsapi_ai() -> tuple[str, str]:
     """NewsAPI.ai (Event Registry) — note: terminal stub is decommissioned,
     but scripts/smc_newsapi_ai.py is the active path."""
     import httpx
-    key = os.getenv("NEWSAPI_AI_KEY", "")
+    key = os.getenv("NEWSAPI_KEY", "")
     if not key:
-        return ("SKIP", "NEWSAPI_AI_KEY missing")
+        return ("SKIP", "NEWSAPI_KEY missing")
     r = httpx.post(
         "https://eventregistry.org/api/v1/article/getArticles",
         json={

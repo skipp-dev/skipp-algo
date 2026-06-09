@@ -689,7 +689,7 @@ The GitHub Actions workflow (`.github/workflows/smc-library-refresh.yml`) runs 4
 |--------|----------|---------|
 | `FMP_API_KEY` | Yes | FMP enrichment data |
 | `BENZINGA_API_KEY` | Yes | News/calendar fallback |
-| `NEWSAPI_AI_KEY` | No | Optional NewsAPI.ai news fallback |
+| `NEWSAPI_KEY` | No | Optional NewsAPI.ai news fallback |
 | `DATABENTO_API_KEY` | Yes | Base data generation |
 | `TV_STORAGE_STATE` | Yes | TradingView publish |
 | `GH_PAT` | Yes | Auto-commit |

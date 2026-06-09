@@ -31,7 +31,7 @@ Environment variables
 ~~~~~~~~~~~~~~~~~~~~~
 * ``FMP_API_KEY``  – FinancialModelingPrep key (regime, technical, calendar)
 * ``BENZINGA_API_KEY`` – Benzinga key (news, calendar fallback)
-* ``NEWSAPI_AI_KEY`` – NewsAPI.ai key (news fallback)
+* ``NEWSAPI_KEY`` – NewsAPI.ai key (news fallback)
 """
 from __future__ import annotations
 
@@ -209,7 +209,7 @@ def refresh(
 
     fmp_api_key = fmp_api_key or os.environ.get("FMP_API_KEY", "")
     benzinga_api_key = benzinga_api_key or os.environ.get("BENZINGA_API_KEY", "")
-    newsapi_ai_key = newsapi_ai_key or os.environ.get("NEWSAPI_AI_KEY", "")
+    newsapi_ai_key = newsapi_ai_key or os.environ.get("NEWSAPI_KEY", "")
 
     if symbols is None:
         symbols = _load_universe_symbols(out_manifest)

@@ -1921,7 +1921,7 @@ class TestConfigActiveSources(unittest.TestCase):
             "ENABLE_FMP_ARTICLES": "0",
             "ENABLE_FMP_GENERAL": "0",
             "ENABLE_NEWSAPI_AI": "1",
-            "NEWSAPI_AI_KEY": "news-key",
+            "NEWSAPI_KEY": "news-key",
         }):
             cfg = Config()
         self.assertEqual(cfg.active_sources, ["newsapi_ai"])
