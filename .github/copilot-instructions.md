@@ -297,3 +297,49 @@ After completing a multi-step task (todo list fully done, PR merged, or
 major milestone reached), remind the user to run `/compact` if the
 conversation has been going for a while. Keep the reminder to one short
 line, e.g.: "💡 Guter Zeitpunkt für `/compact` — Session ist lang."
+
+## Kommunikationsregeln
+
+- Antworte IMMER auf Deutsch, es sei denn der User schreibt explizit auf
+  Englisch.
+- Erkläre fachliche Ergebnisse nutzerfreundlich — keine reinen
+  PR-/Commit-Referenzen als Antwort. Wenn der User nach dem Stand fragt,
+  liefere Klartext-Zusammenfassung, nicht nur Nummern.
+- Git-Commits, PR-Titel und Code-Kommentare bleiben auf Englisch
+  (Repo-Konvention).
+
+## PR-Housekeeping
+
+Wenn der User "merge", "mergeable machen" oder "Konflikte lösen" sagt:
+
+1. `gh pr list --state open --json number,title,mergeable,headRefName | head -20`
+2. Für jeden MERGEABLE PR: `gh pr checks <N>` — nur mergen wenn alle
+   required checks grün.
+3. Für CONFLICTING PRs: rebase auf main, Konflikte lösen, force-push.
+4. Copilot-Review-Comments prüfen (inline + threads via API, nicht nur
+   `gh pr view`).
+5. Ergebnis als kompakte Tabelle ausgeben: `PR# | Status | Aktion`.
+
+## Env-Var-Disziplin
+
+- NIEMALS eine bestehende Env-Var umbenennen ohne explizite User-Freigabe.
+- Vor jeder Env-Var-Änderung:
+  `grep -rn "ENV_VAR_NAME" --include="*.py" --include="*.yml"` um ALLE
+  Consumers zu identifizieren.
+- Wenn Python-Code und Workflow unterschiedliche Namen verwenden: den
+  Python-Namen als kanonisch behandeln, Workflow anpassen.
+
+## Proaktive Status-Updates
+
+- Nach Abschluss eines mehrstufigen Tasks: automatisch eine 3–5 Zeilen
+  Status-Zusammenfassung geben (was erledigt, was offen, was blockiert).
+- Bei "was ist der Stand" / "nächste Schritte": Session-Memory und
+  Todo-Liste prüfen, dann kompakte Tabelle ausgeben.
+- Keine Filler-Texte — direkt die Fakten.
+
+## Session-Start
+
+- Beim ersten Turn einer neuen Session: prüfe ob ein Handover-Dokument
+  (z. B. `spec/agent_handover.md`) auf main existiert. Falls ja: lesen und
+  als Arbeitskontext übernehmen, aktuellen Stand kurz bestätigen.
+- Frage nicht nach — einfach lesen und loslegen.
