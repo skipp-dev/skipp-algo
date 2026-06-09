@@ -30,10 +30,9 @@ def _ok_fetcher(age_hours: float):
     finished = (NOW - timedelta(hours=age_hours)).isoformat().replace("+00:00", "Z")
 
     def fetcher(url: str, headers: dict[str, str]) -> dict:
-        # Sanity: the URL we build should target the right endpoint and
-        # ask only for status=success runs.
+        # Sanity: the URL we build should target the right endpoint.
         assert "/actions/workflows/" in url
-        assert "status=success" in url
+        assert "status=" in url
         assert headers["Authorization"].startswith("Bearer ")
         return {
             "workflow_runs": [
@@ -132,6 +131,40 @@ def test_api_error_when_run_missing_timestamp() -> None:
     assert "updated_at" in (r.detail or "")
 
 
+def test_any_conclusion_queries_status_completed() -> None:
+    """When any_conclusion=True, the API query uses status=completed."""
+    captured_urls: list[str] = []
+
+    def fetcher(url: str, headers: dict[str, str]) -> dict:
+        captured_urls.append(url)
+        finished = (NOW - timedelta(hours=2.0)).isoformat().replace("+00:00", "Z")
+        return {
+            "workflow_runs": [
+                {
+                    "id": 1234,
+                    "html_url": "https://github.com/o/r/actions/runs/1234",
+                    "updated_at": finished,
+                    "conclusion": "failure",
+                }
+            ]
+        }
+
+    r = check_workflow(
+        repo="o/r",
+        workflow_file="gate.yml",
+        budget_hours=30.0,
+        token="t",
+        now=NOW,
+        fetcher=fetcher,
+        any_conclusion=True,
+    )
+    assert r.status == "fresh"
+    assert r.age_hours == 2.0
+    assert len(captured_urls) == 1
+    assert "status=completed" in captured_urls[0]
+    assert "status=success" not in captured_urls[0]
+
+
 # -- check_all aggregation --------------------------------------------------
 
 
@@ -141,7 +174,7 @@ def test_check_all_overall_fresh() -> None:
 
     report = check_all(
         repo="o/r",
-        workflows=[("a.yml", 24.0), ("b.yml", 24.0)],
+        workflows=[("a.yml", 24.0, False), ("b.yml", 24.0, False)],
         token="t",
         now=NOW,
         fetcher=fetcher,
@@ -163,7 +196,7 @@ def test_check_all_overall_stale_when_any_stale() -> None:
 
     report = check_all(
         repo="o/r",
-        workflows=[("a.yml", 24.0), ("b.yml", 24.0)],
+        workflows=[("a.yml", 24.0, False), ("b.yml", 24.0, False)],
         token="t",
         now=NOW,
         fetcher=fetcher,
@@ -185,7 +218,7 @@ def test_check_all_overall_error_when_any_api_error() -> None:
 
     report = check_all(
         repo="o/r",
-        workflows=[("a.yml", 24.0), ("b.yml", 24.0)],
+        workflows=[("a.yml", 24.0, False), ("b.yml", 24.0, False)],
         token="t",
         now=NOW,
         fetcher=fetcher,
@@ -198,8 +231,9 @@ def test_check_all_overall_error_when_any_api_error() -> None:
 
 
 def test_parse_workflow_spec_ok() -> None:
-    assert _parse_workflow_spec("ci.yml=24") == ("ci.yml", 24.0)
-    assert _parse_workflow_spec("foo.yaml=1.5") == ("foo.yaml", 1.5)
+    assert _parse_workflow_spec("ci.yml=24") == ("ci.yml", 24.0, False)
+    assert _parse_workflow_spec("foo.yaml=1.5") == ("foo.yaml", 1.5, False)
+    assert _parse_workflow_spec("gate.yml=30:any") == ("gate.yml", 30.0, True)
 
 
 @pytest.mark.parametrize(
