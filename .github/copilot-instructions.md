@@ -273,3 +273,27 @@ Only use raw `actions/setup-python@...` inside the composite action itself.
 Use `mkstemp + fdopen + os.replace` for all file writes in `scripts/`. Raw
 `open(..., 'w')` calls are guarded by `tests/test_atomic_write_call_sites.py`
 and will fail CI.
+
+## Token-efficiency rules
+
+### Terminal output size
+
+When running commands that produce large output (CI logs, workflow runs,
+grep over big files), always pipe through `| head -N` or `| tail -N`
+(default N ≤ 20) to keep terminal-notification payloads small. Never dump
+full `gh run view --log` output unfiltered — always combine with `grep` AND
+a `head`/`tail` cap.
+
+### Subagent delegation
+
+Use the `Explore` subagent (or `search_subagent`) for exploratory reads:
+"find all files matching X", "how does module Y work", "locate references
+to Z". The subagent runs in its own context and returns only a compact
+summary — its file-read tokens do not accumulate in the main session.
+
+### Compaction reminder
+
+After completing a multi-step task (todo list fully done, PR merged, or
+major milestone reached), remind the user to run `/compact` if the
+conversation has been going for a while. Keep the reminder to one short
+line, e.g.: "💡 Guter Zeitpunkt für `/compact` — Session ist lang."
