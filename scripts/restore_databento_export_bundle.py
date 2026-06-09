@@ -39,6 +39,7 @@ import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
+from urllib.parse import urlparse
 
 _PREFIX = "smc-databento-production-export-"
 _CANONICAL_WORKFLOW_FILE = "smc-databento-production-export-sharded.yml"
@@ -69,6 +70,38 @@ def _api_get_json(token: str, path: str) -> dict:
 
 
 def _download_zip(token: str, repo: str, artifact_id: int) -> bytes:
+    """Download an artifact zip, stripping Authorization on cross-host redirect.
+
+    GitHub's ``/artifacts/{id}/zip`` returns a 302 to Azure Blob Storage.
+    ``urllib.request`` forwards all headers on redirect — the Azure endpoint
+    rejects the GitHub Bearer token with 401.  We use a custom redirect
+    handler that strips ``Authorization`` when the redirect targets a
+    different host (the standard ``gh`` CLI does the same).
+    """
+
+    class _StripAuthRedirectHandler(urllib.request.HTTPRedirectHandler):
+        """Drop Authorization header when redirected to a different host."""
+
+        def redirect_request(
+            self,
+            req: urllib.request.Request,
+            fp,  # noqa: ANN001
+            code: int,
+            msg: str,
+            headers,  # noqa: ANN001
+            newurl: str,
+        ) -> urllib.request.Request | None:
+            new_req = super().redirect_request(req, fp, code, msg, headers, newurl)
+            if new_req is None:
+                return None
+            # Strip auth when crossing to a different host (e.g. Azure Blob).
+            orig_host = urlparse(req.full_url).hostname
+            dest_host = urlparse(newurl).hostname
+            if orig_host != dest_host:
+                new_req.remove_header("Authorization")
+            return new_req
+
+    opener = urllib.request.build_opener(_StripAuthRedirectHandler)
     req = urllib.request.Request(
         f"https://api.github.com/repos/{repo}/actions/artifacts/{artifact_id}/zip",
         headers={
@@ -79,7 +112,7 @@ def _download_zip(token: str, repo: str, artifact_id: int) -> bytes:
         },
         method="GET",
     )
-    with urllib.request.urlopen(req, timeout=120) as resp:  # noqa: S310 - fixed api.github.com URL
+    with opener.open(req, timeout=120) as resp:  # noqa: S310 - fixed api.github.com URL
         return resp.read()
 
 
