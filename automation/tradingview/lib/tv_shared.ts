@@ -3331,7 +3331,7 @@ async function isScriptStrictlyVisibleOnChartSurface(page: Page, scriptName: str
 
 async function findLegendRowWrappers(page: Page, scriptName: string): Promise<Locator[]> {
   const [, loosePattern, fuzzyPattern] = buildScriptNamePatterns(scriptName);
-  const wrappers = page.locator('xpath=//*[.//button[@data-qa-id="legend-settings-action"] or .//button[@data-qa-id="legend-more-action"]]');
+  const wrappers = page.locator('xpath=//*[./button[@data-qa-id="legend-settings-action"] or ./button[@data-qa-id="legend-more-action"]]');
   const total = await wrappers.count().catch(() => 0);
   const matches: Array<{ locator: Locator; textLength: number }> = [];
 
@@ -5137,7 +5137,7 @@ async function settleChartSurfaceAfterInsert(page: Page, scriptName: string, pha
     // On the last attempt, dump all visible legend wrapper texts for diagnostics
     if (attempt === 3) {
       const allWrappers = page.locator(
-        'xpath=//*[.//button[@data-qa-id="legend-settings-action"] or .//button[@data-qa-id="legend-more-action"]]',
+        'xpath=//*[./button[@data-qa-id="legend-settings-action"] or ./button[@data-qa-id="legend-more-action"]]',
       );
       const wrapperCount = await allWrappers.count().catch(() => 0);
       const legendTexts: string[] = [];
@@ -5168,6 +5168,8 @@ async function settleChartSurfaceAfterInsert(page: Page, scriptName: string, pha
         }
         if (toastTexts.length > 0) {
           tracePageEvent(page, `add-to-chart-${phase}-toasts`, toastTexts.join(" | "));
+        } else {
+          tracePageEvent(page, `add-to-chart-${phase}-toasts`, `(${toastCount} elements, all empty)`);
         }
       }
     }
