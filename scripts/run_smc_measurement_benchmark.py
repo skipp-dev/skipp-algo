@@ -471,6 +471,8 @@ def run_pair(symbol: str, timeframe: str, *, output_root: Path) -> dict[str, Any
         "timeframe": timeframe,
         "artifact_dir": pair_dir.relative_to(output_root).as_posix(),
         "summary": pair_summary,
+        # ADR-0023 §4.1: carry FamilyEvent dicts for magnitude-shadow export.
+        "family_events": list(getattr(evidence, "family_events", None) or []),
     }
 
 
@@ -592,6 +594,19 @@ def main() -> int:
 
     summary_csv_path = output_root / "benchmark_run_summary.csv"
     _write_csv(summary_csv_path, fieldnames=list(run_summary_rows[0].keys()) if run_summary_rows else ["symbol", "timeframe"], rows=run_summary_rows)
+
+    # ADR-0023 §4.1: merge all FamilyEvent records across pairs and dump to
+    # a single JSON file so the magnitude-shadow workflow can download it
+    # via dawidd6/action-download-artifact and feed it to
+    # run_magnitude_shadow_ledger.py without re-running detection.
+    all_family_events: list[dict[str, Any]] = []
+    for pair_run in pair_runs:
+        all_family_events.extend(pair_run.get("family_events") or [])
+    family_events_path = output_root / "scored_family_events.json"
+    atomic_write_text(
+        dumps_strict_json(all_family_events, indent=2, sort_keys=True) + "\n",
+        family_events_path,
+    )
 
     run_manifest = {
         "schema_version": SCHEMA_VERSION,
