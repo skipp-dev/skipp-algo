@@ -816,7 +816,7 @@ function publishDialogCompanionMatch(scriptName: string, uiText: string): boolea
   // Allow optional trailing words (Minimize, Close, etc.)
   const escaped = escapeRegex(normalizedScriptName);
   return new RegExp(
-    `^(?:update|publish)\\s+['\u2018\u2019"]?${escaped}['\u2018\u2019"]?(?:\\s|$)`,
+    `^(?:update|publish)\\s+['\u2018\u2019\u201C\u201D"]?${escaped}['\u2018\u2019\u201C\u201D"]?(?:\\s|$)`,
     "i",
   ).test(normalizedCandidate);
 }

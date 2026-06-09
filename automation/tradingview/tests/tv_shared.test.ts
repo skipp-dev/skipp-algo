@@ -534,11 +534,17 @@ test("verifyOpenScriptIdentity accepts publish dialog companion texts", () => {
     editorContextTexts: ["smc_overlay_generated", "Publish 'smc_overlay_generated'"],
   }), true);
 
-  // Publish dialog title alone (no separate script-name evidence) — identity still from dialog
+  // Curly double quotes around script name (TradingView may use typographic quotes)
+  assert.equal(verifyOpenScriptIdentity("smc_overlay_generated", {
+    dialogStillVisible: false,
+    editorContextTexts: ["smc_overlay_generated", "Update \u201Csmc_overlay_generated\u201D library"],
+  }), true);
+
+  // Publish dialog title alone (no separate script-name evidence) — companion only, not identity
   assert.equal(verifyOpenScriptIdentity("smc_overlay_generated", {
     dialogStillVisible: false,
     editorContextTexts: ["Update 'smc_overlay_generated' library"],
-  }), false, "dialog title alone is not identity evidence — it's only a companion");
+  }), false, "dialog title alone is not identity evidence \u2014 it is only a companion");
 
   // Wrong script name in dialog → still conflicts
   assert.equal(verifyOpenScriptIdentity(CORE_SCRIPT, {
