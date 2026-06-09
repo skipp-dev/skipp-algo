@@ -4,8 +4,7 @@
 **Prerequisite:** C13 Phase-A NO-GO signed
 ([`docs/c8_phase_a_signoff_2026-05-14.md`](../../docs/c8_phase_a_signoff_2026-05-14.md))
 **Blocks:** C13 Phase-A Replay → C14 Phase-B Promotion
-**ADR:** [`docs/DECISIONS.md`](../../docs/DECISIONS.md)
-§ `2026-06-09 - c13-phase-a-no-go-and-c13b-unblock-plan`
+**ADR:** [`docs/DECISIONS.md § c13-phase-a-no-go-and-c13b-unblock-plan`](../../docs/DECISIONS.md#2026-06-09---c13-phase-a-no-go-and-c13b-unblock-plan)
 
 ## Problem Statement
 
