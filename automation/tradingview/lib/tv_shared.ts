@@ -177,6 +177,43 @@ export function buildScriptNamePatterns(scriptName: string): RegExp[] {
   return [exact, loose, fuzzy];
 }
 
+/**
+ * Check whether {@link legendText} is a truncated rendering of {@link scriptName}.
+ *
+ * TradingView truncates indicator names in the chart legend – it may drop
+ * entire words and abbreviate the remaining ones to their first few
+ * characters.  For example "SMC Long-Dip Dashboard v7" can appear as
+ * "SMC Dash" in the legend.
+ *
+ * The function returns `true` when every space-separated word in the
+ * legend text (after stripping a trailing "· N.N" version suffix) is a
+ * case-insensitive prefix of some word in {@link scriptName}, with the
+ * matches preserving left-to-right order and at least two legend words
+ * matching.
+ */
+export function isLegendTruncatedMatch(legendText: string, scriptName: string): boolean {
+  const cleanLegend = legendText.replace(/\s*·\s*[\d.]+\s*$/, "").trim();
+  const legendWords = cleanLegend.split(/\s+/).filter((w) => w.length >= 2);
+  const scriptWords = scriptName.split(/\s+/).filter(Boolean);
+  if (legendWords.length < 2) return false;
+
+  let si = 0;
+  for (const lw of legendWords) {
+    const ll = lw.toLowerCase();
+    let found = false;
+    while (si < scriptWords.length) {
+      const sl = scriptWords[si].toLowerCase();
+      si += 1;
+      if (sl.startsWith(ll)) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) return false;
+  }
+  return true;
+}
+
 export function validateTradingViewStorageState(storageStatePath: string): void {
   if (boolEnv("TV_SKIP_AUTH_STATE_VALIDATION", false)) {
     console.error("[tv-auth] WARNING: TV_SKIP_AUTH_STATE_VALIDATION=1 is set. Storage state validation is bypassed.");
@@ -3354,7 +3391,7 @@ export async function findLegendRowWrappers(page: Page, scriptName: string): Pro
       const ancestor = btn.locator(`xpath=${xpath}`);
       const text = normalizeUiText((await ancestor.innerText({ timeout: 300 }).catch(() => "")) || "");
       if (!text || text.length > 300) continue;
-      if (loosePattern.test(text) || fuzzyPattern.test(text)) {
+      if (loosePattern.test(text) || fuzzyPattern.test(text) || isLegendTruncatedMatch(text, scriptName)) {
         const key = `${depth}:${text.slice(0, 60)}`;
         if (!seenKeys.has(key)) {
           seenKeys.add(key);

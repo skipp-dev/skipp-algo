@@ -28,6 +28,7 @@ import {
   verifyOpenScriptIdentity,
   ensurePineEditor,
   findLegendRowWrappers,
+  isLegendTruncatedMatch,
 } from "../lib/tv_shared.js";
 
 const CORE_SCRIPT = "SMC Core";
@@ -850,4 +851,61 @@ test("findLegendRowWrappers skips invisible legend buttons", async () => {
   const wrappers = await findLegendRowWrappers(makeLegendPage([hiddenButton]) as never, scriptName);
 
   assert.equal(wrappers.length, 0, "invisible legend buttons must be ignored");
+});
+
+// --- isLegendTruncatedMatch: TradingView name truncation ---
+
+test("isLegendTruncatedMatch recognises TradingView-truncated Dashboard name", () => {
+  // TradingView legend shows "SMC Dash" for "SMC Long-Dip Dashboard v7"
+  assert.equal(isLegendTruncatedMatch("SMC Dash", "SMC Long-Dip Dashboard v7"), true);
+});
+
+test("isLegendTruncatedMatch recognises truncated name with version suffix", () => {
+  // After a duplicate is added TV appends "· 22.0"
+  assert.equal(isLegendTruncatedMatch("SMC Dash · 22.0", "SMC Long-Dip Dashboard v7"), true);
+});
+
+test("isLegendTruncatedMatch recognises truncated Strategy name", () => {
+  assert.equal(isLegendTruncatedMatch("SMC Long Strategy", "SMC Long-Dip Strategy v7"), true);
+});
+
+test("isLegendTruncatedMatch rejects unrelated indicators", () => {
+  assert.equal(isLegendTruncatedMatch("SMC Core", "SMC Long-Dip Dashboard v7"), false);
+  assert.equal(isLegendTruncatedMatch("LuxAlgo - Ultimate RSI", "SMC Long-Dip Dashboard v7"), false);
+  assert.equal(isLegendTruncatedMatch("Vol", "SMC Long-Dip Dashboard v7"), false);
+  assert.equal(isLegendTruncatedMatch("My script", "SMC Long-Dip Dashboard v7"), false);
+});
+
+test("isLegendTruncatedMatch rejects similar but wrong scripts", () => {
+  // "SMC Decision Board" must NOT match "SMC Long-Dip Dashboard v7"
+  assert.equal(isLegendTruncatedMatch("SMC Decision Board · 31.0", "SMC Long-Dip Dashboard v7"), false);
+  assert.equal(isLegendTruncatedMatch("SMC Decision Board", "SMC Long-Dip Dashboard v7"), false);
+});
+
+test("isLegendTruncatedMatch requires at least 2 legend words", () => {
+  // Single-word legend text must not produce false positives
+  assert.equal(isLegendTruncatedMatch("SMC", "SMC Long-Dip Dashboard v7"), false);
+  assert.equal(isLegendTruncatedMatch("Dash", "SMC Long-Dip Dashboard v7"), false);
+});
+
+test("isLegendTruncatedMatch exact full name matches", () => {
+  assert.equal(isLegendTruncatedMatch("SMC Long-Dip Dashboard v7", "SMC Long-Dip Dashboard v7"), true);
+  assert.equal(isLegendTruncatedMatch("SMC Core", "SMC Core"), true);
+});
+
+// --- findLegendRowWrappers: truncated legend name regression ---
+
+test("findLegendRowWrappers matches ancestor with truncated TradingView display name", async () => {
+  const scriptName = "SMC Long-Dip Dashboard v7";
+  // TradingView shows "SMC Dash" — the truncated name — in the legend row
+  const button = makeLegendButton({ 1: "", 2: "SMC Dash" });
+
+  const wrappers = await findLegendRowWrappers(makeLegendPage([button]) as never, scriptName);
+
+  assert.equal(wrappers.length, 1, "truncated legend name 'SMC Dash' must match 'SMC Long-Dip Dashboard v7'");
+  assert.equal(
+    (wrappers[0] as unknown as FakeAncestor).__depth,
+    2,
+    "must match at depth 2 where the truncated text lives",
+  );
 });
