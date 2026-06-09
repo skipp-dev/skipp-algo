@@ -225,6 +225,40 @@ def test_main_coverage_lane_is_gated_on_main_push(validate_job: dict) -> None:
     )
 
 
+def test_main_coverage_lane_disables_per_shard_fail_under(validate_job: dict) -> None:
+    """Regression pin: the main-push coverage lane MUST NOT enforce the global
+    ``fail_under`` threshold per shard.
+
+    The lane runs ``--cov`` on each of four ``pytest-split`` shards, but a
+    single 1/4 shard only exercises a fraction of the codebase (~48 %). With
+    ``pyproject``'s ``fail_under=85`` left active, ``pytest-cov`` enforces that
+    threshold *per shard*, which can never pass and failed every main-push CI
+    run for days. ``--cov-fail-under=0`` neutralises the per-shard gate while
+    keeping coverage as a non-blocking audit artefact (merge gating is the
+    required ``fast-gates`` check, not this lane). This test ensures the fix
+    cannot silently regress.
+    """
+    steps = validate_job.get("steps") or []
+    coverage_step = next(
+        (
+            s for s in steps
+            if isinstance(s, dict)
+            and "--cov" in (s.get("run") or "")
+            and "python -m pytest" in (s.get("run") or "")
+        ),
+        None,
+    )
+    assert coverage_step is not None, "Could not locate the main-push coverage pytest step"
+    run = coverage_step.get("run") or ""
+    assert "--cov-fail-under=0" in run, (
+        "The main-push coverage lane MUST pass `--cov-fail-under=0` to override "
+        "pyproject's `fail_under=85`. Each pytest-split shard measures only its "
+        "own slice (~48 % of the codebase), so a per-shard 85 % gate is "
+        "mathematically impossible and breaks every main-push CI run. Coverage "
+        "here is a non-blocking audit artefact; gating is handled by fast-gates."
+    )
+
+
 # ─────────────────────────────────────────────────────────────────────
 # Permissions
 # ─────────────────────────────────────────────────────────────────────
