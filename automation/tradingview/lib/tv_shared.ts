@@ -3058,7 +3058,8 @@ export function settingsDialogTitleMatchesScriptName(scriptName: string, dialogT
   if (!normalizedTitle) {
     return false;
   }
-  return scriptNameAppearsInUiText(scriptName, normalizedTitle);
+  return scriptNameAppearsInUiText(scriptName, normalizedTitle)
+    || isLegendTruncatedMatch(normalizedTitle, scriptName);
 }
 
 /**
