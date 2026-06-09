@@ -81,6 +81,7 @@ export type InputContractDiagnosis = {
 
 export type AddToChartOptions = {
   forceInsert?: boolean;
+  tolerateFailure?: boolean;
 };
 
 type PageLifecycleTracker = {
@@ -5101,6 +5102,15 @@ export async function assertNoVisibleCompileError(page: Page): Promise<void> {
 async function settleChartSurfaceAfterInsert(page: Page, scriptName: string, phase: string, allowTextMatchOnly = true): Promise<boolean> {
   for (let attempt = 0; attempt < 4; attempt += 1) {
     await dismissSignInModal(page);
+
+    // On the first attempt, capture compile errors BEFORE closing the Pine editor
+    if (attempt === 0) {
+      const editorDiag = await collectEditorDiagnostics(page).catch(() => null);
+      if (editorDiag && hasVisibleEditorHost(editorDiag)) {
+        tracePageEvent(page, `add-to-chart-${phase}-editor-state`, `${scriptName}:${formatEditorDiagnostics(editorDiag)}`);
+      }
+    }
+
     await closePineEditorIfVisible(page);
     if (attempt > 0) {
       await page.keyboard.press("Escape").catch(() => undefined);
@@ -5121,6 +5131,44 @@ async function settleChartSurfaceAfterInsert(page: Page, scriptName: string, pha
       if (diagnostics && !hasVisibleEditorHost(diagnostics)) {
         tracePageEvent(page, `add-to-chart-${phase}-text-match-only`, scriptName);
         return true;
+      }
+    }
+
+    // On the last attempt, dump all visible legend wrapper texts for diagnostics
+    if (attempt === 3) {
+      const allWrappers = page.locator(
+        'xpath=//*[.//button[@data-qa-id="legend-settings-action"] or .//button[@data-qa-id="legend-more-action"]]',
+      );
+      const wrapperCount = await allWrappers.count().catch(() => 0);
+      const legendTexts: string[] = [];
+      for (let i = 0; i < Math.min(wrapperCount, 20); i += 1) {
+        const raw = await allWrappers.nth(i).innerText({ timeout: 300 }).catch(() => "");
+        if (raw) {
+          legendTexts.push(normalizeUiText(raw).slice(0, 80));
+        }
+      }
+      tracePageEvent(
+        page,
+        `add-to-chart-${phase}-legend-dump`,
+        `${scriptName}:wrappers=${wrapperCount}:${legendTexts.join(" | ") || "(none)"}`,
+      );
+
+      // Also check for TradingView error/notification toasts
+      const toastLocator = page.locator(
+        '[role="status"], [role="alert"], [aria-live="polite"], [aria-live="assertive"], [data-name*="toast" i], [class*="toast" i], [class*="notification" i]',
+      );
+      const toastCount = await toastLocator.count().catch(() => 0);
+      if (toastCount > 0) {
+        const toastTexts: string[] = [];
+        for (let i = 0; i < Math.min(toastCount, 5); i += 1) {
+          const raw = await toastLocator.nth(i).innerText({ timeout: 300 }).catch(() => "");
+          if (raw) {
+            toastTexts.push(normalizeUiText(raw).slice(0, 120));
+          }
+        }
+        if (toastTexts.length > 0) {
+          tracePageEvent(page, `add-to-chart-${phase}-toasts`, toastTexts.join(" | "));
+        }
       }
     }
   }
@@ -5179,11 +5227,14 @@ export async function addCurrentScriptToChart(page: Page, scriptName?: string, o
     if (await isSignInModalVisible(page)) {
       throw new Error("TradingView sign-in modal is blocking add-to-chart");
     }
-    throw new Error(
-      diagnostics
-        ? `Could not add script to chart after click, force-click, and hotkey fallback: ${formatEditorDiagnostics(diagnostics)}`
-        : 'Could not add script to chart after click, force-click, and hotkey fallback',
-    );
+    const errorMsg = diagnostics
+      ? `Could not add script to chart after click, force-click, and hotkey fallback: ${formatEditorDiagnostics(diagnostics)}`
+      : 'Could not add script to chart after click, force-click, and hotkey fallback';
+    if (options.tolerateFailure) {
+      tracePageEvent(page, "add-to-chart-tolerated-failure", `${scriptName ?? "(unnamed)"}:${errorMsg}`);
+      return;
+    }
+    throw new Error(errorMsg);
   });
 }
 

@@ -662,17 +662,26 @@ async function main(): Promise<number> {
       if (target.addToChart || target.checkInputs) {
         if (usedFreshDraftPath && target.scriptName) {
           await removeVisibleChartScriptInstances(session.page, target.scriptName).catch(() => 0);
-          await addCurrentScriptToChart(session.page, target.scriptName, { forceInsert: true });
+          await addCurrentScriptToChart(session.page, target.scriptName, { forceInsert: true, tolerateFailure: true });
         } else {
-          await addCurrentScriptToChart(session.page, target.scriptName);
+          await addCurrentScriptToChart(session.page, target.scriptName, { tolerateFailure: true });
         }
         targetResult.script_found_on_chart_ok = await isScriptVisibleOnChartSurface(session.page, target.scriptName);
         if (targetResult.script_found_on_chart_ok !== true) {
-          throw new Error(`Script did not become visible on chart after add-to-chart for ${target.scriptName}`);
+          const msg = `Script did not become visible on chart after add-to-chart for ${target.scriptName}`;
+          console.error(`[preflight] ${msg} — skipping input checks for this target`);
+          await takeScreenshot(session.page, runId, `${target.scriptName}-add-to-chart-failed`, targetResult.screenshots).catch(() => undefined);
+          if (target.checkInputs) {
+            targetResult.settings_open_ok = false;
+            targetResult.inputs_tab_ok = false;
+            targetResult.bindings_count_ok = false;
+            targetResult.bindings_names_ok = false;
+          }
+          targetResult.error = msg;
         }
       }
 
-      if (target.checkInputs) {
+      if (target.checkInputs && targetResult.script_found_on_chart_ok === true) {
         const settingsOpened = await openSettingsForScript(session.page, target.scriptName, {
           allowChartRefresh: cli.executionMode === "mutating",
         });
