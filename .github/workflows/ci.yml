@@ -171,5 +171,12 @@ jobs:
           # shards equals full coverage). Coverage is an audit artefact, not a
           # required gate, so cross-shard .coverage merging is intentionally
           # left out to keep the matrix simple.
-          python -m pytest -q --maxfail=1 -n auto --dist=loadscope --splits 4 --group "${{ matrix.group }}" --cov --cov-report=term-missing:skip-covered
+          #
+          # --cov-fail-under=0 overrides pyproject's fail_under=85 for these
+          # partial shards. A single 1/4 shard only exercises ~48 % of the
+          # codebase, so enforcing the global 85 % threshold per-shard can never
+          # pass and failed every main-push CI run. Coverage here stays a
+          # non-blocking audit artefact (matching the note above); merge gating
+          # is handled by the required fast-gates check, not by this lane.
+          python -m pytest -q --maxfail=1 -n auto --dist=loadscope --splits 4 --group "${{ matrix.group }}" --cov --cov-report=term-missing:skip-covered --cov-fail-under=0
 
