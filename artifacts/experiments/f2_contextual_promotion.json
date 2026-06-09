@@ -7,7 +7,7 @@
   "status_history": [
     {"status": "registered", "at": "2026-04-21", "note": "Initial spec registration."},
     {"status": "plumbing_only", "at": "2026-04-23", "note": "G3 dual-arm wiring landed (PR #42). Promote pathway disabled until A1 (frozen treatment artifact, PR #43) and A2/A3 (paired Brier-SPRT + cross-day state, PR #44) close in-sample leakage and single-arm-vs-fixed-p0 defects identified in audit."},
-    {"status": "live", "at": "2026-06-09", "note": "All blockers resolved (A1=#44 merged, A2/A3=#42+#122 merged, #45 closed via #2362). p0 recalibrated from 0.55 to 0.544 (observed dual-arm baseline 2026-06-09, n=1492). p1 tightened from 0.60 to 0.574 (+3pp MDE). max_n raised to 1200. SPRT state will auto-reset on status flip (PR #2362). ADR #5 documents the prior null result."}
+    {"status": "live", "at": "2026-06-09", "note": "All blockers resolved (A1=#43 merged, A2/A3=#42+#122 merged, #45 closed via #2362). p0 recalibrated from 0.55 to 0.544 (observed dual-arm baseline 2026-06-09, n=1492). p1 tightened from 0.60 to 0.574 (+3pp MDE). max_n raised to 1200. SPRT state will auto-reset on status flip (PR #2362). ADR 2026-06-09 sprt-rollback-signal-validates-null-candidate documents the prior null result."}
   ],
   "registered_at": "2026-04-21",
 
@@ -34,7 +34,7 @@
     "alpha": 0.05,
     "beta": 0.20,
     "max_n": 1200,
-    "rationale": "p0=0.544 = observed dual-arm baseline hit-rate (n=1492, 2026-06-09 measurement); p1=0.574 = +3pp MDE (tightened from +5pp after ADR #5 null result); alpha=0.05 / beta=0.20 conventional gate; max_n=1200 ≈ 60 days at ~20 events/day per arm (longer window for tighter MDE).",
+    "rationale": "p0=0.544 = observed dual-arm baseline hit-rate (n=1492, 2026-06-09 measurement); p1=0.574 = +3pp MDE (tightened from +5pp after prior SPRT null result, see ADR 2026-06-09 sprt-rollback-signal-validates-null-candidate); alpha=0.05 / beta=0.20 conventional gate; max_n=1200 ≈ 60 days at ~20 events/day per arm (longer window for tighter MDE).",
     "prior_run": {
       "concluded": "2026-06-09",
       "decision": "accept_h0",
