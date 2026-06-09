@@ -561,6 +561,16 @@ test("settings dialog identity check rejects mismatched titled dialogs", () => {
   assert.equal(settingsDialogTitleMatchesScriptName(CORE_SCRIPT, ""), false);
 });
 
+test("settings dialog identity matches TradingView-truncated titles", () => {
+  // Dashboard truncated to "SMC Dash" (observed in run 27215753224)
+  assert.equal(settingsDialogTitleMatchesScriptName("SMC Long-Dip Dashboard v7", "SMC Dash"), true);
+  // Strategy truncated to "SMC Long Strategy" (observed in run 27215753224)
+  assert.equal(settingsDialogTitleMatchesScriptName("SMC Long-Dip Strategy v7", "SMC Long Strategy"), true);
+  // Unrelated script must still be rejected
+  assert.equal(settingsDialogTitleMatchesScriptName("SMC Long-Dip Dashboard v7", "Vol"), false);
+  assert.equal(settingsDialogTitleMatchesScriptName("SMC Long-Dip Dashboard v7", "SMC Decision Board"), false);
+});
+
 test("buildScriptNamePatterns fuzzy does not match word supersets", () => {
   const [, , fuzzyPattern] = buildScriptNamePatterns(CORE_SCRIPT);
 
