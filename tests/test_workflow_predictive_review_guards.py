@@ -55,8 +55,8 @@ def test_rolling_benchmark_artifact_upload_has_meta_fallbacks() -> None:
 
 def test_live_news_secret_is_in_step_env_not_inline_shell() -> None:
     body = _read_workflow("smc-live-newsapi-refresh.yml")
-    assert "NEWSAPI_AI_KEY: ${{ secrets.NEWSAPI_AI_KEY }}" in body
-    assert "NEWSAPI_AI_KEY='${{ secrets.NEWSAPI_AI_KEY }}'" not in body
+    assert "NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}" in body
+    assert "NEWSAPI_KEY='${{ secrets.NEWSAPI_KEY }}'" not in body
     assert "live-news state persistence warning" in body
 
 

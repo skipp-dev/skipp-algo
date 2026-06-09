@@ -49,7 +49,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--state", type=Path, default=Path("artifacts/smc_microstructure_exports") / "smc_live_news_state.json", help="Persistent state path for provider cursors and seen canonical stories")
     parser.add_argument("--fmp-api-key", default=os.getenv("FMP_API_KEY", ""), help="FMP API key")
     parser.add_argument("--benzinga-api-key", default=os.getenv("BENZINGA_API_KEY", ""), help="Benzinga API key")
-    parser.add_argument("--newsapi-ai-key", default=os.getenv("NEWSAPI_AI_KEY", ""), help="NewsAPI.ai API key")
+    parser.add_argument("--newsapi-ai-key", default=os.getenv("NEWSAPI_KEY", ""), help="NewsAPI.ai API key")
     return parser
 
 
