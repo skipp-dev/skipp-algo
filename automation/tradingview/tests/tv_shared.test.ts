@@ -27,6 +27,7 @@ import {
   uiTextContainsExactScriptName,
   verifyOpenScriptIdentity,
   ensurePineEditor,
+  findLegendRowWrappers,
 } from "../lib/tv_shared.js";
 
 const CORE_SCRIPT = "SMC Core";
@@ -747,4 +748,106 @@ test("TV_SKIP_AUTH_STATE_VALIDATION emits a warning and bypasses validation", ()
   }
 
   assert.equal(messages.some((message) => message.includes("TV_SKIP_AUTH_STATE_VALIDATION=1 is set")), true);
+});
+
+// Regression coverage for findLegendRowWrappers. Two production fixes shipped
+// during the SMC library-refresh debugging both passed the existing tests yet
+// failed in production:
+//   * `.//button` matched 123 ancestors (page chrome) — too broad.
+//   * `./button`  matched the empty actions-container (depth 1) — too narrow.
+// The ancestor-walk implementation must climb from the legend-settings button
+// up to the row that actually carries the script-name text. These tests model
+// that DOM shape directly so neither failure mode can recur silently.
+const LEGEND_BUTTON_SELECTOR = 'button[data-qa-id="legend-settings-action"]';
+
+type FakeAncestor = { __depth: number; innerText: (opts?: unknown) => Promise<string> };
+type FakeButton = {
+  isVisible: (opts?: unknown) => Promise<boolean>;
+  locator: (selector: string) => FakeAncestor;
+};
+
+function makeLegendButton(textByDepth: Record<number, string>, visible = true): FakeButton {
+  return {
+    isVisible: async () => visible,
+    locator: (selector: string) => {
+      // selector arrives as `xpath=..`, `xpath=../..`, or `xpath=../../..`.
+      if (!selector.startsWith("xpath=")) {
+        throw new Error(`expected xpath= prefix, got: ${selector}`);
+      }
+      const xpath = selector.slice("xpath=".length);
+      if (!/^(\.\.)(\/\.\.)*$/.test(xpath)) {
+        throw new Error(`expected ancestor-only xpath (../.. shape), got: ${xpath}`);
+      }
+      const depth = xpath.split("/").filter((segment) => segment === "..").length;
+      return {
+        __depth: depth,
+        innerText: async () => textByDepth[depth] ?? "",
+      };
+    },
+  };
+}
+
+function makeLegendPage(buttons: FakeButton[]) {
+  return {
+    locator: (selector: string) => {
+      if (selector === LEGEND_BUTTON_SELECTOR) {
+        return {
+          count: async () => buttons.length,
+          nth: (index: number) => buttons[index],
+        };
+      }
+      throw new Error(`unexpected selector in test: ${selector}`);
+    },
+  };
+}
+
+test("findLegendRowWrappers climbs to the legend row when depth-1 is the empty action-container", async () => {
+  const scriptName = "SMC Long-Dip Dashboard v7";
+  // depth 1 = actions-container (empty) — this is what `./button` wrongly matched.
+  const button = makeLegendButton({ 1: "", 2: scriptName, 3: "Chart navigation toolbar chrome" });
+
+  const wrappers = await findLegendRowWrappers(makeLegendPage([button]) as never, scriptName);
+
+  assert.equal(wrappers.length, 1, "should resolve exactly one legend row wrapper");
+  assert.equal(
+    (wrappers[0] as unknown as FakeAncestor).__depth,
+    2,
+    "must match the grandparent legend row (depth 2), not the empty action-container (depth 1)",
+  );
+});
+
+test("findLegendRowWrappers ignores buttons whose ancestors only contain page chrome", async () => {
+  const scriptName = "SMC Long-Dip Dashboard v7";
+  // None of the ancestor levels carry the script name — this models the broad
+  // `.//button` failure where matched wrappers were toolbars / navigation.
+  const chromeButton = makeLegendButton({ 1: "", 2: "Indicators templates alerts", 3: "Header toolbar" });
+
+  const wrappers = await findLegendRowWrappers(makeLegendPage([chromeButton]) as never, scriptName);
+
+  assert.equal(wrappers.length, 0, "page-chrome-only ancestors must not be treated as legend rows");
+});
+
+test("findLegendRowWrappers returns the shallowest ancestor that carries the script name", async () => {
+  const scriptName = "SMC Long-Dip Dashboard v7";
+  // When multiple ancestor levels contain the name, the row closest to the
+  // button wins so we operate on the tightest legend element, not an outer container.
+  const button = makeLegendButton({ 1: scriptName, 2: `${scriptName} extra panel`, 3: `${scriptName} outer` });
+
+  const wrappers = await findLegendRowWrappers(makeLegendPage([button]) as never, scriptName);
+
+  assert.equal(wrappers.length, 1, "should resolve exactly one legend row wrapper");
+  assert.equal(
+    (wrappers[0] as unknown as FakeAncestor).__depth,
+    1,
+    "the shallowest matching ancestor (depth 1) must win",
+  );
+});
+
+test("findLegendRowWrappers skips invisible legend buttons", async () => {
+  const scriptName = "SMC Long-Dip Dashboard v7";
+  const hiddenButton = makeLegendButton({ 1: "", 2: scriptName }, false);
+
+  const wrappers = await findLegendRowWrappers(makeLegendPage([hiddenButton]) as never, scriptName);
+
+  assert.equal(wrappers.length, 0, "invisible legend buttons must be ignored");
 });

@@ -3329,7 +3329,7 @@ async function isScriptStrictlyVisibleOnChartSurface(page: Page, scriptName: str
   return isScriptVisibleOnChart(state);
 }
 
-async function findLegendRowWrappers(page: Page, scriptName: string): Promise<Locator[]> {
+export async function findLegendRowWrappers(page: Page, scriptName: string): Promise<Locator[]> {
   const [, loosePattern, fuzzyPattern] = buildScriptNamePatterns(scriptName);
 
   // Start from the known legend-action buttons and walk UP the ancestor
