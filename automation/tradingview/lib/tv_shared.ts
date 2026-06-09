@@ -3331,26 +3331,38 @@ async function isScriptStrictlyVisibleOnChartSurface(page: Page, scriptName: str
 
 async function findLegendRowWrappers(page: Page, scriptName: string): Promise<Locator[]> {
   const [, loosePattern, fuzzyPattern] = buildScriptNamePatterns(scriptName);
-  const wrappers = page.locator('xpath=//*[./button[@data-qa-id="legend-settings-action"] or ./button[@data-qa-id="legend-more-action"]]');
-  const total = await wrappers.count().catch(() => 0);
+
+  // Start from the known legend-action buttons and walk UP the ancestor
+  // chain to find the enclosing legend row.  TradingView wraps the buttons
+  // inside an inner actions-container div, so the direct parent (depth 1)
+  // typically has no indicator-name text.  The actual legend row is at
+  // depth 2 or 3.  This replaces the previous XPath wrapper approach that
+  // either matched too many ancestors (.//button) or only the empty
+  // action-container (./button).
+  const buttons = page.locator('button[data-qa-id="legend-settings-action"]');
+  const buttonCount = await buttons.count().catch(() => 0);
   const matches: Array<{ locator: Locator; textLength: number }> = [];
+  const seenKeys = new Set<string>();
 
-  for (let index = 0; index < Math.min(total, 80); index += 1) {
-    const candidate = wrappers.nth(index);
-    const visible = await candidate.isVisible({ timeout: 250 }).catch(() => false);
-    if (!visible) {
-      continue;
-    }
+  for (let i = 0; i < Math.min(buttonCount, 40); i += 1) {
+    const btn = buttons.nth(i);
+    const visible = await btn.isVisible({ timeout: 250 }).catch(() => false);
+    if (!visible) continue;
 
-    const text = normalizeUiText((await candidate.innerText().catch(() => "")) || "");
-    if (!text || text.length > 240) {
-      continue;
+    for (const depth of [1, 2, 3]) {
+      const xpath = new Array(depth).fill("..").join("/");
+      const ancestor = btn.locator(`xpath=${xpath}`);
+      const text = normalizeUiText((await ancestor.innerText({ timeout: 300 }).catch(() => "")) || "");
+      if (!text || text.length > 300) continue;
+      if (loosePattern.test(text) || fuzzyPattern.test(text)) {
+        const key = `${depth}:${text.slice(0, 60)}`;
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          matches.push({ locator: ancestor, textLength: text.length });
+        }
+        break;
+      }
     }
-    if (!loosePattern.test(text) && !fuzzyPattern.test(text)) {
-      continue;
-    }
-
-    matches.push({ locator: candidate, textLength: text.length });
   }
 
   matches.sort((left, right) => left.textLength - right.textLength);
@@ -5134,23 +5146,31 @@ async function settleChartSurfaceAfterInsert(page: Page, scriptName: string, pha
       }
     }
 
-    // On the last attempt, dump all visible legend wrapper texts for diagnostics
+    // On the last attempt, dump the button-ancestor chain for diagnostics.
+    // Walk up from each legend-settings button and report tag, data-name/class,
+    // and innerText at each depth so the correct wrapper level is visible.
     if (attempt === 3) {
-      const allWrappers = page.locator(
-        'xpath=//*[./button[@data-qa-id="legend-settings-action"] or ./button[@data-qa-id="legend-more-action"]]',
-      );
-      const wrapperCount = await allWrappers.count().catch(() => 0);
-      const legendTexts: string[] = [];
-      for (let i = 0; i < Math.min(wrapperCount, 20); i += 1) {
-        const raw = await allWrappers.nth(i).innerText({ timeout: 300 }).catch(() => "");
-        if (raw) {
-          legendTexts.push(normalizeUiText(raw).slice(0, 80));
+      const diagButtons = page.locator('button[data-qa-id="legend-settings-action"]');
+      const diagCount = await diagButtons.count().catch(() => 0);
+      const diagEntries: string[] = [];
+      for (let i = 0; i < Math.min(diagCount, 5); i += 1) {
+        const btn = diagButtons.nth(i);
+        const btnVisible = await btn.isVisible({ timeout: 200 }).catch(() => false);
+        const levels: string[] = [];
+        for (const depth of [1, 2, 3]) {
+          const xpath = new Array(depth).fill("..").join("/");
+          const anc = btn.locator(`xpath=${xpath}`);
+          const tag = await anc.evaluate((el) => el.tagName.toLowerCase()).catch(() => "?");
+          const dn = await anc.evaluate((el) => el.getAttribute("data-name") || "").catch(() => "");
+          const txt = normalizeUiText(await anc.innerText({ timeout: 200 }).catch(() => "")).slice(0, 50);
+          levels.push(`d${depth}:${tag}${dn ? `[${dn}]` : ""}="${txt}"`);
         }
+        diagEntries.push(`btn[${i}${btnVisible ? "" : ",hidden"}]:{${levels.join(",")}}`);
       }
       tracePageEvent(
         page,
         `add-to-chart-${phase}-legend-dump`,
-        `${scriptName}:wrappers=${wrapperCount}:${legendTexts.join(" | ") || "(none)"}`,
+        `${scriptName}:buttons=${diagCount}:${diagEntries.join(" | ") || "(none)"}`,
       );
 
       // Also check for TradingView error/notification toasts
