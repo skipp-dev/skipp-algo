@@ -209,7 +209,10 @@ _FROZEN_SITES: dict[str, int] = {
     # 2026-05-20: Databento artifact restore helper performs fixed-domain
     # GitHub API downloads (api.github.com) with explicit timeouts. The
     # corresponding urllib ledger pins these two urlopen sites separately.
-    "scripts/restore_databento_export_bundle.py": 2,
+    # 2026-06-09: +2 for ANN001 on redirect_request callback params
+    # (fp, headers) in the _StripAuthRedirectHandler that strips
+    # Authorization on cross-host artifact download redirects.
+    "scripts/restore_databento_export_bundle.py": 4,
 }
 _FROZEN_TOTAL = sum(_FROZEN_SITES.values())
 
