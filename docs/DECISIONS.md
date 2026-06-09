@@ -323,7 +323,7 @@ candidate iteration before re-entering the SPRT cycle.
   — SPRT engine (Wald one-sided on Bernoulli outcomes).
 - [F2 promotion-gate run 2026-06-09](https://github.com/skippALGO/skipp-algo/actions/workflows/f2-promotion-gate-daily.yml)
   — `decision: rollback, reason: SPRT accepted H0 (n=1492, k=812, llr=-9.4392)`.
-- `artifacts/reports/f2_promotion_gate_2026-06-09.json`
+- `f2_promotion_gate_2026-06-09.json` (CI workflow artifact, not checked in)
   — full gate report (`hit_rate: 0.5442`, `control_hit_rate: 0.5443`,
   `p0: 0.55`, `p1: 0.60`).
 
