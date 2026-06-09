@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -41,6 +41,11 @@ from smc_integration.artifact_resolution import resolve_structure_artifact_input
 from smc_integration.repo_sources import load_raw_meta_input_composite
 from smc_integration.sources import structure_artifact_json
 from smc_integration.timeframes import is_daily_timeframe
+
+# ADR-0023 §4.1: produce FamilyEvent records alongside measurement evidence
+# so the magnitude shadow workflow can consume them without re-running
+# the detection pipeline.
+from governance.family_event_adapter import family_events_from_structure as _family_events_from_structure
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +86,8 @@ class MeasurementEvidence:
     scored_events: list[ScoredEvent]
     details: dict[str, Any]
     warnings: list[str]
+    # ADR-0023 §4.1: raw FamilyEvent dicts for magnitude-shadow consumption.
+    family_events: list[dict[str, Any]] = field(default_factory=list)
 
 
 def _empty_bars() -> pd.DataFrame:
@@ -1524,4 +1531,17 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
     details["ensemble_quality"] = serialize_ensemble_quality(ensemble_quality)
     details["stratification_keys"] = sorted(stratified_events.keys())
     details["warnings"] = list(warnings)
-    return MeasurementEvidence(events_by_family, stratified_events, scored_events, details, warnings)
+
+    # ADR-0023 §4.1: produce FamilyEvent records for the magnitude-shadow
+    # workflow.  This re-uses the same effective_structure + resampled_bars
+    # that the scoring loop above consumed, so no extra detection cost.
+    try:
+        family_events = _family_events_from_structure(
+            effective_structure,
+            resampled_bars.to_dict("records"),
+        )
+    except Exception as exc:
+        logger.warning("family_events_from_structure failed: %s", exc)
+        family_events = []
+
+    return MeasurementEvidence(events_by_family, stratified_events, scored_events, details, warnings, family_events)
