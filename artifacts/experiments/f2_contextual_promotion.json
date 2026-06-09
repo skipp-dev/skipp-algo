@@ -3,10 +3,11 @@
   "name": "f2-contextual-zone-priority-promotion",
   "plan_reference": "smc_improvement_plan_q3_q4_2026-04-20.md §2.3 F2 + §2.4 G3",
   "decision_memo": "docs/f2_contextual_promotion_decision_2026-04-21.md",
-  "status": "plumbing_only",
+  "status": "live",
   "status_history": [
     {"status": "registered", "at": "2026-04-21", "note": "Initial spec registration."},
-    {"status": "plumbing_only", "at": "2026-04-23", "note": "G3 dual-arm wiring landed (PR #42). Promote pathway disabled until A1 (frozen treatment artifact, PR #43) and A2/A3 (paired Brier-SPRT + cross-day state, PR #44) close in-sample leakage and single-arm-vs-fixed-p0 defects identified in audit."}
+    {"status": "plumbing_only", "at": "2026-04-23", "note": "G3 dual-arm wiring landed (PR #42). Promote pathway disabled until A1 (frozen treatment artifact, PR #43) and A2/A3 (paired Brier-SPRT + cross-day state, PR #44) close in-sample leakage and single-arm-vs-fixed-p0 defects identified in audit."},
+    {"status": "live", "at": "2026-06-09", "note": "All blockers resolved (A1=#44 merged, A2/A3=#42+#122 merged, #45 closed via #2362). p0 recalibrated from 0.55 to 0.544 (observed dual-arm baseline 2026-06-09, n=1492). p1 tightened from 0.60 to 0.574 (+3pp MDE). max_n raised to 1200. SPRT state will auto-reset on status flip (PR #2362). ADR #5 documents the prior null result."}
   ],
   "registered_at": "2026-04-21",
 
@@ -28,12 +29,22 @@
   },
 
   "sprt": {
-    "p0": 0.55,
-    "p1": 0.60,
+    "p0": 0.544,
+    "p1": 0.574,
     "alpha": 0.05,
     "beta": 0.20,
-    "max_n": 600,
-    "rationale": "p0=0.55 = lifetime-corpus median family hit-rate; p1=0.60 = +5pp minimum-detectable effect (plan §2.4 G3); alpha=0.05 / beta=0.20 conventional gate; max_n=600 ≈ 30 days at ~20 events/day per arm."
+    "max_n": 1200,
+    "rationale": "p0=0.544 = observed dual-arm baseline hit-rate (n=1492, 2026-06-09 measurement); p1=0.574 = +3pp MDE (tightened from +5pp after ADR #5 null result); alpha=0.05 / beta=0.20 conventional gate; max_n=1200 ≈ 60 days at ~20 events/day per arm (longer window for tighter MDE).",
+    "prior_run": {
+      "concluded": "2026-06-09",
+      "decision": "accept_h0",
+      "n": 1492,
+      "k": 812,
+      "llr": -9.4392,
+      "observed_hr": 0.5442,
+      "control_hr": 0.5443,
+      "adr": "docs/DECISIONS.md §2026-06-09 sprt-rollback-signal-validates-null-candidate"
+    }
   },
 
   "rollback_gate": {

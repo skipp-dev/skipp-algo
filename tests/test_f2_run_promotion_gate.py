@@ -358,13 +358,12 @@ def test_spec_status_warning_surfaces_for_hold_decision(tmp_path: Path) -> None:
     assert report["warnings"]
 
 
-def test_cli_shipped_spec_does_not_promote_under_plumbing_only(tmp_path: Path) -> None:
-    """Belt-and-braces: the *literal shipped spec* must NOT promote.
+def test_cli_shipped_spec_promotes_under_live(tmp_path: Path) -> None:
+    """With spec.status='live' and strong treatment, the gate promotes.
 
-    This pins the behavior across the audit follow-up window: even
-    with a strong treatment, a CI run loading the actual on-disk spec
-    must surface ``decision=hold`` until the spec is flipped to
-    ``status=live`` in PR #44.
+    Formerly pinned ``decision=hold`` while the spec was at
+    ``plumbing_only``.  Now that spec is ``live`` (PR #2645), the same
+    strong treatment should yield a promote decision.
     """
     control = _make_arm_dir(tmp_path, arm_name="ctrl",
                             n_events=800, hit_rate=0.55, brier=0.22, ece=0.12)
@@ -379,5 +378,5 @@ def test_cli_shipped_spec_does_not_promote_under_plumbing_only(tmp_path: Path) -
     ])
     assert rc == 0
     report = json.loads(output.read_text(encoding="utf-8"))
-    assert report["spec_status"] == "plumbing_only"
-    assert report["decision"] == "hold"
+    assert report["spec_status"] == "live"
+    assert report["decision"] == "promote"

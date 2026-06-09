@@ -75,6 +75,23 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt pytest pyyaml
 
+      # ADR-0023 §4.1: download the latest scored FamilyEvent records
+      # from the rolling benchmark workflow.  The benchmark produces
+      # scored_family_events.json and uploads it as an artifact named
+      # scored-family-events-<DATE>.  dawidd6/action-download-artifact
+      # grabs the latest successful run's artifact. If no artifact is
+      # found, the workflow continues with no_data (fail-soft contract).
+      - name: Download scored family events from benchmark
+        id: download_events
+        uses: dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6
+        with:
+          workflow: smc-measurement-benchmark-rolling.yml
+          name: ^scored-family-events-
+          name_is_regexp: true
+          path: artifacts/ci/scored_family_events_download
+          workflow_conclusion: success
+          if_no_artifact_found: warn
+
       - name: Resolve events file
         id: events
         env:
@@ -87,7 +104,22 @@ jobs:
             echo "source=input" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # Priority 2: fail-soft no_data. The production events export is
+          # Priority 2: scored FamilyEvent records downloaded from the
+          # rolling benchmark workflow (ADR-0023 §4.1 data pipeline).
+          # dawidd6 nests files under <path>/<artifact-name>/, so we
+          # search recursively for scored_family_events.json.
+          DOWNLOAD_DIR="artifacts/ci/scored_family_events_download"
+          FOUND_EVENTS=""
+          if [ -d "${DOWNLOAD_DIR}" ]; then
+            FOUND_EVENTS="$(find "${DOWNLOAD_DIR}" -name 'scored_family_events.json' -type f 2>/dev/null | head -1)"
+          fi
+          if [ -n "${FOUND_EVENTS}" ] && [ -s "${FOUND_EVENTS}" ]; then
+            echo "events_path=${FOUND_EVENTS}" >> "$GITHUB_OUTPUT"
+            echo "source=benchmark" >> "$GITHUB_OUTPUT"
+            echo "::notice title=adr0023-magnitude-shadow::using scored events from benchmark artifact: ${FOUND_EVENTS}"
+            exit 0
+          fi
+          # Priority 3: fail-soft no_data. The production events export is
           # not part of the repo, so scheduled runs have no events to score.
           echo "events_path=" >> "$GITHUB_OUTPUT"
           echo "source=no_data" >> "$GITHUB_OUTPUT"
