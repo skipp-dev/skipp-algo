@@ -377,6 +377,20 @@ jobs:
           # Idempotent same-day reruns (manual or backfill) must not 409.
           overwrite: true
 
+      # ADR-0023 §4.1: upload scored FamilyEvent records as a separate
+      # artifact so the magnitude-shadow workflow can download them via
+      # dawidd6/action-download-artifact without pulling the full
+      # benchmark bundle.
+      - name: Upload scored family events (ADR-0023)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: scored-family-events-${{ steps.meta.outputs.run_date || 'unknown' }}
+          path: ${{ steps.meta.outputs.out_dir || 'artifacts/ci/measurement_benchmark_rolling' }}/scored_family_events.json
+          if-no-files-found: warn
+          retention-days: 14
+          overwrite: true
+
       - name: F2 dual-arm contextual calibration (G3 wiring)
         # Plan §2.3 F2 / §2.4 G3. Re-scores the per-event JSONL ledgers
         # produced above twice — once with the global family weights
