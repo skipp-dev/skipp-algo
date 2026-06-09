@@ -12,8 +12,8 @@
     "regime_at_entry": "NEUTRAL",
     "zone_priority_rank": "B",
     "zone_priority_score": 54,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": false,
+    "pnl_30m_pct": -10.963
   },
   {
     "date": "2026-06-08",
@@ -28,8 +28,8 @@
     "regime_at_entry": "NEUTRAL",
     "zone_priority_rank": "B",
     "zone_priority_score": 51,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": false,
+    "pnl_30m_pct": 0.0
   },
   {
     "date": "2026-06-08",
@@ -44,8 +44,8 @@
     "regime_at_entry": "NEUTRAL",
     "zone_priority_rank": "B",
     "zone_priority_score": 51,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": true,
+    "pnl_30m_pct": 28.5714
   },
   {
     "date": "2026-06-08",
@@ -60,8 +60,8 @@
     "regime_at_entry": "NEUTRAL",
     "zone_priority_rank": "B",
     "zone_priority_score": 51,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": true,
+    "pnl_30m_pct": 0.1627
   },
   {
     "date": "2026-06-08",
@@ -76,8 +76,8 @@
     "regime_at_entry": "NEUTRAL",
     "zone_priority_rank": "B",
     "zone_priority_score": 51,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": false,
+    "pnl_30m_pct": -6.2925
   },
   {
     "date": "2026-06-08",
@@ -92,8 +92,8 @@
     "regime_at_entry": "NEUTRAL",
     "zone_priority_rank": "B",
     "zone_priority_score": 51,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": true,
+    "pnl_30m_pct": 4.3755
   },
   {
     "date": "2026-06-08",
@@ -124,8 +124,8 @@
     "regime_at_entry": "NEUTRAL",
     "zone_priority_rank": "B",
     "zone_priority_score": 56,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": false,
+    "pnl_30m_pct": -1.8202
   },
   {
     "date": "2026-06-08",
@@ -140,8 +140,8 @@
     "regime_at_entry": "NEUTRAL",
     "zone_priority_rank": "B",
     "zone_priority_score": 51,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": false,
+    "pnl_30m_pct": 0.0
   },
   {
     "date": "2026-06-08",
