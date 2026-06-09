@@ -184,7 +184,7 @@ function fallbackDefaultTargets(): ReleaseTarget[] {
     },
     {
       file: "SMC_Dashboard.pine",
-      scriptName: "SMC Long-Dip Dashboard v7",
+      scriptName: "SMC Decision Board",
       savedScriptName: "SMC Long-Dip Dashboard v7",
       checkInputs: true,
       addToChart: true,

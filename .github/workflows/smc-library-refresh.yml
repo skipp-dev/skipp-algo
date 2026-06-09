@@ -329,6 +329,8 @@ jobs:
 
       - name: Verify generated base manifest exists
         run: |
+          echo "--- artifacts/smc_microstructure_exports contents ---"
+          ls -la artifacts/smc_microstructure_exports/ 2>&1 || echo "(directory missing)"
           if ! find artifacts/smc_microstructure_exports -name '*__smc_microstructure_base_manifest.json' -print -quit | grep -q .; then
             echo "::error::Missing generated base manifest in artifacts/smc_microstructure_exports"
             exit 1
