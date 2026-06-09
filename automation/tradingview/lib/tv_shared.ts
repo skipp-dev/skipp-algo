@@ -3336,9 +3336,9 @@ export async function findLegendRowWrappers(page: Page, scriptName: string): Pro
   // chain to find the enclosing legend row.  TradingView wraps the buttons
   // inside an inner actions-container div, so the direct parent (depth 1)
   // typically has no indicator-name text.  The actual legend row is at
-  // depth 2 or 3.  This replaces the previous XPath wrapper approach that
-  // either matched too many ancestors (.//button) or only the empty
-  // action-container (./button).
+  // depth 2–5 depending on the TradingView DOM version.  This replaces
+  // the previous XPath wrapper approach that either matched too many
+  // ancestors (.//button) or only the empty action-container (./button).
   const buttons = page.locator('button[data-qa-id="legend-settings-action"]');
   const buttonCount = await buttons.count().catch(() => 0);
   const matches: Array<{ locator: Locator; textLength: number }> = [];
@@ -3349,7 +3349,7 @@ export async function findLegendRowWrappers(page: Page, scriptName: string): Pro
     const visible = await btn.isVisible({ timeout: 250 }).catch(() => false);
     if (!visible) continue;
 
-    for (const depth of [1, 2, 3]) {
+    for (const depth of [1, 2, 3, 4, 5]) {
       const xpath = new Array(depth).fill("..").join("/");
       const ancestor = btn.locator(`xpath=${xpath}`);
       const text = normalizeUiText((await ancestor.innerText({ timeout: 300 }).catch(() => "")) || "");
@@ -5153,11 +5153,11 @@ async function settleChartSurfaceAfterInsert(page: Page, scriptName: string, pha
       const diagButtons = page.locator('button[data-qa-id="legend-settings-action"]');
       const diagCount = await diagButtons.count().catch(() => 0);
       const diagEntries: string[] = [];
-      for (let i = 0; i < Math.min(diagCount, 5); i += 1) {
+      for (let i = 0; i < Math.min(diagCount, 20); i += 1) {
         const btn = diagButtons.nth(i);
         const btnVisible = await btn.isVisible({ timeout: 200 }).catch(() => false);
         const levels: string[] = [];
-        for (const depth of [1, 2, 3]) {
+        for (const depth of [1, 2, 3, 4, 5]) {
           const xpath = new Array(depth).fill("..").join("/");
           const anc = btn.locator(`xpath=${xpath}`);
           const tag = await anc.evaluate((el) => el.tagName.toLowerCase()).catch(() => "?");
@@ -5191,6 +5191,28 @@ async function settleChartSurfaceAfterInsert(page: Page, scriptName: string, pha
         } else {
           tracePageEvent(page, `add-to-chart-${phase}-toasts`, `(${toastCount} elements, all empty)`);
         }
+      }
+
+      // Additional diagnostic: search for any text containing key parts of the
+      // script name on the entire page.  This helps diagnose cases where the
+      // script IS on the chart but with a different/truncated display name.
+      const nameWords = scriptName.split(/\s+/).filter((w) => w.length > 3);
+      if (nameWords.length > 0) {
+        const wordPattern = new RegExp(nameWords.map(escapeRegex).join("|"), "i");
+        const matchLocator = page.locator(`:text-matches("${nameWords.map(escapeRegex).join("|")}", "i")`);
+        const matchCount = await matchLocator.count().catch(() => 0);
+        const matchTexts: string[] = [];
+        for (let m = 0; m < Math.min(matchCount, 10); m += 1) {
+          const mt = normalizeUiText(await matchLocator.nth(m).innerText({ timeout: 200 }).catch(() => ""));
+          if (mt && wordPattern.test(mt)) {
+            matchTexts.push(mt.slice(0, 80));
+          }
+        }
+        tracePageEvent(
+          page,
+          `add-to-chart-${phase}-name-search`,
+          `${scriptName}:words=${nameWords.join(",")}:matches=${matchCount}:texts=${matchTexts.join(" | ") || "(none)"}`,
+        );
       }
     }
   }
