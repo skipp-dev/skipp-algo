@@ -14,6 +14,8 @@ type CliArgs = {
   waitTimeoutMs: number;
   pollIntervalMs: number;
   persistentProfileDir?: string;
+  username?: string;
+  password?: string;
 };
 
 async function collectPageAuthDiagnostics(page: import("playwright").Page): Promise<{
@@ -133,6 +135,8 @@ function parseArgs(): CliArgs {
       "--persistent-profile-dir",
       process.env.TV_PERSISTENT_PROFILE_DIR || "",
     ).trim() || undefined,
+    username: (getFlag("--username", process.env.TV_USERNAME || "") || "").trim() || undefined,
+    password: (getFlag("--password", process.env.TV_PASSWORD || "") || "").trim() || undefined,
   };
 }
 
@@ -172,6 +176,60 @@ async function waitForUserOrAuthenticatedChart(
   throw new Error(
     `Timed out waiting for an authenticated TradingView chart session after ${Math.round(cli.waitTimeoutMs / 1000)}s. Log in fully, dismiss any sign-in overlay, open the chart, then rerun npm run tv:storage-state.`,
   );
+}
+
+async function attemptAutomatedLogin(
+  page: import("playwright").Page,
+  cli: CliArgs,
+): Promise<void> {
+  if (!cli.username || !cli.password) {
+    return;
+  }
+  console.log("Attempting automated login with TV_USERNAME / TV_PASSWORD ...");
+  try {
+    // ── email / username field ───────────────────────────────────────
+    const emailField = page.locator(
+      'input[name="id_username"], input[name="username"], input[type="email"], ' +
+      'input[placeholder*="email" i], input[placeholder*="username" i]',
+    ).first();
+    await emailField.waitFor({ state: "visible", timeout: 10_000 });
+    await emailField.fill(cli.username);
+
+    // Try clicking "Email" tab or "Sign in" — fall back to Enter
+    const emailSubmit = page.locator(
+      'button:has-text("Email"), button:has-text("Sign in"), ' +
+      'button[type="submit"], button:has-text("Continue"), button:has-text("Next")',
+    ).first();
+    if (await emailSubmit.isVisible().catch(() => false)) {
+      await emailSubmit.click({ timeout: 3_000 }).catch(() => undefined);
+    } else {
+      await emailField.press("Enter");
+    }
+    await page.waitForTimeout(2_000);
+
+    // ── password field (same page or next page) ─────────────────────
+    const passwordField = page.locator(
+      'input[name="id_password"], input[name="password"], input[type="password"]',
+    ).first();
+    await passwordField.waitFor({ state: "visible", timeout: 10_000 });
+    await passwordField.fill(cli.password);
+
+    const signInBtn = page.locator(
+      'button:has-text("Sign in"), button[type="submit"], button:has-text("Log in")',
+    ).first();
+    if (await signInBtn.isVisible().catch(() => false)) {
+      await signInBtn.click({ timeout: 3_000 }).catch(() => undefined);
+    } else {
+      await passwordField.press("Enter");
+    }
+    await page.waitForTimeout(3_000);
+    console.log("Automated login form submitted — waiting for authentication ...");
+  } catch (err) {
+    console.warn(
+      `Automated login attempt failed (${err instanceof Error ? err.message : String(err)}). ` +
+      "Falling back to manual login — complete the login in the browser window.",
+    );
+  }
 }
 
 async function main(): Promise<number> {
@@ -219,14 +277,22 @@ async function main(): Promise<number> {
     console.log(`Profile dir : ${cli.persistentProfileDir}`);
   }
   console.log("");
-  console.log("A browser window will open.");
-  console.log("1) Log in to TradingView manually.");
-  console.log("2) If needed, solve MFA/CAPTCHA manually.");
-  console.log("3) After login, open a TradingView chart page successfully.");
-  console.log("4) Leave this process running while the script polls the current browser page.");
+  if (cli.username) {
+    console.log("Credentials provided (TV_USERNAME / TV_PASSWORD) — automated login will be attempted.");
+    console.log("If MFA/CAPTCHA appears, the existing 2FA auto-submit helper will try to continue.");
+    console.log("If automation fails, fall back to completing the login in the browser window.");
+  } else {
+    console.log("A browser window will open.");
+    console.log("1) Log in to TradingView manually.");
+    console.log("2) If needed, solve MFA/CAPTCHA manually.");
+    console.log("3) After login, open a TradingView chart page successfully.");
+    console.log("4) Leave this process running while the script polls the current browser page.");
+  }
   console.log("");
 
   await page.goto(cli.persistentProfileDir ? cli.chartUrl : cli.loginUrl, { waitUntil: "domcontentloaded" });
+
+  await attemptAutomatedLogin(page, cli);
 
   await waitForUserOrAuthenticatedChart(page, context, cli);
 
