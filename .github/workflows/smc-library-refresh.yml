@@ -317,7 +317,7 @@ jobs:
         env:
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           BENZINGA_API_KEY: ${{ secrets.BENZINGA_API_KEY }}
-          NEWSAPI_AI_KEY: ${{ secrets.NEWSAPI_AI_KEY }}
+          NEWSAPI_AI_KEY: ${{ secrets.NEWSAPI_KEY }}
           DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
         run: |
           "$SMC_PYTHON_BIN" scripts/generate_smc_micro_base_from_databento.py \

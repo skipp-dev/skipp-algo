@@ -143,7 +143,7 @@ jobs:
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
           BENZINGA_API_KEY: ${{ secrets.BENZINGA_API_KEY }}
-          NEWSAPI_AI_KEY: ${{ secrets.NEWSAPI_AI_KEY }}
+          NEWSAPI_AI_KEY: ${{ secrets.NEWSAPI_KEY }}
           OPEN_PREP_LOG_LEVEL: INFO
           OPEN_PREP_CODE_VERSION: ${{ github.sha }}
         run: |
