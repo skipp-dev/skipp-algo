@@ -343,3 +343,14 @@ Wenn der User "merge", "mergeable machen" oder "Konflikte lösen" sagt:
   (z. B. `spec/agent_handover.md`) auf main existiert. Falls ja: lesen und
   als Arbeitskontext übernehmen, aktuellen Stand kurz bestätigen.
 - Frage nicht nach — einfach lesen und loslegen.
+
+## Exploration & Subagents
+
+- Für Codebase-Fragen (z. B. "finde alle Consumer von X", "wo wird Y
+  referenziert") bevorzugt `@Explore` Subagent verwenden statt serielle
+  Terminal-Greps. Ein `@Explore`-Aufruf ersetzt 5-10 manuelle grep/find/read
+  Ketten und spart Kontext.
+- Für Audit-Aufgaben ("prüfe alle Workflows", "stelle sicher dass..."):
+  Subagent starten statt 20+ Terminal-Befehle nacheinander auszuführen.
+- `search_subagent` für schnelle Dateisuche, `runSubagent` mit
+  `agentName: "Explore"` für tiefere Analyse.
