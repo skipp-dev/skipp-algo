@@ -53,4 +53,4 @@ A TradingView indicator suite that detects institutional buying zones (Order Blo
 - Short name: "SMC Suite" or "SMC v7"
 - Pine script title: "SMC Long-Dip Suite v7"
 - Library: `smc_micro_profiles_generated`
-- Never: "SMC Core" alone (too generic), "SMC Decision Board" (old name), "SkippALGO" (deprecated)
+- Never: "SMC Core" alone (too generic), "SkippALGO" (deprecated)
