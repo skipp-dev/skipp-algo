@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 import sys
 from pathlib import Path
@@ -122,6 +123,46 @@ def build_rollup(
     }
 
 
+def _delta_hr_inference(
+    n_a: int, hr_a: float, n_b: int, hr_b: float
+) -> dict[str, Any]:
+    """Honest inference companion for a raw ``delta_hr`` (stat-review S2, #2674).
+
+    The bare ``n >= 30`` floor labels comparisons "measured" whose minimal
+    detectable effect (MDE) dwarfs any plausible true delta — at n=30 per
+    side the MDE at 80% power is ~36 percentage points. Emit a two-sided
+    two-proportion z p-value, a Wald 95% CI for the delta, the analytic MDE
+    (alpha=0.05 two-sided, 80% power), and an ``underpowered`` flag so
+    downstream consumers cannot mistake noise for signal.
+    """
+    delta = hr_a - hr_b
+    se = math.sqrt(
+        hr_a * (1.0 - hr_a) / n_a + hr_b * (1.0 - hr_b) / n_b
+    )
+    # Pooled SE for the z-test under H0.
+    pooled = (hr_a * n_a + hr_b * n_b) / (n_a + n_b)
+    se_pooled = math.sqrt(
+        pooled * (1.0 - pooled) * (1.0 / n_a + 1.0 / n_b)
+    )
+    if se_pooled > 0.0:
+        z = delta / se_pooled
+        p_value = math.erfc(abs(z) / math.sqrt(2.0))
+    else:
+        # Degenerate (both rates 0 or 1): no sampling variance, the
+        # z-test is undefined — disclose rather than invent.
+        p_value = None
+    # MDE at alpha=0.05 two-sided (1.96) and 80% power (0.84), using the
+    # conservative p=0.5 variance bound.
+    se_worst = math.sqrt(0.25 / n_a + 0.25 / n_b)
+    mde = (1.96 + 0.84) * se_worst
+    return {
+        "delta_hr_ci95": [delta - 1.96 * se, delta + 1.96 * se],
+        "delta_hr_p_value": p_value,
+        "mde_80pct_power": mde,
+        "underpowered": bool(abs(delta) < mde),
+    }
+
+
 def _phase_e2_verdict(per_tf: dict[str, dict[str, Any]]) -> dict[str, Any]:
     """Render the two Phase-E2 hypothesis checks from the rollup.
 
@@ -138,6 +179,11 @@ def _phase_e2_verdict(per_tf: dict[str, dict[str, Any]]) -> dict[str, Any]:
     itself. Such verdicts are labelled ``degenerate_aliased_input``
     instead of ``measured``; exact equality is intentional because
     clones are byte-identical, while honest slices differ.
+
+    Power honesty (stat-review S2, #2674): comparisons that clear the
+    n>=30 floor additionally carry a two-proportion p-value, a Wald 95%
+    CI and the analytic MDE; when |delta_hr| < MDE the status is
+    ``measured_underpowered`` instead of ``measured``.
     """
     def fam(tf: str, family: str) -> dict[str, Any] | None:
         return (per_tf.get(tf, {}).get("families") or {}).get(family)
@@ -168,11 +214,22 @@ def _phase_e2_verdict(per_tf: dict[str, dict[str, Any]]) -> dict[str, Any]:
                     "compare an arm against itself"
                 ),
             }
+        inference = _delta_hr_inference(
+            a["n_events"], a["hit_rate"], b["n_events"], b["hit_rate"]
+        )
         return {
-            "status": "measured",
+            # ``measured_underpowered``: the comparison ran, but its MDE
+            # (80% power) exceeds |delta_hr| — the delta is not
+            # distinguishable from noise and must not drive decisions
+            # (stat-review S2, #2674).
+            "status": (
+                "measured_underpowered" if inference["underpowered"]
+                else "measured"
+            ),
             "n_a": a["n_events"], "hr_a": a["hit_rate"],
             "n_b": b["n_events"], "hr_b": b["hit_rate"],
             "delta_hr": a["hit_rate"] - b["hit_rate"],
+            **inference,
         }
 
     # Baseline = 15m + 1H merged. Zero-event slices contribute no weight
