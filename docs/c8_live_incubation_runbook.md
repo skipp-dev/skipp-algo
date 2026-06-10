@@ -58,6 +58,16 @@ position size to **10 %** of the backtest sizing.
 - Slippage-distribution KS p-value > 0.05 vs the configured 0.5 % mean
 - Hit-rate inside the C3 bootstrap CI
 
+**Statistical power caveat (stat-review F5, 2026-06-10):** at n = 20
+trades the annualised-Sharpe estimator has a standard error of roughly
+3.5 Sharpe units, so the drift_score at this sample size is dominated
+by sampling noise: a variant whose *true* drift_score is 0.50 (should
+fail) still clears the ≥ 0.70 line in roughly 43 % of 20-trade samples,
+while a variant whose true drift_score is 1.00 (perfect replication)
+clears it only ~53 % of the time. Phase-A sign-off therefore validates
+the **wiring** (adapter → risk → audit → backfill), not performance.
+Do not cite a Phase-A drift_score as evidence of edge.
+
 **Fail / halt triggers:**
 
 - Kill-switch fires once → halt, debug, do not advance
@@ -100,7 +110,13 @@ incident review before the next session.
   ``slippage_ks_reference_type`` in the drift JSON; `synthetic_normal`
   is acceptable for Phase-A but blocks Phase-B sign-off)
 - ``window_complete: true`` on the watchdog report (no missing date
-  files in the 30-day window; see ``window_coverage`` in the report)
+  files in the 30-day window; see ``window_coverage`` in the report).
+  **Which report (stat-review F2, 2026-06-10):** this refers to a
+  `scripts/run_drift_watchdog.py` run whose ``--outcomes-dir`` points at
+  the **incubation** outcome stream (the directory fed by
+  `backfill_live_outcomes` for this variant) — *not* the watchdog's
+  default `artifacts/open_prep/outcomes` directory, which tracks the
+  open_prep scanner and says nothing about incubation coverage.
 
 If all pass → **the track record is externally sellable.**
 
@@ -154,6 +170,48 @@ Weekly manual review by Steffen reads the last seven `drift_*.json`
 files plus the audit log for halt records.
 
 ---
+
+## Machine evaluation of pass criteria (stat-review F1/F6, 2026-06-10)
+
+The pass-criteria checklists above are mirrored in code as
+`PHASE_PASS_CRITERIA` in `scripts/run_smc_live_incubation.py` and are
+**machine-evaluated** by `scripts/evaluate_phase_criteria.py`:
+
+```bash
+python -m scripts.evaluate_phase_criteria \
+  --criteria-phase paper --variant <variant> \
+  --drift-json cache/live/drift_${DATE}.json \
+  --audit-jsonl cache/live/incubation_${DATE}.jsonl \
+  --watchdog-json artifacts/drift_watchdog/drift_report_${DATE}.json \
+  --phase-started 2026-05-01 \
+  --output cache/live/phase_eval_${DATE}.json
+```
+
+`run_smc_live_incubation --phase live_small` refuses to start without a
+fresh **passing** `paper` evaluation report (`--phase-eval-report`), and
+`--phase live_full` requires a passing `live_small` report. The
+evaluator is fail-closed: criteria it cannot verify from the artefacts
+count as **not passed**, and the Phase-C Scale-Phase/Kelly marker never
+machine-passes by design. A passing report is **input to** the manual
+sign-off, never a promotion by itself.
+
+## Sequential looks & verdict history (stat-review F11, 2026-06-10)
+
+Drift verdicts are computed **daily**, so a 4-week Phase-A involves
+~20 looks and a 6-month Phase-B ~120 looks at the same statistic. Two
+consequences for review discipline:
+
+- The halt triggers (`concerning` twice in a row, `fail` ever) are
+  repeated tests — their false-alarm probability over a phase is much
+  higher than any single day's, which is acceptable for a *halt* rule
+  (fail-safe) but means a single noisy halt is not by itself evidence
+  the variant is broken. Debug before discarding.
+- The pass decision must NOT be made by cherry-picking a favourable
+  day. Sign-off reads the **verdict history over the whole phase**
+  (count of `concerning`/`fail` days, trajectory of drift_score), not
+  the final day's snapshot. Picking the best of N daily snapshots
+  inflates the effective false-pass rate well beyond the single-look
+  numbers quoted in the Phase-A power caveat.
 
 ## Why no auto-promotion
 
