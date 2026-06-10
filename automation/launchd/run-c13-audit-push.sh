@@ -20,59 +20,77 @@ cd "${REPO}"
 AUDIT="cache/live/incubation_${DATE}.jsonl"
 SETUPS="cache/live/setups_${DATE}.jsonl"
 GATES="cache/live/gate_status.json"
+BRANCH="data/phase-a-audit"
+# Single per-day status marker the c13 cron / review can introspect to
+# distinguish "no fills today" from "push genuinely failed".
+STATUS_MARKER="cache/live/.audit_push_status_${DATE}"
 
 if [[ ! -f "${AUDIT}" ]]; then
-    echo "no audit artefact at ${AUDIT}; skipping push"
+    echo "audit-push: DEGRADED — no audit artefact at ${AUDIT} (phase-a produced no fills, or was blocked by Full Disk Access); skipping push" >&2
+    echo "degraded:no-audit-file" > "${STATUS_MARKER}" 2>/dev/null || true
     exit 0
 fi
 
-# Ensure we're on data/phase-a-audit and that it tracks origin.
-ORIG_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
-trap 'git checkout "${ORIG_BRANCH}" 2>/dev/null || true' EXIT
+# Push from a THROWAWAY git worktree so the primary working tree never
+# switches branches. Branch-switching the main tree collides with the
+# undated, untracked cache/live/gate_status.json (tracked on
+# data/phase-a-audit, untracked on the working branch) → `git checkout`
+# aborts on every run after the first. A dedicated worktree sidesteps this
+# entirely and leaves the operator's checkout untouched.
+git worktree prune >/dev/null 2>&1 || true
+WORKTREE="$(mktemp -d)/phase-a-audit"
+cleanup() {
+    git worktree remove --force "${WORKTREE}" 2>/dev/null || true
+    rmdir "$(dirname "${WORKTREE}")" 2>/dev/null || true
+}
+trap cleanup EXIT
 
-if git ls-remote --exit-code --heads origin data/phase-a-audit >/dev/null 2>&1; then
-    # Branch exists on the remote: incremental daily push.
-    git fetch origin data/phase-a-audit --quiet
-    git checkout data/phase-a-audit 2>/dev/null || \
-        git checkout -b data/phase-a-audit origin/data/phase-a-audit
-
-    # Pull latest in case yesterday's run already pushed. A failure here
-    # (network blip, branch divergence) MUST abort: otherwise the later
-    # `git push` rejects with non-fast-forward and the operator chases a
-    # misleading error in the wrong layer.
-    if ! git pull --ff-only origin data/phase-a-audit; then
-        echo "audit-push: pull --ff-only failed for data/phase-a-audit; aborting (will retry tomorrow)" >&2
-        exit 1
-    fi
+if git ls-remote --exit-code --heads origin "${BRANCH}" >/dev/null 2>&1; then
+    # Branch exists on the remote: incremental daily push. -B resets the
+    # local branch to the remote tip, so a prior failed run can't leave a
+    # diverged local branch that rejects the push as non-fast-forward.
+    git fetch origin "${BRANCH}" --quiet
+    git worktree add --quiet -B "${BRANCH}" "${WORKTREE}" "origin/${BRANCH}"
 else
     # Bootstrap: the dedicated data branch does not exist yet on origin.
-    # Create it as an orphan so it carries only audit artefacts (a pure,
-    # unprotected data branch — never main's code history) and seed the
-    # first push. Idempotent: drops any stale local branch from a prior
-    # bootstrap whose push never reached origin.
-    echo "audit-push: data/phase-a-audit absent on origin; bootstrapping pure data branch"
-    git branch -D data/phase-a-audit 2>/dev/null || true
-    git checkout --orphan data/phase-a-audit
-    git rm -rf --cached . >/dev/null 2>&1 || true
+    # Seed it as an orphan in the worktree so it carries ONLY audit
+    # artefacts (a pure, unprotected data branch — never main's code
+    # history). `git rm -rf --cached .` empties the index; the subsequent
+    # commit then stages only the audit files copied in below.
+    echo "audit-push: ${BRANCH} absent on origin; bootstrapping pure data branch"
+    git worktree add --quiet --detach "${WORKTREE}" HEAD
+    git -C "${WORKTREE}" checkout --orphan "${BRANCH}"
+    git -C "${WORKTREE}" rm -rf --cached . >/dev/null 2>&1 || true
 fi
 
-# Stage whichever artefacts exist. AUDIT is guaranteed by the guard near
-# the top; SETUPS/GATES are optional and may be absent on a given day, so
-# add them individually — a single `git add a b c` with a missing pathspec
-# errors out and stages NONE of them (would silently drop the audit file).
+# Copy whichever artefacts exist into the worktree and stage them. AUDIT is
+# guaranteed by the guard near the top; SETUPS/GATES are optional and may
+# be absent on a given day, so handle each individually — a single
+# `git add a b c` with a missing pathspec errors out and stages NONE of
+# them (would silently drop the audit file).
+mkdir -p "${WORKTREE}/cache/live"
 for _f in "${AUDIT}" "${SETUPS}" "${GATES}"; do
-    [[ -f "${_f}" ]] && git add "${_f}"
+    if [[ -f "${_f}" ]]; then
+        cp "${_f}" "${WORKTREE}/${_f}"
+        git -C "${WORKTREE}" add "${_f}"
+    fi
 done
 
-if git diff --staged --quiet; then
+if git -C "${WORKTREE}" diff --staged --quiet; then
     echo "no audit changes to commit"
+    echo "ok:no-change" > "${STATUS_MARKER}" 2>/dev/null || true
     exit 0
 fi
 
-git -c user.name="skippalgo-c13-cron" \
+git -C "${WORKTREE}" \
+    -c user.name="skippalgo-c13-cron" \
     -c user.email="c13-cron@skippalgo.io" \
     commit -m "chore(c13): phase-a audit ${DATE}" \
            -m "Generated by com.skippalgo.c13.audit-push launchd agent."
 
-git push -u origin data/phase-a-audit || \
-    echo "push to data/phase-a-audit failed (non-fatal); will retry tomorrow"
+if git -C "${WORKTREE}" push -u origin "${BRANCH}"; then
+    echo "ok:pushed" > "${STATUS_MARKER}" 2>/dev/null || true
+else
+    echo "audit-push: push to ${BRANCH} failed (non-fatal); will retry tomorrow" >&2
+    echo "degraded:push-failed" > "${STATUS_MARKER}" 2>/dev/null || true
+fi

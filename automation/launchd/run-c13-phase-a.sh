@@ -36,13 +36,23 @@ fi
 # shellcheck disable=SC1091
 source "${VENV}/bin/activate"
 
+# Call the venv interpreter by absolute path. Under launchd a bare
+# ``python`` can resolve to ``command not found`` even after sourcing
+# activate (the agent's PATH is minimal and not always re-evaluated), so
+# pin the interpreter explicitly rather than relying on activate's PATH.
+PY="${VENV}/bin/python"
+if [[ ! -x "${PY}" ]]; then
+    echo "phase-a cron: venv interpreter not executable at ${PY} (set C13_VENV in plist)" >&2
+    exit 1
+fi
+
 export PYTHONPATH="${REPO}"
 
 # 1. Build today's setups + gate_status from the latest open_prep
 #    trade-cards CSV. Producer is fail-loud on unmapped setup_type but
 #    handles empty CSVs (writes [] / {}) so an FMP-circuit-open day is
 #    a soft no-op rather than a failure.
-python -m scripts.build_phase_a_inputs \
+"${PY}" -m scripts.build_phase_a_inputs \
     --trade-date "${DATE}"
 
 # 2. Optional WSH earnings filter — only applied if today's WSH JSONL
@@ -56,7 +66,7 @@ fi
 #    the no-op stub inside run_smc_live_incubation.py, so no IBKR
 #    orders are placed even if TWS is running on a live account.
 # shellcheck disable=SC2086
-python -m scripts.run_smc_live_incubation \
+"${PY}" -m scripts.run_smc_live_incubation \
     --phase paper \
     --setups "${SETUPS}" \
     --gate-statuses "${GATES}" \
