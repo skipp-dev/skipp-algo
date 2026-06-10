@@ -34,6 +34,7 @@ cd "${REPO}"
 if [[ ! -f "${VENV}/bin/activate" ]]; then
     echo "WSH cron: virtualenv activate script not found at ${VENV}/bin/activate (set C13_VENV in plist)" >&2
     _write_feed_marker "DEGRADED" "venv-missing:${VENV}/bin/activate"
+    printf 'skipped:venv-missing:%s\n' "$(date -u +%FT%TZ)" > "${PUSH_MARKER}" 2>/dev/null || true
     exit 1
 fi
 # shellcheck disable=SC1091
@@ -46,6 +47,7 @@ PY="${VENV}/bin/python"
 if [[ ! -x "${PY}" ]]; then
     echo "WSH cron: python interpreter not executable at ${PY}" >&2
     _write_feed_marker "DEGRADED" "python-not-executable:${PY}"
+    printf 'skipped:python-not-executable:%s\n' "$(date -u +%FT%TZ)" > "${PUSH_MARKER}" 2>/dev/null || true
     exit 1
 fi
 
@@ -68,6 +70,7 @@ set -e
 if [[ ${RC} -eq 1 ]]; then
     echo "WSH cron: DEGRADED — calendar pull failed hard (rc=1); nothing to publish." >&2
     printf 'degraded:feed-error:%s\n' "${TS}" > "${FEED_MARKER}" 2>/dev/null || true
+    printf 'skipped:feed-error:%s\n' "${TS}" > "${PUSH_MARKER}" 2>/dev/null || true
     exit 1
 elif [[ ${RC} -eq 2 ]]; then
     # Feed returned zero events: the earnings FILTER will gate against an

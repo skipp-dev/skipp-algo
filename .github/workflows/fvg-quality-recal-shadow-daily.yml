@@ -19,7 +19,7 @@ name: fvg-quality-recal-shadow-daily
 #   * Quality-score Spearman correlation with outcome >= 0.20
 #
 # Schedule: 13:30 UTC weekdays (cron: 30 13), after smc-measurement-benchmark-rolling
-# (07:30 UTC) so the latest corpus is available via workflow artifacts.
+# (13:00 UTC, cron: 0 13) so the latest corpus is available via workflow artifacts.
 #
 # When no rolling-bench corpus has been produced yet (clean checkout,
 # fresh fork), the run still completes green and emits a shadow JSON

@@ -133,18 +133,18 @@ def _parse_retry_after_seconds(raw_value: str | None) -> float | None:
 # thread before any ThreadPoolExecutor worker calls _build_tls_context.
 # Concurrent os.environ writes (putenv) from worker threads are a C-level race.
 _TLS_NORMALIZE_LOCK: threading.Lock = threading.Lock()
-_TLS_NORMALIZED: bool = False
+_TLS_NORMALIZE_STATE: dict[str, bool] = {"done": False}
 
 
 def _normalize_tls_certificate_env() -> str | None:
-    global _TLS_NORMALIZED
+    # State held in a mutable container — avoids a module-level ``global``.
     if certifi is None:
         return None
     cafile = str(certifi.where())
-    if _TLS_NORMALIZED:
+    if _TLS_NORMALIZE_STATE["done"]:
         return cafile
     with _TLS_NORMALIZE_LOCK:
-        if _TLS_NORMALIZED:  # double-checked locking
+        if _TLS_NORMALIZE_STATE["done"]:  # double-checked locking
             return cafile
         for env_name in ("SSL_CERT_FILE", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE"):
             current = str(os.getenv(env_name) or "").strip()
@@ -159,7 +159,7 @@ def _normalize_tls_certificate_env() -> str | None:
                 cafile,
             )
             os.environ[env_name] = cafile
-        _TLS_NORMALIZED = True
+        _TLS_NORMALIZE_STATE["done"] = True
     return cafile
 
 

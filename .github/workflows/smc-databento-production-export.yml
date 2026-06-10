@@ -35,8 +35,11 @@
 #   lockstep with the consumer. This workflow previously ran at 12:00 / 16:00
 #   UTC on weekdays; the schedule was removed at F-V8-cutover (2026-05-18).
 #   This workflow is now deprecated-workflow_dispatch-only (see line 1).
-#   The library-refresh consumer fires on demand after each manual dispatch;
-#   the 4 h handoff window comment below is therefore historical only. The handoff itself is
+#   NOTE: smc-library-refresh's workflow_run trigger listens ONLY on the
+#   sharded producer (smc-databento-production-export-sharded), so a MANUAL
+#   dispatch of this deprecated workflow does NOT auto-trigger the consumer —
+#   dispatch smc-library-refresh manually afterwards if a refresh is needed.
+#   The 4 h handoff window comment below is therefore historical only. The handoff itself is
 #   artifact-based: the producer publishes via `actions/upload-artifact`
 #   and the consumer fetches via `dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6`
 #   (regex match on the latest successful run for the same ref). The

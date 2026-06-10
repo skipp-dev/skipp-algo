@@ -3360,6 +3360,7 @@ class TestMacroHelpers(unittest.TestCase):
     def test_normalize_tls_certificate_env_replaces_invalid_bundle_path(self):
         from open_prep import macro
 
+        macro._TLS_NORMALIZE_STATE["done"] = False
         with patch.object(macro, "certifi") as mock_certifi:
             mock_certifi.where.return_value = "/tmp/certifi.pem"
             with patch.dict(

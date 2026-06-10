@@ -1555,6 +1555,15 @@ def test_default_high_impact_events_includes_core_macro_releases() -> None:
     assert expected_minimum.issubset(set(DEFAULT_HIGH_IMPACT_EVENTS))
 
 
+@pytest.fixture(autouse=True)
+def _reset_tls_normalize_state() -> Any:
+    # The once-guard in macro._normalize_tls_certificate_env latches after the
+    # first run; reset it so each test exercises the env-rewrite branch.
+    macro._TLS_NORMALIZE_STATE["done"] = False
+    yield
+    macro._TLS_NORMALIZE_STATE["done"] = False
+
+
 def test_normalize_tls_certificate_env_replaces_invalid_path(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Any
 ) -> None:

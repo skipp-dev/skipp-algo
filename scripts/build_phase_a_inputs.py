@@ -57,6 +57,23 @@ _SETUP_TYPE_TO_VARIANT: dict[str, str] = {
 _MAX_TRADE_CARDS_AGE_DAYS: int = 4
 
 
+def _trade_cards_file_date(csv_path: Path) -> date | None:
+    """Parse the embedded calendar date from a trade-cards filename.
+
+    Accepts the production compact format (``%Y%m%d``) and the ISO-dashed
+    form (``%Y-%m-%d``); anchored to the ``open_prep_trade_cards_`` prefix
+    so the time-of-day digits are never mistaken for the date part.
+    Returns ``None`` when no valid date can be parsed.
+    """
+    m = re.search(r"open_prep_trade_cards_(\d{4})-?(\d{2})-?(\d{2})", csv_path.name)
+    if not m:
+        return None
+    try:
+        return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    except ValueError:
+        return None
+
+
 def _trade_cards_age_days(csv_path: Path, trade_date: str) -> int | None:
     """Return age in calendar days of *csv_path* relative to *trade_date*.
 
@@ -73,15 +90,14 @@ def _trade_cards_age_days(csv_path: Path, trade_date: str) -> int | None:
     # Try compact ``YYYYMMDD`` first (current production format from
     # export_open_prep_lists.py: strftime("%Y%m%d_%H%M%SZ")), then
     # ISO-dashed ``YYYY-MM-DD`` for backwards compatibility.
-    m = re.search(r"open_prep_trade_cards_(\d{4})-?(\d{2})-?(\d{2})", csv_path.name)
-    if not m:
+    file_date = _trade_cards_file_date(csv_path)
+    if file_date is None:
         return None
     try:
-        file_date = date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
         ref_date = date.fromisoformat(trade_date)
-        return (ref_date - file_date).days
     except ValueError:
         return None
+    return (ref_date - file_date).days
 
 
 def _latest_trade_cards(reports_dir: Path, trade_date: str | None = None) -> Path:
@@ -94,7 +110,10 @@ def _latest_trade_cards(reports_dir: Path, trade_date: str | None = None) -> Pat
     stale entry/stop prices are never silently stamped with today's date
     (B1, audit pass-4, 2026-06-10).
     """
-    candidates = sorted(reports_dir.glob("open_prep_trade_cards_*.csv"))
+    candidates = sorted(
+        reports_dir.glob("open_prep_trade_cards_*.csv"),
+        key=lambda p: (_trade_cards_file_date(p) or date.min, p.name),
+    )
     if not candidates:
         raise FileNotFoundError(
             f"No open_prep_trade_cards_*.csv found in {reports_dir}; "
