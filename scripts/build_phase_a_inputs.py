@@ -59,17 +59,26 @@ _MAX_TRADE_CARDS_AGE_DAYS: int = 4
 def _trade_cards_age_days(csv_path: Path, trade_date: str) -> int | None:
     """Return age in calendar days of *csv_path* relative to *trade_date*.
 
-    The filename must contain an ISO-date substring (``YYYY-MM-DD``).
+    Accepts both the production compact format (``%Y%m%d``, e.g.
+    ``open_prep_trade_cards_20260610_080301Z.csv``) produced by
+    ``scripts/export_open_prep_lists.py`` and the ISO-dashed form
+    (``%Y-%m-%d``) used in older test fixtures.  The match is anchored
+    to the ``open_prep_trade_cards_`` prefix so the time-of-day digits
+    (``_080301Z``) are never mistaken for the date part.
+
     Returns ``None`` when the date cannot be parsed — callers treat that
-    as indefinitely stale.
+    as indefinitely stale (C1, audit pass-5, 2026-06-10).
     """
     import re
 
-    m = re.search(r"(\d{4}-\d{2}-\d{2})", csv_path.name)
+    # Try compact ``YYYYMMDD`` first (current production format from
+    # export_open_prep_lists.py: strftime("%Y%m%d_%H%M%SZ")), then
+    # ISO-dashed ``YYYY-MM-DD`` for backwards compatibility.
+    m = re.search(r"open_prep_trade_cards_(\d{4})-?(\d{2})-?(\d{2})", csv_path.name)
     if not m:
         return None
     try:
-        file_date = date.fromisoformat(m.group(1))
+        file_date = date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
         ref_date = date.fromisoformat(trade_date)
         return (ref_date - file_date).days
     except ValueError:

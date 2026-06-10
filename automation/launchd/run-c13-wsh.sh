@@ -20,12 +20,20 @@ SUMMARY="${REPO}/cache/wsh/${DATE}.summary.json"
 FEED_MARKER="${REPO}/cache/wsh/.feed_status_${DATE}"
 PUSH_MARKER="${REPO}/cache/wsh/.push_status_${DATE}"
 
+# C3 (audit pass-5, 2026-06-10): every exit path must write a status
+# marker so degraded runs are machine-detectable without reading launchd stderr.
+_write_feed_marker() {
+    mkdir -p "${REPO}/cache/wsh"
+    printf '%s|%s\n' "$1" "${2:-}" > "${FEED_MARKER}"
+}
+
 cd "${REPO}"
 # Lane 7: venv-realism guard. Sourcing a missing activate yields a
 # cryptic ``no such file or directory`` from inside `set -u`; surface a
 # clear error so the operator can fix C13_VENV in the plist.
 if [[ ! -f "${VENV}/bin/activate" ]]; then
     echo "WSH cron: virtualenv activate script not found at ${VENV}/bin/activate (set C13_VENV in plist)" >&2
+    _write_feed_marker "DEGRADED" "venv-missing:${VENV}/bin/activate"
     exit 1
 fi
 # shellcheck disable=SC1091
@@ -37,6 +45,7 @@ source "${VENV}/bin/activate"
 PY="${VENV}/bin/python"
 if [[ ! -x "${PY}" ]]; then
     echo "WSH cron: python interpreter not executable at ${PY}" >&2
+    _write_feed_marker "DEGRADED" "python-not-executable:${PY}"
     exit 1
 fi
 
