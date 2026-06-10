@@ -468,12 +468,12 @@ def validate_surface_definitions() -> list[str]:
 # script's input bindings.
 PREFLIGHT_CORE_DASHBOARD_TARGETS: tuple[PreflightTarget, ...] = (
     PreflightTarget('SMC_Core_Engine.pine', 'SMC Core', False, False),
-    PreflightTarget('SMC_Dashboard.pine', 'SMC Long-Dip Dashboard v7', True, True, 58, 'SMC Long-Dip Dashboard v7', 'dashboardBindings'),
+    PreflightTarget('SMC_Dashboard.pine', 'SMC Decision Board', True, True, 58, 'SMC Long-Dip Dashboard v7', 'dashboardBindings'),
 )
 
 PREFLIGHT_MAINLINE_TARGETS: tuple[PreflightTarget, ...] = (
     PreflightTarget('SMC_Core_Engine.pine', 'SMC Core', False, False),
-    PreflightTarget('SMC_Dashboard.pine', 'SMC Long-Dip Dashboard v7', True, True, 58, 'SMC Long-Dip Dashboard v7', 'dashboardBindings'),
+    PreflightTarget('SMC_Dashboard.pine', 'SMC Decision Board', True, True, 58, 'SMC Long-Dip Dashboard v7', 'dashboardBindings'),
     PreflightTarget('SMC_Long_Strategy.pine', 'SMC Long-Dip Strategy v7', True, True, 8, 'SMC Long-Dip Strategy v7', 'strategyBindings'),
 )
 

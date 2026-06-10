@@ -258,9 +258,9 @@ def test_product_cut_payload_exports_governance_metadata() -> None:
     assert tuple(payload['preflightScopes'].keys()) == ('smcCoreDashboard', 'smcMainline', 'smcDecisionFirst')
     # Canonical unique TV script identities (no third-party substring collision).
     # See PREFLIGHT_*_TARGETS rationale comment in scripts/smc_bus_manifest.py.
-    assert payload['preflightScopes']['smcCoreDashboard'][1]['scriptName'] == 'SMC Long-Dip Dashboard v7'
+    assert payload['preflightScopes']['smcCoreDashboard'][1]['scriptName'] == 'SMC Decision Board'
     assert payload['preflightScopes']['smcCoreDashboard'][1]['savedScriptName'] == 'SMC Long-Dip Dashboard v7'
-    assert payload['preflightScopes']['smcMainline'][1]['scriptName'] == 'SMC Long-Dip Dashboard v7'
+    assert payload['preflightScopes']['smcMainline'][1]['scriptName'] == 'SMC Decision Board'
     assert payload['preflightScopes']['smcMainline'][1]['savedScriptName'] == 'SMC Long-Dip Dashboard v7'
     assert payload['preflightScopes']['smcMainline'][2]['scriptName'] == 'SMC Long-Dip Strategy v7'
     assert payload['preflightScopes']['smcMainline'][2]['savedScriptName'] == 'SMC Long-Dip Strategy v7'

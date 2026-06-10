@@ -29,7 +29,7 @@
       "role": "producer"
     },
     {
-      "scriptName": "SMC Long-Dip Dashboard v7",
+      "scriptName": "SMC Decision Board",
       "file": "SMC_Dashboard.pine",
       "role": "dashboard_companion"
     },
@@ -296,7 +296,7 @@
         },
         {
           "file": "SMC_Dashboard.pine",
-          "scriptName": "SMC Long-Dip Dashboard v7",
+          "scriptName": "SMC Decision Board",
           "checkInputs": true,
           "addToChart": true,
           "minInputs": 58,
@@ -667,7 +667,7 @@
         },
         {
           "file": "SMC_Dashboard.pine",
-          "scriptName": "SMC Long-Dip Dashboard v7",
+          "scriptName": "SMC Decision Board",
           "checkInputs": true,
           "addToChart": true,
           "minInputs": 58,
@@ -1101,7 +1101,7 @@
         },
         {
           "file": "SMC_Dashboard.pine",
-          "scriptName": "SMC Long-Dip Dashboard v7",
+          "scriptName": "SMC Decision Board",
           "checkInputs": true,
           "addToChart": true,
           "minInputs": 58,
