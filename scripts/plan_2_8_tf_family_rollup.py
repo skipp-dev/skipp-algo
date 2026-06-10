@@ -129,16 +129,45 @@ def _phase_e2_verdict(per_tf: dict[str, dict[str, Any]]) -> dict[str, Any]:
     the comparison is taken seriously — below that the verdict is
     ``insufficient_data`` so downstream automation does not act on
     noise.
+
+    Aliasing guard (2026-06-10 ADR): when the arm-A slice and *every*
+    contributing baseline slice carry pairwise-identical ``n_events``
+    and ``hit_rate``, the input slices are clones of the same events
+    (e.g. the legacy structure artifact served one timeframe's events
+    to all TFs) and the comparison would measure an arm against
+    itself. Such verdicts are labelled ``degenerate_aliased_input``
+    instead of ``measured``; exact equality is intentional because
+    clones are byte-identical, while honest slices differ.
     """
     def fam(tf: str, family: str) -> dict[str, Any] | None:
         return (per_tf.get(tf, {}).get("families") or {}).get(family)
 
-    def _cmp(a: dict[str, Any] | None, b: dict[str, Any] | None) -> dict[str, Any]:
+    def _cmp(
+        a: dict[str, Any] | None,
+        b: dict[str, Any] | None,
+        *,
+        contributors: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
         if not a or not b:
             return {"status": "missing"}
         if a["n_events"] < 30 or b["n_events"] < 30:
             return {"status": "insufficient_data",
                     "n_a": a["n_events"], "n_b": b["n_events"]}
+        if contributors and all(
+            c["n_events"] == a["n_events"] and c["hit_rate"] == a["hit_rate"]
+            for c in contributors
+        ):
+            return {
+                "status": "degenerate_aliased_input",
+                "n_a": a["n_events"], "hr_a": a["hit_rate"],
+                "n_b": b["n_events"], "hr_b": b["hit_rate"],
+                "reason": (
+                    "arm A and every baseline slice carry identical "
+                    "n_events/hit_rate; input slices are aliased copies "
+                    "(e.g. cross-TF structure fallback), so delta_hr would "
+                    "compare an arm against itself"
+                ),
+            }
         return {
             "status": "measured",
             "n_a": a["n_events"], "hr_a": a["hit_rate"],
@@ -146,23 +175,32 @@ def _phase_e2_verdict(per_tf: dict[str, dict[str, Any]]) -> dict[str, Any]:
             "delta_hr": a["hit_rate"] - b["hit_rate"],
         }
 
-    # Baseline = 15m + 1H merged.
-    def baseline(family: str) -> dict[str, Any] | None:
-        merged_n = 0
-        weighted = 0.0
+    # Baseline = 15m + 1H merged. Zero-event slices contribute no weight
+    # and therefore do not count as contributors for the aliasing guard.
+    def contributors(family: str) -> list[dict[str, Any]]:
+        out: list[dict[str, Any]] = []
         for tf in ("15m", "1H"):
             f = fam(tf, family)
-            if f is None:
-                continue
-            merged_n += f["n_events"]
-            weighted += f["hit_rate"] * f["n_events"]
-        if merged_n == 0:
+            if f is not None and f["n_events"] > 0:
+                out.append(f)
+        return out
+
+    def baseline(slices: list[dict[str, Any]]) -> dict[str, Any] | None:
+        if not slices:
             return None
+        merged_n = sum(s["n_events"] for s in slices)
+        weighted = sum(s["hit_rate"] * s["n_events"] for s in slices)
         return {"n_events": merged_n, "hit_rate": weighted / merged_n}
 
+    fvg_slices = contributors("FVG")
+    bos_slices = contributors("BOS")
     return {
-        "fvg_ttf_5m_vs_baseline": _cmp(fam("5m", "FVG"), baseline("FVG")),
-        "bos_stability_4h_vs_baseline": _cmp(fam("4H", "BOS"), baseline("BOS")),
+        "fvg_ttf_5m_vs_baseline": _cmp(
+            fam("5m", "FVG"), baseline(fvg_slices), contributors=fvg_slices
+        ),
+        "bos_stability_4h_vs_baseline": _cmp(
+            fam("4H", "BOS"), baseline(bos_slices), contributors=bos_slices
+        ),
     }
 
 

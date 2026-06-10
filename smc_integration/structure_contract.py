@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any
+
+_LOG = logging.getLogger(__name__)
 
 CANONICAL_KEYS = ("bos", "orderblocks", "fvg", "liquidity_sweeps")
 AUXILIARY_KEYS = (
@@ -133,6 +136,7 @@ def _normalize_single(
     symbol: str | None = None,
     timeframe: str | None = None,
     inherited_source: dict[str, Any] | None = None,
+    extra_warnings: list[str] | None = None,
 ) -> NormalizedStructureContract:
     source = payload.get("source", {}) if isinstance(payload.get("source"), dict) else {}
     if inherited_source:
@@ -161,6 +165,8 @@ def _normalize_single(
 
     warnings_raw = diagnostics.get("warnings", [])
     warnings = [str(item) for item in warnings_raw] if isinstance(warnings_raw, list) else []
+    if extra_warnings:
+        warnings = warnings + list(extra_warnings)
 
     structure_context = {
         "structure_profile_used": structure_profile_used,
@@ -226,11 +232,33 @@ def normalize_structure_contract(payload: dict[str, Any], *, symbol: str | None 
         if symbol is None:
             raise ValueError("symbol is required when normalizing legacy entries payload")
         entry = _select_legacy_entry(entries, symbol=symbol, timeframe=timeframe or "")
+        requested_tf = str(timeframe or "").strip()
+        served_tf = str(entry.get("timeframe", "")).strip()
+        extra_warnings: list[str] | None = None
+        if requested_tf and served_tf.upper() != requested_tf.upper():
+            # Cross-TF aliasing guard (2026-06-10 ADR): the legacy
+            # single-artifact fallback used to serve another timeframe's
+            # structure silently, turning every per-TF benchmark slice into
+            # an identical clone (Plan 2.8 Phase-E2 verdicts compared an arm
+            # against itself). Keep the fallback (the rolling benchmark must
+            # not hard-fail), but make it loud.
+            extra_warnings = [
+                f"legacy_tf_fallback: requested {requested_tf}, "
+                f"served {served_tf or 'unknown'}"
+            ]
+            _LOG.warning(
+                "legacy structure artifact has no %s entry for %s; serving %s "
+                "instead — cross-TF comparisons against this contract are void",
+                requested_tf,
+                _coerce_symbol(symbol),
+                served_tf or "unknown",
+            )
         return _normalize_single(
             entry,
             symbol=_coerce_symbol(symbol),
-            timeframe=(timeframe or str(entry.get("timeframe", "")).strip()),
+            timeframe=(timeframe or served_tf),
             inherited_source=payload.get("source", {}) if isinstance(payload.get("source"), dict) else None,
+            extra_warnings=extra_warnings,
         )
 
     return _normalize_single(payload, symbol=symbol, timeframe=timeframe)
