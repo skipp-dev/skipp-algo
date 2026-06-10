@@ -40,10 +40,11 @@ old one and update the table below.
 | 0021 | [VRVP volume-profile location + Rejection Blocks as the next orthogonal shadow features](0021-smc-vrvp-rjb-shadow.md) | Proposed (draft) | 2026-06-06 | doc-only; VRVP scalars + Rejection Blocks wired recorded-only, gated on a pre-registered A/B before promotion |
 | 0022 | [Joint meta-label A/B executed — direction saturated; re-target tier-2 sizing to move-size](0022-meta-label-joint-ab-and-magnitude-retarget.md) | Proposed | 2026-06-05 | doc-only; executes ADR-0019's joint A/B (rejected on direction) and records the move-size re-targeting hypothesis — see [joint findings](../governance/adr0022_meta_label_joint_findings.md); tooling `governance/family_meta_label.py` + `scripts/run_meta_label_ab.py` |
 | 0023 | [Pre-register the tier-2 sizing gate move-size re-target](0023-tier-2-size-gate-magnitude-retarget.md) | Proposed | 2026-06-05 | doc-only; freezes the falsifiable acceptance bar (magnitude AUC + permutation-null resolution, additive `magnitude_resolution_floor` check) a separate real-data PR must clear before re-targeting tier-2 from direction-Brier — see [pending findings](../governance/adr0023_magnitude_retarget_findings.md) |
+| 0024 | [Allow `--force-with-lease` on `bot/*` snapshot branches](0024-force-with-lease-allowance-bot-snapshot-branches.md) | Accepted | 2026-06-10 | `tests/test_workflow_auth_pattern.py::test_workflow_force_push_is_allowlisted` (`_FORCE_LEASE_ALLOWLIST`) |
 
 ## Reservation rule
 
-The next free ADR number is **0024**. To avoid concurrent-PR collisions:
+The next free ADR number is **0025**. To avoid concurrent-PR collisions:
 
 1. Reserve the next number by opening the PR with the file already named
    (e.g. `docs/adr/0008-foo.md`) before the rebase race window closes.
