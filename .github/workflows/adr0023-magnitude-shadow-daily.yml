@@ -1,4 +1,4 @@
-# live-window: off-hours-only
+# live-window: mutating-on-cron
 name: adr0023-magnitude-shadow-daily
 
 # ADR-0023 §4.1 — daily *shadow* magnitude-resolution ledger append.
@@ -8,11 +8,12 @@ name: adr0023-magnitude-shadow-daily
 #   artifacts/governance/magnitude_resolution_shadow.jsonl
 # that is uploaded as a workflow artifact only.
 #
-# This workflow is fail-soft and measure-only by design — it MUST NOT
-# mutate any pinned production state. The magnitude-resolution verdict
-# stays in shadow until the Stage-1 weekly k-of-n evaluator
-# (scripts/eval_magnitude_shadow_weekly.py) and the promotion gate sign
-# off. The candidate families are BOS and SWEEP; FVG and OB are controls.
+# This workflow is fail-soft and measure-only by design — the magnitude-
+# resolution verdict stays in shadow until the Stage-1 weekly k-of-n
+# evaluator (scripts/eval_magnitude_shadow_weekly.py) and the promotion
+# gate sign off.  The appended ledger rows are committed back to the
+# repo so that the shadow ledger accumulates across daily runs. The
+# candidate families are BOS and SWEEP; FVG and OB are controls.
 #
 # Events source: the rolling production events export is NOT checked into
 # the repo, so a scheduled run with no events resolves to status=no_data
@@ -39,7 +40,7 @@ on:
         default: "230022"
 
 permissions:
-  contents: read
+  contents: write
   actions: read
 
 concurrency:
@@ -171,7 +172,7 @@ jobs:
             echo "- ledger status: \`${{ steps.ledger.outputs.status || 'unknown' }}\`"
             echo "- seed: \`${{ inputs.seed || '230022' }}\`"
             echo ""
-            echo "Measure-only shadow ledger (ADR-0023 §4.1). No production state mutated."
+            echo "Measure-only shadow ledger (ADR-0023 §4.1). Ledger committed back to accumulate."
           } >> "$GITHUB_STEP_SUMMARY"
           # Sparkline + Stage-2 progress table (fail-soft: script errors
           # must not fail the step — the basic summary above is already
@@ -191,3 +192,24 @@ jobs:
             ledger.log
           if-no-files-found: ignore
           retention-days: 30
+
+      # Commit-back: persist the appended ledger so that rows accumulate
+      # across daily runs instead of resetting to the committed baseline.
+      # Guarded: only when the ledger step succeeded with status=resolved,
+      # none_resolve, or all_thin (i.e. NOT error / no_data) and the file
+      # actually changed vs HEAD.
+      - name: Commit shadow ledger back to repo
+        if: >
+          steps.ledger.outputs.status != 'error'
+          && steps.ledger.outputs.status != 'no_data'
+          && steps.ledger.outputs.status != ''
+        run: |
+          git diff --quiet artifacts/governance/magnitude_resolution_shadow.jsonl && {
+            echo "::notice title=adr0023-magnitude-shadow::ledger unchanged — skipping commit-back"
+            exit 0
+          }
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add artifacts/governance/magnitude_resolution_shadow.jsonl
+          git commit -m "chore(adr0023): accumulate shadow ledger $(date -u +%Y-%m-%d)"
+          git push

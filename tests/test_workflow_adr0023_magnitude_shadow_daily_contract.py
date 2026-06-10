@@ -27,10 +27,11 @@ def test_workflow_file_exists() -> None:
     assert _WF_PATH.is_file(), f"missing workflow: {_WF_PATH}"
 
 
-def test_live_window_marker_off_hours_only() -> None:
+def test_live_window_marker_mutating_on_cron() -> None:
     head = _WF_PATH.read_text(encoding="utf-8").splitlines()[0]
-    assert "live-window: off-hours-only" in head, (
-        "first-line live-window marker required by F-V6-F2.1"
+    assert "live-window: mutating-on-cron" in head, (
+        "first-line live-window marker required by F-V6-F2.1 — "
+        "mutating-on-cron because the workflow commits the shadow ledger back"
     )
 
 
@@ -51,9 +52,9 @@ def test_workflow_dispatch_exposes_events_path_and_seed() -> None:
     assert inputs["seed"]["default"] == "230022"
 
 
-def test_permissions_are_read_only() -> None:
+def test_permissions_allow_ledger_commit_back() -> None:
     data = _load()
-    assert data["permissions"] == {"contents": "read", "actions": "read"}
+    assert data["permissions"] == {"contents": "write", "actions": "read"}
 
 
 def test_job_invokes_shadow_ledger_script() -> None:
