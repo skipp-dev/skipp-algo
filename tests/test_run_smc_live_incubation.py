@@ -310,8 +310,92 @@ def test_cli_live_phase_loads_account_state_json(tmp_path: Path) -> None:
         "--gate-statuses", str(statuses),
         "--audit-output", str(audit),
         "--account-state-json", str(state_path),
+        "--phase-eval-report", str(_passing_eval_report(tmp_path, phase="paper")),
     ])
     assert rc == 0
+
+
+def _passing_eval_report(tmp_path: Path, *, phase: str) -> Path:
+    """Write a minimal passing phase-eval report (stat-review F1)."""
+    from datetime import UTC, datetime
+
+    from scripts.evaluate_phase_criteria import PHASE_EVAL_SCHEMA_VERSION
+
+    payload = {
+        "schema_version": PHASE_EVAL_SCHEMA_VERSION,
+        "phase": phase,
+        "variant": "v",
+        "all_passed": True,
+        "computed_at": datetime.now(UTC).isoformat(),
+        "results": [],
+        "phase_promotion": "manual_signoff_only",
+    }
+    path = tmp_path / f"phase_eval_{phase}.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return path
+
+
+def test_cli_live_phase_requires_phase_eval_report(tmp_path: Path) -> None:
+    """Stat-review F1 (2026-06-10): live phases refuse to run without a
+    machine-verified passing evaluation of the prior phase's criteria."""
+    setups = tmp_path / "setups.json"
+    setups.write_text(json.dumps([_setup(variant="v")]), encoding="utf-8")
+    statuses = tmp_path / "statuses.json"
+    statuses.write_text(json.dumps({"v": "green"}), encoding="utf-8")
+    audit = tmp_path / "audit.jsonl"
+
+    snapshot = {
+        "as_of": "2026-04-26",
+        "equity": 100000.0,
+        "starting_equity_today": 100000.0,
+        "high_water_mark": 100000.0,
+        "open_positions": 0,
+        "gross_exposure_pct": 0.0,
+    }
+    state_path = tmp_path / "account.json"
+    state_path.write_text(json.dumps(snapshot), encoding="utf-8")
+
+    for phase in ("live_small", "live_full"):
+        with pytest.raises(SystemExit, match="phase-eval-report"):
+            main([
+                "--phase", phase,
+                "--setups", str(setups),
+                "--gate-statuses", str(statuses),
+                "--audit-output", str(audit),
+                "--account-state-json", str(state_path),
+            ])
+
+
+def test_cli_live_full_rejects_paper_eval_report(tmp_path: Path) -> None:
+    """live_full needs a passing live_small evaluation — a paper report
+    must be rejected (wrong prior phase)."""
+    setups = tmp_path / "setups.json"
+    setups.write_text(json.dumps([_setup(variant="v")]), encoding="utf-8")
+    statuses = tmp_path / "statuses.json"
+    statuses.write_text(json.dumps({"v": "green"}), encoding="utf-8")
+    audit = tmp_path / "audit.jsonl"
+
+    snapshot = {
+        "as_of": "2026-04-26",
+        "equity": 100000.0,
+        "starting_equity_today": 100000.0,
+        "high_water_mark": 100000.0,
+        "open_positions": 0,
+        "gross_exposure_pct": 0.0,
+    }
+    state_path = tmp_path / "account.json"
+    state_path.write_text(json.dumps(snapshot), encoding="utf-8")
+
+    with pytest.raises(SystemExit, match="live_small"):
+        main([
+            "--phase", "live_full",
+            "--setups", str(setups),
+            "--gate-statuses", str(statuses),
+            "--audit-output", str(audit),
+            "--account-state-json", str(state_path),
+            "--phase-eval-report",
+            str(_passing_eval_report(tmp_path, phase="paper")),
+        ])
 
 
 def test_account_state_json_rejects_null_last_n_pnls(tmp_path: Path) -> None:

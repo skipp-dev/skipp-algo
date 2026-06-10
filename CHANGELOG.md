@@ -6,6 +6,45 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-10) — Stat-review F1/F6/F10 + runbook/ADR honesty (F2, F5, F11, F13)
+
+Implements the 2026-06-10 promotion-chain statistical-validity review
+findings that do not collide with in-flight PRs:
+
+- **F1/F6 — `scripts/evaluate_phase_criteria.py` (new)**: the
+  `PhasePassCriteria` dataclasses in `run_smc_live_incubation.py` were
+  evaluated by no code anywhere; every `extra` criterion string was
+  unenforced prose. The new fail-closed evaluator machine-checks every
+  numeric field and every `extra` string (via the `_EXTRA_CHECKERS`
+  registry) against the drift artifact, incubation audit JSONL and
+  watchdog report. Criteria it cannot verify count as **not passed**;
+  the Phase-C Scale-Phase/Kelly marker never machine-passes by design,
+  making `live_full` structurally unreachable via the evaluator. A
+  structural test asserts every `extra` string has a registered checker
+  — an unmapped string is now a test failure, not a silent gate hole.
+  `run_smc_live_incubation --phase live_small/live_full` now requires
+  `--phase-eval-report` with a fresh (≤ 7 days) **passing** evaluation
+  of the prior phase. Promotion remains manual sign-off only.
+- **F10 — watchdog per-setup honesty**: `run_drift_watchdog` pooled all
+  setups into one `pnl_per_trade` metric against a pooled baseline,
+  which can mask per-setup drift (Simpson-style). `extract_metric_pairs`
+  now emits `pnl_per_trade[setup=<name>]` metrics when live outcomes
+  carry a `setup_type` attribution and the baseline has the matching
+  `per_setup` block; reports without attribution disclose the pooling
+  limitation explicitly (`per_setup_live_attribution`, `pooling_note`).
+- **F2/F5/F11 — C8 runbook**: Phase-B's `window_complete` criterion now
+  names which watchdog report it refers to (the incubation outcome
+  stream, not the default open_prep directory); Phase-A carries a
+  statistical-power caveat (at n = 20 the drift_score is noise-dominated
+  — ~43 % false-pass / ~53 % true-pass at the 0.70 line); a new
+  sequential-looks section requires sign-off to read the verdict history
+  over the whole phase, not a cherry-picked day.
+- **F13 — ADR-0008 §12/§13**: `compute_live_drift._VERDICT_BANDS`
+  (0.85/0.65/0.40) and the phase drift-score lines (0.70 Phase-A,
+  0.50 Phase-B) are now documented as operator-judgment (**O**)
+  thresholds with the standard 100-promotions/6-month recalibration
+  cadence.
+
 ### Changed (2026-06-10) — silent-fallback audit: drift verdicts, 1D resample, source-matrix honesty
 
 Four silent-fallback / misdeclaration fixes from the static review of
