@@ -202,6 +202,17 @@ class TestScoring(unittest.TestCase):
             cluster_count=1,
         )
         self.assertEqual(r.category, "offering")
+        self.assertEqual(r.polarity, 0.0)
+
+    def test_halt_resumption_keyword_does_not_force_negative_polarity(self):
+        from newsstack_fmp.scoring import classify_and_score
+
+        r = classify_and_score(
+            {"headline": "ACME trading resumed after halt", "tickers": ["ACME"], "provider": "test"},
+            cluster_count=1,
+        )
+        self.assertEqual(r.category, "halt")
+        self.assertEqual(r.polarity, 0.0)
 
     def test_novelty_decay(self):
         from newsstack_fmp.scoring import classify_and_score
@@ -266,6 +277,20 @@ class TestNormalization(unittest.TestCase):
         self.assertEqual(item.tickers, ["AAPL"])
         self.assertEqual(item.provider, "fmp_stock_latest")
         self.assertTrue(item.is_valid)
+
+    def test_normalize_fmp_naive_timestamp_uses_new_york_default(self):
+        from newsstack_fmp.normalize import _to_epoch, normalize_fmp
+        from zoneinfo import ZoneInfo
+
+        item = normalize_fmp("fmp_stock_latest", {
+            "title": "AAPL Announces Buyback",
+            "symbol": "AAPL",
+            "url": "https://example.com/1",
+            "publishedDate": "2026-02-20T10:00:00",
+            "site": "Reuters",
+        })
+        expected = _to_epoch("2026-02-20T10:00:00", naive_tz=ZoneInfo("America/New_York"))
+        self.assertAlmostEqual(item.published_ts, expected, places=0)
 
     def test_normalize_benzinga_rest_basic(self):
         from newsstack_fmp.normalize import normalize_benzinga_rest

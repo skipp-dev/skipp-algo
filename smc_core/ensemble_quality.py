@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import math
+import os
+import tempfile
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -40,6 +43,20 @@ _VOL_REGIME_BASE_SCORES: dict[str, float] = {
     "HIGH_VOL": 0.45,
     "EXTREME": 0.25,
 }
+
+
+def _write_text_atomic(path: Path, content: str) -> None:
+    fd, tmp_name = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=str(path.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp_name, path)
+    except Exception:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp_name)
+        raise
 
 
 def _clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
@@ -226,5 +243,5 @@ def export_ensemble_quality_artifact(
         "timeframe": timeframe,
         **serialize_ensemble_quality(result),
     }
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    _write_text_atomic(path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
     return path

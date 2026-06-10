@@ -9,6 +9,7 @@ Enforces:
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
@@ -42,6 +43,19 @@ class HardConstraintLayer:
     hit_log: "ConstraintHitLog | None" = field(default=None, repr=False)
 
     def guard_action(self, action: ExecutionAction, *, drawdown_pct: float = 0.0) -> GuardResult:
+        if not math.isfinite(drawdown_pct):
+            self._log(
+                constraint="drawdown",
+                requested=float(drawdown_pct),
+                enforced=float(self.max_drawdown_pct),
+                reason="non-finite drawdown rejected",
+                extras={"order_type": str(action.order_type)},
+            )
+            return GuardResult(
+                ExecutionAction(slice_size=0.0, order_type=self.safe_order_type),
+                "rejected",
+                "non-finite drawdown rejected",
+            )
         if drawdown_pct >= self.max_drawdown_pct:
             self._log(
                 constraint="drawdown",
@@ -57,6 +71,9 @@ class HardConstraintLayer:
             )
         slice_size = action.slice_size
         clamped = False
+        if not math.isfinite(slice_size):
+            slice_size = 0.0
+            clamped = True
         if slice_size < 0.0:
             slice_size = 0.0
             clamped = True
@@ -86,6 +103,14 @@ class HardConstraintLayer:
         )
 
     def guard_size_fraction(self, requested_fraction: float) -> tuple[float, SizingDecision, str]:
+        if not math.isfinite(requested_fraction):
+            self._log(
+                constraint="size_fraction",
+                requested=float(requested_fraction),
+                enforced=0.0,
+                reason="non-finite size requested",
+            )
+            return 0.0, "rejected", "non-finite size requested"
         if requested_fraction < 0.0:
             self._log(
                 constraint="size_fraction",

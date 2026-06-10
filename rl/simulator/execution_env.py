@@ -202,6 +202,8 @@ class ExecutionEnv(_EnvBase):
             return action
         arr = np.asarray(action, dtype=float).reshape(-1)
         raw = float(arr[0]) if arr.size else 0.0
+        if not np.isfinite(raw):
+            raw = 0.0
         slice_size = float(np.clip(raw, 0.0, 1.0))
         return ExecutionAction(slice_size=slice_size, order_type=self.cfg.default_order_type)
 

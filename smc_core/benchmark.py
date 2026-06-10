@@ -6,7 +6,10 @@ and a single entry-point to produce all benchmark artifacts.
 
 from __future__ import annotations
 
+import contextlib
 import json
+import os
+import tempfile
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -21,6 +24,21 @@ _CANONICAL_BENCHMARK_OUTPUT_DIRS = (
     "artifacts/ci/measurement_benchmark",
     "artifacts/reports/smc_measurement_benchmark",
 )
+
+
+def _write_text_atomic(path: Path, content: str) -> None:
+    fd, tmp_name = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=str(path.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp_name, path)
+    except Exception:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp_name)
+        raise
+
 
 EventFamily = Literal["BOS", "OB", "FVG", "SWEEP"]
 
@@ -321,7 +339,7 @@ def export_benchmark_artifacts(
             for dim, kpis in result.stratified.items()
         },
     }
-    kpi_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    _write_text_atomic(kpi_path, json.dumps(payload, indent=2))
 
     artifacts = [kpi_filename]
 
@@ -332,6 +350,6 @@ def export_benchmark_artifacts(
         artifacts=artifacts,
     )
     manifest_path = output_dir / "manifest.json"
-    manifest_path.write_text(json.dumps(asdict(manifest), indent=2), encoding="utf-8")
+    _write_text_atomic(manifest_path, json.dumps(asdict(manifest), indent=2))
 
     return manifest

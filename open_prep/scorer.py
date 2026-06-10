@@ -275,11 +275,7 @@ def filter_candidate(
         or quote.get("avgVolume50"),
         default=0.0,
     )
-    if avg_volume <= 0.0 and volume > 0.0:
-        # Fail-open fallback: when provider omits avg-volume baseline,
-        # use current volume so quality gates remain informative but not
-        # universally tripped by missing metadata.
-        avg_volume = volume
+    avg_volume_baseline_missing = avg_volume <= 0.0
     atr = _to_float(quote.get("atr"), default=0.0)
     momentum_z = _to_float(quote.get("momentum_z_score"), default=0.0)
     rel_vol = _to_float(quote.get("volume_ratio"), default=0.0)
@@ -341,6 +337,8 @@ def filter_candidate(
         filter_reasons.append("spread_too_wide")
     if avg_volume > 0.0 and avg_volume < 100_000:
         filter_reasons.append("insufficient_liquidity")
+    if avg_volume_baseline_missing:
+        filter_reasons.append("missing_avg_volume_baseline")
     if atr <= 0.0:
         filter_reasons.append("atr_missing")
     if earnings_risk_window:
@@ -427,6 +425,7 @@ def filter_candidate(
         "symbol_sector": symbol_sector or "",
         "volume": volume,
         "avg_volume": avg_volume,
+        "avg_volume_baseline_missing": avg_volume_baseline_missing,
         "rel_vol": rel_vol,
         "rel_vol_capped": min(rel_vol, RVOL_CAP),
         "atr": atr,

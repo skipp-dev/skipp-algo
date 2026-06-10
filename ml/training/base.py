@@ -120,7 +120,10 @@ class BaseFamilyTrainer(ABC):
             payload=final_payload,
             extra={
                 "predict_proba": _make_predict_proba(backend_predict, final_payload),
-                "in_sample_brier": brier_score(y, in_sample),
+                "in_sample_metrics": {
+                    "scope": "in_sample_only",
+                    "brier": brier_score(y, in_sample),
+                },
             },
         )
         report = TrainingReport(

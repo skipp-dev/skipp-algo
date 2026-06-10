@@ -23,8 +23,12 @@ Integration:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import math
+import os
+import re
+import tempfile
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -38,6 +42,7 @@ _DEFAULT_BIN_COUNT = 10
 _MIN_PLATT_EVENTS = 20
 _BETA_PRIOR_ALPHA = 1.0
 _BETA_PRIOR_BETA = 1.0
+_SAFE_ARTIFACT_TOKEN_RE = re.compile(r"[^A-Za-z0-9_-]+")
 
 
 @dataclass(slots=True, frozen=True)
@@ -896,7 +901,7 @@ def _zone_touch_before_invalidation(
     subsequent_lows: list[float],
     subsequent_closes: list[float],
 ) -> bool:
-    if zone_low <= 0 or zone_high <= 0 or zone_high < zone_low:
+    if zone_low <= 0 or zone_high <= 0 or zone_high <= zone_low:
         return False
 
     normalized_direction = _normalize_market_direction(direction)
@@ -925,7 +930,7 @@ def _zone_touch_before_invalidation(
             if invalid_idx is None and close is not None and close < zone_low:
                 invalid_idx = idx
 
-    return touch_idx is not None and (invalid_idx is None or touch_idx <= invalid_idx)
+    return touch_idx is not None and (invalid_idx is None or touch_idx < invalid_idx)
 
 
 def label_orderblock_mitigation(
@@ -963,7 +968,7 @@ def label_fvg_mitigation(
     used for OBs, reflecting the empirical finding that FVG zones
     frequently get a wick-through invalidation that reverses the next bar.
     """
-    if zone_low <= 0 or zone_high <= 0 or zone_high < zone_low:
+    if zone_low <= 0 or zone_high <= 0 or zone_high <= zone_low:
         return False
 
     normalized_direction = _normalize_market_direction(direction)
@@ -1001,7 +1006,7 @@ def label_fvg_mitigation(
             else:
                 consecutive_invalid = 0
 
-    return touch_idx is not None and (invalid_idx is None or touch_idx <= invalid_idx)
+    return touch_idx is not None and (invalid_idx is None or touch_idx < invalid_idx)
 
 
 def label_fvg_partial_50(
@@ -1090,7 +1095,8 @@ def _summarize_scored_events(events: list[ScoredEvent]) -> tuple[int, float, flo
     if not events:
         return 0, float("nan"), float("nan"), float("nan")
 
-    predictions = [(e.predicted_prob, e.outcome) for e in events]
+    probabilities, _input_kind, _source_name, _warnings = _resolve_calibration_input(events)
+    predictions = list(zip(probabilities, [event.outcome for event in events], strict=True))
     hits = sum(1 for _, outcome in predictions if outcome)
     return (
         len(events),
@@ -1173,7 +1179,31 @@ def export_scoring_artifact(
             for family, metrics in result.family_metrics.items()
         },
     }
-    filename = f"scoring_{symbol}_{timeframe}.json"
+    safe_symbol = _safe_artifact_token(symbol, field_name="symbol")
+    safe_timeframe = _safe_artifact_token(timeframe, field_name="timeframe")
+    filename = f"scoring_{safe_symbol}_{safe_timeframe}.json"
     path = output_dir / filename
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    _write_text_atomic(path, json.dumps(payload, indent=2))
     return path
+
+
+def _safe_artifact_token(raw: str, *, field_name: str) -> str:
+    token = _SAFE_ARTIFACT_TOKEN_RE.sub("_", str(raw).strip())
+    token = token.strip("_")
+    if not token:
+        raise ValueError(f"{field_name} must contain at least one safe character")
+    return token
+
+
+def _write_text_atomic(path: Path, content: str) -> None:
+    fd, tmp_name = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=str(path.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp_name, path)
+    except Exception:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp_name)
+        raise

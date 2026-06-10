@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import math
 from pathlib import Path
 from typing import Any, cast
@@ -51,6 +52,7 @@ from .trust_tier import (
 )
 
 _DEFAULT_EXPORT_DIR = Path("artifacts") / "smc_microstructure_exports"
+logger = logging.getLogger(__name__)
 
 
 def _to_epoch_seconds(series: Any) -> pd.Series:
@@ -243,7 +245,14 @@ def _build_measurement_summary(symbol: str, timeframe: str) -> dict[str, Any]:
 def _load_symbol_bars_for_context(symbol: str, timeframe: str) -> pd.DataFrame:
     try:
         bundle = load_export_bundle(_DEFAULT_EXPORT_DIR, manifest_prefix="databento_volatility_production_")
-    except Exception:
+    except Exception as exc:
+        logger.warning(
+            "Failed to load export bundle for context bars (%s, %s): %s",
+            symbol,
+            timeframe,
+            exc,
+            exc_info=True,
+        )
         return pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume", "symbol"])
 
     frames = bundle.get("frames", {})

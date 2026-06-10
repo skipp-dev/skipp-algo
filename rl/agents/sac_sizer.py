@@ -17,6 +17,7 @@ otherwise.
 """
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 try:  # pragma: no cover
@@ -26,6 +27,9 @@ try:  # pragma: no cover
 except Exception:  # pragma: no cover
     SAC = None  # type: ignore
     _HAS_SB3 = False
+
+
+logger = logging.getLogger(__name__)
 
 
 class SACSizer:
@@ -83,6 +87,14 @@ class SACSizer:
         )
         self._model.learn(total_timesteps=total_timesteps)
         self.resolved_device = str(getattr(self._model, "device", self.device))
+        requested = str(self.device).strip().lower()
+        resolved = str(self.resolved_device or "").strip().lower()
+        if requested in {"cuda", "gpu"} and resolved and "cuda" not in resolved:
+            logger.warning(
+                "SAC requested device '%s' but resolved to '%s' (fallback to CPU-like backend)",
+                self.device,
+                self.resolved_device,
+            )
         return self
 
     def predict(self, obs):  # pragma: no cover

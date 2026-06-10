@@ -130,6 +130,12 @@ def test_volume_regime_uses_intraday_volume_pace(monkeypatch) -> None:
     assert detector.thin_fraction == 0.0
 
 
+def test_resolve_expected_volume_fraction_prefers_snapshot(monkeypatch) -> None:
+    monkeypatch.setattr(rs, "_expected_cumulative_volume_fraction", lambda: 0.75)
+    assert rs._resolve_expected_volume_fraction(0.30) == 0.30
+    assert rs._resolve_expected_volume_fraction(None) == 0.75
+
+
 def test_session_boundary_triggers_watchlist_rebuild(monkeypatch) -> None:
     monkeypatch.setattr(rs.RealtimeEngine, "_load_watchlist", lambda self: None)
     monkeypatch.setattr(rs.RealtimeEngine, "_restore_signals_from_disk", lambda self: None)
