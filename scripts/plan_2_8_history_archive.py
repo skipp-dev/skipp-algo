@@ -89,8 +89,19 @@ def append_snapshot(
     Idempotent on ``(captured_at, scoring_root)``. Returns a small
     result dict including ``appended`` (bool) and the snapshot itself.
     """
-    captured_at = captured_at or _dt.datetime.now(_dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-    snapshot = {"captured_at": captured_at, **_project(rollup)}
+    # Caller-supplied capture time preferred; archival time is a disclosed
+    # substitute so backfilled snapshots are distinguishable from
+    # measured-at-capture ones (audit #2670 W12).
+    if captured_at:
+        captured_at_source = "original"
+    else:
+        captured_at = _dt.datetime.now(_dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        captured_at_source = "archival_backfill"
+    snapshot = {
+        "captured_at": captured_at,
+        "captured_at_source": captured_at_source,
+        **_project(rollup),
+    }
 
     existing = _read_jsonl(history_path)
     seen = {(e.get("captured_at"), e.get("scoring_root")) for e in existing}

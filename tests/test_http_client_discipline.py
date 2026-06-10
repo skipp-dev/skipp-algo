@@ -139,7 +139,8 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # drift detector block above build_cache_path; later +10 (1413→1423)
         # by the explicit missing-symbols-key warn-and-refetch branch added
         # to ``_load_cache_with_drift_check``.
-        ("databento_volatility_screener.py", 1423),
+        # 2026-06-10: +5 (1423→1428).
+        ("databento_volatility_screener.py", 1428),
         ("open_prep/bea.py", 94),
         # open_prep/macro.py:691 — shifted by ruff RUF046/B904/SIM103 cleanup;
         # was 692 after audit/discipline-pattern-v4 (originally 600).

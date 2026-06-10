@@ -1313,6 +1313,9 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
     vol_regime = compute_vol_regime(resampled_bars)
     details["bias_direction"] = bias_verdict.direction
     details["bias_confidence"] = bias_verdict.confidence
+    # Disclose which inputs actually fed the merged bias (htf+session vs.
+    # single-source vs. none) — mirrors vol_regime_model_source (audit #2670 W6).
+    details["bias_source"] = bias_verdict.source
     details["vol_regime"] = vol_regime.label
     details["vol_regime_confidence"] = vol_regime.confidence
     details["vol_regime_model_source"] = vol_regime.model_source
