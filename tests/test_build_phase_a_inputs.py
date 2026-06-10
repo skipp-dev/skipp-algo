@@ -205,6 +205,46 @@ def test_latest_trade_cards_accepts_csv_within_age_cap(tmp_path: Path) -> None:
     assert result == borderline
 
 
+# W3 — boundary: exactly at cap and one day over (off-by-one guard)
+def test_latest_trade_cards_boundary_exactly_max_age(tmp_path: Path) -> None:
+    """age == _MAX_TRADE_CARDS_AGE_DAYS (the last accepted value)."""
+    from datetime import date, timedelta
+
+    ref = date(2026, 6, 10)
+    boundary_date = ref - timedelta(days=_MAX_TRADE_CARDS_AGE_DAYS)
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    fname = f"open_prep_trade_cards_{boundary_date:%Y%m%d}_090000Z.csv"
+    (reports / fname).write_text("", encoding="utf-8")
+    result = _latest_trade_cards(reports, trade_date="2026-06-10")
+    assert result == reports / fname
+
+
+def test_latest_trade_cards_rejects_just_over_max_age(tmp_path: Path) -> None:
+    """age == _MAX_TRADE_CARDS_AGE_DAYS + 1 must be rejected."""
+    from datetime import date, timedelta
+
+    ref = date(2026, 6, 10)
+    over_date = ref - timedelta(days=_MAX_TRADE_CARDS_AGE_DAYS + 1)
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    fname = f"open_prep_trade_cards_{over_date:%Y%m%d}_090000Z.csv"
+    (reports / fname).write_text("", encoding="utf-8")
+    with pytest.raises(FileNotFoundError, match="stale"):
+        _latest_trade_cards(reports, trade_date="2026-06-10")
+
+
+# H6 — future-dated CSVs must also be rejected (age < 0)
+def test_latest_trade_cards_rejects_future_dated_csv(tmp_path: Path) -> None:
+    """A CSV timestamped in the future (e.g. TZ drift) is rejected."""
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    future = reports / "open_prep_trade_cards_20261231_090000Z.csv"
+    future.write_text("", encoding="utf-8")
+    with pytest.raises(FileNotFoundError, match="stale"):
+        _latest_trade_cards(reports, trade_date="2026-06-10")
+
+
 def test_latest_trade_cards_rejects_stale_csv(tmp_path: Path) -> None:
     """A CSV older than _MAX_TRADE_CARDS_AGE_DAYS must raise FileNotFoundError.
 

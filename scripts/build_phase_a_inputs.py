@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import re
 import sys
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -69,8 +70,6 @@ def _trade_cards_age_days(csv_path: Path, trade_date: str) -> int | None:
     Returns ``None`` when the date cannot be parsed — callers treat that
     as indefinitely stale (C1, audit pass-5, 2026-06-10).
     """
-    import re
-
     # Try compact ``YYYYMMDD`` first (current production format from
     # export_open_prep_lists.py: strftime("%Y%m%d_%H%M%SZ")), then
     # ISO-dashed ``YYYY-MM-DD`` for backwards compatibility.
@@ -104,7 +103,7 @@ def _latest_trade_cards(reports_dir: Path, trade_date: str | None = None) -> Pat
     newest = candidates[-1]
     if trade_date is not None:
         age = _trade_cards_age_days(newest, trade_date)
-        if age is None or age > _MAX_TRADE_CARDS_AGE_DAYS:
+        if age is None or age < 0 or age > _MAX_TRADE_CARDS_AGE_DAYS:
             age_str = f"{age}d" if age is not None else "unparseable date"
             raise FileNotFoundError(
                 f"Newest trade-cards CSV {newest.name} is {age_str} old "

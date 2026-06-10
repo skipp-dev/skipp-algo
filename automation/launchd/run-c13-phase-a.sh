@@ -121,11 +121,15 @@ fi
 #    the no-op stub inside run_smc_live_incubation.py, so no IBKR
 #    orders are placed even if TWS is running on a live account.
 # shellcheck disable=SC2086
-"${PY}" -m scripts.run_smc_live_incubation \
+if ! "${PY}" -m scripts.run_smc_live_incubation \
     --phase paper \
     --setups "${SETUPS}" \
     --gate-statuses "${GATES}" \
     --audit-output "${AUDIT}" \
-    ${WSH_FLAG}
+    ${WSH_FLAG}; then
+    echo "phase-a cron: run_smc_live_incubation FAILED — see above for details" >&2
+    _write_marker "DEGRADED" "incubation-failed:trade_date=${DATE}"
+    exit 1
+fi
 
 _write_marker "SUCCESS" "incubation-complete:audit=${AUDIT}"

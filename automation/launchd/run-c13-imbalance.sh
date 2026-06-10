@@ -47,11 +47,15 @@ if [[ ! -x "${PY}" ]]; then
     exit 1
 fi
 
-"${PY}" -m scripts.collect_opening_imbalances \
+if ! "${PY}" -m scripts.collect_opening_imbalances \
     --watchlist "${WATCHLIST}" \
     --output    "${OUTPUT}" \
     --summary-output "${SUMMARY}" \
-    --trade-date "${DATE}"
+    --trade-date "${DATE}"; then
+    echo "imbalance cron: collect_opening_imbalances FAILED — see above for details" >&2
+    _write_marker "DEGRADED" "collector-failed:trade_date=${DATE}"
+    exit 1
+fi
 
 # Publish to the dedicated data branch via an isolated worktree so the push
 # never lands on (or diverges) the primary tree's checked-out branch.
