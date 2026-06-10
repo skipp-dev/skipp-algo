@@ -89,9 +89,11 @@ def build_execution_event_log(submission: dict[str, Any], supervisor: dict[str, 
         )
 
     for event in supervisor.get("events", []):
+        _ts_source = "captured_at" if event.get("captured_at") else "trigger_at"
         rows.append(
             {
                 "timestamp": event.get("captured_at") or event.get("trigger_at"),
+                "timestamp_source": _ts_source,
                 "category": "supervisor",
                 "event_type": event.get("action"),
                 "symbol": event.get("symbol"),
@@ -130,7 +132,7 @@ def write_execution_event_log_csv(rows: list[dict[str, Any]], output_path: Path)
     with output_path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(
             handle,
-            fieldnames=["timestamp", "category", "event_type", "symbol", "level_tag", "order_ref", "order_id", "status", "details"],
+            fieldnames=["timestamp", "category", "event_type", "symbol", "level_tag", "order_ref", "order_id", "status", "details", "timestamp_source"],
         )
         writer.writeheader()
         for row in rows:

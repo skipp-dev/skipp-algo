@@ -123,12 +123,16 @@ class TrustStateCause:
     """Why the product surface is not HEALTHY.
 
     ``None`` fields mean "no contributing alert" (only valid for HEALTHY).
+    ``attribution`` is ``"exact"`` when an alert exactly matched the target
+    state, ``"worst_severity_heuristic"`` when no exact match existed and
+    the worst-severity alert was used as a proxy.
     """
 
     domain: str | None
     failure_type: str | None
     code: str | None
     description: str | None
+    attribution: str = "exact"  # "exact" | "worst_severity_heuristic"
 
 
 @dataclass(frozen=True)
@@ -263,6 +267,7 @@ def _select_primary_cause(
         failure_type=_failure_type_of(fallback),
         code=str(fallback.get("code") or "").strip().upper() or None,
         description=str(fallback.get("message") or fallback.get("description") or "") or None,
+        attribution="worst_severity_heuristic",
     )
 
 
