@@ -12,6 +12,7 @@ import pytest
 from governance.family_returns import (
     DEFAULT_COST_BPS,
     FamilyEvent,
+    _event_bar_interval,
     extract_family_returns,
     realized_return,
     to_build_spec,
@@ -99,6 +100,29 @@ def test_untriggered_setup_is_excluded() -> None:
     ev["zone_low"] = 1.0
     ev["zone_high"] = 2.0
     assert realized_return(ev) is None
+
+
+def test_retest_requires_full_horizon_after_touch() -> None:
+    horizon = family_outcome_horizon("BOS")
+    n = horizon + 1
+    ev: FamilyEvent = {
+        "family": "BOS",  # type: ignore[typeddict-item]
+        "direction": "BULL",
+        "zone_low": 100.0,
+        "zone_high": 101.0,
+        "anchor_ts": 1.0,
+        # Touch happens at idx=1, leaving only horizon-1 bars after touch.
+        "forward_lows": [103.0, 100.5] + [103.0] * (n - 2),
+        "forward_highs": [104.0] * n,
+        "forward_closes": [102.0] * n,
+    }
+    assert realized_return(ev) is None
+
+
+def test_event_bar_interval_even_sample_uses_true_median() -> None:
+    # Positive diffs are [1, 3, 7, 9] -> median should be (3 + 7) / 2 = 5.
+    fts = [0.0, 1.0, 4.0, 11.0, 20.0]
+    assert _event_bar_interval(fts) == pytest.approx(5.0)
 
 
 def test_unknown_direction_is_none() -> None:
@@ -531,5 +555,3 @@ def test_regime_degraded_flows_through_bundle_as_blocker() -> None:
     bos = next(m for m in bundle if m["family"] == "BOS")
     # The C5.1 verdict is now MEASURED and rides through to the gate payload.
     assert bos["regime_degraded"] is True
-
-

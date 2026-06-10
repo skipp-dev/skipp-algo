@@ -1,19 +1,27 @@
-"""Lane 7 (provider-boundary audit, 2026-04-27) — LaunchAgent driver realism.
+"""Lane 7 (provider-boundary audit) — LaunchAgent driver realism.
 
 The local launchd cron drivers under ``automation/launchd/`` previously
-ran ``git push origin HEAD`` after committing a daily artefact, which
-silently pushed cron data onto whatever branch the developer happened
-to have checked out when the agent fired (a feature branch, a stacked
-PR branch, etc.). These tests assert the new safe-branch guard:
+ran ``git commit && git push origin <current-branch>`` after generating a
+daily artefact, which silently pushed cron data onto whatever branch the
+developer happened to have checked out when the agent fired. When local
+``main`` lagged ``origin/main`` the push was rejected non-fast-forward and
+the agents entered a compounding divergence loop, while the data never
+reached the branch the GH-hosted cron actually overlays from
+(``data/phase-a-audit``).
 
-    * On ``main`` or ``data/...`` → commit + push happen.
-    * On any other branch → the artefact stays uncommitted and the
-      driver prints a clear skip message instead of polluting the
-      developer's working branch.
+The drivers now publish through the shared ``lib_c13_data_push.sh`` helper,
+which routes every artefact to ``data/phase-a-audit`` via an ISOLATED git
+worktree keyed on ``origin/data/phase-a-audit`` — so the primary working
+tree's checked-out branch is never touched. These tests assert:
 
-The tests don't run the full pipeline; they extract the guard block
-from each driver and exercise it in a throwaway git sandbox so the
-behaviour is verified independently of FMP/Databento availability.
+    * Drivers no longer contain the old ``case "${CURRENT_BRANCH}"`` /
+      ``git push origin HEAD`` pattern and instead call
+      ``push_to_data_branch``.
+    * The helper pushes to the data branch and leaves the primary tree's
+      HEAD untouched, even when run from an unrelated feature branch.
+
+The behavioural test exercises the real helper in a throwaway git sandbox
+(bare remote + clone) so it is verified independently of FMP/Databento.
 """
 from __future__ import annotations
 
@@ -38,6 +46,10 @@ REPO = Path(__file__).resolve().parents[1]
 DRIVERS = [
     REPO / "automation" / "launchd" / "run-c13-wsh.sh",
     REPO / "automation" / "launchd" / "run-c13-imbalance.sh",
+    # audit pass-3 finding A1 (2026-06-10): audit-push previously duplicated
+    # the worktree-push logic inline and silently drifted from the lib's
+    # R1/R4/R5 hardening; it now consumes the shared helper like the rest.
+    REPO / "automation" / "launchd" / "run-c13-audit-push.sh",
 ]
 
 
@@ -62,66 +74,156 @@ def sandbox(tmp_path):
     return work, env
 
 
-def _guard_snippet():
-    """The exact guard pattern injected into the cron drivers."""
-    return textwrap.dedent("""
+def _data_branch_sandbox(tmp_path):
+    """Bare remote + clone with a live ``data/phase-a-audit`` branch."""
+    remote = tmp_path / "remote.git"
+    _run(["git", "init", "-q", "--bare", "-b", "main", str(remote)], tmp_path)
+
+    work = tmp_path / "repo"
+    work.mkdir()
+    env = os.environ.copy()
+    env["GIT_AUTHOR_NAME"] = env["GIT_COMMITTER_NAME"] = "t"
+    env["GIT_AUTHOR_EMAIL"] = env["GIT_COMMITTER_EMAIL"] = "t@example.com"
+    _run(["git", "init", "-q", "-b", "main"], work, env)
+    _run(["git", "remote", "add", "origin", str(remote)], work, env)
+    (work / "README.md").write_text("seed\n")
+    _run(["git", "add", "."], work, env)
+    _run(["git", "commit", "-q", "-m", "seed"], work, env)
+    _run(["git", "push", "-q", "origin", "main"], work, env)
+    # Seed the canonical data branch on origin.
+    _run(["git", "checkout", "-q", "-b", "data/phase-a-audit"], work, env)
+    _run(["git", "push", "-q", "origin", "data/phase-a-audit"], work, env)
+    _run(["git", "checkout", "-q", "main"], work, env)
+    return work, env
+
+
+LIB = REPO / "automation" / "launchd" / "lib_c13_data_push.sh"
+
+
+def test_helper_publishes_to_data_branch_without_touching_current_branch(tmp_path):
+    """push_to_data_branch must land the artefact on data/phase-a-audit and
+    leave the primary tree's checked-out (feature) branch untouched."""
+    work, env = _data_branch_sandbox(tmp_path)
+    # Stand on an unrelated feature branch — the exact scenario the old
+    # ``git push origin HEAD`` pattern corrupted.
+    _run(["git", "checkout", "-q", "-b", "feature/my-work"], work, env)
+    head_before = _run(["git", "rev-parse", "HEAD"], work, env).stdout.strip()
+
+    (work / "cache" / "wsh").mkdir(parents=True)
+    (work / "cache" / "wsh" / "20260427.jsonl").write_text('{"x":1}\n')
+
+    driver = work / "driver.sh"
+    driver.write_text(textwrap.dedent(f"""
     set -euo pipefail
-    DATE=20260427
-    mkdir -p cache/wsh
-    : > "cache/wsh/${DATE}.jsonl"
-    git add "cache/wsh/${DATE}.jsonl" || true
-    if ! git diff --staged --quiet; then
-        CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
-        case "${CURRENT_BRANCH}" in
-            main|data/*)
-                git commit -q -m "snapshot ${DATE}"
-                echo "committed"
-                ;;
-            *)
-                echo "skipped on ${CURRENT_BRANCH}" >&2
-                git reset HEAD -- "cache/wsh/${DATE}.jsonl" >/dev/null 2>&1 || true
-                ;;
-        esac
-    fi
-    """)
-
-
-@pytest.mark.parametrize("branch,should_commit", [
-    ("main", True),
-    ("data/phase-a-audit", True),
-    ("data/imbalance", True),
-    ("feature/my-work", False),
-    ("lane7/something", False),
-])
-def test_branch_guard_only_commits_on_main_or_data(sandbox, branch, should_commit):
-    work, env = sandbox
-    if branch != "main":
-        _run(["git", "checkout", "-q", "-b", branch], work, env)
-
-    script = work / "guard.sh"
-    script.write_text(_guard_snippet())
-    result = _run(["bash", str(script)], work, env)
+    cd "{work}"
+    source "{LIB}"
+    push_to_data_branch "snapshot 20260427" "cache/wsh/.push_status" \\
+        "cache/wsh/20260427.jsonl"
+    """))
+    result = _run(["bash", str(driver)], work, env)
     assert result.returncode == 0, result.stderr
 
-    log = _run(["git", "log", "--oneline"], work, env).stdout
-    if should_commit:
-        assert "snapshot 20260427" in log, log
-        assert "committed" in result.stdout
-    else:
-        assert "snapshot 20260427" not in log, log
-        assert f"skipped on {branch}" in result.stderr
+    # Marker records a successful push.
+    marker = (work / "cache" / "wsh" / ".push_status").read_text()
+    assert marker.startswith("ok:pushed"), marker
+
+    # Primary tree is still on the feature branch at the same commit.
+    assert _run(["git", "rev-parse", "--abbrev-ref", "HEAD"], work, env).stdout.strip() == "feature/my-work"
+    assert _run(["git", "rev-parse", "HEAD"], work, env).stdout.strip() == head_before
+
+    # The artefact really landed on origin/data/phase-a-audit.
+    _run(["git", "fetch", "-q", "origin", "data/phase-a-audit"], work, env)
+    listed = _run(
+        ["git", "ls-tree", "-r", "--name-only", "origin/data/phase-a-audit"],
+        work, env,
+    ).stdout
+    assert "cache/wsh/20260427.jsonl" in listed, listed
+
+
+def test_helper_marks_degraded_when_no_files(tmp_path):
+    """With zero artefact paths the helper must fail loud (return 1) and
+    write a ``degraded:no-files`` marker rather than push an empty commit."""
+    work, env = _data_branch_sandbox(tmp_path)
+    driver = work / "driver.sh"
+    driver.write_text(textwrap.dedent(f"""
+    set -uo pipefail
+    cd "{work}"
+    source "{LIB}"
+    push_to_data_branch "empty" "cache/.push_status"
+    echo "rc=$?"
+    """))
+    (work / "cache").mkdir(exist_ok=True)
+    result = _run(["bash", str(driver)], work, env)
+    assert "rc=1" in result.stdout, result.stdout + result.stderr
+    assert (work / "cache" / ".push_status").read_text().startswith("degraded:no-files")
+
+
+def test_helper_recovers_from_stale_worktree_registration(tmp_path):
+    """R1 regression: a SIGKILL / power-loss can leave a stale worktree
+    registration (.git/worktrees/<name>) whose directory no longer exists.
+    ``git worktree add`` used to fail on such registrations, killing the
+    agent *before* any marker was written.  The lib must prune stale entries
+    first so the push still succeeds and the marker is always written."""
+    work, env = _data_branch_sandbox(tmp_path)
+
+    # Simulate a stale registration: add a worktree, then rm -rf the dir
+    # WITHOUT calling ``git worktree remove`` (the SIGKILL scenario).
+    stale_dir = tmp_path / "stale-wt"
+    _run(
+        ["git", "worktree", "add", "--detach", str(stale_dir),
+         "origin/data/phase-a-audit"],
+        work, env,
+    )
+    shutil.rmtree(stale_dir)  # path gone, .git/worktrees entry remains
+
+    # Verify the stale entry is actually present (pre-condition).
+    wt_list = _run(["git", "worktree", "list"], work, env).stdout
+    assert "stale" in wt_list.lower() or str(stale_dir) in wt_list, (
+        "test setup failed: no stale worktree entry found"
+    )
+
+    (work / "cache" / "wsh").mkdir(parents=True)
+    (work / "cache" / "wsh" / "20260428.jsonl").write_text('{"x":2}\n')
+
+    driver_sh = work / "driver_stale.sh"
+    driver_sh.write_text(textwrap.dedent(f"""
+    set -euo pipefail
+    cd "{work}"
+    source "{LIB}"
+    push_to_data_branch "snapshot 20260428" "cache/wsh/.push_status_stale" \\
+        "cache/wsh/20260428.jsonl"
+    """))
+    result = _run(["bash", str(driver_sh)], work, env)
+    assert result.returncode == 0, result.stderr
+
+    # A marker MUST have been written — no markerless death.
+    marker_path = work / "cache" / "wsh" / ".push_status_stale"
+    assert marker_path.exists(), "marker missing after stale-worktree run"
+    marker = marker_path.read_text()
+    assert marker.startswith("ok:"), f"unexpected marker: {marker}"
 
 
 @pytest.mark.parametrize("driver", DRIVERS, ids=lambda p: p.name)
-def test_driver_contains_safe_branch_guard(driver):
-    """Sanity: each cron driver contains the case statement and never
-    pushes blindly to HEAD anymore."""
+def test_driver_publishes_via_isolated_data_branch(driver):
+    """Each data-producing cron driver must publish through the shared
+    isolated-worktree helper and must NOT commit/push onto the primary
+    tree's currently checked-out branch (the old Lane 7 failure mode)."""
     text = driver.read_text()
     assert "git push origin HEAD" not in text, (
         f"{driver.name} still contains 'git push origin HEAD' — Lane 7 fix reverted?"
     )
-    assert 'case "${CURRENT_BRANCH}"' in text
-    assert "main|data/*)" in text
+    assert 'git push origin "${CURRENT_BRANCH}"' not in text, (
+        f"{driver.name} still pushes to the current branch — use push_to_data_branch"
+    )
+    assert 'case "${CURRENT_BRANCH}"' not in text, (
+        f"{driver.name} still branches on CURRENT_BRANCH — use push_to_data_branch"
+    )
+    assert "lib_c13_data_push.sh" in text, (
+        f"{driver.name} must source the shared data-branch push helper"
+    )
+    assert "push_to_data_branch" in text, (
+        f"{driver.name} must publish via push_to_data_branch"
+    )
 
 
 def test_git_available():
@@ -174,15 +276,27 @@ def test_venv_guard_snippet_aborts_with_clear_message(tmp_path):
     assert "C13_VENV" in result.stderr
 
 
-def test_audit_push_aborts_on_pull_failure():
-    """run-c13-audit-push.sh must NOT silently swallow a pull failure
-    (which would later surface as a misleading non-fast-forward push
-    rejection)."""
+def test_audit_push_uses_worktree_not_branch_switch():
+    """run-c13-audit-push.sh must publish through the shared isolated-worktree
+    helper rather than the old branch-switch pattern that could leave the
+    primary tree on the wrong branch.
+
+    History: the legacy version used ``git pull --ff-only … || true`` +
+    branch switch; PR #2660 replaced that with an INLINE worktree, which
+    then silently drifted from the lib's R1/R4/R5 hardening (audit pass-3
+    finding A1, 2026-06-10) — e.g. no stale-worktree prune, so a SIGKILL
+    could kill the agent markerless.  The script now delegates to
+    ``push_to_data_branch`` and must NOT re-grow its own inline
+    ``git worktree add`` / ``git push`` pipeline."""
     script = REPO / "automation" / "launchd" / "run-c13-audit-push.sh"
     text = script.read_text()
     assert "git pull --ff-only origin data/phase-a-audit || true" not in text, (
         "audit-push must not swallow pull failures with '|| true'"
     )
-    assert "if ! git pull --ff-only origin data/phase-a-audit;" in text, (
-        "audit-push must check pull result explicitly and abort on failure"
+    assert "push_to_data_branch" in text, (
+        "audit-push must publish via the shared lib_c13_data_push.sh helper"
+    )
+    assert "git worktree add" not in text, (
+        "audit-push must not duplicate the worktree pipeline inline — that "
+        "copy drifts from the lib's hardening (audit pass-3 finding A1)"
     )

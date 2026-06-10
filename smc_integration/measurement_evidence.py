@@ -112,9 +112,18 @@ def _event_risk_signal_present(event_risk_light: dict[str, Any]) -> bool:
 
 
 def _resolve_measurement_event_risk_light(symbol: str, timeframe: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    raw_meta_lookup_failed = False
     try:
         raw_meta = load_raw_meta_input_composite(symbol, timeframe, source="auto")
-    except Exception:
+    except Exception as exc:
+        raw_meta_lookup_failed = True
+        logger.warning(
+            "event-risk raw_meta lookup failed for %s %s: %s",
+            symbol,
+            timeframe,
+            exc,
+            exc_info=True,
+        )
         raw_meta = None
 
     raw_event_risk = raw_meta.get("event_risk") if isinstance(raw_meta, dict) else None
@@ -125,11 +134,20 @@ def _resolve_measurement_event_risk_light(symbol: str, timeframe: str) -> tuple[
             "event_risk_provider_status": str(event_risk_light.get("EVENT_PROVIDER_STATUS", "no_data") or "no_data"),
             "event_risk_reference_provider_status": None,
             "event_risk_signal_present": _event_risk_signal_present(event_risk_light),
+            "event_risk_lookup_failed": raw_meta_lookup_failed,
         }
 
+    reference_lookup_failed = False
     try:
         reference_snapshot = get_reference_event_risk_snapshot([symbol])
-    except Exception:
+    except Exception as exc:
+        reference_lookup_failed = True
+        logger.warning(
+            "event-risk reference snapshot lookup failed for %s: %s",
+            symbol,
+            exc,
+            exc_info=True,
+        )
         reference_snapshot = None
 
     if isinstance(reference_snapshot, dict):
@@ -141,14 +159,17 @@ def _resolve_measurement_event_risk_light(symbol: str, timeframe: str) -> tuple[
             "event_risk_provider_status": str(event_risk_light.get("EVENT_PROVIDER_STATUS", "no_data") or "no_data"),
             "event_risk_reference_provider_status": reference_provider_status,
             "event_risk_signal_present": _event_risk_signal_present(event_risk_light),
+            "event_risk_lookup_failed": raw_meta_lookup_failed or reference_lookup_failed,
         }
 
     event_risk_light = _empty_event_risk_light()
+    lookup_failed = raw_meta_lookup_failed or reference_lookup_failed
     return event_risk_light, {
-        "event_risk_source_mode": "none",
+        "event_risk_source_mode": "lookup_failed" if lookup_failed else "none",
         "event_risk_provider_status": str(event_risk_light.get("EVENT_PROVIDER_STATUS", "no_data") or "no_data"),
         "event_risk_reference_provider_status": None,
         "event_risk_signal_present": False,
+        "event_risk_lookup_failed": lookup_failed,
     }
 
 
@@ -359,7 +380,7 @@ def _evaluate_bos_event(event: dict[str, Any], bars: pd.DataFrame) -> dict[str, 
         touch_idx = _find_first_index(future, lambda row: float(row["low"]) <= price)
         invalid_idx = _find_first_index(future, lambda row: float(row["close"]) < price)
 
-    hit = touch_idx is not None and (invalid_idx is None or touch_idx <= invalid_idx)
+    hit = touch_idx is not None and (invalid_idx is None or touch_idx < invalid_idx)
     mae, mfe = _directional_excursions(price, direction, future)
     return {
         "hit": hit,
@@ -381,7 +402,7 @@ def _evaluate_zone_event(
     high = float(event.get("high", 0.0) or 0.0)
     anchor_ts = float(event.get("anchor_ts", event.get("time", 0.0)) or 0.0)
     direction = str(event.get("dir", "BULL")).upper()
-    if low <= 0 or high <= 0 or anchor_ts <= 0 or high < low:
+    if low <= 0 or high <= 0 or anchor_ts <= 0 or high <= low:
         return None
 
     anchor_idx = _find_bar_index(bars, anchor_ts)
@@ -410,7 +431,7 @@ def _evaluate_zone_event(
             mitigated_idx = _find_first_index(future, lambda row: low <= float(row["low"]) <= high)
         invalid_idx = _find_first_index(future, lambda row: float(row["close"]) < low)
 
-    hit = mitigated_idx is not None and (invalid_idx is None or mitigated_idx <= invalid_idx)
+    hit = mitigated_idx is not None and (invalid_idx is None or mitigated_idx < invalid_idx)
     mae, mfe = _directional_excursions((low + high) / 2.0, direction, future)
 
     # R3: Partial-fill tracking for FVG-type zones
@@ -1292,6 +1313,9 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
     vol_regime = compute_vol_regime(resampled_bars)
     details["bias_direction"] = bias_verdict.direction
     details["bias_confidence"] = bias_verdict.confidence
+    # Disclose which inputs actually fed the merged bias (htf+session vs.
+    # single-source vs. none) — mirrors vol_regime_model_source (audit #2670 W6).
+    details["bias_source"] = bias_verdict.source
     details["vol_regime"] = vol_regime.label
     details["vol_regime_confidence"] = vol_regime.confidence
     details["vol_regime_model_source"] = vol_regime.model_source

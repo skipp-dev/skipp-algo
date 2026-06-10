@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import contextlib
 import csv
 import json
+import os
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -17,6 +20,20 @@ from .service import build_snapshot_bundle_for_symbol_timeframe
 _CANONICAL_SNAPSHOT_BUNDLE_DIRS = ("reports/smc_snapshot_bundles",)
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _write_text_atomic(path: Path, content: str) -> None:
+    fd, tmp_name = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=str(path.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp_name, path)
+    except Exception:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp_name)
+        raise
 
 
 def _portable_bundle_path(output_dir: Path, filename: str) -> str:
@@ -250,7 +267,7 @@ def write_snapshot_bundles_for_symbols(
                 generated_at=effective_generated_at,
             )
             bundle_path = out_dir / _bundle_file_name(symbol, timeframe)
-            bundle_path.write_text(json.dumps(bundle, indent=2, sort_keys=True), encoding="utf-8")
+            _write_text_atomic(bundle_path, json.dumps(bundle, indent=2, sort_keys=True))
             bundles.append(bundle)
             built_symbols.append(symbol)
         except Exception as exc:
@@ -268,7 +285,7 @@ def write_snapshot_bundles_for_symbols(
     )
 
     manifest_path = out_dir / _manifest_file_name(timeframe)
-    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+    _write_text_atomic(manifest_path, json.dumps(manifest, indent=2, sort_keys=True))
     manifest["manifest_path"] = str(manifest_path)
     return manifest
 

@@ -98,6 +98,12 @@ class WshFetchSummary:
     window_days: int
     output_path: str
     errors: list[str] = field(default_factory=list)
+    # Feed-health verdict for downstream/cron consumers. ``ok`` means the
+    # pull resolved at least one event; ``degraded:no-events`` means the feed
+    # returned ZERO events while reporting errors (e.g. IBKR entitlement
+    # missing / watchlist rows lack conIds) — i.e. the earnings filter would
+    # silently gate against an empty set. (F3, 2026-06-10)
+    status: str = "ok"
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -487,6 +493,16 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     completed = _dt.datetime.now(tz=_dt.UTC).isoformat()
+
+    # F3 fail-loud: a live pull that returns ZERO events while reporting
+    # provider errors is a DEGRADED feed, not a quiet success. Surfacing it
+    # (status field + WARNING + exit code 2) prevents the earnings filter
+    # from silently becoming a no-op. ``dry-run`` is an expected sentinel,
+    # not a provider error, so it is excluded from the verdict.
+    real_errors = [e for e in errors if e != "dry-run"]
+    degraded = (not args.dry_run) and len(events) == 0 and bool(real_errors)
+    status_val = "degraded:no-events" if degraded else "ok"
+
     summary = WshFetchSummary(
         symbols_requested=len(symbols),
         symbols_with_events=len({e.symbol for e in earnings}),
@@ -497,11 +513,25 @@ def main(argv: list[str] | None = None) -> int:
         window_days=int(args.window_days),
         output_path=str(args.output),
         errors=errors,
+        status=status_val,
     )
     if args.summary_output:
         _atomic_write_json(args.summary_output, summary.to_dict())
 
     print(json.dumps(summary.to_dict(), sort_keys=True))
+
+    if degraded:
+        LOGGER.warning(
+            "WSH feed DEGRADED: 0 events resolved for %d watchlist symbol(s) "
+            "with %d provider error(s) — the earnings filter will gate against "
+            "an EMPTY set (earnings protection effectively OFF). "
+            "Likely causes: IBKR account lacks the WSH entitlement (Error "
+            "10276), or watchlist rows are missing IBKR conIds. Errors: %s",
+            len(symbols),
+            len(real_errors),
+            real_errors[:5],
+        )
+        return 2
     return 0
 
 

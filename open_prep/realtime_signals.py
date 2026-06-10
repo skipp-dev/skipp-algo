@@ -258,7 +258,7 @@ def ensure_rt_engine_running(
 
     # Use a file lock to prevent TOCTOU race between concurrent callers
     _RT_ENGINE_LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
-    lock_fd = open(_RT_ENGINE_LOCK_FILE, "w", encoding="utf-8")
+    lock_fd = open(_RT_ENGINE_LOCK_FILE, "w", encoding="utf-8")  # lock file is stateful by design (not atomic-replaced)
     if _FLOCK_SUPPORTED and fcntl is not None:
         try:
             fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -331,7 +331,7 @@ def _ensure_rt_engine_running_locked(
                 if k and k not in env:
                     env[k] = v
 
-        log_fh = open(_RT_ENGINE_LOG_FILE, "a", encoding="utf-8")
+        log_fh = open(_RT_ENGINE_LOG_FILE, "a", encoding="utf-8")  # append-only runtime log; atomic replace would lose stream semantics
         try:
             proc = subprocess.Popen(  # noqa: S603 -- sys.executable with hardcoded module argv (no shell, no user input)
                 [
@@ -545,6 +545,19 @@ def _expected_cumulative_volume_fraction() -> float:
         frac = 0.40 + 0.60 * ((elapsed - 90) / 300)  # 40→100% over last 300 min
 
     return max(frac, 0.02)
+
+
+def _resolve_expected_volume_fraction(snapshot_fraction: Any | None = None) -> float:
+    """Return replay-safe expected cumulative volume fraction.
+
+    If a quote provides ``expected_volume_fraction`` we trust that persisted
+    value (bounded to ``[0.02, 1.0]``) so replay/test runs are deterministic.
+    Otherwise we fall back to the live wall-clock model.
+    """
+    candidate = _safe_float(snapshot_fraction, 0.0)
+    if candidate > 0.0:
+        return max(0.02, min(1.0, candidate))
+    return max(_expected_cumulative_volume_fraction(), 0.02)
 
 
 def _is_within_market_hours() -> bool:
@@ -1704,6 +1717,7 @@ class RealtimeEngine:
         watchlist_entry: dict[str, Any],
         *,
         regime_thresholds: dict[str, float] | None = None,
+        expected_volume_fraction: float | None = None,
     ) -> RealtimeSignal | None:
         """Analyze a single symbol's current quote for breakout signals."""
 
@@ -1741,8 +1755,12 @@ class RealtimeEngine:
         # because most of the day hasn't happened yet.  Normalize by
         # expected cumulative fraction so we measure *pace above average*
         # rather than *cumulative total*.
-        vol_frac = _expected_cumulative_volume_fraction()
-        volume_ratio = raw_volume_ratio / max(vol_frac, 0.02)
+        vol_frac = _resolve_expected_volume_fraction(
+            expected_volume_fraction
+            if expected_volume_fraction is not None
+            else quote.get("expected_volume_fraction")
+        )
+        volume_ratio = raw_volume_ratio / vol_frac
 
         atr_pct = _safe_float(watchlist_entry.get("atr_pct_computed") or watchlist_entry.get("atr_pct"), 0.0)
         confidence_tier = str(watchlist_entry.get("confidence_tier", "STANDARD"))
@@ -2118,7 +2136,11 @@ class RealtimeEngine:
 
             wl_entry = wl_map.get(sym, {})
             signal = self._detect_signal(
-                sym, quote, wl_entry, regime_thresholds=regime_thresholds,
+                sym,
+                quote,
+                wl_entry,
+                regime_thresholds=regime_thresholds,
+                expected_volume_fraction=quote.get("expected_volume_fraction"),
             )
             # Newsstack data (used for signal enrichment & VD row)
             ns_data = news_by_ticker.get(sym)

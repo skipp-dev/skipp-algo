@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import enum
+import contextlib
 import json
+import os
 import time
+import tempfile
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -51,6 +54,20 @@ _STRICT_RELEASE_DEGRADATION_CODES = {
     "STALE_META_NEWS_DOMAIN",
     "STALE_META_VOLUME_DOMAIN",
 }
+
+
+def _write_text_atomic(path: Path, content: str) -> None:
+    fd, tmp_name = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=str(path.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp_name, path)
+    except Exception:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp_name)
+        raise
 
 
 # ── Provider Failure Semantics (F-04) ────────────────────────────
@@ -1281,4 +1298,4 @@ def write_provider_health_report(report: dict[str, Any], output_path: Path | Non
         print(rendered)
         return
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(rendered + "\n", encoding="utf-8")
+    _write_text_atomic(output_path, rendered + "\n")

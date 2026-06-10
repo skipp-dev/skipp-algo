@@ -381,10 +381,11 @@ def realized_return(event: FamilyEvent, *, cost_bps: float = DEFAULT_COST_BPS) -
     if invalid_idx is not None and touch_idx > invalid_idx:
         return None
 
-    exit_idx = min(touch_idx + horizon, len(closes) - 1)
-    if exit_idx <= touch_idx or exit_idx >= len(closes):
-        # No close available after the touch -> trade cannot be marked out.
+    required_exit_idx = touch_idx + horizon
+    if required_exit_idx >= len(closes):
+        # No full horizon available after the touch -> drop this event.
         return None
+    exit_idx = required_exit_idx
 
     entry_price = (zone_low + zone_high) / 2.0
     if entry_price <= 0.0:
@@ -430,7 +431,10 @@ def _event_bar_interval(forward_timestamps: list[float]) -> float:
     )
     if not diffs:
         return 0.0
-    return diffs[len(diffs) // 2]
+    mid = len(diffs) // 2
+    if len(diffs) % 2 == 1:
+        return diffs[mid]
+    return 0.5 * (diffs[mid - 1] + diffs[mid])
 
 
 def extract_family_calibration_samples(

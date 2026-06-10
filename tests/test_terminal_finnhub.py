@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import time
+import urllib.error
 from unittest import mock
 
 import terminal_finnhub
@@ -112,6 +113,38 @@ class TestBackoff:
         b1 = terminal_finnhub._BACKOFF_BASE_SECONDS * (2 ** 0)
         b2 = terminal_finnhub._BACKOFF_BASE_SECONDS * (2 ** 1)
         assert b2 > b1
+
+    def test_symbol_backoff_is_scoped(self) -> None:
+        terminal_finnhub.clear_blocked_paths()
+        calls: list[str] = []
+
+        class _Resp:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return None
+
+            def read(self) -> bytes:
+                return b"{}"
+
+        def _fake_urlopen(req, timeout=15, context=None):  # noqa: ARG001
+            calls.append(req.full_url)
+            if "symbol=AAPL" in req.full_url:
+                raise urllib.error.HTTPError(req.full_url, 429, "rate limited", hdrs=None, fp=None)
+            return _Resp()
+
+        with (
+            mock.patch.dict("os.environ", {"FINNHUB_API_KEY": "test_key"}),
+            mock.patch.object(terminal_finnhub, "urlopen", side_effect=_fake_urlopen),
+        ):
+            terminal_finnhub._get("/stock/social-sentiment", {"symbol": "AAPL"})
+            terminal_finnhub._get("/stock/social-sentiment", {"symbol": "MSFT"})
+
+        assert len(calls) == 2
+        with terminal_finnhub._state_lock:
+            assert terminal_finnhub._symbol_rate_limit_backoff_until.get("AAPL", 0.0) > time.monotonic()
+            assert terminal_finnhub._symbol_rate_limit_backoff_until.get("MSFT", 0.0) == 0.0
 
 
 # ---------------------------------------------------------------------------

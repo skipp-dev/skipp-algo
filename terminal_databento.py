@@ -400,4 +400,5 @@ def get_dataset_info(api_key: str | None = None) -> dict[str, Any]:
             "schemas": list(ds_range.get("schema", {}).keys()) if isinstance(ds_range.get("schema"), dict) else [],
         }
     except Exception as exc:
-        return {"error": str(exc)}
+        logger.warning("Databento dataset info lookup failed: %s", exc, exc_info=True)
+        return {"error": "dataset_lookup_failed"}

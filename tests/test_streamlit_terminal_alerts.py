@@ -102,6 +102,16 @@ def test_validate_webhook_url_rejects_embedded_credentials() -> None:
     assert reason == "credentials_not_allowed"
 
 
+def test_validate_webhook_url_dns_failure_is_rejected() -> None:
+    def _resolver(*_args):
+        raise OSError("resolver unavailable")
+
+    ok, reason = validate_webhook_url("https://hooks.example.com/webhook", resolver=_resolver)
+
+    assert ok is False
+    assert reason == "dns_resolution_failed"
+
+
 def test_evaluate_alert_rules_dedups_by_story_and_caps_webhooks() -> None:
     rules = [
         {

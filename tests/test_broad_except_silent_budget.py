@@ -80,10 +80,8 @@ _DIR_EXCLUDE: frozenset[str] = frozenset(
 #   that move a swallow within a file are now no-ops for this guard;
 #   net additions / removals still fail closed.
 _FROZEN_SITE_COUNTS: dict[str, int] = {
-    "streamlit_terminal_alerts.py": 1,
     "smc_tv_bridge/smc_api.py": 1,
     "open_prep/alerts.py": 1,
-    "open_prep/run_open_prep.py": 1,
     "open_prep/streamlit_monitor.py": 2,
     # 2026-05-12 OPRA UOA replacement: detector falls back through a
     # narrow int-cast on non-Timestamp timestamp inputs. Documented

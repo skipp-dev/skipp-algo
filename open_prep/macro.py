@@ -398,6 +398,7 @@ def macro_bias_with_components(
         for event in events_for_bias
     )
     score_components: list[dict[str, Any]] = []
+    annotated_events: list[dict[str, Any]] = []
     total = 0.0
 
     for event in events_for_bias:
@@ -449,12 +450,11 @@ def macro_bias_with_components(
                 "dedup": annotated_event["dedup"],
             }
         )
-        event.clear()
-        event.update(annotated_event)
+        annotated_events.append(annotated_event)
 
     return {
         "macro_bias": max(min(total / 2.0, 1.0), -1.0),
-        "events_for_bias": events_for_bias,
+        "events_for_bias": annotated_events,
         "score_components": score_components,
     }
 

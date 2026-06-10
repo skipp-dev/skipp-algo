@@ -102,11 +102,12 @@ WARNINGS_SIMPLEFILTER_LEDGER: set[tuple[str, int, str]] = {
     # 2026-05-25 PR #2339 (drift-detector / universe-version-metadata branch):
     # additional helpers landed across the screener, shifting all five sites
     # downward by +115/+124/+134/+143/+152 — action remains ``"always"``.
-    ("databento_volatility_screener.py", 867, "always"),
-    ("databento_volatility_screener.py", 1966, "always"),
-    ("databento_volatility_screener.py", 2607, "always"),
-    ("databento_volatility_screener.py", 3106, "always"),
-    ("databento_volatility_screener.py", 3270, "always"),
+    # 2026-06-10 (#2670 W9): timestamp_substitutions disclosure shifted +5.
+    ("databento_volatility_screener.py", 872, "always"),
+    ("databento_volatility_screener.py", 1971, "always"),
+    ("databento_volatility_screener.py", 2612, "always"),
+    ("databento_volatility_screener.py", 3111, "always"),
+    ("databento_volatility_screener.py", 3275, "always"),
     ("databento_universe.py", 162, "always"),
 }
 

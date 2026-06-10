@@ -133,7 +133,7 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("smc_tv_bridge/smc_api.py", 202, ("_tech_provider",)),
         (
             "streamlit_terminal.py",
-            596,
+            597,
             ("btc_available", "databento_available", "ensure_rt_engine_running", "newsapi_available", "tv_available"),
         ),
         # F-V8-perf-3.5 (2026-05-19): opt-in cache probe log for the sharded
@@ -146,23 +146,34 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("terminal_bitcoin.py", 97, ("_client",)),
         (
             "terminal_finnhub.py",
-            202,
+            213,
             (
                 "_consecutive_429_count",
                 "_rate_limit_backoff_until",
                 "_social_sentiment_blocked",
             ),
         ),
-        ("terminal_finnhub.py", 578, ("_social_sentiment_blocked",)),
+        (
+            "terminal_finnhub.py",
+            619,
+            (
+                "_consecutive_429_count",
+                "_rate_limit_backoff_until",
+                "_social_sentiment_blocked",
+            ),
+        ),
         ("terminal_spike_scanner.py", 96, ("_YF_UNIVERSE_CACHE",)),
-        ("terminal_technicals.py", 212, ("_tv_consecutive_429s", "_tv_cooldown_until")),
+        # 2026-06-10 (#2670 W3): TechnicalResult gained a `source` field +
+        # dc_replace import, shifting the four global sites +6 (212/213/245/262
+        # -> 218/219/251/268).
+        ("terminal_technicals.py", 218, ("_tv_consecutive_429s", "_tv_cooldown_until")),
         (
             "terminal_technicals.py",
-            213,
+            219,
             ("_tv_last_429_log_key", "_tv_last_429_log_ts", "_tv_suppressed_429_logs"),
         ),
-        ("terminal_technicals.py", 245, ("_tv_consecutive_429s",)),
-        ("terminal_technicals.py", 262, ("_tv_cooldown_ended_at", "_tv_last_call_ts")),
+        ("terminal_technicals.py", 251, ("_tv_consecutive_429s",)),
+        ("terminal_technicals.py", 268, ("_tv_cooldown_ended_at", "_tv_last_call_ts")),
         ("terminal_tradingview_news.py", 403, ("_last_request_ts",)),
     }
 )

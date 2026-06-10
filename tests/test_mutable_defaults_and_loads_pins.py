@@ -109,11 +109,15 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/diff.py", 79),
         ("open_prep/outcome_backfill.py", 61),
         ("open_prep/outcome_backfill.py", 81),
-        ("open_prep/outcomes.py", 175),
-        ("open_prep/realtime_signals.py", 1470),
-        ("open_prep/realtime_signals.py", 2584),
-        ("open_prep/scorer.py", 118),
+        ("open_prep/outcomes.py", 185),
+        ("open_prep/realtime_signals.py", 1483),
+        ("open_prep/realtime_signals.py", 2606),
+        ("open_prep/scorer.py", 122),
         ("open_prep/watchlist.py", 53),
+        # 2026-06-10 (PR #2658): centralized trading-thresholds loader parses a
+        # local operator-supplied config file (path from CONFIG_ENV_VAR or an
+        # explicit arg), validated via _as_plain_mapping + _validate_dataclass.
+        ("skipp_config/trading_thresholds.py", 287),
         # 2026-06-08 (WP-B2): +99 lines (event-risk overlay block) shifted the
         # pre-existing ATS-baseline json.load from 320 -> 419; same reviewed site.
         ("smc_tv_bridge/smc_api.py", 419),
@@ -170,7 +174,9 @@ _FROZEN_ENV_SUBSCRIPT_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-05-25 PR #2339: shifted +125 (969→1094) by the
         # _build_universe_metadata helper + 10 write-site kwarg wirings
         # for the universe-version drift detector.
-        ("databento_volatility_screener.py", 1094),
+        # 2026-06-10 (#2670 W9): timestamp_substitutions disclosure shifted
+        # +5 (1094→1099).
+        ("databento_volatility_screener.py", 1099),
         ("open_prep/macro.py", 148),
         # R6 (2026-05-12): the FinnhubClient adapter shim used to save-set-restore
         # ``FINNHUB_API_KEY`` around each ``terminal_finnhub._get`` call. That
@@ -178,9 +184,9 @@ _FROZEN_ENV_SUBSCRIPT_SITES: frozenset[tuple[str, int]] = frozenset(
         # through to ``terminal_finnhub._get``, so the previous entries at
         # macro.py:2041 and macro.py:2050 are gone. See
         # ``docs/AUDIT_L1_REVIEW_RETROSPECTIVE_2026-05-12.md`` § R6.
-        ("open_prep/realtime_signals.py", 2620),
+        ("open_prep/realtime_signals.py", 2642),
         ("open_prep/streamlit_monitor.py", 74),
-        ("streamlit_terminal.py", 326),
+        ("streamlit_terminal.py", 327),
     }
 )
 

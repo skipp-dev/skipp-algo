@@ -6,16 +6,13 @@ Two layers — sister of ``test_subprocess_shell_injection_pin.py``:
    ``urlopen(...)`` call MUST pass ``timeout=`` as a keyword argument.
    A missing timeout makes the caller block on a slow server forever
    and is the most common availability bug in Python network code.
-2. **Per-(file, lineno) ledger**: freezes the current 4 site
+2. **Per-(file, lineno) ledger**: freezes the current site
    locations. Refuses both new and removed sites — any change to the
    network egress surface is a forced design decision.
 
-Detection is conservative: only matches calls whose function is an
-``ast.Attribute`` with ``attr == "urlopen"`` (so any of
-``urllib.request.urlopen``, ``request.urlopen``, ``urlopen`` rebound
-on a module — but NOT bare-name ``urlopen()`` after a
-``from urllib.request import urlopen`` (would need `ast.Name` match;
-none in this repo today).
+Detection matches both ``ast.Attribute`` calls (``urllib.request.urlopen``,
+``request.urlopen``) and bare-name ``ast.Name`` calls (``urlopen()``
+after ``from urllib.request import urlopen``).
 """
 
 from __future__ import annotations
@@ -71,7 +68,13 @@ def _is_urlopen_call(node: ast.AST) -> bool:
     if not isinstance(node, ast.Call):
         return False
     f = node.func
-    return isinstance(f, ast.Attribute) and f.attr == "urlopen"
+    # Attribute: urllib.request.urlopen(...) / request.urlopen(...)
+    if isinstance(f, ast.Attribute) and f.attr == "urlopen":
+        return True
+    # Bare name: urlopen(...) after ``from urllib.request import urlopen``
+    if isinstance(f, ast.Name) and f.id == "urlopen":
+        return True
+    return False
 
 
 def _scan_urlopen(tree: ast.AST) -> list[tuple[int, bool]]:

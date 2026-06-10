@@ -645,7 +645,8 @@ class TestResolveEventRiskLightEdges:
             lambda symbols: (_ for _ in ()).throw(RuntimeError("ref fail")),
         )
         _light, details = measurement_evidence._resolve_measurement_event_risk_light("AAPL", "15m")
-        assert details["event_risk_source_mode"] == "none"
+        assert details["event_risk_source_mode"] == "lookup_failed"
+        assert details["event_risk_lookup_failed"] is True
         assert details["event_risk_signal_present"] is False
 
     def test_reference_exception_falls_to_none_mode(self, monkeypatch) -> None:
@@ -660,7 +661,8 @@ class TestResolveEventRiskLightEdges:
             lambda symbols: (_ for _ in ()).throw(RuntimeError("ref fail")),
         )
         _light, details = measurement_evidence._resolve_measurement_event_risk_light("AAPL", "15m")
-        assert details["event_risk_source_mode"] == "none"
+        assert details["event_risk_source_mode"] == "lookup_failed"
+        assert details["event_risk_lookup_failed"] is True
 
 
 class TestNormalizeNumericBarsEmpty:

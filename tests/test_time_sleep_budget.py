@@ -113,15 +113,16 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/error_taxonomy.py", 117),
         ("open_prep/realtime_signals.py", 275),
         ("open_prep/realtime_signals.py", 349),
-        ("open_prep/realtime_signals.py", 1604),
-        ("open_prep/realtime_signals.py", 2701),
-        ("open_prep/realtime_signals.py", 2714),
+        ("open_prep/realtime_signals.py", 1617),
+        ("open_prep/realtime_signals.py", 2723),
+        ("open_prep/realtime_signals.py", 2736),
         ("open_prep/run_open_prep.py", 1943),
         ("open_prep/run_open_prep.py", 1945),
         ("newsstack_fmp/_bz_http.py", 44),
         ("terminal_bitcoin.py", 849),
         ("terminal_bitcoin.py", 851),
-        ("terminal_technicals.py", 286),
+        # 2026-06-10 (#2670 W3): source-field additions shifted +6 (286 -> 292).
+        ("terminal_technicals.py", 292),
         ("terminal_tradingview_news.py", 409),
     }
 )

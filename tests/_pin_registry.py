@@ -71,3 +71,18 @@ def upload_artifact_sha_allowlist() -> dict[str, str]:
             "sha_to_major_allowlist"
         ]
     )
+
+
+def field_preference_chain_file_counts() -> dict[str, int]:
+    """Return the frozen per-file count of field-preference ``or``-chains.
+
+    A site is one ``or`` chain containing >=2 ``.get("literal")`` calls
+    with >=2 distinct keys (audit #2670 G1). Keys are repo-relative posix
+    paths; values are site counts per file.
+    """
+    return {
+        rel: int(count)
+        for rel, count in _load()["field_preference_chain_ledger"][
+            "file_counts"
+        ].items()
+    }

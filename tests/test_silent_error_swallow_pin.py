@@ -73,11 +73,9 @@ _FROZEN_SITES: dict[str, int] = {
     # documented contract; see opra_uoa._normalize_ts().
     "newsstack_fmp/opra_uoa.py": 1,
     "open_prep/alerts.py": 1,
-    "open_prep/run_open_prep.py": 1,
     "open_prep/streamlit_monitor.py": 2,
     "scripts/generate_smc_micro_base_from_databento.py": 3,
     "smc_tv_bridge/smc_api.py": 1,
-    "streamlit_terminal_alerts.py": 1,
     # 2026-05-17 C12.1 ConstraintHitLog wiring: an audit-log write
     # failure must never block a guard decision. See HardConstraintLayer._log.
     "rl/safety/__init__.py": 1,
