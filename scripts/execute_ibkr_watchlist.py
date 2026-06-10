@@ -1114,7 +1114,11 @@ def main() -> None:
 
     if args.check_connection:
         connection_payload = check_ibkr_connection(connection_cfg)
-        print("IBKR_CONNECTION", json.dumps(connection_payload, indent=2, default=str))
+        masked_payload = {
+            **connection_payload,
+            "accounts": [a[:2] + "***" if a else a for a in connection_payload.get("accounts", [])],
+        }
+        print("IBKR_CONNECTION", json.dumps(masked_payload, indent=2, default=str))
 
     if not args.place_orders:
         print(json.dumps(preview_payload, indent=2, default=str))

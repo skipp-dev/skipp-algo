@@ -152,7 +152,8 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # is unchanged (still ``timeout=...``).
         # 2026-05-12 PR #2154: shifted +5 (704→709) by FMP-13F probe
         # instrumentation block in macro.py.
-        ("open_prep/macro.py", 713),
+        # 2026-06-10 (F1 fix, once-guard): shifted +14 (713→727).
+        ("open_prep/macro.py", 727),
         ("open_prep/sentiment_fng.py", 100),
         ("terminal_finnhub.py", 245),
         ("terminal_notifications.py", 255),

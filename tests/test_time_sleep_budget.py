@@ -100,8 +100,9 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # PR #2154: open_prep/macro.py shifted +35/+36 (726→761, 744→780)
         # by FMP-13F probe instrumentation. Sleeps unchanged: legit
         # retry-backoff (HTTP 429 + connect error).
-        ("open_prep/macro.py", 776),
-        ("open_prep/macro.py", 795),
+        # 2026-06-10 (F1 fix, once-guard): shifted +14 (776→790, 795→809).
+        ("open_prep/macro.py", 790),
+        ("open_prep/macro.py", 809),
         ("newsstack_fmp/ingest_fmp_political.py", 122),
         ("newsstack_fmp/ingest_fmp_political.py", 135),
         ("newsstack_fmp/shared_fetch.py", 279),

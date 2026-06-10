@@ -129,23 +129,37 @@ def _parse_retry_after_seconds(raw_value: str | None) -> float | None:
     return max((parsed.astimezone(UTC) - datetime.now(UTC)).total_seconds(), 0.0)
 
 
+# F1 (2026-06-10): CA-bundle normalisation must run at most once — in the main
+# thread before any ThreadPoolExecutor worker calls _build_tls_context.
+# Concurrent os.environ writes (putenv) from worker threads are a C-level race.
+_TLS_NORMALIZE_LOCK: threading.Lock = threading.Lock()
+_TLS_NORMALIZED: bool = False
+
+
 def _normalize_tls_certificate_env() -> str | None:
+    global _TLS_NORMALIZED
     if certifi is None:
         return None
     cafile = str(certifi.where())
-    for env_name in ("SSL_CERT_FILE", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE"):
-        current = str(os.getenv(env_name) or "").strip()
-        if not current or current == cafile:
-            continue
-        if Path(current).exists():
-            continue
-        logger.warning(
-            "Replacing invalid TLS CA bundle path from %s=%s with certifi bundle %s.",
-            env_name,
-            current,
-            cafile,
-        )
-        os.environ[env_name] = cafile
+    if _TLS_NORMALIZED:
+        return cafile
+    with _TLS_NORMALIZE_LOCK:
+        if _TLS_NORMALIZED:  # double-checked locking
+            return cafile
+        for env_name in ("SSL_CERT_FILE", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE"):
+            current = str(os.getenv(env_name) or "").strip()
+            if not current or current == cafile:
+                continue
+            if Path(current).exists():
+                continue
+            logger.warning(
+                "Replacing invalid TLS CA bundle path from %s=%s with certifi bundle %s.",
+                env_name,
+                current,
+                cafile,
+            )
+            os.environ[env_name] = cafile
+        _TLS_NORMALIZED = True
     return cafile
 
 

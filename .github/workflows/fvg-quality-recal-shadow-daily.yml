@@ -18,7 +18,7 @@ name: fvg-quality-recal-shadow-daily
 #   * Bottom-quartile HR <= 0.55  (or <= base - 0.15 in relative mode)
 #   * Quality-score Spearman correlation with outcome >= 0.20
 #
-# Schedule: 08:00 UTC weekdays, after smc-measurement-benchmark-rolling
+# Schedule: 13:30 UTC weekdays (cron: 30 13), after smc-measurement-benchmark-rolling
 # (07:30 UTC) so the latest corpus is available via workflow artifacts.
 #
 # When no rolling-bench corpus has been produced yet (clean checkout,
