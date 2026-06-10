@@ -17,7 +17,7 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
-VENV="${C13_VENV:-${HOME}/.venv}"
+VENV="${C13_VENV:-${REPO}/.venv}"
 
 DATE="$(date -u +%Y-%m-%d)"
 SETUPS="${REPO}/cache/live/setups_${DATE}.jsonl"
@@ -36,13 +36,15 @@ fi
 # shellcheck disable=SC1091
 source "${VENV}/bin/activate"
 
-# Call the venv interpreter by absolute path. Under launchd a bare
-# ``python`` can resolve to ``command not found`` even after sourcing
-# activate (the agent's PATH is minimal and not always re-evaluated), so
-# pin the interpreter explicitly rather than relying on activate's PATH.
+# Invoke the interpreter by absolute path rather than relying on
+# ``source activate`` to prepend ${VENV}/bin to PATH. Under launchd the
+# inherited PATH is minimal and a bare ``python`` can resolve to a
+# missing/wrong binary (observed 2026-06-10: ``python: command not found``
+# even after a successful activate). The explicit path is the single
+# source of truth for which interpreter runs.
 PY="${VENV}/bin/python"
 if [[ ! -x "${PY}" ]]; then
-    echo "phase-a cron: venv interpreter not executable at ${PY} (set C13_VENV in plist)" >&2
+    echo "phase-a cron: python interpreter not found/executable at ${PY} (check C13_VENV in plist)" >&2
     exit 1
 fi
 
@@ -55,11 +57,40 @@ export PYTHONPATH="${REPO}"
 "${PY}" -m scripts.build_phase_a_inputs \
     --trade-date "${DATE}"
 
-# 2. Optional WSH earnings filter — only applied if today's WSH JSONL
-#    exists (com.skippalgo.c13.wsh-earnings runs the night before).
+# 2. Optional WSH earnings filter. The wsh-earnings agent runs the
+#    *afternoon before* (16:30 day N-1) writing cache/wsh/<N-1>.jsonl, so
+#    today's exact-date file normally does NOT exist yet at 09:28. Using a
+#    strict ${DATE} match therefore left the filter permanently inert
+#    (F2, 2026-06-10). Fall back to the most recent WSH snapshot within the
+#    last few days — the snapshot already encodes a forward event window —
+#    so the earnings filter is actually applied, and log which file is used.
 WSH_FLAG=""
+WSH_FILE=""
 if [[ -f "${WSH}" ]]; then
-    WSH_FLAG="--wsh-events-jsonl ${WSH}"
+    WSH_FILE="${WSH}"
+else
+    # ISO-dated filenames sort chronologically; newest wins.
+    WSH_FILE="$(ls -1 "${REPO}"/cache/wsh/*.jsonl 2>/dev/null | sort | tail -n1 || true)"
+fi
+if [[ -n "${WSH_FILE}" && -f "${WSH_FILE}" ]]; then
+    WSH_BASENAME="$(basename "${WSH_FILE}" .jsonl)"
+    # Only trust a snapshot at most 4 days old (tolerates a long weekend /
+    # holiday) so we never silently gate on week-stale earnings data.
+    _today_epoch="$(date -u -j -f "%Y-%m-%d" "${DATE}" "+%s" 2>/dev/null || echo "")"
+    _file_epoch="$(date -u -j -f "%Y-%m-%d" "${WSH_BASENAME}" "+%s" 2>/dev/null || echo "")"
+    if [[ -n "${_today_epoch}" && -n "${_file_epoch}" ]]; then
+        WSH_AGE_DAYS=$(( (_today_epoch - _file_epoch) / 86400 ))
+    else
+        WSH_AGE_DAYS=-1
+    fi
+    if [[ "${WSH_AGE_DAYS}" -ge 0 && "${WSH_AGE_DAYS}" -le 4 ]]; then
+        echo "phase-a cron: applying WSH earnings filter from ${WSH_FILE} (age ${WSH_AGE_DAYS}d)"
+        WSH_FLAG="--wsh-events-jsonl ${WSH_FILE}"
+    else
+        echo "phase-a cron: newest WSH snapshot ${WSH_FILE} is ${WSH_AGE_DAYS}d old (>4d or unparseable); earnings filter SKIPPED (stale)" >&2
+    fi
+else
+    echo "phase-a cron: no WSH snapshot found under cache/wsh/; earnings filter SKIPPED (no data)" >&2
 fi
 
 # 3. Run the orchestrator. --phase paper means submit_fn defaults to
