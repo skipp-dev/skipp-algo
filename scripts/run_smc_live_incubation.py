@@ -317,11 +317,6 @@ def run_live_incubation(
         tradable, execution_cfg, size_scale=size_scale
     )
 
-    # T7.2 — pre-trade earnings filter. Run BEFORE submit_fn so blocked
-    # intents never reach IBKR. Decisions are recorded as audit rows so
-    # the cron can attribute "missing intent" to a deliberate skip vs a
-    # gate fall-out. Trade-date is the UTC calendar date of the run; the
-    # filter does its own pre/post window arithmetic.
     # Map intent.order_ref → variant FIRST, before the earnings filter
     # mutates ``intents``. Otherwise earnings-blocked intents would lose
     # their variant attribution in the audit log (the variant comes from
@@ -480,6 +475,19 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--risk-limits-json",
+        type=Path,
+        default=Path("configs/live_risk_limits.json"),
+        help=(
+            "JSON file with the kill-switch RiskLimits thresholds (max "
+            "daily loss, drawdown, open positions, consecutive losses, "
+            "gross exposure). Defaults to the version-controlled "
+            "configs/live_risk_limits.json. REQUIRED to exist for "
+            "phase=live_small or live_full; for phase=paper a missing file "
+            "falls back to the in-code RiskLimits() defaults for CI/dry-runs."
+        ),
+    )
+    parser.add_argument(
         "--wsh-events-jsonl",
         type=Path,
         default=None,
@@ -578,6 +586,30 @@ def _account_state_from_json(path: Path) -> AccountState:
     )
 
 
+def _resolve_risk_limits(phase: str, path: Path | None) -> RiskLimits:
+    """Resolve the kill-switch :class:`RiskLimits` for a run.
+
+    The thresholds live in a version-controlled JSON file
+    (``configs/live_risk_limits.json`` by default) rather than being
+    hard-coded here, so a change to the kill-switch is an auditable diff
+    (F4). A live phase MUST resolve an existing file — a deleted/renamed
+    config fails loud instead of silently reverting to the in-code
+    defaults; ``phase=paper`` tolerates a missing file (CI / dry-runs) and
+    falls back to ``RiskLimits()``.
+    """
+    if path is not None and path.exists():
+        return RiskLimits.from_json(path)
+    if phase in ("live_small", "live_full"):
+        raise SystemExit(
+            f"phase={phase!r} requires --risk-limits-json to point at an "
+            f"existing kill-switch config (default "
+            f"configs/live_risk_limits.json); got {str(path)!r} which does "
+            "not exist. Refusing to fall back to in-code RiskLimits() "
+            "defaults for a non-paper phase."
+        )
+    return RiskLimits()
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     # F-V4-A1b: configure root logging so logger.info / logging.* calls actually
     # surface on stdout when this script is invoked from a GitHub Actions workflow.
@@ -611,7 +643,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     setup_records = json.loads(args.setups.read_text(encoding="utf-8"))
     gate_statuses = json.loads(args.gate_statuses.read_text(encoding="utf-8"))
 
-    risk_limits = RiskLimits()  # repo-default; future: load from configs/.
+    risk_limits = _resolve_risk_limits(args.phase, args.risk_limits_json)
 
     # C-sprint deep-review C8 MINOR fix: a default-zero AccountState is
     # safe for paper-mode dry-runs but DANGEROUS for any phase that
