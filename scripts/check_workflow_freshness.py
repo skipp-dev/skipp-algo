@@ -46,6 +46,7 @@ class WorkflowFreshness:
     run_id: int | None = None
     run_url: str | None = None
     detail: str | None = None
+    timestamp_source: str | None = None  # updated_at | run_started_at | created_at
 
 
 @dataclass
@@ -129,7 +130,12 @@ def check_workflow(
         )
 
     run = runs[0]
-    finished_raw = run.get("updated_at") or run.get("run_started_at") or run.get("created_at")
+    _ts_field = (
+        "updated_at" if run.get("updated_at")
+        else "run_started_at" if run.get("run_started_at")
+        else "created_at"
+    )
+    finished_raw = run.get(_ts_field)
     if not isinstance(finished_raw, str):
         return WorkflowFreshness(
             workflow=workflow_file,
@@ -148,6 +154,7 @@ def check_workflow(
         budget_hours=budget_hours,
         run_id=run.get("id"),
         run_url=run.get("html_url"),
+        timestamp_source=_ts_field,
     )
 
 

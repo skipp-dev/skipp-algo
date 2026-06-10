@@ -60,7 +60,7 @@
 # Workflow-freshness monitor (#2433, 2026-05): polls GitHub Actions
 # REST API once per cron tick for silent-skip detection. https-only,
 # explicit timeout=15s, B310 nosec'd at the call site (constant URL).
-"scripts/check_workflow_freshness.py" = [70]
+"scripts/check_workflow_freshness.py" = [71]
 "scripts/smc_alert_notifier.py" = [481]
 "scripts/verify_branch_protection.py" = [104]
 "terminal_notifications.py" = [255, 319]

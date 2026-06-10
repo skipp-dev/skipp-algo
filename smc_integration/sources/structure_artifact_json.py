@@ -366,7 +366,9 @@ def _iter_normalized_contracts(*, repo_state_only: bool = False) -> tuple[list[d
                 )
             )
             continue
-        contracts.append(contract_to_dict(normalized_contract))
+        d = contract_to_dict(normalized_contract)
+        d["resolved_via"] = "manifest_or_deterministic"
+        contracts.append(d)
 
     if contracts:
         return contracts, health_issues
@@ -383,8 +385,18 @@ def _iter_normalized_contracts(*, repo_state_only: bool = False) -> tuple[list[d
                         path=STRUCTURE_ARTIFACT_JSON,
                     )
                 )
+            health_issues.append(
+                _health_issue(
+                    "LEGACY_SINGLE_FILE_FALLBACK",
+                    "resolved structure contracts from legacy single-file artifact; "
+                    "per-TF deterministic artifacts are unavailable",
+                    path=STRUCTURE_ARTIFACT_JSON,
+                )
+            )
             for contract in normalized_contracts:
-                contracts.append(contract_to_dict(contract))
+                d = contract_to_dict(contract)
+                d["resolved_via"] = "legacy_single"
+                contracts.append(d)
         except Exception as exc:
             health_issues.append(
                 _health_issue(
