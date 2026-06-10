@@ -193,7 +193,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
 
-      - name: Ledger metrics (families measured + row delta)
+      - name: Ledger metrics summary (families measured + row delta)
         if: always()
         # CONTINUE-ON-ERROR-INTENTIONAL: summary-only metrics must never fail this measure-only shadow workflow.
         continue-on-error: true
