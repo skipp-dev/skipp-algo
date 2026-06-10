@@ -98,6 +98,43 @@ def test_rollup_insufficient_data_when_under_threshold(tmp_path: Path) -> None:
     assert verdict["status"] == "insufficient_data"
 
 
+def test_rollup_phase_e2_verdict_degenerate_when_slices_aliased(tmp_path: Path) -> None:
+    # Cross-TF aliasing guard (2026-06-10 ADR): the legacy structure
+    # artifact served one timeframe's events to every TF, so all
+    # TF/family slices became identical clones and delta_hr compared an
+    # arm against itself. Fixture mirrors the real production shape.
+    for tf in ("5m", "15m", "1H", "4H"):
+        _write_scoring(tmp_path, "AAPL", tf, n=367, hr=0.5516,
+                       families={"FVG": (320, 0.571875),
+                                 "BOS": (47, 0.7659553191489361)})
+    rollup = build_rollup(scoring_root=tmp_path)
+    fvg = rollup["phase_e2_verdict"]["fvg_ttf_5m_vs_baseline"]
+    assert fvg["status"] == "degenerate_aliased_input"
+    assert fvg["n_a"] == 320
+    assert fvg["n_b"] == 640
+    assert fvg["hr_a"] == fvg["hr_b"]
+    assert "reason" in fvg
+    assert "delta_hr" not in fvg
+    bos = rollup["phase_e2_verdict"]["bos_stability_4h_vs_baseline"]
+    assert bos["status"] == "degenerate_aliased_input"
+    assert bos["n_a"] == 47
+
+
+def test_rollup_phase_e2_verdict_not_degenerate_when_any_slice_differs(tmp_path: Path) -> None:
+    # One honest baseline slice with a different hit rate must keep the
+    # verdict "measured" — the guard only fires on full pairwise identity.
+    _write_scoring(tmp_path, "AAPL", "5m", n=320, hr=0.571875,
+                   families={"FVG": (320, 0.571875)})
+    _write_scoring(tmp_path, "AAPL", "15m", n=320, hr=0.571875,
+                   families={"FVG": (320, 0.571875)})
+    _write_scoring(tmp_path, "AAPL", "1H", n=320, hr=0.60,
+                   families={"FVG": (320, 0.60)})
+    rollup = build_rollup(scoring_root=tmp_path)
+    fvg = rollup["phase_e2_verdict"]["fvg_ttf_5m_vs_baseline"]
+    assert fvg["status"] == "measured"
+    assert "delta_hr" in fvg
+
+
 def test_rollup_missing_family_reports_missing(tmp_path: Path) -> None:
     rollup = build_rollup(scoring_root=tmp_path)
     assert rollup["phase_e2_verdict"]["fvg_ttf_5m_vs_baseline"]["status"] == "missing"
