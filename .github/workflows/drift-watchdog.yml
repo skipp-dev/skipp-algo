@@ -63,7 +63,9 @@ jobs:
           # The watchdog module is pure stdlib + numpy. Install only
           # numpy (not the full requirements.txt) so the cron stays
           # fast and free of databento/httpx/streamlit transitive deps.
-          pip install numpy
+          # Pin to the repo floor (requirements-dashboard.txt) for
+          # reproducibility (F7).
+          pip install 'numpy>=1.26'
 
       - name: Run drift watchdog (advisory)
         id: watchdog

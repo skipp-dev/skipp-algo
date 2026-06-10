@@ -115,14 +115,14 @@ jobs:
       - name: Run E2E structural smoke test (advisory)
         id: e2e_smoke
         # CONTINUE-ON-ERROR-INTENTIONAL: smoke test is explicitly advisory
-        # (name suffix says so); outcome is captured via $smoke_exit env for
-        # downstream reporting rather than failing the job.
+        # (name suffix says so). Pass/fail is consumed downstream via
+        # ``steps.e2e_smoke.outcome`` (see "Write E2E smoke summary"), so a
+        # failure is surfaced in the summary without failing the job.
         continue-on-error: true
         run: |
           python scripts/e2e_smoke_ci.py \
             --reference tests/fixtures/e2e_smoke_reference.json \
             2>&1 | tee artifacts/ci/smc_e2e_smoke_output.txt
-          echo "smoke_exit=$?" >> "$GITHUB_ENV"
 
       - name: Write E2E smoke summary
         if: always() && steps.e2e_smoke.outcome != 'skipped'
