@@ -146,12 +146,26 @@ jobs:
           NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
           OPEN_PREP_LOG_LEVEL: INFO
           OPEN_PREP_CODE_VERSION: ${{ github.sha }}
+          # A2 (2026-06-10): env-var indirection for user-supplied inputs.
+          INPUT_UNIVERSE: ${{ github.event.inputs.universe_source || 'fmp_us_mid_large' }}
+          INPUT_TOP: ${{ github.event.inputs.top || '10' }}
+          INPUT_CARDS: ${{ github.event.inputs.trade_cards || '5' }}
         run: |
           set -euo pipefail
+          # A2: validate before use.
+          [[ "${INPUT_UNIVERSE}" =~ ^[A-Za-z0-9_]+$ ]] || {
+            echo "::error::universe_source must be alphanumeric/underscore, got: ${INPUT_UNIVERSE}"; exit 1
+          }
+          [[ "${INPUT_TOP}" =~ ^[0-9]+$ ]] || {
+            echo "::error::top must be a non-negative integer, got: ${INPUT_TOP}"; exit 1
+          }
+          [[ "${INPUT_CARDS}" =~ ^[0-9]+$ ]] || {
+            echo "::error::trade_cards must be a non-negative integer, got: ${INPUT_CARDS}"; exit 1
+          }
           mkdir -p artifacts/open_prep/runs
-          UNIVERSE="${{ github.event.inputs.universe_source || 'fmp_us_mid_large' }}"
-          TOP="${{ github.event.inputs.top || '10' }}"
-          CARDS="${{ github.event.inputs.trade_cards || '5' }}"
+          UNIVERSE="${INPUT_UNIVERSE}"
+          TOP="${INPUT_TOP}"
+          CARDS="${INPUT_CARDS}"
           DATE_TAG="$(date -u +%Y%m%dT%H%M%SZ)"
           OUT="artifacts/open_prep/runs/run_${DATE_TAG}.json"
           # Stream stdout (the result payload) to a per-run artifact for

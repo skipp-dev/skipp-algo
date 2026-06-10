@@ -252,14 +252,26 @@ jobs:
       - name: Run daily rolling benchmark
         env:
           DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
+          # A2 (2026-06-10): env-var indirection for user-supplied inputs.
+          INPUT_SYMBOLS: ${{ github.event.inputs.symbols }}
+          INPUT_TIMEFRAMES: ${{ github.event.inputs.timeframes || '5m,15m,1H,4H' }}
         run: |
           set -euo pipefail
-          SYMBOLS="${{ github.event.inputs.symbols }}"
+          SYMBOLS="${INPUT_SYMBOLS}"
           if [ -z "${SYMBOLS}" ]; then
             SYMBOLS="AAPL,MSFT,AMZN,GOOGL,META,NVDA,TSLA,JPM,BAC,GS,MS,V,UNH,JNJ,HD,XOM,CVX,COP,OXY,CAT"
+          else
+            # A2: only uppercase letters and commas (ticker list — no shell metacharacters).
+            [[ "${SYMBOLS}" =~ ^[A-Z,]+$ ]] || {
+              echo "::error::symbols must be a comma-separated list of uppercase tickers, got: ${SYMBOLS}"; exit 1
+            }
           fi
           # Plan 2.8 §3.1 (2026-04-21): expanded from 15m,1H to 5m,15m,1H,4H.
-          TIMEFRAMES="${{ github.event.inputs.timeframes || '5m,15m,1H,4H' }}"
+          TIMEFRAMES="${INPUT_TIMEFRAMES}"
+          # A2: digits + m/H/D/W/M + commas only.
+          [[ "${TIMEFRAMES}" =~ ^[0-9mHDWM,]+$ ]] || {
+            echo "::error::timeframes must be a comma-separated list like '5m,15m,1H,4H', got: ${TIMEFRAMES}"; exit 1
+          }
           "$SMC_PYTHON_BIN" scripts/run_smc_measurement_benchmark.py \
             --symbols "${SYMBOLS}" \
             --timeframes "${TIMEFRAMES}" \
