@@ -6,6 +6,44 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-10) — Stat-review wave 2: cadence disclosure, E2 p-value, rollup malformed-row honesty, KS twin alignment (F7, F8, F9, F12)
+
+Second wave of the 2026-06-10 promotion-chain statistical-validity
+review (first wave: F1/F2/F5/F6/F10/F11/F13; F3 = PR #2671, F4 =
+PR #2666):
+
+- **F7 — `scripts/compute_live_drift.py`**: drift schema **1.2.0 →
+  1.3.0** (additive; `DRIFT_SCHEMA_MIN_COMPATIBLE` stays 1.0.0). The
+  √252 Sharpe annualisation is applied to *per-trade* returns on both
+  sides, so `drift_score` moves when live cadence differs from backtest
+  cadence even at identical per-trade edge — likely in incubation
+  (fewer symbols, earnings filter, size caps). New per-variant fields
+  `trades_per_year_live` (from the trade count over the live window)
+  and `trades_per_year_backtest` (from the reference's
+  `trades_per_year`, or `n_trades`+`window_days`; `null` when absent)
+  disclose the confound to the operator.
+- **F8 — `scripts/plan_2_8_tf_family_rollup.py`**: at the `n ≥ 30`
+  verdict floor, SE(Δhr) is ~12.9 pp — a 5 pp delta at the floor is
+  indistinguishable from noise but carried the same `"measured"` label
+  as a 30 pp delta at n = 500. Phase-E2 `measured` verdicts now carry
+  `delta_hr_p_value`, a two-sided pooled two-proportion z-test p-value
+  reusing the `run_ab_comparison` helper (single source of truth);
+  `null` when the pooled variance is degenerate. Vocabulary additive.
+- **F9 — `scripts/plan_2_8_tf_family_rollup.py`**: the
+  `int(payload.get("n_events") or 0)` / `float(... or 0.0)` pattern
+  laundered `hit_rate: null` into 0.0 — an artifact with
+  `n_events: 40, hit_rate: null` contributed 40 events at 0.0 HR and
+  silently dragged the family aggregate down (kills a good variant).
+  Rows with missing/non-numeric `n_events`/`hit_rate` (file-level and
+  per-family) and unreadable files are now skipped and counted:
+  new manifest fields `n_skipped_malformed` + `skipped_malformed`.
+- **F12 — `scripts/compute_live_drift.py`**: `ks_two_sample` returned
+  `(0.0, 1.0)` ("perfectly compatible") on empty input while its twin
+  `drift_alert.ks_two_sample` returns `(0.0, None)` ("not evaluable").
+  Currently unreachable (callers guard non-empty) but one refactor away
+  from a p = 1.0 laundering. Aligned on `(0.0, None)`; a test pins both
+  twins to the same convention.
+
 ### Changed (2026-06-10) — silent-fallback audit: drift verdicts, 1D resample, source-matrix honesty
 
 Four silent-fallback / misdeclaration fixes from the static review of

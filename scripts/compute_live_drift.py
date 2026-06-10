@@ -13,7 +13,7 @@ back to once ``min(n, m)`` exceeds the small-sample threshold.
 Schema (additive only; bump the consumer when fields are removed)::
 
     {
-      "schema_version": "1.2.0",
+      "schema_version": "1.3.0",
       "computed_at": "2026-04-26T13:30:00+00:00",
       "live_window_days": 90,
       "variants": [
@@ -23,6 +23,8 @@ Schema (additive only; bump the consumer when fields are removed)::
           "live_sharpe": 0.71,
           "backtest_sharpe": 0.93,
           "drift_score": 0.76,
+          "trades_per_year_live": 97.3,
+          "trades_per_year_backtest": 142.1,
           "slippage_ks_p": 0.32,
           "slippage_ks_reference": "backtest_samples",
           "slippage_ks_reference_type": "backtest_samples",
@@ -88,7 +90,12 @@ _TRADING_DAYS_PER_YEAR = 252
 # 1.2.0 (2026-06-10 silent-fallback audit): additive — new verdict values
 # ``missing_backtest_reference`` / ``non_positive_backtest_sharpe`` /
 # ``no_live_data`` and new boolean field ``overperformance_capped``.
-DRIFT_SCHEMA_VERSION = "1.2.0"
+# 1.3.0 (2026-06-10 stat-review F7): additive — cadence disclosure fields
+# ``trades_per_year_live`` / ``trades_per_year_backtest``. The √252
+# annualisation applied to per-trade returns makes ``drift_score`` move
+# when live trades less often than backtest even at identical per-trade
+# edge; the cadence fields let the operator see that confound.
+DRIFT_SCHEMA_VERSION = "1.3.0"
 
 __all__ = [
     "DRIFT_SCHEMA_VERSION",
@@ -118,6 +125,8 @@ class DriftVerdict:
     backtest_max_dd: float | None = None
     slippage_ks_reference_type: str = "unavailable"
     overperformance_capped: bool = False
+    trades_per_year_live: float | None = None
+    trades_per_year_backtest: float | None = None
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -152,6 +161,24 @@ class DriftVerdict:
             ),
             "backtest_max_dd": (
                 None if self.backtest_max_dd is None else round(self.backtest_max_dd, 6)
+            ),
+            # Stat-review F7 (2026-06-10): Sharpe annualisation is
+            # cadence-blind — both sides apply √252 to per-trade returns,
+            # so a variant that trades less often live than in backtest
+            # drifts even at identical per-trade edge. These fields
+            # disclose the observed cadence on each side so the operator
+            # can see the confound. ``trades_per_year_backtest`` is None
+            # when the reference carries neither ``trades_per_year`` nor
+            # ``n_trades``+``window_days``.
+            "trades_per_year_live": (
+                None
+                if self.trades_per_year_live is None
+                else round(self.trades_per_year_live, 2)
+            ),
+            "trades_per_year_backtest": (
+                None
+                if self.trades_per_year_backtest is None
+                else round(self.trades_per_year_backtest, 2)
             ),
             # C8 phase tracking: the live-incubation runbook
             # (docs/c8_live_incubation_runbook.md) defines
@@ -228,16 +255,22 @@ def _kolmogorov_sf(d: float, n_eff: float) -> float:
     return kolmogorov_sf_two_sample(d, n_eff)
 
 
-def ks_two_sample(a: Sequence[float], b: Sequence[float]) -> tuple[float, float]:
+def ks_two_sample(
+    a: Sequence[float], b: Sequence[float],
+) -> tuple[float, float | None]:
     """Two-sample Kolmogorov-Smirnov test (statistic, asymptotic p).
 
-    Returns ``(0.0, 1.0)`` if either sample is empty.
+    Returns ``(0.0, None)`` if either sample is empty — "not evaluable",
+    matching :func:`scripts.drift_alert.ks_two_sample` (stat-review F12:
+    the twins previously forked here, with this side returning ``(0.0,
+    1.0)`` = "perfectly compatible", a latent p=1.0 laundering one
+    refactor away from reachability).
     """
     x = np.sort(np.asarray(list(a), dtype=float))
     y = np.sort(np.asarray(list(b), dtype=float))
     n, m = x.size, y.size
     if n == 0 or m == 0:
-        return 0.0, 1.0
+        return 0.0, None
     data = np.concatenate([x, y])
     cdf_x = np.searchsorted(x, data, side="right") / n
     cdf_y = np.searchsorted(y, data, side="right") / m
@@ -484,6 +517,20 @@ def compute_live_drift(
             )
             continue
 
+        # Stat-review F7 (2026-06-10): observed-cadence disclosure.
+        # Live cadence from the trade count over the calendar window;
+        # backtest cadence from the reference if it carries either an
+        # explicit ``trades_per_year`` or ``n_trades`` + ``window_days``.
+        trades_per_year_live = (
+            n_live * 365.25 / live_window_days if live_window_days > 0 else None
+        )
+        trades_per_year_backtest = _coerce_float(ref.get("trades_per_year"))
+        if trades_per_year_backtest is None:
+            bt_n = _coerce_float(ref.get("n_trades"))
+            bt_days = _coerce_float(ref.get("window_days"))
+            if bt_n is not None and bt_days is not None and bt_days > 0:
+                trades_per_year_backtest = bt_n * 365.25 / bt_days
+
         score = drift_score(live_sharpe, backtest_sharpe)
         verdict = _verdict_for(score)
         # L2: live ≫ backtest saturates the 1.5 cap and would otherwise
@@ -539,6 +586,8 @@ def compute_live_drift(
                 backtest_max_dd=backtest_max_dd,
                 slippage_ks_reference_type=slippage_ref_type,
                 overperformance_capped=overperformance_capped,
+                trades_per_year_live=trades_per_year_live,
+                trades_per_year_backtest=trades_per_year_backtest,
             ).to_json(),
         )
 
