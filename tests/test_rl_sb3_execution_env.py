@@ -38,3 +38,10 @@ def test_sb3_execution_env_exposes_spaces_and_clamps_actions() -> None:
     assert isinstance(terminated, bool)
     assert isinstance(truncated, bool)
     assert 0.0 <= float(info["slice_qty"]) <= 1_000.0
+
+
+def test_execution_env_non_finite_action_is_safely_neutralized() -> None:
+    env = ExecutionEnv(cfg=EnvConfig(parent_qty=1_000.0, horizon_steps=4, seed=7))
+    env.reset(seed=7)
+    _obs, _reward, _terminated, _truncated, info = env.step(np.asarray([np.nan], dtype=np.float32))
+    assert float(info["slice_qty"]) == 0.0

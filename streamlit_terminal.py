@@ -26,8 +26,9 @@ import logging
 import os
 import re
 import sys
+import tempfile
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -2006,9 +2007,9 @@ with st.sidebar:
                     st.session_state.alert_rules.append(new_rule)
                     # Persist
                     try:
-                        os.makedirs("artifacts", exist_ok=True)
-                        Path("artifacts/alert_rules.json").write_text(
-                            json.dumps(st.session_state.alert_rules, indent=2),
+                        _write_json_atomic(
+                            Path("artifacts/alert_rules.json"),
+                            st.session_state.alert_rules,
                         )
                     except OSError:
                         logger.warning("Failed to persist alert rules to disk", exc_info=True)
@@ -2024,8 +2025,9 @@ with st.sidebar:
             if st.button("✕", key=f"del_rule_{rule.get('created', i)}"):
                 st.session_state.alert_rules.pop(i)
                 try:
-                    Path("artifacts/alert_rules.json").write_text(
-                        json.dumps(st.session_state.alert_rules, indent=2),
+                    _write_json_atomic(
+                        Path("artifacts/alert_rules.json"),
+                        st.session_state.alert_rules,
                     )
                 except OSError:
                     logger.warning("Failed to persist alert rules to disk", exc_info=True)
@@ -2246,6 +2248,21 @@ _ATTENTION_ICONS = {
 _ALERT_WEBHOOK_BUDGET: int = 10  # max webhook POSTs per poll cycle
 
 
+def _write_json_atomic(path: Path, payload: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=str(path.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, indent=2))
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp_name, path)
+    except Exception:
+        with suppress(OSError):
+            os.unlink(tmp_name)
+        raise
+
+
 def _evaluate_alerts(items: list[ClassifiedItem]) -> None:
     """Check each new item against alert rules, fire webhooks + log.
 
@@ -2275,6 +2292,14 @@ def _evaluate_alerts(items: list[ClassifiedItem]) -> None:
             with httpx.Client(timeout=5.0, follow_redirects=False) as client:
                 for wh_url, wh_payload in pending_webhooks:
                     try:
+                        post_valid, post_reason = validate_webhook_url(wh_url)
+                        if not post_valid:
+                            logger.warning(
+                                "Alert webhook skipped after post-time validation (%s): %s",
+                                wh_url[:40],
+                                post_reason,
+                            )
+                            continue
                         body = json.dumps(wh_payload, default=str).encode()
                         client.post(
                             wh_url,

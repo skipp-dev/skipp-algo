@@ -492,7 +492,8 @@ class TestFireWebhookExtended(unittest.TestCase):
         mock_client.post.return_value = mock_resp
 
         ci = _make_classified_item(news_score=0.90)
-        result = fire_webhook(ci, url="https://hook.example.com", _client=mock_client)
+        with patch("terminal_export._is_safe_webhook_url", return_value=(True, "ok")):
+            result = fire_webhook(ci, url="https://hook.example.com", _client=mock_client)
 
         self.assertEqual(result, {"accepted": True})
         mock_client.close.assert_not_called()
@@ -508,7 +509,8 @@ class TestFireWebhookExtended(unittest.TestCase):
         mock_client.post.return_value = mock_resp
 
         ci = _make_classified_item(news_score=0.90)
-        fire_webhook(ci, url="https://hook.example.com", secret="mysecret", _client=mock_client)
+        with patch("terminal_export._is_safe_webhook_url", return_value=(True, "ok")):
+            fire_webhook(ci, url="https://hook.example.com", secret="mysecret", _client=mock_client)
 
         call_kwargs = mock_client.post.call_args
         headers = call_kwargs[1].get("headers") or call_kwargs.kwargs.get("headers", {})
@@ -526,7 +528,8 @@ class TestFireWebhookExtended(unittest.TestCase):
         mock_client.post.return_value = mock_resp
 
         ci = _make_classified_item(news_score=0.90)
-        fire_webhook(ci, url="https://hook.example.com", secret="", _client=mock_client)
+        with patch("terminal_export._is_safe_webhook_url", return_value=(True, "ok")):
+            fire_webhook(ci, url="https://hook.example.com", secret="", _client=mock_client)
 
         call_kwargs = mock_client.post.call_args
         headers = call_kwargs[1].get("headers") or call_kwargs.kwargs.get("headers", {})
@@ -545,7 +548,8 @@ class TestFireWebhookExtended(unittest.TestCase):
         ci = _make_classified_item(
             news_score=0.90, sentiment_label="bearish", sentiment_score=-0.7,
         )
-        fire_webhook(ci, url="https://hook.example.com", _client=mock_client)
+        with patch("terminal_export._is_safe_webhook_url", return_value=(True, "ok")):
+            fire_webhook(ci, url="https://hook.example.com", _client=mock_client)
 
         body = json.loads(mock_client.post.call_args[1]["content"])
         self.assertEqual(body["action"], "sell")
@@ -563,7 +567,8 @@ class TestFireWebhookExtended(unittest.TestCase):
         ci = _make_classified_item(
             news_score=0.95, sentiment_label="neutral", sentiment_score=0.0,
         )
-        result = fire_webhook(ci, url="https://hook.example.com", _client=mock_client)
+        with patch("terminal_export._is_safe_webhook_url", return_value=(True, "ok")):
+            result = fire_webhook(ci, url="https://hook.example.com", _client=mock_client)
 
         self.assertIsNone(result)
         mock_client.post.assert_not_called()
@@ -576,7 +581,8 @@ class TestFireWebhookExtended(unittest.TestCase):
         mock_client.post.side_effect = httpx.ConnectError("down")
 
         ci = _make_classified_item(news_score=0.90)
-        result = fire_webhook(ci, url="https://hook.example.com", _client=mock_client)
+        with patch("terminal_export._is_safe_webhook_url", return_value=(True, "ok")):
+            result = fire_webhook(ci, url="https://hook.example.com", _client=mock_client)
         self.assertIsNone(result)
 
     def test_response_json_parse_failure_fallback(self) -> None:
@@ -591,7 +597,8 @@ class TestFireWebhookExtended(unittest.TestCase):
         mock_client.post.return_value = mock_resp
 
         ci = _make_classified_item(news_score=0.90)
-        result = fire_webhook(ci, url="https://hook.example.com", _client=mock_client)
+        with patch("terminal_export._is_safe_webhook_url", return_value=(True, "ok")):
+            result = fire_webhook(ci, url="https://hook.example.com", _client=mock_client)
         self.assertIsNotNone(result)
         assert result is not None  # for mypy
         self.assertEqual(result["status"], 200)

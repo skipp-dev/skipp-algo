@@ -2937,16 +2937,14 @@ def _load_atr_cache(as_of: date, period: int) -> tuple[dict[str, float], dict[st
         momentum_map = {
             str(k).upper(): _to_float(v, default=0.0)
             for k, v in dict(payload.get("momentum_z_by_symbol", {})).items()
-            if str(k).upper() in atr_map
         }
         prev_close_map = {
             str(k).upper(): _to_float(v, default=0.0)
             for k, v in dict(payload.get("prev_close_by_symbol", {})).items()
-            if str(k).upper() in atr_map
         }
         return atr_map, momentum_map, prev_close_map
     except Exception as exc:
-        logger.debug("ATR cache payload parse failed: %s", exc)
+        logger.warning("ATR cache payload parse failed: %s", exc, exc_info=True)
         return {}, {}, {}
 
 
@@ -4489,8 +4487,8 @@ def _enrich_zone_priority(
                 _cal = _json.loads(_cal_p.read_text(encoding="utf-8"))
                 calibrated_fw = _cal.get("family_weights")
                 break
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Zone-priority calibration load failed: %s", exc, exc_info=True)
 
     regime = getattr(regime_snapshot, "regime", "NEUTRAL") if regime_snapshot else "NEUTRAL"
     for row in ranked_v2:
@@ -4509,9 +4507,11 @@ def _enrich_zone_priority(
             )
             row["zone_priority_rank"] = zp.get("ZONE_PRIORITY_RANK")
             row["zone_priority_score"] = zp.get("ZONE_PRIORITY_SCORE")
+            row["zone_priority_calibration_available"] = calibrated_fw is not None
         except Exception:
             row["zone_priority_rank"] = None
             row["zone_priority_score"] = None
+            row["zone_priority_calibration_available"] = calibrated_fw is not None
 
 
 def _build_result_payload(

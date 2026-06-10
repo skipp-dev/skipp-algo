@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
+import os
+import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -21,6 +24,20 @@ logger = logging.getLogger(__name__)
 DEFAULT_WORKBOOK = Path("artifacts/smc_microstructure_exports/databento_volatility_production_workbook.xlsx")
 DEFAULT_OUTPUT_DIR = Path("reports") / "smc_structure_artifacts"
 DEFAULT_EXPORT_DIR = Path("artifacts") / "smc_microstructure_exports"
+
+
+def _write_text_atomic(path: Path, content: str) -> None:
+    fd, tmp_name = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=str(path.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp_name, path)
+    except Exception:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp_name)
+        raise
 
 def _load_symbol_bars_from_canonical_exports(symbol: str, timeframe: str, export_dir: Path | None) -> pd.DataFrame | None:
     if export_dir is None:
@@ -535,7 +552,7 @@ def write_structure_artifacts_from_workbook(
                 symbols_requested=requested_symbols,
             )
             manifest_path = output_dir / _manifest_file_name(resolved_timeframe)
-            manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            _write_text_atomic(manifest_path, json.dumps(manifest, indent=2, sort_keys=True) + "\n")
             manifest["manifest_path"] = _relative_repo_path(manifest_path)
             return manifest
 
@@ -560,7 +577,7 @@ def write_structure_artifacts_from_workbook(
             symbols_requested=requested_symbols,
         )
         manifest_path = output_dir / _manifest_file_name(resolved_timeframe)
-        manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        _write_text_atomic(manifest_path, json.dumps(manifest, indent=2, sort_keys=True) + "\n")
         manifest["manifest_path"] = _relative_repo_path(manifest_path)
         if not allow_missing_inputs:
             raise ValueError("missing structure inputs: workbook/export bundle and preexisting artifacts are unavailable")
@@ -577,7 +594,7 @@ def write_structure_artifacts_from_workbook(
                 generated_at=effective_generated_at,
                 structure_profile=structure_profile,
             )
-            artifact_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            _write_text_atomic(artifact_path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
             structure = payload["structure"]
             artifact_rows.append(
@@ -623,6 +640,6 @@ def write_structure_artifacts_from_workbook(
     )
 
     manifest_path = output_dir / _manifest_file_name(resolved_timeframe)
-    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    _write_text_atomic(manifest_path, json.dumps(manifest, indent=2, sort_keys=True) + "\n")
     manifest["manifest_path"] = _relative_repo_path(manifest_path)
     return manifest

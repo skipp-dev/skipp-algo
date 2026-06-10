@@ -199,6 +199,25 @@ class TestBackendSelection:
         assert report["labeled_samples"] == 12
         assert set(outcomes.FEATURE_KEYS).issubset(report["features"].keys())
 
+    def test_compute_feature_importance_skips_bad_jsonl_lines(self, monkeypatch, tmp_path: Path) -> None:
+        import open_prep.outcomes as outcomes
+
+        monkeypatch.setattr(outcomes, "FEATURE_IMPORTANCE_DIR", tmp_path)
+        sample_path = tmp_path / "fi_samples_2026-05-15.jsonl"
+        good = json.dumps(
+            {
+                "symbol": "SYM1",
+                "date": "2026-05-15",
+                "profitable_30m": True,
+                **{key: float(idx) for idx, key in enumerate(outcomes.FEATURE_KEYS)},
+            }
+        )
+        sample_path.write_text(f"{good}\n{{bad json line}}\n{good}\n", encoding="utf-8")
+        monkeypatch.setenv("OPEN_PREP_FI_BACKEND", "cpu")
+
+        report = outcomes.compute_feature_importance(lookback_days=1)
+        assert report["labeled_samples"] == 2
+
 
 # ── Ranking drift detection (E4) ─────────────────────────────────────
 

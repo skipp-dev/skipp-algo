@@ -21,8 +21,11 @@ in the same pair output directory as ``events_<SYMBOL>_<TIMEFRAME>.jsonl``.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
+import os
+import tempfile
 from collections.abc import Iterable, Iterator
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -127,15 +130,28 @@ def write_event_ledger(
     rely on the path existing whenever the harness ran.
     """
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=output_path.name + ".",
+        suffix=".tmp",
+        dir=str(output_path.parent),
+    )
     count = 0
-    with output_path.open("w", encoding="utf-8") as handle:
-        for event in events:
-            record = _scored_event_to_record(
-                event, symbol=symbol, timeframe=timeframe
-            )
-            handle.write(json.dumps(asdict(record), separators=(",", ":")))
-            handle.write("\n")
-            count += 1
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            for event in events:
+                record = _scored_event_to_record(
+                    event, symbol=symbol, timeframe=timeframe
+                )
+                handle.write(json.dumps(asdict(record), separators=(",", ":")))
+                handle.write("\n")
+                count += 1
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp_name, output_path)
+    except Exception:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp_name)
+        raise
     return count
 
 

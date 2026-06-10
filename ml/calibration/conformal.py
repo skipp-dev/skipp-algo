@@ -21,9 +21,12 @@ Roadmap: docs/IMPROVEMENTS_C2_C12_ROADMAP_2026-04-26.md#c101
 """
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -109,7 +112,11 @@ class SplitConformalClassifier:
             if p <= q:
                 s.add(0)
             if not s:
-                # Forbidden by construction (q in [0, 1]); guard belt+suspenders.
+                logger.warning(
+                    "degenerate_conformal_quantile: empty set fallback engaged (q=%r, p=%r)",
+                    q,
+                    float(p),
+                )
                 s.add(1 if p >= 0.5 else 0)
             out.append(s)
         return out

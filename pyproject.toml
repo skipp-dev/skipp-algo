@@ -36,6 +36,7 @@ packages = [
     "rl.safety",
     "rl.simulator",
     "rl.slippage",
+    "skipp_config",
     "smc_core",
     "smc_core.inference",
     "smc_integration",

@@ -154,7 +154,7 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # instrumentation block in macro.py.
         ("open_prep/macro.py", 713),
         ("open_prep/sentiment_fng.py", 100),
-        ("terminal_finnhub.py", 221),
+        ("terminal_finnhub.py", 245),
         ("terminal_notifications.py", 255),
         ("terminal_notifications.py", 319),
         ("terminal_tradingview_news.py", 423),
