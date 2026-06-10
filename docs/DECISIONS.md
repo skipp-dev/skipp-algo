@@ -443,7 +443,7 @@ spec-config precedence over module fallbacks.
   experimental conclusion.
 - *Fix in `smc_core.scoring` (make `predicted_prob` win).* Rejected —
   the raw_score preference is correct for first-pass scoring of raw
-  ledgers; only the dual-arm REscoring path must suppress it. Fixing
+  ledgers; only the dual-arm rescoring path must suppress it. Fixing
   at the caller keeps the blast radius minimal.
 - *Keep the accumulated SPRT corpus and continue.* Rejected — every
   observation to date is control-vs-control; mixing it with
@@ -457,9 +457,14 @@ spec-config precedence over module fallbacks.
   experiment must be re-run with the fixed post-processor.
 - The spec is now the single source of truth for SPRT params; the
   module constants are explicit fallbacks for spec-less callers.
-- `max_n = 1200` is now effective: corpora past the cap yield
-  `max_n_reached`, which the gate treats as inconclusive (hold) —
-  pre-registered spec semantics.
+- `max_n = 1200` is honoured in the report: when the terminal LLR is
+  still inside the Wald bounds at `n >= max_n`, `_sprt_decision()`
+  re-labels the decision `max_n_reached` (stop accumulating) instead
+  of `inconclusive` (keep accumulating). Bound-crossing decisions past
+  the cap stand — `terminal_decision()` is order-independent and
+  aggregated totals cannot be truncated to `max_n` without
+  per-observation ordering. The gate treats `max_n_reached` and
+  `inconclusive` identically (hold).
 - Open follow-up: the gate run showed a flip-detection cache miss
   (`f2-last-spec-status-v1-` not found), so the SPRT-state reset on
   `plumbing_only → live` flips may not have fired; track separately.

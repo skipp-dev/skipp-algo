@@ -654,6 +654,23 @@ def _sprt_decision(
             beta=SPRT_BETA,
         )
     state, decision = terminal_decision(n=n, k=k, config=config)
+    # terminal_decision() is order-independent and (by design) never
+    # emits ``max_n_reached`` — it reports the decision the Wald bounds
+    # would give at terminal n. Re-label inconclusive-past-the-cap here
+    # so the spec's pre-registered ``max_n`` is honoured in the report:
+    # an experiment that ran past max_n without crossing a bound must
+    # surface as ``max_n_reached`` (stop accumulating), not as a plain
+    # ``inconclusive`` (keep accumulating). Bound-crossing decisions at
+    # n >= max_n stand: the closed-form LLR at the cap differs from the
+    # terminal LLR only by post-cap observations, and re-truncating
+    # aggregated totals to max_n is impossible without per-observation
+    # ordering (Copilot review, PR #2664).
+    if (
+        decision == "inconclusive"
+        and config.max_n is not None
+        and n >= config.max_n
+    ):
+        decision = "max_n_reached"
     return {
         "decision": decision,
         "n": state.n,
@@ -667,6 +684,7 @@ def _sprt_decision(
             "p1": config.p1,
             "alpha": config.alpha,
             "beta": config.beta,
+            "max_n": config.max_n,
         },
         # Mirror the control arm's totals so the report is self-contained.
         "control_n": int(getattr(ctrl_agg, "total_events", 0) or 0),

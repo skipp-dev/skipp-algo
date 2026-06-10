@@ -128,6 +128,31 @@ def test_compare_threads_sprt_config_into_digest() -> None:
     assert digest["sprt"]["config"]["p1"] == 0.574
 
 
+def test_sprt_decision_relabels_inconclusive_past_max_n() -> None:
+    """Inconclusive at n >= max_n must surface as max_n_reached.
+
+    terminal_decision() is order-independent and never emits
+    max_n_reached (PR #2664 Copilot review). _sprt_decision() must
+    re-label so the spec's pre-registered cap is honoured in the
+    report: past-cap-without-verdict means "stop accumulating", not
+    "keep accumulating".
+    """
+    ctrl = _Agg(total_events=1588, avg_hit_rate=55.16)
+    treat = _Agg(total_events=1588, avg_hit_rate=55.16)
+    capped = SPRTConfig(p0=0.544, p1=0.574, alpha=0.05, beta=0.20, max_n=1200)
+    sprt = _sprt_decision(ctrl, treat, config=capped)
+    assert sprt["decision"] == "max_n_reached"
+    assert sprt["config"]["max_n"] == 1200
+    # Same totals without a cap stay plain inconclusive.
+    uncapped = SPRTConfig(p0=0.544, p1=0.574, alpha=0.05, beta=0.20)
+    assert _sprt_decision(ctrl, treat, config=uncapped)["decision"] == (
+        "inconclusive"
+    )
+    # A bound-crossing decision past the cap is NOT masked by the cap.
+    h1 = _Agg(total_events=1588, avg_hit_rate=65.0)
+    assert _sprt_decision(ctrl, h1, config=capped)["decision"] == "accept_h1"
+
+
 def test_sprt_decision_clamps_invalid_hit_rate() -> None:
     # Defensive: avg_hit_rate occasionally arrives as a fraction in legacy
     # fixtures or with NaN-ish overflow. Clamp keeps k in [0, n].
@@ -199,7 +224,9 @@ _SPRT_TOPLEVEL_KEYS = frozenset({
     "control_hit_rate",
 })
 
-_SPRT_CONFIG_KEYS = frozenset({"p0", "p1", "alpha", "beta"})
+# 2026-06-10 (PR #2664 Copilot review): added "max_n" so the report
+# discloses the spec's pre-registered observation cap.
+_SPRT_CONFIG_KEYS = frozenset({"p0", "p1", "alpha", "beta", "max_n"})
 
 
 def _check_sprt_block(block: dict) -> None:
