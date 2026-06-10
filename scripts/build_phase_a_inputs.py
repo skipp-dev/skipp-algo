@@ -49,14 +49,62 @@ _SETUP_TYPE_TO_VARIANT: dict[str, str] = {
 }
 
 
-def _latest_trade_cards(reports_dir: Path) -> Path:
+# Maximum number of calendar days a trade-cards CSV may be older than the
+# requested trade_date before it is considered stale.  Mirrors the 4-day
+# staleness cap applied to the WSH earnings snapshot in
+# run-c13-phase-a.sh (B1, audit pass-4, 2026-06-10).
+_MAX_TRADE_CARDS_AGE_DAYS: int = 4
+
+
+def _trade_cards_age_days(csv_path: Path, trade_date: str) -> int | None:
+    """Return age in calendar days of *csv_path* relative to *trade_date*.
+
+    The filename must contain an ISO-date substring (``YYYY-MM-DD``).
+    Returns ``None`` when the date cannot be parsed — callers treat that
+    as indefinitely stale.
+    """
+    import re
+
+    m = re.search(r"(\d{4}-\d{2}-\d{2})", csv_path.name)
+    if not m:
+        return None
+    try:
+        file_date = date.fromisoformat(m.group(1))
+        ref_date = date.fromisoformat(trade_date)
+        return (ref_date - file_date).days
+    except ValueError:
+        return None
+
+
+def _latest_trade_cards(reports_dir: Path, trade_date: str | None = None) -> Path:
+    """Return the newest trade-cards CSV, rejecting files older than
+    ``_MAX_TRADE_CARDS_AGE_DAYS`` relative to *trade_date*.
+
+    When *trade_date* is ``None`` the staleness check is skipped (used
+    by tests that construct synthetic paths without a date reference).
+    Mirrors the WSH 4-day staleness cap in ``run-c13-phase-a.sh`` so
+    stale entry/stop prices are never silently stamped with today's date
+    (B1, audit pass-4, 2026-06-10).
+    """
     candidates = sorted(reports_dir.glob("open_prep_trade_cards_*.csv"))
     if not candidates:
         raise FileNotFoundError(
             f"No open_prep_trade_cards_*.csv found in {reports_dir}; "
             "run scripts/export_open_prep_lists.py first."
         )
-    return candidates[-1]
+    newest = candidates[-1]
+    if trade_date is not None:
+        age = _trade_cards_age_days(newest, trade_date)
+        if age is None or age > _MAX_TRADE_CARDS_AGE_DAYS:
+            age_str = f"{age}d" if age is not None else "unparseable date"
+            raise FileNotFoundError(
+                f"Newest trade-cards CSV {newest.name} is {age_str} old "
+                f"(>{_MAX_TRADE_CARDS_AGE_DAYS}d relative to trade_date "
+                f"{trade_date}); re-run export_open_prep_lists.py or pass "
+                "--trade-cards-csv explicitly. Refusing to stamp stale "
+                "prices with today's trade_date."
+            )
+    return newest
 
 
 def _required_float(row: dict[str, str], key: str) -> float:
@@ -224,7 +272,9 @@ def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     trade_date = _parse_trade_date(args.trade_date)
 
-    csv_path = args.trade_cards_csv or _latest_trade_cards(args.reports_dir)
+    csv_path = args.trade_cards_csv or _latest_trade_cards(
+        args.reports_dir, trade_date=trade_date
+    )
     setups = build_setups_from_trade_cards(
         csv_path, trade_date=trade_date, quantity=args.quantity
     )

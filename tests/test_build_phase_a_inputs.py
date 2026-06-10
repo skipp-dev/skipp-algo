@@ -9,6 +9,9 @@ import pytest
 
 from scripts.build_phase_a_inputs import (
     _SETUP_TYPE_TO_VARIANT,
+    _MAX_TRADE_CARDS_AGE_DAYS,
+    _latest_trade_cards,
+    _trade_cards_age_days,
     build_gate_status,
     build_setups_from_trade_cards,
     main,
@@ -100,7 +103,7 @@ def test_main_writes_atomic_artefacts(tmp_path: Path) -> None:
     reports = tmp_path / "reports"
     reports.mkdir()
     _write_trade_cards(
-        reports / "open_prep_trade_cards_20260427_120000Z.csv",
+        reports / "open_prep_trade_cards_2026-04-27_120000Z.csv",
         [
             _row(1, "AAPL", "ORB or VWAP-Hold", ref_price=175.0, stop_mid=170.0),
             _row(2, "MSFT", "ORB or VWAP-Hold", ref_price=420.0, stop_mid=410.0),
@@ -140,3 +143,89 @@ def test_setup_type_mapping_table_is_non_empty() -> None:
     # refactor, which would silently make every Phase-A run raise.
     assert _SETUP_TYPE_TO_VARIANT
     assert "ORB or VWAP-Hold" in _SETUP_TYPE_TO_VARIANT
+
+
+# ---------------------------------------------------------------------------
+# B1 (audit pass-4, 2026-06-10) — trade-cards staleness guard
+# ---------------------------------------------------------------------------
+
+
+def test_trade_cards_age_days_known_filename() -> None:
+    p = Path("reports/open_prep_trade_cards_2026-06-06_120000Z.csv")
+    assert _trade_cards_age_days(p, "2026-06-10") == 4
+
+
+def test_trade_cards_age_days_no_date_in_name() -> None:
+    p = Path("reports/open_prep_trade_cards_nodateinname.csv")
+    assert _trade_cards_age_days(p, "2026-06-10") is None
+
+
+def test_latest_trade_cards_accepts_fresh_csv(tmp_path: Path) -> None:
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    fresh = reports / "open_prep_trade_cards_2026-06-10_090000Z.csv"
+    fresh.write_text("", encoding="utf-8")
+    result = _latest_trade_cards(reports, trade_date="2026-06-10")
+    assert result == fresh
+
+
+def test_latest_trade_cards_accepts_csv_within_age_cap(tmp_path: Path) -> None:
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    # 3 days old — within _MAX_TRADE_CARDS_AGE_DAYS (4)
+    borderline = reports / f"open_prep_trade_cards_2026-06-07_090000Z.csv"
+    borderline.write_text("", encoding="utf-8")
+    result = _latest_trade_cards(reports, trade_date="2026-06-10")
+    assert result == borderline
+
+
+def test_latest_trade_cards_rejects_stale_csv(tmp_path: Path) -> None:
+    """A CSV older than _MAX_TRADE_CARDS_AGE_DAYS must raise FileNotFoundError.
+
+    This guards the invariant that stale entry/stop prices from days ago
+    are never silently stamped with today's trade_date in the Phase-A
+    audit trail (B1, audit pass-4, 2026-06-10).
+    """
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    stale = reports / f"open_prep_trade_cards_2026-06-01_090000Z.csv"  # 9 days old
+    stale.write_text("", encoding="utf-8")
+    with pytest.raises(FileNotFoundError, match="stale"):
+        _latest_trade_cards(reports, trade_date="2026-06-10")
+
+
+def test_latest_trade_cards_rejects_unparseable_date_in_name(tmp_path: Path) -> None:
+    """A CSV whose filename carries no parseable date is treated as stale."""
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    no_date = reports / "open_prep_trade_cards_nodateinname.csv"
+    no_date.write_text("", encoding="utf-8")
+    with pytest.raises(FileNotFoundError, match="stale"):
+        _latest_trade_cards(reports, trade_date="2026-06-10")
+
+
+def test_latest_trade_cards_skips_staleness_when_no_trade_date(tmp_path: Path) -> None:
+    """trade_date=None disables the staleness guard (used by explicit --trade-cards-csv)."""
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    old = reports / "open_prep_trade_cards_2020-01-01_090000Z.csv"
+    old.write_text("", encoding="utf-8")
+    result = _latest_trade_cards(reports, trade_date=None)
+    assert result == old
+
+
+def test_main_rejects_stale_csv_without_explicit_path(tmp_path: Path) -> None:
+    """main() propagates the FileNotFoundError from _latest_trade_cards when
+    the newest discovered CSV is too old — no --trade-cards-csv override."""
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    _write_trade_cards(
+        reports / "open_prep_trade_cards_2026-05-01_120000Z.csv",  # >4d stale
+        [_row(1, "AAPL", "ORB or VWAP-Hold")],
+    )
+    with pytest.raises((FileNotFoundError, SystemExit)):
+        main([
+            "--reports-dir", str(reports),
+            "--cache-dir", str(tmp_path / "cache"),
+            "--trade-date", "2026-06-10",
+        ])
