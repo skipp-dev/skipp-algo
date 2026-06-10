@@ -142,7 +142,16 @@ def _build_state_entry(
     )
     first_seen_ts = float(previous.get("first_seen_ts", 0.0) or 0.0) or float(now)
     last_seen_ts = float(now)
-    published_ts = _story_timestamp(item) or float(now)
+    # Provider publish timestamp preferred; ingest time is a disclosed
+    # substitute (item lacked a parsable timestamp → TTL/expiry then measure
+    # ingest age, not story age — audit #2670 W8).
+    _story_ts = _story_timestamp(item)
+    if _story_ts:
+        published_ts = _story_ts
+        published_ts_source = "provider"
+    else:
+        published_ts = float(now)
+        published_ts_source = "ingest_now"
     current_score = float(_get_field(item, "news_score", 0.0) or 0.0)
     current_materiality = str(_get_field(item, "materiality", "") or "").strip().upper()
     current_actionable = bool(_get_field(item, "is_actionable", False))
@@ -162,6 +171,7 @@ def _build_state_entry(
         "first_seen_ts": first_seen_ts,
         "last_seen_ts": last_seen_ts,
         "published_ts": published_ts,
+        "published_ts_source": published_ts_source,
         "providers_seen": providers_seen,
         "best_source": source if best_is_better or not previous else str(previous.get("best_source", source) or source),
         "best_provider": provider if best_is_better or not previous else str(previous.get("best_provider", provider) or provider),

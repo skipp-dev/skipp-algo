@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace as dc_replace
 from typing import Any
 
 from databento_utils import _redact_sensitive_error_text
@@ -159,6 +159,12 @@ class TechnicalResult:
     ma_detail: list[dict[str, Any]] = field(default_factory=list)
 
     error: str = ""
+
+    # Which provider actually produced this result: "tradingview" (live),
+    # "fmp_fallback" (FMP substitute during TV rate-limit/absence) or
+    # "stale_cache" (expired cache entry served during 429 cooldown).
+    # Disclosed so consumers can weight signals by provenance (audit #2670 W3).
+    source: str = "tradingview"
 
 
 # ── In-memory cache ──────────────────────────────────────────────────
@@ -323,6 +329,7 @@ def _fmp_fallback(symbol: str, interval: str, ts: float) -> TechnicalResult | No
         ma_sell=data.get("ma_sell", 0),
         ma_neutral=data.get("ma_neutral", 0),
         ma_detail=data.get("ma_detail", []),
+        source="fmp_fallback",
     )
     log.info("FMP fallback provided technicals for %s/%s", symbol, interval)
     # Cache the FMP result in the TV cache so subsequent calls get it instantly
@@ -433,7 +440,9 @@ def fetch_technicals(
         with _cache_lock:
             cached = _cache.get(key)
             if cached and not cached.error:
-                return cached
+                # Expired cache entry served during cooldown — disclose via
+                # source without mutating the cache entry (audit #2670 W3).
+                return dc_replace(cached, source="stale_cache")
 
         # Try FMP fallback
         fmp_result = _fmp_fallback(sym, interval, now)
