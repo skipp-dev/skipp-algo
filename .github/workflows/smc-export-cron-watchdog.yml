@@ -108,7 +108,11 @@ jobs:
           FORCE_DISPATCH: ${{ github.event.inputs.force_dispatch || 'false' }}
         run: |
           set -euo pipefail
-
+          # A2 (2026-06-10): FORCE_DISPATCH is already env-var-isolated;
+          # validate boolean before use.
+          [[ "${FORCE_DISPATCH}" =~ ^(true|false)$ ]] || {
+            echo "::error::force_dispatch must be 'true' or 'false', got: ${FORCE_DISPATCH}"; exit 1
+          }
           NOW_UTC_EPOCH=$(date -u +%s)
           NOW_UTC_ISO=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           TODAY_UTC=$(date -u +%Y-%m-%d)

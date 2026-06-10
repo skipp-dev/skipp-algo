@@ -75,6 +75,11 @@ jobs:
         continue-on-error: true
         run: |
           set +e
+          # A2 (2026-06-10): LIVE_WINDOW_DAYS is already env-var-isolated;
+          # adding format guard for defence-in-depth.
+          [[ "${LIVE_WINDOW_DAYS}" =~ ^[0-9]+$ ]] || {
+            echo "::error::live_window_days must be a non-negative integer, got: ${LIVE_WINDOW_DAYS}"; exit 1
+          }
           python -m scripts.run_drift_watchdog \
             --baseline-json "$BASELINE_JSON" \
             --live-window-days "$LIVE_WINDOW_DAYS" \

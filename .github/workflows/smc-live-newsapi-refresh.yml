@@ -151,9 +151,18 @@ jobs:
           test -n "${NEWSAPI_KEY}" || { echo "::error::NEWSAPI_KEY secret is required"; exit 1; }
 
           SYMBOLS="${INPUT_SYMBOLS:-}"
+          # A2 (2026-06-10): INPUT_* already env-var-isolated;
+          # adding format guards for defence-in-depth.
           SYMBOL_LIMIT="${INPUT_SYMBOL_LIMIT:-100}"
+          [[ "${SYMBOL_LIMIT}" =~ ^[0-9]+$ ]] || {
+            echo "::error::symbol_limit must be a non-negative integer, got: ${SYMBOL_LIMIT}"; exit 1
+          }
+          RESET_STATE="${INPUT_RESET_STATE:-false}"
+          [[ "${RESET_STATE}" =~ ^(true|false)$ ]] || {
+            echo "::error::reset_state must be 'true' or 'false', got: ${RESET_STATE}"; exit 1
+          }
 
-          if [ "${INPUT_RESET_STATE:-false}" = "true" ]; then
+          if [ "${RESET_STATE}" = "true" ]; then
             rm -f artifacts/smc_microstructure_exports/smc_live_news_state.json
             echo "Reset persisted live-news state before export."
           fi
