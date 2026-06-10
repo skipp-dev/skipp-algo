@@ -146,16 +146,16 @@ def _phase_e2_verdict(per_tf: dict[str, dict[str, Any]]) -> dict[str, Any]:
         a: dict[str, Any] | None,
         b: dict[str, Any] | None,
         *,
-        contributors: list[dict[str, Any]] | None = None,
+        baseline_slices: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         if not a or not b:
             return {"status": "missing"}
         if a["n_events"] < 30 or b["n_events"] < 30:
             return {"status": "insufficient_data",
                     "n_a": a["n_events"], "n_b": b["n_events"]}
-        if contributors and all(
+        if baseline_slices and all(
             c["n_events"] == a["n_events"] and c["hit_rate"] == a["hit_rate"]
-            for c in contributors
+            for c in baseline_slices
         ):
             return {
                 "status": "degenerate_aliased_input",
@@ -196,10 +196,10 @@ def _phase_e2_verdict(per_tf: dict[str, dict[str, Any]]) -> dict[str, Any]:
     bos_slices = contributors("BOS")
     return {
         "fvg_ttf_5m_vs_baseline": _cmp(
-            fam("5m", "FVG"), baseline(fvg_slices), contributors=fvg_slices
+            fam("5m", "FVG"), baseline(fvg_slices), baseline_slices=fvg_slices
         ),
         "bos_stability_4h_vs_baseline": _cmp(
-            fam("4H", "BOS"), baseline(bos_slices), contributors=bos_slices
+            fam("4H", "BOS"), baseline(bos_slices), baseline_slices=bos_slices
         ),
     }
 
