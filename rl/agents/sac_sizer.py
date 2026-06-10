@@ -21,11 +21,11 @@ import logging
 from typing import Any
 
 try:  # pragma: no cover
-    from stable_baselines3 import SAC  # type: ignore
+    from stable_baselines3 import SAC  # type: ignore[import-not-found]
 
     _HAS_SB3 = True
 except Exception:  # pragma: no cover
-    SAC = None  # type: ignore
+    SAC = None  # type: ignore[assignment]
     _HAS_SB3 = False
 
 

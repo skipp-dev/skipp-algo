@@ -21,13 +21,13 @@ import logging
 from typing import Any
 
 try:  # pragma: no cover - exercised only in environments with sb3
-    import gymnasium as gym  # type: ignore
-    from stable_baselines3 import PPO  # type: ignore
+    import gymnasium as gym  # type: ignore[import-not-found]
+    from stable_baselines3 import PPO  # type: ignore[import-not-found]
 
     _HAS_DEPS = True
 except Exception:  # pragma: no cover - the absence is the locally tested path
-    gym = None  # type: ignore
-    PPO = None  # type: ignore
+    gym = None  # type: ignore[assignment]
+    PPO = None  # type: ignore[assignment]
     _HAS_DEPS = False
 
 

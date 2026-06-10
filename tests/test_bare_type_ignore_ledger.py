@@ -46,12 +46,6 @@ _FROZEN_BARE_TYPE_IGNORE_SITES: frozenset[tuple[str, int]] = frozenset(
         # C10 ML-Layer.
         ("ml/training/lgbm_family_trainer.py", 11),
         ("ml/training/lgbm_family_trainer.py", 15),
-        ("rl/agents/ppo_slicer.py", 23),
-        ("rl/agents/ppo_slicer.py", 28),
-        ("rl/agents/ppo_slicer.py", 24),
-        ("rl/agents/ppo_slicer.py", 29),
-        ("rl/agents/sac_sizer.py", 23),
-        ("rl/agents/sac_sizer.py", 27),
         # rl.simulator.* env wrappers follow the same optional gymnasium
         # dependency pattern: bare ignores are limited to import-time fallback
         # shims and the ``None`` assignments in the ImportError path. C12 RL-Layer.
