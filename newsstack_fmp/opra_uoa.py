@@ -157,10 +157,18 @@ def _premium_of(row: Mapping[str, Any], contract_size: int = _OCC_CONTRACT_MULTI
     OPRA ``price`` is the per-contract premium in dollars; ``size`` is the
     number of contracts. Returns ``0.0`` on any missing/invalid field — the
     caller's premium gate will then filter these out.
+
+    Only ``size`` is consulted. The Databento OPRA ``trades`` schema never
+    carries ``volume`` (that belongs to OHLCV aggregates); a former
+    ``or row.get("volume")`` fallback could silently substitute a cumulative
+    session total for a single print, inflating premium by orders of
+    magnitude (audit #2670 W1).
     """
     try:
-        price = float(row.get("price") or 0.0)
-        size = float(row.get("size") or row.get("volume") or 0.0)
+        _price_raw = row.get("price")
+        _size_raw = row.get("size")
+        price = float(_price_raw if _price_raw is not None else 0.0)
+        size = float(_size_raw if _size_raw is not None else 0.0)
     except (TypeError, ValueError):
         return 0.0
     if price <= 0.0 or size <= 0.0:
