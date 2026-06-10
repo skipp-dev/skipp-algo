@@ -13,7 +13,7 @@ back to once ``min(n, m)`` exceeds the small-sample threshold.
 Schema (additive only; bump the consumer when fields are removed)::
 
     {
-      "schema_version": "1.1.0",
+      "schema_version": "1.2.0",
       "computed_at": "2026-04-26T13:30:00+00:00",
       "live_window_days": 90,
       "variants": [
@@ -27,6 +27,7 @@ Schema (additive only; bump the consumer when fields are removed)::
           "slippage_ks_reference": "backtest_samples",
           "slippage_ks_reference_type": "backtest_samples",
           "hr_in_bootstrap_ci": true,
+          "overperformance_capped": false,
           "verdict": "acceptable"
         }
       ]
@@ -92,7 +93,10 @@ _TRADING_DAYS_PER_YEAR = 252
 #   * PATCH: cosmetic / docstring change with no payload diff
 # When you bump this constant, update DRIFT_SCHEMA_MIN_COMPATIBLE in
 # ``terminal_tabs/drift_loader.py`` and add a CHANGELOG entry.
-DRIFT_SCHEMA_VERSION = "1.1.0"
+# 1.2.0 (2026-06-10 silent-fallback audit): additive — new verdict values
+# ``missing_backtest_reference`` / ``non_positive_backtest_sharpe`` /
+# ``no_live_data`` and new boolean field ``overperformance_capped``.
+DRIFT_SCHEMA_VERSION = "1.2.0"
 
 __all__ = [
     "DRIFT_SCHEMA_VERSION",
@@ -121,6 +125,7 @@ class DriftVerdict:
     live_max_dd: float | None = None
     backtest_max_dd: float | None = None
     slippage_ks_reference_type: str = "unavailable"
+    overperformance_capped: bool = False
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -135,20 +140,21 @@ class DriftVerdict:
             # C8 deep-review caveat: when no real backtest-slippage
             # sample is available the K-S compares live slippage against
             # a *modelled* Normal(expected_mean, expected_std) reference.
-            # ``slippage_ks_reference`` keeps the legacy string for
-            # backwards-compat consumers; ``slippage_ks_reference_type``
-            # is the structured marker (one of ``backtest_samples``,
+            # ``slippage_ks_reference`` keeps the legacy field name for
+            # backwards-compat consumers; both fields carry the same
+            # structured marker (one of ``backtest_samples``,
             # ``synthetic_normal``, ``unavailable``). Phase-B sign-off
             # MUST require ``backtest_samples`` (see
             # docs/c8_live_incubation_runbook.md).
-            "slippage_ks_reference": (
-                "synthetic_normal"
-                if self.slippage_ks_reference_type == "synthetic_normal"
-                else self.slippage_ks_reference_type
-            ),
+            "slippage_ks_reference": self.slippage_ks_reference_type,
             "slippage_ks_reference_type": self.slippage_ks_reference_type,
             "hr_in_bootstrap_ci": self.hr_in_bootstrap_ci,
             "verdict": self.verdict,
+            # Silent-fallback audit (2026-06-10): live ≫ backtest hits the
+            # 1.5 drift-score cap and is otherwise indistinguishable from a
+            # healthy "pass". Overperformance is frequently a data defect
+            # (lookahead, survivorship in the live feed) — surface it.
+            "overperformance_capped": self.overperformance_capped,
             "live_max_dd": (
                 None if self.live_max_dd is None else round(self.live_max_dd, 6)
             ),
@@ -320,6 +326,13 @@ def compute_live_drift(
     Variants below ``min_trades`` live trades are returned with
     verdict ``insufficient_sample``; a warning marker but never an
     error so cron callers can still emit the artifact safely.
+
+    Reference-integrity verdicts (2026-06-10 silent-fallback audit):
+    ``missing_backtest_reference`` (variant absent from / non-numeric in
+    the reference), ``non_positive_backtest_sharpe`` (ratio would be
+    meaningless) and ``no_live_data`` (reference-only variant with zero
+    live rows — "stopped trading"). All three fail closed against the
+    ``run_smc_live_incubation`` pass/acceptable allowlist.
     """
     if live_rows is None:
         if live_jsonl is None:
@@ -365,10 +378,21 @@ def compute_live_drift(
     when = (now or datetime.now(UTC)).isoformat()
     verdicts: list[dict[str, Any]] = []
 
-    for variant in sorted(grouped):
-        rows = grouped[variant]
+    # Silent-fallback audit (2026-06-10): iterate the UNION of live
+    # variants and backtest-reference variants. A variant that has a
+    # reference but zero live trades in the window ("stopped trading")
+    # is the strongest drift signal of all and must not vanish from
+    # the artifact silently.
+    for variant in sorted(set(grouped) | set(backtest_reference or {})):
+        rows = grouped.get(variant, [])
         ref = backtest_reference.get(variant) or {}
-        backtest_sharpe = _coerce_float(ref.get("sharpe")) or 0.0
+        # H1: keep the raw coercion result — ``None`` means "reference
+        # missing or non-numeric", which must NOT collapse to 0.0 (the
+        # 0.001 denominator clamp would turn any live Sharpe ≥ 0.00085
+        # into drift_score 1.5 → verdict "pass" for a variant that has
+        # no reference at all).
+        backtest_sharpe_raw = _coerce_float(ref.get("sharpe"))
+        backtest_sharpe = backtest_sharpe_raw or 0.0
         ci_low = _coerce_float(ref.get("hit_rate_ci_low"))
         ci_high = _coerce_float(ref.get("hit_rate_ci_high"))
         backtest_max_dd = _coerce_float(ref.get("max_dd"))
@@ -389,6 +413,24 @@ def compute_live_drift(
                 hits.append(1 if h else 0)
 
         n_live = len(returns)
+        if n_live == 0 and variant not in grouped:
+            # M1: reference-only variant — no live rows at all in the
+            # window. Emit an explicit row instead of dropping it.
+            verdicts.append(
+                DriftVerdict(
+                    variant=variant,
+                    n_live_trades=0,
+                    live_sharpe=0.0,
+                    backtest_sharpe=backtest_sharpe,
+                    drift_score=0.0,
+                    slippage_ks_p=None,
+                    hr_in_bootstrap_ci=None,
+                    verdict="no_live_data",
+                    live_max_dd=None,
+                    backtest_max_dd=backtest_max_dd,
+                ).to_json(),
+            )
+            continue
         if n_live < min_trades:
             verdicts.append(
                 DriftVerdict(
@@ -407,8 +449,55 @@ def compute_live_drift(
             continue
 
         live_sharpe = annualised_sharpe(returns)
+
+        # H1: a missing / non-numeric backtest reference must yield an
+        # explicit non-pass verdict, not a ratio against the 0.001
+        # denominator clamp. Same epistemics class as comparing an arm
+        # against itself (PR #2664 / #2666): no reference arm ⇒ no
+        # measurement. ``run_smc_live_incubation`` gates on an
+        # allowlist (pass/acceptable), so these verdicts fail closed.
+        if backtest_sharpe_raw is None:
+            verdicts.append(
+                DriftVerdict(
+                    variant=variant,
+                    n_live_trades=n_live,
+                    live_sharpe=live_sharpe,
+                    backtest_sharpe=0.0,
+                    drift_score=0.0,
+                    slippage_ks_p=None,
+                    hr_in_bootstrap_ci=None,
+                    verdict="missing_backtest_reference",
+                    live_max_dd=max_drawdown_fraction(returns),
+                    backtest_max_dd=backtest_max_dd,
+                ).to_json(),
+            )
+            continue
+        if backtest_sharpe_raw <= 0.0:
+            # A non-positive backtest Sharpe makes the live/backtest
+            # ratio semantically meaningless (the clamp would report
+            # drift_score 1.5 → "pass" regardless of live quality).
+            verdicts.append(
+                DriftVerdict(
+                    variant=variant,
+                    n_live_trades=n_live,
+                    live_sharpe=live_sharpe,
+                    backtest_sharpe=backtest_sharpe_raw,
+                    drift_score=0.0,
+                    slippage_ks_p=None,
+                    hr_in_bootstrap_ci=None,
+                    verdict="non_positive_backtest_sharpe",
+                    live_max_dd=max_drawdown_fraction(returns),
+                    backtest_max_dd=backtest_max_dd,
+                ).to_json(),
+            )
+            continue
+
         score = drift_score(live_sharpe, backtest_sharpe)
         verdict = _verdict_for(score)
+        # L2: live ≫ backtest saturates the 1.5 cap and would otherwise
+        # be indistinguishable from a healthy "pass".
+        raw_ratio = live_sharpe / max(backtest_sharpe, 0.001)
+        overperformance_capped = math.isfinite(raw_ratio) and raw_ratio > 1.5
 
         ks_p: float | None = None
         slippage_ref_type = "unavailable"
@@ -457,6 +546,7 @@ def compute_live_drift(
                 live_max_dd=max_drawdown_fraction(returns),
                 backtest_max_dd=backtest_max_dd,
                 slippage_ks_reference_type=slippage_ref_type,
+                overperformance_capped=overperformance_capped,
             ).to_json(),
         )
 

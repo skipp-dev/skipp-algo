@@ -6,6 +6,89 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-10) — Stat-review F1/F6/F10 + runbook/ADR honesty (F2, F5, F11, F13)
+
+Implements the 2026-06-10 promotion-chain statistical-validity review
+findings that do not collide with in-flight PRs:
+
+- **F1/F6 — `scripts/evaluate_phase_criteria.py` (new)**: the
+  `PhasePassCriteria` dataclasses in `run_smc_live_incubation.py` were
+  evaluated by no code anywhere; every `extra` criterion string was
+  unenforced prose. The new fail-closed evaluator machine-checks every
+  numeric field and every `extra` string (via the `_EXTRA_CHECKERS`
+  registry) against the drift artifact, incubation audit JSONL and
+  watchdog report. Criteria it cannot verify count as **not passed**;
+  the Phase-C Scale-Phase/Kelly marker never machine-passes by design,
+  making `live_full` structurally unreachable via the evaluator. A
+  structural test asserts every `extra` string has a registered checker
+  — an unmapped string is now a test failure, not a silent gate hole.
+  `run_smc_live_incubation --phase live_small/live_full` now requires
+  `--phase-eval-report` with a fresh (≤ 7 days) **passing** evaluation
+  of the prior phase. Promotion remains manual sign-off only.
+- **F10 — watchdog per-setup honesty**: `run_drift_watchdog` pooled all
+  setups into one `pnl_per_trade` metric against a pooled baseline,
+  which can mask per-setup drift (Simpson-style). `extract_metric_pairs`
+  now emits `pnl_per_trade[setup=<name>]` metrics when live outcomes
+  carry a `setup_type` attribution and the baseline has the matching
+  `per_setup` block; reports without attribution disclose the pooling
+  limitation explicitly (`per_setup_live_attribution`, `pooling_note`).
+- **F2/F5/F11 — C8 runbook**: Phase-B's `window_complete` criterion now
+  names which watchdog report it refers to (the incubation outcome
+  stream, not the default open_prep directory); Phase-A carries a
+  statistical-power caveat (at n = 20 the drift_score is noise-dominated
+  — ~43 % false-pass / ~53 % true-pass at the 0.70 line); a new
+  sequential-looks section requires sign-off to read the verdict history
+  over the whole phase, not a cherry-picked day.
+- **F13 — ADR-0008 §12/§13**: `compute_live_drift._VERDICT_BANDS`
+  (0.85/0.65/0.40) and the phase drift-score lines (0.70 Phase-A,
+  0.50 Phase-B) are now documented as operator-judgment (**O**)
+  thresholds with the standard 100-promotions/6-month recalibration
+  cadence.
+
+### Changed (2026-06-10) — silent-fallback audit: drift verdicts, 1D resample, source-matrix honesty
+
+Four silent-fallback / misdeclaration fixes from the static review of
+`compute_live_drift.py`, `explicit_structure_from_bars.py`,
+`repo_sources.py` and `provider_matrix.py`:
+
+- **`scripts/compute_live_drift.py`** — drift schema **1.1.0 → 1.2.0**
+  (additive; `DRIFT_SCHEMA_MIN_COMPATIBLE` stays 1.0.0). A missing or
+  non-numeric backtest reference no longer collapses to `sharpe=0.0`
+  (which the `max(backtest, 0.001)` denominator clamp turned into
+  drift-score 1.5 → verdict `pass` for an unreferenced variant): new
+  explicit verdicts `missing_backtest_reference` and
+  `non_positive_backtest_sharpe`. Reference-only variants with zero
+  live trades in the window are now emitted as `no_live_data` rows
+  instead of vanishing. All three fail closed against the
+  `run_smc_live_incubation` pass/acceptable allowlist. New additive
+  boolean `overperformance_capped` marks variants whose raw live/backtest
+  ratio exceeded the 1.5 cap (live ≫ backtest is frequently a data
+  defect, previously indistinguishable from a healthy pass).
+- **`scripts/explicit_structure_from_bars.py`** — the `1D` branch of
+  `resample_bars_to_timeframe` was an unconditional identity pass-through
+  that silently served intraday bars as "1D" (mirror image of the
+  PR #2666 cross-TF aliasing). It now aggregates to calendar days via the
+  generic bucket path (with a warning) whenever any symbol has >1 row per
+  calendar day; genuinely daily input keeps the identity regardless of
+  stamp time. The legacy high/low liquidity-sweep fallback now logs a
+  warning when the profile engine produced no sweeps.
+- **`smc_integration/repo_sources.py`** — `_can_supply_domain` derives
+  technical/news membership from `_DOMAIN_SOURCE_ORDER` (single source of
+  truth) instead of hand-duplicated name sets; the structure auto-select
+  loop warns when a lower-priority source is served after higher-priority
+  failures; production-dead `_source_priority_key` removed;
+  `volume_domain_status` is set explicitly in the mandatory-volume
+  fallback branch.
+- **`smc_integration/provider_matrix.py`** — `live_news_snapshot_json`
+  (the PRIMARY runtime news source) and `largecap_watchlist_json` now have
+  explicit potential/current/known-gaps declarations instead of falling
+  through to misdeclaring generic defaults; databento
+  `snapshot_structure_mode` corrected `partial` → `none` (its mapped
+  structure arrays are empty); `_pick_best_candidate` ranks by the
+  authoritative `_DOMAIN_SOURCE_ORDER` runtime fallback order instead of
+  alphabetically — `best_current_news_candidate` is now
+  `live_news_snapshot_json`.
+
 ### Added (2026-06-04) — ADR-0019: order-flow imbalance shadow feature (recorded-only)
 
 New ADR-0019 order-flow candidate on the aggressor-signed data path:
