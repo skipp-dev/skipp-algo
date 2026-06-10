@@ -121,7 +121,8 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("newsstack_fmp/_bz_http.py", 44),
         ("terminal_bitcoin.py", 849),
         ("terminal_bitcoin.py", 851),
-        ("terminal_technicals.py", 286),
+        # 2026-06-10 (#2670 W3): source-field additions shifted +6 (286 -> 292).
+        ("terminal_technicals.py", 292),
         ("terminal_tradingview_news.py", 409),
     }
 )

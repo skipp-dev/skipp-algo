@@ -102,10 +102,12 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     ("open_prep/realtime_signals.py", 2543, "unlink"),
     ("open_prep/realtime_signals.py", 2582, "unlink"),
     ("open_prep/run_open_prep.py", 2217, "unlink"),
-    ("open_prep/run_open_prep.py", 3011, "unlink"),
-    ("open_prep/run_open_prep.py", 3347, "unlink"),
-    ("open_prep/run_open_prep.py", 5463, "unlink"),
-    ("open_prep/run_open_prep.py", 5706, "unlink"),
+    # 2026-06-10 (#2670 W2/W4): regime_source + premarket source-disclosure
+    # edits shifted the later unlink sites (+20/+20/+20/+25).
+    ("open_prep/run_open_prep.py", 3031, "unlink"),
+    ("open_prep/run_open_prep.py", 3367, "unlink"),
+    ("open_prep/run_open_prep.py", 5483, "unlink"),
+    ("open_prep/run_open_prep.py", 5731, "unlink"),
     ("open_prep/scorer.py", 149, "unlink"),
     ("open_prep/watchlist.py", 74, "unlink"),
     ("smc_core/benchmark.py", 39, "unlink"),
