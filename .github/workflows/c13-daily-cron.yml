@@ -142,8 +142,9 @@ jobs:
       # The script always exits 0 on a parsable audit JSONL, even when 0
       # records were backfilled and N records are stuck pending — that
       # silent-skip pattern hid quota/auth/input-path bugs in past
-      # incidents. We parse the structured summary printed at L393 of
-      # scripts/backfill_live_outcomes.py and surface a ::warning::
+      # incidents. We parse the structured summary line
+      # (`{"backfill": ...}`, printed by main() in
+      # scripts/backfill_live_outcomes.py) and surface a ::warning::
       # banner when nothing made progress despite work being available.
       # Phase 1 (here): warning only. Phase 2 (after 7 days of
       # baseline): flip to ::error:: + exit 1.
@@ -163,11 +164,21 @@ jobs:
           fi
           backfilled=$(echo "$summary" | jq -r '.backfill.records_backfilled // 0')
           pending=$(echo "$summary" | jq -r '.backfill.records_pending_close // 0')
+          audit_only=$(echo "$summary" | jq -r '.backfill.records_audit_only // 0')
           already=$(echo "$summary" | jq -r '.backfill.records_already_resolved // 0')
           total=$(echo "$summary" | jq -r '.backfill.records_total // 0')
-          echo "backfill summary: total=$total backfilled=$backfilled already_resolved=$already pending_close=$pending"
-          if [ "$backfilled" -eq 0 ] && [ "$pending" -gt 0 ]; then
-            echo "::warning::F-V3-15: backfill_live_outcomes resolved 0 of $pending pending records on ${{ steps.date.outputs.date }} — likely auth/quota/input-path regression. Investigate before this becomes hard-fail in phase 2."
+          # F-V3-15 follow-up (2026-06-10): audit_only intents never reached
+          # a broker (C13 T1 NO-GO) and can structurally never close — they
+          # are NOT "stuck pending" and firing on them mislabels the known
+          # NO-GO condition as an auth/quota regression. Only closable
+          # pending records (pending minus audit_only) indicate a real
+          # backfill stall.
+          closable=$(( pending - audit_only ))
+          echo "backfill summary: total=$total backfilled=$backfilled already_resolved=$already pending_close=$pending audit_only=$audit_only"
+          if [ "$backfilled" -eq 0 ] && [ "$closable" -gt 0 ]; then
+            echo "::warning::F-V3-15: backfill_live_outcomes resolved 0 of $closable closable pending records on ${{ steps.date.outputs.date }} — likely auth/quota/input-path regression. Investigate before this becomes hard-fail in phase 2."
+          elif [ "$backfilled" -eq 0 ] && [ "$audit_only" -gt 0 ]; then
+            echo "::notice::F-V3-15: all $audit_only pending records are audit_only intents (no broker connectivity, C13 T1 NO-GO) — nothing closable; not a backfill regression."
           fi
 
       - name: Step 2 — drift-input from audit JSONL (advisory)

@@ -46,7 +46,10 @@ import sys
 from datetime import UTC, datetime
 from typing import Any
 
-from governance.family_returns import DEFAULT_COST_BPS
+from governance.family_returns import (
+    DEFAULT_COST_BPS,
+    extract_family_calibration_samples,
+)
 from governance.magnitude_resolution_gate import (
     DEFAULT_N_BOOTSTRAP,
     DEFAULT_N_PERMUTATION,
@@ -215,6 +218,32 @@ def _summarize(new_rows: list[dict[str, Any]]) -> str:
     return " | ".join(parts) if parts else "no families measured"
 
 
+def _thin_input_diagnostics(
+    events: list[dict[str, Any]], *, cost_bps: float
+) -> str:
+    """One-line per-family input profile for the all_thin verdict.
+
+    2026-06-10 review: weeks of `all_thin` runs were indistinguishable
+    from an adapter regression because the only output was "no families
+    measured". The dominant cause was structural input thinness — only
+    ~9% of rolling-bench events carry a `score` plus a triggered return,
+    and all usable samples cluster in ~3 anchor days, so the purged
+    walk-forward cannot assemble MIN_OOS shared points. Surfacing the
+    usable-sample and anchor-day counts lets the operator tell
+    "needs more accumulation days" apart from "extractor broke".
+    """
+    samples = extract_family_calibration_samples(events, cost_bps=cost_bps)
+    if not samples:
+        return "0 usable samples in any family (score+triggered-return filter)"
+    parts = []
+    for family, bundle in sorted(samples.items()):
+        days = {
+            datetime.fromtimestamp(t, UTC).date() for t in bundle["anchor_ts"]
+        }
+        parts.append(f"{family}: {len(bundle['scores'])} samples / {len(days)} anchor days")
+    return " | ".join(parts)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -290,6 +319,12 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     print(f"shadow ledger {args.ledger}: {_summarize(new_rows)}", file=sys.stderr)
+    if not report["results"]:
+        print(
+            "thin-input profile: "
+            + _thin_input_diagnostics(events, cost_bps=args.cost_bps),
+            file=sys.stderr,
+        )
     return _verdict_exit_code(report)
 
 

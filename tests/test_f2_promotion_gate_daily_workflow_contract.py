@@ -123,6 +123,32 @@ def test_flip_detection_cache_key_versioned() -> None:
     )
 
 
+def test_flip_detection_cache_uses_explicit_save_before_gate() -> None:
+    """2026-06-10 audit: unified actions/cache never persisted the status.
+
+    The unified action saves in an implicit POST step that is skipped
+    when the job fails — and this job exits 2 by design on every
+    rollback decision, so five consecutive rollback runs persisted
+    nothing (`gh cache list` was empty; every run logged "Cache not
+    found"). The workflow must use explicit cache/restore + cache/save,
+    with the save placed BEFORE the gate step can fail.
+    """
+    text = _WF_PATH.read_text(encoding="utf-8")
+    assert "actions/cache/restore@" in text, (
+        "flip-detection must use explicit actions/cache/restore (the "
+        "unified action's post-step save is skipped on rollback-failed runs)"
+    )
+    assert "actions/cache/save@" in text, (
+        "flip-detection must use explicit actions/cache/save"
+    )
+    save_pos = text.index("actions/cache/save@")
+    gate_pos = text.index("python scripts/f2_run_promotion_gate.py")
+    assert save_pos < gate_pos, (
+        "cache/save must run BEFORE the gate step; the gate exits 2 on "
+        "rollback and any save placed after it would be skipped again"
+    )
+
+
 def test_h7_artifact_iteration_pattern() -> None:
     """Audit H7: must iterate recent rolling-bench runs, not assume newest."""
     text = _WF_PATH.read_text(encoding="utf-8")
