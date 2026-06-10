@@ -17,8 +17,8 @@
 
     <!-- 17:30 local time (ET) Mon-Fri — one hour after US-equity close.
          Pushes today's incubation_<DATE>.jsonl + setups + gate_status
-         to the protected `data/phase-a-audit` branch (keeps cron-bot
-         churn off main). -->
+         to the dedicated, unprotected `data/phase-a-audit` branch
+         (keeps cron-bot churn off main; bootstrapped on first run). -->
     <key>StartCalendarInterval</key>
     <array>
         <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>17</integer><key>Minute</key><integer>30</integer></dict>

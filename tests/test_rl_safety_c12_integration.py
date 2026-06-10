@@ -57,6 +57,13 @@ def test_layer_records_negative_size_rejection(tmp_path: Path) -> None:
     assert rows[0]["enforced"] == 0.0
 
 
+def test_layer_rejects_non_finite_size_fraction() -> None:
+    layer = HardConstraintLayer()
+    fraction, decision, _ = layer.guard_size_fraction(float("nan"))
+    assert decision == "rejected"
+    assert fraction == 0.0
+
+
 def test_layer_audit_failure_does_not_block_decision() -> None:
     class _BrokenLog:
         def record_clamp(self, **_kw: object) -> None:

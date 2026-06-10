@@ -93,3 +93,8 @@ artifacts/ops_run_measure.py
 .ci_failed*.log
 .testmondata
 synthetic/
+
+# C13 launchd cron status markers (local-only run-state breadcrumbs written by
+# automation/launchd/run-c13-*.sh — push/feed health, never canonical data).
+cache/*/.push_status_*
+cache/*/.feed_status_*

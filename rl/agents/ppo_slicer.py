@@ -17,17 +17,21 @@ exposes ``available = False`` and instantiating raises a clear
 """
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 try:  # pragma: no cover - exercised only in environments with sb3
-    import gymnasium as gym  # type: ignore
-    from stable_baselines3 import PPO  # type: ignore
+    import gymnasium as gym  # type: ignore[import-not-found]
+    from stable_baselines3 import PPO  # type: ignore[import-not-found]
 
     _HAS_DEPS = True
 except Exception:  # pragma: no cover - the absence is the locally tested path
-    gym = None  # type: ignore
-    PPO = None  # type: ignore
+    gym = None  # type: ignore[assignment]
+    PPO = None  # type: ignore[assignment]
     _HAS_DEPS = False
+
+
+logger = logging.getLogger(__name__)
 
 
 class PPOSlicer:
@@ -87,6 +91,14 @@ class PPOSlicer:
         )
         self._model.learn(total_timesteps=total_timesteps)
         self.resolved_device = str(getattr(self._model, "device", self.device))
+        requested = str(self.device).strip().lower()
+        resolved = str(self.resolved_device or "").strip().lower()
+        if requested in {"cuda", "gpu"} and resolved and "cuda" not in resolved:
+            logger.warning(
+                "PPO requested device '%s' but resolved to '%s' (fallback to CPU-like backend)",
+                self.device,
+                self.resolved_device,
+            )
         return self
 
     def predict(self, obs):  # pragma: no cover

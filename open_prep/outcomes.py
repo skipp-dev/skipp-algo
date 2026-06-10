@@ -60,6 +60,15 @@ RVOL_BUCKETS = [
 ]
 
 
+def _extract_date_from_stem(stem: str, *, prefix: str) -> date | None:
+    if not stem.startswith(prefix):
+        return None
+    try:
+        return date.fromisoformat(stem[len(prefix):])
+    except ValueError:
+        return None
+
+
 def _gap_bucket_label(gap_pct: float) -> str:
     abs_gap = abs(gap_pct)
     for label, lo, hi in GAP_BUCKETS:
@@ -166,16 +175,18 @@ def _load_outcomes_range(lookback_days: int = 20) -> list[dict[str, Any]]:
         return []
     files = sorted(OUTCOMES_DIR.glob("outcomes_*.json"), reverse=True)
     records: list[dict[str, Any]] = []
-    loaded = 0
+    loaded_dates: set[date] = set()
     for path in files:
-        if loaded >= lookback_days:
+        file_date = _extract_date_from_stem(path.stem, prefix="outcomes_")
+        if file_date is not None and file_date not in loaded_dates and len(loaded_dates) >= lookback_days:
             break
         try:
             with open(path, encoding="utf-8") as fh:
                 data = json.load(fh)
             if isinstance(data, list):
                 records.extend(data)
-                loaded += 1
+                if file_date is not None:
+                    loaded_dates.add(file_date)
         except Exception:
             logger.warning("Failed to load outcome file: %s", path)
     return records
@@ -663,19 +674,30 @@ def compute_feature_importance(
 
     files = sorted(FEATURE_IMPORTANCE_DIR.glob("fi_samples_*.jsonl"), reverse=True)
     samples: list[dict[str, Any]] = []
-    loaded = 0
+    loaded_dates: set[date] = set()
     for path in files:
-        if loaded >= lookback_days:
+        file_date = _extract_date_from_stem(path.stem, prefix="fi_samples_")
+        if file_date is not None and file_date not in loaded_dates and len(loaded_dates) >= lookback_days:
             break
         try:
             with open(path, encoding="utf-8") as fh:
-                for line in fh:
+                for line_no, line in enumerate(fh, start=1):
                     line = line.strip()
                     if line:
-                        samples.append(json.loads(line))
-            loaded += 1
+                        try:
+                            samples.append(json.loads(line))
+                        except json.JSONDecodeError as exc:
+                            logger.warning(
+                                "Failed to parse FI line %s:%d (%s)",
+                                path,
+                                line_no,
+                                exc,
+                            )
+                            continue
+            if file_date is not None:
+                loaded_dates.add(file_date)
         except Exception:
-            logger.warning("Failed to load FI file: %s", path)
+            logger.warning("Failed to load FI file: %s", path, exc_info=True)
 
     # Filter to samples with known outcome
     labeled = [s for s in samples if s.get("profitable_30m") is not None]

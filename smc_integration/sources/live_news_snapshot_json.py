@@ -189,8 +189,17 @@ def load_raw_meta_input(
         # bundles (otherwise time.time() drift breaks determinism under
         # xdist parallel workers).
         asof_ts = float(reference_time) if reference_time is not None else float(time.time())
+        asof_source = "now_strategy"
     else:
-        asof_ts = latest_published_ts or generated_at_ts
+        # latest article published_ts preferred; snapshot generated_at is a
+        # disclosed proxy (no matching articles → asof reflects snapshot
+        # creation, not story recency — audit #2670 W7).
+        if latest_published_ts:
+            asof_ts = latest_published_ts
+            asof_source = "published_ts"
+        else:
+            asof_ts = generated_at_ts
+            asof_source = "generated_at"
     if asof_ts is None:
         raise ValueError("live news snapshot is missing both generated_at and published_ts timestamps")
 
@@ -198,6 +207,7 @@ def load_raw_meta_input(
         "symbol": wanted,
         "timeframe": str(timeframe).strip(),
         "asof_ts": asof_ts,
+        "asof_source": asof_source,
         "provenance": [
             "repo:artifacts/smc_microstructure_exports/smc_live_news_snapshot.json",
             f"repo:artifacts/smc_microstructure_exports/smc_live_news_snapshot.json#symbol={wanted}",

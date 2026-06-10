@@ -64,18 +64,19 @@ _FROZEN_SITES: dict[str, dict[str, frozenset[int]]] = {
     # PR #2339 added _build_universe_metadata (sha1 universe fingerprint, line
     # 475) and shifted the two cache-probe sites by ~100 lines (cache-pollution
     # filter + drift detector block). Still non-security fingerprinting.
-    "databento_volatility_screener.py": {"sha1": frozenset({393, 475, 691, 709})},
+    # 2026-06-10 (#2670 W9): timestamp_substitutions disclosure shifted +5.
+    "databento_volatility_screener.py": {"sha1": frozenset({398, 480, 696, 714})},
     "newsstack_fmp/normalize.py": {
-        "md5": frozenset({130, 253}),
-        "sha1": frozenset({334, 420, 458, 502}),
+        "md5": frozenset({132, 255}),
+        "sha1": frozenset({336, 422, 460, 504}),
     },
-    "newsstack_fmp/scoring.py": {"sha1": frozenset({108})},
+    "newsstack_fmp/scoring.py": {"sha1": frozenset({123})},
     "newsstack_fmp/shared_fetch.py": {
         "md5": frozenset({75}),
         "sha1": frozenset({184}),
     },
     "open_prep/dirty_flag_manager.py": {"md5": frozenset({74})},
-    "open_prep/realtime_signals.py": {"md5": frozenset({1024})},
+    "open_prep/realtime_signals.py": {"md5": frozenset({1037})},
     # #2334: offline simulation script mirrors build_cache_path's digest
     # computation to re-key probe paths. Non-security cache-fingerprint use.
     "scripts/simulate_cache_redesign_2334.py": {"sha1": frozenset({49})},

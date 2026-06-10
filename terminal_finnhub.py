@@ -20,6 +20,7 @@ import time
 import urllib.error
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 try:
@@ -52,6 +53,9 @@ _social_sentiment_blocked: bool = False  # circuit breaker for 403 (premium-only
 _blocked_path_substrings: set[str] = set()
 _rate_limit_backoff_until: float = 0.0  # monotonic timestamp; skip calls until then (PR-J4)
 _consecutive_429_count: int = 0  # counter for exponential backoff
+# Symbol-scoped 429 state so one noisy ticker does not back off all symbols.
+_symbol_rate_limit_backoff_until: dict[str, float] = {}
+_symbol_consecutive_429_count: dict[str, int] = {}
 _BACKOFF_BASE_SECONDS = 5.0
 _BACKOFF_MAX_SECONDS = 300.0  # 5 min ceiling
 
@@ -92,11 +96,13 @@ def social_sentiment_status() -> str:
     with _state_lock:
         blocked = _social_sentiment_blocked
         backoff_until = _rate_limit_backoff_until
+        symbol_backoffs = list(_symbol_rate_limit_backoff_until.values())
     if blocked:
         return "blocked_premium"
     # Audit 2026-05-10 (PR-J4): _rate_limit_backoff_until is a
     # monotonic timestamp; compare with time.monotonic().
-    if time.monotonic() < backoff_until:
+    now = time.monotonic()
+    if now < backoff_until or any(now < deadline for deadline in symbol_backoffs):
         return "rate_limited"
     if not _api_key():
         return "no_api_key"
@@ -163,6 +169,11 @@ def is_available() -> bool:
 _BASE = "https://finnhub.io/api/v1"
 
 
+def _rate_limit_scope(params: dict[str, Any] | None) -> str | None:
+    symbol = str((params or {}).get("symbol") or "").strip().upper()
+    return symbol or None
+
+
 def _get(path: str, params: dict[str, Any] | None = None, *, api_key: str | None = None) -> Any:
     """GET from Finnhub.  Returns parsed JSON or empty dict on error.
 
@@ -207,35 +218,65 @@ def _get(path: str, params: dict[str, Any] | None = None, *, api_key: str | None
     with _state_lock:
         if any(sub in path for sub in _blocked_path_substrings):
             return {}
-    query_parts: list[str] = [f"token={key}"]
+    query_params: dict[str, Any] = {"token": key}
     for k, v in (params or {}).items():
-        query_parts.append(f"{k}={v}")
-    url = f"{_BASE}{path}?{'&'.join(query_parts)}"
-    request = Request(url, headers={"Accept": "application/json"})
+        query_params[str(k)] = v
+    url = f"{_BASE}{path}?{urlencode(query_params, doseq=True)}"
+    request = Request(
+        url,
+        headers={
+            "Accept": "application/json",
+            "X-Finnhub-Token": key,
+        },
+    )
+    scope = _rate_limit_scope(params)
     # Rate-limit backoff guard
     with _state_lock:
         # Audit 2026-05-10 (PR-J4): _rate_limit_backoff_until is monotonic.
-        if time.monotonic() < _rate_limit_backoff_until:
+        now = time.monotonic()
+        scoped_backoff_until = (
+            _symbol_rate_limit_backoff_until.get(scope, 0.0)
+            if scope is not None
+            else 0.0
+        )
+        if now < _rate_limit_backoff_until or now < scoped_backoff_until:
             return {}
     try:
         with urlopen(request, timeout=15, context=_SSL_CTX) as resp:
             with _state_lock:
-                _consecutive_429_count = 0  # reset on success
+                if scope is None:
+                    _consecutive_429_count = 0
+                    _rate_limit_backoff_until = 0.0
+                else:
+                    _symbol_consecutive_429_count[scope] = 0
+                    _symbol_rate_limit_backoff_until[scope] = 0.0
             return json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         if exc.code == 429:
             with _state_lock:
-                _consecutive_429_count += 1
+                if scope is None:
+                    _consecutive_429_count += 1
+                    attempts = _consecutive_429_count
+                else:
+                    attempts = _symbol_consecutive_429_count.get(scope, 0) + 1
+                    _symbol_consecutive_429_count[scope] = attempts
                 backoff = min(
-                    _BACKOFF_BASE_SECONDS * (2 ** (_consecutive_429_count - 1)),
+                    _BACKOFF_BASE_SECONDS * (2 ** (attempts - 1)),
                     _BACKOFF_MAX_SECONDS,
                 )
                 # Audit 2026-05-10 (PR-J4): monotonic deadline for backoff.
-                _rate_limit_backoff_until = time.monotonic() + backoff
-                attempt_for_log = _consecutive_429_count
+                deadline = time.monotonic() + backoff
+                if scope is None:
+                    _rate_limit_backoff_until = deadline
+                else:
+                    _symbol_rate_limit_backoff_until[scope] = deadline
+                attempt_for_log = attempts
             log.warning(
-                "Finnhub rate-limited (429) for %s — backing off %.0f s (attempt %d)",
-                path, backoff, attempt_for_log,
+                "Finnhub rate-limited (429) for %s%s — backing off %.0f s (attempt %d)",
+                path,
+                f" [{scope}]" if scope else "",
+                backoff,
+                attempt_for_log,
             )
         elif exc.code == 403:
             log.warning(
@@ -575,7 +616,11 @@ def fetch_insider_sentiment(
 
 def clear_blocked_paths() -> None:
     """Reset the generalised DISABLED-path short-circuit (test helper)."""
-    global _social_sentiment_blocked
+    global _social_sentiment_blocked, _rate_limit_backoff_until, _consecutive_429_count
     with _state_lock:
         _blocked_path_substrings.clear()
         _social_sentiment_blocked = False
+        _rate_limit_backoff_until = 0.0
+        _consecutive_429_count = 0
+        _symbol_rate_limit_backoff_until.clear()
+        _symbol_consecutive_429_count.clear()

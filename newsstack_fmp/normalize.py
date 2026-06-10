@@ -22,12 +22,14 @@ import hashlib
 import logging
 from datetime import UTC
 from typing import Any
+from zoneinfo import ZoneInfo as _ZoneInfo
 
 from dateutil import parser as dtparser  # type: ignore[import-untyped]
 
 from .common_types import NewsItem
 
 logger = logging.getLogger(__name__)
+_ET = _ZoneInfo("America/New_York")
 
 
 # ── Shared helpers ──────────────────────────────────────────────
@@ -39,7 +41,7 @@ logger = logging.getLogger(__name__)
 _MIN_DATE_LEN = 8
 
 
-def _to_epoch(s: str) -> float:
+def _to_epoch(s: str, *, naive_tz: Any = UTC) -> float:
     """Parse a date/time string to epoch seconds.
 
     Returns ``0.0`` for empty, too-short, or unparseable strings so that
@@ -58,7 +60,7 @@ def _to_epoch(s: str) -> float:
     try:
         dt = dtparser.parse(s_stripped)
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=UTC)
+            dt = dt.replace(tzinfo=naive_tz)
         return float(dt.timestamp())
     except Exception:
         logger.warning("Unparseable date %r — returning epoch 0.", s_stripped[:80])
@@ -122,7 +124,7 @@ def normalize_fmp(provider: str, it: dict[str, Any]) -> NewsItem:
     tickers = _extract_tickers(it)
 
     published = str(it.get("publishedDate") or it.get("published") or it.get("date") or "").strip()
-    ts = _to_epoch(published)
+    ts = _to_epoch(published, naive_tz=_ET)
 
     # Guard: FMP has no stable ``id``; if URL is also missing, generate a
     # deterministic fallback so dedup doesn't collapse unrelated items.
@@ -161,8 +163,8 @@ def normalize_benzinga_quantified(it: dict[str, Any]) -> NewsItem:
 
     published = str(it.get("created") or it.get("published") or "").strip()
     updated = str(it.get("updated") or published).strip()
-    pts = _to_epoch(published)
-    uts = _to_epoch(updated)
+    pts = _to_epoch(published, naive_tz=_ET)
+    uts = _to_epoch(updated, naive_tz=_ET)
 
     return NewsItem(
         provider="benzinga_quantified",
@@ -189,8 +191,8 @@ def normalize_benzinga_rest(it: dict[str, Any]) -> NewsItem:
 
     published = str(it.get("created") or it.get("published") or "").strip()
     updated = str(it.get("updated") or published).strip()
-    pts = _to_epoch(published)
-    uts = _to_epoch(updated)
+    pts = _to_epoch(published, naive_tz=_ET)
+    uts = _to_epoch(updated, naive_tz=_ET)
 
     return NewsItem(
         provider="benzinga_rest",
@@ -223,8 +225,8 @@ def normalize_benzinga_ws(msg: dict[str, Any]) -> NewsItem:
 
     published = str(msg.get("created") or msg.get("published") or "").strip()
     updated = str(msg.get("updated") or published).strip()
-    pts = _to_epoch(published)
-    uts = _to_epoch(updated)
+    pts = _to_epoch(published, naive_tz=_ET)
+    uts = _to_epoch(updated, naive_tz=_ET)
 
     return NewsItem(
         provider="benzinga_ws",

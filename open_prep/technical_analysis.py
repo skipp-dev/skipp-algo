@@ -312,6 +312,8 @@ def detect_breakout(
         return {"direction": None, "pattern": "insufficient_data", "details": {}}
 
     closes = [_safe_float(b.get("close")) for b in bars]
+    highs = [_safe_float(b.get("high")) for b in bars]
+    lows = [_safe_float(b.get("low")) for b in bars]
     volumes = [_safe_float(b.get("volume")) for b in bars]
     last_close = closes[-1]
     prev_close = closes[-2] if len(closes) >= 2 else last_close
@@ -328,10 +330,10 @@ def detect_breakout(
     is_rising = all(recent_5[i] >= recent_5[i - 1] for i in range(1, len(recent_5)))
     price_change_pct = ((last_close / prev_close) - 1) * 100 if prev_close > 0 else 0.0
 
-    prior_high_s = max(closes[-(short_n + 1):-1])
-    prior_low_s = min(closes[-(short_n + 1):-1])
-    prior_high_l = max(closes[-(long_n + 1):-1])
-    prior_low_l = min(closes[-(long_n + 1):-1])
+    prior_high_s = max(highs[-(short_n + 1):-1])
+    prior_low_s = min(lows[-(short_n + 1):-1])
+    prior_high_l = max(highs[-(long_n + 1):-1])
+    prior_low_l = min(lows[-(long_n + 1):-1])
 
     # --- Pattern 1: Bullish Capitulation ---
     if volume_ratio >= 5.0:
@@ -1151,4 +1153,3 @@ def resolve_regime_weights(
             break
 
     return w
-

@@ -364,6 +364,11 @@ class DataStatusResult:
     is_stale: bool
     staleness_reason: str
     manifest_path: str | None
+    # Records cross-phase timestamp backfills as "target<-source" entries
+    # (e.g. "intraday_fetched_at<-premarket_fetched_at") so consumers can
+    # tell a displayed timestamp came from a DIFFERENT export phase
+    # (audit #2670 W9). Empty when every timestamp is phase-native.
+    timestamp_substitutions: tuple[str, ...] = ()
 
 
 EXACT_EXPORT_STATUS_FILES = {
@@ -4100,10 +4105,29 @@ def build_data_status_result(export_dir: str | Path | None = None, *, stale_afte
     if second_detail_fetched_at is None and not is_fast_manifest:
         second_detail_fetched_at = _safe_iso_from_file(target_dir / EXACT_EXPORT_STATUS_FILES["second_detail_fetched_at"])
 
+    # Cross-phase backfills below are disclosed via timestamp_substitutions
+    # ("target<-source") instead of silently presenting another phase's
+    # timestamp as the missing one (audit #2670 W9).
+    timestamp_substitutions: list[str] = []
     if not intraday_fetched_at:
-        intraday_fetched_at = second_detail_fetched_at or premarket_fetched_at
+        for _src_name, _src_val in (
+            ("second_detail_fetched_at", second_detail_fetched_at),
+            ("premarket_fetched_at", premarket_fetched_at),
+        ):
+            if _src_val:
+                intraday_fetched_at = _src_val
+                timestamp_substitutions.append(f"intraday_fetched_at<-{_src_name}")
+                break
     if not export_generated_at:
-        export_generated_at = premarket_fetched_at or intraday_fetched_at or daily_bars_fetched_at
+        for _src_name, _src_val in (
+            ("premarket_fetched_at", premarket_fetched_at),
+            ("intraday_fetched_at", intraday_fetched_at),
+            ("daily_bars_fetched_at", daily_bars_fetched_at),
+        ):
+            if _src_val:
+                export_generated_at = _src_val
+                timestamp_substitutions.append(f"export_generated_at<-{_src_name}")
+                break
 
     if not export_generated_at:
         return DataStatusResult(
@@ -4118,6 +4142,7 @@ def build_data_status_result(export_dir: str | Path | None = None, *, stale_afte
             is_stale=True,
             staleness_reason="No production export found yet.",
             manifest_path=str(manifest_path) if manifest_path is not None else None,
+            timestamp_substitutions=tuple(timestamp_substitutions),
         )
 
     try:
@@ -4139,6 +4164,7 @@ def build_data_status_result(export_dir: str | Path | None = None, *, stale_afte
             is_stale=True,
             staleness_reason="Invalid export timestamp in manifest.",
             manifest_path=str(manifest_path) if manifest_path is not None else None,
+            timestamp_substitutions=tuple(timestamp_substitutions),
         )
     age_minutes = max(0.0, (pd.Timestamp(datetime.now(UTC)) - reference_timestamp).total_seconds() / 60.0)
     is_stale = age_minutes > stale_after_minutes
@@ -4155,6 +4181,7 @@ def build_data_status_result(export_dir: str | Path | None = None, *, stale_afte
         is_stale=is_stale,
         staleness_reason="Fresh" if not is_stale else f"Last successful export is {age_minutes:.0f} minutes old.",
         manifest_path=str(manifest_path) if manifest_path is not None else None,
+        timestamp_substitutions=tuple(timestamp_substitutions),
     )
 
 

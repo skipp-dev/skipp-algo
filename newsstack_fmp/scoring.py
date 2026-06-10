@@ -60,6 +60,14 @@ POS_HINTS = re.compile(
     r"rally|rallies|jumps?|gains?|rebounds?|soars?|rises?|rose)\b", re.I,
 )
 
+_CATEGORY_POLARITY_NOISE: dict[str, re.Pattern[str]] = {
+    "halt": re.compile(r"\b(trading\s+halt|halted|resumption|resumed)\b", re.I),
+    "offering": re.compile(
+        r"\b(offering|atm|registered\s+direct|pipe|public\s+offering|priced|shelf\s+registration)\b",
+        re.I,
+    ),
+}
+
 # ── Headline token set for Jaccard novelty ──────────────────────
 
 
@@ -94,6 +102,13 @@ def _merge_text_fragments(*values: Any) -> str:
         seen.add(normalized)
         parts.append(text)
     return " ".join(parts)
+
+
+def _sanitize_polarity_text(category: str, text: str) -> str:
+    rx = _CATEGORY_POLARITY_NOISE.get(category)
+    if rx is None:
+        return text
+    return rx.sub(" ", text)
 
 
 def cluster_hash(headline: str, tickers: list[str]) -> str:
@@ -164,7 +179,7 @@ def classify_and_score(
     # Polarity: use headline plus optional snippet/context text.
     # Fine-grained scoring (WP-NW1): continuous −1.0…+1.0 based on
     # keyword density, net direction, and impact weight.
-    polarity_text = _merge_text_fragments(headline, snippet)
+    polarity_text = _sanitize_polarity_text(category, _merge_text_fragments(headline, snippet))
     pos_matches = len(POS_HINTS.findall(polarity_text))
     neg_matches = len(NEG_HINTS.findall(polarity_text))
     if pos_matches == 0 and neg_matches == 0:

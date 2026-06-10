@@ -104,3 +104,12 @@ def test_split_conformal_set_sizes_in_one_or_two() -> None:
     sets = cls.predict_set(probs[1000:])
     sizes = {len(s) for s in sets}
     assert sizes.issubset({1, 2})
+
+
+def test_split_conformal_logs_on_degenerate_quantile(caplog) -> None:
+    cls = SplitConformalClassifier(alpha=0.1).calibrate(np.array([0.6, 0.7]), np.array([1, 1]))
+    cls.quantile_ = -1.0
+    with caplog.at_level("WARNING"):
+        sets = cls.predict_set(np.array([0.4]))
+    assert sets == [{0}]
+    assert "degenerate_conformal_quantile" in caplog.text

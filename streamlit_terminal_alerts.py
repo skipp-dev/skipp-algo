@@ -85,12 +85,14 @@ def validate_webhook_url(
         lookup = resolver or socket.getaddrinfo
         try:
             infos = lookup(host, parsed.port or (443 if parsed.scheme == "https" else 80))
+            if not infos:
+                return False, "dns_resolution_failed"
             for info in infos:
                 resolved_ip = ipaddress.ip_address(info[4][0])
                 if _ip_is_private_or_local(resolved_ip):
                     return False, "resolved_to_private_or_local_ip"
         except Exception:
-            pass
+            return False, "dns_resolution_failed"
 
     if parsed.scheme not in _ALLOWED_WEBHOOK_SCHEMES:
         return False, "insecure_scheme"

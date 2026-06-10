@@ -64,7 +64,9 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # redundant ``mkdir``/``open`` body; PR #2339 (universe-version
     # metadata) added the drift detector / version-bump persistence
     # block above the helper which shifted the site further: 489 → 597.
-    ("databento_volatility_screener.py", 597, "mkstemp"),
+    # 2026-06-10 (#2670 W9): timestamp_substitutions disclosure shifted +5
+    # (597 -> 602).
+    ("databento_volatility_screener.py", 602, "mkstemp"),
     ("governance/alpha_ledger.py", 70, "mkstemp"),
     ("newsstack_fmp/open_prep_export.py", 25, "mkstemp"),
     ("open_prep/alerts.py", 68, "mkstemp"),
@@ -73,13 +75,21 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     ("open_prep/feature_importance_report.py", 249, "mkstemp"),
     ("open_prep/outcome_backfill.py", 88, "mkstemp"),
     ("open_prep/outcome_backfill.py", 531, "mkstemp"),
-    ("open_prep/outcomes.py", 129, "mkstemp"),
-    ("open_prep/outcomes.py", 408, "mkstemp"),
+    ("open_prep/outcomes.py", 138, "mkstemp"),
+    ("open_prep/outcomes.py", 419, "mkstemp"),
     ("open_prep/realtime_signals.py", 116, "mkstemp"),
-    ("open_prep/realtime_signals.py", 2506, "mkstemp"),
-    ("open_prep/realtime_signals.py", 2547, "mkstemp"),
+    ("open_prep/realtime_signals.py", 2528, "mkstemp"),
+    ("open_prep/realtime_signals.py", 2569, "mkstemp"),
     ("open_prep/watchlist.py", 63, "mkstemp"),
+    ("smc_core/benchmark.py", 30, "mkstemp"),
+    ("smc_core/ensemble_quality.py", 49, "mkstemp"),
+    ("smc_core/event_ledger.py", 133, "mkstemp"),
     ("smc_core/inference/null_cache.py", 96, "mkstemp"),
+    ("smc_core/scoring.py", 1211, "mkstemp"),
+    ("smc_integration/batch.py", 26, "mkstemp"),
+    ("smc_integration/provider_health.py", 60, "mkstemp"),
+    ("smc_integration/structure_batch.py", 30, "mkstemp"),
+    ("streamlit_terminal.py", 2253, "mkstemp"),
     ("terminal_export.py", 177, "mkstemp"),
     ("terminal_export.py", 229, "mkstemp"),
     ("terminal_export.py", 606, "mkstemp"),

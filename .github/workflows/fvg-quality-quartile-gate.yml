@@ -67,13 +67,21 @@ jobs:
         env:
           GITHUB_SHA: ${{ github.sha }}
           GITHUB_RUN_ID: ${{ github.run_id }}
+          # A2 (2026-06-10): env-var indirection.
+          INPUT_ROOT: ${{ github.event.inputs.root }}
         run: |
           set -euo pipefail
-          ROOT_ARG=""
-          if [ -n "${{ github.event.inputs.root }}" ]; then
-            ROOT_ARG="--root ${{ github.event.inputs.root }}"
+          ROOT_ARGS=()
+          if [ -n "${INPUT_ROOT}" ]; then
+            # Validate: relative path, no shell metacharacters, no traversal.
+            [[ "${INPUT_ROOT}" =~ ^[A-Za-z0-9_./-]+$ ]] \
+              && [[ "${INPUT_ROOT}" != /* ]] \
+              && [[ "${INPUT_ROOT}" != *..* ]] || {
+              echo "::error::root must be a relative path without metacharacters, got: ${INPUT_ROOT}"; exit 1
+            }
+            ROOT_ARGS=(--root "${INPUT_ROOT}")
           fi
-          python -m scripts.fvg_quality_quartile_gate $ROOT_ARG
+          python -m scripts.fvg_quality_quartile_gate "${ROOT_ARGS[@]}"
 
       - name: Capture decision for downstream steps
         id: decision

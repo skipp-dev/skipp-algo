@@ -2552,7 +2552,18 @@ def _fetch_premarket_context(
 
             quote_ts = _epoch_to_datetime_utc(aq.get("timestamp"))
             trade_ts = _epoch_to_datetime_utc(at.get("timestamp"))
-            last_trade_ts = trade_ts or quote_ts
+            # Trade timestamp preferred; quote timestamp is a disclosed proxy
+            # (quotes can update without prints → staleness gate then measures
+            # quote age, not trade age — audit #2670 W4).
+            if trade_ts is not None:
+                last_trade_ts = trade_ts
+                freshness_source: str | None = "trade"
+            elif quote_ts is not None:
+                last_trade_ts = quote_ts
+                freshness_source = "quote"
+            else:
+                last_trade_ts = None
+                freshness_source = None
             freshness_sec: float | None = None
             if last_trade_ts is not None:
                 freshness_sec = max((run_dt_utc - last_trade_ts).total_seconds(), 0.0)
@@ -2567,7 +2578,14 @@ def _fetch_premarket_context(
                 mid_px = ask if ask > 0.0 else bid if bid > 0.0 else 0.0
                 spread_bps = None
 
-            after_px_raw = trade_price if trade_price > 0.0 else mid_px
+            # Last print preferred; quote-mid is a disclosed substitute (no
+            # premarket print yet → "price" is really a quote midpoint).
+            if trade_price > 0.0:
+                after_px_raw = trade_price
+                after_px_source: str | None = "trade"
+            else:
+                after_px_raw = mid_px
+                after_px_source = "mid" if mid_px > 0.0 else None
             after_px = 0.0 if stale else after_px_raw
 
             ext_volume = 0.0
@@ -2607,6 +2625,8 @@ def _fetch_premarket_context(
             premarket[sym]["premarket_last_trade_ts_utc"] = (
                 None if last_trade_ts is None else last_trade_ts.isoformat()
             )
+            premarket[sym]["premarket_freshness_source"] = freshness_source
+            premarket[sym]["premarket_price_source"] = after_px_source
             premarket[sym]["premarket_freshness_sec"] = None if freshness_sec is None else round(freshness_sec, 2)
             premarket[sym]["premarket_spread_bps"] = None if spread_bps is None else round(spread_bps, 4)
             premarket[sym]["ext_volume_ratio"] = round(ext_vol_ratio, 6)
@@ -2937,16 +2957,14 @@ def _load_atr_cache(as_of: date, period: int) -> tuple[dict[str, float], dict[st
         momentum_map = {
             str(k).upper(): _to_float(v, default=0.0)
             for k, v in dict(payload.get("momentum_z_by_symbol", {})).items()
-            if str(k).upper() in atr_map
         }
         prev_close_map = {
             str(k).upper(): _to_float(v, default=0.0)
             for k, v in dict(payload.get("prev_close_by_symbol", {})).items()
-            if str(k).upper() in atr_map
         }
         return atr_map, momentum_map, prev_close_map
     except Exception as exc:
-        logger.debug("ATR cache payload parse failed: %s", exc)
+        logger.warning("ATR cache payload parse failed: %s", exc, exc_info=True)
         return {}, {}, {}
 
 
@@ -4489,8 +4507,8 @@ def _enrich_zone_priority(
                 _cal = _json.loads(_cal_p.read_text(encoding="utf-8"))
                 calibrated_fw = _cal.get("family_weights")
                 break
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Zone-priority calibration load failed: %s", exc, exc_info=True)
 
     regime = getattr(regime_snapshot, "regime", "NEUTRAL") if regime_snapshot else "NEUTRAL"
     for row in ranked_v2:
@@ -4509,9 +4527,11 @@ def _enrich_zone_priority(
             )
             row["zone_priority_rank"] = zp.get("ZONE_PRIORITY_RANK")
             row["zone_priority_score"] = zp.get("ZONE_PRIORITY_SCORE")
+            row["zone_priority_calibration_available"] = calibrated_fw is not None
         except Exception:
             row["zone_priority_rank"] = None
             row["zone_priority_score"] = None
+            row["zone_priority_calibration_available"] = calibrated_fw is not None
 
 
 def _build_result_payload(
@@ -5537,14 +5557,19 @@ def generate_open_prep_result(
             approx_adx = min(max(atr_pct * 8.0, 5.0), 60.0)  # rough proxy
             consol = detect_consolidation(bb_width_pct=approx_bb_width, adx=approx_adx)
             sym_regime = detect_symbol_regime(adx=approx_adx, bb_width_pct=approx_bb_width)
+            regime_source = "atr_proxy"  # synthesized BB/ADX, NOT measured indicators
         else:
             consol = {"is_consolidating": False, "score": 0.0, "bb_squeeze": False,
                       "adx_weak": False, "atr_contracted": False}
             sym_regime = "NEUTRAL"  # no ATR data → uncertain → no weight adjustments
+            regime_source = "no_data"
         row["consolidation"] = consol
         row["is_consolidating"] = consol.get("is_consolidating", False)
         row["consolidation_score"] = consol.get("score", 0.0)
         row["symbol_regime"] = sym_regime
+        # Disclose that consolidation/regime came from an ATR%-derived proxy
+        # (or no data at all), never from real BB-width/ADX (audit #2670 W2).
+        row["regime_source"] = regime_source
 
     # --- Playbook assignment (6-step professional news-trading engine) ---
     playbook_results = assign_playbooks(

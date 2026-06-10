@@ -17,6 +17,7 @@ import logging
 import math
 import random
 import ssl
+import threading
 import time
 import urllib.error
 from dataclasses import dataclass, field
@@ -42,13 +43,35 @@ logger = logging.getLogger(__name__)
 # disappearing.
 _LOGGED_SILENT_FAILURES: set[tuple[str, str]] = set()
 
+# Audit #2670 W10: the one-shot log above surfaces the FIRST failure but
+# callers still cannot distinguish "endpoint returned no data" from
+# "fetch failed and was swallowed". This counter tracks EVERY swallowed
+# failure per endpoint so health checks and tests can quantify
+# degradation programmatically without changing the return contract.
+_SILENT_FAILURE_COUNTS: dict[str, int] = {}
+_silent_failure_lock = threading.Lock()
+
+
+def get_silent_failure_counts() -> dict[str, int]:
+    """Snapshot of per-endpoint counts of silently-swallowed fetch failures.
+
+    A non-zero count for an endpoint means at least one ``RuntimeError``
+    from ``_get`` was converted into an empty result (``[]`` / ``{}``)
+    during this process's lifetime — i.e. empty results from that
+    endpoint are ambiguous and may mean "fetch failed", not "no data".
+    """
+    with _silent_failure_lock:
+        return dict(_SILENT_FAILURE_COUNTS)
+
 
 def _log_endpoint_failure_once(endpoint: str, exc: BaseException) -> None:
     """Emit a one-shot warning for an FMP endpoint that silently degraded."""
     key = (endpoint, type(exc).__name__)
-    if key in _LOGGED_SILENT_FAILURES:
-        return
-    _LOGGED_SILENT_FAILURES.add(key)
+    with _silent_failure_lock:
+        _SILENT_FAILURE_COUNTS[endpoint] = _SILENT_FAILURE_COUNTS.get(endpoint, 0) + 1
+        if key in _LOGGED_SILENT_FAILURES:
+            return
+        _LOGGED_SILENT_FAILURES.add(key)
     logger.warning(
         "FMP %s degraded silently (%s: %s); returning empty result. "
         "Subsequent failures of the same kind will not be re-logged.",

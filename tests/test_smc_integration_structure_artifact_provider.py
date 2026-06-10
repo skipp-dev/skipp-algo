@@ -438,7 +438,8 @@ def test_discover_normalized_contract_summary_prefers_legacy_over_orphan_determi
             "fvg": False,
             "liquidity_sweeps": False,
         }
-        assert summary["health"]["issue_count"] == 0
+        assert summary["health"]["issue_count"] == 1
+        assert summary["health"]["issues"][0]["code"] == "LEGACY_SINGLE_FILE_FALLBACK"
 
 
 def test_discover_normalized_contract_summary_repo_state_only_rejects_noncanonical_manifest_provenance(

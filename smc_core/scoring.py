@@ -23,21 +23,38 @@ Integration:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import math
+import os
+import re
+import tempfile
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
+from skipp_config import get_trading_thresholds
+
 EventFamily = Literal["BOS", "OB", "FVG", "SWEEP"]
 _FAMILY_ORDER: tuple[EventFamily, ...] = ("BOS", "OB", "FVG", "SWEEP")
 CalibrationMethod = Literal["platt_scaling", "beta_bin", "identity"]
 _CALIBRATION_DIMENSIONS: tuple[str, ...] = ("session", "htf_bias", "vol_regime")
-_DEFAULT_BIN_COUNT = 10
-_MIN_PLATT_EVENTS = 20
-_BETA_PRIOR_ALPHA = 1.0
-_BETA_PRIOR_BETA = 1.0
+_THRESHOLDS = get_trading_thresholds().smc_scoring
+_DEFAULT_BIN_COUNT = _THRESHOLDS.calibration_bin_count
+_MIN_PLATT_EVENTS = _THRESHOLDS.min_platt_events
+_BETA_PRIOR_ALPHA = _THRESHOLDS.beta_prior_alpha
+_BETA_PRIOR_BETA = _THRESHOLDS.beta_prior_beta
+_PLATT_FEATURE_SPREAD_ABS_TOL = _THRESHOLDS.platt_feature_spread_abs_tol
+_PLATT_L2_PENALTY = _THRESHOLDS.platt_l2_penalty
+_PLATT_MAX_ITERATIONS = _THRESHOLDS.platt_max_iterations
+_PLATT_INITIAL_LEARNING_RATE = _THRESHOLDS.platt_initial_learning_rate
+_PLATT_MIN_LEARNING_RATE = _THRESHOLDS.platt_min_learning_rate
+_PLATT_LOSS_TOLERANCE = _THRESHOLDS.platt_loss_tolerance
+_PLATT_ACCEPTANCE_TOLERANCE = _THRESHOLDS.platt_acceptance_tolerance
+_SWEEP_REVERSAL_THRESHOLD_PCT = _THRESHOLDS.sweep_reversal_threshold_pct
+_BOS_FOLLOW_THROUGH_THRESHOLD_PCT = _THRESHOLDS.bos_follow_through_threshold_pct
+_SAFE_ARTIFACT_TOKEN_RE = re.compile(r"[^A-Za-z0-9_-]+")
 
 
 @dataclass(slots=True, frozen=True)
@@ -326,27 +343,27 @@ def _fit_platt_scaler(raw_probabilities: list[float], outcomes: list[bool]) -> t
     # round-off semantics from raw `<` on floats). Tolerance pinned to the
     # historical 1e-6 threshold to preserve byte-identical Platt outputs
     # for existing calibration artifacts.
-    if math.isclose(max(features), min(features), abs_tol=1e-6):
+    if math.isclose(max(features), min(features), abs_tol=_PLATT_FEATURE_SPREAD_ABS_TOL):
         return None
 
     slope = 1.0
     intercept = 0.0
-    l2_penalty = 0.01
+    l2_penalty = _PLATT_L2_PENALTY
     current_loss = _platt_loss(features, labels, slope=slope, intercept=intercept, l2_penalty=l2_penalty)
 
-    for _ in range(600):
+    for _ in range(_PLATT_MAX_ITERATIONS):
         calibrated = [_sigmoid(slope * feature + intercept) for feature in features]
         grad_slope = sum((prediction - label) * feature for prediction, label, feature in zip(calibrated, labels, features, strict=True))
         grad_intercept = sum(prediction - label for prediction, label in zip(calibrated, labels, strict=True))
         grad_slope = grad_slope / float(len(features)) + (2.0 * l2_penalty * (slope - 1.0))
         grad_intercept = grad_intercept / float(len(features)) + (2.0 * l2_penalty * intercept)
 
-        learning_rate = 0.5
+        learning_rate = _PLATT_INITIAL_LEARNING_RATE
         improved = False
         next_slope = slope
         next_intercept = intercept
         next_loss = current_loss
-        while learning_rate >= 1e-5:
+        while learning_rate >= _PLATT_MIN_LEARNING_RATE:
             candidate_slope = slope - learning_rate * grad_slope
             candidate_intercept = intercept - learning_rate * grad_intercept
             candidate_loss = _platt_loss(
@@ -356,7 +373,7 @@ def _fit_platt_scaler(raw_probabilities: list[float], outcomes: list[bool]) -> t
                 intercept=candidate_intercept,
                 l2_penalty=l2_penalty,
             )
-            if candidate_loss <= current_loss + 1e-10:
+            if candidate_loss <= current_loss + _PLATT_ACCEPTANCE_TOLERANCE:
                 next_slope = candidate_slope
                 next_intercept = candidate_intercept
                 next_loss = candidate_loss
@@ -369,7 +386,7 @@ def _fit_platt_scaler(raw_probabilities: list[float], outcomes: list[bool]) -> t
 
         slope = next_slope
         intercept = next_intercept
-        if abs(current_loss - next_loss) <= 1e-9:
+        if abs(current_loss - next_loss) <= _PLATT_LOSS_TOLERANCE:
             current_loss = next_loss
             break
         current_loss = next_loss
@@ -790,7 +807,7 @@ def label_sweep_reversal(
     sweep_side: str,
     subsequent_closes: list[float],
     *,
-    threshold_pct: float = 0.005,
+    threshold_pct: float = _SWEEP_REVERSAL_THRESHOLD_PCT,
 ) -> bool:
     """Label whether a sweep led to a reversal.
 
@@ -827,7 +844,7 @@ def label_bos_follow_through(
     subsequent_highs: list[float],
     subsequent_lows: list[float],
     *,
-    threshold_pct: float = 0.003,
+    threshold_pct: float = _BOS_FOLLOW_THROUGH_THRESHOLD_PCT,
 ) -> bool:
     """Label whether a BOS produced directional follow-through.
 
@@ -896,7 +913,7 @@ def _zone_touch_before_invalidation(
     subsequent_lows: list[float],
     subsequent_closes: list[float],
 ) -> bool:
-    if zone_low <= 0 or zone_high <= 0 or zone_high < zone_low:
+    if zone_low <= 0 or zone_high <= 0 or zone_high <= zone_low:
         return False
 
     normalized_direction = _normalize_market_direction(direction)
@@ -925,7 +942,7 @@ def _zone_touch_before_invalidation(
             if invalid_idx is None and close is not None and close < zone_low:
                 invalid_idx = idx
 
-    return touch_idx is not None and (invalid_idx is None or touch_idx <= invalid_idx)
+    return touch_idx is not None and (invalid_idx is None or touch_idx < invalid_idx)
 
 
 def label_orderblock_mitigation(
@@ -963,7 +980,7 @@ def label_fvg_mitigation(
     used for OBs, reflecting the empirical finding that FVG zones
     frequently get a wick-through invalidation that reverses the next bar.
     """
-    if zone_low <= 0 or zone_high <= 0 or zone_high < zone_low:
+    if zone_low <= 0 or zone_high <= 0 or zone_high <= zone_low:
         return False
 
     normalized_direction = _normalize_market_direction(direction)
@@ -1001,7 +1018,7 @@ def label_fvg_mitigation(
             else:
                 consecutive_invalid = 0
 
-    return touch_idx is not None and (invalid_idx is None or touch_idx <= invalid_idx)
+    return touch_idx is not None and (invalid_idx is None or touch_idx < invalid_idx)
 
 
 def label_fvg_partial_50(
@@ -1090,7 +1107,8 @@ def _summarize_scored_events(events: list[ScoredEvent]) -> tuple[int, float, flo
     if not events:
         return 0, float("nan"), float("nan"), float("nan")
 
-    predictions = [(e.predicted_prob, e.outcome) for e in events]
+    probabilities, _input_kind, _source_name, _warnings = _resolve_calibration_input(events)
+    predictions = list(zip(probabilities, [event.outcome for event in events], strict=True))
     hits = sum(1 for _, outcome in predictions if outcome)
     return (
         len(events),
@@ -1173,7 +1191,31 @@ def export_scoring_artifact(
             for family, metrics in result.family_metrics.items()
         },
     }
-    filename = f"scoring_{symbol}_{timeframe}.json"
+    safe_symbol = _safe_artifact_token(symbol, field_name="symbol")
+    safe_timeframe = _safe_artifact_token(timeframe, field_name="timeframe")
+    filename = f"scoring_{safe_symbol}_{safe_timeframe}.json"
     path = output_dir / filename
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    _write_text_atomic(path, json.dumps(payload, indent=2))
     return path
+
+
+def _safe_artifact_token(raw: str, *, field_name: str) -> str:
+    token = _SAFE_ARTIFACT_TOKEN_RE.sub("_", str(raw).strip())
+    token = token.strip("_")
+    if not token:
+        raise ValueError(f"{field_name} must contain at least one safe character")
+    return token
+
+
+def _write_text_atomic(path: Path, content: str) -> None:
+    fd, tmp_name = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=str(path.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp_name, path)
+    except Exception:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp_name)
+        raise
