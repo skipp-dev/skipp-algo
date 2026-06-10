@@ -77,25 +77,6 @@ def discover_repo_sources() -> list[SourceDescriptor]:
     ]
 
 
-def _source_priority_key(descriptor: SourceDescriptor) -> tuple[int, int, int, str]:
-    structure_mode_rank = {
-        "full": 3,
-        "partial": 2,
-        "none": 1,
-    }
-    meta_mode_rank = {
-        "full": 3,
-        "partial": 2,
-        "none": 1,
-    }
-    return (
-        1 if descriptor.capabilities.has_structure else 0,
-        structure_mode_rank[descriptor.capabilities.structure_mode],
-        meta_mode_rank[descriptor.capabilities.meta_mode],
-        descriptor.name,
-    )
-
-
 _DOMAIN_SOURCE_ORDER: dict[str, list[str]] = {
     "structure": [
         "structure_artifact_json",
@@ -134,10 +115,12 @@ def _can_supply_domain(provider: _SourceProvider, domain: str) -> bool:
         return bool(caps.has_structure)
     if domain == "volume":
         return bool(caps.has_meta)
-    if domain == "technical":
-        return provider.descriptor.name in {"fmp_watchlist_json", "tradingview_watchlist_json", "largecap_watchlist_json"}
-    if domain == "news":
-        return provider.descriptor.name in {"benzinga_watchlist_json", "live_news_snapshot_json", "largecap_watchlist_json"}
+    if domain in {"technical", "news"}:
+        # Silent-fallback audit (2026-06-10): derive membership from
+        # _DOMAIN_SOURCE_ORDER instead of duplicating the name sets here
+        # — the two copies had to be kept in sync by hand (feature-flag
+        # SSOT lesson: one owner per fact).
+        return provider.descriptor.name in _DOMAIN_SOURCE_ORDER[domain]
     return False
 
 
@@ -347,6 +330,7 @@ def load_raw_structure_input(
     normalized = source.strip().lower()
     if normalized == "auto":
         last_error: Exception | None = None
+        skipped: list[str] = []
         for name in _DOMAIN_SOURCE_ORDER["structure"]:
             provider = _SOURCE_PROVIDERS.get(name)
             if provider is None or not _can_supply_domain(provider, "structure"):
@@ -357,9 +341,10 @@ def load_raw_structure_input(
                 artifact_expected = structure_artifact_json.has_artifact_for_symbol_timeframe(symbol, timeframe)
 
             try:
-                return provider.load_structure(symbol, timeframe)
+                loaded = provider.load_structure(symbol, timeframe)
             except FileNotFoundError as exc:
                 last_error = exc
+                skipped.append(name)
                 continue
             except ValueError as exc:
                 if name == "structure_artifact_json" and artifact_expected:
@@ -367,7 +352,22 @@ def load_raw_structure_input(
                         "structure artifact exists for symbol/timeframe but failed validation"
                     ) from exc
                 last_error = exc
+                skipped.append(name)
                 continue
+            if skipped:
+                # Silent-fallback audit (2026-06-10): higher-priority
+                # structure sources failed and a lower-priority one was
+                # served — a quality downgrade that must be visible.
+                _LOG.warning(
+                    "structure auto-select for %s/%s: fell back to %s after "
+                    "%s failed (last error: %s)",
+                    symbol,
+                    timeframe,
+                    name,
+                    ", ".join(skipped),
+                    last_error,
+                )
+            return loaded
         if last_error is not None:
             raise last_error
         raise ValueError("no structure provider available in auto mode")
@@ -627,8 +627,14 @@ def load_raw_meta_input_composite(
         volume_provider = _SOURCE_PROVIDERS[plan["volume"]]
         volume_meta = volume_provider.load_meta(symbol, timeframe, reference_time=reference_time)
         actual_volume_source = plan["volume"]
+        # L7 (silent-fallback audit): if the direct load above succeeds,
+        # the domain IS present — state that here instead of re-deriving
+        # it from ``volume_meta_raw is None`` at the call site below.
+        volume_domain_status = "present"
+        volume_fallback_used = False
     else:
         volume_meta = volume_meta_raw
+        volume_fallback_used = actual_volume_source != plan["volume"]
 
     technical_meta, technical_domain_status, actual_technical_source = _try_load_meta_domain(
         "technical", symbol, timeframe, plan["technical"], auto_mode=auto_mode, reference_time=reference_time,
@@ -644,9 +650,9 @@ def load_raw_meta_input_composite(
         structure_source=structure_provider.descriptor.name,
         planned_volume_source=plan["volume"],
         volume_meta=volume_meta,
-        volume_domain_status="present" if volume_meta_raw is None else volume_domain_status,
+        volume_domain_status=volume_domain_status,
         actual_volume_source=actual_volume_source,
-        volume_fallback_used=actual_volume_source != plan["volume"] and (volume_meta_raw is not None),
+        volume_fallback_used=volume_fallback_used,
         planned_technical_source=plan["technical"],
         technical_meta=technical_meta,
         technical_domain_status=technical_domain_status,

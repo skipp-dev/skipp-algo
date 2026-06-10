@@ -13,7 +13,6 @@ from smc_integration.repo_sources import (
     _finalize_composite_meta,
     _resolve_provider,
     _select_best_source_for_domain,
-    _source_priority_key,
     _try_load_meta_domain,
     discover_composite_source_plan,
     discover_repo_source_paths,
@@ -88,22 +87,10 @@ def test_discover_repo_sources_returns_descriptors() -> None:
     assert all(source.name for source in sources)
 
 
-# ── pure helper coverage ─────────────────────────────────────────
-
-
-class TestSourcePriorityKey:
-    def test_returns_tuple(self) -> None:
-        desc = discover_repo_sources()[0]
-        key = _source_priority_key(desc)
-        assert isinstance(key, tuple)
-        assert len(key) == 4
-
-    def test_structure_source_ranks_higher(self) -> None:
-        sources = discover_repo_sources()
-        with_structure = [s for s in sources if s.capabilities.has_structure]
-        without_structure = [s for s in sources if not s.capabilities.has_structure]
-        if with_structure and without_structure:
-            assert _source_priority_key(with_structure[0]) > _source_priority_key(without_structure[0])
+# ── pure helper coverage ───────────────────────────────────────────────────────────
+# _source_priority_key was removed in the 2026-06-10 silent-fallback
+# audit: it was production-dead (only this test imported it) and its
+# ranking contradicted the authoritative _DOMAIN_SOURCE_ORDER.
 
 
 class TestCanSupplyDomain:

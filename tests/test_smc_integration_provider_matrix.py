@@ -82,6 +82,19 @@ def test_current_mapping_honesty_for_technical_news_and_structure() -> None:
     assert databento.current.currently_maps_structure is False
     assert databento.current.snapshot_structure_mode in {"partial", "none"}
 
+    # Silent-fallback audit (2026-06-10): explicit declarations instead of
+    # misdeclaring generic defaults.
+    live_news = by_name["live_news_snapshot_json"]
+    assert live_news.current.currently_maps_news is True
+    assert live_news.current.currently_maps_volume is False
+    assert live_news.potential.can_supply_news_meta is True
+    assert any(field.startswith("news.") for field in live_news.current.mapped_meta_fields)
+
+    largecap = by_name["largecap_watchlist_json"]
+    assert largecap.current.currently_maps_volume is True
+    assert largecap.current.currently_maps_technical is True
+    assert largecap.current.currently_maps_news is True
+
 
 def test_provider_summary_counts_are_correct() -> None:
     summary = build_provider_summary()
@@ -97,7 +110,10 @@ def test_provider_summary_is_conservative() -> None:
     summary = build_provider_summary()
 
     assert summary["best_current_structure_provider"] == "structure_artifact_json"
-    assert summary["best_current_news_candidate"] == "benzinga_watchlist_json"
+    # Silent-fallback audit (2026-06-10): live_news_snapshot_json is the
+    # primary runtime news source (_DOMAIN_SOURCE_ORDER["news"][0]) and the
+    # matrix now declares it + ranks candidates by runtime fallback order.
+    assert summary["best_current_news_candidate"] == "live_news_snapshot_json"
     assert summary["best_current_technical_candidate"] in {"fmp_watchlist_json", "tradingview_watchlist_json"}
     assert summary["best_current_microstructure_candidate"] in {"databento_watchlist_csv", None}
 
