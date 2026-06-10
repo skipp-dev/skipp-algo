@@ -67,8 +67,7 @@ Constraints that must hold for the allowance to remain valid:
    existing `test_workflow_auth_pattern.py::test_workflow_git_push_is_safe`
    guard remains satisfied.
 
-4. **The allowance is inventoried** — `tests/test_workflow_auth_pattern.py::
-   test_workflow_force_push_is_allowlisted` (introduced alongside this ADR)
+4. **The allowance is inventoried** — `tests/test_workflow_auth_pattern.py::test_workflow_force_push_is_allowlisted` (introduced alongside this ADR)
    asserts that every `--force-with-lease` occurrence in a workflow `run:`
    block appears in a explicit `_FORCE_LEASE_ALLOWLIST`.  Any new force-push
    must update the allowlist, which makes it discoverable at PR review time.
