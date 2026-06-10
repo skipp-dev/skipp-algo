@@ -170,7 +170,7 @@ def _merge_dataclass(default: T, override: dict[str, Any], path: str) -> T:
     updates: dict[str, Any] = {}
     for key, raw_value in override.items():
         field_info = known_fields[key]
-        current_value = getattr(default, key)
+        current_value = object.__getattribute__(default, key)
         if is_dataclass(current_value):
             updates[key] = _merge_dataclass(
                 current_value,
@@ -220,7 +220,11 @@ def _validate_dataclass(config: Any, path: str) -> None:
             "min_premarket_active_seconds",
             "position_budget_usd",
         ):
-            _validate_positive(f"{path}.{field_name}", getattr(config, field_name), allow_zero=True)
+            _validate_positive(
+                f"{path}.{field_name}",
+                object.__getattribute__(config, field_name),
+                allow_zero=True,
+            )
         if not (
             config.sparse_min_premarket_active_seconds
             <= config.early_min_premarket_active_seconds
@@ -244,7 +248,7 @@ def _validate_dataclass(config: Any, path: str) -> None:
             _validate_fraction(f"{path}.news_source_tier_multipliers.{tier}", multiplier)
     elif isinstance(config, OpenPrepPlaybookThresholds):
         for field_name in fields(config):
-            value = getattr(config, field_name.name)
+            value = object.__getattribute__(config, field_name.name)
             if isinstance(value, int | float):
                 _validate_positive(f"{path}.{field_name.name}", value, allow_zero=True)
     elif isinstance(config, SmcScoringThresholds):
@@ -267,7 +271,7 @@ def _validate_dataclass(config: Any, path: str) -> None:
                 f"Unsupported trading threshold schema_version {config.schema_version!r}; expected {CONFIG_VERSION!r}"
             )
         for field_name in ("long_dip", "open_prep_scorer", "open_prep_playbook", "smc_scoring"):
-            _validate_dataclass(getattr(config, field_name), f"{path}.{field_name}")
+            _validate_dataclass(object.__getattribute__(config, field_name), f"{path}.{field_name}")
 
 
 def load_trading_thresholds(path: str | Path | None = None) -> TradingThresholds:
