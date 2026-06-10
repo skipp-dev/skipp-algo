@@ -137,6 +137,20 @@ def _check_slippage_ks_pvalue_gt_0_05(ctx: _EvalContext) -> CriterionResult:
     name = "slippage_ks_pvalue_gt_0.05"
     if ctx.variant_row is None:
         return CriterionResult(name, None, "variant absent from drift artifact")
+    # Stat-review S5 (#2674): when the KS reference is the synthetic
+    # Normal(_DEFAULT_EXPECTED_SLIPPAGE_MEAN, _DEFAULT_EXPECTED_SLIPPAGE_STD)
+    # placeholder (no ADR / no calibration provenance), a p-value
+    # comparison against it is not a machine-evaluable promotion
+    # criterion — refuse rather than compare against folklore.
+    ref_type = ctx.variant_row.get("slippage_ks_reference_type")
+    if ref_type == "synthetic_normal":
+        return CriterionResult(
+            name,
+            None,
+            "slippage_ks_reference_type='synthetic_normal' (uncalibrated "
+            "placeholder reference — p-value not machine-evaluable; "
+            "supply backtest_samples)",
+        )
     p = ctx.variant_row.get("slippage_ks_p")
     if not isinstance(p, (int, float)):
         return CriterionResult(name, None, "slippage_ks_p missing/non-numeric")
@@ -219,6 +233,25 @@ def _check_drift_window_complete(ctx: _EvalContext) -> CriterionResult:
     return CriterionResult(name, complete, f"window_complete={complete}")
 
 
+def _check_watchdog_status_not_red(ctx: _EvalContext) -> CriterionResult:
+    # Stat-review S1 (#2674): reconcile the two drift stacks. The
+    # watchdog's 4-detector consensus (KS-p, PSI, mean-shift, var-ratio
+    # → green/yellow/red) can stand RED while the Sharpe-ratio
+    # drift_score still reads "pass" (stable mean, blown-out tails).
+    # Promotion must consume the watchdog severity, fail-closed.
+    name = "watchdog_status_not_red"
+    if ctx.watchdog_report is None:
+        return CriterionResult(name, None, "no watchdog report supplied")
+    severity = ctx.watchdog_report.get("aggregate_severity")
+    if severity not in ("green", "yellow", "red"):
+        return CriterionResult(
+            name, None, f"aggregate_severity missing/unknown: {severity!r}"
+        )
+    return CriterionResult(
+        name, severity != "red", f"aggregate_severity={severity!r}"
+    )
+
+
 def _check_scale_phase_backlog_owns_kelly_sizing(
     ctx: _EvalContext,
 ) -> CriterionResult:
@@ -243,6 +276,7 @@ _EXTRA_CHECKERS: Mapping[str, Callable[[_EvalContext], CriterionResult]] = {
         _check_slippage_ks_reference_backtest_samples
     ),
     "drift_window_complete": _check_drift_window_complete,
+    "watchdog_status_not_red": _check_watchdog_status_not_red,
     "scale_phase_backlog_owns_kelly_sizing": (
         _check_scale_phase_backlog_owns_kelly_sizing
     ),
