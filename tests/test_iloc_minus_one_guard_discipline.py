@@ -73,7 +73,9 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         # cannot mask line drift of this code site (PR-D7 follow-up).
         # explicit inline guard immediately above (`agg = agg.iloc[:-1]` if trailing
         # aggregated bucket exceeds the source frame's max timestamp).
-        ("scripts/explicit_structure_from_bars.py", 88),
+        # 2026-06-10 silent-fallback audit: 88 -> 109 (logging import +
+        # 1D multi-row-per-day aggregation guard added above the site).
+        ("scripts/explicit_structure_from_bars.py", 109),
         # scripts/smc_session_structure.py — previous-day row + opening
         # range break; both consume closed daily frames.
         ("scripts/smc_session_structure.py", 96),

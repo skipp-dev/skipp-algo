@@ -45,6 +45,50 @@ findings that do not collide with in-flight PRs:
   thresholds with the standard 100-promotions/6-month recalibration
   cadence.
 
+### Changed (2026-06-10) — silent-fallback audit: drift verdicts, 1D resample, source-matrix honesty
+
+Four silent-fallback / misdeclaration fixes from the static review of
+`compute_live_drift.py`, `explicit_structure_from_bars.py`,
+`repo_sources.py` and `provider_matrix.py`:
+
+- **`scripts/compute_live_drift.py`** — drift schema **1.1.0 → 1.2.0**
+  (additive; `DRIFT_SCHEMA_MIN_COMPATIBLE` stays 1.0.0). A missing or
+  non-numeric backtest reference no longer collapses to `sharpe=0.0`
+  (which the `max(backtest, 0.001)` denominator clamp turned into
+  drift-score 1.5 → verdict `pass` for an unreferenced variant): new
+  explicit verdicts `missing_backtest_reference` and
+  `non_positive_backtest_sharpe`. Reference-only variants with zero
+  live trades in the window are now emitted as `no_live_data` rows
+  instead of vanishing. All three fail closed against the
+  `run_smc_live_incubation` pass/acceptable allowlist. New additive
+  boolean `overperformance_capped` marks variants whose raw live/backtest
+  ratio exceeded the 1.5 cap (live ≫ backtest is frequently a data
+  defect, previously indistinguishable from a healthy pass).
+- **`scripts/explicit_structure_from_bars.py`** — the `1D` branch of
+  `resample_bars_to_timeframe` was an unconditional identity pass-through
+  that silently served intraday bars as "1D" (mirror image of the
+  PR #2666 cross-TF aliasing). It now aggregates to calendar days via the
+  generic bucket path (with a warning) whenever any symbol has >1 row per
+  calendar day; genuinely daily input keeps the identity regardless of
+  stamp time. The legacy high/low liquidity-sweep fallback now logs a
+  warning when the profile engine produced no sweeps.
+- **`smc_integration/repo_sources.py`** — `_can_supply_domain` derives
+  technical/news membership from `_DOMAIN_SOURCE_ORDER` (single source of
+  truth) instead of hand-duplicated name sets; the structure auto-select
+  loop warns when a lower-priority source is served after higher-priority
+  failures; production-dead `_source_priority_key` removed;
+  `volume_domain_status` is set explicitly in the mandatory-volume
+  fallback branch.
+- **`smc_integration/provider_matrix.py`** — `live_news_snapshot_json`
+  (the PRIMARY runtime news source) and `largecap_watchlist_json` now have
+  explicit potential/current/known-gaps declarations instead of falling
+  through to misdeclaring generic defaults; databento
+  `snapshot_structure_mode` corrected `partial` → `none` (its mapped
+  structure arrays are empty); `_pick_best_candidate` ranks by the
+  authoritative `_DOMAIN_SOURCE_ORDER` runtime fallback order instead of
+  alphabetically — `best_current_news_candidate` is now
+  `live_news_snapshot_json`.
+
 ### Added (2026-06-04) — ADR-0019: order-flow imbalance shadow feature (recorded-only)
 
 New ADR-0019 order-flow candidate on the aggressor-signed data path:

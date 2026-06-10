@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import pandas as pd
@@ -12,6 +13,8 @@ from scripts.smc_price_action_engine import (
     normalize_bars,
 )
 from smc_core.ids import liquidity_id
+
+_LOG = logging.getLogger(__name__)
 
 RequiredBarColumns = ("symbol", "timestamp", "open", "high", "low", "close")
 
@@ -51,7 +54,24 @@ def resample_bars_to_timeframe(df: pd.DataFrame, timeframe: str) -> pd.DataFrame
     bars = _coerce_bars(df)
 
     if canonical_tf == "1D":
-        return bars[["symbol", "timestamp", "open", "high", "low", "close", "volume"]].reset_index(drop=True)
+        # Silent-fallback audit (2026-06-10): this branch used to be an
+        # unconditional identity pass-through, silently serving intraday
+        # bars as "1D" (mirror image of the #2666 cross-TF aliasing).
+        # Keep the identity ONLY for genuinely daily input (≤1 row per
+        # symbol/calendar-day — regardless of stamp time, so daily bars
+        # stamped at session open are not corrupted); aggregate finer
+        # input through the generic bucket path below.
+        day_counts = bars.groupby(
+            ["symbol", bars["timestamp"].dt.floor("1D")]
+        ).size()
+        if day_counts.empty or int(day_counts.max()) <= 1:
+            return bars[["symbol", "timestamp", "open", "high", "low", "close", "volume"]].reset_index(drop=True)
+        _LOG.warning(
+            "resample_bars_to_timeframe: source bars are finer than 1D "
+            "(max %d rows per symbol/day); aggregating to calendar days — "
+            "the trailing partial day is trimmed",
+            int(day_counts.max()),
+        )
 
     parts: list[pd.DataFrame] = []
     bucket_offset = pd.tseries.frequencies.to_offset(freq)
@@ -177,6 +197,16 @@ def build_liquidity_sweeps_from_bars(
         return sweeps
 
     symbol_name = str(symbol).strip().upper()
+    # Silent-fallback audit (2026-06-10): make the legacy fallback loud
+    # (#2666 lesson) — every emitted line carries source=legacy_high_low,
+    # but without this log the engine→legacy downgrade was invisible.
+    _LOG.warning(
+        "liquidity sweeps: profile engine produced none for %s/%s; "
+        "falling back to legacy high/low line detection "
+        "(source=legacy_high_low)",
+        symbol_name,
+        canonical_tf,
+    )
     legacy_lines: list[dict[str, Any]] = []
     for i in range(len(bars) - 1):
         row = bars.iloc[i]
