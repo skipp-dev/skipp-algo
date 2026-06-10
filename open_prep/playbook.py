@@ -21,9 +21,12 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from skipp_config import get_trading_thresholds
+
 from .utils import to_float as _to_float
 
 logger = logging.getLogger("open_prep.playbook")
+_THRESHOLDS = get_trading_thresholds().open_prep_playbook
 
 # ═══════════════════════════════════════════════════════════════════
 # 1) NEWS EVENT CLASSIFICATION
@@ -281,13 +284,18 @@ PLAYBOOK_POST_NEWS_DRIFT = "POST_NEWS_DRIFT"
 PLAYBOOK_NO_TRADE = "NO_TRADE"
 
 # Thresholds
-_MIN_GAP_FOR_GO = 1.0           # min gap % for Gap&Go
-_MIN_RVOL_FOR_GO = 1.5          # min relative volume
-_MIN_EXT_SCORE_FOR_GO = 0.7     # premarket tape strength
-_FADE_GAP_OVERDONE = 5.0        # gap % where fade is considered
-_FADE_MAX_EXT_SCORE = 0.3       # weak tape = fade signal
-_DRIFT_MIN_MATERIALITY = "MEDIUM"
-_MAX_SPREAD_BPS_FOR_TRADE = 150.0
+_MIN_GAP_FOR_GO = _THRESHOLDS.min_gap_for_go
+_MIN_RVOL_FOR_GO = _THRESHOLDS.min_rvol_for_go
+_MIN_EXT_SCORE_FOR_GO = _THRESHOLDS.min_ext_score_for_go
+_FADE_GAP_OVERDONE = _THRESHOLDS.fade_gap_overdone
+_FADE_MAX_EXT_SCORE = _THRESHOLDS.fade_max_ext_score
+_DRIFT_MIN_MATERIALITY = _THRESHOLDS.drift_min_materiality
+_MAX_SPREAD_BPS_FOR_TRADE = _THRESHOLDS.max_spread_bps_for_trade
+_CAUTION_SPREAD_BPS = _THRESHOLDS.caution_spread_bps
+_MIN_DAILY_DOLLAR_VOLUME_POOR = _THRESHOLDS.min_daily_dollar_volume_poor
+_MIN_DAILY_DOLLAR_VOLUME_CAUTION = _THRESHOLDS.min_daily_dollar_volume_caution
+_MIN_AVERAGE_VOLUME_POOR = _THRESHOLDS.min_average_volume_poor
+_MIN_AVERAGE_VOLUME_CAUTION = _THRESHOLDS.min_average_volume_caution
 
 
 @dataclass
@@ -492,21 +500,21 @@ def _execution_quality(
     if spread_bps is not None:
         if spread_bps > _MAX_SPREAD_BPS_FOR_TRADE:
             issues += 2
-        elif spread_bps > 60.0:
+        elif spread_bps > _CAUTION_SPREAD_BPS:
             issues += 1
 
     # Dollar volume check (require at least $1M avg daily)
     if price > 0 and avg_volume > 0:
         daily_dollar_vol = price * avg_volume
-        if daily_dollar_vol < 500_000:
+        if daily_dollar_vol < _MIN_DAILY_DOLLAR_VOLUME_POOR:
             issues += 2
-        elif daily_dollar_vol < 1_000_000:
+        elif daily_dollar_vol < _MIN_DAILY_DOLLAR_VOLUME_CAUTION:
             issues += 1
 
     # Avg volume check
-    if avg_volume < 50_000:
+    if avg_volume < _MIN_AVERAGE_VOLUME_POOR:
         issues += 2
-    elif avg_volume < 100_000:
+    elif avg_volume < _MIN_AVERAGE_VOLUME_CAUTION:
         issues += 1
 
     if issues >= 3:

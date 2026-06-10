@@ -17,6 +17,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from skipp_config import get_trading_thresholds
+
 from .dirty_flag_manager import PipelineDirtyManager
 from .signal_decay import adaptive_freshness_decay, adaptive_half_life
 from .technical_analysis import (
@@ -37,6 +39,7 @@ from .utils import MIN_PRICE_THRESHOLD, SEVERE_GAP_DOWN_THRESHOLD
 from .utils import to_float as _to_float
 
 logger = logging.getLogger("open_prep.scorer")
+_THRESHOLDS = get_trading_thresholds().open_prep_scorer
 
 # ---------------------------------------------------------------------------
 # Weight configuration (ensemble)
@@ -71,12 +74,18 @@ DEFAULT_WEIGHTS: dict[str, float] = {
 }
 
 # Filter thresholds (MIN_PRICE_THRESHOLD and SEVERE_GAP_DOWN_THRESHOLD imported from utils)
-RISK_OFF_EXTREME_THRESHOLD = -0.75
-GAP_CAP_ABS = 10.0
-RVOL_CAP = 10.0
+RISK_OFF_EXTREME_THRESHOLD = _THRESHOLDS.risk_off_extreme_threshold
+GAP_CAP_ABS = _THRESHOLDS.gap_cap_abs
+RVOL_CAP = _THRESHOLDS.rvol_cap
+PREMARKET_SPREAD_MAX_BPS = _THRESHOLDS.premarket_spread_max_bps
+MIN_AVERAGE_VOLUME = _THRESHOLDS.min_average_volume
+SCORE_COMPONENT_CAP_FRACTION = _THRESHOLDS.score_component_cap_fraction
+COUNTER_TREND_MOMENTUM_Z = _THRESHOLDS.counter_trend_momentum_z
+COUNTER_TREND_MAX_PENALTY = _THRESHOLDS.counter_trend_max_penalty
+COUNTER_TREND_PENALTY_SLOPE = _THRESHOLDS.counter_trend_penalty_slope
 
 # Freshness decay
-FRESHNESS_HALF_LIFE_SECONDS = 600.0  # 10 minutes
+FRESHNESS_HALF_LIFE_SECONDS = _THRESHOLDS.freshness_half_life_seconds
 
 # News source-tier credibility multiplier applied to news_component.
 # Discourages low-tier (Stocktwits / unknown) rumors from competing with
@@ -85,12 +94,7 @@ FRESHNESS_HALF_LIFE_SECONDS = 600.0  # 10 minutes
 # TIER_2: TradingView, DPA-AFX, CNBC TV
 # TIER_3: GuruFocus, Stocktwits, Zacks, Invezz, Cointelegraph
 # TIER_4: anything else (default for unknown sources)
-NEWS_SOURCE_TIER_MULTIPLIERS: dict[str, float] = {
-    "TIER_1": 1.00,
-    "TIER_2": 0.70,
-    "TIER_3": 0.30,
-    "TIER_4": 0.10,
-}
+NEWS_SOURCE_TIER_MULTIPLIERS: dict[str, float] = dict(_THRESHOLDS.news_source_tier_multipliers or {})
 
 # Final-score haircut applied when a stock's news catalyst is from a low-tier
 # (unverified / social) source. This prevents purely-technical breakouts that
@@ -99,9 +103,9 @@ NEWS_SOURCE_TIER_MULTIPLIERS: dict[str, float] = {
 # Triggers when news_source_tier ∈ {TIER_3, TIER_4} AND news_score >= the
 # threshold (i.e. the rumor is meaningful enough that it likely contributed
 # to the price action).
-LOW_TIER_NEWS_RUMOR_PENALTY: float = 0.75
-LOW_TIER_NEWS_PENALTY_THRESHOLD: float = 0.5
-LOW_TIER_NEWS_PENALTY_TIERS: frozenset[str] = frozenset({"TIER_3", "TIER_4"})
+LOW_TIER_NEWS_RUMOR_PENALTY: float = _THRESHOLDS.low_tier_news_rumor_penalty
+LOW_TIER_NEWS_PENALTY_THRESHOLD: float = _THRESHOLDS.low_tier_news_penalty_threshold
+LOW_TIER_NEWS_PENALTY_TIERS: frozenset[str] = frozenset(_THRESHOLDS.low_tier_news_penalty_tiers)
 
 # ---------------------------------------------------------------------------
 # Weight ensemble loader
@@ -333,9 +337,9 @@ def filter_candidate(
         filter_reasons.append("macro_bias_short")
     if premarket_stale:
         filter_reasons.append("premarket_stale")
-    if premarket_spread_bps is not None and premarket_spread_bps > 200.0:
+    if premarket_spread_bps is not None and premarket_spread_bps > PREMARKET_SPREAD_MAX_BPS:
         filter_reasons.append("spread_too_wide")
-    if avg_volume > 0.0 and avg_volume < 100_000:
+    if avg_volume > 0.0 and avg_volume < MIN_AVERAGE_VOLUME:
         filter_reasons.append("insufficient_liquidity")
     if avg_volume_baseline_missing:
         filter_reasons.append("missing_avg_volume_baseline")
@@ -613,7 +617,7 @@ def score_candidate(
         _total_positive = sum(max(v, 0.0) for v in _components.values())
         if _total_positive <= 0:
             break
-        _cap = 0.40 * _total_positive
+        _cap = SCORE_COMPONENT_CAP_FRACTION * _total_positive
         changed = False
         for k, v in _components.items():
             if v > _cap:
@@ -677,8 +681,11 @@ def score_candidate(
     # When momentum strongly opposes the gap direction, apply a multiplicative
     # penalty.  Inspired by IB_MON's trend-alignment safeguard.
     counter_trend_penalty = 0.0
-    if momentum_z < -2.5:
-        counter_trend_penalty = min(0.40, abs(momentum_z + 2.5) * 0.20)
+    if momentum_z < COUNTER_TREND_MOMENTUM_Z:
+        counter_trend_penalty = min(
+            COUNTER_TREND_MAX_PENALTY,
+            abs(momentum_z - COUNTER_TREND_MOMENTUM_Z) * COUNTER_TREND_PENALTY_SLOPE,
+        )
         score = score * (1.0 - counter_trend_penalty)
 
     # --- Low-Tier News Rumor Penalty ---

@@ -34,14 +34,26 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
+from skipp_config import get_trading_thresholds
+
 EventFamily = Literal["BOS", "OB", "FVG", "SWEEP"]
 _FAMILY_ORDER: tuple[EventFamily, ...] = ("BOS", "OB", "FVG", "SWEEP")
 CalibrationMethod = Literal["platt_scaling", "beta_bin", "identity"]
 _CALIBRATION_DIMENSIONS: tuple[str, ...] = ("session", "htf_bias", "vol_regime")
-_DEFAULT_BIN_COUNT = 10
-_MIN_PLATT_EVENTS = 20
-_BETA_PRIOR_ALPHA = 1.0
-_BETA_PRIOR_BETA = 1.0
+_THRESHOLDS = get_trading_thresholds().smc_scoring
+_DEFAULT_BIN_COUNT = _THRESHOLDS.calibration_bin_count
+_MIN_PLATT_EVENTS = _THRESHOLDS.min_platt_events
+_BETA_PRIOR_ALPHA = _THRESHOLDS.beta_prior_alpha
+_BETA_PRIOR_BETA = _THRESHOLDS.beta_prior_beta
+_PLATT_FEATURE_SPREAD_ABS_TOL = _THRESHOLDS.platt_feature_spread_abs_tol
+_PLATT_L2_PENALTY = _THRESHOLDS.platt_l2_penalty
+_PLATT_MAX_ITERATIONS = _THRESHOLDS.platt_max_iterations
+_PLATT_INITIAL_LEARNING_RATE = _THRESHOLDS.platt_initial_learning_rate
+_PLATT_MIN_LEARNING_RATE = _THRESHOLDS.platt_min_learning_rate
+_PLATT_LOSS_TOLERANCE = _THRESHOLDS.platt_loss_tolerance
+_PLATT_ACCEPTANCE_TOLERANCE = _THRESHOLDS.platt_acceptance_tolerance
+_SWEEP_REVERSAL_THRESHOLD_PCT = _THRESHOLDS.sweep_reversal_threshold_pct
+_BOS_FOLLOW_THROUGH_THRESHOLD_PCT = _THRESHOLDS.bos_follow_through_threshold_pct
 _SAFE_ARTIFACT_TOKEN_RE = re.compile(r"[^A-Za-z0-9_-]+")
 
 
@@ -331,27 +343,27 @@ def _fit_platt_scaler(raw_probabilities: list[float], outcomes: list[bool]) -> t
     # round-off semantics from raw `<` on floats). Tolerance pinned to the
     # historical 1e-6 threshold to preserve byte-identical Platt outputs
     # for existing calibration artifacts.
-    if math.isclose(max(features), min(features), abs_tol=1e-6):
+    if math.isclose(max(features), min(features), abs_tol=_PLATT_FEATURE_SPREAD_ABS_TOL):
         return None
 
     slope = 1.0
     intercept = 0.0
-    l2_penalty = 0.01
+    l2_penalty = _PLATT_L2_PENALTY
     current_loss = _platt_loss(features, labels, slope=slope, intercept=intercept, l2_penalty=l2_penalty)
 
-    for _ in range(600):
+    for _ in range(_PLATT_MAX_ITERATIONS):
         calibrated = [_sigmoid(slope * feature + intercept) for feature in features]
         grad_slope = sum((prediction - label) * feature for prediction, label, feature in zip(calibrated, labels, features, strict=True))
         grad_intercept = sum(prediction - label for prediction, label in zip(calibrated, labels, strict=True))
         grad_slope = grad_slope / float(len(features)) + (2.0 * l2_penalty * (slope - 1.0))
         grad_intercept = grad_intercept / float(len(features)) + (2.0 * l2_penalty * intercept)
 
-        learning_rate = 0.5
+        learning_rate = _PLATT_INITIAL_LEARNING_RATE
         improved = False
         next_slope = slope
         next_intercept = intercept
         next_loss = current_loss
-        while learning_rate >= 1e-5:
+        while learning_rate >= _PLATT_MIN_LEARNING_RATE:
             candidate_slope = slope - learning_rate * grad_slope
             candidate_intercept = intercept - learning_rate * grad_intercept
             candidate_loss = _platt_loss(
@@ -361,7 +373,7 @@ def _fit_platt_scaler(raw_probabilities: list[float], outcomes: list[bool]) -> t
                 intercept=candidate_intercept,
                 l2_penalty=l2_penalty,
             )
-            if candidate_loss <= current_loss + 1e-10:
+            if candidate_loss <= current_loss + _PLATT_ACCEPTANCE_TOLERANCE:
                 next_slope = candidate_slope
                 next_intercept = candidate_intercept
                 next_loss = candidate_loss
@@ -374,7 +386,7 @@ def _fit_platt_scaler(raw_probabilities: list[float], outcomes: list[bool]) -> t
 
         slope = next_slope
         intercept = next_intercept
-        if abs(current_loss - next_loss) <= 1e-9:
+        if abs(current_loss - next_loss) <= _PLATT_LOSS_TOLERANCE:
             current_loss = next_loss
             break
         current_loss = next_loss
@@ -795,7 +807,7 @@ def label_sweep_reversal(
     sweep_side: str,
     subsequent_closes: list[float],
     *,
-    threshold_pct: float = 0.005,
+    threshold_pct: float = _SWEEP_REVERSAL_THRESHOLD_PCT,
 ) -> bool:
     """Label whether a sweep led to a reversal.
 
@@ -832,7 +844,7 @@ def label_bos_follow_through(
     subsequent_highs: list[float],
     subsequent_lows: list[float],
     *,
-    threshold_pct: float = 0.003,
+    threshold_pct: float = _BOS_FOLLOW_THROUGH_THRESHOLD_PCT,
 ) -> bool:
     """Label whether a BOS produced directional follow-through.
 
