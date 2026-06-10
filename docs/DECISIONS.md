@@ -389,3 +389,76 @@ phase-A replay once the pipeline receives data.
   — the unblock spec created alongside this ADR.
 
 **Status.** accepted.
+
+### 2026-06-10 - Plan 2.8 Phase-E2 verdicts void — cross-TF structure aliasing
+
+**Context.** The rolling measurement benchmark resolves per-symbol
+structure via the legacy single-artifact fallback
+(`smc_integration/structure_contract.py::_select_legacy_entry`).
+`reports/smc_structure_artifact.json` carries only `1D` entries, and
+the fallback silently served that `1D` entry for every requested
+chart TF (`5m / 15m / 1H / 4H`). All four TF slices therefore scored
+the *same* events; outcomes are TF-invariant (price-path hit/miss),
+so `n_events` and `hit_rate` were byte-identical clones across TFs
+(only Brier differed via bar resampling). The Phase-E2 verdicts in
+`scripts/plan_2_8_tf_family_rollup.py` compare arm A against a
+merged `15m + 1H` baseline, which for clones structurally guarantees
+`n_b = 2 × n_a`, `hr_b == hr_a`, `delta_hr = 0.0` — yet the verdict
+was labelled `measured`. Verified against a full benchmark run
+(2026-06-10): FVG `320/0.571875` and BOS `47/0.7659…` identical on
+all four TFs. Same epistemics class as the dual-arm raw_score
+shadowing bug (PR #2664) — an A/B comparison silently comparing an
+arm against itself — via a different mechanism.
+
+**Decision.** We declare every historical Phase-E2 verdict and every
+per-TF hit-rate row produced from legacy-fallback structure void as
+cross-TF evidence (control-vs-control class). We do not rewrite
+`docs/plan_2_8_history.jsonl` — the archive stays append-only; this
+ADR is the invalidation record. We make the fallback loud
+(`legacy_tf_fallback: requested <tf>, served <tf>` contract warning
+plus module logger warning) and teach `_phase_e2_verdict` to label
+comparisons whose arm-A slice and every contributing baseline slice
+are pairwise identical (`n_events` and `hit_rate`) as
+`degenerate_aliased_input` instead of `measured`.
+
+**Alternatives considered.**
+
+- *Hard-fail the benchmark when the fallback fires.* Rejected for
+  now — per-TF structure artifacts do not exist yet, so a hard fail
+  would take the daily rolling benchmark down entirely; deferred to
+  the follow-up issue as a strict-mode flag once per-TF artifacts
+  are produced.
+- *Detect degeneracy via `delta_hr == 0.0`.* Rejected — a zero delta
+  is a legitimate possible measurement; pairwise slice identity
+  (exact `n_events` and `hit_rate` equality) is the actual aliasing
+  signature because clones are byte-identical while honest slices
+  differ.
+- *Rewrite or annotate `docs/plan_2_8_history.jsonl` in place.*
+  Rejected — the history archive is append-only by design; mutating
+  it would destroy the audit trail that makes the invalidation
+  verifiable.
+
+**Consequences.**
+
+- The Plan 2.8 TTF/stability evidence base restarts from zero; no
+  automation acted on the verdicts (blast radius was epistemic), but
+  any human conclusions drawn from historical Phase-E2 rows must be
+  discarded.
+- Until per-TF structure artifacts exist, the rollup will report
+  `degenerate_aliased_input` daily — an honest "no evidence" signal
+  replacing a false "measured" one.
+- Producing real per-TF structure artifacts in the rolling workflow
+  (plus the strict-mode flag) is tracked as a follow-up issue.
+
+**Evidence.**
+
+- [`tests/test_plan_2_8_tf_family_rollup.py`](../tests/test_plan_2_8_tf_family_rollup.py)
+  pins the `degenerate_aliased_input` verdict on the aliased fixture
+  and the `measured` verdict once any slice differs.
+- [`tests/test_smc_integration_structure_contract_diagnostics.py`](../tests/test_smc_integration_structure_contract_diagnostics.py)
+  pins the `legacy_tf_fallback` contract warning and the non-mutation
+  of the input payload.
+- PR #2664 documents the sibling identical-arms failure (raw_score
+  shadowing) that prompted auditing other A/B surfaces.
+
+**Status.** accepted.
