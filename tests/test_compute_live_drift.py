@@ -215,6 +215,82 @@ def test_compute_live_drift_requires_either_reference_or_path() -> None:
         compute_live_drift(live_rows=[])
 
 
+# ── reference-integrity verdicts (silent-fallback audit 2026-06-10) ─
+
+
+def test_missing_backtest_reference_does_not_pass() -> None:
+    """A variant absent from the reference must NOT score 1.5/pass via
+    the 0.001 denominator clamp."""
+    rows = [{"variant": "v1", "return": r} for r in _make_returns(0.01, 0.005, 30, seed=3)]
+    out = compute_live_drift(
+        live_rows=rows,
+        backtest_reference={"other_variant": {"sharpe": 1.0}},
+    )
+    by_variant = {v["variant"]: v for v in out["variants"]}
+    v1 = by_variant["v1"]
+    assert v1["verdict"] == "missing_backtest_reference"
+    assert v1["drift_score"] == 0.0
+
+
+def test_non_numeric_backtest_sharpe_marked_missing() -> None:
+    rows = [{"variant": "v1", "return": r} for r in _make_returns(0.01, 0.005, 30, seed=4)]
+    out = compute_live_drift(
+        live_rows=rows,
+        backtest_reference={"v1": {"sharpe": "not-a-number"}},
+    )
+    v = next(item for item in out["variants"] if item["variant"] == "v1")
+    assert v["verdict"] == "missing_backtest_reference"
+
+
+def test_non_positive_backtest_sharpe_marked_explicitly() -> None:
+    rows = [{"variant": "v1", "return": r} for r in _make_returns(0.01, 0.005, 30, seed=5)]
+    out = compute_live_drift(
+        live_rows=rows,
+        backtest_reference={"v1": {"sharpe": 0.0}},
+    )
+    v = next(item for item in out["variants"] if item["variant"] == "v1")
+    assert v["verdict"] == "non_positive_backtest_sharpe"
+    assert v["drift_score"] == 0.0
+
+
+def test_reference_only_variant_emitted_as_no_live_data() -> None:
+    """A reference variant with zero live rows ("stopped trading") must
+    not vanish from the artifact."""
+    rows = [{"variant": "v1", "return": r} for r in _make_returns(0.01, 0.005, 30, seed=6)]
+    out = compute_live_drift(
+        live_rows=rows,
+        backtest_reference={"v1": {"sharpe": 1.0}, "dormant": {"sharpe": 0.8}},
+    )
+    by_variant = {v["variant"]: v for v in out["variants"]}
+    assert by_variant["dormant"]["verdict"] == "no_live_data"
+    assert by_variant["dormant"]["n_live_trades"] == 0
+
+
+def test_overperformance_capped_flag_set_when_ratio_exceeds_cap() -> None:
+    returns = _make_returns(0.01, 0.005, 30, seed=7)
+    live_sharpe = annualised_sharpe(returns)
+    rows = [{"variant": "v1", "return": r} for r in returns]
+    out = compute_live_drift(
+        live_rows=rows,
+        # backtest reference far below live → raw ratio > 1.5 cap
+        backtest_reference={"v1": {"sharpe": live_sharpe / 10.0}},
+    )
+    v = out["variants"][0]
+    assert v["drift_score"] == pytest.approx(1.5)
+    assert v["overperformance_capped"] is True
+
+
+def test_overperformance_capped_flag_false_for_healthy_pass() -> None:
+    returns = _make_returns(0.01, 0.005, 30, seed=7)
+    live_sharpe = annualised_sharpe(returns)
+    rows = [{"variant": "v1", "return": r} for r in returns]
+    out = compute_live_drift(
+        live_rows=rows,
+        backtest_reference={"v1": {"sharpe": live_sharpe}},
+    )
+    assert out["variants"][0]["overperformance_capped"] is False
+
+
 # ── CLI / atomic write ─────────────────────────────────────────────
 
 
