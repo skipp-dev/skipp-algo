@@ -14,7 +14,7 @@ consumes whatever artefacts the local jobs commit + push into
 | `com.skippalgo.c13.wsh-earnings.plist` | 16:30 ET (Mon-Fri) | `scripts.wsh_earnings_calendar` | `cache/wsh/<DATE>.jsonl` |
 | `com.skippalgo.c13.phase-a-export.plist` | 09:18 ET (Mon-Fri) | `scripts.export_open_prep_lists` | `reports/open_prep_trade_cards_<TS>.csv` |
 | `com.skippalgo.c13.phase-a.plist` | 09:28 ET (Mon-Fri) | `scripts.build_phase_a_inputs` + `scripts.run_smc_live_incubation --phase paper` | `cache/live/setups_<DATE>.jsonl`, `cache/live/gate_status.json`, `cache/live/incubation_<DATE>.jsonl` |
-| `com.skippalgo.c13.audit-push.plist` | 17:30 ET (Mon-Fri) | `git push origin data/phase-a-audit` | n/a (commits today's audit artefacts to the protected `data/phase-a-audit` branch) |
+| `com.skippalgo.c13.audit-push.plist` | 17:30 ET (Mon-Fri) | `git push origin data/phase-a-audit` | n/a (commits today's audit artefacts to the dedicated, unprotected `data/phase-a-audit` branch, bootstrapped on first run) |
 
 The IBKR-bound jobs (`collect-imbalance`, `phase-a`) use the rotating
 clientId allocator (`scripts.ib_client_id`) so they never collide with
