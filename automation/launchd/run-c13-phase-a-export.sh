@@ -10,7 +10,7 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
-VENV="${C13_VENV:-${HOME}/.venv}"
+VENV="${C13_VENV:-${REPO}/.venv}"
 
 cd "${REPO}"
 # Lane 7: venv-realism guard. Sourcing a missing activate yields a
@@ -23,9 +23,17 @@ fi
 # shellcheck disable=SC1091
 source "${VENV}/bin/activate"
 
+# Pin the interpreter to the venv binary; a bare ``python`` can resolve to a
+# missing/wrong binary under a minimal LaunchAgent PATH (observed 2026-06-10).
+PY="${VENV}/bin/python"
+if [[ ! -x "${PY}" ]]; then
+    echo "phase-a-export cron: python interpreter not executable at ${PY}" >&2
+    exit 1
+fi
+
 # Phase-A is paper-only; an export failure (e.g. transient FMP circuit
 # open) must NOT block the downstream runner — it will fall back to the
 # most recent successful CSV via build_phase_a_inputs.py auto-discovery.
 export PYTHONPATH="${REPO}"
-python -m scripts.export_open_prep_lists || \
+"${PY}" -m scripts.export_open_prep_lists || \
     echo "open_prep export failed (non-fatal); phase-a runner will use prior CSV"
