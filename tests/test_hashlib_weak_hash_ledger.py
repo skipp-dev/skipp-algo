@@ -64,7 +64,8 @@ _FROZEN_SITES: dict[str, dict[str, frozenset[int]]] = {
     # PR #2339 added _build_universe_metadata (sha1 universe fingerprint, line
     # 475) and shifted the two cache-probe sites by ~100 lines (cache-pollution
     # filter + drift detector block). Still non-security fingerprinting.
-    "databento_volatility_screener.py": {"sha1": frozenset({393, 475, 691, 709})},
+    # 2026-06-10 (#2670 W9): timestamp_substitutions disclosure shifted +5.
+    "databento_volatility_screener.py": {"sha1": frozenset({398, 480, 696, 714})},
     "newsstack_fmp/normalize.py": {
         "md5": frozenset({132, 255}),
         "sha1": frozenset({336, 422, 460, 504}),

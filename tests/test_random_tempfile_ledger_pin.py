@@ -64,7 +64,9 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # redundant ``mkdir``/``open`` body; PR #2339 (universe-version
     # metadata) added the drift detector / version-bump persistence
     # block above the helper which shifted the site further: 489 → 597.
-    ("databento_volatility_screener.py", 597, "mkstemp"),
+    # 2026-06-10 (#2670 W9): timestamp_substitutions disclosure shifted +5
+    # (597 -> 602).
+    ("databento_volatility_screener.py", 602, "mkstemp"),
     ("governance/alpha_ledger.py", 70, "mkstemp"),
     ("newsstack_fmp/open_prep_export.py", 25, "mkstemp"),
     ("open_prep/alerts.py", 68, "mkstemp"),
