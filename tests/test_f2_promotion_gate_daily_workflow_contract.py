@@ -141,8 +141,12 @@ def test_flip_detection_cache_uses_explicit_save_before_gate() -> None:
     assert "actions/cache/save@" in text, (
         "flip-detection must use explicit actions/cache/save"
     )
-    save_pos = text.index("actions/cache/save@")
-    gate_pos = text.index("python scripts/f2_run_promotion_gate.py")
+    save_pos = text.find("actions/cache/save@")
+    gate_pos = text.find("python scripts/f2_run_promotion_gate.py")
+    assert gate_pos != -1, (
+        "gate step invocation 'python scripts/f2_run_promotion_gate.py' "
+        "not found in workflow"
+    )
     assert save_pos < gate_pos, (
         "cache/save must run BEFORE the gate step; the gate exits 2 on "
         "rollback and any save placed after it would be skipped again"
