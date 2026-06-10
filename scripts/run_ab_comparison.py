@@ -102,6 +102,7 @@ def compare(
     enable_calibration_fdr: bool = False,
     calibration_fdr_B: int = 2000,
     calibration_fdr_seed: int = 42,
+    sprt_config: SPRTConfig | None = None,
 ) -> dict[str, Any]:
     """Build the comparison digest.
 
@@ -110,6 +111,13 @@ def compare(
     is computed (permutation-based BH-FDR over family×{brier,ece}). This
     layer is **advisory** — it never alters the Promote/Hold/Rollback
     recommendation. See :func:`_calibration_fdr_layer` for the contract.
+
+    ``sprt_config`` overrides the module-default Wald parameters
+    (``SPRT_P0``/``SPRT_P1``/...). The F2 promotion gate passes the
+    pre-registered values from the experiment spec here so the spec
+    stays the single source of truth (2026-06-10 audit: the spec's
+    recalibrated p0/p1 were silently ignored before this parameter
+    existed).
     """
     ctrl_reports = [_dict_to_pair(p) for p in control_pairs]
     treat_reports = [_dict_to_pair(p) for p in treatment_pairs]
@@ -139,7 +147,7 @@ def compare(
 
     decision = decide_recommendation(rows)
 
-    sprt = _sprt_decision(ctrl_agg, treat_agg)
+    sprt = _sprt_decision(ctrl_agg, treat_agg, config=sprt_config)
 
     fdr = _family_fdr_layer(control_pairs, treatment_pairs)
 
@@ -597,23 +605,36 @@ def _calibration_fdr_layer(
 # ── G3/F2 SPRT terminal decision ───────────────────────────────────────────
 
 
-# Wald SPRT parameters bound to the comparison output. p0/p1 follow plan
-# §2.4 G3: minimum-detectable effect of +5 percentage points hit-rate
-# improvement over a 0.55 baseline (the lifetime-corpus median across
-# families). alpha=0.05, beta=0.20 are the conventional gate settings.
+# Default Wald SPRT parameters. p0/p1 follow plan §2.4 G3: minimum-
+# detectable effect of +5 percentage points hit-rate improvement over a
+# 0.55 baseline (the lifetime-corpus median across families). alpha=0.05,
+# beta=0.20 are the conventional gate settings. These are FALLBACK values
+# for callers that do not pass ``sprt_config`` to :func:`compare`; the F2
+# promotion gate overrides them with the spec's pre-registered parameters
+# (2026-06-10 audit — see docs/DECISIONS.md
+# §2026-06-10 f2-dual-arm-raw-score-shadowing).
 SPRT_P0 = 0.55
 SPRT_P1 = 0.60
 SPRT_ALPHA = 0.05
 SPRT_BETA = 0.20
 
 
-def _sprt_decision(ctrl_agg: Any, treat_agg: Any) -> dict[str, Any]:
+def _sprt_decision(
+    ctrl_agg: Any,
+    treat_agg: Any,
+    *,
+    config: SPRTConfig | None = None,
+) -> dict[str, Any]:
     """Compute the terminal SPRT decision for the treatment arm.
 
     Single-arm Wald SPRT: tests treatment hit rate against the *fixed*
-    baseline ``SPRT_P0`` (lifetime-corpus median), not against the
+    baseline ``p0`` (lifetime-corpus median), not against the
     in-experiment control. This matches the F2 promotion-gate semantics
     in ``docs/f2_contextual_promotion_decision_2026-04-21.md`` step 3.
+
+    ``config`` defaults to the module constants for backwards
+    compatibility; the F2 gate passes the spec's pre-registered
+    parameters instead (see :func:`compare`).
 
     Returns a structured dict with the decision, totals, and the
     resolved Wald bounds. Hit-rate values arrive as percentages
@@ -625,12 +646,13 @@ def _sprt_decision(ctrl_agg: Any, treat_agg: Any) -> dict[str, Any]:
     hr_pct = max(0.0, min(100.0, hr_pct))
     k = round(n * hr_pct / 100.0)
 
-    config = SPRTConfig(
-        p0=SPRT_P0,
-        p1=SPRT_P1,
-        alpha=SPRT_ALPHA,
-        beta=SPRT_BETA,
-    )
+    if config is None:
+        config = SPRTConfig(
+            p0=SPRT_P0,
+            p1=SPRT_P1,
+            alpha=SPRT_ALPHA,
+            beta=SPRT_BETA,
+        )
     state, decision = terminal_decision(n=n, k=k, config=config)
     return {
         "decision": decision,
@@ -641,10 +663,10 @@ def _sprt_decision(ctrl_agg: Any, treat_agg: Any) -> dict[str, Any]:
         "wald_upper": round(config.upper_bound, 4),
         "wald_lower": round(config.lower_bound, 4),
         "config": {
-            "p0": SPRT_P0,
-            "p1": SPRT_P1,
-            "alpha": SPRT_ALPHA,
-            "beta": SPRT_BETA,
+            "p0": config.p0,
+            "p1": config.p1,
+            "alpha": config.alpha,
+            "beta": config.beta,
         },
         # Mirror the control arm's totals so the report is self-contained.
         "control_n": int(getattr(ctrl_agg, "total_events", 0) or 0),

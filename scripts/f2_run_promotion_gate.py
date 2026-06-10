@@ -120,7 +120,11 @@ def run_promotion_gate(
     if not treatment_pairs:
         raise ValueError(f"no benchmark pairs in treatment_dir={treatment_dir}")
 
-    digest = compare(control_pairs, treatment_pairs, spec.name)
+    # 2026-06-10 audit: pass the spec's pre-registered SPRT parameters
+    # into the comparison. Before this, compare() silently used the
+    # hardcoded module defaults (p0=0.55/p1=0.60) and the spec's
+    # recalibrated values were dead config.
+    digest = compare(control_pairs, treatment_pairs, spec.name, sprt_config=spec.sprt)
     gate = evaluate_promotion(digest, spec, daily_deltas=rollback_history)
 
     # ── Spec-status guard (audit findings C1/C2/C3 follow-up) ────────────
@@ -144,7 +148,7 @@ def run_promotion_gate(
         warnings.append(
             f"spec.status={spec.status!r}; statistical basis pending "
             "(A1/A2/A3 — see PR #43/#44). Brier/ECE deltas may be "
-            "in-sample-biased; SPRT is single-arm vs fixed p0=0.55."
+            f"in-sample-biased; SPRT is single-arm vs fixed p0={spec.sprt.p0}."
         )
 
     return {

@@ -327,7 +327,11 @@ candidate iteration before re-entering the SPRT cycle.
   — full gate report (`hit_rate: 0.5442`, `control_hit_rate: 0.5443`,
   `p0: 0.55`, `p1: 0.60`).
 
-**Status.** accepted.
+**Status.** superseded by
+[2026-06-10 - f2-dual-arm-raw-score-shadowing](#2026-06-10---f2-dual-arm-raw-score-shadowing) —
+the dual-arm post-processor never produced a distinct treatment arm, so
+the "null result" compared control against control and is not evidence
+about the candidate spec.
 
 ### 2026-06-09 - c13-phase-a-no-go-and-c13b-unblock-plan
 
@@ -387,5 +391,92 @@ phase-A replay once the pipeline receives data.
   — C14 spec showing the C13-GO prerequisite.
 - [`spec/sprints/c13b_live_incubation_unblock.md`](../spec/sprints/c13b_live_incubation_unblock.md)
   — the unblock spec created alongside this ADR.
+
+**Status.** accepted.
+
+### 2026-06-10 - f2-dual-arm-raw-score-shadowing
+
+**Context.** A routine review of the failing F2 promotion-gate run
+(run 27294581196, exit 2 = rollback) uncovered two independent bugs
+that together invalidate the entire F2 dual-arm experiment to date.
+
+*Bug 1 — raw_score shadowing (severity: experiment-invalidating).*
+`scripts/f2_apply_contextual_calibration.py::_record_to_event`
+forwarded the ledger's `raw_score` into the rescored arm events.
+`smc_core.scoring._resolve_calibration_input` prefers `raw_score`
+over `predicted_prob` whenever ALL events carry one — and production
+ledgers always populate it. The blended per-arm probability (the
+ONLY difference between control and treatment) was therefore
+discarded before scoring: all 80 pair summaries in the CI dual-arm
+artifact were byte-identical between arms, reproducible locally.
+**The SPRT never measured the treatment — both the 2026-06-09
+(n = 1492) and 2026-06-10 (n = 1588) verdicts compared control
+against control.** Existing tests masked the bug because fixtures
+used `"raw_score": None` instead of the production row shape.
+
+*Bug 2 — SPRT spec params unwired (severity: wrong verdict).*
+`f2_run_promotion_gate.py` never passed `spec.sprt` into
+`run_ab_comparison.compare()`; `_sprt_decision` always used the
+hardcoded module constants `p0=0.55 / p1=0.60` while the registered
+spec says `p0=0.544 / p1=0.574 / max_n=1200`. The spec's sprt block
+was dead config. Recomputed with the registered params, the
+2026-06-10 corpus (n = 1588, k = 876) gives LLR ≈ −1.43, ABOVE the
+Wald lower bound ≈ −1.56 → "continue", not `accept_h0`.
+
+**Decision.** (1) Fix both bugs: `_record_to_event` no longer
+forwards `raw_score`/`raw_score_name` (set to `None` with an
+explanatory docstring), and the gate now threads `spec.sprt` through
+`compare(sprt_config=...)` into `_sprt_decision`. (2) Do **not** set
+`f2_contextual_promotion.json` status to `rolled_back`: the rollback
+verdict was produced by a broken experiment and is void, not
+validated. Status stays `live`. (3) The SPRT corpus restarts fresh —
+all accumulated observations are control-vs-control and carry no
+information about the candidate. (4) Add regression tests that
+mirror the PRODUCTION row shape (`raw_score` non-null) and that pin
+spec-config precedence over module fallbacks.
+
+**Alternatives considered.**
+
+- *Formalize the rollback as originally planned.* Rejected — the
+  H0 acceptance is an artifact of Bug 1 + Bug 2, not evidence. A
+  `rolled_back` status would launder a measurement failure into an
+  experimental conclusion.
+- *Fix in `smc_core.scoring` (make `predicted_prob` win).* Rejected —
+  the raw_score preference is correct for first-pass scoring of raw
+  ledgers; only the dual-arm REscoring path must suppress it. Fixing
+  at the caller keeps the blast radius minimal.
+- *Keep the accumulated SPRT corpus and continue.* Rejected — every
+  observation to date is control-vs-control; mixing it with
+  post-fix observations would bias the LLR toward H0.
+
+**Consequences.**
+
+- The 2026-06-09 ADR `sprt-rollback-signal-validates-null-candidate`
+  is superseded: its "null result" and all downstream conclusions
+  (candidate has zero edge, search-space narrowing) are void. The
+  experiment must be re-run with the fixed post-processor.
+- The spec is now the single source of truth for SPRT params; the
+  module constants are explicit fallbacks for spec-less callers.
+- `max_n = 1200` is now effective: corpora past the cap yield
+  `max_n_reached`, which the gate treats as inconclusive (hold) —
+  pre-registered spec semantics.
+- Open follow-up: the gate run showed a flip-detection cache miss
+  (`f2-last-spec-status-v1-` not found), so the SPRT-state reset on
+  `plumbing_only → live` flips may not have fired; track separately.
+
+**Evidence.**
+
+- Gate run 27294581196 + rolling-bench run 27290553924 — 80/80 pair
+  summaries byte-identical between arms (verified in CI artifact AND
+  local reproduction from production ledgers).
+- Local fix validation: post-fix rerun yields 0/80 identical pairs;
+  e.g. AMZN/1H control brier 0.230325 vs treatment 0.236398.
+- `rescore_pair` itself was correct all along: per-event blended
+  probs differ between arms (e.g. BOS ctrl 0.8992 vs treat 0.3538);
+  the divergence was destroyed downstream at scoring time.
+- Regression tests:
+  `tests/test_f2_apply_contextual_calibration.py::test_arms_differ_even_when_ledger_rows_carry_raw_score`,
+  `tests/test_run_ab_comparison_sprt.py::test_sprt_decision_honors_explicit_config_over_module_defaults`,
+  `tests/test_run_ab_comparison_sprt.py::test_compare_threads_sprt_config_into_digest`.
 
 **Status.** accepted.
