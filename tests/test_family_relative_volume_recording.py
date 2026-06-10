@@ -9,6 +9,7 @@ from governance.family_returns import (
     FamilyEvent,
     extract_family_feature_samples,
 )
+from governance.family_walkforward import family_outcome_horizon
 
 _T0 = 1_700_000_000.0
 _STEP = 86_400.0  # daily bars
@@ -70,10 +71,13 @@ def test_adapter_omits_relative_volume_when_volume_absent() -> None:
 def _triggered_event(family: str, *, rel_volume: float | None, up: bool) -> FamilyEvent:
     """A minimal level event that triggers immediately with a known sign."""
     base = 100.0
+    # Stat-review S3 (#2674): immediate mode now REFUSES windows shorter
+    # than the outcome horizon, so the fixture must span the full horizon.
+    n = family_outcome_horizon(family)
     if up:
-        forward = [base + 1.0, base + 2.0, base + 3.0]
+        forward = [base + 1.0 + i for i in range(n)]
     else:
-        forward = [base - 1.0, base - 2.0, base - 3.0]
+        forward = [base - 1.0 - i for i in range(n)]
     event = FamilyEvent(
         family=family,  # type: ignore[typeddict-item]
         direction="LONG",

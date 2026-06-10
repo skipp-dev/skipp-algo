@@ -118,6 +118,14 @@ PHASE_A_CRITERIA = PhasePassCriteria(
     extra=(
         "slippage_ks_pvalue_gt_0.05",
         "hit_rate_inside_c3_bootstrap_ci",
+        # Stat-review S1 (#2674): the watchdog stack (green/yellow/red via
+        # 4-detector consensus in scripts/drift_alert.py) and the
+        # incubation drift stack (pass/acceptable/... via drift_score)
+        # were previously unreconciled — a variant could machine-pass
+        # Phase-A while the watchdog stood RED (stable mean, blown-out
+        # tails). This criterion forces the watchdog's aggregate
+        # severity into the promotion gate.
+        "watchdog_status_not_red",
     ),
 )
 
@@ -146,6 +154,9 @@ PHASE_B_CRITERIA = PhasePassCriteria(
         # criterion ("``window_complete: true`` on the watchdog report").
         # Mirrored here so the runbook-mirror test can pin it.
         "drift_window_complete",
+        # Stat-review S1 (#2674): see Phase-A comment — the watchdog
+        # aggregate severity must also gate Phase-B promotion.
+        "watchdog_status_not_red",
     ),
 )
 

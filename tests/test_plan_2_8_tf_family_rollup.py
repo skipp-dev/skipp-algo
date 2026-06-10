@@ -79,12 +79,19 @@ def test_rollup_phase_e2_verdict_measured(tmp_path: Path) -> None:
                    families={"BOS": (40, 0.89)})
     rollup = build_rollup(scoring_root=tmp_path)
     fvg = rollup["phase_e2_verdict"]["fvg_ttf_5m_vs_baseline"]
-    assert fvg["status"] == "measured"
+    # Stat-review S2 (#2674): |delta_hr|=0.067 < MDE~0.151 at n=200/150,
+    # so the honest label is measured_underpowered, not bare measured.
+    assert fvg["status"] == "measured_underpowered"
+    assert fvg["underpowered"] is True
+    assert fvg["mde_80pct_power"] > abs(fvg["delta_hr"])
+    assert fvg["delta_hr_p_value"] is not None
+    lo, hi = fvg["delta_hr_ci95"]
+    assert lo <= fvg["delta_hr"] <= hi
     assert fvg["n_a"] == 200
     assert fvg["n_b"] == 150
     assert round(fvg["delta_hr"], 4) == round(0.65 - ((0.60 * 100 + 0.55 * 50) / 150), 4)
     bos = rollup["phase_e2_verdict"]["bos_stability_4h_vs_baseline"]
-    assert bos["status"] == "measured"
+    assert bos["status"] == "measured_underpowered"
     assert bos["n_a"] == 80
 
 
@@ -122,7 +129,8 @@ def test_rollup_phase_e2_verdict_degenerate_when_slices_aliased(tmp_path: Path) 
 
 def test_rollup_phase_e2_verdict_not_degenerate_when_any_slice_differs(tmp_path: Path) -> None:
     # One honest baseline slice with a different hit rate must keep the
-    # verdict "measured" — the guard only fires on full pairwise identity.
+    # verdict measured (possibly underpowered) — the guard only fires on
+    # full pairwise identity.
     _write_scoring(tmp_path, "AAPL", "5m", n=320, hr=0.571875,
                    families={"FVG": (320, 0.571875)})
     _write_scoring(tmp_path, "AAPL", "15m", n=320, hr=0.571875,
@@ -131,7 +139,7 @@ def test_rollup_phase_e2_verdict_not_degenerate_when_any_slice_differs(tmp_path:
                    families={"FVG": (320, 0.60)})
     rollup = build_rollup(scoring_root=tmp_path)
     fvg = rollup["phase_e2_verdict"]["fvg_ttf_5m_vs_baseline"]
-    assert fvg["status"] == "measured"
+    assert fvg["status"].startswith("measured")
     assert "delta_hr" in fvg
 
 
@@ -216,3 +224,37 @@ def test_cli_custom_timeframes(tmp_path: Path, capsys: pytest.CaptureFixture[str
     assert rc == 0
     parsed = json.loads(capsys.readouterr().out)
     assert set(parsed["per_tf"].keys()) == {"5m", "3m"}
+
+
+# --- Stat-review S2 (#2674): power honesty on delta_hr comparisons ---
+
+
+def test_rollup_powered_delta_is_plain_measured(tmp_path: Path) -> None:
+    # n=2000/side, |delta|=0.20 >> MDE~0.044 -> properly powered.
+    _write_scoring(tmp_path, "AAPL", "5m", n=2000, hr=0.70,
+                   families={"FVG": (2000, 0.70)})
+    _write_scoring(tmp_path, "AAPL", "15m", n=2000, hr=0.50,
+                   families={"FVG": (2000, 0.50)})
+    rollup = build_rollup(scoring_root=tmp_path)
+    fvg = rollup["phase_e2_verdict"]["fvg_ttf_5m_vs_baseline"]
+    assert fvg["status"] == "measured"
+    assert fvg["underpowered"] is False
+    assert fvg["mde_80pct_power"] < abs(fvg["delta_hr"])
+    assert fvg["delta_hr_p_value"] < 0.001
+    lo, hi = fvg["delta_hr_ci95"]
+    assert lo > 0.0  # CI excludes zero for a real 20pp edge
+
+
+def test_rollup_degenerate_proportions_yield_no_p_value(tmp_path: Path) -> None:
+    # Pooled hit rate 1.0 -> se_pooled == 0 -> z undefined -> p None.
+    # Slices differ in n so the aliasing guard must NOT fire.
+    _write_scoring(tmp_path, "AAPL", "5m", n=200, hr=1.0,
+                   families={"FVG": (200, 1.0)})
+    _write_scoring(tmp_path, "AAPL", "15m", n=100, hr=1.0,
+                   families={"FVG": (100, 1.0)})
+    _write_scoring(tmp_path, "AAPL", "1H", n=50, hr=1.0,
+                   families={"FVG": (50, 1.0)})
+    rollup = build_rollup(scoring_root=tmp_path)
+    fvg = rollup["phase_e2_verdict"]["fvg_ttf_5m_vs_baseline"]
+    assert fvg["status"] == "measured_underpowered"  # delta 0 < any MDE
+    assert fvg["delta_hr_p_value"] is None

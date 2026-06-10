@@ -115,6 +115,9 @@ def test_phase_a_all_passing_inputs_pass() -> None:
         audit_records=_closed_audit_records(25),
         phase_started=PHASE_START_OK,
         today=TODAY,
+        # Stat-review S1 (#2674): Phase-A now requires the watchdog
+        # severity — absent report fails closed.
+        watchdog_report={"aggregate_severity": "green"},
     )
     failing = [r for r in report.results if r.passed is not True]
     assert report.all_passed is True, f"unexpected failures: {failing}"
@@ -249,7 +252,9 @@ def _passing_phase_b_inputs() -> tuple[dict, list[dict], dict]:
         ]
     }
     audit = _closed_audit_records(35, phase="live_small")
-    watchdog = {"window_complete": True}
+    # Stat-review S1 (#2674): aggregate_severity now feeds the
+    # watchdog_status_not_red criterion.
+    watchdog = {"window_complete": True, "aggregate_severity": "green"}
     return artifact, audit, watchdog
 
 
@@ -396,6 +401,100 @@ def test_incomplete_window_fails() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Stat-review S1 (#2674) — watchdog aggregate severity gates promotion
+# ---------------------------------------------------------------------------
+
+
+def test_watchdog_red_blocks_promotion() -> None:
+    artifact, audit, watchdog = _passing_phase_b_inputs()
+    watchdog["aggregate_severity"] = "red"
+    report = evaluate_phase_criteria(
+        PHASE_B_CRITERIA,
+        variant="v1",
+        drift_artifact=artifact,
+        audit_records=audit,
+        phase_started=PHASE_START_OK,
+        today=TODAY,
+        watchdog_report=watchdog,
+    )
+    by_name = {r.criterion: r for r in report.results}
+    assert by_name["watchdog_status_not_red"].passed is False
+    assert report.all_passed is False
+
+
+def test_watchdog_yellow_does_not_block() -> None:
+    artifact, audit, watchdog = _passing_phase_b_inputs()
+    watchdog["aggregate_severity"] = "yellow"
+    report = evaluate_phase_criteria(
+        PHASE_B_CRITERIA,
+        variant="v1",
+        drift_artifact=artifact,
+        audit_records=audit,
+        phase_started=PHASE_START_OK,
+        today=TODAY,
+        watchdog_report=watchdog,
+    )
+    by_name = {r.criterion: r for r in report.results}
+    assert by_name["watchdog_status_not_red"].passed is True
+
+
+def test_watchdog_severity_missing_fails_closed() -> None:
+    artifact, audit, watchdog = _passing_phase_b_inputs()
+    del watchdog["aggregate_severity"]
+    report = evaluate_phase_criteria(
+        PHASE_B_CRITERIA,
+        variant="v1",
+        drift_artifact=artifact,
+        audit_records=audit,
+        phase_started=PHASE_START_OK,
+        today=TODAY,
+        watchdog_report=watchdog,
+    )
+    by_name = {r.criterion: r for r in report.results}
+    assert by_name["watchdog_status_not_red"].passed is None
+    assert report.all_passed is False
+
+
+def test_phase_a_missing_watchdog_report_fails_closed() -> None:
+    report = evaluate_phase_criteria(
+        PHASE_A_CRITERIA,
+        variant="v1",
+        drift_artifact=_passing_phase_a_artifact(),
+        audit_records=_closed_audit_records(25),
+        phase_started=PHASE_START_OK,
+        today=TODAY,
+        watchdog_report=None,
+    )
+    by_name = {r.criterion: r for r in report.results}
+    assert by_name["watchdog_status_not_red"].passed is None
+    assert report.all_passed is False
+
+
+# ---------------------------------------------------------------------------
+# Stat-review S5 (#2674) — synthetic KS reference is not machine-evaluable
+# ---------------------------------------------------------------------------
+
+
+def test_synthetic_ks_reference_makes_pvalue_criterion_unevaluable() -> None:
+    artifact = _passing_phase_a_artifact()
+    artifact["variants"][0]["slippage_ks_reference_type"] = "synthetic_normal"
+    report = evaluate_phase_criteria(
+        PHASE_A_CRITERIA,
+        variant="v1",
+        drift_artifact=artifact,
+        audit_records=_closed_audit_records(25),
+        phase_started=PHASE_START_OK,
+        today=TODAY,
+        watchdog_report={"aggregate_severity": "green"},
+    )
+    by_name = {r.criterion: r for r in report.results}
+    row = by_name["slippage_ks_pvalue_gt_0.05"]
+    assert row.passed is None
+    assert "synthetic_normal" in row.detail
+    assert report.all_passed is False
+
+
+# ---------------------------------------------------------------------------
 # Phase-C can never machine-pass
 # ---------------------------------------------------------------------------
 
@@ -499,6 +598,11 @@ def test_cli_writes_report_and_exit_code_reflects_pass(tmp_path: Path) -> None:
         "\n".join(json.dumps(r) for r in _closed_audit_records(25)),
         encoding="utf-8",
     )
+    # Stat-review S1 (#2674): Phase-A now requires the watchdog severity.
+    watchdog = tmp_path / "watchdog.json"
+    watchdog.write_text(
+        json.dumps({"aggregate_severity": "green"}), encoding="utf-8"
+    )
     out = tmp_path / "eval.json"
     rc = main(
         [
@@ -510,6 +614,8 @@ def test_cli_writes_report_and_exit_code_reflects_pass(tmp_path: Path) -> None:
             str(drift),
             "--audit-jsonl",
             str(audit),
+            "--watchdog-json",
+            str(watchdog),
             "--phase-started",
             PHASE_START_OK.isoformat(),
             "--today",

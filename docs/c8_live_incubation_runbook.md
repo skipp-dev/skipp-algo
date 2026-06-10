@@ -55,8 +55,21 @@ position size to **10 %** of the backtest sizing.
 - |paper-Sharpe / OOS-Sharpe − 1| < 0.30 (drift_score ≥ 0.70 — stricter
   than the code's `acceptable` band of 0.65; equivalent to verdict
   `acceptable` or `pass` in `scripts/compute_live_drift.py::_VERDICT_BANDS`)
-- Slippage-distribution KS p-value > 0.05 vs the configured 0.5 % mean
+- Slippage-distribution KS p-value > 0.05 vs the configured 0.5 % mean.
+  **Synthetic-reference caveat (stat-review S5, #2674):** when the drift
+  JSON discloses ``slippage_ks_reference_type: synthetic_normal`` (the
+  uncalibrated placeholder Normal(0.005, 0.003) used in the absence of
+  backtest slippage samples), the evaluator scores this criterion as
+  *not machine-evaluable* (``passed: null``) rather than comparing a
+  p-value against folklore parameters — supply backtest samples or
+  sign off manually with that limitation on the record.
 - Hit-rate inside the C3 bootstrap CI
+- Watchdog ``aggregate_severity`` is not ``red`` (stat-review S1,
+  #2674): the watchdog's 4-detector consensus (KS-p, PSI, mean-shift,
+  variance-ratio) can stand RED — e.g. stable mean PnL with blown-out
+  tails — while the Sharpe-ratio drift_score still reads `pass`. The
+  evaluator consumes the watchdog report's severity directly; a missing
+  report fails closed.
 
 **Statistical power caveat (stat-review F5, 2026-06-10):** at n = 20
 trades the annualised-Sharpe estimator has a standard error of roughly
@@ -117,6 +130,8 @@ incident review before the next session.
   `backfill_live_outcomes` for this variant) — *not* the watchdog's
   default `artifacts/open_prep/outcomes` directory, which tracks the
   open_prep scanner and says nothing about incubation coverage.
+- Watchdog ``aggregate_severity`` is not ``red`` (stat-review S1,
+  #2674; same report as the ``window_complete`` criterion above).
 
 If all pass → **the track record is externally sellable.**
 
