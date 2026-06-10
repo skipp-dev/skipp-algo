@@ -46,6 +46,10 @@ REPO = Path(__file__).resolve().parents[1]
 DRIVERS = [
     REPO / "automation" / "launchd" / "run-c13-wsh.sh",
     REPO / "automation" / "launchd" / "run-c13-imbalance.sh",
+    # audit pass-3 finding A1 (2026-06-10): audit-push previously duplicated
+    # the worktree-push logic inline and silently drifted from the lib's
+    # R1/R4/R5 hardening; it now consumes the shared helper like the rest.
+    REPO / "automation" / "launchd" / "run-c13-audit-push.sh",
 ]
 
 
@@ -273,20 +277,26 @@ def test_venv_guard_snippet_aborts_with_clear_message(tmp_path):
 
 
 def test_audit_push_uses_worktree_not_branch_switch():
-    """run-c13-audit-push.sh must use the isolated worktree approach (merged
-    via PR #2660 / origin/main) rather than the old branch-switch pattern
-    that could leave the primary tree on the wrong branch.
+    """run-c13-audit-push.sh must publish through the shared isolated-worktree
+    helper rather than the old branch-switch pattern that could leave the
+    primary tree on the wrong branch.
 
-    Previously this test checked for a ``git pull --ff-only … || true``
-    guard, which was relevant to the legacy branch-switch version.  After
-    PR #2660 the script no longer calls ``git pull`` at all — it builds a
-    throwaway worktree keyed on ``origin/data/phase-a-audit``.  Asserting
-    the worktree pattern is present is the semantically equivalent guard."""
+    History: the legacy version used ``git pull --ff-only … || true`` +
+    branch switch; PR #2660 replaced that with an INLINE worktree, which
+    then silently drifted from the lib's R1/R4/R5 hardening (audit pass-3
+    finding A1, 2026-06-10) — e.g. no stale-worktree prune, so a SIGKILL
+    could kill the agent markerless.  The script now delegates to
+    ``push_to_data_branch`` and must NOT re-grow its own inline
+    ``git worktree add`` / ``git push`` pipeline."""
     script = REPO / "automation" / "launchd" / "run-c13-audit-push.sh"
     text = script.read_text()
     assert "git pull --ff-only origin data/phase-a-audit || true" not in text, (
         "audit-push must not swallow pull failures with '|| true'"
     )
-    assert "git worktree add" in text, (
-        "audit-push must use the isolated-worktree pattern (PR #2660), not git pull"
+    assert "push_to_data_branch" in text, (
+        "audit-push must publish via the shared lib_c13_data_push.sh helper"
+    )
+    assert "git worktree add" not in text, (
+        "audit-push must not duplicate the worktree pipeline inline — that "
+        "copy drifts from the lib's hardening (audit pass-3 finding A1)"
     )
