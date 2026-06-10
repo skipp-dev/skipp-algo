@@ -79,6 +79,12 @@ _ALLOWED: dict[str, dict[str, set[str]]] = {
     "drift-watchdog.yml": {
         "drift-watchdog": {"id:watchdog"},
     },
+    # ADR0023 magnitude shadow: ledger-metrics step is summary-only reporting
+    # (GITHUB_STEP_SUMMARY + ::notice). It must never cause the shadow
+    # workflow to fail — the shadow is a daily measure-only cron, not a gate.
+    "adr0023-magnitude-shadow-daily.yml": {
+        "magnitude-shadow": {"name:Ledger metrics (families measured + row delta)"},
+    },
     # C13 daily-cron: 8 best-effort steps so partial failures still upload
     # artefacts and the issue-opener can report which step failed.
     "c13-daily-cron.yml": {
