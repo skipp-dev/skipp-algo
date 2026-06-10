@@ -18,10 +18,12 @@ been killed" against historical streams.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from datetime import date
 from enum import StrEnum
+from pathlib import Path
 
 __all__ = [
     "AccountState",
@@ -46,7 +48,15 @@ class BreachReason(StrEnum):
 
 @dataclass(frozen=True)
 class RiskLimits:
-    """Static configuration loaded from ``configs/live_risk_limits.json``."""
+    """Kill-switch thresholds for the live incubation track.
+
+    The field defaults below are the canonical Phase-A values and are
+    mirrored verbatim by ``configs/live_risk_limits.json``; a regression
+    test (``tests/test_live_risk_limits_json_mirror.py``) asserts the two
+    never drift apart. Construct ``RiskLimits()`` for the in-code defaults,
+    or :meth:`from_json` to load a version-controlled / operator-supplied
+    override from that JSON file.
+    """
 
     max_daily_loss_pct: float = 2.0
     max_open_positions: int = 5
@@ -55,6 +65,42 @@ class RiskLimits:
     max_gross_exposure_pct: float = 200.0
     flatten_on_breach: bool = True
     manual_halt: bool = False
+
+    # Documentation-only keys tolerated alongside the typed limits in the
+    # JSON config, so the file can carry provenance metadata without
+    # tripping the unknown-key typo guard in :meth:`from_json`.
+    _JSON_METADATA_KEYS = frozenset({"_comment", "frozen_at", "frozen_for"})
+
+    @classmethod
+    def from_json(cls, path: "str | Path") -> "RiskLimits":
+        """Load and validate kill-switch limits from a JSON object file.
+
+        Unknown, non-metadata keys are rejected: a typo in a
+        safety-critical limit must fail loud rather than silently fall
+        back to a default. Recognised metadata keys and any
+        underscore-prefixed key are ignored; any omitted limit falls back
+        to the dataclass default.
+        """
+        blob = json.loads(Path(path).read_text(encoding="utf-8"))
+        if not isinstance(blob, dict):
+            raise ValueError(
+                f"risk-limits JSON must be a JSON object, got "
+                f"{type(blob).__name__}"
+            )
+        allowed = {f.name for f in fields(cls)}
+        unknown = {
+            key
+            for key in blob
+            if key not in allowed
+            and key not in cls._JSON_METADATA_KEYS
+            and not key.startswith("_")
+        }
+        if unknown:
+            raise ValueError(
+                f"risk-limits JSON {path} has unknown keys: "
+                f"{sorted(unknown)!r}"
+            )
+        return cls(**{key: blob[key] for key in allowed if key in blob})
 
 
 @dataclass(frozen=True)

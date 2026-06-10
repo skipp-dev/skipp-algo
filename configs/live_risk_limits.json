@@ -1,5 +1,5 @@
 {
-  "_comment": "C13 Phase-A frozen risk-limits snapshot. These values mirror scripts/live_risk_limits.RiskLimits dataclass defaults as of 2026-04-28. The runner (scripts/run_smc_live_incubation.py:593) currently instantiates RiskLimits() directly — this file is an audit artefact. Wiring a loader is a separate task.",
+  "_comment": "C13 Phase-A risk-limits config. These values mirror scripts/live_risk_limits.RiskLimits dataclass defaults; tests/test_live_risk_limits_json_mirror.py enforces they never drift. scripts/run_smc_live_incubation.py loads this file via RiskLimits.from_json() (required to exist for phase=live_small/live_full).",
   "max_daily_loss_pct": 2.0,
   "max_open_positions": 5,
   "max_consecutive_losses": 4,
