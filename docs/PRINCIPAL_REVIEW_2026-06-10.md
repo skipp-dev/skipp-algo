@@ -594,8 +594,8 @@ Auto-Merge sauber durchzieht.
 >   optionalen Artefakten); `push -u`. „protected"-Kommentare → **ungeschützt + dediziert**
 >   (Script + Plist + README). PR **#2653**. Sandbox-Beweis: RUN1 erzeugt reinen
 >   Orphan-Branch, RUN2 inkrementell, RUN3 No-op; 14/14 Guard-Tests grün.
-> - **3b (Producer-Output, Decision 2b):** CLI-Beweis — `run_smc_live_incubation
->   --phase paper` schreibt `incubation_<DATE>.jsonl` mit Records
+> - **3b (Producer-Output, Decision 2b):** CLI-Beweis —
+>   `run_smc_live_incubation --phase paper` schreibt `incubation_<DATE>.jsonl` mit Records
 >   (`audit_records_written: 1`, `action: audit_only`, kein Submit).
 > - **3c (launchd-Install):** 4 sichere Jobs (`phase-a`, `phase-a-export`,
 >   `wsh-earnings`, `audit-push`) nach `~/Library/LaunchAgents/` installiert + via
