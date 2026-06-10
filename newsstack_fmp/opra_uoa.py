@@ -157,10 +157,18 @@ def _premium_of(row: Mapping[str, Any], contract_size: int = _OCC_CONTRACT_MULTI
     OPRA ``price`` is the per-contract premium in dollars; ``size`` is the
     number of contracts. Returns ``0.0`` on any missing/invalid field — the
     caller's premium gate will then filter these out.
+
+    Only ``size`` is consulted. The Databento OPRA ``trades`` schema never
+    carries ``volume`` (that belongs to OHLCV aggregates); a former
+    ``or row.get("volume")`` fallback could silently substitute a cumulative
+    session total for a single print, inflating premium by orders of
+    magnitude (audit #2670 W1).
     """
     try:
-        price = float(row.get("price") or 0.0)
-        size = float(row.get("size") or row.get("volume") or 0.0)
+        _price_raw = row.get("price")
+        _size_raw = row.get("size")
+        price = float(_price_raw if _price_raw is not None else 0.0)
+        size = float(_size_raw if _size_raw is not None else 0.0)
     except (TypeError, ValueError):
         return 0.0
     if price <= 0.0 or size <= 0.0:
@@ -297,12 +305,23 @@ def detect_unusual_options_activity(
         premium = _premium_of(row, contract_size=contract_size)
         if premium < gate:
             continue
-        ts_ns = _normalize_ts(row.get("ts_event") or row.get("ts_recv"))
+        # ts_event (exchange matching-engine time) is preferred; ts_recv
+        # (Databento receive time, includes network latency) is a disclosed
+        # proxy. The chosen source is stashed so consumers can tell which
+        # clock drove sweep-window clustering (audit #2670 W5).
+        _ts_event_raw = row.get("ts_event")
+        if _ts_event_raw is not None:
+            ts_ns = _normalize_ts(_ts_event_raw)
+            ts_source = "ts_event"
+        else:
+            ts_ns = _normalize_ts(row.get("ts_recv"))
+            ts_source = "ts_recv"
         bucket_key = (inst, ts_ns // window_ns if ts_ns > 0 else 0)
         # Stash the augmented row (we'll need premium, ts_ns, side later).
         enriched = dict(row)
         enriched["_premium_usd"] = premium
         enriched["_ts_ns"] = ts_ns
+        enriched["_ts_source"] = ts_source
         buckets[bucket_key].append(enriched)
         exch = row.get("publisher_id") or row.get("exchange")
         if exch is not None:
@@ -343,6 +362,10 @@ def detect_unusual_options_activity(
                     "ticker": defn.underlying,
                     "date": ts_iso[:10] if ts_iso else "",
                     "time": ts_iso,
+                    # Which OPRA clock produced "time": "ts_event"
+                    # (exchange) or "ts_recv" (receive-time proxy) —
+                    # audit #2670 W5.
+                    "ts_source": row.get("_ts_source"),
                     "sentiment": sentiment,
                     "aggressor_ind": aggressor,
                     "option_activity_type": defn.option_type,
@@ -350,8 +373,12 @@ def detect_unusual_options_activity(
                     "underlying_price": None,  # Not present in OPRA trades; nbbo schema would be needed
                     "strike_price": defn.strike,
                     "date_expiration": defn.expiration,
-                    "size": row.get("size") or row.get("volume"),
-                    "volume": row.get("volume") or row.get("size"),
+                    # OPRA trades carry per-print ``size`` only; ``volume``
+                    # (cumulative session total) is not in this schema. Do
+                    # NOT cross-fill one from the other — a single print is
+                    # not a session total (audit #2670 W1).
+                    "size": row.get("size"),
+                    "volume": row.get("volume"),
                     "open_interest": None,  # Not present in OPRA trades stream
                     "cost_basis": row.get("_premium_usd"),
                     "price": row.get("price"),

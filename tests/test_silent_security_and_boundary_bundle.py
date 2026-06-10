@@ -184,7 +184,8 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     ("open_prep/feature_importance_report.py", 305),
     ("open_prep/outcome_backfill.py", 418),
     ("open_prep/realtime_signals.py", 2662),
-    ("open_prep/run_open_prep.py", 5840),
+    # 2026-06-10 (#2670 W2/W4): source-disclosure edits shifted +25 (5840→5865).
+    ("open_prep/run_open_prep.py", 5865),
     # WP-H (PR #2612): 35 -> 37, VIX import + helper block added above.
     ("smc_tv_bridge/smc_api.py", 37),
 })
