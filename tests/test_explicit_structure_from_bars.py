@@ -73,6 +73,57 @@ def test_resample_excludes_incomplete_last_bucket() -> None:
     assert pd.to_datetime(out["timestamp"], utc=True).max() <= max_source
 
 
+# ── 1D identity vs aggregation (silent-fallback audit 2026-06-10) ──
+
+
+def test_resample_1d_keeps_identity_for_true_daily_bars() -> None:
+    """Genuinely daily input (≤1 row per symbol/day) stays untouched,
+    regardless of intraday stamp time."""
+    bars = _bars()
+    # restamp at 09:30 — daily bars stamped at session open must survive
+    bars["timestamp"] = pd.to_datetime(bars["timestamp"]) + pd.Timedelta(hours=9, minutes=30)
+
+    out = resample_bars_to_timeframe(bars, "1D")
+    assert len(out) == len(bars)
+    assert out["close"].tolist() == bars["close"].tolist()
+
+
+def test_resample_1d_aggregates_intraday_bars(caplog) -> None:
+    """Intraday bars requested as 1D must be aggregated to calendar
+    days, not silently served as-is (mirror of the #2666 aliasing)."""
+    rows = []
+    for day in ("2024-01-02", "2024-01-03"):
+        for index, hour in enumerate((10, 12, 14)):
+            base = 100.0 + index
+            rows.append(
+                {
+                    "symbol": "AAPL",
+                    "timestamp": f"{day}T{hour:02d}:00:00Z",
+                    "open": base,
+                    "high": base + 1.0,
+                    "low": base - 1.0,
+                    "close": base + 0.5,
+                    "volume": 10.0,
+                }
+            )
+    bars = pd.DataFrame(rows)
+
+    import logging
+
+    with caplog.at_level(logging.WARNING, logger="scripts.explicit_structure_from_bars"):
+        out = resample_bars_to_timeframe(bars, "1D")
+
+    # 2 calendar days × 3 intraday bars → the generic path buckets to
+    # day-end and trims the trailing partial bucket (> max source ts).
+    assert len(out) < len(bars)
+    assert any("finer than 1D" in record.message for record in caplog.records)
+    # aggregation semantics: day high == max of intraday highs
+    first_day = out.iloc[0]
+    assert first_day["high"] == 103.0
+    assert first_day["low"] == 99.0
+    assert first_day["volume"] == 30.0
+
+
 def test_explicit_structure_keeps_daily_fvg_confirmation_anchor() -> None:
     timestamps = pd.date_range("2024-03-01", periods=5, freq="D", tz="UTC")
     bars = pd.DataFrame(

@@ -17,7 +17,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Literal
 
-from .repo_sources import discover_repo_sources
+from .repo_sources import _DOMAIN_SOURCE_ORDER, discover_repo_sources
 from .sources import structure_artifact_json
 
 Mode = Literal["full", "partial", "none"]
@@ -133,6 +133,34 @@ def _potential_for_provider(name: str) -> ProviderPotential:
             can_supply_precomputed_structure=False,
         )
 
+    if name == "live_news_snapshot_json":
+        # Silent-fallback audit (2026-06-10): this is the PRIMARY runtime
+        # news source (_DOMAIN_SOURCE_ORDER["news"][0]); the generic
+        # default below misdeclared it as supplying nothing.
+        return ProviderPotential(
+            can_supply_symbols=True,
+            can_supply_volume_meta=False,
+            can_supply_technical_meta=False,
+            can_supply_news_meta=True,
+            can_supply_raw_bars=False,
+            can_supply_microstructure=False,
+            can_supply_precomputed_structure=False,
+        )
+
+    if name == "largecap_watchlist_json":
+        # Static large-cap scaffold: neutral volume/technical/news
+        # defaults as last-resort fallback (tail of every meta domain in
+        # _DOMAIN_SOURCE_ORDER).
+        return ProviderPotential(
+            can_supply_symbols=True,
+            can_supply_volume_meta=True,
+            can_supply_technical_meta=True,
+            can_supply_news_meta=True,
+            can_supply_raw_bars=False,
+            can_supply_microstructure=False,
+            can_supply_precomputed_structure=False,
+        )
+
     return ProviderPotential(
         can_supply_symbols=True,
         can_supply_volume_meta=False,
@@ -216,7 +244,10 @@ def _current_mapping_for_provider(name: str) -> ProviderCurrentMapping:
             currently_maps_volume=True,
             currently_maps_technical=False,
             currently_maps_news=False,
-            snapshot_structure_mode="partial",
+            # L8 (silent-fallback audit 2026-06-10): was "partial" while
+            # currently_maps_structure=False and every mapped structure
+            # array below is empty — "none" states the truth.
+            snapshot_structure_mode="none",
             snapshot_meta_mode="partial",
             mapped_structure_fields=[],
             mapped_structure_categories={
@@ -279,6 +310,78 @@ def _current_mapping_for_provider(name: str) -> ProviderCurrentMapping:
             auxiliary_available=False,
             mapped_auxiliary_categories={},
             mapped_meta_fields=[*mapped_meta_fields, "news.value.strength", "news.value.bias", "news.asof_ts", "news.stale"],
+        )
+
+    if name == "live_news_snapshot_json":
+        # Silent-fallback audit (2026-06-10): primary runtime news source;
+        # news-only — it does NOT carry the volume domain, so the base
+        # mapped_meta_fields (volume.*) do not apply.
+        return ProviderCurrentMapping(
+            currently_maps_structure=False,
+            currently_maps_meta=True,
+            currently_maps_volume=False,
+            currently_maps_technical=False,
+            currently_maps_news=True,
+            snapshot_structure_mode="none",
+            snapshot_meta_mode="partial",
+            mapped_structure_fields=[],
+            mapped_structure_categories={
+                "bos": False,
+                "choch": False,
+                "orderblocks": False,
+                "fvg": False,
+                "liquidity_sweeps": False,
+            },
+            structure_profile_supported=False,
+            diagnostics_available=False,
+            auxiliary_available=False,
+            mapped_auxiliary_categories={},
+            mapped_meta_fields=[
+                "symbol",
+                "timeframe",
+                "asof_ts",
+                "provenance",
+                "news.value.strength",
+                "news.value.bias",
+                "news.asof_ts",
+                "news.stale",
+            ],
+        )
+
+    if name == "largecap_watchlist_json":
+        # Static scaffold: neutral volume/technical/news defaults,
+        # last-resort fallback only.
+        return ProviderCurrentMapping(
+            currently_maps_structure=False,
+            currently_maps_meta=True,
+            currently_maps_volume=True,
+            currently_maps_technical=True,
+            currently_maps_news=True,
+            snapshot_structure_mode="none",
+            snapshot_meta_mode="partial",
+            mapped_structure_fields=[],
+            mapped_structure_categories={
+                "bos": False,
+                "choch": False,
+                "orderblocks": False,
+                "fvg": False,
+                "liquidity_sweeps": False,
+            },
+            structure_profile_supported=False,
+            diagnostics_available=False,
+            auxiliary_available=False,
+            mapped_auxiliary_categories={},
+            mapped_meta_fields=[
+                *mapped_meta_fields,
+                "technical.value.strength",
+                "technical.value.bias",
+                "technical.asof_ts",
+                "technical.stale",
+                "news.value.strength",
+                "news.value.bias",
+                "news.asof_ts",
+                "news.stale",
+            ],
         )
 
     return ProviderCurrentMapping(
@@ -363,6 +466,18 @@ def _known_gaps_for_provider(name: str) -> list[str]:
             "Technical mapping requires explicit fields (technical or technical_strength/technical_bias)",
         ]
 
+    if name == "live_news_snapshot_json":
+        return [
+            "News-only provider: no structure, volume, or technical domains",
+            "Symbol coverage limited to tickers present in the live news snapshot window",
+        ]
+
+    if name == "largecap_watchlist_json":
+        return [
+            "Static scaffold with neutral volume/technical/news defaults only",
+            "Last-resort fallback; not intended for production signal derivation",
+        ]
+
     return common
 
 
@@ -414,7 +529,20 @@ def _pick_best_candidate(entries: list[ProviderMatrixEntry], *, domain: str) -> 
 
     if not candidates:
         return None
-    candidates.sort(key=lambda item: item.name)
+    # L9 (silent-fallback audit 2026-06-10): rank by the authoritative
+    # runtime fallback order instead of alphabetically — "best" must
+    # mean what load_raw_meta_input_composite would actually serve
+    # first. Domains without an order entry (microstructure) keep the
+    # deterministic alphabetical fallback.
+    order = _DOMAIN_SOURCE_ORDER.get(domain, [])
+
+    def _rank(item: ProviderMatrixEntry) -> tuple[int, str]:
+        try:
+            return (order.index(item.name), item.name)
+        except ValueError:
+            return (len(order), item.name)
+
+    candidates.sort(key=_rank)
     return candidates[0].name
 
 
