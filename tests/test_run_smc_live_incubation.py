@@ -319,8 +319,10 @@ def _passing_eval_report(tmp_path: Path, *, phase: str) -> Path:
     """Write a minimal passing phase-eval report (stat-review F1)."""
     from datetime import UTC, datetime
 
+    from scripts.evaluate_phase_criteria import PHASE_EVAL_SCHEMA_VERSION
+
     payload = {
-        "schema_version": "1.0.0",
+        "schema_version": PHASE_EVAL_SCHEMA_VERSION,
         "phase": phase,
         "variant": "v",
         "all_passed": True,
