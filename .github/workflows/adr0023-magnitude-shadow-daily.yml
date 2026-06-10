@@ -195,6 +195,7 @@ jobs:
 
       - name: Ledger metrics (families measured + row delta)
         if: always()
+        # CONTINUE-ON-ERROR-INTENTIONAL: summary-only metrics must never fail this measure-only shadow workflow.
         continue-on-error: true
         run: |
           python - <<'PY'
