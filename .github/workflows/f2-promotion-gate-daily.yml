@@ -120,11 +120,19 @@ jobs:
         # #45 follow-up: last_spec_status.txt is ephemeral per runner.
         # Without restoring from a cross-run cache, PREVIOUS would
         # always equal CURRENT on fresh runners and plumbing_only->live
-        # flips would never be detected. Using the unified cache action
-        # (restore on pre-step, save on post-step) so the next run sees
-        # whatever CURRENT we persist in the flip-detect step below.
+        # flips would never be detected.
+        #
+        # 2026-06-10 audit fix: the unified actions/cache action saves
+        # in an implicit POST step that is SKIPPED when the job fails —
+        # and this job exits 2 by design on every rollback decision.
+        # Five consecutive rollback runs therefore never persisted the
+        # cache (`gh cache list` showed zero entries) and every run
+        # logged "Cache not found for input keys". Split into explicit
+        # restore (here) + save (right after the flip-detect step,
+        # BEFORE the gate step can fail) so the status survives
+        # rollback-failed runs.
         id: restore-last-spec-status
-        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: artifacts/ci/f2/last_spec_status.txt
           key: f2-last-spec-status-v1-${{ github.run_id }}
@@ -176,6 +184,20 @@ jobs:
           else
             echo "::warning title=f2-flip-status::helper exited ${FLIP_RC}; preserving prior last_spec_status"
           fi
+
+      - name: Save spec-status for next run (flip detection cache)
+        # 2026-06-10 audit fix (see restore step above): must be an
+        # explicit save placed BEFORE the gate step — the implicit
+        # post-step save of the unified cache action never ran on
+        # rollback days because the job fails by design (exit 2).
+        # Guard on file existence: the flip-detect step skips writing
+        # when the spec is missing or the helper failed, and
+        # cache/save errors on a missing path.
+        if: ${{ hashFiles('artifacts/ci/f2/last_spec_status.txt') != '' }}
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: artifacts/ci/f2/last_spec_status.txt
+          key: f2-last-spec-status-v1-${{ github.run_id }}
 
       - name: Download F2 dual-arm artifact (from rolling-bench)
         # Plan §2.4 G3 — the rolling-bench workflow publishes
