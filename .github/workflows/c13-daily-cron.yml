@@ -72,6 +72,22 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
+      # C13 path-mismatch fix: the Phase-A workstation pushes audit JSONL
+      # to branch data/phase-a-audit (run-c13-audit-push.sh), but the
+      # cron checks out main.  Overlay the audit files from that branch
+      # so Step 1 finds cache/live/incubation_<DATE>.jsonl.  Guarded:
+      # if the branch does not exist yet the checkout is a no-op and
+      # the existing rc=78 soft-skip handles the absence gracefully.
+      - name: Fetch audit files from data/phase-a-audit
+        run: |
+          if git fetch origin data/phase-a-audit --quiet 2>/dev/null; then
+            git checkout origin/data/phase-a-audit -- cache/live/ 2>/dev/null \
+              && echo "::notice title=c13-cron::overlaid cache/live/ from data/phase-a-audit" \
+              || echo "::notice title=c13-cron::data/phase-a-audit exists but cache/live/ absent — soft-skip"
+          else
+            echo "::notice title=c13-cron::branch data/phase-a-audit not found on origin — soft-skip"
+          fi
+
       - uses: ./.github/actions/setup-python-pinned
         with:
           cache: pip
