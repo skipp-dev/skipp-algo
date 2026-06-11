@@ -289,6 +289,13 @@ Daily PASS/FAIL is noisy; **decisions are made weekly**, not daily:
 1. **E[PnL]-after-cost secondary check (§5 of the findings doc).** BLOCKS
    Stage 3. Statistically resolving ≠ profitable after costs. Must be built and
    pass for BOS/SWEEP before any real sizing change.
+   *Status 2026-06-11: built.* Estimator (`governance/epnl_after_cost.py`),
+   gate CLI (`scripts/run_epnl_after_cost_gate.py`) and the empirical cost
+   model (`governance/execution_costs.py` +
+   `scripts/calibrate_execution_costs.py`) exist; the gate consumes the
+   conservative (CI-high) round-turn cost via `--cost-calibration`
+   (fail-closed when unmeasurable). Awaiting C8 Phase-A paper sessions to
+   produce ≥ 20 measurable fills before the §5 verdict can be recorded.
 
 2. **The pipeline step that fills the snapshot fields.** Today
    `magnitude_resolution_pass`/`magnitude_auc` default to `None` ⇒ the gate is

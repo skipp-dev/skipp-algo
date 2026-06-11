@@ -210,6 +210,11 @@ export smc_lib_thma(float source, simple int length) =>
     int len_half = math.max(1, int(math.round(length / 2.0)))
     ta.wma(ta.wma(source, len_sixth) * 3 - ta.wma(source, len_quarter) - ta.wma(source, len_half), len_half)
 
+export smc_lib_zlema(float source, simple int length) =>
+    // Zero Lag EMA (Ehlers/Way): EMA of de-lagged source — 2*src - src[lag]
+    int lag = math.max(0, int(math.round((length - 1) / 2.0)))
+    ta.ema(2 * source - source[lag], length)
+
 export smc_lib_get_ma(simple ct.SmcLibMovingAverage select_ma = ct.SmcLibMovingAverage.SMA, float source, simple int length) =>
     switch select_ma
         ct.SmcLibMovingAverage.EMA => ta.ema(source, length)
@@ -219,6 +224,7 @@ export smc_lib_get_ma(simple ct.SmcLibMovingAverage select_ma = ct.SmcLibMovingA
         ct.SmcLibMovingAverage.HMA => ta.hma(source, length)
         ct.SmcLibMovingAverage.EHMA => smc_lib_ehma(source, length)
         ct.SmcLibMovingAverage.THMA => smc_lib_thma(source, length)
+        ct.SmcLibMovingAverage.ZLEMA => smc_lib_zlema(source, length)
         => ta.sma(source, length)
 
 export smc_lib_bb(float source, simple int length, float mult, simple ct.SmcLibMovingAverage select_ma) =>

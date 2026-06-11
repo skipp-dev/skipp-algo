@@ -22,9 +22,8 @@ if str(REPO_ROOT) not in sys.path:
 # Bug-Hunt 2026-05-01 F-01: deferred so the script also works when
 # invoked as `python scripts/X.py` (no PYTHONPATH=.) — sys.path.insert
 # above must happen before any first-party `from scripts.` import.
-from scripts.smc_atomic_write import atomic_write_text  # noqa: E402
-
 from scripts.generate_databento_watchlist import LongDipConfig, build_daily_watchlists, load_watchlist_inputs
+from scripts.smc_atomic_write import atomic_write_text
 from smc_integration.batch import write_snapshot_bundles_for_symbols
 from strategy_config import (
     LONG_DIP_MAX_GAP_PCT,
@@ -45,6 +44,10 @@ DEFAULT_TIME_STOP_AFTER = "15:31:00"
 DEFAULT_SCHEDULE_TIMEZONE = "Europe/Berlin"
 DEFAULT_RECONNECT_MAX_ATTEMPTS = 3
 DEFAULT_RECONNECT_WAIT_SECONDS = 2.0
+# Single source of truth for the IBKR paper-TWS port convention; the
+# IBKRConnectionConfig default and the S5 paper-account guard both
+# reference this constant (Copilot review #2689: avoid 7497 duplication).
+PAPER_PORT = 7497
 TERMINAL_ORDER_STATUSES = {"Filled", "Cancelled", "ApiCancelled", "Inactive"}
 _SENSITIVE_TEXT_PATTERNS = (
     re.compile(r"(api[_-]?key=)([^&\s]+)", flags=re.IGNORECASE),
@@ -56,7 +59,7 @@ _SENSITIVE_TEXT_PATTERNS = (
 @dataclass(frozen=True)
 class IBKRConnectionConfig:
     host: str = "127.0.0.1"
-    port: int = 7497
+    port: int = PAPER_PORT
     client_id: int = 71
     account: str | None = None
     timeout_seconds: float = 10.0
@@ -456,6 +459,30 @@ def _import_ibkr_types() -> tuple[Any, Any, Any, Any, Any]:
     return IB, Stock, LimitOrder, MarketOrder, Order
 
 
+def assert_paper_account_if_paper_port(ib: Any, connection_cfg: IBKRConnectionConfig) -> None:
+    """Abort if a paper-port session exposes non-DU* (live) accounts.
+
+    IBKR-audit 2026-06-11 (S5): port 7497 is only a *convention* for the
+    paper TWS — the operator can bind a live TWS to any port. IBKR paper
+    accounts always carry the ``DU`` prefix, so a connection on the paper
+    port whose managed accounts are not all DU* means real money is one
+    ``placeOrder`` away. Fail loud before any order is transmitted.
+
+    No-op when the session does not expose its accounts (e.g. test fakes)
+    or when a non-paper port is used deliberately.
+    """
+    if connection_cfg.port != PAPER_PORT:
+        return
+    accounts = list(getattr(getattr(ib, "wrapper", None), "accounts", []) or [])
+    if accounts and not all(str(account).startswith("DU") for account in accounts):
+        raise SystemExit(
+            f"Connected to port {connection_cfg.port} (paper convention) but "
+            f"managed accounts {accounts!r} are not all DU* paper accounts — "
+            "this looks like a LIVE TWS behind the paper port. Aborting "
+            "before any order is placed."
+        )
+
+
 def check_ibkr_connection(connection_cfg: IBKRConnectionConfig) -> dict[str, Any]:
     IB, _, _, _, _ = _import_ibkr_types()
     ib = IB()
@@ -589,7 +616,11 @@ def reconcile_fills_and_positions(
         order_ref = str(getattr(execution, "orderRef", "")) if execution is not None else ""
         if symbol_filter and contract_symbol not in symbol_filter:
             continue
-        if ref_filter and order_ref and order_ref not in ref_filter:
+        # IBKR-audit 2026-06-11 (S8): previously `ref_filter and order_ref
+        # and order_ref not in ref_filter` let fills with an EMPTY orderRef
+        # bypass an active ref filter, mixing unrelated session fills into
+        # the reconciliation. An empty ref can never match the filter.
+        if ref_filter and order_ref not in ref_filter:
             continue
         fills.append(
             {
@@ -723,6 +754,24 @@ def flatten_after(
     if connection_cfg.account:
         market_order.account = connection_cfg.account
     trade = ib.placeOrder(contract, market_order)
+    # IBKR-audit 2026-06-11 (S7): the flatten market order was previously
+    # fire-and-forget — a rejected order still marked the symbol as
+    # flattened. Poll (bounded) for a terminal status so the supervisor can
+    # record whether the position is actually closed.
+    waited = 0.0
+    poll_step = 0.5
+    max_wait_seconds = 30.0
+    sleep_fn = getattr(ib, "sleep", None)
+    while waited < max_wait_seconds:
+        status_now = str(getattr(trade.orderStatus, "status", ""))
+        if status_now in TERMINAL_ORDER_STATUSES:
+            break
+        if callable(sleep_fn):
+            sleep_fn(poll_step)
+        else:  # pragma: no cover - ib_async always provides sleep
+            time_module.sleep(poll_step)
+        waited += poll_step
+    final_status = str(trade.orderStatus.status)
     return {
         "action": "flatten",
         "symbol": symbol,
@@ -731,7 +780,8 @@ def flatten_after(
         "canceled_order_ids": canceled_order_ids,
         "flattened_quantity": flatten_quantity,
         "order_id": int(market_order.orderId),
-        "status": str(trade.orderStatus.status),
+        "status": final_status,
+        "fill_confirmed": final_status == "Filled",
     }
 
 
@@ -831,6 +881,7 @@ def place_order_intents(
             timeout=connection_cfg.timeout_seconds,
             readonly=False,
         )
+        assert_paper_account_if_paper_port(ib, connection_cfg)
         return place_order_intents_with_ib(ib, intents, connection_cfg=connection_cfg, execution_cfg=execution_cfg)
     finally:
         if ib.isConnected():
@@ -992,7 +1043,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--check-connection", action="store_true", help="Probe the IBKR connection and print handshake metadata.")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=7497)
-    parser.add_argument("--client-id", type=int, default=71)
+    parser.add_argument(
+        "--client-id",
+        type=int,
+        default=None,
+        help=(
+            "IB clientId. Default: rotating allocation via scripts.ib_client_id "
+            "to avoid clientId collisions with concurrently running IBKR tools "
+            "(IBKR-audit 2026-06-11, S3)."
+        ),
+    )
     parser.add_argument("--account", default=None)
     parser.add_argument("--timeout-seconds", type=float, default=10.0)
     parser.add_argument("--tif", default="DAY", choices=["DAY", "GTC"])
@@ -1029,14 +1089,49 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def resolve_client_id(requested: int | None, *, service_name: str = "ibkr_execution") -> int:
+    """Resolve the IB clientId: explicit CLI value wins, else allocate.
+
+    IBKR-audit 2026-06-11 (S3): the previous hard-coded default 71 collided
+    whenever two execution tools ran concurrently against the same TWS
+    (IBKR error 326). The file-locked registry in ``scripts.ib_client_id``
+    hands out collision-free ids; an explicit ``--client-id`` still pins.
+
+    Callers that auto-allocate (``requested is None``) MUST release the id
+    in a ``finally`` block via ``release_ib_client_id`` (Copilot review
+    #2689) — see ``main()`` here and in ``run_ibkr_open_execution.py``.
+    ``atexit`` is deliberately NOT used: the repo pins a zero-surface for
+    atexit handlers (tests/test_atexit_register_zero_surface.py).
+    """
+    if requested is not None:
+        return int(requested)
+    from scripts.ib_client_id import allocate_ib_client_id
+
+    return allocate_ib_client_id(service_name)
+
+
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
 
+    # S3 (Copilot review #2689): auto-allocated clientIds are leased from the
+    # registry and must be released on exit; explicit --client-id values are
+    # never registered, so never released.
+    client_id = resolve_client_id(args.client_id)
+    try:
+        _main_with_resolved_client_id(args, client_id)
+    finally:
+        if args.client_id is None:
+            from scripts.ib_client_id import release_ib_client_id
+
+            release_ib_client_id(client_id)
+
+
+def _main_with_resolved_client_id(args: argparse.Namespace, client_id: int) -> None:
     connection_cfg = IBKRConnectionConfig(
         host=args.host,
         port=args.port,
-        client_id=args.client_id,
+        client_id=client_id,
         account=args.account,
         timeout_seconds=args.timeout_seconds,
         readonly=not args.place_orders,

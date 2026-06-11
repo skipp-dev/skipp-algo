@@ -46,8 +46,14 @@ PHASE_B_RECOMMENDED_SIZE_SCALE = 0.10
 
 
 @dataclass(frozen=True)
-class IBKRExecutionConfig:
-    """Connection metadata that the adapter stamps onto every intent."""
+class IBKRAdapterConfig:
+    """Connection metadata that the adapter stamps onto every intent.
+
+    IBKR-audit 2026-06-11 (S6): renamed from ``IBKRExecutionConfig`` to
+    disambiguate from the *unrelated* class of the same name in
+    ``scripts.execute_ibkr_watchlist`` (tif/exchange/exit_mode). The old
+    name remains importable as a backwards-compatible alias below.
+    """
 
     host: str = "127.0.0.1"
     paper_mode: bool = True
@@ -59,9 +65,13 @@ class IBKRExecutionConfig:
         return PAPER_TRADING_PORT if self.paper_mode else LIVE_TRADING_PORT
 
 
+# Backwards-compatible alias — existing callers/tests import this name.
+IBKRExecutionConfig = IBKRAdapterConfig
+
+
 def build_ibkr_intents_from_smc_setups(
     setup_records: Sequence[dict[str, Any]],
-    execution_cfg: IBKRExecutionConfig,
+    execution_cfg: IBKRAdapterConfig,
     *,
     size_scale: float = DEFAULT_SIZE_SCALE,
 ) -> list[IBKROrderIntent]:
@@ -105,7 +115,7 @@ def build_ibkr_intents_from_smc_setups(
 
 def _build_one_intent(
     record: dict[str, Any],
-    execution_cfg: IBKRExecutionConfig,
+    execution_cfg: IBKRAdapterConfig,
     size_scale: float,
     fallback_rank: int,
 ) -> IBKROrderIntent:
@@ -163,7 +173,11 @@ def _build_one_intent(
         gap_pct=float(record.get("gap_pct", 0.0)),
         tif=str(record.get("tif", "DAY")),
         outside_rth=bool(record.get("outside_rth", False)),
-        exit_mode=str(record.get("exit_mode", "bracket")),
+        # IBKR-audit 2026-06-11 (S6): default was "bracket", a mode the
+        # downstream executor does not know (it only accepts "tp-stop" /
+        # "tp-trail" and raises ValueError otherwise). Default to the
+        # executor-supported standard bracket mode instead.
+        exit_mode=str(record.get("exit_mode", "tp-stop")),
         order_ref=str(
             record.get(
                 "order_ref",
@@ -205,6 +219,7 @@ __all__ = [
     "LIVE_TRADING_PORT",
     "PAPER_TRADING_PORT",
     "PHASE_B_RECOMMENDED_SIZE_SCALE",
+    "IBKRAdapterConfig",
     "IBKRExecutionConfig",
     "build_ibkr_intents_from_smc_setups",
 ]

@@ -356,8 +356,8 @@ def test_measurement_gate_uses_real_evidence(monkeypatch, tmp_path: Path) -> Non
 
     # Governance promotion (77ac1652) made MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD
     # a hard-blocking gate. The subsequent eligibility-floor fix added
-    # ``min_events_for_calibrated_thresholds=20`` (matching Platt
-    # ``_MIN_PLATT_EVENTS``); below that floor the calibrated absolute-threshold
+    # ``min_events_for_calibrated_thresholds`` (=30; Platt ``_MIN_PLATT_EVENTS``
+    # plus margin); below that floor the calibrated absolute-threshold
     # codes are suppressed because beta_bin fallback emits a statistically
     # meaningless calibrated_ece. This fixture runs at n_events=1, so the gate
     # is expected to surface the calibrated_ece warning as advisory (status
@@ -510,7 +510,7 @@ def test_measurement_gate_warns_brier_above_soft_threshold(monkeypatch, tmp_path
     brier_warnings = [w for w in gate["details"]["warnings"] if "Brier score" in w and "soft threshold" in w]
     assert len(brier_warnings) >= 1, f"Expected Brier soft warning, got: {gate['details']['warnings']}"
     # Soft-warn coverage is independent of the calibrated-ECE hard-block.
-    # With the eligibility-floor fix (min_events_for_calibrated_thresholds=20)
+    # With the eligibility-floor fix (min_events_for_calibrated_thresholds=30)
     # this n_events=4 fixture no longer triggers the hard ECE gate, so the
     # gate is non-blocking but still emits the Brier soft warning. Hard-block
     # coverage at/above the floor is exercised by
@@ -544,7 +544,7 @@ def test_measurement_gate_warns_coverage_below_soft_threshold(monkeypatch, tmp_p
     coverage_warnings = [w for w in gate["details"]["warnings"] if "Event coverage" in w and "soft threshold" in w]
     assert len(coverage_warnings) >= 1, f"Expected coverage soft warning, got: {gate['details']['warnings']}"
     # Soft-warn coverage is independent of the calibrated-ECE hard-block.
-    # With the eligibility-floor fix (min_events_for_calibrated_thresholds=20)
+    # With the eligibility-floor fix (min_events_for_calibrated_thresholds=30)
     # this n_events=1 fixture no longer triggers the hard ECE gate, so the
     # gate is non-blocking but still emits the coverage soft warning.
     assert gate["blocking"] is False

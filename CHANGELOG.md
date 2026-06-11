@@ -6,6 +6,199 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-11) — ADR-0023 §5: Empirische Execution-Cost-Kalibrierung aus C8-Paper-Fills
+
+Der §5-E[PnL]-after-cost-Check rechnete bislang mit dem flachen
+pre-registrierten Haircut (`DEFAULT_COST_BPS = 5.0`). Für die
+Stage-3-Aktivierung braucht es die **empirische** Kostenbasis aus den
+C8-Phase-A-Paper-Sessions (IBKR, `run_ibkr_open_execution.py`).
+
+- **`governance/execution_costs.py` (neu, pure stdlib)**: Kostenmodell aus
+  Session-Fills — `commission_bps()` (IBKR Fixed: max($1, $0.005/Share),
+  Cap 1 % Notional), `slippage_bps()` (vorzeichenbehaftet ggü. Limit;
+  Price-Improvement zählt negativ), `extract_leg_costs()` (Order-Ref-Gruppierung,
+  VWAP über Partial-Fills, Dedupe über Snapshots+Final; Trailing-Legs
+  fee-only) und `calibrate_costs()` → `CostCalibration` mit Bootstrap-CI
+  (Seed 230022, B=1000) und `conservative_cost_bps = CI-high` (Round-Turn).
+  Measurability-Floors: ≥ 20 Cost-Samples UND Entry-Fill-Rate ≥ 0.5,
+  sonst `measurable: false` mit `fail_reasons`.
+- **`scripts/calibrate_execution_costs.py` (neu)**: CLI — Session-JSONs rein,
+  Kalibrierungs-Report raus (atomic write). Exit 0 = measurable,
+  2 = unmeasurable (Report wird trotzdem geschrieben), 1 = Usage-Fehler.
+- **`scripts/run_epnl_after_cost_gate.py`**: neues Flag
+  `--cost-calibration <report.json>` — überschreibt `--cost-bps` mit dem
+  konservativen empirischen Round-Turn-Cost. **Fail-closed**: eine nicht
+  messbare Kalibrierung ist Exit 1, kein stilles Fallback auf den flachen
+  Default. Report trägt `cost_source` (`empirical_calibration` |
+  `flat_default`) und bettet die Kalibrierung unter `cost_calibration` ein.
+- Tests: `tests/test_execution_costs.py` (Commission-Regime-Grenzen,
+  Slippage-Vorzeichen BOT/SLD, VWAP/Partial-Fills, Dedupe, Fill-Rate,
+  Measurability-Floors, Seed-Determinismus, CLI-Exit-Codes,
+  Gate-Wiring inkl. Fail-closed).
+
+### Changed (2026-06-11) — ECE-Eligibility-Floor 20→30 (#2693)
+
+- **`min_events_for_calibrated_thresholds: 20 → 30`**
+  (`smc_integration/release_policy.py`): margin above the Platt-scaler
+  fitting minimum (`_MIN_PLATT_EVENTS=20`). At exactly n=20 ECE sampling
+  noise (~±0.15) dwarfs the 0.30 ceiling — incident 2026-06-10: PG hit
+  n=20 with calibrated_ece 0.331/0.381 and hard-failed three consecutive
+  smc-library-refresh runs (27297623388, 27299755086, 27309262730).
+  Governance unchanged: `MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD`
+  stays HARD_BLOCKING; only the eligibility floor moves.
+- **Suppression now observable**: the measurement-shadow baseline payload
+  carries `calibrated_thresholds_eligible` + `calibrated_thresholds_floor`
+  so gate reports show why a calibrated-threshold breach below the floor
+  did not fire (review finding on #2693).
+- Tests: incident regression at n=20 (PG values), boundary pair n=29
+  (suppress) / n=30 (fire), eligibility-flag asserts.
+
+### Fixed (2026-06-11) — FI pipeline: component persistence + sample dedup (c10b follow-up)
+
+Blast-radius remediation after the FDR-gate wiring fix: the FI
+pipeline's inputs were structurally degenerate, independent of the gate.
+
+- **Component persistence** (`open_prep/outcomes.py`):
+  `prepare_outcome_snapshot()` now flattens the 14 weighted
+  `score_breakdown` components (keys from `FEATURE_TO_WEIGHT_KEY`) into
+  every outcome record. Previously `outcomes_<date>.json` never carried
+  them, so `backfill_feature_importance()` defaulted every component to
+  `0.0` — all FI reports since 2026-04-30 were computed on all-zero
+  feature vectors (c10b side-finding). Absent breakdown ⇒ `None`, not
+  `0.0`, so absence stays distinguishable from a genuine zero.
+- **Era-gate** (`open_prep/outcome_backfill.py`):
+  `backfill_feature_importance()` skips labeled records lacking the full
+  component schema (legacy pre-fix outcome files) instead of laundering
+  the missing keys into all-zero samples; skip count is logged.
+- **(symbol, date) dedup** (`open_prep/outcomes.py`):
+  `compute_feature_importance()` deduplicates samples across the
+  overlapping daily fi_samples files (the backfill re-emits its full
+  lookback window each day, inflating n ~3× and the Welch t-stats
+  feeding the BH-FDR gate by ~√3). Newest file wins; report gains
+  `duplicate_samples_dropped`.
+- **Historical artifacts annotated, not recomputed**: README notes in
+  `artifacts/open_prep/feature_importance/` and
+  `artifacts/open_prep/outcomes/feature_importance/` mark all reports ≤
+  2026-06-09 as vacuous (zero-variance inputs; recommendations are not
+  evidence). No production weight adjustment ever consumed them
+  (verified: no candidate-weight artifacts, `DEFAULT_WEIGHTS`
+  unchanged); historical component values were never persisted, so
+  recomputation is impossible — clean samples accumulate forward.
+- Tests: `tests/test_fi_component_persistence.py` (new; E2E
+  snapshot→backfill→report) + fixture alignment in
+  `tests/test_outcome_backfill.py`/`tests/test_feature_importance_report.py`.
+
+### Fixed (2026-06-11) — FDR-gate wiring + GAP_FADE zero-gap direction (Copilot findings on #2687)
+
+- **BH-FDR gate was defined but never invoked** (`open_prep/outcomes.py`):
+  `compute_feature_importance()` never called `_benjamini_hochberg()`, so
+  live FI reports lacked the `fdr_significant` key and the
+  `compute_weight_adjustments()` gate (`feat.get("fdr_significant",
+  False)`) silently neutralized ALL features — weight auto-tuning was
+  dead since #2687. The gate is now wired: per-feature p-values are
+  collected, BH-adjusted at q=0.05, and stamped onto every feature entry.
+  The "strong predictor" recommendation additionally requires
+  FDR significance.
+- **GAP_FADE direction for zero/missing gap**: `infer_trade_direction()`
+  returned "short" for `gap_pct == 0` (and missing gap defaulting to 0),
+  contradicting its documented long default. `>=` → `>`.
+- Tests: `tests/test_eval_findings_fixes.py` — 7 new regression tests
+  incl. E2E noise-vs-signal FDR gating and a live-report
+  weight-adjustment movement check.
+
+### Added (2026-06-11) — VIX9D term-structure observe-only feature (eval D5)
+
+- **`vix9d_vix_ratio`** (VIX9D ÷ VIX): > 1 ⇒ inverted short-term vol
+  term structure ⇒ the market prices an imminent event risk. Fetched via
+  the existing FMP `get_index_quote("^VIX9D")` endpoint (verified live:
+  FMP serves all CBOE vol indices), stamped market-wide onto every ranked
+  v2 row and recorded in outcome snapshots. Appended to
+  `FEATURE_KEYS`/`PASS_THROUGH_FEATURE_KEYS` — observe-only, NOT wired
+  into regime classification or scoring until FI evidence exists.
+  Fail-closed: ratio is `None` when either quote is missing or VIX ≤ 0.
+- Tests: `tests/test_vix9d_term_structure.py` (new).
+
+### Changed (2026-06-11) — Eval-findings remediation (B1/B2/B3/B5/B7/B8/D7, C4)
+
+Implementation of the actionable findings from the open-prep scoring/
+feature-importance evaluation. All label/feature additions are
+observe-only; scoring weights are unchanged:
+
+- **B1 — direction-aware labels** (`open_prep/outcome_backfill.py`,
+  `open_prep/outcomes.py`): new `infer_trade_direction()` (GAP_FADE fades
+  the gap sign; all other playbooks are continuation) and new outcome
+  fields `pnl_30m_pct_signed` + `profitable_30m_directional`. Legacy
+  long-only `pnl_30m_pct`/`profitable_30m` unchanged for continuity.
+- **B2 — triple-barrier label**: `compute_pnl_from_bars()` now also walks
+  the 30-min window bar-by-bar against ATR-scaled barriers
+  (target = `atr_pct`, stop = `0.5×atr_pct`; defaults 1.0%/0.5% when ATR
+  is missing) producing `label_tb` ∈ {target, stop, timeout_win,
+  timeout_loss} + `profitable_tb`; stop is checked first within a bar
+  (conservative tie-break).
+- **B3 — FI hardening** (`open_prep/outcomes.py`): `mean_separation` now
+  uses the POOLED std (Cohen's d) instead of σ_win-only; per-feature
+  Welch t-test `p_value` (normal approximation); Benjamini–Hochberg FDR
+  gate at q=0.05 → `fdr_significant` flag; recommendations and
+  `compute_weight_adjustments()` only act on FDR-significant features
+  (non-significant ⇒ neutral importance 0.5); `_MIN_TUNING_SAMPLES`
+  raised 30 → 200.
+- **B5/D3 — gap×playbook report**: new `compute_gap_playbook_report()`
+  aggregating hit-rate/avg-PnL per `gap_bucket:playbook` cell (prefers
+  directional labels, falls back to legacy).
+- **B7 — EMA seed** (`open_prep/technical_analysis.py`): `_ema()` now
+  seeds with the SMA of the first `span` values (TA-Lib convention)
+  instead of `values[0]`, removing first-bar bias on 200-bar EMAs.
+- **B8 — macro surprise scale** (`open_prep/macro.py`): diagnostic
+  `surprise` divisor floor `max(|consensus|, 1.0)` → `max(|consensus|,
+  1e-6)` with a ±10 cap; low-consensus series (CPI MoM ~0.2) are no
+  longer 5× understated. `contribution` (sign-only) unchanged.
+- **D7 — real ADX/BB-width**: new `compute_adx_from_bars()` (Wilder, 14)
+  and `compute_bb_width_pct_from_bars()` (20, 2σ) from daily bars; the
+  regime-detection enrichment in `open_prep/run_open_prep.py` prefers
+  them (`regime_source="daily_bars"`) and falls back to the previous
+  ATR-proxy heuristics (`"atr_proxy"`).
+- **C4 — observe-only features**: `gap_range_pos` (price position vs.
+  prior-day range via new `compute_gap_range_position()`) and
+  `eps_surprise_pct` recorded on outcome snapshots and appended to
+  `FEATURE_KEYS`/`PASS_THROUGH_FEATURE_KEYS` (unweighted until FI
+  evidence exists).
+- **Deferred (data-gated)**: D6 Platt calibration (needs ~200 labels),
+  D8 meta-labeling (~500 labels), VIX9D term structure + short interest
+  (no data source in repo), RSI/breakout threshold changes ("measure
+  first").
+- Tests: `tests/test_eval_findings_fixes.py` (new) +
+  `tests/test_scorer_tuning.py` FDR-gating coverage.
+
+### Added (2026-06-11) — Trend-state features (observe-only) + ZLEMA MA type
+
+Outcome of the ZLEMA/trend-filter analysis: daily trend-state context is
+recorded for feature-importance evidence BEFORE any scoring decision
+("measure first, wire later"):
+
+- **`compute_trend_state_features()`** in `open_prep/technical_analysis.py`:
+  three observe-only features from daily bars — `trend_alignment`
+  (EMA20>50>200 ordinal +1/0/−1), `dist_to_ema20_pct` (pullback depth vs.
+  EMA20, uses live price when available), `ema50_slope_pct` (5-bar EMA50
+  slope). Fail-closed: each feature is `None` below its bar minimum
+  (20/55/200).
+- **Pipeline**: stamped onto ranked v2 rows in the breakout-enrichment loop
+  (`open_prep/run_open_prep.py`); daily-bars lookback widened 120→320
+  calendar days (≈220 trading days) so the EMA-200 is computable.
+  Breakout/consolidation detection slice their own shorter windows and are
+  unaffected.
+- **Outcome records**: `prepare_outcome_snapshot()` and `FEATURE_KEYS`
+  carry the three keys; new `PASS_THROUGH_FEATURE_KEYS` SSOT
+  (`open_prep/outcomes.py`) marks them — together with
+  `zone_priority_score` — as intentionally unweighted (absent from
+  `FEATURE_TO_WEIGHT_KEY` and scorer `DEFAULT_WEIGHTS`; enforced by
+  `tests/test_scorer_tuning.py` + `tests/test_trend_state_features.py`).
+  Promotion to a weighted component requires FI evidence from ≥ ~200
+  labeled outcomes first.
+- **Pine**: `ZLEMA (Zero Lag Exponential)` added to `SmcLibMovingAverage`
+  (`SMC++/smc_core_types.pine`) and `smc_lib_get_ma`/`smc_lib_zlema`
+  (`SMC++/smc_utils.pine`) so SMC++ studies can select it; no default or
+  strategy change.
+
 ### Added (2026-06-11) — Per-TF structure artifacts in the rolling benchmark (#2667)
 
 Un-voids Plan 2.8 Phase-E2 (see ADR "2026-06-10 - Plan 2.8 Phase-E2
@@ -166,7 +359,9 @@ PR #2666):
   indistinguishable from noise but carried the same `"measured"` label
   as a 30 pp delta at n = 500. Phase-E2 `measured` verdicts now carry
   `delta_hr_p_value`, a two-sided pooled two-proportion z-test p-value
-  reusing the `run_ab_comparison` helper (single source of truth);
+  (self-contained `math.erfc`-based implementation in the rollup script;
+  correction 2026-06-11, Copilot #2675 — this entry previously claimed
+  the `run_ab_comparison` helper was reused, which it is not);
   `null` when the pooled variance is degenerate. Vocabulary additive.
 - **F9 — `scripts/plan_2_8_tf_family_rollup.py`**: the
   `int(payload.get("n_events") or 0)` / `float(... or 0.0)` pattern

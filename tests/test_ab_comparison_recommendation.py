@@ -147,3 +147,54 @@ class TestCompareIntegration:
         assert "## Recommendation" in md
         assert "`PROMOTE`" in md
         assert "promote_improvement" in md
+
+
+# ---------------------------------------------------------------------------
+# W4-2 regression: delta None / NaN must not silently suppress rollback
+# ---------------------------------------------------------------------------
+
+import math  # noqa: E402 — appended after existing imports
+
+
+def test_w4_2_missing_calibrated_brier_row_yields_hold_with_reason() -> None:
+    """W4-2: missing calibrated_brier row must surface as explicit hold.
+
+    Previously `None or 0.0 == 0.0` silenced a potential rollback.
+    """
+    rows = [
+        _row("calibrated_ece", 0.05, 0.08),  # +0.03 regression — should rollback
+        # calibrated_brier row intentionally absent
+    ]
+    rec = decide_recommendation(rows)
+    assert rec["recommendation"] == "hold", (
+        f"expected hold for missing calibrated_brier, got {rec['recommendation']}"
+    )
+    assert "calibrated_brier" in rec["reason"]
+    assert "unavailable" in rec["reason"] or "NaN" in rec["reason"]
+
+
+def test_w4_2_nan_calibrated_ece_delta_yields_hold_with_reason() -> None:
+    """W4-2: NaN delta in calibrated_ece must surface as explicit hold.
+
+    Previously bool(NaN)=True → NaN or 0.0 = NaN → NaN > threshold = False
+    → silently fell through to HOLD but with no diagnostic reason.
+    """
+    rows = [
+        {"metric": "calibrated_brier", "control": 0.20, "treatment": 0.23, "delta": float("nan")},
+        {"metric": "calibrated_ece", "control": 0.05, "treatment": 0.08, "delta": float("nan")},
+        _row("hit_rate_pct", 55.0, 54.0),
+    ]
+    rec = decide_recommendation(rows)
+    assert rec["recommendation"] == "hold"
+    assert "unavailable" in rec["reason"] or "NaN" in rec["reason"]
+
+
+def test_w4_2_normal_regression_still_triggers_rollback() -> None:
+    """W4-2: a real numeric regression above ROLLBACK_REGRESSION fires rollback."""
+    rows = [
+        _row("calibrated_brier", 0.20, 0.215),  # delta = +0.015 > 0.010
+        _row("calibrated_ece", 0.05, 0.06),
+        _row("hit_rate_pct", 55.0, 54.5),
+    ]
+    rec = decide_recommendation(rows)
+    assert rec["recommendation"] == "rollback"

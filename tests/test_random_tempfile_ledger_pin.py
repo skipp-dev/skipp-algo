@@ -48,6 +48,9 @@ _RANDOM_LEDGER: frozenset[tuple[str, int]] = frozenset({
     # ADR-0023 §5 E[PnL]-after-cost gate: seeded RNG for the bootstrap-CI of
     # the sized/equal-weight PnL estimators (deterministic); non-security.
     ("governance/epnl_after_cost.py", 194),
+    # ADR-0023 §5 execution-cost calibration: seeded RNG for the bootstrap-CI
+    # of the empirical round-turn cost (deterministic); non-security.
+    ("governance/execution_costs.py", 322),
 })
 
 # ---- Layer 2: tempfile.* ledger ----------------------------------------------
@@ -75,9 +78,17 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     ("open_prep/feature_importance_report.py", 249, "mkstemp"),
     # 2026-06-11 (backfill defer-unpublished): 88→107, 531→581.
     ("open_prep/outcome_backfill.py", 107, "mkstemp"),
-    ("open_prep/outcome_backfill.py", 581, "mkstemp"),
+    # 2026-06-11 (eval-findings B1/B2): direction+TB code shifted 581→660.
+    # 2026-06-11 (c10b FI component persistence): era-gate block 660→682.
+    ("open_prep/outcome_backfill.py", 682, "mkstemp"),
     ("open_prep/outcomes.py", 138, "mkstemp"),
-    ("open_prep/outcomes.py", 419, "mkstemp"),
+    # 2026-06-11 (trend-state features): 419→437, snapshot keys +
+    # FEATURE_KEYS/PASS_THROUGH block added above.
+    # 2026-06-11 (eval-findings B5/B1): gap-playbook report + direction
+    # helpers + snapshot fields shifted 437→525; vix9d D5 → 531.
+    # 2026-06-11 (c10b FI component persistence): _component_fields helper
+    # + component flattening shifted 531→555.
+    ("open_prep/outcomes.py", 555, "mkstemp"),
     ("open_prep/realtime_signals.py", 116, "mkstemp"),
     ("open_prep/realtime_signals.py", 2528, "mkstemp"),
     ("open_prep/realtime_signals.py", 2569, "mkstemp"),

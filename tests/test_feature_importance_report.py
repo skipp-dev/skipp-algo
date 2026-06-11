@@ -204,7 +204,9 @@ class TestBackendSelection:
 
         monkeypatch.setattr(outcomes, "FEATURE_IMPORTANCE_DIR", tmp_path)
         sample_path = tmp_path / "fi_samples_2026-05-15.jsonl"
-        good = json.dumps(
+        # Distinct symbols: identical (symbol, date) rows would be removed
+        # by the dedup layer, which is not what this test measures.
+        good_a = json.dumps(
             {
                 "symbol": "SYM1",
                 "date": "2026-05-15",
@@ -212,7 +214,15 @@ class TestBackendSelection:
                 **{key: float(idx) for idx, key in enumerate(outcomes.FEATURE_KEYS)},
             }
         )
-        sample_path.write_text(f"{good}\n{{bad json line}}\n{good}\n", encoding="utf-8")
+        good_b = json.dumps(
+            {
+                "symbol": "SYM2",
+                "date": "2026-05-15",
+                "profitable_30m": True,
+                **{key: float(idx) for idx, key in enumerate(outcomes.FEATURE_KEYS)},
+            }
+        )
+        sample_path.write_text(f"{good_a}\n{{bad json line}}\n{good_b}\n", encoding="utf-8")
         monkeypatch.setenv("OPEN_PREP_FI_BACKEND", "cpu")
 
         report = outcomes.compute_feature_importance(lookback_days=1)

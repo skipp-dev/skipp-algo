@@ -100,8 +100,10 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # PR #2154: open_prep/macro.py shifted +35/+36 (726→761, 744→780)
         # by FMP-13F probe instrumentation. Sleeps unchanged: legit
         # retry-backoff (HTTP 429 + connect error).
-        ("open_prep/macro.py", 776),
-        ("open_prep/macro.py", 795),
+        # 2026-06-11 (eval-findings B8): surprise-scale comment block +8
+        # (776→784, 795→803).
+        ("open_prep/macro.py", 784),
+        ("open_prep/macro.py", 803),
         ("newsstack_fmp/ingest_fmp_political.py", 122),
         ("newsstack_fmp/ingest_fmp_political.py", 135),
         ("newsstack_fmp/shared_fetch.py", 279),
@@ -116,8 +118,10 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/realtime_signals.py", 1617),
         ("open_prep/realtime_signals.py", 2723),
         ("open_prep/realtime_signals.py", 2736),
-        ("open_prep/run_open_prep.py", 1943),
-        ("open_prep/run_open_prep.py", 1945),
+        # 2026-06-11 (eval-findings D7): technical_analysis import block
+        # +8 lines (1943→1951, 1945→1953).
+        ("open_prep/run_open_prep.py", 1951),
+        ("open_prep/run_open_prep.py", 1953),
         ("newsstack_fmp/_bz_http.py", 44),
         ("terminal_bitcoin.py", 849),
         ("terminal_bitcoin.py", 851),

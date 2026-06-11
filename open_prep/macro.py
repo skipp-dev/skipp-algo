@@ -431,7 +431,15 @@ def macro_bias_with_components(
         surprise = 0.0
         contribution = 0.0
         if weight > 0.0 and actual is not None and consensus is not None:
-            surprise = (actual - consensus) / max(abs(consensus), 1.0)
+            # Relative surprise vs consensus scale. The previous
+            # ``max(abs(consensus), 1.0)`` floor crushed low-consensus
+            # series (CPI MoM consensus ~0.2 → 5× understated) —
+            # eval-findings B8 (2026-06-11). Use the true consensus scale
+            # with a ±10 cap to bound near-zero-consensus blowups.
+            # NOTE: diagnostic only — ``contribution`` uses the surprise
+            # SIGN (below), unchanged.
+            raw_surprise = (actual - consensus) / max(abs(consensus), 1e-6)
+            surprise = max(-10.0, min(10.0, raw_surprise))
             if actual > consensus:
                 contribution = _macro_orientation(canonical_event) * weight
             elif actual < consensus:
