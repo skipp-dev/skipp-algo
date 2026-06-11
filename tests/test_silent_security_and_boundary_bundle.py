@@ -189,8 +189,8 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # 2026-06-10 (#2670 W2/W4): source-disclosure edits shifted +25 (5840→5865).
     # 2026-06-11 (trend-state features): 5865→5876, enrichment-loop stamping.
     # 2026-06-11 (eval-findings D7): import block +8, enrichment +15
-    # (5876→5899).
-    ("open_prep/run_open_prep.py", 5899),
+    # (5876→5899); vix9d D5 fetch+stamp +19 → 5918.
+    ("open_prep/run_open_prep.py", 5918),
     # WP-H (PR #2612): 35 -> 37, VIX import + helper block added above.
     ("smc_tv_bridge/smc_api.py", 37),
 })

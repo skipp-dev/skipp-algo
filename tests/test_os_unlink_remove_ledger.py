@@ -104,22 +104,26 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # FEATURE_KEYS/PASS_THROUGH block added above.
     # 2026-06-11 (eval-findings B5/B1): gap-playbook report +
     # infer_trade_direction + snapshot fields shifted 449→537.
-    ("open_prep/outcomes.py", 537, "unlink"),
+    # 2026-06-11 (vix9d D5): snapshot field + FEATURE_KEYS entries +7
+    # (537→543).
+    ("open_prep/outcomes.py", 543, "unlink"),
     ("open_prep/realtime_signals.py", 124, "remove"),
     ("open_prep/realtime_signals.py", 2543, "unlink"),
     ("open_prep/realtime_signals.py", 2582, "unlink"),
     # 2026-06-11 (eval-findings D7): technical_analysis import block +8
     # lines at L55 shifted all run_open_prep sites; enrichment-loop
     # real-ADX/BBW block added +15 more after L5491.
+    # 2026-06-11 (vix9d D5): VIX9D fetch (+17) + ratio stamping (+4)
+    # shifted 5491→5506, 5765→5784.
     ("open_prep/run_open_prep.py", 2225, "unlink"),
     # 2026-06-10 (#2670 W2/W4): regime_source + premarket source-disclosure
     # edits shifted the later unlink sites (+20/+20/+20/+25).
     ("open_prep/run_open_prep.py", 3039, "unlink"),
     ("open_prep/run_open_prep.py", 3375, "unlink"),
-    ("open_prep/run_open_prep.py", 5491, "unlink"),
+    ("open_prep/run_open_prep.py", 5506, "unlink"),
     # 2026-06-11 (trend-state features): 5731→5742, enrichment-loop
     # stamping + lookback comment added above; eval-findings 5742→5765.
-    ("open_prep/run_open_prep.py", 5765, "unlink"),
+    ("open_prep/run_open_prep.py", 5784, "unlink"),
     ("open_prep/scorer.py", 149, "unlink"),
     ("open_prep/watchlist.py", 74, "unlink"),
     ("smc_core/benchmark.py", 39, "unlink"),

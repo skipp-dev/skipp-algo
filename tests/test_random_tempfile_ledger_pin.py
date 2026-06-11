@@ -81,8 +81,8 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-06-11 (trend-state features): 419→437, snapshot keys +
     # FEATURE_KEYS/PASS_THROUGH block added above.
     # 2026-06-11 (eval-findings B5/B1): gap-playbook report + direction
-    # helpers + snapshot fields shifted 437→525.
-    ("open_prep/outcomes.py", 525, "mkstemp"),
+    # helpers + snapshot fields shifted 437→525; vix9d D5 → 531.
+    ("open_prep/outcomes.py", 531, "mkstemp"),
     ("open_prep/realtime_signals.py", 116, "mkstemp"),
     ("open_prep/realtime_signals.py", 2528, "mkstemp"),
     ("open_prep/realtime_signals.py", 2569, "mkstemp"),
