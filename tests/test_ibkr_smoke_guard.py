@@ -19,19 +19,23 @@ import pytest
 
 import scripts.run_ibkr_open_execution as mod
 
+_PINNED_DATE = "2026-06-11"
+
 
 @pytest.fixture()
 def guard_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Point the guard's module-level paths at an isolated tmp repo root."""
     monkeypatch.setattr(mod, "_REPO_ROOT", tmp_path)
     monkeypatch.setattr(mod, "_SMOKE_HALT_PATH", tmp_path / "cache" / "live" / "smoke_HALT")
+    # Pin the date so a suite running across midnight UTC cannot flake
+    # between JSONL creation and the guard's own date lookup.
+    monkeypatch.setattr(mod, "_repo_date_utc", lambda: _PINNED_DATE)
     (tmp_path / "cache" / "live").mkdir(parents=True)
     return tmp_path
 
 
 def _write_today_jsonl(root: Path, *, age_hours: float = 0.0) -> Path:
-    today = datetime.now(UTC).strftime("%Y-%m-%d")
-    jsonl = root / "cache" / "live" / f"smoke_{today}.jsonl"
+    jsonl = root / "cache" / "live" / f"smoke_{_PINNED_DATE}.jsonl"
     jsonl.write_text('{"event": "smoke_ok"}\n', encoding="utf-8")
     if age_hours:
         mtime = (datetime.now(UTC) - timedelta(hours=age_hours)).timestamp()
@@ -57,6 +61,13 @@ def test_stale_today_jsonl_blocks(guard_env: Path) -> None:
         mod._check_smoke_guard(skip=False)
 
 
+def test_future_mtime_jsonl_blocks(guard_env: Path) -> None:
+    # Clock skew: an mtime in the future must never count as "fresh".
+    _write_today_jsonl(guard_env, age_hours=-2.0)
+    with pytest.raises(SystemExit, match="FUTURE"):
+        mod._check_smoke_guard(skip=False)
+
+
 def test_fresh_today_jsonl_passes(guard_env: Path) -> None:
     _write_today_jsonl(guard_env)
     mod._check_smoke_guard(skip=False)  # must not raise
@@ -73,8 +84,7 @@ def test_skip_bypasses_halt_and_missing_jsonl(guard_env: Path, capsys: pytest.Ca
 def test_yesterdays_jsonl_does_not_count(guard_env: Path) -> None:
     # A JSONL keyed to yesterday's date must not satisfy the today-check,
     # regardless of mtime.
-    yesterday = (datetime.now(UTC) - timedelta(days=1)).strftime("%Y-%m-%d")
-    jsonl = guard_env / "cache" / "live" / f"smoke_{yesterday}.jsonl"
+    jsonl = guard_env / "cache" / "live" / "smoke_2026-06-10.jsonl"
     jsonl.write_text('{"event": "smoke_ok"}\n', encoding="utf-8")
     with pytest.raises(SystemExit, match="smoke has not run today"):
         mod._check_smoke_guard(skip=False)

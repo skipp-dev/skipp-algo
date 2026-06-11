@@ -93,6 +93,15 @@ def _check_smoke_guard(skip: bool) -> None:
     # MTIME-RESOLVER-EXEMPT: st_mtime is an age/freshness check on a single
     # date-keyed sentinel file (no candidate ordering / artifact picking).
     age_hours = (datetime.now(UTC) - datetime.fromtimestamp(smoke_jsonl.stat().st_mtime, tz=UTC)).total_seconds() / 3600
+    if age_hours < 0:
+        # Future mtime ⇒ clock skew / NTP drift / tampering. The smoke fires
+        # ~88 min BEFORE execution, so a future timestamp is always anomalous
+        # and must not silently count as "fresh" (Copilot review #2691).
+        raise SystemExit(
+            f"run_ibkr_open_execution: BLOCKED — smoke JSONL mtime is {-age_hours:.1f}h in the FUTURE (clock skew?).\n"
+            f"  path: {smoke_jsonl}\n"
+            "  Fix the system clock / re-run the smoke, or use --skip-smoke-guard to override."
+        )
     if age_hours > _SMOKE_JSONL_MAX_AGE_HOURS:
         raise SystemExit(
             f"run_ibkr_open_execution: BLOCKED — smoke JSONL is {age_hours:.1f}h old (limit {_SMOKE_JSONL_MAX_AGE_HOURS}h).\n"

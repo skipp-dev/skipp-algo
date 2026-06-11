@@ -424,6 +424,10 @@ class TestCheckSmokeGuard:
         live_dir.mkdir(parents=True)
         monkeypatch.setattr(mod, "_REPO_ROOT", tmp_path)
         monkeypatch.setattr(mod, "_SMOKE_HALT_PATH", live_dir / "smoke_HALT")
+        # Pin the date so a suite running across midnight UTC cannot flake
+        # between JSONL creation and the guard's own date lookup
+        # (Copilot review #2691).
+        monkeypatch.setattr(mod, "_repo_date_utc", lambda: "2026-06-11")
         return mod, live_dir
 
     def _write_fresh_jsonl(self, mod, live_dir):
