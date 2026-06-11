@@ -442,6 +442,7 @@ def backfill_feature_importance(
     """
     from .outcomes import (
         FEATURE_KEYS,
+        FEATURE_TO_WEIGHT_KEY,
         FeatureImportanceCollector,
         _load_outcomes_range,
     )
@@ -451,8 +452,29 @@ def backfill_feature_importance(
     if not labeled:
         return 0
 
+    # c10b era-gate (2026-06-11): legacy outcome records — written before
+    # prepare_outcome_snapshot() persisted the weighted score components —
+    # carry NO *_component keys. Defaulting those to 0.0 fabricated
+    # all-zero feature vectors for every FI report since 2026-04-30.
+    # Skip records without the full component schema instead of laundering
+    # absence into measurements.
+    component_complete = [
+        r for r in labeled
+        if all(r.get(key) is not None for key in FEATURE_TO_WEIGHT_KEY)
+    ]
+    skipped = len(labeled) - len(component_complete)
+    if skipped:
+        logger.warning(
+            "FI backfill: skipped %d/%d labeled records without persisted "
+            "score components (legacy pre-fix outcome files)",
+            skipped,
+            len(labeled),
+        )
+    if not component_complete:
+        return 0
+
     collector = FeatureImportanceCollector()
-    for rec in labeled:
+    for rec in component_complete:
         breakdown: dict[str, float] = {}
         for key in FEATURE_KEYS:
             breakdown[key] = float(rec.get(key, 0.0) or 0.0)
