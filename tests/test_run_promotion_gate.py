@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from governance.magnitude_stage_policy import MagnitudeStagePolicy
 from governance.promotion_gate import DECISION_SCHEMA_VERSION
 from governance.promotion_report import DEFAULT_PROMOTION_DECISIONS_PATH
 from scripts import run_promotion_gate as runner
@@ -319,6 +320,239 @@ def test_archive_stamp_is_filename_safe_and_sortable() -> None:
     assert a == "20260525T060000Z"
     assert "/" not in a and ":" not in a and "+" not in a
     assert b > a
+
+
+# ---------------------------------------------------------------------------
+# ADR-0023 Stage 2 — ledger feed + per-family arming.
+# ---------------------------------------------------------------------------
+
+
+def _armed_policy(*families: str) -> MagnitudeStagePolicy:
+    return MagnitudeStagePolicy(stage=2, armed_families=frozenset(families))
+
+
+def _ledger_row(family: str, status: str, *, date: str = "2026-06-10") -> dict:
+    return {
+        "date": date,
+        "family": family,
+        "status": status,
+        "magnitude_auc": 0.62,
+        "auc_ci_low": 0.59,
+    }
+
+
+def _write_ledger(path: Path, rows: list[dict]) -> None:
+    path.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+
+
+def _lax_snapshot_dict(family: str) -> dict[str, object]:
+    # Green in lax mode, magnitude deliberately unmeasured.
+    return {
+        "family": family,
+        "brier": 0.18,
+        "ece": 0.03,
+        "fdr_pvalue": 0.01,
+        "psr": 0.97,
+        "mintrl_years": 1.4,
+        "psi": 0.12,
+        "live_brier": 0.19,
+        "walkforward_brier": 0.18,
+    }
+
+
+def test_feed_injects_pass_verdict_for_armed_family(tmp_path: Path) -> None:
+    ledger = tmp_path / "ledger.jsonl"
+    _write_ledger(ledger, [_ledger_row("BOS", "PASS")])
+    snaps = [runner._family_metrics_from_dict(_lax_snapshot_dict("BOS"))]
+    out = runner.apply_magnitude_feed(
+        snaps, policy=_armed_policy("BOS"), ledger_path=str(ledger)
+    )
+    assert out[0].magnitude_resolution_pass is True
+    assert out[0].magnitude_auc == pytest.approx(0.62)
+
+
+def test_feed_injects_fail_verdict_for_armed_family(tmp_path: Path) -> None:
+    ledger = tmp_path / "ledger.jsonl"
+    _write_ledger(ledger, [_ledger_row("BOS", "FAIL")])
+    snaps = [runner._family_metrics_from_dict(_lax_snapshot_dict("BOS"))]
+    out = runner.apply_magnitude_feed(
+        snaps, policy=_armed_policy("BOS"), ledger_path=str(ledger)
+    )
+    assert out[0].magnitude_resolution_pass is False
+
+
+def test_feed_bundle_explicit_value_wins_over_ledger(tmp_path: Path) -> None:
+    ledger = tmp_path / "ledger.jsonl"
+    _write_ledger(ledger, [_ledger_row("BOS", "FAIL")])
+    payload = _lax_snapshot_dict("BOS")
+    payload["magnitude_resolution_pass"] = True
+    snaps = [runner._family_metrics_from_dict(payload)]
+    out = runner.apply_magnitude_feed(
+        snaps, policy=_armed_policy("BOS"), ledger_path=str(ledger)
+    )
+    assert out[0].magnitude_resolution_pass is True
+
+
+def test_feed_never_injects_into_unarmed_family(tmp_path: Path) -> None:
+    # FVG is a control: its by-design FAIL must not reach the gate.
+    ledger = tmp_path / "ledger.jsonl"
+    _write_ledger(
+        ledger, [_ledger_row("BOS", "PASS"), _ledger_row("FVG", "FAIL")]
+    )
+    snaps = [
+        runner._family_metrics_from_dict(_lax_snapshot_dict("BOS")),
+        runner._family_metrics_from_dict(_lax_snapshot_dict("FVG")),
+    ]
+    out = runner.apply_magnitude_feed(
+        snaps, policy=_armed_policy("BOS"), ledger_path=str(ledger)
+    )
+    assert out[0].magnitude_resolution_pass is True
+    assert out[1].magnitude_resolution_pass is None
+
+
+def test_feed_missing_ledger_is_fail_soft(tmp_path: Path) -> None:
+    snaps = [runner._family_metrics_from_dict(_lax_snapshot_dict("BOS"))]
+    out = runner.apply_magnitude_feed(
+        snaps,
+        policy=_armed_policy("BOS"),
+        ledger_path=str(tmp_path / "missing.jsonl"),
+    )
+    assert out[0].magnitude_resolution_pass is None
+
+
+def test_feed_noop_when_nothing_armed(tmp_path: Path) -> None:
+    snaps = [runner._family_metrics_from_dict(_lax_snapshot_dict("BOS"))]
+    out = runner.apply_magnitude_feed(
+        snaps,
+        policy=MagnitudeStagePolicy(),
+        ledger_path=str(tmp_path / "missing.jsonl"),
+    )
+    assert out is snaps
+
+
+def test_cli_armed_family_blocked_without_ledger_verdict(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Armed + lax + no ledger row → fail-closed info blocker → rc 2.
+    monkeypatch.chdir(tmp_path)
+    bundle = tmp_path / "bundle.json"
+    bundle.write_text(json.dumps([_lax_snapshot_dict("BOS")]), encoding="utf-8")
+    policy = tmp_path / "policy.json"
+    policy.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "stage": 2,
+                "armed_families": ["BOS"],
+                "k": 3,
+                "n": 4,
+                "history": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    out = tmp_path / "report.json"
+    rc = runner.main([
+        "--metrics", str(bundle),
+        "--output", str(out),
+        "--archive-dir", "",
+        "--no-strict",
+        "--magnitude-policy", str(policy),
+        "--magnitude-ledger", str(tmp_path / "missing.jsonl"),
+    ])
+    assert rc == 2
+    report = json.loads(out.read_text(encoding="utf-8"))
+    [decision] = report["decisions"]
+    assert decision["promoted"] is False
+    checks = {b["check"] for b in decision["blockers"]}
+    assert checks == {"magnitude_resolution_floor"}
+
+
+def test_cli_armed_family_promotes_with_ledger_pass(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    bundle = tmp_path / "bundle.json"
+    bundle.write_text(json.dumps([_lax_snapshot_dict("BOS")]), encoding="utf-8")
+    policy = tmp_path / "policy.json"
+    policy.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "stage": 2,
+                "armed_families": ["BOS"],
+                "k": 3,
+                "n": 4,
+                "history": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    ledger = tmp_path / "ledger.jsonl"
+    _write_ledger(ledger, [_ledger_row("BOS", "PASS")])
+    out = tmp_path / "report.json"
+    rc = runner.main([
+        "--metrics", str(bundle),
+        "--output", str(out),
+        "--archive-dir", "",
+        "--no-strict",
+        "--magnitude-policy", str(policy),
+        "--magnitude-ledger", str(ledger),
+    ])
+    assert rc == 0
+    report = json.loads(out.read_text(encoding="utf-8"))
+    assert report["decisions"][0]["promoted"] is True
+
+
+def test_cli_no_magnitude_feed_escape_hatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # --no-magnitude-feed disables BOTH the ledger feed and arming → the lax
+    # gate stays dormant on unmeasured magnitude (legacy behaviour).
+    monkeypatch.chdir(tmp_path)
+    bundle = tmp_path / "bundle.json"
+    bundle.write_text(json.dumps([_lax_snapshot_dict("BOS")]), encoding="utf-8")
+    policy = tmp_path / "policy.json"
+    policy.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "stage": 2,
+                "armed_families": ["BOS"],
+                "k": 3,
+                "n": 4,
+                "history": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    out = tmp_path / "report.json"
+    rc = runner.main([
+        "--metrics", str(bundle),
+        "--output", str(out),
+        "--archive-dir", "",
+        "--no-strict",
+        "--magnitude-policy", str(policy),
+        "--no-magnitude-feed",
+    ])
+    assert rc == 0
+
+
+def test_cli_malformed_magnitude_policy_returns_1(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    bundle = tmp_path / "bundle.json"
+    bundle.write_text(json.dumps([_lax_snapshot_dict("BOS")]), encoding="utf-8")
+    policy = tmp_path / "policy.json"
+    policy.write_text("{broken", encoding="utf-8")
+    rc = runner.main([
+        "--metrics", str(bundle),
+        "--output", str(tmp_path / "report.json"),
+        "--archive-dir", "",
+        "--magnitude-policy", str(policy),
+    ])
+    assert rc == 1
 
 
 def test_label_slug_is_filename_safe() -> None:
