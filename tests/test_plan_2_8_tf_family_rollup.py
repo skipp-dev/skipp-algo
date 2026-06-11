@@ -220,6 +220,84 @@ def test_rollup_well_formed_inputs_report_zero_skipped(tmp_path: Path) -> None:
     assert rollup["skipped_malformed"] == []
 
 
+# ── Copilot #2675: count/rate range validation + non-UTF8 + markdown ──
+
+
+def test_rollup_skips_fractional_and_negative_n_events(tmp_path: Path) -> None:
+    # int(40.9) silently truncated to 40; -5 was accepted. Both are
+    # malformed counts and must be skip-and-counted.
+    d = tmp_path / "AAPL" / "5m"
+    d.mkdir(parents=True)
+    (d / "scoring_AAPL_5m.json").write_text(
+        json.dumps({"n_events": 40.9, "hit_rate": 0.5}), encoding="utf-8"
+    )
+    e = tmp_path / "MSFT" / "5m"
+    e.mkdir(parents=True)
+    (e / "scoring_MSFT_5m.json").write_text(
+        json.dumps({"n_events": -5, "hit_rate": 0.5}), encoding="utf-8"
+    )
+    rollup = build_rollup(scoring_root=tmp_path)
+    assert rollup["per_tf"]["5m"]["n_events"] == 0
+    assert rollup["n_skipped_malformed"] == 2
+
+
+def test_rollup_skips_out_of_range_hit_rate(tmp_path: Path) -> None:
+    # hr=1.2 would feed a negative variance into the downstream sqrt.
+    d = tmp_path / "AAPL" / "5m"
+    d.mkdir(parents=True)
+    (d / "scoring_AAPL_5m.json").write_text(
+        json.dumps({"n_events": 40, "hit_rate": 1.2}), encoding="utf-8"
+    )
+    rollup = build_rollup(scoring_root=tmp_path)
+    assert rollup["per_tf"]["5m"]["n_events"] == 0
+    assert rollup["n_skipped_malformed"] == 1
+
+
+def test_rollup_skips_malformed_family_count_and_rate(tmp_path: Path) -> None:
+    d = tmp_path / "AAPL" / "5m"
+    d.mkdir(parents=True)
+    (d / "scoring_AAPL_5m.json").write_text(
+        json.dumps({
+            "n_events": 100,
+            "hit_rate": 0.6,
+            "family_metrics": {
+                "FVG": {"n_events": 50.5, "hit_rate": 0.5},
+                "OB": {"n_events": 50, "hit_rate": -0.1},
+                "BOS": {"n_events": 50, "hit_rate": 0.7},
+            },
+        }),
+        encoding="utf-8",
+    )
+    rollup = build_rollup(scoring_root=tmp_path)
+    slot = rollup["per_tf"]["5m"]
+    assert "FVG" not in slot["families"]
+    assert "OB" not in slot["families"]
+    assert slot["families"]["BOS"]["n_events"] == 50
+    assert rollup["n_skipped_malformed"] == 2
+
+
+def test_rollup_tolerates_non_utf8_file(tmp_path: Path) -> None:
+    # UnicodeDecodeError is a ValueError, not an OSError — it must be
+    # skip-and-counted like any other unreadable file, not crash.
+    d = tmp_path / "AAPL" / "5m"
+    d.mkdir(parents=True)
+    (d / "scoring_AAPL_5m.json").write_bytes(b"\xff\xfe{ invalid }")
+    rollup = build_rollup(scoring_root=tmp_path)
+    assert rollup["n_skipped_malformed"] == 1
+    assert "scoring_AAPL_5m.json" in rollup["skipped_malformed"][0]
+
+
+def test_render_markdown_lists_skip_reasons(tmp_path: Path) -> None:
+    d = tmp_path / "AAPL" / "5m"
+    d.mkdir(parents=True)
+    (d / "scoring_AAPL_5m.json").write_text("{ not valid", encoding="utf-8")
+    rollup = build_rollup(scoring_root=tmp_path)
+    md = render_markdown(rollup)
+    assert "n_skipped_malformed: 1" in md
+    # The operator must see WHICH artifact was skipped, not just a count.
+    assert "scoring_AAPL_5m.json" in md
+
+
 # ── Stat-review F8: uncertainty on "measured" verdicts ──────────────
 
 
@@ -341,7 +419,7 @@ def test_rollup_powered_delta_is_plain_measured(tmp_path: Path) -> None:
     assert fvg["underpowered"] is False
     assert fvg["mde_80pct_power"] < abs(fvg["delta_hr"])
     assert fvg["delta_hr_p_value"] < 0.001
-    lo, hi = fvg["delta_hr_ci95"]
+    lo, _hi = fvg["delta_hr_ci95"]
     assert lo > 0.0  # CI excludes zero for a real 20pp edge
 
 
