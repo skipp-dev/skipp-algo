@@ -576,6 +576,22 @@ Recalibration ist, nicht der nächste Floor-Bump:
 - Ledger-Rebaseline: S603-noqa-Site `release_policy.py` 1107→1119
   (`pin_registry.toml`, `tests/test_subprocess_spawn_sites_ledger.py`).
 
+### Fixed (2026-06-11) — Credential-Health: FMP-Probe-Endpoint plan-gated (Issue #2682)
+
+Die tägliche FMP-Key-Probe schlug seit der Stable-API-Migration dauerhaft mit
+`warn` fehl: `/stable/is-the-market-open` ist plan-gated und liefert mit
+gültigem Key HTTP 404 (verifiziert 2026-06-11: 404 mit echtem Key, 401 mit
+ungültigem Key — der Pfad existiert, das Abo deckt ihn nicht). Jede Probe war
+damit "inconclusive" und das Warnsignal permanent verrauscht.
+
+- `scripts/credential_health_check.py::probe_fmp` probt jetzt
+  `/stable/quote?symbol=AAPL` — die Endpoint-Familie, von der die
+  Produktions-Pipeline tatsächlich abhängt (weiterhin ~1 Quota-Call/Tag).
+- Regressionstest `test_fmp_probe_uses_production_quote_endpoint` pinnt den
+  Probe-Endpoint auf `/stable/quote` und verbietet `is-the-market-open`.
+- Stale-Doc-Sweep: Workflow-Header in
+  `.github/workflows/credential-health-check.yml` aktualisiert.
+
 ### Added (2026-06-11) — ADR-0023 Stage-1: Ledger-Verdicts → Promotion-Gate-Snapshot (Handover §5 Punkt 2)
 
 Der Stage-1-Shadow-Runner lief täglich, aber seine Verdicts erreichten das

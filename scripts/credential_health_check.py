@@ -499,13 +499,17 @@ def probe_databento_delivery(
 def probe_fmp(key: str, opener: Any = None) -> ProbeResult:
     """Probe a Financial-Modeling-Prep API key.
 
-    ``/stable/is-the-market-open`` is the cheapest authenticated
-    endpoint (returns market-status JSON, counts as one call against
-    the daily quota).  The legacy ``/api/v3/`` path was retired by FMP
-    on 2025-08-31 and returns HTTP 403 for non-legacy subscriptions.
+    Uses ``/stable/quote?symbol=AAPL`` — the endpoint family the
+    production pipeline actually depends on (counts as one call
+    against the daily quota).  The previous probe endpoint
+    ``/stable/is-the-market-open`` is plan-gated and returns HTTP 404
+    *with a valid key* on this subscription (observed 2026-06-11,
+    issue #2682), making every probe inconclusive.  The legacy
+    ``/api/v3/`` path was retired by FMP on 2025-08-31 and returns
+    HTTP 403 for non-legacy subscriptions.
     """
     safe_key = (key or "").strip()
-    url = f"https://financialmodelingprep.com/stable/is-the-market-open?apikey={safe_key}"
+    url = f"https://financialmodelingprep.com/stable/quote?symbol=AAPL&apikey={safe_key}"
     return _probe_http_vendor(
         name="fmp_api_key",
         label="FMP",

@@ -359,6 +359,23 @@ def test_vendor_402_billing_is_error(probe) -> None:
     assert r.details["status"] == 402
 
 
+def test_fmp_probe_uses_production_quote_endpoint() -> None:
+    """Regression for issue #2682: the FMP probe MUST hit an endpoint the
+    production pipeline actually uses (``/stable/quote``).
+
+    The previously probed ``/stable/is-the-market-open`` endpoint is
+    plan-gated and returns HTTP 404 *with a valid key* on this
+    subscription, so every daily probe degraded to ``warn`` /
+    "probe inconclusive" — a permanently noisy, useless signal.
+    """
+    opener = _fake_opener(status=200, body={})
+    probe_fmp("dummy-key", opener=opener)
+    request = opener.open.call_args[0][0]
+    url = request.full_url
+    assert "/stable/quote" in url, url
+    assert "is-the-market-open" not in url, url
+
+
 def test_databento_uses_basic_auth_header() -> None:
     opener = _fake_opener(status=200, body={})
     probe_databento("my-secret-key", opener=opener)
