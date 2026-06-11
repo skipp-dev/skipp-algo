@@ -504,7 +504,8 @@ def load_and_validate_eval_report(
     if not isinstance(results_raw, list) or len(results_raw) == 0:
         raise SystemExit(
             "--phase-eval-report results list is empty or missing; "
-            "an all_passed=true report with no criteria is vacuously forged"
+            "the report carries no per-criterion evidence (a vacuous or "
+            "corrupt report) and is rejected regardless of all_passed"
         )
     malformed_result_rows = [
         idx

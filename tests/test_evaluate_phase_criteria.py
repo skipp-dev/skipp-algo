@@ -656,7 +656,7 @@ def test_load_and_validate_rejects_empty_results_list(tmp_path: Path) -> None:
     }
     path = tmp_path / "eval_empty.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
-    with pytest.raises(SystemExit, match="vacuously forged"):
+    with pytest.raises(SystemExit, match="results list is empty or missing"):
         load_and_validate_eval_report(path, target_phase="live_small")
 
 

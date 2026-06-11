@@ -367,7 +367,7 @@ def test_sprt_max_n_constant_matches_live_spec():
 
     spec_path = _Path(__file__).resolve().parent.parent / "artifacts" / "experiments" / "f2_contextual_promotion.json"
     live_max_n = _json.loads(spec_path.read_text(encoding="utf-8"))["sprt"]["max_n"]
-    assert wd.SPRT_MAX_N == live_max_n, (
+    assert live_max_n == wd.SPRT_MAX_N, (
         f"SPRT_MAX_N={wd.SPRT_MAX_N} != live spec max_n={live_max_n}; "
         "update SPRT_MAX_N in g23_ab_watchdog.py"
     )
@@ -389,7 +389,6 @@ def test_sprt_config_uses_max_n(tmp_path):
 
 def test_max_n_default_equals_constant():
     """W6-5: default --max-n must equal SPRT_MAX_N."""
-    import argparse as _ap
     ns = wd._parse_args([
         "--history", "/dev/null",
         "--status-md", "/dev/null",
