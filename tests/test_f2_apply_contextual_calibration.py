@@ -388,3 +388,62 @@ def test_rescore_pair_force_global_makes_arms_identical(tmp_path: Path) -> None:
     )
     for c, t in zip(control.events, treatment.events, strict=False):
         assert c.predicted_prob == pytest.approx(t.predicted_prob)
+
+
+# ── Regression: raw_score must not shadow the blended arm prob ─────────────
+
+
+def test_arms_differ_even_when_ledger_rows_carry_raw_score(tmp_path: Path) -> None:
+    """Production ledgers populate ``raw_score`` on every event.
+
+    ``smc_core.scoring._resolve_calibration_input`` prefers ``raw_score``
+    over ``predicted_prob`` whenever ALL events carry one. Forwarding the
+    ledger's raw_score into the rescored arms therefore discarded the
+    blended probability — the only difference between the arms — and
+    made every dual-arm artifact identical (2026-06-10 audit: 80/80
+    pair summaries byte-equal, SPRT compared control vs control for the
+    entire experiment). This test mirrors the PRODUCTION row shape
+    (raw_score non-null); do NOT "fix" it by nulling raw_score.
+    """
+    control_dir = tmp_path / "rolling" / "2026-06-10"
+    events = []
+    for i in range(40):
+        ev = _make_event(
+            event_id=f"AAPL-5m-{i}",
+            family=("BOS", "OB")[i % 2],
+            predicted_prob=0.55,
+            outcome=i % 3 == 0,
+            session="RTH",
+            vol_regime="HIGH",
+            timestamp=float(i),
+        )
+        # Production shape: every row carries a populated raw_score.
+        ev["raw_score"] = 55.0
+        ev["raw_score_name"] = "zone_score_0_100"
+        events.append(ev)
+    _write_ledger(control_dir / "AAPL" / "5m",
+                  symbol="AAPL", timeframe="5m", events=events)
+    global_path, ctx_path = _write_calibrations(tmp_path)
+
+    out_ctrl = tmp_path / "out_ctrl"
+    out_treat = tmp_path / "out_treat"
+    apply_contextual_calibration(
+        control_dir=control_dir,
+        contextual_cal_path=ctx_path,
+        global_cal_path=global_path,
+        output_dir_control=out_ctrl,
+        output_dir_treatment=out_treat,
+    )
+
+    ctrl_summary = json.loads(
+        (out_ctrl / "AAPL/5m/measurement_summary_AAPL_5m.json").read_text(encoding="utf-8")
+    )
+    treat_summary = json.loads(
+        (out_treat / "AAPL/5m/measurement_summary_AAPL_5m.json").read_text(encoding="utf-8")
+    )
+    # session:RTH is promoted with weights that differ from global, so
+    # the arms MUST produce different scoring outputs.
+    assert ctrl_summary["scoring"]["brier_score"] != treat_summary["scoring"]["brier_score"], (
+        "control and treatment scored identically — raw_score is shadowing "
+        "the blended predicted_prob again (see 2026-06-10 audit)"
+    )

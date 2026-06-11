@@ -91,6 +91,68 @@ def test_sprt_decision_inconclusive_for_small_sample() -> None:
     assert sprt["decision"] == "inconclusive"
 
 
+def test_sprt_decision_honors_explicit_config_over_module_defaults() -> None:
+    """The F2 gate passes the spec's pre-registered SPRT params.
+
+    2026-06-10 audit: the spec's recalibrated p0/p1 (0.544/0.574) were
+    dead config — _sprt_decision always used the hardcoded module
+    constants (0.55/0.60). With n=1588, k=876 the stale params yielded
+    accept_h0 (llr=-7.64) while the registered params yield a
+    still-running test. The explicit config MUST take precedence and be
+    reflected in the report's config block.
+    """
+    ctrl = _Agg(total_events=1588, avg_hit_rate=55.16)
+    treat = _Agg(total_events=1588, avg_hit_rate=55.16)
+    spec_cfg = SPRTConfig(p0=0.544, p1=0.574, alpha=0.05, beta=0.20)
+    sprt = _sprt_decision(ctrl, treat, config=spec_cfg)
+    assert sprt["config"]["p0"] == 0.544
+    assert sprt["config"]["p1"] == 0.574
+    # Under the registered params this corpus is NOT an H0 acceptance.
+    assert sprt["decision"] != "accept_h0"
+    # The stale module defaults would have accepted H0 — guard the contrast.
+    stale = _sprt_decision(ctrl, treat)
+    assert stale["decision"] == "accept_h0"
+
+
+def test_compare_threads_sprt_config_into_digest() -> None:
+    """compare(sprt_config=...) must reach the digest's sprt block."""
+    pair = {
+        "symbol": "AAPL", "timeframe": "5m", "n_events": 100,
+        "brier": 0.22, "hit_rate_pct": 55.0,
+        "calibrated_brier": 0.21, "calibrated_ece": 0.09,
+        "ensemble_score": 0.5,
+    }
+    cfg = SPRTConfig(p0=0.544, p1=0.574, alpha=0.05, beta=0.20)
+    digest = compare([dict(pair)], [dict(pair)], "spec-params", sprt_config=cfg)
+    assert digest["sprt"]["config"]["p0"] == 0.544
+    assert digest["sprt"]["config"]["p1"] == 0.574
+
+
+def test_sprt_decision_relabels_inconclusive_past_max_n() -> None:
+    """Inconclusive at n >= max_n must surface as max_n_reached.
+
+    terminal_decision() is order-independent and never emits
+    max_n_reached (PR #2664 Copilot review). _sprt_decision() must
+    re-label so the spec's pre-registered cap is honoured in the
+    report: past-cap-without-verdict means "stop accumulating", not
+    "keep accumulating".
+    """
+    ctrl = _Agg(total_events=1588, avg_hit_rate=55.16)
+    treat = _Agg(total_events=1588, avg_hit_rate=55.16)
+    capped = SPRTConfig(p0=0.544, p1=0.574, alpha=0.05, beta=0.20, max_n=1200)
+    sprt = _sprt_decision(ctrl, treat, config=capped)
+    assert sprt["decision"] == "max_n_reached"
+    assert sprt["config"]["max_n"] == 1200
+    # Same totals without a cap stay plain inconclusive.
+    uncapped = SPRTConfig(p0=0.544, p1=0.574, alpha=0.05, beta=0.20)
+    assert _sprt_decision(ctrl, treat, config=uncapped)["decision"] == (
+        "inconclusive"
+    )
+    # A bound-crossing decision past the cap is NOT masked by the cap.
+    h1 = _Agg(total_events=1588, avg_hit_rate=65.0)
+    assert _sprt_decision(ctrl, h1, config=capped)["decision"] == "accept_h1"
+
+
 def test_sprt_decision_clamps_invalid_hit_rate() -> None:
     # Defensive: avg_hit_rate occasionally arrives as a fraction in legacy
     # fixtures or with NaN-ish overflow. Clamp keeps k in [0, n].
@@ -162,7 +224,9 @@ _SPRT_TOPLEVEL_KEYS = frozenset({
     "control_hit_rate",
 })
 
-_SPRT_CONFIG_KEYS = frozenset({"p0", "p1", "alpha", "beta"})
+# 2026-06-10 (PR #2664 Copilot review): added "max_n" so the report
+# discloses the spec's pre-registered observation cap.
+_SPRT_CONFIG_KEYS = frozenset({"p0", "p1", "alpha", "beta", "max_n"})
 
 
 def _check_sprt_block(block: dict) -> None:

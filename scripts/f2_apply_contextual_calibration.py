@@ -178,7 +178,18 @@ class _RescoredArm:
 
 
 def _record_to_event(record: dict[str, Any], predicted_prob: float) -> ScoredEvent:
-    """Build a ``ScoredEvent`` from a ledger row + an externally supplied prob."""
+    """Build a ``ScoredEvent`` from a ledger row + an externally supplied prob.
+
+    ``raw_score`` is deliberately NOT forwarded from the ledger row:
+    ``smc_core.scoring._resolve_calibration_input`` prefers ``raw_score``
+    over ``predicted_prob`` whenever *every* event carries one, which
+    would silently discard the blended arm probability — the only thing
+    that distinguishes control from treatment. Forwarding it made both
+    arms score identically on the production ledgers (which always
+    populate ``raw_score``), so every SPRT run before 2026-06-10 compared
+    control vs control. See docs/DECISIONS.md
+    §2026-06-10 f2-dual-arm-raw-score-shadowing.
+    """
     context = record.get("context") or {}
     if not isinstance(context, dict):
         context = {}
@@ -189,12 +200,8 @@ def _record_to_event(record: dict[str, Any], predicted_prob: float) -> ScoredEve
         outcome=bool(record.get("outcome", False)),
         timestamp=float(record.get("timestamp", 0.0) or 0.0),
         context={str(k): str(v) for k, v in context.items()},
-        raw_score=(
-            float(record["raw_score"]) if record.get("raw_score") is not None else None
-        ),
-        raw_score_name=(
-            str(record["raw_score_name"]) if record.get("raw_score_name") is not None else None
-        ),
+        raw_score=None,
+        raw_score_name=None,
         features=dict(record.get("features") or {}),
     )
 
