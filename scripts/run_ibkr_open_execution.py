@@ -14,10 +14,12 @@ from scripts.execute_ibkr_watchlist import (
     _import_ibkr_types,
     _normalize_schedule_value,
     _parse_symbol_filter,
+    assert_paper_account_if_paper_port,
     build_order_intents,
     build_preview_payload,
     filter_watchlist,
     load_watchlist_frame,
+    resolve_client_id,
     resolve_trade_date,
     supervise_open_execution,
 )
@@ -166,7 +168,7 @@ def main() -> None:
     connection_cfg = IBKRConnectionConfig(
         host=args.host,
         port=args.port,
-        client_id=args.client_id,
+        client_id=resolve_client_id(args.client_id),
         account=args.account,
         timeout_seconds=args.timeout_seconds,
         readonly=False,
@@ -250,6 +252,9 @@ def main() -> None:
             timeout=connection_cfg.timeout_seconds,
             readonly=False,
         )
+        # IBKR-audit 2026-06-11 (S5): abort if a live TWS hides behind the
+        # paper port before any order is transmitted.
+        assert_paper_account_if_paper_port(ib, connection_cfg)
         from scripts.execute_ibkr_watchlist import place_order_intents_with_ib
 
         submission = place_order_intents_with_ib(ib, intents, connection_cfg=connection_cfg, execution_cfg=execution_cfg)
