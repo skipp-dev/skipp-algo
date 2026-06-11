@@ -11,6 +11,7 @@ import pytest
 from open_prep.outcomes import (
     FEATURE_KEYS,
     FEATURE_TO_WEIGHT_KEY,
+    PASS_THROUGH_FEATURE_KEYS,
     check_scorer_drift,
     compute_weight_adjustments,
     scorer_update_to_json,
@@ -20,9 +21,9 @@ from open_prep.outcomes import (
 
 
 def test_feature_to_weight_covers_all_weighted_keys() -> None:
-    """Every FEATURE_KEY except zone_priority_score maps to a weight."""
+    """Every FEATURE_KEY except pass-throughs maps to a weight."""
     for fk in FEATURE_KEYS:
-        if fk == "zone_priority_score":
+        if fk in PASS_THROUGH_FEATURE_KEYS:
             assert fk not in FEATURE_TO_WEIGHT_KEY
         else:
             assert fk in FEATURE_TO_WEIGHT_KEY, f"{fk} missing from mapping"

@@ -6,6 +6,36 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-11) — Trend-state features (observe-only) + ZLEMA MA type
+
+Outcome of the ZLEMA/trend-filter analysis: daily trend-state context is
+recorded for feature-importance evidence BEFORE any scoring decision
+("measure first, wire later"):
+
+- **`compute_trend_state_features()`** in `open_prep/technical_analysis.py`:
+  three observe-only features from daily bars — `trend_alignment`
+  (EMA20>50>200 ordinal +1/0/−1), `dist_to_ema20_pct` (pullback depth vs.
+  EMA20, uses live price when available), `ema50_slope_pct` (5-bar EMA50
+  slope). Fail-closed: each feature is `None` below its bar minimum
+  (20/55/200).
+- **Pipeline**: stamped onto ranked v2 rows in the breakout-enrichment loop
+  (`open_prep/run_open_prep.py`); daily-bars lookback widened 120→320
+  calendar days (≈220 trading days) so the EMA-200 is computable.
+  Breakout/consolidation detection slice their own shorter windows and are
+  unaffected.
+- **Outcome records**: `prepare_outcome_snapshot()` and `FEATURE_KEYS`
+  carry the three keys; new `PASS_THROUGH_FEATURE_KEYS` SSOT
+  (`open_prep/outcomes.py`) marks them — together with
+  `zone_priority_score` — as intentionally unweighted (absent from
+  `FEATURE_TO_WEIGHT_KEY` and scorer `DEFAULT_WEIGHTS`; enforced by
+  `tests/test_scorer_tuning.py` + `tests/test_trend_state_features.py`).
+  Promotion to a weighted component requires FI evidence from ≥ ~200
+  labeled outcomes first.
+- **Pine**: `ZLEMA (Zero Lag Exponential)` added to `SmcLibMovingAverage`
+  (`SMC++/smc_core_types.pine`) and `smc_lib_get_ma`/`smc_lib_zlema`
+  (`SMC++/smc_utils.pine`) so SMC++ studies can select it; no default or
+  strategy change.
+
 ### Added (2026-06-11) — Per-TF structure artifacts in the rolling benchmark (#2667)
 
 Un-voids Plan 2.8 Phase-E2 (see ADR "2026-06-10 - Plan 2.8 Phase-E2
