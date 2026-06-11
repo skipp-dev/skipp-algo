@@ -59,17 +59,24 @@ _MAX_TRADE_CARDS_AGE_DAYS: int = 4
 def _trade_cards_age_days(csv_path: Path, trade_date: str) -> int | None:
     """Return age in calendar days of *csv_path* relative to *trade_date*.
 
-    The filename must contain an ISO-date substring (``YYYY-MM-DD``).
+    The filename must contain a date substring in either ISO form
+    (``YYYY-MM-DD``) or the compact form the exporter actually writes
+    (``YYYYMMDD``, e.g. ``open_prep_trade_cards_20260611_071805Z.csv``).
     Returns ``None`` when the date cannot be parsed — callers treat that
     as indefinitely stale.
+
+    The compact form was missed when the guard landed (B1, audit
+    pass-4, 2026-06-10): the original regex only matched dashed ISO
+    dates, so every real export was rejected as "unparseable date"
+    and the 2026-06-11 09:28 phase-a launchd run hard-failed.
     """
     import re
 
-    m = re.search(r"(\d{4}-\d{2}-\d{2})", csv_path.name)
+    m = re.search(r"(\d{4})-?(\d{2})-?(\d{2})", csv_path.name)
     if not m:
         return None
     try:
-        file_date = date.fromisoformat(m.group(1))
+        file_date = date.fromisoformat("-".join(m.groups()))
         ref_date = date.fromisoformat(trade_date)
         return (ref_date - file_date).days
     except ValueError:
