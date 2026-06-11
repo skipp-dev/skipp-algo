@@ -75,9 +75,70 @@ def test_ks_two_sample_different_distributions_low_p() -> None:
     assert p < 0.001
 
 
-def test_ks_two_sample_empty_returns_neutral() -> None:
-    assert ks_two_sample([], [1.0, 2.0]) == (0.0, 1.0)
-    assert ks_two_sample([1.0], []) == (0.0, 1.0)
+def test_ks_two_sample_empty_returns_not_evaluable() -> None:
+    # Stat-review F12: empty input is "not evaluable" (p=None), matching
+    # scripts.drift_alert.ks_two_sample — NOT (0.0, 1.0) = "perfectly
+    # compatible", which was a latent p=1.0 laundering.
+    assert ks_two_sample([], [1.0, 2.0]) == (0.0, None)
+    assert ks_two_sample([1.0], []) == (0.0, None)
+    assert ks_two_sample([], []) == (0.0, None)
+
+
+def test_ks_two_sample_empty_semantics_match_drift_alert_twin() -> None:
+    # The shared _kolmogorov module exists to keep the twins identical;
+    # this pins the empty-input convention on both sides (F12).
+    from scripts.drift_alert import ks_two_sample as alert_ks
+
+    assert ks_two_sample([], [1.0]) == alert_ks([], [1.0])
+    assert ks_two_sample([1.0], []) == alert_ks([1.0], [])
+
+
+def test_compute_live_drift_emits_cadence_fields() -> None:
+    # Stat-review F7: √252 annualisation of per-trade returns is
+    # cadence-blind; the artifact must disclose observed trades/year on
+    # both sides so the operator can see the confound.
+    returns = _make_returns(0.01, 0.005, 30, seed=7)
+    rows = [{"variant": "v1", "return": r} for r in returns]
+    out = compute_live_drift(
+        live_rows=rows,
+        backtest_reference={
+            "v1": {"sharpe": 1.0, "n_trades": 504, "window_days": 365.25},
+        },
+        live_window_days=90,
+    )
+    v = out["variants"][0]
+    assert v["trades_per_year_live"] == pytest.approx(30 * 365.25 / 90, abs=0.01)
+    assert v["trades_per_year_backtest"] == pytest.approx(504.0, abs=0.01)
+
+
+def test_compute_live_drift_cadence_backtest_none_when_unavailable() -> None:
+    returns = _make_returns(0.01, 0.005, 30, seed=7)
+    rows = [{"variant": "v1", "return": r} for r in returns]
+    out = compute_live_drift(
+        live_rows=rows,
+        backtest_reference={"v1": {"sharpe": 1.0}},
+    )
+    v = out["variants"][0]
+    assert v["trades_per_year_backtest"] is None
+    assert v["trades_per_year_live"] is not None
+
+
+def test_compute_live_drift_cadence_prefers_explicit_trades_per_year() -> None:
+    returns = _make_returns(0.01, 0.005, 30, seed=7)
+    rows = [{"variant": "v1", "return": r} for r in returns]
+    out = compute_live_drift(
+        live_rows=rows,
+        backtest_reference={
+            "v1": {
+                "sharpe": 1.0,
+                "trades_per_year": 120.0,
+                "n_trades": 504,
+                "window_days": 365.25,
+            },
+        },
+    )
+    assert out["variants"][0]["trades_per_year_backtest"] == pytest.approx(120.0)
+
 
 
 # ── compute_live_drift ─────────────────────────────────────────────

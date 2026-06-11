@@ -162,6 +162,106 @@ def test_rollup_tolerates_unreadable_file(tmp_path: Path) -> None:
     rollup = build_rollup(scoring_root=tmp_path)
     assert rollup["files_scanned"] == 1
     assert rollup["per_tf"]["5m"]["n_events"] == 0
+    # Stat-review F9: unreadable files are counted, not silently dropped.
+    assert rollup["n_skipped_malformed"] == 1
+    assert "scoring_AAPL_5m.json" in rollup["skipped_malformed"][0]
+
+
+# ── Stat-review F9: malformed-row skip-and-count ─────────────────────
+
+
+def test_rollup_skips_and_counts_null_hit_rate(tmp_path: Path) -> None:
+    # The old `float(payload.get("hit_rate") or 0.0)` laundered
+    # hit_rate: null into 40 events at 0.0 HR, dragging the aggregate
+    # down (kills a good variant). It must be skipped and counted.
+    d = tmp_path / "AAPL" / "5m"
+    d.mkdir(parents=True)
+    (d / "scoring_AAPL_5m.json").write_text(
+        json.dumps({"n_events": 40, "hit_rate": None}), encoding="utf-8"
+    )
+    _write_scoring(tmp_path, "MSFT", "5m", n=100, hr=0.6)
+    rollup = build_rollup(scoring_root=tmp_path)
+    slot = rollup["per_tf"]["5m"]
+    assert slot["n_events"] == 100
+    assert slot["hit_rate"] == pytest.approx(0.6)
+    assert rollup["n_skipped_malformed"] == 1
+    assert "scoring_AAPL_5m.json" in rollup["skipped_malformed"][0]
+
+
+def test_rollup_skips_and_counts_malformed_family_row(tmp_path: Path) -> None:
+    d = tmp_path / "AAPL" / "5m"
+    d.mkdir(parents=True)
+    (d / "scoring_AAPL_5m.json").write_text(
+        json.dumps({
+            "n_events": 100,
+            "hit_rate": 0.6,
+            "family_metrics": {
+                "FVG": {"n_events": 50, "hit_rate": None},
+                "OB": {"n_events": 50, "hit_rate": 0.7},
+            },
+        }),
+        encoding="utf-8",
+    )
+    rollup = build_rollup(scoring_root=tmp_path)
+    slot = rollup["per_tf"]["5m"]
+    # File-level metrics still aggregate; only the malformed family row
+    # is skipped and counted.
+    assert slot["n_events"] == 100
+    assert "FVG" not in slot["families"]
+    assert slot["families"]["OB"]["n_events"] == 50
+    assert rollup["n_skipped_malformed"] == 1
+    assert "family=FVG" in rollup["skipped_malformed"][0]
+
+
+def test_rollup_well_formed_inputs_report_zero_skipped(tmp_path: Path) -> None:
+    _write_scoring(tmp_path, "AAPL", "5m", n=100, hr=0.6)
+    rollup = build_rollup(scoring_root=tmp_path)
+    assert rollup["n_skipped_malformed"] == 0
+    assert rollup["skipped_malformed"] == []
+
+
+# ── Stat-review F8: uncertainty on "measured" verdicts ──────────────
+
+
+def test_rollup_measured_verdict_carries_p_value(tmp_path: Path) -> None:
+    # Large delta at large n → small two-sided p-value.
+    _write_scoring(tmp_path, "AAPL", "5m", n=500, hr=0.80,
+                   families={"FVG": (500, 0.80)})
+    _write_scoring(tmp_path, "AAPL", "15m", n=500, hr=0.50,
+                   families={"FVG": (500, 0.50)})
+    rollup = build_rollup(scoring_root=tmp_path)
+    fvg = rollup["phase_e2_verdict"]["fvg_ttf_5m_vs_baseline"]
+    assert fvg["status"] == "measured"
+    assert fvg["delta_hr_p_value"] is not None
+    assert fvg["delta_hr_p_value"] < 0.001
+
+
+def test_rollup_small_delta_at_floor_has_large_p_value(tmp_path: Path) -> None:
+    # The finding's example: a 5pp delta at the n=30 floor is
+    # indistinguishable from noise — the p-value must say so.
+    _write_scoring(tmp_path, "AAPL", "5m", n=30, hr=0.55,
+                   families={"FVG": (30, 0.55)})
+    _write_scoring(tmp_path, "AAPL", "15m", n=30, hr=0.50,
+                   families={"FVG": (30, 0.50)})
+    rollup = build_rollup(scoring_root=tmp_path)
+    fvg = rollup["phase_e2_verdict"]["fvg_ttf_5m_vs_baseline"]
+    # At n=30 the MDE (~36pp) dwarfs the 5pp delta → measured_underpowered (S2).
+    assert fvg["status"] == "measured_underpowered"
+    assert fvg["delta_hr_p_value"] > 0.3
+
+
+def test_rollup_degenerate_proportions_yield_none_p_value(tmp_path: Path) -> None:
+    # All-hit on both arms → pooled variance degenerate → p None, not 0/1.
+    _write_scoring(tmp_path, "AAPL", "5m", n=40, hr=1.0,
+                   families={"FVG": (40, 1.0)})
+    _write_scoring(tmp_path, "AAPL", "15m", n=35, hr=1.0,
+                   families={"FVG": (35, 1.0)})
+    rollup = build_rollup(scoring_root=tmp_path)
+    fvg = rollup["phase_e2_verdict"]["fvg_ttf_5m_vs_baseline"]
+    # n differs so the aliasing guard does not fire; hit rates identical.
+    # delta=0 < MDE → measured_underpowered (S2); pooled var degenerate → p None.
+    assert fvg["status"] == "measured_underpowered"
+    assert fvg["delta_hr_p_value"] is None
 
 
 def test_render_markdown_includes_sections(tmp_path: Path) -> None:
