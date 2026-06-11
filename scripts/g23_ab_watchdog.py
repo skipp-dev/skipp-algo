@@ -39,7 +39,8 @@ GitHub issues without parsing the status file.
 Defensive design
 ----------------
 * Empty / missing input → status=``awaiting_first_run``, exit 0.
-* Malformed history line → skipped (never fatal).
+* Malformed history line → fatal (exit 1) with a fix-or-delete message;
+  silently skipping a corrupt line could suppress a rollback streak (W6).
 * Atomic write via ``.tmp`` + rename for both JSONL and Markdown.
 * Stdlib only; reuses :class:`scripts.smc_sprt_stop_rule.SPRTConfig` /
   :func:`scripts.smc_sprt_stop_rule.terminal_decision`.
@@ -259,6 +260,18 @@ def aggregated_sprt(
             "wald_lower": round(config.lower_bound, 4),
         }
     state, decision = terminal_decision(n=treatment_n, k=treatment_k, config=config)
+    # W6-5 follow-up (Copilot #2686): terminal_decision intentionally never
+    # returns "max_n_reached" (no streaming cap involved), so the CLI's
+    # --max-n would otherwise be cosmetic. Honour the cap here: an
+    # inconclusive verdict at/over the cap means "stop collecting — the
+    # window is exhausted", which downstream treats identically to
+    # inconclusive (INCONCLUSIVE_DECISIONS) but is honest in the report.
+    if (
+        decision == "inconclusive"
+        and config.max_n is not None
+        and treatment_n >= config.max_n
+    ):
+        decision = "max_n_reached"
     return {
         "decision": decision,
         "n": state.n,

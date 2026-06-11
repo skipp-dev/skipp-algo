@@ -524,9 +524,18 @@ def load_and_validate_eval_report(
             for r in results_raw
             if r.get("passed") is not True
         ]
+        if failing:
+            detail = f"unmet criteria: {failing!r}"
+        else:
+            # Inconsistent/forged report: the top-level verdict is false but
+            # every row claims passed=true — name the contradiction instead
+            # of printing a confusing empty list (Copilot #2686).
+            detail = (
+                "inconsistent report: all_passed is false but every "
+                "criterion row has passed=true"
+            )
         raise SystemExit(
-            f"--phase-eval-report all_passed is not true; "
-            f"unmet criteria: {failing!r}"
+            f"--phase-eval-report all_passed is not true; {detail}"
         )
     per_criterion_failing = [
         r.get("criterion")

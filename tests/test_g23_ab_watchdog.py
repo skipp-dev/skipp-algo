@@ -394,3 +394,29 @@ def test_max_n_default_equals_constant():
         "--status-md", "/dev/null",
     ])
     assert ns.max_n == wd.SPRT_MAX_N
+
+
+def test_aggregated_sprt_honours_max_n_cap():
+    """Copilot #2686: --max-n must actually change the reported decision.
+
+    terminal_decision never returns max_n_reached (it has no streaming cap),
+    so aggregated_sprt itself must map "inconclusive at/over the cap" to
+    max_n_reached — otherwise the CLI flag is cosmetic.
+    """
+    # n=k chosen so the closed-form LLR is strictly inside the Wald bounds.
+    cfg_probe = wd.SPRTConfig(p0=wd.SPRT_P0, p1=wd.SPRT_P1,
+                              alpha=wd.SPRT_ALPHA, beta=wd.SPRT_BETA)
+    n, k = 10, 6
+    _, probe = wd.terminal_decision(n=n, k=k, config=cfg_probe)
+    assert probe == "inconclusive", "fixture must be inconclusive without a cap"
+
+    history = [_entry(treatment_underperformed=False, treatment_n=n, treatment_k=k)]
+    # Cap not reached -> stays inconclusive.
+    cfg_loose = wd.SPRTConfig(p0=wd.SPRT_P0, p1=wd.SPRT_P1,
+                              alpha=wd.SPRT_ALPHA, beta=wd.SPRT_BETA, max_n=n + 1)
+    assert wd.aggregated_sprt(history, config=cfg_loose)["decision"] == "inconclusive"
+    # Cap reached -> honest max_n_reached (downstream-equivalent, see
+    # INCONCLUSIVE_DECISIONS).
+    cfg_capped = wd.SPRTConfig(p0=wd.SPRT_P0, p1=wd.SPRT_P1,
+                               alpha=wd.SPRT_ALPHA, beta=wd.SPRT_BETA, max_n=n)
+    assert wd.aggregated_sprt(history, config=cfg_capped)["decision"] == "max_n_reached"

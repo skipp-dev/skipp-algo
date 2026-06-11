@@ -681,6 +681,26 @@ def test_load_and_validate_rejects_criterion_with_passed_false(tmp_path: Path) -
         load_and_validate_eval_report(path, target_phase="live_small")
 
 
+def test_load_and_validate_names_inverse_contradiction(tmp_path: Path) -> None:
+    """Copilot #2686: all_passed=false + every row passed=true must not print
+    a confusing empty unmet-criteria list — name the contradiction."""
+    payload = {
+        "schema_version": PHASE_EVAL_SCHEMA_VERSION,
+        "phase": "paper",
+        "variant": "v1",
+        "all_passed": False,
+        "computed_at": datetime.now(UTC).isoformat(),
+        "results": [
+            {"criterion": "min_live_days", "passed": True, "detail": "ok"},
+        ],
+        "phase_promotion": "manual_signoff_only",
+    }
+    path = tmp_path / "eval_inverse.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(SystemExit, match="inconsistent report"):
+        load_and_validate_eval_report(path, target_phase="live_small")
+
+
 def test_load_and_validate_rejects_non_object_result_rows(tmp_path: Path) -> None:
     """W6-1: corrupt result rows must fail closed without AttributeError."""
     payload = {
