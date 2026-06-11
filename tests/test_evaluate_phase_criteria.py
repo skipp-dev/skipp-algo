@@ -581,10 +581,22 @@ def test_load_and_validate_rejects_missing_file(tmp_path: Path) -> None:
 def test_load_and_validate_rejects_wrong_variant(tmp_path: Path) -> None:
     """W3-3: cross-variant report substitution must be refused."""
     path = _write_report(tmp_path, phase="paper", all_passed=True)
-    # Report has variant="v1" (set by _write_report); caller expects "v2".
+    # Report has variant="v1" (set by _write_report); caller trades "v2".
     with pytest.raises(SystemExit, match="variant"):
         load_and_validate_eval_report(
-            path, target_phase="live_small", expected_variant="v2"
+            path, target_phase="live_small", expected_variants=["v2"]
+        )
+
+
+def test_load_and_validate_rejects_non_traded_variant_multi(
+    tmp_path: Path,
+) -> None:
+    """W3-3: multi-variant runs still refuse a non-traded variant."""
+    path = _write_report(tmp_path, phase="paper", all_passed=True)
+    # Report has variant="v1"; traded variants are v2 and v3.
+    with pytest.raises(SystemExit, match="variant"):
+        load_and_validate_eval_report(
+            path, target_phase="live_small", expected_variants=["v2", "v3"]
         )
 
 
@@ -592,16 +604,29 @@ def test_load_and_validate_accepts_matching_variant(tmp_path: Path) -> None:
     """W3-3: correct variant passes without error."""
     path = _write_report(tmp_path, phase="paper", all_passed=True)
     payload = load_and_validate_eval_report(
-        path, target_phase="live_small", expected_variant="v1"
+        path, target_phase="live_small", expected_variants=["v1"]
+    )
+    assert payload["variant"] == "v1"
+
+
+def test_load_and_validate_accepts_member_variant_multi(tmp_path: Path) -> None:
+    """W3-3: membership in the traded set is sufficient (multi-variant)."""
+    path = _write_report(tmp_path, phase="paper", all_passed=True)
+    payload = load_and_validate_eval_report(
+        path, target_phase="live_small", expected_variants=["v2", "v1"]
     )
     assert payload["variant"] == "v1"
 
 
 def test_load_and_validate_skips_variant_check_when_none(tmp_path: Path) -> None:
-    """Backward compat: expected_variant=None skips the check."""
+    """Backward compat: expected_variants=None (or empty) skips the check."""
     path = _write_report(tmp_path, phase="paper", all_passed=True)
     payload = load_and_validate_eval_report(
-        path, target_phase="live_small", expected_variant=None
+        path, target_phase="live_small", expected_variants=None
+    )
+    assert payload["all_passed"] is True
+    payload = load_and_validate_eval_report(
+        path, target_phase="live_small", expected_variants=[]
     )
     assert payload["all_passed"] is True
 

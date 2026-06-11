@@ -698,18 +698,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         from scripts.evaluate_phase_criteria import load_and_validate_eval_report
 
-        # W3-3 (stat-review wave 3): bind the eval report to the variant
+        # W3-3 (stat-review wave 3): bind the eval report to the variants
         # actually being traded, preventing cross-variant substitution.
-        # gate_statuses is keyed by variant name; for now we require the
-        # report to match at least one of them.  Single-variant runs
-        # (the common case) get an exact match; multi-variant runs
-        # accept any traded variant.
-        traded_variants = list(gate_statuses)
-        expected_variant = traded_variants[0] if len(traded_variants) == 1 else None
+        # gate_statuses is keyed by variant name; the report's variant
+        # must be one of them (exact match for the common single-variant
+        # case, membership for multi-variant runs).
         load_and_validate_eval_report(
             args.phase_eval_report,
             target_phase=args.phase,
-            expected_variant=expected_variant,
+            expected_variants=list(gate_statuses) or None,
         )
     if args.account_state_json is not None:
         account_state = _account_state_from_json(args.account_state_json)
