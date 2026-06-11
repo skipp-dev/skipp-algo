@@ -276,6 +276,88 @@ def get_symbol_hit_rate(
     }
 
 
+def compute_gap_playbook_report(
+    records: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    """Hit-rate per ``gap_bucket × playbook`` over resolved outcome records.
+
+    The scorer's gap component is monotonic-linear while the GAP_FADE
+    playbook treats large gaps as fade candidates — an internal
+    contradiction (eval-findings B5, 2026-06-11). This report measures the
+    actual win-rate per gap-size bucket conditioned on the assigned
+    playbook so the gap component can be re-shaped on evidence, not
+    opinion. Uses the direction-signed label when present, falling back to
+    the legacy long-only ``profitable_30m``.
+    """
+    buckets: dict[str, dict[str, Any]] = {}
+    for rec in records:
+        profitable = rec.get("profitable_30m_directional")
+        pnl = rec.get("pnl_30m_pct_signed")
+        if profitable is None:
+            profitable = rec.get("profitable_30m")
+            pnl = rec.get("pnl_30m_pct")
+        if profitable is None:
+            continue
+        gb = rec.get("gap_bucket_label") or _gap_bucket_label(_safe_float(rec.get("gap_pct")))
+        pb = rec.get("playbook_name") or "UNKNOWN"
+        key = f"{gb}:{pb}"
+        entry = buckets.setdefault(key, {"total": 0, "profitable": 0, "pnl_sum": 0.0})
+        entry["total"] += 1
+        if profitable is True:
+            entry["profitable"] += 1
+        entry["pnl_sum"] += _safe_float(pnl)
+
+    result: dict[str, dict[str, Any]] = {}
+    for key, data in buckets.items():
+        total = data["total"]
+        result[key] = {
+            "total": total,
+            "profitable": data["profitable"],
+            "hit_rate": round(data["profitable"] / total, 4) if total > 0 else 0.0,
+            "avg_pnl_pct": round(data["pnl_sum"] / total, 4) if total > 0 else 0.0,
+        }
+    return result
+
+
+def infer_trade_direction(row: dict[str, Any]) -> str:
+    """Infer the intended trade direction for a ranked candidate.
+
+    The legacy ``profitable_30m`` label was long-only, which mislabels
+    short-side setups (GAP_FADE) — eval-findings B1 (2026-06-11).
+
+    Rules:
+      • GAP_FADE playbook → fade the gap (gap up → short, gap down → long).
+      • All other playbooks → continuation of the gap sign.
+      • Missing/zero gap → "long" (conservative default).
+    """
+    gap_pct = _safe_float(row.get("gap_pct"))
+    playbook = row.get("playbook")
+    playbook_name = str(playbook.get("playbook", "")) if isinstance(playbook, dict) else str(playbook or "")
+    if playbook_name == "GAP_FADE":
+        return "short" if gap_pct > 0 else "long"
+    return "short" if gap_pct < 0 else "long"
+
+
+def _component_fields(row: dict[str, Any]) -> dict[str, float | None]:
+    """Flatten the weighted ``score_breakdown`` components for persistence.
+
+    c10b producer-bug fix (2026-06-11): ``outcomes_<date>.json`` records
+    never carried the per-component values, so
+    ``backfill_feature_importance()`` defaulted every component to 0.0 and
+    every FI report since 2026-04-30 was built on all-zero feature
+    vectors. Emits ``None`` (not 0.0) when the breakdown is absent so the
+    backfill era-gate can tell "legacy record" apart from "component
+    genuinely zero".
+    """
+    sb = row.get("score_breakdown")
+    if not isinstance(sb, dict):
+        return {key: None for key in FEATURE_TO_WEIGHT_KEY}
+    return {
+        key: (_safe_float(sb.get(key)) if key in sb else None)
+        for key in FEATURE_TO_WEIGHT_KEY
+    }
+
+
 def prepare_outcome_snapshot(
     ranked: list[dict[str, Any]],
     run_date: date,
@@ -309,8 +391,43 @@ def prepare_outcome_snapshot(
             "regime_at_entry": row.get("regime"),
             "zone_priority_rank": row.get("zone_priority_rank"),
             "zone_priority_score": row.get("zone_priority_score"),
+            # Trend-state features (observe-only pass-throughs; no scorer
+            # weight until FI evidence supports one).
+            "trend_alignment": row.get("trend_alignment"),
+            "dist_to_ema20_pct": row.get("dist_to_ema20_pct"),
+            "ema50_slope_pct": row.get("ema50_slope_pct"),
+            # Gap position vs prior-day H/L range (observe-only; eval C4).
+            "gap_range_pos": row.get("gap_range_pos"),
+            # Earnings-surprise magnitude (observe-only; eval C2 — the
+            # binary earnings_bmo flag ignores SUE size/sign; PEAD
+            # literature says the magnitude drives the drift).
+            "eps_surprise_pct": row.get("eps_surprise_pct"),
+            # VIX 9-day / 30-day term-structure ratio (observe-only;
+            # eval D5). > 1 ⇒ inverted short-term structure ⇒ imminent
+            # event risk priced in. Market-wide (same for all rows).
+            "vix9d_vix_ratio": row.get("vix9d_vix_ratio"),
+            # Direction-aware labeling inputs (eval-findings B1/B2):
+            # ``direction`` signs the PnL during backfill; ``atr_pct``
+            # scales the triple-barrier levels; ``playbook`` enables
+            # gap×playbook bucket reports.
+            "direction": infer_trade_direction(row),
+            "atr_pct": _safe_float(row.get("atr_pct_computed") or row.get("atr_pct")),
+            "playbook_name": (
+                row["playbook"].get("playbook")
+                if isinstance(row.get("playbook"), dict)
+                else None
+            ),
             "profitable_30m": None,  # Back-filled post-open
             "pnl_30m_pct": None,     # Back-filled post-open
+            # Direction-signed + triple-barrier labels (back-filled; B1/B2).
+            "pnl_30m_pct_signed": None,
+            "profitable_30m_directional": None,
+            "label_tb": None,
+            "profitable_tb": None,
+            # Weighted score components (c10b producer-bug fix): persisted
+            # flat so backfill_feature_importance() reads real values
+            # instead of defaulting every component to 0.0.
+            **_component_fields(row),
         })
     return records
 
@@ -336,10 +453,29 @@ FEATURE_KEYS: list[str] = [
     "institutional_component",
     "estimate_revision_component",
     "zone_priority_score",
+    "trend_alignment",
+    "dist_to_ema20_pct",
+    "ema50_slope_pct",
+    "gap_range_pos",
+    "eps_surprise_pct",
+    "vix9d_vix_ratio",
 ]
 
+# Observe-only features: recorded in outcome records + FI samples but
+# intentionally NOT mapped to a scorer weight.  Promotion to a weighted
+# component requires feature-importance evidence first.
+PASS_THROUGH_FEATURE_KEYS: frozenset[str] = frozenset({
+    "zone_priority_score",
+    "trend_alignment",
+    "dist_to_ema20_pct",
+    "ema50_slope_pct",
+    "gap_range_pos",
+    "eps_surprise_pct",
+    "vix9d_vix_ratio",
+})
+
 # G1: Explicit mapping from feature importance keys → scorer weight keys.
-# ``zone_priority_score`` is a pass-through (not weighted in scorer.py).
+# PASS_THROUGH_FEATURE_KEYS entries are intentionally absent here.
 FEATURE_TO_WEIGHT_KEY: dict[str, str] = {
     "gap_component": "gap",
     "gap_sector_rel_component": "gap_sector_relative",
@@ -355,7 +491,7 @@ FEATURE_TO_WEIGHT_KEY: dict[str, str] = {
     "freshness_component": "freshness_decay",
     "institutional_component": "institutional_quality",
     "estimate_revision_component": "estimate_revision",
-    # zone_priority_score is not a weighted component; omitted intentionally.
+    # PASS_THROUGH_FEATURE_KEYS are not weighted components; omitted intentionally.
 }
 
 FEATURE_IMPORTANCE_DIR = OUTCOMES_DIR / "feature_importance"
@@ -612,20 +748,47 @@ def _compute_feature_statistics(
 
         wins = vals[win_mask]
         losses = vals[loss_mask]
-        mean_win = _to_python_float(xp.mean(wins)) if int(wins.size) else 0.0
-        mean_loss = _to_python_float(xp.mean(losses)) if int(losses.size) else 0.0
-        if int(wins.size) > 1:
-            variance = xp.sum((wins - mean_win) ** 2) / max(int(wins.size) - 1, 1)
-            std_win = max(_to_python_float(xp.sqrt(variance)), 0.001)
+        n_win = int(wins.size)
+        n_loss = int(losses.size)
+        mean_win = _to_python_float(xp.mean(wins)) if n_win else 0.0
+        mean_loss = _to_python_float(xp.mean(losses)) if n_loss else 0.0
+        var_win = (
+            _to_python_float(xp.sum((wins - mean_win) ** 2)) / (n_win - 1)
+            if n_win > 1 else 0.0
+        )
+        var_loss = (
+            _to_python_float(xp.sum((losses - mean_loss) ** 2)) / (n_loss - 1)
+            if n_loss > 1 else 0.0
+        )
+        # Cohen's d denominator: POOLED std across both classes
+        # (eval-findings B3, 2026-06-11). The previous σ_win-only
+        # denominator inflated separation whenever winners clustered.
+        if n_win + n_loss > 2:
+            pooled_var = (
+                (max(n_win - 1, 0) * var_win + max(n_loss - 1, 0) * var_loss)
+                / (n_win + n_loss - 2)
+            )
+            pooled_std = max(math.sqrt(pooled_var), 0.001)
         else:
-            std_win = 0.001
-        separation = abs(mean_win - mean_loss) / max(std_win, 0.001)
+            pooled_std = 0.001
+        separation = abs(mean_win - mean_loss) / pooled_std
+
+        # Welch's t-test (normal approximation for the two-sided p-value;
+        # adequate at the n ≥ 200 tuning gate). p = 1.0 (no evidence) when
+        # either class is too small or variance degenerates.
+        se_sq = (var_win / n_win if n_win else 0.0) + (var_loss / n_loss if n_loss else 0.0)
+        if n_win >= 2 and n_loss >= 2 and se_sq > 0:
+            t_stat = (mean_win - mean_loss) / math.sqrt(se_sq)
+            p_value = 2.0 * (1.0 - 0.5 * (1.0 + math.erf(abs(t_stat) / math.sqrt(2.0))))
+        else:
+            p_value = 1.0
 
         stats[key] = {
             "pearson_r": round(float(pearson), 4),
             "mean_separation": round(float(separation), 4),
             "mean_win": round(float(mean_win), 4),
             "mean_loss": round(float(mean_loss), 4),
+            "p_value": round(float(p_value), 6),
         }
 
     return stats
@@ -699,6 +862,29 @@ def compute_feature_importance(
         except Exception:
             logger.warning("Failed to load FI file: %s", path, exc_info=True)
 
+    # (symbol, date) dedup (2026-06-11): the daily backfill re-emits its
+    # full lookback window into each day's fi_samples file, so the same
+    # candidate-row appears in up to `lookback` consecutive files.
+    # Counting those copies as independent observations inflated n — and
+    # the Welch t-statistics feeding the BH-FDR gate — by roughly the
+    # overlap factor (~3× observed). Files are iterated newest-first, so
+    # the first occurrence (freshest labels) wins. Samples without both
+    # keys (synthetic/legacy) are kept as-is.
+    deduped: list[dict[str, Any]] = []
+    seen_keys: set[tuple[str, str]] = set()
+    duplicate_samples_dropped = 0
+    for sample in samples:
+        sym = sample.get("symbol")
+        run_d = sample.get("date")
+        if sym and run_d:
+            dedup_key = (str(sym), str(run_d))
+            if dedup_key in seen_keys:
+                duplicate_samples_dropped += 1
+                continue
+            seen_keys.add(dedup_key)
+        deduped.append(sample)
+    samples = deduped
+
     # Filter to samples with known outcome
     labeled = [s for s in samples if s.get("profitable_30m") is not None]
     if len(labeled) < 10:
@@ -706,6 +892,7 @@ def compute_feature_importance(
             "error": "insufficient labeled samples",
             "total_samples": len(samples),
             "labeled_samples": len(labeled),
+            "duplicate_samples_dropped": duplicate_samples_dropped,
             "backend": backend,
         }
 
@@ -714,6 +901,7 @@ def compute_feature_importance(
     report: dict[str, Any] = {
         "total_samples": len(samples),
         "labeled_samples": len(labeled),
+        "duplicate_samples_dropped": duplicate_samples_dropped,
         "features": {},
         "recommendations": [],
         "backend": backend,
@@ -734,6 +922,17 @@ def compute_feature_importance(
     }
     report["features"] = feature_stats
 
+    # BH-FDR gate (eval-findings B3): stamp ``fdr_significant`` onto every
+    # feature so downstream consumers (compute_weight_adjustments,
+    # recommendations) can distinguish evidence from noise. Without this
+    # wiring the q=0.05 gate would silently neutralize ALL features
+    # (fail-closed default) and auto-tuning would never move a weight.
+    fdr_flags = _benjamini_hochberg(
+        {key: float(stats["p_value"]) for key, stats in feature_stats.items()},
+    )
+    for key, stats in feature_stats.items():
+        stats["fdr_significant"] = bool(fdr_flags.get(key, False))
+
     # Normalize importance to [0, 1]
     max_imp = max(importance_scores.values()) if importance_scores else 1.0
     if max_imp > 0:
@@ -742,12 +941,13 @@ def compute_feature_importance(
                 importance_scores[key] / max_imp, 4,
             )
 
-    # Generate recommendations
+    # Generate recommendations — only for features that pass the FDR gate
+    # (eval-findings B3): a strong-looking r without significance is noise.
     for key in FEATURE_KEYS:
         feat = report["features"][key]
         r = feat["pearson_r"]
         imp = feat.get("importance_normalized", 0)
-        if abs(r) > 0.5:
+        if abs(r) > 0.5 and feat.get("fdr_significant", False):
             report["recommendations"].append(
                 f"🟢 {key}: strong predictor (r={r:.2f}). Consider increasing weight."
             )
@@ -768,7 +968,31 @@ def compute_feature_importance(
 _SCORER_SMOOTHING = 0.3
 
 # Minimum labeled samples to attempt auto-tuning.
-_MIN_TUNING_SAMPLES = 30
+# 2026-06-11 (eval-findings B3): raised 30 → 200. With ~19 features, n=30
+# gives correlation-estimate σ ≈ 0.19 — weight updates at that sample size
+# are noise-fitting. 200 matches the governance-layer MIN_OOS philosophy.
+_MIN_TUNING_SAMPLES = 200
+
+# BH-FDR level for feature-importance significance gating (mirrors the
+# promotion-gate FDR-q ≤ 0.05 used in governance/promotion_gate.py).
+_FDR_Q = 0.05
+
+
+def _benjamini_hochberg(p_values: dict[str, float], q: float = _FDR_Q) -> dict[str, bool]:
+    """Benjamini–Hochberg step-up: ``{key: significant}`` at FDR level *q*."""
+    if not p_values:
+        return {}
+    ordered = sorted(p_values.items(), key=lambda kv: kv[1])
+    m = len(ordered)
+    cutoff_rank = 0
+    for rank, (_, p) in enumerate(ordered, start=1):
+        if p <= q * rank / m:
+            cutoff_rank = rank
+    return {
+        key: rank <= cutoff_rank
+        for rank, (key, _) in enumerate(ordered, start=1)
+    }
+
 
 # Maximum weight drift allowed from DEFAULT_WEIGHTS before CI gate trips.
 _MAX_SCORER_DRIFT = 0.50  # absolute
@@ -802,9 +1026,9 @@ def compute_weight_adjustments(
        - Importance 0.0 → 50% downward scaling.
     3. Bayesian blend: ``new = (1 - smoothing) × data_weight + smoothing × prior``.
 
-    Features without a weight mapping (``zone_priority_score``) are skipped.
-    Weights not covered by FEATURE_TO_WEIGHT_KEY (penalties, ewma) are
-    passed through unchanged.
+    Features without a weight mapping (``PASS_THROUGH_FEATURE_KEYS``) are
+    skipped.  Weights not covered by FEATURE_TO_WEIGHT_KEY (penalties, ewma)
+    are passed through unchanged.
     """
     if "error" in feature_report:
         raise ValueError(
@@ -824,7 +1048,14 @@ def compute_weight_adjustments(
         feat = features.get(feat_key)
         if feat is None:
             continue
-        imp = feat.get("importance_normalized", 0.5)
+        # eval-findings B3: features that fail the BH-FDR gate carry NO
+        # statistical evidence — force a neutral importance (0.5) so the
+        # data_weight equals the current weight and only the prior pull
+        # applies (no noise-driven boost/cut).
+        if not feat.get("fdr_significant", False):
+            imp = 0.5
+        else:
+            imp = feat.get("importance_normalized", 0.5)
         cur = current_weights.get(weight_key, prior.get(weight_key, 0.5))
         p = prior.get(weight_key, cur)
 

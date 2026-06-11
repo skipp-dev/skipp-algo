@@ -155,16 +155,18 @@ def test_smc_lib_detect_divergence_calls_smc_lib_atr_internally() -> None:
     assert 'float price_atr_value = smc_lib_atr(pivot_min_y_distance_len) * pivot_min_y_distance_atr_mult' in source
 
 
-# ── All 7 helpers are exported ──────────────────────────────────────────────
+# ── All 8 helpers are exported ──────────────────────────────────────────────
 
 
-def test_all_seven_embedded_helpers_are_exported() -> None:
+def test_all_embedded_helpers_are_exported() -> None:
     source = _read_utils_source()
 
     helpers = [
         'export smc_lib_atr(',
         'export smc_lib_ehma(',
         'export smc_lib_thma(',
+        # 2026-06-11 (trend-state features): ZLEMA MA type added.
+        'export smc_lib_zlema(',
         'export smc_lib_get_ma(',
         'export smc_lib_bb(',
         'export smc_lib_dmi(',
@@ -178,8 +180,9 @@ def test_no_unexpected_smc_lib_exports() -> None:
     source = _read_utils_source()
 
     smc_lib_exports = re.findall(r'^export\s+smc_lib_\w+\(', source, re.MULTILINE)
-    assert len(smc_lib_exports) == 7, (
-        f'Expected exactly 7 smc_lib_ exports, found {len(smc_lib_exports)}: {smc_lib_exports}'
+    # 2026-06-11 (trend-state features): 7 → 8, smc_lib_zlema added.
+    assert len(smc_lib_exports) == 8, (
+        f'Expected exactly 8 smc_lib_ exports, found {len(smc_lib_exports)}: {smc_lib_exports}'
     )
 
 

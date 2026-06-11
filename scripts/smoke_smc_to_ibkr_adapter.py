@@ -28,6 +28,7 @@ only when ``--live`` is requested so CI does not pull it.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import logging
 import os
@@ -44,7 +45,6 @@ from scripts.smc_to_ibkr_adapter import (
     IBKRExecutionConfig,
     build_ibkr_intents_from_smc_setups,
 )
-import contextlib
 
 logger = logging.getLogger("smoke_smc_to_ibkr_adapter")
 
@@ -193,9 +193,13 @@ def _atomic_append_jsonl(path: Path, rows: Iterable[Mapping[str, Any]]) -> None:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             # ATOMIC-WRITE-EXEMPT: append-by-write (smoke audit, single-shot).
             if path.exists():
-                fh.write(path.read_text(encoding="utf-8"))
-                if not fh.tell() or not _ends_with_newline(path):
-                    fh.write("\n") if fh.tell() else None
+                existing = path.read_text(encoding="utf-8")
+                fh.write(existing)
+                # IBKR-audit 2026-06-11 (S8): the previous conditional
+                # newline logic was dead code; ensure a separating newline
+                # only when the prior content lacks one.
+                if existing and not existing.endswith("\n"):
+                    fh.write("\n")
             for row in rows:
                 fh.write(json.dumps(row, sort_keys=True))
                 fh.write("\n")
@@ -206,15 +210,6 @@ def _atomic_append_jsonl(path: Path, rows: Iterable[Mapping[str, Any]]) -> None:
         with contextlib.suppress(OSError):
             os.unlink(tmp_name)
         raise
-
-
-def _ends_with_newline(path: Path) -> bool:
-    try:
-        with path.open("rb") as fh:
-            fh.seek(-1, os.SEEK_END)
-            return fh.read(1) == b"\n"
-    except OSError:
-        return True
 
 
 # ---------------------------------------------------------------------------
@@ -279,8 +274,35 @@ def run_live(
     port: int,
     client_id: int,
     timeout_seconds: float = 10.0,
+    audit_path: Path | None = None,
+    confirm_live: bool = False,
 ) -> dict[str, Any]:
-    """Place + cancel each intent on the IBKR Paper Gateway."""
+    """Place + cancel each intent on the IBKR Paper Gateway.
+
+    IBKR-audit 2026-06-11 hardening:
+
+    * **S1** — after ``cancelOrder`` we poll until every order reaches a
+      terminal status, then run a final ``reqAllOpenOrders`` sweep; any
+      leftover order belonging to this session is reported (and the run
+      flagged ``clean=False``) instead of silently orphaned.
+    * **S2** — limit prices are made deliberately non-marketable (50% of
+      the setup entry) so the round-trip can never fill, and every
+      round-trip writes an audit JSONL row.
+    * **S4** — a non-paper port requires the explicit ``confirm_live``
+      opt-in; without it the run aborts before connecting.
+    * **S5** — in paper mode the managed accounts MUST all be DU*
+      (IBKR paper prefix); a live account behind the paper port aborts.
+    """
+    # S4 — safety gate FIRST, before any dependency import: the abort must
+    # fire even on systems without ib_async installed (Copilot review #2689).
+    paper_mode = port == DEFAULT_PAPER_PORT
+    if not paper_mode and not confirm_live:
+        raise SystemExit(
+            f"port={port} is not the paper port ({DEFAULT_PAPER_PORT}); "
+            "refusing to run the live smoke against a potentially real-money "
+            "session without --confirm-live."
+        )
+
     try:
         from ib_async import IB, LimitOrder, Stock  # type: ignore[import-untyped]
     except ImportError as exc:  # pragma: no cover - exercised only in live mode
@@ -289,7 +311,7 @@ def run_live(
             "`pip install ib_async>=2.1.0` and ensure IBKR Paper Gateway is running."
         ) from exc
 
-    exec_cfg = IBKRExecutionConfig(host=host, paper_mode=(port == DEFAULT_PAPER_PORT), client_id=client_id)
+    exec_cfg = IBKRExecutionConfig(host=host, paper_mode=paper_mode, client_id=client_id)
     intents = build_ibkr_intents_from_smc_setups(setups, exec_cfg, size_scale=size_scale)
     risk = check_intents_against_limits(intents, risk_limits, account_equity_usd=account_equity_usd)
     if not risk.ok:
@@ -300,37 +322,124 @@ def run_live(
             "risk_rejections": list(risk.rejections),
         }
 
+    terminal_statuses = {"Filled", "Cancelled", "ApiCancelled", "Inactive"}
+
+    def _wait_for_status(trade: Any, predicate: Any, max_seconds: float) -> str:
+        waited = 0.0
+        while waited < max_seconds:
+            status = str(getattr(trade.orderStatus, "status", ""))
+            if predicate(status):
+                return status
+            ib.sleep(0.25)
+            waited += 0.25
+        return str(getattr(trade.orderStatus, "status", ""))
+
     ib = IB()
     placed: list[dict[str, Any]] = []
+    session_order_ids: set[int] = set()
+    leftovers: list[dict[str, Any]] = []
     try:
         ib.connect(host, port, clientId=client_id, timeout=timeout_seconds)
+
+        # S5 — paper-account assertion. Port 7497 does NOT guarantee a
+        # paper session; the operator can bind any TWS to any port.
+        accounts = list(getattr(getattr(ib, "wrapper", None), "accounts", []) or [])
+        if paper_mode and accounts and not all(str(a).startswith("DU") for a in accounts):
+            raise SystemExit(
+                f"paper_mode=True but managed accounts {accounts!r} are not "
+                "all DU* paper accounts — a live TWS appears to be listening "
+                f"on port {port}. Aborting before any order is placed."
+            )
+
         for intent in intents:
             contract = Stock(intent.symbol, "SMART", "USD")
-            order = LimitOrder("BUY", int(intent.quantity), float(intent.entry_limit), tif=intent.tif)
+            # S2 — deliberately non-marketable price so the BUY can never
+            # fill while the ack/cancel round-trip is in flight.
+            smoke_price = max(0.01, round(float(intent.entry_limit) * 0.5, 2))
+            order = LimitOrder("BUY", int(intent.quantity), smoke_price, tif=intent.tif)
+            order.orderRef = f"{intent.order_ref}-smoke"
             trade = ib.placeOrder(contract, order)
-            ib.sleep(1.0)  # wait for ack
-            try:
+            # Only record real (positive) ids — recording 0 for unset ids
+            # would make the sweep below misclassify unrelated orders whose
+            # id is also missing/0 as session leftovers (Copilot review #2689).
+            order_id_raw = int(getattr(order, "orderId", 0) or 0)
+            if order_id_raw > 0:
+                session_order_ids.add(order_id_raw)
+            # Wait for the submission ack before cancelling — cancelling a
+            # PendingSubmit order races TWS activation (S1).
+            ack_status = _wait_for_status(
+                trade, lambda s: s not in ("", "PendingSubmit"), max_seconds=10.0
+            )
+            cancel_status = ack_status
+            if ack_status not in terminal_statuses:
                 ib.cancelOrder(order)
-            finally:
-                placed.append(
+                cancel_status = _wait_for_status(
+                    trade, lambda s: s in terminal_statuses, max_seconds=10.0
+                )
+            placed.append(
+                {
+                    "symbol": intent.symbol,
+                    "order_id": getattr(order, "orderId", None),
+                    "order_ref": str(order.orderRef),
+                    "smoke_limit_price": smoke_price,
+                    "ack_status": ack_status,
+                    "status": cancel_status,
+                    "terminal": cancel_status in terminal_statuses,
+                }
+            )
+
+        # S1 — final reconciliation sweep: nothing from this session may
+        # remain open on the account.
+        for open_trade in ib.reqAllOpenOrders():
+            order_id = int(getattr(open_trade.order, "orderId", 0) or 0)
+            order_ref = str(getattr(open_trade.order, "orderRef", ""))
+            # id==0 means "unknown" — never id-match on it; the orderRef
+            # suffix remains the authoritative session marker in that case.
+            if (order_id > 0 and order_id in session_order_ids) or order_ref.endswith("-smoke"):
+                leftovers.append(
                     {
-                        "symbol": intent.symbol,
-                        "order_id": getattr(order, "orderId", None),
-                        "status": getattr(trade.orderStatus, "status", None),
+                        "symbol": str(getattr(open_trade.contract, "symbol", "")),
+                        "order_id": order_id,
+                        "order_ref": order_ref,
+                        "status": str(getattr(open_trade.orderStatus, "status", "")),
                     }
                 )
+                with contextlib.suppress(Exception):
+                    ib.cancelOrder(open_trade.order)
     finally:
         try:
             ib.disconnect()
         except Exception:  # pragma: no cover - cleanup best-effort
             logger.warning("ib.disconnect raised", exc_info=True)
-    return {
+
+    clean = all(row["terminal"] for row in placed) and not leftovers
+    result = {
         "mode": "live",
         "submitted": True,
         "risk_ok": True,
         "intent_count": len(intents),
         "round_trips": placed,
+        "leftover_open_orders": leftovers,
+        "clean": clean,
     }
+
+    # S2 — audit trail for the live mode (previously mock-only).
+    if audit_path is not None and placed:
+        _atomic_append_jsonl(
+            audit_path,
+            [
+                {
+                    "ts": datetime.now(UTC).isoformat(),
+                    "mode": "live",
+                    "size_scale": size_scale,
+                    "clean": clean,
+                    "round_trip": row,
+                }
+                for row in placed
+            ],
+        )
+        result["audit_path"] = str(audit_path)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -372,7 +481,23 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--host", default=DEFAULT_PAPER_HOST)
     p.add_argument("--port", type=int, default=DEFAULT_PAPER_PORT)
-    p.add_argument("--client-id", type=int, default=DEFAULT_CLIENT_ID)
+    p.add_argument(
+        "--client-id",
+        type=int,
+        default=None,
+        help=(
+            "IB clientId. Default: rotating allocation via scripts.ib_client_id "
+            "to avoid clientId collisions with concurrently running tools (S3)."
+        ),
+    )
+    p.add_argument(
+        "--confirm-live",
+        action="store_true",
+        help=(
+            "Required when --port is not the paper port (7497). Explicit "
+            "opt-in before the smoke touches a potentially real-money session."
+        ),
+    )
     return p
 
 
@@ -391,18 +516,40 @@ def main(argv: Sequence[str] | None = None) -> int:
             audit_path=audit_path,
         )
     else:
-        result = run_live(
-            setups=setups,
-            risk_limits=risk_limits,
-            account_equity_usd=args.account_equity_usd,
-            size_scale=args.size_scale,
-            host=args.host,
-            port=args.port,
-            client_id=args.client_id,
-        )
+        # S3 — allocate a collision-free clientId unless explicitly pinned.
+        allocated_client_id: int | None = None
+        if args.client_id is None:
+            from scripts.ib_client_id import allocate_ib_client_id
+
+            allocated_client_id = allocate_ib_client_id("ibkr_smoke")
+            client_id = allocated_client_id
+        else:
+            client_id = args.client_id
+        audit_path = args.audit_path or (DEFAULT_AUDIT_DIR / f"smoke_{datetime.now(UTC).date().isoformat()}.jsonl")
+        try:
+            result = run_live(
+                setups=setups,
+                risk_limits=risk_limits,
+                account_equity_usd=args.account_equity_usd,
+                size_scale=args.size_scale,
+                host=args.host,
+                port=args.port,
+                client_id=client_id,
+                audit_path=audit_path,
+                confirm_live=args.confirm_live,
+            )
+        finally:
+            if allocated_client_id is not None:
+                from scripts.ib_client_id import release_ib_client_id
+
+                with contextlib.suppress(Exception):
+                    release_ib_client_id(allocated_client_id)
     print(json.dumps(result, indent=2, sort_keys=True))
     if not result.get("risk_ok", True):
         return 2
+    # S1 — a live smoke that left non-terminal / leftover orders is a failure.
+    if result.get("mode") == "live" and not result.get("clean", True):
+        return 3
     return 0
 
 

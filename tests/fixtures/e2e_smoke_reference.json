@@ -87,7 +87,7 @@
     "max_log_regression_abs": 0.2,
     "max_log_score": 1.2,
     "min_event_coverage_ratio": 0.5,
-    "min_events_for_calibrated_thresholds": 20,
+    "min_events_for_calibrated_thresholds": 30,
     "min_history_runs": 2,
     "min_populated_stratification_buckets": 1,
     "min_scoring_events": 1,

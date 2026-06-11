@@ -10,12 +10,23 @@ must clear *both* the §2 resolution bar **and** this §5 profitability bar befo
 real sizing is armed (handover §5: "statistically resolving != profitable after
 costs").
 
+Cost source
+-----------
+By default the flat pre-registered ``DEFAULT_COST_BPS`` haircut applies. With
+``--cost-calibration <report.json>`` (the output of
+``scripts/calibrate_execution_costs.py``) the gate instead uses the
+**conservative** empirical round-turn cost (bootstrap CI-high) measured from
+the C8 Phase-A paper fills. An unmeasurable calibration is a hard usage error
+-- the gate refuses to silently fall back to the flat default, because the
+empirical bar is the whole point of the §5 activation check.
+
 Exit codes
 ----------
 * ``0`` -- at least one candidate family PASSES.
 * ``2`` -- candidates measurable but none passes.
 * ``3`` -- every candidate family is too thin to measure.
-* ``1`` -- usage/config error (bad path, empty events).
+* ``1`` -- usage/config error (bad path, empty events, unmeasurable
+  cost calibration).
 """
 from __future__ import annotations
 
@@ -47,6 +58,7 @@ def build_report(
     min_trades: int = MIN_TRADES,
     n_boot: int = DEFAULT_N_BOOTSTRAP,
     seed: int = DEFAULT_SEED,
+    cost_calibration: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Run the §5 E[PnL]-after-cost check across all families."""
     samples = extract_family_calibration_samples(events, cost_bps=cost_bps)
@@ -80,6 +92,8 @@ def build_report(
 
     return {
         "cost_bps": cost_bps,
+        "cost_source": "empirical_calibration" if cost_calibration is not None else "flat_default",
+        "cost_calibration": cost_calibration,
         "min_trades": min_trades,
         "n_bootstrap": n_boot,
         "seed": seed,
@@ -110,6 +124,15 @@ def main(argv: list[str] | None = None) -> int:
         type=float,
         default=DEFAULT_COST_BPS,
         help=f"round-trip cost in basis points (default: {DEFAULT_COST_BPS})",
+    )
+    parser.add_argument(
+        "--cost-calibration",
+        default=None,
+        help=(
+            "path to a calibrate_execution_costs.py report; overrides --cost-bps "
+            "with the conservative (CI-high) empirical round-turn cost. "
+            "An unmeasurable calibration is a hard error (no silent fallback)."
+        ),
     )
     parser.add_argument(
         "--min-trades",
@@ -146,12 +169,32 @@ def main(argv: list[str] | None = None) -> int:
         print("error: event list is empty", file=sys.stderr)
         return 1
 
+    cost_bps = args.cost_bps
+    calibration: dict[str, Any] | None = None
+    if args.cost_calibration is not None:
+        try:
+            with open(args.cost_calibration, encoding="utf-8") as fh:
+                calibration = json.load(fh)
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            print(f"error: could not load cost calibration: {exc}", file=sys.stderr)
+            return 1
+        if not isinstance(calibration, dict) or not calibration.get("measurable"):
+            reasons = (calibration or {}).get("fail_reasons", ["malformed report"])
+            print(
+                f"error: cost calibration is not measurable ({reasons}); "
+                "refusing to fall back to the flat default",
+                file=sys.stderr,
+            )
+            return 1
+        cost_bps = float(calibration["conservative_cost_bps"])
+
     report = build_report(
         events,
-        cost_bps=args.cost_bps,
+        cost_bps=cost_bps,
         min_trades=args.min_trades,
         n_boot=args.n_bootstrap,
         seed=args.seed,
+        cost_calibration=calibration,
     )
 
     rendered = json.dumps(report, indent=2, sort_keys=True)
