@@ -504,6 +504,26 @@ def load_and_validate_eval_report(
             f"--phase-eval-report all_passed is not true; "
             f"unmet criteria: {failing!r}"
         )
+    # W6-1 (stat-review wave 6): a vacuous report with results=[] and
+    # all_passed=True must be rejected.  Separately, cross-check every
+    # individual criterion — all_passed alone can be spoofed or set by
+    # hand without matching per-criterion detail.
+    results_raw = payload.get("results")
+    if not isinstance(results_raw, list) or len(results_raw) == 0:
+        raise SystemExit(
+            "--phase-eval-report results list is empty or missing; "
+            "an all_passed=true report with no criteria is vacuously forged"
+        )
+    per_criterion_failing = [
+        r.get("criterion")
+        for r in results_raw
+        if r.get("passed") is not True
+    ]
+    if per_criterion_failing:
+        raise SystemExit(
+            f"--phase-eval-report claims all_passed=true but individual "
+            f"criteria do not all have passed=true: {per_criterion_failing!r}"
+        )
     computed_at_raw = payload.get("computed_at")
     try:
         computed_at = datetime.fromisoformat(str(computed_at_raw))
@@ -540,14 +560,22 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         return []
     out: list[dict[str, Any]] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for lineno, line in enumerate(
+        path.read_text(encoding="utf-8").splitlines(), start=1
+    ):
         line = line.strip()
         if not line:
             continue
         try:
             obj = json.loads(line)
-        except json.JSONDecodeError:
-            continue
+        except json.JSONDecodeError as exc:
+            # W6-2 (stat-review wave 6): fail-closed on any malformed non-empty
+            # line.  A corrupt audit JSONL must never silently drop kill-switch
+            # evidence — the gate must refuse rather than produce a vacuous green.
+            raise SystemExit(
+                f"--audit-jsonl {path}: malformed JSON at line {lineno} "
+                f"({exc!s}); re-export the audit log before re-running"
+            ) from exc
         if isinstance(obj, dict):
             out.append(obj)
     return out

@@ -5,6 +5,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
@@ -105,11 +107,18 @@ def test_load_history_returns_empty_when_missing(tmp_path):
     assert wd.load_history(tmp_path / "missing.jsonl") == []
 
 
-def test_load_history_skips_malformed_lines(tmp_path):
+def test_load_history_raises_on_malformed_line_pre_existing(tmp_path):
+    """W6-4: load_history must raise SystemExit on a malformed line.
+
+    This test replaces the former ``test_load_history_skips_malformed_lines``
+    which asserted silent-skip behaviour. That behaviour was a defect identified
+    in stat-review wave 6 (W6-4): a corrupt entry was silently dropped, which
+    could suppress a rollback streak. The function now fails closed.
+    """
     p = tmp_path / "h.jsonl"
     p.write_text('{"a":1}\nNOT JSON\n{"b":2}\n', encoding="utf-8")
-    out = wd.load_history(p)
-    assert out == [{"a": 1}, {"b": 2}]
+    with pytest.raises(SystemExit):
+        wd.load_history(p)
 
 
 def test_append_history_truncates_to_retention_window(tmp_path, monkeypatch):
@@ -317,3 +326,72 @@ def test_main_handles_malformed_input_json(tmp_path):
         "--status-md", str(tmp_path / "s.md"),
     ])
     assert rc == wd.EXIT_FATAL
+
+
+# ---------------------------------------------------------------------------
+# W6-4 — malformed history JSONL must fail closed (stat-review wave 6)
+# ---------------------------------------------------------------------------
+
+
+def test_load_history_raises_on_malformed_line(tmp_path):
+    """W6-4: a corrupt history line must cause SystemExit, not silent skip."""
+    history_path = tmp_path / "h.jsonl"
+    good = json.dumps(_entry(treatment_underperformed=True))
+    history_path.write_text(f"{good}\nnot_valid_json\n{good}\n", encoding="utf-8")
+    with pytest.raises(SystemExit):
+        wd.load_history(history_path)
+
+
+def test_main_exits_fatal_on_corrupt_history(tmp_path):
+    """W6-4: main must exit fatally if history JSONL is corrupt."""
+    history_path = tmp_path / "h.jsonl"
+    good = json.dumps(_entry(treatment_underperformed=True))
+    history_path.write_text(f"{good}\nbad_json_line\n", encoding="utf-8")
+    with pytest.raises(SystemExit) as exc_info:
+        wd.main([
+            "--history", str(history_path),
+            "--status-md", str(tmp_path / "s.md"),
+        ])
+    assert exc_info.value.code == wd.EXIT_FATAL
+
+
+# ---------------------------------------------------------------------------
+# W6-5 — SPRT max_n constant + CLI wiring (stat-review wave 6)
+# ---------------------------------------------------------------------------
+
+
+def test_sprt_max_n_constant_matches_live_spec():
+    """W6-5: SPRT_MAX_N must match artifacts/experiments/f2_contextual_promotion.json."""
+    import json as _json
+    from pathlib import Path as _Path
+
+    spec_path = _Path(__file__).resolve().parent.parent / "artifacts" / "experiments" / "f2_contextual_promotion.json"
+    live_max_n = _json.loads(spec_path.read_text(encoding="utf-8"))["sprt"]["max_n"]
+    assert wd.SPRT_MAX_N == live_max_n, (
+        f"SPRT_MAX_N={wd.SPRT_MAX_N} != live spec max_n={live_max_n}; "
+        "update SPRT_MAX_N in g23_ab_watchdog.py"
+    )
+
+
+def test_sprt_config_uses_max_n(tmp_path):
+    """W6-5: main must wire --max-n into SPRTConfig (and thus into aggregated_sprt)."""
+    history_path = tmp_path / "h.jsonl"
+    # Write a history entry with enough observations to potentially trigger max_n.
+    entry = _entry(treatment_underperformed=False, treatment_n=2000, treatment_k=1200)
+    history_path.write_text(json.dumps(entry) + "\n", encoding="utf-8")
+    rc = wd.main([
+        "--history", str(history_path),
+        "--status-md", str(tmp_path / "s.md"),
+        "--max-n", "1200",
+    ])
+    assert rc in (wd.EXIT_OK, wd.EXIT_PROMOTION_READY, wd.EXIT_FUTILITY, wd.EXIT_ROLLBACK)
+
+
+def test_max_n_default_equals_constant():
+    """W6-5: default --max-n must equal SPRT_MAX_N."""
+    import argparse as _ap
+    ns = wd._parse_args([
+        "--history", "/dev/null",
+        "--status-md", "/dev/null",
+    ])
+    assert ns.max_n == wd.SPRT_MAX_N

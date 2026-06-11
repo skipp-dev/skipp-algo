@@ -54,6 +54,7 @@ except ImportError:  # script-style invocation: `python scripts/X.py`
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 from typing import Any
@@ -125,7 +126,31 @@ def run_promotion_gate(
     # hardcoded module defaults (p0=0.55/p1=0.60) and the spec's
     # recalibrated values were dead config.
     digest = compare(control_pairs, treatment_pairs, spec.name, sprt_config=spec.sprt)
-    gate = evaluate_promotion(digest, spec, daily_deltas=rollback_history)
+
+    # W6-3 (stat-review wave 6): rollback history must include the current
+    # run's delta so evaluate_promotion sees a trailing window ending TODAY,
+    # not yesterday.  The workflow appends the delta AFTER the gate runs,
+    # creating an off-by-one that delays rollback detection by one day.
+    # Extract the current delta from the digest and prepend it here.
+    comparison_metric = spec.rollback_gate.comparison_metric
+    current_delta: float | None = None
+    for _row in digest.get("metrics") or []:
+        if _row.get("metric") == comparison_metric:
+            _val = _row.get("delta")
+            if _val is not None:
+                try:
+                    _f = float(_val)
+                    if not math.isnan(_f):
+                        current_delta = _f
+                except (TypeError, ValueError):
+                    pass
+            break
+    full_daily_deltas = (
+        rollback_history + [current_delta]
+        if current_delta is not None
+        else rollback_history
+    )
+    gate = evaluate_promotion(digest, spec, daily_deltas=full_daily_deltas)
 
     # ── Spec-status guard (audit findings C1/C2/C3 follow-up) ────────────
     # When ``spec.status != "live"`` the underlying statistical apparatus
@@ -162,14 +187,13 @@ def run_promotion_gate(
         "warnings": warnings,
         "sprt": digest.get("sprt"),
         "kpi_metrics": digest.get("metrics"),
-        "rollback_history_len": len(rollback_history),
-        "rollback_triggered": (
-            len(rollback_history) >= spec.rollback_gate.consecutive_worse_runs
-            and all(
-                d > 0
-                for d in rollback_history[-spec.rollback_gate.consecutive_worse_runs:]
-            )
-        ),
+        # W6-3: expose the effective history window (includes today's delta)
+        # so the audit trail shows exactly what the rollback gate evaluated.
+        "rollback_history_len": len(full_daily_deltas),
+        "rollback_history_includes_current_run": current_delta is not None,
+        # evaluate_promotion does not return a rollback_triggered key; derive
+        # it from the decision so downstream consumers have a stable bool flag.
+        "rollback_triggered": decision == "rollback",
         "spec": {
             "control_artifact": str(spec.control_artifact),
             "treatment_artifact": str(spec.treatment_artifact),
