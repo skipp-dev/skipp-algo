@@ -186,7 +186,15 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
             return 1
-        cost_bps = float(calibration["conservative_cost_bps"])
+        try:
+            cost_bps = float(calibration["conservative_cost_bps"])
+        except (KeyError, TypeError, ValueError) as exc:
+            print(
+                f"error: cost calibration is marked measurable but has no usable "
+                f"conservative_cost_bps ({exc!r}); refusing to proceed",
+                file=sys.stderr,
+            )
+            return 1
 
     report = build_report(
         events,
