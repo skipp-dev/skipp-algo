@@ -130,8 +130,27 @@ def group_by_family(rows: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]
 
 
 def _latest_date(rows: list[dict[str, Any]]) -> str | None:
-    dates = [str(r.get("date")) for r in rows if r.get("date") is not None]
-    return max(dates) if dates else None
+    """Latest *parseable* ISO date in ``rows`` (malformed dates are skipped).
+
+    A lexicographic max over raw strings would let a malformed date (e.g.
+    ``"not-a-date"``) win and anchor the red-flag detector / report header
+    on garbage; parsing first keeps this consistent with the fail-soft
+    bucketing in :func:`weekly_evaluations`.
+    """
+    dates = [d for d in (_parse_date(r.get("date")) for r in rows) if d is not None]
+    return max(dates).isoformat() if dates else None
+
+
+def _latest_row(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Row with the newest parseable date (ties: later list position wins)."""
+    best: dict[str, Any] = {}
+    best_date: _date | None = None
+    for row in rows:
+        parsed = _parse_date(row.get("date"))
+        if parsed is not None and (best_date is None or parsed >= best_date):
+            best_date = parsed
+            best = row
+    return best
 
 
 def _parse_date(value: Any) -> _date | None:
@@ -259,7 +278,7 @@ def evaluate_family(
     inconclusive_count = sum(1 for w in weeks if w["status"] == "INCONCLUSIVE")
     is_candidate = family in CANDIDATE_FAMILIES
 
-    latest = rows[-1] if rows else {}
+    latest = _latest_row(rows)
     meets_k_of_n = pass_count >= k
     ci_low_trending = _ci_low_trends_to_floor(weeks)
     auc_window = [w.get("magnitude_auc") for w in weeks]

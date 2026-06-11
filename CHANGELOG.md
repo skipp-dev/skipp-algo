@@ -23,7 +23,7 @@ All notable changes to this project are documented in this file.
 - Test-Fixtures: synthetische `order_id`/`perm_id` über `zlib.crc32`
   statt `hash()` (PYTHONHASHSEED-unabhängig, keine Modulus-Kollisionen).
 
-### Fixed (2026-06-11) — ADR-0023: Weekly-k-of-n judgte Tageszeilen statt ISO-Wochen
+### Fixed (2026-06-11) — ADR-0023: Weekly-k-of-n bewertete Tageszeilen statt ISO-Wochen
 
 Der Stage-1-Weekly-Evaluator (`scripts/eval_magnitude_shadow_weekly.py`)
 nahm als Fenster die **letzten n Tageszeilen** (`rows[-n:]`) — präregistriert

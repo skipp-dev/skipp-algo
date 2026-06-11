@@ -672,3 +672,29 @@ def test_malformed_dates_are_skipped_not_fatal():
     ]
     v = evaluate_family("BOS", rows, k=1, n=1)
     assert v["pass_count"] == 1
+
+
+def test_latest_fields_ignore_malformed_dates():
+    # A malformed date sorts lexicographically after ISO dates ("n" > "2");
+    # latest_* must come from the newest PARSEABLE row, not raw-string max.
+    rows = [
+        _row(date=str(_WEEK0), family="BOS", status="PASS", auc=0.63),
+        _row(date="not-a-date", family="BOS", status="FAIL", auc=0.10),
+    ]
+    v = evaluate_family("BOS", rows, k=1, n=1)
+    assert v["latest_date"] == str(_WEEK0)
+    assert v["latest_status"] == "PASS"
+    assert v["latest_auc"] == 0.63
+
+
+def test_report_latest_date_and_red_flag_ignore_malformed_dates():
+    rows = (
+        _streak("BOS", ["PASS"])
+        + _streak("SWEEP", ["FAIL"])
+        + [_row(date="zzzz-99-99", family="FVG", status="PASS")]
+    )
+    report = evaluate_weekly(rows, k=1, n=1)
+    assert report["latest_date"] == str(_WEEK0)
+    # Red flag judged on the parseable latest date (PASS+FAIL → no flag),
+    # not on the lone malformed-date PASS row.
+    assert report["all_pass_red_flag"] is False
