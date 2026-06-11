@@ -201,6 +201,28 @@ def test_build_report_returns_yellow_when_n_below_floor(tmp_path: Path) -> None:
     assert rep["min_required"] == INSUFFICIENT_LIVE_TRADES
 
 
+def test_build_report_returns_yellow_on_empty_baseline(tmp_path: Path) -> None:
+    """W3-1: missing/empty baseline must NOT produce a vacuous green."""
+    today = date(2026, 4, 26)
+    # Enough live trades to pass the insufficient_n gate.
+    _write_outcomes(tmp_path, today, [{"pnl_30m_pct": 0.01}] * 60)
+
+    # Empty baseline — simulates corrupt or missing file contents.
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text(json.dumps({}), encoding="utf-8")
+
+    rep = build_report(
+        outcomes_dir=tmp_path,
+        baseline_json=baseline_path,
+        window_days=30,
+        today=today,
+    )
+    assert rep["aggregate_severity"] == "yellow"
+    assert rep["reason"] == "missing_baseline"
+    assert rep["n_baseline_trades"] == 0
+    assert rep["n_live_trades"] == 60
+
+
 def test_build_report_returns_green_when_distributions_match(tmp_path: Path) -> None:
     today = date(2026, 4, 26)
     rng = np.random.default_rng(0)

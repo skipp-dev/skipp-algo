@@ -265,6 +265,24 @@ def build_report(
             "window_coverage": coverage,
         }
 
+    # W3-1 (stat-review wave 3): an empty/corrupt baseline silences every
+    # detector (KS/PSI/mean-shift/var-ratio all return None when the
+    # baseline sample is empty) → vacuous green.  Gate to yellow instead.
+    n_baseline_trades = len(pairs.get("pnl_per_trade", ([], []))[0])
+    if n_baseline_trades == 0:
+        return {
+            "run_date": today.isoformat(),
+            "aggregate_severity": "yellow",
+            "reason": "missing_baseline",
+            "n_live_trades": n_live_trades,
+            "n_baseline_trades": 0,
+            "n_metrics": 0,
+            "findings": [],
+            "window_days": window_days,
+            "window_complete": coverage["window_complete"],
+            "window_coverage": coverage,
+        }
+
     report = compute_drift_report(pairs)
     report["run_date"] = today.isoformat()
     report["window_days"] = window_days

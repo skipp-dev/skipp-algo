@@ -159,31 +159,35 @@ def test_streak_resets_on_first_win_from_tail():
 
 
 def test_aggregated_sprt_returns_no_data_when_history_empty():
-    cfg = SPRTConfig(p0=0.55, p1=0.60, alpha=0.05, beta=0.20)
+    cfg = SPRTConfig(p0=0.544, p1=0.574, alpha=0.05, beta=0.20)
     out = wd.aggregated_sprt([], config=cfg)
     assert out["decision"] == "no_data"
     assert out["n"] == 0
 
 
-def test_aggregated_sprt_sums_across_window():
-    cfg = SPRTConfig(p0=0.55, p1=0.60, alpha=0.05, beta=0.20)
+def test_aggregated_sprt_uses_latest_entry():
+    """W3-2: only the latest entry's (n, k) should be used — not the sum."""
+    cfg = SPRTConfig(p0=0.544, p1=0.574, alpha=0.05, beta=0.20)
     # Build a strongly winning treatment that should accept_h1.
     history = [
         _entry(treatment_underperformed=False, treatment_n=500, treatment_k=350)
         for _ in range(10)
     ]
     out = wd.aggregated_sprt(history, config=cfg)
-    assert out["n"] == 5000 and out["k"] == 3500
+    # Latest entry only: n=500, k=350 — NOT 5000/3500.
+    assert out["n"] == 500 and out["k"] == 350
     assert out["decision"] == "accept_h1"
 
 
 def test_aggregated_sprt_accepts_h0_on_strong_loss():
-    cfg = SPRTConfig(p0=0.55, p1=0.60, alpha=0.05, beta=0.20)
+    cfg = SPRTConfig(p0=0.544, p1=0.574, alpha=0.05, beta=0.20)
     history = [
         _entry(treatment_underperformed=True, treatment_n=500, treatment_k=200)
         for _ in range(10)
     ]
     out = wd.aggregated_sprt(history, config=cfg)
+    # Latest entry only: n=500, k=200.
+    assert out["n"] == 500 and out["k"] == 200
     assert out["decision"] == "accept_h0"
 
 
@@ -191,7 +195,7 @@ def test_aggregated_sprt_accepts_h0_on_strong_loss():
 
 
 def test_evaluate_signals_flags_rollback_on_streak():
-    cfg = SPRTConfig(p0=0.55, p1=0.60, alpha=0.05, beta=0.20)
+    cfg = SPRTConfig(p0=0.544, p1=0.574, alpha=0.05, beta=0.20)
     history = [
         _entry(treatment_underperformed=True, treatment_n=10, treatment_k=2),
         _entry(treatment_underperformed=True, treatment_n=10, treatment_k=2),
@@ -203,7 +207,7 @@ def test_evaluate_signals_flags_rollback_on_streak():
 
 
 def test_evaluate_signals_does_not_flag_rollback_below_threshold():
-    cfg = SPRTConfig(p0=0.55, p1=0.60, alpha=0.05, beta=0.20)
+    cfg = SPRTConfig(p0=0.544, p1=0.574, alpha=0.05, beta=0.20)
     history = [_entry(treatment_underperformed=True, treatment_n=10, treatment_k=2)]
     sig = wd.evaluate_signals(history, rollback_streak=2, config=cfg)
     assert sig["rollback_required"] is False
@@ -211,7 +215,7 @@ def test_evaluate_signals_does_not_flag_rollback_below_threshold():
 
 
 def test_evaluate_signals_promotion_ready_emits_exit_3():
-    cfg = SPRTConfig(p0=0.55, p1=0.60, alpha=0.05, beta=0.20)
+    cfg = SPRTConfig(p0=0.544, p1=0.574, alpha=0.05, beta=0.20)
     history = [
         _entry(treatment_underperformed=False, treatment_n=500, treatment_k=350)
         for _ in range(10)
@@ -222,7 +226,7 @@ def test_evaluate_signals_promotion_ready_emits_exit_3():
 
 
 def test_evaluate_signals_futility_emits_exit_4():
-    cfg = SPRTConfig(p0=0.55, p1=0.60, alpha=0.05, beta=0.20)
+    cfg = SPRTConfig(p0=0.544, p1=0.574, alpha=0.05, beta=0.20)
     history = [
         _entry(treatment_underperformed=True, treatment_n=500, treatment_k=200)
         for _ in range(10)
@@ -237,7 +241,7 @@ def test_evaluate_signals_futility_emits_exit_4():
 
 
 def test_render_status_markdown_handles_empty_history():
-    cfg = SPRTConfig(p0=0.55, p1=0.60, alpha=0.05, beta=0.20)
+    cfg = SPRTConfig(p0=0.544, p1=0.574, alpha=0.05, beta=0.20)
     sig = wd.evaluate_signals([], rollback_streak=2, config=cfg)
     md = wd.render_status_markdown(sig, history=[], generated_at="2026-01-01T00:00:00+00:00", source_commit_sha=None)
     assert "awaiting_first_run" in md
@@ -245,7 +249,7 @@ def test_render_status_markdown_handles_empty_history():
 
 
 def test_render_status_markdown_reports_rollback_yes():
-    cfg = SPRTConfig(p0=0.55, p1=0.60, alpha=0.05, beta=0.20)
+    cfg = SPRTConfig(p0=0.544, p1=0.574, alpha=0.05, beta=0.20)
     history = [
         _entry(treatment_underperformed=True, treatment_n=10, treatment_k=2),
         _entry(treatment_underperformed=True, treatment_n=10, treatment_k=2),

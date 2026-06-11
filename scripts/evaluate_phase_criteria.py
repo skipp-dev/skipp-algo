@@ -463,6 +463,7 @@ def load_and_validate_eval_report(
     path: Path,
     *,
     target_phase: str,
+    expected_variant: str | None = None,
     max_age_days: int = 7,
     now: datetime | None = None,
 ) -> dict[str, Any]:
@@ -470,6 +471,10 @@ def load_and_validate_eval_report(
 
     Raises :class:`SystemExit` with an operator-readable message when the
     report is missing, stale, not passing, or evaluates the wrong phase.
+
+    When *expected_variant* is given, the report's ``variant`` field must
+    match; a mismatch means the operator supplied an eval report that was
+    produced for a different variant than the one being traded (W3-3).
     """
     required_phase = PRIOR_PHASE_FOR_ENTRY.get(target_phase)
     if required_phase is None:
@@ -514,6 +519,16 @@ def load_and_validate_eval_report(
             f"--phase-eval-report is {age_days:.1f} days old "
             f"(max {max_age_days}); re-run scripts/evaluate_phase_criteria.py"
         )
+    # W3-3 (stat-review wave 3): prevent cross-variant report substitution.
+    if expected_variant is not None:
+        report_variant = payload.get("variant")
+        if report_variant != expected_variant:
+            raise SystemExit(
+                f"--phase-eval-report variant={report_variant!r} does not "
+                f"match expected variant {expected_variant!r}; the eval "
+                f"report was produced for a different variant than the one "
+                f"being traded"
+            )
     return payload
 
 
