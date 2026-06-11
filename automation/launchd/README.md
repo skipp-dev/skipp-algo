@@ -110,7 +110,9 @@ rm cache/live/smoke_HALT
 The smoke JSONL can be pushed to the audit branch together with the other artefacts:
 
 ```bash
-git add cache/live/smoke_*.jsonl && git push origin data/phase-a-audit
+git add cache/live/smoke_*.jsonl \
+  && git commit -m "chore(c13): smoke audit JSONL $(date +%F)" \
+  && git push origin data/phase-a-audit
 ```
 
 ## DST handling

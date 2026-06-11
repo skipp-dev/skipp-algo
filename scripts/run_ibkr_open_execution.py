@@ -60,7 +60,8 @@ def _check_smoke_guard(skip: bool) -> None:
        the smoke has not run or the result is stale.
 
     Pass ``--skip-smoke-guard`` on the CLI to bypass both checks (emergency
-    use only; requires explicit acknowledgement in the audit trail).
+    use only). The bypass is recorded in the combined audit JSON under
+    ``smoke_guard.bypassed`` so post-hoc review can see the guard was skipped.
     """
     if skip:
         print(
@@ -326,6 +327,9 @@ def _main_with_resolved_client_id(args: argparse.Namespace, client_id: int) -> N
             "supervisor": None,
             "event_log": event_log,
             "event_log_csv": str(Path(args.supervisor_events_csv).expanduser()),
+            # Audit trail for the emergency bypass (Copilot review #2691):
+            # post-hoc review must be able to see the guard was skipped.
+            "smoke_guard": {"bypassed": bool(getattr(args, "skip_smoke_guard", False))},
         }
         output_path = Path(args.supervisor_json).expanduser()
         event_log_path = Path(args.supervisor_events_csv).expanduser()
@@ -372,6 +376,8 @@ def _main_with_resolved_client_id(args: argparse.Namespace, client_id: int) -> N
             "supervisor": supervisor,
             "event_log": event_log,
             "event_log_csv": str(Path(args.supervisor_events_csv).expanduser()),
+            # Audit trail for the emergency bypass (Copilot review #2691).
+            "smoke_guard": {"bypassed": bool(getattr(args, "skip_smoke_guard", False))},
         }
     finally:
         if ib.isConnected():
