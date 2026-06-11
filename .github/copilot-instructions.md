@@ -337,6 +337,26 @@ Wenn der User "merge", "mergeable machen" oder "Konflikte lösen" sagt:
   Todo-Liste prüfen, dann kompakte Tabelle ausgeben.
 - Keine Filler-Texte — direkt die Fakten.
 
+## Finding-Transparenz (keine silently ignorierten Issues)
+
+- JEDES während der Arbeit entdeckte Issue MUSS in der
+  Abschluss-Zusammenfassung erscheinen — auch wenn es:
+  - nicht Teil des Auftrags/Prompts war,
+  - pre-existing ist (nicht vom Agenten verursacht),
+  - bewusst NICHT gefixt wurde (out of scope, fremde Session, Risiko).
+- Das gilt für alle Arten von Befunden: Bugs, fehlschlagende/flaky Tests,
+  Lint-Fehler, tote/nie gelaufene Workflows, stale Doku, Sicherheits- und
+  Konsistenzprobleme, verdächtige Daten/Artefakte.
+- Format in der Summary: eigener Abschnitt **"Weitere Befunde (nicht Teil
+  des Auftrags)"** mit je Befund: Fundort (Datei/Workflow/PR), 1-Satz-
+  Beschreibung, Einschätzung (pre-existing/neu, Schweregrad), und ob/warum
+  nicht gefixt.
+- "Nicht fixen" ist oft die richtige Entscheidung — "nicht erwähnen" nie.
+  Der User entscheidet, ob ein Befund ein Follow-up bekommt, nicht der
+  Agent durch Weglassen.
+- Bei wiederkehrenden oder strukturellen Befunden zusätzlich einen
+  Eintrag im Repo-Memory (`/memories/repo/`) anlegen.
+
 ## Session-Start
 
 - Beim ersten Turn einer neuen Session: prüfe ob ein Handover-Dokument
