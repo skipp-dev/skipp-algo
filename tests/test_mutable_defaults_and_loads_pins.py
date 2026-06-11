@@ -107,8 +107,10 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
     {
         ("open_prep/alerts.py", 55),
         ("open_prep/diff.py", 79),
-        ("open_prep/outcome_backfill.py", 61),
-        ("open_prep/outcome_backfill.py", 81),
+        # 2026-06-11 (backfill defer-unpublished): sentinel+helper block
+        # above shifted 61→80, 81→100.
+        ("open_prep/outcome_backfill.py", 80),
+        ("open_prep/outcome_backfill.py", 100),
         ("open_prep/outcomes.py", 185),
         ("open_prep/realtime_signals.py", 1483),
         ("open_prep/realtime_signals.py", 2606),

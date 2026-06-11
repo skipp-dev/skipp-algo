@@ -73,8 +73,9 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     ("open_prep/candidate_weights.py", 146, "mkstemp"),
     ("open_prep/diff.py", 57, "mkstemp"),
     ("open_prep/feature_importance_report.py", 249, "mkstemp"),
-    ("open_prep/outcome_backfill.py", 88, "mkstemp"),
-    ("open_prep/outcome_backfill.py", 531, "mkstemp"),
+    # 2026-06-11 (backfill defer-unpublished): 88→107, 531→581.
+    ("open_prep/outcome_backfill.py", 107, "mkstemp"),
+    ("open_prep/outcome_backfill.py", 581, "mkstemp"),
     ("open_prep/outcomes.py", 138, "mkstemp"),
     ("open_prep/outcomes.py", 419, "mkstemp"),
     ("open_prep/realtime_signals.py", 116, "mkstemp"),
