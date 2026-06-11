@@ -6,6 +6,23 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-06-11) — §5-Kostenmodell: Review-Findings aus #2697
+
+- **Fee-only-Legs zählen in den Round-Turn-Cost**
+  (`governance/execution_costs.py`): Trailing-Exits ohne Limit-Referenz
+  wurden komplett aus `per_side` ausgeschlossen — das unterschätzte die
+  Round-Turn-Kosten für jeden Trade mit Trail-Exit systematisch (und
+  widersprach dem Modul-Docstring "contribute fee only"). Jetzt gehen
+  sie mit ihrer Commission (Slippage unmessbar ⇒ 0) in die
+  Per-Side-Samples und damit in Punktschätzer + CI ein.
+- **Gate fail-closed bei kaputtem measurable-Report**
+  (`scripts/run_epnl_after_cost_gate.py`): ein Report mit
+  `measurable: true` aber fehlendem/nicht-koerzierbarem
+  `conservative_cost_bps` führte zu einem unbehandelten Crash statt
+  Exit 1 mit klarer Meldung.
+- Test-Fixtures: synthetische `order_id`/`perm_id` über `zlib.crc32`
+  statt `hash()` (PYTHONHASHSEED-unabhängig, keine Modulus-Kollisionen).
+
 ### Added (2026-06-11) — ADR-0023 Stage-1: Ledger-Verdicts → Promotion-Gate-Snapshot (Handover §5 Punkt 2)
 
 Der Stage-1-Shadow-Runner lief täglich, aber seine Verdicts erreichten das
