@@ -248,6 +248,12 @@ def test_fee_only_legs_contribute_fee_to_round_turn():
     # Entry: 5 bps slip + 0.5 bps fee; trail: ~0.495 bps fee only (vwap 101).
     expected_per_side = (5.5 + commission_bps(1000, 101.0)) / 2.0
     assert cal.per_side_cost_bps_mean == pytest.approx(expected_per_side, abs=0.01)
+    # Fee-only legs contribute a 0.0 slippage sample so the reported
+    # component means stay decomposable (Copilot review #2703):
+    # per_side_mean == slippage_mean + fee_mean over the SAME population.
+    assert cal.per_side_cost_bps_mean == pytest.approx(
+        cal.slippage_bps_mean + cal.fee_bps_mean, abs=1e-9
+    )
 
 
 # ---- calibration CLI ------------------------------------------------------
@@ -356,6 +362,27 @@ def test_gate_rejects_measurable_report_without_cost(tmp_path, capsys):
         rc = epnl_gate.main([str(events_path), "--cost-calibration", str(cal_path)])
         assert rc == 1
         assert "no usable conservative_cost_bps" in capsys.readouterr().err
+
+
+def test_gate_rejects_non_finite_cost(tmp_path, capsys):
+    """measurable:true with NaN/Infinity cost -> clean exit 1 (fail-closed).
+
+    Python's json loader accepts the NaN/Infinity literals by default, and
+    float() coerces them happily — without this guard the gate would run
+    with cost_bps=nan/inf and produce a non-deterministic verdict
+    (Copilot review #2703).
+    """
+    events_path = tmp_path / "events.json"
+    events_path.write_text(json.dumps([{"family": "BOS"}]), encoding="utf-8")
+    for literal in ("NaN", "Infinity", "-Infinity"):
+        cal_path = tmp_path / "cal.json"
+        cal_path.write_text(
+            '{"measurable": true, "conservative_cost_bps": ' + literal + "}",
+            encoding="utf-8",
+        )
+        rc = epnl_gate.main([str(events_path), "--cost-calibration", str(cal_path)])
+        assert rc == 1
+        assert "non-finite" in capsys.readouterr().err
 
 
 def test_gate_default_remains_flat_cost(tmp_path, monkeypatch):

@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from dataclasses import asdict
 from typing import Any
@@ -192,6 +193,14 @@ def main(argv: list[str] | None = None) -> int:
             print(
                 f"error: cost calibration is marked measurable but has no usable "
                 f"conservative_cost_bps ({exc!r}); refusing to proceed",
+                file=sys.stderr,
+            )
+            return 1
+        if not math.isfinite(cost_bps):
+            print(
+                f"error: cost calibration is marked measurable but "
+                f"conservative_cost_bps is non-finite ({cost_bps!r}); "
+                f"refusing to proceed",
                 file=sys.stderr,
             )
             return 1

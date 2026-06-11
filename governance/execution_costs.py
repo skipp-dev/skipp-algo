@@ -305,8 +305,11 @@ def calibrate_costs(
             # estimate (slippage unmeasured, treated as 0 — see module
             # docstring). Excluding it entirely would under-estimate the
             # round-turn cost for every trade that exits via a trail.
+            # The 0.0 slippage sample keeps the reported component means
+            # decomposable (per_side_mean == slippage_mean + fee_mean).
             fee_only += 1
             per_side.append(leg.fee_bps)
+            slippages.append(0.0)
             continue
         slippages.append(leg.slippage_bps)
         per_side.append(leg.slippage_bps + leg.fee_bps)
