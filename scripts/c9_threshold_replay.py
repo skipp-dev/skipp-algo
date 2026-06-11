@@ -210,8 +210,9 @@ def _episode_fires(episode: Episode, setting: ThresholdSetting) -> bool:
     consensus trades single-detector sensitivity for a lower
     false-positive rate.
 
-    Detectors (C9/T7, issue #298 — detectors 3 + 4 finalised
-    2026-06-11):
+    Detectors (C9/T7, issue #298 — the STRUCTURAL swap of detectors
+    3 + 4 to p-value tests landed 2026-06-11; the live alpha re-tune is
+    still pending, see ``CALIBRATION_SOURCE`` and the anchor test):
         1. KS p-value vs ``ks_p_yellow``/``ks_p_red`` — distribution-shape
            change.
         2. PSI vs ``psi_severity`` thresholds — bucketed mass shift.

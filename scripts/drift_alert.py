@@ -508,9 +508,12 @@ def compute_drift_report(
     live outcomes when the C12 trigger flips GREEN (see
     ``docs/c9_threshold_tuning.md``).
 
-    The legacy K-S-only behaviour is reachable via
-    ``enable_consensus=False`` for callers that want backwards-compatible
-    semantics.
+    The legacy K-S-only DETECTOR SET is reachable via
+    ``enable_consensus=False``. Note this does NOT restore the pre-#298
+    behaviour wholesale: the default alpha ladder changed in the same PR
+    (``0.01/0.05`` → ``0.005/0.025``) and applies to the KS-only mode
+    too — callers that want the old thresholds must pass
+    ``p_value_red=0.01, p_value_yellow=0.05`` explicitly.
     """
 
     findings: list[DriftFinding] = []
