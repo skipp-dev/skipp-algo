@@ -87,10 +87,11 @@ DEFAULT_HISTORY = Path("docs/ab/g23_history.jsonl")
 DEFAULT_STATUS_MD = Path("docs/ab/g23_status.md")
 PRIMARY_METRIC = "hit_rate"  # what G2 rollback checks
 
-# Mirror the SPRT defaults from run_ab_comparison so a watchdog run
-# without explicit flags reproduces the same gate.
-SPRT_P0 = 0.55
-SPRT_P1 = 0.60
+# Mirror the SPRT defaults from the F2 experiment spec
+# (artifacts/experiments/f2_contextual_promotion.json).  CLI --p0/--p1
+# override these; values below are the 2026-06-09 recalibrated baseline.
+SPRT_P0 = 0.544
+SPRT_P1 = 0.574
 SPRT_ALPHA = 0.05
 SPRT_BETA = 0.20
 
@@ -210,9 +211,26 @@ def aggregated_sprt(
     *,
     config: SPRTConfig,
 ) -> dict[str, Any]:
-    """Re-run SPRT on the *summed* (n, k) across the entire window."""
-    treatment_n = sum(_coerce_int(e.get("treatment_n")) for e in history)
-    treatment_k = sum(_coerce_int(e.get("treatment_k")) for e in history)
+    """Run SPRT on the *latest* entry's (n, k).
+
+    Prior implementation summed (n, k) across all history entries, but each
+    daily comparison is already computed over the full cumulative corpus —
+    summing inflates both n and k by the number of history entries (W3-2,
+    stat-review wave 3).  Using the latest entry gives the correct
+    cumulative totals without double-counting.
+    """
+    if not history:
+        return {
+            "decision": "no_data",
+            "n": 0,
+            "k": 0,
+            "llr": 0.0,
+            "wald_upper": round(config.upper_bound, 4),
+            "wald_lower": round(config.lower_bound, 4),
+        }
+    latest = history[-1]
+    treatment_n = _coerce_int(latest.get("treatment_n"))
+    treatment_k = _coerce_int(latest.get("treatment_k"))
     if treatment_n <= 0:
         return {
             "decision": "no_data",
