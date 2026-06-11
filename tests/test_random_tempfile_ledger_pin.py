@@ -44,7 +44,7 @@ _RANDOM_LEDGER: frozenset[tuple[str, int]] = frozenset({
     ("newsstack_fmp/_bz_http.py", 35),  # retry-jitter; non-security
     # ADR-0023 magnitude-resolution gate: seeded RNG for the bootstrap-CI /
     # permutation-null estimators (deterministic, reproducible); non-security.
-    ("governance/magnitude_resolution_gate.py", 205),
+    ("governance/magnitude_resolution_gate.py", 204),
     # ADR-0023 §5 E[PnL]-after-cost gate: seeded RNG for the bootstrap-CI of
     # the sized/equal-weight PnL estimators (deterministic); non-security.
     ("governance/epnl_after_cost.py", 194),
@@ -72,7 +72,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # block above the helper which shifted the site further: 489 → 597.
     # 2026-06-10 (#2670 W9): timestamp_substitutions disclosure shifted +5
     # (597 -> 602).
-    ("databento_volatility_screener.py", 602, "mkstemp"),
+    ("databento_volatility_screener.py", 603, "mkstemp"),
     ("governance/alpha_ledger.py", 70, "mkstemp"),
     ("newsstack_fmp/open_prep_export.py", 25, "mkstemp"),
     ("open_prep/alerts.py", 68, "mkstemp"),
@@ -104,7 +104,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     ("smc_integration/batch.py", 26, "mkstemp"),
     ("smc_integration/provider_health.py", 60, "mkstemp"),
     ("smc_integration/structure_batch.py", 30, "mkstemp"),
-    ("streamlit_terminal.py", 2253, "mkstemp"),
+    ("streamlit_terminal.py", 2255, "mkstemp"),
     ("terminal_export.py", 177, "mkstemp"),
     ("terminal_export.py", 229, "mkstemp"),
     ("terminal_export.py", 606, "mkstemp"),

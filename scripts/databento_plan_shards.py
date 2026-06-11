@@ -45,9 +45,9 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import Sequence
 
 
 def _today_utc() -> date:

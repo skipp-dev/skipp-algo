@@ -130,6 +130,15 @@ jobs:
         if: steps.gate.outputs.run_heavy == 'true'
         run: python scripts/lint_workflow_pythonunbuffered.py
 
+      # Guard: ruff must pass clean (exit 0) on every PR. ruff is pinned in
+      # requirements.txt; the venv is not available yet at this point so we
+      # use the uv-tool cache via `uvx`. The flag --no-cache is omitted
+      # intentionally (cold runs are slow; cache is keyed on pyproject.toml).
+      # Configuration lives in pyproject.toml [tool.ruff] / [tool.ruff.lint].
+      - name: Ruff lint
+        if: steps.gate.outputs.run_heavy == 'true'
+        run: ruff check .
+
       - name: Install uv
         if: steps.gate.outputs.run_heavy == 'true'
         uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3

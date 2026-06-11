@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+
 from ml.training import LGBMFamilyTrainer, LogisticBaseline, XGBFamilyTrainer
 from scripts.ml_research_common import (
     build_dataset_bundle,

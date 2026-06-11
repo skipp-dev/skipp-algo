@@ -31,9 +31,10 @@ import os
 import sys
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
-from typing import Any, Callable
+from typing import Any
 
 
 @dataclass

@@ -26,7 +26,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.plan_2_8_weekly_summary_metrics import (  # noqa: E402
+from scripts.plan_2_8_weekly_summary_metrics import (
     _invoke_compute,
     _resolve_compute,
     collect,

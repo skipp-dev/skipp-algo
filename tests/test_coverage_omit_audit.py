@@ -10,7 +10,6 @@ from __future__ import annotations
 import tomllib
 from pathlib import Path
 
-
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _PYPROJECT = _REPO_ROOT / "pyproject.toml"
 _AUDIT = _REPO_ROOT / "docs" / "coverage" / "coverage_omit_audit_2026-05-18.md"

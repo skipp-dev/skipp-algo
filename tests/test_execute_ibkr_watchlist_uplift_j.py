@@ -255,7 +255,7 @@ class _FakeIB:
         else:
             self._is_connected_default = True
 
-    def isConnected(self):  # noqa: N802 - mirrors ib_insync IB API
+    def isConnected(self):
         if self._is_connected_returns:
             return self._is_connected_returns.pop(0)
         return self._is_connected_default
@@ -747,7 +747,7 @@ class TestPlaceOrderIntentsWithIb:
         ib.placeOrder.return_value = SimpleNamespace(orderStatus=SimpleNamespace(status="Submitted"))
         Stock = MagicMock(return_value=SimpleNamespace(symbol="AAPL"))
         # Use the real LimitOrder/Order via SimpleNamespace constructors
-        def LimitOrder(action, qty, price):  # noqa: N802 - mirrors ib_insync LimitOrder
+        def LimitOrder(action, qty, price):
             return SimpleNamespace(
                 action=action,
                 totalQuantity=qty,
@@ -760,7 +760,7 @@ class TestPlaceOrderIntentsWithIb:
                 transmit=True,
             )
 
-        def Order(**kw):  # noqa: N802 - mirrors ib_insync Order
+        def Order(**kw):
             return SimpleNamespace(
                 **kw, orderId=0, permId=0, orderRef="", lmtPrice=None, auxPrice=None, transmit=True
             )

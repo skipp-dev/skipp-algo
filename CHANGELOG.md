@@ -23,6 +23,25 @@ All notable changes to this project are documented in this file.
 - Test-Fixtures: synthetische `order_id`/`perm_id` über `zlib.crc32`
   statt `hash()` (PYTHONHASHSEED-unabhängig, keine Modulus-Kollisionen).
 
+### Added (2026-06-11) — CI: ruff als obligatorisches Lint-Gate in smc-fast-pr-gates
+
+`ruff check .` ist ab sofort ein Pflicht-Schritt im `fast-gates`-Job (blocks
+merge). Konfiguration lebt in `pyproject.toml [tool.ruff]`; das Gate läuft
+direkt nach dem PYTHONUNBUFFERED-Lint und schlägt bei jedem Code-Fehler fail.
+
+- Alle bestehenden Verletzungen (359 auto-fixbar + 85 manuell) bereinigt:
+  - `ruff check --fix` entfernte 278 auto-fixbare (unsortierte Imports, I001;
+    obsolete noqa-Direktiven, RUF100; trailing whitespace, W292; u.a.).
+  - Manuelle Korrekturen: SIM103/SIM115/SIM117/SIM118/RUF034/B007/F841/
+    RUF059/RUF005/RUF007/E741/E731/F401/UP007 in Tests, Scripts, Governance.
+  - Neue `per-file-ignores` für plan-gating Sonderfälle: E402 in open_prep/*,
+    E701/E702/E741/B007 in scripts/c10b_* (Analyse-Skripte mit kompaktem Stil),
+    S108/S603/S607 global für scripts/* (Subprocess-Tooling, kein Prod-Service),
+    F821 in streamlit_terminal.py (Forward-Referenz, Runtime korrekt), UP047 in
+    skipp_config/trading_thresholds.py.
+  - `ruff==0.15.16` zu `requirements.txt` hinzugefügt; `_DEP_LINE_BUDGET`
+    26 → 27.
+
 ### Added (2026-06-11) — ADR-0023 Stage-1: Ledger-Verdicts → Promotion-Gate-Snapshot (Handover §5 Punkt 2)
 
 Der Stage-1-Shadow-Runner lief täglich, aber seine Verdicts erreichten das

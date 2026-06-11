@@ -11,7 +11,6 @@ loops forever, deadlocking every shared-fetch caller.
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -50,11 +49,13 @@ def test_file_lock_times_out_when_lock_held(tmp_path: Path):
     lock_path.touch()
 
     # Shorten the timeout drastically so the test is fast.
-    with patch.object(shared_fetch, "_LOCK_TIMEOUT_SECONDS", 0.1), \
-         patch.object(shared_fetch, "_LOCK_POLL_INTERVAL_SECONDS", 0.02):
-        with pytest.raises(TimeoutError):
-            with shared_fetch._file_lock(lock_path):
-                pass
+    with (
+        patch.object(shared_fetch, "_LOCK_TIMEOUT_SECONDS", 0.1),
+        patch.object(shared_fetch, "_LOCK_POLL_INTERVAL_SECONDS", 0.02),
+        pytest.raises(TimeoutError),
+        shared_fetch._file_lock(lock_path),
+    ):
+        pass
 
 
 def test_file_lock_succeeds_when_path_free(tmp_path: Path):

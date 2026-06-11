@@ -44,9 +44,8 @@ from __future__ import annotations
 import argparse
 import ast
 import sys
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator
-
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _CONFIG_PATH = _REPO_ROOT / "newsstack_fmp" / "config.py"

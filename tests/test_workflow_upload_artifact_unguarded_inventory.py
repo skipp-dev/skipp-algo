@@ -102,8 +102,8 @@ def test_allowed_unguarded_workflows_carry_fv4d2_marker() -> None:
     """
     missing_marker: list[str] = []
     for name in sorted(ALLOWED_UNGUARDED):
-        for ext in (".yml", ".yaml"):
-            wf = WORKFLOWS_DIR / (name if name.endswith(ext) else name)
+        for _ in (".yml", ".yaml"):
+            wf = WORKFLOWS_DIR / name
             if wf.exists():
                 break
         else:

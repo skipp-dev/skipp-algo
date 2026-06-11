@@ -171,7 +171,7 @@ def test_workflow_invoked_scripts_are_importable(script_relpath: str) -> None:
         cwd=str(REPO_ROOT),
     )
     combined = (proc.stdout or "") + "\n" + (proc.stderr or "")
-    bad_patterns = (
+    _ = (
         "ModuleNotFoundError: No module named 'scripts'",
         "ImportError: cannot import name",  # paired check below
     )

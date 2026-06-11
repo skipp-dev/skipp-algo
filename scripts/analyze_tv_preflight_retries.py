@@ -42,7 +42,6 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-
 # Fields whose values describe "what failed" structurally — i.e. removing
 # noisy time / id fields so two attempts with the same DOM problem
 # fingerprint identically.

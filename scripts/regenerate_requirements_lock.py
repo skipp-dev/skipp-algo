@@ -64,8 +64,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.check:
         # uv has no native --check; diff old vs newly compiled.
         existing = (_REPO_ROOT / _REQ_OUT).read_text(encoding="utf-8") if (_REPO_ROOT / _REQ_OUT).exists() else ""
-        result = subprocess.run(  # noqa: S603 - locally constructed
-            cmd + ["--quiet"],
+        result = subprocess.run(
+            [*cmd, "--quiet"],
             cwd=_REPO_ROOT,
             text=True,
             capture_output=True,
@@ -83,7 +83,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     print(f"[uv-lock] running: {' '.join(cmd)}", file=sys.stderr)
-    return subprocess.run(cmd, cwd=_REPO_ROOT, check=False).returncode  # noqa: S603 - locally constructed
+    return subprocess.run(cmd, cwd=_REPO_ROOT, check=False).returncode
 
 
 if __name__ == "__main__":  # pragma: no cover

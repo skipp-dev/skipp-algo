@@ -12,12 +12,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 # Bug-Hunt 2026-05-01 F-01: deferred so the script also works when
 # invoked as `python scripts/X.py` (no PYTHONPATH=.) — sys.path.insert
 # above must happen before any first-party `from scripts.` import.
-from scripts.smc_atomic_write import atomic_write_text  # noqa: E402
-
-from open_prep.run_open_prep import (  # noqa: E402
+from open_prep.run_open_prep import (
     GAP_MODE_PREMARKET_INDICATIVE,
     generate_open_prep_result,
 )
+from scripts.smc_atomic_write import atomic_write_text
 
 DEFAULT_UNIVERSE = ["NVDA", "PLTR", "PWR", "TSLA", "AMD", "META", "MSFT", "AMZN", "GOOGL", "SMCI"]
 

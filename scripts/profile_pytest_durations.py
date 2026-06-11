@@ -113,7 +113,7 @@ def main(argv: list[str] | None = None) -> int:
 
     cmd = _build_pytest_cmd(args)
     print(f"[profile] running: {' '.join(shlex.quote(c) for c in cmd)}", file=sys.stderr)
-    completed = subprocess.run(  # noqa: S603 - args are fully constructed locally
+    completed = subprocess.run(
         cmd,
         cwd=_REPO_ROOT,
         text=True,

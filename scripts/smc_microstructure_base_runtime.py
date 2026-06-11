@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import logging
 import math
-import sys
 import time as time_module
 import warnings
 from collections.abc import Callable
