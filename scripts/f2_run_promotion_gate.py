@@ -143,6 +143,9 @@ def run_promotion_gate(
                     if not math.isnan(_f):
                         current_delta = _f
                 except (TypeError, ValueError):
+                    # Malformed metric deltas are ignored here so the
+                    # rollback gate falls back to the persisted history
+                    # instead of treating an unparseable current run as 0.0.
                     pass
             break
     full_daily_deltas = (
