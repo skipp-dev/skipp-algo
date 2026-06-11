@@ -86,7 +86,8 @@ rm ~/Library/LaunchAgents/com.skippalgo.c13.*.plist
 ## IBKR Smoke Guard
 
 `com.skippalgo.c13.ibkr-smoke.plist` fires at **08:00 ET** (90 min before open).
-It runs `smoke_smc_to_ibkr_adapter.py --mode live`: connects to the Paper Gateway
+It runs `python -m scripts.smoke_smc_to_ibkr_adapter --mode live` (module
+invocation from the repo root): connects to the Paper Gateway
 on `127.0.0.1:7497`, places each intent as a limit order, waits for an ack, then
 cancels. Pure round-trip — no real fills.
 

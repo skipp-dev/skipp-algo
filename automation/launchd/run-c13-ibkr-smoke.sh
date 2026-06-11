@@ -64,6 +64,13 @@ source "${VENV}/bin/activate"
 
 PY="${VENV}/bin/python"
 
+if [[ ! -x "${PY}" ]]; then
+    echo "ibkr-smoke: python interpreter missing or not executable at ${PY}" >&2
+    _write_marker "DEGRADED" "python-missing:${PY}"
+    _write_halt "python-missing"
+    exit 1
+fi
+
 mkdir -p "${REPO}/cache/live"
 
 # Capture exit code without letting set -e abort the script.
@@ -76,7 +83,15 @@ SMOKE_EXIT=0
 case "${SMOKE_EXIT}" in
     0)
         _write_marker "SUCCESS" "smoke-ok:audit=${AUDIT}"
-        echo "ibkr-smoke: round-trip OK (EXIT=0). Execution unblocked."
+        if [[ -f "${HALT}" ]]; then
+            # Deliberately NOT auto-removed: the sentinel lifecycle requires an
+            # operator to investigate the original failure before clearing it.
+            echo "ibkr-smoke: round-trip OK (EXIT=0), but a pre-existing" \
+                 "smoke_HALT sentinel is still present — execution stays" \
+                 "BLOCKED until the operator removes ${HALT}" >&2
+        else
+            echo "ibkr-smoke: round-trip OK (EXIT=0). Execution unblocked."
+        fi
         ;;
     2)
         # Risk limits violated — hard block.
