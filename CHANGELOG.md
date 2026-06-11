@@ -6,6 +6,43 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-11) — Per-TF structure artifacts in the rolling benchmark (#2667)
+
+Un-voids Plan 2.8 Phase-E2 (see ADR "2026-06-10 - Plan 2.8 Phase-E2
+verdicts void — cross-TF structure aliasing" in docs/DECISIONS.md):
+
+- **Workflow**: `smc-measurement-benchmark-rolling.yml` gained an
+  "Export per-TF structure artifacts" step that runs
+  `scripts/export_smc_structure_artifacts_from_workbook.py` for every
+  benchmark timeframe (default `5m,15m,1H,4H`) against the restored
+  Databento export bundle BEFORE the benchmark, writing
+  `reports/smc_structure_artifacts/manifest_<tf>.json` +
+  `<SYMBOL>_<tf>.structure.json` — the provider resolves these ahead
+  of the legacy single-file 1D artifact, so each chart TF scores its
+  own structural events. The step also becomes the single source of
+  truth for the validated SYMBOLS/TIMEFRAMES (published via
+  `GITHUB_ENV`; the benchmark step consumes them instead of
+  re-deriving its own copy).
+- **Exporter CLI**: `--export-bundle-root` flag on
+  `scripts/export_smc_structure_artifacts_from_workbook.py` — without
+  it the always-explicit `--workbook` suppressed bundle
+  auto-discovery, making intraday timeframes impossible to export
+  from CI (`WorkbookFallbackTimeframeError` per symbol).
+- **Disclosure**: `build_measurement_evidence` now propagates
+  contract-level warnings (notably `legacy_tf_fallback`) into the
+  evidence warning stream; `benchmark_run_manifest.json` carries a
+  `structure_tf_integrity` block listing every pair served via the
+  legacy cross-TF fallback.
+- **Strict mode**: new `--strict-structure-tf` flag on
+  `scripts/run_smc_measurement_benchmark.py` fails the run (exit 1)
+  when any pair was served aliased structure. Default is warn-only so
+  the rolling lane cannot hard-fail while per-TF artifacts roll out;
+  FOLLOW-UP: flip the default (pass the flag in the rolling workflow)
+  once the rollup reports `measured` / `insufficient_data` instead of
+  `degenerate_aliased_input` and the benchmark logs are free of
+  `legacy_tf_fallback` warnings.
+- Pins: tests/test_per_tf_structure_artifact_wiring.py.
+
 ### Fixed (2026-06-11) — Outcome backfill: defer unpublished Databento windows
 
 The late-evening scheduled `open-prep-outcome-backfill` run (GH run
