@@ -1,0 +1,197 @@
+# live-window: mutating-on-cron
+name: adr0023-magnitude-stage1-weekly
+
+# ADR-0023 §4.4/§4.5 — weekly Stage-1 k-of-n judgement + report.
+#
+# Runs scripts/eval_magnitude_shadow_weekly.py over the committed shadow
+# ledger
+#   artifacts/governance/magnitude_resolution_shadow.jsonl
+# and publishes the §4.5 weekly summary (per-family k-of-n streak, AUC
+# sparkline, explicit Stage-2 exit-criterion status line) to the step
+# summary + a JSON artifact.
+#
+# It is also the enforcement point for AUTO-DEMOTION (handover §5 item 7):
+# with --apply-demotions an armed family (governance/
+# magnitude_stage_policy.json) that fails k-of-n over a full trailing
+# window is removed from the armed set and the rewritten policy is
+# committed back — which automatically removes the family from
+# magnitude-strict gating and (future Stage 3) move-size sizing.
+#
+# Fail-soft: evaluator exit codes 0 (clean), 2 (all-pass red flag), 3
+# (empty ledger — expected while Stage-1 accumulation is thin) and 4
+# (demotion applied) are all valid weekly outcomes, not job failures.
+# Only rc 1 (usage/config error, e.g. malformed policy) fails the job.
+#
+# Schedule: 06:30 UTC Monday — judgement over the prior week's daily
+# shadow rows, before the 13:30 UTC daily run appends Monday's row.
+
+on:
+  schedule:
+    - cron: "30 6 * * 1"
+  workflow_dispatch:
+    inputs:
+      k:
+        description: "PASSes required within the window."
+        required: false
+        default: "3"
+      n:
+        description: "Trailing evaluations in the window."
+        required: false
+        default: "4"
+      apply-demotions:
+        description: "Rewrite the stage policy when an armed family fails k-of-n (auto-demotion)."
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: adr0023-magnitude-stage1-weekly
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  stage1-weekly:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+          cache-dependency-path: "requirements.txt"
+
+      - name: Install dependencies
+        # Mirror the validate job in ci.yml, which is the contract that
+        # proves this dependency set is sufficient.
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest pyyaml
+
+      - name: Weekly k-of-n judgement (+ auto-demotion)
+        id: weekly
+        env:
+          K: ${{ inputs.k || '3' }}
+          N: ${{ inputs.n || '4' }}
+          # On cron the inputs context is empty (null), and GHA loose
+          # equality coerces null == false to TRUE — so the guard must be
+          # written positively: scheduled runs always apply demotions.
+          APPLY: ${{ (github.event_name == 'schedule' || inputs.apply-demotions) && 'true' || 'false' }}
+        run: |
+          set -euo pipefail
+          DEMOTE_FLAG="--apply-demotions"
+          if [ "${APPLY}" = "false" ]; then
+            DEMOTE_FLAG=""
+          fi
+          # Capture the script rc explicitly without disabling errexit:
+          # `|| rc=$?` absorbs the non-zero pipeline exit, and pipefail
+          # makes the pipeline surface the python rc (tee never fails here).
+          rc=0
+          python scripts/eval_magnitude_shadow_weekly.py \
+            --ledger artifacts/governance/magnitude_resolution_shadow.jsonl \
+            --policy governance/magnitude_stage_policy.json \
+            --k "${K}" --n "${N}" \
+            --output weekly_report.json \
+            ${DEMOTE_FLAG} \
+            2>&1 | tee weekly.log || rc=$?
+          # Exit codes 0 (clean), 2 (red flag), 3 (empty ledger) and 4
+          # (demotion applied) are all VALID weekly verdicts. Only rc 1
+          # (usage/config error) is a real failure.
+          case "$rc" in
+            0) echo "status=clean" >> "$GITHUB_OUTPUT" ;;
+            2)
+              echo "status=red_flag" >> "$GITHUB_OUTPUT"
+              echo "::warning title=adr0023-magnitude-stage1-weekly::all-pass red flag — suspected data/pipeline artifact; investigate before trusting any family"
+              ;;
+            3) echo "status=empty_ledger" >> "$GITHUB_OUTPUT" ;;
+            4)
+              echo "status=demotion_applied" >> "$GITHUB_OUTPUT"
+              echo "::warning title=adr0023-magnitude-stage1-weekly::auto-demotion applied — an armed family fell below the §2 bar; policy rewritten"
+              ;;
+            *)
+              echo "status=error" >> "$GITHUB_OUTPUT"
+              echo "::error title=adr0023-magnitude-stage1-weekly::weekly evaluator failed (rc=$rc)"
+              exit "$rc"
+              ;;
+          esac
+          exit 0
+
+      - name: Step summary — weekly judgement
+        if: always()
+        run: |
+          {
+            echo "## adr0023-magnitude-stage1-weekly"
+            echo ""
+            echo "- status: \`${{ steps.weekly.outputs.status || 'unknown' }}\`"
+            echo "- k-of-n: \`${{ inputs.k || '3' }}\` of \`${{ inputs.n || '4' }}\`"
+            echo ""
+            if [ -f weekly.log ]; then
+              echo '```'
+              cat weekly.log
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          # Sparkline + Stage-2 progress table (fail-soft: script errors
+          # must not fail the step — the judgement above is already written).
+          python scripts/render_shadow_step_summary.py \
+            --ledger artifacts/governance/magnitude_resolution_shadow.jsonl \
+            --k "${{ inputs.k || '3' }}" --n "${{ inputs.n || '4' }}" \
+            >> "$GITHUB_STEP_SUMMARY" || true
+
+      # Commit-back: persist the rewritten stage policy when auto-demotion
+      # fired, so the demotion is effective for every subsequent gate run.
+      # Guarded: only on status=demotion_applied and an actual file change.
+      - name: Commit stage policy back to repo
+        if: steps.weekly.outputs.status == 'demotion_applied'
+        run: |
+          git diff --quiet governance/magnitude_stage_policy.json && {
+            echo "::notice title=adr0023-magnitude-stage1-weekly::policy unchanged — skipping commit-back"
+            exit 0
+          }
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add governance/magnitude_stage_policy.json
+          git commit -m "chore(adr0023): auto-demotion — stage policy update $(date -u +%Y-%m-%d)"
+          # Race-safe push: main can move between checkout and push (other
+          # scheduled jobs also commit back). Rebase our single policy commit
+          # onto the latest origin/main and retry on non-fast-forward reject.
+          for attempt in 1 2 3; do
+            git fetch origin main --quiet || true
+            if ! git rebase origin/main; then
+              git rebase --abort 2>/dev/null || true
+              echo "::warning title=adr0023-magnitude-stage1-weekly::rebase onto origin/main failed (policy conflict?); skipping commit-back this run"
+              exit 0
+            fi
+            if git push origin HEAD:main; then
+              echo "::notice title=adr0023-magnitude-stage1-weekly::policy committed back (attempt ${attempt})"
+              exit 0
+            fi
+            echo "::warning title=adr0023-magnitude-stage1-weekly::push attempt ${attempt} rejected (non-fast-forward); retrying"
+          done
+          echo "::error title=adr0023-magnitude-stage1-weekly::commit-back exhausted retries — DEMOTION NOT PERSISTED; re-dispatch this workflow"
+          exit 1
+
+      - name: Upload weekly report + log
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: adr0023-magnitude-stage1-weekly-${{ github.run_id }}
+          path: |
+            weekly_report.json
+            weekly.log
+            governance/magnitude_stage_policy.json
+          if-no-files-found: ignore
+          retention-days: 30

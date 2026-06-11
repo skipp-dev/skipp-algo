@@ -507,3 +507,104 @@ def test_provenance_passes_through_in_lax_mode() -> None:
     d = PromotionGate().evaluate(snap)
     assert d["provenance"] == {"wf_scheme": "purged_kfold", "psr_method": "minIS"}
     assert d["promoted"] is True
+
+
+# ---- ADR-0023 Stage 2: per-family magnitude arming ----------------------
+
+
+def _armed_gate(*families: str) -> PromotionGate:
+    return PromotionGate(
+        GateThresholds(magnitude_strict_families=frozenset(families))
+    )
+
+
+def test_armed_family_unmeasured_magnitude_blocks_in_lax_mode() -> None:
+    # Stage 2: an armed family is fail-closed on a MISSING measurement even
+    # when the gate is otherwise lax.
+    d = _armed_gate("BOS").evaluate(_green_snapshot("BOS"))
+    assert d["promoted"] is False
+    info = {b["check"] for b in d["blockers"] if b["severity"] == "info"}
+    assert "magnitude_resolution_floor" in info
+    [blocker] = [
+        b for b in d["blockers"] if b["check"] == "magnitude_resolution_floor"
+    ]
+    assert "armed strict" in blocker["message"]
+
+
+def test_unarmed_family_unaffected_by_other_families_arming() -> None:
+    # Arming BOS/SWEEP must not change FVG's lax dormant posture.
+    d = _armed_gate("BOS", "SWEEP").evaluate(_green_snapshot("FVG"))
+    assert d["promoted"] is True
+    assert d["blockers"] == []
+
+
+def test_armed_family_measured_pass_promotes_in_lax_mode() -> None:
+    snap = _green_snapshot("SWEEP")
+    snap.magnitude_resolution_pass = True
+    snap.magnitude_auc = 0.66
+    d = _armed_gate("BOS", "SWEEP").evaluate(snap)
+    assert d["promoted"] is True
+    assert d["metrics"]["magnitude_resolution_pass"] == 1.0
+
+
+def test_armed_family_measured_fail_hard_blocks() -> None:
+    snap = _green_snapshot("BOS")
+    snap.magnitude_resolution_pass = False
+    d = _armed_gate("BOS").evaluate(snap)
+    assert d["promoted"] is False
+    [blocker] = [
+        b for b in d["blockers"] if b["check"] == "magnitude_resolution_floor"
+    ]
+    assert blocker["severity"] == "blocker"
+
+
+def test_arming_does_not_co_trigger_provenance_blockers_in_lax_mode() -> None:
+    # ADR-0016 interaction guard (handover §5 item 4): arming one family's
+    # magnitude floor is decoupled from strict_provenance, so it must NOT
+    # surface any provenance.* / W1.a missing-field info blockers.
+    snap = _green_snapshot("BOS")  # carries no provenance keys at all
+    d = _armed_gate("BOS").evaluate(snap)
+    checks = {b["check"] for b in d["blockers"]}
+    assert checks == {"magnitude_resolution_floor"}
+    assert not any(c.startswith("provenance.") for c in checks)
+
+
+def test_arming_preserves_no_ml_waiver_in_strict_mode() -> None:
+    # ADR-0016: under strict provenance a declared no-ML pipeline waives the
+    # ML-modelling keys. Arming the same family must keep that waiver intact —
+    # the armed magnitude branch and the provenance branch stay independent.
+    snap = _no_ml_strict_snapshot("BOS")
+    gate = PromotionGate(
+        GateThresholds(
+            strict_provenance=True,
+            magnitude_strict_families=frozenset({"BOS"}),
+        )
+    )
+    d = gate.evaluate(snap)
+    checks = {b["check"] for b in d["blockers"]}
+    for key in ML_MODELLING_PROVENANCE_KEYS:
+        assert f"provenance.{key}" not in checks
+    assert d["promoted"] is True
+
+
+def test_arming_magnitude_failure_does_not_add_provenance_blockers_strict() -> None:
+    # Even when the armed family FAILS the magnitude bar under strict
+    # provenance, the only NEW blocker vs. the unarmed run is the magnitude
+    # floor itself — no provenance blocker co-triggers.
+    snap = _no_ml_strict_snapshot("BOS")
+    snap.magnitude_resolution_pass = False
+    strict = GateThresholds(strict_provenance=True)
+    armed = GateThresholds(
+        strict_provenance=True, magnitude_strict_families=frozenset({"BOS"})
+    )
+    base_checks = {
+        b["check"] for b in PromotionGate(strict).evaluate(snap)["blockers"]
+    }
+    armed_checks = {
+        b["check"] for b in PromotionGate(armed).evaluate(snap)["blockers"]
+    }
+    assert armed_checks == base_checks == {"magnitude_resolution_floor"}
+
+
+def test_gate_thresholds_default_is_unarmed() -> None:
+    assert GateThresholds().magnitude_strict_families == frozenset()
