@@ -10,7 +10,7 @@ Today: 9 sites, all in legitimate CLI dispatch / `__main__` guards:
 |---|---|---|
 | `open_prep/candidate_weights.py` | 241 | `if __name__ == "__main__": sys.exit(main())` |
 | `open_prep/feature_importance_report.py` | 358 | same |
-| `open_prep/outcome_backfill.py` | 675 | same |
+| `open_prep/outcome_backfill.py` | 697 | same |
 | `pine_input_surface.py` | 468, 470 | argparse `args.cmd` dispatch |
 | `test_usi_lint.py` | 94, 97 | top-level CLI script |
 
@@ -45,7 +45,8 @@ _SYS_EXIT_LEDGER: frozenset[tuple[str, int]] = frozenset({
     ("open_prep/feature_importance_report.py", 358),
     # 2026-06-11 (backfill defer-unpublished): 546→596.
     # 2026-06-11 (eval-findings B1/B2): direction+TB code shifted 596→675.
-    ("open_prep/outcome_backfill.py", 675),
+    # 2026-06-11 (c10b FI component persistence): era-gate block 675→697.
+    ("open_prep/outcome_backfill.py", 697),
     # 2026-06-02 (#2497): +68 lines after the `provenance` subcommand block
     # was inserted above the lint dispatch (was 400, 402).
     ("pine_input_surface.py", 468),

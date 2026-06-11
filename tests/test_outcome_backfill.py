@@ -525,6 +525,11 @@ class TestFeatureImportanceBackfill:
         assert backfill_feature_importance(lookback_days=1) == 0
 
     def test_labeled_records_flushed(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        from open_prep.outcomes import FEATURE_TO_WEIGHT_KEY
+
+        # c10b fix: records now carry the FULL component schema (as the
+        # fixed prepare_outcome_snapshot persists it); partial-schema
+        # records are legacy and skipped by the era-gate (separate test).
         records = [
             {
                 "symbol": "NVDA",
@@ -533,6 +538,7 @@ class TestFeatureImportanceBackfill:
                 "confidence_tier": "HIGH_CONVICTION",
                 "profitable_30m": True,
                 "pnl_30m_pct": 2.5,
+                **{key: 0.5 for key in FEATURE_TO_WEIGHT_KEY},
                 "gap_component": 1.0,
                 "rvol_component": 0.8,
             },
@@ -552,6 +558,34 @@ class TestFeatureImportanceBackfill:
         # Should have written a JSONL file.
         files = list(fi_dir.glob("fi_samples_*.jsonl"))
         assert len(files) == 1
+
+    def test_legacy_records_without_components_skipped(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """c10b era-gate: pre-fix outcome records (no *_component keys)
+        must NOT be turned into all-zero feature vectors."""
+        records = [
+            {
+                "symbol": "NVDA",
+                "date": "2026-04-17",
+                "score": 4.5,
+                "profitable_30m": True,
+                "pnl_30m_pct": 2.5,
+                # legacy schema: no component keys at all
+            },
+        ]
+        monkeypatch.setattr(
+            "open_prep.outcomes._load_outcomes_range",
+            lambda lookback_days: records,
+        )
+        fi_dir = tmp_path / "fi"
+        fi_dir.mkdir()
+        monkeypatch.setattr(
+            "open_prep.outcomes.FEATURE_IMPORTANCE_DIR",
+            fi_dir,
+        )
+        assert backfill_feature_importance(lookback_days=1) == 0
+        assert list(fi_dir.glob("fi_samples_*.jsonl")) == []
 
 
 # ── Zone Priority → Outcome snapshot wiring ────────────────────────────────

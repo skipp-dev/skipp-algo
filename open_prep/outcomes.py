@@ -338,6 +338,26 @@ def infer_trade_direction(row: dict[str, Any]) -> str:
     return "short" if gap_pct < 0 else "long"
 
 
+def _component_fields(row: dict[str, Any]) -> dict[str, float | None]:
+    """Flatten the weighted ``score_breakdown`` components for persistence.
+
+    c10b producer-bug fix (2026-06-11): ``outcomes_<date>.json`` records
+    never carried the per-component values, so
+    ``backfill_feature_importance()`` defaulted every component to 0.0 and
+    every FI report since 2026-04-30 was built on all-zero feature
+    vectors. Emits ``None`` (not 0.0) when the breakdown is absent so the
+    backfill era-gate can tell "legacy record" apart from "component
+    genuinely zero".
+    """
+    sb = row.get("score_breakdown")
+    if not isinstance(sb, dict):
+        return {key: None for key in FEATURE_TO_WEIGHT_KEY}
+    return {
+        key: (_safe_float(sb.get(key)) if key in sb else None)
+        for key in FEATURE_TO_WEIGHT_KEY
+    }
+
+
 def prepare_outcome_snapshot(
     ranked: list[dict[str, Any]],
     run_date: date,
@@ -404,6 +424,10 @@ def prepare_outcome_snapshot(
             "profitable_30m_directional": None,
             "label_tb": None,
             "profitable_tb": None,
+            # Weighted score components (c10b producer-bug fix): persisted
+            # flat so backfill_feature_importance() reads real values
+            # instead of defaulting every component to 0.0.
+            **_component_fields(row),
         })
     return records
 
@@ -838,6 +862,29 @@ def compute_feature_importance(
         except Exception:
             logger.warning("Failed to load FI file: %s", path, exc_info=True)
 
+    # (symbol, date) dedup (2026-06-11): the daily backfill re-emits its
+    # full lookback window into each day's fi_samples file, so the same
+    # candidate-row appears in up to `lookback` consecutive files.
+    # Counting those copies as independent observations inflated n — and
+    # the Welch t-statistics feeding the BH-FDR gate — by roughly the
+    # overlap factor (~3× observed). Files are iterated newest-first, so
+    # the first occurrence (freshest labels) wins. Samples without both
+    # keys (synthetic/legacy) are kept as-is.
+    deduped: list[dict[str, Any]] = []
+    seen_keys: set[tuple[str, str]] = set()
+    duplicate_samples_dropped = 0
+    for sample in samples:
+        sym = sample.get("symbol")
+        run_d = sample.get("date")
+        if sym and run_d:
+            dedup_key = (str(sym), str(run_d))
+            if dedup_key in seen_keys:
+                duplicate_samples_dropped += 1
+                continue
+            seen_keys.add(dedup_key)
+        deduped.append(sample)
+    samples = deduped
+
     # Filter to samples with known outcome
     labeled = [s for s in samples if s.get("profitable_30m") is not None]
     if len(labeled) < 10:
@@ -845,6 +892,7 @@ def compute_feature_importance(
             "error": "insufficient labeled samples",
             "total_samples": len(samples),
             "labeled_samples": len(labeled),
+            "duplicate_samples_dropped": duplicate_samples_dropped,
             "backend": backend,
         }
 
@@ -853,6 +901,7 @@ def compute_feature_importance(
     report: dict[str, Any] = {
         "total_samples": len(samples),
         "labeled_samples": len(labeled),
+        "duplicate_samples_dropped": duplicate_samples_dropped,
         "features": {},
         "recommendations": [],
         "backend": backend,
