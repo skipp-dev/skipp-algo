@@ -78,9 +78,9 @@ def test_invokes_check_phase_b_drift_readiness_script() -> None:
 def test_permissions_minimal_read_only() -> None:
     perms = _load()["permissions"]
     # 2026-06-11: actions:read added so `gh run download` can fetch the
-    # drift-report artifact from the latest drift-watchdog run (reports are
-    # never committed to the repo). Both scopes are read-only — the gate
-    # still reports, never mutates.
+    # compute_live_drift artifact from the latest successful c13-daily-cron
+    # run (reports are never committed to the repo). Both scopes are
+    # read-only — the gate still reports, never mutates.
     assert perms == {"contents": "read", "actions": "read"}, (
         "readiness gate must remain read-only; it reports, never mutates"
     )
