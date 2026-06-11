@@ -177,19 +177,24 @@ def test_run_promotion_gate_rolls_back_on_sprt_h0(tmp_path: Path) -> None:
 
 def test_run_promotion_gate_rolls_back_on_consecutive_worse_runs(tmp_path: Path) -> None:
     spec = _live_spec()
+    # W6-3: run_promotion_gate now includes the current run's delta in the
+    # window evaluated by evaluate_rollback.  With rollback_history=[0.01]
+    # (one prior bad day), the gate fires only when today's delta is also
+    # positive (i.e. treatment is worse than control).  We make treatment
+    # brier clearly higher to ensure a positive current delta.
     control = _make_arm_dir(
         tmp_path, arm_name="control",
         n_events=800, hit_rate=0.58, brier=0.18, ece=0.10,
     )
     treatment = _make_arm_dir(
         tmp_path, arm_name="treatment",
-        n_events=800, hit_rate=0.59, brier=0.18, ece=0.10,
+        n_events=800, hit_rate=0.57, brier=0.22, ece=0.12,  # clearly worse
     )
     report = run_promotion_gate(
         spec=spec,
         control_dir=control,
         treatment_dir=treatment,
-        rollback_history=[0.01, 0.02],  # two consecutive worse on calibrated_brier
+        rollback_history=[0.01],  # one prior worse day; today's delta also > 0
     )
     assert report["decision"] == "rollback"
     assert report["rollback_triggered"] is True
@@ -266,9 +271,11 @@ def test_cli_loads_rollback_history(tmp_path: Path) -> None:
     control = _make_arm_dir(tmp_path, arm_name="ctrl",
                             n_events=800, hit_rate=0.58, brier=0.18, ece=0.10)
     treatment = _make_arm_dir(tmp_path, arm_name="treat",
-                              n_events=800, hit_rate=0.59, brier=0.18, ece=0.10)
+                              n_events=800, hit_rate=0.57, brier=0.22, ece=0.12)  # worse for rollback
     history_path = tmp_path / "history.json"
-    history_path.write_text(json.dumps([0.01, 0.02]), encoding="utf-8")
+    # W6-3: rollback_history=[0.01] + current (treatment brier 0.22 > control 0.18 → delta>0)
+    # = 2 consecutive worse runs → rollback fires (consecutive_worse_runs=2).
+    history_path.write_text(json.dumps([0.01]), encoding="utf-8")
     output = tmp_path / "report.json"
     rc = main([
         "--spec", str(SHIPPED_SPEC),
@@ -380,3 +387,68 @@ def test_cli_shipped_spec_promotes_under_live(tmp_path: Path) -> None:
     report = json.loads(output.read_text(encoding="utf-8"))
     assert report["spec_status"] == "live"
     assert report["decision"] == "promote"
+
+
+# ---------------------------------------------------------------------------
+# W6-3 — rollback history must include the current run's delta (wave 6)
+# ---------------------------------------------------------------------------
+
+
+def test_run_promotion_gate_includes_current_delta_in_rollback(tmp_path: Path) -> None:
+    """W6-3: current run's delta must be appended to history before evaluate_promotion.
+
+    Scenario: history has one entry already worse (delta > 0). The current
+    run is also worse. With the off-by-one bug the gate would still need
+    *another* bad run before triggering rollback. With the fix, the gate
+    fires immediately (consecutive_worse_runs=2, history=[bad]+[bad_today]).
+    """
+    spec = _live_spec()
+    # consecutive_worse_runs=2 in the shipped spec — we need exactly 2 bad deltas.
+    assert spec.rollback_gate.consecutive_worse_runs == 2, (
+        "test assumption: spec.rollback_gate.consecutive_worse_runs must be 2"
+    )
+
+    # Control arm: strong hit rate / good brier.
+    # Treatment arm: slightly worse brier (delta > 0 = worse for calibrated_brier).
+    # n_events >= min_events_per_arm (600) so evaluate_promotion passes the
+    # insufficient_data guard and reaches the rollback check.
+    control = _make_arm_dir(tmp_path, arm_name="ctrl",
+                            n_events=700, hit_rate=0.60, brier=0.20, ece=0.08)
+    treatment = _make_arm_dir(tmp_path, arm_name="treat",
+                              n_events=700, hit_rate=0.55, brier=0.23, ece=0.10)
+
+    # Pre-existing history: one worse day (treatment brier was higher yesterday).
+    rollback_history_one_bad = [0.03]  # positive = treatment worse
+
+    report = run_promotion_gate(
+        spec=spec,
+        control_dir=control,
+        treatment_dir=treatment,
+        rollback_history=rollback_history_one_bad,
+    )
+    # The gate should have included today's (also positive) delta.
+    # If the current delta is positive the gate must trigger.
+    assert report["rollback_history_includes_current_run"] is True
+    assert report["rollback_history_len"] == 2  # yesterday + today
+    # With two consecutive worse runs the rollback gate should fire.
+    assert report["decision"] == "rollback", (
+        f"expected rollback with 2 bad deltas; got decision={report['decision']!r}, "
+        f"rollback_history_len={report['rollback_history_len']}"
+    )
+
+
+def test_run_promotion_gate_report_exposes_current_run_flag(tmp_path: Path) -> None:
+    """W6-3: rollback_history_includes_current_run must always be present in report."""
+    spec = _live_spec()
+    control = _make_arm_dir(tmp_path, arm_name="ctrl",
+                            n_events=800, hit_rate=0.60, brier=0.20, ece=0.08)
+    treatment = _make_arm_dir(tmp_path, arm_name="treat",
+                              n_events=800, hit_rate=0.64, brier=0.18, ece=0.07)
+    report = run_promotion_gate(
+        spec=spec,
+        control_dir=control,
+        treatment_dir=treatment,
+        rollback_history=[],
+    )
+    assert "rollback_history_includes_current_run" in report
+    assert "rollback_history_len" in report
