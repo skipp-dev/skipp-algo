@@ -16,6 +16,14 @@ What we *can* derive today:
 * per-family event counts (from ``plan_2_8_tf_family_rollup.json``),
   attached to ``extras.n_events_total`` so consumers can sort/triage
   even before real gate metrics land;
+* ADR-0023 Stage-1 move-size verdicts: the latest shadow-ledger row per
+  *candidate* family (BOS/SWEEP) is folded into
+  ``magnitude_resolution_pass`` / ``magnitude_auc`` via
+  ``scripts.magnitude_snapshot_wiring.gate_snapshots`` (handover §5 item 2
+  — previously these fields were always ``None`` ⇒ the gate's
+  ``ok_magnitude`` branch stayed dormant). Control families (FVG/OB) are
+  never fed — they FAIL by construction. Fail-soft: a missing/empty
+  ledger leaves the fields absent (dormant), never blocks the bundle;
 * a ``provenance`` dict naming the source artifact + run date so the
   gate report stays traceable.
 
@@ -36,6 +44,8 @@ from pathlib import Path
 from typing import Any, get_args
 
 from governance.types import EventFamily
+from scripts.magnitude_snapshot_wiring import MagnitudeSnapshot, gate_snapshots
+from scripts.run_magnitude_shadow_ledger import DEFAULT_LEDGER
 from scripts.smc_atomic_write import atomic_write_json
 
 ALL_FAMILIES: tuple[str, ...] = get_args(EventFamily)
@@ -76,14 +86,40 @@ def _aggregate_family_events(rollup: dict[str, Any] | None) -> dict[str, int]:
     return totals
 
 
+def _load_magnitude_snapshots(
+    magnitude_ledger: str | None,
+) -> dict[str, MagnitudeSnapshot]:
+    """Latest gate-ready move-size snapshot per candidate family.
+
+    Fail-soft by design (ADR-0023 Stage-1 is measure-only): a missing,
+    empty or unreadable ledger yields ``{}`` — the bundle then simply omits
+    the magnitude fields and the gate stays dormant for those families, the
+    exact pre-wiring behaviour. A broken ledger must never block the daily
+    promotion-gate report.
+    """
+    if not magnitude_ledger:
+        return {}
+    try:
+        return gate_snapshots(magnitude_ledger)
+    except (OSError, ValueError, TypeError) as exc:  # pragma: no cover - defensive
+        print(
+            f"WARNING: failed to read magnitude ledger {magnitude_ledger}: {exc} "
+            "(emitting bundle without move-size fields)",
+            file=sys.stderr,
+        )
+        return {}
+
+
 def build_bundle(
     *,
     scoring_root: Path,
     date: str | None = None,
     families: tuple[str, ...] = ALL_FAMILIES,
+    magnitude_ledger: str | None = DEFAULT_LEDGER,
 ) -> list[dict[str, Any]]:
     rollup = _read_rollup(scoring_root)
     n_events_per_family = _aggregate_family_events(rollup)
+    magnitude_snapshots = _load_magnitude_snapshots(magnitude_ledger)
 
     provenance_common: dict[str, Any] = {
         "source": "smc-measurement-benchmark-rolling",
@@ -119,6 +155,17 @@ def build_bundle(
                 "n_events_total": float(n_events_per_family.get(fam, 0)),
             },
         }
+        snap = magnitude_snapshots.get(fam)
+        if snap is not None:
+            # ADR-0023 Stage-1 → gate snapshot wiring (handover §5 item 2).
+            # ``gate_snapshots`` already restricts to candidate families
+            # (BOS/SWEEP) — a control family's by-design FAIL can never
+            # reach the gate as a hard blocker.
+            entry["magnitude_resolution_pass"] = snap.magnitude_resolution_pass
+            entry["magnitude_auc"] = snap.magnitude_auc
+            entry["provenance"]["magnitude_ledger"] = str(magnitude_ledger)
+            entry["provenance"]["magnitude_ledger_date"] = snap.date
+            entry["provenance"]["magnitude_status"] = snap.status
         bundle.append(entry)
     return bundle
 
@@ -154,6 +201,17 @@ def main(argv: list[str] | None = None) -> int:
         default=",".join(ALL_FAMILIES),
         help="Comma-separated family allow-list (default: all event families).",
     )
+    parser.add_argument(
+        "--magnitude-ledger",
+        type=str,
+        default=DEFAULT_LEDGER,
+        help=(
+            "ADR-0023 move-size shadow-ledger JSONL whose latest per-family "
+            "rows feed magnitude_resolution_pass/magnitude_auc for the gate "
+            f"candidates (default: {DEFAULT_LEDGER}). Pass '' to disable "
+            "(fields stay absent => gate dormant)."
+        ),
+    )
     args = parser.parse_args(argv)
 
     requested = tuple(f.strip() for f in args.families.split(",") if f.strip())
@@ -176,11 +234,13 @@ def main(argv: list[str] | None = None) -> int:
         scoring_root=args.scoring_root,
         date=args.date,
         families=requested,
+        magnitude_ledger=args.magnitude_ledger or None,
     )
     atomic_write_json(bundle, args.output, indent=2, sort_keys=False)
+    n_magnitude = sum(1 for entry in bundle if "magnitude_resolution_pass" in entry)
     print(
         f"wrote {len(bundle)} family entries to {args.output} "
-        f"(source: {args.scoring_root})"
+        f"(source: {args.scoring_root}; magnitude snapshots: {n_magnitude})"
     )
     return 0
 
