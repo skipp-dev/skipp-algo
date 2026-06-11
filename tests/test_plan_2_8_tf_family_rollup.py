@@ -245,7 +245,8 @@ def test_rollup_small_delta_at_floor_has_large_p_value(tmp_path: Path) -> None:
                    families={"FVG": (30, 0.50)})
     rollup = build_rollup(scoring_root=tmp_path)
     fvg = rollup["phase_e2_verdict"]["fvg_ttf_5m_vs_baseline"]
-    assert fvg["status"] == "measured"
+    # At n=30 the MDE (~36pp) dwarfs the 5pp delta → measured_underpowered (S2).
+    assert fvg["status"] == "measured_underpowered"
     assert fvg["delta_hr_p_value"] > 0.3
 
 
@@ -258,7 +259,8 @@ def test_rollup_degenerate_proportions_yield_none_p_value(tmp_path: Path) -> Non
     rollup = build_rollup(scoring_root=tmp_path)
     fvg = rollup["phase_e2_verdict"]["fvg_ttf_5m_vs_baseline"]
     # n differs so the aliasing guard does not fire; hit rates identical.
-    assert fvg["status"] == "measured"
+    # delta=0 < MDE → measured_underpowered (S2); pooled var degenerate → p None.
+    assert fvg["status"] == "measured_underpowered"
     assert fvg["delta_hr_p_value"] is None
 
 
