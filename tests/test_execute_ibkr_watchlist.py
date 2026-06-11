@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date, time
 
 import pandas as pd
+import pytest
 
 from scripts.execute_ibkr_watchlist import (
     IBKRConnectionConfig,
@@ -405,3 +406,63 @@ def test_build_execution_event_log_and_csv_export(tmp_path) -> None:
     assert "order_submitted" in contents
     assert "reconnect" in contents
     assert "final_state" in contents
+
+
+class TestCheckSmokeGuard:
+    """Unit tests for the safety-critical pre-market smoke guard (#2691).
+
+    The guard hard-blocks live order submission based on the smoke_HALT
+    sentinel and the freshness of today's smoke_<DATE>.jsonl audit file.
+    All filesystem paths are monkeypatched onto tmp_path so no real
+    cache/live state is touched.
+    """
+
+    def _patch_paths(self, monkeypatch, tmp_path):
+        import scripts.run_ibkr_open_execution as mod
+
+        live_dir = tmp_path / "cache" / "live"
+        live_dir.mkdir(parents=True)
+        monkeypatch.setattr(mod, "_REPO_ROOT", tmp_path)
+        monkeypatch.setattr(mod, "_SMOKE_HALT_PATH", live_dir / "smoke_HALT")
+        return mod, live_dir
+
+    def _write_fresh_jsonl(self, mod, live_dir):
+        jsonl = live_dir / f"smoke_{mod._repo_date_utc()}.jsonl"
+        jsonl.write_text('{"event": "smoke_ok"}\n', encoding="utf-8")
+        return jsonl
+
+    def test_bypass_flag_skips_all_checks(self, monkeypatch, tmp_path, capsys) -> None:
+        mod, _live_dir = self._patch_paths(monkeypatch, tmp_path)
+        # No HALT removal, no JSONL — bypass must not raise.
+        mod._check_smoke_guard(skip=True)
+        assert "BYPASSED" in capsys.readouterr().out
+
+    def test_halt_sentinel_blocks(self, monkeypatch, tmp_path) -> None:
+        mod, live_dir = self._patch_paths(monkeypatch, tmp_path)
+        (live_dir / "smoke_HALT").write_text("EXIT=3 leftover orders", encoding="utf-8")
+        # Even with a fresh JSONL the HALT sentinel must win.
+        self._write_fresh_jsonl(mod, live_dir)
+        with pytest.raises(SystemExit, match="smoke_HALT sentinel present"):
+            mod._check_smoke_guard(skip=False)
+
+    def test_missing_jsonl_blocks(self, monkeypatch, tmp_path) -> None:
+        mod, _live_dir = self._patch_paths(monkeypatch, tmp_path)
+        with pytest.raises(SystemExit, match="smoke has not run today"):
+            mod._check_smoke_guard(skip=False)
+
+    def test_stale_jsonl_blocks(self, monkeypatch, tmp_path) -> None:
+        import os
+        import time as time_mod
+
+        mod, live_dir = self._patch_paths(monkeypatch, tmp_path)
+        jsonl = self._write_fresh_jsonl(mod, live_dir)
+        stale = time_mod.time() - (mod._SMOKE_JSONL_MAX_AGE_HOURS + 1) * 3600
+        os.utime(jsonl, (stale, stale))
+        with pytest.raises(SystemExit, match=r"smoke JSONL is .*h old"):
+            mod._check_smoke_guard(skip=False)
+
+    def test_fresh_jsonl_passes(self, monkeypatch, tmp_path) -> None:
+        mod, live_dir = self._patch_paths(monkeypatch, tmp_path)
+        self._write_fresh_jsonl(mod, live_dir)
+        # Must not raise.
+        mod._check_smoke_guard(skip=False)

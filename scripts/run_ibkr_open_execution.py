@@ -235,12 +235,16 @@ def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
 
-    # Pre-market smoke guard: block execution if the adapter round-trip failed
-    # or did not run today (com.skippalgo.c13.ibkr-smoke @ 08:00 ET).
-    _check_smoke_guard(getattr(args, "skip_smoke_guard", False))
-
     if not args.place_orders:
         raise SystemExit("run_ibkr_open_execution.py requires --place-orders to avoid accidental dry-run supervision.")
+
+    # Pre-market smoke guard: block execution if the adapter round-trip failed
+    # or did not run today (com.skippalgo.c13.ibkr-smoke @ 08:00 ET).
+    # Deliberately AFTER the --place-orders check (Copilot review #2691): the
+    # guard only matters when real order placement is enabled, and a user who
+    # forgets --place-orders should get the clearer usage error, not a
+    # smoke-guard BLOCKED exit. Still runs before any IBKR connection.
+    _check_smoke_guard(getattr(args, "skip_smoke_guard", False))
 
     # S3 (Copilot review #2689): auto-allocated clientIds are leased from the
     # registry and must be released on exit; explicit --client-id values are
