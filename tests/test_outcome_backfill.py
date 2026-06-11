@@ -14,6 +14,7 @@ import pytest
 
 from open_prep.outcome_backfill import (
     _DEFAULT_DATASET,
+    DATA_NOT_YET_PUBLISHED,
     _fetch_bars,
     _load_outcome_file,
     _load_pending_dates,
@@ -310,6 +311,39 @@ class TestBackfillOutcomes:
         assert summary["failed"] == 1
         assert summary["resolved"] == 0
 
+    def test_unpublished_window_defers_not_fails(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        # Regression for GH run 27313823758: the late-evening scheduled
+        # run hit Databento 422 data_start_after_available_end (day's
+        # bars not yet published) and exited 2. That transient case must
+        # be classified as deferred, not failed.
+        d = date(2026, 6, 10)
+        records = [
+            {"symbol": "NVDA", "profitable_30m": None, "pnl_30m_pct": None},
+            {"symbol": "TSLA", "profitable_30m": None, "pnl_30m_pct": None},
+        ]
+        out_dir = tmp_path / "outcomes"
+        out_dir.mkdir()
+        path = out_dir / f"outcomes_{d.isoformat()}.json"
+        path.write_text(json.dumps(records))
+        monkeypatch.setattr("open_prep.outcome_backfill.OUTCOMES_DIR", out_dir)
+
+        mock_provider = MagicMock()
+        mock_provider.get_range.side_effect = RuntimeError(
+            "422 data_start_after_available_end: timeseries.get_range "
+            "`start` was after the available end"
+        )
+
+        summary = backfill_outcomes(target_dates=[d], provider=mock_provider)
+        assert summary["deferred"] == 2
+        assert summary["failed"] == 0
+        assert summary["resolved"] == 0
+
+        # Records stay unresolved so the next scheduled run retries them.
+        raw = json.loads(path.read_text())
+        assert all(r["profitable_30m"] is None for r in raw)
+
     def test_multi_symbol_batch(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         d = date(2026, 4, 17)
         records = [
@@ -363,6 +397,14 @@ class TestFetchBars:
         mock_provider.get_range.side_effect = RuntimeError("boom")
         result = _fetch_bars(mock_provider, ["X"], date(2026, 4, 17))
         assert result is None
+
+    def test_unpublished_window_returns_sentinel(self) -> None:
+        mock_provider = MagicMock()
+        mock_provider.get_range.side_effect = RuntimeError(
+            "422 data_start_after_available_end"
+        )
+        result = _fetch_bars(mock_provider, ["X"], date(2026, 6, 10))
+        assert result is DATA_NOT_YET_PUBLISHED
 
 
 # ── CLI parser ──────────────────────────────────────────────────────────────
@@ -430,6 +472,34 @@ class TestCLI:
             }),
         )
         assert main(["--date", "2026-04-18", "--dry-run"]) == 2
+
+    def test_main_deferred_only_exits_zero(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Bars not yet published upstream → deferred, not failed → the
+        # scheduled workflow stays green and retries on the next run.
+        monkeypatch.setattr(
+            "open_prep.outcome_backfill.backfill_outcomes",
+            MagicMock(return_value={
+                "resolved": 0, "skipped": 17, "failed": 0, "deferred": 13,
+                "dates_processed": 3,
+            }),
+        )
+        assert main(["--date", "2026-06-10", "--dry-run"]) == 0
+
+    def test_main_deferred_counts_as_progress_for_require_progress(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            "open_prep.outcome_backfill.backfill_outcomes",
+            MagicMock(return_value={
+                "resolved": 0, "skipped": 0, "failed": 0, "deferred": 4,
+                "dates_processed": 1,
+            }),
+        )
+        assert main(
+            ["--date", "2026-06-10", "--dry-run", "--require-progress"]
+        ) == 0
 
     def test_main_clean_run_exits_zero(
         self, monkeypatch: pytest.MonkeyPatch
