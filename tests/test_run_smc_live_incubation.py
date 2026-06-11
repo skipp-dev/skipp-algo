@@ -327,7 +327,11 @@ def _passing_eval_report(tmp_path: Path, *, phase: str) -> Path:
         "variant": "v",
         "all_passed": True,
         "computed_at": datetime.now(UTC).isoformat(),
-        "results": [],
+        # W6-1 (stat-review wave 6): results must be non-empty and every
+        # criterion must have passed=True. Use the minimum valid criterion.
+        "results": [
+            {"criterion": "min_live_days", "passed": True, "detail": "ok"},
+        ],
         "phase_promotion": "manual_signoff_only",
     }
     path = tmp_path / f"phase_eval_{phase}.json"
