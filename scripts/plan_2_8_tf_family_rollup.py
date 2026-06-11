@@ -65,6 +65,31 @@ def _finite_number(value: Any) -> float | None:
     return v if math.isfinite(v) else None
 
 
+def _event_count(value: Any) -> int | None:
+    """Strict event-count coercion (Copilot review #2675).
+
+    ``int(n_raw)`` silently truncated fractional counts (40.9 → 40) and
+    accepted negative ones. A count must be a non-negative integer-valued
+    number; anything else is malformed and skip-and-counted by callers.
+    """
+    v = _finite_number(value)
+    if v is None or v < 0 or v != int(v):
+        return None
+    return int(v)
+
+
+def _hit_rate(value: Any) -> float | None:
+    """Strict hit-rate coercion: finite number within [0, 1].
+
+    Out-of-range rates (e.g. 1.2) would feed negative variances into the
+    downstream z-test/CI sqrt (Copilot review #2675).
+    """
+    v = _finite_number(value)
+    if v is None or v < 0.0 or v > 1.0:
+        return None
+    return v
+
+
 def build_rollup(
     *,
     scoring_root: Path,
@@ -97,7 +122,7 @@ def build_rollup(
         symbol = m.group("symbol")
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
+        except (json.JSONDecodeError, UnicodeDecodeError, OSError):
             skipped_malformed.append(f"{path.name}: unreadable/invalid JSON")
             continue
         if tf not in per_tf:
@@ -106,15 +131,15 @@ def build_rollup(
 
         # Stat-review F9: skip-and-count rows with missing/non-numeric
         # core fields instead of laundering them into n=0 / hr=0.0.
-        n_raw = _finite_number(payload.get("n_events"))
-        hr_raw = _finite_number(payload.get("hit_rate"))
-        if n_raw is None or hr_raw is None:
+        # Copilot #2675: counts must be non-negative integers, rates in
+        # [0, 1] — truncation/out-of-range values are malformed too.
+        n = _event_count(payload.get("n_events"))
+        hr = _hit_rate(payload.get("hit_rate"))
+        if n is None or hr is None:
             skipped_malformed.append(
-                f"{path.name}: non-numeric n_events/hit_rate"
+                f"{path.name}: invalid n_events/hit_rate"
             )
             continue
-        n = int(n_raw)
-        hr = hr_raw
         slot = per_tf[tf]
         slot["n_events"] += n
         slot["hit_rate_weighted"] += hr * n
@@ -122,15 +147,13 @@ def build_rollup(
             slot["symbols"].append(symbol)
 
         for fam, metrics in _family_metrics(payload).items():
-            fam_n_raw = _finite_number(metrics.get("n_events"))
-            fam_hr_raw = _finite_number(metrics.get("hit_rate"))
-            if fam_n_raw is None or fam_hr_raw is None:
+            fam_n = _event_count(metrics.get("n_events"))
+            fam_hr = _hit_rate(metrics.get("hit_rate"))
+            if fam_n is None or fam_hr is None:
                 skipped_malformed.append(
-                    f"{path.name}#family={fam}: non-numeric n_events/hit_rate"
+                    f"{path.name}#family={fam}: invalid n_events/hit_rate"
                 )
                 continue
-            fam_n = int(fam_n_raw)
-            fam_hr = fam_hr_raw
             fslot = slot["families"].setdefault(
                 fam, {"n_events": 0, "hit_rate_weighted": 0.0}
             )
@@ -306,6 +329,10 @@ def render_markdown(rollup: dict[str, Any]) -> str:
     lines.append(f"scoring_root: `{rollup['scoring_root']}`")
     lines.append(f"files_scanned: {rollup['files_scanned']}")
     lines.append(f"n_skipped_malformed: {rollup.get('n_skipped_malformed', 0)}")
+    # Copilot #2675: surface WHICH rows were skipped so the operator can
+    # locate and fix the malformed artifacts, not just count them.
+    for reason in rollup.get("skipped_malformed", []):
+        lines.append(f"- skipped: {reason}")
     lines.append("")
     lines.append("## Per-TF aggregate")
     lines.append("")
