@@ -640,7 +640,15 @@ def _sprt_decision(
     resolved Wald bounds. Hit-rate values arrive as percentages
     (0–100); we convert to fractions before deriving k.
     """
-    n = int(getattr(treat_agg, "total_events", 0) or 0)
+    # W4-1 (stat-review wave 4): use the count of events from pairs that
+    # *have* a valid hit_rate as the SPRT denominator, not total_events.
+    # total_events includes pairs where hit_rate is NaN (no observed
+    # outcome), inflating n relative to the k derived from avg_hit_rate.
+    n = int(getattr(treat_agg, "n_hit_rate_valid", 0) or 0)
+    if n == 0:
+        # Fall back to total_events for backward compat when the field is
+        # absent (e.g. old serialised AggregateReport objects).
+        n = int(getattr(treat_agg, "total_events", 0) or 0)
     hr_pct = float(getattr(treat_agg, "avg_hit_rate", 0.0) or 0.0)
     # avg_hit_rate is in percent; clamp into [0, 100] before conversion.
     hr_pct = max(0.0, min(100.0, hr_pct))
@@ -727,9 +735,42 @@ def decide_recommendation(rows: list[dict[str, Any]]) -> dict[str, Any]:
     ce = _row_by_metric(rows, "calibrated_ece") or {}
     hr = _row_by_metric(rows, "hit_rate_pct") or {}
 
-    cb_delta = float(cb.get("delta") or 0.0)  # lower = better
-    ce_delta = float(ce.get("delta") or 0.0)
-    hr_delta = float(hr.get("delta") or 0.0)  # higher = better
+    def _safe_delta(row: dict[str, Any], name: str) -> float | None:
+        """Return the numeric delta or None when missing/NaN.
+
+        W4-2 (stat-review wave 4): the previous ``float(v or 0.0)`` had two
+        silent paths: (a) missing row → None → 0.0 silenced rollback;
+        (b) NaN delta → bool(NaN)=True → stayed NaN → all comparisons False
+        → vacuous HOLD with no alarm.  Callers must check for None.
+        """
+        raw = row.get("delta")
+        if raw is None:
+            return None
+        v = float(raw)
+        return None if math.isnan(v) else v
+
+    cb_delta = _safe_delta(cb, "calibrated_brier")  # lower = better
+    ce_delta = _safe_delta(ce, "calibrated_ece")
+    hr_delta = _safe_delta(hr, "hit_rate_pct")  # higher = better
+
+    # If any critical delta is unavailable, do not silently hold — surface
+    # the data gap as an explicit hold with a diagnostic reason.
+    if cb_delta is None or ce_delta is None:
+        missing = [n for n, v in (("calibrated_brier", cb_delta), ("calibrated_ece", ce_delta)) if v is None]
+        return {
+            "recommendation": "hold",
+            "reason": (
+                f"metric(s) {missing} unavailable or NaN — cannot evaluate "
+                f"rollback/promote thresholds; manual review required"
+            ),
+            "kpi_thresholds": {
+                "promote_improvement": PROMOTE_IMPROVEMENT,
+                "rollback_regression": ROLLBACK_REGRESSION,
+                "hit_rate_regression_tolerance": HIT_RATE_REGRESSION_TOLERANCE,
+            },
+        }
+    if hr_delta is None:
+        hr_delta = 0.0  # hit_rate absent → conservatively assume no improvement
 
     thresholds = {
         "promote_improvement": PROMOTE_IMPROVEMENT,

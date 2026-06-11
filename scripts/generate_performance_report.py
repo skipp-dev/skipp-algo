@@ -164,8 +164,9 @@ class AggregateReport:
     brier_gate: str
     ece_gate: str
     overall_grade: str
-    warnings_total: int
-
+    warnings_total: int    # W4-1 (stat-review wave 4): n for pairs where hit_rate is NOT NaN —
+    # the correct denominator for the SPRT test on avg_hit_rate.
+    n_hit_rate_valid: int = 0
 
 def _aggregate(pairs: list[PairReport]) -> AggregateReport:
     total = sum(p.n_events for p in pairs)
@@ -184,6 +185,12 @@ def _aggregate(pairs: list[PairReport]) -> AggregateReport:
     avg_hr = _wmean("hit_rate")
     avg_eq = _wmean("ensemble_score")
     warnings_total = sum(len(p.warnings) for p in pairs)
+    # W4-1 (stat-review wave 4): count only events from pairs with a valid
+    # (non-NaN) hit_rate — this is the correct SPRT denominator for
+    # avg_hit_rate (see scripts/run_ab_comparison._sprt_decision).
+    n_hr_valid = sum(
+        p.n_events for p in pairs if not math.isnan(p.hit_rate) and p.n_events > 0
+    )
 
     brier_gate = _pass_fail(avg_cal_brier, THRESHOLDS.max_calibrated_brier_score)
     ece_gate = _pass_fail(avg_cal_ece, THRESHOLDS.max_calibrated_ece)
@@ -202,6 +209,7 @@ def _aggregate(pairs: list[PairReport]) -> AggregateReport:
         ece_gate=ece_gate,
         overall_grade=overall,
         warnings_total=warnings_total,
+        n_hit_rate_valid=n_hr_valid,
     )
 
 
