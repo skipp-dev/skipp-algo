@@ -6,6 +6,22 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-06-11) — Rolling benchmark: manifest workbook provenance (#2678 fallout)
+
+- **`scripts/export_smc_structure_artifacts_from_workbook.py`**: `--workbook`
+  no longer defaults to the hardcoded `DEFAULT_WORKBOOK` path. In CI the
+  bundle workbook `.xlsx` does not exist (per-TF data comes from the parquet
+  bundle), so the exporter stamped a non-existent path into
+  `resolved_inputs.workbook_path` and the benchmark consumer's provenance
+  check rejected every manifest with `NONCANONICAL_MANIFEST_WORKBOOK_PATH`
+  (run 2026-06-11 16:49, first scheduled run after #2678). This killed the
+  rolling-benchmark lane and starved the F2 promotion gate
+  ("no benchmark pairs in control_dir"). The CLI now defaults to `None` so
+  the library applies `artifact_resolution.resolve_production_workbook_path()`
+  — the SAME canonical-first resolution the consumer check uses.
+- Tests: CLI default-None pin, forward-None-when-omitted, explicit-workbook
+  passthrough (`tests/test_per_tf_structure_artifact_wiring.py`).
+
 ### Added (2026-06-11) — ADR-0023 Stage-1: Ledger-Verdicts → Promotion-Gate-Snapshot (Handover §5 Punkt 2)
 
 Der Stage-1-Shadow-Runner lief täglich, aber seine Verdicts erreichten das

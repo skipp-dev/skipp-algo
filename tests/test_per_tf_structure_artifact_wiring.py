@@ -4,9 +4,12 @@ Pins the three layers that turn the cross-TF aliasing guard from a silent
 clone-factory into an operable contract:
 
 1. CLI: ``scripts/export_smc_structure_artifacts_from_workbook.py`` exposes
-   ``--export-bundle-root`` and forwards it — without it the always-explicit
+   ``--export-bundle-root`` and forwards it — an explicitly passed
    ``--workbook`` suppresses bundle auto-discovery, so intraday timeframes
-   could never be exported from CI.
+   could never be exported from CI. ``--workbook`` defaults to ``None`` so
+   the library applies the SAME canonical workbook resolution that the
+   downstream manifest provenance check expects (NONCANONICAL_MANIFEST_
+   WORKBOOK_PATH regression, #2678 fallout).
 2. Evidence: ``build_measurement_evidence`` propagates contract-level
    warnings (``legacy_tf_fallback``) into the evidence warning stream.
 3. Runner: ``run_smc_measurement_benchmark.py --strict-structure-tf``
@@ -85,6 +88,43 @@ def test_exporter_cli_forwards_none_when_bundle_root_omitted(monkeypatch: pytest
     rc = exporter_cli.main(["--timeframe", "1D"])
     assert rc == 0
     assert captured["export_bundle_root"] is None
+
+
+def test_exporter_cli_workbook_defaults_to_none() -> None:
+    """#2678 fallout: a hardcoded DEFAULT_WORKBOOK default stamped a
+    non-existent path into the manifest in CI, tripping the consumer's
+    NONCANONICAL_MANIFEST_WORKBOOK_PATH provenance check. The CLI must
+    default to None so the library's canonical resolution (the same one the
+    consumer check uses) is applied."""
+    parser = exporter_cli._build_parser()
+    ns = parser.parse_args(["--timeframe", "5m"])
+    assert ns.workbook is None
+
+
+def test_exporter_cli_forwards_none_workbook_when_omitted(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+
+    def _fake_write(**kwargs: Any) -> dict[str, Any]:
+        captured.update(kwargs)
+        return {"counts": {"artifacts_written": 0, "errors": 0}}
+
+    monkeypatch.setattr(exporter_cli, "write_structure_artifacts_from_workbook", _fake_write)
+    rc = exporter_cli.main(["--timeframe", "5m", "--symbols", "AAPL"])
+    assert rc == 0
+    assert captured["workbook"] is None
+
+
+def test_exporter_cli_forwards_explicit_workbook(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+
+    def _fake_write(**kwargs: Any) -> dict[str, Any]:
+        captured.update(kwargs)
+        return {"counts": {"artifacts_written": 0, "errors": 0}}
+
+    monkeypatch.setattr(exporter_cli, "write_structure_artifacts_from_workbook", _fake_write)
+    rc = exporter_cli.main(["--timeframe", "1D", "--workbook", "some/workbook.xlsx"])
+    assert rc == 0
+    assert captured["workbook"] == Path("some/workbook.xlsx")
 
 
 # ---------------------------------------------------------------------------
