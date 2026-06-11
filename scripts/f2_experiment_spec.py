@@ -32,6 +32,7 @@ spec itself.
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -176,6 +177,11 @@ def evaluate_rollback(
     if len(daily_deltas) < n:
         return False
     tail = daily_deltas[-n:]
+    # W5-1 (stat-review wave 5): NaN > 0 evaluates False, silencing
+    # rollback when any tail entry is NaN.  Fail-closed: treat NaN as
+    # worse (positive) so the gate does not miss a degradation signal.
+    if any(math.isnan(d) for d in tail):
+        return True
     return all(d > 0 for d in tail)
 
 

@@ -179,3 +179,18 @@ def test_rollback_validation_rejects_bad_consecutive() -> None:
 
     with pytest.raises(ValueError):
         RollbackGateSpec(consecutive_worse_runs=0, comparison_metric="x")
+
+
+# W5-1 (stat-review wave 5): NaN in daily_deltas must trigger rollback
+# fail-closed rather than silencing it.
+def test_rollback_nan_delta_fails_closed() -> None:
+    spec = load_f2_spec(SHIPPED_SPEC)
+    import math
+
+    n = spec.rollback_gate.consecutive_worse_runs
+    # All-NaN tail — must trigger, not silently pass.
+    assert evaluate_rollback([math.nan] * n, spec) is True
+    # Mixed: one real positive, one NaN — must still trigger.
+    assert evaluate_rollback([0.01, math.nan], spec) is True
+    # NaN with a clearly negative value still triggers (fail-closed).
+    assert evaluate_rollback([-0.05, math.nan], spec) is True
