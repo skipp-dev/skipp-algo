@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import date, time
 
 import pandas as pd
-import pytest
 
 from scripts.execute_ibkr_watchlist import (
     IBKRConnectionConfig,
