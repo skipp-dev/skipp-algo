@@ -386,7 +386,9 @@ PR #2666):
   indistinguishable from noise but carried the same `"measured"` label
   as a 30 pp delta at n = 500. Phase-E2 `measured` verdicts now carry
   `delta_hr_p_value`, a two-sided pooled two-proportion z-test p-value
-  reusing the `run_ab_comparison` helper (single source of truth);
+  (self-contained `math.erfc`-based implementation in the rollup script;
+  correction 2026-06-11, Copilot #2675 — this entry previously claimed
+  the `run_ab_comparison` helper was reused, which it is not);
   `null` when the pooled variance is degenerate. Vocabulary additive.
 - **F9 — `scripts/plan_2_8_tf_family_rollup.py`**: the
   `int(payload.get("n_events") or 0)` / `float(... or 0.0)` pattern
