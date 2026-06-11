@@ -790,6 +790,10 @@ def _run_measurement_gate(
             "populated_bucket_count": None,
             "effective_thresholds": serialize_measurement_shadow_thresholds(get_measurement_shadow_thresholds()),
             "history_tightened_metrics": [],
+            "calibrated_thresholds_eligible": False,
+            "calibrated_thresholds_floor": (
+                get_measurement_shadow_thresholds().min_events_for_calibrated_thresholds
+            ),
         },
         "measurement_shadow_effective_thresholds": serialize_measurement_shadow_thresholds(get_measurement_shadow_thresholds()),
         "measurement_shadow_strict": bool(strict_measurement_shadow),
