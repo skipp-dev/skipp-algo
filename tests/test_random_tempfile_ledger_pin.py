@@ -52,7 +52,7 @@ _RANDOM_LEDGER: frozenset[tuple[str, int]] = frozenset({
     # of the empirical round-turn cost (deterministic); non-security.
     # 2026-06-11 (#2697 review findings): 322→329 after the fee-only-leg
     # comment block above the call site.
-    ("governance/execution_costs.py", 329),
+    ("governance/execution_costs.py", 332),
 })
 
 # ---- Layer 2: tempfile.* ledger ----------------------------------------------
