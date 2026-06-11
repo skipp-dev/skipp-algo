@@ -158,6 +158,15 @@ class GateThresholds:
     # so legacy callers keep their existing posture; W1.b's CLI flips
     # this to True for the production pipeline.
     strict_provenance: bool = False
+    # ADR-0023 Stage 2: families whose move-size resolution check is armed
+    # strict *individually*. For an armed family an unmeasured
+    # ``magnitude_resolution_pass`` emits a fail-closed ``info`` blocker even
+    # when the gate is otherwise lax. Deliberately decoupled from
+    # ``strict_provenance`` so arming one family's magnitude floor can never
+    # co-trigger the unrelated ``provenance.*`` / W1.a missing-field blockers
+    # (ADR-0016 no-ML waiver interactions stay untouched). Populated from
+    # ``governance/magnitude_stage_policy.json`` by the production CLI.
+    magnitude_strict_families: frozenset[str] = frozenset()
 
     def __post_init__(self) -> None:
         # Couple the Brier CI bar to the point-estimate bar unless the caller
@@ -538,14 +547,27 @@ class PromotionGate:
         # sizeable only if the v1 score cleared the pre-registered §2 bar
         # (AUC floor + bootstrap CI + permutation-null resolution). Additive to
         # ``brier_threshold`` — direction stays guarded, this never lowers a bar.
+        #
+        # Stage 2 (per-family arming): a family in
+        # ``magnitude_strict_families`` is fail-closed on a *missing*
+        # measurement even when the gate is otherwise lax. Only this branch
+        # consults the armed set — it cannot affect any other check.
+        magnitude_armed = snapshot.family in t.magnitude_strict_families
         if snapshot.magnitude_resolution_pass is None:
-            if t.strict_provenance:
+            if t.strict_provenance or magnitude_armed:
                 blockers.append({
                     "check": "magnitude_resolution_floor",
                     "severity": "info",
                     "observed": None,
                     "threshold": 1.0,
-                    "message": "magnitude_resolution not yet measured",
+                    "message": (
+                        "magnitude_resolution not yet measured"
+                        + (
+                            " (family armed strict — ADR-0023 Stage 2)"
+                            if magnitude_armed
+                            else ""
+                        )
+                    ),
                 })
                 ok_magnitude = False
             else:

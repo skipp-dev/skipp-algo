@@ -3,12 +3,14 @@ from __future__ import annotations
 
 from scripts.eval_magnitude_shadow_weekly import (
     detect_all_pass_red_flag,
+    evaluate_demotions,
     evaluate_family,
     evaluate_weekly,
     group_by_family,
     main,
     render_text,
     sparkline,
+    stage2_status_line,
 )
 
 
@@ -193,7 +195,7 @@ def test_render_text_mentions_families_and_eligibility():
     rows = _streak("BOS", ["PASS", "PASS", "PASS", "PASS"])
     text = render_text(evaluate_weekly(rows, k=3, n=4))
     assert "BOS" in text
-    assert "Stage-2 eligible: BOS" in text
+    assert "eligible to arm Stage 2: BOS" in text
 
 
 # ---- sparkline ----------------------------------------------------------
@@ -306,3 +308,234 @@ def test_main_red_flag_returns_2(tmp_path):
 
 def test_main_rejects_k_greater_than_n(tmp_path):
     assert main(["--ledger", str(tmp_path / "x.jsonl"), "--k", "5", "--n", "4"]) == 1
+
+
+# ---- stage2_status_line (handover §4.5) ----------------------------------
+
+
+def _full_week_rows():
+    return (
+        _streak("BOS", ["PASS", "FAIL", "PASS", "PASS"])
+        + _streak("SWEEP", ["PASS", "PASS", "PASS", "PASS"])
+        + _streak("FVG", ["FAIL", "FAIL", "FAIL", "FAIL"])
+        + _streak("OB", ["FAIL", "FAIL", "FAIL", "FAIL"])
+    )
+
+
+def test_stage2_status_line_matches_handover_format():
+    report = evaluate_weekly(_full_week_rows(), k=3, n=4)
+    line = stage2_status_line(report)
+    assert line == (
+        "Stage-2 exit status: BOS 3/4 ✓, SWEEP 4/4 ✓, "
+        "FVG 0/4 (control), OB 0/4 (control) "
+        "→ eligible to arm Stage 2: BOS, SWEEP"
+    )
+
+
+def test_stage2_status_line_marks_failing_candidate():
+    rows = (
+        _streak("BOS", ["PASS", "FAIL", "FAIL", "FAIL"])
+        + _streak("FVG", ["FAIL", "FAIL", "FAIL", "FAIL"])
+    )
+    line = stage2_status_line(evaluate_weekly(rows, k=3, n=4))
+    assert "BOS 1/4 ✗" in line
+    assert line.endswith("→ eligible to arm Stage 2: none")
+
+
+def test_stage2_status_line_rendered_in_text_report():
+    text = render_text(evaluate_weekly(_full_week_rows(), k=3, n=4))
+    assert "Stage-2 exit status: " in text
+    assert "eligible to arm Stage 2: BOS, SWEEP" in text
+
+
+# ---- evaluate_demotions (handover §5 item 7) -------------------------------
+
+
+def test_full_window_kofn_failure_demotes_armed_family():
+    rows = _streak("BOS", ["FAIL", "FAIL", "PASS", "FAIL"])
+    report = evaluate_weekly(rows, k=3, n=4)
+    demotions = evaluate_demotions(report, frozenset({"BOS"}))
+    assert [d["family"] for d in demotions] == ["BOS"]
+    assert "1/4 PASS (need 3)" in demotions[0]["reason"]
+
+
+def test_partial_window_never_demotes():
+    # Only 2 of 4 window slots filled — thin evidence is not a regression.
+    rows = _streak("BOS", ["FAIL", "FAIL"])
+    report = evaluate_weekly(rows, k=3, n=4)
+    assert evaluate_demotions(report, frozenset({"BOS"})) == []
+
+
+def test_absent_family_never_demotes():
+    rows = _streak("BOS", ["PASS", "PASS", "PASS", "PASS"])
+    report = evaluate_weekly(rows, k=3, n=4)
+    assert evaluate_demotions(report, frozenset({"SWEEP"})) == []
+
+
+def test_unarmed_family_never_demotes():
+    rows = _streak("BOS", ["FAIL", "FAIL", "FAIL", "FAIL"])
+    report = evaluate_weekly(rows, k=3, n=4)
+    assert evaluate_demotions(report, frozenset()) == []
+
+
+def test_red_flag_suspends_demotion():
+    rows = (
+        _streak("BOS", ["FAIL", "FAIL", "FAIL", "PASS"])
+        + _streak("SWEEP", ["PASS", "PASS", "PASS", "PASS"])
+    )
+    report = evaluate_weekly(rows, k=3, n=4)
+    assert report["all_pass_red_flag"] is True
+    # BOS fails k-of-n over a full window but the artifact flag suspends it.
+    assert evaluate_demotions(report, frozenset({"BOS"})) == []
+
+
+def test_healthy_armed_family_not_demoted():
+    rows = _streak("BOS", ["PASS", "FAIL", "PASS", "PASS"])
+    report = evaluate_weekly(rows, k=3, n=4)
+    assert evaluate_demotions(report, frozenset({"BOS"})) == []
+
+
+# ---- main: policy / demotions / output -------------------------------------
+
+
+def _write_policy(path, families):
+    import json
+
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "stage": 2 if families else 1,
+                "armed_families": sorted(families),
+                "k": 3,
+                "n": 4,
+                "history": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def _write_ledger(path, rows):
+    import json
+
+    path.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+
+
+def test_main_apply_demotions_rewrites_policy_and_returns_4(tmp_path):
+    import json
+
+    ledger = tmp_path / "ledger.jsonl"
+    _write_ledger(ledger, _streak("BOS", ["FAIL", "FAIL", "FAIL", "FAIL"]))
+    policy = tmp_path / "policy.json"
+    _write_policy(policy, ["BOS"])
+    rc = main(
+        [
+            "--ledger", str(ledger),
+            "--policy", str(policy),
+            "--apply-demotions",
+        ]
+    )
+    assert rc == 4
+    payload = json.loads(policy.read_text(encoding="utf-8"))
+    assert payload["armed_families"] == []
+    assert payload["stage"] == 1
+    assert payload["history"][-1]["action"] == "demote"
+    assert payload["history"][-1]["family"] == "BOS"
+
+
+def test_main_without_apply_reports_pending_and_returns_0(tmp_path, capsys):
+    import json
+
+    ledger = tmp_path / "ledger.jsonl"
+    _write_ledger(ledger, _streak("BOS", ["FAIL", "FAIL", "FAIL", "FAIL"]))
+    policy = tmp_path / "policy.json"
+    _write_policy(policy, ["BOS"])
+    rc = main(["--ledger", str(ledger), "--policy", str(policy)])
+    assert rc == 0
+    assert "DEMOTION PENDING: BOS" in capsys.readouterr().out
+    # Policy file untouched without the flag.
+    assert json.loads(policy.read_text(encoding="utf-8"))["armed_families"] == [
+        "BOS"
+    ]
+
+
+def test_main_missing_policy_file_is_unarmed_default(tmp_path, capsys):
+    ledger = tmp_path / "ledger.jsonl"
+    _write_ledger(ledger, _streak("BOS", ["FAIL", "FAIL", "FAIL", "FAIL"]))
+    rc = main(
+        [
+            "--ledger", str(ledger),
+            "--policy", str(tmp_path / "missing.json"),
+            "--apply-demotions",
+        ]
+    )
+    assert rc == 0  # nothing armed → nothing to demote
+    assert "DEMOTION" not in capsys.readouterr().out
+
+
+def test_main_malformed_policy_returns_1(tmp_path):
+    ledger = tmp_path / "ledger.jsonl"
+    _write_ledger(ledger, _streak("BOS", ["PASS"]))
+    policy = tmp_path / "policy.json"
+    policy.write_text("{broken", encoding="utf-8")
+    assert main(["--ledger", str(ledger), "--policy", str(policy)]) == 1
+
+
+def test_main_output_writes_report_json(tmp_path):
+    import json
+
+    ledger = tmp_path / "ledger.jsonl"
+    _write_ledger(ledger, _streak("BOS", ["PASS", "PASS", "PASS", "PASS"]))
+    policy = tmp_path / "policy.json"
+    _write_policy(policy, ["BOS"])
+    out = tmp_path / "report.json"
+    rc = main(
+        [
+            "--ledger", str(ledger),
+            "--policy", str(policy),
+            "--output", str(out),
+        ]
+    )
+    assert rc == 0
+    report = json.loads(out.read_text(encoding="utf-8"))
+    assert report["armed_families"] == ["BOS"]
+    assert report["demotions"] == []
+    assert report["demotions_applied"] is False
+    assert report["stage2_eligible"] == ["BOS"]
+
+
+def test_main_red_flag_takes_priority_over_demotion_exit(tmp_path):
+    # Red flag suspends demotion entirely, so exit is 2 and policy untouched.
+    import json
+
+    rows = [
+        _row(date="2026-06-01", family="BOS", status="PASS"),
+        _row(date="2026-06-01", family="SWEEP", status="PASS"),
+        _row(date="2026-06-01", family="FVG", status="PASS"),
+        _row(date="2026-06-01", family="OB", status="PASS"),
+    ]
+    ledger = tmp_path / "ledger.jsonl"
+    _write_ledger(ledger, rows)
+    policy = tmp_path / "policy.json"
+    _write_policy(policy, ["BOS", "SWEEP"])
+    rc = main(
+        [
+            "--ledger", str(ledger),
+            "--policy", str(policy),
+            "--apply-demotions",
+            "--k", "1", "--n", "1",
+        ]
+    )
+    assert rc == 2
+    assert json.loads(policy.read_text(encoding="utf-8"))["armed_families"] == [
+        "BOS",
+        "SWEEP",
+    ]
+
+
+def test_render_text_lists_armed_families():
+    report = evaluate_weekly(_full_week_rows(), k=3, n=4)
+    report["armed_families"] = ["BOS", "SWEEP"]
+    text = render_text(report)
+    assert "Stage-2 armed (strict magnitude): BOS, SWEEP" in text
