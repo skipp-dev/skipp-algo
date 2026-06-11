@@ -12,8 +12,13 @@
     "regime_at_entry": "NEUTRAL",
     "zone_priority_rank": "B",
     "zone_priority_score": 52,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": true,
+    "pnl_30m_pct": 8.9443,
+    "pnl_30m_pct_signed": 8.9443,
+    "profitable_30m_directional": true,
+    "label_tb": "stop",
+    "profitable_tb": false,
+    "tb_barrier_source": "default"
   },
   {
     "date": "2026-06-10",
@@ -28,8 +33,13 @@
     "regime_at_entry": "NEUTRAL",
     "zone_priority_rank": "B",
     "zone_priority_score": 52,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": true,
+    "pnl_30m_pct": 8.8967,
+    "pnl_30m_pct_signed": 8.8967,
+    "profitable_30m_directional": true,
+    "label_tb": "stop",
+    "profitable_tb": false,
+    "tb_barrier_source": "default"
   },
   {
     "date": "2026-06-10",
@@ -44,8 +54,13 @@
     "regime_at_entry": "NEUTRAL",
     "zone_priority_rank": "B",
     "zone_priority_score": 52,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": false,
+    "pnl_30m_pct": -2.3466,
+    "pnl_30m_pct_signed": -2.3466,
+    "profitable_30m_directional": false,
+    "label_tb": "stop",
+    "profitable_tb": false,
+    "tb_barrier_source": "default"
   },
   {
     "date": "2026-06-10",
@@ -60,8 +75,13 @@
     "regime_at_entry": "NEUTRAL",
     "zone_priority_rank": "B",
     "zone_priority_score": 52,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": true,
+    "pnl_30m_pct": 35.1884,
+    "pnl_30m_pct_signed": 35.1884,
+    "profitable_30m_directional": true,
+    "label_tb": "target",
+    "profitable_tb": true,
+    "tb_barrier_source": "default"
   },
   {
     "date": "2026-06-10",
@@ -76,8 +96,13 @@
     "regime_at_entry": "NEUTRAL",
     "zone_priority_rank": "B",
     "zone_priority_score": 51,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": true,
+    "pnl_30m_pct": 26.864,
+    "pnl_30m_pct_signed": 26.864,
+    "profitable_30m_directional": true,
+    "label_tb": "target",
+    "profitable_tb": true,
+    "tb_barrier_source": "default"
   },
   {
     "date": "2026-06-10",
@@ -92,8 +117,13 @@
     "regime_at_entry": "NEUTRAL",
     "zone_priority_rank": "B",
     "zone_priority_score": 51,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": true,
+    "pnl_30m_pct": 20.3305,
+    "pnl_30m_pct_signed": 20.3305,
+    "profitable_30m_directional": true,
+    "label_tb": "stop",
+    "profitable_tb": false,
+    "tb_barrier_source": "default"
   },
   {
     "date": "2026-06-10",
@@ -108,8 +138,13 @@
     "regime_at_entry": "NEUTRAL",
     "zone_priority_rank": "B",
     "zone_priority_score": 51,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": true,
+    "pnl_30m_pct": 4.7516,
+    "pnl_30m_pct_signed": 4.7516,
+    "profitable_30m_directional": true,
+    "label_tb": "target",
+    "profitable_tb": true,
+    "tb_barrier_source": "default"
   },
   {
     "date": "2026-06-10",
@@ -124,8 +159,13 @@
     "regime_at_entry": "NEUTRAL",
     "zone_priority_rank": "B",
     "zone_priority_score": 51,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": false,
+    "pnl_30m_pct": -22.9825,
+    "pnl_30m_pct_signed": -22.9825,
+    "profitable_30m_directional": false,
+    "label_tb": "stop",
+    "profitable_tb": false,
+    "tb_barrier_source": "default"
   },
   {
     "date": "2026-06-10",
@@ -140,8 +180,13 @@
     "regime_at_entry": "NEUTRAL",
     "zone_priority_rank": "B",
     "zone_priority_score": 51,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": false,
+    "pnl_30m_pct": -4.7248,
+    "pnl_30m_pct_signed": -4.7248,
+    "profitable_30m_directional": false,
+    "label_tb": "target",
+    "profitable_tb": true,
+    "tb_barrier_source": "default"
   },
   {
     "date": "2026-06-10",
@@ -156,7 +201,12 @@
     "regime_at_entry": "NEUTRAL",
     "zone_priority_rank": "B",
     "zone_priority_score": 51,
-    "profitable_30m": null,
-    "pnl_30m_pct": null
+    "profitable_30m": true,
+    "pnl_30m_pct": 2.439,
+    "pnl_30m_pct_signed": 2.439,
+    "profitable_30m_directional": true,
+    "label_tb": "stop",
+    "profitable_tb": false,
+    "tb_barrier_source": "default"
   }
 ]
