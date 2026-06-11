@@ -1,11 +1,13 @@
 """Property-test pin: ``c9_threshold_replay`` detector consensus invariants.
 
-Companion to the deferred re-tuning in
-https://github.com/skippALGO/skipp-algo/issues/298. The bauchgefühl
-literals (0.3 mean-shift, 0.5/2.0 variance ratio) will be replaced by
-calibrated t-/F-tests once ≥ 90 days of live data have accumulated.
+Companion to the live re-tune deferral in
+https://github.com/skippALGO/skipp-algo/issues/298. Detectors 3 + 4
+are Welch-t / Brown-Forsythe p-value tests (since 2026-06-11; the
+original bauchgefühl literals 0.3 / 0.5 / 2.0 are gone); the alpha
+ladder will be re-tuned once ≥ 90 days of live data have accumulated.
 This file pins the **structural** invariants of ``_episode_fires`` so
-that the eventual swap of detectors 3 + 4 cannot silently regress:
+that any future swap or re-tune of detectors 3 + 4 cannot silently
+regress:
 
 - the 2-of-4 consensus arithmetic,
 - the zero-variance guards on baseline/live,
@@ -166,7 +168,7 @@ def test_zero_variance_live_disables_variance_ratio_detector() -> None:
         baseline=baseline,
         live=tuple(0.0 for _ in range(80)),
     )
-    # Detector 3 mean-shift definitely fires (|mean diff| / bstd ≥ 0.3 likely).
+    # Detector 3 Welch-t definitely fires (huge mean gap vs baseline).
     # KS very likely fires. PSI likely fires. Detector 4 must NOT fire.
     setting = ThresholdSetting(
         ks_p_red=0.01, ks_p_yellow=0.05, consensus_min=4

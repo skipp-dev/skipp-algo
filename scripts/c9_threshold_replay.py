@@ -27,12 +27,15 @@ import numpy as np
 
 from scripts.drift_alert import (
     DriftSeverity,
+    brown_forsythe_two_sample,
     ks_two_sample,
     population_stability_index,
     psi_severity,
+    welch_t_two_sample,
 )
 
 __all__ = [
+    "CALIBRATION_SOURCE",
     "DEFAULT_KS_GRID",
     "DEFAULT_PSI_GRID",
     "Episode",
@@ -45,6 +48,23 @@ __all__ = [
     "replay_thresholds",
     "write_report",
 ]
+
+
+# C9/T7 (issue #298): provenance of the current detector calibration.
+#
+# "synthetic" — detectors 3 + 4 are p-value tests (Welch-t /
+#   Brown-Forsythe) whose alpha ladder was validated against the
+#   mixed-distribution synthetic episode bank only. The interim
+#   effect-size literals (mean shift >= 0.3 sigma, variance ratio
+#   outside [0.5, 2.0]) are gone, but the alphas still await a re-tune
+#   against >= 90 days of live outcomes.
+# "live" — alphas re-tuned against the locked-in live baseline windows
+#   from the C8 incubation cron (flip this only in the PR that closes
+#   issue #298 for good).
+#
+# ``tests/test_c9_threshold_finalisation_anchor.py`` fails CI the
+# moment the C12 trigger is GREEN while this still reads "synthetic".
+CALIBRATION_SOURCE = "synthetic"
 
 
 # ── Episode bank ────────────────────────────────────────────────────
@@ -165,8 +185,10 @@ class ThresholdSetting:
         )
 
 
-# Sensible production-candidate grids.  Memory hint:
-# default ks_p_red is 0.01 in `compute_drift_report` (drift_alert.py:198).
+# Sensible production-candidate grids.  Memory hint: the production
+# defaults in `compute_drift_report` (drift_alert.py) are the grid
+# winner ks_p_red=0.005 / ks_p_yellow=0.025 / consensus_min=2 — see
+# docs/c9_threshold_tuning.md for the 2026-06-11 grid results.
 DEFAULT_KS_GRID: tuple[tuple[float, float], ...] = (
     (0.01, 0.05),
     (0.005, 0.025),
@@ -185,38 +207,40 @@ def _episode_fires(episode: Episode, setting: ThresholdSetting) -> bool:
 
     The episode "fires" iff at least ``setting.consensus_min`` (default 2)
     of the four detectors below cross their drift threshold. Two-of-four
-    consensus is the C9/T7 interim rule that trades single-detector
-    sensitivity for a lower false-positive rate against the small
-    pre-90-day sample. Re-tune once we have the lock-in data — tracking
-    issue: https://github.com/skippALGO/skipp-algo/issues/298 (see also
-    ``run_drift_watchdog.py`` and the anchor test
-    ``tests/test_c9_threshold_finalisation_anchor.py`` which fires the
-    moment both (a) ≥ 1 family hits 28+ live-incubation days and (b)
-    these literals are still unchanged).
+    consensus trades single-detector sensitivity for a lower
+    false-positive rate.
 
-    Detectors:
-        1. KS p-value vs ``ks_p_yellow``/``ks_p_red`` — distribution-shape change.
+    Detectors (C9/T7, issue #298 — detectors 3 + 4 finalised
+    2026-06-11):
+        1. KS p-value vs ``ks_p_yellow``/``ks_p_red`` — distribution-shape
+           change.
         2. PSI vs ``psi_severity`` thresholds — bucketed mass shift.
-        3. Mean-shift ≥ 0.3 × baseline σ — first-moment shift.
-           Bauchgefühl threshold (sourced from drift-monitoring rules of
-           thumb, NOT calibrated). Confirmed-with-data follow-up: replace
-           with a t-style p-value once the live sample stabilises.
-        4. Variance ratio outside ``[0.5, 2.0]`` (i.e. doubled or halved
-           σ) — second-moment shift. Same bauchgefühl caveat as #3;
-           preferred replacement is an F-test or a rolling-σ z-score.
+        3. Welch t-test p-value (two-sided, unequal variance) vs the
+           same ``ks_p_yellow``/``ks_p_red`` ladder — first-moment shift.
+           Replaces the interim ``mean_shift >= 0.3 sigma`` effect-size
+           rule.
+        4. Brown-Forsythe p-value (median-centered Levene) vs the same
+           ladder — second-moment shift. Replaces the interim variance
+           ratio outside ``[0.5, 2.0]`` rule; the median-centered
+           variant is used because the plain F-ratio test is not robust
+           to the heavy-tailed/skewed families in the episode bank.
 
-    Detectors 3 + 4 are intentionally simple by-hand rules so the replay
-    tool stays deterministic and free of stats-package dependencies. The
-    KS and PSI detectors carry the statistical weight of the consensus.
+    All three p-value detectors share one alpha ladder
+    (``ks_p_yellow``/``ks_p_red``) — exactly mirroring production
+    ``drift_alert.compute_drift_report``, which feeds a single
+    ``p_value_yellow``/``p_value_red`` pair to every p-value detector.
+    This keeps the replay tool and the production watchdog coupled: one
+    grid axis tunes the consensus, not four detectors drifting apart.
 
-    See ``docs/c9_threshold_tuning.md`` for the full tuning rationale,
-    the offline grid-search results that picked the current literals,
-    and the re-tuning procedure when the live sample stabilises.
-    Deep-Review 2026-04-27 follow-up: this cross-link was previously
-    missing — the bauchgefühl thresholds (``mean_shift >= 0.3``,
-    ``ratio in [0.5, 2.0]``) were only mentioned inline; the doc
-    now is the single source of truth and any change to the literals
-    here MUST update the doc in the same PR.
+    Zero-variance guards (pinned by
+    ``tests/test_c9_episode_fires_invariants_property.py``): a
+    degenerate baseline disables detectors 3 + 4; a degenerate live
+    sample disables detector 4.
+
+    See ``docs/c9_threshold_tuning.md`` for the grid results that
+    validated the alpha ladder on the mixed-distribution synthetic bank
+    and for the live re-tune procedure (``CALIBRATION_SOURCE`` flips to
+    ``"live"`` when issue #298 closes).
     """
     baseline = np.asarray(episode.baseline, dtype=np.float64)
     live = np.asarray(episode.live, dtype=np.float64)
@@ -235,22 +259,24 @@ def _episode_fires(episode: Episode, setting: ThresholdSetting) -> bool:
     if psi is not None and _is_drift_severity(psi_severity(psi)):
         fires += 1
 
-    # Detector 3: mean-shift (>= 0.3 sigma of baseline std) — bauchgefühl,
-    # see docstring; tracking re-tune via
-    # https://github.com/skippALGO/skipp-algo/issues/298.
+    # Detector 3: Welch t-test on the mean (two-sided), gated on a
+    # non-degenerate baseline.
     bstd = float(baseline.std(ddof=0))
     if bstd > 0:
-        mean_shift = abs(float(live.mean()) - float(baseline.mean())) / bstd
-        if mean_shift >= 0.3:
+        _t, p_t = welch_t_two_sample(baseline, live)
+        if _is_drift_severity(
+            _ks_severity(p_t, p_yellow=setting.ks_p_yellow, p_red=setting.ks_p_red)
+        ):
             fires += 1
 
-    # Detector 4: variance ratio outside [0.5, 2.0] — bauchgefühl, see
-    # docstring; tracking re-tune via
-    # https://github.com/skippALGO/skipp-algo/issues/298.
+    # Detector 4: Brown-Forsythe on the scale, gated on non-degenerate
+    # baseline AND live samples.
     lstd = float(live.std(ddof=0))
     if bstd > 0 and lstd > 0:
-        ratio = lstd / bstd
-        if ratio < 0.5 or ratio > 2.0:
+        _f, p_f = brown_forsythe_two_sample(baseline, live)
+        if _is_drift_severity(
+            _ks_severity(p_f, p_yellow=setting.ks_p_yellow, p_red=setting.ks_p_red)
+        ):
             fires += 1
 
     return fires >= setting.consensus_min
