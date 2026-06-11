@@ -48,6 +48,23 @@ def _family_metrics(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return {k: v for k, v in fam.items() if isinstance(v, dict)}
 
 
+def _finite_number(value: Any) -> float | None:
+    """Strict numeric coercion for scoring-artifact fields.
+
+    Stat-review F9 (2026-06-10): the previous ``int(payload.get(...) or
+    0)`` / ``float(payload.get(...) or 0.0)`` pattern laundered
+    ``hit_rate: null`` into 0.0 — an artifact with ``n_events: 40,
+    hit_rate: null`` contributed 40 events at 0.0 HR and silently
+    dragged the family aggregate down. Returns ``None`` for missing,
+    boolean, non-numeric or non-finite values so callers can
+    skip-and-count instead of fabricating a zero.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    v = float(value)
+    return v if math.isfinite(v) else None
+
+
 def build_rollup(
     *,
     scoring_root: Path,
@@ -70,6 +87,7 @@ def build_rollup(
         for tf in timeframes
     }
     unknown_tfs: dict[str, int] = {}
+    skipped_malformed: list[str] = []
 
     for path in files:
         m = SCORING_RE.match(path.name)
@@ -80,13 +98,23 @@ def build_rollup(
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
+            skipped_malformed.append(f"{path.name}: unreadable/invalid JSON")
             continue
         if tf not in per_tf:
             unknown_tfs[tf] = unknown_tfs.get(tf, 0) + 1
             continue
 
-        n = int(payload.get("n_events") or 0)
-        hr = float(payload.get("hit_rate") or 0.0)
+        # Stat-review F9: skip-and-count rows with missing/non-numeric
+        # core fields instead of laundering them into n=0 / hr=0.0.
+        n_raw = _finite_number(payload.get("n_events"))
+        hr_raw = _finite_number(payload.get("hit_rate"))
+        if n_raw is None or hr_raw is None:
+            skipped_malformed.append(
+                f"{path.name}: non-numeric n_events/hit_rate"
+            )
+            continue
+        n = int(n_raw)
+        hr = hr_raw
         slot = per_tf[tf]
         slot["n_events"] += n
         slot["hit_rate_weighted"] += hr * n
@@ -94,8 +122,15 @@ def build_rollup(
             slot["symbols"].append(symbol)
 
         for fam, metrics in _family_metrics(payload).items():
-            fam_n = int(metrics.get("n_events") or 0)
-            fam_hr = float(metrics.get("hit_rate") or 0.0)
+            fam_n_raw = _finite_number(metrics.get("n_events"))
+            fam_hr_raw = _finite_number(metrics.get("hit_rate"))
+            if fam_n_raw is None or fam_hr_raw is None:
+                skipped_malformed.append(
+                    f"{path.name}#family={fam}: non-numeric n_events/hit_rate"
+                )
+                continue
+            fam_n = int(fam_n_raw)
+            fam_hr = fam_hr_raw
             fslot = slot["families"].setdefault(
                 fam, {"n_events": 0, "hit_rate_weighted": 0.0}
             )
@@ -119,6 +154,9 @@ def build_rollup(
         "files_scanned": len(files),
         "per_tf": per_tf,
         "unknown_timeframes": unknown_tfs,
+        # Stat-review F9: malformed inputs are skipped, never zero-filled.
+        "n_skipped_malformed": len(skipped_malformed),
+        "skipped_malformed": skipped_malformed,
         "phase_e2_verdict": _phase_e2_verdict(per_tf),
     }
 
@@ -267,6 +305,7 @@ def render_markdown(rollup: dict[str, Any]) -> str:
     lines.append("")
     lines.append(f"scoring_root: `{rollup['scoring_root']}`")
     lines.append(f"files_scanned: {rollup['files_scanned']}")
+    lines.append(f"n_skipped_malformed: {rollup.get('n_skipped_malformed', 0)}")
     lines.append("")
     lines.append("## Per-TF aggregate")
     lines.append("")
