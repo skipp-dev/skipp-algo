@@ -89,6 +89,8 @@ def _check_smoke_guard(skip: bool) -> None:
             "  Ensure com.skippalgo.c13.ibkr-smoke fired and TWS was available on 127.0.0.1:7497.\n"
             "  Use --skip-smoke-guard to override (emergency only)."
         )
+    # MTIME-RESOLVER-EXEMPT: st_mtime is an age/freshness check on a single
+    # date-keyed sentinel file (no candidate ordering / artifact picking).
     age_hours = (datetime.now(UTC) - datetime.fromtimestamp(smoke_jsonl.stat().st_mtime, tz=UTC)).total_seconds() / 3600
     if age_hours > _SMOKE_JSONL_MAX_AGE_HOURS:
         raise SystemExit(
