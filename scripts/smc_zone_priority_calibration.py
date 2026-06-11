@@ -41,7 +41,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from scripts.smc_atomic_write import atomic_write_text  # noqa: E402
+from scripts.smc_atomic_write import atomic_write_text
 
 # S-3 (TEMPORAL_NUMERICAL_AUDIT_2026-04-24): defense-in-depth seed for the
 # calibration pipeline. Currently no stochastic ops in this module, but a

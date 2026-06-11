@@ -27,7 +27,7 @@ import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_REPO_ROOT))
-from pine_input_surface import build_provenance  # noqa: E402
+from pine_input_surface import build_provenance
 
 _ARTIFACT = _REPO_ROOT / "reports" / "pine_input_provenance.json"
 _EXCLUDE_NAMES = frozenset({"test_div.pine"})

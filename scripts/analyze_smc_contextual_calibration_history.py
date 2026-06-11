@@ -18,10 +18,10 @@ if str(REPO_ROOT) not in sys.path:
 # Bug-Hunt 2026-05-01 Finding F-01: imports below depend on REPO_ROOT
 # being on sys.path so the script works both as ``python -m scripts.X``
 # and as ``python scripts/X.py`` (the form used by several workflows).
-# noqa: E402 covers the deliberate post-sys.path-insert ordering.
-from scripts.smc_atomic_write import atomic_write_text  # noqa: E402
 
-from smc_integration.release_policy import (  # noqa: E402
+from scripts.smc_atomic_write import atomic_write_text
+
+from smc_integration.release_policy import (
     ContextualCalibrationPromotionPolicy,
     ContextualCalibrationRecommendationPolicy,
     assess_contextual_calibration_promotion,

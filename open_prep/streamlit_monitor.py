@@ -200,7 +200,7 @@ try:
     from newsstack_fmp.ingest_opra_options_flow import (
         fetch_opra_options_flow as _fetch_opra_options,
     )
-except Exception:  # pragma: no cover  # noqa: BLE001 — module-import-time hardening: ImportError, ValueError (env parsing) and any other startup failure must degrade gracefully so streamlit_monitor stays importable.
+except Exception:  # pragma: no cover
     _fetch_opra_options = None  # type: ignore[assignment]
 
 # v3 P-4b/d: dark-pool prints, dealer-gamma-by-strike, marketwide tide.

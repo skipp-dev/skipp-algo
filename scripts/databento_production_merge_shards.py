@@ -47,7 +47,7 @@ _REPO_ROOT = str(Path(__file__).resolve().parents[1])
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
-from scripts.smc_atomic_write import atomic_write_json  # noqa: E402
+from scripts.smc_atomic_write import atomic_write_json
 
 _LOG_PREFIX = "[merge-shards] "
 
@@ -494,7 +494,7 @@ def merge_shard_payloads(
     Heavy deps (``pandas``, parquet engine) are imported lazily so the
     manifest-only merge path stays import-cheap.
     """
-    import pandas as pd  # noqa: PLC0415
+    import pandas as pd
 
     output_dir.mkdir(parents=True, exist_ok=True)
     by_frame = _discover_shard_parquets(manifest_paths)
@@ -623,7 +623,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.payload_output_dir,
                 merged_basename=MERGED_BASENAME,
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             print(
                 f"ERROR: payload merge failed: {exc}",
                 file=sys.stderr,

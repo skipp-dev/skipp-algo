@@ -18,10 +18,10 @@ if str(REPO_ROOT) not in sys.path:
 # Bug-Hunt 2026-05-01 F-01: deferred so the script also works when
 # invoked as `python scripts/X.py` (no PYTHONPATH=.) — sys.path.insert
 # above must happen before any first-party `from scripts.` import.
-from scripts.smc_atomic_write import atomic_write_text  # noqa: E402
-from scripts.strict_json import dumps_strict_json  # noqa: E402
+from scripts.smc_atomic_write import atomic_write_text
+from scripts.strict_json import dumps_strict_json
 
-from governance.run_manifest import (  # noqa: E402
+from governance.run_manifest import (
     attach as attach_run_manifest,
     build_manifest as build_run_manifest,
     fingerprint_data,
