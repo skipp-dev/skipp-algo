@@ -2507,10 +2507,12 @@ class TestOpenPrepRegressions(unittest.TestCase):
                 return_value=[{"symbol": "NVDA", "warn_flags": "", "gap_bucket": "GO", "gap_grade": 1.0}],
             ),
             patch("open_prep.run_open_prep.build_trade_cards", return_value=[]),
-            # Persistence stubs: without these the full pipeline writes a
-            # synthetic snapshot into the TRACKED canonical artefact
-            # artifacts/open_prep/outcomes/outcomes_2026-02-23.json
-            # (test pollution shipped to main via #2687/#2688).
+            # Persistence stubs: without these the full pipeline would attempt
+            # to write a synthetic snapshot into the TRACKED canonical artefact
+            # artifacts/open_prep/outcomes/outcomes_2026-02-23.json — which the
+            # new guard_against_canonical_repo_write_under_pytest now blocks
+            # with a RuntimeError (it previously silently rewrote the file;
+            # test pollution shipped to main via #2687/#2688).
             patch("open_prep.run_open_prep.store_daily_outcomes") as store_mock,
         ):
             result = run_open_prep.generate_open_prep_result(
