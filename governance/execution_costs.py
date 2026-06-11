@@ -17,7 +17,8 @@ Cost components (per filled order leg)
   quirks can produce either sign; we keep the sign so improvement reduces
   cost honestly). Legs without a limit reference (e.g. trailing stops:
   ``*-trail`` carries a trail amount, not a price level) contribute **fee
-  only** and are counted in ``fee_only_legs`` for transparency.
+  only** to the per-side cost samples (slippage unmeasured, treated as 0)
+  and are counted in ``fee_only_legs`` for transparency.
 * **Commission** — the IBKR Fixed US-equity schedule:
   ``max($1.00, $0.005/share)`` capped at 1 % of trade value, expressed in bps
   of the leg's notional.
@@ -85,9 +86,9 @@ DEFAULT_N_BOOTSTRAP = 1000
 DEFAULT_SEED = 230022
 
 # Order-ref suffixes assigned by scripts/execute_ibkr_watchlist.py.
+# (-trail legs carry a trail amount, not a price level -> fee-only.)
 ENTRY_SUFFIX = "-entry"
 _LIMIT_EXIT_SUFFIXES = ("-tp",)
-_KNOWN_EXIT_SUFFIXES = ("-tp", "-trail")
 
 
 @dataclass(frozen=True)
@@ -299,7 +300,16 @@ def calibrate_costs(
     fee_only = 0
     for leg in legs:
         if leg.slippage_bps is None:
+            # No limit reference (e.g. trailing stop): the leg still costs
+            # its commission, so it contributes fee-only to the per-side
+            # estimate (slippage unmeasured, treated as 0 — see module
+            # docstring). Excluding it entirely would under-estimate the
+            # round-turn cost for every trade that exits via a trail.
+            # The 0.0 slippage sample keeps the reported component means
+            # decomposable (per_side_mean == slippage_mean + fee_mean).
             fee_only += 1
+            per_side.append(leg.fee_bps)
+            slippages.append(0.0)
             continue
         slippages.append(leg.slippage_bps)
         per_side.append(leg.slippage_bps + leg.fee_bps)
