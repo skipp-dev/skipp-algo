@@ -6,6 +6,30 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-06-11) — Outcome backfill: defer unpublished Databento windows
+
+The late-evening scheduled `open-prep-outcome-backfill` run (GH run
+27313823758) exited 2 because Databento's historical API had not yet
+published the day's 1-minute bars (HTTP 422
+`data_start_after_available_end`) and all pending symbols were counted
+as `failed`. That condition is transient — the next scheduled run picks
+the date up naturally — so it is now classified as **deferred** instead
+of failed:
+
+- `open_prep/outcome_backfill.py`: `_fetch_bars` detects the
+  `data_start_after_available_end` error substring and returns a
+  `DATA_NOT_YET_PUBLISHED` sentinel; `backfill_outcomes` counts the
+  affected pending symbols in a new `deferred` summary field and leaves
+  the records unresolved for retry; `main()` exits 0 for deferred-only
+  runs (exit 2 is preserved for genuine zero-progress failures), and
+  deferrals count as progress for the `--require-progress` tripwire.
+- Run log (`artifacts/open_prep/outcome_backfill/*.json`) gains a
+  `deferred` count and a `deferred` status (with `failed` taking
+  precedence when both occur).
+- Tests: sentinel detection, defer-not-fail classification, exit-code
+  semantics, run-log status — `tests/test_outcome_backfill.py`,
+  `tests/test_outcome_backfill_automation.py`.
+
 ### Fixed (2026-06-10) — Stat-review second pass S1–S5 (#2674)
 
 Implements the senior-quant stat-review second-pass findings:

@@ -43,6 +43,36 @@ class TestRunLog:
         assert record["failed"] == 3
         assert record["feature_importance_samples"] is None
 
+    def test_writes_run_log_with_status_deferred(self, tmp_path: Path) -> None:
+        # Bars not yet published upstream: deferred-only runs are not
+        # failures, but the run log still distinguishes them from "ok".
+        log_path = ob._write_backfill_run_log(
+            summary={
+                "resolved": 0, "skipped": 17, "failed": 0, "deferred": 13,
+                "dates_processed": 3,
+            },
+            feature_importance_samples=None,
+            cli_args={"date": None, "lookback": 5, "dataset": "X", "feature_importance": False},
+            log_dir=tmp_path,
+        )
+        record = json.loads(log_path.read_text(encoding="utf-8"))
+        assert record["status"] == "deferred"
+        assert record["deferred"] == 13
+        assert record["failed"] == 0
+
+    def test_run_log_failed_status_wins_over_deferred(self, tmp_path: Path) -> None:
+        log_path = ob._write_backfill_run_log(
+            summary={
+                "resolved": 0, "skipped": 0, "failed": 2, "deferred": 3,
+                "dates_processed": 1,
+            },
+            feature_importance_samples=None,
+            cli_args={"date": None, "lookback": 5, "dataset": "X", "feature_importance": False},
+            log_dir=tmp_path,
+        )
+        record = json.loads(log_path.read_text(encoding="utf-8"))
+        assert record["status"] == "failed"
+
     def test_atomic_write_replaces_existing(self, tmp_path: Path) -> None:
         target = tmp_path / "x.json"
         ob._atomic_write_json(target, {"a": 1})
