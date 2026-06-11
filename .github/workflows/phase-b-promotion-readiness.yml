@@ -28,10 +28,18 @@ permissions:
   # compute_live_drift artifact from the latest c13-daily-cron run.
   actions: read
 
+# Manual-only gate; serialize runs like the sibling drift-watchdog so two
+# concurrent dispatches cannot interleave their artifact downloads.
+concurrency:
+  group: phase-b-promotion-readiness
+  cancel-in-progress: false
+
 env:
   # F-V6-A2 (2026-05-02): force unbuffered Python stdout so progress logs surface
   # in CI in near-real-time rather than after a buffer flush at process exit.
   PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 defaults:
   run:
@@ -60,6 +68,10 @@ jobs:
       - name: Fetch latest compute_live_drift artifact
         env:
           GH_TOKEN: ${{ github.token }}
+          # Indirection via env (not direct ${{ }} interpolation into the
+          # script) so a caller-supplied glob cannot break/inject shell
+          # syntax — expressions are substituted before bash parses.
+          DRIFT_GLOB: ${{ inputs.drift_glob || 'artifacts/drift/drift_report_*.json' }}
         run: |
           set -euo pipefail
           mkdir -p artifacts/drift
@@ -67,7 +79,8 @@ jobs:
           # the checkout (e.g. workflow_call from a job that generated reports
           # in-place), skip the download.
           shopt -s nullglob
-          existing=( ${{ inputs.drift_glob || 'artifacts/drift/drift_report_*.json' }} )
+          # Intentionally unquoted: ${DRIFT_GLOB} must glob-expand.
+          existing=( ${DRIFT_GLOB} )
           shopt -u nullglob
           if [ "${#existing[@]}" -gt 0 ]; then
             echo "::notice title=drift-source::${#existing[@]} drift report(s) already present in checkout — skipping artifact download"
@@ -104,6 +117,8 @@ jobs:
           fi
 
       - name: Run Phase-B readiness gate
+        env:
+          # Same env indirection as the fetch step (injection hardening).
+          DRIFT_GLOB: ${{ inputs.drift_glob || 'artifacts/drift/drift_report_*.json' }}
         run: |
-          python -m scripts.check_phase_b_drift_readiness \
-            "${{ inputs.drift_glob || 'artifacts/drift/drift_report_*.json' }}"
+          python -m scripts.check_phase_b_drift_readiness "${DRIFT_GLOB}"
