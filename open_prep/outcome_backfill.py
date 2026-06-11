@@ -43,6 +43,25 @@ _EXIT_TIME = dt_time(10, 0)
 _DEFAULT_DATASET = "DBEQ.BASIC"
 _DEFAULT_SCHEMA = "ohlcv-1m"
 
+# Sentinel returned by ``_fetch_bars`` when Databento's historical API
+# reports that the requested window lies after the dataset's currently
+# available end (HTTP 422 ``data_start_after_available_end``). This is
+# NOT a failure: the day's bars simply have not been published yet, and
+# the next scheduled run will pick them up. Symbols hitting this are
+# counted as ``deferred`` instead of ``failed`` so the workflow does not
+# go red on a transient publication lag.
+DATA_NOT_YET_PUBLISHED = object()
+
+
+def _is_data_not_yet_published(exc: BaseException) -> bool:
+    """True when *exc* is Databento's 'window not yet published' error.
+
+    Matched on the error-code substring rather than the exception type so
+    we don't need a hard import of ``databento`` here (the provider is
+    injected and may be mocked in tests).
+    """
+    return "data_start_after_available_end" in str(exc)
+
 
 # ── Core backfill ───────────────────────────────────────────────────────────
 
@@ -179,7 +198,8 @@ def _fetch_bars(
 ) -> Any:
     """Fetch 1-min OHLCV bars for the 09:30–10:00 ET window.
 
-    Returns a pandas DataFrame or ``None`` on failure.
+    Returns a pandas DataFrame, ``DATA_NOT_YET_PUBLISHED`` when the
+    window is not yet available upstream, or ``None`` on failure.
     """
     # Query 09:29 → 10:01 to ensure we have the edge bars.
     start_dt = datetime.combine(run_date, dt_time(9, 29), tzinfo=_ET)
@@ -196,6 +216,14 @@ def _fetch_bars(
         )
         return store.to_df()
     except Exception as exc:
+        if _is_data_not_yet_published(exc):
+            logger.info(
+                "Bars for %s not yet published upstream "
+                "(data_start_after_available_end) — deferring to a "
+                "later run.",
+                run_date,
+            )
+            return DATA_NOT_YET_PUBLISHED
         logger.warning(
             "Databento fetch failed for %s (%s): %s",
             run_date,
@@ -244,11 +272,15 @@ def backfill_outcomes(
     dates = target_dates or _load_pending_dates(lookback_days)
     if not dates:
         logger.info("No pending outcome dates to backfill.")
-        return {"resolved": 0, "skipped": 0, "failed": 0, "dates_processed": 0}
+        return {
+            "resolved": 0, "skipped": 0, "failed": 0, "deferred": 0,
+            "dates_processed": 0,
+        }
 
     total_resolved = 0
     total_skipped = 0
     total_failed = 0
+    total_deferred = 0
 
     for run_date in dates:
         path, records = _load_outcome_file(run_date)
@@ -271,6 +303,12 @@ def backfill_outcomes(
         bars_df = _fetch_bars(
             provider, pending_symbols, run_date, dataset=dataset,
         )
+
+        if bars_df is DATA_NOT_YET_PUBLISHED:
+            # Transient: the day's bars are not published yet. Leave the
+            # records unresolved so the next scheduled run retries them.
+            total_deferred += len(pending_symbols)
+            continue
 
         updated = False
         for rec in records:
@@ -307,6 +345,7 @@ def backfill_outcomes(
         "resolved": total_resolved,
         "skipped": total_skipped,
         "failed": total_failed,
+        "deferred": total_deferred,
         "dates_processed": len(dates),
     }
     logger.info("Backfill complete: %s", summary)
@@ -433,7 +472,8 @@ def main(argv: list[str] | None = None) -> int:
 
     print(
         f"Backfill complete: {summary['resolved']} resolved, "
-        f"{summary['skipped']} skipped, {summary['failed']} failed "
+        f"{summary['skipped']} skipped, {summary['failed']} failed, "
+        f"{summary.get('deferred', 0)} deferred "
         f"across {summary['dates_processed']} date(s)."
     )
 
@@ -464,15 +504,20 @@ def main(argv: list[str] | None = None) -> int:
     # workflow permanently red on any single legacy bad row. The exact
     # counts are still preserved in the JSON run log for inspection
     # and the FI report's `insufficient_labels` state.
+    # Note: "deferred" symbols (bars not yet published upstream —
+    # Databento 422 data_start_after_available_end) intentionally do NOT
+    # count as failures: the next scheduled run retries them naturally.
     resolved = int(summary.get("resolved") or 0)
     failed = int(summary.get("failed") or 0)
     skipped = int(summary.get("skipped") or 0)
+    deferred = int(summary.get("deferred") or 0)
     if resolved == 0 and failed > 0:
         return 2
     # F-09: opt-in tripwire for scheduled workflows. The default
     # behaviour (no-op runs are tolerated) stays unchanged so ad-hoc
-    # / dry-run invocations don't break.
-    if args.require_progress and (resolved + failed + skipped) == 0:
+    # / dry-run invocations don't break. A deferred-only run made
+    # contact with the upstream API, so it counts as progress.
+    if args.require_progress and (resolved + failed + skipped + deferred) == 0:
         print(
             "::error::--require-progress was set but the run made "
             "no progress (resolved=0, failed=0, skipped=0)."
@@ -509,11 +554,16 @@ def _write_backfill_run_log(
         "resolved": int(summary.get("resolved") or 0),
         "skipped": int(summary.get("skipped") or 0),
         "failed": int(summary.get("failed") or 0),
+        "deferred": int(summary.get("deferred") or 0),
         "dates_processed": int(summary.get("dates_processed") or 0),
         "feature_importance_samples": (
             int(feature_importance_samples) if feature_importance_samples is not None else None
         ),
-        "status": "failed" if int(summary.get("failed") or 0) > 0 else "ok",
+        "status": (
+            "failed" if int(summary.get("failed") or 0) > 0
+            else "deferred" if int(summary.get("deferred") or 0) > 0
+            else "ok"
+        ),
         "cli_args": cli_args,
     }
 
