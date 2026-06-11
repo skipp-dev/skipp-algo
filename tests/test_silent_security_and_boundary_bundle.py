@@ -185,7 +185,8 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # 2026-06-11 (backfill defer-unpublished): 418→457.
     # 2026-06-11 (eval-findings B1/B2): direction+TB code shifted 457→536.
     # 2026-06-11 (c10b FI component persistence): era-gate block 536→558.
-    ("open_prep/outcome_backfill.py", 558),
+    # 2026-06-11 (pytest write-guard): import + guard call 558→567.
+    ("open_prep/outcome_backfill.py", 567),
     ("open_prep/realtime_signals.py", 2662),
     # 2026-06-10 (#2670 W2/W4): source-disclosure edits shifted +25 (5840→5865).
     # 2026-06-11 (trend-state features): 5865→5876, enrichment-loop stamping.

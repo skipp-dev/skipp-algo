@@ -2507,6 +2507,11 @@ class TestOpenPrepRegressions(unittest.TestCase):
                 return_value=[{"symbol": "NVDA", "warn_flags": "", "gap_bucket": "GO", "gap_grade": 1.0}],
             ),
             patch("open_prep.run_open_prep.build_trade_cards", return_value=[]),
+            # Persistence stubs: without these the full pipeline writes a
+            # synthetic snapshot into the TRACKED canonical artefact
+            # artifacts/open_prep/outcomes/outcomes_2026-02-23.json
+            # (test pollution shipped to main via #2687/#2688).
+            patch("open_prep.run_open_prep.store_daily_outcomes") as store_mock,
         ):
             result = run_open_prep.generate_open_prep_result(
                 symbols=["NVDA"],
@@ -2516,6 +2521,7 @@ class TestOpenPrepRegressions(unittest.TestCase):
                 now_utc=datetime(2026, 2, 23, 12, 0, tzinfo=UTC),
             )
 
+        store_mock.assert_called_once()
         self.assertIn("NVDA", result["premarket_context"])
         self.assertEqual(result["premarket_context"]["NVDA"]["premarket_high"], 150.0)
         self.assertEqual(result["premarket_context"]["NVDA"]["premarket_low"], 145.0)
@@ -2565,6 +2571,8 @@ class TestOpenPrepRegressions(unittest.TestCase):
                 return_value=[{"symbol": "NVDA", "warn_flags": "", "gap_bucket": "GO", "gap_grade": 1.0}],
             ),
             patch("open_prep.run_open_prep.build_trade_cards", return_value=[]),
+            # Persistence stub — see comment in the sibling test above.
+            patch("open_prep.run_open_prep.store_daily_outcomes"),
             patch.dict("os.environ", {"OPEN_PREP_PMH_FETCH_TIMEOUT_SECONDS": "3.5"}, clear=False),
         ):
             result = run_open_prep.generate_open_prep_result(

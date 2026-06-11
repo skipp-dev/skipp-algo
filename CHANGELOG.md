@@ -6,6 +6,38 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-06-11) — Outcome-Ledger: pytest-Write-Guard gegen Testverschmutzung des kanonischen Artefakt-Baums
+
+Zwei Full-Pipeline-Tests in `tests/test_open_prep.py` riefen
+`generate_open_prep_result(..., now_utc=2026-02-23)` ohne Persistenz-Stub auf;
+`store_daily_outcomes` löste das relative `OUTCOMES_DIR` gegen das Repo-Root
+auf und überschrieb bei **jedem lokalen Testlauf** das getrackte Artefakt
+`artifacts/open_prep/outcomes/outcomes_2026-02-23.json`. Die Verschmutzung
+wurde zweimal nach main committet (#2687; erneut mit vix9d-Feldern nach
+#2688/#2692), und die Backfill-Automation (#1926) labelte den synthetischen
+NVDA-Datensatz als echten Trade — Kontamination der Hit-Rate-Statistik.
+
+- **`open_prep/outcomes.py`** (`store_daily_outcomes`) und
+  **`open_prep/outcome_backfill.py`** (`_save_outcome_file`): fail-loud
+  `guard_against_canonical_repo_write_under_pytest` (bestehendes Muster aus
+  `smc_core/_pytest_canonical_write_guard.py`, PR #33) — Schreibzugriffe auf
+  `artifacts/open_prep/outcomes/` unter pytest ⇒ `RuntimeError` statt
+  stiller Verschmutzung. Produktionspfad (kein `PYTEST_CURRENT_TEST`)
+  unverändert.
+- **`tests/test_open_prep.py`**: die beiden Verursacher-Tests stubben jetzt
+  `store_daily_outcomes` explizit.
+- **`artifacts/open_prep/outcomes/outcomes_2026-02-23.json` gelöscht**: von
+  Geburt an synthetisch (einzelne NVDA-Zeile mit `gap_pct=0.0`/`rvol=0.0`,
+  exakt die Mock-Fixture; erzeugt durch einen Testlauf, committet in
+  `6c0ced38`). Echte Outcome-Tage (2026-02-24 ff.) unangetastet.
+- Neue Tests: `tests/test_outcomes_pytest_write_guard.py` (Guard blockt
+  kanonischen Pfad, erlaubt `tmp_path`-Redirect; Tripwire gegen
+  Wiederauftauchen des synthetischen Artefakts).
+- Ledger-Rebaseline (Zeilenverschiebung durch Import + Guard-Aufrufe):
+  `tests/test_random_tempfile_ledger_pin.py`,
+  `tests/test_os_unlink_remove_ledger.py`,
+  `tests/test_mutable_defaults_and_loads_pins.py`.
+
 ### Added (2026-06-11) — ADR-0023 Stage-1: Ledger-Verdicts → Promotion-Gate-Snapshot (Handover §5 Punkt 2)
 
 Der Stage-1-Shadow-Runner lief täglich, aber seine Verdicts erreichten das
