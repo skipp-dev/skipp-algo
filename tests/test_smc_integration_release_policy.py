@@ -496,10 +496,11 @@ class TestMeasurementShadowGovernance:
         }
 
     def test_calibrated_thresholds_skipped_below_platt_floor_default(self) -> None:
-        # Default eligibility floor is 20 events (the Platt-scaler minimum in
-        # smc_core.scoring._MIN_PLATT_EVENTS). Below that the calibration code
-        # path falls back to beta_bin and emits warnings; calibrated_ece is
-        # statistically meaningless (e.g. n=1 with positive_rate=0 yields
+        # Default eligibility floor is 30 events (Platt-scaler minimum in
+        # smc_core.scoring._MIN_PLATT_EVENTS = 20, plus margin; see
+        # MeasurementShadowThresholds). Below the Platt floor the calibration
+        # code path falls back to beta_bin and emits warnings; calibrated_ece
+        # is statistically meaningless (e.g. n=1 with positive_rate=0 yields
         # 0.333333), so the ABOVE_THRESHOLD hard-blocks must not fire.
         thresholds = MeasurementShadowThresholds()  # all defaults
         degradations, baseline = assess_measurement_shadow_degradations(
@@ -527,7 +528,7 @@ class TestMeasurementShadowGovernance:
         assert "MEASUREMENT_STRATIFICATION_COVERAGE_LOW" in codes
 
     def test_calibrated_thresholds_apply_at_or_above_platt_floor_default(self) -> None:
-        # At/above the Platt-scaler floor (n_events=20) the calibrated
+        # At/above the eligibility floor (n_events=30) the calibrated
         # ABOVE_THRESHOLD hard-blocks fire as before.
         thresholds = MeasurementShadowThresholds()
         degradations, _baseline = assess_measurement_shadow_degradations(
@@ -536,7 +537,7 @@ class TestMeasurementShadowGovernance:
                 "log_score": 0.50,
                 "calibrated_brier_score": 0.70,  # > 0.60 default
                 "calibrated_ece": 0.40,           # > 0.30 default
-                "n_events": 20,
+                "n_events": 30,
                 "stratification_coverage": {"populated_bucket_count": 3},
             },
             [],
@@ -545,6 +546,30 @@ class TestMeasurementShadowGovernance:
         codes = {row["code"] for row in degradations}
         assert "MEASUREMENT_CALIBRATED_BRIER_ABOVE_THRESHOLD" in codes
         assert "MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD" in codes
+
+    def test_calibrated_thresholds_skipped_at_platt_minimum_regression(self) -> None:
+        # Regression for the 2026-06-10 incident: PG sat at exactly n=20 (the
+        # Platt fitting minimum) with calibrated_ece 0.331 vs the 0.30 ceiling
+        # and hard-failed three consecutive smc-library-refresh runs. At the
+        # bare fitting minimum ECE sampling noise (~±0.15) dwarfs the
+        # threshold, so the hard-blocks must stay suppressed until the
+        # 30-event eligibility floor is reached.
+        thresholds = MeasurementShadowThresholds()
+        degradations, _baseline = assess_measurement_shadow_degradations(
+            {
+                "brier_score": 0.25,
+                "log_score": 0.50,
+                "calibrated_brier_score": 0.11,
+                "calibrated_ece": 0.331385,  # the failing-run PG 5m value
+                "n_events": 20,
+                "stratification_coverage": {"populated_bucket_count": 3},
+            },
+            [],
+            thresholds=thresholds,
+        )
+        codes = {row["code"] for row in degradations}
+        assert "MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD" not in codes
+        assert "MEASUREMENT_CALIBRATED_BRIER_ABOVE_THRESHOLD" not in codes
 
 
 class TestContextualCalibrationGovernance:

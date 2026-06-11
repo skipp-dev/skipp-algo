@@ -390,16 +390,27 @@ class MeasurementShadowThresholds:
     max_calibrated_brier_score: float = 0.60
     max_calibrated_ece: float = 0.30
     min_scoring_events: int = 1
-    # Calibrated Brier/ECE thresholds only apply when n_events meets the
-    # Platt-scaler floor (``_MIN_PLATT_EVENTS`` in ``smc_core.scoring`` = 20).
-    # Below this floor the calibration code path falls back to ``beta_bin``
-    # and emits ``insufficient_events_for_platt_scaling`` /
-    # ``single_class_outcomes_used_beta_bin_fallback`` warnings, in which
+    # Calibrated Brier/ECE thresholds only apply when n_events clears the
+    # Platt-scaler floor (``_MIN_PLATT_EVENTS`` in ``smc_core.scoring`` = 20)
+    # with margin. Below the Platt floor the calibration code path falls
+    # back to ``beta_bin`` and emits ``insufficient_events_for_platt_scaling``
+    # / ``single_class_outcomes_used_beta_bin_fallback`` warnings, in which
     # case calibrated ECE is statistically meaningless (e.g. n=1 with
     # positive_rate=0 trivially produces ECE=0.333). Hard-blocking on those
     # values would block releases on data sparsity rather than on real
-    # calibration drift. Set to 1 to restore the legacy behavior.
-    min_events_for_calibrated_thresholds: int = 20
+    # calibration drift.
+    #
+    # 2026-06-11: raised 20 -> 30. At exactly n=20 the Platt scaler has only
+    # just fit and ECE sampling noise (~±0.15 at n=20) dwarfs the 0.30
+    # ceiling, so a hard-block there is indistinguishable from noise.
+    # Incident: 2026-06-10 PG hit n=20 with calibrated_ece 0.331/0.381 vs
+    # raw_ece 0.36 (Platt barely effective, history_runs=0) and hard-failed
+    # three consecutive smc-library-refresh runs (27297623388, 27299755086,
+    # 27309262730) on the same 16:00 export bundle. The 30-event margin keeps
+    # the absolute calibrated thresholds advisory until the scaler has
+    # meaningfully more data than its own fitting minimum. Set to 1 to
+    # restore the legacy (pre-floor) behavior.
+    min_events_for_calibrated_thresholds: int = 30
     min_populated_stratification_buckets: int = 1
     min_history_runs: int = 2
     max_brier_regression_abs: float = 0.08

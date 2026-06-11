@@ -115,11 +115,11 @@ file = "open_prep/realtime_signals.py"
 line = 336
 codes = ["S603"]
 
-# smc_integration/release_policy.py:1085 — Bandit S603 false positive:
+# smc_integration/release_policy.py:1096 — Bandit S603 false positive:
 # git rev-parse HEAD via shutil.which("git").
 [[noqa_budget.sites]]
 file = "smc_integration/release_policy.py"
-line = 1085
+line = 1096
 codes = ["S603"]
 
 # open_prep/streamlit_monitor.py:203 — module-import-time hardening:
