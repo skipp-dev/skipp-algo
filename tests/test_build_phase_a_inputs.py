@@ -155,6 +155,29 @@ def test_trade_cards_age_days_known_filename() -> None:
     assert _trade_cards_age_days(p, "2026-06-10") == 4
 
 
+def test_trade_cards_age_days_compact_filename() -> None:
+    """The exporter writes COMPACT dates (YYYYMMDD), not dashed ISO.
+
+    Regression for the 2026-06-11 paper-trading outage: the original
+    B1 regex only matched ``YYYY-MM-DD``, so every real export such as
+    ``open_prep_trade_cards_20260611_071805Z.csv`` was rejected as
+    "unparseable date" and the phase-a launchd job hard-failed.
+    """
+    p = Path("reports/open_prep_trade_cards_20260611_071805Z.csv")
+    assert _trade_cards_age_days(p, "2026-06-11") == 0
+    assert _trade_cards_age_days(p, "2026-06-13") == 2
+
+
+def test_latest_trade_cards_accepts_fresh_compact_csv(tmp_path: Path) -> None:
+    """End-to-end: a same-day compact-date export must be accepted."""
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    fresh = reports / "open_prep_trade_cards_20260611_071805Z.csv"
+    fresh.write_text("", encoding="utf-8")
+    result = _latest_trade_cards(reports, trade_date="2026-06-11")
+    assert result == fresh
+
+
 def test_trade_cards_age_days_no_date_in_name() -> None:
     p = Path("reports/open_prep_trade_cards_nodateinname.csv")
     assert _trade_cards_age_days(p, "2026-06-10") is None
