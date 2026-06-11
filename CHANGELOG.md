@@ -6,6 +6,41 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-06-11) — FI pipeline: component persistence + sample dedup (c10b follow-up)
+
+Blast-radius remediation after the FDR-gate wiring fix: the FI
+pipeline's inputs were structurally degenerate, independent of the gate.
+
+- **Component persistence** (`open_prep/outcomes.py`):
+  `prepare_outcome_snapshot()` now flattens the 14 weighted
+  `score_breakdown` components (keys from `FEATURE_TO_WEIGHT_KEY`) into
+  every outcome record. Previously `outcomes_<date>.json` never carried
+  them, so `backfill_feature_importance()` defaulted every component to
+  `0.0` — all FI reports since 2026-04-30 were computed on all-zero
+  feature vectors (c10b side-finding). Absent breakdown ⇒ `None`, not
+  `0.0`, so absence stays distinguishable from a genuine zero.
+- **Era-gate** (`open_prep/outcome_backfill.py`):
+  `backfill_feature_importance()` skips labeled records lacking the full
+  component schema (legacy pre-fix outcome files) instead of laundering
+  the missing keys into all-zero samples; skip count is logged.
+- **(symbol, date) dedup** (`open_prep/outcomes.py`):
+  `compute_feature_importance()` deduplicates samples across the
+  overlapping daily fi_samples files (the backfill re-emits its full
+  lookback window each day, inflating n ~3× and the Welch t-stats
+  feeding the BH-FDR gate by ~√3). Newest file wins; report gains
+  `duplicate_samples_dropped`.
+- **Historical artifacts annotated, not recomputed**: README notes in
+  `artifacts/open_prep/feature_importance/` and
+  `artifacts/open_prep/outcomes/feature_importance/` mark all reports ≤
+  2026-06-09 as vacuous (zero-variance inputs; recommendations are not
+  evidence). No production weight adjustment ever consumed them
+  (verified: no candidate-weight artifacts, `DEFAULT_WEIGHTS`
+  unchanged); historical component values were never persisted, so
+  recomputation is impossible — clean samples accumulate forward.
+- Tests: `tests/test_fi_component_persistence.py` (new; E2E
+  snapshot→backfill→report) + fixture alignment in
+  `tests/test_outcome_backfill.py`/`tests/test_feature_importance_report.py`.
+
 ### Fixed (2026-06-11) — FDR-gate wiring + GAP_FADE zero-gap direction (Copilot findings on #2687)
 
 - **BH-FDR gate was defined but never invoked** (`open_prep/outcomes.py`):
