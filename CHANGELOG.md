@@ -23,6 +23,25 @@ All notable changes to this project are documented in this file.
 - Test-Fixtures: synthetische `order_id`/`perm_id` über `zlib.crc32`
   statt `hash()` (PYTHONHASHSEED-unabhängig, keine Modulus-Kollisionen).
 
+### Fixed (2026-06-11) — Phase-B-Readiness-Workflow: Drift-Report-Artifact-Download (C8 Phase A → B)
+
+`phase-b-promotion-readiness.yml` konnte strukturell nie erfolgreich laufen:
+Der Gate-Glob `artifacts/drift/drift_report_*.json` zeigte auf den frischen
+Checkout, aber die Drift-Reports werden von `drift-watchdog.yml` ausschließlich
+als **Run-Artefakt** (`drift-report`) hochgeladen und nie ins Repo committet —
+jeder Dispatch wäre mit Exit 64 (`no files matched`) geendet. Deshalb hatte
+der Workflow seit Erstellung (Deep-Review 2026-04-27) null Läufe.
+
+- **`.github/workflows/phase-b-promotion-readiness.yml`**: neuer Step
+  `Fetch latest drift-report artifact` lädt vor dem Gate das Artefakt des
+  jüngsten erfolgreichen `drift-watchdog`-Runs via `gh run download` nach
+  `artifacts/drift/` (gleiches Muster wie
+  `fvg-quality-recal-shadow-daily.yml`). Skip, wenn der Caller-Glob bereits
+  Dateien im Checkout matcht (workflow_call-Pfad). `permissions` um
+  `actions: read` erweitert (weiterhin rein lesend).
+- **`tests/test_phase_b_promotion_readiness_workflow_contract.py`**:
+  Permissions-Pin auf `{contents: read, actions: read}` aktualisiert.
+
 ### Added (2026-06-11) — ADR-0023 Stage-1: Ledger-Verdicts → Promotion-Gate-Snapshot (Handover §5 Punkt 2)
 
 Der Stage-1-Shadow-Runner lief täglich, aber seine Verdicts erreichten das

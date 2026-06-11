@@ -24,6 +24,9 @@ on:
 
 permissions:
   contents: read
+  # actions:read — needed by `gh run download` to fetch the drift-report
+  # artifact from the latest successful drift-watchdog run.
+  actions: read
 
 env:
   # F-V6-A2 (2026-05-02): force unbuffered Python stdout so progress logs surface
@@ -44,6 +47,42 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           python-version: "3.12"
+
+      # Fix 2026-06-11: drift reports are produced by drift-watchdog.yml and
+      # uploaded as RUN ARTIFACTS ("drift-report") — they are never committed
+      # to the repo. The original glob against the fresh checkout could only
+      # ever exit 64 (no files matched), which is why this workflow had zero
+      # meaningful runs since creation. Download the artifact from the latest
+      # successful drift-watchdog run first (same pattern as
+      # fvg-quality-recal-shadow-daily.yml).
+      - name: Fetch latest drift-report artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/drift
+          # If the caller supplied a custom glob that already matches files in
+          # the checkout (e.g. workflow_call from a job that generated reports
+          # in-place), skip the download.
+          shopt -s nullglob
+          existing=( ${{ inputs.drift_glob || 'artifacts/drift/drift_report_*.json' }} )
+          shopt -u nullglob
+          if [ "${#existing[@]}" -gt 0 ]; then
+            echo "::notice title=drift-source::${#existing[@]} drift report(s) already present in checkout — skipping artifact download"
+            exit 0
+          fi
+          latest_run=$(gh run list \
+            --workflow=drift-watchdog.yml \
+            --status=success \
+            --limit=1 \
+            --json databaseId \
+            --jq '.[0].databaseId' || true)
+          if [ -z "${latest_run}" ]; then
+            echo "::error title=drift-source::No successful drift-watchdog run found — cannot evaluate Phase-B readiness"
+            exit 64
+          fi
+          echo "::notice title=drift-source::Downloading drift-report artifact from drift-watchdog run ${latest_run}"
+          gh run download "${latest_run}" --name drift-report --dir artifacts/drift
 
       - name: Run Phase-B readiness gate
         run: |
