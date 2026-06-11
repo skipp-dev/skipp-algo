@@ -137,7 +137,7 @@ jobs:
       # Configuration lives in pyproject.toml [tool.ruff] / [tool.ruff.lint].
       - name: Ruff lint
         if: steps.gate.outputs.run_heavy == 'true'
-        run: ruff check .
+        run: uvx ruff==0.15.16 check .
 
       - name: Install uv
         if: steps.gate.outputs.run_heavy == 'true'
