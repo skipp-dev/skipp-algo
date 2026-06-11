@@ -494,15 +494,49 @@ def load_and_validate_eval_report(
             f"but entering {target_phase!r} requires a passing "
             f"{required_phase!r} evaluation"
         )
+    # W6-1 (stat-review wave 6): a vacuous report with results=[] and
+    # all_passed=True must be rejected.  Separately, cross-check every
+    # individual criterion — all_passed alone can be spoofed or set by
+    # hand without matching per-criterion detail.  Validate the row shape
+    # before any per-row .get(...) access so forged/corrupt reports fail
+    # closed with an operator-readable SystemExit, not AttributeError.
+    results_raw = payload.get("results")
+    if not isinstance(results_raw, list) or len(results_raw) == 0:
+        raise SystemExit(
+            "--phase-eval-report results list is empty or missing; "
+            "the report carries no per-criterion evidence (a vacuous or "
+            "corrupt report) and is rejected regardless of all_passed"
+        )
+    malformed_result_rows = [
+        idx
+        for idx, row in enumerate(results_raw, start=1)
+        if not isinstance(row, Mapping)
+    ]
+    if malformed_result_rows:
+        raise SystemExit(
+            "--phase-eval-report results contains non-object entries at "
+            f"positions {malformed_result_rows!r}; refusing forged/corrupt "
+            "criterion rows"
+        )
     if payload.get("all_passed") is not True:
         failing = [
             r.get("criterion")
-            for r in payload.get("results", [])
+            for r in results_raw
             if r.get("passed") is not True
         ]
         raise SystemExit(
             f"--phase-eval-report all_passed is not true; "
             f"unmet criteria: {failing!r}"
+        )
+    per_criterion_failing = [
+        r.get("criterion")
+        for r in results_raw
+        if r.get("passed") is not True
+    ]
+    if per_criterion_failing:
+        raise SystemExit(
+            f"--phase-eval-report claims all_passed=true but individual "
+            f"criteria do not all have passed=true: {per_criterion_failing!r}"
         )
     computed_at_raw = payload.get("computed_at")
     try:
@@ -540,14 +574,22 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         return []
     out: list[dict[str, Any]] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for lineno, line in enumerate(
+        path.read_text(encoding="utf-8").splitlines(), start=1
+    ):
         line = line.strip()
         if not line:
             continue
         try:
             obj = json.loads(line)
-        except json.JSONDecodeError:
-            continue
+        except json.JSONDecodeError as exc:
+            # W6-2 (stat-review wave 6): fail-closed on any malformed non-empty
+            # line.  A corrupt audit JSONL must never silently drop kill-switch
+            # evidence — the gate must refuse rather than produce a vacuous green.
+            raise SystemExit(
+                f"--audit-jsonl {path}: malformed JSON at line {lineno} "
+                f"({exc!s}); re-export the audit log before re-running"
+            ) from exc
         if isinstance(obj, dict):
             out.append(obj)
     return out
