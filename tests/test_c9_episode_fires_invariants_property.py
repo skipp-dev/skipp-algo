@@ -168,8 +168,11 @@ def test_zero_variance_live_disables_variance_ratio_detector() -> None:
         baseline=baseline,
         live=tuple(0.0 for _ in range(80)),
     )
-    # Detector 3 Welch-t definitely fires (huge mean gap vs baseline).
-    # KS very likely fires. PSI likely fires. Detector 4 must NOT fire.
+    # The test does NOT depend on detectors 1-3 firing: baseline is N(0,1)
+    # (seed 29), so the mean gap to the all-zero live window may be small and
+    # Welch-t / KS / PSI may or may not fire. What it pins is that detector 4
+    # (variance ratio) is DISABLED when lstd == 0 — leaving at most 3 live
+    # detectors, so consensus_min=4 is structurally unreachable.
     setting = ThresholdSetting(
         ks_p_red=0.01, ks_p_yellow=0.05, consensus_min=4
     )
