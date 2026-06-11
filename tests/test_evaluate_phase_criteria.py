@@ -639,6 +639,95 @@ def test_prior_phase_mapping_covers_both_live_phases() -> None:
 
 
 # ---------------------------------------------------------------------------
+# W6-1 — vacuous / forged eval-report (stat-review wave 6)
+# ---------------------------------------------------------------------------
+
+
+def test_load_and_validate_rejects_empty_results_list(tmp_path: Path) -> None:
+    """W6-1: results=[] with all_passed=True must be rejected (forged report)."""
+    payload = {
+        "schema_version": PHASE_EVAL_SCHEMA_VERSION,
+        "phase": "paper",
+        "variant": "v1",
+        "all_passed": True,
+        "computed_at": datetime.now(UTC).isoformat(),
+        "results": [],  # vacuously passing
+        "phase_promotion": "manual_signoff_only",
+    }
+    path = tmp_path / "eval_empty.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(SystemExit, match="results list is empty or missing"):
+        load_and_validate_eval_report(path, target_phase="live_small")
+
+
+def test_load_and_validate_rejects_criterion_with_passed_false(tmp_path: Path) -> None:
+    """W6-1: a criterion with passed=false while all_passed=True must fail."""
+    payload = {
+        "schema_version": PHASE_EVAL_SCHEMA_VERSION,
+        "phase": "paper",
+        "variant": "v1",
+        "all_passed": True,
+        "computed_at": datetime.now(UTC).isoformat(),
+        "results": [
+            {"criterion": "min_live_days", "passed": True, "detail": "ok"},
+            # Spoofed: passed=false in detail, True at the top-level flag
+            {"criterion": "kill_switch_never_fired", "passed": False, "detail": "fired"},
+        ],
+        "phase_promotion": "manual_signoff_only",
+    }
+    path = tmp_path / "eval_spoof.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(SystemExit, match="passed=true"):
+        load_and_validate_eval_report(path, target_phase="live_small")
+
+
+def test_load_and_validate_rejects_non_object_result_rows(tmp_path: Path) -> None:
+    """W6-1: corrupt result rows must fail closed without AttributeError."""
+    payload = {
+        "schema_version": PHASE_EVAL_SCHEMA_VERSION,
+        "phase": "paper",
+        "variant": "v1",
+        "all_passed": True,
+        "computed_at": datetime.now(UTC).isoformat(),
+        "results": ["not-a-criterion-object"],
+        "phase_promotion": "manual_signoff_only",
+    }
+    path = tmp_path / "eval_corrupt_rows.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(SystemExit, match="non-object entries"):
+        load_and_validate_eval_report(path, target_phase="live_small")
+
+
+# ---------------------------------------------------------------------------
+# W6-2 — malformed audit JSONL must fail closed (stat-review wave 6)
+# ---------------------------------------------------------------------------
+
+
+def test_read_jsonl_raises_on_malformed_line(tmp_path: Path) -> None:
+    """W6-2: a malformed non-empty JSONL line must cause SystemExit, not silent skip."""
+    from scripts.evaluate_phase_criteria import _read_jsonl
+
+    audit = tmp_path / "audit.jsonl"
+    good = json.dumps({"variant": "v1", "phase": "paper", "kill_switch_triggered": False})
+    audit.write_text(f"{good}\nnot_valid_json\n{good}\n", encoding="utf-8")
+    with pytest.raises(SystemExit, match="malformed JSON"):
+        _read_jsonl(audit)
+
+
+def test_kill_switch_check_fails_on_corrupt_jsonl(tmp_path: Path) -> None:
+    """W6-2: kill_switch_never_fired must not return True if audit JSONL is corrupt."""
+    from scripts.evaluate_phase_criteria import _read_jsonl
+
+    audit = tmp_path / "audit.jsonl"
+    # A malformed line that would have been a kill-switch record if parsed
+    ks_record = '{"variant": "v1", "phase": "paper", "kill_switch_triggered": true'  # missing }
+    good_record = json.dumps({"variant": "v1", "phase": "paper", "kill_switch_triggered": False})
+    audit.write_text(f"{good_record}\n{ks_record}\n", encoding="utf-8")
+    with pytest.raises(SystemExit, match="malformed JSON"):
+        _read_jsonl(audit)
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
