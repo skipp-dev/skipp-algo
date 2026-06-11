@@ -51,8 +51,8 @@ detector 4.
 
 ### Grid results (2026-06-11, synthetic bank)
 
-`build_synthetic_episodes(n_normal=40, n_drift=20, sample_size=80,
-seed=11)`, acceptance bar TPR ≥ 0.80 ∧ FPR < 0.10:
+`build_synthetic_episodes(n_normal=40, n_drift=20, sample_size=80, seed=11)`,
+acceptance bar TPR ≥ 0.80 ∧ FPR < 0.10:
 
 | alpha ladder (red/yellow) | consensus | Gaussian bank | mixed bank (t(4)+lognormal) |
 |---|---|---|---|
