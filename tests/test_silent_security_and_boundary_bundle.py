@@ -182,7 +182,8 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     ("newsstack_fmp/run.py", 22),
     ("open_prep/candidate_weights.py", 207),
     ("open_prep/feature_importance_report.py", 305),
-    ("open_prep/outcome_backfill.py", 418),
+    # 2026-06-11 (backfill defer-unpublished): 418→457.
+    ("open_prep/outcome_backfill.py", 457),
     ("open_prep/realtime_signals.py", 2662),
     # 2026-06-10 (#2670 W2/W4): source-disclosure edits shifted +25 (5840→5865).
     ("open_prep/run_open_prep.py", 5865),
