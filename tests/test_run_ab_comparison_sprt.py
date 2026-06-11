@@ -275,3 +275,39 @@ def test_sprt_schema_pin_zero_n() -> None:
     _check_sprt_block(block)
     assert block["decision"] == "inconclusive"
     assert block["n"] == 0 and block["k"] == 0
+
+
+# ---------------------------------------------------------------------------
+# W4-1 regression: SPRT uses n_hit_rate_valid, not total_events
+# ---------------------------------------------------------------------------
+
+
+class _AggWithNanPairs:
+    """Simulates an AggregateReport where some pairs have NaN hit_rate.
+
+    total_events=1000, but only 600 come from pairs with a valid hit_rate.
+    avg_hit_rate is computed from those 600 only.  The SPRT must use
+    n_hit_rate_valid=600 as denominator, not total_events=1000.
+    """
+
+    def __init__(self) -> None:
+        self.total_events = 1000
+        self.n_hit_rate_valid = 600
+        self.avg_hit_rate = 64.0  # 64% hit rate on the 600 valid-pair events
+
+
+def test_w4_1_sprt_uses_n_hit_rate_valid_not_total_events() -> None:
+    """W4-1 (stat-review wave 4): n denominator must be n_hit_rate_valid.
+
+    With total_events=1000 and avg_hit_rate=64%, k=640 (inflated).
+    With n_hit_rate_valid=600 and avg_hit_rate=64%, k=384 (correct).
+    The test pins that _sprt_decision reports n=600, k=384.
+    """
+    ctrl = _AggWithNanPairs()
+    treat = _AggWithNanPairs()
+    sprt = _sprt_decision(ctrl, treat)
+    # Must use the valid-pair denominator, not total_events.
+    assert sprt["n"] == 600, f"expected n=600 (n_hit_rate_valid), got {sprt['n']}"
+    assert sprt["k"] == round(600 * 0.64), (
+        f"expected k={round(600 * 0.64)}, got {sprt['k']}"
+    )
