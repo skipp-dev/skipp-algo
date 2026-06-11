@@ -8,8 +8,8 @@ clone-factory into an operable contract:
    ``--workbook`` suppresses bundle auto-discovery, so intraday timeframes
    could never be exported from CI. ``--workbook`` defaults to ``None`` so
    the library applies the SAME canonical workbook resolution that the
-   downstream manifest provenance check expects (NONCANONICAL_MANIFEST_
-   WORKBOOK_PATH regression, #2678 fallout).
+   downstream manifest provenance check expects
+   (``NONCANONICAL_MANIFEST_WORKBOOK_PATH`` regression, #2678 fallout).
 2. Evidence: ``build_measurement_evidence`` propagates contract-level
    warnings (``legacy_tf_fallback``) into the evidence warning stream.
 3. Runner: ``run_smc_measurement_benchmark.py --strict-structure-tf``
