@@ -372,7 +372,8 @@ def rolling_drift_score(
 # ---------------------------------------------------------------------------
 
 
-# Detector-3 / Detector-4 (C9/T7, issue #298 — finalised 2026-06-11).
+# Detector-3 / Detector-4 (C9/T7, issue #298 — structural part landed
+# 2026-06-11; threshold finalisation still OPEN, see NOTE below).
 #
 # The interim effect-size rules (mean shift >= 0.3 sigma of baseline;
 # variance ratio outside [0.5, 2.0]) were replaced by two-sample
