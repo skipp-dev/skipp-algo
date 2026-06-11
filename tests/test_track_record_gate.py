@@ -291,3 +291,48 @@ def test_per_variant_unknown_optional_key_raises_value_error() -> None:
             {"sample": _profitable_returns()},
             walk_forward_efficiency_by_variant={"SAMPLE": 0.6},  # case typo
         )
+
+
+# --- Stat-review S4 (#2674): Sharpe annualisation on the trade clock ---
+
+
+def _sharpe_check(verdict):
+    return next(c for c in verdict.checks if c.name == "sharpe")
+
+
+def test_trades_per_year_rescales_sharpe_and_is_disclosed() -> None:
+    import pytest
+
+    r = _profitable_returns()
+    base = evaluate_track_record_gate(r, bootstrap_B=80)
+    scaled = evaluate_track_record_gate(r, trades_per_year=63.0, bootstrap_B=80)
+    c_base, c_scaled = _sharpe_check(base), _sharpe_check(scaled)
+    # Annualised Sharpe scales with sqrt(freq): 63 = 252/4 -> exactly half.
+    assert c_scaled.value == pytest.approx(c_base.value * 0.5, rel=1e-9)
+    assert "observed trades/year" in c_scaled.detail
+    assert "63" in c_scaled.detail
+
+
+def test_default_freq_disclosure_names_the_daily_bar_assumption() -> None:
+    verdict = evaluate_track_record_gate(_profitable_returns(), bootstrap_B=80)
+    detail = _sharpe_check(verdict).detail
+    assert "freq=252" in detail
+    assert "daily-bar assumption" in detail
+    assert "trades_per_year" in detail
+
+
+def test_non_positive_trades_per_year_falls_back_to_default() -> None:
+    r = _profitable_returns()
+    base = evaluate_track_record_gate(r, bootstrap_B=80)
+    fallback = evaluate_track_record_gate(r, trades_per_year=0.0, bootstrap_B=80)
+    assert _sharpe_check(fallback).value == _sharpe_check(base).value
+    assert "daily-bar assumption" in _sharpe_check(fallback).detail
+
+
+def test_per_variant_forwards_trades_per_year() -> None:
+    r = _profitable_returns()
+    out = evaluate_track_record_gate_per_variant(
+        {"v1": r}, trades_per_year=63.0, bootstrap_B=80
+    )
+    checks = {c["name"]: c for c in out["v1"]["checks"]}
+    assert "observed trades/year" in checks["sharpe"]["detail"]

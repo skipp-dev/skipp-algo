@@ -9,6 +9,7 @@ from governance.family_returns import (
     FamilyEvent,
     extract_family_feature_samples,
 )
+from governance.family_walkforward import family_outcome_horizon
 
 _T0 = 1_700_000_000.0
 _STEP = 86_400.0  # daily bars
@@ -82,10 +83,13 @@ def _triggered_event(
     family: str, *, signed_uoa: float | None, up: bool
 ) -> FamilyEvent:
     base = 100.0
+    # Stat-review S3 (#2674): immediate mode now REFUSES windows shorter
+    # than the outcome horizon, so the fixture must span the full horizon.
+    n = family_outcome_horizon(family)
     forward = (
-        [base + 1.0, base + 2.0, base + 3.0]
+        [base + 1.0 + i for i in range(n)]
         if up
-        else [base - 1.0, base - 2.0, base - 3.0]
+        else [base - 1.0 - i for i in range(n)]
     )
     event = FamilyEvent(
         family=family,  # type: ignore[typeddict-item]

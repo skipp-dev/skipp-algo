@@ -171,7 +171,16 @@ def backfill_live_outcomes(path: Path | str) -> dict[str, int]:
             "records_backfilled": <int>,
             "records_already_resolved": <int>,
             "records_pending_close": <int>,
+            "records_audit_only": <int>,
         }
+
+    ``records_audit_only`` (2026-06-10, F-V3-15 follow-up) is the subset
+    of ``records_pending_close`` whose ``action == "audit_only"`` —
+    journaled intents that never reached a broker (C13 T1 NO-GO) and
+    can structurally never close. The cron's progress assertion must
+    not treat them as "stuck pending" or the known NO-GO condition
+    would masquerade as an auth/quota regression (and hard-fail the
+    cron daily once F-V3-15 phase 2 lands).
 
     The summary is useful for cron-job logging and CI assertions.
     """
@@ -182,6 +191,7 @@ def backfill_live_outcomes(path: Path | str) -> dict[str, int]:
         "records_backfilled": 0,
         "records_already_resolved": 0,
         "records_pending_close": 0,
+        "records_audit_only": 0,
     }
     out: list[dict[str, Any]] = []
     for record in records:
@@ -193,6 +203,8 @@ def backfill_live_outcomes(path: Path | str) -> dict[str, int]:
             continue
         if action not in _CLOSED_ACTIONS:
             summary["records_pending_close"] += 1
+            if action == "audit_only":
+                summary["records_audit_only"] += 1
             out.append(record)
             continue
         new_record = _backfill_record(record)

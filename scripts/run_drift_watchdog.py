@@ -173,13 +173,20 @@ def extract_metric_pairs(
     live_outcomes: list[dict[str, Any]],
     baseline: dict[str, Any],
     pnl_field: str = "pnl_30m_pct",
+    setup_field: str = "setup_type",
 ) -> dict[str, tuple[list[float], list[float]]]:
     """Build a metric → (baseline_samples, live_samples) mapping.
 
-    Currently emits one metric: per-trade PnL. The structure is
-    intentionally extensible — additional metrics (Sharpe per fold,
-    win-rate per setup, etc.) can be added without changing the
-    consumer in :func:`compute_drift_report`.
+    Always emits the pooled ``pnl_per_trade`` metric. Stat-review F10
+    (2026-06-10): pooling heterogeneous setups against a pooled baseline
+    can mask per-setup drift (a Simpson's-paradox-style failure). When
+    live outcome records carry a ``setup_field`` attribution AND the
+    baseline has a matching ``per_setup`` block, additional
+    ``pnl_per_trade[setup=<name>]`` metrics are emitted so the detector
+    consensus runs per setup as well. Live records without attribution
+    (the current open_prep outcome schema has none) keep the pooled
+    metric only — :func:`build_report` discloses that limitation
+    explicitly instead of implying per-setup coverage.
     """
 
     live_pnl = [
@@ -190,17 +197,36 @@ def extract_metric_pairs(
 
     baseline_per_setup = baseline.get("per_setup", {})
     baseline_pnl: list[float] = []
+    baseline_by_setup: dict[str, list[float]] = {}
     if isinstance(baseline_per_setup, dict):
-        for setup_block in baseline_per_setup.values():
+        for setup_name, setup_block in baseline_per_setup.items():
             if not isinstance(setup_block, dict):
                 continue
             for r in setup_block.get("oos_pnl_returns", []) or []:
                 try:
-                    baseline_pnl.append(float(r))
+                    val = float(r)
                 except (TypeError, ValueError):
                     continue
+                baseline_pnl.append(val)
+                baseline_by_setup.setdefault(str(setup_name), []).append(val)
 
-    return {"pnl_per_trade": (baseline_pnl, live_pnl)}
+    pairs: dict[str, tuple[list[float], list[float]]] = {
+        "pnl_per_trade": (baseline_pnl, live_pnl)
+    }
+
+    # Per-setup split — only when live records carry the attribution.
+    live_by_setup: dict[str, list[float]] = {}
+    for o in live_outcomes:
+        setup = o.get(setup_field)
+        if not isinstance(setup, str) or pnl_field not in o or o[pnl_field] is None:
+            continue
+        live_by_setup.setdefault(setup, []).append(float(o[pnl_field]))
+    for setup, live_samples in sorted(live_by_setup.items()):
+        base_samples = baseline_by_setup.get(setup, [])
+        if base_samples and live_samples:
+            pairs[f"pnl_per_trade[setup={setup}]"] = (base_samples, live_samples)
+
+    return pairs
 
 
 # ---------------------------------------------------------------------------
@@ -247,6 +273,18 @@ def build_report(
     # unaffected; new consumers can yellow-flag incomplete windows.
     report["window_complete"] = coverage["window_complete"]
     report["window_coverage"] = coverage
+    # Stat-review F10 (2026-06-10): disclose whether the comparison was
+    # per-setup or pooled-only. Pooled-only comparisons can mask
+    # per-setup drift behind an aggregate that still looks calm.
+    per_setup_metrics = [m for m in pairs if m.startswith("pnl_per_trade[setup=")]
+    report["per_setup_metrics"] = per_setup_metrics
+    report["per_setup_live_attribution"] = bool(per_setup_metrics)
+    if not per_setup_metrics:
+        report["pooling_note"] = (
+            "live outcomes carry no setup attribution; pnl_per_trade pools "
+            "all setups against the pooled baseline — per-setup drift may "
+            "be masked (stat-review F10)"
+        )
     if not coverage["window_complete"] and report.get("aggregate_severity") == "green":
         # Don't escalate red→green on incomplete data; only soften green.
         report["aggregate_severity"] = "yellow"

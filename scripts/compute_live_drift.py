@@ -74,8 +74,16 @@ _VERDICT_BANDS: tuple[tuple[float, str], ...] = (
 )
 # Anything below 0.40 → "fail".
 
-_DEFAULT_EXPECTED_SLIPPAGE_MEAN = 0.005  # 0.5% per the sprint plan
-_DEFAULT_EXPECTED_SLIPPAGE_STD = 0.003
+# Stat-review S5 (#2674): these defaults are PLACEHOLDERS, not measured
+# execution-quality parameters. "0.5% per the sprint plan" cites a planning
+# document, not a calibration run; the std has no citation at all. The KS
+# reference distribution synthesised from them (Normal(mean, std), seed
+# 12345) is disclosed downstream via ``slippage_ks_reference_type ==
+# "synthetic_normal"`` and MUST NOT machine-pass a promotion criterion —
+# the phase evaluator treats synthetic references as not-evaluable.
+# Replace with broker-fill calibration before trusting the KS p-value.
+_DEFAULT_EXPECTED_SLIPPAGE_MEAN = 0.005  # 0.5% per the sprint plan (placeholder)
+_DEFAULT_EXPECTED_SLIPPAGE_STD = 0.003  # uncited placeholder
 _TRADING_DAYS_PER_YEAR = 252
 
 # Drift-artifact schema version (Deep-Review C8 MAJOR finding 2026-04-27).

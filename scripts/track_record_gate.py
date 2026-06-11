@@ -157,6 +157,7 @@ def evaluate_track_record_gate(
     fdr_rate: float | None = None,
     per_regime_hit_rate_spread: float | None = None,
     sharpe_freq: int = 252,
+    trades_per_year: float | None = None,
     bootstrap_B: int = 500,
     bootstrap_seed: int = 42,
 ) -> TrackRecordGateVerdict:
@@ -189,6 +190,18 @@ def evaluate_track_record_gate(
             regimes (C5/T3 output). When ``None`` the regime check is
             skipped.
         sharpe_freq: annualisation factor for Sharpe + bootstrap-CI.
+            **Caveat (stat-review S4, #2674):** the default 252 assumes
+            DAILY observations, but ``returns`` are per-trade. Unless the
+            strategy trades exactly once per day, the annualised Sharpe
+            is mis-scaled vs the absolute ``MIN_SHARPE_ANNUALIZED``
+            threshold by a factor of sqrt(252 / trades_per_year) — e.g.
+            2.05x overstated at 60 trades/year. Supply
+            ``trades_per_year`` to fix the scale.
+        trades_per_year: observed trade frequency (n_trades / span in
+            years). When given, it REPLACES ``sharpe_freq`` as the
+            annualisation factor so per-trade returns annualise on the
+            trade clock. The effective factor and its provenance are
+            disclosed in the sharpe check's ``detail`` field.
         bootstrap_B: bootstrap iterations for the inference helpers.
         bootstrap_seed: deterministic seed for the bootstrap path.
 
@@ -254,11 +267,24 @@ def evaluate_track_record_gate(
             )
         )
 
-    # Sharpe annualised + bootstrap CI low
+    # Sharpe annualised + bootstrap CI low.
+    # Stat-review S4 (#2674): prefer the observed trade frequency over
+    # the daily-bar default so per-trade returns annualise correctly
+    # against the absolute MIN_SHARPE_ANNUALIZED threshold.
+    if trades_per_year is not None and trades_per_year > 0.0:
+        effective_freq: float = float(trades_per_year)
+        freq_detail = f"freq={effective_freq:.6g} (observed trades/year)"
+    else:
+        effective_freq = float(sharpe_freq)
+        freq_detail = (
+            f"freq={sharpe_freq} (daily-bar assumption; per-trade inputs "
+            "at a different frequency mis-scale vs the absolute "
+            "threshold — supply trades_per_year)"
+        )
     sr = sharpe_ci(
         arr,
         alpha=0.05,
-        freq=sharpe_freq,
+        freq=effective_freq,
         B=bootstrap_B,
         method="studentized",
         seed=bootstrap_seed,
@@ -275,7 +301,7 @@ def evaluate_track_record_gate(
                 value=sr.get("value"),
                 threshold=MIN_SHARPE_ANNUALIZED,
                 direction="ge",
-                detail=f"freq={sharpe_freq}",
+                detail=freq_detail,
             )
         )
         checks.append(
@@ -520,6 +546,7 @@ def evaluate_track_record_gate_per_variant(
     per_regime_hit_rate_spread_by_variant: dict[str, float] | None = None,
     rr_target: float = 1.0,
     sharpe_freq: int = 252,
+    trades_per_year: float | None = None,
     bootstrap_B: int = 500,
     bootstrap_seed: int = 42,
 ) -> dict[str, dict[str, Any]]:
@@ -569,6 +596,7 @@ def evaluate_track_record_gate_per_variant(
             fdr_rate=fdr.get(variant),
             per_regime_hit_rate_spread=spread.get(variant),
             sharpe_freq=sharpe_freq,
+            trades_per_year=trades_per_year,
             bootstrap_B=bootstrap_B,
             bootstrap_seed=bootstrap_seed,
         )

@@ -6,6 +6,84 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-06-10) — Stat-review second pass S1–S5 (#2674)
+
+Implements the senior-quant stat-review second-pass findings:
+
+- **S1 — `watchdog_status_not_red` promotion criterion**: the watchdog
+  stack (green/yellow/red via 4-detector consensus in
+  `scripts/drift_alert.py`) and the incubation drift stack
+  (pass/acceptable/… via drift_score) were unreconciled — a variant
+  with stable mean PnL but blown-out tails could machine-pass Phase-A
+  while the watchdog stood RED. New `extra` criterion in
+  PHASE_A/B_CRITERIA + fail-closed checker in
+  `scripts/evaluate_phase_criteria.py` reading
+  `watchdog_report["aggregate_severity"]` (missing report ⇒ not
+  passed). Runbook §Phase-A/§Phase-B updated.
+- **S2 — TF-rollup power honesty**: `scripts/plan_2_8_tf_family_rollup.py`
+  Phase-E2 comparisons now carry a Wald 95 % CI on Δhit-rate, a
+  two-proportion z-test p-value and the 80 %-power MDE; comparisons
+  whose observed |Δ| is below the MDE are labelled
+  `measured_underpowered` instead of `measured`.
+- **S3 — horizon-truncation refusal**: `governance/family_returns.py`
+  immediate-mode windows shorter than the family outcome horizon are
+  refused (`None`) instead of silently clamping the exit to the last
+  available bar (which mislabelled 3-bar returns as 8-bar BOS
+  outcomes); degenerate embargo intervals (`embargo_bars > 0` with a
+  non-positive event-bar interval) likewise refuse instead of
+  embargoing nothing.
+- **S4 — trade-clock Sharpe**: `scripts/track_record_gate.py` accepts
+  `trades_per_year` and rescales the Sharpe CI to the observed trade
+  frequency instead of unconditionally annualising per-trade returns
+  at `freq=252` (daily-bar assumption); the gate detail string now
+  discloses which clock was used. `scripts/build_track_record_gate.py`
+  forwards `trades_per_year` from the returns payload when present.
+- **S5 — synthetic slippage reference honesty**:
+  `scripts/compute_live_drift.py` placeholder defaults
+  (mean 0.005 / std 0.003) are now explicitly documented as uncited
+  placeholders, and the Phase-A `slippage_ks_pvalue_gt_0.05` checker
+  scores as not machine-evaluable (`passed: null`) when the KS
+  reference is `synthetic_normal`.
+
+### Added (2026-06-10) — Stat-review F1/F6/F10 + runbook/ADR honesty (F2, F5, F11, F13)
+
+Implements the 2026-06-10 promotion-chain statistical-validity review
+findings that do not collide with in-flight PRs:
+
+- **F1/F6 — `scripts/evaluate_phase_criteria.py` (new)**: the
+  `PhasePassCriteria` dataclasses in `run_smc_live_incubation.py` were
+  evaluated by no code anywhere; every `extra` criterion string was
+  unenforced prose. The new fail-closed evaluator machine-checks every
+  numeric field and every `extra` string (via the `_EXTRA_CHECKERS`
+  registry) against the drift artifact, incubation audit JSONL and
+  watchdog report. Criteria it cannot verify count as **not passed**;
+  the Phase-C Scale-Phase/Kelly marker never machine-passes by design,
+  making `live_full` structurally unreachable via the evaluator. A
+  structural test asserts every `extra` string has a registered checker
+  — an unmapped string is now a test failure, not a silent gate hole.
+  `run_smc_live_incubation --phase live_small/live_full` now requires
+  `--phase-eval-report` with a fresh (≤ 7 days) **passing** evaluation
+  of the prior phase. Promotion remains manual sign-off only.
+- **F10 — watchdog per-setup honesty**: `run_drift_watchdog` pooled all
+  setups into one `pnl_per_trade` metric against a pooled baseline,
+  which can mask per-setup drift (Simpson-style). `extract_metric_pairs`
+  now emits `pnl_per_trade[setup=<name>]` metrics when live outcomes
+  carry a `setup_type` attribution and the baseline has the matching
+  `per_setup` block; reports without attribution disclose the pooling
+  limitation explicitly (`per_setup_live_attribution`, `pooling_note`).
+- **F2/F5/F11 — C8 runbook**: Phase-B's `window_complete` criterion now
+  names which watchdog report it refers to (the incubation outcome
+  stream, not the default open_prep directory); Phase-A carries a
+  statistical-power caveat (at n = 20 the drift_score is noise-dominated
+  — ~43 % false-pass / ~53 % true-pass at the 0.70 line); a new
+  sequential-looks section requires sign-off to read the verdict history
+  over the whole phase, not a cherry-picked day.
+- **F13 — ADR-0008 §12/§13**: `compute_live_drift._VERDICT_BANDS`
+  (0.85/0.65/0.40) and the phase drift-score lines (0.70 Phase-A,
+  0.50 Phase-B) are now documented as operator-judgment (**O**)
+  thresholds with the standard 100-promotions/6-month recalibration
+  cadence.
+
 ### Added (2026-06-10) — Stat-review wave 2: cadence disclosure, E2 p-value, rollup malformed-row honesty, KS twin alignment (F7, F8, F9, F12)
 
 Second wave of the 2026-06-10 promotion-chain statistical-validity
