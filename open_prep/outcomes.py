@@ -276,6 +276,68 @@ def get_symbol_hit_rate(
     }
 
 
+def compute_gap_playbook_report(
+    records: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    """Hit-rate per ``gap_bucket × playbook`` over resolved outcome records.
+
+    The scorer's gap component is monotonic-linear while the GAP_FADE
+    playbook treats large gaps as fade candidates — an internal
+    contradiction (eval-findings B5, 2026-06-11). This report measures the
+    actual win-rate per gap-size bucket conditioned on the assigned
+    playbook so the gap component can be re-shaped on evidence, not
+    opinion. Uses the direction-signed label when present, falling back to
+    the legacy long-only ``profitable_30m``.
+    """
+    buckets: dict[str, dict[str, Any]] = {}
+    for rec in records:
+        profitable = rec.get("profitable_30m_directional")
+        pnl = rec.get("pnl_30m_pct_signed")
+        if profitable is None:
+            profitable = rec.get("profitable_30m")
+            pnl = rec.get("pnl_30m_pct")
+        if profitable is None:
+            continue
+        gb = rec.get("gap_bucket_label") or _gap_bucket_label(_safe_float(rec.get("gap_pct")))
+        pb = rec.get("playbook_name") or "UNKNOWN"
+        key = f"{gb}:{pb}"
+        entry = buckets.setdefault(key, {"total": 0, "profitable": 0, "pnl_sum": 0.0})
+        entry["total"] += 1
+        if profitable is True:
+            entry["profitable"] += 1
+        entry["pnl_sum"] += _safe_float(pnl)
+
+    result: dict[str, dict[str, Any]] = {}
+    for key, data in buckets.items():
+        total = data["total"]
+        result[key] = {
+            "total": total,
+            "profitable": data["profitable"],
+            "hit_rate": round(data["profitable"] / total, 4) if total > 0 else 0.0,
+            "avg_pnl_pct": round(data["pnl_sum"] / total, 4) if total > 0 else 0.0,
+        }
+    return result
+
+
+def infer_trade_direction(row: dict[str, Any]) -> str:
+    """Infer the intended trade direction for a ranked candidate.
+
+    The legacy ``profitable_30m`` label was long-only, which mislabels
+    short-side setups (GAP_FADE) — eval-findings B1 (2026-06-11).
+
+    Rules:
+      • GAP_FADE playbook → fade the gap (gap up → short, gap down → long).
+      • All other playbooks → continuation of the gap sign.
+      • Missing/zero gap → "long" (conservative default).
+    """
+    gap_pct = _safe_float(row.get("gap_pct"))
+    playbook = row.get("playbook")
+    playbook_name = str(playbook.get("playbook", "")) if isinstance(playbook, dict) else str(playbook or "")
+    if playbook_name == "GAP_FADE":
+        return "short" if gap_pct >= 0 else "long"
+    return "short" if gap_pct < 0 else "long"
+
+
 def prepare_outcome_snapshot(
     ranked: list[dict[str, Any]],
     run_date: date,
@@ -314,8 +376,30 @@ def prepare_outcome_snapshot(
             "trend_alignment": row.get("trend_alignment"),
             "dist_to_ema20_pct": row.get("dist_to_ema20_pct"),
             "ema50_slope_pct": row.get("ema50_slope_pct"),
+            # Gap position vs prior-day H/L range (observe-only; eval C4).
+            "gap_range_pos": row.get("gap_range_pos"),
+            # Earnings-surprise magnitude (observe-only; eval C2 — the
+            # binary earnings_bmo flag ignores SUE size/sign; PEAD
+            # literature says the magnitude drives the drift).
+            "eps_surprise_pct": row.get("eps_surprise_pct"),
+            # Direction-aware labeling inputs (eval-findings B1/B2):
+            # ``direction`` signs the PnL during backfill; ``atr_pct``
+            # scales the triple-barrier levels; ``playbook`` enables
+            # gap×playbook bucket reports.
+            "direction": infer_trade_direction(row),
+            "atr_pct": _safe_float(row.get("atr_pct_computed") or row.get("atr_pct")),
+            "playbook_name": (
+                row["playbook"].get("playbook")
+                if isinstance(row.get("playbook"), dict)
+                else None
+            ),
             "profitable_30m": None,  # Back-filled post-open
             "pnl_30m_pct": None,     # Back-filled post-open
+            # Direction-signed + triple-barrier labels (back-filled; B1/B2).
+            "pnl_30m_pct_signed": None,
+            "profitable_30m_directional": None,
+            "label_tb": None,
+            "profitable_tb": None,
         })
     return records
 
@@ -344,6 +428,8 @@ FEATURE_KEYS: list[str] = [
     "trend_alignment",
     "dist_to_ema20_pct",
     "ema50_slope_pct",
+    "gap_range_pos",
+    "eps_surprise_pct",
 ]
 
 # Observe-only features: recorded in outcome records + FI samples but
@@ -354,6 +440,8 @@ PASS_THROUGH_FEATURE_KEYS: frozenset[str] = frozenset({
     "trend_alignment",
     "dist_to_ema20_pct",
     "ema50_slope_pct",
+    "gap_range_pos",
+    "eps_surprise_pct",
 })
 
 # G1: Explicit mapping from feature importance keys → scorer weight keys.
@@ -630,20 +718,47 @@ def _compute_feature_statistics(
 
         wins = vals[win_mask]
         losses = vals[loss_mask]
-        mean_win = _to_python_float(xp.mean(wins)) if int(wins.size) else 0.0
-        mean_loss = _to_python_float(xp.mean(losses)) if int(losses.size) else 0.0
-        if int(wins.size) > 1:
-            variance = xp.sum((wins - mean_win) ** 2) / max(int(wins.size) - 1, 1)
-            std_win = max(_to_python_float(xp.sqrt(variance)), 0.001)
+        n_win = int(wins.size)
+        n_loss = int(losses.size)
+        mean_win = _to_python_float(xp.mean(wins)) if n_win else 0.0
+        mean_loss = _to_python_float(xp.mean(losses)) if n_loss else 0.0
+        var_win = (
+            _to_python_float(xp.sum((wins - mean_win) ** 2)) / (n_win - 1)
+            if n_win > 1 else 0.0
+        )
+        var_loss = (
+            _to_python_float(xp.sum((losses - mean_loss) ** 2)) / (n_loss - 1)
+            if n_loss > 1 else 0.0
+        )
+        # Cohen's d denominator: POOLED std across both classes
+        # (eval-findings B3, 2026-06-11). The previous σ_win-only
+        # denominator inflated separation whenever winners clustered.
+        if n_win + n_loss > 2:
+            pooled_var = (
+                (max(n_win - 1, 0) * var_win + max(n_loss - 1, 0) * var_loss)
+                / (n_win + n_loss - 2)
+            )
+            pooled_std = max(math.sqrt(pooled_var), 0.001)
         else:
-            std_win = 0.001
-        separation = abs(mean_win - mean_loss) / max(std_win, 0.001)
+            pooled_std = 0.001
+        separation = abs(mean_win - mean_loss) / pooled_std
+
+        # Welch's t-test (normal approximation for the two-sided p-value;
+        # adequate at the n ≥ 200 tuning gate). p = 1.0 (no evidence) when
+        # either class is too small or variance degenerates.
+        se_sq = (var_win / n_win if n_win else 0.0) + (var_loss / n_loss if n_loss else 0.0)
+        if n_win >= 2 and n_loss >= 2 and se_sq > 0:
+            t_stat = (mean_win - mean_loss) / math.sqrt(se_sq)
+            p_value = 2.0 * (1.0 - 0.5 * (1.0 + math.erf(abs(t_stat) / math.sqrt(2.0))))
+        else:
+            p_value = 1.0
 
         stats[key] = {
             "pearson_r": round(float(pearson), 4),
             "mean_separation": round(float(separation), 4),
             "mean_win": round(float(mean_win), 4),
             "mean_loss": round(float(mean_loss), 4),
+            "p_value": round(float(p_value), 6),
         }
 
     return stats
@@ -786,7 +901,31 @@ def compute_feature_importance(
 _SCORER_SMOOTHING = 0.3
 
 # Minimum labeled samples to attempt auto-tuning.
-_MIN_TUNING_SAMPLES = 30
+# 2026-06-11 (eval-findings B3): raised 30 → 200. With ~19 features, n=30
+# gives correlation-estimate σ ≈ 0.19 — weight updates at that sample size
+# are noise-fitting. 200 matches the governance-layer MIN_OOS philosophy.
+_MIN_TUNING_SAMPLES = 200
+
+# BH-FDR level for feature-importance significance gating (mirrors the
+# promotion-gate FDR-q ≤ 0.05 used in governance/promotion_gate.py).
+_FDR_Q = 0.05
+
+
+def _benjamini_hochberg(p_values: dict[str, float], q: float = _FDR_Q) -> dict[str, bool]:
+    """Benjamini–Hochberg step-up: ``{key: significant}`` at FDR level *q*."""
+    if not p_values:
+        return {}
+    ordered = sorted(p_values.items(), key=lambda kv: kv[1])
+    m = len(ordered)
+    cutoff_rank = 0
+    for rank, (_, p) in enumerate(ordered, start=1):
+        if p <= q * rank / m:
+            cutoff_rank = rank
+    return {
+        key: rank <= cutoff_rank
+        for rank, (key, _) in enumerate(ordered, start=1)
+    }
+
 
 # Maximum weight drift allowed from DEFAULT_WEIGHTS before CI gate trips.
 _MAX_SCORER_DRIFT = 0.50  # absolute
@@ -842,7 +981,14 @@ def compute_weight_adjustments(
         feat = features.get(feat_key)
         if feat is None:
             continue
-        imp = feat.get("importance_normalized", 0.5)
+        # eval-findings B3: features that fail the BH-FDR gate carry NO
+        # statistical evidence — force a neutral importance (0.5) so the
+        # data_weight equals the current weight and only the prior pull
+        # applies (no noise-driven boost/cut).
+        if not feat.get("fdr_significant", False):
+            imp = 0.5
+        else:
+            imp = feat.get("importance_normalized", 0.5)
         cur = current_weights.get(weight_key, prior.get(weight_key, 0.5))
         p = prior.get(weight_key, cur)
 

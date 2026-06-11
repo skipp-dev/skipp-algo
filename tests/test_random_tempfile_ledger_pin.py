@@ -75,11 +75,14 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     ("open_prep/feature_importance_report.py", 249, "mkstemp"),
     # 2026-06-11 (backfill defer-unpublished): 88→107, 531→581.
     ("open_prep/outcome_backfill.py", 107, "mkstemp"),
-    ("open_prep/outcome_backfill.py", 581, "mkstemp"),
+    # 2026-06-11 (eval-findings B1/B2): direction+TB code shifted 581→660.
+    ("open_prep/outcome_backfill.py", 660, "mkstemp"),
     ("open_prep/outcomes.py", 138, "mkstemp"),
     # 2026-06-11 (trend-state features): 419→437, snapshot keys +
     # FEATURE_KEYS/PASS_THROUGH block added above.
-    ("open_prep/outcomes.py", 437, "mkstemp"),
+    # 2026-06-11 (eval-findings B5/B1): gap-playbook report + direction
+    # helpers + snapshot fields shifted 437→525.
+    ("open_prep/outcomes.py", 525, "mkstemp"),
     ("open_prep/realtime_signals.py", 116, "mkstemp"),
     ("open_prep/realtime_signals.py", 2528, "mkstemp"),
     ("open_prep/realtime_signals.py", 2569, "mkstemp"),

@@ -123,11 +123,26 @@ def compute_pnl_from_bars(
     bars_df: Any,
     symbol: str,
     run_date: date,
+    *,
+    direction: str = "long",
+    atr_pct: float | None = None,
 ) -> dict[str, Any] | None:
-    """Calculate 30-minute P&L from 1-min OHLCV bars.
+    """Calculate 30-minute P&L + triple-barrier label from 1-min OHLCV bars.
 
-    Returns ``{"profitable_30m": bool, "pnl_30m_pct": float}`` or ``None``
-    if insufficient bar data is available.
+    Legacy fields (``profitable_30m``, ``pnl_30m_pct``) stay LONG-only for
+    backward compatibility with existing analytics. Direction-aware fields
+    (eval-findings B1, 2026-06-11) sign the PnL by the intended trade
+    direction so short-side setups (GAP_FADE) stop being mislabeled.
+
+    Triple-barrier label (eval-findings B2): entry at the 09:30 open;
+    profit target at ``entry ± 1×ATR%``, stop at ``entry ∓ 0.5×ATR%``
+    (signs flipped for shorts), time barrier at 10:00 ET. Falls back to
+    fixed 1.0%/0.5% barriers when *atr_pct* is unusable
+    (``tb_barrier_source`` discloses which was used). Stop wins ties when
+    both barriers are touched inside the same 1-min bar (conservative).
+
+    Returns the label dict or ``None`` if insufficient bar data is
+    available.
     """
     import pandas as pd
 
@@ -182,9 +197,56 @@ def compute_pnl_from_bars(
         return None
 
     pnl_pct = round((exit_price - entry_price) / entry_price * 100, 4)
+
+    # Direction-signed PnL (B1): a successful short fade has NEGATIVE raw
+    # 30-min return but POSITIVE signed PnL.
+    sign = -1.0 if str(direction).lower() == "short" else 1.0
+    pnl_signed = round(pnl_pct * sign, 4)
+
+    # Triple-barrier walk (B2) over the bars inside the entry→exit window.
+    if atr_pct is not None and atr_pct > 0:
+        target_pct, stop_pct = atr_pct, 0.5 * atr_pct
+        tb_barrier_source = "atr"
+    else:
+        target_pct, stop_pct = 1.0, 0.5
+        tb_barrier_source = "default"
+    if sign > 0:
+        target_level = entry_price * (1 + target_pct / 100.0)
+        stop_level = entry_price * (1 - stop_pct / 100.0)
+    else:
+        target_level = entry_price * (1 - target_pct / 100.0)
+        stop_level = entry_price * (1 + stop_pct / 100.0)
+
+    label_tb = None
+    window = sym_df.loc[open_mask & exit_mask].sort_values("_et")
+    for _, bar in window.iterrows():
+        bar_high = float(bar["high"])
+        bar_low = float(bar["low"])
+        if sign > 0:
+            if bar_low <= stop_level:
+                label_tb = "stop"
+                break
+            if bar_high >= target_level:
+                label_tb = "target"
+                break
+        else:
+            if bar_high >= stop_level:
+                label_tb = "stop"
+                break
+            if bar_low <= target_level:
+                label_tb = "target"
+                break
+    if label_tb is None:
+        label_tb = "timeout_win" if pnl_signed > 0 else "timeout_loss"
+
     return {
         "profitable_30m": pnl_pct > 0,
         "pnl_30m_pct": pnl_pct,
+        "pnl_30m_pct_signed": pnl_signed,
+        "profitable_30m_directional": pnl_signed > 0,
+        "label_tb": label_tb,
+        "profitable_tb": label_tb in ("target", "timeout_win"),
+        "tb_barrier_source": tb_barrier_source,
     }
 
 
@@ -321,7 +383,18 @@ def backfill_outcomes(
                 total_failed += 1
                 continue
 
-            result = compute_pnl_from_bars(bars_df, symbol, run_date)
+            _atr_raw = rec.get("atr_pct")
+            try:
+                _atr_val = float(_atr_raw) if _atr_raw is not None else None
+            except (TypeError, ValueError):
+                _atr_val = None
+            result = compute_pnl_from_bars(
+                bars_df,
+                symbol,
+                run_date,
+                direction=str(rec.get("direction") or "long"),
+                atr_pct=_atr_val,
+            )
             if result is None:
                 logger.debug("No bar data for %s on %s", symbol, run_date)
                 total_failed += 1
@@ -329,6 +402,12 @@ def backfill_outcomes(
 
             rec["profitable_30m"] = result["profitable_30m"]
             rec["pnl_30m_pct"] = result["pnl_30m_pct"]
+            # Direction-signed + triple-barrier labels (eval B1/B2).
+            rec["pnl_30m_pct_signed"] = result["pnl_30m_pct_signed"]
+            rec["profitable_30m_directional"] = result["profitable_30m_directional"]
+            rec["label_tb"] = result["label_tb"]
+            rec["profitable_tb"] = result["profitable_tb"]
+            rec["tb_barrier_source"] = result["tb_barrier_source"]
             total_resolved += 1
             updated = True
 

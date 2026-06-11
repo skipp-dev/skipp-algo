@@ -181,6 +181,111 @@ def compute_adaptive_gates(
 # #12  Per-Symbol Regime Detection
 # ═══════════════════════════════════════════════════════════════════════════
 
+def compute_adx_from_bars(
+    bars: list[dict[str, Any]],
+    period: int = 14,
+) -> float | None:
+    """Compute Wilder's ADX from daily OHLCV bars (oldest → newest).
+
+    Replaces the disclosed ``atr_proxy`` synthesis (eval-findings D7,
+    2026-06-11): ``approx_adx = atr_pct * 8`` conflated volatility with
+    directional strength. Requires at least ``2 * period + 1`` bars;
+    returns ``None`` otherwise (fail-closed, same convention as
+    ``compute_trend_state_features``).
+    """
+    if len(bars) < 2 * period + 1:
+        return None
+    highs = [float(b.get("high", 0.0) or 0.0) for b in bars]
+    lows = [float(b.get("low", 0.0) or 0.0) for b in bars]
+    closes = [float(b.get("close", 0.0) or 0.0) for b in bars]
+
+    plus_dm: list[float] = []
+    minus_dm: list[float] = []
+    tr: list[float] = []
+    for i in range(1, len(bars)):
+        up_move = highs[i] - highs[i - 1]
+        down_move = lows[i - 1] - lows[i]
+        plus_dm.append(up_move if (up_move > down_move and up_move > 0) else 0.0)
+        minus_dm.append(down_move if (down_move > up_move and down_move > 0) else 0.0)
+        tr.append(max(
+            highs[i] - lows[i],
+            abs(highs[i] - closes[i - 1]),
+            abs(lows[i] - closes[i - 1]),
+        ))
+
+    # Wilder smoothing (RMA) of TR / +DM / -DM.
+    def _wilder(series: list[float]) -> list[float]:
+        smoothed = [sum(series[:period]) / period]
+        for v in series[period:]:
+            smoothed.append((smoothed[-1] * (period - 1) + v) / period)
+        return smoothed
+
+    atr_s = _wilder(tr)
+    pdm_s = _wilder(plus_dm)
+    mdm_s = _wilder(minus_dm)
+
+    dx_values: list[float] = []
+    for a, p, m in zip(atr_s, pdm_s, mdm_s, strict=True):
+        if a <= 0:
+            dx_values.append(0.0)
+            continue
+        pdi = 100.0 * p / a
+        mdi = 100.0 * m / a
+        di_sum = pdi + mdi
+        dx_values.append(100.0 * abs(pdi - mdi) / di_sum if di_sum > 0 else 0.0)
+
+    if len(dx_values) < period:
+        return None
+    adx = sum(dx_values[:period]) / period
+    for dx in dx_values[period:]:
+        adx = (adx * (period - 1) + dx) / period
+    return round(adx, 4)
+
+
+def compute_bb_width_pct_from_bars(
+    bars: list[dict[str, Any]],
+    period: int = 20,
+    num_std: float = 2.0,
+) -> float | None:
+    """Bollinger-Band width as % of the middle band, from daily closes.
+
+    ``width_pct = (upper − lower) / middle × 100``. Returns ``None`` with
+    fewer than ``period`` bars or a non-positive middle band (fail-closed).
+    """
+    if len(bars) < period:
+        return None
+    closes = [float(b.get("close", 0.0) or 0.0) for b in bars[-period:]]
+    middle = sum(closes) / period
+    if middle <= 0:
+        return None
+    variance = sum((c - middle) ** 2 for c in closes) / period
+    std = variance ** 0.5
+    return round((2.0 * num_std * std) / middle * 100.0, 4)
+
+
+def compute_gap_range_position(
+    bars: list[dict[str, Any]],
+    current_price: float,
+) -> float | None:
+    """Position of *current_price* relative to the prior day's H/L range.
+
+    ``0.0`` = at prior-day low, ``1.0`` = at prior-day high, ``> 1`` = gapping
+    above the prior-day high, ``< 0`` = below the prior-day low. Gap
+    statistics differ sharply between gaps INTO the prior range (tend to
+    fill) and gaps ABOVE the prior high (tend to continue) — observe-only
+    feature (eval-findings C4, 2026-06-11). Returns ``None`` when the prior
+    bar or price is unusable (fail-closed).
+    """
+    if not bars or current_price <= 0:
+        return None
+    prior = bars[-1]
+    high = float(prior.get("high", 0.0) or 0.0)
+    low = float(prior.get("low", 0.0) or 0.0)
+    if high <= 0 or low <= 0 or high <= low:
+        return None
+    return round((current_price - low) / (high - low), 4)
+
+
 def detect_symbol_regime(
     adx: float,
     bb_width_pct: float,
@@ -266,14 +371,21 @@ def detect_consolidation(
 def _ema(values: list[float], span: int) -> float:
     """Compute the final EMA value from a list of floats.
 
+    Seeds with the SMA of the first ``span`` values (TA-Lib/Wilder
+    convention). The previous ``values[0]`` seed left the first bar with
+    ~11% residual weight on a 220-bar EMA200 window (eval-findings B7,
+    2026-06-11). When fewer than ``span`` values exist, the result is the
+    plain mean of all values (the SMA seed over the available window).
+
     Returns ``float('nan')`` when *values* is empty so callers can
     distinguish 'no data' from a genuine zero price.
     """
     if not values:
         return float("nan")
+    seed_n = min(span, len(values))
+    ema_val = sum(values[:seed_n]) / seed_n
     k = 2.0 / (span + 1)
-    ema_val = values[0]
-    for v in values[1:]:
+    for v in values[seed_n:]:
         ema_val = v * k + ema_val * (1 - k)
     return ema_val
 

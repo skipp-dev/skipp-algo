@@ -73,7 +73,8 @@
 "databento_universe.py" = [306]
 "databento_volatility_screener.py" = [1428]
 "open_prep/bea.py" = [94]
-"open_prep/macro.py" = [713]
+# 2026-06-11 (eval-findings B8): surprise-scale comment block +8 (713→721).
+"open_prep/macro.py" = [721]
 "open_prep/sentiment_fng.py" = [100]
 "scripts/probe_fmp_13f_endpoints.py" = [75]
 "scripts/resolve_workflow_runner.py" = [91]
@@ -146,9 +147,10 @@ file = "newsstack_fmp/pipeline.py"
 line = 1183
 codes = ["E402"]
 
+# 2026-06-11 (eval-findings D7): technical_analysis import block +8 (472→480).
 [[noqa_budget.sites]]
 file = "open_prep/run_open_prep.py"
-line = 472
+line = 480
 codes = ["E402"]
 
 [[noqa_budget.sites]]
@@ -340,7 +342,8 @@ frozen_major = "v7"
 # disclosure field (see docs/review-checklist-field-preference-chains.md)
 # or (b) be consciously budgeted here with a justifying comment.
 # Counts frozen at the 2026-06-10 inventory (331 sites; mix of benign
-# synonym chains and legacy sites triaged in #2670).
+# synonym chains and legacy sites triaged in #2670). 2026-06-11
+# (eval-findings B5): +1 budgeted site in open_prep/outcomes.py → 332.
 # ---------------------------------------------------------------------------
 [field_preference_chain_ledger.file_counts]
 "databento_volatility_screener.py" = 3
@@ -356,6 +359,10 @@ frozen_major = "v7"
 "open_prep/feature_importance_report.py" = 1
 "open_prep/macro.py" = 11
 "open_prep/news.py" = 2
+# 2026-06-11 (eval-findings B5): compute_gap_playbook_report falls back
+# from the stored gap_bucket_label to deriving it from gap_pct — the
+# stored label wins when present (snapshot-time truth).
+"open_prep/outcomes.py" = 1
 "open_prep/playbook.py" = 1
 "open_prep/realtime_signals.py" = 12
 "open_prep/run_open_prep.py" = 41

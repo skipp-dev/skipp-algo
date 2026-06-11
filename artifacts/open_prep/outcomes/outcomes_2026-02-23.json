@@ -9,7 +9,22 @@
     "gap_bucket_label": "tiny",
     "rvol_bucket_label": "low",
     "regime": "RISK_ON",
-    "profitable_30m": true,
-    "pnl_30m_pct": 0.8458
+    "regime_at_entry": "RISK_ON",
+    "zone_priority_rank": "C",
+    "zone_priority_score": 32,
+    "trend_alignment": null,
+    "dist_to_ema20_pct": null,
+    "ema50_slope_pct": null,
+    "gap_range_pos": null,
+    "eps_surprise_pct": null,
+    "direction": "short",
+    "atr_pct": 2.0,
+    "playbook_name": "GAP_FADE",
+    "profitable_30m": null,
+    "pnl_30m_pct": null,
+    "pnl_30m_pct_signed": null,
+    "profitable_30m_directional": null,
+    "label_tb": null,
+    "profitable_tb": null
   }
 ]
