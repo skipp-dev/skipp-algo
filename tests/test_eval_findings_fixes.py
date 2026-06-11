@@ -161,6 +161,17 @@ class TestInferTradeDirection:
     def test_missing_everything_defaults_long(self) -> None:
         assert infer_trade_direction({}) == "long"
 
+    def test_gap_fade_zero_gap_is_long(self) -> None:
+        # Copilot review #2687: zero gap under GAP_FADE must follow the
+        # documented "Missing/zero gap → long" conservative default,
+        # not fall into the >= 0 → short branch.
+        row = {"gap_pct": 0.0, "playbook": {"playbook": "GAP_FADE"}}
+        assert infer_trade_direction(row) == "long"
+
+    def test_gap_fade_missing_gap_is_long(self) -> None:
+        row = {"playbook": {"playbook": "GAP_FADE"}}
+        assert infer_trade_direction(row) == "long"
+
 
 # ── B1/B2: signed PnL + triple barrier ──────────────────────────────────────
 
@@ -316,6 +327,88 @@ class TestFiHardening:
     def test_min_tuning_samples_raised(self) -> None:
         from open_prep.outcomes import _MIN_TUNING_SAMPLES
         assert _MIN_TUNING_SAMPLES >= 200
+
+
+class TestFdrGateWiring:
+    """Copilot review #2687: the BH-FDR gate was defined but never wired
+    into ``compute_feature_importance`` — every live report lacked
+    ``fdr_significant`` and ``compute_weight_adjustments`` neutralized ALL
+    features. These tests run the real E2E path against synthetic JSONL."""
+
+    @staticmethod
+    def _write_samples(tmp_path, n: int = 300, *, signal: bool = True) -> None:
+        import json as _json
+        import random
+
+        random.seed(99)
+        lines = []
+        for _ in range(n):
+            row = {k: random.gauss(0.0, 1.0) for k in FEATURE_KEYS}
+            if signal:
+                # gap_component drives the outcome → must pass the gate.
+                win = row["gap_component"] + random.gauss(0.0, 0.3) > 0
+            else:
+                win = random.random() > 0.5
+            row["profitable_30m"] = bool(win)
+            lines.append(_json.dumps(row))
+        (tmp_path / "fi_samples_2026-06-10.jsonl").write_text(
+            "\n".join(lines) + "\n", encoding="utf-8",
+        )
+
+    def test_live_report_contains_fdr_significant(self, tmp_path, monkeypatch) -> None:
+        from open_prep.outcomes import compute_feature_importance
+
+        monkeypatch.setattr("open_prep.outcomes.FEATURE_IMPORTANCE_DIR", tmp_path)
+        self._write_samples(tmp_path)
+        report = compute_feature_importance(lookback_days=30)
+        assert "error" not in report
+        for key in FEATURE_KEYS:
+            assert "fdr_significant" in report["features"][key], (
+                f"{key} missing fdr_significant — the BH gate is not wired "
+                "and compute_weight_adjustments would neutralize everything"
+            )
+
+    def test_real_signal_passes_gate_e2e(self, tmp_path, monkeypatch) -> None:
+        from open_prep.outcomes import compute_feature_importance
+
+        monkeypatch.setattr("open_prep.outcomes.FEATURE_IMPORTANCE_DIR", tmp_path)
+        self._write_samples(tmp_path, signal=True)
+        report = compute_feature_importance(lookback_days=30)
+        assert report["features"]["gap_component"]["fdr_significant"] is True
+
+    def test_noise_only_rejects_all(self, tmp_path, monkeypatch) -> None:
+        from open_prep.outcomes import compute_feature_importance
+
+        monkeypatch.setattr("open_prep.outcomes.FEATURE_IMPORTANCE_DIR", tmp_path)
+        self._write_samples(tmp_path, signal=False)
+        report = compute_feature_importance(lookback_days=30)
+        flagged = [k for k in FEATURE_KEYS if report["features"][k]["fdr_significant"]]
+        assert len(flagged) <= 1  # BH at q=0.05 — ≤1 false positive tolerated
+
+    def test_weight_adjustments_move_on_live_report(self, tmp_path, monkeypatch) -> None:
+        """E2E: a significant feature must actually move its weight."""
+        from open_prep.outcomes import compute_feature_importance, compute_weight_adjustments
+        from open_prep.scorer import DEFAULT_WEIGHTS
+
+        monkeypatch.setattr("open_prep.outcomes.FEATURE_IMPORTANCE_DIR", tmp_path)
+        self._write_samples(tmp_path, signal=True)
+        report = compute_feature_importance(lookback_days=30)
+        update = compute_weight_adjustments(report, current_weights=dict(DEFAULT_WEIGHTS))
+        assert update.deltas.get("gap", 0.0) != 0.0, (
+            "significant gap_component produced no weight movement — "
+            "FDR gate is neutralizing wired evidence"
+        )
+
+    def test_strong_r_recommendation_requires_significance(self, tmp_path, monkeypatch) -> None:
+        from open_prep.outcomes import compute_feature_importance
+
+        monkeypatch.setattr("open_prep.outcomes.FEATURE_IMPORTANCE_DIR", tmp_path)
+        self._write_samples(tmp_path, signal=True)
+        report = compute_feature_importance(lookback_days=30)
+        for rec in report["recommendations"]:
+            if "strong predictor" in rec:
+                feat_key = rec.split(":")[0].split()[-1]
+                assert report["features"][feat_key]["fdr_significant"] is True
 
 
 # ── D3: gap × playbook report ───────────────────────────────────────────────

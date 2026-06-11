@@ -5321,6 +5321,21 @@ def generate_open_prep_result(
     except Exception as exc:
         logger.warning("VIX fetch failed: %s", type(exc).__name__, exc_info=True)
 
+    # VIX term-structure (observe-only; eval-findings D5, 2026-06-11):
+    # vix9d/vix > 1 ⇒ inverted short-term structure ⇒ the market prices an
+    # imminent event risk. Recorded as a per-run feature for FI evidence;
+    # NOT wired into regime classification or scoring.
+    vix9d_level: float | None = None
+    vix9d_vix_ratio: float | None = None
+    try:
+        vix9d_quote = data_client.get_index_quote("^VIX9D")
+        vix9d_level = _to_float(vix9d_quote.get("price"), default=0.0) or None
+        if vix9d_level is not None and vix_level is not None and vix_level > 0:
+            vix9d_vix_ratio = round(vix9d_level / vix_level, 4)
+        logger.info("VIX9D level: %s (ratio vs VIX: %s)", vix9d_level, vix9d_vix_ratio)
+    except Exception as exc:
+        logger.warning("VIX9D fetch failed: %s", type(exc).__name__, exc_info=True)
+
     # Enrich symbol_sectors with profile lookups for symbols missing sector
     # info (typically mover-seeded symbols not from the screener).  Only
     # fetch profiles for symbols that have a gap (likely v2 candidates)
@@ -5604,6 +5619,10 @@ def generate_open_prep_result(
         row["gap_range_pos"] = (
             compute_gap_range_position(bars, price_now) if bars else None
         )
+
+        # VIX term-structure ratio (observe-only; eval-findings D5).
+        # Market-wide — identical for every candidate in this run.
+        row["vix9d_vix_ratio"] = vix9d_vix_ratio
 
     # --- Playbook assignment (6-step professional news-trading engine) ---
     playbook_results = assign_playbooks(
