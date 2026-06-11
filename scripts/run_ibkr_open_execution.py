@@ -14,10 +14,12 @@ from scripts.execute_ibkr_watchlist import (
     _import_ibkr_types,
     _normalize_schedule_value,
     _parse_symbol_filter,
+    assert_paper_account_if_paper_port,
     build_order_intents,
     build_preview_payload,
     filter_watchlist,
     load_watchlist_frame,
+    resolve_client_id,
     resolve_trade_date,
     supervise_open_execution,
 )
@@ -163,10 +165,24 @@ def main() -> None:
     if not args.place_orders:
         raise SystemExit("run_ibkr_open_execution.py requires --place-orders to avoid accidental dry-run supervision.")
 
+    # S3 (Copilot review #2689): auto-allocated clientIds are leased from the
+    # registry and must be released on exit; explicit --client-id values are
+    # never registered, so never released.
+    client_id = resolve_client_id(args.client_id)
+    try:
+        _main_with_resolved_client_id(args, client_id)
+    finally:
+        if args.client_id is None:
+            from scripts.ib_client_id import release_ib_client_id
+
+            release_ib_client_id(client_id)
+
+
+def _main_with_resolved_client_id(args: argparse.Namespace, client_id: int) -> None:
     connection_cfg = IBKRConnectionConfig(
         host=args.host,
         port=args.port,
-        client_id=args.client_id,
+        client_id=client_id,
         account=args.account,
         timeout_seconds=args.timeout_seconds,
         readonly=False,
@@ -250,6 +266,9 @@ def main() -> None:
             timeout=connection_cfg.timeout_seconds,
             readonly=False,
         )
+        # IBKR-audit 2026-06-11 (S5): abort if a live TWS hides behind the
+        # paper port before any order is transmitted.
+        assert_paper_account_if_paper_port(ib, connection_cfg)
         from scripts.execute_ibkr_watchlist import place_order_intents_with_ib
 
         submission = place_order_intents_with_ib(ib, intents, connection_cfg=connection_cfg, execution_cfg=execution_cfg)
