@@ -334,7 +334,7 @@ def infer_trade_direction(row: dict[str, Any]) -> str:
     playbook = row.get("playbook")
     playbook_name = str(playbook.get("playbook", "")) if isinstance(playbook, dict) else str(playbook or "")
     if playbook_name == "GAP_FADE":
-        return "short" if gap_pct >= 0 else "long"
+        return "short" if gap_pct > 0 else "long"
     return "short" if gap_pct < 0 else "long"
 
 
@@ -873,6 +873,17 @@ def compute_feature_importance(
     }
     report["features"] = feature_stats
 
+    # BH-FDR gate (eval-findings B3): stamp ``fdr_significant`` onto every
+    # feature so downstream consumers (compute_weight_adjustments,
+    # recommendations) can distinguish evidence from noise. Without this
+    # wiring the q=0.05 gate would silently neutralize ALL features
+    # (fail-closed default) and auto-tuning would never move a weight.
+    fdr_flags = _benjamini_hochberg(
+        {key: float(stats["p_value"]) for key, stats in feature_stats.items()},
+    )
+    for key, stats in feature_stats.items():
+        stats["fdr_significant"] = bool(fdr_flags.get(key, False))
+
     # Normalize importance to [0, 1]
     max_imp = max(importance_scores.values()) if importance_scores else 1.0
     if max_imp > 0:
@@ -881,12 +892,13 @@ def compute_feature_importance(
                 importance_scores[key] / max_imp, 4,
             )
 
-    # Generate recommendations
+    # Generate recommendations — only for features that pass the FDR gate
+    # (eval-findings B3): a strong-looking r without significance is noise.
     for key in FEATURE_KEYS:
         feat = report["features"][key]
         r = feat["pearson_r"]
         imp = feat.get("importance_normalized", 0)
-        if abs(r) > 0.5:
+        if abs(r) > 0.5 and feat.get("fdr_significant", False):
             report["recommendations"].append(
                 f"🟢 {key}: strong predictor (r={r:.2f}). Consider increasing weight."
             )

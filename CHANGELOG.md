@@ -6,6 +6,24 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-06-11) — FDR-gate wiring + GAP_FADE zero-gap direction (Copilot findings on #2687)
+
+- **BH-FDR gate was defined but never invoked** (`open_prep/outcomes.py`):
+  `compute_feature_importance()` never called `_benjamini_hochberg()`, so
+  live FI reports lacked the `fdr_significant` key and the
+  `compute_weight_adjustments()` gate (`feat.get("fdr_significant",
+  False)`) silently neutralized ALL features — weight auto-tuning was
+  dead since #2687. The gate is now wired: per-feature p-values are
+  collected, BH-adjusted at q=0.05, and stamped onto every feature entry.
+  The "strong predictor" recommendation additionally requires
+  FDR significance.
+- **GAP_FADE direction for zero/missing gap**: `infer_trade_direction()`
+  returned "short" for `gap_pct == 0` (and missing gap defaulting to 0),
+  contradicting its documented long default. `>=` → `>`.
+- Tests: `tests/test_eval_findings_fixes.py` — 7 new regression tests
+  incl. E2E noise-vs-signal FDR gating and a live-report
+  weight-adjustment movement check.
+
 ### Added (2026-06-11) — VIX9D term-structure observe-only feature (eval D5)
 
 - **`vix9d_vix_ratio`** (VIX9D ÷ VIX): > 1 ⇒ inverted short-term vol
