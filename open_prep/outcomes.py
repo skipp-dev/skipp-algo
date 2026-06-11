@@ -309,6 +309,11 @@ def prepare_outcome_snapshot(
             "regime_at_entry": row.get("regime"),
             "zone_priority_rank": row.get("zone_priority_rank"),
             "zone_priority_score": row.get("zone_priority_score"),
+            # Trend-state features (observe-only pass-throughs; no scorer
+            # weight until FI evidence supports one).
+            "trend_alignment": row.get("trend_alignment"),
+            "dist_to_ema20_pct": row.get("dist_to_ema20_pct"),
+            "ema50_slope_pct": row.get("ema50_slope_pct"),
             "profitable_30m": None,  # Back-filled post-open
             "pnl_30m_pct": None,     # Back-filled post-open
         })
@@ -336,10 +341,23 @@ FEATURE_KEYS: list[str] = [
     "institutional_component",
     "estimate_revision_component",
     "zone_priority_score",
+    "trend_alignment",
+    "dist_to_ema20_pct",
+    "ema50_slope_pct",
 ]
 
+# Observe-only features: recorded in outcome records + FI samples but
+# intentionally NOT mapped to a scorer weight.  Promotion to a weighted
+# component requires feature-importance evidence first.
+PASS_THROUGH_FEATURE_KEYS: frozenset[str] = frozenset({
+    "zone_priority_score",
+    "trend_alignment",
+    "dist_to_ema20_pct",
+    "ema50_slope_pct",
+})
+
 # G1: Explicit mapping from feature importance keys → scorer weight keys.
-# ``zone_priority_score`` is a pass-through (not weighted in scorer.py).
+# PASS_THROUGH_FEATURE_KEYS entries are intentionally absent here.
 FEATURE_TO_WEIGHT_KEY: dict[str, str] = {
     "gap_component": "gap",
     "gap_sector_rel_component": "gap_sector_relative",
@@ -355,7 +373,7 @@ FEATURE_TO_WEIGHT_KEY: dict[str, str] = {
     "freshness_component": "freshness_decay",
     "institutional_component": "institutional_quality",
     "estimate_revision_component": "estimate_revision",
-    # zone_priority_score is not a weighted component; omitted intentionally.
+    # PASS_THROUGH_FEATURE_KEYS are not weighted components; omitted intentionally.
 }
 
 FEATURE_IMPORTANCE_DIR = OUTCOMES_DIR / "feature_importance"
@@ -802,9 +820,9 @@ def compute_weight_adjustments(
        - Importance 0.0 → 50% downward scaling.
     3. Bayesian blend: ``new = (1 - smoothing) × data_weight + smoothing × prior``.
 
-    Features without a weight mapping (``zone_priority_score``) are skipped.
-    Weights not covered by FEATURE_TO_WEIGHT_KEY (penalties, ewma) are
-    passed through unchanged.
+    Features without a weight mapping (``PASS_THROUGH_FEATURE_KEYS``) are
+    skipped.  Weights not covered by FEATURE_TO_WEIGHT_KEY (penalties, ewma)
+    are passed through unchanged.
     """
     if "error" in feature_report:
         raise ValueError(

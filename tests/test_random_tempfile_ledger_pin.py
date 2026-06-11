@@ -77,7 +77,9 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     ("open_prep/outcome_backfill.py", 107, "mkstemp"),
     ("open_prep/outcome_backfill.py", 581, "mkstemp"),
     ("open_prep/outcomes.py", 138, "mkstemp"),
-    ("open_prep/outcomes.py", 419, "mkstemp"),
+    # 2026-06-11 (trend-state features): 419→437, snapshot keys +
+    # FEATURE_KEYS/PASS_THROUGH block added above.
+    ("open_prep/outcomes.py", 437, "mkstemp"),
     ("open_prep/realtime_signals.py", 116, "mkstemp"),
     ("open_prep/realtime_signals.py", 2528, "mkstemp"),
     ("open_prep/realtime_signals.py", 2569, "mkstemp"),

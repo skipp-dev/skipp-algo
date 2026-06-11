@@ -1153,3 +1153,96 @@ def resolve_regime_weights(
             break
 
     return w
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# #16  Trend-State Features  (observe-only, daily OHLCV bars)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def compute_trend_state_features(
+    bars: list[dict[str, Any]],
+    current_price: float | None = None,
+    *,
+    slope_window: int = 5,
+) -> dict[str, Any]:
+    """Compute observe-only daily trend-state features.
+
+    These features are recorded in outcome records for feature-importance
+    analysis but carry **no scorer weight** (pass-through, like
+    ``zone_priority_score``).  Promotion to a weighted component requires
+    empirical evidence from the FI pipeline first.
+
+    Parameters
+    ----------
+    bars : list[dict]
+        Daily OHLCV bars ordered oldest → newest with a ``close`` key.
+    current_price : float, optional
+        Live (e.g. pre-market) price used for the distance feature.
+        Falls back to the last daily close when missing/non-positive.
+    slope_window : int
+        Number of bars back for the EMA-50 slope measurement.
+
+    Returns
+    -------
+    dict with keys (each ``None`` when insufficient data — fail-closed):
+      - ``trend_alignment``: ``+1`` if EMA20 > EMA50 > EMA200,
+        ``-1`` if EMA20 < EMA50 < EMA200, ``0`` if mixed,
+        ``None`` if fewer than 200 bars.
+      - ``dist_to_ema20_pct``: (price − EMA20) / EMA20 × 100,
+        ``None`` if fewer than 20 bars.
+      - ``ema50_slope_pct``: percent change of EMA50 over the last
+        *slope_window* bars, ``None`` if fewer than 50 + slope_window bars.
+
+    Note: downstream FI aggregation coerces ``None`` → 0.0 (existing
+    ``_safe_float`` convention), conflating "no data" with "neutral/flat".
+    Acceptable for the observe-only phase; revisit before weighting.
+    """
+    out: dict[str, Any] = {
+        "trend_alignment": None,
+        "dist_to_ema20_pct": None,
+        "ema50_slope_pct": None,
+    }
+    if not bars:
+        return out
+
+    closes: list[float] = []
+    for b in bars:
+        c = _safe_float(b.get("close"), default=0.0)
+        if c > 0:
+            closes.append(c)
+    n = len(closes)
+    if n == 0:
+        return out
+
+    # --- dist_to_ema20_pct (needs ≥ 20 bars) ---
+    if n >= 20:
+        ema_20 = _ema(closes, 20)
+        if not math.isnan(ema_20) and ema_20 > 0:
+            price = current_price if (current_price is not None and current_price > 0) else closes[-1]
+            out["dist_to_ema20_pct"] = round((price - ema_20) / ema_20 * 100.0, 4)
+
+    # --- ema50_slope_pct (needs ≥ 50 + slope_window bars) ---
+    if slope_window > 0 and n >= 50 + slope_window:
+        ema_50_now = _ema(closes, 50)
+        ema_50_prev = _ema(closes[:-slope_window], 50)
+        if (
+            not math.isnan(ema_50_now)
+            and not math.isnan(ema_50_prev)
+            and ema_50_prev > 0
+        ):
+            out["ema50_slope_pct"] = round((ema_50_now - ema_50_prev) / ema_50_prev * 100.0, 4)
+
+    # --- trend_alignment (needs ≥ 200 bars) ---
+    if n >= 200:
+        ema_20 = _ema(closes, 20)
+        ema_50 = _ema(closes, 50)
+        ema_200 = _ema(closes, 200)
+        if not any(math.isnan(v) for v in (ema_20, ema_50, ema_200)):
+            if ema_20 > ema_50 > ema_200:
+                out["trend_alignment"] = 1
+            elif ema_20 < ema_50 < ema_200:
+                out["trend_alignment"] = -1
+            else:
+                out["trend_alignment"] = 0
+
+    return out

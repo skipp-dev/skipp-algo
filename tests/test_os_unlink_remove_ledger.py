@@ -98,7 +98,9 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     ("open_prep/outcome_backfill.py", 116, "unlink"),
     ("open_prep/outcome_backfill.py", 589, "unlink"),
     ("open_prep/outcomes.py", 147, "unlink"),
-    ("open_prep/outcomes.py", 431, "unlink"),
+    # 2026-06-11 (trend-state features): 431→449, snapshot keys +
+    # FEATURE_KEYS/PASS_THROUGH block added above.
+    ("open_prep/outcomes.py", 449, "unlink"),
     ("open_prep/realtime_signals.py", 124, "remove"),
     ("open_prep/realtime_signals.py", 2543, "unlink"),
     ("open_prep/realtime_signals.py", 2582, "unlink"),
@@ -108,7 +110,9 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     ("open_prep/run_open_prep.py", 3031, "unlink"),
     ("open_prep/run_open_prep.py", 3367, "unlink"),
     ("open_prep/run_open_prep.py", 5483, "unlink"),
-    ("open_prep/run_open_prep.py", 5731, "unlink"),
+    # 2026-06-11 (trend-state features): 5731→5742, enrichment-loop
+    # stamping + lookback comment added above.
+    ("open_prep/run_open_prep.py", 5742, "unlink"),
     ("open_prep/scorer.py", 149, "unlink"),
     ("open_prep/watchlist.py", 74, "unlink"),
     ("smc_core/benchmark.py", 39, "unlink"),

@@ -52,7 +52,7 @@ from .sentiment_fng import fetch_cnn_equity_fear_greed
 # --- v2 pipeline modules ---
 from .scorer import load_weight_set, rank_candidates_v2, save_weight_set
 from .screen import classify_long_gap, compute_gap_warn_flags, rank_candidates
-from .technical_analysis import detect_breakout, detect_consolidation, detect_symbol_regime
+from .technical_analysis import compute_trend_state_features, detect_breakout, detect_consolidation, detect_symbol_regime
 from .trade_cards import build_trade_cards
 from .utils import StageProfiler
 from .utils import to_float as _to_float
@@ -5500,10 +5500,13 @@ def generate_open_prep_result(
         row["regime"] = regime_snapshot.regime
 
     # --- Breakout & Consolidation enrichment (#6, #7) ---
-    # Fetch daily bars for top-N v2 candidates and run detection
+    # Fetch daily bars for top-N v2 candidates and run detection.
+    # 320 calendar days ≈ 220 trading days so the EMA-200 underlying the
+    # trend_alignment feature has enough bars (breakout/consolidation
+    # detection slices its own shorter windows and is unaffected).
     _daily_bars_cache: dict[str, list[dict[str, Any]]] = {}
     if ranked_v2 and data_client is not None:
-        lookback_from = today - timedelta(days=120)
+        lookback_from = today - timedelta(days=320)
         v2_symbols = [str(r.get("symbol", "")).strip().upper() for r in ranked_v2 if r.get("symbol")]
 
         def _fetch_daily_bars(sym: str) -> tuple[str, list[dict[str, Any]]]:
@@ -5546,6 +5549,14 @@ def generate_open_prep_result(
         row["breakout_direction"] = bo.get("direction")
         row["breakout_pattern"] = bo.get("pattern", "no_data")
         row["breakout_details"] = bo.get("details", {})
+
+        # Trend-state features (observe-only; no scorer weight — recorded
+        # in outcome records for FI analysis, like zone_priority_score).
+        _ts_price = _to_float(row.get("price"), default=0.0)
+        ts = compute_trend_state_features(bars, _ts_price if _ts_price > 0 else None)
+        row["trend_alignment"] = ts.get("trend_alignment")
+        row["dist_to_ema20_pct"] = ts.get("dist_to_ema20_pct")
+        row["ema50_slope_pct"] = ts.get("ema50_slope_pct")
 
         # Consolidation detection (use ATR% and a rough BB-width / ADX proxy)
         atr_pct = _to_float(row.get("atr_pct_computed") or row.get("atr_pct"), default=0.0)

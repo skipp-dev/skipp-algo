@@ -16,6 +16,7 @@ export enum SmcLibMovingAverage
     HMA = 'HMA (Hull)'
     EHMA = 'EHMA (Exponential Hull)'
     THMA = 'THMA (Triple Exponential Hull)'
+    ZLEMA = 'ZLEMA (Zero Lag Exponential)'
 
 export enum LevelBreakMode
     CLOSE = 'candle close price'
