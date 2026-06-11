@@ -22,9 +22,8 @@ if str(REPO_ROOT) not in sys.path:
 # Bug-Hunt 2026-05-01 F-01: deferred so the script also works when
 # invoked as `python scripts/X.py` (no PYTHONPATH=.) — sys.path.insert
 # above must happen before any first-party `from scripts.` import.
-from scripts.smc_atomic_write import atomic_write_text  # noqa: E402
-
 from scripts.generate_databento_watchlist import LongDipConfig, build_daily_watchlists, load_watchlist_inputs
+from scripts.smc_atomic_write import atomic_write_text
 from smc_integration.batch import write_snapshot_bundles_for_symbols
 from strategy_config import (
     LONG_DIP_MAX_GAP_PCT,
@@ -45,6 +44,10 @@ DEFAULT_TIME_STOP_AFTER = "15:31:00"
 DEFAULT_SCHEDULE_TIMEZONE = "Europe/Berlin"
 DEFAULT_RECONNECT_MAX_ATTEMPTS = 3
 DEFAULT_RECONNECT_WAIT_SECONDS = 2.0
+# Single source of truth for the IBKR paper-TWS port convention; the
+# IBKRConnectionConfig default and the S5 paper-account guard both
+# reference this constant (Copilot review #2689: avoid 7497 duplication).
+PAPER_PORT = 7497
 TERMINAL_ORDER_STATUSES = {"Filled", "Cancelled", "ApiCancelled", "Inactive"}
 _SENSITIVE_TEXT_PATTERNS = (
     re.compile(r"(api[_-]?key=)([^&\s]+)", flags=re.IGNORECASE),
@@ -56,7 +59,7 @@ _SENSITIVE_TEXT_PATTERNS = (
 @dataclass(frozen=True)
 class IBKRConnectionConfig:
     host: str = "127.0.0.1"
-    port: int = 7497
+    port: int = PAPER_PORT
     client_id: int = 71
     account: str | None = None
     timeout_seconds: float = 10.0
@@ -454,9 +457,6 @@ def _import_ibkr_types() -> tuple[Any, Any, Any, Any, Any]:
             "ib_async is not installed. Install dependencies with `pip install -r requirements.txt` (provides ib_async>=2.1.0)."
         ) from exc
     return IB, Stock, LimitOrder, MarketOrder, Order
-
-
-PAPER_PORT = 7497
 
 
 def assert_paper_account_if_paper_port(ib: Any, connection_cfg: IBKRConnectionConfig) -> None:
@@ -1096,6 +1096,12 @@ def resolve_client_id(requested: int | None, *, service_name: str = "ibkr_execut
     whenever two execution tools ran concurrently against the same TWS
     (IBKR error 326). The file-locked registry in ``scripts.ib_client_id``
     hands out collision-free ids; an explicit ``--client-id`` still pins.
+
+    Callers that auto-allocate (``requested is None``) MUST release the id
+    in a ``finally`` block via ``release_ib_client_id`` (Copilot review
+    #2689) — see ``main()`` here and in ``run_ibkr_open_execution.py``.
+    ``atexit`` is deliberately NOT used: the repo pins a zero-surface for
+    atexit handlers (tests/test_atexit_register_zero_surface.py).
     """
     if requested is not None:
         return int(requested)
@@ -1108,10 +1114,24 @@ def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
 
+    # S3 (Copilot review #2689): auto-allocated clientIds are leased from the
+    # registry and must be released on exit; explicit --client-id values are
+    # never registered, so never released.
+    client_id = resolve_client_id(args.client_id)
+    try:
+        _main_with_resolved_client_id(args, client_id)
+    finally:
+        if args.client_id is None:
+            from scripts.ib_client_id import release_ib_client_id
+
+            release_ib_client_id(client_id)
+
+
+def _main_with_resolved_client_id(args: argparse.Namespace, client_id: int) -> None:
     connection_cfg = IBKRConnectionConfig(
         host=args.host,
         port=args.port,
-        client_id=resolve_client_id(args.client_id),
+        client_id=client_id,
         account=args.account,
         timeout_seconds=args.timeout_seconds,
         readonly=not args.place_orders,

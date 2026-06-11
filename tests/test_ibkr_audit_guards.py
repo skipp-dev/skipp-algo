@@ -21,12 +21,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+import scripts.smoke_smc_to_ibkr_adapter as smoke_mod
 from scripts.execute_ibkr_watchlist import (
     IBKRConnectionConfig,
     assert_paper_account_if_paper_port,
     resolve_client_id,
 )
-import scripts.smoke_smc_to_ibkr_adapter as smoke_mod
 
 # ---------------------------------------------------------------------------
 # Helpers — minimal IB fakes
@@ -44,7 +44,7 @@ class _FakeIB:
     def __init__(self, accounts: list[str] | None = None) -> None:
         self.wrapper = _FakeWrapper(accounts or [])
 
-    def isConnected(self) -> bool:  # noqa: N802
+    def isConnected(self) -> bool:
         return True
 
     def disconnect(self) -> None:
@@ -108,10 +108,11 @@ def test_s3_explicit_zero_wins() -> None:
 
 
 def test_s3_none_calls_allocator() -> None:
-    """None triggers allocate_ib_client_id via the registry."""
-    with patch("scripts.execute_ibkr_watchlist.resolve_client_id") as mock_res:
-        mock_res.return_value = 42
-        result = mock_res(None)
+    """None triggers the real resolve_client_id → allocate_ib_client_id path."""
+    fake_allocator = MagicMock(return_value=42)
+    with patch("scripts.ib_client_id.allocate_ib_client_id", fake_allocator):
+        result = resolve_client_id(None)
+    fake_allocator.assert_called_once_with("ibkr_execution")
     assert result == 42
 
 
@@ -185,7 +186,7 @@ def test_s4_non_paper_port_with_confirm_live_proceeds(tmp_path: Path) -> None:
     except SystemExit as exc:
         # Must not be the port-check abort
         assert "confirm-live" not in str(exc), (
-            "confirm_live=True should suppress the port-check abort, got: {exc}"
+            f"confirm_live=True should suppress the port-check abort, got: {exc}"
         )
     except Exception:
         pass  # ConnectionRefused / ImportError etc. are expected in CI
@@ -243,7 +244,9 @@ def test_s2_run_mock_prices_not_used_for_orders(tmp_path: Path) -> None:
         size_scale=0.10,
         audit_path=audit,
     )
+    assert res["mode"] == "mock"
     rows = [json.loads(ln) for ln in audit.read_text().splitlines() if ln]
+    assert len(rows) == res["intent_count"]
     for row in rows:
         # In mock mode the recorded entry_price matches the setup (no 50% cut)
         assert row["intent"]["entry_limit"] > 0
@@ -289,10 +292,6 @@ def _make_live_ib_mock(
     # Simulate _wait_for_status polling: ib.sleep is a no-op
     ib.sleep.return_value = None
 
-    placed_trades: list[_FakeTrade] = []
-
-    call_count = [0]
-
     class _DynamicTrade:
         """Trade whose orderStatus.status advances through a sequence."""
 
@@ -313,9 +312,8 @@ def _make_live_ib_mock(
     def _place_order(contract: Any, order: Any) -> _DynamicTrade:
         t = _DynamicTrade(contract.symbol, order.orderId, getattr(order, "orderRef", ""))
         dynamic_trades.append(t)
-        # advance to next status on every ib.sleep call so polling converges
-        original_sleep = ib.sleep.side_effect
 
+        # advance to next status on every ib.sleep call so polling converges
         def _advancing_sleep(dt: float) -> None:
             for tr in dynamic_trades:
                 tr.advance()
@@ -470,17 +468,16 @@ def test_s5_live_account_on_paper_port_aborts_before_order(tmp_path: Path) -> No
                 Stock=MagicMock(side_effect=lambda sym, *a, **kw: _FakeContract(sym)),
             )
         },
-    ):
-        with pytest.raises(SystemExit, match="DU"):
-            smoke_mod.run_live(
-                setups=setups,
-                risk_limits=limits,
-                account_equity_usd=10_000.0,
-                size_scale=0.10,
-                host="127.0.0.1",
-                port=7497,
-                client_id=71,
-            )
+    ), pytest.raises(SystemExit, match="DU"):
+        smoke_mod.run_live(
+            setups=setups,
+            risk_limits=limits,
+            account_equity_usd=10_000.0,
+            size_scale=0.10,
+            host="127.0.0.1",
+            port=7497,
+            client_id=71,
+        )
 
     # placeOrder must NOT have been called
     fake_ib_instance.placeOrder.assert_not_called()
@@ -528,18 +525,17 @@ def test_disconnect_between_place_and_cancel_fails_closed(tmp_path: Path) -> Non
                 Stock=MagicMock(return_value=_Obj(symbol="AAPL")),
             )
         },
-    ):
-        with pytest.raises(ConnectionError, match="Not connected"):
-            smoke_mod.run_live(
-                setups=_sample_setups(),
-                risk_limits=limits,
-                account_equity_usd=10_000.0,
-                size_scale=0.10,
-                host="127.0.0.1",
-                port=7497,
-                client_id=71,
-                audit_path=tmp_path / "smoke.jsonl",
-            )
+    ), pytest.raises(ConnectionError, match="Not connected"):
+        smoke_mod.run_live(
+            setups=_sample_setups(),
+            risk_limits=limits,
+            account_equity_usd=10_000.0,
+            size_scale=0.10,
+            host="127.0.0.1",
+            port=7497,
+            client_id=71,
+            audit_path=tmp_path / "smoke.jsonl",
+        )
 
     # best-effort disconnect must still have happened (finally block)
     ib.disconnect.assert_called()

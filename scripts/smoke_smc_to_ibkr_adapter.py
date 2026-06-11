@@ -28,6 +28,7 @@ only when ``--live`` is requested so CI does not pull it.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import logging
 import os
@@ -44,7 +45,6 @@ from scripts.smc_to_ibkr_adapter import (
     IBKRExecutionConfig,
     build_ibkr_intents_from_smc_setups,
 )
-import contextlib
 
 logger = logging.getLogger("smoke_smc_to_ibkr_adapter")
 
@@ -293,14 +293,8 @@ def run_live(
     * **S5** — in paper mode the managed accounts MUST all be DU*
       (IBKR paper prefix); a live account behind the paper port aborts.
     """
-    try:
-        from ib_async import IB, LimitOrder, Stock  # type: ignore[import-untyped]
-    except ImportError as exc:  # pragma: no cover - exercised only in live mode
-        raise RuntimeError(
-            "ib_async is required for --live mode; install with "
-            "`pip install ib_async>=2.1.0` and ensure IBKR Paper Gateway is running."
-        ) from exc
-
+    # S4 — safety gate FIRST, before any dependency import: the abort must
+    # fire even on systems without ib_async installed (Copilot review #2689).
     paper_mode = port == DEFAULT_PAPER_PORT
     if not paper_mode and not confirm_live:
         raise SystemExit(
@@ -308,6 +302,14 @@ def run_live(
             "refusing to run the live smoke against a potentially real-money "
             "session without --confirm-live."
         )
+
+    try:
+        from ib_async import IB, LimitOrder, Stock  # type: ignore[import-untyped]
+    except ImportError as exc:  # pragma: no cover - exercised only in live mode
+        raise RuntimeError(
+            "ib_async is required for --live mode; install with "
+            "`pip install ib_async>=2.1.0` and ensure IBKR Paper Gateway is running."
+        ) from exc
 
     exec_cfg = IBKRExecutionConfig(host=host, paper_mode=paper_mode, client_id=client_id)
     intents = build_ibkr_intents_from_smc_setups(setups, exec_cfg, size_scale=size_scale)
@@ -357,7 +359,12 @@ def run_live(
             order = LimitOrder("BUY", int(intent.quantity), smoke_price, tif=intent.tif)
             order.orderRef = f"{intent.order_ref}-smoke"
             trade = ib.placeOrder(contract, order)
-            session_order_ids.add(int(getattr(order, "orderId", 0) or 0))
+            # Only record real (positive) ids — recording 0 for unset ids
+            # would make the sweep below misclassify unrelated orders whose
+            # id is also missing/0 as session leftovers (Copilot review #2689).
+            order_id_raw = int(getattr(order, "orderId", 0) or 0)
+            if order_id_raw > 0:
+                session_order_ids.add(order_id_raw)
             # Wait for the submission ack before cancelling — cancelling a
             # PendingSubmit order races TWS activation (S1).
             ack_status = _wait_for_status(
@@ -386,7 +393,9 @@ def run_live(
         for open_trade in ib.reqAllOpenOrders():
             order_id = int(getattr(open_trade.order, "orderId", 0) or 0)
             order_ref = str(getattr(open_trade.order, "orderRef", ""))
-            if order_id in session_order_ids or order_ref.endswith("-smoke"):
+            # id==0 means "unknown" — never id-match on it; the orderRef
+            # suffix remains the authoritative session marker in that case.
+            if (order_id > 0 and order_id in session_order_ids) or order_ref.endswith("-smoke"):
                 leftovers.append(
                     {
                         "symbol": str(getattr(open_trade.contract, "symbol", "")),
