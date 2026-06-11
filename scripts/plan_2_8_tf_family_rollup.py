@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 import sys
 from pathlib import Path
@@ -122,6 +123,46 @@ def build_rollup(
     }
 
 
+def _delta_hr_inference(
+    n_a: int, hr_a: float, n_b: int, hr_b: float
+) -> dict[str, Any]:
+    """Honest inference companion for a raw ``delta_hr`` (stat-review S2, #2674).
+
+    The bare ``n >= 30`` floor labels comparisons "measured" whose minimal
+    detectable effect (MDE) dwarfs any plausible true delta — at n=30 per
+    side the MDE at 80% power is ~36 percentage points. Emit a two-sided
+    two-proportion z p-value, a Wald 95% CI for the delta, the analytic MDE
+    (alpha=0.05 two-sided, 80% power), and an ``underpowered`` flag so
+    downstream consumers cannot mistake noise for signal.
+    """
+    delta = hr_a - hr_b
+    se = math.sqrt(
+        hr_a * (1.0 - hr_a) / n_a + hr_b * (1.0 - hr_b) / n_b
+    )
+    # Pooled SE for the z-test under H0.
+    pooled = (hr_a * n_a + hr_b * n_b) / (n_a + n_b)
+    se_pooled = math.sqrt(
+        pooled * (1.0 - pooled) * (1.0 / n_a + 1.0 / n_b)
+    )
+    if se_pooled > 0.0:
+        z = delta / se_pooled
+        p_value = math.erfc(abs(z) / math.sqrt(2.0))
+    else:
+        # Degenerate (both rates 0 or 1): no sampling variance, the
+        # z-test is undefined — disclose rather than invent.
+        p_value = None
+    # MDE at alpha=0.05 two-sided (1.96) and 80% power (0.84), using the
+    # conservative p=0.5 variance bound.
+    se_worst = math.sqrt(0.25 / n_a + 0.25 / n_b)
+    mde = (1.96 + 0.84) * se_worst
+    return {
+        "delta_hr_ci95": [delta - 1.96 * se, delta + 1.96 * se],
+        "delta_hr_p_value": p_value,
+        "mde_80pct_power": mde,
+        "underpowered": bool(abs(delta) < mde),
+    }
+
+
 def _phase_e2_verdict(per_tf: dict[str, dict[str, Any]]) -> dict[str, Any]:
     """Render the two Phase-E2 hypothesis checks from the rollup.
 
@@ -129,40 +170,94 @@ def _phase_e2_verdict(per_tf: dict[str, dict[str, Any]]) -> dict[str, Any]:
     the comparison is taken seriously — below that the verdict is
     ``insufficient_data`` so downstream automation does not act on
     noise.
+
+    Aliasing guard (2026-06-10 ADR): when the arm-A slice and *every*
+    contributing baseline slice carry pairwise-identical ``n_events``
+    and ``hit_rate``, the input slices are clones of the same events
+    (e.g. the legacy structure artifact served one timeframe's events
+    to all TFs) and the comparison would measure an arm against
+    itself. Such verdicts are labelled ``degenerate_aliased_input``
+    instead of ``measured``; exact equality is intentional because
+    clones are byte-identical, while honest slices differ.
+
+    Power honesty (stat-review S2, #2674): comparisons that clear the
+    n>=30 floor additionally carry a two-proportion p-value, a Wald 95%
+    CI and the analytic MDE; when |delta_hr| < MDE the status is
+    ``measured_underpowered`` instead of ``measured``.
     """
     def fam(tf: str, family: str) -> dict[str, Any] | None:
         return (per_tf.get(tf, {}).get("families") or {}).get(family)
 
-    def _cmp(a: dict[str, Any] | None, b: dict[str, Any] | None) -> dict[str, Any]:
+    def _cmp(
+        a: dict[str, Any] | None,
+        b: dict[str, Any] | None,
+        *,
+        baseline_slices: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
         if not a or not b:
             return {"status": "missing"}
         if a["n_events"] < 30 or b["n_events"] < 30:
             return {"status": "insufficient_data",
                     "n_a": a["n_events"], "n_b": b["n_events"]}
+        if baseline_slices and all(
+            c["n_events"] == a["n_events"] and c["hit_rate"] == a["hit_rate"]
+            for c in baseline_slices
+        ):
+            return {
+                "status": "degenerate_aliased_input",
+                "n_a": a["n_events"], "hr_a": a["hit_rate"],
+                "n_b": b["n_events"], "hr_b": b["hit_rate"],
+                "reason": (
+                    "arm A and every baseline slice carry identical "
+                    "n_events/hit_rate; input slices are aliased copies "
+                    "(e.g. cross-TF structure fallback), so delta_hr would "
+                    "compare an arm against itself"
+                ),
+            }
+        inference = _delta_hr_inference(
+            a["n_events"], a["hit_rate"], b["n_events"], b["hit_rate"]
+        )
         return {
-            "status": "measured",
+            # ``measured_underpowered``: the comparison ran, but its MDE
+            # (80% power) exceeds |delta_hr| — the delta is not
+            # distinguishable from noise and must not drive decisions
+            # (stat-review S2, #2674).
+            "status": (
+                "measured_underpowered" if inference["underpowered"]
+                else "measured"
+            ),
             "n_a": a["n_events"], "hr_a": a["hit_rate"],
             "n_b": b["n_events"], "hr_b": b["hit_rate"],
             "delta_hr": a["hit_rate"] - b["hit_rate"],
+            **inference,
         }
 
-    # Baseline = 15m + 1H merged.
-    def baseline(family: str) -> dict[str, Any] | None:
-        merged_n = 0
-        weighted = 0.0
+    # Baseline = 15m + 1H merged. Zero-event slices contribute no weight
+    # and therefore do not count as contributors for the aliasing guard.
+    def contributors(family: str) -> list[dict[str, Any]]:
+        out: list[dict[str, Any]] = []
         for tf in ("15m", "1H"):
             f = fam(tf, family)
-            if f is None:
-                continue
-            merged_n += f["n_events"]
-            weighted += f["hit_rate"] * f["n_events"]
-        if merged_n == 0:
+            if f is not None and f["n_events"] > 0:
+                out.append(f)
+        return out
+
+    def baseline(slices: list[dict[str, Any]]) -> dict[str, Any] | None:
+        if not slices:
             return None
+        merged_n = sum(s["n_events"] for s in slices)
+        weighted = sum(s["hit_rate"] * s["n_events"] for s in slices)
         return {"n_events": merged_n, "hit_rate": weighted / merged_n}
 
+    fvg_slices = contributors("FVG")
+    bos_slices = contributors("BOS")
     return {
-        "fvg_ttf_5m_vs_baseline": _cmp(fam("5m", "FVG"), baseline("FVG")),
-        "bos_stability_4h_vs_baseline": _cmp(fam("4H", "BOS"), baseline("BOS")),
+        "fvg_ttf_5m_vs_baseline": _cmp(
+            fam("5m", "FVG"), baseline(fvg_slices), baseline_slices=fvg_slices
+        ),
+        "bos_stability_4h_vs_baseline": _cmp(
+            fam("4H", "BOS"), baseline(bos_slices), baseline_slices=bos_slices
+        ),
     }
 
 

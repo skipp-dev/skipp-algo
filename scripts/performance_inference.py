@@ -177,7 +177,7 @@ def sharpe_ci(
     returns: np.ndarray,
     *,
     alpha: float = 0.05,
-    freq: int = 252,
+    freq: float = 252,
     B: int = DEFAULT_B,
     mean_block_length: int = DEFAULT_MEAN_BLOCK_LENGTH,
     method: CIMethod = "studentized",

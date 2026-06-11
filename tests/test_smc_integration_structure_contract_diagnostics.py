@@ -253,3 +253,76 @@ class TestSelectLegacyEntry:
         ]
         result = _select_legacy_entry(entries, symbol="AAPL", timeframe="15m")
         assert result["timeframe"] == "1D"
+
+
+class TestLegacyTfFallbackWarning:
+    """Cross-TF aliasing guard (2026-06-10 ADR).
+
+    The legacy single-artifact fallback used to serve another
+    timeframe's structure silently; every per-TF benchmark slice became
+    an identical clone and Plan 2.8 Phase-E2 verdicts compared an arm
+    against itself. The fallback stays (rolling benchmark must not
+    hard-fail) but must be loud.
+    """
+
+    @staticmethod
+    def _entries_payload() -> dict:
+        return {
+            "entries": [
+                {
+                    "symbol": "AAPL",
+                    "timeframe": "1D",
+                    "structure": {
+                        "bos": [],
+                        "orderblocks": [],
+                        "fvg": [],
+                        "liquidity_sweeps": [],
+                    },
+                },
+            ]
+        }
+
+    def test_exact_match_has_no_fallback_warning(self) -> None:
+        contract = normalize_structure_contract(
+            self._entries_payload(), symbol="AAPL", timeframe="1D"
+        )
+        assert not any("legacy_tf_fallback" in w for w in contract.warnings)
+
+    def test_case_insensitive_match_has_no_fallback_warning(self) -> None:
+        contract = normalize_structure_contract(
+            self._entries_payload(), symbol="AAPL", timeframe="1d"
+        )
+        assert not any("legacy_tf_fallback" in w for w in contract.warnings)
+
+    def test_fallback_appends_warning_with_both_timeframes(self) -> None:
+        contract = normalize_structure_contract(
+            self._entries_payload(), symbol="AAPL", timeframe="5m"
+        )
+        expected = "legacy_tf_fallback: requested 5m, served 1D"
+        assert expected in contract.warnings
+        assert expected in contract.structure_context["warnings"]
+
+    def test_fallback_preserves_existing_diagnostics_warnings(self) -> None:
+        payload = self._entries_payload()
+        payload["entries"][0]["diagnostics"] = {"warnings": ["existing"]}
+        contract = normalize_structure_contract(
+            payload, symbol="AAPL", timeframe="5m"
+        )
+        assert contract.warnings == [
+            "existing",
+            "legacy_tf_fallback: requested 5m, served 1D",
+        ]
+
+    def test_fallback_does_not_mutate_input_payload(self) -> None:
+        payload = self._entries_payload()
+        normalize_structure_contract(payload, symbol="AAPL", timeframe="5m")
+        assert "diagnostics" not in payload["entries"][0]
+
+    def test_fallback_logs_warning(self, caplog: pytest.LogCaptureFixture) -> None:
+        import logging
+
+        with caplog.at_level(logging.WARNING, logger="smc_integration.structure_contract"):
+            normalize_structure_contract(
+                self._entries_payload(), symbol="AAPL", timeframe="5m"
+            )
+        assert any("cross-TF comparisons" in rec.getMessage() for rec in caplog.records)

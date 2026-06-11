@@ -118,6 +118,14 @@ PHASE_A_CRITERIA = PhasePassCriteria(
     extra=(
         "slippage_ks_pvalue_gt_0.05",
         "hit_rate_inside_c3_bootstrap_ci",
+        # Stat-review S1 (#2674): the watchdog stack (green/yellow/red via
+        # 4-detector consensus in scripts/drift_alert.py) and the
+        # incubation drift stack (pass/acceptable/... via drift_score)
+        # were previously unreconciled — a variant could machine-pass
+        # Phase-A while the watchdog stood RED (stable mean, blown-out
+        # tails). This criterion forces the watchdog's aggregate
+        # severity into the promotion gate.
+        "watchdog_status_not_red",
     ),
 )
 
@@ -146,6 +154,9 @@ PHASE_B_CRITERIA = PhasePassCriteria(
         # criterion ("``window_complete: true`` on the watchdog report").
         # Mirrored here so the runbook-mirror test can pin it.
         "drift_window_complete",
+        # Stat-review S1 (#2674): see Phase-A comment — the watchdog
+        # aggregate severity must also gate Phase-B promotion.
+        "watchdog_status_not_red",
     ),
 )
 
@@ -511,6 +522,21 @@ def _build_parser() -> argparse.ArgumentParser:
         default=1,
         help="Calendar days after trade-date to block earnings (default: 1).",
     )
+    parser.add_argument(
+        "--phase-eval-report",
+        type=Path,
+        default=None,
+        help=(
+            "JSON report produced by scripts/evaluate_phase_criteria.py. "
+            "REQUIRED for phase=live_small (must be a passing 'paper' "
+            "evaluation) and phase=live_full (must be a passing "
+            "'live_small' evaluation). Stat-review F1 (2026-06-10): the "
+            "PhasePassCriteria checklist is machine-evaluated, not prose; "
+            "a live phase without a fresh passing report refuses to run. "
+            "Promotion remains manual sign-off — this gate is necessary, "
+            "not sufficient."
+        ),
+    )
     return parser
 
 
@@ -657,6 +683,23 @@ def main(argv: Sequence[str] | None = None) -> int:
             "the current live AccountState (equity, drawdown, P&L "
             "history). Refusing to default to a zero-AccountState for "
             "a non-paper phase — the kill-switch would silently no-op."
+        )
+    # Stat-review F1/F6 (2026-06-10): live phases additionally require a
+    # fresh, PASSING machine evaluation of the prior phase's
+    # PhasePassCriteria. Imported lazily so paper-mode CI never touches
+    # the evaluator module.
+    if args.phase in ("live_small", "live_full"):
+        if args.phase_eval_report is None:
+            raise SystemExit(
+                f"phase={args.phase!r} requires --phase-eval-report "
+                "(produced by scripts/evaluate_phase_criteria.py) proving "
+                "the prior phase's pass criteria are machine-verified. "
+                "Refusing to run a live phase on prose criteria alone."
+            )
+        from scripts.evaluate_phase_criteria import load_and_validate_eval_report
+
+        load_and_validate_eval_report(
+            args.phase_eval_report, target_phase=args.phase
         )
     if args.account_state_json is not None:
         account_state = _account_state_from_json(args.account_state_json)

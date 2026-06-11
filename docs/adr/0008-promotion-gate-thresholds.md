@@ -177,6 +177,26 @@ Each threshold is classified by **anchor type**:
 | Operator margin     | None beyond the shared `brier_max` bar; the bootstrap is seed-pinned (B=2000, mean block length 5, seed 42) for audit reproducibility and stays `None` below 30 OOS events ("not yet measured"). |
 | Recalibration trigger | Moves in lock-step with `brier_max` — if that bar is re-anchored from an empirical Brier distribution, re-anchor this to the same value. Independently revisit the block length if autocorrelation diagnostics on the per-event Brier-loss series show the mean-5 stationary block is mis-sized for the realised event spacing. |
 
+### 12 · `_VERDICT_BANDS = (0.85, 0.65, 0.40)` — anchor: **O**
+
+| Item                | Value                                                                 |
+|---------------------|-----------------------------------------------------------------------|
+| Source of truth     | `scripts/compute_live_drift.py::_VERDICT_BANDS`                        |
+| Sprint of origin    | C8 live incubation (T4, drift detector)                                |
+| Empirical anchor    | **None — operator judgment, no empirical anchor** (stat-review F13, 2026-06-10). The cutoffs map `drift_score = live_sharpe / backtest_sharpe` (capped to [0, 1.5]) onto verdicts: ≥ 0.85 `pass`, ≥ 0.65 `acceptable`, ≥ 0.40 `concerning`, else `fail`. They encode "≤ 15 % Sharpe degradation is replication, ≤ 35 % is tolerable, ≤ 60 % is a watch item" — a conservative prior, not a derived quantity. No live-vs-backtest degradation distribution existed when the bands were chosen. |
+| Operator margin     | n/a (entire value is operator judgment)                                |
+| Recalibration trigger | **Fixed cadence: every 100 live promotions OR every 6 months, whichever comes first** (same O-cadence as §5/§7). Re-derive from the empirical distribution of `live_sharpe / backtest_sharpe` across completed incubation phases; re-anchor `pass` at Q50 and `fail` at Q10, rounded to 0.05. Note the Phase-A power caveat in `docs/c8_live_incubation_runbook.md`: below ~50 trades the ratio is noise-dominated, so recalibration requires phase-complete samples, not daily snapshots. |
+
+### 13 · Phase drift-score lines `0.70` (Phase-A) / `0.50` (Phase-B) — anchor: **O**
+
+| Item                | Value                                                                 |
+|---------------------|-----------------------------------------------------------------------|
+| Source of truth     | `scripts/run_smc_live_incubation.py::PHASE_A_CRITERIA.min_drift_score` (0.70) and `PHASE_B_CRITERIA.min_drift_score` (0.50); machine-evaluated by `scripts/evaluate_phase_criteria.py` |
+| Sprint of origin    | C8 live incubation (T3) — runbook prose; promoted to evaluated code in stat-review F1 (2026-06-10) |
+| Empirical anchor    | **None — operator judgment.** 0.70 sits between the `acceptable` (0.65) and `pass` (0.85) bands of §12 — intentionally stricter than `acceptable` for the paper phase. 0.50 is a Phase-B watch-marker *inside* the `concerning` band; it is necessary-but-not-sufficient because Phase-B additionally requires verdict ∈ {pass, acceptable} (≥ 0.65). See the Phase-B pass-criteria note in `docs/c8_live_incubation_runbook.md`. |
+| Operator margin     | n/a (entire value is operator judgment)                                |
+| Recalibration trigger | Moves in lock-step with §12 — recalibrate on the same 100-live-promotions / 6-month cadence and keep the orderings `acceptable ≤ phase_A_line ≤ pass` and `fail ≤ phase_B_line ≤ acceptable` invariant. |
+
 ## Decision
 
 1. Every threshold in `GateThresholds` has an entry in this ADR with

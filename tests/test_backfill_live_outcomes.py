@@ -100,6 +100,30 @@ def test_backfill_skips_pending_trades(tmp_path: Path) -> None:
     assert PNL_KEY not in record
 
 
+def test_backfill_counts_audit_only_separately(tmp_path: Path) -> None:
+    """F-V3-15 follow-up (2026-06-10): audit_only is not a backfill stall.
+
+    audit_only intents never reached a broker (C13 T1 NO-GO) and can
+    structurally never close. The summary must expose them separately
+    so the cron's progress assertion fires only on CLOSABLE pending
+    records — otherwise the known NO-GO condition masquerades as an
+    auth/quota regression (and would hard-fail the cron daily once
+    F-V3-15 phase 2 lands).
+    """
+    path = tmp_path / "x.jsonl"
+    _write_jsonl(path, [
+        _closed_record(action="audit_only"),
+        _closed_record(action="audit_only"),
+        _closed_record(action="submitted"),
+    ])
+
+    summary = backfill_live_outcomes(path)
+
+    assert summary["records_pending_close"] == 3
+    assert summary["records_audit_only"] == 2
+    assert summary["records_backfilled"] == 0
+
+
 def test_backfill_is_idempotent(tmp_path: Path) -> None:
     path = tmp_path / "x.jsonl"
     _write_jsonl(path, [_closed_record()])

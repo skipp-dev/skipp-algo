@@ -92,6 +92,89 @@ def test_extract_metric_pairs_handles_missing_baseline_keys() -> None:
     assert out["pnl_per_trade"] == ([], [0.1])
 
 
+def test_extract_metric_pairs_splits_per_setup_when_attributed() -> None:
+    """Stat-review F10 (2026-06-10): live records carrying a setup_type
+    attribution get per-setup metrics in addition to the pooled one."""
+    live = [
+        {"pnl_30m_pct": 0.1, "setup_type": "fvg_long"},
+        {"pnl_30m_pct": -0.2, "setup_type": "fvg_long"},
+        {"pnl_30m_pct": 0.3, "setup_type": "fvg_short"},
+        {"pnl_30m_pct": 0.4},  # unattributed → pooled only
+    ]
+    baseline = {
+        "per_setup": {
+            "fvg_long": {"oos_pnl_returns": [0.1, 0.05]},
+            "fvg_short": {"oos_pnl_returns": [-0.05]},
+            "never_traded_live": {"oos_pnl_returns": [9.9]},
+        }
+    }
+    out = extract_metric_pairs(live_outcomes=live, baseline=baseline)
+    assert sorted(out["pnl_per_trade"][1]) == [-0.2, 0.1, 0.3, 0.4]
+    assert out["pnl_per_trade[setup=fvg_long]"] == ([0.1, 0.05], [0.1, -0.2])
+    assert out["pnl_per_trade[setup=fvg_short]"] == ([-0.05], [0.3])
+    # No live trades for that setup → no spurious metric.
+    assert "pnl_per_trade[setup=never_traded_live]" not in out
+
+
+def test_extract_metric_pairs_no_per_setup_without_attribution() -> None:
+    """The current open_prep outcome schema has no setup key — only the
+    pooled metric must be emitted (no fabricated splits)."""
+    live = [{"pnl_30m_pct": 0.1}, {"pnl_30m_pct": -0.2}]
+    baseline = {"per_setup": {"x": {"oos_pnl_returns": [0.1, 0.2]}}}
+    out = extract_metric_pairs(live_outcomes=live, baseline=baseline)
+    assert set(out) == {"pnl_per_trade"}
+
+
+def test_build_report_discloses_pooling_limitation(tmp_path: Path) -> None:
+    """Stat-review F10: a pooled-only report must say so explicitly."""
+    today = date(2026, 4, 26)
+    _write_outcomes(
+        tmp_path,
+        today,
+        [{"pnl_30m_pct": 0.01 * (i % 7 - 3)} for i in range(40)],
+    )
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text(
+        json.dumps({"per_setup": {"x": {"oos_pnl_returns": [0.01] * 200}}}),
+        encoding="utf-8",
+    )
+    rep = build_report(
+        outcomes_dir=tmp_path,
+        baseline_json=baseline_path,
+        window_days=30,
+        today=today,
+    )
+    assert rep["per_setup_live_attribution"] is False
+    assert rep["per_setup_metrics"] == []
+    assert "per-setup drift may be masked" in rep["pooling_note"]
+
+
+def test_build_report_per_setup_metrics_listed_when_attributed(tmp_path: Path) -> None:
+    today = date(2026, 4, 26)
+    _write_outcomes(
+        tmp_path,
+        today,
+        [
+            {"pnl_30m_pct": 0.01 * (i % 7 - 3), "setup_type": "fvg_long"}
+            for i in range(40)
+        ],
+    )
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text(
+        json.dumps({"per_setup": {"fvg_long": {"oos_pnl_returns": [0.01] * 200}}}),
+        encoding="utf-8",
+    )
+    rep = build_report(
+        outcomes_dir=tmp_path,
+        baseline_json=baseline_path,
+        window_days=30,
+        today=today,
+    )
+    assert rep["per_setup_live_attribution"] is True
+    assert rep["per_setup_metrics"] == ["pnl_per_trade[setup=fvg_long]"]
+    assert "pooling_note" not in rep
+
+
 # ---------------------------------------------------------------------------
 # build_report — orchestration
 # ---------------------------------------------------------------------------

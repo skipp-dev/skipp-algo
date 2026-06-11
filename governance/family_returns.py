@@ -349,11 +349,14 @@ def realized_return(event: FamilyEvent, *, cost_bps: float = DEFAULT_COST_BPS) -
             return None
         # The break/sweep is the anchor bar; the first forward close is one
         # bar after the anchor, so the exit ``horizon`` bars later sits at
-        # index ``horizon - 1`` (clamped to the last available close).
-        if not closes:
+        # index ``horizon - 1``. Stat-review S3 (#2674): a window shorter
+        # than the horizon is REFUSED (None), mirroring the retest path —
+        # clamping to the last available close pooled horizon-truncated
+        # returns as full-horizon measurements, biasing the most recent
+        # (test-fold-dominating) events.
+        if horizon - 1 >= len(closes):
             return None
-        exit_idx = min(horizon - 1, len(closes) - 1)
-        exit_price = closes[exit_idx]
+        exit_price = closes[horizon - 1]
         gross = sign * (exit_price - entry_price) / entry_price
         return gross - cost_bps / 1e4
 
@@ -437,6 +440,21 @@ def _event_bar_interval(forward_timestamps: list[float]) -> float:
     return 0.5 * (diffs[mid - 1] + diffs[mid])
 
 
+def _guard_end_ts(fts: list[float], embargo_bars: int) -> float | None:
+    """Label-window end plus the family embargo in wall-clock time.
+
+    Stat-review S3 (#2674): when the embargo is non-zero but the forward
+    window is degenerate (< 2 positive timestamp diffs), the embargo
+    would silently collapse to zero (guard_end == label end), weakening
+    the walk-forward purge for exactly these events. Return ``None`` so
+    callers exclude the event from purged samples — never invented.
+    """
+    interval = _event_bar_interval(fts)
+    if embargo_bars > 0 and interval <= 0.0:
+        return None
+    return fts[-1] + embargo_bars * interval
+
+
 def extract_family_calibration_samples(
     events: list[FamilyEvent], *, cost_bps: float = DEFAULT_COST_BPS
 ) -> dict[str, dict[str, list[float]]]:
@@ -468,7 +486,9 @@ def extract_family_calibration_samples(
         family = event["family"]
         fts = [float(t) for t in forward_ts]
         embargo_bars = get_family_config(family).embargo_bars
-        guard_end = fts[-1] + embargo_bars * _event_bar_interval(fts)
+        guard_end = _guard_end_ts(fts, embargo_bars)
+        if guard_end is None:
+            continue
         bucket = out.setdefault(
             family,
             {"scores": [], "returns": [], "anchor_ts": [], "guard_end_ts": []},
@@ -626,7 +646,9 @@ def extract_family_ab_samples(
         family = event["family"]
         fts = [float(t) for t in forward_ts]
         embargo_bars = get_family_config(family).embargo_bars
-        guard_end = fts[-1] + embargo_bars * _event_bar_interval(fts)
+        guard_end = _guard_end_ts(fts, embargo_bars)
+        if guard_end is None:
+            continue
         event_view: Mapping[str, Any] = event
         bucket = out.setdefault(
             family,

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from governance.family_event_adapter import family_events_from_structure
 from governance.family_event_score import ATR_PERIOD
+from governance.family_walkforward import family_outcome_horizon
 from governance.family_returns import (
     FamilyEvent,
     extract_family_feature_samples,
@@ -72,10 +73,14 @@ def test_adapter_omits_kyle_lambda_when_signed_volume_absent() -> None:
 
 def _triggered_event(family: str, *, kyle: float | None, up: bool) -> FamilyEvent:
     base = 100.0
+    # Stat-review S3 (#2674): immediate-mode windows shorter than the family
+    # horizon are now refused (no clamp-to-last-bar), so the fixture must
+    # supply a full horizon-length forward series.
+    n = family_outcome_horizon(family)
     forward = (
-        [base + 1.0, base + 2.0, base + 3.0]
+        [base + (1.0 + i) for i in range(n)]
         if up
-        else [base - 1.0, base - 2.0, base - 3.0]
+        else [base - (1.0 + i) for i in range(n)]
     )
     event = FamilyEvent(
         family=family,  # type: ignore[typeddict-item]

@@ -118,6 +118,10 @@ def build_track_record_gate_payload(returns_payload: Mapping[str, Any]) -> dict[
     """Compute the verdict dict (global + optional per-variant block)."""
 
     rr_target = _safe_float(returns_payload.get("rr_target"), 1.0)
+    # Stat-review S4 (#2674): optional observed trade frequency; when the
+    # producer supplies it, the Sharpe annualisation uses the trade clock
+    # instead of the daily-bar default (see evaluate_track_record_gate).
+    trades_per_year = _safe_optional_scalar(returns_payload.get("trades_per_year"))
     wfe_global = _safe_optional_scalar(returns_payload.get("walk_forward_efficiency"))
     perm_p_global = _safe_optional_scalar(returns_payload.get("permutation_p"))
     fdr_global = _safe_optional_scalar(returns_payload.get("fdr_rate"))
@@ -142,10 +146,12 @@ def build_track_record_gate_payload(returns_payload: Mapping[str, Any]) -> dict[
             permutation_p=perm_p_global,
             fdr_rate=fdr_global,
             per_regime_hit_rate_spread=spread_global,
+            trades_per_year=trades_per_year,
         )
         per_variant = evaluate_track_record_gate_per_variant(
             returns_by_variant,
             rr_target=rr_target,
+            trades_per_year=trades_per_year,
             walk_forward_efficiency_by_variant=_safe_by_variant(
                 returns_payload.get("walk_forward_efficiency_by_variant")
             ),
@@ -173,6 +179,7 @@ def build_track_record_gate_payload(returns_payload: Mapping[str, Any]) -> dict[
         permutation_p=perm_p_global,
         fdr_rate=fdr_global,
         per_regime_hit_rate_spread=spread_global,
+        trades_per_year=trades_per_year,
     )
     return verdict_to_dict(verdict)
 

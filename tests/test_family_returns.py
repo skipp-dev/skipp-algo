@@ -13,6 +13,8 @@ from governance.family_returns import (
     DEFAULT_COST_BPS,
     FamilyEvent,
     _event_bar_interval,
+    _guard_end_ts,
+    extract_family_calibration_samples,
     extract_family_returns,
     realized_return,
     to_build_spec,
@@ -555,3 +557,66 @@ def test_regime_degraded_flows_through_bundle_as_blocker() -> None:
     bos = next(m for m in bundle if m["family"] == "BOS")
     # The C5.1 verdict is now MEASURED and rides through to the gate payload.
     assert bos["regime_degraded"] is True
+
+
+# --- Stat-review S3 (#2674): horizon-truncation + embargo-collapse guards ---
+
+
+def _short_window_immediate_bos() -> FamilyEvent:
+    """Immediate-entry BOS whose forward window is one bar SHORT of the
+    outcome horizon — pre-S3 the clamp silently exited at the last close."""
+    horizon = family_outcome_horizon("BOS")
+    n = horizon - 1
+    event: FamilyEvent = {
+        "family": "BOS",  # type: ignore[typeddict-item]
+        "direction": "BULL",
+        "entry_mode": "immediate",
+        "entry_price": 100.0,
+        "zone_low": 0.0,
+        "zone_high": 0.0,
+        "anchor_ts": 1.0,
+        "forward_highs": [102.0] * n,
+        "forward_lows": [100.0] * n,
+        "forward_closes": [101.0] * n,
+    }
+    return event
+
+
+def test_immediate_mode_refuses_horizon_truncated_window() -> None:
+    # Pre-S3 this returned a (truncated) ~+1% return; now it is not a trade.
+    assert realized_return(_short_window_immediate_bos()) is None
+
+
+def test_immediate_mode_exact_horizon_window_still_measures() -> None:
+    ev = _short_window_immediate_bos()
+    horizon = family_outcome_horizon("BOS")
+    ev["forward_highs"] = [102.0] * horizon
+    ev["forward_lows"] = [100.0] * horizon
+    ev["forward_closes"] = [101.0] * horizon
+    ret = realized_return(ev)
+    assert ret is not None
+    assert ret == pytest.approx(0.01 - DEFAULT_COST_BPS / 1e4)
+
+
+def test_guard_end_ts_refuses_degenerate_interval_with_embargo() -> None:
+    # All-equal timestamps -> interval 0; a non-zero embargo cannot be
+    # expressed in wall-clock time, so the guard must refuse (None) rather
+    # than silently collapse to the label end.
+    assert _guard_end_ts([5.0, 5.0, 5.0], embargo_bars=16) is None
+    # Zero embargo: the collapse is harmless — label end is returned.
+    assert _guard_end_ts([5.0, 5.0, 5.0], embargo_bars=0) == 5.0
+    # Healthy spacing: label end + embargo * interval.
+    assert _guard_end_ts([0.0, 10.0, 20.0], embargo_bars=2) == 40.0
+
+
+def test_calibration_samples_exclude_degenerate_embargo_window() -> None:
+    good = _scored_immediate_bos(0)
+    bad = _scored_immediate_bos(1)
+    # Degenerate forward clock: every timestamp identical (interval 0).
+    bad["forward_timestamps"] = [bad["forward_timestamps"][0]] * len(
+        bad["forward_timestamps"]
+    )
+    samples = extract_family_calibration_samples([good, bad])
+    # BOS embargo_bars > 0, so the degenerate event must be excluded.
+    assert len(samples["BOS"]["returns"]) == 1
+    assert samples["BOS"]["anchor_ts"] == [good["anchor_ts"]]
