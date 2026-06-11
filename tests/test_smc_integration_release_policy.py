@@ -496,18 +496,24 @@ class TestMeasurementShadowGovernance:
         }
 
     def test_calibrated_thresholds_skipped_below_platt_floor_default(self) -> None:
-        # Default eligibility floor is 20 events (the Platt-scaler minimum in
-        # smc_core.scoring._MIN_PLATT_EVENTS). Below that the calibration code
-        # path falls back to beta_bin and emits warnings; calibrated_ece is
-        # statistically meaningless (e.g. n=1 with positive_rate=0 yields
-        # 0.333333), so the ABOVE_THRESHOLD hard-blocks must not fire.
+        # Default eligibility floor is 30 events. (The Platt-scaler fitting
+        # minimum smc_core.scoring._MIN_PLATT_EVENTS is 20; the floor adds a
+        # margin on top — see MeasurementShadowThresholds.) Below the Platt
+        # minimum the calibration code path falls back to beta_bin and emits
+        # warnings; calibrated_ece is statistically meaningless (e.g. n=1
+        # with positive_rate=0 yields 0.333333), so the ABOVE_THRESHOLD
+        # hard-blocks must not fire.
         thresholds = MeasurementShadowThresholds()  # all defaults
         degradations, baseline = assess_measurement_shadow_degradations(
             {
                 "brier_score": 0.38,
                 "log_score": 0.97,
                 "calibrated_brier_score": 0.11,
-                "calibrated_ece": 0.333333,  # the failing-run 4H value
+                # Constructed degenerate example: n=1 with positive_rate=0
+                # trivially yields ECE = 1/3 — NOT the incident value from
+                # the 2026-06-10 failing runs (that was n=20, see
+                # test_calibrated_thresholds_skipped_at_platt_minimum_regression).
+                "calibrated_ece": 0.333333,
                 "n_events": 1,
                 "stratification_coverage": {"populated_bucket_count": 0},
             },
@@ -527,16 +533,16 @@ class TestMeasurementShadowGovernance:
         assert "MEASUREMENT_STRATIFICATION_COVERAGE_LOW" in codes
 
     def test_calibrated_thresholds_apply_at_or_above_platt_floor_default(self) -> None:
-        # At/above the Platt-scaler floor (n_events=20) the calibrated
+        # At/above the eligibility floor (n_events=30) the calibrated
         # ABOVE_THRESHOLD hard-blocks fire as before.
         thresholds = MeasurementShadowThresholds()
-        degradations, _baseline = assess_measurement_shadow_degradations(
+        degradations, baseline = assess_measurement_shadow_degradations(
             {
                 "brier_score": 0.25,
                 "log_score": 0.50,
                 "calibrated_brier_score": 0.70,  # > 0.60 default
                 "calibrated_ece": 0.40,           # > 0.30 default
-                "n_events": 20,
+                "n_events": 30,
                 "stratification_coverage": {"populated_bucket_count": 3},
             },
             [],
@@ -545,6 +551,55 @@ class TestMeasurementShadowGovernance:
         codes = {row["code"] for row in degradations}
         assert "MEASUREMENT_CALIBRATED_BRIER_ABOVE_THRESHOLD" in codes
         assert "MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD" in codes
+        assert baseline["calibrated_thresholds_eligible"] is True
+
+    def test_calibrated_thresholds_skipped_at_platt_minimum_regression(self) -> None:
+        # Regression for the 2026-06-10 incident: PG sat at exactly n=20 (the
+        # Platt fitting minimum) with calibrated_ece 0.331 vs the 0.30 ceiling
+        # and hard-failed three consecutive smc-library-refresh runs. At the
+        # bare fitting minimum ECE sampling noise (~±0.15) dwarfs the
+        # threshold, so the hard-blocks must stay suppressed until the
+        # 30-event eligibility floor is reached.
+        thresholds = MeasurementShadowThresholds()
+        degradations, baseline = assess_measurement_shadow_degradations(
+            {
+                "brier_score": 0.25,
+                "log_score": 0.50,
+                "calibrated_brier_score": 0.11,
+                "calibrated_ece": 0.331385,  # the failing-run PG 5m value
+                "n_events": 20,
+                "stratification_coverage": {"populated_bucket_count": 3},
+            },
+            [],
+            thresholds=thresholds,
+        )
+        codes = {row["code"] for row in degradations}
+        assert "MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD" not in codes
+        assert "MEASUREMENT_CALIBRATED_BRIER_ABOVE_THRESHOLD" not in codes
+        # The suppression must be observable in the baseline payload so gate
+        # reports show why the breach did not fire.
+        assert baseline["calibrated_thresholds_eligible"] is False
+        assert baseline["calibrated_thresholds_floor"] == 30
+
+    def test_calibrated_thresholds_skipped_just_below_floor_default(self) -> None:
+        # Upper edge of the suppression window: n=29 (one below the floor)
+        # must still suppress; n=30 fires (covered by
+        # test_calibrated_thresholds_apply_at_or_above_platt_floor_default).
+        thresholds = MeasurementShadowThresholds()
+        degradations, baseline = assess_measurement_shadow_degradations(
+            {
+                "calibrated_brier_score": 0.70,  # > 0.60 default
+                "calibrated_ece": 0.40,  # > 0.30 default
+                "n_events": 29,
+                "stratification_coverage": {"populated_bucket_count": 3},
+            },
+            [],
+            thresholds=thresholds,
+        )
+        codes = {row["code"] for row in degradations}
+        assert "MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD" not in codes
+        assert "MEASUREMENT_CALIBRATED_BRIER_ABOVE_THRESHOLD" not in codes
+        assert baseline["calibrated_thresholds_eligible"] is False
 
 
 class TestContextualCalibrationGovernance:

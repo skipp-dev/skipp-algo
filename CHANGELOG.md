@@ -6,6 +6,23 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-06-11) — ECE-Eligibility-Floor 20→30 (#2693)
+
+- **`min_events_for_calibrated_thresholds: 20 → 30`**
+  (`smc_integration/release_policy.py`): margin above the Platt-scaler
+  fitting minimum (`_MIN_PLATT_EVENTS=20`). At exactly n=20 ECE sampling
+  noise (~±0.15) dwarfs the 0.30 ceiling — incident 2026-06-10: PG hit
+  n=20 with calibrated_ece 0.331/0.381 and hard-failed three consecutive
+  smc-library-refresh runs (27297623388, 27299755086, 27309262730).
+  Governance unchanged: `MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD`
+  stays HARD_BLOCKING; only the eligibility floor moves.
+- **Suppression now observable**: the measurement-shadow baseline payload
+  carries `calibrated_thresholds_eligible` + `calibrated_thresholds_floor`
+  so gate reports show why a calibrated-threshold breach below the floor
+  did not fire (review finding on #2693).
+- Tests: incident regression at n=20 (PG values), boundary pair n=29
+  (suppress) / n=30 (fire), eligibility-flag asserts.
+
 ### Fixed (2026-06-11) — FI pipeline: component persistence + sample dedup (c10b follow-up)
 
 Blast-radius remediation after the FDR-gate wiring fix: the FI
