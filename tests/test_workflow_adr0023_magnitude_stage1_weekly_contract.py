@@ -96,6 +96,36 @@ def test_commit_back_guarded_on_demotion_status() -> None:
     assert commit_step["if"] == "steps.weekly.outputs.status == 'demotion_applied'"
 
 
+def test_demotions_restricted_to_main_ref() -> None:
+    # A workflow_dispatch on a feature branch must never apply demotions:
+    # the commit-back step pushes HEAD:main, so a branch run would mutate
+    # main's policy from unreviewed code (Copilot review, PR #2700).
+    data = _load()
+    job = data["jobs"]["stage1-weekly"]
+    weekly_step = next(step for step in job["steps"] if step.get("id") == "weekly")
+    apply_expr = weekly_step["env"]["APPLY"]
+    assert "github.ref == 'refs/heads/main'" in apply_expr, apply_expr
+
+
+def test_unpersisted_demotion_fails_the_job() -> None:
+    # Both unpersisted-demotion paths (rebase conflict, exhausted push
+    # retries) must fail the job loudly — a green run with a local-only
+    # demotion would leave Stage-2 arming silently active (PR #2700 review).
+    data = _load()
+    job = data["jobs"]["stage1-weekly"]
+    commit_step = next(
+        step
+        for step in job["steps"]
+        if "magnitude_stage_policy.json" in (step.get("run") or "")
+        and "git push" in (step.get("run") or "")
+    )
+    run = commit_step["run"]
+    assert run.count("DEMOTION NOT PERSISTED") == 2, run
+    # The old rebase-conflict branch downgraded to a warning + exit 0;
+    # only the benign policy-unchanged notice may skip.
+    assert "skipping commit-back this run" not in run
+
+
 def test_upload_artifact_is_fail_soft() -> None:
     data = _load()
     upload_steps = [

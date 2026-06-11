@@ -89,7 +89,10 @@ jobs:
           # On cron the inputs context is empty (null), and GHA loose
           # equality coerces null == false to TRUE — so the guard must be
           # written positively: scheduled runs always apply demotions.
-          APPLY: ${{ (github.event_name == 'schedule' || inputs.apply-demotions) && 'true' || 'false' }}
+          # Demotions are additionally restricted to refs/heads/main: a
+          # dispatch on a feature branch must never rewrite the policy and
+          # push to main (the commit-back step targets HEAD:main).
+          APPLY: ${{ (github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || inputs.apply-demotions)) && 'true' || 'false' }}
         run: |
           set -euo pipefail
           DEMOTE_FLAG="--apply-demotions"
@@ -172,8 +175,8 @@ jobs:
             git fetch origin main --quiet || true
             if ! git rebase origin/main; then
               git rebase --abort 2>/dev/null || true
-              echo "::warning title=adr0023-magnitude-stage1-weekly::rebase onto origin/main failed (policy conflict?); skipping commit-back this run"
-              exit 0
+              echo "::error title=adr0023-magnitude-stage1-weekly::rebase onto origin/main failed (policy conflict?) — DEMOTION NOT PERSISTED; resolve manually and re-dispatch"
+              exit 1
             fi
             if git push origin HEAD:main; then
               echo "::notice title=adr0023-magnitude-stage1-weekly::policy committed back (attempt ${attempt})"
