@@ -94,6 +94,11 @@ SPRT_P0 = 0.544
 SPRT_P1 = 0.574
 SPRT_ALPHA = 0.05
 SPRT_BETA = 0.20
+# W6-5 (stat-review wave 6): max_n was present in the live F2 spec
+# (artifacts/experiments/f2_contextual_promotion.json: max_n=1200) but
+# absent from the watchdog constants and CLI, leaving SPRTConfig.max_n=None.
+# This constant mirrors the live spec; --max-n overrides it at runtime.
+SPRT_MAX_N = 1200
 
 EXIT_OK = 0
 EXIT_FATAL = 1
@@ -174,18 +179,31 @@ def _make_history_entry(
 
 
 def load_history(history_path: Path) -> list[dict[str, Any]]:
-    """Read the rolling history JSONL; skip malformed lines without raising."""
+    """Read the rolling history JSONL; fail closed on malformed lines.
+
+    W6-4 (stat-review wave 6): previously malformed lines were silently
+    skipped, which could suppress a rollback streak if the corrupt line
+    was an underperform entry.  A corrupt history must be treated as fatal
+    so the operator fixes the file before G2/G3 signals are re-evaluated.
+    """
     if not history_path.exists():
         return []
     out: list[dict[str, Any]] = []
-    for line in history_path.read_text(encoding="utf-8").splitlines():
+    for lineno, line in enumerate(
+        history_path.read_text(encoding="utf-8").splitlines(), start=1
+    ):
         line = line.strip()
         if not line:
             continue
         try:
             out.append(json.loads(line))
-        except json.JSONDecodeError:
-            continue
+        except json.JSONDecodeError as exc:
+            print(
+                f"ERROR: {history_path}:{lineno}: malformed history JSONL "
+                f"({exc!s}); fix or delete the history file before re-running",
+                file=sys.stderr,
+            )
+            raise SystemExit(EXIT_FATAL) from exc
     return out
 
 
@@ -400,6 +418,16 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("--p1", type=float, default=SPRT_P1)
     parser.add_argument("--alpha", type=float, default=SPRT_ALPHA)
     parser.add_argument("--beta", type=float, default=SPRT_BETA)
+    # W6-5 (stat-review wave 6): expose max_n so the live spec's cap is honoured.
+    parser.add_argument(
+        "--max-n",
+        type=int,
+        default=SPRT_MAX_N,
+        help=(
+            f"SPRT hard cap on observations (default: {SPRT_MAX_N}, "
+            "mirrors artifacts/experiments/f2_contextual_promotion.json)."
+        ),
+    )
     parser.add_argument(
         "--commit-sha", default=os.environ.get("GITHUB_SHA"),
         help="Source commit SHA (default: $GITHUB_SHA).",
@@ -415,7 +443,7 @@ def main(argv: list[str] | None = None) -> int:
     init_cli_logging()  # F-V5-A1-2 (2026-05-01)
     args = _parse_args(argv)
 
-    config = SPRTConfig(p0=args.p0, p1=args.p1, alpha=args.alpha, beta=args.beta)
+    config = SPRTConfig(p0=args.p0, p1=args.p1, alpha=args.alpha, beta=args.beta, max_n=args.max_n)
     now = datetime.now(UTC).isoformat()
 
     # Step 1 — append new entry if --input given.
