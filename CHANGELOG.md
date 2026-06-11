@@ -23,6 +23,33 @@ All notable changes to this project are documented in this file.
 - Test-Fixtures: synthetische `order_id`/`perm_id` über `zlib.crc32`
   statt `hash()` (PYTHONHASHSEED-unabhängig, keine Modulus-Kollisionen).
 
+### Added (2026-06-11) — ADR-0023 Stage-1: Ledger-Verdicts → Promotion-Gate-Snapshot (Handover §5 Punkt 2)
+
+Der Stage-1-Shadow-Runner lief täglich, aber seine Verdicts erreichten das
+Promotion-Gate nie — `magnitude_resolution_pass`/`magnitude_auc` blieben
+`None`, der `ok_magnitude`-Zweig war dauerhaft dormant (Stage-1 hätte ins
+Leere gemessen).
+
+- **`scripts/build_promotion_gate_bundle.py`**: neues Flag
+  `--magnitude-ledger` (Default: das Shadow-Ledger
+  `artifacts/governance/magnitude_resolution_shadow.jsonl`). Die jüngste
+  Ledger-Zeile pro **Kandidaten**-Familie (BOS/SWEEP via
+  `magnitude_snapshot_wiring.gate_snapshots`; FVG/OB-Controls erreichen das
+  Gate nie) wird in die Bundle-Felder `magnitude_resolution_pass` /
+  `magnitude_auc` + Provenance (`magnitude_ledger`, `magnitude_ledger_date`,
+  `magnitude_status`) gefaltet. Fail-soft: fehlendes/leeres Ledger ⇒ Felder
+  bleiben absent ⇒ Gate dormant (exakt das Vorverhalten).
+- **`.github/workflows/promotion-gate-daily.yml`**: Bundle-Step übergibt
+  `--magnitude-ledger` explizit; das Ledger liegt per Commit-back des
+  13:30-UTC-Shadow-Runs bereits im 14:00-UTC-Checkout.
+- Gate bleibt **lax** (Stage 1): Werte werden in den Decision-Metrics
+  aufgezeichnet, nicht enforced. Handover §4.1/§5.2-Status aktualisiert.
+- Tests: Bundle-Faltung (latest-wins, Controls ausgeschlossen,
+  INCONCLUSIVE→unmeasured, fehlendes Ledger dormant), Full-Chain
+  Ledger→Bundle→Gate→Decision-Metrics
+  (`tests/test_promotion_gate_producer_e2e.py`), Workflow-Contract-Pin
+  (`tests/test_promotion_gate_daily_workflow_contract.py`).
+
 ### Added (2026-06-11) — ADR-0023 §5: Empirische Execution-Cost-Kalibrierung aus C8-Paper-Fills
 
 Der §5-E[PnL]-after-cost-Check rechnete bislang mit dem flachen

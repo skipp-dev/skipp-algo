@@ -6,10 +6,12 @@
 > is still dormant, and exactly how to operate the staged rollout** — so none
 > of it has to be re-derived from memory.
 >
-> **Status (2026-06-05).** §2 acceptance bar RESOLVED on real data. The
-> `magnitude_resolution_floor` check is wired into the promotion gate but
-> **DORMANT** (passive). No family is sized on the move-size objective yet.
-> Direction-Brier tier-2 gate stays in force.
+> **Status (2026-06-11).** §2 acceptance bar RESOLVED on real data. The
+> `magnitude_resolution_floor` check is wired into the promotion gate and the
+> Stage-1 ledger verdicts now feed the gate's snapshot fields daily (§5
+> item 2) — the gate remains **lax** (recorded, not enforced). No family is
+> sized on the move-size objective yet. Direction-Brier tier-2 gate stays in
+> force.
 
 ---
 
@@ -209,7 +211,9 @@ judged" spec for the shadow phase.
 
 The Stage-1 runner exists: `scripts/run_magnitude_shadow_ledger.py`. It is the
 thin shadow wrapper around the §2 estimator and does steps 1–3 below in one
-invocation (still measure-only; nothing is wired into the promotion gate).
+invocation. Since 2026-06-11 the latest ledger verdicts are also folded into
+the promotion-gate snapshot by the daily bundle builder (§5 item 2) — still
+measure-only because the gate stays lax in Stage 1.
 
 1. **Input:** the current events file
    (`~/.local/share/skipp/vpin_followup/events_v3_abs_opra.json` today; in live
@@ -297,12 +301,18 @@ Daily PASS/FAIL is noisy; **decisions are made weekly**, not daily:
    (fail-closed when unmeasurable). Awaiting C8 Phase-A paper sessions to
    produce ≥ 20 measurable fills before the §5 verdict can be recorded.
 
-2. **The pipeline step that fills the snapshot fields.** Today
-   `magnitude_resolution_pass`/`magnitude_auc` default to `None` ⇒ the gate is
-   dormant. The Stage-1 runner (`scripts/run_magnitude_shadow_ledger.py`) now
-   produces the per-family verdicts; the remaining task is to feed the latest
-   ledger row into the promotion-gate `FamilyMetrics` snapshot (still lax in
-   Stage 1) and to schedule the runner daily.
+2. **The pipeline step that fills the snapshot fields.**
+   *Status 2026-06-11: wired.* The Stage-1 runner
+   (`scripts/run_magnitude_shadow_ledger.py`) runs daily
+   (`adr0023-magnitude-shadow-daily.yml`, 13:30 UTC Mon–Fri, ledger committed
+   back to the repo), and `scripts/build_promotion_gate_bundle.py` now folds
+   the latest candidate-family ledger row (BOS/SWEEP only — controls never
+   reach the gate) into the `magnitude_resolution_pass`/`magnitude_auc`
+   snapshot fields via `scripts/magnitude_snapshot_wiring.gate_snapshots`.
+   `promotion-gate-daily.yml` (14:00 UTC) passes `--magnitude-ledger`
+   explicitly. Fail-soft: a missing/empty ledger leaves the fields absent ⇒
+   gate dormant, exactly the pre-wiring behaviour. The gate stays **lax** in
+   Stage 1 — values are recorded in the decision metrics, not enforced.
 
 3. **Direction-Brier gate stays parallel.** The old tier-2 direction objective
    is NOT removed. Both objectives coexist; magnitude is additive. Don't delete

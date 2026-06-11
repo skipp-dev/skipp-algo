@@ -11,7 +11,13 @@ name: promotion-gate-daily
 #   2. Downloads the most-recent `smc-measurement-benchmark-rolling-<DATE>`
 #      artifact (or the freshest one if today's is not yet produced).
 #   3. Builds a FamilyMetrics bundle from the rolling-bench scoring root
-#      via `scripts/build_promotion_gate_bundle.py`.
+#      via `scripts/build_promotion_gate_bundle.py`. The bundle step also
+#      folds the latest ADR-0023 move-size shadow-ledger verdicts
+#      (artifacts/governance/magnitude_resolution_shadow.jsonl, committed
+#      back daily by adr0023-magnitude-shadow-daily.yml) into the
+#      candidate families' magnitude_resolution_pass / magnitude_auc
+#      snapshot fields (handover §5 item 2). Fail-soft: a missing or
+#      empty ledger leaves the fields absent => gate stays dormant.
 #   4. Runs `scripts/run_promotion_gate.py` in strict-provenance mode.
 #   5. Publishes the report twice:
 #        * dated report  (`artifacts/reports/promotion_gate_<DATE>.json`)
@@ -157,10 +163,15 @@ jobs:
         run: |
           mkdir -p artifacts
           BUNDLE="artifacts/promotion_gate_bundle_${{ steps.date.outputs.value }}.json"
+          # --magnitude-ledger: ADR-0023 Stage-1 snapshot wiring. The shadow
+          # ledger is committed back to the repo by the 13:30 UTC
+          # adr0023-magnitude-shadow-daily run, so this 14:00 UTC checkout
+          # already carries today's row. Fail-soft when absent/empty.
           python scripts/build_promotion_gate_bundle.py \
-            --scoring-root "${{ steps.download.outputs.scoring_root }}" \
-            --output       "${BUNDLE}" \
-            --date         "${{ steps.date.outputs.value }}"
+            --scoring-root     "${{ steps.download.outputs.scoring_root }}" \
+            --output           "${BUNDLE}" \
+            --date             "${{ steps.date.outputs.value }}" \
+            --magnitude-ledger artifacts/governance/magnitude_resolution_shadow.jsonl
           echo "path=${BUNDLE}" >> "$GITHUB_OUTPUT"
 
       - name: Run PromotionGate

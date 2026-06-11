@@ -116,3 +116,26 @@ def test_download_step_iterates_last_8_runs() -> None:
     assert "smc-measurement-benchmark-rolling.yml" in dl["run"], (
         "upstream workflow rename detected"
     )
+
+
+def test_bundle_step_feeds_magnitude_shadow_ledger() -> None:
+    """ADR-0023 Stage-1 snapshot wiring (handover §5 item 2).
+
+    The bundle step must pass the committed-back shadow ledger so the
+    candidate families' magnitude_resolution_pass / magnitude_auc reach the
+    gate. Without this flag the fields stay None and the ok_magnitude
+    branch is permanently dormant — Stage-1 would measure into a void.
+    """
+    bundle_step = next(
+        s for s in _load()["jobs"]["promotion-gate"]["steps"]
+        if s.get("id") == "bundle"
+    )
+    body = bundle_step["run"]
+    assert "--magnitude-ledger" in body, (
+        "bundle step no longer feeds the move-size shadow ledger; the "
+        "promotion gate's magnitude fields would silently revert to dormant"
+    )
+    assert "artifacts/governance/magnitude_resolution_shadow.jsonl" in body, (
+        "ledger path drifted from the adr0023-magnitude-shadow-daily "
+        "commit-back location"
+    )
