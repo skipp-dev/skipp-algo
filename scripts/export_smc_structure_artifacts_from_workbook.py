@@ -24,6 +24,17 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--symbols", default="", help="Optional comma-separated symbol override")
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR), help="Output directory for artifacts + manifest")
     parser.add_argument("--generated-at", type=float, default=None, help="Optional fixed generated_at timestamp")
+    parser.add_argument(
+        "--export-bundle-root",
+        default=None,
+        help=(
+            "Canonical export bundle directory providing the "
+            "'full_universe_second_detail_open' parquet frame. REQUIRED for "
+            "intraday timeframes (5m/15m/1H/4H): the workbook ships only "
+            "daily_bars, and because --workbook is always explicit here, the "
+            "library suppresses bundle auto-discovery (#2667)."
+        ),
+    )
     return parser
 
 
@@ -36,6 +47,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         timeframe=str(args.timeframe).strip(),
         symbols=_parse_symbols_csv(args.symbols),
         output_dir=Path(args.output_dir).expanduser(),
+        export_bundle_root=Path(args.export_bundle_root).expanduser() if args.export_bundle_root else None,
         generated_at=args.generated_at,
     )
 

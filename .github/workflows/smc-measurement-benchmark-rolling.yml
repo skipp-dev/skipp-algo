@@ -249,9 +249,22 @@ jobs:
           echo "::error file=.github/workflows/smc-databento-production-export-sharded.yml::Producer artifact missing for ${{ steps.meta.outputs.run_date }}; rolling benchmark aborted. Re-run smc-databento-production-export-sharded and then re-trigger smc-measurement-benchmark-rolling."
           exit 1
 
-      - name: Run daily rolling benchmark
+      # #2667: produce REAL per-TF structure artifacts before the benchmark
+      # runs, so each chart TF scores its own structural events. Without
+      # these, the contract layer aliases the legacy single-file 1D artifact
+      # onto every intraday TF (``legacy_tf_fallback``) and all per-TF
+      # benchmark slices are clones — the Plan 2.8 Phase-E2 verdicts were
+      # void because of exactly this (ADR 2026-06-10, docs/DECISIONS.md).
+      # The exporter resamples the bundle's second-level bars to each TF and
+      # writes reports/smc_structure_artifacts/manifest_<tf>.json +
+      # <SYMBOL>_<tf>.structure.json, which the provider resolves FIRST.
+      # Per-symbol failures land in the manifest errors[] (exporter still
+      # exits 0); a hard exporter crash only warns — the benchmark below
+      # must keep running on the legacy fallback rather than kill the lane.
+      # This step also resolves + validates SYMBOLS/TIMEFRAMES once and
+      # publishes them via GITHUB_ENV so the benchmark step cannot drift.
+      - name: Export per-TF structure artifacts (un-void Plan 2.8 Phase-E2)
         env:
-          DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
           # A2 (2026-06-10): env-var indirection for user-supplied inputs.
           INPUT_SYMBOLS: ${{ github.event.inputs.symbols }}
           INPUT_TIMEFRAMES: ${{ github.event.inputs.timeframes || '5m,15m,1H,4H' }}
@@ -272,9 +285,30 @@ jobs:
           [[ "${TIMEFRAMES}" =~ ^[0-9mHDWM,]+$ ]] || {
             echo "::error::timeframes must be a comma-separated list like '5m,15m,1H,4H', got: ${TIMEFRAMES}"; exit 1
           }
+          echo "SMC_BENCH_SYMBOLS=${SYMBOLS}" >> "$GITHUB_ENV"
+          echo "SMC_BENCH_TIMEFRAMES=${TIMEFRAMES}" >> "$GITHUB_ENV"
+          for tf in ${TIMEFRAMES//,/ }; do
+            if "$SMC_PYTHON_BIN" scripts/export_smc_structure_artifacts_from_workbook.py \
+                --timeframe "${tf}" \
+                --symbols "${SYMBOLS}" \
+                --export-bundle-root artifacts/smc_microstructure_exports \
+                > "structure_export_${tf}.json"; then
+              "$SMC_PYTHON_BIN" -c "import json; m = json.load(open('structure_export_${tf}.json')); c = m['counts']; print(f\"::notice title=per-tf-structure::tf=${tf} written={c['artifacts_written']} errors={c['errors']}\")"
+            else
+              echo "::warning title=per-tf-structure::exporter crashed for tf=${tf}; benchmark will use the legacy fallback for this TF"
+            fi
+          done
+
+      - name: Run daily rolling benchmark
+        env:
+          DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
+        run: |
+          set -euo pipefail
+          # SYMBOLS/TIMEFRAMES resolved + validated by the per-TF structure
+          # export step above (single source of truth — #2667).
           "$SMC_PYTHON_BIN" scripts/run_smc_measurement_benchmark.py \
-            --symbols "${SYMBOLS}" \
-            --timeframes "${TIMEFRAMES}" \
+            --symbols "${SMC_BENCH_SYMBOLS}" \
+            --timeframes "${SMC_BENCH_TIMEFRAMES}" \
             --output-dir "${{ steps.meta.outputs.out_dir }}" \
             --require-evidence
 

@@ -507,6 +507,24 @@ def build_parser() -> argparse.ArgumentParser:
             "the export bundle is missing or the data feed broke."
         ),
     )
+    # #2667: strict cross-TF structure integrity. The legacy single-file
+    # structure artifact carries only 1D entries; when a per-TF artifact is
+    # missing, the contract layer serves the 1D entry with a
+    # ``legacy_tf_fallback`` warning (cross-TF aliasing guard, ADR
+    # 2026-06-10). Default is warn-only so the rolling lane cannot
+    # hard-fail while per-TF artifacts are still rolling out; flip the
+    # default to strict once the rollup reports ``measured`` again.
+    parser.add_argument(
+        "--strict-structure-tf",
+        action="store_true",
+        help=(
+            "Exit non-zero when any symbol/timeframe pair was served "
+            "structure via the legacy cross-TF fallback (a "
+            "'legacy_tf_fallback' contract warning). Without this flag the "
+            "run only prints a warning and records the affected pairs in "
+            "benchmark_run_manifest.json under structure_tf_integrity."
+        ),
+    )
     # Issue #28 scaffolding (E3 dual-arm F2 promotion gate).
     # Accept the flags so workflows can start passing them, but only the
     # default ``static_global`` arm is wired today; ``contextual`` raises
@@ -568,6 +586,17 @@ def main() -> int:
         for timeframe in timeframes:
             pair_runs.append(run_pair(symbol, timeframe, output_root=output_root))
 
+    # #2667: pairs whose structure contract was served via the legacy
+    # cross-TF fallback (1D entries aliased onto an intraday request).
+    legacy_tf_fallback_pairs = sorted(
+        f"{pair_run['symbol']}/{pair_run['timeframe']}"
+        for pair_run in pair_runs
+        if any(
+            "legacy_tf_fallback" in str(warning)
+            for warning in pair_run["summary"].get("warnings", [])
+        )
+    )
+
     run_summary_rows = []
     for pair_run in pair_runs:
         summary = pair_run["summary"]
@@ -615,6 +644,15 @@ def main() -> int:
         "symbols": symbols,
         "timeframes": timeframes,
         "output_dir": output_root.as_posix(),
+        # #2667: disclose which pairs were served cross-TF aliased structure
+        # via the legacy single-file fallback so operators (and the
+        # --strict-structure-tf gate below) can verify per-TF artifact
+        # coverage without grepping every pair summary.
+        "structure_tf_integrity": {
+            "strict_structure_tf": bool(getattr(args, "strict_structure_tf", False)),
+            "legacy_tf_fallback_pair_count": len(legacy_tf_fallback_pairs),
+            "legacy_tf_fallback_pairs": legacy_tf_fallback_pairs,
+        },
         "pair_runs": [
             {
                 "symbol": pair_run["symbol"],
@@ -681,6 +719,27 @@ def main() -> int:
                     file=sys.stderr,
                 )
             return 1
+
+    if legacy_tf_fallback_pairs:
+        sample = ", ".join(legacy_tf_fallback_pairs[:5])
+        more = (
+            f" (+{len(legacy_tf_fallback_pairs) - 5} more)"
+            if len(legacy_tf_fallback_pairs) > 5
+            else ""
+        )
+        message = (
+            f"{len(legacy_tf_fallback_pairs)} pair(s) were served structure via "
+            f"the legacy cross-TF fallback (legacy_tf_fallback: 1D structure "
+            f"aliased onto an intraday timeframe): {sample}{more}. Per-TF "
+            "benchmark slices for these pairs are clones \u2014 produce per-TF "
+            "structure artifacts "
+            "(scripts/export_smc_structure_artifacts_from_workbook.py) to fix. "
+            "See issue #2667."
+        )
+        if getattr(args, "strict_structure_tf", False):
+            print(f"ERROR: --strict-structure-tf: {message}", file=sys.stderr)
+            return 1
+        print(f"WARNING: {message}", file=sys.stderr)
 
     return 0
 

@@ -1213,6 +1213,12 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
         return MeasurementEvidence(events_by_family, stratified_events, scored_events, details, warnings)
 
     details["structure_profile_used"] = str(contract.get("structure_profile_used", "hybrid_default"))
+    # #2667: surface contract-level warnings (e.g. ``legacy_tf_fallback``
+    # from the cross-TF aliasing guard) in the measurement-evidence warning
+    # stream so the benchmark runner (and its --strict-structure-tf flag)
+    # can detect pairs that were served another timeframe's structure.
+    contract_warnings = [str(item).strip() for item in (contract.get("warnings") or []) if str(item).strip()]
+    warnings.extend(contract_warnings)
     details["canonical_event_counts"] = _canonical_event_counts(contract)
     event_risk_light, event_risk_details = _resolve_measurement_event_risk_light(symbol, timeframe)
     details.update(event_risk_details)
