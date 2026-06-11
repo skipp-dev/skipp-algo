@@ -131,7 +131,7 @@ def run_promotion_gate(
     # run's delta so evaluate_promotion sees a trailing window ending TODAY,
     # not yesterday.  The workflow appends the delta AFTER the gate runs,
     # creating an off-by-one that delays rollback detection by one day.
-    # Extract the current delta from the digest and prepend it here.
+    # Extract the current delta from the digest and append it here.
     comparison_metric = spec.rollback_gate.comparison_metric
     current_delta: float | None = None
     for _row in digest.get("metrics") or []:

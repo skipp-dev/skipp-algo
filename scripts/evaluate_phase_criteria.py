@@ -494,25 +494,38 @@ def load_and_validate_eval_report(
             f"but entering {target_phase!r} requires a passing "
             f"{required_phase!r} evaluation"
         )
-    if payload.get("all_passed") is not True:
-        failing = [
-            r.get("criterion")
-            for r in payload.get("results", [])
-            if r.get("passed") is not True
-        ]
-        raise SystemExit(
-            f"--phase-eval-report all_passed is not true; "
-            f"unmet criteria: {failing!r}"
-        )
     # W6-1 (stat-review wave 6): a vacuous report with results=[] and
     # all_passed=True must be rejected.  Separately, cross-check every
     # individual criterion — all_passed alone can be spoofed or set by
-    # hand without matching per-criterion detail.
+    # hand without matching per-criterion detail.  Validate the row shape
+    # before any per-row .get(...) access so forged/corrupt reports fail
+    # closed with an operator-readable SystemExit, not AttributeError.
     results_raw = payload.get("results")
     if not isinstance(results_raw, list) or len(results_raw) == 0:
         raise SystemExit(
             "--phase-eval-report results list is empty or missing; "
             "an all_passed=true report with no criteria is vacuously forged"
+        )
+    malformed_result_rows = [
+        idx
+        for idx, row in enumerate(results_raw, start=1)
+        if not isinstance(row, Mapping)
+    ]
+    if malformed_result_rows:
+        raise SystemExit(
+            "--phase-eval-report results contains non-object entries at "
+            f"positions {malformed_result_rows!r}; refusing forged/corrupt "
+            "criterion rows"
+        )
+    if payload.get("all_passed") is not True:
+        failing = [
+            r.get("criterion")
+            for r in results_raw
+            if r.get("passed") is not True
+        ]
+        raise SystemExit(
+            f"--phase-eval-report all_passed is not true; "
+            f"unmet criteria: {failing!r}"
         )
     per_criterion_failing = [
         r.get("criterion")

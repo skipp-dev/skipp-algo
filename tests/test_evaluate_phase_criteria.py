@@ -681,6 +681,23 @@ def test_load_and_validate_rejects_criterion_with_passed_false(tmp_path: Path) -
         load_and_validate_eval_report(path, target_phase="live_small")
 
 
+def test_load_and_validate_rejects_non_object_result_rows(tmp_path: Path) -> None:
+    """W6-1: corrupt result rows must fail closed without AttributeError."""
+    payload = {
+        "schema_version": PHASE_EVAL_SCHEMA_VERSION,
+        "phase": "paper",
+        "variant": "v1",
+        "all_passed": True,
+        "computed_at": datetime.now(UTC).isoformat(),
+        "results": ["not-a-criterion-object"],
+        "phase_promotion": "manual_signoff_only",
+    }
+    path = tmp_path / "eval_corrupt_rows.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(SystemExit, match="non-object entries"):
+        load_and_validate_eval_report(path, target_phase="live_small")
+
+
 # ---------------------------------------------------------------------------
 # W6-2 — malformed audit JSONL must fail closed (stat-review wave 6)
 # ---------------------------------------------------------------------------
