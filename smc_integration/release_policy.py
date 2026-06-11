@@ -390,19 +390,25 @@ class MeasurementShadowThresholds:
     max_calibrated_brier_score: float = 0.60
     max_calibrated_ece: float = 0.30
     min_scoring_events: int = 1
-    # Calibrated Brier/ECE thresholds only apply when n_events clears the
-    # Platt-scaler floor (``_MIN_PLATT_EVENTS`` in ``smc_core.scoring`` = 20)
-    # with margin. Below the Platt floor the calibration code path falls
-    # back to ``beta_bin`` and emits ``insufficient_events_for_platt_scaling``
-    # / ``single_class_outcomes_used_beta_bin_fallback`` warnings, in which
-    # case calibrated ECE is statistically meaningless (e.g. n=1 with
-    # positive_rate=0 trivially produces ECE=0.333). Hard-blocking on those
-    # values would block releases on data sparsity rather than on real
-    # calibration drift.
+    # Calibrated Brier/ECE hard-blocks only apply when n_events reaches the
+    # eligibility floor (30). Below it there are two distinct regimes:
     #
-    # 2026-06-11: raised 20 -> 30. At exactly n=20 the Platt scaler has only
-    # just fit and ECE sampling noise (~±0.15 at n=20) dwarfs the 0.30
-    # ceiling, so a hard-block there is indistinguishable from noise.
+    # (a) n < 20 (``_MIN_PLATT_EVENTS`` in ``smc_core.scoring``): the Platt
+    #     scaler cannot fit at all — the calibration code path falls back to
+    #     ``beta_bin`` and emits ``insufficient_events_for_platt_scaling`` /
+    #     ``single_class_outcomes_used_beta_bin_fallback`` warnings. The
+    #     calibrated ECE is statistically meaningless there (e.g. n=1 with
+    #     positive_rate=0 trivially produces ECE=0.333).
+    # (b) 20 <= n < 30 (margin band): Platt CAN already fit, but ECE
+    #     sampling noise (~±0.15 at n=20) still dwarfs the 0.30 ceiling, so
+    #     the hard-blocks stay deliberately suppressed — a breach in this
+    #     band is indistinguishable from small-sample noise.
+    #
+    # In both regimes, hard-blocking would block releases on data sparsity
+    # rather than on real calibration drift.
+    #
+    # 2026-06-11: raised 20 -> 30 to add the margin band (b) on top of the
+    # Platt fitting minimum (a).
     # Incident: 2026-06-10 PG hit n=20 with calibrated_ece 0.331/0.381 vs
     # raw_ece 0.36 (Platt barely effective, history_runs=0) and hard-failed
     # three consecutive smc-library-refresh runs (27297623388, 27299755086,
@@ -843,6 +849,11 @@ def assess_measurement_shadow_degradations(
         current_events is not None
         and current_events >= resolved.min_events_for_calibrated_thresholds
     )
+    # Surface the eligibility decision so gate reports show WHY a
+    # calibrated-threshold breach (e.g. ECE above ceiling at n<floor) was
+    # suppressed instead of silently dropping it (review finding on #2693).
+    baseline["calibrated_thresholds_eligible"] = calibrated_thresholds_eligible
+    baseline["calibrated_thresholds_floor"] = resolved.min_events_for_calibrated_thresholds
 
     if current_brier is not None and current_brier > resolved.max_brier_score:
         degradations.append(
