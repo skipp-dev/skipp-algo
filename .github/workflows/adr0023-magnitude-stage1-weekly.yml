@@ -38,7 +38,7 @@ on:
         description: "Trailing evaluations in the window."
         required: false
         default: "4"
-      apply-demotions:
+      apply_demotions:
         description: "Rewrite the stage policy when an armed family fails k-of-n (auto-demotion)."
         type: boolean
         required: false
@@ -92,7 +92,7 @@ jobs:
           # Demotions are additionally restricted to refs/heads/main: a
           # dispatch on a feature branch must never rewrite the policy and
           # push to main (the commit-back step targets HEAD:main).
-          APPLY: ${{ (github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || inputs.apply-demotions)) && 'true' || 'false' }}
+          APPLY: ${{ (github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || inputs.apply_demotions)) && 'true' || 'false' }}
         run: |
           set -euo pipefail
           DEMOTE_FLAG="--apply-demotions"

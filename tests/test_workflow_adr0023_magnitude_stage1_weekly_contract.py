@@ -52,7 +52,7 @@ def test_workflow_dispatch_exposes_k_n_and_demotion_toggle() -> None:
     inputs = on_block["workflow_dispatch"]["inputs"]
     assert inputs["k"]["default"] == "3"
     assert inputs["n"]["default"] == "4"
-    assert "apply-demotions" in inputs
+    assert "apply_demotions" in inputs
 
 
 def test_permissions_allow_policy_commit_back() -> None:
