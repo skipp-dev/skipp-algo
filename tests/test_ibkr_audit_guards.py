@@ -484,3 +484,117 @@ def test_s5_live_account_on_paper_port_aborts_before_order(tmp_path: Path) -> No
 
     # placeOrder must NOT have been called
     fake_ib_instance.placeOrder.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Disconnect mid round-trip — fail-closed + next-run self-heal
+# ---------------------------------------------------------------------------
+
+
+class _Obj:
+    """Anonymous attribute bag for ad-hoc fakes."""
+
+    def __init__(self, **kw: Any) -> None:
+        for k, v in kw.items():
+            setattr(self, k, v)
+
+
+def test_disconnect_between_place_and_cancel_fails_closed(tmp_path: Path) -> None:
+    """TWS dies after placeOrder ack: ConnectionError must propagate.
+
+    Crucially the run must NEVER produce a ``clean=True`` result — the
+    operator sees a hard failure, not a green smoke.  The DAY-tif,
+    non-marketable order left behind on TWS expires at the close and is
+    re-swept by the next run (see the self-heal test below).
+    """
+    limits = _make_limits(tmp_path)
+
+    ib = MagicMock()
+    ib.wrapper = _FakeWrapper(["DUP862066"])
+    trade = _Obj(orderStatus=_Obj(status="Submitted"))
+    ib.placeOrder.return_value = trade
+    ib.sleep.return_value = None
+    # Connection dies right after the ack — every further wire call raises.
+    ib.cancelOrder.side_effect = ConnectionError("Not connected")
+    ib.reqAllOpenOrders.side_effect = ConnectionError("Not connected")
+
+    fake_order = _Obj(orderId=3, orderRef="")
+    with patch.dict(
+        "sys.modules",
+        {
+            "ib_async": MagicMock(
+                IB=MagicMock(return_value=ib),
+                LimitOrder=MagicMock(return_value=fake_order),
+                Stock=MagicMock(return_value=_Obj(symbol="AAPL")),
+            )
+        },
+    ):
+        with pytest.raises(ConnectionError, match="Not connected"):
+            smoke_mod.run_live(
+                setups=_sample_setups(),
+                risk_limits=limits,
+                account_equity_usd=10_000.0,
+                size_scale=0.10,
+                host="127.0.0.1",
+                port=7497,
+                client_id=71,
+                audit_path=tmp_path / "smoke.jsonl",
+            )
+
+    # best-effort disconnect must still have happened (finally block)
+    ib.disconnect.assert_called()
+    # and no audit row claiming success may exist
+    audit = tmp_path / "smoke.jsonl"
+    assert not audit.exists() or "clean\": true" not in audit.read_text()
+
+
+def test_next_run_sweeps_foreign_session_smoke_orphan(tmp_path: Path) -> None:
+    """A '-smoke' order orphaned by a CRASHED previous session is self-healed.
+
+    The reconciliation sweep matches on the ``-smoke`` orderRef suffix, not
+    only on this session's order ids — so a fresh run detects the orphan,
+    reports it as a leftover (clean=False) and re-cancels it.
+    """
+    limits = _make_limits(tmp_path)
+
+    orphan = _Obj(
+        contract=_Obj(symbol="AAPL"),
+        order=_Obj(orderId=999, orderRef="smc-AAPL-2026-06-10-port7497-smoke"),
+        orderStatus=_Obj(status="Submitted"),
+    )
+
+    ib = MagicMock()
+    ib.wrapper = _FakeWrapper(["DUP862066"])
+    # this session's own orders go terminal instantly
+    ib.placeOrder.return_value = _Obj(orderStatus=_Obj(status="Cancelled"))
+    ib.sleep.return_value = None
+    ib.reqAllOpenOrders.return_value = [orphan]
+
+    fake_order = _Obj(orderId=3, orderRef="")
+    with patch.dict(
+        "sys.modules",
+        {
+            "ib_async": MagicMock(
+                IB=MagicMock(return_value=ib),
+                LimitOrder=MagicMock(return_value=fake_order),
+                Stock=MagicMock(return_value=_Obj(symbol="AAPL")),
+            )
+        },
+    ):
+        result = smoke_mod.run_live(
+            setups=_sample_setups(),
+            risk_limits=limits,
+            account_equity_usd=10_000.0,
+            size_scale=0.10,
+            host="127.0.0.1",
+            port=7497,
+            client_id=71,
+        )
+
+    assert result["clean"] is False
+    assert result["leftover_open_orders"][0]["order_id"] == 999
+    # re-cancel was attempted on the orphan
+    assert any(
+        c.args and getattr(c.args[0], "orderId", None) == 999
+        for c in ib.cancelOrder.call_args_list
+    )
