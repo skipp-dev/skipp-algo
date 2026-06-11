@@ -86,9 +86,9 @@ DEFAULT_N_BOOTSTRAP = 1000
 DEFAULT_SEED = 230022
 
 # Order-ref suffixes assigned by scripts/execute_ibkr_watchlist.py.
+# (-trail legs carry a trail amount, not a price level -> fee-only.)
 ENTRY_SUFFIX = "-entry"
 _LIMIT_EXIT_SUFFIXES = ("-tp",)
-_KNOWN_EXIT_SUFFIXES = ("-tp", "-trail")
 
 
 @dataclass(frozen=True)

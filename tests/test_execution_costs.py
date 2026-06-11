@@ -11,6 +11,7 @@ import zlib
 
 import pytest
 
+import scripts.run_epnl_after_cost_gate as epnl_gate
 from governance.execution_costs import (
     MIN_FILL_RATE,
     MIN_FILL_SAMPLES,
@@ -20,7 +21,6 @@ from governance.execution_costs import (
     slippage_bps,
 )
 from scripts.calibrate_execution_costs import main as calibrate_main
-from scripts.run_epnl_after_cost_gate import main as gate_main
 
 # ---- synthetic session builder -------------------------------------------
 
@@ -287,8 +287,6 @@ def test_calibrate_cli_bad_path_exit_1(tmp_path):
 
 def _patch_extractor(monkeypatch, *, n: int = 60):
     """Route build_report through a fake extractor (wiring, not extraction)."""
-    import scripts.run_epnl_after_cost_gate as gate
-
     scores = [float(i) for i in range(n)]
     returns = [(i - n / 2) / 1000.0 for i in range(n)]
     seen: dict = {}
@@ -297,7 +295,7 @@ def _patch_extractor(monkeypatch, *, n: int = 60):
         seen["cost_bps"] = cost_bps
         return {"BOS": {"scores": scores, "returns": returns}}
 
-    monkeypatch.setattr(gate, "extract_family_calibration_samples", fake_samples)
+    monkeypatch.setattr(epnl_gate, "extract_family_calibration_samples", fake_samples)
     return seen
 
 
@@ -314,7 +312,7 @@ def test_gate_uses_conservative_cost_from_calibration(tmp_path, monkeypatch):
     events_path = tmp_path / "events.json"
     events_path.write_text(json.dumps([{"family": "BOS"}]), encoding="utf-8")
     out_path = tmp_path / "gate.json"
-    rc = gate_main(
+    rc = epnl_gate.main(
         [
             str(events_path),
             "--n-bootstrap", "200",
@@ -339,7 +337,7 @@ def test_gate_rejects_unmeasurable_calibration(tmp_path, capsys):
     )
     events_path = tmp_path / "events.json"
     events_path.write_text(json.dumps([{"family": "BOS"}]), encoding="utf-8")
-    rc = gate_main([str(events_path), "--cost-calibration", str(cal_path)])
+    rc = epnl_gate.main([str(events_path), "--cost-calibration", str(cal_path)])
     assert rc == 1
     assert "refusing to fall back" in capsys.readouterr().err
 
@@ -355,7 +353,7 @@ def test_gate_rejects_measurable_report_without_cost(tmp_path, capsys):
     ):
         cal_path = tmp_path / "cal.json"
         cal_path.write_text(json.dumps(payload), encoding="utf-8")
-        rc = gate_main([str(events_path), "--cost-calibration", str(cal_path)])
+        rc = epnl_gate.main([str(events_path), "--cost-calibration", str(cal_path)])
         assert rc == 1
         assert "no usable conservative_cost_bps" in capsys.readouterr().err
 
@@ -365,7 +363,7 @@ def test_gate_default_remains_flat_cost(tmp_path, monkeypatch):
     events_path = tmp_path / "events.json"
     events_path.write_text(json.dumps([{"family": "BOS"}]), encoding="utf-8")
     out_path = tmp_path / "gate.json"
-    gate_main([str(events_path), "--n-bootstrap", "100", "--seed", "7", "--out", str(out_path)])
+    epnl_gate.main([str(events_path), "--n-bootstrap", "100", "--seed", "7", "--out", str(out_path)])
     report = json.loads(out_path.read_text(encoding="utf-8"))
     assert report["cost_source"] == "flat_default"
     assert report["cost_calibration"] is None
