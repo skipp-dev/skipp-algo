@@ -1,10 +1,24 @@
 """ADR-0023 Stage-1 weekly judgement over the move-size shadow ledger.
 
 The daily shadow runner (``scripts/run_magnitude_shadow_ledger.py``) records one
-PASS / FAIL / INCONCLUSIVE row per family per day. Daily verdicts are noisy, so
-the *decision* is made weekly (handover §4.4): for each family we look at the
-trailing ``n`` evaluations and require ``k`` of them to PASS before the family
-is considered Stage-2 eligible.
+PASS / FAIL / INCONCLUSIVE row per family per day. Daily verdicts are noisy —
+and, because the rolling events export changes only incrementally between
+weekdays, heavily autocorrelated — so the *decision* is made weekly (handover
+§4.4): daily rows are first collapsed into **one evaluation per ISO week** per
+family, and the k-of-n confirmation then runs over the trailing ``n``
+*calendar* ISO weeks (anchored at the newest ledger date). A family is
+Stage-2 eligible only when ``k`` of those weekly evaluations PASS.
+
+Weekly collapse rules (conservative by construction):
+
+* a week PASSes only on a **strict majority** of its measurable (PASS/FAIL)
+  daily rows — a tie counts as FAIL;
+* a week with no measurable rows (only INCONCLUSIVE days, or no rows at all,
+  e.g. a pipeline outage) is INCONCLUSIVE: it consumes a window slot but can
+  never count toward ``k`` — missing data only ever *delays* eligibility;
+* ``window_size`` reports the number of window weeks with a measurable weekly
+  verdict, so the auto-demotion rule's "full window of evidence" requirement
+  means *n measurable weeks*, never n calendar days.
 
 This module is **read-only by default**: it consumes the append-only ledger
 and emits a judgement. With ``--apply-demotions`` it additionally enforces the
@@ -43,6 +57,8 @@ import json
 import math
 import sys
 from collections import defaultdict
+from datetime import date as _date
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
@@ -118,6 +134,78 @@ def _latest_date(rows: list[dict[str, Any]]) -> str | None:
     return max(dates) if dates else None
 
 
+def _parse_date(value: Any) -> _date | None:
+    """Parse a ledger ``date`` field; malformed values are skipped, not fatal."""
+    try:
+        return _date.fromisoformat(str(value))
+    except ValueError:
+        return None
+
+
+def _week_monday(d: _date) -> _date:
+    """Monday of the ISO week containing ``d`` (the week's bucket key)."""
+    return d - timedelta(days=d.isocalendar().weekday - 1)
+
+
+def _iso_week_label(monday: _date) -> str:
+    iso = monday.isocalendar()
+    return f"{iso.year}-W{iso.week:02d}"
+
+
+def weekly_evaluations(
+    rows: list[dict[str, Any]], *, anchor_monday: _date, n: int
+) -> list[dict[str, Any]]:
+    """Collapse one family's daily rows into ``n`` trailing weekly evaluations.
+
+    Returns one evaluation per *calendar* ISO week — oldest first — for the
+    ``n`` consecutive weeks ending at ``anchor_monday``'s week. Weeks without
+    rows still appear (status INCONCLUSIVE) so the window length is always
+    ``n`` and a data gap can never be silently skipped over.
+
+    Weekly status (handover §4.4): strict majority of the week's *measurable*
+    daily rows — PASS only when ``pass_days > fail_days``; a tie or a
+    fail-majority is FAIL; no measurable rows is INCONCLUSIVE. The week's
+    ``magnitude_auc`` / ``auc_ci_low`` are taken from its latest daily row
+    (freshest estimate of that week).
+    """
+    buckets: dict[_date, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        parsed = _parse_date(row.get("date"))
+        if parsed is not None:
+            buckets[_week_monday(parsed)].append(row)
+
+    evaluations: list[dict[str, Any]] = []
+    for offset in range(n - 1, -1, -1):
+        monday = anchor_monday - timedelta(weeks=offset)
+        day_rows = sorted(buckets.get(monday, []), key=lambda r: str(r.get("date")))
+        pass_days = sum(1 for r in day_rows if r.get("status") == "PASS")
+        fail_days = sum(1 for r in day_rows if r.get("status") == "FAIL")
+        inconclusive_days = sum(
+            1 for r in day_rows if r.get("status") == "INCONCLUSIVE"
+        )
+        if pass_days > fail_days:
+            status = "PASS"
+        elif pass_days + fail_days > 0:
+            # Tie or fail-majority: a week that cannot show a strict pass
+            # majority is not confirmation — count it against the family.
+            status = "FAIL"
+        else:
+            status = "INCONCLUSIVE"
+        last = day_rows[-1] if day_rows else {}
+        evaluations.append(
+            {
+                "week": _iso_week_label(monday),
+                "status": status,
+                "pass_days": pass_days,
+                "fail_days": fail_days,
+                "inconclusive_days": inconclusive_days,
+                "magnitude_auc": last.get("magnitude_auc"),
+                "auc_ci_low": last.get("auc_ci_low"),
+            }
+        )
+    return evaluations
+
+
 def _ci_low_trends_to_floor(window: list[dict[str, Any]]) -> bool:
     """True when the AUC CI-low is falling *and* near the 0.55 floor.
 
@@ -143,18 +231,38 @@ def evaluate_family(
     *,
     k: int = WEEKLY_K_DEFAULT,
     n: int = WEEKLY_N_DEFAULT,
+    anchor_date: _date | None = None,
 ) -> dict[str, Any]:
-    """k-of-n judgement for one family over its trailing ``n`` evaluations."""
-    window = rows[-n:]
-    pass_count = sum(1 for r in window if r.get("status") == "PASS")
-    fail_count = sum(1 for r in window if r.get("status") == "FAIL")
-    inconclusive_count = sum(1 for r in window if r.get("status") == "INCONCLUSIVE")
+    """k-of-n judgement for one family over ``n`` trailing ISO-week evaluations.
+
+    ``anchor_date`` fixes the newest window week (the caller passes the
+    ledger-wide latest date so every family is judged on the same calendar
+    window); without it the family's own latest row anchors the window.
+    ``pass_count`` / ``fail_count`` / ``inconclusive_count`` count *weeks*,
+    and ``window_size`` counts only the measurable (PASS/FAIL) weeks — a
+    cold-start ledger with a single week of daily rows therefore reports
+    ``window_size == 1`` no matter how many weekdays it contains.
+    """
+    if anchor_date is None:
+        own_dates = [
+            d for d in (_parse_date(r.get("date")) for r in rows) if d is not None
+        ]
+        anchor_date = max(own_dates) if own_dates else None
+    if anchor_date is None:
+        weeks: list[dict[str, Any]] = []
+    else:
+        weeks = weekly_evaluations(
+            rows, anchor_monday=_week_monday(anchor_date), n=n
+        )
+    pass_count = sum(1 for w in weeks if w["status"] == "PASS")
+    fail_count = sum(1 for w in weeks if w["status"] == "FAIL")
+    inconclusive_count = sum(1 for w in weeks if w["status"] == "INCONCLUSIVE")
     is_candidate = family in CANDIDATE_FAMILIES
 
-    latest = window[-1] if window else {}
+    latest = rows[-1] if rows else {}
     meets_k_of_n = pass_count >= k
-    ci_low_trending = _ci_low_trends_to_floor(window)
-    auc_window = [r.get("magnitude_auc") for r in window]
+    ci_low_trending = _ci_low_trends_to_floor(weeks)
+    auc_window = [w.get("magnitude_auc") for w in weeks]
 
     if is_candidate:
         # A candidate is healthy when it clears k-of-n and its lower CI bound
@@ -169,7 +277,9 @@ def evaluate_family(
     return {
         "family": family,
         "role": "candidate" if is_candidate else "control",
-        "window_size": len(window),
+        # Measurable weekly evaluations only — the demotion rule's "full
+        # window of evidence" precondition compares this against n_window.
+        "window_size": pass_count + fail_count,
         "k_required": k,
         "n_window": n,
         "pass_count": pass_count,
@@ -181,6 +291,7 @@ def evaluate_family(
         "latest_status": latest.get("status"),
         "latest_auc": latest.get("magnitude_auc"),
         "latest_ci_low": latest.get("auc_ci_low"),
+        "weeks": weeks,
         "auc_window": auc_window,
         "healthy": healthy,
         "stage2_eligible": stage2_eligible,
@@ -208,10 +319,20 @@ def evaluate_weekly(
     k: int = WEEKLY_K_DEFAULT,
     n: int = WEEKLY_N_DEFAULT,
 ) -> dict[str, Any]:
-    """Full weekly report: per-family judgement + Stage-2 eligibility."""
+    """Full weekly report: per-family judgement + Stage-2 eligibility.
+
+    Every family is judged on the same trailing calendar window, anchored at
+    the newest parseable date across the whole ledger — a family whose feed
+    went stale gets INCONCLUSIVE padding weeks (fail-safe), not a window
+    quietly shifted into its past.
+    """
     grouped = group_by_family(rows)
+    all_dates = [
+        d for d in (_parse_date(r.get("date")) for r in rows) if d is not None
+    ]
+    anchor = max(all_dates) if all_dates else None
     families = {
-        family: evaluate_family(family, family_rows, k=k, n=n)
+        family: evaluate_family(family, family_rows, k=k, n=n, anchor_date=anchor)
         for family, family_rows in sorted(grouped.items())
     }
     red_flag = detect_all_pass_red_flag(rows)
@@ -228,6 +349,7 @@ def evaluate_weekly(
         "k_required": k,
         "n_window": n,
         "latest_date": _latest_date(rows),
+        "anchor_week": _iso_week_label(_week_monday(anchor)) if anchor else None,
         "all_pass_red_flag": red_flag,
         "families": families,
         "stage2_eligible": eligible,
@@ -271,11 +393,12 @@ def evaluate_demotions(
     """Auto-demotion rule for armed families (handover §5 item 7).
 
     An armed family is demoted when a **full** trailing window of evidence
-    (``window_size == n``) no longer clears k-of-n. Deliberately
-    conservative in both directions:
+    (``window_size == n``, i.e. ``n`` measurable *weekly* evaluations) no
+    longer clears k-of-n. Deliberately conservative in both directions:
 
-    * a partial window (fewer than ``n`` evaluations) never demotes — thin
-      evidence is not a measured regression;
+    * a partial window (fewer than ``n`` measurable weekly evaluations —
+      including a cold-start ledger that only spans days, not weeks) never
+      demotes — thin evidence is not a measured regression;
     * a family absent from the ledger never demotes — missing data is a
       pipeline question, not a verdict;
     * an ``all_pass_red_flag`` run suspends demotion entirely — an
@@ -305,8 +428,8 @@ def render_text(report: dict[str, Any]) -> str:
     lines: list[str] = []
     lines.append(
         f"ADR-0023 Stage-1 weekly judgement "
-        f"(k={report['k_required']} of n={report['n_window']}, "
-        f"latest={report['latest_date']})"
+        f"(k={report['k_required']} of n={report['n_window']} ISO weeks, "
+        f"anchor={report.get('anchor_week')}, latest={report['latest_date']})"
     )
     for family, v in report["families"].items():
         auc = v["latest_auc"]
@@ -319,8 +442,8 @@ def render_text(report: dict[str, Any]) -> str:
         spark_s = f" [{spark}]" if spark else ""
         lines.append(
             f"  {family:<6}[{v['role']:<9}] "
-            f"pass {v['pass_count']}/{v['window_size']} "
-            f"(need {v['k_required']}){spark_s} "
+            f"pass {v['pass_count']}/{v['n_window']}wk "
+            f"(need {v['k_required']}, measurable {v['window_size']}){spark_s} "
             f"AUC={auc_s} CIlow={ci_s} {health}{trend}"
         )
         if v["role"] == "candidate" and not v["stage2_eligible"]:
@@ -328,7 +451,7 @@ def render_text(report: dict[str, Any]) -> str:
             if remaining > 0:
                 lines.append(
                     f"         Stage-2 progress: {v['pass_count']}/"
-                    f"{v['k_required']} PASS — needs {remaining} more"
+                    f"{v['k_required']} weekly PASS — needs {remaining} more"
                 )
             elif v["ci_low_trending_to_floor"]:
                 lines.append(
@@ -362,13 +485,19 @@ def main(argv: list[str] | None = None) -> int:
         "--k",
         type=int,
         default=WEEKLY_K_DEFAULT,
-        help=f"PASSes required within the window (default: {WEEKLY_K_DEFAULT})",
+        help=(
+            "weekly PASSes required within the window "
+            f"(default: {WEEKLY_K_DEFAULT})"
+        ),
     )
     parser.add_argument(
         "--n",
         type=int,
         default=WEEKLY_N_DEFAULT,
-        help=f"trailing evaluations in the window (default: {WEEKLY_N_DEFAULT})",
+        help=(
+            "trailing calendar ISO weeks in the window "
+            f"(default: {WEEKLY_N_DEFAULT})"
+        ),
     )
     parser.add_argument(
         "--format",
