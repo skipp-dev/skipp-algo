@@ -24,8 +24,8 @@ on:
 
 permissions:
   contents: read
-  # actions:read — needed by `gh run download` to fetch the drift-report
-  # artifact from the latest successful drift-watchdog run.
+  # actions:read — needed by `gh run download` to fetch the
+  # compute_live_drift artifact from the latest c13-daily-cron run.
   actions: read
 
 env:
@@ -48,14 +48,16 @@ jobs:
         with:
           python-version: "3.12"
 
-      # Fix 2026-06-11: drift reports are produced by drift-watchdog.yml and
-      # uploaded as RUN ARTIFACTS ("drift-report") — they are never committed
-      # to the repo. The original glob against the fresh checkout could only
-      # ever exit 64 (no files matched), which is why this workflow had zero
-      # meaningful runs since creation. Download the artifact from the latest
-      # successful drift-watchdog run first (same pattern as
-      # fvg-quality-recal-shadow-daily.yml).
-      - name: Fetch latest drift-report artifact
+      # Fix 2026-06-11: drift artifacts carrying the gate field
+      # ``slippage_ks_reference_type`` are produced by compute_live_drift in
+      # c13-daily-cron.yml (Step 4) and uploaded inside the per-day
+      # ``c13-daily-<DATE>`` RUN ARTIFACT (cache/live/drift_<DATE>.json) —
+      # they are never committed to the repo. The original glob against the
+      # fresh checkout could only ever exit 64 (no files matched), which is
+      # why this workflow had zero meaningful runs since creation. (The
+      # drift-watchdog ``drift-report`` artifact is a DIFFERENT report shape
+      # that never carries the field — do not point the gate at it.)
+      - name: Fetch latest compute_live_drift artifact
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -71,18 +73,35 @@ jobs:
             echo "::notice title=drift-source::${#existing[@]} drift report(s) already present in checkout — skipping artifact download"
             exit 0
           fi
-          latest_run=$(gh run list \
-            --workflow=drift-watchdog.yml \
-            --status=success \
-            --limit=1 \
-            --json databaseId \
-            --jq '.[0].databaseId' || true)
-          if [ -z "${latest_run}" ]; then
-            echo "::error title=drift-source::No successful drift-watchdog run found — cannot evaluate Phase-B readiness"
-            exit 64
+          # Step 4 is conditional (soft-skips when walk-forward inputs are
+          # missing, e.g. weekends), so scan the most recent successful runs
+          # for the newest artifact that actually contains a drift JSON.
+          found=""
+          for rid in $(gh run list \
+              --workflow=c13-daily-cron.yml \
+              --status=success \
+              --limit=10 \
+              --json databaseId \
+              --jq '.[].databaseId'); do
+            tmpdir=$(mktemp -d)
+            if gh run download "${rid}" --pattern 'c13-daily-*' --dir "${tmpdir}" 2>/dev/null; then
+              drift=$(find "${tmpdir}" -type f -name "drift_*.json" -print -quit || true)
+              if [ -n "${drift}" ]; then
+                base=$(basename "${drift}")
+                # drift_<DATE>.json -> drift_report_<DATE>.json so the
+                # contract-pinned default glob matches.
+                cp "${drift}" "artifacts/drift/drift_report_${base#drift_}"
+                echo "::notice title=drift-source::Using ${base} from c13-daily-cron run ${rid}"
+                found="yes"
+              fi
+            fi
+            rm -rf "${tmpdir}"
+            [ -n "${found}" ] && break
+          done
+          if [ -z "${found}" ]; then
+            echo "::error title=drift-source::No compute_live_drift artifact in the last 10 successful c13-daily-cron runs (Step 4 soft-skipped — walk-forward inputs missing). Phase-B NOT ready."
+            exit 2
           fi
-          echo "::notice title=drift-source::Downloading drift-report artifact from drift-watchdog run ${latest_run}"
-          gh run download "${latest_run}" --name drift-report --dir artifacts/drift
 
       - name: Run Phase-B readiness gate
         run: |

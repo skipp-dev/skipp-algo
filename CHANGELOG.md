@@ -6,6 +6,7 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+<<<<<<< HEAD
 ### Fixed (2026-06-11) — §5-Kostenmodell: Review-Findings aus #2697
 
 - **Fee-only-Legs zählen in den Round-Turn-Cost**
@@ -24,21 +25,31 @@ All notable changes to this project are documented in this file.
   statt `hash()` (PYTHONHASHSEED-unabhängig, keine Modulus-Kollisionen).
 
 ### Fixed (2026-06-11) — Phase-B-Readiness-Workflow: Drift-Report-Artifact-Download (C8 Phase A → B)
+=======
+### Fixed (2026-06-11) — Phase-B-Readiness-Workflow: Drift-Artifact-Download (C8 Phase A → B)
+>>>>>>> 26d2dc84 (fix(workflows): phase-b-readiness — richtige Quelle ist c13-daily-cron, nicht drift-watchdog)
 
 `phase-b-promotion-readiness.yml` konnte strukturell nie erfolgreich laufen:
 Der Gate-Glob `artifacts/drift/drift_report_*.json` zeigte auf den frischen
-Checkout, aber die Drift-Reports werden von `drift-watchdog.yml` ausschließlich
-als **Run-Artefakt** (`drift-report`) hochgeladen und nie ins Repo committet —
-jeder Dispatch wäre mit Exit 64 (`no files matched`) geendet. Deshalb hatte
-der Workflow seit Erstellung (Deep-Review 2026-04-27) null Läufe.
+Checkout, aber die Drift-Artefakte mit dem Gate-Feld
+`slippage_ks_reference_type` werden von `compute_live_drift`
+(`c13-daily-cron.yml` Step 4) ausschließlich als **Run-Artefakt**
+(`c13-daily-<DATE>`, Pfad `cache/live/drift_<DATE>.json`) hochgeladen und nie
+ins Repo committet — jeder Dispatch wäre mit Exit 64 (`no files matched`)
+geendet. Deshalb hatte der Workflow seit Erstellung (Deep-Review 2026-04-27)
+null Läufe. (Der `drift-report`-Artefakt des drift-watchdog ist ein anderer
+Report-Typ ohne das Gate-Feld — empirisch verifiziert; das Gate darf nicht
+darauf zeigen.)
 
 - **`.github/workflows/phase-b-promotion-readiness.yml`**: neuer Step
-  `Fetch latest drift-report artifact` lädt vor dem Gate das Artefakt des
-  jüngsten erfolgreichen `drift-watchdog`-Runs via `gh run download` nach
-  `artifacts/drift/` (gleiches Muster wie
-  `fvg-quality-recal-shadow-daily.yml`). Skip, wenn der Caller-Glob bereits
-  Dateien im Checkout matcht (workflow_call-Pfad). `permissions` um
-  `actions: read` erweitert (weiterhin rein lesend).
+  `Fetch latest compute_live_drift artifact` scannt die letzten 10
+  erfolgreichen `c13-daily-cron`-Runs (Step 4 soft-skippt an Wochenenden
+  mangels Walk-Forward-Inputs) und kopiert das jüngste `drift_<DATE>.json`
+  als `artifacts/drift/drift_report_<DATE>.json` in den Checkout (Glob-Pin
+  des Contract-Tests bleibt gültig). Kein Treffer → Exit 2
+  (`EXIT_NOT_READY`). Skip, wenn der Caller-Glob bereits Dateien im Checkout
+  matcht (workflow_call-Pfad). `permissions` um `actions: read` erweitert
+  (weiterhin rein lesend).
 - **`tests/test_phase_b_promotion_readiness_workflow_contract.py`**:
   Permissions-Pin auf `{contents: read, actions: read}` aktualisiert.
 
