@@ -735,13 +735,14 @@ def decide_recommendation(rows: list[dict[str, Any]]) -> dict[str, Any]:
     ce = _row_by_metric(rows, "calibrated_ece") or {}
     hr = _row_by_metric(rows, "hit_rate_pct") or {}
 
-    def _safe_delta(row: dict[str, Any], name: str) -> float | None:
+    def _safe_delta(row: dict[str, Any]) -> float | None:
         """Return the numeric delta or None when missing/NaN.
 
         W4-2 (stat-review wave 4): the previous ``float(v or 0.0)`` had two
         silent paths: (a) missing row → None → 0.0 silenced rollback;
         (b) NaN delta → bool(NaN)=True → stayed NaN → all comparisons False
-        → vacuous HOLD with no alarm.  Callers must check for None.
+        → vacuous HOLD with no alarm.  Callers must check for None — the
+        None-path below names the missing metric(s) in the hold reason.
         """
         raw = row.get("delta")
         if raw is None:
@@ -749,9 +750,9 @@ def decide_recommendation(rows: list[dict[str, Any]]) -> dict[str, Any]:
         v = float(raw)
         return None if math.isnan(v) else v
 
-    cb_delta = _safe_delta(cb, "calibrated_brier")  # lower = better
-    ce_delta = _safe_delta(ce, "calibrated_ece")
-    hr_delta = _safe_delta(hr, "hit_rate_pct")  # higher = better
+    cb_delta = _safe_delta(cb)  # calibrated_brier — lower = better
+    ce_delta = _safe_delta(ce)  # calibrated_ece
+    hr_delta = _safe_delta(hr)  # hit_rate_pct — higher = better
 
     # If any critical delta is unavailable, do not silently hold — surface
     # the data gap as an explicit hold with a diagnostic reason.

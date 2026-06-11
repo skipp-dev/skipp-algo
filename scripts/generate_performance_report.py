@@ -164,7 +164,8 @@ class AggregateReport:
     brier_gate: str
     ece_gate: str
     overall_grade: str
-    warnings_total: int    # W4-1 (stat-review wave 4): n for pairs where hit_rate is NOT NaN —
+    warnings_total: int
+    # W4-1 (stat-review wave 4): n for pairs where hit_rate is NOT NaN —
     # the correct denominator for the SPRT test on avg_hit_rate.
     n_hit_rate_valid: int = 0
 

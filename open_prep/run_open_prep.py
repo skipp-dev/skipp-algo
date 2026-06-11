@@ -5330,6 +5330,11 @@ def generate_open_prep_result(
     try:
         vix9d_quote = data_client.get_index_quote("^VIX9D")
         vix9d_level = _to_float(vix9d_quote.get("price"), default=0.0) or None
+        # Fail-closed on BOTH legs: a non-positive index level (bad feed
+        # data) must yield ratio=None, never a negative/nonsense ratio
+        # (Copilot finding on #2688).
+        if vix9d_level is not None and vix9d_level <= 0:
+            vix9d_level = None
         if vix9d_level is not None and vix_level is not None and vix_level > 0:
             vix9d_vix_ratio = round(vix9d_level / vix_level, 4)
         logger.info("VIX9D level: %s (ratio vs VIX: %s)", vix9d_level, vix9d_vix_ratio)
