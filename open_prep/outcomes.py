@@ -382,6 +382,10 @@ def prepare_outcome_snapshot(
             # binary earnings_bmo flag ignores SUE size/sign; PEAD
             # literature says the magnitude drives the drift).
             "eps_surprise_pct": row.get("eps_surprise_pct"),
+            # VIX 9-day / 30-day term-structure ratio (observe-only;
+            # eval D5). > 1 ⇒ inverted short-term structure ⇒ imminent
+            # event risk priced in. Market-wide (same for all rows).
+            "vix9d_vix_ratio": row.get("vix9d_vix_ratio"),
             # Direction-aware labeling inputs (eval-findings B1/B2):
             # ``direction`` signs the PnL during backfill; ``atr_pct``
             # scales the triple-barrier levels; ``playbook`` enables
@@ -430,6 +434,7 @@ FEATURE_KEYS: list[str] = [
     "ema50_slope_pct",
     "gap_range_pos",
     "eps_surprise_pct",
+    "vix9d_vix_ratio",
 ]
 
 # Observe-only features: recorded in outcome records + FI samples but
@@ -442,6 +447,7 @@ PASS_THROUGH_FEATURE_KEYS: frozenset[str] = frozenset({
     "ema50_slope_pct",
     "gap_range_pos",
     "eps_surprise_pct",
+    "vix9d_vix_ratio",
 })
 
 # G1: Explicit mapping from feature importance keys → scorer weight keys.

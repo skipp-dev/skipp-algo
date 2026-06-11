@@ -6,6 +6,18 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-11) — VIX9D term-structure observe-only feature (eval D5)
+
+- **`vix9d_vix_ratio`** (VIX9D ÷ VIX): > 1 ⇒ inverted short-term vol
+  term structure ⇒ the market prices an imminent event risk. Fetched via
+  the existing FMP `get_index_quote("^VIX9D")` endpoint (verified live:
+  FMP serves all CBOE vol indices), stamped market-wide onto every ranked
+  v2 row and recorded in outcome snapshots. Appended to
+  `FEATURE_KEYS`/`PASS_THROUGH_FEATURE_KEYS` — observe-only, NOT wired
+  into regime classification or scoring until FI evidence exists.
+  Fail-closed: ratio is `None` when either quote is missing or VIX ≤ 0.
+- Tests: `tests/test_vix9d_term_structure.py` (new).
+
 ### Changed (2026-06-11) — Eval-findings remediation (B1/B2/B3/B5/B7/B8/D7, C4)
 
 Implementation of the actionable findings from the open-prep scoring/
