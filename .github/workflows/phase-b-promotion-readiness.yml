@@ -31,7 +31,7 @@ permissions:
 # Manual-only gate; serialize runs like the sibling drift-watchdog so two
 # concurrent dispatches cannot interleave their artifact downloads.
 concurrency:
-  group: phase-b-promotion-readiness
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 env:
@@ -117,7 +117,7 @@ jobs:
             [ -n "${found}" ] && break
           done
           if [ -z "${found}" ]; then
-            echo "::error title=drift-source::No compute_live_drift artifact in the last 10 successful c13-daily-cron runs (Step 4 soft-skipped — walk-forward inputs missing). Phase-B NOT ready."
+            echo "::error title=drift-source::No drift JSON found in artifacts from the last 10 successful c13-daily-cron runs. Either Step 4 soft-skipped (walk-forward inputs missing) or gh run download failed for all runs — see ::notice logs above. Phase-B NOT ready."
             exit 2
           fi
 

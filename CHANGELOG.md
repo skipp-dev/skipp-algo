@@ -37,7 +37,7 @@ Checkout, aber die Drift-Artefakte mit dem Gate-Feld
 (`c13-daily-<DATE>`, Pfad `cache/live/drift_<DATE>.json`) hochgeladen und nie
 ins Repo committet — jeder Dispatch wäre mit Exit 64 (`no files matched`)
 geendet. Deshalb hatte der Workflow seit Erstellung (Deep-Review 2026-04-27)
-null Läufe. (Der `drift-report`-Artefakt des drift-watchdog ist ein anderer
+null Läufe. (Das `drift-report`-Artefakt des drift-watchdog ist ein anderer
 Report-Typ ohne das Gate-Feld — empirisch verifiziert; das Gate darf nicht
 darauf zeigen.)
 
