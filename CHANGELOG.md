@@ -6,6 +6,36 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-11) — ADR-0023 §5: Empirische Execution-Cost-Kalibrierung aus C8-Paper-Fills
+
+Der §5-E[PnL]-after-cost-Check rechnete bislang mit dem flachen
+pre-registrierten Haircut (`DEFAULT_COST_BPS = 5.0`). Für die
+Stage-3-Aktivierung braucht es die **empirische** Kostenbasis aus den
+C8-Phase-A-Paper-Sessions (IBKR, `run_ibkr_open_execution.py`).
+
+- **`governance/execution_costs.py` (neu, pure stdlib)**: Kostenmodell aus
+  Session-Fills — `commission_bps()` (IBKR Fixed: max($1, $0.005/Share),
+  Cap 1 % Notional), `slippage_bps()` (vorzeichenbehaftet ggü. Limit;
+  Price-Improvement zählt negativ), `extract_leg_costs()` (Order-Ref-Gruppierung,
+  VWAP über Partial-Fills, Dedupe über Snapshots+Final; Trailing-Legs
+  fee-only) und `calibrate_costs()` → `CostCalibration` mit Bootstrap-CI
+  (Seed 230022, B=1000) und `conservative_cost_bps = CI-high` (Round-Turn).
+  Measurability-Floors: ≥ 20 Cost-Samples UND Entry-Fill-Rate ≥ 0.5,
+  sonst `measurable: false` mit `fail_reasons`.
+- **`scripts/calibrate_execution_costs.py` (neu)**: CLI — Session-JSONs rein,
+  Kalibrierungs-Report raus (atomic write). Exit 0 = measurable,
+  2 = unmeasurable (Report wird trotzdem geschrieben), 1 = Usage-Fehler.
+- **`scripts/run_epnl_after_cost_gate.py`**: neues Flag
+  `--cost-calibration <report.json>` — überschreibt `--cost-bps` mit dem
+  konservativen empirischen Round-Turn-Cost. **Fail-closed**: eine nicht
+  messbare Kalibrierung ist Exit 1, kein stilles Fallback auf den flachen
+  Default. Report trägt `cost_source` (`empirical_calibration` |
+  `flat_default`) und bettet die Kalibrierung unter `cost_calibration` ein.
+- Tests: `tests/test_execution_costs.py` (Commission-Regime-Grenzen,
+  Slippage-Vorzeichen BOT/SLD, VWAP/Partial-Fills, Dedupe, Fill-Rate,
+  Measurability-Floors, Seed-Determinismus, CLI-Exit-Codes,
+  Gate-Wiring inkl. Fail-closed).
+
 ### Changed (2026-06-11) — ECE-Eligibility-Floor 20→30 (#2693)
 
 - **`min_events_for_calibrated_thresholds: 20 → 30`**
