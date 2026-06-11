@@ -182,7 +182,7 @@ def main() -> None:
                 release_ib_client_id(client_id)
             except Exception as release_exc:
                 print(
-                    f"WARN clientId-Release fehlgeschlagen (ignoriert): {release_exc}",
+                    f"WARN clientId release failed (ignored): {release_exc}",
                     file=sys.stderr,
                 )
 
