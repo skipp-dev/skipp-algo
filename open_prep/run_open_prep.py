@@ -52,7 +52,15 @@ from .sentiment_fng import fetch_cnn_equity_fear_greed
 # --- v2 pipeline modules ---
 from .scorer import load_weight_set, rank_candidates_v2, save_weight_set
 from .screen import classify_long_gap, compute_gap_warn_flags, rank_candidates
-from .technical_analysis import compute_trend_state_features, detect_breakout, detect_consolidation, detect_symbol_regime
+from .technical_analysis import (
+    compute_adx_from_bars,
+    compute_bb_width_pct_from_bars,
+    compute_gap_range_position,
+    compute_trend_state_features,
+    detect_breakout,
+    detect_consolidation,
+    detect_symbol_regime,
+)
 from .trade_cards import build_trade_cards
 from .utils import StageProfiler
 from .utils import to_float as _to_float
@@ -4497,8 +4505,8 @@ def _enrich_zone_priority(
     # Load calibrated family weights (best-effort)
     calibrated_fw: dict[str, float] | None = None
     try:
-        from pathlib import Path as _PathL
         import json as _json
+        from pathlib import Path as _PathL
         for _cal_p in (
             _PathL("artifacts/reports/zone_priority_calibration.json"),
             _PathL("artifacts/ci/measurement_benchmark/zone_priority_calibration.json"),
@@ -5558,12 +5566,20 @@ def generate_open_prep_result(
         row["dist_to_ema20_pct"] = ts.get("dist_to_ema20_pct")
         row["ema50_slope_pct"] = ts.get("ema50_slope_pct")
 
-        # Consolidation detection (use ATR% and a rough BB-width / ADX proxy)
+        # Consolidation detection — prefer REAL ADX/BB-width computed from
+        # the daily bars already fetched above (eval-findings D7,
+        # 2026-06-11); fall back to the disclosed ATR%-proxy only when bars
+        # are insufficient (< 2×14+1 for Wilder ADX / < 20 for BB).
         atr_pct = _to_float(row.get("atr_pct_computed") or row.get("atr_pct"), default=0.0)
-        # Without live ADX/BB data, use ATR%-based approximation:
-        # Low ATR% ≈ tight bands ≈ possible consolidation
-        # Guard: if ATR is missing (0.0), skip detection to avoid false positives
-        if atr_pct > 0:
+        real_adx = compute_adx_from_bars(bars) if bars else None
+        real_bbw = compute_bb_width_pct_from_bars(bars) if bars else None
+        if real_adx is not None and real_bbw is not None:
+            consol = detect_consolidation(bb_width_pct=real_bbw, adx=real_adx)
+            sym_regime = detect_symbol_regime(adx=real_adx, bb_width_pct=real_bbw)
+            regime_source = "daily_bars"  # measured Wilder ADX + BB width
+        elif atr_pct > 0:
+            # Without live ADX/BB data, use ATR%-based approximation:
+            # Low ATR% ≈ tight bands ≈ possible consolidation
             approx_bb_width = max(atr_pct * 2.5, 0.1)  # rough proxy
             approx_adx = min(max(atr_pct * 8.0, 5.0), 60.0)  # rough proxy
             consol = detect_consolidation(bb_width_pct=approx_bb_width, adx=approx_adx)
@@ -5578,9 +5594,16 @@ def generate_open_prep_result(
         row["is_consolidating"] = consol.get("is_consolidating", False)
         row["consolidation_score"] = consol.get("score", 0.0)
         row["symbol_regime"] = sym_regime
-        # Disclose that consolidation/regime came from an ATR%-derived proxy
-        # (or no data at all), never from real BB-width/ADX (audit #2670 W2).
+        # Disclose whether consolidation/regime came from measured daily-bar
+        # indicators, the ATR%-derived proxy, or no data (audit #2670 W2).
         row["regime_source"] = regime_source
+
+        # Gap position relative to the prior day's H/L range (observe-only;
+        # eval-findings C4). > 1 = gapping above prior high, < 0 = below low.
+        price_now = _to_float(row.get("price"), default=0.0)
+        row["gap_range_pos"] = (
+            compute_gap_range_position(bars, price_now) if bars else None
+        )
 
     # --- Playbook assignment (6-step professional news-trading engine) ---
     playbook_results = assign_playbooks(

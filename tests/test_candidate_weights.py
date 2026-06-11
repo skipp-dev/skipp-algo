@@ -63,7 +63,10 @@ class TestGenerationStates:
         # exceeds the tiny gate threshold.
         loud = {
             "rvol_component": {"importance_normalized": 1.0, "pearson_r": 0.9,
-                               "mean_separation": 1.0, "mean_win": 1.0, "mean_loss": 0.0},
+                               "mean_separation": 1.0, "mean_win": 1.0, "mean_loss": 0.0,
+                               # eval-findings B3: weight movement now requires
+                               # the BH-FDR significance gate to pass.
+                               "p_value": 0.0001, "fdr_significant": True},
         }
         monkeypatch.setattr(cw, "compute_feature_importance",
                             lambda **kw: _make_fi_report(features=loud, labeled=100))

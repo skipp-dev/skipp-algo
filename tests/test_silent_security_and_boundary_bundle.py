@@ -183,11 +183,14 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     ("open_prep/candidate_weights.py", 207),
     ("open_prep/feature_importance_report.py", 305),
     # 2026-06-11 (backfill defer-unpublished): 418→457.
-    ("open_prep/outcome_backfill.py", 457),
+    # 2026-06-11 (eval-findings B1/B2): direction+TB code shifted 457→536.
+    ("open_prep/outcome_backfill.py", 536),
     ("open_prep/realtime_signals.py", 2662),
     # 2026-06-10 (#2670 W2/W4): source-disclosure edits shifted +25 (5840→5865).
     # 2026-06-11 (trend-state features): 5865→5876, enrichment-loop stamping.
-    ("open_prep/run_open_prep.py", 5876),
+    # 2026-06-11 (eval-findings D7): import block +8, enrichment +15
+    # (5876→5899).
+    ("open_prep/run_open_prep.py", 5899),
     # WP-H (PR #2612): 35 -> 37, VIX import + helper block added above.
     ("smc_tv_bridge/smc_api.py", 37),
 })

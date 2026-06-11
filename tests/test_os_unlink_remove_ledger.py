@@ -95,24 +95,31 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     ("open_prep/diff.py", 68, "unlink"),
     ("open_prep/feature_importance_report.py", 257, "unlink"),
     # 2026-06-11 (backfill defer-unpublished): 97→116, 539→589.
+    # 2026-06-11 (eval-findings B1/B2): direction+triple-barrier code in
+    # compute_pnl_from_bars + backfill loop shifted 589→668.
     ("open_prep/outcome_backfill.py", 116, "unlink"),
-    ("open_prep/outcome_backfill.py", 589, "unlink"),
+    ("open_prep/outcome_backfill.py", 668, "unlink"),
     ("open_prep/outcomes.py", 147, "unlink"),
     # 2026-06-11 (trend-state features): 431→449, snapshot keys +
     # FEATURE_KEYS/PASS_THROUGH block added above.
-    ("open_prep/outcomes.py", 449, "unlink"),
+    # 2026-06-11 (eval-findings B5/B1): gap-playbook report +
+    # infer_trade_direction + snapshot fields shifted 449→537.
+    ("open_prep/outcomes.py", 537, "unlink"),
     ("open_prep/realtime_signals.py", 124, "remove"),
     ("open_prep/realtime_signals.py", 2543, "unlink"),
     ("open_prep/realtime_signals.py", 2582, "unlink"),
-    ("open_prep/run_open_prep.py", 2217, "unlink"),
+    # 2026-06-11 (eval-findings D7): technical_analysis import block +8
+    # lines at L55 shifted all run_open_prep sites; enrichment-loop
+    # real-ADX/BBW block added +15 more after L5491.
+    ("open_prep/run_open_prep.py", 2225, "unlink"),
     # 2026-06-10 (#2670 W2/W4): regime_source + premarket source-disclosure
     # edits shifted the later unlink sites (+20/+20/+20/+25).
-    ("open_prep/run_open_prep.py", 3031, "unlink"),
-    ("open_prep/run_open_prep.py", 3367, "unlink"),
-    ("open_prep/run_open_prep.py", 5483, "unlink"),
+    ("open_prep/run_open_prep.py", 3039, "unlink"),
+    ("open_prep/run_open_prep.py", 3375, "unlink"),
+    ("open_prep/run_open_prep.py", 5491, "unlink"),
     # 2026-06-11 (trend-state features): 5731→5742, enrichment-loop
-    # stamping + lookback comment added above.
-    ("open_prep/run_open_prep.py", 5742, "unlink"),
+    # stamping + lookback comment added above; eval-findings 5742→5765.
+    ("open_prep/run_open_prep.py", 5765, "unlink"),
     ("open_prep/scorer.py", 149, "unlink"),
     ("open_prep/watchlist.py", 74, "unlink"),
     ("smc_core/benchmark.py", 39, "unlink"),

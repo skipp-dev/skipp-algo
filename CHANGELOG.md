@@ -6,6 +6,57 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-06-11) — Eval-findings remediation (B1/B2/B3/B5/B7/B8/D7, C4)
+
+Implementation of the actionable findings from the open-prep scoring/
+feature-importance evaluation. All label/feature additions are
+observe-only; scoring weights are unchanged:
+
+- **B1 — direction-aware labels** (`open_prep/outcome_backfill.py`,
+  `open_prep/outcomes.py`): new `infer_trade_direction()` (GAP_FADE fades
+  the gap sign; all other playbooks are continuation) and new outcome
+  fields `pnl_30m_pct_signed` + `profitable_30m_directional`. Legacy
+  long-only `pnl_30m_pct`/`profitable_30m` unchanged for continuity.
+- **B2 — triple-barrier label**: `compute_pnl_from_bars()` now also walks
+  the 30-min window bar-by-bar against ATR-scaled barriers
+  (target = `atr_pct`, stop = `0.5×atr_pct`; defaults 1.0%/0.5% when ATR
+  is missing) producing `label_tb` ∈ {target, stop, timeout_win,
+  timeout_loss} + `profitable_tb`; stop is checked first within a bar
+  (conservative tie-break).
+- **B3 — FI hardening** (`open_prep/outcomes.py`): `mean_separation` now
+  uses the POOLED std (Cohen's d) instead of σ_win-only; per-feature
+  Welch t-test `p_value` (normal approximation); Benjamini–Hochberg FDR
+  gate at q=0.05 → `fdr_significant` flag; recommendations and
+  `compute_weight_adjustments()` only act on FDR-significant features
+  (non-significant ⇒ neutral importance 0.5); `_MIN_TUNING_SAMPLES`
+  raised 30 → 200.
+- **B5/D3 — gap×playbook report**: new `compute_gap_playbook_report()`
+  aggregating hit-rate/avg-PnL per `gap_bucket:playbook` cell (prefers
+  directional labels, falls back to legacy).
+- **B7 — EMA seed** (`open_prep/technical_analysis.py`): `_ema()` now
+  seeds with the SMA of the first `span` values (TA-Lib convention)
+  instead of `values[0]`, removing first-bar bias on 200-bar EMAs.
+- **B8 — macro surprise scale** (`open_prep/macro.py`): diagnostic
+  `surprise` divisor floor `max(|consensus|, 1.0)` → `max(|consensus|,
+  1e-6)` with a ±10 cap; low-consensus series (CPI MoM ~0.2) are no
+  longer 5× understated. `contribution` (sign-only) unchanged.
+- **D7 — real ADX/BB-width**: new `compute_adx_from_bars()` (Wilder, 14)
+  and `compute_bb_width_pct_from_bars()` (20, 2σ) from daily bars; the
+  regime-detection enrichment in `open_prep/run_open_prep.py` prefers
+  them (`regime_source="daily_bars"`) and falls back to the previous
+  ATR-proxy heuristics (`"atr_proxy"`).
+- **C4 — observe-only features**: `gap_range_pos` (price position vs.
+  prior-day range via new `compute_gap_range_position()`) and
+  `eps_surprise_pct` recorded on outcome snapshots and appended to
+  `FEATURE_KEYS`/`PASS_THROUGH_FEATURE_KEYS` (unweighted until FI
+  evidence exists).
+- **Deferred (data-gated)**: D6 Platt calibration (needs ~200 labels),
+  D8 meta-labeling (~500 labels), VIX9D term structure + short interest
+  (no data source in repo), RSI/breakout threshold changes ("measure
+  first").
+- Tests: `tests/test_eval_findings_fixes.py` (new) +
+  `tests/test_scorer_tuning.py` FDR-gating coverage.
+
 ### Added (2026-06-11) — Trend-state features (observe-only) + ZLEMA MA type
 
 Outcome of the ZLEMA/trend-filter analysis: daily trend-state context is

@@ -43,8 +43,15 @@ def test_weight_keys_exist_in_defaults() -> None:
 def _make_fi_report(
     importances: dict[str, float] | None = None,
     labeled: int = 100,
+    *,
+    fdr_significant: bool = True,
 ) -> dict[str, Any]:
-    """Build a synthetic feature importance report."""
+    """Build a synthetic feature importance report.
+
+    ``fdr_significant`` defaults to True so the legacy weight-movement
+    tests exercise the data-driven path; the BH-FDR gating itself is
+    covered by ``test_weight_adjustments_non_significant_is_neutral``.
+    """
     features: dict[str, Any] = {}
     for key in FEATURE_KEYS:
         imp = (importances or {}).get(key, 0.5)
@@ -54,6 +61,8 @@ def _make_fi_report(
             "mean_win": 0.5,
             "mean_loss": 0.3,
             "importance_normalized": imp,
+            "p_value": 0.001 if fdr_significant else 0.9,
+            "fdr_significant": fdr_significant,
         }
     return {
         "total_samples": labeled,
@@ -105,6 +114,18 @@ def test_weight_adjustments_smoothing_blends_with_prior() -> None:
         report, dict(DEFAULT_WEIGHTS), smoothing=1.0,
     )
     # Pure prior blend → should equal DEFAULT_WEIGHTS
+    assert update.updated_weights["gap"] == pytest.approx(
+        DEFAULT_WEIGHTS["gap"], abs=0.01,
+    )
+
+
+def test_weight_adjustments_non_significant_is_neutral() -> None:
+    """Features failing the BH-FDR gate must NOT move weights (eval B3)."""
+    from open_prep.scorer import DEFAULT_WEIGHTS
+
+    report = _make_fi_report({"gap_component": 1.0}, fdr_significant=False)
+    update = compute_weight_adjustments(report, dict(DEFAULT_WEIGHTS), smoothing=0.0)
+    # imp forced to neutral 0.5 → data_weight == current → no movement.
     assert update.updated_weights["gap"] == pytest.approx(
         DEFAULT_WEIGHTS["gap"], abs=0.01,
     )
