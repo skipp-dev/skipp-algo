@@ -18,6 +18,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+import pytest
+
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Conflict markers are exactly 7 chars + (for <<</>>>) a space and label.
@@ -35,12 +37,18 @@ _ALLOWED = frozenset(
 
 
 def _tracked_files() -> list[Path]:
-    out = subprocess.run(
-        ["git", "ls-files", "-z"],
-        cwd=_REPO_ROOT,
-        capture_output=True,
-        check=True,
-    )
+    try:
+        out = subprocess.run(
+            ["git", "ls-files", "-z"],
+            cwd=_REPO_ROOT,
+            capture_output=True,
+            check=True,
+            timeout=30,
+        )
+    except (FileNotFoundError, subprocess.SubprocessError) as exc:
+        # Mirror the other repo tripwires: environments without git (or a
+        # non-git checkout) skip instead of failing/hanging.
+        pytest.skip(f"git ls-files unavailable: {exc}")
     files = []
     for rel in out.stdout.decode("utf-8", errors="replace").split("\0"):
         if not rel or rel in _ALLOWED:
@@ -51,9 +59,20 @@ def _tracked_files() -> list[Path]:
     return files
 
 
+def _is_binary(path: Path) -> bool:
+    """NUL-byte sniff on the first 8 KiB — conflict markers only matter in text."""
+    try:
+        with path.open("rb") as fh:
+            return b"\0" in fh.read(8192)
+    except OSError:
+        return True
+
+
 def test_no_merge_conflict_markers_in_tracked_files() -> None:
     offenders: list[str] = []
     for path in _tracked_files():
+        if _is_binary(path):
+            continue
         try:
             text = path.read_text(encoding="utf-8", errors="replace")
         except OSError:
@@ -64,6 +83,9 @@ def test_no_merge_conflict_markers_in_tracked_files() -> None:
                 saw_start = True
                 offenders.append(f"{path.relative_to(_REPO_ROOT)}:{lineno} {_START.strip()}")
             elif line.startswith(_END) and saw_start:
+                # Block closed — stop treating bare ======= as a marker so a
+                # single conflict does not flag later setext headings too.
+                saw_start = False
                 offenders.append(f"{path.relative_to(_REPO_ROOT)}:{lineno} {_END.strip()}")
             elif line == _MID and saw_start:
                 offenders.append(f"{path.relative_to(_REPO_ROOT)}:{lineno} {_MID}")
