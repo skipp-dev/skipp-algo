@@ -61,8 +61,9 @@ acceptance bar TPR ≥ 0.80 ∧ FPR < 0.10:
 | 0.01 / 0.05 | 3 | TPR 0.75 ❌ | TPR 0.80, FPR 0.05 ✅ |
 | 0.001 / 0.01 | 2 | TPR 0.80, FPR 0.00 ✅ | TPR 0.70 ❌ |
 
-**Locked production default** (in
-`drift_alert.compute_drift_report`): `p_red=0.005`, `p_yellow=0.025`,
+**Current production default** (in
+`drift_alert.compute_drift_report`; synthetic-tuned, see header — NOT
+yet locked against live outcomes): `p_red=0.005`, `p_yellow=0.025`,
 `consensus_min=2` — the only setting passing both banks while
 dominating on FPR. The previous `0.01/0.05` default failed the mixed
 bank once detectors 3 + 4 became p-value tests (they fire more often

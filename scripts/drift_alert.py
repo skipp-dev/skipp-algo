@@ -499,6 +499,10 @@ def compute_drift_report(
     classified ``red`` only when ≥ ``consensus_min`` detectors fire
     yellow-or-red — this is the production rule the
     ``scripts.c9_threshold_replay`` tuner optimises against.
+    Report-payload note: the per-detector severities keep their
+    backward-compatible keys ``mean_shift`` (= Welch-t) and
+    ``var_ratio`` (= Brown-Forsythe) — consumers see the legacy names,
+    not the test names.
 
     Default alpha ladder (C9/T7, issue #298, 2026-06-11): ``p_red=0.005``
     / ``p_yellow=0.025`` won the replay grid on BOTH the Gaussian-only
