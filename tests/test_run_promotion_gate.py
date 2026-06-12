@@ -504,6 +504,46 @@ def test_cli_armed_family_promotes_with_ledger_pass(
     assert report["decisions"][0]["promoted"] is True
 
 
+def test_cli_corrupt_magnitude_ledger_is_config_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """W7-1: a corrupt shadow ledger must abort the gate run (rc 1), not
+    gate armed families on whatever rows happened to survive the parse."""
+    monkeypatch.chdir(tmp_path)
+    bundle = tmp_path / "bundle.json"
+    bundle.write_text(json.dumps([_lax_snapshot_dict("BOS")]), encoding="utf-8")
+    policy = tmp_path / "policy.json"
+    policy.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "stage": 2,
+                "armed_families": ["BOS"],
+                "k": 3,
+                "n": 4,
+                "history": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    ledger = tmp_path / "ledger.jsonl"
+    ledger.write_text(
+        json.dumps(_ledger_row("BOS", "PASS")) + "\nnot json\n", encoding="utf-8"
+    )
+    out = tmp_path / "report.json"
+    rc = runner.main([
+        "--metrics", str(bundle),
+        "--output", str(out),
+        "--archive-dir", "",
+        "--no-strict",
+        "--magnitude-policy", str(policy),
+        "--magnitude-ledger", str(ledger),
+    ])
+    assert rc == 1
+    assert "malformed ledger line" in capsys.readouterr().err
+    assert not out.exists()  # no report written on config error
+
+
 def test_cli_no_magnitude_feed_escape_hatch(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

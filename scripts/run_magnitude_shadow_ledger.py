@@ -151,20 +151,42 @@ def build_ledger_rows(
 
 
 def load_ledger(path: str) -> list[dict[str, Any]]:
-    """Read an existing JSONL ledger, skipping malformed lines."""
+    """Read an existing JSONL ledger, failing CLOSED on malformed lines.
+
+    W7-1 (stat-review wave 7, 2026-06-13): silently skipping malformed lines
+    was fail-open in three decision-bearing consumers at once —
+
+    * weekly k-of-n: corrupt rows turn weeks INCONCLUSIVE, so an armed
+      family's full demotion window can never assemble ("partial window
+      never demotes") and corrupting FAIL rows flips a strict weekly
+      majority to PASS;
+    * gate wiring: ``latest_rows_by_family`` picks the newest *parseable*
+      row, so a corrupt FAIL row for today silently resurrects yesterday's
+      PASS as the gate verdict.
+
+    A malformed or non-object line therefore raises :class:`ValueError`
+    (with ``path:lineno``) instead of being dropped. A missing file is
+    still a legitimate cold-start and yields ``[]``.
+    """
     rows: list[dict[str, Any]] = []
     try:
         with open(path, encoding="utf-8") as handle:
-            for line in handle:
+            for lineno, line in enumerate(handle, start=1):
                 line = line.strip()
                 if not line:
                     continue
                 try:
                     parsed = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if isinstance(parsed, dict):
-                    rows.append(parsed)
+                except json.JSONDecodeError as exc:
+                    raise ValueError(
+                        f"malformed ledger line {path}:{lineno}: {exc}"
+                    ) from exc
+                if not isinstance(parsed, dict):
+                    raise ValueError(
+                        f"malformed ledger line {path}:{lineno}: "
+                        f"expected a JSON object, got {type(parsed).__name__}"
+                    )
+                rows.append(parsed)
     except FileNotFoundError:
         return []
     return rows
@@ -324,12 +346,19 @@ def main(argv: list[str] | None = None) -> int:
         seed=args.seed,
     )
 
-    new_rows = append_shadow_ledger(
-        report,
-        ledger_path=args.ledger,
-        date=args.date,
-        events_hash=events_content_hash(events),
-    )
+    try:
+        new_rows = append_shadow_ledger(
+            report,
+            ledger_path=args.ledger,
+            date=args.date,
+            events_hash=events_content_hash(events),
+        )
+    except ValueError as exc:
+        # W7-1: corrupt existing ledger — refuse to merge/rewrite on top of
+        # it. Surfacing rc 1 turns the daily workflow red instead of
+        # silently dropping history.
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
 
     print(f"shadow ledger {args.ledger}: {_summarize(new_rows)}", file=sys.stderr)
     if not report["results"]:

@@ -118,7 +118,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--n", type=int, default=4, help="n for k-of-n (default 4)")
     args = parser.parse_args(argv)
 
-    rows = load_ledger(args.ledger)
+    try:
+        rows = load_ledger(args.ledger)
+    except ValueError as exc:
+        # W7-1: report-only renderer — still surface the corruption loudly
+        # in the step summary instead of rendering a silently thinner table.
+        print(f"shadow ledger unreadable: {exc}")
+        return 1
     print(render_summary(rows, k=args.k, n=args.n))
     return 0
 
