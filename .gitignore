@@ -98,3 +98,4 @@ synthetic/
 # automation/launchd/run-c13-*.sh — push/feed health, never canonical data).
 cache/*/.push_status_*
 cache/*/.feed_status_*
+cache/*/.ibkr_smoke_status_*
