@@ -358,6 +358,39 @@ def test_main_same_date_same_hash_rerun_is_idempotent_not_stale(
     assert len(shadow.load_ledger(str(ledger))) == 1
 
 
+def test_main_backfill_onto_earlier_date_is_not_stale(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """W7-2 boundary (review follow-up): the stale-feed guard only fires on
+    hashes graded under an EARLIER date. A backfill that re-grades the same
+    events under a date BEFORE the existing row is a deliberate re-run of
+    history, not a frozen feed — it must append normally (rc 0)."""
+    events = [{"family": "BOS", "x": 1}]
+    events_path = tmp_path / "events.json"
+    events_path.write_text(json.dumps(events), encoding="utf-8")
+    ledger = tmp_path / "shadow.jsonl"
+    later_row = {
+        "date": "2026-06-10",
+        "family": "BOS",
+        "status": "PASS",
+        "events_hash": shadow.events_content_hash(events),
+    }
+    ledger.write_text(json.dumps(later_row) + "\n", encoding="utf-8")
+    monkeypatch.setattr(
+        shadow,
+        "build_report",
+        lambda events, **kw: _report({"BOS": _result(passes=True)}),
+    )
+    code = shadow.main(
+        [str(events_path), "--ledger", str(ledger), "--date", "2026-06-06"]
+    )
+    assert code == 0
+    assert {r["date"] for r in shadow.load_ledger(str(ledger))} == {
+        "2026-06-06",
+        "2026-06-10",
+    }
+
+
 def test_main_malformed_date_is_usage_error_not_verdict(tmp_path: Path) -> None:
     """A bad --date must exit 1 (error), NOT reach the ledger: downstream
     consumers compare parsed dates and a malformed value would silently
