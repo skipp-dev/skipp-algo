@@ -29,8 +29,8 @@ from .diff import (
 )
 from .log_redaction import apply_global_log_redaction
 from .macro import (
-    FMPClient,
     FinnhubClient,
+    FMPClient,
     dedupe_events,
     filter_us_events,
     filter_us_high_impact_events,
@@ -47,11 +47,11 @@ from .outcomes import (
 )
 from .playbook import assign_playbooks
 from .regime import apply_regime_adjustments, classify_regime, reset_regime_state
-from .sentiment_fng import fetch_cnn_equity_fear_greed
 
 # --- v2 pipeline modules ---
 from .scorer import load_weight_set, rank_candidates_v2, save_weight_set
 from .screen import classify_long_gap, compute_gap_warn_flags, rank_candidates
+from .sentiment_fng import fetch_cnn_equity_fear_greed
 from .technical_analysis import (
     compute_adx_from_bars,
     compute_bb_width_pct_from_bars,
@@ -477,10 +477,11 @@ def _format_macro_events(events: list[dict], max_events: int) -> list[dict]:
 
 
 # ── NYSE holiday / trading-day helpers (canonical source: newsstack_fmp._market_cal)
-from newsstack_fmp._market_cal import (  # noqa: E402 -- canonical NYSE trading-day helpers, imported after local fallback definitions to override
+from newsstack_fmp._market_cal import (
     is_us_equity_trading_day as _is_us_equity_trading_day,
+)
+from newsstack_fmp._market_cal import (
     prev_trading_day as _prev_trading_day,
-    us_equity_market_holidays as _us_equity_market_holidays,
 )
 
 

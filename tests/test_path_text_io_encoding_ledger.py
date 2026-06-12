@@ -64,7 +64,7 @@ _FROZEN_SITES: dict[str, frozenset[int]] = {
     "scripts/fvg_session_artifact_diagnosis.py": frozenset({36}),
     "scripts/investigate_universe_delta.py": frozenset({28}),
     "scripts/run_smc_e2e_smoke_test.py": frozenset({56, 100, 136}),
-    "streamlit_terminal.py": frozenset({1619}),
+    "streamlit_terminal.py": frozenset({1621}),
 }
 _FROZEN_TOTAL = sum(len(v) for v in _FROZEN_SITES.values())
 

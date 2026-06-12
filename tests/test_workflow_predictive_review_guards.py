@@ -4,7 +4,6 @@ from pathlib import Path
 
 from scripts import restore_databento_export_bundle as restore_bundle
 
-
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _WORKFLOWS = _REPO_ROOT / ".github" / "workflows"
 

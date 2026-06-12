@@ -193,7 +193,8 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # 2026-06-11 (eval-findings D7): import block +8, enrichment +15
     # (5876→5899); vix9d D5 fetch+stamp +19 → 5918.
     # 2026-06-11 (Copilot sweep #2688): VIX9D fail-closed guard +5 → 5923.
-    ("open_prep/run_open_prep.py", 5923),
+    # 2026-06-12 (merge #2713 into #2696): +1 net → 5924.
+    ("open_prep/run_open_prep.py", 5924),
     # WP-H (PR #2612): 35 -> 37, VIX import + helper block added above.
     ("smc_tv_bridge/smc_api.py", 37),
 })

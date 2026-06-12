@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Compute Co-Firing matrix + pairwise Cramér's V on 1D corpus."""
-import json, math, glob
-from collections import defaultdict, Counter
+import json
+import math
+from collections import Counter, defaultdict
 from itertools import combinations
 from pathlib import Path
 

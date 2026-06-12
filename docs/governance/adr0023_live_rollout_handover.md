@@ -7,11 +7,13 @@
 > of it has to be re-derived from memory.
 >
 > **Status (2026-06-11).** §2 acceptance bar RESOLVED on real data. The
-> `magnitude_resolution_floor` check is wired into the promotion gate and the
-> Stage-1 ledger verdicts now feed the gate's snapshot fields daily (§5
-> item 2) — the gate remains **lax** (recorded, not enforced). No family is
-> sized on the move-size objective yet. Direction-Brier tier-2 gate stays in
-> force.
+> `magnitude_resolution_floor` check is wired into the promotion gate, the
+> Stage-1 ledger verdicts feed the gate's snapshot fields daily (§5 item 2),
+> and **Stage 2 is ARMED for BOS/SWEEP** via
+> `governance/magnitude_stage_policy.json` (fail-closed: an armed family with
+> an unmeasured magnitude is info-blocked even in lax mode; a measured FAIL
+> hard-blocks). No family is sized on the move-size objective yet (Stage 3
+> not started). Direction-Brier tier-2 gate stays in force.
 
 ---
 
@@ -24,8 +26,9 @@
 - The gate plumbing exists and is **safe-by-default**: where there is no
   measurement it does nothing (lax) or only logs an info note (strict). It can
   only ever *block*, never silently *enable* sizing.
-- Rollout is **3 staged steps**. We are at the start of **Stage 1 (shadow /
-  measure-only)**. Stages 2 and 3 are NOT started.
+- Rollout is **3 staged steps**. Stage 1 (shadow / measure-only) runs
+  continuously; **Stage 2 (strict magnitude) is armed for BOS/SWEEP** with
+  automated weekly k-of-n reporting and auto-demotion. Stage 3 is NOT started.
 - **All four families are monitored in Stage 1** — BOS/SWEEP as the candidates,
   FVG/OB as the negative-control group.
 
@@ -157,10 +160,13 @@ hard-blocks.
 
 ## 3. The staged rollout (authoritative)
 
-Three stages. **We are at the START of Stage 1.** Do NOT skip ahead — each
-stage has an explicit gate to the next.
+Three stages. **Stage 2 is armed for BOS/SWEEP** (see
+`governance/magnitude_stage_policy.json`); Stage-1 shadow monitoring keeps
+running for all four families. Do NOT skip ahead — each stage has an explicit
+gate to the next, and auto-demotion drops a family back when it falls below
+the bar.
 
-### Stage 1 — Shadow / measure-only (CURRENT)
+### Stage 1 — Shadow / measure-only (runs continuously)
 
 - The promotion pipeline **measures and records** `magnitude_auc` +
   `magnitude_resolution_pass` for **all four families** every run.
@@ -180,13 +186,24 @@ consecutive weekly evaluations (recommend k≥3 of n=4) AND FVG/OB stay below.
 This multi-window confirmation guards against the multiple-testing inflation of
 re-checking four families weekly.
 
-### Stage 2 — Arm strict mode for the qualified families only
+### Stage 2 — Arm strict mode for the qualified families only — IMPLEMENTED
 
 - Flip the qualified families (today: BOS, SWEEP) to **strict**, so a measured
   `False` hard-blocks their tier-2 `risk_sizeable` promotion.
 - FVG/OB remain measured-only (lax) — untouched.
 - Still **no change to sizing logic** — this only makes the floor *enforced*
   for the winners, so a later regression auto-demotes them.
+- **Mechanism (implemented):** the armed set lives in the checked-in policy
+  file `governance/magnitude_stage_policy.json` (SSOT module
+  `governance/magnitude_stage_policy.py`). `scripts/run_promotion_gate.py`
+  loads it at run time, feeds the latest shadow-ledger verdict into each
+  armed family's snapshot (`apply_magnitude_feed`), and passes the armed set
+  into `GateThresholds.magnitude_strict_families`. Arming is decoupled from
+  `strict_provenance`, so it can never co-trigger unrelated `provenance.*`
+  blockers (§5 item 4 — verified by tests in `tests/test_promotion_gate.py`).
+  Auto-demotion (§5 item 7) is enforced weekly by
+  `scripts/eval_magnitude_shadow_weekly.py --apply-demotions` via the
+  `adr0023-magnitude-stage1-weekly` workflow.
 
 **Exit criterion → Stage 3:** Stage 2 stable over multiple windows AND the §5
 E[PnL]-after-cost secondary check (below) passes for the qualified families.
@@ -227,8 +244,11 @@ measure-only because the gate stays lax in Stage 1.
    This grades **each** of BOS, SWEEP, FVG, OB against the §2 bar and appends
    one row per family to the ledger. Exit code: `0` if any family PASSES, `2` if
    measurable but none passes, `3` if every sample is too thin, `1` on
-   usage/config error. The only piece still TODO is the *scheduler* that runs
-   this daily and the report in §4.5.
+   usage/config error. The daily scheduler
+   (`.github/workflows/adr0023-magnitude-shadow-daily.yml`) and the weekly
+   report/scheduler (§4.5,
+   `.github/workflows/adr0023-magnitude-stage1-weekly.yml`) are both
+   implemented.
 3. **Per family, captured automatically:** `n_oos`, `magnitude_auc`,
    `auc_ci_low`, `baseline_resolution`, `perm_null_p95`, `perm_p`, `passes`
    (bool), `status` (PASS/FAIL/INCONCLUSIVE), `fail_reasons` (e.g. `auc_floor`,
@@ -266,6 +286,15 @@ Per family, a day is classified as:
 Daily PASS/FAIL is noisy; **decisions are made weekly**, not daily:
 - Compute, per family, the **k-of-n** streak over the trailing window
   (recommend n = last 4 weekly evaluations, k ≥ 3).
+- **Implemented ISO-week collapse** (`eval_magnitude_shadow_weekly.py`):
+  daily ledger rows are bucketed by ISO week; a week is **PASS** only with a
+  strict majority of measurable daily rows (tie or fail-majority ⇒ FAIL; no
+  measurable rows ⇒ INCONCLUSIVE). Calendar weeks without data still consume
+  a window slot as INCONCLUSIVE, and the window is anchored at the
+  ledger-wide latest date, so a stale family pads with INCONCLUSIVE rather
+  than shifting its window. `window_size` counts only measurable weeks — a
+  cold-start ledger with one week of daily rows is `window_size == 1`,
+  which can neither arm Stage 2 nor trigger auto-demotion.
 - **BOS/SWEEP healthy** = k-of-n PASS AND CI-low not trending toward 0.55.
 - **FVG/OB control healthy** = stays FAIL/below the bar (expected).
 - **Red flags to escalate (do NOT auto-advance):**
@@ -277,14 +306,16 @@ Daily PASS/FAIL is noisy; **decisions are made weekly**, not daily:
     candidate, but must itself satisfy k-of-n before promotion — the bar is
     unchanged.
 
-### 4.5 Stage 1 reporting
+### 4.5 Stage 1 reporting — IMPLEMENTED
 
-- A short weekly summary (can hang off the existing weekly dashboard —
+- A short weekly summary (`scripts/eval_magnitude_shadow_weekly.py`, scheduled
+  Mondays by `.github/workflows/adr0023-magnitude-stage1-weekly.yml`; see also
   [weekly_dashboard_readme.md](./weekly_dashboard_readme.md)) showing, per
   family: latest AUC, CI-low, pass/fail, k-of-n streak, and a sparkline of AUC
   over time.
-- Explicitly state the Stage-2 exit criterion status ("BOS 3/4 ✓, SWEEP 4/4 ✓,
-  FVG 0/4 (control), OB 0/4 (control) → eligible to arm Stage 2: BOS+SWEEP").
+- Explicitly states the Stage-2 exit criterion status
+  (`stage2_status_line()`: "BOS 3/4 ✓, SWEEP 4/4 ✓, FVG 0/4 (control), OB 0/4
+  (control) → eligible to arm Stage 2: BOS, SWEEP").
 
 ---
 
@@ -302,26 +333,34 @@ Daily PASS/FAIL is noisy; **decisions are made weekly**, not daily:
    produce ≥ 20 measurable fills before the §5 verdict can be recorded.
 
 2. **The pipeline step that fills the snapshot fields.**
-   *Status 2026-06-11: wired.* The Stage-1 runner
+   *Status 2026-06-11: wired, twice over.* The Stage-1 runner
    (`scripts/run_magnitude_shadow_ledger.py`) runs daily
    (`adr0023-magnitude-shadow-daily.yml`, 13:30 UTC Mon–Fri, ledger committed
-   back to the repo), and `scripts/build_promotion_gate_bundle.py` now folds
-   the latest candidate-family ledger row (BOS/SWEEP only — controls never
-   reach the gate) into the `magnitude_resolution_pass`/`magnitude_auc`
-   snapshot fields via `scripts/magnitude_snapshot_wiring.gate_snapshots`.
-   `promotion-gate-daily.yml` (14:00 UTC) passes `--magnitude-ledger`
-   explicitly. Fail-soft: a missing/empty ledger leaves the fields absent ⇒
-   gate dormant, exactly the pre-wiring behaviour. The gate stays **lax** in
-   Stage 1 — values are recorded in the decision metrics, not enforced.
+   back to the repo). Two complementary feeds consume it:
+   * `scripts/build_promotion_gate_bundle.py` folds the latest
+     candidate-family ledger row (BOS/SWEEP only — controls never reach the
+     gate) into the `magnitude_resolution_pass`/`magnitude_auc` snapshot
+     fields via `scripts/magnitude_snapshot_wiring.gate_snapshots`;
+     `promotion-gate-daily.yml` (14:00 UTC) passes `--magnitude-ledger`
+     explicitly. Fail-soft: a missing/empty ledger leaves the fields absent ⇒
+     gate dormant, exactly the pre-wiring behaviour.
+   * `scripts/run_promotion_gate.py::apply_magnitude_feed` feeds the latest
+     ledger verdict into each **armed** family's `FamilyMetrics` snapshot as
+     a backstop (bundle-explicit values win; controls are never fed — their
+     by-design FAIL must not reach a gate they are not a promotion target
+     of). Unarmed families without a bundle value keep the dormant `None`
+     default.
 
 3. **Direction-Brier gate stays parallel.** The old tier-2 direction objective
    is NOT removed. Both objectives coexist; magnitude is additive. Don't delete
    the direction gate when arming magnitude.
 
-4. **Strict-vs-lax mode path** (`promotion_gate.py`, `t.strict_provenance`).
-   Stage 2 is literally "flip qualified families to strict for this check".
-   Understand `REQUIRED_PROVENANCE_KEYS` / ADR-0016 no-ML waiver interactions so
-   arming magnitude doesn't accidentally trip unrelated provenance info-blockers.
+4. **Strict-vs-lax mode path** (`promotion_gate.py`). — VERIFIED: Stage-2
+   arming uses the dedicated `GateThresholds.magnitude_strict_families` field,
+   NOT `t.strict_provenance`, so arming a family's magnitude floor cannot trip
+   `REQUIRED_PROVENANCE_KEYS` / ADR-0016 provenance blockers. Regression tests:
+   `test_arming_does_not_co_trigger_provenance_blockers_in_lax_mode`,
+   `test_arming_preserves_no_ml_waiver_in_strict_mode`.
 
 5. **`family_verdict.py` tier-2 `risk_sizeable` / `_CALIBRATION_CHECKS`.**
    `magnitude_resolution_floor` now participates here. Confirm the tier-2
@@ -332,9 +371,13 @@ Daily PASS/FAIL is noisy; **decisions are made weekly**, not daily:
    chance of a spurious pass. The k-of-n confirmation + the permutation-null
    already guard this; keep them. Do not lower k to rush a promotion.
 
-7. **Monitoring / drift (ongoing).** BOS/SWEEP pass *today*. Markets move.
-   Stage 1 monitoring must keep running even after Stage 3, so a family that
-   falls below the bar is auto-demoted from magnitude sizing.
+7. **Monitoring / drift (ongoing) — auto-demotion IMPLEMENTED.** BOS/SWEEP
+   pass *today*. Markets move. Stage 1 monitoring keeps running after arming:
+   the weekly workflow runs `eval_magnitude_shadow_weekly.py --apply-demotions`,
+   which removes an armed family that fails k-of-n over a full trailing window
+   from `governance/magnitude_stage_policy.json` (audit event in `history`) —
+   automatically taking it out of magnitude-strict gating and (future Stage 3)
+   magnitude sizing.
 
 8. **Adjacent recently-closed axes (context, do not reopen without cause):**
    - **ADR-0020 options-flow** — corrected to a clean NULL on fairly-tested

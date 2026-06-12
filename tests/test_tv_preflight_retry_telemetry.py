@@ -18,7 +18,6 @@ from pathlib import Path
 
 import pytest
 
-
 WORKFLOW = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "smc-library-refresh.yml"
 
 

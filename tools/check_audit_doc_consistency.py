@@ -28,9 +28,8 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator
-
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _DOCS_DIR = _REPO_ROOT / "docs"

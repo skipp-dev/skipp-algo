@@ -27,11 +27,11 @@ from databento_volatility_screener import (
     SymbolDayState,
     _augment_watchlist_result_with_intraday_context,
     _build_focus_window_coverage_series,
-    _cached_frame_coverage,
     _build_open_pattern_status_series,
     _build_tradingview_watchlist_text,
     _build_watchlist_snapshot_panel_frames,
     _build_watchlist_table_style_frame,
+    _cached_frame_coverage,
     _clamp_request_end,
     _coerce_timestamp_frame,
     _collapse_duplicate_symbol_seconds,
@@ -475,7 +475,7 @@ def test_import_databento_closes_new_idle_event_loops(monkeypatch) -> None:
     fake_module = types.SimpleNamespace(Historical=object)
     original_import = __import__
 
-    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):  # noqa: A002 - mirrors __import__ signature
+    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
         if name == "databento":
             sys.modules[name] = fake_module
             return fake_module

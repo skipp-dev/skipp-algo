@@ -23,9 +23,9 @@ Signal classification follows standard thresholds:
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
-import hashlib
 import threading
 import time
 from typing import Any

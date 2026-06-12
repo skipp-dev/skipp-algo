@@ -67,7 +67,7 @@ class ExecutionEnv(_EnvBase):
     cfg: EnvConfig = field(default_factory=EnvConfig)
     slippage: AlmgrenChrissCalibrator | None = None
 
-    metadata = {"render_modes": []}
+    metadata = {"render_modes": []}  # noqa: RUF012
 
     def __post_init__(self) -> None:
         super_init = getattr(super(), "__init__", None)

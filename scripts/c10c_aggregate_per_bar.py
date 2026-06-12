@@ -23,7 +23,6 @@ the latest one wins (events are read in JSONL order).
 from __future__ import annotations
 
 import contextlib
-import glob
 import json
 import os
 import tempfile

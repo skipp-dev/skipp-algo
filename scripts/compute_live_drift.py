@@ -52,6 +52,7 @@ except ImportError:  # script-style invocation: `python scripts/X.py`
 
 
 import argparse
+import contextlib
 import json
 import math
 import os
@@ -64,7 +65,6 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-import contextlib
 
 # Drift verdict bands (multiplicative live/backtest Sharpe ratio)
 _VERDICT_BANDS: tuple[tuple[float, str], ...] = (

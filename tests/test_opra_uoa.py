@@ -13,7 +13,6 @@ from newsstack_fmp.opra_uoa import (
     detect_unusual_options_activity,
 )
 
-
 # ── Helpers ────────────────────────────────────────────────────────────
 
 

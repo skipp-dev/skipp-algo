@@ -1,13 +1,13 @@
 """Shared TypedDicts for the governance package."""
 from __future__ import annotations
 
-from typing import Literal, TypedDict, Union
+from typing import Literal, TypedDict
 
 EventFamily = Literal["BOS", "OB", "FVG", "SWEEP"]
 Posture = Literal["green", "yellow", "orange", "red"]
 BlockerSeverity = Literal["info", "warning", "blocker"]
 
-ProvenanceValue = Union[str, int, float, bool]
+ProvenanceValue = str | int | float | bool
 
 # F-008 (2026-05-18): closed inventory of check names that
 # ``PromotionGate.evaluate()`` may emit on a Blocker. Dashboard / report
