@@ -38,6 +38,7 @@ import json
 import os
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
@@ -425,7 +426,8 @@ def probe_databento_delivery(
         )
 
     token = base64.b64encode(f"{key.strip()}:".encode()).decode("ascii")
-    url = f"https://hist.databento.com/v0/metadata.get_dataset_range?dataset={dataset}"
+    query = urllib.parse.urlencode({"dataset": dataset})
+    url = f"https://hist.databento.com/v0/metadata.get_dataset_range?{query}"
     req = urllib.request.Request(
         url,
         headers={
