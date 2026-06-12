@@ -33,7 +33,8 @@ def _run_open_prep(repo_root: Path, python_exe: str) -> None:
     # for monitor/CLI dashboards) and wrote the final JSON into an inode
     # already orphaned by os.replace. stdout therefore goes to a tmp file;
     # the target is only replaced after a successful run.
-    tmp_file = out_file.with_name(out_file.name + ".stdout.tmp")
+    # PID suffix avoids clobbering when two suite runs overlap accidentally.
+    tmp_file = out_file.with_name(f"{out_file.stem}.stdout.{os.getpid()}.tmp")
     try:
         with tmp_file.open("w", encoding="utf-8") as fh:
             subprocess.run(
