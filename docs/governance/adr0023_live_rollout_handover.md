@@ -268,8 +268,13 @@ EV=~/.local/share/skipp/vpin_followup/events_v3_abs_opra.json
 PYTHONPATH=. .venv/bin/python scripts/run_magnitude_shadow_ledger.py "$EV" \
   --seed 230022
 git add artifacts/governance/magnitude_resolution_shadow.jsonl
-git commit -m "chore(adr0023): weekly Stage-1 shadow ledger feed"
+git diff --cached --quiet \
+  || git commit -m "chore(adr0023): weekly Stage-1 shadow ledger feed"
 ```
+
+(The `git diff --cached --quiet ||` guard keeps the routine copy-paste safe:
+on an idempotent re-run or an all-thin week the ledger may be byte-identical,
+and a bare `git commit` would abort with "nothing to commit".)
 
 Cadence and evidence-honesty rules:
 
@@ -281,6 +286,21 @@ Cadence and evidence-honesty rules:
   NOT deduplicate `events_hash` across weeks, so this discipline is on the
   operator. If the export did not change since the previous feed, **skip the
   week** (the slot becomes INCONCLUSIVE, which is the honest verdict).
+- **Concrete check** — compare the refreshed export's content hash against the
+  last ledger row before feeding:
+
+  ```bash
+  PYTHONPATH=. .venv/bin/python - "$EV" <<'EOF'
+  import json, sys
+  from scripts.run_magnitude_shadow_ledger import _load_events, events_content_hash
+  new = events_content_hash(_load_events(sys.argv[1]))
+  last = json.loads(
+      open("artifacts/governance/magnitude_resolution_shadow.jsonl").readlines()[-1]
+  )["events_hash"]
+  print(f"export hash {new}  vs  last ledger row {last}")
+  print("UNCHANGED — skip this week" if new == last else "changed — OK to feed")
+  EOF
+  ```
 - The ledger's own idempotency only covers same `(date, family, events_hash)`
   re-runs; it does not protect against cross-week snapshot reuse.
 
