@@ -8,12 +8,12 @@ lines are dropped silently. Pure stdlib.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import sys
 import tempfile
 from pathlib import Path
-import contextlib
 
 
 def prune(lines: list[str], *, keep: int) -> list[str]:

@@ -28,6 +28,10 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo as _ZoneInfo
 
+from smc_core._pytest_canonical_write_guard import (
+    guard_against_canonical_repo_write_under_pytest,
+)
+
 _ET = _ZoneInfo("America/New_York")
 
 logger = logging.getLogger("open_prep.outcome_backfill")
@@ -103,6 +107,11 @@ def _load_outcome_file(run_date: date) -> tuple[Path, list[dict[str, Any]]]:
 
 def _save_outcome_file(path: Path, records: list[dict[str, Any]]) -> None:
     """Atomically overwrite an outcome JSON file."""
+    guard_against_canonical_repo_write_under_pytest(
+        path.parent,
+        canonical_relative_paths=("artifacts/open_prep/outcomes",),
+        caller="_save_outcome_file",
+    )
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_path = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
     try:
@@ -369,7 +378,19 @@ def backfill_outcomes(
         if bars_df is DATA_NOT_YET_PUBLISHED:
             # Transient: the day's bars are not published yet. Leave the
             # records unresolved so the next scheduled run retries them.
+            # Still account for the rest of the file so the summary stays
+            # accurate (Copilot finding on #2677): already-resolved rows
+            # count as skipped, structurally-invalid unresolved rows
+            # (missing symbol) as failed.
             total_deferred += len(pending_symbols)
+            total_skipped += sum(
+                1 for r in records if r.get("profitable_30m") is not None
+            )
+            total_failed += sum(
+                1
+                for r in records
+                if r.get("profitable_30m") is None and not r.get("symbol")
+            )
             continue
 
         updated = False

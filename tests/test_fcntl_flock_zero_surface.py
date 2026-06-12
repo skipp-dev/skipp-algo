@@ -135,10 +135,10 @@ FCNTL_FLOCK_ALLOWED: set[tuple[str, int]] = {
     ("open_prep/watchlist.py", 41),  # LOCK_EX
     ("open_prep/watchlist.py", 44),  # LOCK_UN
     # IBKR client-id registry lease lock (guarded; random fallback on no fcntl).
-    ("scripts/ib_client_id.py", 138),  # LOCK_EX | LOCK_NB
-    ("scripts/ib_client_id.py", 182),  # LOCK_UN
-    ("scripts/ib_client_id.py", 203),  # LOCK_EX | LOCK_NB
-    ("scripts/ib_client_id.py", 215),  # LOCK_UN
+    ("scripts/ib_client_id.py", 151),  # LOCK_EX | LOCK_NB
+    ("scripts/ib_client_id.py", 195),  # LOCK_UN
+    ("scripts/ib_client_id.py", 215),  # LOCK_EX | LOCK_NB
+    ("scripts/ib_client_id.py", 227),  # LOCK_UN
 }
 
 

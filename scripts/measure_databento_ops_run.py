@@ -20,7 +20,7 @@ if str(REPO_ROOT) not in sys.path:
 # Bug-Hunt 2026-05-01 F-01: deferred so the script also works when
 # invoked as `python scripts/X.py` (no PYTHONPATH=.) — sys.path.insert
 # above must happen before any first-party `from scripts.` import.
-from scripts.smc_atomic_write import atomic_write_text  # noqa: E402
+from scripts.smc_atomic_write import atomic_write_text
 
 
 def _iso_now() -> str:
@@ -139,7 +139,7 @@ print(json.dumps({
     'output_checks': result['output_checks'],
 }, ensure_ascii=True, default=str))
 """.strip()
-    completed = subprocess.run(  # noqa: S603 -- sys.executable -c with hardcoded runner script (no shell, no user input)
+    completed = subprocess.run(
         [sys.executable, "-c", runner, str(REPO_ROOT), json.dumps(payload, ensure_ascii=True)],
         capture_output=True,
         text=True,

@@ -36,8 +36,9 @@ import datetime as dt
 import fnmatch
 import json
 import sys
+from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any
 
 # Bootstrap sys.path BEFORE any first-party import so that script-style
 # invocation (`python scripts/databento_production_merge_shards.py`) can
@@ -47,7 +48,7 @@ _REPO_ROOT = str(Path(__file__).resolve().parents[1])
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
-from scripts.smc_atomic_write import atomic_write_json  # noqa: E402
+from scripts.smc_atomic_write import atomic_write_json
 
 _LOG_PREFIX = "[merge-shards] "
 
@@ -211,7 +212,7 @@ def _merge_field_set(
     """
     if not shards:
         return {}
-    all_keys: list[str] = sorted({k for s in shards for k in s.keys()})
+    all_keys: list[str] = sorted({k for s in shards for k in s})
     out: dict[str, Any] = {}
     for key in all_keys:
         present_pairs = [(sid, s) for sid, s in zip(shard_ids, shards) if key in s]
@@ -494,7 +495,7 @@ def merge_shard_payloads(
     Heavy deps (``pandas``, parquet engine) are imported lazily so the
     manifest-only merge path stays import-cheap.
     """
-    import pandas as pd  # noqa: PLC0415
+    import pandas as pd
 
     output_dir.mkdir(parents=True, exist_ok=True)
     by_frame = _discover_shard_parquets(manifest_paths)
@@ -623,7 +624,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.payload_output_dir,
                 merged_basename=MERGED_BASENAME,
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             print(
                 f"ERROR: payload merge failed: {exc}",
                 file=sys.stderr,

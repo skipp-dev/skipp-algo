@@ -49,20 +49,20 @@ from __future__ import annotations
 # late-bootstrap, flagging the early bootstrap import as out-of-order.
 import os as _bootstrap_os
 import sys as _bootstrap_sys_mod
-sys = _bootstrap_sys_mod  # noqa: E402  - bind name `sys` so the AST chain `sys.path.insert` below is detected by the import-order linter
+
+sys = _bootstrap_sys_mod
 
 _BOOTSTRAP_ROOT = _bootstrap_os.path.dirname(_bootstrap_os.path.dirname(_bootstrap_os.path.abspath(__file__)))
 if _BOOTSTRAP_ROOT not in sys.path:
     sys.path.insert(0, _BOOTSTRAP_ROOT)
-
-from scripts._logging_init import init_cli_logging  # noqa: E402
-
 
 import argparse
 import json
 import sys
 from pathlib import Path
 from typing import Any
+
+from scripts._logging_init import init_cli_logging
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -71,7 +71,7 @@ if str(REPO_ROOT) not in sys.path:
 # Bug-Hunt 2026-05-01 F-01: deferred so the script also works when
 # invoked as `python scripts/X.py` (no PYTHONPATH=.) — sys.path.insert
 # above must happen before any first-party `from scripts.` import.
-from scripts.smc_atomic_write import atomic_write_text  # noqa: E402
+from scripts.smc_atomic_write import atomic_write_text
 
 DEFAULT_REFERENCE = REPO_ROOT / "tests" / "fixtures" / "e2e_smoke_reference.json"
 

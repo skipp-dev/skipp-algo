@@ -98,9 +98,12 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-11 (eval-findings B1/B2): direction+triple-barrier code in
     # compute_pnl_from_bars + backfill loop shifted 589→668.
     # 2026-06-11 (c10b FI component persistence): era-gate block 668→690.
-    ("open_prep/outcome_backfill.py", 116, "unlink"),
-    ("open_prep/outcome_backfill.py", 690, "unlink"),
-    ("open_prep/outcomes.py", 147, "unlink"),
+    # 2026-06-11 (Copilot sweep #2677): deferred-summary accounting 690→702.
+    # 2026-06-12 (pytest write-guard merge): guard import/call + sweep
+    # combined — measured 125/711; outcomes.py guard shift → 161.
+    ("open_prep/outcome_backfill.py", 125, "unlink"),
+    ("open_prep/outcome_backfill.py", 711, "unlink"),
+    ("open_prep/outcomes.py", 161, "unlink"),
     # 2026-06-11 (trend-state features): 431→449, snapshot keys +
     # FEATURE_KEYS/PASS_THROUGH block added above.
     # 2026-06-11 (eval-findings B5/B1): gap-playbook report +
@@ -109,7 +112,9 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # (537→543).
     # 2026-06-11 (c10b FI component persistence): _component_fields helper
     # + component flattening shifted 543→567.
-    ("open_prep/outcomes.py", 567, "unlink"),
+    # 2026-06-12 (backlog-resilience): non-list warning in
+    # _load_outcomes_range +6 → 587.
+    ("open_prep/outcomes.py", 587, "unlink"),
     ("open_prep/realtime_signals.py", 124, "remove"),
     ("open_prep/realtime_signals.py", 2543, "unlink"),
     ("open_prep/realtime_signals.py", 2582, "unlink"),
@@ -118,15 +123,18 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # real-ADX/BBW block added +15 more after L5491.
     # 2026-06-11 (vix9d D5): VIX9D fetch (+17) + ratio stamping (+4)
     # shifted 5491→5506, 5765→5784.
-    ("open_prep/run_open_prep.py", 2225, "unlink"),
+    ("open_prep/run_open_prep.py", 2226, "unlink"),
     # 2026-06-10 (#2670 W2/W4): regime_source + premarket source-disclosure
     # edits shifted the later unlink sites (+20/+20/+20/+25).
-    ("open_prep/run_open_prep.py", 3039, "unlink"),
-    ("open_prep/run_open_prep.py", 3375, "unlink"),
-    ("open_prep/run_open_prep.py", 5506, "unlink"),
+    ("open_prep/run_open_prep.py", 3040, "unlink"),
+    ("open_prep/run_open_prep.py", 3376, "unlink"),
+    # 2026-06-11 (Copilot sweep #2688): VIX9D fail-closed guard +5;
+    # 2026-06-12 (merge #2713 into #2696): net +1 → 5512/5790.
+    ("open_prep/run_open_prep.py", 5512, "unlink"),
     # 2026-06-11 (trend-state features): 5731→5742, enrichment-loop
     # stamping + lookback comment added above; eval-findings 5742→5765.
-    ("open_prep/run_open_prep.py", 5784, "unlink"),
+    # 2026-06-12 (backlog-resilience): fail-loud outcome storage +9 → 5799.
+    ("open_prep/run_open_prep.py", 5799, "unlink"),
     ("open_prep/scorer.py", 149, "unlink"),
     ("open_prep/watchlist.py", 74, "unlink"),
     ("smc_core/benchmark.py", 39, "unlink"),
@@ -136,7 +144,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     ("smc_integration/batch.py", 35, "unlink"),
     ("smc_integration/provider_health.py", 69, "unlink"),
     ("smc_integration/structure_batch.py", 39, "unlink"),
-    ("streamlit_terminal.py", 2262, "unlink"),
+    ("streamlit_terminal.py", 2264, "unlink"),
     ("terminal_export.py", 186, "unlink"),
     ("terminal_export.py", 236, "unlink"),
     ("terminal_export.py", 618, "unlink"),

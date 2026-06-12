@@ -185,13 +185,19 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # 2026-06-11 (backfill defer-unpublished): 418→457.
     # 2026-06-11 (eval-findings B1/B2): direction+TB code shifted 457→536.
     # 2026-06-11 (c10b FI component persistence): era-gate block 536→558.
-    ("open_prep/outcome_backfill.py", 558),
+    # 2026-06-11 (Copilot sweep #2677): deferred-summary accounting 558→570.
+    # 2026-06-12 (pytest write-guard merge): guard import/call + sweep
+    # combined — measured 579.
+    ("open_prep/outcome_backfill.py", 579),
     ("open_prep/realtime_signals.py", 2662),
     # 2026-06-10 (#2670 W2/W4): source-disclosure edits shifted +25 (5840→5865).
     # 2026-06-11 (trend-state features): 5865→5876, enrichment-loop stamping.
     # 2026-06-11 (eval-findings D7): import block +8, enrichment +15
     # (5876→5899); vix9d D5 fetch+stamp +19 → 5918.
-    ("open_prep/run_open_prep.py", 5918),
+    # 2026-06-11 (Copilot sweep #2688): VIX9D fail-closed guard +5 → 5923.
+    # 2026-06-12 (merge #2713 into #2696): +1 net → 5924.
+    # 2026-06-12 (backlog-resilience): fail-loud outcome storage +18 → 5942.
+    ("open_prep/run_open_prep.py", 5942),
     # WP-H (PR #2612): 35 -> 37, VIX import + helper block added above.
     ("smc_tv_bridge/smc_api.py", 37),
 })

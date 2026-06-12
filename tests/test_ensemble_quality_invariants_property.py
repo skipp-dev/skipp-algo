@@ -220,7 +220,7 @@ def test_vol_regime_component_unknown_label_treated_as_neutral_base() -> None:
 @pytest.mark.parametrize("seed", (0, 1, 7, 13))
 def test_vol_regime_component_value_in_unit_interval(seed: int) -> None:
     rng = random.Random(seed)
-    labels = list(_VOL_REGIME_BASE_SCORES.keys()) + ["UNKNOWN_X"]
+    labels = [*_VOL_REGIME_BASE_SCORES.keys(), "UNKNOWN_X"]
     for _ in range(25):
         label = rng.choice(labels)
         value, _ = _vol_regime_component(label, rng.uniform(-2.0, 2.0))
@@ -518,7 +518,7 @@ def test_build_ensemble_quality_property_random_inputs(seed: int) -> None:
             heuristic_quality=rng.uniform(-0.5, 1.5),
             bias_direction=rng.choice(["BULLISH", "BEARISH", "NEUTRAL", None]),
             bias_confidence=rng.uniform(-0.5, 1.5),
-            vol_regime_label=rng.choice(list(_VOL_REGIME_BASE_SCORES) + [None]),
+            vol_regime_label=rng.choice([*_VOL_REGIME_BASE_SCORES, None]),
             vol_regime_confidence=rng.uniform(-0.5, 1.5),
         )
         assert 0.0 <= result.score <= 1.0

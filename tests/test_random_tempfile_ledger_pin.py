@@ -44,7 +44,7 @@ _RANDOM_LEDGER: frozenset[tuple[str, int]] = frozenset({
     ("newsstack_fmp/_bz_http.py", 35),  # retry-jitter; non-security
     # ADR-0023 magnitude-resolution gate: seeded RNG for the bootstrap-CI /
     # permutation-null estimators (deterministic, reproducible); non-security.
-    ("governance/magnitude_resolution_gate.py", 205),
+    ("governance/magnitude_resolution_gate.py", 204),
     # ADR-0023 §5 E[PnL]-after-cost gate: seeded RNG for the bootstrap-CI of
     # the sized/equal-weight PnL estimators (deterministic); non-security.
     ("governance/epnl_after_cost.py", 194),
@@ -72,7 +72,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # block above the helper which shifted the site further: 489 → 597.
     # 2026-06-10 (#2670 W9): timestamp_substitutions disclosure shifted +5
     # (597 -> 602).
-    ("databento_volatility_screener.py", 602, "mkstemp"),
+    ("databento_volatility_screener.py", 603, "mkstemp"),
     ("governance/alpha_ledger.py", 70, "mkstemp"),
     ("newsstack_fmp/open_prep_export.py", 25, "mkstemp"),
     ("open_prep/alerts.py", 68, "mkstemp"),
@@ -80,18 +80,23 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     ("open_prep/diff.py", 57, "mkstemp"),
     ("open_prep/feature_importance_report.py", 249, "mkstemp"),
     # 2026-06-11 (backfill defer-unpublished): 88→107, 531→581.
-    ("open_prep/outcome_backfill.py", 107, "mkstemp"),
+    ("open_prep/outcome_backfill.py", 116, "mkstemp"),
     # 2026-06-11 (eval-findings B1/B2): direction+TB code shifted 581→660.
     # 2026-06-11 (c10b FI component persistence): era-gate block 660→682.
-    ("open_prep/outcome_backfill.py", 682, "mkstemp"),
-    ("open_prep/outcomes.py", 138, "mkstemp"),
+    # 2026-06-11 (Copilot sweep #2677): deferred-summary accounting 682→694.
+    # 2026-06-12 (pytest write-guard merge): guard import/call + sweep
+    # combined — measured 703; outcomes.py guard shift → 152.
+    ("open_prep/outcome_backfill.py", 703, "mkstemp"),
+    ("open_prep/outcomes.py", 152, "mkstemp"),
     # 2026-06-11 (trend-state features): 419→437, snapshot keys +
     # FEATURE_KEYS/PASS_THROUGH block added above.
     # 2026-06-11 (eval-findings B5/B1): gap-playbook report + direction
     # helpers + snapshot fields shifted 437→525; vix9d D5 → 531.
     # 2026-06-11 (c10b FI component persistence): _component_fields helper
     # + component flattening shifted 531→555.
-    ("open_prep/outcomes.py", 555, "mkstemp"),
+    # 2026-06-12 (backlog-resilience): non-list warning in
+    # _load_outcomes_range +6 → 575.
+    ("open_prep/outcomes.py", 575, "mkstemp"),
     ("open_prep/realtime_signals.py", 116, "mkstemp"),
     ("open_prep/realtime_signals.py", 2528, "mkstemp"),
     ("open_prep/realtime_signals.py", 2569, "mkstemp"),
@@ -104,7 +109,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     ("smc_integration/batch.py", 26, "mkstemp"),
     ("smc_integration/provider_health.py", 60, "mkstemp"),
     ("smc_integration/structure_batch.py", 30, "mkstemp"),
-    ("streamlit_terminal.py", 2253, "mkstemp"),
+    ("streamlit_terminal.py", 2255, "mkstemp"),
     ("terminal_export.py", 177, "mkstemp"),
     ("terminal_export.py", 229, "mkstemp"),
     ("terminal_export.py", 606, "mkstemp"),

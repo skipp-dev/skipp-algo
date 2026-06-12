@@ -175,6 +175,14 @@ jobs:
             echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
           fi
 
+      # Guard: ruff must pass clean (exit 0) on every PR. ruff comes from the
+      # venv just installed above (pinned in requirements.txt — single source
+      # of truth for the version; no separate uvx pin that could drift).
+      # Configuration lives in pyproject.toml [tool.ruff] / [tool.ruff.lint].
+      - name: Ruff lint
+        if: steps.gate.outputs.run_heavy == 'true'
+        run: ruff check .
+
       - name: Run fast provider and smoke health checks
         if: steps.gate.outputs.run_heavy == 'true'
         run: |

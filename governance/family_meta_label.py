@@ -42,7 +42,8 @@ Nothing here calibrates, scores, or gates production.
 from __future__ import annotations
 
 import math
-from typing import Any, Literal, Mapping, TypedDict
+from collections.abc import Mapping
+from typing import Any, Literal, TypedDict
 
 from governance.family_calibration import (
     MIN_OOS_SAMPLES,
@@ -83,7 +84,7 @@ class _MultiLogisticModel:
     rejecting the whole fit, so one constant feature never kills the joint model.
     """
 
-    __slots__ = ("weights", "bias", "means", "stds")
+    __slots__ = ("bias", "means", "stds", "weights")
 
     def __init__(
         self,
@@ -307,7 +308,7 @@ def walk_forward_meta_ab(
 
         base_model = _fit_logistic_1d([s[i] for i in train_idx], train_y)
         cand_model = _fit_multi_logistic(
-            [[s[i]] + list(fm[i]) for i in train_idx], train_y
+            [[s[i], *fm[i]] for i in train_idx], train_y
         )
         # Pairing guard: a fold contributes only if BOTH arms fit, so deltas are
         # never confounded by a differing fold sample between arms.
@@ -316,7 +317,7 @@ def walk_forward_meta_ab(
 
         base_probs.extend(_predict_multi(base_model, [[s[i]] for i in val_idx]))
         cand_probs.extend(
-            _predict_multi(cand_model, [[s[i]] + list(fm[i]) for i in val_idx])
+            _predict_multi(cand_model, [[s[i], *fm[i]] for i in val_idx])
         )
         oos_outcomes.extend(val_y)
 

@@ -30,13 +30,13 @@ truncate the history.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import sys
 import tempfile
 from pathlib import Path
 from typing import Any
-import contextlib
 
 DEFAULT_MAX_LEN = 30
 DEFAULT_METRIC = "calibrated_brier"

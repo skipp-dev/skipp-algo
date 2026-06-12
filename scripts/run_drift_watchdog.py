@@ -52,6 +52,7 @@ except ImportError:  # script-style invocation: `python scripts/X.py`
 
 
 import argparse
+import contextlib
 import json
 import os
 import tempfile
@@ -60,7 +61,6 @@ from pathlib import Path
 from typing import Any
 
 from scripts.drift_alert import compute_drift_report
-import contextlib
 
 DEFAULT_OUTCOMES_DIR = Path("artifacts/open_prep/outcomes")
 DEFAULT_OUTPUT_DIR = Path("artifacts/drift")
@@ -266,7 +266,7 @@ def build_report(
         }
 
     # W3-1 (stat-review wave 3): an empty/corrupt baseline silences every
-    # detector (KS/PSI/mean-shift/var-ratio all return None when the
+    # detector (KS/PSI/Welch-t/Brown-Forsythe all return None when the
     # baseline sample is empty) → vacuous green.  Gate to yellow instead.
     n_baseline_trades = len(pairs.get("pnl_per_trade", ([], []))[0])
     if n_baseline_trades == 0:

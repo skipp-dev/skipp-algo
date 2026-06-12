@@ -29,8 +29,8 @@ from .diff import (
 )
 from .log_redaction import apply_global_log_redaction
 from .macro import (
-    FMPClient,
     FinnhubClient,
+    FMPClient,
     dedupe_events,
     filter_us_events,
     filter_us_high_impact_events,
@@ -47,11 +47,11 @@ from .outcomes import (
 )
 from .playbook import assign_playbooks
 from .regime import apply_regime_adjustments, classify_regime, reset_regime_state
-from .sentiment_fng import fetch_cnn_equity_fear_greed
 
 # --- v2 pipeline modules ---
 from .scorer import load_weight_set, rank_candidates_v2, save_weight_set
 from .screen import classify_long_gap, compute_gap_warn_flags, rank_candidates
+from .sentiment_fng import fetch_cnn_equity_fear_greed
 from .technical_analysis import (
     compute_adx_from_bars,
     compute_bb_width_pct_from_bars,
@@ -477,10 +477,11 @@ def _format_macro_events(events: list[dict], max_events: int) -> list[dict]:
 
 
 # ── NYSE holiday / trading-day helpers (canonical source: newsstack_fmp._market_cal)
-from newsstack_fmp._market_cal import (  # noqa: E402 -- canonical NYSE trading-day helpers, imported after local fallback definitions to override
+from newsstack_fmp._market_cal import (
     is_us_equity_trading_day as _is_us_equity_trading_day,
+)
+from newsstack_fmp._market_cal import (
     prev_trading_day as _prev_trading_day,
-    us_equity_market_holidays as _us_equity_market_holidays,
 )
 
 
@@ -5330,6 +5331,11 @@ def generate_open_prep_result(
     try:
         vix9d_quote = data_client.get_index_quote("^VIX9D")
         vix9d_level = _to_float(vix9d_quote.get("price"), default=0.0) or None
+        # Fail-closed on BOTH legs: a non-positive index level (bad feed
+        # data) must yield ratio=None, never a negative/nonsense ratio
+        # (Copilot finding on #2688).
+        if vix9d_level is not None and vix9d_level <= 0:
+            vix9d_level = None
         if vix9d_level is not None and vix_level is not None and vix_level > 0:
             vix9d_vix_ratio = round(vix9d_level / vix_level, 4)
         logger.info("VIX9D level: %s (ratio vs VIX: %s)", vix9d_level, vix9d_vix_ratio)
@@ -5672,12 +5678,18 @@ def generate_open_prep_result(
         logger.warning("Watchlist auto-add error: %s", type(exc).__name__, exc_info=True)
 
     # Store outcome snapshot for backward validation (profitable_30m backfilled later)
+    # Fail-loud: the daily workflow (run-open-prep-daily.yml) exists precisely
+    # for this artifact — a storage failure must not hide inside a green run.
+    # The error is recorded, the run completes (payload/snapshot stay usable)
+    # and main() exits the process non-zero afterwards.
+    outcome_storage_error: str | None = None
     try:
         _enrich_zone_priority(ranked_v2, regime_snapshot, news_scores)
         outcome_records = prepare_outcome_snapshot(ranked_v2, today)
         store_daily_outcomes(today, outcome_records)
     except Exception as exc:
-        logger.warning("Outcome storage error: %s", type(exc).__name__, exc_info=True)
+        outcome_storage_error = f"{type(exc).__name__}: {exc}"
+        logger.error("Outcome storage error: %s", type(exc).__name__, exc_info=True)
 
     # Save current snapshot for next run's diff
     try:
@@ -5760,6 +5772,9 @@ def generate_open_prep_result(
         data_capabilities_summary=data_capabilities_summary,
     )
     result["stage_timings"] = _stage_timings
+    # Additive key: None on success; otherwise "ExcType: message" — translated
+    # by main() into a non-zero exit (fail-loud for the daily workflow).
+    result["outcome_storage_error"] = outcome_storage_error
 
     # Persist latest result to JSON so CLI dashboards (vd_watch.sh) always
     # see fresh data — regardless of whether the caller is Streamlit or CLI.
@@ -5902,6 +5917,15 @@ def main() -> None:
     sys.stdout.write(rendered + "\n")
     # Note: latest_open_prep_run.json is already written inside
     # generate_open_prep_result() with default=str.  No second write needed.
+    if result.get("outcome_storage_error"):
+        # The payload is fully written (stdout + latest snapshot); now fail
+        # loudly so run-open-prep-daily.yml turns red when its primary
+        # purpose (outcomes_<date>.json) failed.
+        logger.error(
+            "Outcome storage failed — exiting non-zero: %s",
+            result["outcome_storage_error"],
+        )
+        sys.exit(1)
 
 
 if __name__ == "__main__":

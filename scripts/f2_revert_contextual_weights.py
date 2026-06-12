@@ -42,6 +42,7 @@ Exit codes
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime as _dt
 import json
 import os
@@ -49,7 +50,6 @@ import sys
 import tempfile
 from pathlib import Path
 from typing import Any
-import contextlib
 
 JOURNAL_DEFAULT = Path("artifacts/ci/f2/revert_journal.jsonl")
 ARCHIVE_SUBDIR_DEFAULT = "contextual_calibration.archive"

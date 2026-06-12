@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from typing import cast
 
 import numpy as np
+
 from ml.training import FamilyDataset
 from ml.types import EventFamily, TrainingReport
 

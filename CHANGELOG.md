@@ -6,6 +6,69 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-06-11) — C9/T7: Bauchgefühl-Detektoren → p-Wert-Tests (#298, struktureller Teil)
+
+Die Interim-Effektgrößen-Regeln der C9-Drift-Konsensus-Detektoren 3+4
+(Mean-Shift ≥ 0.3σ, Varianz-Ratio außerhalb [0.5, 2.0] — dokumentierte
+Bauchgefühl-Schwellen) sind durch Signifikanztests ersetzt, deren
+Feuerrate über ein Alpha-Level statt eines willkürlichen
+Effektgrößen-Cutoffs kontrolliert wird:
+
+- **`scripts/drift_alert.py`**: neu `welch_t_two_sample` (Detector 3 —
+  zweiseitiger Welch-t auf den Mittelwert) und
+  `brown_forsythe_two_sample` (Detector 4 — median-zentrierter Levene
+  auf die Skala; robust gegen Heavy Tails, anders als der plain
+  F-Ratio-Test). P-Werte über die regularisierte unvollständige
+  Beta-Funktion (pure stdlib, kein scipy; gegen scipy auf 1e-9
+  verifiziert). Alle drei p-Wert-Detektoren (KS/Welch-t/BF) teilen eine
+  Alpha-Leiter.
+- **Produktions-Default** in `compute_drift_report`: `p_red 0.01→0.005`,
+  `p_yellow 0.05→0.025` — Grid-Sieger auf BEIDEN synthetischen Bänken
+  (Gauss: TPR 0.80/FPR 0.03; gemischt t(4)+lognormal: TPR 0.90/FPR
+  0.07); der alte Default riss auf der gemischten Bank die
+  FPR<0.10-Akzeptanz (0.12), sobald Detektoren 3+4 p-Wert-Tests wurden.
+- **`scripts/c9_threshold_replay.py`**: `_episode_fires` nutzt dieselben
+  Tests; neues Provenance-Flag `CALIBRATION_SOURCE = "synthetic"`.
+- **Anker umgebaut** (`tests/test_c9_threshold_finalisation_anchor.py`):
+  feuert jetzt, wenn der C12-Trigger GREEN ist und `CALIBRATION_SOURCE`
+  noch `"synthetic"` lautet — der Live-Retune der Alpha-Leiter gegen
+  ≥ 90 Tage Live-Daten bleibt offen, Issue #298 bleibt dafür offen.
+- Doku: `docs/c9_threshold_tuning.md` mit Grid-Ergebnissen (2026-06-11)
+  und Live-Retune-Prozedur aktualisiert. Neue Tests in
+  `tests/test_drift_alert.py` (Welch-t/BF inkl. scipy-Referenzwerte,
+  Degenerate-Input-Guards, Heavy-Tail-Robustheit).
+### Fixed (2026-06-11) — Outcome-Ledger: pytest-Write-Guard gegen Testverschmutzung des kanonischen Artefakt-Baums
+
+Zwei Full-Pipeline-Tests in `tests/test_open_prep.py` riefen
+`generate_open_prep_result(..., now_utc=2026-02-23)` ohne Persistenz-Stub auf;
+`store_daily_outcomes` löste das relative `OUTCOMES_DIR` gegen das Repo-Root
+auf und überschrieb bei **jedem lokalen Testlauf** das getrackte Artefakt
+`artifacts/open_prep/outcomes/outcomes_2026-02-23.json`. Die Verschmutzung
+wurde zweimal nach main committet (#2687; erneut mit vix9d-Feldern nach
+#2688/#2692), und die Backfill-Automation (#1926) labelte den synthetischen
+NVDA-Datensatz als echten Trade — Kontamination der Hit-Rate-Statistik.
+
+- **`open_prep/outcomes.py`** (`store_daily_outcomes`) und
+  **`open_prep/outcome_backfill.py`** (`_save_outcome_file`): fail-loud
+  `guard_against_canonical_repo_write_under_pytest` (bestehendes Muster aus
+  `smc_core/_pytest_canonical_write_guard.py`, PR #33) — Schreibzugriffe auf
+  `artifacts/open_prep/outcomes/` unter pytest ⇒ `RuntimeError` statt
+  stiller Verschmutzung. Produktionspfad (kein `PYTEST_CURRENT_TEST`)
+  unverändert.
+- **`tests/test_open_prep.py`**: die beiden Verursacher-Tests stubben jetzt
+  `store_daily_outcomes` explizit.
+- **`artifacts/open_prep/outcomes/outcomes_2026-02-23.json` gelöscht**: von
+  Geburt an synthetisch (einzelne NVDA-Zeile mit `gap_pct=0.0`/`rvol=0.0`,
+  exakt die Mock-Fixture; erzeugt durch einen Testlauf, committet in
+  `6c0ced38`). Echte Outcome-Tage (2026-02-24 ff.) unangetastet.
+- Neue Tests: `tests/test_outcomes_pytest_write_guard.py` (Guard blockt
+  kanonischen Pfad, erlaubt `tmp_path`-Redirect; Tripwire gegen
+  Wiederauftauchen des synthetischen Artefakts).
+- Ledger-Rebaseline (Zeilenverschiebung durch Import + Guard-Aufrufe):
+  `tests/test_random_tempfile_ledger_pin.py`,
+  `tests/test_os_unlink_remove_ledger.py`,
+  `tests/test_mutable_defaults_and_loads_pins.py`.
+
 ### Fixed (2026-06-11) — Rolling benchmark: manifest workbook provenance (#2678 fallout)
 
 - **`scripts/export_smc_structure_artifacts_from_workbook.py`**: `--workbook`
@@ -21,6 +84,7 @@ All notable changes to this project are documented in this file.
   — the SAME canonical-first resolution the consumer check uses.
 - Tests: CLI default-None pin, forward-None-when-omitted, explicit-workbook
   passthrough (`tests/test_per_tf_structure_artifact_wiring.py`).
+
 ### Fixed (2026-06-11) — §5-Kostenmodell: Review-Findings aus #2697
 
 - **Fee-only-Legs zählen in den Round-Turn-Cost**
@@ -37,6 +101,54 @@ All notable changes to this project are documented in this file.
   Exit 1 mit klarer Meldung.
 - Test-Fixtures: synthetische `order_id`/`perm_id` über `zlib.crc32`
   statt `hash()` (PYTHONHASHSEED-unabhängig, keine Modulus-Kollisionen).
+
+### Fixed (2026-06-11) — Phase-B-Readiness-Workflow: Drift-Artifact-Download (C8 Phase A → B)
+
+`phase-b-promotion-readiness.yml` konnte strukturell nie erfolgreich laufen:
+Der Gate-Glob `artifacts/drift/drift_report_*.json` zeigte auf den frischen
+Checkout, aber die Drift-Artefakte mit dem Gate-Feld
+`slippage_ks_reference_type` werden von `compute_live_drift`
+(`c13-daily-cron.yml` Step 4) ausschließlich als **Run-Artefakt**
+(`c13-daily-<DATE>`, Pfad `cache/live/drift_<DATE>.json`) hochgeladen und nie
+ins Repo committet — jeder Dispatch wäre mit Exit 64 (`no files matched`)
+geendet. Deshalb hatte der Workflow seit Erstellung (Deep-Review 2026-04-27)
+null Läufe. (Das `drift-report`-Artefakt des drift-watchdog ist ein anderer
+Report-Typ ohne das Gate-Feld — empirisch verifiziert; das Gate darf nicht
+darauf zeigen.)
+
+- **`.github/workflows/phase-b-promotion-readiness.yml`**: neuer Step
+  `Fetch latest compute_live_drift artifact` scannt die letzten 10
+  erfolgreichen `c13-daily-cron`-Runs (Step 4 soft-skippt an Wochenenden
+  mangels Walk-Forward-Inputs) und kopiert das jüngste `drift_<DATE>.json`
+  als `artifacts/drift/drift_report_<DATE>.json` in den Checkout (Glob-Pin
+  des Contract-Tests bleibt gültig). Kein Treffer → Exit 2
+  (`EXIT_NOT_READY`). Skip, wenn der Caller-Glob bereits Dateien im Checkout
+  matcht (workflow_call-Pfad). `permissions` um `actions: read` erweitert
+  (weiterhin rein lesend).
+- **`tests/test_phase_b_promotion_readiness_workflow_contract.py`**:
+  Permissions-Pin auf `{contents: read, actions: read}` aktualisiert.
+
+### Added (2026-06-11) — CI: ruff als obligatorisches Lint-Gate in smc-fast-pr-gates
+
+`ruff check .` ist ab sofort ein Pflicht-Schritt im `fast-gates`-Job (blocks
+merge). Konfiguration lebt in `pyproject.toml [tool.ruff]`; das Gate läuft
+direkt nach dem PYTHONUNBUFFERED-Lint und schlägt bei jedem Code-Fehler fail.
+
+- Alle bestehenden Verletzungen (359 auto-fixbar + 85 manuell) bereinigt:
+  - `ruff check --fix` entfernte 278 auto-fixbare (unsortierte Imports, I001;
+    obsolete noqa-Direktiven, RUF100; trailing whitespace, W292; u.a.).
+  - Manuelle Korrekturen: SIM103/SIM115/SIM117/SIM118/RUF034/B007/F841/
+    RUF059/RUF005/RUF007/E741/E731/F401/UP007 in Tests, Scripts, Governance.
+  - Neue `per-file-ignores` für plan-gating Sonderfälle: E402 in open_prep/*,
+    E701/E702/E741/B007 in scripts/c10b_* (Analyse-Skripte mit kompaktem Stil),
+    S108 nur gezielt für c10b/c10c-Research-Skripte + Provenance-Scanner
+    (dokumentierte lokale /tmp-Korpora bzw. Regex-Pattern); S603/S607 nur für
+    eine explizite, grandfathered Dateiliste (neue Scripts bekommen volles
+    Subprocess-Linting),
+    F821 in streamlit_terminal.py (Forward-Referenz, Runtime korrekt), UP047 in
+    skipp_config/trading_thresholds.py.
+  - `ruff==0.15.16` zu `requirements.txt` hinzugefügt; `_DEP_LINE_BUDGET`
+    26 → 27.
 
 ### Fixed (2026-06-11) — ADR-0023: Weekly-k-of-n bewertete Tageszeilen statt ISO-Wochen
 
@@ -554,8 +666,6 @@ absent or the window's total count is zero). Recorded onto both zone and level
 family events via `family_event_adapter`; **RECORDED-ONLY** — it does not feed
 the v1 score or any gate. Pending its pre-registered purged walk-forward A/B
 verdict before any wiring is considered.
-
-
 
 The Lo & MacKinlay (1988) Variance Ratio `VR(2)` — the strongest close-only
 proxy for the *persistence / serial-dependence* axis — was evaluated as the next
@@ -1957,7 +2067,6 @@ PRs): `tests/test_workflow_continue_on_error_inventory.py` for
   for `terminal_databento.py` (124→130, 308→314) shifted by the
   helper-import + 5-line F-V4-E1 intent comment.
 
-
 Consolidated entry for the v3 provider-stack audit shipped 2026-04-30.
 The audit covers the following PRs (specific subset of #1951..#1969;
 PRs in that range not listed here are unrelated):
@@ -2272,7 +2381,6 @@ auth + mandatory `UW-CLIENT-API-ID: 100001` header):
   - `tests/test_random_tempfile_ledger_pin.py`: realtime_signals 2495/2536 → 2496/2537; databento_volatility_screener 298 → 299
   - `tests/test_silent_security_and_boundary_bundle.py`: realtime_signals 1061/2629 → 1062/2630
   No production change — pure ledger line-number drift fix.
-
 
 ### Tests / Quality (2026-04-25) — Defense ledger: built-in open() text-mode without encoding=
 
@@ -3772,7 +3880,6 @@ Drei Source-Edits (`terminal_newsapi.py` docstring,
 Audit-Item M-4 mit Retraction-Notiz: `resolve_pine_file()` deckt das
 Szenario bereits ab; Pin bleibt als regression guard.
 
-
 ### Tests / Quality (2026-04-24) — AST-Pin Triple: lru_cache / to_datetime utc / pytest-xdist parametrize Determinismus
 
 Drei reine Tripwire-Pins (kein Verhaltens-Risiko, AST-only) gegen
@@ -3871,7 +3978,6 @@ Adressiert die drei priorisierten Backlog-Items aus
 **Test footprint:** +7 neue Tests, alle grün. Zwei Source-Edits
 (`smc_ob_context_light.py` + `smc-library-refresh.yml`), beide
 audit-driven, beide mit Pin-Schutz gegen Regression.
-
 
 ### Tests / Quality (2026-04-24) — Audit-Followup Pins (workflow continue-on-error / raw write call sites / Pine legacy isolation / Pine active surface inventory)
 
@@ -8451,7 +8557,6 @@ vs. legacy "15m/1H". Cost: CI config only, benchmark runtime ~2x.
   SPRT/fixed-N stop rule per plan.
 
 ### Added (2026-04-20)
-
 
 - **Phase H — Pine Consumer Maturity:**
   - **Calibration Confidence Indicator** — new `[ Calibration Confidence ]` section in Dashboard Audit View (rows 23–25) showing top-family calibration weight with tier label (high/good/ok/low) and composite confidence across all 4 families. Zone Priority + Calibration exports (`ZONE_CAL_OB/FVG/BOS/SWEEP` + Phase F contextual variants) added to the live generated library.

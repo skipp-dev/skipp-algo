@@ -26,8 +26,7 @@ if str(REPO_ROOT) not in sys.path:
 # Bug-Hunt 2026-05-01 F-01: deferred so the script also works when
 # invoked as `python scripts/X.py` (no PYTHONPATH=.) — sys.path.insert
 # above must happen before any first-party `from scripts.` import.
-from scripts.smc_atomic_write import atomic_write_text  # noqa: E402
-
+from scripts.smc_atomic_write import atomic_write_text
 from smc_core.schema_version import SCHEMA_VERSION
 from smc_integration.release_policy import MeasurementShadowThresholds
 
@@ -164,7 +163,8 @@ class AggregateReport:
     brier_gate: str
     ece_gate: str
     overall_grade: str
-    warnings_total: int    # W4-1 (stat-review wave 4): n for pairs where hit_rate is NOT NaN —
+    warnings_total: int
+    # W4-1 (stat-review wave 4): n for pairs where hit_rate is NOT NaN —
     # the correct denominator for the SPRT test on avg_hit_rate.
     n_hit_rate_valid: int = 0
 

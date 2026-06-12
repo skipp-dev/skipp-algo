@@ -108,10 +108,12 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/alerts.py", 55),
         ("open_prep/diff.py", 79),
         # 2026-06-11 (backfill defer-unpublished): sentinel+helper block
-        # above shifted 61→80, 81→100.
-        ("open_prep/outcome_backfill.py", 80),
-        ("open_prep/outcome_backfill.py", 100),
-        ("open_prep/outcomes.py", 185),
+        # above shifted 61→80, 81→100; pytest write-guard import +4 → 84/104.
+        ("open_prep/outcome_backfill.py", 84),
+        ("open_prep/outcome_backfill.py", 104),
+        # 2026-06-11 (pytest write-guard): import + guard call in
+        # store_daily_outcomes shifted 185→199.
+        ("open_prep/outcomes.py", 199),
         ("open_prep/realtime_signals.py", 1483),
         ("open_prep/realtime_signals.py", 2606),
         ("open_prep/scorer.py", 122),
@@ -178,7 +180,7 @@ _FROZEN_ENV_SUBSCRIPT_SITES: frozenset[tuple[str, int]] = frozenset(
         # for the universe-version drift detector.
         # 2026-06-10 (#2670 W9): timestamp_substitutions disclosure shifted
         # +5 (1094→1099).
-        ("databento_volatility_screener.py", 1099),
+        ("databento_volatility_screener.py", 1100),
         ("open_prep/macro.py", 148),
         # R6 (2026-05-12): the FinnhubClient adapter shim used to save-set-restore
         # ``FINNHUB_API_KEY`` around each ``terminal_finnhub._get`` call. That

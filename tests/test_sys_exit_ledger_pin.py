@@ -10,7 +10,7 @@ Today: 9 sites, all in legitimate CLI dispatch / `__main__` guards:
 |---|---|---|
 | `open_prep/candidate_weights.py` | 241 | `if __name__ == "__main__": sys.exit(main())` |
 | `open_prep/feature_importance_report.py` | 358 | same |
-| `open_prep/outcome_backfill.py` | 697 | same |
+| `open_prep/outcome_backfill.py` | 706 | same |
 | `pine_input_surface.py` | 468, 470 | argparse `args.cmd` dispatch |
 | `test_usi_lint.py` | 94, 97 | top-level CLI script |
 
@@ -46,7 +46,14 @@ _SYS_EXIT_LEDGER: frozenset[tuple[str, int]] = frozenset({
     # 2026-06-11 (backfill defer-unpublished): 546→596.
     # 2026-06-11 (eval-findings B1/B2): direction+TB code shifted 596→675.
     # 2026-06-11 (c10b FI component persistence): era-gate block 675→697.
-    ("open_prep/outcome_backfill.py", 697),
+    # 2026-06-11 (Copilot sweep #2677): deferred-summary accounting 697→709.
+    # 2026-06-12 (pytest write-guard merge): guard import/call + sweep
+    # combined — measured 718.
+    ("open_prep/outcome_backfill.py", 718),
+    # 2026-06-12 (backlog-resilience): main() exits non-zero when
+    # store_daily_outcomes failed — the daily workflow's primary artifact
+    # (outcomes_<date>.json) must not fail silently green.
+    ("open_prep/run_open_prep.py", 5928),
     # 2026-06-02 (#2497): +68 lines after the `provenance` subcommand block
     # was inserted above the lint dispatch (was 400, 402).
     ("pine_input_surface.py", 468),
@@ -55,8 +62,8 @@ _SYS_EXIT_LEDGER: frozenset[tuple[str, int]] = frozenset({
     ("test_usi_lint.py", 97),
     # 2026-05-12 (#2171 audit-L-1 PR-D R12+R3): consistency-check CLI tools
     # exit non-zero on findings in --strict mode, 0 otherwise.
-    ("tools/check_audit_doc_consistency.py", 136),
-    ("tools/check_defaults_table.py", 250),
+    ("tools/check_audit_doc_consistency.py", 135),
+    ("tools/check_defaults_table.py", 249),
 })
 
 

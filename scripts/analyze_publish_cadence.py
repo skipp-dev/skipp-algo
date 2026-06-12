@@ -26,6 +26,7 @@ monitor.
 from __future__ import annotations
 
 import argparse
+import itertools
 import json
 import subprocess
 import sys
@@ -136,7 +137,7 @@ def analyze_path(
 
     max_gap = 0.0
     max_gap_pair: tuple[str, str] | None = None
-    for newer, older in zip(commits, commits[1:]):
+    for newer, older in itertools.pairwise(commits):
         gap = (newer[0] - older[0]).total_seconds() / 86400.0
         if gap > max_gap:
             max_gap = gap

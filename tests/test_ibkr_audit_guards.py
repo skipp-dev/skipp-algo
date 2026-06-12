@@ -188,8 +188,11 @@ def test_s4_non_paper_port_with_confirm_live_proceeds(tmp_path: Path) -> None:
         assert "confirm-live" not in str(exc), (
             f"confirm_live=True should suppress the port-check abort, got: {exc}"
         )
-    except Exception:
-        pass  # ConnectionRefused / ImportError etc. are expected in CI
+    except (ImportError, ConnectionError, OSError, TimeoutError, RuntimeError):
+        # Expected in CI: ib_async missing (ImportError) or no Gateway
+        # listening (ConnectionRefused/Timeout). Anything else — e.g.
+        # AttributeError/NameError — must FAIL the test.
+        pass
 
 
 def test_s4_paper_port_does_not_require_confirm_live(tmp_path: Path) -> None:
@@ -210,8 +213,10 @@ def test_s4_paper_port_does_not_require_confirm_live(tmp_path: Path) -> None:
         assert "confirm-live" not in str(exc), (
             f"Paper port 7497 must not trigger confirm-live abort: {exc}"
         )
-    except Exception:
-        pass  # connection failures expected in CI
+    except (ImportError, ConnectionError, OSError, TimeoutError, RuntimeError):
+        # Expected in CI: ib_async missing or no Gateway listening.
+        # Unexpected programming errors must FAIL the test.
+        pass
 
 
 # ---------------------------------------------------------------------------

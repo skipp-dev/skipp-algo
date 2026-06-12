@@ -93,7 +93,7 @@ def test_alias_set_is_frozen_at_four() -> None:
     # the intraday workbook fallback contract).
     from smc_integration.timeframes import _DAILY_ALIASES
 
-    assert _DAILY_ALIASES == frozenset({"1D", "D", "DAILY", "1DAY"})
+    assert frozenset({"1D", "D", "DAILY", "1DAY"}) == _DAILY_ALIASES
 
 
 def test_case_normalisation_via_upper() -> None:

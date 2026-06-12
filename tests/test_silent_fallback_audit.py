@@ -8,17 +8,15 @@ S4: TrustStateCause.attribution (exact vs worst_severity_heuristic)
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
 
 import pytest
 
 # ────────────────────────────────────────────────────────────────────
 # S1 — resolved_via provenance on structure contracts
 # ────────────────────────────────────────────────────────────────────
-
 from smc_integration.sources import structure_artifact_json
 
 
@@ -132,7 +130,7 @@ def test_s3a_trigger_at_fallback() -> None:
 # S3b — timestamp_source in WorkflowFreshness
 # ────────────────────────────────────────────────────────────────────
 
-from scripts.check_workflow_freshness import WorkflowFreshness, check_workflow
+from scripts.check_workflow_freshness import check_workflow
 
 
 @pytest.fixture()
@@ -172,7 +170,7 @@ def test_s3b_timestamp_source_created_at_fallback(_mock_fetcher) -> None:
 # S4 — TrustStateCause.attribution
 # ────────────────────────────────────────────────────────────────────
 
-from smc_integration.trust_state import TrustStateCause, TrustState, _select_primary_cause
+from smc_integration.trust_state import TrustState, TrustStateCause, _select_primary_cause
 
 
 def test_s4_exact_match_attribution_unavailable() -> None:

@@ -43,6 +43,7 @@ import random
 import time
 from collections.abc import Iterable
 from pathlib import Path
+from typing import TextIO
 
 try:
     import fcntl
@@ -61,6 +62,18 @@ DEFAULT_PREFERRED_RANGE = (40, 99)
 def _registry_path() -> Path:
     override = os.environ.get("IB_CLIENT_ID_REGISTRY")
     return Path(override) if override else DEFAULT_REGISTRY_PATH
+
+
+def _open_lock_file(lock_path: Path) -> TextIO | None:
+    """Open the advisory-lock file, or None when the FS refuses.
+
+    Centralizes the SIM115-pattern: callers immediately enter the returned
+    handle as a context manager (``with fd:``), so the file is always closed.
+    """
+    try:
+        return open(lock_path, "w", encoding="utf-8")
+    except OSError:
+        return None
 
 
 def _process_alive(pid: int) -> bool:
@@ -128,59 +141,58 @@ def allocate_ib_client_id(
     lock_path = path.with_suffix(path.suffix + ".lock")
     lock_path.parent.mkdir(parents=True, exist_ok=True)
 
-    try:
-        lock_fd = open(lock_path, "w")  # noqa: SIM115 -- advisory fcntl lock; closed in finally below
-    except OSError:
+    lock_fd = _open_lock_file(lock_path)
+    if lock_fd is None:
         return random.randint(*preferred_range)
 
-    try:
+    with lock_fd:
         try:
-            fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError:
-            return random.randint(*preferred_range)
+            try:
+                fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError:
+                return random.randint(*preferred_range)
 
-        registry = _reap_stale(
-            _load(path), timeout_seconds=process_timeout_seconds
-        )
-        pid = os.getpid()
+            registry = _reap_stale(
+                _load(path), timeout_seconds=process_timeout_seconds
+            )
+            pid = os.getpid()
 
-        # Reuse if this PID already holds an entry for the same service.
-        for cid_str, info in registry.items():
-            if info.get("service") == service_name and info.get("pid") == pid:
-                info["last_seen"] = time.time()
+            # Reuse if this PID already holds an entry for the same service.
+            for cid_str, info in registry.items():
+                if info.get("service") == service_name and info.get("pid") == pid:
+                    info["last_seen"] = time.time()
+                    _save(path, registry)
+                    return int(cid_str)
+
+            for cid in _candidate_ids(preferred_range):
+                cid_str = str(cid)
+                if cid_str in registry:
+                    continue
+                registry[cid_str] = {
+                    "service": service_name,
+                    "pid": pid,
+                    "allocated_at": time.time(),
+                    "last_seen": time.time(),
+                }
                 _save(path, registry)
-                return int(cid_str)
+                return cid
 
-        for cid in _candidate_ids(preferred_range):
-            cid_str = str(cid)
-            if cid_str in registry:
-                continue
-            registry[cid_str] = {
+            # All slots taken — reap-then-overwrite the oldest entry.
+            oldest_cid_str = min(
+                registry,
+                key=lambda c: float(registry[c].get("last_seen", 0)),
+            )
+            registry[oldest_cid_str] = {
                 "service": service_name,
                 "pid": pid,
                 "allocated_at": time.time(),
                 "last_seen": time.time(),
             }
             _save(path, registry)
-            return cid
-
-        # All slots taken — reap-then-overwrite the oldest entry.
-        oldest_cid_str = min(
-            registry,
-            key=lambda c: float(registry[c].get("last_seen", 0)),
-        )
-        registry[oldest_cid_str] = {
-            "service": service_name,
-            "pid": pid,
-            "allocated_at": time.time(),
-            "last_seen": time.time(),
-        }
-        _save(path, registry)
-        return int(oldest_cid_str)
-    finally:
-        with contextlib.suppress(OSError):
-            fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
-        lock_fd.close()
+            return int(oldest_cid_str)
+        finally:
+            with contextlib.suppress(OSError):
+                fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
 
 
 def release_ib_client_id(
@@ -194,26 +206,25 @@ def release_ib_client_id(
     if not path.exists():
         return False
     lock_path = path.with_suffix(path.suffix + ".lock")
-    try:
-        lock_fd = open(lock_path, "w")  # noqa: SIM115 -- advisory fcntl lock; closed in finally below
-    except OSError:
+    lock_fd = _open_lock_file(lock_path)
+    if lock_fd is None:
         return False
-    try:
+    with lock_fd:
         try:
-            fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError:
+            try:
+                fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError:
+                return False
+            registry = _load(path)
+            cid_str = str(client_id)
+            if cid_str in registry:
+                del registry[cid_str]
+                _save(path, registry)
+                return True
             return False
-        registry = _load(path)
-        cid_str = str(client_id)
-        if cid_str in registry:
-            del registry[cid_str]
-            _save(path, registry)
-            return True
-        return False
-    finally:
-        with contextlib.suppress(OSError):
-            fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
-        lock_fd.close()
+        finally:
+            with contextlib.suppress(OSError):
+                fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
 
 
 __all__ = [

@@ -149,7 +149,7 @@ def run_promotion_gate(
                     pass
             break
     full_daily_deltas = (
-        rollback_history + [current_delta]
+        [*rollback_history, current_delta]
         if current_delta is not None
         else rollback_history
     )
