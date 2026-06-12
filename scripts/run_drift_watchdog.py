@@ -5,9 +5,14 @@ compares per-metric distributions against a backtest baseline using the
 helpers in :mod:`scripts.drift_alert`. Emits a JSON report to
 ``artifacts/drift/drift_report_<run_date>.json``.
 
-Designed to be run from a weekly cron (Sprint C9 / T5) and to feed the
-GitHub-issue-on-red automation (Sprint C9 / T4) defined in
-``.github/workflows/drift-watchdog.yml``.
+Originally run from a weekly cron (Sprint C9 / T5) with
+GitHub-issue-on-red automation (Sprint C9 / T4) in
+``.github/workflows/drift-watchdog.yml``. That workflow was retired
+2026-06-12 (#2726): its WFO baseline
+(``artifacts/wfo/walk_forward_latest.json``) was never produced by any
+pipeline, so the cron had been a guaranteed no-op (and, since #2725, a
+guaranteed rc=4) every week. The CLI remains available for manual runs
+against an explicitly supplied baseline.
 
 .. note::
     The default p-value bands and PSI thresholds in this script are

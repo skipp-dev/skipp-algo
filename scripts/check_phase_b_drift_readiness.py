@@ -13,8 +13,10 @@ artifact is still using a synthetic null distribution for the
 slippage K-S comparison.
 
 Wiring:
-- ``.github/workflows/drift-watchdog.yml`` runs this in addition
-  to the watchdog itself; failure blocks Phase-B promotion.
+- ``.github/workflows/phase-b-promotion-readiness.yml`` runs this;
+  failure blocks Phase-B promotion. (An earlier docstring claimed the
+  drift-watchdog workflow ran it too — it never did; that workflow was
+  retired 2026-06-12, #2726.)
 - Local pre-promotion check::
 
       python -m scripts.check_phase_b_drift_readiness \\

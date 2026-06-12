@@ -188,7 +188,8 @@ allowed = [
 # downstream summary step surfaces individual failures via
 # ::error::, so silent-skip risk is bounded.
 "credential-health-check.yml" = 1
-"drift-watchdog.yml" = 1
+# drift-watchdog.yml: entfernt 2026-06-12 (#2726) — WFO-Baseline wurde nie
+# produziert; Eintrag mit dem Workflow gestrichen.
 # edge-pipeline-real-run.yml: single deliberate fail-soft step — the real
 # Databento per-symbol loop captures RC_PULL/RC_RUN explicitly because
 # run_edge_pipeline exit 2 (family blocked) is the EXPECTED honest result and
