@@ -14,6 +14,7 @@ consumes whatever artefacts the local jobs commit + push into
 | `com.skippalgo.c13.wsh-earnings.plist` | 16:30 ET (Mon-Fri) | `scripts.wsh_earnings_calendar` | `cache/wsh/<DATE>.jsonl` |
 | `com.skippalgo.c13.phase-a-export.plist` | 09:18 ET (Mon-Fri) | `scripts.export_open_prep_lists` | `reports/open_prep_trade_cards_<TS>.csv` |
 | `com.skippalgo.c13.phase-a.plist` | 09:28 ET (Mon-Fri) | `scripts.build_phase_a_inputs` + `scripts.run_smc_live_incubation --phase paper` | `cache/live/setups_<DATE>.jsonl`, `cache/live/gate_status.json`, `cache/live/incubation_<DATE>.jsonl` |
+| `com.skippalgo.c13.ibkr-smoke.plist` | **08:00 ET (Mon-Fri)** | `scripts.smoke_smc_to_ibkr_adapter --mode live` | `cache/live/smoke_<DATE>.jsonl`; writes `cache/live/smoke_HALT` on failure |
 | `com.skippalgo.c13.audit-push.plist` | 17:30 ET (Mon-Fri) | `git push origin data/phase-a-audit` | n/a (commits today's audit artefacts to the dedicated, unprotected `data/phase-a-audit` branch, bootstrapped on first run) |
 
 The IBKR-bound jobs (`collect-imbalance`, `phase-a`) use the rotating
@@ -52,20 +53,20 @@ REPO="$(pwd)"   # run from the repo root
 
 # 1. Substitute the placeholder and copy plists into the per-user
 #    LaunchAgents directory.
-for label in collect-imbalance wsh-earnings phase-a-export phase-a audit-push; do
+for label in collect-imbalance wsh-earnings phase-a-export phase-a ibkr-smoke audit-push; do
     sed "s|__REPO_PATH__|${REPO}|g" \
         "automation/launchd/com.skippalgo.c13.${label}.plist" \
         > "${HOME}/Library/LaunchAgents/com.skippalgo.c13.${label}.plist"
 done
 
 # 2. Bootstrap into the user's launchd domain.
-for label in collect-imbalance wsh-earnings phase-a-export phase-a audit-push; do
+for label in collect-imbalance wsh-earnings phase-a-export phase-a ibkr-smoke audit-push; do
     launchctl bootstrap "gui/$(id -u)" \
         "${HOME}/Library/LaunchAgents/com.skippalgo.c13.${label}.plist"
 done
 
 # 3. Verify they are loaded.
-for label in collect-imbalance wsh-earnings phase-a-export phase-a audit-push; do
+for label in collect-imbalance wsh-earnings phase-a-export phase-a ibkr-smoke audit-push; do
     launchctl print "gui/$(id -u)/com.skippalgo.c13.${label}" | head -2
 done
 
@@ -76,10 +77,42 @@ launchctl kickstart -k "gui/$(id -u)/com.skippalgo.c13.phase-a-export"
 ## Uninstall
 
 ```bash
-for label in collect-imbalance wsh-earnings phase-a-export phase-a audit-push; do
+for label in collect-imbalance wsh-earnings phase-a-export phase-a ibkr-smoke audit-push; do
     launchctl bootout "gui/$(id -u)/com.skippalgo.c13.${label}" 2>/dev/null || true
 done
 rm ~/Library/LaunchAgents/com.skippalgo.c13.*.plist
+```
+
+## IBKR Smoke Guard
+
+`com.skippalgo.c13.ibkr-smoke.plist` fires at **08:00 ET** (90 min before open).
+It runs `python -m scripts.smoke_smc_to_ibkr_adapter --mode live` (module
+invocation from the repo root): connects to the Paper Gateway
+on `127.0.0.1:7497`, places each intent as a limit order, waits for an ack, then
+cancels. Pure round-trip — no real fills.
+
+`run_ibkr_open_execution.py` performs a startup guard before connecting to TWS:
+
+| Condition | Effect |
+|---|---|
+| `cache/live/smoke_HALT` exists | Abort with instructions to remove the file |
+| `cache/live/smoke_<TODAY>.jsonl` missing or > 4 h old | Abort with instructions to re-run the smoke |
+| `--skip-smoke-guard` passed | Both checks skipped (prints an explicit warning) |
+
+**Sentinel lifecycle**: `smoke_HALT` is written by `run-c13-ibkr-smoke.sh` on any
+non-zero exit (EXIT=2 risk violation, EXIT=3 leftover orders, or unexpected error).
+Remove it manually once the root cause is resolved:
+
+```bash
+rm cache/live/smoke_HALT
+```
+
+The smoke JSONL can be pushed to the audit branch together with the other artefacts:
+
+```bash
+git add cache/live/smoke_*.jsonl \
+  && git commit -m "chore(c13): smoke audit JSONL $(date +%F)" \
+  && git push origin data/phase-a-audit
 ```
 
 ## DST handling
