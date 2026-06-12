@@ -608,3 +608,85 @@ def test_load_raw_structure_input_rejects_noncanonical_manifest_provenance(
 
         with pytest.raises(ValueError, match="NONCANONICAL_MANIFEST_WORKBOOK_PATH"):
                 structure_artifact_json.load_raw_structure_input("AAPL", "15m")
+
+
+def test_canonical_stable_manifest_provenance_accepted_despite_legacy_fallback(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+        """Workflow-Audit 2026-06 (provenance-drift fix): a manifest that
+        declares the canonical STABLE workbook path
+        (databento_volatility_production_workbook.xlsx, canonical since commit
+        9665f233) must NOT be flagged NONCANONICAL when the stable file is
+        absent locally and the existence-gated resolver falls back to a stale
+        timestamped legacy export."""
+        artifact_dir = tmp_path / "reports" / "smc_structure_artifacts"
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+
+        export_root = tmp_path / "artifacts" / "smc_microstructure_exports"
+        export_root.mkdir(parents=True, exist_ok=True)
+        # Stable canonical workbook is ABSENT; only a stale legacy export exists.
+        stable_workbook = export_root / "databento_volatility_production_workbook.xlsx"
+        legacy_workbook = export_root / "databento_volatility_production_20260307_114724.xlsx"
+        legacy_workbook.write_text("workbook", encoding="utf-8")
+
+        artifact_path = artifact_dir / "AAPL_15m.structure.json"
+        artifact_path.write_text(
+                json.dumps({
+                    "symbol": "AAPL",
+                    "timeframe": "15m",
+                    "structure": {
+                        "bos": [{"id": "bos:AAPL:15m:1", "time": 1, "price": 100.0, "kind": "BOS", "dir": "UP"}],
+                        "orderblocks": [],
+                        "fvg": [],
+                        "liquidity_sweeps": [],
+                    },
+                    "auxiliary": {},
+                    "diagnostics": {"structure_profile_used": "hybrid_default", "event_logic_version": "v2"},
+                }, indent=4) + "\n",
+                encoding="utf-8",
+        )
+
+        (artifact_dir / "manifest_15m.json").write_text(
+                json.dumps({
+                    "schema_version": "3.0.0",
+                    "generated_at": 1709254000.0,
+                    "timeframe": "15m",
+                    "producer": {
+                        "name": "smc_price_action_engine_v2",
+                        "upstream": str(stable_workbook.as_posix()),
+                    },
+                    "resolved_inputs": {
+                        "workbook_path": str(stable_workbook.as_posix()),
+                        "export_bundle_root": str(export_root.as_posix()),
+                    },
+                    "artifacts": [
+                        {
+                            "symbol": "AAPL",
+                            "timeframe": "15m",
+                            "artifact_path": "reports/smc_structure_artifacts/AAPL_15m.structure.json",
+                        }
+                    ],
+                    "errors": [],
+                    "warnings": [],
+                }, indent=4) + "\n",
+                encoding="utf-8",
+        )
+
+        monkeypatch.setattr(structure_artifact_json, "REPO_ROOT", tmp_path)
+        monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACTS_DIR", artifact_dir)
+        monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACT_JSON", tmp_path / "reports" / "smc_structure_artifact.json")
+        monkeypatch.setattr(artifact_resolution, "REPO_ROOT", tmp_path)
+        # Existence-gated resolver falls back to the stale legacy export.
+        monkeypatch.setattr(artifact_resolution, "resolve_production_workbook_path", lambda explicit_path=None: legacy_workbook)
+
+        # Must not raise: stable canonical provenance wins over disk-state fallback.
+        result = structure_artifact_json.load_raw_structure_input("AAPL", "15m")
+        assert result is not None
+
+        manifest_payload = json.loads((artifact_dir / "manifest_15m.json").read_text(encoding="utf-8"))
+        issues = structure_artifact_json._manifest_repo_state_health_issues(
+            manifest_payload, manifest_path=artifact_dir / "manifest_15m.json"
+        )
+        codes = {str(item.get("code", "")) for item in issues}
+        assert "NONCANONICAL_MANIFEST_WORKBOOK_PATH" not in codes
