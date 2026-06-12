@@ -8,11 +8,13 @@ import numpy as np
 import pytest
 
 from scripts.drift_alert import (
+    brown_forsythe_two_sample,
     compute_drift_report,
     ks_two_sample,
     population_stability_index,
     psi_severity,
     rolling_drift_score,
+    welch_t_two_sample,
 )
 
 # ---------------------------------------------------------------------------
@@ -219,3 +221,120 @@ def test_drift_report_empty_metrics_is_yellow() -> None:
     )
     assert rep["n_metrics"] == 0
     assert rep["findings"] == []
+
+
+# ---------------------------------------------------------------------------
+# Welch t-test (detector 3, C9/T7 issue #298)
+# ---------------------------------------------------------------------------
+
+
+def test_welch_t_identical_samples_p_near_one() -> None:
+    a = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    t, p = welch_t_two_sample(a, a)
+    assert t == pytest.approx(0.0)
+    assert p is not None and p == pytest.approx(1.0)
+
+
+def test_welch_t_large_shift_small_p() -> None:
+    rng = np.random.default_rng(3)
+    a = rng.normal(0.0, 1.0, 100)
+    b = rng.normal(2.0, 1.0, 100)
+    t, p = welch_t_two_sample(a, b)
+    assert t > 5.0  # live mean above baseline mean → positive t
+    assert p is not None and p < 1e-6
+
+
+def test_welch_t_matches_textbook_value() -> None:
+    """Cross-checked against scipy.stats.ttest_ind(equal_var=False)."""
+    a = [3.0, 4.0, 5.0, 6.0, 7.0]
+    b = [5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
+    t, p = welch_t_two_sample(a, b)
+    assert t == pytest.approx(2.4019, abs=1e-4)
+    assert p is not None and p == pytest.approx(0.0398, abs=1e-3)
+
+
+def test_welch_t_unequal_variances_use_satterthwaite_df() -> None:
+    """Variance imbalance must not blow up the p-value (Welch vs pooled)."""
+    rng = np.random.default_rng(5)
+    a = rng.normal(0.0, 0.1, 50)
+    b = rng.normal(0.0, 3.0, 50)
+    _t, p = welch_t_two_sample(a, b)
+    assert p is not None and 0.0 < p <= 1.0
+
+
+@pytest.mark.parametrize(
+    "a,b",
+    [
+        ([1.0], [2.0, 3.0]),  # n_a < 2
+        ([1.0, 2.0], [3.0]),  # n_b < 2
+        ([1.0, 1.0], [1.0, 1.0]),  # both constant → zero pooled SE
+    ],
+)
+def test_welch_t_degenerate_inputs_return_none(a: list[float], b: list[float]) -> None:
+    _t, p = welch_t_two_sample(a, b)
+    assert p is None
+
+
+# ---------------------------------------------------------------------------
+# Brown-Forsythe (detector 4, C9/T7 issue #298)
+# ---------------------------------------------------------------------------
+
+
+def test_brown_forsythe_equal_scale_high_p() -> None:
+    rng = np.random.default_rng(11)
+    a = rng.normal(0.0, 1.0, 200)
+    b = rng.normal(0.0, 1.0, 200)
+    _f, p = brown_forsythe_two_sample(a, b)
+    assert p is not None and p > 0.05
+
+
+def test_brown_forsythe_doubled_scale_small_p() -> None:
+    rng = np.random.default_rng(13)
+    a = rng.normal(0.0, 1.0, 200)
+    b = rng.normal(0.0, 2.5, 200)
+    f, p = brown_forsythe_two_sample(a, b)
+    assert f > 10.0
+    assert p is not None and p < 1e-4
+
+
+def test_brown_forsythe_mean_shift_alone_does_not_fire() -> None:
+    """Median centering: a pure location shift is NOT a scale change."""
+    rng = np.random.default_rng(17)
+    a = rng.normal(0.0, 1.0, 200)
+    b = rng.normal(5.0, 1.0, 200)
+    _f, p = brown_forsythe_two_sample(a, b)
+    assert p is not None and p > 0.05
+
+
+def test_brown_forsythe_robust_to_heavy_tails() -> None:
+    """t(df=4) samples with equal scale must not produce a spurious fire
+    (the plain F-ratio test fails this — the reason BF was chosen)."""
+    rng = np.random.default_rng(19)
+    a = rng.standard_t(df=4, size=300)
+    b = rng.standard_t(df=4, size=300)
+    _f, p = brown_forsythe_two_sample(a, b)
+    assert p is not None and p > 0.01
+
+
+@pytest.mark.parametrize(
+    "a,b",
+    [
+        ([1.0], [2.0, 3.0]),  # n_a < 2
+        ([1.0, 2.0], [3.0]),  # n_b < 2
+        ([1.0, 1.0, 1.0], [2.0, 2.0, 2.0]),  # both constant → zero within-SS
+    ],
+)
+def test_brown_forsythe_degenerate_inputs_return_none(
+    a: list[float], b: list[float]
+) -> None:
+    _f, p = brown_forsythe_two_sample(a, b)
+    assert p is None
+
+
+def test_brown_forsythe_matches_scipy_reference_value() -> None:
+    """Fixed-vector cross-check against scipy.stats.levene(center='median')."""
+    a = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
+    b = [1.0, 5.0, 2.0, 9.0, -3.0, 12.0, -6.0, 15.0]
+    f, p = brown_forsythe_two_sample(a, b)
+    assert f == pytest.approx(7.5162, abs=1e-3)
+    assert p is not None and p == pytest.approx(0.0159, abs=1e-3)
