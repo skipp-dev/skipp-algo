@@ -42,17 +42,22 @@ def _write_report(
     """Write a fixture report using the REAL producer filename format.
 
     ``run_promotion_gate._archive_report`` embeds a compact UTC stamp
-    (``YYYYMMDDTHHMMSSZ``) and an optional label:
-    ``promotion_decisions_[<LABEL>_]<stamp>.json``. Mirroring it here keeps
+    (``YYYYMMDDTHHMMSSZ``) and an optional label that is slugged via
+    ``_label_slug`` (strip non-alphanumeric, uppercase, cap at 24 chars;
+    empty slug falls back to the unlabelled filename):
+    ``promotion_decisions_[<SLUG>_]<stamp>.json``. Mirroring it here keeps
     these fixtures honest about what the archive actually contains.
     """
+    import re
+
     compact = (
         stamp.split("+", 1)[0].split(".", 1)[0].rstrip("Z").replace("-", "").replace(":", "")
         + "Z"
     )
+    slug = re.sub(r"[^A-Za-z0-9]", "", str(label)).upper()[:24] if label else ""
     name = (
-        f"promotion_decisions_{label}_{compact}.json"
-        if label
+        f"promotion_decisions_{slug}_{compact}.json"
+        if slug
         else f"promotion_decisions_{compact}.json"
     )
     path = archive_dir / name
