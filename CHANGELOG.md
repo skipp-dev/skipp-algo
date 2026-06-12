@@ -12,8 +12,9 @@ Neues `docs/tradingview-storage-state-capture-runbook.md`: dokumentierte
 Prozedur für `npm run tv:storage-state`
 (`scripts/create_tradingview_storage_state.ts`) — Capture-Ablauf (headed
 Chromium, Login/MFA, Auth-Heuristik, `meta.authValidatedAt`),
-CLI-Flags/Env-Tabelle, Standard-Rotation via `gh secret set
-TV_STORAGE_STATE`, Verify über `credential-health-check.yml`,
+CLI-Flags/Env-Tabelle, Standard-Rotation via
+`gh secret set TV_STORAGE_STATE`, Verify über
+`credential-health-check.yml`,
 persistent-profile-Alternative (`tv:profile-login`), Security-Regeln
 (`tv:auth-security`-Guard, Session-Cookie-Hygiene) und der am 2026-06-12
 beobachtete Secret-Snapshot-Pitfall (GHA liest Secrets bei Job-Start —
