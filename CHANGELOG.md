@@ -181,6 +181,29 @@ dünnen/verrauschten **Tagen** — beides um Wochen zu früh.
   Same-Week-Collapse (der Bug), Tie⇒FAIL, Gap-Wochen-Padding, globalen
   Anker, Cold-Start-Demotion-Sperre, ISO-Label-Format.
 
+### Changed (2026-06-11) — PG-Kalibrierung: explizites RECALIBRATION_REQUIRED-Signal (#2693 Follow-up)
+
+`#2693` hat nur die Eligibility-Schwelle verschoben (20→30), nicht das
+Problem gelöst. Ein ECE-Breach **bei n ≥ Floor** ist per Konstruktion
+kein Small-Sample-Rauschen mehr (das ist das supprimierte n<Floor-Band) —
+er zeigt ein echtes Kalibrierungsproblem an, dessen richtige Antwort
+Recalibration ist, nicht der nächste Floor-Bump:
+
+- **`smc_integration/release_policy.py`**: die
+  `MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD`-Degradation trägt jetzt
+  `recalibration_required: true` + `recommended_action: "recalibrate"`,
+  und das `detail` nennt n_events, den Floor und das
+  RECALIBRATION_REQUIRED-Verdikt explizit. Additive Felder auf dem
+  bestehenden Code — Governance unverändert (kein neuer Degradation-Code,
+  HARD_BLOCKING bleibt).
+- Damit ist der Fall „echtes Kalibrierungsproblem bei n≥30" im
+  Gate-Report maschinell vom (supprimierten) Small-Sample-Fall
+  unterscheidbar.
+- Tests: Marker-Felder bei n=30 mit PG-Inzidenzwert (0.331385),
+  Scoping-Test (Brier-Degradation trägt den Marker NICHT).
+- Ledger-Rebaseline: S603-noqa-Site `release_policy.py` 1107→1119
+  (`pin_registry.toml`, `tests/test_subprocess_spawn_sites_ledger.py`).
+
 ### Added (2026-06-11) — ADR-0023 Stage-1: Ledger-Verdicts → Promotion-Gate-Snapshot (Handover §5 Punkt 2)
 
 Der Stage-1-Shadow-Runner lief täglich, aber seine Verdicts erreichten das
