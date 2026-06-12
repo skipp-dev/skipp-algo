@@ -28,6 +28,7 @@ board.
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -52,16 +53,38 @@ VERDICT_GLYPH: dict[str, str] = {
 
 _NO_DECISIONS_NOTICE = "(no decisions archived yet)"
 
+# Trailing UTC stamp the producer (run_promotion_gate._archive_report) embeds
+# in every archive filename — for both the unlabelled and the labelled form:
+#   promotion_decisions_<stamp>.json
+#   promotion_decisions_<LABEL>_<stamp>.json
+_ARCHIVE_STAMP_RE = re.compile(r"_(\d{8}T\d{6}Z)\.json$")
+
+
+def _archive_sort_key(path: Path) -> tuple[str, str]:
+    """Chronological sort key: (embedded UTC stamp, filename tiebreak).
+
+    Sorting whole filenames is WRONG for labelled archives: digits sort
+    before letters, so ``promotion_decisions_TSLA_<old>.json`` would
+    permanently outrank every newer unlabelled
+    ``promotion_decisions_<new>.json``. Files without a parseable stamp
+    sort first (oldest) so they can never masquerade as the latest report.
+    """
+    match = _ARCHIVE_STAMP_RE.search(path.name)
+    return (match.group(1) if match else "", path.name)
+
 
 def _archived_report_paths(archive_dir: Path) -> list[Path]:
-    """Lexicographically-sorted archived report paths (chronological).
+    """Archived report paths sorted chronologically by embedded UTC stamp.
 
-    The archive filenames are ``promotion_decisions_<UTC_STAMP>.json`` whose
-    stamps sort lexicographically into chronological order.
+    The archive mixes unlabelled (``promotion_decisions_<stamp>.json``) and
+    labelled (``promotion_decisions_<LABEL>_<stamp>.json``) filenames, so
+    the stamp — not the whole filename — is the chronological key.
     """
     if not archive_dir.exists():
         return []
-    return sorted(archive_dir.glob("promotion_decisions_*.json"))
+    return sorted(
+        archive_dir.glob("promotion_decisions_*.json"), key=_archive_sort_key
+    )
 
 
 def _load_report(path: Path) -> Mapping[str, object] | None:
