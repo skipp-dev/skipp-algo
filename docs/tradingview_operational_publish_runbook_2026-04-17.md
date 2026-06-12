@@ -187,7 +187,7 @@ Each publish event MUST produce:
 | Symptom | Likely Cause | Resolution |
 |---------|-------------|------------|
 | `auth_ok: false` | Storage state expired or cookies invalidated | Re-capture: `npm run tv:profile-login` (interactive) |
-| CI auth failure | `TV_STORAGE_STATE` GitHub secret expired | Update secret: run `tv:storage-state` locally, paste JSON into GitHub secret |
+| CI auth failure | `TV_STORAGE_STATE` GitHub secret expired | Update secret: follow [tradingview-storage-state-capture-runbook.md](tradingview-storage-state-capture-runbook.md) (`tv:storage-state` + `gh secret set`) |
 | Profile dir missing | Chromium profile not created | Run `npm run tv:profile-login` once |
 
 ### 7.4 Publish Failures

@@ -567,11 +567,17 @@ def main(argv: list[str] | None = None) -> int:
     """Backfill outcomes and return a process exit code.
 
     Returns:
-        ``0`` if every record was either resolved or deliberately skipped,
-        ``2`` if at least one record failed (loud non-zero exit so a
-        scheduled workflow surfaces the failure instead of silently
-        succeeding) — ENG-WS4-01 DoD: 'Fehlfaelle sind sichtbar und nicht
-        still'.
+        ``0`` for normal runs — including runs with per-symbol failures,
+        as long as at least one record was resolved (or nothing failed).
+        Per-symbol failures are expected for delisted/halted symbols and
+        are preserved in the JSON run log instead of failing the run.
+        ``2`` only when the run made zero progress while failing
+        (``resolved == 0 and failed > 0``) — loud non-zero exit so a
+        scheduled workflow surfaces a systemic failure instead of
+        silently succeeding (ENG-WS4-01 DoD: 'Fehlfaelle sind sichtbar
+        und nicht still').
+        ``3`` when ``--require-progress`` is set and the run made no
+        progress at all (F-09 tripwire).
     """
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -642,7 +648,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.require_progress and (resolved + failed + skipped + deferred) == 0:
         print(
             "::error::--require-progress was set but the run made "
-            "no progress (resolved=0, failed=0, skipped=0)."
+            "no progress (resolved=0, failed=0, skipped=0, deferred=0)."
         )
         return 3
     return 0

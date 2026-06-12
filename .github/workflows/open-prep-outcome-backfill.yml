@@ -6,9 +6,17 @@ name: open-prep-outcome-backfill
 # ENG-WS4-01: Outcome-Backfill automatisieren.
 # Runs the post-open outcome backfill on a regular schedule so labeled
 # outcomes (and the feature-importance feedback loop) keep growing
-# without manual intervention. Failures bubble up as a non-zero exit
-# code from `python -m open_prep.outcome_backfill`, which fails the
-# job loudly.
+# without manual intervention.
+#
+# Exit semantics (audit D-3, 2026-06-12 — the old "failures bubble up
+# as a non-zero exit code" claim was wrong): per-symbol failures are
+# tolerated by design (data gaps for delisted/halted symbols would turn
+# the cron permanently red). `python -m open_prep.outcome_backfill`
+# only fails the job when the run resolved NO outcomes (exit 2:
+# resolved==0 AND failed>0 — skipped/deferred may still be non-zero;
+# exit 3: --require-progress with zero activity). Persistent per-symbol
+# failure residue is surfaced by the "Warn on persistent failed-status
+# streak" step below instead.
 
 on:
   schedule:
@@ -186,6 +194,61 @@ jobs:
           # outcomes were resolved, skipped or failed.
           ARGS+=(--require-progress)
           "$SMC_PYTHON_BIN" -m open_prep.outcome_backfill "${ARGS[@]}"
+
+      - name: Warn on persistent failed-status streak
+        # Audit D-3 (2026-06-12): every run log 2026-04-30..2026-06-11
+        # carried status="failed" (the same ~3 legacy symbols fail daily)
+        # and nothing consumed that status. Surface a streak of failed
+        # run logs as a ::warning:: so the residue is visible without
+        # turning the cron permanently red.
+        if: always()
+        env:
+          STREAK_THRESHOLD: "5"
+        run: |
+          set -euo pipefail
+          # if: always() — SMC_PYTHON_BIN may be unset when the resolve
+          # step was skipped/failed; fall back to plain python so this
+          # warn-only step does not add its own failure noise. If no
+          # interpreter is available at all, skip cleanly (exit 0)
+          # instead of failing with exit 127.
+          PYBIN="${SMC_PYTHON_BIN:-python}"
+          # Probe by execution, not `command -v`: SMC_PYTHON_BIN may be an
+          # absolute Windows path from `py -3.12 -c "print(sys.executable)"`
+          # (resolve step above), which `command -v` would treat as a PATH
+          # lookup and falsely reject under Git Bash.
+          if ! "$PYBIN" -c "" >/dev/null 2>&1; then
+            echo "streak check: no usable python interpreter ($PYBIN) — skipping"
+            exit 0
+          fi
+          "$PYBIN" - <<'EOF'
+          import json
+          import os
+          from pathlib import Path
+
+          log_dir = Path("artifacts/open_prep/outcome_backfill")
+          threshold = int(os.environ["STREAK_THRESHOLD"])
+          logs = sorted(log_dir.glob("backfill_*.json"), reverse=True)[:threshold]
+          if len(logs) < threshold:
+              print(f"streak check: only {len(logs)} run logs — skipping")
+              raise SystemExit(0)
+          statuses = []
+          for p in logs:
+              try:
+                  statuses.append(json.loads(p.read_text(encoding="utf-8")).get("status"))
+              except (json.JSONDecodeError, OSError) as exc:
+                  print(f"streak check: unreadable {p}: {exc}")
+                  statuses.append(None)
+          if all(s == "failed" for s in statuses):
+              print(
+                  f"::warning::outcome backfill: last {threshold} run logs all "
+                  "have status='failed' — the same symbols are likely failing "
+                  "every day (audit D-3). Inspect "
+                  "artifacts/open_prep/outcome_backfill/latest.json and consider "
+                  "quarantining permanently broken legacy rows."
+              )
+          else:
+              print(f"streak check ok: statuses={statuses}")
+          EOF
 
       - name: Generate feature-importance report
         # ENG-WS4-02: continuously regenerate the FI report so its status

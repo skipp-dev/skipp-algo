@@ -111,6 +111,10 @@ _ALLOWLISTED_PATHS: frozenset[str] = frozenset(
         # and the FI workflow.
         "open_prep/feature_importance/latest.json",
         "open_prep/outcomes/feature_importance/fi_samples_YYYY-MM-DD.json",
+        # Backfill streak-alert step (audit D-3, PR #2729) cites the runtime
+        # pointer artifacts/open_prep/outcome_backfill/latest.json; the R1
+        # regex captures the open_prep/... suffix which is not a repo path.
+        "open_prep/outcome_backfill/latest.json",
         # Workflow-generated history JSONs (committed by automation, may not
         # exist in a fresh clone or before first run).
         "docs/calibration/calibration_report_public_history.json",
