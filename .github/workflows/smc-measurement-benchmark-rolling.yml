@@ -17,14 +17,34 @@ name: smc-measurement-benchmark-rolling
 # production calibration — it is purely observational.
 
 on:
+  # Workflow-Audit HOCH-1 (2026-06): cron offset is NOT an ordering
+  # guarantee. The producer smc-databento-production-export-sharded
+  # (12:00/16:00 UTC Mon-Fri) has a 240-min budget, so the previous
+  # fixed 13:00 tick raced the still-running 12:00 export and failed
+  # ~8/10 schedule runs on "Producer artifact missing for <date>".
+  # Mirror of the proven F-V4-J3 pattern in smc-library-refresh.yml:
+  # workflow_run (fires after producer success, gated by the job-level
+  # `if:` below) is the primary path; the cron below is only a safety
+  # net for lost/delayed workflow_run events.
+  # NOTE: the producer runs 2x/day (12:00 + 16:00 UTC), so this consumer
+  # can now fire up to 2x/day plus the safety-net cron. That is safe and
+  # intentional: the history archive dedupes on (captured_at,
+  # scoring_root) (scripts/plan_2_8_history_archive.py), re-benching the
+  # same artifact is idempotent, and the concurrency group serialises
+  # overlapping fires — same rationale as the library-refresh precedent.
+  workflow_run:
+    workflows: ["smc-databento-production-export-sharded"]
+    types: [completed]
+    branches: [main]
   schedule:
-    # 13:00 UTC Mon-Fri — must run AFTER the producer
-    # smc-databento-production-export-sharded (12:00 UTC Mon-Fri),
-    # otherwise the producer-artifact lookup at the 'Restore producer
-    # artifact' step aborts with "Producer artifact missing for <date>".
+    # Safety-net tick: 16:30 UTC Mon-Fri = producer 12:00 tick + full
+    # 240-min budget + 30 min headroom, so the day's artifact MUST be
+    # uploaded (or the producer has failed) by the time this fires.
+    # Offset from library-refresh's 16:00 safety-net cron to avoid
+    # competing for the same priority self-hosted runner slot.
     # Restricted to Mon-Fri to match the producer's cadence (no producer
     # runs on weekends → no fresh artifact to consume).
-    - cron: "0 13 * * 1-5"
+    - cron: "30 16 * * 1-5"
   workflow_dispatch:
     inputs:
       symbols:
@@ -88,6 +108,11 @@ jobs:
             --custom-label "${{ vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || vars.SMC_SELF_HOSTED_LABEL }}"
 
   rolling-benchmark:
+    # Workflow-Audit HOCH-1: when triggered by workflow_run, only proceed
+    # if the producer succeeded (mirror of F-V4-J3 in
+    # smc-library-refresh.yml). Manual workflow_dispatch and the
+    # scheduled safety-net cron bypass this guard.
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     needs: select-runner
     runs-on: ${{ fromJson(needs.select-runner.outputs.runs_on_json) }}
     timeout-minutes: 60
