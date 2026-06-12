@@ -91,3 +91,29 @@ def test_upload_artifact_is_fail_soft() -> None:
     cfg = upload_steps[0]["with"]
     assert cfg["if-no-files-found"] == "ignore"
     assert cfg["retention-days"] == 30
+
+
+def test_commit_back_gap_guard_present_and_fail_loud() -> None:
+    """Workflow-Audit MITTEL-5 (B5): the triple fail-soft commit-back must be
+    paired with a fail-loud gap guard, otherwise repeated silent commit-back
+    failures open an unnoticed hole in the committed ledger."""
+    data = _load()
+    job = data["jobs"]["magnitude-shadow"]
+    guard = next(
+        step
+        for step in job["steps"]
+        if "gap" in step.get("name", "").lower()
+    )
+    # Guard must run BEFORE the ledger append (it inspects the committed
+    # state at checkout, not today's freshly appended row).
+    step_names = [step.get("id") or step.get("name") for step in job["steps"]]
+    assert step_names.index(guard.get("id") or guard["name"]) < step_names.index("ledger")
+    # Must not be fail-soft itself.
+    assert not guard.get("continue-on-error", False)
+    env = guard["env"]
+    assert env["LEDGER_PATH"] == "artifacts/governance/magnitude_resolution_shadow.jsonl"
+    assert int(env["GAP_BUDGET_DAYS"]) == 7
+    run = guard["run"]
+    assert "GAP_BUDGET_DAYS" in run
+    assert "sys.exit(1)" in run  # fail-loud on gap breach
+    assert "::error title=adr0023-gap-check::" in run
