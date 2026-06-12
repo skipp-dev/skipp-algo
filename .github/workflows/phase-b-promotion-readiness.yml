@@ -28,9 +28,12 @@ permissions:
   # compute_live_drift artifact from the latest c13-daily-cron run.
   actions: read
 
-# Manual-only gate; serialize runs so two concurrent dispatches cannot
-# interleave their artifact downloads (pattern from the retired
-# drift-watchdog workflow, #2726).
+# Manual-only gate; serialize runs so two near-simultaneous dispatches
+# produce sequential (unambiguous) gate verdicts instead of two
+# interleaved evaluations of the same upstream artifact. Runner
+# workspaces are isolated, so this is about result ordering, not
+# filesystem races (pattern from the retired drift-watchdog
+# workflow, #2726).
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false

@@ -12,7 +12,7 @@ All notable changes to this project are documented in this file.
 Faktencheck zu #2726 ergab: Die erwartete WFO-Baseline
 `artifacts/wfo/walk_forward_latest.json` wurde von keiner Pipeline je
 produziert (keinerlei Git-Historie unter `artifacts/wfo/`; der im
-Workflow-Header zitierte „C2 walk-forward cron" existiert nicht im
+Workflow-Header zitierte „C2 walk-forward cron“ existiert nicht im
 aktuellen Workflow-Set — dasselbe hatte bereits
 `docs/ci-proposals/j3-followup-cron-workflow-run-2026-05-01.md`
 notiert). Seit dem Fail-loud-Fix #2725 wäre jeder Lauf ein
