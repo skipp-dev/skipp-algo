@@ -89,11 +89,14 @@ def _repo_state_paths_match_defaults() -> bool:
 
 
 def _manifest_repo_state_health_issues(payload: dict[str, Any], *, manifest_path: Path) -> list[dict[str, Any]]:
-    from scripts.databento_production_workbook import (
+    # Layer guard (scripts/check_layer_violations.py): no direct scripts.*
+    # import here — artifact_resolution is the allowlisted indirection for
+    # scripts.databento_production_workbook and re-exports these symbols.
+    from smc_integration import artifact_resolution
+    from smc_integration.artifact_resolution import (
         DEFAULT_PRODUCTION_EXPORT_DIR,
         canonical_production_workbook_path,
     )
-    from smc_integration import artifact_resolution
 
     if not _repo_state_paths_match_defaults():
         return []
