@@ -1,88 +1,80 @@
-"""C9 Bauchgefühl-Anker — fires *exactly when* the live sample is
-sufficient to recalibrate **and** the interim thresholds are still
-hardcoded.
+"""C9 Live-Retune-Anker — fires *exactly when* the live sample is
+sufficient to recalibrate **and** the detector alphas are still only
+synthetic-tuned.
 
-Until both conditions are true this test is a no-op pass; the moment
-both flip true, CI fails and the team must close
+History: the original bauchgefühl literals (mean shift ``0.3``,
+variance ratio ``0.5``/``2.0``) were replaced on 2026-06-11 by
+p-value detectors (Welch-t / Brown-Forsythe) whose alpha ladder was
+validated against the mixed-distribution synthetic episode bank
+(structural part of issue #298). The *live* re-tune — alphas
+calibrated against ≥ 90 days of real outcome windows — is still
+outstanding; ``scripts.c9_threshold_replay.CALIBRATION_SOURCE``
+records the provenance.
+
+Until the C12 trigger flips GREEN this test is a no-op pass; the
+moment it does while ``CALIBRATION_SOURCE`` still reads
+``"synthetic"``, CI fails and the team must close
 https://github.com/skippALGO/skipp-algo/issues/298 before further
 public-calibration releases.
 
 Why an anchor and not just an open issue?
-The C-sprint deep review identified the C9 mean-shift / variance-ratio
-literals (``0.3``, ``0.5``, ``2.0``) as MAJOR risk: prose FIXMEs +
-deferred GitHub issues are easily forgotten. This test makes the
-deferral CI-checkable so the deferral cannot quietly outlive its
+The C-sprint deep review identified deferred threshold work as MAJOR
+risk: prose FIXMEs + deferred GitHub issues are easily forgotten. This
+test makes the deferral CI-checkable so it cannot quietly outlive its
 precondition.
 """
 
 from __future__ import annotations
-
-import inspect
-import re
 
 import pytest
 
 from scripts import c9_threshold_replay
 from scripts.check_c12_trigger import evaluate_trigger
 
-_BAUCHGEFUEHL_LITERALS = (
-    # Detector 3 — mean-shift threshold in σ-units of baseline.
-    re.compile(r"mean_shift\s*>=\s*0\.3\b"),
-    # Detector 4 — variance ratio outer bounds.
-    re.compile(r"ratio\s*<\s*0\.5\b"),
-    re.compile(r"ratio\s*>\s*2\.0\b"),
-)
 
+def test_calibration_source_is_a_known_value() -> None:
+    """Sanity pin: the provenance marker only takes documented values.
 
-def _episode_fires_source() -> str:
-    return inspect.getsource(c9_threshold_replay._episode_fires)
-
-
-def test_bauchgefuehl_literals_are_still_present_today() -> None:
-    """Sanity pin: today the source still contains the three literals.
-
-    If this fails, somebody has already replaced the bauchgefühl
-    detectors and the anchor test below should be deleted/updated.
+    ``"synthetic"`` — alphas validated on the synthetic episode bank
+    only (today's state). ``"live"`` — alphas re-tuned against the
+    locked-in live windows; flipping to this value is the PR that
+    closes issue #298, and that PR should also delete/retire this
+    anchor file.
     """
-    src = _episode_fires_source()
-    missing = [p.pattern for p in _BAUCHGEFUEHL_LITERALS if p.search(src) is None]
-    assert not missing, (
-        "expected bauchgefühl literals no longer present in "
-        "_episode_fires — has C9/T7 been finalised? If yes, delete "
-        f"this anchor test. Missing patterns: {missing}"
-    )
+    assert c9_threshold_replay.CALIBRATION_SOURCE in {"synthetic", "live"}
 
 
-def test_anchor_fires_when_live_sample_sufficient_and_literals_unchanged() -> None:
+def test_anchor_fires_when_live_sample_sufficient_and_still_synthetic() -> None:
     """The anchor: as soon as the C12 trigger flips to GREEN (≥ 1
-    family with ≥ 28 live-incubation days) AND the bauchgefühl
-    literals are still present, this test fails.
+    family with ≥ 28 live-incubation days) AND the detector alphas are
+    still synthetic-tuned, this test fails.
 
-    Failure means: live sample is now sufficient to recalibrate, and
-    https://github.com/skippALGO/skipp-algo/issues/298 must be closed
-    before the next public-calibration release.
+    Failure means: the live sample is now sufficient to recalibrate.
+    Re-run ``scripts/c9_threshold_replay.py`` against the locked-in
+    baseline + live windows from the C8 incubation cron, lock the
+    winning alpha ladder into ``drift_alert.compute_drift_report``,
+    flip ``CALIBRATION_SOURCE`` to ``"live"`` and close
+    https://github.com/skippALGO/skipp-algo/issues/298.
 
     Today (no families have produced live outcomes yet) this is a
     no-op pass.
     """
     result = evaluate_trigger()
-    src = _episode_fires_source()
-    literals_unchanged = all(p.search(src) is not None for p in _BAUCHGEFUEHL_LITERALS)
-
-    if result.status == "GREEN" and literals_unchanged:
+    if result.status == "GREEN" and c9_threshold_replay.CALIBRATION_SOURCE == "synthetic":
         pytest.fail(
             "C12 trigger is GREEN (≥ 1 family with ≥ 28 live-incubation "
-            "days) but the C9 bauchgefühl literals (0.3 / 0.5 / 2.0) "
-            "in scripts/c9_threshold_replay.py::_episode_fires are "
-            "still unchanged. Close issue #298 by re-tuning detector-3 "
-            "(mean-shift) and detector-4 (variance ratio) against the "
-            "live sample, then update or delete this anchor test."
+            "days) but scripts/c9_threshold_replay.py::CALIBRATION_SOURCE "
+            "still reads 'synthetic'. The Welch-t / Brown-Forsythe alpha "
+            "ladder must now be re-tuned against the live sample: run the "
+            "threshold replay on the locked-in live windows, update the "
+            "compute_drift_report defaults, flip CALIBRATION_SOURCE to "
+            "'live', and close issue #298."
         )
 
 
 def test_anchor_passes_silently_while_trigger_is_blocked() -> None:
     """Today the trigger is BLOCKED, so the anchor must remain a
-    no-op pass regardless of the literal state.
+    no-op pass regardless of the calibration provenance.
     """
     result = evaluate_trigger()
     if result.status != "GREEN":

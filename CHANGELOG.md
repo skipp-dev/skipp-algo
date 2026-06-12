@@ -6,6 +6,37 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-06-11) — C9/T7: Bauchgefühl-Detektoren → p-Wert-Tests (#298, struktureller Teil)
+
+Die Interim-Effektgrößen-Regeln der C9-Drift-Konsensus-Detektoren 3+4
+(Mean-Shift ≥ 0.3σ, Varianz-Ratio außerhalb [0.5, 2.0] — dokumentierte
+Bauchgefühl-Schwellen) sind durch Signifikanztests ersetzt, deren
+Feuerrate über ein Alpha-Level statt eines willkürlichen
+Effektgrößen-Cutoffs kontrolliert wird:
+
+- **`scripts/drift_alert.py`**: neu `welch_t_two_sample` (Detector 3 —
+  zweiseitiger Welch-t auf den Mittelwert) und
+  `brown_forsythe_two_sample` (Detector 4 — median-zentrierter Levene
+  auf die Skala; robust gegen Heavy Tails, anders als der plain
+  F-Ratio-Test). P-Werte über die regularisierte unvollständige
+  Beta-Funktion (pure stdlib, kein scipy; gegen scipy auf 1e-9
+  verifiziert). Alle drei p-Wert-Detektoren (KS/Welch-t/BF) teilen eine
+  Alpha-Leiter.
+- **Produktions-Default** in `compute_drift_report`: `p_red 0.01→0.005`,
+  `p_yellow 0.05→0.025` — Grid-Sieger auf BEIDEN synthetischen Bänken
+  (Gauss: TPR 0.80/FPR 0.03; gemischt t(4)+lognormal: TPR 0.90/FPR
+  0.07); der alte Default riss auf der gemischten Bank die
+  FPR<0.10-Akzeptanz (0.12), sobald Detektoren 3+4 p-Wert-Tests wurden.
+- **`scripts/c9_threshold_replay.py`**: `_episode_fires` nutzt dieselben
+  Tests; neues Provenance-Flag `CALIBRATION_SOURCE = "synthetic"`.
+- **Anker umgebaut** (`tests/test_c9_threshold_finalisation_anchor.py`):
+  feuert jetzt, wenn der C12-Trigger GREEN ist und `CALIBRATION_SOURCE`
+  noch `"synthetic"` lautet — der Live-Retune der Alpha-Leiter gegen
+  ≥ 90 Tage Live-Daten bleibt offen, Issue #298 bleibt dafür offen.
+- Doku: `docs/c9_threshold_tuning.md` mit Grid-Ergebnissen (2026-06-11)
+  und Live-Retune-Prozedur aktualisiert. Neue Tests in
+  `tests/test_drift_alert.py` (Welch-t/BF inkl. scipy-Referenzwerte,
+  Degenerate-Input-Guards, Heavy-Tail-Robustheit).
 ### Fixed (2026-06-11) — Outcome-Ledger: pytest-Write-Guard gegen Testverschmutzung des kanonischen Artefakt-Baums
 
 Zwei Full-Pipeline-Tests in `tests/test_open_prep.py` riefen
@@ -53,6 +84,7 @@ NVDA-Datensatz als echten Trade — Kontamination der Hit-Rate-Statistik.
   — the SAME canonical-first resolution the consumer check uses.
 - Tests: CLI default-None pin, forward-None-when-omitted, explicit-workbook
   passthrough (`tests/test_per_tf_structure_artifact_wiring.py`).
+
 ### Fixed (2026-06-11) — §5-Kostenmodell: Review-Findings aus #2697
 
 - **Fee-only-Legs zählen in den Round-Turn-Cost**
@@ -634,8 +666,6 @@ absent or the window's total count is zero). Recorded onto both zone and level
 family events via `family_event_adapter`; **RECORDED-ONLY** — it does not feed
 the v1 score or any gate. Pending its pre-registered purged walk-forward A/B
 verdict before any wiring is considered.
-
-
 
 The Lo & MacKinlay (1988) Variance Ratio `VR(2)` — the strongest close-only
 proxy for the *persistence / serial-dependence* axis — was evaluated as the next
@@ -2037,7 +2067,6 @@ PRs): `tests/test_workflow_continue_on_error_inventory.py` for
   for `terminal_databento.py` (124→130, 308→314) shifted by the
   helper-import + 5-line F-V4-E1 intent comment.
 
-
 Consolidated entry for the v3 provider-stack audit shipped 2026-04-30.
 The audit covers the following PRs (specific subset of #1951..#1969;
 PRs in that range not listed here are unrelated):
@@ -2352,7 +2381,6 @@ auth + mandatory `UW-CLIENT-API-ID: 100001` header):
   - `tests/test_random_tempfile_ledger_pin.py`: realtime_signals 2495/2536 → 2496/2537; databento_volatility_screener 298 → 299
   - `tests/test_silent_security_and_boundary_bundle.py`: realtime_signals 1061/2629 → 1062/2630
   No production change — pure ledger line-number drift fix.
-
 
 ### Tests / Quality (2026-04-25) — Defense ledger: built-in open() text-mode without encoding=
 
@@ -3852,7 +3880,6 @@ Drei Source-Edits (`terminal_newsapi.py` docstring,
 Audit-Item M-4 mit Retraction-Notiz: `resolve_pine_file()` deckt das
 Szenario bereits ab; Pin bleibt als regression guard.
 
-
 ### Tests / Quality (2026-04-24) — AST-Pin Triple: lru_cache / to_datetime utc / pytest-xdist parametrize Determinismus
 
 Drei reine Tripwire-Pins (kein Verhaltens-Risiko, AST-only) gegen
@@ -3951,7 +3978,6 @@ Adressiert die drei priorisierten Backlog-Items aus
 **Test footprint:** +7 neue Tests, alle grün. Zwei Source-Edits
 (`smc_ob_context_light.py` + `smc-library-refresh.yml`), beide
 audit-driven, beide mit Pin-Schutz gegen Regression.
-
 
 ### Tests / Quality (2026-04-24) — Audit-Followup Pins (workflow continue-on-error / raw write call sites / Pine legacy isolation / Pine active surface inventory)
 
@@ -8531,7 +8557,6 @@ vs. legacy "15m/1H". Cost: CI config only, benchmark runtime ~2x.
   SPRT/fixed-N stop rule per plan.
 
 ### Added (2026-04-20)
-
 
 - **Phase H — Pine Consumer Maturity:**
   - **Calibration Confidence Indicator** — new `[ Calibration Confidence ]` section in Dashboard Audit View (rows 23–25) showing top-family calibration weight with tier label (high/good/ok/low) and composite confidence across all 4 families. Zone Priority + Calibration exports (`ZONE_CAL_OB/FVG/BOS/SWEEP` + Phase F contextual variants) added to the live generated library.
