@@ -122,15 +122,10 @@ file = "smc_integration/release_policy.py"
 line = 1107
 codes = ["S603"]
 
-# open_prep/streamlit_monitor.py:203 — module-import-time hardening:
-# OPRA-options-flow integration wrapped in a try/except so ImportError,
-# env-parse ValueError, or any other startup failure degrades
-# gracefully and keeps streamlit_monitor importable. BLE001 noqa
-# documents the deliberate broad catch.
-[[noqa_budget.sites]]
-file = "open_prep/streamlit_monitor.py"
-line = 203
-codes = ["BLE001"]
+# open_prep/streamlit_monitor.py:203 — BLE001 noqa removed by the RUF100
+# cleanup (chore/ruff-ruf100-cleanup): BLE001 is not in pyproject's
+# `select` list, so the suppression was dead (ruff RUF100). The broad
+# catch itself stays (module-import-time hardening, `# pragma: no cover`).
 
 # E402 outliers — late imports after sys.path/streamlit setup blocks
 # that pyproject's per-file-ignores cannot easily cover without
