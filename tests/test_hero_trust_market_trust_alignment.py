@@ -34,7 +34,7 @@ from smc_integration.trust_state import TrustState
 
 
 def test_market_trust_vocab_is_hero_trust_minus_warmup() -> None:
-    assert HERO_MARKET_TRUST_VOCAB == HERO_TRUST_VOCAB - {HERO_TRUST_WARMUP}
+    assert HERO_TRUST_VOCAB - {HERO_TRUST_WARMUP} == HERO_MARKET_TRUST_VOCAB
 
 
 def test_market_trust_vocab_contains_no_warmup() -> None:

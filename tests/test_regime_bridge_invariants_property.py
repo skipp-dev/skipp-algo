@@ -18,7 +18,7 @@ VALID_REGIMES = ("RISK_ON", "RISK_OFF", "ROTATION", "NEUTRAL")
 
 class TestValidRegimeConstant:
     def test_exact_membership(self) -> None:
-        assert _VALID_REGIMES == set(VALID_REGIMES)
+        assert set(VALID_REGIMES) == _VALID_REGIMES
 
     def test_size_pinned(self) -> None:
         assert len(_VALID_REGIMES) == 4

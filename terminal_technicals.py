@@ -11,7 +11,8 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from dataclasses import dataclass, field, replace as dc_replace
+from dataclasses import dataclass, field
+from dataclasses import replace as dc_replace
 from typing import Any
 
 from databento_utils import _redact_sensitive_error_text

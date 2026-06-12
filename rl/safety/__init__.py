@@ -40,7 +40,7 @@ class HardConstraintLayer:
     # rejection in ``guard_action`` / ``guard_size_fraction`` is
     # appended as a ``ConstraintHit``. Kept optional so the legacy
     # constructor signature (no audit) keeps working.
-    hit_log: "ConstraintHitLog | None" = field(default=None, repr=False)
+    hit_log: ConstraintHitLog | None = field(default=None, repr=False)
 
     def guard_action(self, action: ExecutionAction, *, drawdown_pct: float = 0.0) -> GuardResult:
         if not math.isfinite(drawdown_pct):

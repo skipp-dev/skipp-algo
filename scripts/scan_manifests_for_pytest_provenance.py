@@ -43,7 +43,7 @@ _MANIFEST_RE = re.compile(r"(?:^|/)[A-Za-z0-9_]*manifest(?:_[^/]*)?\.json$")
 _POISON_PATTERNS = (
     re.compile(r"pytest-of-[A-Za-z0-9_.-]+"),
     re.compile(r"/var/folders/[^\"']+/T/pytest[^\"']*"),
-    re.compile(r"/tmp/pytest-of-[^\"']+"),  # noqa: S108 -- regex pattern matching pytest tmp dirs (read-only scan, not file usage)
+    re.compile(r"/tmp/pytest-of-[^\"']+"),
 )
 
 
@@ -51,7 +51,7 @@ def _staged_manifest_paths() -> list[Path]:
     """Return staged Added/Modified files matching the manifest pattern."""
     try:
         git_exe = shutil.which("git") or "git"
-        out = subprocess.check_output(  # noqa: S603 -- hardcoded git argv resolved via shutil.which (no shell, no user input)
+        out = subprocess.check_output(
             [git_exe, "diff", "--cached", "--name-only", "--diff-filter=AM"],
             text=True,
         )
@@ -90,7 +90,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.all_tracked:
         try:
             git_exe = shutil.which("git") or "git"
-            tracked = subprocess.check_output(  # noqa: S603 -- hardcoded git argv resolved via shutil.which (no shell, no user input)
+            tracked = subprocess.check_output(
                 [git_exe, "ls-files"], text=True
             ).splitlines()
         except (OSError, subprocess.CalledProcessError) as exc:

@@ -39,7 +39,7 @@ import argparse
 import json
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 # ── sys.path bootstrap (repo-root convention) ──────────────────
@@ -54,12 +54,12 @@ from scripts.bake_overlay_library import (
     OVERLAY_SECTION_NAMES,
     WATERMARK_FIELDS,
     _overlay_header,
-    build_overlay_manifest,
+)
+from scripts.bake_overlay_library import (
     overlay_fields as extract_overlay_fields,
 )
 from scripts.generate_smc_micro_profiles import (
     render_csv_export,
-    shard_csv_string,
 )
 from scripts.smc_atomic_write import atomic_write_text
 
@@ -215,7 +215,7 @@ def refresh(
     if symbols is None:
         symbols = _load_universe_symbols(out_manifest)
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     asof_date = now.strftime("%Y-%m-%d")
     asof_time = now.strftime("%H:%M:%S UTC")
 

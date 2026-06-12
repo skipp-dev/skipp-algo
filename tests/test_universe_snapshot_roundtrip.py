@@ -6,8 +6,6 @@ import json
 from datetime import date, datetime
 from pathlib import Path
 
-import pytest
-
 from databento_universe import (
     list_universe_snapshots,
     load_universe_snapshot,

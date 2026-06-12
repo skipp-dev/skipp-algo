@@ -65,7 +65,7 @@ def _api_get_json(token: str, path: str) -> dict:
         },
         method="GET",
     )
-    with urllib.request.urlopen(req, timeout=60) as resp:  # noqa: S310 - fixed api.github.com URL
+    with urllib.request.urlopen(req, timeout=60) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
 
@@ -85,10 +85,10 @@ def _download_zip(token: str, repo: str, artifact_id: int) -> bytes:
         def redirect_request(
             self,
             req: urllib.request.Request,
-            fp,  # noqa: ANN001
+            fp,
             code: int,
             msg: str,
-            headers,  # noqa: ANN001
+            headers,
             newurl: str,
         ) -> urllib.request.Request | None:
             new_req = super().redirect_request(req, fp, code, msg, headers, newurl)
@@ -112,7 +112,7 @@ def _download_zip(token: str, repo: str, artifact_id: int) -> bytes:
         },
         method="GET",
     )
-    with opener.open(req, timeout=120) as resp:  # noqa: S310 - fixed api.github.com URL
+    with opener.open(req, timeout=120) as resp:
         return resp.read()
 
 

@@ -110,7 +110,7 @@ def safe_get_range(
             **kwargs,
         )
         return store, STATUS_OK
-    except Exception as exc:  # noqa: BLE001 — classification handles re-raise
+    except Exception as exc:
         status = _classify(exc)
         if status == STATUS_SKIPPED_DATA_AFTER_END:
             msg = (

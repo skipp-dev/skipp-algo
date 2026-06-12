@@ -10,12 +10,12 @@ Pure stdlib.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 from pathlib import Path
 from typing import Any
 
 from scripts.smc_atomic_write import atomic_write_text
-import contextlib
 
 
 def scan(archive_dir: Path) -> dict[str, Any]:

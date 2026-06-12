@@ -205,14 +205,18 @@ class TestWeekendHolidayGapScope:
 
     def test_holiday_set_contains_independence_day(self):
         """Verify holiday set includes Independence Day for 2025."""
-        from open_prep.run_open_prep import _us_equity_market_holidays
+        from newsstack_fmp._market_cal import (
+            us_equity_market_holidays as _us_equity_market_holidays,
+        )
 
         holidays = _us_equity_market_holidays(2025)
         assert date(2025, 7, 4) in holidays
 
     def test_holiday_set_contains_christmas(self):
         """Verify holiday set includes Christmas for 2025."""
-        from open_prep.run_open_prep import _us_equity_market_holidays
+        from newsstack_fmp._market_cal import (
+            us_equity_market_holidays as _us_equity_market_holidays,
+        )
 
         holidays = _us_equity_market_holidays(2025)
         assert date(2025, 12, 25) in holidays
@@ -1458,28 +1462,36 @@ class TestHolidayEdgeCases:
 
     def test_good_friday_2025(self):
         """Good Friday 2025-04-18 is a market holiday."""
-        from open_prep.run_open_prep import _us_equity_market_holidays
+        from newsstack_fmp._market_cal import (
+            us_equity_market_holidays as _us_equity_market_holidays,
+        )
 
         holidays = _us_equity_market_holidays(2025)
         assert date(2025, 4, 18) in holidays
 
     def test_juneteenth_2025(self):
         """Juneteenth 2025-06-19 is a market holiday."""
-        from open_prep.run_open_prep import _us_equity_market_holidays
+        from newsstack_fmp._market_cal import (
+            us_equity_market_holidays as _us_equity_market_holidays,
+        )
 
         holidays = _us_equity_market_holidays(2025)
         assert date(2025, 6, 19) in holidays
 
     def test_mlk_day_2026(self):
         """MLK Day 2026 is Jan 19 (third Monday)."""
-        from open_prep.run_open_prep import _us_equity_market_holidays
+        from newsstack_fmp._market_cal import (
+            us_equity_market_holidays as _us_equity_market_holidays,
+        )
 
         holidays = _us_equity_market_holidays(2026)
         assert date(2026, 1, 19) in holidays
 
     def test_christmas_on_sunday_observed_monday_2022(self):
         """Christmas 2022 fell on Sunday → observed Monday Dec 26."""
-        from open_prep.run_open_prep import _us_equity_market_holidays
+        from newsstack_fmp._market_cal import (
+            us_equity_market_holidays as _us_equity_market_holidays,
+        )
 
         holidays = _us_equity_market_holidays(2022)
         assert date(2022, 12, 26) in holidays  # Observed Monday
@@ -1487,7 +1499,12 @@ class TestHolidayEdgeCases:
     def test_new_year_on_saturday_observed_friday_2022(self):
         """New Year 2022 fell on Saturday → observed Friday Dec 31 2021.
         The cross-year observed holiday MUST be recognized as a non-trading day."""
-        from open_prep.run_open_prep import _is_us_equity_trading_day, _us_equity_market_holidays
+        from newsstack_fmp._market_cal import (
+            is_us_equity_trading_day as _is_us_equity_trading_day,
+        )
+        from newsstack_fmp._market_cal import (
+            us_equity_market_holidays as _us_equity_market_holidays,
+        )
 
         # The observed Dec 31 holiday lives in the 2022 holiday set
         holidays_2022 = _us_equity_market_holidays(2022)
