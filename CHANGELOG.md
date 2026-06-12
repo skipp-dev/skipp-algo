@@ -6,6 +6,18 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Security (2026-06-12) — tsx ^4.22.4 → esbuild 0.28.1 (Dependabot #5/#6)
+
+`tsx` von `^4.20.5` auf `^4.22.4` gehoben, wodurch das transitive
+`esbuild` von 0.27.4 auf 0.28.1 springt. Schließt Dependabot-Alert #6
+(high: fehlende Binary-Integritätsprüfung im Deno-Modul → RCE via
+`NPM_CONFIG_REGISTRY`) und #5 (low: arbitrary file read im Dev-Server
+unter Windows). Beide Alerts betreffen nur dev-Tooling (tsx-Runner für
+die `tv:*`-Skripte), kein Produktionscode. Verbleibende torch-Alerts
+(#3/#4, low, memory corruption in `torch.jit.script`) haben upstream
+keinen Patch (`fixed: none`, torch ≤ 2.12.0) — kein Handlungsspielraum,
+beobachten.
+
 ### Added (2026-06-12) — Runbook: TradingView storage-state capture + Secret-Rotation
 
 Neues `docs/tradingview-storage-state-capture-runbook.md`: dokumentierte
