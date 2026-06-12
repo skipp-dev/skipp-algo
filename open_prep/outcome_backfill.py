@@ -369,7 +369,19 @@ def backfill_outcomes(
         if bars_df is DATA_NOT_YET_PUBLISHED:
             # Transient: the day's bars are not published yet. Leave the
             # records unresolved so the next scheduled run retries them.
+            # Still account for the rest of the file so the summary stays
+            # accurate (Copilot finding on #2677): already-resolved rows
+            # count as skipped, structurally-invalid unresolved rows
+            # (missing symbol) as failed.
             total_deferred += len(pending_symbols)
+            total_skipped += sum(
+                1 for r in records if r.get("profitable_30m") is not None
+            )
+            total_failed += sum(
+                1
+                for r in records
+                if r.get("profitable_30m") is None and not r.get("symbol")
+            )
             continue
 
         updated = False

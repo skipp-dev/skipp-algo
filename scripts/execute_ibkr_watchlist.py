@@ -1042,7 +1042,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--place-orders", action="store_true", help="Actually place orders in TWS/IB Gateway. Default is dry-run only.")
     parser.add_argument("--check-connection", action="store_true", help="Probe the IBKR connection and print handshake metadata.")
     parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=7497)
+    parser.add_argument("--port", type=int, default=PAPER_PORT)
     parser.add_argument(
         "--client-id",
         type=int,
@@ -1124,7 +1124,15 @@ def main() -> None:
         if args.client_id is None:
             from scripts.ib_client_id import release_ib_client_id
 
-            release_ib_client_id(client_id)
+            # Best-effort: a registry-write failure (I/O, permissions) must
+            # not mask an exception from the run — nor fail a clean run.
+            try:
+                release_ib_client_id(client_id)
+            except Exception as release_exc:
+                print(
+                    f"WARN clientId release failed (ignored): {release_exc}",
+                    file=sys.stderr,
+                )
 
 
 def _main_with_resolved_client_id(args: argparse.Namespace, client_id: int) -> None:
