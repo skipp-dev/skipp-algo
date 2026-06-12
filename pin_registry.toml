@@ -224,6 +224,10 @@ allowed = [
 # tolerates GitHub API hiccups while polling per-workflow run
 # freshness; outcome is surfaced via the dedicated alert step.
 "workflow-freshness-monitor.yml" = 1
+# meta-watchdog.yml: same explicit-exit-check pattern as the
+# freshness monitor — `set +e` only around the probe script call so
+# report/summary land before the final fail-loud step re-surfaces rc.
+"meta-watchdog.yml" = 1
 
 # ---------------------------------------------------------------------------
 # test_subprocess_shell_injection_pin.py — frozen subprocess call sites.
