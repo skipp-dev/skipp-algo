@@ -74,9 +74,11 @@ jobs:
       # success in seconds, unblocking auto-merge.
       - name: Determine if heavy gates should run
         id: gate
+        env:
+          HEAD_REF: ${{ github.head_ref }}
         run: |
-          if [[ "${{ github.event_name }}" == "pull_request" && "${{ github.head_ref }}" == bot/* ]]; then
-            echo "Bot data-only PR detected (head=${{ github.head_ref }}); skipping heavy fast-gates."
+          if [[ "${{ github.event_name }}" == "pull_request" && "$HEAD_REF" == bot/* ]]; then
+            echo "Bot data-only PR detected (head=$HEAD_REF); skipping heavy fast-gates."
             echo "run_heavy=false" >> "$GITHUB_OUTPUT"
           else
             echo "run_heavy=true" >> "$GITHUB_OUTPUT"
@@ -129,6 +131,58 @@ jobs:
       - name: Lint workflow PYTHONUNBUFFERED
         if: steps.gate.outputs.run_heavy == 'true'
         run: python scripts/lint_workflow_pythonunbuffered.py
+
+      # Workflow-Audit 2026-06: actionlint as a hard gate. Catches GHA
+      # template-engine syntax errors (e.g. `${{ ... }}` inside run-block
+      # shell comments -> HTTP 422 on dispatch; see A9b.2a post-mortem,
+      # PR #2083) that PyYAML-based smoke tests structurally CANNOT see,
+      # plus expression typos and invalid needs/outputs refs. shellcheck
+      # integration is explicitly DISABLED (-shellcheck=): the existing
+      # main baseline carries pre-existing shell findings (research
+      # workflows, exit-with-template patterns) that are out of scope
+      # for this template-engine gate; adopting shellcheck would be a
+      # separate ratchet decision. Version pinned via actionlint-py wheel.
+      - name: actionlint (workflow template/expression lint)
+        if: steps.gate.outputs.run_heavy == 'true'
+        run: |
+          python -m pip install --quiet "actionlint-py==1.7.12.*"
+          actionlint -no-color -shellcheck=
+
+      # Workflow-Audit 2026-06: zizmor as a RATCHET, not a hard zero-gate.
+      # The existing inventory carries 91 high / 52 medium findings
+      # (mostly template-injection + artipacked) that cannot be burned
+      # down in one PR. The budgets below pin the status quo: any PR that
+      # ADDS a medium that exceeds budget+ severity finding fails; shrinking
+      # the budgets as findings get fixed is encouraged (lower both numbers
+      # in the same PR that fixes findings).
+      - name: zizmor (workflow security ratchet)
+        if: steps.gate.outputs.run_heavy == 'true'
+        env:
+          # Baseline measured 2026-06-12 (offline mode, zizmor 1.25.2).
+          ZIZMOR_HIGH_BUDGET: "91"
+          ZIZMOR_MEDIUM_BUDGET: "52"
+        run: |
+          python -m pip install --quiet "zizmor==1.25.2"
+          zizmor --no-progress --offline --format json .github/workflows/ > zizmor_report.json || true
+          python - <<'PY'
+          import json, os, sys
+          findings = json.load(open("zizmor_report.json"))
+          high = sum(1 for f in findings if f["determinations"]["severity"] == "High")
+          medium = sum(1 for f in findings if f["determinations"]["severity"] == "Medium")
+          hb = int(os.environ["ZIZMOR_HIGH_BUDGET"])
+          mb = int(os.environ["ZIZMOR_MEDIUM_BUDGET"])
+          print(f"zizmor: high={high} (budget {hb}), medium={medium} (budget {mb})")
+          ok = True
+          if high > hb:
+              print(f"::error title=zizmor-ratchet::high-severity findings rose {hb} -> {high}. New workflow code introduced a security finding (run `zizmor .github/workflows/` locally).")
+              ok = False
+          if medium > mb:
+              print(f"::error title=zizmor-ratchet::medium-severity findings rose {mb} -> {medium}. New workflow code introduced a security finding (run `zizmor .github/workflows/` locally).")
+              ok = False
+          if ok and (high < hb or medium < mb):
+              print(f"::notice title=zizmor-ratchet::findings below budget (high {high}/{hb}, medium {medium}/{mb}) — consider lowering ZIZMOR_*_BUDGET in smc-fast-pr-gates.yml to lock in the improvement.")
+          sys.exit(0 if ok else 1)
+          PY
 
       - name: Install uv
         if: steps.gate.outputs.run_heavy == 'true'
