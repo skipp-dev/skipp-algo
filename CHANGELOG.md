@@ -70,6 +70,32 @@ NVDA-Datensatz als echten Trade — Kontamination der Hit-Rate-Statistik.
 - Test-Fixtures: synthetische `order_id`/`perm_id` über `zlib.crc32`
   statt `hash()` (PYTHONHASHSEED-unabhängig, keine Modulus-Kollisionen).
 
+### Fixed (2026-06-11) — Phase-B-Readiness-Workflow: Drift-Artifact-Download (C8 Phase A → B)
+
+`phase-b-promotion-readiness.yml` konnte strukturell nie erfolgreich laufen:
+Der Gate-Glob `artifacts/drift/drift_report_*.json` zeigte auf den frischen
+Checkout, aber die Drift-Artefakte mit dem Gate-Feld
+`slippage_ks_reference_type` werden von `compute_live_drift`
+(`c13-daily-cron.yml` Step 4) ausschließlich als **Run-Artefakt**
+(`c13-daily-<DATE>`, Pfad `cache/live/drift_<DATE>.json`) hochgeladen und nie
+ins Repo committet — jeder Dispatch wäre mit Exit 64 (`no files matched`)
+geendet. Deshalb hatte der Workflow seit Erstellung (Deep-Review 2026-04-27)
+null Läufe. (Das `drift-report`-Artefakt des drift-watchdog ist ein anderer
+Report-Typ ohne das Gate-Feld — empirisch verifiziert; das Gate darf nicht
+darauf zeigen.)
+
+- **`.github/workflows/phase-b-promotion-readiness.yml`**: neuer Step
+  `Fetch latest compute_live_drift artifact` scannt die letzten 10
+  erfolgreichen `c13-daily-cron`-Runs (Step 4 soft-skippt an Wochenenden
+  mangels Walk-Forward-Inputs) und kopiert das jüngste `drift_<DATE>.json`
+  als `artifacts/drift/drift_report_<DATE>.json` in den Checkout (Glob-Pin
+  des Contract-Tests bleibt gültig). Kein Treffer → Exit 2
+  (`EXIT_NOT_READY`). Skip, wenn der Caller-Glob bereits Dateien im Checkout
+  matcht (workflow_call-Pfad). `permissions` um `actions: read` erweitert
+  (weiterhin rein lesend).
+- **`tests/test_phase_b_promotion_readiness_workflow_contract.py`**:
+  Permissions-Pin auf `{contents: read, actions: read}` aktualisiert.
+
 ### Added (2026-06-11) — CI: ruff als obligatorisches Lint-Gate in smc-fast-pr-gates
 
 `ruff check .` ist ab sofort ein Pflicht-Schritt im `fast-gates`-Job (blocks
@@ -91,6 +117,7 @@ direkt nach dem PYTHONUNBUFFERED-Lint und schlägt bei jedem Code-Fehler fail.
     skipp_config/trading_thresholds.py.
   - `ruff==0.15.16` zu `requirements.txt` hinzugefügt; `_DEP_LINE_BUDGET`
     26 → 27.
+
 ### Fixed (2026-06-11) — ADR-0023: Weekly-k-of-n bewertete Tageszeilen statt ISO-Wochen
 
 Der Stage-1-Weekly-Evaluator (`scripts/eval_magnitude_shadow_weekly.py`)
