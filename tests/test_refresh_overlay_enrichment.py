@@ -2,11 +2,8 @@
 from __future__ import annotations
 
 import json
-import textwrap
 from pathlib import Path
 from unittest.mock import patch
-
-import pytest
 
 from scripts.bake_overlay_library import (
     OVERLAY_FIELDS,
@@ -14,16 +11,17 @@ from scripts.bake_overlay_library import (
     OVERLAY_SECTION_MARKERS,
     OVERLAY_SECTION_NAMES,
     WATERMARK_FIELDS,
+)
+from scripts.bake_overlay_library import (
     overlay_fields as extract_overlay_fields,
 )
 from scripts.refresh_overlay_enrichment import (
     _pine_bool,
     _split_csv_string,
     build_fast_overlay_manifest,
-    render_overlay_pine_lines,
     refresh,
+    render_overlay_pine_lines,
 )
-
 
 # ── Fixture enrichment dict ────────────────────────────────────
 
@@ -241,7 +239,7 @@ class TestRefreshDryRun:
             "scripts.generate_smc_micro_base_from_databento.build_enrichment",
             return_value=fake_enrichment,
         ):
-            manifest = refresh(
+            refresh(
                 out_pine=out_pine,
                 out_manifest=out_manifest,
                 fmp_api_key="fake",

@@ -26,6 +26,8 @@ from scripts.regen_smc_strategy_fixtures import (
     KNOWN_STRATEGIES,
     SIGNAL_FLOAT_COLS,
     SIGNAL_STRING_COLS,
+)
+from scripts.regen_smc_strategy_fixtures import (
     main as regen_main,
 )
 

@@ -3,10 +3,10 @@
 
 Mirrors family_partition_analysis_v4_corpus.json structure for direct comparison.
 """
-import json, math
-from collections import defaultdict
-from pathlib import Path
+import json
+import math
 from itertools import combinations
+from pathlib import Path
 from statistics import mean
 
 CORPUS_ROOT = Path("/tmp/c10b_local_run/measurement_benchmark")
@@ -32,7 +32,7 @@ def wilson_ci(p, n, z=1.96):
     if n == 0: return [None, None]
     denom = 1 + z*z/n
     centre = (p + z*z/(2*n)) / denom
-    half = z * math.sqrt((p*(1-p)/n + z*z/(4*n*n))) / denom
+    half = z * math.sqrt(p*(1-p)/n + z*z/(4*n*n)) / denom
     return [round(centre - half, 4), round(centre + half, 4)]
 
 baseline = {}

@@ -21,18 +21,17 @@ import tempfile
 import threading
 import time as time_module
 import warnings
+from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta, tzinfo
 from io import BytesIO
 from pathlib import Path
 from typing import Any
-from collections.abc import Callable, Iterable
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
 
 import certifi
-
 import numpy as np
 import pandas as pd
 
@@ -183,7 +182,9 @@ def _fmt_rss_pair() -> str:
 # (or any cached-derived dvs_* session_state entry) changes. See the
 # invalidation block in run_streamlit_app() for the affected keys.
 # Source of truth: smc_core.schema_version.SESSION_SCHEMA_VERSION (H-6).
-from smc_core.schema_version import SESSION_SCHEMA_VERSION as _DVS_SESSION_SCHEMA_VERSION  # noqa: E402 -- cache-version source-of-truth, imported after streamlit/regex setup block
+from smc_core.schema_version import (
+    SESSION_SCHEMA_VERSION as _DVS_SESSION_SCHEMA_VERSION,
+)
 
 _API_KEY_REDACTION_PATTERNS = (
     re.compile(r"(api[_-]?key=)([^&\s]+)", flags=re.IGNORECASE),
@@ -5161,12 +5162,13 @@ def export_run_artifacts(
 
 
 def run_streamlit_app() -> None:
-    from dataclasses import replace
     import os
-    import streamlit as st
+    from dataclasses import replace
     from datetime import UTC, datetime
-    from dotenv import load_dotenv
     from pathlib import Path
+
+    import streamlit as st
+    from dotenv import load_dotenv
 
     from scripts.bullish_quality_config import (
         BULLISH_QUALITY_SCORE_PROFILES,

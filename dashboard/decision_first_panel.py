@@ -22,7 +22,6 @@ Roadmap: docs/IMPROVEMENTS_C2_C12_ROADMAP_2026-04-26.md#c71
 """
 from __future__ import annotations
 
-import json
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -30,6 +29,8 @@ from typing import cast
 
 from governance.promotion_report import (
     DEFAULT_PROMOTION_DECISIONS_PATH,
+)
+from governance.promotion_report import (
     load_decisions_from_report as _load_decisions_from_report,
 )
 

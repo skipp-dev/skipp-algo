@@ -43,7 +43,6 @@ from scripts.databento_production_export import (
 )
 from scripts.databento_production_workbook import WorkbookWriteResult
 
-
 # ---------------------------------------------------------------------------
 # resolver-level tests
 # ---------------------------------------------------------------------------

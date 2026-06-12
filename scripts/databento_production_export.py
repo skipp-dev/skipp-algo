@@ -7,8 +7,7 @@ import os
 import sys
 import threading
 import time as time_module
-from collections.abc import Sequence
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, date, datetime, time
 from pathlib import Path

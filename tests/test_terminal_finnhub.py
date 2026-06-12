@@ -128,7 +128,7 @@ class TestBackoff:
             def read(self) -> bytes:
                 return b"{}"
 
-        def _fake_urlopen(req, timeout=15, context=None):  # noqa: ARG001
+        def _fake_urlopen(req, timeout=15, context=None):
             calls.append(req.full_url)
             if "symbol=AAPL" in req.full_url:
                 raise urllib.error.HTTPError(req.full_url, 429, "rate limited", hdrs=None, fp=None)

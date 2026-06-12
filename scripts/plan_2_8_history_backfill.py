@@ -13,13 +13,13 @@ happen.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime as _dt
 import json
 import os
 import tempfile
 from pathlib import Path
 from typing import Any
-import contextlib
 
 
 def _parse_iso(ts: str) -> _dt.datetime | None:

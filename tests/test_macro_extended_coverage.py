@@ -1488,6 +1488,7 @@ def test_finnhub_client_passes_api_key_kwarg(
     ``docs/AUDIT_L1_REVIEW_RETROSPECTIVE_2026-05-12.md``.
     """
     import os as _os
+
     import terminal_finnhub as _tf
 
     seen: list[str | None] = []

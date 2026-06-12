@@ -66,9 +66,10 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, Iterable, Mapping
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +114,7 @@ class OpraDefinitionRecord:
     raw_symbol: str | None = None  # OCC OSI symbol (optional; pass-through)
 
     @classmethod
-    def from_row(cls, row: Mapping[str, Any]) -> "OpraDefinitionRecord":
+    def from_row(cls, row: Mapping[str, Any]) -> OpraDefinitionRecord:
         opt_type_raw = str(row.get("instrument_class") or row.get("option_type") or "").upper()
         # OPRA definition uses 'C' / 'P' in instrument_class for options.
         if opt_type_raw in ("C", "CALL"):
@@ -340,7 +341,7 @@ def detect_unusual_options_activity(
     # buckets keyed by (underlying, window_bucket) — handled in a second
     # pass below so the per-instrument bucket loop above stays O(N).
     multileg_keys: dict[tuple[str, int], set[str]] = defaultdict(set)
-    for (inst, bucket_idx), defn in bucket_definitions.items():
+    for (_inst, bucket_idx), defn in bucket_definitions.items():
         if defn is None or not defn.option_type:
             continue
         multileg_keys[(defn.underlying, bucket_idx)].add(defn.option_type)

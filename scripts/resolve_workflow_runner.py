@@ -88,7 +88,7 @@ def _fetch_repository_runners(repository: str, token: str) -> list[dict[str, Any
             "X-GitHub-Api-Version": _API_VERSION,
         },
     )
-    with urlopen(request, timeout=20) as response:  # noqa: S310 - fixed GitHub API URL
+    with urlopen(request, timeout=20) as response:
         payload = json.load(response)
     runners = payload.get("runners")
     if not isinstance(runners, list):

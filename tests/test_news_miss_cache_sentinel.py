@@ -19,11 +19,7 @@ back-off self-recovers.
 
 from __future__ import annotations
 
-import time
 from unittest.mock import patch
-
-import pytest
-
 
 # ===========================================================================
 # terminal_tradingview_news
@@ -186,9 +182,9 @@ class TestFMPInsightsMissCache:
 
 
 def test_miss_ttl_shorter_than_success_ttl() -> None:
-    import terminal_tradingview_news as tv
     import terminal_ai_insights as ai
     import terminal_fmp_insights as fi
+    import terminal_tradingview_news as tv
     assert tv._MISS_TTL_S < tv._CACHE_TTL
     assert ai._MISS_TTL_S < ai._CACHE_TTL_S
     assert fi._MISS_TTL_S < fi._CACHE_TTL_S

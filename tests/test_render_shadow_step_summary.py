@@ -50,7 +50,7 @@ class TestRenderSummaryTable:
     def test_control_family_no_stage2(self) -> None:
         rows = [_row("FVG", 0.51, status="FAIL")]
         md = render_summary(rows, k=3, n=4)
-        lines = [l for l in md.split("\n") if "| FVG" in l]
+        lines = [ln for ln in md.split("\n") if "| FVG" in ln]
         assert len(lines) == 1
         # Controls show em-dash, not progress
         assert "—" in lines[0]
@@ -66,7 +66,7 @@ class TestRenderSummaryTable:
         md = render_summary(rows, k=3, n=4)
         # At least one sparkline block character should be present
         spark_chars = set("▁▂▃▄▅▆▇█·")
-        lines = [l for l in md.split("\n") if "| BOS" in l]
+        lines = [ln for ln in md.split("\n") if "| BOS" in ln]
         assert len(lines) == 1
         assert any(c in lines[0] for c in spark_chars)
 
@@ -82,8 +82,8 @@ class TestRenderSummaryTable:
             _row("OB", 0.51, status="FAIL"),
         ]
         md = render_summary(rows, k=3, n=4)
-        lines = [l for l in md.split("\n") if l.startswith("| ") and "Family" not in l and "---" not in l]
-        families = [l.split("|")[1].strip() for l in lines]
+        lines = [ln for ln in md.split("\n") if ln.startswith("| ") and "Family" not in ln and "---" not in ln]
+        families = [ln.split("|")[1].strip() for ln in lines]
         assert families == sorted(families)
 
     def test_footnote_present(self) -> None:

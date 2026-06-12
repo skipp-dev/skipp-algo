@@ -63,7 +63,7 @@
 # Workflow-freshness monitor (#2433, 2026-05): polls GitHub Actions
 # REST API once per cron tick for silent-skip detection. https-only,
 # explicit timeout=15s, B310 nosec'd at the call site (constant URL).
-"scripts/check_workflow_freshness.py" = [71]
+"scripts/check_workflow_freshness.py" = [72]
 # smc_fmp_client.py: bare-name urlopen (from urllib.request import urlopen)
 # at L275 inside FMPClient._do_request; has timeout=self.timeout_seconds.
 "scripts/smc_fmp_client.py" = [275]
@@ -74,7 +74,7 @@
 # _is_urlopen_call to match ast.Name in addition to ast.Attribute.
 # All have timeout=; none were visible to the old Attribute-only detector.
 "databento_universe.py" = [306]
-"databento_volatility_screener.py" = [1428]
+"databento_volatility_screener.py" = [1429]
 "open_prep/bea.py" = [94]
 # 2026-06-11 (eval-findings B8): surprise-scale comment block +8 (713→721).
 "open_prep/macro.py" = [721]
@@ -125,36 +125,33 @@ file = "smc_integration/release_policy.py"
 line = 1107
 codes = ["S603"]
 
-# open_prep/streamlit_monitor.py:203 — module-import-time hardening:
-# OPRA-options-flow integration wrapped in a try/except so ImportError,
-# env-parse ValueError, or any other startup failure degrades
-# gracefully and keeps streamlit_monitor importable. BLE001 noqa
-# documents the deliberate broad catch.
-[[noqa_budget.sites]]
-file = "open_prep/streamlit_monitor.py"
-line = 203
-codes = ["BLE001"]
-
-# E402 outliers — late imports after sys.path/streamlit setup blocks
-# that pyproject's per-file-ignores cannot easily cover without
-# disabling E402 for too-broad surface area. PR #2309 / follow-up:
-# mainline import/header growth shifted the same delayed first-party
-# import from 123 to 186; code set unchanged.
-[[noqa_budget.sites]]
-file = "databento_volatility_screener.py"
-line = 186
-codes = ["E402"]
-
+# E402 outliers in newsstack_fmp/pipeline.py remain (not covered by per-file-ignores).
 [[noqa_budget.sites]]
 file = "newsstack_fmp/pipeline.py"
 line = 1183
 codes = ["E402"]
 
-# 2026-06-11 (eval-findings D7): technical_analysis import block +8 (472→480).
+# ruff fix (2026-06-11): added # noqa: RUF007 / RUF012 / F401 suppressions
+# for four sites that need suppressions rather than code changes.
 [[noqa_budget.sites]]
-file = "open_prep/run_open_prep.py"
-line = 480
-codes = ["E402"]
+file = "governance/family_returns.py"
+line = 432
+codes = ["RUF007"]
+
+[[noqa_budget.sites]]
+file = "rl/simulator/execution_env.py"
+line = 70
+codes = ["RUF012"]
+
+[[noqa_budget.sites]]
+file = "rl/simulator/sb3_execution_env.py"
+line = 36
+codes = ["RUF012"]
+
+[[noqa_budget.sites]]
+file = "terminal_bitcoin.py"
+line = 67
+codes = ["F401"]
 
 [[noqa_budget.sites]]
 file = "smc_tv_bridge/smc_api.py"

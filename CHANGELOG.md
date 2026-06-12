@@ -64,6 +64,28 @@ darauf zeigen.)
 - **`tests/test_phase_b_promotion_readiness_workflow_contract.py`**:
   Permissions-Pin auf `{contents: read, actions: read}` aktualisiert.
 
+### Added (2026-06-11) — CI: ruff als obligatorisches Lint-Gate in smc-fast-pr-gates
+
+`ruff check .` ist ab sofort ein Pflicht-Schritt im `fast-gates`-Job (blocks
+merge). Konfiguration lebt in `pyproject.toml [tool.ruff]`; das Gate läuft
+direkt nach dem PYTHONUNBUFFERED-Lint und schlägt bei jedem Code-Fehler fail.
+
+- Alle bestehenden Verletzungen (359 auto-fixbar + 85 manuell) bereinigt:
+  - `ruff check --fix` entfernte 278 auto-fixbare (unsortierte Imports, I001;
+    obsolete noqa-Direktiven, RUF100; trailing whitespace, W292; u.a.).
+  - Manuelle Korrekturen: SIM103/SIM115/SIM117/SIM118/RUF034/B007/F841/
+    RUF059/RUF005/RUF007/E741/E731/F401/UP007 in Tests, Scripts, Governance.
+  - Neue `per-file-ignores` für plan-gating Sonderfälle: E402 in open_prep/*,
+    E701/E702/E741/B007 in scripts/c10b_* (Analyse-Skripte mit kompaktem Stil),
+    S108 nur gezielt für c10b/c10c-Research-Skripte + Provenance-Scanner
+    (dokumentierte lokale /tmp-Korpora bzw. Regex-Pattern); S603/S607 nur für
+    eine explizite, grandfathered Dateiliste (neue Scripts bekommen volles
+    Subprocess-Linting),
+    F821 in streamlit_terminal.py (Forward-Referenz, Runtime korrekt), UP047 in
+    skipp_config/trading_thresholds.py.
+  - `ruff==0.15.16` zu `requirements.txt` hinzugefügt; `_DEP_LINE_BUDGET`
+    26 → 27.
+
 ### Fixed (2026-06-11) — ADR-0023: Weekly-k-of-n bewertete Tageszeilen statt ISO-Wochen
 
 Der Stage-1-Weekly-Evaluator (`scripts/eval_magnitude_shadow_weekly.py`)

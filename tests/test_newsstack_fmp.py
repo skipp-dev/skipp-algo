@@ -3,13 +3,13 @@ plus Production Gatekeeper findings M-1 through M-6."""
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import tempfile
 import time
 import unittest
 from unittest.mock import MagicMock, patch
-import contextlib
 
 # ── R-3: Config reads env vars at instantiation, not import time ──
 
@@ -279,8 +279,9 @@ class TestNormalization(unittest.TestCase):
         self.assertTrue(item.is_valid)
 
     def test_normalize_fmp_naive_timestamp_uses_new_york_default(self):
-        from newsstack_fmp.normalize import _to_epoch, normalize_fmp
         from zoneinfo import ZoneInfo
+
+        from newsstack_fmp.normalize import _to_epoch, normalize_fmp
 
         item = normalize_fmp("fmp_stock_latest", {
             "title": "AAPL Announces Buyback",

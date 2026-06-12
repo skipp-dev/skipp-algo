@@ -33,7 +33,6 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass
-from typing import Literal
 
 from governance.family_calibration import (
     MIN_OOS_SAMPLES,
@@ -316,8 +315,8 @@ __all__ = [
     "MAGNITUDE_GATE_SOURCE_TAG",
     "MAG_AUC_CI_LOW_FLOOR",
     "MAG_AUC_FLOOR",
-    "MagnitudeResolutionResult",
     "PERM_NULL_PERCENTILE",
+    "MagnitudeResolutionResult",
     "bootstrap_auc_ci",
     "evaluate_family_magnitude_resolution",
     "magnitude_resolution_report",
