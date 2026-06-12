@@ -47,6 +47,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
+      # Workflow-Audit MITTEL-9 (2026-06): self-append loop guard. The
+      # watchdog appends to docs/ab/g23_history.jsonl from the main
+      # checkout and lands the change via an auto-merge PR. If a previous
+      # watchdog PR is still open (auto-merge stuck on red required
+      # checks, etc.), this run's checkout does NOT contain yesterday's
+      # entry — appending now would either conflict on merge or silently
+      # drop the prior entry. Fail loud instead of building on a stale
+      # history; the open PR needs operator attention first.
+      - name: Guard against unmerged predecessor watchdog PR
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          STALE=$(gh pr list --state open --json headRefName \
+            --jq '[.[].headRefName | select(startswith("bot/g23-watchdog-"))] | join(", ")')
+          if [ -n "${STALE}" ]; then
+            echo "::error title=g23-ab-watchdog::previous watchdog PR(s) still open (${STALE}) — this checkout lacks the prior history entry; appending would conflict or silently lose it. Merge/close the stale PR, then re-run."
+            exit 1
+          fi
+          echo "No unmerged predecessor watchdog PR — history baseline is current."
+
       - name: Set up Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:

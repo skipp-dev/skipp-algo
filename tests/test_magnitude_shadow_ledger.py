@@ -234,3 +234,18 @@ def test_main_empty_events_is_usage_error(tmp_path: Path) -> None:
     events_path = tmp_path / "events.json"
     events_path.write_text("[]", encoding="utf-8")
     assert shadow.main([str(events_path), "--ledger", str(tmp_path / "l.jsonl")]) == 1
+
+
+def test_main_malformed_date_is_usage_error_not_verdict(tmp_path: Path) -> None:
+    """A bad --date must exit 1 (error), NOT reach the ledger: downstream
+    consumers compare parsed dates and a malformed value would silently
+    drop out of latest-row selection. Exit 2/3 are reserved for verdicts.
+    """
+    events_path = tmp_path / "events.json"
+    events_path.write_text(json.dumps([{"family": "BOS", "x": 1}]), encoding="utf-8")
+    ledger = tmp_path / "shadow.jsonl"
+    code = shadow.main(
+        [str(events_path), "--ledger", str(ledger), "--date", "06.06.2026"]
+    )
+    assert code == 1
+    assert not ledger.exists()

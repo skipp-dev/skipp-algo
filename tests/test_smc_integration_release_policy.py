@@ -601,6 +601,60 @@ class TestMeasurementShadowGovernance:
         assert "MEASUREMENT_CALIBRATED_BRIER_ABOVE_THRESHOLD" not in codes
         assert baseline["calibrated_thresholds_eligible"] is False
 
+    def test_ece_breach_at_floor_carries_recalibration_required_signal(self) -> None:
+        # PG observation follow-up (#2693): an ECE breach AT/ABOVE the
+        # eligibility floor is by construction not small-sample noise (that
+        # regime is the suppressed n<floor band) — it must carry an explicit
+        # RECALIBRATION_REQUIRED marker so the correct operator response
+        # (recalibrate) is machine-distinguishable from the suppressed
+        # small-sample case, and nobody reaches for another floor bump.
+        thresholds = MeasurementShadowThresholds()
+        degradations, baseline = assess_measurement_shadow_degradations(
+            {
+                "calibrated_brier_score": 0.11,
+                "calibrated_ece": 0.331385,  # PG-like incident value, now at n=30
+                "n_events": 30,
+                "stratification_coverage": {"populated_bucket_count": 3},
+            },
+            [],
+            thresholds=thresholds,
+        )
+        assert baseline["calibrated_thresholds_eligible"] is True
+        ece_rows = [
+            row
+            for row in degradations
+            if row["code"] == "MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD"
+        ]
+        assert len(ece_rows) == 1
+        row = ece_rows[0]
+        assert row["recalibration_required"] is True
+        assert row["recommended_action"] == "recalibrate"
+        assert "RECALIBRATION_REQUIRED" in row["detail"]
+        # The detail must name both n_events and the floor so the report is
+        # self-explanatory without cross-referencing the thresholds dataclass.
+        assert "n_events=30" in row["detail"]
+        assert str(thresholds.min_events_for_calibrated_thresholds) in row["detail"]
+
+    def test_recalibration_marker_is_scoped_to_the_ece_degradation(self) -> None:
+        # The marker is an ECE-specific signal; other degradation rows (e.g.
+        # the calibrated-Brier breach firing in the same assessment) must not
+        # carry it.
+        thresholds = MeasurementShadowThresholds()
+        degradations, _baseline = assess_measurement_shadow_degradations(
+            {
+                "calibrated_brier_score": 0.70,  # > 0.60 default
+                "calibrated_ece": 0.40,  # > 0.30 default
+                "n_events": 30,
+                "stratification_coverage": {"populated_bucket_count": 3},
+            },
+            [],
+            thresholds=thresholds,
+        )
+        by_code = {row["code"]: row for row in degradations}
+        assert by_code["MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD"]["recalibration_required"] is True
+        assert "recalibration_required" not in by_code["MEASUREMENT_CALIBRATED_BRIER_ABOVE_THRESHOLD"]
+        assert "recommended_action" not in by_code["MEASUREMENT_CALIBRATED_BRIER_ABOVE_THRESHOLD"]
+
 
 class TestContextualCalibrationGovernance:
     def test_recommend_contextual_calibration_reports_missing_dimensions(self) -> None:
