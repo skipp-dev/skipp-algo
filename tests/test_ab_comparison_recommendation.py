@@ -154,7 +154,6 @@ class TestCompareIntegration:
 # ---------------------------------------------------------------------------
 
 
-
 def test_w4_2_missing_calibrated_brier_row_yields_hold_with_reason() -> None:
     """W4-2: missing calibrated_brier row must surface as explicit hold.
 
