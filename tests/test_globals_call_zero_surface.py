@@ -99,7 +99,7 @@ GLOBALS_CALL_ALLOWED: set[tuple[str, int]] = {
     # block and read by tab content rendered later in the same script
     # pass. Read-only globals().get(...) lookup, no mutation.
     # Line shifted 2225 → 2230 (F-V8-cutover branch, 2026-05-18).
-    ("streamlit_terminal.py", 2232),
+    ("streamlit_terminal.py", 2234),
     ("terminal_tabs/__init__.py", 57),
     ("terminal_tabs/__init__.py", 60),
 }
