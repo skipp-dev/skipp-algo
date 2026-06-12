@@ -11,7 +11,6 @@ from smc_tv_bridge.provider_status import (
     ProviderTracker,
 )
 
-
 # ── Basic lifecycle ─────────────────────────────────────────────────────────
 
 class TestProviderTrackerBasic:

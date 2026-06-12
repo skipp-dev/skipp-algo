@@ -33,7 +33,7 @@ if _HAS_GYM:  # pragma: no cover - requires optional gymnasium dependency
         the wrapper so the current research loop stays simple and deterministic.
         """
 
-        metadata = {"render_modes": []}
+        metadata = {"render_modes": []}  # noqa: RUF012
 
         def __init__(
             self,

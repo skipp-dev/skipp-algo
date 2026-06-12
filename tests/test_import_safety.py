@@ -32,7 +32,6 @@ from pathlib import Path
 
 import pytest
 
-
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _PACKAGE_PREFIXES = ("open_prep", "newsstack_fmp")
 

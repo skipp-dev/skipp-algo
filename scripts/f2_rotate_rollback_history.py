@@ -28,13 +28,13 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime as _dt
 import json
 import os
 import sys
 import tempfile
 from pathlib import Path
-import contextlib
 
 DEFAULT_ARCHIVE_SUBDIR = "rollback_history.archive"
 

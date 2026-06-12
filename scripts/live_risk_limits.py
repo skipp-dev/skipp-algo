@@ -72,7 +72,7 @@ class RiskLimits:
     _JSON_METADATA_KEYS = frozenset({"_comment", "frozen_at", "frozen_for"})
 
     @classmethod
-    def from_json(cls, path: "str | Path") -> "RiskLimits":
+    def from_json(cls, path: str | Path) -> RiskLimits:
         """Load and validate kill-switch limits from a JSON object file.
 
         Unknown, non-metadata keys are rejected: a typo in a

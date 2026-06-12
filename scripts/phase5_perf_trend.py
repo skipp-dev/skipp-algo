@@ -104,7 +104,7 @@ md_lines = [
     "# v3-Phase-5 — Larger-Runner Performance Trend",
     "",
     "**Generated:** 2026-05-01  ",
-    f"**Cutoff:** Phase-5 merge commit `573863c5` (2026-04-30 21:02 UTC) — workflows flipped from `ubuntu-latest` to `${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-m' }}`.  ",
+    "**Cutoff:** Phase-5 merge commit `573863c5` (2026-04-30 21:02 UTC) — workflows flipped from `ubuntu-latest` to `${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-m' }}` (fallback label as of the cutoff; retired since).  ",
     "**Sample window:** last 60 successful runs per workflow (gh run list).  ",
     "**Metric:** wallclock = `updatedAt − createdAt` (includes queue + job time).  ",
     "",

@@ -10,13 +10,13 @@ from rl.simulator import EnvConfig, ExecutionEnv, SB3ExecutionEnv
 
 def test_execution_env_is_directly_sb3_compatible() -> None:
     env = ExecutionEnv(cfg=EnvConfig(parent_qty=1_000.0, horizon_steps=4, seed=2))
-    obs, info = env.reset(seed=2)
+    obs, _ = env.reset(seed=2)
     assert env.action_space is not None
     assert env.observation_space is not None
     assert env.action_space.shape == (1,)
     assert env.observation_space.shape == (5,)
     assert obs.shape == (5,)
-    obs, reward, terminated, truncated, info = env.step(np.asarray([0.25], dtype=np.float32))
+    obs, reward, terminated, truncated, _ = env.step(np.asarray([0.25], dtype=np.float32))
     assert obs.shape == (5,)
     assert isinstance(reward, float)
     assert isinstance(terminated, bool)

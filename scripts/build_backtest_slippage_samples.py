@@ -54,6 +54,7 @@ Pure stdlib + numpy. No new dependencies.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import sys
@@ -64,7 +65,6 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-import contextlib
 
 SCHEMA_VERSION = "1.0.0"
 

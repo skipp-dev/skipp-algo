@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import importlib.util
 import io
+import itertools
 import json
 import sys
 from contextlib import redirect_stderr, redirect_stdout
@@ -90,7 +91,7 @@ def test_incremental_narrows_to_elapsed_window():
 
 
 def test_incremental_clamps_shards_to_small_window():
-    rc, out, err = _run_main(_base("--last-baked-date", "2026-06-06"))
+    rc, out, _ = _run_main(_base("--last-baked-date", "2026-06-06"))
     assert rc == 0
     shards = json.loads(out)
     # watermark 2026-06-06, overlap 1 -> [2026-06-06, 2026-06-08] = 3 days.
@@ -113,7 +114,7 @@ def test_incremental_watermark_ahead_floor():
 def test_incremental_cannot_widen_beyond_full_lookback():
     # Watermark far in the past must clamp to the full trailing lookback,
     # never widen the window.
-    rc, out, err = _run_main(_base("--last-baked-date", "2026-04-01"))
+    rc, out, _ = _run_main(_base("--last-baked-date", "2026-04-01"))
     assert rc == 0
     shards = json.loads(out)
     assert shards[0]["start_date"] == "2026-05-10"  # == full 30-day start
@@ -151,7 +152,7 @@ def test_incremental_window_coverage_is_contiguous_and_complete():
     assert shards[0]["start_date"] == "2026-05-27"
     assert shards[-1]["end_date"] == _END
     # Disjoint, contiguous, gap-free coverage of the narrowed closed window.
-    for a, b in zip(shards, shards[1:]):
+    for a, b in itertools.pairwise(shards):
         a_end = date.fromisoformat(str(a["end_date"]))
         b_start = date.fromisoformat(str(b["start_date"]))
         assert b_start == a_end + timedelta(days=1)
