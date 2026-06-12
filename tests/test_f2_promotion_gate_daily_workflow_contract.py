@@ -57,7 +57,7 @@ def test_cron_runs_after_databento_producer_mon_fri() -> None:
     previous day's artefact — still a strict improvement over the old
     13:00 rolling-bench cron that failed ~8/10 runs and left nothing to
     consume. Mon-Fri matches the upstream Databento
-    producer's cadence (12:00 UTC Mon-Fri). Pre-#2447 layout (`0 10 * * *`)
+    producer's cadence (12:00/16:00 UTC Mon-Fri). Pre-#2447 layout (`0 10 * * *`)
     fired BEFORE the producer every day and aborted every run on the
     missing-artefact guard. The producer→consumer ordering invariant is
     enforced by tests/test_workflow_databento_consumer_cron_ordering.py.

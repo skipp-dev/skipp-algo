@@ -199,7 +199,7 @@ jobs:
         # Workflow-Audit MITTEL-11 (2026-06): `continue-on-error: true`
         # removed. The step body below is already deliberately fail-loud
         # (F-V5-F1: explicit `if git push … else … exit 1`), but the
-        # job-level continue-on-error neutralised exactly that — a
+        # step-level continue-on-error neutralised exactly that — a
         # permanently failing push (expired PAT, ruleset change) stayed
         # green forever and the bot/live-news-snapshot staleness floor
         # silently rotted. Transient failures self-heal on the next

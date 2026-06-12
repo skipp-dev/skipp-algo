@@ -39,7 +39,7 @@ from tests._workflow_yaml import (
 _ALLOWED: dict[str, dict[str, set[str]]] = {
     # smc-live-newsapi-refresh.yml entry removed (Workflow-Audit MITTEL-11,
     # 2026-06): the bot-branch publish step is internally fail-loud
-    # (F-V5-F1) and the job-level continue-on-error neutralised that —
+    # (F-V5-F1) and the step-level continue-on-error neutralised that —
     # a permanently failing push stayed green forever.
     # Library refresh: six best-effort hops (gates probe, release reference
     # refresh, TradingView publish, alerts, breaking-change notify,

@@ -26,6 +26,12 @@ on:
   # workflow_run (fires after producer success, gated by the job-level
   # `if:` below) is the primary path; the cron below is only a safety
   # net for lost/delayed workflow_run events.
+  # NOTE: the producer runs 2x/day (12:00 + 16:00 UTC), so this consumer
+  # can now fire up to 2x/day plus the safety-net cron. That is safe and
+  # intentional: the history archive dedupes on (captured_at,
+  # scoring_root) (scripts/plan_2_8_history_archive.py), re-benching the
+  # same artifact is idempotent, and the concurrency group serialises
+  # overlapping fires — same rationale as the library-refresh precedent.
   workflow_run:
     workflows: ["smc-databento-production-export-sharded"]
     types: [completed]
