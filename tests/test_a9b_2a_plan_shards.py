@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import importlib.util
 import io
+import itertools
 import json
 import sys
 from contextlib import redirect_stderr, redirect_stdout
@@ -59,7 +60,7 @@ def _coverage_invariants(
         assert start <= end
 
     # Contiguous and disjoint: shard[i+1].start == shard[i].end + 1day.
-    for prev, nxt in zip(shards, shards[1:]):
+    for prev, nxt in itertools.pairwise(shards):
         prev_end = date.fromisoformat(str(prev["end_date"]))
         nxt_start = date.fromisoformat(str(nxt["start_date"]))
         assert nxt_start - prev_end == timedelta(days=1)

@@ -26,7 +26,7 @@ def publish_micro_library_to_tradingview(
         "--out",
         str(report_path),
     ]
-    completed = subprocess.run(  # noqa: S603 -- hardcoded npm argv (no shell, no user input)
+    completed = subprocess.run(
         command,
         cwd=repo_root,
         capture_output=True,

@@ -9,7 +9,6 @@ from rl.safety import HardConstraintLayer
 from rl.simulator.execution_env import EnvConfig, ExecutionEnv
 from rl.types import ExecutionAction
 
-
 # ---------------------------------------------------------------------------
 # HardConstraintLayer.hit_log audit sink
 # ---------------------------------------------------------------------------

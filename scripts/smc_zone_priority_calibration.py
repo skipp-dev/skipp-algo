@@ -41,7 +41,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from scripts.smc_atomic_write import atomic_write_text  # noqa: E402
+from scripts.smc_atomic_write import atomic_write_text
 
 # S-3 (TEMPORAL_NUMERICAL_AUDIT_2026-04-24): defense-in-depth seed for the
 # calibration pipeline. Currently no stochastic ops in this module, but a
@@ -1032,7 +1032,7 @@ def _git_rev(repo_root: Path) -> str | None:
     """Return the current git HEAD commit SHA, or ``None`` if unavailable."""
     try:
         git_exe = shutil.which("git") or "git"
-        out = subprocess.run(  # noqa: S603 -- hardcoded git argv resolved via shutil.which (no shell, no user input)
+        out = subprocess.run(
             [git_exe, "rev-parse", "HEAD"],
             cwd=repo_root,
             capture_output=True,

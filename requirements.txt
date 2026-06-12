@@ -29,3 +29,4 @@ pytest-split>=0.11.0
 # Always installed; only invoked when the var is set. See docs/perf/testmon_pr_lane.md.
 pytest-testmon>=2.1.0
 PyYAML>=6.0
+ruff==0.15.16

@@ -15,7 +15,7 @@ In short:
 
 from __future__ import annotations
 
-from datetime import date, time
+from datetime import date
 
 import pandas as pd
 

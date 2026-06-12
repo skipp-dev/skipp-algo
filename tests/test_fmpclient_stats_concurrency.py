@@ -51,7 +51,6 @@ import pytest
 
 from open_prep.macro import FMPClient
 
-
 _THREADS = 32
 _OPS_PER_THREAD = 1000
 _TOTAL = _THREADS * _OPS_PER_THREAD

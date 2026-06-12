@@ -15,12 +15,12 @@ or executed. Pure stdlib.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import re
 import sys
 from pathlib import Path
 from typing import Any
-import contextlib
 
 from scripts.smc_atomic_write import atomic_write_text
 

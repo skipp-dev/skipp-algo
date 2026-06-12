@@ -242,6 +242,8 @@ rpds-py==0.30.0
     # via
     #   jsonschema
     #   referencing
+ruff==0.15.16
+    # via -r requirements.txt
 scipy==1.17.1
     # via
     #   arch

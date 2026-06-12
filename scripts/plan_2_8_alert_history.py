@@ -13,6 +13,7 @@ the most weeks running?" Pure stdlib.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime as _dt
 import json
 import os
@@ -20,7 +21,6 @@ import sys
 import tempfile
 from pathlib import Path
 from typing import Any
-import contextlib
 
 
 def _now(ts: str | None) -> str:

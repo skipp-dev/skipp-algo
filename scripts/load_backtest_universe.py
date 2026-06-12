@@ -23,8 +23,6 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-
-from scripts.smc_atomic_write import atomic_write_text
 from datetime import date
 from pathlib import Path
 
@@ -32,6 +30,7 @@ from databento_universe import (
     MissingUniverseSnapshotError,
     load_universe_for_backtest,
 )
+from scripts.smc_atomic_write import atomic_write_text
 
 
 def _parse_trade_date(value: str) -> date:

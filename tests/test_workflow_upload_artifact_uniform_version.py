@@ -91,9 +91,9 @@ def test_upload_artifact_pin_is_uniform() -> None:
         f"actions/upload-artifact major-version drift detected. Frozen "
         f"target is @{_FROZEN_MAJOR}. Offending sites:\n"
         + "\n".join(bad)
-        + f"\n\nIf the bump is intentional, update _FROZEN_MAJOR in "
-        f"tests/test_workflow_upload_artifact_uniform_version.py in the "
-        f"same PR."
+        + "\n\nIf the bump is intentional, update _FROZEN_MAJOR in "
+        "tests/test_workflow_upload_artifact_uniform_version.py in the "
+        "same PR."
     )
 
 

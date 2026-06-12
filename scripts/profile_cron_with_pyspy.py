@@ -132,7 +132,7 @@ def main(argv: list[str] | None = None) -> int:
     record_cmd = _build_record_cmd(pyspy, args, inner, flamegraph)
     print(f"[pyspy] {' '.join(shlex.quote(c) for c in record_cmd)}", file=sys.stderr)
 
-    completed = subprocess.run(record_cmd, cwd=_REPO_ROOT, check=False)  # noqa: S603 - locally constructed
+    completed = subprocess.run(record_cmd, cwd=_REPO_ROOT, check=False)
     print(f"[pyspy] flamegraph: {flamegraph}", file=sys.stderr)
 
     notes = out_dir / "README.md"

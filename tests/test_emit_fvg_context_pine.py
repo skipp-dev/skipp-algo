@@ -4,8 +4,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 from scripts.emit_fvg_context_pine import (
     DEFAULT_MIN_EVENTS,
     LEDGER_GLOB,

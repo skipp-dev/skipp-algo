@@ -52,6 +52,7 @@ except ImportError:  # script-style invocation: `python scripts/X.py`
 
 
 import argparse
+import contextlib
 import json
 import os
 import tempfile
@@ -60,7 +61,6 @@ from pathlib import Path
 from typing import Any
 
 from scripts.drift_alert import compute_drift_report
-import contextlib
 
 DEFAULT_OUTCOMES_DIR = Path("artifacts/open_prep/outcomes")
 DEFAULT_OUTPUT_DIR = Path("artifacts/drift")

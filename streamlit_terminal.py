@@ -337,15 +337,17 @@ if not _SMC_TERMINAL_TEST_MODE:
     _load_env_file(PROJECT_ROOT / ".env")
     _load_streamlit_secrets()
 
+from dashboard.decision_first_panel import (
+    DEFAULT_PROMOTION_DECISIONS_PATH,
+    load_decisions_from_report,
+)
+from dashboard.decision_first_panel import (
+    render_panel as render_decision_first_panel,
+)
 from newsstack_fmp._bz_http import _WARNED_ENDPOINTS
 from newsstack_fmp.ingest_benzinga import BenzingaRestAdapter
 from newsstack_fmp.ingest_fmp import FmpAdapter
 from newsstack_fmp.store_sqlite import SqliteStore
-from dashboard.decision_first_panel import (
-    DEFAULT_PROMOTION_DECISIONS_PATH,
-    load_decisions_from_report,
-    render_panel as render_decision_first_panel,
-)
 from open_prep.log_redaction import apply_global_log_redaction
 from open_prep.outcomes import _load_outcomes_range, compute_hit_rates
 from open_prep.playbook import classify_recency as _classify_recency

@@ -55,8 +55,8 @@ _SYS_EXIT_LEDGER: frozenset[tuple[str, int]] = frozenset({
     ("test_usi_lint.py", 97),
     # 2026-05-12 (#2171 audit-L-1 PR-D R12+R3): consistency-check CLI tools
     # exit non-zero on findings in --strict mode, 0 otherwise.
-    ("tools/check_audit_doc_consistency.py", 136),
-    ("tools/check_defaults_table.py", 250),
+    ("tools/check_audit_doc_consistency.py", 135),
+    ("tools/check_defaults_table.py", 249),
 })
 
 

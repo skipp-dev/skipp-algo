@@ -50,8 +50,9 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable, NamedTuple
+from typing import NamedTuple
 
 # A code-fence opener at line start (after optional indent) — both ``` and ~~~.
 # We deliberately match \s* (not [ \t]) so list-item-prefixed code blocks are

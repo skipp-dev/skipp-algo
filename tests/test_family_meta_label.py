@@ -197,7 +197,7 @@ def test_leaked_future_feature_does_not_manufacture_lift() -> None:
     rng = random.Random(3)
     scores = [rng.gauss(0.0, 1.0) for _ in range(n)]
     fm = [[rng.gauss(0.0, 1.0)] for _ in range(n)]
-    rets = [1.0 if rng.random() < 0.5 else -1.0 for i in range(n)]  # noqa: B007
+    rets = [1.0 if rng.random() < 0.5 else -1.0 for i in range(n)]
     result = family_meta_ab(
         _meta_samples(scores=scores, feature_matrix=fm, returns=rets),
         ["pure_noise"],

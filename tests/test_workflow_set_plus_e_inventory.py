@@ -49,13 +49,13 @@ import re
 
 import pytest
 
+from tests._pin_registry import workflow_set_plus_e_allowed
 from tests._workflow_yaml import (
     WORKFLOWS_DIR,
     iter_steps,
     iter_workflow_files,
     load_workflow,
 )
-from tests._pin_registry import workflow_set_plus_e_allowed
 
 # Matches `set +e` at the start of a line in a shell script (any
 # indentation). The only form ever used in this repo.

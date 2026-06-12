@@ -51,7 +51,6 @@ PINNED_KNOWN_LABELS: frozenset[str] = frozenset(
         "javascript",
         "question",
         "release-pendingpt",
-        "question",
         "release-pending",
         "tech-debt",
         "wontfix",

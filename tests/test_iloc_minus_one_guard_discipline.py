@@ -105,7 +105,7 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         # PR #2198 main churn added 1 line near top (-> 2397) and
         # Bridge 1c (PR #2197) inserted DEFAULT_SLIM_CANONICAL_WORKBOOK_SHEET_NAMES
         # + env-resolver block (~61 lines), shifting 2397 -> 2458.
-        ("scripts/databento_production_export.py", 2458),
+        ("scripts/databento_production_export.py", 2457),
         # scripts/generate_bullish_quality_scanner.py — manifest scalar
         # lookups (source_data_fetched_at / latest window_tag); not bar
         # data.
@@ -118,7 +118,7 @@ _KNOWN_HOTSPOTS: Final[frozenset[tuple[str, int]]] = frozenset(
         # over a full closed frame (open from first row, close from
         # last row). PR #2180 added `import sys` (1 line) shifting 817 -> 818.
         # PR #2198 main churn added 1 line near top, shifting 818 -> 819.
-        ("scripts/smc_microstructure_base_runtime.py", 819),
+        ("scripts/smc_microstructure_base_runtime.py", 818),
     }
 )
 
