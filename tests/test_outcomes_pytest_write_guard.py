@@ -41,7 +41,7 @@ def _record(symbol: str = "NVDA") -> dict:
 
 def test_store_daily_outcomes_blocks_canonical_dir_under_pytest() -> None:
     """Unredirected OUTCOMES_DIR must fail loudly, not pollute the repo."""
-    assert outcomes.OUTCOMES_DIR == Path("artifacts/open_prep/outcomes"), (
+    assert Path("artifacts/open_prep/outcomes") == outcomes.OUTCOMES_DIR, (
         "Precondition: this test must observe the canonical (unredirected) "
         "OUTCOMES_DIR. If a fixture redirected it globally, fix the fixture "
         "scope instead of this assertion."
