@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "stage": 2,
+  "armed_families": [
+    "BOS",
+    "SWEEP"
+  ],
+  "k": 3,
+  "n": 4,
+  "history": [
+    {
+      "action": "arm",
+      "family": "BOS",
+      "reason": "ADR-0023 Stage 2 armed for the \u00a72-qualified candidate families (handover \u00a73). Fail-closed: arming only escalates an unmeasured move-size resolution to an info blocker and enforces a measured FAIL; it enables no sizing. Auto-demotion via scripts/eval_magnitude_shadow_weekly.py --apply-demotions.",
+      "date": "2026-06-11"
+    },
+    {
+      "action": "arm",
+      "family": "SWEEP",
+      "reason": "ADR-0023 Stage 2 armed for the \u00a72-qualified candidate families (handover \u00a73). Fail-closed: arming only escalates an unmeasured move-size resolution to an info blocker and enforces a measured FAIL; it enables no sizing. Auto-demotion via scripts/eval_magnitude_shadow_weekly.py --apply-demotions.",
+      "date": "2026-06-11"
+    }
+  ]
+}

@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +32,82 @@ from scripts.smc_atomic_write import atomic_write_text
 
 DEFAULT_SUPERVISOR_JSON = Path(__file__).resolve().parents[1] / "reports" / "ibkr_open_execution_supervisor.json"
 DEFAULT_SUPERVISOR_EVENTS_CSV = Path(__file__).resolve().parents[1] / "reports" / "ibkr_open_execution_events.csv"
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_SMOKE_HALT_PATH = _REPO_ROOT / "cache" / "live" / "smoke_HALT"
+# Maximum age of today's smoke JSONL to be considered valid (hours).
+# The smoke fires at 08:00 ET; execution fires at ~09:28 ET (~88 min later).
+# 4 hours gives ample margin while guarding against a stale file from yesterday.
+_SMOKE_JSONL_MAX_AGE_HOURS = 4
+
+
+def _repo_date_utc() -> str:
+    return datetime.now(UTC).strftime("%Y-%m-%d")
+
+
+def _check_smoke_guard(skip: bool) -> None:
+    """Abort with SystemExit if the pre-market smoke guard is tripped.
+
+    Two blocking conditions (either is sufficient):
+
+    1. ``cache/live/smoke_HALT`` exists — the smoke driver wrote this
+       because the live round-trip left leftover orders (EXIT=3), breached
+       risk limits (EXIT=2), or encountered an unexpected error.  The
+       operator must remove the file manually once the root cause is resolved.
+
+    2. No ``cache/live/smoke_<DATE>.jsonl`` for today's UTC date exists,
+       OR the file is older than ``_SMOKE_JSONL_MAX_AGE_HOURS`` — meaning
+       the smoke has not run or the result is stale.
+
+    Pass ``--skip-smoke-guard`` on the CLI to bypass both checks (emergency
+    use only). The bypass is recorded in the combined audit JSON under
+    ``smoke_guard.bypassed`` so post-hoc review can see the guard was skipped.
+    """
+    if skip:
+        print(
+            "run_ibkr_open_execution: smoke guard BYPASSED via --skip-smoke-guard",
+            flush=True,
+        )
+        return
+
+    # 1. Hard-block: HALT sentinel.
+    if _SMOKE_HALT_PATH.exists():
+        content = _SMOKE_HALT_PATH.read_text(encoding="utf-8").strip()
+        raise SystemExit(
+            f"run_ibkr_open_execution: BLOCKED — smoke_HALT sentinel present\n"
+            f"  path : {_SMOKE_HALT_PATH}\n"
+            f"  content: {content}\n"
+            "  Remove the file manually after investigating the root cause."
+        )
+
+    # 2. Smoke-not-run guard: today's audit JSONL must exist and be fresh.
+    today = _repo_date_utc()
+    smoke_jsonl = _REPO_ROOT / "cache" / "live" / f"smoke_{today}.jsonl"
+    if not smoke_jsonl.exists():
+        raise SystemExit(
+            f"run_ibkr_open_execution: BLOCKED — pre-market smoke has not run today ({today}).\n"
+            f"  Expected: {smoke_jsonl}\n"
+            "  Ensure com.skippalgo.c13.ibkr-smoke fired and TWS was available on 127.0.0.1:7497.\n"
+            "  Use --skip-smoke-guard to override (emergency only)."
+        )
+    # MTIME-RESOLVER-EXEMPT: st_mtime is an age/freshness check on a single
+    # date-keyed sentinel file (no candidate ordering / artifact picking).
+    age_hours = (datetime.now(UTC) - datetime.fromtimestamp(smoke_jsonl.stat().st_mtime, tz=UTC)).total_seconds() / 3600
+    if age_hours < 0:
+        # Future mtime ⇒ clock skew / NTP drift / tampering. The smoke fires
+        # ~88 min BEFORE execution, so a future timestamp is always anomalous
+        # and must not silently count as "fresh" (Copilot review #2691).
+        raise SystemExit(
+            f"run_ibkr_open_execution: BLOCKED — smoke JSONL mtime is {-age_hours:.1f}h in the FUTURE (clock skew?).\n"
+            f"  path: {smoke_jsonl}\n"
+            "  Fix the system clock / re-run the smoke, or use --skip-smoke-guard to override."
+        )
+    if age_hours > _SMOKE_JSONL_MAX_AGE_HOURS:
+        raise SystemExit(
+            f"run_ibkr_open_execution: BLOCKED — smoke JSONL is {age_hours:.1f}h old (limit {_SMOKE_JSONL_MAX_AGE_HOURS}h).\n"
+            f"  path: {smoke_jsonl}\n"
+            "  Re-run the smoke manually or use --skip-smoke-guard to override."
+        )
 
 
 def build_execution_event_log(submission: dict[str, Any], supervisor: dict[str, Any] | None) -> list[dict[str, Any]]:
@@ -155,6 +232,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--supervisor-events-csv", default=str(DEFAULT_SUPERVISOR_EVENTS_CSV), help="Output path for the compact supervisor event log CSV.")
     parser.add_argument("--reconnect-max-attempts", type=int, default=DEFAULT_RECONNECT_MAX_ATTEMPTS, help="Maximum reconnect attempts after a TWS disconnect during supervision.")
     parser.add_argument("--reconnect-wait-seconds", type=float, default=DEFAULT_RECONNECT_WAIT_SECONDS, help="Wait time between reconnect attempts during supervision.")
+    parser.add_argument(
+        "--skip-smoke-guard",
+        action="store_true",
+        default=False,
+        help="Bypass the pre-market smoke guard (emergency use only — prints an explicit warning).",
+    )
     return parser
 
 
@@ -164,6 +247,14 @@ def main() -> None:
 
     if not args.place_orders:
         raise SystemExit("run_ibkr_open_execution.py requires --place-orders to avoid accidental dry-run supervision.")
+
+    # Pre-market smoke guard: block execution if the adapter round-trip failed
+    # or did not run today (com.skippalgo.c13.ibkr-smoke @ 08:00 ET).
+    # Deliberately AFTER the --place-orders check (Copilot review #2691): the
+    # guard only matters when real order placement is enabled, and a user who
+    # forgets --place-orders should get the clearer usage error, not a
+    # smoke-guard BLOCKED exit. Still runs before any IBKR connection.
+    _check_smoke_guard(getattr(args, "skip_smoke_guard", False))
 
     # S3 (Copilot review #2689): auto-allocated clientIds are leased from the
     # registry and must be released on exit; explicit --client-id values are
@@ -245,6 +336,9 @@ def _main_with_resolved_client_id(args: argparse.Namespace, client_id: int) -> N
             "supervisor": None,
             "event_log": event_log,
             "event_log_csv": str(Path(args.supervisor_events_csv).expanduser()),
+            # Audit trail for the emergency bypass (Copilot review #2691):
+            # post-hoc review must be able to see the guard was skipped.
+            "smoke_guard": {"bypassed": bool(getattr(args, "skip_smoke_guard", False))},
         }
         output_path = Path(args.supervisor_json).expanduser()
         event_log_path = Path(args.supervisor_events_csv).expanduser()
@@ -291,6 +385,8 @@ def _main_with_resolved_client_id(args: argparse.Namespace, client_id: int) -> N
             "supervisor": supervisor,
             "event_log": event_log,
             "event_log_csv": str(Path(args.supervisor_events_csv).expanduser()),
+            # Audit trail for the emergency bypass (Copilot review #2691).
+            "smoke_guard": {"bypassed": bool(getattr(args, "skip_smoke_guard", False))},
         }
     finally:
         if ib.isConnected():
