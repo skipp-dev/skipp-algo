@@ -125,6 +125,67 @@ jobs:
           echo "events_path=" >> "$GITHUB_OUTPUT"
           echo "source=no_data" >> "$GITHUB_OUTPUT"
 
+      # Workflow-Audit MITTEL-5 (B5, 2026-06): commit-back gap check.
+      # The commit-back step at the end of this job is deliberately
+      # triple fail-soft (exit 0 on rebase conflict, push reject and
+      # retry exhaustion) — correct for a single run, but REPEATED
+      # silent failures open an unnoticed gap in the committed ledger.
+      # This guard reads the newest `date` in the committed ledger at
+      # checkout (i.e. BEFORE today's append) and fails loud when the
+      # gap exceeds budget. A red run here surfaces through the
+      # freshness monitor (this workflow is on its watchlist), so the
+      # alert chain closes. Budget 7 calendar days: weekday cron means
+      # a normal weekend gap is 3 days; 7 absorbs holidays plus a
+      # couple of legitimate fail-soft skips before alarming.
+      - name: Guard against silent commit-back gap in shadow ledger
+        env:
+          LEDGER_PATH: artifacts/governance/magnitude_resolution_shadow.jsonl
+          GAP_BUDGET_DAYS: "7"
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import datetime as dt
+          import json
+          import os
+          import sys
+
+          path = os.environ["LEDGER_PATH"]
+          budget = int(os.environ["GAP_BUDGET_DAYS"])
+          if not os.path.exists(path):
+              print("::notice title=adr0023-gap-check::ledger not present yet — nothing to check")
+              sys.exit(0)
+          newest = None
+          with open(path, encoding="utf-8") as fh:
+              for ln in fh:
+                  ln = ln.strip()
+                  if not ln:
+                      continue
+                  try:
+                      d = json.loads(ln).get("date")
+                  except Exception:
+                      continue
+                  if d and (newest is None or d > newest):
+                      newest = d
+          if newest is None:
+              print("::notice title=adr0023-gap-check::ledger empty — nothing to check")
+              sys.exit(0)
+          try:
+              newest_day = dt.date.fromisoformat(newest)
+          except ValueError:
+              print(f"::error title=adr0023-gap-check::unparseable newest ledger date {newest!r}")
+              sys.exit(1)
+          gap = (dt.datetime.now(dt.timezone.utc).date() - newest_day).days
+          if gap > budget:
+              print(
+                  f"::error title=adr0023-gap-check::committed shadow ledger is {gap} days old "
+                  f"(newest row {newest}, budget {budget}d). The fail-soft commit-back has "
+                  f"likely been failing silently for multiple runs — check recent run logs "
+                  f"for 'commit-back exhausted retries' / rebase warnings."
+              )
+              sys.exit(1)
+          print(f"::notice title=adr0023-gap-check::newest committed ledger row {newest} ({gap}d old, budget {budget}d) — OK")
+          PY
+
       - name: Append magnitude-shadow ledger row
         id: ledger
         env:
