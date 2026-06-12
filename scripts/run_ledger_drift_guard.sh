@@ -40,12 +40,29 @@ if [ -z "$TESTS" ]; then
   exit 1
 fi
 
-PYBIN="${PYBIN:-.venv/bin/python}"
-if ! "$PYBIN" -c "" 2>/dev/null; then
-  PYBIN="python3"
+# Interpreter-Auswahl (worktree-tauglich): $PYBIN > Worktree-venv >
+# Haupt-Checkout-venv (via git common dir) > python3. Kandidat muss
+# pytest importieren können; xdist ist optional (sonst seriell).
+MAIN_ROOT="$(cd "$(git rev-parse --git-common-dir)/.." && pwd)"
+PYBIN_RESOLVED=""
+for cand in "${PYBIN:-}" "$REPO_ROOT/.venv/bin/python" "$MAIN_ROOT/.venv/bin/python" python3; do
+  [ -n "$cand" ] || continue
+  if "$cand" -c "import pytest" 2>/dev/null; then
+    PYBIN_RESOLVED="$cand"
+    break
+  fi
+done
+if [ -z "$PYBIN_RESOLVED" ]; then
+  echo "ERROR: no python with pytest found (tried PYBIN, worktree/.venv, $MAIN_ROOT/.venv, python3)" >&2
+  exit 1
 fi
 
-echo "ledger drift guard: $(echo "$TESTS" | wc -l | tr -d ' ') test files (source: $WORKFLOW)"
-# shellcheck disable=SC2086  # word-splitting of $TESTS is intentional
-exec env PYTHONPATH="$REPO_ROOT" "$PYBIN" -m pytest -q --maxfail=1 \
-  -n auto --dist=worksteal -p no:cacheprovider $TESTS
+XDIST_ARGS=""
+if "$PYBIN_RESOLVED" -c "import xdist" 2>/dev/null; then
+  XDIST_ARGS="-n auto --dist=worksteal"
+fi
+
+echo "ledger drift guard: $(echo "$TESTS" | wc -l | tr -d ' ') test files (source: $WORKFLOW; python: $PYBIN_RESOLVED)"
+# shellcheck disable=SC2086  # word-splitting of $TESTS/$XDIST_ARGS is intentional
+exec env PYTHONPATH="$REPO_ROOT" "$PYBIN_RESOLVED" -m pytest -q --maxfail=1 \
+  $XDIST_ARGS -p no:cacheprovider $TESTS
