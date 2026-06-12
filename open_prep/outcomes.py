@@ -907,12 +907,40 @@ def compute_feature_importance(
 
     # Filter to samples with known outcome
     labeled = [s for s in samples if s.get("profitable_30m") is not None]
+
+    # Reader-side era-gate (audit D-2, 2026-06-12): fi_samples files
+    # written before the 2026-06-11 component-persistence fix carry the
+    # weighted components as literal 0.0 (the collector defaulted absent
+    # breakdown keys to zero). The 2026-06-11 era-gate only fixed the
+    # WRITER; this reader kept mixing those poisoned rows into the
+    # matrix, so reports stayed vacuous (every importance = 0.00) for a
+    # full lookback window after the fix. A genuine sample never has ALL
+    # 14 weighted components at exactly 0.0, so an all-zero weighted
+    # vector identifies a pre-fix row.
+    era_gated_samples_dropped = 0
+    component_complete: list[dict[str, Any]] = []
+    for s in labeled:
+        vals = [_safe_float(s.get(k)) for k in FEATURE_TO_WEIGHT_KEY]
+        if all(v == 0.0 for v in vals):
+            era_gated_samples_dropped += 1
+            continue
+        component_complete.append(s)
+    if era_gated_samples_dropped:
+        logger.warning(
+            "FI report: dropped %d/%d labeled samples with all-zero weighted "
+            "component vectors (legacy pre-2026-06-11 fi_samples rows)",
+            era_gated_samples_dropped,
+            len(labeled),
+        )
+    labeled = component_complete
+
     if len(labeled) < 10:
         return {
             "error": "insufficient labeled samples",
             "total_samples": len(samples),
             "labeled_samples": len(labeled),
             "duplicate_samples_dropped": duplicate_samples_dropped,
+            "era_gated_samples_dropped": era_gated_samples_dropped,
             "backend": backend,
         }
 
@@ -922,6 +950,7 @@ def compute_feature_importance(
         "total_samples": len(samples),
         "labeled_samples": len(labeled),
         "duplicate_samples_dropped": duplicate_samples_dropped,
+        "era_gated_samples_dropped": era_gated_samples_dropped,
         "features": {},
         "recommendations": [],
         "backend": backend,
