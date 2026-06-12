@@ -86,7 +86,8 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # 2026-06-11 (Copilot sweep #2677): deferred-summary accounting 682→694.
     # 2026-06-12 (pytest write-guard merge): guard import/call + sweep
     # combined — measured 703; outcomes.py guard shift → 152.
-    ("open_prep/outcome_backfill.py", 703, "mkstemp"),
+    # 2026-06-12 (Copilot #2729): main() exit-semantics docstring +6 → 709.
+    ("open_prep/outcome_backfill.py", 709, "mkstemp"),
     ("open_prep/outcomes.py", 152, "mkstemp"),
     # 2026-06-11 (trend-state features): 419→437, snapshot keys +
     # FEATURE_KEYS/PASS_THROUGH block added above.
