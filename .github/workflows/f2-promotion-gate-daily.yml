@@ -63,6 +63,8 @@ on:
         required: false
         default: ""
 
+# issues:write required by gate job (§2.4 G2 rollback-issue ping);
+# spec-status uses a job-level override (contents:read only).
 permissions:
   contents: read
   # §2.4 G2 GitHub-Issue-Ping rule needs issues:write so the workflow
@@ -93,11 +95,15 @@ jobs:
   spec-status:
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
+    permissions:
+      contents: read  # zizmor: explicit scope — read-only checkout, no write access needed
     outputs:
       status: ${{ steps.read.outputs.status }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
 
       - name: Read spec status
         id: read
