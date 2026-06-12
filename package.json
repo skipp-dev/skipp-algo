@@ -43,7 +43,7 @@
   "devDependencies": {
     "@types/node": "^24.6.0",
     "playwright": "^1.55.0",
-    "tsx": "^4.20.5",
+    "tsx": "^4.22.4",
     "typescript": "^5.9.2"
   }
 }
