@@ -726,5 +726,12 @@ jobs:
         with:
           name: smc-databento-production-export-${{ steps.compat_stage.outputs.export_date }}-${{ github.run_id }}
           path: artifacts/export-compat/
-          retention-days: 7
+          # Workflow-Audit MITTEL-12 (2026-06): 7 → 14 days. Downstream
+          # consumers (library-refresh, rolling-bench, f2/promotion gates)
+          # resolve this bundle by date prefix; a long weekend plus a few
+          # red consumer days could outlive a 7-day window and leave the
+          # fallback-to-previous-day lookup empty-handed. 14 days is still
+          # cheap (one bundle per producer tick) and survives a full
+          # two-week consumer outage.
+          retention-days: 14
           if-no-files-found: error

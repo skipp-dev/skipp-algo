@@ -50,9 +50,11 @@ def test_workflow_yaml_is_loadable() -> None:
 
 
 def test_workflow_runs_after_databento_producer_mon_fri() -> None:
-    """14:30 UTC Mon-Fri — must run AFTER smc-measurement-benchmark-rolling
-    (13:00 UTC Mon-Fri), which itself runs AFTER the Databento producer
-    (12:00 UTC Mon-Fri). Pre-#2447 this asserted '0 10 * * *' (10:00 UTC
+    """14:30 UTC Mon-Fri — consumes the dual-arm artefact from
+    smc-measurement-benchmark-rolling, which (Workflow-Audit HOCH-1,
+    2026-06) now fires via workflow_run after the Databento producer
+    (12:00/16:00 UTC Mon-Fri) succeeds, with a 16:30 UTC safety-net cron.
+    Pre-#2447 this asserted '0 10 * * *' (10:00 UTC
     daily) which fired BEFORE the producer — always-skip pattern. The
     producer→consumer handoff invariant is now pinned in
     tests/test_workflow_databento_consumer_cron_ordering.py.

@@ -6,6 +6,20 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-06-12) — Workflow-Audit MITTEL-11: newsapi bot-branch push fail-loud
+
+`continue-on-error: true` vom Step "Publish snapshot to rolling bot
+branch" in `smc-live-newsapi-refresh.yml` entfernt und der zugehörige
+`_ALLOWED`-Eintrag in
+`tests/test_workflow_continue_on_error_inventory.py` gestrichen.
+Begründung: der Step-Body ist seit F-V5-F1 bereits explizit fail-loud
+(`if git push … else … exit 1`), aber das Step-Attribut neutralisierte
+genau das — ein dauerhaft scheiternder Push (abgelaufener PAT,
+Ruleset-Änderung) blieb für immer grün und der
+`bot/live-news-snapshot`-Staleness-Floor verrottete still. Transiente
+Fehler heilen sich über den nächsten 5-Minuten-Tick selbst; persistente
+Fehler müssen rot werden.
+
 ### Fixed (2026-06-12) — f2-promotion-gate: leere Dual-Arm-Bäume → status=skipped statt rc=1 (Cron-Health-Audit)
 
 Der `locate`-Step prüfte nur die **Existenz** der per-Datum-Verzeichnisse
