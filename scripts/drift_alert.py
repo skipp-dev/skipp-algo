@@ -367,13 +367,19 @@ def compute_drift_report(
             }
         )
 
-    aggregate = "green"
-    for f in findings:
-        if f.severity == "red":
-            aggregate = "red"
-            break
-        if f.severity == "yellow":
-            aggregate = "yellow"
+    # W5-2 (stat-review wave 5): when metrics dict is empty, the loop
+    # never executes and aggregate stays "green" — a vacuous pass.
+    # Guard fail-closed: no metrics → unknown drift state → yellow.
+    if not findings:
+        aggregate = "yellow"
+    else:
+        aggregate = "green"
+        for f in findings:
+            if f.severity == "red":
+                aggregate = "red"
+                break
+            if f.severity == "yellow":
+                aggregate = "yellow"
 
     return {
         "aggregate_severity": aggregate,
