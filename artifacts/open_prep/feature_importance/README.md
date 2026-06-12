@@ -4,7 +4,7 @@ Daily reports `report_<ts>.json` + `latest.json` written by
 `open_prep.feature_importance_report` from the fi_samples ledgers in
 `artifacts/open_prep/outcomes/feature_importance/`.
 
-> **⚠️ Reports ≤ 2026-06-09 are vacuous — do not treat as evidence.**
+> **⚠️ Reports ≤ 2026-06-11 are vacuous — do not treat as evidence.**
 > Their input samples carried all-zero values for the 14 weighted
 > `*_component` features (c10b producer bug: `score_breakdown` was never
 > persisted into `outcomes_<date>.json`; fixed 2026-06-11) and the
@@ -17,3 +17,8 @@ Daily reports `report_<ts>.json` + `latest.json` written by
 > unchanged). Recomputation is impossible — the historical component
 > values were never persisted. Trustworthy reports restart with the
 > first post-fix samples.
+> Audit D-2 (2026-06-12): the 2026-06-11 writer fix did not stop the
+> READER from mixing legacy all-zero rows still on disk into the matrix
+> — the 2026-06-11 report (first `ranking_drift: warn`) is therefore an
+> era-mixing artifact, not real drift. `compute_feature_importance()`
+> now drops all-zero weighted vectors (`era_gated_samples_dropped`).
