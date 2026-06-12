@@ -156,6 +156,32 @@ persistent-profile-Alternative (`tv:profile-login`), Security-Regeln
 beobachtete Secret-Snapshot-Pitfall (GHA liest Secrets bei Job-Start —
 laufende library-refresh-Jobs preflighten mit dem alten Cookie).
 Querverweis aus §7.3 des operativen Publish-Runbooks ergänzt.
+### Added (2026-06-12) — credential-health: Billing-Alarm (HTTP 402) + Databento-Delivery-Probe
+
+Post-mortem: Eine unbezahlte Databento-Rechnung blieb 12 Tage unbemerkt,
+weil (a) HTTP 402 Payment Required im generischen Vendor-Probe in den
+"other → warn"-Bucket fiel statt laut zu alarmieren und (b) der
+Auth-Probe (`metadata.list_publishers`) auch bei gestörtem Billing
+weiter HTTP 200 liefert. Zwei Fixes in
+`scripts/credential_health_check.py`:
+
+1. **HTTP 402 → error** (alle Vendor-Probes, via neuem
+   `_map_vendor_http_error`): "BILLING problem … check the vendor portal
+   for an unpaid invoice / failed payment NOW" — öffnet damit das
+   tägliche `cron-failure`-Issue.
+2. **Neuer Probe `databento_delivery`**: ruft
+   `metadata.get_dataset_range` (kostenloser Metadata-Call) für das
+   konsumierte Dataset `DBEQ.BASIC` auf und alarmiert mit `error`, wenn
+   das verfügbare `end`-Datum > 5 Tage stagniert — Symptom eines wegen
+   Zahlungsverzug suspendierten Accounts, den der reine Key-Probe nicht
+   sieht. Netzwerk-/Parse-Fehler bleiben `warn` (inconclusive), kein
+   Flapping.
+
+Keine Workflow-Änderung nötig: `credential-health-check.yml` reicht
+`DATABENTO_API_KEY` bereits durch; der neue Probe läuft automatisch im
+täglichen 06:00-UTC-Lauf mit. Tests: 402-Kontrakt für alle 4 Probes +
+8 Delivery-Probe-Fälle (frisch/stale/Schwelle/leerer Key/kein
+`end`/Netzfehler/date-only/Basic-Auth-URL).
 
 ### Fixed (2026-06-12) — Workflow-Audit MITTEL-11: newsapi bot-branch push fail-loud
 
