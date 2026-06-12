@@ -36,7 +36,10 @@ direkt nach dem PYTHONUNBUFFERED-Lint und schlägt bei jedem Code-Fehler fail.
     RUF059/RUF005/RUF007/E741/E731/F401/UP007 in Tests, Scripts, Governance.
   - Neue `per-file-ignores` für plan-gating Sonderfälle: E402 in open_prep/*,
     E701/E702/E741/B007 in scripts/c10b_* (Analyse-Skripte mit kompaktem Stil),
-    S108/S603/S607 global für scripts/* (Subprocess-Tooling, kein Prod-Service),
+    S108 nur gezielt für c10b/c10c-Research-Skripte + Provenance-Scanner
+    (dokumentierte lokale /tmp-Korpora bzw. Regex-Pattern); S603/S607 nur für
+    eine explizite, grandfathered Dateiliste (neue Scripts bekommen volles
+    Subprocess-Linting),
     F821 in streamlit_terminal.py (Forward-Referenz, Runtime korrekt), UP047 in
     skipp_config/trading_thresholds.py.
   - `ruff==0.15.16` zu `requirements.txt` hinzugefügt; `_DEP_LINE_BUDGET`
