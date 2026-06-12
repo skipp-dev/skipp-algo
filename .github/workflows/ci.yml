@@ -62,6 +62,8 @@ jobs:
       - name: Determine if heavy validation should run
         id: gate
         env:
+          # env-Indirektion statt direkter ${{ }}-Interpolation im run:-Block
+          # — haertet gegen Script-Injection via Branch-Namen (Audit M-1).
           HEAD_REF: ${{ github.head_ref }}
         run: |
           if [[ "${{ github.event_name }}" == "pull_request" && "$HEAD_REF" == bot/* ]]; then

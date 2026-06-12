@@ -54,7 +54,9 @@ jobs:
           workflow: smc-measurement-benchmark-rolling.yml
           name: '^smc-measurement-benchmark-rolling-.*$'
           name_is_regexp: true
-          workflow_conclusion: ''
+          # Nur gruene Producer-Laeufe konsumieren — ein roter Bench-Lauf
+          # kann unvollstaendige Artefakte hochgeladen haben.
+          workflow_conclusion: success
           if_no_artifact_found: warn
           path: artifacts/latest_bench
 
