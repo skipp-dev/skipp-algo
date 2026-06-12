@@ -1,0 +1,190 @@
+name: meta-watchdog
+# live-window: mutating-on-cron  # schedule + issues:write (operator alert)
+
+# Watchdog-der-Watchdogs (Workflow-Audit 2026-06, Befund "Monitore selbst
+# sind unueberwacht"): workflow-freshness-monitor.yml beobachtet die
+# kritischen Producer-Crons, aber NIEMAND beobachtete bislang die
+# Monitore selbst. Stirbt z. B. der freshness-monitor still (Cron
+# deaktiviert nach 60 Tagen Repo-Inaktivitaet, YAML-Syntaxfehler nach
+# einem Merge, geloeschtes Secret), faellt die gesamte Beobachtungskette
+# lautlos aus — exakt die Failure-Klasse, die der freshness-monitor
+# fuer die Producer verhindert.
+#
+# Designentscheidungen:
+#   * Wiederverwendung von scripts/check_workflow_freshness.py — gleiche
+#     Exit-Code-Semantik (0=fresh, 2=stale/missing, 1=api/config error),
+#     gleiches Fail-Loud-Verhalten, kein neuer Code-Pfad.
+#   * Alle Eintraege nutzen den `:any`-Modus: ein ROTER Monitor-Run ist
+#     ein Lebenszeichen (der Monitor alarmiert gerade). Alarmfall ist
+#     ausschliesslich das AUSBLEIBEN jeglicher abgeschlossener Runs.
+#   * Watchlist = genau die Monitore, die NICHT bereits vom
+#     freshness-monitor beobachtet werden (credential-health-check und
+#     g23-ab-watchdog stehen schon auf dessen Watchlist).
+#   * Gegenseitige Beobachtung: dieser Workflow beobachtet den
+#     freshness-monitor; der umgekehrte Eintrag (meta-watchdog auf der
+#     freshness-Watchlist) schliesst die Schleife und ist als Follow-up
+#     nach Merge von PR #2724 vorgesehen (Datei dort bereits im Flug).
+#
+# Budgets (alle konservativ, GitHub-Cron-Delays von Stunden sind hier
+# Normalzustand — siehe c13-Rollover-Fix PR #2730):
+#   workflow-freshness-monitor  taeglich 06:30 UTC      -> 30h
+#   drift-watchdog              woechentlich Mo 07:00   -> 192h (8 Tage)
+#   smc-export-cron-watchdog    werktags mehrfach       -> 80h (Fr->Mo-Luecke)
+
+on:
+  schedule:
+    # 07:15 UTC taeglich — 45 min nach dem freshness-monitor (06:30),
+    # damit dessen heutiger Run bereits im API-Fenster liegt.
+    - cron: "15 7 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: meta-watchdog
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  probe:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
+        with:
+          python-version: "3.12"
+
+      - name: Probe monitor freshness
+        id: probe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          mkdir -p artifacts/ci
+          # Exit-Code-Vertrag des Skripts:
+          #   0 = alle Monitore liefen kuerzlich, 2 = mind. einer
+          #   stale/missing, 1 = API-/Config-Fehler.
+          # `set +e` nur um den Skript-Aufruf, damit Report und Summary
+          # VOR dem Job-Fail angehaengt werden; der finale Step
+          # re-surfaced rc (explicit-exit-check pattern).
+          set +e
+          python scripts/check_workflow_freshness.py \
+            --output artifacts/ci/meta_watchdog.json \
+            workflow-freshness-monitor.yml=30:any \
+            drift-watchdog.yml=192:any \
+            smc-export-cron-watchdog.yml=80:any
+          rc=$?
+          set -e
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          if [ -f artifacts/ci/meta_watchdog.json ]; then
+            overall=$(python -c "import json; print(json.load(open('artifacts/ci/meta_watchdog.json'))['overall'])")
+          else
+            overall="error"
+          fi
+          echo "overall=$overall" >> "$GITHUB_OUTPUT"
+          # NICHT hier exiten — Folge-Steps laufen mit always().
+
+      - name: Annotate stale monitors
+        if: always() && steps.probe.outputs.rc != ''
+        run: |
+          if [ ! -f artifacts/ci/meta_watchdog.json ]; then
+            echo "::error title=meta-watchdog::probe produced no report -- script crashed before writing output"
+            exit 0
+          fi
+          python - <<'PY'
+          import json
+          rep = json.load(open("artifacts/ci/meta_watchdog.json"))
+          for wf in rep["workflows"]:
+              name = wf["workflow"]
+              status = wf["status"]
+              if status == "fresh":
+                  print(f"::notice title=meta-watchdog::{name}: alive ({wf.get('age_hours')}h ago)")
+              elif status == "stale":
+                  print(f"::error title=meta-watchdog::{name}: MONITOR STALE -- last completed run {wf.get('age_hours')}h ago, budget {wf.get('budget_hours')}h. The observation chain below this monitor is BLIND.")
+              elif status == "missing":
+                  print(f"::error title=meta-watchdog::{name}: NO completed runs in API window -- monitor may be disabled or broken.")
+              else:
+                  print(f"::error title=meta-watchdog::{name}: api_error -- {wf.get('detail')}")
+          PY
+          {
+            echo "## Meta-watchdog probe (monitors of the monitors)"
+            echo ""
+            echo "Overall: \`${{ steps.probe.outputs.overall }}\`"
+            echo ""
+            echo '```json'
+            cat artifacts/ci/meta_watchdog.json
+            echo ''
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload report artifact
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: meta-watchdog-report
+          path: artifacts/ci/meta_watchdog.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Open / update issue on stale or error
+        if: always() && (steps.probe.outputs.overall == 'stale' || steps.probe.outputs.overall == 'error')
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          GH_REPO: ${{ github.repository }}
+          OVERALL: ${{ steps.probe.outputs.overall }}
+        run: |
+          set -euo pipefail
+          TITLE="meta-watchdog: ${OVERALL} -- a monitor workflow stopped running ($(date -u +%Y-%m-%d))"
+          BODY_FILE=$(mktemp)
+          {
+            echo "The daily meta-watchdog found at least one MONITOR workflow in **${OVERALL}** state."
+            echo ""
+            echo "Run: https://github.com/${GH_REPO}/actions/runs/${{ github.run_id }}"
+            echo ""
+            echo "### Report"
+            echo ""
+            echo '```json'
+            cat artifacts/ci/meta_watchdog.json 2>/dev/null || echo "(no report written)"
+            echo ''
+            echo '```'
+            echo ""
+            echo "### Why this matters"
+            echo ""
+            echo "A stale monitor means the observation chain below it is blind: producer"
+            echo "crons can silently stop (the 2026-04/05 publish-skip regression went"
+            echo "unnoticed for 5 weeks) without any alert reaching an operator. A RED"
+            echo "monitor run is fine (it is alerting); the alarm here is the ABSENCE of"
+            echo "any completed run -- typically a disabled cron (60-day repo inactivity),"
+            echo "a YAML syntax error from a merge, or a deleted secret."
+          } > "$BODY_FILE"
+
+          existing=$(gh issue list --repo "$GH_REPO" --state open \
+            --search "$TITLE in:title" --json number --jq '.[0].number' || echo "")
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$GH_REPO" --body-file "$BODY_FILE"
+          else
+            gh issue create --repo "$GH_REPO" \
+              --title "$TITLE" --body-file "$BODY_FILE" \
+              --label cron-failure --label automated
+          fi
+
+      - name: Fail job on stale or error
+        if: always() && steps.probe.outputs.rc != '0' && steps.probe.outputs.rc != ''
+        run: |
+          echo "::error title=meta-watchdog::probe rc=${{ steps.probe.outputs.rc }} overall=${{ steps.probe.outputs.overall }}"
+          exit "${{ steps.probe.outputs.rc }}"
