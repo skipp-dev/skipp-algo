@@ -12,10 +12,11 @@ name: open-prep-outcome-backfill
 # as a non-zero exit code" claim was wrong): per-symbol failures are
 # tolerated by design (data gaps for delisted/halted symbols would turn
 # the cron permanently red). `python -m open_prep.outcome_backfill`
-# only fails the job when the run made NO progress at all (exit 2:
-# resolved==0 AND failed>0; exit 3: --require-progress with zero
-# activity). Persistent per-symbol failure residue is surfaced by the
-# "Warn on persistent failed-status streak" step below instead.
+# only fails the job when the run resolved NO outcomes (exit 2:
+# resolved==0 AND failed>0 — skipped/deferred may still be non-zero;
+# exit 3: --require-progress with zero activity). Persistent per-symbol
+# failure residue is surfaced by the "Warn on persistent failed-status
+# streak" step below instead.
 
 on:
   schedule:
@@ -205,7 +206,10 @@ jobs:
           STREAK_THRESHOLD: "5"
         run: |
           set -euo pipefail
-          "$SMC_PYTHON_BIN" - <<'EOF'
+          # if: always() — SMC_PYTHON_BIN may be unset when the resolve
+          # step was skipped/failed; fall back to plain python so this
+          # warn-only step does not add its own failure noise.
+          "${SMC_PYTHON_BIN:-python}" - <<'EOF'
           import json
           import os
           from pathlib import Path
