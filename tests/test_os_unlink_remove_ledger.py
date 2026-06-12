@@ -99,9 +99,11 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # compute_pnl_from_bars + backfill loop shifted 589→668.
     # 2026-06-11 (c10b FI component persistence): era-gate block 668→690.
     # 2026-06-11 (Copilot sweep #2677): deferred-summary accounting 690→702.
-    ("open_prep/outcome_backfill.py", 116, "unlink"),
-    ("open_prep/outcome_backfill.py", 702, "unlink"),
-    ("open_prep/outcomes.py", 147, "unlink"),
+    # 2026-06-12 (pytest write-guard merge): guard import/call + sweep
+    # combined — measured 125/711; outcomes.py guard shift → 161.
+    ("open_prep/outcome_backfill.py", 125, "unlink"),
+    ("open_prep/outcome_backfill.py", 711, "unlink"),
+    ("open_prep/outcomes.py", 161, "unlink"),
     # 2026-06-11 (trend-state features): 431→449, snapshot keys +
     # FEATURE_KEYS/PASS_THROUGH block added above.
     # 2026-06-11 (eval-findings B5/B1): gap-playbook report +
@@ -110,7 +112,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # (537→543).
     # 2026-06-11 (c10b FI component persistence): _component_fields helper
     # + component flattening shifted 543→567.
-    ("open_prep/outcomes.py", 567, "unlink"),
+    ("open_prep/outcomes.py", 581, "unlink"),
     ("open_prep/realtime_signals.py", 124, "remove"),
     ("open_prep/realtime_signals.py", 2543, "unlink"),
     ("open_prep/realtime_signals.py", 2582, "unlink"),
