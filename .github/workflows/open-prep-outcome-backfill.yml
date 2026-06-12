@@ -212,8 +212,12 @@ jobs:
           # interpreter is available at all, skip cleanly (exit 0)
           # instead of failing with exit 127.
           PYBIN="${SMC_PYTHON_BIN:-python}"
-          if ! command -v "$PYBIN" >/dev/null 2>&1; then
-            echo "streak check: no python interpreter available ($PYBIN) — skipping"
+          # Probe by execution, not `command -v`: SMC_PYTHON_BIN may be an
+          # absolute Windows path from `py -3.12 -c "print(sys.executable)"`
+          # (resolve step above), which `command -v` would treat as a PATH
+          # lookup and falsely reject under Git Bash.
+          if ! "$PYBIN" -c "" >/dev/null 2>&1; then
+            echo "streak check: no usable python interpreter ($PYBIN) — skipping"
             exit 0
           fi
           "$PYBIN" - <<'EOF'
