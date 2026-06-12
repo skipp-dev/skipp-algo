@@ -35,6 +35,10 @@ try:
 except Exception:  # pragma: no cover - optional GPU dependency
     cp = None
 
+from smc_core._pytest_canonical_write_guard import (
+    guard_against_canonical_repo_write_under_pytest,
+)
+
 from .utils import to_float as _safe_float
 
 logger = logging.getLogger("open_prep.outcomes")
@@ -118,6 +122,11 @@ def store_daily_outcomes(
         - ``tests/test_outcomes_single_writer.py`` documents the
           single-writer contract with an explicit regression
           assertion (overwrite-second-wins + atomic-on-failure).
+        - ``tests/test_outcomes_pytest_write_guard.py`` pins the
+          canonical-write guard below: tests that forget to redirect
+          ``OUTCOMES_DIR`` fail loudly instead of silently rewriting
+          the tracked ``artifacts/open_prep/outcomes/`` artefacts
+          (the pollution shipped to main in PRs #2687/#2688).
 
     Each record should contain at minimum::
 
@@ -132,6 +141,11 @@ def store_daily_outcomes(
             "pnl_30m_pct": 1.2,
         }
     """
+    guard_against_canonical_repo_write_under_pytest(
+        OUTCOMES_DIR,
+        canonical_relative_paths=("artifacts/open_prep/outcomes",),
+        caller="store_daily_outcomes",
+    )
     OUTCOMES_DIR.mkdir(parents=True, exist_ok=True)
     path = OUTCOMES_DIR / f"outcomes_{run_date.isoformat()}.json"
     # Atomic write: tmp file + os.replace to avoid half-written files on crash.
