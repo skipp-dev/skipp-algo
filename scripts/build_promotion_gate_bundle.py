@@ -55,10 +55,18 @@ ROLLUP_FILENAME = "plan_2_8_tf_family_rollup.json"
 def _read_rollup(scoring_root: Path) -> dict[str, Any] | None:
     path = scoring_root / ROLLUP_FILENAME
     if not path.is_file():
+        # Legitimate state (no benchmark run yet) — silently no rollup.
         return None
     try:
         return json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, OSError) as exc:
+        # An EXISTING but unreadable rollup is a broken handoff, not a
+        # missing one — surface it so n_events=0 bundles are explainable.
+        print(
+            f"WARNING: failed to read rollup {path}: {exc} "
+            "(emitting bundle with n_events=0 for all families)",
+            file=sys.stderr,
+        )
         return None
 
 
