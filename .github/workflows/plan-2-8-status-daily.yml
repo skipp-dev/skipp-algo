@@ -8,7 +8,7 @@ name: plan-2.8 status daily
 
 on:
   schedule:
-    - cron: "15 6 * * *"   # 06:15 UTC, before the rolling-bench job
+    - cron: "15 6 * * *"   # 06:15 UTC daily; kein Daten-Handoff zum rolling-bench-Job (13:00 UTC Mon-Fri) — reiner Anchor-Sweep im Checkout
   workflow_dispatch:
 
 permissions:
