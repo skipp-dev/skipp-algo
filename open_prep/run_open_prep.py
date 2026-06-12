@@ -5679,17 +5679,20 @@ def generate_open_prep_result(
 
     # Store outcome snapshot for backward validation (profitable_30m backfilled later)
     # Fail-loud: the daily workflow (run-open-prep-daily.yml) exists precisely
-    # for this artifact — a storage failure must not hide inside a green run.
-    # The error is recorded, the run completes (payload/snapshot stay usable)
-    # and main() exits the process non-zero afterwards.
-    outcome_storage_error: str | None = None
+    # for this artifact — a persistence-pipeline failure must not hide inside
+    # a green run. The error is recorded, the run completes (payload/snapshot
+    # stay usable) and main() exits the process non-zero afterwards.
+    # The try block covers the full outcome persistence pipeline: zone-priority
+    # enrichment, snapshot preparation, and disk storage — all three must
+    # succeed for a valid outcomes_<date>.json to land.
+    outcome_persistence_error: str | None = None
     try:
         _enrich_zone_priority(ranked_v2, regime_snapshot, news_scores)
         outcome_records = prepare_outcome_snapshot(ranked_v2, today)
         store_daily_outcomes(today, outcome_records)
     except Exception as exc:
-        outcome_storage_error = f"{type(exc).__name__}: {exc}"
-        logger.error("Outcome storage error: %s", type(exc).__name__, exc_info=True)
+        outcome_persistence_error = f"{type(exc).__name__}: {exc}"
+        logger.error("Outcome persistence pipeline error: %s", type(exc).__name__, exc_info=True)
 
     # Save current snapshot for next run's diff
     try:
@@ -5774,7 +5777,7 @@ def generate_open_prep_result(
     result["stage_timings"] = _stage_timings
     # Additive key: None on success; otherwise "ExcType: message" — translated
     # by main() into a non-zero exit (fail-loud for the daily workflow).
-    result["outcome_storage_error"] = outcome_storage_error
+    result["outcome_persistence_error"] = outcome_persistence_error
 
     # Persist latest result to JSON so CLI dashboards (vd_watch.sh) always
     # see fresh data — regardless of whether the caller is Streamlit or CLI.
@@ -5917,13 +5920,13 @@ def main() -> None:
     sys.stdout.write(rendered + "\n")
     # Note: latest_open_prep_run.json is already written inside
     # generate_open_prep_result() with default=str.  No second write needed.
-    if result.get("outcome_storage_error"):
+    if result.get("outcome_persistence_error"):
         # The payload is fully written (stdout + latest snapshot); now fail
         # loudly so run-open-prep-daily.yml turns red when its primary
         # purpose (outcomes_<date>.json) failed.
         logger.error(
-            "Outcome storage failed — exiting non-zero: %s",
-            result["outcome_storage_error"],
+            "Outcome persistence pipeline failed — exiting non-zero: %s",
+            result["outcome_persistence_error"],
         )
         sys.exit(1)
 
