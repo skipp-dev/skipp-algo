@@ -270,6 +270,8 @@ PYTHONPATH=. .venv/bin/python scripts/run_magnitude_shadow_ledger.py "$EV" \
 git add artifacts/governance/magnitude_resolution_shadow.jsonl
 git diff --cached --quiet \
   || git commit -m "chore(adr0023): weekly Stage-1 shadow ledger feed"
+git push  # the weekly evaluator reads the ledger from main — a local-only
+          # commit is invisible to it
 ```
 
 (The `git diff --cached --quiet ||` guard keeps the routine copy-paste safe:
@@ -290,15 +292,24 @@ Cadence and evidence-honesty rules:
   last ledger row before feeding:
 
   ```bash
+  EV=~/.local/share/skipp/vpin_followup/events_v3_abs_opra.json
   PYTHONPATH=. .venv/bin/python - "$EV" <<'EOF'
   import json, sys
   from scripts.run_magnitude_shadow_ledger import _load_events, events_content_hash
   new = events_content_hash(_load_events(sys.argv[1]))
-  last = json.loads(
-      open("artifacts/governance/magnitude_resolution_shadow.jsonl").readlines()[-1]
-  )["events_hash"]
-  print(f"export hash {new}  vs  last ledger row {last}")
-  print("UNCHANGED — skip this week" if new == last else "changed — OK to feed")
+  last = None
+  try:
+      with open("artifacts/governance/magnitude_resolution_shadow.jsonl") as fh:
+          for line in fh:
+              if line.strip():
+                  last = json.loads(line)["events_hash"]
+  except FileNotFoundError:
+      pass
+  if last is None:
+      print("ledger empty or missing — first feed, OK to feed")
+  else:
+      print(f"export hash {new}  vs  last ledger row {last}")
+      print("UNCHANGED — skip this week" if new == last else "changed — OK to feed")
   EOF
   ```
 - The ledger's own idempotency only covers same `(date, family, events_hash)`
