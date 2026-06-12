@@ -27,13 +27,25 @@ def _run_open_prep(repo_root: Path, python_exe: str) -> None:
     out_file = repo_root / "artifacts" / "open_prep" / "latest" / "latest_open_prep_run.json"
     out_file.parent.mkdir(parents=True, exist_ok=True)
 
-    with out_file.open("w", encoding="utf-8") as fh:
-        subprocess.run(
-            [python_exe, "-m", "open_prep.run_open_prep"],
-            cwd=str(repo_root),
-            stdout=fh,
-            check=True,
-        )
+    # generate_open_prep_result() already writes latest_open_prep_run.json
+    # atomically (mkstemp + os.replace). The previous stdout redirect straight
+    # into the target file truncated it at process start (crash -> empty file
+    # for monitor/CLI dashboards) and wrote the final JSON into an inode
+    # already orphaned by os.replace. stdout therefore goes to a tmp file;
+    # the target is only replaced after a successful run.
+    tmp_file = out_file.with_name(out_file.name + ".stdout.tmp")
+    try:
+        with tmp_file.open("w", encoding="utf-8") as fh:
+            subprocess.run(
+                [python_exe, "-m", "open_prep.run_open_prep"],
+                cwd=str(repo_root),
+                stdout=fh,
+                check=True,
+            )
+        tmp_file.replace(out_file)
+    except BaseException:
+        tmp_file.unlink(missing_ok=True)
+        raise
 
 
 def _stop_existing_monitor() -> None:

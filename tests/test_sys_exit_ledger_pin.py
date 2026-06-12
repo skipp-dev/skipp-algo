@@ -50,6 +50,10 @@ _SYS_EXIT_LEDGER: frozenset[tuple[str, int]] = frozenset({
     # 2026-06-12 (pytest write-guard merge): guard import/call + sweep
     # combined — measured 718.
     ("open_prep/outcome_backfill.py", 718),
+    # 2026-06-12 (backlog-resilience): main() exits non-zero when
+    # store_daily_outcomes failed — the daily workflow's primary artifact
+    # (outcomes_<date>.json) must not fail silently green.
+    ("open_prep/run_open_prep.py", 5928),
     # 2026-06-02 (#2497): +68 lines after the `provenance` subcommand block
     # was inserted above the lint dispatch (was 400, 402).
     ("pine_input_surface.py", 468),

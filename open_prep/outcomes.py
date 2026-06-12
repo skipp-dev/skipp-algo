@@ -201,6 +201,12 @@ def _load_outcomes_range(lookback_days: int = 20) -> list[dict[str, Any]]:
                 records.extend(data)
                 if file_date is not None:
                     loaded_dates.add(file_date)
+            else:
+                logger.warning(
+                    "Outcome file %s contains %s, expected list — skipped",
+                    path,
+                    type(data).__name__,
+                )
         except Exception:
             logger.warning("Failed to load outcome file: %s", path)
     return records

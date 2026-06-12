@@ -94,7 +94,9 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # helpers + snapshot fields shifted 437→525; vix9d D5 → 531.
     # 2026-06-11 (c10b FI component persistence): _component_fields helper
     # + component flattening shifted 531→555.
-    ("open_prep/outcomes.py", 569, "mkstemp"),
+    # 2026-06-12 (backlog-resilience): non-list warning in
+    # _load_outcomes_range +6 → 575.
+    ("open_prep/outcomes.py", 575, "mkstemp"),
     ("open_prep/realtime_signals.py", 116, "mkstemp"),
     ("open_prep/realtime_signals.py", 2528, "mkstemp"),
     ("open_prep/realtime_signals.py", 2569, "mkstemp"),
