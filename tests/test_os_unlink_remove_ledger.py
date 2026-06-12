@@ -134,7 +134,8 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-11 (trend-state features): 5731→5742, enrichment-loop
     # stamping + lookback comment added above; eval-findings 5742→5765.
     # 2026-06-12 (backlog-resilience): fail-loud outcome storage +9 → 5799.
-    ("open_prep/run_open_prep.py", 5799, "unlink"),
+    # 2026-06-12 (copilot-followup): rename + 3-line comment → 5802.
+    ("open_prep/run_open_prep.py", 5802, "unlink"),
     ("open_prep/scorer.py", 149, "unlink"),
     ("open_prep/watchlist.py", 74, "unlink"),
     ("smc_core/benchmark.py", 39, "unlink"),
