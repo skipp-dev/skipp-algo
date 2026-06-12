@@ -208,3 +208,14 @@ def test_drift_report_findings_payload_shape() -> None:
     assert {"psi", "detectors", "consensus_fires"} <= set(f0)
     assert f0["n_baseline"] == 3
     assert f0["n_live"] == 3
+
+
+# W5-2 (stat-review wave 5): empty metrics dict must yield yellow, not
+# vacuous green.
+def test_drift_report_empty_metrics_is_yellow() -> None:
+    rep = compute_drift_report({})
+    assert rep["aggregate_severity"] == "yellow", (
+        "empty metrics must not produce a vacuous green pass"
+    )
+    assert rep["n_metrics"] == 0
+    assert rep["findings"] == []
