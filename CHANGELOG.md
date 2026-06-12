@@ -23,8 +23,6 @@ All notable changes to this project are documented in this file.
 - Test-Fixtures: synthetische `order_id`/`perm_id` über `zlib.crc32`
   statt `hash()` (PYTHONHASHSEED-unabhängig, keine Modulus-Kollisionen).
 
-<<<<<<< HEAD
-### Fixed (2026-06-11) — Phase-B-Readiness-Workflow: Drift-Report-Artifact-Download (C8 Phase A → B)
 ### Fixed (2026-06-11) — Phase-B-Readiness-Workflow: Drift-Artifact-Download (C8 Phase A → B)
 
 `phase-b-promotion-readiness.yml` konnte strukturell nie erfolgreich laufen:
@@ -50,7 +48,7 @@ darauf zeigen.)
   (weiterhin rein lesend).
 - **`tests/test_phase_b_promotion_readiness_workflow_contract.py`**:
   Permissions-Pin auf `{contents: read, actions: read}` aktualisiert.
-=======
+
 ### Fixed (2026-06-11) — ADR-0023: Weekly-k-of-n bewertete Tageszeilen statt ISO-Wochen
 
 Der Stage-1-Weekly-Evaluator (`scripts/eval_magnitude_shadow_weekly.py`)
@@ -81,7 +79,6 @@ dünnen/verrauschten **Tagen** — beides um Wochen zu früh.
 - Tests: Fixtures auf Wochenabstand umgestellt; neue Regressionstests für
   Same-Week-Collapse (der Bug), Tie⇒FAIL, Gap-Wochen-Padding, globalen
   Anker, Cold-Start-Demotion-Sperre, ISO-Label-Format.
->>>>>>> origin/main
 
 ### Added (2026-06-11) — ADR-0023 Stage-1: Ledger-Verdicts → Promotion-Gate-Snapshot (Handover §5 Punkt 2)
 

@@ -76,10 +76,11 @@ jobs:
           # If the caller supplied a custom glob that already matches files in
           # the checkout (e.g. workflow_call from a job that generated reports
           # in-place), skip the download.
-          shopt -s nullglob
-          # Intentionally unquoted: ${DRIFT_GLOB} must glob-expand.
-          existing=( ${DRIFT_GLOB} )
-          shopt -u nullglob
+          # compgen -G treats the pattern strictly as data (no word-splitting,
+          # no re-parsing), so a caller-supplied glob cannot smuggle shell
+          # syntax; it also returns non-zero on zero matches, replacing the
+          # nullglob toggle.
+          mapfile -t existing < <(compgen -G "${DRIFT_GLOB}" || true)
           if [ "${#existing[@]}" -gt 0 ]; then
             echo "::notice title=drift-source::${#existing[@]} drift report(s) already present in checkout — skipping artifact download"
             exit 0
