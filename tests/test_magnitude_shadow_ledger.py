@@ -130,6 +130,16 @@ def test_load_ledger_raises_on_malformed_line(tmp_path: Path) -> None:
         shadow.load_ledger(str(path))
 
 
+def test_load_ledger_unreadable_file_raises_value_error(tmp_path: Path) -> None:
+    """Review follow-up (W7-1): an EXISTING but unreadable ledger (here: a
+    directory) is not a cold-start — it must raise the same ValueError the
+    consumers map to rc 1, not propagate a raw OSError stacktrace."""
+    path = tmp_path / "led.jsonl"
+    path.mkdir()
+    with pytest.raises(ValueError, match="unreadable ledger"):
+        shadow.load_ledger(str(path))
+
+
 def test_load_ledger_raises_on_non_object_line(tmp_path: Path) -> None:
     """W7-1: a parseable-but-non-object line (e.g. a bare list) is just as
     corrupt as unparseable JSON and must not be silently dropped."""

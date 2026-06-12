@@ -165,8 +165,9 @@ def load_ledger(path: str) -> list[dict[str, Any]]:
       PASS as the gate verdict.
 
     A malformed or non-object line therefore raises :class:`ValueError`
-    (with ``path:lineno``) instead of being dropped. A missing file is
-    still a legitimate cold-start and yields ``[]``.
+    (with ``path:lineno``) instead of being dropped, as does an unreadable
+    existing file (permissions / IO errors) — consumers map ValueError to
+    rc 1. A missing file is still a legitimate cold-start and yields ``[]``.
     """
     rows: list[dict[str, Any]] = []
     try:
@@ -189,6 +190,11 @@ def load_ledger(path: str) -> list[dict[str, Any]]:
                 rows.append(parsed)
     except FileNotFoundError:
         return []
+    except OSError as exc:
+        # An EXISTING but unreadable ledger (permissions, IO error) is not
+        # a cold-start — fail closed like a corrupt line, so consumers get
+        # their mapped rc 1 instead of an unhandled stacktrace.
+        raise ValueError(f"unreadable ledger {path}: {exc}") from exc
     return rows
 
 

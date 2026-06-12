@@ -122,8 +122,9 @@ def main(argv: list[str] | None = None) -> int:
         rows = load_ledger(args.ledger)
     except ValueError as exc:
         # W7-1: report-only renderer — still surface the corruption loudly
-        # in the step summary instead of rendering a silently thinner table.
-        print(f"shadow ledger unreadable: {exc}")
+        # instead of rendering a silently thinner table. stderr, NOT stdout:
+        # stdout is appended to $GITHUB_STEP_SUMMARY and must stay markdown.
+        print(f"shadow ledger unreadable: {exc}", file=sys.stderr)
         return 1
     print(render_summary(rows, k=args.k, n=args.n))
     return 0

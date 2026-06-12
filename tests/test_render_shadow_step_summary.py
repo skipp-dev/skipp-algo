@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from scripts.render_shadow_step_summary import render_summary
+from scripts.render_shadow_step_summary import main, render_summary
 
 
 def _row(
@@ -98,3 +98,18 @@ class TestRenderSummaryNoneAuc:
         rows = [{"family": "BOS", "magnitude_auc": None, "status": "INCONCLUSIVE", "date": "2025-01-01"}]
         md = render_summary(rows, k=3, n=4)
         assert "n/a" in md
+
+
+class TestMainCorruptLedger:
+    def test_corrupt_ledger_rc1_error_on_stderr_not_summary(
+        self, tmp_path, capsys
+    ) -> None:
+        """W7-1 + review follow-up: stdout is appended to
+        $GITHUB_STEP_SUMMARY, so the corruption error must go to stderr —
+        never into the markdown summary body."""
+        ledger = tmp_path / "led.jsonl"
+        ledger.write_text("not json\n", encoding="utf-8")
+        assert main(["--ledger", str(ledger)]) == 1
+        captured = capsys.readouterr()
+        assert "shadow ledger unreadable" in captured.err
+        assert captured.out == ""
