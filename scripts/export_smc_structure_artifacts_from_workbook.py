@@ -7,7 +7,6 @@ from pathlib import Path
 
 from smc_integration.structure_batch import (
     DEFAULT_OUTPUT_DIR,
-    DEFAULT_WORKBOOK,
     write_structure_artifacts_from_workbook,
 )
 
@@ -19,7 +18,16 @@ def _parse_symbols_csv(raw: str) -> list[str] | None:
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Export batch SMC structure artifacts from workbook data.")
-    parser.add_argument("--workbook", default=str(DEFAULT_WORKBOOK), help="Workbook path containing daily_bars sheet")
+    # Default None: the library resolves the canonical production workbook via
+    # artifact_resolution.resolve_production_workbook_path() — the SAME resolution
+    # the downstream manifest provenance check uses. A hardcoded DEFAULT_WORKBOOK
+    # here stamped a non-existent path into the manifest in CI and tripped
+    # NONCANONICAL_MANIFEST_WORKBOOK_PATH in the rolling benchmark (#2678 fallout).
+    parser.add_argument(
+        "--workbook",
+        default=None,
+        help="Workbook path containing daily_bars sheet (default: canonical production workbook resolution)",
+    )
     parser.add_argument("--timeframe", required=True, help="Target timeframe label for emitted structure IDs/artifacts")
     parser.add_argument("--symbols", default="", help="Optional comma-separated symbol override")
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR), help="Output directory for artifacts + manifest")
@@ -30,9 +38,9 @@ def _build_parser() -> argparse.ArgumentParser:
         help=(
             "Canonical export bundle directory providing the "
             "'full_universe_second_detail_open' parquet frame. REQUIRED for "
-            "intraday timeframes (5m/15m/1H/4H): the workbook ships only "
-            "daily_bars, and because --workbook is always explicit here, the "
-            "library suppresses bundle auto-discovery (#2667)."
+            "intraday timeframes (5m/15m/1H/4H) when --workbook is passed "
+            "explicitly, because an explicit workbook suppresses bundle "
+            "auto-discovery (#2667)."
         ),
     )
     return parser
@@ -43,7 +51,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     manifest = write_structure_artifacts_from_workbook(
-        workbook=Path(args.workbook).expanduser(),
+        workbook=Path(args.workbook).expanduser() if args.workbook else None,
         timeframe=str(args.timeframe).strip(),
         symbols=_parse_symbols_csv(args.symbols),
         output_dir=Path(args.output_dir).expanduser(),
