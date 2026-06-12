@@ -188,7 +188,8 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # 2026-06-11 (Copilot sweep #2677): deferred-summary accounting 558→570.
     # 2026-06-12 (pytest write-guard merge): guard import/call + sweep
     # combined — measured 579.
-    ("open_prep/outcome_backfill.py", 579),
+    # 2026-06-12 (Copilot #2729): main() exit-semantics docstring +6 → 585.
+    ("open_prep/outcome_backfill.py", 585),
     ("open_prep/realtime_signals.py", 2662),
     # 2026-06-10 (#2670 W2/W4): source-disclosure edits shifted +25 (5840→5865).
     # 2026-06-11 (trend-state features): 5865→5876, enrichment-loop stamping.

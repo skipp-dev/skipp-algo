@@ -102,7 +102,8 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-12 (pytest write-guard merge): guard import/call + sweep
     # combined — measured 125/711; outcomes.py guard shift → 161.
     ("open_prep/outcome_backfill.py", 125, "unlink"),
-    ("open_prep/outcome_backfill.py", 711, "unlink"),
+    # 2026-06-12 (Copilot #2729): main() exit-semantics docstring +6 → 717.
+    ("open_prep/outcome_backfill.py", 717, "unlink"),
     ("open_prep/outcomes.py", 161, "unlink"),
     # 2026-06-11 (trend-state features): 431→449, snapshot keys +
     # FEATURE_KEYS/PASS_THROUGH block added above.

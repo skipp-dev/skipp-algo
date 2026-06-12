@@ -49,7 +49,8 @@ _SYS_EXIT_LEDGER: frozenset[tuple[str, int]] = frozenset({
     # 2026-06-11 (Copilot sweep #2677): deferred-summary accounting 697→709.
     # 2026-06-12 (pytest write-guard merge): guard import/call + sweep
     # combined — measured 718.
-    ("open_prep/outcome_backfill.py", 718),
+    # 2026-06-12 (Copilot #2729): main() exit-semantics docstring +6 → 724.
+    ("open_prep/outcome_backfill.py", 724),
     # 2026-06-12 (backlog-resilience): main() exits non-zero when
     # store_daily_outcomes failed — the daily workflow's primary artifact
     # (outcomes_<date>.json) must not fail silently green.
