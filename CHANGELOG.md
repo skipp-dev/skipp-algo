@@ -41,6 +41,36 @@ direkt nach dem PYTHONUNBUFFERED-Lint und schlägt bei jedem Code-Fehler fail.
     skipp_config/trading_thresholds.py.
   - `ruff==0.15.16` zu `requirements.txt` hinzugefügt; `_DEP_LINE_BUDGET`
     26 → 27.
+### Fixed (2026-06-11) — ADR-0023: Weekly-k-of-n bewertete Tageszeilen statt ISO-Wochen
+
+Der Stage-1-Weekly-Evaluator (`scripts/eval_magnitude_shadow_weekly.py`)
+nahm als Fenster die **letzten n Tageszeilen** (`rows[-n:]`) — präregistriert
+ist aber „k of n consecutive **weekly** evaluations" (Handover §3/§4.4).
+Tageszeilen sind Pseudo-Replikate (rollierender Events-Export, hoch
+autokorreliert): Stage-2-Eligibility wäre nach 3 PASS-**Tagen** erreichbar
+gewesen, Auto-Demotion der armierten Familien (BOS/SWEEP) schon nach 4
+dünnen/verrauschten **Tagen** — beides um Wochen zu früh.
+
+- **ISO-Wochen-Bucketing**: Tageszeilen werden per ISO-Woche gebucketet
+  (`weekly_evaluations()`); Wochen-Status = strikte Mehrheit der messbaren
+  Tageszeilen (Gleichstand/Fail-Mehrheit ⇒ FAIL; keine messbaren ⇒
+  INCONCLUSIVE). Kalenderwochen ohne Daten belegen einen Fenster-Slot als
+  INCONCLUSIVE (Outage verzögert, beschleunigt nie).
+- **Globaler Anker**: Fenster aller Familien endet an der ledger-weiten
+  jüngsten Woche — eine stale Familie wird mit INCONCLUSIVE gepolstert
+  statt ihr Fenster zu verschieben (fail-safe).
+- **`window_size` = messbare Wochen**: Cold-Start-Ledger mit einer Woche
+  Tageszeilen ⇒ `window_size == 1` ⇒ weder Stage-2-Arming noch
+  Auto-Demotion möglich (Demotion verlangt weiterhin das volle n-Wochen-
+  Fenster). Report enthält jetzt `weeks` (pro Familie) + `anchor_week`.
+- CLI, Exit-Codes (0/2/3/4/1), `stage2_status_line()`-Format und der
+  Weekly-Workflow bleiben unverändert; Red-Flag-Detektor bleibt bewusst
+  tagesbasiert (Artefakt-Signatur). Step-Summary-Fußnote
+  (`render_shadow_step_summary.py`) stellt klar: Tabelle = Tages-Preview,
+  maßgeblich ist der ISO-Wochen-Evaluator.
+- Tests: Fixtures auf Wochenabstand umgestellt; neue Regressionstests für
+  Same-Week-Collapse (der Bug), Tie⇒FAIL, Gap-Wochen-Padding, globalen
+  Anker, Cold-Start-Demotion-Sperre, ISO-Label-Format.
 
 ### Added (2026-06-11) — ADR-0023 Stage-1: Ledger-Verdicts → Promotion-Gate-Snapshot (Handover §5 Punkt 2)
 

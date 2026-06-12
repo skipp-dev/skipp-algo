@@ -102,12 +102,8 @@ def test_allowed_unguarded_workflows_carry_fv4d2_marker() -> None:
     """
     missing_marker: list[str] = []
     for name in sorted(ALLOWED_UNGUARDED):
-        for _ in (".yml", ".yaml"):
-            wf = WORKFLOWS_DIR / name
-            if wf.exists():
-                break
-        else:
-            wf = WORKFLOWS_DIR / name
+        # ALLOWED_UNGUARDED entries are full filenames (incl. extension).
+        wf = WORKFLOWS_DIR / name
         assert wf.exists(), f"ALLOWED_UNGUARDED entry not found on disk: {name}"
         if "F-V4-D2" not in wf.read_text(encoding="utf-8"):
             missing_marker.append(name)

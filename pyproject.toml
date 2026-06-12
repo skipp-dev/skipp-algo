@@ -119,7 +119,22 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S", "T20", "B011", "N801", "E402"]
-"scripts/*" = ["T20", "E402", "S108", "S603", "S607"]
+"scripts/*" = ["T20", "E402", "S108"]
+# S603/S607 (subprocess audit) deliberately NOT blanket-ignored for scripts/*:
+# new scripts get full subprocess linting. The 11 files below are grandfathered
+# (fixed-argv subprocess calls to repo-local tools / gh / git, reviewed 2026-06-12,
+# PR #2713); remove entries as files get cleaned up.
+"scripts/analyze_publish_cadence.py" = ["S603", "S607"]
+"scripts/check_tradingview_storage_state_security.py" = ["S607"]
+"scripts/measure_databento_ops_run.py" = ["S603"]
+"scripts/phase5_perf_trend.py" = ["S603", "S607"]
+"scripts/profile_cron_with_pyspy.py" = ["S603"]
+"scripts/profile_pytest_durations.py" = ["S603"]
+"scripts/regenerate_requirements_lock.py" = ["S603"]
+"scripts/scan_manifests_for_pytest_provenance.py" = ["S603"]
+"scripts/smc_micro_publish_guard.py" = ["S603"]
+"scripts/smc_zone_priority_calibration.py" = ["S603"]
+"scripts/start_open_prep_suite.py" = ["S603"]
 "open_prep/outcomes.py" = ["E402"]
 "open_prep/realtime_signals.py" = ["E402", "SIM115"]
 "open_prep/run_open_prep.py" = ["E402"]
