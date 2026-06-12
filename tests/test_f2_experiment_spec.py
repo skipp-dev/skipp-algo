@@ -179,3 +179,42 @@ def test_rollback_validation_rejects_bad_consecutive() -> None:
 
     with pytest.raises(ValueError):
         RollbackGateSpec(consecutive_worse_runs=0, comparison_metric="x")
+
+
+# W5-1 (stat-review wave 5): NaN in daily_deltas must trigger rollback
+# fail-closed rather than silencing it.
+def test_rollback_nan_delta_fails_closed() -> None:
+    spec = load_f2_spec(SHIPPED_SPEC)
+    import math
+
+    n = spec.rollback_gate.consecutive_worse_runs
+    # All-NaN tail — must trigger, not silently pass.
+    assert evaluate_rollback([math.nan] * n, spec) is True
+    # Mixed: one real positive, one NaN — must still trigger.
+    assert evaluate_rollback([0.01, math.nan], spec) is True
+    # NaN with a clearly negative value still triggers (fail-closed).
+    assert evaluate_rollback([-0.05, math.nan], spec) is True
+
+
+# Copilot #2685: a NaN-triggered rollback must be labelled as such in
+# the audit trail — "runs all worse" would be factually wrong for a
+# tail like [-0.05, NaN].
+def test_rollback_reason_distinguishes_nan_trigger() -> None:
+    spec = load_f2_spec(SHIPPED_SPEC)
+    import math
+
+    n = spec.rollback_gate.consecutive_worse_runs
+    digest = {"sprt": {"decision": "continue", "n": 10_000}, "metrics": []}
+
+    nan_tail = [0.01] * (n - 1) + [math.nan]
+    out = evaluate_promotion(digest, spec, daily_deltas=nan_tail)
+    assert out["decision"] == "rollback"
+    assert "fail-closed" in out["reason"]
+    assert "NaN" in out["reason"]
+    assert "all worse" not in out["reason"]
+
+    worse_tail = [0.01] * n
+    out = evaluate_promotion(digest, spec, daily_deltas=worse_tail)
+    assert out["decision"] == "rollback"
+    assert "all worse" in out["reason"]
+    assert "NaN" not in out["reason"]

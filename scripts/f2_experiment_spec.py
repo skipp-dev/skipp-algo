@@ -32,6 +32,7 @@ spec itself.
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -170,12 +171,18 @@ def evaluate_rollback(
     ``treatment_metric - control_metric`` values for the configured
     comparison metric (lower-is-better, so positive = worse). Triggers
     when the trailing ``consecutive_worse_runs`` entries are *all*
-    strictly positive.
+    strictly positive, or — fail-closed (W5-1) — when any trailing
+    entry is NaN (a non-measurable delta must never silence the gate).
     """
     n = spec.rollback_gate.consecutive_worse_runs
     if len(daily_deltas) < n:
         return False
     tail = daily_deltas[-n:]
+    # W5-1 (stat-review wave 5): NaN > 0 evaluates False, silencing
+    # rollback when any tail entry is NaN.  Fail-closed: treat NaN as
+    # worse (positive) so the gate does not miss a degradation signal.
+    if any(math.isnan(d) for d in tail):
+        return True
     return all(d > 0 for d in tail)
 
 
@@ -224,11 +231,23 @@ def evaluate_promotion(
                 f"SPRT accepted H0 (n={n}, k={sprt.get('k')}, llr={sprt.get('llr')})"
             )
         if rollback_triggered:
-            reason_parts.append(
-                f"rollback_gate triggered: trailing "
-                f"{spec.rollback_gate.consecutive_worse_runs} runs all worse on "
-                f"{spec.rollback_gate.comparison_metric}"
-            )
+            n_runs = spec.rollback_gate.consecutive_worse_runs
+            tail = (daily_deltas or [])[-n_runs:]
+            if any(math.isnan(d) for d in tail):
+                # W5-1 fail-closed path: a NaN tail entry triggers the
+                # gate regardless of the other deltas — saying "all
+                # worse" here would falsify the audit trail.
+                reason_parts.append(
+                    f"rollback_gate triggered (fail-closed): non-measurable "
+                    f"(NaN) delta in trailing {n_runs} runs on "
+                    f"{spec.rollback_gate.comparison_metric}"
+                )
+            else:
+                reason_parts.append(
+                    f"rollback_gate triggered: trailing "
+                    f"{n_runs} runs all worse on "
+                    f"{spec.rollback_gate.comparison_metric}"
+                )
         return {
             "decision": "rollback",
             "reason": "; ".join(reason_parts),
