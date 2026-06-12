@@ -7,9 +7,11 @@ wiring of the §5 gate (``scripts/run_epnl_after_cost_gate.py``).
 from __future__ import annotations
 
 import json
+import zlib
 
 import pytest
 
+import scripts.run_epnl_after_cost_gate as epnl_gate
 from governance.execution_costs import (
     MIN_FILL_RATE,
     MIN_FILL_SAMPLES,
@@ -19,15 +21,19 @@ from governance.execution_costs import (
     slippage_bps,
 )
 from scripts.calibrate_execution_costs import main as calibrate_main
-from scripts.run_epnl_after_cost_gate import main as gate_main
 
 # ---- synthetic session builder -------------------------------------------
+
+
+def _oid(ref: str) -> int:
+    """Deterministic, PYTHONHASHSEED-independent synthetic order id."""
+    return zlib.crc32(ref.encode())
 
 
 def _order(ref: str, *, lmt: float | None, action: str = "BUY") -> dict:
     return {
         "order_ref": ref,
-        "order_id": hash(ref) % 10_000,
+        "order_id": _oid(ref),
         "action": action,
         "order_type": "LMT" if lmt is not None else "TRAIL",
         "lmt_price": lmt,
@@ -39,8 +45,8 @@ def _order(ref: str, *, lmt: float | None, action: str = "BUY") -> dict:
 def _fill(ref: str, *, side: str, shares: float, price: float, time: str = "t0") -> dict:
     return {
         "symbol": "TST",
-        "order_id": hash(ref) % 10_000,
-        "perm_id": hash(ref) % 90_000,
+        "order_id": _oid(ref),
+        "perm_id": _oid(ref + ":perm"),
         "order_ref": ref,
         "side": side,
         "shares": shares,
@@ -221,6 +227,35 @@ def test_price_improvement_reduces_cost():
     assert cal.per_side_cost_bps_mean == pytest.approx(-4.5, abs=0.01)
 
 
+def test_fee_only_legs_contribute_fee_to_round_turn():
+    """Trailing exits without a limit reference still cost their commission.
+
+    Regression for the #2697 Copilot finding: fee-only legs were excluded
+    from per_side entirely, under-estimating the round-turn cost for every
+    trade that exits via a trail.
+    """
+    orders, fills = [], []
+    for i in range(MIN_FILL_SAMPLES):
+        ref = f"F{i}"
+        orders.append(_order(f"{ref}-entry", lmt=100.0))
+        orders.append(_order(f"{ref}-trail", lmt=None, action="SELL"))
+        fills.append(_fill(f"{ref}-entry", side="BOT", shares=1000, price=100.05))
+        fills.append(_fill(f"{ref}-trail", side="SLD", shares=1000, price=101.0))
+    cal = calibrate_costs([_session(orders, fills)], n_bootstrap=200, seed=7)
+    assert cal.fee_only_legs == MIN_FILL_SAMPLES
+    # Every leg (entry AND trail) is a per-side cost sample.
+    assert cal.n_cost_samples == 2 * MIN_FILL_SAMPLES
+    # Entry: 5 bps slip + 0.5 bps fee; trail: ~0.495 bps fee only (vwap 101).
+    expected_per_side = (5.5 + commission_bps(1000, 101.0)) / 2.0
+    assert cal.per_side_cost_bps_mean == pytest.approx(expected_per_side, abs=0.01)
+    # Fee-only legs contribute a 0.0 slippage sample so the reported
+    # component means stay decomposable (Copilot review #2703):
+    # per_side_mean == slippage_mean + fee_mean over the SAME population.
+    assert cal.per_side_cost_bps_mean == pytest.approx(
+        cal.slippage_bps_mean + cal.fee_bps_mean, abs=1e-9
+    )
+
+
 # ---- calibration CLI ------------------------------------------------------
 
 
@@ -258,8 +293,6 @@ def test_calibrate_cli_bad_path_exit_1(tmp_path):
 
 def _patch_extractor(monkeypatch, *, n: int = 60):
     """Route build_report through a fake extractor (wiring, not extraction)."""
-    import scripts.run_epnl_after_cost_gate as gate
-
     scores = [float(i) for i in range(n)]
     returns = [(i - n / 2) / 1000.0 for i in range(n)]
     seen: dict = {}
@@ -268,7 +301,7 @@ def _patch_extractor(monkeypatch, *, n: int = 60):
         seen["cost_bps"] = cost_bps
         return {"BOS": {"scores": scores, "returns": returns}}
 
-    monkeypatch.setattr(gate, "extract_family_calibration_samples", fake_samples)
+    monkeypatch.setattr(epnl_gate, "extract_family_calibration_samples", fake_samples)
     return seen
 
 
@@ -285,7 +318,7 @@ def test_gate_uses_conservative_cost_from_calibration(tmp_path, monkeypatch):
     events_path = tmp_path / "events.json"
     events_path.write_text(json.dumps([{"family": "BOS"}]), encoding="utf-8")
     out_path = tmp_path / "gate.json"
-    rc = gate_main(
+    rc = epnl_gate.main(
         [
             str(events_path),
             "--n-bootstrap", "200",
@@ -310,9 +343,46 @@ def test_gate_rejects_unmeasurable_calibration(tmp_path, capsys):
     )
     events_path = tmp_path / "events.json"
     events_path.write_text(json.dumps([{"family": "BOS"}]), encoding="utf-8")
-    rc = gate_main([str(events_path), "--cost-calibration", str(cal_path)])
+    rc = epnl_gate.main([str(events_path), "--cost-calibration", str(cal_path)])
     assert rc == 1
     assert "refusing to fall back" in capsys.readouterr().err
+
+
+def test_gate_rejects_measurable_report_without_cost(tmp_path, capsys):
+    """measurable:true but missing/bad conservative_cost_bps -> clean exit 1."""
+    events_path = tmp_path / "events.json"
+    events_path.write_text(json.dumps([{"family": "BOS"}]), encoding="utf-8")
+    for payload in (
+        {"measurable": True},  # key missing
+        {"measurable": True, "conservative_cost_bps": None},  # not coercible
+        {"measurable": True, "conservative_cost_bps": "n/a"},  # not coercible
+    ):
+        cal_path = tmp_path / "cal.json"
+        cal_path.write_text(json.dumps(payload), encoding="utf-8")
+        rc = epnl_gate.main([str(events_path), "--cost-calibration", str(cal_path)])
+        assert rc == 1
+        assert "no usable conservative_cost_bps" in capsys.readouterr().err
+
+
+def test_gate_rejects_non_finite_cost(tmp_path, capsys):
+    """measurable:true with NaN/Infinity cost -> clean exit 1 (fail-closed).
+
+    Python's json loader accepts the NaN/Infinity literals by default, and
+    float() coerces them happily — without this guard the gate would run
+    with cost_bps=nan/inf and produce a non-deterministic verdict
+    (Copilot review #2703).
+    """
+    events_path = tmp_path / "events.json"
+    events_path.write_text(json.dumps([{"family": "BOS"}]), encoding="utf-8")
+    for literal in ("NaN", "Infinity", "-Infinity"):
+        cal_path = tmp_path / "cal.json"
+        cal_path.write_text(
+            '{"measurable": true, "conservative_cost_bps": ' + literal + "}",
+            encoding="utf-8",
+        )
+        rc = epnl_gate.main([str(events_path), "--cost-calibration", str(cal_path)])
+        assert rc == 1
+        assert "non-finite" in capsys.readouterr().err
 
 
 def test_gate_default_remains_flat_cost(tmp_path, monkeypatch):
@@ -320,7 +390,7 @@ def test_gate_default_remains_flat_cost(tmp_path, monkeypatch):
     events_path = tmp_path / "events.json"
     events_path.write_text(json.dumps([{"family": "BOS"}]), encoding="utf-8")
     out_path = tmp_path / "gate.json"
-    gate_main([str(events_path), "--n-bootstrap", "100", "--seed", "7", "--out", str(out_path)])
+    epnl_gate.main([str(events_path), "--n-bootstrap", "100", "--seed", "7", "--out", str(out_path)])
     report = json.loads(out_path.read_text(encoding="utf-8"))
     assert report["cost_source"] == "flat_default"
     assert report["cost_calibration"] is None

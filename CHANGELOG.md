@@ -6,6 +6,54 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-06-11) — §5-Kostenmodell: Review-Findings aus #2697
+
+- **Fee-only-Legs zählen in den Round-Turn-Cost**
+  (`governance/execution_costs.py`): Trailing-Exits ohne Limit-Referenz
+  wurden komplett aus `per_side` ausgeschlossen — das unterschätzte die
+  Round-Turn-Kosten für jeden Trade mit Trail-Exit systematisch (und
+  widersprach dem Modul-Docstring "contribute fee only"). Jetzt gehen
+  sie mit ihrer Commission (Slippage unmessbar ⇒ 0) in die
+  Per-Side-Samples und damit in Punktschätzer + CI ein.
+- **Gate fail-closed bei kaputtem measurable-Report**
+  (`scripts/run_epnl_after_cost_gate.py`): ein Report mit
+  `measurable: true` aber fehlendem/nicht-koerzierbarem
+  `conservative_cost_bps` führte zu einem unbehandelten Crash statt
+  Exit 1 mit klarer Meldung.
+- Test-Fixtures: synthetische `order_id`/`perm_id` über `zlib.crc32`
+  statt `hash()` (PYTHONHASHSEED-unabhängig, keine Modulus-Kollisionen).
+
+### Fixed (2026-06-11) — ADR-0023: Weekly-k-of-n bewertete Tageszeilen statt ISO-Wochen
+
+Der Stage-1-Weekly-Evaluator (`scripts/eval_magnitude_shadow_weekly.py`)
+nahm als Fenster die **letzten n Tageszeilen** (`rows[-n:]`) — präregistriert
+ist aber „k of n consecutive **weekly** evaluations" (Handover §3/§4.4).
+Tageszeilen sind Pseudo-Replikate (rollierender Events-Export, hoch
+autokorreliert): Stage-2-Eligibility wäre nach 3 PASS-**Tagen** erreichbar
+gewesen, Auto-Demotion der armierten Familien (BOS/SWEEP) schon nach 4
+dünnen/verrauschten **Tagen** — beides um Wochen zu früh.
+
+- **ISO-Wochen-Bucketing**: Tageszeilen werden per ISO-Woche gebucketet
+  (`weekly_evaluations()`); Wochen-Status = strikte Mehrheit der messbaren
+  Tageszeilen (Gleichstand/Fail-Mehrheit ⇒ FAIL; keine messbaren ⇒
+  INCONCLUSIVE). Kalenderwochen ohne Daten belegen einen Fenster-Slot als
+  INCONCLUSIVE (Outage verzögert, beschleunigt nie).
+- **Globaler Anker**: Fenster aller Familien endet an der ledger-weiten
+  jüngsten Woche — eine stale Familie wird mit INCONCLUSIVE gepolstert
+  statt ihr Fenster zu verschieben (fail-safe).
+- **`window_size` = messbare Wochen**: Cold-Start-Ledger mit einer Woche
+  Tageszeilen ⇒ `window_size == 1` ⇒ weder Stage-2-Arming noch
+  Auto-Demotion möglich (Demotion verlangt weiterhin das volle n-Wochen-
+  Fenster). Report enthält jetzt `weeks` (pro Familie) + `anchor_week`.
+- CLI, Exit-Codes (0/2/3/4/1), `stage2_status_line()`-Format und der
+  Weekly-Workflow bleiben unverändert; Red-Flag-Detektor bleibt bewusst
+  tagesbasiert (Artefakt-Signatur). Step-Summary-Fußnote
+  (`render_shadow_step_summary.py`) stellt klar: Tabelle = Tages-Preview,
+  maßgeblich ist der ISO-Wochen-Evaluator.
+- Tests: Fixtures auf Wochenabstand umgestellt; neue Regressionstests für
+  Same-Week-Collapse (der Bug), Tie⇒FAIL, Gap-Wochen-Padding, globalen
+  Anker, Cold-Start-Demotion-Sperre, ISO-Label-Format.
+
 ### Added (2026-06-11) — ADR-0023 Stage-1: Ledger-Verdicts → Promotion-Gate-Snapshot (Handover §5 Punkt 2)
 
 Der Stage-1-Shadow-Runner lief täglich, aber seine Verdicts erreichten das
