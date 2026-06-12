@@ -208,8 +208,15 @@ jobs:
           set -euo pipefail
           # if: always() — SMC_PYTHON_BIN may be unset when the resolve
           # step was skipped/failed; fall back to plain python so this
-          # warn-only step does not add its own failure noise.
-          "${SMC_PYTHON_BIN:-python}" - <<'EOF'
+          # warn-only step does not add its own failure noise. If no
+          # interpreter is available at all, skip cleanly (exit 0)
+          # instead of failing with exit 127.
+          PYBIN="${SMC_PYTHON_BIN:-python}"
+          if ! command -v "$PYBIN" >/dev/null 2>&1; then
+            echo "streak check: no python interpreter available ($PYBIN) — skipping"
+            exit 0
+          fi
+          "$PYBIN" - <<'EOF'
           import json
           import os
           from pathlib import Path
