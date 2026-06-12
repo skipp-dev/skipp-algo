@@ -33,6 +33,21 @@ garantiertes rc=4 gewesen; davor war er ein stiller No-op.
   `scripts/check_phase_b_drift_readiness.py` (dessen Wiring-Claim schon
   vorher falsch war) und dem Script-Docstring aktualisiert.
 
+### Added (2026-06-12) — Runbook: TradingView storage-state capture + Secret-Rotation
+
+Neues `docs/tradingview-storage-state-capture-runbook.md`: dokumentierte
+Prozedur für `npm run tv:storage-state`
+(`scripts/create_tradingview_storage_state.ts`) — Capture-Ablauf (headed
+Chromium, Login/MFA, Auth-Heuristik, `meta.authValidatedAt`),
+CLI-Flags/Env-Tabelle, Standard-Rotation via
+`gh secret set TV_STORAGE_STATE`, Verify über
+`credential-health-check.yml`,
+persistent-profile-Alternative (`tv:profile-login`), Security-Regeln
+(`tv:auth-security`-Guard, Session-Cookie-Hygiene) und der am 2026-06-12
+beobachtete Secret-Snapshot-Pitfall (GHA liest Secrets bei Job-Start —
+laufende library-refresh-Jobs preflighten mit dem alten Cookie).
+Querverweis aus §7.3 des operativen Publish-Runbooks ergänzt.
+
 ### Fixed (2026-06-12) — Workflow-Audit MITTEL-11: newsapi bot-branch push fail-loud
 
 `continue-on-error: true` vom Step "Publish snapshot to rolling bot
