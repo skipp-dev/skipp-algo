@@ -255,6 +255,35 @@ measure-only because the gate stays lax in Stage 1.
    `auc_ci`, `resolution_null`), `role` (candidate/control), plus `seed` and the
    events content hash for provenance.
 
+#### 4.1a Weekly operator feed routine — INTERIM (until #2706 Option B lands)
+
+The scheduled daily run is structurally `all_thin`: the rolling-benchmark
+artifact carries score+triggered-return on only ~9 % of events, clustered in
+~3 anchor days, so the purged walk-forward never reaches MIN_OOS (see issue
+#2706). Until the rolling bench is enriched (Option B), the k-of-n window is
+fed by a **weekly local run** against the production events export:
+
+```bash
+EV=~/.local/share/skipp/vpin_followup/events_v3_abs_opra.json
+PYTHONPATH=. .venv/bin/python scripts/run_magnitude_shadow_ledger.py "$EV" \
+  --seed 230022
+git add artifacts/governance/magnitude_resolution_shadow.jsonl
+git commit -m "chore(adr0023): weekly Stage-1 shadow ledger feed"
+```
+
+Cadence and evidence-honesty rules:
+
+- **Once per ISO week** (e.g. Friday after the weekly export refresh), so each
+  k-of-n window slot is backed by exactly one observation.
+- **Refresh the export first.** Re-grading an unchanged snapshot in a new week
+  ticks the window with *pseudo-replicated* evidence — same `events_hash`,
+  zero new information. The weekly evaluator collapses by ISO week but does
+  NOT deduplicate `events_hash` across weeks, so this discipline is on the
+  operator. If the export did not change since the previous feed, **skip the
+  week** (the slot becomes INCONCLUSIVE, which is the honest verdict).
+- The ledger's own idempotency only covers same `(date, family, events_hash)`
+  re-runs; it does not protect against cross-week snapshot reuse.
+
 ### 4.2 Recording (append-only ledger) — IMPLEMENTED
 
 - The runner appends **one row per family per day** to an append-only JSONL
