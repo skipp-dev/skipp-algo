@@ -89,7 +89,14 @@ def _repo_state_paths_match_defaults() -> bool:
 
 
 def _manifest_repo_state_health_issues(payload: dict[str, Any], *, manifest_path: Path) -> list[dict[str, Any]]:
+    # Layer guard (scripts/check_layer_violations.py): no direct scripts.*
+    # import here — artifact_resolution is the allowlisted indirection for
+    # scripts.databento_production_workbook and re-exports these symbols.
     from smc_integration import artifact_resolution
+    from smc_integration.artifact_resolution import (
+        DEFAULT_PRODUCTION_EXPORT_DIR,
+        canonical_production_workbook_path,
+    )
 
     if not _repo_state_paths_match_defaults():
         return []
@@ -97,6 +104,21 @@ def _manifest_repo_state_health_issues(payload: dict[str, Any], *, manifest_path
     expected_workbook = artifact_resolution.resolve_production_workbook_path()
     if expected_workbook is None:
         return []
+
+    # Canonical stable workbook path, EXISTENCE-INDEPENDENT. Since commit
+    # 9665f233 the producer writes the deterministic stable name
+    # (databento_volatility_production_workbook.xlsx) — that path is canonical
+    # by definition. resolve_production_workbook_path() is existence-gated and
+    # falls back to a stale timestamped legacy export when the stable file is
+    # absent locally; a manifest pointing at the stable path must never be
+    # flagged for being MORE canonical than the local disk state
+    # (provenance-drift false positive, workflow-audit 2026-06).
+    canonical_stable_workbook = (
+        canonical_production_workbook_path(
+            export_dir=artifact_resolution.REPO_ROOT / DEFAULT_PRODUCTION_EXPORT_DIR
+        )
+        .resolve()
+    )
 
     resolved_inputs_raw = payload.get("resolved_inputs")
     producer_raw = payload.get("producer")
@@ -132,7 +154,7 @@ def _manifest_repo_state_health_issues(payload: dict[str, Any], *, manifest_path
         )
         return issues
 
-    if observed_workbook != expected_workbook:
+    if observed_workbook != expected_workbook and observed_workbook != canonical_stable_workbook:
         issues.append(
             _health_issue(
                 "NONCANONICAL_MANIFEST_WORKBOOK_PATH",
