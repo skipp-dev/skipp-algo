@@ -50,7 +50,10 @@ _RANDOM_LEDGER: frozenset[tuple[str, int]] = frozenset({
     ("governance/epnl_after_cost.py", 194),
     # ADR-0023 §5 execution-cost calibration: seeded RNG for the bootstrap-CI
     # of the empirical round-turn cost (deterministic); non-security.
-    ("governance/execution_costs.py", 322),
+    # 2026-06-11 (#2697 review findings): 322→329 after the fee-only-leg
+    # comment block above the call site, then 329→332 after the
+    # non-finite cost-input guard landed three lines above it.
+    ("governance/execution_costs.py", 332),
 })
 
 # ---- Layer 2: tempfile.* ledger ----------------------------------------------

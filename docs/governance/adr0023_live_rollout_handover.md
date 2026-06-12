@@ -286,6 +286,15 @@ Per family, a day is classified as:
 Daily PASS/FAIL is noisy; **decisions are made weekly**, not daily:
 - Compute, per family, the **k-of-n** streak over the trailing window
   (recommend n = last 4 weekly evaluations, k ≥ 3).
+- **Implemented ISO-week collapse** (`eval_magnitude_shadow_weekly.py`):
+  daily ledger rows are bucketed by ISO week; a week is **PASS** only with a
+  strict majority of measurable daily rows (tie or fail-majority ⇒ FAIL; no
+  measurable rows ⇒ INCONCLUSIVE). Calendar weeks without data still consume
+  a window slot as INCONCLUSIVE, and the window is anchored at the
+  ledger-wide latest date, so a stale family pads with INCONCLUSIVE rather
+  than shifting its window. `window_size` counts only measurable weeks — a
+  cold-start ledger with one week of daily rows is `window_size == 1`,
+  which can neither arm Stage 2 nor trigger auto-demotion.
 - **BOS/SWEEP healthy** = k-of-n PASS AND CI-low not trending toward 0.55.
 - **FVG/OB control healthy** = stays FAIL/below the bar (expected).
 - **Red flags to escalate (do NOT auto-advance):**

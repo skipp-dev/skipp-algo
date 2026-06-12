@@ -100,9 +100,9 @@ def render_summary(
     lines.append(
         f"_Sparkline range: {SPARK_LO:.2f} (coin-flip) → "
         f"{SPARK_HI:.2f} (strong). "
-        f"Stage-2 shows {k}-of-{n} PASS progress in the rolling window "
-        f"(not necessarily consecutive); the weekly k-of-n evaluator is "
-        f"authoritative for promotion._"
+        f"This table previews the last {n} *daily* ledger rows; the "
+        f"authoritative Stage-2 judgement is the weekly evaluator's "
+        f"{k}-of-{n} over ISO-week evaluations (handover §4.4)._"
     )
     return "\n".join(lines)
 

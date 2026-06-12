@@ -405,3 +405,9 @@ def test_build_execution_event_log_and_csv_export(tmp_path) -> None:
     assert "order_submitted" in contents
     assert "reconnect" in contents
     assert "final_state" in contents
+
+
+# The pre-market smoke-guard unit tests live in tests/test_ibkr_smoke_guard.py
+# (single home; consolidated there per Copilot review #2691 — the dedicated
+# module is the superset: HALT, missing/stale/fresh/future-mtime JSONL,
+# yesterday-keyed JSONL, bypass flag).
