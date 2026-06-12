@@ -6,6 +6,21 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-06-12) — f2-promotion-gate: Rollback-Ping in falsches Issue (Label-only-Suche)
+
+Der Step „Open rollback Issue (§2.4 G2 ping)“ in
+`f2-promotion-gate-daily.yml` suchte ein bestehendes Issue nur über
+`--label cron-failure` — ohne Titel-Filter. Da mehrere Workflows
+(credential-health-check, workflow-freshness-monitor, …) dasselbe Label
+verwenden, traf die Suche das erste beste offene cron-failure-Issue:
+der Rollback-Ping vom 2026-06-12 (SPRT accept_h0, n=1664) landete als
+Kommentar im fachfremden credential-health-Issue #2732 statt in einem
+`[F2 rollback]`-Issue. Die Suche filtert jetzt zusätzlich mit dem
+GitHub-Suchfilter `"[F2 rollback]" in:title` (matcht die Phrase
+irgendwo im Titel; der Wert wird zur Laufzeit aus
+`scripts/f2_render_rollback_issue.py::TITLE_PREFIX` importiert); der
+Step-Kommentar (der fälschlich ein nicht existentes „f2-rollback label“
+behauptete) ist mitkorrigiert.
 ### Security (2026-06-12) — tsx ^4.22.4 → esbuild 0.28.1 (Dependabot #5/#6)
 
 `tsx` von `^4.20.5` auf `^4.22.4` gehoben, wodurch das transitive

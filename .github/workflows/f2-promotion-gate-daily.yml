@@ -379,8 +379,8 @@ jobs:
 
       - name: Open rollback Issue (§2.4 G2 ping)
         # Fires only on the rollback path. Idempotent-ish: searches for
-        # an open issue with the f2-rollback label and either comments
-        # or creates a new one. Failures here MUST NOT mask the gate
+        # an open cron-failure issue titled "[F2 rollback]…" and either
+        # comments or creates a new one. Failures here MUST NOT mask the gate
         # failure -- the workflow still exits 2 because of the gate step.
         # WF-003 fix: needs always() because the gate step exits 2 on
         # rollback (run is marked failed); without always() this step
@@ -401,7 +401,14 @@ jobs:
           TITLE=$(cat /tmp/issue_title.txt)
           # Look for an existing open rollback issue (any date) to avoid
           # duplicates on consecutive bad days; comment on it instead.
-          EXISTING=$(gh issue list --state open --label cron-failure --limit 1 --json number --jq '.[0].number' || true)
+          # 2026-06-12: restrict the search with an in:title filter on
+          # TITLE_PREFIX (imported at runtime from
+          # scripts/f2_render_rollback_issue.py so the two cannot drift).
+          # The previous label-only query matched ANY open cron-failure
+          # issue, so the 2026-06-12 rollback ping landed in the
+          # unrelated credential-health issue #2732.
+          TITLE_PREFIX=$(python -c 'from scripts.f2_render_rollback_issue import TITLE_PREFIX; print(TITLE_PREFIX)')
+          EXISTING=$(gh issue list --state open --label cron-failure --search "\"${TITLE_PREFIX}\" in:title" --limit 1 --json number --jq '.[0].number // empty' || true)
           if [ -n "${EXISTING}" ]; then
             echo "Existing rollback issue #${EXISTING} found; commenting."
             gh issue comment "${EXISTING}" --body-file /tmp/issue_body.md
