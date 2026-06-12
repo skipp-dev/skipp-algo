@@ -920,9 +920,21 @@ def assess_measurement_shadow_degradations(
                 "metric": "calibrated_ece",
                 "current_value": round(current_calibrated_ece, 6),
                 "threshold_value": round(effective_calibrated_ece_threshold, 6),
+                # An ECE breach AT/ABOVE the eligibility floor is by
+                # construction NOT small-sample noise (that regime is the
+                # suppressed n<floor band) — it indicates a real calibration
+                # problem. Flag it explicitly so the correct operator
+                # response (recalibrate the Platt scaler / re-fit) is
+                # machine-visible and nobody reaches for another floor bump.
+                "recalibration_required": True,
+                "recommended_action": "recalibrate",
                 "detail": (
                     f"calibrated_ece {current_calibrated_ece:.6f} exceeds warn threshold "
-                    f"{effective_calibrated_ece_threshold:.6f}"
+                    f"{effective_calibrated_ece_threshold:.6f} at n_events="
+                    f"{current_events} (>= eligibility floor "
+                    f"{resolved.min_events_for_calibrated_thresholds}) — "
+                    "RECALIBRATION_REQUIRED: real calibration problem, not "
+                    "small-sample noise; recalibrate, do not raise the floor"
                 ),
             }
         )

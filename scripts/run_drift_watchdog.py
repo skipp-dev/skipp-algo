@@ -152,15 +152,37 @@ def load_live_outcomes_with_coverage(
     return out, coverage
 
 
+class BaselineUnavailableError(RuntimeError):
+    """Raised when the baseline JSON is missing or unreadable.
+
+    Audit D-1 (2026-06-12): the previous fail-open behaviour (return
+    ``{}``) made the weekly watchdog structurally blind — with an empty
+    baseline no metric pair can ever turn red, so the
+    GitHub-issue-on-red escalation was dead while the cron stayed green.
+    A missing/corrupt baseline is a configuration error, not a drift
+    observation, and must surface as a loud failure (exit code 4).
+    """
+
+
 def load_baseline(baseline_json: Path) -> dict[str, Any]:
-    """Load the backtest baseline JSON. Returns ``{}`` if missing."""
+    """Load the backtest baseline JSON.
+
+    Raises:
+        BaselineUnavailableError: when the file is missing, unreadable
+            or not valid JSON (audit D-1 — never fail open to ``{}``).
+    """
 
     if not baseline_json.exists():
-        return {}
+        raise BaselineUnavailableError(
+            f"baseline JSON not found: {baseline_json} — the watchdog "
+            "cannot detect drift without a baseline (audit D-1)."
+        )
     try:
         return json.loads(baseline_json.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return {}
+    except (json.JSONDecodeError, OSError) as exc:
+        raise BaselineUnavailableError(
+            f"baseline JSON unreadable/invalid: {baseline_json}: {exc}"
+        ) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -365,12 +387,19 @@ def main(argv: list[str] | None = None) -> int:
     init_cli_logging()  # F-V5-A1-2 (2026-05-01)
     args = _parse_args(argv)
     today = args.today or datetime.now(tz=UTC).date()
-    report = build_report(
-        outcomes_dir=args.outcomes_dir,
-        baseline_json=args.baseline_json,
-        window_days=args.live_window_days,
-        today=today,
-    )
+    try:
+        report = build_report(
+            outcomes_dir=args.outcomes_dir,
+            baseline_json=args.baseline_json,
+            window_days=args.live_window_days,
+            today=today,
+        )
+    except BaselineUnavailableError as exc:
+        # Audit D-1: distinct exit code (4) so the workflow's
+        # "Fail job if watchdog crashed unexpectedly" step (rc not in
+        # {0, 2}) turns the run red instead of green-with-no-teeth.
+        print(f"::error::drift watchdog baseline unavailable: {exc}")
+        return 4
     path = write_report(report, output_dir=args.output_dir, run_date=today)
     print(f"drift report written: {path}")
     print(f"aggregate_severity: {report['aggregate_severity']}")

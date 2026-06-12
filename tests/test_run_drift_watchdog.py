@@ -7,9 +7,11 @@ from datetime import date, timedelta
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from scripts.run_drift_watchdog import (
     INSUFFICIENT_LIVE_TRADES,
+    BaselineUnavailableError,
     build_report,
     extract_metric_pairs,
     load_baseline,
@@ -54,14 +56,40 @@ def test_load_live_outcomes_skips_malformed_files(tmp_path: Path) -> None:
     assert out == []
 
 
-def test_load_baseline_returns_empty_on_missing(tmp_path: Path) -> None:
-    assert load_baseline(tmp_path / "no.json") == {}
+def test_load_baseline_raises_on_missing(tmp_path: Path) -> None:
+    """Audit D-1 (2026-06-12): missing baseline must fail loudly, not {}."""
+    with pytest.raises(BaselineUnavailableError, match="not found"):
+        load_baseline(tmp_path / "no.json")
 
 
-def test_load_baseline_returns_empty_on_invalid(tmp_path: Path) -> None:
+def test_load_baseline_raises_on_invalid(tmp_path: Path) -> None:
+    """Audit D-1: corrupt baseline JSON must fail loudly, not {}."""
     p = tmp_path / "bad.json"
     p.write_text("not json", encoding="utf-8")
-    assert load_baseline(p) == {}
+    with pytest.raises(BaselineUnavailableError, match="unreadable/invalid"):
+        load_baseline(p)
+
+
+def test_main_returns_4_when_baseline_missing(tmp_path: Path, capsys) -> None:
+    """Audit D-1: CLI exits 4 (not 0) so the cron workflow turns red."""
+    today = date(2026, 4, 26)
+    _write_outcomes(tmp_path, today, [{"pnl_30m_pct": 0.01}] * 50)
+    rc = main(
+        [
+            "--outcomes-dir",
+            str(tmp_path),
+            "--baseline-json",
+            str(tmp_path / "does_not_exist.json"),
+            "--output-dir",
+            str(tmp_path / "out"),
+            "--today",
+            today.isoformat(),
+        ]
+    )
+    assert rc == 4
+    assert "::error::" in capsys.readouterr().out
+    # No report artifact written on configuration failure.
+    assert not (tmp_path / "out").exists()
 
 
 # ---------------------------------------------------------------------------
