@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -266,7 +267,15 @@ def main() -> None:
         if args.client_id is None:
             from scripts.ib_client_id import release_ib_client_id
 
-            release_ib_client_id(client_id)
+            # Best-effort: a registry-write failure (I/O, permissions) must
+            # not mask an exception from the run — nor fail a clean run.
+            try:
+                release_ib_client_id(client_id)
+            except Exception as release_exc:
+                print(
+                    f"WARN clientId release failed (ignored): {release_exc}",
+                    file=sys.stderr,
+                )
 
 
 def _main_with_resolved_client_id(args: argparse.Namespace, client_id: int) -> None:

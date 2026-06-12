@@ -98,8 +98,11 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-11 (eval-findings B1/B2): direction+triple-barrier code in
     # compute_pnl_from_bars + backfill loop shifted 589→668.
     # 2026-06-11 (c10b FI component persistence): era-gate block 668→690.
+    # 2026-06-11 (Copilot sweep #2677): deferred-summary accounting 690→702.
+    # 2026-06-12 (pytest write-guard merge): guard import/call + sweep
+    # combined — measured 125/711; outcomes.py guard shift → 161.
     ("open_prep/outcome_backfill.py", 125, "unlink"),
-    ("open_prep/outcome_backfill.py", 699, "unlink"),
+    ("open_prep/outcome_backfill.py", 711, "unlink"),
     ("open_prep/outcomes.py", 161, "unlink"),
     # 2026-06-11 (trend-state features): 431→449, snapshot keys +
     # FEATURE_KEYS/PASS_THROUGH block added above.
@@ -123,10 +126,12 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # edits shifted the later unlink sites (+20/+20/+20/+25).
     ("open_prep/run_open_prep.py", 3040, "unlink"),
     ("open_prep/run_open_prep.py", 3376, "unlink"),
-    ("open_prep/run_open_prep.py", 5507, "unlink"),
+    # 2026-06-11 (Copilot sweep #2688): VIX9D fail-closed guard +5;
+    # 2026-06-12 (merge #2713 into #2696): net +1 → 5512/5790.
+    ("open_prep/run_open_prep.py", 5512, "unlink"),
     # 2026-06-11 (trend-state features): 5731→5742, enrichment-loop
     # stamping + lookback comment added above; eval-findings 5742→5765.
-    ("open_prep/run_open_prep.py", 5785, "unlink"),
+    ("open_prep/run_open_prep.py", 5790, "unlink"),
     ("open_prep/scorer.py", 149, "unlink"),
     ("open_prep/watchlist.py", 74, "unlink"),
     ("smc_core/benchmark.py", 39, "unlink"),
