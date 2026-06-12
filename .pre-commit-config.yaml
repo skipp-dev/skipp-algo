@@ -42,6 +42,6 @@ repos:
         name: pin/ledger drift guard (fast-gates parity, ~60s)
         entry: bash scripts/run_ledger_drift_guard.sh
         language: system
-        files: '\.(py|toml|ya?ml)$'
+        files: '\.(py|toml|ya?ml|sh)$'
         pass_filenames: false
         stages: [pre-push]
