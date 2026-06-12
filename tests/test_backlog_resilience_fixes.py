@@ -60,7 +60,8 @@ def test_run_open_prep_preserves_target_on_crash(tmp_path, monkeypatch):
 
     # Previous snapshot untouched, tmp file cleaned up.
     assert json.loads(out_file.read_text(encoding="utf-8")) == {"previous": "run"}
-    assert not list(out_file.parent.glob("*.stdout.tmp"))
+    # PID-based tmp file must not be left behind on error.
+    assert not list(out_file.parent.glob(f"{out_file.name}.stdout.*.tmp"))
 
 
 def test_run_open_prep_replaces_target_on_success(tmp_path, monkeypatch):
@@ -111,7 +112,7 @@ def _patch_main_collaborators(monkeypatch, error: str | None):
     monkeypatch.setattr(
         rop,
         "generate_open_prep_result",
-        lambda **kwargs: {"outcome_storage_error": error},
+        lambda **kwargs: {"outcome_persistence_error": error},
     )
     return rop
 
@@ -123,14 +124,14 @@ def test_main_exits_nonzero_on_outcome_storage_error(monkeypatch, capsys):
     assert excinfo.value.code == 1
     # Payload must still be fully rendered before the exit.
     payload = json.loads(capsys.readouterr().out)
-    assert payload["outcome_storage_error"] == "ValueError: disk full"
+    assert payload["outcome_persistence_error"] == "ValueError: disk full"
 
 
 def test_main_completes_normally_without_storage_error(monkeypatch, capsys):
     rop = _patch_main_collaborators(monkeypatch, None)
     rop.main()  # must not raise SystemExit
     payload = json.loads(capsys.readouterr().out)
-    assert payload["outcome_storage_error"] is None
+    assert payload["outcome_persistence_error"] is None
 
 
 # ---------------------------------------------------------------------------
