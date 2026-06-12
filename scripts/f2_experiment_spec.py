@@ -171,7 +171,8 @@ def evaluate_rollback(
     ``treatment_metric - control_metric`` values for the configured
     comparison metric (lower-is-better, so positive = worse). Triggers
     when the trailing ``consecutive_worse_runs`` entries are *all*
-    strictly positive.
+    strictly positive, or — fail-closed (W5-1) — when any trailing
+    entry is NaN (a non-measurable delta must never silence the gate).
     """
     n = spec.rollback_gate.consecutive_worse_runs
     if len(daily_deltas) < n:
