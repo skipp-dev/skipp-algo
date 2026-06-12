@@ -112,7 +112,9 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # (537→543).
     # 2026-06-11 (c10b FI component persistence): _component_fields helper
     # + component flattening shifted 543→567.
-    ("open_prep/outcomes.py", 581, "unlink"),
+    # 2026-06-12 (backlog-resilience): non-list warning in
+    # _load_outcomes_range +6 → 587.
+    ("open_prep/outcomes.py", 587, "unlink"),
     ("open_prep/realtime_signals.py", 124, "remove"),
     ("open_prep/realtime_signals.py", 2543, "unlink"),
     ("open_prep/realtime_signals.py", 2582, "unlink"),
@@ -131,7 +133,8 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     ("open_prep/run_open_prep.py", 5512, "unlink"),
     # 2026-06-11 (trend-state features): 5731→5742, enrichment-loop
     # stamping + lookback comment added above; eval-findings 5742→5765.
-    ("open_prep/run_open_prep.py", 5790, "unlink"),
+    # 2026-06-12 (backlog-resilience): fail-loud outcome storage +9 → 5799.
+    ("open_prep/run_open_prep.py", 5799, "unlink"),
     ("open_prep/scorer.py", 149, "unlink"),
     ("open_prep/watchlist.py", 74, "unlink"),
     ("smc_core/benchmark.py", 39, "unlink"),
