@@ -17,7 +17,8 @@
     "ema50_slope_pct": null,
     "gap_range_pos": null,
     "eps_surprise_pct": null,
-    "direction": "short",
+    "vix9d_vix_ratio": 1.0,
+    "direction": "long",
     "atr_pct": 2.0,
     "playbook_name": "GAP_FADE",
     "profitable_30m": null,
@@ -25,6 +26,20 @@
     "pnl_30m_pct_signed": null,
     "profitable_30m_directional": null,
     "label_tb": null,
-    "profitable_tb": null
+    "profitable_tb": null,
+    "gap_component": 0.0,
+    "gap_sector_rel_component": 0.0,
+    "rvol_component": 0.0,
+    "macro_component": 0.091,
+    "momentum_component": 0.0,
+    "hvb_component": 0.0,
+    "earnings_bmo_component": 0.0,
+    "news_component": 0.0,
+    "ext_hours_component": 0.0,
+    "analyst_catalyst_component": 0.0,
+    "vwap_distance_component": 0.0,
+    "freshness_component": 0.12,
+    "institutional_component": 0.0,
+    "estimate_revision_component": 0.0
   }
 ]
