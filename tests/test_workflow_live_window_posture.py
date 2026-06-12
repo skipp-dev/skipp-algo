@@ -79,12 +79,24 @@ def _trigger_keys(wf: dict) -> set[str]:
 
 
 def _write_perms(wf: dict) -> set[str]:
-    perms = wf.get("permissions")
-    if perms == "write-all":
-        return {"ALL"}
-    if not isinstance(perms, dict):
-        return set()
-    return {k for k, v in perms.items() if v == "write"}
+    # Union of workflow-level AND job-level permissions: a workflow whose
+    # job carries issues:write is mutating regardless of where the grant
+    # is declared (least-privilege layouts put it on the job, e.g.
+    # meta-watchdog.yml).
+    def _from(perms: object) -> set[str]:
+        if perms == "write-all":
+            return {"ALL"}
+        if not isinstance(perms, dict):
+            return set()
+        return {k for k, v in perms.items() if v == "write"}
+
+    writes = _from(wf.get("permissions"))
+    jobs = wf.get("jobs")
+    if isinstance(jobs, dict):
+        for job in jobs.values():
+            if isinstance(job, dict):
+                writes |= _from(job.get("permissions"))
+    return writes
 
 
 def test_all_workflows_have_known_posture_marker() -> None:

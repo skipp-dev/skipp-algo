@@ -279,6 +279,36 @@ jobs:
             echo "treatment_dir=${TREATMENT_DIR}" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          # Cron-health audit (2026-06-12): existence alone is NOT enough.
+          # The rolling-bench dual-arm step runs under `if: always()`, so an
+          # upstream producer-artifact failure still uploads EMPTY arm trees
+          # (date dirs + manifest with zero pair_runs). Feeding those to the
+          # orchestrator made it exit rc=1 ("no benchmark pairs in
+          # control_dir=...") — a red run for a by-design upstream gap that
+          # the L-2 skip path exists to absorb (11/11 scheduled runs red,
+          # 14-day window). Require a readable manifest with >=1 pair_runs
+          # entry in BOTH arms before declaring ready.
+          # Pin: tests/test_f2_promotion_gate_daily_workflow_contract.py
+          if ! python - "${CONTROL_DIR}" "${TREATMENT_DIR}" <<'EOF'
+          import json
+          import sys
+          from pathlib import Path
+
+          for arm in sys.argv[1:]:
+              manifest = Path(arm) / "benchmark_run_manifest.json"
+              try:
+                  pair_runs = json.loads(manifest.read_text(encoding="utf-8")).get("pair_runs") or []
+              except (OSError, ValueError):
+                  sys.exit(1)
+              if not pair_runs:
+                  sys.exit(1)
+          EOF
+          then
+            echo "status=skipped" >> "$GITHUB_OUTPUT"
+            echo "control_dir=${CONTROL_DIR}" >> "$GITHUB_OUTPUT"
+            echo "treatment_dir=${TREATMENT_DIR}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           echo "status=ready" >> "$GITHUB_OUTPUT"
           echo "control_dir=${CONTROL_DIR}" >> "$GITHUB_OUTPUT"
           echo "treatment_dir=${TREATMENT_DIR}" >> "$GITHUB_OUTPUT"
@@ -293,7 +323,7 @@ jobs:
           # but a warning per run is the cheapest way to detect "stuck on
           # skipped for weeks" drift without a separate counter ledger.
           # Pin: tests/test_workflow_f2_skip_visibility.py
-          echo "::warning title=f2-promotion-gate-daily::status=skipped reason='control or treatment artifact dir missing for ${{ steps.date.outputs.value }}' — see audit L-2"
+          echo "::warning title=f2-promotion-gate-daily::status=skipped reason='control or treatment arm missing or empty for ${{ steps.date.outputs.value }}' — see audit L-2"
           echo "  control:   ${{ steps.locate.outputs.control_dir }}"
           echo "  treatment: ${{ steps.locate.outputs.treatment_dir }}"
 
