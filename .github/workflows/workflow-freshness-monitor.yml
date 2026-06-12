@@ -85,7 +85,8 @@ jobs:
             promotion-gate-daily.yml=30 \
             f2-promotion-gate-daily.yml=30:any \
             fvg-quality-recal-shadow-daily.yml=30 \
-            feature-importance-daily.yml=30
+            feature-importance-daily.yml=30 \
+            meta-watchdog.yml=30:any
           rc=$?
           set -e
           echo "rc=$rc" >> "$GITHUB_OUTPUT"
