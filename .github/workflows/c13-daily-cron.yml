@@ -120,7 +120,19 @@ jobs:
             }
             DATE="${INPUT_TRADE_DATE}"
           else
-            DATE="$(date -u +%Y-%m-%d)"
+            # Workflow-Audit NIEDRIG (2026-06): cron is 22:00 UTC Mon-Fri,
+            # but GitHub cron delays of >2 h are routine in this repo
+            # (observed max 1.75 h — close). A start past midnight UTC
+            # would flip `date -u` to the NEXT calendar day and write the
+            # whole pipeline output under the wrong trade date. Anchor to
+            # the intended tick: any start before 12:00 UTC belongs to the
+            # previous day's 22:00 slot.
+            if [ "$(date -u +%H)" -lt 12 ]; then
+              DATE="$(date -u -d 'yesterday' +%Y-%m-%d)"
+              echo "::warning title=c13-cron::run started after midnight UTC (cron delay); anchoring trade date to previous day ${DATE}"
+            else
+              DATE="$(date -u +%Y-%m-%d)"
+            fi
           fi
           echo "date=${DATE}" >> "$GITHUB_OUTPUT"
           echo "Trade date: ${DATE}"
