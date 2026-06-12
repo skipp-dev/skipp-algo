@@ -509,7 +509,8 @@ def probe_fmp(key: str, opener: Any = None) -> ProbeResult:
     HTTP 403 for non-legacy subscriptions.
     """
     safe_key = (key or "").strip()
-    url = f"https://financialmodelingprep.com/stable/quote?symbol=AAPL&apikey={safe_key}"
+    query = urllib.parse.urlencode({"symbol": "AAPL", "apikey": safe_key})
+    url = f"https://financialmodelingprep.com/stable/quote?{query}"
     return _probe_http_vendor(
         name="fmp_api_key",
         label="FMP",

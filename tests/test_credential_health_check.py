@@ -15,6 +15,7 @@ import json
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import MagicMock
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 
@@ -371,9 +372,11 @@ def test_fmp_probe_uses_production_quote_endpoint() -> None:
     opener = _fake_opener(status=200, body={})
     probe_fmp("dummy-key", opener=opener)
     request = opener.open.call_args[0][0]
-    url = request.full_url
-    assert "/stable/quote" in url, url
-    assert "is-the-market-open" not in url, url
+    parsed = urlparse(request.full_url)
+    assert parsed.path == "/stable/quote", request.full_url
+    params = parse_qs(parsed.query)
+    assert params.get("symbol") == ["AAPL"], request.full_url
+    assert params.get("apikey") == ["dummy-key"], request.full_url
 
 
 def test_databento_uses_basic_auth_header() -> None:
