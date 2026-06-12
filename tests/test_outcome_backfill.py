@@ -518,7 +518,8 @@ class TestRunLogStatusDerivation:
     """Audit D-3 (2026-06-12): the workflow's failed-streak alert step
     consumes the run log's ``status`` field, so its derivation rules are
     load-bearing: any failed > 0 → "failed" (even with progress),
-    deferred-only → "deferred", otherwise "ok".
+    otherwise any deferred > 0 → "deferred" (even alongside resolved
+    rows), otherwise "ok".
     """
 
     @pytest.mark.parametrize(
