@@ -141,6 +141,18 @@ die `tv:*`-Skripte), kein Produktionscode. Verbleibende torch-Alerts
 (#3/#4, low, memory corruption in `torch.jit.script`) haben upstream
 keinen Patch (`fixed: none`, torch ≤ 2.12.0) — kein Handlungsspielraum,
 beobachten.
+### Added (2026-06-12) — pre-push Hook: pin/ledger drift guard (fast-gates parity)
+
+Neues `scripts/run_ledger_drift_guard.sh` + pre-commit-Hook
+`ledger-pin-drift-guard` (`stages: [pre-push]`): extrahiert die
+Testdatei-Liste zur Laufzeit aus dem autoritativen
+"Run pin / ledger drift guard"-Step in `smc-fast-pr-gates.yml`
+(Single Source of Truth — die Liste wächst, kein Hardcoding) und führt
+sie mit identischen pytest-Flags lokal aus (~60s, `-n auto`).
+Motivation: am 2026-06-12 drifteten vier Ledger-Pins
+(mkstemp/sys.exit/unlink/basicConfig in `open_prep/outcome_backfill.py`)
+durch einen +6-Zeilen-Docstring in PR #2729 und fielen erst in CI auf.
+Aktivierung: `pre-commit install --hook-type pre-push`.
 
 ### Added (2026-06-12) — Runbook: TradingView storage-state capture + Secret-Rotation
 
