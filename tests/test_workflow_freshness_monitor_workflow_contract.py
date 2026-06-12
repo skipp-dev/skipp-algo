@@ -137,6 +137,10 @@ _MONITORED_WORKFLOWS = (
     "f2-promotion-gate-daily.yml",
     "fvg-quality-recal-shadow-daily.yml",
     "feature-importance-daily.yml",
+    # Workflow audit 2026-06 (PR #2733): meta-watchdog added as reverse-
+    # observation edge. :any mode — a red run still counts as a sign of
+    # life; the alarm fires only on the ABSENCE of completed runs.
+    "meta-watchdog.yml",
 )
 
 
