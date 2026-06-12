@@ -15,9 +15,10 @@ Der Step „Open rollback Issue (§2.4 G2 ping)“ in
 verwenden, traf die Suche das erste beste offene cron-failure-Issue:
 der Rollback-Ping vom 2026-06-12 (SPRT accept_h0, n=1664) landete als
 Kommentar im fachfremden credential-health-Issue #2732 statt in einem
-`[F2 rollback]`-Issue. Die Suche filtert jetzt zusätzlich auf den
-Titel-Prefix `"[F2 rollback]" in:title`
-(`scripts/f2_render_rollback_issue.py::TITLE_PREFIX`); der
+`[F2 rollback]`-Issue. Die Suche filtert jetzt zusätzlich mit dem
+GitHub-Suchfilter `"[F2 rollback]" in:title` (matcht die Phrase
+irgendwo im Titel; der Wert wird zur Laufzeit aus
+`scripts/f2_render_rollback_issue.py::TITLE_PREFIX` importiert); der
 Step-Kommentar (der fälschlich ein nicht existentes „f2-rollback label“
 behauptete) ist mitkorrigiert.
 ### Security (2026-06-12) — tsx ^4.22.4 → esbuild 0.28.1 (Dependabot #5/#6)
