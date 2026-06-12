@@ -61,9 +61,11 @@ jobs:
       # all real steps below — the job reports success in seconds.
       - name: Determine if heavy validation should run
         id: gate
+        env:
+          HEAD_REF: ${{ github.head_ref }}
         run: |
-          if [[ "${{ github.event_name }}" == "pull_request" && "${{ github.head_ref }}" == bot/* ]]; then
-            echo "Bot data-only PR detected (head=${{ github.head_ref }}); skipping heavy validation."
+          if [[ "${{ github.event_name }}" == "pull_request" && "$HEAD_REF" == bot/* ]]; then
+            echo "Bot data-only PR detected (head=$HEAD_REF); skipping heavy validation."
             echo "run_heavy=false" >> "$GITHUB_OUTPUT"
           else
             echo "run_heavy=true" >> "$GITHUB_OUTPUT"

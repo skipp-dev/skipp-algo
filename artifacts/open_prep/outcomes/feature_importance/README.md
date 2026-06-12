@@ -4,8 +4,9 @@ This directory holds daily JSONL ledgers `fi_samples_YYYY-MM-DD.jsonl`
 written by `open_prep.outcomes.persist_feature_importance_samples()` after
 each `open_prep` outcome-backfill run.
 
-> **⚠️ Data-validity note (2026-06-11):** every `fi_samples_*.jsonl` file
-> up to and including 2026-06-09 carries **all-zero values for the 14
+> **⚠️ Data-validity note (2026-06-11, extended 2026-06-12):** every
+> `fi_samples_*.jsonl` file up to and including **2026-06-11** carries
+> **all-zero values for the 14
 > weighted `*_component` features** (only `zone_priority_score` is real).
 > Root cause: `outcomes_<date>.json` records never persisted the
 > `score_breakdown` components, so `backfill_feature_importance()`
@@ -19,6 +20,11 @@ each `open_prep` outcome-backfill run.
 > accumulate forward from the first post-fix open-prep run; the weight
 > auto-tuning gate (`_MIN_TUNING_SAMPLES = 200` unique labeled samples)
 > re-arms once enough clean data exists.
+> Audit D-2 (2026-06-12): the 2026-06-11 fix only era-gated the WRITER;
+> `compute_feature_importance()` kept mixing the on-disk legacy rows
+> into the matrix, so the 2026-06-11 report was vacuous too. The reader
+> now drops all-zero weighted vectors (`era_gated_samples_dropped` in
+> the report).
 
 
 Until the daily job has produced ≥ 5 sequential days of files,

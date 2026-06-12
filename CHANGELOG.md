@@ -20,6 +20,22 @@ Ruleset-Änderung) blieb für immer grün und der
 Fehler heilen sich über den nächsten 5-Minuten-Tick selbst; persistente
 Fehler müssen rot werden.
 
+### Fixed (2026-06-12) — f2-promotion-gate: leere Dual-Arm-Bäume → status=skipped statt rc=1 (Cron-Health-Audit)
+
+Der `locate`-Step prüfte nur die **Existenz** der per-Datum-Verzeichnisse
+(`artifacts/ci/f2/{static_global_weights,contextual_weights}/<DATE>`).
+Der Dual-Arm-Step in `smc-measurement-benchmark-rolling.yml` läuft aber
+unter `if: always()` — an Tagen mit Producer-Artifact-Ausfall lädt er
+LEERE Arm-Bäume hoch (Datums-Verzeichnisse + Manifest mit null
+`pair_runs`). Der Orchestrator brach dann mit rc=1 („no benchmark pairs
+in control_dir=…") ab: ein CI-roter Run für eine by-design Upstream-Lücke,
+die der L-2-Skip-Pfad eigentlich absorbieren soll (beobachtet: 11/11
+Schedule-Runs rot im 14-Tage-Fenster bis 2026-06-12). Der `locate`-Step
+verlangt jetzt zusätzlich ein lesbares `benchmark_run_manifest.json` mit
+≥ 1 `pair_runs`-Eintrag in BEIDEN Armen, sonst `status=skipped` (mit dem
+bestehenden L-2-`::warning`). Pin:
+`tests/test_f2_promotion_gate_daily_workflow_contract.py::test_locate_step_requires_nonempty_pair_runs`.
+
 ### Changed (2026-06-11) — C9/T7: Bauchgefühl-Detektoren → p-Wert-Tests (#298, struktureller Teil)
 
 Die Interim-Effektgrößen-Regeln der C9-Drift-Konsensus-Detektoren 3+4
