@@ -1,7 +1,7 @@
 # live-window: mutating-on-cron  # F-V6-F2.1 (2026-05-02)
 name: open-prep-outcome-backfill
 
-# live-window: any  # 22:15 UTC weekdays — after US RTH close so post-open Databento data has settled (F-V4-C2/E2, audit 2026-05-01; header aligned audit 2026-06)
+# Schedule: 22:15 UTC weekdays — after US RTH close so post-open Databento data has settled (F-V4-C2/E2, audit 2026-05-01; header aligned audit 2026-06)
 #
 # ENG-WS4-01: Outcome-Backfill automatisieren.
 # Runs the post-open outcome backfill on a regular schedule so labeled

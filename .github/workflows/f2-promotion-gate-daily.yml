@@ -1,7 +1,7 @@
 # live-window: mutating-on-cron  # F-V6-F2.1 (2026-05-02)
 name: f2-promotion-gate-daily
 
-# live-window: off-hours-only  # 14:30 UTC Mon-Fri — inside trading window 13:30–20:00 UTC, but read-only/fail-soft; cron must follow smc-measurement-benchmark-rolling (13:00 UTC), see schedule comment below (audit 2026-06)
+# Schedule: 14:30 UTC Mon-Fri — inside trading window 13:30–20:00 UTC, but read-only/fail-soft; cron must follow smc-measurement-benchmark-rolling (13:00 UTC), see schedule comment below (audit 2026-06)
 #
 # F2 Contextual Promotion Gate — daily evaluation.
 #
