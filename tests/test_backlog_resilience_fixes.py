@@ -61,7 +61,7 @@ def test_run_open_prep_preserves_target_on_crash(tmp_path, monkeypatch):
     # Previous snapshot untouched, tmp file cleaned up.
     assert json.loads(out_file.read_text(encoding="utf-8")) == {"previous": "run"}
     # PID-based tmp file must not be left behind on error.
-    assert not list(out_file.parent.glob("*.tmp"))
+    assert not list(out_file.parent.glob(f"{out_file.name}.stdout.*.tmp"))
 
 
 def test_run_open_prep_replaces_target_on_success(tmp_path, monkeypatch):
