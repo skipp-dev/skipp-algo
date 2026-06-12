@@ -107,6 +107,34 @@ def test_l2_warning_on_dual_arm_skip() -> None:
     assert "audit L-2" in text, "rationale tag must remain in workflow"
 
 
+def test_locate_step_requires_nonempty_pair_runs() -> None:
+    """Cron-health audit (2026-06-12): the rolling-bench dual-arm step runs
+    under ``if: always()``, so a failed producer day still uploads EMPTY arm
+    trees (per-date dirs + manifest with zero ``pair_runs``). A locate step
+    that only checks directory EXISTENCE then declares status=ready and the
+    orchestrator exits rc=1 ("no benchmark pairs in control_dir=...") — a
+    CI-red run for a by-design upstream gap the L-2 skip path exists to
+    absorb (observed: 11/11 scheduled runs red in the 14-day window ending
+    2026-06-12). The locate step must therefore verify CONTENT: a readable
+    ``benchmark_run_manifest.json`` with >=1 ``pair_runs`` entry per arm,
+    falling back to status=skipped otherwise.
+    """
+    locate = _steps_by_id(_load())["locate"]
+    body = locate["run"]
+    assert "benchmark_run_manifest.json" in body, (
+        "locate step no longer inspects the per-arm benchmark manifest; "
+        "existence-only checks regress to rc=1 on empty dual-arm uploads"
+    )
+    assert "pair_runs" in body, (
+        "locate step must require a non-empty pair_runs list per arm before "
+        "declaring status=ready"
+    )
+    assert body.count("status=skipped") >= 2, (
+        "locate step must keep BOTH skip paths (missing dirs AND empty/"
+        "unreadable manifest) wired to status=skipped"
+    )
+
+
 # NOTE: Bundle A surface pins (auto-revert + streak-alert ::error::) are
 # intentionally deferred until PR #2426 merges. After it lands, append two
 # tests here asserting the presence of:

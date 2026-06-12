@@ -178,8 +178,10 @@ class TestSampleDedup:
         monkeypatch.setenv("OPEN_PREP_FI_BACKEND", "cpu")
         # 12 unique (symbol, date) rows, re-emitted into 3 overlapping
         # daily files — exactly the production overlap pattern.
+        # fill starts at 0.1 (not 0.0): an all-zero weighted vector would
+        # be era-gated as a legacy row (audit D-2) and skew the count.
         rows = [
-            _fi_sample(f"SYM{i}", "2026-06-08", win=bool(i % 2), fill=0.1 * i)
+            _fi_sample(f"SYM{i}", "2026-06-08", win=bool(i % 2), fill=0.1 * (i + 1))
             for i in range(12)
         ]
         for fname in (
@@ -214,3 +216,92 @@ class TestSampleDedup:
         assert "error" not in report
         assert report["labeled_samples"] == 12
         assert report["duplicate_samples_dropped"] == 0
+
+
+# ── 4. Reader-side era-gate (audit D-2, 2026-06-12) ───────────────────────────
+
+
+def _legacy_zero_sample(symbol: str, run_date: str, *, win: bool) -> str:
+    """A pre-2026-06-11 row: all weighted components literal 0.0."""
+    row = {key: 0.0 for key in FEATURE_KEYS}
+    row["zone_priority_score"] = 0.7  # pass-through key was always real
+    row["symbol"] = symbol
+    row["date"] = run_date
+    row["profitable_30m"] = win
+    return json.dumps(row)
+
+
+class TestReaderEraGate:
+    """The 2026-06-11 fix era-gated only the writer; legacy all-zero rows
+    still on disk must not poison the report matrix (audit D-2)."""
+
+    def test_mixed_eras_drops_legacy_zero_rows(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr("open_prep.outcomes.FEATURE_IMPORTANCE_DIR", tmp_path)
+        monkeypatch.setenv("OPEN_PREP_FI_BACKEND", "cpu")
+        legacy = [
+            _legacy_zero_sample(f"OLD{i}", "2026-06-01", win=bool(i % 2))
+            for i in range(8)
+        ]
+        clean = [
+            _fi_sample(f"NEW{i}", "2026-06-12", win=bool(i % 2), fill=0.1 * (i + 1))
+            for i in range(12)
+        ]
+        (tmp_path / "fi_samples_2026-06-01.jsonl").write_text(
+            "\n".join(legacy) + "\n", encoding="utf-8",
+        )
+        (tmp_path / "fi_samples_2026-06-12.jsonl").write_text(
+            "\n".join(clean) + "\n", encoding="utf-8",
+        )
+
+        report = compute_feature_importance(lookback_days=30)
+        assert "error" not in report
+        assert report["era_gated_samples_dropped"] == 8
+        assert report["labeled_samples"] == 12, (
+            "legacy all-zero rows must not enter the feature matrix — "
+            "they flatten every importance to 0.00 (audit D-2)"
+        )
+
+    def test_all_legacy_yields_insufficient_not_vacuous(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Only-legacy input must surface as 'insufficient', never as a
+        confident all-zero-importance report."""
+        monkeypatch.setattr("open_prep.outcomes.FEATURE_IMPORTANCE_DIR", tmp_path)
+        monkeypatch.setenv("OPEN_PREP_FI_BACKEND", "cpu")
+        legacy = [
+            _legacy_zero_sample(f"OLD{i}", "2026-06-01", win=bool(i % 2))
+            for i in range(20)
+        ]
+        (tmp_path / "fi_samples_2026-06-01.jsonl").write_text(
+            "\n".join(legacy) + "\n", encoding="utf-8",
+        )
+
+        report = compute_feature_importance(lookback_days=30)
+        assert report.get("error") == "insufficient labeled samples"
+        assert report["era_gated_samples_dropped"] == 20
+        assert report["labeled_samples"] == 0
+
+    def test_genuine_zero_in_some_components_survives(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A clean row where SOME weighted components are genuinely 0.0
+        must NOT be era-gated — only the all-zero vector is poisoned."""
+        monkeypatch.setattr("open_prep.outcomes.FEATURE_IMPORTANCE_DIR", tmp_path)
+        monkeypatch.setenv("OPEN_PREP_FI_BACKEND", "cpu")
+        rows = []
+        for i in range(12):
+            row = json.loads(
+                _fi_sample(f"SYM{i}", "2026-06-12", win=bool(i % 2), fill=0.0)
+            )
+            row["gap_component"] = 0.5 + 0.1 * i  # one real non-zero component
+            rows.append(json.dumps(row))
+        (tmp_path / "fi_samples_2026-06-12.jsonl").write_text(
+            "\n".join(rows) + "\n", encoding="utf-8",
+        )
+
+        report = compute_feature_importance(lookback_days=30)
+        assert "error" not in report
+        assert report["era_gated_samples_dropped"] == 0
+        assert report["labeled_samples"] == 12
