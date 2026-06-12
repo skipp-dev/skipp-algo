@@ -27,7 +27,6 @@ if str(REPO_ROOT) not in sys.path:
 # invoked as `python scripts/X.py` (no PYTHONPATH=.) — sys.path.insert
 # above must happen before any first-party `from scripts.` import.
 from scripts.smc_atomic_write import atomic_write_text
-
 from smc_core.schema_version import SCHEMA_VERSION
 from smc_integration.release_policy import MeasurementShadowThresholds
 

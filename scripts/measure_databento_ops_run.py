@@ -139,7 +139,7 @@ print(json.dumps({
     'output_checks': result['output_checks'],
 }, ensure_ascii=True, default=str))
 """.strip()
-    completed = subprocess.run(  # noqa: S603 -- sys.executable -c with hardcoded runner script (no shell, no user input)
+    completed = subprocess.run(
         [sys.executable, "-c", runner, str(REPO_ROOT), json.dumps(payload, ensure_ascii=True)],
         capture_output=True,
         text=True,

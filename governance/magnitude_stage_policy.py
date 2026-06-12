@@ -172,7 +172,7 @@ def demote_family(
         policy,
         stage=policy.stage if remaining else 1,
         armed_families=remaining,
-        history=policy.history + (event,),
+        history=(*policy.history, event),
     )
 
 

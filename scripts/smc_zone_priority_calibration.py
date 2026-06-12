@@ -1032,7 +1032,7 @@ def _git_rev(repo_root: Path) -> str | None:
     """Return the current git HEAD commit SHA, or ``None`` if unavailable."""
     try:
         git_exe = shutil.which("git") or "git"
-        out = subprocess.run(  # noqa: S603 -- hardcoded git argv resolved via shutil.which (no shell, no user input)
+        out = subprocess.run(
             [git_exe, "rev-parse", "HEAD"],
             cwd=repo_root,
             capture_output=True,

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import json
 import math
 import sys
 import time
@@ -18,14 +17,17 @@ if str(REPO_ROOT) not in sys.path:
 # Bug-Hunt 2026-05-01 F-01: deferred so the script also works when
 # invoked as `python scripts/X.py` (no PYTHONPATH=.) — sys.path.insert
 # above must happen before any first-party `from scripts.` import.
-from scripts.smc_atomic_write import atomic_write_text
-from scripts.strict_json import dumps_strict_json
-
 from governance.run_manifest import (
     attach as attach_run_manifest,
+)
+from governance.run_manifest import (
     build_manifest as build_run_manifest,
+)
+from governance.run_manifest import (
     fingerprint_data,
 )
+from scripts.smc_atomic_write import atomic_write_text
+from scripts.strict_json import dumps_strict_json
 from smc_core.benchmark import BenchmarkResult, build_benchmark, export_benchmark_artifacts
 from smc_core.ensemble_quality import EnsembleQualityResult, export_ensemble_quality_artifact
 from smc_core.event_ledger import ledger_path_for_pair, write_event_ledger

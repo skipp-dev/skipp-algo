@@ -33,14 +33,12 @@ from __future__ import annotations
 # late-bootstrap, flagging the early bootstrap import as out-of-order.
 import os as _bootstrap_os
 import sys as _bootstrap_sys_mod
+
 sys = _bootstrap_sys_mod
 
 _BOOTSTRAP_ROOT = _bootstrap_os.path.dirname(_bootstrap_os.path.dirname(_bootstrap_os.path.abspath(__file__)))
 if _BOOTSTRAP_ROOT not in sys.path:
     sys.path.insert(0, _BOOTSTRAP_ROOT)
-
-from scripts._logging_init import init_cli_logging
-
 
 import argparse
 import json
@@ -51,6 +49,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+from scripts._logging_init import init_cli_logging
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
@@ -59,7 +59,6 @@ if str(REPO_ROOT) not in sys.path:
 # invoked as `python scripts/X.py` (no PYTHONPATH=.) — sys.path.insert
 # above must happen before any first-party `from scripts.` import.
 from scripts.smc_atomic_write import atomic_write_text
-
 from smc_core.event_ledger import read_event_ledger
 
 REPORT_VERSION = "2.0"

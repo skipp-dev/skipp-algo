@@ -118,15 +118,15 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # real-ADX/BBW block added +15 more after L5491.
     # 2026-06-11 (vix9d D5): VIX9D fetch (+17) + ratio stamping (+4)
     # shifted 5491→5506, 5765→5784.
-    ("open_prep/run_open_prep.py", 2225, "unlink"),
+    ("open_prep/run_open_prep.py", 2226, "unlink"),
     # 2026-06-10 (#2670 W2/W4): regime_source + premarket source-disclosure
     # edits shifted the later unlink sites (+20/+20/+20/+25).
-    ("open_prep/run_open_prep.py", 3039, "unlink"),
-    ("open_prep/run_open_prep.py", 3375, "unlink"),
-    ("open_prep/run_open_prep.py", 5506, "unlink"),
+    ("open_prep/run_open_prep.py", 3040, "unlink"),
+    ("open_prep/run_open_prep.py", 3376, "unlink"),
+    ("open_prep/run_open_prep.py", 5507, "unlink"),
     # 2026-06-11 (trend-state features): 5731→5742, enrichment-loop
     # stamping + lookback comment added above; eval-findings 5742→5765.
-    ("open_prep/run_open_prep.py", 5784, "unlink"),
+    ("open_prep/run_open_prep.py", 5785, "unlink"),
     ("open_prep/scorer.py", 149, "unlink"),
     ("open_prep/watchlist.py", 74, "unlink"),
     ("smc_core/benchmark.py", 39, "unlink"),
@@ -136,7 +136,7 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     ("smc_integration/batch.py", 35, "unlink"),
     ("smc_integration/provider_health.py", 69, "unlink"),
     ("smc_integration/structure_batch.py", 39, "unlink"),
-    ("streamlit_terminal.py", 2262, "unlink"),
+    ("streamlit_terminal.py", 2264, "unlink"),
     ("terminal_export.py", 186, "unlink"),
     ("terminal_export.py", 236, "unlink"),
     ("terminal_export.py", 618, "unlink"),

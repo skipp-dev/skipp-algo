@@ -72,9 +72,7 @@ def _is_urlopen_call(node: ast.AST) -> bool:
     if isinstance(f, ast.Attribute) and f.attr == "urlopen":
         return True
     # Bare name: urlopen(...) after ``from urllib.request import urlopen``
-    if isinstance(f, ast.Name) and f.id == "urlopen":
-        return True
-    return False
+    return isinstance(f, ast.Name) and f.id == "urlopen"
 
 
 def _scan_urlopen(tree: ast.AST) -> list[tuple[int, bool]]:

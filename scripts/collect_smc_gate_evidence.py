@@ -11,14 +11,12 @@ from __future__ import annotations
 # late-bootstrap, flagging the early bootstrap import as out-of-order.
 import os as _bootstrap_os
 import sys as _bootstrap_sys_mod
+
 sys = _bootstrap_sys_mod
 
 _BOOTSTRAP_ROOT = _bootstrap_os.path.dirname(_bootstrap_os.path.dirname(_bootstrap_os.path.abspath(__file__)))
 if _BOOTSTRAP_ROOT not in sys.path:
     sys.path.insert(0, _BOOTSTRAP_ROOT)
-
-from scripts._logging_init import init_cli_logging
-
 
 import argparse
 import glob
@@ -31,12 +29,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from scripts._logging_init import init_cli_logging
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.smc_atomic_write import atomic_write_text
-
 from smc_integration.release_policy import (
     EVIDENCE_LOOKBACK_DAYS,
     EVIDENCE_MIN_DEEPER_OK_RUNS,

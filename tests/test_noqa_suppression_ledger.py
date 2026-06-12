@@ -95,14 +95,14 @@ _NOQA_RE = re.compile(r"#\s*noqa\b", re.IGNORECASE)
 # All other first-party noqa suppressions remain forbidden.
 _FROZEN_SITES: dict[str, int] = {
     "streamlit_terminal_alerts.py": 1,
-    "databento_volatility_screener.py": 1,
     "newsstack_fmp/pipeline.py": 1,
-    "open_prep/run_open_prep.py": 1,
     "smc_tv_bridge/smc_api.py": 1,
-    # 2026-05-13 (#2171 follow-up): module-import-time hardening for the
-    # OPRA-options-flow integration so streamlit_monitor stays importable
-    # even when the optional ingest module fails to import. Single BLE001.
-    "open_prep/streamlit_monitor.py": 1,
+    # 2026-06-11 (ruff-ci-gate): added noqa suppressions for RUF007, RUF012, F401
+    # in four files — see PR adding ruff as mandatory CI gate.
+    "governance/family_returns.py": 1,
+    "rl/simulator/execution_env.py": 1,
+    "rl/simulator/sb3_execution_env.py": 1,
+    "terminal_bitcoin.py": 1,
     "scripts/scan_manifests_for_pytest_provenance.py": 3,
     "governance/run_manifest.py": 1,
     "open_prep/realtime_signals.py": 2,

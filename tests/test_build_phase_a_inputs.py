@@ -9,7 +9,6 @@ import pytest
 
 from scripts.build_phase_a_inputs import (
     _SETUP_TYPE_TO_VARIANT,
-    _MAX_TRADE_CARDS_AGE_DAYS,
     _latest_trade_cards,
     _trade_cards_age_days,
     build_gate_status,
@@ -196,7 +195,7 @@ def test_latest_trade_cards_accepts_csv_within_age_cap(tmp_path: Path) -> None:
     reports = tmp_path / "reports"
     reports.mkdir()
     # 3 days old — within _MAX_TRADE_CARDS_AGE_DAYS (4)
-    borderline = reports / f"open_prep_trade_cards_2026-06-07_090000Z.csv"
+    borderline = reports / "open_prep_trade_cards_2026-06-07_090000Z.csv"
     borderline.write_text("", encoding="utf-8")
     result = _latest_trade_cards(reports, trade_date="2026-06-10")
     assert result == borderline
@@ -211,7 +210,7 @@ def test_latest_trade_cards_rejects_stale_csv(tmp_path: Path) -> None:
     """
     reports = tmp_path / "reports"
     reports.mkdir()
-    stale = reports / f"open_prep_trade_cards_2026-06-01_090000Z.csv"  # 9 days old
+    stale = reports / "open_prep_trade_cards_2026-06-01_090000Z.csv"  # 9 days old
     stale.write_text("", encoding="utf-8")
     with pytest.raises(FileNotFoundError, match="stale"):
         _latest_trade_cards(reports, trade_date="2026-06-10")

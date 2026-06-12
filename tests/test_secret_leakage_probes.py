@@ -50,7 +50,6 @@ from pathlib import Path
 
 import pytest
 
-
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _PROBE_GLOB = "scripts/probe_*.py"
 _NOQA_MARKER = "noqa: SECLEAK"
@@ -95,11 +94,9 @@ def _is_redacted_call(node: ast.AST) -> bool:
     if not isinstance(node, ast.Call):
         return False
     fn = node.func
-    if isinstance(fn, ast.Name) and fn.id == "_redact_sensitive_error_text":
-        return True
-    if isinstance(fn, ast.Attribute) and fn.attr == "_redact_sensitive_error_text":
-        return True
-    return False
+    return (isinstance(fn, ast.Name) and fn.id == "_redact_sensitive_error_text") or (
+        isinstance(fn, ast.Attribute) and fn.attr == "_redact_sensitive_error_text"
+    )
 
 
 def _walk_with_lineno(tree: ast.AST):

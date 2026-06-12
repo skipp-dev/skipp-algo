@@ -223,9 +223,8 @@ def test_blotter_raises_when_all_records_invalid():
     bl = TradeBlotter()
     bl.add(TradeRecord(order_id="x", family="BOS", side=1, quantity=100.0,
                        mid_at_signal=0.0, fill_price=100.5, volume_at_signal=1000.0, duration_s=10.0))
-    with pytest.warns(RuntimeWarning):
-        with pytest.raises(ValueError, match="all 1 blotter records dropped"):
-            bl.to_features_targets()
+    with pytest.warns(RuntimeWarning), pytest.raises(ValueError, match="all 1 blotter records dropped"):
+        bl.to_features_targets()
 
 
 def test_almgren_chriss_rejects_zero_noise_variance():

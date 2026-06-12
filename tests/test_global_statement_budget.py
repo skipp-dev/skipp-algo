@@ -122,7 +122,7 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # to fix the 5 consecutive cron OOMs 2026-05-11 → 2026-05-13.
         (
             "scripts/databento_production_export.py",
-            844,
+            843,
             ("_DEFAULT_BULLISH_QUALITY_CFG",),
         ),
         # WP-H (PR #2612): lines shifted 184/192/200 -> 186/194/202 by the
@@ -133,7 +133,7 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("smc_tv_bridge/smc_api.py", 202, ("_tech_provider",)),
         (
             "streamlit_terminal.py",
-            597,
+            599,
             ("btc_available", "databento_available", "ensure_rt_engine_running", "newsapi_available", "tv_available"),
         ),
         # F-V8-perf-3.5 (2026-05-19): opt-in cache probe log for the sharded
@@ -141,9 +141,9 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # sets DATABENTO_CACHE_PROBE_LOG and the producer explicitly enables it.
         # F-002 (PR #2295): extracted enable/reset helpers; the original
         # 5601-site relocated to enable_cache_probe_log()/reset_cache_probe_log().
-        ("databento_volatility_screener.py", 87, ("_CACHE_PROBE_LOG",)),
-        ("databento_volatility_screener.py", 94, ("_CACHE_PROBE_LOG",)),
-        ("terminal_bitcoin.py", 97, ("_client",)),
+        ("databento_volatility_screener.py", 86, ("_CACHE_PROBE_LOG",)),
+        ("databento_volatility_screener.py", 93, ("_CACHE_PROBE_LOG",)),
+        ("terminal_bitcoin.py", 96, ("_client",)),
         (
             "terminal_finnhub.py",
             213,
@@ -166,14 +166,14 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # 2026-06-10 (#2670 W3): TechnicalResult gained a `source` field +
         # dc_replace import, shifting the four global sites +6 (212/213/245/262
         # -> 218/219/251/268).
-        ("terminal_technicals.py", 218, ("_tv_consecutive_429s", "_tv_cooldown_until")),
+        ("terminal_technicals.py", 219, ("_tv_consecutive_429s", "_tv_cooldown_until")),
         (
             "terminal_technicals.py",
-            219,
+            220,
             ("_tv_last_429_log_key", "_tv_last_429_log_ts", "_tv_suppressed_429_logs"),
         ),
-        ("terminal_technicals.py", 251, ("_tv_consecutive_429s",)),
-        ("terminal_technicals.py", 268, ("_tv_cooldown_ended_at", "_tv_last_call_ts")),
+        ("terminal_technicals.py", 252, ("_tv_consecutive_429s",)),
+        ("terminal_technicals.py", 269, ("_tv_cooldown_ended_at", "_tv_last_call_ts")),
         ("terminal_tradingview_news.py", 403, ("_last_request_ts",)),
     }
 )

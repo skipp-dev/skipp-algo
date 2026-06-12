@@ -11,6 +11,11 @@ from typing import Any
 import pandas as pd
 
 from databento_reference import get_reference_event_risk_snapshot
+
+# ADR-0023 §4.1: produce FamilyEvent records alongside measurement evidence
+# so the magnitude shadow workflow can consume them without re-running
+# the detection pipeline.
+from governance.family_event_adapter import family_events_from_structure as _family_events_from_structure
 from scripts.explicit_structure_from_bars import build_explicit_structure_from_bars, resample_bars_to_timeframe
 from scripts.load_databento_export_bundle import load_export_bundle
 from scripts.smc_event_risk_builder import build_event_risk
@@ -41,11 +46,6 @@ from smc_integration.artifact_resolution import resolve_structure_artifact_input
 from smc_integration.repo_sources import load_raw_meta_input_composite
 from smc_integration.sources import structure_artifact_json
 from smc_integration.timeframes import is_daily_timeframe
-
-# ADR-0023 §4.1: produce FamilyEvent records alongside measurement evidence
-# so the magnitude shadow workflow can consume them without re-running
-# the detection pipeline.
-from governance.family_event_adapter import family_events_from_structure as _family_events_from_structure
 
 logger = logging.getLogger(__name__)
 

@@ -16,6 +16,7 @@ Pure stdlib, no third-party deps.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime as _dt
 import json
 import os
@@ -23,7 +24,6 @@ import sys
 import tempfile
 from pathlib import Path
 from typing import Any
-import contextlib
 
 DEFAULT_CONFIG = Path("configs/plan_2_8_snoozes.json")
 

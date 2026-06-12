@@ -36,8 +36,9 @@ import datetime as dt
 import fnmatch
 import json
 import sys
+from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any
 
 # Bootstrap sys.path BEFORE any first-party import so that script-style
 # invocation (`python scripts/databento_production_merge_shards.py`) can
@@ -211,7 +212,7 @@ def _merge_field_set(
     """
     if not shards:
         return {}
-    all_keys: list[str] = sorted({k for s in shards for k in s.keys()})
+    all_keys: list[str] = sorted({k for s in shards for k in s})
     out: dict[str, Any] = {}
     for key in all_keys:
         present_pairs = [(sid, s) for sid, s in zip(shard_ids, shards) if key in s]

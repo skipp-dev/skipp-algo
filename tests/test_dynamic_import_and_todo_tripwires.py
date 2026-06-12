@@ -87,16 +87,15 @@ def _all_dunder_import_sites() -> list[tuple[str, int]]:
 
 _FROZEN_DUNDER_IMPORT_SITES: frozenset[tuple[str, int]] = frozenset(
     {
-        # Line numbers refreshed 2026-06-12: the RUF100 cleanup restored
-        # the import-time-hardening rationale as a 3-line comment above
-        # the OPRA except block (L203), shifting everything below down
-        # by 3. Same 5 lazy ``time`` imports inside the Streamlit
-        # re-render loop; no semantic change.
-        ("open_prep/streamlit_monitor.py", 1219),
-        ("open_prep/streamlit_monitor.py", 1231),
-        ("open_prep/streamlit_monitor.py", 1266),
-        ("open_prep/streamlit_monitor.py", 1269),
-        ("open_prep/streamlit_monitor.py", 1294),
+        # Line numbers refreshed 2026-05-12 after OPRA UOA docstring +
+        # comment expansions in _cached_bz_options_op shifted everything
+        # below it down by ~36 lines. Same 5 lazy ``time`` imports inside
+        # the Streamlit re-render loop; no semantic change.
+        ("open_prep/streamlit_monitor.py", 1245),
+        ("open_prep/streamlit_monitor.py", 1257),
+        ("open_prep/streamlit_monitor.py", 1292),
+        ("open_prep/streamlit_monitor.py", 1295),
+        ("open_prep/streamlit_monitor.py", 1320),
     }
 )
 

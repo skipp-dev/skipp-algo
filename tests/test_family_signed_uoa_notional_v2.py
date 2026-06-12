@@ -9,7 +9,6 @@ period, anchor out of range), and leak-freedom.
 
 from __future__ import annotations
 
-from governance.family_event_score import ATR_PERIOD
 from governance.family_signed_uoa_notional_v2 import (
     SIGNED_UOA_NOTIONAL_SOURCE,
     signed_uoa_notional_at,
@@ -162,7 +161,7 @@ def test_leak_free_ignores_bars_after_anchor() -> None:
         _bar(0, signed=200.0, abs_notional=1000.0),
         _bar(1, signed=200.0, abs_notional=1000.0),
     ]
-    with_future = base + [_bar(2, signed=-9_999_999.0, abs_notional=9_999_999.0)]
+    with_future = [*base, _bar(2, signed=-9_999_999.0, abs_notional=9_999_999.0)]
     assert signed_uoa_notional_at(base, 1, period=2) == signed_uoa_notional_at(
         with_future, 1, period=2
     )

@@ -1228,7 +1228,9 @@ def main() -> int:
     # mid-pipeline errors are impossible to triage. Also flush eagerly so partial
     # logs survive runner shutdown signals. Self-contained imports to avoid
     # disturbing module-level import order.
-    import logging as _v4a1b_logging, sys as _v4a1b_sys, time as _v4a1b_time
+    import logging as _v4a1b_logging
+    import sys as _v4a1b_sys
+    import time as _v4a1b_time
     _v4a1b_logging.basicConfig(
         level=_v4a1b_logging.INFO,
         format="%(asctime)sZ %(levelname)s %(name)s %(message)s",

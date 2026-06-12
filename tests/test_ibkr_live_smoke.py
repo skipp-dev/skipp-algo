@@ -36,7 +36,7 @@ import socket
 import pytest
 
 # Soft import: skip the whole module if ib_async is not installed.
-pytest.importorskip("ib_async")
+ib_async = pytest.importorskip("ib_async")
 
 
 _PAPER_TWS_HOST = "127.0.0.1"

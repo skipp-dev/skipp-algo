@@ -350,7 +350,7 @@ def probe_databento(key: str, opener: Any = None) -> ProbeResult:
     """
     import base64
 
-    token = base64.b64encode(f"{key.strip()}:".encode("utf-8")).decode("ascii") if key and key.strip() else ""
+    token = base64.b64encode(f"{key.strip()}:".encode()).decode("ascii") if key and key.strip() else ""
     return _probe_http_vendor(
         name="databento_api_key",
         label="Databento",

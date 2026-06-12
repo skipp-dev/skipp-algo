@@ -20,7 +20,6 @@ if str(REPO_ROOT) not in sys.path:
 # and as ``python scripts/X.py`` (the form used by several workflows).
 
 from scripts.smc_atomic_write import atomic_write_text
-
 from smc_integration.release_policy import (
     ContextualCalibrationPromotionPolicy,
     ContextualCalibrationRecommendationPolicy,

@@ -27,7 +27,6 @@ import pytest
 # ────────────────────────────────────────────────────────────────────
 # W1 + W5 — opra_uoa premium / timestamp provenance
 # ────────────────────────────────────────────────────────────────────
-
 from newsstack_fmp.opra_uoa import _premium_of, detect_unusual_options_activity
 
 

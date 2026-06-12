@@ -429,7 +429,7 @@ def _event_bar_interval(forward_timestamps: list[float]) -> float:
     fewer than two timestamps (embargo then collapses to the label end only).
     """
     diffs = sorted(
-        d for first, second in zip(forward_timestamps, forward_timestamps[1:])
+        d for first, second in zip(forward_timestamps, forward_timestamps[1:])  # noqa: RUF007
         if (d := float(second) - float(first)) > 0.0
     )
     if not diffs:

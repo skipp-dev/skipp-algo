@@ -49,7 +49,7 @@ def _make_cookie(age_hours: float | None, *, drop_meta: bool = False) -> str:
 def test_tv_storage_state_ok_when_fresh() -> None:
     r = probe_tv_storage_state(_make_cookie(age_hours=1.0), max_age_hours=72.0)
     assert r.severity == "ok"
-    assert "tv_storage_state_age" == r.name
+    assert r.name == "tv_storage_state_age"
     assert r.details["age_hours"] < 2.0
 
 

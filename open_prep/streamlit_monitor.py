@@ -79,6 +79,8 @@ def _load_streamlit_secrets() -> None:
 _load_env_file(PROJECT_ROOT / ".env")
 _load_streamlit_secrets()
 
+from open_prep.newsstack_status import get_provider_cursor_caption, get_provider_status_notice
+from open_prep.rt_promotion import promote_a0a1_signals
 from open_prep.run_open_prep import (
     GAP_MODE_CHOICES,
     GAP_MODE_PREMARKET_INDICATIVE,
@@ -87,8 +89,6 @@ from open_prep.run_open_prep import (
     build_gap_scanner,
     generate_open_prep_result,
 )
-from open_prep.newsstack_status import get_provider_cursor_caption, get_provider_status_notice
-from open_prep.rt_promotion import promote_a0a1_signals
 
 DEFAULT_REFRESH_SECONDS = 60
 MAX_STATUS_HISTORY = 20
@@ -102,7 +102,8 @@ _ABSOLUTE_MAX_CACHE_AGE_MIN = 60  # force refresh regardless of market session d
 
 # ── Market session awareness (optional — may be unavailable on Streamlit Cloud)
 try:
-    from terminal_spike_scanner import SESSION_ICONS as _SESSION_ICONS, market_session as _market_session
+    from terminal_spike_scanner import SESSION_ICONS as _SESSION_ICONS
+    from terminal_spike_scanner import market_session as _market_session
 except ImportError:  # pragma: no cover
     _market_session = None  # type: ignore[assignment]
     _SESSION_ICONS = {
@@ -144,18 +145,42 @@ except ImportError:  # pragma: no cover
 
 try:
     from terminal_poller import (
-        fetch_benzinga_dividends as _fetch_bz_dividends,
-        fetch_benzinga_splits as _fetch_bz_splits,
-        fetch_benzinga_ipos as _fetch_bz_ipos,
-        fetch_benzinga_guidance as _fetch_bz_guidance,
-        fetch_benzinga_retail as _fetch_bz_retail,
-        fetch_benzinga_top_news_items as _fetch_bz_top_news,
-        fetch_benzinga_quantified as _fetch_bz_quantified,
-        fetch_benzinga_channel_list as _fetch_bz_channels,
-        fetch_benzinga_conference_calls as _fetch_bz_conf_calls,
-        fetch_benzinga_news_by_channel as _fetch_bz_news_by_channel,
-        compute_power_gaps as _compute_power_gaps,
         DEFENSE_TICKERS as _DEFENSE_TICKERS,
+    )
+    from terminal_poller import (
+        compute_power_gaps as _compute_power_gaps,
+    )
+    from terminal_poller import (
+        fetch_benzinga_channel_list as _fetch_bz_channels,
+    )
+    from terminal_poller import (
+        fetch_benzinga_conference_calls as _fetch_bz_conf_calls,
+    )
+    from terminal_poller import (
+        fetch_benzinga_dividends as _fetch_bz_dividends,
+    )
+    from terminal_poller import (
+        fetch_benzinga_guidance as _fetch_bz_guidance,
+    )
+    from terminal_poller import (
+        fetch_benzinga_ipos as _fetch_bz_ipos,
+    )
+    from terminal_poller import (
+        fetch_benzinga_news_by_channel as _fetch_bz_news_by_channel,
+    )
+    from terminal_poller import (
+        fetch_benzinga_quantified as _fetch_bz_quantified,
+    )
+    from terminal_poller import (
+        fetch_benzinga_retail as _fetch_bz_retail,
+    )
+    from terminal_poller import (
+        fetch_benzinga_splits as _fetch_bz_splits,
+    )
+    from terminal_poller import (
+        fetch_benzinga_top_news_items as _fetch_bz_top_news,
+    )
+    from terminal_poller import (
         fetch_defense_watchlist as _fetch_defense_wl,
     )
 except ImportError:  # pragma: no cover
@@ -200,9 +225,6 @@ try:
     from newsstack_fmp.ingest_opra_options_flow import (
         fetch_opra_options_flow as _fetch_opra_options,
     )
-# Module-import-time hardening: ImportError, ValueError (env parsing) and
-# any other startup failure must degrade gracefully so streamlit_monitor
-# stays importable — deliberately broad, do NOT narrow to ImportError.
 except Exception:  # pragma: no cover
     _fetch_opra_options = None  # type: ignore[assignment]
 
@@ -210,8 +232,12 @@ except Exception:  # pragma: no cover
 try:
     from newsstack_fmp.ingest_unusual_whales import (
         fetch_uw_darkpool as _fetch_uw_darkpool,
-        fetch_uw_spot_gex as _fetch_uw_spot_gex,
+    )
+    from newsstack_fmp.ingest_unusual_whales import (
         fetch_uw_market_tide as _fetch_uw_market_tide,
+    )
+    from newsstack_fmp.ingest_unusual_whales import (
+        fetch_uw_spot_gex as _fetch_uw_spot_gex,
     )
 except ImportError:  # pragma: no cover
     _fetch_uw_darkpool = None  # type: ignore[assignment]
@@ -1983,7 +2009,8 @@ def main() -> None:
         # ===================================================================
         try:
             from newsstack_fmp.config import Config as _NSConfig
-            from newsstack_fmp.pipeline import get_last_meta as _newsstack_last_meta, poll_once as _newsstack_poll
+            from newsstack_fmp.pipeline import get_last_meta as _newsstack_last_meta
+            from newsstack_fmp.pipeline import poll_once as _newsstack_poll
 
             _ns_cfg = _NSConfig()
             ns_candidates = _newsstack_poll(_ns_cfg)
