@@ -458,6 +458,8 @@ jobs:
           # The previous label-only query matched ANY open cron-failure
           # issue, so the 2026-06-12 rollback ping landed in the
           # unrelated credential-health issue #2732.
+          # '// empty' suppresses jq's literal "null" output when the array is
+          # empty so that -n correctly sees an empty string (not "null").
           TITLE_PREFIX=$(python -c 'from scripts.f2_render_rollback_issue import TITLE_PREFIX; print(TITLE_PREFIX)')
           EXISTING=$(gh issue list --state open --label cron-failure --search "\"${TITLE_PREFIX}\" in:title" --limit 1 --json number --jq '.[0].number // empty' || true)
           if [ -n "${EXISTING}" ]; then
