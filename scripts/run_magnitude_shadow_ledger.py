@@ -44,6 +44,7 @@ import hashlib
 import json
 import sys
 from datetime import UTC, datetime
+from datetime import date as _date
 from typing import Any
 
 from governance.family_returns import (
@@ -291,6 +292,18 @@ def main(argv: list[str] | None = None) -> int:
         help=f"RNG seed for the CI/null (default: {DEFAULT_SEED})",
     )
     args = parser.parse_args(argv)
+
+    if args.date is not None:
+        try:
+            _date.fromisoformat(args.date)
+        except ValueError:
+            print(
+                f"error: --date {args.date!r} is not YYYY-MM-DD "
+                "(ledger consumers compare dates; a malformed value would "
+                "silently mis-order latest-row selection)",
+                file=sys.stderr,
+            )
+            return 1
 
     try:
         events = _load_events(args.events)
