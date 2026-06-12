@@ -24,11 +24,22 @@ on:
 
 permissions:
   contents: read
+  # actions:read — needed by `gh run download` to fetch the
+  # compute_live_drift artifact from the latest c13-daily-cron run.
+  actions: read
+
+# Manual-only gate; serialize runs like the sibling drift-watchdog so two
+# concurrent dispatches cannot interleave their artifact downloads.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   # F-V6-A2 (2026-05-02): force unbuffered Python stdout so progress logs surface
   # in CI in near-real-time rather than after a buffer flush at process exit.
   PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 defaults:
   run:
@@ -41,11 +52,81 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
-        with:
-          python-version: "3.12"
+      - uses: ./.github/actions/setup-python-pinned
+
+      # Fix 2026-06-11: drift artifacts carrying the gate field
+      # ``slippage_ks_reference_type`` are produced by compute_live_drift in
+      # c13-daily-cron.yml (Step 4) and uploaded inside the per-day
+      # ``c13-daily-<DATE>`` RUN ARTIFACT (cache/live/drift_<DATE>.json) —
+      # they are never committed to the repo. The original glob against the
+      # fresh checkout could only ever exit 64 (no files matched), which is
+      # why this workflow had zero meaningful runs since creation. (The
+      # drift-watchdog ``drift-report`` artifact is a DIFFERENT report shape
+      # that never carries the field — do not point the gate at it.)
+      - name: Fetch latest compute_live_drift artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # Indirection via env (not direct ${{ }} interpolation into the
+          # script) so a caller-supplied glob cannot break/inject shell
+          # syntax — expressions are substituted before bash parses.
+          DRIFT_GLOB: ${{ inputs.drift_glob || 'artifacts/drift/drift_report_*.json' }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/drift
+          # If the caller supplied a custom glob that already matches files in
+          # the checkout (e.g. workflow_call from a job that generated reports
+          # in-place), skip the download.
+          # compgen -G treats the pattern strictly as data (no word-splitting,
+          # no re-parsing), so a caller-supplied glob cannot smuggle shell
+          # syntax; it also returns non-zero on zero matches, replacing the
+          # nullglob toggle.
+          mapfile -t existing < <(compgen -G "${DRIFT_GLOB}" || true)
+          if [ "${#existing[@]}" -gt 0 ]; then
+            echo "::notice title=drift-source::${#existing[@]} drift report(s) already present in checkout — skipping artifact download"
+            exit 0
+          fi
+          # Step 4 is conditional (soft-skips when walk-forward inputs are
+          # missing, e.g. weekends), so scan the most recent successful runs
+          # for the newest artifact that actually contains a drift JSON.
+          found=""
+          # --branch main: without it a successful workflow_dispatch test
+          # run from a feature branch could supply the drift artifact, which
+          # must come from the production (main) cron only.
+          for rid in $(gh run list \
+              --workflow=c13-daily-cron.yml \
+              --branch=main \
+              --status=success \
+              --limit=10 \
+              --json databaseId \
+              --jq '.[].databaseId'); do
+            tmpdir=$(mktemp -d)
+            # Capture stderr instead of discarding it: a run without matching
+            # artifacts is expected (loop continues), but real failures
+            # (permissions, rate-limit, API errors) must stay debuggable.
+            if gh run download "${rid}" --pattern 'c13-daily-*' --dir "${tmpdir}" 2>"${tmpdir}/dl.err"; then
+              drift=$(find "${tmpdir}" -type f -name "drift_*.json" -print -quit || true)
+              if [ -n "${drift}" ]; then
+                base=$(basename "${drift}")
+                # drift_<DATE>.json -> drift_report_<DATE>.json so the
+                # contract-pinned default glob matches.
+                cp "${drift}" "artifacts/drift/drift_report_${base#drift_}"
+                echo "::notice title=drift-source::Using ${base} from c13-daily-cron run ${rid}"
+                found="yes"
+              fi
+            else
+              echo "::notice title=drift-source::gh run download ${rid} failed: $(tr '\n' ' ' < "${tmpdir}/dl.err")"
+            fi
+            rm -rf "${tmpdir}"
+            [ -n "${found}" ] && break
+          done
+          if [ -z "${found}" ]; then
+            echo "::error title=drift-source::No drift JSON found in artifacts from the last 10 successful c13-daily-cron runs. Either Step 4 soft-skipped (walk-forward inputs missing) or gh run download failed for all runs — see ::notice logs above. Phase-B NOT ready."
+            exit 2
+          fi
 
       - name: Run Phase-B readiness gate
+        env:
+          # Same env indirection as the fetch step (injection hardening).
+          DRIFT_GLOB: ${{ inputs.drift_glob || 'artifacts/drift/drift_report_*.json' }}
         run: |
-          python -m scripts.check_phase_b_drift_readiness \
-            "${{ inputs.drift_glob || 'artifacts/drift/drift_report_*.json' }}"
+          python -m scripts.check_phase_b_drift_readiness "${DRIFT_GLOB}"
