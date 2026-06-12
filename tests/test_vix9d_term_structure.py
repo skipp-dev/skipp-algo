@@ -51,7 +51,9 @@ class TestRatioComputation:
 
     @staticmethod
     def _ratio(vix9d: float | None, vix: float | None) -> float | None:
-        if vix9d is not None and vix is not None and vix > 0:
+        # Mirrors the pipeline guard: fail-closed on BOTH legs — a
+        # non-positive level on either index yields None.
+        if vix9d is not None and vix9d > 0 and vix is not None and vix > 0:
             return round(vix9d / vix, 4)
         return None
 
@@ -70,3 +72,11 @@ class TestRatioComputation:
 
     def test_zero_vix_returns_none(self) -> None:
         assert self._ratio(22.0, 0.0) is None
+
+    def test_zero_vix9d_returns_none(self) -> None:
+        # Fail-closed on the VIX9D leg too (Copilot finding on #2688).
+        assert self._ratio(0.0, 20.0) is None
+
+    def test_negative_vix9d_returns_none(self) -> None:
+        # Bad feed data must never produce a negative ratio.
+        assert self._ratio(-5.0, 20.0) is None

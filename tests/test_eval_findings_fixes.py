@@ -340,15 +340,17 @@ class TestFdrGateWiring:
         import json as _json
         import random
 
-        random.seed(99)
+        # Local RNG instance — do NOT mutate the process-global random
+        # state (couples unrelated tests; Copilot finding on #2690).
+        rng = random.Random(99)
         lines = []
         for _ in range(n):
-            row = {k: random.gauss(0.0, 1.0) for k in FEATURE_KEYS}
+            row = {k: rng.gauss(0.0, 1.0) for k in FEATURE_KEYS}
             if signal:
                 # gap_component drives the outcome → must pass the gate.
-                win = row["gap_component"] + random.gauss(0.0, 0.3) > 0
+                win = row["gap_component"] + rng.gauss(0.0, 0.3) > 0
             else:
-                win = random.random() > 0.5
+                win = rng.random() > 0.5
             row["profitable_30m"] = bool(win)
             lines.append(_json.dumps(row))
         (tmp_path / "fi_samples_2026-06-10.jsonl").write_text(
@@ -383,7 +385,12 @@ class TestFdrGateWiring:
         self._write_samples(tmp_path, signal=False)
         report = compute_feature_importance(lookback_days=30)
         flagged = [k for k in FEATURE_KEYS if report["features"][k]["fdr_significant"]]
-        assert len(flagged) <= 1  # BH at q=0.05 — ≤1 false positive tolerated
+        # NOTE: BH at q=0.05 bounds the EXPECTED false-discovery proportion,
+        # not an absolute count — but with the fixed seed above this fixture
+        # is fully deterministic, so the observed bound (≤1 of the 14
+        # noise-only features flagged) is a stable regression check, not a
+        # statistical guarantee (Copilot finding on #2690).
+        assert len(flagged) <= 1
 
     def test_weight_adjustments_move_on_live_report(self, tmp_path, monkeypatch) -> None:
         """E2E: a significant feature must actually move its weight."""

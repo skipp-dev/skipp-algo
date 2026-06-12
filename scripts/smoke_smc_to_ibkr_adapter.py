@@ -283,7 +283,9 @@ def run_live(
 
     * **S1** — after ``cancelOrder`` we poll until every order reaches a
       terminal status, then run a final ``reqAllOpenOrders`` sweep; any
-      leftover order belonging to this session is reported (and the run
+      leftover order belonging to this session — plus any orphaned
+      ``*-smoke`` order from an earlier session (matched via
+      ``orderRef.endswith("-smoke")``) — is reported (and the run
       flagged ``clean=False``) instead of silently orphaned.
     * **S2** — limit prices are made deliberately non-marketable (50% of
       the setup entry) so the round-trip can never fill, and every
