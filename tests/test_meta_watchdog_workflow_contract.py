@@ -44,9 +44,11 @@ def test_probe_step_invokes_freshness_script(workflow_text: str) -> None:
 # Monitors that are NOT already on the freshness monitor's own watchlist
 # (credential-health-check and the g23 A/B watchdog are covered there).
 # Each entry must use `:any` — see module docstring.
+# drift-watchdog.yml was retired before this landed (#2726/#2735: its WFO
+# baseline was never produced) — keeping it here would alarm permanently
+# from day 8 on.
 _MONITORED_MONITORS = (
     "workflow-freshness-monitor.yml",
-    "drift-watchdog.yml",
     "smc-export-cron-watchdog.yml",
 )
 
@@ -64,7 +66,9 @@ def test_each_monitor_is_watched_in_any_mode(
 
 def test_watchlist_inventory_is_complete(workflow_text: str) -> None:
     """Fail loud if a NEW `<name>.yml=<hours>` arg appears without a pin."""
-    pattern = re.compile(r"\b([a-z0-9_-]+\.yml)=\d+")
+    # Also match `.yaml` and uppercase so e.g. `Foo.yaml=30:any` cannot
+    # slip past the ledger (the freshness script accepts both).
+    pattern = re.compile(r"\b([A-Za-z0-9_-]+\.ya?ml)=\d+")
     found = set(pattern.findall(workflow_text))
     new = found - set(_MONITORED_MONITORS)
     assert not new, (

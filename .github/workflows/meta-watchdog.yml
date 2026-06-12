@@ -28,8 +28,12 @@ name: meta-watchdog
 # Budgets (alle konservativ, GitHub-Cron-Delays von Stunden sind hier
 # Normalzustand — siehe c13-Rollover-Fix PR #2730):
 #   workflow-freshness-monitor  taeglich 06:30 UTC      -> 30h
-#   drift-watchdog              woechentlich Mo 07:00   -> 192h (8 Tage)
 #   smc-export-cron-watchdog    werktags mehrfach       -> 80h (Fr->Mo-Luecke)
+#
+# drift-watchdog.yml stand urspruenglich mit auf der Watchlist, wurde aber
+# noch vor dem Merge dieses PRs stillgelegt (#2726/#2735: WFO-Baseline wurde
+# nie produziert) — ein Eintrag hier wuerde ab Tag 8 dauerhaft falsch
+# alarmieren.
 
 on:
   schedule:
@@ -40,7 +44,6 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 concurrency:
   group: meta-watchdog
@@ -58,6 +61,11 @@ jobs:
   probe:
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
+    permissions:
+      contents: read
+      # issues:write nur hier (least privilege): der Job enthaelt den
+      # Issue-Step; Workflow-Ebene bleibt contents:read.
+      issues: write
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -65,9 +73,8 @@ jobs:
           fetch-depth: 1
 
       - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
-        with:
-          python-version: "3.12"
+        # Single-Source-of-Truth fuer die Python-Version (F-V8-B3.1).
+        uses: ./.github/actions/setup-python-pinned
 
       - name: Probe monitor freshness
         id: probe
@@ -86,7 +93,6 @@ jobs:
           python scripts/check_workflow_freshness.py \
             --output artifacts/ci/meta_watchdog.json \
             workflow-freshness-monitor.yml=30:any \
-            drift-watchdog.yml=192:any \
             smc-export-cron-watchdog.yml=80:any
           rc=$?
           set -e
@@ -149,7 +155,10 @@ jobs:
           OVERALL: ${{ steps.probe.outputs.overall }}
         run: |
           set -euo pipefail
-          TITLE="meta-watchdog: ${OVERALL} -- a monitor workflow stopped running ($(date -u +%Y-%m-%d))"
+          # Neutraler Titel (analog workflow-freshness-monitor): overall=error
+          # kann auch ein API-/Config-Fehler des Probes sein, nicht zwingend
+          # ein gestorbener Monitor — Details stehen im Body.
+          TITLE="meta-watchdog: ${OVERALL} -- daily probe ($(date -u +%Y-%m-%d))"
           BODY_FILE=$(mktemp)
           {
             echo "The daily meta-watchdog found at least one MONITOR workflow in **${OVERALL}** state."
