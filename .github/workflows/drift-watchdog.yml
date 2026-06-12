@@ -12,8 +12,11 @@ name: drift-watchdog
 
 on:
   schedule:
-    # Mondays 07:00 UTC, 1h after the C2 walk-forward cron so inputs are
-    # deterministic.
+    # Mondays 07:00 UTC. Audit D-1 (2026-06-12): the previous comment
+    # referenced a "C2 walk-forward cron" that no longer exists in this
+    # repo — the baseline artifacts/wfo/walk_forward_latest.json has no
+    # active producer. The watchdog now fails loudly (exit 4) when the
+    # baseline is missing; restoring the producer is tracked separately.
     - cron: "0 7 * * 1"
   workflow_dispatch:
     inputs:
@@ -119,5 +122,7 @@ jobs:
         run: |
           # F-V4-A4 (2026-05-01): emit ::error:: annotation so the failure surfaces
           # in the PR/run summary instead of only stderr.
-          echo "::error::Watchdog exited with unexpected code ${{ steps.watchdog.outputs.rc }} (expected 0=ok or 2=drift)"
+          # Audit D-1 (2026-06-12): rc=4 = baseline missing/corrupt — fails here
+          # deliberately so the cron run turns red instead of silently green.
+          echo "::error::Watchdog exited with unexpected code ${{ steps.watchdog.outputs.rc }} (expected 0=ok or 2=drift; 4=baseline unavailable, see audit D-1)"
           exit 1
