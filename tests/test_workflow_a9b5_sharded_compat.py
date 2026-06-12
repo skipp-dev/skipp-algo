@@ -65,8 +65,14 @@ def test_compat_upload_step_uses_legacy_name_pattern() -> None:
     assert "${{ github.run_id }}" in name_tpl, (
         "compat upload artifact name must embed github.run_id for uniqueness"
     )
-    assert with_block.get("retention-days") == 7, (
-        "compat upload retention must match monolithic 7-day window"
+    # Workflow-Audit MITTEL-12 (2026-06): bumped 7 → 14. The original pin
+    # mirrored the retired monolithic exporter's 7-day window; downstream
+    # consumers resolve the bundle by date prefix and a long weekend plus
+    # a few red consumer days could outlive 7 days. 14 days survives a
+    # full two-week consumer outage at negligible storage cost.
+    assert with_block.get("retention-days") == 14, (
+        "compat upload retention must stay at 14 days (Workflow-Audit "
+        "MITTEL-12); 7 days could expire before a stalled consumer recovers"
     )
     assert with_block.get("if-no-files-found") == "error", (
         "compat upload must hard-fail on empty payload to surface staging regressions"

@@ -49,18 +49,24 @@ def test_live_window_marker_mutating_on_cron() -> None:
 
 
 def test_cron_runs_after_databento_producer_mon_fri() -> None:
-    """14:30 UTC Mon-Fri — must run AFTER smc-measurement-benchmark-rolling
-    (13:00 UTC Mon-Fri) so the dual-arm artefact is published before the
-    promotion gate downloads it. Mon-Fri matches the upstream Databento
+    """14:30 UTC Mon-Fri — consumes the dual-arm artefact from
+    smc-measurement-benchmark-rolling, which (Workflow-Audit HOCH-1,
+    2026-06) now fires via workflow_run after the Databento producer
+    (12:00/16:00 UTC Mon-Fri) succeeds, with a 16:30 UTC safety-net cron.
+    Until this gate's cron is re-aligned, the 14:30 tick may consume the
+    previous day's artefact — still a strict improvement over the old
+    13:00 rolling-bench cron that failed ~8/10 runs and left nothing to
+    consume. Mon-Fri matches the upstream Databento
     producer's cadence (12:00 UTC Mon-Fri). Pre-#2447 layout (`0 10 * * *`)
     fired BEFORE the producer every day and aborted every run on the
-    missing-artefact guard. The producer\u2192consumer ordering invariant is
+    missing-artefact guard. The producer→consumer ordering invariant is
     enforced by tests/test_workflow_databento_consumer_cron_ordering.py.
     """
     crons = [e["cron"] for e in _on(_load())["schedule"]]
     assert crons == ["30 14 * * 1-5"], (
-        f"f2 gate cron drifted to {crons}; must remain '30 14 * * 1-5' so the "
-        "dual-arm artefact from rolling-bench (13:00 UTC Mon-Fri) is in place "
+        f"f2 gate cron drifted to {crons}; must remain '30 14 * * 1-5' so a "
+        "dual-arm artefact from rolling-bench (workflow_run after producer "
+        "success + 16:30 UTC safety net) is in place "
         "and weekend ticks (when the producer doesn't run) are skipped"
     )
 

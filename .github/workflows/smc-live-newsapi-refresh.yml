@@ -196,10 +196,14 @@ jobs:
       # branch which we force-update here. No bare push, no fake-success
       # warning — every step honestly reports its own outcome.
       - name: Publish snapshot to rolling bot branch
-        # CONTINUE-ON-ERROR-INTENTIONAL: best-effort secondary channel; the
-        # artifact upload above remains the source of truth on transient
-        # push failure (e.g. token race, rare ruleset push event).
-        continue-on-error: true
+        # Workflow-Audit MITTEL-11 (2026-06): `continue-on-error: true`
+        # removed. The step body below is already deliberately fail-loud
+        # (F-V5-F1: explicit `if git push … else … exit 1`), but the
+        # job-level continue-on-error neutralised exactly that — a
+        # permanently failing push (expired PAT, ruleset change) stayed
+        # green forever and the bot/live-news-snapshot staleness floor
+        # silently rotted. Transient failures self-heal on the next
+        # 5-minute tick; persistent failures must show up red.
         run: |
           # F-V3 (audit 2026-05-02): strict mode so unexpected git failures
           # don't silently slip past and mis-report `outcome=pushed`. The

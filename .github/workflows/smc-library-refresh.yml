@@ -1057,6 +1057,14 @@ jobs:
         if: steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && github.ref == 'refs/heads/main'
         run: |
           NEW_VERSION=$(jq -r '.library_version' pine/generated/smc_micro_profiles_generated.json)
+          # Workflow-Audit NIEDRIG (2026-06): jq emits the literal string
+          # "null" for a missing key and an empty string for a null value —
+          # both would previously flow straight into the consumer repin and
+          # rewrite every import to ".../null". Fail loud instead.
+          if [ -z "${NEW_VERSION}" ] || [ "${NEW_VERSION}" = "null" ]; then
+            echo "::error::library_version missing or null in pine/generated/smc_micro_profiles_generated.json — refusing to repin consumers."
+            exit 1
+          fi
           PIN_PATTERN='import preuss_steffen/smc_micro_profiles_generated/[0-9]*'
           REPLACEMENT="import preuss_steffen/smc_micro_profiles_generated/${NEW_VERSION}"
           # Enumerate every top-level .pine that pins the library. Fixture
