@@ -38,6 +38,7 @@ import dataclasses
 import json
 import sys
 from dataclasses import dataclass
+from datetime import date as _date
 from typing import Any
 
 from governance.promotion_gate import FamilyMetrics
@@ -84,6 +85,20 @@ def _coerce_auc(value: Any) -> float | None:
     return float(value) if isinstance(value, (int, float)) else None
 
 
+def _parse_iso_date(value: Any) -> _date | None:
+    """Parse a ledger ``date`` string into a :class:`datetime.date`.
+
+    Returns ``None`` for non-strings and unparseable values so callers can
+    treat them as "no usable date" instead of comparing raw strings.
+    """
+    if not isinstance(value, str):
+        return None
+    try:
+        return _date.fromisoformat(value)
+    except ValueError:
+        return None
+
+
 def snapshot_from_row(row: dict[str, Any]) -> MagnitudeSnapshot:
     """Build a :class:`MagnitudeSnapshot` from one ledger row."""
     return MagnitudeSnapshot(
@@ -98,21 +113,25 @@ def snapshot_from_row(row: dict[str, Any]) -> MagnitudeSnapshot:
 def latest_rows_by_family(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """Pick the row with the most recent ``date`` for each family.
 
-    Ties on ``date`` resolve to the row that appears last in ``rows`` (the
-    ledger is append-only and latest-wins), preserving the runner's ordering.
+    Dates are compared as **parsed dates**, not as raw strings — a
+    lexicographic compare silently mis-orders any non-ISO value that leaks
+    into the ledger (same bug class as the weekly-eval fix in #2715). Rows
+    whose ``date`` does not parse can never win "latest". Ties on ``date``
+    resolve to the row that appears last in ``rows`` (the ledger is
+    append-only and latest-wins), preserving the runner's ordering.
     """
-    latest: dict[str, dict[str, Any]] = {}
+    latest: dict[str, tuple[_date, dict[str, Any]]] = {}
     for row in rows:
         family = row.get("family")
         if not isinstance(family, str):
             continue
-        date = row.get("date")
-        if not isinstance(date, str):
+        parsed = _parse_iso_date(row.get("date"))
+        if parsed is None:
             continue
         current = latest.get(family)
-        if current is None or date >= str(current.get("date", "")):
-            latest[family] = row
-    return latest
+        if current is None or parsed >= current[0]:
+            latest[family] = (parsed, row)
+    return {family: row for family, (_d, row) in latest.items()}
 
 
 def load_magnitude_snapshots(

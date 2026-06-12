@@ -106,6 +106,25 @@ def test_latest_rows_ignores_rows_without_date():
     assert result["BOS"]["date"] == "2026-06-01"
 
 
+def test_latest_rows_compare_parsed_dates_not_strings():
+    """Regression (#2715 bug class): a malformed/non-ISO date string must not
+    lexicographically outrank a genuinely newer ISO date.
+    """
+    rows = [
+        # "9999-junk" > "2026-06-03" as a raw string, but it is not a date.
+        _row(date="9999-junk", family="BOS", status="PASS", auc=0.70),
+        _row(date="2026-06-03", family="BOS", status="FAIL", auc=0.55),
+    ]
+    latest = latest_rows_by_family(rows)
+    assert latest["BOS"]["date"] == "2026-06-03"
+    assert latest["BOS"]["status"] == "FAIL"
+
+
+def test_latest_rows_unparseable_date_never_wins():
+    rows = [_row(date="not-a-date", family="BOS", status="PASS", auc=0.70)]
+    assert latest_rows_by_family(rows) == {}
+
+
 def test_coerce_auc_excludes_bool():
     from scripts.magnitude_snapshot_wiring import _coerce_auc
 
