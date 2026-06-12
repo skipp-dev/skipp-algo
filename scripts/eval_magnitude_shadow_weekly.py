@@ -183,7 +183,12 @@ def weekly_evaluations(
 
     Weekly status (handover §4.4): strict majority of the week's *measurable*
     daily rows — PASS only when ``pass_days > fail_days``; a tie or a
-    fail-majority is FAIL; no measurable rows is INCONCLUSIVE. The week's
+    fail-majority is FAIL; no measurable rows is INCONCLUSIVE. Rows are first
+    collapsed to **one per calendar date** (latest list position wins, the
+    same tie-break as the gate wiring's ``latest_rows_by_family``): the
+    ledger's idempotency key includes ``events_hash``, so a same-day re-run
+    against refreshed events leaves two rows for that day — counting both
+    would let one day vote twice in the weekly majority (W7-3). The week's
     ``magnitude_auc`` / ``auc_ci_low`` are taken from its latest daily row
     (freshest estimate of that week).
     """
@@ -196,7 +201,14 @@ def weekly_evaluations(
     evaluations: list[dict[str, Any]] = []
     for offset in range(n - 1, -1, -1):
         monday = anchor_monday - timedelta(weeks=offset)
-        day_rows = sorted(buckets.get(monday, []), key=lambda r: str(r.get("date")))
+        week_rows = sorted(buckets.get(monday, []), key=lambda r: str(r.get("date")))
+        # W7-3: one vote per calendar date. ``sorted`` is stable, so rows
+        # sharing a date keep their ledger order and the dict overwrite
+        # keeps the latest one.
+        by_date: dict[str, dict[str, Any]] = {}
+        for r in week_rows:
+            by_date[str(r.get("date"))] = r
+        day_rows = [by_date[d] for d in sorted(by_date)]
         pass_days = sum(1 for r in day_rows if r.get("status") == "PASS")
         fail_days = sum(1 for r in day_rows if r.get("status") == "FAIL")
         inconclusive_days = sum(
