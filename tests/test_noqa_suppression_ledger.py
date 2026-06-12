@@ -178,7 +178,7 @@ _FROZEN_SITES: dict[str, int] = {
     # 2026-05-12 PR #2157: Databento entitlement probe wraps each
     # provider request in a generic ``except Exception`` so it can
     # surface the original error message in the probe report. BLE001
-
+    # suppression is justified by the diagnostic-only nature of the script.
     # Rebaselined 2026-05-13: bumped 1 → 3 to cover ImportError surface
     # in __main__ guard (`databento_client` import + `_make_databento_client`
     # construction + `PREFERRED_DATABENTO_DATASETS` import) — each is a
@@ -186,7 +186,7 @@ _FROZEN_SITES: dict[str, int] = {
     # only module/path identifiers, not credentials.
     "scripts/probe_databento_entitlement.py": 3,
     # 2026-05-12 PR #2154: scripts/probe_fmp_13f_endpoints.py needed 3
-
+    # suppressions originally. Rebaselined to 1 after upstream main
     # consolidated the discovery loop's two BLE001 catches into a single
     # SECLEAK-marked dict construction (only 1× `# noqa: SECLEAK` remains).
     "scripts/probe_fmp_13f_endpoints.py": 1,
