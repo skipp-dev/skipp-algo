@@ -71,7 +71,7 @@ def _open_lock_file(lock_path: Path) -> TextIO | None:
     handle as a context manager (``with fd:``), so the file is always closed.
     """
     try:
-        return open(lock_path, "w")
+        return open(lock_path, "w", encoding="utf-8")
     except OSError:
         return None
 
