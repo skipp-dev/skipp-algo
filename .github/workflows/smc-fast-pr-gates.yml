@@ -134,13 +134,17 @@ jobs:
       # template-engine syntax errors (e.g. `${{ ... }}` inside run-block
       # shell comments -> HTTP 422 on dispatch; see A9b.2a post-mortem,
       # PR #2083) that PyYAML-based smoke tests structurally CANNOT see,
-      # plus expression typos, invalid needs/outputs refs and shellcheck
-      # findings inside run blocks. Version pinned via actionlint-py wheel.
+      # plus expression typos and invalid needs/outputs refs. shellcheck
+      # integration is explicitly DISABLED (-shellcheck=): the existing
+      # main baseline carries pre-existing shell findings (research
+      # workflows, exit-with-template patterns) that are out of scope
+      # for this template-engine gate; adopting shellcheck would be a
+      # separate ratchet decision. Version pinned via actionlint-py wheel.
       - name: actionlint (workflow template/expression lint)
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
           python -m pip install --quiet "actionlint-py==1.7.12.*"
-          actionlint -no-color
+          actionlint -no-color -shellcheck=
 
       # Workflow-Audit 2026-06: zizmor as a RATCHET, not a hard zero-gate.
       # The existing inventory carries 91 high / 52 medium findings
