@@ -19,6 +19,7 @@ from open_prep.outcome_backfill import (
     _load_outcome_file,
     _load_pending_dates,
     _save_outcome_file,
+    _write_backfill_run_log,
     backfill_feature_importance,
     backfill_outcomes,
     build_parser,
@@ -511,6 +512,39 @@ class TestCLI:
             }),
         )
         assert main(["--date", "2026-04-18", "--dry-run"]) == 0
+
+
+class TestRunLogStatusDerivation:
+    """Audit D-3 (2026-06-12): the workflow's failed-streak alert step
+    consumes the run log's ``status`` field, so its derivation rules are
+    load-bearing: any failed > 0 → "failed" (even with progress),
+    deferred-only → "deferred", otherwise "ok".
+    """
+
+    @pytest.mark.parametrize(
+        ("summary", "expected"),
+        [
+            ({"resolved": 18, "failed": 3}, "failed"),
+            ({"resolved": 0, "failed": 5}, "failed"),
+            ({"resolved": 0, "deferred": 4, "failed": 0}, "deferred"),
+            ({"resolved": 5, "deferred": 2, "failed": 0}, "deferred"),
+            ({"resolved": 5, "failed": 0}, "ok"),
+            ({}, "ok"),
+        ],
+    )
+    def test_status_derivation(
+        self, tmp_path: Path, summary: dict[str, Any], expected: str
+    ) -> None:
+        out_path = _write_backfill_run_log(
+            summary=summary,
+            feature_importance_samples=None,
+            cli_args={},
+            log_dir=tmp_path,
+        )
+        record = json.loads(out_path.read_text(encoding="utf-8"))
+        assert record["status"] == expected
+        latest = json.loads((tmp_path / "latest.json").read_text(encoding="utf-8"))
+        assert latest["status"] == expected
 
 
 # ── Feature importance backfill ─────────────────────────────────────────────
