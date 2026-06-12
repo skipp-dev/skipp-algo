@@ -31,7 +31,7 @@ Usage
 ::
 
     python scripts/run_drift_watchdog.py \\
-        --baseline-json artifacts/wfo/walk_forward_latest.json \\
+        --baseline-json /path/to/your_wfo_baseline.json \\
         --live-window-days 30 \\
         --output-dir artifacts/drift
 

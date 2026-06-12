@@ -24,9 +24,9 @@ name: c13-daily-cron
 # "skip" — the downstream filters and join hooks (T7.2, T8.3) are
 # additive and degrade to no-op when their input file is missing.
 #
-# Vorbild: der ehemalige drift-watchdog-Workflow (cron schedule,
-# continue-on-error, GH issue on red, upload-artifact); stillgelegt 2026-06-12
-# (#2726), da seine WFO-Baseline nie produziert wurde.
+# Modeled after the former drift-watchdog workflow (cron schedule,
+# continue-on-error, GH issue on red, upload-artifact); retired 2026-06-12
+# (#2726) because its WFO baseline was never produced.
 
 on:
   schedule:
