@@ -93,7 +93,6 @@ def _manifest_repo_state_health_issues(payload: dict[str, Any], *, manifest_path
         DEFAULT_PRODUCTION_EXPORT_DIR,
         canonical_production_workbook_path,
     )
-
     from smc_integration import artifact_resolution
 
     if not _repo_state_paths_match_defaults():
