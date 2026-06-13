@@ -32,18 +32,6 @@ garantiertes rc=4 gewesen; davor war er ein stiller No-op.
   `c13-daily-cron.yml`, `phase-b-promotion-readiness.yml`,
   `scripts/check_phase_b_drift_readiness.py` (dessen Wiring-Claim schon
   vorher falsch war) und dem Script-Docstring aktualisiert.
-- `open_prep/feature_importance_report.py::_load_previous_latest` loggt bei
-  korruptem oder unlesbarem `latest.json` jetzt explizit auf DEBUG
-  mit dem Prefix `"FI latest.json unlesbar, starte ohne Vorgänger-Report"`
-  inklusive Fehlerdetail statt still `None` zu liefern.
-- `open_prep/run_open_prep.py::_probe_data_capabilities` ergänzt beim
-  Capability-Cache-Read-Fallback `exc_info=True`, sodass bei seltenen
-  I/O-/Parse-Fehlern ein vollständiger Traceback im Debug-Log verfügbar ist.
-
-Neue Regressionen:
-
-- `tests/test_feature_importance_report.py::test_load_previous_latest_invalid_json_logs_debug`
-- `tests/test_feature_importance_report.py::test_load_previous_latest_invalid_utf8_logs_debug`
 
 ### Fixed (2026-06-13) — Stat-Review W7-4/W7-5: Red-Flag-Fenster + Anchor-Staleness im Weekly-Judgement
 
