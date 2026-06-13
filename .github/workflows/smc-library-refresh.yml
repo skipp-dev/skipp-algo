@@ -312,6 +312,38 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-smc-incremental-base-seed-${{ env.SMC_INCREMENTAL_BASE_SEED_CACHE_VERSION }}-${{ github.ref_name }}-
 
+      # ── Provider credential preflight ───────────────────────────
+      # Gate generation on provider credential health so a delinquent
+      # Databento invoice (HTTP 402) or a missing/expired key fails fast
+      # here instead of burning ~2.5h of generation before the runner is
+      # shut down (see run #412). Shares scripts/credential_health_check.py
+      # with credential-health-check.yml and PR #2743's delivery probe.
+      - name: Provider credential preflight
+        id: provider_preflight
+        env:
+          DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+          NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
+        run: |
+          mkdir -p artifacts/ci
+          set +e
+          "$SMC_PYTHON_BIN" scripts/credential_health_check.py \
+            --skip-tv \
+            --skip-gh-pat \
+            --databento-key-env DATABENTO_API_KEY \
+            --fmp-key-env FMP_API_KEY \
+            --newsapi-key-env NEWSAPI_KEY \
+            --output artifacts/ci/provider_preflight.json
+          rc=$?
+          set -e
+          if [ "$rc" -eq 1 ]; then
+            echo "::error::Provider credential preflight failed (severity=error) — aborting before generation to avoid a wasted long run."
+            exit 1
+          fi
+          if [ "$rc" -eq 2 ]; then
+            echo "::warning::Provider credential preflight reported warnings (severity=warn) — proceeding with generation."
+          fi
+
       # ── Library generation with enrichment (v5) ─────────────────
       - name: Generate SMC library with v5 enrichment
         env:

@@ -377,3 +377,24 @@ def test_artifact_strategy_doc_mentions_drift_classification() -> None:
     assert "stage_only" in doc
     assert "gitignored" in doc
     assert "VOLATILE_ARTIFACT_POLICY" in doc
+
+
+# -- Phase 2: provider credential preflight gates generation ------------------
+# Run #412 burned ~144min of generation before the runner was shut down while
+# Databento was billing-delinquent (HTTP 402). A preflight that fails fast on
+# missing/expired keys or a delinquent invoice must run BEFORE the expensive
+# generation step, reusing scripts/credential_health_check.py.
+
+
+def test_refresh_runs_provider_preflight_before_generation() -> None:
+    workflow_text = _read(WORKFLOW_PATH)
+
+    assert '- name: Provider credential preflight' in workflow_text
+    assert 'scripts/credential_health_check.py' in workflow_text
+    assert '--skip-tv' in workflow_text
+    assert '--skip-gh-pat' in workflow_text
+    assert '--databento-key-env DATABENTO_API_KEY' in workflow_text
+    # Preflight must gate the generation step, not trail it.
+    assert workflow_text.index('Provider credential preflight') < workflow_text.index(
+        'Generate SMC library with v5 enrichment'
+    )
