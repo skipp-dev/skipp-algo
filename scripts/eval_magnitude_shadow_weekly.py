@@ -61,8 +61,8 @@ import json
 import math
 import sys
 from collections import defaultdict
+from datetime import UTC, datetime, timedelta
 from datetime import date as _date
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -401,7 +401,7 @@ def evaluate_weekly(
     ]
     anchor = max(all_dates) if all_dates else None
     if today is None:
-        today = datetime.now(timezone.utc).date()
+        today = datetime.now(UTC).date()
     anchor_age_days = (today - anchor).days if anchor is not None else None
     families = {
         family: evaluate_family(family, family_rows, k=k, n=n, anchor_date=anchor)
