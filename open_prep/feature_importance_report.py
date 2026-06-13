@@ -179,7 +179,7 @@ def _load_previous_latest(report_dir: Path) -> dict[str, Any] | None:
         return None
     try:
         return json.loads(latest.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError) as exc:
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError) as exc:
         logger.debug("FI latest.json unlesbar, starte ohne Vorgänger-Report: %s", exc)
         return None
 
