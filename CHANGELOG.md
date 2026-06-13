@@ -93,6 +93,7 @@ kritischen Konsumenten (`smc_integration.service`,
 
 Neue Regression:
 `tests/test_load_databento_export_bundle.py::test_load_export_bundle_parse_fails_after_resolve_raises_runtime_error`.
+
 ### Fixed (2026-06-13) — Stat-Review W7-2/W7-3: Vote-Integrität des Magnitude-Shadow-Ledgers
 
 Zwei Wege, auf denen die weekly k-of-n-Mehrheit Stimmen aus dem Nichts
