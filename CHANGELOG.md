@@ -32,14 +32,6 @@ garantiertes rc=4 gewesen; davor war er ein stiller No-op.
   `c13-daily-cron.yml`, `phase-b-promotion-readiness.yml`,
   `scripts/check_phase_b_drift_readiness.py` (dessen Wiring-Claim schon
   vorher falsch war) und dem Script-Docstring aktualisiert.
-Der Read/Parse-Schritt ist jetzt fail-loud gehärtet: parse-/I/O-Fehler werden
-als `RuntimeError("Manifest read/parse failed after resolve: <path>")`
-mit Pfadkontext neu geworfen. Das stabilisiert die Fehlersemantik für die
-kritischen Konsumenten (`smc_integration.service`,
-`smc_integration.measurement_evidence`, `smc_integration.structure_batch`).
-
-Neue Regression:
-`tests/test_load_databento_export_bundle.py::test_load_export_bundle_parse_fails_after_resolve_raises_runtime_error`.
 
 ### Fixed (2026-06-13) — Stat-Review W7-4/W7-5: Red-Flag-Fenster + Anchor-Staleness im Weekly-Judgement
 
