@@ -6,6 +6,32 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Removed (2026-06-12) — drift-watchdog-Cron stillgelegt (#2726)
+
+`.github/workflows/drift-watchdog.yml` (Montags-Cron) ist entfernt. Der
+Faktencheck zu #2726 ergab: Die erwartete WFO-Baseline
+`artifacts/wfo/walk_forward_latest.json` wurde von keiner Pipeline je
+produziert (keinerlei Git-Historie unter `artifacts/wfo/`; der im
+Workflow-Header zitierte „C2 walk-forward cron“ existiert nicht im
+aktuellen Workflow-Set — dasselbe hatte bereits
+`docs/ci-proposals/j3-followup-cron-workflow-run-2026-05-01.md`
+notiert). Seit dem Fail-loud-Fix #2725 wäre jeder Lauf ein
+garantiertes rc=4 gewesen; davor war er ein stiller No-op.
+
+- Drift-Abdeckung läuft heute über `c13-daily-cron.yml`
+  (täglich, `compute_live_drift` + Issue-Opener) und das
+  Phase-B-Promotion-Gate — der wöchentliche Watchdog war redundant
+  *und* funktionsunfähig.
+- `scripts/run_drift_watchdog.py` und seine Tests bleiben erhalten:
+  Das CLI ist weiter manuell mit explizit übergebener Baseline nutzbar
+  und dient als gepinnte Referenz-Implementierung des
+  Atomic-Write-Patterns (`tests/test_atomic_write_call_sites.py`,
+  `tests/test_csprint_atomic_write_fsync.py`).
+- Inventory-Pin `tests/test_workflow_continue_on_error_inventory.py`
+  um den drift-watchdog-Eintrag reduziert; stale Kommentar-Verweise in
+  `c13-daily-cron.yml`, `phase-b-promotion-readiness.yml`,
+  `scripts/check_phase_b_drift_readiness.py` (dessen Wiring-Claim schon
+  vorher falsch war) und dem Script-Docstring aktualisiert.
 ### Fixed (2026-06-13) — Stat-Review W7-4/W7-5: Red-Flag-Fenster + Anchor-Staleness im Weekly-Judgement
 
 **W7-4:** `eval_magnitude_shadow_weekly.detect_all_pass_red_flag`

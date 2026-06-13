@@ -28,8 +28,12 @@ permissions:
   # compute_live_drift artifact from the latest c13-daily-cron run.
   actions: read
 
-# Manual-only gate; serialize runs like the sibling drift-watchdog so two
-# concurrent dispatches cannot interleave their artifact downloads.
+# Manual-only gate; serialize runs so two near-simultaneous dispatches
+# produce sequential (unambiguous) gate verdicts instead of two
+# interleaved evaluations of the same upstream artifact. Runner
+# workspaces are isolated, so this is about result ordering, not
+# filesystem races (pattern from the retired drift-watchdog
+# workflow, #2726).
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
@@ -61,8 +65,8 @@ jobs:
       # they are never committed to the repo. The original glob against the
       # fresh checkout could only ever exit 64 (no files matched), which is
       # why this workflow had zero meaningful runs since creation. (The
-      # drift-watchdog ``drift-report`` artifact is a DIFFERENT report shape
-      # that never carries the field — do not point the gate at it.)
+      # ``drift-report`` artifact of the retired drift-watchdog workflow was
+      # a DIFFERENT report shape that never carried the field.)
       - name: Fetch latest compute_live_drift artifact
         env:
           GH_TOKEN: ${{ github.token }}

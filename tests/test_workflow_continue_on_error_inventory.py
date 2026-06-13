@@ -73,11 +73,6 @@ _ALLOWED: dict[str, dict[str, set[str]]] = {
     "smc-release-gates.yml": {
         "release-gates": {"id:tv_validation"},
     },
-    # Drift watchdog: red verdict is intentionally non-fatal; the follow-up
-    # step converts it into a GitHub issue.
-    "drift-watchdog.yml": {
-        "drift-watchdog": {"id:watchdog"},
-    },
     # ADR0023 magnitude shadow: ledger-metrics step is summary-only reporting
     # (GITHUB_STEP_SUMMARY + ::notice). It must never cause the shadow
     # workflow to fail — the shadow is a daily measure-only cron, not a gate.
