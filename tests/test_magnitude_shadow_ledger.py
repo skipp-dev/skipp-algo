@@ -110,11 +110,52 @@ def test_load_ledger_missing_file_is_empty(tmp_path: Path) -> None:
     assert shadow.load_ledger(str(tmp_path / "nope.jsonl")) == []
 
 
-def test_load_ledger_skips_malformed_lines(tmp_path: Path) -> None:
+def test_load_ledger_raises_on_malformed_line(tmp_path: Path) -> None:
+    """W7-1: malformed lines fail CLOSED (ValueError with path:lineno).
+
+    Silently skipping them was fail-open in three decision-bearing
+    consumers at once: corrupt rows could flip the weekly k-of-n majority,
+    keep an armed family's demotion window permanently partial, and let
+    yesterday's PASS row mask today's corrupt FAIL in the gate wiring.
+    """
     path = tmp_path / "led.jsonl"
     path.write_text(
         '{"date": "2026-06-01", "family": "BOS"}\n'
         "not json\n"
+        "\n"
+        '{"date": "2026-06-02", "family": "SWEEP"}\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match=r"led\.jsonl:2"):
+        shadow.load_ledger(str(path))
+
+
+def test_load_ledger_unreadable_file_raises_value_error(tmp_path: Path) -> None:
+    """Review follow-up (W7-1): an EXISTING but unreadable ledger (here: a
+    directory) is not a cold-start — it must raise the same ValueError the
+    consumers map to rc 1, not propagate a raw OSError stacktrace."""
+    path = tmp_path / "led.jsonl"
+    path.mkdir()
+    with pytest.raises(ValueError, match="unreadable ledger"):
+        shadow.load_ledger(str(path))
+
+
+def test_load_ledger_raises_on_non_object_line(tmp_path: Path) -> None:
+    """W7-1: a parseable-but-non-object line (e.g. a bare list) is just as
+    corrupt as unparseable JSON and must not be silently dropped."""
+    path = tmp_path / "led.jsonl"
+    path.write_text(
+        '{"date": "2026-06-01", "family": "BOS"}\n[1, 2, 3]\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match=r"led\.jsonl:2"):
+        shadow.load_ledger(str(path))
+
+
+def test_load_ledger_tolerates_blank_lines(tmp_path: Path) -> None:
+    path = tmp_path / "led.jsonl"
+    path.write_text(
+        '{"date": "2026-06-01", "family": "BOS"}\n'
         "\n"
         '{"date": "2026-06-02", "family": "SWEEP"}\n',
         encoding="utf-8",
@@ -228,6 +269,32 @@ def test_main_writes_ledger_and_returns_exit_code(
     rows = shadow.load_ledger(str(ledger))
     assert [r["family"] for r in rows] == ["BOS"]
     assert rows[0]["status"] == "PASS"
+
+
+def test_main_corrupt_existing_ledger_is_usage_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """W7-1: the runner must refuse to merge/rewrite on top of a corrupt
+    ledger (rc 1) — the atomic rewrite would otherwise silently drop the
+    unparseable history lines for good."""
+    events_path = tmp_path / "events.json"
+    events_path.write_text(json.dumps([{"family": "BOS", "x": 1}]), encoding="utf-8")
+    ledger = tmp_path / "shadow.jsonl"
+    corrupt = '{"date": "2026-06-05", "family": "BOS"}\nnot json\n'
+    ledger.write_text(corrupt, encoding="utf-8")
+
+    monkeypatch.setattr(
+        shadow,
+        "build_report",
+        lambda events, **kw: _report({"BOS": _result(passes=True)}),
+    )
+    code = shadow.main(
+        [str(events_path), "--ledger", str(ledger), "--date", "2026-06-06"]
+    )
+    assert code == 1
+    assert "malformed ledger line" in capsys.readouterr().err
+    # The corrupt ledger is left untouched — nothing was rewritten.
+    assert ledger.read_text(encoding="utf-8") == corrupt
 
 
 def test_main_empty_events_is_usage_error(tmp_path: Path) -> None:

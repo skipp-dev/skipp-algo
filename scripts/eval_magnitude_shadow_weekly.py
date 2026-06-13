@@ -46,9 +46,9 @@ Exit codes
 ----------
 * ``0`` -- evaluated cleanly (eligible set may be empty; that is normal).
 * ``2`` -- the all-four-PASS red flag fired on the latest date.
-* ``3`` -- the ledger is empty / unreadable (nothing to judge).
+* ``3`` -- the ledger is empty or missing (nothing to judge).
 * ``4`` -- auto-demotion applied (policy file rewritten); report otherwise clean.
-* ``1`` -- usage/config error.
+* ``1`` -- usage/config error (including a corrupt ledger line, W7-1).
 """
 from __future__ import annotations
 
@@ -558,7 +558,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
-    rows = load_ledger(args.ledger)
+    try:
+        rows = load_ledger(args.ledger)
+    except ValueError as exc:
+        # W7-1: a corrupt ledger must turn the weekly judgement red (rc 1),
+        # not silently shrink the vote set — dropped rows could (a) flip a
+        # strict weekly majority and (b) keep an armed family's demotion
+        # window permanently partial ("partial window never demotes").
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
     if not rows:
         print(f"error: empty or missing ledger: {args.ledger}", file=sys.stderr)
         return 3

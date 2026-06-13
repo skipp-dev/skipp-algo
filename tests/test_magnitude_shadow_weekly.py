@@ -297,6 +297,20 @@ def test_main_empty_ledger_returns_3(tmp_path):
     assert main(["--ledger", str(missing)]) == 3
 
 
+def test_main_corrupt_ledger_returns_1(tmp_path, capsys):
+    """W7-1: a malformed ledger line must fail the weekly judgement loudly
+    (rc 1), not silently shrink the vote set — dropped rows could flip a
+    strict weekly majority or keep a demotion window permanently partial."""
+    ledger = tmp_path / "led.jsonl"
+    ledger.write_text(
+        '{"date": "2026-06-01", "family": "BOS", "status": "PASS"}\n'
+        "not json\n",
+        encoding="utf-8",
+    )
+    assert main(["--ledger", str(ledger)]) == 1
+    assert "malformed ledger line" in capsys.readouterr().err
+
+
 def test_main_writes_and_returns_0(tmp_path, capsys):
     import json
 

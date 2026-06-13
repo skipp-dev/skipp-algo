@@ -21,6 +21,31 @@ irgendwo im Titel; der Wert wird zur Laufzeit aus
 `scripts/f2_render_rollback_issue.py::TITLE_PREFIX` importiert); der
 Step-Kommentar (der fälschlich ein nicht existentes „f2-rollback label“
 behauptete) ist mitkorrigiert.
+### Fixed (2026-06-13) — Stat-Review W7-1: Magnitude-Shadow-Ledger liest fail-closed
+
+`scripts/run_magnitude_shadow_ledger.py::load_ledger` hat malformed
+JSONL-Zeilen bisher still übersprungen (`except JSONDecodeError:
+continue`) — fail-open in drei entscheidungstragenden Konsumenten
+zugleich: (a) die weekly k-of-n-Bewertung
+(`eval_magnitude_shadow_weekly`) verliert Stimmen, wodurch korrupte
+FAIL-Zeilen eine strikte Wochen-Mehrheit auf PASS kippen können und das
+Demotions-Fenster einer armed Family dauerhaft partial bleibt („partial
+window never demotes"); (b) das Gate-Wiring
+(`magnitude_snapshot_wiring.latest_rows_by_family`) nimmt die neueste
+*parsebare* Zeile, sodass eine korrupte heutige FAIL-Zeile still das
+gestrige PASS als Gate-Verdikt wiederbelebt; (c) der Daily-Runner hätte
+beim atomischen Rewrite die unparsebaren Historien-Zeilen endgültig
+verworfen. Jetzt wirft `load_ledger` bei malformed oder
+Nicht-Objekt-Zeilen `ValueError` mit `pfad:zeilennr`; alle vier
+CLI-Konsumenten (Daily-Runner, Weekly-Eval, Snapshot-Wiring,
+Step-Summary-Renderer) und `run_promotion_gate` (Magnitude-Feed) mappen
+das auf rc 1 (fail-loud, Workflow rot). Eine fehlende Datei bleibt
+Cold-Start (`[]`). Der Test
+`test_load_ledger_skips_malformed_lines`, der das fail-open-Verhalten
+als Soll pinnte, ist invertiert
+(`test_load_ledger_raises_on_malformed_line`); neue rc-1-Regressionstests
+für alle Konsumenten.
+
 ### Security (2026-06-12) — tsx ^4.22.4 → esbuild 0.28.1 (Dependabot #5/#6)
 
 `tsx` von `^4.20.5` auf `^4.22.4` gehoben, wodurch das transitive
