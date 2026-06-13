@@ -677,7 +677,7 @@ def test_get_profile_bulk_treats_out_of_range_part_400_as_end(
         ("/stable/profile-bulk", {"part": 1}),
     ]
     assert rows == [{"symbol": "AAPL"}]
-    assert macro._FMP_FEATURE_UNAVAILABLE_LOGGED == set()
+    assert set() == macro._FMP_FEATURE_UNAVAILABLE_LOGGED
 
 
 def test_get_profile_bulk_swallows_runtime_error_and_logs_once(

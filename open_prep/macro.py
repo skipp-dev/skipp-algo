@@ -867,6 +867,15 @@ class FMPClient:
                 message = str(exc)
                 if rows and "Invalid or missing query parameter - part" in message:
                     return rows
+                if rows:
+                    logger.warning(
+                        "FMP profile-bulk failed on part %d after %d rows; "
+                        "returning partial profile bulk data (%s)",
+                        part,
+                        len(rows),
+                        message,
+                    )
+                    return rows
                 _log_feature_unavailable_once(
                     "stable/profile-bulk",
                     "FMP feature unavailable (stable/profile-bulk); continuing without profile bulk data.",
