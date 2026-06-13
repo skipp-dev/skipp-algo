@@ -1,5 +1,5 @@
 """Strict-vocabulary pin for ``HERO_RISK`` + reachability pins for
-the four HERO Producer-A vocabularies whose derive helpers we own.
+the HERO vocabularies whose derive/projection helpers we own.
 
 Background
 ==========
@@ -11,8 +11,8 @@ the remaining controlled-vocabulary axis:
 * :data:`HERO_RISK_VOCAB` (5 values incl. the ``""`` sentinel) — pinned
   by :func:`_derive_risk`.
 
-It also adds **reachability pins** for the **four** vocabularies whose
-derive helpers we own — :data:`HERO_BIAS_VOCAB`,
+It also adds **reachability pins** for the vocabularies whose derive or
+projection helpers we own — :data:`HERO_BIAS_VOCAB`,
 :data:`HERO_RISK_VOCAB`, :data:`HERO_TRUST_VOCAB`, and
 :data:`HERO_ACTION_VOCAB`: every vocab member must be returned from at
 least one branch of the corresponding helper. Prevents dead vocab
@@ -133,21 +133,21 @@ def test_derive_risk_returns_only_vocab_members() -> None:
     )
 
 
-def test_derive_action_uses_named_constants_only() -> None:
-    """``_derive_action`` must return only :data:`HERO_ACTION_VOCAB` values."""
+def test_derive_hero_action_uses_named_constants_only() -> None:
+    """``_derive_hero_action`` must return only :data:`HERO_ACTION_VOCAB` values."""
     from scripts.smc_hero_state import HERO_ACTION_VOCAB
 
     source = _HERO_STATE_PATH.read_text(encoding="utf-8")
-    observed = _resolve_returns(source, "_derive_action")
+    observed = _resolve_returns(source, "_derive_hero_action")
     extra = observed - HERO_ACTION_VOCAB
     missing = HERO_ACTION_VOCAB - observed
     assert not extra, (
-        f"_derive_action emits values outside HERO_ACTION_VOCAB: "
+        f"_derive_hero_action emits values outside HERO_ACTION_VOCAB: "
         f"{sorted(extra)} (vocab: {sorted(HERO_ACTION_VOCAB)})."
     )
     # Reachability: every vocab member must appear in at least one branch.
     assert not missing, (
-        f"HERO_ACTION_VOCAB pins {sorted(missing)} that _derive_action "
+        f"HERO_ACTION_VOCAB pins {sorted(missing)} that _derive_hero_action "
         "never returns. Dead vocab \u2014 either restore the branch or "
         "shrink the vocab."
     )

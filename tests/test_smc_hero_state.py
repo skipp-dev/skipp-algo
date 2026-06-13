@@ -1,7 +1,7 @@
 """Unit tests for the Hero State Contract (scripts/smc_hero_state.py)."""
 from __future__ import annotations
 
-from scripts.smc_hero_state import DEFAULTS, _derive_action, _derive_bias, _derive_trust, build_hero_state
+from scripts.smc_hero_state import DEFAULTS, _derive_bias, _derive_hero_action, _derive_trust, build_hero_state
 
 
 class TestDeriveTrust:
@@ -44,24 +44,30 @@ class TestDeriveBias:
         assert _derive_bias(regime="BEARISH", trade_state="AVOID") == "FLAT"
 
 
-class TestDeriveAction:
-    def test_active_when_healthy(self):
-        assert _derive_action(trade_state="ALLOWED", trust="healthy") == "ACTIVE"
+class TestDeriveHeroAction:
+    def test_active_from_producer_b_act(self):
+        assert _derive_hero_action({
+            "action_degradation": {"tier": "none", "reason": "", "derived_from_state": "healthy"},
+            "ensemble_quality": {"score": 0.95},
+        }) == "ACTIVE"
 
-    def test_watch_when_stale(self):
-        assert _derive_action(trade_state="ALLOWED", trust="stale") == "WATCH"
+    def test_watch_from_producer_b_wait(self):
+        assert _derive_hero_action({
+            "action_degradation": {"tier": "none", "reason": "", "derived_from_state": "healthy"},
+            "ensemble_quality": {"score": 0.45},
+        }) == "WATCH"
 
-    def test_watch_when_unavailable(self):
-        assert _derive_action(trade_state="ALLOWED", trust="unavailable") == "WATCH"
+    def test_avoid_from_producer_b_avoid(self):
+        assert _derive_hero_action({
+            "action_degradation": {"tier": "selective", "reason": "x", "derived_from_state": "degraded"},
+            "ensemble_quality": {"score": 0.10},
+        }) == "AVOID"
 
-    def test_blocked_override(self):
-        assert _derive_action(trade_state="BLOCKED", trust="healthy") == "BLOCKED"
-
-    def test_avoid_override(self):
-        assert _derive_action(trade_state="AVOID", trust="healthy") == "AVOID"
-
-    def test_watch_trade_state(self):
-        assert _derive_action(trade_state="WATCH", trust="healthy") == "WATCH"
+    def test_blocked_from_no_trade_degradation(self):
+        assert _derive_hero_action({
+            "action_degradation": {"tier": "no_trade", "reason": "x", "derived_from_state": "unavailable"},
+            "ensemble_quality": {"score": 0.95},
+        }) == "BLOCKED"
 
 
 class TestBuildHeroState:
@@ -82,7 +88,7 @@ class TestBuildHeroState:
             "layering": {"trade_state": "ALLOWED"},
             "signal_quality": {"SIGNAL_FRESHNESS": "fresh", "SIGNAL_QUALITY_TIER": "good"},
             "providers": {"stale_providers": ""},
-            "ensemble_quality": {"tier": "good"},
+            "ensemble_quality": {"tier": "high", "score": 0.85},
             "calendar": {"high_impact_macro_today": True, "macro_event_name": "FOMC"},
             "zone_priority": {"ZONE_PRIORITY_CATALYST": "OB_RECLAIM", "ZONE_PRIORITY_REASON": "breakout"},
             "event_risk": {"EVENT_RISK_LEVEL": "NONE"},
@@ -109,6 +115,28 @@ class TestBuildHeroState:
         assert result["HERO_TRUST"] == "unavailable"
         assert result["HERO_ACTION"] == "WATCH"
         assert result["HERO_RISK"] == "DATA_STALE"
+
+    def test_blocked_trade_state_still_blocks_via_producer_b(self):
+        enrichment = {
+            "regime": {"regime": "BULLISH"},
+            "layering": {"trade_state": "BLOCKED"},
+            "signal_quality": {"SIGNAL_FRESHNESS": "fresh", "SIGNAL_QUALITY_TIER": "high"},
+            "providers": {"stale_providers": ""},
+            "ensemble_quality": {"tier": "high", "score": 0.95},
+        }
+        result = build_hero_state(enrichment)
+        assert result["HERO_ACTION"] == "BLOCKED"
+
+    def test_avoid_trade_state_still_avoids_via_producer_b(self):
+        enrichment = {
+            "regime": {"regime": "BULLISH"},
+            "layering": {"trade_state": "AVOID"},
+            "signal_quality": {"SIGNAL_FRESHNESS": "fresh", "SIGNAL_QUALITY_TIER": "high"},
+            "providers": {"stale_providers": ""},
+            "ensemble_quality": {"tier": "high", "score": 0.95},
+        }
+        result = build_hero_state(enrichment)
+        assert result["HERO_ACTION"] == "AVOID"
 
     def test_event_risk_surfaces(self):
         enrichment = {
@@ -242,9 +270,8 @@ class TestHeroSetupQualityVocabularyPins:
 
 
 class TestHeroActionVocabularyPins:
-    """F-6 docs: pin the Producer-A action vocabulary so the WS3
-    reconciliation with the reserved ``HERO_ACTION_VERB`` (lowercase
-    verb vocabulary) starts from a known-safe baseline.
+    """F-6: pin the single uppercase Pine action vocabulary and the
+    Producer-B projection that feeds it.
     """
 
     def test_hero_action_literals_pinned(self) -> None:
@@ -259,15 +286,22 @@ class TestHeroActionVocabularyPins:
         assert HERO_ACTION_AVOID == "AVOID"
         assert HERO_ACTION_BLOCKED == "BLOCKED"
 
-    def test_derive_action_returns_value_in_declared_vocab(self) -> None:
+    def test_derive_hero_action_returns_value_in_declared_vocab(self) -> None:
         from scripts.smc_hero_state import HERO_ACTION_VOCAB
 
-        trade_states = ["ALLOWED", "SELECTIVE", "WATCH", "AVOID", "BLOCKED"]
-        trust_states = ["healthy", "warmup", "degraded", "stale", "unavailable"]
-        for ts in trade_states:
-            for trust in trust_states:
-                out = _derive_action(trade_state=ts, trust=trust)
+        degradation_tiers = ["none", "selective", "watchlist", "no_trade"]
+        quality_scores = [0.95, 0.65, 0.45, 0.10]
+        for degradation in degradation_tiers:
+            for score in quality_scores:
+                out = _derive_hero_action({
+                    "action_degradation": {
+                        "tier": degradation,
+                        "reason": "x",
+                        "derived_from_state": "healthy",
+                    },
+                    "ensemble_quality": {"score": score},
+                })
                 assert out in HERO_ACTION_VOCAB, (
-                    f"_derive_action({ts!r}, {trust!r}) -> {out!r} "
+                    f"_derive_hero_action({degradation!r}, {score!r}) -> {out!r} "
                     f"not in HERO_ACTION_VOCAB"
                 )

@@ -120,13 +120,6 @@ export const string HERO_QUALITY_WHY_NOW = "Confluence missing — beobachten"
 export const string HERO_QUALITY_MAIN_RISK = "Setup unsupported — keine Aktion"
 export const string HERO_QUALITY_FAMILY_HEALTH = "unknown"
 
-// ── Hero Action (ENG-WS3-05) ──
-export const string HERO_ACTION_VERB = "watch"
-export const string HERO_ACTION_VERB_DE = "beobachten"
-export const string HERO_ACTION_REASON = "Setup unsupported — keine Aktion"
-export const string HERO_ACTION_DEGRADATION = "none"
-export const string HERO_ACTION_QUALITY = "avoid"
-
 // ── Volume Regime ──
 export const string VOLUME_LOW_TICKERS = ""
 export const string HOLIDAY_SUSPECT_TICKERS = ""

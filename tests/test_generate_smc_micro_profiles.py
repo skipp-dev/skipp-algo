@@ -720,7 +720,7 @@ def test_manifest_declares_v7_0a(tmp_path: Path) -> None:
         output_root=tmp_path,
     )
     manifest = json.loads(outputs["manifest_path"].read_text(encoding="utf-8"))
-    assert manifest["library_field_version"] == "v7.0a"
+    assert manifest["library_field_version"] == "v8.0a"
 
 
 # ── Event-risk fixture coverage ─────────────────────────────────────
@@ -816,7 +816,7 @@ def test_manifest_event_risk_provenance(tmp_path: Path) -> None:
         enrichment={"event_risk": {"EVENT_WINDOW_STATE": "CLEAR"}},
     )
     manifest = json.loads(outputs["manifest_path"].read_text(encoding="utf-8"))
-    assert manifest["library_field_version"] == "v7.0a"
+    assert manifest["library_field_version"] == "v8.0a"
     assert manifest["event_risk_source"] == "smc_event_risk_builder"
     assert "event_risk" in manifest["enrichment_blocks"]
 
@@ -829,7 +829,7 @@ def test_manifest_event_risk_defaults_provenance(tmp_path: Path) -> None:
         output_root=tmp_path,
     )
     manifest = json.loads(outputs["manifest_path"].read_text(encoding="utf-8"))
-    assert manifest["library_field_version"] == "v7.0a"
+    assert manifest["library_field_version"] == "v8.0a"
     assert manifest["event_risk_source"] == "defaults"
 
 

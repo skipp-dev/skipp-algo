@@ -208,11 +208,13 @@ VOCAB_REGISTRY: tuple[VocabEntry, ...] = (
         kind="sequence",
         ordered=False,
         description=(
-            "Producer-A action verbs — uppercase ACTIVE/WATCH/AVOID/BLOCKED."
+            "Single Pine action surface — uppercase ACTIVE/WATCH/AVOID/BLOCKED, "
+            "projected from Producer-B's lowercase HeroAction verb."
         ),
         consumer_surfaces=(
             "SMC_Dashboard.pine (~line 1728, read-passthrough)",
-            "scripts/smc_hero_action._ACTION_TABLE (Producer-B, lowercase)",
+            "scripts/smc_hero_state._derive_hero_action",
+            "scripts/smc_hero_action._ACTION_TABLE",
             "docs/BOUNDARY_CONTRACT.md (F-6)",
         ),
     ),

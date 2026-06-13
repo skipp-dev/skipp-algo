@@ -6,11 +6,10 @@ from pathlib import Path
 import pytest
 
 from scripts.smc_hero_action import (
-    PINE_HERO_ACTION_FIELDS,
     all_action_verbs,
     derive_hero_action,
-    render_hero_action_block_lines,
 )
+from scripts.smc_hero_state import build_hero_state
 from smc_integration.action_degradation import ActionDegradation
 
 # ── Vocabulary ────────────────────────────────────────────────────────
@@ -171,84 +170,76 @@ class TestActionDoesNotContradict:
         assert action.reason == "Sizing"
 
 
-# ── Pine rendering ────────────────────────────────────────────────────
+# ── HERO_ACTION boundary projection ───────────────────────────────────
 
 
-class TestPineRendering:
-    def test_block_header_first(self) -> None:
-        lines = render_hero_action_block_lines({})
-        assert lines[0] == "// ── Hero Action (ENG-WS3-05) ──"
-
-    def test_emits_five_fields_in_canonical_order(self) -> None:
-        lines = render_hero_action_block_lines({})
-        names = [line.split()[3] for line in lines if line.startswith("export const")]
-        assert names == list(PINE_HERO_ACTION_FIELDS)
-
-    def test_emits_full_avoid_block(self) -> None:
-        text = "\n".join(render_hero_action_block_lines({
-            "trust_state": {
-                "state": "unavailable",
-                "action_impact": "suppress_product",
-                "cause": {
-                    "domain": "structure", "failure_type": "missing",
-                    "code": "MISSING_STRUCTURE_DOMAIN",
-                    "description": "Structure missing",
-                },
-                "contributing_alerts": [],
-                "derived_from_overall_status": "fail",
-            },
-            "ensemble_quality": {"score": 0.92},
-        }))
-        assert 'HERO_ACTION_VERB = "avoid"' in text
-        assert 'HERO_ACTION_VERB_DE = "vermeiden"' in text
-        assert 'HERO_ACTION_REASON = "Structure missing"' in text
-        assert 'HERO_ACTION_DEGRADATION = "no_trade"' in text
-        assert 'HERO_ACTION_QUALITY = "excellent"' in text
+class TestHeroActionBoundaryProjection:
+    @pytest.mark.parametrize(
+        "degradation,score,expected_hero_action",
+        [
+            ("no_trade", 0.95, "BLOCKED"),
+            ("no_trade", 0.20, "BLOCKED"),
+            ("watchlist", 0.95, "WATCH"),
+            ("watchlist", 0.20, "WATCH"),
+            ("selective", 0.85, "ACTIVE"),
+            ("selective", 0.65, "WATCH"),
+            ("selective", 0.45, "WATCH"),
+            ("selective", 0.10, "AVOID"),
+            ("none", 0.85, "ACTIVE"),
+            ("none", 0.65, "ACTIVE"),
+            ("none", 0.45, "WATCH"),
+            ("none", 0.10, "WATCH"),
+        ],
+    )
+    def test_producer_b_maps_to_single_uppercase_pine_field(
+        self, degradation: str, score: float, expected_hero_action: str
+    ) -> None:
+        hero_state = build_hero_state(_make_enrichment(degradation, score))
+        assert hero_state["HERO_ACTION"] == expected_hero_action
 
 
 # ── End-to-end Pine library emission ──────────────────────────────────
 
 
 class TestPineLibraryEmission:
-    def test_pine_library_emits_default_action_block(self, tmp_path: Path) -> None:
+    def test_pine_library_emits_only_default_hero_action(self, tmp_path: Path) -> None:
         from scripts.generate_smc_micro_profiles import LISTS, write_pine_library
 
         out = tmp_path / "lib.pine"
+        enrichment = {"providers": {"provider_count": 0, "stale_providers": ""}}
+        enrichment["hero_state"] = build_hero_state(enrichment)
         write_pine_library(
             out,
             {name: [] for name in LISTS},
             asof_date="2026-04-20",
             universe_size=0,
-            enrichment={"providers": {"provider_count": 0, "stale_providers": ""}},
+            enrichment=enrichment,
         )
         text = out.read_text(encoding="utf-8")
-        assert "// ── Hero Action (ENG-WS3-05) ──" in text
-        # Default: no degradation + no quality → watch.
-        assert 'export const string HERO_ACTION_VERB = "watch"' in text
-        assert 'export const string HERO_ACTION_VERB_DE = "beobachten"' in text
-        assert 'export const string HERO_ACTION_DEGRADATION = "none"' in text
-        assert 'export const string HERO_ACTION_QUALITY = "avoid"' in text
+        assert "// ── Hero Action (ENG-WS3-05) ──" not in text
+        assert "HERO_ACTION_VERB" not in text
+        assert 'export const string HERO_ACTION = "WATCH"' in text
 
-    def test_pine_library_emits_act_block_for_excellent_healthy(self, tmp_path: Path) -> None:
+    def test_pine_library_emits_active_hero_action_for_excellent_healthy(self, tmp_path: Path) -> None:
         from scripts.generate_smc_micro_profiles import LISTS, write_pine_library
 
         out = tmp_path / "lib.pine"
-        write_pine_library(
-            out,
-            {name: [] for name in LISTS},
-            asof_date="2026-04-20",
-            universe_size=0,
-            enrichment={
-                "providers": {"provider_count": 1, "stale_providers": ""},
-                "ensemble_quality": {
-                    "score": 0.92, "available_components": ["BOS", "OB", "FVG", "SWEEP"],
-                    "main_risk": "Position sizing only",
-                },
+        enrichment = {
+            "providers": {"provider_count": 1, "stale_providers": ""},
+            "signal_quality": {"SIGNAL_FRESHNESS": "fresh", "SIGNAL_QUALITY_TIER": "good"},
+            "ensemble_quality": {
+                "score": 0.92, "available_components": ["BOS", "OB", "FVG", "SWEEP"],
+                "main_risk": "Position sizing only",
             },
+        }
+        enrichment["hero_state"] = build_hero_state(enrichment)
+        write_pine_library(
+            out,
+            {name: [] for name in LISTS},
+            asof_date="2026-04-20",
+            universe_size=0,
+            enrichment=enrichment,
         )
         text = out.read_text(encoding="utf-8")
-        assert 'export const string HERO_ACTION_VERB = "act"' in text
-        assert 'export const string HERO_ACTION_VERB_DE = "handeln"' in text
-        assert 'export const string HERO_ACTION_REASON = "Position sizing only"' in text
-        assert 'export const string HERO_ACTION_DEGRADATION = "none"' in text
-        assert 'export const string HERO_ACTION_QUALITY = "excellent"' in text
+        assert "HERO_ACTION_VERB" not in text
+        assert 'export const string HERO_ACTION = "ACTIVE"' in text

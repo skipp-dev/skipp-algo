@@ -534,7 +534,7 @@ class TestManifestEnrichment:
         manifest_files = list(tmp_path.rglob("smc_micro_profiles_generated.json"))
         assert manifest_files, "No manifest file generated"
         manifest = json.loads(manifest_files[0].read_text(encoding="utf-8"))
-        assert manifest.get("library_field_version") == "v7.0a"
+        assert manifest.get("library_field_version") == "v8.0a"
 
     def test_manifest_enrichment_blocks(self, base_csv: Path, tmp_path: Path):
         import json

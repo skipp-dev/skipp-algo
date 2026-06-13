@@ -23,7 +23,7 @@ The Python builder [`build_hero_state`](../../scripts/smc_hero_state.py) MUST em
 | 4 | `HERO_SETUP_QUALITY` | `HERO_SETUP_QUALITY_VOCAB` | `"unavailable"` | **`"unavailable"` ≡ waiting-state** (rendered as `⚪ awaiting data`; maps to `avoid` on the Producer-B action table) | dashboard tier color |
 | 5 | `HERO_WHY_NOW` | *(free-form string)* | `""` | none | dashboard caption |
 | 6 | `HERO_RISK` | `HERO_RISK_VOCAB` (incl. `""`) | `""` | **`""` ≡ `HERO_RISK_NONE`** | `SMC_Dashboard.pine:1769` (gates blocker on `!= ""`) |
-| 7 | `HERO_ACTION` | `HERO_ACTION_VOCAB` | `"WATCH"` | derived | `SMC_Dashboard.pine` |
+| 7 | `HERO_ACTION` | `HERO_ACTION_VOCAB` | `"WATCH"` | derived from Producer-B `HeroAction` | `SMC_Dashboard.pine`, `SMC_Mobile_Dashboard.pine` |
 
 ### Rules
 
@@ -61,3 +61,9 @@ The convergence contract:
 `"warmup"` is Hero-local (aging freshness signal with no `TrustState` counterpart) and therefore absent from `HERO_MARKET_TRUST`. The `WATCH_ONLY` → `"degraded"` collapse on the Producer-B side matches the already-canonical info-loss point documented for `HERO_TRUST` and is the only mapping where information is lost.
 
 Pinned by `tests/test_hero_trust_market_trust_alignment.py` (5 parametrized `TrustState` mappings + 3 vocab-set invariants). No non-generated Pine consumer currently gates on `HERO_MARKET_TRUST` literal values (only the Pine `export const string HERO_MARKET_TRUST = "..."` constant exists, no `mp.HERO_MARKET_TRUST == "..."` comparison), so this is a producer-only contract change. Pine literal still changes → `library_field_version` bumped **v6.0a → v7.0a** (MAJOR) per the *vocab_value_removed_or_renamed* policy in `ml/schemas/v1_hero_features.json`. `deprecated_field_policy.preferred_field_version` follows.
+
+## 2026-06-13 amendment — `HERO_ACTION` / `HERO_ACTION_VERB` consolidation (WS3 #56)
+
+`HERO_ACTION` is now the single Pine-boundary action surface. Producer-B (`scripts.smc_hero_action.derive_hero_action`, backed by `_ACTION_TABLE`) owns the action decision and still produces the internal lowercase/German recommendation object (`act` / `wait` / `watch` / `avoid`, reason, degradation, quality). `scripts.smc_hero_state._derive_hero_action` projects that recommendation onto the existing uppercase `HERO_ACTION_VOCAB` for Pine: `act` → `ACTIVE`, `wait`/`watch` → `WATCH`, `avoid` → `AVOID`, and `degradation == "no_trade"` → `BLOCKED`.
+
+The generated Pine library no longer exports the parallel reserved fields `HERO_ACTION_VERB`, `HERO_ACTION_VERB_DE`, `HERO_ACTION_REASON`, `HERO_ACTION_DEGRADATION`, or `HERO_ACTION_QUALITY`. German wording and reason rendering are UI responsibilities, not additional library-boundary fields. Removing those five exports changes the library field layout, so `library_field_version` bumped **v7.0a → v8.0a** (MAJOR); `deprecated_field_policy.preferred_field_version` follows. The seven-field HERO invariant remains unchanged: `HERO_ACTION` is still field #7, and `HERO_ACTION_VOCAB` membership is unchanged.
