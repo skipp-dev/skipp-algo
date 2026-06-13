@@ -166,7 +166,9 @@ def test_red_flag_needs_two_families():
     assert detect_all_pass_red_flag(rows) is False
 
 
-def test_red_flag_only_considers_latest_date():
+def test_red_flag_freshest_per_family_wins():
+    # The freshest row per family casts its verdict: FVG's fresh FAIL
+    # overrides its day-old PASS — no artifact signature.
     rows = [
         _row(date="2026-06-01", family="BOS", status="PASS"),
         _row(date="2026-06-01", family="FVG", status="PASS"),
@@ -174,6 +176,48 @@ def test_red_flag_only_considers_latest_date():
         _row(date="2026-06-02", family="FVG", status="FAIL"),
     ]
     assert detect_all_pass_red_flag(rows) is False
+
+
+def test_red_flag_fires_on_staggered_dispatches():
+    """W7-4: BOS+SWEEP graded today, FVG+OB yesterday — no single date
+    carries all four rows, but the all-PASS artifact signature is plainly
+    in the trailing window. A latest-date-only check never fires here."""
+    rows = [
+        _row(date="2026-06-02", family="BOS", status="PASS"),
+        _row(date="2026-06-02", family="SWEEP", status="PASS"),
+        _row(date="2026-06-01", family="FVG", status="PASS"),
+        _row(date="2026-06-01", family="OB", status="PASS"),
+    ]
+    assert detect_all_pass_red_flag(rows) is True
+
+
+def test_red_flag_fresh_fail_on_earlier_day_blocks():
+    # Staggered window with one fresh FAIL: not artifact-shaped.
+    rows = [
+        _row(date="2026-06-02", family="BOS", status="PASS"),
+        _row(date="2026-06-02", family="SWEEP", status="PASS"),
+        _row(date="2026-06-01", family="FVG", status="FAIL"),
+        _row(date="2026-06-01", family="OB", status="PASS"),
+    ]
+    assert detect_all_pass_red_flag(rows) is False
+
+
+def test_red_flag_ignores_family_outside_window():
+    """W7-4 boundary: a family whose feed went stale weeks ago neither
+    counts toward nor blocks the signature — its old FAIL must not mask an
+    artifact-shaped present, and its old PASS must not fabricate one."""
+    rows = [
+        _row(date="2026-06-02", family="BOS", status="PASS"),
+        _row(date="2026-06-02", family="SWEEP", status="PASS"),
+        _row(date="2026-05-01", family="FVG", status="FAIL"),
+    ]
+    assert detect_all_pass_red_flag(rows) is True
+    # …but a lone in-window family is not a signature, even with old PASSes.
+    rows_single = [
+        _row(date="2026-06-02", family="BOS", status="PASS"),
+        _row(date="2026-05-01", family="FVG", status="PASS"),
+    ]
+    assert detect_all_pass_red_flag(rows_single) is False
 
 
 # ---- evaluate_weekly ----------------------------------------------------
@@ -201,6 +245,51 @@ def test_red_flag_zeroes_eligibility():
     report = evaluate_weekly(rows, k=2, n=4)
     assert report["all_pass_red_flag"] is True
     assert report["stage2_eligible"] == []
+
+
+# ---- anchor staleness (W7-5) --------------------------------------------
+
+
+def test_anchor_stale_flag_set_when_ledger_frozen():
+    rows = _streak("BOS", ["PASS"])
+    report = evaluate_weekly(
+        rows, k=1, n=1, today=_WEEK0 + timedelta(days=11)
+    )
+    assert report["anchor_age_days"] == 11
+    assert report["anchor_stale"] is True
+
+
+def test_anchor_fresh_within_budget():
+    rows = _streak("BOS", ["PASS"])
+    report = evaluate_weekly(
+        rows, k=1, n=1, today=_WEEK0 + timedelta(days=10)
+    )
+    assert report["anchor_age_days"] == 10
+    assert report["anchor_stale"] is False
+
+
+def test_render_warns_on_stale_anchor():
+    rows = _streak("BOS", ["PASS"])
+    report = evaluate_weekly(
+        rows, k=1, n=1, today=_WEEK0 + timedelta(days=30)
+    )
+    text = render_text(report)
+    assert "STALE ANCHOR" in text
+    assert "30 days old" in text
+
+
+def test_main_stale_anchor_warns_but_rc_unchanged(tmp_path, capsys):
+    """W7-5: a frozen ledger must not let the weekly job look silently
+    green — stderr warning; rc stays verdict-driven (the daily gap guard
+    escalates the frozen feed independently)."""
+    import json
+
+    ledger = tmp_path / "ledger.jsonl"
+    rows = [_row(date="2026-01-05", family="BOS", status="PASS")]
+    ledger.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+    rc = main(["--ledger", str(ledger), "--k", "1", "--n", "1"])
+    assert rc == 0
+    assert "warning: ledger anchor 2026-01-05" in capsys.readouterr().err
 
 
 # ---- render + main ------------------------------------------------------
@@ -743,6 +832,6 @@ def test_report_latest_date_and_red_flag_ignore_malformed_dates():
     )
     report = evaluate_weekly(rows, k=1, n=1)
     assert report["latest_date"] == str(_WEEK0)
-    # Red flag judged on the parseable latest date (PASS+FAIL → no flag),
-    # not on the lone malformed-date PASS row.
+    # Red flag judged on the parseable in-window rows (PASS+FAIL → no
+    # flag), not on the lone malformed-date PASS row.
     assert report["all_pass_red_flag"] is False

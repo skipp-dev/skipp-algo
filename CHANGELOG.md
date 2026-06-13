@@ -6,21 +6,31 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
-### Fixed (2026-06-12) — f2-promotion-gate: Rollback-Ping in falsches Issue (Label-only-Suche)
+### Fixed (2026-06-13) — Stat-Review W7-4/W7-5: Red-Flag-Fenster + Anchor-Staleness im Weekly-Judgement
 
-Der Step „Open rollback Issue (§2.4 G2 ping)“ in
-`f2-promotion-gate-daily.yml` suchte ein bestehendes Issue nur über
-`--label cron-failure` — ohne Titel-Filter. Da mehrere Workflows
-(credential-health-check, workflow-freshness-monitor, …) dasselbe Label
-verwenden, traf die Suche das erste beste offene cron-failure-Issue:
-der Rollback-Ping vom 2026-06-12 (SPRT accept_h0, n=1664) landete als
-Kommentar im fachfremden credential-health-Issue #2732 statt in einem
-`[F2 rollback]`-Issue. Die Suche filtert jetzt zusätzlich mit dem
-GitHub-Suchfilter `"[F2 rollback]" in:title` (matcht die Phrase
-irgendwo im Titel; der Wert wird zur Laufzeit aus
-`scripts/f2_render_rollback_issue.py::TITLE_PREFIX` importiert); der
-Step-Kommentar (der fälschlich ein nicht existentes „f2-rollback label“
-behauptete) ist mitkorrigiert.
+**W7-4:** `eval_magnitude_shadow_weekly.detect_all_pass_red_flag`
+prüfte die All-PASS-Artefakt-Signatur nur auf dem *einzelnen* neuesten
+Datums-String — gestaffelte/partielle Dispatches (BOS+SWEEP heute,
+FVG+OB gestern graded) teilen nie ein Datum, sodass genau die
+Pipeline-Artefakte, die der Flag fangen soll, ihn umgehen konnten;
+der Red Flag suspendiert zudem Demotionen, ein Bypass re-aktiviert
+also Vertrauen in artefakt-förmige Daten. Jetzt wird pro Family die
+frischeste Zeile in einem trailing Fenster
+(`RED_FLAG_WINDOW_DAYS = 3`, geankert am neuesten Ledger-Datum)
+herangezogen: ≥ 2 Familien im Fenster und alle PASS ⇒ Flag. Familien
+außerhalb des Fensters (Wochen-alter Feed) zählen weder dafür noch
+dagegen. **W7-5:** Das Weekly-Judgement ankert am neuesten
+*Ledger*-Datum, nie an „heute" — bei eingefrorenem Ledger urteilte
+jeder künftige Montags-Run rc 0 „clean" über dasselbe historische
+Fenster. Der Report trägt jetzt `anchor_age_days`/`anchor_stale`
+(> `ANCHOR_STALE_DAYS = 10` Tage, injizierbare `today`-Clock), der
+Text-Renderer eine `STALE ANCHOR`-Zeile und `main()` eine laute
+stderr-Warnung; rc bleibt verdict-getrieben (der Daily-Gap-Guard
+eskaliert den eingefrorenen Feed unabhängig). Neue Tests: gestaffelte
+Dispatches feuern, frischer FAIL blockt, Out-of-window-Family zählt
+nicht (weder PASS noch FAIL), Single-Family-Fenster feuert nie,
+Staleness-Grenze 10/11 Tage, Render- und CLI-Warnung.
+
 ### Fixed (2026-06-13) — Stat-Review W7-2/W7-3: Vote-Integrität des Magnitude-Shadow-Ledgers
 
 Zwei Wege, auf denen die weekly k-of-n-Mehrheit Stimmen aus dem Nichts
@@ -77,6 +87,22 @@ Cold-Start (`[]`). Der Test
 als Soll pinnte, ist invertiert
 (`test_load_ledger_raises_on_malformed_line`); neue rc-1-Regressionstests
 für alle Konsumenten.
+
+### Fixed (2026-06-12) — f2-promotion-gate: Rollback-Ping in falsches Issue (Label-only-Suche)
+
+Der Step „Open rollback Issue (§2.4 G2 ping)“ in
+`f2-promotion-gate-daily.yml` suchte ein bestehendes Issue nur über
+`--label cron-failure` — ohne Titel-Filter. Da mehrere Workflows
+(credential-health-check, workflow-freshness-monitor, …) dasselbe Label
+verwenden, traf die Suche das erste beste offene cron-failure-Issue:
+der Rollback-Ping vom 2026-06-12 (SPRT accept_h0, n=1664) landete als
+Kommentar im fachfremden credential-health-Issue #2732 statt in einem
+`[F2 rollback]`-Issue. Die Suche filtert jetzt zusätzlich mit dem
+GitHub-Suchfilter `"[F2 rollback]" in:title` (matcht die Phrase
+irgendwo im Titel; der Wert wird zur Laufzeit aus
+`scripts/f2_render_rollback_issue.py::TITLE_PREFIX` importiert); der
+Step-Kommentar (der fälschlich ein nicht existentes „f2-rollback label“
+behauptete) ist mitkorrigiert.
 
 ### Security (2026-06-12) — tsx ^4.22.4 → esbuild 0.28.1 (Dependabot #5/#6)
 
