@@ -394,7 +394,12 @@ def test_refresh_runs_provider_preflight_before_generation() -> None:
     assert '--skip-tv' in workflow_text
     assert '--skip-gh-pat' in workflow_text
     assert '--databento-key-env DATABENTO_API_KEY' in workflow_text
-    # Preflight must gate the generation step, not trail it.
-    assert workflow_text.index('Provider credential preflight') < workflow_text.index(
-        'Generate SMC library with v5 enrichment'
+    # The script returns exit 2 for *both* warn and error, so the gate must
+    # branch on overall_severity from the JSON report, not on the exit code.
+    assert "overall_severity" in workflow_text
+    assert 'severity" = "error"' in workflow_text
+    # Preflight must gate the generation step, not trail it. Anchor on the
+    # step `- name:` markers (the comment header also mentions the phrase).
+    assert workflow_text.index('- name: Provider credential preflight') < workflow_text.index(
+        '- name: Generate SMC library with v5 enrichment'
     )

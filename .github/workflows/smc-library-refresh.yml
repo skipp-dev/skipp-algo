@@ -336,11 +336,21 @@ jobs:
             --output artifacts/ci/provider_preflight.json
           rc=$?
           set -e
+          # credential_health_check.py exit codes: 0=ok, 2=warn-or-error,
+          # 1=all-probes-skipped (no JSON written). It does NOT distinguish
+          # error from warn via the exit code, so gate on overall_severity
+          # in the JSON report instead.
           if [ "$rc" -eq 1 ]; then
+            echo "::error::Provider credential preflight produced no signal (all probes skipped) — aborting before generation."
+            exit 1
+          fi
+          severity=$("$SMC_PYTHON_BIN" -c "import json,sys; print(json.load(open('artifacts/ci/provider_preflight.json')).get('overall_severity','error'))")
+          echo "provider_preflight_severity=$severity"
+          if [ "$severity" = "error" ]; then
             echo "::error::Provider credential preflight failed (severity=error) — aborting before generation to avoid a wasted long run."
             exit 1
           fi
-          if [ "$rc" -eq 2 ]; then
+          if [ "$severity" = "warn" ]; then
             echo "::warning::Provider credential preflight reported warnings (severity=warn) — proceeding with generation."
           fi
 
