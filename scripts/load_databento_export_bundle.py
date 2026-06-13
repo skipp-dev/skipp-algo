@@ -160,7 +160,7 @@ def load_export_bundle(
 
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError) as exc:
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError) as exc:
         raise RuntimeError(f"Manifest read/parse failed after resolve: {manifest_path}") from exc
     base_prefix = manifest_path.name[: -len("_manifest.json")]
     bundle_dir = manifest_path.parent

@@ -140,7 +140,7 @@ def test_load_export_bundle_parse_fails_after_resolve_raises_runtime_error(tmp_p
 
     with (
         mock.patch.object(leb, "resolve_manifest_path", return_value=manifest_path),
-        mock.patch.object(Path, "read_text", side_effect=json.JSONDecodeError("boom", "{", 1)),
+        mock.patch.object(Path, "read_text", return_value="{not valid json"),
     ):
         try:
             load_export_bundle(tmp_path)
