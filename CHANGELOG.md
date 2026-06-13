@@ -65,7 +65,7 @@ seitig gehärtet:
 
 - `open_prep/feature_importance_report.py::_load_previous_latest` loggt bei
   korruptem oder unlesbarem `latest.json` jetzt explizit auf DEBUG
-  (`"FI latest.json unlesbar, starte ohne Vorgänger-Report"`) statt still
+  (`"FI latest.json unreadable/corrupt; starting without previous report"`) statt still
   `None` zu liefern.
 - `open_prep/run_open_prep.py::_probe_data_capabilities` ergänzt beim
   Capability-Cache-Read-Fallback `exc_info=True`, sodass bei seltenen
