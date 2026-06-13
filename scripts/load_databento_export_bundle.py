@@ -158,7 +158,10 @@ def load_export_bundle(
         prefix_text = f" manifest_prefix={manifest_prefix}" if manifest_prefix else ""
         raise FileNotFoundError(f"No export manifest found for {bundle}{required_text}{prefix_text}")
 
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        raise RuntimeError(f"Manifest read/parse failed after resolve: {manifest_path}") from exc
     base_prefix = manifest_path.name[: -len("_manifest.json")]
     bundle_dir = manifest_path.parent
 
