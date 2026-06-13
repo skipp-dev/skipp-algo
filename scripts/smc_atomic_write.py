@@ -16,6 +16,7 @@ import os
 import stat
 import tempfile
 import threading
+from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -86,8 +87,14 @@ def _resolve_destination_mode(target: Path) -> int:
 def _fsync_file_if_requested(path: Path, *, enabled: bool) -> None:
     if not enabled:
         return
-    with path.open("rb") as fh:
-        os.fsync(fh.fileno())
+    try:
+        fd = os.open(path, os.O_RDONLY)
+    except PermissionError:
+        fd = os.open(path, os.O_WRONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
 
 
 def _atomic_write(
@@ -111,7 +118,8 @@ def _atomic_write(
         _fsync_file_if_requested(tmp_path, enabled=fsync)
         os.replace(tmp_path, target)
     except BaseException:
-        tmp_path.unlink(missing_ok=True)
+        with suppress(OSError):
+            tmp_path.unlink(missing_ok=True)
         raise
 
 
@@ -174,7 +182,8 @@ def atomic_write_text(
         _fsync_file_if_requested(tmp_path, enabled=fsync)
         os.replace(tmp_path, target_path)
     except BaseException:
-        tmp_path.unlink(missing_ok=True)
+        with suppress(OSError):
+            tmp_path.unlink(missing_ok=True)
         raise
 
 

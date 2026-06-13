@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import stat
 import tempfile
 import time
 from collections.abc import Callable
@@ -263,9 +264,14 @@ def _write_payload(path: Path, payload: dict[str, Any]) -> None:
     tmp_path = Path(tmp_name)
     try:
         tmp_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        # mkstemp creates the temp file as 0o600; preserve the destination's
+        # existing permissions so a shared (e.g. group-readable) cache file is
+        # not silently downgraded when it is rewritten.
+        with suppress(FileNotFoundError):
+            os.chmod(tmp_path, stat.S_IMODE(os.stat(path).st_mode))
         os.replace(tmp_path, path)
     except BaseException:
-        with suppress(FileNotFoundError):
+        with suppress(OSError):
             tmp_path.unlink()
         raise
 

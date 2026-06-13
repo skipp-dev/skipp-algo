@@ -108,7 +108,7 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/macro.py", 804),
         ("newsstack_fmp/ingest_fmp_political.py", 122),
         ("newsstack_fmp/ingest_fmp_political.py", 135),
-        ("newsstack_fmp/shared_fetch.py", 291),
+        ("newsstack_fmp/shared_fetch.py", 297),
         ("newsstack_fmp/pipeline.py", 1208),
         ("newsstack_fmp/store_sqlite.py", 81),
         ("newsstack_fmp/store_sqlite.py", 86),
