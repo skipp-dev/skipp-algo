@@ -3109,9 +3109,18 @@ class TestGetEodBulkInvalidJsonFallback(unittest.TestCase):
 
     def setUp(self):
         from open_prep import macro
-        # _log_feature_unavailable_once dedupes per process — reset so each
-        # test observes its own log line.
+        # _log_feature_unavailable_once dedupes per process — snapshot and
+        # restore so each test observes its own log line without leaking the
+        # global dedup set to later (order-dependent) tests.
+        original = set(macro._FMP_FEATURE_UNAVAILABLE_LOGGED)
         macro._FMP_FEATURE_UNAVAILABLE_LOGGED.clear()
+        self.addCleanup(self._restore_feature_unavailable_logged, original)
+
+    @staticmethod
+    def _restore_feature_unavailable_logged(original):
+        from open_prep import macro
+        macro._FMP_FEATURE_UNAVAILABLE_LOGGED.clear()
+        macro._FMP_FEATURE_UNAVAILABLE_LOGGED.update(original)
 
     def test_invalid_json_returns_empty_list_and_logs_info_once(self):
         from open_prep.macro import FMPClient
