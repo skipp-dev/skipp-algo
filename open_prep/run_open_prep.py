@@ -2163,7 +2163,7 @@ def _probe_data_capabilities(*, client: FMPClient, today: date) -> dict[str, dic
             cached_data = payload.get("data")
             if age_seconds <= ttl_seconds and isinstance(cached_data, dict):
                 return cached_data
-        except Exception as exc:
+        except Exception:
             logger.debug("Capability cache read failed for %s", CAPABILITY_CACHE_FILE, exc_info=True)
 
     # /stable/eod-bulk only has data for trading days. Probing today's date on
