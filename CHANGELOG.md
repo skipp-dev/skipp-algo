@@ -57,6 +57,21 @@ Dispatches feuern, frischer FAIL blockt, Out-of-window-Family zählt
 nicht (weder PASS noch FAIL), Single-Family-Fenster feuert nie,
 Staleness-Grenze 10/11 Tage, Render- und CLI-Warnung.
 
+### Fixed (2026-06-13) — Audit E-2 AW-7-B: Reader-Fallbacks mit Diagnoselog
+
+Zwei bisher stille/diagnoseschwache Reader-Fallbacks wurden observability-
+seitig gehärtet:
+
+- `open_prep/feature_importance_report.py::_load_previous_latest` loggt bei
+  korruptem oder unlesbarem `latest.json` jetzt explizit auf DEBUG
+  (`"FI latest.json unlesbar, starte ohne Vorgänger-Report"`) statt still
+  `None` zu liefern.
+- `open_prep/run_open_prep.py::_probe_data_capabilities` ergänzt beim
+  Capability-Cache-Read-Fallback `exc_info=True`, sodass bei seltenen
+  I/O-/Parse-Fehlern ein vollständiger Traceback im Debug-Log verfügbar ist.
+
+Neue Regression:
+`tests/test_feature_importance_report.py::test_load_previous_latest_invalid_json_logs_debug`.
 ### Fixed (2026-06-13) — Stat-Review W7-2/W7-3: Vote-Integrität des Magnitude-Shadow-Ledgers
 
 Zwei Wege, auf denen die weekly k-of-n-Mehrheit Stimmen aus dem Nichts
