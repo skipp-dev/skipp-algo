@@ -72,8 +72,8 @@ def _load_streamlit_secrets() -> None:
         for key in _SECRET_KEYS:
             if key in secrets and not os.environ.get(key):
                 os.environ[key] = str(secrets[key])
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Could not load Streamlit secrets bridge: %s", type(exc).__name__, exc_info=True)
 
 
 _load_env_file(PROJECT_ROOT / ".env")
@@ -124,7 +124,8 @@ def _is_market_hours_fallback() -> bool:
     if callable(_market_session):
         try:
             return _market_session() in ("regular", "pre-market", "after-hours")
-        except Exception:
+        except Exception as exc:
+            logger.debug("market_session() probe failed; falling back to wall-clock: %s", type(exc).__name__)
             pass  # fall through to wall-clock heuristic
     # Fallback: derive from wall-clock Eastern time
     try:
@@ -133,7 +134,8 @@ def _is_market_hours_fallback() -> bool:
         if now_et.weekday() >= 5:  # Sat / Sun
             return False
         return time(4, 0) <= now_et.time() <= time(20, 0)
-    except Exception:
+    except Exception as exc:
+        logger.debug("ZoneInfo fallback failed in _is_market_hours_fallback: %s", type(exc).__name__)
         # If even timezone lookup fails, assume market hours to be safe
         return True
 
@@ -225,7 +227,8 @@ try:
     from newsstack_fmp.ingest_opra_options_flow import (
         fetch_opra_options_flow as _fetch_opra_options,
     )
-except Exception:  # pragma: no cover
+except Exception as exc:  # pragma: no cover
+    logger.debug("OPRA options flow import unavailable: %s", type(exc).__name__)
     _fetch_opra_options = None  # type: ignore[assignment]
 
 # v3 P-4b/d: dark-pool prints, dealer-gamma-by-strike, marketwide tide.
@@ -849,6 +852,10 @@ def _render_soft_refresh_status(updated_at: str | None) -> None:
                 + f" · vor {age_seconds}s"
             )
     except ValueError:
+        logger.debug(
+            "_render_soft_refresh_status: unparseable updated_at=%r; showing raw fallback",
+            updated_at,
+        )
         st.info(f"Datenstand: {curr}")
 
 
@@ -866,6 +873,7 @@ def _format_utc_berlin(updated_at: str | None) -> tuple[str, str]:
             updated_berlin.strftime("%Y-%m-%d %H:%M:%S %Z"),
         )
     except ValueError:
+        logger.debug("_format_utc_berlin: unparseable timestamp=%r", updated_at)
         return str(updated_at), str(updated_at)
 
 
@@ -879,6 +887,7 @@ def _format_berlin_only(timestamp_utc: str | None) -> str:
             ts_dt = ts_dt.replace(tzinfo=UTC)
         return ts_dt.astimezone(BERLIN_TZ).strftime("%Y-%m-%d %H:%M:%S %Z")
     except ValueError:
+        logger.debug("_format_berlin_only: unparseable timestamp=%r", timestamp_utc)
         return str(timestamp_utc)
 
 
@@ -898,6 +907,7 @@ def _universe_reload_freshness(timestamp_utc: str | None) -> str:
             return f"🟡 Status: mittel-alt ({age_minutes} min)"
         return f"🔴 Status: veraltet ({age_minutes} min)"
     except ValueError:
+        logger.debug("_universe_reload_freshness: unparseable timestamp=%r", timestamp_utc)
         return "⚪ Status: Zeitformat unbekannt"
 
 
@@ -921,7 +931,15 @@ def _remaining_cooldown_seconds(now_utc: datetime) -> int:
             cooldown_until = cooldown_until.replace(tzinfo=UTC)
         return max(int((cooldown_until - now_utc).total_seconds()), 0)
     except ValueError:
-        return 0
+        logger.warning(
+            "Invalid rate_limit_cooldown_until_utc=%r; applying conservative %ss cooldown hold",
+            cooldown_until_raw,
+            RATE_LIMIT_COOLDOWN_SECONDS,
+        )
+        st.session_state["rate_limit_cooldown_until_utc"] = (
+            now_utc.replace(microsecond=0) + timedelta(seconds=RATE_LIMIT_COOLDOWN_SECONDS)
+        ).isoformat()
+        return RATE_LIMIT_COOLDOWN_SECONDS
 
 
 def _prediction_side(row: dict[str, Any], macro_bias: float) -> str:
@@ -1278,6 +1296,10 @@ def main() -> None:
                 if elapsed < live_fetch_interval:
                     use_cached_result = True
             except ValueError:
+                logger.debug(
+                    "_render_open_prep_snapshot: invalid last_live_fetch_utc=%r; bypassing cache",
+                    last_live_fetch_raw,
+                )
                 use_cached_result = False
 
         if use_cached_result:
