@@ -6,6 +6,4456 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Removed (2026-06-12) — drift-watchdog-Cron stillgelegt (#2726)
+
+`.github/workflows/drift-watchdog.yml` (Montags-Cron) ist entfernt. Der
+Faktencheck zu #2726 ergab: Die erwartete WFO-Baseline
+`artifacts/wfo/walk_forward_latest.json` wurde von keiner Pipeline je
+produziert (keinerlei Git-Historie unter `artifacts/wfo/`; der im
+Workflow-Header zitierte „C2 walk-forward cron“ existiert nicht im
+aktuellen Workflow-Set — dasselbe hatte bereits
+`docs/ci-proposals/j3-followup-cron-workflow-run-2026-05-01.md`
+notiert). Seit dem Fail-loud-Fix #2725 wäre jeder Lauf ein
+garantiertes rc=4 gewesen; davor war er ein stiller No-op.
+
+- Drift-Abdeckung läuft heute über `c13-daily-cron.yml`
+  (täglich, `compute_live_drift` + Issue-Opener) und das
+  Phase-B-Promotion-Gate — der wöchentliche Watchdog war redundant
+  *und* funktionsunfähig.
+- `scripts/run_drift_watchdog.py` und seine Tests bleiben erhalten:
+  Das CLI ist weiter manuell mit explizit übergebener Baseline nutzbar
+  und dient als gepinnte Referenz-Implementierung des
+  Atomic-Write-Patterns (`tests/test_atomic_write_call_sites.py`,
+  `tests/test_csprint_atomic_write_fsync.py`).
+- Inventory-Pin `tests/test_workflow_continue_on_error_inventory.py`
+  um den drift-watchdog-Eintrag reduziert; stale Kommentar-Verweise in
+  `c13-daily-cron.yml`, `phase-b-promotion-readiness.yml`,
+  `scripts/check_phase_b_drift_readiness.py` (dessen Wiring-Claim schon
+  vorher falsch war) und dem Script-Docstring aktualisiert.
+### Fixed (2026-06-13) — Stat-Review W7-4/W7-5: Red-Flag-Fenster + Anchor-Staleness im Weekly-Judgement
+
+**W7-4:** `eval_magnitude_shadow_weekly.detect_all_pass_red_flag`
+prüfte die All-PASS-Artefakt-Signatur nur auf dem *einzelnen* neuesten
+Datums-String — gestaffelte/partielle Dispatches (BOS+SWEEP heute,
+FVG+OB gestern graded) teilen nie ein Datum, sodass genau die
+Pipeline-Artefakte, die der Flag fangen soll, ihn umgehen konnten;
+der Red Flag suspendiert zudem Demotionen, ein Bypass re-aktiviert
+also Vertrauen in artefakt-förmige Daten. Jetzt wird pro Family die
+frischeste Zeile in einem trailing Fenster
+(`RED_FLAG_WINDOW_DAYS = 3`, geankert am neuesten Ledger-Datum)
+herangezogen: ≥ 2 Familien im Fenster und alle PASS ⇒ Flag. Familien
+außerhalb des Fensters (Wochen-alter Feed) zählen weder dafür noch
+dagegen. **W7-5:** Das Weekly-Judgement ankert am neuesten
+*Ledger*-Datum, nie an „heute" — bei eingefrorenem Ledger urteilte
+jeder künftige Montags-Run rc 0 „clean" über dasselbe historische
+Fenster. Der Report trägt jetzt `anchor_age_days`/`anchor_stale`
+(> `ANCHOR_STALE_DAYS = 10` Tage, injizierbare `today`-Clock), der
+Text-Renderer eine `STALE ANCHOR`-Zeile und `main()` eine laute
+stderr-Warnung; rc bleibt verdict-getrieben (der Daily-Gap-Guard
+eskaliert den eingefrorenen Feed unabhängig). Neue Tests: gestaffelte
+Dispatches feuern, frischer FAIL blockt, Out-of-window-Family zählt
+nicht (weder PASS noch FAIL), Single-Family-Fenster feuert nie,
+Staleness-Grenze 10/11 Tage, Render- und CLI-Warnung.
+
+### Fixed (2026-06-13) — Stat-Review W7-2/W7-3: Vote-Integrität des Magnitude-Shadow-Ledgers
+
+Zwei Wege, auf denen die weekly k-of-n-Mehrheit Stimmen aus dem Nichts
+erzeugen konnte, sind geschlossen. **W7-2 (stale feed):** Der
+Daily-Runner (`scripts/run_magnitude_shadow_ledger.py`) lud das
+Benchmark-Events-Artefakt täglich neu und gradete es unter dem neuen
+Datum — bei eingefrorenem Feed (Producer kaputt, dawidd6 liefert
+denselben letzten erfolgreichen Run) stimmt damit EINE eingefrorene
+Beobachtung einmal pro Tag in der Wochen-Mehrheit ab, und das weiter
+wachsende Ledger blendet zugleich den Commit-Back-Gap-Guard
+(MITTEL-5). Jetzt prüft `main()` vor dem Append, ob derselbe
+`events_hash` bereits unter einem früheren Datum gradet wurde: falls
+ja, kein Append, lauter stderr-Hinweis, neuer rc 5. Der Daily-Workflow
+mappt rc 5 auf `status=stale_feed` + `::warning` (Job bleibt grün);
+bleibt der Feed eingefroren, wächst das Ledger nicht mehr und der
+fail-loude Gap-Guard eskaliert nach seinem 7-Tage-Budget — die
+MITTEL-5-Schutzwirkung ist wiederhergestellt. Same-Day-Re-Runs mit
+gleichem Hash bleiben idempotente Merges (rc 0). **W7-3
+(Doppel-Stimme):** `eval_magnitude_shadow_weekly.weekly_evaluations`
+zählte `pass_days`/`fail_days` pro Ledger-*Zeile*; der Merge-Key des
+Ledgers enthält `events_hash`, sodass ein Same-Day-Re-Run gegen
+aktualisierte Events zwei Zeilen für denselben Kalendertag hinterlässt
+— ein Tag stimmt doppelt ab und kann ein Unentschieden (FAIL) in eine
+strikte Mehrheit (PASS) kippen. Jetzt werden die Wochen-Zeilen vor der
+Zählung pro Kalenderdatum kollabiert (späteste Listenposition gewinnt,
+derselbe Tie-Break wie `latest_rows_by_family` im Gate-Wiring). Neue
+Tests: rc-5-Guard (inkl. „build_report wird gar nicht erst
+gerechnet“), Idempotenz-Grenzfall, Ein-Tag-eine-Stimme,
+Latest-wins-Tie-Break, Workflow-Contract-Pin für `status=stale_feed`.
+Beide Pfade sind seit BOS+SWEEP ARMED (2026-06-11) live
+entscheidungstragend.
+
+### Fixed (2026-06-13) — Stat-Review W7-1: Magnitude-Shadow-Ledger liest fail-closed
+
+`scripts/run_magnitude_shadow_ledger.py::load_ledger` hat malformed
+JSONL-Zeilen bisher still übersprungen (`except JSONDecodeError:
+continue`) — fail-open in drei entscheidungstragenden Konsumenten
+zugleich: (a) die weekly k-of-n-Bewertung
+(`eval_magnitude_shadow_weekly`) verliert Stimmen, wodurch korrupte
+FAIL-Zeilen eine strikte Wochen-Mehrheit auf PASS kippen können und das
+Demotions-Fenster einer armed Family dauerhaft partial bleibt („partial
+window never demotes"); (b) das Gate-Wiring
+(`magnitude_snapshot_wiring.latest_rows_by_family`) nimmt die neueste
+*parsebare* Zeile, sodass eine korrupte heutige FAIL-Zeile still das
+gestrige PASS als Gate-Verdikt wiederbelebt; (c) der Daily-Runner hätte
+beim atomischen Rewrite die unparsebaren Historien-Zeilen endgültig
+verworfen. Jetzt wirft `load_ledger` bei malformed oder
+Nicht-Objekt-Zeilen `ValueError` mit `pfad:zeilennr`; alle vier
+CLI-Konsumenten (Daily-Runner, Weekly-Eval, Snapshot-Wiring,
+Step-Summary-Renderer) und `run_promotion_gate` (Magnitude-Feed) mappen
+das auf rc 1 (fail-loud, Workflow rot). Eine fehlende Datei bleibt
+Cold-Start (`[]`). Der Test
+`test_load_ledger_skips_malformed_lines`, der das fail-open-Verhalten
+als Soll pinnte, ist invertiert
+(`test_load_ledger_raises_on_malformed_line`); neue rc-1-Regressionstests
+für alle Konsumenten.
+### Changed (2026-06-13) — Audit E-1 RS-1..7: Streamlit Render-Layer Observability + Cooldown Fail-Safe
+
+`open_prep/streamlit_monitor.py` hatte mehrere fail-open Pfade mit
+`except ValueError` ohne Log-Signal sowie stille Broad-Except-Fallbacks,
+die die Diagnose bei Zeitformat-/Session-State-Problemen erschwerten.
+Im Audit-E-1 Bundle A wurden die Render-Layer-Guards observability-first
+nachgeschärft, ohne das UI fail-open Verhalten aufzugeben:
+
+- RS-1/2/3/4/6: `except ValueError` in Zeitformat-Helfern und
+  Soft-Refresh-Routen loggen jetzt strukturiert auf `DEBUG` mit dem
+  unparsebaren Rohwert (`updated_at`/`timestamp_utc`/`last_live_fetch_utc`).
+- RS-5: `_remaining_cooldown_seconds` hebt Cooldown bei kaputtem
+  Timestamp nicht mehr still auf (`return 0`), sondern setzt
+  konservativ `RATE_LIMIT_COOLDOWN_SECONDS` und loggt `WARNING`.
+- RS-7: bisher stille `except Exception`-Fallbacks bei
+  Streamlit-Secrets-/Session-Probe und OPRA-Import sind jetzt als
+  `DEBUG` sichtbar (keine Verhaltensänderung, nur Diagnosepfad).
+
+Begleitend wurden die Audit-Pin-Tests aktualisiert (Ledger-Drift):
+`tests/test_dynamic_import_and_todo_tripwires.py`,
+`tests/test_silent_error_swallow_pin.py`,
+`tests/test_broad_except_silent_budget.py`.
+
+Keine API-/Datenmodell-Änderung; primär Logging + defensiver
+Rate-Limit-Schutz.
+
+### Fixed (2026-06-12) — f2-promotion-gate: Rollback-Ping in falsches Issue (Label-only-Suche)
+
+Der Step „Open rollback Issue (§2.4 G2 ping)“ in
+`f2-promotion-gate-daily.yml` suchte ein bestehendes Issue nur über
+`--label cron-failure` — ohne Titel-Filter. Da mehrere Workflows
+(credential-health-check, workflow-freshness-monitor, …) dasselbe Label
+verwenden, traf die Suche das erste beste offene cron-failure-Issue:
+der Rollback-Ping vom 2026-06-12 (SPRT accept_h0, n=1664) landete als
+Kommentar im fachfremden credential-health-Issue #2732 statt in einem
+`[F2 rollback]`-Issue. Die Suche filtert jetzt zusätzlich mit dem
+GitHub-Suchfilter `"[F2 rollback]" in:title` (matcht die Phrase
+irgendwo im Titel; der Wert wird zur Laufzeit aus
+`scripts/f2_render_rollback_issue.py::TITLE_PREFIX` importiert); der
+Step-Kommentar (der fälschlich ein nicht existentes „f2-rollback label“
+behauptete) ist mitkorrigiert.
+
+### Security (2026-06-12) — tsx ^4.22.4 → esbuild 0.28.1 (Dependabot #5/#6)
+
+`tsx` von `^4.20.5` auf `^4.22.4` gehoben, wodurch das transitive
+`esbuild` von 0.27.4 auf 0.28.1 springt. Schließt Dependabot-Alert #6
+(high: fehlende Binary-Integritätsprüfung im Deno-Modul → RCE via
+`NPM_CONFIG_REGISTRY`) und #5 (low: arbitrary file read im Dev-Server
+unter Windows). Beide Alerts betreffen nur dev-Tooling (tsx-Runner für
+die `tv:*`-Skripte), kein Produktionscode. Verbleibende torch-Alerts
+(#3/#4, low, memory corruption in `torch.jit.script`) haben upstream
+keinen Patch (`fixed: none`, torch ≤ 2.12.0) — kein Handlungsspielraum,
+beobachten.
+
+### Added (2026-06-12) — Runbook: TradingView storage-state capture + Secret-Rotation
+
+Neues `docs/tradingview-storage-state-capture-runbook.md`: dokumentierte
+Prozedur für `npm run tv:storage-state`
+(`scripts/create_tradingview_storage_state.ts`) — Capture-Ablauf (headed
+Chromium, Login/MFA, Auth-Heuristik, `meta.authValidatedAt`),
+CLI-Flags/Env-Tabelle, Standard-Rotation via
+`gh secret set TV_STORAGE_STATE`, Verify über
+`credential-health-check.yml`,
+persistent-profile-Alternative (`tv:profile-login`), Security-Regeln
+(`tv:auth-security`-Guard, Session-Cookie-Hygiene) und der am 2026-06-12
+beobachtete Secret-Snapshot-Pitfall (GHA liest Secrets bei Job-Start —
+laufende library-refresh-Jobs preflighten mit dem alten Cookie).
+Querverweis aus §7.3 des operativen Publish-Runbooks ergänzt.
+
+### Fixed (2026-06-12) — Workflow-Audit MITTEL-11: newsapi bot-branch push fail-loud
+
+`continue-on-error: true` vom Step "Publish snapshot to rolling bot
+branch" in `smc-live-newsapi-refresh.yml` entfernt und der zugehörige
+`_ALLOWED`-Eintrag in
+`tests/test_workflow_continue_on_error_inventory.py` gestrichen.
+Begründung: der Step-Body ist seit F-V5-F1 bereits explizit fail-loud
+(`if git push … else … exit 1`), aber das Step-Attribut neutralisierte
+genau das — ein dauerhaft scheiternder Push (abgelaufener PAT,
+Ruleset-Änderung) blieb für immer grün und der
+`bot/live-news-snapshot`-Staleness-Floor verrottete still. Transiente
+Fehler heilen sich über den nächsten 5-Minuten-Tick selbst; persistente
+Fehler müssen rot werden.
+
+### Fixed (2026-06-12) — f2-promotion-gate: leere Dual-Arm-Bäume → status=skipped statt rc=1 (Cron-Health-Audit)
+
+Der `locate`-Step prüfte nur die **Existenz** der per-Datum-Verzeichnisse
+(`artifacts/ci/f2/{static_global_weights,contextual_weights}/<DATE>`).
+Der Dual-Arm-Step in `smc-measurement-benchmark-rolling.yml` läuft aber
+unter `if: always()` — an Tagen mit Producer-Artifact-Ausfall lädt er
+LEERE Arm-Bäume hoch (Datums-Verzeichnisse + Manifest mit null
+`pair_runs`). Der Orchestrator brach dann mit rc=1 („no benchmark pairs
+in control_dir=…") ab: ein CI-roter Run für eine by-design Upstream-Lücke,
+die der L-2-Skip-Pfad eigentlich absorbieren soll (beobachtet: 11/11
+Schedule-Runs rot im 14-Tage-Fenster bis 2026-06-12). Der `locate`-Step
+verlangt jetzt zusätzlich ein lesbares `benchmark_run_manifest.json` mit
+≥ 1 `pair_runs`-Eintrag in BEIDEN Armen, sonst `status=skipped` (mit dem
+bestehenden L-2-`::warning`). Pin:
+`tests/test_f2_promotion_gate_daily_workflow_contract.py::test_locate_step_requires_nonempty_pair_runs`.
+
+### Changed (2026-06-11) — C9/T7: Bauchgefühl-Detektoren → p-Wert-Tests (#298, struktureller Teil)
+
+Die Interim-Effektgrößen-Regeln der C9-Drift-Konsensus-Detektoren 3+4
+(Mean-Shift ≥ 0.3σ, Varianz-Ratio außerhalb [0.5, 2.0] — dokumentierte
+Bauchgefühl-Schwellen) sind durch Signifikanztests ersetzt, deren
+Feuerrate über ein Alpha-Level statt eines willkürlichen
+Effektgrößen-Cutoffs kontrolliert wird:
+
+- **`scripts/drift_alert.py`**: neu `welch_t_two_sample` (Detector 3 —
+  zweiseitiger Welch-t auf den Mittelwert) und
+  `brown_forsythe_two_sample` (Detector 4 — median-zentrierter Levene
+  auf die Skala; robust gegen Heavy Tails, anders als der plain
+  F-Ratio-Test). P-Werte über die regularisierte unvollständige
+  Beta-Funktion (pure stdlib, kein scipy; gegen scipy auf 1e-9
+  verifiziert). Alle drei p-Wert-Detektoren (KS/Welch-t/BF) teilen eine
+  Alpha-Leiter.
+- **Produktions-Default** in `compute_drift_report`: `p_red 0.01→0.005`,
+  `p_yellow 0.05→0.025` — Grid-Sieger auf BEIDEN synthetischen Bänken
+  (Gauss: TPR 0.80/FPR 0.03; gemischt t(4)+lognormal: TPR 0.90/FPR
+  0.07); der alte Default riss auf der gemischten Bank die
+  FPR<0.10-Akzeptanz (0.12), sobald Detektoren 3+4 p-Wert-Tests wurden.
+- **`scripts/c9_threshold_replay.py`**: `_episode_fires` nutzt dieselben
+  Tests; neues Provenance-Flag `CALIBRATION_SOURCE = "synthetic"`.
+- **Anker umgebaut** (`tests/test_c9_threshold_finalisation_anchor.py`):
+  feuert jetzt, wenn der C12-Trigger GREEN ist und `CALIBRATION_SOURCE`
+  noch `"synthetic"` lautet — der Live-Retune der Alpha-Leiter gegen
+  ≥ 90 Tage Live-Daten bleibt offen, Issue #298 bleibt dafür offen.
+- Doku: `docs/c9_threshold_tuning.md` mit Grid-Ergebnissen (2026-06-11)
+  und Live-Retune-Prozedur aktualisiert. Neue Tests in
+  `tests/test_drift_alert.py` (Welch-t/BF inkl. scipy-Referenzwerte,
+  Degenerate-Input-Guards, Heavy-Tail-Robustheit).
+### Fixed (2026-06-11) — Outcome-Ledger: pytest-Write-Guard gegen Testverschmutzung des kanonischen Artefakt-Baums
+
+Zwei Full-Pipeline-Tests in `tests/test_open_prep.py` riefen
+`generate_open_prep_result(..., now_utc=2026-02-23)` ohne Persistenz-Stub auf;
+`store_daily_outcomes` löste das relative `OUTCOMES_DIR` gegen das Repo-Root
+auf und überschrieb bei **jedem lokalen Testlauf** das getrackte Artefakt
+`artifacts/open_prep/outcomes/outcomes_2026-02-23.json`. Die Verschmutzung
+wurde zweimal nach main committet (#2687; erneut mit vix9d-Feldern nach
+#2688/#2692), und die Backfill-Automation (#1926) labelte den synthetischen
+NVDA-Datensatz als echten Trade — Kontamination der Hit-Rate-Statistik.
+
+- **`open_prep/outcomes.py`** (`store_daily_outcomes`) und
+  **`open_prep/outcome_backfill.py`** (`_save_outcome_file`): fail-loud
+  `guard_against_canonical_repo_write_under_pytest` (bestehendes Muster aus
+  `smc_core/_pytest_canonical_write_guard.py`, PR #33) — Schreibzugriffe auf
+  `artifacts/open_prep/outcomes/` unter pytest ⇒ `RuntimeError` statt
+  stiller Verschmutzung. Produktionspfad (kein `PYTEST_CURRENT_TEST`)
+  unverändert.
+- **`tests/test_open_prep.py`**: die beiden Verursacher-Tests stubben jetzt
+  `store_daily_outcomes` explizit.
+- **`artifacts/open_prep/outcomes/outcomes_2026-02-23.json` gelöscht**: von
+  Geburt an synthetisch (einzelne NVDA-Zeile mit `gap_pct=0.0`/`rvol=0.0`,
+  exakt die Mock-Fixture; erzeugt durch einen Testlauf, committet in
+  `6c0ced38`). Echte Outcome-Tage (2026-02-24 ff.) unangetastet.
+- Neue Tests: `tests/test_outcomes_pytest_write_guard.py` (Guard blockt
+  kanonischen Pfad, erlaubt `tmp_path`-Redirect; Tripwire gegen
+  Wiederauftauchen des synthetischen Artefakts).
+- Ledger-Rebaseline (Zeilenverschiebung durch Import + Guard-Aufrufe):
+  `tests/test_random_tempfile_ledger_pin.py`,
+  `tests/test_os_unlink_remove_ledger.py`,
+  `tests/test_mutable_defaults_and_loads_pins.py`.
+
+### Fixed (2026-06-11) — Rolling benchmark: manifest workbook provenance (#2678 fallout)
+
+- **`scripts/export_smc_structure_artifacts_from_workbook.py`**: `--workbook`
+  no longer defaults to the hardcoded `DEFAULT_WORKBOOK` path. In CI the
+  bundle workbook `.xlsx` does not exist (per-TF data comes from the parquet
+  bundle), so the exporter stamped a non-existent path into
+  `resolved_inputs.workbook_path` and the benchmark consumer's provenance
+  check rejected every manifest with `NONCANONICAL_MANIFEST_WORKBOOK_PATH`
+  (run 2026-06-11 16:49, first scheduled run after #2678). This killed the
+  rolling-benchmark lane and starved the F2 promotion gate
+  ("no benchmark pairs in control_dir"). The CLI now defaults to `None` so
+  the library applies `artifact_resolution.resolve_production_workbook_path()`
+  — the SAME canonical-first resolution the consumer check uses.
+- Tests: CLI default-None pin, forward-None-when-omitted, explicit-workbook
+  passthrough (`tests/test_per_tf_structure_artifact_wiring.py`).
+
+### Fixed (2026-06-11) — §5-Kostenmodell: Review-Findings aus #2697
+
+- **Fee-only-Legs zählen in den Round-Turn-Cost**
+  (`governance/execution_costs.py`): Trailing-Exits ohne Limit-Referenz
+  wurden komplett aus `per_side` ausgeschlossen — das unterschätzte die
+  Round-Turn-Kosten für jeden Trade mit Trail-Exit systematisch (und
+  widersprach dem Modul-Docstring "contribute fee only"). Jetzt gehen
+  sie mit ihrer Commission (Slippage unmessbar ⇒ 0) in die
+  Per-Side-Samples und damit in Punktschätzer + CI ein.
+- **Gate fail-closed bei kaputtem measurable-Report**
+  (`scripts/run_epnl_after_cost_gate.py`): ein Report mit
+  `measurable: true` aber fehlendem/nicht-koerzierbarem
+  `conservative_cost_bps` führte zu einem unbehandelten Crash statt
+  Exit 1 mit klarer Meldung.
+- Test-Fixtures: synthetische `order_id`/`perm_id` über `zlib.crc32`
+  statt `hash()` (PYTHONHASHSEED-unabhängig, keine Modulus-Kollisionen).
+
+### Fixed (2026-06-11) — Phase-B-Readiness-Workflow: Drift-Artifact-Download (C8 Phase A → B)
+
+`phase-b-promotion-readiness.yml` konnte strukturell nie erfolgreich laufen:
+Der Gate-Glob `artifacts/drift/drift_report_*.json` zeigte auf den frischen
+Checkout, aber die Drift-Artefakte mit dem Gate-Feld
+`slippage_ks_reference_type` werden von `compute_live_drift`
+(`c13-daily-cron.yml` Step 4) ausschließlich als **Run-Artefakt**
+(`c13-daily-<DATE>`, Pfad `cache/live/drift_<DATE>.json`) hochgeladen und nie
+ins Repo committet — jeder Dispatch wäre mit Exit 64 (`no files matched`)
+geendet. Deshalb hatte der Workflow seit Erstellung (Deep-Review 2026-04-27)
+null Läufe. (Das `drift-report`-Artefakt des drift-watchdog ist ein anderer
+Report-Typ ohne das Gate-Feld — empirisch verifiziert; das Gate darf nicht
+darauf zeigen.)
+
+- **`.github/workflows/phase-b-promotion-readiness.yml`**: neuer Step
+  `Fetch latest compute_live_drift artifact` scannt die letzten 10
+  erfolgreichen `c13-daily-cron`-Runs (Step 4 soft-skippt an Wochenenden
+  mangels Walk-Forward-Inputs) und kopiert das jüngste `drift_<DATE>.json`
+  als `artifacts/drift/drift_report_<DATE>.json` in den Checkout (Glob-Pin
+  des Contract-Tests bleibt gültig). Kein Treffer → Exit 2
+  (`EXIT_NOT_READY`). Skip, wenn der Caller-Glob bereits Dateien im Checkout
+  matcht (workflow_call-Pfad). `permissions` um `actions: read` erweitert
+  (weiterhin rein lesend).
+- **`tests/test_phase_b_promotion_readiness_workflow_contract.py`**:
+  Permissions-Pin auf `{contents: read, actions: read}` aktualisiert.
+
+### Added (2026-06-11) — CI: ruff als obligatorisches Lint-Gate in smc-fast-pr-gates
+
+`ruff check .` ist ab sofort ein Pflicht-Schritt im `fast-gates`-Job (blocks
+merge). Konfiguration lebt in `pyproject.toml [tool.ruff]`; das Gate läuft
+direkt nach dem PYTHONUNBUFFERED-Lint und schlägt bei jedem Code-Fehler fail.
+
+- Alle bestehenden Verletzungen (359 auto-fixbar + 85 manuell) bereinigt:
+  - `ruff check --fix` entfernte 278 auto-fixbare (unsortierte Imports, I001;
+    obsolete noqa-Direktiven, RUF100; trailing whitespace, W292; u.a.).
+  - Manuelle Korrekturen: SIM103/SIM115/SIM117/SIM118/RUF034/B007/F841/
+    RUF059/RUF005/RUF007/E741/E731/F401/UP007 in Tests, Scripts, Governance.
+  - Neue `per-file-ignores` für plan-gating Sonderfälle: E402 in open_prep/*,
+    E701/E702/E741/B007 in scripts/c10b_* (Analyse-Skripte mit kompaktem Stil),
+    S108 nur gezielt für c10b/c10c-Research-Skripte + Provenance-Scanner
+    (dokumentierte lokale /tmp-Korpora bzw. Regex-Pattern); S603/S607 nur für
+    eine explizite, grandfathered Dateiliste (neue Scripts bekommen volles
+    Subprocess-Linting),
+    F821 in streamlit_terminal.py (Forward-Referenz, Runtime korrekt), UP047 in
+    skipp_config/trading_thresholds.py.
+  - `ruff==0.15.16` zu `requirements.txt` hinzugefügt; `_DEP_LINE_BUDGET`
+    26 → 27.
+
+### Fixed (2026-06-11) — ADR-0023: Weekly-k-of-n bewertete Tageszeilen statt ISO-Wochen
+
+Der Stage-1-Weekly-Evaluator (`scripts/eval_magnitude_shadow_weekly.py`)
+nahm als Fenster die **letzten n Tageszeilen** (`rows[-n:]`) — präregistriert
+ist aber „k of n consecutive **weekly** evaluations" (Handover §3/§4.4).
+Tageszeilen sind Pseudo-Replikate (rollierender Events-Export, hoch
+autokorreliert): Stage-2-Eligibility wäre nach 3 PASS-**Tagen** erreichbar
+gewesen, Auto-Demotion der armierten Familien (BOS/SWEEP) schon nach 4
+dünnen/verrauschten **Tagen** — beides um Wochen zu früh.
+
+- **ISO-Wochen-Bucketing**: Tageszeilen werden per ISO-Woche gebucketet
+  (`weekly_evaluations()`); Wochen-Status = strikte Mehrheit der messbaren
+  Tageszeilen (Gleichstand/Fail-Mehrheit ⇒ FAIL; keine messbaren ⇒
+  INCONCLUSIVE). Kalenderwochen ohne Daten belegen einen Fenster-Slot als
+  INCONCLUSIVE (Outage verzögert, beschleunigt nie).
+- **Globaler Anker**: Fenster aller Familien endet an der ledger-weiten
+  jüngsten Woche — eine stale Familie wird mit INCONCLUSIVE gepolstert
+  statt ihr Fenster zu verschieben (fail-safe).
+- **`window_size` = messbare Wochen**: Cold-Start-Ledger mit einer Woche
+  Tageszeilen ⇒ `window_size == 1` ⇒ weder Stage-2-Arming noch
+  Auto-Demotion möglich (Demotion verlangt weiterhin das volle n-Wochen-
+  Fenster). Report enthält jetzt `weeks` (pro Familie) + `anchor_week`.
+- CLI, Exit-Codes (0/2/3/4/1), `stage2_status_line()`-Format und der
+  Weekly-Workflow bleiben unverändert; Red-Flag-Detektor bleibt bewusst
+  tagesbasiert (Artefakt-Signatur). Step-Summary-Fußnote
+  (`render_shadow_step_summary.py`) stellt klar: Tabelle = Tages-Preview,
+  maßgeblich ist der ISO-Wochen-Evaluator.
+- Tests: Fixtures auf Wochenabstand umgestellt; neue Regressionstests für
+  Same-Week-Collapse (der Bug), Tie⇒FAIL, Gap-Wochen-Padding, globalen
+  Anker, Cold-Start-Demotion-Sperre, ISO-Label-Format.
+
+### Changed (2026-06-11) — PG-Kalibrierung: explizites RECALIBRATION_REQUIRED-Signal (#2693 Follow-up)
+
+`#2693` hat nur die Eligibility-Schwelle verschoben (20→30), nicht das
+Problem gelöst. Ein ECE-Breach **bei n ≥ Floor** ist per Konstruktion
+kein Small-Sample-Rauschen mehr (das ist das supprimierte n<Floor-Band) —
+er zeigt ein echtes Kalibrierungsproblem an, dessen richtige Antwort
+Recalibration ist, nicht der nächste Floor-Bump:
+
+- **`smc_integration/release_policy.py`**: die
+  `MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD`-Degradation trägt jetzt
+  `recalibration_required: true` + `recommended_action: "recalibrate"`,
+  und das `detail` nennt n_events, den Floor und das
+  RECALIBRATION_REQUIRED-Verdikt explizit. Additive Felder auf dem
+  bestehenden Code — Governance unverändert (kein neuer Degradation-Code,
+  HARD_BLOCKING bleibt).
+- Damit ist der Fall „echtes Kalibrierungsproblem bei n≥30" im
+  Gate-Report maschinell vom (supprimierten) Small-Sample-Fall
+  unterscheidbar.
+- Tests: Marker-Felder bei n=30 mit PG-Inzidenzwert (0.331385),
+  Scoping-Test (Brier-Degradation trägt den Marker NICHT).
+- Ledger-Rebaseline: S603-noqa-Site `release_policy.py` 1107→1119
+  (`pin_registry.toml`, `tests/test_subprocess_spawn_sites_ledger.py`).
+
+### Added (2026-06-11) — ADR-0023 Stage-1: Ledger-Verdicts → Promotion-Gate-Snapshot (Handover §5 Punkt 2)
+
+Der Stage-1-Shadow-Runner lief täglich, aber seine Verdicts erreichten das
+Promotion-Gate nie — `magnitude_resolution_pass`/`magnitude_auc` blieben
+`None`, der `ok_magnitude`-Zweig war dauerhaft dormant (Stage-1 hätte ins
+Leere gemessen).
+
+- **`scripts/build_promotion_gate_bundle.py`**: neues Flag
+  `--magnitude-ledger` (Default: das Shadow-Ledger
+  `artifacts/governance/magnitude_resolution_shadow.jsonl`). Die jüngste
+  Ledger-Zeile pro **Kandidaten**-Familie (BOS/SWEEP via
+  `magnitude_snapshot_wiring.gate_snapshots`; FVG/OB-Controls erreichen das
+  Gate nie) wird in die Bundle-Felder `magnitude_resolution_pass` /
+  `magnitude_auc` + Provenance (`magnitude_ledger`, `magnitude_ledger_date`,
+  `magnitude_status`) gefaltet. Fail-soft: fehlendes/leeres Ledger ⇒ Felder
+  bleiben absent ⇒ Gate dormant (exakt das Vorverhalten).
+- **`.github/workflows/promotion-gate-daily.yml`**: Bundle-Step übergibt
+  `--magnitude-ledger` explizit; das Ledger liegt per Commit-back des
+  13:30-UTC-Shadow-Runs bereits im 14:00-UTC-Checkout.
+- Gate bleibt **lax** (Stage 1): Werte werden in den Decision-Metrics
+  aufgezeichnet, nicht enforced. Handover §4.1/§5.2-Status aktualisiert.
+- Tests: Bundle-Faltung (latest-wins, Controls ausgeschlossen,
+  INCONCLUSIVE→unmeasured, fehlendes Ledger dormant), Full-Chain
+  Ledger→Bundle→Gate→Decision-Metrics
+  (`tests/test_promotion_gate_producer_e2e.py`), Workflow-Contract-Pin
+  (`tests/test_promotion_gate_daily_workflow_contract.py`).
+
+### Added (2026-06-11) — ADR-0023 §5: Empirische Execution-Cost-Kalibrierung aus C8-Paper-Fills
+
+Der §5-E[PnL]-after-cost-Check rechnete bislang mit dem flachen
+pre-registrierten Haircut (`DEFAULT_COST_BPS = 5.0`). Für die
+Stage-3-Aktivierung braucht es die **empirische** Kostenbasis aus den
+C8-Phase-A-Paper-Sessions (IBKR, `run_ibkr_open_execution.py`).
+
+- **`governance/execution_costs.py` (neu, pure stdlib)**: Kostenmodell aus
+  Session-Fills — `commission_bps()` (IBKR Fixed: max($1, $0.005/Share),
+  Cap 1 % Notional), `slippage_bps()` (vorzeichenbehaftet ggü. Limit;
+  Price-Improvement zählt negativ), `extract_leg_costs()` (Order-Ref-Gruppierung,
+  VWAP über Partial-Fills, Dedupe über Snapshots+Final; Trailing-Legs
+  fee-only) und `calibrate_costs()` → `CostCalibration` mit Bootstrap-CI
+  (Seed 230022, B=1000) und `conservative_cost_bps = CI-high` (Round-Turn).
+  Measurability-Floors: ≥ 20 Cost-Samples UND Entry-Fill-Rate ≥ 0.5,
+  sonst `measurable: false` mit `fail_reasons`.
+- **`scripts/calibrate_execution_costs.py` (neu)**: CLI — Session-JSONs rein,
+  Kalibrierungs-Report raus (atomic write). Exit 0 = measurable,
+  2 = unmeasurable (Report wird trotzdem geschrieben), 1 = Usage-Fehler.
+- **`scripts/run_epnl_after_cost_gate.py`**: neues Flag
+  `--cost-calibration <report.json>` — überschreibt `--cost-bps` mit dem
+  konservativen empirischen Round-Turn-Cost. **Fail-closed**: eine nicht
+  messbare Kalibrierung ist Exit 1, kein stilles Fallback auf den flachen
+  Default. Report trägt `cost_source` (`empirical_calibration` |
+  `flat_default`) und bettet die Kalibrierung unter `cost_calibration` ein.
+- Tests: `tests/test_execution_costs.py` (Commission-Regime-Grenzen,
+  Slippage-Vorzeichen BOT/SLD, VWAP/Partial-Fills, Dedupe, Fill-Rate,
+  Measurability-Floors, Seed-Determinismus, CLI-Exit-Codes,
+  Gate-Wiring inkl. Fail-closed).
+
+### Changed (2026-06-11) — ECE-Eligibility-Floor 20→30 (#2693)
+
+- **`min_events_for_calibrated_thresholds: 20 → 30`**
+  (`smc_integration/release_policy.py`): margin above the Platt-scaler
+  fitting minimum (`_MIN_PLATT_EVENTS=20`). At exactly n=20 ECE sampling
+  noise (~±0.15) dwarfs the 0.30 ceiling — incident 2026-06-10: PG hit
+  n=20 with calibrated_ece 0.331/0.381 and hard-failed three consecutive
+  smc-library-refresh runs (27297623388, 27299755086, 27309262730).
+  Governance unchanged: `MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD`
+  stays HARD_BLOCKING; only the eligibility floor moves.
+- **Suppression now observable**: the measurement-shadow baseline payload
+  carries `calibrated_thresholds_eligible` + `calibrated_thresholds_floor`
+  so gate reports show why a calibrated-threshold breach below the floor
+  did not fire (review finding on #2693).
+- Tests: incident regression at n=20 (PG values), boundary pair n=29
+  (suppress) / n=30 (fire), eligibility-flag asserts.
+
+### Fixed (2026-06-11) — FI pipeline: component persistence + sample dedup (c10b follow-up)
+
+Blast-radius remediation after the FDR-gate wiring fix: the FI
+pipeline's inputs were structurally degenerate, independent of the gate.
+
+- **Component persistence** (`open_prep/outcomes.py`):
+  `prepare_outcome_snapshot()` now flattens the 14 weighted
+  `score_breakdown` components (keys from `FEATURE_TO_WEIGHT_KEY`) into
+  every outcome record. Previously `outcomes_<date>.json` never carried
+  them, so `backfill_feature_importance()` defaulted every component to
+  `0.0` — all FI reports since 2026-04-30 were computed on all-zero
+  feature vectors (c10b side-finding). Absent breakdown ⇒ `None`, not
+  `0.0`, so absence stays distinguishable from a genuine zero.
+- **Era-gate** (`open_prep/outcome_backfill.py`):
+  `backfill_feature_importance()` skips labeled records lacking the full
+  component schema (legacy pre-fix outcome files) instead of laundering
+  the missing keys into all-zero samples; skip count is logged.
+- **(symbol, date) dedup** (`open_prep/outcomes.py`):
+  `compute_feature_importance()` deduplicates samples across the
+  overlapping daily fi_samples files (the backfill re-emits its full
+  lookback window each day, inflating n ~3× and the Welch t-stats
+  feeding the BH-FDR gate by ~√3). Newest file wins; report gains
+  `duplicate_samples_dropped`.
+- **Historical artifacts annotated, not recomputed**: README notes in
+  `artifacts/open_prep/feature_importance/` and
+  `artifacts/open_prep/outcomes/feature_importance/` mark all reports ≤
+  2026-06-09 as vacuous (zero-variance inputs; recommendations are not
+  evidence). No production weight adjustment ever consumed them
+  (verified: no candidate-weight artifacts, `DEFAULT_WEIGHTS`
+  unchanged); historical component values were never persisted, so
+  recomputation is impossible — clean samples accumulate forward.
+- Tests: `tests/test_fi_component_persistence.py` (new; E2E
+  snapshot→backfill→report) + fixture alignment in
+  `tests/test_outcome_backfill.py`/`tests/test_feature_importance_report.py`.
+
+### Fixed (2026-06-11) — FDR-gate wiring + GAP_FADE zero-gap direction (Copilot findings on #2687)
+
+- **BH-FDR gate was defined but never invoked** (`open_prep/outcomes.py`):
+  `compute_feature_importance()` never called `_benjamini_hochberg()`, so
+  live FI reports lacked the `fdr_significant` key and the
+  `compute_weight_adjustments()` gate (`feat.get("fdr_significant",
+  False)`) silently neutralized ALL features — weight auto-tuning was
+  dead since #2687. The gate is now wired: per-feature p-values are
+  collected, BH-adjusted at q=0.05, and stamped onto every feature entry.
+  The "strong predictor" recommendation additionally requires
+  FDR significance.
+- **GAP_FADE direction for zero/missing gap**: `infer_trade_direction()`
+  returned "short" for `gap_pct == 0` (and missing gap defaulting to 0),
+  contradicting its documented long default. `>=` → `>`.
+- Tests: `tests/test_eval_findings_fixes.py` — 7 new regression tests
+  incl. E2E noise-vs-signal FDR gating and a live-report
+  weight-adjustment movement check.
+
+### Added (2026-06-11) — VIX9D term-structure observe-only feature (eval D5)
+
+- **`vix9d_vix_ratio`** (VIX9D ÷ VIX): > 1 ⇒ inverted short-term vol
+  term structure ⇒ the market prices an imminent event risk. Fetched via
+  the existing FMP `get_index_quote("^VIX9D")` endpoint (verified live:
+  FMP serves all CBOE vol indices), stamped market-wide onto every ranked
+  v2 row and recorded in outcome snapshots. Appended to
+  `FEATURE_KEYS`/`PASS_THROUGH_FEATURE_KEYS` — observe-only, NOT wired
+  into regime classification or scoring until FI evidence exists.
+  Fail-closed: ratio is `None` when either quote is missing or VIX ≤ 0.
+- Tests: `tests/test_vix9d_term_structure.py` (new).
+
+### Changed (2026-06-11) — Eval-findings remediation (B1/B2/B3/B5/B7/B8/D7, C4)
+
+Implementation of the actionable findings from the open-prep scoring/
+feature-importance evaluation. All label/feature additions are
+observe-only; scoring weights are unchanged:
+
+- **B1 — direction-aware labels** (`open_prep/outcome_backfill.py`,
+  `open_prep/outcomes.py`): new `infer_trade_direction()` (GAP_FADE fades
+  the gap sign; all other playbooks are continuation) and new outcome
+  fields `pnl_30m_pct_signed` + `profitable_30m_directional`. Legacy
+  long-only `pnl_30m_pct`/`profitable_30m` unchanged for continuity.
+- **B2 — triple-barrier label**: `compute_pnl_from_bars()` now also walks
+  the 30-min window bar-by-bar against ATR-scaled barriers
+  (target = `atr_pct`, stop = `0.5×atr_pct`; defaults 1.0%/0.5% when ATR
+  is missing) producing `label_tb` ∈ {target, stop, timeout_win,
+  timeout_loss} + `profitable_tb`; stop is checked first within a bar
+  (conservative tie-break).
+- **B3 — FI hardening** (`open_prep/outcomes.py`): `mean_separation` now
+  uses the POOLED std (Cohen's d) instead of σ_win-only; per-feature
+  Welch t-test `p_value` (normal approximation); Benjamini–Hochberg FDR
+  gate at q=0.05 → `fdr_significant` flag; recommendations and
+  `compute_weight_adjustments()` only act on FDR-significant features
+  (non-significant ⇒ neutral importance 0.5); `_MIN_TUNING_SAMPLES`
+  raised 30 → 200.
+- **B5/D3 — gap×playbook report**: new `compute_gap_playbook_report()`
+  aggregating hit-rate/avg-PnL per `gap_bucket:playbook` cell (prefers
+  directional labels, falls back to legacy).
+- **B7 — EMA seed** (`open_prep/technical_analysis.py`): `_ema()` now
+  seeds with the SMA of the first `span` values (TA-Lib convention)
+  instead of `values[0]`, removing first-bar bias on 200-bar EMAs.
+- **B8 — macro surprise scale** (`open_prep/macro.py`): diagnostic
+  `surprise` divisor floor `max(|consensus|, 1.0)` → `max(|consensus|,
+  1e-6)` with a ±10 cap; low-consensus series (CPI MoM ~0.2) are no
+  longer 5× understated. `contribution` (sign-only) unchanged.
+- **D7 — real ADX/BB-width**: new `compute_adx_from_bars()` (Wilder, 14)
+  and `compute_bb_width_pct_from_bars()` (20, 2σ) from daily bars; the
+  regime-detection enrichment in `open_prep/run_open_prep.py` prefers
+  them (`regime_source="daily_bars"`) and falls back to the previous
+  ATR-proxy heuristics (`"atr_proxy"`).
+- **C4 — observe-only features**: `gap_range_pos` (price position vs.
+  prior-day range via new `compute_gap_range_position()`) and
+  `eps_surprise_pct` recorded on outcome snapshots and appended to
+  `FEATURE_KEYS`/`PASS_THROUGH_FEATURE_KEYS` (unweighted until FI
+  evidence exists).
+- **Deferred (data-gated)**: D6 Platt calibration (needs ~200 labels),
+  D8 meta-labeling (~500 labels), VIX9D term structure + short interest
+  (no data source in repo), RSI/breakout threshold changes ("measure
+  first").
+- Tests: `tests/test_eval_findings_fixes.py` (new) +
+  `tests/test_scorer_tuning.py` FDR-gating coverage.
+
+### Added (2026-06-11) — Trend-state features (observe-only) + ZLEMA MA type
+
+Outcome of the ZLEMA/trend-filter analysis: daily trend-state context is
+recorded for feature-importance evidence BEFORE any scoring decision
+("measure first, wire later"):
+
+- **`compute_trend_state_features()`** in `open_prep/technical_analysis.py`:
+  three observe-only features from daily bars — `trend_alignment`
+  (EMA20>50>200 ordinal +1/0/−1), `dist_to_ema20_pct` (pullback depth vs.
+  EMA20, uses live price when available), `ema50_slope_pct` (5-bar EMA50
+  slope). Fail-closed: each feature is `None` below its bar minimum
+  (20/55/200).
+- **Pipeline**: stamped onto ranked v2 rows in the breakout-enrichment loop
+  (`open_prep/run_open_prep.py`); daily-bars lookback widened 120→320
+  calendar days (≈220 trading days) so the EMA-200 is computable.
+  Breakout/consolidation detection slice their own shorter windows and are
+  unaffected.
+- **Outcome records**: `prepare_outcome_snapshot()` and `FEATURE_KEYS`
+  carry the three keys; new `PASS_THROUGH_FEATURE_KEYS` SSOT
+  (`open_prep/outcomes.py`) marks them — together with
+  `zone_priority_score` — as intentionally unweighted (absent from
+  `FEATURE_TO_WEIGHT_KEY` and scorer `DEFAULT_WEIGHTS`; enforced by
+  `tests/test_scorer_tuning.py` + `tests/test_trend_state_features.py`).
+  Promotion to a weighted component requires FI evidence from ≥ ~200
+  labeled outcomes first.
+- **Pine**: `ZLEMA (Zero Lag Exponential)` added to `SmcLibMovingAverage`
+  (`SMC++/smc_core_types.pine`) and `smc_lib_get_ma`/`smc_lib_zlema`
+  (`SMC++/smc_utils.pine`) so SMC++ studies can select it; no default or
+  strategy change.
+
+### Added (2026-06-11) — Per-TF structure artifacts in the rolling benchmark (#2667)
+
+Un-voids Plan 2.8 Phase-E2 (see ADR "2026-06-10 - Plan 2.8 Phase-E2
+verdicts void — cross-TF structure aliasing" in docs/DECISIONS.md):
+
+- **Workflow**: `smc-measurement-benchmark-rolling.yml` gained an
+  "Export per-TF structure artifacts" step that runs
+  `scripts/export_smc_structure_artifacts_from_workbook.py` for every
+  benchmark timeframe (default `5m,15m,1H,4H`) against the restored
+  Databento export bundle BEFORE the benchmark, writing
+  `reports/smc_structure_artifacts/manifest_<tf>.json` +
+  `<SYMBOL>_<tf>.structure.json` — the provider resolves these ahead
+  of the legacy single-file 1D artifact, so each chart TF scores its
+  own structural events. The step also becomes the single source of
+  truth for the validated SYMBOLS/TIMEFRAMES (published via
+  `GITHUB_ENV`; the benchmark step consumes them instead of
+  re-deriving its own copy).
+- **Exporter CLI**: `--export-bundle-root` flag on
+  `scripts/export_smc_structure_artifacts_from_workbook.py` — without
+  it the always-explicit `--workbook` suppressed bundle
+  auto-discovery, making intraday timeframes impossible to export
+  from CI (`WorkbookFallbackTimeframeError` per symbol).
+- **Disclosure**: `build_measurement_evidence` now propagates
+  contract-level warnings (notably `legacy_tf_fallback`) into the
+  evidence warning stream; `benchmark_run_manifest.json` carries a
+  `structure_tf_integrity` block listing every pair served via the
+  legacy cross-TF fallback.
+- **Strict mode**: new `--strict-structure-tf` flag on
+  `scripts/run_smc_measurement_benchmark.py` fails the run (exit 1)
+  when any pair was served aliased structure. Default is warn-only so
+  the rolling lane cannot hard-fail while per-TF artifacts roll out;
+  FOLLOW-UP: flip the default (pass the flag in the rolling workflow)
+  once the rollup reports `measured` / `insufficient_data` instead of
+  `degenerate_aliased_input` and the benchmark logs are free of
+  `legacy_tf_fallback` warnings.
+- Pins: tests/test_per_tf_structure_artifact_wiring.py.
+
+### Fixed (2026-06-11) — Outcome backfill: defer unpublished Databento windows
+
+The late-evening scheduled `open-prep-outcome-backfill` run (GH run
+27313823758) exited 2 because Databento's historical API had not yet
+published the day's 1-minute bars (HTTP 422
+`data_start_after_available_end`) and all pending symbols were counted
+as `failed`. That condition is transient — the next scheduled run picks
+the date up naturally — so it is now classified as **deferred** instead
+of failed:
+
+- `open_prep/outcome_backfill.py`: `_fetch_bars` detects the
+  `data_start_after_available_end` error substring and returns a
+  `DATA_NOT_YET_PUBLISHED` sentinel; `backfill_outcomes` counts the
+  affected pending symbols in a new `deferred` summary field and leaves
+  the records unresolved for retry; `main()` exits 0 for deferred-only
+  runs (exit 2 is preserved for genuine zero-progress failures), and
+  deferrals count as progress for the `--require-progress` tripwire.
+- Run log (`artifacts/open_prep/outcome_backfill/*.json`) gains a
+  `deferred` count and a `deferred` status (with `failed` taking
+  precedence when both occur).
+- Tests: sentinel detection, defer-not-fail classification, exit-code
+  semantics, run-log status — `tests/test_outcome_backfill.py`,
+  `tests/test_outcome_backfill_automation.py`.
+
+### Fixed (2026-06-10) — Stat-review second pass S1–S5 (#2674)
+
+Implements the senior-quant stat-review second-pass findings:
+
+- **S1 — `watchdog_status_not_red` promotion criterion**: the watchdog
+  stack (green/yellow/red via 4-detector consensus in
+  `scripts/drift_alert.py`) and the incubation drift stack
+  (pass/acceptable/… via drift_score) were unreconciled — a variant
+  with stable mean PnL but blown-out tails could machine-pass Phase-A
+  while the watchdog stood RED. New `extra` criterion in
+  PHASE_A/B_CRITERIA + fail-closed checker in
+  `scripts/evaluate_phase_criteria.py` reading
+  `watchdog_report["aggregate_severity"]` (missing report ⇒ not
+  passed). Runbook §Phase-A/§Phase-B updated.
+- **S2 — TF-rollup power honesty**: `scripts/plan_2_8_tf_family_rollup.py`
+  Phase-E2 comparisons now carry a Wald 95 % CI on Δhit-rate, a
+  two-proportion z-test p-value and the 80 %-power MDE; comparisons
+  whose observed |Δ| is below the MDE are labelled
+  `measured_underpowered` instead of `measured`.
+- **S3 — horizon-truncation refusal**: `governance/family_returns.py`
+  immediate-mode windows shorter than the family outcome horizon are
+  refused (`None`) instead of silently clamping the exit to the last
+  available bar (which mislabelled 3-bar returns as 8-bar BOS
+  outcomes); degenerate embargo intervals (`embargo_bars > 0` with a
+  non-positive event-bar interval) likewise refuse instead of
+  embargoing nothing.
+- **S4 — trade-clock Sharpe**: `scripts/track_record_gate.py` accepts
+  `trades_per_year` and rescales the Sharpe CI to the observed trade
+  frequency instead of unconditionally annualising per-trade returns
+  at `freq=252` (daily-bar assumption); the gate detail string now
+  discloses which clock was used. `scripts/build_track_record_gate.py`
+  forwards `trades_per_year` from the returns payload when present.
+- **S5 — synthetic slippage reference honesty**:
+  `scripts/compute_live_drift.py` placeholder defaults
+  (mean 0.005 / std 0.003) are now explicitly documented as uncited
+  placeholders, and the Phase-A `slippage_ks_pvalue_gt_0.05` checker
+  scores as not machine-evaluable (`passed: null`) when the KS
+  reference is `synthetic_normal`.
+
+### Added (2026-06-10) — Stat-review F1/F6/F10 + runbook/ADR honesty (F2, F5, F11, F13)
+
+Implements the 2026-06-10 promotion-chain statistical-validity review
+findings that do not collide with in-flight PRs:
+
+- **F1/F6 — `scripts/evaluate_phase_criteria.py` (new)**: the
+  `PhasePassCriteria` dataclasses in `run_smc_live_incubation.py` were
+  evaluated by no code anywhere; every `extra` criterion string was
+  unenforced prose. The new fail-closed evaluator machine-checks every
+  numeric field and every `extra` string (via the `_EXTRA_CHECKERS`
+  registry) against the drift artifact, incubation audit JSONL and
+  watchdog report. Criteria it cannot verify count as **not passed**;
+  the Phase-C Scale-Phase/Kelly marker never machine-passes by design,
+  making `live_full` structurally unreachable via the evaluator. A
+  structural test asserts every `extra` string has a registered checker
+  — an unmapped string is now a test failure, not a silent gate hole.
+  `run_smc_live_incubation --phase live_small/live_full` now requires
+  `--phase-eval-report` with a fresh (≤ 7 days) **passing** evaluation
+  of the prior phase. Promotion remains manual sign-off only.
+- **F10 — watchdog per-setup honesty**: `run_drift_watchdog` pooled all
+  setups into one `pnl_per_trade` metric against a pooled baseline,
+  which can mask per-setup drift (Simpson-style). `extract_metric_pairs`
+  now emits `pnl_per_trade[setup=<name>]` metrics when live outcomes
+  carry a `setup_type` attribution and the baseline has the matching
+  `per_setup` block; reports without attribution disclose the pooling
+  limitation explicitly (`per_setup_live_attribution`, `pooling_note`).
+- **F2/F5/F11 — C8 runbook**: Phase-B's `window_complete` criterion now
+  names which watchdog report it refers to (the incubation outcome
+  stream, not the default open_prep directory); Phase-A carries a
+  statistical-power caveat (at n = 20 the drift_score is noise-dominated
+  — ~43 % false-pass / ~53 % true-pass at the 0.70 line); a new
+  sequential-looks section requires sign-off to read the verdict history
+  over the whole phase, not a cherry-picked day.
+- **F13 — ADR-0008 §12/§13**: `compute_live_drift._VERDICT_BANDS`
+  (0.85/0.65/0.40) and the phase drift-score lines (0.70 Phase-A,
+  0.50 Phase-B) are now documented as operator-judgment (**O**)
+  thresholds with the standard 100-promotions/6-month recalibration
+  cadence.
+
+### Added (2026-06-10) — Stat-review wave 2: cadence disclosure, E2 p-value, rollup malformed-row honesty, KS twin alignment (F7, F8, F9, F12)
+
+Second wave of the 2026-06-10 promotion-chain statistical-validity
+review (first wave: F1/F2/F5/F6/F10/F11/F13; F3 = PR #2671, F4 =
+PR #2666):
+
+- **F7 — `scripts/compute_live_drift.py`**: drift schema **1.2.0 →
+  1.3.0** (additive; `DRIFT_SCHEMA_MIN_COMPATIBLE` stays 1.0.0). The
+  √252 Sharpe annualisation is applied to *per-trade* returns on both
+  sides, so `drift_score` moves when live cadence differs from backtest
+  cadence even at identical per-trade edge — likely in incubation
+  (fewer symbols, earnings filter, size caps). New per-variant fields
+  `trades_per_year_live` (from the trade count over the live window)
+  and `trades_per_year_backtest` (from the reference's
+  `trades_per_year`, or `n_trades`+`window_days`; `null` when absent)
+  disclose the confound to the operator.
+- **F8 — `scripts/plan_2_8_tf_family_rollup.py`**: at the `n ≥ 30`
+  verdict floor, SE(Δhr) is ~12.9 pp — a 5 pp delta at the floor is
+  indistinguishable from noise but carried the same `"measured"` label
+  as a 30 pp delta at n = 500. Phase-E2 `measured` verdicts now carry
+  `delta_hr_p_value`, a two-sided pooled two-proportion z-test p-value
+  (self-contained `math.erfc`-based implementation in the rollup script;
+  correction 2026-06-11, Copilot #2675 — this entry previously claimed
+  the `run_ab_comparison` helper was reused, which it is not);
+  `null` when the pooled variance is degenerate. Vocabulary additive.
+- **F9 — `scripts/plan_2_8_tf_family_rollup.py`**: the
+  `int(payload.get("n_events") or 0)` / `float(... or 0.0)` pattern
+  laundered `hit_rate: null` into 0.0 — an artifact with
+  `n_events: 40, hit_rate: null` contributed 40 events at 0.0 HR and
+  silently dragged the family aggregate down (kills a good variant).
+  Rows with missing/non-numeric `n_events`/`hit_rate` (file-level and
+  per-family) and unreadable files are now skipped and counted:
+  new manifest fields `n_skipped_malformed` + `skipped_malformed`.
+- **F12 — `scripts/compute_live_drift.py`**: `ks_two_sample` returned
+  `(0.0, 1.0)` ("perfectly compatible") on empty input while its twin
+  `drift_alert.ks_two_sample` returns `(0.0, None)` ("not evaluable").
+  Currently unreachable (callers guard non-empty) but one refactor away
+  from a p = 1.0 laundering. Aligned on `(0.0, None)`; a test pins both
+  twins to the same convention.
+
+### Changed (2026-06-10) — silent-fallback audit: drift verdicts, 1D resample, source-matrix honesty
+
+Four silent-fallback / misdeclaration fixes from the static review of
+`compute_live_drift.py`, `explicit_structure_from_bars.py`,
+`repo_sources.py` and `provider_matrix.py`:
+
+- **`scripts/compute_live_drift.py`** — drift schema **1.1.0 → 1.2.0**
+  (additive; `DRIFT_SCHEMA_MIN_COMPATIBLE` stays 1.0.0). A missing or
+  non-numeric backtest reference no longer collapses to `sharpe=0.0`
+  (which the `max(backtest, 0.001)` denominator clamp turned into
+  drift-score 1.5 → verdict `pass` for an unreferenced variant): new
+  explicit verdicts `missing_backtest_reference` and
+  `non_positive_backtest_sharpe`. Reference-only variants with zero
+  live trades in the window are now emitted as `no_live_data` rows
+  instead of vanishing. All three fail closed against the
+  `run_smc_live_incubation` pass/acceptable allowlist. New additive
+  boolean `overperformance_capped` marks variants whose raw live/backtest
+  ratio exceeded the 1.5 cap (live ≫ backtest is frequently a data
+  defect, previously indistinguishable from a healthy pass).
+- **`scripts/explicit_structure_from_bars.py`** — the `1D` branch of
+  `resample_bars_to_timeframe` was an unconditional identity pass-through
+  that silently served intraday bars as "1D" (mirror image of the
+  PR #2666 cross-TF aliasing). It now aggregates to calendar days via the
+  generic bucket path (with a warning) whenever any symbol has >1 row per
+  calendar day; genuinely daily input keeps the identity regardless of
+  stamp time. The legacy high/low liquidity-sweep fallback now logs a
+  warning when the profile engine produced no sweeps.
+- **`smc_integration/repo_sources.py`** — `_can_supply_domain` derives
+  technical/news membership from `_DOMAIN_SOURCE_ORDER` (single source of
+  truth) instead of hand-duplicated name sets; the structure auto-select
+  loop warns when a lower-priority source is served after higher-priority
+  failures; production-dead `_source_priority_key` removed;
+  `volume_domain_status` is set explicitly in the mandatory-volume
+  fallback branch.
+- **`smc_integration/provider_matrix.py`** — `live_news_snapshot_json`
+  (the PRIMARY runtime news source) and `largecap_watchlist_json` now have
+  explicit potential/current/known-gaps declarations instead of falling
+  through to misdeclaring generic defaults; databento
+  `snapshot_structure_mode` corrected `partial` → `none` (its mapped
+  structure arrays are empty); `_pick_best_candidate` ranks by the
+  authoritative `_DOMAIN_SOURCE_ORDER` runtime fallback order instead of
+  alphabetically — `best_current_news_candidate` is now
+  `live_news_snapshot_json`.
+
+### Added (2026-06-04) — ADR-0019: order-flow imbalance shadow feature (recorded-only)
+
+New ADR-0019 order-flow candidate on the aggressor-signed data path:
+**order-flow imbalance** (`governance/family_ofi_imbalance_v2.ofi_imbalance_at`),
+`abs(sum(signed_volume)) / sum(abs_volume)` in `[0, 1]` over the trailing
+`ATR_PERIOD` window ending at the anchor — the net one-sidedness of aggressor
+flow. This is the *direction* axis of order flow, orthogonal to turnover
+*magnitude* (`relative_volume`), price *impact* slope (Kyle's lambda) and
+*participant size* (`average_trade_size`): a deep book absorbs very one-sided
+flow at low lambda, a thin book shows high lambda at modest imbalance. It is a
+*simplified bar-level imbalance*, **not** canonical VPIN (VPIN buckets on
+equal-volume bars with bulk-volume classification; here the aggressor side is
+known per trade). To supply the honest denominator the producer
+(`scripts/pull_databento_edge_input.aggregate_signed_volume`) now also embeds
+per-bar `abs_volume` (the sum of all trade sizes, an unsigned magnitude)
+alongside `signed_volume` + `trade_count`; the OHLCV `volume` (a different
+source) is *not* used as the denominator (extended-hours mismatch). Strictly
+point-in-time, leak-free and honest-None (returns `None` rather than fabricating
+when `signed_volume`/`abs_volume` are absent or the window carries no traded
+size); the ratio is clamped to `[0, 1]`. Recorded onto both zone and level
+family events via `family_event_adapter`; **RECORDED-ONLY** — it does not feed
+the v1 score or any gate. Pending its pre-registered purged walk-forward A/B
+verdict (which requires a fresh EV-20 `with_trades` run carrying `abs_volume`).
+
+### Added (2026-06-04) — ADR-0019: average trade size shadow feature (recorded-only)
+
+New ADR-0019 order-flow candidate on the live aggressor-signed data path:
+**average trade size** (`governance/family_avg_trade_size_v2.average_trade_size_at`),
+the volume-weighted mean shares-per-trade `sum(volume) / sum(trade_count)` over
+the trailing `ATR_PERIOD` window ending at the anchor. This is the
+*participant-size* axis of order flow (institutional-footprint / block-trade
+proxy), orthogonal to the magnitude axis (`relative_volume`) and the
+direction/impact axis (`signed_volume` / Kyle's lambda). Because
+`volume = trade_count * avg_size` is an identity, `trade_count` alone is *not* a
+separate candidate — only the economically meaningful average size is taken
+(one new degree of freedom). The producer already embeds `trade_count`
+per-bar alongside `signed_volume`. Strictly point-in-time, leak-free and
+honest-None (returns `None` rather than fabricating when volume/trade_count are
+absent or the window's total count is zero). Recorded onto both zone and level
+family events via `family_event_adapter`; **RECORDED-ONLY** — it does not feed
+the v1 score or any gate. Pending its pre-registered purged walk-forward A/B
+verdict before any wiring is considered.
+
+The Lo & MacKinlay (1988) Variance Ratio `VR(2)` — the strongest close-only
+proxy for the *persistence / serial-dependence* axis — was evaluated as the next
+ADR-0019 shadow candidate. Because it is close-only (no live plumbing needed),
+its pre-registered purged walk-forward A/B was run pre-merge on the same harness
+and the same REAL Databento data as the WVF/ribbon candidates (two regimes,
+~22k events, 99.6% coverage; confirmed orthogonal beforehand, VR vs `score`
+Spearman −0.173). It returned `no_lift` across **all four** families (BOS, FVG,
+OB, SWEEP), so it was **not merged** — no dead shadow code is carried. Together
+with the already-zeroed `hurst_50` weight this closes the persistence axis.
+Recorded in `docs/governance/resolution_feature_gap_analysis.md` §5, which
+confirms the un-tapped lever is order-flow/volume and names the producer
+volume-plumbing as the next workstream.
+
+### Fixed (2026-06-03) — ADR-0019: EV-20 producer now carries `open` + `volume` per bar
+
+The real-data edge-input producer
+(`scripts/pull_databento_edge_input._resampled_bars_payload`) emitted only
+`timestamp/high/low/close` per resampled bar, silently dropping the `open`
+(first) and `volume` (sum) columns the resampler already aggregates. That
+starved every ADR-0019 order-flow candidate of its only input:
+`governance.family_score_features_v2.relative_volume_at` (and the planned
+Amihud illiquidity proxy) honestly returned `None` on every bar, so the
+order-flow axis could never be A/B-tested on real data — the one axis the
+resolution feature-gap analysis pins as the largest un-tapped signal.
+
+- `_resampled_bars_payload` now emits the full OHLCV bar
+  (`open/high/low/close/volume`), still byte-aligned with
+  `_prepare_symbol_resampled_bars` so the pipeline's anchor/lookahead
+  arithmetic is unchanged.
+- Extended `tests/test_pull_databento_edge_input.py` to assert the bar key set
+  is `{timestamp, open, high, low, close, volume}` and that the emitted `open`
+  and `volume` match the resampled frame exactly.
+- Point-in-time and leak-free by construction (volume is the bar's own
+  aggregate). Unblocks the pre-registered `relative_volume` A/B; the v1
+  `score`, `SCORE_SOURCE`, and the promotion gate are untouched.
+
+### Removed (2026-06-03) — ADR-0019: retire the Williams VIX Fix candidate (no lift)
+
+The `williams_vix_fix` candidate (Larry Williams' public-domain "VIX Fix", a
+price-only downside-deviation fear gauge,
+`(max(close[anchor-21..anchor]) - low[anchor]) / max(close) * 100`) was
+A/B-tested against the v1 `score` on REAL Databento data over two independent
+regimes via the paired purged walk-forward harness: a calm window
+(2025-01-02..2025-04-01) and a volatile one (2024-07-15..2024-10-15). Over
+22,114 recorded events it returned `no_lift` across **all four** families (BOS,
+FVG, OB, SWEEP) — out-of-sample resolution did not improve and the candidate
+discriminated worse than baseline in every family (e.g. BOS AUC 0.524 vs 0.567,
+FVG 0.510 vs 0.558, SWEEP 0.473 vs 0.527). Per the pre-registered ADR-0019 gate,
+a candidate that fails to lift resolution is retired rather than carried as dead
+shadow code.
+
+- Deleted `governance/family_vix_fix_v1.py` and `tests/test_family_vix_fix_v1.py`.
+- `governance/family_event_adapter` no longer records `williams_vix_fix`; the
+  optional `FamilyEvent.williams_vix_fix` field is removed.
+- The generic A/B on-ramp `scripts/run_feature_ab` is kept (reusable for the
+  next OHLC-pure candidate); default `--feature-key` stays `relative_volume`.
+- No change to the v1 `score`, `SCORE_SOURCE`, the promotion gate, or the
+  generic harness (`family_returns` / `family_calibration` / `family_feature_ab`).
+
+### Removed (2026-06-03) — ADR-0019: retire the momentum-ribbon candidate (no lift)
+
+The `momentum_ribbon` candidate (the smoothed-RSI "USI" multi-length stack
+score) was A/B-tested against the v1 `score` on REAL Databento data over two
+independent regimes via the paired purged walk-forward harness: a calm window
+(2025-01-02..2025-04-01) and a volatile one (2024-07-15..2024-10-15). Both
+returned `no_lift` across **all four** families (BOS, FVG, OB, SWEEP) — the
+candidate did not improve out-of-sample resolution and in the two cash-bearing
+families (BOS, FVG) discriminated slightly worse than the baseline. Per the
+pre-registered ADR-0019 gate, a candidate that fails to lift resolution is
+retired; it is removed rather than carried as dead shadow code.
+
+- Deleted `governance/family_momentum_ribbon_v2.py` and its tests.
+- Deleted `docs/governance/momentum_ribbon_v2_shadow_candidate.md`.
+- `governance/family_event_adapter` no longer records `momentum_ribbon`; the
+  optional `FamilyEvent.momentum_ribbon` field is removed.
+- The generic A/B on-ramp `scripts/run_feature_ab` is kept (reusable for the
+  next candidate) but its default `--feature-key` is now `relative_volume`;
+  `tests/test_run_feature_ab.py` exercises the driver against that feature.
+- No change to the v1 `score`, `SCORE_SOURCE`, the promotion gate, or the
+  generic harness (`family_returns` / `family_calibration` / `family_feature_ab`).
+
+### Added (2026-06-02) — ADR-0019 step 3: paired purged walk-forward A/B harness
+
+Builds on steps 1-2 (the extractor + the recorded feature). Adds the shadow
+measurement that answers the pre-registered ADR-0019 question: over a purged
+walk-forward, does the candidate feature discriminate event outcomes better
+than the v1 `score`? Primary metric is out-of-sample **resolution** (the Murphy
+discrimination component) — the binding promotion deficit. Changes **no** score,
+`SCORE_SOURCE`, or gate; v1 stays the default until the A/B clears on real data.
+
+- New `governance/family_calibration.walk_forward_ab`: a PAIRED purged
+  walk-forward that Platt-calibrates both arms (v1 `score` vs v2 feature) on the
+  same training events over identical folds, emitting a fold only when both arms
+  fit — so the two arms share one out-of-sample index set and their Brier /
+  resolution are directly comparable (an unpaired comparison would confound the
+  feature with a differing event sample).
+- New `governance/family_returns.extract_family_ab_samples`: per family, the
+  paired `(scores, features, returns, anchor_ts, guard_end_ts)` for events
+  carrying both arms, reusing the calibration purge guard so the A/B is
+  leak-safe by construction.
+- New module `governance/family_feature_ab`: the `resolution` metric plus
+  `family_feature_ab` / `family_feature_ab_report`, which return a shadow
+  verdict (`candidate_lifts_resolution` / `no_lift` / `regresses_calibration`).
+  A family with too few shared OOS points is not measurable yet: `family_feature_ab`
+  returns `None` and `family_feature_ab_report` omits it (never silently scored).
+  No-regression guards are a Brier proper-scoring check
+  plus an **absolute** ECE ceiling (deliberately not relative to the baseline —
+  a near-constant baseline trivially wins ECE and would perversely veto a sharp,
+  discriminating candidate).
+- Scope: this step compares feature-alone vs score-alone. The incremental
+  question (does the feature add resolution on top of the score) is the next
+  step.
+- 13 new tests (`tests/test_family_feature_ab.py`); calibration / returns /
+  adapter suites stay green.
+
+### Fixed (2026-06-02) — f2 bootstrap PR title fails the ADR-0013 title lint
+
+The `workflow_dispatch` regeneration workflow
+`f2-frozen-artifact-bootstrap.yml` opened its PR with a `data(f2): …`
+title, but `data` is not in `ACCEPTED_CONCERNS`
+(`scripts/check_pr_title_concern.py`), so every recalibration PR would
+have been blocked by `pr-title-concern-lint`. Switched the commit message
+and PR title to the `chore(f2)` concern (matching how
+`edge-pipeline-real-run.yml` already uses `chore(ev-20)` for the same
+artifact-regeneration class). Root fix on the generator — the governance
+lint is unchanged.
+
+- `f2-frozen-artifact-bootstrap.yml`: `git commit -m` and `gh pr create
+  --title` now use `chore(f2): …`.
+- Contract test `test_pr_creation_uses_canonical_gh_pat_pattern_and_label`
+  updated in lockstep to pin the `chore(f2)` title.
+- Historical recipe in `docs/f2_contextual_promotion_decision_2026-04-21.md`
+  updated to match.
+
+### Added (2026-06-02) — fractional differentiation feature transform
+
+Standalone, pure-numpy fixed-width fractional differentiation (López de Prado
+2018, ch. 5) as a candidate feature transform. Stationary-but-memory-
+preserving inputs are the one transform class that can plausibly add
+*discrimination* (the binding promotion blocker), so this is wired to be
+graded by the ADR-0019 A/B harness as just another `feature_key` — it earns
+its place only on a `candidate_lifts_resolution` verdict, never by assertion.
+
+- New `ml/features/frac_diff` with `ffd_weights` (binomial-recursion weights,
+  threshold-truncated to a fixed window) and `frac_diff_ffd` (window
+  convolution; `nan` warm-up region, `d=0` identity, `d=1` ≈ first difference).
+- Re-exported from `ml/features/__init__`.
+- 8 property tests pin the weight recursion, the identity/first-difference
+  edge cases, the warm-up masking, and that fractional differencing reduces
+  random-walk lag-1 autocorrelation (`tests/test_frac_diff.py`).
+- No change to `SCORE_SOURCE`, the v1 score, or any gate.
+
+### Added (2026-06-02) — ADR-0019 step 2: record the order-flow feature for the A/B
+
+Builds on step 1 (the `relative_volume_at` extractor). Captures the candidate
+feature on every real event and pairs it with outcomes, so the pre-registered
+purged walk-forward A/B (ADR-0019) has the per-event `(feature, outcome)` data
+it needs — still **without** touching the v1 score, `SCORE_SOURCE`, or the gate.
+
+- `governance/family_event_adapter` now records an optional `relative_volume`
+  on each `FamilyEvent` (mirroring how `score` / `regime` are attached),
+  computed leak-free from the trailing bars and omitted when volume is absent.
+- New optional `FamilyEvent` field `relative_volume` (recorded only — not a
+  calibration input, not a gate input).
+- New pure `governance/family_returns.extract_family_feature_samples`: per
+  family, collects the recorded feature paired with the binary sign-of-return
+  `outcomes` label (the same target `family_calibration` grades the v1 score
+  on) plus `anchor_ts`. Measurement groundwork for the A/B; it does not
+  calibrate, score, or gate anything.
+- 5 new tests pin the recording and extraction semantics
+  (`tests/test_family_relative_volume_recording.py`); existing adapter/score
+  suites stay green.
+
+### Added (2026-06-02) — ADR-0019 step 1: point-in-time order-flow extractor (family score v2)
+
+The verified resolution feature-gap analysis
+(`docs/governance/resolution_feature_gap_analysis.md`) found the v1 per-family
+score is pure geometry and that the largest un-tapped resolution lever is
+**order-flow / volume** — available in the data but dropped at the governance
+boundary. This lands the first ADR-0019 v2 candidate feature as a pure,
+leak-free extractor, **without** touching the v1 score or the promotion gate
+(ADR-0019 mandates a shadow-first, pre-registered purged walk-forward A/B
+before any v2 feature may join calibration).
+
+- New `governance/family_score_features_v2.relative_volume_at`: the formation
+  (anchor) bar's volume divided by its trailing `ATR_PERIOD`-bar mean volume —
+  an institutional-footprint proxy from ADR-0019's tier-1 hierarchy that needs
+  no trade-side data. Strictly point-in-time (baseline reads only bars before
+  the anchor), with honest omitted-not-zero-filled semantics
+  (`RELATIVE_VOLUME_SOURCE = "orderflow_relative_volume_v2"`).
+- `governance/family_event_adapter.BarRow` gains an optional `volume` field
+  (additive, `total=False`): bars without it stay fully supported and the v2
+  feature is simply reported as absent. No v1 score, regime, or gate behaviour
+  changes.
+- 11 new tests pin the ratio, leak-freedom, and absent-feature semantics
+  (`tests/test_family_score_features_v2.py`); the existing adapter/score
+  suites stay green.
+
+### Added (2026-06-02) — ADR-0016 pipeline-provenance classes (no-ML pipelines)
+
+Under `strict_provenance` the gate required three caller-declared provenance
+keys that describe an upstream ML-modelling layer — `bootstrap_method` (BCa
+bootstrap), `block_size` (block permutation) and `stacked_used` (stacking
+ensemble). The SMC-direct edge pipeline performs no such modelling (returns
+come straight from events, scores are raw event scores, no ensemble), so those
+three keys describe work that does not exist; declaring them would fabricate
+evidence. The gate therefore held a legitimate no-ML pipeline permanently at
+ADR-0015 tier-1 `inconclusive` on three guards that are *not-applicable*, not
+*unmeasured* (ADR-0016).
+
+- `governance/promotion_gate` adds a `pipeline_class` provenance key and
+  recognised no-ML classes (`NO_ML_PIPELINE_CLASSES`, initially
+  `smc_direct_no_ml`). When a family declares such a class the three
+  `ML_MODELLING_PROVENANCE_KEYS` are treated as not-applicable: their absence
+  emits no blocker and does not fail `ok_provenance`.
+- The waiver is conditional, never a global relaxation: an absent or unknown
+  `pipeline_class` grants no waiver, and the pipeline-agnostic keys
+  (`wf_scheme`, `wf_embargo_bars`, `psr_method`) stay required for every class.
+  `conformal_coverage` is unchanged — it is computed on the OOS pairs and
+  remains an applicable, measured guard.
+- `governance/family_returns.to_build_spec` declares
+  `pipeline_class = "smc_direct_no_ml"` on every family it builds, so the
+  classification flows end-to-end into the gate snapshot.
+- New tests pin the waiver, the unknown-class non-waiver, the
+  pipeline-agnostic keys staying required, conformal staying required, and the
+  producer declaration (`tests/test_promotion_gate.py`,
+  `tests/test_family_returns.py`). See `docs/adr/0016-pipeline-provenance-classes.md`.
+
+### Added (2026-06-02) — ADR-0018 split-conformal coverage from walk-forward OOS
+
+The promotion gate's `conformal_coverage` check could never evaluate: the
+SMC-direct producer never emitted a `conformal` block, so coverage was always
+"not yet measured" and the guard held every family at ADR-0015 tier-1
+`inconclusive` (see ADR-0018).
+
+- `governance/family_calibration.partition_conformal` splits the pooled
+  chronological walk-forward OOS pairs at `CONFORMAL_CALIBRATION_FRACTION`
+  (0.5): the earlier half calibrates the split-conformal (Vovk) conformity
+  quantile, the held-out later half measures empirical marginal coverage
+  against the `1 - alpha` guarantee (`CONFORMAL_ALPHA` = 0.1 -> 90% target).
+- The block is emitted ONLY when both sides clear `CONFORMAL_MIN_SIDE`
+  (= `MIN_OOS_SAMPLES`, 40), i.e. the pool holds at least 80 OOS pairs. Below
+  that no block is emitted and `conformal_coverage` stays honestly unmeasured.
+- `governance/family_returns.to_build_spec` computes the conformal split from
+  the full pooled block (independent view of the ADR-0017 live surrogate) and
+  tags it with audit-only provenance `ev26_conformal_source`. The producer's
+  existing `_conformal_slice` then measures `conformal_coverage` /
+  `conformal_target`, enabling the gate check to evaluate.
+- Honesty preserved: a low-resolution score yields wide prediction sets, so
+  coverage is high by design (certifies set calibration, NOT discrimination).
+  A family can clear `conformal_coverage` and still fail the tier-2 Brier bar;
+  this removes only the "not yet measured" info-block and never promotes a
+  family on its own.
+
+### Added (2026-06-02) — ADR-0017 live-incubation surrogate for `live_vs_wf_ratio`
+
+In an offline backtest there is no real live feed, so `live_brier` was always
+"not yet measured" and the `live_vs_wf_ratio` drift check could never evaluate
+— it info-blocked every family indefinitely (see ADR-0017).
+
+- `governance/family_calibration.partition_live_tail` splits a pooled
+  walk-forward block into `{walkforward (older remainder), live (most-recent
+  tail)}`. The pooled out-of-sample pairs are chronological, so the last
+  `LIVE_TAIL_MIN_SAMPLES` (= 20) pairs are DECLARED the live-incubation
+  surrogate; the older remainder is the walk-forward reference.
+- The split is emitted ONLY when the pool stays adequately powered on both
+  sides (`len >= LIVE_TAIL_MIN_SAMPLES + MIN_OOS_SAMPLES`). Below that the full
+  pooled block is kept and `live_brier` stays honestly unmeasured rather than
+  splitting a small sample into two noisy halves.
+- `governance/family_returns.to_build_spec` wires the split in after
+  `walk_forward_calibration` and tags it with audit-only provenance
+  `ev25_live_source` (`LIVE_SOURCE_TAG`). The producer's existing `live`
+  consumer (`scripts/build_family_metrics._calibration_slice`) then measures
+  `live_brier`, enabling the `live_vs_wf_ratio` gate check to evaluate.
+- Honesty preserved: the live tail is intentionally small, so the resulting
+  ratio is a coarse drift alarm, not a precise threshold; it removes only the
+  "not yet measured" info-block and never promotes a family on its own.
+
+### Changed (2026-06-02) — EV-08 verdict adopts the ADR-0015 two-tier taxonomy (`risk_sizeable`)
+
+`governance/family_verdict` previously fused "has an edge" with "is calibrated
+for sizing": a family the gate blocked solely on the calibration checks
+(`brier_threshold` / `brier_ci_upper` / `ece_threshold`) was reported as
+`no_edge`, letting a documented `sign_return_secondary_diagnostic` veto the
+primary PSR edge proof (see ADR-0015).
+
+- `edge_supported` (tier 1) is now keyed on the **edge** evidence only —
+  primary metric measured, sample adequate, no edge-failure blocker, and the
+  integrity/provenance guards measured and clear. Calibration blockers no
+  longer gate it.
+- New boolean field `risk_sizeable` (tier 2, strictly stronger) is tier 1
+  **plus** the calibration checks cleared — i.e. the gate's full `promoted`
+  decision on a measured, adequately-powered family. `build_verdict_report`
+  gains a top-level `risk_sizeable_count`.
+- Honesty preserved: when the edge metrics are strong but an integrity guard
+  is merely *unmeasured* (strict-provenance `info`), the verdict is
+  `inconclusive` — never an over-claimed `no_edge`. No threshold is changed;
+  the calibration checks are mapped to the tier they evidence (sizing).
+- 6 new tests pin the tier mapping (`tests/test_family_verdict.py`); the
+  `tests/test_verdict_panel.py` end-to-end fixture now carries a realistic
+  `psr_minimum` edge blocker for its `no_edge` assertion.
+
+### Added (2026-06-02) — EV-20 time-basis diagnostic: observed events-per-year cadence
+
+The per-family return series the edge pipeline scores is **event-driven** (one
+return per SMC event), but the producer annualized its Sharpe/MinTRL against the
+caller-declared `periods_per_year` (default `252`, a *daily-bar* basis). When the
+true event cadence is several hundred per year, any annualized Sharpe read off a
+`252` basis stands on the wrong time-basis — not investor-grade (EV-20 audit).
+
+- `governance/point_in_time.py` adds `observed_span_seconds(timestamps)`: the
+  `max - min` span of a timestamp series in seconds (absolute offset cancels, so
+  naive/aware both yield a correct span), `None` for fewer than two timestamps or
+  a collapsed span.
+- `scripts/build_family_metrics.py` — `build_family_metrics_from_returns` now
+  derives the **realized** events-per-year from the supplied event-timestamp span
+  and surfaces it as `extras.observed_periods_per_year` (omitted when timestamps
+  are absent or the span collapses). Purely diagnostic: the declared
+  `periods_per_year` and the gate's MinTRL arithmetic are **unchanged**, so any
+  annualized Sharpe in the decision JSON can now be re-annualized on its true
+  cadence without touching promotion semantics.
+
+### Added (2026-06-02) — promotion-gate archives carry per-symbol run context (REPORT_SCHEMA_VERSION 2)
+
+The `edge-pipeline-real-run` workflow archives one promotion-decisions report
+**per symbol** into `governance/promotion_decisions/`, but neither the filename
+nor the payload recorded *which* symbol/dataset/schema/window produced it. That
+made the governance archive hard to audit and caused
+`scripts/build_promotion_gate_dashboard.py` (which scans **all**
+`governance/promotion_decisions/*.json`) to aggregate heterogeneous symbol runs
+together with no way to filter — and two symbols archiving in the same second
+could collide on the timestamp-only filename.
+
+- `governance/promotion_report.py` bumps `REPORT_SCHEMA_VERSION` to `2`: reports
+  may now carry an optional top-level `context` object (symbol/dataset/schema/
+  timeframe/window). The key is **omitted** on context-less runs, so the loader
+  contract ("dict with a `decisions` list") is unchanged.
+- `scripts/run_promotion_gate.py` — `build_report(..., context=...)` embeds the
+  run context only when supplied; new `_label_slug()` helper and
+  `_archive_report(..., label=...)` slug the symbol into the filename
+  (`promotion_decisions_<LABEL>_<stamp>.json`) so per-symbol runs are
+  self-describing and can't overwrite each other within the same second. The
+  shared `promotion_decisions_*.json` consumer glob still matches.
+- `scripts/run_edge_pipeline.py` threads the input payload's `provenance` into
+  the report `context` and uses its `symbol` as the archive label.
+- `scripts/pull_databento_edge_input.py` records `dataset`, `schema` and the
+  fetch `window` (start/end) in the payload provenance alongside the symbol, so
+  the downstream archive is fully self-describing. Non-CLI callers that omit the
+  window get explicit `None` placeholders.
+
+### Added (2026-06-02) — EV#7: regime-conditional degradation (C5.1 `regime_degraded`)
+
+The promotion gate's C5.1 regime-degradation slot was consumed by the gate
+but always reported "not yet measured" because the family-event path carried
+no per-event regime label. EV#7 now derives one **from the same bars the
+event already reads** — no external macro/VIX data, no fabrication — and
+emits a measured, monotonic (block-only) `regime_degraded` verdict. See
+`docs/adr/0014-ev6-psi-trend-source-and-ev7-regime-deferral.md`.
+
+- `governance/family_event_score.point_in_time_regime(...)` labels each
+  anchor with the Kaufman **Efficiency Ratio** over the trailing
+  `REGIME_WINDOW = ATR_PERIOD` closes ending at the anchor (same leak-free
+  trailing read as `atr_at`): `TRENDING` (ER ≥ 0.5), `RANGING` (ER ≤ 0.3),
+  else `NEUTRAL`; abstains (`None`) below the window or on a flat path. Tag
+  `kaufman_efficiency_ratio_trailing_closes_v1`. ER reproduces the
+  trend/range split from closes alone, so it pulls **no** `open_prep`
+  macro/VIX import chain into the governance module (deliberate deviation).
+- `governance/family_event_adapter` attaches `regime` to each family event;
+  `governance/family_returns` adds `extract_family_regime_samples(...)` and
+  `regime_degradation(...)`: pooled mean ≤ 0 → `False` (no pooled edge;
+  PSR/MinTRL own it); otherwise the **current** regime (regime of the
+  chronologically last event) must hold ≥ 20 samples → returns
+  `current_mean ≤ 0` (degraded), else `None`. Lookahead-free and monotonic.
+- `to_build_spec` attaches `entry["regime_degraded"]` + provenance
+  `ev24_regime_source = kaufman_efficiency_ratio_trailing_closes_v1`,
+  flowing through `build_family_metrics` to the gate verbatim. This
+  **supersedes the EV#7 DEFERRED note** in the EV#6 entry below and in
+  ADR-0014.
+
+### Added (2026-06-02) — EV#6: real PSI-trend (C9 `psi_slope`) producer
+
+The promotion gate's C9 population-stability-trend slot was wired on the
+consumer side but every family reported "not yet measured" because no
+producer emitted a `psi_trend` block. EV#6 now produces one from **real**
+data — the EV-24 walk-forward score series — so `psi_slope` becomes a
+measured, monotonic (block-only) gate input. See
+`docs/adr/0014-ev6-psi-trend-source-and-ev7-regime-deferral.md`.
+
+- `governance/family_calibration.py` adds `walk_forward_psi_trend(...)`: a
+  **fixed reference Platt calibrator** is fit on the earliest chronological
+  block and applied to that block *and* to each later monitoring window, so
+  the PSI series isolates score-**population** drift from per-fold
+  calibrator-refit drift (standard fixed-reference / moving-window PSI). The
+  series is split into `k + 1` equal segments (`k` ∈ [2, 4], each ≥
+  `max(MIN_TRAIN_SAMPLES, 10)` events); it abstains (`None`) below threshold
+  or on a single-class / degenerate reference block, keeping the gate
+  blocking honestly.
+- `governance/family_returns.to_build_spec` attaches `entry["psi_trend"]`
+  and audit-only provenance
+  `ev24_psi_trend_source = ev24_fixed_reference_calibrator_chronological_windows_v1`,
+  flowing through `build_bundle` → `build_family_metrics` → measured
+  `psi_slope` (+ `psi_trend_method` provenance).
+- **EV#7 (regime-conditional degradation) is now implemented** in this same
+  release — see the EV#7 entry above. It derives a per-event regime label
+  from the bars the event already reads (Kaufman Efficiency Ratio), so the
+  C5.1 `regime_degraded` slot is measured without a new external producer.
+  This supersedes the earlier "explicitly DEFERRED" plan recorded in
+  ADR-0014.
+- Tests: producer abstention/validity/drift-detection in
+  `tests/test_family_calibration.py`; end-to-end spec→bundle wiring in
+  `tests/test_family_returns.py`.
+
+### Fixed (2026-06-02) — promotion-gate CLI tests leaked archives into the real repo tree
+
+`scripts/run_promotion_gate.py` archives a timestamped copy of every run to
+`governance/promotion_decisions/` resolved **relative to the current working
+directory** (`--archive-dir` default). Four CLI/E2E tests invoked `main()`
+without isolating cwd, so each run wrote a stray
+`promotion_decisions_*.json` into the committed `governance/` tree instead of
+a temp dir.
+
+- Added an `autouse` `monkeypatch.chdir(tmp_path)` fixture to
+  `tests/test_promotion_gate_producer_e2e.py` and
+  `tests/test_run_promotion_gate_strict_universe.py` so the cwd-relative
+  archive lands under each test's `tmp_path`. Future tests added to these
+  modules inherit the isolation.
+- No production change: the archive contract (cwd-relative default,
+  `--archive-dir ''` to opt out) is unchanged.
+
+### Added (2026-06-02) — GAP-4: block-bootstrap Brier confidence-interval gate
+
+The promotion gate now blocks on the **upper bound of a block-bootstrap CI
+on the Brier score**, not just the point estimate. At the few-hundred-event
+scale the Brier sampling distribution is wide under serial dependence
+(Bailey & López de Prado 2012; Wilks 2010), so a point estimate below the
+0.22 bar with a CI poking above it is not 95 %-confident evidence of
+calibration.
+
+- `scripts/build_family_metrics.py` resamples the per-event Brier-loss series
+  `(p − y)²` with the stationary block bootstrap (Politis–Romano 1994, seed 42,
+  B = 2000, mean block length 5) and reports the 95th-percentile upper bound as
+  `brier_ci_upper` (+ provenance `brier_ci_method`). Stays `None` below 30 OOS
+  events ("not yet measured") rather than shipping a noisy interval.
+- `governance/promotion_gate.py` adds `brier_ci_upper` to `FamilyMetrics` and
+  `brier_ci_upper_max` (= `brier_max` = 0.22) to `GateThresholds`. Once
+  measured a breach always blocks; when unmeasured it only blocks under
+  `strict_provenance` so legacy snapshots stay valid. Documented in ADR-0008.
+- This closes the GAP-4 follow-up explicitly deferred in
+  `governance/family_calibration.py`.
+
+### Fixed (2026-06-01) — `SMC_TV_Bridge.pine` malformed `//@version` directive + Pine version/provenance guards
+
+`SMC_TV_Bridge.pine` declared `// @version=5` (stray space after `//`).
+Pine only honours the exact form `//@version=N`; the malformed variant is
+parsed as a plain comment, silently downgrading the script to the oldest
+language version. Two prior reviews missed this because the existing check
+(`tests/test_pine_input_surface.py::test_version_tag`) only asserted a
+*substring* match on a single file. Directive corrected to `//@version=6`
+(matching the rest of the active suite).
+
+New regression guards:
+
+- `tests/test_pine_version_directive.py` — anchored regex pinned to the
+  *supported* set `^//@version=(?:5|6)\s*$` across the active suite
+  (repo-root `*.pine` **and** the `pine/skipp_*.pine` libraries); fails on
+  malformed directives (e.g. the stray-space form) *and* on unsupported
+  versions (e.g. `//@version=999`), with an explanatory message. Closes the
+  substring-match blind spot.
+- `tests/test_pine_tv_bridge_fail_closed.py` — fail-closed guards for the
+  untrusted-JSON bridge: `request.get` must not appear in live code (network
+  stays opt-in/inert), numeric reads carry explicit `str.tonumber(_, default)`
+  fallbacks, drawing blocks are gated on non-empty payloads, plus a faithful
+  Python reference port of `f_getField` pinned against malformed JSON
+  (empty/missing-key/unterminated-string/garbage → fail closed to `""`).
+
+New machine-readable input-provenance artifact (closes the hidden-input
+provenance gap from the SMC Suite review):
+
+- `pine_input_surface.py` gains a `provenance` subcommand emitting per-input
+  provenance JSON (file, line, varname, kind, label, group,
+  `has_display_none`, policy visibility) for the whole suite.
+- `reports/pine_input_provenance.json` — committed artifact covering 526
+  inputs incl. hidden operator inputs.
+- `tests/test_pine_input_provenance.py` — drift guard that regenerates the
+  map from source and compares against the committed artifact (ledger
+  discipline: any added/removed/renamed/regrouped/hidden input requires a
+  deliberate `provenance --out` refresh).
+
+### Changed (2026-05-28) — WS3 #58: `HERO_MARKET_TRUST` vocab converges onto `HERO_TRUST` + `library_field_version` v7.0a (BREAKING for Pine consumers)
+
+`HERO_MARKET_TRUST` (Producer B, `scripts/smc_hero_market_mode.py`) now
+derives from the canonical `TrustState` via
+`scripts.smc_hero_state.project_trust_state_to_hero` instead of a
+parallel label table. Label changes on the Pine export:
+
+- `HEALTHY` → `"healthy"` (was `"trusted"`)
+- `DEGRADED` → `"degraded"` (was `"advisory"`)
+- `WATCH_ONLY` → `"degraded"` (collapse, was `"watch_only"`) — matches the
+  intentional info-loss already documented for `HERO_TRUST` via
+  `project_trust_state_to_hero`.
+- `STALE` → `"stale"` (unchanged)
+- `UNAVAILABLE` → `"unavailable"` (unchanged)
+
+New module-level pin `scripts.smc_hero_market_mode.HERO_MARKET_TRUST_VOCAB`
+locks the convergence:
+
+    HERO_MARKET_TRUST_VOCAB == HERO_TRUST_VOCAB - {"warmup"}
+
+(`"warmup"` is Hero-local with no `TrustState` counterpart). Enforced by
+`tests/test_hero_trust_market_trust_alignment.py` (5 parametrized
+TrustState mappings + 3 vocab-set invariants).
+
+This is a breaking change to the Pine `export const string HERO_MARKET_TRUST`
+literal → `library_field_version` bumped **v6.0a → v7.0a** (MAJOR) and the
+`deprecated_field_policy.preferred_field_version` follows. Regenerated
+artifacts: `pine/generated/smc_micro_profiles_generated.{pine,json}`,
+`tests/fixtures/generated_seed/...`,
+`artifacts/tradingview/smc_product_cut_manifest.json`. No Pine consumer
+currently gates on `HERO_MARKET_TRUST` values (only the export constant
+exists in non-generated Pine), so this is a producer-only contract change.
+
+### Changed (2026-05-26) — WS3-UI #55: HERO waiting-state sentinels + `library_field_version` v6.0a (BREAKING for Pine consumers)
+
+`HERO_MARKET_MODE`, `HERO_BIAS`, and `HERO_SETUP_QUALITY` now distinguish a
+*waiting state* (no enrichment data yet) from a substantive neutral / flat
+/ low reading:
+
+- `HERO_MARKET_MODE` default: `NEUTRAL` → `UNKNOWN`
+- `HERO_BIAS` default: `FLAT` → `UNKNOWN`
+- `HERO_SETUP_QUALITY` default: `low` → `unavailable`
+
+The three sentinels are first-class vocab members (`HERO_MARKET_MODE_VOCAB`
+4 → 5, `HERO_BIAS_VOCAB` 3 → 4, `HERO_SETUP_QUALITY_VOCAB` 4 → 5) and the
+Producer-A → Producer-B action map gains
+`HERO_QUALITY_A_TO_B["unavailable"] = "avoid"`.
+
+Pine dashboards (`SMC_Dashboard.pine`, `SMC_Mobile_Dashboard.pine`) render
+`⚪ awaiting data` (grey-80 background) for the sentinel; the bias chip is
+suppressed for both `FLAT` and `UNKNOWN`.
+
+This is a breaking change to Pine literal gates → `library_field_version`
+bumped **v5.5c → v6.0a** (MAJOR) and the
+`deprecated_field_policy.preferred_field_version` follows. Regenerated
+artifacts: `pine/generated/smc_micro_profiles_generated.{pine,json}`,
+`tests/fixtures/generated_seed/...`, `artifacts/tradingview/smc_product_cut_manifest.json`.
+Snapshot/fingerprint pins regenerated:
+`tests/governance/vocab_fingerprint.json`,
+`tests/test_hero_schema_fingerprint.py`,
+`tests/test_central_vocab_fingerprint_gate.py`. Closes #55. See
+[ADR-0007 §2026-05-26 amendment](docs/adr/0007-hero-field-invariants.md)
+for the full rationale.
+
+ML schema pin `ml/schemas/v1_hero_features.json` bumped to
+`schema_version: v2` (per drift policy `new_vocab_value_added`) with new
+`pinned_source_sha256` and the three new vocab members listed.
+
+### Added (2026-05-17) — W1.b: PromotionGate daily producer path
+
+End-to-end wiring of the W1 schema-v2 `PromotionGate` contract into a
+real daily producer (PR #2261). Closes the gap audited in
+`/memories/repo/promotion-gate-adoption-audit-2026-05-17.md` where the
+gate had zero non-test callers on `main`.
+
+- **Bundler** — `scripts/build_promotion_gate_bundle.py` reads
+  `artifacts/ci/measurement_benchmark_rolling/<DATE>/plan_2_8_tf_family_rollup.json`
+  and emits a `FamilyMetrics`-shaped JSON list, one entry per
+  `EventFamily` (BOS / OB / FVG / SWEEP). Unmeasured W1 metrics
+  (Brier/ECE/PSI/conformal/...) pass through as `None`; per-family event
+  totals land in `extras.n_events_total`; `provenance` names the source
+  artifact + run date.
+- **Daily workflow** — `.github/workflows/promotion-gate-daily.yml`
+  runs at 09:30 UTC (between rolling-bench at 07:30 and F2 gate at
+  10:00), downloads the most-recent `smc-measurement-benchmark-rolling-<DATE>`
+  artifact via `gh run list/download`, runs the bundler + gate, and
+  publishes a dated report plus the stable
+  `artifacts/promotion_decisions.json` alias consumed by the
+  Decision-First Streamlit tab.
+- **Advisory strict semantics** — workflow keeps
+  `strict_provenance=True`. Gate `rc=2` (blocked / metrics missing)
+  emits `::warning::` + step summary but does **not** fail CI; only
+  `rc=1` (config error) fails. The honest "red" report is the product.
+- **E2E test** — `tests/test_promotion_gate_producer_e2e.py` pins the
+  full chain (bundler → runner → loader → panel) via public CLI / loader
+  surfaces only.
+- **#2251 superseded** — the C9 PSI-trend signal feeds in as a
+  precomputed scalar (`psi_slope`) per W1 schema v2 rather than as raw
+  `psi_history` inside the gate.
+
+### Added (2026-05-13) — P5.4 doc-train: Copilot-review hardening + repo-resident MD lint
+
+End-to-end remediation of recurring Copilot review-comment classes via
+the P5.4 doc-train (PRs #2173–#2179) plus deep-review follow-ups
+(#2184 = sibling `_progress` flush parity, #2185 = repo-resident MD lint
+warn-only, #2186 = bulk-fix existing doc findings, #2187 = protocol +
+standing-orders + this CHANGELOG entry).
+
+- **MD inline-backtick lint** — `scripts/lint_md_inline_backticks.py`
+  (PR #2185) catches the cross-line inline-backtick spans that were the
+  dominant Copilot finding-class through the P5.3 / P5.4 trains. Ships
+  warn-only via `.github/workflows/docs-lint.yml`; flips to `--strict`
+  once the existing `docs/` corpus is clean (PR #2188).
+- **Sibling `_progress` flush parity** — all four sibling `_progress`
+  implementations (`databento_production_export.py`,
+  `databento_preopen_fast.py`,
+  `generate_smc_micro_base_from_databento.py`,
+  `smc_microstructure_base_runtime.py`) now carry the canonical
+  `sys.stderr.flush(); sys.stdout.flush()` pair after `logger.info(...)`
+  (PR #2184). Closes the silent-buffering gap discovered when only the
+  canonical site had the flush.
+- **Triage-protocol expansion** — `docs/COPILOT_REVIEW_TRIAGE_PROTOCOL.md`
+  §5.6 (pre-flight MD lint), §5.7 (pre-flight `sort -n`/`-V` check),
+  §5.8 (pre-flight dual-stream-flush check) added so future authors
+  catch these classes before push, not after Copilot does (PR #2187).
+- **New repo-anchored protocol** —
+  `docs/PRE_FLIGHT_LINT_PROTOCOL.md` (PR #2187) is the repo-resident
+  sibling to the operator-local memory note, ensuring any maintainer
+  can run the pre-flight gates without operator-local context.
+
+Rationale for filing under P5.4 (not P5.3): CHANGELOG is phase-blind;
+this entry exists for audit-trail completeness of the doc-train. It is
+**not** claiming P5.3 also documented this — that section never existed.
+
+### Changed (2026-05-12) — Audit L-1 finalization: provider-rationalization train + post-audit follow-ups
+
+End-to-end consolidation of the Audit L-1 provider stack. Eight PRs landed on
+main as a focused merge train (#2154 → #2161, #2163), plus #2153 (Watchdog),
+#2152, and #2164 (post-audit follow-ups):
+
+- **Unusual Whales options-flow DECOMMISSIONED** — replaced by self-hosted
+  Databento OPRA.PILLAR UOA detector in `newsstack_fmp/opra_uoa.py` (PRs
+  #2155 / #2157 / #2163). The remaining `UnusualWhalesAdapter` methods
+  (darkpool, spot-GEX, market-tide, insider-transactions, news-headlines)
+  are DORMANT (silently return `[]` after subscription cancel; no production
+  consumer left). Sunset-TODO `2026-Q3-uw-review` filed at top of
+  `newsstack_fmp/ingest_unusual_whales.py` (owner: ops, deadline 2026-08-31)
+  to drop the entire module + `UNUSUAL_WHALES_API_KEY` if no consumer
+  reactivated.
+- **OPRA UOA detector ACTIVE** — gated by `ENABLE_OPRA_UOA` (default `1`
+  since 2026-05-12 PR #2155 commit 6d6196cf). Consumes Databento
+  OPRA.PILLAR via the ingestion wrapper
+  `newsstack_fmp/ingest_opra_options_flow.py`.
+- **Finnhub adapter Option-B duplicate-drop** (PR #2160) and **macro g5
+  stub removal** (PR #2156) — line-pinned ledgers reconciled in
+  `tests/test_mutable_defaults_and_loads_pins.py` and
+  `tests/test_os_environ_mutation_ledger.py` (PR #2164).
+- **Probe coverage** — `scripts/probe_providers.py` gains a
+  `probe_databento_opra_entitlement` mock-friendly probe (SKIPs on missing
+  key / disabled feature; FAILs only when `ENABLE_OPRA_UOA=1` but the key
+  lacks `OPRA.PILLAR` entitlement). Replaces the pre-decommission
+  `probe_uw_options_flow`.
+- **Operator runbook** — `docs/OPEN_PREP_OPS_QUICK_REFERENCE.md` §13
+  "Provider Decision Matrix" captures the new state of all four provider
+  surfaces (UW UOA flow, UW dormant adapters, NewsAPI.ai dual-state,
+  OPRA UOA detector); `ENABLE_OPRA_UOA` default reconciled (`0` → `1`).
+
+No runtime regressions: pin-tests, posture markers, and orphan-inventory
+all green.
+
+### Added (2026-05-12) — CI: smc-export-cron-watchdog backup workflow
+
+New workflow `.github/workflows/smc-export-cron-watchdog.yml` acts as a
+safety-net for missed/delayed scheduled triggers of
+`smc-databento-production-export`. The heavy export runs on the scarce
+`ubuntu-latest-l` (64 GB) larger-runner pool, where GHA scheduled events
+are observably delayed under load
+(documented:
+https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#schedule).
+
+**Empirical evidence motivating this:**
+
+- 2026-05-11 16:00 UTC slot fired at 17:49 UTC = **109 min delay** (run
+  25687318767).
+- 2026-05-12 12:00 UTC slot did not fire at all by +11 min — manual
+  dispatch was used instead (run 25733577369).
+- All other small-runner schedule events on 2026-05-12 (08:04, 08:05,
+  08:06, 08:50, 08:52, 10:06, 10:37, 10:41, 11:22, 11:50) fired on
+  time — confirms the issue is the larger-runner pool, not the GHA
+  scheduler in general.
+
+**Design:**
+
+- Watchdog runs on `ubuntu-latest` (separate, reliable pool).
+- Ticks at 12:45 / 13:00 / 13:15 / 13:30 UTC and 16:45 / 17:00 / 17:15 /
+  17:30 UTC (Mon-Fri).
+- Threshold: 45 min after slot start before dispatching (gives the cron
+  a realistic chance to fire late).
+- Race-condition guard: queries the heavy workflow's run list filtered
+  by `created_at >= slot_start`. If ANY run exists in the slot — queued,
+  in_progress, or completed regardless of conclusion — the watchdog
+  no-ops. Prevents duplicate dispatch + Databento double-billing when
+  cron is merely late, not missing.
+- Original `schedule:` triggers in
+  `smc-databento-production-export.yml` are intentionally **kept**.
+  Watchdog is a backup, not a replacement.
+
+Permissions: `actions: write` (for `gh workflow run`), `contents: read`.
+Concurrency-grouped to prevent overlapping watchdog ticks. 5-min timeout.
+
+### Changed (2026-05-12) — F-V8-Q5b: skip oversized second_detail sheets from canonical workbook
+
+`scripts/databento_production_export.py::_write_canonical_production_workbook`
+now omits `full_universe_second_detail_open` and
+`full_universe_second_detail_close` from the canonical xlsx workbook's
+`additional_sheets` dict. Both data series remain available as parquet
+artifacts written by `_write_exact_named_exports()` in Step 10/10b
+(`<export_dir>/full_universe_second_detail_{open,close}.parquet`), which
+is the path all known consumers already use (verified consumer audit
+across `smc_integration/`, `scripts/`, `docs/`, `README.md`).
+
+**Trigger:** five consecutive failures of `smc-databento-production-export`
+on cron lookback=30 (2026-05-07 / 2026-05-08). Heartbeat-diagnostic probe
+run **25693860630** (branch `workbook-heartbeat-diagnostic`, PR #2146,
+landed as `cc5f6f9d`) ran for 141 min on 64 GB `ubuntu-latest-l` and was
+killed by **exit 143 / SIGTERM** at chunk 4-of-7 of sheet 8
+(`full_universe_second_detail_open`, 7,270,261 rows × ~10 cols), 9 min
+20 s into Step 10/10c. All per-chunk and per-styling-step heartbeats fired
+right up to the kill, falsifying the GHA no-output watchdog hypothesis.
+
+**Root cause:** *likely* memory pressure (cgroup / systemd-oomd on the
+hosted runner, openpyxl is non-streaming and accumulates every written
+sheet in memory), but **not formally confirmed**. Alternative hypotheses
+considered but **not falsified**: GHA process watchdog, hosted-runner
+eviction, `/mnt` disk pressure. The symptom-fix (skip these sheets) is
+valid regardless of the exact mechanism — the workbook cannot
+accommodate sheets of this size on the production runner, the parquet
+path is the source of truth for downstream consumers anyway, and
+manual inspection of a chunk-split 7.27 M-row sheet in Excel is
+unusable in practice.
+
+Mirrors the F-V8-Q5a precedent from 2026-05-09
+(`full_universe_close_trade_detail`, killed at peak RSS ~6.9 GB on the
+old 7 GB runner). The producer emits a second `progress_callback` line
+documenting the skip, so the canonical Step 10/10c log shows both Q5a
+and Q5b suppressions explicitly.
+
+**Bonus diagnostics:** `scripts/databento_production_workbook.py` now
+emits a per-sheet memory snapshot (`rss=…MB vms=…MB uss=…MB` via
+`psutil.Process().memory_full_info()`, with a `resource.getrusage`
+fallback when psutil is unavailable) at workbook begin, before/after
+every sheet, before openpyxl context-exit, and after context-exit. This
+gives a per-sheet memory-delta trace for any future bottleneck hunt.
+`psutil>=5.9.0` is now declared explicitly in `requirements.txt` (it
+was previously only available transitively, which made the diagnostic
+silently fall back on the production runner).
+
+Workflow docstring (`.github/workflows/smc-databento-production-export.yml`)
+updated to reference Q5b and corrected from `32 GB / 300 GB` to the
+actual `64 GB / 600 GB` runner spec.
+
+### Added (2026-05-11) — Real-day ranking snapshot dump (opt-in)
+
+Add an opt-in snapshot writer to `open_prep/run_open_prep.py` that
+captures the **exact** inputs passed to `rank_candidates_v2` (quotes,
+bias, top_n, news side-channels, sector context, weight_label) plus
+the resulting ranked / filtered_out outputs and a diagnostic context
+block (`regime`, `run_date_utc`, `vix_level`; the latter is observed in
+this code path but not currently passed into `rank_candidates_v2`).
+Triggered via env var `OPEN_PREP_DUMP_SNAPSHOT=1` (defaults off — no
+production behaviour change). Output goes to
+`artifacts/open_prep/snapshots/ranking_snapshot_<YYYYMMDD_HHMMSS_%fZ>_<pid>.json`
+via an atomic temp-file write + replace.
+
+Purpose: prerequisite for a planned real-day smoke-anchor golden test
+(follow-up to PR #2138 once that PR merges). The fixture-based golden
+in PR #2138 covers all known scorer branches synthetically; this
+snapshot path will let a real production run be replayed
+deterministically as a second golden once captured.
+
+No tests added — the dump path is diagnostic-only, opt-in, and wraps
+its work in a broad `except` so any failure logs a warning without
+affecting the run.
+
+### Added (2026-05-11) — PR #2138 ranking golden + news-tier tuning
+
+Two coordinated additions to the production ranking surface:
+
+**A. Golden-file regression test for `open_prep.scorer.rank_candidates_v2`**
+
+`rank_candidates_v2` is the production ranking boundary and is fully
+deterministic when called with `dirty_manager=None` and
+`weight_label="default"`. New artefacts:
+
+- `tests/fixtures/ranking_archetypes_input.json` — 7 quote archetypes
+  covering distinct pipeline branches: `MEGA_CAP_EARNINGS`,
+  `SECTOR_LEADER`, `SECTOR_LAGGARD`, `NEWS_PUMP`, `ENERGY_RISK_OFF`,
+  `PENNY_REJECT`, `SEVERE_GAP_DOWN_REJECT`.
+- `tests/fixtures/ranking_archetypes_golden.json` — captured expected
+  output (ranked + filtered_out, floats rounded to 6 places).
+- `tests/test_ranking_golden.py` — three tests: full golden match,
+  determinism (two runs identical), and hard-invariant filter contracts
+  (penny + severe-gap-down always rejected; no overlap between ranked
+  and filtered; score-descending order).
+
+Workflow for intentional weight/threshold changes:
+
+```
+REGEN_RANKING_GOLDEN=1 .venv/bin/python -m pytest -p no:cacheprovider tests/test_ranking_golden.py
+git diff tests/fixtures/ranking_archetypes_golden.json
+```
+
+The diff makes every scoring change reviewable; commit source change and
+golden update together in the same PR.
+
+**B. News source-tier discounting + low-tier rumor penalty**
+
+The first golden run surfaced a real ranking pathology: under
+`DEFAULT_WEIGHTS`, an unverified Stocktwits rumor (`PUMP` archetype,
+TIER_3 source) ranked **#1 above** a tier-1 confirmed earnings beat
+(`NVDA` archetype) on raw gap × rvol alone. Three coordinated changes
+to `open_prep/scorer.py`:
+
+1. `NEWS_SOURCE_TIER_MULTIPLIERS` — discount `news_component` by source
+   credibility:
+
+   | Tier | Multiplier | Examples |
+   |------|------------|----------|
+   | TIER_1 | 1.00 | Reuters, Dow Jones, MarketWatch |
+   | TIER_2 | 0.70 | TradingView, DPA-AFX, CNBC TV |
+   | TIER_3 | 0.30 | GuruFocus, Stocktwits, Zacks, Invezz |
+   | TIER_4 | 0.10 | unknown / anything else |
+
+2. `DEFAULT_WEIGHTS["news"]: 0.8 → 2.5` — tier-1 confirmed news now
+   carries roughly the same component magnitude as `earnings_bmo`
+   (1.5 × DR), instead of being a minor afterthought.
+
+3. `LOW_TIER_NEWS_RUMOR_PENALTY = 0.75` — multiplicative final-score
+   haircut applied when `news_source_tier ∈ {TIER_3, TIER_4}` AND
+   `news_score >= 0.5`. Stops technically-strong moves driven by
+   unverified social chatter from out-ranking confirmed catalysts.
+   Surfaced as new `score_breakdown.low_tier_news_rumor_penalty` field
+   for production traceability.
+
+Effect on golden archetypes (rank order):
+
+```
+Before:  PUMP 11.71 → LEAD 9.38 → NVDA 9.09 → ENRG 5.31 → LAGG 1.30
+After:   NVDA 10.65 → LEAD 9.38 → PUMP 8.72 → ENRG 5.31 → LAGG 1.29
+```
+
+Verification: `tests/test_open_prep.py` (280 passed) +
+`tests/test_ranking_golden.py` (3 passed) + filter contracts preserved.
+
+### Fixed (2026-05-10) — PR #2112 Copilot review follow-ups (PR #2113)
+
+Three small follow-ups raised by the Copilot review on PR #2112.
+No behavioural changes outside the redaction surface.
+
+- **Copilot #1 — webhook URL token redaction (extends PR #2112 M1)**:
+  extend `databento_utils._API_KEY_REDACTION_PATTERNS` with two
+  additional URL-path patterns so the canonical redactor also masks
+  Discord (`https://discord.com/api/webhooks/{id}/{token}`, including
+  `ptb.` / `canary.` / `discordapp.com` variants) and Slack
+  (`https://hooks.slack.com/services/T…/B…/{token}`) webhook secrets.
+  These are embedded in the URL **path** (not as `?token=…`), so the
+  pre-existing `api_key=` / `token=` / `Authorization: Bearer` patterns
+  could not catch them. `repr(httpx_exc)` typically includes the
+  request URL, which is how those tokens would otherwise leak into the
+  three M1 sites (`terminal_export.py`, `terminal_tradingview_news.py`,
+  `terminal_notifications.py`). Adds 3 unit tests in
+  `tests/test_databento_provider.py::TestRedaction`.
+- **Copilot #2 — `terminal_background_poller.py` L2 comment refinement**:
+  reword the L2 explanatory comment. The original wording suggested
+  the lock prevents a "torn intermediate value under tsan", which is
+  misleading for CPython where the GIL makes a single `int` read
+  atomic. The lock is taken purely for **lock-parity** with every other
+  access of `poll_count` — same code, no semantic change.
+- **Copilot #3 — `databento_volatility_screener.py` L5 follow-through**:
+  the PR #2112 changelog claimed `utc=True` was added to the
+  `pd.to_datetime(src["trade_date"], errors="coerce")` coercion in
+  `_build_close_trade_aggregates`, but the code change was not actually
+  landed. This PR applies it (now at the close-trade detail builder
+  *and* the close-outcome minute detail builder for parity), with an
+  explanatory comment.
+
+### Fixed (2026-05-09) — Quantum sweep medium/low findings (M1, M2, L1–L6)
+
+Hardening pass on the quantum-sweep audit (PR #2112). No behavioural
+changes; tightens redaction parity and threading discipline, and
+documents three intentional-but-non-obvious numeric/calendar edge cases.
+
+- **M1 — `repr(...)` payload redaction parity** (3 sites): wrap
+  `repr(item)` / `repr(exc)` / `repr(err)` through the canonical
+  `databento_utils._redact_sensitive_error_text` helper before they are
+  persisted to disk (`terminal_export.py` JSONL fallback) or to the
+  in-memory health-state dicts that the dashboard reads
+  (`terminal_tradingview_news.py`, `terminal_notifications.py`).
+  Closes a redaction gap where wrapped httpx/urllib3 exceptions whose
+  `__repr__` includes auth tokens (`api_key=`, `token=`,
+  `Authorization: Bearer …`) could leak into artifacts/logs.
+- **M2 — terminal_technicals.py redaction parity**: replace the local
+  narrow `_APIKEY_RE` regex (`(apikey|api_key|token|key)=…`) with an
+  import of `_redact_sensitive_error_text`, picking up the canonical
+  patterns (Bearer tokens, additional key shapes). Removes duplicate
+  regex source of truth.
+- **L1 — `terminal_finnhub.py` global consolidation**: hoist the
+  nested `global _social_sentiment_blocked` (was buried inside the 403
+  branch) up to the top of `_get(...)` alongside the existing
+  `global _rate_limit_backoff_until, _consecutive_429_count`. All
+  mutation surface for the function is now declared in one place,
+  matching the convention used elsewhere in the file.
+- **L2 — `terminal_background_poller.py` `poll_count` lock parity**:
+  read `self.poll_count` under `self._stats_lock` for the periodic
+  prune trigger (was the only unprotected access; every other read /
+  write of the counter is already serialised).
+- **L3 — `smc_core/htf_context.py` + `smc_core/session_context.py`
+  ISO-week boundary comment**: document that `%G-W%V` (ISO-8601
+  year-week) and `%Y-%m` (calendar year-month) intentionally use
+  different year axes and diverge at year boundaries (e.g. 2024-12-30
+  → ISO `2025-W01` but calendar `2024-12`) — that is the correct
+  semantics for prev-week vs. prev-month bucketing.
+- **L4 — `rl/simulator/execution_env.py` fractional-share comment**:
+  document that `max(parent_qty, 1.0)` floors the implementation-shortfall
+  divisor at 1.0 and *understates* the bps figure for fractional-share
+  parents (`parent_qty < 1.0`); revisit if/when the simulator supports
+  fractional parents.
+- **L5 — `databento_volatility_screener.py` `pd.to_datetime(...,
+  utc=True)`**: add `utc=True` to the `trade_date` coercion to suppress
+  the pandas "mixed timezone" `FutureWarning` when upstream joins
+  accidentally inject tz-aware Timestamps. The trailing `.dt.date`
+  still returns naive `datetime.date` instances downstream.
+- **L6 — `newsstack_fmp/ingest_unusual_whales.py` non-JSON body
+  sample**: extend the existing "UW returned non-JSON" warning to
+  include `r.text[:200]`, so silent UW schema changes (HTML
+  maintenance pages, plain-text gateway responses) are diagnosable
+  from logs without round-tripping through `curl`.
+
+Tripwire ledgers refreshed for the global / urlopen / sleep / unlink
+line-number drift caused by the added imports and the consolidated
+`global` declarations.
+
+### Fixed (2026-05-09) — Copilot review follow-ups for PRs #2109/#2110
+
+Addresses post-merge Copilot inline review on the Provider Audit 2.0 stack:
+
+- **`newsstack_fmp/pipeline.py`** (`meta_sources`): use **singular** provider
+  labels `fmp_senate_trade` / `fmp_house_trade` to match
+  `normalize_fmp_political_trade`, `Config.active_sources`, and
+  `ingest_counts_by_source`. The plural form (added by PR #2109) made the
+  exported `meta['sources']` telemetry list inconsistent with observed
+  provider tags downstream.
+- **`newsstack_fmp/ingest_fmp_political.py`**: corrected the inline audit
+  comment — `_TIER_LIMITED_CODES = {401, 403, 404}` does **not** include
+  400, so a 400 response is caught by the wrapper but does **not**
+  auto-disable the endpoint. The comment now warns to keep
+  `ENABLE_FMP_SENATE_TRADES=0` / `ENABLE_FMP_HOUSE_TRADES=0` until
+  per-symbol iteration lands, otherwise the path will be polled every
+  tick and burn quota in a 400-loop.
+- **`terminal_finnhub.py`** (`fetch_company_news`): docstring updated to
+  reflect that the cache key now includes `max_items` (not just
+  `(symbol, days_back)`).
+- **`newsstack_fmp/normalize.py`** (`normalize_fmp_filing_13f`): docstring
+  reworded — cross-provider hard-dedup is keyed off `cluster_hash`
+  (headline + tickers), not `item_id`.
+- **`newsstack_fmp/ingest_fmp_filings.py`** (`FmpFilingsAdapter`): class
+  docstring expanded to mention both 8-K and 13F-HR endpoints.
+- **`tests/test_time_sleep_budget.py`**: refreshed `_FROZEN_SITES` line
+  numbers in `newsstack_fmp/ingest_fmp_filings.py`,
+  `newsstack_fmp/ingest_fmp_political.py`, and `newsstack_fmp/pipeline.py`
+  for the +N-line drift introduced by the docstring/comment edits above.
+
+### Fixed (2026-05-09) — FMP `/stable/` endpoint paths (live-audit, PR #2110)
+
+Live API smoke-tests across all newsstack providers (post-PR #2104–#2109)
+uncovered three FMP endpoint-path mismatches against the current
+financialmodelingprep.com `/stable/` API:
+
+- **`newsstack_fmp/ingest_fmp_filings.py`** (`FMP_8K_LATEST_PATH`):
+  changed from `/sec-filings/8-K-latest` (404) to **`/sec-filings-8k`**
+  (verified live: returns a list of 8-K filings with keys `symbol`,
+  `cik`, `filingDate`, `acceptedDate`, `formType`, …).
+- **`newsstack_fmp/ingest_fmp_filings.py`** (`FMP_13F_LATEST_PATH`):
+  no working `/stable/` 13F bulk path located after probing 7 variants
+  (`sec-filings-13f`, `sec-filings-13F-HR`, `sec-filings-form-13f`,
+  `form-13F-rss-feed`, etc. — all 404). Constant updated to
+  `/sec-filings-13f` for consistency; the existing 404 → `mark_disabled`
+  short-circuit will self-mute the endpoint on first call. `ENABLE_FMP_13F`
+  remains default-off until the correct path is documented (TODO comment
+  inline in the adapter).
+- **`newsstack_fmp/ingest_fmp_political.py`** (senate/house): the
+  `/stable/senate-trades` and `/stable/house-trades` paths are *per-ticker*
+  detail endpoints (return 400 without a `symbol=` param), not bulk
+  feeds. Legacy `/v4/senate-trading-rss-feed` is now restricted to
+  pre-2024-08-31 subscribers (403). `ENABLE_FMP_SENATE_TRADES` and
+  `ENABLE_FMP_HOUSE_TRADES` remain default-off; an inline TODO documents
+  the situation and proposes per-symbol iteration as a follow-up.
+
+Verified-working endpoints in the same audit (no changes required):
+`finnhub.fetch_company_news`, `fetch_recommendation_trends`,
+`fetch_insider_sentiment`, `unusual_whales.fetch_uw_news_headlines`.
+`finnhub.fetch_news_sentiment` returns 403 on the free tier as expected.
+
+### Fixed (2026-05-09) — Provider Audit 2.0 post-merge follow-ups (PR #2109)
+
+- **`fix(provider-audit-2): post-merge audit fixes`** — quantum sweep
+  follow-ups across the merged PR2104–PR2108 stack. 11 findings:
+  - **Critical (data correctness)**:
+    - `terminal_finnhub.fetch_insider_sentiment`: skip caching `[]` on
+      empty `_get` payload (rate-limit / key-miss). Previously a single
+      429 silenced the endpoint for the full 6h TTL.
+    - `terminal_finnhub.fetch_company_news`: include `max_items` in
+      cache key. Previously a caller asking for 200 items would receive
+      a 50-item cached truncation if a prior caller hit the path first.
+    - `newsstack_fmp/pipeline.py`: 4 cursor-filter sites changed
+      `it.updated_ts > fmp_*_last` → `>=` (senate, house, 8K, 13F).
+      FMP returns date-only timestamps for these endpoints; `>` was
+      dropping same-day records on subsequent polls. `mark_seen()`
+      remains the authoritative per-id dedup.
+  - **Important**:
+    - `newsstack_fmp/normalize.py:334` (UW news headline-derived id):
+      `hashlib.sha1(..., usedforsecurity=False)` flag added (matches
+      the other 4 sha1 sites).
+    - `newsstack_fmp/pipeline.py`: `enrich_budget=3` absolute cap (was
+      `max(0, 3 - _enrich_ctr[0])` which under-budgeted the
+      other-provider batch when the FMP batch had already consumed
+      enrichments — `_enricher` carries the shared counter anyway).
+    - `newsstack_fmp/pipeline.py` `meta_sources`: added 6 missing
+      telemetry entries (`uw_news`, `fmp_general_latest`,
+      `fmp_senate_trades`, `fmp_house_trades`, `fmp_8k_latest`,
+      `fmp_13f_latest`).
+    - Removed 3 dead exception classes never raised:
+      `UnusualWhalesEndpointDisabledError`,
+      `FmpFilingsEndpointDisabledError`,
+      `FmpPoliticalEndpointDisabledError`. Mute mechanism is the
+      `mark_*_disabled()` flag plus generic-Exception catch in callers.
+  - **Minor**:
+    - `tests/test_terminal_finnhub.py:120`: replaced duplicate
+      `import unittest.mock as _mock` with alias `_mock = mock`
+      (the module is already imported at file top).
+    - Tripwire ledgers refreshed: weak-hash pin, weak-hash sites,
+      `# noqa` budget, `time.sleep` budget, `global` statement budget,
+      HTTP client discipline, `# type: ignore` budget.
+
+### Added (2026-05-09) — newsstack: FMP Form-13F follow-up (B6)
+
+- **`feat(newsstack): FMP /sec-filings/13F-HR-latest provider`** —
+  Closes the **B6** follow-up deferred from PR #2106. Adds the latest-filings
+  feed for institutional 13F-HR submissions (no CIK iteration needed —
+  treats it as a news-shaped event stream like 8-K).
+  - `FmpFilingsAdapter.fetch_13f_latest(page, limit)` in
+    `newsstack_fmp/ingest_fmp_filings.py` reusing the existing
+    `mark_fmp_filings_disabled` short-circuit on 403/404.
+  - Module wrapper `fetch_fmp_13f_latest(api_key, page, limit)`.
+  - `normalize_fmp_filing_13f(rec)` in `newsstack_fmp/normalize.py`
+    synthesizing `13F-HR filing: {institution}` headlines (`tickers=[]`
+    since 13F-HR is institution-keyed via CIK, not symbol-keyed).
+  - Pipeline cursor `fmp.13f.last_seen_epoch` (block 2.9). Items flow
+    via `other_items` so they inherit the PR1 cross-provider hard-dedup
+    automatically.
+  - Config: `enable_fmp_13f` (default 0, env `ENABLE_FMP_13F`),
+    `fmp_13f_limit` (default 50, env `FMP_13F_LIMIT`). `active_sources`
+    appends `fmp_13f_latest` when both flag + key are set.
+- **Tests** — `tests/test_newsstack_fmp.py` 172 → 176 cases:
+  fetch returns items, DISABLED-path short-circuit, normalize basic +
+  synthesized item_id when no URL.
+
+### Added (2026-05-09) — terminal: Finnhub free-tier extensions (company-news / news-sentiment / recommendations / insider)
+
+- **`feat(terminal): Finnhub free-tier endpoints — company-news + news-sentiment + recommendations + insider-sentiment`** —
+  Phase D (PR4) of Provider Audit 2.0, surfacing four free-tier Finnhub
+  endpoints that the existing `terminal_finnhub.py` ignored (only
+  premium-locked `/stock/social-sentiment` was wired previously).
+  Stacked on PR3 (FMP extras), PR2 (UW news/headlines), PR1
+  (cross-provider hard-dedup).
+  - `fetch_company_news(symbol, days_back=7, max_items=50)` →
+    `list[CompanyNewsItem]` — endpoint `/company-news`. 5-min cache.
+  - `fetch_news_sentiment(symbol)` → `NewsSentimentSummary | None` —
+    endpoint `/news-sentiment` (buzz + bullish/bearish split + sector
+    score). 30-min cache.
+  - `fetch_recommendation_trends(symbol)` → `list[RecommendationTrend]` —
+    endpoint `/stock/recommendation` (analyst grade tally per month).
+    6-h cache.
+  - `fetch_insider_sentiment(symbol, months_back=6)` →
+    `list[InsiderSentimentMonth]` — endpoint `/stock/insider-sentiment`
+    (monthly insider net-flow + MSPR). 6-h cache.
+  - All four reuse the existing `is_equity_symbol` guard (rejects
+    crypto / forex / index symbols), the existing `_get_cached/_set_cached`
+    TTL cache, the existing `_get` helper with 429 exponential backoff,
+    and a new generalised **DISABLED-path short-circuit**: any 403/404
+    response now adds the path substring to `_blocked_path_substrings`
+    so further calls return `{}` immediately for the rest of the process
+    (mirrors the per-endpoint pattern from PR2/PR3 newsstack adapters).
+  - `clear_blocked_paths()` test helper to reset the short-circuit in
+    unit tests.
+- **Tests** — `tests/test_terminal_finnhub.py` grows from 18 → 33 cases:
+  parsing, equity-guard rejection, empty-payload handling, max-items cap,
+  per-key caching, `data` field unwrap for insider sentiment, and the
+  generalised blocked-path reset helper.
+
+### Added (2026-05-09) — newsstack: FMP extras (general / Senate-House / 8-K)
+
+- **`feat(newsstack): FMP general-latest + Senate/House trades + 8-K filings`** —
+  Three new FMP-backed providers extending PR2's pattern. Stacked on PR2
+  (UW news/headlines) and PR1 (cross-provider hard-dedup). All default-OFF
+  except `fmp_general_latest` (default-ON since it complements the existing
+  per-symbol `fmp_stock_latest` and corporate `fmp_press_latest` feeds with
+  macro / market-wide coverage). Senate/House/8-K adapters mirror PR2's
+  DISABLED-endpoint short-circuit so tier-locked endpoints (401/403/404)
+  auto-suppress for the rest of the process.
+  - `FmpAdapter.fetch_general_latest(page, limit)` in
+    `newsstack_fmp/ingest_fmp.py` (provider label `fmp_general_latest`,
+    reuses `normalize_fmp`, wired through the existing
+    `_fetch_cached_provider_items` cache layer).
+  - `newsstack_fmp/ingest_fmp_political.py` — new `FmpPoliticalAdapter`
+    with `fetch_senate_trades` / `fetch_house_trades` and module-level
+    wrappers `fetch_fmp_senate_trades` / `fetch_fmp_house_trades`.
+    DISABLED helpers: `is_fmp_political_disabled`,
+    `mark_fmp_political_disabled`, `clear_fmp_political_disabled`,
+    `FmpPoliticalEndpointDisabledError`.
+  - `newsstack_fmp/ingest_fmp_filings.py` — new `FmpFilingsAdapter`
+    with `fetch_8k_latest` and module wrapper `fetch_fmp_8k_latest`.
+    Same DISABLED-pattern surface area.
+  - `normalize_fmp_political_trade(rec, *, chamber)` and
+    `normalize_fmp_filing_8k(rec)` in `newsstack_fmp/normalize.py` —
+    synthesise stable headlines and sha1-derived item_ids for non-news
+    payload schemas. Handles FMP's `dateRecieved` typo.
+  - Pipeline cursors `fmp.general.last_seen_epoch`,
+    `fmp.senate.last_seen_epoch`, `fmp.house.last_seen_epoch`,
+    `fmp.8k.last_seen_epoch`. Senate / House / 8-K items flow via
+    `other_items` so they automatically inherit PR1's cross-provider
+    hard-dedup cache.
+  - Config flags: `enable_fmp_general` (env `ENABLE_FMP_GENERAL`,
+    default `1`), `enable_fmp_senate_trades` /
+    `enable_fmp_house_trades` / `enable_fmp_8k` (env
+    `ENABLE_FMP_SENATE_TRADES` / `ENABLE_FMP_HOUSE_TRADES` /
+    `ENABLE_FMP_8K`, all default `0`). New limits: `fmp_general_limit`
+    (50), `fmp_political_pages` (1), `fmp_8k_limit` (50).
+
+  New tests in `tests/test_newsstack_fmp.py::TestFmpExtras`:
+  Senate fetch + DISABLED short-circuit + 403-marks; political-trade
+  normalize basic + FMP-typo handling; 8-K fetch + DISABLED + 404-marks;
+  8-K normalize basic + synthesised-id.
+
+  **Form-13F (B6) deferred** — it's an analytics endpoint that doesn't
+  fit the news-pipeline model cleanly without CIK iteration. Will land
+  separately if user opts in.
+
+### Added (2026-05-09) — newsstack: Unusual Whales /news/headlines provider
+
+- **`feat(newsstack): UW /news/headlines provider with DISABLED-endpoint pattern`** —
+  New broad-market news provider via Unusual Whales `/news/headlines` (default-OFF
+  via `ENABLE_UW_NEWS=1`). Mirrors the proven `_bz_http.py` DISABLED pattern: on
+  401/403/404 the endpoint is marked permanently disabled for the process so
+  subsequent polls short-circuit without burning quota. UW news items flow through
+  `other_items` so they automatically participate in the cross-provider hard-dedup
+  cache from PR #2104. New cursor `uw_news.last_seen_epoch` for delta polling.
+  Stacked on PR #2104 (will resolve cleanly after that merges).
+
+  Components:
+  - `UnusualWhalesAdapter.fetch_news_headlines(limit, ticker)` + module-level
+    `fetch_uw_news_headlines` wrapper in `newsstack_fmp/ingest_unusual_whales.py`.
+  - DISABLED helpers: `is_uw_endpoint_disabled`, `mark_uw_endpoint_disabled`,
+    `clear_uw_disabled_endpoints`, `UnusualWhalesEndpointDisabledError`.
+  - `normalize_uw_news_headline(rec) -> NewsItem` in `newsstack_fmp/normalize.py`
+    with sha1-derived id fallback. `raw` preserves UW-specific fields
+    (`is_major`, `tags`, `sentiment`).
+  - Pipeline sink in `newsstack_fmp/pipeline.py::poll_once` between Benzinga REST
+    and the symbol-scoped providers.
+  - Config flags `enable_uw_news`, `uw_news_limit` in `newsstack_fmp/config.py`;
+    `active_sources` reports `uw_news` when enabled.
+
+  New tests in `tests/test_newsstack_fmp.py::TestUWNewsHeadlines`:
+  data-unwrap, disabled-short-circuit, 403/404 mark, normalize basic /
+  invalid-drop / synthesised-id.
+
+### Added (2026-05-09) — newsstack: cross-provider hard-dedup for enrichment
+
+- **`feat(newsstack): cross-provider hard-dedup for enrichment HTTP calls`** —
+  Same news cluster (chash) arriving from multiple providers in one poll cycle
+  now triggers exactly ONE `Enricher.fetch_url_snippet()` HTTP call. Subsequent
+  items reuse the cached snippet via a new optional `_enriched_clusters: dict`
+  parameter on `process_news_items()`, threaded through `poll_once()` so the
+  fmp_items batch and the other_items batch share one cache.
+
+  `cluster_hash()` excludes `provider` (verified, was already the case), so
+  FMP+Benzinga+Unusual-Whales+NewsAPI.ai variants of the same story share a
+  chash. Previously the soft novelty decay scored duplicates down but each
+  duplicate still ran its own enrichment HTTP call — wasting quota
+  proportional to provider overlap. Each candidate now also carries a
+  `cluster_dedup: bool` field for downstream observability.
+
+  Backward compatible: parameter defaults to `None` → existing direct callers
+  / tests unchanged. Soft-dedup mechanisms (`mark_seen`, `cluster_touch`
+  novelty decay, `best_by_ticker` max-score selection) preserved unchanged.
+
+  New tests in `tests/test_newsstack_fmp.py::TestCrossProviderHardDedup`:
+  `test_same_cluster_skips_second_enrich`, `test_no_clusters_param_backward_compat`,
+  `test_cluster_dedup_field_set_on_candidate`. All 155 newsstack_fmp tests green.
+
+### Changed (2026-05-09) — Probe v3 cap-hit bundle (Q1–Q5b) + A1 followup
+
+Audit-trail completion for the seven PRs merged on 2026-05-09 that closed the
+Probe v3 sharded-producer cap-hit investigation. All entries doc-only here; the
+behavior changes already shipped in their respective PRs. Validated end-to-end
+by sharded run `25597406066` (6/6 shards green at 49.6 min / 120 min cap).
+
+- **Q1 (PR #2095)** — `obs(workbook): per-sheet progress in canonical xlsx
+  write (Step 10/10b)`. Adds per-sheet progress prints inside the Excel write
+  loop in `scripts/smc_microstructure_base_runtime.py` so cap-hit / OOM
+  failures during workbook assembly are localisable to a specific sheet rather
+  than a vague "Step 10". Pure observability, zero behavior change.
+- **Q2 + Q3 (PR #2098)** — `obs(load_daily_bars): per-batch progress + opt-in
+  parallel fetch (Step 5/10)`. Adds per-batch progress in the daily-bar loader
+  AND introduces opt-in parallel fetch via `DATABENTO_DAILY_MAX_WORKERS` env
+  var (default = 1, behavior preserved when unset). Single PR carries Q2's
+  observability + Q3's parallelism scaffold.
+- **Q3a (PR #2099)** — `ci(sharded): activate parallel-fetch via
+  DATABENTO_DAILY_MAX_WORKERS=4 (Q3a)`. Activates the Q3 parallel path in
+  `smc-databento-production-export-sharded.yml` only (non-sharded variant left
+  on default `=1`). Decision-gated by Q3 KPI evidence.
+- **Q4 (PR #2097)** — `ci(sharded): bump per-shard cap 90->120 (Q4 of Probe v3
+  Cap-Hit)`. Raises `timeout-minutes:` in `smc-databento-production-export-
+  sharded.yml` from 90 → 120 min after Q1+Q2+Q3 instrumentation showed the
+  worst-case shard wallclock approaching the 90-min cap with no further easy
+  wins inside the per-shard process. Cap is per-shard, not aggregate.
+- **Q5a (PR #2100)** — `remove(workbook): drop full_universe_close_trade_detail
+  from canonical xlsx (Q5a — OOM mitigation)`. Removes the
+  `full_universe_close_trade_detail` sheet from the canonical workbook in
+  `scripts/smc_microstructure_base_runtime.py`. Cause: this sheet alone drove
+  peak RSS to 6.9 GB / 7 GB on `ubuntu-latest`, OOM-killing shards 3 & 6 of
+  run `25593357307` with `exit 143` + "runner has received a shutdown signal".
+  Data still available via the parquet export pathway; only the in-memory
+  openpyxl assembly is dropped.
+- **Q5b (PR #2101)** — `Q5b: write parquet exports BEFORE canonical workbook
+  (defense-in-depth)`. Reorders `_write_outputs` so all parquet artifacts are
+  flushed to disk *before* the openpyxl workbook is materialised in memory.
+  Ensures partial success: even if a future workbook OOM recurs, the parquet
+  layer is intact and downstream consumers (rolling-bench, library-refresh)
+  still have data.
+- **A1 (PR #2102)** — `A1 (post-Q5b followup): watchlist comment for openpyxl
+  OOM mirror site`. Adds a 14-line watchlist comment block above the
+  `pd.ExcelWriter` call in `_write_base_snapshot_workbook` marking it as a
+  Q5a mirror site. Pure documentation: same failure class as the sheet Q5a
+  removed, currently mitigated by the chunked write loop. Comment defines
+  three explicit triggers for future action and an anti-noise rule
+  (dual-occurrence OR confirmed root cause). No preemptive refactor.
+
+### Changed (2026-05-06) — F-V8-C4 / cron restructure 4×→2× + cap 120→240 min (#2066), and (2026-05-07) F-V8-C4-D doc-drift sync
+
+- **F-V8-C4 (PR #2066, squash `5db4cfd3`)**: restructured the Databento
+  producer/consumer cron pair from 4×/day to 2×/day on weekdays after
+  three consecutive 120-min cap-busts (n=1/n=2/n=3, runs 25438174407,
+  25446229916, 25450506584) confirmed the producer's worst-case runtime
+  (~2 h 0 min on `ubuntu-latest-l`, peak RSS 18.6 GB / 32 GB) cannot
+  reliably fit inside a 2 h tick. Producer cron now ticks at 12:00 /
+  16:00 UTC; consumer (`smc-library-refresh`) follows 240 min later at
+  16:00 / 20:00 UTC. Both `timeout-minutes` caps bumped 120 → 240 in
+  lockstep with the new 4 h cron interval — anything > 240 would let a
+  zombie run overlap the next tick. Per-ref `concurrency:` guards from
+  F-V8-C3.1-D remain in place; the `workflow_run` fast-path trigger on
+  the consumer is unchanged.
+- **F-V8-C4-D (this PR)**: doc-drift sync identified by Copilot review
+  of #2066 — purely comment/docstring/CHANGELOG, zero behavior change:
+  - `CHANGELOG.md`: add the missing F-V8-C4 entry above (was the gap).
+  - `.github/workflows/smc-databento-production-export.yml`: replace
+    stale "Schedule: 12/14/16/18 UTC, 30-min headroom, 120 min cap"
+    header with F-V8-C4 reality. `cron:`, `concurrency:`, and
+    `timeout-minutes:` keys are unchanged (already correct).
+  - `.github/workflows/smc-library-refresh.yml`: replace stale "Runs 4x
+    per trading day at 13/15/17/19 UTC" header with the F-V8-C4
+    schedule. Same constraint: keys unchanged, comments only.
+  - `tests/test_workflow_databento_handoff_timeouts.py`: docstring
+    update from "30 minutes later (12:00→12:30…)" + "2-hour cron
+    interval" to F-V8-C4 reality (240 min handoff, 4 h cron). Test
+    logic and pinned constants (`_PRODUCER_TIMEOUT_MAX = 240`,
+    `_CONSUMER_TIMEOUT_MAX = 240`, `_CRON_HEADROOM_MIN_MINUTES = 30`)
+    are unchanged.
+  - **Date correction**: also corrects 7 pre-existing `2026-05-08`
+    references to `2026-05-06` in the same files. The squash
+    `5db4cfd3` actually landed `2026-05-06 21:24:53 UTC`
+    (`author/commit time 2026-05-06 23:24:53 +0200`); the
+    `2026-05-08` string was systemic doc-drift introduced during
+    PR #2066 authorship. One additional reference in
+    `tests/test_workflow_databento_cron_respacing.py:37` carries the
+    same drift but is **out-of-scope** for this PR (file not
+    otherwise touched here); follow-up cleanup recommended.
+- Subsequent A8-telemetry PR #2071 added Step 9 RSS bracketing in
+  `build_daily_features_full_universe` to localise the SIGTERM-after-
+  39-min-silence failure mode observed in n=4 (run 25462396194) under
+  the new 240-min cap. The A8 real-fix (chunking / streaming /
+  intermediate release of aggregator intermediates) will follow in a
+  separate PR once n=5 KPI data lands.
+
+### Changed (2026-05-03) — main unbreaker: concurrency dup + line-shift cascade + 2 hygiene fixes
+
+- Removed second (ref-less) `concurrency:` block from
+  `smc-databento-production-export.yml` and `smc-library-refresh.yml`
+  that YAML-last-wins overrode the per-ref F-V8-C3.1-D guards above.
+- Re-anchored `# CONTINUE-ON-ERROR-INTENTIONAL:` marker on
+  `c13-daily-cron.yml` Step 1b backfill_progress (drift from PR #2033).
+- Bumped `actions/upload-artifact@v4 → @v7` on the producer stdout-log
+  step and refreshed the ubuntu-latest-m comment to satisfy the runner
+  pin literal check.
+- Migrated `smc-live-newsapi-refresh.yml` `git push ... || echo` to an
+  `if !` block so push failures surface (F-V5-F1) instead of being
+  silently downgraded; cron tick still auto-recovers.
+- Bulk-updated `tests/test_workflow_continue_on_error_inventory.py`
+  line allow-lists for 7 workflows after PR #2033 PYTHONUNBUFFERED dedup.
+- Wrapped `tests/test_workflow_databento_handoff_concurrency.py`
+  parametrize source in `sorted(...)` for xdist determinism.
+- Removed `public-calibration-dashboard.yml` from
+  `tests/test_workflow_orphan_inventory.py::ALLOWED_ORPHANS` (now has
+  test coverage).
+- Moved 2026-05-01 F-V4-E1 CHANGELOG entry above 2026-04-30 v3 P-1..P-10
+  block to satisfy [Unreleased] date-monotonicity pin.
+- Migrated 9 scripts to import-after-`sys.path.insert` order with
+  `# noqa: E402` to satisfy first-party import-order pin.
+
+### Changed (2026-05-02) — F-V8-C3.1 PR C / runner-tier maximization (`ubuntu-latest-l` default)
+
+- Every workflow under `.github/workflows/` now uses the unified
+  expression `runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-l' }}`
+  for every job. Previously the repo was split 14 / 14 between literal
+  `ubuntu-latest` and `${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-m' }}`.
+  The new default lifts all 28 workflows from `-m` (4 vCPU / 16 GB,
+  eviction-prone, blamed for 12 consecutive Databento producer
+  timeouts) to `-l` (8 vCPU / 32 GB).
+- Operator escape hatch is unchanged: set
+  `vars.SMC_GH_HOSTED_RUNNER` in repo Settings → Variables to override
+  globally without touching code (e.g. roll back to `-m`, or test a
+  larger tier).
+- New pin test `tests/test_workflow_runner_pinned.py` (30 cases, one per
+  workflow plus two repo-wide invariants) prevents drift: no job may
+  use `ubuntu-latest` (literal) or `ubuntu-latest-m` (literal) again
+  without an explicit allowlist entry.
+- Composite-action constraint documented in the pin test docstring:
+  `runs-on:` is a job-level key and cannot be wrapped by a composite
+  action; the GitHub-Actions-native equivalent for a single source of
+  truth is the repo variable + literal fallback used here.
+
+### Documentation (2026-05-01) — V4 audit deferred-followups batch summary (#1991–#1996)
+
+Roll-up entry for the six independent PRs that closed out the SMC Review
+V4 Proactive CI/Pipeline Robustness Audit deferred-followups queue
+(after Steps 1–8 + 7b shipped as #1982–#1990). Each PR carries its own
+`F-V4-<class> (2026-05-01)` markers, defense ledger (where applicable),
+and rollback notes:
+
+- **#1991 — F-V4-PATHIO-DRIFT** (`fix(tests)`): bumped
+  `tests/test_path_text_io_encoding_ledger.py` for
+  `run_smc_e2e_smoke_test.py` ({53,97,133}→{56,100,136}) and added
+  `scripts/phase5_perf_trend.py` ({163}). Drift-only ledger refresh.
+- **#1992 — F-V4-D2** (`fix(ci)`): `actions/upload-artifact`
+  failure-resilience audit. 4/831 unguarded sites: 2 hardened with
+  `if: always()` (`fvg-quality-quartile-gate.yml`, `g23-ab-watchdog.yml`
+  — diagnostic artifacts must survive failed runs); 2 documented with
+  intent comments as intentional `success()`
+  (`fvg-context-pine-refresh.yml`, `public-calibration-dashboard.yml` —
+  publish artifacts where partial output would mislead). New defense
+  ledger `tests/test_workflow_upload_artifact_unguarded_inventory.py`
+  with frozen `ALLOWED_UNGUARDED` allow-list.
+- **#1993 — F-V4-F3** (`fix(ci)`): workflow permissions defense ledger.
+  Audit found zero workflows missing `permissions:` and zero using
+  `write-all`. New defense test
+  `tests/test_workflow_permissions_present.py` (parametrised over every
+  workflow + global `write-all` check) prevents regression.
+- **#1994 — F-V4-H2** (`fix(ci)`): pinned all 14 `runs-on: ubuntu-latest`
+  sites to `ubuntu-24.04` (current `-latest` target → zero behaviour
+  change today, but locks runner-image upgrades to change-control). New
+  defense ledger `tests/test_workflow_runner_pinned.py` forbids floating
+  `-latest` runner aliases anywhere.
+- **#1995 — J3-FOLLOWUP** (`docs(ci)`): cron→`workflow_run` conversion
+  candidate map at
+  `docs/ci-proposals/j3-followup-cron-workflow-run-2026-05-01.md`.
+  Analysis-only — documents the cascade map (8 candidate workflows
+  across 4 chains), risk-orders conversions, provides `workflow_run`
+  template + caveats (default-branch firing, missing inputs, head_sha
+  vs main checkout, weekday filters). Recommends per-workflow follow-up
+  PRs starting with `g23-ab-watchdog ← public-calibration-dashboard`.
+- **#1996 — F-V4-E1** (`refactor(databento)`): routed
+  `terminal_databento._fetch_chunk` through the canonical
+  `_databento_get_range_with_retry` helper from `databento_client`
+  (transient TLS / RemoteDisconnected / 5xx retry semantics for daily
+  bars). New defense ledger `tests/test_databento_safe_fetch_callers.py`
+  with frozen `ALLOWED_DIRECT_CALLERS` allow-list (`databento_client.py`
+  + `databento_volatility_screener.py`, the latter having a parallel
+  helper — consolidation tracked separately).
+
+Bundled drift bumps (pre-existing main drift folded into the relevant
+PRs): `tests/test_workflow_continue_on_error_inventory.py` for
+`smc-deeper-integration-gates.yml` ({55,99}→{69,113}) in PRs #1992 and
+#1994; `tests/test_global_statement_budget.py` for
+`terminal_databento.py` (124→130, 308→314) in PR #1996.
+
+### Changed (2026-05-01) — F-V4-E1 databento safe-fetch caller migration
+
+- `terminal_databento._fetch_chunk` migrated from raw
+  `client.timeseries.get_range` to the canonical
+  `_databento_get_range_with_retry` helper from `databento_client`.
+  Daily-bar fetches now inherit transient-error retry semantics
+  (TLS / RemoteDisconnected / 5xx) instead of failing fast on the
+  first network blip.
+- New defense ledger `tests/test_databento_safe_fetch_callers.py`
+  scans top-level `*.py` for raw `client.timeseries.get_range`
+  callers, with a frozen `ALLOWED_DIRECT_CALLERS` allow-list
+  (`databento_client.py` itself + `databento_volatility_screener.py`,
+  which carries a parallel helper — consolidation tracked separately).
+- Drift bump: `tests/test_global_statement_budget.py` line numbers
+  for `terminal_databento.py` (124→130, 308→314) shifted by the
+  helper-import + 5-line F-V4-E1 intent comment.
+
+Consolidated entry for the v3 provider-stack audit shipped 2026-04-30.
+The audit covers the following PRs (specific subset of #1951..#1969;
+PRs in that range not listed here are unrelated):
+#1951, #1952, #1954, #1955, #1961, #1962, #1963, #1964, #1965, #1966,
+#1967, #1968, #1969. Each P-class shipped as its own PR; this is the
+at-a-glance index. See `docs/BLOOMBERG_TERMINAL_PLAN.md` §10–11,
+`docs/OPEN_PREP_BENZINGA_NEWS_WIRING.md` §11–12, and
+`docs/FMP_ENDPOINT_GAP_ANALYSE.md` "Retired FMP Paths" for the
+narrative versions.
+
+**Added — Unusual Whales provider** (`UNUSUAL_WHALES_API_KEY`, Bearer
+auth + mandatory `UW-CLIENT-API-ID: 100001` header):
+
+- **#1965 — v3 P-3b** (`feat(providers)`): Unusual Whales adapter
+  `newsstack_fmp/ingest_unusual_whales.py` + options-flow surface in
+  `open_prep/streamlit_monitor.py`. Replaces ad-hoc flow gating.
+- **#1967 — v3 P-4a** (`fix(providers)`): `UW-CLIENT-API-ID` header
+  marked mandatory (hardcoded `100001`) per provider docs; omission may
+  be enforced by the API.
+- **#1968 — v3 P-4b/d** (`feat(providers)`): UW dark-pool prints,
+  spot-GEX, and market-tide surfaces wired into the macro-flow tape.
+- **#1969 — v3 P-4c** (`feat(providers)`): UW bulk Form-4 insider
+  transactions added in parallel to the FMP insider feed.
+- **#1966 — v3 P-3c** (`refactor(monitor)`): monitor insider-feed
+  swapped from Benzinga to FMP + UW probe (Benzinga insider remains
+  available via the Intelligence section as secondary).
+
+**Removed — dead/redundant FMP paths:**
+
+- **#1962 — v3 P-6** (`refactor(fmp)`): dropped FMP `fear-and-greed`
+  path. Dead code with no production consumer; fear/greed sentiment
+  remains covered via CNN (equity, `open_prep/sentiment_fng.py`) and
+  alternative.me (crypto, `terminal_bitcoin.py`).
+- **#1964 — v3 P-2** (`refactor(fmp)`): dropped FMP `short-interest`
+  enrichment after FMP retired `/stable/short-interest` with no free
+  replacement.
+
+**Fixed / Standardised:**
+
+- **#1951, #1952 — v3 P-1** (`fix(benzinga)`): corrected
+  `quantified_news` endpoint path (was misconfigured / returning HTTP 400;
+  post-fix the endpoint is reachable but entitlement-gated — 401 without
+  the right plan); auth retained as `?token=` query param (revert in #1952).
+- **#1955 — v3 P-8** (`refactor(ibkr)`): `ib_insync` → `ib_async`
+  drop-in import-surface swap; `requirements.txt` pin
+  `ib_async>=2.1.0`. No behaviour change for existing
+  `scripts/execute_ibkr_watchlist.py`.
+- **#1961 — v3 P-7** (`fix(newsapi)`): NewsAPI.ai shared `httpx`
+  timeout bumped 20s → 45s; reduces false-negative timeouts on Event
+  Registry feeds.
+- **#1963 — v3 P-5** (`ci`): standardised the larger-runner pattern
+  (`runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest-m' }}`)
+  across long-running workflows (later pinned to `ubuntu-24.04` in
+  F-V4-H2 / #1994).
+
+**Docs-only review entries:**
+
+- **#1954 — v3 P-9 / P-10** (`docs(audit)`): review-trail entries +
+  audit-trail markers `F-V3-<class>` for the audit step itself.
+
+### Changed (2026-04-26) — pytest-xdist as local default + determinism regression fix
+
+- `pyproject.toml` `[tool.pytest.ini_options]` gains
+  `addopts = "-n auto --dist=loadfile"`. This aligns the local default
+  with the CI `validate` invocation (`pytest -n auto --dist=loadfile`)
+  that has been the supported mode since the AST determinism pin
+  landed in PR #104. `requirements.txt` already includes the
+  `pytest-xdist>=3.6.0` requirement constraint, so no dependency-file
+  change is needed.
+- Fixed one determinism regression caught by
+  `tests/test_pytest_xdist_parametrize_determinism.py`:
+  `tests/test_hero_defaults_vocab_coverage.py:41` consumed
+  `_VOCAB_MAP.items()` directly; now wrapped in `sorted(...)` so all
+  xdist workers collect the same parametrize ids.
+- Override locally with `pytest -n0` for interactive `pdb` debugging.
+  To disable the plugin entirely, also clear `addopts`:
+  `pytest -o addopts= -p no:xdist`.
+- Safety rationale documented inline in `pyproject.toml`. Existing
+  guards (`structure_batch._guard_against_canonical_repo_write_under_pytest`,
+  `sys.executable` in subprocess tests per PR #40) remain the
+  shared-state safety net.
+
+### Tests / Quality (2026-04-26) — Defense ledger: `while True:` site lock (10 sites)
+
+- Added `tests/test_while_true_termination_ledger.py` (1 test)
+  pinning every `while True:` loop in production by `(path, line)`.
+  Unbounded loops are a CWE-835 surface (loop with unreachable exit
+  condition); the most common refactoring foot-gun is removing the
+  only `break`/`return`/`raise` from the body. Locked sites span
+  pollers, watchers, websocket runners, and signal-driven main
+  loops:
+  - `databento_volatility_screener.py:1051`
+  - `terminal_background_poller.py:160`, `:341`
+  - `databento_universe.py:248`
+  - `open_prep/realtime_signals.py:2661`
+  - `open_prep/macro.py:81`
+  - `smc_core/resilient.py:79`
+  - `newsstack_fmp/ingest_benzinga.py:498`
+  - `newsstack_fmp/shared_fetch.py:265`
+  - `newsstack_fmp/pipeline.py:817`
+  A strict body-must-contain-`break` invariant was considered and
+  rejected because some legitimate signal-driven main loops here
+  rely on `KeyboardInterrupt` propagating out of an outer `try`/
+  `except KeyboardInterrupt`. Pinning the (path, line) is the right
+  primitive.
+
+### Tests / Quality (2026-04-26) — Defense ledger: `subprocess.run` / `subprocess.Popen` site lock (3 sites)
+
+- Added `tests/test_subprocess_spawn_sites_ledger.py` (4 tests)
+  pinning every production process-spawn call by `(path, line)`.
+  Complements the existing kwarg-shape invariants
+  (`test_subprocess_run_check_invariant.py` for `check=`,
+  `test_dangerous_call_tripwires.py` /
+  `test_shell_true_tripwire.py` for `shell=True`) — neither covers
+  *where* commands are spawned. The site ledger surfaces drift,
+  doubles as a one-grep audit of every place we shell out, and
+  forces a reviewer to ask "is this new shell-out actually
+  necessary?". Locked sites:
+  - `subprocess.run`:
+    - `smc_integration/release_policy.py:1066`
+      (`git rev-parse HEAD` for release-manifest provenance)
+    - `open_prep/realtime_signals.py:181`
+      (`pgrep` to discover daemon PID)
+  - `subprocess.Popen`:
+    - `open_prep/realtime_signals.py:325`
+      (detached re-launch of the realtime-signals daemon)
+- Defense-only — no production changes.
+
+### Tests / Quality (2026-04-25) — Defense ledger: `os.unlink` / `os.remove` (23 sites)
+
+- Added `tests/test_os_unlink_remove_ledger.py` (1 test) pinning every
+  production `os.unlink(...)` / `os.remove(...)` call site (23 entries
+  spanning the open-prep pipeline, terminal export, and newsstack
+  helpers). File deletion is destructive and irreversible — locking
+  the locations means:
+  - drift detection: any line shift surfaces in the same PR (same
+    pattern as `test_hashlib_weak_hash_ledger.py` /
+    `test_nonlocal_budget.py` / `test_warnings_simplefilter_ledger.py`);
+  - growth gate: new callers must explicitly extend the ledger with a
+    justification in the commit message;
+  - surface map: doubles as a quick audit of every place the codebase
+    deletes a file. Complements
+    `tests/test_dangerous_io_zero_surface_pin.py` which already
+    confines `shutil.rmtree(...)` to `scripts/`.
+
+### Tests / Quality (2026-04-25) — Defense pin: dynamic `setattr` / `hasattr` zero-surface (CWE-470)
+
+- Added `tests/test_dynamic_setattr_hasattr_zero_surface.py` (2 tests)
+  pinning the *write* (`setattr`) and *probe* (`hasattr`) reflection
+  counterparts of the existing dynamic-`getattr` ledger
+  (`test_dynamic_getattr_ledger.py`). Same security family (CWE-470 —
+  unsafe reflection): runtime attribute names defeat static analysis,
+  hide cross-module coupling, and are dangerous when any caller can
+  influence the name string. Locked sites:
+  - `setattr`: `terminal_live_story_state.py:50` (`_set_field` helper,
+    name from a trusted in-module field-name registry)
+  - `hasattr`: `streamlit_terminal.py:597` (test-mode config
+    field-existence probe over a trusted override mapping)
+  Literal-name calls (`setattr(obj, "field", v)` /
+  `hasattr(obj, "field")`) are statically equivalent to plain
+  attribute access and are intentionally not tracked.
+
+### Tests / Quality (2026-04-25) — Defense ledger: dynamic `getattr(obj, <expr>)` (10 sites)
+
+- Added `tests/test_dynamic_getattr_ledger.py` (1 test) pinning every
+  production `getattr(obj, <non-literal>)` call site (10 entries across
+  the SMC core, terminal state layers, and Streamlit alerts). Dynamic
+  reflection defeats static analysis (CWE-470), hides cross-module
+  coupling, and makes refactor-renames silently break. Literal-name
+  `getattr(obj, "field")` is treated as safe and stays out of the
+  ledger. Locking the dynamic call sites gives drift detection (line
+  shifts surface here) and a growth gate (new lookups must extend the
+  ledger explicitly). Same drift-protection pattern as
+  `test_warnings_simplefilter_ledger.py` /
+  `test_os_unlink_remove_ledger.py`.
+
+### Tests / Quality (2026-04-25) — Defense pin: `asyncio.new_event_loop` / `asyncio.set_event_loop` zero-surface
+
+- Added `tests/test_asyncio_event_loop_zero_surface.py` (4 tests)
+  pinning the manual asyncio event-loop installation pair. Manual
+  `asyncio.new_event_loop()` + `asyncio.set_event_loop(loop)` is a
+  known foot-gun: it competes with `asyncio.run` on the same thread
+  and produces flaky `RuntimeError: no current event loop in thread X`
+  / `This event loop is already running` failures. The only
+  legitimate shape is owning a loop on a non-main thread for its
+  full lifetime. Locked sites:
+  - `asyncio.new_event_loop`: `newsstack_fmp/ingest_benzinga.py:509`
+  - `asyncio.set_event_loop`: `newsstack_fmp/ingest_benzinga.py:510`
+  Both inside the `BenzingaWsAdapter._run_loop` daemon-thread entry
+  point, which owns the loop for the websocket session.
+- Defense-only — no production changes.
+
+### Tests / Quality (2026-04-25) — Defense pin: `atexit.register(...)` zero-surface
+
+- Added `tests/test_atexit_register_zero_surface.py` (1 test) pinning
+  the single legitimate `atexit.register(...)` call site at
+  `terminal_bitcoin.py:106` (closes a lazily-created httpx client).
+  `atexit` handlers run after structured logging has been torn down,
+  swallow exceptions silently, and can deadlock pytest workers / CI
+  runners / Streamlit reload cycles if they block on network I/O. Any
+  new call site (or any drift from that line number) fails the test
+  and forces a deliberate, reviewed allow-list update.
+
+### Tests / Quality (2026-04-25) — Defense ledger: `warnings.simplefilter("always")` (6 sites)
+
+- Added `tests/test_warnings_simplefilter_ledger.py` (2 tests) pinning
+  the 6 production `warnings.simplefilter(...)` call sites
+  (`databento_volatility_screener.py:554/1573/2090/2536/2653` +
+  `databento_universe.py:163`). Every site currently passes the literal
+  `"always"` action — the loud / safe behavior that surfaces warnings
+  to the surrounding `warnings.catch_warnings()` block. Complements
+  `test_silent_security_and_boundary_bundle.py` Layer 4 (which bans
+  the silent `"ignore"` counterpart) by:
+  - locking the locations so any drift forces a deliberate ledger
+    update in the same PR (same drift-protection pattern used by
+    `test_hashlib_weak_hash_ledger.py` and `test_nonlocal_budget.py`);
+  - failing if anyone flips an entry from `"always"` to `"ignore"` /
+    `"default"` (second test asserts the literal action explicitly).
+
+### Tests / Quality (2026-04-25) — Defense pin: `globals()` zero-surface
+
+- Added `tests/test_globals_call_zero_surface.py` (1 test) pinning the
+  single legitimate `globals()` call site at `streamlit_terminal.py:2226`
+  (read-only `globals().get("_INTEL_ENABLED", False)` lookup whose target
+  is bound by the sidebar toggle block above). `globals()` defeats
+  static analysis and is the stepping stone to `globals()[name] = ...`
+  mutation; the codebase has been moving toward explicit dataclass /
+  TypedDict context layers (see `terminal_attention_state` /
+  `terminal_posture_state`) for exactly this reason. Any new call site
+  (or any drift from that line number) now fails CI and forces a
+  reviewed allow-list update.
+- Defense-only — no production changes.
+
+### Tests / Quality (2026-04-25) — Defense pin: dangerous IO/process primitives zero-surface
+
+- Added `tests/test_dangerous_io_zero_surface_pin.py` (3 tests) pinning
+  three small IO/process surfaces, each currently confined to a
+  known-good caller set so any new caller in production trips the guard:
+  - `os.kill(pid, sig)` — process signalling. Allow-listed only as the
+    two signal-0 liveness probes inside
+    `open_prep/realtime_signals.py:172,198`. Any new call site (or any
+    drift from those line numbers) fails the test.
+  - `shutil.rmtree(...)` — recursive deletion. Allow-listed only inside
+    `scripts/` (artifact-refresh tooling). Recursive deletion is
+    destructive and must stay out of runtime code.
+  - `socket.socket(...)` — raw socket creation. Allow-listed only
+    inside `scripts/` (local port-probe helpers). Production network
+    access should go through the dedicated provider clients
+    (Databento/Finnhub/FMP) that already centralise retry/auth/telemetry.
+- Defense-only — no production changes.
+
+### Tests / Quality (2026-04-25) — Hotfix: ledger line-number drift after upstream merges
+
+- Bumped frozen line numbers in two ledger tests after an upstream
+  insertion in `open_prep/realtime_signals.py` and
+  `databento_volatility_screener.py` shifted production lines by +1:
+  - `tests/test_hashlib_weak_hash_ledger.py`: `realtime_signals.py`
+    `md5` site `1009 → 1010`.
+  - `tests/test_nonlocal_budget.py`: `databento_volatility_screener.py`
+    `4686/4687/4688/4689 → 4687/4688/4689/4690`
+    (`_fast_progress_pct/_step/_total/_eta_smooth_seconds`).
+- Defense-only — no production changes. Unblocks `main` and the open
+  defense-pin queue.
+
+### Tests / Quality (2026-04-25) — Defense pin: exec / tempfile.mktemp / subprocess shell=True zero-surface
+
+- Added `tests/test_exec_mktemp_shelltrue_zero_surface.py` (3 tests)
+  pinning three classic foot-guns at zero offenders today:
+  - `exec(...)` — CWE-95 (Code Injection). Closes the gap left by
+    #219 which banned `eval(...)` and `pickle.load(s)`.
+  - `tempfile.mktemp(...)` — CWE-377 / CWE-367 (TOCTOU race);
+    deprecated since Python 2.3. Use `tempfile.mkstemp` or
+    `tempfile.NamedTemporaryFile`.
+  - `subprocess.*(..., shell=True, ...)` — CWE-78 (OS Command
+    Injection); applies to `run / Popen / call / check_call /
+    check_output`. Use list-form invocation without `shell=`.
+- Defense-only — no production changes.
+
+### Tests / Quality (2026-04-25) — Defense pin: subprocess.run(...) must pass explicit check=
+
+- Added `tests/test_subprocess_run_check_invariant.py` (1 test) enforcing
+  that every `subprocess.run(...)` call in first-party non-test code passes
+  an explicit `check=` kwarg (CWE-754 — improper check of unusual or
+  exceptional condition).
+- Default is `check=False` → non-zero exits silently swallowed → callers
+  proceed with empty stdout under the illusion of success.
+- Fixed the only offender: `open_prep/realtime_signals.py:181` (the
+  `pgrep` lookup) now passes `check=False` explicitly. Surface today:
+  7 sites, **100% compliant**.
+- Sister of the threading.Thread daemon= (#211), httpx timeout= (#208),
+  mkdir/makedirs exist_ok= (#216), tempfile.NamedTemporaryFile delete=
+  (#207) invariants. No ledger.
+
+### Tests / Quality (2026-04-25) — Fix: add scripts/check_pine_legacy_drift.py to sys.path ledger
+
+- The pre-existing `scripts/check_pine_legacy_drift.py` script bootstraps
+  the repo root onto `sys.path` so it can import `scripts.pine_path_resolver`
+  when invoked directly by `smc-fast-pr-gates` (rather than via
+  `python -m`). The site is justified and documented in-place but had
+  not been added to `tests/test_sys_path_mutation_ledger.py::_FROZEN_SITES`,
+  causing the `validate` job to fail across all open PRs.
+- Added the entry (count=1). No production change.
+- Also bumped the frozen line for `streamlit_terminal.py`'s `global` site
+  in `tests/test_global_statement_budget.py` from 602 → 603 (line drifted
+  by one after the prior unrelated edit landed on `main`). No production
+  change.
+- Bumped further drifted ledger line numbers caused by the same +1 shift
+  in `open_prep/realtime_signals.py` and an independent +1 shift in
+  `databento_volatility_screener.py`:
+  - `tests/test_time_sleep_budget.py`: realtime_signals 264/337/1589/2690/2703 → 265/338/1590/2691/2704
+  - `tests/test_mutable_defaults_and_loads_pins.py`: realtime_signals 1455/2573/2609 → 1456/2574/2610; databento_volatility_screener 780 → 781
+  - `tests/test_random_tempfile_ledger_pin.py`: realtime_signals 2495/2536 → 2496/2537; databento_volatility_screener 298 → 299
+  - `tests/test_silent_security_and_boundary_bundle.py`: realtime_signals 1061/2629 → 1062/2630
+  No production change — pure ledger line-number drift fix.
+
+### Tests / Quality (2026-04-25) — Defense ledger: built-in open() text-mode without encoding=
+
+- Added `tests/test_builtin_open_encoding_ledger.py` (5 tests) freezing
+  today's surface of built-in `open(...)` text-mode calls in first-party
+  non-test code that omit an explicit `encoding=` kwarg.
+- Mirror of #218 (Path text-IO encoding= ledger) — same locale-fallback
+  hazard (`locale.getpreferredencoding(False)` differs by platform).
+- Frozen surface: **4 sites across 3 files** (all under `scripts/`).
+  Total + no_new_files + per-file line invariants. Ledger may only shrink.
+
+### Tests / Quality (2026-04-25) — Defense pin: zero-surface — dangerous builtins / os process APIs
+
+- Added `tests/test_dangerous_builtins_zero_surface.py` (6 tests) banning
+  in first-party non-test code:
+  - `os.popen(...)` (CWE-78 alternative path; sister of #209's `os.system` ban)
+  - `os.spawn*(...)` (legacy process-spawn family)
+  - `os.exec*(...)` (process replacement)
+  - `os.fork()` (bypasses our threading + asyncio model)
+  - built-in `compile(...)` (CWE-95 dynamic code compilation)
+  - built-in `breakpoint()` (left-in debugger)
+- All six surfaces are **zero** today; this pin keeps them that way.
+- Sister of #214 (pickle write + os.path.join), #219 (pickle read + eval),
+  #209 (os.system / input / assert).
+
+### Tests / Quality (2026-04-25) — Defense pin: zero-surface — pickle.load(s) read side + eval()
+
+- Added `tests/test_pickle_read_and_eval_zero_surface.py` (2 tests) banning
+  in first-party non-test code:
+  - **CWE-502**: `pickle.load`, `pickle.loads`, `cPickle.load(s)`,
+    `dill.load(s)`, `marshal.load(s)` — read-side counterpart of #214
+    (which closed the write side).
+  - **CWE-95**: built-in `eval(...)` — code injection vector.
+- Both surfaces are **zero** today; this pin keeps them that way.
+- Sister of #214 (pickle write side + os.path.join literal absolute),
+  #212 (TLS / JWT skip-verify), #209 (os.system / input / assert).
+- Defense-only — no production changes.
+
+### Tests / Quality (2026-04-25) — Defense ledger: Path.read_text/write_text without encoding=
+
+- Added `tests/test_path_text_io_encoding_ledger.py` (11 tests) freezing
+  today's surface of `Path.read_text(...)` / `Path.write_text(...)` calls
+  in first-party non-test code that omit an explicit `encoding=` kwarg.
+- Default falls back to `locale.getpreferredencoding(False)` → UTF-8 on
+  Linux/macOS, cp1252 on Windows containers, ASCII on stripped-down CI →
+  silent encoding drift / artifact corruption.
+- Frozen surface: **24 sites across 8 files**. Total + no_new_files +
+  per-file line invariants — ledger may only shrink.
+- Sister of #213 (silent-error-swallow ledger). Defense-only — no
+  production changes.
+
+### Tests / Quality (2026-04-25) — Defense ledger: `# noqa` suppression growth
+
+- Added `tests/test_noqa_suppression_ledger.py` (29 tests) freezing today's
+  surface of `# noqa` lint-suppression markers in first-party non-test code.
+- Total + no_new_files + per-file count invariants. Ledger may only **shrink**.
+- Frozen surface: **50 suppressions across 27 files**. Adding a new
+  suppression requires a deliberate ledger bump in the same PR; removing
+  one is welcome and leaves the test green.
+- Sister of #213 (silent-error-swallow ledger), #218 (Path text-IO encoding),
+  #220 (built-in open encoding). Defense-only — no production changes.
+
+### Tests / Quality (2026-04-25) — Defense pin: mkdir / makedirs must pass explicit exist_ok=
+
+- Added `tests/test_mkdir_makedirs_exist_ok_invariant.py` (2 tests)
+  enforcing that every `*.mkdir(...)` and `os.makedirs(...)` call in
+  first-party non-test code passes an explicit `exist_ok=` kwarg.
+- Default is `exist_ok=False` → `FileExistsError` on the second
+  invocation: race-condition + bug-on-restart foot-gun. Surface
+  today: 555 `*.mkdir` + 9 `os.makedirs` sites, **100% compliant**.
+- Sister of the threading.Thread daemon= (#211), httpx timeout= (#208),
+  and tempfile.NamedTemporaryFile delete= (#207) invariants. No ledger.
+- Defense-only — no production changes.
+
+### Tests / Quality (2026-04-25) — Defense pin: triple zero-surface (os.system + input + assert)
+
+- Added `tests/test_os_system_input_assert_zero_surface.py` pinning three
+  cheap-to-pin invariants in first-party non-test code:
+  - **CWE-78**: no `os.system(...)` calls (closes the backdoor left by the
+    subprocess shell-injection pin in #201).
+  - **CWE-400**: no blocking `input(...)` calls (keeps automated runs
+    deterministic; surface is empty today).
+  - **CWE-617**: no `assert` statements in production code (Python `-O`
+    strips them; assertions belong only under `tests/`).
+- Defense-only — no production changes; AST scan walks every first-party
+  `*.py` and excludes `tests/`, `.venv`, `node_modules`, `artifacts`,
+  `docs`, `SMC++`. Any reintroduction is a forced design decision.
+
+### Tests / Quality (2026-04-25) — Defense pin: library-discipline zero-surface (requests / asyncio / shutil.copy)
+
+- Added `tests/test_library_discipline_zero_surface.py` (3 tests)
+  pinning three "this codebase doesn't use that library / API"
+  invariants, each a deliberate architectural choice that has held
+  to date:
+  - **No `requests.<verb>(...)`** — codebase is exclusively on `httpx`
+    (see #208). Mixing libs doubles connection-pool/TLS/timeout surface.
+  - **No `asyncio.run` / `asyncio.create_task`** — codebase is
+    synchronous + threaded (see the `threading.Thread` daemon= pin #211).
+  - **No `shutil.copy` / `shutil.copyfile`** — both non-atomic; use the
+    atomic-write helpers in `scripts/smc_atomic_write.py` (sister of #207).
+- All three surfaces empty in first-party non-test code today.
+
+### Tests / Quality (2026-04-25) — Defense pin: TLS context tampering + JWT skip-verify zero-surface
+
+- Added `tests/test_tls_jwt_verification_zero_surface.py` (3 tests)
+  pinning three "skip-the-verification" call shapes that the existing
+  `verify=False` tripwire (in the silent-security bundle) does NOT catch:
+  - `ssl._create_unverified_context(...)` — disables TLS hostname +
+    chain verification (CWE-295).
+  - `ssl.CERT_NONE` (and bare `CERT_NONE` after `from ssl import …`)
+    — marker for "trust any peer cert" (CWE-295).
+  - `jwt.decode(..., verify=False)` — silently accepts unsigned tokens
+    (CWE-347). Repo doesn't use PyJWT today; pin prevents future drift.
+- All three surfaces empty in first-party non-test code; pin keeps
+  them empty.
+
+### Tests / Quality (2026-04-25) — Defense pin: pickle write-side + os.path.join absolute-path zero-surface
+
+- Added `tests/test_pickle_write_and_abs_pathjoin_zero_surface.py`
+  (2 tests) pinning two more empty surfaces:
+  - **Pickle write side** — `pickle.dump(s)` (also `cPickle` / `dill` /
+    `marshal`). Symmetric guard for the read-side ban in #202: if no
+    code produces pickled bytes, no code can ever be tempted to
+    consume them.
+  - **`os.path.join(base, "/abs")` foot-gun (CWE-22)** — `os.path.join`
+    silently *discards* every component before an absolute path. Pin
+    the literal-absolute case to zero (variable second args still
+    require call-site sanitization).
+- Both surfaces empty in first-party non-test code today.
+
+### Tests / Quality (2026-04-25) — Defense pin: silent error swallow ledger + bare-except zero-surface
+
+- Added `tests/test_silent_error_swallow_pin.py` (17 tests) pinning two
+  closely related "errors disappear" shapes:
+  - **Bare `except:`** — zero-surface invariant (catches BaseException;
+    breaks Ctrl-C). 0 sites today.
+  - **`except Exception: pass`** — frozen 17-site ledger across 13
+    files. Mix of opportunistic best-effort cleanup, data-source
+    fallbacks, and Streamlit UI guards. New silent swallows must
+    either fix the swallow, log it, or extend `_FROZEN_SITES` with
+    justification.
+- Per-file parametrized line-drift tests + total-count + no-new-files +
+  no-removed-files (same ledger pattern as the hashlib pin #206 and
+  the urllib timeout ledger #204).
+- Defense-only — no production changes.
+
+### Tests / Quality (2026-04-25) — Defense pin: datetime tz-safety zero-surface (4 shapes)
+
+- Added `tests/test_datetime_tz_safety_zero_surface.py` pinning the four
+  call shapes that produce a *naive* (no `tzinfo`) datetime:
+  - `datetime.utcnow()` (deprecated in Python 3.12)
+  - `datetime.utcfromtimestamp(...)` (deprecated in Python 3.12)
+  - `*.now()` without `tz=` / `tzinfo=`
+  - `*.fromtimestamp(...)` without `tz=` / `tzinfo=`
+- All four surfaces are empty in first-party non-test code today; the
+  pin keeps them empty. Detection is by attribute name (covers every
+  binding style: `datetime.datetime.now()`, `dt.now()`,
+  `from datetime import datetime` then `datetime.now()`, etc.).
+
+### Tests / Quality (2026-04-25) — Defense pin: threading.Thread daemon= invariant (5 sites compliant)
+
+- Added `tests/test_threading_thread_daemon_invariant.py` enforcing
+  that every `threading.Thread(...)` constructor passes an explicit
+  `daemon=` kwarg. Sister of the httpx / urlopen `timeout=` invariants.
+- Surface today: 5 `threading.Thread` sites across 3 files, all 100%
+  compliant. No ledger to maintain — any new construction without
+  `daemon=` fails CI immediately.
+- Defense-only — no production changes; one test, one assertion.
+
+### Tests / Quality (2026-04-25) — Defense pin: urllib.urlopen ledger + mandatory timeout=
+
+New `tests/test_urllib_urlopen_ledger.py` (7 tests) — sister of the
+`subprocess` shell-injection pin (#201). Two layers:
+
+- **Layer 1 (hard invariant, CWE-1088 / availability)**: every
+  `urlopen(...)` call MUST pass `timeout=` as a keyword argument. A
+  missing timeout makes the caller block on a slow / hung server
+  forever — the most common availability bug in Python network code.
+  This is not a per-site ledger; it is an absolute invariant.
+- **Layer 2 (per-(file, lineno) ledger)**: 4 sites pinned across 3
+  files — `terminal_notifications.py:201,265`,
+  `scripts/smc_alert_notifier.py:482`,
+  `scripts/verify_branch_protection.py:103`. Refuses both new and
+  removed sites; line-number-aware (similar to the
+  `subprocess` ledger).
+
+All 4 currently pass `timeout=10` or `timeout=15`. Defense-only — no
+production changes.
+
+### Tests / Quality (2026-04-25) — Defense pin: tempfile.NamedTemporaryFile mandatory delete= kwarg
+
+New `tests/test_tempfile_namedtemp_delete_kwarg_invariant.py` (1
+test) freezes the call shape: every
+`tempfile.NamedTemporaryFile(...)` MUST pass `delete=` as an
+explicit keyword argument. The default `delete=True` is the wrong
+default for the atomic-write pattern used throughout this repo
+(open temp → write → fsync → `os.replace`); without `delete=False`
+the temp file vanishes before the rename and corrupts output.
+
+Sister of #176 (which freezes the *inventory* of `tempfile.*` calls);
+this pin freezes a *call shape* — different layer, same defense.
+All 3 current `NamedTemporaryFile` sites already pass
+`delete=False`. Defense-only — no production changes.
+
+### Tests / Quality (2026-04-25) — Defense pin: socket.socket / bind() ledger + loopback-only invariant
+
+New `tests/test_socket_bind_loopback_pin.py` (6 tests). Two layers:
+
+- **Layer 1 (hard invariant, CWE-1327 / unintended-exposure)**: every
+  `.bind(...)` whose host arg is a string literal MUST bind to a
+  loopback address (`127.0.0.1` / `localhost` / `::1` / `127.*`).
+  Calls with non-literal host args are silently skipped (the ledger
+  catches their existence regardless). Empty-string host (`""` =
+  all-interfaces) is explicitly forbidden.
+- **Layer 2 (per-(file, lineno) ledger)**: only 1 site —
+  `scripts/start_open_prep_suite.py` (`socket()@15`, `bind()@18`),
+  a port-finding helper that loopback-binds to `("127.0.0.1", port)`.
+
+### Tests / Quality (2026-04-25) — Defense pin: hashlib.md5 / sha1 weak-hash ledger
+
+New `tests/test_hashlib_weak_hash_ledger.py` (12 tests) freezes the
+inventory of weak-hash call sites: 13 sites across 8 files (`md5` and
+`sha1`). All current uses are non-security fingerprints (cache keys,
+dedup IDs, atomic-write content hashes) — the pin documents that and
+forces any new use through review. Test message points reviewers at
+SHA-256 / BLAKE2 if a new use crosses into auth / signature /
+integrity territory.
+
+Detection: direct `hashlib.md5(...)` / `hashlib.sha1(...)` plus
+`hashlib.new("md5"|"sha1", ...)` constant variants. HMAC / PBKDF2 /
+scrypt are out of scope (legacy-compat algorithm names internally).
+
+Defense-only — no production changes.
+
+### Tests / Quality (2026-04-25) — Defense pin: httpx mandatory timeout= invariant
+
+New `tests/test_httpx_timeout_invariant.py` (2 tests) — sister of
+the urllib.urlopen invariant (#204) extended to httpx, the repo's
+primary HTTP client. Two call shapes covered:
+
+- `test_every_httpx_client_constructor_passes_timeout`
+  → `httpx.Client(...)` and `httpx.AsyncClient(...)` MUST pass
+  `timeout=` explicitly. Today: 21 sites across 11 files, all pass.
+- `test_every_httpx_module_level_verb_passes_timeout`
+  → `httpx.get / post / put / delete / patch / head / options /
+  request / stream` MUST pass `timeout=`. Today: 1 site
+  (`terminal_notifications.py:225 httpx.post`), passes.
+
+Out of scope: instance-method calls like `client.get(...)` (those
+inherit the client's timeout, which the constructor invariant already
+covers). Defense-only — no production changes.
+
+### Tests / Quality (2026-04-25) — Defense pin: os.environ mutation site ledger
+
+New `tests/test_os_environ_mutation_ledger.py` (AST-based, 13 tests) freezes
+the inventory of `os.environ[K] = V` (WRITE) and `os.environ.setdefault(K, V)`
+(SDFLT) sites in first-party production / scripts / streamlit code:
+9 sites total — 6 WRITE (CA-bundle wiring + Streamlit secrets fall-through),
+3 SDFLT (NewsAPI / Streamlit operator-set defaults). Refuses any new mutation
+kind (`.update`, `.pop`, ...) without a ledger update. Defense-only — no
+production changes.
+
+### Tests / Quality (2026-04-25) — Defense pin: dynamic-exec + pickle zero-surface invariant
+
+New `tests/test_dynamic_exec_and_pickle_zero_surface.py` (3 tests) freezes
+two adjacent CWE families at **zero** sites in first-party code:
+
+- **CWE-95 (dynamic exec)**: bare `eval(...) / exec(...) / compile(...)`
+  builtin calls. False-positive scope is narrow — only `ast.Name` calls
+  are matched, so `re.compile`, `pandas.eval`, etc. are ignored.
+- **CWE-502 (unsafe deserialization)**: `pickle / cPickle / dill / marshal`
+  imports AND `<mod>.load|loads|Unpickler(...)` call sites. Two-layer
+  check (import + call) so even a "imported but not yet called" creep is
+  flagged.
+
+Both surfaces are currently empty; the tests are pure invariants and
+require zero ledger maintenance unless someone genuinely needs to
+re-open a surface (in which case the test message documents the
+escape-hatch convention). Defense-only — no production changes.
+
+### Tests / Quality (2026-04-25) — Defense pin: yaml + xml zero-surface invariant
+
+New `tests/test_yaml_xml_zero_surface.py` (2 tests) — sister of the
+`dynamic-exec + pickle` zero-surface pin — freezes two more adjacent
+CWE families at **zero** sites in first-party code:
+
+- **CWE-502 (unsafe YAML)**: `yaml.load / load_all / full_load /
+  full_load_all / unsafe_load / unsafe_load_all` calls. PyYAML's
+  `yaml.load` on untrusted input is arbitrary code execution; only
+  `yaml.safe_load` is generally safe.
+- **CWE-611 (XML / XXE)**: any import of stdlib `xml.*` or
+  third-party `lxml*`. Historically all carry XXE / billion-laughs /
+  external-DTD risk. Repo doesn't need XML at all today, so the
+  cleanest invariant is to forbid the import surface entirely.
+
+Both surfaces are currently empty; tests are pure invariants with no
+ledger to maintain. Defense-only — no production changes.
+
+### Tests / Quality (2026-04-25) — Defense pin: subprocess shell-injection surface
+
+New `tests/test_subprocess_shell_injection_pin.py` (AST-based, 14 tests)
+freezes two layers:
+
+- **Hard invariant**: `subprocess.X(..., shell=True)` count must remain `0`
+  in first-party code. Any new occurrence trips `test_no_shell_true_anywhere`
+  (CWE-78 surface kept empty).
+- **Per-(file, attr) ledger**: 11 spawn sites in 7 files
+  (`run`, `Popen`, `check_output`) — adding/removing/swapping requires an
+  explicit ledger bump. Refuses brand-new `subprocess.<attr>` spawning
+  methods via `_SPAWN_ATTRS` allow-list.
+
+Defense-only — no production changes.
+
+### Fixed (2026-04-25) — main RED hotfix: continue-on-error inventory line resync
+
+`tests/test_workflow_continue_on_error_inventory.py` `_ALLOWED` for
+`smc-library-refresh.yml` was pinned to lines `{592, 735, 755}` for the three
+best-effort sites (alerts dispatch, breaking-change notify, end-of-run status).
+Actual offsets in the workflow on `main` are `{601, 744, 764}` (+9 line shift)
+— the three sites are unchanged in content; only their position drifted. This
+left every PR's `validate` job RED. Resync `_ALLOWED` to the real offsets;
+no semantic change to silent-fail surface inventory (still 5 lines, same 3 hops).
+
+### Tests / Quality (2026-04-25) — ADR-0006 Doc + Salvaged Pins from PR #123
+
+Net-additive salvage from the closed PR #123 (`chore/smc-system-review-2026-04-24`),
+which was closed as superseded after #186 shipped its production half. These five
+files have **zero overlap** with anything on main and were trial-tested green
+against post-#186 state (15 passed).
+
+- `docs/adr/0006-hero-vocab-discipline.md` (NEW): ADR completing the documentation
+  for the HERO vocab discipline whose runtime contract was restored by hotfix #186.
+- `tests/test_adr_0005_extended_islands_audit.py` (NEW): audit pin for ADR-0005
+  extended-islands invariants.
+- `tests/test_hero_observed_vocab_pin.py` (NEW): observed-vocab pin — gates that
+  every value emitted at runtime by `build_hero_state` belongs to the corresponding
+  `HERO_*_VOCAB` frozenset (closes the gap between *defined* vocab and
+  *actually-emitted* values).
+- `tests/test_lru_cache_bounded_sweep.py` (NEW): cross-repo sweep that every
+  `@functools.lru_cache(...)` carries an explicit `maxsize=` (companion to the
+  existing `test_lru_cache_maxsize_discipline.py`).
+- `tests/test_pine_library_version_consistency.py` (NEW): pin that the generated
+  Pine library's `library_field_version` matches the Python-side schema version,
+  so a vocab change without a version bump fails fast.
+
+No production-code changes. No test deletions. No conflicts with the recently
+merged audit wave (#186, #188–#193).
+
+### Defense (2026-04-25) — `sys.path` Mutation Site Ledger
+
+- New defense pin `tests/test_sys_path_mutation_ledger.py`: AST-based
+  inventory of every first-party `sys.path.insert(...)` /
+  `sys.path.append(...)` site, frozen by `(file, count)`. Currently
+  37 files / 38 sites (only `scripts/smc_zone_priority_calibration.py`
+  has count 2, two `__main__`-style entry blocks).
+- Three checks: (1) no new file may introduce a mutation without a
+  ledger bump in the same PR, (2) a frozen site disappearing must drop
+  the entry explicitly (so we don't silently regress later), (3) the
+  per-file count must match exactly. Aggregate cross-check against
+  `_FROZEN_TOTAL` catches drift the per-file parametrize might miss.
+- Rationale: mutating `sys.path` at import time is a load-order
+  foot-gun (same `import foo` resolves differently depending on which
+  script booted the process), masks packaging bugs (missing console
+  scripts / `__init__.py`), and is exactly the line that has to come
+  out when a script is later promoted to a CLI / module / library —
+  but tends to stick around because nobody notices it. The ledger
+  forces the conversation in PR review.
+- AST is used so textual occurrences inside triple-quoted subprocess
+  runner strings (e.g. `scripts/measure_databento_ops_run.py:116`)
+  are correctly excluded.
+- Defense-only — no production code changes.
+
+### Fixed (2026-04-25) — Restore Missing HERO Vocab Constants + Bundled Ledger Drift (Main-RED Hotfix)
+
+- **Primary fix:** `scripts/smc_hero_state.py`: restore `HERO_BIAS_VOCAB`,
+  `HERO_MARKET_MODE_VOCAB`, and `HERO_RISK_VOCAB` (plus their per-value
+  string constants and the `HERO_RISK_NONE = ""` Pine boundary sentinel)
+  that were referenced by tests landed via PR #143 ("recover PR #126
+  onto main") but whose production-side counterparts were never folded
+  into `main`. CI on `main` was failing at COLLECTION with
+  `ImportError: cannot import name 'HERO_BIAS_VOCAB'` since
+  `ebcd622f`, blocking every open auto-merge PR (#150/#174/#175/#176).
+- Refactor `_derive_bias`, `_derive_action`, and `_derive_risk` to
+  return the named constants instead of bare string literals. Pure
+  behavioural no-op — every literal value is preserved exactly,
+  including the empty-string sentinel that gates
+  `SMC_Dashboard.pine:1769` (`mp.HERO_RISK != ""`).
+- Source-of-truth: extracted from PR #123
+  (`chore/smc-system-review-2026-04-24`), which carries the production
+  half of ADR-0006 but is otherwise blocked by extensive add/add
+  conflicts with the freshly-merged pin wave.
+- **Bundled drift fixes (only surfaced once collection succeeds):**
+  - `tests/test_changelog_format_lint.py`: extend `ALLOWED_CATEGORIES`
+    with `Defense` and `Fixes & Pins`; widen `_CATEGORY_RE` to allow
+    `&` so multi-word categories like `Fixes & Pins` parse cleanly.
+  - `tests/test_assert_and_open_encoding_pin.py`: drop both entries
+    from `_FROZEN_OPEN_COUNTS` — `open_prep/realtime_signals.py` and
+    `test_usi_lint.py` no longer have any text-mode `open()` without
+    `encoding=` (PR #138 cleared them; the pin was never bumped).
+  - `tests/test_assert_in_production_budget.py`: clear `_FROZEN_SITES`
+    to `frozenset()` — all 4 production `assert` sites
+    (`databento_volatility_screener`, `databento_universe`,
+    `newsstack_fmp/ingest_benzinga`, `newsstack_fmp/shared_fetch`)
+    were already removed.
+  - `tests/test_nonlocal_budget.py`: bump 4 `databento_volatility_screener.py`
+    `_fast_progress_*` / `_fast_eta_smooth_seconds` lines 4678–4681 → 4686–4689.
+  - `tests/test_time_sleep_budget.py`: bump
+    `newsstack_fmp/shared_fetch.py` 272 → 273.
+- Local pin sweep: `pytest -k "ledger or pin or budget or format_lint or vocab or hero"`
+  → 2439 passed, 5 skipped (was: ImportError at collection on `main`,
+  cascading 14+ test failures behind it).
+
+### Fixed (2026-04-25) — `_FROZEN_URLOPEN_SITES` Line Bump
+
+- `tests/test_http_client_discipline.py`:
+  bump `_FROZEN_URLOPEN_SITES` entry for `databento_volatility_screener.py`
+  from line 1102 → 1109. The `urlopen(request, timeout=30, context=_ssl_ctx)`
+  in `_download_nasdaq_trader_text` shifted 7 lines down after a
+  `logger.warning(...)` was inserted above it (same root cause as the
+  env-subscript bump in PR #184). Pure line drift; the call still passes
+  `timeout=`.
+
+### Fixed (2026-04-25) — `_ALLOWED` Workflow continue-on-error Line Bumps
+
+- `tests/test_workflow_continue_on_error_inventory.py`:
+  re-sync `_ALLOWED` line numbers for 5 workflows after upstream YAML
+  edits. All entries are pure line drift; the same set of best-effort
+  hops remains tolerated:
+  - `smc-live-newsapi-refresh.yml`: 104 → 106
+  - `smc-library-refresh.yml`: {162, 370, 583, 723, 740} → {165, 376, 592, 735, 755}
+  - `smc-deeper-integration-gates.yml`: {51, 92} → {54, 98}
+  - `plan-2-8-weekly-digest.yml`: {441, 655, 931} → {444, 661, 940}
+  - `smc-release-gates.yml`: 169 → 172
+
+### Fixed (2026-04-25) — `_FROZEN_ENV_SUBSCRIPT_SITES` Line Bump
+
+- `tests/test_mutable_defaults_and_loads_pins.py`:
+  bump frozen `os.environ[X]` subscript ledger entry for
+  `databento_volatility_screener.py` from line 773 → 780. The
+  assignment `os.environ[env_name] = cafile` shifted 7 lines down
+  after a `logger.warning(...)` was inserted above it (no functional
+  change). This unblocks the CI `validate` check that was failing
+  on every PR with `AssertionError: New os.environ[X] subscript
+  site(s)`.
+
+### Fixed (2026-04-25) — Reconcile assert ledger after zero-budget migration
+
+- `tests/test_assert_and_open_encoding_pin.py`:
+  drop `_FROZEN_ASSERT_COUNTS` to `{}`. The four prod `assert`
+  sites pinned by PR #166 were migrated to explicit `raise` blocks
+  in PR #171 (zero-budget pin). The legacy ledger was never updated,
+  so `test_assert_total_frozen` failed with `expected 4, got 0` on
+  every PR. The `test_assert_no_new_files` guard remains in place
+  (now paired with the dedicated zero-budget pin from #171).
+
+### Fixed (2026-04-25) — `broad_except_silent` Line Bump
+
+- `tests/test_broad_except_silent_budget.py`:
+  bump `_FROZEN_SITES` entry for `newsstack_fmp/ingest_benzinga.py`
+  from line 546 → 547. The `except Exception:` around `ws.send(auth_msg)`
+  shifted by one line after upstream edits. Pure line drift; identical
+  silent-handler kept. Same drift class as the env-subscript bump above.
+
+### Tests / Quality (2026-04-25) — Extend CHANGELOG ALLOWED_CATEGORIES
+
+- `tests/test_changelog_format_lint.py`:
+  add `Hardening`, `Tests / Quality / Pine`, `Tests / Quality / Workflows`
+  to `ALLOWED_CATEGORIES`. All three are in active use in `[Unreleased]`
+  (introduced by merged PRs #170, #171, #177, #131, #130 etc.).
+  The whitelist had lagged real usage, so the lint test was failing
+  on `main`; it was masked by `pytest --maxfail=1` + alphabetical
+  ordering (the assert-ledger drift fixed above failed first).
+
+### Hardening (2026-04-25) — Pin: `sys.exit` 7-Site Ledger + bare `exit/quit` Tripwire
+
+- Neuer Pin [`tests/test_sys_exit_ledger_pin.py`](tests/test_sys_exit_ledger_pin.py)
+  mit 2 Layern:
+  1. **`sys.exit` 7-Site Frozen Ledger** — alle CLI/`__main__`-Guards:
+     `open_prep/{candidate_weights:241, feature_importance_report:351,
+     outcome_backfill:529}`, `pine_input_surface.py:{400,402}`,
+     `test_usi_lint.py:{90,93}`. Library-Code muss `raise`-en, nicht
+     den Prozess killen.
+  2. **Bare `exit()` / `quit()` Zero-Tripwire** — REPL-Helper, fehlen
+     in embedded interpreters / stripped builds → Crash-on-Import.
+     Heute 0.
+- 10/10 Tests grün (1× tripwire + 2× ledger guards + 7× parametrised existence).
+- Defense-only.
+- OWASP A09 (Logging & Monitoring Failures — silent process termination).
+
+### Hardening (2026-04-25) — `assert` → `raise` Migration (Production)
+
+- Migration der 4 verbliebenen `assert`-Statements in First-Party-Production
+  zu expliziten `if … : raise RuntimeError(...)`-Blöcken:
+  - `databento_universe.py:314` (retry-loop type-narrowing)
+  - `databento_volatility_screener.py:1116` (retry-loop type-narrowing)
+  - `newsstack_fmp/ingest_benzinga.py:211` (HTTPStatusError response narrowing)
+  - `newsstack_fmp/shared_fetch.py:128` (cached_payload narrowing nach reusability check)
+- Hintergrund: `assert`-Statements werden unter `python -O` (Optimisation
+  Mode) silently stripped — Type-Narrowing-Asserts kollabieren dann zu
+  latenten `AttributeError`/`TypeError`-Bugs irgendwo downstream. Explizite
+  `raise`-Statements überleben `-O` und liefern eine deterministische,
+  diagnoseable Fehlerklasse.
+- Pin: `tests/test_no_prod_assert_pin.py` (2 Layers — global zero-budget
+  + parametrised per-site sentinel). Verhindert Regression. Ledger im
+  bestehenden `tests/test_assert_and_open_encoding_pin.py` (PR #166)
+  bleibt als Obergrenze; dieser Pin enforced den jetzigen Zustand (0).
+- Verhalten: Bei legitimer "this can't happen"-Zustand wird `RuntimeError`
+  geworfen statt `AssertionError`. Keine ID-Rotation, keine Schema-Änderung.
+
+### Defense (2026-04-25) — `shell=True` / `os.popen` Zero-Tripwire
+
+- Neuer `tests/test_shell_true_tripwire.py` mit 2 Layers (beide aktuell 0):
+  1. **No-shell-True**: `subprocess.run/Popen/call/check_output(..., shell=True)`
+     auf jeder Call-Site verboten. AST-Detection per `kw.arg=='shell'` mit
+     `ast.Constant(value=True)`.
+  2. **No-os.popen**: `os.popen(...)` (immer shell-mode, immer shell-injection-prone).
+- OWASP A03 Defense. Codebase aktuell sauber → Tripwire lockt jede neue
+  Regression sofort. Standard `_DIR_EXCLUDE`.
+
+### Defense (2026-04-25) — Pine `var` / `varip` Declaration-Budget Pin
+
+- Neuer `tests/test_pine_var_budget_pin.py` mit 4 Layers:
+  1. **Total-Budget**: Sum aller `var`/`varip`-Deklarationen über alle
+     `.pine`-Dateien ≤ 859 (current state).
+  2. **No-Unledgered-File**: Jede neue `.pine`-Datei mit ≥1 Deklaration
+     muss explizit ins Ledger aufgenommen werden.
+  3. **No-Stale-Entries**: Ledger-Einträge müssen weiterhin existieren.
+  4. **Per-File-Budget** (parametrisiert, 36 Sites): Jede einzelne Datei
+     darf ihren eingefrorenen Stand nicht überschreiten.
+- Top-Site: `SMC_Core_Engine.pine: 415` (Bloat-Indikator — markiert für
+  künftiges Refactor in Library/Context-Module).
+- Verhindert "stealth state growth" und zwingt deliberate Ledger-Updates
+  bei neuen `var`/`varip`-Deklarationen.
+- Ledger-Stand 2026-04-25 captured.
+
+### Hardening (2026-04-25) — Pin: GitHub-Actions Workflow `permissions:` explizit
+
+- Neuer Pin [`tests/test_workflow_permissions_pin.py`](tests/test_workflow_permissions_pin.py)
+  prüft, dass jede Datei in `.github/workflows/*.{yml,yaml}` einen expliziten
+  `permissions:`-Block deklariert — entweder Top-Level (bevorzugt, least-privilege
+  als Default) oder auf jedem Job einzeln.
+- Hintergrund: Ohne expliziten Block bekommt `GITHUB_TOKEN` weite Default-Schreibrechte
+  (`contents`, `issues`, `pull-requests`, `checks`, …). Eine kompromittierte
+  Action-Dependency könnte Code pushen, Branches löschen, Reviews dismissen.
+- Stand: 21/23 Workflows hatten bereits Top-Level-`permissions:`,
+  1/23 (`smc-release-gates.yml`) Job-Level (akzeptiert), 1/23
+  (`manifest-pytest-poison-scan.yml`) ohne — in diesem PR mit
+  `permissions: { contents: read }` versorgt.
+- OWASP A05 (Security Misconfiguration) + Supply-Chain-Härtung.
+
+### Hardening (2026-04-25) — Pin: `requirements.txt` Discipline (3-Layer)
+
+- Neuer Pin [`tests/test_requirements_discipline_pin.py`](tests/test_requirements_discipline_pin.py)
+  mit 3 Defense-Layern für `requirements.txt`:
+  1. **Specifier-Pflicht** (parametrisiert per Zeile, 23 deps): jede Zeile
+     muss `>=`/`==`/`~=`/`<`/`>`/`!=` tragen — keine bare `requests`-Imports
+     mehr möglich.
+  2. **Index-URL-Allowlist** (zero-tripwire): kein `--index-url` /
+     `--extra-index-url` erlaubt — Defense gegen Dependency-Confusion.
+  3. **Linecount-Budget** (gefroren bei 23): neue Deps müssen Budget
+     bewusst aktualisieren, surface-growth wird im Review sichtbar.
+- Future Work (nicht-blockierend): Migration zu
+  `pip-compile --generate-hashes` für SHA-256-Pinning. Erfordert Wechsel
+  von `>=` zu `==` (separate Entscheidung).
+- OWASP A06 (Vulnerable Components) + A08 (Software & Data Integrity).
+
+### Hardening (2026-04-25) — Pin: `random.*` + `tempfile.*` Ledger (2-Layer)
+
+- Neuer Pin [`tests/test_random_tempfile_ledger_pin.py`](tests/test_random_tempfile_ledger_pin.py)
+  mit 2 Defense-Layern:
+  1. **`random.*` 1-Site Ledger** — 1 legitimer Non-Security-Site
+     (`open_prep/error_taxonomy.py:111`, Retry-Jitter). Neue Sites
+     müssen reviewed werden — bei Security-Verwendung ist `secrets`
+     Pflicht (Mersenne Twister ist nicht kryptografisch).
+  2. **`tempfile.*` Method-Allowlist + 20-Site Ledger** — nur
+     `tempfile.mkstemp` erlaubt. Verbietet `mktemp` (CWE-377 Race),
+     `NamedTemporaryFile(delete=False, …)` (Resource-Leaks),
+     `gettempdir()` (Race-Window). Alle 20 bestehenden Sites nutzen
+     bereits `mkstemp` für Atomic-Write — keine Prod-Änderungen.
+- 25/25 Tests grün (2× random + 3× tempfile + 20× parametrised existence).
+- Defense-only, 0 Prod-Änderungen.
+- OWASP A02 (Cryptographic Failures) + CWE-377 (Insecure Temp File).
+
+### Hardening (2026-04-25) — `usedforsecurity=False` Flag auf allen md5/sha1-Aufrufen
+
+- An 7 Sites `usedforsecurity=False` zu bestehenden `hashlib.md5(...)` /
+  `hashlib.sha1(...)` Aufrufen hinzugefügt:
+  [`databento_utils.py`](databento_utils.py),
+  [`databento_volatility_screener.py`](databento_volatility_screener.py) (3×),
+  [`open_prep/dirty_flag_manager.py`](open_prep/dirty_flag_manager.py),
+  [`open_prep/realtime_signals.py`](open_prep/realtime_signals.py),
+  [`newsstack_fmp/scoring.py`](newsstack_fmp/scoring.py).
+- Effekt: keine ID-Rotation (Digest-Bytes unverändert), aber explizite
+  Annotation der Non-Crypto-Intent. Macht Bandit B324 / Ruff S324 stumm
+  und erlaubt Ausführung unter FIPS-Mode-Interpretern, wo md5/sha1 sonst
+  `ValueError` werfen.
+- Neuer Pin [`tests/test_weak_hash_usedforsecurity_pin.py`](tests/test_weak_hash_usedforsecurity_pin.py)
+  parametrisiert über jeden weak-hash-Aufruf und erzwingt das Flag bei
+  allen zukünftigen Erweiterungen. Komplementär zum Count-Ledger aus
+  PR #169 ([`tests/test_weak_hash_pin.py`](tests/test_weak_hash_pin.py)).
+
+### Tests / Quality (2026-04-25) — Pine `alertcondition()` + Declaration-Pin
+
+- Neuer Pin [`tests/test_pine_alertcondition_and_declaration_pin.py`](tests/test_pine_alertcondition_and_declaration_pin.py)
+  fixiert zwei Pine-Surface-Eigenschaften:
+  1. **`alertcondition()` Ledger**: Total = 20 in 3 Dateien
+     (`SMC_Core_Engine.pine` 16, `SMC_Event_Overlay.pine` 2,
+     `SkippALGO_Confluence.pine` 2). Schutz gegen unbeabsichtigtes
+     Hinzufügen neuer User-sichtbarer Alert-Slots ohne Compile-Preflight-
+     Registrierung.
+  2. **Single-Declaration-Discipline**: Jede `*.pine`-Datei hat genau
+     eine `indicator(...)`/`strategy(...)`/`library(...)` Top-Level-
+     Deklaration und der Kind ist gepinnt (16 Dateien, davon 1
+     `strategy` = `SMC_Long_Strategy.pine`, Rest `indicator`). Eine
+     zweite Deklaration würde die erste in TradingView still
+     überschatten; ein Wechsel `indicator <-> strategy` ist breaking.
+- Helper `_strip_strings_and_comments` ist quote/`//`-comment-aware.
+  Generiertes `_snippet.pine` ausgeschlossen. Reine Test-Schicht,
+  0 Pine-Codeänderung.
+
+### Tests / Quality (2026-04-25) — Weak-hash (md5/sha1) usage ledger
+
+- Neuer Pin [`tests/test_weak_hash_pin.py`](tests/test_weak_hash_pin.py)
+  fixiert die 13 `hashlib.md5(...)` / `hashlib.sha1(...)` /
+  `hashlib.new("md5"|"sha1", ...)` Aufrufe in 8 First-Party-Prod-Modulen.
+  Diese Stellen nutzen Weak-Hashes ausschließlich für **non-cryptographic
+  Content-Addressing** (Cache-Schlüssel, Dirty-Flag-Fingerprints,
+  Dedupe-IDs) — niemals für Auth/Integrity. Schutz gegen versehentliche
+  Re-Use von md5/sha1 in Security-Kontexten und gegen unkontrolliertes
+  Wachstum dieser Surface.
+- 5-Layer-Defense: Total-Budget (13), no-new-files, no-stale-entries,
+  parametrised per-file count, parametrised file-exists. Reine Test-
+  Schicht, 0 Prod-Codeänderung.
+
+### Tests / Quality (2026-04-25) — Pine `request.security` HTF discipline
+
+- Neuer Pin [`tests/test_pine_request_security_htf_pin.py`](tests/test_pine_request_security_htf_pin.py)
+  schützt jeden `request.security(...)`-Aufruf in den standalone `*.pine`-
+  Dateien gegen Same-TF-Aufrufe. Same-TF (`timeframe.period`, `""`,
+  `syminfo.period`) ist äquivalent zum normalen Series-Zugriff, kostet aber
+  ein Slot des Request-Quotas und führt bei vergessenem `lookahead_off` zu
+  stiller Repaint-Drift.
+  - **Layer 1 — Zero-Tripwire**: `tf`-Argument darf keine der drei
+    Same-TF-Konstanten sein. Inventar 0.
+  - **Layer 2 — Total-Budget**: genau 3 Aufrufe in `*.pine` (alle in
+    `SMC_Core_Engine.pine`: HTF-Trend `get_confirmed_structure_trend` Zeile
+    2367 + 2× HTF-FVG-Detect Zeilen 4693/4694). Neue HTF-Aufrufe sind
+    erlaubt, müssen aber Ledger + CHANGELOG mit aktualisieren.
+  - **Layer 3 — Per-File-Ledger**: `SMC_Core_Engine.pine: 3` eingefroren.
+  - **Layer 4 — Datei-Existenz**: Ledger-Datei muss existieren.
+  - **Layer 5 — Inventar-Sanity**: ≥15 Pine-Dateien sichtbar.
+- Defense-only — kein Pine-Code geändert.
+### Tests / Quality (2026-04-25) — prod `print()` ledger
+
+- Neuer Pin [`tests/test_prod_print_ledger.py`](tests/test_prod_print_ledger.py)
+  fixiert die `print()`-Verteilung über First-Party-Prod-`*.py` (7 Dateien,
+  Total = 38). Service-Code (`databento_*`, `terminal_*`, `streamlit_*`)
+  loggt über `logging`; CLI-Skripte (`pine_input_surface.py`,
+  `pine_apply_surface_reduction.py`, `test_usi_lint.py`) und Reporting-
+  Helfer (`open_prep/{candidate_weights,feature_importance_report,
+  outcome_backfill}.py`, `smc_integration/provider_health.py`) dürfen
+  nach stdout schreiben. Der Pin sorgt dafür, dass kein Service-Modul
+  versehentlich anfängt zu printen (würde z.B. JSON-RPC stdio oder Pine-
+  Surface-Reduction-Artefakte zerstören).
+- Drei-Lagen-Schutz: total-budget + no-new-files + no-stale-entries +
+  parametrisierter per-File-Count + Datei-Existenz. Reine Test-Schicht.
+### Tests / Quality (2026-04-25) — prod `assert` + `open()` encoding pin
+
+- Neuer Pin [`tests/test_assert_and_open_encoding_pin.py`](tests/test_assert_and_open_encoding_pin.py)
+  fixiert zwei stille Drift-Quellen:
+  1. **Prod-`assert` Ledger** (4 Sites:
+     `databento_volatility_screener.py`, `databento_universe.py`,
+     `newsstack_fmp/ingest_benzinga.py`, `newsstack_fmp/shared_fetch.py`).
+     Schutz gegen `python -O`/`PYTHONOPTIMIZE`-Builds, die `assert` zum
+     No-Op machen — neue Sites zwingen Review (raise vs. ledger-bump).
+  2. **Text-Mode `open()` ohne `encoding=`** (3 Sites:
+     `open_prep/realtime_signals.py` ×2, `test_usi_lint.py` ×1). Verhindert
+     stille Fallback-Drift auf `locale.getencoding()`. Binary-Mode
+     (`"rb"`/`"wb"`) wird per AST-Mode-Literal ausgeklammert.
+- Drei-Lagen-Schutz pro Layer: total-budget + no-new-files +
+  no-stale-entries + parametrisierter per-File-Count + Datei-Existenz.
+  Inventar-Sanity ≥30 Prod-`*.py`. Reine Test-Schicht.
+
+### Tests / Quality (2026-04-25) — dangerous-call zero-tripwire 6-fold bundle
+
+- Neuer Pin [`tests/test_dangerous_call_tripwires.py`](tests/test_dangerous_call_tripwires.py)
+  bündelt sechs AST-Scans über first-party Prod-`*.py` — alle Inventare 0,
+  reine Tripwires gegen Wiederauftauchen historisch katastrophaler
+  Primitive:
+  1. **`import pickle` / `from pickle import …` / `import cPickle`** —
+     Pickle-Deserialisierung = Arbitrary Code Execution. Use json/msgpack.
+  2. **`pickle.load(...)` / `pickle.loads(...)`** — Defence-in-Depth via
+     Attribute-Call (für Re-Export-Module).
+  3. **`os.system(...)`** — Shell-Injection-Vektor; spawnt Shell. Use
+     `subprocess.run([...], shell=False)`.
+  4. **`subprocess.<call>(..., shell=True)`** — gleiche Wurzel.
+  5. **`eval(...)`** — Code aus String. Use `ast.literal_eval` für Safe-
+     Constants.
+  6. **`exec(...)`** — gleiche Wurzel.
+- Plus Inventory-Sanity ≥30 Prod-Dateien.
+- Defense-only. 0 Prod-Codeänderung.
+
+### Tests / Quality (2026-04-25) — loopback & Docker base-image pin
+
+- Neuer Pin [`tests/test_loopback_and_baseimage_pin.py`](tests/test_loopback_and_baseimage_pin.py)
+  fixiert zwei stille Drift-Quellen:
+  1. **Loopback-Ledger** (`localhost` / `127.0.0.1`): Total-Budget = 8 Sites
+     plus per-File-Ledger (5 Dateien) plus Datei-Existenz-Parametrisierung.
+     Verhindert sowohl heimliche neue Loopback-Bindings (Telemetry-Server,
+     hartkodierte Client-URLs) als auch das versehentliche Entfernen der
+     definierten Schutz-Regexes (`open_prep/alerts.py`,
+     `streamlit_terminal_alerts.py`, `newsstack_fmp/enrich.py` Private-Network
+     Filter).
+  2. **Dockerfile FROM Form-Sanity**: genau eine `FROM`-Zeile, jede Base
+     muss einen expliziten Tag oder einen `sha256`-Digest tragen, kein
+     `:latest`. Schützt vor stillem Base-Image-Drift bei Rebuilds.
+- Inventar-Sanity: ≥30 Prod-`*.py`. Reine Test-Schicht, keine Prod-Code-
+  Änderungen.
+
+### Tests / Quality (2026-04-25) — silent-security & boundary 6-fold bundle
+
+- Neuer Pin [`tests/test_silent_security_and_boundary_bundle.py`](tests/test_silent_security_and_boundary_bundle.py)
+  bündelt sechs Defense-Layer in einem PR:
+  1. **TLS `verify=False`** in beliebigen Call-Kwargs verboten
+     (httpx/requests). MITM-Schutz darf nicht abgeschaltet werden.
+     Inventar 0, reine Tripwire.
+  2. **`tempfile.mktemp`** verboten (Race-Condition-Klasse vor
+     `mkstemp()`). Inventar 0.
+  3. **stdlib `xml.*` Imports** verboten — XXE-anfällig, `defusedxml`
+     verwenden. Inventar 0.
+  4. **`warnings.simplefilter("ignore")` / `filterwarnings("ignore")`**
+     in Production verboten — versteckt Deprecation/Runtime-Warnings.
+     Inventar 0.
+  5. **`logging.basicConfig(...)`** Frozen-7-Site-Ledger
+     (`newsstack_fmp/run.py`, 5× `open_prep/*.py` Entry-Points,
+     `smc_tv_bridge/smc_api.py`). Library-Code darf den Root-Logger
+     nicht konfigurieren.
+  6. **`sys.path.insert/append`** Frozen-6-Site-Ledger (Streamlit-Shims
+     + `smc_tv_bridge/smc_api.py` + `open_prep/{realtime_signals,
+     streamlit_monitor}.py`). Path-Hacks bleiben auf bekannte
+     Entry-Point-Shims beschränkt.
+- Drei-Schichten-Guard pro Ledger + parametrisierte Datei-Existenz +
+  Inventar-Sanity. Defense-only.
+
+### Tests / Quality (2026-04-25) — six-fold zero-tripwire bundle
+
+- Neuer Pin [`tests/test_six_zero_tripwires_bundle.py`](tests/test_six_zero_tripwires_bundle.py)
+  bündelt sechs zero-inventory Defense-Layer in einem PR:
+  1. **Python `from x import *`** in Production verboten (linter-defeat,
+     Namespace-Opazität). Inventar 0.
+  2. **`pytest.mark.xfail` / `pytest.xfail()`** komplett verboten — Tests
+     müssen entweder grün laufen oder mit Reason geskipt werden, xfail
+     versteckt Regressions. Inventar 0.
+  3. **Repo-tracked Secret-shaped Filenames**: `.env*`, `*.pem`, `*.key`,
+     `id_rsa*`, `*_secret*`, `*.p12`, `*.pfx` dürfen nicht committed sein.
+     Allowlist für `.env.example/.sample/.template`. Inventar 0.
+  4. **Pine deprecated `study(...)`** verboten (Pine v4 → v5 mit
+     `indicator(...)`). Inventar 0.
+  5. **Pine `//@version=N` Pflicht** mit N ≥ 5 für alle Standalone-
+     `.pine`-Dateien (Generated `_snippet.pine` Fragmente exempt).
+     Erlaubt führendes Whitespace nach `//`.
+  6. **YAML Workflow + docker-compose Parse-Tripwire**: alle
+     `.github/**/*.yml`/`*.yaml` und `docker-compose.yml` müssen via
+     `yaml.safe_load` parsen. Fängt Syntax-Bricks vor CI.
+- Defense-only, keine Production-Änderungen.
+### Tests / Quality (2026-04-25) — mutable defaults + json.load + os.environ subscript
+
+- Neuer Pin [`tests/test_mutable_defaults_and_loads_pins.py`](tests/test_mutable_defaults_and_loads_pins.py)
+  bündelt drei AST/Text-Layer:
+  1. **Mutable default arguments** verboten (`def f(x=[])`/`{}`/`set()`/
+     `list()`/`dict()`). Klassischer Python-Footgun (shared state über
+     alle Calls). Inventar 0, pure Tripwire.
+  2. **`json.load(...)` Site-Ledger** — 9 frozen Sites in `open_prep/`.
+     Jeder Call ist eine Untrusted-Parse-Boundary; neue Sites brauchen
+     Review (try/except, Size-Limit) bevor sie ins Ledger aufgenommen
+     werden.
+  3. **`os.environ[X]` Subscript-Ledger** — 6 frozen Sites. Subscript
+     wirft `KeyError` bei fehlender Variable; neue Sites müssen
+     bewusst zwischen Hard-Fail vs. `.get(X, default)` entscheiden.
+- Defense-only.
+### Tests / Quality (2026-04-25) — GitHub Actions trusted-publisher allowlist
+
+- Neuer Pin [`tests/test_gha_action_allowlist.py`](tests/test_gha_action_allowlist.py)
+  verlangt für jede `uses:`-Zeile in `.github/workflows/*.y*ml`
+  entweder einen 40-Zeichen-SHA-Pin oder einen Eintrag in der
+  eingefrorenen Trusted-Publisher-Liste (8 owner/repo: `actions/*`,
+  `dawidd6/action-download-artifact`).
+- Verteidigung gegen Tag-Mutation-Supply-Chain-Angriffe auf
+  ungeprüfte Drittanbieter-Actions. Lokale `./...` und `docker://...`
+  Actions sind ausgenommen.
+- Drei-Schichten-Guard: Pin-or-allowlist, no-stale-entries, Form-Sanity
+  + Inventur-Sanity (≥10 uses-Zeilen). Defense-only.
+
+### Tests / Quality (2026-04-25) — pytest.skip per-file count budget
+
+- Neuer Pin [`tests/test_pytest_skip_budget.py`](tests/test_pytest_skip_budget.py)
+  friert die aktuelle pytest-Skip-Verteilung als per-file Budget ein
+  (`_FROZEN_FILE_COUNTS`, 13 Files / 15 Skip-Sites). Drei-Schichten-Guard:
+  - **No new sites:** unbekannte Files mit Skips schlagen Alarm.
+  - **No count growth:** Files dürfen ihr Budget nicht überschreiten.
+  - **Bidirektional:** veraltete Ledger-Einträge (Datei hat keine Skips
+     mehr) müssen entfernt werden.
+- Reduktionen sind explizit erwünscht; jedes Reduzieren erfordert
+  Decrement im Ledger.
+
+### Tests / Quality (2026-04-25) — bare `# type: ignore` site ledger
+
+- Neuer Pin [`tests/test_bare_type_ignore_ledger.py`](tests/test_bare_type_ignore_ledger.py)
+  friert die 15 bestehenden bare `# type: ignore` Sites ein
+  (1× `newsstack_fmp/_bz_http.py`, 14× `terminal_bitcoin.py`).
+  Komplementiert PR #152 (per-file Count Budget): neue Suppressions
+  müssen narrowed sein (`# type: ignore[return-value]` etc.) oder mit
+  Begründung ins Ledger.
+- Drei-Schichten-Guard: no-new-sites + stale-entry + parametrisierte
+  Datei-Existenz-Sanity. Defense-only.
+
+### Tests / Quality (2026-04-24) — serialization & shell-injection zero-tripwires + `__all__` integrity
+
+- Neuer Pin [`tests/test_serialization_and_shell_tripwires.py`](tests/test_serialization_and_shell_tripwires.py)
+  bündelt drei Defense-Schichten:
+  1. **Insecure-Deserialization-Tripwires** (CWE-502): `pickle`,
+     `cPickle`, `marshal`, `shelve` — alle vier aktuell nicht in
+     Production importiert. Schaltet RCE-Klasse präventiv aus.
+  2. **Shell-Injection-Tripwires**: `os.system(...)` und `os.popen(...)`
+     komplettieren das in PR #154 etablierte `subprocess(..., shell=True)`-
+     Verbot.
+  3. **`__all__`-Integritätsprüfung**: jeder via `__all__` exportierte
+     Name muss tatsächlich auf Top-Level definiert oder importiert sein
+     (inkl. Top-Level-If/Try-Blöcken für Optional-Dependency-Patterns).
+     Fängt den klassischen "Helper gelöscht, `__all__` vergessen"-Bug.
+
+### Tests / Quality (2026-04-24) — Pine same-TF `request.security` + legacy root tripwires
+
+- Neuer Pin [`tests/test_pine_audit_pins.py`](tests/test_pine_audit_pins.py)
+  bündelt zwei Pine-spezifische Defense-Layer:
+  1. **Same-TF `request.security`-Tripwire** verbietet das stille
+     No-Op-Pattern `request.security(syminfo.tickerid, timeframe.period, …)`,
+     das nur die aktuelle Bar zurückgibt und unnötig die Cross-Script-
+     Latenz zahlt. Aktuell 0 Treffer in allen `*.pine`-Dateien.
+  2. **Pine-Legacy-Root-Tripwire** sperrt die 23 nach `pine/legacy/`
+     verschobenen Skripte (BFI/CHOCH/QuickALGO/REV/USI/VWAP/etc.)
+     gegen ein Wieder-Auftauchen im Repo-Root. Bidirektionaler
+     Inventar-Check stellt sicher, dass die Ledger-Einträge unter
+     `pine/legacy/` existieren — verhindert Silent-Drift in beide
+     Richtungen.
+- Defense-only, keine Production-Änderungen.
+
+### Tests / Quality (2026-04-24) — `# type: ignore` per-file count budget
+
+- Neuer Pin [`tests/test_type_ignore_budget.py`](tests/test_type_ignore_budget.py)
+  fixiert die `# type: ignore`-Suppressionen pro Datei als Budget
+  (Zeilen-genaue Ledger wären zu churn-anfällig in den dichten
+  pandas/streamlit-Bridge-Files). Aktuell 19 Dateien / 81 Suppressions
+  (top: `terminal_bitcoin.py` 18, `open_prep/streamlit_monitor.py` 18,
+  `terminal_poller.py` 13). Drei-Schicht-Schutz: kein Datei-Count darf
+  über sein Budget steigen, neue Dateien dürfen ohne Ledger-Eintrag
+  gar keine `# type: ignore` einführen, und Stale-Einträge werden
+  geflaggt. Reduktion erwünscht — fallender Count soll Budget senken.
+
+### Tests / Quality (2026-04-24) — `nonlocal` keyword frozen-inventory budget
+
+- Neuer Pin [`tests/test_nonlocal_budget.py`](tests/test_nonlocal_budget.py)
+  fixiert die 5 bekannten `nonlocal`-Sites (4× progress-bar-Closure in
+  `databento_volatility_screener.py`, 1× weighted-aggregate Accumulator
+  in `smc_core/ensemble_quality.py`). Drei-Schicht-Schutz:
+  Tripwire gegen neue Sites, parametrisierter Stale-Site-Test und
+  Inventur-Parität. Per-Site Namen-Tuple wird gefroren — fängt also
+  auch stille Erweiterungen einer bestehenden `nonlocal`-Deklaration.
+
+### Tests / Quality (2026-04-24) — dynamic-execution & shell-injection zero-tripwires
+
+- Neuer Pin [`tests/test_dynamic_exec_and_shell_tripwires.py`](tests/test_dynamic_exec_and_shell_tripwires.py)
+  bündelt fünf Zero-Inventory-Tripwires:
+  `exec(...)`, `eval(...)`, `compile(...)`, `input(...)` und
+  `subprocess.{run,Popen,call,check_call,check_output}(..., shell=True)`.
+  Aktuelle Production-Inventur: **0 Treffer für jeden** — pure Tripwires
+  gegen Wiedereinführung von Arbitrary-Code-Execution- bzw.
+  Shell-Injection-Vektoren.
+- AST-basiert: bare-Name-Call für die Builtins (vermeidet False-Positive
+  auf pandas/numpy `df.eval(...)`-Methode), Attribute- oder Name-Call
+  mit `shell=True`-Konstante für die subprocess-Variante.
+- Defense-only, keine Production-Änderungen.
+
+### Tests / Quality (2026-04-24) — no eager-format in `logger.<level>(...)` calls
+
+- Neuer Pin [`tests/test_no_eager_format_in_logger_calls.py`](tests/test_no_eager_format_in_logger_calls.py)
+  verbietet eager-evaluierte Message-Templates an Logger-Methoden in
+  Produktion. Logger-API will ein **Lazy**-Format-Template + positional
+  args, damit die Interpolation erst nach dem Level-Filter passiert
+  und structured-log-Handler die Argument-Trennung sehen.
+- AST-Erkennung deckt drei eager-Formen am ersten Message-Argument ab
+  (zweites bei `logger.log(LEVEL, msg, …)`):
+  1. **f-string** (`ast.JoinedStr`)
+  2. **`%`/`+`-BinOp** auf Strings (`"foo %s" % bar`, `"foo " + bar`)
+  3. **`.format(...)`** Call
+- Logger-Detection: `logger`/`log`/`_logger`/`_log`/`LOGGER`/`LOG` als
+  `Name` oder `Attribute`-Zugriff (deckt `self.logger.info(...)` und
+  `cls._log.info(...)` ab); Methoden-Set
+  `{debug, info, warning, warn, error, critical, exception, log}`.
+- Aktuelle Inventur: **0 Verstöße** in Production-`*.py` — pure
+  Tripwire, kein Allowlist nötig. Closes "f-string baut Message immer,
+  auch bei DEBUG-off" Bug-Klasse + Performance-Falle bei teuren `repr`-
+  Aufrufen in disabled Levels.
+### Tests / Quality (2026-04-24) — `# noqa` frozen-inventory budget (with code-set capture)
+
+- Neuer Pin [`tests/test_noqa_budget.py`](tests/test_noqa_budget.py)
+  friert die aktuelle Inventur von 27 `# noqa`-Suppressions in
+  First-Party-Production ein. Kategorien aktuell:
+  - `F401` (re-export only `__init__.py` imports — `terminal_tabs`)
+  - `E402` (deferred imports nach `sys.path`-Manipulation / atexit)
+  - `F401, F811` (typing-only optional imports — `terminal_bitcoin`)
+  - `PLW0603` (Modul-Singleton `global` — bereits via
+    `test_global_statement_budget.py` separat gepinnt)
+  - `PERF203` (explicit retry-loop `try/except` shape)
+  - `ANN001` (`*args, **kwargs` callback signature)
+- Ledger erfasst zusätzlich das exakte Code-Set je Site — wenn
+  jemand stillschweigend eine Suppression erweitert (z.B. `F811` zu
+  einem bestehenden `# noqa: F401` hinzufügt), schlägt der Stale-Site-
+  Guard mit dem Code-Tuple-Vergleich an.
+- Drei Schichten: no-new-sites Tripwire + parametrisierter Stale-Site-
+  Guard (line + sorted-codes tuple) + bidirektionale Inventur-Parity.
+  Jede neue `# noqa` zwingt Review (could the lint be fixed instead?).
+- 30 Tests grün, keine Produktions-Anpassungen nötig. Closes
+  "stille Lint-Suppression-Erweiterung" Bug-Klasse.
+
+### Tests / Quality (2026-04-24) — `__import__()` budget + TODO/FIXME zero-tripwire
+
+- Neuer Pin [`tests/test_dynamic_import_and_todo_tripwires.py`](tests/test_dynamic_import_and_todo_tripwires.py)
+  bündelt zwei Defense-Schichten:
+  1. **`__import__("...")` budget**: 5 bekannte Lazy-Import-Sites in
+     `open_prep/streamlit_monitor.py` (Streamlit-Reload-Hot-Path,
+     `time.{time,monotonic}` Import inside-fence) eingefroren via
+     no-new-sites Tripwire + parametrisierter Stale-Site-Guard +
+     bidirektionale Inventur-Parity. Jeder neue `__import__`-Call
+     fordert bewussten Review (top-level `import` oder
+     `importlib.import_module(...)` bevorzugen, damit static-analysis
+     und Dependency-Graphen die Dependency sehen).
+  2. **TODO/FIXME/XXX/HACK zero-tripwire**: Production-Code enthält
+     aktuell **0 Marker** in Comments — alle Notes leben in `docs/`,
+     `scripts/` und Tracker. Reine Tripwire — neuer Marker forciert
+     Issue-Filing, Fix oder Move-to-docs. Whole-word Match in
+     Comment-Position (`# … TODO …`), keine String/Identifier-False-
+     Positives.
+- 9 Tests grün, keine Produktions-Anpassungen nötig. Closes
+  "stille Lazy-Imports + verwesende Marker rutschen rein" Bug-Klasse.
+
+### Tests / Quality (2026-04-24) — `time.sleep(...)` frozen-inventory budget
+
+- Neuer Pin [`tests/test_time_sleep_budget.py`](tests/test_time_sleep_budget.py)
+  friert die aktuelle Inventur von 26 `time.sleep(...)`-Sites in
+  First-Party-Production ein. Alle 26 sind legitim:
+  - Rate-Limit zwischen API-Calls (TradingView 429, FMP, Benzinga)
+  - Retry-Backoff (exponential `2 ** attempt`)
+  - Inter-Poll-Throttle (Streamlit/realtime poll loops)
+  - SQLite-Contention-Backoff
+- Drei Schichten: no-new-sites Tripwire + parametrisierter Stale-Site-
+  Guard + bidirektionale Inventur-Parity. Jede neue `time.sleep`-Site
+  fordert bewussten Review (asyncio? threaded worker? statt
+  fixed wall-clock pause? `await asyncio.sleep(...)`?).
+- 29 Tests grün, keine Produktions-Anpassungen nötig. Closes
+  "stiller Event-Loop-Block / Spin-Wait rutscht rein" Bug-Klasse.
+
+### Tests / Quality (2026-04-24) — `global` statement frozen-inventory budget
+
+- Neuer Pin [`tests/test_global_statement_budget.py`](tests/test_global_statement_budget.py)
+  friert die aktuelle Inventur von 26 `global`-Statements in
+  First-Party-Production ein (alle dokumentierte Modul-Singletons:
+  TradingView/Finnhub 429-Backoff-Counter, Lazy-Provider-Singletons in
+  `newsstack_fmp/pipeline.py`, Regime-State-Remembrance,
+  Streamlit-Tab-Availability-Flags, Databento Quote/Dataset Caches).
+- Ledger erfasst zusätzlich die deklarierten Namen je Site — wenn
+  jemand stillschweigend einen neuen Namen an ein bestehendes
+  `global` anhängt, schlägt der Stale-Site-Guard an (Names-Tuple
+  Vergleich).
+- Drei Schichten: no-new-sites Tripwire + parametrisierter Stale-Site-
+  Guard (line + names tuple) + bidirektionale Inventur-Parity. Jeder
+  neue `global` zwingt Review (class attribute? injected dependency?
+  `contextvars.ContextVar`?).
+- 29 Tests grün, keine Produktions-Anpassungen nötig. Closes
+  "stille neue Modul-State-Mutation rutscht rein" Bug-Klasse.
+
+### Tests / Quality (2026-04-24) — `except Exception: pass` defense pin (frozen-inventory budget)
+
+Defense-Pin friert die aktuelle Anzahl und exakten Locations aller
+`except Exception: pass` (und `: continue`) Sites in First-Party-
+Produktionscode ein. Klasse "broad-except + silent body" schluckt
+Exceptions ohne Spur — Bugs werden so unsichtbar. Wir haben 11
+legitime Sites (DNS-Best-Effort, `conn.close()`, optionales
+`yfinance`/`ws`, Module-Import-Fallback, Wall-Clock-Fallback); statt
+jeden zu refactorn, frieren wir den Stand ein und blocken neue Sites.
+
+**Defense-Pin (`tests/test_broad_except_silent_budget.py`)**
+
+AST-Walk über alle First-Party `*.py` (Top-Level + Subdirs außer
+`tests/`, `scripts/`, `docs/`, `SMC++/`, Caches, Venvs). "Broad" =
+`except Exception`, `except BaseException`, bare `except:`, oder
+Tuple das einen davon enthält. Spezifische Exception-Typen
+(`OSError`, `ValueError`, …) sind explizit nicht abgedeckt.
+
+`_FROZEN_SITES` enthält alle 11 vorhandenen Sites als
+`(rel_path, lineno)`. Drei Sub-Tests:
+
+1. `test_first_party_files_present` — Pfaddrift-Wächter (≥ 50 Dateien).
+2. `test_no_unexpected_broad_except_silent_sites` — neue Sites lassen
+   die Suite fail; PR-Author muss entweder Exception-Typ verengen +
+   loggen, oder Site mit Justification in `_FROZEN_SITES` aufnehmen.
+3. `test_frozen_sites_still_match` — parametrierter Stale-Check
+   (13 Tests, einer pro Eintrag): Refactors, die einen Site verschieben,
+   müssen die Linenummer im selben PR aktualisieren.
+
+**Production behaviour unchanged.** Reine Tripwire — kein Code-Change.
+
+**Warum jetzt:** Die 11 Sites sind real, intentional, und werden ohne
+Pin schleichend mehr. Defense-Pin pro frozen-inventory ist das
+gleiche Pattern wie FDR/SPRT vocab pins — billig (sub-Sekunde, AST
+only) und blockt eine ganze Bug-Klasse strukturell.
+### Tests / Quality (2026-04-24) — HTTP client discipline: no `requests` library + urllib `urlopen()` timeout pin
+
+- Neuer Pin [`tests/test_http_client_discipline.py`](tests/test_http_client_discipline.py)
+  bündelt zwei Schutzschichten über denselben First-Party-AST-Walk:
+  1. **`requests`-Library bleibt out-of-bounds in Production.** Codebase
+     hat auf `httpx` standardisiert (Quartett: budget × singleton ×
+     timeout-consistency × named-timeout). Jeder neue `import requests`,
+     `from requests import …` oder `requests.<method>(...)`-Call würde
+     diese Disziplin lautlos umgehen → reine Tripwire, kein Allowlist
+     (Inventur aktuell 0).
+  2. **`urlopen(...)` muss `timeout=` mitgeben.** `urllib.request.urlopen`
+     defaultet auf einen blockierenden Socket ohne Timeout → kann einen
+     Worker-Thread unbegrenzt festsetzen. Alle 8 aktuellen
+     Produktions-Sites passen `timeout=` (mixed: bare `urlopen` nach
+     `from urllib.request import urlopen` und qualified
+     `urllib.request.urlopen`). Frozen-Site-Tripwire + parametrisierter
+     Stale-Site-Guard sperrt die Inventur ein.
+- 12 Tests grün, keine Produktions-Anpassungen nötig.
+
+### Tests / Quality (2026-04-24) — `assert` in production code defense pin (frozen-inventory budget)
+
+Defense-Pin friert die aktuelle Anzahl und exakten Locations aller
+`assert`-Statements in First-Party-Produktionscode ein. `assert` wird
+unter `python -O` / `PYTHONOPTIMIZE=1` vom Interpreter komplett
+entfernt — jede Logik, die darauf beruht (Runtime-Contracts oder
+Type-Narrowing für mypy/pyright), ändert in Optimised-Builds still ihr
+Verhalten. Latente Bug-Klasse, auch wenn jeder Einzelort heute "klar
+sicher" aussieht.
+
+**Defense-Pin (`tests/test_assert_in_production_budget.py`)**
+
+AST-Walk über alle First-Party `*.py` (Top-Level + Subdirs außer
+`tests/`, `scripts/`, `docs/`, `SMC++/`, Caches, Venvs). Sammelt jeden
+`ast.Assert`-Knoten.
+
+`_FROZEN_SITES` enthält die 4 vorhandenen Sites — alle sind narrow
+`assert <var> is not None`-Type-Narrowing-Crutches direkt vor dem
+Use-Site:
+
+- `databento_volatility_screener.py:1109` — Retry-Loop `last_error`
+- `databento_universe.py:314` — Retry-Loop `last_error`
+- `newsstack_fmp/ingest_benzinga.py:211` — `httpx` response narrowing
+- `newsstack_fmp/shared_fetch.py:128` — Cache-Payload narrowing
+
+Drei Sub-Tests:
+
+1. `test_first_party_files_present` — Pfaddrift-Wächter (≥ 50 Dateien).
+2. `test_no_unexpected_assert_sites` — Tripwire: jeder neue `assert`
+   schlägt fehl. Autor muss entweder durch explizites
+   `if not …: raise` ersetzen (bevorzugt für Runtime-Contracts), oder
+   — nur falls es ein narrow Type-Narrowing-Crutch direkt am Use-Site
+   ist — den Eintrag mit Begründung zu `_FROZEN_SITES` hinzufügen.
+3. `test_frozen_sites_still_match` (parametrisiert, 4 Einträge) —
+   zwingt Refactors, Linenos in derselben PR mitzuziehen; verhindert
+   dass das Inventar zu einer Free-Pass-Liste verfault.
+
+**Produktionsverhalten unverändert.** Reines AST-Tripwire,
+sub-Sekunde. Gleiches Defense-Pin-Pattern wie FDR / SPRT-Vocab /
+broad-except.
+
+### Tests / Quality (2026-04-24) — Blocking `subprocess.*` timeout discipline (+1 production fix)
+
+Schließt einen CI-Hänger-Korridor: blockierende `subprocess`-Aufrufe
+(`run`, `check_output`, `check_call`, `call`) warten ohne `timeout=`
+unbeschränkt auf das Kind. Genau diesen Bug hatten wir bereits einmal
+am `git rev-parse HEAD`-Site in `smc_integration/release_policy.py` —
+wenn das lokale Git unter Lock-Contention oder auf einem Network-FS
+festhängt, wedget der ganze Job.
+
+**Tripwire-Pin (`tests/test_subprocess_timeout_discipline.py`)**
+AST-Walk über alle First-Party `*.py` (Top-Level + Subdirs außer
+`tests/`, `scripts/`, `docs/`, `SMC++/`, Caches, Venvs). Fail wenn ein
+`subprocess.<run|check_output|check_call|call>(...)` ohne `timeout=`
+auftaucht. `subprocess.Popen` ist **bewusst exempt** — es ist das
+Launch-Primitiv für detached, langlaufende Kinder (z. B. der
+`open_prep/realtime_signals.py`-Engine-Boot), wo ein Timeout am Spawn
+selbst keinen Sinn ergibt. Drei Sub-Tests:
+
+1. `test_first_party_files_present` — Pfaddrift-Wächter (≥ 50 Dateien).
+2. `test_blocking_subprocess_calls_specify_timeout` — die Disziplin.
+3. `test_site_allowlist_entries_still_apply` — parametrierter
+   Stale-Allowlist-Wächter (Allowlist startet leer).
+
+**Production Fix (1 Site)**
+
+- `smc_integration/release_policy.py:1059` — `resolve_git_commit()` ruft
+  `git rev-parse HEAD` ohne Timeout. Hängendes Git → CI hängt unbegrenzt.
+  Fix: neuer Modul-Konstant `_GIT_REV_PARSE_TIMEOUT = 5.0` (lokales Git
+  antwortet im Millisekundenbereich; lieber Commit-Hash verlieren als
+  Job wedgen) und Übergabe an `subprocess.run(..., timeout=…)`.
+
+**Warum jetzt:** Vervollständigt die Timeout-Disziplin-Familie:
+**httpx** Quartett (Budget × Singleton × Timeout-Konsistenz × Named-Timeout)
++ jetzt **subprocess** Blocking-Timeout-Pin. Gleiche Bug-Klasse "default
+unbounded wait" für die zwei wichtigsten Out-of-Process-Kanäle
+geschlossen.
+
+### Tests / Quality (2026-04-24) — terminal_*.py httpx timeout named-constant discipline
+
+- Neuer Pin [`tests/test_terminal_httpx_timeout_named.py`](tests/test_terminal_httpx_timeout_named.py):
+  AST-walk über alle `terminal_*.py`-Module. Jeder
+  `httpx.Client(timeout=…)`-Konstruktor und jeder direkte Call von
+  `httpx.{get,post,put,delete,patch,head,options,request,stream}(...)`
+  mit explizitem `timeout=`-kwarg muss als Wert eine `Name`/`Attribute`
+  -Referenz übergeben (z.B. `_API_TIMEOUT`) — keine bare numerische
+  Literale. Macht Timeouts auf Modul-Ebene grep-bar und auditierbar.
+  Site-Allowlist + Stale-Entry-Test (aktuell leer).
+- Companion zur Per-Script httpx-Schutzschicht aus PR #133:
+  budget × singleton-guard × timeout-consistency × **named timeout**.
+
+**Produktions-Anpassungen** (zwei harmlose Konstanten-Promotions, damit der Pin universell anwendbar ist):
+- `terminal_bitcoin.py`: neue Modul-Konstante `_API_TIMEOUT = 15.0`;
+  `httpx.Client(timeout=15.0)` und `make_fmp_client(..., timeout_seconds=15.0)`
+  konsumieren jetzt `_API_TIMEOUT`.
+- `terminal_notifications.py`: neue Modul-Konstante `_WEBHOOK_TIMEOUT = 10`;
+  Discord-Webhook `httpx.post(..., timeout=10)` konsumiert jetzt
+  `_WEBHOOK_TIMEOUT`.
+
+### Tests / Quality (2026-04-24) — `open()` text-mode encoding discipline (+3 production fixes)
+
+Schließt eine plattform-abhängige Quelle für stillen Daten-Drift in
+First-Party-Produktionscode. Pythons Default-Textencoding ist OS-abhängig
+(macOS/Linux: `utf-8`, Windows: `cp1252`); fehlt `encoding=` an einem
+text-mode `open(...)`, schreibt/liest derselbe Code je nach Host
+unterschiedliche Bytes — eine Klasse von Bug, die wir bei `.env`- und
+Lock-Dateien bereits gesehen haben.
+
+**Tripwire-Pin (`tests/test_open_encoding_discipline.py`)**
+AST-Walk über alle First-Party `*.py` (Top-Level + Subdirs außer
+`tests/`, `scripts/`, `docs/`, `SMC++/`, Caches, Venvs). Jeder
+`open(...)`-Aufruf, der text-mode ist (Default oder Mode ohne `b`) und
+kein `encoding=`-Keyword führt, lässt die Suite rot werden. Binär-Modi
+(`"rb"`, `"wb"`, `"ab"`, `"r+b"`, …) sind exempt. Statisch nicht
+auflösbare Modi gelten konservativ als Text. Drei Sub-Tests:
+
+1. `test_first_party_files_present` — Pfaddrift-Wächter (≥ 50 Dateien).
+2. `test_open_calls_specify_encoding` — die eigentliche Disziplin.
+3. `test_file_allowlist_entries_still_apply` — parametrierte
+   Allowlist-Hygiene (Allowlist aktuell leer, kein Eintrag verschimmelt).
+
+**Production Fixes (3 Sites)**
+
+- `open_prep/realtime_signals.py:251` — Engine-Lockfile
+  (`open(_RT_ENGINE_LOCK_FILE, "w")` → `encoding="utf-8"`).
+- `open_prep/realtime_signals.py:2601` — Stdlib-Fallback `.env`-Loader.
+- `test_usi_lint.py:6` — Top-Level Pine-Linter.
+
+**Warum jetzt:** Defense-in-Depth-Tripwire (sub-Sekunde, AST only)
+gegen die Klasse "silent platform-dependent default". Allowlist startet
+leer und wird durch den Stale-Check selbst gepflegt.
+
+### Tests / Quality (2026-04-24) — SPRT decide() AST + Decision-Consumer Coverage + httpx Timeout Consistency + Test-File Naming + CHANGELOG Unreleased Format
+
+Fünf kleine Tripwire-Pins, alle ohne Surface-Risiko (regression-guard):
+
+**SPRT `decide()` AST Return-Literal Pin**
+
+- Neuer Pin [`tests/test_sprt_decide_ast_return_literal.py`](tests/test_sprt_decide_ast_return_literal.py):
+  AST-Walk über [`scripts/smc_sprt_stop_rule.py`](scripts/smc_sprt_stop_rule.py)`::decide`
+  stellt sicher dass *jeder* `Return`-Knoten ein `Constant(str)` aus
+  dem 5er-Vocab ist (kein dynamisches `f"..."`, keine Variable).
+  Schließt die "structural ↔ usage"-Lücke zur Vocab-Membership-Pin
+  von PR #133. (3 tests)
+
+**SPRT Decision-Consumer Coverage Pin**
+
+- Neuer Pin [`tests/test_sprt_decision_consumer_coverage.py`](tests/test_sprt_decision_consumer_coverage.py):
+  jede Datei unter `scripts/` die SPRT-Decision-Sentinels referenziert
+  muss ≥ 2 verschiedene Sentinels nutzen, oder explizit auf
+  `_SINGLE_BRANCH_ALLOWLIST` stehen. Verhindert silent fall-through
+  bei Vocab-Erweiterung. Allowlist-Stale-Test fängt veraltete
+  Einträge. (3 tests)
+
+**httpx.Client Timeout-Consistency Pin**
+
+- Neuer Pin [`tests/test_newsapi_ai_client_timeout_consistency.py`](tests/test_newsapi_ai_client_timeout_consistency.py):
+  ergänzt PR #133's Budget+Guard-Pin um Wert-Konsistenz: alle 4
+  `httpx.Client(timeout=20.0)` müssen denselben Timeout haben. (2 tests)
+
+**Test-File Naming-Convention Pin**
+
+- Neuer Pin [`tests/test_test_file_naming_convention.py`](tests/test_test_file_naming_convention.py):
+  jede `tests/test_*.py` muss ≥ 1 `def test_*` definieren — sonst
+  dead test code (kein pytest-discovery). Allowlist für legacy
+  module-level-assert smoke-scripts. (3 tests)
+
+**CHANGELOG Unreleased-Subsection Format Pin**
+
+- Neuer Pin [`tests/test_changelog_unreleased_subsection_format.py`](tests/test_changelog_unreleased_subsection_format.py):
+  jede `### `-Subsection im `## [Unreleased]`-Block ab Enforcement-
+  Datum 2026-04-22 muss canonical format folgen:
+  `### <Category> (YYYY-MM-DD) — <Title>` (em-dash U+2014). Historische
+  Einträge grandfathered. (2 tests)
+
+**Acceptance**
+
+- 13/13 neue Tests grün (3 + 3 + 2 + 3 + 2).
+
+**Pattern-Notes**
+
+- SPRT-Schutz jetzt 3-fach: Vocab-Membership (PR #133) ×
+  Producer-Struktur (decide-AST) × Consumer-Coverage.
+- httpx-Schutz jetzt 3-fach: Budget × Guard × Timeout-Consistency.
+- CHANGELOG-Pin ist date-scoped (≥ 2026-04-22) — convention-
+  introduction ohne historischen Big-Bang.
+
+### Tests / Quality (2026-04-24) — SPRT Decision Vocab + httpx Client Budget + Float-Eq Discipline + Pine Security Per-File Budget
+
+Vier kleine Pins, alle Tripwire/Budget-Stil:
+
+**SPRT Decision Vocab Pin**
+
+- Neuer Pin [`tests/test_sprt_decision_vocab_pin.py`](tests/test_sprt_decision_vocab_pin.py):
+  friert die 5er-Membership des `Decision`-Literal in
+  [`scripts/smc_sprt_stop_rule.py`](scripts/smc_sprt_stop_rule.py)
+  ein (`continue`, `accept_h0`, `accept_h1`, `max_n_reached`,
+  `inconclusive`), prüft `INCONCLUSIVE_DECISIONS ⊆ Decision`, und
+  verifiziert dass `decide()` / `evaluate()` / `terminal_decision()`
+  vocab-member zurückgeben (nicht `None` / free-form). Verhindert
+  silent gate-deadlock bei Decision-Drift. (6 tests)
+
+**NewsAPI httpx.Client Instantiation Budget**
+
+- Neuer Pin [`tests/test_newsapi_ai_client_instantiation_budget.py`](tests/test_newsapi_ai_client_instantiation_budget.py):
+  friert Anzahl der `httpx.Client(...)` Konstruktionen in
+  [`scripts/smc_newsapi_ai.py`](scripts/smc_newsapi_ai.py) auf 4
+  (eine Fallback pro public fetch). Jede Konstruktion muss
+  `if client is None:` guard ≤ 3 Zeilen davor haben. Bei 5. Fetch:
+  shared `_get_or_create_client(client)` helper extrahieren statt
+  Budget bumpen. (3 tests)
+
+**`smc_core/` Float-Equality Discipline (Regression-Pin)**
+
+- Neuer Pin [`tests/test_smc_core_float_equality_discipline.py`](tests/test_smc_core_float_equality_discipline.py):
+  verbietet `==` / `!=` gegen Float-Literale (`0.0`, `1.5`, `2e-3`)
+  in `smc_core/*.py`. Discovery: smc_core 100% sauber — Pin friert
+  das gegen ULP-Equality-Regression ein. Konvention:
+  `math.isclose(...)` für Wertvergleich, `abs(x) < eps` für
+  Zero-Check. (2 tests)
+
+**Pine `request.security` Per-File Budget**
+
+- Neuer Pin [`tests/test_pine_request_security_per_file_budget.py`](tests/test_pine_request_security_per_file_budget.py):
+  ergänzt PR #132's qualitative Discipline um quantitatives Budget:
+  - `SMC_Core_Engine.pine` ≤ 6 Calls (current=5)
+  - `SMC++/smc_utils.pine` ≤ 5 Calls (current=4)
+  Neue Calls forcieren explizite Budget-Bumps. Stale-Entry-Test
+  fängt verschwundene/leere Budget-Einträge. (2 tests)
+
+**Acceptance**
+
+- 13/13 neue Tests grün (6 + 3 + 2 + 2).
+
+**Pattern-Notes**
+
+- Vocab-Triangle wächst: SPRT `Decision` ist die 5. eingefrorene
+  Vocab-Surface (nach `HERO_TRUST`, `HERO_SETUP_QUALITY`,
+  `HERO_ACTION`, `TrustState`).
+- Budget-Pins komplementär zu Discipline-Pins (PR #132 D verbietet
+  *was nicht erlaubt*, dieser PR limitiert *wieviel erlaubt*).
+- Float-Eq-Pin erneut "freeze the good state" — Audit-Backlog wandert
+  von Bug-Fix zu Regression-Guard.
+
+### Tests / Quality (2026-04-24) — FDR Defense + CHANGELOG Date Monotonicity + terminal_*_state Import Boundary
+
+Drei reine Tripwire-Pins (8 Tests, alle grün lokal):
+
+**A — A/B-Comparison FDR-Defense**
+- Neuer Pin [`tests/test_run_ab_comparison_fdr_defense.py`](tests/test_run_ab_comparison_fdr_defense.py):
+  AST-walked Strukturschutz für `scripts/run_ab_comparison.py`. Pinnt
+  Präsenz von `benjamini_hochberg`/`_family_fdr_layer`-Defs, dass
+  `FDR_Q` ein `float`-Literal in (0, 1) bleibt, und dass `compare()`
+  den `_family_fdr_layer` aufruft. Verhindert stilles Entkoppeln des
+  BH-FDR-Layers (würde unkorrigierte p-Werte ausliefern).
+
+**B — CHANGELOG `[Unreleased]` Date-Monotonicity**
+- Neuer Pin [`tests/test_changelog_unreleased_date_monotonicity.py`](tests/test_changelog_unreleased_date_monotonicity.py):
+  Companion zum Format-Pin aus PR #133. Datierte Einträge im
+  `## [Unreleased]`-Block müssen von oben nach unten chronologisch
+  nicht-aufsteigend sein. Catcht Merge-Konflikt-Artefakte (alter
+  Eintrag landet versehentlich oben) und Rück-Datierungen.
+  Enforcement ab `_ENFORCEMENT_FROM_DATE = "2026-04-22"`; Plan-2.8-
+  Planungseinträge (separater Roadmap-Ledger) per Title-Filter
+  exempt.
+
+**C — `terminal_*_state.py` Import-Boundary**
+- Neuer Pin [`tests/test_terminal_state_import_boundary.py`](tests/test_terminal_state_import_boundary.py):
+  State-Layer-Module (`terminal_*_state.py`) dürfen keine non-state
+  `terminal_*.py`-Module importieren — schützt die in
+  `/memories/repo/terminal-*-state-layer.md` dokumentierte Layering-
+  Disziplin und verhindert Zyklen zwischen Feed/UI und State Store.
+  `terminal_feed_state.py`'s pre-existierende Kopplungen zu
+  `terminal_export`/`terminal_poller`/`terminal_ui_helpers` sind im
+  `_IMPORT_ALLOWLIST` mit Begründung dokumentiert; jede *neue*
+  Kopplung erfordert explizite Allowlist-Erweiterung.
+
+Pattern: alle drei Pins sind Defense-Pins (defending working
+invariants), keine Produktionsänderungen.
+
+### Tests / Quality / Pine (2026-04-24) — Cross-Language Vocab + A/B Discipline + Test Health
+
+Drei pin-Erweiterungen aus dem Backlog von PR #130 (I-2 Folgearbeit
+Pine-Schicht, plus zwei kleinere Disziplin-Pins):
+
+**A — Pine ↔ Python Vocab Cross-Check**
+- Neuer Pin [`tests/test_pine_python_vocab_cross_check.py`](tests/test_pine_python_vocab_cross_check.py):
+  jeder Token in `HERO_TRUST_VOCAB`, `HERO_ACTION_VOCAB`,
+  `HERO_SETUP_QUALITY_VOCAB`, `HERO_MARKET_MODE_VOCAB`,
+  `HERO_BIAS_VOCAB`, `TRUST_STATE_VALUES` muss als quoted-literal in
+  mindestens einer der zugeordneten Pine-Surfaces erscheinen
+  (Dashboard / Mobile-Dashboard / Core-Engine).
+- Echte Drift gefunden und behoben: `"WATCH"` (HERO_ACTION) und
+  `"NEUTRAL"` (HERO_MARKET_MODE) wurden in
+  [`SMC_Mobile_Dashboard.pine`](SMC_Mobile_Dashboard.pine) nur als
+  default-else-branch gerendert (`"⚪ WATCH"`) — Vocab-Anchor-Kommentare
+  hinzugefügt. Ergänzt I-2 aus PR #130 (Python-Side Fingerprint Gate)
+  um die Pine-Render-Schicht.
+
+**B — A/B-Comparison Multiple-Hypothesis Discipline (Regression-Pin)**
+- Neuer Pin [`tests/test_ab_comparison_multiple_hypothesis_discipline.py`](tests/test_ab_comparison_multiple_hypothesis_discipline.py):
+  friert die existierende BH-FDR-Disziplin in
+  [`scripts/run_ab_comparison.py`](scripts/run_ab_comparison.py) ein —
+  `benjamini_hochberg()` Helper, beide FDR-Layer
+  (`_family_fdr_layer`, `_calibration_fdr_layer`),
+  `"method": "benjamini_hochberg"` Self-Identification, und jede
+  `"p_value"` Field-Emission braucht ein `"adjusted_p_value"`-Sibling.
+- Numerische Korrektheit ist bereits durch
+  `test_benjamini_hochberg_property.py`,
+  `test_run_ab_comparison_fdr.py` und
+  `test_run_ab_comparison_calibration_fdr.py` abgedeckt; dieser Pin
+  schützt nur vor stillem Refactor-Verlust.
+
+**C — Test-Suite Health Discipline (Regression-Pin)**
+- Neuer Pin [`tests/test_test_suite_health_discipline.py`](tests/test_test_suite_health_discipline.py):
+  friert den aktuellen gesunden Zustand der Test-Suite ein —
+  0 non-strict `xfail` (silent passing wenn Bug behoben) und jeder
+  `skip`/`skipif`-Marker mit `reason=` Argument. Marker-Body wird
+  paren-balanced über bis zu 12 Zeilen verfolgt, damit multi-line
+  `skipif(cond, reason=...)` mit nested parens (`os.environ.get(...)`)
+  korrekt erkannt wird. Allowlist `_XFAIL_ALLOWLIST` für legitime
+  Ausnahmen (aktuell leer).
+
+**Acceptance / Test-Suite-Beweis**
+- Alle 11 neuen Tests grün
+  (6 vocab cross-check + 3 ab-comparison + 2 test-health).
+
+**Quervergleich zum Audit-Backlog**
+- Verlängert I-2 (Single Source of Truth Vocab Fingerprint, PR #130) in
+  die Pine-Render-Schicht.
+- Konvertiert eine ursprünglich als "fehlend" markierte FDR-Discipline-
+  Lücke in einen Regression-Pin nach Discovery, dass die BH-Korrektur
+  bereits implementiert war.
+
+### Tests / Quality / Pine (2026-04-24) — Hero Defaults Coverage + Pine Security Discipline + Trust-State Relationship
+
+Drei kleine, hochpräzise Pins als Erweiterung der Vocab-Triangle aus
+PR #130 / #131:
+
+**E — Hero-Defaults Vocab-Coverage**
+
+- Neuer Pin [`tests/test_hero_defaults_vocab_coverage.py`](tests/test_hero_defaults_vocab_coverage.py):
+  jeder `DEFAULTS[k]`-Wert in [`scripts/smc_hero_state.py`](scripts/smc_hero_state.py)
+  für `HERO_TRUST` / `HERO_SETUP_QUALITY` / `HERO_ACTION` muss Element
+  des entsprechenden Vocab-`frozenset` sein. Schließt die dritte Ecke
+  des Vocab-Schutz-Dreiecks (Membership-Fingerprint, Pine-Render-
+  Coverage, Default-Coverage).
+
+**D — Pine `request.security` Discipline (Regression-Pin)**
+
+- Neuer Pin [`tests/test_pine_request_security_discipline.py`](tests/test_pine_request_security_discipline.py):
+  zwei Invarianten für aktive (non-legacy) Pine-Files:
+  1. Kein same-symbol+same-TF
+     `request.security(syminfo.tickerid, timeframe.period, ...)`
+     (Pine-Antipattern: extra security context für no-op).
+  2. Jede `request.security()` Call muss `lookahead=` explizit
+     spezifizieren (default unterscheidet sich zwischen Pine-Versionen,
+     silent future-bar leakage = lookahead-bias bug).
+- `request.security_lower_tf` ausgenommen (kein `lookahead=` Argument).
+- Discovery: aktive Surface bereits sauber; Pin schützt vor Regression.
+
+**F — Hero ↔ TrustState Relationship-Invariant**
+
+- Neuer Pin [`tests/test_hero_trust_state_relationship.py`](tests/test_hero_trust_state_relationship.py):
+  friert die Beziehung zwischen `HERO_TRUST_VOCAB` (Hero-Layer) und der
+  `TrustState`-Enum (Product-Trust-Layer) ein:
+  - **Shared core** `{healthy, degraded, stale, unavailable}` muss in
+    beiden Vocabs vorhanden sein.
+  - **Hero-only** `{warmup}` darf nicht in `TrustState` lecken.
+  - **TrustState-only** `{watch_only}` darf nicht in `HERO_TRUST_VOCAB`
+    lecken.
+  - Keine undokumentierten Tokens außerhalb dieser Drei-Partition.
+
+**Acceptance / Test-Suite-Beweis**
+
+- 9/9 neue Tests grün (3 + 2 + 4).
+
+**Discovery-Notes**
+
+- Ursprünglich geplantes F (Pine-Legacy-Move + Inventory-Pin) bereits
+  vollständig erledigt durch
+  [`tests/test_pine_active_surface_inventory.py`](tests/test_pine_active_surface_inventory.py)
+  + [`tests/test_pine_legacy_isolation.py`](tests/test_pine_legacy_isolation.py)
+  + [`tests/test_pine_library_version_consistency.py`](tests/test_pine_library_version_consistency.py).
+  Pivot auf Relationship-Invariant als nächst-höchstwertigen Pin.
+- D ist (analog zu B in PR #131) ein Regression-Guard: aktive Pine-
+  Surface war bereits sauber. Audit-Backlog entwickelt sich zu
+  "freeze the good state" statt "fix the bad state".
+
+### Tests / Quality / Workflows (2026-04-24) — Audit-Followup Combo (M-1 / M-4 / L-1 / L-2 / I-1 / I-2)
+
+Sechs Punkte aus dem Backlog von
+[`docs/reviews/2026-04-24-system-review.md`](docs/reviews/2026-04-24-system-review.md)
+in einem PR — alle audit-getrieben, alle pin-geschützt:
+
+**M-1 — `continue-on-error: true` muss Begründung deklarieren**
+- Neuer Pin [`tests/test_workflow_continue_on_error_discipline.py`](tests/test_workflow_continue_on_error_discipline.py):
+  jeder `continue-on-error: true` Step braucht innerhalb ±5 Zeilen
+  einen `# CONTINUE-ON-ERROR-INTENTIONAL: <Begründung>` Marker.
+- 12 bestehende Sites in 5 Workflows mit Markern annotiert
+  (notification best-effort, optional artifact downloads, advisory
+  measurement runs, flaky TV automation). Future silent-skips zwingen
+  Reviewer zu expliziter Begründung.
+
+**M-4 — Pine-Resolver-Disziplin**
+- Neuer AST-Pin [`tests/test_pine_apply_surface_resolver_discipline.py`](tests/test_pine_apply_surface_resolver_discipline.py):
+  jedes `*.pine` String-Literal in `pine_apply_surface_reduction.py`
+  muss erstes Argument von `resolve_pine_file(...)` sein (direkt oder
+  via for-loop variable). Verhindert direktes `Path("X.pine")` /
+  `open("X.pine")` das die Search-Dirs (repo-root + `pine/legacy/`)
+  bypassen würde.
+- Audit-Retraction: `resolve_pine_file()` deckt `pine/legacy/`
+  bereits ab — D-1 v2 physische Migration hat heute schon
+  funktioniert. Pin ist defense-in-depth gegen künftige Direkt-Pfad-
+  Regression.
+
+**L-1 — terminal_newsapi.py Stub Cross-Reference**
+- Module docstring erweitert: explizit auf
+  `scripts/smc_newsapi_ai.py` (~750 Zeilen, active path) hingewiesen
+  + Audit-Anker `L-1` für grep.
+- Neuer Pin [`tests/test_terminal_newsapi_stub_marker.py`](tests/test_terminal_newsapi_stub_marker.py):
+  enforces dass die Cross-Reference + der `L-1` Anker in der docstring
+  bleiben.
+
+**L-2 — F2 Promotion-Gate "skipped" Visibility**
+- `.github/workflows/f2-promotion-gate-daily.yml` skip-step:
+  `::notice` → `::warning` (mit Audit-Begründung als Kommentar).
+  Jeder skipped Daily-Run zeigt jetzt eine gelbe Banner-Annotation
+  im Run-Summary; "stuck on skipped for weeks" Drift wird sichtbar
+  ohne externe Counter-Ledger.
+- Neuer Pin [`tests/test_workflow_f2_skip_visibility.py`](tests/test_workflow_f2_skip_visibility.py).
+
+**I-1 — Numerical Audit Anchor Pin**
+- Neuer Pin [`tests/test_enrichment_value_analysis_audit_anchor.py`](tests/test_enrichment_value_analysis_audit_anchor.py):
+  enforces dass der Comment-Anker
+  `N-1 (TEMPORAL_NUMERICAL_AUDIT_2026-04-24)` und der Epsilon-Guard
+  `abs(self.baseline_mean_pnl) < 1e-12` in
+  `scripts/smc_enrichment_value_analysis.py` erhalten bleiben.
+  Verhindert dass eine Routine-"Comment cleanup" Pass die
+  Audit-Begründung silent dropt.
+
+**I-2 — Central Vocabulary Fingerprint Gate**
+- Neuer zentraler Pin [`tests/test_central_vocab_fingerprint_gate.py`](tests/test_central_vocab_fingerprint_gate.py)
+  als single-source-of-truth über alle kanonischen Vocabularies:
+  - `HERO_TRUST_VOCAB` (5)
+  - `HERO_SETUP_QUALITY_VOCAB` (4)
+  - `HERO_ACTION_VOCAB` (4)
+  - `HERO_DEFAULTS_KEYS` (7)
+  - `TRUST_STATE_VALUES` (5)
+  - `ACTION_IMPACTS` (4)
+- Jede Vocabulary wird zu sortiertem JSON serialisiert + sha256
+  truncated → 16-hex Fingerprint. Drift in irgendeiner Vocabulary
+  bricht den Pin und zwingt Reviewer zu bewusster Baseline-Bump
+  (mit confirm dass downstream Pine/dashboard/alert contracts den
+  neuen Token verstehen).
+- Cross-check: `TrustState` enum vs. `all_trust_states()` iterator
+  müssen exakt übereinstimmen (verhindert vergessenen Iterator-Update).
+
+**Test-Footprint:** +6 neue Test-Files mit zusammen 16 Tests, alle grün.
+Drei Source-Edits (`terminal_newsapi.py` docstring,
+`f2-promotion-gate-daily.yml` notice→warning, 5 Workflows mit Markern).
+Audit-Item M-4 mit Retraction-Notiz: `resolve_pine_file()` deckt das
+Szenario bereits ab; Pin bleibt als regression guard.
+
+### Tests / Quality (2026-04-24) — AST-Pin Triple: lru_cache / to_datetime utc / pytest-xdist parametrize Determinismus
+
+Drei reine Tripwire-Pins (kein Verhaltens-Risiko, AST-only) gegen
+hochfrequente Bug-Klassen aus PRs #98, #95, #104 (Klassen #4, #25, #29
+des SMC System Review Prompts):
+
+- **`tests/test_lru_cache_maxsize_discipline.py`** (3 Tests, Klasse #29):
+  jeder `@lru_cache` Decorator muss explizit `maxsize=N` führen — bare
+  `@lru_cache()` Default ist unbounded und leakt Memory in Long-Running
+  Streamlit/Terminal Sessions (PR #98 / A-2). Baseline pinnt die 3
+  bekannten Sites (`smc_newsapi_ai.py` × 2 + `newsstack_fmp/_market_cal.py`).
+- **`tests/test_to_datetime_utc_discipline.py`** (3 Tests, Klasse #4):
+  jeder `pd.to_datetime(frame["col"])` Call mit Timestamp-Spalte
+  (timestamp/ts/ts_event/ts_recv/datetime/...) muss `utc=True` führen.
+  Date-only Spalten (trade_date/asof_date/...) sind explizit allowlisted.
+  Aktuell 0 Verstöße — Pin verhindert Re-Introduktion (PR #95 / TZ-1/TZ-2).
+- **`tests/test_pytest_xdist_parametrize_determinism.py`** (2 Tests,
+  Klasse #25): jeder `@pytest.mark.parametrize` darf seine Argument-
+  Quelle nicht aus `set(...)` / `dict.keys()` / `os.listdir(...)` /
+  `glob.glob(...)` / `Path.iterdir()` / Set-Literal lesen ohne
+  `sorted(...)` Wrapper. Verhindert Worker-Collection-Mismatch unter
+  `pytest-xdist` (PR #104). Aktuell 0 Verstöße.
+
+**Test footprint:** +8 neue Tests, alle grün. Baseline-Drift-Failures
+liefern Auto-Update Recipe in der Failure-Message.
+
+### Tests / Quality (2026-04-24) — `open()` text-mode encoding discipline (+3 production fixes)
+
+Schließt eine plattform-abhängige Quelle für stillen Daten-Drift in
+First-Party-Produktionscode. Pythons Default-Textencoding ist OS-abhängig
+(macOS/Linux: `utf-8`, Windows: `cp1252`); fehlt `encoding=` an einem
+text-mode `open(...)`, schreibt/liest derselbe Code je nach Host
+unterschiedliche Bytes — eine Klasse von Bug, die wir bei `.env`- und
+Lock-Dateien bereits gesehen haben.
+
+**Tripwire-Pin (`tests/test_open_encoding_discipline.py`)**
+AST-Walk über alle First-Party `*.py` (Top-Level + Subdirs außer
+`tests/`, `scripts/`, `docs/`, `SMC++/`, Caches, Venvs). Jeder
+`open(...)`-Aufruf, der text-mode ist (Default oder Mode ohne `b`) und
+kein `encoding=`-Keyword führt, lässt die Suite rot werden. Binär-Modi
+(`"rb"`, `"wb"`, `"ab"`, `"r+b"`, …) sind exempt. Statisch nicht
+auflösbare Modi gelten konservativ als Text. Drei Sub-Tests:
+1. `test_first_party_files_present` — Pfaddrift-Wächter (≥ 50 Dateien).
+2. `test_open_calls_specify_encoding` — die eigentliche Disziplin.
+3. `test_file_allowlist_entries_still_apply` — parametrierte
+   Allowlist-Hygiene (Allowlist aktuell leer, kein Eintrag verschimmelt).
+
+**Production Fixes (3 Sites)**
+- `open_prep/realtime_signals.py:251` — Engine-Lockfile
+  (`open(_RT_ENGINE_LOCK_FILE, "w")` → `encoding="utf-8"`).
+- `open_prep/realtime_signals.py:2601` — Stdlib-Fallback `.env`-Loader.
+- `test_usi_lint.py:6` — Top-Level Pine-Linter.
+
+**Warum jetzt:** Defense-in-Depth-Tripwire (sub-Sekunde, AST only)
+gegen die Klasse "silent platform-dependent default". Allowlist startet
+leer und wird durch den Stale-Check selbst gepflegt.
+
+### Fixes & Pins (2026-04-24) — System Review 2026-04-24 Followup (H-1, L-3, M-3)
+
+Adressiert die drei priorisierten Backlog-Items aus
+[`docs/reviews/2026-04-24-system-review.md`](docs/reviews/2026-04-24-system-review.md):
+
+**H-1 — `scripts/smc_ob_context_light.py` Empty-OB Subnormal-Robustheit**
+- `bull_level == 0.0 and bear_level == 0.0` → `abs(...) < _OB_LEVEL_EPS` (1e-12)
+- Neue `_OB_LEVEL_EPS` Konstante zwischen IEEE-754 subnormal range (5e-324)
+  und kleinster realer Tick-Größe (1e-2). Defense-in-depth: heute liefert
+  Upstream einen Literal-Sentinel, aber Comparison-Form würde silent driften
+  wenn das je auf computed-value umgestellt wird.
+- 3 neue Regression-Tests in `tests/test_ob_context_light.py`
+  (subnormal positive, subnormal negative, sanity-check für 1e-2 als active OB).
+
+**L-3 — Division-Site Baseline-Pin (`tests/test_division_site_baseline.py`)**
+- AST-Pin im Stil des `lru_cache` baseline-pin (PR #127): pinnt die exakte
+  Anzahl `a / b` Divisionen pro audited file (`smc_core/scoring.py`: 27,
+  `smc_core/fvg_quality.py`: 7).
+- Jede neue Division zwingt Reviewer zu confirm denominator ist non-zero
+  (literal, structural, oder epsilon-guarded) bevor Baseline gebumpt wird.
+- 2 neue Tests, beide grün.
+
+**M-3 — Workflow `GH_PAT` Discipline (`tests/test_workflow_gh_pat_discipline.py`)**
+- Audit-Retraction: ursprüngliche M-3 Finding-Beschreibung war zu breit —
+  `gh issue create/comment` und `gh run list/download` sind mit
+  `GITHUB_TOKEN` legitim. Nur `gh pr create/edit/merge`,
+  `git push origin bot/*` und `peter-evans/create-pull-request`
+  brauchen `GH_PAT` damit fast-gates triggert.
+- Neuer Pin walkt alle `.github/workflows/*.yml` und enforces dass jede
+  sensitive action `secrets.GH_PAT` in Proximity hat (±100 Zeilen,
+  passt für die größten step bodies).
+- Pin entdeckte 2 echte Verstöße in `smc-library-refresh.yml:580/586`
+  (`gh pr create` + `gh pr merge` für `bot/library-refresh-${GITHUB_RUN_ID}`
+  PRs ohne GH_PAT). Fix angewendet: Step "Commit and push changes"
+  nutzt jetzt das kanonische
+  `${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}` ternary.
+- 2 neue Tests, beide grün.
+
+**Test footprint:** +7 neue Tests, alle grün. Zwei Source-Edits
+(`smc_ob_context_light.py` + `smc-library-refresh.yml`), beide
+audit-driven, beide mit Pin-Schutz gegen Regression.
+
+### Tests / Quality (2026-04-24) — Audit-Followup Pins (workflow continue-on-error / raw write call sites / Pine legacy isolation / Pine active surface inventory)
+
+Vier additive Inventory-Pin-Tests, die die im Audit (PR #123) gefundenen
+Observability-Lücken auf konkrete Allowlists herunterbrechen. Pure
+stdlib, zero source changes.
+
+- **`tests/test_workflow_continue_on_error_inventory.py`** (~120 LOC,
+  4 cases): pinnt die exakten 12 `continue-on-error: true` Vorkommen
+  über 5 Workflows (smc-live-newsapi-refresh, smc-library-refresh ×6,
+  smc-deeper-integration-gates ×2, plan-2-8-weekly-digest ×3,
+  smc-release-gates) auf konkrete Zeilennummern. Schließt M-2 aus dem
+  Audit. Failure zwingt zu expliziter Begründung im Allowlist-Kommentar.
+  Korrigiert die Audit-Behauptung "nur 2 Workflows" — tatsächlich 5.
+- **`tests/test_atomic_write_call_sites.py`** (~165 LOC, 4 cases):
+  AST-basierter Sweep findet alle `open(..., "w"/"wb"/"x"/"a")`,
+  `Path.open(...)`, `os.fdopen(...)` Schreib-Call-Sites in
+  `scripts/`. 14 erlaubte Files mit Begründung in `_ALLOWED_RAW_WRITE_FILES`
+  (alle entweder `os.fdopen+os.replace` atomic-Pattern, append-mode
+  JSONL, oder one-shot CSV nicht im Pipeline-Konsum). Schließt I-1
+  Triage-Frage aus dem Audit (1003 vs 92 war grep-noise; echte Zahl
+  ~14). Pin-Test pruned zusätzlich stale Allowlist-Einträge.
+- **`tests/test_pine_legacy_isolation.py`** (~155 LOC, 4 cases):
+  pinnt die 23 legacy `*.pine` Files unter `pine/legacy/` als exakte
+  Inventory, verbietet Re-Introduktion am Repo-Root, und assertet
+  dass nur explizit erlaubte Tooling-Files (`smc_bus_manifest.py`,
+  `smc_file_lifecycle.py`, `smc_surface_matrix.py`,
+  `pine_apply_surface_reduction.py`, `test_usi_lint.py`) legacy-Namen
+  referenzieren dürfen. Audit-Item G/H zusammengefasst.
+- **`tests/test_pine_active_surface_inventory.py`** (~95 LOC, 4 cases):
+  pinnt die 30-File aktive Pine-Oberfläche (17 Root-Orchestratoren +
+  5 `pine/skipp_*.pine` Libraries + 8 `SMC++/smc_*.pine` private
+  Libraries). Neue `*.pine` am Root zwingt zu expliziter Klassifikation
+  (Orchestrator vs Library vs Legacy). Audit-Item H Inventory.
+
+Verifikation: `21 passed in 5.28s` für die 4 neuen Module. Zero source
+changes. Pure stdlib (respects ADR-0005).
+
+### Tests / Quality (2026-04-24) — BH property test, Brier/ECE closed-form pin, SPRT boundary precision, CHANGELOG category lint
+
+Four additive, source-untouched test modules tightening the
+measurement-runtime contract on top of the PR #120 / #121 schema-pin
++ ADR-0005 work. Pure stdlib, no new runtime imports.
+
+- **`benjamini_hochberg` property test**
+  (`tests/test_benjamini_hochberg_property.py`, ~150 LOC, 35 cases):
+  pins the BH step-up contract directly on the helper —
+  empty-input shape, output-length invariance, monotonicity of
+  adjusted p-values along the sorted axis, [0, 1] adjusted range,
+  q=0/q=1 edge cases, sorted-prefix structure of the rejection set,
+  threshold-separation property, shuffle invariance, and a B&H 1995
+  textbook three-p-value worked example. Existing tests covered the
+  `digest["fdr"]` payload but not the helper's mathematical
+  invariants in isolation.
+- **`_metric_brier` / `_metric_ece` closed-form pin**
+  (`tests/test_metric_brier_ece_pin.py`, ~135 LOC, 13 cases):
+  locks the calibration-metric closed forms against silent
+  re-implementation drift. Brier: perfect prediction → 0, fully
+  inverted → 1, all-0.5 baseline → 0.25, two-event hand-checked
+  average. ECE: perfect calibration → 0, total miscalibration in
+  one bucket → 1.0, two-bin weighted average, probability clipping
+  on out-of-range inputs, NaN on empty input, [0, 1] bound on
+  random fuzz. These metrics feed the calibration-FDR layer
+  (`digest["fdr_calibration"]`).
+- **`terminal_decision` SPRT boundary-precision pin**
+  (`tests/test_terminal_decision_boundary.py`, ~120 LOC, 9 cases):
+  computes the exact integer `k` at which the LLR crosses each
+  Wald bound for `(n, p0, p1, alpha, beta) = (200|500|1000, 0.5,
+  0.6, 0.05, 0.20)` and asserts that the inclusive-boundary
+  classification (`llr >= upper_bound` → `accept_h1`,
+  `llr <= lower_bound` → `accept_h0`) is preserved to the integer
+  step. Plus a closed-form LLR pin
+  (`llr = k·ln(p1/p0) + (n-k)·ln((1-p1)/(1-p0))`) at five
+  representative `(n, k)` points. Catches the off-by-one
+  comparison-operator drift that the four-variant decision pin
+  (PR #120) cannot see.
+- **CHANGELOG `[Unreleased]` category lint**
+  (`tests/test_changelog_format_lint.py`, ~95 LOC, 2 cases): asserts
+  that the first `## [...]` versioned heading is `[Unreleased]` and
+  that every `###` sub-header inside `[Unreleased]` uses a category
+  from the active whitelist (`Added`, `Changed`, `Deprecated`,
+  `Removed`, `Fixed`, `Security`, `Documentation`,
+  `Tests / Quality`, `Schema Versions`, `Evidence`, `Verification`).
+  Date and uniqueness checks are deliberately omitted because the
+  existing repo convention legitimately repeats e.g. multiple
+  `### Verification` blocks per day and uses date-range headers.
+
+All four modules are pure-stdlib (no scipy/sklearn/pandas) and
+respect the ADR-0005 measurement-runtime fence. Total addition:
+**62 tests, ~500 LOC, zero source changes**.
+
+### Tests / Quality (2026-04-24) — `_normal_cdf` accuracy pin + SPRT Wald-bounds property test + ADR-0005 pre-commit CLI
+
+Three additive hardening pieces, no source changes to the runtime
+itself:
+
+- **`_normal_cdf` accuracy pin**
+  (`tests/test_normal_cdf_accuracy_pin.py`): pins
+  `scripts.run_ab_comparison._normal_cdf` against 13 reference
+  points spanning [-3, 3] to 1e-9 absolute tolerance. The function
+  underpins every p-value in `digest['fdr']` and `digest['fdr_calibration']`;
+  a polynomial-approximation replacement (Abramowitz & Stegun, etc.)
+  would diverge by ~1e-7 and trip the pin. Also pins `_normal_cdf(0)
+  == 0.5` exactly, symmetry (`cdf(-x) + cdf(x) == 1`), monotonicity,
+  and [0, 1] bounds at finite extremes.
+- **SPRT Wald-bounds property test**
+  (`tests/test_sprt_wald_bounds_property.py`): pins the closed-form
+  Wald-A / Wald-B formulas of `SPRTConfig.upper_bound` /
+  `lower_bound` over a 7×6 = 42-point grid of (alpha, beta) pairs
+  spanning the validation range (0, 0.5). Also asserts sign
+  invariants (upper > 0, lower < 0), strict separation, and
+  monotonicity in alpha/beta. A stealth refactor that swaps
+  numerator/denominator or substitutes an "equivalent" expression
+  would silently invert promote/hold/rollback decisions for the
+  SPRT layer.
+- **ADR-0005 pre-commit CLI**
+  (`scripts/check_adr_0005_pure_stdlib.py`,
+  `tests/test_check_adr_0005_pure_stdlib_cli.py`,
+  `.pre-commit-config.yaml`): wraps the AST scan from PR #120
+  (`tests/test_adr_0005_pure_stdlib_runtime.py`) as a standalone
+  CLI and registers it as a pre-commit hook scoped to
+  `^scripts/(run_ab_comparison|smc_sprt_stop_rule)\.py$`.
+  Re-imports `RUNTIME_FILES` and `BANNED_ROOTS` from the test
+  module so the two stay in lock-step (single source of truth).
+  Contributors now catch ADR-0005 violations pre-push without
+  spinning up the full test suite.
+
+Verification: `251 passed in 1.46s` for the 7 affected test
+modules.
+
+### Tests / Quality (2026-04-24) — Schema-pin trilogy + ADR-0005 AST guard + degenerate-branch coverage
+
+Hardens the A/B-comparison digest contract and the ADR-0005
+"pure-stdlib measurement runtime" constraint with static, additive
+tests (no source changes).
+
+- **SPRT schema-pin** (`tests/test_run_ab_comparison_sprt.py`): pins
+  the top-level (`{decision, n, k, hit_rate, llr, wald_upper,
+  wald_lower, config, control_n, control_hit_rate}`) and `config`
+  sub-block (`{p0, p1, alpha, beta}`) key sets of `digest["sprt"]`
+  across all four decision variants (`accept_h1`, `accept_h0`,
+  `inconclusive`, `zero_n`). Closes the symmetry gap left by the
+  hit-rate FDR pin (#119) and the calibration-FDR pin (#118):
+  `digest["sprt"]` was the last advisory layer without a
+  stealth-field guard.
+- **`_two_proportion_z_pvalue` degenerate gap-fill**
+  (`tests/test_run_ab_comparison_fdr.py`): adds the missing
+  `n_ctrl=0`-only branch (mirror of the existing `n_treat=0` test)
+  and one end-to-end test asserting `_family_fdr_layer` records
+  `skipped_reason="degenerate_or_empty"` and excludes the family
+  from the BH input list.
+- **ADR-0005 enforcement**
+  (`tests/test_adr_0005_pure_stdlib_runtime.py`): static `ast`
+  parse over `scripts/run_ab_comparison.py` and
+  `scripts/smc_sprt_stop_rule.py` asserts no
+  `numpy`/`scipy`/`pandas`/`statsmodels`/`sklearn`/`torch`/
+  `tensorflow` imports (top-level or `from`-form). Failure message
+  tells contributors to supersede ADR-0005 first if the constraint
+  is intentionally lifted.
+
+Field add/rename in any of the three pinned blocks must be paired
+with a major schema version bump per the
+`schema-version-bump-must-be-major-on-field-count-change`
+convention.
+
+Verification: `60 passed in 1.10s` for the four affected test
+modules.
+
+### Documentation (2026-04-24) — Schema-pin trilogy backfill for #117–#119
+
+Backfills CHANGELOG entries for three S-2 follow-up PRs that landed
+without `[Unreleased]` notes:
+
+- **#117** (S-2 calibration-FDR bootstrap): adds the
+  `digest["fdr_calibration"]` block with bootstrap-resampled,
+  Benjamini-Hochberg-corrected p-values for per-(symbol,timeframe)
+  Brier and ECE deltas. Advisory only — does not alter
+  Promote/Hold/Rollback.
+- **#118** (symmetry guard + schema-pin for `fdr_calibration` +
+  ADR-0005): pins the field set of `digest["fdr_calibration"]` and
+  formalises the pure-stdlib constraint for the measurement runtime
+  in `docs/adr/0005-pure-stdlib-measurement-runtime.md`.
+- **#119** (schema-pin for `digest["fdr"]` hit-rate block): mirrors
+  #118 for the older hit-rate FDR layer (#102).
+
+### Documentation (2026-04-24) — D-2: SCHEMA_VERSION history consolidated
+
+Pulled `smc_core.schema_version.SCHEMA_VERSION` history out of inline
+module comments into the dedicated **Schema Versions** section below
+(closes audit-backlog item D-2). Inline comments in
+`smc_core/schema_version.py` retain only the **current** version
+note + a pointer to this CHANGELOG section.
+
+### Changed (2026-04-23) — Coverage-source omit-list expanded for standalone CLIs
+
+`pyproject.toml::tool.coverage.run.omit` now excludes 7 additional
+manual-operator scripts that have no automated test coverage by design
+and are not imported by production modules:
+
+- `open_prep/streamlit_monitor.py` (~1472 stmts at 0% covered)
+- `scripts/fvg_asia_real_sample.py`
+- `scripts/fvg_label_audit_q3.py`
+- `scripts/pine_slim.py`
+- `scripts/probe_newsapi_feed_cursor.py`
+- `scripts/run_smc_e2e_smoke_test.py`
+- `scripts/tv_publish_evidence_summary.py`
+
+Same pattern as the prior `streamlit_terminal.py` exclusion (issue #17 /
+`/memories/repo/coverage-source-config.md` / commit `df9eb7d2`).
+Without the carve-out, total coverage was dragged below the 95%
+`fail_under` threshold despite production code being fully covered.
+Production-import safety verified before each addition.
+
+### Changed (2026-04-22) — D3 Promotion: FVG quality strict regime
+
+**Major behavioural change.** `smc_core.fvg_quality.score_fvg()` now
+defaults to the **strict** weight regime promoted from the D4 audit:
+
+- `WEIGHT_VERSION = "strict_v1_no_hurst"`
+- Weights: `gap_size_atr=0.45`, `htf_aligned=0.0735`,
+  `distance_to_price_atr=0.45`, `is_full_body=0.0515`, `hurst_50=0.0`
+- Directions: all `-1` except `hurst_50=0` (disabled — audit §1.5
+  null-signal)
+- Score formula: `clamp(0.5 + Σ w·d·(comp − 0.5), 0, 1)`
+- **Tier semantics inverted**: under the strict default, HIGH tier
+  means "strict-favourable" (small gaps, near-price, no HTF hype) —
+  the empirical opposite of the previous lenient regime. Tier
+  thresholds (HIGH ≥ 0.70, MEDIUM ≥ 0.50) remain numerically
+  unchanged.
+
+`scripts/fvg_quality_recalibration.py` defaults flipped to match:
+`label_source="partial_50"`, `signed_weights=True`,
+`acceptance_mode="relative"`. `report_version` 1.2 → 2.0.
+`LEGACY_WEIGHTS` retained as alias for `LENIENT_WEIGHTS`
+(back-compat). New constants `STRICT_WEIGHTS`, `STRICT_DIRECTIONS`
+mirror the production-side pinning.
+
+`SMC_Core_Engine.pine::fvg_quality_score` is **NOT** mirror-promoted.
+Pine and Python use disjoint feature sets (Pine reads
+`fill_current_ratio`, `not filled`, `total_volume>0`; Python reads
+`htf_aligned`, `distance_to_price_atr`, `hurst_50`). True mirroring
+needs a Pine `FVG`-type extension and is deferred to a separate
+phase. Documented in
+`/memories/repo/fvg-quality-pine-python-feature-disjunction.md`.
+
+Refs: `docs/FVG_QUALITY_D4_AUDIT.md` §6 (D3-Promotion-Befund + Pine-vs-Python-Disjunktion),
+`docs/STRATEGY_2026_Q3.md` §D3+§D4,
+`/memories/repo/fvg-quality-d3-promotion-landed.md`.
+
 ### Added (2026-11-01) — Plan 2.8 bool-or-list records + pxd + trailing-question-mark lines
 
 - `scripts/plan_2_8_ledger_bool_or_list_only_record_count.py`

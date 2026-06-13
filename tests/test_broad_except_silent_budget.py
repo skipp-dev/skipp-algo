@@ -82,7 +82,6 @@ _DIR_EXCLUDE: frozenset[str] = frozenset(
 _FROZEN_SITE_COUNTS: dict[str, int] = {
     "smc_tv_bridge/smc_api.py": 1,
     "open_prep/alerts.py": 1,
-    "open_prep/streamlit_monitor.py": 2,
     # 2026-05-12 OPRA UOA replacement: detector falls back through a
     # narrow int-cast on non-Timestamp timestamp inputs. Documented
     # contract; see opra_uoa._normalize_ts().
