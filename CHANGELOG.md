@@ -129,6 +129,24 @@ irgendwo im Titel; der Wert wird zur Laufzeit aus
 `scripts/f2_render_rollback_issue.py::TITLE_PREFIX` importiert); der
 Step-Kommentar (der fälschlich ein nicht existentes „f2-rollback label“
 behauptete) ist mitkorrigiert.
+### Changed (2026-06-13) — Audit E-1 AW-1: Atomic-Write-Guards auf alle Produktions-Surfaces erweitert
+
+Beide Atomic-Write-Pin-Tests scannten nur Teilflächen:
+`tests/test_atomic_write_call_sites.py` (open/fdopen-Writes) deckte
+`scripts/ open_prep/ ml/ rl/ governance/` ab,
+`tests/test_no_direct_to_csv_in_production.py`
+(to_csv/to_parquet/write_text/json.dump) sogar nur `scripts/`. Neue
+non-atomic Writer in `smc_core/`, `smc_integration/`, `newsstack_fmp/`
+oder den Repo-Root-Modulen (`databento_*`, `terminal_export`,
+`streamlit_terminal`, `pine_*`) regressierten still. Beide Guards
+scannen jetzt alle acht Verzeichnisse plus Repo-Root (non-rekursiv);
+der Bestand wurde site-für-site verifiziert und als dokumentierte
+Baseline-Allowlist aufgenommen (überwiegend bereits korrekte
+mkstemp+os.replace-Muster). `_FILE_LEVEL_EXEMPT`-Keys sind jetzt
+repo-relative POSIX-Pfade statt kollisionsanfälliger Dateinamen; neuer
+Pin `test_file_level_exempt_keys_exist` verhindert stale Einträge.
+Härtungs-Kandidaten (fixer tmp-Name ohne Exception-Cleanup) sind als
+AW-2/AW-3 in den Rationales markiert. Test-only, kein Produktionscode.
 
 ### Security (2026-06-12) — tsx ^4.22.4 → esbuild 0.28.1 (Dependabot #5/#6)
 
