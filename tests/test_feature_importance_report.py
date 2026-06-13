@@ -337,7 +337,6 @@ class TestRankingDrift:
         assert all(r.levelno == logging.DEBUG for r in debug_records), (
             f"Expected DEBUG level, got: {[r.levelname for r in debug_records]}"
         )
-
     def test_load_previous_latest_invalid_utf8_logs_debug(self, tmp_path, caplog) -> None:
         (tmp_path / "latest.json").write_bytes(b"\xff\xfe\xfa")
         with caplog.at_level(logging.DEBUG, logger="open_prep.feature_importance_report"):
