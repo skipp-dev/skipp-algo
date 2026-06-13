@@ -3052,6 +3052,44 @@ class TestFMPClientCsvFallback(unittest.TestCase):
             data = client._get("/stable/eod-bulk", {})
         self.assertEqual(data, [{"symbol": "AAPL", "close": 189.0}])
 
+    def test_profile_bulk_pagination_parses_csv_and_stops_on_part_error(self):
+        """Live-shaped profile-bulk pages are CSV and terminate via part 400."""
+        from open_prep import macro
+
+        macro._FMP_FEATURE_UNAVAILABLE_LOGGED.clear()
+        csv_payload = (
+            '"symbol","averageVolume","companyName"\n'
+            '"AAPL",50000000,"Apple Inc."\n'
+        )
+        client = self._make_client()
+        seen_urls: list[str] = []
+
+        def fake_urlopen(request, *, timeout, context):
+            seen_urls.append(request.full_url)
+            if "part=0" in request.full_url:
+                return self._mock_urlopen_with_payload(csv_payload)
+            if "part=1" in request.full_url:
+                raise urllib.error.HTTPError(
+                    url=request.full_url,
+                    code=400,
+                    msg="Bad Request",
+                    hdrs=None,
+                    fp=io.BytesIO(b"Query Error: Invalid or missing query parameter - part"),
+                )
+            self.fail(f"unexpected profile-bulk URL: {request.full_url}")
+
+        with patch("open_prep.macro.urlopen", side_effect=fake_urlopen):
+            data = client.get_profile_bulk()
+
+        self.assertEqual(
+            data,
+            [{"symbol": "AAPL", "averageVolume": 50000000, "companyName": "Apple Inc."}],
+        )
+        self.assertEqual(len(seen_urls), 2)
+        self.assertIn("part=0", seen_urls[0])
+        self.assertIn("part=1", seen_urls[1])
+        self.assertEqual(macro._FMP_FEATURE_UNAVAILABLE_LOGGED, set())
+
 
 class TestGetEodBulkInvalidJsonFallback(unittest.TestCase):
     """get_eod_bulk() should return [] when _get() raises 'invalid JSON'."""

@@ -154,7 +154,8 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-05-12 PR #2154: shifted +5 (704→709) by FMP-13F probe
         # instrumentation block in macro.py.
         # 2026-06-11 (eval-findings B8): surprise-scale comment +8 (713→721).
-        ("open_prep/macro.py", 721),
+        # 2026-06-13: profile-bulk pagination constant shifted +1 (721→722).
+        ("open_prep/macro.py", 722),
         ("open_prep/sentiment_fng.py", 100),
         ("terminal_finnhub.py", 245),
         ("terminal_notifications.py", 255),
