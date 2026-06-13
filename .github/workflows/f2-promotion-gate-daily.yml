@@ -44,13 +44,14 @@ name: f2-promotion-gate-daily
 
 on:
   schedule:
-    # 14:30 UTC Mon-Fri — must run AFTER smc-measurement-benchmark-rolling
+    # 14:30 UTC Mon-Fri — intended to run after smc-measurement-benchmark-rolling
     # has produced the dual-arm artifact. Since audit HOCH-1 that consumer
     # is workflow_run-driven off the 12:00 UTC producer (~60 min runtime,
     # 16:30 UTC safety-net cron), so the artifact is normally published
-    # well before this gate tries to download it. The rolling-bench
-    # cadence is gated by the upstream Databento producer
-    # (12:00 UTC Mon-Fri), so this job follows the same Mon-Fri window.
+    # well before this gate tries to download it; the workflow is fail-soft
+    # on a missing artifact (status=skipped). The rolling-bench cadence is
+    # gated by the upstream Databento producer (12:00 UTC Mon-Fri), so
+    # this job follows the same Mon-Fri window.
     - cron: "30 14 * * 1-5"
   workflow_dispatch:
     inputs:
