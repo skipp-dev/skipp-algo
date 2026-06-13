@@ -76,6 +76,24 @@ Neue Regressionen:
 - `tests/test_feature_importance_report.py::test_load_previous_latest_invalid_json_logs_debug`
 - `tests/test_feature_importance_report.py::test_load_previous_latest_invalid_utf8_logs_debug`
 
+### Fixed (2026-06-13) — Audit E-2 AW-7-A: Manifest-Reader fail-loud nach Resolve (TOCTOU-Härtung)
+
+`scripts/load_databento_export_bundle.py::load_export_bundle` las das
+aufgelöste `*_manifest.json` nach `resolve_manifest_path(...)` ungeschützt
+mit `json.loads(read_text(...))`. Wenn zwischen Resolve und Read ein
+Race/TOCTOU auftrat (oder das Manifest anderweitig korrupt wurde),
+propagierte ein nackter `JSONDecodeError`/`OSError` aus dem Loader ohne
+stabilen Fehlervertrag.
+
+Der Read/Parse-Schritt ist jetzt fail-loud gehärtet: parse-/I/O-Fehler werden
+als `RuntimeError("Manifest read/parse failed after resolve: <path>")`
+mit Pfadkontext neu geworfen. Das stabilisiert die Fehlersemantik für die
+kritischen Konsumenten (`smc_integration.service`,
+`smc_integration.measurement_evidence`, `smc_integration.structure_batch`).
+
+Neue Regression:
+`tests/test_load_databento_export_bundle.py::test_load_export_bundle_parse_fails_after_resolve_raises_runtime_error`.
+
 ### Fixed (2026-06-13) — Stat-Review W7-2/W7-3: Vote-Integrität des Magnitude-Shadow-Ledgers
 
 Zwei Wege, auf denen die weekly k-of-n-Mehrheit Stimmen aus dem Nichts

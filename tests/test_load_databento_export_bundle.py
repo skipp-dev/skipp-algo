@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from unittest import mock
 
 import pandas as pd
 
+import scripts.load_databento_export_bundle as leb
 from scripts.load_databento_export_bundle import load_export_bundle
 
 
@@ -124,3 +126,27 @@ def test_load_export_bundle_skips_newer_corrupt_manifest_by_mtime(tmp_path: Path
 
     assert payload["manifest_path"].name == older.name
     assert payload["frames"]["daily_symbol_features_full_universe"].iloc[0]["symbol"] == "AAA"
+
+
+def test_load_export_bundle_parse_fails_after_resolve_raises_runtime_error(tmp_path: Path) -> None:
+    manifest_path = _write_bundle(
+        tmp_path,
+        "databento_volatility_production_20260310_095000",
+        {
+            "daily_symbol_features_full_universe": pd.DataFrame({"symbol": ["AAA"]}),
+            "premarket_features_full_universe": pd.DataFrame({"symbol": ["AAA"]}),
+        },
+    )
+
+    with (
+        mock.patch.object(leb, "resolve_manifest_path", return_value=manifest_path),
+        mock.patch.object(Path, "read_text", return_value="{not valid json"),
+    ):
+        try:
+            load_export_bundle(tmp_path)
+        except RuntimeError as exc:
+            msg = str(exc)
+            assert "Manifest read/parse failed after resolve" in msg
+            assert str(manifest_path) in msg
+        else:
+            raise AssertionError("Expected RuntimeError when manifest parse fails after resolve")
