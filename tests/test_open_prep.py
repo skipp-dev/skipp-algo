@@ -3092,39 +3092,76 @@ class TestFMPClientCsvFallback(unittest.TestCase):
 
 
 class TestGetEodBulkInvalidJsonFallback(unittest.TestCase):
-    """get_eod_bulk() should return [] when _get() raises 'invalid JSON'."""
+    """get_eod_bulk() fail-open contract — pinned by design (Audit E-1 TQ-1, 2026-06-13).
 
-    def test_invalid_json_returns_empty_list(self):
+    eod-bulk is an ATR-cache *optimization*: ``_incremental_atr_from_eod_bulk``
+    treats ``[]`` as "no incremental data" and the caller falls back to the
+    per-symbol ATR fetch (``missing_symbols`` path in
+    ``_fetch_quotes_with_atr``), so an empty return degrades performance,
+    not correctness. The fail-open is therefore acceptable ONLY together
+    with the observability contract pinned below:
+
+    - permanent failures (402 tier mismatch, invalid JSON) → INFO once per
+      process (``_log_feature_unavailable_once``),
+    - transient failures (network/timeout) → WARNING on EVERY occurrence
+      so sustained outages stay visible to on-call.
+    """
+
+    def setUp(self):
+        from open_prep import macro
+        # _log_feature_unavailable_once dedupes per process — reset so each
+        # test observes its own log line.
+        macro._FMP_FEATURE_UNAVAILABLE_LOGGED.clear()
+
+    def test_invalid_json_returns_empty_list_and_logs_info_once(self):
         from open_prep.macro import FMPClient
         client = FMPClient(api_key="test")
         with patch.object(
             FMPClient, "_get",
             side_effect=RuntimeError("FMP API returned invalid JSON on /stable/eod-bulk: garbage"),
-        ):
+        ), self.assertLogs("open_prep.macro", level="INFO") as logs:
             result = client.get_eod_bulk(date(2026, 2, 25))
+            second = client.get_eod_bulk(date(2026, 2, 25))
         self.assertEqual(result, [])
+        self.assertEqual(second, [])
+        info_lines = [line for line in logs.output if "stable/eod-bulk" in line and line.startswith("INFO")]
+        self.assertEqual(len(info_lines), 1, "permanent failure must log INFO exactly once per process")
 
-    def test_http_402_still_returns_empty_list(self):
+    def test_http_402_returns_empty_list_and_logs_info(self):
         from open_prep.macro import FMPClient
         client = FMPClient(api_key="test")
         with patch.object(
             FMPClient, "_get",
             side_effect=RuntimeError("FMP API HTTP 402 on /stable/eod-bulk: Payment Required"),
-        ):
+        ), self.assertLogs("open_prep.macro", level="INFO") as logs:
             result = client.get_eod_bulk(date(2026, 2, 25))
         self.assertEqual(result, [])
+        self.assertTrue(
+            any("stable/eod-bulk" in line and "permanent" in line for line in logs.output),
+            f"402 must be classified permanent; got: {logs.output}",
+        )
 
-    def test_unrelated_error_still_propagates(self):
-        """After _handle_fmp_error refactor, all RuntimeErrors are handled
-        gracefully (fail-open) — the method returns [] instead of raising."""
+    def test_transient_error_fails_open_but_warns_every_time(self):
+        """Renamed from ``test_unrelated_error_still_propagates`` (Audit E-1
+        TQ-1): the old name claimed propagation while the assertion pinned
+        the opposite. Transient errors DO fail open (see class docstring),
+        but the WARNING-per-occurrence contract is what keeps the
+        degradation observable — pin it."""
         from open_prep.macro import FMPClient
         client = FMPClient(api_key="test")
         with patch.object(
             FMPClient, "_get",
             side_effect=RuntimeError("FMP API network error on /stable/eod-bulk: timeout"),
-        ):
-            result = client.get_eod_bulk(date(2026, 2, 25))
-            self.assertEqual(result, [])
+        ), self.assertLogs("open_prep.macro", level="WARNING") as logs:
+            first = client.get_eod_bulk(date(2026, 2, 25))
+            second = client.get_eod_bulk(date(2026, 2, 25))
+        self.assertEqual(first, [])
+        self.assertEqual(second, [])
+        warn_lines = [line for line in logs.output if "stable/eod-bulk" in line and "transient" in line]
+        self.assertEqual(
+            len(warn_lines), 2,
+            f"transient failure must WARN on every occurrence (no dedup); got: {logs.output}",
+        )
 
 
 class TestFMPProfileBulkFallback(unittest.TestCase):
