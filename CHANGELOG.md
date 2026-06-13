@@ -76,6 +76,8 @@ Neue Regressionen:
 - `tests/test_feature_importance_report.py::test_load_previous_latest_invalid_json_logs_debug`
 - `tests/test_feature_importance_report.py::test_load_previous_latest_invalid_utf8_logs_debug`
 
+Neue Regression:
+`tests/test_feature_importance_report.py::test_load_previous_latest_invalid_json_logs_debug`.
 ### Fixed (2026-06-13) — Stat-Review W7-2/W7-3: Vote-Integrität des Magnitude-Shadow-Ledgers
 
 Zwei Wege, auf denen die weekly k-of-n-Mehrheit Stimmen aus dem Nichts
