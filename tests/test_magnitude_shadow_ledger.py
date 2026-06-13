@@ -303,6 +303,94 @@ def test_main_empty_events_is_usage_error(tmp_path: Path) -> None:
     assert shadow.main([str(events_path), "--ledger", str(tmp_path / "l.jsonl")]) == 1
 
 
+def test_main_stale_feed_same_hash_earlier_date_returns_5(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """W7-2: the same events content (identical ``events_hash``) already
+    graded under an EARLIER date means the feed is frozen — re-grading it
+    under today's date would manufacture an independent daily vote out of
+    zero new evidence. The runner must refuse to append (rc 5) without
+    even spending the bootstrap/permutation compute."""
+    events = [{"family": "BOS", "x": 1}]
+    events_path = tmp_path / "events.json"
+    events_path.write_text(json.dumps(events), encoding="utf-8")
+    ledger = tmp_path / "shadow.jsonl"
+    stale_row = {
+        "date": "2026-06-05",
+        "family": "BOS",
+        "status": "PASS",
+        "events_hash": shadow.events_content_hash(events),
+    }
+    ledger.write_text(json.dumps(stale_row) + "\n", encoding="utf-8")
+    before = ledger.read_text(encoding="utf-8")
+
+    def _boom(*args: object, **kwargs: object) -> dict:
+        raise AssertionError("build_report must not run on a stale feed")
+
+    monkeypatch.setattr(shadow, "build_report", _boom)
+    code = shadow.main(
+        [str(events_path), "--ledger", str(ledger), "--date", "2026-06-06"]
+    )
+    assert code == 5
+    err = capsys.readouterr().err
+    assert "stale events feed" in err
+    assert "2026-06-05" in err
+    # Nothing appended, nothing rewritten.
+    assert ledger.read_text(encoding="utf-8") == before
+
+
+def test_main_same_date_same_hash_rerun_is_idempotent_not_stale(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """W7-2 boundary: a same-day re-run with the same hash is the normal
+    idempotent merge (same merge key) — it must stay rc 0, not rc 5."""
+    events_path = tmp_path / "events.json"
+    events_path.write_text(json.dumps([{"family": "BOS", "x": 1}]), encoding="utf-8")
+    ledger = tmp_path / "shadow.jsonl"
+    monkeypatch.setattr(
+        shadow,
+        "build_report",
+        lambda events, **kw: _report({"BOS": _result(passes=True)}),
+    )
+    args = [str(events_path), "--ledger", str(ledger), "--date", "2026-06-06"]
+    assert shadow.main(args) == 0
+    assert shadow.main(args) == 0
+    assert len(shadow.load_ledger(str(ledger))) == 1
+
+
+def test_main_backfill_onto_earlier_date_is_not_stale(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """W7-2 boundary (review follow-up): the stale-feed guard only fires on
+    hashes graded under an EARLIER date. A backfill that re-grades the same
+    events under a date BEFORE the existing row is a deliberate re-run of
+    history, not a frozen feed — it must append normally (rc 0)."""
+    events = [{"family": "BOS", "x": 1}]
+    events_path = tmp_path / "events.json"
+    events_path.write_text(json.dumps(events), encoding="utf-8")
+    ledger = tmp_path / "shadow.jsonl"
+    later_row = {
+        "date": "2026-06-10",
+        "family": "BOS",
+        "status": "PASS",
+        "events_hash": shadow.events_content_hash(events),
+    }
+    ledger.write_text(json.dumps(later_row) + "\n", encoding="utf-8")
+    monkeypatch.setattr(
+        shadow,
+        "build_report",
+        lambda events, **kw: _report({"BOS": _result(passes=True)}),
+    )
+    code = shadow.main(
+        [str(events_path), "--ledger", str(ledger), "--date", "2026-06-06"]
+    )
+    assert code == 0
+    assert {r["date"] for r in shadow.load_ledger(str(ledger))} == {
+        "2026-06-06",
+        "2026-06-10",
+    }
+
+
 def test_main_malformed_date_is_usage_error_not_verdict(tmp_path: Path) -> None:
     """A bad --date must exit 1 (error), NOT reach the ledger: downstream
     consumers compare parsed dates and a malformed value would silently

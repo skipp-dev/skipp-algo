@@ -80,6 +80,22 @@ def test_fail_soft_treats_2_and_3_as_valid_verdicts() -> None:
     assert "all_thin" in run
 
 
+def test_stale_feed_rc5_is_fail_soft_warning() -> None:
+    """W7-2: rc 5 (stale events feed — same events_hash already graded
+    under an earlier date, nothing appended) maps to status=stale_feed
+    with a ::warning. The job stays green; a persistently frozen feed
+    stops the ledger growing, so the fail-loud gap guard escalates after
+    its 7-day budget."""
+    data = _load()
+    job = data["jobs"]["magnitude-shadow"]
+    ledger_step = next(
+        step for step in job["steps"] if step.get("id") == "ledger"
+    )
+    run = ledger_step["run"]
+    assert "status=stale_feed" in run
+    assert "::warning title=adr0023-magnitude-shadow::stale events feed" in run
+
+
 def test_upload_artifact_is_fail_soft() -> None:
     data = _load()
     upload_steps = [

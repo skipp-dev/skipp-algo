@@ -21,6 +21,38 @@ irgendwo im Titel; der Wert wird zur Laufzeit aus
 `scripts/f2_render_rollback_issue.py::TITLE_PREFIX` importiert); der
 Step-Kommentar (der fälschlich ein nicht existentes „f2-rollback label“
 behauptete) ist mitkorrigiert.
+### Fixed (2026-06-13) — Stat-Review W7-2/W7-3: Vote-Integrität des Magnitude-Shadow-Ledgers
+
+Zwei Wege, auf denen die weekly k-of-n-Mehrheit Stimmen aus dem Nichts
+erzeugen konnte, sind geschlossen. **W7-2 (stale feed):** Der
+Daily-Runner (`scripts/run_magnitude_shadow_ledger.py`) lud das
+Benchmark-Events-Artefakt täglich neu und gradete es unter dem neuen
+Datum — bei eingefrorenem Feed (Producer kaputt, dawidd6 liefert
+denselben letzten erfolgreichen Run) stimmt damit EINE eingefrorene
+Beobachtung einmal pro Tag in der Wochen-Mehrheit ab, und das weiter
+wachsende Ledger blendet zugleich den Commit-Back-Gap-Guard
+(MITTEL-5). Jetzt prüft `main()` vor dem Append, ob derselbe
+`events_hash` bereits unter einem früheren Datum gradet wurde: falls
+ja, kein Append, lauter stderr-Hinweis, neuer rc 5. Der Daily-Workflow
+mappt rc 5 auf `status=stale_feed` + `::warning` (Job bleibt grün);
+bleibt der Feed eingefroren, wächst das Ledger nicht mehr und der
+fail-loude Gap-Guard eskaliert nach seinem 7-Tage-Budget — die
+MITTEL-5-Schutzwirkung ist wiederhergestellt. Same-Day-Re-Runs mit
+gleichem Hash bleiben idempotente Merges (rc 0). **W7-3
+(Doppel-Stimme):** `eval_magnitude_shadow_weekly.weekly_evaluations`
+zählte `pass_days`/`fail_days` pro Ledger-*Zeile*; der Merge-Key des
+Ledgers enthält `events_hash`, sodass ein Same-Day-Re-Run gegen
+aktualisierte Events zwei Zeilen für denselben Kalendertag hinterlässt
+— ein Tag stimmt doppelt ab und kann ein Unentschieden (FAIL) in eine
+strikte Mehrheit (PASS) kippen. Jetzt werden die Wochen-Zeilen vor der
+Zählung pro Kalenderdatum kollabiert (späteste Listenposition gewinnt,
+derselbe Tie-Break wie `latest_rows_by_family` im Gate-Wiring). Neue
+Tests: rc-5-Guard (inkl. „build_report wird gar nicht erst
+gerechnet“), Idempotenz-Grenzfall, Ein-Tag-eine-Stimme,
+Latest-wins-Tie-Break, Workflow-Contract-Pin für `status=stale_feed`.
+Beide Pfade sind seit BOS+SWEEP ARMED (2026-06-11) live
+entscheidungstragend.
+
 ### Fixed (2026-06-13) — Stat-Review W7-1: Magnitude-Shadow-Ledger liest fail-closed
 
 `scripts/run_magnitude_shadow_ledger.py::load_ledger` hat malformed

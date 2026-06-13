@@ -613,6 +613,40 @@ def test_weekly_tie_counts_as_fail():
     assert weeks[0]["fail_days"] == 1
 
 
+def test_same_day_rerun_votes_once_in_weekly_majority():
+    """W7-3: the ledger merge key includes ``events_hash``, so a same-day
+    re-run against refreshed events leaves TWO rows for that calendar date.
+    Counting both would let one day vote twice and flip a tie (FAIL) into a
+    strict majority (PASS) out of a single trading day's evidence."""
+    monday = str(_WEEK0)
+    rows = [
+        _row(date=monday, family="BOS", status="PASS"),
+        _row(date=monday, family="BOS", status="PASS"),  # re-run, new hash
+        _row(date=str(_WEEK0 + timedelta(days=1)), family="BOS", status="FAIL"),
+    ]
+    weeks = weekly_evaluations(rows, anchor_monday=_WEEK0, n=1)
+    assert weeks[0]["pass_days"] == 1
+    assert weeks[0]["fail_days"] == 1
+    assert weeks[0]["status"] == "FAIL"  # tie, not a fabricated majority
+
+
+def test_same_day_rerun_latest_row_wins():
+    """W7-3 tie-break: within one date the latest ledger row (later list
+    position, same rule as ``latest_rows_by_family``) supplies both the
+    day's vote and the week's AUC numbers."""
+    monday = str(_WEEK0)
+    rows = [
+        _row(date=monday, family="BOS", status="FAIL", auc=0.55, ci_low=0.49),
+        _row(date=monday, family="BOS", status="PASS", auc=0.66, ci_low=0.61),
+    ]
+    weeks = weekly_evaluations(rows, anchor_monday=_WEEK0, n=1)
+    assert weeks[0]["pass_days"] == 1
+    assert weeks[0]["fail_days"] == 0
+    assert weeks[0]["status"] == "PASS"
+    assert weeks[0]["magnitude_auc"] == 0.66
+    assert weeks[0]["auc_ci_low"] == 0.61
+
+
 def test_weekly_strict_pass_majority_passes():
     rows = _days("BOS", ["PASS", "PASS", "PASS", "FAIL", "FAIL"], start=_WEEK0)
     weeks = weekly_evaluations(rows, anchor_monday=_WEEK0, n=1)

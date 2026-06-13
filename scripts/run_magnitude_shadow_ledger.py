@@ -35,7 +35,15 @@ Exit codes
 * ``0`` -- at least one family PASSES the §2 bar on this run.
 * ``2`` -- families were measurable but NONE passes (expected negative run).
 * ``3`` -- no family produced a verdict (every sample too thin).
-* ``1`` -- usage/config error (bad path, malformed JSON, empty event list).
+* ``5`` -- stale events feed: this exact event content (same ``events_hash``)
+  was already graded under an **earlier** date; nothing is appended.
+  Re-grading unchanged events under a newer date would manufacture an
+  independent daily vote for the weekly k-of-n out of zero new evidence
+  (W7-2). A same-day re-run with the same hash stays a normal idempotent
+  merge, and a backfill onto an earlier date than an existing row is a
+  legitimate re-run, not a stale feed.
+* ``1`` -- usage/config error (bad path, malformed JSON, empty event list,
+  corrupt existing ledger).
 """
 from __future__ import annotations
 
@@ -92,6 +100,14 @@ LEDGER_COLUMNS = (
 
 def _today_utc() -> str:
     return datetime.now(UTC).date().isoformat()
+
+
+def _parse_row_date(value: Any) -> _date | None:
+    """Parse a ledger row ``date``; malformed values yield ``None``."""
+    try:
+        return _date.fromisoformat(str(value))
+    except ValueError:
+        return None
 
 
 def events_content_hash(events: list[dict[str, Any]]) -> str:
@@ -343,6 +359,41 @@ def main(argv: list[str] | None = None) -> int:
         print("error: event list is empty", file=sys.stderr)
         return 1
 
+    events_hash = events_content_hash(events)
+    obs_date = args.date or _today_utc()
+    try:
+        existing = load_ledger(args.ledger)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    obs_parsed = _date.fromisoformat(obs_date)
+    stale_dates = sorted(
+        {
+            str(r.get("date"))
+            for r in existing
+            if r.get("events_hash") == events_hash
+            and (parsed := _parse_row_date(r.get("date"))) is not None
+            and parsed < obs_parsed
+        }
+    )
+    if stale_dates:
+        # W7-2: the benchmark feed has not produced new events since the
+        # cited EARLIER date(s) — the downloaded artifact is the SAME
+        # content being re-served. Appending it under today's date would
+        # let one frozen observation vote once per day in the weekly
+        # k-of-n, and the growing ledger would also blind the commit-back
+        # gap guard. Skip the append: if the feed stays frozen, the gap
+        # guard escalates after its budget. Only strictly earlier dates
+        # count — a backfill onto a date BEFORE an existing row re-grades
+        # history deliberately and must not be blocked (review follow-up).
+        print(
+            f"stale events feed: events_hash {events_hash} was already "
+            f"graded on {', '.join(stale_dates)}; refusing to append a "
+            f"duplicate daily vote for {obs_date} (no new evidence)",
+            file=sys.stderr,
+        )
+        return 5
+
     report = build_report(
         events,
         cost_bps=args.cost_bps,
@@ -356,8 +407,8 @@ def main(argv: list[str] | None = None) -> int:
         new_rows = append_shadow_ledger(
             report,
             ledger_path=args.ledger,
-            date=args.date,
-            events_hash=events_content_hash(events),
+            date=obs_date,
+            events_hash=events_hash,
         )
     except ValueError as exc:
         # W7-1: corrupt existing ledger — refuse to merge/rewrite on top of

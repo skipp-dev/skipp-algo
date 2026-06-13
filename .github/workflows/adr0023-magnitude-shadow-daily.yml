@@ -207,13 +207,21 @@ jobs:
             --ledger artifacts/governance/magnitude_resolution_shadow.jsonl \
             --seed "${SEED}" \
             2>&1 | tee ledger.log || rc=$?
-          # Exit codes 0 (>=1 family resolves), 2 (none resolve) and 3
-          # (all thin) are all VALID shadow verdicts, not job failures.
-          # Only rc 1 (usage / empty events) is a real error.
+          # Exit codes 0 (>=1 family resolves), 2 (none resolve), 3
+          # (all thin) and 5 (stale feed: same events_hash already graded
+          # under an earlier date — nothing appended, W7-2) are all VALID
+          # shadow outcomes, not job failures. A persistently frozen feed
+          # stops the ledger growing, so the fail-loud gap guard above
+          # escalates after its budget. Only rc 1 (usage / empty events /
+          # corrupt ledger) is a real error.
           case "$rc" in
             0) echo "status=resolved" >> "$GITHUB_OUTPUT" ;;
             2) echo "status=none_resolve" >> "$GITHUB_OUTPUT" ;;
             3) echo "status=all_thin" >> "$GITHUB_OUTPUT" ;;
+            5)
+              echo "status=stale_feed" >> "$GITHUB_OUTPUT"
+              echo "::warning title=adr0023-magnitude-shadow::stale events feed — benchmark artifact unchanged since the last graded date; no row appended (W7-2)"
+              ;;
             *)
               echo "status=error" >> "$GITHUB_OUTPUT"
               echo "::error title=adr0023-magnitude-shadow::ledger run failed (rc=$rc)"
@@ -313,8 +321,9 @@ jobs:
       # Commit-back: persist the appended ledger so that rows accumulate
       # across daily runs instead of resetting to the committed baseline.
       # Guarded: only when the ledger step succeeded with status=resolved,
-      # none_resolve, or all_thin (i.e. NOT error / no_data) and the file
-      # actually changed vs HEAD.
+      # none_resolve, all_thin, or stale_feed (i.e. NOT error / no_data) and
+      # the file actually changed vs HEAD (stale_feed appends nothing, so it
+      # falls through to the unchanged-skip below).
       - name: Commit shadow ledger back to repo
         if: >
           steps.ledger.outputs.status != 'error'
