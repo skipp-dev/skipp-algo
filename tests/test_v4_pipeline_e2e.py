@@ -620,7 +620,7 @@ class TestFinalizePipelineE2E:
         assert "fmp_vix" in result["stale_providers"]
 
     @patch("scripts.generate_smc_micro_base_from_databento._make_fmp_client")
-    def test_manifest_written_with_v7_0a_marker(self, mock_make, base_result, tmp_path):
+    def test_manifest_written_with_v8_0a_marker(self, mock_make, base_result, tmp_path):
         mock_make.return_value = _make_mock_fmp()
         finalize_pipeline(
             base_result=base_result,

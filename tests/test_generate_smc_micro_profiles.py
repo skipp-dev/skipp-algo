@@ -713,7 +713,7 @@ def test_seed_reference_manifest_matches_generator_output(tmp_path: Path) -> Non
     )
 
 
-def test_manifest_declares_v7_0a(tmp_path: Path) -> None:
+def test_manifest_declares_v8_0a(tmp_path: Path) -> None:
     outputs = run_generation(
         schema_path=Path(SCHEMA_PATH),
         input_path=Path("tests/fixtures/seed_base_snapshot.csv"),
