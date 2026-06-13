@@ -37,18 +37,22 @@ Roles (handover §3/§4.4)
 
 Red flag (handover §4.4)
 ------------------------
-If **all four families PASS on the latest date**, that is a data/pipeline
-artifact signature, not skill — the run is flagged, no family is reported
-eligible regardless of its streak, and auto-demotion is suspended (an
-artifact-shaped window is not evidence in either direction).
+If **every family's freshest verdict in the trailing red-flag window is
+PASS** (≥ 2 families reporting), that is a data/pipeline artifact signature,
+not skill — the run is flagged, no family is reported eligible regardless of
+its streak, and auto-demotion is suspended (an artifact-shaped window is not
+evidence in either direction). Judged per family over a trailing
+``RED_FLAG_WINDOW_DAYS`` window anchored at the newest ledger date — not on
+a single date string — so staggered dispatches (BOS+SWEEP graded today,
+FVG+OB yesterday) cannot slip the signature past the detector (W7-4).
 
 Exit codes
 ----------
 * ``0`` -- evaluated cleanly (eligible set may be empty; that is normal).
-* ``2`` -- the all-four-PASS red flag fired on the latest date.
-* ``3`` -- the ledger is empty / unreadable (nothing to judge).
+* ``2`` -- the all-PASS red flag fired on the trailing window.
+* ``3`` -- the ledger is empty or missing (nothing to judge).
 * ``4`` -- auto-demotion applied (policy file rewritten); report otherwise clean.
-* ``1`` -- usage/config error.
+* ``1`` -- usage/config error (including a corrupt ledger line, W7-1).
 """
 from __future__ import annotations
 
@@ -57,8 +61,8 @@ import json
 import math
 import sys
 from collections import defaultdict
+from datetime import UTC, datetime, timedelta
 from datetime import date as _date
-from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
@@ -83,6 +87,17 @@ WEEKLY_K_DEFAULT = 3
 # CI-low is "trending toward the floor" when it is both falling across the
 # window and sitting within this margin above MAG_AUC_CI_LOW_FLOOR (0.55).
 CI_LOW_MARGIN = 0.02
+
+# W7-4: the all-PASS artifact signature is judged per family over this many
+# trailing days (anchored at the newest ledger date), so staggered dispatches
+# spanning a couple of days — including a weekend gap — still trip the flag.
+RED_FLAG_WINDOW_DAYS = 3
+
+# W7-5: the weekly judgement anchors at the newest LEDGER date; when that
+# anchor is older than this many days, the whole window is historical and the
+# "clean" verdict deserves a loud staleness warning (the daily gap guard
+# escalates independently, but the weekly job itself would stay green).
+ANCHOR_STALE_DAYS = 10
 
 # Sparkline anchoring range: 0.50 is a coin-flip (worthless), 0.70 is a strong
 # move-size signal. Readings are clamped into this band before quantising.
@@ -183,7 +198,12 @@ def weekly_evaluations(
 
     Weekly status (handover §4.4): strict majority of the week's *measurable*
     daily rows — PASS only when ``pass_days > fail_days``; a tie or a
-    fail-majority is FAIL; no measurable rows is INCONCLUSIVE. The week's
+    fail-majority is FAIL; no measurable rows is INCONCLUSIVE. Rows are first
+    collapsed to **one per calendar date** (latest list position wins, the
+    same tie-break as the gate wiring's ``latest_rows_by_family``): the
+    ledger's idempotency key includes ``events_hash``, so a same-day re-run
+    against refreshed events leaves two rows for that day — counting both
+    would let one day vote twice in the weekly majority (W7-3). The week's
     ``magnitude_auc`` / ``auc_ci_low`` are taken from its latest daily row
     (freshest estimate of that week).
     """
@@ -196,7 +216,14 @@ def weekly_evaluations(
     evaluations: list[dict[str, Any]] = []
     for offset in range(n - 1, -1, -1):
         monday = anchor_monday - timedelta(weeks=offset)
-        day_rows = sorted(buckets.get(monday, []), key=lambda r: str(r.get("date")))
+        week_rows = sorted(buckets.get(monday, []), key=lambda r: str(r.get("date")))
+        # W7-3: one vote per calendar date. ``sorted`` is stable, so rows
+        # sharing a date keep their ledger order and the dict overwrite
+        # keeps the latest one.
+        by_date: dict[str, dict[str, Any]] = {}
+        for r in week_rows:
+            by_date[str(r.get("date"))] = r
+        day_rows = [by_date[d] for d in sorted(by_date)]
         pass_days = sum(1 for r in day_rows if r.get("status") == "PASS")
         fail_days = sum(1 for r in day_rows if r.get("status") == "FAIL")
         inconclusive_days = sum(
@@ -317,19 +344,34 @@ def evaluate_family(
     }
 
 
-def detect_all_pass_red_flag(rows: list[dict[str, Any]]) -> bool:
-    """True when every family that reported on the latest date PASSED.
+def detect_all_pass_red_flag(
+    rows: list[dict[str, Any]], *, window_days: int = RED_FLAG_WINDOW_DAYS
+) -> bool:
+    """True when every family's freshest in-window verdict is PASS.
 
-    Requires at least two families on that date (a single-family day is not an
-    "all four pass" artifact signature).
+    W7-4: judged per family over a trailing window anchored at the newest
+    ledger date, NOT on a single date string — staggered or partial
+    dispatches (BOS+SWEEP graded today, FVG+OB yesterday) never share one
+    date, so a latest-date-only check could be slipped past by the very
+    pipeline artifact it exists to catch. Each family in the window casts
+    the verdict of its freshest row; rows older than ``window_days`` before
+    the anchor (e.g. a feed that went stale weeks ago) neither count toward
+    nor block the signature. Requires at least two families in the window
+    (a single-family window is not an "all four pass" artifact signature).
     """
     latest = _latest_date(rows)
     if latest is None:
         return False
-    latest_rows = [r for r in rows if str(r.get("date")) == latest]
-    if len(latest_rows) < 2:
+    cutoff = _date.fromisoformat(latest) - timedelta(days=window_days)
+    in_window: list[dict[str, Any]] = []
+    for fam_rows in group_by_family(rows).values():
+        row = _latest_row(fam_rows)
+        parsed = _parse_date(row.get("date"))
+        if parsed is not None and parsed >= cutoff:
+            in_window.append(row)
+    if len(in_window) < 2:
         return False
-    return all(r.get("status") == "PASS" for r in latest_rows)
+    return all(r.get("status") == "PASS" for r in in_window)
 
 
 def evaluate_weekly(
@@ -337,6 +379,7 @@ def evaluate_weekly(
     *,
     k: int = WEEKLY_K_DEFAULT,
     n: int = WEEKLY_N_DEFAULT,
+    today: _date | None = None,
 ) -> dict[str, Any]:
     """Full weekly report: per-family judgement + Stage-2 eligibility.
 
@@ -344,12 +387,22 @@ def evaluate_weekly(
     the newest parseable date across the whole ledger — a family whose feed
     went stale gets INCONCLUSIVE padding weeks (fail-safe), not a window
     quietly shifted into its past.
+
+    W7-5: because the anchor is the newest LEDGER date (never "today"), a
+    frozen ledger would make every future run re-judge the same historical
+    window and report rc 0 "clean". The report therefore carries
+    ``anchor_age_days`` / ``anchor_stale`` (anchor older than
+    ``ANCHOR_STALE_DAYS`` relative to ``today``, default: today UTC) so the
+    renderer and CLI can warn loudly.
     """
     grouped = group_by_family(rows)
     all_dates = [
         d for d in (_parse_date(r.get("date")) for r in rows) if d is not None
     ]
     anchor = max(all_dates) if all_dates else None
+    if today is None:
+        today = datetime.now(UTC).date()
+    anchor_age_days = (today - anchor).days if anchor is not None else None
     families = {
         family: evaluate_family(family, family_rows, k=k, n=n, anchor_date=anchor)
         for family, family_rows in sorted(grouped.items())
@@ -369,6 +422,10 @@ def evaluate_weekly(
         "n_window": n,
         "latest_date": _latest_date(rows),
         "anchor_week": _iso_week_label(_week_monday(anchor)) if anchor else None,
+        "anchor_age_days": anchor_age_days,
+        "anchor_stale": (
+            anchor_age_days is not None and anchor_age_days > ANCHOR_STALE_DAYS
+        ),
         "all_pass_red_flag": red_flag,
         "families": families,
         "stage2_eligible": eligible,
@@ -479,8 +536,15 @@ def render_text(report: dict[str, Any]) -> str:
                 )
     if report["all_pass_red_flag"]:
         lines.append(
-            "  RED FLAG: all families PASSED on the latest date — suspected "
+            "  RED FLAG: every family's freshest verdict in the trailing "
+            f"{RED_FLAG_WINDOW_DAYS}-day window PASSED — suspected "
             "data/pipeline artifact; no family reported eligible."
+        )
+    if report.get("anchor_stale"):
+        lines.append(
+            f"  STALE ANCHOR: newest ledger row is "
+            f"{report['anchor_age_days']} days old (> {ANCHOR_STALE_DAYS}) — "
+            "this judgement covers a historical window, not the present."
         )
     lines.append("  " + stage2_status_line(report))
     armed = report.get("armed_families") or []
@@ -558,7 +622,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
-    rows = load_ledger(args.ledger)
+    try:
+        rows = load_ledger(args.ledger)
+    except ValueError as exc:
+        # W7-1: a corrupt ledger must turn the weekly judgement red (rc 1),
+        # not silently shrink the vote set — dropped rows could (a) flip a
+        # strict weekly majority and (b) keep an armed family's demotion
+        # window permanently partial ("partial window never demotes").
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
     if not rows:
         print(f"error: empty or missing ledger: {args.ledger}", file=sys.stderr)
         return 3
@@ -586,6 +658,18 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(report, sort_keys=True, indent=2))
     else:
         print(render_text(report))
+
+    if report.get("anchor_stale"):
+        # W7-5: rc stays verdict-driven (the daily gap guard escalates a
+        # frozen ledger independently), but the weekly job must not look
+        # silently green over a historical window.
+        print(
+            f"warning: ledger anchor {report.get('latest_date')} is "
+            f"{report.get('anchor_age_days')} days old "
+            f"(> {ANCHOR_STALE_DAYS}) — judgement covers a historical "
+            "window",
+            file=sys.stderr,
+        )
 
     if report["all_pass_red_flag"]:
         return 2

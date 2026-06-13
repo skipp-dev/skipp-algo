@@ -214,6 +214,20 @@ def test_main_empty_ledger_returns_3(tmp_path):
     assert main(["--ledger", str(tmp_path / "nope.jsonl")]) == 3
 
 
+def test_main_corrupt_ledger_returns_1(tmp_path, capsys):
+    """W7-1: corrupt ledger is rc 1 (fail-closed), NOT rc 3 — the newest
+    *parseable* row would otherwise resurrect yesterday's PASS after
+    today's FAIL line got mangled."""
+    ledger = tmp_path / "led.jsonl"
+    ledger.write_text(
+        '{"date": "2026-06-01", "family": "BOS", "status": "PASS"}\n'
+        "not json\n",
+        encoding="utf-8",
+    )
+    assert main(["--ledger", str(ledger)]) == 1
+    assert "malformed ledger line" in capsys.readouterr().err
+
+
 def test_main_text_default_candidates_only(tmp_path, capsys):
     ledger = tmp_path / "l.jsonl"
     _write_ledger(

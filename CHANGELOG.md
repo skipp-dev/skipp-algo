@@ -32,6 +32,104 @@ garantiertes rc=4 gewesen; davor war er ein stiller No-op.
   `c13-daily-cron.yml`, `phase-b-promotion-readiness.yml`,
   `scripts/check_phase_b_drift_readiness.py` (dessen Wiring-Claim schon
   vorher falsch war) und dem Script-Docstring aktualisiert.
+### Fixed (2026-06-13) — Stat-Review W7-4/W7-5: Red-Flag-Fenster + Anchor-Staleness im Weekly-Judgement
+
+**W7-4:** `eval_magnitude_shadow_weekly.detect_all_pass_red_flag`
+prüfte die All-PASS-Artefakt-Signatur nur auf dem *einzelnen* neuesten
+Datums-String — gestaffelte/partielle Dispatches (BOS+SWEEP heute,
+FVG+OB gestern graded) teilen nie ein Datum, sodass genau die
+Pipeline-Artefakte, die der Flag fangen soll, ihn umgehen konnten;
+der Red Flag suspendiert zudem Demotionen, ein Bypass re-aktiviert
+also Vertrauen in artefakt-förmige Daten. Jetzt wird pro Family die
+frischeste Zeile in einem trailing Fenster
+(`RED_FLAG_WINDOW_DAYS = 3`, geankert am neuesten Ledger-Datum)
+herangezogen: ≥ 2 Familien im Fenster und alle PASS ⇒ Flag. Familien
+außerhalb des Fensters (Wochen-alter Feed) zählen weder dafür noch
+dagegen. **W7-5:** Das Weekly-Judgement ankert am neuesten
+*Ledger*-Datum, nie an „heute" — bei eingefrorenem Ledger urteilte
+jeder künftige Montags-Run rc 0 „clean" über dasselbe historische
+Fenster. Der Report trägt jetzt `anchor_age_days`/`anchor_stale`
+(> `ANCHOR_STALE_DAYS = 10` Tage, injizierbare `today`-Clock), der
+Text-Renderer eine `STALE ANCHOR`-Zeile und `main()` eine laute
+stderr-Warnung; rc bleibt verdict-getrieben (der Daily-Gap-Guard
+eskaliert den eingefrorenen Feed unabhängig). Neue Tests: gestaffelte
+Dispatches feuern, frischer FAIL blockt, Out-of-window-Family zählt
+nicht (weder PASS noch FAIL), Single-Family-Fenster feuert nie,
+Staleness-Grenze 10/11 Tage, Render- und CLI-Warnung.
+
+### Fixed (2026-06-13) — Stat-Review W7-2/W7-3: Vote-Integrität des Magnitude-Shadow-Ledgers
+
+Zwei Wege, auf denen die weekly k-of-n-Mehrheit Stimmen aus dem Nichts
+erzeugen konnte, sind geschlossen. **W7-2 (stale feed):** Der
+Daily-Runner (`scripts/run_magnitude_shadow_ledger.py`) lud das
+Benchmark-Events-Artefakt täglich neu und gradete es unter dem neuen
+Datum — bei eingefrorenem Feed (Producer kaputt, dawidd6 liefert
+denselben letzten erfolgreichen Run) stimmt damit EINE eingefrorene
+Beobachtung einmal pro Tag in der Wochen-Mehrheit ab, und das weiter
+wachsende Ledger blendet zugleich den Commit-Back-Gap-Guard
+(MITTEL-5). Jetzt prüft `main()` vor dem Append, ob derselbe
+`events_hash` bereits unter einem früheren Datum gradet wurde: falls
+ja, kein Append, lauter stderr-Hinweis, neuer rc 5. Der Daily-Workflow
+mappt rc 5 auf `status=stale_feed` + `::warning` (Job bleibt grün);
+bleibt der Feed eingefroren, wächst das Ledger nicht mehr und der
+fail-loude Gap-Guard eskaliert nach seinem 7-Tage-Budget — die
+MITTEL-5-Schutzwirkung ist wiederhergestellt. Same-Day-Re-Runs mit
+gleichem Hash bleiben idempotente Merges (rc 0). **W7-3
+(Doppel-Stimme):** `eval_magnitude_shadow_weekly.weekly_evaluations`
+zählte `pass_days`/`fail_days` pro Ledger-*Zeile*; der Merge-Key des
+Ledgers enthält `events_hash`, sodass ein Same-Day-Re-Run gegen
+aktualisierte Events zwei Zeilen für denselben Kalendertag hinterlässt
+— ein Tag stimmt doppelt ab und kann ein Unentschieden (FAIL) in eine
+strikte Mehrheit (PASS) kippen. Jetzt werden die Wochen-Zeilen vor der
+Zählung pro Kalenderdatum kollabiert (späteste Listenposition gewinnt,
+derselbe Tie-Break wie `latest_rows_by_family` im Gate-Wiring). Neue
+Tests: rc-5-Guard (inkl. „build_report wird gar nicht erst
+gerechnet“), Idempotenz-Grenzfall, Ein-Tag-eine-Stimme,
+Latest-wins-Tie-Break, Workflow-Contract-Pin für `status=stale_feed`.
+Beide Pfade sind seit BOS+SWEEP ARMED (2026-06-11) live
+entscheidungstragend.
+
+### Fixed (2026-06-13) — Stat-Review W7-1: Magnitude-Shadow-Ledger liest fail-closed
+
+`scripts/run_magnitude_shadow_ledger.py::load_ledger` hat malformed
+JSONL-Zeilen bisher still übersprungen (`except JSONDecodeError:
+continue`) — fail-open in drei entscheidungstragenden Konsumenten
+zugleich: (a) die weekly k-of-n-Bewertung
+(`eval_magnitude_shadow_weekly`) verliert Stimmen, wodurch korrupte
+FAIL-Zeilen eine strikte Wochen-Mehrheit auf PASS kippen können und das
+Demotions-Fenster einer armed Family dauerhaft partial bleibt („partial
+window never demotes"); (b) das Gate-Wiring
+(`magnitude_snapshot_wiring.latest_rows_by_family`) nimmt die neueste
+*parsebare* Zeile, sodass eine korrupte heutige FAIL-Zeile still das
+gestrige PASS als Gate-Verdikt wiederbelebt; (c) der Daily-Runner hätte
+beim atomischen Rewrite die unparsebaren Historien-Zeilen endgültig
+verworfen. Jetzt wirft `load_ledger` bei malformed oder
+Nicht-Objekt-Zeilen `ValueError` mit `pfad:zeilennr`; alle vier
+CLI-Konsumenten (Daily-Runner, Weekly-Eval, Snapshot-Wiring,
+Step-Summary-Renderer) und `run_promotion_gate` (Magnitude-Feed) mappen
+das auf rc 1 (fail-loud, Workflow rot). Eine fehlende Datei bleibt
+Cold-Start (`[]`). Der Test
+`test_load_ledger_skips_malformed_lines`, der das fail-open-Verhalten
+als Soll pinnte, ist invertiert
+(`test_load_ledger_raises_on_malformed_line`); neue rc-1-Regressionstests
+für alle Konsumenten.
+
+### Fixed (2026-06-12) — f2-promotion-gate: Rollback-Ping in falsches Issue (Label-only-Suche)
+
+Der Step „Open rollback Issue (§2.4 G2 ping)“ in
+`f2-promotion-gate-daily.yml` suchte ein bestehendes Issue nur über
+`--label cron-failure` — ohne Titel-Filter. Da mehrere Workflows
+(credential-health-check, workflow-freshness-monitor, …) dasselbe Label
+verwenden, traf die Suche das erste beste offene cron-failure-Issue:
+der Rollback-Ping vom 2026-06-12 (SPRT accept_h0, n=1664) landete als
+Kommentar im fachfremden credential-health-Issue #2732 statt in einem
+`[F2 rollback]`-Issue. Die Suche filtert jetzt zusätzlich mit dem
+GitHub-Suchfilter `"[F2 rollback]" in:title` (matcht die Phrase
+irgendwo im Titel; der Wert wird zur Laufzeit aus
+`scripts/f2_render_rollback_issue.py::TITLE_PREFIX` importiert); der
+Step-Kommentar (der fälschlich ein nicht existentes „f2-rollback label“
+behauptete) ist mitkorrigiert.
+
 ### Security (2026-06-12) — tsx ^4.22.4 → esbuild 0.28.1 (Dependabot #5/#6)
 
 `tsx` von `^4.20.5` auf `^4.22.4` gehoben, wodurch das transitive

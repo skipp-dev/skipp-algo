@@ -28,8 +28,8 @@ diagnostic that is not a promotion target. The full set is still available via
 Exit codes (CLI)
 ----------------
 * ``0`` -- snapshots produced.
-* ``3`` -- the ledger is empty / unreadable.
-* ``1`` -- usage/config error.
+* ``3`` -- the ledger is empty or missing.
+* ``1`` -- usage/config error (including a corrupt ledger line, W7-1).
 """
 from __future__ import annotations
 
@@ -226,7 +226,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    rows = load_ledger(args.ledger)
+    try:
+        rows = load_ledger(args.ledger)
+    except ValueError as exc:
+        # W7-1: a corrupt ledger is a usage/config error (rc 1), not "empty"
+        # (rc 3) — picking the newest *parseable* row would resurrect
+        # yesterday's PASS after today's FAIL line got mangled.
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
     if not rows:
         print(f"error: empty or missing ledger: {args.ledger}", file=sys.stderr)
         return 3

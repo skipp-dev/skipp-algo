@@ -395,9 +395,15 @@ def main(argv: list[str] | None = None) -> int:
         except ValueError as exc:
             print(f"ERROR: {exc}", file=sys.stderr)
             return 1
-        snapshots = apply_magnitude_feed(
-            snapshots, policy=policy, ledger_path=args.magnitude_ledger
-        )
+        try:
+            snapshots = apply_magnitude_feed(
+                snapshots, policy=policy, ledger_path=args.magnitude_ledger
+            )
+        except ValueError as exc:
+            # W7-1: corrupt shadow ledger — fail closed (rc 1) rather than
+            # gate armed families on whatever rows happened to survive.
+            print(f"ERROR: magnitude shadow ledger: {exc}", file=sys.stderr)
+            return 1
         if policy.armed_families:
             print(
                 "ADR-0023 Stage 2 armed (magnitude strict): "
