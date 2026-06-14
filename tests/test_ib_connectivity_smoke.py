@@ -178,3 +178,33 @@ def test_auto_allocated_client_id_is_released_on_success(
     assert rc == 0
     assert allocated == ["c13_connectivity_smoke"]
     assert released == [42]
+
+
+def test_connect_exception_releases_allocated_client_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If connect() raises, the auto-allocated client-id is still released.
+
+    This test pins the documented double-coverage behaviour: there are two
+    explicit release points — inside the connect ``except`` block (this path)
+    and inside the connected ``finally`` block.  Both must free the id.
+    """
+    released: list[int] = []
+
+    class _ConnectRaising:
+        """IB stub whose connect() always raises."""
+        def connect(self, **_kw: object) -> None:
+            raise ConnectionRefusedError("no gateway (test)")
+
+    ib_stub = types.ModuleType("ib_async")
+    ib_stub.IB = _ConnectRaising  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "ib_async", ib_stub)
+
+    cid_stub = types.ModuleType("scripts.ib_client_id")
+    cid_stub.allocate_ib_client_id = lambda _svc: 99  # type: ignore[attr-defined]
+    cid_stub.release_ib_client_id = lambda cid: released.append(cid)  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "scripts.ib_client_id", cid_stub)
+
+    rc = mod.main([])
+    assert rc == 1, "connect failure must return exit-code 1"
+    assert released == [99], "client-id must be released even when connect raises"

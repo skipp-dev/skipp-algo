@@ -181,6 +181,9 @@ def main(argv: list[str] | None = None) -> int:
             ib_client.disconnect()
         except Exception:  # pragma: no cover — exercised live
             LOGGER.warning("ib_client.disconnect() failed", exc_info=True)
+        # Release runs here unconditionally, even if disconnect() raised.
+        # The connect-exception path (see `except Exception` block above)
+        # also releases directly, so client-ids are freed in both paths.
         if allocated:
             _release(client_id)
 
