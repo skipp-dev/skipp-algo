@@ -133,7 +133,7 @@ jobs:
         run: python scripts/lint_workflow_pythonunbuffered.py
 
       # Workflow-Audit 2026-06: actionlint as a hard gate. Catches GHA
-      # template-engine syntax errors (e.g. `${{ ... }}` inside run-block
+      # template-engine syntax errors (e.g. `$\{\{ ... \}\}` inside run-block
       # shell comments -> HTTP 422 on dispatch; see A9b.2a post-mortem,
       # PR #2083) that PyYAML-based smoke tests structurally CANNOT see,
       # plus expression typos and invalid needs/outputs refs. shellcheck

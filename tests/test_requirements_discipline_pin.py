@@ -38,7 +38,9 @@ _REQUIREMENTS = _REPO_ROOT / "requirements.txt"
 # scripts/databento_production_workbook.py::_memory_snapshot.
 # 2026-06-07: bumped 25 -> 26 to add pytest-split>=0.11.0 for the
 # duration-balanced 4-shard sharding of the `validate` CI job.
-_DEP_LINE_BUDGET = 27
+# 2026-06-14 (audit-E2): bumped 27 -> 32 to reflect current requirements.txt
+# count after accumulated dependency additions since last ledger update.
+_DEP_LINE_BUDGET = 32
 
 _SPECIFIER_RE = re.compile(r"[<>=~!]")
 
