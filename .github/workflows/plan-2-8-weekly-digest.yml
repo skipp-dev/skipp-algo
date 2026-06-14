@@ -64,7 +64,9 @@ jobs:
           workflow: smc-measurement-benchmark-rolling.yml
           name_is_regexp: true
           name: '^smc-measurement-benchmark-rolling-.*$'
-          workflow_conclusion: ""
+          # Consume only successful producer runs — a failed run
+          # may have uploaded incomplete artifacts.
+          workflow_conclusion: success
           if_no_artifact_found: warn
           path: artifacts/latest_bench
 
@@ -460,7 +462,7 @@ jobs:
         continue-on-error: true
         uses: dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6
         with:
-          name: plan-2-8-digest-archive
+          name: ^plan-2-8-digest-archive$
           name_is_regexp: true
           path: artifacts/_download/plan_2_8_digest_archive
           workflow: plan-2-8-weekly-digest.yml
@@ -679,7 +681,7 @@ jobs:
         with:
           workflow:       plan-2-8-weekly-digest.yml
           workflow_conclusion: ''
-          name:           plan-2-8-manifest
+          name:           ^plan-2-8-manifest$
           name_is_regexp: true
           path:           artifacts/plan_2_8_prior_manifest
           if_no_artifact_found: warn
@@ -958,7 +960,7 @@ jobs:
         with:
           workflow:       plan-2-8-weekly-digest.yml
           workflow_conclusion: ''
-          name:           plan-2-8-status-ledger
+          name:           ^plan-2-8-status-ledger$
           name_is_regexp: true
           path:           artifacts/plan_2_8_prior_ledger
           if_no_artifact_found: warn
@@ -1278,7 +1280,7 @@ jobs:
         if: always()
         uses: dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6
         with:
-          name: plan-2-8-weekly-index
+          name: ^plan-2-8-weekly-index$
           name_is_regexp: true
           path: artifacts/plan_2_8_prior_index
           workflow_conclusion: ''
