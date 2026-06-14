@@ -72,8 +72,6 @@ _OP_POP = "POP"       # os.environ.pop(K, default)
 #
 # Adding/removing any site MUST update this ledger in the same PR.
 _FROZEN_SITES: dict[tuple[str, str], int] = {
-    ("databento_client.py", _OP_WRITE): 1,
-    ("databento_volatility_screener.py", _OP_WRITE): 1,
     ("open_prep/macro.py", _OP_WRITE): 1,  # CA-bundle (149) — R6 removed FinnhubClient save-set-restore
     ("open_prep/realtime_signals.py", _OP_WRITE): 1,
     ("open_prep/streamlit_monitor.py", _OP_WRITE): 1,

@@ -25,22 +25,14 @@ The behavioural test exercises the real helper in a throwaway git sandbox
 """
 from __future__ import annotations
 
+import datetime
 import os
 import shutil
 import subprocess
-import sys
 import textwrap
 from pathlib import Path
 
 import pytest
-
-# launchd is macOS-only; the driver shell scripts under automation/launchd/
-# are LaunchAgents and only run on Darwin. Skip on Linux/Windows so the suite
-# is green on every developer machine and on Linux CI runners (#2244).
-pytestmark = pytest.mark.skipif(
-    sys.platform != "darwin",
-    reason="launchd drivers are macOS-only (see #2244)",
-)
 
 REPO = Path(__file__).resolve().parents[1]
 DRIVERS = [
@@ -98,6 +90,10 @@ def _data_branch_sandbox(tmp_path):
 
 
 LIB = REPO / "automation" / "launchd" / "lib_c13_data_push.sh"
+
+
+def _utc_today() -> str:
+    return datetime.datetime.now(datetime.UTC).date().strftime("%Y-%m-%d")
 
 
 def test_helper_publishes_to_data_branch_without_touching_current_branch(tmp_path):
@@ -328,7 +324,7 @@ def test_driver_writes_degraded_marker_on_missing_venv(
 ):
     """When the venv activate script is absent the driver must write a
     ``degraded:preflight-error:*`` marker and exit 1 — no silent death."""
-    today = __import__("datetime").date.today().strftime("%Y-%m-%d")
+    today = _utc_today()
     # The script derives REPO from $0, so markers land in REPO/cache/...
     real_marker_dir = REPO / marker_subdir
     real_marker_dir.mkdir(parents=True, exist_ok=True)
@@ -381,7 +377,7 @@ def test_driver_writes_degraded_marker_on_missing_python(
 ):
     """When the venv python binary is missing the driver must write a
     ``degraded:preflight-error:*`` marker and exit 1."""
-    today = __import__("datetime").date.today().strftime("%Y-%m-%d")
+    today = _utc_today()
 
     # Create a venv with an activate script but NO python binary.
     fake_venv = tmp_path / "fake-venv"
@@ -432,9 +428,7 @@ def test_imbalance_sh_writes_degraded_marker_on_collector_failure(tmp_path):
 
     SA-03 regression guard (audit 2026-06-14).
     """
-    import datetime
-
-    today = datetime.date.today().strftime("%Y-%m-%d")
+    today = _utc_today()
 
     # Create a fake venv: activate script present, python binary present but
     # always exits 1 (simulates collector failure after successful preflight).

@@ -1092,12 +1092,12 @@ def _normalize_tls_certificate_env() -> str:
         if Path(current).exists():
             continue
         logger.warning(
-            "Replacing invalid TLS CA bundle path from %s=%s with certifi bundle %s.",
+            "Ignoring invalid TLS CA bundle path from %s=%s; Databento requests will use certifi bundle %s.",
             env_name,
             current,
             cafile,
         )
-        os.environ[env_name] = cafile
+    _install_databento_requests_tls_override(cafile)
     return cafile
 
 
@@ -6057,6 +6057,117 @@ def run_streamlit_app() -> None:
 # ``from databento_volatility_screener import X`` statements and
 # monkey-patch targets continue to resolve.  New consumers should
 # import from the extracted modules directly.
+
+
+def _install_databento_requests_tls_override(cafile: str) -> None:
+    """Patch Databento's requests transport to ignore broken CA-bundle env vars."""
+    from io import BytesIO
+
+    lock = getattr(_install_databento_requests_tls_override, "_lock", None)
+    if lock is None:
+        lock = threading.Lock()
+        setattr(_install_databento_requests_tls_override, "_lock", lock)
+    with lock:
+        if getattr(_install_databento_requests_tls_override, "_patched_cafile", None) == cafile:
+            return
+        try:
+            _import_databento()
+            from databento.common.http import (
+                BentoError,
+                BentoHttpAPI,
+                DBNStore,
+                HTTP_STREAMING_READ_SIZE,
+                HTTPBasicAuth,
+                check_backend_warnings,
+                check_http_error,
+                requests as _db_requests,
+            )
+        except Exception:
+            return
+
+        def _patched_get(self: Any, url: str, params: Any = None, basic_auth: bool = False) -> Any:
+            self._check_api_key()
+            with _db_requests.Session() as session:
+                session.trust_env = False
+                with session.get(
+                    url=url,
+                    params=params,
+                    headers=self._headers,
+                    auth=HTTPBasicAuth(username=self._key, password="") if basic_auth else None,
+                    timeout=(self.TIMEOUT, self.TIMEOUT),
+                    verify=cafile,
+                ) as response:
+                    check_backend_warnings(response)
+                    check_http_error(response)
+                    return response
+
+        def _patched_post(
+            self: Any,
+            url: str,
+            data: Any = None,
+            params: Any = None,
+            basic_auth: bool = False,
+        ) -> Any:
+            self._check_api_key()
+            with _db_requests.Session() as session:
+                session.trust_env = False
+                with session.post(
+                    url=url,
+                    data=data,
+                    params=params,
+                    headers=self._headers,
+                    auth=HTTPBasicAuth(username=self._key, password="") if basic_auth else None,
+                    timeout=(self.TIMEOUT, self.TIMEOUT),
+                    verify=cafile,
+                ) as response:
+                    check_backend_warnings(response)
+                    check_http_error(response)
+                    return response
+
+        def _patched_stream(
+            self: Any,
+            url: str,
+            data: dict[str, object | None],
+            basic_auth: bool,
+            path: str | os.PathLike[str] | None = None,
+        ) -> Any:
+            self._check_api_key()
+            with _db_requests.Session() as session:
+                session.trust_env = False
+                with session.post(
+                    url=url,
+                    data=data,
+                    headers=self._headers,
+                    auth=HTTPBasicAuth(username=self._key, password="") if basic_auth else None,
+                    timeout=(self.TIMEOUT, self.TIMEOUT),
+                    stream=True,
+                    verify=cafile,
+                ) as response:
+                    check_backend_warnings(response)
+                    check_http_error(response)
+
+                    if path is None:
+                        writer: Any = BytesIO()
+                    else:
+                        writer = open(path, "x+b")
+
+                    try:
+                        for chunk in response.iter_content(chunk_size=HTTP_STREAMING_READ_SIZE):
+                            writer.write(chunk)
+                    except Exception as exc:
+                        raise BentoError(f"Error streaming response: {exc}") from None
+
+                    if path is None:
+                        writer.seek(0)
+                        return DBNStore.from_bytes(writer)
+
+                    writer.close()
+                    return DBNStore.from_file(path)
+
+        BentoHttpAPI._get = _patched_get
+        BentoHttpAPI._post = _patched_post
+        BentoHttpAPI._stream = _patched_stream
+        setattr(_install_databento_requests_tls_override, "_patched_cafile", cafile)
 
 
 if __name__ == "__main__" and sys.argv and sys.argv[0].endswith("databento_volatility_screener.py"):
