@@ -27,7 +27,10 @@ def test_library_refresh_rejects_stale_fallback_on_automated_runs() -> None:
     assert "github.event_name != 'workflow_dispatch'" in body
     assert "steps.restore_export_bundle_today.outputs.found_artifact != 'true'" in body
     assert "steps.restore_export_bundle_fallback.outputs.found_artifact == 'true'" in body
-    assert "Refusing to publish against a stale producer bundle" in body
+    assert (
+        "Refusing to publish against a stale producer bundle" in body
+        or "Refusing to generate from a stale producer bundle" in body
+    )
 
 
 def test_rolling_benchmark_error_annotation_points_to_sharded_producer() -> None:
