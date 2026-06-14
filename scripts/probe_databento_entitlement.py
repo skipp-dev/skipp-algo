@@ -113,12 +113,12 @@ def main() -> int:
     try:
         from databento_client import _make_databento_client
     except Exception as exc:
-        sys.stderr.write(f"ERROR: cannot import databento_client: {exc}\n")  # noqa: SECLEAK — ImportError text contains module path only, no key/secret
+        sys.stderr.write(f"ERROR: cannot import databento_client: {exc}\n")  # SECLEAK: ImportError text contains module path only, no key/secret
         return 2
     try:
         client = _make_databento_client(api_key)
     except Exception as exc:
-        sys.stderr.write(f"ERROR: cannot construct Databento client: {exc}\n")  # noqa: SECLEAK — _make_databento_client raises ValueError on missing config; no key/secret in message
+        sys.stderr.write(f"ERROR: cannot construct Databento client: {exc}\n")  # SECLEAK: _make_databento_client raises ValueError on missing config; no key/secret in message
         return 2
 
     print(_format_section("Databento entitlement probe \u2014 2026-05-12"))
@@ -211,7 +211,7 @@ def main() -> int:
     try:
         from databento_client import PREFERRED_DATABENTO_DATASETS as _PREF
     except Exception as exc:
-        print(f"  (could not import PREFERRED_DATABENTO_DATASETS: {exc})")  # noqa: SECLEAK — ImportError text only
+        print(f"  (could not import PREFERRED_DATABENTO_DATASETS: {exc})")  # SECLEAK: ImportError text only
     else:
         picked = None
         for ds in _PREF:
