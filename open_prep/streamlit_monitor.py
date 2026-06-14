@@ -5,6 +5,7 @@ import logging
 import os
 import re
 import sys
+import time as _time
 from datetime import UTC, datetime, time, timedelta
 from pathlib import Path
 from typing import Any, cast
@@ -129,7 +130,11 @@ def _is_market_hours_fallback() -> bool:
         try:
             return _market_session() in ("regular", "pre-market", "after-hours")
         except Exception as exc:
-            logger.debug("market_session() probe failed; falling back to wall-clock: %s", type(exc).__name__)
+            logger.debug(
+                "market_session() probe failed; falling back to wall-clock: %s",
+                type(exc).__name__,
+                exc_info=True,
+            )
             pass  # fall through to wall-clock heuristic
     # Fallback: derive from wall-clock Eastern time
     try:
@@ -139,7 +144,11 @@ def _is_market_hours_fallback() -> bool:
             return False
         return time(4, 0) <= now_et.time() <= time(20, 0)
     except Exception as exc:
-        logger.debug("ZoneInfo fallback failed in _is_market_hours_fallback: %s", type(exc).__name__)
+        logger.debug(
+            "ZoneInfo fallback failed in _is_market_hours_fallback: %s",
+            type(exc).__name__,
+            exc_info=True,
+        )
         # If even timezone lookup fails, assume market hours to be safe
         return True
 
@@ -232,7 +241,11 @@ try:
         fetch_opra_options_flow as _fetch_opra_options,
     )
 except Exception as exc:  # pragma: no cover
-    logger.debug("OPRA options flow import unavailable: %s", type(exc).__name__)
+    logger.debug(
+        "OPRA options flow import unavailable: %s",
+        type(exc).__name__,
+        exc_info=True,
+    )
     _fetch_opra_options = None  # type: ignore[assignment]
 
 # v3 P-4b/d: dark-pool prints, dealer-gamma-by-strike, marketwide tide.
@@ -1264,7 +1277,7 @@ def main() -> None:
                 _ar_age_min = max((now_utc - _ar_last).total_seconds(), 0) / 60
                 _ar_is_market = _is_market_hours_fallback()
                 _ar_cooldown_ok = (
-                    (__import__("time").time() - float(st.session_state.get("_stale_recovery_ts", 0)))
+                    (_time.time() - float(st.session_state.get("_stale_recovery_ts", 0)))
                     >= _STALE_RECOVERY_COOLDOWN_S
                 )
                 # During market hours: recover after 5 min stale
@@ -1276,7 +1289,7 @@ def main() -> None:
                 if _ar_should_recover and _ar_cooldown_ok:
                     st.session_state["latest_result_cache"] = None
                     st.session_state["force_live_fetch"] = True
-                    st.session_state["_stale_recovery_ts"] = __import__("time").time()
+                    st.session_state["_stale_recovery_ts"] = _time.time()
                     st.session_state["_stale_recovery_count"] = (
                         int(st.session_state.get("_stale_recovery_count", 0)) + 1
                     )
@@ -1315,10 +1328,10 @@ def main() -> None:
             # Show a live status panel while fetching data so users can
             # track pipeline progress (instead of an opaque spinner).
             status_container = st.status("Pipeline wird ausgeführt …", expanded=True)
-            _pipeline_start = __import__("time").monotonic()
+            _pipeline_start = _time.monotonic()
 
             def _on_progress(stage: int, total: int, label: str) -> None:
-                elapsed = __import__("time").monotonic() - _pipeline_start
+                elapsed = _time.monotonic() - _pipeline_start
                 status_container.update(label=f"Stage {stage}/{total}: {label} ({elapsed:.0f}s)")
 
             try:
@@ -1343,7 +1356,7 @@ def main() -> None:
                 logger.error("Pipeline error: %s", type(exc).__name__, exc_info=True)
                 st.error(f"Pipeline fehlgeschlagen: {type(exc).__name__}: {_APIKEY_RE.sub(r'\1=***', str(exc))}")
                 return
-            total_elapsed = __import__("time").monotonic() - _pipeline_start
+            total_elapsed = _time.monotonic() - _pipeline_start
             status_container.update(
                 label=f"Pipeline abgeschlossen ({total_elapsed:.0f}s)",
                 state="complete",
@@ -2374,10 +2387,10 @@ def main() -> None:
                             for _, row in upcoming.head(8).iterrows():
                                 _tk = _safe_md(str(row.get("ticker", "?")))
                                 _url = row.get("webcast_url", "")
-                                _time = row.get("start_time", "")
+                                _start_time = row.get("start_time", "")
                                 link = f" | [Webcast]({_url})" if _url else ""
                                 st.markdown(
-                                    f"**{_tk}** — {row.get('date', '?')} {_time} | "
+                                    f"**{_tk}** — {row.get('date', '?')} {_start_time} | "
                                     f"{row.get('period', '?')} {row.get('period_year', '')}"
                                     f"{link}"
                                 )
