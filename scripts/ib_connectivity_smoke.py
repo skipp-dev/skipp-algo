@@ -5,8 +5,8 @@ A standalone preflight check for the live-incubation runbook
 ``ib_async`` session against the paper gateway, confirms the API socket
 answers, prints the negotiated server version + managed accounts, and
 disconnects cleanly. It places **no orders** and reads **no market
-data** — it only proves the socket on ``127.0.0.1:7497`` is live and
-the paper account is logged in.
+data** — it proves the socket on the configured host/port (default
+``127.0.0.1:7497``) is live and the paper account is logged in.
 
 Run this once after launching TWS / IB Gateway and enabling the API
 socket, before kicking off ``scripts.run_smc_live_incubation``.
@@ -21,7 +21,8 @@ CLI
 Exit codes
 ----------
 ``0`` connected, paper account present, disconnected cleanly.
-``1`` connection failed, timed out, or no managed account returned.
+``1`` connection failed, timed out, no managed account returned,
+    or client-id allocation raised an exception.
 ``2`` ``ib_async`` is not installed.
 """
 
@@ -115,7 +116,11 @@ def main(argv: list[str] | None = None) -> int:
         except ImportError as exc:
             LOGGER.error("Could not import scripts.ib_client_id: %s", exc)
             return 1
-        client_id = allocate_ib_client_id("c13_connectivity_smoke")
+        try:
+            client_id = allocate_ib_client_id("c13_connectivity_smoke")
+        except Exception as exc:
+            LOGGER.error("Could not allocate IB client-id: %s", exc)
+            return 1
         allocated = True
 
     ib_client = IB()
