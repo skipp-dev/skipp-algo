@@ -15,6 +15,7 @@ import json
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import MagicMock
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 
@@ -357,6 +358,32 @@ def test_vendor_402_billing_is_error(probe) -> None:
     assert "BILLING" in r.message
     assert "invoice" in r.message
     assert r.details["status"] == 402
+
+
+def test_fmp_probe_uses_production_quote_endpoint() -> None:
+    """Regression for issue #2682: the FMP probe MUST hit an endpoint the
+    production pipeline actually uses (``/stable/quote``).
+
+    The previously probed ``/stable/is-the-market-open`` endpoint is
+    plan-gated and returns HTTP 404 *with a valid key* on this
+    subscription, so every daily probe degraded to ``warn`` /
+    "probe inconclusive" — a permanently noisy, useless signal.
+    """
+    opener = _fake_opener(status=200, body={})
+    probe_fmp("dummy-key", opener=opener)
+    all_calls = opener.open.call_args_list
+    assert len(all_calls) == 1, (
+        f"probe_fmp must make exactly one HTTP call; got {len(all_calls)}"
+    )
+    request = all_calls[0][0][0]
+    parsed = urlparse(request.full_url)
+    assert "/is-the-market-open" not in request.full_url, (
+        "probe_fmp must not call the plan-gated is-the-market-open endpoint"
+    )
+    assert parsed.path == "/stable/quote", request.full_url
+    params = parse_qs(parsed.query)
+    assert params.get("symbol") == ["AAPL"], request.full_url
+    assert params.get("apikey") == ["dummy-key"], request.full_url
 
 
 def test_databento_uses_basic_auth_header() -> None:
