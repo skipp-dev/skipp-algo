@@ -55,7 +55,7 @@ def aggregate(root: Path) -> dict:
     by_strat_family: dict[tuple[str, str], list[dict]] = defaultdict(list)
 
     for path in _iter_benchmark_files(root):
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
         tf = data["timeframe"]
         for kpi in data.get("kpis", []):
             by_tf_family[(tf, kpi["family"])].append(kpi)

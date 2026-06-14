@@ -9,7 +9,7 @@ Today: 9 sites, all in legitimate CLI dispatch / `__main__` guards:
 | File | Line | Context |
 |---|---|---|
 | `open_prep/candidate_weights.py` | 241 | `if __name__ == "__main__": sys.exit(main())` |
-| `open_prep/feature_importance_report.py` | 358 | same |
+| `open_prep/feature_importance_report.py` | 359 | same |
 | `open_prep/outcome_backfill.py` | 706 | same |
 | `pine_input_surface.py` | 468, 470 | argparse `args.cmd` dispatch |
 | `test_usi_lint.py` | 94, 97 | top-level CLI script |
@@ -42,7 +42,9 @@ _DIR_EXCLUDE = frozenset({
 # Frozen ledger of legitimate `sys.exit()` sites (CLI entry-points only).
 _SYS_EXIT_LEDGER: frozenset[tuple[str, int]] = frozenset({
     ("open_prep/candidate_weights.py", 240),
-    ("open_prep/feature_importance_report.py", 358),
+    # 2026-06-13 (audit-e2/aw7-reader-observability, PR #2759): _load_previous_latest
+    #   DEBUG log insertion shifted CLI exit from 358 → 359.
+    ("open_prep/feature_importance_report.py", 359),
     # 2026-06-11 (backfill defer-unpublished): 546→596.
     # 2026-06-11 (eval-findings B1/B2): direction+TB code shifted 596→675.
     # 2026-06-11 (c10b FI component persistence): era-gate block 675→697.
