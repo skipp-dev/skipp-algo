@@ -371,8 +371,15 @@ def test_fmp_probe_uses_production_quote_endpoint() -> None:
     """
     opener = _fake_opener(status=200, body={})
     probe_fmp("dummy-key", opener=opener)
-    request = opener.open.call_args[0][0]
+    all_calls = opener.open.call_args_list
+    assert len(all_calls) == 1, (
+        f"probe_fmp must make exactly one HTTP call; got {len(all_calls)}"
+    )
+    request = all_calls[0][0][0]
     parsed = urlparse(request.full_url)
+    assert "/is-the-market-open" not in request.full_url, (
+        "probe_fmp must not call the plan-gated is-the-market-open endpoint"
+    )
     assert parsed.path == "/stable/quote", request.full_url
     params = parse_qs(parsed.query)
     assert params.get("symbol") == ["AAPL"], request.full_url
