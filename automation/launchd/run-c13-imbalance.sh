@@ -45,12 +45,15 @@ fi
 # SA-03 (audit 2026-06-14): wrap collector so a non-zero exit writes a
 # degraded marker before aborting — required for machine-detectable
 # monitoring of silent collector failures.
-if ! "${PY}" -m scripts.collect_opening_imbalances \
+if "${PY}" -m scripts.collect_opening_imbalances \
     --watchlist "${WATCHLIST}" \
     --output    "${OUTPUT}" \
     --summary-output "${SUMMARY}" \
     --trade-date "${DATE}"; then
-    echo "imbalance cron: collect_opening_imbalances FAILED (exit $?) — see above for details" >&2
+    :
+else
+    rc=$?
+    echo "imbalance cron: collect_opening_imbalances FAILED (exit ${rc}) — see above for details" >&2
     printf 'degraded:collector-error:%s\n' "${TS}" > "${MARKER}" 2>/dev/null || true
     exit 1
 fi

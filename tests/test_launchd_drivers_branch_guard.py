@@ -480,7 +480,8 @@ def test_imbalance_sh_writes_degraded_marker_on_collector_failure(tmp_path):
 
 def test_phase_a_sh_incubation_failure_path_writes_degraded_marker() -> None:
     """Static guard: run-c13-phase-a.sh must wrap run_smc_live_incubation
-    in an ``if !`` block and call ``_write_marker "DEGRADED"`` on failure.
+    in a catchable ``if``/``else`` shell branch and call
+    ``_write_marker "DEGRADED"`` on failure.
 
     SA-02 regression guard (audit 2026-06-14).
     The subprocess equivalent is impractical (requires a multi-step fake
@@ -488,9 +489,13 @@ def test_phase_a_sh_incubation_failure_path_writes_degraded_marker() -> None:
     enforce the invariant via source inspection instead.
     """
     text = (REPO / "automation" / "launchd" / "run-c13-phase-a.sh").read_text()
-    assert 'if ! "${PY}" -m scripts.run_smc_live_incubation' in text, (
+    assert (
+        'if ! "${PY}" -m scripts.run_smc_live_incubation' in text
+        or 'if "${PY}" -m scripts.run_smc_live_incubation' in text
+    ), (
         "run-c13-phase-a.sh: run_smc_live_incubation must be wrapped in "
-        "``if !`` so a non-zero exit can be caught — SA-02 fix missing."
+        "a catchable shell branch so a non-zero exit can be caught — "
+        "SA-02 fix missing."
     )
     assert '_write_marker "DEGRADED" "incubation-failed:' in text, (
         "run-c13-phase-a.sh: DEGRADED marker write missing for incubation "

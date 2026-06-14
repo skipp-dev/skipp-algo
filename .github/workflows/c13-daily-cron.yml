@@ -103,9 +103,10 @@ jobs:
           python -m pip install --upgrade pip
           # Pipeline modules are stdlib + numpy. Avoid the full
           # requirements.txt so the cron stays IBKR-free. Pin numpy to the
-          # repo floor (requirements-dashboard.txt) for reproducibility (F7).
+          # exact dashboard/runtime pin (requirements-dashboard.txt) for
+          # reproducibility (F7).
           # SC-02 (supply-chain audit 2026-06-14): exact pin, no floating >=.
-          pip install 'numpy==2.4.5'
+          pip install 'numpy==2.4.6'
 
       - name: Resolve trade date
         id: date

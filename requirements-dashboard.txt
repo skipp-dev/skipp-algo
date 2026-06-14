@@ -3,8 +3,10 @@
 # into any provider client at runtime, so we ship Streamlit + numpy +
 # pandas + plotly only (no httpx, pandas-ta, databento, etc.).
 #
-# Streamlit floor matches the repo-wide requirements.txt (>=1.54)
-# because terminal_tabs/ uses st.fragment without feature-detection.
+# Supply-chain policy (2026-06-14): these are exact runtime pins for the
+# dashboard image. They are intentionally curated for the slim dashboard
+# surface and do not imply lockstep equality with every corresponding pin in
+# the repo-wide requirements.txt.
 streamlit==1.58.0
 numpy==2.4.6
 pandas==3.0.3
