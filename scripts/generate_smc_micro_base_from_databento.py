@@ -1198,7 +1198,8 @@ def build_enrichment(
                             )
                 except Exception:
                     logger.debug(
-                        "per-bucket calibration load failed",
+                        "per-bucket calibration load failed for %s",
+                        _cal_candidate,
                         exc_info=True,
                     )
                 break
