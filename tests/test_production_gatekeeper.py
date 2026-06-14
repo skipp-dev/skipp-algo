@@ -336,7 +336,7 @@ class TestNoSystemExit:
             {"event": "test", "date": "2025-06-16", "country": "US"},
         ]
 
-        with caplog.at_level("ERROR", logger="open_prep.run_open_prep"):
+        with caplog.at_level("ERROR", logger="open_prep.run"):
             # Invalid cutoff should not crash
             result = _fetch_todays_events(
                 client=mock_client,
