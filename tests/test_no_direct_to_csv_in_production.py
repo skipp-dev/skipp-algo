@@ -48,6 +48,14 @@ _SCAN_DIRS: tuple[Path, ...] = tuple(
     )
 )
 
+# Guard: every declared scan directory must exist. A missing dir silently
+# shrinks coverage (renames/deletions go undetected) — fail loudly instead.
+for _scan_dir in _SCAN_DIRS:
+    assert _scan_dir.is_dir(), (
+        f"_SCAN_DIRS entry {_scan_dir} does not exist — update _SCAN_DIRS "
+        f"to reflect the current repository layout."
+    )
+
 _EXEMPT_MARKER = "ATOMIC-WRITE-EXEMPT:"
 _PROXIMITY_LINES = 6
 
@@ -122,8 +130,9 @@ def _iter_violations(path: Path) -> list[str]:
         tree = ast.parse(source, filename=str(path))
     except SyntaxError as exc:
         raise ValueError(
-            f"SyntaxError while scanning {path} — fix the file or exclude it "
-            f"from the scan: {exc}"
+            f"SyntaxError while scanning {path} — fix the syntax error. "
+            f"Note: adding the file to _FILE_LEVEL_EXEMPT would also silence "
+            f"all future non-atomic write violations in that file: {exc}"
         ) from exc
     violations: list[str] = []
     for node in ast.walk(tree):

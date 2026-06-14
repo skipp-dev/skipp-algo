@@ -63,6 +63,14 @@ _SCAN_DIRS: tuple[Path, ...] = tuple(
     )
 )
 
+# Guard: every declared scan directory must exist. A missing dir silently
+# shrinks coverage (renames/deletions go undetected) — fail loudly instead.
+for _scan_dir in _SCAN_DIRS:
+    assert _scan_dir.is_dir(), (
+        f"_SCAN_DIRS entry {_scan_dir} does not exist — update _SCAN_DIRS "
+        f"to reflect the current repository layout."
+    )
+
 # Files allowed to call open(...,"w"/"wb"/"x"/"a") OR ``Path.open("w"...)``
 # without going through smc_atomic_write. Each entry's value is a brief
 # rationale string (not asserted, but read by future maintainers).
