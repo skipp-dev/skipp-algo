@@ -5,6 +5,7 @@ import logging
 import os
 import re
 import sys
+import time as _time
 from datetime import UTC, datetime, time, timedelta
 from pathlib import Path
 from typing import Any, cast
@@ -1272,7 +1273,7 @@ def main() -> None:
                 _ar_age_min = max((now_utc - _ar_last).total_seconds(), 0) / 60
                 _ar_is_market = _is_market_hours_fallback()
                 _ar_cooldown_ok = (
-                    (__import__("time").time() - float(st.session_state.get("_stale_recovery_ts", 0)))
+                    (_time.time() - float(st.session_state.get("_stale_recovery_ts", 0)))
                     >= _STALE_RECOVERY_COOLDOWN_S
                 )
                 # During market hours: recover after 5 min stale
@@ -1284,7 +1285,7 @@ def main() -> None:
                 if _ar_should_recover and _ar_cooldown_ok:
                     st.session_state["latest_result_cache"] = None
                     st.session_state["force_live_fetch"] = True
-                    st.session_state["_stale_recovery_ts"] = __import__("time").time()
+                    st.session_state["_stale_recovery_ts"] = _time.time()
                     st.session_state["_stale_recovery_count"] = (
                         int(st.session_state.get("_stale_recovery_count", 0)) + 1
                     )
@@ -1323,10 +1324,10 @@ def main() -> None:
             # Show a live status panel while fetching data so users can
             # track pipeline progress (instead of an opaque spinner).
             status_container = st.status("Pipeline wird ausgeführt …", expanded=True)
-            _pipeline_start = __import__("time").monotonic()
+            _pipeline_start = _time.monotonic()
 
             def _on_progress(stage: int, total: int, label: str) -> None:
-                elapsed = __import__("time").monotonic() - _pipeline_start
+                elapsed = _time.monotonic() - _pipeline_start
                 status_container.update(label=f"Stage {stage}/{total}: {label} ({elapsed:.0f}s)")
 
             try:
@@ -1351,7 +1352,7 @@ def main() -> None:
                 logger.error("Pipeline error: %s", type(exc).__name__, exc_info=True)
                 st.error(f"Pipeline fehlgeschlagen: {type(exc).__name__}: {_APIKEY_RE.sub(r'\1=***', str(exc))}")
                 return
-            total_elapsed = __import__("time").monotonic() - _pipeline_start
+            total_elapsed = _time.monotonic() - _pipeline_start
             status_container.update(
                 label=f"Pipeline abgeschlossen ({total_elapsed:.0f}s)",
                 state="complete",
