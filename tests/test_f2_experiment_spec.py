@@ -218,3 +218,72 @@ def test_rollback_reason_distinguishes_nan_trigger() -> None:
     assert out["decision"] == "rollback"
     assert "all worse" in out["reason"]
     assert "NaN" not in out["reason"]
+
+
+# ---------------------------------------------------------------------------
+# W8-2 (stat-review wave 8): the promote-KPI gate reads its thresholds from
+# the spec instead of hardcoded literals, so a spec change propagates.
+# ---------------------------------------------------------------------------
+
+
+def _spec_with_kpi(tmp_path: Path, **overrides: float) -> Path:
+    raw = json.loads(SHIPPED_SPEC.read_text(encoding="utf-8"))
+    raw["promotion_gate"]["kpi_thresholds"] = {
+        "calibrated_brier_max_delta": overrides.get("cb", -0.005),
+        "calibrated_ece_max_delta": overrides.get("ce", -0.005),
+        "hit_rate_min_delta_pp": overrides.get("hr", -1.0),
+    }
+    path = tmp_path / "custom_kpi.json"
+    path.write_text(json.dumps(raw), encoding="utf-8")
+    return path
+
+
+def test_shipped_spec_exposes_kpi_thresholds() -> None:
+    from scripts.f2_experiment_spec import KpiThresholdSpec
+
+    spec = load_f2_spec(SHIPPED_SPEC)
+    assert spec.promotion_gate_kpi == KpiThresholdSpec(
+        calibrated_brier_max_delta=-0.005,
+        calibrated_ece_max_delta=-0.005,
+        hit_rate_min_delta_pp=-1.0,
+    )
+
+
+def test_kpi_thresholds_default_when_block_absent(tmp_path: Path) -> None:
+    from scripts.f2_experiment_spec import KpiThresholdSpec
+
+    raw = json.loads(SHIPPED_SPEC.read_text(encoding="utf-8"))
+    raw["promotion_gate"].pop("kpi_thresholds", None)
+    spec_path = tmp_path / "no_kpi.json"
+    spec_path.write_text(json.dumps(raw), encoding="utf-8")
+    spec = load_f2_spec(spec_path)
+    # Falls back to the canonical run_ab_comparison defaults.
+    assert spec.promotion_gate_kpi == KpiThresholdSpec()
+
+
+def test_tightened_kpi_threshold_blocks_promotion(tmp_path: Path) -> None:
+    digest = _digest(
+        "accept_h1", n=800, cb_delta=-0.006, ce_delta=-0.01, hr_delta=0.5
+    )
+    # -0.006 clears the shipped -0.005 brier gate -> promote.
+    assert evaluate_promotion(digest, load_f2_spec(SHIPPED_SPEC))["decision"] == (
+        "promote"
+    )
+    # A tightened -0.05 brier threshold read from the spec now holds it.
+    tight = load_f2_spec(_spec_with_kpi(tmp_path, cb=-0.05))
+    out = evaluate_promotion(digest, tight)
+    assert out["decision"] == "hold"
+    assert "KPI gate not satisfied" in out["reason"]
+
+
+def test_loosened_kpi_threshold_allows_promotion(tmp_path: Path) -> None:
+    digest = _digest(
+        "accept_h1", n=800, cb_delta=-0.001, ce_delta=-0.001, hr_delta=0.5
+    )
+    # -0.001 misses the shipped -0.005 brier gate -> hold.
+    assert evaluate_promotion(digest, load_f2_spec(SHIPPED_SPEC))["decision"] == (
+        "hold"
+    )
+    # A loosened 0.0 threshold read from the spec now promotes it.
+    loose = load_f2_spec(_spec_with_kpi(tmp_path, cb=0.0, ce=0.0))
+    assert evaluate_promotion(digest, loose)["decision"] == "promote"
