@@ -7,11 +7,12 @@ Two cheap defense pins over the same first-party AST/text walk:
    Direct calls to ``__import__`` (instead of ``import`` at module top
    or ``importlib.import_module``) hide the dependency from static
    analysis, linters, dependency graphs, and test-discovery.  They are
-   sometimes legitimate (e.g. lazy-importing inside hot paths in a
-   Streamlit reload context to dodge import cycles), but every new
-   instance deserves a deliberate review.  Inventory frozen at the 5
-   known sites (all in ``open_prep/streamlit_monitor.py`` for lazy
-   ``time.{time,monotonic}`` access inside Streamlit runtime fences).
+    sometimes legitimate (e.g. lazy-importing inside hot paths in a
+    Streamlit reload context to dodge import cycles), but every new
+    instance deserves a deliberate review.  Inventory is currently empty
+    after the former lazy ``time.{time,monotonic}`` sites in
+    ``open_prep/streamlit_monitor.py`` were replaced with a normal module
+    import.
 
 2. **TODO/FIXME/XXX/HACK tripwire.**
 
@@ -85,19 +86,10 @@ def _all_dunder_import_sites() -> list[tuple[str, int]]:
     return out
 
 
-_FROZEN_DUNDER_IMPORT_SITES: frozenset[tuple[str, int]] = frozenset(
-    {
-        # Line numbers refreshed 2026-06-13 after Audit E-1 RS logging
-        # instrumentation in streamlit_monitor.py shifted the lazy imports.
-        # Same 5 lazy ``time`` imports inside the Streamlit re-render loop;
-        # no semantic change.
-        ("open_prep/streamlit_monitor.py", 1267),
-        ("open_prep/streamlit_monitor.py", 1279),
-        ("open_prep/streamlit_monitor.py", 1318),
-        ("open_prep/streamlit_monitor.py", 1321),
-        ("open_prep/streamlit_monitor.py", 1346),
-    }
-)
+# 2026-06-14: The former lazy ``__import__("time")`` calls in
+# streamlit_monitor.py were replaced with a proper module-level
+# ``import time as _time``. Ledger is now empty.
+_FROZEN_DUNDER_IMPORT_SITES: frozenset[tuple[str, int]] = frozenset()
 
 
 def test_no_new_dunder_import_sites() -> None:
