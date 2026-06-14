@@ -253,7 +253,8 @@ Neues `scripts/run_ledger_drift_guard.sh` + pre-commit-Hook
 Testdatei-Liste zur Laufzeit aus dem autoritativen
 "Run pin / ledger drift guard"-Step in `smc-fast-pr-gates.yml`
 (Single Source of Truth — die Liste wächst, kein Hardcoding) und führt
-sie mit identischen pytest-Flags lokal aus (~60s, `-n auto`).
+sie mit denselben pytest-Flags lokal aus (~60s, `-n auto` wenn xdist
+installiert; andernfalls seriell — gleiche Korrektheit, langsamere Ausführung).
 Motivation: am 2026-06-12 drifteten vier Ledger-Pins
 (mkstemp/sys.exit/unlink/basicConfig in `open_prep/outcome_backfill.py`)
 durch einen +6-Zeilen-Docstring in PR #2729 und fielen erst in CI auf.

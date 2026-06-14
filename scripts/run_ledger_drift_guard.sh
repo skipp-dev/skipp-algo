@@ -4,7 +4,9 @@
 # Extracts the test-file list from the "Run pin / ledger drift guard" step
 # in .github/workflows/smc-fast-pr-gates.yml (single source of truth — the
 # list grows over time, never hardcode it here) and runs it with the same
-# pytest flags. Green here means the fast-gates drift guard AND the
+# pytest flags. When pytest-xdist is installed locally (-n auto) it mirrors
+# CI exactly; without xdist the suite runs serially but still catches
+# line-pin drift. Green here means the fast-gates drift guard AND the
 # validate shards will be green for line-pin reasons.
 #
 # Why: adding/removing ANY line in a covered source file (open_prep/,
