@@ -181,15 +181,15 @@ _FROZEN_ENV_SUBSCRIPT_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-06-10 (#2670 W9): timestamp_substitutions disclosure shifted
         # +5 (1094→1099).
         ("databento_volatility_screener.py", 1100),
-        ("open_prep/macro.py", 149),
+        ("open_prep/macro.py", 162),  # R-E2 (2026-06-14): +13 from TLS lock guard
         # R6 (2026-05-12): the FinnhubClient adapter shim used to save-set-restore
         # ``FINNHUB_API_KEY`` around each ``terminal_finnhub._get`` call. That
         # shim has been replaced by an explicit ``api_key=`` kwarg passed
         # through to ``terminal_finnhub._get``, so the previous entries at
         # macro.py:2041 and macro.py:2050 are gone. See
         # ``docs/AUDIT_L1_REVIEW_RETROSPECTIVE_2026-05-12.md`` § R6.
-        ("open_prep/realtime_signals.py", 2642),
-        ("open_prep/streamlit_monitor.py", 74),
+        ("open_prep/realtime_signals.py", 2646),
+        ("open_prep/streamlit_monitor.py", 78),
         ("streamlit_terminal.py", 327),
     }
 )

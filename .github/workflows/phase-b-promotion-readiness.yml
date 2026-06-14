@@ -70,7 +70,7 @@ jobs:
       - name: Fetch latest compute_live_drift artifact
         env:
           GH_TOKEN: ${{ github.token }}
-          # Indirection via env (not direct ${{ }} interpolation into the
+          # Indirection via env (not direct $\{\{ \}\} interpolation into the
           # script) so a caller-supplied glob cannot break/inject shell
           # syntax — expressions are substituted before bash parses.
           DRIFT_GLOB: ${{ inputs.drift_glob || 'artifacts/drift/drift_report_*.json' }}

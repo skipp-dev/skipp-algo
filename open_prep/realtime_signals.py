@@ -2638,6 +2638,10 @@ def main() -> None:
                         continue
                     key, _, val = line.partition("=")
                     key, val = key.strip(), val.strip().strip("'\"")
+                    # R-E2 (2026-06-14): os.environ mutation is safe here —
+                    # this code runs in main() before any threads are started,
+                    # is additive-only (guarded by `not in os.environ`), and
+                    # is the stdlib fallback when python-dotenv is absent.
                     if key and key not in os.environ:
                         os.environ[key] = val
 
