@@ -35,6 +35,7 @@ import certifi
 import numpy as np
 import pandas as pd
 
+from databento_client import _install_databento_requests_tls_override
 from open_prep_boundary import FMPClientLike, make_fmp_client
 from scripts.databento_production_workbook import (
     create_excel_workbook_bytes,
@@ -48,7 +49,6 @@ from strategy_config import (
     LONG_DIP_MIN_GAP_PCT,
     LONG_DIP_MIN_PREMARKET_DOLLAR_VOLUME,
 )
-from databento_client import _install_databento_requests_tls_override
 
 logger = logging.getLogger(__name__)
 
