@@ -128,7 +128,6 @@ env:
   PYTHONPATH: ${{ github.workspace }}
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   REFRESH_DATE: ""   # set dynamically in the date step
-  SMC_INCREMENTAL_BASE_SEED_CACHE_VERSION: v1
 defaults:
   run:
     shell: bash
@@ -304,13 +303,126 @@ jobs:
             echo '{}' > /tmp/manifest_before.json
           fi
 
-      - name: Restore incremental base seed
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+      # ── Restore canonical Databento production export bundle ────
+      # F-V5-D3 (2026-05-01): switched from actions/cache/restore to
+      # dawidd6/action-download-artifact. The canonical sharded producer
+      # workflow (smc-databento-production-export-sharded.yml) publishes
+      # its compat-layer bundle under the legacy workflow-artifact name
+      # `smc-databento-production-export-<DATE>-<RUN_ID>` (F-V5-D2). We
+      # search the producer workflow's recent runs for the newest
+      # successful artifact whose name matches today's date; if none is
+      # available we fall back to the most recent same-prefix artifact.
+      # `if_no_artifact_found: warn` keeps the existing soft-fail
+      # contract — verify_export_bundle below decides whether to block.
+      #
+      # F-V8-C4.2 (2026-06-14): restore/verify happens BEFORE library
+      # generation. The refresh consumer must build from the producer
+      # bundle via `--bundle`, not rerun the producer's full Databento
+      # scan via `--run-scan` on a cold hosted fallback runner.
+      - name: Restore Databento production export bundle (today)
+        id: restore_export_bundle_today
+        uses: dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6
         with:
-          path: artifacts/smc_microstructure_exports/incremental_base_seed
-          key: ${{ runner.os }}-smc-incremental-base-seed-${{ env.SMC_INCREMENTAL_BASE_SEED_CACHE_VERSION }}-${{ github.ref_name }}-${{ github.run_id }}
-          restore-keys: |
-            ${{ runner.os }}-smc-incremental-base-seed-${{ env.SMC_INCREMENTAL_BASE_SEED_CACHE_VERSION }}-${{ github.ref_name }}-
+          workflow: smc-databento-production-export-sharded.yml
+          name: smc-databento-production-export-${{ env.REFRESH_DATE }}-
+          name_is_regexp: true
+          path: artifacts/smc_microstructure_exports
+          workflow_conclusion: success
+          if_no_artifact_found: warn
+
+      - name: Restore Databento production export bundle (latest fallback)
+        id: restore_export_bundle_fallback
+        if: steps.restore_export_bundle_today.outputs.found_artifact != 'true'
+        uses: dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6
+        with:
+          workflow: smc-databento-production-export-sharded.yml
+          name: ^smc-databento-production-export-
+          name_is_regexp: true
+          path: artifacts/smc_microstructure_exports
+          workflow_conclusion: success
+          if_no_artifact_found: warn
+
+      - name: Reject stale Databento fallback on automated refresh
+        id: reject_stale_export_fallback
+        if: |
+          github.event_name != 'workflow_dispatch'
+          && steps.restore_export_bundle_today.outputs.found_artifact != 'true'
+          && steps.restore_export_bundle_fallback.outputs.found_artifact == 'true'
+        run: |
+          set -euo pipefail
+          echo "::error file=.github/workflows/smc-library-refresh.yml::Automated library refresh resolved only a fallback Databento export for REFRESH_DATE=${REFRESH_DATE}. Refusing to generate from a stale producer bundle; wait for smc-databento-production-export-sharded to publish today's compat artifact, or rerun manually if an older bundle is intentional."
+          exit 1
+
+      # F-V8-D1 (2026-05-14): dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6 with
+      # name_is_regexp: true unconditionally nests each downloaded artifact
+      # under `<path>/<artifact-name>/...` (see main.js:269). Consumer
+      # scripts (smc_integration.{structure_batch,measurement_evidence,
+      # service}, scripts/run_smc_pre_release_artifact_refresh.py and
+      # scripts/load_databento_export_bundle.py:_manifest_candidates)
+      # all use a non-recursive `directory.glob(manifest_prefix*_manifest.json)`,
+      # so the nested layout is invisible to them. Flatten the bundle into
+      # the export-dir root before the verify-step and bundle-based
+      # generation run.
+      #
+      # F-V8-C4.2 (2026-06-14): the producer bundle is now the source of
+      # truth for generation itself. If a self-hosted workspace contains
+      # leftover working-set files, the freshly downloaded producer bundle
+      # still wins and every overwrite is surfaced as a notice.
+      #
+      # Skip when neither download step found an artifact: flatten is then
+      # a no-op and `verify_export_bundle` produces the canonical
+      # missing-bundle error annotation pointing at the producer workflow.
+      - name: Flatten downloaded Databento export bundle
+        id: flatten_export_bundle
+        if: |
+          steps.restore_export_bundle_today.outputs.found_artifact == 'true'
+          || steps.restore_export_bundle_fallback.outputs.found_artifact == 'true'
+        run: |
+          set -euo pipefail
+          ROOT=artifacts/smc_microstructure_exports
+          shopt -s nullglob
+          # Only flatten subdirs whose name matches the producer artifact-name
+          # convention (smc-databento-production-export-YYYY-MM-DD-<runid>).
+          # This keeps unrelated co-located subdirs (none today, but defensive)
+          # untouched.
+          moved=0
+          overwritten=0
+          for sub in "$ROOT"/smc-databento-production-export-*; do
+            [ -d "$sub" ] || continue
+            echo "==> Flattening $sub"
+            for entry in "$sub"/* "$sub"/.[!.]*; do
+              [ -e "$entry" ] || continue
+              base=$(basename "$entry")
+              if [ -e "$ROOT/$base" ]; then
+                echo "::notice::Producer bundle overrides local working-set copy: $ROOT/$base"
+                overwritten=$((overwritten + 1))
+              fi
+              mv -f "$entry" "$ROOT/$base"
+              moved=$((moved + 1))
+            done
+            rmdir "$sub"
+          done
+          echo "==> Flattened $moved entries ($overwritten overwrote a local working-set copy)"
+          echo "moved_entries=$moved" >> "$GITHUB_OUTPUT"
+          echo "overwritten_entries=$overwritten" >> "$GITHUB_OUTPUT"
+
+      - name: Verify Databento production export bundle is present
+        id: verify_export_bundle
+        run: |
+          set -euo pipefail
+          if ls artifacts/smc_microstructure_exports/databento_volatility_production_*_manifest.json >/dev/null 2>&1; then
+            echo "bundle_present=true" >> "$GITHUB_OUTPUT"
+            NEWEST=$(ls -1t artifacts/smc_microstructure_exports/databento_volatility_production_*_manifest.json | head -1)
+            echo "::notice::Restored Databento production manifest: ${NEWEST}"
+            exit 0
+          fi
+          # F-V5-D1 (2026-05-01): automated consumers MUST not generate or
+          # publish against a stale / missing producer bundle. Hard-fail
+          # with a clickable annotation that points at the upstream workflow
+          # so triage starts in the right place.
+          echo "bundle_present=false" >> "$GITHUB_OUTPUT"
+          echo "::error file=.github/workflows/smc-databento-production-export-sharded.yml::Producer artifact missing for ${REFRESH_DATE}; refresh aborted. Re-run smc-databento-production-export-sharded and then re-trigger smc-library-refresh."
+          exit 1
 
       # ── Library generation with enrichment (v5) ─────────────────
       - name: Generate SMC library with v5 enrichment
@@ -318,30 +430,19 @@ jobs:
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           BENZINGA_API_KEY: ${{ secrets.BENZINGA_API_KEY }}
           NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
-          DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
         run: |
           "$SMC_PYTHON_BIN" scripts/generate_smc_micro_base_from_databento.py \
-            --run-scan \
-            --incremental-base-only \
+            --bundle artifacts/smc_microstructure_exports \
             --enrich-all \
             --export-dir artifacts/smc_microstructure_exports \
             --output-root .
 
       - name: Verify generated base manifest exists
         run: |
-          echo "--- artifacts/smc_microstructure_exports contents ---"
-          ls -la artifacts/smc_microstructure_exports/ 2>&1 || echo "(directory missing)"
           if ! find artifacts/smc_microstructure_exports -name '*__smc_microstructure_base_manifest.json' -print -quit | grep -q .; then
             echo "::error::Missing generated base manifest in artifacts/smc_microstructure_exports"
             exit 1
           fi
-
-      - name: Save incremental base seed
-        if: success()
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
-        with:
-          path: artifacts/smc_microstructure_exports/incremental_base_seed
-          key: ${{ runner.os }}-smc-incremental-base-seed-${{ env.SMC_INCREMENTAL_BASE_SEED_CACHE_VERSION }}-${{ github.ref_name }}-${{ github.run_id }}
 
       # ── Evidence gates ──────────────────────────────────────────
       - name: Run evidence gate tests
@@ -612,135 +713,6 @@ jobs:
             echo "::error file=.github/workflows/smc-library-refresh.yml::gh pr create failed for release-pending branch ${BRANCH} — see step log for stderr"
             exit 1
           fi
-      # ── Restore canonical Databento production export bundle ────
-      # F-V5-D3 (2026-05-01): switched from actions/cache/restore to
-      # dawidd6/action-download-artifact. The canonical sharded producer
-      # workflow (smc-databento-production-export-sharded.yml) publishes
-      # its compat-layer bundle under the legacy workflow-artifact name
-      # `smc-databento-production-export-<DATE>-<RUN_ID>` (F-V5-D2). We
-      # search the producer workflow's recent runs for the newest
-      # successful artifact whose name matches today's date; if none is
-      # available we fall back to the most recent same-prefix artifact.
-      # `if_no_artifact_found: warn` keeps the existing soft-fail
-      # contract — verify_export_bundle below decides whether to block.
-      - name: Restore Databento production export bundle (today)
-        id: restore_export_bundle_today
-        if: steps.diff.outputs.changed == 'true'
-        uses: dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6
-        with:
-          workflow: smc-databento-production-export-sharded.yml
-          name: smc-databento-production-export-${{ env.REFRESH_DATE }}-
-          name_is_regexp: true
-          path: artifacts/smc_microstructure_exports
-          workflow_conclusion: success
-          if_no_artifact_found: warn
-
-      - name: Restore Databento production export bundle (latest fallback)
-        id: restore_export_bundle_fallback
-        if: |
-          steps.diff.outputs.changed == 'true'
-          && steps.restore_export_bundle_today.outputs.found_artifact != 'true'
-        uses: dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6
-        with:
-          workflow: smc-databento-production-export-sharded.yml
-          name: ^smc-databento-production-export-
-          name_is_regexp: true
-          path: artifacts/smc_microstructure_exports
-          workflow_conclusion: success
-          if_no_artifact_found: warn
-
-      - name: Reject stale Databento fallback on automated refresh
-        id: reject_stale_export_fallback
-        if: |
-          steps.diff.outputs.changed == 'true'
-          && github.event_name != 'workflow_dispatch'
-          && steps.restore_export_bundle_today.outputs.found_artifact != 'true'
-          && steps.restore_export_bundle_fallback.outputs.found_artifact == 'true'
-        run: |
-          set -euo pipefail
-          echo "::error file=.github/workflows/smc-library-refresh.yml::Automated library refresh resolved only a fallback Databento export for REFRESH_DATE=${REFRESH_DATE}. Refusing to publish against a stale producer bundle; wait for smc-databento-production-export-sharded to publish today's compat artifact, or rerun manually if an older bundle is intentional."
-          exit 1
-
-      # F-V8-D1 (2026-05-14): dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6 with
-      # name_is_regexp: true unconditionally nests each downloaded artifact
-      # under `<path>/<artifact-name>/...` (see main.js:269). Consumer
-      # scripts (smc_integration.{structure_batch,measurement_evidence,
-      # service}, scripts/run_smc_pre_release_artifact_refresh.py and
-      # scripts/load_databento_export_bundle.py:_manifest_candidates)
-      # all use a non-recursive `directory.glob(manifest_prefix*_manifest.json)`,
-      # so the nested layout is invisible to them. Flatten the bundle into
-      # the export-dir root before the verify-step runs.
-      #
-      # F-V8-D3 (2026-05-14): The library-refresh workflow's earlier
-      # "Generate SMC library" step (run_databento_base_scan_pipeline
-      # --incremental-base-only) writes its own working-set artifacts into
-      # the same export-dir (e.g. `daily_symbol_features_full_universe.parquet`).
-      # These intentionally share filenames with the canonical producer
-      # bundle entries because the producer is the source-of-truth: when
-      # both are present the producer copy must win. Previously this was
-      # implicit because `actions/cache/restore` overwrote silently; the
-      # F-V5-D3 cutover to dawidd6/action-download-artifact retained the
-      # same intent. Use `mv -f` and emit a `::notice::` annotation that
-      # lists each overwrite so audits stay visible.
-      #
-      # Skip when neither download step found an artifact: flatten is then
-      # a no-op and `verify_export_bundle` produces the canonical
-      # missing-bundle error annotation pointing at the producer workflow.
-      - name: Flatten downloaded Databento export bundle
-        id: flatten_export_bundle
-        if: |
-          steps.diff.outputs.changed == 'true'
-          && (steps.restore_export_bundle_today.outputs.found_artifact == 'true'
-              || steps.restore_export_bundle_fallback.outputs.found_artifact == 'true')
-        run: |
-          set -euo pipefail
-          ROOT=artifacts/smc_microstructure_exports
-          shopt -s nullglob
-          # Only flatten subdirs whose name matches the producer artifact-name
-          # convention (smc-databento-production-export-YYYY-MM-DD-<runid>).
-          # This keeps unrelated co-located subdirs (none today, but defensive)
-          # untouched.
-          moved=0
-          overwritten=0
-          for sub in "$ROOT"/smc-databento-production-export-*; do
-            [ -d "$sub" ] || continue
-            echo "==> Flattening $sub"
-            for entry in "$sub"/* "$sub"/.[!.]*; do
-              [ -e "$entry" ] || continue
-              base=$(basename "$entry")
-              if [ -e "$ROOT/$base" ]; then
-                echo "::notice::Producer bundle overrides local working-set copy: $ROOT/$base"
-                overwritten=$((overwritten + 1))
-              fi
-              mv -f "$entry" "$ROOT/$base"
-              moved=$((moved + 1))
-            done
-            rmdir "$sub"
-          done
-          echo "==> Flattened $moved entries ($overwritten overwrote a local working-set copy)"
-          echo "moved_entries=$moved" >> "$GITHUB_OUTPUT"
-          echo "overwritten_entries=$overwritten" >> "$GITHUB_OUTPUT"
-
-      - name: Verify Databento production export bundle is present
-        id: verify_export_bundle
-        if: steps.diff.outputs.changed == 'true'
-        run: |
-          set -euo pipefail
-          if ls artifacts/smc_microstructure_exports/databento_volatility_production_*_manifest.json >/dev/null 2>&1; then
-            echo "bundle_present=true" >> "$GITHUB_OUTPUT"
-            NEWEST=$(ls -1t artifacts/smc_microstructure_exports/databento_volatility_production_*_manifest.json | head -1)
-            echo "::notice::Restored Databento production manifest: ${NEWEST}"
-            exit 0
-          fi
-          # F-V5-D1 (2026-05-01): when the library content has actually
-          # changed (steps.diff.outputs.changed == 'true') we MUST not
-          # publish a refreshed library against a stale / missing producer
-          # bundle. Hard-fail with a clickable annotation that points at
-          # the upstream workflow so triage starts in the right place.
-          echo "bundle_present=false" >> "$GITHUB_OUTPUT"
-          echo "::error file=.github/workflows/smc-databento-production-export-sharded.yml::Producer artifact missing for ${REFRESH_DATE}; refresh aborted. Re-run smc-databento-production-export-sharded and then re-trigger smc-library-refresh."
-          exit 1
-
       # ── Release-reference artifact refresh + strict gates ───────
       # Marked advisory until the producer cache is warm so that a missing
       # bundle does not block the entire library refresh / TradingView

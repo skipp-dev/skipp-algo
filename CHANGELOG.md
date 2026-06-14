@@ -6,6 +6,23 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-06-14) — smc-library-refresh konsumiert Producer-Bundle statt Consumer-Scan
+
+`smc-library-refresh.yml` stellt das kanonische
+`smc-databento-production-export-sharded.yml`-Artefakt jetzt vor dem
+Generate-Step wieder her, flacht es ab und fail-closed verified den
+Manifest-Fund, bevor überhaupt Library-Generation startet. Der
+Generate-Step nutzt damit den Bundle-Pfad
+`scripts/generate_smc_micro_base_from_databento.py --bundle artifacts/smc_microstructure_exports`
+und entfernt den redundanten Consumer-seitigen
+`--run-scan --incremental-base-only`-Pfad samt Incremental-Seed-Cache.
+Root Cause der langen Cancel/Runner-Shutdown-Serie war nicht ein zu kleiner
+240-Minuten-Timeout, sondern dass der Consumer bei offline self-hosted
+ASUS-Runnern auf GitHub-hosted kalt fiel und dort den vollen
+Databento-Producer-Scan erneut ausführte. Automatische Runs verweigern
+weiterhin stale Fallback-Bundles; ein Databento `402 account_delinquent_invoice`
+bleibt ein separater Provider-/Account-Health-Fall im Producer.
+
 ### Removed (2026-06-12) — drift-watchdog-Cron stillgelegt (#2726)
 
 `.github/workflows/drift-watchdog.yml` (Montags-Cron) ist entfernt. Der
@@ -32,6 +49,7 @@ garantiertes rc=4 gewesen; davor war er ein stiller No-op.
   `c13-daily-cron.yml`, `phase-b-promotion-readiness.yml`,
   `scripts/check_phase_b_drift_readiness.py` (dessen Wiring-Claim schon
   vorher falsch war) und dem Script-Docstring aktualisiert.
+
 ### Fixed (2026-06-13) — Stat-Review W7-4/W7-5: Red-Flag-Fenster + Anchor-Staleness im Weekly-Judgement
 
 **W7-4:** `eval_magnitude_shadow_weekly.detect_all_pass_red_flag`
@@ -113,6 +131,7 @@ Cold-Start (`[]`). Der Test
 als Soll pinnte, ist invertiert
 (`test_load_ledger_raises_on_malformed_line`); neue rc-1-Regressionstests
 für alle Konsumenten.
+
 ### Changed (2026-06-13) — Audit E-1 RS-1..7: Streamlit Render-Layer Observability + Cooldown Fail-Safe
 
 `open_prep/streamlit_monitor.py` hatte mehrere fail-open Pfade mit
