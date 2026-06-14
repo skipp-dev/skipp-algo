@@ -5,13 +5,13 @@ Three layers of defense against supply-chain regressions:
 1. **Version specifier required.** Every non-comment, non-empty line must
    carry at least one of ``>= == ~= < > !=`` so a fresh ``pip install``
    cannot silently pull in a brand-new (potentially compromised) major
-   version. Today: all 23 deps use ``>=``.
+   version. Today: all 27 deps use ``>=``.
 
 2. **No third-party index URLs.** Lines starting with ``--index-url`` or
    ``--extra-index-url`` would let pip resolve packages from outside
    PyPI — a known dependency-confusion vector. Today: 0 such lines.
 
-3. **Line-count budget.** Total dep-line count is frozen at 23. New
+3. **Line-count budget.** Total dep-line count is frozen at 27. New
    dependencies must update the budget consciously, surfacing
    supply-chain surface growth in code review.
 

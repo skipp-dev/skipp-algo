@@ -108,7 +108,8 @@ jobs:
       # being deferred until after the heavier resolve/install steps.
       - name: Install workflow-lint deps (PyYAML)
         if: steps.gate.outputs.run_heavy == 'true'
-        run: python -m pip install --quiet "pyyaml>=6.0"
+        # SC-02 (supply-chain audit 2026-06-14): exact pin, no floating >=.
+        run: python -m pip install --quiet "pyyaml==6.0.3"
 
       # Guard: every workflow file must declare `defaults: run: shell: bash`
       # so jobs behave identically on the Windows self-hosted runner and on
@@ -145,7 +146,9 @@ jobs:
       - name: actionlint (workflow template/expression lint)
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
-          python -m pip install --quiet "actionlint-py==1.7.12.*"
+          # SC-02 (supply-chain audit 2026-06-14): drop wildcard prefix match;
+          # pin to full version for deterministic installs.
+          python -m pip install --quiet "actionlint-py==1.7.12.24"
           actionlint -no-color -shellcheck=
 
       # Workflow-Audit 2026-06: zizmor as a RATCHET, not a hard zero-gate.
