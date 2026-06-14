@@ -254,7 +254,7 @@ def test_no_stale_basic_config_ledger_entries() -> None:
 
 _FROZEN_SYSPATH_SITES: frozenset[tuple[str, int, str]] = frozenset({
     ("open_prep/realtime_signals.py", 1089, "insert"),
-    ("open_prep/streamlit_monitor.py", 33, "insert"),
+    ("open_prep/streamlit_monitor.py", 34, "insert"),
     # WP-H (PR #2612): 32 -> 34, VIX import + helper block added above.
     ("smc_tv_bridge/smc_api.py", 34, "insert"),
     ("streamlit_databento_volatility_screener.py", 8, "insert"),
