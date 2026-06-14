@@ -22,17 +22,25 @@ cd "$REPO_ROOT"
 
 WORKFLOW=".github/workflows/smc-fast-pr-gates.yml"
 
+if [ ! -f "$WORKFLOW" ]; then
+  echo "ERROR: workflow file not found: $WORKFLOW" >&2
+  echo "       (moved/renamed? update WORKFLOW in $0)" >&2
+  exit 1
+fi
+
 # Pull the test-file list out of the drift-guard step only (not the whole
 # workflow), so unrelated pytest invocations don't leak in. Stateful awk:
 # start capturing AFTER the matched step name, stop at the NEXT '- name:'
 # line (whatever its initial/indentation) — no dependence on step-name
 # initials. Path pattern tolerates subdirectories, uppercase, dots and
 # dashes (tests/foo/test_Bar-x.py).
+# grep exits 1 when nothing matches; '|| true' keeps set -e from aborting
+# so the [ -z "$TESTS" ] check below can produce a useful error message.
 TESTS="$(awk '
   /- name: Run pin \/ ledger drift guard/ {capture=1; next}
   capture && /- name:/ {capture=0}
   capture {print}
-' "$WORKFLOW" | grep -oE 'tests/[A-Za-z0-9_./-]+\.py' | sort -u)"
+' "$WORKFLOW" | grep -oE 'tests/[A-Za-z0-9_./-]+\.py' | sort -u || true)"
 
 if [ -z "$TESTS" ]; then
   echo "ERROR: could not extract drift-guard test list from $WORKFLOW" >&2
