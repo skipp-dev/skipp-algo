@@ -224,8 +224,8 @@ def _files_with_raw_writes() -> dict[str, list[int]]:
             hits = _scan_raw_writes(source)
         except SyntaxError as exc:
             raise ValueError(
-                f"SyntaxError while scanning {py} — fix the file or exclude "
-                f"it from _SCAN_DIRS: {exc}"
+                f"SyntaxError while scanning {py} — fix the syntax error in "
+                f"that file: {exc}"
             ) from exc
         if hits:
             rel = py.relative_to(REPO_ROOT).as_posix()
