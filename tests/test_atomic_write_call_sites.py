@@ -204,7 +204,12 @@ def _iter_scan_files() -> list[Path]:
             files.extend(sorted(scan_dir.rglob("*.py")))
     # Audit E-1 2026-06-13 (AW-1): repo-root modules (non-recursive — the
     # subdirectories are covered by _SCAN_DIRS or are out of scope).
-    files.extend(sorted(REPO_ROOT.glob("*.py")))
+    # Exclude conftest.py and test_*.py: test helpers are not production surfaces.
+    files.extend(
+        p
+        for p in sorted(REPO_ROOT.glob("*.py"))
+        if not p.name.startswith("test_") and p.name != "conftest.py"
+    )
     return files
 
 
