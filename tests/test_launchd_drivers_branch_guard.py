@@ -300,3 +300,122 @@ def test_audit_push_uses_worktree_not_branch_switch():
         "audit-push must not duplicate the worktree pipeline inline — that "
         "copy drifts from the lib's hardening (audit pass-3 finding A1)"
     )
+
+
+# ---------------------------------------------------------------------------
+# F-001 (audit 2026-06-14) — preflight failures must emit a DEGRADED marker
+# before exiting so machine-detectable monitoring can catch silent failures.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "driver,marker_subdir,marker_prefix",
+    [
+        (
+            REPO / "automation" / "launchd" / "run-c13-imbalance.sh",
+            "cache/imbalance",
+            ".push_status_",
+        ),
+        (
+            REPO / "automation" / "launchd" / "run-c13-wsh.sh",
+            "cache/wsh",
+            ".feed_status_",
+        ),
+    ],
+    ids=["imbalance", "wsh"],
+)
+def test_driver_writes_degraded_marker_on_missing_venv(
+    tmp_path, driver, marker_subdir, marker_prefix
+):
+    """When the venv activate script is absent the driver must write a
+    ``degraded:preflight-error:*`` marker and exit 1 — no silent death."""
+    today = __import__("datetime").date.today().strftime("%Y-%m-%d")
+    # The script derives REPO from $0, so markers land in REPO/cache/...
+    real_marker_dir = REPO / marker_subdir
+    real_marker_dir.mkdir(parents=True, exist_ok=True)
+    marker_path = real_marker_dir / f"{marker_prefix}{today}"
+    marker_path.unlink(missing_ok=True)  # remove stale marker from a prior run
+
+    try:
+        result = subprocess.run(
+            ["bash", str(driver)],
+            env={
+                **os.environ,
+                "C13_VENV": str(tmp_path / "no-such-venv"),
+                "C13_WATCHLIST": "/dev/null",
+            },
+            capture_output=True,
+            text=True,
+            cwd=str(REPO),
+        )
+        assert result.returncode != 0, "driver should fail on missing venv"
+        assert marker_path.exists(), (
+            f"{driver.name}: no marker written to {marker_path} on missing-venv failure.\n"
+            f"stdout: {result.stdout[:400]}\nstderr: {result.stderr[:400]}"
+        )
+        content = marker_path.read_text()
+        assert content.startswith("degraded:preflight-error:"), (
+            f"{driver.name}: marker content unexpected: {content!r}"
+        )
+    finally:
+        marker_path.unlink(missing_ok=True)
+
+
+@pytest.mark.parametrize(
+    "driver,marker_subdir,marker_prefix",
+    [
+        (
+            REPO / "automation" / "launchd" / "run-c13-imbalance.sh",
+            "cache/imbalance",
+            ".push_status_",
+        ),
+        (
+            REPO / "automation" / "launchd" / "run-c13-wsh.sh",
+            "cache/wsh",
+            ".feed_status_",
+        ),
+    ],
+    ids=["imbalance", "wsh"],
+)
+def test_driver_writes_degraded_marker_on_missing_python(
+    tmp_path, driver, marker_subdir, marker_prefix
+):
+    """When the venv python binary is missing the driver must write a
+    ``degraded:preflight-error:*`` marker and exit 1."""
+    today = __import__("datetime").date.today().strftime("%Y-%m-%d")
+
+    # Create a venv with an activate script but NO python binary.
+    fake_venv = tmp_path / "fake-venv"
+    bin_dir = fake_venv / "bin"
+    bin_dir.mkdir(parents=True)
+    (bin_dir / "activate").write_text("# fake activate\n")
+    # Deliberately do NOT create bin/python.
+
+    real_marker_dir = REPO / marker_subdir
+    real_marker_dir.mkdir(parents=True, exist_ok=True)
+    marker_path = real_marker_dir / f"{marker_prefix}{today}"
+    marker_path.unlink(missing_ok=True)
+
+    try:
+        result = subprocess.run(
+            ["bash", str(driver)],
+            env={
+                **os.environ,
+                "C13_VENV": str(fake_venv),
+                "C13_WATCHLIST": "/dev/null",
+            },
+            capture_output=True,
+            text=True,
+            cwd=str(REPO),
+        )
+        assert result.returncode != 0, "driver should fail on missing python"
+        assert marker_path.exists(), (
+            f"{driver.name}: no marker written to {marker_path} on missing-python failure.\n"
+            f"stdout: {result.stdout[:400]}\nstderr: {result.stderr[:400]}"
+        )
+        content = marker_path.read_text()
+        assert content.startswith("degraded:preflight-error:"), (
+            f"{driver.name}: marker content unexpected: {content!r}"
+        )
+    finally:
+        marker_path.unlink(missing_ok=True)
+
