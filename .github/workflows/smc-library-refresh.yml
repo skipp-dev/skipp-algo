@@ -344,8 +344,13 @@ jobs:
             echo "::error::Provider credential preflight produced no signal (all probes skipped) — aborting before generation."
             exit 1
           fi
+          if [ ! -f artifacts/ci/provider_preflight.json ]; then
+            echo "::error::Provider credential preflight JSON missing after rc=$rc — aborting."
+            exit 1
+          fi
           severity=$("$SMC_PYTHON_BIN" -c "import json,sys; print(json.load(open('artifacts/ci/provider_preflight.json')).get('overall_severity','error'))")
           echo "provider_preflight_severity=$severity"
+          echo "provider_preflight_severity=$severity" >> "$GITHUB_OUTPUT"
           if [ "$severity" = "error" ]; then
             echo "::error::Provider credential preflight failed (severity=error) — aborting before generation to avoid a wasted long run."
             exit 1
