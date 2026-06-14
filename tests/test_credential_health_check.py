@@ -19,9 +19,11 @@ from unittest.mock import MagicMock
 import pytest
 
 from scripts.credential_health_check import (
+    DATABENTO_DELIVERY_MAX_STALENESS_DAYS,
     WARN_FRACTION,
     ProbeResult,
     probe_databento,
+    probe_databento_delivery,
     probe_fmp,
     probe_github_pat,
     probe_newsapi,
@@ -333,6 +335,30 @@ def test_vendor_unexpected_status_is_warn(probe) -> None:
     assert "unexpected" in r.message
 
 
+@pytest.mark.parametrize("probe", [probe_databento, probe_fmp, probe_newsapi, probe_databento_delivery])
+def test_vendor_402_billing_is_error(probe) -> None:
+    """HTTP 402 Payment Required = billing problem (e.g. unpaid invoice).
+
+    Post-mortem 2026-06-12: an unpaid Databento invoice went unnoticed for
+    12 days because 402 fell into the generic 'other -> warn' bucket.
+    Billing failures MUST be loud (error), not a quiet warn.
+    """
+    import urllib.error
+
+    exc = urllib.error.HTTPError(
+        url="https://example.com",
+        code=402,
+        msg="Payment Required",
+        hdrs=None,  # type: ignore[arg-type]
+        fp=io.BytesIO(b""),
+    )
+    r = probe("dummy-key", opener=_fake_opener(raise_exc=exc))
+    assert r.severity == "error"
+    assert "BILLING" in r.message
+    assert "invoice" in r.message
+    assert r.details["status"] == 402
+
+
 def test_databento_uses_basic_auth_header() -> None:
     opener = _fake_opener(status=200, body={})
     probe_databento("my-secret-key", opener=opener)
@@ -359,3 +385,85 @@ def test_newsapi_puts_key_in_query_string() -> None:
     req = opener.open.call_args[0][0]
     assert "apiKey=my-secret-key" in req.full_url
     assert "eventregistry.org" in req.full_url
+
+
+# -- Databento delivery probe -------------------------------------------------
+#
+# Auth-only probes cannot catch an account suspended for non-payment:
+# list_publishers keeps returning 200. The delivery probe checks that the
+# consumed dataset's available end date keeps advancing.
+
+
+def _delivery_body(end_age_days: float, now: datetime) -> dict:
+    end = now - timedelta(days=end_age_days)
+    return {"start": "2018-05-01", "end": end.isoformat()}
+
+
+def test_databento_delivery_ok_when_fresh() -> None:
+    now = datetime(2026, 6, 12, 6, 0, tzinfo=UTC)
+    opener = _fake_opener(status=200, body=_delivery_body(1.0, now))
+    r = probe_databento_delivery("key", opener=opener, now=now)
+    assert r.severity == "ok"
+    assert r.details["staleness_days"] == pytest.approx(1.0, abs=0.05)
+    assert r.details["dataset"]
+
+
+def test_databento_delivery_error_when_stale() -> None:
+    now = datetime(2026, 6, 12, 6, 0, tzinfo=UTC)
+    stale = DATABENTO_DELIVERY_MAX_STALENESS_DAYS + 2.0
+    opener = _fake_opener(status=200, body=_delivery_body(stale, now))
+    r = probe_databento_delivery("key", opener=opener, now=now)
+    assert r.severity == "error"
+    assert "stopped advancing" in r.message
+    assert "billing" in r.message.lower()
+
+
+def test_databento_delivery_ok_just_under_threshold() -> None:
+    now = datetime(2026, 6, 12, 6, 0, tzinfo=UTC)
+    opener = _fake_opener(
+        status=200, body=_delivery_body(DATABENTO_DELIVERY_MAX_STALENESS_DAYS - 0.1, now)
+    )
+    r = probe_databento_delivery("key", opener=opener, now=now)
+    assert r.severity == "ok"
+
+
+def test_databento_delivery_empty_key_is_error() -> None:
+    r = probe_databento_delivery("")
+    assert r.severity == "error"
+    assert "empty" in r.message or "missing" in r.message
+
+
+def test_databento_delivery_warn_on_unparseable_end() -> None:
+    opener = _fake_opener(status=200, body={"start": "2018-05-01"})
+    r = probe_databento_delivery("key", opener=opener)
+    assert r.severity == "warn"
+    assert "inconclusive" in r.message
+
+
+def test_databento_delivery_warn_on_network_error() -> None:
+    import urllib.error
+
+    r = probe_databento_delivery(
+        "key", opener=_fake_opener(raise_exc=urllib.error.URLError("dns fail"))
+    )
+    assert r.severity == "warn"
+    assert "inconclusive" in r.message
+
+
+def test_databento_delivery_handles_date_only_end() -> None:
+    """get_dataset_range returns date-only strings like '2026-06-11'."""
+    now = datetime(2026, 6, 12, 6, 0, tzinfo=UTC)
+    opener = _fake_opener(status=200, body={"start": "2018-05-01", "end": "2026-06-11"})
+    r = probe_databento_delivery("key", opener=opener, now=now)
+    assert r.severity == "ok"
+    assert r.details["staleness_days"] == pytest.approx(1.25, abs=0.05)
+
+
+def test_databento_delivery_uses_basic_auth_and_dataset() -> None:
+    opener = _fake_opener(status=200, body=_delivery_body(1.0, datetime.now(UTC)))
+    probe_databento_delivery("my-secret-key", opener=opener)
+    req = opener.open.call_args[0][0]
+    auth = req.headers.get("Authorization") or req.headers.get("authorization")
+    assert auth is not None and auth.startswith("Basic ")
+    assert "metadata.get_dataset_range" in req.full_url
+    assert "dataset=DBEQ.BASIC" in req.full_url
