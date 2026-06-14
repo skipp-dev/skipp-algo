@@ -76,19 +76,26 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt pytest pyyaml
 
-      # ADR-0023 §4.1: download the latest scored FamilyEvent records
-      # from the rolling benchmark workflow.  The benchmark produces
-      # scored_family_events.json and uploads it as an artifact named
-      # scored-family-events-<DATE>.  dawidd6/action-download-artifact
-      # grabs the latest successful run's artifact. If no artifact is
-      # found, the workflow continues with no_data (fail-soft contract).
+      # ADR-0023 §4.1: download the scored FamilyEvent records of the
+      # CURRENT UTC day from the rolling benchmark workflow.  The
+      # benchmark (cron 13:00 UTC) uploads scored_family_events.json as
+      # scored-family-events-<YYYY-MM-DD>; this workflow (cron 13:30
+      # UTC) pins the artifact name to today's date so a delayed or
+      # failed benchmark can never smuggle stale events from an older
+      # run into today's ledger row.  A miss falls through to the
+      # existing no_data path (fail-soft contract).
+      - name: Resolve benchmark artifact date
+        id: bench_date
+        run: |
+          set -euo pipefail
+          echo "date=$(date -u +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
+
       - name: Download scored family events from benchmark
         id: download_events
         uses: dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6
         with:
           workflow: smc-measurement-benchmark-rolling.yml
-          name: ^scored-family-events-
-          name_is_regexp: true
+          name: scored-family-events-${{ steps.bench_date.outputs.date }}
           path: artifacts/ci/scored_family_events_download
           workflow_conclusion: success
           if_no_artifact_found: warn

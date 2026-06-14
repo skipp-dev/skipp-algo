@@ -4,15 +4,11 @@ A workflow is considered "orphan" if no file under tests/ references its
 basename. Every other workflow has at least one test that pins some part
 of its contract (cron schedule, on-block, jobs, env, permissions, etc.).
 
-The orphans listed below are intentional:
-
-- ``g23-ab-watchdog``: external A/B drift watcher with no fixed contract
-  surface (it shells out to a runtime decision tree); coverage lives in
-  the underlying script's unit tests.
-- ``phase-b-promotion-readiness``: human-gated promotion checklist;
-  outputs a markdown summary, not a programmatic artifact.
-- ``regime-stratification-validation``: experimental regime sweep, kept
-  out of the gate set deliberately while the methodology stabilises.
+The allowlist is empty since 2026-06-12: the last orphan
+(``g23-ab-watchdog``) gained a verbatim hyphenated reference via the
+freshness-monitor watchlist pin test. Historical orphans
+(``phase-b-promotion-readiness``, ``regime-stratification-validation``)
+gained coverage during the 2026-05-30 CI hardening sprint.
 
 Adding a new orphan must be a deliberate ALLOW_LIST edit. Adding a test
 for an existing orphan must drop it from ALLOW_LIST in the same PR.
@@ -26,9 +22,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"
 TESTS_DIR = REPO_ROOT / "tests"
 
-# Source of truth: pin_registry.toml (ADR-0009). The 2026-05-30 CI
-# hardening sprint reduced the allowlist to a single entry
-# (g23-ab-watchdog.yml); all other historical entries gained coverage.
+# Source of truth: pin_registry.toml (ADR-0009). Empty since 2026-06-12
+# (Workflow-Audit) — kept wired so any NEW orphan still trips the ledger.
 from tests._pin_registry import workflow_allowed_orphans
 
 ALLOWED_ORPHANS: frozenset[str] = workflow_allowed_orphans()
