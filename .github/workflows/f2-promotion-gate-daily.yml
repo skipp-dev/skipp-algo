@@ -30,6 +30,9 @@ name: f2-promotion-gate-daily
 #      key off the workflow failure.
 #
 # Fail-soft semantics:
+#   * If the spec status is 'rolled_back' (terminal SPRT verdict, ADR
+#     2026-06-12 f2-contextual-sprt-h0-final), the gate job is skipped
+#     entirely — the experiment is concluded and must not re-fail daily.
 #   * If either arm directory is missing yet (the rolling-benchmark
 #     workflow has not produced the contextual arm), the job exits 0
 #     with status=skipped so the wall-clock countdown to the 30-day
@@ -60,14 +63,11 @@ on:
         required: false
         default: ""
 
+# Workflow-level: minimal read-only default.
+# issues:write + actions:read are scoped to the promotion-gate job only
+# (Copilot review #2741 — least-privilege per-job override).
 permissions:
   contents: read
-  # §2.4 G2 GitHub-Issue-Ping rule needs issues:write so the workflow
-  # can file a rollback issue when the gate exits with rc=2.
-  issues: write
-  # §2.4 G3 dual-arm wiring — `gh run list` + `gh run download` need
-  # actions:read to fetch the rolling-bench artifact.
-  actions: read
 
 concurrency:
   group: f2-promotion-gate-daily
@@ -81,9 +81,50 @@ defaults:
     shell: bash
 
 jobs:
+  # ADR 2026-06-12 f2-contextual-sprt-h0-final: once the experiment has
+  # reached a terminal SPRT verdict and the spec is flipped to
+  # status=rolled_back, the daily gate must soft-skip instead of
+  # re-evaluating an already-decided experiment and failing red (rc=2)
+  # every day. A new candidate re-enters via a fresh spec registration
+  # and a plumbing_only -> live flip (which auto-resets SPRT state).
+  spec-status:
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    permissions:
+      contents: read  # zizmor: explicit scope — read-only checkout, no write access needed
+    outputs:
+      status: ${{ steps.read.outputs.status }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Read spec status
+        id: read
+        run: |
+          SPEC=artifacts/experiments/f2_contextual_promotion.json
+          if [ ! -f "${SPEC}" ]; then
+            # Fail-soft: a missing spec is a configuration question for
+            # the gate job itself (exit 1 there), not for this guard.
+            echo "status=missing" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          STATUS=$(jq -r '.status // "registered"' "${SPEC}" 2>/dev/null || echo "registered")
+          echo "status=${STATUS}" >> "$GITHUB_OUTPUT"
+          if [ "${STATUS}" = "rolled_back" ]; then
+            echo "::notice title=f2-promotion-gate-daily::spec status=rolled_back — experiment concluded (SPRT accept_h0, ADR 2026-06-12); skipping gate"
+          fi
+
   promotion-gate:
+    needs: spec-status
+    if: ${{ needs.spec-status.outputs.status != 'rolled_back' }}
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+      issues: write  # zizmor: job-level least-privilege (Copilot review #2741)
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -416,6 +457,8 @@ jobs:
           # The previous label-only query matched ANY open cron-failure
           # issue, so the 2026-06-12 rollback ping landed in the
           # unrelated credential-health issue #2732.
+          # '// empty' suppresses jq's literal "null" output when the array is
+          # empty so that -n correctly sees an empty string (not "null").
           TITLE_PREFIX=$(python -c 'from scripts.f2_render_rollback_issue import TITLE_PREFIX; print(TITLE_PREFIX)')
           EXISTING=$(gh issue list --state open --label cron-failure --search "\"${TITLE_PREFIX}\" in:title" --limit 1 --json number --jq '.[0].number // empty' || true)
           if [ -n "${EXISTING}" ]; then

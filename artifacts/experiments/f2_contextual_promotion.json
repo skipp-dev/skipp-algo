@@ -3,11 +3,12 @@
   "name": "f2-contextual-zone-priority-promotion",
   "plan_reference": "smc_improvement_plan_q3_q4_2026-04-20.md §2.3 F2 + §2.4 G3",
   "decision_memo": "docs/f2_contextual_promotion_decision_2026-04-21.md",
-  "status": "live",
+  "status": "rolled_back",
   "status_history": [
     {"status": "registered", "at": "2026-04-21", "note": "Initial spec registration."},
     {"status": "plumbing_only", "at": "2026-04-23", "note": "G3 dual-arm wiring landed (PR #42). Promote pathway disabled until A1 (frozen treatment artifact, PR #43) and A2/A3 (paired Brier-SPRT + cross-day state, PR #44) close in-sample leakage and single-arm-vs-fixed-p0 defects identified in audit."},
-    {"status": "live", "at": "2026-06-09", "note": "All blockers resolved (A1=#44 merged, A2/A3=#42+#122 merged, #45 closed via #2362). p0 recalibrated from 0.55 to 0.544 (observed dual-arm baseline 2026-06-09, n=1492). p1 tightened from 0.60 to 0.574 (+3pp MDE). max_n raised to 1200. SPRT state will auto-reset on status flip (PR #2362). ADR #5 documents the prior null result."}
+    {"status": "live", "at": "2026-06-09", "note": "All blockers resolved (A1=#44 merged, A2/A3=#42+#122 merged, #45 closed via #2362). p0 recalibrated from 0.55 to 0.544 (observed dual-arm baseline 2026-06-09, n=1492). p1 tightened from 0.60 to 0.574 (+3pp MDE). max_n raised to 1200. SPRT state will auto-reset on status flip (PR #2362). ADR #5 documents the prior null result."},
+    {"status": "rolled_back", "at": "2026-06-12", "note": "SPRT accepted H0 on the post-fix dual-arm corpus (gate run 27426121665: n=1664, k=888, hit_rate=0.5337 vs control 0.5336, llr=-5.1415 < wald_lower=-1.5581). Arms verifiably differed (Brier 0.2804 vs 0.2375), so this verdict — unlike the void 2026-06-09 ctrl-vs-ctrl result — is valid evidence. Treatment artifact stays shadow-only (revert action: noop_already_shadow). ADR: docs/DECISIONS.md §2026-06-12 f2-contextual-sprt-h0-final."}
   ],
   "registered_at": "2026-04-21",
 
