@@ -419,3 +419,84 @@ def test_driver_writes_degraded_marker_on_missing_python(
     finally:
         marker_path.unlink(missing_ok=True)
 
+
+# ---------------------------------------------------------------------------
+# SA-02/SA-03 (audit 2026-06-14) — application-level failures (post-preflight)
+# must also emit a DEGRADED/degraded marker before exiting.
+# ---------------------------------------------------------------------------
+
+
+def test_imbalance_sh_writes_degraded_marker_on_collector_failure(tmp_path):
+    """When collect_opening_imbalances exits non-zero run-c13-imbalance.sh
+    must write a ``degraded:collector-error:*`` marker and exit 1.
+
+    SA-03 regression guard (audit 2026-06-14).
+    """
+    import datetime
+
+    today = datetime.date.today().strftime("%Y-%m-%d")
+
+    # Create a fake venv: activate script present, python binary present but
+    # always exits 1 (simulates collector failure after successful preflight).
+    fake_venv = tmp_path / "venv"
+    bin_dir = fake_venv / "bin"
+    bin_dir.mkdir(parents=True)
+    (bin_dir / "activate").write_text("# fake activate\n")
+    fake_python = bin_dir / "python"
+    fake_python.write_text("#!/bin/bash\nexit 1\n")
+    fake_python.chmod(0o755)
+
+    real_marker_dir = REPO / "cache" / "imbalance"
+    real_marker_dir.mkdir(parents=True, exist_ok=True)
+    marker_path = real_marker_dir / f".push_status_{today}"
+    marker_path.unlink(missing_ok=True)
+
+    try:
+        result = subprocess.run(
+            ["bash", str(REPO / "automation" / "launchd" / "run-c13-imbalance.sh")],
+            env={
+                **os.environ,
+                "C13_VENV": str(fake_venv),
+                "C13_WATCHLIST": "/dev/null",
+            },
+            capture_output=True,
+            text=True,
+            cwd=str(REPO),
+        )
+        assert result.returncode != 0, (
+            "run-c13-imbalance.sh should fail when collector exits non-zero"
+        )
+        assert marker_path.exists(), (
+            "run-c13-imbalance.sh: no degraded marker written on collector failure.\n"
+            f"stdout: {result.stdout[:400]}\nstderr: {result.stderr[:400]}"
+        )
+        content = marker_path.read_text()
+        assert content.startswith("degraded:collector-error:"), (
+            f"run-c13-imbalance.sh: unexpected marker content: {content!r}"
+        )
+    finally:
+        marker_path.unlink(missing_ok=True)
+
+
+def test_phase_a_sh_incubation_failure_path_writes_degraded_marker() -> None:
+    """Static guard: run-c13-phase-a.sh must wrap run_smc_live_incubation
+    in an ``if !`` block and call ``_write_marker "DEGRADED"`` on failure.
+
+    SA-02 regression guard (audit 2026-06-14).
+    The subprocess equivalent is impractical (requires a multi-step fake
+    venv that passes build_phase_a_inputs but fails the runner), so we
+    enforce the invariant via source inspection instead.
+    """
+    text = (REPO / "automation" / "launchd" / "run-c13-phase-a.sh").read_text()
+    assert 'if ! "${PY}" -m scripts.run_smc_live_incubation' in text, (
+        "run-c13-phase-a.sh: run_smc_live_incubation must be wrapped in "
+        "``if !`` so a non-zero exit can be caught — SA-02 fix missing."
+    )
+    assert '_write_marker "DEGRADED" "incubation-failed:' in text, (
+        "run-c13-phase-a.sh: DEGRADED marker write missing for incubation "
+        "failure path — SA-02 fix missing."
+    )
+    # Sanity: the SUCCESS marker must still be present on the happy path.
+    assert '_write_marker "SUCCESS" "incubation-complete:' in text, (
+        "run-c13-phase-a.sh: SUCCESS marker write on happy path not found."
+    )
