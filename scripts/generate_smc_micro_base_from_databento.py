@@ -1191,9 +1191,16 @@ def build_enrichment(
                                 largest = max(ok_buckets, key=lambda v: v.get("n_events", 0))
                                 _calibrated_meta["smooth_ece"] = largest["smooth_ece"]
                         except Exception:
-                            pass
+                            logger.debug(
+                                "per-bucket calibration parse failed for %s",
+                                _per_bucket_path,
+                                exc_info=True,
+                            )
                 except Exception:
-                    pass
+                    logger.debug(
+                        "per-bucket calibration load failed",
+                        exc_info=True,
+                    )
                 break
 
         # Gather context from already-computed enrichment blocks

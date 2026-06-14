@@ -18,6 +18,7 @@ The acceptance bar from
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Iterable, Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -33,6 +34,8 @@ from scripts.drift_alert import (
     psi_severity,
     welch_t_two_sample,
 )
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "CALIBRATION_SOURCE",
@@ -469,11 +472,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     results = replay_thresholds(episodes)
     out = write_report(results, args.out)
 
-    print(f"Wrote {out} ({len(results)} settings)")
+    logger.info("Wrote %s (%d settings)", out, len(results))
     passing = [r for r in results if r.passes_acceptance]
-    print(f"Passing acceptance (TPR≥0.80, FPR<0.10): {len(passing)}/{len(results)}")
+    logger.info(
+        "Passing acceptance (TPR\u226580%%, FPR<10%%): %d/%d",
+        len(passing),
+        len(results),
+    )
     if args.print_table:
-        print(format_markdown_table(results))
+        logger.info("\n%s", format_markdown_table(results))
     return 0
 
 
