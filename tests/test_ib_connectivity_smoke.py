@@ -4,6 +4,9 @@ Covers:
 - Argument parsing (defaults + --allow-live-port)
 - Live-port refusal path (returns 1, ib_async import never attempted)
 - ib_async ImportError exit code (returns 2)
+- scripts.ib_client_id ImportError exit code (returns 1)
+- Connected but empty accounts → returns 1
+- Connected but non-DU* (live) accounts → returns 1
 
 Fully offline: no real TWS connection is made.
 """
@@ -11,6 +14,7 @@ Fully offline: no real TWS connection is made.
 from __future__ import annotations
 
 import sys
+import types
 
 import pytest
 
@@ -34,18 +38,14 @@ def test_allow_live_port_flag_sets_true() -> None:
 
 
 @pytest.mark.parametrize("port", sorted(mod._LIVE_PORTS))
-def test_live_port_refused_without_flag(port: int) -> None:
+def test_live_port_refused_without_flag(
+    port: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """main() returns 1 immediately and never attempts ib_async import."""
-    # We can verify "no import attempted" by ensuring ib_async is absent and
-    # confirming we get 1 (not 2, which would mean we reached the import path).
-    saved = sys.modules.pop("ib_async", None)
-    sys.modules["ib_async"] = None  # would cause rc=2 if import were tried
-    try:
-        rc = mod.main(["--ib-port", str(port)])
-    finally:
-        sys.modules.pop("ib_async", None)
-        if saved is not None:
-            sys.modules["ib_async"] = saved
+    # Poisoning ib_async would cause rc=2 if the import were reached;
+    # getting rc=1 proves the live-port guard fires first.
+    monkeypatch.setitem(sys.modules, "ib_async", None)
+    rc = mod.main(["--ib-port", str(port)])
     assert rc == 1
 
 
@@ -66,3 +66,92 @@ def test_missing_ib_async_returns_2(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setitem(sys.modules, "ib_async", None)
     rc = mod.main([])
     assert rc == 2
+
+
+def test_missing_ib_client_id_module_returns_1(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If scripts.ib_client_id is not importable, main() must return 1."""
+    # Provide an ib_async stub with IB so we pass that import and reach
+    # the ib_client_id import branch.
+    ib_stub = types.ModuleType("ib_async")
+    ib_stub.IB = object  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "ib_async", ib_stub)
+    monkeypatch.setitem(sys.modules, "scripts.ib_client_id", None)
+    rc = mod.main([])
+    assert rc == 1
+
+
+def _make_fake_ib(accounts: list[str]) -> object:
+    """Return a minimal fake IB client suitable for the connected-path tests."""
+
+    class FakeWrapper:
+        pass
+
+    class FakeClient:
+        def serverVersion(self) -> int:
+            return 176
+
+    class FakeIB:
+        wrapper = FakeWrapper()
+        client = FakeClient()
+
+        def connect(self, **_kw: object) -> None:
+            pass
+
+        def isConnected(self) -> bool:
+            return True
+
+        def disconnect(self) -> None:
+            pass
+
+    fw = FakeWrapper()
+    fw.accounts = set(accounts)  # type: ignore[attr-defined]
+    fi = FakeIB()
+    fi.wrapper = fw
+    return fi
+
+
+def _patch_for_connected(
+    monkeypatch: pytest.MonkeyPatch,
+    accounts: list[str],
+) -> None:
+    """Wire up ib_async + ib_client_id stubs and a fake IB session."""
+    fake_ib = _make_fake_ib(accounts)
+
+    ib_stub = types.ModuleType("ib_async")
+    ib_stub.IB = lambda: fake_ib  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "ib_async", ib_stub)
+
+    cid_stub = types.ModuleType("scripts.ib_client_id")
+    cid_stub.allocate_ib_client_id = lambda _svc: 99  # type: ignore[attr-defined]
+    cid_stub.release_ib_client_id = lambda _cid: None  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "scripts.ib_client_id", cid_stub)
+
+
+def test_connected_empty_accounts_returns_1(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Connected but no managed account → return 1."""
+    _patch_for_connected(monkeypatch, accounts=[])
+    rc = mod.main(["--ib-client-id", "1"])
+    assert rc == 1
+
+
+def test_connected_live_accounts_returns_1(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Connected but non-DU* (live) accounts → return 1 (safety guard)."""
+    _patch_for_connected(monkeypatch, accounts=["U1234567"])
+    rc = mod.main(["--ib-client-id", "1"])
+    assert rc == 1
+
+
+def test_connected_paper_account_returns_0(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Connected with a valid DU* paper account → return 0 (smoke OK)."""
+    _patch_for_connected(monkeypatch, accounts=["DUP862066"])
+    rc = mod.main(["--ib-client-id", "1"])
+    assert rc == 0
+

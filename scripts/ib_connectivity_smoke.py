@@ -110,8 +110,11 @@ def main(argv: list[str] | None = None) -> int:
     allocated = False
     client_id = args.ib_client_id
     if client_id is None:
-        from scripts.ib_client_id import allocate_ib_client_id
-
+        try:
+            from scripts.ib_client_id import allocate_ib_client_id
+        except ImportError as exc:
+            LOGGER.error("Could not import scripts.ib_client_id: %s", exc)
+            return 1
         client_id = allocate_ib_client_id("c13_connectivity_smoke")
         allocated = True
 
@@ -155,6 +158,14 @@ def main(argv: list[str] | None = None) -> int:
             LOGGER.error(
                 "Connected but no managed account returned — the gateway "
                 "is up but not logged into a (paper) account."
+            )
+            return 1
+        if not all(str(a).startswith("DU") for a in accounts):
+            LOGGER.error(
+                "Connected to port %s but managed accounts %r are not all "
+                "DU* paper accounts — this may be a live TWS. Aborting.",
+                args.ib_port,
+                accounts,
             )
             return 1
         LOGGER.info("Managed accounts: %s", ", ".join(accounts))
