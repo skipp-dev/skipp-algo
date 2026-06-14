@@ -122,6 +122,7 @@ def main(argv: list[str] | None = None) -> int:
             port=args.ib_port,
             clientId=client_id,
             timeout=args.timeout,
+            readonly=True,
         )
     except Exception as exc:  # pragma: no cover — exercised live
         LOGGER.error(
@@ -141,7 +142,7 @@ def main(argv: list[str] | None = None) -> int:
             LOGGER.error("connect() returned but isConnected() is False.")
             return 1
 
-        accounts = list(ib_client.managedAccounts() or [])
+        accounts = list(getattr(getattr(ib_client, "wrapper", None), "accounts", None) or [])
         server_version = ib_client.client.serverVersion()
         LOGGER.info(
             "Connected to %s:%s (clientId=%s, serverVersion=%s).",
