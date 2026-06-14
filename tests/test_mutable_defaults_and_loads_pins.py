@@ -189,7 +189,7 @@ _FROZEN_ENV_SUBSCRIPT_SITES: frozenset[tuple[str, int]] = frozenset(
         # macro.py:2041 and macro.py:2050 are gone. See
         # ``docs/AUDIT_L1_REVIEW_RETROSPECTIVE_2026-05-12.md`` § R6.
         ("open_prep/realtime_signals.py", 2646),
-        ("open_prep/streamlit_monitor.py", 78),
+        ("open_prep/streamlit_monitor.py", 79),  # +1 from import time as _time (PR #2764)
         ("streamlit_terminal.py", 327),
     }
 )
