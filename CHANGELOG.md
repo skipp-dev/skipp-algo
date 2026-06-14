@@ -364,6 +364,21 @@ Keine Workflow-Änderung nötig: `credential-health-check.yml` reicht
 täglichen 06:00-UTC-Lauf mit. Tests: 402-Kontrakt für alle 4 Probes +
 8 Delivery-Probe-Fälle (frisch/stale/Schwelle/leerer Key/kein
 `end`/Netzfehler/date-only/Basic-Auth-URL).
+### Changed (2026-06-12) — F2 contextual candidate: SPRT accept_h0 final, Spec auf rolled_back
+
+Das F2-Kontextual-Experiment (`f2-contextual-zone-priority-promotion`)
+ist abgeschlossen: Gate-Run 27426121665 akzeptierte H0 auf dem
+Post-Fix-Dual-Arm-Korpus (n=1664 > max_n=1200, LLR=−5.14 <
+Wald-Lower −1.56; Treatment-Brier 0.2804 vs. Control 0.2375 —
+Arme nachweislich verschieden, anders als beim void 2026-06-09-Verdict).
+Spec-Status `live → rolled_back` geflippt (Treatment-Artefakt war nie
+production; Revert = noop_already_shadow). Neuer ADR
+`2026-06-12 f2-contextual-sprt-h0-final` in `docs/DECISIONS.md`.
+`f2-promotion-gate-daily.yml` bekommt einen `spec-status`-Guard-Job,
+der das Gate bei `status=rolled_back` soft-skippt, statt täglich mit
+rc=2 rot zu laufen. Ein neuer Kandidat braucht eine frische
+Spec-Registrierung plus `plumbing_only → live`-Flip (Auto-Reset des
+SPRT-States via `scripts/f2_flip_status.py`).
 
 ### Fixed (2026-06-12) — Workflow-Audit MITTEL-11: newsapi bot-branch push fail-loud
 
