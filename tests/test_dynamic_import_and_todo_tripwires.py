@@ -91,11 +91,11 @@ _FROZEN_DUNDER_IMPORT_SITES: frozenset[tuple[str, int]] = frozenset(
         # instrumentation in streamlit_monitor.py shifted the lazy imports.
         # Same 5 lazy ``time`` imports inside the Streamlit re-render loop;
         # no semantic change.
-        ("open_prep/streamlit_monitor.py", 1263),
-        ("open_prep/streamlit_monitor.py", 1275),
-        ("open_prep/streamlit_monitor.py", 1314),
-        ("open_prep/streamlit_monitor.py", 1317),
-        ("open_prep/streamlit_monitor.py", 1342),
+        ("open_prep/streamlit_monitor.py", 1267),
+        ("open_prep/streamlit_monitor.py", 1279),
+        ("open_prep/streamlit_monitor.py", 1318),
+        ("open_prep/streamlit_monitor.py", 1321),
+        ("open_prep/streamlit_monitor.py", 1346),
     }
 )
 
