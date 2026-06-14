@@ -313,7 +313,7 @@ jobs:
           #
           # GHA-quirk pin (2026-05-20, Phase-B Run 1 post-mortem): for
           # ``type: boolean`` workflow_dispatch inputs GHA exposes the value
-          # as a real boolean in the ``${{ inputs.* }}`` context, NOT the
+          # as a real boolean in the ``$\{\{ inputs.* \}\}`` context, NOT the
           # string form. The original PR-A form compared the input with a
           # quoted string literal and therefore always evaluated false
           # (string-vs-boolean compare) — the env stayed empty even on
