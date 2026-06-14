@@ -87,15 +87,15 @@ def _all_dunder_import_sites() -> list[tuple[str, int]]:
 
 _FROZEN_DUNDER_IMPORT_SITES: frozenset[tuple[str, int]] = frozenset(
     {
-        # Line numbers refreshed 2026-05-12 after OPRA UOA docstring +
-        # comment expansions in _cached_bz_options_op shifted everything
-        # below it down by ~36 lines. Same 5 lazy ``time`` imports inside
-        # the Streamlit re-render loop; no semantic change.
-        ("open_prep/streamlit_monitor.py", 1245),
-        ("open_prep/streamlit_monitor.py", 1257),
-        ("open_prep/streamlit_monitor.py", 1292),
-        ("open_prep/streamlit_monitor.py", 1295),
-        ("open_prep/streamlit_monitor.py", 1320),
+        # Line numbers refreshed 2026-06-13 after Audit E-1 RS logging
+        # instrumentation in streamlit_monitor.py shifted the lazy imports.
+        # Same 5 lazy ``time`` imports inside the Streamlit re-render loop;
+        # no semantic change.
+        ("open_prep/streamlit_monitor.py", 1263),
+        ("open_prep/streamlit_monitor.py", 1275),
+        ("open_prep/streamlit_monitor.py", 1314),
+        ("open_prep/streamlit_monitor.py", 1317),
+        ("open_prep/streamlit_monitor.py", 1342),
     }
 )
 

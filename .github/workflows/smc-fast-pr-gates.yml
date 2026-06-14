@@ -159,6 +159,9 @@ jobs:
         if: steps.gate.outputs.run_heavy == 'true'
         env:
           # Baseline measured 2026-06-12 (offline mode, zizmor 1.25.2).
+          # high 92→91 on PR #2741: excessive-permissions finding in
+          # f2-promotion-gate-daily.yml resolved by moving issues:write to
+          # job-level in promotion-gate. medium 53→52 (artipacked fix).
           ZIZMOR_HIGH_BUDGET: "91"
           ZIZMOR_MEDIUM_BUDGET: "52"
         run: |

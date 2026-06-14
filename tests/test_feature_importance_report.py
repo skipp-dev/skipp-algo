@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 import open_prep.feature_importance_report as fr
@@ -325,6 +326,28 @@ class TestRankingDrift:
     def test_load_previous_latest_invalid_json(self, tmp_path) -> None:
         (tmp_path / "latest.json").write_text("{not json", encoding="utf-8")
         assert fr._load_previous_latest(tmp_path) is None
+
+    def test_load_previous_latest_invalid_json_logs_debug(self, tmp_path, caplog) -> None:
+        (tmp_path / "latest.json").write_text("{not json", encoding="utf-8")
+        with caplog.at_level(logging.DEBUG, logger="open_prep.feature_importance_report"):
+            assert fr._load_previous_latest(tmp_path) is None
+        assert "FI latest.json unlesbar" in caplog.text
+        debug_records = [r for r in caplog.records if "FI latest.json unlesbar" in r.message]
+        assert debug_records, "Expected at least one log record matching the message"
+        assert all(r.levelno == logging.DEBUG for r in debug_records), (
+            f"Expected DEBUG level, got: {[r.levelname for r in debug_records]}"
+        )
+
+    def test_load_previous_latest_invalid_utf8_logs_debug(self, tmp_path, caplog) -> None:
+        (tmp_path / "latest.json").write_bytes(b"\xff\xfe\xfa")
+        with caplog.at_level(logging.DEBUG, logger="open_prep.feature_importance_report"):
+            assert fr._load_previous_latest(tmp_path) is None
+        assert "FI latest.json unlesbar" in caplog.text
+        debug_records = [r for r in caplog.records if "FI latest.json unlesbar" in r.message]
+        assert debug_records, "Expected at least one log record matching the message"
+        assert all(r.levelno == logging.DEBUG for r in debug_records), (
+            f"Expected DEBUG level, got: {[r.levelname for r in debug_records]}"
+        )
 
     def test_load_previous_latest_roundtrip(self, tmp_path) -> None:
         payload = {"status": "ok", "run_id": "x"}
