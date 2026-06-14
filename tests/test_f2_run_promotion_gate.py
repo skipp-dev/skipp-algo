@@ -365,7 +365,7 @@ def test_spec_status_warning_surfaces_for_hold_decision(tmp_path: Path) -> None:
     assert report["warnings"]
 
 
-def test_cli_shipped_spec_promotes_under_live(tmp_path: Path) -> None:
+def test_cli_rolled_back_spec_holds_despite_eligible_history(tmp_path: Path) -> None:
     """Shipped spec is rolled_back: promote path must be disabled.
 
     History: pinned ``decision=hold`` under ``plumbing_only``, then

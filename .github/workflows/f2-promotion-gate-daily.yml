@@ -115,7 +115,7 @@ jobs:
             echo "status=missing" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          STATUS=$(python3 -c "import json; print((json.load(open('${SPEC}')) or {}).get('status','registered'))")
+          STATUS=$(jq -r '.status // "registered"' "${SPEC}" 2>/dev/null || echo "registered")
           echo "status=${STATUS}" >> "$GITHUB_OUTPUT"
           if [ "${STATUS}" = "rolled_back" ]; then
             echo "::notice title=f2-promotion-gate-daily::spec status=rolled_back — experiment concluded (SPRT accept_h0, ADR 2026-06-12); skipping gate"
@@ -126,6 +126,10 @@ jobs:
     if: ${{ needs.spec-status.outputs.status != 'rolled_back' }}
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+      issues: write  # zizmor: job-level least-privilege (Copilot review #2741)
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
