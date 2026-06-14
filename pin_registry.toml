@@ -74,7 +74,7 @@
 # _is_urlopen_call to match ast.Name in addition to ast.Attribute.
 # All have timeout=; none were visible to the old Attribute-only detector.
 "databento_universe.py" = [306]
-"databento_volatility_screener.py" = [1429]
+"databento_volatility_screener.py" = [1430]
 "open_prep/bea.py" = [94]
 # 2026-06-11 (eval-findings B8): surprise-scale comment block +8 (713→721).
 "open_prep/macro.py" = [736]

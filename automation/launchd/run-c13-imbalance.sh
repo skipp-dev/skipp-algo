@@ -19,14 +19,20 @@ SUMMARY="${REPO}/cache/imbalance/${DATE}.summary.json"
 MARKER="${REPO}/cache/imbalance/.push_status_${DATE}"
 TS="$(date -u +%FT%TZ)"
 
+_write_marker() {
+    local marker_path="$1"
+    local marker_value="$2"
+    mkdir -p "$(dirname "${marker_path}")" 2>/dev/null || true
+    printf '%s\n' "${marker_value}" > "${marker_path}" 2>/dev/null || true
+}
+
 cd "${REPO}"
 # Lane 7: venv-realism guard. Sourcing a missing activate yields a
 # cryptic ``no such file or directory`` from inside `set -u`; surface a
 # clear error so the operator can fix C13_VENV in the plist.
 if [[ ! -f "${VENV}/bin/activate" ]]; then
     echo "imbalance cron: virtualenv activate script not found at ${VENV}/bin/activate (set C13_VENV in plist)" >&2
-    mkdir -p "$(dirname "${MARKER}")" 2>/dev/null || true
-    printf 'degraded:preflight-error:%s\n' "${TS}" > "${MARKER}" 2>/dev/null || true
+    _write_marker "${MARKER}" "degraded:preflight-error:${TS}"
     exit 1
 fi
 # shellcheck disable=SC1091
@@ -38,7 +44,7 @@ source "${VENV}/bin/activate"
 PY="${VENV}/bin/python"
 if [[ ! -x "${PY}" ]]; then
     echo "imbalance cron: python interpreter not executable at ${PY}" >&2
-    printf 'degraded:preflight-error:%s\n' "${TS}" > "${MARKER}" 2>/dev/null || true
+    _write_marker "${MARKER}" "degraded:preflight-error:${TS}"
     exit 1
 fi
 
@@ -54,7 +60,7 @@ if "${PY}" -m scripts.collect_opening_imbalances \
 else
     rc=$?
     echo "imbalance cron: collect_opening_imbalances FAILED (exit ${rc}) — see above for details" >&2
-    printf 'degraded:collector-error:%s\n' "${TS}" > "${MARKER}" 2>/dev/null || true
+    _write_marker "${MARKER}" "degraded:collector-error:${TS}"
     exit 1
 fi
 
