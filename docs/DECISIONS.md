@@ -618,8 +618,8 @@ from `live`: `live` denotes an *active shadow experiment*, and no
   treatment is worse on every metric, the H0 acceptance is
   directionally robust to that contamination; but a code-deploy
   boundary (not just a status flip) should trigger an explicit
-  corpus reset. Tracked as a follow-up — do **not** treat this ADR
-  as evidence that the reset path works.
+  corpus reset. Tracked externally in issue #2770 — do **not**
+  treat this ADR as evidence that the reset path works.
 
 **Evidence.**
 
