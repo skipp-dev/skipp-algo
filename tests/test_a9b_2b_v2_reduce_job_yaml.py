@@ -347,10 +347,12 @@ def test_run_blocks_do_not_reference_unresolvable_template_expressions() -> None
         re.compile(r"\$\{\{\s*fromJson\("),     # fromJson(...) inside run
     )
     offenders: list[tuple[str, str, str, str]] = []
+    parse_errors: list[str] = []
     for wf_path in sorted(workflows_dir.glob("*.yml")):
         try:
             doc = yaml.safe_load(wf_path.read_text())
-        except Exception:
+        except Exception as exc:
+            parse_errors.append(f"{wf_path.name}: {exc}")
             continue
         if not isinstance(doc, dict) or "jobs" not in doc:
             continue
@@ -368,6 +370,11 @@ def test_run_blocks_do_not_reference_unresolvable_template_expressions() -> None
                             str(step.get("name", "<unnamed>")),
                             m.group(0),
                         ))
+    assert not parse_errors, (
+        "Workflow YAML parse failure(s) — the template-expression guard "
+        "cannot run on these files and would produce false negatives. "
+        f"Fix or remove the broken workflow(s): {parse_errors}"
+    )
     assert not offenders, (
         f"run: blocks must not contain ${{{{ fromJson(...) }}}} expressions — "
         f"GHA evaluates these even in shell comments and crashes when the "

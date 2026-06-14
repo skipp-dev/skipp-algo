@@ -78,8 +78,10 @@ def _build_parser() -> argparse.ArgumentParser:
         "--allow-live-port",
         action="store_true",
         help=(
-            "Permit smoke-testing a live trading port (7496/4001). "
-            "Off by default — the runbook is paper-only."
+            "Permit smoke-testing on a live trading port (7496/4001). "
+            "Off by default — the runbook is paper-only. "
+            "This flag only bypasses the port block-list; the DU* account "
+            "guard remains active regardless."
         ),
     )
     return parser
@@ -150,7 +152,7 @@ def main(argv: list[str] | None = None) -> int:
             LOGGER.error("connect() returned but isConnected() is False.")
             return 1
 
-        accounts = list(getattr(getattr(ib_client, "wrapper", None), "accounts", None) or [])
+        accounts = sorted(getattr(getattr(ib_client, "wrapper", None), "accounts", None) or [])
         server_version = ib_client.client.serverVersion()
         LOGGER.info(
             "Connected to %s:%s (clientId=%s, serverVersion=%s).",
