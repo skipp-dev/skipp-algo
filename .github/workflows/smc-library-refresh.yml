@@ -448,7 +448,6 @@ jobs:
           "$SMC_PYTHON_BIN" scripts/credential_health_check.py \
             --skip-tv \
             --skip-gh-pat \
-            --skip-newsapi \
             --databento-key-env DATABENTO_API_KEY \
             --fmp-key-env FMP_API_KEY \
             --output artifacts/ci/provider_preflight.json
