@@ -33,7 +33,7 @@ DEFAULT_ROOT = Path("artifacts/ci/measurement_benchmark_2026-04-22_partial50_v3"
 
 def _iter_events(root: Path) -> Iterable[dict]:
     for fp in sorted(root.glob("*/*/events_*.jsonl")):
-        for line in fp.read_text().splitlines():
+        for line in fp.read_text(encoding="utf-8").splitlines():
             line = line.strip()
             if not line:
                 continue

@@ -181,7 +181,9 @@ def test_no_warnings_ignore_in_prod() -> None:
 _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     ("newsstack_fmp/run.py", 22),
     ("open_prep/candidate_weights.py", 207),
-    ("open_prep/feature_importance_report.py", 305),
+    # 2026-06-13 (audit-e2/aw7-reader-observability, PR #2759): _load_previous_latest
+    #   DEBUG log insertion shifted logging.basicConfig from 305 → 306.
+    ("open_prep/feature_importance_report.py", 306),
     # 2026-06-11 (backfill defer-unpublished): 418→457.
     # 2026-06-11 (eval-findings B1/B2): direction+TB code shifted 457→536.
     # 2026-06-11 (c10b FI component persistence): era-gate block 536→558.

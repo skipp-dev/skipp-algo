@@ -102,11 +102,13 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # retry-backoff (HTTP 429 + connect error).
         # 2026-06-11 (eval-findings B8): surprise-scale comment block +8
         # (776→784, 795→803).
-        ("open_prep/macro.py", 784),
-        ("open_prep/macro.py", 803),
+        # 2026-06-13: profile-bulk pagination constant shifted +1
+        # (784→785, 803→804); sleeps unchanged: retry-backoff paths.
+        ("open_prep/macro.py", 785),
+        ("open_prep/macro.py", 804),
         ("newsstack_fmp/ingest_fmp_political.py", 122),
         ("newsstack_fmp/ingest_fmp_political.py", 135),
-        ("newsstack_fmp/shared_fetch.py", 279),
+        ("newsstack_fmp/shared_fetch.py", 297),
         ("newsstack_fmp/pipeline.py", 1208),
         ("newsstack_fmp/store_sqlite.py", 81),
         ("newsstack_fmp/store_sqlite.py", 86),

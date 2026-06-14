@@ -556,3 +556,59 @@ are pairwise identical (`n_events` and `hit_rate`) as
   shadowing) that prompted auditing other A/B surfaces.
 
 **Status.** accepted.
+
+### 2026-06-12 - f2-contextual-sprt-h0-final
+
+**Context.** After the 2026-06-10 dual-arm fix (PR #2664: raw_score
+shadowing removed, spec SPRT params wired into `compare()`), the F2
+promotion gate re-ran on a verifiably distinct dual-arm corpus. Gate
+run 27426121665 (2026-06-12) accepted H0 with `n = 1664`, `k = 888`,
+`LLR = −5.1415` — well below the lower Wald boundary `−1.5581` and
+past `max_n = 1200`. Treatment hit rate (53.37 %) equals the control
+rate (53.36 %); on the calibration KPIs the treatment is strictly
+worse (Brier 0.2804 vs 0.2375, calibrated_ece 0.1089 vs 0.0988).
+Unlike the void 2026-06-09 verdict, the arms demonstrably differ
+(non-zero KPI deltas), and the gate consumes only the same-day
+dual-arm artifact (no cross-day SPRT state file exists — see
+`scripts/f2_flip_status.py` docstring), so no pre-fix ctrl-vs-ctrl
+observations contaminate the corpus.
+
+**Decision.** Accept the SPRT H0 verdict as final for the
+contextual-weights-plus-quality-score candidate. Flip the spec status
+`live → rolled_back`. The treatment artifact stays shadow-only (the
+gate's revert action was `noop_already_shadow` — it never reached
+production). The daily gate workflow soft-skips while the spec is
+`rolled_back` so the cron stops signalling red for an
+already-decided experiment.
+
+**Alternatives considered.**
+
+- *Extend the trial.* Rejected — `n = 1664 > max_n = 1200` and
+  `LLR = −5.14` is 3.3× below the lower boundary; the verdict is
+  terminal under the pre-registered design.
+- *Suspect another arms-identity bug.* Rejected — the KPI deltas are
+  non-zero (Brier +0.043), which is exactly the invariant the
+  2026-06-10 ADR established for distinguishing a real null from a
+  broken experiment.
+
+**Consequences.**
+
+- Static global zone-priority weights remain production; no
+  user-visible change.
+- The contextual candidate (session × vol_regime weights + FVG
+  quality score) is falsified at +3 pp MDE. A future candidate needs
+  a new spec registration and a fresh `plumbing_only → live` cycle
+  (which auto-resets SPRT state via `scripts/f2_flip_status.py`).
+- The f2-promotion-gate-daily cron soft-skips on
+  `status == rolled_back` instead of failing daily with rc=2.
+
+**Evidence.**
+
+- [F2 promotion-gate run 27426121665](https://github.com/skippALGO/skipp-algo/actions/runs/27426121665)
+  — `decision: rollback, reason: SPRT accepted H0 (n=1664, k=888, llr=-5.1415)`.
+- `f2_promotion_gate_2026-06-12.json` (run artifact) — full KPI table
+  and SPRT block (`p0: 0.544`, `p1: 0.574`, `max_n: 1200`).
+- [2026-06-10 - f2-dual-arm-raw-score-shadowing](#2026-06-10---f2-dual-arm-raw-score-shadowing)
+  — the fix that makes this corpus valid where the 2026-06-09 one was not.
+
+**Status.** accepted.

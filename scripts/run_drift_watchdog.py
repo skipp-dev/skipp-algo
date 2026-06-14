@@ -334,6 +334,21 @@ def build_report(
         # Don't escalate red→green on incomplete data; only soften green.
         report["aggregate_severity"] = "yellow"
         report["reason"] = "incomplete_window"
+    # W8-1 (stat-review wave 8): when the baseline carries per-setup blocks
+    # (a per-setup comparison was INTENDED) but live outcomes lacked setup
+    # attribution so no pnl_per_trade[setup=…] pair could be formed, a green
+    # verdict silently hides the fact that per-setup drift was never checked.
+    # Mirror the incomplete_window pattern above: soften green→yellow as an
+    # operator signal. Like incomplete_window this does not block the phase
+    # gate (which passes on severity != "red"), but it surfaces the gap
+    # instead of a clean green that masks an un-run per-setup comparison.
+    if (
+        bool(baseline.get("per_setup"))
+        and not per_setup_metrics
+        and report.get("aggregate_severity") == "green"
+    ):
+        report["aggregate_severity"] = "yellow"
+        report.setdefault("reason", "per_setup_unattributable")
     return report
 
 

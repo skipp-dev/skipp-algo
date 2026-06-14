@@ -75,10 +75,13 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     ("databento_volatility_screener.py", 603, "mkstemp"),
     ("governance/alpha_ledger.py", 70, "mkstemp"),
     ("newsstack_fmp/open_prep_export.py", 25, "mkstemp"),
+    ("newsstack_fmp/shared_fetch.py", 258, "mkstemp"),
     ("open_prep/alerts.py", 68, "mkstemp"),
     ("open_prep/candidate_weights.py", 146, "mkstemp"),
     ("open_prep/diff.py", 57, "mkstemp"),
-    ("open_prep/feature_importance_report.py", 249, "mkstemp"),
+    # 2026-06-13 (audit-e2/aw7-reader-observability, PR #2759): _load_previous_latest
+    #   DEBUG log insertion shifted mkstemp from 249 → 250.
+    ("open_prep/feature_importance_report.py", 250, "mkstemp"),
     # 2026-06-11 (backfill defer-unpublished): 88→107, 531→581.
     ("open_prep/outcome_backfill.py", 116, "mkstemp"),
     # 2026-06-11 (eval-findings B1/B2): direction+TB code shifted 581→660.

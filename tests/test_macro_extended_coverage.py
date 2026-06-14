@@ -629,13 +629,55 @@ def client_with_get(monkeypatch: pytest.MonkeyPatch, recorder: dict[str, Any]) -
     return client
 
 
-def test_get_profile_bulk_passes_no_params_and_returns_list(
-    client_with_get: FMPClient, recorder: dict[str, Any]
+def test_get_profile_bulk_paginates_parts_and_returns_combined_list(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    recorder["return"] = [{"symbol": "AAPL"}]
-    rows = client_with_get.get_profile_bulk()
-    assert recorder["call"] == ("/stable/profile-bulk", {})
+    client = FMPClient(api_key="K")
+    calls: list[tuple[str, dict[str, Any]]] = []
+
+    def fake_get(path: str, params: dict[str, Any]) -> Any:
+        calls.append((path, dict(params)))
+        payloads = {
+            0: [{"symbol": "AAPL"}],
+            1: [{"symbol": "MSFT"}],
+            2: [],
+        }
+        return payloads[int(params["part"])]
+
+    monkeypatch.setattr(client, "_get", fake_get)
+    rows = client.get_profile_bulk()
+    assert calls == [
+        ("/stable/profile-bulk", {"part": 0}),
+        ("/stable/profile-bulk", {"part": 1}),
+        ("/stable/profile-bulk", {"part": 2}),
+    ]
+    assert rows == [{"symbol": "AAPL"}, {"symbol": "MSFT"}]
+
+
+def test_get_profile_bulk_treats_out_of_range_part_400_as_end(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(macro, "_FMP_FEATURE_UNAVAILABLE_LOGGED", set())
+    client = FMPClient(api_key="K")
+    calls: list[tuple[str, dict[str, Any]]] = []
+
+    def fake_get(path: str, params: dict[str, Any]) -> Any:
+        calls.append((path, dict(params)))
+        if params["part"] == 0:
+            return [{"symbol": "AAPL"}]
+        raise RuntimeError(
+            "FMP API HTTP 400 on /stable/profile-bulk: "
+            "Query Error: Invalid or missing query parameter - part"
+        )
+
+    monkeypatch.setattr(client, "_get", fake_get)
+    rows = client.get_profile_bulk()
+    assert calls == [
+        ("/stable/profile-bulk", {"part": 0}),
+        ("/stable/profile-bulk", {"part": 1}),
+    ]
     assert rows == [{"symbol": "AAPL"}]
+    assert set() == macro._FMP_FEATURE_UNAVAILABLE_LOGGED
 
 
 def test_get_profile_bulk_swallows_runtime_error_and_logs_once(
@@ -646,6 +688,7 @@ def test_get_profile_bulk_swallows_runtime_error_and_logs_once(
     monkeypatch.setattr(macro, "_FMP_FEATURE_UNAVAILABLE_LOGGED", set())
     recorder["return"] = RuntimeError("fail")
     assert client_with_get.get_profile_bulk() == []
+    assert recorder["call"] == ("/stable/profile-bulk", {"part": 0})
 
 
 def test_get_profiles_uppercases_and_iterates_per_symbol(

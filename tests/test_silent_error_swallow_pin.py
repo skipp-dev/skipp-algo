@@ -8,9 +8,9 @@ Two related "errors disappear into the void" shapes:
   sites. Pinned as a hard zero-surface invariant.
 
 * **``except Exception: pass``** — silently swallows every error
-    with no log, no re-raise, no marker. Surface today: 9 sites
-    across 6 files (mix of opportunistic best-effort cleanup,
-    best-effort fallbacks, and Streamlit UI guards). Pinned as a
+    with no log, no re-raise, no marker. Surface today: 7 sites
+    across 5 files (mix of opportunistic best-effort cleanup and
+    best-effort fallbacks). Pinned as a
     frozen ledger so the count cannot grow without explicit
     acknowledgement.
 
@@ -67,14 +67,11 @@ _DIR_EXCLUDE = frozenset(
 #   for this guard; net additions / removals still fail closed.
 # ---------------------------------------------------------------------------
 _FROZEN_SITES: dict[str, int] = {
-    # 2026-05-12 OPRA UOA replacement: detector parses pd.Timestamp
-    # nanosecond conversion via .value attribute and falls back through
-    # int(value) cast on non-Timestamp inputs. The narrow swallow is the
-    # documented contract; see opra_uoa._normalize_ts().
-    "newsstack_fmp/opra_uoa.py": 1,
     "open_prep/alerts.py": 1,
-    "open_prep/streamlit_monitor.py": 2,
-    "scripts/generate_smc_micro_base_from_databento.py": 3,
+    # 2026-06-14 C-1 (Audit E-2): 2 of the 3 per-bucket calibration swallows
+    # were upgraded to logger.debug(exc_info=True); 1 remaining covers the
+    # outer retry guard that re-raises on a later path.
+    "scripts/generate_smc_micro_base_from_databento.py": 1,
     "smc_tv_bridge/smc_api.py": 1,
     # 2026-05-17 C12.1 ConstraintHitLog wiring: an audit-log write
     # failure must never block a guard decision. See HardConstraintLayer._log.

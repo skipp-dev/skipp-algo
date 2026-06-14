@@ -184,6 +184,25 @@ def test_deprecated_dispatch_only_has_no_schedule(path: Path) -> None:
     )
 
 
+@pytest.mark.parametrize("path", _all_workflow_files(), ids=lambda p: p.name)
+def test_at_most_one_live_window_marker(path: Path) -> None:
+    """Exactly one posture marker per file.
+
+    A second ``# live-window:`` line in the header is dead config: only the
+    first match is read (``_read_marker``), so a divergent posture word on a
+    later line silently misrepresents the workflow. Document the cron schedule
+    with a plain ``# Schedule:`` comment instead.
+    """
+    head = path.read_text(encoding="utf-8").splitlines()[:10]
+    markers = [ln for ln in head if _MARKER_RE.match(ln)]
+    assert len(markers) <= 1, (
+        f"{path.name}: {len(markers)} `# live-window:` markers in the first 10 "
+        "lines; only the first is read by the posture pins. Keep one marker and "
+        "use a plain `# Schedule:` comment for cron documentation.\n  "
+        + "\n  ".join(markers)
+    )
+
+
 def test_workflow_count_matches_expected() -> None:
     """Sanity: alert if a new workflow was added without a posture mapping."""
     assert len(_all_workflow_files()) >= 28, (

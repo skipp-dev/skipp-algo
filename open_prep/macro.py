@@ -36,6 +36,7 @@ with contextlib.suppress(Exception):  # pragma: no cover
 logger = logging.getLogger(__name__)
 _US_EASTERN = ZoneInfo("America/New_York")
 _FMP_FEATURE_UNAVAILABLE_LOGGED: set[str] = set()
+_FMP_PROFILE_BULK_MAX_PARTS = 100
 
 DEFAULT_HIGH_IMPACT_EVENTS: tuple[str, ...] = (
     "cpi",
@@ -846,16 +847,65 @@ class FMPClient:
         return diagnostics
 
     def get_profile_bulk(self) -> list[dict[str, Any]]:
-        try:
-            data = self._get("/stable/profile-bulk", {})
-        except RuntimeError as exc:
-            _log_feature_unavailable_once(
-                "stable/profile-bulk",
-                "FMP feature unavailable (stable/profile-bulk); continuing without profile bulk data.",
-                exc=exc,
-            )
-            return []
-        return list(data) if isinstance(data, list) else []
+        """Fetch all pages from FMP's stable profile-bulk endpoint.
+
+        FMP's stable ``/profile-bulk`` endpoint now requires a ``part``
+        query parameter and returns CSV payloads for successful pages.
+        :meth:`_parse_payload` already handles CSV → ``list[dict]``
+        conversion, so this method owns only pagination and graceful
+        degradation. Empty pages, or FMP's out-of-range ``part`` 400 after
+        at least one successful page, terminate the scan; provider/network
+        failures on part 0 return ``[]`` as before, while other failures
+        after one or more successful parts return the partial profile set.
+        """
+        rows: list[dict[str, Any]] = []
+        seen_symbols: set[str] = set()
+        for part in range(_FMP_PROFILE_BULK_MAX_PARTS):
+            try:
+                data = self._get("/stable/profile-bulk", {"part": part})
+            except RuntimeError as exc:
+                message = str(exc)
+                if rows and "Invalid or missing query parameter - part" in message:
+                    return rows
+                if rows:
+                    logger.warning(
+                        "FMP profile-bulk failed on part %d after %d rows; "
+                        "returning partial profile bulk data (%s)",
+                        part,
+                        len(rows),
+                        message,
+                    )
+                    return rows
+                _log_feature_unavailable_once(
+                    "stable/profile-bulk",
+                    "FMP feature unavailable (stable/profile-bulk); continuing without profile bulk data.",
+                    exc=exc,
+                )
+                return rows
+            if not isinstance(data, list) or not data:
+                return rows
+
+            added = 0
+            for item in data:
+                if not isinstance(item, dict):
+                    continue
+                row = dict(item)
+                symbol = str(row.get("symbol") or "").strip().upper()
+                if symbol:
+                    if symbol in seen_symbols:
+                        continue
+                    seen_symbols.add(symbol)
+                rows.append(row)
+                added += 1
+            if added == 0:
+                return rows
+
+        logger.warning(
+            "FMP profile-bulk reached max part budget (%d); returning %d rows",
+            _FMP_PROFILE_BULK_MAX_PARTS,
+            len(rows),
+        )
+        return rows
 
     def get_profiles(self, symbols: list[str]) -> list[dict[str, Any]]:
         # FMP /stable/profile only accepts a SINGLE symbol; passing a comma-
