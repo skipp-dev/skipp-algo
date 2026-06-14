@@ -53,7 +53,7 @@ def _step_refresh(symbol: str, timeframe: str, artifacts_dir: Path) -> dict:
         "--output", str(output_path),
     ]
     exit_code = refresh_main()
-    report = json.loads(output_path.read_text()) if output_path.exists() else {}
+    report = json.loads(output_path.read_text(encoding="utf-8")) if output_path.exists() else {}
     status = report.get("overall_status", "unknown")
     manifests = report.get("refresh_manifests", [])
     artifacts_written = sum(
@@ -97,7 +97,7 @@ def _step_benchmark(symbol: str, timeframe: str, artifacts_dir: Path) -> dict:
 
     summary_path = output_dir / symbol / timeframe / f"measurement_summary_{symbol}_{timeframe}.json"
     if summary_path.exists():
-        summary = json.loads(summary_path.read_text())
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
         n_events = summary.get("scoring", {}).get("n_events", 0)
         brier = summary.get("scoring", {}).get("brier_score")
     else:
@@ -133,7 +133,7 @@ def _step_release_gates(symbol: str, timeframe: str, artifacts_dir: Path) -> dic
         exit_code = int(exc.code) if exc.code is not None else 1
 
     if output_path.exists():
-        report = json.loads(output_path.read_text())
+        report = json.loads(output_path.read_text(encoding="utf-8"))
         gate_names = [g.get("name") for g in report.get("gates", [])]
         overall = report.get("overall_status", "unknown")
     else:

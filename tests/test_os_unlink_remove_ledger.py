@@ -93,7 +93,9 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     ("open_prep/alerts.py", 79, "unlink"),
     ("open_prep/candidate_weights.py", 154, "unlink"),
     ("open_prep/diff.py", 68, "unlink"),
-    ("open_prep/feature_importance_report.py", 257, "unlink"),
+    # 2026-06-13 (audit-e2/aw7-reader-observability, PR #2759): _load_previous_latest
+    #   DEBUG log insertion shifted unlink from 257 → 258.
+    ("open_prep/feature_importance_report.py", 258, "unlink"),
     # 2026-06-11 (backfill defer-unpublished): 97→116, 539→589.
     # 2026-06-11 (eval-findings B1/B2): direction+triple-barrier code in
     # compute_pnl_from_bars + backfill loop shifted 589→668.
