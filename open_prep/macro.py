@@ -38,6 +38,13 @@ _US_EASTERN = ZoneInfo("America/New_York")
 _FMP_FEATURE_UNAVAILABLE_LOGGED: set[str] = set()
 _FMP_PROFILE_BULK_MAX_PARTS = 100
 
+# R-E2 (2026-06-14): _normalize_tls_certificate_env writes to os.environ which
+# is a process-global mutable shared across all threads. Guard the write with a
+# module-level lock and execute at most once per process to prevent racy writes
+# from ThreadPoolExecutor workers invoking _build_tls_context() concurrently.
+_TLS_NORM_LOCK: threading.Lock = threading.Lock()
+_TLS_NORM_DONE: bool = False
+
 DEFAULT_HIGH_IMPACT_EVENTS: tuple[str, ...] = (
     "cpi",
     "core cpi",
@@ -134,19 +141,26 @@ def _normalize_tls_certificate_env() -> str | None:
     if certifi is None:
         return None
     cafile = str(certifi.where())
-    for env_name in ("SSL_CERT_FILE", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE"):
-        current = str(os.getenv(env_name) or "").strip()
-        if not current or current == cafile:
-            continue
-        if Path(current).exists():
-            continue
-        logger.warning(
-            "Replacing invalid TLS CA bundle path from %s=%s with certifi bundle %s.",
-            env_name,
-            current,
-            cafile,
-        )
-        os.environ[env_name] = cafile
+    global _TLS_NORM_DONE
+    if _TLS_NORM_DONE:
+        return cafile
+    with _TLS_NORM_LOCK:
+        if _TLS_NORM_DONE:
+            return cafile
+        for env_name in ("SSL_CERT_FILE", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE"):
+            current = str(os.getenv(env_name) or "").strip()
+            if not current or current == cafile:
+                continue
+            if Path(current).exists():
+                continue
+            logger.warning(
+                "Replacing invalid TLS CA bundle path from %s=%s with certifi bundle %s.",
+                env_name,
+                current,
+                cafile,
+            )
+            os.environ[env_name] = cafile
+        _TLS_NORM_DONE = True
     return cafile
 
 
