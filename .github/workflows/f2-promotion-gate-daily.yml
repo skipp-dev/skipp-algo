@@ -63,16 +63,11 @@ on:
         required: false
         default: ""
 
-# issues:write required by gate job (§2.4 G2 rollback-issue ping);
-# spec-status uses a job-level override (contents:read only).
+# Workflow-level: minimal read-only default.
+# issues:write + actions:read are scoped to the promotion-gate job only
+# (Copilot review #2741 — least-privilege per-job override).
 permissions:
   contents: read
-  # §2.4 G2 GitHub-Issue-Ping rule needs issues:write so the workflow
-  # can file a rollback issue when the gate exits with rc=2.
-  issues: write
-  # §2.4 G3 dual-arm wiring — `gh run list` + `gh run download` need
-  # actions:read to fetch the rolling-bench artifact.
-  actions: read
 
 concurrency:
   group: f2-promotion-gate-daily
