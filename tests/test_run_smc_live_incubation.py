@@ -315,6 +315,43 @@ def test_cli_live_phase_loads_account_state_json(tmp_path: Path) -> None:
     assert rc == 0
 
 
+def test_cli_live_phase_refuses_empty_gate_statuses(tmp_path: Path) -> None:
+    """W8-3 (stat-review wave 8): a live phase with an empty gate-statuses
+    map has no variant to bind the eval report to, which silently
+    neutralises the W3-3 cross-variant substitution guard (``list({})`` ->
+    ``[]`` -> ``None`` -> the membership check is skipped). A live run with
+    zero gated variants must fail closed rather than authorise on an
+    unbound report."""
+    setups = tmp_path / "setups.json"
+    setups.write_text(json.dumps([_setup(variant="v")]), encoding="utf-8")
+    statuses = tmp_path / "statuses.json"
+    statuses.write_text(json.dumps({}), encoding="utf-8")
+    audit = tmp_path / "audit.jsonl"
+
+    snapshot = {
+        "as_of": "2026-04-26",
+        "equity": 100000.0,
+        "starting_equity_today": 100000.0,
+        "high_water_mark": 100000.0,
+        "open_positions": 0,
+        "gross_exposure_pct": 0.0,
+        "last_n_pnls": [10.0, -5.0],
+    }
+    state_path = tmp_path / "account.json"
+    state_path.write_text(json.dumps(snapshot), encoding="utf-8")
+
+    with pytest.raises(SystemExit, match="non-empty"):
+        main([
+            "--phase", "live_small",
+            "--setups", str(setups),
+            "--gate-statuses", str(statuses),
+            "--audit-output", str(audit),
+            "--account-state-json", str(state_path),
+            "--phase-eval-report",
+            str(_passing_eval_report(tmp_path, phase="paper")),
+        ])
+
+
 def _passing_eval_report(tmp_path: Path, *, phase: str) -> Path:
     """Write a minimal passing phase-eval report (stat-review F1)."""
     from datetime import UTC, datetime

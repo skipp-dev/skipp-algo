@@ -67,13 +67,11 @@ _DIR_EXCLUDE = frozenset(
 #   for this guard; net additions / removals still fail closed.
 # ---------------------------------------------------------------------------
 _FROZEN_SITES: dict[str, int] = {
-    # 2026-05-12 OPRA UOA replacement: detector parses pd.Timestamp
-    # nanosecond conversion via .value attribute and falls back through
-    # int(value) cast on non-Timestamp inputs. The narrow swallow is the
-    # documented contract; see opra_uoa._normalize_ts().
-    "newsstack_fmp/opra_uoa.py": 1,
     "open_prep/alerts.py": 1,
-    "scripts/generate_smc_micro_base_from_databento.py": 3,
+    # 2026-06-14 C-1 (Audit E-2): 2 of the 3 per-bucket calibration swallows
+    # were upgraded to logger.debug(exc_info=True); 1 remaining covers the
+    # outer retry guard that re-raises on a later path.
+    "scripts/generate_smc_micro_base_from_databento.py": 1,
     "smc_tv_bridge/smc_api.py": 1,
     # 2026-05-17 C12.1 ConstraintHitLog wiring: an audit-log write
     # failure must never block a guard decision. See HardConstraintLayer._log.

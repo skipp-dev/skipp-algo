@@ -61,6 +61,12 @@
       "hit_rate delta >= -1.0pp",
       "rollback_gate.consecutive_worse_runs == 0 over the full window"
     ],
+    "kpi_thresholds": {
+      "calibrated_brier_max_delta": -0.005,
+      "calibrated_ece_max_delta": -0.005,
+      "hit_rate_min_delta_pp": -1.0,
+      "rationale": "Machine-readable mirror of the prose 'requires' KPI bounds (W8-2, stat-review wave 8). Read by scripts/f2_experiment_spec._check_kpi_gate so a spec change propagates to the promote path instead of duplicating run_ab_comparison's PROMOTE_IMPROVEMENT=0.005 / HIT_RATE_REGRESSION_TOLERANCE=1.0pp constants. brier and ece are lower-is-better (delta must be <= -0.005); hit_rate is higher-is-better (delta must be >= -1.0pp)."
+    },
     "on_promote": [
       "Update artifacts/reports/zone_priority_calibration.json with contextual weights.",
       "Bump zone_priority_contextual_calibration.json status from shadow -> production.",

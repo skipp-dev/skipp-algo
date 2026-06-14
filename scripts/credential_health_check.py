@@ -13,10 +13,12 @@ next publish attempt fails.
 
 Design:
 
-* No external network calls except a single GitHub-API request for the
-  ``GH_PAT`` validity probe (uses the same token that consuming workflows
-  use). No Databento / FMP / NewsAPI probes — those would consume quota
-  and need separate per-vendor handling; tracked as a follow-up in #2422.
+* One lightweight request per probed credential: GitHub-API for ``GH_PAT``,
+  plus per-vendor metadata probes (Databento, FMP, NewsAPI) that burn at
+  most ~1 quota call/day each. Databento additionally gets a DELIVERY
+  probe (``metadata.get_dataset_range``, free): billing failures (HTTP
+  402 / suspended account) keep the auth probe green while data silently
+  stops flowing — post-mortem 2026-06-12, unpaid invoice unnoticed 12 days.
 * Pure stdlib (json / datetime / urllib / sys / os) so it works on any
   Python the daily runner provisions.
 * Returns a structured report on stdout (JSON) and exits 0 / 1 / 2:
@@ -36,6 +38,7 @@ import json
 import os
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
@@ -246,6 +249,14 @@ def probe_github_pat(token: str, opener: Any = None) -> ProbeResult:
 #
 #   * empty key                  -> error (config gap; consuming jobs will fail)
 #   * HTTP 401 / 403             -> error (key invalid / revoked / scope)
+#   * HTTP 402                   -> error (billing problem — e.g. unpaid
+#                                          invoice; Databento uses 402 for
+#                                          "issue with your account payment
+#                                          information". Post-mortem
+#                                          2026-06-12: an unpaid Databento
+#                                          invoice went unnoticed for 12 days
+#                                          because 402 fell into the generic
+#                                          "other -> warn" bucket.)
 #   * HTTP 429                   -> warn  (rate-limit; probe inconclusive
 #                                          but signals real upstream issue)
 #   * HTTP 5xx                   -> warn  (vendor outage; inconclusive)
@@ -256,6 +267,46 @@ def probe_github_pat(token: str, opener: Any = None) -> ProbeResult:
 #
 # This keeps "real key broken" loud (error) and noise from rate-limits or
 # vendor outages quiet (warn) so a daily flap does not page the operator.
+
+
+def _map_vendor_http_error(name: str, label: str, exc: urllib.error.HTTPError) -> ProbeResult:
+    """Map an HTTPError from a vendor probe to the shared severity model."""
+    status = exc.code
+    if status == 402:
+        return ProbeResult(
+            name,
+            "error",
+            f"{label} reports a BILLING problem (HTTP 402 Payment Required) — "
+            "check the vendor portal for an unpaid invoice / failed payment NOW",
+            {"status": status, "reason": exc.reason},
+        )
+    if status in (401, 403):
+        return ProbeResult(
+            name,
+            "error",
+            f"{label} rejected the API key (HTTP {status} {exc.reason}) — rotate the secret",
+            {"status": status, "reason": exc.reason},
+        )
+    if status == 429:
+        return ProbeResult(
+            name,
+            "warn",
+            f"{label} rate-limited the probe (HTTP 429) — probe inconclusive, but quota pressure is real",
+            {"status": status},
+        )
+    if 500 <= status < 600:
+        return ProbeResult(
+            name,
+            "warn",
+            f"{label} returned HTTP {status} — vendor-side issue, probe inconclusive",
+            {"status": status},
+        )
+    return ProbeResult(
+        name,
+        "warn",
+        f"{label} returned unexpected HTTP {status} ({exc.reason}) — probe inconclusive",
+        {"status": status, "reason": exc.reason},
+    )
 
 
 def _probe_http_vendor(
@@ -291,34 +342,7 @@ def _probe_http_vendor(
         with _opener.open(req, timeout=timeout) as resp:  # nosec B310 - URL is literal per call site
             status = resp.getcode()
     except urllib.error.HTTPError as exc:
-        status = exc.code
-        if status in (401, 403):
-            return ProbeResult(
-                name,
-                "error",
-                f"{label} rejected the API key (HTTP {status} {exc.reason}) — rotate the secret",
-                {"status": status, "reason": exc.reason},
-            )
-        if status == 429:
-            return ProbeResult(
-                name,
-                "warn",
-                f"{label} rate-limited the probe (HTTP 429) — probe inconclusive, but quota pressure is real",
-                {"status": status},
-            )
-        if 500 <= status < 600:
-            return ProbeResult(
-                name,
-                "warn",
-                f"{label} returned HTTP {status} — vendor-side issue, probe inconclusive",
-                {"status": status},
-            )
-        return ProbeResult(
-            name,
-            "warn",
-            f"{label} returned unexpected HTTP {status} ({exc.reason}) — probe inconclusive",
-            {"status": status, "reason": exc.reason},
-        )
+        return _map_vendor_http_error(name, label, exc)
     except (urllib.error.URLError, TimeoutError) as exc:
         return ProbeResult(
             name,
@@ -358,6 +382,117 @@ def probe_databento(key: str, opener: Any = None) -> ProbeResult:
         url="https://hist.databento.com/v0/metadata.list_publishers",
         headers={"Authorization": f"Basic {token}"} if token else {},
         opener=opener,
+    )
+
+
+# Dataset the pipeline actually consumes (open_prep/outcome_backfill.py).
+DATABENTO_DELIVERY_DATASET = "DBEQ.BASIC"
+# DBEQ.BASIC is a daily dataset; weekend + market holiday can stack to
+# ~4 calendar days without new data. 5 days of silence is a real problem
+# (e.g. account suspended for non-payment while metadata auth still works).
+DATABENTO_DELIVERY_MAX_STALENESS_DAYS = 5.0
+
+
+def probe_databento_delivery(
+    key: str,
+    opener: Any = None,
+    *,
+    dataset: str = DATABENTO_DELIVERY_DATASET,
+    max_staleness_days: float = DATABENTO_DELIVERY_MAX_STALENESS_DAYS,
+    now: datetime | None = None,
+    timeout: float = 10.0,
+) -> ProbeResult:
+    """Probe Databento DELIVERY health, not just auth.
+
+    Post-mortem 2026-06-12: an unpaid Databento invoice went unnoticed for
+    12 days. ``list_publishers`` keeps returning HTTP 200 with broken
+    billing, so the key probe alone cannot catch a suspended account.
+    This probe calls ``metadata.get_dataset_range`` (free metadata call)
+    for the dataset the pipeline consumes and alarms when the dataset's
+    available ``end`` date stops advancing — the symptom of an account
+    that silently stopped receiving data.
+    """
+    import base64
+
+    name = "databento_delivery"
+    label = "Databento"
+    now = now or datetime.now(UTC)
+
+    if not key or not key.strip():
+        return ProbeResult(
+            name,
+            "error",
+            f"{label} API key secret is empty or missing — cannot probe delivery",
+        )
+
+    token = base64.b64encode(f"{key.strip()}:".encode()).decode("ascii")
+    query = urllib.parse.urlencode({"dataset": dataset})
+    url = f"https://hist.databento.com/v0/metadata.get_dataset_range?{query}"
+    req = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "skipp-algo-credential-health-check/1",
+            "Authorization": f"Basic {token}",
+        },
+    )
+    _opener = opener or urllib.request.build_opener()
+    try:
+        with _opener.open(req, timeout=timeout) as resp:  # nosec B310 - URL is literal
+            status = resp.getcode()
+            body = resp.read()
+    except urllib.error.HTTPError as exc:
+        return _map_vendor_http_error(name, label, exc)
+    except (urllib.error.URLError, TimeoutError) as exc:
+        return ProbeResult(
+            name,
+            "warn",
+            f"could not reach {label}: {exc} — probe inconclusive (network / vendor status)",
+        )
+
+    if status != 200:
+        return ProbeResult(
+            name,
+            "warn",
+            f"{label} returned HTTP {status} on get_dataset_range — unexpected, probe inconclusive",
+            {"status": status},
+        )
+
+    try:
+        payload = json.loads(body)
+        end_raw = payload.get("end") if isinstance(payload, dict) else None
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        end_raw = None
+    end = _parse_iso(end_raw) if isinstance(end_raw, str) else None
+    if end is None:
+        return ProbeResult(
+            name,
+            "warn",
+            f"{label} get_dataset_range({dataset}) returned no parseable 'end' date — probe inconclusive",
+            {"status": status},
+        )
+
+    staleness_days = (now - end).total_seconds() / 86400.0
+    details = {
+        "dataset": dataset,
+        "end": end.isoformat(),
+        "staleness_days": round(staleness_days, 2),
+        "max_staleness_days": max_staleness_days,
+    }
+    if staleness_days > max_staleness_days:
+        return ProbeResult(
+            name,
+            "error",
+            f"{label} dataset {dataset} stopped advancing — last available data "
+            f"{end.date().isoformat()} ({staleness_days:.1f}d ago, threshold "
+            f"{max_staleness_days:.0f}d). Check billing (unpaid invoice suspends "
+            "delivery) and entitlement in the Databento portal",
+            details,
+        )
+    return ProbeResult(
+        name,
+        "ok",
+        f"{label} delivering: {dataset} end={end.date().isoformat()} ({staleness_days:.1f}d old)",
+        details,
     )
 
 
@@ -499,7 +634,9 @@ def main(argv: list[str] | None = None) -> int:
         results.append(probe_github_pat(token))
 
     if not args.skip_databento:
-        results.append(probe_databento(os.environ.get(args.databento_key_env, "")))
+        databento_key = os.environ.get(args.databento_key_env, "")
+        results.append(probe_databento(databento_key))
+        results.append(probe_databento_delivery(databento_key))
 
     if not args.skip_fmp:
         results.append(probe_fmp(os.environ.get(args.fmp_key_env, "")))
