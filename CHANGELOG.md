@@ -6,6 +6,21 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-06-14) — live-window Dual-Marker bereinigt (PR #2723)
+
+Fünf Workflows trugen einen zweiten `# live-window:`-Header-Marker mit der
+Posture `off-hours-only`, obwohl ihr Primärmarker (Zeile 1) korrekt
+`mutating-on-cron` deklariert und alle fünf Write-Permissions besitzen
+(`contents`/`issues`/`pull-requests: write`). Da `_read_marker` nur den ersten
+Treffer in den ersten 10 Zeilen auswertet, blieb der Widerspruch testgrün — der
+Sekundärmarker war jedoch tote, irreführende Config. Betroffen:
+`plan-2-8-weekly-digest.yml`, `run-open-prep-daily.yml`, `c13-daily-cron.yml`,
+`fvg-quality-quartile-gate.yml`, `fvg-context-pine-refresh.yml`. Die
+Sekundärmarker sind jetzt zu reinen `# Schedule:`-Kommentaren degradiert
+(Cron-Zeit-Dokumentation bleibt erhalten, ohne kollidierendes Posture-Keyword).
+Neuer Regressions-Test `test_at_most_one_live_window_marker` erzwingt künftig
+genau einen `# live-window:`-Marker je Workflow.
+
 ### Fixed (2026-06-14) — smc-library-refresh konsumiert Producer-Bundle statt Consumer-Scan
 
 `smc-library-refresh.yml` stellt das kanonische
