@@ -6066,20 +6066,22 @@ def _install_databento_requests_tls_override(cafile: str) -> None:
     lock = getattr(_install_databento_requests_tls_override, "_lock", None)
     if lock is None:
         lock = threading.Lock()
-        setattr(_install_databento_requests_tls_override, "_lock", lock)
+        _install_databento_requests_tls_override._lock = lock
     with lock:
         if getattr(_install_databento_requests_tls_override, "_patched_cafile", None) == cafile:
             return
         try:
             _import_databento()
             from databento.common.http import (
+                HTTP_STREAMING_READ_SIZE,
                 BentoError,
                 BentoHttpAPI,
                 DBNStore,
-                HTTP_STREAMING_READ_SIZE,
                 HTTPBasicAuth,
                 check_backend_warnings,
                 check_http_error,
+            )
+            from databento.common.http import (
                 requests as _db_requests,
             )
         except Exception:
@@ -6147,27 +6149,29 @@ def _install_databento_requests_tls_override(cafile: str) -> None:
                     check_http_error(response)
 
                     if path is None:
-                        writer: Any = BytesIO()
-                    else:
-                        writer = open(path, "x+b")
+                        writer = BytesIO()
+                        try:
+                            for chunk in response.iter_content(chunk_size=HTTP_STREAMING_READ_SIZE):
+                                writer.write(chunk)
+                        except Exception as exc:
+                            raise BentoError(f"Error streaming response: {exc}") from None
 
-                    try:
-                        for chunk in response.iter_content(chunk_size=HTTP_STREAMING_READ_SIZE):
-                            writer.write(chunk)
-                    except Exception as exc:
-                        raise BentoError(f"Error streaming response: {exc}") from None
-
-                    if path is None:
                         writer.seek(0)
                         return DBNStore.from_bytes(writer)
 
-                    writer.close()
+                    with open(path, "x+b") as writer:
+                        try:
+                            for chunk in response.iter_content(chunk_size=HTTP_STREAMING_READ_SIZE):
+                                writer.write(chunk)
+                        except Exception as exc:
+                            raise BentoError(f"Error streaming response: {exc}") from None
+
                     return DBNStore.from_file(path)
 
         BentoHttpAPI._get = _patched_get
         BentoHttpAPI._post = _patched_post
         BentoHttpAPI._stream = _patched_stream
-        setattr(_install_databento_requests_tls_override, "_patched_cafile", cafile)
+        _install_databento_requests_tls_override._patched_cafile = cafile
 
 
 if __name__ == "__main__" and sys.argv and sys.argv[0].endswith("databento_volatility_screener.py"):
