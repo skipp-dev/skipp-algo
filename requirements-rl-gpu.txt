@@ -2,5 +2,12 @@
 # Install this AFTER `requirements-rl.txt` on the self-hosted GPU runner.
 # The PyPI torch wheel on Windows resolves to a CPU build, so we pin the
 # official CUDA wheel explicitly via the PyTorch index.
+#
+# SC-03 allowlist note (supply-chain audit 2026-06-14, CICD-SEC-3/SEC-8):
+# The non-PyPI index below is the ONLY approved external index in this repo.
+# Scope: GPU runner builds via rl-research-training.yml only.
+# Provenance: official PyTorch CDN (https://download.pytorch.org/whl/).
+# Governance: any additional --index-url / --extra-index-url in this repo
+# requires an explicit ADR entry before merging.
 --index-url https://download.pytorch.org/whl/cu128
 torch==2.11.0+cu128
