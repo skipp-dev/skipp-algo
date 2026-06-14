@@ -1,4 +1,4 @@
-# live-window: off-hours-only  # 14:00 UTC Mon-Fri — after smc-measurement-benchmark-rolling (13:00 UTC Mon-Fri) and before f2-promotion-gate-daily (14:30 UTC Mon-Fri)
+# live-window: off-hours-only  # 14:00 UTC Mon-Fri — typically after smc-measurement-benchmark-rolling (workflow_run-driven off the 12:00 UTC producer; 16:30 UTC safety-net cron) and before f2-promotion-gate-daily (14:30 UTC Mon-Fri); fail-soft on missing artifact
 name: promotion-gate-daily
 
 # Sprint W1.b — daily PromotionGate evaluation.
@@ -39,9 +39,12 @@ name: promotion-gate-daily
 
 on:
   schedule:
-    # 14:00 UTC Mon-Fri — must run AFTER smc-measurement-benchmark-rolling
-    # (13:00 UTC Mon-Fri, ~60 min runtime) so the rolling-bench artifact
-    # is published before this job's `gh run download` lookup. Restricted
+    # 14:00 UTC Mon-Fri — intended to run after smc-measurement-benchmark-rolling
+    # has produced the rolling-bench artifact. Since audit HOCH-1 that
+    # consumer is workflow_run-driven off the 12:00 UTC producer (~60 min
+    # runtime, 16:30 UTC safety-net cron), so the artifact is normally
+    # published before this job's `gh run download` lookup; the workflow
+    # is fail-soft on a missing artifact (status=skipped). Restricted
     # to Mon-Fri to match the upstream Databento producer's cadence.
     - cron: "0 14 * * 1-5"
   workflow_dispatch:
