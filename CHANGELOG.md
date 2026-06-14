@@ -6136,25 +6136,6 @@ Refs: `docs/FVG_QUALITY_D4_AUDIT.md` §6 (D3-Promotion-Befund + Pine-vs-Python-D
   upload.
 - `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
   script+test pairs.
-
-### Changed (2026-06-13) — WS3 #56: `HERO_ACTION` becomes the single action surface + `library_field_version` v8.0a (BREAKING for Pine consumers)
-
-Resolved the parallel-channel split between Producer-A `HERO_ACTION`
-and Producer-B `HERO_ACTION_VERB*`. `scripts.smc_hero_action` remains
-the canonical action decision table (`act` / `wait` / `watch` /
-`avoid` plus reason/degradation/quality), while `scripts.smc_hero_state`
-now projects that recommendation onto the existing uppercase Pine
-boundary field `HERO_ACTION` (`ACTIVE` / `WATCH` / `AVOID` /
-`BLOCKED`). The generated Pine library no longer exports the five
-reserved action fields `HERO_ACTION_VERB`, `HERO_ACTION_VERB_DE`,
-`HERO_ACTION_REASON`, `HERO_ACTION_DEGRADATION`, or
-`HERO_ACTION_QUALITY`; German/display wording is a UI concern rather
-than a library-boundary field. This removes five `export const` fields,
-so `library_field_version` and
-`deprecated_field_policy.preferred_field_version` bump **v7.0a →
-v8.0a**. `BLOCKED` is preserved by mapping Producer-B
-`degradation == "no_trade"` to the uppercase `HERO_ACTION` contract.
-
 ### Fixed (2026-06-13) — Stat-Review W7-4/W7-5: Red-Flag-Fenster + Anchor-Staleness im Weekly-Judgement
 
 **W7-4:** `eval_magnitude_shadow_weekly.detect_all_pass_red_flag`
