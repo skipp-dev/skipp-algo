@@ -88,7 +88,7 @@ def _all_dunder_import_sites() -> list[tuple[str, int]]:
 
 # 2026-06-14: The former lazy ``__import__("time")`` calls in
 # streamlit_monitor.py were replaced with a proper module-level
-# ``import time as _time`` (PR #2764). Ledger is now empty.
+# ``import time as _time``. Ledger is now empty.
 _FROZEN_DUNDER_IMPORT_SITES: frozenset[tuple[str, int]] = frozenset()
 
 
