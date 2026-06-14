@@ -86,7 +86,12 @@ jobs:
             f2-promotion-gate-daily.yml=30:any \
             fvg-quality-recal-shadow-daily.yml=30 \
             feature-importance-daily.yml=30 \
-            meta-watchdog.yml=30:any
+            meta-watchdog.yml=30:any \
+            smc-measurement-benchmark-rolling.yml=30:any \
+            adr0023-magnitude-shadow-daily.yml=30:any \
+            adr0023-magnitude-stage1-weekly.yml=192 \
+            g23-ab-watchdog.yml=30:any \
+            smc-live-newsapi-refresh.yml=30
           rc=$?
           set -e
           echo "rc=$rc" >> "$GITHUB_OUTPUT"

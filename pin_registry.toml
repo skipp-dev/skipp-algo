@@ -161,19 +161,14 @@ codes = ["E402", "I001"]
 # ---------------------------------------------------------------------------
 # test_workflow_orphan_inventory.py — workflows without a test that
 # references the workflow basename *verbatim* (hyphenated filename).
-# g23-ab-watchdog.yml has a behavioural test (test_g23_ab_watchdog.py) but
-# that file spells the name with underscores, so the verbatim-reference
-# tripwire still classes it as an orphan. Kept as the sole allowlist entry
-# with this rationale; the ledger keeps tripping for any NEW orphan.
-# (Prior to ADR-0009 this entry was masked by an incidental hyphenated
-# mention inside the set+e ledger's _ALLOWED dict, now moved to TOML.)
+# 2026-06-12 (Workflow-Audit): g23-ab-watchdog.yml gained a verbatim
+# hyphenated reference via the freshness-monitor watchlist pin test
+# (tests/test_workflow_freshness_monitor_workflow.py), so it left the
+# orphan set and the allowlist is now empty. The ledger keeps tripping
+# for any NEW orphan.
 # ---------------------------------------------------------------------------
 [workflow_orphan_inventory]
 allowed = [
-    # g23-ab-watchdog.yml: covered behaviourally by test_g23_ab_watchdog.py,
-    # but that test references the underscore form, so the verbatim-basename
-    # orphan tripwire does not see it. Explicit allowlist entry.
-    "g23-ab-watchdog.yml",
 ]
 
 # ---------------------------------------------------------------------------
