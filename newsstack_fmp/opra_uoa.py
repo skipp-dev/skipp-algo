@@ -193,7 +193,7 @@ def _normalize_ts(value: Any) -> int:
         try:
             return int(value.value)
         except Exception:
-            pass
+            logger.debug("_normalize_ts: int(value.value) failed for %r", value, exc_info=True)
     if isinstance(value, datetime):
         return int(value.replace(tzinfo=value.tzinfo or UTC).timestamp() * 1_000_000_000)
     try:
