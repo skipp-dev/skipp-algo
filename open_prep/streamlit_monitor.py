@@ -2383,10 +2383,10 @@ def main() -> None:
                             for _, row in upcoming.head(8).iterrows():
                                 _tk = _safe_md(str(row.get("ticker", "?")))
                                 _url = row.get("webcast_url", "")
-                                _time = row.get("start_time", "")
+                                _start_time = row.get("start_time", "")
                                 link = f" | [Webcast]({_url})" if _url else ""
                                 st.markdown(
-                                    f"**{_tk}** — {row.get('date', '?')} {_time} | "
+                                    f"**{_tk}** — {row.get('date', '?')} {_start_time} | "
                                     f"{row.get('period', '?')} {row.get('period_year', '')}"
                                     f"{link}"
                                 )
