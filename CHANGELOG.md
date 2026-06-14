@@ -170,6 +170,29 @@ Begleitend wurden die Audit-Pin-Tests aktualisiert (Ledger-Drift):
 Keine API-/Datenmodell-Änderung; primär Logging + defensiver
 Rate-Limit-Schutz.
 
+### Changed (2026-06-13) — Audit E-1 TQ-1: eod-bulk Fail-Open-Test ehrlich gemacht + Observability gepinnt
+
+`tests/test_open_prep.py::TestGetEodBulkInvalidJsonFallback` pinnte das
+Fail-Open-Verhalten von `get_eod_bulk()` unter dem irreführenden Namen
+`test_unrelated_error_still_propagates` — der Name behauptete Propagation,
+das Assert pinnte das Gegenteil (`result == []`). Triage ergab: Das
+Fail-Open ist by design korrekt (eod-bulk ist eine ATR-Cache-Optimierung;
+der Caller `_fetch_quotes_with_atr` hat einen vollständigen
+Per-Symbol-Fallback), und die Produktionsseite war bereits gehärtet
+(`_log_feature_unavailable_once`: permanent → INFO einmalig, transient →
+WARNING bei jedem Auftreten). Fix daher testseitig:
+
+- Test umbenannt zu `test_transient_error_fails_open_but_warns_every_time`
+  mit Begründungs-Docstring (warum Fail-Open hier akzeptabel ist).
+- Alle drei Tests asserten jetzt zusätzlich den Log-Kontrakt via
+  `assertLogs`: permanent (invalid JSON, HTTP 402) → genau eine
+  INFO-Zeile pro Prozess; transient (network timeout) → WARNING bei
+  JEDEM Aufruf (2 Aufrufe → 2 WARNINGs, kein Dedup).
+- `setUp` resettet `_FMP_FEATURE_UNAVAILABLE_LOGGED`, damit die
+  Once-per-Process-Semantik pro Test isoliert beobachtbar ist.
+
+Test-only, kein Produktionscode. (Audit E-1, Bundle C1)
+
 ### Removed (2026-06-12) — drift-watchdog-Cron stillgelegt (#2726)
 
 `.github/workflows/drift-watchdog.yml` (Montags-Cron) ist entfernt. Der
@@ -196,7 +219,6 @@ garantiertes rc=4 gewesen; davor war er ein stiller No-op.
   `c13-daily-cron.yml`, `phase-b-promotion-readiness.yml`,
   `scripts/check_phase_b_drift_readiness.py` (dessen Wiring-Claim schon
   vorher falsch war) und dem Script-Docstring aktualisiert.
-
 ### Fixed (2026-06-12) — f2-promotion-gate: Rollback-Ping in falsches Issue (Label-only-Suche)
 
 Der Step „Open rollback Issue (§2.4 G2 ping)“ in
