@@ -305,18 +305,12 @@ def _producer_b_action_input(
 ) -> dict[str, Any]:
     """Return enrichment shaped so Producer B sees Hero-local hard gates.
 
-    Fully wired pipelines attach ``action_degradation`` or
-    ``trust_state`` before Hero State is built. Older paths only expose
-    ``layering.trade_state`` plus Hero-local trust/freshness inputs. For
-    those paths, synthesize the minimal Producer-B input so the action
-    decision still flows through ``derive_hero_action`` instead of a
-    second uppercase action derivation table.
+    Hero-local hard gates (layering.trade_state BLOCKED/AVOID/WATCH and
+    trust unavailable/stale) always take precedence — even when an
+    upstream pipeline already attached ``action_degradation`` or
+    ``trust_state``.  Only when no hard gate applies do we fall through
+    and return the enrichment unchanged.
     """
-    if isinstance(enrichment.get("action_degradation"), dict):
-        return enrichment
-    if isinstance(enrichment.get("trust_state"), dict):
-        return enrichment
-
     tier: str | None = None
     reason: str | None = None
     quality_override: dict[str, Any] | None = None
@@ -336,6 +330,7 @@ def _producer_b_action_input(
         reason = f"Hero trust={trust}"
 
     if tier is None:
+        # No hard gate — return as-is (upstream blocks remain authoritative).
         return enrichment
 
     projected = dict(enrichment)

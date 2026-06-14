@@ -305,3 +305,26 @@ class TestHeroActionVocabularyPins:
                     f"_derive_hero_action({degradation!r}, {score!r}) -> {out!r} "
                     f"not in HERO_ACTION_VOCAB"
                 )
+
+    def test_hard_gate_overrides_upstream_action_degradation_block(self) -> None:
+        """Hero-local hard gates must win even when upstream already set
+        action_degradation — regression for the early-return bypass fixed
+        in _producer_b_action_input (Copilot PRRT_kwDORFNO3M6Jajwv).
+        """
+        # Upstream has permissive action_degradation ("none"), but layering
+        # says BLOCKED → HERO_ACTION must still be BLOCKED.
+        base = {
+            "regime": {"regime": "BULLISH"},
+            "signal_quality": {"SIGNAL_FRESHNESS": "fresh", "SIGNAL_QUALITY_TIER": "high"},
+            "providers": {"stale_providers": ""},
+            "ensemble_quality": {"tier": "high", "score": 0.95},
+            "action_degradation": {"tier": "none", "reason": "upstream ok", "derived_from_state": "healthy"},
+        }
+        blocked = {**base, "layering": {"trade_state": "BLOCKED"}}
+        assert build_hero_state(blocked)["HERO_ACTION"] == "BLOCKED", (
+            "Hard gate BLOCKED must override upstream action_degradation=none"
+        )
+        avoid = {**base, "layering": {"trade_state": "AVOID"}}
+        assert build_hero_state(avoid)["HERO_ACTION"] == "AVOID", (
+            "Hard gate AVOID must override upstream action_degradation=none"
+        )
