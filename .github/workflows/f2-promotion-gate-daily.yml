@@ -1,7 +1,13 @@
 # live-window: mutating-on-cron  # F-V6-F2.1 (2026-05-02)
 name: f2-promotion-gate-daily
 
-# live-window: off-hours-only  # 10:00 UTC daily — outside trading window 13:30–20:00 UTC (audit F-V3-14, 2026-05-01)
+# Schedule: 14:30 UTC Mon-Fri — inside trading window 13:30–20:00 UTC. The gate
+# itself is observational (no trading-state mutation), but on a G2 rollback
+# verdict it creates/updates a cron-failure Issue and demotes the contextual
+# artifact — hence posture mutating-on-cron, NOT read-only. Runs after the
+# rolling-bench corpus is normally available (smc-measurement-benchmark-rolling
+# is workflow_run-driven off the 12:00 UTC producer; 16:30 UTC safety-net cron),
+# see schedule comment below (audit 2026-06)
 #
 # F2 Contextual Promotion Gate — daily evaluation.
 #
@@ -38,11 +44,14 @@ name: f2-promotion-gate-daily
 
 on:
   schedule:
-    # 14:30 UTC Mon-Fri — must run AFTER smc-measurement-benchmark-rolling
-    # (13:00 UTC Mon-Fri, ~60 min runtime) so the dual-arm artifact is
-    # published before the promotion gate tries to download it. The
-    # rolling-bench cadence is gated by the upstream Databento producer
-    # (12:00 UTC Mon-Fri), so this job follows the same Mon-Fri window.
+    # 14:30 UTC Mon-Fri — intended to run after smc-measurement-benchmark-rolling
+    # has produced the dual-arm artifact. Since audit HOCH-1 that consumer
+    # is workflow_run-driven off the 12:00 UTC producer (~60 min runtime,
+    # 16:30 UTC safety-net cron), so the artifact is normally published
+    # well before this gate tries to download it; the workflow is fail-soft
+    # on a missing artifact (status=skipped). The rolling-bench cadence is
+    # gated by the upstream Databento producer (12:00 UTC Mon-Fri), so
+    # this job follows the same Mon-Fri window.
     - cron: "30 14 * * 1-5"
   workflow_dispatch:
     inputs:

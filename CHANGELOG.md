@@ -6,6 +6,65 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-06-14) — live-window Dual-Marker bereinigt (PR #2723)
+
+Fünf Workflows trugen einen zweiten `# live-window:`-Header-Marker mit der
+Posture `off-hours-only`, obwohl ihr Primärmarker (Zeile 1) korrekt
+`mutating-on-cron` deklariert und alle fünf Write-Permissions besitzen
+(`contents`/`issues`/`pull-requests: write`). Da `_read_marker` nur den ersten
+Treffer in den ersten 10 Zeilen auswertet, blieb der Widerspruch testgrün — der
+Sekundärmarker war jedoch tote, irreführende Config. Betroffen:
+`plan-2-8-weekly-digest.yml`, `run-open-prep-daily.yml`, `c13-daily-cron.yml`,
+`fvg-quality-quartile-gate.yml`, `fvg-context-pine-refresh.yml`. Die
+Sekundärmarker sind jetzt zu reinen `# Schedule:`-Kommentaren degradiert
+(Cron-Zeit-Dokumentation bleibt erhalten, ohne kollidierendes Posture-Keyword).
+Neuer Regressions-Test `test_at_most_one_live_window_marker` erzwingt künftig
+genau einen `# live-window:`-Marker je Workflow.
+
+### Fixed (2026-06-14) — smc-library-refresh konsumiert Producer-Bundle statt Consumer-Scan
+
+`smc-library-refresh.yml` stellt das kanonische
+`smc-databento-production-export-sharded.yml`-Artefakt jetzt vor dem
+Generate-Step wieder her, flacht es ab und fail-closed verified den
+Manifest-Fund, bevor überhaupt Library-Generation startet. Der
+Generate-Step nutzt damit den Bundle-Pfad
+`scripts/generate_smc_micro_base_from_databento.py --bundle artifacts/smc_microstructure_exports`
+und entfernt den redundanten Consumer-seitigen
+`--run-scan --incremental-base-only`-Pfad samt Incremental-Seed-Cache.
+Root Cause der langen Cancel/Runner-Shutdown-Serie war nicht ein zu kleiner
+240-Minuten-Timeout, sondern dass der Consumer bei offline self-hosted
+ASUS-Runnern auf GitHub-hosted kalt fiel und dort den vollen
+Databento-Producer-Scan erneut ausführte. Automatische Runs verweigern
+weiterhin stale Fallback-Bundles; ein Databento `402 account_delinquent_invoice`
+bleibt ein separater Provider-/Account-Health-Fall im Producer.
+
+### Removed (2026-06-12) — drift-watchdog-Cron stillgelegt (#2726)
+
+`.github/workflows/drift-watchdog.yml` (Montags-Cron) ist entfernt. Der
+Faktencheck zu #2726 ergab: Die erwartete WFO-Baseline
+`artifacts/wfo/walk_forward_latest.json` wurde von keiner Pipeline je
+produziert (keinerlei Git-Historie unter `artifacts/wfo/`; der im
+Workflow-Header zitierte „C2 walk-forward cron“ existiert nicht im
+aktuellen Workflow-Set — dasselbe hatte bereits
+`docs/ci-proposals/j3-followup-cron-workflow-run-2026-05-01.md`
+notiert). Seit dem Fail-loud-Fix #2725 wäre jeder Lauf ein
+garantiertes rc=4 gewesen; davor war er ein stiller No-op.
+
+- Drift-Abdeckung läuft heute über `c13-daily-cron.yml`
+  (täglich, `compute_live_drift` + Issue-Opener) und das
+  Phase-B-Promotion-Gate — der wöchentliche Watchdog war redundant
+  *und* funktionsunfähig.
+- `scripts/run_drift_watchdog.py` und seine Tests bleiben erhalten:
+  Das CLI ist weiter manuell mit explizit übergebener Baseline nutzbar
+  und dient als gepinnte Referenz-Implementierung des
+  Atomic-Write-Patterns (`tests/test_atomic_write_call_sites.py`,
+  `tests/test_csprint_atomic_write_fsync.py`).
+- Inventory-Pin `tests/test_workflow_continue_on_error_inventory.py`
+  um den drift-watchdog-Eintrag reduziert; stale Kommentar-Verweise in
+  `c13-daily-cron.yml`, `phase-b-promotion-readiness.yml`,
+  `scripts/check_phase_b_drift_readiness.py` (dessen Wiring-Claim schon
+  vorher falsch war) und dem Script-Docstring aktualisiert.
+
 ### Fixed (2026-06-13) — Stat-Review W7-4/W7-5: Red-Flag-Fenster + Anchor-Staleness im Weekly-Judgement
 
 **W7-4:** `eval_magnitude_shadow_weekly.detect_all_pass_red_flag`
@@ -144,6 +203,7 @@ Cold-Start (`[]`). Der Test
 als Soll pinnte, ist invertiert
 (`test_load_ledger_raises_on_malformed_line`); neue rc-1-Regressionstests
 für alle Konsumenten.
+
 ### Changed (2026-06-13) — Audit E-1 RS-1..7: Streamlit Render-Layer Observability + Cooldown Fail-Safe
 
 `open_prep/streamlit_monitor.py` hatte mehrere fail-open Pfade mit
