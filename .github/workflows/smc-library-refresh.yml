@@ -16,7 +16,9 @@
 #           governance → publish → commit → alerts.
 # Skips publish/version-bump/commit when the library content is unchanged.
 # v5 stages:
-#   1. Base data scan (Databento)
+#   1. Restore Databento base-data bundle (produced by
+#      smc-databento-production-export-sharded.yml and consumed here via
+#      --bundle; this workflow runs no Databento scan of its own)
 #   2. Enrichment (regime, news, calendar, layering, event-risk)
 #   3. Evidence gates (integration / structure / core tests)
 #   4. Change detection (diff against previous library)
@@ -28,8 +30,12 @@
 # Required secrets:
 #   FMP_API_KEY        – Financial Modeling Prep API key (enrichment data)
 #   BENZINGA_API_KEY   – Benzinga API key (news/calendar fallback)
-#   DATABENTO_API_KEY  – Databento API key (base data generation)
 #   TV_STORAGE_STATE   – TradingView Playwright storage-state as raw JSON or gzip+base64 (publish)
+#
+# Not required by this consumer workflow:
+#   DATABENTO_API_KEY: base Databento data is produced by
+#   smc-databento-production-export-sharded.yml and consumed via --bundle;
+#   no Databento scan runs in this workflow, so this key is unused here.
 #
 # Optional secrets:
 #   GH_PAT             – Optional GitHub PAT override for checkout;
