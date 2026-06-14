@@ -595,9 +595,12 @@ def save_universe_snapshot(
         "symbols": normalized,
         "size": len(normalized),
     }
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    tmp.replace(path)
+    from databento_utils import _replace_atomic
+
+    def _write_temp(temp_path: Path) -> None:
+        temp_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    _replace_atomic(path, _write_temp)
     return path
 
 
