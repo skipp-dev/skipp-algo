@@ -16,6 +16,7 @@ import os
 import stat
 import tempfile
 import threading
+from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -83,7 +84,28 @@ def _resolve_destination_mode(target: Path) -> int:
         return _default_mode_for_new_file()
 
 
-def _atomic_write(df: pd.DataFrame, target: Path, suffix: str, writer_name: str, **kwargs: Any) -> None:
+def _fsync_file_if_requested(path: Path, *, enabled: bool) -> None:
+    if not enabled:
+        return
+    try:
+        fd = os.open(path, os.O_RDONLY)
+    except PermissionError:
+        fd = os.open(path, os.O_WRONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def _atomic_write(
+    df: pd.DataFrame,
+    target: Path,
+    suffix: str,
+    writer_name: str,
+    *,
+    fsync: bool = False,
+    **kwargs: Any,
+) -> None:
     target = Path(target)
     target.parent.mkdir(parents=True, exist_ok=True)
     mode = _resolve_destination_mode(target)
@@ -93,20 +115,48 @@ def _atomic_write(df: pd.DataFrame, target: Path, suffix: str, writer_name: str,
     try:
         getattr(df, writer_name)(tmp_path, **kwargs)
         os.chmod(tmp_path, mode)
+        _fsync_file_if_requested(tmp_path, enabled=fsync)
         os.replace(tmp_path, target)
     except BaseException:
-        tmp_path.unlink(missing_ok=True)
+        with suppress(OSError):
+            tmp_path.unlink(missing_ok=True)
         raise
 
 
-def atomic_write_parquet(df: pd.DataFrame, target: str | os.PathLike[str], **kwargs: Any) -> None:
+def atomic_write_parquet(
+    df: pd.DataFrame,
+    target: str | os.PathLike[str],
+    *,
+    fsync: bool = False,
+    **kwargs: Any,
+) -> None:
     """Write ``df`` to ``target`` as parquet via tempfile + os.replace."""
-    _atomic_write(df, Path(target), suffix=".parquet.tmp", writer_name="to_parquet", **kwargs)
+    _atomic_write(
+        df,
+        Path(target),
+        suffix=".parquet.tmp",
+        writer_name="to_parquet",
+        fsync=fsync,
+        **kwargs,
+    )
 
 
-def atomic_write_csv(df: pd.DataFrame, target: str | os.PathLike[str], **kwargs: Any) -> None:
+def atomic_write_csv(
+    df: pd.DataFrame,
+    target: str | os.PathLike[str],
+    *,
+    fsync: bool = False,
+    **kwargs: Any,
+) -> None:
     """Write ``df`` to ``target`` as CSV via tempfile + os.replace."""
-    _atomic_write(df, Path(target), suffix=".csv.tmp", writer_name="to_csv", **kwargs)
+    _atomic_write(
+        df,
+        Path(target),
+        suffix=".csv.tmp",
+        writer_name="to_csv",
+        fsync=fsync,
+        **kwargs,
+    )
 
 
 def atomic_write_text(
@@ -115,6 +165,7 @@ def atomic_write_text(
     *,
     encoding: str = "utf-8",
     newline: str | None = None,
+    fsync: bool = False,
 ) -> None:
     """Write ``text`` to ``target`` via tempfile + os.replace."""
     target_path = Path(target)
@@ -128,9 +179,11 @@ def atomic_write_text(
         with os.fdopen(fd, "w", encoding=encoding, newline=newline) as fh:
             fh.write(text)
         os.chmod(tmp_path, mode)
+        _fsync_file_if_requested(tmp_path, enabled=fsync)
         os.replace(tmp_path, target_path)
     except BaseException:
-        tmp_path.unlink(missing_ok=True)
+        with suppress(OSError):
+            tmp_path.unlink(missing_ok=True)
         raise
 
 
@@ -142,6 +195,7 @@ def atomic_write_json(
     sort_keys: bool = False,
     ensure_ascii: bool = True,
     default: Any = None,
+    fsync: bool = False,
 ) -> None:
     """Serialize ``payload`` to JSON and write atomically to ``target``."""
     text = json.dumps(
@@ -151,4 +205,4 @@ def atomic_write_json(
         ensure_ascii=ensure_ascii,
         default=default,
     )
-    atomic_write_text(text, target)
+    atomic_write_text(text, target, fsync=fsync)

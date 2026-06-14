@@ -149,3 +149,34 @@ def test_atomic_write_json_honours_umask_for_new_file(tmp_path: Path) -> None:
     mode = stat.S_IMODE(target.stat().st_mode)
     # 0o666 & ~0o027 == 0o640
     assert mode == 0o640, f"expected 0o640 from umask 027, got {oct(mode)}"
+
+
+# ---------------------------------------------------------------------------
+# Durability: the ``fsync`` flag (Copilot review of PR #2754).
+# When ``fsync=True`` the temp file must be flushed to disk via ``os.fsync``
+# before the atomic ``os.replace``; with the default ``fsync=False`` no fsync
+# call must be issued (hot-path writers stay fast).
+# ---------------------------------------------------------------------------
+
+
+def test_atomic_write_text_fsyncs_when_requested(tmp_path: Path) -> None:
+    target = tmp_path / "durable.txt"
+    with patch("scripts.smc_atomic_write.os.fsync") as mock_fsync:
+        atomic_write_text("payload", target, fsync=True)
+    assert mock_fsync.call_count == 1
+    assert target.read_text(encoding="utf-8") == "payload"
+
+
+def test_atomic_write_text_skips_fsync_by_default(tmp_path: Path) -> None:
+    target = tmp_path / "fast.txt"
+    with patch("scripts.smc_atomic_write.os.fsync") as mock_fsync:
+        atomic_write_text("payload", target)
+    mock_fsync.assert_not_called()
+    assert target.read_text(encoding="utf-8") == "payload"
+
+
+def test_atomic_write_json_fsyncs_when_requested(tmp_path: Path) -> None:
+    target = tmp_path / "durable.json"
+    with patch("scripts.smc_atomic_write.os.fsync") as mock_fsync:
+        atomic_write_json({"k": "v"}, target, fsync=True)
+    assert mock_fsync.call_count == 1

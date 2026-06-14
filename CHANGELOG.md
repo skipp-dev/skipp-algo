@@ -6,32 +6,6 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
-### Removed (2026-06-12) — drift-watchdog-Cron stillgelegt (#2726)
-
-`.github/workflows/drift-watchdog.yml` (Montags-Cron) ist entfernt. Der
-Faktencheck zu #2726 ergab: Die erwartete WFO-Baseline
-`artifacts/wfo/walk_forward_latest.json` wurde von keiner Pipeline je
-produziert (keinerlei Git-Historie unter `artifacts/wfo/`; der im
-Workflow-Header zitierte „C2 walk-forward cron“ existiert nicht im
-aktuellen Workflow-Set — dasselbe hatte bereits
-`docs/ci-proposals/j3-followup-cron-workflow-run-2026-05-01.md`
-notiert). Seit dem Fail-loud-Fix #2725 wäre jeder Lauf ein
-garantiertes rc=4 gewesen; davor war er ein stiller No-op.
-
-- Drift-Abdeckung läuft heute über `c13-daily-cron.yml`
-  (täglich, `compute_live_drift` + Issue-Opener) und das
-  Phase-B-Promotion-Gate — der wöchentliche Watchdog war redundant
-  *und* funktionsunfähig.
-- `scripts/run_drift_watchdog.py` und seine Tests bleiben erhalten:
-  Das CLI ist weiter manuell mit explizit übergebener Baseline nutzbar
-  und dient als gepinnte Referenz-Implementierung des
-  Atomic-Write-Patterns (`tests/test_atomic_write_call_sites.py`,
-  `tests/test_csprint_atomic_write_fsync.py`).
-- Inventory-Pin `tests/test_workflow_continue_on_error_inventory.py`
-  um den drift-watchdog-Eintrag reduziert; stale Kommentar-Verweise in
-  `c13-daily-cron.yml`, `phase-b-promotion-readiness.yml`,
-  `scripts/check_phase_b_drift_readiness.py` (dessen Wiring-Claim schon
-  vorher falsch war) und dem Script-Docstring aktualisiert.
 ### Fixed (2026-06-13) — Stat-Review W7-4/W7-5: Red-Flag-Fenster + Anchor-Staleness im Weekly-Judgement
 
 **W7-4:** `eval_magnitude_shadow_weekly.detect_all_pass_red_flag`
@@ -74,6 +48,63 @@ fehlertolerant ohne Diagnose bleibt:
   nachvollziehbar bleibt.
 
 Test-only, kein Produktionscode.
+
+### Fixed (2026-06-13) — Audit E-2 AW-7-B: Reader-Fallbacks mit Diagnoselog
+
+Zwei bisher stille/diagnoseschwache Reader-Fallbacks wurden observability-
+seitig gehärtet:
+
+- `open_prep/feature_importance_report.py::_load_previous_latest` loggt bei
+  korruptem oder unlesbarem `latest.json` jetzt explizit auf DEBUG
+  (`"FI latest.json unlesbar, starte ohne Vorgänger-Report"`) statt still
+  `None` zu liefern.
+- `open_prep/run_open_prep.py::_probe_data_capabilities` ergänzt beim
+  Capability-Cache-Read-Fallback `exc_info=True`, sodass bei seltenen
+  I/O-/Parse-Fehlern ein vollständiger Traceback im Debug-Log verfügbar ist.
+
+Neue Regressionen:
+
+- `tests/test_feature_importance_report.py::test_load_previous_latest_invalid_json_logs_debug`
+- `tests/test_feature_importance_report.py::test_load_previous_latest_invalid_utf8_logs_debug`
+
+### Fixed (2026-06-13) — Audit E-2 AW-7-A: Manifest-Reader fail-loud nach Resolve (TOCTOU-Härtung)
+
+`scripts/load_databento_export_bundle.py::load_export_bundle` las das
+aufgelöste `*_manifest.json` nach `resolve_manifest_path(...)` ungeschützt
+mit `json.loads(read_text(...))`. Wenn zwischen Resolve und Read ein
+Race/TOCTOU auftrat (oder das Manifest anderweitig korrupt wurde),
+propagierte ein nackter `JSONDecodeError`/`OSError` aus dem Loader ohne
+stabilen Fehlervertrag.
+
+Der Read/Parse-Schritt ist jetzt fail-loud gehärtet: parse-/I/O-Fehler werden
+als `RuntimeError("Manifest read/parse failed after resolve: <path>")`
+mit Pfadkontext neu geworfen. Das stabilisiert die Fehlersemantik für die
+kritischen Konsumenten (`smc_integration.service`,
+`smc_integration.measurement_evidence`, `smc_integration.structure_batch`).
+
+Neue Regression:
+`tests/test_load_databento_export_bundle.py::test_load_export_bundle_parse_fails_after_resolve_raises_runtime_error`.
+### Changed (2026-06-13) — Audit E-1 AW-2/AW-3/AW-5: Atomic-Write-Hardening + optionale fsync-Policy
+
+Bundle B2 schließt Atomic-Write-Risiken ohne Verhaltensbruch in
+Bestands-Callsites:
+
+- `newsstack_fmp/shared_fetch.py`: Payload-Write nutzt jetzt
+  `tempfile.mkstemp(...)+os.replace` statt fester `*.tmp`-Pfadnamen
+  (kollisions-/race-robuster, mit Cleanup auf Fehlerpfad).
+- `databento_universe.py::save_universe_snapshot`: auf die zentrale
+  `_replace_atomic`-Primitive umgestellt (kein fester `.tmp`-Name mehr).
+- `scripts/smc_atomic_write.py`: optionale `fsync`-Schalter für
+  `atomic_write_text/json/csv/parquet` ergänzt (`fsync=False` default,
+  API-kompatibel). Bei `fsync=True` wird die Temp-Datei vor `os.replace`
+  explizit geflusht.
+
+Begleitend wurden die betroffenen Ledger-Pins aktualisiert
+(`time.sleep`, `hashlib weak-hash`, `tempfile`) sowie die
+Unreleased-Datumssortierung im CHANGELOG korrigiert.
+
+Validierung: targeted Guards (84 passed) + Full Sweep
+`pytest -n auto -q` (19,454 passed, 126 skipped).
 
 ### Fixed (2026-06-13) — Stat-Review W7-2/W7-3: Vote-Integrität des Magnitude-Shadow-Ledgers
 
@@ -131,7 +162,81 @@ Cold-Start (`[]`). Der Test
 als Soll pinnte, ist invertiert
 (`test_load_ledger_raises_on_malformed_line`); neue rc-1-Regressionstests
 für alle Konsumenten.
+### Changed (2026-06-13) — Audit E-1 RS-1..7: Streamlit Render-Layer Observability + Cooldown Fail-Safe
 
+`open_prep/streamlit_monitor.py` hatte mehrere fail-open Pfade mit
+`except ValueError` ohne Log-Signal sowie stille Broad-Except-Fallbacks,
+die die Diagnose bei Zeitformat-/Session-State-Problemen erschwerten.
+Im Audit-E-1 Bundle A wurden die Render-Layer-Guards observability-first
+nachgeschärft, ohne das UI fail-open Verhalten aufzugeben:
+
+- RS-1/2/3/4/6: `except ValueError` in Zeitformat-Helfern und
+  Soft-Refresh-Routen loggen jetzt strukturiert auf `DEBUG` mit dem
+  unparsebaren Rohwert (`updated_at`/`timestamp_utc`/`last_live_fetch_utc`).
+- RS-5: `_remaining_cooldown_seconds` hebt Cooldown bei kaputtem
+  Timestamp nicht mehr still auf (`return 0`), sondern setzt
+  konservativ `RATE_LIMIT_COOLDOWN_SECONDS` und loggt `WARNING`.
+- RS-7: bisher stille `except Exception`-Fallbacks bei
+  Streamlit-Secrets-/Session-Probe und OPRA-Import sind jetzt als
+  `DEBUG` sichtbar (keine Verhaltensänderung, nur Diagnosepfad).
+
+Begleitend wurden die Audit-Pin-Tests aktualisiert (Ledger-Drift):
+`tests/test_dynamic_import_and_todo_tripwires.py`,
+`tests/test_silent_error_swallow_pin.py`,
+`tests/test_broad_except_silent_budget.py`.
+
+Keine API-/Datenmodell-Änderung; primär Logging + defensiver
+Rate-Limit-Schutz.
+
+### Changed (2026-06-13) — Audit E-1 TQ-1: eod-bulk Fail-Open-Test ehrlich gemacht + Observability gepinnt
+
+`tests/test_open_prep.py::TestGetEodBulkInvalidJsonFallback` pinnte das
+Fail-Open-Verhalten von `get_eod_bulk()` unter dem irreführenden Namen
+`test_unrelated_error_still_propagates` — der Name behauptete Propagation,
+das Assert pinnte das Gegenteil (`result == []`). Triage ergab: Das
+Fail-Open ist by design korrekt (eod-bulk ist eine ATR-Cache-Optimierung;
+der Caller `_fetch_quotes_with_atr` hat einen vollständigen
+Per-Symbol-Fallback), und die Produktionsseite war bereits gehärtet
+(`_log_feature_unavailable_once`: permanent → INFO einmalig, transient →
+WARNING bei jedem Auftreten). Fix daher testseitig:
+
+- Test umbenannt zu `test_transient_error_fails_open_but_warns_every_time`
+  mit Begründungs-Docstring (warum Fail-Open hier akzeptabel ist).
+- Alle drei Tests asserten jetzt zusätzlich den Log-Kontrakt via
+  `assertLogs`: permanent (invalid JSON, HTTP 402) → genau eine
+  INFO-Zeile pro Prozess; transient (network timeout) → WARNING bei
+  JEDEM Aufruf (2 Aufrufe → 2 WARNINGs, kein Dedup).
+- `setUp` resettet `_FMP_FEATURE_UNAVAILABLE_LOGGED`, damit die
+  Once-per-Process-Semantik pro Test isoliert beobachtbar ist.
+
+Test-only, kein Produktionscode. (Audit E-1, Bundle C1)
+
+### Removed (2026-06-12) — drift-watchdog-Cron stillgelegt (#2726)
+
+`.github/workflows/drift-watchdog.yml` (Montags-Cron) ist entfernt. Der
+Faktencheck zu #2726 ergab: Die erwartete WFO-Baseline
+`artifacts/wfo/walk_forward_latest.json` wurde von keiner Pipeline je
+produziert (keinerlei Git-Historie unter `artifacts/wfo/`; der im
+Workflow-Header zitierte „C2 walk-forward cron“ existiert nicht im
+aktuellen Workflow-Set — dasselbe hatte bereits
+`docs/ci-proposals/j3-followup-cron-workflow-run-2026-05-01.md`
+notiert). Seit dem Fail-loud-Fix #2725 wäre jeder Lauf ein
+garantiertes rc=4 gewesen; davor war er ein stiller No-op.
+
+- Drift-Abdeckung läuft heute über `c13-daily-cron.yml`
+  (täglich, `compute_live_drift` + Issue-Opener) und das
+  Phase-B-Promotion-Gate — der wöchentliche Watchdog war redundant
+  *und* funktionsunfähig.
+- `scripts/run_drift_watchdog.py` und seine Tests bleiben erhalten:
+  Das CLI ist weiter manuell mit explizit übergebener Baseline nutzbar
+  und dient als gepinnte Referenz-Implementierung des
+  Atomic-Write-Patterns (`tests/test_atomic_write_call_sites.py`,
+  `tests/test_csprint_atomic_write_fsync.py`).
+- Inventory-Pin `tests/test_workflow_continue_on_error_inventory.py`
+  um den drift-watchdog-Eintrag reduziert; stale Kommentar-Verweise in
+  `c13-daily-cron.yml`, `phase-b-promotion-readiness.yml`,
+  `scripts/check_phase_b_drift_readiness.py` (dessen Wiring-Claim schon
+  vorher falsch war) und dem Script-Docstring aktualisiert.
 ### Fixed (2026-06-12) — f2-promotion-gate: Rollback-Ping in falsches Issue (Label-only-Suche)
 
 Der Step „Open rollback Issue (§2.4 G2 ping)“ in
@@ -8763,21 +8868,6 @@ vs. legacy "15m/1H". Cost: CI config only, benchmark runtime ~2x.
   input; ECE kept for back-compat. Project-root `sys.path` fallback so
   the `smc_core` import works from CLI invocation.
 
-### Evidence (Databento live, 10 025 events / 78 pairs)
-
-- FVG hit-rate **56.1 %** vs BOS **86.8 %** — confirms WP21 FVG
-  weakness at 55× sample size; not a small-sample artifact.
-- `session:ASIA` boosts every family's HR (OB +0.3005, FVG +0.1175,
-  SWEEP +0.1338) — coherent regime signal.
-- `session:NY_AM` FVG underperformance -0.0812 at n=2 662 — single
-  largest actionable lever.
-- Aggregate smECE 0.1349, ECE 0.1332, dCE 0.1260 — all three agree;
-  grid-artifact risk is low.
-- Production `artifacts/reports/zone_priority_calibration.json`
-  intentionally NOT bumped: global OB drift -0.3534 exceeds the 0.15
-  drift-gate. F2 contextual promotion gated on G3 30-day A/B with
-  SPRT/fixed-N stop rule per plan.
-
 ### Added (2026-04-20)
 
 - **Phase H — Pine Consumer Maturity:**
@@ -8893,36 +8983,6 @@ vs. legacy "15m/1H". Cost: CI config only, benchmark runtime ~2x.
   - Regrouped the `SMC_Dashboard.pine` Pro diagnostics surface into clearer operator-facing sections without changing the underlying BUS binding order or diagnostic row contracts.
   - Added explicit migration/operator guidance for the decision-first rollout, including safe-default expectations for `compact_mode`, `surface_mode`, and `surfaceMode` plus the operator-only BUS binding workflow for the dashboard companion script.
   - Kept the decision-first visual modes as presentation changes only; no additional engine gating is introduced by the new Lite/Pro defaults.
-
-### Added — Pine Library Modularization (Task 3)
-
-- **Five new Pine Script v6 libraries** (`pine/` folder) extracting shared logic
-  from the SkippALGO family:
-  - `skipp_math` — constants, clamping, probability/logit, percentile,
-    statistics, array safety, scoring helpers (24 exports).
-  - `skipp_scoring` — trend/regime detection, ensemble scoring, binning,
-    quantile helpers, decision quality (20 exports).
-  - `skipp_indicators` — zero-lag EMA variants, log regression oscillator
-    (5 exports).
-  - `skipp_calibration` — rolling accumulators, 3-way probability,
-    calibration engine, eval stats (16 exports).
-  - `skipp_labels` — label text truncation, capped label buffer (2 exports).
-
-- **Consumer slimming** — 6 Pine scripts now delegate shared functions to the
-  libraries via thin wrappers (`f_xxx(…) => lib.xxx(…)`):
-  - `SkippALGO.pine`: ~50 functions delegated (4 545 → 4 178 lines, −367).
-  - `QuickALGO.pine`: 50 functions delegated (4 908 → 4 709 lines, −199).
-  - `SkippALGO_Strategy.pine`: 48 functions (4 839 → 4 642, −197).
-  - `SkippALGO_Mid.pine`: 18 functions (2 930 → 2 847, −83).
-  - `SkippALGO_Mid_Strategy.pine`: 18 functions (2 954 → 2 871, −83).
-  - `SkippALGO_Mid_Indicator.pine`: 18 functions (2 948 → 2 865, −83).
-  - **Total: ~1 012 duplicated lines removed** across consumers.
-
-- **Bulk slimming script** `scripts/pine_slim.py` — automates import injection
-  and function body→delegate replacement for future Pine library extraction.
-
-- Functions with heavy global/UDT dependencies (TfState, input-bound
-  parameters) intentionally kept inline to preserve semantic safety.
 
 ### Fixed (2026-03-25)
 
@@ -9114,109 +9174,6 @@ vs. legacy "15m/1H". Cost: CI config only, benchmark runtime ~2x.
   - Fixed `_restore_signals_from_disk()` to include `technical_score`, `technical_signal`, `rsi`, `macd_signal` fields.
   - Fixed ADX scoring to be direction-neutral (amplifies existing bias instead of adding unconditional bullish tilt).
 
-### Added (2026-03-02 – 2026-03-02)
-
-- **📊 Actionable / Rankings / Segments tab enrichment:**
-
-- **🧠 AI Insights consolidation & tab reorder:**
-  - Removed the old "AI Insights" tab (was using basic TradingView-only context)
-  - Renamed "FMP AI" → "AI Insights" (the multi-layer enriched version is now the default)
-  - Deleted `terminal_tabs/tab_ai.py` (no longer needed)
-  - Reordered tabs: AI Insights → Actionable → Segments → Rankings → Outlook → Live Feed → Bitcoin → Alerts → Data Table
-
-- **📊 Actionable / Rankings / Segments tab enrichment:**
-  - **Actionable tab** — now shows 6 new inline columns: `Price`, `Chg%`, `Social` (Finnhub), `Analyst` (FMP consensus + upside%), `NLP` (NewsAPI.ai), `P/E`, `Vol`. Includes column guide popover explaining each data source.
-  - **Rankings tab** — added 4 new inline columns: `Tech` (TradingView signal), `Social`, `Analyst`, `P/E`. FMP batch quotes enrich price data when spike data is missing. Social sentiment and analyst forecasts use cached data or fetch fresh.
-  - **Segments tab** — added GICS sector performance overlay (expandable metric cards at top). "Top Symbols per Segment" drill-down now shows `Price`, `Chg%`, `Tech`, `Social`, `Analyst`, `P/E` columns per ticker.
-  - All three tabs gracefully fall back to cached data or empty columns when APIs are unavailable.
-
-- **🧠 FMP AI multi-layer enrichment (8 new data sources):**
-  - FMP AI context now includes **11 data layers** (up from 3) for dramatically richer LLM analysis:
-    1. **FMP quotes** (price, change%, volume, P/E, EPS) — *existing*
-    2. **FMP profiles** (sector, industry, beta) — *existing*
-    3. **TradingView technicals** (RSI, MACD, Stoch, MAs) — *existing*
-    4. **Economic calendar** — today's US macro events (GDP, CPI, FOMC, NFP) with estimates vs actuals from FMP
-    5. **Sector performance** — 11 GICS sector % changes for rotation analysis from FMP
-    6. **Social sentiment** — Reddit + Twitter mention counts and bullish/bearish scores from Finnhub
-    7. **Analyst forecasts** — price targets, consensus ratings, EPS estimates, recent upgrades/downgrades from FMP
-    8. **Benzinga analyst ratings** — institutional upgrades, downgrades, price target changes (last 7 days)
-    9. **Benzinga earnings calendar** — upcoming/recent EPS and revenue estimates vs actuals (±7 days)
-    10. **Insider trades** — recent executive buys/sells with transaction values from FMP
-    11. **Congressional trades** — Senate + House member stock trades from FMP
-  - Each data source has independent caching and graceful fallback if the API is unavailable.
-  - UI metadata line now shows `🔗 N data layers` count alongside existing article/ticker/FMP metrics.
-  - System prompt upgraded to instruct the LLM to cross-reference ALL available layers and identify disconnects (e.g. bullish news + bearish technicals, insider selling + analyst upgrades).
-  - Context expander description updated to list all data sources.
-  - `assemble_context()` expanded with 8 new optional keyword parameters — fully backward-compatible.
-
-- **🏦 FMP AI tab (new):**
-  - Mirrors the AI Insights tab UI — same 6 preset questions, custom question input, Generate/Regenerate/Clear buttons.
-  - Fetches real-time FMP quotes (price, change%, volume, market cap, P/E, EPS) and company profiles (sector, industry, beta) for the top 12 tickers in the feed.
-  - Sends FMP-enriched context to OpenAI GPT-4o with a finance-data-aware system prompt that cross-references news sentiment with actual price action.
-  - Separate session state keys (`fmp_ai_*`), separate cache, separate save file (`fmp_ai_trade_ideas.txt`).
-  - Auto-refresh pauses when FMP AI result is being reviewed (`fmp_ai_pause_auto_refresh`).
-  - Requires both `FMP_API_KEY` and `OPENAI_API_KEY`.
-  - New files: `terminal_fmp_insights.py` (backend), `terminal_tabs/tab_fmp_ai.py` (UI).
-  - Tab count increased 9 → 10.
-
-- **FMP technicals fallback provider:**
-  - New `terminal_fmp_technicals.py` module — fetches RSI(14), MACD(12,26), Stochastic(14,3,3), Williams %R(14), ADX(14), SMA & EMA (10, 20, 50, 100, 200) from FMP REST API.
-  - Computes Buy/Sell/Neutral signals using standard thresholds (RSI >70/< 30, MACD crossover, Stoch >80/<20, etc.).
-  - Returns data in the same `TechnicalResult` format as TradingView — transparent to all callers.
-  - 3-minute in-memory cache with thread-safe locking and auto-eviction.
-  - FMP has 3,000 calls/min rate limit — no 429 risk.
-
-### Fixed (2026-03-02 – 2026-03-02)
-
-- **TradingView 429 spam — proper cooldown escalation (`51a84e6`):**
-  - `_tv_register_success()` was resetting the consecutive 429 counter while a cooldown was still active, preventing escalation (120s → 240s → 480s). Now only resets when cooldown has fully expired.
-  - Cooldown early-return in `fetch_technicals()` now caches its result so repeated calls during cooldown skip immediately.
-  - Cooldown `RuntimeError`s from `_tv_throttle()` are now distinguished from actual TradingView 429 responses — they no longer re-register as new 429s, which was artificially escalating cooldown timers.
-  - Cooldown-block log messages downgraded from WARNING to DEBUG to reduce noise.
-
-- **AI Insights infinite spinner — 30s time budget (`d98aa25`):**
-  - The AI tab was hanging at "Fetching technicals for 8 tickers…" because each TradingView call has a 12s minimum spacing (anti-429 throttle). 8 tickers × up to 3 exchanges × 12s = up to 288 seconds of blocking.
-  - Added a 30-second time budget to the technicals fetch loop — breaks out early and uses whatever was collected.
-  - Falls back to previously cached technicals from session state if the time budget expires before any fresh data is fetched.
-  - Spinner now shows "≤30 s" hint so users know it won't hang indefinitely.
-
-- **AI tabs blocked during TradingView cooldown (`bb61050`, `caf082d`):**
-  - AI Insights and FMP AI tabs now check `_tv_is_cooling_down()` before the technicals fetch loop and skip entirely when TradingView is rate-limited.
-  - Shows a visible caption with remaining cooldown time (e.g., "⏳ TradingView rate-limited — cooldown 120s remaining. Using cached technicals.").
-  - Both tabs proceed straight to the LLM query with whatever data is available.
-  - Technical Data expander widgets in `streamlit_terminal.py` and `_shared.py` also had redundant cooldown guards that were removed after fallback integration.
-
-- **FMP as automatic TradingView fallback (`cbee41f`):**
-  - `fetch_technicals()` cooldown path now calls `_fmp_fallback()` which imports `fetch_fmp_technicals` and converts its dict result to a `TechnicalResult`.
-  - When TradingView is in 429 cooldown (120–900s), all callers transparently receive FMP-sourced technicals instead of error results.
-  - FMP results are cached in the TradingView cache so subsequent calls return instantly.
-  - Redundant widget-level cooldown guards removed from `streamlit_terminal.py` and `terminal_tabs/_shared.py` since `fetch_technicals()` now handles fallback internally.
-
-- **Deprecated `use_container_width` warnings (`836e223`, `72385f0`):**
-  - Replaced all 7 occurrences of `use_container_width=True` with `width='stretch'` across `streamlit_terminal.py` (3), `terminal_tabs/tab_ai.py` (3), and `terminal_tabs/tab_heatmap.py` (1).
-
-- **Rankings tab empty during off-hours (`f592850`):**
-  - Rankings tab was empty because it only sourced from `SpikeDetector.events` (empty outside market hours).
-  - Added feed items as a fallback data source so Rankings populates whenever there is feed data.
-
-- **Sector performance chart styling (`b32de5f`):**
-  - Restored original vertical bar chart with red-yellow-green gradient (`#FF1744`, `#FFC107`, `#00C853`), dark background, and angled labels — matching the pre-refactor appearance.
-
-### Changed (2026-03-02 – 2026-03-02)
-
-- **API budget optimization (`fc477c6`):**
-  - Removed 10 low-value tabs (~1,500 lines of UI code) to reduce API call volume and rendering overhead.
-  - Poll interval changed from 5s → 10s during market hours.
-  - Added 30-second periodic dedup reset to prevent feed staleness from accumulating duplicate filters.
-  - Slowed Bitcoin-related TTLs to reduce FMP bandwidth consumption.
-  - Refactored Rankings tab to use only feed + RT spike data (removed extra API calls).
-  - Removed 7 orphaned cached functions that were no longer called after tab removal.
-  - Added Sector Performance chart above the tab bar.
-  - Created `docs/API_BUDGET_CALCULATIONS.md` with detailed FMP budget analysis (150 GB/30d bandwidth, 3,000 calls/min rate limit).
-
-- **Feed staleness bypass fix (`6d9732e`):**
-  - `notify_ingest()` now only fires when the feed actually grows, preventing false staleness resets.
-
 ### Added (2026-03-03)
 
 - **Live technicals wired into AI Insights:**
@@ -9373,6 +9330,12 @@ vs. legacy "15m/1H". Cost: CI config only, benchmark runtime ~2x.
 - **Markdown lint (MD060)** in `docs/FMP_ENDPOINT_GAP_ANALYSE.md`: Fixed all table separator spacing
 - **Markdown lint (MD060 + MD051)** in `docs/ANBIETER_VERGLEICH_Finnhub_TwelveData_Alpaca.md`: Fixed table separators and link fragment anchors
 
+### Verification (2026-02-28)
+
+- Full regression suite: **1 674 passed, 34 subtests passed, 0 failures**.
+- Pylance/Pyright: **0 workspace errors**.
+- Dead code removed: **~680 lines across 6 files** (31 functions).
+
 ### Added (2026-02-27)
 
 - **Auto-recovery mechanism (data freshness self-healing):**
@@ -9455,12 +9418,6 @@ vs. legacy "15m/1H". Cost: CI config only, benchmark runtime ~2x.
   - Fixed `Generator` return type for yield fixtures in `tests/test_benzinga_calendar.py`.
   - Used `callable()` check instead of truthiness for `_market_session` function.
 
-### Verification (2026-02-28)
-
-- Full regression suite: **1 674 passed, 34 subtests passed, 0 failures**.
-- Pylance/Pyright: **0 workspace errors**.
-- Dead code removed: **~680 lines across 6 files** (31 functions).
-
 ### Verification (2026-02-27)
 
 - Full regression suite: **1599 passed, 34 subtests passed**.
@@ -9510,13 +9467,6 @@ vs. legacy "15m/1H". Cost: CI config only, benchmark runtime ~2x.
 ### Verification (2026-02-26)
 
 - Full regression suite (local): **1028 passed, 34 subtests passed**.
-
-### Verification (2026-02-26, later run)
-
-- Full regression suite (local): **1116 passed, 34 subtests passed**.
-- Linting (`ruff`): **All checks passed**.
-- Type-checking (`mypy`): **Success, no issues found**.
-- Core Python coverage (`newsstack_fmp`, `terminal_poller`, `terminal_export`): **83%**.
 
 ### Added (2026-02-25)
 
@@ -9606,6 +9556,161 @@ vs. legacy "15m/1H". Cost: CI config only, benchmark runtime ~2x.
 
 - Full test run completed locally:
   - **478 passed, 16 subtests passed, 0 failed**.
+
+### Evidence (Databento live, 10 025 events / 78 pairs)
+
+- FVG hit-rate **56.1 %** vs BOS **86.8 %** — confirms WP21 FVG
+  weakness at 55× sample size; not a small-sample artifact.
+- `session:ASIA` boosts every family's HR (OB +0.3005, FVG +0.1175,
+  SWEEP +0.1338) — coherent regime signal.
+- `session:NY_AM` FVG underperformance -0.0812 at n=2 662 — single
+  largest actionable lever.
+- Aggregate smECE 0.1349, ECE 0.1332, dCE 0.1260 — all three agree;
+  grid-artifact risk is low.
+- Production `artifacts/reports/zone_priority_calibration.json`
+  intentionally NOT bumped: global OB drift -0.3534 exceeds the 0.15
+  drift-gate. F2 contextual promotion gated on G3 30-day A/B with
+  SPRT/fixed-N stop rule per plan.
+
+### Added — Pine Library Modularization (Task 3)
+
+- **Five new Pine Script v6 libraries** (`pine/` folder) extracting shared logic
+  from the SkippALGO family:
+  - `skipp_math` — constants, clamping, probability/logit, percentile,
+    statistics, array safety, scoring helpers (24 exports).
+  - `skipp_scoring` — trend/regime detection, ensemble scoring, binning,
+    quantile helpers, decision quality (20 exports).
+  - `skipp_indicators` — zero-lag EMA variants, log regression oscillator
+    (5 exports).
+  - `skipp_calibration` — rolling accumulators, 3-way probability,
+    calibration engine, eval stats (16 exports).
+  - `skipp_labels` — label text truncation, capped label buffer (2 exports).
+
+- **Consumer slimming** — 6 Pine scripts now delegate shared functions to the
+  libraries via thin wrappers (`f_xxx(…) => lib.xxx(…)`):
+  - `SkippALGO.pine`: ~50 functions delegated (4 545 → 4 178 lines, −367).
+  - `QuickALGO.pine`: 50 functions delegated (4 908 → 4 709 lines, −199).
+  - `SkippALGO_Strategy.pine`: 48 functions (4 839 → 4 642, −197).
+  - `SkippALGO_Mid.pine`: 18 functions (2 930 → 2 847, −83).
+  - `SkippALGO_Mid_Strategy.pine`: 18 functions (2 954 → 2 871, −83).
+  - `SkippALGO_Mid_Indicator.pine`: 18 functions (2 948 → 2 865, −83).
+  - **Total: ~1 012 duplicated lines removed** across consumers.
+
+- **Bulk slimming script** `scripts/pine_slim.py` — automates import injection
+  and function body→delegate replacement for future Pine library extraction.
+
+- Functions with heavy global/UDT dependencies (TfState, input-bound
+  parameters) intentionally kept inline to preserve semantic safety.
+
+### Added (2026-03-02 – 2026-03-02)
+
+- **📊 Actionable / Rankings / Segments tab enrichment:**
+
+- **🧠 AI Insights consolidation & tab reorder:**
+  - Removed the old "AI Insights" tab (was using basic TradingView-only context)
+  - Renamed "FMP AI" → "AI Insights" (the multi-layer enriched version is now the default)
+  - Deleted `terminal_tabs/tab_ai.py` (no longer needed)
+  - Reordered tabs: AI Insights → Actionable → Segments → Rankings → Outlook → Live Feed → Bitcoin → Alerts → Data Table
+
+- **📊 Actionable / Rankings / Segments tab enrichment:**
+  - **Actionable tab** — now shows 6 new inline columns: `Price`, `Chg%`, `Social` (Finnhub), `Analyst` (FMP consensus + upside%), `NLP` (NewsAPI.ai), `P/E`, `Vol`. Includes column guide popover explaining each data source.
+  - **Rankings tab** — added 4 new inline columns: `Tech` (TradingView signal), `Social`, `Analyst`, `P/E`. FMP batch quotes enrich price data when spike data is missing. Social sentiment and analyst forecasts use cached data or fetch fresh.
+  - **Segments tab** — added GICS sector performance overlay (expandable metric cards at top). "Top Symbols per Segment" drill-down now shows `Price`, `Chg%`, `Tech`, `Social`, `Analyst`, `P/E` columns per ticker.
+  - All three tabs gracefully fall back to cached data or empty columns when APIs are unavailable.
+
+- **🧠 FMP AI multi-layer enrichment (8 new data sources):**
+  - FMP AI context now includes **11 data layers** (up from 3) for dramatically richer LLM analysis:
+    1. **FMP quotes** (price, change%, volume, P/E, EPS) — *existing*
+    2. **FMP profiles** (sector, industry, beta) — *existing*
+    3. **TradingView technicals** (RSI, MACD, Stoch, MAs) — *existing*
+    4. **Economic calendar** — today's US macro events (GDP, CPI, FOMC, NFP) with estimates vs actuals from FMP
+    5. **Sector performance** — 11 GICS sector % changes for rotation analysis from FMP
+    6. **Social sentiment** — Reddit + Twitter mention counts and bullish/bearish scores from Finnhub
+    7. **Analyst forecasts** — price targets, consensus ratings, EPS estimates, recent upgrades/downgrades from FMP
+    8. **Benzinga analyst ratings** — institutional upgrades, downgrades, price target changes (last 7 days)
+    9. **Benzinga earnings calendar** — upcoming/recent EPS and revenue estimates vs actuals (±7 days)
+    10. **Insider trades** — recent executive buys/sells with transaction values from FMP
+    11. **Congressional trades** — Senate + House member stock trades from FMP
+  - Each data source has independent caching and graceful fallback if the API is unavailable.
+  - UI metadata line now shows `🔗 N data layers` count alongside existing article/ticker/FMP metrics.
+  - System prompt upgraded to instruct the LLM to cross-reference ALL available layers and identify disconnects (e.g. bullish news + bearish technicals, insider selling + analyst upgrades).
+  - Context expander description updated to list all data sources.
+  - `assemble_context()` expanded with 8 new optional keyword parameters — fully backward-compatible.
+
+- **🏦 FMP AI tab (new):**
+  - Mirrors the AI Insights tab UI — same 6 preset questions, custom question input, Generate/Regenerate/Clear buttons.
+  - Fetches real-time FMP quotes (price, change%, volume, market cap, P/E, EPS) and company profiles (sector, industry, beta) for the top 12 tickers in the feed.
+  - Sends FMP-enriched context to OpenAI GPT-4o with a finance-data-aware system prompt that cross-references news sentiment with actual price action.
+  - Separate session state keys (`fmp_ai_*`), separate cache, separate save file (`fmp_ai_trade_ideas.txt`).
+  - Auto-refresh pauses when FMP AI result is being reviewed (`fmp_ai_pause_auto_refresh`).
+  - Requires both `FMP_API_KEY` and `OPENAI_API_KEY`.
+  - New files: `terminal_fmp_insights.py` (backend), `terminal_tabs/tab_fmp_ai.py` (UI).
+  - Tab count increased 9 → 10.
+
+- **FMP technicals fallback provider:**
+  - New `terminal_fmp_technicals.py` module — fetches RSI(14), MACD(12,26), Stochastic(14,3,3), Williams %R(14), ADX(14), SMA & EMA (10, 20, 50, 100, 200) from FMP REST API.
+  - Computes Buy/Sell/Neutral signals using standard thresholds (RSI >70/< 30, MACD crossover, Stoch >80/<20, etc.).
+  - Returns data in the same `TechnicalResult` format as TradingView — transparent to all callers.
+  - 3-minute in-memory cache with thread-safe locking and auto-eviction.
+  - FMP has 3,000 calls/min rate limit — no 429 risk.
+
+### Fixed (2026-03-02 – 2026-03-02)
+
+- **TradingView 429 spam — proper cooldown escalation (`51a84e6`):**
+  - `_tv_register_success()` was resetting the consecutive 429 counter while a cooldown was still active, preventing escalation (120s → 240s → 480s). Now only resets when cooldown has fully expired.
+  - Cooldown early-return in `fetch_technicals()` now caches its result so repeated calls during cooldown skip immediately.
+  - Cooldown `RuntimeError`s from `_tv_throttle()` are now distinguished from actual TradingView 429 responses — they no longer re-register as new 429s, which was artificially escalating cooldown timers.
+  - Cooldown-block log messages downgraded from WARNING to DEBUG to reduce noise.
+
+- **AI Insights infinite spinner — 30s time budget (`d98aa25`):**
+  - The AI tab was hanging at "Fetching technicals for 8 tickers…" because each TradingView call has a 12s minimum spacing (anti-429 throttle). 8 tickers × up to 3 exchanges × 12s = up to 288 seconds of blocking.
+  - Added a 30-second time budget to the technicals fetch loop — breaks out early and uses whatever was collected.
+  - Falls back to previously cached technicals from session state if the time budget expires before any fresh data is fetched.
+  - Spinner now shows "≤30 s" hint so users know it won't hang indefinitely.
+
+- **AI tabs blocked during TradingView cooldown (`bb61050`, `caf082d`):**
+  - AI Insights and FMP AI tabs now check `_tv_is_cooling_down()` before the technicals fetch loop and skip entirely when TradingView is rate-limited.
+  - Shows a visible caption with remaining cooldown time (e.g., "⏳ TradingView rate-limited — cooldown 120s remaining. Using cached technicals.").
+  - Both tabs proceed straight to the LLM query with whatever data is available.
+  - Technical Data expander widgets in `streamlit_terminal.py` and `_shared.py` also had redundant cooldown guards that were removed after fallback integration.
+
+- **FMP as automatic TradingView fallback (`cbee41f`):**
+  - `fetch_technicals()` cooldown path now calls `_fmp_fallback()` which imports `fetch_fmp_technicals` and converts its dict result to a `TechnicalResult`.
+  - When TradingView is in 429 cooldown (120–900s), all callers transparently receive FMP-sourced technicals instead of error results.
+  - FMP results are cached in the TradingView cache so subsequent calls return instantly.
+  - Redundant widget-level cooldown guards removed from `streamlit_terminal.py` and `terminal_tabs/_shared.py` since `fetch_technicals()` now handles fallback internally.
+
+- **Deprecated `use_container_width` warnings (`836e223`, `72385f0`):**
+  - Replaced all 7 occurrences of `use_container_width=True` with `width='stretch'` across `streamlit_terminal.py` (3), `terminal_tabs/tab_ai.py` (3), and `terminal_tabs/tab_heatmap.py` (1).
+
+- **Rankings tab empty during off-hours (`f592850`):**
+  - Rankings tab was empty because it only sourced from `SpikeDetector.events` (empty outside market hours).
+  - Added feed items as a fallback data source so Rankings populates whenever there is feed data.
+
+- **Sector performance chart styling (`b32de5f`):**
+  - Restored original vertical bar chart with red-yellow-green gradient (`#FF1744`, `#FFC107`, `#00C853`), dark background, and angled labels — matching the pre-refactor appearance.
+
+### Changed (2026-03-02 – 2026-03-02)
+
+- **API budget optimization (`fc477c6`):**
+  - Removed 10 low-value tabs (~1,500 lines of UI code) to reduce API call volume and rendering overhead.
+  - Poll interval changed from 5s → 10s during market hours.
+  - Added 30-second periodic dedup reset to prevent feed staleness from accumulating duplicate filters.
+  - Slowed Bitcoin-related TTLs to reduce FMP bandwidth consumption.
+  - Refactored Rankings tab to use only feed + RT spike data (removed extra API calls).
+  - Removed 7 orphaned cached functions that were no longer called after tab removal.
+  - Added Sector Performance chart above the tab bar.
+  - Created `docs/API_BUDGET_CALCULATIONS.md` with detailed FMP budget analysis (150 GB/30d bandwidth, 3,000 calls/min rate limit).
+
+- **Feed staleness bypass fix (`6d9732e`):**
+  - `notify_ingest()` now only fires when the feed actually grows, preventing false staleness resets.
+
+### Verification (2026-02-26, later run)
+
+- Full regression suite (local): **1116 passed, 34 subtests passed**.
+- Linting (`ruff`): **All checks passed**.
+- Type-checking (`mypy`): **Success, no issues found**.
+- Core Python coverage (`newsstack_fmp`, `terminal_poller`, `terminal_export`): **83%**.
 
 ### Added
 
