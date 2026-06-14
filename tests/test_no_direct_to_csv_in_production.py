@@ -120,8 +120,11 @@ def _iter_violations(path: Path) -> list[str]:
     source_lines = source.splitlines()
     try:
         tree = ast.parse(source, filename=str(path))
-    except SyntaxError:
-        return []
+    except SyntaxError as exc:
+        raise ValueError(
+            f"SyntaxError while scanning {path} — fix the file or exclude it "
+            f"from the scan: {exc}"
+        ) from exc
     violations: list[str] = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
