@@ -32,17 +32,18 @@ fi
 
 # Pull the test-file list out of the drift-guard step only (not the whole
 # workflow), so unrelated pytest invocations don't leak in. Stateful awk:
-# start capturing AFTER the matched step name, stop at the NEXT '- name:'
-# line (whatever its initial/indentation) — no dependence on step-name
-# initials. Path pattern tolerates subdirectories, uppercase, dots and
-# dashes (tests/foo/test_Bar-x.py).
+# start capturing AFTER the matched step name, stop at the NEXT step-level
+# '- name:' line (anchored to 6 leading spaces so run-block content can
+# never trigger premature end of capture). Mirrors _strip_comments() in
+# tests/test_fast_gates_silent_skip_coverage.py: comment tails are stripped
+# before path extraction so commented-out test references are ignored.
 # grep exits 1 when nothing matches; '|| true' keeps set -e from aborting
 # so the [ -z "$TESTS" ] check below can produce a useful error message.
 TESTS="$(awk '
   /- name: Run pin \/ ledger drift guard/ {capture=1; next}
-  capture && /- name:/ {capture=0}
+  capture && /^      - name:/ {capture=0}
   capture {print}
-' "$WORKFLOW" | grep -oE 'tests/[A-Za-z0-9_./-]+\.py' | sort -u || true)"
+' "$WORKFLOW" | sed 's/[[:space:]]*#.*$//' | grep -oE 'tests/[A-Za-z0-9_./-]+\.py' | sort -u || true)"
 
 if [ -z "$TESTS" ]; then
   echo "ERROR: could not extract drift-guard test list from $WORKFLOW" >&2
