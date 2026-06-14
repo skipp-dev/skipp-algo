@@ -18,8 +18,10 @@ name: fvg-quality-recal-shadow-daily
 #   * Bottom-quartile HR <= 0.55  (or <= base - 0.15 in relative mode)
 #   * Quality-score Spearman correlation with outcome >= 0.20
 #
-# Schedule: 08:00 UTC weekdays, after smc-measurement-benchmark-rolling
-# (07:30 UTC) so the latest corpus is available via workflow artifacts.
+# Schedule: 13:30 UTC weekdays, after smc-measurement-benchmark-rolling
+# normally has produced the day's corpus (workflow_run-driven off the
+# 12:00 UTC producer since audit HOCH-1; 16:30 UTC safety-net cron), so
+# the latest corpus is available via workflow artifacts.
 #
 # When no rolling-bench corpus has been produced yet (clean checkout,
 # fresh fork), the run still completes green and emits a shadow JSON
@@ -28,10 +30,11 @@ name: fvg-quality-recal-shadow-daily
 
 on:
   schedule:
-    # 13:30 UTC Mon-Fri — must run AFTER smc-measurement-benchmark-rolling
-    # (13:00 UTC Mon-Fri) so the corpus is in place. The shadow JSON is
-    # fail-soft on missing corpus, but waiting avoids a noisy `no_data`
-    # row every day.
+    # 13:30 UTC Mon-Fri — runs after smc-measurement-benchmark-rolling has
+    # normally produced the corpus (workflow_run-driven off the 12:00 UTC
+    # producer since audit HOCH-1; 16:30 UTC safety-net cron). The shadow
+    # JSON is fail-soft on missing corpus, but waiting avoids a noisy
+    # `no_data` row every day.
     - cron: "30 13 * * 1-5"
   workflow_dispatch:
     inputs:

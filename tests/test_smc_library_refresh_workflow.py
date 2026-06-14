@@ -21,6 +21,50 @@ def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def _step_block(workflow_text: str, step_name: str) -> str:
+    start = workflow_text.index(f"      - name: {step_name}")
+    next_step = workflow_text.find("\n      - name: ", start + 1)
+    return workflow_text[start:] if next_step == -1 else workflow_text[start:next_step]
+
+
+def test_refresh_workflow_restores_databento_bundle_before_generation() -> None:
+    workflow_text = _read(WORKFLOW_PATH)
+
+    ordered_steps = [
+        "Restore Databento production export bundle (today)",
+        "Restore Databento production export bundle (latest fallback)",
+        "Reject stale Databento fallback on automated refresh",
+        "Flatten downloaded Databento export bundle",
+        "Verify Databento production export bundle is present",
+        "Generate SMC library with v5 enrichment",
+    ]
+    positions = [workflow_text.index(f"      - name: {step}") for step in ordered_steps]
+    assert positions == sorted(positions)
+    assert positions[-1] < workflow_text.index("      - name: Run evidence gate tests")
+
+    restore_region = workflow_text[positions[0]:positions[-1]]
+    assert "steps.diff.outputs.changed" not in restore_region
+
+    stale_guard_block = _step_block(workflow_text, "Reject stale Databento fallback on automated refresh")
+    assert "github.event_name != 'workflow_dispatch'" in stale_guard_block
+    assert "Refusing to generate from a stale producer bundle" in stale_guard_block
+
+
+def test_refresh_workflow_generates_from_restored_producer_bundle() -> None:
+    workflow_text = _read(WORKFLOW_PATH)
+    generate_block = _step_block(workflow_text, "Generate SMC library with v5 enrichment")
+
+    assert "--bundle artifacts/smc_microstructure_exports" in generate_block
+    assert "--enrich-all" in generate_block
+    assert "--export-dir artifacts/smc_microstructure_exports" in generate_block
+    assert "--run-scan" not in generate_block
+    assert "--incremental-base-only" not in generate_block
+    assert "DATABENTO_API_KEY" not in generate_block
+    assert "SMC_INCREMENTAL_BASE_SEED_CACHE_VERSION" not in workflow_text
+    assert "Restore incremental base seed" not in workflow_text
+    assert "Save incremental base seed" not in workflow_text
+
+
 def test_refresh_commit_step_restores_runtime_artifacts_before_commit() -> None:
     workflow_text = _read(WORKFLOW_PATH)
 
