@@ -700,6 +700,20 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         from scripts.evaluate_phase_criteria import load_and_validate_eval_report
 
+        # W8-3 (stat-review wave 8): a live phase with an empty
+        # gate_statuses map has no variant to bind the eval report to,
+        # which silently neutralises the W3-3 cross-variant substitution
+        # guard below (list({}) -> [] -> None -> the membership check is
+        # skipped entirely). A live run with zero gated variants is itself
+        # nonsensical, so fail closed rather than authorise on an unbound
+        # report.
+        if not gate_statuses:
+            raise SystemExit(
+                f"phase={args.phase!r} requires a non-empty --gate-statuses "
+                "map: a live phase must declare the variant(s) being traded "
+                "so the eval report can be bound to them (W3-3). Refusing to "
+                "run a live phase with zero gated variants."
+            )
         # W3-3 (stat-review wave 3): bind the eval report to the variants
         # actually being traded, preventing cross-variant substitution.
         # gate_statuses is keyed by variant name; the report's variant
@@ -708,7 +722,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         load_and_validate_eval_report(
             args.phase_eval_report,
             target_phase=args.phase,
-            expected_variants=list(gate_statuses) or None,
+            expected_variants=list(gate_statuses),  # W8-3: guaranteed non-empty
         )
     if args.account_state_json is not None:
         account_state = _account_state_from_json(args.account_state_json)
