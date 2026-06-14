@@ -31,11 +31,11 @@
 #   FMP_API_KEY        – Financial Modeling Prep API key (enrichment data)
 #   BENZINGA_API_KEY   – Benzinga API key (news/calendar fallback)
 #   TV_STORAGE_STATE   – TradingView Playwright storage-state as raw JSON or gzip+base64 (publish)
-#
-# Not required by this consumer workflow:
-#   DATABENTO_API_KEY: base Databento data is produced by
-#   smc-databento-production-export-sharded.yml and consumed via --bundle;
-#   no Databento scan runs in this workflow, so this key is unused here.
+#   DATABENTO_API_KEY  – Consumed by the provider-credential preflight step
+#                        (--databento-key-env DATABENTO_API_KEY); base data is
+#                        produced by smc-databento-production-export-sharded.yml
+#                        and consumed via --bundle but the key is still required
+#                        here so the preflight can validate it is present/valid.
 #
 # Optional secrets:
 #   GH_PAT             – Optional GitHub PAT override for checkout;

@@ -444,6 +444,7 @@ def test_refresh_runs_provider_preflight_before_generation() -> None:
     assert 'severity" = "error"' in workflow_text
     # Preflight must gate the generation step, not trail it. Anchor on the
     # step `- name:` markers (the comment header also mentions the phrase).
+    assert '- name: Generate SMC library with v5 enrichment' in workflow_text
     assert workflow_text.index('- name: Provider credential preflight') < workflow_text.index(
         '- name: Generate SMC library with v5 enrichment'
     )
