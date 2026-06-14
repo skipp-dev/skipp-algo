@@ -597,6 +597,9 @@ def save_universe_snapshot(
     }
     from databento_utils import _replace_atomic
 
+    # NOTE: _replace_atomic uses mkstemp internally but re-opens via path for the
+    # write_temp callback — the FD-based TOCTOU hardening is a pre-existing
+    # limitation of the _replace_atomic helper (out of scope for this PR).
     def _write_temp(temp_path: Path) -> None:
         temp_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 

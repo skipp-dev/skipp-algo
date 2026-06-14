@@ -260,10 +260,10 @@ def _write_payload(path: Path, payload: dict[str, Any]) -> None:
         prefix=f".{path.name}.",
         suffix=".tmp",
     )
-    os.close(fd)
     tmp_path = Path(tmp_name)
     try:
-        tmp_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps(payload, indent=2) + "\n")
         # mkstemp creates the temp file as 0o600; preserve the destination's
         # existing permissions so a shared (e.g. group-readable) cache file is
         # not silently downgraded when it is rewritten.

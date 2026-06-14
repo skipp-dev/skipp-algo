@@ -88,9 +88,9 @@ def _fsync_file_if_requested(path: Path, *, enabled: bool) -> None:
     if not enabled:
         return
     try:
-        fd = os.open(path, os.O_RDONLY)
+        fd = os.open(path, os.O_RDWR)
     except PermissionError:
-        fd = os.open(path, os.O_WRONLY)
+        fd = os.open(path, os.O_RDONLY)
     try:
         os.fsync(fd)
     finally:
@@ -114,8 +114,8 @@ def _atomic_write(
     tmp_path = Path(tmp_name)
     try:
         getattr(df, writer_name)(tmp_path, **kwargs)
-        os.chmod(tmp_path, mode)
         _fsync_file_if_requested(tmp_path, enabled=fsync)
+        os.chmod(tmp_path, mode)
         os.replace(tmp_path, target)
     except BaseException:
         with suppress(OSError):
@@ -178,8 +178,8 @@ def atomic_write_text(
     try:
         with os.fdopen(fd, "w", encoding=encoding, newline=newline) as fh:
             fh.write(text)
-        os.chmod(tmp_path, mode)
         _fsync_file_if_requested(tmp_path, enabled=fsync)
+        os.chmod(tmp_path, mode)
         os.replace(tmp_path, target_path)
     except BaseException:
         with suppress(OSError):
