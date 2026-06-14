@@ -4,16 +4,12 @@ Three layers of defense against supply-chain regressions:
 
 1. **Exact pins required.** Every non-comment, non-empty line is
     exact-pinned with ``==`` so a fresh ``pip install`` cannot silently
-     pull in a brand-new (potentially compromised) release.
     pull in a brand-new (potentially compromised) release.
 
 2. **No third-party index URLs.** Lines starting with ``--index-url`` or
    ``--extra-index-url`` would let pip resolve packages from outside
    PyPI — a known dependency-confusion vector. Today: 0 such lines.
 
-3. **Line-count budgets.** Each tracked requirements surface has a frozen
-    dep-line budget. New dependencies must update the relevant budget
-    consciously, surfacing supply-chain surface growth in code review.
 3. **Line-count budgets.** Each tracked requirements surface has a frozen
     dep-line budget. New dependencies must update the relevant budget
     consciously, surfacing supply-chain surface growth in code review.
@@ -28,7 +24,6 @@ OWASP A08 (Software & Data Integrity Failures).
 """
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 import pytest
@@ -49,8 +44,6 @@ _DEP_LINE_BUDGETS = {
     "requirements.txt": 27,
     "requirements-gpu.txt": 1,
 }
-
-_SPECIFIER_RE = re.compile(r"[<>=~!]")
 
 
 def _dep_lines(path: Path) -> list[tuple[int, str]]:
