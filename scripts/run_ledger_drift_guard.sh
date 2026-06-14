@@ -55,7 +55,9 @@ fi
 # pytest importieren können; xdist ist optional (sonst seriell).
 MAIN_ROOT="$(cd "$(git rev-parse --git-common-dir)/.." && pwd)"
 PYBIN_RESOLVED=""
-for cand in "${PYBIN:-}" "$REPO_ROOT/.venv/bin/python" "$MAIN_ROOT/.venv/bin/python" python3; do
+for cand in "${PYBIN:-}" "$REPO_ROOT/.venv/bin/python" "$MAIN_ROOT/.venv/bin/python" \
+            "$REPO_ROOT/.venv/Scripts/python.exe" "$MAIN_ROOT/.venv/Scripts/python.exe" \
+            python3 python; do
   [ -n "$cand" ] || continue
   if "$cand" -c "import pytest" 2>/dev/null; then
     PYBIN_RESOLVED="$cand"
@@ -63,7 +65,7 @@ for cand in "${PYBIN:-}" "$REPO_ROOT/.venv/bin/python" "$MAIN_ROOT/.venv/bin/pyt
   fi
 done
 if [ -z "$PYBIN_RESOLVED" ]; then
-  echo "ERROR: no python with pytest found (tried PYBIN, worktree/.venv, $MAIN_ROOT/.venv, python3)" >&2
+  echo "ERROR: no python with pytest found (tried PYBIN, worktree/.venv, $MAIN_ROOT/.venv, Scripts/python.exe, python3, python)" >&2
   exit 1
 fi
 
