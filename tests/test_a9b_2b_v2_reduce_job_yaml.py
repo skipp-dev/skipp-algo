@@ -327,38 +327,47 @@ def test_run_blocks_do_not_reference_unresolvable_template_expressions() -> None
     purposes — but ``needs.plan.outputs.matrix`` is empty during the plan
     job itself, so ``fromJson('')`` raised the error.
 
-    Guard: no ``run:`` block may contain the literal substring
+    Guard: no ``run:`` block in ANY workflow may contain the literal substring
     ``${{ fromJson(`` (crashes when reference is empty), or ``${{`` followed
     by a literal ellipsis ``...`` (placeholder leaked into the YAML).
     Documentation must use plain prose without the ``${{`` braces.
+
+    Scope expanded from sharded-workflow-only to all workflows in
+    .github/workflows/ (audit finding 2026-06-14: c13-daily-cron.yml,
+    smc-databento-production-export-sharded.yml, smc-fast-pr-gates.yml
+    were flagged as lacking coverage).
     """
     yaml = pytest.importorskip("yaml")
     import re
 
-    path = (
-        _REPO_ROOT
-        / ".github"
-        / "workflows"
-        / f"{_SHARDED_WORKFLOW_BASENAME}.yml"
-    )
-    doc = yaml.safe_load(path.read_text())
+    workflows_dir = _REPO_ROOT / ".github" / "workflows"
     # Match ${{ ... <ellipsis or 'fromJson('> ... }} style misuse.
     bad_patterns = (
         re.compile(r"\$\{\{[^}]*\.\.\."),       # ellipsis placeholder
         re.compile(r"\$\{\{\s*fromJson\("),     # fromJson(...) inside run
     )
-    offenders: list[tuple[str, str, str]] = []
-    for job_name, job in doc["jobs"].items():
-        for step in job.get("steps", []):
-            run_text = step.get("run")
-            if not isinstance(run_text, str):
-                continue
-            for pat in bad_patterns:
-                m = pat.search(run_text)
-                if m:
-                    offenders.append(
-                        (job_name, str(step.get("name", "<unnamed>")), m.group(0))
-                    )
+    offenders: list[tuple[str, str, str, str]] = []
+    for wf_path in sorted(workflows_dir.glob("*.yml")):
+        try:
+            doc = yaml.safe_load(wf_path.read_text())
+        except Exception:
+            continue
+        if not isinstance(doc, dict) or "jobs" not in doc:
+            continue
+        for job_name, job in doc["jobs"].items():
+            for step in (job.get("steps") or []):
+                run_text = step.get("run")
+                if not isinstance(run_text, str):
+                    continue
+                for pat in bad_patterns:
+                    m = pat.search(run_text)
+                    if m:
+                        offenders.append((
+                            wf_path.name,
+                            job_name,
+                            str(step.get("name", "<unnamed>")),
+                            m.group(0),
+                        ))
     assert not offenders, (
         f"run: blocks must not contain ${{{{ fromJson(...) }}}} expressions — "
         f"GHA evaluates these even in shell comments and crashes when the "
