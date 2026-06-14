@@ -58,7 +58,8 @@ jobs:
           pip install -r requirements.txt
           # Pin matplotlib (dashboard-only dep, not in requirements.txt) for
           # reproducible weekly renders (F7).
-          pip install 'matplotlib>=3.9.3'
+          # SC-02 (supply-chain audit 2026-06-14): exact pin, no floating >=.
+          pip install 'matplotlib==3.9.4'
           pip install -e .
 
       - name: Resolve lookback window

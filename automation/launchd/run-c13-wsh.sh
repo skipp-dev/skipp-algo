@@ -19,6 +19,7 @@ OUTPUT="${REPO}/cache/wsh/${DATE}.jsonl"
 SUMMARY="${REPO}/cache/wsh/${DATE}.summary.json"
 FEED_MARKER="${REPO}/cache/wsh/.feed_status_${DATE}"
 PUSH_MARKER="${REPO}/cache/wsh/.push_status_${DATE}"
+TS="$(date -u +%FT%TZ)"
 
 cd "${REPO}"
 # Lane 7: venv-realism guard. Sourcing a missing activate yields a
@@ -26,6 +27,8 @@ cd "${REPO}"
 # clear error so the operator can fix C13_VENV in the plist.
 if [[ ! -f "${VENV}/bin/activate" ]]; then
     echo "WSH cron: virtualenv activate script not found at ${VENV}/bin/activate (set C13_VENV in plist)" >&2
+    mkdir -p "$(dirname "${FEED_MARKER}")" 2>/dev/null || true
+    printf 'degraded:preflight-error:%s\n' "${TS}" > "${FEED_MARKER}" 2>/dev/null || true
     exit 1
 fi
 # shellcheck disable=SC1091
@@ -37,6 +40,7 @@ source "${VENV}/bin/activate"
 PY="${VENV}/bin/python"
 if [[ ! -x "${PY}" ]]; then
     echo "WSH cron: python interpreter not executable at ${PY}" >&2
+    printf 'degraded:preflight-error:%s\n' "${TS}" > "${FEED_MARKER}" 2>/dev/null || true
     exit 1
 fi
 
@@ -46,7 +50,6 @@ fi
 #       (e.g. IBKR entitlement missing / watchlist rows lack conIds); the
 #       summary is still written so the degradation is auditable
 #   1 — hard failure (no usable summary written)
-TS="$(date -u +%FT%TZ)"
 set +e
 "${PY}" -m scripts.wsh_earnings_calendar \
     --watchlist "${WATCHLIST}" \

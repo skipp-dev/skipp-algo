@@ -147,6 +147,10 @@ jobs:
           "$SMC_PYTHON_BIN" -m pip install -r requirements-rl.txt
 
       - name: Install CUDA-enabled torch
+        # SC-03 (supply-chain audit 2026-06-14): uses the ONLY approved non-PyPI
+        # index in this repo (download.pytorch.org/whl/). Scope is deliberately
+        # restricted to self-hosted GPU runners. See requirements-rl-gpu.txt for
+        # the full allowlist rationale and governance note.
         if: needs.select-runner.outputs.runner_environment == 'self-hosted' && (inputs.prefer_gpu || 'true') == 'true'
         run: |
           "$SMC_PYTHON_BIN" -m pip install --force-reinstall -r requirements-rl-gpu.txt

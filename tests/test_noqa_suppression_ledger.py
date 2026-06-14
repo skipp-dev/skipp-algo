@@ -120,7 +120,7 @@ _FROZEN_SITES: dict[str, int] = {
     # rather than as a -m module.
     # Rebaselined 2026-05-03 (after PR #2035): bumped 1 → 3 / 2 → 4
     # because the import-order fix added the ``_bootstrap_sys_mod``
-    # helper which contributes two new ``# noqa: E402`` lines per
+    # helper which contributes two new ``noqa: E402`` lines per
     # script (the ``sys = _bootstrap_sys_mod`` rebinding and the
     # subsequent ``from scripts._logging_init import init_cli_logging``).
     "scripts/collect_smc_gate_evidence.py": 3,
@@ -132,7 +132,7 @@ _FROZEN_SITES: dict[str, int] = {
     "scripts/analyze_smc_contextual_calibration_history.py": 3,
     # Rebaselined 2026-05-03 (after PR #2035): bumped 1 → 3 because
     # the import-order fix added the ``_bootstrap_sys_mod`` helper
-    # (two new ``# noqa: E402`` lines per script).
+    # (two new ``noqa: E402`` lines per script).
     "scripts/e2e_smoke_ci.py": 3,
     "scripts/execute_ibkr_watchlist.py": 1,
     "scripts/export_open_prep_lists.py": 2,
@@ -142,7 +142,7 @@ _FROZEN_SITES: dict[str, int] = {
     # Rebaselined 2026-05-03 (after PR #2035): bumped 1 → 3, see e2e_smoke_ci.py.
     "scripts/fvg_quality_recalibration.py": 3,
     "scripts/generate_performance_report.py": 1,
-    "scripts/probe_newsapi_feed_cursor.py": 5,
+    "scripts/probe_newsapi_feed_cursor.py": 4,
     "scripts/run_smc_e2e_smoke_test.py": 1,
     # WF-008 strict-json follow-up (2026-05-20): the benchmark CLI inserts
     # repo root into sys.path before first-party imports so path invocation
@@ -159,19 +159,19 @@ _FROZEN_SITES: dict[str, int] = {
     # is justified by the docstring + classification dispatch table.
     "scripts/databento_safe_fetch.py": 1,
     # Added 2026-05-03 (after PR #2035): each carries the two
-    # ``# noqa: E402`` lines from the ``_bootstrap_sys_mod`` helper
+    # ``noqa: E402`` lines from the ``_bootstrap_sys_mod`` helper
     # (``sys = _bootstrap_sys_mod`` rebinding + the immediately
     # following ``from scripts._logging_init import init_cli_logging``).
     "scripts/check_pine_legacy_drift.py": 2,
     "scripts/emit_fvg_context_pine.py": 2,
     "scripts/fvg_quality_quartile_gate.py": 2,
     "scripts/g23_ab_watchdog.py": 2,
-    # A9b.3 reduce-step: 1× `# noqa: E402` for the
+    # A9b.3 reduce-step: 1× `noqa: E402` for the
     # `from scripts.smc_atomic_write import atomic_write_json` import
     # which must follow the sys.path bootstrap (see import-order ledger).
     # F-V8-cutover: bumped 1 → 3 to cover the new payload-merge step:
-    # 1× `# noqa: PLC0415` for the lazy `import pandas as pd` (heavy
-    # dep, only needed when payloads exist) + 1× `# noqa: BLE001` for
+    # 1× `noqa: PLC0415` for the lazy `import pandas as pd` (heavy
+    # dep, only needed when payloads exist) + 1× `noqa: BLE001` for
     # the discovery-step generic `except Exception` (must surface every
     # shard's error in the partial-fail report, not abort the merge).
     "scripts/databento_production_merge_shards.py": 3,
@@ -181,24 +181,23 @@ _FROZEN_SITES: dict[str, int] = {
     # suppression is justified by the diagnostic-only nature of the script.
     # Rebaselined 2026-05-13: bumped 1 → 3 to cover ImportError surface
     # in __main__ guard (`databento_client` import + `_make_databento_client`
-    # construction + `PREFERRED_DATABENTO_DATASETS` import) — each is a
-    # diagnostic-only ``# noqa: SECLEAK`` because the surfaced text contains
-    # only module/path identifiers, not credentials.
-    "scripts/probe_databento_entitlement.py": 3,
+    # construction + `PREFERRED_DATABENTO_DATASETS` import) — each carried
+    # a SECLEAK comment (not a real ruff code; ruff 2026-06-14 warned).
+    # Removed all three SECLEAK noqa directives; count dropped to 0 —
+    # entry removed from ledger.
     # 2026-05-12 PR #2154: scripts/probe_fmp_13f_endpoints.py needed 3
     # suppressions originally. Rebaselined to 1 after upstream main
-    # consolidated the discovery loop's two BLE001 catches into a single
-    # SECLEAK-marked dict construction (only 1× `# noqa: SECLEAK` remains).
-    "scripts/probe_fmp_13f_endpoints.py": 1,
+    # consolidated the discovery loop’s two BLE001 catches into a single
+    # SECLEAK-marked dict construction. SECLEAK removed 2026-06-14 (not a
+    # valid ruff code; count dropped to 0 — entry removed from ledger).
     # 2026-05-13: scripts/probe_providers.py preflight + notification
     # dispatcher catches ``Exception`` deliberately (broad logging.exception
     # in two error-recovery paths) so a transient dispatcher failure does
-    # not abort the multi-provider preflight run. Each call site carries
-    # ``# noqa: SECLEAK`` because the dispatcher logs only the exception
-    # type / message (no API keys live in the exception stack frame).
-    "scripts/probe_providers.py": 2,
+    # not abort the multi-provider preflight run. Each call site carried
+    # a SECLEAK comment (not a valid ruff code). Removed 2026-06-14;
+    # count dropped to 0 — entry removed from ledger.
     # Dev-only profiling helpers (subprocess.run on locally-constructed
-    # argv) ship a single `# noqa: S603` each. Both are CI-invocable
+    # argv) ship a single `noqa: S603` each. Both are CI-invocable
     # convenience scripts, not on any production hot path.
     "scripts/profile_cron_with_pyspy.py": 1,
     "scripts/profile_pytest_durations.py": 1,

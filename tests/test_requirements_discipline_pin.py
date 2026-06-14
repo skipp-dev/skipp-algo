@@ -2,22 +2,23 @@
 
 Three layers of defense against supply-chain regressions:
 
-1. **Version specifier required.** Every non-comment, non-empty line must
-   carry at least one of ``>= == ~= < > !=`` so a fresh ``pip install``
-   cannot silently pull in a brand-new (potentially compromised) major
-   version. Today: all 23 deps use ``>=``.
+1. **Exact pins required.** Every non-comment, non-empty line is
+    exact-pinned with ``==`` so a fresh ``pip install`` cannot silently
+    pull in a brand-new (potentially compromised) release. Today: all 27
+    deps in ``requirements.txt`` are exact-pinned.
 
 2. **No third-party index URLs.** Lines starting with ``--index-url`` or
    ``--extra-index-url`` would let pip resolve packages from outside
    PyPI — a known dependency-confusion vector. Today: 0 such lines.
 
-3. **Line-count budget.** Total dep-line count is frozen at 23. New
+3. **Line-count budget.** Total dep-line count is frozen at 27. New
    dependencies must update the budget consciously, surfacing
    supply-chain surface growth in code review.
 
-Future work (not blocking): migrate to ``pip-compile --generate-hashes``
-to add SHA-256 pinning. That requires committing to exact versions
-(``==`` instead of ``>=``), which is a separate decision.
+Companion lockfiles (for the surfaces that use them) carry
+``--generate-hashes`` SHA-256 fingerprints. ``requirements.txt`` itself
+remains the human-edited exact-pin source of truth for the root runtime
+set.
 
 OWASP A06 (Vulnerable & Outdated Components) +
 OWASP A08 (Software & Data Integrity Failures).
@@ -74,17 +75,16 @@ def test_requirements_file_exists() -> None:
 
 @pytest.mark.parametrize(("lineno", "line"), _dep_lines())
 def test_every_dep_has_version_specifier(lineno: int, line: str) -> None:
-    """Every dep line must carry a version specifier (``>=``, ``==``, …).
+    """Every dep line must be exact-pinned with ``==``.
 
-    A bare ``requests`` line would let a fresh install pull in any
-    version, including a freshly-published compromised one. Even a
-    soft lower bound (``>=X.Y``) gives a floor and signals the
-    intended major.
+    A bare ``requests`` line — or even a floating lower bound like
+    ``requests>=X.Y`` — would let a fresh install drift to a newly
+    published release. For the root requirements set we freeze exact
+    versions in source control.
     """
-    assert _SPECIFIER_RE.search(line), (
-        f"requirements.txt line {lineno} is unpinned: {line!r}. "
-        f"Add at least a lower bound (e.g. '>=1.0') to avoid pulling "
-        f"in arbitrary future major versions."
+    assert "==" in line, (
+        f"requirements.txt line {lineno} is not exact-pinned: {line!r}. "
+        "Use 'pkg==X.Y.Z' for deterministic root installs."
     )
 
 

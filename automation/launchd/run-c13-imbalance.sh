@@ -17,6 +17,7 @@ DATE="$(date -u +%Y-%m-%d)"
 OUTPUT="${REPO}/cache/imbalance/${DATE}.jsonl"
 SUMMARY="${REPO}/cache/imbalance/${DATE}.summary.json"
 MARKER="${REPO}/cache/imbalance/.push_status_${DATE}"
+TS="$(date -u +%FT%TZ)"
 
 cd "${REPO}"
 # Lane 7: venv-realism guard. Sourcing a missing activate yields a
@@ -24,6 +25,8 @@ cd "${REPO}"
 # clear error so the operator can fix C13_VENV in the plist.
 if [[ ! -f "${VENV}/bin/activate" ]]; then
     echo "imbalance cron: virtualenv activate script not found at ${VENV}/bin/activate (set C13_VENV in plist)" >&2
+    mkdir -p "$(dirname "${MARKER}")" 2>/dev/null || true
+    printf 'degraded:preflight-error:%s\n' "${TS}" > "${MARKER}" 2>/dev/null || true
     exit 1
 fi
 # shellcheck disable=SC1091
@@ -35,14 +38,25 @@ source "${VENV}/bin/activate"
 PY="${VENV}/bin/python"
 if [[ ! -x "${PY}" ]]; then
     echo "imbalance cron: python interpreter not executable at ${PY}" >&2
+    printf 'degraded:preflight-error:%s\n' "${TS}" > "${MARKER}" 2>/dev/null || true
     exit 1
 fi
 
-"${PY}" -m scripts.collect_opening_imbalances \
+# SA-03 (audit 2026-06-14): wrap collector so a non-zero exit writes a
+# degraded marker before aborting — required for machine-detectable
+# monitoring of silent collector failures.
+if "${PY}" -m scripts.collect_opening_imbalances \
     --watchlist "${WATCHLIST}" \
     --output    "${OUTPUT}" \
     --summary-output "${SUMMARY}" \
-    --trade-date "${DATE}"
+    --trade-date "${DATE}"; then
+    :
+else
+    rc=$?
+    echo "imbalance cron: collect_opening_imbalances FAILED (exit ${rc}) — see above for details" >&2
+    printf 'degraded:collector-error:%s\n' "${TS}" > "${MARKER}" 2>/dev/null || true
+    exit 1
+fi
 
 # Publish to the dedicated data branch via an isolated worktree so the push
 # never lands on (or diverges) the primary tree's checked-out branch.
