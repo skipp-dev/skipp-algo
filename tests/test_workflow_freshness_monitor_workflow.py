@@ -63,9 +63,9 @@ def test_monitors_critical_crons_with_budgets(text: str) -> None:
         "f2-promotion-gate-daily.yml=30",
         "fvg-quality-recal-shadow-daily.yml=30",
         "feature-importance-daily.yml=30",
-        # Workflow-Audit 2026-06: zuvor unbeobachtete Daten-Pipelines.
-        # `:any` = cron-Feuern zaehlt (Workflows mit erwartbaren roten
-        # Laeufen); stage1-weekly laeuft montags -> 8-Tage-Budget.
+        # Workflow-Audit 2026-06: previously unmonitored data pipelines.
+        # `:any` = cron fires count (workflows with expected red runs);
+        # stage1-weekly runs on Mondays -> 8-day budget.
         "smc-measurement-benchmark-rolling.yml=30:any",
         "adr0023-magnitude-shadow-daily.yml=30:any",
         "adr0023-magnitude-stage1-weekly.yml=192",
