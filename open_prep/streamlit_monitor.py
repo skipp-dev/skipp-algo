@@ -71,6 +71,10 @@ def _load_streamlit_secrets() -> None:
         secrets = st.secrets
         for key in _SECRET_KEYS:
             if key in secrets and not os.environ.get(key):
+                # R-E2 (2026-06-14): os.environ mutation is safe here —
+                # _load_streamlit_secrets() is called at module import before
+                # any threads are spawned, and is additive-only (guarded by
+                # `not os.environ.get(key)`).
                 os.environ[key] = str(secrets[key])
     except Exception as exc:
         logger.debug("Could not load Streamlit secrets bridge: %s", type(exc).__name__, exc_info=True)
