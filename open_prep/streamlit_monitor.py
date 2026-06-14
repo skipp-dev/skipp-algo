@@ -125,7 +125,11 @@ def _is_market_hours_fallback() -> bool:
         try:
             return _market_session() in ("regular", "pre-market", "after-hours")
         except Exception as exc:
-            logger.debug("market_session() probe failed; falling back to wall-clock: %s", type(exc).__name__)
+            logger.debug(
+                "market_session() probe failed; falling back to wall-clock: %s",
+                type(exc).__name__,
+                exc_info=True,
+            )
             pass  # fall through to wall-clock heuristic
     # Fallback: derive from wall-clock Eastern time
     try:
@@ -135,7 +139,11 @@ def _is_market_hours_fallback() -> bool:
             return False
         return time(4, 0) <= now_et.time() <= time(20, 0)
     except Exception as exc:
-        logger.debug("ZoneInfo fallback failed in _is_market_hours_fallback: %s", type(exc).__name__)
+        logger.debug(
+            "ZoneInfo fallback failed in _is_market_hours_fallback: %s",
+            type(exc).__name__,
+            exc_info=True,
+        )
         # If even timezone lookup fails, assume market hours to be safe
         return True
 
@@ -228,7 +236,11 @@ try:
         fetch_opra_options_flow as _fetch_opra_options,
     )
 except Exception as exc:  # pragma: no cover
-    logger.debug("OPRA options flow import unavailable: %s", type(exc).__name__)
+    logger.debug(
+        "OPRA options flow import unavailable: %s",
+        type(exc).__name__,
+        exc_info=True,
+    )
     _fetch_opra_options = None  # type: ignore[assignment]
 
 # v3 P-4b/d: dark-pool prints, dealer-gamma-by-strike, marketwide tide.
