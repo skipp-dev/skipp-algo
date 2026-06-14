@@ -192,7 +192,7 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # combined — measured 579.
     # 2026-06-12 (Copilot #2729): main() exit-semantics docstring +6 → 585.
     ("open_prep/outcome_backfill.py", 585),
-    ("open_prep/realtime_signals.py", 2662),
+    ("open_prep/realtime_signals.py", 2666),
     # 2026-06-10 (#2670 W2/W4): source-disclosure edits shifted +25 (5840→5865).
     # 2026-06-11 (trend-state features): 5865→5876, enrichment-loop stamping.
     # 2026-06-11 (eval-findings D7): import block +8, enrichment +15
