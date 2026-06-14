@@ -175,5 +175,7 @@ def test_weekly_downloads_prior_digest_archive() -> None:
     step = next(s for s in steps
                 if s.get("name") == "Download Plan 2.8 digest archive")
     assert step["uses"].startswith("dawidd6/action-download-artifact@")
-    assert step["with"]["name"] == "plan-2-8-digest-archive"
+    # Anchored (^...$) so the regexp does not also match the sibling artifact
+    # plan-2-8-digest-archive-index (Workflow-Audit 2026-06).
+    assert step["with"]["name"] == "^plan-2-8-digest-archive$"
     assert step["with"]["name_is_regexp"] is True
