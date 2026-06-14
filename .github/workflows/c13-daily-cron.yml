@@ -1,7 +1,7 @@
 # live-window: mutating-on-cron  # F-V6-F2.1 (2026-05-02)
 name: c13-daily-cron
 
-# live-window: off-hours-only  # 22:00 UTC weekdays — outside trading window 13:30–20:00 UTC (audit F-V3-14, 2026-05-01)
+# Schedule: 22:00 UTC weekdays — outside trading window 13:30–20:00 UTC (audit F-V3-14, 2026-05-01)
 #
 # Sprint C13 / T2 — daily incubation cron for Phase A.
 #
@@ -109,7 +109,7 @@ jobs:
       - name: Resolve trade date
         id: date
         env:
-          # A2 (2026-06-10): env-var indirection — ${{ }} expressions are
+          # A2 (2026-06-10): env-var indirection — $\{\{ \}\} expressions are
           # shell-injected before the shell parses run: blocks (audit pass-3
           # finding A2). GHA evaluates env: values before the shell starts;
           # using "${INPUT_TRADE_DATE}" inside the script is injection-safe.

@@ -189,42 +189,46 @@ def test_write_report_emits_schema_versioned_json(tmp_path: Path) -> None:
 # ── CLI smoke ─────────────────────────────────────────────────────
 
 
-def test_cli_main_writes_report(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_cli_main_writes_report(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    import logging
+
     out = tmp_path / "replay.json"
-    rc = main(
-        [
-            "--out",
-            str(out),
-            "--n-normal",
-            "5",
-            "--n-drift",
-            "5",
-            "--sample-size",
-            "30",
-        ]
-    )
+    with caplog.at_level(logging.INFO, logger="scripts.c9_threshold_replay"):
+        rc = main(
+            [
+                "--out",
+                str(out),
+                "--n-normal",
+                "5",
+                "--n-drift",
+                "5",
+                "--sample-size",
+                "30",
+            ]
+        )
     assert rc == 0
     assert out.exists()
-    captured = capsys.readouterr()
-    assert "Wrote" in captured.out
-    assert "Passing acceptance" in captured.out
+    assert "Wrote" in caplog.text
+    assert "Passing acceptance" in caplog.text
 
 
-def test_cli_main_print_table_flag(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_cli_main_print_table_flag(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    import logging
+
     out = tmp_path / "replay.json"
-    rc = main(
-        [
-            "--out",
-            str(out),
-            "--n-normal",
-            "3",
-            "--n-drift",
-            "3",
-            "--sample-size",
-            "30",
-            "--print-table",
-        ]
-    )
+    with caplog.at_level(logging.INFO, logger="scripts.c9_threshold_replay"):
+        rc = main(
+            [
+                "--out",
+                str(out),
+                "--n-normal",
+                "3",
+                "--n-drift",
+                "3",
+                "--sample-size",
+                "30",
+                "--print-table",
+            ]
+        )
     assert rc == 0
-    captured = capsys.readouterr()
-    assert "| TPR | FPR |" in captured.out
+    assert "| TPR | FPR |" in caplog.text

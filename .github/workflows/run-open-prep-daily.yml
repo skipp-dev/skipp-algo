@@ -1,7 +1,7 @@
 # live-window: mutating-on-cron  # F-V6-F2.1 (2026-05-02)
 name: run-open-prep-daily
 
-# live-window: off-hours-only  # 13:00 UTC weekdays — 30 min before trading window opens at 13:30 UTC (audit F-V3-14, 2026-05-01)
+# Schedule: 13:00 UTC weekdays — 30 min before trading window opens at 13:30 UTC (audit F-V3-14, 2026-05-01)
 #
 # Daily pre-open scoring run. Generates a fresh `outcomes_<date>.json`
 # that the existing `open-prep-outcome-backfill` workflow will label

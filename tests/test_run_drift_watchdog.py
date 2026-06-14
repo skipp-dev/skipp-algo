@@ -324,6 +324,80 @@ def test_build_report_softens_green_to_yellow_on_incomplete_window(
         assert rep["aggregate_severity"] == "yellow"
 
 
+def test_build_report_softens_green_to_yellow_when_setup_unattributed(
+    tmp_path: Path,
+) -> None:
+    """W8-1 (stat-review wave 8): a baseline that carries per-setup blocks
+    but live outcomes without setup attribution must not yield a clean
+    green — the un-run per-setup comparison is surfaced as yellow so it is
+    not silently masked behind the pooled verdict."""
+    today = date(2026, 4, 26)
+    rng = np.random.default_rng(0)
+    samples = rng.normal(0.001, 0.01, size=201).tolist()
+    # Live == the full baseline distribution → the pooled comparison is a
+    # clean green; spread across the whole window so coverage is complete
+    # (otherwise incomplete_window would pre-empt the W8-1 downgrade). Live
+    # records carry NO setup_type, so no per-setup metric pair can form.
+    third = len(samples) // 3
+    for offset in range(3):
+        _write_outcomes(
+            tmp_path,
+            today - timedelta(days=offset),
+            [
+                {"pnl_30m_pct": s}
+                for s in samples[offset * third : (offset + 1) * third]
+            ],
+        )
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text(
+        json.dumps({"per_setup": {"x": {"oos_pnl_returns": samples}}}),
+        encoding="utf-8",
+    )
+    rep = build_report(
+        outcomes_dir=tmp_path,
+        baseline_json=baseline_path,
+        window_days=3,
+        today=today,
+    )
+    assert rep["window_complete"] is True
+    assert rep["per_setup_live_attribution"] is False
+    assert rep["aggregate_severity"] == "yellow"
+    assert rep["reason"] == "per_setup_unattributable"
+
+
+def test_build_report_keeps_green_when_setup_attributed(tmp_path: Path) -> None:
+    """W8-1: the green→yellow softening must NOT fire when live outcomes
+    carry setup attribution (a per-setup comparison actually ran)."""
+    today = date(2026, 4, 26)
+    rng = np.random.default_rng(1)
+    samples = rng.normal(0.001, 0.01, size=201).tolist()
+    third = len(samples) // 3
+    for offset in range(3):
+        _write_outcomes(
+            tmp_path,
+            today - timedelta(days=offset),
+            [
+                {"pnl_30m_pct": s, "setup_type": "fvg_long"}
+                for s in samples[offset * third : (offset + 1) * third]
+            ],
+        )
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text(
+        json.dumps({"per_setup": {"fvg_long": {"oos_pnl_returns": samples}}}),
+        encoding="utf-8",
+    )
+    rep = build_report(
+        outcomes_dir=tmp_path,
+        baseline_json=baseline_path,
+        window_days=3,
+        today=today,
+    )
+    assert rep["window_complete"] is True
+    assert rep["per_setup_live_attribution"] is True
+    assert rep["aggregate_severity"] == "green"
+    assert rep.get("reason") != "per_setup_unattributable"
+
+
 def test_load_live_outcomes_with_coverage_complete(tmp_path: Path) -> None:
     today = date(2026, 4, 26)
     for offset in range(3):

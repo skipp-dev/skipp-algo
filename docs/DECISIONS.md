@@ -556,3 +556,85 @@ are pairwise identical (`n_events` and `hit_rate`) as
   shadowing) that prompted auditing other A/B surfaces.
 
 **Status.** accepted.
+
+### 2026-06-14 - f2-contextual-candidate-closed-null-post-fix
+
+**Context.** The F2 dual-arm fix from
+[2026-06-10 - f2-dual-arm-raw-score-shadowing](#2026-06-10---f2-dual-arm-raw-score-shadowing)
+voided every prior verdict (the SPRT had been comparing control
+against control) and required the experiment to be re-run with the
+corrected post-processor and spec-threaded SPRT params. The
+post-fix promotion-gate run is now in: `f2-promotion-gate-daily`
+run 27426121665 (report dated 2026-06-12). Its dual-arm summary is
+the first to show **distinct arms** — control hit-rate `0.5336`
+vs treatment `0.5337`, Brier-Δ `+0.0157`, calibrated-ECE worse —
+confirming Bug 1 (byte-identical arms) is fixed in the data path:
+the treatment is genuinely measured and is marginally *worse* on
+every calibration metric with hit-rate tied. The Wald SPRT
+(one-sided, `p0=0.544 / p1=0.574 / max_n=1200`) returns
+`accept_h0` with `n=1664, k=888, llr=-5.1415` — far below the Wald
+lower bound `-1.5581`. Decision emitted: `rollback`,
+action `noop_already_shadow` (treatment was never promoted).
+
+**Decision.** Close the F2 contextual zone-priority candidate as a
+validated **null result** and keep the treatment **shadow-only**
+(production continues to serve the static global zone-priority
+weights). We do not promote, and the daily gate's `rollback` /
+`noop_already_shadow` outcome is the expected steady state — a red
+CI exit code 2 here means "candidate rejected", not "pipeline
+broken". We do **not** flip `f2_contextual_promotion.json` away
+from `live`: `live` denotes an *active shadow experiment*, and no
+`rolled_back` spec status exists in the gate code.
+
+**Alternatives considered.**
+
+- *Promote the treatment.* Rejected — the corrected SPRT accepts H0
+  and the treatment is worse on Brier and ECE; promoting would ship
+  a strictly inferior calibration.
+- *Keep accumulating and re-decide later.* Rejected — `n=1664`
+  already exceeds the registered `max_n=1200` and the LLR has
+  crossed the lower Wald boundary by a wide margin (`-5.14` vs
+  `-1.56`); more observations cannot rescue a candidate this far
+  inside H0.
+- *Declare the experiment broken and re-run from scratch (as on
+  2026-06-10).* Rejected — unlike the 06-10 corpus, the arms are now
+  distinct, so the measurement path is demonstrably correct; the
+  verdict is evidence, not an artifact.
+
+**Consequences.**
+
+- The F2 contextual candidate is parked; any future contextual
+  zone-priority weighting must enter as a **new** candidate with a
+  fresh SPRT corpus, not as a continuation of this one.
+- **Caveat / follow-up (corpus reset gap).** The SPRT corpus `n`
+  grew monotonically across the fix boundary (`1492 → 1588 → 1664`).
+  The only automatic reset path,
+  [`scripts/f2_flip_status.py`](../scripts/f2_flip_status.py)
+  (`action: sprt_state_reset`), fires *only* on a
+  `plumbing_only → live` status flip (`FLIP_FROM/FLIP_TO`), and the
+  spec status stayed `live` throughout the fix — so no reset fired
+  and a fraction of the corpus predates the 06-10 fix. Because the
+  post-fix arms are distinct, the LLR is strongly negative, and the
+  treatment is worse on every metric, the H0 acceptance is
+  directionally robust to that contamination; but a code-deploy
+  boundary (not just a status flip) should trigger an explicit
+  corpus reset. Tracked externally in issue #2770 — do **not**
+  treat this ADR as evidence that the reset path works.
+
+**Evidence.**
+
+- `f2-promotion-gate-daily` run
+  [27426121665](https://github.com/skippALGO/skipp-algo/actions/runs/27426121665)
+  — `decision: rollback, reason: "SPRT accepted H0 (n=1664, k=888, llr=-5.1415)"`,
+  `sprt.decision=accept_h0`, `control_hit_rate=0.5336`,
+  `hit_rate=0.5337`, `brier_delta=+0.0157`,
+  `action=noop_already_shadow`.
+- `f2_promotion_gate_2026-06-12.json` (CI workflow artifact, not
+  checked in) — full dual-arm metric table.
+- [`scripts/smc_sprt_stop_rule.py`](../scripts/smc_sprt_stop_rule.py)
+  — Wald SPRT engine; [`scripts/f2_flip_status.py`](../scripts/f2_flip_status.py)
+  — status-flip / `sprt_state_reset` helper.
+- Supersedes the re-run obligation recorded in
+  [2026-06-10 - f2-dual-arm-raw-score-shadowing](#2026-06-10---f2-dual-arm-raw-score-shadowing).
+
+**Status.** accepted.

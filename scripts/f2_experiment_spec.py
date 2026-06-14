@@ -67,6 +67,25 @@ class RollbackGateSpec:
 
 
 @dataclass(frozen=True)
+class KpiThresholdSpec:
+    """Promote-KPI thresholds for the F2 gate (W8-2).
+
+    stat-review wave 8: these used to be hardcoded literals inside
+    :func:`_check_kpi_gate`, duplicating both the spec's prose
+    ``promotion_gate.requires`` strings and run_ab_comparison's
+    PROMOTE_IMPROVEMENT / HIT_RATE_REGRESSION_TOLERANCE constants. They
+    are now read from the spec (``promotion_gate.kpi_thresholds``) so a
+    spec change actually propagates to the promote path. Defaults match
+    the canonical run_ab_comparison values, so a spec without an explicit
+    block keeps the historical behaviour.
+    """
+
+    calibrated_brier_max_delta: float = -0.005
+    calibrated_ece_max_delta: float = -0.005
+    hit_rate_min_delta_pp: float = -1.0
+
+
+@dataclass(frozen=True)
 class F2Spec:
     """Parsed F2 experiment spec (schema_version=1)."""
 
@@ -83,6 +102,7 @@ class F2Spec:
     on_reject: tuple[str, ...]
     min_days: int
     min_events_per_arm: int
+    promotion_gate_kpi: KpiThresholdSpec
 
     @property
     def control_artifact(self) -> Path:
@@ -104,6 +124,27 @@ def _arm(d: dict[str, Any], ctx: str) -> ArmSpec:
         label=str(_require(d, "label", ctx)),
         calibration_artifact=Path(_require(d, "calibration_artifact", ctx)),
         description=str(d.get("description", "")),
+    )
+
+
+def _kpi_thresholds(d: dict[str, Any]) -> KpiThresholdSpec:
+    """Parse the optional ``promotion_gate.kpi_thresholds`` block (W8-2).
+
+    Missing keys fall back to the canonical run_ab_comparison defaults so
+    a spec without the block is unchanged from the historical hardcoded
+    behaviour.
+    """
+    defaults = KpiThresholdSpec()
+    return KpiThresholdSpec(
+        calibrated_brier_max_delta=float(
+            d.get("calibrated_brier_max_delta", defaults.calibrated_brier_max_delta)
+        ),
+        calibrated_ece_max_delta=float(
+            d.get("calibrated_ece_max_delta", defaults.calibrated_ece_max_delta)
+        ),
+        hit_rate_min_delta_pp=float(
+            d.get("hit_rate_min_delta_pp", defaults.hit_rate_min_delta_pp)
+        ),
     )
 
 
@@ -158,6 +199,7 @@ def load_f2_spec(path: Path) -> F2Spec:
         on_reject=tuple(prom_raw.get("on_reject", [])),
         min_days=int(win_raw.get("min_days", 30)),
         min_events_per_arm=int(win_raw.get("min_events_per_arm", 600)),
+        promotion_gate_kpi=_kpi_thresholds(prom_raw.get("kpi_thresholds", {})),
     )
 
 
@@ -256,7 +298,7 @@ def evaluate_promotion(
 
     # Promote only when SPRT accepts H1 AND KPI gate is satisfied.
     if sprt_decision == "accept_h1":
-        kpi = _check_kpi_gate(digest)
+        kpi = _check_kpi_gate(digest, spec.promotion_gate_kpi)
         if kpi["ok"]:
             return {
                 "decision": "promote",
@@ -293,10 +335,15 @@ def _row(rows: list[dict[str, Any]], metric: str) -> dict[str, Any] | None:
     return None
 
 
-def _check_kpi_gate(digest: dict[str, Any]) -> dict[str, Any]:
-    """Apply the canonical promote-KPI gate from run_ab_comparison.
+def _check_kpi_gate(
+    digest: dict[str, Any], thresholds: KpiThresholdSpec
+) -> dict[str, Any]:
+    """Apply the canonical promote-KPI gate.
 
-    Mirrors the thresholds in :mod:`scripts.run_ab_comparison`:
+    W8-2 (stat-review wave 8): thresholds are read from the F2 spec
+    (``promotion_gate.kpi_thresholds`` -> :class:`KpiThresholdSpec`)
+    instead of hardcoded literals, so a spec change propagates to the
+    promote path. Defaults still mirror :mod:`scripts.run_ab_comparison`:
     PROMOTE_IMPROVEMENT=0.005 for calibrated_brier and calibrated_ece
     (lower-is-better), HIT_RATE_REGRESSION_TOLERANCE=1.0pp.
     """
@@ -309,9 +356,9 @@ def _check_kpi_gate(digest: dict[str, Any]) -> dict[str, Any]:
     ce_d = float(ce.get("delta") or 0.0)
     hr_d = float(hr.get("delta") or 0.0)
 
-    cb_ok = cb_d <= -0.005
-    ce_ok = ce_d <= -0.005
-    hr_ok = hr_d >= -1.0
+    cb_ok = cb_d <= thresholds.calibrated_brier_max_delta
+    ce_ok = ce_d <= thresholds.calibrated_ece_max_delta
+    hr_ok = hr_d >= thresholds.hit_rate_min_delta_pp
     ok = cb_ok and ce_ok and hr_ok
     return {
         "ok": ok,

@@ -104,8 +104,8 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # (776→784, 795→803).
         # 2026-06-13: profile-bulk pagination constant shifted +1
         # (784→785, 803→804); sleeps unchanged: retry-backoff paths.
-        ("open_prep/macro.py", 785),
-        ("open_prep/macro.py", 804),
+        ("open_prep/macro.py", 799),
+        ("open_prep/macro.py", 818),
         ("newsstack_fmp/ingest_fmp_political.py", 122),
         ("newsstack_fmp/ingest_fmp_political.py", 135),
         ("newsstack_fmp/shared_fetch.py", 297),
@@ -118,8 +118,8 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/realtime_signals.py", 275),
         ("open_prep/realtime_signals.py", 349),
         ("open_prep/realtime_signals.py", 1617),
-        ("open_prep/realtime_signals.py", 2723),
-        ("open_prep/realtime_signals.py", 2736),
+        ("open_prep/realtime_signals.py", 2727),
+        ("open_prep/realtime_signals.py", 2740),
         # 2026-06-11 (eval-findings D7): technical_analysis import block
         # +8 lines (1943→1951, 1945→1953).
         ("open_prep/run_open_prep.py", 1952),
