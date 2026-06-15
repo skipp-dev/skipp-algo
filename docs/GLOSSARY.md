@@ -43,6 +43,7 @@ other reference.
 | `C8` | Live-Incubation (setup) | First live-incubation scaffolding. |
 | `C9` | Drift-Alert + Anomalie-Monitoring | Backtest- and live-mode drift alerts. |
 | `C10` | ML-Layer | Machine-learning scoring layer. |
+| `C11` | *(reserved / skipped)* | Sprint number reserved; no deliverable assigned. |
 | `C12` | RL-Execution | Reinforcement-learning execution layer. |
 | `C13` | **Live-Incubation Phase A** | 28-day paper incubation. Signed **NO-GO** 2026-06-09 (root cause: IBKR paper gateway never connected → zero trades). See [DECISIONS.md](DECISIONS.md). |
 | `C14` | **Live-Incubation Phase B** | Promotion to `live_small`. **BLOCKED** on a re-signed `C13` GO. |
@@ -56,12 +57,12 @@ other reference.
 |------|---------|
 | `Phase A` | **Paper** incubation stage (the `C13` sprint). Dry-run; a zero `AccountState` is acceptable. |
 | `Phase B` | **`live_small`** stage (the `C14` sprint). 10 % position size; real capital, gated. |
-| `paper` | Trading phase: dry-run, no broker orders submitted by default. `PHASE_DEFAULTS["paper"].paper_mode = True`. |
+| `paper` | Trading phase: dry-run, no broker orders submitted by default. `_PHASE_DEFAULTS["paper"]["paper_mode"] = True`. |
 | `live_small` | Trading phase: real orders at `PHASE_B_RECOMMENDED_SIZE_SCALE` (10 %). Requires `--risk-limits-json`, `--account-state-json`, and a passing `paper` eval report. |
 | `live_full` | Trading phase: real orders at 100 % size. Requires a passing `live_small` eval report. |
 
 Defined in [scripts/run_smc_live_incubation.py](../scripts/run_smc_live_incubation.py)
-(`PHASE_DEFAULTS`, `PHASE_B_RECOMMENDED_SIZE_SCALE`).
+(`_PHASE_DEFAULTS`, `PHASE_B_RECOMMENDED_SIZE_SCALE`).
 
 > Not to be confused with **“Phase C Analysis”** in `PHASE_C_ANALYSIS.md`,
 > which is an unrelated non-behavioural code-cleanup inventory — _not_ a
