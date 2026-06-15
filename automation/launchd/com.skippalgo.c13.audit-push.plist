@@ -32,9 +32,9 @@
     <false/>
 
     <key>StandardOutPath</key>
-    <string>/tmp/skippalgo-c13-audit-push.log</string>
+    <string>__HOME__/Library/Logs/skippalgo/skippalgo-c13-audit-push.log</string>
     <key>StandardErrorPath</key>
-    <string>/tmp/skippalgo-c13-audit-push.err</string>
+    <string>__HOME__/Library/Logs/skippalgo/skippalgo-c13-audit-push.err</string>
 
     <key>EnvironmentVariables</key>
     <dict>

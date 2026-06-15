@@ -3422,6 +3422,231 @@ def _write_canonical_production_workbook(
     return workbook_result.output_path
 
 
+def _run_fmp_intraday_bridge(
+    fmp_api_key: str,
+    *,
+    today: date,
+    universe_symbols: set[str],
+    window_start: time | None,
+    window_end: time | None,
+    daily_bars: pd.DataFrame,
+    progress_callback: Any = None,
+) -> pd.DataFrame:
+    """Fetch today's partial intraday 1-min OHLCV from FMP as a live data bridge.
+
+    Invoked in Step 6c when Databento has no same-day data yet (market still
+    open; dataset not finalized until ~20:00 UTC).  FMP supplies 1-min OHLCV
+    via ``/stable/historical-chart/1min``.  Returns a DataFrame whose schema
+    is compatible with ``run_intraday_screen()`` output, or an empty DataFrame
+    on any error.
+
+    Design contract
+    ---------------
+    * Graceful: every FMP / network failure returns an empty DataFrame.
+    * No caching: data is partial and will be superseded by Databento at 21:00.
+    * Databento always wins: Step 6c only fires when ``today`` is absent from
+      the Databento-based ``intraday`` result, so there is no row collision.
+    """
+    if not str(fmp_api_key or "").strip():
+        return pd.DataFrame()
+
+    # --- Resolve window bounds (mirrors _resolve_window_for_date defaults) ---
+    _market_open_et = time(9, 30)
+    _pre_open_minutes = 10  # mirrors _DEFAULT_INTRADAY_PRE_OPEN_MINUTES
+    ws: time = window_start if window_start is not None else time(
+        _market_open_et.hour,
+        max(0, _market_open_et.minute - _pre_open_minutes),
+    )
+    now_et: time = datetime.now(US_EASTERN_TZ).time()
+    we: time = window_end if window_end is not None else now_et
+    if we > now_et:
+        we = now_et
+    if we <= ws:
+        # Window hasn't opened yet (e.g. run before pre-market).
+        return pd.DataFrame()
+
+    # --- Build prev-close lookup from daily_bars -------------------------
+    # daily_bars row for (today, symbol) carries `previous_close` = yesterday's
+    # closing price — the reference needed for transition-column calculations.
+    prev_close_map: dict[str, float | None] = {}
+    if not daily_bars.empty and "previous_close" in daily_bars.columns:
+        for row in daily_bars[
+            pd.to_datetime(daily_bars["trade_date"], errors="coerce").dt.date == today
+        ].itertuples(index=False):
+            sym = str(row.symbol).upper()
+            try:
+                v = float(row.previous_close)
+                prev_close_map[sym] = v if math.isfinite(v) else None
+            except (TypeError, ValueError):
+                prev_close_map[sym] = None
+
+    try:
+        client = _make_export_fmp_client(fmp_api_key)
+    except Exception as exc:
+        if progress_callback:
+            progress_callback(f"Step 6c/10: FMP bridge client init error: {exc}")
+        return pd.DataFrame()
+
+    def _sf(v: Any) -> float | None:
+        try:
+            f = float(v)
+            return f if math.isfinite(f) else None
+        except (TypeError, ValueError):
+            return None
+
+    def _pct(num: float | None, denom: float | None) -> float | None:
+        """Percent-change helper: ((num / denom) - 1) * 100."""
+        if num is None or denom is None or denom <= 0:
+            return None
+        return ((num / denom) - 1.0) * 100.0
+
+    today_prefix = today.isoformat()  # "2026-06-15"
+
+    # Fetch all symbols in parallel (FMP rate-limit safe ceiling: 10 workers).
+    _FMP_BRIDGE_WORKERS = 10
+
+    def _fetch_one(sym: str) -> tuple[str, list[dict[str, Any]]]:
+        try:
+            return sym, client.get_intraday_chart(sym, interval="1min", day=today)
+        except Exception:
+            logger.debug("Step 6c/10: FMP bridge get_intraday_chart failed for %s", sym, exc_info=True)
+            return sym, []
+
+    with ThreadPoolExecutor(max_workers=_FMP_BRIDGE_WORKERS) as pool:
+        fetched: dict[str, list[dict[str, Any]]] = dict(
+            pool.map(_fetch_one, sorted(universe_symbols))
+        )
+
+    rows: list[dict[str, Any]] = []
+    errors = sum(1 for v in fetched.values() if not v)
+    for sym, raw in fetched.items():
+        if not raw:
+            continue
+
+        # Parse + bucket bars for today into [pre-market, in-window].
+        premarket_bars: list[tuple[str, dict[str, Any]]] = []
+        in_window: list[tuple[str, dict[str, Any]]] = []
+        for bar in raw:
+            bar_str = str(bar.get("date") or "")
+            if not bar_str.startswith(today_prefix):
+                continue
+            time_part = bar_str[11:16] if len(bar_str) >= 16 else ""
+            if not time_part:
+                continue
+            try:
+                bh, bm = int(time_part[:2]), int(time_part[3:5])
+            except ValueError:
+                continue
+            bar_time = time(bh, bm)
+            if bar_time < _market_open_et:
+                premarket_bars.append((bar_str, bar))
+            if ws <= bar_time <= we:
+                in_window.append((bar_str, bar))
+
+        if not in_window:
+            continue
+        # Sort ascending by datetime string (FMP returns newest-first by default).
+        in_window.sort(key=lambda t: t[0])
+        premarket_bars.sort(key=lambda t: t[0])
+
+        opens   = [_sf(b.get("open"))        for _, b in in_window]
+        highs   = [_sf(b.get("high"))        for _, b in in_window]
+        lows    = [_sf(b.get("low"))         for _, b in in_window]
+        closes  = [_sf(b.get("close"))       for _, b in in_window]
+        volumes = [_sf(b.get("volume", 0))   for _, b in in_window]
+
+        valid_opens  = [v for v in opens  if v is not None]
+        valid_highs  = [v for v in highs  if v is not None]
+        valid_lows   = [v for v in lows   if v is not None]
+        valid_closes = [v for v in closes if v is not None]
+
+        if not valid_closes:
+            continue
+
+        first_open    = valid_opens[0]  if valid_opens  else None
+        last_close    = valid_closes[-1]
+        window_high_v = max(valid_highs) if valid_highs else None
+        window_low_v  = min(valid_lows)  if valid_lows  else None
+        window_vol    = sum(v for v in volumes if v is not None)
+        last_bar_ts   = in_window[-1][0]
+        seconds_in_w  = len(in_window) * 60
+
+        window_return = (
+            ((last_close / first_open) - 1.0) * 100.0
+            if first_open and first_open > 0 and last_close
+            else None
+        )
+        window_range = (
+            (abs(window_high_v - window_low_v) / first_open) * 100.0
+            if first_open and first_open > 0 and window_high_v is not None and window_low_v is not None
+            else None
+        )
+
+        # Realized vol from 1-min log returns (approximation of Databento 1s-based).
+        realized_vol: float | None = None
+        if len(valid_closes) >= 2:
+            log_rets = [
+                math.log(valid_closes[i] / valid_closes[i - 1])
+                for i in range(1, len(valid_closes))
+                if valid_closes[i] > 0 and valid_closes[i - 1] > 0
+            ]
+            if log_rets:
+                mean_r = sum(log_rets) / len(log_rets)
+                var_r  = sum((r - mean_r) ** 2 for r in log_rets) / len(log_rets)
+                realized_vol = math.sqrt(var_r) * 100.0 if var_r > 0 else None
+
+        # Premarket price = last pre-market bar close.
+        premarket_price = _sf(premarket_bars[-1][1].get("close")) if premarket_bars else None
+
+        # Market-open price = first bar whose datetime starts at "09:30".
+        market_open_price: float | None = None
+        for bar_ts, bar in in_window:
+            if bar_ts[11:16] == "09:30":
+                market_open_price = _sf(bar.get("open"))
+                break
+        if market_open_price is None:
+            market_open_price = first_open
+
+        sym_prev_close = prev_close_map.get(sym)
+
+        prev_to_pre_abs  = (premarket_price - sym_prev_close) if premarket_price is not None and sym_prev_close is not None else None
+        pre_to_open_abs  = (market_open_price - premarket_price) if market_open_price is not None and premarket_price is not None else None
+        open_to_cur_abs  = (last_close - market_open_price) if market_open_price is not None else None
+
+        rows.append({
+            "trade_date":                  today,
+            "symbol":                      sym,
+            "previous_close":              sym_prev_close,
+            "premarket_price":             premarket_price,
+            "market_open_price":           market_open_price,
+            "window_start_price":          first_open,
+            "current_price":               last_close,
+            "current_price_timestamp":     pd.Timestamp(last_bar_ts).tz_localize(US_EASTERN_TZ).tz_convert("UTC"),
+            "window_high":                 window_high_v,
+            "window_low":                  window_low_v,
+            "window_volume":               window_vol,
+            "seconds_in_window":           seconds_in_w,
+            "window_return_pct":           window_return,
+            "window_range_pct":            window_range,
+            "realized_vol_pct":            realized_vol,
+            "has_premarket_data":          premarket_price is not None,
+            "prev_close_to_premarket_abs": prev_to_pre_abs,
+            "prev_close_to_premarket_pct": _pct(premarket_price, sym_prev_close),
+            "premarket_to_open_abs":       pre_to_open_abs,
+            "premarket_to_open_pct":       _pct(market_open_price, premarket_price),
+            "open_to_current_abs":         open_to_cur_abs,
+            "open_to_current_pct":         _pct(last_close, market_open_price),
+        })
+
+    if progress_callback:
+        progress_callback(
+            f"Step 6c/10 complete: FMP bridge fetched {len(rows)} rows"
+            f" for {today.isoformat()} ({errors} errors,"
+            f" window {ws.strftime('%H:%M')}–{we.strftime('%H:%M')} ET)"
+        )
+    return pd.DataFrame(rows) if rows else pd.DataFrame()
+
+
 def run_production_export_pipeline(
     *,
     databento_api_key: str,
@@ -3609,6 +3834,41 @@ def run_production_export_pipeline(
         intraday["symbol"] = intraday["symbol"].astype(str).str.upper()
         intraday = intraday.merge(exact_1000_lookup, on=["trade_date", "symbol"], how="left")
     intraday_fetched_at = datetime.now(UTC).isoformat(timespec="seconds")
+
+    # Step 6c/10: FMP intraday bridge – fills today's data during trading hours
+    # when Databento same-day data is not yet available (dataset finalized only
+    # after market close ~20:00 UTC).  At 21:00 UTC the safety-net cron runs
+    # with Databento data already present, so `today_et` will already be in
+    # `intraday` and this block is skipped automatically.  No dedup needed:
+    # the bridge only fires for a date that Databento returned no rows for.
+    if fmp_api_key and trading_days:
+        today_et = datetime.now(US_EASTERN_TZ).date()
+        if today_et in set(trading_days):
+            intraday_dates = (
+                set(pd.to_datetime(intraday["trade_date"], errors="coerce").dt.date)
+                if not intraday.empty
+                else set()
+            )
+            if today_et not in intraday_dates:
+                _progress("Step 6c/10: Today absent from Databento result – attempting FMP intraday bridge...")
+                bridge_started_at = time_module.perf_counter()
+                bridge_frame = _run_fmp_intraday_bridge(
+                    fmp_api_key,
+                    today=today_et,
+                    universe_symbols=universe_symbols,
+                    window_start=window_start,
+                    window_end=window_end,
+                    daily_bars=daily_bars,
+                    progress_callback=_progress,
+                )
+                if not bridge_frame.empty:
+                    intraday = pd.concat([intraday, bridge_frame], ignore_index=True)
+                    _progress(
+                        f"Step 6c/10 complete: FMP bridge added {len(bridge_frame)} rows "
+                        f"for {today_et.isoformat()} in {time_module.perf_counter() - bridge_started_at:.1f}s"
+                    )
+                else:
+                    _progress("Step 6c/10: FMP bridge returned no data (market may be closed or FMP unavailable)")
 
     _progress("Step 7/10: Ranking top fraction per day...")
     ranked = rank_top_fraction_per_day(intraday, ranking_metric=ranking_metric, top_fraction=top_fraction)

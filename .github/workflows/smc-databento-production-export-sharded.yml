@@ -23,11 +23,15 @@
 #                           principle); the merged manifest then carries
 #                           partial_run=true + failed_shard_ids=[...].
 #
-# Trigger: cron (2x/day, 12:00 + 16:00 UTC weekdays — see F-V8-cutover
+# Trigger: cron (3x/day, 12:00 + 16:00 + 21:00 UTC weekdays — see F-V8-cutover
 # 2026-05-18) + workflow_dispatch. Pre-cutover this was workflow_dispatch-
 # only (probe workflow); the cron block was added when the monolithic
 # producer was deprecated and this sharded workflow became canonical. The
 # 240-min handoff window to library-refresh (16:00/20:00 UTC) is preserved.
+# The 21:00 UTC cron is a post-market-close safety-net: Databento finalises
+# same-day data only after market close (~20:00 UTC), so the 12:00/16:00 runs
+# cover historical bars + FMP intraday bridge for today; the 21:00 run fetches
+# the complete, authoritative Databento record for the just-closed session.
 #
 # Probe flow:
 #   gh workflow run smc-databento-production-export-sharded.yml \
@@ -42,12 +46,14 @@ name: smc-databento-production-export-sharded
 
 on:
   # F-V8-cutover (2026-05-18): promoted from off-hours probe (02:00 UTC)
-  # to the canonical 2x/day cron — same schedule the monolithic producer
-  # used before deprecation. 240-min handoff window to the library-refresh
-  # consumer (16:00/20:00 UTC) is preserved.
+  # to the canonical 3x/day cron — matching the monolithic producer schedule
+  # plus a 21:00 UTC post-market-close safety-net added 2026-06-15.
+  # 240-min handoff window to the library-refresh consumer (16:00/20:00 UTC)
+  # is preserved for the 12:00 and 16:00 ticks.
   schedule:
     - cron: "0 12 * * 1-5"   # 12:00 UTC – 240 min ahead of library-refresh 16:00 tick
     - cron: "0 16 * * 1-5"   # 16:00 UTC – 240 min ahead of library-refresh 20:00 tick
+    - cron: "0 21 * * 1-5"   # 21:00 UTC – post-market-close safety net (Databento same-day data finalized after 20:00 UTC)
   workflow_dispatch:
     inputs:
       lookback_days:

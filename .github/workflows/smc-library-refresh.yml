@@ -1,7 +1,7 @@
 # live-window: mutating-on-cron  # F-V6-F2.1 (2026-05-02)
 # SMC Library Intraday Refresh (v5)
 #
-# Runs 2x per trading day at 16:00 / 20:00 UTC on weekdays — restructured
+# Runs 3x per trading day at 16:00 / 20:00 / 22:00 UTC on weekdays — restructured
 # 4×→2× in F-V8-C4 (2026-05-06) to give the producer a dedicated 240-min
 # handoff window (prior schedules: 13/15/17/19 UTC per F-V6-C3, and
 # 12:30/14:30/16:30/18:30 UTC before that). F-V8-cutover (2026-05-18)
@@ -70,6 +70,7 @@ on:
     # trigger below remains the primary fast path; cron is the safety net.
     - cron: "0 16 * * 1-5"   # 16:00 UTC – 240 min after producer 12:00 tick
     - cron: "0 20 * * 1-5"   # 20:00 UTC – 240 min after producer 16:00 tick
+    - cron: "0 22 * * 1-5"   # 22:00 UTC – 60 min after producer 21:00 safety-net tick
   # F-V4-J3 (2026-05-01) blast-radius reduction (kept alongside the
   # F-V6-C3 cron schedule above as belt-and-suspenders): consumer also
   # fires immediately when the canonical sharded producer
@@ -1321,6 +1322,11 @@ jobs:
         env:
           FIRST_FAILED_GATE_TEST: ${{ steps.gates.outputs.first_failed_test }}
           FIRST_FAILED_GATE_TEST_LINE: ${{ steps.gates.outputs.first_failed_test_line }}
+          # A2-F1 (audit 2026-06-15): route git-ref context through env-indirection
+          # so a branch name with shell metacharacters cannot escape the markdown
+          # summary echo (CWE-94). Consistent with IS_MAIN env-indirection above.
+          REF_NAME: ${{ github.ref_name }}
+          GIT_REF: ${{ github.ref }}
         run: |
           {
             echo "## SMC Library Refresh (v5) — ${REFRESH_TS}"
@@ -1330,7 +1336,7 @@ jobs:
             echo "| Runner environment | ${{ needs.select-runner.outputs.runner_environment }} |"
             echo "| Runner resolution | ${{ needs.select-runner.outputs.resolution_reason }} |"
             echo "| Runner name | ${{ needs.select-runner.outputs.matched_runner_name || runner.name }} |"
-            echo "| Ref | ${{ github.ref_name }} |"
+            echo "| Ref | ${REF_NAME} |"
             echo "| Generation (base + enrichment + event-risk) | ${{ steps.gates.outcome == 'success' && '✅' || steps.gates.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
             echo "| Evidence gates | ${{ steps.gates.outcome == 'success' && '✅ passed' || '❌ failed' }} |"
             if [ "${{ steps.gates.outcome }}" = "failure" ] && [ -n "$FIRST_FAILED_GATE_TEST" ]; then
@@ -1346,7 +1352,7 @@ jobs:
               echo "| Signal + event-risk alerts | 🛑 blocked (breaking change) |"
             elif [ "${{ steps.diff.outputs.changed }}" = "true" ]; then
               echo "| Breaking-change governance | ✅ compatible |"
-              if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+              if [ "${GIT_REF}" = "refs/heads/main" ]; then
                 echo "| TradingView preflight | ${{ steps.tv_preflight.outcome == 'success' && '✅ passed' || steps.tv_preflight.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
                 echo "| Publish | ${{ steps.publish.outcome == 'success' && '✅' || steps.publish.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
                 echo "| TradingView post-release validation | ${{ steps.tv_post_release.outcome == 'success' && '✅ passed' || steps.tv_post_release.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
