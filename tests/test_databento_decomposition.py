@@ -10,6 +10,7 @@ Validates that:
 
 from __future__ import annotations
 
+import os
 from datetime import UTC, date, time
 from pathlib import Path
 
@@ -90,6 +91,49 @@ class TestDabentoClientBehavior:
     def test_is_not_retryable_auth(self) -> None:
         from databento_client import _is_retryable_databento_get_range_error
         assert not _is_retryable_databento_get_range_error(Exception("Invalid API key"))
+
+    def test_normalize_tls_certificate_env_keeps_invalid_env_unchanged(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import databento_client as client_mod
+
+        seen: list[str] = []
+        monkeypatch.setattr(client_mod.certifi, "where", lambda: "/tmp/certifi.pem")
+        monkeypatch.setattr(
+            client_mod,
+            "_install_databento_requests_tls_override",
+            lambda cafile: seen.append(cafile),
+        )
+        monkeypatch.setenv("SSL_CERT_FILE", "/tmp/does-not-exist.pem")
+        monkeypatch.delenv("REQUESTS_CA_BUNDLE", raising=False)
+        monkeypatch.delenv("CURL_CA_BUNDLE", raising=False)
+
+        result = client_mod._normalize_tls_certificate_env()
+
+        assert result == "/tmp/certifi.pem"
+        assert os.environ["SSL_CERT_FILE"] == "/tmp/does-not-exist.pem"
+        assert seen == ["/tmp/certifi.pem"]
+
+    def test_monolith_normalize_tls_certificate_env_keeps_invalid_env_unchanged(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        import databento_volatility_screener as screener_mod
+
+        seen: list[str] = []
+        monkeypatch.setattr(screener_mod.certifi, "where", lambda: "/tmp/certifi.pem")
+        monkeypatch.setattr(
+            screener_mod,
+            "_install_databento_requests_tls_override",
+            lambda cafile: seen.append(cafile),
+        )
+        monkeypatch.setenv("REQUESTS_CA_BUNDLE", "/tmp/does-not-exist.pem")
+        monkeypatch.delenv("SSL_CERT_FILE", raising=False)
+        monkeypatch.delenv("CURL_CA_BUNDLE", raising=False)
+
+        result = screener_mod._normalize_tls_certificate_env()
+
+        assert result == "/tmp/certifi.pem"
+        assert os.environ["REQUESTS_CA_BUNDLE"] == "/tmp/does-not-exist.pem"
+        assert seen == ["/tmp/certifi.pem"]
 
 
 # ── 2. databento_session surface ────────────────────────────────────────────

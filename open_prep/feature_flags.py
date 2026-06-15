@@ -54,3 +54,88 @@ def is_opra_uoa_enabled() -> bool:
     """
 
     return _bool_env("ENABLE_OPRA_UOA", "1")
+
+
+# ---------------------------------------------------------------------------
+# newsstack_fmp feature flags (audit F-002 centralization, 2026-06-14)
+# Previously read inline via ``os.getenv(...) == "1"`` in
+# ``newsstack_fmp/config.py``.  Moved here so the SSOT contract is
+# complete and the centralization guard test can enforce zero raw reads.
+# ---------------------------------------------------------------------------
+
+
+def is_fmp_enabled() -> bool:
+    """Return True iff ``ENABLE_FMP`` is set to ``"1"`` (default ON)."""
+    return _bool_env("ENABLE_FMP", "1")
+
+
+def is_fmp_articles_enabled() -> bool:
+    """Return True iff ``ENABLE_FMP_ARTICLES`` is set to ``"1"`` (default ON)."""
+    return _bool_env("ENABLE_FMP_ARTICLES", "1")
+
+
+def is_benzinga_rest_enabled() -> bool:
+    """Return True iff ``ENABLE_BENZINGA_REST`` is set to ``"1"`` (default OFF)."""
+    return _bool_env("ENABLE_BENZINGA_REST", "0")
+
+
+def is_benzinga_ws_enabled() -> bool:
+    """Return True iff ``ENABLE_BENZINGA_WS`` is set to ``"1"`` (default OFF)."""
+    return _bool_env("ENABLE_BENZINGA_WS", "0")
+
+
+def is_tradingview_news_enabled() -> bool:
+    """Return True iff ``ENABLE_TRADINGVIEW_NEWS`` is set to ``"1"`` (default OFF)."""
+    return _bool_env("ENABLE_TRADINGVIEW_NEWS", "0")
+
+
+def is_newsapi_ai_enabled() -> bool:
+    """Return True iff ``ENABLE_NEWSAPI_AI`` is set to ``"1"`` (default ON)."""
+    return _bool_env("ENABLE_NEWSAPI_AI", "1")
+
+
+def is_uw_news_enabled() -> bool:
+    """Return True iff ``ENABLE_UW_NEWS`` is set to ``"1"`` (default OFF).
+
+    Unusual Whales /news/headlines endpoint.  Default-OFF because availability
+    depends on UW plan tier; the DISABLED-pattern auto-suppresses on
+    401/403/404 responses.
+    """
+    return _bool_env("ENABLE_UW_NEWS", "0")
+
+
+def is_fmp_general_enabled() -> bool:
+    """Return True iff ``ENABLE_FMP_GENERAL`` is set to ``"1"`` (default ON)."""
+    return _bool_env("ENABLE_FMP_GENERAL", "1")
+
+
+def is_fmp_senate_trades_enabled() -> bool:
+    """Return True iff ``ENABLE_FMP_SENATE_TRADES`` is set to ``"1"`` (default OFF).
+
+    Requires a dedicated FMP plan tier; DISABLED-pattern auto-suppresses.
+    """
+    return _bool_env("ENABLE_FMP_SENATE_TRADES", "0")
+
+
+def is_fmp_house_trades_enabled() -> bool:
+    """Return True iff ``ENABLE_FMP_HOUSE_TRADES`` is set to ``"1"`` (default OFF).
+
+    Requires a dedicated FMP plan tier; DISABLED-pattern auto-suppresses.
+    """
+    return _bool_env("ENABLE_FMP_HOUSE_TRADES", "0")
+
+
+def is_fmp_8k_enabled() -> bool:
+    """Return True iff ``ENABLE_FMP_8K`` is set to ``"1"`` (default OFF).
+
+    Requires a dedicated FMP plan tier; DISABLED-pattern auto-suppresses.
+    """
+    return _bool_env("ENABLE_FMP_8K", "0")
+
+
+def is_fmp_13f_enabled() -> bool:
+    """Return True iff ``ENABLE_FMP_13F`` is set to ``"1"`` (default OFF).
+
+    FMP /sec-filings/13F-HR-latest.  Requires dedicated plan tier.
+    """
+    return _bool_env("ENABLE_FMP_13F", "0")

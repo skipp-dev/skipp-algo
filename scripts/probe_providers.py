@@ -932,7 +932,7 @@ def preflight_or_die(
             try:
                 _notify_blocking(blocking)
             except Exception:
-                logger.exception("preflight notification dispatch failed")  # noqa: SECLEAK — dispatcher error, no API key in stack frame
+                logger.exception("preflight notification dispatch failed")  # SECLEAK: dispatcher error, no API key in stack frame
         if raise_on_block:
             raise SystemExit(1)
     return results
@@ -1078,7 +1078,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             _notify_blocking([r for r in results if r.is_blocking])
         except Exception:
-            logger.exception("notification dispatch failed")  # noqa: SECLEAK — dispatcher error, no API key in stack frame
+            logger.exception("notification dispatch failed")  # SECLEAK: dispatcher error, no API key in stack frame
 
     if args.preflight:
         return 1 if counts["BLOCKING"] > 0 else 0

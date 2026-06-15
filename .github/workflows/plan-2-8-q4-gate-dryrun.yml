@@ -34,6 +34,12 @@ on:
 permissions:
   contents: read
 
+# SC-06 (supply-chain audit 2026-06-14): serialise manual dispatches so
+# concurrent operator runs do not interleave Q4-gate verdicts.
+concurrency:
+  group: q4-gate-dryrun-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   PYTHONUNBUFFERED: "1"  # F-V5-A2 (2026-05-01)
   PYTHONPATH: ${{ github.workspace }}

@@ -19,6 +19,14 @@ OUTPUT="${REPO}/cache/wsh/${DATE}.jsonl"
 SUMMARY="${REPO}/cache/wsh/${DATE}.summary.json"
 FEED_MARKER="${REPO}/cache/wsh/.feed_status_${DATE}"
 PUSH_MARKER="${REPO}/cache/wsh/.push_status_${DATE}"
+TS="$(date -u +%FT%TZ)"
+
+_write_marker() {
+    local marker_path="$1"
+    local marker_value="$2"
+    mkdir -p "$(dirname "${marker_path}")" 2>/dev/null || true
+    printf '%s\n' "${marker_value}" > "${marker_path}" 2>/dev/null || true
+}
 
 cd "${REPO}"
 # Lane 7: venv-realism guard. Sourcing a missing activate yields a
@@ -26,6 +34,7 @@ cd "${REPO}"
 # clear error so the operator can fix C13_VENV in the plist.
 if [[ ! -f "${VENV}/bin/activate" ]]; then
     echo "WSH cron: virtualenv activate script not found at ${VENV}/bin/activate (set C13_VENV in plist)" >&2
+    _write_marker "${FEED_MARKER}" "degraded:preflight-error:${TS}"
     exit 1
 fi
 # shellcheck disable=SC1091
@@ -37,6 +46,7 @@ source "${VENV}/bin/activate"
 PY="${VENV}/bin/python"
 if [[ ! -x "${PY}" ]]; then
     echo "WSH cron: python interpreter not executable at ${PY}" >&2
+    _write_marker "${FEED_MARKER}" "degraded:preflight-error:${TS}"
     exit 1
 fi
 
@@ -46,7 +56,6 @@ fi
 #       (e.g. IBKR entitlement missing / watchlist rows lack conIds); the
 #       summary is still written so the degradation is auditable
 #   1 — hard failure (no usable summary written)
-TS="$(date -u +%FT%TZ)"
 set +e
 "${PY}" -m scripts.wsh_earnings_calendar \
     --watchlist "${WATCHLIST}" \
@@ -58,7 +67,7 @@ set -e
 
 if [[ ${RC} -eq 1 ]]; then
     echo "WSH cron: DEGRADED — calendar pull failed hard (rc=1); nothing to publish." >&2
-    printf 'degraded:feed-error:%s\n' "${TS}" > "${FEED_MARKER}" 2>/dev/null || true
+    _write_marker "${FEED_MARKER}" "degraded:feed-error:${TS}"
     exit 1
 elif [[ ${RC} -eq 2 ]]; then
     # Feed returned zero events: the earnings FILTER will gate against an
@@ -67,9 +76,9 @@ elif [[ ${RC} -eq 2 ]]; then
     echo "WSH cron: DEGRADED — feed returned ZERO earnings events (rc=2)." >&2
     echo "  Likely causes: (1) IBKR account lacks the WSH news entitlement (Error 10276)," >&2
     echo "                 (2) watchlist rows are missing IBKR conIds." >&2
-    printf 'degraded:no-events:%s\n' "${TS}" > "${FEED_MARKER}" 2>/dev/null || true
+    _write_marker "${FEED_MARKER}" "degraded:no-events:${TS}"
 else
-    printf 'ok:events:%s\n' "${TS}" > "${FEED_MARKER}" 2>/dev/null || true
+    _write_marker "${FEED_MARKER}" "ok:events:${TS}"
 fi
 
 # Publish to the dedicated data branch via an isolated worktree so the push

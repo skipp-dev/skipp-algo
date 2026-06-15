@@ -185,9 +185,9 @@ def test_connect_exception_releases_allocated_client_id(
 ) -> None:
     """If connect() raises, the auto-allocated client-id is still released.
 
-    This test pins the documented double-coverage behaviour: there are two
-    explicit release points — inside the connect ``except`` block (this path)
-    and inside the connected ``finally`` block.  Both must free the id.
+    This path exercises the explicit release inside the connect ``except``
+    block. The separate connected-path tests cover the release in the
+    connected ``finally`` block.
     """
     released: list[int] = []
 
