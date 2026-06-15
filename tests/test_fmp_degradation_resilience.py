@@ -29,11 +29,6 @@ import pytest
 
 import databento_volatility_screener as screener
 import scripts.probe_providers as probe_providers
-from databento_volatility_screener import (
-    UNIVERSE_COLUMNS,
-    fetch_us_equity_universe_with_metadata,
-)
-from scripts.probe_providers import ProbeResult
 
 
 def _build_universe_frame(symbols: list[str]) -> pd.DataFrame:
@@ -48,11 +43,16 @@ def _build_universe_frame(symbols: list[str]) -> pd.DataFrame:
         }
         for s in symbols
     ]
-    return pd.DataFrame(rows, columns=UNIVERSE_COLUMNS)
+    return pd.DataFrame(rows, columns=screener.UNIVERSE_COLUMNS)
 
 
 def _empty_frame() -> pd.DataFrame:
-    return pd.DataFrame(columns=UNIVERSE_COLUMNS)
+    return pd.DataFrame(columns=screener.UNIVERSE_COLUMNS)
+
+
+def _empty_directory_fetch(*, exchanges: str = "NASDAQ,NYSE,AMEX") -> pd.DataFrame:
+    _ = exchanges
+    return _empty_frame()
 
 
 # ---------------------------------------------------------------------------
@@ -83,7 +83,7 @@ def test_market_cap_without_fmp_key_degrades_to_nasdaq_with_markers(
     monkeypatch.setattr(screener, "_fetch_us_equity_universe_via_screener", _fail)
 
     with caplog.at_level(logging.WARNING):
-        frame, meta = fetch_us_equity_universe_with_metadata(
+        frame, meta = screener.fetch_us_equity_universe_with_metadata(
             fmp_api_key="",
             min_market_cap=2_000_000_000,
         )
@@ -129,14 +129,14 @@ def test_market_cap_with_fmp_key_uses_screener(
         screener, "_fetch_us_equity_universe_via_nasdaq_trader", _nasdaq_must_not_run
     )
 
-    frame, meta = fetch_us_equity_universe_with_metadata(
+    frame, meta = screener.fetch_us_equity_universe_with_metadata(
         fmp_api_key="abc123",
         min_market_cap=5_000_000_000,
     )
 
     assert list(frame["symbol"]) == ["MEGA"]
     assert seen["api_key"] == "abc123"
-    assert seen["min_market_cap"] == 5_000_000_000
+    assert seen["min_market_cap"] == pytest.approx(5_000_000_000.0)
     assert meta["source"] == "fmp_company_screener"
     assert meta["fallback_source"] == "nasdaq_trader_symbol_directory"
     assert meta["min_market_cap_applied"] is True
@@ -151,7 +151,7 @@ def test_nasdaq_empty_with_fmp_key_falls_back_to_screener(
     monkeypatch.setattr(
         screener,
         "_fetch_us_equity_universe_via_nasdaq_trader",
-        lambda *, exchanges="NASDAQ,NYSE,AMEX": _empty_frame(),
+        _empty_directory_fetch,
     )
     monkeypatch.setattr(screener, "make_fmp_client", lambda api_key: object())
     monkeypatch.setattr(
@@ -162,7 +162,7 @@ def test_nasdaq_empty_with_fmp_key_falls_back_to_screener(
         ),
     )
 
-    frame, meta = fetch_us_equity_universe_with_metadata(fmp_api_key="abc123")
+    frame, meta = screener.fetch_us_equity_universe_with_metadata(fmp_api_key="abc123")
 
     assert list(frame["symbol"]) == ["FALL"]
     assert meta["source"] == "fmp_company_screener"
@@ -178,7 +178,7 @@ def test_nasdaq_empty_without_fmp_key_returns_empty_loudly(
     monkeypatch.setattr(
         screener,
         "_fetch_us_equity_universe_via_nasdaq_trader",
-        lambda *, exchanges="NASDAQ,NYSE,AMEX": _empty_frame(),
+        _empty_directory_fetch,
     )
 
     def _fail(*_a: object, **_k: object) -> pd.DataFrame:  # pragma: no cover
@@ -187,7 +187,7 @@ def test_nasdaq_empty_without_fmp_key_returns_empty_loudly(
     monkeypatch.setattr(screener, "_fetch_us_equity_universe_via_screener", _fail)
 
     with caplog.at_level(logging.WARNING):
-        frame, meta = fetch_us_equity_universe_with_metadata(fmp_api_key="")
+        frame, meta = screener.fetch_us_equity_universe_with_metadata(fmp_api_key="")
 
     assert frame.empty
     assert meta["source"] == "empty"
@@ -208,7 +208,7 @@ def test_no_market_cap_no_key_uses_official_directory(
         lambda *, exchanges="NASDAQ,NYSE,AMEX": nasdaq,
     )
 
-    frame, meta = fetch_us_equity_universe_with_metadata()
+    frame, meta = screener.fetch_us_equity_universe_with_metadata()
 
     assert list(frame["symbol"]) == ["AAA", "BBB", "CCC"]
     assert meta["source"] == "nasdaq_trader_symbol_directory"
@@ -225,7 +225,7 @@ def test_no_market_cap_no_key_uses_official_directory(
 
 def test_critical_skip_is_blocking() -> None:
     """A critical probe that SKIPs (e.g. ``FMP_API_KEY`` missing) is blocking."""
-    skipped = ProbeResult(
+    skipped = probe_providers.ProbeResult(
         name="FMP /stable/quote",
         status="SKIP",
         latency_ms=None,
@@ -236,7 +236,7 @@ def test_critical_skip_is_blocking() -> None:
 
 
 def test_ok_critical_is_not_blocking() -> None:
-    ok = ProbeResult(
+    ok = probe_providers.ProbeResult(
         name="FMP /stable/quote",
         status="OK",
         latency_ms=12.0,
@@ -247,7 +247,7 @@ def test_ok_critical_is_not_blocking() -> None:
 
 
 def test_non_critical_skip_is_not_blocking() -> None:
-    skipped = ProbeResult(
+    skipped = probe_providers.ProbeResult(
         name="FMP /stable/news",
         status="SKIP",
         latency_ms=None,
@@ -262,7 +262,7 @@ def test_preflight_or_die_aborts_on_blocking_fmp_probe(
 ) -> None:
     """When a critical FMP probe blocks, ``preflight_or_die`` raises
     ``SystemExit`` rather than letting a misconfigured run continue."""
-    blocking = ProbeResult(
+    blocking = probe_providers.ProbeResult(
         name="FMP /stable/quote",
         status="SKIP",
         latency_ms=None,
@@ -288,7 +288,7 @@ def test_preflight_or_die_can_report_without_raising(
 ) -> None:
     """``raise_on_block=False`` still surfaces the blocking results so callers
     can render them, without aborting the process."""
-    blocking = ProbeResult(
+    blocking = probe_providers.ProbeResult(
         name="FMP /stable/quote",
         status="SKIP",
         latency_ms=None,
@@ -307,7 +307,7 @@ def test_preflight_or_die_can_report_without_raising(
 def test_preflight_or_die_passes_when_nothing_blocks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    ok = ProbeResult(
+    ok = probe_providers.ProbeResult(
         name="FMP /stable/quote",
         status="OK",
         latency_ms=10.0,
