@@ -437,7 +437,10 @@ def test_refresh_runs_provider_preflight_before_generation() -> None:
     assert 'scripts/credential_health_check.py' in workflow_text
     assert '--skip-tv' in workflow_text
     assert '--skip-gh-pat' in workflow_text
-    assert '--skip-newsapi' not in workflow_text  # NEWSAPI_KEY is exported → must be probed
+    # NEWSAPI_KEY remains optional: if missing, the workflow explicitly skips
+    # the NewsAPI probe instead of hard-failing preflight on an empty key.
+    assert 'NEWSAPI_KEY not set — skipping optional NewsAPI preflight probe.' in workflow_text
+    assert 'newsapi_arg+=(--skip-newsapi)' in workflow_text
     assert '--databento-key-env DATABENTO_API_KEY' in workflow_text
     # The script returns exit 2 for *both* warn and error, so the gate must
     # branch on overall_severity from the JSON report, not on the exit code.

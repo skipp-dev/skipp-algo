@@ -444,10 +444,16 @@ jobs:
           NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
         run: |
           mkdir -p artifacts/ci
+          newsapi_arg=()
+          if [ -z "${NEWSAPI_KEY:-}" ]; then
+            echo "::warning::NEWSAPI_KEY not set — skipping optional NewsAPI preflight probe."
+            newsapi_arg+=(--skip-newsapi)
+          fi
           set +e
           "$SMC_PYTHON_BIN" scripts/credential_health_check.py \
             --skip-tv \
             --skip-gh-pat \
+            "${newsapi_arg[@]}" \
             --databento-key-env DATABENTO_API_KEY \
             --fmp-key-env FMP_API_KEY \
             --output artifacts/ci/provider_preflight.json
