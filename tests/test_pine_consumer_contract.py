@@ -858,25 +858,25 @@ class TestV55DriftGuard:
             assert field not in text, f"Legacy alias reappeared in engine: {field}"
 
 
-class TestV70aContractSync:
-    """Ensure repo docs, generator, and manifest stay aligned at v7.0a.
+class TestV80aContractSync:
+    """Ensure repo docs, generator, and manifest stay aligned at v8.0a.
 
-    v7.0a (#58, 2026-05-28) is a MAJOR bump from v6.0a converging the
-    ``HERO_MARKET_TRUST`` vocabulary onto ``HERO_TRUST`` (trusted→healthy,
-    advisory→degraded, watch_only→degraded). Pine ``export const string``
-    literals change, hence MAJOR. The earlier v6.0a waiting-state
-    sentinels (#55) and the v5.5c lean-contract principles (Signal
-    Quality Primacy, No Shadow Logic, etc.) carry over unchanged;
-    ``docs/v5_5_lean_contract.md`` continues to describe the surface.
+    v8.0a (#56, 2026-06-13) is a MAJOR bump from v7.0a consolidating
+    the parallel ``HERO_ACTION`` / ``HERO_ACTION_VERB`` channels into a
+    single Pine action field. The earlier v7.0a trust-vocab convergence,
+    v6.0a waiting-state sentinels (#55), and the v5.5c lean-contract
+    principles (Signal Quality Primacy, No Shadow Logic, etc.) carry
+    over unchanged; ``docs/v5_5_lean_contract.md`` continues to describe
+    the surface.
     """
 
-    def test_manifest_field_version_is_v7_0a(self):
+    def test_manifest_field_version_is_v8_0a(self):
         import json
         manifest = json.loads(
             (ROOT / "pine/generated/smc_micro_profiles_generated.json").read_text()
         )
-        assert manifest["library_field_version"] == "v7.0a", (
-            f"Manifest library_field_version should be v7.0a, got {manifest['library_field_version']}"
+        assert manifest["library_field_version"] == "v8.0a", (
+            f"Manifest library_field_version should be v8.0a, got {manifest['library_field_version']}"
         )
 
     def test_contract_doc_references_v55b(self):
