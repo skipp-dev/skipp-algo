@@ -45,6 +45,7 @@ _DIR_EXCLUDE = frozenset(
         "artifacts",
         "docs",
         "SMC++",
+        "skipp-algo.worktrees",  # local git worktrees — never present on CI
     }
 )
 
