@@ -31,11 +31,11 @@
 #   FMP_API_KEY        – Financial Modeling Prep API key (enrichment data)
 #   BENZINGA_API_KEY   – Benzinga API key (news/calendar fallback)
 #   TV_STORAGE_STATE   – TradingView Playwright storage-state as raw JSON or gzip+base64 (publish)
-#
-# Not required by this consumer workflow:
-#   DATABENTO_API_KEY: base Databento data is produced by
-#   smc-databento-production-export-sharded.yml and consumed via --bundle;
-#   no Databento scan runs in this workflow, so this key is unused here.
+#   DATABENTO_API_KEY  – Consumed by the provider-credential preflight step
+#                        (--databento-key-env DATABENTO_API_KEY); base data is
+#                        produced by smc-databento-production-export-sharded.yml
+#                        and consumed via --bundle but the key is still required
+#                        here so the preflight can validate it is present/valid.
 #
 # Optional secrets:
 #   GH_PAT             – Optional GitHub PAT override for checkout;
@@ -429,6 +429,58 @@ jobs:
           echo "bundle_present=false" >> "$GITHUB_OUTPUT"
           echo "::error file=.github/workflows/smc-databento-production-export-sharded.yml::Producer artifact missing for ${REFRESH_DATE}; refresh aborted. Re-run smc-databento-production-export-sharded and then re-trigger smc-library-refresh."
           exit 1
+
+      # ── Provider credential preflight ───────────────────────────
+      # Gate generation on provider credential health so a delinquent
+      # Databento invoice (HTTP 402) or a missing/expired key fails fast
+      # here instead of burning ~2.5h of generation before the runner is
+      # shut down (see run #412). Shares scripts/credential_health_check.py
+      # with credential-health-check.yml and PR #2743's delivery probe.
+      - name: Provider credential preflight
+        id: provider_preflight
+        env:
+          DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+          NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
+        run: |
+          mkdir -p artifacts/ci
+          newsapi_arg=()
+          if [ -z "${NEWSAPI_KEY:-}" ]; then
+            echo "::warning::NEWSAPI_KEY not set — skipping optional NewsAPI preflight probe."
+            newsapi_arg+=(--skip-newsapi)
+          fi
+          set +e
+          "$SMC_PYTHON_BIN" scripts/credential_health_check.py \
+            --skip-tv \
+            --skip-gh-pat \
+            "${newsapi_arg[@]}" \
+            --databento-key-env DATABENTO_API_KEY \
+            --fmp-key-env FMP_API_KEY \
+            --output artifacts/ci/provider_preflight.json
+          rc=$?
+          set -e
+          # credential_health_check.py exit codes: 0=ok, 2=warn-or-error,
+          # 1=all-probes-skipped (no JSON written). It does NOT distinguish
+          # error from warn via the exit code, so gate on overall_severity
+          # in the JSON report instead.
+          if [ "$rc" -eq 1 ]; then
+            echo "::error::Provider credential preflight produced no signal (all probes skipped) — aborting before generation."
+            exit 1
+          fi
+          if [ ! -f artifacts/ci/provider_preflight.json ]; then
+            echo "::error::Provider credential preflight JSON missing after rc=$rc — aborting."
+            exit 1
+          fi
+          severity=$("$SMC_PYTHON_BIN" -c "import json,sys; print(json.load(open('artifacts/ci/provider_preflight.json')).get('overall_severity','error'))")
+          echo "provider_preflight_severity=$severity"
+          echo "provider_preflight_severity=$severity" >> "$GITHUB_OUTPUT"
+          if [ "$severity" = "error" ]; then
+            echo "::error::Provider credential preflight failed (severity=error) — aborting before generation to avoid a wasted long run."
+            exit 1
+          fi
+          if [ "$severity" = "warn" ]; then
+            echo "::warning::Provider credential preflight reported warnings (severity=warn) — proceeding with generation."
+          fi
 
       # ── Library generation with enrichment (v5) ─────────────────
       - name: Generate SMC library with v5 enrichment
