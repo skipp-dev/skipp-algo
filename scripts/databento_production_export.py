@@ -3482,7 +3482,7 @@ def _run_fmp_intraday_bridge(
 
     try:
         client = _make_export_fmp_client(fmp_api_key)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         if progress_callback:
             progress_callback(f"Step 6c/10: FMP bridge client init error: {exc}")
         return pd.DataFrame()
@@ -3508,7 +3508,7 @@ def _run_fmp_intraday_bridge(
     def _fetch_one(sym: str) -> tuple[str, list[dict[str, Any]]]:
         try:
             return sym, client.get_intraday_chart(sym, interval="1min", day=today)
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.debug("Step 6c/10: FMP bridge get_intraday_chart failed for %s", sym, exc_info=True)
             return sym, []
 

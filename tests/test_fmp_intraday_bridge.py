@@ -18,7 +18,6 @@ import pytest
 
 from scripts.databento_production_export import _run_fmp_intraday_bridge
 
-
 _TODAY = date(2026, 6, 15)
 
 _SAMPLE_BARS = [
