@@ -99,3 +99,6 @@ synthetic/
 cache/*/.push_status_*
 cache/*/.feed_status_*
 cache/*/.ibkr_smoke_status_*
+
+# Local audit/planning docs (working notes, not canonical — keep off main)
+docs/audit-*.md
