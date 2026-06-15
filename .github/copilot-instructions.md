@@ -212,10 +212,13 @@ Only use raw `actions/setup-python@...` inside the composite action itself.
 
 ### Python environment
 
-**Package management: always use uv.**
-- Add dependencies with `uv add <package>` (never `pip install`).
-- Run scripts and tools with `uv run <command>` (e.g. `uv run pytest`).
-- Do not create or activate virtualenvs explicitly — uv manages `.venv` automatically.
+**Package management — `requirements.txt` is the Source of Truth.**
+- Add a new runtime dependency by editing `requirements.txt`, then run
+  `python scripts/regenerate_requirements_lock.py` to re-pin `requirements.lock`.
+- Never use `uv add` or `pip install` directly — both bypass the lock workflow.
+- Run scripts and tools with `uv run <command>` (e.g. `uv run pytest`) or
+  directly via `.venv/bin/python -m <module>`.
+- The `.venv` is created by `bootstrap_venv.sh`; do not create or activate a venv manually.
 - For local Python work in VS Code, the repo-local `.venv` (managed by uv) is
   used by tasks, the Testing panel, and terminal commands.
 - Bootstrap on Windows with
