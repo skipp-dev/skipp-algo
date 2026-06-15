@@ -56,7 +56,7 @@ source "$(dirname "$0")/lib_c13_data_push.sh"
 source "$(dirname "$0")/lib_c13_catchup.sh"
 
 # Collect + publish a single run-date. Invoked once per missed business day by
-# c13_run_with_catchup (and always at least for today). Returns non-zero on a
+# c13_run_with_catchup (today only if no dates are missing). Returns non-zero on a
 # collector failure so the catch-up driver can tally it without aborting the
 # remaining dates.
 process_one_date() {
@@ -90,6 +90,7 @@ process_one_date() {
 }
 
 # Replay any business days missed while the workstation was asleep (launchd
-# StartCalendarInterval coalesces multiple missed firings into a single wake),
-# then today. Bounded by C13_CATCHUP_LOOKBACK_DAYS (default 7 calendar days).
+# StartCalendarInterval coalesces multiple missed firings into a single wake);
+# today is run as a safety net only when no dates are missing. Bounded by
+# C13_CATCHUP_LOOKBACK_DAYS (default 7 calendar days).
 c13_run_with_catchup "${REPO}/cache/imbalance" ".push_status_" process_one_date

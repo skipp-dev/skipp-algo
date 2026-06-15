@@ -134,7 +134,8 @@ inside a single wake via [`lib_c13_catchup.sh`](lib_c13_catchup.sh):
 - `c13_run_with_catchup` walks the business days in a bounded look-back window
   (default **7 calendar days**, override with `C13_CATCHUP_LOOKBACK_DAYS`),
   oldest first, and invokes the driver's `process_one_date "<YYYY-MM-DD>"` for
-  each one that is not yet done — then always at least today. A failing date is
+  each one that is not yet done; today is run as a safety net only when no
+  dates are missing. A failing date is
   logged and tallied but does **not** abort the remaining dates.
 
 Wired into the **historical, per-run-date** jobs, where backfilling a past date

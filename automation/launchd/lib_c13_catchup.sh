@@ -22,7 +22,7 @@
 #     source "$(dirname "$0")/lib_c13_catchup.sh"
 #     # Wrap the per-date body in a function taking the date as $1:
 #     process_one_date() { local DATE="$1"; ...; }
-#     # Then replay every missed business day (plus today):
+#     # Then replay every missed business day (today only if no dates are missing):
 #     c13_run_with_catchup \
 #         "${REPO}/cache/imbalance" ".push_status_" process_one_date
 #

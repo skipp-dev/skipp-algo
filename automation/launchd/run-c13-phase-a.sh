@@ -71,7 +71,7 @@ export PYTHONPATH="${REPO}"
 source "$(dirname "$0")/lib_c13_catchup.sh"
 
 # Build + incubate a single run-date in PAPER mode. Invoked once per missed
-# business day by c13_run_with_catchup (and always at least for today).
+# business day by c13_run_with_catchup (today only if no dates are missing).
 # Returns non-zero on a build/incubation failure so the catch-up driver can
 # tally it without aborting the remaining dates.
 process_one_date() {
@@ -163,8 +163,9 @@ process_one_date() {
 }
 
 # Replay any business days missed while the workstation was asleep (launchd
-# StartCalendarInterval coalesces multiple missed firings into a single wake),
-# then today. The phase-a marker uses a ``SUCCESS|``/``DEGRADED|`` format, so a
+# StartCalendarInterval coalesces multiple missed firings into a single wake);
+# today is run as a safety net only when no dates are missing. The phase-a
+# marker uses a ``SUCCESS|``/``DEGRADED|`` format, so a
 # date counts as done only when its marker begins with ``SUCCESS``. Bounded by
 # C13_CATCHUP_LOOKBACK_DAYS (default 7 calendar days).
 c13_run_with_catchup "${REPO}/cache/live" ".phase_a_status_" process_one_date "" "SUCCESS"

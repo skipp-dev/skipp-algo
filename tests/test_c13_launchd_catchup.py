@@ -101,7 +101,7 @@ def test_missing_business_dates_detects_absent_and_degraded(tmp_path: Path) -> N
     absent, degraded = business[0], business[1]
     for iso in business[2:]:
         (tmp_path / f".push_status_{iso}").write_text(f"ok:pushed:{iso}\n")
-    (tmp_path / f".push_status_{degraded}").write_text(f"degraded:push-failed:{iso}\n")
+    (tmp_path / f".push_status_{degraded}").write_text(f"degraded:push-failed:{degraded}\n")
 
     result = _run_bash(
         f'c13_missing_business_dates "{tmp_path}" ".push_status_" {lookback}'
