@@ -148,6 +148,11 @@ HTTP_POST_LEDGER: set[tuple[str, int]] = {
     # OpenAI chat completions — terminal AI insights enrichment.
     # Line shifted 276 → 283 (main merge for PR-J3 cache-key scoping).
     ("terminal_ai_insights.py", 283),
+    # Databento BentoHttpAPI._post TLS-override patch (F1 dedup, 2026-06-14):
+    # both calls are internal Databento SDK POST paths using trust_env=False
+    # + certifi CA bundle. Auth via HTTPBasicAuth(api_key, "").
+    ("databento_client.py", 293),
+    ("databento_client.py", 316),
 }
 
 

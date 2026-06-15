@@ -5,7 +5,12 @@
 # Note: the generic PyPI `torch` wheel on Windows is CPU-only. For the
 # self-hosted GPU runner, install `requirements-rl-gpu.txt` after this file
 # to replace the CPU build with the CUDA wheel from the official PyTorch index.
-gymnasium>=0.29.0
-stable-baselines3>=2.3.0
-torch>=2.2.0
-optuna>=3.5.0
+# The two pins intentionally differ today: the base file keeps the
+# cross-platform CPU wheel used on GitHub-hosted / non-GPU runners, while the
+# GPU override stays on the validated `2.11.0+cu128` CUDA build published on
+# the official PyTorch index. Runner type therefore determines the *effective*
+# torch build; compatibility must be validated against both lanes.
+gymnasium==1.2.3
+stable-baselines3==2.8.0
+torch==2.12.0
+optuna==4.9.0

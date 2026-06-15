@@ -120,12 +120,22 @@ fi
 # 3. Run the orchestrator. --phase paper means submit_fn defaults to
 #    the no-op stub inside run_smc_live_incubation.py, so no IBKR
 #    orders are placed even if TWS is running on a live account.
+#    SA-02 (audit 2026-06-14): wrap the runner call so a non-zero exit
+#    writes a DEGRADED marker before aborting — required for machine-
+#    detectable monitoring of silent incubation failures.
 # shellcheck disable=SC2086
-"${PY}" -m scripts.run_smc_live_incubation \
+if "${PY}" -m scripts.run_smc_live_incubation \
     --phase paper \
     --setups "${SETUPS}" \
     --gate-statuses "${GATES}" \
     --audit-output "${AUDIT}" \
-    ${WSH_FLAG}
+    ${WSH_FLAG}; then
+    :
+else
+    rc=$?
+    echo "phase-a cron: run_smc_live_incubation FAILED (exit ${rc}) — see above for details" >&2
+    _write_marker "DEGRADED" "incubation-failed:audit=${AUDIT}"
+    exit 1
+fi
 
 _write_marker "SUCCESS" "incubation-complete:audit=${AUDIT}"

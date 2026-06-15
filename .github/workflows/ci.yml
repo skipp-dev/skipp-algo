@@ -109,15 +109,17 @@ jobs:
           python -c "import sys; raise SystemExit('GitHub-hosted Python bootstrap did not resolve Python 3.12.' if sys.version_info[:2] != (3, 12) else 0)"
           echo "SMC_PYTHON_BIN=python" >> "$GITHUB_ENV"
       - name: Install test dependencies
-        # When vars.SMC_USE_REQUIREMENTS_LOCK == 'true' the composite installs from
-        # the fully-pinned requirements.lock (deterministic, faster resolve). Otherwise
-        # it falls back to requirements.txt (historical behavior). Regenerate the lock
-        # with 'python scripts/regenerate_requirements_lock.py'.
+        # SC-04 (supply-chain audit 2026-06-14): requirements.lock is now always
+        # used instead of being gated behind vars.SMC_USE_REQUIREMENTS_LOCK.
+        # The lockfile is generated with --generate-hashes so every entry carries
+        # sha256 fingerprints that pip can verify with --require-hashes.
+        # To regenerate: uv pip compile requirements.txt --generate-hashes \
+        #   --python-version 3.12 --python-platform linux -o requirements.lock
         if: steps.gate.outputs.run_heavy == 'true'
         uses: ./.github/actions/setup-persistent-venv
         with:
           python-bin: ${{ env.SMC_PYTHON_BIN }}
-          requirements-file: ${{ vars.SMC_USE_REQUIREMENTS_LOCK == 'true' && 'requirements.lock' || 'requirements.txt' }}
+          requirements-file: requirements.lock
           extra-packages: pytest
           # CI validate is intentionally GitHub-hosted; setup-persistent-venv
           # ignores persistent roots for this runner-environment and creates a
