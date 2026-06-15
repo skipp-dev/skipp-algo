@@ -8,6 +8,11 @@ SkippALGO is a modular trading intelligence platform combining three core system
 2. **Real-Time News Intelligence Dashboard** — an AI-supported **Research & Monitoring Terminal** with 11 tabs for **News Intelligence + Alerting** and operational market monitoring.
 3. **Open-Prep Pipeline** — automated pre-open briefing system with ranked candidates, macro context, and structured trade cards.
 
+> New to the codebase? See the [Glossary](docs/GLOSSARY.md) for the sprint
+> codes (`C13`, `C14`), phase names (`paper` / `live_small` / `live_full`),
+> SMC vocabulary (`BOS` / `OB` / `FVG` / `SWEEP`), and other repo-specific
+> nomenclature.
+
 ## Product Positioning & Compliance Notes
 
 - SkippALGO is positioned as a **Research & Monitoring Terminal**.
