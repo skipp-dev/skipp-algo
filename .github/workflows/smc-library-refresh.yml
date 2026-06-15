@@ -206,14 +206,13 @@ jobs:
 
       - name: Publish summary to job log
         if: ${{ always() }}
-        env:
-          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
         run: |
           # Pull the latest aggregate ledger from the metrics branch (if any)
           # and render the rollup into this run's job summary.
           branch="metrics/runner-selection"
+          max_lines="${RUNNER_SELECTION_SUMMARY_MAX_LINES:-50000}"
           if git fetch --quiet origin "${branch}" 2>/dev/null; then
-            git show "FETCH_HEAD:metrics/runner_selection.jsonl" > /tmp/runner_metrics.jsonl 2>/dev/null || : > /tmp/runner_metrics.jsonl
+            git show "FETCH_HEAD:metrics/runner_selection.jsonl" 2>/dev/null | tail -n "${max_lines}" > /tmp/runner_metrics.jsonl || : > /tmp/runner_metrics.jsonl
             python scripts/runner_selection_metrics.py summary \
               --metrics-file /tmp/runner_metrics.jsonl --format md >> "${GITHUB_STEP_SUMMARY}" || true
           else

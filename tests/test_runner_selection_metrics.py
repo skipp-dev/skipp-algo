@@ -131,7 +131,7 @@ def test_cli_append_then_summary(tmp_path: Path, capsys: pytest.CaptureFixture[s
 def test_cli_append_writes_summary_md(tmp_path: Path) -> None:
     metrics = tmp_path / "m.jsonl"
     summary_md = tmp_path / "summary.md"
-    rsm.main(
+    rc = rsm.main(
         [
             "append",
             "--metrics-file", str(metrics),
@@ -140,5 +140,6 @@ def test_cli_append_writes_summary_md(tmp_path: Path) -> None:
             "--runner-environment", "github-hosted",
         ]
     )
+    assert rc == 0
     assert summary_md.exists()
     assert "# Runner Selection Metrics" in summary_md.read_text(encoding="utf-8")
