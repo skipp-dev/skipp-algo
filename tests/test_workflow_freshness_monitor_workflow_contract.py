@@ -141,6 +141,12 @@ _MONITORED_WORKFLOWS = (
     # observation edge. :any mode — a red run still counts as a sign of
     # life; the alarm fires only on the ABSENCE of completed runs.
     "meta-watchdog.yml",
+    # Added to monitor scope after update-branch (main → fix/hero-action-consolidation-f6)
+    "adr0023-magnitude-shadow-daily.yml",
+    "adr0023-magnitude-stage1-weekly.yml",
+    "g23-ab-watchdog.yml",
+    "smc-live-newsapi-refresh.yml",
+    "smc-measurement-benchmark-rolling.yml",
 )
 
 

@@ -794,16 +794,6 @@ def write_pine_library(
     content.extend(render_hero_setup_quality_block_lines(enr))
     content.append("")
 
-    # ── Hero Action (ENG-WS3-05) ───────────────────────────────
-    # The single primary action recommendation: act / wait / watch /
-    # avoid (handeln/warten/beobachten/vermeiden). Composed
-    # deterministically from action degradation + setup quality —
-    # one action per state, never contradicting the main risk.
-    from scripts.smc_hero_action import render_hero_action_block_lines
-
-    content.extend(render_hero_action_block_lines(enr))
-    content.append("")
-
     # ── Volume regime ───────────────────────────────────────────
     vol = enr.get("volume_regime") or {}
     content.append("// ── Volume Regime ──")
@@ -1039,6 +1029,9 @@ def write_pine_library(
     content.append(f'export const string INSIDER_SELLING_HEAVY_TICKERS = "{",".join(ins.get("insider_selling_heavy_tickers") or [])}"')
 
     # ── Hero State Contract ───────────────────────────────────────
+    # HERO_ACTION is the sole Pine action surface. It is projected from
+    # Producer-B's HeroAction recommendation by build_hero_state(); the
+    # older HERO_ACTION_VERB* reserved exports are intentionally gone.
     from scripts.smc_hero_state import DEFAULTS as _HERO_DEFAULTS
 
     hs = enr.get("hero_state") or {}
@@ -1402,10 +1395,10 @@ def write_manifest(
         "exported_lists": LIST_EXPORTS,
         "list_counts": {name: len(symbols) for name, symbols in lists.items()},
         "enrichment_blocks": sorted((normalized_enrichment or {}).keys()),
-        "library_field_version": "v7.0a",
+        "library_field_version": "v8.0a",
         "deprecated_field_policy": {
             "mode": "compatibility_only",
-            "preferred_field_version": "v7.0a",
+            "preferred_field_version": "v8.0a",
             "extension_allowed": False,
             "deprecated_groups": DEPRECATED_COMPATIBILITY_GROUPS,
         },

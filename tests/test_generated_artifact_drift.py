@@ -214,9 +214,9 @@ class TestGeneratedArtifactDrift:
         # ENG-WS3-04 hero setup quality adds 4 fields (HERO_QUALITY_TIER,
         # HERO_QUALITY_WHY_NOW, HERO_QUALITY_MAIN_RISK, HERO_QUALITY_FAMILY_HEALTH).
         # 185 → 189.
-        # ENG-WS3-05 hero action adds 5 fields (HERO_ACTION_VERB, HERO_ACTION_VERB_DE,
-        # HERO_ACTION_REASON, HERO_ACTION_DEGRADATION, HERO_ACTION_QUALITY).
-        # 189 → 194.
+        # ENG-WS3-05 originally added 5 reserved action fields
+        # (HERO_ACTION_VERB, HERO_ACTION_VERB_DE, HERO_ACTION_REASON,
+        # HERO_ACTION_DEGRADATION, HERO_ACTION_QUALITY). 189 → 194.
         # Pre-existing drift between the asserted count (194) and the
         # checked-in fixture (200) is realigned here together with the
         # ZONE_CAL_TRUST scalar (ADR 2026-04-22 — degrade per-family HR
@@ -226,8 +226,12 @@ class TestGeneratedArtifactDrift:
         # Pine-library const `HR_SENTINEL_DEGRADED` so consumers can
         # reference the sentinel by symbol instead of hardcoding -1.0.
         # 201 → 202.
-        assert len(exports) == 202, (
-            f"Expected 202 export const fields for the current v6 shared-export contract, got {len(exports)}"
+        # F-6 consolidates HERO_ACTION/HERO_ACTION_VERB and removes the
+        # 5 reserved action exports again while keeping the single
+        # existing HERO_ACTION export:
+        # 202 → 197.
+        assert len(exports) == 197, (
+            f"Expected 197 export const fields for the current v8 shared-export contract, got {len(exports)}"
         )
 
     def test_event_risk_exports_stay_in_canonical_order(self, regenerated: Path):
@@ -256,7 +260,7 @@ class TestGeneratedArtifactDrift:
             (regenerated / "pine" / "generated" / "smc_micro_profiles_generated.json").read_text()
         )
         assert "library_field_version" in manifest
-        assert manifest["library_field_version"] == "v7.0a"
+        assert manifest["library_field_version"] == "v8.0a"
         assert "asof_time" in manifest
         assert "refresh_count" in manifest
         assert "enrichment_blocks" in manifest

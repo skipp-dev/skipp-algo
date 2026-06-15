@@ -2153,7 +2153,7 @@
   },
   "deprecatedFieldPolicy": {
     "mode": "compatibility_only",
-    "preferredFieldVersion": "v7.0a",
+    "preferredFieldVersion": "v8.0a",
     "extensionAllowed": false,
     "sunset_date": "2026-04-14",
     "sunset_action": "removed",
