@@ -40,6 +40,11 @@
     <dict>
         <key>PATH</key>
         <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <!-- Set to 1 to activate IBKR paper order submission via --place-paper-orders.
+             Requires Paper TWS running on port 7497 with a DU* paper account.
+             Default 0 = audit_only (no IBKR connection). -->
+        <key>C13_PLACE_PAPER_ORDERS</key>
+        <string>1</string>
     </dict>
 </dict>
 </plist>

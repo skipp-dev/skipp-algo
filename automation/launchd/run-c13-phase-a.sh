@@ -138,18 +138,26 @@ process_one_date() {
         echo "phase-a cron: no WSH snapshot found under cache/wsh/; earnings filter SKIPPED (no data)" >&2
     fi
 
-    # 3. Run the orchestrator. --phase paper means submit_fn defaults to
-    #    the no-op stub inside run_smc_live_incubation.py, so no IBKR
-    #    orders are placed even if TWS is running on a live account.
+    # 3. Run the orchestrator.
     #    SA-02 (audit 2026-06-14): wrap the runner call so a non-zero exit
     #    writes a DEGRADED marker before returning — required for machine-
     #    detectable monitoring of silent incubation failures.
+    #    C2 (2026-06-15): opt-in paper order submission. Set
+    #    C13_PLACE_PAPER_ORDERS=1 in the plist EnvironmentVariables to
+    #    activate. Requires IBKR Paper TWS on port 7497 (DU* account).
+    #    Default 0 = audit_only stub (no IBKR connection).
+    local PAPER_ORDERS_FLAG=""
+    if [[ "${C13_PLACE_PAPER_ORDERS:-0}" == "1" ]]; then
+        PAPER_ORDERS_FLAG="--place-paper-orders"
+        echo "phase-a cron: --place-paper-orders ENABLED (C13_PLACE_PAPER_ORDERS=1)"
+    fi
     # shellcheck disable=SC2086
     if "${PY}" -m scripts.run_smc_live_incubation \
         --phase paper \
         --setups "${SETUPS}" \
         --gate-statuses "${GATES}" \
         --audit-output "${AUDIT}" \
+        ${PAPER_ORDERS_FLAG} \
         ${WSH_FLAG}; then
         :
     else
