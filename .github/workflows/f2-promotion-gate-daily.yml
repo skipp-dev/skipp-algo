@@ -63,9 +63,8 @@ on:
         required: false
         default: ""
 
-# Workflow-level: minimal read-only default.
-# issues:write + actions:read are scoped to the promotion-gate job only
-# (Copilot review #2741 — least-privilege per-job override).
+# Workflow-level: minimal default. Elevated scopes are job-local on
+# `promotion-gate` (least privilege).
 permissions:
   contents: read
 
