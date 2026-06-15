@@ -5,6 +5,10 @@
 > alternatives considered, and the rejection reasons for the paths
 > not taken. Entries are append-only; superseded decisions stay visible
 > with a `Status: superseded` header and a pointer to the replacement.
+>
+> For the meaning of the sprint codes, phase names, and domain
+> abbreviations used throughout these entries, see the
+> [Glossary](GLOSSARY.md).
 
 ## Format
 
