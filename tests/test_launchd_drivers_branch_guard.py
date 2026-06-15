@@ -486,6 +486,9 @@ def test_phase_a_sh_incubation_failure_path_writes_degraded_marker() -> None:
     assert (
         'if ! "${PY}" -m scripts.run_smc_live_incubation' in text
         or 'if "${PY}" -m scripts.run_smc_live_incubation' in text
+        # cbcb6195: refactored to capture exit-code so the logged value is
+        # accurate; pattern is: run cmd, then _run_exit=$?, then if-check.
+        or ('_run_exit=$?' in text and 'if [ "${_run_exit}" -ne 0 ]' in text)
     ), (
         "run-c13-phase-a.sh: run_smc_live_incubation must be wrapped in "
         "a catchable shell branch so a non-zero exit can be caught — "
