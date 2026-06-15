@@ -118,6 +118,46 @@ bash automation/launchd/run-c13-audit-push.sh
 Plists schedule by **local clock** (`StartCalendarInterval`), so daylight
 savings is handled by the OS. No EST/EDT branching needed.
 
+## Missed-run catch-up / backfill
+
+`StartCalendarInterval` only fires **once** on the next wake and *coalesces*
+every occurrence missed while the workstation was asleep. So if the Mac slept
+through Monday, Tuesday and Wednesday, launchd runs the job a single time on
+Thursday and the Monday/Tuesday data is silently lost.
+
+The data-producing drivers therefore replay every missed **business day**
+inside a single wake via [`lib_c13_catchup.sh`](lib_c13_catchup.sh):
+
+- A run-date counts as **done** only when its per-date status marker exists and
+  begins with the success prefix (`ok:` for the data-push drivers, `SUCCESS|`
+  for phase-a). Absent or `degraded:`/`DEGRADED|` markers are replayed.
+- `c13_run_with_catchup` walks the business days in a bounded look-back window
+  (default **7 calendar days**, override with `C13_CATCHUP_LOOKBACK_DAYS`),
+  oldest first, and invokes the driver's `process_one_date "<YYYY-MM-DD>"` for
+  each one that is not yet done — then always at least today. A failing date is
+  logged and tallied but does **not** abort the remaining dates.
+
+Wired into the **historical, per-run-date** jobs, where backfilling a past date
+reconstructs real state:
+
+| Driver | Marker dir / prefix | Success prefix |
+| --- | --- | --- |
+| `run-c13-imbalance.sh` | `cache/imbalance/.push_status_` | `ok:` |
+| `run-c13-phase-a.sh` | `cache/live/.phase_a_status_` | `SUCCESS` |
+
+The remaining jobs are **forward-looking / stateless**, so a single on-wake
+fire is already sufficient and multi-day backfill is intentionally *not* wired:
+
+- `run-c13-wsh.sh` pulls a forward earnings *calendar* (`--window-days`); a
+  replay would just re-stamp past dates with today's calendar.
+- `run-c13-ibkr-smoke.sh` verifies *current* TWS connectivity; a past morning
+  cannot be smoke-tested after the fact.
+- `run-c13-phase-a-export.sh` writes timestamped (not per-date) artefacts, and
+  `run-c13-audit-push.sh` is an idempotent publish of whatever already exists.
+
+The look-back window bounds retries, so a permanently-failing date (e.g. a
+market holiday with no data) is retried for at most a week rather than forever.
+
 ## Logging
 
 `StandardOutPath` / `StandardErrorPath` write to
