@@ -184,7 +184,7 @@ def _cmd_append(args: argparse.Namespace) -> int:
     append_event(args.metrics_file, event)
     if args.summary_md:
         summary = summarize(load_events(args.metrics_file))
-        Path(args.summary_md).write_text(render_summary_md(summary), encoding="utf-8")
+        Path(args.summary_md).write_text(render_summary_md(summary), encoding="utf-8")  # ATOMIC-WRITE-EXEMPT: human-readable summary report; not a live trading artefact
     print(json.dumps(event, sort_keys=True))
     return 0
 
@@ -196,7 +196,7 @@ def _cmd_summary(args: argparse.Namespace) -> int:
     else:
         output = json.dumps(summary, indent=2, sort_keys=True)
     if args.output:
-        Path(args.output).write_text(output, encoding="utf-8")
+        Path(args.output).write_text(output, encoding="utf-8")  # ATOMIC-WRITE-EXEMPT: human-readable summary report; not a live trading artefact
     print(output)
     return 0
 
