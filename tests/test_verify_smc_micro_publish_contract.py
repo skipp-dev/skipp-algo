@@ -29,7 +29,7 @@ def _manifest_payload(
         "event_risk_source": event_risk_source,
         "deprecated_field_policy": {
             "mode": "compatibility_only",
-            "preferred_field_version": "v7.0a",
+            "preferred_field_version": "v8.0a",
             "extension_allowed": False,
             "deprecated_groups": ["event_risk_v5"],
         },
@@ -74,7 +74,7 @@ def test_verify_publish_contract_accepts_publish_ready_manifest(tmp_path: Path) 
     assert result["recommended_import_path"] == "owner_a/smc_micro_profiles_generated/2"
     assert result["alias"] == "mp"
     assert result["deprecated_policy_mode"] == "compatibility_only"
-    assert result["preferred_field_version"] == "v7.0a"
+    assert result["preferred_field_version"] == "v8.0a"
     assert result["publish_ready"] == "true"
 
 

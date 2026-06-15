@@ -14,10 +14,10 @@ _GENERATORS = [
     ROOT / "scripts" / "smc_microstructure_base_runtime.py",
     # ENG-WS2-02 / -04 trust + action degradation block helpers.
     ROOT / "scripts" / "smc_trust_state_export.py",
-    # ENG-WS3-03 / -04 / -05 hero-surface block helpers.
+    # ENG-WS3-03 / -04 hero-surface block helpers. ENG-WS3-05 now
+    # projects through the HERO_ACTION field in generate_smc_micro_profiles.py.
     ROOT / "scripts" / "smc_hero_market_mode.py",
     ROOT / "scripts" / "smc_hero_setup_quality.py",
-    ROOT / "scripts" / "smc_hero_action.py",
 ]
 
 # Known orphan references that are tolerated until their Pine consumer is cleaned up.
@@ -157,7 +157,6 @@ def _collect_generated_fields() -> set[str]:
     # regex-based scan above can miss exports rendered through a loop
     # over an external tuple, so we always trust the tuple as the
     # authoritative field list for that block.
-    from scripts.smc_hero_action import PINE_HERO_ACTION_FIELDS
     from scripts.smc_hero_market_mode import PINE_HERO_MARKET_FIELDS
     from scripts.smc_hero_setup_quality import PINE_HERO_QUALITY_FIELDS
     from scripts.smc_trust_state_export import (
@@ -176,7 +175,6 @@ def _collect_generated_fields() -> set[str]:
     fields.update(PINE_ACTION_DEGRADATION_FIELDS)
     fields.update(PINE_HERO_MARKET_FIELDS)
     fields.update(PINE_HERO_QUALITY_FIELDS)
-    fields.update(PINE_HERO_ACTION_FIELDS)
     fields.update(_ZH_DEFAULTS.keys())
     return fields
 
@@ -394,7 +392,7 @@ PYTHON_ONLY_EXPORTS: set[str] = {
     "TRUST_CAUSE_CODE",
     # ── ENG-WS2-04 action degradation block (consumed by the Hero
     # Action helper at generation time; Pine reads the rolled-up
-    # HERO_ACTION_* fields instead) ──
+    # HERO_ACTION field instead) ──
     "ACTION_DEGRADATION_TIER",
     "ACTION_DEGRADATION_REASON",
     "ACTION_DEGRADATION_DERIVED_FROM",
@@ -423,14 +421,6 @@ from scripts.smc_hero_setup_quality import (
 )
 
 RESERVED_PINE_EXPORTS.update(PINE_HERO_QUALITY_FIELDS)
-
-# ENG-WS3-05 — Hero Action recommendation. Exported as the canonical
-# verb + reason; Pine still derives the action label internally.
-from scripts.smc_hero_action import (
-    PINE_HERO_ACTION_FIELDS,
-)
-
-RESERVED_PINE_EXPORTS.update(PINE_HERO_ACTION_FIELDS)
 
 # ENG-WS2-02 trust contract — exported as the canonical rolled-up
 # action-impact label, but no production *.pine file consumes it yet

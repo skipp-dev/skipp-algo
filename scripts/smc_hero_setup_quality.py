@@ -47,12 +47,20 @@ _SCORE_THRESHOLDS: tuple[tuple[float, str], ...] = (
 
 # Translation from the existing ensemble-quality string tier (which
 # downstream code has been emitting as 'high' / 'mid' / 'low' / 'na')
-# into the new Hero vocabulary.
+# into the new Hero vocabulary.  New-vocabulary literals are accepted as
+# direct pass-throughs so that fixtures and producers using the Hero
+# vocabulary ('excellent' / 'good' / 'limited' / 'avoid') round-trip
+# cleanly through derive_hero_setup_quality.
 _ENSEMBLE_TIER_MAP: Mapping[str, str] = {
     "high": "excellent",
     "mid": "good",
     "low": "limited",
     "na": "avoid",
+    # New-vocabulary pass-throughs (ENG-WS3-05 consolidation)
+    "excellent": "excellent",
+    "good": "good",
+    "limited": "limited",
+    "avoid": "avoid",
 }
 
 

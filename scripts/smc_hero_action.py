@@ -15,8 +15,10 @@ from:
   trust state.
 * ``HeroSetupQuality`` (ENG-WS3-04) — the reasoned setup quality.
 
-And renders it as a single Pine block so dashboards must read the same
-recommendation everywhere (no second classification path).
+The Pine library projects this recommendation onto the existing
+``HERO_ACTION`` boundary field via :mod:`scripts.smc_hero_state`.  The
+lowercase/German verb pair remains an internal product object; it is no
+longer exported as a parallel Pine field block.
 
 DoD:
 
@@ -183,42 +185,8 @@ def derive_hero_action(enrichment: Mapping[str, Any]) -> HeroAction:
     )
 
 
-# ── Pine rendering ────────────────────────────────────────────────────
-
-
-PINE_HERO_ACTION_FIELDS: tuple[str, ...] = (
-    "HERO_ACTION_VERB",
-    "HERO_ACTION_VERB_DE",
-    "HERO_ACTION_REASON",
-    "HERO_ACTION_DEGRADATION",
-    "HERO_ACTION_QUALITY",
-)
-
-
-def _pine_string(value: str) -> str:
-    return value.replace("\\", "\\\\").replace('"', '\\"')
-
-
-def render_hero_action_block_lines(
-    enrichment: Mapping[str, Any],
-) -> list[str]:
-    action = derive_hero_action(enrichment)
-    values = action.as_dict()
-    lines: list[str] = ["// ── Hero Action (ENG-WS3-05) ──"]
-    for field, key in zip(
-        PINE_HERO_ACTION_FIELDS,
-        ("verb", "verb_de", "reason", "degradation", "quality"), strict=False,
-    ):
-        lines.append(
-            f'export const string {field} = "{_pine_string(values[key])}"'
-        )
-    return lines
-
-
 __all__ = [
-    "PINE_HERO_ACTION_FIELDS",
     "HeroAction",
     "all_action_verbs",
     "derive_hero_action",
-    "render_hero_action_block_lines",
 ]

@@ -35,9 +35,9 @@ document the cross-vocabulary mappings used by:
 
 - ``smc_integration.trust_state.TrustState`` (canonical 5-state
   trust enum) via :func:`project_trust_state_to_hero`.
-- ``scripts.smc_hero_action._ACTION_TABLE`` (Producer-B quality
-  vocabulary ``excellent/good/limited/avoid``) via
-  :data:`HERO_QUALITY_A_TO_B`.
+- ``scripts.smc_hero_action._ACTION_TABLE`` (Producer-B action + quality
+    vocabulary) via :func:`_derive_hero_action` and
+    :data:`HERO_QUALITY_A_TO_B`.
 
 Boundary-Contract Improvement Plan 2026-04-23, F-2 / F-4 / F-6 /
 PR-BC-04 — DO NOT rename these literals without bumping
@@ -141,13 +141,13 @@ HERO_QUALITY_A_TO_B: dict[str, str] = {
 }
 
 
-# ── HERO_ACTION vocabulary (F-6 docs, PR-BC-04) ───────────────────────
+# ── HERO_ACTION vocabulary (F-6, PR-BC-04) ────────────────────────────
 #
-# Producer-A vocabulary — live Pine consumer (``SMC_Dashboard.pine``
-# ~line 1728, read-passthrough, no literal gate today). The parallel
-# reserved field ``HERO_ACTION_VERB`` uses a lowercase verb vocabulary
-# (``act/wait/watch/avoid`` + DE variants) — reconciliation is
-# deferred to a WS3 ticket.
+# Single Pine-boundary action vocabulary. The underlying action decision
+# is produced by ``scripts.smc_hero_action.derive_hero_action`` from the
+# lowercase Producer-B verb table and then projected here onto the
+# uppercase dashboard contract. There is intentionally no parallel
+# ``HERO_ACTION_VERB*`` Pine export surface.
 HERO_ACTION_ACTIVE: str = "ACTIVE"
 HERO_ACTION_WATCH: str = "WATCH"
 HERO_ACTION_AVOID: str = "AVOID"
@@ -297,21 +297,80 @@ def _derive_bias(*, regime: str, trade_state: str) -> str:
     return HERO_BIAS_FLAT
 
 
-def _derive_action(*, trade_state: str, trust: str) -> str:
-    """Map trade state and trust into a product action.
+def _producer_b_action_input(
+    enrichment: dict[str, Any],
+    *,
+    trade_state: str,
+    trust: str,
+) -> dict[str, Any]:
+    """Return enrichment shaped so Producer B sees Hero-local hard gates.
 
-    Returns one of :data:`HERO_ACTION_VOCAB`. See ADR-0006 for the
-    vocabulary contract.
+    Hero-local hard gates (layering.trade_state BLOCKED/AVOID/WATCH and
+    trust unavailable/stale) always take precedence — even when an
+    upstream pipeline already attached ``action_degradation`` or
+    ``trust_state``.  Only when no hard gate applies do we fall through
+    and return the enrichment unchanged.
     """
-    if trust in (HERO_TRUST_UNAVAILABLE, HERO_TRUST_STALE):
-        return HERO_ACTION_WATCH
+    tier: str | None = None
+    reason: str | None = None
+    quality_override: dict[str, Any] | None = None
+
     if trade_state == "BLOCKED":
+        tier = "no_trade"
+        reason = "Layering trade_state=BLOCKED"
+    elif trade_state == "AVOID":
+        tier = "selective"
+        reason = "Layering trade_state=AVOID"
+        quality_override = {"score": 0.0, "main_risk": reason}
+    elif trade_state == "WATCH":
+        tier = "watchlist"
+        reason = "Layering trade_state=WATCH"
+    elif trust in (HERO_TRUST_UNAVAILABLE, HERO_TRUST_STALE):
+        tier = "watchlist"
+        reason = f"Hero trust={trust}"
+
+    if tier is None:
+        # No hard gate — return as-is (upstream blocks remain authoritative).
+        return enrichment
+
+    projected = dict(enrichment)
+    projected["action_degradation"] = {
+        "tier": tier,
+        "reason": reason or "Hero action gate",
+        "derived_from_state": trust,
+    }
+    if quality_override is not None:
+        projected["ensemble_quality"] = quality_override
+    return projected
+
+
+def _derive_hero_action(
+    enrichment: dict[str, Any],
+    *,
+    trade_state: str = "ALLOWED",
+    trust: str = HERO_TRUST_HEALTHY,
+) -> str:
+    """Project Producer-B's action recommendation onto ``HERO_ACTION``.
+
+    Producer B owns the action decision via
+    :func:`scripts.smc_hero_action.derive_hero_action`.  Pine keeps the
+    historic uppercase boundary literals, so this helper performs the
+    only allowed lowercase-verb → uppercase-contract projection.
+    """
+    from scripts.smc_hero_action import derive_hero_action
+
+    action = derive_hero_action(
+        _producer_b_action_input(enrichment, trade_state=trade_state, trust=trust)
+    )
+    if action.degradation == "no_trade":
         return HERO_ACTION_BLOCKED
-    if trade_state == "AVOID":
-        return HERO_ACTION_AVOID
-    if trade_state == "WATCH":
+    if action.verb == "act":
+        return HERO_ACTION_ACTIVE
+    if action.verb in {"wait", "watch"}:
         return HERO_ACTION_WATCH
-    return HERO_ACTION_ACTIVE
+    if action.verb == "avoid":
+        return HERO_ACTION_AVOID
+    return DEFAULTS["HERO_ACTION"]
 
 
 def _derive_why_now(
@@ -402,5 +461,9 @@ def build_hero_state(enrichment: dict[str, Any]) -> dict[str, str]:
             vol_regime=str(vol_regime.get("label", "NORMAL")),
             trust=trust,
         ),
-        "HERO_ACTION": _derive_action(trade_state=trade_state, trust=trust),
+        "HERO_ACTION": _derive_hero_action(
+            enrichment,
+            trade_state=trade_state,
+            trust=trust,
+        ),
     }
