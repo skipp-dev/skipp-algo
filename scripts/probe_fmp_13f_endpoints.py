@@ -83,7 +83,7 @@ def _probe(path: str, params: dict[str, str], api_key: str) -> dict[str, object]
                 body = exc.fp.read(2048).decode("utf-8", errors="replace")  # type: ignore[attr-defined]
             except Exception:
                 body = ""
-        return {  # noqa: SECLEAK — dict carries type(exc).__name__ only; no exc.args/.message exposed
+        return {  # SECLEAK: dict carries type(exc).__name__ only; no exc.args/.message exposed
             "path": path,
             "url": sanitized,
             "status": code or "ERROR",

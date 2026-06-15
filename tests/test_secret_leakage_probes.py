@@ -14,7 +14,7 @@ This pin enforces a 7-pattern AST table (see retrospective §R7) over
 every ``scripts/probe_*.py``. Each pattern represents a known leakage
 shape; new probe code that introduces an unredacted instance must either
 fix the call to go through ``_redact_sensitive_error_text`` or add a
-``# noqa: SECLEAK`` marker on the offending line with a written
+``# SECLEAK:`` marker on the offending line with a written
 justification (e.g. exception text is provably safe).
 
 The 7 patterns:
@@ -35,10 +35,9 @@ The 7 patterns:
      above contexts (libraries sometimes pre-formatted the secret into
      ``args[0]``).
 
-Marker: ``# noqa: SECLEAK`` on the same line suppresses the finding for
-that one location (the marker MUST carry a written reason after the
-em-dash, e.g. ``# noqa: SECLEAK \u2014 exception text is the upstream
-HTTP status only``).
+Marker: ``# SECLEAK:`` on the same line suppresses the finding for that
+one location (the marker MUST carry a written reason after the colon,
+e.g. ``# SECLEAK: exception text is the upstream HTTP status only``).
 
 See ``docs/AUDIT_L1_REVIEW_RETROSPECTIVE_2026-05-12.md`` \xa7R7.
 """
@@ -52,7 +51,7 @@ import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _PROBE_GLOB = "scripts/probe_*.py"
-_NOQA_MARKER = "noqa: SECLEAK"
+_NOQA_MARKER = "SECLEAK:"
 
 # Names commonly bound by ``except ... as <name>`` whose use as a string
 # argument or formatted value triggers the AST patterns. Restricting to
@@ -244,7 +243,7 @@ def arg0_repr(node: ast.AST) -> str:
 def _line_has_marker(source_lines: list[str], lineno: int) -> bool:
     """Return True iff the marker is present AND has a non-empty reason.
 
-    A bare ``# noqa: SECLEAK`` (no em-dash + rationale) is treated as missing
+    A bare ``# SECLEAK:`` (no rationale) is treated as missing
     so reviewers cannot silence the guard without recording WHY the leak is
     acceptable (audit-L-1 §R14: Copilot #6).
     """
@@ -267,7 +266,7 @@ def _line_has_marker(source_lines: list[str], lineno: int) -> bool:
 )
 def test_r7_no_unredacted_secret_leakage(probe_path: str) -> None:
     """Every probe leakage site must go through ``_redact_sensitive_error_text``\
-    or carry a ``# noqa: SECLEAK \u2014 <reason>`` marker."""
+    or carry a ``# SECLEAK: <reason>`` marker."""
 
     full = _REPO_ROOT / probe_path
     source = full.read_text(encoding="utf-8")
@@ -281,7 +280,7 @@ def test_r7_no_unredacted_secret_leakage(probe_path: str) -> None:
         formatted = "\n  - ".join(f"{probe_path}:{ln} [{pat}]" for ln, pat in unmarked)
         raise AssertionError(
             "Unredacted exception leakage in probe script. Wrap the call in "
-            "`_redact_sensitive_error_text(...)` or add `# noqa: SECLEAK \u2014 "
+            "`_redact_sensitive_error_text(...)` or add `# SECLEAK: "
             "<reason>` on the same line if the text is provably safe:\n  - "
             + formatted
         )

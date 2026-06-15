@@ -10,8 +10,8 @@ was unknown to pytest.
 
 The pre-existing guards did **not** catch this:
 
-* ``test_requirements_discipline_pin`` only audits ``requirements.txt`` hygiene
-  (version specifiers, no third-party index URLs, dep-line budget).
+* ``test_requirements_discipline_pin`` only audits requirements-file hygiene
+    (version specifiers, no third-party index URLs, dep-line budgets).
 * ``test_workflow_dependency_hygiene`` only audits install *ordering* inside a
   handful of workflows.
 

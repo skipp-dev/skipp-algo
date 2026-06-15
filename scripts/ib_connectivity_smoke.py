@@ -178,6 +178,16 @@ def main(argv: list[str] | None = None) -> int:
         LOGGER.info("Managed accounts: %s", ", ".join(accounts))
         LOGGER.info("IBKR connectivity smoke OK.")
         return 0
+    except Exception as exc:  # pragma: no cover — defensive against IB API churn
+        # Unexpected attribute/API shape difference (e.g. missing ib_client.client
+        # or serverVersion() not present): fail gracefully so callers see rc=1
+        # rather than an unhandled traceback bypassing the exit-code contract.
+        LOGGER.error(
+            "Unexpected error in connected path (IB API mismatch?): %s",
+            exc,
+            exc_info=True,
+        )
+        return 1
     finally:
         try:
             ib_client.disconnect()
