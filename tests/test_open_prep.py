@@ -3456,17 +3456,15 @@ class TestMacroHelpers(unittest.TestCase):
 
         # Reset the once-guard so this test is not order-dependent on other
         # tests that may have already triggered _normalize_tls_certificate_env.
-        with patch.object(macro, "_TLS_NORM_DONE", False):
-            with patch.object(macro, "certifi") as mock_certifi:
-                mock_certifi.where.return_value = "/tmp/certifi.pem"
-                with patch.dict(
-                    "os.environ",
-                    {"SSL_CERT_FILE": "/tmp/missing.pem"},
-                    clear=False,
-                ):
-                    with patch("open_prep.macro.Path.exists", return_value=False):
-                        cafile = macro._normalize_tls_certificate_env()
-                    self.assertEqual(os.environ["SSL_CERT_FILE"], "/tmp/certifi.pem")
+        with (
+            patch.object(macro, "_TLS_NORM_DONE", False),
+            patch.object(macro, "certifi") as mock_certifi,
+            patch.dict("os.environ", {"SSL_CERT_FILE": "/tmp/missing.pem"}, clear=False),
+            patch("open_prep.macro.Path.exists", return_value=False),
+        ):
+            mock_certifi.where.return_value = "/tmp/certifi.pem"
+            cafile = macro._normalize_tls_certificate_env()
+            self.assertEqual(os.environ["SSL_CERT_FILE"], "/tmp/certifi.pem")
 
         self.assertEqual(cafile, "/tmp/certifi.pem")
 
