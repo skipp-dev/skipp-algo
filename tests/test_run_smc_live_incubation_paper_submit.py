@@ -15,6 +15,7 @@ from typing import Any
 import pytest
 
 from scripts.execute_ibkr_watchlist import (
+    PAPER_PORT,
     IBKRConnectionConfig,
 )
 from scripts.execute_ibkr_watchlist import (
@@ -28,8 +29,6 @@ from scripts.smc_to_ibkr_adapter import (
     IBKRExecutionConfig,
     build_ibkr_intents_from_smc_setups,
 )
-
-_PAPER_PORT = 7497
 
 
 def _setup(variant: str = "smc_breaker_btc", **overrides: Any) -> dict:
@@ -111,7 +110,7 @@ def test_paper_submit_fn_adapts_placements_to_audit_shape() -> None:
 
     assert len(placer.calls) == 1
     assert placer.calls[0]["intents"] == list(intents)
-    assert placer.calls[0]["connection_cfg"].port == _PAPER_PORT
+    assert placer.calls[0]["connection_cfg"].port == PAPER_PORT
     assert results == [
         {
             "intent_id": intent.order_ref,
@@ -135,7 +134,7 @@ def test_paper_submit_fn_skips_executor_when_no_intents() -> None:
 def test_paper_submit_fn_uses_paper_port_by_default() -> None:
     # Defense in depth: the default connection config must bind the paper
     # port so the DU* guard in place_order_intents is always engaged.
-    assert IBKRConnectionConfig().port == _PAPER_PORT
+    assert IBKRConnectionConfig().port == PAPER_PORT
 
 
 # ── CLI: --place-paper-orders wiring ───────────────────────────────
@@ -175,7 +174,7 @@ def test_cli_place_paper_orders_invokes_executor(
 
     assert rc == 0
     assert len(placer.calls) == 1
-    assert placer.calls[0]["connection_cfg"].port == _PAPER_PORT
+    assert placer.calls[0]["connection_cfg"].port == PAPER_PORT
     audit_records = _read_audit(audit)
     assert audit_records
     assert all(rec["action"] == "paper_submitted" for rec in audit_records)
