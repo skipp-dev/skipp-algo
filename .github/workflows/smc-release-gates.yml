@@ -14,6 +14,16 @@ defaults:
   run:
     shell: bash
 
+# SC-05 (supply-chain audit 2026-06-14): explicit default-deny floor; jobs
+# declare their own elevated scopes (contents:read, attestations:write, etc.).
+permissions: {}
+
+# SC-06 (supply-chain audit 2026-06-14): serialise release runs so concurrent
+# dispatch/release triggers cannot interleave gate results.
+concurrency:
+  group: smc-release-gates-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   select-runner:
     runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}

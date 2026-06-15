@@ -9,7 +9,7 @@ consumes whatever artefacts the local jobs commit + push into
 ## Jobs
 
 | Plist | Schedule (local time) | Script | Output |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `com.skippalgo.c13.collect-imbalance.plist` | 09:28 ET (Mon-Fri) | `scripts.collect_opening_imbalances` | `cache/imbalance/<DATE>.jsonl` |
 | `com.skippalgo.c13.wsh-earnings.plist` | 16:30 ET (Mon-Fri) | `scripts.wsh_earnings_calendar` | `cache/wsh/<DATE>.jsonl` |
 | `com.skippalgo.c13.phase-a-export.plist` | 09:18 ET (Mon-Fri) | `scripts.export_open_prep_lists` | `reports/open_prep_trade_cards_<TS>.csv` |
@@ -94,7 +94,7 @@ cancels. Pure round-trip — no real fills.
 `run_ibkr_open_execution.py` performs a startup guard before connecting to TWS:
 
 | Condition | Effect |
-|---|---|
+| --- | --- |
 | `cache/live/smoke_HALT` exists | Abort with instructions to remove the file |
 | `cache/live/smoke_<TODAY>.jsonl` missing or > 4 h old | Abort with instructions to re-run the smoke |
 | `--skip-smoke-guard` passed | Both checks skipped (prints an explicit warning) |
@@ -107,12 +107,10 @@ Remove it manually once the root cause is resolved:
 rm cache/live/smoke_HALT
 ```
 
-The smoke JSONL can be pushed to the audit branch together with the other artefacts:
+The smoke JSONL can be pushed to the audit branch together with the other artefacts via the hardened isolated-worktree helper:
 
 ```bash
-git add cache/live/smoke_*.jsonl \
-  && git commit -m "chore(c13): smoke audit JSONL $(date +%F)" \
-  && git push origin data/phase-a-audit
+bash automation/launchd/run-c13-audit-push.sh
 ```
 
 ## DST handling

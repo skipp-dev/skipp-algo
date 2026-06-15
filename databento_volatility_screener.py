@@ -35,6 +35,7 @@ import certifi
 import numpy as np
 import pandas as pd
 
+from databento_client import _install_databento_requests_tls_override
 from open_prep_boundary import FMPClientLike, make_fmp_client
 from scripts.databento_production_workbook import (
     create_excel_workbook_bytes,
@@ -1092,12 +1093,12 @@ def _normalize_tls_certificate_env() -> str:
         if Path(current).exists():
             continue
         logger.warning(
-            "Replacing invalid TLS CA bundle path from %s=%s with certifi bundle %s.",
+            "Ignoring invalid TLS CA bundle path from %s=%s; Databento requests will use certifi bundle %s.",
             env_name,
             current,
             cafile,
         )
-        os.environ[env_name] = cafile
+    _install_databento_requests_tls_override(cafile)
     return cafile
 
 
@@ -6057,6 +6058,8 @@ def run_streamlit_app() -> None:
 # ``from databento_volatility_screener import X`` statements and
 # monkey-patch targets continue to resolve.  New consumers should
 # import from the extracted modules directly.
+# _install_databento_requests_tls_override is imported from
+# databento_client at the top of this module (canonical source).
 
 
 if __name__ == "__main__" and sys.argv and sys.argv[0].endswith("databento_volatility_screener.py"):

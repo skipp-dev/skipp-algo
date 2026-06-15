@@ -14,7 +14,21 @@ from dataclasses import dataclass, field
 # field default_factory can reference the helper directly without a
 # dynamic ``__import__(...)`` (which the dunder-import budget pin
 # would flag).
-from open_prep.feature_flags import is_opra_uoa_enabled
+from open_prep.feature_flags import (
+    is_benzinga_rest_enabled,
+    is_benzinga_ws_enabled,
+    is_fmp_8k_enabled,
+    is_fmp_13f_enabled,
+    is_fmp_articles_enabled,
+    is_fmp_enabled,
+    is_fmp_general_enabled,
+    is_fmp_house_trades_enabled,
+    is_fmp_senate_trades_enabled,
+    is_newsapi_ai_enabled,
+    is_opra_uoa_enabled,
+    is_tradingview_news_enabled,
+    is_uw_news_enabled,
+)
 
 
 def _env_float(key: str, default: float) -> float:
@@ -52,15 +66,15 @@ class Config:
     newsapi_ai_key: str = field(default_factory=lambda: os.getenv("NEWSAPI_KEY", ""), repr=False)
 
     # ── Feature flags ───────────────────────────────────────────
-    enable_fmp: bool = field(default_factory=lambda: os.getenv("ENABLE_FMP", "1") == "1")
-    enable_fmp_articles: bool = field(default_factory=lambda: os.getenv("ENABLE_FMP_ARTICLES", "1") == "1")
-    enable_benzinga_rest: bool = field(default_factory=lambda: os.getenv("ENABLE_BENZINGA_REST", "0") == "1")
-    enable_benzinga_ws: bool = field(default_factory=lambda: os.getenv("ENABLE_BENZINGA_WS", "0") == "1")
-    enable_tradingview_news: bool = field(default_factory=lambda: os.getenv("ENABLE_TRADINGVIEW_NEWS", "0") == "1")
-    enable_newsapi_ai: bool = field(default_factory=lambda: os.getenv("ENABLE_NEWSAPI_AI", "1") == "1")
+    enable_fmp: bool = field(default_factory=is_fmp_enabled)
+    enable_fmp_articles: bool = field(default_factory=is_fmp_articles_enabled)
+    enable_benzinga_rest: bool = field(default_factory=is_benzinga_rest_enabled)
+    enable_benzinga_ws: bool = field(default_factory=is_benzinga_ws_enabled)
+    enable_tradingview_news: bool = field(default_factory=is_tradingview_news_enabled)
+    enable_newsapi_ai: bool = field(default_factory=is_newsapi_ai_enabled)
     # B1: Unusual Whales /news/headlines (default-OFF — endpoint availability
     # depends on UW plan tier; DISABLED-pattern auto-suppresses on 401/403/404).
-    enable_uw_news: bool = field(default_factory=lambda: os.getenv("ENABLE_UW_NEWS", "0") == "1")
+    enable_uw_news: bool = field(default_factory=is_uw_news_enabled)
     # OPRA UOA replacement (2026-05-12 provider audit). When ON, the
     # streamlit_monitor options-flow tab consumes ``ingest_opra_options_flow``
     # (Databento OPRA.PILLAR) instead of the now-defunct UW flow-alerts path.
@@ -76,12 +90,12 @@ class Config:
     # B4/B5/B7 (PR3 2026-05-09) — FMP extras. general-latest is default-ON
     # (pure value-add macro coverage); Senate/House/8-K default-OFF since
     # they require dedicated FMP plan tiers (DISABLED-pattern auto-suppresses).
-    enable_fmp_general: bool = field(default_factory=lambda: os.getenv("ENABLE_FMP_GENERAL", "1") == "1")
-    enable_fmp_senate_trades: bool = field(default_factory=lambda: os.getenv("ENABLE_FMP_SENATE_TRADES", "0") == "1")
-    enable_fmp_house_trades: bool = field(default_factory=lambda: os.getenv("ENABLE_FMP_HOUSE_TRADES", "0") == "1")
-    enable_fmp_8k: bool = field(default_factory=lambda: os.getenv("ENABLE_FMP_8K", "0") == "1")
+    enable_fmp_general: bool = field(default_factory=is_fmp_general_enabled)
+    enable_fmp_senate_trades: bool = field(default_factory=is_fmp_senate_trades_enabled)
+    enable_fmp_house_trades: bool = field(default_factory=is_fmp_house_trades_enabled)
+    enable_fmp_8k: bool = field(default_factory=is_fmp_8k_enabled)
     # B6 (PR5 2026-05-09) — FMP /sec-filings/13F-HR-latest follow-up to PR3.
-    enable_fmp_13f: bool = field(default_factory=lambda: os.getenv("ENABLE_FMP_13F", "0") == "1")
+    enable_fmp_13f: bool = field(default_factory=is_fmp_13f_enabled)
 
     # ── Polling cadence ─────────────────────────────────────────
     poll_interval_s: float = field(default_factory=lambda: _env_float("POLL_INTERVAL_S", 2.0))

@@ -79,6 +79,76 @@ user-configurable 7-TF bias stacks.
 
 **Status.** accepted.
 
+### 2026-06-14 - governance-hierarchy-evidence-and-org-scope-gate
+
+**Context.** A supply-chain / CI-integrity audit required a hard
+evidence snapshot of the *effective* governance stack for
+`skippALGO/skipp-algo`: organization rulesets, repository rulesets,
+and branch protection on `main`. Prior notes correctly flagged that
+org-wide rulesets were not fully verifiable, but the gap had to be
+made explicit, reproducible, and separated from the already-verifiable
+repo/branch controls.
+
+Live GitHub API checks on 2026-06-14 showed:
+
+* token scopes = `gist, read:org, repo, workflow` (no `admin:org`),
+* repo rulesets retrievable and active,
+* branch protection retrievable and active,
+* org ruleset endpoint blocked (`admin:org` required).
+
+**Decision.** We treat governance evidence as a three-tier contract and
+report each tier independently:
+
+1. **Org tier** is `NOT-VERIFIABLE` unless the current GitHub token has
+   `admin:org` and `gh api orgs/<org>/rulesets` succeeds.
+2. **Repo tier** is `PASS` only when active rulesets are fetched and
+   their effective conditions/rules are recorded.
+3. **Branch tier** is `PASS` only when
+   `branches/main/protection` confirms the required checks and force-push
+   policy.
+
+For this snapshot, org is explicitly blocked by scope; repo and branch
+are accepted as verified controls.
+
+**Alternatives considered.**
+
+- *Mark org tier as pass using `read:org` plus inference from UI/docs.*
+  Rejected — this would create false confidence; API evidence is the
+  source of truth for enforceable governance state.
+- *Collapse org+repo+branch into one boolean governance verdict.*
+  Rejected — hides where evidence is strong vs. where scope blocks
+  visibility.
+- *Defer documentation until `admin:org` is granted.* Rejected — the
+  current limitation is itself a governance-relevant fact and must be
+  visible now.
+
+**Consequences.**
+
+- Audit outputs now distinguish **verified controls** from
+  **scope-blocked controls** without ambiguity.
+- Repo/branch posture is evidence-backed today (active rulesets,
+  required `fast-gates`, no force-push on `main`).
+- Org-wide posture remains an explicit action item gated on auth scope,
+  not a silent omission.
+
+**Evidence.**
+
+- Auth scope check (`gh auth status -h github.com`):
+  `Token scopes: 'gist', 'read:org', 'repo', 'workflow'`.
+- Org ruleset query (`gh api orgs/skippALGO/rulesets`):
+  `HTTP 404` + explicit hint: requires `admin:org`.
+- Repo rulesets (`gh api repos/skippALGO/skipp-algo/rulesets`):
+  active rulesets `main-governance` (id `15245308`) and
+  `skipp-algo` (id `12576994`).
+- Repo ruleset detail:
+  - `main-governance` targets `~DEFAULT_BRANCH`, requires strict status
+    check `fast-gates`, and enforces squash-merge policy.
+  - `skipp-algo` targets `~ALL`, enforces Copilot code review policy.
+- Branch protection (`gh api repos/skippALGO/skipp-algo/branches/main/protection`):
+  strict required check `fast-gates`; `allow_force_pushes=false`.
+
+**Status.** accepted.
+
 ### 2026-04-22 - Degrade per-family HR display on sub-saturation corpora
 
 **Context.** The Phase H2 smoke on 2026-04-22 surfaced

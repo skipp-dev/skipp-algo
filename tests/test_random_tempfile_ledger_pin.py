@@ -72,7 +72,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     # block above the helper which shifted the site further: 489 → 597.
     # 2026-06-10 (#2670 W9): timestamp_substitutions disclosure shifted +5
     # (597 -> 602).
-    ("databento_volatility_screener.py", 603, "mkstemp"),
+    ("databento_volatility_screener.py", 604, "mkstemp"),
     ("governance/alpha_ledger.py", 70, "mkstemp"),
     ("newsstack_fmp/open_prep_export.py", 25, "mkstemp"),
     ("newsstack_fmp/shared_fetch.py", 258, "mkstemp"),
