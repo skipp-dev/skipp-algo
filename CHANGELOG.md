@@ -38,33 +38,6 @@ Databento-Producer-Scan erneut ausführte. Automatische Runs verweigern
 weiterhin stale Fallback-Bundles; ein Databento `402 account_delinquent_invoice`
 bleibt ein separater Provider-/Account-Health-Fall im Producer.
 
-### Removed (2026-06-12) — drift-watchdog-Cron stillgelegt (#2726)
-
-`.github/workflows/drift-watchdog.yml` (Montags-Cron) ist entfernt. Der
-Faktencheck zu #2726 ergab: Die erwartete WFO-Baseline
-`artifacts/wfo/walk_forward_latest.json` wurde von keiner Pipeline je
-produziert (keinerlei Git-Historie unter `artifacts/wfo/`; der im
-Workflow-Header zitierte „C2 walk-forward cron“ existiert nicht im
-aktuellen Workflow-Set — dasselbe hatte bereits
-`docs/ci-proposals/j3-followup-cron-workflow-run-2026-05-01.md`
-notiert). Seit dem Fail-loud-Fix #2725 wäre jeder Lauf ein
-garantiertes rc=4 gewesen; davor war er ein stiller No-op.
-
-- Drift-Abdeckung läuft heute über `c13-daily-cron.yml`
-  (täglich, `compute_live_drift` + Issue-Opener) und das
-  Phase-B-Promotion-Gate — der wöchentliche Watchdog war redundant
-  *und* funktionsunfähig.
-- `scripts/run_drift_watchdog.py` und seine Tests bleiben erhalten:
-  Das CLI ist weiter manuell mit explizit übergebener Baseline nutzbar
-  und dient als gepinnte Referenz-Implementierung des
-  Atomic-Write-Patterns (`tests/test_atomic_write_call_sites.py`,
-  `tests/test_csprint_atomic_write_fsync.py`).
-- Inventory-Pin `tests/test_workflow_continue_on_error_inventory.py`
-  um den drift-watchdog-Eintrag reduziert; stale Kommentar-Verweise in
-  `c13-daily-cron.yml`, `phase-b-promotion-readiness.yml`,
-  `scripts/check_phase_b_drift_readiness.py` (dessen Wiring-Claim schon
-  vorher falsch war) und dem Script-Docstring aktualisiert.
-
 ### Fixed (2026-06-13) — Stat-Review W7-4/W7-5: Red-Flag-Fenster + Anchor-Staleness im Weekly-Judgement
 
 **W7-4:** `eval_magnitude_shadow_weekly.detect_all_pass_red_flag`
@@ -253,6 +226,25 @@ WARNING bei jedem Auftreten). Fix daher testseitig:
 
 Test-only, kein Produktionscode. (Audit E-1, Bundle C1)
 
+### Changed (2026-06-13) — Audit E-1 AW-1: Atomic-Write-Guards auf alle Produktions-Surfaces erweitert
+
+Beide Atomic-Write-Pin-Tests scannten nur Teilflächen:
+`tests/test_atomic_write_call_sites.py` (open/fdopen-Writes) deckte
+`scripts/ open_prep/ ml/ rl/ governance/` ab,
+`tests/test_no_direct_to_csv_in_production.py`
+(to_csv/to_parquet/write_text/json.dump) sogar nur `scripts/`. Neue
+non-atomic Writer in `smc_core/`, `smc_integration/`, `newsstack_fmp/`
+oder den Repo-Root-Modulen (`databento_*`, `terminal_export`,
+`streamlit_terminal`, `pine_*`) regressierten still. Beide Guards
+scannen jetzt alle acht Verzeichnisse plus Repo-Root (non-rekursiv);
+der Bestand wurde site-für-site verifiziert und als dokumentierte
+Baseline-Allowlist aufgenommen (überwiegend bereits korrekte
+mkstemp+os.replace-Muster). `_FILE_LEVEL_EXEMPT`-Keys sind jetzt
+repo-relative POSIX-Pfade statt kollisionsanfälliger Dateinamen; neuer
+Pin `test_file_level_exempt_keys_exist` verhindert stale Einträge.
+Härtungs-Kandidaten (fixer tmp-Name ohne Exception-Cleanup) sind als
+AW-2/AW-3 in den Rationales markiert. Test-only, kein Produktionscode.
+
 ### Removed (2026-06-12) — drift-watchdog-Cron stillgelegt (#2726)
 
 `.github/workflows/drift-watchdog.yml` (Montags-Cron) ist entfernt. Der
@@ -279,6 +271,7 @@ garantiertes rc=4 gewesen; davor war er ein stiller No-op.
   `c13-daily-cron.yml`, `phase-b-promotion-readiness.yml`,
   `scripts/check_phase_b_drift_readiness.py` (dessen Wiring-Claim schon
   vorher falsch war) und dem Script-Docstring aktualisiert.
+
 ### Fixed (2026-06-12) — f2-promotion-gate: Rollback-Ping in falsches Issue (Label-only-Suche)
 
 Der Step „Open rollback Issue (§2.4 G2 ping)“ in
@@ -294,24 +287,6 @@ irgendwo im Titel; der Wert wird zur Laufzeit aus
 `scripts/f2_render_rollback_issue.py::TITLE_PREFIX` importiert); der
 Step-Kommentar (der fälschlich ein nicht existentes „f2-rollback label“
 behauptete) ist mitkorrigiert.
-### Changed (2026-06-13) — Audit E-1 AW-1: Atomic-Write-Guards auf alle Produktions-Surfaces erweitert
-
-Beide Atomic-Write-Pin-Tests scannten nur Teilflächen:
-`tests/test_atomic_write_call_sites.py` (open/fdopen-Writes) deckte
-`scripts/ open_prep/ ml/ rl/ governance/` ab,
-`tests/test_no_direct_to_csv_in_production.py`
-(to_csv/to_parquet/write_text/json.dump) sogar nur `scripts/`. Neue
-non-atomic Writer in `smc_core/`, `smc_integration/`, `newsstack_fmp/`
-oder den Repo-Root-Modulen (`databento_*`, `terminal_export`,
-`streamlit_terminal`, `pine_*`) regressierten still. Beide Guards
-scannen jetzt alle acht Verzeichnisse plus Repo-Root (non-rekursiv);
-der Bestand wurde site-für-site verifiziert und als dokumentierte
-Baseline-Allowlist aufgenommen (überwiegend bereits korrekte
-mkstemp+os.replace-Muster). `_FILE_LEVEL_EXEMPT`-Keys sind jetzt
-repo-relative POSIX-Pfade statt kollisionsanfälliger Dateinamen; neuer
-Pin `test_file_level_exempt_keys_exist` verhindert stale Einträge.
-Härtungs-Kandidaten (fixer tmp-Name ohne Exception-Cleanup) sind als
-AW-2/AW-3 in den Rationales markiert. Test-only, kein Produktionscode.
 
 ### Security (2026-06-12) — tsx ^4.22.4 → esbuild 0.28.1 (Dependabot #5/#6)
 

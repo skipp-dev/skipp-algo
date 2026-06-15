@@ -1602,6 +1602,8 @@ def test_default_high_impact_events_includes_core_macro_releases() -> None:
 def test_normalize_tls_certificate_env_replaces_invalid_path(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Any
 ) -> None:
+    # Reset once-guard so the function body actually runs in this test.
+    monkeypatch.setattr(macro, "_TLS_NORM_DONE", False)
     fake_certifi = MagicMock()
     fake_ca = tmp_path / "cacert.pem"
     fake_ca.write_text("dummy")
