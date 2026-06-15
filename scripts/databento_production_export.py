@@ -3436,9 +3436,9 @@ def _run_fmp_intraday_bridge(
 
     Invoked in Step 6c when Databento has no same-day data yet (market still
     open; dataset not finalized until ~20:00 UTC).  FMP supplies 1-min OHLCV
-    via ``/stable/historical-chart/1min``.  Returns a DataFrame whose schema
-    is compatible with ``run_intraday_screen()`` output, or an empty DataFrame
-    on any error.
+    via ``FMPClient.get_intraday_chart(symbol, interval="1min", day=today)``.
+    Returns a DataFrame whose schema is compatible with
+    ``run_intraday_screen()`` output, or an empty DataFrame on any error.
 
     Design contract
     ---------------
