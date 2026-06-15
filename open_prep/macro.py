@@ -24,7 +24,7 @@ from zoneinfo import ZoneInfo
 
 try:
     import certifi
-except Exception:  # pragma: no cover
+except ImportError:  # pragma: no cover
     certifi = None
 
 _prev_trading_day: Any = None
