@@ -1624,6 +1624,10 @@ def test_normalize_tls_certificate_env_replaces_invalid_path(
 def test_normalize_tls_certificate_env_keeps_existing_valid_path(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Any
 ) -> None:
+    # Reset once-guard so the loop logic is actually exercised here, regardless
+    # of test execution order (e.g. test_build_tls_context_returns_ssl_context
+    # may have already set _TLS_NORM_DONE=True in the same pytest session).
+    monkeypatch.setattr(macro, "_TLS_NORM_DONE", False)
     fake_certifi = MagicMock()
     fake_ca = tmp_path / "cacert.pem"
     fake_ca.write_text("dummy")
@@ -1651,7 +1655,8 @@ def test_normalize_tls_certificate_env_no_certifi_returns_none(
     assert macro._normalize_tls_certificate_env() is None
 
 
-def test_build_tls_context_returns_ssl_context() -> None:
+def test_build_tls_context_returns_ssl_context(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(macro, "_TLS_NORM_DONE", False)
     ctx = macro._build_tls_context()
     import ssl as _ssl
 
