@@ -212,9 +212,15 @@ Only use raw `actions/setup-python@...` inside the composite action itself.
 
 ### Python environment
 
-- For local Python work in VS Code, use a repo-local virtual environment at
-  `.venv` so tasks, the Testing panel, and terminal commands share one
-  interpreter.
+**Package management — `requirements.txt` is the Source of Truth.**
+- Add a new runtime dependency by editing `requirements.txt`, then run
+  `python scripts/regenerate_requirements_lock.py` to re-pin `requirements.lock`.
+- Never use `uv add` or `pip install` directly — both bypass the lock workflow.
+- Run scripts and tools with `uv run <command>` (e.g. `uv run pytest`) or
+  directly via `.venv/bin/python -m <module>`.
+- The `.venv` is created by `bootstrap_venv.sh`; do not create or activate a venv manually.
+- For local Python work in VS Code, the repo-local `.venv` (managed by uv) is
+  used by tasks, the Testing panel, and terminal commands.
 - Bootstrap on Windows with
   `./scripts/bootstrap_venv.ps1 -VenvPath .venv`.
 - Bootstrap on macOS/Linux with
@@ -236,6 +242,12 @@ Only use raw `actions/setup-python@...` inside the composite action itself.
   `python -m pip install --force-reinstall -r requirements-rl-gpu.txt`.
 
 ### Testing
+
+**TDD workflow (mandatory order):**
+1. Write the test first — it must fail (RED).
+2. Implement the feature — the test must pass (GREEN).
+3. Only then refactor.
+Never write production code before at least a skeleton failing test exists.
 
 - Every new Python module must have a corresponding test file in `tests/`.
 - Tests must be deterministic — no live API calls, no network I/O, no `time.sleep`.
@@ -273,6 +285,52 @@ Only use raw `actions/setup-python@...` inside the composite action itself.
 Use `mkstemp + fdopen + os.replace` for all file writes in `scripts/`. Raw
 `open(..., 'w')` calls are guarded by `tests/test_atomic_write_call_sites.py`
 and will fail CI.
+
+### Commit-Disziplin
+
+- Commit früh und oft — viele kleine Commits sind besser als wenige große.
+- Jeder abgeschlossene Schritt (Feature, Bugfix, Refactor) bekommt sofort
+  einen eigenen Commit, auch wenn nur eine Datei betroffen ist.
+- Faustregel: Mehr als eine Datei in einem Commit ist ein Signal, den Commit
+  aufzuteilen.
+- Jedes neue Feature auf einem eigenen Branch; erst nach Review und grünen
+  Checks in `main` mergen.
+- Vor jedem Commit: `uv run ruff check` und `uv run ruff format --check`.
+
+### Verifikationsregel
+
+Niemals davon ausgehen, dass Code funktioniert. Immer ausführen und Output
+prüfen. Kein Artefakt, kein Skript, kein Workflow-Schritt gilt als erledigt,
+bis er tatsächlich gelaufen ist und die Ausgabe bestätigt wurde.
+
+### Debugging-Disziplin
+
+**Eisernes Gesetz: Keine Fixes ohne Root-Cause-Analyse.**
+
+Symptom-Fixes sind kein Erfolg — sie verbergen das eigentliche Problem.
+
+**Die 4 Phasen (in dieser Reihenfolge, keine Abkürzungen):**
+
+1. **Root Cause Investigation** — Fehlermeldungen vollständig lesen (Stack
+   Trace, Zeilennummern, Fehlercodes). Fehler reproduzierbar machen. Letzte
+   Änderungen prüfen (`git diff`, recent commits). Bei Multi-Komponenten-Systemen
+   (CI → Build → Test → Deploy) zuerst Diagnose-Logging an jeder Komponenten-
+   Grenze hinzufügen und einen Lauf sammeln — erst dann analysieren.
+2. **Pattern Analysis** — Funktionierendes ähnliches Code im gleichen Repo
+   suchen. Unterschiede zwischen "works" und "broken" explizit auflisten.
+3. **Hypothesis & Test** — Genau eine Hypothese formulieren: *"Ich denke X
+   ist die Root Cause, weil Y."* Kleinstmögliche Änderung testen — eine
+   Variable auf einmal.
+4. **Implementation** — Erst einen failing Test schreiben, dann den Fix, dann
+   verifizieren (alle Tests grün, kein Regresssion).
+
+**Stoppsignale — sofort zurück zu Phase 1:**
+- "Quick fix for now" — nicht akzeptabel.
+- Mehrere Änderungen auf einmal — verboten.
+- 2+ Fix-Versuche ohne neuen Root-Cause-Fund → Architektur hinterfragen,
+  nicht einen weiteren Fix stapeln.
+- "Ich verstehe es nicht ganz, aber das könnte helfen" → kein Fix ohne
+  Verständnis.
 
 ## Token-efficiency rules
 
@@ -319,6 +377,15 @@ Wenn der User "merge", "mergeable machen" oder "Konflikte lösen" sagt:
 4. Copilot-Review-Comments prüfen (inline + threads via API, nicht nur
    `gh pr view`).
 5. Ergebnis als kompakte Tabelle ausgeben: `PR# | Status | Aktion`.
+
+### Worktree-Cleanup
+
+Nach dem Mergen eines PRs den zugehörigen Worktree entfernen:
+```bash
+git worktree remove /path/to/worktree --force
+git branch -d <branch-name>   # lokal
+```
+Kein gemergter PR darf einen ungenutzten Worktree zurücklassen.
 
 ## Env-Var-Disziplin
 
