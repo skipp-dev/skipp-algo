@@ -58,8 +58,8 @@ other reference.
 | `Phase A` | **Paper** incubation stage (the `C13` sprint). Dry-run; a zero `AccountState` is acceptable. |
 | `Phase B` | **`live_small`** stage (the `C14` sprint). 10 % position size; real capital, gated. |
 | `paper` | Trading phase: dry-run, no broker orders submitted by default. `_PHASE_DEFAULTS["paper"]["paper_mode"] = True`. |
-| `live_small` | Trading phase: real orders at `PHASE_B_RECOMMENDED_SIZE_SCALE` (10 %). Requires `--risk-limits-json`, `--account-state-json`, and a passing `paper` eval report. |
-| `live_full` | Trading phase: real orders at 100 % size. Requires a passing `live_small` eval report. |
+| `live_small` | Trading phase: real orders at `PHASE_B_RECOMMENDED_SIZE_SCALE` (10 %). Requires `--account-state-json` and a passing `paper` eval report; `--risk-limits-json` is optional (defaults to `configs/live_risk_limits.json`). |
+| `live_full` | Trading phase: real orders at 100 % size. Requires a passing `live_small` eval report; `--risk-limits-json` remains optional with the same default. |
 
 Defined in [scripts/run_smc_live_incubation.py](../scripts/run_smc_live_incubation.py)
 (`_PHASE_DEFAULTS`, `PHASE_B_RECOMMENDED_SIZE_SCALE`).
@@ -117,7 +117,7 @@ mirrored between Python and the Pine dashboard (cross-checked by
 | `NewsAPI.ai` | News enrichment (active path: `scripts/smc_newsapi_ai.py`). |
 | `Benzinga` | News / calendar fallback. |
 | `TradingView` | Technicals via `tradingview_ta` + Playwright `TV_STORAGE_STATE`. |
-| `IBKR` / `TWS` | **Interactive Brokers** / **Trader Workstation** execution. Ports: `7497` paper, `7496` live, `4001` gateway. Paper account numbers are prefixed `DU*`. |
+| `IBKR` / `TWS` | **Interactive Brokers** / **Trader Workstation** execution. TWS defaults: `7497` paper, `7496` live. IB Gateway convention: `4002` paper, `4001` live. Paper account numbers are prefixed `DU*`. |
 
 ## Process & audit codes
 
