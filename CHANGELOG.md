@@ -62,6 +62,24 @@ eskaliert den eingefrorenen Feed unabhängig). Neue Tests: gestaffelte
 Dispatches feuern, frischer FAIL blockt, Out-of-window-Family zählt
 nicht (weder PASS noch FAIL), Single-Family-Fenster feuert nie,
 Staleness-Grenze 10/11 Tage, Render- und CLI-Warnung.
+### Changed (2026-06-13) — Audit E-1 TQ-2/TQ-3/TQ-4: Fail-Open-Tests nachgeschärft (mit Observability-Assertions)
+
+Testhärtung für fail-open Pfade, damit "nicht crashen" nicht mehr still
+fehlertolerant ohne Diagnose bleibt:
+
+- `tests/test_newsstack_fmp.py::TestPollOnceFailOpen`
+  asserten jetzt zusätzlich den Log-Kontrakt:
+  - FMP-Fetch-Fehler → `WARNING` (`"FMP stock-latest fetch failed"`),
+  - Export-Fehler → `WARNING` (`"export_open_prep failed"`).
+- `tests/test_production_gatekeeper.py::test_invalid_cutoff_does_not_crash`
+  wurde von reiner Typ-Prüfung auf konkretes Verhalten verschärft:
+  unfiltered Event-Rückgabe bleibt erhalten *und* der ERROR-Logmarker
+  `"Invalid --pre-open-cutoff-utc"` muss sichtbar sein (`caplog`).
+- Relevante Fail-Open-Docstrings wurden datiert und die Intent-Notizen
+  auf Audit-E-1 referenziert (TQ-4), damit Scope/Trade-off im Testtext
+  nachvollziehbar bleibt.
+
+Test-only, kein Produktionscode.
 
 ### Fixed (2026-06-13) — Audit E-2 AW-7-B: Reader-Fallbacks mit Diagnoselog
 
