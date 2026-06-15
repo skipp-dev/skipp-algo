@@ -212,9 +212,12 @@ Only use raw `actions/setup-python@...` inside the composite action itself.
 
 ### Python environment
 
-- For local Python work in VS Code, use a repo-local virtual environment at
-  `.venv` so tasks, the Testing panel, and terminal commands share one
-  interpreter.
+**Package management: always use uv.**
+- Add dependencies with `uv add <package>` (never `pip install`).
+- Run scripts and tools with `uv run <command>` (e.g. `uv run pytest`).
+- Do not create or activate virtualenvs explicitly — uv manages `.venv` automatically.
+- For local Python work in VS Code, the repo-local `.venv` (managed by uv) is
+  used by tasks, the Testing panel, and terminal commands.
 - Bootstrap on Windows with
   `./scripts/bootstrap_venv.ps1 -VenvPath .venv`.
 - Bootstrap on macOS/Linux with
@@ -236,6 +239,12 @@ Only use raw `actions/setup-python@...` inside the composite action itself.
   `python -m pip install --force-reinstall -r requirements-rl-gpu.txt`.
 
 ### Testing
+
+**TDD workflow (mandatory order):**
+1. Write the test first — it must fail (RED).
+2. Implement the feature — the test must pass (GREEN).
+3. Only then refactor.
+Never write production code before at least a skeleton failing test exists.
 
 - Every new Python module must have a corresponding test file in `tests/`.
 - Tests must be deterministic — no live API calls, no network I/O, no `time.sleep`.
@@ -273,6 +282,23 @@ Only use raw `actions/setup-python@...` inside the composite action itself.
 Use `mkstemp + fdopen + os.replace` for all file writes in `scripts/`. Raw
 `open(..., 'w')` calls are guarded by `tests/test_atomic_write_call_sites.py`
 and will fail CI.
+
+### Commit-Disziplin
+
+- Commit früh und oft — viele kleine Commits sind besser als wenige große.
+- Jeder abgeschlossene Schritt (Feature, Bugfix, Refactor) bekommt sofort
+  einen eigenen Commit, auch wenn nur eine Datei betroffen ist.
+- Faustregel: Mehr als eine Datei in einem Commit ist ein Signal, den Commit
+  aufzuteilen.
+- Jedes neue Feature auf einem eigenen Branch; erst nach Review und grünen
+  Checks in `main` mergen.
+- Vor jedem Commit: `uv run ruff check` und `uv run ruff format --check`.
+
+### Verifikationsregel
+
+Niemals davon ausgehen, dass Code funktioniert. Immer ausführen und Output
+prüfen. Kein Artefakt, kein Skript, kein Workflow-Schritt gilt als erledigt,
+bis er tatsächlich gelaufen ist und die Ausgabe bestätigt wurde.
 
 ## Token-efficiency rules
 
@@ -319,6 +345,15 @@ Wenn der User "merge", "mergeable machen" oder "Konflikte lösen" sagt:
 4. Copilot-Review-Comments prüfen (inline + threads via API, nicht nur
    `gh pr view`).
 5. Ergebnis als kompakte Tabelle ausgeben: `PR# | Status | Aktion`.
+
+### Worktree-Cleanup
+
+Nach dem Mergen eines PRs den zugehörigen Worktree entfernen:
+```bash
+git worktree remove /path/to/worktree --force
+git branch -d <branch-name>   # lokal
+```
+Kein gemergter PR darf einen ungenutzten Worktree zurücklassen.
 
 ## Env-Var-Disziplin
 
