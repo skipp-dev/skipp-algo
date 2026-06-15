@@ -323,9 +323,12 @@ class TestNoSystemExit:
         assert "__batch__" in errors
         assert quote_diagnostics["failed_quote_symbol_count"] == 1
 
-    def test_invalid_cutoff_does_not_crash(self):
-        """Arrange: invalid cutoff format. Assert: returns unfiltered
-        events instead of SystemExit."""
+    def test_invalid_cutoff_does_not_crash(self, caplog):
+        """Arrange: invalid cutoff format (Audit E-1 TQ-3, 2026-06-13).
+
+        Assert fail-open *and* observability: returns unfiltered events
+        instead of SystemExit and emits a clear ERROR log marker.
+        """
         from open_prep.run_open_prep import _fetch_todays_events
 
         mock_client = MagicMock()
@@ -333,18 +336,25 @@ class TestNoSystemExit:
             {"event": "test", "date": "2025-06-16", "country": "US"},
         ]
 
-        # Invalid cutoff should not crash
-        result = _fetch_todays_events(
-            client=mock_client,
-            today=date(2025, 6, 16),
-            end_date=date(2025, 6, 19),
-            pre_open_only=True,
-            pre_open_cutoff_utc="INVALID",
-        )
-        # Should return results (possibly unfiltered) rather than crash
+        with caplog.at_level("ERROR", logger="open_prep.run"):
+            # Invalid cutoff should not crash
+            result = _fetch_todays_events(
+                client=mock_client,
+                today=date(2025, 6, 16),
+                end_date=date(2025, 6, 19),
+                pre_open_only=True,
+                pre_open_cutoff_utc="INVALID",
+            )
+        # Should return unfiltered today's events (fail-open), not just
+        # "some list".
         todays, all_events = result
         assert isinstance(todays, list)
         assert isinstance(all_events, list)
+        assert len(todays) == 1
+        assert len(all_events) == 1
+        assert todays[0]["event"] == "test"
+        assert all_events[0]["event"] == "test"
+        assert "Invalid --pre-open-cutoff-utc" in caplog.text
 
 
 # ═══════════════════════════════════════════════════════════════════

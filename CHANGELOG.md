@@ -38,32 +38,23 @@ Databento-Producer-Scan erneut ausführte. Automatische Runs verweigern
 weiterhin stale Fallback-Bundles; ein Databento `402 account_delinquent_invoice`
 bleibt ein separater Provider-/Account-Health-Fall im Producer.
 
-### Removed (2026-06-12) — drift-watchdog-Cron stillgelegt (#2726)
+### Changed (2026-06-13) — WS3 #56: `HERO_ACTION` becomes the single action surface + `library_field_version` v8.0a (BREAKING for Pine consumers)
 
-`.github/workflows/drift-watchdog.yml` (Montags-Cron) ist entfernt. Der
-Faktencheck zu #2726 ergab: Die erwartete WFO-Baseline
-`artifacts/wfo/walk_forward_latest.json` wurde von keiner Pipeline je
-produziert (keinerlei Git-Historie unter `artifacts/wfo/`; der im
-Workflow-Header zitierte „C2 walk-forward cron“ existiert nicht im
-aktuellen Workflow-Set — dasselbe hatte bereits
-`docs/ci-proposals/j3-followup-cron-workflow-run-2026-05-01.md`
-notiert). Seit dem Fail-loud-Fix #2725 wäre jeder Lauf ein
-garantiertes rc=4 gewesen; davor war er ein stiller No-op.
-
-- Drift-Abdeckung läuft heute über `c13-daily-cron.yml`
-  (täglich, `compute_live_drift` + Issue-Opener) und das
-  Phase-B-Promotion-Gate — der wöchentliche Watchdog war redundant
-  *und* funktionsunfähig.
-- `scripts/run_drift_watchdog.py` und seine Tests bleiben erhalten:
-  Das CLI ist weiter manuell mit explizit übergebener Baseline nutzbar
-  und dient als gepinnte Referenz-Implementierung des
-  Atomic-Write-Patterns (`tests/test_atomic_write_call_sites.py`,
-  `tests/test_csprint_atomic_write_fsync.py`).
-- Inventory-Pin `tests/test_workflow_continue_on_error_inventory.py`
-  um den drift-watchdog-Eintrag reduziert; stale Kommentar-Verweise in
-  `c13-daily-cron.yml`, `phase-b-promotion-readiness.yml`,
-  `scripts/check_phase_b_drift_readiness.py` (dessen Wiring-Claim schon
-  vorher falsch war) und dem Script-Docstring aktualisiert.
+Resolved the parallel-channel split between Producer-A `HERO_ACTION`
+and Producer-B `HERO_ACTION_VERB*`. `scripts.smc_hero_action` remains
+the canonical action decision table (`act` / `wait` / `watch` /
+`avoid` plus reason/degradation/quality), while `scripts.smc_hero_state`
+now projects that recommendation onto the existing uppercase Pine
+boundary field `HERO_ACTION` (`ACTIVE` / `WATCH` / `AVOID` /
+`BLOCKED`). The generated Pine library no longer exports the five
+reserved action fields `HERO_ACTION_VERB`, `HERO_ACTION_VERB_DE`,
+`HERO_ACTION_REASON`, `HERO_ACTION_DEGRADATION`, or
+`HERO_ACTION_QUALITY`; German/display wording is a UI concern rather
+than a library-boundary field. This removes five `export const` fields,
+so `library_field_version` and
+`deprecated_field_policy.preferred_field_version` bump **v7.0a →
+v8.0a**. `BLOCKED` is preserved by mapping Producer-B
+`degradation == "no_trade"` to the uppercase `HERO_ACTION` contract.
 
 ### Fixed (2026-06-13) — Stat-Review W7-4/W7-5: Red-Flag-Fenster + Anchor-Staleness im Weekly-Judgement
 
@@ -89,6 +80,24 @@ eskaliert den eingefrorenen Feed unabhängig). Neue Tests: gestaffelte
 Dispatches feuern, frischer FAIL blockt, Out-of-window-Family zählt
 nicht (weder PASS noch FAIL), Single-Family-Fenster feuert nie,
 Staleness-Grenze 10/11 Tage, Render- und CLI-Warnung.
+### Changed (2026-06-13) — Audit E-1 TQ-2/TQ-3/TQ-4: Fail-Open-Tests nachgeschärft (mit Observability-Assertions)
+
+Testhärtung für fail-open Pfade, damit "nicht crashen" nicht mehr still
+fehlertolerant ohne Diagnose bleibt:
+
+- `tests/test_newsstack_fmp.py::TestPollOnceFailOpen`
+  asserten jetzt zusätzlich den Log-Kontrakt:
+  - FMP-Fetch-Fehler → `WARNING` (`"FMP stock-latest fetch failed"`),
+  - Export-Fehler → `WARNING` (`"export_open_prep failed"`).
+- `tests/test_production_gatekeeper.py::test_invalid_cutoff_does_not_crash`
+  wurde von reiner Typ-Prüfung auf konkretes Verhalten verschärft:
+  unfiltered Event-Rückgabe bleibt erhalten *und* der ERROR-Logmarker
+  `"Invalid --pre-open-cutoff-utc"` muss sichtbar sein (`caplog`).
+- Relevante Fail-Open-Docstrings wurden datiert und die Intent-Notizen
+  auf Audit-E-1 referenziert (TQ-4), damit Scope/Trade-off im Testtext
+  nachvollziehbar bleibt.
+
+Test-only, kein Produktionscode.
 
 ### Fixed (2026-06-13) — Audit E-2 AW-7-B: Reader-Fallbacks mit Diagnoselog
 
@@ -253,6 +262,25 @@ WARNING bei jedem Auftreten). Fix daher testseitig:
 
 Test-only, kein Produktionscode. (Audit E-1, Bundle C1)
 
+### Changed (2026-06-13) — Audit E-1 AW-1: Atomic-Write-Guards auf alle Produktions-Surfaces erweitert
+
+Beide Atomic-Write-Pin-Tests scannten nur Teilflächen:
+`tests/test_atomic_write_call_sites.py` (open/fdopen-Writes) deckte
+`scripts/ open_prep/ ml/ rl/ governance/` ab,
+`tests/test_no_direct_to_csv_in_production.py`
+(to_csv/to_parquet/write_text/json.dump) sogar nur `scripts/`. Neue
+non-atomic Writer in `smc_core/`, `smc_integration/`, `newsstack_fmp/`
+oder den Repo-Root-Modulen (`databento_*`, `terminal_export`,
+`streamlit_terminal`, `pine_*`) regressierten still. Beide Guards
+scannen jetzt alle acht Verzeichnisse plus Repo-Root (non-rekursiv);
+der Bestand wurde site-für-site verifiziert und als dokumentierte
+Baseline-Allowlist aufgenommen (überwiegend bereits korrekte
+mkstemp+os.replace-Muster). `_FILE_LEVEL_EXEMPT`-Keys sind jetzt
+repo-relative POSIX-Pfade statt kollisionsanfälliger Dateinamen; neuer
+Pin `test_file_level_exempt_keys_exist` verhindert stale Einträge.
+Härtungs-Kandidaten (fixer tmp-Name ohne Exception-Cleanup) sind als
+AW-2/AW-3 in den Rationales markiert. Test-only, kein Produktionscode.
+
 ### Removed (2026-06-12) — drift-watchdog-Cron stillgelegt (#2726)
 
 `.github/workflows/drift-watchdog.yml` (Montags-Cron) ist entfernt. Der
@@ -279,6 +307,7 @@ garantiertes rc=4 gewesen; davor war er ein stiller No-op.
   `c13-daily-cron.yml`, `phase-b-promotion-readiness.yml`,
   `scripts/check_phase_b_drift_readiness.py` (dessen Wiring-Claim schon
   vorher falsch war) und dem Script-Docstring aktualisiert.
+
 ### Fixed (2026-06-12) — f2-promotion-gate: Rollback-Ping in falsches Issue (Label-only-Suche)
 
 Der Step „Open rollback Issue (§2.4 G2 ping)“ in
@@ -306,6 +335,19 @@ die `tv:*`-Skripte), kein Produktionscode. Verbleibende torch-Alerts
 (#3/#4, low, memory corruption in `torch.jit.script`) haben upstream
 keinen Patch (`fixed: none`, torch ≤ 2.12.0) — kein Handlungsspielraum,
 beobachten.
+### Added (2026-06-12) — pre-push Hook: pin/ledger drift guard (fast-gates parity)
+
+Neues `scripts/run_ledger_drift_guard.sh` + pre-commit-Hook
+`ledger-pin-drift-guard` (`stages: [pre-push]`): extrahiert die
+Testdatei-Liste zur Laufzeit aus dem autoritativen
+"Run pin / ledger drift guard"-Step in `smc-fast-pr-gates.yml`
+(Single Source of Truth — die Liste wächst, kein Hardcoding) und führt
+sie mit denselben pytest-Flags lokal aus (~60s, `-n auto` wenn xdist
+installiert; andernfalls seriell — gleiche Korrektheit, langsamere Ausführung).
+Motivation: am 2026-06-12 drifteten vier Ledger-Pins
+(mkstemp/sys.exit/unlink/basicConfig in `open_prep/outcome_backfill.py`)
+durch einen +6-Zeilen-Docstring in PR #2729 und fielen erst in CI auf.
+Aktivierung: `pre-commit install --hook-type pre-push`.
 
 ### Added (2026-06-12) — Runbook: TradingView storage-state capture + Secret-Rotation
 
@@ -4331,37 +4373,6 @@ des SMC System Review Prompts):
 
 **Test footprint:** +8 neue Tests, alle grün. Baseline-Drift-Failures
 liefern Auto-Update Recipe in der Failure-Message.
-
-### Tests / Quality (2026-04-24) — `open()` text-mode encoding discipline (+3 production fixes)
-
-Schließt eine plattform-abhängige Quelle für stillen Daten-Drift in
-First-Party-Produktionscode. Pythons Default-Textencoding ist OS-abhängig
-(macOS/Linux: `utf-8`, Windows: `cp1252`); fehlt `encoding=` an einem
-text-mode `open(...)`, schreibt/liest derselbe Code je nach Host
-unterschiedliche Bytes — eine Klasse von Bug, die wir bei `.env`- und
-Lock-Dateien bereits gesehen haben.
-
-**Tripwire-Pin (`tests/test_open_encoding_discipline.py`)**
-AST-Walk über alle First-Party `*.py` (Top-Level + Subdirs außer
-`tests/`, `scripts/`, `docs/`, `SMC++/`, Caches, Venvs). Jeder
-`open(...)`-Aufruf, der text-mode ist (Default oder Mode ohne `b`) und
-kein `encoding=`-Keyword führt, lässt die Suite rot werden. Binär-Modi
-(`"rb"`, `"wb"`, `"ab"`, `"r+b"`, …) sind exempt. Statisch nicht
-auflösbare Modi gelten konservativ als Text. Drei Sub-Tests:
-1. `test_first_party_files_present` — Pfaddrift-Wächter (≥ 50 Dateien).
-2. `test_open_calls_specify_encoding` — die eigentliche Disziplin.
-3. `test_file_allowlist_entries_still_apply` — parametrierte
-   Allowlist-Hygiene (Allowlist aktuell leer, kein Eintrag verschimmelt).
-
-**Production Fixes (3 Sites)**
-- `open_prep/realtime_signals.py:251` — Engine-Lockfile
-  (`open(_RT_ENGINE_LOCK_FILE, "w")` → `encoding="utf-8"`).
-- `open_prep/realtime_signals.py:2601` — Stdlib-Fallback `.env`-Loader.
-- `test_usi_lint.py:6` — Top-Level Pine-Linter.
-
-**Warum jetzt:** Defense-in-Depth-Tripwire (sub-Sekunde, AST only)
-gegen die Klasse "silent platform-dependent default". Allowlist startet
-leer und wird durch den Stale-Check selbst gepflegt.
 
 ### Fixes & Pins (2026-04-24) — System Review 2026-04-24 Followup (H-1, L-3, M-3)
 

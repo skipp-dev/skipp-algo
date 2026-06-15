@@ -488,7 +488,11 @@ class TestAtomicExport(unittest.TestCase):
 
 
 class TestPollOnceFailOpen(unittest.TestCase):
-    """poll_once must not crash when process_news_items or export fails."""
+    """poll_once fail-open contract (Audit E-1 TQ-2, 2026-06-13).
+
+    Fail-open here is intentional for operator continuity, but every
+    degraded path must emit a visible WARNING so outages are diagnosable.
+    """
 
     @patch("newsstack_fmp.pipeline._get_store")
     @patch("newsstack_fmp.pipeline._get_enricher")
@@ -506,11 +510,17 @@ class TestPollOnceFailOpen(unittest.TestCase):
         fmp.fetch_stock_latest.side_effect = RuntimeError("DB error")
         mock_fmp.return_value = fmp
 
-        with patch.dict(os.environ, {"FMP_API_KEY": "test", "FILTER_TO_UNIVERSE": "0"}):
+        with patch.dict(os.environ, {"FMP_API_KEY": "test", "FILTER_TO_UNIVERSE": "0"}), self.assertLogs(
+            "newsstack_fmp.pipeline", level="WARNING",
+        ) as logs:
             cfg = Config()
             # Should not raise — fail-open
             result = poll_once(cfg, universe=set())
         self.assertIsInstance(result, list)
+        self.assertTrue(
+            any("FMP stock-latest fetch failed" in line for line in logs.output),
+            f"expected warning for degraded FMP fetch; got: {logs.output}",
+        )
 
     @patch("newsstack_fmp.pipeline.export_open_prep", side_effect=OSError("disk full"))
     @patch("newsstack_fmp.pipeline._get_store")
@@ -525,11 +535,17 @@ class TestPollOnceFailOpen(unittest.TestCase):
         mock_enr.return_value = MagicMock()
 
         with patch.dict(os.environ, {"FMP_API_KEY": "", "ENABLE_FMP": "0",
-                                      "FILTER_TO_UNIVERSE": "0"}):
+                                      "FILTER_TO_UNIVERSE": "0"}), self.assertLogs(
+            "newsstack_fmp.pipeline", level="WARNING",
+        ) as logs:
             cfg = Config()
             # Should not raise even though export throws OSError
             result = poll_once(cfg, universe=set())
         self.assertIsInstance(result, list)
+        self.assertTrue(
+            any("export_open_prep failed" in line for line in logs.output),
+            f"expected warning for export failure fail-open path; got: {logs.output}",
+        )
 
 
 # ── M-5: cluster_count guard ──────────────────────────────────

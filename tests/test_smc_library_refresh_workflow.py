@@ -421,3 +421,35 @@ def test_artifact_strategy_doc_mentions_drift_classification() -> None:
     assert "stage_only" in doc
     assert "gitignored" in doc
     assert "VOLATILE_ARTIFACT_POLICY" in doc
+
+
+# -- Phase 2: provider credential preflight gates generation ------------------
+# Run #412 burned ~144min of generation before the runner was shut down while
+# Databento was billing-delinquent (HTTP 402). A preflight that fails fast on
+# missing/expired keys or a delinquent invoice must run BEFORE the expensive
+# generation step, reusing scripts/credential_health_check.py.
+
+
+def test_refresh_runs_provider_preflight_before_generation() -> None:
+    workflow_text = _read(WORKFLOW_PATH)
+
+    assert '- name: Provider credential preflight' in workflow_text
+    assert 'scripts/credential_health_check.py' in workflow_text
+    assert '--skip-tv' in workflow_text
+    assert '--skip-gh-pat' in workflow_text
+    # NEWSAPI_KEY remains optional: if missing, the workflow explicitly skips
+    # the NewsAPI probe instead of hard-failing preflight on an empty key.
+    assert 'NEWSAPI_KEY not set — skipping optional NewsAPI preflight probe.' in workflow_text
+    assert 'newsapi_arg+=(--skip-newsapi)' in workflow_text
+    assert '--databento-key-env DATABENTO_API_KEY' in workflow_text
+    # The script returns exit 2 for *both* warn and error, so the gate must
+    # branch on overall_severity from the JSON report, not on the exit code.
+    # Use the actual bash json-extraction expression as the anchor (not a comment).
+    assert ".get('overall_severity'" in workflow_text
+    assert '"$severity" = "error"' in workflow_text
+    # Preflight must gate the generation step, not trail it. Anchor on the
+    # step `- name:` markers (the comment header also mentions the phrase).
+    assert '- name: Generate SMC library with v5 enrichment' in workflow_text
+    assert workflow_text.index('- name: Provider credential preflight') < workflow_text.index(
+        '- name: Generate SMC library with v5 enrichment'
+    )

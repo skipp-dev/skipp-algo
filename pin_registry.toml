@@ -211,9 +211,11 @@ allowed = [
 "smc-databento-production-export-sharded.yml" = 2
 "smc-databento-production-export.yml" = 1
 "smc-deeper-integration-gates.yml" = 1
-# Library refresh: F-V8-N1 preflight retry wrapper (PR #2418) plus
-# breaking/gates capture blocks (PR #2415).
-"smc-library-refresh.yml" = 3
+# Library refresh: baseline was 3 set+e sites (F-V8-N1 preflight-retry
+# wrapper PR #2418 + breaking/gates capture blocks PR #2415). PR #2762
+# adds one more set+e capture in the provider-credential preflight,
+# so the frozen count is 4.
+"smc-library-refresh.yml" = 4
 "smc-live-newsapi-refresh.yml" = 1
 "smc-measurement-benchmark-rolling.yml" = 5
 # workflow-freshness-monitor.yml: single best-effort step that

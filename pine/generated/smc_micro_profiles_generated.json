@@ -80,10 +80,10 @@
     "zone_priority_calibration_meta",
     "zone_projection"
   ],
-  "library_field_version": "v7.0a",
+  "library_field_version": "v8.0a",
   "deprecated_field_policy": {
     "mode": "compatibility_only",
-    "preferred_field_version": "v7.0a",
+    "preferred_field_version": "v8.0a",
     "extension_allowed": false,
     "deprecated_groups": []
   },

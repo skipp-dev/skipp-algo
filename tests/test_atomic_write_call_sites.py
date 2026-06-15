@@ -51,9 +51,26 @@ SCRIPTS_DIR = REPO_ROOT / "scripts"
 # Deep-Review 2026-04-27: scan additional top-level directories so the
 # atomic-write pin can no longer be silently bypassed by writing under
 # open_prep/ ml/ rl/ governance/.
+# Audit E-1 2026-06-13 (AW-1): scope-expansion round 2 — smc_core/,
+# smc_integration/, newsstack_fmp/ and the repo-root *.py modules
+# (databento_*, terminal_export, streamlit_terminal, pine_*) were still
+# unguarded; a new non-atomic writer there regressed silently.
 _SCAN_DIRS: tuple[Path, ...] = tuple(
-    REPO_ROOT / name for name in ("scripts", "open_prep", "ml", "rl", "governance")
+    REPO_ROOT / name
+    for name in (
+        "scripts", "open_prep", "ml", "rl", "governance",
+        "smc_core", "smc_integration", "newsstack_fmp",
+    )
 )
+
+# Guard: every declared scan directory must exist. A missing dir silently
+# shrinks coverage (renames/deletions go undetected) — fail loudly instead.
+for _scan_dir in _SCAN_DIRS:
+    if not _scan_dir.is_dir():
+        raise RuntimeError(
+            f"_SCAN_DIRS entry {_scan_dir} does not exist — update _SCAN_DIRS "
+            f"to reflect the current repository layout."
+        )
 
 # Files allowed to call open(...,"w"/"wb"/"x"/"a") OR ``Path.open("w"...)``
 # without going through smc_atomic_write. Each entry's value is a brief
@@ -114,6 +131,21 @@ _ALLOWED_RAW_WRITE_FILES: dict[str, str] = {
     "rl/extensions.py": "rl extension state (research-only, not pipeline-consumed)",
     # --- governance/ surface ---
     "governance/alpha_ledger.py": "alpha-budget ledger JSON (governance audit trail)",
+    # --- Audit E-1 2026-06-13 (AW-1) scope-expansion baseline ---
+    # smc_core/ + smc_integration/ + newsstack_fmp/: all pre-existing
+    # sites verified as mkstemp/fdopen + os.replace atomic patterns.
+    "smc_core/benchmark.py": "fdopen + os.replace atomic pattern (benchmark JSON)",
+    "smc_core/ensemble_quality.py": "fdopen + os.replace atomic pattern (ensemble-quality JSON)",
+    "smc_core/event_ledger.py": "fdopen + os.replace atomic pattern (event ledger JSON)",
+    "smc_core/inference/null_cache.py": "mkstemp + fsync + os.replace atomic pattern (null-distribution cache JSON)",
+    "smc_core/scoring.py": "fdopen + os.replace atomic pattern (scoring snapshot JSON)",
+    "smc_integration/batch.py": "fdopen + os.replace atomic pattern (batch artifact JSON)",
+    "smc_integration/provider_health.py": "fdopen + os.replace atomic pattern (provider-health JSON)",
+    "smc_integration/structure_batch.py": "fdopen + os.replace atomic pattern (structure batch JSON)",
+    "newsstack_fmp/open_prep_export.py": "mkstemp + fsync + os.replace atomic pattern (news candidates JSON export)",
+    # Repo-root modules.
+    "streamlit_terminal.py": "_write_json_atomic mkstemp + fsync + os.replace; plus JSONL append (mode='a', audit trail)",
+    "terminal_export.py": "JSONL append (mode='a', error/audit trail) + mkstemp + os.replace VisiData exports",
 }
 
 _WRITE_MODES: frozenset[str] = frozenset({"w", "wb", "wt", "x", "xb", "xt", "a", "ab", "at",
@@ -173,23 +205,39 @@ def _scan_raw_writes(source: str) -> list[int]:
     return sorted(set(hits))
 
 
+def _iter_scan_files() -> list[Path]:
+    """All production .py files in scope: scan dirs (recursive) + repo root."""
+    files: list[Path] = []
+    for scan_dir in _SCAN_DIRS:
+        files.extend(sorted(scan_dir.rglob("*.py")))
+    # Audit E-1 2026-06-13 (AW-1): repo-root modules (non-recursive — the
+    # subdirectories are covered by _SCAN_DIRS or are out of scope).
+    # Exclude conftest.py and test_*.py: test helpers are not production surfaces.
+    files.extend(
+        p
+        for p in sorted(REPO_ROOT.glob("*.py"))
+        if not p.name.startswith("test_") and p.name != "conftest.py"
+    )
+    return files
+
+
 def _files_with_raw_writes() -> dict[str, list[int]]:
     out: dict[str, list[int]] = {}
-    for scan_dir in _SCAN_DIRS:
-        if not scan_dir.is_dir():
+    for py in _iter_scan_files():
+        try:
+            source = py.read_text(encoding="utf-8")
+        except OSError:
             continue
-        for py in sorted(scan_dir.rglob("*.py")):
-            try:
-                source = py.read_text(encoding="utf-8")
-            except OSError:
-                continue
-            try:
-                hits = _scan_raw_writes(source)
-            except SyntaxError:
-                continue
-            if hits:
-                rel = py.relative_to(REPO_ROOT).as_posix()
-                out[rel] = hits
+        try:
+            hits = _scan_raw_writes(source)
+        except SyntaxError as exc:
+            raise ValueError(
+                f"SyntaxError while scanning {py} — fix the syntax error in "
+                f"that file: {exc}"
+            ) from exc
+        if hits:
+            rel = py.relative_to(REPO_ROOT).as_posix()
+            out[rel] = hits
     return out
 
 
