@@ -244,12 +244,15 @@ def _build_paper_submit_fn(
             return []
         submit = place_fn if place_fn is not None else place_order_intents
         placements_total = 0
+        intents_by_exit_mode: dict[str, list[IBKROrderIntent]] = {}
         for intent in intents:
-            call_execution_cfg = execution_cfg
-            if intent.exit_mode:
-                call_execution_cfg = replace(execution_cfg, exit_mode=intent.exit_mode)
+            effective_exit_mode = intent.exit_mode or execution_cfg.exit_mode
+            intents_by_exit_mode.setdefault(effective_exit_mode, []).append(intent)
+
+        for effective_exit_mode, grouped_intents in intents_by_exit_mode.items():
+            call_execution_cfg = replace(execution_cfg, exit_mode=effective_exit_mode)
             result = submit(
-                [intent],
+                grouped_intents,
                 connection_cfg=connection_cfg,
                 execution_cfg=call_execution_cfg,
             )
