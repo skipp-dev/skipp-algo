@@ -45,7 +45,14 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any
 
-from scripts.execute_ibkr_watchlist import IBKROrderIntent
+from scripts.execute_ibkr_watchlist import (
+    IBKRConnectionConfig,
+    IBKROrderIntent,
+    place_order_intents,
+)
+from scripts.execute_ibkr_watchlist import (
+    IBKRExecutionConfig as IBKRWatchlistExecutionConfig,
+)
 from scripts.live_risk_limits import (
     AccountState,
     KillSwitchDecision,
@@ -193,13 +200,72 @@ SubmitFn = Callable[[Sequence[IBKROrderIntent]], list[dict[str, Any]]]
 def _no_op_submit(intents: Sequence[IBKROrderIntent]) -> list[dict[str, Any]]:
     """Default submitter: record an ``audit_only`` action per intent.
 
-    Used for paper-mode dry-runs and tests. The downstream live runner
-    swaps this for ``place_order_intents_with_ib`` once a TWS session
-    is available.
+    Used for paper-mode dry-runs and tests; no orders are transmitted.
+    Pass ``--place-paper-orders`` to swap in :func:`_build_paper_submit_fn`,
+    which actually transmits bracket orders to the IBKR *paper* TWS once a
+    session is available.
     """
     return [
         {"intent_id": intent.order_ref, "action": "audit_only"} for intent in intents
     ]
+
+
+def _build_paper_submit_fn(
+    *,
+    connection_cfg: IBKRConnectionConfig,
+    execution_cfg: IBKRWatchlistExecutionConfig,
+    place_fn: Callable[..., dict[str, Any]] | None = None,
+) -> SubmitFn:
+    """Build an opt-in submitter that transmits orders to the IBKR *paper* TWS.
+
+    Wired only by ``--place-paper-orders`` (default off). The returned
+    closure delegates to
+    :func:`scripts.execute_ibkr_watchlist.place_order_intents`, which
+    connects to the paper port, enforces the ``DU*`` paper-account guard
+    (``assert_paper_account_if_paper_port``) *before* any order is
+    transmitted, places the bracket orders, then disconnects. A live TWS
+    bound to the paper port makes that guard fail loud, so this path can
+    never reach a real-money account.
+
+    The rich placement result is collapsed into the per-intent audit shape
+    the orchestrator consumes (``intent_id`` / ``action`` / ``fill_price``).
+    Bracket orders are not synchronously filled, so ``fill_price`` is left
+    ``None`` at submit time and reconciliation is left to the executor.
+
+    ``place_fn`` is injectable so tests can exercise the wiring without a
+    live TWS session. It is resolved at call time (not captured as a
+    default argument) so that monkeypatching
+    ``scripts.run_smc_live_incubation.place_order_intents`` reliably
+    intercepts the real transmit path.
+    """
+
+    def _paper_submit(intents: Sequence[IBKROrderIntent]) -> list[dict[str, Any]]:
+        if not intents:
+            return []
+        submit = place_fn if place_fn is not None else place_order_intents
+        result = submit(
+            list(intents),
+            connection_cfg=connection_cfg,
+            execution_cfg=execution_cfg,
+        )
+        placed = len(result.get("placements", []))
+        logger.info(
+            "paper submit: transmitted %d bracket set(s) for %d intent(s) "
+            "on port %d",
+            placed,
+            len(intents),
+            connection_cfg.port,
+        )
+        return [
+            {
+                "intent_id": intent.order_ref,
+                "action": "paper_submitted",
+                "fill_price": None,
+            }
+            for intent in intents
+        ]
+
+    return _paper_submit
 
 
 def _filter_tradable_setups(
@@ -541,6 +607,17 @@ def _build_parser() -> argparse.ArgumentParser:
             "not sufficient."
         ),
     )
+    parser.add_argument(
+        "--place-paper-orders",
+        action="store_true",
+        help=(
+            "Opt-in: actually transmit bracket orders to the IBKR *paper* "
+            "TWS (port 7497) instead of the default audit-only dry-run. "
+            "Only valid with --phase paper; the DU* paper-account guard is "
+            "enforced before any order is sent and live phases are refused "
+            "outright. Default off — no orders are placed."
+        ),
+    )
     return parser
 
 
@@ -672,6 +749,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         else float(phase_defaults["size_scale"])
     )
 
+    # Opt-in paper execution is paper-only by construction: a live phase
+    # that also passes --place-paper-orders is refused before any disk or
+    # network I/O so the flag can never transmit real-money orders.
+    if args.place_paper_orders and args.phase != "paper":
+        raise SystemExit(
+            "--place-paper-orders is only supported for --phase paper "
+            f"(got --phase {args.phase!r}). This flag intentionally cannot "
+            "transmit live orders; refusing to run."
+        )
+
     setup_records = json.loads(args.setups.read_text(encoding="utf-8"))
     gate_statuses = json.loads(args.gate_statuses.read_text(encoding="utf-8"))
 
@@ -742,6 +829,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     execution_cfg = IBKRExecutionConfig(paper_mode=bool(phase_defaults["paper_mode"]))
 
+    # Default to the audit-only no-op submitter. Only when the operator
+    # explicitly opts in (guarded to --phase paper above) do we build a
+    # submitter that actually transmits bracket orders to the paper TWS;
+    # the DU* paper-account guard inside place_order_intents fails loud if
+    # a live TWS is bound to the paper port.
+    submit_fn: SubmitFn = _no_op_submit
+    if args.place_paper_orders:
+        submit_fn = _build_paper_submit_fn(
+            connection_cfg=IBKRConnectionConfig(),
+            execution_cfg=IBKRWatchlistExecutionConfig(),
+        )
+
     earnings_filter: EarningsFilter | None = None
     if args.wsh_events_jsonl is not None:
         earnings_filter = EarningsFilter(
@@ -760,6 +859,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         phase=args.phase,
         size_scale=size_scale,
         earnings_filter=earnings_filter,
+        submit_fn=submit_fn,
     )
     print(json.dumps(summary, sort_keys=True))
     return 0
