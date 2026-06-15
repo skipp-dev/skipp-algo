@@ -212,9 +212,14 @@ jobs:
           branch="metrics/runner-selection"
           max_lines="${RUNNER_SELECTION_SUMMARY_MAX_LINES:-50000}"
           if git fetch --quiet origin "${branch}" 2>/dev/null; then
-            git show "FETCH_HEAD:metrics/runner_selection.jsonl" 2>/dev/null | tail -n "${max_lines}" > /tmp/runner_metrics.jsonl || : > /tmp/runner_metrics.jsonl
+            git show "FETCH_HEAD:metrics/runner_selection.jsonl" 2>/dev/null > /tmp/runner_metrics_full.jsonl || : > /tmp/runner_metrics_full.jsonl
+            tail -n "${max_lines}" /tmp/runner_metrics_full.jsonl > /tmp/runner_metrics_tail.jsonl || : > /tmp/runner_metrics_tail.jsonl
             python scripts/runner_selection_metrics.py summary \
-              --metrics-file /tmp/runner_metrics.jsonl --format md >> "${GITHUB_STEP_SUMMARY}" || true
+              --metrics-file /tmp/runner_metrics_full.jsonl --format md >> "${GITHUB_STEP_SUMMARY}" || true
+            {
+              echo ""
+              echo "_Rendered from full metrics ledger; tail preview cap currently ${max_lines} lines._"
+            } >> "${GITHUB_STEP_SUMMARY}"
           else
             echo "No runner-selection metrics recorded yet." >> "${GITHUB_STEP_SUMMARY}"
           fi
