@@ -281,6 +281,7 @@ def run_test_on_mutant(mutant_source: str, module_name: str, test_path: Path) ->
             cwd=REPO,
             env=env,
             timeout=15,
+            check=False,  # non-zero exit means mutant KILLED — do NOT raise
         )
         # tests failed (exit code != 0) means mutant was successfully KILLED!
         return result.returncode != 0
