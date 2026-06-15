@@ -213,13 +213,11 @@ _FROZEN_SITES: dict[str, int] = {
     # Authorization on cross-host artifact download redirects.
     "scripts/restore_databento_export_bundle.py": 4,
     # 2026-06-15 (fix/smc-pine-consumer-guard-and-library-refresh):
-    # _run_fmp_intraday_bridge catches ``Exception`` in two recovery paths:
-    # (1) FMP client init failure — any error is surfaced via progress_callback
-    #     and returns an empty DataFrame so the pipeline continues;
-    # (2) per-symbol get_intraday_chart failure — counted as an error and
-    #     skipped so one bad symbol does not abort the whole bridge call.
-    # Both are intentional broad catches for graceful degradation. BLE001.
-    "scripts/databento_production_export.py": 2,
+    # The two broad ``except Exception`` catches in _run_fmp_intraday_bridge
+    # were originally paired with noqa-BLE001 suppression directives, but
+    # BLE001 is not enabled in this repo's ruff config, so those directives
+    # were flagged as RUF100 (unused suppression) and removed in a6bc6588.
+    # Entry removed: databento_production_export.py now has 0 noqa lines.
 }
 _FROZEN_TOTAL = sum(_FROZEN_SITES.values())
 

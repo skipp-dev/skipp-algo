@@ -152,6 +152,16 @@ def test_window_metrics_computed_correctly():
     # prev_close from daily_bars → 98.0.
     assert row["previous_close"] == pytest.approx(98.0)
 
+    # current_price_timestamp must be a UTC-aware pd.Timestamp so the column
+    # stays homogeneous after pd.concat with Databento rows (which carry UTC
+    # Timestamps); a naive ET string would cause a 4-5h timezone error when
+    # the pipeline later normalises via pd.to_datetime(..., utc=True).
+    ts = row["current_price_timestamp"]
+    assert isinstance(ts, pd.Timestamp), f"expected pd.Timestamp, got {type(ts)}"
+    assert ts.tzinfo is not None and ts.utcoffset().total_seconds() == 0, (
+        f"current_price_timestamp must be tz-aware UTC, got tzinfo={ts.tzinfo!r}"
+    )
+
 
 def test_schema_columns_match_intraday_frame():
     """Bridge output must contain all columns expected by run_intraday_screen."""
@@ -185,28 +195,31 @@ def test_schema_columns_match_intraday_frame():
 # Step 6c integration: bridge skipped when today already in Databento result
 # ---------------------------------------------------------------------------
 
-def test_bridge_not_called_when_today_in_intraday(monkeypatch):
-    """Simulates the 21:00 cron: today already in intraday → bridge block skipped."""
-    # We call _run_fmp_intraday_bridge directly here; the guard logic is in
-    # run_production_export_pipeline (tested end-to-end only in integration).
-    # This test validates that a result with today already present won't be
-    # double-counted if caller checks `today_et not in intraday_dates` first.
+def test_today_present_in_intraday_dates_set(monkeypatch):
+    """Verifies the date-membership helper used by the Step 6c guard.
+
+    The Step 6c guard in run_production_export_pipeline skips the bridge when
+    ``today_et in intraday_dates``.  This test checks only that the dates-set
+    construction logic (pd.to_datetime + .dt.date) correctly detects today’s
+    presence — NOT that the guard itself is wired (end-to-end integration only).
+    """
     intraday_with_today = pd.DataFrame([{"trade_date": _TODAY, "symbol": "AAPL", "current_price": 105.0}])
     intraday_dates = set(
         pd.to_datetime(intraday_with_today["trade_date"], errors="coerce").dt.date
     )
-    assert _TODAY in intraday_dates  # guard would skip the bridge call
+    assert _TODAY in intraday_dates  # confirms guard would skip the bridge call
 
 
-def test_bridge_skipped_when_today_not_in_trading_days():
-    """Bridge guard: today_et not in trading_days → Step 6c block is not entered.
+def test_weekend_date_absent_from_trading_days():
+    """Documents the weekend/holiday path for the Step 6c guard.
 
-    This mirrors the weekend/holiday path where `trading_days` does not contain
-    today.  The bridge function itself doesn't receive trading_days; the caller
-    (run_production_export_pipeline) controls the guard.  We verify that when
-    today is NOT in trading_days the guard correctly blocks the bridge call.
+    The guard in run_production_export_pipeline uses ``today_et not in
+    trading_days`` to skip the bridge on non-trading days.  This test
+    verifies only the set-membership property (a Saturday is not in a
+    Mon–Thu trading_days list) — NOT that the guard itself is wired
+    (end-to-end integration only).
     """
     # Simulate a Saturday: today is not a trading day.
-    saturday = date(2026, 6, 14)  # Sunday
-    trading_days = [date(2026, 6, 11), date(2026, 6, 12), date(2026, 6, 13)]  # Fri is last
+    saturday = date(2026, 6, 13)  # Saturday (2026-06-14 was a Sunday — fixed)
+    trading_days = [date(2026, 6, 9), date(2026, 6, 10), date(2026, 6, 11), date(2026, 6, 12)]  # Mon–Thu, Fri=not included so Sat is out
     assert saturday not in set(trading_days)  # guard prevents bridge call

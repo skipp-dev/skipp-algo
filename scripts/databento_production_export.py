@@ -3621,7 +3621,7 @@ def _run_fmp_intraday_bridge(
             "market_open_price":           market_open_price,
             "window_start_price":          first_open,
             "current_price":               last_close,
-            "current_price_timestamp":     last_bar_ts,
+            "current_price_timestamp":     pd.Timestamp(last_bar_ts).tz_localize(US_EASTERN_TZ).tz_convert("UTC"),
             "window_high":                 window_high_v,
             "window_low":                  window_low_v,
             "window_volume":               window_vol,
