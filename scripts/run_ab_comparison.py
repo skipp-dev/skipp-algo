@@ -650,6 +650,15 @@ def _sprt_decision(
         # absent (e.g. old serialised AggregateReport objects).
         n = int(getattr(treat_agg, "total_events", 0) or 0)
     hr_pct = float(getattr(treat_agg, "avg_hit_rate", 0.0) or 0.0)
+    # W9-1 (SMR wave 9): Python's min/max propagate NaN as the *other*
+    # operand, so min(100.0, NaN)==100.0 and max(0.0, NaN)==0.0. A NaN
+    # avg_hit_rate would launder to 100% here and fool SPRT into a phantom
+    # promote. Raise instead of silently clamping.
+    if math.isnan(hr_pct):
+        raise ValueError(
+            "avg_hit_rate evaluates to NaN — outcome data incomplete; "
+            "aborting SPRT to prevent phantom promotion (W9-1)"
+        )
     # avg_hit_rate is in percent; clamp into [0, 100] before conversion.
     hr_pct = max(0.0, min(100.0, hr_pct))
     k = round(n * hr_pct / 100.0)
@@ -771,7 +780,22 @@ def decide_recommendation(rows: list[dict[str, Any]]) -> dict[str, Any]:
             },
         }
     if hr_delta is None:
-        hr_delta = 0.0  # hit_rate absent → conservatively assume no improvement
+        # W9-3 (SMR wave 9): assigning hr_delta = 0.0 silently satisfies the
+        # hit_rate_ok gate (0.0 >= -tolerance is always True), allowing a
+        # promote when the true outcome is unknown.  Gate to HOLD instead so
+        # missing hit-rate data never clears the regression check.
+        return {
+            "recommendation": "hold",
+            "reason": (
+                "hit_rate_delta unavailable (avg_hit_rate missing from one or "
+                "both arms) — cannot assess regression; holding (W9-3)"
+            ),
+            "kpi_thresholds": {
+                "promote_improvement": PROMOTE_IMPROVEMENT,
+                "rollback_regression": ROLLBACK_REGRESSION,
+                "hit_rate_regression_tolerance": HIT_RATE_REGRESSION_TOLERANCE,
+            },
+        }
 
     thresholds = {
         "promote_improvement": PROMOTE_IMPROVEMENT,

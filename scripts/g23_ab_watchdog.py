@@ -144,7 +144,15 @@ def _treatment_underperformed(comparison: dict[str, Any]) -> bool:
     treatment_hr = _coerce_float(sprt.get("hit_rate"))
     control_hr = _coerce_float(sprt.get("control_hit_rate"))
     if treatment_hr is None or control_hr is None:
-        return False
+        # W9-2 (SMR wave 9): returning False when hit_rate is missing silently
+        # broke the consecutive-underperformance streak (a missing data gap
+        # would reset the streak counter just like a genuine outperformance,
+        # preventing rollback from ever firing). Fail-closed instead: raise so
+        # the caller surfaces the data gap explicitly.
+        raise ValueError(
+            "hit_rate or control_hit_rate is None — cannot evaluate "
+            "underperformance; treat as data gap, not as pass (W9-2)"
+        )
     return treatment_hr <= control_hr
 
 

@@ -261,6 +261,63 @@ def extract_metric_pairs(
 # ---------------------------------------------------------------------------
 
 
+def _assert_baseline_disjoint(
+    *,
+    baseline: dict[str, Any],
+    window_days: int,
+    today: date,
+) -> None:
+    """Raise if the live window overlaps the baseline OOS period.
+
+    W9-5 (SMR wave 9): when the live window and the backtest OOS period
+    overlap, the watchdog compares a distribution against itself and will
+    always pass — a vacuous green that masks real drift.  Guard against
+    this by checking whether the baseline's ``backtest_end_date`` falls
+    inside the live window.  The threshold is >5% overlap (i.e. at least
+    one day out of a 20-day window, or more than 1 day in a 30-day window)
+    rather than any overlap, to tolerate off-by-one date conventions.
+
+    If the baseline carries no ``backtest_end_date`` the check is skipped
+    with a warning — callers should add the field to new baselines.
+    """
+    baseline_end_str = baseline.get("backtest_end_date")
+    if baseline_end_str is None:
+        # Can't check without the field; tolerate missing for backward-compat
+        # but log so operators know to add it to new baselines.
+        import warnings
+        warnings.warn(
+            "baseline JSON is missing 'backtest_end_date' — temporal "
+            "disjointness check skipped (W9-5).  Add backtest_end_date to "
+            "the baseline to enable the overlap guard.",
+            stacklevel=3,
+        )
+        return
+    try:
+        baseline_end = date.fromisoformat(str(baseline_end_str))
+    except ValueError:
+        import warnings
+        warnings.warn(
+            f"baseline 'backtest_end_date' is not a valid ISO date: "
+            f"{baseline_end_str!r} — disjointness check skipped (W9-5).",
+            stacklevel=3,
+        )
+        return
+
+    live_dates = {
+        (today - timedelta(days=offset)).isoformat()
+        for offset in range(window_days)
+    }
+    overlap = {d for d in live_dates if date.fromisoformat(d) <= baseline_end}
+    overlap_fraction = len(overlap) / max(len(live_dates), 1)
+    if overlap_fraction > 0.05:
+        raise ValueError(
+            f"Live window overlaps backtest baseline by {len(overlap)} date(s) "
+            f"({overlap_fraction:.0%} of {len(live_dates)}-day window; "
+            f"baseline ends {baseline_end}).  This would compare the "
+            "distribution against itself — self-comparison detected (W9-5)."
+        )
+
+
 def build_report(
     *,
     outcomes_dir: Path,
@@ -273,6 +330,10 @@ def build_report(
         outcomes_dir, window_days=window_days, today=today
     )
     baseline = load_baseline(baseline_json)
+    # W9-5 (SMR wave 9): guard against self-comparison before running detectors.
+    _assert_baseline_disjoint(
+        baseline=baseline, window_days=window_days, today=today
+    )
     pairs = extract_metric_pairs(
         live_outcomes=live, baseline=baseline, pnl_field=pnl_field
     )
