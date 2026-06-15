@@ -63,7 +63,17 @@ push_to_data_branch() {
     # script EXIT — after push_to_data_branch has returned and the locals are
     # gone — tripping ``set -u`` with 'worktree: unbound variable'. Embedding
     # the literal paths keeps cleanup correct and unbound-safe.
-    trap "git worktree remove --force '${worktree}' 2>/dev/null || true; rm -rf '${worktree_root}' 2>/dev/null || true" EXIT
+    #
+    # Multi-call safe: a single ``trap … EXIT`` is OVERWRITTEN on every call,
+    # so a catch-up loop that publishes several missed run-dates in one wake
+    # would leak all but the last temporary worktree. Instead each invocation
+    # APPENDS its cleanup to a module-global command string and re-registers
+    # the EXIT trap, so every worktree this process created is removed at exit.
+    # EXIT scope (not RETURN) is deliberate: a RETURN trap would run its own
+    # last command's status as the function result, clobbering the carefully
+    # distinguished ``return 0`` (soft) vs ``return 1`` (hard) exit codes.
+    _C13_PUSH_CLEANUP_CMDS="${_C13_PUSH_CLEANUP_CMDS:-}git worktree remove --force '${worktree}' 2>/dev/null || true; rm -rf '${worktree_root}' 2>/dev/null || true; "
+    trap "${_C13_PUSH_CLEANUP_CMDS}" EXIT
 
     # Fetch-first: fail LOUD if the data branch is missing or the network/auth
     # is down, rather than silently materialising a brand-new orphan branch.
