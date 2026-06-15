@@ -534,6 +534,34 @@ Instead, `fetch_us_equity_universe()` prefers the official Nasdaq Trader symbol 
 
 This makes the default universe much broader and less dependent on paid screening limits.
 
+### FMP single-point-of-failure (SPOF) contract
+
+FMP (Financial Modeling Prep) is treated as one provider among several, never a
+hard dependency. Two independent layers keep an FMP outage *survivable*, and
+`tests/test_fmp_degradation_resilience.py` locks both so a refactor cannot
+silently re-introduce the SPOF:
+
+1. **Data layer — degrade, don't crash.** `fetch_us_equity_universe_with_metadata()`
+   never raises when the FMP key is missing or FMP is unreachable. It falls back
+   to the official Nasdaq Trader directory and always returns a metadata dict
+   that makes the degradation observable downstream:
+
+   - `source` — the provider that actually answered (`nasdaq_trader_symbol_directory`,
+     `fmp_company_screener`, or `empty`).
+   - `fallback_source` — the provider that would have been tried next.
+   - `selection_reason` — `official_directory`, `market_cap_filter_requested`,
+     `official_directory_failed`, or `no_available_source`.
+   - `min_market_cap_applied` — `False` whenever the requested market-cap floor
+     had to be dropped because only the unfiltered directory was available.
+
+   A degraded run (e.g. `min_market_cap` requested but no FMP key) also emits a
+   `WARNING`, so the dropped filter is never silent.
+
+2. **Preflight layer — fail loud.** Every critical FMP probe in
+   `scripts/probe_providers.py` is `critical=True`. A missing/dead key yields a
+   blocking `SKIP`, and `preflight_or_die()` aborts with `SystemExit(1)` (after
+   notifying operators) rather than letting a half-configured run proceed.
+
 ### Symbol normalization
 
 Databento-specific symbol normalization is applied centrally. Examples:
