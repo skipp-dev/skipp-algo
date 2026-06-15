@@ -67,9 +67,14 @@ def test_workflow_runs_after_databento_producer_mon_fri() -> None:
 
 
 def test_workflow_grants_issues_write() -> None:
-    perms = _load()["permissions"]
-    assert perms.get("issues") == "write"
+    wf = _load()
+    perms = wf["permissions"]
     assert perms.get("contents") == "read"
+    assert perms.get("issues") is None
+
+    job_perms = wf["jobs"]["promotion-gate"]["permissions"]
+    assert job_perms.get("issues") == "write"
+    assert job_perms.get("actions") == "read"
 
 
 def test_step_order_matches_rollback_flow_contract() -> None:

@@ -72,13 +72,21 @@ def test_cron_runs_after_databento_producer_mon_fri() -> None:
 
 
 def test_permissions_include_issues_write_for_g2_rule() -> None:
-    perms = _load()["permissions"]
-    assert perms.get("contents") == "read"
-    assert perms.get("issues") == "write", (
+    wf_perms = _load()["permissions"]
+    assert wf_perms.get("contents") == "read"
+    assert wf_perms.get("issues") is None, (
+        "workflow-level token scope should stay minimal; issues:write is job-scoped"
+    )
+    assert wf_perms.get("actions") is None, (
+        "workflow-level token scope should stay minimal; actions:read is job-scoped"
+    )
+
+    job_perms = _load()["jobs"]["promotion-gate"]["permissions"]
+    assert job_perms.get("issues") == "write", (
         "issues:write required by plan §2.4 G2 GitHub-Issue-Ping rule "
         "(rollback rc=2 must file an issue)"
     )
-    assert perms.get("actions") == "read", (
+    assert job_perms.get("actions") == "read", (
         "actions:read required for `gh run list/download` against rolling-bench"
     )
 
