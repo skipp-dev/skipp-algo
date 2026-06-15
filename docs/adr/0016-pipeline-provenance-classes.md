@@ -1,5 +1,13 @@
 # ADR-0016: Pipeline-provenance classes (no-ML pipelines)
 
+> **Note — ADR numbering collision:** Two ADRs share number 0016 in this
+> repository. This file covers **pipeline-provenance classes**. The other
+> is [0016-orderflow-aggressor-datapath.md](./0016-orderflow-aggressor-datapath.md).
+> References to "ADR-0016" in `tests/test_promotion_gate.py`,
+> `tests/test_family_returns.py`, and related test/governance files
+> refer to **this** document. This collision is tracked; do not add new
+> ADRs numbered 0016.
+
 | Field    | Value                                                                            |
 |----------|----------------------------------------------------------------------------------|
 | Status   | Accepted                                                                          |

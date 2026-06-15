@@ -144,7 +144,6 @@ reconstructs real state:
 | Driver | Marker dir / prefix | Success prefix |
 | --- | --- | --- |
 | `run-c13-imbalance.sh` | `cache/imbalance/.push_status_` | `ok:` |
-| `run-c13-phase-a.sh` | `cache/live/.phase_a_status_` | `SUCCESS` |
 
 The remaining jobs are **forward-looking / stateless**, so a single on-wake
 fire is already sufficient and multi-day backfill is intentionally *not* wired:
