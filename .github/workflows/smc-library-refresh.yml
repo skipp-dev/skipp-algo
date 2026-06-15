@@ -168,6 +168,62 @@ jobs:
             --hosted-runner "${{ inputs.hosted_runner_override != '' && inputs.hosted_runner_override || (vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest') }}" \
             --custom-label "${{ vars.SMC_PRIORITY_CRON_SELF_HOSTED_LABEL || vars.SMC_SELF_HOSTED_LABEL }}"
 
+  record-runner-selection:
+    # Durable aggregate counter of runner-selection outcomes. Runs whenever
+    # select-runner produced a decision, independent of whether the refresh
+    # job later runs/skips/fails. This is best-effort telemetry, so the job
+    # is continue-on-error and never fails the workflow. See
+    # scripts/runner_selection_metrics.py and
+    # automation/metrics/push_runner_selection_metric.sh.
+    needs: select-runner
+    if: ${{ always() && needs.select-runner.result == 'success' }}
+    # CONTINUE-ON-ERROR-INTENTIONAL: best-effort telemetry only. A failure to
+    # record/push the runner-selection metric must never fail the surrounding
+    # library-refresh workflow (audit finding M-1, Klasse #24).
+    continue-on-error: true
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Set up pinned Python
+        uses: ./.github/actions/setup-python-pinned
+
+      - name: Record runner-selection metric
+        env:
+          REASON: ${{ needs.select-runner.outputs.resolution_reason }}
+          RUNNER_ENVIRONMENT: ${{ needs.select-runner.outputs.runner_environment }}
+          MATCHED_RUNNER_NAME: ${{ needs.select-runner.outputs.matched_runner_name }}
+          WORKFLOW: ${{ github.workflow }}
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_ID: ${{ github.run_id }}
+          PYTHON_BIN: python
+        run: |
+          bash automation/metrics/push_runner_selection_metric.sh
+
+      - name: Publish summary to job log
+        if: ${{ always() }}
+        run: |
+          # Pull the latest aggregate ledger from the metrics branch (if any)
+          # and render the rollup into this run's job summary.
+          branch="metrics/runner-selection"
+          max_lines="${RUNNER_SELECTION_SUMMARY_MAX_LINES:-50000}"
+          if git fetch --quiet origin "${branch}" 2>/dev/null; then
+            git show "FETCH_HEAD:metrics/runner_selection.jsonl" 2>/dev/null > /tmp/runner_metrics_full.jsonl || : > /tmp/runner_metrics_full.jsonl
+            tail -n "${max_lines}" /tmp/runner_metrics_full.jsonl > /tmp/runner_metrics_tail.jsonl || : > /tmp/runner_metrics_tail.jsonl
+            python scripts/runner_selection_metrics.py summary \
+              --metrics-file /tmp/runner_metrics_full.jsonl --format md >> "${GITHUB_STEP_SUMMARY}" || true
+            {
+              echo ""
+              echo "_Rendered from full metrics ledger; tail preview cap currently ${max_lines} lines._"
+            } >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "No runner-selection metrics recorded yet." >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
   refresh:
     # F-V4-J3: when triggered by workflow_run, only proceed if producer
     # succeeded. Manual workflow_dispatch and scheduled cron bypass this
