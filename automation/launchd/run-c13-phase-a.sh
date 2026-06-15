@@ -124,15 +124,17 @@ fi
 #    writes a DEGRADED marker before aborting — required for machine-
 #    detectable monitoring of silent incubation failures.
 # shellcheck disable=SC2086
-if ! "${PY}" -m scripts.run_smc_live_incubation \
+"${PY}" -m scripts.run_smc_live_incubation \
     --phase paper \
     --setups "${SETUPS}" \
     --gate-statuses "${GATES}" \
     --audit-output "${AUDIT}" \
-    ${WSH_FLAG}; then
-    echo "phase-a cron: run_smc_live_incubation FAILED (exit $?) — see above for details" >&2
+    ${WSH_FLAG}
+_run_exit=$?
+if [ "${_run_exit}" -ne 0 ]; then
+    echo "phase-a cron: run_smc_live_incubation FAILED (exit ${_run_exit}) — see above for details" >&2
     _write_marker "DEGRADED" "incubation-failed:audit=${AUDIT}"
-    exit 1
+    exit "${_run_exit}"
 fi
 
 _write_marker "SUCCESS" "incubation-complete:audit=${AUDIT}"
