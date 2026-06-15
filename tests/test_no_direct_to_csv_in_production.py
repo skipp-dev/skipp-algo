@@ -160,8 +160,7 @@ def _iter_scan_files() -> list[Path]:
     """All production .py files in scope: scan dirs (recursive) + repo root."""
     files: list[Path] = []
     for scan_dir in _SCAN_DIRS:
-        if scan_dir.is_dir():
-            files.extend(sorted(scan_dir.rglob("*.py")))
+        files.extend(sorted(scan_dir.rglob("*.py")))
     # Repo-root modules (non-recursive); exclude test helpers and conftest
     # which may use raw writes in test-only contexts (not production surfaces).
     files.extend(

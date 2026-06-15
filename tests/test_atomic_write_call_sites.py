@@ -209,8 +209,7 @@ def _iter_scan_files() -> list[Path]:
     """All production .py files in scope: scan dirs (recursive) + repo root."""
     files: list[Path] = []
     for scan_dir in _SCAN_DIRS:
-        if scan_dir.is_dir():
-            files.extend(sorted(scan_dir.rglob("*.py")))
+        files.extend(sorted(scan_dir.rglob("*.py")))
     # Audit E-1 2026-06-13 (AW-1): repo-root modules (non-recursive — the
     # subdirectories are covered by _SCAN_DIRS or are out of scope).
     # Exclude conftest.py and test_*.py: test helpers are not production surfaces.

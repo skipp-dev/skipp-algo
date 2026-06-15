@@ -63,12 +63,10 @@ on:
         required: false
         default: ""
 
-# Workflow-level permissions: contents for checkout, issues:write for G2
-# rollback-ping (plan §2.4), actions:read for gh run list/download.
+# Workflow-level: minimal default. Elevated scopes are job-local on
+# `promotion-gate` (least privilege).
 permissions:
   contents: read
-  issues: write
-  actions: read
 
 concurrency:
   group: f2-promotion-gate-daily
