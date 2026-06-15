@@ -300,6 +300,35 @@ Niemals davon ausgehen, dass Code funktioniert. Immer ausführen und Output
 prüfen. Kein Artefakt, kein Skript, kein Workflow-Schritt gilt als erledigt,
 bis er tatsächlich gelaufen ist und die Ausgabe bestätigt wurde.
 
+### Debugging-Disziplin
+
+**Eisernes Gesetz: Keine Fixes ohne Root-Cause-Analyse.**
+
+Symptom-Fixes sind kein Erfolg — sie verbergen das eigentliche Problem.
+
+**Die 4 Phasen (in dieser Reihenfolge, keine Abkürzungen):**
+
+1. **Root Cause Investigation** — Fehlermeldungen vollständig lesen (Stack
+   Trace, Zeilennummern, Fehlercodes). Fehler reproduzierbar machen. Letzte
+   Änderungen prüfen (`git diff`, recent commits). Bei Multi-Komponenten-Systemen
+   (CI → Build → Test → Deploy) zuerst Diagnose-Logging an jeder Komponenten-
+   Grenze hinzufügen und einen Lauf sammeln — erst dann analysieren.
+2. **Pattern Analysis** — Funktionierendes ähnliches Code im gleichen Repo
+   suchen. Unterschiede zwischen "works" und "broken" explizit auflisten.
+3. **Hypothesis & Test** — Genau eine Hypothese formulieren: *"Ich denke X
+   ist die Root Cause, weil Y."* Kleinstmögliche Änderung testen — eine
+   Variable auf einmal.
+4. **Implementation** — Erst einen failing Test schreiben, dann den Fix, dann
+   verifizieren (alle Tests grün, kein Regresssion).
+
+**Stoppsignale — sofort zurück zu Phase 1:**
+- "Quick fix for now" — nicht akzeptabel.
+- Mehrere Änderungen auf einmal — verboten.
+- 2+ Fix-Versuche ohne neuen Root-Cause-Fund → Architektur hinterfragen,
+  nicht einen weiteren Fix stapeln.
+- "Ich verstehe es nicht ganz, aber das könnte helfen" → kein Fix ohne
+  Verständnis.
+
 ## Token-efficiency rules
 
 ### Terminal output size
