@@ -108,8 +108,8 @@ c13_missing_business_dates() {
     done < <(c13_business_dates_in_window "${lookback}")
 }
 
-# Replay a per-date callback over every missed business day in the window,
-# guaranteeing at least today is attempted even if all markers are success.
+# Replay a per-date callback over every missed business day in the window.
+# Safety net: if no dates are missing, still run today once.
 #   $1 = marker_dir, $2 = marker_prefix, $3 = callback fn name (takes DATE),
 #   $4 = lookback (optional), $5 = success prefix (optional, default ``ok:``).
 # The callback is invoked once per date; a non-zero callback exit is logged but
