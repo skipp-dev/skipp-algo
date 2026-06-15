@@ -29,3 +29,19 @@ repos:
         language: system
         files: '^scripts/(run_ab_comparison|smc_sprt_stop_rule)\.py$'
         pass_filenames: true
+
+      # Frozen-line-ledger drift guard: local mirror of the authoritative
+      # fast-gates "Run pin / ledger drift guard" step. Any added/removed
+      # line in a covered source file shifts every line-pinned ledger in
+      # that file; running the full set locally pre-push avoids the CI
+      # whack-a-mole (2026-06-12: four ledger pins drifted in PR #2729
+      # and were only caught in CI). The test list is extracted from
+      # smc-fast-pr-gates.yml at runtime (single source of truth).
+      # Install with: pre-commit install --hook-type pre-push
+      - id: ledger-pin-drift-guard
+        name: pin/ledger drift guard (fast-gates parity, ~60s)
+        entry: bash scripts/run_ledger_drift_guard.sh
+        language: system
+        files: '\.(py|toml|ya?ml|sh|pine)$'
+        pass_filenames: false
+        stages: [pre-push]
