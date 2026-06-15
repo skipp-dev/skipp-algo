@@ -15,10 +15,13 @@ name: workflow-freshness-monitor
 # (exit 1). The script lives at scripts/check_workflow_freshness.py.
 #
 # Budgets are deliberately conservative: a daily cron's budget is set
-# to 30h, not 24h, to absorb GitHub scheduler jitter (the export
-# watchdog post-mortem at smc-export-cron-watchdog.yml documented a
-# real 109 min delay on a larger-runner schedule slot, so 24h would
-# false-positive). Adjust per workflow when adding a row.
+# to 30h for 7-day workflows, and 72h (with :weekday) for Mon-Fri-only
+# crons so the weekend pause does not generate false-positive Monday
+# alerts. The :weekday flag in check_workflow_freshness.py subtracts
+# Saturday/Sunday UTC hours from the age before comparing to the budget.
+# Background: GitHub scheduler jitter documented at up to 109 min
+# (smc-export-cron-watchdog post-mortem), so 24h/48h would false-positive
+# even on working days. Adjust per workflow when adding a row.
 
 on:
   schedule:
@@ -78,20 +81,20 @@ jobs:
           set +e
           python scripts/check_workflow_freshness.py \
             --output artifacts/ci/workflow_freshness.json \
-            smc-library-refresh.yml=30 \
+            smc-library-refresh.yml=72:weekday \
             credential-health-check.yml=30 \
-            c13-daily-cron.yml=30 \
-            run-open-prep-daily.yml=30 \
-            promotion-gate-daily.yml=30 \
-            f2-promotion-gate-daily.yml=30:any \
-            fvg-quality-recal-shadow-daily.yml=30 \
+            c13-daily-cron.yml=72:weekday \
+            run-open-prep-daily.yml=72:weekday \
+            promotion-gate-daily.yml=72:weekday \
+            f2-promotion-gate-daily.yml=72:any:weekday \
+            fvg-quality-recal-shadow-daily.yml=72:weekday \
             feature-importance-daily.yml=30 \
             meta-watchdog.yml=30:any \
-            smc-measurement-benchmark-rolling.yml=30:any \
-            adr0023-magnitude-shadow-daily.yml=30:any \
+            smc-measurement-benchmark-rolling.yml=72:any:weekday \
+            adr0023-magnitude-shadow-daily.yml=72:any:weekday \
             adr0023-magnitude-stage1-weekly.yml=192 \
-            g23-ab-watchdog.yml=30:any \
-            smc-live-newsapi-refresh.yml=30
+            g23-ab-watchdog.yml=72:any:weekday \
+            smc-live-newsapi-refresh.yml=72:weekday
           rc=$?
           set -e
           echo "rc=$rc" >> "$GITHUB_OUTPUT"
