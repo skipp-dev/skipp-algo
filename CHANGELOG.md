@@ -38,32 +38,6 @@ Databento-Producer-Scan erneut ausführte. Automatische Runs verweigern
 weiterhin stale Fallback-Bundles; ein Databento `402 account_delinquent_invoice`
 bleibt ein separater Provider-/Account-Health-Fall im Producer.
 
-### Removed (2026-06-12) — drift-watchdog-Cron stillgelegt (#2726)
-
-`.github/workflows/drift-watchdog.yml` (Montags-Cron) ist entfernt. Der
-Faktencheck zu #2726 ergab: Die erwartete WFO-Baseline
-`artifacts/wfo/walk_forward_latest.json` wurde von keiner Pipeline je
-produziert (keinerlei Git-Historie unter `artifacts/wfo/`; der im
-Workflow-Header zitierte „C2 walk-forward cron“ existiert nicht im
-aktuellen Workflow-Set — dasselbe hatte bereits
-`docs/ci-proposals/j3-followup-cron-workflow-run-2026-05-01.md`
-notiert). Seit dem Fail-loud-Fix #2725 wäre jeder Lauf ein
-garantiertes rc=4 gewesen; davor war er ein stiller No-op.
-
-- Drift-Abdeckung läuft heute über `c13-daily-cron.yml`
-  (täglich, `compute_live_drift` + Issue-Opener) und das
-  Phase-B-Promotion-Gate — der wöchentliche Watchdog war redundant
-  *und* funktionsunfähig.
-- `scripts/run_drift_watchdog.py` und seine Tests bleiben erhalten:
-  Das CLI ist weiter manuell mit explizit übergebener Baseline nutzbar
-  und dient als gepinnte Referenz-Implementierung des
-  Atomic-Write-Patterns (`tests/test_atomic_write_call_sites.py`,
-  `tests/test_csprint_atomic_write_fsync.py`).
-- Inventory-Pin `tests/test_workflow_continue_on_error_inventory.py`
-  um den drift-watchdog-Eintrag reduziert; stale Kommentar-Verweise in
-  `c13-daily-cron.yml`, `phase-b-promotion-readiness.yml`,
-  `scripts/check_phase_b_drift_readiness.py` (dessen Wiring-Claim schon
-  vorher falsch war) und dem Script-Docstring aktualisiert.
 ### Changed (2026-06-13) — WS3 #56: `HERO_ACTION` becomes the single action surface + `library_field_version` v8.0a (BREAKING for Pine consumers)
 
 Resolved the parallel-channel split between Producer-A `HERO_ACTION`
@@ -4380,37 +4354,6 @@ des SMC System Review Prompts):
 **Test footprint:** +8 neue Tests, alle grün. Baseline-Drift-Failures
 liefern Auto-Update Recipe in der Failure-Message.
 
-### Tests / Quality (2026-04-24) — `open()` text-mode encoding discipline (+3 production fixes)
-
-Schließt eine plattform-abhängige Quelle für stillen Daten-Drift in
-First-Party-Produktionscode. Pythons Default-Textencoding ist OS-abhängig
-(macOS/Linux: `utf-8`, Windows: `cp1252`); fehlt `encoding=` an einem
-text-mode `open(...)`, schreibt/liest derselbe Code je nach Host
-unterschiedliche Bytes — eine Klasse von Bug, die wir bei `.env`- und
-Lock-Dateien bereits gesehen haben.
-
-**Tripwire-Pin (`tests/test_open_encoding_discipline.py`)**
-AST-Walk über alle First-Party `*.py` (Top-Level + Subdirs außer
-`tests/`, `scripts/`, `docs/`, `SMC++/`, Caches, Venvs). Jeder
-`open(...)`-Aufruf, der text-mode ist (Default oder Mode ohne `b`) und
-kein `encoding=`-Keyword führt, lässt die Suite rot werden. Binär-Modi
-(`"rb"`, `"wb"`, `"ab"`, `"r+b"`, …) sind exempt. Statisch nicht
-auflösbare Modi gelten konservativ als Text. Drei Sub-Tests:
-1. `test_first_party_files_present` — Pfaddrift-Wächter (≥ 50 Dateien).
-2. `test_open_calls_specify_encoding` — die eigentliche Disziplin.
-3. `test_file_allowlist_entries_still_apply` — parametrierte
-   Allowlist-Hygiene (Allowlist aktuell leer, kein Eintrag verschimmelt).
-
-**Production Fixes (3 Sites)**
-- `open_prep/realtime_signals.py:251` — Engine-Lockfile
-  (`open(_RT_ENGINE_LOCK_FILE, "w")` → `encoding="utf-8"`).
-- `open_prep/realtime_signals.py:2601` — Stdlib-Fallback `.env`-Loader.
-- `test_usi_lint.py:6` — Top-Level Pine-Linter.
-
-**Warum jetzt:** Defense-in-Depth-Tripwire (sub-Sekunde, AST only)
-gegen die Klasse "silent platform-dependent default". Allowlist startet
-leer und wird durch den Stale-Check selbst gepflegt.
-
 ### Fixes & Pins (2026-04-24) — System Review 2026-04-24 Followup (H-1, L-3, M-3)
 
 Adressiert die drei priorisierten Backlog-Items aus
@@ -6183,62 +6126,6 @@ Refs: `docs/FVG_QUALITY_D4_AUDIT.md` §6 (D3-Promotion-Befund + Pine-vs-Python-D
   upload.
 - `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
   script+test pairs.
-### Fixed (2026-06-13) — Stat-Review W7-2/W7-3: Vote-Integrität des Magnitude-Shadow-Ledgers
-
-Zwei Wege, auf denen die weekly k-of-n-Mehrheit Stimmen aus dem Nichts
-erzeugen konnte, sind geschlossen. **W7-2 (stale feed):** Der
-Daily-Runner (`scripts/run_magnitude_shadow_ledger.py`) lud das
-Benchmark-Events-Artefakt täglich neu und gradete es unter dem neuen
-Datum — bei eingefrorenem Feed (Producer kaputt, dawidd6 liefert
-denselben letzten erfolgreichen Run) stimmt damit EINE eingefrorene
-Beobachtung einmal pro Tag in der Wochen-Mehrheit ab, und das weiter
-wachsende Ledger blendet zugleich den Commit-Back-Gap-Guard
-(MITTEL-5). Jetzt prüft `main()` vor dem Append, ob derselbe
-`events_hash` bereits unter einem früheren Datum gradet wurde: falls
-ja, kein Append, lauter stderr-Hinweis, neuer rc 5. Der Daily-Workflow
-mappt rc 5 auf `status=stale_feed` + `::warning` (Job bleibt grün);
-bleibt der Feed eingefroren, wächst das Ledger nicht mehr und der
-fail-loude Gap-Guard eskaliert nach seinem 7-Tage-Budget — die
-MITTEL-5-Schutzwirkung ist wiederhergestellt. Same-Day-Re-Runs mit
-gleichem Hash bleiben idempotente Merges (rc 0). **W7-3
-(Doppel-Stimme):** `eval_magnitude_shadow_weekly.weekly_evaluations`
-zählte `pass_days`/`fail_days` pro Ledger-*Zeile*; der Merge-Key des
-Ledgers enthält `events_hash`, sodass ein Same-Day-Re-Run gegen
-aktualisierte Events zwei Zeilen für denselben Kalendertag hinterlässt
-— ein Tag stimmt doppelt ab und kann ein Unentschieden (FAIL) in eine
-strikte Mehrheit (PASS) kippen. Jetzt werden die Wochen-Zeilen vor der
-Zählung pro Kalenderdatum kollabiert (späteste Listenposition gewinnt,
-derselbe Tie-Break wie `latest_rows_by_family` im Gate-Wiring). Neue
-Tests: rc-5-Guard (inkl. „build_report wird gar nicht erst
-gerechnet“), Idempotenz-Grenzfall, Ein-Tag-eine-Stimme,
-Latest-wins-Tie-Break, Workflow-Contract-Pin für `status=stale_feed`.
-Beide Pfade sind seit BOS+SWEEP ARMED (2026-06-11) live
-entscheidungstragend.
-
-### Fixed (2026-06-13) — Stat-Review W7-1: Magnitude-Shadow-Ledger liest fail-closed
-
-`scripts/run_magnitude_shadow_ledger.py::load_ledger` hat malformed
-JSONL-Zeilen bisher still übersprungen (`except JSONDecodeError:
-continue`) — fail-open in drei entscheidungstragenden Konsumenten
-zugleich: (a) die weekly k-of-n-Bewertung
-(`eval_magnitude_shadow_weekly`) verliert Stimmen, wodurch korrupte
-FAIL-Zeilen eine strikte Wochen-Mehrheit auf PASS kippen können und das
-Demotions-Fenster einer armed Family dauerhaft partial bleibt („partial
-window never demotes"); (b) das Gate-Wiring
-(`magnitude_snapshot_wiring.latest_rows_by_family`) nimmt die neueste
-*parsebare* Zeile, sodass eine korrupte heutige FAIL-Zeile still das
-gestrige PASS als Gate-Verdikt wiederbelebt; (c) der Daily-Runner hätte
-beim atomischen Rewrite die unparsebaren Historien-Zeilen endgültig
-verworfen. Jetzt wirft `load_ledger` bei malformed oder
-Nicht-Objekt-Zeilen `ValueError` mit `pfad:zeilennr`; alle vier
-CLI-Konsumenten (Daily-Runner, Weekly-Eval, Snapshot-Wiring,
-Step-Summary-Renderer) und `run_promotion_gate` (Magnitude-Feed) mappen
-das auf rc 1 (fail-loud, Workflow rot). Eine fehlende Datei bleibt
-Cold-Start (`[]`). Der Test
-`test_load_ledger_skips_malformed_lines`, der das fail-open-Verhalten
-als Soll pinnte, ist invertiert
-(`test_load_ledger_raises_on_malformed_line`); neue rc-1-Regressionstests
-für alle Konsumenten.
 
 ### Added (2026-06-13) — Plan 2.8 amber max + mov + newline
 
