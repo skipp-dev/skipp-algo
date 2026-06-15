@@ -112,6 +112,7 @@ _ALLOWED_RAW_WRITE_FILES: dict[str, str] = {
     # joint-outcome-modeling sprint. Not pipeline-consumed; carries the
     # ATOMIC-WRITE-EXEMPT marker inline. Added 2026-05-14 alongside the
     # C13/T4 cron wiring so push-mode validate stops shipping red.
+    "scripts/runner_selection_metrics.py": "runner-selection JSONL append (mode='a', append-only metrics ledger; PR #2779)",
     "scripts/c10c_aggregate_per_bar.py": "c10c research/analysis one-shot (ATOMIC-WRITE-EXEMPT, local jsonl write)",
     # smc_atomic_write itself implements the primitive — exempt by definition.
     "scripts/smc_atomic_write.py": "implements the atomic write primitive",
