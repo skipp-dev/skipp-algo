@@ -223,3 +223,73 @@ def test_weekend_date_absent_from_trading_days():
     saturday = date(2026, 6, 13)  # Saturday (2026-06-14 was a Sunday — fixed)
     trading_days = [date(2026, 6, 9), date(2026, 6, 10), date(2026, 6, 11), date(2026, 6, 12)]  # Mon–Thu, Fri=not included so Sat is out
     assert saturday not in set(trading_days)  # guard prevents bridge call
+
+
+# ---------------------------------------------------------------------------
+# F1 edge-case coverage: empty daily_bars / symbol not in daily_bars
+# ---------------------------------------------------------------------------
+
+def test_empty_daily_bars_returns_none_prev_close():
+    """Bridge must not raise when daily_bars is empty (prev_close falls back to None).
+
+    When called for a symbol on a day where daily_bars has no matching row
+    (e.g. first run before daily bars are finalized, or a symbol added
+    mid-session), the bridge should still return a valid row with
+    ``previous_close=None`` and None for all prev-close-derived columns.
+    """
+    mock_client = _make_mock_client(_SAMPLE_BARS)
+    with patch(
+        "scripts.databento_production_export._make_export_fmp_client",
+        return_value=mock_client,
+    ):
+        result = _run_fmp_intraday_bridge(
+            "dummy_key",
+            today=_TODAY,
+            universe_symbols={"AAPL"},
+            window_start=time(9, 20),
+            window_end=time(10, 0),
+            daily_bars=pd.DataFrame(),  # empty — no previous_close available
+        )
+    assert not result.empty, "bridge should return a row even without daily_bars"
+    row = result.iloc[0]
+    assert row["previous_close"] is None or pd.isna(row["previous_close"]), (
+        f"expected None/NaN for previous_close, got {row['previous_close']!r}"
+    )
+    # Transition columns that depend on prev_close must also be None/NaN, not raise.
+    for col in ("prev_close_to_premarket_abs", "prev_close_to_premarket_pct"):
+        assert row[col] is None or pd.isna(row[col]), (
+            f"{col} should be None/NaN when prev_close is missing, got {row[col]!r}"
+        )
+
+
+def test_symbol_absent_from_daily_bars_prev_close_is_none():
+    """Symbol in universe_symbols but absent from daily_bars.previous_close → None.
+
+    Verifies the ``prev_close_map.get(sym)`` fallback: the row is still
+    produced with all price metrics intact; only the previous-close-derived
+    columns are None.  Exercises a different code path from the empty-frame
+    case because the DataFrame is non-empty but the symbol is missing.
+    """
+    daily_bars_other_symbol = pd.DataFrame([
+        {"trade_date": _TODAY, "symbol": "MSFT", "previous_close": 420.0, "close": 422.0},
+    ])
+    mock_client = _make_mock_client(_SAMPLE_BARS)
+    with patch(
+        "scripts.databento_production_export._make_export_fmp_client",
+        return_value=mock_client,
+    ):
+        result = _run_fmp_intraday_bridge(
+            "dummy_key",
+            today=_TODAY,
+            universe_symbols={"AAPL"},
+            window_start=time(9, 20),
+            window_end=time(10, 0),
+            daily_bars=daily_bars_other_symbol,  # AAPL missing
+        )
+    assert not result.empty
+    row = result.iloc[0]
+    assert row["previous_close"] is None or pd.isna(row["previous_close"])
+    # Price columns from intraday bars should still be populated.
+    assert row["current_price"] == pytest.approx(102.5)
+    assert row["window_start_price"] == pytest.approx(100.0)
+

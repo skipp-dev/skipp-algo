@@ -18,6 +18,7 @@ import pytest
 from scripts.check_workflow_freshness import (
     FreshnessReport,
     _parse_workflow_spec,
+    _weekend_hours_between,
     check_all,
     check_workflow,
     main,
@@ -231,9 +232,12 @@ def test_check_all_overall_error_when_any_api_error() -> None:
 
 
 def test_parse_workflow_spec_ok() -> None:
-    assert _parse_workflow_spec("ci.yml=24") == ("ci.yml", 24.0, False)
-    assert _parse_workflow_spec("foo.yaml=1.5") == ("foo.yaml", 1.5, False)
-    assert _parse_workflow_spec("gate.yml=30:any") == ("gate.yml", 30.0, True)
+    assert _parse_workflow_spec("ci.yml=24") == ("ci.yml", 24.0, False, False)
+    assert _parse_workflow_spec("foo.yaml=1.5") == ("foo.yaml", 1.5, False, False)
+    assert _parse_workflow_spec("gate.yml=30:any") == ("gate.yml", 30.0, True, False)
+    assert _parse_workflow_spec("gate.yml=30:weekday") == ("gate.yml", 30.0, False, True)
+    assert _parse_workflow_spec("gate.yml=30:any:weekday") == ("gate.yml", 30.0, True, True)
+    assert _parse_workflow_spec("gate.yml=30:weekday:any") == ("gate.yml", 30.0, True, True)
 
 
 @pytest.mark.parametrize(
@@ -314,3 +318,85 @@ def test_cli_falls_back_to_gh_pat_when_github_token_unset(monkeypatch: pytest.Mo
     _patch_check_all(monkeypatch, FreshnessReport(overall="fresh", repo="owner/repo"))
     rc = main(["ci.yml=24"])
     assert rc == 0
+
+
+# -- Weekend-aware check tests ----------------------------------------------
+
+
+def test_weekend_hours_between_calculation() -> None:
+    # Friday 12:00 UTC to Monday 12:00 UTC = 72 hours total, should have 48 hours of weekend (Saturday/Sunday)
+    start = datetime(2026, 5, 29, 12, 0, 0, tzinfo=UTC)  # Friday
+    end = datetime(2026, 6, 1, 12, 0, 0, tzinfo=UTC)    # Monday
+    assert _weekend_hours_between(start, end) == 48.0
+
+    # Thursday 12:00 UTC to Friday 12:00 UTC = 24 hours total, 0 weekend hours
+    start_midweek = datetime(2026, 5, 28, 12, 0, 0, tzinfo=UTC)
+    end_midweek = datetime(2026, 5, 29, 12, 0, 0, tzinfo=UTC)
+    assert _weekend_hours_between(start_midweek, end_midweek) == 0.0
+
+    # Saturday 00:00 to Sunday 24:00 = 48 hours
+    start_weekend = datetime(2026, 5, 30, 0, 0, 0, tzinfo=UTC)
+    end_weekend = datetime(2026, 6, 1, 0, 0, 0, tzinfo=UTC)
+    assert _weekend_hours_between(start_weekend, end_weekend) == 48.0
+
+    # Sub-hour accuracy: Friday 23:30 to Saturday 00:30 = 1 hour total, 0.5 hours weekend (Saturday)
+    start_frac = datetime(2026, 5, 29, 23, 30, 0, tzinfo=UTC)
+    end_frac = datetime(2026, 5, 30, 0, 30, 0, tzinfo=UTC)
+    assert _weekend_hours_between(start_frac, end_frac) == 0.5
+
+    # Reverse or equal times
+    assert _weekend_hours_between(end, start) == 0.0
+    assert _weekend_hours_between(start, start) == 0.0
+
+    # Extremely long gaps clamped to 1000 hours
+    start_long = datetime(2026, 1, 1, 0, 0, 0, tzinfo=UTC)
+    end_long = datetime(2026, 6, 1, 0, 0, 0, tzinfo=UTC)
+    # 1000 hour range has some number of weekend hours, but it should be calculated safely and fast without hanging
+    wk_h = _weekend_hours_between(start_long, end_long)
+    assert wk_h > 0.0
+
+
+def test_weekday_only_workflow_freshness() -> None:
+    # A weekend-only gap where 60 hours have elapsed since the Friday run.
+    # Check is done on Monday.
+    # Friday 18:00 UTC
+    last_run = datetime(2026, 5, 29, 18, 0, 0, tzinfo=UTC)
+    # Monday 06:00 UTC
+    now = datetime(2026, 6, 1, 6, 0, 0, tzinfo=UTC)
+
+    # Standard check: elapsed age is 60 hours, which is > 30 hours, so "stale"
+    def fetcher(url: str, headers: dict[str, str]) -> dict:
+        return {
+            "workflow_runs": [
+                {
+                    "id": 1111,
+                    "html_url": "x",
+                    "updated_at": last_run.isoformat().replace("+00:00", "Z"),
+                }
+            ]
+        }
+
+    r_standard = check_workflow(
+        repo="o/r",
+        workflow_file="daily.yml",
+        budget_hours=30.0,
+        token="t",
+        now=now,
+        fetcher=fetcher,
+        weekday_only=False,
+    )
+    assert r_standard.status == "stale"
+    assert r_standard.age_hours == 60.0
+
+    # Weekday-only check: subtracts 48 hours, adjusted age is 12 hours <= 30, so "fresh"
+    r_weekday = check_workflow(
+        repo="o/r",
+        workflow_file="daily.yml",
+        budget_hours=30.0,
+        token="t",
+        now=now,
+        fetcher=fetcher,
+        weekday_only=True,
+    )
+    assert r_weekday.status == "fresh"
+    assert r_weekday.age_hours == 12.0

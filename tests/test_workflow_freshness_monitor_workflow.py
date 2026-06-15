@@ -55,22 +55,22 @@ def test_monitors_critical_crons_with_budgets(text: str) -> None:
     # daily data pipelines. New rows are fine; removing any of these
     # must be a deliberate, reviewed change.
     must_monitor = [
-        "smc-library-refresh.yml=30",
+        "smc-library-refresh.yml=72:weekday",
         "credential-health-check.yml=30",
-        "c13-daily-cron.yml=30",
-        "run-open-prep-daily.yml=30",
-        "promotion-gate-daily.yml=30",
-        "f2-promotion-gate-daily.yml=30",
-        "fvg-quality-recal-shadow-daily.yml=30",
+        "c13-daily-cron.yml=72:weekday",
+        "run-open-prep-daily.yml=72:weekday",
+        "promotion-gate-daily.yml=72:weekday",
+        "f2-promotion-gate-daily.yml=72:any:weekday",
+        "fvg-quality-recal-shadow-daily.yml=72:weekday",
         "feature-importance-daily.yml=30",
         # Workflow-Audit 2026-06: previously unmonitored data pipelines.
         # `:any` = cron fires count (workflows with expected red runs);
         # stage1-weekly runs on Mondays -> 8-day budget.
-        "smc-measurement-benchmark-rolling.yml=30:any",
-        "adr0023-magnitude-shadow-daily.yml=30:any",
+        "smc-measurement-benchmark-rolling.yml=72:any:weekday",
+        "adr0023-magnitude-shadow-daily.yml=72:any:weekday",
         "adr0023-magnitude-stage1-weekly.yml=192",
-        "g23-ab-watchdog.yml=30:any",
-        "smc-live-newsapi-refresh.yml=30",
+        "g23-ab-watchdog.yml=72:any:weekday",
+        "smc-live-newsapi-refresh.yml=72:weekday",
     ]
     for spec in must_monitor:
         assert spec in text, f"freshness monitor is no longer probing {spec}"
