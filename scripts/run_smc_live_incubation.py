@@ -39,7 +39,7 @@ import logging
 import os
 import tempfile
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime
 from pathlib import Path
 from types import MappingProxyType
@@ -243,16 +243,21 @@ def _build_paper_submit_fn(
         if not intents:
             return []
         submit = place_fn if place_fn is not None else place_order_intents
-        result = submit(
-            list(intents),
-            connection_cfg=connection_cfg,
-            execution_cfg=execution_cfg,
-        )
-        placed = len(result.get("placements", []))
+        placements_total = 0
+        for intent in intents:
+            call_execution_cfg = execution_cfg
+            if intent.exit_mode:
+                call_execution_cfg = replace(execution_cfg, exit_mode=intent.exit_mode)
+            result = submit(
+                [intent],
+                connection_cfg=connection_cfg,
+                execution_cfg=call_execution_cfg,
+            )
+            placements_total += len(result.get("placements", []))
         logger.info(
             "paper submit: transmitted %d bracket set(s) for %d intent(s) "
             "on port %d",
-            placed,
+            placements_total,
             len(intents),
             connection_cfg.port,
         )
