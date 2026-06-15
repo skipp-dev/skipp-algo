@@ -25,22 +25,14 @@ The behavioural test exercises the real helper in a throwaway git sandbox
 """
 from __future__ import annotations
 
+import datetime
 import os
 import shutil
 import subprocess
-import sys
 import textwrap
 from pathlib import Path
 
 import pytest
-
-# launchd is macOS-only; the driver shell scripts under automation/launchd/
-# are LaunchAgents and only run on Darwin. Skip on Linux/Windows so the suite
-# is green on every developer machine and on Linux CI runners (#2244).
-pytestmark = pytest.mark.skipif(
-    sys.platform != "darwin",
-    reason="launchd drivers are macOS-only (see #2244)",
-)
 
 REPO = Path(__file__).resolve().parents[1]
 DRIVERS = [
@@ -98,6 +90,10 @@ def _data_branch_sandbox(tmp_path):
 
 
 LIB = REPO / "automation" / "launchd" / "lib_c13_data_push.sh"
+
+
+def _utc_today() -> str:
+    return datetime.datetime.now(datetime.UTC).date().strftime("%Y-%m-%d")
 
 
 def test_helper_publishes_to_data_branch_without_touching_current_branch(tmp_path):
@@ -299,4 +295,207 @@ def test_audit_push_uses_worktree_not_branch_switch():
     assert "git worktree add" not in text, (
         "audit-push must not duplicate the worktree pipeline inline — that "
         "copy drifts from the lib's hardening (audit pass-3 finding A1)"
+    )
+
+
+# ---------------------------------------------------------------------------
+# F-001 (audit 2026-06-14) — preflight failures must emit a DEGRADED marker
+# before exiting so machine-detectable monitoring can catch silent failures.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "driver,marker_subdir,marker_prefix",
+    [
+        (
+            REPO / "automation" / "launchd" / "run-c13-imbalance.sh",
+            "cache/imbalance",
+            ".push_status_",
+        ),
+        (
+            REPO / "automation" / "launchd" / "run-c13-wsh.sh",
+            "cache/wsh",
+            ".feed_status_",
+        ),
+    ],
+    ids=["imbalance", "wsh"],
+)
+def test_driver_writes_degraded_marker_on_missing_venv(
+    tmp_path, driver, marker_subdir, marker_prefix
+):
+    """When the venv activate script is absent the driver must write a
+    ``degraded:preflight-error:*`` marker and exit 1 — no silent death."""
+    today = _utc_today()
+    # The script derives REPO from $0, so markers land in REPO/cache/...
+    real_marker_dir = REPO / marker_subdir
+    real_marker_dir.mkdir(parents=True, exist_ok=True)
+    marker_path = real_marker_dir / f"{marker_prefix}{today}"
+    marker_path.unlink(missing_ok=True)  # remove stale marker from a prior run
+
+    try:
+        result = subprocess.run(
+            ["bash", str(driver)],
+            env={
+                **os.environ,
+                "C13_VENV": str(tmp_path / "no-such-venv"),
+                "C13_WATCHLIST": "/dev/null",
+            },
+            capture_output=True,
+            text=True,
+            cwd=str(REPO),
+        )
+        assert result.returncode != 0, "driver should fail on missing venv"
+        assert marker_path.exists(), (
+            f"{driver.name}: no marker written to {marker_path} on missing-venv failure.\n"
+            f"stdout: {result.stdout[:400]}\nstderr: {result.stderr[:400]}"
+        )
+        content = marker_path.read_text()
+        assert content.startswith("degraded:preflight-error:"), (
+            f"{driver.name}: marker content unexpected: {content!r}"
+        )
+    finally:
+        marker_path.unlink(missing_ok=True)
+
+
+@pytest.mark.parametrize(
+    "driver,marker_subdir,marker_prefix",
+    [
+        (
+            REPO / "automation" / "launchd" / "run-c13-imbalance.sh",
+            "cache/imbalance",
+            ".push_status_",
+        ),
+        (
+            REPO / "automation" / "launchd" / "run-c13-wsh.sh",
+            "cache/wsh",
+            ".feed_status_",
+        ),
+    ],
+    ids=["imbalance", "wsh"],
+)
+def test_driver_writes_degraded_marker_on_missing_python(
+    tmp_path, driver, marker_subdir, marker_prefix
+):
+    """When the venv python binary is missing the driver must write a
+    ``degraded:preflight-error:*`` marker and exit 1."""
+    today = _utc_today()
+
+    # Create a venv with an activate script but NO python binary.
+    fake_venv = tmp_path / "fake-venv"
+    bin_dir = fake_venv / "bin"
+    bin_dir.mkdir(parents=True)
+    (bin_dir / "activate").write_text("# fake activate\n")
+    # Deliberately do NOT create bin/python.
+
+    real_marker_dir = REPO / marker_subdir
+    real_marker_dir.mkdir(parents=True, exist_ok=True)
+    marker_path = real_marker_dir / f"{marker_prefix}{today}"
+    marker_path.unlink(missing_ok=True)
+
+    try:
+        result = subprocess.run(
+            ["bash", str(driver)],
+            env={
+                **os.environ,
+                "C13_VENV": str(fake_venv),
+                "C13_WATCHLIST": "/dev/null",
+            },
+            capture_output=True,
+            text=True,
+            cwd=str(REPO),
+        )
+        assert result.returncode != 0, "driver should fail on missing python"
+        assert marker_path.exists(), (
+            f"{driver.name}: no marker written to {marker_path} on missing-python failure.\n"
+            f"stdout: {result.stdout[:400]}\nstderr: {result.stderr[:400]}"
+        )
+        content = marker_path.read_text()
+        assert content.startswith("degraded:preflight-error:"), (
+            f"{driver.name}: marker content unexpected: {content!r}"
+        )
+    finally:
+        marker_path.unlink(missing_ok=True)
+
+
+# ---------------------------------------------------------------------------
+# SA-02/SA-03 (audit 2026-06-14) — application-level failures (post-preflight)
+# must also emit a DEGRADED/degraded marker before exiting.
+# ---------------------------------------------------------------------------
+
+
+def test_imbalance_sh_writes_degraded_marker_on_collector_failure(tmp_path):
+    """When collect_opening_imbalances exits non-zero run-c13-imbalance.sh
+    must write a ``degraded:collector-error:*`` marker and exit 1.
+
+    SA-03 regression guard (audit 2026-06-14).
+    """
+    today = _utc_today()
+
+    # Create a fake venv: activate script present, python binary present but
+    # always exits 1 (simulates collector failure after successful preflight).
+    fake_venv = tmp_path / "venv"
+    bin_dir = fake_venv / "bin"
+    bin_dir.mkdir(parents=True)
+    (bin_dir / "activate").write_text("# fake activate\n")
+    fake_python = bin_dir / "python"
+    fake_python.write_text("#!/bin/bash\nexit 1\n")
+    fake_python.chmod(0o755)
+
+    real_marker_dir = REPO / "cache" / "imbalance"
+    real_marker_dir.mkdir(parents=True, exist_ok=True)
+    marker_path = real_marker_dir / f".push_status_{today}"
+    marker_path.unlink(missing_ok=True)
+
+    try:
+        result = subprocess.run(
+            ["bash", str(REPO / "automation" / "launchd" / "run-c13-imbalance.sh")],
+            env={
+                **os.environ,
+                "C13_VENV": str(fake_venv),
+                "C13_WATCHLIST": "/dev/null",
+            },
+            capture_output=True,
+            text=True,
+            cwd=str(REPO),
+        )
+        assert result.returncode != 0, (
+            "run-c13-imbalance.sh should fail when collector exits non-zero"
+        )
+        assert marker_path.exists(), (
+            "run-c13-imbalance.sh: no degraded marker written on collector failure.\n"
+            f"stdout: {result.stdout[:400]}\nstderr: {result.stderr[:400]}"
+        )
+        content = marker_path.read_text()
+        assert content.startswith("degraded:collector-error:"), (
+            f"run-c13-imbalance.sh: unexpected marker content: {content!r}"
+        )
+    finally:
+        marker_path.unlink(missing_ok=True)
+
+
+def test_phase_a_sh_incubation_failure_path_writes_degraded_marker() -> None:
+    """Static guard: run-c13-phase-a.sh must wrap run_smc_live_incubation
+    in a catchable ``if``/``else`` shell branch and call
+    ``_write_marker "DEGRADED"`` on failure.
+
+    SA-02 regression guard (audit 2026-06-14).
+    The subprocess equivalent is impractical (requires a multi-step fake
+    venv that passes build_phase_a_inputs but fails the runner), so we
+    enforce the invariant via source inspection instead.
+    """
+    text = (REPO / "automation" / "launchd" / "run-c13-phase-a.sh").read_text()
+    assert (
+        'if ! "${PY}" -m scripts.run_smc_live_incubation' in text
+        or 'if "${PY}" -m scripts.run_smc_live_incubation' in text
+    ), (
+        "run-c13-phase-a.sh: run_smc_live_incubation must be wrapped in "
+        "a catchable shell branch so a non-zero exit can be caught — "
+        "SA-02 fix missing."
+    )
+    assert '_write_marker "DEGRADED" "incubation-failed:' in text, (
+        "run-c13-phase-a.sh: DEGRADED marker write missing for incubation "
+        "failure path — SA-02 fix missing."
+    )
+    # Sanity: the SUCCESS marker must still be present on the happy path.
+    assert '_write_marker "SUCCESS" "incubation-complete:' in text, (
+        "run-c13-phase-a.sh: SUCCESS marker write on happy path not found."
     )
