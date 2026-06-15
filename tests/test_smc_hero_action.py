@@ -31,6 +31,7 @@ def _make_enrichment(degradation: str, score: float) -> dict:
             "derived_from_state": "healthy",
         },
         "ensemble_quality": {"score": score, "available_components": [1, 2]},
+        "signal_quality": {"SIGNAL_FRESHNESS": "fresh", "SIGNAL_QUALITY_TIER": "good"},
     }
 
 
