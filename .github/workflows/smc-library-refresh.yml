@@ -1,7 +1,7 @@
 # live-window: mutating-on-cron  # F-V6-F2.1 (2026-05-02)
 # SMC Library Intraday Refresh (v5)
 #
-# Runs 2x per trading day at 16:00 / 20:00 UTC on weekdays — restructured
+# Runs 3x per trading day at 16:00 / 20:00 / 22:00 UTC on weekdays — restructured
 # 4×→2× in F-V8-C4 (2026-05-06) to give the producer a dedicated 240-min
 # handoff window (prior schedules: 13/15/17/19 UTC per F-V6-C3, and
 # 12:30/14:30/16:30/18:30 UTC before that). F-V8-cutover (2026-05-18)

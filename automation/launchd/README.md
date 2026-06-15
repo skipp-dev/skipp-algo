@@ -54,7 +54,8 @@ REPO="$(pwd)"   # run from the repo root
 # 1. Substitute the placeholder and copy plists into the per-user
 #    LaunchAgents directory.
 for label in collect-imbalance wsh-earnings phase-a-export phase-a ibkr-smoke audit-push; do
-    sed "s|__REPO_PATH__|${REPO}|g" \
+    sed -e "s|__REPO_PATH__|${REPO}|g" \
+        -e "s|__HOME__|${HOME}|g" \
         "automation/launchd/com.skippalgo.c13.${label}.plist" \
         > "${HOME}/Library/LaunchAgents/com.skippalgo.c13.${label}.plist"
 done
@@ -70,7 +71,8 @@ for label in collect-imbalance wsh-earnings phase-a-export phase-a ibkr-smoke au
     launchctl print "gui/$(id -u)/com.skippalgo.c13.${label}" | head -2
 done
 
-# 4. Trigger a one-shot run to validate end-to-end (writes log under /tmp).
+# 4. Trigger a one-shot run to validate end-to-end (writes log under
+#    ${HOME}/Library/Logs/skippalgo/ — see Logging section below).
 launchctl kickstart -k "gui/$(id -u)/com.skippalgo.c13.phase-a-export"
 ```
 
@@ -167,5 +169,12 @@ market holiday with no data) is retried for at most a week rather than forever.
 ## Logging
 
 `StandardOutPath` / `StandardErrorPath` write to
-`/tmp/skippalgo-c13-<job>.log` and `<job>.err`. Rotate manually if they
-grow.
+`~/Library/Logs/skippalgo/skippalgo-c13-<job>.log` and `<job>.err`.
+The `__HOME__` placeholder is substituted by the install `sed` command.
+Create the directory once before bootstrapping:
+
+```bash
+mkdir -p "${HOME}/Library/Logs/skippalgo"
+```
+
+Rotate manually if files grow.
