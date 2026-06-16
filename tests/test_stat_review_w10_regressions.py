@@ -177,6 +177,22 @@ class TestW10_2_SPRTSpecPath:
             "Expected exit(1) for empty benchmark dirs after successful spec "
             f"load; got exit({exc_info.value.code})."
         )
+        # W10-2 thread 4: also verify a spec with missing p0/p1 causes exit(1).
+        # Both paths exit 1, but the spec-parse error must not silently pass.
+        spec_bad = tmp_path / "bad_spec.json"
+        spec_bad.write_text('{"sprt": {}}', encoding="utf-8")  # missing p0/p1
+        with pytest.raises(SystemExit) as bad_info:
+            main([
+                "--control-dir", str(tmp_path / "ctrl"),
+                "--treatment-dir", str(tmp_path / "trt"),
+                "--spec-path", str(spec_bad),
+                "--output-dir", str(out_dir),
+            ])
+        assert bad_info.value.code == 1, (
+            "W10-2: spec with missing p0/p1 must exit 1 — "
+            f"got exit({bad_info.value.code})"
+        )
+
     def test_module_defaults_differ_from_spec(self) -> None:
         """Regression: confirm the module defaults ARE different from the spec
         values so we know the spec-path path is doing real work."""
