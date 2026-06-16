@@ -4178,7 +4178,10 @@ export async function dismissCookieBanner(page: Page): Promise<boolean> {
     // DOM-level dispatch that bubbles through React's event delegation.
     const bannerGone = !(await hasVisibleLocator(tvSelectors.cookieAccept(page), 400));
     if (bannerGone) {
-      break;
+      // Banner confirmed gone — return early with an explicit true so that the
+      // caller (and post-mortem reader) see a clean success signal rather than
+      // falling through to the terminal-verdict check below.
+      return true;
     }
     tracePageEvent(page, "cookie-accept-banner-still-visible", `attempt:${attempt}`);
 
@@ -4246,7 +4249,7 @@ export async function dismissCookieBanner(page: Page): Promise<boolean> {
         await page.waitForTimeout(800);
         const bannerGoneAfterDom = !(await hasVisibleLocator(tvSelectors.cookieAccept(page), 400));
         if (bannerGoneAfterDom) {
-          break;
+          return true;
         }
         tracePageEvent(page, "cookie-accept-dom-dispatch-banner-still-visible", `attempt:${attempt}`);
       } else {
@@ -4258,6 +4261,17 @@ export async function dismissCookieBanner(page: Page): Promise<boolean> {
     }
   }
 
+  // Terminal-verdict check (observability 2026-06-17): if we exhausted all
+  // attempts and the banner is still visible, emit a single greppable marker so
+  // a post-mortem reader does not have to count per-attempt events. Return false
+  // to signal the caller that dismissal did not succeed, enabling future
+  // callers to gate on the result rather than silently continuing into a
+  // blocked ensurePineEditor flow.
+  const stillVisible = await hasVisibleLocator(tvSelectors.cookieAccept(page), 400);
+  if (dismissed && stillVisible) {
+    tracePageEvent(page, "cookie-accept-exhausted-still-visible", "attempts:5");
+    return false;
+  }
   return dismissed;
 }
 
