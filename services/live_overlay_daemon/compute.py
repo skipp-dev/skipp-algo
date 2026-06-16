@@ -25,7 +25,7 @@ Field definitions (matching spec/smc_live_overlay.schema.json):
   market_event_blocked — bool
   symbol_event_blocked — bool
   event_provider_status — "ok" | "stale" | "unavailable"
-  asof_ts              — ISO-8601 UTC timestamp of computation
+  asof_ts              — Unix-Epoch seconds (int) of computation
   stale                — True if overlay_age > max_stale_secs
 """
 from __future__ import annotations
