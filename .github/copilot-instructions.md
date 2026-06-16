@@ -378,6 +378,32 @@ Wenn der User "merge", "mergeable machen" oder "Konflikte lösen" sagt:
    `gh pr view`).
 5. Ergebnis als kompakte Tabelle ausgeben: `PR# | Status | Aktion`.
 
+## CI-Warte-Regel (nie idle warten)
+
+Wenn nach einem Push auf CI-Ergebnis gewartet werden muss:
+**Niemals idle warten.** Stattdessen sofort:
+
+1. Alle offenen Review-Threads des PRs holen (inline + GraphQL, nicht nur
+   `gh pr view`):
+   ```bash
+   gh api repos/skippALGO/skipp-algo/pulls/<N>/comments --paginate \
+     | python3 -c "import sys,json; [print(f\"{c['path']}:{c.get('line')} {c['body'][:120]}\") for c in json.load(sys.stdin) if 'opilot' in c['user']['login'].lower()]"
+   ```
+2. Für jeden offenen Thread: sofort fixen oder als stale/won't-fix
+   einordnen und auflösen.
+3. Ruff/Ledger-Validierung lokal durchführen, solange CI noch läuft.
+4. Erst wenn Review-Backlog leer UND CI-Ergebnis verfügbar: Ergebnis
+   auswerten und ggf. nächste Fix-Runde starten.
+
+**Begründung:** CI-Läufe dauern 3–8 Minuten. Jede Minute, die danach
+für Review-Comment-Analyse benötigt wird, ist verschwendete Wartezeit.
+Review-Fixes, die nach dem Push entdeckt werden, erzwingen einen
+weiteren Commit + weiteren CI-Lauf. Review-Analyse parallel zu CI
+eliminiert diese zweite Runde.
+
+**Gilt immer:** nach jedem `git push`, nicht nur bei explizitem
+"warte auf CI"-Hinweis vom User.
+
 ### Worktree-Cleanup
 
 Nach dem Mergen eines PRs den zugehörigen Worktree entfernen:
