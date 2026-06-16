@@ -125,7 +125,9 @@ def _existing_keys(corpus_path: Path) -> set[tuple[str, str]]:
                 continue
             try:
                 row = json.loads(line)
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as exc:
+                import warnings
+                warnings.warn(f"Corrupt JSONL line in {corpus_path} (skipped for dedup): {exc}", stacklevel=2)
                 continue
             key = (str(row.get("computed_at", "")), str(row.get("variant", "")))
             keys.add(key)
