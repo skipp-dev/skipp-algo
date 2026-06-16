@@ -608,3 +608,24 @@ def test_arming_magnitude_failure_does_not_add_provenance_blockers_strict() -> N
 
 def test_gate_thresholds_default_is_unarmed() -> None:
     assert GateThresholds().magnitude_strict_families == frozenset()
+
+
+def test_fdr_q_tightening_with_concurrent_families() -> None:
+    # Under single family, fdr_pvalue of 0.03 easily passes default fdr_q of 0.05
+    snap = _green_snapshot()
+    snap.fdr_pvalue = 0.03
+
+    # 1 concurrent family -> passes
+    gate_single = PromotionGate(GateThresholds(n_concurrent_families=1))
+    d_single = gate_single.evaluate(snap)
+    assert d_single["promoted"] is True
+
+    # 2 concurrent families -> Bonferroni-adjusted threshold becomes 0.05 / 2 = 0.025.
+    # Therefore 0.03 fails!
+    gate_multi = PromotionGate(GateThresholds(n_concurrent_families=2))
+    d_multi = gate_multi.evaluate(snap)
+    assert d_multi["promoted"] is False
+
+    blockers = [b["check"] for b in d_multi["blockers"] if b["severity"] == "blocker"]
+    assert "fdr_significance" in blockers
+

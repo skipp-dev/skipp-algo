@@ -146,6 +146,13 @@ class GateThresholds:
     brier_ci_upper_max: float = _TRACK_BRIER_MAX
     ece_max: float = DEFAULT_ECE_MAX
     fdr_q: float = DEFAULT_FDR_Q
+    # W9-6 (SMR wave 9): number of families being evaluated simultaneously
+    # in a single promotion run.  When > 1, the per-family FDR threshold is
+    # tightened by Bonferroni correction to control the experiment-wide error
+    # rate: effective_fdr_q = fdr_q / n_concurrent_families.  Set to 1
+    # (default) to preserve the original per-family behaviour for single-
+    # family evaluations or when the caller performs its own correction.
+    n_concurrent_families: int = 1
     psr_min: float = DEFAULT_PSR_MIN
     mintrl_max_years: float = DEFAULT_MINTRL_MAX_YEARS
     psi_max: float = DEFAULT_PSI_MAX
@@ -176,6 +183,10 @@ class GateThresholds:
         # the stored attribute a plain ``float``.
         if self.brier_ci_upper_max == _TRACK_BRIER_MAX:
             object.__setattr__(self, "brier_ci_upper_max", self.brier_max)
+        if self.n_concurrent_families < 1:
+            raise ValueError(
+                f"n_concurrent_families must be ≥ 1, got {self.n_concurrent_families}"
+            )
 
 
 @dataclass
@@ -383,7 +394,13 @@ class PromotionGate:
         ok_fdr = _check(
             name="fdr_significance",
             observed=snapshot.fdr_pvalue,
-            threshold=t.fdr_q,
+            # W9-6 (SMR wave 9): apply Bonferroni correction when
+            # multiple families are evaluated concurrently. With k families
+            # the Bonferroni-adjusted threshold is fdr_q / k, which controls the
+            # family-wise error rate (FWER) at level fdr_q regardless of
+            # the number of simultaneous tests. n_concurrent_families=1
+            # (default) leaves the threshold unchanged.
+            threshold=t.fdr_q / t.n_concurrent_families,
             lower_is_better=True,
             blockers=blockers,
             metrics=metrics,

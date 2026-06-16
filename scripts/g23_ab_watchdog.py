@@ -144,7 +144,15 @@ def _treatment_underperformed(comparison: dict[str, Any]) -> bool:
     treatment_hr = _coerce_float(sprt.get("hit_rate"))
     control_hr = _coerce_float(sprt.get("control_hit_rate"))
     if treatment_hr is None or control_hr is None:
-        return False
+        # W9-2 (SMR wave 9): returning False when hit_rate is missing silently
+        # broke the consecutive-underperformance streak (a missing data gap
+        # would reset the streak counter just like a genuine outperformance,
+        # preventing rollback from ever firing). Fail-closed instead: raise so
+        # the caller surfaces the data gap explicitly.
+        raise ValueError(
+            "hit_rate or control_hit_rate is None — cannot evaluate "
+            "underperformance; treat as data gap, not as pass (W9-2)"
+        )
     return treatment_hr <= control_hr
 
 
@@ -453,13 +461,21 @@ def main(argv: list[str] | None = None) -> int:
         except (OSError, json.JSONDecodeError) as exc:
             print(f"ERROR: cannot read --input {args.input}: {exc}", file=sys.stderr)
             return EXIT_FATAL
-        entry = _make_history_entry(
-            comparison,
-            timestamp=now,
-            source_path=args.input,
-            source_commit_sha=args.commit_sha,
-            source_workflow_run=args.workflow_run,
-        )
+        try:
+            entry = _make_history_entry(
+                comparison,
+                timestamp=now,
+                source_path=args.input,
+                source_commit_sha=args.commit_sha,
+                source_workflow_run=args.workflow_run,
+            )
+        except ValueError as exc:
+            print(
+                f"ERROR: hit-rate data missing in {args.input}: {exc}; "
+                "cannot evaluate underperformance streak (data gap — W9-2)",
+                file=sys.stderr,
+            )
+            return EXIT_FATAL
         try:
             history = append_history(args.history, entry)
         except OSError as exc:

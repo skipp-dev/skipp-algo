@@ -96,8 +96,10 @@ def test_treatment_underperformed_false_when_gt_control():
         treatment_n=100, treatment_hr=0.60, control_n=100, control_hr=0.55))
 
 
-def test_treatment_underperformed_false_when_data_missing():
-    assert not wd._treatment_underperformed({"sprt": {}})
+def test_treatment_underperformed_raises_value_error_when_data_missing():
+    # W9-2: must raise ValueError on missing data instead of returning False
+    with pytest.raises(ValueError, match="cannot evaluate underperformance"):
+        wd._treatment_underperformed({"sprt": {}})
 
 
 # ── history I/O ────────────────────────────────────────────────────────────
@@ -394,3 +396,89 @@ def test_max_n_default_equals_constant():
         "--status-md", "/dev/null",
     ])
     assert ns.max_n == wd.SPRT_MAX_N
+
+
+# ---------------------------------------------------------------------------
+# Additional coverage to kill surviving mutants
+# ---------------------------------------------------------------------------
+
+
+def test_aggregated_sprt_returns_no_data_when_treatment_n_is_zero():
+    cfg = SPRTConfig(p0=0.544, p1=0.574, alpha=0.05, beta=0.20)
+    history = [
+        _entry(treatment_underperformed=False, treatment_n=0, treatment_k=0)
+    ]
+    out = wd.aggregated_sprt(history, config=cfg)
+    assert out["decision"] == "no_data"
+    assert out["n"] == 0
+
+
+def test_append_history_sorts_keys(tmp_path):
+    p = tmp_path / "h.jsonl"
+    entry = {"z": 1, "a": 2}
+    wd.append_history(p, entry)
+    line = p.read_text(encoding="utf-8").strip()
+    assert line.startswith('{"a": 2')
+
+
+def test_append_history_creates_deep_nested_parents(tmp_path):
+    p = tmp_path / "deep" / "nested" / "dir" / "h.jsonl"
+    wd.append_history(p, {"i": 1})
+    assert p.exists()
+
+
+def test_write_status_creates_deep_nested_parents(tmp_path):
+    p = tmp_path / "deep" / "nested" / "dir" / "status.md"
+    wd.write_status(p, "test status")
+    assert p.exists()
+
+
+def test_treatment_underperformed_raises_when_treatment_hr_is_none():
+    # W9-2: must raise ValueError on missing data instead of returning False
+    with pytest.raises(ValueError, match="cannot evaluate underperformance"):
+        wd._treatment_underperformed({
+            "sprt": {"control_hit_rate": 0.55}
+        })
+
+
+def test_treatment_underperformed_raises_when_control_hr_is_none():
+    # W9-2: must raise ValueError on missing data instead of returning False
+    with pytest.raises(ValueError, match="cannot evaluate underperformance"):
+        wd._treatment_underperformed({
+            "sprt": {"hit_rate": 0.55}
+        })
+
+
+def test_make_history_entry_populates_all_fields():
+    comp = {
+        "experiment": "test-exp",
+        "sprt": {
+            "decision": "continue",
+            "n": 100,
+            "k": 60,
+            "hit_rate": 0.60,
+            "control_n": 100,
+            "control_hit_rate": 0.55,
+        }
+    }
+    entry = wd._make_history_entry(
+        comp,
+        timestamp="2026-01-01T00:00:00Z",
+        source_path=Path("docs/ab_comparison.json"),
+        source_commit_sha="abcdef123",
+        source_workflow_run="12345",
+    )
+    assert entry["timestamp"] == "2026-01-01T00:00:00Z"
+    assert entry["experiment"] == "test-exp"
+    assert entry["control_n"] == 100
+    assert entry["control_k"] == 55
+    assert entry["control_hit_rate"] == 0.55
+    assert entry["treatment_n"] == 100
+    assert entry["treatment_k"] == 60
+    assert entry["treatment_hit_rate"] == 0.60
+    assert entry["treatment_underperformed"] is False
+    assert entry["sprt_decision_single_run"] == "continue"
+    assert entry["source"]["path"] == "docs/ab_comparison.json"
+    assert entry["source"]["commit_sha"] == "abcdef123"
+    assert entry["source"]["workflow_run"] == "12345"
+

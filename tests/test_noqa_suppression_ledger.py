@@ -230,6 +230,8 @@ def _iter_python_files() -> list[Path]:
     for path in _ROOT.rglob("*.py"):
         if any(part in _DIR_EXCLUDE for part in path.relative_to(_ROOT).parts):
             continue
+        if path.name.startswith("mutation_"):
+            continue
         out.append(path)
     return out
 
