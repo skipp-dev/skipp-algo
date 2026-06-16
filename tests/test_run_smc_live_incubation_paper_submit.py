@@ -9,6 +9,7 @@ paper-only by construction — a live phase that passes it is refused outright.
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -135,6 +136,61 @@ def test_paper_submit_fn_uses_paper_port_by_default() -> None:
     # Defense in depth: the default connection config must bind the paper
     # port so the DU* guard in place_order_intents is always engaged.
     assert IBKRConnectionConfig().port == PAPER_PORT
+
+
+def test_paper_submit_fn_batches_mixed_exit_modes() -> None:
+    """_build_paper_submit_fn must issue one submit call per exit_mode group
+    and produce per-batch audit rows (not one global action for all intents)."""
+    base_intent = next(iter(_intents()))
+    intent_tp = replace(base_intent, order_ref="tp-ref", exit_mode="tp-stop")
+    intent_trail = replace(base_intent, order_ref="trail-ref", exit_mode="tp-trail")
+    all_intents = [intent_tp, intent_trail]
+
+    placer = _FakePlacer()
+    submit = _build_paper_submit_fn(
+        connection_cfg=IBKRConnectionConfig(),
+        execution_cfg=IBKRWatchlistExecutionConfig(exit_mode="tp-stop"),
+        place_fn=placer,
+    )
+
+    results = submit(all_intents)
+
+    # Two separate submit calls — one per exit_mode group
+    assert len(placer.calls) == 2
+    exit_modes_used = {c["execution_cfg"].exit_mode for c in placer.calls}
+    assert exit_modes_used == {"tp-stop", "tp-trail"}
+    # Each intent's audit row must reflect its own batch outcome
+    assert len(results) == 2
+    result_by_id = {r["intent_id"]: r["action"] for r in results}
+    assert result_by_id["tp-ref"] == "paper_submitted"
+    assert result_by_id["trail-ref"] == "paper_submitted"
+
+
+def test_paper_submit_fn_batch_exception_marks_only_that_batch_failed() -> None:
+    """If one exit_mode batch's submit raises, those intents get submit_failed
+    while intents in the successful batch keep paper_submitted — and the
+    exception must NOT propagate (audit integrity)."""
+    base_intent = next(iter(_intents()))
+    intent_tp = replace(base_intent, order_ref="tp-ok", exit_mode="tp-stop")
+    intent_trail = replace(base_intent, order_ref="trail-fail", exit_mode="tp-trail")
+    all_intents = [intent_tp, intent_trail]
+
+    def selective_placer(intents, *, connection_cfg, execution_cfg):
+        if execution_cfg.exit_mode == "tp-trail":
+            raise RuntimeError("simulated IBKR error")
+        return {"placements": [{"symbol": i.symbol, "orders": []} for i in intents]}
+
+    submit = _build_paper_submit_fn(
+        connection_cfg=IBKRConnectionConfig(),
+        execution_cfg=IBKRWatchlistExecutionConfig(exit_mode="tp-stop"),
+        place_fn=selective_placer,
+    )
+
+    results = submit(all_intents)  # must not raise
+
+    result_by_id = {r["intent_id"]: r["action"] for r in results}
+    assert result_by_id["tp-ok"] == "paper_submitted"
+    assert result_by_id["trail-fail"] == "submit_failed"
 
 
 # ── CLI: --place-paper-orders wiring ───────────────────────────────
