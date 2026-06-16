@@ -383,6 +383,22 @@ Wenn der User "merge", "mergeable machen" oder "Konflikte lösen" sagt:
 Wenn nach einem Push auf CI-Ergebnis gewartet werden muss:
 **Niemals idle warten.** Stattdessen sofort:
 
+0. **Branch-Aktualität prüfen — bevor man überhaupt auf CI wartet:**
+   ```bash
+   gh pr view <N> --json mergeable,mergeStateStatus \
+     --jq '{mergeable, mergeStateStatus}'
+   ```
+   Wenn `mergeStateStatus == "BEHIND"` (GitHub-Meldung: "The head branch is
+   not up to date with the base branch"): sofort rebasen und pushen.
+   Ein CI-Lauf auf einem outdated Branch ist verschwendete Zeit und blockiert
+   ohnehin den Merge:
+   ```bash
+   git fetch origin main
+   git rebase origin/main
+   git push --force-with-lease origin <branch>
+   ```
+   Erst nach dem Push des aktualisierten Branch den neuen CI-Lauf abwarten.
+
 1. Alle offenen Review-Threads des PRs holen (inline + GraphQL, nicht nur
    `gh pr view`):
    ```bash
