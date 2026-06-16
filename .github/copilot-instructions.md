@@ -304,7 +304,7 @@ selbständig folgende Checks lokal ausführen und alle Fehler direkt fixen:
 
 **1. Ruff-Lint + Auto-Fix:**
 ```bash
-cd /Users/spreuss/Documents/skipp-algo
+cd "$(git rev-parse --show-toplevel)"
 .venv/bin/python -m ruff check --fix .
 .venv/bin/python -m ruff check .          # must exit 0
 ```

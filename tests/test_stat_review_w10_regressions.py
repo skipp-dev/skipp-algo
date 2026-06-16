@@ -143,35 +143,40 @@ class TestW10_2_SPRTSpecPath:
     def test_spec_path_builds_sprt_config_from_spec(
         self, tmp_path: Path
     ) -> None:
-        """When --spec-path is passed, main() parses the spec JSON and builds a
-        SPRTConfig with p0/p1 matching the spec — NOT the module-level defaults."""
-        spec = self._make_spec(tmp_path, p0=0.544, p1=0.574)
+        """W10-2: when --spec-path is passed, main() must load p0/p1 from the
+        spec JSON and reach the SPRT-building code without error.
 
-        # Exercise the spec-loading code path directly (avoiding full treatment-
-        # dir parsing) by calling the inline JSON-load block that was added by
-        # the W10-2 fix.  We do this by importing run_ab_comparison, building
-        # the args namespace manually, and replicating the spec-load logic to
-        # verify it produces the correct SPRTConfig.
+        Drives main() end-to-end with minimal (empty) benchmark manifests so it
+        exits(1) from the empty-pairs guard — not from a spec parse error.
+        Any KeyError/TypeError in spec loading would surface as an unhandled
+        exception here, failing the test.
+        """
         import json as _json
 
-        from scripts.run_ab_comparison import SPRT_ALPHA, SPRT_BETA, SPRTConfig  # type: ignore[import]
+        spec = self._make_spec(tmp_path, p0=0.544, p1=0.574)
+        # Minimal manifests so load_benchmark() returns [] instead of raising.
+        for d in ("ctrl", "trt"):
+            bd = tmp_path / d
+            bd.mkdir(exist_ok=True)
+            (bd / "benchmark_run_manifest.json").write_text(
+                _json.dumps({"pair_runs": []}), encoding="utf-8"
+            )
+        out_dir = tmp_path / "out"
 
-        _spec = _json.loads(spec.read_text())
-        _s = _spec.get("sprt", {})
-        cfg = SPRTConfig(
-            p0=float(_s["p0"]),
-            p1=float(_s["p1"]),
-            alpha=float(_s.get("alpha", SPRT_ALPHA)),
-            beta=float(_s.get("beta", SPRT_BETA)),
-            max_n=int(_s["max_n"]) if "max_n" in _s else None,
-        )
-        assert cfg.p0 == pytest.approx(0.544), (
-            f"W10-2: spec p0=0.544 not loaded — got p0={cfg.p0}"
-        )
-        assert cfg.p1 == pytest.approx(0.574), (
-            f"W10-2: spec p1=0.574 not loaded — got p1={cfg.p1}"
-        )
+        from scripts.run_ab_comparison import main  # type: ignore[import]
 
+        with pytest.raises(SystemExit) as exc_info:
+            main([
+                "--control-dir", str(tmp_path / "ctrl"),
+                "--treatment-dir", str(tmp_path / "trt"),
+                "--spec-path", str(spec),
+                "--output-dir", str(out_dir),
+            ])
+        # exit(1) = empty benchmark dirs — spec was loaded successfully.
+        assert exc_info.value.code == 1, (
+            "Expected exit(1) for empty benchmark dirs after successful spec "
+            f"load; got exit({exc_info.value.code})."
+        )
     def test_module_defaults_differ_from_spec(self) -> None:
         """Regression: confirm the module defaults ARE different from the spec
         values so we know the spec-path path is doing real work."""

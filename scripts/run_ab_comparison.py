@@ -1042,8 +1042,8 @@ def main(argv: list[str] | None = None) -> None:
             sys.exit(1)
         try:
             _spec = json.loads(args.spec_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
-            print(f"ERROR: invalid JSON in {args.spec_path}: {exc}", file=sys.stderr)
+        except (OSError, json.JSONDecodeError) as exc:
+            print(f"ERROR: cannot read {args.spec_path}: {exc}", file=sys.stderr)
             sys.exit(1)
         _s = _spec.get("sprt", {})
         try:
