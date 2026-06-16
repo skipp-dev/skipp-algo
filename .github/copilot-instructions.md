@@ -247,12 +247,17 @@ Reihenfolge: Copilot-Threads fixen → andere PRs auf DIRTY/BEHIND prüfen → R
 Bei "merge" / "mergeable machen" / "Konflikte lösen":
 
 ```bash
-gh pr list --state open --json number,title,mergeable,headRefName | head -20
+gh pr view <N> --json mergeStateStatus,autoMergeRequest
 ```
 
-- MERGEABLE + grüne Checks → mergen
-- DIRTY → rebasen (STOP-Regel oben)
-- CONFLICTING → rebase + force-push
+**Pflicht-Sequenz vor jedem Merge-Versuch:**
+1. `mergeStateStatus` prüfen — NIEMALS blind `gh pr merge` aufrufen
+2. BEHIND → zuerst `gh api repos/skippALGO/skipp-algo/pulls/<N>/update-branch -X PUT` → CI abwarten → dann erst mergen
+3. DIRTY → rebasen (STOP-Regel oben)
+4. MERGEABLE + grüne Checks → `gh pr merge <N> --squash`
+
+**VERBOTEN:** `gh pr merge` aufrufen, scheitern lassen, dann Branch updaten — das kostet 20+ Minuten CI-Rerun unnötig.
+
 - Copilot-Review via API holen (nicht `gh pr view` allein)
 
 ---
