@@ -47,13 +47,23 @@ name: smc-databento-production-export-sharded
 on:
   # F-V8-cutover (2026-05-18): promoted from off-hours probe (02:00 UTC)
   # to the canonical 3x/day cron — matching the monolithic producer schedule
-  # plus a 21:00 UTC post-market-close safety-net added 2026-06-15.
-  # 240-min handoff window to the library-refresh consumer (16:00/20:00 UTC)
-  # is preserved for the 12:00 and 16:00 ticks.
+  # Option-D (2026-06-16): 9 incremental ticks every ~2h from 08:00 to 22:00 UTC
+  # (Mon–Fri). All schedule triggers run incremental_from_manifest=true, narrowing
+  # each run to the delta since the last baked manifest (~2 days, ~2 shards,
+  # ~20 min runtime vs. 60 min full run). A matching consumer safety-net cron fires
+  # 60 min after each producer tick (see smc-library-refresh.yml). The 21:00 UTC
+  # tick covers the Databento same-day finalization window (data finalized after
+  # ~20:00 UTC).
   schedule:
-    - cron: "0 12 * * 1-5"   # 12:00 UTC – 240 min ahead of library-refresh 16:00 tick
-    - cron: "0 16 * * 1-5"   # 16:00 UTC – 240 min ahead of library-refresh 20:00 tick
+    - cron: "0 8 * * 1-5"    # 08:00 UTC – incremental tick (pre-market ET)
+    - cron: "0 10 * * 1-5"   # 10:00 UTC – incremental tick
+    - cron: "0 12 * * 1-5"   # 12:00 UTC – incremental tick (midday)
+    - cron: "0 14 * * 1-5"   # 14:00 UTC – incremental tick
+    - cron: "0 16 * * 1-5"   # 16:00 UTC – incremental tick
+    - cron: "0 18 * * 1-5"   # 18:00 UTC – incremental tick
+    - cron: "0 20 * * 1-5"   # 20:00 UTC – incremental tick (Databento finalizing)
     - cron: "0 21 * * 1-5"   # 21:00 UTC – post-market-close safety net (Databento same-day data finalized after 20:00 UTC)
+    - cron: "0 22 * * 1-5"   # 22:00 UTC – incremental tick (post-close confirmation)
   workflow_dispatch:
     inputs:
       lookback_days:
@@ -126,8 +136,9 @@ jobs:
           # unbaked tail via the opt-in --last-baked-date flag. INCREMENTAL is
           # derived with the boolean-safe truthy form (same shape as the
           # cache-probe toggle): a boolean-typed input is never compared to a
-          # string literal, and schedule triggers collapse to empty.
-          INCREMENTAL="${{ inputs.incremental_from_manifest && 'true' || '' }}"
+          # string literal. Option-D (2026-06-16): all schedule triggers also
+          # set INCREMENTAL so every cron tick runs a fast delta-only scan.
+          INCREMENTAL="${{ (inputs.incremental_from_manifest || github.event_name == 'schedule') && 'true' || '' }}"
           MANIFEST="pine/generated/smc_micro_profiles_generated.json"
           ASOF=""
           if [ -f "${MANIFEST}" ]; then
