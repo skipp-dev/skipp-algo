@@ -48,6 +48,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from scripts.smc_atomic_write import atomic_write_json
+
 
 def _load_events(path: Path) -> list[dict[str, Any]]:
     """Load a JSON list of FamilyEvent dicts; return [] on any read error."""
@@ -175,10 +177,7 @@ def main(argv: list[str] | None = None) -> int:
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(
-        json.dumps(merged, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
+    atomic_write_json(merged, output_path, indent=2, sort_keys=True)
 
     family_counts: dict[str, int] = {}
     for event in merged:
