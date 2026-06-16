@@ -297,6 +297,35 @@ and will fail CI.
   Checks in `main` mergen.
 - Vor jedem Commit: `uv run ruff check` und `uv run ruff format --check`.
 
+### Pre-CI-Gate (Pflicht vor jedem `git push`)
+
+**Bevor der Agent `git push` ausführt oder CI anstößt**, muss er
+selbständig folgende Checks lokal ausführen und alle Fehler direkt fixen:
+
+**1. Ruff-Lint + Auto-Fix:**
+```bash
+cd "$(git rev-parse --show-toplevel)"
+.venv/bin/python -m ruff check --fix .
+.venv/bin/python -m ruff check .          # must exit 0
+```
+Wenn nach `--fix` noch Fehler bleiben: manuell fixen, commit, dann erst pushen.
+
+**2. Ledger-Pin-Tests (targeted, ~10s):**
+```bash
+.venv/bin/python -m pytest \
+  tests/test_global_statement_budget.py \
+  tests/test_noqa_suppression_ledger.py \
+  tests/test_path_text_io_encoding_ledger.py \
+  tests/test_atomic_write_call_sites.py \
+  -q --no-header 2>&1 | tail -5
+```
+Bei Failure: Ledger-Einträge ergänzen oder die auslösende Änderung
+korrigieren — erst dann pushen.
+
+**Niemals pushen mit bekannten Ruff-Fehlern oder Ledger-Brüchen.**
+Ein CI-Run mit Ruff/Ledger-Failure ist ein Regelverstoß, der durch
+30 Sekunden lokale Prüfung vermeidbar gewesen wäre.
+
 ### Verifikationsregel
 
 Niemals davon ausgehen, dass Code funktioniert. Immer ausführen und Output
@@ -428,6 +457,58 @@ git worktree remove /path/to/worktree --force
 git branch -d <branch-name>   # lokal
 ```
 Kein gemergter PR darf einen ungenutzten Worktree zurücklassen.
+
+## Keine Idle-Zeit — Produktive Wartezeit nutzen
+
+**Grundregel:** Der Agent wartet nie passiv. Nach jedem `git push` oder
+wann immer CI läuft, wird die Wartezeit vollständig produktiv genutzt.
+
+### Nach jedem `git push` sofort ausführen (parallel zu CI):
+
+**1. Offene Copilot-Review-Threads holen** (inline + unresolved):
+```bash
+# Inline-Comments (pro Zeile):
+gh api repos/skippALGO/skipp-algo/pulls/<N>/comments --paginate \
+  | python3 -c "import sys,json; [print(f\"{c['path']}:{c.get('line')} — {c['body'][:120]}\") for c in json.load(sys.stdin,strict=False) if 'opilot' in c['user']['login'].lower()]"
+
+# Unresolved Threads (GraphQL):
+gh api graphql -f query='query{repository(owner:"skippALGO",name:"skipp-algo"){pullRequest(number:<N>){reviewThreads(first:100){nodes{id isResolved isOutdated path line comments(first:1){nodes{author{login} body}}}}}}}' \
+  | python3 -c "import sys,json; d=json.loads(sys.stdin.read(),strict=False); [print(t['id'],t['path'],t['comments']['nodes'][0]['body'][:100]) for t in d['data']['repository']['pullRequest']['reviewThreads']['nodes'] if not t['isResolved'] and not t['isOutdated']]"
+```
+
+**2. Alle offenen PRs scannen:**
+```bash
+gh pr list --repo skippALGO/skipp-algo --state open \
+  --json number,title,mergeable,isDraft,reviewDecision,headRefName \
+  | python3 -c "import sys,json; [print(f\"#{p['number']} {p['title'][:60]} | merge={p['mergeable']} | review={p['reviewDecision']}\") for p in json.load(sys.stdin)]"
+```
+
+**3. Fehlgeschlagene CI-Runs auf dem aktuellen Branch prüfen:**
+```bash
+gh run list --repo skippALGO/skipp-algo --branch <branch> --limit 3 \
+  --json status,conclusion,headSha,name \
+  | python3 -c "import sys,json; [print(f\"{r['name']}: {r['conclusion']} @ {r['headSha'][:8]}\") for r in json.load(sys.stdin)]"
+```
+
+### Priorisierung während Wartezeit:
+
+| Priorität | Aktion |
+|-----------|--------|
+| 1 | Offene Copilot-Threads fixen oder als stale resolven |
+| 2 | Andere offene PRs auf Conflicts/Failures prüfen |
+| 3 | Lokale Ruff/Ledger-Validierung auf geänderten Dateien |
+| 4 | Stale Threads resolven (bereits gefixt, nur noch auflösen) |
+| 5 | Wenn alles erledigt: kurze Status-Zusammenfassung ausgeben |
+
+### Wann CI-Ergebnis auswerten:
+
+Erst NACH dem Review-Backlog-Durchlauf das CI-Ergebnis prüfen:
+- Grün + kein offener Thread → merge (oder auto-merge bestätigen)
+- Rot → `gh run view <id> --log-failed | tail -60` → direkt fixen
+- Neue Copilot-Threads nach CI → Runde wiederholen
+
+**Niemals:** "Ich warte auf CI-Ergebnis" ohne gleichzeitig Punkte 1–4
+abzuarbeiten. Jede Idle-Aussage ist ein Regelverstoß.
 
 ## Env-Var-Disziplin
 
