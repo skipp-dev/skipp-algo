@@ -1,0 +1,114 @@
+// @version=6
+// @description SMC Live Overlay Consumer — fetches live overlay data from the
+// Railway daemon and exposes all 16 fields as readable inputs/labels.
+// Replace DAEMON_URL and TOKEN with your actual values before publishing.
+//
+// Security: the TOKEN is embedded in the URL. Keep this script invite-only
+// (do not publish publicly). Rotate TOKEN monthly in Railway + update here.
+
+indicator("SMC Live Overlay", overlay=false, max_labels_count=1)
+
+// ---------------------------------------------------------------------------
+// Configuration inputs
+// ---------------------------------------------------------------------------
+var string DAEMON_URL = "https://liveoverlaydaemon-production.up.railway.app"
+var string TOKEN       = input.string("REPLACE_WITH_YOUR_TOKEN", title="Overlay Token", tooltip="OVERLAY_SECRET_TOKEN from Railway")
+
+// ---------------------------------------------------------------------------
+// Fetch overlay payload (once per bar close)
+// ---------------------------------------------------------------------------
+_sym = syminfo.ticker
+_tf  = timeframe.period
+_url = DAEMON_URL + "/" + TOKEN + "/smc_live?symbol=" + _sym + "&tf=" + _tf
+
+[_resp_status, _resp_headers, _resp_body] = request.raw(_url, "GET", na, na, barmerge.gaps_on, barmerge.lookahead_off)
+
+// ---------------------------------------------------------------------------
+// Parse JSON fields
+// ---------------------------------------------------------------------------
+_stale               = str.contains(_resp_body, "\"stale\":true")
+_news_strength       = _stale ? na : math.round(nz(json.get(json.parse(_resp_body), "news_strength"), 0), 4)
+_news_bias           = _stale ? "n/a" : str.tostring(json.get(json.parse(_resp_body), "news_bias"))
+_flow_rel_vol        = _stale ? na : math.round(nz(json.get(json.parse(_resp_body), "flow_rel_vol"), 0), 3)
+_flow_delta_pct      = _stale ? na : math.round(nz(json.get(json.parse(_resp_body), "flow_delta_proxy_pct"), 0), 2)
+_squeeze_on          = not _stale and str.contains(_resp_body, "\"squeeze_on\":true")
+_ats_state           = _stale ? "n/a" : str.tostring(json.get(json.parse(_resp_body), "ats_state"))
+_ats_zscore          = _stale ? na : math.round(nz(json.get(json.parse(_resp_body), "ats_zscore"), 0), 2)
+_vix_level           = _stale ? na : math.round(nz(json.get(json.parse(_resp_body), "vix_level"), 0), 2)
+_tone                = _stale ? "n/a" : str.tostring(json.get(json.parse(_resp_body), "tone"))
+_global_heat         = _stale ? na : math.round(nz(json.get(json.parse(_resp_body), "global_heat"), 0), 3)
+_ev_state            = _stale ? "n/a" : str.tostring(json.get(json.parse(_resp_body), "event_window_state"))
+_ev_risk             = _stale ? "n/a" : str.tostring(json.get(json.parse(_resp_body), "event_risk_level"))
+_ev_name             = _stale ? "n/a" : str.tostring(json.get(json.parse(_resp_body), "next_event_name"))
+_mkt_blocked         = not _stale and str.contains(_resp_body, "\"market_event_blocked\":true")
+_sym_blocked         = not _stale and str.contains(_resp_body, "\"symbol_event_blocked\":true")
+
+// ---------------------------------------------------------------------------
+// Plots — expose as named series so other scripts can import them
+// ---------------------------------------------------------------------------
+plot(_news_strength,    title="news_strength",       color=color.new(color.yellow, 0),  display=display.none)
+plot(_flow_rel_vol,     title="flow_rel_vol",         color=color.new(color.aqua, 0),    display=display.none)
+plot(_flow_delta_pct,   title="flow_delta_proxy_pct", color=color.new(color.orange, 0),  display=display.none)
+plot(_ats_zscore,       title="ats_zscore",           color=color.new(color.purple, 0),  display=display.none)
+plot(_vix_level,        title="vix_level",            color=color.new(color.red, 0),     display=display.none)
+plot(_global_heat,      title="global_heat",          color=color.new(color.lime, 0),    display=display.none)
+
+// Boolean plots (1.0 = true)
+plot(_squeeze_on  ? 1.0 : 0.0, title="squeeze_on",          display=display.none)
+plot(_mkt_blocked ? 1.0 : 0.0, title="market_event_blocked", display=display.none)
+plot(_sym_blocked ? 1.0 : 0.0, title="symbol_event_blocked", display=display.none)
+
+// ---------------------------------------------------------------------------
+// Dashboard table (optional visual — toggle off in indicator settings)
+// ---------------------------------------------------------------------------
+var bool SHOW_TABLE = input.bool(true, title="Show Dashboard Table")
+
+var table _tbl = table.new(position.top_right, 2, 18,
+    border_width=1, border_color=color.new(color.gray, 60),
+    bgcolor=color.new(color.black, 75))
+
+_bias_col  = _news_bias  == "bullish" ? color.green  : (_news_bias  == "bearish" ? color.red : color.gray)
+_tone_col  = _tone       == "risk-on" ? color.green  : (_tone       == "risk-off" ? color.red : color.gray)
+_ats_col   = _ats_state  == "accumulation" ? color.green : (_ats_state == "distribution" ? color.red : color.gray)
+_ev_col    = _ev_risk    == "high" ? color.red : (_ev_risk == "medium" ? color.orange : color.gray)
+_stale_col = _stale ? color.red : color.new(color.gray, 80)
+
+if SHOW_TABLE and barstate.islast
+    // header
+    table.cell(_tbl, 0, 0,  "Field",          text_color=color.white, bgcolor=color.new(color.navy, 20), text_size=size.small)
+    table.cell(_tbl, 1, 0,  "Value",          text_color=color.white, bgcolor=color.new(color.navy, 20), text_size=size.small)
+    // rows
+    table.cell(_tbl, 0, 1,  "Status",         text_color=color.gray,  text_size=size.small)
+    table.cell(_tbl, 1, 1,  _stale ? "STALE" : "live", text_color=_stale_col, text_size=size.small)
+    table.cell(_tbl, 0, 2,  "news_strength",  text_color=color.gray,  text_size=size.small)
+    table.cell(_tbl, 1, 2,  na(  _news_strength) ? "n/a" : str.tostring(_news_strength, "#.####"), text_color=color.white, text_size=size.small)
+    table.cell(_tbl, 0, 3,  "news_bias",      text_color=color.gray,  text_size=size.small)
+    table.cell(_tbl, 1, 3,  _news_bias,       text_color=_bias_col,   text_size=size.small)
+    table.cell(_tbl, 0, 4,  "flow_rel_vol",   text_color=color.gray,  text_size=size.small)
+    table.cell(_tbl, 1, 4,  na(_flow_rel_vol) ? "n/a" : str.tostring(_flow_rel_vol, "#.###"), text_color=color.white, text_size=size.small)
+    table.cell(_tbl, 0, 5,  "flow_delta%",    text_color=color.gray,  text_size=size.small)
+    table.cell(_tbl, 1, 5,  na(_flow_delta_pct) ? "n/a" : str.tostring(_flow_delta_pct, "#.##") + "%", text_color=color.white, text_size=size.small)
+    table.cell(_tbl, 0, 6,  "squeeze_on",     text_color=color.gray,  text_size=size.small)
+    table.cell(_tbl, 1, 6,  _squeeze_on ? "YES" : "no", text_color=_squeeze_on ? color.orange : color.gray, text_size=size.small)
+    table.cell(_tbl, 0, 7,  "ats_state",      text_color=color.gray,  text_size=size.small)
+    table.cell(_tbl, 1, 7,  _ats_state,       text_color=_ats_col,    text_size=size.small)
+    table.cell(_tbl, 0, 8,  "ats_zscore",     text_color=color.gray,  text_size=size.small)
+    table.cell(_tbl, 1, 8,  na(_ats_zscore) ? "n/a" : str.tostring(_ats_zscore, "#.##"), text_color=color.white, text_size=size.small)
+    table.cell(_tbl, 0, 9,  "vix_level",      text_color=color.gray,  text_size=size.small)
+    table.cell(_tbl, 1, 9,  na(_vix_level) ? "n/a" : str.tostring(_vix_level, "#.##"), text_color=color.white, text_size=size.small)
+    table.cell(_tbl, 0, 10, "tone",           text_color=color.gray,  text_size=size.small)
+    table.cell(_tbl, 1, 10, _tone,            text_color=_tone_col,   text_size=size.small)
+    table.cell(_tbl, 0, 11, "global_heat",    text_color=color.gray,  text_size=size.small)
+    table.cell(_tbl, 1, 11, na(_global_heat) ? "n/a" : str.tostring(_global_heat, "#.###"), text_color=color.white, text_size=size.small)
+    table.cell(_tbl, 0, 12, "event_state",    text_color=color.gray,  text_size=size.small)
+    table.cell(_tbl, 1, 12, _ev_state,        text_color=color.white, text_size=size.small)
+    table.cell(_tbl, 0, 13, "event_risk",     text_color=color.gray,  text_size=size.small)
+    table.cell(_tbl, 1, 13, _ev_risk,         text_color=_ev_col,     text_size=size.small)
+    table.cell(_tbl, 0, 14, "next_event",     text_color=color.gray,  text_size=size.small)
+    table.cell(_tbl, 1, 14, _ev_name,         text_color=color.white, text_size=size.small)
+    table.cell(_tbl, 0, 15, "mkt_blocked",    text_color=color.gray,  text_size=size.small)
+    table.cell(_tbl, 1, 15, _mkt_blocked ? "BLOCKED" : "clear", text_color=_mkt_blocked ? color.red : color.gray, text_size=size.small)
+    table.cell(_tbl, 0, 16, "sym_blocked",    text_color=color.gray,  text_size=size.small)
+    table.cell(_tbl, 1, 16, _sym_blocked ? "BLOCKED" : "clear", text_color=_sym_blocked ? color.red : color.gray, text_size=size.small)
+    table.cell(_tbl, 0, 17, "symbol",         text_color=color.gray,  text_size=size.small)
+    table.cell(_tbl, 1, 17, _sym + " / " + _tf, text_color=color.white, text_size=size.small)
