@@ -31,6 +31,8 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s — %(message)s",
 )
+# Suppress per-symbol INFO flood from Databento client (500+ msgs/sec on startup)
+logging.getLogger("databento.live.client").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 _startup_ts: float = 0.0
