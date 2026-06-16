@@ -21,6 +21,7 @@ Design notes
 from __future__ import annotations
 
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 
@@ -78,7 +79,7 @@ class TestF2SPRTConstantDrift:
         """SPRT_P0 must be the documented fallback 0.55 (G3 lifetime-corpus median)."""
         from scripts.run_ab_comparison import SPRT_P0
 
-        assert SPRT_P0 == pytest.approx(0.55, abs=1e-9), (
+        assert pytest.approx(0.55, abs=1e-9) == SPRT_P0, (
             f"SPRT_P0 changed from documented value 0.55 to {SPRT_P0}. "
             "Accidental edit? Update this pin if the change is intentional."
         )
@@ -87,7 +88,7 @@ class TestF2SPRTConstantDrift:
         """SPRT_P1 must be the documented fallback 0.60 (G3 +5pp MDE)."""
         from scripts.run_ab_comparison import SPRT_P1
 
-        assert SPRT_P1 == pytest.approx(0.60, abs=1e-9), (
+        assert pytest.approx(0.60, abs=1e-9) == SPRT_P1, (
             f"SPRT_P1 changed from documented value 0.60 to {SPRT_P1}. "
             "Accidental edit? Update this pin if the change is intentional."
         )
@@ -125,11 +126,11 @@ class TestF2SPRTConstantDrift:
         """
         from scripts.run_ab_comparison import SPRT_P0, SPRT_P1
 
-        assert SPRT_P0 != pytest.approx(f2_spec_sprt["p0"], abs=1e-6), (
+        assert pytest.approx(f2_spec_sprt["p0"], abs=1e-6) != SPRT_P0, (
             "SPRT_P0 now matches the spec exactly. That is unexpected for a "
             "fallback constant. If intentional, remove or update this sanity check."
         )
-        assert SPRT_P1 != pytest.approx(f2_spec_sprt["p1"], abs=1e-6), (
+        assert pytest.approx(f2_spec_sprt["p1"], abs=1e-6) != SPRT_P1, (
             "SPRT_P1 now matches the spec exactly. Unexpected for a fallback. "
             "If intentional, remove or update this sanity check."
         )
@@ -164,7 +165,9 @@ class TestF2SPRTMaxNPin:
 class TestAllSpecFilesLoadable:
     """Spec files must remain parseable and contain the required top-level keys."""
 
-    REQUIRED_KEYS = {"schema_version", "name", "sprt", "rollback_gate"}
+    REQUIRED_KEYS: ClassVar[frozenset[str]] = frozenset(
+        {"schema_version", "name", "sprt", "rollback_gate"}
+    )
 
     def _spec_paths(self) -> list[Path]:
         experiments_dir = REPO_ROOT / "artifacts" / "experiments"

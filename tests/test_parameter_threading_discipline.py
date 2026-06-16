@@ -13,12 +13,9 @@ one family.
 
 from __future__ import annotations
 
-from unittest.mock import call, patch
-
-import pytest
+from unittest.mock import patch
 
 from governance.promotion_gate import FamilyMetrics, GateThresholds
-
 
 # ---------------------------------------------------------------------------
 # Minimal helpers
