@@ -76,7 +76,7 @@ app = FastAPI(
 # /health — no auth, used by Railway healthcheck
 # ---------------------------------------------------------------------------
 
-@app.get("/health", include_in_schema=False)
+@app.api_route("/health", methods=["GET", "HEAD"], include_in_schema=False)
 def health() -> JSONResponse:
     uptime = time.monotonic() - _startup_ts if _startup_ts else 0
     return JSONResponse(
