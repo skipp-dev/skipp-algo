@@ -31,7 +31,7 @@ def _captured_n_concurrent(snapshots, **kwargs) -> int:
     was forwarded to GateThresholds.__init__."""
     from scripts.run_promotion_gate import build_report
 
-    captured: list[int] = []
+    captured: list[int | None] = []
     original_init = GateThresholds.__init__
 
     def _spy_init(self, *args, **kw):
