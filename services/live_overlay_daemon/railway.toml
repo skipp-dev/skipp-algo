@@ -1,9 +1,9 @@
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "Dockerfile"
+dockerfilePath = "services/live_overlay_daemon/Dockerfile"
 
 [deploy]
-startCommand = "uvicorn services.live_overlay_daemon.main:app --host 0.0.0.0 --port $PORT --workers 1"
+startCommand = "uvicorn services.live_overlay_daemon.main:app --host 0.0.0.0 --port $PORT --workers 1 --http h11"
 healthcheckPath = "/health"
 healthcheckTimeout = 60
 restartPolicyType = "ON_FAILURE"
