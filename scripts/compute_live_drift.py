@@ -77,6 +77,13 @@ import numpy as np
 # cut-points at a target false-positive / false-negative operating point.
 # Until that calibration is done, any automated gate that promotes/blocks
 # solely on the basis of these bands has an unknown error rate.
+# W9-7 carry-over / stat-review wave 10: the values are intentionally left
+# unchanged here — calibration requires a multi-month live-trading dataset
+# that is not yet available.  A TODO is tracked in GitHub issue #2798.
+# When calibration data is available, follow the ROC-calibration protocol
+# described in issue #2798 to derive principled values and remove this notice.
+# Until then, the bands below are engineering placeholders without a
+# statistical guarantee.
 _VERDICT_BANDS: tuple[tuple[float, str], ...] = (
     (0.85, "pass"),
     (0.65, "acceptable"),

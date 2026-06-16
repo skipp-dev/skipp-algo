@@ -52,6 +52,7 @@ node_modules/
 
 # Databento generated cache/runtime artifacts
 artifacts/databento_volatility_cache/
+artifacts/databento_reference_cache/
 
 # Local NewsAPI / shared-news probe and cache artifacts
 artifacts/manual_newsapi_*/
@@ -75,6 +76,8 @@ reports/open_prep_lists_*.html
 reports/open_prep_lists_*.csv
 reports/open_prep_full_run_*.json
 reports/open_prep_compare_*.json
+reports/open_prep_ranked_candidates_*.csv
+reports/open_prep_trade_cards_*.csv
 artifacts/smc_microstructure_exports/
 artifacts/tradingview/*.json
 artifacts/ops_run_report.json
@@ -96,9 +99,19 @@ synthetic/
 
 # C13 launchd cron status markers (local-only run-state breadcrumbs written by
 # automation/launchd/run-c13-*.sh — push/feed health, never canonical data).
+# Full cache subtrees (runtime data, never canonical)
+cache/imbalance/
+cache/live/
+cache/wsh/
 cache/*/.push_status_*
 cache/*/.feed_status_*
 cache/*/.ibkr_smoke_status_*
 
 # Local audit/planning docs (working notes, not canonical — keep off main)
 docs/audit-*.md
+
+# Continue IDE config (machine-local, contains absolute paths)
+.continue/
+
+# mutmut setup.cfg (contains absolute machine paths, not portable)
+setup.cfg
