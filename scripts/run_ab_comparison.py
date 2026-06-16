@@ -1034,7 +1034,7 @@ def main(argv: list[str] | None = None) -> None:
     # so callers get a clear error without waiting for I/O to fail elsewhere.
     sprt_config: SPRTConfig | None = None
     if args.spec_path is not None:
-        if not args.spec_path.exists():
+        if not args.spec_path.is_file():
             print(
                 f"ERROR: --spec-path {args.spec_path} does not exist",
                 file=sys.stderr,
