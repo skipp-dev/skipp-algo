@@ -103,7 +103,7 @@ _FROZEN_LEDGER: dict[str, int] = {
     "test_div.pine": 2,
 }
 
-_TOTAL_BUDGET = 986  # bumped 2026-04-30 (audit cascade from F-04 PR #1924) for 4 SMC overlay/exit/hold/VRVP files (+32 +13 +10 +55 = +110); was 876 (v3 phase 1).
+_TOTAL_BUDGET = 990  # bumped 2026-06-16 (feat/live-overlay-daemon): +4 var decls in pine/smc_live_overlay_consumer.pine (DAEMON_URL, TOKEN, SHOW_TABLE, _tbl); was 986.
 
 
 def _iter_pine() -> list[Path]:
