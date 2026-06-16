@@ -18,13 +18,14 @@ from pathlib import Path
 import pytest
 
 from scripts.collect_drift_calibration_corpus import main
+from smc_core.schema_version import SCHEMA_VERSION
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 _DRIFT_PAYLOAD = {
-    "schema_version": "1.3.0",
+    "schema_version": SCHEMA_VERSION,
     "computed_at": "2026-06-16T07:00:00+00:00",
     "live_window_days": 90,
     "variants": [
