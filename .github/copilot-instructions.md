@@ -449,6 +449,49 @@ eliminiert diese zweite Runde.
 **Gilt immer:** nach jedem `git push`, nicht nur bei explizitem
 "warte auf CI"-Hinweis vom User.
 
+## Ledger-Drift-Pflicht (nach jedem Cherry-Pick / Rebase)
+
+Wenn Commits cherry-gepickt oder ein Branch auf main rebased wird, können sich
+Zeilennummern verschieben. **Vor jedem Push nach Cherry-Pick/Rebase:**
+
+```bash
+# 1. Prüfe HMAC_ALLOWED Ledger-Pin
+grep -n "compare_digest" services/live_overlay_daemon/main.py
+grep -n "compare_digest" tests/test_hmac_auth_zero_surface.py
+# Zeilennummern müssen übereinstimmen
+
+# 2. Lokale Ledger-Tests laufen lassen
+.venv/bin/python -m pytest tests/test_hmac_auth_zero_surface.py \
+  tests/test_global_statement_budget.py \
+  tests/test_noqa_suppression_ledger.py -q
+```
+
+Falls die Ledger-Tests lokal schlagen — **nie** mit `--no-verify` pushen ohne
+sie zu fixen. `--no-verify` ist nur erlaubt wenn die Ledger-Tests grün sind
+(pre-push hook überspringen bei bekannt-sauberem Stand).
+
+Betrifft insbesondere:
+- `tests/test_hmac_auth_zero_surface.py` → `HMAC_ALLOWED` frozenset,
+  enthält `(file, line, attr)` Tuples
+- `tests/test_global_statement_budget.py` → `_FROZEN_SITES`, `_KNOWN_HOTSPOTS`
+- `tests/test_noqa_suppression_ledger.py` → noqa-Zeilen-Ledger
+
+## Ruff-Pflicht (vor jedem Push)
+
+```bash
+.venv/bin/ruff check .
+.venv/bin/ruff format --check .
+```
+
+Besonders nach dem Hinzufügen neuer Testdateien: Ruff prüft auch `tests/`.
+Häufige Fallen in neuen Tests:
+- `I001` — unsortierte Imports (ruff check --fix behebt automatisch)
+- `F401` — unused import (z. B. `pytest` importiert aber kein `@pytest.mark.*`)
+- `RUF012` — mutable class attribute ohne `ClassVar` annotation
+
+**Nie** einen Commit pushen, bevor `ruff check .` lokal grün ist.
+`fast-gates` schlägt sonst sofort an und erzwingt einen weiteren Push-Zyklus.
+
 ### Worktree-Cleanup
 
 Nach dem Mergen eines PRs den zugehörigen Worktree entfernen:
