@@ -40,8 +40,7 @@ for _line in _env_path.read_text(encoding="utf-8").splitlines():
 if not _api_key:
     sys.exit("ERROR: DATABENTO_API_KEY not found in .env")
 
-import databento as db  # noqa: E402 — after sys.path check
-
+import databento as db
 
 # ---------------------------------------------------------------------------
 # Config
@@ -54,7 +53,7 @@ UNIVERSE_SIZE = 6_889
 # Replay today's session from open (13:30 UTC = NYSE open).
 # We stream live and stop after MAX_RECORDS records (or 60s wall-clock, whichever comes first).
 # ohlcv-1m bars only emit at bar-close, so during live market we expect 1 bar/min/ticker.
-REPLAY_START = datetime.datetime(2026, 6, 14, 0, 0, tzinfo=datetime.timezone.utc)  # earliest available
+REPLAY_START = datetime.datetime(2026, 6, 14, 0, 0, tzinfo=datetime.UTC)  # earliest available
 MAX_RECORDS = 100   # stop after this many data records (excluding system records)
 WALL_TIMEOUT_S = 8   # stop after this many wall-clock seconds regardless (short for pre-market runs)
 
@@ -182,7 +181,7 @@ def main() -> None:
     # ---------------------------------------------------------------------------
     # Extrapolation to full universe
     # ---------------------------------------------------------------------------
-    scale = UNIVERSE_SIZE / max(len(SYMBOLS), 1)
+    UNIVERSE_SIZE / max(len(SYMBOLS), 1)
     print("=" * 60)
     print(f"EXTRAPOLATION → {UNIVERSE_SIZE} tickers")
     print("=" * 60)
