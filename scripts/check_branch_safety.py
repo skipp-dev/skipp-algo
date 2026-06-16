@@ -22,7 +22,7 @@ import sys
 def _current_branch() -> str:
     try:
         result = subprocess.run(
-            ["git", "branch", "--show-current"],
+            ["git", "branch", "--show-current"],  # noqa: S607
             capture_output=True,
             text=True,
             check=True,
