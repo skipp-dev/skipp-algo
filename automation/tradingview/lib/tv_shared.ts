@@ -1494,13 +1494,29 @@ function formatEditorDiagnostics(diagnostics: EditorDiagnostics): string {
 }
 
 function formatPageLifecycleDiagnostics(diagnostics: PageLifecycleDiagnostics): string {
+  // Build a compact type-frequency map from recent events so a timeout message
+  // surfaces *which* events fired (e.g. "step-start×3, tv-trace×18, step-error×4")
+  // rather than just a raw count.  This makes closeModal timeouts immediately
+  // actionable without having to download a trace archive.
+  const typeCounts = new Map<string, number>();
+  for (const ev of diagnostics.recentEvents) {
+    typeCounts.set(ev.type, (typeCounts.get(ev.type) ?? 0) + 1);
+  }
+  const eventBreakdown =
+    typeCounts.size > 0
+      ? [...typeCounts.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .map(([t, n]) => `${t}×${n}`)
+          .join(" ")
+      : "none";
+
   return [
     `pageClosed ${diagnostics.pageClosed}`,
     `pageCrashed ${diagnostics.pageCrashed}`,
     `contextClosed ${diagnostics.contextClosed}`,
     `browserDisconnected ${diagnostics.browserDisconnected}`,
     diagnostics.activeStep ? `activeStep ${diagnostics.activeStep}` : "activeStep none",
-    `events ${diagnostics.eventCount}`,
+    `events ${diagnostics.eventCount} [${eventBreakdown}]`,
     diagnostics.currentUrl ? `url ${diagnostics.currentUrl}` : "url unavailable",
   ].join(", ");
 }

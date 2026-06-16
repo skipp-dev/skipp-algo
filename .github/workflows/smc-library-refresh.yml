@@ -298,7 +298,18 @@ jobs:
             exit 0
           fi
 
-          echo "::error::Self-hosted runner is missing a usable Python 3.12 interpreter (tried \`python\` and \`py -3.12\`)."
+          # Additional fallback candidates for self-hosted Linux/macOS runners
+          # that expose the interpreter under a versioned name.
+          for candidate in python3.12 python3; do
+            if command -v "$candidate" >/dev/null 2>&1; then
+              if "$candidate" -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 12) else 1)" 2>/dev/null; then
+                echo "SMC_PYTHON_BIN=$candidate" >> "$GITHUB_ENV"
+                exit 0
+              fi
+            fi
+          done
+
+          echo "::error::Self-hosted runner is missing a usable Python 3.12 interpreter (tried \`python\`, \`py -3.12\`, \`python3.12\`, \`python3\`)."
           exit 1
 
       - name: Set up Node
