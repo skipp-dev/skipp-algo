@@ -57,7 +57,8 @@ def _record_to_bar(record: Any) -> dict[str, Any] | None:
             "low": getattr(record, "low", 0) / 1e9,
             "close": getattr(record, "close", 0) / 1e9,
             "volume": getattr(record, "volume", 0),
-            "ts_event": getattr(record.hd, "ts_event", 0),
+            # ts_event is a top-level field on OHLCVMsg, not under .hd
+            "ts_event": getattr(record, "ts_event", None) or getattr(getattr(record, "hd", None), "ts_event", 0),
         }
     except Exception:
         return None
@@ -66,7 +67,10 @@ def _record_to_bar(record: Any) -> dict[str, Any] | None:
 def _symbol_from_record(record: Any, symmap: dict[int, str]) -> str | None:
     """Resolve instrument_id → ticker symbol via the session symmap."""
     try:
-        iid = record.hd.instrument_id
+        # instrument_id is available directly on the record (not only via .hd)
+        iid = getattr(record, "instrument_id", None) or getattr(record.hd, "instrument_id", None)
+        if iid is None:
+            return None
         return symmap.get(iid)
     except Exception:
         return None
@@ -88,7 +92,6 @@ def _run_feed_loop(stop: threading.Event) -> None:
         cache.init_bar_cache(rolling)
 
         while not stop.is_set():
-            symmap: dict[int, str] = {}
             client: db.Live | None = None
             try:
                 key = config.databento_api_key()
@@ -102,34 +105,53 @@ def _run_feed_loop(stop: threading.Event) -> None:
                 logger.info("db.Live() connected — subscribing EQUS.MINI ohlcv-1m ALL_SYMBOLS")
                 consecutive_failures = 0
 
+                # Use the client's built-in symbology map (populated internally
+                # by the databento client for ALL record types including
+                # SymbolMappingMsg which may not be yielded to the iterator).
+                symmap: dict[int, str] = client._symbology_map  # type: ignore[attr-defined]
+
+                _rec_count = 0
+                _ohlcv_count = 0
+                _sym_none_count = 0
+                _bar_none_count = 0
                 for record in client:
                     if stop.is_set():
                         break
 
                     rec_type = type(record).__name__
-
-                    # Symbol mapping record — build instrument_id → ticker map
-                    if rec_type == "SymbolMappingMsg":
-                        try:
-                            raw = record.stype_in_symbol or ""
-                            iid = record.hd.instrument_id
-                            if raw:
-                                symmap[iid] = raw.upper()
-                        except Exception:
-                            logger.debug("SymbolMappingMsg parse error", exc_info=True)
-                        continue
+                    _rec_count += 1
+                    if _rec_count % 2000 == 0:
+                        logger.info(
+                            "Feed stats: total=%d symmap=%d ohlcv=%d sym_none=%d bar_none=%d bars=%d",
+                            _rec_count, len(symmap), _ohlcv_count, _sym_none_count,
+                            _bar_none_count, cache.total_bar_count(),
+                        )
 
                     # Skip system records that aren't OHLCV data
                     rec_type_upper = rec_type.upper()
                     if "OHLCV" not in rec_type_upper and "BAR" not in rec_type_upper:
                         continue
 
+                    _ohlcv_count += 1
+                    if _ohlcv_count == 1:
+                        logger.info("First OHLCV record: type=%s symmap_size=%d", rec_type, len(symmap))
+
                     sym = _symbol_from_record(record, symmap)
                     if sym is None:
+                        _sym_none_count += 1
+                        if _sym_none_count <= 3:
+                            logger.warning(
+                                "sym=None for instrument_id=%s symmap_size=%d",
+                                getattr(record, "instrument_id", "?"),
+                                len(symmap),
+                            )
                         continue
 
                     bar = _record_to_bar(record)
                     if bar is None:
+                        _bar_none_count += 1
+                        if _bar_none_count <= 3:
+                            logger.warning("bar=None for sym=%s rec_type=%s", sym, rec_type)
                         continue
 
                     cache.push_bar(sym, bar)
