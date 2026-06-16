@@ -38,7 +38,7 @@
 #   handoff window — enough headroom for the worst observed runtime
 #   (~2 h 0 min, n=1/n=2/n=3 cap-busts at 120 min). The handoff itself is
 #   artifact-based: the producer publishes via `actions/upload-artifact`
-#   and the consumer fetches via `dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6`
+#   and the consumer fetches via `dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21`
 #   (regex match on the latest successful run for the same ref). The
 #   `actions/cache/restore` step in the consumer is for an unrelated
 #   `incremental_base_seed` cache, not the producer→consumer handoff.
