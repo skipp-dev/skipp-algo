@@ -4,8 +4,9 @@ Covers:
 - happy path: rows appended from a valid drift JSON
 - duplicate guard: same (computed_at, variant) not written twice
 - dry-run: rows printed but corpus file not created
-- missing p0/p1 analogue: invalid drift JSON exits non-zero
 - missing file: non-existent --drift-json exits non-zero
+- invalid JSON: malformed file exits non-zero
+- semantically invalid payload: missing/empty computed_at or variant exits non-zero
 - no-variants: empty variants list emits warning, exits 0
 """
 
@@ -161,6 +162,21 @@ class TestErrorPaths:
     def test_invalid_json_exits_1(self, tmp_path: Path) -> None:
         bad = tmp_path / "bad.json"
         bad.write_text("not json", encoding="utf-8")
+        rc = main(["--drift-json", str(bad)])
+        assert rc == 1
+
+    def test_missing_computed_at_exits_1(self, tmp_path: Path) -> None:
+        bad = tmp_path / "bad.json"
+        bad.write_text(
+            json.dumps({**_DRIFT_PAYLOAD, "computed_at": ""}), encoding="utf-8"
+        )
+        rc = main(["--drift-json", str(bad)])
+        assert rc == 1
+
+    def test_missing_variants_key_exits_1(self, tmp_path: Path) -> None:
+        payload = {k: v for k, v in _DRIFT_PAYLOAD.items() if k != "variants"}
+        bad = tmp_path / "bad.json"
+        bad.write_text(json.dumps(payload), encoding="utf-8")
         rc = main(["--drift-json", str(bad)])
         assert rc == 1
 

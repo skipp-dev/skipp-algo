@@ -197,6 +197,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"error: invalid JSON in --drift-json: {exc}", file=sys.stderr)
         return 1
 
+    # Validate required top-level fields before building rows.
+    if not isinstance(drift_payload.get("computed_at"), str) or not drift_payload["computed_at"]:
+        print("error: drift JSON missing or empty 'computed_at'", file=sys.stderr)
+        return 1
+    if not isinstance(drift_payload.get("live_window_days"), int):
+        print("error: drift JSON missing or non-integer 'live_window_days'", file=sys.stderr)
+        return 1
+    if not isinstance(drift_payload.get("variants"), list):
+        print("error: drift JSON 'variants' must be a list", file=sys.stderr)
+        return 1
+
     collected_at = datetime.now(UTC).isoformat(timespec="seconds")
     rows = _build_rows(drift_payload, collected_at)
 

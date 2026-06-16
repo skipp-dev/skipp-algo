@@ -316,7 +316,11 @@ jobs:
           python -m scripts.collect_drift_calibration_corpus \
             --drift-json  "${LIVE_DIR}/drift_${DATE}.json" \
             --corpus      "artifacts/drift/calibration_corpus.jsonl"
-          echo "rc=$?" >> "$GITHUB_OUTPUT"
+          corpus_rc=$?
+          echo "rc=${corpus_rc}" >> "$GITHUB_OUTPUT"
+          if [ "${corpus_rc}" != "0" ]; then
+            echo "::warning::Step 4b corpus collection failed (rc=${corpus_rc}); drift cron continues."
+          fi
 
       - name: Step 5a — build families telemetry (advisory)
         id: families
@@ -378,6 +382,7 @@ jobs:
             cache/calibration/backtest_reference_*.json
             docs/calibration/calibration_report_public.json
             docs/calibration/calibration_report_public_history.jsonl
+            artifacts/drift/calibration_corpus.jsonl
           if-no-files-found: warn
 
       - name: Open issue if any required step failed

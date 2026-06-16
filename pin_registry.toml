@@ -177,7 +177,7 @@ allowed = [
 # ---------------------------------------------------------------------------
 [workflow_set_plus_e_inventory.allowed]
 # Daily heavy-compute crons with per-section fault tolerance.
-"c13-daily-cron.yml" = 8  # feat/#2800 drift-calibration-corpus step added one set+e
+"c13-daily-cron.yml" = 8  # issue #2798 drift-calibration-corpus step added one set+e
 # credential-health-check.yml: single fail-soft step that pings each
 # credential provider and continues on transient HTTP errors; the
 # downstream summary step surfaces individual failures via
