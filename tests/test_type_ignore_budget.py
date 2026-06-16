@@ -94,6 +94,7 @@ _FROZEN_FILE_COUNTS: dict[str, int] = {
     "newsstack_fmp/scoring.py": 5,
     "newsstack_fmp/store_sqlite.py": 3,
     "open_prep/alerts.py": 1,
+    "services/live_overlay_daemon/feed.py": 1,  # PR #2799: client._symbology_map is a private Databento attr with no public equivalent; pinned 1 suppression.
     "open_prep/diff.py": 1,
     "open_prep/streamlit_monitor.py": 24,  # rebaselined 2026-05-30 PR #2451 (was 25; -1 for benzinga dead-code removal)
     "rl/agents/ppo_slicer.py": 4,
