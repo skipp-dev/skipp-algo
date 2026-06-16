@@ -1,0 +1,324 @@
+"""
+Overlay field computation.
+
+Takes a snapshot of accumulated OHLCV bars from cache.py and produces
+the 16-field overlay payload for each symbol.
+
+All computations use only standard library + the bars already in cache —
+no additional network calls from this module.
+
+Field definitions (matching spec/smc_live_overlay.schema.json):
+  news_strength        — [-1.0, 1.0] composite news sentiment for symbol
+  news_bias            — "bullish" | "bearish" | "neutral"
+  flow_rel_vol         — volume(last N bars) / avg_volume(rolling window)
+  flow_delta_proxy_pct — (close - open) / open × 100 for most recent bar
+  squeeze_on           — True if Bollinger-band width < ATR threshold
+  ats_state            — "accumulation" | "distribution" | "neutral"
+  ats_zscore           — z-score of last-bar volume vs rolling mean
+  vix_level            — latest VIX level (from VIX symbol bars)
+  tone                 — "risk-on" | "risk-off" | "neutral" (market-wide)
+  global_heat          — [0.0, 1.0] aggregate news heat across all tickers
+  event_window_state   — "pre-event" | "in-event" | "post-event" | "normal"
+  event_risk_level     — "high" | "medium" | "low"
+  next_event_name      — str or null
+  next_event_time      — ISO-8601 str or null
+  market_event_blocked — bool
+  symbol_event_blocked — bool
+  event_provider_status — "ok" | "stale" | "unavailable"
+  asof_ts              — ISO-8601 UTC timestamp of computation
+  stale                — True if overlay_age > max_stale_secs
+"""
+from __future__ import annotations
+
+import datetime
+import json
+import math
+import time
+from pathlib import Path
+from typing import Any
+
+from . import cache, config
+
+
+# ---------------------------------------------------------------------------
+# News snapshot helpers
+# ---------------------------------------------------------------------------
+
+_news_cache: dict[str, Any] = {}
+_news_loaded_at: float = 0.0
+_NEWS_TTL_SECS = 600  # reload at most once per 10 min
+
+
+def _load_news_snapshot() -> dict[str, Any]:
+    global _news_cache, _news_loaded_at
+    path = config.news_snapshot_path()
+    if time.monotonic() - _news_loaded_at < _NEWS_TTL_SECS and _news_cache:
+        return _news_cache
+    if not path.exists():
+        _news_cache = {}
+        return {}
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        _news_cache = raw if isinstance(raw, dict) else {}
+        _news_loaded_at = time.monotonic()
+    except Exception:
+        _news_cache = {}
+    return _news_cache
+
+
+def _get_news_fields(symbol: str) -> dict[str, Any]:
+    """Extract news_strength and news_bias for a symbol from the snapshot."""
+    snap = _load_news_snapshot()
+    stories = snap.get("stories") or snap.get("items") or []
+    sym_upper = symbol.upper()
+
+    scores: list[float] = []
+    for story in stories:
+        tickers = story.get("tickers") or []
+        if sym_upper not in [t.upper() for t in tickers]:
+            continue
+        score = float(story.get("sentiment_score") or story.get("news_score") or 0.0)
+        scores.append(score)
+
+    if not scores:
+        return {"news_strength": None, "news_bias": None}
+
+    avg = sum(scores) / len(scores)
+    bias = "bullish" if avg > 0.1 else ("bearish" if avg < -0.1 else "neutral")
+    return {
+        "news_strength": round(max(-1.0, min(1.0, avg)), 4),
+        "news_bias": bias,
+    }
+
+
+def _get_global_news_fields() -> dict[str, Any]:
+    """Compute market-wide tone and global_heat from the full news snapshot."""
+    snap = _load_news_snapshot()
+    stories = snap.get("stories") or snap.get("items") or []
+    if not stories:
+        return {"tone": "neutral", "global_heat": None}
+
+    scores = [
+        float(s.get("sentiment_score") or s.get("news_score") or 0.0)
+        for s in stories
+    ]
+    avg = sum(scores) / len(scores)
+    n_active = len([s for s in scores if abs(s) > 0.1])
+    heat = round(min(1.0, n_active / max(len(stories), 1)), 4)
+
+    tone = "risk-on" if avg > 0.05 else ("risk-off" if avg < -0.05 else "neutral")
+    return {"tone": tone, "global_heat": heat}
+
+
+# ---------------------------------------------------------------------------
+# OHLCV bar computations
+# ---------------------------------------------------------------------------
+
+def _safe_mean(vals: list[float]) -> float | None:
+    if not vals:
+        return None
+    return sum(vals) / len(vals)
+
+
+def _safe_std(vals: list[float]) -> float:
+    n = len(vals)
+    if n < 2:
+        return 0.0
+    mean = sum(vals) / n
+    return math.sqrt(sum((v - mean) ** 2 for v in vals) / (n - 1))
+
+
+def compute_flow_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:
+    """Compute flow_rel_vol, flow_delta_proxy_pct from bar list."""
+    if not bars:
+        return {"flow_rel_vol": None, "flow_delta_proxy_pct": None}
+
+    volumes = [b["volume"] for b in bars if b.get("volume") is not None]
+    avg_vol = _safe_mean(volumes[:-1]) if len(volumes) > 1 else None
+    last_vol = volumes[-1] if volumes else None
+
+    flow_rel_vol: float | None = None
+    if avg_vol and avg_vol > 0 and last_vol is not None:
+        flow_rel_vol = round(last_vol / avg_vol, 4)
+
+    last_bar = bars[-1]
+    open_ = last_bar.get("open")
+    close_ = last_bar.get("close")
+    flow_delta: float | None = None
+    if open_ and open_ > 0 and close_ is not None:
+        flow_delta = round((close_ - open_) / open_ * 100, 4)
+
+    return {"flow_rel_vol": flow_rel_vol, "flow_delta_proxy_pct": flow_delta}
+
+
+def compute_squeeze_on(bars: list[dict[str, Any]], period: int = 20) -> bool | None:
+    """
+    Squeeze = True when Bollinger Band width < Keltner Channel width.
+    Approximated here as: BB width < 1.5 × ATR (simplified single-symbol check).
+    """
+    closes = [b["close"] for b in bars if b.get("close") is not None]
+    highs = [b["high"] for b in bars if b.get("high") is not None]
+    lows = [b["low"] for b in bars if b.get("low") is not None]
+
+    if len(closes) < period or len(highs) < period or len(lows) < period:
+        return None
+
+    closes_w = closes[-period:]
+    highs_w = highs[-period:]
+    lows_w = lows[-period:]
+
+    mean_c = sum(closes_w) / period
+    std_c = _safe_std(closes_w)
+
+    # Approximate ATR (True Range without prior-close continuity)
+    trs = [h - l for h, l in zip(highs_w, lows_w)]
+    atr = sum(trs) / len(trs)
+
+    bb_width = 4 * std_c  # upper - lower (2σ each side)
+    kc_width = 2 * atr     # Keltner ±1 ATR approximation
+
+    return bool(bb_width < kc_width)
+
+
+def compute_ats_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:
+    """
+    ATS (Automatic Trading System) state:
+      ats_state  — "accumulation" | "distribution" | "neutral"
+      ats_zscore — z-score of most recent bar's volume vs rolling avg
+    """
+    volumes = [b["volume"] for b in bars if b.get("volume") is not None]
+    if len(volumes) < 5:
+        return {"ats_state": None, "ats_zscore": None}
+
+    mean_v = sum(volumes[:-1]) / len(volumes[:-1])
+    std_v = _safe_std(volumes[:-1])
+    last_v = volumes[-1]
+
+    zscore: float | None = None
+    if std_v > 0:
+        zscore = round((last_v - mean_v) / std_v, 4)
+
+    closes = [b["close"] for b in bars if b.get("close") is not None]
+    opens = [b["open"] for b in bars if b.get("open") is not None]
+    if len(closes) < 2 or len(opens) < 2:
+        state = "neutral"
+    else:
+        # Simple heuristic: price trend × volume
+        price_delta = closes[-1] - opens[-1]
+        if price_delta > 0 and (zscore or 0) > 0.5:
+            state = "accumulation"
+        elif price_delta < 0 and (zscore or 0) > 0.5:
+            state = "distribution"
+        else:
+            state = "neutral"
+
+    return {"ats_state": state, "ats_zscore": zscore}
+
+
+# ---------------------------------------------------------------------------
+# Event calendar (placeholder — extend with real calendar source)
+# ---------------------------------------------------------------------------
+
+def _event_fields_for(_symbol: str) -> dict[str, Any]:
+    """
+    Placeholder: returns neutral event state.
+    In Phase 2, connect to earnings calendar API (FMP or similar).
+    """
+    return {
+        "event_window_state": "normal",
+        "event_risk_level": "low",
+        "next_event_name": None,
+        "next_event_time": None,
+        "market_event_blocked": False,
+        "symbol_event_blocked": False,
+        "event_provider_status": "ok",
+    }
+
+
+# ---------------------------------------------------------------------------
+# Full payload builder
+# ---------------------------------------------------------------------------
+
+def build_payload(
+    symbol: str,
+    bars: list[dict[str, Any]],
+    global_fields: dict[str, Any],
+    max_stale_secs: int,
+) -> dict[str, Any]:
+    """Build the full 16-field overlay payload for one symbol."""
+    asof_ts = datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+    news = _get_news_fields(symbol)
+    flow = compute_flow_fields(bars)
+    squeeze = compute_squeeze_on(bars)
+    ats = compute_ats_fields(bars)
+    vix = cache.get_vix()
+    events = _event_fields_for(symbol)
+
+    age = cache.overlay_age_secs()
+    stale = (age > max_stale_secs) if age != float("inf") else True
+
+    return {
+        "schema": "smc-live-overlay/1",
+        "symbol": symbol.upper(),
+        "asof_ts": asof_ts,
+        "stale": stale,
+        # News
+        "news_strength": news.get("news_strength"),
+        "news_bias": news.get("news_bias"),
+        # Flow
+        "flow_rel_vol": flow.get("flow_rel_vol"),
+        "flow_delta_proxy_pct": flow.get("flow_delta_proxy_pct"),
+        # Technicals
+        "squeeze_on": squeeze,
+        "ats_state": ats.get("ats_state"),
+        "ats_zscore": ats.get("ats_zscore"),
+        # Market-wide
+        "vix_level": round(vix, 4) if vix is not None else None,
+        "tone": global_fields.get("tone"),
+        "global_heat": global_fields.get("global_heat"),
+        # Events
+        **events,
+    }
+
+
+def run_full_compute_cycle() -> int:
+    """
+    Compute overlay payloads for ALL symbols currently in the bar cache.
+    Returns number of symbols computed.
+    Called every OVERLAY_REFRESH_SECS by the refresh thread.
+    """
+    all_bars = cache.get_all_symbols_snapshot()
+    max_stale = config.max_stale_secs()
+    global_fields = _get_global_news_fields()
+
+    payloads: dict[str, Any] = {}
+    for sym, bars in all_bars.items():
+        if not bars:
+            continue
+        payloads[sym.upper()] = build_payload(sym, bars, global_fields, max_stale)
+
+    if payloads:
+        cache.set_overlay(payloads)
+
+    return len(payloads)
+
+
+def run_flow_patch_cycle() -> int:
+    """
+    Fast refresh: recompute only flow fields for all symbols.
+    Does NOT reset the full overlay cache timestamp.
+    Called every OVERLAY_FLOW_REFRESH_SECS.
+    """
+    all_bars = cache.get_all_symbols_snapshot()
+    vix = cache.get_vix()
+    count = 0
+    for sym, bars in all_bars.items():
+        if not bars:
+            continue
+        updates = compute_flow_fields(bars)
+        if vix is not None:
+            updates["vix_level"] = round(vix, 4)
+        cache.patch_overlay(sym, updates)
+        count += 1
+    return count
