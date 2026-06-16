@@ -608,11 +608,13 @@ def _calibration_fdr_layer(
 # Default Wald SPRT parameters. p0/p1 follow plan §2.4 G3: minimum-
 # detectable effect of +5 percentage points hit-rate improvement over a
 # 0.55 baseline (the lifetime-corpus median across families). alpha=0.05,
-# beta=0.20 are the conventional gate settings. These are FALLBACK values
-# for callers that do not pass ``sprt_config`` to :func:`compare`; the F2
-# promotion gate overrides them with the spec's pre-registered parameters
-# (2026-06-10 audit — see docs/DECISIONS.md
-# §2026-06-10 f2-dual-arm-raw-score-shadowing).
+# beta=0.20 are the conventional gate settings.
+# W10-2 (stat-review wave 10): these are FALLBACK constants for callers
+# that do not pass ``sprt_config`` to :func:`compare`.  They diverge from
+# the F2 spec (p0=0.544, p1=0.574, MDE=30bp) by +6bp/+26bp, enlarging
+# the implied MDE from 30bp to 50bp and reducing power.  Production runs
+# MUST supply ``--spec-path`` so compare() receives the spec-aligned
+# SPRTConfig; using these defaults for promotion decisions is incorrect.
 SPRT_P0 = 0.55
 SPRT_P1 = 0.60
 SPRT_ALPHA = 0.05
@@ -1011,6 +1013,21 @@ def main(argv: list[str] | None = None) -> None:
         default=BOOTSTRAP_SEED,
         help=f"Permutation seed (default {BOOTSTRAP_SEED}, fixed for reproducibility).",
     )
+    parser.add_argument(
+        "--spec-path",
+        type=Path,
+        default=None,
+        help=(
+            "Path to the experiment JSON spec (e.g. "
+            "artifacts/experiments/f2_contextual_promotion.json). "
+            "When provided the pre-registered SPRT p0/p1/alpha/beta/max_n "
+            "values are used instead of the module-level fallback constants. "
+            "W10-2 (stat-review wave 10): omitting this flag means the "
+            "fallback SPRT_P0=0.55/SPRT_P1=0.60 are used, which diverge from "
+            "the live F2 spec (p0=0.544, p1=0.574). Always pass this flag "
+            "for production promotion decisions."
+        ),
+    )
     args = parser.parse_args(argv)
 
     control_pairs = load_benchmark(args.control_dir)
@@ -1022,6 +1039,33 @@ def main(argv: list[str] | None = None) -> None:
     if not treatment_pairs:
         print(f"ERROR: no benchmark pairs in {args.treatment_dir}", file=sys.stderr)
         sys.exit(1)
+
+    # W10-2 (stat-review wave 10): build SPRTConfig from the experiment spec
+    # when --spec-path is supplied.  Prior to this fix main() always fell back
+    # to SPRT_P0=0.55 / SPRT_P1=0.60 (MDE=50bp) even though the F2 spec
+    # pre-registers p0=0.544 / p1=0.574 (MDE=30bp).  The larger code-default
+    # MDE reduced power and silently ignored the registered design.
+    sprt_config: SPRTConfig | None = None
+    if args.spec_path is not None:
+        if not args.spec_path.exists():
+            print(
+                f"ERROR: --spec-path {args.spec_path} does not exist",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        try:
+            _spec = json.loads(args.spec_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            print(f"ERROR: invalid JSON in {args.spec_path}: {exc}", file=sys.stderr)
+            sys.exit(1)
+        _s = _spec.get("sprt", {})
+        sprt_config = SPRTConfig(
+            p0=float(_s["p0"]),
+            p1=float(_s["p1"]),
+            alpha=float(_s.get("alpha", SPRT_ALPHA)),
+            beta=float(_s.get("beta", SPRT_BETA)),
+            max_n=int(_s["max_n"]) if "max_n" in _s else None,
+        )
 
     control_ledgers = None
     treatment_ledgers = None
@@ -1038,6 +1082,7 @@ def main(argv: list[str] | None = None) -> None:
         enable_calibration_fdr=args.enable_calibration_fdr,
         calibration_fdr_B=args.calibration_fdr_B,
         calibration_fdr_seed=args.calibration_fdr_seed,
+        sprt_config=sprt_config,  # W10-2: None → fallback constants; Path → spec
     )
     report = render_comparison(digest)
 

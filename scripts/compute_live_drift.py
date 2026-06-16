@@ -77,6 +77,13 @@ import numpy as np
 # cut-points at a target false-positive / false-negative operating point.
 # Until that calibration is done, any automated gate that promotes/blocks
 # solely on the basis of these bands has an unknown error rate.
+# W9-7 carry-over / stat-review wave 10: the values are intentionally left
+# unchanged here — calibration requires a multi-month live-trading dataset
+# that is not yet available.  A TODO is tracked in GitHub issue #2800.
+# When calibration data is available, follow the pattern in
+# docs/DECISIONS.md §threshold-calibration and run
+#   .venv/bin/python scripts/calibrate_drift_thresholds.py
+# to derive principled values and remove this notice.
 _VERDICT_BANDS: tuple[tuple[float, str], ...] = (
     (0.85, "pass"),
     (0.65, "acceptable"),

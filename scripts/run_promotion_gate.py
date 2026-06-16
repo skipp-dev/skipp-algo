@@ -185,6 +185,7 @@ def build_report(
     now: datetime | None = None,
     context: Mapping[str, Any] | None = None,
     magnitude_strict_families: frozenset[str] = frozenset(),
+    n_concurrent_families: int | None = None,
 ) -> dict[str, Any]:
     """Run the gate on every snapshot and assemble the report dict.
 
@@ -198,9 +199,14 @@ def build_report(
     posture for the listed families only (see ``GateThresholds``); it has no
     effect on any other check.
     """
+    # W10-1 (stat-review wave 10): n_concurrent_families defaults to the
+    # actual number of evaluated snapshots so the Bonferroni correction in
+    # GateThresholds is always active.  Explicit override is still allowed.
+    n_families = n_concurrent_families if n_concurrent_families is not None else len(snapshots)
     thresholds = GateThresholds(
         strict_provenance=strict_provenance,
         magnitude_strict_families=magnitude_strict_families,
+        n_concurrent_families=max(1, n_families),
     )
     gate = PromotionGate(thresholds)
     decisions: list[Decision] = [gate.evaluate(snap) for snap in snapshots]
@@ -415,6 +421,10 @@ def main(argv: list[str] | None = None) -> int:
         snapshots,
         strict_provenance=not args.no_strict,
         magnitude_strict_families=policy.armed_families,
+        # W10-1 (stat-review wave 10): pass the actual number of evaluated
+        # families so the Bonferroni-adjusted FWER threshold activates when
+        # multiple families are tested simultaneously.
+        n_concurrent_families=len(snapshots),
     )
     atomic_write_json(report, args.output, indent=2, sort_keys=False)
     archive_path = _archive_report(report, args.archive_dir)
