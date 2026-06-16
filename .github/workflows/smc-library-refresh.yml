@@ -68,9 +68,18 @@ on:
     # within the handoff window the consumer expects a freshly-completed
     # export even if the producer uses its full new cap. Workflow_run
     # trigger below remains the primary fast path; cron is the safety net.
-    - cron: "0 16 * * 1-5"   # 16:00 UTC – 240 min after producer 12:00 tick
-    - cron: "0 20 * * 1-5"   # 20:00 UTC – 240 min after producer 16:00 tick
-    - cron: "0 22 * * 1-5"   # 22:00 UTC – 60 min after producer 21:00 safety-net tick
+    # Option-D (2026-06-16): 9 safety-net ticks, each exactly 60 min after the
+    # corresponding producer tick. Count must equal producer count (enforced by
+    # tests/test_workflow_databento_cron_respacing.py).
+    - cron: "0 9 * * 1-5"    # 09:00 UTC – 60 min after producer 08:00 tick
+    - cron: "0 11 * * 1-5"   # 11:00 UTC – 60 min after producer 10:00 tick
+    - cron: "0 13 * * 1-5"   # 13:00 UTC – 60 min after producer 12:00 tick
+    - cron: "0 15 * * 1-5"   # 15:00 UTC – 60 min after producer 14:00 tick
+    - cron: "0 17 * * 1-5"   # 17:00 UTC – 60 min after producer 16:00 tick
+    - cron: "0 19 * * 1-5"   # 19:00 UTC – 60 min after producer 18:00 tick
+    - cron: "0 21 * * 1-5"   # 21:00 UTC – 60 min after producer 20:00 tick
+    - cron: "0 22 * * 1-5"   # 22:00 UTC – 60 min after producer 21:00 tick
+    - cron: "0 23 * * 1-5"   # 23:00 UTC – 60 min after producer 22:00 tick
   # F-V4-J3 (2026-05-01) blast-radius reduction (kept alongside the
   # F-V6-C3 cron schedule above as belt-and-suspenders): consumer also
   # fires immediately when the canonical sharded producer
@@ -541,6 +550,12 @@ jobs:
 
       # ── Library generation with enrichment (v5) ─────────────────
       - name: Generate SMC library with v5 enrichment
+        # Option-D (2026-06-16): 45-min hard limit guards against FMP/Benzinga
+        # retry storms that caused 90–155 min hangs (root cause: ~100 per-ticker
+        # API calls × 84s worst-case retry budget = ~8400s). A timed-out run
+        # fails the job, releases the concurrency slot, and lets the next tick
+        # pick up the delta. The job-level cap stays at 240 min.
+        timeout-minutes: 45
         env:
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           BENZINGA_API_KEY: ${{ secrets.BENZINGA_API_KEY }}

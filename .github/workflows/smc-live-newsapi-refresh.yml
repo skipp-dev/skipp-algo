@@ -3,7 +3,7 @@ name: smc-live-newsapi-refresh
 
 on:
   schedule:
-    - cron: "2-57/5 * * * 1-5"
+    - cron: "2 * * * 1-5"  # hourly Mo–Fr (was 2-57/5 / every-5-min; reduced 2026-06-16 — Pine-library bakes only 3×/day so sub-minute polling has no consumer)
   workflow_dispatch:
     inputs:
       symbols:
@@ -25,7 +25,7 @@ permissions:
 
 concurrency:
   group: smc-live-newsapi-refresh
-  # F-V5-C1 (2026-05-01): 5-min cron — queue instead of kill mid-fetch.
+  # F-V5-C1 (2026-05-01): hourly cron — queue instead of kill mid-fetch.
   # Killing an in-flight NewsAPI page-iteration mid-call wastes the
   # spent quota and risks a half-written snapshot; serialising the
   # ticks costs at most one delayed run per overrun.
@@ -124,7 +124,7 @@ jobs:
         # WF-004 fix: the cron starts from a fresh checkout of main, which
         # does not carry smc_live_news_state.json. Without restoring the
         # state from the rolling bot branch (where the previous tick
-        # force-pushed it), every 5-min run starts cold and the dedup /
+        # force-pushed it), every hourly run starts cold and the dedup /
         # story-window state is effectively empty. Soft-fail: missing branch
         # or missing file is tolerated (first ever run, or branch reset).
         run: |
@@ -146,7 +146,7 @@ jobs:
           INPUT_SYMBOLS: ${{ github.event.inputs.symbols }}
           INPUT_SYMBOL_LIMIT: ${{ github.event.inputs.symbol_limit }}
           INPUT_RESET_STATE: ${{ github.event.inputs.reset_state }}
-          NEWSAPI_AI_SHARED_CACHE_TTL_SECONDS: "25"
+          NEWSAPI_AI_SHARED_CACHE_TTL_SECONDS: "3300"  # 55 min — aligned to hourly cron cadence (was 25 s for 5-min cron)
         run: |
           test -n "${NEWSAPI_KEY}" || { echo "::error::NEWSAPI_KEY secret is required"; exit 1; }
 
@@ -189,8 +189,8 @@ jobs:
           retention-days: 14
 
       # F-V5-F1 (2026-05-01): bare push to main is blocked by the
-      # `main-governance` ruleset, and a PR per 5-minute cron tick would
-      # spam ~288 PRs/day. The uploaded artifact above is the authoritative
+      # `main-governance` ruleset, and a PR per hourly cron tick would
+      # spam ~24 PRs/day. The uploaded artifact above is the authoritative
       # live-snapshot delivery channel; consumers that need a git-tracked
       # staleness floor read from the rolling `bot/live-news-snapshot`
       # branch which we force-update here. No bare push, no fake-success
@@ -203,7 +203,7 @@ jobs:
         # permanently failing push (expired PAT, ruleset change) stayed
         # green forever and the bot/live-news-snapshot staleness floor
         # silently rotted. Transient failures self-heal on the next
-        # 5-minute tick; persistent failures must show up red.
+        # hourly tick; persistent failures must show up red.
         run: |
           # F-V3 (audit 2026-05-02): strict mode so unexpected git failures
           # don't silently slip past and mis-report `outcome=pushed`. The

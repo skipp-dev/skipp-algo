@@ -7,7 +7,7 @@
 > **Status:** Ops-Notizen (Phase-3-Seed). **Arbeitspaket:** WP-E.
 > **Leitprinzip:** Der gebackene `mp.*`-Default ist **immer** der sichere
 > Fallback. Das Overlay ist ein additiver Premium-Tier-Benefit; bei
-> Stale/Down/Unreachable fällt Pine still auf die 2×/Tag-Baseline zurück.
+> Stale/Down/Unreachable fällt Pine still auf die 9×/Tag-Baseline zurück (nach F-V8-D1).
 
 ---
 
@@ -21,7 +21,7 @@ prüft `asof_ts`/`stale` gegen `OVERLAY_MAX_AGE_SEC` und überschreibt **feldwei
 den gebackenen `mp.*`-Wert — nur wenn frisch und vorhanden.
 
 ```
-Producer (2×/Tag + ~5-Min-Snapshot)
+Producer (9×/Tag incremental + stündlich-Snapshot, nach F-V8-D1)
         │   reuse der bestehenden Snapshot-/Enrichment-Artefakte
         ▼
 GET /smc_live?symbol=&tf=  ──HTTPS/JSON──►  CDN (Short-TTL-Cache)
@@ -174,8 +174,8 @@ Publish-Läufe erschwert.
   um einen `actions/upload-artifact`-Schritt für
   `automation/tradingview/reports/screenshots/**` (inkl. `*-error.png`,
   `if: always()`) ergänzen.
-- **Warum separat:** Der Workflow ist der Live-Publish-Pfad (Cron 2×/Tag
-  16:00/20:00 UTC, Pin `test_workflow_databento_handoff_timeouts`). Jede
+- **Warum separat:** Der Workflow ist der Live-Publish-Pfad (Cron 9×/Tag
+  08/10/12/14/16/18/20/21/22 UTC nach F-V8-D1, Pin `test_workflow_databento_handoff_timeouts`). Jede
   Änderung daran gehört in einen **eigenen, vom Operator freigegebenen PR**
   außerhalb des additiven Live-Overlay-Plans.
 
