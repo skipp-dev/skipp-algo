@@ -8,8 +8,6 @@ W10-2: run_ab_comparison main() --spec-path loads SPRT p0/p1/alpha/beta from
 from __future__ import annotations
 
 import json
-import math
-import sys
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -23,7 +21,6 @@ import pytest
 def _green_snapshot(family: str = "BOS") -> Any:
     """Minimal green FamilyMetrics for promotion-gate tests."""
     from governance.promotion_gate import FamilyMetrics
-    from governance.types import EventFamily
     return FamilyMetrics(
         family=family,  # type: ignore[arg-type]
         brier=0.18,
@@ -156,6 +153,7 @@ class TestW10_2_SPRTSpecPath:
         # the args namespace manually, and replicating the spec-load logic to
         # verify it produces the correct SPRTConfig.
         import json as _json
+
         from scripts.run_ab_comparison import SPRT_ALPHA, SPRT_BETA, SPRTConfig  # type: ignore[import]
 
         _spec = _json.loads(spec.read_text())
@@ -182,7 +180,7 @@ class TestW10_2_SPRTSpecPath:
         # If this assertion ever fails it means the defaults were changed to
         # match the spec — at that point --spec-path becomes optional and this
         # test can be updated.
-        assert SPRT_P0 != spec_p0 or SPRT_P1 != spec_p1, (
+        assert spec_p0 != SPRT_P0 or spec_p1 != SPRT_P1, (
             "Module defaults now match the spec — the --spec-path guard is "
             "still useful (different experiment specs could have other values) "
             "but the drift described by W10-2 has been resolved in-place."
@@ -193,7 +191,6 @@ class TestW10_2_SPRTSpecPath:
     ) -> None:
         """When --spec-path points to a non-existent file main() must exit with
         a non-zero code rather than silently falling back to module defaults."""
-        import scripts.run_ab_comparison as _mod
 
         nonexistent = tmp_path / "no_such_file.json"
         from scripts.run_ab_comparison import main  # type: ignore[import]
