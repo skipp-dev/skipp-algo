@@ -166,6 +166,12 @@ class TestErrorPaths:
         rc = main(["--drift-json", str(bad)])
         assert rc == 1
 
+    def test_json_root_is_list_exits_1(self, tmp_path: Path) -> None:
+        bad = tmp_path / "bad.json"
+        bad.write_text(json.dumps([_DRIFT_PAYLOAD]), encoding="utf-8")
+        rc = main(["--drift-json", str(bad)])
+        assert rc == 1
+
     def test_missing_computed_at_exits_1(self, tmp_path: Path) -> None:
         bad = tmp_path / "bad.json"
         bad.write_text(

@@ -199,6 +199,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"error: invalid JSON in --drift-json: {exc}", file=sys.stderr)
         return 1
 
+    if not isinstance(drift_payload, dict):
+        print("error: drift JSON root must be an object, not a list or scalar", file=sys.stderr)
+        return 1
+
     # Validate required top-level fields before building rows.
     if not isinstance(drift_payload.get("computed_at"), str) or not drift_payload["computed_at"]:
         print("error: drift JSON missing or empty 'computed_at'", file=sys.stderr)
