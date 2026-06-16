@@ -2,8 +2,8 @@
 
 W10-2 root-cause: ``run_ab_comparison.py`` had ``SPRT_P0=0.55, SPRT_P1=0.60``
 hardcoded, while the registered F2 spec already specified ``p0=0.544, p1=0.574``.
-The divergence was +6bp / +26bp — large enough to silently change the test's MDE
-from 30bp (spec) to 50bp (fallback), reducing statistical power with no warning.
+The divergence was +6pp / +26pp — large enough to silently change the test's MDE
+from 30pp (spec) to 50pp (fallback), reducing statistical power with no warning.
 
 This file guards against that class of defect by cross-referencing every numeric
 constant in a script that claims to implement a spec against the actual spec file.
@@ -96,8 +96,8 @@ class TestF2SPRTConstantDrift:
     def test_fallback_drift_from_spec_is_bounded(self, f2_spec_sprt: dict) -> None:
         """The divergence between fallback and spec must stay within documented bounds.
 
-        The W10-2 comment documents +6bp / +26bp drift.  We allow up to ±20bp on
-        p0 and ±50bp on p1 before requiring an explicit re-review.  Exceeding
+        The W10-2 comment documents +6pp / +26pp drift.  We allow up to ±2pp on
+        p0 and ±5pp on p1 before requiring an explicit re-review.  Exceeding
         these thresholds means the fallback has moved far from the spec without a
         matching rationale update.
         """
@@ -107,13 +107,13 @@ class TestF2SPRTConstantDrift:
         drift_p1 = abs(SPRT_P1 - f2_spec_sprt["p1"])
 
         assert drift_p0 <= 0.020, (
-            f"SPRT_P0 fallback drifted {drift_p0*100:.1f}bp from spec p0 "
-            f"({f2_spec_sprt['p0']}). Exceeds ±20bp review threshold. "
+            f"SPRT_P0 fallback drifted {drift_p0*100:.1f}pp from spec p0 "
+            f"({f2_spec_sprt['p0']}). Exceeds ±2pp review threshold. "
             "Update fallback or spec, then revise this bound."
         )
         assert drift_p1 <= 0.050, (
-            f"SPRT_P1 fallback drifted {drift_p1*100:.1f}bp from spec p1 "
-            f"({f2_spec_sprt['p1']}). Exceeds ±50bp review threshold. "
+            f"SPRT_P1 fallback drifted {drift_p1*100:.1f}pp from spec p1 "
+            f"({f2_spec_sprt['p1']}). Exceeds ±5pp review threshold. "
             "Update fallback or spec, then revise this bound."
         )
 
@@ -179,7 +179,7 @@ class TestAllSpecFilesLoadable:
             "Expected at least f2_contextual_promotion.json."
         )
 
-    @pytest.mark.parametrize("spec_path", [F2_SPEC_PATH])
+    @pytest.mark.parametrize("spec_path", list((REPO_ROOT / "artifacts" / "experiments").glob("*.json")))
     def test_spec_contains_required_keys(self, spec_path: Path) -> None:
         import json
 
