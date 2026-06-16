@@ -172,6 +172,23 @@ Startpunkt: `.github/workflow-templates/python-job.yml` oder `docs-lint.yml`.
 - Kein Fix ohne Root-Cause: Stack Trace lesen → reproduzieren → eine Hypothese → kleinstmögliche Änderung.
 - "Quick fix for now", mehrere gleichzeitige Änderungen, 2+ Versuche ohne neuen Fund → zurück zu Root-Cause-Analyse.
 
+### Code-Behauptungen immer mit Beleg
+
+Vor jeder Aussage über Code-Verhalten, API-Nutzung, Tier-Anforderungen, Zeilennummern oder
+Dateiinhalte: **erst grepen/lesen, dann behaupten.**
+
+```bash
+# Beispiel: Bevor ich sage "X wird nur in Datei Y verwendet"
+grep -rn "X" --include="*.py" --include="*.pine" . | head -20
+```
+
+- Nie aus Kontext-Gedächtnis oder Gesprächszusammenfassung antworten, wenn die Aussage
+  verifizierbar ist.
+- Wenn ich eine Aussage nicht belegen kann: explizit sagen "ich bin unsicher, ich prüfe das"
+  → dann prüfen → dann antworten.
+- User-Signal **"Zeig mir den Beweis"** / **"Woher weißt du das?"** = sofort Code-Suche,
+  keine weitere Erklärung ohne Fundstelle.
+
 ---
 
 ## Kommunikation & Status
