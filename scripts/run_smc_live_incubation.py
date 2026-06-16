@@ -48,6 +48,7 @@ from typing import Any
 from scripts.execute_ibkr_watchlist import (
     IBKRConnectionConfig,
     IBKROrderIntent,
+    PAPER_PORT,
     place_order_intents,
 )
 from scripts.execute_ibkr_watchlist import (
@@ -240,6 +241,11 @@ def _build_paper_submit_fn(
     """
 
     def _paper_submit(intents: Sequence[IBKROrderIntent]) -> list[dict[str, Any]]:
+        if connection_cfg.port != PAPER_PORT:
+            raise ValueError(
+                f"_build_paper_submit_fn must only be used with the paper port "
+                f"({PAPER_PORT}); got port {connection_cfg.port}."
+            )
         if not intents:
             return []
         submit = place_fn if place_fn is not None else place_order_intents
@@ -264,10 +270,11 @@ def _build_paper_submit_fn(
             len(intents),
             connection_cfg.port,
         )
+        action = "paper_submitted" if placements_total > 0 else "submit_failed"
         return [
             {
                 "intent_id": intent.order_ref,
-                "action": "paper_submitted",
+                "action": action,
                 "fill_price": None,
             }
             for intent in intents
