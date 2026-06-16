@@ -1495,8 +1495,9 @@ function formatEditorDiagnostics(diagnostics: EditorDiagnostics): string {
 
 function formatPageLifecycleDiagnostics(diagnostics: PageLifecycleDiagnostics): string {
   // Build a compact type-frequency map from recent events so a timeout message
-  // surfaces *which* events fired (e.g. "step-start×3, tv-trace×18, step-error×4")
-  // rather than just a raw count.  This makes closeModal timeouts immediately
+  // surfaces *which* events fired (e.g. "tv-trace×18 step-start×4 step-error×3")
+  // rather than just a raw count.  Entries are space-separated and sorted by
+  // frequency descending.  This makes closeModal timeouts immediately
   // actionable without having to download a trace archive.
   const typeCounts = new Map<string, number>();
   for (const ev of diagnostics.recentEvents) {
