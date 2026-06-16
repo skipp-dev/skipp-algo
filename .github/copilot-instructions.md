@@ -1,5 +1,22 @@
 # GitHub Copilot Repository Instructions
 
+## STOP-Regeln (sofortige Ausführung, kein Nachdenken)
+
+Diese Regeln sind reflexartig auszuführen — ohne Analyse-Phase, ohne "let me check".
+
+| Signal | Sofort-Aktion |
+|---|---|
+| `mergeStateStatus == "DIRTY"` | `git fetch origin main && git rebase origin/main` → Konflikte lösen → `git push --force-with-lease` → DONE |
+| `mergeStateStatus == "BEHIND"` | `git fetch origin main && git rebase origin/main && git push --force-with-lease` → DONE |
+| `git push` schlägt fehl mit `[remote rejected]` | `git fetch origin <branch> && git rebase origin/<branch> && git push --force-with-lease` → DONE |
+| Pre-commit Hook meldet falschen Branch | Checkout korrigieren, cherry-pick, dann erneut committen |
+
+**DIRTY ≠ CI-Fehler.** DIRTY bedeutet Merge-Konflikt. Es ist kein CI-Lauf abzuwarten — der Konflikt muss sofort aufgelöst werden. Jede andere Aktion (Analysis, Review-Fetch, Warten) ist falsch.
+
+**Verboten:** Den Zustand als "let me check what's conflicting" zu beschreiben ohne sofort zu rebasen. Wenn der Konflikt sichtbar ist, rebasen. Wenn er nicht sichtbar ist, rebasen und Git zeigt ihn.
+
+---
+
 ## Workflow authoring rules
 
 ### Mandatory boilerplate (every workflow file)
@@ -412,20 +429,30 @@ Wenn der User "merge", "mergeable machen" oder "Konflikte lösen" sagt:
 Wenn nach einem Push auf CI-Ergebnis gewartet werden muss:
 **Niemals idle warten.** Stattdessen sofort:
 
-0. **Branch-Aktualität prüfen — bevor man überhaupt auf CI wartet:**
+0. **mergeStateStatus prüfen — bevor man überhaupt auf CI wartet:**
    ```bash
    gh pr view <N> --json mergeable,mergeStateStatus \
      --jq '{mergeable, mergeStateStatus}'
    ```
-   Wenn `mergeStateStatus == "BEHIND"` (GitHub-Meldung: "The head branch is
-   not up to date with the base branch"): sofort rebasen und pushen.
-   Ein CI-Lauf auf einem outdated Branch ist verschwendete Zeit und blockiert
-   ohnehin den Merge:
+
+   **`DIRTY`** = Merge-Konflikt (NICHT CI-Fehler). Sofort rebasen:
+   ```bash
+   git fetch origin main
+   git rebase origin/main
+   # Konflikte lösen, dann:
+   git rebase --continue
+   git push --force-with-lease origin <branch>
+   ```
+   DIRTY erfordert keinen CI-Lauf vorher. Es gibt nichts zu "checken" —
+   rebasen, Konflikte lösen, pushen. Fertig.
+
+   **`BEHIND`** = Branch veraltet, aber kein Konflikt. Gleiche Aktion:
    ```bash
    git fetch origin main
    git rebase origin/main
    git push --force-with-lease origin <branch>
    ```
+   Ein CI-Lauf auf einem BEHIND/DIRTY Branch ist verschwendete Zeit.
    Erst nach dem Push des aktualisierten Branch den neuen CI-Lauf abwarten.
 
 1. Alle offenen Review-Threads des PRs holen (inline + GraphQL, nicht nur
