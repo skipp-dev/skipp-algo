@@ -69,7 +69,8 @@ _FROZEN_TOTAL = sum(len(v) for v in _FROZEN_SITES.values())
 def _iter_python_files() -> list[Path]:
     out: list[Path] = []
     for path in _ROOT.rglob("*.py"):
-        if any(part in _DIR_EXCLUDE for path in [path] for part in path.relative_to(_ROOT).parts):
+        rel_parts = path.relative_to(_ROOT).parts
+        if any(part in _DIR_EXCLUDE for part in rel_parts):
             continue
         if path.name.startswith("mutation_"):
             continue

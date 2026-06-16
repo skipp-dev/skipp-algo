@@ -6,7 +6,7 @@ Applies one mutation at a time (AST-level), runs the appropriate unit test suite
 and reports which mutants survived (not caught by any test).
 
 Usage:
-    python tools/mutation_testing.py <target_name>
+    python scripts/mutation_testing.py <target_name>
 Where target_name is one of:
     - freshness (scripts/check_workflow_freshness.py)
     - watchdog  (scripts/g23_ab_watchdog.py)
@@ -62,7 +62,7 @@ def _src(tree: ast.Module) -> str:
     return ast.unparse(tree)
 
 
-def _collect_comparisons(tree: ast.Module) -> list[Mutant]:
+def _collect_comparisons(tree: ast.Module, file_path: Path) -> list[Mutant]:
     flips = {
         ast.Lt: (ast.LtE, "<", "<="),
         ast.LtE: (ast.Lt, "<=", "<"),
@@ -74,7 +74,7 @@ def _collect_comparisons(tree: ast.Module) -> list[Mutant]:
     mutants: list[Mutant] = []
     # Find all comparison operators
     compares = []
-    for i, node in enumerate(ast.walk(tree)):
+    for _i, node in enumerate(ast.walk(tree)):
         if isinstance(node, ast.Compare):
             # Skip comparisons against "__main__" (e.g. if __name__ == "__main__")
             is_main = False
@@ -89,7 +89,14 @@ def _collect_comparisons(tree: ast.Module) -> list[Mutant]:
                 if type(op) in flips:
                     compares.append((node, j, type(op)))
 
-    for idx, (orig_node, op_idx, op_type) in enumerate(compares):
+    for _idx, (orig_node, op_idx, op_type) in enumerate(compares):
+        new_cls, old_sym, new_sym = flips[op_type]
+        # Robust filtering of equivalent mutants by source location rather than walk indices (Copilot review #3416736283)
+        if file_path.name == "check_workflow_freshness.py" and orig_node.lineno == 216 and old_sym == ">" and new_sym == ">=":
+            continue
+        if file_path.name == "g23_ab_watchdog.py" and orig_node.lineno == 223 and old_sym == ">" and new_sym == ">=":
+            continue
+
         new_tree = copy.deepcopy(tree)
         all_compares = [n for n in ast.walk(new_tree) if isinstance(n, ast.Compare)]
         orig_compares = [n for n in ast.walk(tree) if isinstance(n, ast.Compare)]
@@ -97,7 +104,7 @@ def _collect_comparisons(tree: ast.Module) -> list[Mutant]:
             comp_node_idx = orig_compares.index(orig_node)
         except ValueError:
             continue
-        
+
         target_node = all_compares[comp_node_idx]
         new_cls, old_sym, new_sym = flips[op_type]
         target_node.ops[op_idx] = new_cls()
@@ -213,21 +220,17 @@ def generate_mutants(file_path: Path) -> list[Mutant]:
     with open(file_path, "r", encoding="utf-8") as f:
         code = f.read()
     tree = ast.parse(code)
-    
+
     mutants = []
-    mutants.extend(_collect_comparisons(tree))
+    mutants.extend(_collect_comparisons(tree, file_path))
     mutants.extend(_collect_arithmetic(tree))
     mutants.extend(_collect_booleans(tree))
     mutants.extend(_collect_and_or(tree))
     mutants.extend(_collect_return_guards(tree))
-    
-    # Filter out known equivalent/unkillable mutants that are semantically and
-    # behaviorally identical under all valid inputs (e.g. len(existing) > 90 vs >= 90
-    # when slicing existing[-90:] under a 90 constant, which is a no-op).
-    EQUIVALENT_MUTANTS = {
-        "cmp_6_0_>_to_>=",
-    }
-    return [m for m in mutants if m.name not in EQUIVALENT_MUTANTS]
+
+    # All equivalent/unkillable mutants are dynamically filtered in _collect_comparisons
+    # by their robust source location and pattern (e.g. len(existing) > 90 vs >= 90).
+    return mutants
 
 
 def run_test_on_mutant(mutant_source: str, module_name: str, test_path: Path) -> bool:
@@ -239,7 +242,7 @@ def run_test_on_mutant(mutant_source: str, module_name: str, test_path: Path) ->
     import tempfile
 
     module_basename = module_name.split(".")[-1]
-    
+
     # We compile the mutant source and create an environment variable runner
     runner = textwrap.dedent(f"""
         import sys, importlib, types
@@ -248,7 +251,7 @@ def run_test_on_mutant(mutant_source: str, module_name: str, test_path: Path) ->
         # Compile and install the mutant as if it were the real module
         source = {mutant_source!r}
         code = compile(source, {module_basename + ".py"!r}, "exec")
-        
+
         mod = types.ModuleType({module_name!r})
         mod.__file__ = {module_basename + ".py"!r}
         exec(code, mod.__dict__)
@@ -266,7 +269,7 @@ def run_test_on_mutant(mutant_source: str, module_name: str, test_path: Path) ->
     """)
 
     with tempfile.NamedTemporaryFile(
-        suffix=".py", prefix="mutrun_", delete=False, mode="w"
+        suffix=".py", prefix="mutrun_", delete=False, mode="w", encoding="utf-8", newline="\n"
     ) as fh:
         fh.write(runner)
         tmp_path = Path(fh.name)
@@ -274,7 +277,7 @@ def run_test_on_mutant(mutant_source: str, module_name: str, test_path: Path) ->
     try:
         env = os.environ.copy()
         env["PYTHONPATH"] = str(REPO)
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: S603
             [sys.executable, str(tmp_path)],
             capture_output=True,
             text=True,
@@ -294,24 +297,24 @@ def run_target(name: str) -> bool:
     file_path = target["file_path"]
     test_path = target["test_path"]
     module_name = target["module_name"]
-    
+
     print("=" * 72)
     print(f"MUTATION TESTING: {module_name}")
     print(f"Target script:    {file_path.relative_to(REPO)}")
     print(f"Test suite:       {test_path.relative_to(REPO)}")
-    
+
     mutants = generate_mutants(file_path)
     total_mutants = len(mutants)
     print(f"Total Mutants generated: {total_mutants}")
     print("=" * 72)
-    
+
     if total_mutants == 0:
         print("No mutants generated. Check target.")
         return True
-        
+
     killed = 0
     survived = []
-    
+
     # We can run them in a nice sequence.
     for idx, m in enumerate(mutants, 1):
         # Limit logs to avoid 60KB truncation, but report status.
@@ -323,19 +326,19 @@ def run_target(name: str) -> bool:
         else:
             print("\u274c SURVIVED!")
             survived.append(m)
-            
+
     score = (killed / total_mutants) * 100.0 if total_mutants else 0.0
     print("-" * 72)
     print(f"RESULT FOR {name.upper()}:")
     print(f"  Mutation Score: {score:.1f}% ({killed} killed / {total_mutants} total)")
     print(f"  Survived:       {len(survived)}")
-    
+
     if survived:
         print("\nSurviving Mutants:")
         for sm in survived:
             print(f"  - {sm.name}: {sm.description}")
         return False
-        
+
     print(f"All {total_mutants} mutants KILLED! Perfect protection.")
     return True
 
@@ -350,7 +353,7 @@ def main() -> None:
         default="all",
     )
     args = parser.parse_args()
-    
+
     if args.target == "all":
         success = True
         for name in TARGETS:

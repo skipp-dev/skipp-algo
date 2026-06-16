@@ -273,7 +273,7 @@ def _assert_baseline_disjoint(
     overlap, the watchdog compares a distribution against itself and will
     always pass — a vacuous green that masks real drift.  Guard against
     this by checking whether the baseline's ``backtest_end_date`` falls
-    inside the live window.  The threshold is >5% overlap (i.e. at least
+    inside the live window.  The threshold is >=5% overlap (i.e. at least
     one day out of a 20-day window, or more than 1 day in a 30-day window)
     rather than any overlap, to tolerate off-by-one date conventions.
 
@@ -309,7 +309,7 @@ def _assert_baseline_disjoint(
     }
     overlap = {d for d in live_dates if date.fromisoformat(d) <= baseline_end}
     overlap_fraction = len(overlap) / max(len(live_dates), 1)
-    if overlap_fraction > 0.05:
+    if overlap_fraction >= 0.05:
         raise ValueError(
             f"Live window overlaps backtest baseline by {len(overlap)} date(s) "
             f"({overlap_fraction:.0%} of {len(live_dates)}-day window; "

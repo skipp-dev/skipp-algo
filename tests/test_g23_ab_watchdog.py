@@ -96,7 +96,7 @@ def test_treatment_underperformed_false_when_gt_control():
         treatment_n=100, treatment_hr=0.60, control_n=100, control_hr=0.55))
 
 
-def test_treatment_underperformed_false_when_data_missing():
+def test_treatment_underperformed_raises_value_error_when_data_missing():
     # W9-2: must raise ValueError on missing data instead of returning False
     with pytest.raises(ValueError, match="cannot evaluate underperformance"):
         wd._treatment_underperformed({"sprt": {}})
@@ -433,7 +433,7 @@ def test_write_status_creates_deep_nested_parents(tmp_path):
     assert p.exists()
 
 
-def test_treatment_underperformed_false_when_treatment_hr_is_none():
+def test_treatment_underperformed_raises_when_treatment_hr_is_none():
     # W9-2: must raise ValueError on missing data instead of returning False
     with pytest.raises(ValueError, match="cannot evaluate underperformance"):
         wd._treatment_underperformed({
@@ -441,7 +441,7 @@ def test_treatment_underperformed_false_when_treatment_hr_is_none():
         })
 
 
-def test_treatment_underperformed_false_when_control_hr_is_none():
+def test_treatment_underperformed_raises_when_control_hr_is_none():
     # W9-2: must raise ValueError on missing data instead of returning False
     with pytest.raises(ValueError, match="cannot evaluate underperformance"):
         wd._treatment_underperformed({

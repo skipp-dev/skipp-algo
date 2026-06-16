@@ -148,7 +148,7 @@ class GateThresholds:
     fdr_q: float = DEFAULT_FDR_Q
     # W9-6 (SMR wave 9): number of families being evaluated simultaneously
     # in a single promotion run.  When > 1, the per-family FDR threshold is
-    # tightened by Holm-Bonferroni to control the experiment-wide error
+    # tightened by Bonferroni correction to control the experiment-wide error
     # rate: effective_fdr_q = fdr_q / n_concurrent_families.  Set to 1
     # (default) to preserve the original per-family behaviour for single-
     # family evaluations or when the caller performs its own correction.
@@ -390,9 +390,9 @@ class PromotionGate:
         ok_fdr = _check(
             name="fdr_significance",
             observed=snapshot.fdr_pvalue,
-            # W9-6 (SMR wave 9): apply Holm-Bonferroni correction when
+            # W9-6 (SMR wave 9): apply Bonferroni correction when
             # multiple families are evaluated concurrently. With k families
-            # the Holm-adjusted threshold is fdr_q / k, which controls the
+            # the Bonferroni-adjusted threshold is fdr_q / k, which controls the
             # family-wise error rate (FWER) at level fdr_q regardless of
             # the number of simultaneous tests. n_concurrent_families=1
             # (default) leaves the threshold unchanged.
