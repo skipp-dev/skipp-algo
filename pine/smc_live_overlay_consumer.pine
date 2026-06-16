@@ -32,7 +32,8 @@ _url = DAEMON_URL + "/" + TOKEN + "/smc_live?symbol=" + _sym + "&tf=" + _tf
 // ---------------------------------------------------------------------------
 // Parse JSON fields — parse once per bar, reuse for all field accesses
 // ---------------------------------------------------------------------------
-_stale               = str.contains(_resp_body, "\"stale\":true")
+_ok                  = _resp_status == 200
+_stale               = not _ok or str.contains(_resp_body, "\"stale\":true")
 _parsed              = _stale ? na : json.parse(_resp_body)
 _news_strength       = _stale ? na : math.round(nz(json.get(_parsed, "news_strength"), 0), 4)
 _news_bias           = _stale ? "n/a" : str.tostring(json.get(_parsed, "news_bias"))

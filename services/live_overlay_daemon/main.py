@@ -35,6 +35,8 @@ logger = logging.getLogger(__name__)
 
 _startup_ts: float = 0.0
 
+_VALID_TFS: frozenset[str] = frozenset({"5m", "15m", "1H", "4H"})
+
 
 # ---------------------------------------------------------------------------
 # Lifespan
@@ -108,11 +110,16 @@ def smc_live(
 ) -> JSONResponse:
     # Constant-time token comparison to avoid timing attacks
     expected = config.overlay_secret_token()
-    # Compare using XOR approach (timing-safe manual comparison)
+    # _ct_eq delegates to hmac.compare_digest — no XOR, no early exit
     if len(token) != len(expected) or not _ct_eq(token, expected):
         raise HTTPException(status_code=404)  # 404 not 401 to avoid leaking route structure
 
     sym = symbol.upper().strip()
+    if tf not in _VALID_TFS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"tf must be one of {sorted(_VALID_TFS)}",
+        )
     payload = cache.get_overlay(sym)
 
     if payload is None:
@@ -144,6 +151,12 @@ def smc_live(
             }
         )
 
+    # Re-evaluate stale based on current overlay age so a cached payload
+    # does not serve a stale=false flag after the age window has elapsed.
+    age = cache.overlay_age_secs()
+    max_stale = config.max_stale_secs()
+    payload = dict(payload)  # shallow-copy — do not mutate shared cache state
+    payload["stale"] = (age > max_stale) if age != float("inf") else True
     # Inject tf into response
     payload["tf"] = tf
     return JSONResponse(payload)
