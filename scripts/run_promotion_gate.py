@@ -428,8 +428,10 @@ def main(argv: list[str] | None = None) -> int:
         magnitude_strict_families=policy.armed_families,
         # W10-1 (stat-review wave 10): pass the actual number of evaluated
         # families so the Bonferroni-adjusted FWER threshold activates when
-        # multiple families are tested simultaneously.
-        n_concurrent_families=len(snapshots),
+        # multiple families are tested simultaneously. max(1, …) guards the
+        # empty-bundle case (no families ⇒ no simultaneous tests ⇒ no
+        # correction); GateThresholds rejects n_concurrent_families < 1.
+        n_concurrent_families=max(1, len(snapshots)),
     )
     atomic_write_json(report, args.output, indent=2, sort_keys=False)
     archive_path = _archive_report(report, args.archive_dir)
