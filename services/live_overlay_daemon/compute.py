@@ -54,6 +54,7 @@ def _load_news_snapshot() -> dict[str, Any]:
         return _news_cache
     if not path.exists():
         _news_cache = {}
+        _news_loaded_at = time.monotonic()
         return {}
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
@@ -94,17 +95,17 @@ def _get_global_news_fields() -> dict[str, Any]:
     snap = _load_news_snapshot()
     stories = snap.get("stories") or snap.get("items") or []
     if not stories:
-        return {"tone": "neutral", "global_heat": None}
+        return {"tone": "NEUTRAL", "global_heat": None}
 
     scores = [
         float(s.get("sentiment_score") or s.get("news_score") or 0.0)
         for s in stories
     ]
     avg = sum(scores) / len(scores)
-    n_active = len([s for s in scores if abs(s) > 0.1])
-    heat = round(min(1.0, n_active / max(len(stories), 1)), 4)
+    # global_heat: directional [-1, 1] per smc-live-overlay/1 schema
+    heat = round(max(-1.0, min(1.0, avg)), 4)
 
-    tone = "risk-on" if avg > 0.05 else ("risk-off" if avg < -0.05 else "neutral")
+    tone = "BULLISH" if avg > 0.05 else ("BEARISH" if avg < -0.05 else "NEUTRAL")
     return {"tone": tone, "global_heat": heat}
 
 

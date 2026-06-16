@@ -181,7 +181,6 @@ def main() -> None:
     # ---------------------------------------------------------------------------
     # Extrapolation to full universe
     # ---------------------------------------------------------------------------
-    UNIVERSE_SIZE / max(len(SYMBOLS), 1)
     print("=" * 60)
     print(f"EXTRAPOLATION → {UNIVERSE_SIZE} tickers")
     print("=" * 60)

@@ -142,10 +142,11 @@ def _run_feed_loop(stop: threading.Event) -> None:
             logger.warning(
                 "db.Live() BentoError (attempt %d/%d): %s",
                 consecutive_failures, _MAX_RECONNECT_ATTEMPTS, exc,
+                exc_info=True,
             )
         except Exception as exc:
             consecutive_failures += 1
-            logger.warning("db.Live() unexpected error: %s", exc)
+            logger.warning("db.Live() unexpected error: %s", exc, exc_info=True)
         finally:
             if client is not None:
                 try:
