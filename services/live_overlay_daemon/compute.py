@@ -34,11 +34,9 @@ import datetime
 import json
 import math
 import time
-from pathlib import Path
 from typing import Any
 
 from . import cache, config
-
 
 # ---------------------------------------------------------------------------
 # News snapshot helpers
@@ -84,9 +82,9 @@ def _get_news_fields(symbol: str) -> dict[str, Any]:
         return {"news_strength": None, "news_bias": None}
 
     avg = sum(scores) / len(scores)
-    bias = "bullish" if avg > 0.1 else ("bearish" if avg < -0.1 else "neutral")
+    bias = "BULLISH" if avg > 0.1 else ("BEARISH" if avg < -0.1 else "NEUTRAL")
     return {
-        "news_strength": round(max(-1.0, min(1.0, avg)), 4),
+        "news_strength": round(max(0.0, min(1.0, abs(avg))), 4),
         "news_bias": bias,
     }
 
@@ -167,11 +165,10 @@ def compute_squeeze_on(bars: list[dict[str, Any]], period: int = 20) -> bool | N
     highs_w = highs[-period:]
     lows_w = lows[-period:]
 
-    mean_c = sum(closes_w) / period
     std_c = _safe_std(closes_w)
 
     # Approximate ATR (True Range without prior-close continuity)
-    trs = [h - l for h, l in zip(highs_w, lows_w)]
+    trs = [h - lo for h, lo in zip(highs_w, lows_w)]
     atr = sum(trs) / len(trs)
 
     bb_width = 4 * std_c  # upper - lower (2σ each side)
@@ -246,7 +243,8 @@ def build_payload(
     max_stale_secs: int,
 ) -> dict[str, Any]:
     """Build the full 16-field overlay payload for one symbol."""
-    asof_ts = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    # asof_ts is Unix-Epoch seconds (int) per smc-live-overlay/1 schema
+    asof_ts = int(datetime.datetime.now(datetime.UTC).timestamp())
 
     news = _get_news_fields(symbol)
     flow = compute_flow_fields(bars)
@@ -270,7 +268,7 @@ def build_payload(
         "flow_rel_vol": flow.get("flow_rel_vol"),
         "flow_delta_proxy_pct": flow.get("flow_delta_proxy_pct"),
         # Technicals
-        "squeeze_on": squeeze,
+        "squeeze_on": int(squeeze) if squeeze is not None else None,
         "ats_state": ats.get("ats_state"),
         "ats_zscore": ats.get("ats_zscore"),
         # Market-wide

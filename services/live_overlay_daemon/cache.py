@@ -94,13 +94,15 @@ def get_overlay(symbol: str) -> dict[str, Any] | None:
 
 
 def patch_overlay(symbol: str, updates: dict[str, Any]) -> None:
-    """Merge updates into an existing overlay entry (used for fast flow refresh)."""
+    """Merge updates into an existing overlay entry (used for fast flow refresh).
+
+    Only patches symbols that already have a full overlay payload; ignores
+    symbols not yet computed to avoid serving incomplete payloads.
+    """
     with _overlay_lock:
         upper = symbol.upper()
         if upper in _overlay:
             _overlay[upper].update(updates)
-        else:
-            _overlay[upper] = dict(updates)
 
 
 def overlay_age_secs() -> float:

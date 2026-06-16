@@ -91,7 +91,7 @@ def health() -> JSONResponse:
                 if cache.overlay_age_secs() == float("inf")
                 else round(cache.overlay_age_secs(), 1)
             ),
-            "ts": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "ts": datetime.datetime.now(datetime.UTC).isoformat(),
         }
     )
 
@@ -122,7 +122,7 @@ def smc_live(
                 "schema": "smc-live-overlay/1",
                 "symbol": sym,
                 "tf": tf,
-                "asof_ts": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                "asof_ts": int(datetime.datetime.now(datetime.UTC).timestamp()),
                 "stale": True,
                 "news_strength": None,
                 "news_bias": None,
