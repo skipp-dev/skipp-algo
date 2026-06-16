@@ -46,9 +46,9 @@ from types import MappingProxyType
 from typing import Any
 
 from scripts.execute_ibkr_watchlist import (
+    PAPER_PORT,
     IBKRConnectionConfig,
     IBKROrderIntent,
-    PAPER_PORT,
     place_order_intents,
 )
 from scripts.execute_ibkr_watchlist import (
