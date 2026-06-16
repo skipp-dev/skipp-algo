@@ -8,8 +8,8 @@ All computations use only standard library + the bars already in cache —
 no additional network calls from this module.
 
 Field definitions (matching spec/smc_live_overlay.schema.json):
-  news_strength        — [-1.0, 1.0] composite news sentiment for symbol
-  news_bias            — "bullish" | "bearish" | "neutral"
+  news_strength        — [0.0, 1.0] composite news sentiment magnitude for symbol
+  news_bias            — "BULLISH" | "BEARISH" | "NEUTRAL"
   flow_rel_vol         — volume(last N bars) / avg_volume(rolling window)
   flow_delta_proxy_pct — (close - open) / open × 100 for most recent bar
   squeeze_on           — True if Bollinger-band width < ATR threshold
