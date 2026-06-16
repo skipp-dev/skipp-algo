@@ -16,63 +16,84 @@
 ## Pre-Push-Checkliste (vor jedem `git push`)
 
 ```bash
-# 1. Branch prüfen (im selben &&-Block wie git commit)
+# 1. Branch + Commit im selben &&-Block
 git branch --show-current && git add <files> && git commit -m "..."
 
 # 2. Ruff
 .venv/bin/python -m ruff check --fix . && .venv/bin/python -m ruff check .
 
-# 3. Ledger-Pins (~10s)
+# 3. Alle 7 Ledger-Pins (~15s) — VOLLSTÄNDIG, nicht kürzen
 .venv/bin/python -m pytest \
   tests/test_global_statement_budget.py \
+  tests/test_noqa_budget.py \
   tests/test_noqa_suppression_ledger.py \
+  tests/test_subprocess_shell_injection_pin.py \
+  tests/test_type_ignore_budget.py \
   tests/test_path_text_io_encoding_ledger.py \
   tests/test_atomic_write_call_sites.py \
+  tests/test_hmac_auth_zero_surface.py \
   -q --no-header 2>&1 | tail -5
-
-# 4. Nach Cherry-Pick / Rebase: HMAC-Ledger-Pin prüfen
-grep -n "compare_digest" services/live_overlay_daemon/main.py
-grep -n "compare_digest" tests/test_hmac_auth_zero_surface.py
-# Zeilennummern müssen übereinstimmen
 ```
 
-Niemals pushen mit bekannten Ruff-Fehlern oder Ledger-Brüchen. `--no-verify` nur wenn alle Ledger-Tests lokal grün sind.
+Niemals pushen mit bekannten Ruff-Fehlern oder Ledger-Brüchen.
+
+### Neue Suppressions → Ledger-Pflicht (VOR dem Push)
+
+| Hinzugefügt | Datei updaten |
+|---|---|
+| `# noqa` in `scripts/` | `tests/test_noqa_suppression_ledger.py` `_FROZEN_SITES` |
+| `# noqa` in anderen Dirs | `tests/test_noqa_budget.py` `_FROZEN_SITES` |
+| `subprocess.run(...)` | `pin_registry.toml` `[[subprocess_shell_injection_pin.sites]]` |
+| `# type: ignore` | `tests/test_type_ignore_budget.py` `_FROZEN_FILE_COUNTS` |
+| `global <var>` | `tests/test_global_statement_budget.py` Ledger |
+
+Muster: Ledger-Update + Suppression im **selben Commit**.
 
 ---
 
-## Nach jedem `git push` (parallel zu CI)
+## Nach jedem `git push` — kein Idle, immer Parallelarbeit
 
+CI läuft ~5–20min. In dieser Zeit **immer** eine dieser Aktionen:
+
+1. Copilot-Inline-Threads für den PR lesen und fixen:
 ```bash
-# Copilot-Inline-Threads
 gh api repos/skippALGO/skipp-algo/pulls/<N>/comments --paginate \
   | python3 -c "import sys,json; [print(f\"{c['path']}:{c.get('line')} {c['body'][:120]}\") for c in json.load(sys.stdin,strict=False) if 'opilot' in c['user']['login'].lower()]"
-
-# Unresolved Threads (GraphQL)
-gh api graphql -f query='query{repository(owner:"skippALGO",name:"skipp-algo"){pullRequest(number:<N>){reviewThreads(first:100){nodes{id isResolved isOutdated path line comments(first:1){nodes{author{login} body}}}}}}}' \
-  | python3 -c "import sys,json; d=json.loads(sys.stdin.read(),strict=False); [print(t['id'],t['path'],t['comments']['nodes'][0]['body'][:100]) for t in d['data']['repository']['pullRequest']['reviewThreads']['nodes'] if not t['isResolved'] and not t['isOutdated']]"
 ```
+2. Andere offene PRs auf `mergeStateStatus` prüfen (s. PR-Housekeeping)
+3. Nächsten Task aus dem Backlog starten
 
-Reihenfolge: Copilot-Threads fixen → andere PRs auf DIRTY/BEHIND prüfen → Ruff/Ledger lokal → dann CI-Ergebnis auswerten. Niemals idle warten.
+**Copilot-Review ist async** (~7–10min nach Push). Nach schnellem CI-Grün (~4min): PR nochmals auf neue Copilot-Threads prüfen, bevor "done" ausgerufen wird.
+
+CI-Ergebnis auswerten:
+- Grün + keine offenen Threads → merge (s. PR-Housekeeping)
+- Rot → `gh api repos/skippALGO/skipp-algo/actions/jobs/<job-id>/logs | grep -E "FAILED|Found [0-9]+ error" | head -10` → direkt fixen
 
 ---
 
 ## PR-Housekeeping
 
-Bei "merge" / "mergeable machen" / "Konflikte lösen":
+**Pflicht-Sequenz vor jedem Merge-Versuch** — NIEMALS blind `gh pr merge` aufrufen:
 
 ```bash
-gh pr view <N> --json mergeStateStatus,autoMergeRequest
+gh pr view <N> --json mergeStateStatus,autoMergeRequest,reviewDecision
 ```
 
-**Pflicht-Sequenz vor jedem Merge-Versuch:**
-1. `mergeStateStatus` prüfen — NIEMALS blind `gh pr merge` aufrufen
-2. BEHIND → zuerst `gh api repos/skippALGO/skipp-algo/pulls/<N>/update-branch -X PUT` → CI abwarten → dann erst mergen
-3. DIRTY → rebasen (STOP-Regel oben)
-4. MERGEABLE + grüne Checks → `gh pr merge <N> --squash`
+| `mergeStateStatus` | Aktion |
+|---|---|
+| `BEHIND` | `gh api repos/skippALGO/skipp-algo/pulls/<N>/update-branch -X PUT` → `gh pr merge <N> --squash --auto` → **weitermachen** (kein manuelles CI-Warten) |
+| `DIRTY` | STOP-Regel oben (rebase) |
+| `BLOCKED` | Fehlende Checks abwarten — arm `--auto` wenn noch nicht gesetzt |
+| `MERGEABLE` + Checks grün | `gh pr merge <N> --squash` |
 
-**VERBOTEN:** `gh pr merge` aufrufen, scheitern lassen, dann Branch updaten — das kostet 20+ Minuten CI-Rerun unnötig.
+**Kontrakt:** Nach `--auto` oder `update-branch` nie idle warten. Sofort nächste Aufgabe.
 
-- Copilot-Review via API holen (nicht `gh pr view` allein)
+**Alle PRs scannen:**
+```bash
+gh pr list --repo skippALGO/skipp-algo --state open \
+  --json number,title,mergeable,mergeStateStatus,isDraft,headRefName \
+  | python3 -c "import sys,json; [print(f\"#{p['number']} {p['title'][:50]} | {p['mergeStateStatus']} | draft={p['isDraft']}\") for p in json.load(sys.stdin)]"
+```
 
 ---
 
