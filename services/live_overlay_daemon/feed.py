@@ -19,6 +19,7 @@ Thread safety:
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import threading
 import time
@@ -77,6 +78,11 @@ def _symbol_from_record(record: Any, symmap: dict[int, str]) -> str | None:
 
 def _run_feed_loop(stop: threading.Event) -> None:
     """Persistent reconnect loop for the db.Live() consumer."""
+    # databento.live uses asyncio internally. Background threads have no
+    # event loop by default — set one explicitly to avoid uvloop transport errors.
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
     consecutive_failures = 0
     rolling = config.rolling_bars()
     cache.init_bar_cache(rolling)
