@@ -6,6 +6,48 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-16) — SMC Live Overlay Daemon (PR #2794, PR #2795)
+
+New FastAPI micro-service (`services/live_overlay_daemon/`) that subscribes to
+Databento `EQUS.MINI` live feed (schema `ohlcv-1m`, `ALL_SYMBOLS`) and exposes
+a per-symbol 16-field overlay JSON endpoint for TradingView Pine scripts.
+
+**Service (`services/live_overlay_daemon/`)**
+- `main.py` — FastAPI app with `/health` (GET + HEAD) and `/{token}/smc_live`
+  endpoints. Token validated via `hmac.compare_digest`; wrong token returns 404.
+- `feed.py` — `db.Live()` consumer background thread with reconnect loop and
+  dedicated asyncio event loop (`asyncio.new_event_loop()`).
+- `cache.py` — Thread-safe bar and overlay cache (`threading.Lock`).
+- `compute.py` — Computes 16 overlay fields: `news_strength`, `news_bias`,
+  `flow_rel_vol`, `flow_delta_proxy_pct`, `squeeze_on`, `ats_state`,
+  `ats_zscore`, `vix_level`, `tone`, `global_heat`, `event_window_state`,
+  `event_risk_level`, `next_event_name`, `next_event_time`,
+  `market_event_blocked`, `symbol_event_blocked`.
+- `config.py` — Env-var loader with `_require()` guards for `DATABENTO_API_KEY`
+  and `OVERLAY_SECRET_TOKEN`.
+- `Dockerfile` / `railway.toml` — Railway deployment (Starter, 512 MB).
+  Root Directory is empty (repo root = build context).
+
+**Key engineering decisions**
+- `uvicorn` without `[standard]` extras to avoid `uvloop`/Databento TCP conflict
+  (`TypeError: object Future can't be used in 'await' expression` on reconnect).
+- Start command: `--loop asyncio --http h11` for full compatibility.
+- `/health` accepts both `GET` and `HEAD` (PR #2795) — UptimeRobot sends HEAD;
+  without this every probe returned `405 Method Not Allowed`.
+
+**Pine consumer (`pine/smc_live_overlay_consumer.pine`)**
+- Pine Script v6 indicator that calls the Railway daemon via `request.raw()`.
+- All 16 fields exposed as named `plot()` series (importable via
+  `request.security()`).
+- Dashboard table in top-right corner (toggle off in indicator settings).
+- Requires TradingView Premium for `request.raw()` (Free tier → all fields stale
+  until Premium is activated).
+
+**Deployment**
+- Production URL: `https://liveoverlaydaemon-production.up.railway.app`
+- Monitoring: UptimeRobot free-tier, `GET/HEAD /health`, 5-min interval.
+- See `services/live_overlay_daemon/README.md` for full ops runbook.
+
 ### Changed (2026-06-16) — F-V8-D1: Option D — 9-tick incremental producer cadence + consumer stall guard (commit `293e89af`)
 
 Replaces the prior 2×/day Databento producer/consumer schedule (12:00 / 16:00 UTC

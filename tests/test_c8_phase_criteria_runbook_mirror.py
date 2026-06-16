@@ -88,9 +88,9 @@ def test_phase_a_runbook_mirrors_dataclass() -> None:
     # 4 weeks minimum
     assert "4 weeks" in section
     assert PHASE_A_CRITERIA.min_phase_days == 28
-    # ≥ 20 paper trades closed
-    assert re.search(r"≥\s*20\s+paper trades", section), section
-    assert PHASE_A_CRITERIA.min_trades_closed == 20
+    # ≥ 45 paper trades closed (W9-8: raised from 20 for 80% power)
+    assert re.search(r"≥\s*45\s+paper trades", section), section
+    assert PHASE_A_CRITERIA.min_trades_closed == 45
     # |paper-Sharpe / OOS-Sharpe − 1| < 0.30
     assert re.search(r"<\s*0\.30", section), section
     assert PHASE_A_CRITERIA.max_drift_score_deviation == 0.30

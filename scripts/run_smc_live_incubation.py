@@ -111,7 +111,11 @@ class PhasePassCriteria:
 PHASE_A_CRITERIA = PhasePassCriteria(
     phase="paper",
     min_phase_days=28,
-    min_trades_closed=20,
+    # W9-8 (SMR wave 9): 20 trades gives <9% statistical power to
+    # distinguish p=0.544 (null) from p=0.574 (alternative) at α=0.05
+    # (one-sided binomial test). A power analysis targeting 80% power
+    # at the same effect-size requires n≥45. Raised from 20 → 45.
+    min_trades_closed=45,
     max_drift_score_deviation=0.30,
     min_drift_score=0.70,
     require_drift_verdict_in=("pass", "acceptable"),

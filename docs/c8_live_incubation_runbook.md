@@ -51,7 +51,7 @@ position size to **10 %** of the backtest sizing.
 
 **Pass criteria (manual sign-off after 4 weeks):**
 
-- ≥ 20 paper trades closed
+- ≥ 45 paper trades closed
 - |paper-Sharpe / OOS-Sharpe − 1| < 0.30 (drift_score ≥ 0.70 — stricter
   than the code's `acceptable` band of 0.65; equivalent to verdict
   `acceptable` or `pass` in `scripts/compute_live_drift.py::_VERDICT_BANDS`)
