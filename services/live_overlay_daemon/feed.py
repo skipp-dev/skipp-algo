@@ -120,7 +120,7 @@ def _run_feed_loop(stop: threading.Event) -> None:
                         continue
 
                     # Skip system records that aren't OHLCV data
-                    if "OHLCV" not in rec_type.upper() and "Bar" not in rec_type:
+                    if "OHLCV" not in rec_type.upper() and "BAR" not in rec_type.upper():
                         continue
 
                     sym = _symbol_from_record(record, symmap)

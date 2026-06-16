@@ -90,7 +90,9 @@ _ALLOWED: dict[str, dict[str, set[str]]] = {
             "id:slippage_sample",
             "id:drift",
             "id:families",
-            "id:emit_public",            "id:corpus",        },
+            "id:emit_public",
+            "id:corpus",
+        },
     },
 }
 

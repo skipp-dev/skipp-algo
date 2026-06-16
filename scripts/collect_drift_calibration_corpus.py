@@ -135,7 +135,7 @@ def _existing_keys(corpus_path: Path) -> set[tuple[str, str]]:
 
 
 # ---------------------------------------------------------------------------
-# Atomic append
+# Idempotent append (deduplicates on computed_at × variant)
 # ---------------------------------------------------------------------------
 
 def _append_rows(corpus_path: Path, rows: list[dict[str, Any]]) -> int:
