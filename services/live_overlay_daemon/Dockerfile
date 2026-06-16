@@ -2,6 +2,9 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+# Create services package marker so Python can resolve services.live_overlay_daemon
+RUN mkdir -p /app/services && touch /app/services/__init__.py
+
 # Install dependencies first (cached layer)
 COPY services/live_overlay_daemon/requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
