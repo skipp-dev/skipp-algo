@@ -297,6 +297,35 @@ and will fail CI.
   Checks in `main` mergen.
 - Vor jedem Commit: `uv run ruff check` und `uv run ruff format --check`.
 
+### Pre-CI-Gate (Pflicht vor jedem `git push`)
+
+**Bevor der Agent `git push` ausführt oder CI anstößt**, muss er
+selbständig folgende Checks lokal ausführen und alle Fehler direkt fixen:
+
+**1. Ruff-Lint + Auto-Fix:**
+```bash
+cd /Users/spreuss/Documents/skipp-algo
+.venv/bin/python -m ruff check --fix .
+.venv/bin/python -m ruff check .          # must exit 0
+```
+Wenn nach `--fix` noch Fehler bleiben: manuell fixen, commit, dann erst pushen.
+
+**2. Ledger-Pin-Tests (targeted, ~10s):**
+```bash
+.venv/bin/python -m pytest \
+  tests/test_global_statement_budget.py \
+  tests/test_noqa_suppression_ledger.py \
+  tests/test_path_text_io_encoding_ledger.py \
+  tests/test_atomic_write_call_sites.py \
+  -q --no-header 2>&1 | tail -5
+```
+Bei Failure: Ledger-Einträge ergänzen oder die auslösende Änderung
+korrigieren — erst dann pushen.
+
+**Niemals pushen mit bekannten Ruff-Fehlern oder Ledger-Brüchen.**
+Ein CI-Run mit Ruff/Ledger-Failure ist ein Regelverstoß, der durch
+30 Sekunden lokale Prüfung vermeidbar gewesen wäre.
+
 ### Verifikationsregel
 
 Niemals davon ausgehen, dass Code funktioniert. Immer ausführen und Output
