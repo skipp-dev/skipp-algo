@@ -301,7 +301,7 @@ jobs:
           fi
           echo "rc=$?" >> "$GITHUB_OUTPUT"
 
-      - name: Step 4b — append drift snapshot to calibration corpus (issue #2798)
+      - name: "Step 4b — best-effort: append drift snapshot to calibration corpus (issue #2798)"
         id: corpus
         if: steps.drift.outputs.rc == '0'
         # CONTINUE-ON-ERROR-INTENTIONAL: corpus collection is advisory.
