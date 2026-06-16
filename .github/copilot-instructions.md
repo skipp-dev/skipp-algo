@@ -208,10 +208,13 @@ grep -rn "X" --include="*.py" --include="*.pine" . | head -20
 >>>>>>> 09e56ccf (docs(rules): minimize CI waste — full ledger sweep, suppression table, auto-merge contract)
 git branch --show-current && git add <files> && git commit -m "..."
 
-# 2. Ruff
+# 2. Stale Bytecode entfernen (verhindert Phantomfehler aus veralteten .pyc)
+find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null
+
+# 3. Ruff
 .venv/bin/python -m ruff check --fix . && .venv/bin/python -m ruff check .
 
-# 3. Alle 7 Ledger-Pins (~15s) — VOLLSTÄNDIG, nicht kürzen
+# 4. Alle 7 Ledger-Pins (~15s) — VOLLSTÄNDIG, nicht kürzen
 .venv/bin/python -m pytest \
   tests/test_global_statement_budget.py \
   tests/test_noqa_budget.py \
