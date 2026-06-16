@@ -461,13 +461,21 @@ def main(argv: list[str] | None = None) -> int:
         except (OSError, json.JSONDecodeError) as exc:
             print(f"ERROR: cannot read --input {args.input}: {exc}", file=sys.stderr)
             return EXIT_FATAL
-        entry = _make_history_entry(
-            comparison,
-            timestamp=now,
-            source_path=args.input,
-            source_commit_sha=args.commit_sha,
-            source_workflow_run=args.workflow_run,
-        )
+        try:
+            entry = _make_history_entry(
+                comparison,
+                timestamp=now,
+                source_path=args.input,
+                source_commit_sha=args.commit_sha,
+                source_workflow_run=args.workflow_run,
+            )
+        except ValueError as exc:
+            print(
+                f"ERROR: hit-rate data missing in {args.input}: {exc}; "
+                "cannot evaluate underperformance streak (data gap — W9-2)",
+                file=sys.stderr,
+            )
+            return EXIT_FATAL
         try:
             history = append_history(args.history, entry)
         except OSError as exc:

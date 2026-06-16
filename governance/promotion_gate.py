@@ -183,6 +183,10 @@ class GateThresholds:
         # the stored attribute a plain ``float``.
         if self.brier_ci_upper_max == _TRACK_BRIER_MAX:
             object.__setattr__(self, "brier_ci_upper_max", self.brier_max)
+        if self.n_concurrent_families < 1:
+            raise ValueError(
+                f"n_concurrent_families must be ≥ 1, got {self.n_concurrent_families}"
+            )
 
 
 @dataclass
@@ -396,7 +400,7 @@ class PromotionGate:
             # family-wise error rate (FWER) at level fdr_q regardless of
             # the number of simultaneous tests. n_concurrent_families=1
             # (default) leaves the threshold unchanged.
-            threshold=t.fdr_q / max(t.n_concurrent_families, 1),
+            threshold=t.fdr_q / t.n_concurrent_families,
             lower_is_better=True,
             blockers=blockers,
             metrics=metrics,
