@@ -186,7 +186,7 @@ def _run_refresh_loop(stop: threading.Event) -> None:
             elapsed = time.monotonic() - t0
             logger.info("Full overlay computed: %d symbols in %.1fs", n, elapsed)
         except Exception as exc:
-              logger.error("Full overlay compute error: %s", exc, exc_info=True)
+            logger.error("Full overlay compute error: %s", exc, exc_info=True)
         stop.wait(secs)
     logger.info("Refresh thread stopped.")
 

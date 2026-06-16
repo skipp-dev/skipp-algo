@@ -12,6 +12,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
+
 # ---------------------------------------------------------------------------
 # Helper: lightweight stand-in for databento OhlcvMsg
 # ---------------------------------------------------------------------------
@@ -113,6 +115,3 @@ class TestRecordToBar:
         """A record that raises on attribute access must yield None (no crash)."""
         bar = _record_to_bar(object())  # plain object has no .open / .hd
         assert bar is None
-
-
-import pytest
