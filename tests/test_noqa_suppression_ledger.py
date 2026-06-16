@@ -220,7 +220,7 @@ _FROZEN_SITES: dict[str, int] = {
     # Entry removed: databento_production_export.py now has 0 noqa lines.
     # 2026-06-16 (feat/live-overlay-daemon): E402 on databento import after
     # sys.path check in PoC bandwidth script — must be after path setup.
-    "scripts/poc_live_feed_bandwidth.py": 1,
+    "scripts/poc_live_feed_bandwidth.py": 0,
 }
 _FROZEN_TOTAL = sum(_FROZEN_SITES.values())
 
