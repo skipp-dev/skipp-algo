@@ -17,9 +17,9 @@
 	<key>RunAtLoad</key>
 	<false/>
 	<key>StandardErrorPath</key>
-	<string>/tmp/skippalgo-c13-ibkr-smoke.err</string>
+	<string>__HOME__/Library/Logs/skippalgo/skippalgo-c13-ibkr-smoke.err</string>
 	<key>StandardOutPath</key>
-	<string>/tmp/skippalgo-c13-ibkr-smoke.log</string>
+	<string>__HOME__/Library/Logs/skippalgo/skippalgo-c13-ibkr-smoke.log</string>
 	<key>StartCalendarInterval</key>
 	<array>
 		<dict>

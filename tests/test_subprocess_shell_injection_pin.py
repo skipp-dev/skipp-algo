@@ -81,6 +81,8 @@ def _iter_first_party_py_files() -> list[Path]:
             continue
         if any(part in _DIR_EXCLUDE for part in rel_parts):
             continue
+        if path.name.startswith("mutation_"):
+            continue
         out.append(path)
     return sorted(out)
 

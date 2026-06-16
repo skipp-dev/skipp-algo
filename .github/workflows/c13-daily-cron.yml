@@ -301,6 +301,27 @@ jobs:
           fi
           echo "rc=$?" >> "$GITHUB_OUTPUT"
 
+      - name: "Step 4b — best-effort: append drift snapshot to calibration corpus (issue #2798)"
+        id: corpus
+        if: steps.drift.outputs.rc == '0'
+        # CONTINUE-ON-ERROR-INTENTIONAL: corpus collection is advisory.
+        # A failure here must never block the daily cron or the drift alert.
+        # W9-7: accumulates daily (computed_at, variant, drift_score, verdict,
+        # human_label=null) rows for the future ROC calibration of _VERDICT_BANDS.
+        continue-on-error: true
+        run: |
+          set +e
+          DATE="${{ steps.date.outputs.date }}"
+          LIVE_DIR="cache/live"
+          python -m scripts.collect_drift_calibration_corpus \
+            --drift-json  "${LIVE_DIR}/drift_${DATE}.json" \
+            --corpus      "artifacts/drift/calibration_corpus.jsonl"
+          corpus_rc=$?
+          echo "rc=${corpus_rc}" >> "$GITHUB_OUTPUT"
+          if [ "${corpus_rc}" != "0" ]; then
+            echo "::warning::Step 4b corpus collection failed (rc=${corpus_rc}); drift cron continues."
+          fi
+
       - name: Step 5a — build families telemetry (advisory)
         id: families
         if: steps.drift.outputs.rc == '0'
@@ -361,6 +382,7 @@ jobs:
             cache/calibration/backtest_reference_*.json
             docs/calibration/calibration_report_public.json
             docs/calibration/calibration_report_public_history.jsonl
+            artifacts/drift/calibration_corpus.jsonl
           if-no-files-found: warn
 
       - name: Open issue if any required step failed

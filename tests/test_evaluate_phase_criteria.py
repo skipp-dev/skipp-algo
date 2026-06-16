@@ -93,7 +93,7 @@ def test_unmapped_extra_string_yields_unevaluable_not_pass() -> None:
         criteria,
         variant="v1",
         drift_artifact=_passing_phase_a_artifact(),
-        audit_records=_closed_audit_records(25),
+        audit_records=_closed_audit_records(45),
         phase_started=PHASE_START_OK,
         today=TODAY,
     )
@@ -112,7 +112,7 @@ def test_phase_a_all_passing_inputs_pass() -> None:
         PHASE_A_CRITERIA,
         variant="v1",
         drift_artifact=_passing_phase_a_artifact(),
-        audit_records=_closed_audit_records(25),
+        audit_records=_closed_audit_records(45),
         phase_started=PHASE_START_OK,
         today=TODAY,
         # Stat-review S1 (#2674): Phase-A now requires the watchdog
@@ -129,7 +129,7 @@ def test_missing_drift_artifact_fails_closed() -> None:
         PHASE_A_CRITERIA,
         variant="v1",
         drift_artifact=None,
-        audit_records=_closed_audit_records(25),
+        audit_records=_closed_audit_records(45),
         phase_started=PHASE_START_OK,
         today=TODAY,
     )
@@ -192,7 +192,7 @@ def test_min_phase_days_not_elapsed_fails() -> None:
         PHASE_A_CRITERIA,
         variant="v1",
         drift_artifact=_passing_phase_a_artifact(),
-        audit_records=_closed_audit_records(25),
+        audit_records=_closed_audit_records(45),
         phase_started=TODAY - timedelta(days=5),
         today=TODAY,
     )
@@ -207,7 +207,7 @@ def test_drift_score_deviation_and_floor() -> None:
         PHASE_A_CRITERIA,
         variant="v1",
         drift_artifact=artifact,
-        audit_records=_closed_audit_records(25),
+        audit_records=_closed_audit_records(45),
         phase_started=PHASE_START_OK,
         today=TODAY,
     )
@@ -223,7 +223,7 @@ def test_verdict_outside_allowlist_fails() -> None:
         PHASE_A_CRITERIA,
         variant="v1",
         drift_artifact=artifact,
-        audit_records=_closed_audit_records(25),
+        audit_records=_closed_audit_records(45),
         phase_started=PHASE_START_OK,
         today=TODAY,
     )
@@ -460,7 +460,7 @@ def test_phase_a_missing_watchdog_report_fails_closed() -> None:
         PHASE_A_CRITERIA,
         variant="v1",
         drift_artifact=_passing_phase_a_artifact(),
-        audit_records=_closed_audit_records(25),
+        audit_records=_closed_audit_records(45),
         phase_started=PHASE_START_OK,
         today=TODAY,
         watchdog_report=None,
@@ -482,7 +482,7 @@ def test_synthetic_ks_reference_makes_pvalue_criterion_unevaluable() -> None:
         PHASE_A_CRITERIA,
         variant="v1",
         drift_artifact=artifact,
-        audit_records=_closed_audit_records(25),
+        audit_records=_closed_audit_records(45),
         phase_started=PHASE_START_OK,
         today=TODAY,
         watchdog_report={"aggregate_severity": "green"},
@@ -737,7 +737,7 @@ def test_cli_writes_report_and_exit_code_reflects_pass(tmp_path: Path) -> None:
     drift.write_text(json.dumps(_passing_phase_a_artifact()), encoding="utf-8")
     audit = tmp_path / "audit.jsonl"
     audit.write_text(
-        "\n".join(json.dumps(r) for r in _closed_audit_records(25)),
+        "\n".join(json.dumps(r) for r in _closed_audit_records(45)),
         encoding="utf-8",
     )
     # Stat-review S1 (#2674): Phase-A now requires the watchdog severity.

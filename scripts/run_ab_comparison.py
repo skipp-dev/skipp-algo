@@ -608,11 +608,13 @@ def _calibration_fdr_layer(
 # Default Wald SPRT parameters. p0/p1 follow plan §2.4 G3: minimum-
 # detectable effect of +5 percentage points hit-rate improvement over a
 # 0.55 baseline (the lifetime-corpus median across families). alpha=0.05,
-# beta=0.20 are the conventional gate settings. These are FALLBACK values
-# for callers that do not pass ``sprt_config`` to :func:`compare`; the F2
-# promotion gate overrides them with the spec's pre-registered parameters
-# (2026-06-10 audit — see docs/DECISIONS.md
-# §2026-06-10 f2-dual-arm-raw-score-shadowing).
+# beta=0.20 are the conventional gate settings.
+# W10-2 (stat-review wave 10): these are FALLBACK constants for callers
+# that do not pass ``sprt_config`` to :func:`compare`.  They diverge from
+# the F2 spec (p0=0.544, p1=0.574, MDE=30bp) by +6bp/+26bp, enlarging
+# the implied MDE from 30bp to 50bp and reducing power.  Production runs
+# MUST supply ``--spec-path`` so compare() receives the spec-aligned
+# SPRTConfig; using these defaults for promotion decisions is incorrect.
 SPRT_P0 = 0.55
 SPRT_P1 = 0.60
 SPRT_ALPHA = 0.05
@@ -650,6 +652,15 @@ def _sprt_decision(
         # absent (e.g. old serialised AggregateReport objects).
         n = int(getattr(treat_agg, "total_events", 0) or 0)
     hr_pct = float(getattr(treat_agg, "avg_hit_rate", 0.0) or 0.0)
+    # W9-1 (SMR wave 9): Python's min/max propagate NaN as the *other*
+    # operand, so min(100.0, NaN)==100.0 and max(0.0, NaN)==0.0. A NaN
+    # avg_hit_rate would launder to 100% here and fool SPRT into a phantom
+    # promote. Raise instead of silently clamping.
+    if math.isnan(hr_pct):
+        raise ValueError(
+            "avg_hit_rate evaluates to NaN — outcome data incomplete; "
+            "aborting SPRT to prevent phantom promotion (W9-1)"
+        )
     # avg_hit_rate is in percent; clamp into [0, 100] before conversion.
     hr_pct = max(0.0, min(100.0, hr_pct))
     k = round(n * hr_pct / 100.0)
@@ -771,7 +782,22 @@ def decide_recommendation(rows: list[dict[str, Any]]) -> dict[str, Any]:
             },
         }
     if hr_delta is None:
-        hr_delta = 0.0  # hit_rate absent → conservatively assume no improvement
+        # W9-3 (SMR wave 9): assigning hr_delta = 0.0 silently satisfies the
+        # hit_rate_ok gate (0.0 >= -tolerance is always True), allowing a
+        # promote when the true outcome is unknown.  Gate to HOLD instead so
+        # missing hit-rate data never clears the regression check.
+        return {
+            "recommendation": "hold",
+            "reason": (
+                "hit_rate_delta unavailable (avg_hit_rate missing from one or "
+                "both arms) — cannot assess regression; holding (W9-3)"
+            ),
+            "kpi_thresholds": {
+                "promote_improvement": PROMOTE_IMPROVEMENT,
+                "rollback_regression": ROLLBACK_REGRESSION,
+                "hit_rate_regression_tolerance": HIT_RATE_REGRESSION_TOLERANCE,
+            },
+        }
 
     thresholds = {
         "promote_improvement": PROMOTE_IMPROVEMENT,
@@ -987,7 +1013,54 @@ def main(argv: list[str] | None = None) -> None:
         default=BOOTSTRAP_SEED,
         help=f"Permutation seed (default {BOOTSTRAP_SEED}, fixed for reproducibility).",
     )
+    parser.add_argument(
+        "--spec-path",
+        type=Path,
+        default=None,
+        help=(
+            "Path to the experiment JSON spec (e.g. "
+            "artifacts/experiments/f2_contextual_promotion.json). "
+            "When provided the pre-registered SPRT p0/p1/alpha/beta/max_n "
+            "values are used instead of the module-level fallback constants. "
+            "W10-2 (stat-review wave 10): omitting this flag means the "
+            "fallback SPRT_P0=0.55/SPRT_P1=0.60 are used, which diverge from "
+            "the live F2 spec (p0=0.544, p1=0.574). Always pass this flag "
+            "for production promotion decisions."
+        ),
+    )
     args = parser.parse_args(argv)
+
+    # W10-2: validate --spec-path early (before expensive benchmark loading)
+    # so callers get a clear error without waiting for I/O to fail elsewhere.
+    sprt_config: SPRTConfig | None = None
+    if args.spec_path is not None:
+        if not args.spec_path.is_file():
+            print(
+                f"ERROR: --spec-path {args.spec_path} does not exist",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        try:
+            _spec = json.loads(args.spec_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            print(f"ERROR: cannot read {args.spec_path}: {exc}", file=sys.stderr)
+            sys.exit(1)
+        _s = _spec.get("sprt", {})
+        try:
+            sprt_config = SPRTConfig(
+                p0=float(_s["p0"]),
+                p1=float(_s["p1"]),
+                alpha=float(_s.get("alpha", SPRT_ALPHA)),
+                beta=float(_s.get("beta", SPRT_BETA)),
+                max_n=int(_s["max_n"]) if "max_n" in _s else None,
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            print(
+                f"ERROR: --spec-path {args.spec_path} is missing or has "
+                f"invalid SPRT fields (p0/p1 are required): {exc}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
     control_pairs = load_benchmark(args.control_dir)
     treatment_pairs = load_benchmark(args.treatment_dir)
@@ -1014,6 +1087,7 @@ def main(argv: list[str] | None = None) -> None:
         enable_calibration_fdr=args.enable_calibration_fdr,
         calibration_fdr_B=args.calibration_fdr_B,
         calibration_fdr_seed=args.calibration_fdr_seed,
+        sprt_config=sprt_config,  # W10-2: None → fallback constants; Path → spec
     )
     report = render_comparison(digest)
 

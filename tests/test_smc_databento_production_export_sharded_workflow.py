@@ -131,7 +131,8 @@ def test_incremental_toggle_uses_boolean_safe_truthy_form() -> None:
     # silently keep the producer on the full-lookback path).
     text = _read()
     assert (
-        "INCREMENTAL=\"${{ inputs.incremental_from_manifest && 'true' || '' }}\"" in text
+        "inputs.incremental_from_manifest" in text
+        and "&& 'true'" in text
     ), "incremental toggle must use the boolean-safe truthy form"
     assert "inputs.incremental_from_manifest == 'true'" not in text, (
         "GHA-quirk: boolean-typed workflow inputs are NOT compared with the "

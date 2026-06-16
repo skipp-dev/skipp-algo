@@ -33,7 +33,7 @@ import urllib.error
 import urllib.request
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 
@@ -79,6 +79,40 @@ def _parse_iso(s: str) -> datetime:
     return datetime.fromisoformat(s.replace("Z", "+00:00"))
 
 
+def _weekend_hours_between(start: datetime, end: datetime) -> float:
+    """Return the number of Saturday and Sunday hours (UTC) between start and end.
+
+    If start >= end, returns 0.0. Clamped to a max of 1000 hours to avert loops.
+    """
+    if start >= end:
+        return 0.0
+    start_utc = start.astimezone(UTC)
+    end_utc = end.astimezone(UTC)
+
+    total_hours = (end_utc - start_utc).total_seconds() / 3600.0
+    if total_hours > 1000:
+        # Clamp to 1000 to keep execution rapid even for extremely long gaps.
+        # Any gap > 1000h is already far beyond any standard budget budget_hours anyway.
+        # This protects against infinite/slow loops if someone runs checks with massive gaps.
+        end_utc = start_utc + timedelta(hours=1000)
+
+    curr = start_utc
+    weekend_hours = 0.0
+    while curr < end_utc:
+        # Ensure we don't cross a midnight boundary or an hour boundary in a single step
+        nxt_hour = (curr + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
+        if nxt_hour <= curr:
+            nxt_hour = curr + timedelta(hours=1)
+        nxt_midnight = (curr + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+        nxt = min(nxt_hour, nxt_midnight, end_utc)
+        duration_hours = (nxt - curr).total_seconds() / 3600.0
+        if curr.weekday() in (5, 6):
+            weekend_hours += duration_hours
+        curr = nxt
+    return weekend_hours
+
+
 def check_workflow(
     *,
     repo: str,
@@ -88,6 +122,7 @@ def check_workflow(
     now: datetime | None = None,
     fetcher: Fetcher | None = None,
     any_conclusion: bool = False,
+    weekday_only: bool = False,
 ) -> WorkflowFreshness:
     """Look up the most recent successful (or any completed) run of one workflow.
 
@@ -146,6 +181,10 @@ def check_workflow(
         )
 
     age = (now - _parse_iso(finished_raw)).total_seconds() / 3600.0
+    if weekday_only:
+        weekend_h = _weekend_hours_between(_parse_iso(finished_raw), now)
+        age = max(0.0, age - weekend_h)
+
     status = "fresh" if age <= budget_hours else "stale"
     return WorkflowFreshness(
         workflow=workflow_file,
@@ -162,25 +201,31 @@ def check_workflow(
 def check_all(
     *,
     repo: str,
-    workflows: list[tuple[str, float, bool]],
+    workflows: list[tuple[str, float, bool] | tuple[str, float, bool, bool]],
     token: str,
     now: datetime | None = None,
     fetcher: Fetcher | None = None,
 ) -> FreshnessReport:
-    """Check a list of ``(workflow_file, budget_hours, any_conclusion)`` triples."""
+    """Check a list of ``(workflow_file, budget_hours, any_conclusion, [weekday_only])`` elements."""
     now = now or datetime.now(tz=UTC)
-    results = [
-        check_workflow(
-            repo=repo,
-            workflow_file=wf,
-            budget_hours=budget,
-            token=token,
-            now=now,
-            fetcher=fetcher,
-            any_conclusion=any_conc,
+    results = []
+    for item in workflows:
+        wf = item[0]
+        budget = item[1]
+        any_conc = item[2]
+        wkday = item[3] if len(item) > 3 else False
+        results.append(
+            check_workflow(
+                repo=repo,
+                workflow_file=wf,
+                budget_hours=budget,
+                token=token,
+                now=now,
+                fetcher=fetcher,
+                any_conclusion=any_conc,
+                weekday_only=wkday,
+            )
         )
-        for wf, budget, any_conc in workflows
-    ]
     stale = sum(1 for r in results if r.status == "stale")
     missing = sum(1 for r in results if r.status == "missing")
     api_err = sum(1 for r in results if r.status == "api_error")
@@ -203,15 +248,17 @@ def check_all(
     )
 
 
-def _parse_workflow_spec(raw: str) -> tuple[str, float, bool]:
-    """Parse ``file.yml=HOURS`` or ``file.yml=HOURS:any``.
+def _parse_workflow_spec(raw: str) -> tuple[str, float, bool, bool]:
+    """Parse ``file.yml=HOURS`` or suffixes such as ``:any`` or ``:weekday``.
 
     The optional ``:any`` suffix enables *any_conclusion* mode — the
     freshness check queries ``status=completed`` instead of
     ``status=success``.  This is intended for promotion-gate workflows
     whose non-zero exit code is an expected operational outcome.
 
-    Returns ``(workflow_file, budget_hours, any_conclusion)``.
+    The optional ``:weekday`` suffix excludes Saturday and Sunday UTC hours.
+
+    Returns ``(workflow_file, budget_hours, any_conclusion, weekday_only)``.
     """
     if "=" not in raw:
         raise argparse.ArgumentTypeError(
@@ -224,20 +271,23 @@ def _parse_workflow_spec(raw: str) -> tuple[str, float, bool]:
         raise argparse.ArgumentTypeError(
             f"workflow file must end with .yml/.yaml, got {name!r}"
         )
-    # Optional :any suffix → any_conclusion mode
-    any_conclusion = False
-    if rest.endswith(":any"):
-        any_conclusion = True
-        rest = rest[: -len(":any")]
+
+    parts = rest.split(":")
+    budget_s = parts[0].strip()
+    tags = {p.strip().lower() for p in parts[1:]} if len(parts) > 1 else set()
+
+    any_conclusion = "any" in tags
+    weekday_only = "weekday" in tags
+
     try:
-        budget = float(rest)
+        budget = float(budget_s)
     except ValueError as exc:
         raise argparse.ArgumentTypeError(
-            f"budget hours must be numeric, got {rest!r}"
+            f"budget hours must be numeric, got {budget_s!r}"
         ) from exc
     if budget <= 0:
         raise argparse.ArgumentTypeError("budget hours must be positive")
-    return name, budget, any_conclusion
+    return name, budget, any_conclusion, weekday_only
 
 
 def main(argv: list[str] | None = None) -> int:

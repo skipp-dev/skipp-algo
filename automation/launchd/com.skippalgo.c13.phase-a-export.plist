@@ -31,9 +31,9 @@
     <false/>
 
     <key>StandardOutPath</key>
-    <string>/tmp/skippalgo-c13-phase-a-export.log</string>
+    <string>__HOME__/Library/Logs/skippalgo/skippalgo-c13-phase-a-export.log</string>
     <key>StandardErrorPath</key>
-    <string>/tmp/skippalgo-c13-phase-a-export.err</string>
+    <string>__HOME__/Library/Logs/skippalgo/skippalgo-c13-phase-a-export.err</string>
 
     <key>EnvironmentVariables</key>
     <dict>

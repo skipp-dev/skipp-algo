@@ -146,7 +146,10 @@ def test_compute_live_drift_cadence_prefers_explicit_trades_per_year() -> None:
 
 def test_compute_live_drift_identical_to_backtest_passes() -> None:
     returns = _make_returns(0.01, 0.005, 30, seed=7)
-    live_sharpe = annualised_sharpe(returns)
+    # W9-4: compute_live_drift scales trades_per_year dynamically.
+    # We must match the same scaling factor in our test reference.
+    tpy = len(returns) * 365.25 / 90
+    live_sharpe = annualised_sharpe(returns, trades_per_year=tpy)
     rows = [{"variant": "v1", "return": r} for r in returns]
     out = compute_live_drift(
         live_rows=rows,

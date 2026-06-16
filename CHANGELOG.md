@@ -6,6 +6,82 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-16) — SMC Live Overlay Daemon (PR #2794, PR #2795)
+
+New FastAPI micro-service (`services/live_overlay_daemon/`) that subscribes to
+Databento `EQUS.MINI` live feed (schema `ohlcv-1m`, `ALL_SYMBOLS`) and exposes
+a per-symbol 16-field overlay JSON endpoint for TradingView Pine scripts.
+
+**Service (`services/live_overlay_daemon/`)**
+- `main.py` — FastAPI app with `/health` (GET + HEAD) and `/{token}/smc_live`
+  endpoints. Token validated via `hmac.compare_digest`; wrong token returns 404.
+- `feed.py` — `db.Live()` consumer background thread with reconnect loop and
+  dedicated asyncio event loop (`asyncio.new_event_loop()`).
+- `cache.py` — Thread-safe bar and overlay cache (`threading.Lock`).
+- `compute.py` — Computes 16 overlay fields: `news_strength`, `news_bias`,
+  `flow_rel_vol`, `flow_delta_proxy_pct`, `squeeze_on`, `ats_state`,
+  `ats_zscore`, `vix_level`, `tone`, `global_heat`, `event_window_state`,
+  `event_risk_level`, `next_event_name`, `next_event_time`,
+  `market_event_blocked`, `symbol_event_blocked`.
+- `config.py` — Env-var loader with `_require()` guards for `DATABENTO_API_KEY`
+  and `OVERLAY_SECRET_TOKEN`.
+- `Dockerfile` / `railway.toml` — Railway deployment (Starter, 512 MB).
+  Root Directory is empty (repo root = build context).
+
+**Key engineering decisions**
+- `uvicorn` without `[standard]` extras to avoid `uvloop`/Databento TCP conflict
+  (`TypeError: object Future can't be used in 'await' expression` on reconnect).
+- Start command: `--loop asyncio --http h11` for full compatibility.
+- `/health` accepts both `GET` and `HEAD` (PR #2795) — UptimeRobot sends HEAD;
+  without this every probe returned `405 Method Not Allowed`.
+
+**Pine consumer (`pine/smc_live_overlay_consumer.pine`)**
+- Pine Script v6 indicator that calls the Railway daemon via `request.raw()`.
+- All 16 fields exposed as named `plot()` series (importable via
+  `request.security()`).
+- Dashboard table in top-right corner (toggle off in indicator settings).
+- Requires TradingView Premium for `request.raw()` (Free tier → all fields stale
+  until Premium is activated).
+
+**Deployment**
+- Production URL: `https://liveoverlaydaemon-production.up.railway.app`
+- Monitoring: UptimeRobot free-tier, `GET/HEAD /health`, 5-min interval.
+- See `services/live_overlay_daemon/README.md` for full ops runbook.
+
+### Changed (2026-06-16) — F-V8-D1: Option D — 9-tick incremental producer cadence + consumer stall guard (commit `293e89af`)
+
+Replaces the prior 2×/day Databento producer/consumer schedule (12:00 / 16:00 UTC
+producer, 16:00 / 20:00 UTC consumer) with a 9×/day incremental cadence tuned for
+freshness and GHA cost efficiency.
+
+**Producer (`smc-databento-production-export-sharded.yml`)**
+- Cron expanded from 2 → 9 ticks: `08/10/12/14/16/18/20/21/22 UTC` Mon–Fri.
+- All schedule triggers now run incremental mode:
+  `INCREMENTAL="${{ (inputs.incremental_from_manifest || github.event_name == 'schedule') && 'true' || '' }}"`.
+  Each tick downloads only the delta since the last baked manifest
+  (`databento_incremental_window.py` with `safety_overlap_days=1`), bringing
+  per-tick wall-clock from ~60 min → ~20 min. Cold starts (no manifest) fall
+  back to the full 30-day lookback automatically.
+
+**Consumer (`smc-library-refresh.yml`)**
+- Safety-net crons expanded from 2 → 9 ticks, each +60 min after the matching
+  producer tick: `09/11/13/15/17/19/21/22/23 UTC`.
+- Added `timeout-minutes: 45` hard cap to the "Generate SMC library with v5
+  enrichment" step. Root cause of the prior >2 h hangs: FMP client
+  (`retry_attempts=2`, `timeout_seconds=12`, `max_delay=60`) allows 84 s
+  worst-case per call; ~100 per-ticker calls × 84 s ≈ 8400 s (observed runs:
+  8552 s, 9337 s, 5468 s). The 45-min cap hard-kills the step and releases the
+  concurrency slot; the `workflow_run` fast-path remains unchanged.
+- Job-level `timeout-minutes: 240` cap unchanged (enforced by
+  `test_consumer_timeout_is_tight`).
+
+**Cost / freshness impact**
+- Estimated GHA billed minutes: ~675 billed-min/day (9 × ~75 min) vs. ~480
+  (2 × ~240 min full-scan) — trade-off accepted for 4.5× freshness improvement.
+- Overnight gap (post-market → pre-market data age): 15 h → 10 h.
+- All 41 test assertions pass: 9 producer ticks == 9 consumer ticks, all
+  forward gaps ≥ 60 min, all timeouts ≤ 240 min.
+
 ### Fixed (2026-06-14) — live-window Dual-Marker bereinigt (PR #2723)
 
 Fünf Workflows trugen einen zweiten `# live-window:`-Header-Marker mit der

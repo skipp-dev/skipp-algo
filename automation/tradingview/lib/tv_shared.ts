@@ -1494,13 +1494,30 @@ function formatEditorDiagnostics(diagnostics: EditorDiagnostics): string {
 }
 
 function formatPageLifecycleDiagnostics(diagnostics: PageLifecycleDiagnostics): string {
+  // Build a compact type-frequency map from recent events so a timeout message
+  // surfaces *which* events fired (e.g. "tv-trace×18 step-start×4 step-error×3")
+  // rather than just a raw count.  Entries are space-separated and sorted by
+  // frequency descending.  This makes closeModal timeouts immediately
+  // actionable without having to download a trace archive.
+  const typeCounts = new Map<string, number>();
+  for (const ev of diagnostics.recentEvents) {
+    typeCounts.set(ev.type, (typeCounts.get(ev.type) ?? 0) + 1);
+  }
+  const eventBreakdown =
+    typeCounts.size > 0
+      ? [...typeCounts.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .map(([t, n]) => `${t}×${n}`)
+          .join(" ")
+      : "none";
+
   return [
     `pageClosed ${diagnostics.pageClosed}`,
     `pageCrashed ${diagnostics.pageCrashed}`,
     `contextClosed ${diagnostics.contextClosed}`,
     `browserDisconnected ${diagnostics.browserDisconnected}`,
     diagnostics.activeStep ? `activeStep ${diagnostics.activeStep}` : "activeStep none",
-    `events ${diagnostics.eventCount}`,
+    `events ${diagnostics.eventCount} [${eventBreakdown}]`,
     diagnostics.currentUrl ? `url ${diagnostics.currentUrl}` : "url unavailable",
   ].join(", ");
 }
@@ -4134,7 +4151,17 @@ export async function dismissCookieBanner(page: Page): Promise<boolean> {
   let dismissed = false;
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const clicked = await clickFirst(tvSelectors.cookieAccept(page), 1_000);
+    // Use clickVisibleWithFallback (which includes force + JS dispatchEvent) so
+    // that a Monaco editor margin-view-overlays div covering the Accept button
+    // does not cause a Playwright actionability timeout (observed 2026-06-15:
+    // margin-view-overlays focused intercepts pointer events on fresh page load).
+    const clicked = await clickVisibleWithFallback(
+      page,
+      tvSelectors.cookieAccept(page),
+      "cookie-accept",
+      1_000,
+      400,
+    );
     if (!clicked) {
       break;
     }
@@ -4148,6 +4175,14 @@ export async function dismissCookieBanner(page: Page): Promise<boolean> {
 
 export async function ensurePineEditor(page: Page): Promise<void> {
   await runTrackedStep(page, "ensurePineEditor", async () => {
+    // Press Escape before any dismiss calls: if the Monaco editor's
+    // margin-view-overlays is focused and intercepting pointer events (observed
+    // 2026-06-15 — page loads with Pine editor already open, its gutter overlay
+    // covers toolbar buttons), a single Escape unfocuses it without closing the
+    // editor. Harmless when the overlay is not present.
+    await page.keyboard.press("Escape").catch(() => undefined);
+    await page.waitForTimeout(300);
+
     await dismissSignInModal(page);
     await dismissCookieBanner(page);
 
@@ -4158,7 +4193,9 @@ export async function ensurePineEditor(page: Page): Promise<void> {
     }
 
     for (let attempt = 0; attempt < 4; attempt += 1) {
-      await clickFirst(tvSelectors.pineEditor(page), 2_500);
+      // Use clickVisibleWithFallback instead of clickFirst so that the force +
+      // JS dispatchEvent chain is available when the Monaco overlay intercepts.
+      await clickVisibleWithFallback(page, tvSelectors.pineEditor(page), "pine-editor-open", 2_500, 500);
       await page.waitForTimeout(1_000);
       await dismissSignInModal(page);
       await dismissCookieBanner(page);

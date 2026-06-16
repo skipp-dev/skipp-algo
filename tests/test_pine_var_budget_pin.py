@@ -45,6 +45,7 @@ _DIR_EXCLUDE = frozenset(
         "artifacts",
         "docs",
         "SMC++",
+        "skipp-algo.worktrees",  # local git worktrees — never present on CI
     }
 )
 
@@ -99,10 +100,11 @@ _FROZEN_LEDGER: dict[str, int] = {
     "pine/legacy/VWAP_Reclaim_Indicator.pine": 17,
     "pine/legacy/VWAP_Reclaim_Strategy.pine": 19,
     "pine/legacy/Volume_Weighted_Trend_SkippAlgo.pine": 3,
+    "pine/smc_live_overlay_consumer.pine": 4,  # 2026-06-16 (feat/live-overlay-daemon): DAEMON_URL, TOKEN, SHOW_TABLE, _tbl
     "test_div.pine": 2,
 }
 
-_TOTAL_BUDGET = 986  # bumped 2026-04-30 (audit cascade from F-04 PR #1924) for 4 SMC overlay/exit/hold/VRVP files (+32 +13 +10 +55 = +110); was 876 (v3 phase 1).
+_TOTAL_BUDGET = 990  # bumped 2026-06-16 (feat/live-overlay-daemon): +4 var decls in pine/smc_live_overlay_consumer.pine (DAEMON_URL, TOKEN, SHOW_TABLE, _tbl); was 986.
 
 
 def _iter_pine() -> list[Path]:

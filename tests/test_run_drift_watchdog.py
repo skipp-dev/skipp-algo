@@ -70,6 +70,46 @@ def test_load_baseline_raises_on_invalid(tmp_path: Path) -> None:
         load_baseline(p)
 
 
+def test_assert_baseline_disjoint_thresholds() -> None:
+    from scripts.run_drift_watchdog import _assert_baseline_disjoint
+
+    # 20-day window, today is 2026-04-26.
+    # The 20 days are 2026-04-26 back to 2026-04-07.
+    today = date(2026, 4, 26)
+
+    # Baseline ends on 2026-04-06 (no overlap, 0 days, 0.0 fraction) -> should PASS
+    _assert_baseline_disjoint(
+        baseline={"backtest_end_date": "2026-04-06"},
+        window_days=20,
+        today=today,
+    )
+
+    # Baseline ends on 2026-04-07 (exactly 1 day of overlap, 1/20 = 0.05 fraction) -> should FAIL with >= 0.05
+    with pytest.raises(ValueError, match="Live window overlaps backtest baseline"):
+        _assert_baseline_disjoint(
+            baseline={"backtest_end_date": "2026-04-07"},
+            window_days=20,
+            today=today,
+        )
+
+    # Baseline ends on 2026-04-06 under a 30-day window.
+    # The 30 days are 2026-04-26 back to 2026-03-28.
+    # Baseline ending on 2026-03-28 means exactly 1 day overlap (1/30 = 0.033 < 0.05 fraction) -> should PASS
+    _assert_baseline_disjoint(
+        baseline={"backtest_end_date": "2026-03-28"},
+        window_days=30,
+        today=today,
+    )
+
+    # Baseline ending on 2026-03-29 means exactly 2 days overlap (2/30 = 0.067 >= 0.05 fraction) -> should FAIL
+    with pytest.raises(ValueError, match="Live window overlaps backtest baseline"):
+        _assert_baseline_disjoint(
+            baseline={"backtest_end_date": "2026-03-29"},
+            window_days=30,
+            today=today,
+        )
+
+
 def test_main_returns_4_when_baseline_missing(tmp_path: Path, capsys) -> None:
     """Audit D-1: CLI exits 4 (not 0) so the cron workflow turns red."""
     today = date(2026, 4, 26)

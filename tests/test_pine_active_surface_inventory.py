@@ -63,6 +63,8 @@ _PINE_LIBRARIES: frozenset[str] = frozenset({
     "skipp_labels.pine",
     "skipp_math.pine",
     "skipp_scoring.pine",
+    # feat/live-overlay-daemon (PR #2794): Pine consumer for the FastAPI daemon.
+    "smc_live_overlay_consumer.pine",
 })
 
 _SMCPP_LIBRARIES: frozenset[str] = frozenset({
@@ -122,4 +124,4 @@ def test_total_active_pine_surface_count() -> None:
     # 21 + 5 + 8 = 34 active Pine files
     # (was 17 + 5 + 8 = 30; +4 from F-04 PR #1924 promoting
     # SMC_Breakout_Overlay / Exit_Signal / Hold_Manager / VRVP_Overlay).
-    assert expected == 34, f"inventory frozensets drifted: total={expected}"
+    assert expected == 35, f"inventory frozensets drifted: total={expected}"

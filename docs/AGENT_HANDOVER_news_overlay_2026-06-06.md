@@ -84,9 +84,10 @@ Screenshots (`automation/tradingview/reports/screenshots/`) werden heute
   `mp.HIGH_IMPACT_NEWS_COUNT` etc.
 - Aktualisierung = **Library neu publizieren** via Playwright-Flow
   ([smc-library-refresh.yml](../.github/workflows/smc-library-refresh.yml)),
-  Cron **2×/Tag** (16:00 / 20:00 UTC).
-- Der newsapi-Snapshot wird zwar alle ~5 Min aktualisiert, aber Consumer-1
-  liest ihn nur beim 2×/Tag-Refresh. Es gibt einen 48h-Stale-Gate
+  Cron **9×/Tag** (08/10/12/14/16/18/20/21/22 UTC, nach F-V8-D1 2026-06-16).
+- Der newsapi-Snapshot wird stündlich aktualisiert (nach F-V8-D1: `2 * * * 1-5`,
+  TTL 3300 s), aber Consumer-1 liest ihn nur beim 9×/Tag-Refresh. Es gibt einen
+  48h-Stale-Gate
   ([smc_integration/repo_sources.py](../smc_integration/repo_sources.py),
   `_META_DOMAIN_STALE_HOURS = 48.0`). Quelle:
   [live_news_snapshot_json.py](../smc_integration/sources/live_news_snapshot_json.py)
@@ -112,13 +113,13 @@ Vollständiges Planungsdokument:
 
 | Kanal | Mechanismus | Cadence | Audience | Backtestbar |
 |---|---|---|---|---|
-| Slow Baseline (existiert) | eingebackene `mp.*`, Republish | 2×/Tag | alle Tiers | ja (deterministisch) |
+| Slow Baseline (existiert) | eingebackene `mp.*`, Republish | 9×/Tag (nach F-V8-D1) | alle Tiers | ja (deterministisch) |
 | Fast Overlay (geplant) | Pine `request.get()` → HTTPS-JSON | ~5 Min (pull) | **nur Premium+** | nein (live) |
 
 **Produkt-Entscheidung (verriegelt, 2026-06-04):** Auslieferung **ausschließlich**
 über Pine `request.get()` (TV Premium+). Lösungen, die der Nutzer installieren/
 self-hosten muss (Streamlit-Terminal, Bot), sind **NO-GO** (Install-/Support-
-Last). Non-Premium bleibt auf der 2×/Tag-Baseline; das Overlay ist ein
+Last). Non-Premium bleibt auf der 9×/Tag-Baseline (nach F-V8-D1); das Overlay ist ein
 **Premium-Tier-Benefit**.
 
 **Design-Regel:** Overlay augmentiert, ersetzt nie. Frisch → überschreibt

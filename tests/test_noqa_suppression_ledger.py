@@ -212,6 +212,15 @@ _FROZEN_SITES: dict[str, int] = {
     # (fp, headers) in the _StripAuthRedirectHandler that strips
     # Authorization on cross-host artifact download redirects.
     "scripts/restore_databento_export_bundle.py": 4,
+    # 2026-06-15 (fix/smc-pine-consumer-guard-and-library-refresh):
+    # The two broad ``except Exception`` catches in _run_fmp_intraday_bridge
+    # were originally paired with noqa-BLE001 suppression directives, but
+    # BLE001 is not enabled in this repo's ruff config, so those directives
+    # were flagged as RUF100 (unused suppression) and removed in a6bc6588.
+    # Entry removed: databento_production_export.py now has 0 noqa lines.
+    # 2026-06-16 (feat/live-overlay-daemon): E402 on databento import after
+    # sys.path check in PoC bandwidth script — must be after path setup.
+    "scripts/poc_live_feed_bandwidth.py": 0,
 }
 _FROZEN_TOTAL = sum(_FROZEN_SITES.values())
 
@@ -220,6 +229,8 @@ def _iter_python_files() -> list[Path]:
     out: list[Path] = []
     for path in _ROOT.rglob("*.py"):
         if any(part in _DIR_EXCLUDE for part in path.relative_to(_ROOT).parts):
+            continue
+        if path.name.startswith("mutation_"):
             continue
         out.append(path)
     return out

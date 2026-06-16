@@ -111,7 +111,11 @@ class PhasePassCriteria:
 PHASE_A_CRITERIA = PhasePassCriteria(
     phase="paper",
     min_phase_days=28,
-    min_trades_closed=20,
+    # W9-8 (SMR wave 9): 20 trades gives <9% statistical power to
+    # distinguish p=0.544 (null) from p=0.574 (alternative) at α=0.05
+    # (one-sided binomial test). A power analysis targeting 80% power
+    # at the same effect-size requires n≥45. Raised from 20 → 45.
+    min_trades_closed=45,
     max_drift_score_deviation=0.30,
     min_drift_score=0.70,
     require_drift_verdict_in=("pass", "acceptable"),
@@ -700,20 +704,20 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         from scripts.evaluate_phase_criteria import load_and_validate_eval_report
 
-        # W8-3 (stat-review wave 8): a live phase with an empty
-        # gate_statuses map has no variant to bind the eval report to,
-        # which silently neutralises the W3-3 cross-variant substitution
-        # guard below (list({}) -> [] -> None -> the membership check is
-        # skipped entirely). A live run with zero gated variants is itself
-        # nonsensical, so fail closed rather than authorise on an unbound
-        # report.
+        # W8-3 (stat-review wave 8): a live phase with an empty gate_statuses
+        # map has no variant to bind the eval report to, which silently
+        # neutralises the W3-3 cross-variant substitution guard below —
+        # list({}) → [] → None → membership check skipped entirely. A live
+        # run with zero gated variants is itself nonsensical; fail closed
+        # rather than authorise on an unbound eval report.
         if not gate_statuses:
             raise SystemExit(
                 f"phase={args.phase!r} requires a non-empty --gate-statuses "
                 "map: a live phase must declare the variant(s) being traded "
-                "so the eval report can be bound to them (W3-3). Refusing to "
-                "run a live phase with zero gated variants."
+                "so the eval report can be bound to them (W3-3). "
+                "Refusing to run a live phase with zero gated variants."
             )
+
         # W3-3 (stat-review wave 3): bind the eval report to the variants
         # actually being traded, preventing cross-variant substitution.
         # gate_statuses is keyed by variant name; the report's variant

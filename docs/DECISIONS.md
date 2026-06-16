@@ -5,6 +5,10 @@
 > alternatives considered, and the rejection reasons for the paths
 > not taken. Entries are append-only; superseded decisions stay visible
 > with a `Status: superseded` header and a pointer to the replacement.
+>
+> For the meaning of the sprint codes, phase names, and domain
+> abbreviations used throughout these entries, see the
+> [Glossary](GLOSSARY.md).
 
 ## Format
 
@@ -708,3 +712,34 @@ from `live`: `live` denotes an *active shadow experiment*, and no
   [2026-06-10 - f2-dual-arm-raw-score-shadowing](#2026-06-10---f2-dual-arm-raw-score-shadowing).
 
 **Status.** accepted.
+
+---
+
+## 2026-06-16 — stat-review-w10: Bonferroni auto-wiring + SPRT spec-path
+
+**Context.** Stat-review wave 10 audit (PR #2797) identified two HIGH-severity
+latent defects in the promotion pipeline and one MED carry-over.
+
+**W10-1 — Bonferroni dead code.**
+`GateThresholds(n_concurrent_families=1)` was the hard-coded default in every
+production run of `scripts/run_promotion_gate.py`, so the W9-6 FWER correction
+(`fdr_q / k`) was never applied for multi-family batches. Fixed: `build_report()`
+now accepts `n_concurrent_families` (defaults to `len(snapshots)`) and passes it
+to `GateThresholds`. The CLI in `main()` passes `len(snapshots)` automatically.
+
+**W10-2 — SPRT defaults diverge from live spec.**
+`run_ab_comparison.py main()` always used module-default constants
+(`SPRT_P0=0.55`, `SPRT_P1=0.60`, MDE=50bp) rather than the pre-registered F2
+spec values (`p0=0.544`, `p1=0.574`, MDE=30bp), silently ignoring the experiment
+design. Fixed: `--spec-path` CLI arg loads the experiment JSON and builds
+`SPRTConfig` from `spec["sprt"]`; spec-path validation runs before benchmark
+loading so failures are reported early. Without `--spec-path` the module defaults
+remain in effect (backward-compatible).
+
+**W9-7 carry-over — drift threshold bands uncalibrated.**
+`_VERDICT_BANDS` (0.85/0.65/0.40) in `scripts/compute_live_drift.py` are
+engineering-judgment placeholders without a power analysis or ROC calibration.
+Values intentionally unchanged pending a multi-month live-trading dataset.
+Tracked in issue #2798.
+
+**Status.** accepted (PR #2797, squash-merged to main).

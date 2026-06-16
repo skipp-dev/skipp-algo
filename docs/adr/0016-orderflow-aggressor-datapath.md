@@ -1,5 +1,12 @@
 # ADR-0016: Aggressor-signed order-flow data path for microstructure shadow features
 
+> **Note — ADR numbering collision:** Two ADRs share number 0016 in this
+> repository. This file covers the **orderflow / aggressor data path**.
+> The other is [0016-pipeline-provenance-classes.md](./0016-pipeline-provenance-classes.md).
+> References to "ADR-0016" in `docs/adr/0020-options-flow*.md` and
+> microstructure/tick-data governance files refer to **this** document.
+> This collision is tracked; do not add new ADRs numbered 0016.
+
 | Field    | Value                                                                            |
 |----------|----------------------------------------------------------------------------------|
 | Status   | Proposed (draft for discussion) — **no code changed by this ADR**; it scopes a data-path decision before any microstructure feature is built |

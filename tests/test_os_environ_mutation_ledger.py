@@ -79,6 +79,9 @@ _FROZEN_SITES: dict[tuple[str, str], int] = {
     ("open_prep/streamlit_monitor.py", _OP_SDFLT): 1,
     ("scripts/probe_newsapi_feed_cursor.py", _OP_SDFLT): 1,
     ("streamlit_terminal.py", _OP_SDFLT): 1,
+    # 2026-06-16 (feat/live-overlay-daemon): .env loader respects pre-set env vars
+    # via setdefault — never overwrites operator-configured values.
+    ("services/live_overlay_daemon/config.py", _OP_SDFLT): 1,
 }
 _FROZEN_TOTAL = sum(_FROZEN_SITES.values())
 

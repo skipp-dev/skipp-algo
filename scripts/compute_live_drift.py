@@ -67,6 +67,23 @@ from typing import Any
 import numpy as np
 
 # Drift verdict bands (multiplicative live/backtest Sharpe ratio)
+# W9-7 (SMR wave 9): these thresholds are HEURISTIC PLACEHOLDERS — they
+# have NOT been derived from a calibration run, a power analysis, or any
+# empirical measurement of acceptable performance degradation.  The values
+# (0.85 / 0.65 / 0.40) were set by engineering judgment during the C8
+# sprint and carry no statistical guarantee.  A properly calibrated set of
+# bands requires a labelled dataset of "acceptable drift" episodes and a
+# receiver-operating-characteristic (ROC) analysis to choose threshold
+# cut-points at a target false-positive / false-negative operating point.
+# Until that calibration is done, any automated gate that promotes/blocks
+# solely on the basis of these bands has an unknown error rate.
+# W9-7 carry-over / stat-review wave 10: the values are intentionally left
+# unchanged here — calibration requires a multi-month live-trading dataset
+# that is not yet available.  A TODO is tracked in GitHub issue #2798.
+# When calibration data is available, follow the ROC-calibration protocol
+# described in issue #2798 to derive principled values and remove this notice.
+# Until then, the bands below are engineering placeholders without a
+# statistical guarantee.
 _VERDICT_BANDS: tuple[tuple[float, str], ...] = (
     (0.85, "pass"),
     (0.65, "acceptable"),
@@ -200,11 +217,22 @@ class DriftVerdict:
 # ── statistics ──────────────────────────────────────────────────────
 
 
-def annualised_sharpe(returns: Sequence[float]) -> float:
+def annualised_sharpe(
+    returns: Sequence[float],
+    *,
+    trades_per_year: float = _TRADING_DAYS_PER_YEAR,
+) -> float:
     """Bailey-Lopez-de-Prado-style annualised Sharpe.
 
-    Returns 0.0 for fewer than 2 samples or zero std.  Daily-bar
-    convention (252 trading days/year).
+    Returns 0.0 for fewer than 2 samples or zero std.
+
+    W9-4 (SMR wave 9): the ``trades_per_year`` parameter MUST reflect the
+    actual observation cadence of ``returns``.  If ``returns`` are per-trade
+    (not daily-bar aggregates), pass the observed annual trade count — e.g.
+    ``compute_live_drift()`` derives it from the live trade log and the
+    lookback window.  The default of ``_TRADING_DAYS_PER_YEAR=252`` is kept
+    for backward-compatibility only and is intentionally wrong for per-trade
+    returns; callers that rely on the default should pass the true cadence.
     """
     arr = np.asarray(list(returns), dtype=float)
     if arr.size < 2:
@@ -212,7 +240,7 @@ def annualised_sharpe(returns: Sequence[float]) -> float:
     sd = float(arr.std(ddof=1))
     if sd <= 0.0 or not math.isfinite(sd):
         return 0.0
-    return float(arr.mean() / sd * math.sqrt(_TRADING_DAYS_PER_YEAR))
+    return float(arr.mean() / sd * math.sqrt(trades_per_year))
 
 
 def max_drawdown_fraction(returns: Sequence[float]) -> float | None:
@@ -446,6 +474,12 @@ def compute_live_drift(
                 hits.append(1 if h else 0)
 
         n_live = len(returns)
+        # W9-4 (SMR wave 9): compute the live cadence (trades/year) here
+        # so both annualised_sharpe call sites below receive the true
+        # per-trade scaling factor instead of the wrong √252 daily default.
+        _tpy_live = (
+            n_live * 365.25 / live_window_days if live_window_days > 0 else None
+        )
         if n_live == 0 and variant not in grouped:
             # M1: reference-only variant — no live rows at all in the
             # window. Emit an explicit row instead of dropping it.
@@ -469,7 +503,10 @@ def compute_live_drift(
                 DriftVerdict(
                     variant=variant,
                     n_live_trades=n_live,
-                    live_sharpe=annualised_sharpe(returns),
+                    live_sharpe=annualised_sharpe(
+                        returns,
+                        trades_per_year=_tpy_live or _TRADING_DAYS_PER_YEAR,
+                    ),
                     backtest_sharpe=backtest_sharpe,
                     drift_score=0.0,
                     slippage_ks_p=None,
@@ -481,7 +518,10 @@ def compute_live_drift(
             )
             continue
 
-        live_sharpe = annualised_sharpe(returns)
+        live_sharpe = annualised_sharpe(
+            returns,
+            trades_per_year=_tpy_live or _TRADING_DAYS_PER_YEAR,
+        )
 
         # H1: a missing / non-numeric backtest reference must yield an
         # explicit non-pass verdict, not a ratio against the 0.001
@@ -526,12 +566,10 @@ def compute_live_drift(
             continue
 
         # Stat-review F7 (2026-06-10): observed-cadence disclosure.
-        # Live cadence from the trade count over the calendar window;
+        # Live cadence already computed above as _tpy_live (W9-4);
         # backtest cadence from the reference if it carries either an
         # explicit ``trades_per_year`` or ``n_trades`` + ``window_days``.
-        trades_per_year_live = (
-            n_live * 365.25 / live_window_days if live_window_days > 0 else None
-        )
+        trades_per_year_live = _tpy_live
         trades_per_year_backtest = _coerce_float(ref.get("trades_per_year"))
         if trades_per_year_backtest is None:
             bt_n = _coerce_float(ref.get("n_trades"))

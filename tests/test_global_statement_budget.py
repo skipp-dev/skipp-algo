@@ -178,6 +178,14 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("terminal_technicals.py", 252, ("_tv_consecutive_429s",)),
         ("terminal_technicals.py", 269, ("_tv_cooldown_ended_at", "_tv_last_call_ts")),
         ("terminal_tradingview_news.py", 403, ("_last_request_ts",)),
+        # 2026-06-16 (feat/live-overlay-daemon): daemon singletons guarded by
+        # threading.Lock() per concurrency-shared-mutables guideline.
+        ("services/live_overlay_daemon/cache.py", 40, ("_rolling_bars_cap",)),
+        ("services/live_overlay_daemon/cache.py", 82, ("_overlay_computed_at",)),
+        ("services/live_overlay_daemon/cache.py", 127, ("_vix_level",)),
+        ("services/live_overlay_daemon/compute.py", 51, ("_news_cache", "_news_loaded_at")),
+        ("services/live_overlay_daemon/feed.py", 217, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        ("services/live_overlay_daemon/main.py", 47, ("_startup_ts",)),
     }
 )
 
