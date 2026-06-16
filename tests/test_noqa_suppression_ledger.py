@@ -134,6 +134,9 @@ _FROZEN_SITES: dict[str, int] = {
     # the import-order fix added the ``_bootstrap_sys_mod`` helper
     # (two new ``noqa: E402`` lines per script).
     "scripts/e2e_smoke_ci.py": 3,
+    # 2026-06-16 (PR #2799): S607 suppressed — git is the only subprocess
+    # call; the path is intentionally partial (PATH-resolved).
+    "scripts/check_branch_safety.py": 1,
     "scripts/execute_ibkr_watchlist.py": 1,
     "scripts/export_open_prep_lists.py": 2,
     "scripts/export_open_prep_reports.py": 2,

@@ -6,9 +6,9 @@ neutral default (``None`` → 1), but the only production caller
 The Bonferroni correction was therefore dormant for every multi-family run.
 
 This file guards against that class of defect by verifying, via
-``unittest.mock.patch``, that callers of ``build_report()`` supply a
-**non-trivial** ``n_concurrent_families`` whenever the input contains more than
-one family.
+``unittest.mock.patch``, that ``build_report()`` correctly wires the snapshot
+count into ``GateThresholds`` as ``n_concurrent_families``, ensuring the
+threshold calculation reflects the actual number of concurrent families.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ def _make_snap(family: str = "BOS") -> FamilyMetrics:
     return FamilyMetrics(family=family)  # type: ignore[arg-type]
 
 
-def _captured_n_concurrent(snapshots, **kwargs) -> int:
+def _captured_n_concurrent(snapshots, **kwargs) -> int | None:
     """Call build_report and return the n_concurrent_families value that
     was forwarded to GateThresholds.__init__."""
     from scripts.run_promotion_gate import build_report
@@ -42,6 +42,9 @@ def _captured_n_concurrent(snapshots, **kwargs) -> int:
         build_report(snapshots, **kwargs)
 
     assert captured, "GateThresholds.__init__ was never called inside build_report"
+    assert isinstance(captured[0], int), (
+        f"n_concurrent_families was not forwarded as int; got {captured[0]!r}"
+    )
     return captured[0]
 
 

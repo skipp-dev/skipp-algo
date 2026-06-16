@@ -270,7 +270,7 @@ jobs:
 
       # F-V8-perf (2026-05-18): uv installer (mirrors ci.yml + #2285/#2286).
       - name: Install uv
-        uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           enable-cache: true
           cache-dependency-glob: requirements*.txt
@@ -405,7 +405,7 @@ jobs:
       # requirements.txt, but reduce only set up bare Python and failed with
       # ``No module named 'pandas'`` after downloading every shard artifact.
       - name: Install uv
-        uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           enable-cache: true
           cache-dependency-glob: requirements*.txt
