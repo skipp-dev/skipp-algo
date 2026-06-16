@@ -30,7 +30,11 @@ def test_dismiss_cookie_banner_verifies_banner_gone_and_has_dom_dispatch_fallbac
     assert 'tracePageEvent(page, "cookie-accept-dom-dispatch-ok"' in source
     assert 'tracePageEvent(page, "cookie-accept-dom-dispatch-no-target"' in source
 
+<<<<<<< HEAD
     # Loop must be at least 5 attempts (early return true on success keeps happy-path cost zero)
+=======
+    # Loop must be at least 5 attempts (banner-gone early-break is the happy path)
+>>>>>>> 0f973840 (test(tv): add contract test for dismissCookieBanner banner-verify + DOM-dispatch fallback)
     pattern = re.compile(
         r"export async function dismissCookieBanner\(page: Page\): Promise<boolean> \{"
         r".*?for \(let attempt = 0; attempt < (?P<count>[5-9]|\d{2,}); attempt \+= 1\) \{",
@@ -40,6 +44,7 @@ def test_dismiss_cookie_banner_verifies_banner_gone_and_has_dom_dispatch_fallbac
     assert m, "dismissCookieBanner retry loop must allow ≥5 attempts"
     assert int(m.group("count")) >= 5, f"expected ≥5 loop iterations, got {m.group('count')}"
 
+<<<<<<< HEAD
     # Terminal-verdict event + honest return false (observability-review 2026-06-17):
     # when all attempts are exhausted and the banner is still visible, a single
     # greppable marker must be emitted so a post-mortem reader does not have to
@@ -47,6 +52,8 @@ def test_dismiss_cookie_banner_verifies_banner_gone_and_has_dom_dispatch_fallbac
     assert 'tracePageEvent(page, "cookie-accept-exhausted-still-visible"' in source
     assert "return false;" in source  # at least one explicit false return path
 
+=======
+>>>>>>> 0f973840 (test(tv): add contract test for dismissCookieBanner banner-verify + DOM-dispatch fallback)
 
 def test_ensure_pine_editor_keeps_internal_close_modal_recovery() -> None:
     source = _read(TV_SHARED_PATH)
