@@ -1,6 +1,6 @@
 """W9-7 / issue #2798 — Drift-threshold calibration corpus collector.
 
-Reads a ``compute_live_drift`` output JSON (schema v1.x) and appends one
+Reads a ``compute_live_drift`` output JSON (schema 1.3.0) and appends one
 JSONL row per variant to the long-running calibration corpus at
 
     artifacts/drift/calibration_corpus.jsonl
@@ -208,6 +208,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
     if not isinstance(drift_payload.get("variants"), list):
         print("error: drift JSON 'variants' must be a list", file=sys.stderr)
+        return 1
+
+    # Validate that each variant entry has a non-empty 'variant' key so that
+    # dedup and ROC analysis can reliably group by variant name.
+    bad_variants = [
+        i for i, v in enumerate(drift_payload["variants"])
+        if not isinstance(v, dict) or not v.get("variant")
+    ]
+    if bad_variants:
+        print(
+            f"error: drift JSON variants at indices {bad_variants} are missing or"
+            " have an empty 'variant' field.",
+            file=sys.stderr,
+        )
         return 1
 
     collected_at = datetime.now(UTC).isoformat(timespec="seconds")
