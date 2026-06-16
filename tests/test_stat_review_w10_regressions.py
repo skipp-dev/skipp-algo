@@ -68,7 +68,7 @@ class TestW10_1_NConcurrentFamilies:
         )
 
     def test_build_report_uses_snapshot_count_for_n_concurrent_families(
-        self, tmp_path: Path
+        self,
     ) -> None:
         """build_report() must internally pass n_concurrent_families=len(snapshots)
         so callers that don't supply it explicitly get the correct correction."""
@@ -187,15 +187,24 @@ class TestW10_2_SPRTSpecPath:
         )
 
     def test_missing_spec_path_file_exits_nonzero(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path
     ) -> None:
         """When --spec-path points to a non-existent file main() must exit with
         a non-zero code rather than silently falling back to module defaults."""
-
+        # Provide required dirs so argparse succeeds; the spec-path check fires
+        # before control/treatment parsing.
+        ctrl_dir = tmp_path / "ctrl"
+        ctrl_dir.mkdir()
+        trt_dir = tmp_path / "trt"
+        trt_dir.mkdir()
         nonexistent = tmp_path / "no_such_file.json"
         from scripts.run_ab_comparison import main  # type: ignore[import]
         with pytest.raises(SystemExit) as exc_info:
-            main(["--spec-path", str(nonexistent)])
+            main([
+                "--control-dir", str(ctrl_dir),
+                "--treatment-dir", str(trt_dir),
+                "--spec-path", str(nonexistent),
+            ])
         assert exc_info.value.code != 0, (
             "W10-2: missing --spec-path file should trigger sys.exit(1), "
             "not silently fall back to wrong SPRT defaults"
@@ -206,9 +215,17 @@ class TestW10_2_SPRTSpecPath:
     ) -> None:
         """A malformed spec JSON must exit non-zero (not propagate an exception
         to the caller with wrong defaults in effect)."""
+        ctrl_dir = tmp_path / "ctrl"
+        ctrl_dir.mkdir()
+        trt_dir = tmp_path / "trt"
+        trt_dir.mkdir()
         bad_spec = tmp_path / "bad.json"
         bad_spec.write_text("{not valid json", encoding="utf-8")
         from scripts.run_ab_comparison import main  # type: ignore[import]
         with pytest.raises(SystemExit) as exc_info:
-            main(["--spec-path", str(bad_spec)])
+            main([
+                "--control-dir", str(ctrl_dir),
+                "--treatment-dir", str(trt_dir),
+                "--spec-path", str(bad_spec),
+            ])
         assert exc_info.value.code != 0

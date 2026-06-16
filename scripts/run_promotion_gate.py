@@ -202,11 +202,16 @@ def build_report(
     # W10-1 (stat-review wave 10): n_concurrent_families defaults to the
     # actual number of evaluated snapshots so the Bonferroni correction in
     # GateThresholds is always active.  Explicit override is still allowed.
-    n_families = n_concurrent_families if n_concurrent_families is not None else len(snapshots)
+    # Auto-compute from snapshot count; explicit override is passed through
+    # unchanged (GateThresholds validates n_concurrent_families ≥ 1 itself).
+    if n_concurrent_families is not None:
+        n_families = n_concurrent_families
+    else:
+        n_families = max(1, len(snapshots))
     thresholds = GateThresholds(
         strict_provenance=strict_provenance,
         magnitude_strict_families=magnitude_strict_families,
-        n_concurrent_families=max(1, n_families),
+        n_concurrent_families=n_families,
     )
     gate = PromotionGate(thresholds)
     decisions: list[Decision] = [gate.evaluate(snap) for snap in snapshots]

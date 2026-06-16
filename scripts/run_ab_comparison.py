@@ -1030,21 +1030,8 @@ def main(argv: list[str] | None = None) -> None:
     )
     args = parser.parse_args(argv)
 
-    control_pairs = load_benchmark(args.control_dir)
-    treatment_pairs = load_benchmark(args.treatment_dir)
-
-    if not control_pairs:
-        print(f"ERROR: no benchmark pairs in {args.control_dir}", file=sys.stderr)
-        sys.exit(1)
-    if not treatment_pairs:
-        print(f"ERROR: no benchmark pairs in {args.treatment_dir}", file=sys.stderr)
-        sys.exit(1)
-
-    # W10-2 (stat-review wave 10): build SPRTConfig from the experiment spec
-    # when --spec-path is supplied.  Prior to this fix main() always fell back
-    # to SPRT_P0=0.55 / SPRT_P1=0.60 (MDE=50bp) even though the F2 spec
-    # pre-registers p0=0.544 / p1=0.574 (MDE=30bp).  The larger code-default
-    # MDE reduced power and silently ignored the registered design.
+    # W10-2: validate --spec-path early (before expensive benchmark loading)
+    # so callers get a clear error without waiting for I/O to fail elsewhere.
     sprt_config: SPRTConfig | None = None
     if args.spec_path is not None:
         if not args.spec_path.exists():
@@ -1059,13 +1046,31 @@ def main(argv: list[str] | None = None) -> None:
             print(f"ERROR: invalid JSON in {args.spec_path}: {exc}", file=sys.stderr)
             sys.exit(1)
         _s = _spec.get("sprt", {})
-        sprt_config = SPRTConfig(
-            p0=float(_s["p0"]),
-            p1=float(_s["p1"]),
-            alpha=float(_s.get("alpha", SPRT_ALPHA)),
-            beta=float(_s.get("beta", SPRT_BETA)),
-            max_n=int(_s["max_n"]) if "max_n" in _s else None,
-        )
+        try:
+            sprt_config = SPRTConfig(
+                p0=float(_s["p0"]),
+                p1=float(_s["p1"]),
+                alpha=float(_s.get("alpha", SPRT_ALPHA)),
+                beta=float(_s.get("beta", SPRT_BETA)),
+                max_n=int(_s["max_n"]) if "max_n" in _s else None,
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            print(
+                f"ERROR: --spec-path {args.spec_path} is missing or has "
+                f"invalid SPRT fields (p0/p1 are required): {exc}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+    control_pairs = load_benchmark(args.control_dir)
+    treatment_pairs = load_benchmark(args.treatment_dir)
+
+    if not control_pairs:
+        print(f"ERROR: no benchmark pairs in {args.control_dir}", file=sys.stderr)
+        sys.exit(1)
+    if not treatment_pairs:
+        print(f"ERROR: no benchmark pairs in {args.treatment_dir}", file=sys.stderr)
+        sys.exit(1)
 
     control_ledgers = None
     treatment_ledgers = None
