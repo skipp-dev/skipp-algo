@@ -64,7 +64,7 @@ Returns **404** on wrong token (does not leak route existence).
 | Param    | Required | Example | Notes |
 |----------|----------|---------|-------|
 | `symbol` | ✅ | `NVDA` | Case-insensitive, max 10 chars |
-| `tf`     | ❌ | `5m` | One of `5m \| 15m \| 1H \| 4H \| 1D`. Returns 400 for unknown values. |
+| `tf`     | ❌ | `5m` | One of `5m`, `15m`, `1H`, `4H`, `1D`. Returns 400 for unknown values. |
 
 **Response fields**
 

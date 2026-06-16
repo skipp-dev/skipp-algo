@@ -26,7 +26,7 @@ def _make_snap(family: str = "BOS") -> FamilyMetrics:
     return FamilyMetrics(family=family)  # type: ignore[arg-type]
 
 
-def _captured_n_concurrent(snapshots, **kwargs) -> int:
+def _captured_n_concurrent(snapshots, **kwargs) -> int | None:
     """Call build_report and return the n_concurrent_families value that
     was forwarded to GateThresholds.__init__."""
     from scripts.run_promotion_gate import build_report
