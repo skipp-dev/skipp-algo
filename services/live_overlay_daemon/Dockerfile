@@ -13,4 +13,4 @@ COPY services/live_overlay_daemon/ /app/services/live_overlay_daemon/
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "uvicorn services.live_overlay_daemon.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --http h11"]
+CMD ["sh", "-c", "uvicorn services.live_overlay_daemon.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --http h11 --loop asyncio"]
