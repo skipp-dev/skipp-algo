@@ -111,10 +111,16 @@ def _per_file_counts(sites: set[tuple[str, int]]) -> dict[str, int]:
 # the pin twice in a single day.
 NEW_EVENT_LOOP_ALLOWED: dict[str, int] = {
     "newsstack_fmp/ingest_benzinga.py": 1,
+    # feat/live-overlay-daemon: _run_feed_loop owns its own loop on a non-main
+    # daemon thread (required to host the Databento asyncio websocket session
+    # alongside FastAPI's uvicorn loop without conflicts).
+    "services/live_overlay_daemon/feed.py": 1,
 }
 
 SET_EVENT_LOOP_ALLOWED: dict[str, int] = {
     "newsstack_fmp/ingest_benzinga.py": 1,
+    # Same daemon thread pattern as above.
+    "services/live_overlay_daemon/feed.py": 1,
 }
 
 
