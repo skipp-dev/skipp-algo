@@ -100,6 +100,7 @@ _FROZEN_LEDGER: dict[str, int] = {
     "pine/legacy/VWAP_Reclaim_Indicator.pine": 17,
     "pine/legacy/VWAP_Reclaim_Strategy.pine": 19,
     "pine/legacy/Volume_Weighted_Trend_SkippAlgo.pine": 3,
+    "pine/smc_live_overlay_consumer.pine": 4,  # 2026-06-16 (feat/live-overlay-daemon): DAEMON_URL, TOKEN, SHOW_TABLE, _tbl
     "test_div.pine": 2,
 }
 
