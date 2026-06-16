@@ -75,7 +75,8 @@ def _symbol_from_record(record: Any, symmap: dict[int, str]) -> str | None:
         iid = getattr(record, "instrument_id", None) or getattr(record.hd, "instrument_id", None)
         if iid is None:
             return None
-        return symmap.get(iid)
+        sym = symmap.get(iid)
+        return sym.upper() if sym else None
     except Exception:
         return None
 
@@ -112,7 +113,7 @@ def _run_feed_loop(stop: threading.Event) -> None:
                 # Use the client's built-in symbology map (populated internally
                 # by the databento client for ALL record types including
                 # SymbolMappingMsg which may not be yielded to the iterator).
-                symmap: dict[int, str] = client._symbology_map  # type: ignore[attr-defined]
+                symmap: dict[int, str] = getattr(client, "_symbology_map", {})  # private attr; defensive fallback
 
                 _rec_count = 0
                 _ohlcv_count = 0
@@ -125,7 +126,7 @@ def _run_feed_loop(stop: threading.Event) -> None:
                     rec_type = type(record).__name__
                     _rec_count += 1
                     if _rec_count % 2000 == 0:
-                        logger.info(
+                        logger.debug(
                             "Feed stats: total=%d symmap=%d ohlcv=%d sym_none=%d bar_none=%d bars=%d",
                             _rec_count, len(symmap), _ohlcv_count, _sym_none_count,
                             _bar_none_count, cache.total_bar_count(),

@@ -54,7 +54,7 @@ repos:
       # Runs on every `git commit` (stage: pre-commit, default).
       - id: branch-safety-guard
         name: branch safety guard (no direct commits to main/master)
-        entry: bash scripts/check_branch_safety.sh
-        language: system
+        entry: python scripts/check_branch_safety.py
+        language: python
         pass_filenames: false
         stages: [pre-commit]
