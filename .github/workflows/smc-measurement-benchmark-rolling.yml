@@ -462,6 +462,69 @@ jobs:
           retention-days: 14
           overwrite: true
 
+      # ADR-0023 Option B (Issue #2706): rolling accumulation of FamilyEvent
+      # records across the last 30 days of daily benchmark runs.
+      #
+      # A single day's run yields only ~9% of events with score + triggered
+      # return (MIN_OOS_SAMPLES=40 never reached).  By downloading the previous
+      # accumulated snapshot (retention 32 days), merging today's events, and
+      # re-uploading, the pool grows across successive days until the walk-
+      # forward calibration has enough out-of-sample folds.
+      #
+      # Deduplication key: (family, anchor_ts).  Tie-break: longest
+      # forward_closes (newest daily run extends the outcome window the most).
+      # Events older than 30 days are pruned from the pool each run.
+      #
+      # Fail-soft: if the download or the accumulation step fails, the daily
+      # individual artifact (step above) is still available as a fallback and
+      # the rolling-bench run is not marked failed.
+      - name: Download previous accumulated family events (ADR-0023 Option B)
+        id: dl_accumulated
+        if: always()
+        uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21
+        with:
+          workflow: smc-measurement-benchmark-rolling.yml
+          name: scored-family-events-accumulated
+          path: artifacts/ci/scored_family_events_accumulated_prev
+          workflow_conclusion: success
+          if_no_artifact_found: warn
+
+      - name: Accumulate family events across rolling window (ADR-0023 Option B)
+        id: accumulate_events
+        if: always()
+        env:
+          OUT_DIR: ${{ steps.meta.outputs.out_dir || 'artifacts/ci/measurement_benchmark_rolling' }}
+        run: |
+          set +e
+          CURRENT="${OUT_DIR}/scored_family_events.json"
+          PREV_DIR="artifacts/ci/scored_family_events_accumulated_prev"
+          PREV=""
+          if [ -d "${PREV_DIR}" ]; then
+            PREV="$(find "${PREV_DIR}" -name 'accumulated_family_events.json' -type f 2>/dev/null | head -1)"
+          fi
+          ACCUMULATED="${OUT_DIR}/accumulated_family_events.json"
+          ARGS=("--current" "${CURRENT}" "--output" "${ACCUMULATED}" "--max-age-days" "30")
+          if [ -n "${PREV}" ] && [ -s "${PREV}" ]; then
+            ARGS+=("--previous" "${PREV}")
+          fi
+          "$SMC_PYTHON_BIN" scripts/accumulate_family_events.py "${ARGS[@]}"
+          if [ $? -ne 0 ] || [ ! -s "${ACCUMULATED}" ]; then
+            echo "::warning ::accumulate_family_events failed or produced empty output; falling back to daily events only"
+            cp "${CURRENT}" "${ACCUMULATED}" 2>/dev/null || true
+          fi
+          echo "accumulated_path=${ACCUMULATED}" >> "$GITHUB_OUTPUT"
+          true
+
+      - name: Upload accumulated family events (ADR-0023 Option B)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: scored-family-events-accumulated
+          path: ${{ steps.accumulate_events.outputs.accumulated_path || format('{0}/accumulated_family_events.json', steps.meta.outputs.out_dir || 'artifacts/ci/measurement_benchmark_rolling') }}
+          if-no-files-found: warn
+          retention-days: 32
+          overwrite: true
+
       - name: F2 dual-arm contextual calibration (G3 wiring)
         # Plan §2.3 F2 / §2.4 G3. Re-scores the per-event JSONL ledgers
         # produced above twice — once with the global family weights

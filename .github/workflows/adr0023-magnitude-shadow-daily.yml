@@ -100,6 +100,21 @@ jobs:
           workflow_conclusion: success
           if_no_artifact_found: warn
 
+      # ADR-0023 Option B (Issue #2706): download the 30-day accumulated
+      # pool of FamilyEvent records produced by accumulate_family_events.py
+      # in the rolling benchmark workflow.  This artifact grows across daily
+      # runs until MIN_OOS_SAMPLES=40 is satisfied across walk-forward folds.
+      # Fail-soft: a miss here leaves the per-day artifact as the fallback.
+      - name: Download accumulated family events (ADR-0023 Option B)
+        id: download_accumulated
+        uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21
+        with:
+          workflow: smc-measurement-benchmark-rolling.yml
+          name: scored-family-events-accumulated
+          path: artifacts/ci/scored_family_events_accumulated
+          workflow_conclusion: success
+          if_no_artifact_found: warn
+
       - name: Resolve events file
         id: events
         env:
@@ -112,10 +127,24 @@ jobs:
             echo "source=input" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # Priority 2: scored FamilyEvent records downloaded from the
-          # rolling benchmark workflow (ADR-0023 §4.1 data pipeline).
-          # dawidd6 nests files under <path>/<artifact-name>/, so we
-          # search recursively for scored_family_events.json.
+          # Priority 2 (ADR-0023 Option B): 30-day accumulated pool of events.
+          # Preferred over the daily single-run artifact because it contains
+          # events from up to 30 rolling days, giving the walk-forward enough
+          # MIN_OOS=40 samples across temporal folds without manual feeding.
+          ACCUMULATED_DIR="artifacts/ci/scored_family_events_accumulated"
+          FOUND_ACCUMULATED=""
+          if [ -d "${ACCUMULATED_DIR}" ]; then
+            FOUND_ACCUMULATED="$(find "${ACCUMULATED_DIR}" -name 'accumulated_family_events.json' -type f 2>/dev/null | head -1)"
+          fi
+          if [ -n "${FOUND_ACCUMULATED}" ] && [ -s "${FOUND_ACCUMULATED}" ]; then
+            echo "events_path=${FOUND_ACCUMULATED}" >> "$GITHUB_OUTPUT"
+            echo "source=accumulated" >> "$GITHUB_OUTPUT"
+            echo "::notice title=adr0023-magnitude-shadow::using 30-day accumulated events: ${FOUND_ACCUMULATED}"
+            exit 0
+          fi
+          # Priority 3: today's single-run artifact (ADR-0023 §4.1 original path).
+          # Falls through when the accumulated pool is not yet available (first
+          # days after the Option B rollout) or the rolling-bench failed today.
           DOWNLOAD_DIR="artifacts/ci/scored_family_events_download"
           FOUND_EVENTS=""
           if [ -d "${DOWNLOAD_DIR}" ]; then
@@ -127,7 +156,7 @@ jobs:
             echo "::notice title=adr0023-magnitude-shadow::using scored events from benchmark artifact: ${FOUND_EVENTS}"
             exit 0
           fi
-          # Priority 3: fail-soft no_data. The production events export is
+          # Priority 4: fail-soft no_data. The production events export is
           # not part of the repo, so scheduled runs have no events to score.
           echo "events_path=" >> "$GITHUB_OUTPUT"
           echo "source=no_data" >> "$GITHUB_OUTPUT"
