@@ -4150,7 +4150,7 @@ async function dismissSignInModal(page: Page): Promise<boolean> {
 export async function dismissCookieBanner(page: Page): Promise<boolean> {
   let dismissed = false;
 
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
     // Use clickVisibleWithFallback (which includes force + JS dispatchEvent) so
     // that a Monaco editor margin-view-overlays div covering the Accept button
     // does not cause a Playwright actionability timeout (observed 2026-06-15:
@@ -4168,6 +4168,94 @@ export async function dismissCookieBanner(page: Page): Promise<boolean> {
 
     dismissed = true;
     await page.waitForTimeout(800);
+
+    // Verify the banner is actually gone. Playwright's force:true click can return
+    // without throwing even when the React synthetic event handler is not triggered
+    // (observed 2026-06-16: cookie-accept-click-error + hover-click-error exhaust
+    // the first two attempts, force:true then "succeeds" but the banner stays
+    // visible because TradingView's consent banner listens to React synthetic
+    // events, not raw browser events). If the banner is still up, try an explicit
+    // DOM-level dispatch that bubbles through React's event delegation.
+    const bannerGone = !(await hasVisibleLocator(tvSelectors.cookieAccept(page), 400));
+    if (bannerGone) {
+      break;
+    }
+    tracePageEvent(page, "cookie-accept-banner-still-visible", `attempt:${attempt}`);
+
+    try {
+      const domClicked = await page.evaluate((): boolean => {
+        const textPattern = /accept all|accept|agree|^ok$/i;
+        const containerSelectors = [
+          '[class*="acceptAll" i]',
+          '[id*="accept-all" i]',
+          '[id*="acceptAll" i]',
+          '[class*="cookie" i]',
+          '[class*="consent" i]',
+          '[id*="cookie" i]',
+          '[id*="consent" i]',
+        ];
+        let target: HTMLElement | null = null;
+        for (const sel of containerSelectors) {
+          const buttons = Array.from(
+            document.querySelectorAll<HTMLElement>(`${sel} button, ${sel} [role="button"]`),
+          );
+          const match = buttons.find((el) => {
+            const rect = el.getBoundingClientRect();
+            return (
+              rect.width > 4 &&
+              rect.height > 4 &&
+              textPattern.test((el.innerText || el.textContent || "").trim())
+            );
+          });
+          if (match) {
+            target = match;
+            break;
+          }
+        }
+        // Fallback: any visible button with accept text anywhere in the page
+        if (!target) {
+          const allButtons = Array.from(document.querySelectorAll<HTMLElement>("button, [role='button']"));
+          target = allButtons.find((el) => {
+            const rect = el.getBoundingClientRect();
+            return (
+              rect.width > 4 &&
+              rect.height > 4 &&
+              textPattern.test((el.innerText || el.textContent || "").trim())
+            );
+          }) ?? null;
+        }
+        if (!target) {
+          return false;
+        }
+        target.scrollIntoView({ block: "center", inline: "center" });
+        for (const eventType of ["pointerover", "pointerenter", "mouseover", "mouseenter", "pointermove", "mousemove", "pointerdown", "mousedown", "pointerup", "mouseup", "click"]) {
+          target.dispatchEvent(
+            new MouseEvent(eventType, {
+              bubbles: true,
+              cancelable: true,
+              composed: true,
+              view: window,
+            }),
+          );
+        }
+        target.click();
+        return true;
+      });
+      if (domClicked) {
+        tracePageEvent(page, "cookie-accept-dom-dispatch-ok", `attempt:${attempt}`);
+        await page.waitForTimeout(800);
+        const bannerGoneAfterDom = !(await hasVisibleLocator(tvSelectors.cookieAccept(page), 400));
+        if (bannerGoneAfterDom) {
+          break;
+        }
+        tracePageEvent(page, "cookie-accept-dom-dispatch-banner-still-visible", `attempt:${attempt}`);
+      } else {
+        tracePageEvent(page, "cookie-accept-dom-dispatch-no-target", `attempt:${attempt}`);
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      tracePageEvent(page, "cookie-accept-dom-dispatch-error", `attempt:${attempt}:${message}`);
+    }
   }
 
   return dismissed;
