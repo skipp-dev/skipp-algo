@@ -51,6 +51,10 @@ _stop_event = threading.Event()
 def _record_to_bar(record: Any) -> dict[str, Any] | None:
     """Convert a DBN OhlcvMsg record to a plain bar dict."""
     try:
+        # Require at least one Databento OHLCV attribute to be present; plain
+        # Python objects (e.g. object()) have none of these and must yield None.
+        if not any(hasattr(record, attr) for attr in ("open", "high", "low", "close")):
+            return None
         return {
             "open": getattr(record, "open", 0) / 1e9,
             "high": getattr(record, "high", 0) / 1e9,

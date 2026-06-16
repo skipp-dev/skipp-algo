@@ -179,7 +179,7 @@ class TestAllSpecFilesLoadable:
             "Expected at least f2_contextual_promotion.json."
         )
 
-    @pytest.mark.parametrize("spec_path", list((REPO_ROOT / "artifacts" / "experiments").glob("*.json")))
+    @pytest.mark.parametrize("spec_path", sorted((REPO_ROOT / "artifacts" / "experiments").glob("*.json")))
     def test_spec_contains_required_keys(self, spec_path: Path) -> None:
         import json
 
