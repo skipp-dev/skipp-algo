@@ -12,7 +12,6 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any
 
-
 # ---------------------------------------------------------------------------
 # Helper: lightweight stand-in for databento OhlcvMsg
 # ---------------------------------------------------------------------------
@@ -42,7 +41,7 @@ def _make_record(
 # Import the function under test
 # ---------------------------------------------------------------------------
 
-from services.live_overlay_daemon.feed import _record_to_bar  # noqa: E402
+from services.live_overlay_daemon.feed import _record_to_bar
 
 
 class TestRecordToBar:
@@ -116,4 +115,4 @@ class TestRecordToBar:
         assert bar is None
 
 
-import pytest  # noqa: E402 — imported at bottom to keep test body clean
+import pytest
