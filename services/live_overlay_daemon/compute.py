@@ -229,7 +229,7 @@ def _event_fields_for(_symbol: str) -> dict[str, Any]:
         "next_event_time": None,
         "market_event_blocked": False,
         "symbol_event_blocked": False,
-        "event_provider_status": "ok",
+        "event_provider_status": "unavailable",
     }
 
 

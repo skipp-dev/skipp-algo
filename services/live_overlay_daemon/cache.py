@@ -107,9 +107,10 @@ def patch_overlay(symbol: str, updates: dict[str, Any]) -> None:
 
 def overlay_age_secs() -> float:
     """Seconds since last full overlay computation."""
-    if _overlay_computed_at == 0.0:
-        return float("inf")
-    return time.monotonic() - _overlay_computed_at
+    with _overlay_lock:
+        if _overlay_computed_at == 0.0:
+            return float("inf")
+        return time.monotonic() - _overlay_computed_at
 
 
 def overlay_symbol_count() -> int:

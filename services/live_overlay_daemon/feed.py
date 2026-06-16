@@ -82,90 +82,92 @@ def _run_feed_loop(stop: threading.Event) -> None:
     # event loop by default — set one explicitly to avoid uvloop transport errors.
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
+    try:
+        consecutive_failures = 0
+        rolling = config.rolling_bars()
+        cache.init_bar_cache(rolling)
 
-    consecutive_failures = 0
-    rolling = config.rolling_bars()
-    cache.init_bar_cache(rolling)
+        while not stop.is_set():
+            symmap: dict[int, str] = {}
+            client: db.Live | None = None
+            try:
+                key = config.databento_api_key()
+                client = db.Live(key=key)
+                client.subscribe(
+                    dataset="EQUS.MINI",
+                    schema="ohlcv-1m",
+                    symbols="ALL_SYMBOLS",
+                    stype_in="raw_symbol",
+                )
+                logger.info("db.Live() connected — subscribing EQUS.MINI ohlcv-1m ALL_SYMBOLS")
+                consecutive_failures = 0
 
-    while not stop.is_set():
-        symmap: dict[int, str] = {}
-        client: db.Live | None = None
-        try:
-            key = config.databento_api_key()
-            client = db.Live(key=key)
-            client.subscribe(
-                dataset="EQUS.MINI",
-                schema="ohlcv-1m",
-                symbols="ALL_SYMBOLS",
-                stype_in="raw_symbol",
-            )
-            logger.info("db.Live() connected — subscribing EQUS.MINI ohlcv-1m ALL_SYMBOLS")
-            consecutive_failures = 0
+                for record in client:
+                    if stop.is_set():
+                        break
 
-            for record in client:
-                if stop.is_set():
-                    break
+                    rec_type = type(record).__name__
 
-                rec_type = type(record).__name__
+                    # Symbol mapping record — build instrument_id → ticker map
+                    if rec_type == "SymbolMappingMsg":
+                        try:
+                            raw = record.stype_in_symbol or ""
+                            iid = record.hd.instrument_id
+                            if raw:
+                                symmap[iid] = raw.upper()
+                        except Exception:
+                            logger.debug("SymbolMappingMsg parse error", exc_info=True)
+                        continue
 
-                # Symbol mapping record — build instrument_id → ticker map
-                if rec_type == "SymbolMappingMsg":
+                    # Skip system records that aren't OHLCV data
+                    if "Ohlcv" not in rec_type and "Bar" not in rec_type:
+                        continue
+
+                    sym = _symbol_from_record(record, symmap)
+                    if sym is None:
+                        continue
+
+                    bar = _record_to_bar(record)
+                    if bar is None:
+                        continue
+
+                    cache.push_bar(sym, bar)
+
+                    # Track VIX separately
+                    if sym == _VIX_SYMBOL and bar.get("close"):
+                        cache.set_vix(bar["close"])
+
+            except db.BentoError as exc:
+                consecutive_failures += 1
+                logger.warning(
+                    "db.Live() BentoError (attempt %d/%d): %s",
+                    consecutive_failures, _MAX_RECONNECT_ATTEMPTS, exc,
+                    exc_info=True,
+                )
+            except Exception as exc:
+                consecutive_failures += 1
+                logger.warning("db.Live() unexpected error: %s", exc, exc_info=True)
+            finally:
+                if client is not None:
                     try:
-                        raw = record.stype_in_symbol or ""
-                        iid = record.hd.instrument_id
-                        if raw:
-                            symmap[iid] = raw.upper()
+                        client.stop()
                     except Exception:
-                        logger.debug("SymbolMappingMsg parse error", exc_info=True)
-                    continue
+                        logger.debug("client.stop() error during cleanup", exc_info=True)
 
-                # Skip system records that aren't OHLCV data
-                if "Ohlcv" not in rec_type and "Bar" not in rec_type:
-                    continue
+            if stop.is_set():
+                break
 
-                sym = _symbol_from_record(record, symmap)
-                if sym is None:
-                    continue
-
-                bar = _record_to_bar(record)
-                if bar is None:
-                    continue
-
-                cache.push_bar(sym, bar)
-
-                # Track VIX separately
-                if sym == _VIX_SYMBOL and bar.get("close"):
-                    cache.set_vix(bar["close"])
-
-        except db.BentoError as exc:
-            consecutive_failures += 1
-            logger.warning(
-                "db.Live() BentoError (attempt %d/%d): %s",
-                consecutive_failures, _MAX_RECONNECT_ATTEMPTS, exc,
-                exc_info=True,
+            delay = (
+                _RECONNECT_BACKOFF_SECS
+                if consecutive_failures >= _MAX_RECONNECT_ATTEMPTS
+                else _RECONNECT_DELAY_SECS
             )
-        except Exception as exc:
-            consecutive_failures += 1
-            logger.warning("db.Live() unexpected error: %s", exc, exc_info=True)
-        finally:
-            if client is not None:
-                try:
-                    client.stop()
-                except Exception:
-                    logger.debug("client.stop() error during cleanup", exc_info=True)
+            logger.info("Feed reconnecting in %ds …", delay)
+            stop.wait(delay)
 
-        if stop.is_set():
-            break
-
-        delay = (
-            _RECONNECT_BACKOFF_SECS
-            if consecutive_failures >= _MAX_RECONNECT_ATTEMPTS
-            else _RECONNECT_DELAY_SECS
-        )
-        logger.info("Feed reconnecting in %ds …", delay)
-        stop.wait(delay)
-
-    logger.info("Feed thread stopped.")
+        logger.info("Feed thread stopped.")
+    finally:
+        loop.close()
 
 
 # ---------------------------------------------------------------------------
@@ -184,7 +186,7 @@ def _run_refresh_loop(stop: threading.Event) -> None:
             elapsed = time.monotonic() - t0
             logger.info("Full overlay computed: %d symbols in %.1fs", n, elapsed)
         except Exception as exc:
-            logger.error("Full overlay compute error: %s", exc)
+              logger.error("Full overlay compute error: %s", exc, exc_info=True)
         stop.wait(secs)
     logger.info("Refresh thread stopped.")
 
@@ -200,7 +202,7 @@ def _run_flow_refresh_loop(stop: threading.Event) -> None:
             elapsed = time.monotonic() - t0
             logger.debug("Flow patch: %d symbols in %.1fs", n, elapsed)
         except Exception as exc:
-            logger.error("Flow patch error: %s", exc)
+            logger.error("Flow patch error: %s", exc, exc_info=True)
         stop.wait(secs)
     logger.info("Flow refresh thread stopped.")
 

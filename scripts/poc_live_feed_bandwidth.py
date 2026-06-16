@@ -65,7 +65,7 @@ DBN_OHLCV_RECORD_BYTES = 104
 # RAM dict that the real daemon would maintain
 # {symbol: [{"open": ..., "high": ..., "low": ..., "close": ..., "volume": ..., "ts": ...}]}
 # ---------------------------------------------------------------------------
-bar_cache: dict[str, list[dict]] = defaultdict(list)
+bar_cache: dict[int, list[dict]] = defaultdict(list)
 
 counters = {
     "records": 0,
@@ -79,10 +79,10 @@ def _on_record(record: object) -> None:
     counters["bytes_approx"] += DBN_OHLCV_RECORD_BYTES
 
     # Simulate what the daemon stores
-    sym = getattr(record, "hd", None)
-    if sym is None:
+    hd = getattr(record, "hd", None)
+    if hd is None:
         return
-    raw_sym = getattr(record, "instrument_id", 0)  # will be resolved via symmap
+    raw_sym = getattr(hd, "instrument_id", 0)  # will be resolved via symmap
 
     # Store the OHLCV bar
     bar_cache[raw_sym].append(
@@ -92,7 +92,7 @@ def _on_record(record: object) -> None:
             "low": getattr(record, "low", 0) / 1e9,
             "close": getattr(record, "close", 0) / 1e9,
             "volume": getattr(record, "volume", 0),
-            "ts_event": getattr(record.hd, "ts_event", 0),
+            "ts_event": getattr(hd, "ts_event", 0),
         }
     )
 
@@ -127,7 +127,7 @@ def main() -> None:
         for record in client:
             # Skip system records (SessionEnd, SymbolMapping, etc.) — only count data
             rec_name = type(record).__name__
-            if rec_name not in ("OhlcvMsg", "Ohlcv1M", "OhlcvMsg"):
+            if rec_name not in ("OhlcvMsg", "Ohlcv1M"):
                 # still call callback but mark as system record
                 if "Ohlcv" in rec_name or "Bar" in rec_name:
                     _on_record(record)

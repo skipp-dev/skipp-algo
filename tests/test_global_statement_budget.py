@@ -182,9 +182,9 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # threading.Lock() per concurrency-shared-mutables guideline.
         ("services/live_overlay_daemon/cache.py", 40, ("_rolling_bars_cap",)),
         ("services/live_overlay_daemon/cache.py", 82, ("_overlay_computed_at",)),
-        ("services/live_overlay_daemon/cache.py", 126, ("_vix_level",)),
+        ("services/live_overlay_daemon/cache.py", 127, ("_vix_level",)),
         ("services/live_overlay_daemon/compute.py", 51, ("_news_cache", "_news_loaded_at")),
-        ("services/live_overlay_daemon/feed.py", 214, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        ("services/live_overlay_daemon/feed.py", 216, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
         ("services/live_overlay_daemon/main.py", 47, ("_startup_ts",)),
     }
 )

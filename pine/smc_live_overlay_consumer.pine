@@ -75,8 +75,8 @@ var table _tbl = table.new(position.top_right, 2, 18,
     border_width=1, border_color=color.new(color.gray, 60),
     bgcolor=color.new(color.black, 75))
 
-_bias_col  = _news_bias  == "bullish" ? color.green  : (_news_bias  == "bearish" ? color.red : color.gray)
-_tone_col  = _tone       == "risk-on" ? color.green  : (_tone       == "risk-off" ? color.red : color.gray)
+_bias_col  = _news_bias  == "BULLISH" ? color.green  : (_news_bias  == "BEARISH" ? color.red : color.gray)
+_tone_col  = _tone       == "BULLISH" ? color.green  : (_tone       == "BEARISH" ? color.red : color.gray)
 _ats_col   = _ats_state  == "accumulation" ? color.green : (_ats_state == "distribution" ? color.red : color.gray)
 _ev_col    = _ev_risk    == "high" ? color.red : (_ev_risk == "medium" ? color.orange : color.gray)
 _stale_col = _stale ? color.red : color.new(color.gray, 80)
