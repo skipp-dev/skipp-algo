@@ -217,7 +217,10 @@ allowed = [
 # so the frozen count is 4.
 "smc-library-refresh.yml" = 4
 "smc-live-newsapi-refresh.yml" = 1
-"smc-measurement-benchmark-rolling.yml" = 5
+# ADR-0023 Option B (Issue #2706): accumulate_events step uses `set +e` so
+# that a failed accumulation never marks the rolling-bench run failed; the
+# daily scored_family_events.json artifact is still uploaded as fallback.
+"smc-measurement-benchmark-rolling.yml" = 6
 # workflow-freshness-monitor.yml: single best-effort step that
 # tolerates GitHub API hiccups while polling per-workflow run
 # freshness; outcome is surfaced via the dedicated alert step.

@@ -72,7 +72,7 @@ def _symbol_from_record(record: Any, symmap: dict[int, str]) -> str | None:
     """Resolve instrument_id → ticker symbol via the session symmap."""
     try:
         # instrument_id is available directly on the record (not only via .hd)
-        iid = getattr(record, "instrument_id", None) or getattr(record.hd, "instrument_id", None)
+        iid = getattr(record, "instrument_id", None) or getattr(getattr(record, "hd", None), "instrument_id", None)
         if iid is None:
             return None
         sym = symmap.get(iid)

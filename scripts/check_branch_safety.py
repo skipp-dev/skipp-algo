@@ -28,7 +28,7 @@ def _current_branch() -> str:
             check=True,
         )
         return result.stdout.strip()
-    except subprocess.CalledProcessError:
+    except (subprocess.CalledProcessError, OSError):
         return ""
 
 
@@ -37,13 +37,13 @@ def main() -> int:
     label = branch or "(detached HEAD)"
 
     print()
-    print("  ┌─────────────────────────────────────────────┐")
-    print(f"  │  BRANCH CHECK: currently on → {label:<13s}│")
-    print("  └─────────────────────────────────────────────┘")
+    print("  +---------------------------------------------+")
+    print(f"  |  BRANCH CHECK: currently on -> {label:<13s}|")
+    print("  +---------------------------------------------+")
     print()
 
     if branch in ("main", "master"):
-        print(f"  ✗ ERROR: direct commit to '{branch}' is blocked.")
+        print(f"  ERROR: direct commit to '{branch}' is blocked.")
         print("    Check out a feature/fix branch first.")
         print("    e.g.:  git checkout -b feat/my-change")
         print()
