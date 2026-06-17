@@ -51,8 +51,8 @@ def push_bar(symbol: str, bar: dict[str, Any]) -> None:
     """Append a 1-min OHLCV bar for symbol, evicting oldest if at cap."""
     with _bar_lock:
         if symbol not in _bars:
-            # Evict least-recently-updated symbols when at capacity
-            if len(_bars) >= _max_symbols:
+            # Evict least-recently-updated symbols until under capacity
+            while len(_bars) >= _max_symbols:
                 _evict_stale_symbols_locked()
             _bars[symbol] = deque(maxlen=_rolling_bars_cap)
         _bars[symbol].append(bar)

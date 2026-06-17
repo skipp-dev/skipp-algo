@@ -33,7 +33,7 @@ class Enricher:
     def __init__(self) -> None:
         self.client = httpx.Client(
             timeout=3.0,
-            follow_redirects=True,
+            follow_redirects=False,
             headers={"User-Agent": "newsstack-fmp/1.0 (enricher)"},
         )
 
