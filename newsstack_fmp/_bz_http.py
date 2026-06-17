@@ -56,8 +56,15 @@ _warned_lock = threading.Lock()
 # a retired URL shape).  After the first such error, callers that pass
 # ``label=`` to :func:`_request_with_retry` will short-circuit and avoid
 # wasting a network round-trip on every poll cycle.
-_DISABLED_ENDPOINTS: set[str] = set()
+# Values are the ``time.monotonic()`` timestamp when the endpoint was disabled;
+# after ``_DISABLED_TTL_S`` seconds the endpoint is automatically re-enabled
+# so transient plan/network issues don't permanently suppress an endpoint.
+_DISABLED_ENDPOINTS: dict[str, float] = {}
 _disabled_lock = threading.Lock()
+
+# How long (seconds) a disabled endpoint stays suppressed before being
+# automatically re-enabled.  Default: 30 min.
+_DISABLED_TTL_S: float = 1800.0
 
 # HTTP status codes that indicate a tier/plan limitation rather than
 # a transient error.  These are suppressed after the first occurrence.
@@ -80,15 +87,24 @@ class BenzingaEndpointDisabledError(RuntimeError):
 
 
 def is_endpoint_disabled(label: str) -> bool:
-    """Return True if *label* has been marked disabled in this process."""
+    """Return True if *label* is disabled and still within the TTL window."""
     with _disabled_lock:
-        return label in _DISABLED_ENDPOINTS
+        ts = _DISABLED_ENDPOINTS.get(label)
+        if ts is None:
+            return False
+        if time.monotonic() - ts >= _DISABLED_TTL_S:
+            del _DISABLED_ENDPOINTS[label]
+            logger.info(
+                "%s re-enabled after %.0f s cooldown", label, _DISABLED_TTL_S,
+            )
+            return False
+        return True
 
 
 def mark_endpoint_disabled(label: str) -> None:
     """Mark *label* disabled so future requests skip the network call."""
     with _disabled_lock:
-        _DISABLED_ENDPOINTS.add(label)
+        _DISABLED_ENDPOINTS[label] = time.monotonic()
 
 
 def clear_disabled_endpoints() -> None:
@@ -154,7 +170,7 @@ def log_fetch_warning(label: str, exc: Exception) -> None:
         # skip future network round-trips.
         mark_endpoint_disabled(label)
         if not already_warned:
-            code = exc.response.status_code  # type: ignore
+            code = exc.response.status_code  # type: ignore[union-attr]
             logger.warning(
                 "%s fetch failed (HTTP %d) – endpoint not available on "
                 "your API plan; suppressing further warnings: %s",

@@ -35,6 +35,7 @@ from __future__ import annotations
 import logging
 import os
 import threading
+import time
 from typing import Any
 
 import httpx
@@ -71,11 +72,12 @@ UW_NEWS_HEADLINES_PATH = "/news/headlines"
 
 # ── Once-per-endpoint suppression (mirrors _bz_http.py) ──────────────
 # When UW returns a permanent failure (auth/tier/missing), we mark the
-# endpoint disabled for the rest of the process so subsequent polls
-# short-circuit without burning quota or filling logs.  Per-process
-# state (cleared on restart); idempotent helpers exposed for tests.
-_DISABLED_ENDPOINTS: set[str] = set()
+# endpoint disabled for a TTL window so subsequent polls short-circuit
+# without burning quota or filling logs.  After the cooldown the endpoint
+# is automatically re-enabled (same TTL strategy as _bz_http.py).
+_DISABLED_ENDPOINTS: dict[str, float] = {}
 _disabled_lock = threading.Lock()
+_DISABLED_TTL_S: float = 1800.0
 
 
 # Audit-fix (2026-05-09): UnusualWhalesEndpointDisabledError class removed.
@@ -87,12 +89,21 @@ _disabled_lock = threading.Lock()
 
 def is_uw_endpoint_disabled(label: str) -> bool:
     with _disabled_lock:
-        return label in _DISABLED_ENDPOINTS
+        ts = _DISABLED_ENDPOINTS.get(label)
+        if ts is None:
+            return False
+        if time.monotonic() - ts >= _DISABLED_TTL_S:
+            del _DISABLED_ENDPOINTS[label]
+            logger.info(
+                "%s re-enabled after %.0f s cooldown", label, _DISABLED_TTL_S,
+            )
+            return False
+        return True
 
 
 def mark_uw_endpoint_disabled(label: str) -> None:
     with _disabled_lock:
-        _DISABLED_ENDPOINTS.add(label)
+        _DISABLED_ENDPOINTS[label] = time.monotonic()
 
 
 def clear_uw_disabled_endpoints() -> None:
