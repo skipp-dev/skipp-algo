@@ -94,5 +94,5 @@ while :; do
         echo "push_runner_selection_metric: push failed after ${MAX_ATTEMPTS} attempts" >&2
         exit 1
     fi
-    sleep "$((attempt * 2))"
+    sleep "$((attempt * 2 + RANDOM % (attempt + 1)))"
 done
