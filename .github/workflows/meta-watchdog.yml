@@ -168,6 +168,8 @@ jobs:
             dag_status="error"
           fi
           echo "dag_status=$dag_status" >> "$GITHUB_OUTPUT"
+
+      - name: Annotate probe results
         if: always() && steps.probe.outputs.rc != ''
         run: |
           if [ ! -f artifacts/ci/meta_watchdog.json ]; then

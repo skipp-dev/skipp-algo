@@ -63,7 +63,11 @@ import logging
 logger = logging.getLogger(__name__)
 
 import argparse
-import fcntl
+try:
+    import fcntl          # POSIX only; Windows CI uses best-effort no-lock path
+    _FLOCK_SUPPORTED = True
+except ImportError:   # Windows
+    _FLOCK_SUPPORTED = False
 import json
 import os
 import sys
@@ -161,24 +165,27 @@ def _append_rows(corpus_path: Path, rows: list[dict[str, Any]]) -> int:
     # This is unambiguous regardless of whether corpus_path has a suffix.
     lock_path = corpus_path.parent / (corpus_path.name + ".lock")
     with lock_path.open("w") as _lock_fh:
-        fcntl.flock(_lock_fh, fcntl.LOCK_EX)
-        existing = _existing_keys(corpus_path)
-        written = 0
-        with corpus_path.open("a", encoding="utf-8") as fh:
-            for row in rows:
-                key = (str(row.get("computed_at", "")), str(row.get("variant", "")))
-                if key in existing:
-                    continue
-                fh.write(json.dumps(row, ensure_ascii=False) + "\n")
-                existing.add(key)
-                written += 1
-            # Ensure data reaches disk before the process can be killed by the
-            # scheduler.  Prevents a truncated final line in the corpus JSONL.
-            if written:
-                fh.flush()
-                os.fsync(fh.fileno())
-        # flock released implicitly when _lock_fh is closed by the with-block.
-    return written
+        if _FLOCK_SUPPORTED:
+            fcntl.flock(_lock_fh, fcntl.LOCK_EX)  # noqa: F821 — only executed when fcntl is available
+        try:
+            existing = _existing_keys(corpus_path)
+            written = 0
+            with corpus_path.open("a", encoding="utf-8") as fh:
+                for row in rows:
+                    key = (str(row.get("computed_at", "")), str(row.get("variant", "")))
+                    if key in existing:
+                        continue
+                    fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+                    existing.add(key)
+                    written += 1
+                # Ensure data reaches disk before the process can be killed by the
+                # scheduler.  Prevents a truncated final line in the corpus JSONL.
+                if written:
+                    fh.flush()
+                    os.fsync(fh.fileno())
+        finally:
+            if _FLOCK_SUPPORTED:
+                fcntl.flock(_lock_fh, fcntl.LOCK_UN)  # noqa: F821 — always paired with LOCK_EX above
 
 
 # ---------------------------------------------------------------------------
