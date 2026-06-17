@@ -1604,7 +1604,7 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           REF: ${{ github.ref }}
         run: |
-          set -uo pipefail
+          set -euo pipefail
           PYBIN="${SMC_PYTHON_BIN:-python3}"
           HIST="artifacts/ci/best_effort_failure_history.jsonl"
           SNAP="artifacts/ci/best_effort_failures.json"

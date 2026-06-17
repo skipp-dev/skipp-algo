@@ -30,6 +30,7 @@ import argparse
 import json
 import logging
 import os
+import tempfile
 from collections import Counter
 from collections.abc import Sequence
 from datetime import UTC, datetime
@@ -111,9 +112,23 @@ def record(
         os.fsync(fh.fileno())
 
     snapshot_path.parent.mkdir(parents=True, exist_ok=True)
-    snapshot_path.write_text(
-        json.dumps(rec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    fd, tmp_str = tempfile.mkstemp(
+        dir=str(snapshot_path.parent),
+        prefix=snapshot_path.name + ".",
+        suffix=".tmp",
     )
+    tmp_path = Path(tmp_str)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            # ATOMIC-WRITE-EXEMPT: hand-rolled mkstemp+fsync+os.replace pattern
+            json.dump(rec, fh, ensure_ascii=False, indent=2)
+            fh.write("\n")
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp_path, snapshot_path)
+    except BaseException:
+        tmp_path.unlink(missing_ok=True)
+        raise
 
     if failed:
         logger.warning(
