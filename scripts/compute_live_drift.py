@@ -37,7 +37,9 @@ Schema (additive only; bump the consumer when fields are removed)::
 """
 
 from __future__ import annotations
+
 import logging
+
 logger = logging.getLogger(__name__)
 
 # F-V5-A1-2 / F-CI-O1 (2026-05-01): bootstrap root logging so the
@@ -58,7 +60,6 @@ import contextlib
 import json
 import math
 import os
-import sys
 import tempfile
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass

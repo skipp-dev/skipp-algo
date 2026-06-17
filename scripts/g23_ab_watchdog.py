@@ -45,7 +45,9 @@ Defensive design
   :func:`scripts.smc_sprt_stop_rule.terminal_decision`.
 """
 from __future__ import annotations
+
 import logging
+
 logger = logging.getLogger(__name__)
 
 # F-V5-A1-2 / F-CI-O1 (2026-05-01) + F-V?-? (2026-05-03): bootstrap repo

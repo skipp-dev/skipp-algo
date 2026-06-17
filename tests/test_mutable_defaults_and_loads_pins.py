@@ -109,8 +109,9 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/diff.py", 79),
         # 2026-06-11 (backfill defer-unpublished): sentinel+helper block
         # above shifted 61→80, 81→100; pytest write-guard import +4 → 84/104.
-        ("open_prep/outcome_backfill.py", 84),
-        ("open_prep/outcome_backfill.py", 104),
+        # 2026-06-17 (F1 lint fix): remove unused import sys → 84→83, 104→103.
+        ("open_prep/outcome_backfill.py", 83),
+        ("open_prep/outcome_backfill.py", 103),
         # 2026-06-11 (pytest write-guard): import + guard call in
         # store_daily_outcomes shifted 185→199.
         ("open_prep/outcomes.py", 199),

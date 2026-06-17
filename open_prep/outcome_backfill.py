@@ -20,7 +20,6 @@ import argparse
 import json
 import logging
 import os
-import sys
 import tempfile
 from datetime import date, datetime
 from datetime import time as dt_time

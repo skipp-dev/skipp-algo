@@ -52,14 +52,15 @@ Pure stdlib + numpy. No new dependencies.
 """
 
 from __future__ import annotations
+
 import logging
+
 logger = logging.getLogger(__name__)
 
 import argparse
 import contextlib
 import json
 import os
-import sys
 import tempfile
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, datetime

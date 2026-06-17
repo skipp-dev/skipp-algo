@@ -19,13 +19,14 @@ CLI
 """
 
 from __future__ import annotations
+
 import logging
+
 logger = logging.getLogger(__name__)
 
 import argparse
 import json
 import math
-import sys
 from collections import defaultdict
 from collections.abc import Iterable, Mapping
 from datetime import UTC, date, datetime, timedelta

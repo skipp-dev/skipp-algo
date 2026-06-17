@@ -19,7 +19,9 @@ instead of a diff and exits 0.
 """
 
 from __future__ import annotations
+
 import logging
+
 logger = logging.getLogger(__name__)
 
 import argparse

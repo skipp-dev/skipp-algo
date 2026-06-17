@@ -45,7 +45,9 @@ network-free.
 """
 
 from __future__ import annotations
+
 import logging
+
 logger = logging.getLogger(__name__)
 
 # F-V5-A1-2 / F-CI-O1 (2026-05-01): bootstrap root logging so the
