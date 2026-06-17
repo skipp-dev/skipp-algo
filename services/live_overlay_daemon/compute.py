@@ -32,11 +32,14 @@ from __future__ import annotations
 
 import datetime
 import json
+import logging
 import math
 import time
 from typing import Any
 
 from . import cache, config
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # News snapshot helpers
@@ -44,13 +47,11 @@ from . import cache, config
 
 _news_cache: dict[str, Any] = {}
 _news_loaded_at: float = 0.0
-_NEWS_TTL_SECS = 600  # reload at most once per 10 min
-
 
 def _load_news_snapshot() -> dict[str, Any]:
     global _news_cache, _news_loaded_at
     path = config.news_snapshot_path()
-    if time.monotonic() - _news_loaded_at < _NEWS_TTL_SECS and _news_cache:
+    if time.monotonic() - _news_loaded_at < config.news_cache_ttl_secs() and _news_cache:
         return _news_cache
     if not path.exists():
         _news_cache = {}
@@ -61,6 +62,7 @@ def _load_news_snapshot() -> dict[str, Any]:
         _news_cache = raw if isinstance(raw, dict) else {}
         _news_loaded_at = time.monotonic()
     except Exception:
+        logger.warning("Failed to load news snapshot from %s", path, exc_info=True)
         _news_cache = {}
     return _news_cache
 

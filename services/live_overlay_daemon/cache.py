@@ -12,15 +12,20 @@ Design notes:
 """
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from collections import deque
 from typing import Any
 
+logger = logging.getLogger(__name__)
+
 # BarCache: symbol → deque of bar dicts (OHLCV), capped at rolling_bars
 _bar_lock = threading.Lock()
 _bars: dict[str, deque[dict[str, Any]]] = {}
+_bar_last_update: dict[str, float] = {}  # symbol → monotonic timestamp of last push
 _rolling_bars_cap: int = 60  # set by feed.py on init
+_max_symbols: int = 2000  # configurable via init_bar_cache()
 
 # OverlayCache: symbol → overlay payload dict (pre-computed)
 _overlay_lock = threading.Lock()
@@ -36,17 +41,22 @@ _vix_level: float | None = None
 # Bar cache API
 # ---------------------------------------------------------------------------
 
-def init_bar_cache(rolling_bars: int) -> None:
-    global _rolling_bars_cap
+def init_bar_cache(rolling_bars: int, *, max_symbols: int = 2000) -> None:
+    global _rolling_bars_cap, _max_symbols
     _rolling_bars_cap = rolling_bars
+    _max_symbols = max_symbols
 
 
 def push_bar(symbol: str, bar: dict[str, Any]) -> None:
     """Append a 1-min OHLCV bar for symbol, evicting oldest if at cap."""
     with _bar_lock:
         if symbol not in _bars:
+            # Evict least-recently-updated symbols when at capacity
+            if len(_bars) >= _max_symbols:
+                _evict_stale_symbols_locked()
             _bars[symbol] = deque(maxlen=_rolling_bars_cap)
         _bars[symbol].append(bar)
+        _bar_last_update[symbol] = time.monotonic()
 
 
 def get_bars_snapshot(symbol: str) -> list[dict[str, Any]]:
@@ -71,6 +81,18 @@ def bar_symbol_count() -> int:
 def total_bar_count() -> int:
     with _bar_lock:
         return sum(len(dq) for dq in _bars.values())
+
+
+def _evict_stale_symbols_locked() -> None:
+    """Evict the 10% least-recently-updated symbols. Caller MUST hold _bar_lock."""
+    if not _bar_last_update:
+        return
+    n_evict = max(1, len(_bars) // 10)
+    victims = sorted(_bar_last_update, key=lambda s: _bar_last_update[s])[:n_evict]
+    for sym in victims:
+        _bars.pop(sym, None)
+        _bar_last_update.pop(sym, None)
+    logger.info("Evicted %d stale symbols from bar cache (cap=%d)", len(victims), _max_symbols)
 
 
 # ---------------------------------------------------------------------------

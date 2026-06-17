@@ -16,8 +16,11 @@ Optional vars:
 """
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _ENV_FILE = _REPO_ROOT / ".env"
@@ -56,6 +59,10 @@ def _optional_int(key: str, default: int) -> int:
     try:
         return int(raw) if raw else default
     except ValueError:
+        logger.warning(
+            "Invalid integer for %s=%r, falling back to default %d",
+            key, raw, default,
+        )
         return default
 
 
@@ -76,19 +83,47 @@ def overlay_secret_token() -> str:
 
 
 def refresh_secs() -> int:
-    return _optional_int("OVERLAY_REFRESH_SECS", 1800)
+    val = _optional_int("OVERLAY_REFRESH_SECS", 1800)
+    if not 10 <= val <= 86400:
+        logger.warning(
+            "OVERLAY_REFRESH_SECS=%d outside valid range [10, 86400], clamping",
+            val,
+        )
+        val = max(10, min(86400, val))
+    return val
 
 
 def flow_refresh_secs() -> int:
-    return _optional_int("OVERLAY_FLOW_REFRESH_SECS", 300)
+    val = _optional_int("OVERLAY_FLOW_REFRESH_SECS", 300)
+    if not 5 <= val <= 3600:
+        logger.warning(
+            "OVERLAY_FLOW_REFRESH_SECS=%d outside valid range [5, 3600], clamping",
+            val,
+        )
+        val = max(5, min(3600, val))
+    return val
 
 
 def max_stale_secs() -> int:
-    return _optional_int("OVERLAY_MAX_STALE_SECS", 3600)
+    val = _optional_int("OVERLAY_MAX_STALE_SECS", 3600)
+    if not 60 <= val <= 7200:
+        logger.warning(
+            "OVERLAY_MAX_STALE_SECS=%d outside valid range [60, 7200], clamping",
+            val,
+        )
+        val = max(60, min(7200, val))
+    return val
 
 
 def rolling_bars() -> int:
-    return _optional_int("OVERLAY_ROLLING_BARS", 60)
+    val = _optional_int("OVERLAY_ROLLING_BARS", 60)
+    if not 1 <= val <= 500:
+        logger.warning(
+            "OVERLAY_ROLLING_BARS=%d outside valid range [1, 500], clamping",
+            val,
+        )
+        val = max(1, min(500, val))
+    return val
 
 
 def news_snapshot_path() -> Path:
@@ -102,6 +137,28 @@ def news_snapshot_path() -> Path:
         ),
     )
     return Path(raw)
+
+
+def max_symbols() -> int:
+    val = _optional_int("OVERLAY_MAX_SYMBOLS", 2000)
+    if not 100 <= val <= 50000:
+        logger.warning(
+            "OVERLAY_MAX_SYMBOLS=%d outside valid range [100, 50000], clamping",
+            val,
+        )
+        val = max(100, min(50000, val))
+    return val
+
+
+def news_cache_ttl_secs() -> int:
+    val = _optional_int("OVERLAY_NEWS_CACHE_TTL_SECS", 600)
+    if not 60 <= val <= 3600:
+        logger.warning(
+            "OVERLAY_NEWS_CACHE_TTL_SECS=%d outside valid range [60, 3600], clamping",
+            val,
+        )
+        val = max(60, min(3600, val))
+    return val
 
 
 def port() -> int:
