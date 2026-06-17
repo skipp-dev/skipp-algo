@@ -88,17 +88,20 @@ _DISABLED_TTL_S: float = 1800.0
 
 
 def is_uw_endpoint_disabled(label: str) -> bool:
+    re_enabled = False
     with _disabled_lock:
         ts = _DISABLED_ENDPOINTS.get(label)
         if ts is None:
             return False
         if time.monotonic() - ts >= _DISABLED_TTL_S:
             del _DISABLED_ENDPOINTS[label]
-            logger.info(
-                "%s re-enabled after %.0f s cooldown", label, _DISABLED_TTL_S,
-            )
-            return False
-        return True
+            re_enabled = True
+        else:
+            return True
+    # Log outside lock to avoid blocking on I/O
+    if re_enabled:
+        logger.info("%s re-enabled after %.0f s cooldown", label, _DISABLED_TTL_S)
+    return False
 
 
 def mark_uw_endpoint_disabled(label: str) -> None:
