@@ -176,7 +176,10 @@ def _today_et() -> date:
 def _prev_trading_day(day: date) -> date:
     probe = day
     for _ in range(10):
-        probe = date.fromordinal(probe.toordinal() - 1)
+        try:
+            probe = date.fromordinal(probe.toordinal() - 1)
+        except (ValueError, OverflowError):
+            raise RuntimeError(f"no trading day found within 10 days before {day}") from None
         if probe.weekday() < 5:
             return probe
     raise RuntimeError(f"no trading day found within 10 days before {day}")
