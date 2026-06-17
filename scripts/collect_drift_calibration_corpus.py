@@ -63,6 +63,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 import argparse
+import fcntl
 import json
 import os
 import sys
@@ -147,23 +148,32 @@ def _append_rows(corpus_path: Path, rows: list[dict[str, Any]]) -> int:
     """Append *rows* to *corpus_path*; create parent dirs as needed.
 
     Returns the number of rows actually written (0 if all were duplicates).
+
+    Inter-process safety: acquires an exclusive ``fcntl.flock`` on a
+    sidecar ``.lock`` file before reading existing keys and appending.
+    This prevents two concurrent collector invocations from (a) racing
+    on the duplicate-key snapshot and (b) interleaving their writes.
     """
     corpus_path.parent.mkdir(parents=True, exist_ok=True)
-    existing = _existing_keys(corpus_path)
-    written = 0
-    with corpus_path.open("a", encoding="utf-8") as fh:
-        for row in rows:
-            key = (str(row.get("computed_at", "")), str(row.get("variant", "")))
-            if key in existing:
-                continue
-            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
-            existing.add(key)
-            written += 1
-        # Ensure data reaches disk before the process can be killed by the
-        # scheduler.  Prevents a truncated final line in the corpus JSONL.
-        if written:
-            fh.flush()
-            os.fsync(fh.fileno())
+    lock_path = corpus_path.with_suffix(".lock")
+    with lock_path.open("w") as _lock_fh:
+        fcntl.flock(_lock_fh, fcntl.LOCK_EX)
+        existing = _existing_keys(corpus_path)
+        written = 0
+        with corpus_path.open("a", encoding="utf-8") as fh:
+            for row in rows:
+                key = (str(row.get("computed_at", "")), str(row.get("variant", "")))
+                if key in existing:
+                    continue
+                fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+                existing.add(key)
+                written += 1
+            # Ensure data reaches disk before the process can be killed by the
+            # scheduler.  Prevents a truncated final line in the corpus JSONL.
+            if written:
+                fh.flush()
+                os.fsync(fh.fileno())
+        # flock released implicitly when _lock_fh is closed by the with-block.
     return written
 
 
