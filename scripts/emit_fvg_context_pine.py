@@ -36,6 +36,8 @@ Exit codes:
 * 1 — fatal error (cannot write output, malformed ledger record)
 """
 from __future__ import annotations
+import logging
+logger = logging.getLogger(__name__)
 
 # F-V5-A1-2 / F-CI-O1 (2026-05-01) + F-V?-? (2026-05-03): bootstrap repo
 # root onto sys.path BEFORE the first-party `from scripts._logging_init`
@@ -310,5 +312,14 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-if __name__ == "__main__":
-    sys.exit(main())
+if __name__ == "__main__":  # pragma: no cover
+    try:
+        raise SystemExit(main())
+    except KeyboardInterrupt:
+        logger.warning("Interrupted by user (SIGINT/KeyboardInterrupt).")
+        raise SystemExit(130) from None
+    except SystemExit:
+        raise
+    except Exception:
+        logger.critical("Fatal error in %s", __name__, exc_info=True)
+        raise SystemExit(1) from None

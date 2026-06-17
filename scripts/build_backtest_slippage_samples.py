@@ -52,6 +52,8 @@ Pure stdlib + numpy. No new dependencies.
 """
 
 from __future__ import annotations
+import logging
+logger = logging.getLogger(__name__)
 
 import argparse
 import contextlib
@@ -410,4 +412,13 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 if __name__ == "__main__":  # pragma: no cover
-    sys.exit(main())
+    try:
+        raise SystemExit(main())
+    except KeyboardInterrupt:
+        logger.warning("Interrupted by user (SIGINT/KeyboardInterrupt).")
+        raise SystemExit(130) from None
+    except SystemExit:
+        raise
+    except Exception:
+        logger.critical("Fatal error in %s", __name__, exc_info=True)
+        raise SystemExit(1) from None
