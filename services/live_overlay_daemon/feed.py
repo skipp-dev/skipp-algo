@@ -119,6 +119,7 @@ def _run_feed_loop(stop: threading.Event) -> None:
                 _ohlcv_count = 0
                 _sym_none_count = 0
                 _bar_none_count = 0
+                _bars_pushed_count = 0
                 for record in client:
                     if stop.is_set():
                         break
@@ -129,7 +130,7 @@ def _run_feed_loop(stop: threading.Event) -> None:
                         logger.debug(
                             "Feed stats: total=%d symmap=%d ohlcv=%d sym_none=%d bar_none=%d bars=%d",
                             _rec_count, len(symmap), _ohlcv_count, _sym_none_count,
-                            _bar_none_count, cache.total_bar_count(),
+                            _bar_none_count, _bars_pushed_count,
                         )
 
                     # Skip system records that aren't OHLCV data
@@ -160,6 +161,7 @@ def _run_feed_loop(stop: threading.Event) -> None:
                         continue
 
                     cache.push_bar(sym, bar)
+                    _bars_pushed_count += 1
 
                     # Track VIX separately
                     if sym == _VIX_SYMBOL and bar.get("close"):
