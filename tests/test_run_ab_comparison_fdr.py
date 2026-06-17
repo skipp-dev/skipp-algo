@@ -202,10 +202,24 @@ def test_fdr_layer_null_hit_rate_skips_family_not_launders_to_zero() -> None:
     families_by_name = {e["family"]: e for e in out["families"]}
 
     # GHOST family: control arm has hit_rate=None → skipped in aggregation.
-    # After fix: GHOST not in ctrl_fam → not in common set → absent from FDR output.
+    # After fix: GHOST not in common set → absent from tested families.
     assert "GHOST" not in families_by_name, (
-        "W11-1: GHOST family with hit_rate=None in one arm must be absent from FDR output"
+        "W11-1: GHOST family with hit_rate=None must not appear in tested families"
     )
+
+    # Option A: GHOST must appear in skipped_family_details so operators
+    # see "Family GHOST: 0 Trades, nicht bewertet" instead of nothing.
+    skipped_by_name = {e["family"]: e for e in out["skipped_family_details"]}
+    assert "GHOST" in skipped_by_name, (
+        "W11-1 Option A: GHOST family with hit_rate=None must appear in "
+        "skipped_family_details"
+    )
+    ghost_detail = skipped_by_name["GHOST"]
+    assert ghost_detail["skip_reason"] in ("no_trades", "non_finite", "missing"), (
+        f"Unexpected skip_reason: {ghost_detail['skip_reason']!r}"
+    )
+    assert ghost_detail["n_control"] >= 0
+    assert ghost_detail["n_treatment"] >= 0
 
     # REAL family with valid hit_rates in both arms is tested normally.
     assert "REAL" in families_by_name, "REAL family must still be present"
@@ -474,6 +488,7 @@ _FDR_TOPLEVEL_KEYS = frozenset({
     "q",
     "tested_families",
     "skipped_families",
+    "skipped_family_details",  # Option A (W11-1): named skipped-family list
     "rejected_families",
     "threshold_p_value",
     "families",

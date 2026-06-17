@@ -297,20 +297,36 @@ def _family_fdr_layer(
     """
     def _aggregate_family_events(
         pairs: list[dict[str, Any]],
-    ) -> dict[str, tuple[int, int]]:
+    ) -> tuple[dict[str, tuple[int, int]], dict[str, tuple[int, str]]]:
+        """Return (agg, skipped).
+
+        ``agg`` maps family -> (total_n_events, total_k_hits) for families
+        with a valid hit_rate.
+
+        ``skipped`` maps family -> (total_n_events, skip_reason) for families
+        where hit_rate is None.  The ``skip_reason`` is taken from the
+        upstream ``skip_reason`` field when present (written by
+        _serialize_family_metrics since Option A, W11-1), or inferred from
+        n_events (0 -> "no_trades", >0 -> "non_finite").
+        """
         agg: dict[str, tuple[int, int]] = {}
+        skipped: dict[str, tuple[int, str]] = {}
         for pair in pairs:
             for fam, fm in (pair.get("family_metrics") or {}).items():
                 n = int(fm.get("n_events", 0) or 0)
                 # W11-1 (stat-review wave 11): hit_rate=None means the
-                # measurement is absent, not 0%.  Laundering None→0.0 via
-                # `or 0.0` would produce a ghost k=0 entry in the affected
-                # arm.  Because _two_proportion_z_pvalue is one-sided for
-                # treatment > control, a ghosted control arm (k_ctrl=0)
-                # inflates the apparent treatment advantage → ghost
-                # significant lift on zero evidence.  Skip instead.
+                # measurement is absent, not 0%.  Skip the entry and record
+                # the family in ``skipped`` so the FDR report can surface
+                # "Family BOS: 0 Trades, nicht bewertet" instead of silently
+                # omitting it (Option A improvement).
                 hr_raw = fm.get("hit_rate")
                 if hr_raw is None:
+                    reason = str(
+                        fm.get("skip_reason")
+                        or ("no_trades" if n == 0 else "non_finite")
+                    )
+                    prev_n, _ = skipped.get(fam, (0, reason))
+                    skipped[fam] = (prev_n + n, reason)
                     continue
                 hr = float(hr_raw)
                 # hit_rate may be stored as fraction OR percentage
@@ -320,10 +336,10 @@ def _family_fdr_layer(
                 k = round(n * max(0.0, min(1.0, hr)))
                 prev_n, prev_k = agg.get(fam, (0, 0))
                 agg[fam] = (prev_n + n, prev_k + k)
-        return agg
+        return agg, skipped
 
-    ctrl_fam = _aggregate_family_events(control_pairs)
-    treat_fam = _aggregate_family_events(treatment_pairs)
+    ctrl_fam, ctrl_skipped = _aggregate_family_events(control_pairs)
+    treat_fam, treat_skipped = _aggregate_family_events(treatment_pairs)
     common = sorted(set(ctrl_fam) & set(treat_fam))
 
     families: list[dict[str, Any]] = []
@@ -357,11 +373,29 @@ def _family_fdr_layer(
         families[fam_idx]["adjusted_p_value"] = round(float(bh["adjusted"][slot]), 6)
 
     rejected_families = [e["family"] for e in families if e["rejected"]]
+
+    # Option A (W11-1): surface families skipped in at least one arm so
+    # operators see "Family BOS: 0 Trades, nicht bewertet" in the report
+    # instead of a silent omission.
+    all_skipped_names = sorted(set(ctrl_skipped) | set(treat_skipped))
+    skipped_family_details: list[dict[str, Any]] = [
+        {
+            "family": fam,
+            "n_control": ctrl_skipped.get(fam, (0, ""))[0],
+            "n_treatment": treat_skipped.get(fam, (0, ""))[0],
+            "skip_reason": (
+                ctrl_skipped.get(fam, treat_skipped.get(fam, (0, "missing")))[1]
+            ),
+        }
+        for fam in all_skipped_names
+    ]
+
     return {
         "method": "benjamini_hochberg",
         "q": q,
         "tested_families": len(pvals),
-        "skipped_families": len(families) - len(pvals),
+        "skipped_families": len(families) - len(pvals) + len(all_skipped_names),
+        "skipped_family_details": skipped_family_details,
         "rejected_families": rejected_families,
         "threshold_p_value": (
             round(float(bh["threshold"]), 6) if bh["threshold"] is not None else None
