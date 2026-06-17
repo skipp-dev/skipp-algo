@@ -1077,7 +1077,7 @@ jobs:
 
       - name: Normalize TradingView post-release validation
         id: tv_post_release
-        if: always() && steps.publish.outcome == 'success' && steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && github.ref == 'refs/heads/main'
+        if: always() && steps.publish.outcome == 'success' && steps.tv_post_release_raw.outcome == 'success' && steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && github.ref == 'refs/heads/main'
         run: |
           "$SMC_PYTHON_BIN" scripts/run_smc_post_release_validation.py \
             --release-manifest artifacts/tradingview/library_release_manifest.json \
@@ -1223,7 +1223,7 @@ jobs:
 
       - name: Commit and push changes
         id: commit_push
-        if: steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && steps.tv_post_release.outcome == 'success' && steps.release_gates.outcome == 'success' && github.ref == 'refs/heads/main'
+        if: steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && steps.tv_post_release_raw.outcome == 'success' && steps.tv_post_release.outcome == 'success' && steps.release_gates.outcome == 'success' && github.ref == 'refs/heads/main'
         env:
           # GH_PAT is required so the bot/* push + `gh pr create` below
           # actually trigger downstream workflows (notably fast-gates).
@@ -1565,4 +1565,77 @@ jobs:
         if: always() && steps.notify_end.outcome == 'failure'
         run: |
           echo "::warning::Step 'Send end-of-run status notification' failed silently (soft-fail step)"
+
+      # ── W3 (R4b audit): cumulative best-effort failure summary + trend ──────
+      # The six continue-on-error steps above (gates, pre_release_refresh,
+      # tv_post_release_raw, alerts, notify_breaking, notify_end) each only emit
+      # a per-step ::warning:: on failure, so a degradation is only visible by
+      # reading the raw logs of every run. These three steps aggregate those
+      # outcomes into one GITHUB_STEP_SUMMARY table plus a rolling cross-run
+      # trend persisted as a workflow artifact (no commits to main).
+      - name: Restore best-effort failure history
+        id: dl_best_effort_history
+        if: always()
+        # CONTINUE-ON-ERROR-INTENTIONAL: cold start (no prior artifact on the
+        # first run) and transient download failures are observability-only and
+        # must not fail the refresh job.
+        continue-on-error: true
+        uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21
+        with:
+          name: best-effort-failure-history
+          path: artifacts/ci
+          workflow_conclusion: success
+          if_no_artifact_found: warn
+
+      - name: Best-effort failure summary
+        id: best_effort_summary
+        if: always()
+        # CONTINUE-ON-ERROR-INTENTIONAL: an observability-only summary must
+        # never flip the conclusion of an otherwise-green best-effort pipeline.
+        continue-on-error: true
+        env:
+          OUT_GATES: ${{ steps.gates.outcome }}
+          OUT_PRE_RELEASE_REFRESH: ${{ steps.pre_release_refresh.outcome }}
+          OUT_TV_POST_RELEASE_RAW: ${{ steps.tv_post_release_raw.outcome }}
+          OUT_ALERTS: ${{ steps.alerts.outcome }}
+          OUT_NOTIFY_BREAKING: ${{ steps.notify_breaking.outcome }}
+          OUT_NOTIFY_END: ${{ steps.notify_end.outcome }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          PYBIN="${SMC_PYTHON_BIN:-python3}"
+          HIST="artifacts/ci/best_effort_failure_history.jsonl"
+          SNAP="artifacts/ci/best_effort_failures.json"
+          "$PYBIN" scripts/best_effort_failure_trend.py record \
+            --history "$HIST" \
+            --snapshot "$SNAP" \
+            --run-id "$RUN_ID" \
+            --run-url "$RUN_URL" \
+            --ref "$REF" \
+            --outcome "gates=$OUT_GATES" \
+            --outcome "pre_release_refresh=$OUT_PRE_RELEASE_REFRESH" \
+            --outcome "tv_post_release_raw=$OUT_TV_POST_RELEASE_RAW" \
+            --outcome "alerts=$OUT_ALERTS" \
+            --outcome "notify_breaking=$OUT_NOTIFY_BREAKING" \
+            --outcome "notify_end=$OUT_NOTIFY_END"
+          "$PYBIN" scripts/best_effort_failure_trend.py digest \
+            --history "$HIST" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload best-effort failure history
+        id: ul_best_effort_history
+        if: always()
+        # CONTINUE-ON-ERROR-INTENTIONAL: persisting the trend artifact is
+        # observability-only; a transient upload failure must not fail the job.
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: best-effort-failure-history
+          path: |
+            artifacts/ci/best_effort_failure_history.jsonl
+            artifacts/ci/best_effort_failures.json
+          retention-days: 90
+          if-no-files-found: warn
+          overwrite: true
 
