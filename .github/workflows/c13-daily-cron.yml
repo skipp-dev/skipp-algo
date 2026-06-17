@@ -102,8 +102,11 @@ jobs:
           # is idle, surfacing the gap before it cascades to the shadow ledger.
           AUDIT_STALE_BUDGET_DAYS="5"
           if git fetch origin data/phase-a-audit --quiet 2>/dev/null; then
+            # Use FETCH_HEAD rather than origin/data/phase-a-audit: the
+            # multi-slash remote ref is unambiguous as a refspec only with --
+            # but FETCH_HEAD is always set to exactly the fetched commit.
             LAST_COMMIT_DATE=$(git log --max-count=1 --format="%cI" \
-              origin/data/phase-a-audit -- cache/live/ 2>/dev/null || true)
+              FETCH_HEAD -- cache/live/ 2>/dev/null || true)
             if [ -n "${LAST_COMMIT_DATE}" ]; then
               # Normalise both timestamps to UTC midnight so GAP_DAYS is an
               # exact calendar-day count regardless of commit time-of-day.

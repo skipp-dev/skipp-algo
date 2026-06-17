@@ -155,7 +155,11 @@ def _append_rows(corpus_path: Path, rows: list[dict[str, Any]]) -> int:
     on the duplicate-key snapshot and (b) interleaving their writes.
     """
     corpus_path.parent.mkdir(parents=True, exist_ok=True)
-    lock_path = corpus_path.with_suffix(".lock")
+    # Use parent / (name + ".lock") rather than with_suffix(".lock") so the
+    # lock path is an *append* of ".lock" to the full filename (including any
+    # existing suffix) instead of a *replacement* of the current suffix.
+    # This is unambiguous regardless of whether corpus_path has a suffix.
+    lock_path = corpus_path.parent / (corpus_path.name + ".lock")
     with lock_path.open("w") as _lock_fh:
         fcntl.flock(_lock_fh, fcntl.LOCK_EX)
         existing = _existing_keys(corpus_path)
