@@ -67,6 +67,7 @@ try:
     import fcntl          # POSIX only; Windows CI uses best-effort no-lock path
     _FLOCK_SUPPORTED = True
 except ImportError:   # Windows
+    fcntl = None  # type: ignore[assignment]
     _FLOCK_SUPPORTED = False
 import json
 import os
@@ -166,7 +167,7 @@ def _append_rows(corpus_path: Path, rows: list[dict[str, Any]]) -> int:
     lock_path = corpus_path.parent / (corpus_path.name + ".lock")
     with lock_path.open("w") as _lock_fh:
         if _FLOCK_SUPPORTED:
-            fcntl.flock(_lock_fh, fcntl.LOCK_EX)  # noqa: F821 — only executed when fcntl is available
+            fcntl.flock(_lock_fh, fcntl.LOCK_EX)
         try:
             existing = _existing_keys(corpus_path)
             written = 0
@@ -185,7 +186,7 @@ def _append_rows(corpus_path: Path, rows: list[dict[str, Any]]) -> int:
                     os.fsync(fh.fileno())
         finally:
             if _FLOCK_SUPPORTED:
-                fcntl.flock(_lock_fh, fcntl.LOCK_UN)  # noqa: F821 — always paired with LOCK_EX above
+                fcntl.flock(_lock_fh, fcntl.LOCK_UN)
 
 
 # ---------------------------------------------------------------------------
