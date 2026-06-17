@@ -304,9 +304,11 @@ def _family_fdr_layer(
                 n = int(fm.get("n_events", 0) or 0)
                 # W11-1 (stat-review wave 11): hit_rate=None means the
                 # measurement is absent, not 0%.  Laundering None→0.0 via
-                # `or 0.0` would produce a ghost k=0 entry, making the
-                # two-proportion z-test flag the family as "treatment
-                # significantly worse" on zero evidence.  Skip instead.
+                # `or 0.0` would produce a ghost k=0 entry in the affected
+                # arm.  Because _two_proportion_z_pvalue is one-sided for
+                # treatment > control, a ghosted control arm (k_ctrl=0)
+                # inflates the apparent treatment advantage → ghost
+                # significant lift on zero evidence.  Skip instead.
                 hr_raw = fm.get("hit_rate")
                 if hr_raw is None:
                     continue

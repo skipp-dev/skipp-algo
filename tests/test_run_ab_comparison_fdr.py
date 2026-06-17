@@ -185,31 +185,29 @@ def test_fdr_layer_null_hit_rate_skips_family_not_launders_to_zero() -> None:
     """W11-1 regression: hit_rate=None must skip the family entry, not launder
     to 0.0 and produce a ghost k=0 that triggers a false rejection.
 
-    Before the fix: float(None or 0.0)=0.0 → k=0/n=50 → p≈0 → treatment
-    "significantly worse" on null evidence.  After the fix: the pair is
-    skipped entirely and the family is absent from the aggregation.
+    Scenario: control arm has GHOST hit_rate=None, treatment arm has valid
+    GHOST hit_rate=0.50.  Before the fix: float(None or 0.0)=0.0 in the
+    control arm → k_ctrl=0/n=50 vs k_treat=25/n=50 → _two_proportion_z_pvalue
+    (one-sided, treatment > control) returns p≈0 → ghost significant lift for
+    treatment on null evidence.  After the fix: the control pair is skipped,
+    GHOST is absent from ctrl_fam, not in the common set → absent from FDR
+    output entirely.
     """
     ctrl = [_pair({"GHOST": {"n_events": 50, "hit_rate": None},
                    "REAL":  {"n_events": 100, "hit_rate": 0.50}})]
-    treat = [_pair({"GHOST": {"n_events": 50, "hit_rate": None},
+    treat = [_pair({"GHOST": {"n_events": 50, "hit_rate": 0.50},
                     "REAL":  {"n_events": 100, "hit_rate": 0.55}})]
     out = _family_fdr_layer(ctrl, treat)
 
     families_by_name = {e["family"]: e for e in out["families"]}
 
-    # GHOST family: both arms have hit_rate=None.
-    # After fix: no aggregated events → aggregated n=0 → degenerate or absent.
-    # It must NOT be rejected (that would be a false rejection on null evidence).
-    ghost = families_by_name.get("GHOST")
-    if ghost is not None:
-        assert ghost["rejected"] is False, (
-            "W11-1: GHOST family with hit_rate=None must never be rejected"
-        )
-        assert ghost["p_value"] is None, (
-            "W11-1: GHOST family with hit_rate=None must have p_value=None (degenerate)"
-        )
+    # GHOST family: control arm has hit_rate=None → skipped in aggregation.
+    # After fix: GHOST not in ctrl_fam → not in common set → absent from FDR output.
+    assert "GHOST" not in families_by_name, (
+        "W11-1: GHOST family with hit_rate=None in one arm must be absent from FDR output"
+    )
 
-    # REAL family with valid hit_rates is tested normally.
+    # REAL family with valid hit_rates in both arms is tested normally.
     assert "REAL" in families_by_name, "REAL family must still be present"
 
 
