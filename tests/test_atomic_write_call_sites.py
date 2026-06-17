@@ -114,6 +114,10 @@ _ALLOWED_RAW_WRITE_FILES: dict[str, str] = {
     # C13/T4 cron wiring so push-mode validate stops shipping red.
     "scripts/runner_selection_metrics.py": "runner-selection JSONL append (mode='a', append-only metrics ledger; PR #2779)",
     "scripts/c10c_aggregate_per_bar.py": "c10c research/analysis one-shot (ATOMIC-WRITE-EXEMPT, local jsonl write)",
+    # W3 (R4b audit, 2026-06-17): best-effort failure trend tracker.
+    # History is an append-only JSONL (mode='a', fsync-durable).
+    # Snapshot uses the mkstemp+fdopen+fsync+os.replace atomic pattern.
+    "scripts/best_effort_failure_trend.py": "JSONL history append (mode='a', fsync-durable) + mkstemp+fdopen+fsync+os.replace atomic snapshot (PR #2840)",
     # smc_atomic_write itself implements the primitive — exempt by definition.
     "scripts/smc_atomic_write.py": "implements the atomic write primitive",
     # --- open_prep/ surface (Deep-Review 2026-04-27 scope expansion) ---

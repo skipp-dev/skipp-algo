@@ -51,7 +51,7 @@ permissions:
   issues: write
 
 concurrency:
-  group: c13-daily-cron
+  group: c13-daily-cron-${{ github.ref }}
   cancel-in-progress: false
 
 env:
