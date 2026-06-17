@@ -54,6 +54,26 @@ class EnvConfig:
     # step and penalise the worst alpha-tail of step returns instead.
     risk_metric: RiskMetric = "variance"
 
+    def __post_init__(self) -> None:
+        if self.base_volume_per_step <= 0:
+            raise ValueError(
+                f"base_volume_per_step must be > 0, got {self.base_volume_per_step}"
+            )
+        if self.parent_qty <= 0:
+            raise ValueError(f"parent_qty must be > 0, got {self.parent_qty}")
+        if self.horizon_steps <= 0:
+            raise ValueError(f"horizon_steps must be > 0, got {self.horizon_steps}")
+        if self.seconds_per_step <= 0:
+            raise ValueError(
+                f"seconds_per_step must be > 0, got {self.seconds_per_step}"
+            )
+        if self.starting_mid <= 0:
+            raise ValueError(f"starting_mid must be > 0, got {self.starting_mid}")
+        if self.base_volatility_bps < 0:
+            raise ValueError(
+                f"base_volatility_bps must be >= 0, got {self.base_volatility_bps}"
+            )
+
 
 @dataclass
 class ExecutionEnv(_EnvBase):
