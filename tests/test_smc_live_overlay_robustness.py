@@ -413,6 +413,40 @@ class TestFeedReadyClearedOnStop:
         assert not feed_mod.is_ready(), "_feed_ready must be cleared after stop()"
         # cleanup
         feed_mod._stop_event.clear()
+        feed_mod._last_bar_at = 0.0  # Reset to avoid leaking to other tests
+
+
+# ---------------------------------------------------------------------------
+# R5: is_ready() staleness boundary tests
+# ---------------------------------------------------------------------------
+
+
+class TestIsReadyStaleness:
+    """R5: is_ready() staleness boundary tests per Copilot review."""
+
+    def test_is_ready_fresh_bar_returns_true(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Bar received within max_stale_secs → is_ready() returns True."""
+        import services.live_overlay_daemon.feed as feed_mod
+
+        feed_mod._feed_ready.set()
+        # Bar received 1 second ago (well under default 3600s threshold)
+        feed_mod._last_bar_at = time.monotonic() - 1.0
+
+        assert feed_mod.is_ready() is True
+        feed_mod._last_bar_at = 0.0  # cleanup
+
+    def test_is_ready_stale_bar_returns_false(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Bar older than max_stale_secs → is_ready() returns False."""
+        import services.live_overlay_daemon.feed as feed_mod
+
+        feed_mod._feed_ready.set()
+        # Set max_stale to small value for testing
+        monkeypatch.setenv("OVERLAY_MAX_STALE_SECS", "60")
+        # Bar received 120 seconds ago (over 60s threshold)
+        feed_mod._last_bar_at = time.monotonic() - 120.0
+
+        assert feed_mod.is_ready() is False
+        feed_mod._last_bar_at = 0.0  # cleanup
 
 
 # ---------------------------------------------------------------------------
