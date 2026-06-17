@@ -161,6 +161,8 @@ jobs:
       # Guarded: only on status=demotion_applied and an actual file change.
       - name: Commit stage policy back to repo
         if: steps.weekly.outputs.status == 'demotion_applied'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           git diff --quiet governance/magnitude_stage_policy.json && {
             echo "::notice title=adr0023-magnitude-stage1-weekly::policy unchanged — skipping commit-back"

@@ -139,7 +139,7 @@ jobs:
           BRANCH="bot/g23-watchdog-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           git checkout -b "$BRANCH"
           git commit -m "chore(docs): g23 watchdog status ${GITHUB_RUN_ID}"
-          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}"
           git push -u origin "$BRANCH"
           gh pr create \
             --base main \

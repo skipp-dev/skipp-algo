@@ -367,6 +367,8 @@ jobs:
           steps.ledger.outputs.status != 'error'
           && steps.ledger.outputs.status != 'no_data'
           && steps.ledger.outputs.status != ''
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           git diff --quiet artifacts/governance/magnitude_resolution_shadow.jsonl && {
             echo "::notice title=adr0023-magnitude-shadow::ledger unchanged — skipping commit-back"
