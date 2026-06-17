@@ -13,6 +13,7 @@ matching the Almgren-Chriss mean-variance objective.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -55,23 +56,23 @@ class EnvConfig:
     risk_metric: RiskMetric = "variance"
 
     def __post_init__(self) -> None:
-        if self.base_volume_per_step <= 0:
+        if not math.isfinite(self.base_volume_per_step) or self.base_volume_per_step <= 0:
             raise ValueError(
-                f"base_volume_per_step must be > 0, got {self.base_volume_per_step}"
+                f"base_volume_per_step must be a finite positive number, got {self.base_volume_per_step}"
             )
-        if self.parent_qty <= 0:
-            raise ValueError(f"parent_qty must be > 0, got {self.parent_qty}")
-        if self.horizon_steps <= 0:
-            raise ValueError(f"horizon_steps must be > 0, got {self.horizon_steps}")
-        if self.seconds_per_step <= 0:
+        if not math.isfinite(self.parent_qty) or self.parent_qty <= 0:
+            raise ValueError(f"parent_qty must be a finite positive number, got {self.parent_qty}")
+        if not math.isfinite(self.horizon_steps) or self.horizon_steps <= 0:
+            raise ValueError(f"horizon_steps must be a finite positive number, got {self.horizon_steps}")
+        if not math.isfinite(self.seconds_per_step) or self.seconds_per_step <= 0:
             raise ValueError(
-                f"seconds_per_step must be > 0, got {self.seconds_per_step}"
+                f"seconds_per_step must be a finite positive number, got {self.seconds_per_step}"
             )
-        if self.starting_mid <= 0:
-            raise ValueError(f"starting_mid must be > 0, got {self.starting_mid}")
-        if self.base_volatility_bps < 0:
+        if not math.isfinite(self.starting_mid) or self.starting_mid <= 0:
+            raise ValueError(f"starting_mid must be a finite positive number, got {self.starting_mid}")
+        if not math.isfinite(self.base_volatility_bps) or self.base_volatility_bps < 0:
             raise ValueError(
-                f"base_volatility_bps must be >= 0, got {self.base_volatility_bps}"
+                f"base_volatility_bps must be a finite non-negative number, got {self.base_volatility_bps}"
             )
 
 

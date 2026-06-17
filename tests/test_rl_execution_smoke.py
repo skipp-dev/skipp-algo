@@ -234,3 +234,33 @@ def test_almgren_chriss_rejects_zero_noise_variance():
         AlmgrenChrissCalibrator(prior_precision=0.01, noise_variance=0.0).fit(X, y)
     with pytest.raises(ValueError, match="noise_variance must be > 0"):
         AlmgrenChrissCalibrator(prior_precision=0.01, noise_variance=-1.0).fit(X, y)
+
+
+import math as _math
+
+
+def test_envconfig_post_init_rejects_invalid_fields():
+    """EnvConfig.__post_init__ must reject non-positive and non-finite values."""
+    ok = dict(parent_qty=1_000.0, horizon_steps=10)
+
+    for bad in (0.0, -1.0, float("nan"), float("inf")):
+        with pytest.raises(ValueError, match="base_volume_per_step"):
+            EnvConfig(**ok, base_volume_per_step=bad)
+
+    for bad in (0.0, -1.0, float("nan")):
+        with pytest.raises(ValueError, match="parent_qty"):
+            EnvConfig(parent_qty=bad, horizon_steps=10)
+
+    with pytest.raises(ValueError, match="horizon_steps"):
+        EnvConfig(parent_qty=1_000.0, horizon_steps=0)
+
+    for bad in (0.0, float("inf")):
+        with pytest.raises(ValueError, match="seconds_per_step"):
+            EnvConfig(**ok, seconds_per_step=bad)
+
+    with pytest.raises(ValueError, match="starting_mid"):
+        EnvConfig(**ok, starting_mid=0.0)
+
+    for bad in (-1.0, float("nan")):
+        with pytest.raises(ValueError, match="base_volatility_bps"):
+            EnvConfig(**ok, base_volatility_bps=bad)
