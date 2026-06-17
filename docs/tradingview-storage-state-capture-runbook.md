@@ -115,13 +115,12 @@ This both refreshes the profile dir **and** writes
 `storage-state.json`. In profile mode the script accepts a chart session
 even when storage-state heuristics look anonymous (the profile itself
 carries the auth); **only in that anonymous-looking fallback** does the
-written file get a `meta` block
-(`validationMode = "persistent_profile_chart_access"` plus
-`authValidatedAt`). When the heuristics already look authenticated, the
-file is written without `meta` — the §3 sanity-check assertion will
-catch this and print `meta.authValidatedAt missing — re-run tv:storage-state`;
-re-run with normal storage-state mode (§2) in that case to get a fresh
-`meta`-stamped capture.
+written file get a `meta` block with
+`validationMode = "persistent_profile_chart_access"` plus `authValidatedAt`.
+When the heuristics already look authenticated, the file is written with
+`validationMode = "standard_session"` (same `meta` shape as a regular
+§2 capture). The §3 sanity-check passes in both cases — no manual
+re-run is needed.
 Local consumers then run with
 `TV_PERSISTENT_PROFILE_DIR=automation/tradingview/auth/chromium-profile`
 (see the `*:profile` npm scripts).
