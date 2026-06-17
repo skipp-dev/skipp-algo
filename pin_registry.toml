@@ -77,7 +77,7 @@
 "databento_volatility_screener.py" = [1430]
 "open_prep/bea.py" = [94]
 # 2026-06-11 (eval-findings B8): surprise-scale comment block +8 (713→721).
-"open_prep/macro.py" = [736]
+"open_prep/macro.py" = [737]
 "open_prep/sentiment_fng.py" = [100]
 "scripts/probe_fmp_13f_endpoints.py" = [75]
 "scripts/resolve_workflow_runner.py" = [91]

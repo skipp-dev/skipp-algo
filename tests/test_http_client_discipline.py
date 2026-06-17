@@ -155,7 +155,7 @@ _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # instrumentation block in macro.py.
         # 2026-06-11 (eval-findings B8): surprise-scale comment +8 (713→721).
         # 2026-06-13: profile-bulk pagination constant shifted +1 (721→722).
-        ("open_prep/macro.py", 736),  # R-E2 (2026-06-14): +14 from TLS lock guard
+        ("open_prep/macro.py", 737),  # R-E2 (2026-06-14): +14 from TLS lock guard; +1 iteration-limit
         ("open_prep/sentiment_fng.py", 100),
         ("terminal_finnhub.py", 245),
         ("terminal_notifications.py", 255),
