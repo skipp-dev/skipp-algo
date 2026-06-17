@@ -140,7 +140,7 @@ codes = ["RUF007"]
 
 [[noqa_budget.sites]]
 file = "rl/simulator/execution_env.py"
-line = 70
+line = 76
 codes = ["RUF012"]
 
 [[noqa_budget.sites]]
