@@ -36,7 +36,7 @@ HMAC_ALLOWED: set[tuple[str, int, str]] = {
     ("terminal_auth.py", 30, "compare_digest"),
     # 2026-06-16 (feat/live-overlay-daemon, PR #2794): token auth in FastAPI
     # endpoint uses hmac.compare_digest for constant-time comparison.
-    ("services/live_overlay_daemon/main.py", 176, "compare_digest"),
+    ("services/live_overlay_daemon/main.py", 178, "compare_digest"),
 }
 
 _DIR_EXCLUDE = {
