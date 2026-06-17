@@ -3721,7 +3721,7 @@ class TestSeniorReviewFixesRealtimeSignals(unittest.TestCase):
         tmp_dir = tempfile.mkdtemp()
         tmp_signals = Path(tmp_dir) / "test_signals.json"
         payload = {"signals": [signal_data], "signal_count": 1}
-        with open(tmp_signals, "w") as fh:
+        with open(tmp_signals, "w", encoding="utf-8") as fh:
             json.dump(payload, fh)
 
         # Create engine and patch the path

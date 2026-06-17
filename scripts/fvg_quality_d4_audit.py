@@ -31,7 +31,7 @@ def _load_fvg_events(root: Path) -> list[dict]:
     files = sorted(glob.glob(str(root / "*" / "*" / "events_*.jsonl")))
     out: list[dict] = []
     for fp in files:
-        with open(fp) as fh:
+        with open(fp, encoding="utf-8") as fh:
             for line in fh:
                 line = line.strip()
                 if not line:

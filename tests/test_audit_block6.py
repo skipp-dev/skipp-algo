@@ -73,7 +73,7 @@ class TestRotateJsonlNewestWins:
         path = str(tmp_path / "rot.jsonl")
         old = {"item_id": "z", "ticker": "MSFT", "published_ts": time.time() - 10, "headline": "old"}
         new = {"item_id": "z", "ticker": "MSFT", "published_ts": time.time(), "headline": "new"}
-        with open(path, "w") as f:
+        with open(path, "w", encoding="utf-8") as f:
             f.write(json.dumps(old) + "\n")
             f.write(json.dumps(new) + "\n")
 
@@ -81,7 +81,7 @@ class TestRotateJsonlNewestWins:
 
         rotate_jsonl(path, max_lines=5000, max_age_s=86400)
 
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             lines = [json.loads(ln) for ln in f if ln.strip()]
         assert len(lines) == 1
         assert lines[0]["headline"] == "new"
