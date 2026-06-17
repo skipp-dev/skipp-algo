@@ -288,11 +288,18 @@ def _map_vendor_http_error(name: str, label: str, exc: urllib.error.HTTPError) -
             {"status": status, "reason": exc.reason},
         )
     if status == 429:
+        # urllib.error.HTTPError carries headers on .headers directly;
+        # httpx/requests exceptions carry them on .response.headers.
+        _hdrs = getattr(exc, "headers", None) or getattr(
+            getattr(exc, "response", None), "headers", None
+        )
+        retry_after: str | None = _hdrs.get("Retry-After") if _hdrs is not None else None
         return ProbeResult(
             name,
             "warn",
-            f"{label} rate-limited the probe (HTTP 429) — probe inconclusive, but quota pressure is real",
-            {"status": status},
+            f"{label} rate-limited the probe (HTTP 429) — probe inconclusive, but quota pressure is real"
+            + (f"; Retry-After={retry_after}s" if retry_after else ""),
+            {"status": status, "retry_after": retry_after or "unknown"},
         )
     if 500 <= status < 600:
         return ProbeResult(
