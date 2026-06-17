@@ -1,4 +1,4 @@
-"""Tests for overlay-daemon robustness fixes (R1, R3, R4, R6, V1–V5).
+"""Tests for overlay-daemon robustness fixes (R1, R3, R4, R6, V1–V5, N1/N2, N5).
 
 R1 — _symbology_map guard warning on missing attribute
 R3 — _load_news_snapshot logs warning on JSON/IO errors
@@ -7,15 +7,18 @@ R6 — bar cache symbol eviction at configurable cap
 V1 — startup readiness (feed.is_ready())
 V4 — configurable news cache TTL
 V5 — configurable max symbols
+N1/N2 — stop() and circuit-breaker clear _feed_ready
+N5 — double-start guard
 """
 from __future__ import annotations
 
 import json
 import logging
+import threading
 import time
 from pathlib import Path
 from typing import ClassVar
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -382,3 +385,52 @@ class TestFeedReadiness:
         assert feed_mod.is_ready()
         # cleanup
         feed_mod._feed_ready.clear()
+
+
+# ---------------------------------------------------------------------------
+# N1/N2: stop() and circuit-breaker clear _feed_ready
+# ---------------------------------------------------------------------------
+
+
+class TestFeedReadyClearedOnStop:
+    """N1: stop() must clear _feed_ready so health reports 'starting'."""
+
+    def test_stop_clears_feed_ready(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import services.live_overlay_daemon.feed as feed_mod
+
+        feed_mod._feed_ready.set()
+        assert feed_mod.is_ready()
+
+        # Ensure no real threads to join
+        monkeypatch.setattr(feed_mod, "_feed_thread", None)
+        monkeypatch.setattr(feed_mod, "_refresh_thread", None)
+        monkeypatch.setattr(feed_mod, "_flow_refresh_thread", None)
+        feed_mod.stop()
+
+        assert not feed_mod.is_ready(), "_feed_ready must be cleared after stop()"
+        # cleanup
+        feed_mod._stop_event.clear()
+
+
+# ---------------------------------------------------------------------------
+# N5: double-start guard
+# ---------------------------------------------------------------------------
+
+
+class TestDoubleStartGuard:
+    """N5: start() must be a no-op when feed threads are already alive."""
+
+    def test_start_noop_when_already_running(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import services.live_overlay_daemon.feed as feed_mod
+
+        sentinel = MagicMock(spec=threading.Thread)
+        sentinel.is_alive.return_value = True
+        monkeypatch.setattr(feed_mod, "_feed_thread", sentinel)
+
+        # Calling start() should return early without creating new threads
+        with patch.object(feed_mod, "_stop_event") as mock_stop:
+            feed_mod.start()
+            mock_stop.clear.assert_not_called()
+
+        # cleanup
+        monkeypatch.setattr(feed_mod, "_feed_thread", None)

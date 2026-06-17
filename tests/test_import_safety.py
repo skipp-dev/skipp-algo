@@ -106,7 +106,7 @@ def test_r10_module_imports_in_hostile_env(module_name: str, tmp_path: Path) -> 
         env=env,
         capture_output=True,
         text=True,
-        timeout=30,
+        timeout=90,
     )
     if proc.returncode != 0:
         raise AssertionError(

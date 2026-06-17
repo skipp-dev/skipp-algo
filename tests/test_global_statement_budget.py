@@ -186,7 +186,7 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("services/live_overlay_daemon/cache.py", 104, ("_overlay_computed_at",)),
         ("services/live_overlay_daemon/cache.py", 149, ("_vix_level",)),
         ("services/live_overlay_daemon/compute.py", 52, ("_news_cache", "_news_loaded_at")),
-        ("services/live_overlay_daemon/feed.py", 266, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        ("services/live_overlay_daemon/feed.py", 268, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
         ("services/live_overlay_daemon/main.py", 49, ("_startup_ts",)),
     }
 )

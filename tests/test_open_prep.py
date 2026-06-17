@@ -1064,7 +1064,8 @@ class TestOpenPrep(unittest.TestCase):
 
     def test_get_batch_quotes_uses_stable_quote_endpoint_per_symbol(self):
         client = FMPClient(api_key="test")
-        with patch.object(FMPClient, "_execute_get", side_effect=[[{"symbol": "NVDA"}], [{"symbol": "PLTR"}]]) as mock_get:
+        with patch.object(FMPClient, "_execute_get", side_effect=[[{"symbol": "NVDA"}], [{"symbol": "PLTR"}]]) as mock_get, \
+             patch.object(FMPClient, "_resolve_quote_fetch_workers", return_value=1):
             quotes = client.get_batch_quotes(["NVDA", "PLTR"])
 
         self.assertEqual(

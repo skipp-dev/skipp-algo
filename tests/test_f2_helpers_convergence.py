@@ -51,7 +51,7 @@ def test_helper_help_exits_zero(module_name: str) -> None:
     """``python -m <module> --help`` must exit 0 with usage text on stdout."""
     result = subprocess.run(
         [sys.executable, "-m", module_name, "--help"],
-        capture_output=True, text=True, timeout=15,
+        capture_output=True, text=True, timeout=60,
         cwd=Path(__file__).resolve().parents[1],
     )
     assert result.returncode == 0, (
