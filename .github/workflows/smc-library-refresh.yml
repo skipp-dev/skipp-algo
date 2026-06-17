@@ -630,6 +630,11 @@ jobs:
 
           exit "$GATE_RC"
 
+      - name: "⚠️ Warn: Run evidence gate tests"
+        if: always() && steps.gates.outcome == 'failure'
+        run: |
+          echo "::warning::Step 'Run evidence gate tests' failed silently (soft-fail step)"
+
       - name: Collect gate evidence
         if: always()
         run: |
@@ -874,6 +879,11 @@ jobs:
             --warn-on-empty-artifacts \
             --output artifacts/ci/smc_pre_release_artifact_refresh_report.json
 
+      - name: "⚠️ Warn: Refresh release reference artifacts (best-effort)"
+        if: always() && steps.pre_release_refresh.outcome == 'failure'
+        run: |
+          echo "::warning::Step 'Refresh release reference artifacts (best-effort)' failed silently (soft-fail step)"
+
       - name: Run pre-publish strict release gates
         id: pre_release_gates
         if: steps.diff.outputs.changed == 'true'
@@ -1059,6 +1069,11 @@ jobs:
             --config automation/tradingview/preflight-smc-mainline.json \
             --execution-mode readonly \
             --out artifacts/tradingview/tv_post_release_validation.json
+
+      - name: "⚠️ Warn: Run TradingView post-release validation"
+        if: always() && steps.tv_post_release_raw.outcome == 'failure'
+        run: |
+          echo "::warning::Step 'Run TradingView post-release validation' failed silently (soft-fail step)"
 
       - name: Normalize TradingView post-release validation
         id: tv_post_release
@@ -1443,6 +1458,7 @@ jobs:
 
       # ── Breaking-change notification ────────────────────────────
       - name: Notify on breaking change
+        id: notify_breaking
         if: steps.breaking.outputs.breaking == 'true'
         # CONTINUE-ON-ERROR-INTENTIONAL: breaking-change Telegram notify is
         # best-effort; the breaking-change gate itself already blocked auto-commit
@@ -1461,8 +1477,14 @@ jobs:
               -d parse_mode=HTML || true
           fi
 
+      - name: "⚠️ Warn: Notify on breaking change"
+        if: always() && steps.notify_breaking.outcome == 'failure'
+        run: |
+          echo "::warning::Step 'Notify on breaking change' failed silently (soft-fail step)"
+
       # ── End-of-run status notification ──────────────────────────
       - name: Send end-of-run status notification
+        id: notify_end
         if: always()
         # CONTINUE-ON-ERROR-INTENTIONAL: end-of-run Telegram heartbeat is
         # best-effort observability; failure must not flip job conclusion since
@@ -1538,4 +1560,9 @@ jobs:
             -d chat_id="${TELEGRAM_CHAT_ID}" \
             -d text="${MSG}" \
             -d parse_mode=HTML || true
+
+      - name: "⚠️ Warn: Send end-of-run status notification"
+        if: always() && steps.notify_end.outcome == 'failure'
+        run: |
+          echo "::warning::Step 'Send end-of-run status notification' failed silently (soft-fail step)"
 

@@ -301,6 +301,7 @@ jobs:
           retention-days: 30
 
       - name: Ledger metrics summary (families measured + row delta)
+        id: ledger_metrics
         if: always()
         # CONTINUE-ON-ERROR-INTENTIONAL: summary-only metrics must never fail this measure-only shadow workflow.
         continue-on-error: true
@@ -355,6 +356,11 @@ jobs:
               f"ledger_rows={len(cur)} delta={delta} families_measured={len(fams)}"
           )
           PY
+
+      - name: "⚠️ Warn: Ledger metrics summary (families measured + row delta)"
+        if: always() && steps.ledger_metrics.outcome == 'failure'
+        run: |
+          echo "::warning::Step 'Ledger metrics summary (families measured + row delta)' failed silently (soft-fail step)"
 
       # Commit-back: persist the appended ledger so that rows accumulate
       # across daily runs instead of resetting to the committed baseline.

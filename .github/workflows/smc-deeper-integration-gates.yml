@@ -68,6 +68,7 @@ jobs:
             --output artifacts/ci/smc_deeper_health_report.json
 
       - name: Run deeper measurement lane export
+        id: deeper_export
         # CONTINUE-ON-ERROR-INTENTIONAL: measurement-lane export is advisory
         # (writes report artifact); a failure here must not abort the
         # subsequent gates job.
@@ -77,6 +78,11 @@ jobs:
             --ci-mode \
             --skip-publish-contract \
             --output artifacts/ci/smc_deeper_measurement_report.json
+
+      - name: "⚠️ Warn: Run deeper measurement lane export"
+        if: always() && steps.deeper_export.outcome == 'failure'
+        run: |
+          echo "::warning::Step 'Run deeper measurement lane export' failed silently (soft-fail step)"
 
       - name: Run deeper SMC test matrix
         run: |
@@ -123,6 +129,11 @@ jobs:
           python scripts/e2e_smoke_ci.py \
             --reference tests/fixtures/e2e_smoke_reference.json \
             2>&1 | tee artifacts/ci/smc_e2e_smoke_output.txt
+
+      - name: "⚠️ Warn: Run E2E structural smoke test (advisory)"
+        if: always() && steps.e2e_smoke.outcome == 'failure'
+        run: |
+          echo "::warning::Step 'Run E2E structural smoke test (advisory)' failed silently (soft-fail step)"
 
       - name: Write E2E smoke summary
         if: always() && steps.e2e_smoke.outcome != 'skipped'

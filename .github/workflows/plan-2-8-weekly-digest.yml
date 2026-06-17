@@ -455,6 +455,7 @@ jobs:
           retention-days: 365
 
       - name: Download Plan 2.8 digest archive
+        id: dl_digest_archive
         if: always()
         # CONTINUE-ON-ERROR-INTENTIONAL: prior-archive download is optional;
         # first run / archive-not-found is a legitimate cold-start state and
@@ -468,6 +469,11 @@ jobs:
           workflow: plan-2-8-weekly-digest.yml
           workflow_conclusion: ""
           if_no_artifact_found: warn
+
+      - name: "⚠️ Warn: Download Plan 2.8 digest archive"
+        if: always() && steps.dl_digest_archive.outcome == 'failure'
+        run: |
+          echo "::warning::Step 'Download Plan 2.8 digest archive' failed silently (soft-fail step)"
 
       - name: Plan 2.8 digest archive + weekly compare
         if: always()
@@ -672,6 +678,7 @@ jobs:
           retention-days: 365
 
       - name: Download prior Plan 2.8 manifest
+        id: dl_manifest
         if: always()
         # CONTINUE-ON-ERROR-INTENTIONAL: prior-manifest download is optional;
         # first run has no prior artifact to fetch — diff step handles missing
@@ -685,6 +692,11 @@ jobs:
           name_is_regexp: true
           path:           artifacts/plan_2_8_prior_manifest
           if_no_artifact_found: warn
+
+      - name: "⚠️ Warn: Download prior Plan 2.8 manifest"
+        if: always() && steps.dl_manifest.outcome == 'failure'
+        run: |
+          echo "::warning::Step 'Download prior Plan 2.8 manifest' failed silently (soft-fail step)"
 
       - name: Plan 2.8 manifest diff
         if: always()
@@ -951,6 +963,7 @@ jobs:
           retention-days: 365
 
       - name: Download prior Plan 2.8 status ledger
+        id: dl_status_ledger
         if: always()
         # CONTINUE-ON-ERROR-INTENTIONAL: prior-ledger download is optional;
         # first run has no prior ledger — ledger update step initialises a
@@ -964,6 +977,11 @@ jobs:
           name_is_regexp: true
           path:           artifacts/plan_2_8_prior_ledger
           if_no_artifact_found: warn
+
+      - name: "⚠️ Warn: Download prior Plan 2.8 status ledger"
+        if: always() && steps.dl_status_ledger.outcome == 'failure'
+        run: |
+          echo "::warning::Step 'Download prior Plan 2.8 status ledger' failed silently (soft-fail step)"
 
       - name: Plan 2.8 status ledger append
         if: always()
