@@ -1077,7 +1077,7 @@ jobs:
 
       - name: Normalize TradingView post-release validation
         id: tv_post_release
-        if: always() && steps.publish.outcome == 'success' && steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && github.ref == 'refs/heads/main'
+        if: always() && steps.publish.outcome == 'success' && steps.tv_post_release_raw.outcome == 'success' && steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && github.ref == 'refs/heads/main'
         run: |
           "$SMC_PYTHON_BIN" scripts/run_smc_post_release_validation.py \
             --release-manifest artifacts/tradingview/library_release_manifest.json \
@@ -1223,7 +1223,7 @@ jobs:
 
       - name: Commit and push changes
         id: commit_push
-        if: steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && steps.tv_post_release.outcome == 'success' && steps.release_gates.outcome == 'success' && github.ref == 'refs/heads/main'
+        if: steps.diff.outputs.changed == 'true' && steps.publish_gate.outputs.publish_allowed == 'true' && steps.tv_post_release_raw.outcome == 'success' && steps.tv_post_release.outcome == 'success' && steps.release_gates.outcome == 'success' && github.ref == 'refs/heads/main'
         env:
           # GH_PAT is required so the bot/* push + `gh pr create` below
           # actually trigger downstream workflows (notably fast-gates).
