@@ -302,7 +302,15 @@ def _family_fdr_layer(
         for pair in pairs:
             for fam, fm in (pair.get("family_metrics") or {}).items():
                 n = int(fm.get("n_events", 0) or 0)
-                hr = float(fm.get("hit_rate", 0.0) or 0.0)
+                # W11-1 (stat-review wave 11): hit_rate=None means the
+                # measurement is absent, not 0%.  Laundering None→0.0 via
+                # `or 0.0` would produce a ghost k=0 entry, making the
+                # two-proportion z-test flag the family as "treatment
+                # significantly worse" on zero evidence.  Skip instead.
+                hr_raw = fm.get("hit_rate")
+                if hr_raw is None:
+                    continue
+                hr = float(hr_raw)
                 # hit_rate may be stored as fraction OR percentage
                 # (legacy artifacts). Auto-detect: values > 1.0 are %.
                 if hr > 1.0:

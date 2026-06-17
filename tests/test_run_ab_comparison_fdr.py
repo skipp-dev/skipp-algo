@@ -181,6 +181,38 @@ def _pair(family_metrics: dict[str, dict]) -> dict:
     }
 
 
+def test_fdr_layer_null_hit_rate_skips_family_not_launders_to_zero() -> None:
+    """W11-1 regression: hit_rate=None must skip the family entry, not launder
+    to 0.0 and produce a ghost k=0 that triggers a false rejection.
+
+    Before the fix: float(None or 0.0)=0.0 → k=0/n=50 → p≈0 → treatment
+    "significantly worse" on null evidence.  After the fix: the pair is
+    skipped entirely and the family is absent from the aggregation.
+    """
+    ctrl = [_pair({"GHOST": {"n_events": 50, "hit_rate": None},
+                   "REAL":  {"n_events": 100, "hit_rate": 0.50}})]
+    treat = [_pair({"GHOST": {"n_events": 50, "hit_rate": None},
+                    "REAL":  {"n_events": 100, "hit_rate": 0.55}})]
+    out = _family_fdr_layer(ctrl, treat)
+
+    families_by_name = {e["family"]: e for e in out["families"]}
+
+    # GHOST family: both arms have hit_rate=None.
+    # After fix: no aggregated events → aggregated n=0 → degenerate or absent.
+    # It must NOT be rejected (that would be a false rejection on null evidence).
+    ghost = families_by_name.get("GHOST")
+    if ghost is not None:
+        assert ghost["rejected"] is False, (
+            "W11-1: GHOST family with hit_rate=None must never be rejected"
+        )
+        assert ghost["p_value"] is None, (
+            "W11-1: GHOST family with hit_rate=None must have p_value=None (degenerate)"
+        )
+
+    # REAL family with valid hit_rates is tested normally.
+    assert "REAL" in families_by_name, "REAL family must still be present"
+
+
 def test_fdr_layer_aggregates_events_across_pairs() -> None:
     ctrl = [_pair({"BOS": {"n_events": 50, "hit_rate": 0.5}})]
     treat = [_pair({"BOS": {"n_events": 50, "hit_rate": 0.5}})]
