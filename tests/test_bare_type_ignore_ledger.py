@@ -57,7 +57,6 @@ _FROZEN_BARE_TYPE_IGNORE_SITES: frozenset[tuple[str, int]] = frozenset(
         ("rl/simulator/sb3_execution_env.py", 18),
         ("rl/simulator/sb3_execution_env.py", 22),
         ("rl/simulator/sb3_execution_env.py", 23),
-        ("newsstack_fmp/_bz_http.py", 157),
         ("terminal_bitcoin.py", 314),
         ("terminal_bitcoin.py", 398),
         ("terminal_bitcoin.py", 478),

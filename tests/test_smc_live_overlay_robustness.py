@@ -148,6 +148,7 @@ class TestBarCacheEviction:
         # Reset module state
         monkeypatch.setattr(cache_mod, "_bars", {})
         monkeypatch.setattr(cache_mod, "_bar_last_update", {})
+        monkeypatch.setattr(cache_mod, "_last_eviction_at", 0.0)
         monkeypatch.setattr(cache_mod, "_rolling_bars_cap", 5)
 
         small_cap = 20
@@ -171,6 +172,7 @@ class TestBarCacheEviction:
 
         monkeypatch.setattr(cache_mod, "_bars", {})
         monkeypatch.setattr(cache_mod, "_bar_last_update", {})
+        monkeypatch.setattr(cache_mod, "_last_eviction_at", 0.0)
         monkeypatch.setattr(cache_mod, "_rolling_bars_cap", 5)
         monkeypatch.setattr(cache_mod, "_max_symbols", 5)
 

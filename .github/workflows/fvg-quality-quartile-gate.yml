@@ -51,6 +51,7 @@ jobs:
           # the token used to push the auto-PR branch (F-05 fix). Falls
           # back to the workflow token for forks / dispatch by users
           # without GH_PAT.
+          persist-credentials: false
           token: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
 
       - name: Set up Python
@@ -152,6 +153,7 @@ jobs:
           fi
           git commit -m "chore(docs): D4 fvg quality release-gate ${GITHUB_RUN_ID}"
           BRANCH="auto/fvg-quality-quartile-gate-${GITHUB_RUN_ID}"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}"
           if git push -u origin "HEAD:${BRANCH}" 2>&1; then
             echo "Pushed to ${BRANCH}"
             if command -v gh >/dev/null 2>&1 && [ -n "${GH_TOKEN:-}" ]; then

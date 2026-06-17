@@ -176,9 +176,9 @@ def _probe_symbol_support(
                     chunks = list(batch_df)
                     batch_frame = _coerce_timestamp_frame(pd.concat(chunks, ignore_index=False)) if chunks else pd.DataFrame()
         except Exception:
-            logger.warning("Symbol support probe failed for batch of %d symbols, assuming supported.", len(batch), exc_info=True)
+            logger.warning("Symbol support probe failed for batch of %d symbols, assuming NOT supported (fail-closed).", len(batch), exc_info=True)
             for symbol in batch:
-                support_map.setdefault(symbol, True)
+                support_map.setdefault(symbol, False)
             continue
         resolved = set()
         if not batch_frame.empty and "symbol" in batch_frame.columns:

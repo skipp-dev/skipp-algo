@@ -219,3 +219,23 @@ def test_second_call_after_401_avoids_network() -> None:
                             {"token": "x"}, label="Benzinga movers")
     # Critical: still 1 — no second network call
     assert client.get.call_count == 1
+
+
+# ── TTL-based re-enable ───────────────────────────────────────────
+
+
+def test_disabled_endpoint_re_enables_after_ttl(monkeypatch: Any) -> None:
+    """After _DISABLED_TTL_S seconds the endpoint must auto-re-enable."""
+    import newsstack_fmp._bz_http as mod
+
+    # Use a short TTL for the test
+    monkeypatch.setattr(mod, "_DISABLED_TTL_S", 10.0)
+
+    mark_endpoint_disabled("Benzinga ttl_test")
+    assert is_endpoint_disabled("Benzinga ttl_test") is True
+
+    # Advance the monotonic clock past the TTL by patching the stored timestamp
+    with mod._disabled_lock:
+        mod._DISABLED_ENDPOINTS["Benzinga ttl_test"] -= 11.0
+
+    assert is_endpoint_disabled("Benzinga ttl_test") is False

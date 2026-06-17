@@ -26,6 +26,8 @@ _bars: dict[str, deque[dict[str, Any]]] = {}
 _bar_last_update: dict[str, float] = {}  # symbol → monotonic timestamp of last push
 _rolling_bars_cap: int = 60  # set by feed.py on init
 _max_symbols: int = 2000  # configurable via init_bar_cache()
+_last_eviction_at: float = 0.0  # monotonic ts of last eviction pass (L5)
+_EVICT_INTERVAL_SECS: float = 60.0  # periodic eviction interval
 
 # OverlayCache: symbol → overlay payload dict (pre-computed)
 _overlay_lock = threading.Lock()
@@ -43,20 +45,36 @@ _vix_level: float | None = None
 
 def init_bar_cache(rolling_bars: int, *, max_symbols: int = 2000) -> None:
     global _rolling_bars_cap, _max_symbols
+    if max_symbols < 1:
+        raise ValueError(f"max_symbols must be >= 1, got {max_symbols}")
     _rolling_bars_cap = rolling_bars
     _max_symbols = max_symbols
 
 
 def push_bar(symbol: str, bar: dict[str, Any]) -> None:
-    """Append a 1-min OHLCV bar for symbol, evicting oldest if at cap."""
+    """Append a 1-min OHLCV bar for symbol, evicting stale entries."""
+    global _last_eviction_at
     with _bar_lock:
+        now = time.monotonic()
+        # Seed the eviction clock on first push so periodic eviction can fire
+        if _last_eviction_at == 0.0:
+            _last_eviction_at = now
+        need_cap_evict = symbol not in _bars and len(_bars) >= _max_symbols
+        if need_cap_evict:
+            _evict_stale_symbols_locked()
+            _last_eviction_at = now
         if symbol not in _bars:
-            # Evict least-recently-updated symbols when at capacity
-            if len(_bars) >= _max_symbols:
-                _evict_stale_symbols_locked()
             _bars[symbol] = deque(maxlen=_rolling_bars_cap)
         _bars[symbol].append(bar)
-        _bar_last_update[symbol] = time.monotonic()
+        _bar_last_update[symbol] = now
+        # L5: periodic eviction so stale symbols don't linger indefinitely
+        if (
+            _last_eviction_at > 0
+            and not need_cap_evict
+            and (now - _last_eviction_at) >= _EVICT_INTERVAL_SECS
+        ):
+            _evict_stale_symbols_locked()
+            _last_eviction_at = now
 
 
 def get_bars_snapshot(symbol: str) -> list[dict[str, Any]]:
