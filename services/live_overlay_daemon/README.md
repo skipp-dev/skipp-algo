@@ -117,7 +117,7 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 | `OVERLAY_MAX_SYMBOLS` | ❌ | `2000` | Hard cap on tracked symbols in bar cache (range 100–50 000) |
 | `OVERLAY_NEWS_CACHE_TTL_SECS` | ❌ | `600` | News snapshot cache TTL in seconds (range 60–3600) |
 | `OVERLAY_MAX_FEED_FAILURES` | ❌ | `50` | Circuit-breaker threshold for consecutive feed failures (range 1–1000) |
-| `NEWS_SNAPSHOT_PATH` | ❌ | `artifacts/smc_microstructure_exports/smc_live_news_snapshot.json` | Path to news JSON file |
+| `NEWS_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/smc_microstructure_exports/smc_live_news_snapshot.json` | Absolute path to news JSON file (resolved relative to repo root) |
 
 ### Config validation
 
@@ -224,7 +224,7 @@ corner (toggle off in indicator settings).
 
 ### Symbol eviction (cache.py)
 
-The bar cache tracks up to **2 000 symbols** (`_MAX_SYMBOLS`). When a new symbol
+The bar cache tracks up to **2 000 symbols** (`OVERLAY_MAX_SYMBOLS`). When a new symbol
 arrives and the cache is full, the **10 % least-recently-updated** symbols are
 evicted in a single batch. This prevents unbounded memory growth during extended
 sessions that stream `ALL_SYMBOLS`.

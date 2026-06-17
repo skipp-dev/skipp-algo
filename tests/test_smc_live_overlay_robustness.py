@@ -375,7 +375,7 @@ class TestFeedReadiness:
     def test_not_ready_initially(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import services.live_overlay_daemon.feed as feed_mod
 
-        monkeypatch.setattr(feed_mod._feed_ready, "_flag", False)
+        feed_mod._feed_ready.clear()
         assert not feed_mod.is_ready()
 
     def test_ready_after_set(self, monkeypatch: pytest.MonkeyPatch) -> None:
