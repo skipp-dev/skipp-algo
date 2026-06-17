@@ -162,7 +162,7 @@ jobs:
       # On GitHub-hosted we enable the built-in wheel cache; on self-hosted we
       # rely on the local on-disk uv cache and skip the actions/cache layer.
       - name: Install uv
-        uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           enable-cache: ${{ needs.select-runner.outputs.runner_environment == 'github-hosted' && 'true' || 'false' }}
           cache-dependency-glob: requirements*.txt

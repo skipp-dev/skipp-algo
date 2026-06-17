@@ -59,7 +59,7 @@ jobs:
 
       - name: Download latest rolling-bench artifact
         id: download
-        uses: dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6
+        uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21
         with:
           workflow: smc-measurement-benchmark-rolling.yml
           name_is_regexp: true
@@ -460,7 +460,7 @@ jobs:
         # first run / archive-not-found is a legitimate cold-start state and
         # must not abort the weekly digest job.
         continue-on-error: true
-        uses: dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6
+        uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21
         with:
           name: ^plan-2-8-digest-archive$
           name_is_regexp: true
@@ -677,7 +677,7 @@ jobs:
         # first run has no prior artifact to fetch — diff step handles missing
         # baseline gracefully.
         continue-on-error: true
-        uses: dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6
+        uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21
         with:
           workflow:       plan-2-8-weekly-digest.yml
           workflow_conclusion: ''
@@ -956,7 +956,7 @@ jobs:
         # first run has no prior ledger — ledger update step initialises a
         # fresh ledger when missing.
         continue-on-error: true
-        uses: dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6
+        uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21
         with:
           workflow:       plan-2-8-weekly-digest.yml
           workflow_conclusion: ''
@@ -1278,7 +1278,7 @@ jobs:
 
       - name: Download prior Plan 2.8 weekly index
         if: always()
-        uses: dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6
+        uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21
         with:
           name: ^plan-2-8-weekly-index$
           name_is_regexp: true
@@ -1429,7 +1429,7 @@ jobs:
 
       - name: Download prior Plan 2.8 metadata
         if: always()
-        uses: dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6
+        uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21
         with:
           name: plan-2-8-digest-metadata
           name_is_regexp: true
@@ -1794,7 +1794,7 @@ jobs:
 
       - name: Download Plan 2.8 prior artifact catalog
         if: always()
-        uses: dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6
+        uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21
         with:
           workflow:               plan-2-8-weekly-digest.yml
           workflow_conclusion:    ''

@@ -45,3 +45,16 @@ repos:
         files: '\.(py|toml|ya?ml|sh|pine)$'
         pass_filenames: false
         stages: [pre-push]
+
+      # Branch-safety guard: prints the current branch prominently and
+      # blocks any direct commit to `main` or `master`.  Prevents the
+      # shared-checkout branch-race failure mode where a commit intended
+      # for a feature branch lands on main because another session switched
+      # branches between the edit and the commit.
+      # Runs on every `git commit` (stage: pre-commit, default).
+      - id: branch-safety-guard
+        name: branch safety guard (no direct commits to main/master)
+        entry: python scripts/check_branch_safety.py
+        language: python
+        pass_filenames: false
+        stages: [pre-commit]

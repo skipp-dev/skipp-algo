@@ -282,6 +282,13 @@ file = "scripts/profile_cron_with_pyspy.py"
 attr = "run"
 count = 1
 
+# 2026-06-16 (PR #2799): pre-commit branch-safety guard — git is the only
+# subprocess call; PATH-resolved because git is always on PATH in CI/dev.
+[[subprocess_shell_injection_pin.sites]]
+file = "scripts/check_branch_safety.py"
+attr = "run"
+count = 1
+
 # security helper: TradingView storage-state permissions via icacls.
 [[subprocess_shell_injection_pin.sites]]
 file = "scripts/check_tradingview_storage_state_security.py"

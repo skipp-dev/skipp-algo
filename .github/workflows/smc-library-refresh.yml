@@ -320,7 +320,7 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install uv
-        uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           # Mirrors ci.yml: GHA cache backend returns HTTP 400 on the
           # Windows self-hosted runner. Disable the GHA cache layer there;
@@ -404,7 +404,7 @@ jobs:
       # scan via `--run-scan` on a cold hosted fallback runner.
       - name: Restore Databento production export bundle (today)
         id: restore_export_bundle_today
-        uses: dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6
+        uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21
         with:
           workflow: smc-databento-production-export-sharded.yml
           name: smc-databento-production-export-${{ env.REFRESH_DATE }}-
@@ -416,7 +416,7 @@ jobs:
       - name: Restore Databento production export bundle (latest fallback)
         id: restore_export_bundle_fallback
         if: steps.restore_export_bundle_today.outputs.found_artifact != 'true'
-        uses: dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6
+        uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21
         with:
           workflow: smc-databento-production-export-sharded.yml
           name: ^smc-databento-production-export-
@@ -436,7 +436,7 @@ jobs:
           echo "::error file=.github/workflows/smc-library-refresh.yml::Automated library refresh resolved only a fallback Databento export for REFRESH_DATE=${REFRESH_DATE}. Refusing to generate from a stale producer bundle; wait for smc-databento-production-export-sharded to publish today's compat artifact, or rerun manually if an older bundle is intentional."
           exit 1
 
-      # F-V8-D1 (2026-05-14): dawidd6/action-download-artifact@bf251b5aa9c2f7eeb574a96ee720e24f801b7c11 # v6 with
+      # F-V8-D1 (2026-05-14): dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21 with
       # name_is_regexp: true unconditionally nests each downloaded artifact
       # under `<path>/<artifact-name>/...` (see main.js:269). Consumer
       # scripts (smc_integration.{structure_batch,measurement_evidence,

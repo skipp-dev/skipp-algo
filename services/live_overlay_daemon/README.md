@@ -64,7 +64,7 @@ Returns **404** on wrong token (does not leak route existence).
 | Param    | Required | Example | Notes |
 |----------|----------|---------|-------|
 | `symbol` | ✅ | `NVDA` | Case-insensitive, max 10 chars |
-| `tf`     | ❌ | `5m` | Timeframe hint — stored in response, not used for computation |
+| `tf`     | ❌ | `5m` | One of `5m`, `15m`, `1H`, `4H`, `1D`. Returns 400 for unknown values. |
 
 **Response fields**
 
@@ -73,18 +73,18 @@ Returns **404** on wrong token (does not leak route existence).
 | `schema` | str | `"smc-live-overlay/1"` | Version tag |
 | `symbol` | str | e.g. `"NVDA"` | Uppercased |
 | `tf` | str | e.g. `"5m"` | Echo of `tf` query param |
-| `asof_ts` | ISO-8601 | UTC timestamp | Time of last compute cycle |
+| `asof_ts` | int | Unix-Epoch seconds | Time of last compute cycle |
 | `stale` | bool | | True when overlay_age > max_stale_secs |
-| `news_strength` | float \| null | [-1.0, 1.0] | Composite news sentiment |
-| `news_bias` | str \| null | `"bullish"` \| `"bearish"` \| `"neutral"` | |
+| `news_strength` | float \| null | [0.0, 1.0] | Composite news sentiment |
+| `news_bias` | str \| null | `"BULLISH"` \| `"BEARISH"` \| `"NEUTRAL"` | Uppercase |
 | `flow_rel_vol` | float \| null | ≥ 0 | volume(N bars) / avg_volume(window) |
 | `flow_delta_proxy_pct` | float \| null | | (close−open)/open × 100 |
-| `squeeze_on` | bool \| null | | Bollinger width < ATR threshold |
+| `squeeze_on` | int \| null | `0` \| `1` | 1 if Bollinger width < ATR threshold |
 | `ats_state` | str \| null | `"accumulation"` \| `"distribution"` \| `"neutral"` | |
 | `ats_zscore` | float \| null | | Z-score of last-bar volume vs rolling mean |
 | `vix_level` | float \| null | | Latest VIX level (from VIX symbol bars) |
-| `tone` | str \| null | `"risk-on"` \| `"risk-off"` \| `"neutral"` | Market-wide |
-| `global_heat` | float \| null | [0.0, 1.0] | Aggregate news heat across all tickers |
+| `tone` | str \| null | `"BULLISH"` \| `"BEARISH"` \| `"NEUTRAL"` | Market-wide, uppercase |
+| `global_heat` | float \| null | [-1.0, 1.0] | Directional news heat (positive = bullish) |
 | `event_window_state` | str \| null | `"pre-event"` \| `"in-event"` \| `"post-event"` \| `"normal"` | |
 | `event_risk_level` | str \| null | `"high"` \| `"medium"` \| `"low"` | |
 | `next_event_name` | str \| null | | |
