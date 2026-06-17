@@ -4799,7 +4799,7 @@ def test_load_daily_bars_survives_batch_api_error(monkeypatch) -> None:
 
 
 def test_probe_symbol_support_survives_api_error(monkeypatch) -> None:
-    """_probe_symbol_support treats batch failures as supported (safe default)."""
+    """_probe_symbol_support treats batch failures as NOT supported (fail-closed)."""
     class _FakeTimeseries:
         def get_range(self, **kwargs):
             raise RuntimeError("simulated API failure")
@@ -4817,9 +4817,9 @@ def test_probe_symbol_support_survives_api_error(monkeypatch) -> None:
         lambda key: _FakeClient(),
     )
     result = _probe_symbol_support("test-key", dataset="DBEQ.BASIC", symbols=["AAPL", "MSFT"])
-    # Symbols should default to supported on error
-    assert result.get("AAPL") is True
-    assert result.get("MSFT") is True
+    # Symbols should default to NOT supported on error (fail-closed)
+    assert result.get("AAPL") is False
+    assert result.get("MSFT") is False
 
 
 def test_fetch_symbol_day_detail_survives_api_error(monkeypatch) -> None:
