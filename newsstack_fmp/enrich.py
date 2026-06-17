@@ -27,6 +27,42 @@ _BLOCKED_HOST_RE = re.compile(
 )
 
 
+
+def _check_ssrf(url: str) -> str | None:
+    """Return an error string if *url* targets a blocked destination, else None."""
+    import ipaddress
+    import socket
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    if parsed.scheme not in _ALLOWED_SCHEMES:
+        return f"blocked scheme: {parsed.scheme}"
+    host = (parsed.hostname or "").lower()
+    if _BLOCKED_HOST_RE.search(host):
+        return f"blocked host: {host}"
+    try:
+        infos = socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)
+        for _fam, _typ, _proto, _canon, addr in infos:
+            ip = ipaddress.ip_address(addr[0])
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                return f"blocked resolved IP: {ip}"
+    except (socket.gaierror, ValueError):
+        pass  # DNS failure -> httpx will also fail -> handled downstream
+    return None
+
+
+def _on_redirect(response: httpx.Response) -> None:
+    """Event hook: validate every redirect target against SSRF rules."""
+    if response.is_redirect:
+        location = response.headers.get("location", "")
+        err = _check_ssrf(location)
+        if err:
+            raise httpx.TooManyRedirects(
+                f"redirect blocked: {err}",
+                request=response.request,
+            )
+
+
 class Enricher:
     """Synchronous URL snippet fetcher."""
 
@@ -35,6 +71,7 @@ class Enricher:
             timeout=3.0,
             follow_redirects=True,
             headers={"User-Agent": "newsstack-fmp/1.0 (enricher)"},
+            event_hooks={"response": [_on_redirect]},
         )
 
     def fetch_url_snippet(self, url: str | None) -> dict[str, Any]:
@@ -48,25 +85,9 @@ class Enricher:
         if not url:
             return {"enriched": False}
         try:
-            # SSRF guard: only allow HTTPS URLs to public hosts.
-            import ipaddress
-            import socket
-            from urllib.parse import urlparse
-            parsed = urlparse(url)
-            if parsed.scheme not in _ALLOWED_SCHEMES:
-                return {"enriched": False, "error": f"blocked scheme: {parsed.scheme}"}
-            host = (parsed.hostname or "").lower()
-            if _BLOCKED_HOST_RE.search(host):
-                return {"enriched": False, "error": f"blocked host: {host}"}
-            # Resolve hostname to detect DNS rebinding / decimal IP bypass
-            try:
-                infos = socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)
-                for _fam, _typ, _proto, _canon, addr in infos:
-                    ip = ipaddress.ip_address(addr[0])
-                    if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
-                        return {"enriched": False, "error": f"blocked resolved IP: {ip}"}
-            except (socket.gaierror, ValueError):
-                pass  # DNS failure → httpx will also fail → handled below
+            err = _check_ssrf(url)
+            if err:
+                return {"enriched": False, "error": err}
             with self.client.stream("GET", url) as r:
                 # Non-2xx responses are error pages, not article content.
                 if r.status_code >= 400:
