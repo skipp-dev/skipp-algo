@@ -122,7 +122,10 @@ def _load_state(cache_dir: str | Path | None = None) -> dict[str, Any]:
     path = _cache_path(cache_dir)
     path_str = str(path)
     with _STATE_CACHE_LOCK:
-        mtime = path.stat().st_mtime if path.exists() else None
+        try:
+            mtime = path.stat().st_mtime
+        except FileNotFoundError:
+            mtime = None
         if (
             _STATE_CACHE_VALUE is not None
             and path_str == _STATE_CACHE_PATH
@@ -130,13 +133,14 @@ def _load_state(cache_dir: str | Path | None = None) -> dict[str, Any]:
         ):
             return _STATE_CACHE_VALUE
         state = _default_state()
-        if path.exists():
-            try:
-                loaded = json.loads(path.read_text(encoding="utf-8"))
-                if isinstance(loaded, dict):
-                    state.update(loaded)
-            except Exception:
-                logger.warning("Failed to read Databento reference cache %s", path, exc_info=True)
+        try:
+            loaded = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                state.update(loaded)
+        except (FileNotFoundError, ValueError):
+            pass
+        except Exception:
+            logger.warning("Failed to read Databento reference cache %s", path, exc_info=True)
         _STATE_CACHE_PATH = path_str
         _STATE_CACHE_MTIME = mtime
         _STATE_CACHE_VALUE = state
