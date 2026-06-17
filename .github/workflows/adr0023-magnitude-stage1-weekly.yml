@@ -66,6 +66,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
 
       - name: Setup Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
@@ -159,6 +161,8 @@ jobs:
       # Guarded: only on status=demotion_applied and an actual file change.
       - name: Commit stage policy back to repo
         if: steps.weekly.outputs.status == 'demotion_applied'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           git diff --quiet governance/magnitude_stage_policy.json && {
             echo "::notice title=adr0023-magnitude-stage1-weekly::policy unchanged — skipping commit-back"
@@ -168,6 +172,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add governance/magnitude_stage_policy.json
           git commit -m "chore(adr0023): auto-demotion — stage policy update $(date -u +%Y-%m-%d)"
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}"
           # Race-safe push: main can move between checkout and push (other
           # scheduled jobs also commit back). Rebase our single policy commit
           # onto the latest origin/main and retry on non-fast-forward reject.

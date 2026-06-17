@@ -60,6 +60,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from collections.abc import Sequence
 from datetime import UTC, datetime
@@ -154,6 +155,11 @@ def _append_rows(corpus_path: Path, rows: list[dict[str, Any]]) -> int:
             fh.write(json.dumps(row, ensure_ascii=False) + "\n")
             existing.add(key)
             written += 1
+        # Ensure data reaches disk before the process can be killed by the
+        # scheduler.  Prevents a truncated final line in the corpus JSONL.
+        if written:
+            fh.flush()
+            os.fsync(fh.fileno())
     return written
 
 

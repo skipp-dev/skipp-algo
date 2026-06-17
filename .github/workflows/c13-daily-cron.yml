@@ -168,6 +168,11 @@ jobs:
             | tee /tmp/backfill_live_outcomes.stdout
           echo "rc=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
 
+      - name: "⚠️ Warn: Step 1 — backfill live outcomes (advisory)"
+        if: always() && steps.backfill.outcome == 'failure'
+        run: |
+          echo "::warning::Step 'Step 1 — backfill live outcomes (advisory)' failed silently (soft-fail step)"
+
       # F-V3-15 (audit 2026-05-01): soft-fail visibility for empty backfills.
       # The script always exits 0 on a parsable audit JSONL, even when 0
       # records were backfilled and N records are stuck pending — that
@@ -211,6 +216,11 @@ jobs:
             echo "::notice::F-V3-15: all $audit_only pending records are audit_only intents (no broker connectivity, C13 T1 NO-GO) — nothing closable; not a backfill regression."
           fi
 
+      - name: "⚠️ Warn: Step 1b — assert backfill made progress (advisory)"
+        if: always() && steps.backfill_progress.outcome == 'failure'
+        run: |
+          echo "::warning::Step 'Step 1b — assert backfill made progress (advisory)' failed silently (soft-fail step)"
+
       - name: Step 2 — drift-input from audit JSONL (advisory)
         id: drift_input
         if: steps.backfill.outputs.rc == '0'
@@ -225,6 +235,11 @@ jobs:
             --audit-jsonl "${LIVE_DIR}/incubation_${DATE}.jsonl" \
             --output      "${LIVE_DIR}/drift_input_${DATE}.jsonl"
           echo "rc=$?" >> "$GITHUB_OUTPUT"
+
+      - name: "⚠️ Warn: Step 2 — drift-input from audit JSONL (advisory)"
+        if: always() && steps.drift_input.outcome == 'failure'
+        run: |
+          echo "::warning::Step 'Step 2 — drift-input from audit JSONL (advisory)' failed silently (soft-fail step)"
 
       - name: Step 3 — refresh backtest reference (advisory)
         id: backtest_ref
@@ -251,6 +266,11 @@ jobs:
             --output        "${CALIB_DIR}/backtest_reference_${DATE}.json"
           echo "rc=$?" >> "$GITHUB_OUTPUT"
 
+      - name: "⚠️ Warn: Step 3 — refresh backtest reference (advisory)"
+        if: always() && steps.backtest_ref.outcome == 'failure'
+        run: |
+          echo "::warning::Step 'Step 3 — refresh backtest reference (advisory)' failed silently (soft-fail step)"
+
       - name: Step 3b — refresh Phase-B slippage sample (advisory, C13/T4)
         id: slippage_sample
         if: steps.backtest_ref.outputs.rc == '0'
@@ -272,6 +292,11 @@ jobs:
             --audit-glob "${LIVE_DIR}/audit_*.jsonl" \
             --output     "${CALIB_DIR}/backtest_slippage_samples_${DATE}.json"
           echo "rc=$?" >> "$GITHUB_OUTPUT"
+
+      - name: "⚠️ Warn: Step 3b — refresh Phase-B slippage sample (advisory, C13/T4)"
+        if: always() && steps.slippage_sample.outcome == 'failure'
+        run: |
+          echo "::warning::Step 'Step 3b — refresh Phase-B slippage sample (advisory, C13/T4)' failed silently (soft-fail step)"
 
       - name: Step 4 — compute live drift (advisory)
         id: drift
@@ -301,6 +326,11 @@ jobs:
           fi
           echo "rc=$?" >> "$GITHUB_OUTPUT"
 
+      - name: "⚠️ Warn: Step 4 — compute live drift (advisory)"
+        if: always() && steps.drift.outcome == 'failure'
+        run: |
+          echo "::warning::Step 'Step 4 — compute live drift (advisory)' failed silently (soft-fail step)"
+
       - name: "Step 4b — best-effort: append drift snapshot to calibration corpus (issue #2798)"
         id: corpus
         if: steps.drift.outputs.rc == '0'
@@ -321,6 +351,11 @@ jobs:
           if [ "${corpus_rc}" != "0" ]; then
             echo "::warning::Step 4b corpus collection failed (rc=${corpus_rc}); drift cron continues."
           fi
+
+      - name: "⚠️ Warn: Step 4b — append drift snapshot to calibration corpus"
+        if: always() && steps.corpus.outcome == 'failure'
+        run: |
+          echo "::warning::Step 'Step 4b — append drift snapshot to calibration corpus' failed silently (soft-fail step)"
 
       - name: Step 5a — build families telemetry (advisory)
         id: families
@@ -349,6 +384,11 @@ jobs:
             --output             "${LIVE_DIR}/families_telemetry_${DATE}.json"
           echo "rc=$?" >> "$GITHUB_OUTPUT"
 
+      - name: "⚠️ Warn: Step 5a — build families telemetry (advisory)"
+        if: always() && steps.families.outcome == 'failure'
+        run: |
+          echo "::warning::Step 'Step 5a — build families telemetry (advisory)' failed silently (soft-fail step)"
+
       - name: Step 5b — emit public calibration report (advisory)
         id: emit_public
         if: steps.drift.outputs.rc == '0'
@@ -369,6 +409,11 @@ jobs:
             python -m scripts.emit_public_calibration_report
           fi
           echo "rc=$?" >> "$GITHUB_OUTPUT"
+
+      - name: "⚠️ Warn: Step 5b — emit public calibration report (advisory)"
+        if: always() && steps.emit_public.outcome == 'failure'
+        run: |
+          echo "::warning::Step 'Step 5b — emit public calibration report (advisory)' failed silently (soft-fail step)"
 
       - name: Upload daily artefacts
         if: always()

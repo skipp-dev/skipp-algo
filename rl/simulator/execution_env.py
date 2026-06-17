@@ -54,6 +54,12 @@ class EnvConfig:
     # step and penalise the worst alpha-tail of step returns instead.
     risk_metric: RiskMetric = "variance"
 
+    def __post_init__(self) -> None:
+        if self.base_volume_per_step <= 0:
+            raise ValueError(
+                f"EnvConfig.base_volume_per_step must be > 0, got {self.base_volume_per_step}"
+            )
+
 
 @dataclass
 class ExecutionEnv(_EnvBase):

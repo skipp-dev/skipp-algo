@@ -263,6 +263,11 @@ jobs:
             --validation-report artifacts/tradingview/tv_post_release_validation.json \
             --output artifacts/ci/smc_tradingview_post_release_report.json
 
+      - name: "⚠️ Warn: Run TradingView post-release validation"
+        if: always() && steps.tv_validation.outcome == 'failure'
+        run: |
+          echo "::warning::Step 'Run TradingView post-release validation' failed silently (soft-fail step)"
+
       - name: Classify TV validation failure (WP-R14)
         if: always() && steps.tv_validation.outcome == 'failure'
         run: |
