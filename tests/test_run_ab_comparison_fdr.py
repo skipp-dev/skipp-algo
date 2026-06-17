@@ -215,7 +215,13 @@ def test_fdr_layer_null_hit_rate_skips_family_not_launders_to_zero() -> None:
         "skipped_family_details"
     )
     ghost_detail = skipped_by_name["GHOST"]
-    assert ghost_detail["skip_reason"] in ("no_trades", "non_finite", "missing"), (
+    assert ghost_detail["skip_reason"] in (
+        "no_trades",
+        "non_finite",
+        "missing",
+        "no_trades_inferred",   # OA-4: inferred path (no upstream skip_reason)
+        "non_finite_inferred",  # OA-4: inferred path
+    ), (
         f"Unexpected skip_reason: {ghost_detail['skip_reason']!r}"
     )
     assert ghost_detail["n_control"] >= 0
@@ -233,6 +239,45 @@ def test_fdr_layer_aggregates_events_across_pairs() -> None:
     fam = out["families"][0]
     assert fam["n_control"] == 50
     assert fam["n_treatment"] == 50
+
+
+def test_fdr_layer_skipped_details_mixed_arm_shows_real_n() -> None:
+    """OA-2: when one arm is valid and the other has hit_rate=None,
+    n_control/n_treatment in skipped_family_details must show the real
+    event count for the valid arm, not 0."""
+    ctrl = [_pair({"BOS": {"n_events": 80, "hit_rate": 0.55}})]
+    treat = [_pair({"BOS": {"n_events": 30, "hit_rate": None}})]
+    out = _family_fdr_layer(ctrl, treat)
+    # BOS appears in skipped_family_details (treatment arm has hit_rate=None)
+    skipped_by_name = {e["family"]: e for e in out["skipped_family_details"]}
+    assert "BOS" in skipped_by_name, "BOS must be in skipped_family_details"
+    d = skipped_by_name["BOS"]
+    # n_control must reflect the real 80 events from the valid control arm
+    assert d["n_control"] == 80, (
+        f"OA-2: expected n_control=80 (valid arm), got {d['n_control']}"
+    )
+    assert d["n_treatment"] == 30
+
+
+def test_fdr_layer_skipped_reason_inferred_vs_upstream() -> None:
+    """OA-4: without upstream skip_reason the inferred suffix *_inferred is used;
+    with upstream skip_reason the exact value is preserved."""
+    # No upstream skip_reason → inferred
+    ctrl_infer = [_pair({"BOS": {"n_events": 0, "hit_rate": None}})]
+    treat_infer = [_pair({"BOS": {"n_events": 0, "hit_rate": None}})]
+    out_infer = _family_fdr_layer(ctrl_infer, treat_infer)
+    skipped_infer = {e["family"]: e for e in out_infer["skipped_family_details"]}
+    assert skipped_infer["BOS"]["skip_reason"] == "no_trades_inferred", (
+        f"OA-4: expected 'no_trades_inferred', got {skipped_infer['BOS']['skip_reason']!r}"
+    )
+    # With upstream skip_reason → exact value preserved
+    ctrl_ups = [_pair({"BOS": {"n_events": 0, "hit_rate": None, "skip_reason": "no_trades"}})]
+    treat_ups = [_pair({"BOS": {"n_events": 0, "hit_rate": None, "skip_reason": "no_trades"}})]
+    out_ups = _family_fdr_layer(ctrl_ups, treat_ups)
+    skipped_ups = {e["family"]: e for e in out_ups["skipped_family_details"]}
+    assert skipped_ups["BOS"]["skip_reason"] == "no_trades", (
+        f"OA-4: expected 'no_trades' (upstream), got {skipped_ups['BOS']['skip_reason']!r}"
+    )
 
 
 def test_fdr_layer_skips_families_only_in_one_arm() -> None:

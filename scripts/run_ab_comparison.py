@@ -321,10 +321,16 @@ def _family_fdr_layer(
                 # omitting it (Option A improvement).
                 hr_raw = fm.get("hit_rate")
                 if hr_raw is None:
-                    reason = str(
-                        fm.get("skip_reason")
-                        or ("no_trades" if n == 0 else "non_finite")
-                    )
+                    # OA-4 (W11-1 observability): distinguish upstream-provided
+                    # reason from locally inferred so postmortems can tell
+                    # whether the producer artifact used Option-A code or not.
+                    upstream_reason = fm.get("skip_reason")
+                    if upstream_reason is not None:
+                        reason = str(upstream_reason)
+                    elif n == 0:
+                        reason = "no_trades_inferred"
+                    else:
+                        reason = "non_finite_inferred"
                     prev_n, _ = skipped.get(fam, (0, reason))
                     skipped[fam] = (prev_n + n, reason)
                     continue
@@ -378,17 +384,25 @@ def _family_fdr_layer(
     # operators see "Family BOS: 0 Trades, nicht bewertet" in the report
     # instead of a silent omission.
     all_skipped_names = sorted(set(ctrl_skipped) | set(treat_skipped))
-    skipped_family_details: list[dict[str, Any]] = [
-        {
-            "family": fam,
-            "n_control": ctrl_skipped.get(fam, (0, ""))[0],
-            "n_treatment": treat_skipped.get(fam, (0, ""))[0],
-            "skip_reason": (
-                ctrl_skipped.get(fam, treat_skipped.get(fam, (0, "missing")))[1]
-            ),
-        }
-        for fam in all_skipped_names
-    ]
+    # OA-2 (W11-1 observability): for a mixed-arm family (one arm valid,
+    # other hit_rate=None) the skipped dict only has the None arm, so
+    # n_control/n_treatment would show 0 for the valid arm.  Fall back to
+    # the valid arm's agg count so operators see the real event total.
+    skipped_family_details: list[dict[str, Any]] = []
+    for _fam in all_skipped_names:
+        _n_c_skip = ctrl_skipped.get(_fam, (0, ""))[0]
+        _n_t_skip = treat_skipped.get(_fam, (0, ""))[0]
+        _n_c = _n_c_skip if _n_c_skip > 0 else ctrl_fam.get(_fam, (0, 0))[0]
+        _n_t = _n_t_skip if _n_t_skip > 0 else treat_fam.get(_fam, (0, 0))[0]
+        _reason = ctrl_skipped.get(_fam, treat_skipped.get(_fam, (0, "missing")))[1]
+        skipped_family_details.append(
+            {
+                "family": _fam,
+                "n_control": _n_c,
+                "n_treatment": _n_t,
+                "skip_reason": _reason,
+            }
+        )
 
     return {
         "method": "benjamini_hochberg",
@@ -955,6 +969,21 @@ def render_comparison(digest: dict[str, Any]) -> str:
             f"rejected = {len(fdr.get('rejected_families') or [])}_"
         )
         lines.append("")
+        # OA-1 (W11-1 observability): render skipped_family_details so
+        # operators reading ab_comparison.md see family names + reasons,
+        # not just a count.
+        _skipped_details = fdr.get("skipped_family_details") or []
+        if _skipped_details:
+            lines.append("**Übersprungene Familien (hit_rate nicht verfügbar):**")
+            lines.append("")
+            lines.append("| Familie | n(C) | n(T) | Grund |")
+            lines.append("|---|---:|---:|:---|")
+            for _sd in _skipped_details:
+                lines.append(
+                    f"| {_sd['family']} | {_sd['n_control']} | {_sd['n_treatment']} "
+                    f"| `{_sd['skip_reason']}` |"
+                )
+            lines.append("")
         lines.append("| Family | n(C) | n(T) | HR(C) | HR(T) | p | adj. p | rejected |")
         lines.append("|---|---:|---:|---:|---:|---:|---:|:---:|")
         for fam in fdr["families"]:
@@ -1141,6 +1170,18 @@ def main(argv: list[str] | None = None) -> None:
     print(f"Comparison written to {args.output_dir}")
     print(f"  Control grade:   {digest['control_grade']}")
     print(f"  Treatment grade: {digest['treatment_grade']}")
+    # OA-3 (W11-1 observability): emit a GHA ::notice:: so the workflow log
+    # names skipped families without requiring artifact download.
+    _fdr_out = digest.get("fdr") or {}
+    _skipped_det = _fdr_out.get("skipped_family_details") or []
+    if _skipped_det:
+        _names = ", ".join(
+            f"{d['family']}({d['skip_reason']})" for d in _skipped_det
+        )
+        print(
+            f"::notice title=fdr-skipped-families::"
+            f"{len(_skipped_det)} skipped: {_names}"
+        )
 
 
 if __name__ == "__main__":
