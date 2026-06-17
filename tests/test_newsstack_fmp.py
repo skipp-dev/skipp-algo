@@ -3629,6 +3629,28 @@ class TestUWNewsHeadlines(unittest.TestCase):
         finally:
             adapter.close()
 
+    def test_ttl_reenable_restores_endpoint(self):
+        """After TTL expires, a disabled endpoint becomes usable again."""
+        from newsstack_fmp.ingest_unusual_whales import (
+            UW_NEWS_HEADLINES_PATH,
+            _DISABLED_TTL_S,
+            is_uw_endpoint_disabled,
+            mark_uw_endpoint_disabled,
+        )
+
+        mark_uw_endpoint_disabled(UW_NEWS_HEADLINES_PATH)
+        self.assertTrue(is_uw_endpoint_disabled(UW_NEWS_HEADLINES_PATH))
+
+        # Advance time past the TTL cooldown.
+        future = time.monotonic() + _DISABLED_TTL_S + 1.0
+        with patch("newsstack_fmp.ingest_unusual_whales.time") as mock_time:
+            mock_time.monotonic.return_value = future
+            self.assertFalse(is_uw_endpoint_disabled(UW_NEWS_HEADLINES_PATH))
+
+        # Endpoint entry was removed during the check.
+        from newsstack_fmp.ingest_unusual_whales import _DISABLED_ENDPOINTS
+        self.assertNotIn(UW_NEWS_HEADLINES_PATH, _DISABLED_ENDPOINTS)
+
     def test_normalize_uw_news_headline_basic(self):
         from newsstack_fmp.normalize import normalize_uw_news_headline
 
