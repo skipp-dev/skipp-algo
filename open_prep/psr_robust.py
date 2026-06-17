@@ -46,7 +46,7 @@ def compute_psr_minIS(
     sr_star: float = 0.0,
     annualize: bool = False,
     periods_per_year: int = 252,
-) -> dict[str, float]:
+) -> dict[str, float | bool]:
     """PSR with optional slippage adjustment.
 
     The slippage series is interpreted as cost in basis points per trade

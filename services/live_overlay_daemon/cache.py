@@ -43,6 +43,8 @@ _vix_level: float | None = None
 
 def init_bar_cache(rolling_bars: int, *, max_symbols: int = 2000) -> None:
     global _rolling_bars_cap, _max_symbols
+    if max_symbols < 1:
+        raise ValueError(f"max_symbols must be >= 1, got {max_symbols}")
     _rolling_bars_cap = rolling_bars
     _max_symbols = max_symbols
 
@@ -52,7 +54,10 @@ def push_bar(symbol: str, bar: dict[str, Any]) -> None:
     with _bar_lock:
         if symbol not in _bars:
             # Evict least-recently-updated symbols until under capacity
-            while len(_bars) >= _max_symbols:
+            # Safety: limit iterations to prevent infinite loop on misconfiguration
+            for _ in range(_max_symbols + 1):
+                if len(_bars) < _max_symbols:
+                    break
                 _evict_stale_symbols_locked()
             _bars[symbol] = deque(maxlen=_rolling_bars_cap)
         _bars[symbol].append(bar)
