@@ -41,6 +41,7 @@ No authentication required. Used by Railway healthcheck and UptimeRobot.
 ```json
 {
   "status": "ok",
+  "feed_healthy": true,
   "uptime_secs": 406,
   "bar_symbols": 12,
   "bar_count": 720,
@@ -51,6 +52,8 @@ No authentication required. Used by Railway healthcheck and UptimeRobot.
 ```
 
 > `status` is `"starting"` until the feed has pushed at least one bar, then `"ok"`.
+> `feed_healthy` is `true` when the feed is connected and has delivered bars; becomes
+> `false` after `stop()` or if the circuit-breaker trips.
 > `HEAD` requests return only headers (body stripped by Starlette automatically).
 
 ---
@@ -113,7 +116,8 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 | `OVERLAY_MAX_STALE_SECS` | ❌ | `3600` | Overlay age before `stale: true` (range 60–7200) |
 | `OVERLAY_MAX_SYMBOLS` | ❌ | `2000` | Hard cap on tracked symbols in bar cache (range 100–50 000) |
 | `OVERLAY_NEWS_CACHE_TTL_SECS` | ❌ | `600` | News snapshot cache TTL in seconds (range 60–3600) |
-| `NEWS_SNAPSHOT_PATH` | ❌ | `artifacts/smc_microstructure_exports/smc_live_news_snapshot.json` | Path to news JSON file |
+| `OVERLAY_MAX_FEED_FAILURES` | ❌ | `50` | Circuit-breaker threshold for consecutive feed failures (range 1–1000) |
+| `NEWS_SNAPSHOT_PATH` | ❌ | *(repo root)*`/artifacts/smc_microstructure_exports/smc_live_news_snapshot.json` | Absolute path to news JSON file (resolved relative to repo root) |
 
 ### Config validation
 
@@ -125,6 +129,7 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 - **`OVERLAY_FLOW_REFRESH_SECS`** is clamped to `[5, 3600]` (5 s – 1 h).
 - **`OVERLAY_NEWS_CACHE_TTL_SECS`** is clamped to `[60, 3600]` (1 min – 1 h).
 - **`OVERLAY_MAX_SYMBOLS`** is clamped to `[100, 50000]`.
+- **`OVERLAY_MAX_FEED_FAILURES`** is clamped to `[1, 1000]`.
 - Non-integer values for any `_optional_int` variable are logged at `WARNING`
   and fall back to the documented default.
 
@@ -219,7 +224,7 @@ corner (toggle off in indicator settings).
 
 ### Symbol eviction (cache.py)
 
-The bar cache tracks up to **2 000 symbols** (`_MAX_SYMBOLS`). When a new symbol
+The bar cache tracks up to **2 000 symbols** (`OVERLAY_MAX_SYMBOLS`). When a new symbol
 arrives and the cache is full, the **10 % least-recently-updated** symbols are
 evicted in a single batch. This prevents unbounded memory growth during extended
 sessions that stream `ALL_SYMBOLS`.

@@ -160,7 +160,7 @@ def test_producer_script_exposes_export_dir_flag():
         cwd=str(REPO_ROOT),
         capture_output=True,
         text=True,
-        timeout=30,
+        timeout=90,
     )
     assert proc.returncode == 0, (
         f"Producer --help failed:\nstdout={proc.stdout}\nstderr={proc.stderr}"

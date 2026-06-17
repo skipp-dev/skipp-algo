@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 _RECONNECT_DELAY_SECS = 10
 _MAX_RECONNECT_ATTEMPTS = 5
 _RECONNECT_BACKOFF_SECS = 120
-_MAX_TOTAL_FAILURES = 50  # hard circuit-breaker; exits thread after this many consecutive failures
+_MAX_TOTAL_FAILURES = 50  # fallback; overridden at runtime by config.max_feed_failures()
 
 # VIX symbol on EQUS.MINI
 _VIX_SYMBOL = "VIX"
@@ -95,6 +95,7 @@ def _run_feed_loop(stop: threading.Event) -> None:
     asyncio.set_event_loop(loop)
     try:
         consecutive_failures = 0
+        max_failures = config.max_feed_failures()
         rolling = config.rolling_bars()
         cache.init_bar_cache(rolling, max_symbols=config.max_symbols())
 
@@ -199,12 +200,13 @@ def _run_feed_loop(stop: threading.Event) -> None:
             if stop.is_set():
                 break
 
-            if consecutive_failures >= _MAX_TOTAL_FAILURES:
+            if consecutive_failures >= max_failures:
                 logger.critical(
                     "Feed loop exceeded %d consecutive failures — "
                     "circuit-breaker triggered, thread stopping.",
-                    _MAX_TOTAL_FAILURES,
+                    max_failures,
                 )
+                _feed_ready.clear()
                 break
 
             delay = (
@@ -265,6 +267,10 @@ def start() -> None:
     """Start the three background threads (feed + refresh + flow refresh)."""
     global _feed_thread, _refresh_thread, _flow_refresh_thread
 
+    if _feed_thread is not None and _feed_thread.is_alive():
+        logger.warning("start() called while feed threads are already running — ignoring.")
+        return
+
     _stop_event.clear()
 
     _feed_thread = threading.Thread(
@@ -289,6 +295,7 @@ def start() -> None:
 def stop() -> None:
     """Signal all background threads to stop and wait for them."""
     _stop_event.set()
+    _feed_ready.clear()
     for thread in (_feed_thread, _refresh_thread, _flow_refresh_thread):
         if thread is not None and thread.is_alive():
             thread.join(timeout=5)
