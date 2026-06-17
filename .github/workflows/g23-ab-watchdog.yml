@@ -46,6 +46,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
 
       # Workflow-Audit MITTEL-9 (2026-06): self-append loop guard. The
       # watchdog appends to docs/ab/g23_history.jsonl from the main
@@ -137,6 +139,7 @@ jobs:
           BRANCH="bot/g23-watchdog-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           git checkout -b "$BRANCH"
           git commit -m "chore(docs): g23 watchdog status ${GITHUB_RUN_ID}"
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}"
           git push -u origin "$BRANCH"
           gh pr create \
             --base main \
