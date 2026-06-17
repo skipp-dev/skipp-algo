@@ -16,8 +16,11 @@ Optional vars:
 """
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _ENV_FILE = _REPO_ROOT / ".env"
@@ -56,6 +59,10 @@ def _optional_int(key: str, default: int) -> int:
     try:
         return int(raw) if raw else default
     except ValueError:
+        logger.warning(
+            "Invalid integer for %s=%r, falling back to default %d",
+            key, raw, default,
+        )
         return default
 
 
@@ -84,11 +91,25 @@ def flow_refresh_secs() -> int:
 
 
 def max_stale_secs() -> int:
-    return _optional_int("OVERLAY_MAX_STALE_SECS", 3600)
+    val = _optional_int("OVERLAY_MAX_STALE_SECS", 3600)
+    if not 60 <= val <= 7200:
+        logger.warning(
+            "OVERLAY_MAX_STALE_SECS=%d outside valid range [60, 7200], clamping",
+            val,
+        )
+        val = max(60, min(7200, val))
+    return val
 
 
 def rolling_bars() -> int:
-    return _optional_int("OVERLAY_ROLLING_BARS", 60)
+    val = _optional_int("OVERLAY_ROLLING_BARS", 60)
+    if not 1 <= val <= 500:
+        logger.warning(
+            "OVERLAY_ROLLING_BARS=%d outside valid range [1, 500], clamping",
+            val,
+        )
+        val = max(1, min(500, val))
+    return val
 
 
 def news_snapshot_path() -> Path:

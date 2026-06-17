@@ -114,6 +114,12 @@ def _run_feed_loop(stop: threading.Event) -> None:
                 # by the databento client for ALL record types including
                 # SymbolMappingMsg which may not be yielded to the iterator).
                 symmap: dict[int, str] = getattr(client, "_symbology_map", {})  # private attr; defensive fallback
+                if not hasattr(client, "_symbology_map"):
+                    logger.warning(
+                        "db.Live() client has no '_symbology_map' attribute — "
+                        "databento SDK may have changed. Symbol resolution will "
+                        "fail until this is updated."
+                    )
 
                 _rec_count = 0
                 _ohlcv_count = 0

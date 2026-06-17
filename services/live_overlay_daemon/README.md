@@ -106,11 +106,11 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 | `DATABENTO_API_KEY` | ✅ | — | Set in Railway env vars |
 | `OVERLAY_SECRET_TOKEN` | ✅ | — | Embedded in Pine URL path |
 | `PORT` | ❌ | `8000` | Injected by Railway automatically |
-| `REFRESH_SECS` | ❌ | `1800` | Full overlay compute cycle interval (seconds) |
-| `FLOW_REFRESH_SECS` | ❌ | `300` | Flow-patch cycle interval (seconds) |
-| `ROLLING_BARS` | ❌ | `20` | Rolling window size for flow/ATS computations |
-| `MAX_STALE_SECS` | ❌ | `600` | Overlay age before `stale: true` |
-| `NEWS_SNAPSHOT_PATH` | ❌ | `/tmp/news_snapshot.json` | Path to news JSON file |
+| `OVERLAY_REFRESH_SECS` | ❌ | `1800` | Full overlay compute cycle interval (seconds) |
+| `OVERLAY_FLOW_REFRESH_SECS` | ❌ | `300` | Flow-patch cycle interval (seconds) |
+| `OVERLAY_ROLLING_BARS` | ❌ | `60` | Rolling window size for flow/ATS computations (range 1–500) |
+| `OVERLAY_MAX_STALE_SECS` | ❌ | `3600` | Overlay age before `stale: true` (range 60–7200) |
+| `NEWS_SNAPSHOT_PATH` | ❌ | `artifacts/smc_microstructure_exports/smc_live_news_snapshot.json` | Path to news JSON file |
 
 ---
 
