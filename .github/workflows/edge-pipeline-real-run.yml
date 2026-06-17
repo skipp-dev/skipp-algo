@@ -93,7 +93,7 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: edge-pipeline-real-run
+  group: edge-pipeline-real-run-${{ github.ref }}
   cancel-in-progress: false
 
 env:
