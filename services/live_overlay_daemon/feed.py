@@ -34,7 +34,6 @@ logger = logging.getLogger(__name__)
 _RECONNECT_DELAY_SECS = 10
 _MAX_RECONNECT_ATTEMPTS = 5
 _RECONNECT_BACKOFF_SECS = 120
-_MAX_TOTAL_FAILURES = 50  # fallback; overridden at runtime by config.max_feed_failures()
 
 # VIX symbol on EQUS.MINI
 _VIX_SYMBOL = "VIX"
@@ -44,6 +43,7 @@ _refresh_thread: threading.Thread | None = None
 _flow_refresh_thread: threading.Thread | None = None
 _stop_event = threading.Event()
 _feed_ready = threading.Event()
+_last_bar_at: float = 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -172,6 +172,9 @@ def _run_feed_loop(stop: threading.Event) -> None:
                     cache.push_bar(sym, bar)
                     _bars_pushed_count += 1
 
+                    global _last_bar_at
+                    _last_bar_at = time.monotonic()
+
                     if not _feed_ready.is_set():
                         _feed_ready.set()
                         logger.info("Feed ready — first bar pushed for %s", sym)
@@ -182,6 +185,7 @@ def _run_feed_loop(stop: threading.Event) -> None:
 
             except db.BentoError as exc:
                 consecutive_failures += 1
+                _feed_ready.clear()
                 logger.warning(
                     "db.Live() BentoError (attempt %d/%d): %s",
                     consecutive_failures, _MAX_RECONNECT_ATTEMPTS, exc,
@@ -189,6 +193,7 @@ def _run_feed_loop(stop: threading.Event) -> None:
                 )
             except Exception as exc:
                 consecutive_failures += 1
+                _feed_ready.clear()
                 logger.warning("db.Live() unexpected error: %s", exc, exc_info=True)
             finally:
                 if client is not None:
@@ -303,5 +308,16 @@ def stop() -> None:
 
 
 def is_ready() -> bool:
-    """Return True once the feed has pushed at least one bar."""
-    return _feed_ready.is_set()
+    """Return True if the feed is connected and bars are not stale."""
+    if not _feed_ready.is_set():
+        return False
+    if _last_bar_at <= 0:
+        return False
+    return (time.monotonic() - _last_bar_at) < config.max_stale_secs()
+
+
+def last_bar_age_secs() -> float | None:
+    """Return seconds since the last bar was pushed, or None if never."""
+    if _last_bar_at <= 0:
+        return None
+    return time.monotonic() - _last_bar_at

@@ -382,9 +382,11 @@ class TestFeedReadiness:
         import services.live_overlay_daemon.feed as feed_mod
 
         feed_mod._feed_ready.set()
+        feed_mod._last_bar_at = time.monotonic()
         assert feed_mod.is_ready()
         # cleanup
         feed_mod._feed_ready.clear()
+        feed_mod._last_bar_at = 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -399,6 +401,7 @@ class TestFeedReadyClearedOnStop:
         import services.live_overlay_daemon.feed as feed_mod
 
         feed_mod._feed_ready.set()
+        feed_mod._last_bar_at = time.monotonic()
         assert feed_mod.is_ready()
 
         # Ensure no real threads to join
