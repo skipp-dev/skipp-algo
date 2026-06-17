@@ -118,8 +118,10 @@ carries the auth); **only in that anonymous-looking fallback** does the
 written file get a `meta` block
 (`validationMode = "persistent_profile_chart_access"` plus
 `authValidatedAt`). When the heuristics already look authenticated, the
-file is written without `meta` — stamp it as in §3 step 3 before
-rotating the secret.
+file is written without `meta` — the §3 sanity-check assertion will
+catch this and print `meta.authValidatedAt missing — re-run tv:storage-state`;
+re-run with normal storage-state mode (§2) in that case to get a fresh
+`meta`-stamped capture.
 Local consumers then run with
 `TV_PERSISTENT_PROFILE_DIR=automation/tradingview/auth/chromium-profile`
 (see the `*:profile` npm scripts).
@@ -155,6 +157,6 @@ not cancel the running job just because the secret was rotated.
 | `Timed out waiting for an authenticated TradingView chart session` | Login not completed / sign-in overlay open | Complete login + MFA, open a chart, rerun |
 | `Captured TradingView session still looks anonymous` | Cookie consent/sign-in modal still visible, or login silently failed | Dismiss overlays, confirm avatar/username visible on chart, rerun |
 | `credential-health` still red after rotation | Dispatched run started before `gh secret set` finished | Re-dispatch `credential-health-check.yml` |
-| Probe reports `storage_state missing meta block` | Secret was rotated from a capture without the §3 step-3 stamping | Run §3 step 3 (stamps `meta.authValidatedAt`), re-run `gh secret set`, re-dispatch |
+| Probe reports `storage_state missing meta block` | Capture was done before the always-write-meta fix (pre-2026-06-17) | Re-run `npm run tv:storage-state`, then rotate the secret |
 | Automated login loops on CAPTCHA | TradingView bot defense | Drop `TV_USERNAME`/`TV_PASSWORD`, log in manually in the opened window |
 | Playwright "browser not found" | Chromium not installed for Playwright | `npx playwright install chromium` |

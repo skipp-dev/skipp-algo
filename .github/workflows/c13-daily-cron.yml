@@ -107,11 +107,18 @@ jobs:
             if [ -n "${LAST_COMMIT_DATE}" ]; then
               LAST_TS=$(date -d "${LAST_COMMIT_DATE}" +%s 2>/dev/null || echo "0")
               NOW_TS=$(date -u +%s)
-              GAP_DAYS=$(( (NOW_TS - LAST_TS) / 86400 ))
-              if [ "${GAP_DAYS}" -gt "${AUDIT_STALE_BUDGET_DAYS}" ]; then
-                echo "::warning title=c13-cron::data/phase-a-audit cache/live/ last updated ${GAP_DAYS} calendar days ago (budget ${AUDIT_STALE_BUDGET_DAYS}d). Paper trading session likely idle — run run-c13-audit-push.sh locally."
+              # Guard: if date -d failed to parse the ISO timestamp, LAST_TS
+              # falls back to 0, making GAP_DAYS huge and the warning a false
+              # positive.  Skip the check instead of emitting a bogus alert.
+              if [ "${LAST_TS}" = "0" ]; then
+                echo "::warning title=c13-cron::could not parse last commit date '${LAST_COMMIT_DATE}' — staleness check skipped."
               else
-                echo "::notice title=c13-cron::data/phase-a-audit cache/live/ last commit ${GAP_DAYS}d ago — within ${AUDIT_STALE_BUDGET_DAYS}d budget."
+                GAP_DAYS=$(( (NOW_TS - LAST_TS) / 86400 ))
+                if [ "${GAP_DAYS}" -gt "${AUDIT_STALE_BUDGET_DAYS}" ]; then
+                  echo "::warning title=c13-cron::data/phase-a-audit cache/live/ last updated ${GAP_DAYS} days ago (budget ${AUDIT_STALE_BUDGET_DAYS}d). Paper trading session likely idle — run run-c13-audit-push.sh locally."
+                else
+                  echo "::notice title=c13-cron::data/phase-a-audit cache/live/ last commit ${GAP_DAYS}d ago — within ${AUDIT_STALE_BUDGET_DAYS}d budget."
+                fi
               fi
             else
               echo "::notice title=c13-cron::no cache/live/ commits on data/phase-a-audit — branch may be new."
