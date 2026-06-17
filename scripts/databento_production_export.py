@@ -3457,9 +3457,16 @@ def _run_fmp_intraday_bridge(
         _market_open_et.hour,
         max(0, _market_open_et.minute - _pre_open_minutes),
     )
-    now_et: time = datetime.now(US_EASTERN_TZ).time()
-    we: time = window_end if window_end is not None else now_et
-    if we > now_et:
+    now_dt_et = datetime.now(US_EASTERN_TZ)
+    now_et: time = now_dt_et.time()
+    today_et = now_dt_et.date()
+    # Normalize to naive time so callers may pass either naive or aware
+    # window_end without raising TypeError on comparison.
+    we: time = window_end.replace(tzinfo=None) if window_end is not None else now_et
+    # Only clamp to "now" for the active ET trading day. For historical dates,
+    # honor the caller-provided window_end so deterministic tests and backfills
+    # do not collapse to pre-open empty windows when CI runs overnight ET.
+    if today == today_et and we > now_et:
         we = now_et
     if we <= ws:
         # Window hasn't opened yet (e.g. run before pre-market).

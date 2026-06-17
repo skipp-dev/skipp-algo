@@ -184,7 +184,9 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("services/live_overlay_daemon/cache.py", 82, ("_overlay_computed_at",)),
         ("services/live_overlay_daemon/cache.py", 127, ("_vix_level",)),
         ("services/live_overlay_daemon/compute.py", 51, ("_news_cache", "_news_loaded_at")),
-        ("services/live_overlay_daemon/feed.py", 244, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        # 2026-06-17: line shifted 244 -> 246 after feed-loop stats counter
+        # update in _run_feed_loop (added _bars_pushed_count bookkeeping).
+        ("services/live_overlay_daemon/feed.py", 246, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
         ("services/live_overlay_daemon/main.py", 49, ("_startup_ts",)),
     }
 )
