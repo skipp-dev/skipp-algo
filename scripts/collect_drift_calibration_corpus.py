@@ -58,18 +58,24 @@ Usage
 
 from __future__ import annotations
 
-import logging
-
-logger = logging.getLogger(__name__)
-
 import argparse
 import json
+import logging
 import os
 import sys
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
+
+try:
+    import fcntl  # POSIX only; Windows CI uses best-effort no-lock path
+    _FLOCK_SUPPORTED = True
+except ImportError:   # Windows
+    fcntl = None  # type: ignore[assignment]
+    _FLOCK_SUPPORTED = False
 
 # ---------------------------------------------------------------------------
 # Corpus row builder
@@ -147,23 +153,40 @@ def _append_rows(corpus_path: Path, rows: list[dict[str, Any]]) -> int:
     """Append *rows* to *corpus_path*; create parent dirs as needed.
 
     Returns the number of rows actually written (0 if all were duplicates).
+
+    Inter-process safety: acquires an exclusive ``fcntl.flock`` on a
+    sidecar ``.lock`` file before reading existing keys and appending.
+    This prevents two concurrent collector invocations from (a) racing
+    on the duplicate-key snapshot and (b) interleaving their writes.
     """
     corpus_path.parent.mkdir(parents=True, exist_ok=True)
-    existing = _existing_keys(corpus_path)
-    written = 0
-    with corpus_path.open("a", encoding="utf-8") as fh:
-        for row in rows:
-            key = (str(row.get("computed_at", "")), str(row.get("variant", "")))
-            if key in existing:
-                continue
-            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
-            existing.add(key)
-            written += 1
-        # Ensure data reaches disk before the process can be killed by the
-        # scheduler.  Prevents a truncated final line in the corpus JSONL.
-        if written:
-            fh.flush()
-            os.fsync(fh.fileno())
+    # Use parent / (name + ".lock") rather than with_suffix(".lock") so the
+    # lock path is an *append* of ".lock" to the full filename (including any
+    # existing suffix) instead of a *replacement* of the current suffix.
+    # This is unambiguous regardless of whether corpus_path has a suffix.
+    lock_path = corpus_path.parent / (corpus_path.name + ".lock")
+    written = 0  # initialise before lock acquisition so the return is always defined
+    with lock_path.open("w") as _lock_fh:
+        if _FLOCK_SUPPORTED:
+            fcntl.flock(_lock_fh.fileno(), fcntl.LOCK_EX)
+        try:
+            existing = _existing_keys(corpus_path)
+            with corpus_path.open("a", encoding="utf-8") as fh:
+                for row in rows:
+                    key = (str(row.get("computed_at", "")), str(row.get("variant", "")))
+                    if key in existing:
+                        continue
+                    fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+                    existing.add(key)
+                    written += 1
+                # Ensure data reaches disk before the process can be killed by the
+                # scheduler.  Prevents a truncated final line in the corpus JSONL.
+                if written:
+                    fh.flush()
+                    os.fsync(fh.fileno())
+        finally:
+            if _FLOCK_SUPPORTED:
+                fcntl.flock(_lock_fh.fileno(), fcntl.LOCK_UN)
     return written
 
 

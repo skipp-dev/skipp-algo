@@ -292,6 +292,29 @@ def test_vendor_429_is_warn(probe) -> None:
     assert r.severity == "warn"
     assert "rate-limited" in r.message
     assert r.details["status"] == 429
+    assert r.details["retry_after"] == "unknown"  # no header → fallback
+
+
+@pytest.mark.parametrize("probe", [probe_databento, probe_fmp, probe_newsapi])
+def test_vendor_429_surfaces_retry_after_header(probe) -> None:
+    """When the provider sends Retry-After the probe must surface it in details."""
+    import http.client
+    import urllib.error
+
+    hdrs = http.client.HTTPMessage()
+    hdrs["Retry-After"] = "60"
+    exc = urllib.error.HTTPError(
+        url="https://example.com",
+        code=429,
+        msg="Too Many Requests",
+        hdrs=hdrs,
+        fp=io.BytesIO(b""),
+    )
+    r = probe("dummy-key", opener=_fake_opener(raise_exc=exc))
+    assert r.severity == "warn"
+    assert r.details["status"] == 429
+    assert r.details["retry_after"] == "60"
+    assert "Retry-After=60s" in r.message
 
 
 @pytest.mark.parametrize("probe", [probe_databento, probe_fmp, probe_newsapi])

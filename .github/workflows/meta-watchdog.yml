@@ -105,7 +105,71 @@ jobs:
           echo "overall=$overall" >> "$GITHUB_OUTPUT"
           # NICHT hier exiten — Folge-Steps laufen mit always().
 
-      - name: Annotate stale monitors
+      - name: Check Library-Refresh DAG health
+        # Cross-workflow DAG view: "hat die komplette Library-Refresh-Pipeline
+        # heute korrekt end-to-end funktioniert?"
+        #
+        # DAG-Kette (Weekday, UTC):
+        #   smc-databento-production-export-sharded  ~16:30  (Core — muss success sein)
+        #   smc-library-refresh                      ~17:30  (Core — muss success sein)
+        #   f2-promotion-gate-daily                  ~18:00  (Advisory — any: kann intentional fail wenn spec rolled_back)
+        #   credential-health-check                  ~20:00  (Advisory — any: kann fail wegen TV-Session-Expiry)
+        #
+        # dag_status:
+        #   complete — alle 4 liefen, Core-Chain succeeded
+        #   partial  — Core OK, mind. 1 Advisory stale
+        #   broken   — Core-Chain stale oder failed
+        #   error    — API-Fehler beim Check
+        id: dag
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          mkdir -p artifacts/ci
+          set +e
+          python scripts/check_workflow_freshness.py \
+            --output artifacts/ci/dag_health.json \
+            smc-databento-production-export-sharded.yml=30:success:weekday \
+            smc-library-refresh.yml=30:success:weekday \
+            f2-promotion-gate-daily.yml=30:any:weekday \
+            credential-health-check.yml=30:any:weekday
+          rc_dag=$?
+          set -e
+          echo "rc=$rc_dag" >> "$GITHUB_OUTPUT"
+
+          if [ -f artifacts/ci/dag_health.json ]; then
+            dag_status=$(python3 - <<'DAGPY'
+          import json, sys
+          rep = json.load(open("artifacts/ci/dag_health.json"))
+          wf_map = {w["workflow"]: w["status"] for w in rep["workflows"]}
+          # Core chain workflows — must be "fresh" (only success runs counted)
+          core = [
+              "smc-databento-production-export-sharded.yml",
+              "smc-library-refresh.yml",
+          ]
+          # Advisory workflows — non-fresh triggers warning, not broken
+          advisory = [
+              "f2-promotion-gate-daily.yml",
+              "credential-health-check.yml",
+          ]
+          all_wf = core + advisory
+          if any(wf_map.get(w) == "api_error" for w in all_wf):
+              print("error")
+          elif any(wf_map.get(w) not in ("fresh",) for w in core):
+              print("broken")
+          elif any(wf_map.get(w) not in ("fresh",) for w in advisory):
+              print("partial")
+          else:
+              print("complete")
+          DAGPY
+            )
+          else
+            dag_status="error"
+          fi
+          echo "dag_status=$dag_status" >> "$GITHUB_OUTPUT"
+
+      - name: Annotate probe results
         if: always() && steps.probe.outputs.rc != ''
         run: |
           if [ ! -f artifacts/ci/meta_watchdog.json ]; then
@@ -138,17 +202,78 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Annotate DAG health
+        # Cross-workflow Library-Refresh DAG summary in step annotations and
+        # Step Summary so operators get one consolidated view without having to
+        # correlate 4 separate workflow pages.
+        if: always() && steps.dag.outputs.rc != ''
+        run: |
+          dag_status="${{ steps.dag.outputs.dag_status }}"
+          case "$dag_status" in
+            complete)
+              echo "::notice title=meta-watchdog-dag::Library-Refresh DAG complete — all 4 pipeline stages ran and core chain succeeded." ;;
+            partial)
+              echo "::warning title=meta-watchdog-dag::Library-Refresh DAG partial — core chain (export+refresh) OK but advisory stage(s) stale. Check f2-promotion-gate-daily / credential-health-check." ;;
+            broken)
+              echo "::error title=meta-watchdog-dag::Library-Refresh DAG BROKEN — smc-databento-production-export-sharded or smc-library-refresh is stale or has not succeeded. Library data may be stale." ;;
+            error)
+              echo "::error title=meta-watchdog-dag::Library-Refresh DAG check API error — could not determine pipeline status. Check meta-watchdog run log." ;;
+          esac
+
+          if [ -f artifacts/ci/dag_health.json ]; then
+            # Render per-stage DAG table in Step Summary
+            {
+              echo ""
+              echo "## Library-Refresh DAG (cross-workflow pipeline view)"
+              echo ""
+              echo "DAG status: \`${dag_status}\`"
+              echo ""
+              echo "| Stage | Workflow | Status |"
+              echo "|:---:|:---|:---:|"
+              python3 - <<'DAGPY'
+          import json
+          stage_labels = {
+              "smc-databento-production-export-sharded.yml": "1 — Producer (Core)",
+              "smc-library-refresh.yml":                    "2 — Generator (Core)",
+              "f2-promotion-gate-daily.yml":                "3 — Gate (Advisory)",
+              "credential-health-check.yml":               "4 — Credentials (Advisory)",
+          }
+          rep = json.load(open("artifacts/ci/dag_health.json"))
+          for wf in rep["workflows"]:
+              name = wf["workflow"]
+              status = wf["status"]
+              icon = {"fresh": "✅", "stale": "❌", "missing": "⚠️", "api_error": "🔴"}.get(status, "❓")
+              age = f"{wf.get('age_hours')}h ago" if wf.get('age_hours') is not None else ""
+              label = stage_labels.get(name, name)
+              print(f"| {label} | `{name}` | {icon} {status} {age} |")
+          DAGPY
+              echo ""
+              echo '```json'
+              cat artifacts/ci/dag_health.json
+              echo ''
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Upload report artifact
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: meta-watchdog-report
-          path: artifacts/ci/meta_watchdog.json
+          path: |
+            artifacts/ci/meta_watchdog.json
+            artifacts/ci/dag_health.json
           if-no-files-found: warn
           retention-days: 30
 
       - name: Open / update issue on stale or error
-        if: always() && (steps.probe.outputs.overall == 'stale' || steps.probe.outputs.overall == 'error')
+        if: |
+          always() && (
+            steps.probe.outputs.overall == 'stale' ||
+            steps.probe.outputs.overall == 'error' ||
+            steps.dag.outputs.dag_status == 'broken' ||
+            steps.dag.outputs.dag_status == 'error'
+          )
         env:
           GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
           GH_REPO: ${{ github.repository }}
@@ -180,6 +305,15 @@ jobs:
             echo "monitor run is fine (it is alerting); the alarm here is the ABSENCE of"
             echo "any completed run -- typically a disabled cron (60-day repo inactivity),"
             echo "a YAML syntax error from a merge, or a deleted secret."
+            echo ""
+            echo "### DAG Report (Library-Refresh pipeline)"
+            echo ""
+            echo "DAG status: **${{ steps.dag.outputs.dag_status }}**"
+            echo ""
+            echo '```json'
+            cat artifacts/ci/dag_health.json 2>/dev/null || echo "(no dag report written)"
+            echo ''
+            echo '```'
           } > "$BODY_FILE"
 
           existing=$(gh issue list --repo "$GH_REPO" --state open \
@@ -192,8 +326,14 @@ jobs:
               --label cron-failure --label automated
           fi
 
-      - name: Fail job on stale or error
-        if: always() && steps.probe.outputs.rc != '0' && steps.probe.outputs.rc != ''
+      - name: Fail job on stale, broken, or error
+        if: |
+          always() &&
+          (
+            (steps.probe.outputs.rc != '0' && steps.probe.outputs.rc != '') ||
+            steps.dag.outputs.dag_status == 'broken' ||
+            steps.dag.outputs.dag_status == 'error'
+          )
         run: |
-          echo "::error title=meta-watchdog::probe rc=${{ steps.probe.outputs.rc }} overall=${{ steps.probe.outputs.overall }}"
-          exit "${{ steps.probe.outputs.rc }}"
+          echo "::error title=meta-watchdog::probe rc=${{ steps.probe.outputs.rc }} overall=${{ steps.probe.outputs.overall }} | dag_status=${{ steps.dag.outputs.dag_status }}"
+          exit 1

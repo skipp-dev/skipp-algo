@@ -226,9 +226,11 @@ allowed = [
 # freshness; outcome is surfaced via the dedicated alert step.
 "workflow-freshness-monitor.yml" = 1
 # meta-watchdog.yml: same explicit-exit-check pattern as the
-# freshness monitor — `set +e` only around the probe script call so
-# report/summary land before the final fail-loud step re-surfaces rc.
-"meta-watchdog.yml" = 1
+# freshness monitor — `set +e` only around probe/annotation steps so
+# report and DAG summary land before the final fail-loud step re-surfaces
+# rc.  Count bumped 1→2: the new 'Annotate probe results' step (added
+# alongside 'Annotate DAG health') uses the same guarded pattern.
+"meta-watchdog.yml" = 2
 
 # ---------------------------------------------------------------------------
 # test_subprocess_shell_injection_pin.py — frozen subprocess call sites.

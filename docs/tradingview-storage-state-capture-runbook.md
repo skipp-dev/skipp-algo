@@ -32,13 +32,12 @@ Related docs: [tradingview-auth-modes.md](tradingview-auth-modes.md)
    sign-in signals in the page body, and the captured storage state passes
    the auth heuristics in
    `automation/tradingview/lib/tv_validation_model.ts::inspectTradingViewStorageState`.
-5. Writes the storage state JSON (with `indexedDB: true`). **Note:** in
-   storage-state mode the file contains **no** `meta` block — the script
-   only adds one (`authValidatedAt`, `validationMode`) in the
-   persistent-profile fallback (§4). Because
-   `scripts/credential_health_check.py::probe_tv_storage_state` requires
-   `meta.authValidatedAt` to age the capture against the 72 h TTL, the
-   sanity-check step in §3 stamps the timestamp when it is missing.
+5. Writes the storage state JSON (with `indexedDB: true`). **Note:** the script
+   always stamps a `meta` block (`authValidatedAt`, `validationMode: "standard_session"`)
+   on every normal session capture so that
+   `scripts/credential_health_check.py::probe_tv_storage_state` can age the
+   capture against the 72 h TTL without a separate stamping step.
+   The persistent-profile fallback (§4) uses `validationMode: "persistent_profile_chart_access"`.
 
 The script **fails loudly** if the captured session still looks anonymous
 (sign-in overlay visible, missing `sessionid` cookies) — rerun after a full
@@ -71,23 +70,18 @@ npm run tv:storage-state
 # 2. Security guard — verifies the capture is NOT tracked by git.
 npm run tv:auth-security
 
-# 3. Sanity-check the capture (session cookies present) and stamp
-#    meta.authValidatedAt if missing — the credential-health probe
-#    requires it, but storage-state mode does not write a meta block.
+# 3. Sanity-check the capture (session cookies + meta.authValidatedAt present).
+#    The capture script now always writes meta.authValidatedAt in storage-state
+#    mode, so no manual stamping is needed — this step just verifies the output.
 python3 - <<'EOF'
 import json, datetime
 p = "automation/tradingview/auth/storage-state.json"
 d = json.load(open(p))
 names = {c["name"] for c in d.get("cookies", []) if "tradingview" in c.get("domain", "")}
 assert {"sessionid", "sessionid_sign"} <= names, f"missing session cookies: {names}"
+meta = d.get("meta", {})
+assert meta.get("authValidatedAt"), "meta.authValidatedAt missing — re-run tv:storage-state"
 now = datetime.datetime.now(datetime.timezone.utc)
-meta = d.setdefault("meta", {})
-if not meta.get("authValidatedAt"):
-    meta["authValidatedAt"] = now.isoformat().replace("+00:00", "Z")
-    with open(p, "w") as fh:
-        json.dump(d, fh, indent=2)
-        fh.write("\n")
-    print("stamped meta.authValidatedAt (capture omits it in storage-state mode)")
 va = meta["authValidatedAt"]
 age = (now - datetime.datetime.fromisoformat(va.replace("Z", "+00:00"))).total_seconds() / 3600
 print(f"OK — authValidatedAt={va}, age={age:.1f}h, cookies={sorted(names)}")
@@ -121,11 +115,12 @@ This both refreshes the profile dir **and** writes
 `storage-state.json`. In profile mode the script accepts a chart session
 even when storage-state heuristics look anonymous (the profile itself
 carries the auth); **only in that anonymous-looking fallback** does the
-written file get a `meta` block
-(`validationMode = "persistent_profile_chart_access"` plus
-`authValidatedAt`). When the heuristics already look authenticated, the
-file is written without `meta` — stamp it as in §3 step 3 before
-rotating the secret.
+written file get a `meta` block with
+`validationMode = "persistent_profile_chart_access"` plus `authValidatedAt`.
+When the heuristics already look authenticated, the file is written with
+`validationMode = "standard_session"` (same `meta` shape as a regular
+§2 capture). The §3 sanity-check passes in both cases — no manual
+re-run is needed.
 Local consumers then run with
 `TV_PERSISTENT_PROFILE_DIR=automation/tradingview/auth/chromium-profile`
 (see the `*:profile` npm scripts).
@@ -161,6 +156,6 @@ not cancel the running job just because the secret was rotated.
 | `Timed out waiting for an authenticated TradingView chart session` | Login not completed / sign-in overlay open | Complete login + MFA, open a chart, rerun |
 | `Captured TradingView session still looks anonymous` | Cookie consent/sign-in modal still visible, or login silently failed | Dismiss overlays, confirm avatar/username visible on chart, rerun |
 | `credential-health` still red after rotation | Dispatched run started before `gh secret set` finished | Re-dispatch `credential-health-check.yml` |
-| Probe reports `storage_state missing meta block` | Secret was rotated from a capture without the §3 step-3 stamping | Run §3 step 3 (stamps `meta.authValidatedAt`), re-run `gh secret set`, re-dispatch |
+| Probe reports `storage_state missing meta block` | Capture was done before the always-write-meta fix (pre-2026-06-17) | Re-run `npm run tv:storage-state`, then rotate the secret |
 | Automated login loops on CAPTCHA | TradingView bot defense | Drop `TV_USERNAME`/`TV_PASSWORD`, log in manually in the opened window |
 | Playwright "browser not found" | Chromium not installed for Playwright | `npx playwright install chromium` |

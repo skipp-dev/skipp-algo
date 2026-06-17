@@ -6,6 +6,69 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-06-17) — Monitoring hardening + Q&A audit follow-up (PR #2841, #2842)
+
+**W11-1 — Skip `hit_rate=None` families in advisory FDR layer (PR #2841)**
+- `_aggregate_family_events` in `run_ab_comparison.py` now skips metric pairs
+  where `hit_rate is None` instead of laundering them to `k=0` via `or 0.0`.
+  Ghost k=0 entries distorted the two-proportion z-test (one-sided for
+  treatment > control): a None control arm inflated the apparent treatment
+  advantage → false significant-lift rejection on null evidence.
+- Comment corrected: "treatment significantly worse" → "ghost significant lift
+  (treatment appearing better than it is)" to match the one-sided test direction.
+- Regression test strengthened: changed from both-arms-None (degenerate p, old
+  code also wouldn't reject) to one-arm-None (control None, treatment 0.50) so
+  old code produces k_ctrl=0 vs k_treat=25 → p≈0 ghost lift. Assertion changed
+  from conditional `if ghost: not rejected` to unconditional `GHOST not in
+  families_by_name`.
+- `_family_fdr_layer` now returns `skipped_family_details` list in the result
+  dict so downstream operators can see which families were skipped and why
+  instead of a silent count decrement.
+- `test_run_ab_comparison_fdr.py` and schema-pin tests updated accordingly.
+
+**Monitoring staleness guards + observability gaps (PR #2842)**
+- `adr0023-magnitude-shadow-daily.yml`: raised `GAP_BUDGET_DAYS` 7→10 days
+  to absorb workstation restarts without false staleness alerts.
+- `c13-daily-cron.yml`: new audit-branch staleness guard step checks whether
+  `origin/data/phase-a-audit` has received a commit in the last N days;
+  emits `::warning::` if stale (soft-alert, does not fail the job). Fixed
+  YAML parse error (Python heredoc at col-1 replaced with `date -d` shell
+  arithmetic). Added UTC normalization (`date -u`), `LAST_TS=0`
+  false-positive guard via UTC-midnight normalisation (`LAST_TS_NORM` /
+  `TODAY_TS_NORM`), and a `::warning::` when `git fetch` itself fails.
+- `tests/test_workflow_adr0023_magnitude_shadow_daily_contract.py`: updated
+  `GAP_BUDGET_DAYS` pin from 7 to 10.
+- `f2-promotion-gate-daily`: was **disabled** in GHA UI (3 missed weekday runs
+  discovered during monitoring). Re-enabled and dispatched manually.
+- TV StorageState (`automation/tradingview/auth/storage-state.json`): secret
+  `TV_STORAGE_STATE` refreshed; `create_tradingview_storage_state.ts` patched
+  to always write `meta.authValidatedAt` in standard session mode (previously
+  only written in persistent-profile mode), fixing `credential-health-check`
+  `storage_state missing meta block` error.
+- `scripts/credential_health_check.py`: HTTP 429 probes now extract and surface
+  the `Retry-After` response header in `ProbeResult.message` and `.details`
+  (`retry_after` key). Works for `urllib.error.HTTPError` (`.headers` direct)
+  and httpx/requests (`.response.headers` fallback).
+- `tests/test_credential_health_check.py`: two new parametrized 429 cases —
+  no-header path (`retry_after='unknown'`) and with-header path
+  (`Retry-After: 60` → `retry_after='60'`, message contains
+  `"Retry-After=60s"`).
+- `tests/test_workflow_yaml_flag_centralization.py` (new): companion guard to
+  `test_feature_flag_centralization.py` covering the YAML `env:` blind spot —
+  scans all `*.yml` workflow files and fails if any `ENABLE_*` key has a
+  hardcoded literal value rather than a `${{ vars.* }}` expression, preventing
+  inline feature-flag drift in CI configuration.
+- `tests/test_workflow_library_refresh_artifact_handoff_contract.py` (new, Q6):
+  7 YAML contract tests for the `reject_stale_export_fallback` step in
+  `smc-library-refresh.yml` — covers step existence, `exit 1` hard-fail, no
+  `continue-on-error`, correct 3-clause AND condition
+  (`event_name != dispatch` AND today-artifact absent AND fallback present),
+  and ordering relative to both restore steps.
+- `meta-watchdog.yml`: new Library-Refresh DAG health step that polls
+  `smc-databento-production-export-sharded` → `smc-library-refresh` →
+  `f2-promotion-gate-daily` → `credential-health-check` as a causal chain and
+  surfaces gaps via `::error::` annotation.
+
 ### Changed (2026-06-17) — Bug-hunt audit R4/R4b hardening (PR #2837, #2838, #2839)
 
 Round of defensive fixes surfaced by the periodic bug-hunt audit. Each finding
