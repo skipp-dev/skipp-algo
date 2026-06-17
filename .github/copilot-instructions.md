@@ -25,7 +25,7 @@ find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null
 # 3. Ruff
 .venv/bin/python -m ruff check --fix . && .venv/bin/python -m ruff check .
 
-# 4. Alle 7 Ledger-Pins (~15s) — VOLLSTÄNDIG, nicht kürzen
+# 4. Alle 8 Ledger-Pins (~15s) — VOLLSTÄNDIG, nicht kürzen
 .venv/bin/python -m pytest \
   tests/test_global_statement_budget.py \
   tests/test_noqa_budget.py \
