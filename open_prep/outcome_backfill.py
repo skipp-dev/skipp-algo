@@ -20,7 +20,6 @@ import argparse
 import json
 import logging
 import os
-import sys
 import tempfile
 from datetime import date, datetime
 from datetime import time as dt_time
@@ -720,5 +719,14 @@ def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
         raise
 
 
-if __name__ == "__main__":
-    sys.exit(main())
+if __name__ == "__main__":  # pragma: no cover
+    try:
+        raise SystemExit(main())
+    except KeyboardInterrupt:
+        logger.warning("Interrupted by user (SIGINT/KeyboardInterrupt).")
+        raise SystemExit(130) from None
+    except SystemExit:
+        raise
+    except Exception:
+        logger.critical("Fatal error in %s", __name__, exc_info=True)
+        raise SystemExit(1) from None

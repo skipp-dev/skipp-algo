@@ -20,10 +20,13 @@ CLI
 
 from __future__ import annotations
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 import argparse
 import json
 import math
-import sys
 from collections import defaultdict
 from collections.abc import Iterable, Mapping
 from datetime import UTC, date, datetime, timedelta
@@ -302,5 +305,14 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-if __name__ == "__main__":
-    sys.exit(main())
+if __name__ == "__main__":  # pragma: no cover
+    try:
+        raise SystemExit(main())
+    except KeyboardInterrupt:
+        logger.warning("Interrupted by user (SIGINT/KeyboardInterrupt).")
+        raise SystemExit(130) from None
+    except SystemExit:
+        raise
+    except Exception:
+        logger.critical("Fatal error in %s", __name__, exc_info=True)
+        raise SystemExit(1) from None
