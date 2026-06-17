@@ -81,19 +81,19 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("databento_reference.py", 113, ("_STATE_CACHE_MTIME", "_STATE_CACHE_PATH", "_STATE_CACHE_VALUE")),
         ("databento_reference.py", 121, ("_STATE_CACHE_MTIME", "_STATE_CACHE_PATH", "_STATE_CACHE_VALUE")),
         ("newsstack_fmp/pipeline.py", 69, ("_store",)),
-        ("newsstack_fmp/pipeline.py", 79, ("_fmp_adapter", "_fmp_adapter_key")),
-        ("newsstack_fmp/pipeline.py", 94, ("_bz_rest_adapter", "_bz_rest_adapter_key")),
-        ("newsstack_fmp/pipeline.py", 110, ("_bz_ws_adapter", "_bz_ws_adapter_key")),
-        ("newsstack_fmp/pipeline.py", 136, ("_enricher",)),
-        ("newsstack_fmp/pipeline.py", 1068, ("_last_meta",)),
+        ("newsstack_fmp/pipeline.py", 78, ("_fmp_adapter", "_fmp_adapter_key")),
+        ("newsstack_fmp/pipeline.py", 92, ("_bz_rest_adapter", "_bz_rest_adapter_key")),
+        ("newsstack_fmp/pipeline.py", 107, ("_bz_ws_adapter", "_bz_ws_adapter_key")),
+        ("newsstack_fmp/pipeline.py", 132, ("_enricher",)),
+        ("newsstack_fmp/pipeline.py", 1063, ("_last_meta",)),
         (
             "newsstack_fmp/pipeline.py",
-            1157,
+            1152,
             ("_bz_rest_adapter", "_bz_ws_adapter", "_enricher", "_fmp_adapter", "_last_meta", "_store"),
         ),
         (
             "newsstack_fmp/pipeline.py",
-            1158,
+            1153,
             ("_bz_rest_adapter_key", "_bz_ws_adapter_key", "_fmp_adapter_key"),
         ),
         ("open_prep/regime.py", 129, ("_prev_regime",)),
@@ -182,12 +182,14 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # threading.Lock() per concurrency-shared-mutables guideline.
         # 2026-06-17 (fix/overlay-daemon-robustness): shifted by logging import,
         # eviction helpers, circuit-breaker, readiness event, configurable TTL.
+        # 2026-06-17 (fix/bug-hunt-findings): +5 lines for max_symbols validation
+        # and bounded eviction loop in init_bar_cache/push_bar.
         ("services/live_overlay_daemon/cache.py", 45, ("_max_symbols", "_rolling_bars_cap")),
-        ("services/live_overlay_daemon/cache.py", 104, ("_overlay_computed_at",)),
-        ("services/live_overlay_daemon/cache.py", 149, ("_vix_level",)),
+        ("services/live_overlay_daemon/cache.py", 109, ("_overlay_computed_at",)),
+        ("services/live_overlay_daemon/cache.py", 154, ("_vix_level",)),
         ("services/live_overlay_daemon/compute.py", 52, ("_news_cache", "_news_loaded_at")),
-        ("services/live_overlay_daemon/feed.py", 175, ("_last_bar_at",)),
-        ("services/live_overlay_daemon/feed.py", 273, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        ("services/live_overlay_daemon/feed.py", 178, ("_last_bar_at",)),
+        ("services/live_overlay_daemon/feed.py", 280, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
         ("services/live_overlay_daemon/main.py", 49, ("_startup_ts",)),
     }
 )

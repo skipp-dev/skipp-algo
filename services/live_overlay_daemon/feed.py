@@ -64,7 +64,7 @@ def _record_to_bar(record: Any) -> dict[str, Any] | None:
             "close": getattr(record, "close", 0) / 1e9,
             "volume": getattr(record, "volume", 0),
             # ts_event is a top-level field on OHLCVMsg, not under .hd
-            "ts_event": getattr(record, "ts_event", None) or getattr(getattr(record, "hd", None), "ts_event", 0),
+            "ts_event": _ts if (_ts := getattr(record, "ts_event", None)) is not None else getattr(getattr(record, "hd", None), "ts_event", 0),
         }
     except Exception:
         return None
@@ -74,7 +74,9 @@ def _symbol_from_record(record: Any, symmap: dict[int, str]) -> str | None:
     """Resolve instrument_id → ticker symbol via the session symmap."""
     try:
         # instrument_id is available directly on the record (not only via .hd)
-        iid = getattr(record, "instrument_id", None) or getattr(getattr(record, "hd", None), "instrument_id", None)
+        iid = getattr(record, "instrument_id", None)
+        if iid is None:
+            iid = getattr(getattr(record, "hd", None), "instrument_id", None)
         if iid is None:
             return None
         sym = symmap.get(iid)
@@ -113,16 +115,9 @@ def _run_feed_loop(stop: threading.Event) -> None:
                 logger.info("db.Live() connected — subscribing EQUS.MINI ohlcv-1m ALL_SYMBOLS")
                 consecutive_failures = 0
 
-                # Use the client's built-in symbology map (populated internally
-                # by the databento client for ALL record types including
-                # SymbolMappingMsg which may not be yielded to the iterator).
-                symmap: dict[int, str] = getattr(client, "_symbology_map", {})  # private attr; defensive fallback
-                if not hasattr(client, "_symbology_map"):
-                    logger.warning(
-                        "db.Live() client has no '_symbology_map' attribute — "
-                        "databento SDK may have changed. Symbol resolution will "
-                        "fail until this is updated."
-                    )
+                # Build symbology map from SymbolMappingMsg records
+                # yielded by the iterator (no private-attr access).
+                symmap: dict[int, str] = {}
 
                 _rec_count = 0
                 _ohlcv_count = 0
@@ -141,6 +136,14 @@ def _run_feed_loop(stop: threading.Event) -> None:
                             _rec_count, len(symmap), _ohlcv_count, _sym_none_count,
                             _bar_none_count, _bars_pushed_count,
                         )
+
+                    # Handle SymbolMappingMsg to build symbology map
+                    if rec_type == "SymbolMappingMsg":
+                        iid = getattr(record, "instrument_id", None)
+                        raw = getattr(record, "stype_out_symbol", None) or getattr(record, "raw_symbol", None)
+                        if iid is not None and raw:
+                            symmap[iid] = raw
+                        continue
 
                     # Skip system records that aren't OHLCV data
                     rec_type_upper = rec_type.upper()
@@ -204,6 +207,10 @@ def _run_feed_loop(stop: threading.Event) -> None:
 
             if stop.is_set():
                 break
+
+            # Signal unhealthy during reconnect — /health must not report
+            # "ok" while the feed is disconnected (F2.1).
+            _feed_ready.clear()
 
             if consecutive_failures >= max_failures:
                 logger.critical(

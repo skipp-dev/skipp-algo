@@ -67,42 +67,39 @@ def _credential_changed(stored: Any, current: Any) -> bool:
 
 def _get_store(cfg: Config) -> SqliteStore:
     global _store
-    if _store is None:
-        with _init_lock:
-            if _store is None:
-                os.makedirs(os.path.dirname(cfg.sqlite_path) or ".", exist_ok=True)
-                _store = SqliteStore(cfg.sqlite_path)
+    with _init_lock:
+        if _store is None:
+            os.makedirs(os.path.dirname(cfg.sqlite_path) or ".", exist_ok=True)
+            _store = SqliteStore(cfg.sqlite_path)
     return _store
 
 
 def _get_fmp_adapter(cfg: Config) -> FmpAdapter:
     global _fmp_adapter, _fmp_adapter_key
-    if _fmp_adapter is None or _credential_changed(_fmp_adapter_key, cfg.fmp_api_key):
-        with _init_lock:
-            if _fmp_adapter is None or _credential_changed(_fmp_adapter_key, cfg.fmp_api_key):
-                if _fmp_adapter is not None and hasattr(_fmp_adapter, "close"):
-                    try:
-                        _fmp_adapter.close()
-                    except Exception:
-                        logger.debug("fmp adapter close on rotation failed", exc_info=True)
-                _fmp_adapter = FmpAdapter(cfg.fmp_api_key)
-                _fmp_adapter_key = cfg.fmp_api_key
+    with _init_lock:
+        if _fmp_adapter is None or _credential_changed(_fmp_adapter_key, cfg.fmp_api_key):
+            if _fmp_adapter is not None and hasattr(_fmp_adapter, "close"):
+                try:
+                    _fmp_adapter.close()
+                except Exception:
+                    logger.debug("fmp adapter close on rotation failed", exc_info=True)
+            _fmp_adapter = FmpAdapter(cfg.fmp_api_key)
+            _fmp_adapter_key = cfg.fmp_api_key
     return _fmp_adapter
 
 
 def _get_bz_rest_adapter(cfg: Config) -> Any:
     global _bz_rest_adapter, _bz_rest_adapter_key
-    if _bz_rest_adapter is None or _credential_changed(_bz_rest_adapter_key, cfg.benzinga_api_key):
-        with _init_lock:
-            if _bz_rest_adapter is None or _credential_changed(_bz_rest_adapter_key, cfg.benzinga_api_key):
-                from .ingest_benzinga import BenzingaRestAdapter
-                if _bz_rest_adapter is not None and hasattr(_bz_rest_adapter, "close"):
-                    try:
-                        _bz_rest_adapter.close()
-                    except Exception:
-                        logger.debug("bz rest adapter close on rotation failed", exc_info=True)
-                _bz_rest_adapter = BenzingaRestAdapter(cfg.benzinga_api_key)
-                _bz_rest_adapter_key = cfg.benzinga_api_key
+    with _init_lock:
+        if _bz_rest_adapter is None or _credential_changed(_bz_rest_adapter_key, cfg.benzinga_api_key):
+            from .ingest_benzinga import BenzingaRestAdapter
+            if _bz_rest_adapter is not None and hasattr(_bz_rest_adapter, "close"):
+                try:
+                    _bz_rest_adapter.close()
+                except Exception:
+                    logger.debug("bz rest adapter close on rotation failed", exc_info=True)
+            _bz_rest_adapter = BenzingaRestAdapter(cfg.benzinga_api_key)
+            _bz_rest_adapter_key = cfg.benzinga_api_key
     return _bz_rest_adapter
 
 
@@ -113,31 +110,29 @@ def _get_bz_ws_adapter(cfg: Config) -> Any:
         cfg.benzinga_ws_url,
         tuple(cfg.benzinga_channels) if cfg.benzinga_channels else None,
     )
-    if _bz_ws_adapter is None or _credential_changed(_bz_ws_adapter_key, current_key):
-        with _init_lock:
-            if _bz_ws_adapter is None or _credential_changed(_bz_ws_adapter_key, current_key):
-                from .ingest_benzinga import BenzingaWsAdapter
-                if _bz_ws_adapter is not None and hasattr(_bz_ws_adapter, "stop"):
-                    try:
-                        _bz_ws_adapter.stop()
-                    except Exception:
-                        logger.debug("bz ws adapter stop on rotation failed", exc_info=True)
-                _bz_ws_adapter = BenzingaWsAdapter(
-                    cfg.benzinga_api_key,
-                    cfg.benzinga_ws_url,
-                    channels=cfg.benzinga_channels or None,
-                )
-                _bz_ws_adapter.start()
-                _bz_ws_adapter_key = current_key
+    with _init_lock:
+        if _bz_ws_adapter is None or _credential_changed(_bz_ws_adapter_key, current_key):
+            from .ingest_benzinga import BenzingaWsAdapter
+            if _bz_ws_adapter is not None and hasattr(_bz_ws_adapter, "stop"):
+                try:
+                    _bz_ws_adapter.stop()
+                except Exception:
+                    logger.debug("bz ws adapter stop on rotation failed", exc_info=True)
+            _bz_ws_adapter = BenzingaWsAdapter(
+                cfg.benzinga_api_key,
+                cfg.benzinga_ws_url,
+                channels=cfg.benzinga_channels or None,
+            )
+            _bz_ws_adapter.start()
+            _bz_ws_adapter_key = current_key
     return _bz_ws_adapter
 
 
 def _get_enricher() -> Enricher:
     global _enricher
-    if _enricher is None:
-        with _init_lock:
-            if _enricher is None:
-                _enricher = Enricher()
+    with _init_lock:
+        if _enricher is None:
+            _enricher = Enricher()
     return _enricher
 
 
