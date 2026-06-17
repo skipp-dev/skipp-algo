@@ -271,7 +271,7 @@ class TestSaveVdBzCalendar:
         save_vd_bz_calendar(bz_dividends=divs, path=path)
 
         assert os.path.exists(path)
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             lines = f.readlines()
         assert len(lines) == 1
         row = json.loads(lines[0])
@@ -292,7 +292,7 @@ class TestSaveVdBzCalendar:
                  "price_min": 31, "price_max": 34, "deal_status": "Filed"}]
         save_vd_bz_calendar(bz_dividends=divs, bz_ipos=ipos, path=path)
 
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             lines = f.readlines()
         assert len(lines) == 2
         types = {json.loads(ln)["type"] for ln in lines}
@@ -322,7 +322,7 @@ class TestSaveVdBzCalendar:
                   "dividend": "0.04", "dividend_yield": "0.02%"}]
         save_vd_bz_calendar(bz_dividends=divs2, path=path)
 
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             lines = f.readlines()
         assert len(lines) == 2
         tickers = {json.loads(ln)["ticker"] for ln in lines}
@@ -336,7 +336,7 @@ class TestSaveVdBzCalendar:
                  "dividend": "0.25", "dividend_yield": "0.5%"}]
         save_vd_bz_calendar(bz_dividends=divs, path=path)
         assert os.path.exists(path)
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             row = json.loads(f.readline())
         assert row["ticker"] == "AAPL"
 

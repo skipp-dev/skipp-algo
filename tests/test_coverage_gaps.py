@@ -439,7 +439,7 @@ class TestLoadJsonlFeed(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, "feed.jsonl")
-            with open(path, "w") as f:
+            with open(path, "w", encoding="utf-8") as f:
                 for i in range(5):
                     f.write(json.dumps({"idx": i, "published_ts": 1000 + i, "item_id": str(i), "ticker": "TEST"}) + "\n")
 
@@ -454,7 +454,7 @@ class TestLoadJsonlFeed(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, "mixed.jsonl")
-            with open(path, "w") as f:
+            with open(path, "w", encoding="utf-8") as f:
                 f.write('{"a": 1, "item_id": "1", "ticker": "X"}\n')
                 f.write("\n")
                 f.write("NOT JSON\n")
@@ -468,7 +468,7 @@ class TestLoadJsonlFeed(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, "big.jsonl")
-            with open(path, "w") as f:
+            with open(path, "w", encoding="utf-8") as f:
                 for i in range(100):
                     f.write(json.dumps({"i": i, "published_ts": 1000 + i, "item_id": str(i), "ticker": "TEST"}) + "\n")
 
@@ -1436,13 +1436,13 @@ class TestRotateJsonlEdgeCases(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, "feed.jsonl")
             now = time.time()
-            with open(path, "w") as f:
+            with open(path, "w", encoding="utf-8") as f:
                 for i in range(100):
                     f.write(json.dumps({"i": i, "published_ts": now, "item_id": f"rot_{i}", "ticker": f"T{i}"}) + "\n")
 
             rotate_jsonl(path, max_lines=20)
 
-            with open(path) as f:
+            with open(path, encoding="utf-8") as f:
                 lines = f.readlines()
             self.assertEqual(len(lines), 20)
             first = json.loads(lines[0])

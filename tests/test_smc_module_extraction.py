@@ -143,7 +143,7 @@ class TestNoCircularImports:
         import ast
 
         import scripts.smc_micro_publish_guard as mod
-        with open(mod.__file__) as _f:
+        with open(mod.__file__, encoding="utf-8") as _f:
             tree = ast.parse(_f.read())
         imported_modules = {
             alias.name if isinstance(node, ast.Import) else node.module
@@ -159,7 +159,7 @@ class TestNoCircularImports:
         import ast
 
         import scripts.smc_databento_session_detail as mod
-        with open(mod.__file__) as _f:
+        with open(mod.__file__, encoding="utf-8") as _f:
             tree = ast.parse(_f.read())
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) and node.module and "smc_microstructure_base_runtime" in node.module:
