@@ -112,6 +112,15 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 | `OVERLAY_MAX_STALE_SECS` | ❌ | `3600` | Overlay age before `stale: true` (range 60–7200) |
 | `NEWS_SNAPSHOT_PATH` | ❌ | `artifacts/smc_microstructure_exports/smc_live_news_snapshot.json` | Path to news JSON file |
 
+### Config validation
+
+- **`OVERLAY_ROLLING_BARS`** is clamped to `[1, 500]`. Out-of-range values are
+  clamped with a `WARNING` log line.
+- **`OVERLAY_MAX_STALE_SECS`** is clamped to `[60, 7200]` (1 min – 2 h). Same
+  clamping + warning behaviour.
+- Non-integer values for any `_optional_int` variable are logged at `WARNING`
+  and fall back to the documented default.
+
 ---
 
 ## Deployment
@@ -196,6 +205,30 @@ corner (toggle off in indicator settings).
 - Keep the Pine script **invite-only** or private. Rotate `OVERLAY_SECRET_TOKEN`
   monthly: update Railway env var → update Pine script input → redeploy.
 - `OVERLAY_SECRET_TOKEN` is never logged.
+
+---
+
+## Operational notes
+
+### Symbol eviction (cache.py)
+
+The bar cache tracks up to **2 000 symbols** (`_MAX_SYMBOLS`). When a new symbol
+arrives and the cache is full, the **10 % least-recently-updated** symbols are
+evicted in a single batch. This prevents unbounded memory growth during extended
+sessions that stream `ALL_SYMBOLS`.
+
+### Databento SDK private-attr guard (feed.py)
+
+The feed loop reads `client._symbology_map` (a private attribute) to resolve
+instrument IDs to ticker strings. If the attribute is absent (e.g. after a
+databento SDK upgrade), a `WARNING` is logged and symbol resolution falls back
+to an empty map. Monitor for this warning after upgrading the `databento` package.
+
+### News snapshot error handling (compute.py)
+
+`_load_news_snapshot()` caches the parsed JSON for 60 s. If reading or parsing
+the file fails, the error is logged at `WARNING` (with traceback) and the
+compute cycle continues with an empty news dict rather than crashing the daemon.
 
 ---
 
