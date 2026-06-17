@@ -128,7 +128,7 @@ def _run_feed_loop(stop: threading.Event) -> None:
                     _rec_count += 1
                     if _rec_count % 2000 == 0:
                         logger.debug(
-                            "Feed stats: total=%d symmap=%d ohlcv=%d sym_none=%d bar_none=%d bars=%d",
+                            "Feed stats: total=%d symmap=%d ohlcv=%d sym_none=%d bar_none=%d bars_pushed=%d",
                             _rec_count, len(symmap), _ohlcv_count, _sym_none_count,
                             _bar_none_count, _bars_pushed_count,
                         )
