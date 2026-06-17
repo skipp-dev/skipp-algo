@@ -52,6 +52,12 @@ _ALLOWED: dict[str, dict[str, set[str]]] = {
             "id:alerts",
             "id:notify_breaking",
             "id:notify_end",
+            # 2026-06-17 (W3, R4b audit): cumulative best-effort failure
+            # summary + cross-run trend. Observability-only steps that must
+            # never flip the job conclusion of a best-effort pipeline.
+            "id:dl_best_effort_history",
+            "id:best_effort_summary",
+            "id:ul_best_effort_history",
         },
     },
     # Deeper integration gates: 2 advisory probes (measurement export + E2E smoke).
