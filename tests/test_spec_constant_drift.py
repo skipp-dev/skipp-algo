@@ -2,8 +2,8 @@
 
 W10-2 root-cause: ``run_ab_comparison.py`` had ``SPRT_P0=0.55, SPRT_P1=0.60``
 hardcoded, while the registered F2 spec already specified ``p0=0.544, p1=0.574``.
-The divergence was +6pp / +26pp — large enough to silently change the test's MDE
-from 30pp (spec) to 50pp (fallback), reducing statistical power with no warning.
+The divergence was +0.6pp / +2.6pp — large enough to silently change the test's
+MDE from 3pp (spec) to 5pp (fallback), reducing statistical power with no warning.
 
 This file guards against that class of defect by cross-referencing every numeric
 constant in a script that claims to implement a spec against the actual spec file.
@@ -96,7 +96,7 @@ class TestF2SPRTConstantDrift:
     def test_fallback_drift_from_spec_is_bounded(self, f2_spec_sprt: dict) -> None:
         """The divergence between fallback and spec must stay within documented bounds.
 
-        The W10-2 comment documents +6pp / +26pp drift.  We allow up to ±2pp on
+        The W10-2 comment documents +0.6pp / +2.6pp drift.  We allow up to ±2pp on
         p0 and ±5pp on p1 before requiring an explicit re-review.  Exceeding
         these thresholds means the fallback has moved far from the spec without a
         matching rationale update.

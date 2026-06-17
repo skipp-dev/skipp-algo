@@ -21,10 +21,10 @@ Deduplication rule (Score-Persistenz):
     keep the most informative copy.
 
 Age filter:
-    Events whose ``anchor_ts`` is older than ``--max-age-days`` calendar days
-    before today UTC are dropped from the accumulated output.  This prevents
-    unbounded growth and keeps the accumulated pool representative of recent
-    market behaviour.
+    Events whose ``anchor_ts`` is older than a rolling N × 86 400-second
+    window (approximately ``--max-age-days`` days) before the current UTC time
+    are dropped from the accumulated output.  This prevents unbounded growth
+    and keeps the accumulated pool representative of recent market behaviour.
 
 Usage::
 
