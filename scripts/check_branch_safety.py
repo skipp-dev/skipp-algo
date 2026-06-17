@@ -9,7 +9,8 @@ Rationale: shared-checkout branch-race failures (skipp-algo, 2026-06-11/16)
 occurred because another session switched branches between an edit and the
 commit.  A visible, machine-enforced check closes this gap.
 
-Replaced check_branch_safety.sh (bash) because bash is not portable to
+Replaced check_branch_safety.sh (bash) which has been removed from the repo
+because bash is not portable to
 Windows self-hosted runners (Copilot review #2799).
 """
 

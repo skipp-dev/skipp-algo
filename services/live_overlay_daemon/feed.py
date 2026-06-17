@@ -61,8 +61,9 @@ def _record_to_bar(record: Any) -> dict[str, Any] | None:
             "low": getattr(record, "low", 0) / 1e9,
             "close": getattr(record, "close", 0) / 1e9,
             "volume": getattr(record, "volume", 0),
-            # ts_event is a top-level field on OHLCVMsg, not under .hd
-            "ts_event": getattr(record, "ts_event", None) or getattr(getattr(record, "hd", None), "ts_event", 0),
+            # ts_event is a top-level field on OHLCVMsg, not under .hd.
+            # Use 'is None' guard to avoid dropping a legitimate 0 timestamp.
+            "ts_event": (ts if (ts := getattr(record, "ts_event", None)) is not None else getattr(getattr(record, "hd", None), "ts_event", 0)),
         }
     except Exception:
         return None
@@ -71,8 +72,12 @@ def _record_to_bar(record: Any) -> dict[str, Any] | None:
 def _symbol_from_record(record: Any, symmap: dict[int, str]) -> str | None:
     """Resolve instrument_id → ticker symbol via the session symmap."""
     try:
-        # instrument_id is available directly on the record (not only via .hd)
-        iid = getattr(record, "instrument_id", None) or getattr(record.hd, "instrument_id", None)
+        # instrument_id is available directly on the record (not only via .hd).
+        # Use 'is None' guard: instrument_id=0 is falsy but a valid mapping key.
+        iid = getattr(record, "instrument_id", None)
+        if iid is None:
+            hd = getattr(record, "hd", None)
+            iid = getattr(hd, "instrument_id", None) if hd is not None else None
         if iid is None:
             return None
         sym = symmap.get(iid)
@@ -110,10 +115,10 @@ def _run_feed_loop(stop: threading.Event) -> None:
                 logger.info("db.Live() connected — subscribing EQUS.MINI ohlcv-1m ALL_SYMBOLS")
                 consecutive_failures = 0
 
-                # Use the client's built-in symbology map (populated internally
-                # by the databento client for ALL record types including
-                # SymbolMappingMsg which may not be yielded to the iterator).
-                symmap: dict[int, str] = getattr(client, "_symbology_map", {})  # private attr; defensive fallback
+                # Build the symbology map locally from SymbolMappingMsg records
+                # emitted by the iterator (public, stable API path).  Avoids
+                # reading the private _symbology_map attribute on the client.
+                symmap: dict[int, str] = {}
 
                 _rec_count = 0
                 _ohlcv_count = 0
@@ -132,8 +137,21 @@ def _run_feed_loop(stop: threading.Event) -> None:
                             _bar_none_count, cache.total_bar_count(),
                         )
 
-                    # Skip system records that aren't OHLCV data
+                    # Intercept SymbolMappingMsg to keep the local symmap current.
+                    # These arrive before OHLCV records for each session and
+                    # are the public API replacement for _symbology_map.
                     rec_type_upper = rec_type.upper()
+                    if "SYMBOLMAPPING" in rec_type_upper:
+                        sym_iid = getattr(record, "instrument_id", None)
+                        if sym_iid is None:
+                            hd = getattr(record, "hd", None)
+                            sym_iid = getattr(hd, "instrument_id", None) if hd is not None else None
+                        stype_out = getattr(record, "stype_out_symbol", None)
+                        if sym_iid is not None and stype_out:
+                            symmap[sym_iid] = stype_out
+                        continue
+
+                    # Skip other system records that aren't OHLCV data.
                     if "OHLCV" not in rec_type_upper and "BAR" not in rec_type_upper:
                         continue
 
