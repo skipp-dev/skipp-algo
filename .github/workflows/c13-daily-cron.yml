@@ -110,7 +110,7 @@ jobs:
             if [ -n "${LAST_COMMIT_DATE}" ]; then
               # Normalise both timestamps to UTC midnight so GAP_DAYS is an
               # exact calendar-day count regardless of commit time-of-day.
-              LAST_DATE=$(date -d "${LAST_COMMIT_DATE}" +%Y-%m-%d 2>/dev/null || true)
+              LAST_DATE=$(date -u -d "${LAST_COMMIT_DATE}" +%Y-%m-%d 2>/dev/null || true)
               if [ -z "${LAST_DATE}" ]; then
                 echo "::notice title=c13-cron::could not parse last commit date '${LAST_COMMIT_DATE}' — staleness check skipped."
               else
