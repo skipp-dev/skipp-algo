@@ -6,6 +6,41 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-06-17) — Bug-hunt audit R4/R4b hardening (PR #2837, #2838, #2839)
+
+Round of defensive fixes surfaced by the periodic bug-hunt audit. Each finding
+landed on its own branch with auto-merge armed.
+
+**F1 — Structured CLI error handling (PR #2838)**
+- Wrapped the `if __name__ == "__main__"` blocks of 15 maintenance/CLI scripts
+  in a uniform try/except: `KeyboardInterrupt` → exit 130, `SystemExit`
+  re-raised, unexpected `Exception` → `logger.critical(..., exc_info=True)` +
+  exit 1. Replaces silent tracebacks on operator Ctrl-C and gives non-zero
+  exit codes a single audit trail.
+
+**F2 — Durable JSONL appends (PR #2837)**
+- Added `flush()` + `os.fsync()` after best-effort JSONL record writes so a
+  runner killed mid-write cannot leave a half-line that breaks the tolerant
+  loader on the next run.
+
+**W1/W2/W4/W8 — Workflow gate hardening (PR #2839)**
+- Tightened conditional gates and `if:` guards on several CI workflow steps so
+  best-effort/observability steps can no longer flip a job conclusion.
+
+**W3 — Cumulative best-effort failure summary + cross-run trend (this PR)**
+- New `scripts/best_effort_failure_trend.py`: records the per-run outcome of
+  each best-effort step (`record` subcommand → append-only JSONL + JSON
+  snapshot, fsync-durable) and renders a Markdown `digest` (per-step failure
+  counts and failure-rate over a configurable window, default 30 runs).
+- Three new `continue-on-error: true` steps appended to the `refresh` job of
+  `.github/workflows/smc-library-refresh.yml`: download prior history artifact
+  (`dawidd6/action-download-artifact`), record + emit digest to
+  `$GITHUB_STEP_SUMMARY`, re-upload history artifact (90-day retention). Trend
+  state is persisted via the artifact-passing pattern (no commits to `main`),
+  matching `plan-2-8-weekly-digest.yml`.
+- Inventory allowlist (`tests/test_workflow_continue_on_error_inventory.py`)
+  extended with the three new step anchors; count-pin derives automatically.
+
 ### Added (2026-06-16) — SMC Live Overlay Daemon (PR #2794, PR #2795)
 
 New FastAPI micro-service (`services/live_overlay_daemon/`) that subscribes to
