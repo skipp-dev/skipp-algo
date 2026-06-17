@@ -180,13 +180,13 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("terminal_tradingview_news.py", 403, ("_last_request_ts",)),
         # 2026-06-16 (feat/live-overlay-daemon): daemon singletons guarded by
         # threading.Lock() per concurrency-shared-mutables guideline.
-        # 2026-06-17 (fix/overlay-daemon-robustness): shifted by logging import
-        # + eviction helpers in cache.py, logging in compute.py, symbology guard in feed.py.
-        ("services/live_overlay_daemon/cache.py", 45, ("_rolling_bars_cap",)),
-        ("services/live_overlay_daemon/cache.py", 103, ("_overlay_computed_at",)),
-        ("services/live_overlay_daemon/cache.py", 148, ("_vix_level",)),
-        ("services/live_overlay_daemon/compute.py", 54, ("_news_cache", "_news_loaded_at")),
-        ("services/live_overlay_daemon/feed.py", 252, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        # 2026-06-17 (fix/overlay-daemon-robustness): shifted by logging import,
+        # eviction helpers, circuit-breaker, readiness event, configurable TTL.
+        ("services/live_overlay_daemon/cache.py", 45, ("_max_symbols", "_rolling_bars_cap")),
+        ("services/live_overlay_daemon/cache.py", 104, ("_overlay_computed_at",)),
+        ("services/live_overlay_daemon/cache.py", 149, ("_vix_level",)),
+        ("services/live_overlay_daemon/compute.py", 52, ("_news_cache", "_news_loaded_at")),
+        ("services/live_overlay_daemon/feed.py", 266, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
         ("services/live_overlay_daemon/main.py", 49, ("_startup_ts",)),
     }
 )

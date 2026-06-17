@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 _RECONNECT_DELAY_SECS = 10
 _MAX_RECONNECT_ATTEMPTS = 5
 _RECONNECT_BACKOFF_SECS = 120
+_MAX_TOTAL_FAILURES = 50  # hard circuit-breaker; exits thread after this many consecutive failures
 
 # VIX symbol on EQUS.MINI
 _VIX_SYMBOL = "VIX"
@@ -42,6 +43,7 @@ _feed_thread: threading.Thread | None = None
 _refresh_thread: threading.Thread | None = None
 _flow_refresh_thread: threading.Thread | None = None
 _stop_event = threading.Event()
+_feed_ready = threading.Event()
 
 
 # ---------------------------------------------------------------------------
@@ -94,7 +96,7 @@ def _run_feed_loop(stop: threading.Event) -> None:
     try:
         consecutive_failures = 0
         rolling = config.rolling_bars()
-        cache.init_bar_cache(rolling)
+        cache.init_bar_cache(rolling, max_symbols=config.max_symbols())
 
         while not stop.is_set():
             client: db.Live | None = None
@@ -169,6 +171,10 @@ def _run_feed_loop(stop: threading.Event) -> None:
                     cache.push_bar(sym, bar)
                     _bars_pushed_count += 1
 
+                    if not _feed_ready.is_set():
+                        _feed_ready.set()
+                        logger.info("Feed ready — first bar pushed for %s", sym)
+
                     # Track VIX separately
                     if sym == _VIX_SYMBOL and bar.get("close"):
                         cache.set_vix(bar["close"])
@@ -191,6 +197,14 @@ def _run_feed_loop(stop: threading.Event) -> None:
                         logger.debug("client.stop() error during cleanup", exc_info=True)
 
             if stop.is_set():
+                break
+
+            if consecutive_failures >= _MAX_TOTAL_FAILURES:
+                logger.critical(
+                    "Feed loop exceeded %d consecutive failures — "
+                    "circuit-breaker triggered, thread stopping.",
+                    _MAX_TOTAL_FAILURES,
+                )
                 break
 
             delay = (
@@ -279,3 +293,8 @@ def stop() -> None:
         if thread is not None and thread.is_alive():
             thread.join(timeout=5)
     logger.info("All feed threads stopped.")
+
+
+def is_ready() -> bool:
+    """Return True once the feed has pushed at least one bar."""
+    return _feed_ready.is_set()

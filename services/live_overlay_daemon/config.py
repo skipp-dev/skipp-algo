@@ -83,11 +83,25 @@ def overlay_secret_token() -> str:
 
 
 def refresh_secs() -> int:
-    return _optional_int("OVERLAY_REFRESH_SECS", 1800)
+    val = _optional_int("OVERLAY_REFRESH_SECS", 1800)
+    if not 10 <= val <= 86400:
+        logger.warning(
+            "OVERLAY_REFRESH_SECS=%d outside valid range [10, 86400], clamping",
+            val,
+        )
+        val = max(10, min(86400, val))
+    return val
 
 
 def flow_refresh_secs() -> int:
-    return _optional_int("OVERLAY_FLOW_REFRESH_SECS", 300)
+    val = _optional_int("OVERLAY_FLOW_REFRESH_SECS", 300)
+    if not 5 <= val <= 3600:
+        logger.warning(
+            "OVERLAY_FLOW_REFRESH_SECS=%d outside valid range [5, 3600], clamping",
+            val,
+        )
+        val = max(5, min(3600, val))
+    return val
 
 
 def max_stale_secs() -> int:
@@ -123,6 +137,28 @@ def news_snapshot_path() -> Path:
         ),
     )
     return Path(raw)
+
+
+def max_symbols() -> int:
+    val = _optional_int("OVERLAY_MAX_SYMBOLS", 2000)
+    if not 100 <= val <= 50000:
+        logger.warning(
+            "OVERLAY_MAX_SYMBOLS=%d outside valid range [100, 50000], clamping",
+            val,
+        )
+        val = max(100, min(50000, val))
+    return val
+
+
+def news_cache_ttl_secs() -> int:
+    val = _optional_int("OVERLAY_NEWS_CACHE_TTL_SECS", 600)
+    if not 60 <= val <= 3600:
+        logger.warning(
+            "OVERLAY_NEWS_CACHE_TTL_SECS=%d outside valid range [60, 3600], clamping",
+            val,
+        )
+        val = max(60, min(3600, val))
+    return val
 
 
 def port() -> int:

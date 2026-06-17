@@ -42,14 +42,15 @@ No authentication required. Used by Railway healthcheck and UptimeRobot.
 {
   "status": "ok",
   "uptime_secs": 406,
-  "bar_symbols": 0,
-  "bar_count": 0,
-  "overlay_symbols": 0,
-  "overlay_age_secs": null,
+  "bar_symbols": 12,
+  "bar_count": 720,
+  "overlay_symbols": 12,
+  "overlay_age_secs": 45,
   "ts": "2026-06-16T13:17:30Z"
 }
 ```
 
+> `status` is `"starting"` until the feed has pushed at least one bar, then `"ok"`.
 > `HEAD` requests return only headers (body stripped by Starlette automatically).
 
 ---
@@ -110,6 +111,8 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 | `OVERLAY_FLOW_REFRESH_SECS` | ❌ | `300` | Flow-patch cycle interval (seconds) |
 | `OVERLAY_ROLLING_BARS` | ❌ | `60` | Rolling window size for flow/ATS computations (range 1–500) |
 | `OVERLAY_MAX_STALE_SECS` | ❌ | `3600` | Overlay age before `stale: true` (range 60–7200) |
+| `OVERLAY_MAX_SYMBOLS` | ❌ | `2000` | Hard cap on tracked symbols in bar cache (range 100–50 000) |
+| `OVERLAY_NEWS_CACHE_TTL_SECS` | ❌ | `600` | News snapshot cache TTL in seconds (range 60–3600) |
 | `NEWS_SNAPSHOT_PATH` | ❌ | `artifacts/smc_microstructure_exports/smc_live_news_snapshot.json` | Path to news JSON file |
 
 ### Config validation
@@ -118,6 +121,10 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
   clamped with a `WARNING` log line.
 - **`OVERLAY_MAX_STALE_SECS`** is clamped to `[60, 7200]` (1 min – 2 h). Same
   clamping + warning behaviour.
+- **`OVERLAY_REFRESH_SECS`** is clamped to `[10, 86400]` (10 s – 24 h).
+- **`OVERLAY_FLOW_REFRESH_SECS`** is clamped to `[5, 3600]` (5 s – 1 h).
+- **`OVERLAY_NEWS_CACHE_TTL_SECS`** is clamped to `[60, 3600]` (1 min – 1 h).
+- **`OVERLAY_MAX_SYMBOLS`** is clamped to `[100, 50000]`.
 - Non-integer values for any `_optional_int` variable are logged at `WARNING`
   and fall back to the documented default.
 
@@ -226,9 +233,25 @@ to an empty map. Monitor for this warning after upgrading the `databento` packag
 
 ### News snapshot error handling (compute.py)
 
-`_load_news_snapshot()` caches the parsed JSON for 60 s. If reading or parsing
+`_load_news_snapshot()` caches the parsed JSON with a configurable TTL
+(`OVERLAY_NEWS_CACHE_TTL_SECS`, default 600 s). If reading or parsing
 the file fails, the error is logged at `WARNING` (with traceback) and the
 compute cycle continues with an empty news dict rather than crashing the daemon.
+
+### Circuit breaker (feed.py)
+
+After **50 consecutive failures** (`_MAX_TOTAL_FAILURES`) without a successful
+bar push, the feed thread logs `CRITICAL` and **stops**. This prevents endless
+reconnect loops when the error is permanent (e.g. invalid API key, revoked
+permissions). The health endpoint will continue responding but `bar_symbols`
+will stay at 0.
+
+### Startup readiness (main.py)
+
+The health endpoint returns `"status": "starting"` until the feed thread has
+pushed at least one OHLCV bar. After the first bar, it switches to `"ok"`.
+This lets Railway/UptimeRobot distinguish a cold-starting daemon from one that
+has successfully connected to Databento.
 
 ---
 

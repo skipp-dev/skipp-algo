@@ -85,7 +85,7 @@ def health() -> JSONResponse:
     uptime = time.monotonic() - _startup_ts if _startup_ts else 0
     return JSONResponse(
         {
-            "status": "ok",
+            "status": "ok" if feed.is_ready() else "starting",
             "uptime_secs": round(uptime),
             "bar_symbols": cache.bar_symbol_count(),
             "bar_count": cache.total_bar_count(),
