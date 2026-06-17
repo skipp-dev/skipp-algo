@@ -10,7 +10,6 @@
 | Pre-commit Hook: falscher Branch | Checkout korrigieren → cherry-pick → neu committen |
 
 **DIRTY ≠ CI-Fehler.** DIRTY = Merge-Konflikt. Sofort rebasen. Kein "let me check", kein Warten auf CI.
-<<<<<<< HEAD
 
 ---
 
@@ -18,7 +17,6 @@
 
 ```bash
 # 1. Branch + Commit im selben &&-Block
-<<<<<<< HEAD
 git branch --show-current && git add <files> && git commit -m "..."
 
 # 2. Stale Bytecode entfernen (verhindert Phantomfehler aus veralteten .pyc)
@@ -99,14 +97,11 @@ gh pr list --repo skippALGO/skipp-algo --state open \
   --json number,title,mergeable,mergeStateStatus,isDraft,headRefName \
   | python3 -c "import sys,json; [print(f\"#{p['number']} {p['title'][:50]} | {p['mergeStateStatus']} | draft={p['isDraft']}\") for p in json.load(sys.stdin)]"
 ```
-=======
->>>>>>> a0d1b9ba (docs(rules): compress copilot-instructions 636→163 lines)
 
 ---
 
 ## Pre-Push-Checkliste (vor jedem `git push`)
 
-<<<<<<< HEAD
 Jedes `.github/workflows/*.yml` muss mit diesem Skeleton beginnen:
 
 ```yaml
@@ -201,11 +196,6 @@ grep -rn "X" --include="*.py" --include="*.pine" . | head -20
 
 ## Kommunikation & Status
 
-=======
-```bash
-# 1. Branch prüfen (im selben &&-Block wie git commit)
-=======
->>>>>>> 09e56ccf (docs(rules): minimize CI waste — full ledger sweep, suppression table, auto-merge contract)
 git branch --show-current && git add <files> && git commit -m "..."
 
 # 2. Stale Bytecode entfernen (verhindert Phantomfehler aus veralteten .pyc)
@@ -385,7 +375,6 @@ grep -rn "X" --include="*.py" --include="*.pine" . | head -20
 
 ## Kommunikation & Status
 
->>>>>>> a0d1b9ba (docs(rules): compress copilot-instructions 636→163 lines)
 - Immer auf Deutsch antworten (außer User schreibt Englisch). Commits/PR-Titel/Code-Kommentare bleiben Englisch.
 - Nach mehrstufigem Task: 3–5 Zeilen Status (erledigt / offen / blockiert).
 - JEDES entdeckte Issue erwähnen — auch pre-existing, auch out-of-scope. Kein stilles Ignorieren.
@@ -393,7 +382,6 @@ grep -rn "X" --include="*.py" --include="*.pine" . | head -20
 - Nach langem Task: "💡 Guter Zeitpunkt für `/compact`" (eine Zeile).
 
 ---
-<<<<<<< HEAD
 
 ## Runner- & CI-Policy
 
@@ -409,8 +397,6 @@ Routing via `--inventory-unavailable-fallback required-self-hosted` only
 unless the workflow truly cannot run on GitHub-hosted infrastructure.
 
 ---
-=======
->>>>>>> a0d1b9ba (docs(rules): compress copilot-instructions 636→163 lines)
 
 ## Runner- & CI-Policy
 
