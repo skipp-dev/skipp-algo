@@ -172,7 +172,7 @@ def test_no_stale_json_load_ledger_entries() -> None:
 
 _FROZEN_ENV_SUBSCRIPT_SITES: frozenset[tuple[str, int]] = frozenset(
     {
-        ("open_prep/macro.py", 163),  # R-E2 (2026-06-14): +13 from TLS lock guard; +1 from M1 prev_trading_day
+        ("open_prep/macro.py", 166),  # R-E2 (2026-06-14): +13 from TLS lock guard; +1 from M1 prev_trading_day; +3 rebase
         # R6 (2026-05-12): the FinnhubClient adapter shim used to save-set-restore
         # ``FINNHUB_API_KEY`` around each ``terminal_finnhub._get`` call. That
         # shim has been replaced by an explicit ``api_key=`` kwarg passed
