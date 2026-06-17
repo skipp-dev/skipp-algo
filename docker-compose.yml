@@ -13,6 +13,13 @@ services:
       - SMC_TERMINAL_TEST_MODE=0
     volumes:
       - ./artifacts:/app/artifacts
+    mem_limit: 2g
+    read_only: true
+    tmpfs:
+      - /tmp
+    user: "1000:1000"
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
       interval: 30s
