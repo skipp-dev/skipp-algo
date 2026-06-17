@@ -28,14 +28,14 @@ def test_psr_minIS_no_slippage_matches_baseline() -> None:
     out = compute_psr_minIS(returns, sr_star=0.0)
     assert out["psr"] == pytest.approx(base["psr"])
     assert out["psr_brutto"] == pytest.approx(base["psr"])
-    assert out["slippage_adjusted"] == 0.0
+    assert out["slippage_adjusted"] is False
 
 
 def test_psr_minIS_with_positive_slippage_lowers_psr() -> None:
     returns = _seeded_returns(300, mu=0.002)
     slippage = [5.0] * len(returns)  # 5 bps per bar adverse
     out = compute_psr_minIS(returns, slippage_bps_series=slippage, sr_star=0.0)
-    assert out["slippage_adjusted"] == 1.0
+    assert out["slippage_adjusted"] is True
     assert out["psr"] < out["psr_brutto"], (out["psr"], out["psr_brutto"])
     assert out["mean_slippage_bps"] == pytest.approx(5.0)
 

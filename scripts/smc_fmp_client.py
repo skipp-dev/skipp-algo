@@ -175,10 +175,11 @@ def _today_et() -> date:
 
 def _prev_trading_day(day: date) -> date:
     probe = day
-    while True:
+    for _ in range(10):
         probe = date.fromordinal(probe.toordinal() - 1)
         if probe.weekday() < 5:
             return probe
+    raise ValueError(f"Could not find a trading day within 10 days before {day}")
 
 
 def _coerce_finite_float(value: Any) -> float | None:

@@ -83,9 +83,13 @@ app = FastAPI(
 @app.api_route("/health", methods=["GET", "HEAD"], include_in_schema=False)
 def health() -> JSONResponse:
     uptime = time.monotonic() - _startup_ts if _startup_ts else 0
+    feed_healthy = feed.is_ready()
+    bar_age = feed.last_bar_age_secs()
     return JSONResponse(
         {
-            "status": "ok",
+            "status": "ok" if feed_healthy else "starting",
+            "feed_healthy": feed_healthy,
+            "last_bar_age_secs": None if bar_age is None else round(bar_age, 1),
             "uptime_secs": round(uptime),
             "bar_symbols": cache.bar_symbol_count(),
             "bar_count": cache.total_bar_count(),

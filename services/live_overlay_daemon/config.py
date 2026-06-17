@@ -11,13 +11,17 @@ Optional vars:
   OVERLAY_MAX_STALE_SECS      — threshold for marking payload stale, default 3600 (1 h)
   OVERLAY_ROLLING_BARS        — number of 1-min bars to keep per symbol, default 60
   NEWS_SNAPSHOT_PATH          — path to news snapshot JSON, default relative to repo root
+  OVERLAY_MAX_FEED_FAILURES   — circuit-breaker threshold for feed failures, default 50
   PORT                        — HTTP port, default 8000
   LOG_LEVEL                   — uvicorn log level, default info
 """
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _ENV_FILE = _REPO_ROOT / ".env"
@@ -56,7 +60,22 @@ def _optional_int(key: str, default: int) -> int:
     try:
         return int(raw) if raw else default
     except ValueError:
+        logger.warning(
+            "Invalid integer for %s=%r, falling back to default %d",
+            key, raw, default,
+        )
         return default
+
+
+def _clamped_int(key: str, default: int, lo: int, hi: int) -> int:
+    """Read an optional int env var and clamp to [lo, hi] with a warning."""
+    val = _optional_int(key, default)
+    if not lo <= val <= hi:
+        logger.warning(
+            "%s=%d outside valid range [%d, %d], clamping", key, val, lo, hi,
+        )
+        val = max(lo, min(hi, val))
+    return val
 
 
 def _optional_str(key: str, default: str) -> str:
@@ -76,19 +95,19 @@ def overlay_secret_token() -> str:
 
 
 def refresh_secs() -> int:
-    return _optional_int("OVERLAY_REFRESH_SECS", 1800)
+    return _clamped_int("OVERLAY_REFRESH_SECS", 1800, 10, 86400)
 
 
 def flow_refresh_secs() -> int:
-    return _optional_int("OVERLAY_FLOW_REFRESH_SECS", 300)
+    return _clamped_int("OVERLAY_FLOW_REFRESH_SECS", 300, 5, 3600)
 
 
 def max_stale_secs() -> int:
-    return _optional_int("OVERLAY_MAX_STALE_SECS", 3600)
+    return _clamped_int("OVERLAY_MAX_STALE_SECS", 3600, 60, 7200)
 
 
 def rolling_bars() -> int:
-    return _optional_int("OVERLAY_ROLLING_BARS", 60)
+    return _clamped_int("OVERLAY_ROLLING_BARS", 60, 1, 500)
 
 
 def news_snapshot_path() -> Path:
@@ -102,6 +121,18 @@ def news_snapshot_path() -> Path:
         ),
     )
     return Path(raw)
+
+
+def max_symbols() -> int:
+    return _clamped_int("OVERLAY_MAX_SYMBOLS", 2000, 100, 50000)
+
+
+def news_cache_ttl_secs() -> int:
+    return _clamped_int("OVERLAY_NEWS_CACHE_TTL_SECS", 600, 60, 3600)
+
+
+def max_feed_failures() -> int:
+    return _clamped_int("OVERLAY_MAX_FEED_FAILURES", 50, 1, 1000)
 
 
 def port() -> int:

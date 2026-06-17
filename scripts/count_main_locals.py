@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Identify heaviest main-body local-variable blocks in SMC++.pine."""
 
-with open("SMC++.pine") as _f:
+with open("SMC++.pine", encoding="utf-8") as _f:
     src = _f.read()
 lines = src.split("\n")
 

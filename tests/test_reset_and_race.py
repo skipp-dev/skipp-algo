@@ -401,8 +401,13 @@ class TestResetAdapterLifecycle:
             store=MagicMock(),
         )
         bp.start()
-        time.sleep(0.3)
+        # Wait long enough for the error to propagate under heavy load.
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            if bp.last_poll_error:
+                break
+            time.sleep(0.05)
 
         # The error is caught by the poller's error handler
         assert "client has been closed" in bp.last_poll_error
-        bp.stop_and_join(timeout=1.0)
+        bp.stop_and_join(timeout=2.0)

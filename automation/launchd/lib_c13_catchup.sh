@@ -33,13 +33,12 @@
 # Pure date helpers are portable across BSD ``date`` (macOS, where the drivers
 # run) and GNU ``date`` (Linux, where CI runs the unit test).
 
-# Detect the ``date`` flavour once at source time. GNU date understands
-# ``--version``; BSD date errors on it.
-if date --version >/dev/null 2>&1; then
-    _C13_DATE_FLAVOUR="gnu"
-else
-    _C13_DATE_FLAVOUR="bsd"
-fi
+# Detect the ``date`` flavour once at source time via the kernel name.
+# macOS ships BSD date; Linux ships GNU date.
+case "$(uname -s)" in
+    Darwin*)  _C13_DATE_FLAVOUR="bsd" ;;
+    *)        _C13_DATE_FLAVOUR="gnu" ;;
+esac
 
 # Echo the ISO weekday (1=Mon .. 7=Sun) for a YYYY-MM-DD date.
 c13__dow() {

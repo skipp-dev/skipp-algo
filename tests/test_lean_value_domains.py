@@ -356,7 +356,7 @@ class TestHeroSurfacePlausibility:
         import json
         from pathlib import Path
         fixture = Path(__file__).parent / "fixtures" / "reference_enrichment.json"
-        with open(fixture) as f:
+        with open(fixture, encoding="utf-8") as f:
             return json.load(f)
 
     def test_bullish_fixture_plausible_surface(self, showcase):

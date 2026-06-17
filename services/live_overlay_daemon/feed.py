@@ -42,6 +42,8 @@ _feed_thread: threading.Thread | None = None
 _refresh_thread: threading.Thread | None = None
 _flow_refresh_thread: threading.Thread | None = None
 _stop_event = threading.Event()
+_feed_ready = threading.Event()
+_last_bar_at: float = 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -62,7 +64,7 @@ def _record_to_bar(record: Any) -> dict[str, Any] | None:
             "close": getattr(record, "close", 0) / 1e9,
             "volume": getattr(record, "volume", 0),
             # ts_event is a top-level field on OHLCVMsg, not under .hd
-            "ts_event": getattr(record, "ts_event", None) or getattr(getattr(record, "hd", None), "ts_event", 0),
+            "ts_event": _ts if (_ts := getattr(record, "ts_event", None)) is not None else getattr(getattr(record, "hd", None), "ts_event", 0),
         }
     except Exception:
         return None
@@ -72,7 +74,9 @@ def _symbol_from_record(record: Any, symmap: dict[int, str]) -> str | None:
     """Resolve instrument_id → ticker symbol via the session symmap."""
     try:
         # instrument_id is available directly on the record (not only via .hd)
-        iid = getattr(record, "instrument_id", None) or getattr(getattr(record, "hd", None), "instrument_id", None)
+        iid = getattr(record, "instrument_id", None)
+        if iid is None:
+            iid = getattr(getattr(record, "hd", None), "instrument_id", None)
         if iid is None:
             return None
         sym = symmap.get(iid)
@@ -93,8 +97,9 @@ def _run_feed_loop(stop: threading.Event) -> None:
     asyncio.set_event_loop(loop)
     try:
         consecutive_failures = 0
+        max_failures = config.max_feed_failures()
         rolling = config.rolling_bars()
-        cache.init_bar_cache(rolling)
+        cache.init_bar_cache(rolling, max_symbols=config.max_symbols())
 
         while not stop.is_set():
             client: db.Live | None = None
@@ -110,10 +115,9 @@ def _run_feed_loop(stop: threading.Event) -> None:
                 logger.info("db.Live() connected — subscribing EQUS.MINI ohlcv-1m ALL_SYMBOLS")
                 consecutive_failures = 0
 
-                # Use the client's built-in symbology map (populated internally
-                # by the databento client for ALL record types including
-                # SymbolMappingMsg which may not be yielded to the iterator).
-                symmap: dict[int, str] = getattr(client, "_symbology_map", {})  # private attr; defensive fallback
+                # Build symbology map from SymbolMappingMsg records
+                # yielded by the iterator (no private-attr access).
+                symmap: dict[int, str] = {}
 
                 _rec_count = 0
                 _ohlcv_count = 0
@@ -132,6 +136,14 @@ def _run_feed_loop(stop: threading.Event) -> None:
                             _rec_count, len(symmap), _ohlcv_count, _sym_none_count,
                             _bar_none_count, _bars_pushed_count,
                         )
+
+                    # Handle SymbolMappingMsg to build symbology map
+                    if rec_type == "SymbolMappingMsg":
+                        iid = getattr(record, "instrument_id", None)
+                        raw = getattr(record, "stype_out_symbol", None) or getattr(record, "raw_symbol", None)
+                        if iid is not None and raw:
+                            symmap[iid] = raw
+                        continue
 
                     # Skip system records that aren't OHLCV data
                     rec_type_upper = rec_type.upper()
@@ -163,12 +175,20 @@ def _run_feed_loop(stop: threading.Event) -> None:
                     cache.push_bar(sym, bar)
                     _bars_pushed_count += 1
 
+                    global _last_bar_at
+                    _last_bar_at = time.monotonic()
+
+                    if not _feed_ready.is_set():
+                        _feed_ready.set()
+                        logger.info("Feed ready — first bar pushed for %s", sym)
+
                     # Track VIX separately
                     if sym == _VIX_SYMBOL and bar.get("close"):
                         cache.set_vix(bar["close"])
 
             except db.BentoError as exc:
                 consecutive_failures += 1
+                _feed_ready.clear()
                 logger.warning(
                     "db.Live() BentoError (attempt %d/%d): %s",
                     consecutive_failures, _MAX_RECONNECT_ATTEMPTS, exc,
@@ -176,6 +196,7 @@ def _run_feed_loop(stop: threading.Event) -> None:
                 )
             except Exception as exc:
                 consecutive_failures += 1
+                _feed_ready.clear()
                 logger.warning("db.Live() unexpected error: %s", exc, exc_info=True)
             finally:
                 if client is not None:
@@ -185,6 +206,19 @@ def _run_feed_loop(stop: threading.Event) -> None:
                         logger.debug("client.stop() error during cleanup", exc_info=True)
 
             if stop.is_set():
+                break
+
+            # Signal unhealthy during reconnect — /health must not report
+            # "ok" while the feed is disconnected (F2.1).
+            _feed_ready.clear()
+
+            if consecutive_failures >= max_failures:
+                logger.critical(
+                    "Feed loop exceeded %d consecutive failures — "
+                    "circuit-breaker triggered, thread stopping.",
+                    max_failures,
+                )
+                _feed_ready.clear()
                 break
 
             delay = (
@@ -245,6 +279,10 @@ def start() -> None:
     """Start the three background threads (feed + refresh + flow refresh)."""
     global _feed_thread, _refresh_thread, _flow_refresh_thread
 
+    if _feed_thread is not None and _feed_thread.is_alive():
+        logger.warning("start() called while feed threads are already running — ignoring.")
+        return
+
     _stop_event.clear()
 
     _feed_thread = threading.Thread(
@@ -269,7 +307,24 @@ def start() -> None:
 def stop() -> None:
     """Signal all background threads to stop and wait for them."""
     _stop_event.set()
+    _feed_ready.clear()
     for thread in (_feed_thread, _refresh_thread, _flow_refresh_thread):
         if thread is not None and thread.is_alive():
             thread.join(timeout=5)
     logger.info("All feed threads stopped.")
+
+
+def is_ready() -> bool:
+    """Return True if the feed is connected and bars are not stale."""
+    if not _feed_ready.is_set():
+        return False
+    if _last_bar_at <= 0:
+        return False
+    return (time.monotonic() - _last_bar_at) < config.max_stale_secs()
+
+
+def last_bar_age_secs() -> float | None:
+    """Return seconds since the last bar was pushed, or None if never."""
+    if _last_bar_at <= 0:
+        return None
+    return time.monotonic() - _last_bar_at

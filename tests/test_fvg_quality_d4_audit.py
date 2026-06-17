@@ -102,7 +102,7 @@ def fixture_root(tmp_path: Path) -> Path:
                 ),
             ]
             rows.extend(local)
-            with (sym_tf / f"events_{sym}_{tf}.jsonl").open("w") as fh:
+            with (sym_tf / f"events_{sym}_{tf}.jsonl").open("w", encoding="utf-8") as fh:
                 for r in local:
                     fh.write(json.dumps(r) + "\n")
                 # Non-FVG decoy must be filtered out.

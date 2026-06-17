@@ -61,6 +61,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
 
       - name: Setup Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
@@ -299,6 +301,7 @@ jobs:
           retention-days: 30
 
       - name: Ledger metrics summary (families measured + row delta)
+        id: ledger_metrics
         if: always()
         # CONTINUE-ON-ERROR-INTENTIONAL: summary-only metrics must never fail this measure-only shadow workflow.
         continue-on-error: true
@@ -354,6 +357,11 @@ jobs:
           )
           PY
 
+      - name: "⚠️ Warn: Ledger metrics summary (families measured + row delta)"
+        if: always() && steps.ledger_metrics.outcome == 'failure'
+        run: |
+          echo "::warning::Step 'Ledger metrics summary (families measured + row delta)' failed silently (soft-fail step)"
+
       # Commit-back: persist the appended ledger so that rows accumulate
       # across daily runs instead of resetting to the committed baseline.
       # Guarded: only when the ledger step succeeded with status=resolved,
@@ -365,6 +373,8 @@ jobs:
           steps.ledger.outputs.status != 'error'
           && steps.ledger.outputs.status != 'no_data'
           && steps.ledger.outputs.status != ''
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           git diff --quiet artifacts/governance/magnitude_resolution_shadow.jsonl && {
             echo "::notice title=adr0023-magnitude-shadow::ledger unchanged — skipping commit-back"
@@ -374,6 +384,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add artifacts/governance/magnitude_resolution_shadow.jsonl
           git commit -m "chore(adr0023): accumulate shadow ledger $(date -u +%Y-%m-%d)"
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}"
           # Race-safe push: main can move between checkout and push (other
           # scheduled jobs also commit back). Rebase our single ledger commit
           # onto the latest origin/main and retry on non-fast-forward reject.

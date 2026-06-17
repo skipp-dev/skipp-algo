@@ -50,23 +50,23 @@ _ALLOWED: dict[str, dict[str, set[str]]] = {
             "id:pre_release_refresh",
             "id:tv_post_release_raw",
             "id:alerts",
-            "name:Notify on breaking change",
-            "name:Send end-of-run status notification",
+            "id:notify_breaking",
+            "id:notify_end",
         },
     },
     # Deeper integration gates: 2 advisory probes (measurement export + E2E smoke).
     "smc-deeper-integration-gates.yml": {
         "deeper-gates": {
-            "name:Run deeper measurement lane export",
+            "id:deeper_export",
             "id:e2e_smoke",
         },
     },
     # Weekly digest: 3 best-effort prior-artifact downloads (cold-start safe).
     "plan-2-8-weekly-digest.yml": {
         "weekly-digest": {
-            "name:Download Plan 2.8 digest archive",
-            "name:Download prior Plan 2.8 manifest",
-            "name:Download prior Plan 2.8 status ledger",
+            "id:dl_digest_archive",
+            "id:dl_manifest",
+            "id:dl_status_ledger",
         },
     },
     # Release gates: advisory TradingView post-release validation.
@@ -77,7 +77,7 @@ _ALLOWED: dict[str, dict[str, set[str]]] = {
     # (GITHUB_STEP_SUMMARY + ::notice). It must never cause the shadow
     # workflow to fail — the shadow is a daily measure-only cron, not a gate.
     "adr0023-magnitude-shadow-daily.yml": {
-        "magnitude-shadow": {"name:Ledger metrics summary (families measured + row delta)"},
+        "magnitude-shadow": {"id:ledger_metrics"},
     },
     # C13 daily-cron: 9 best-effort steps so partial failures still upload
     # artefacts and the issue-opener can report which step failed.

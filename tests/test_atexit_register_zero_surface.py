@@ -81,7 +81,7 @@ def _atexit_register_sites() -> set[tuple[str, int]]:
 # disables the singleton after writing) and bounded (one parquet write).
 ATEXIT_REGISTER_ALLOWED: set[tuple[str, int]] = {
     ("terminal_bitcoin.py", 105),
-    ("scripts/databento_production_export.py", 4714),  # PR #2787: FMP bridge (+260 lines); rebaselined PR #2811 (+5 lines)
+    ("scripts/databento_production_export.py", 4716),  # PR #2787: FMP bridge (+260 lines); rebaselined PR #2810 (+7 lines)
 }
 
 

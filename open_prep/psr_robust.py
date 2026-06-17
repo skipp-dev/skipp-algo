@@ -46,7 +46,7 @@ def compute_psr_minIS(
     sr_star: float = 0.0,
     annualize: bool = False,
     periods_per_year: int = 252,
-) -> dict[str, float]:
+) -> dict[str, float | bool]:
     """PSR with optional slippage adjustment.
 
     The slippage series is interpreted as cost in basis points per trade
@@ -69,7 +69,7 @@ def compute_psr_minIS(
         )
         out["psr_brutto"] = out["psr"]
         out["mean_slippage_bps"] = 0.0
-        out["slippage_adjusted"] = 0.0
+        out["slippage_adjusted"] = False
         return out
 
     if len(slippage_bps_series) != len(returns):
@@ -94,7 +94,7 @@ def compute_psr_minIS(
     )
     net["psr_brutto"] = brutto["psr"]
     net["mean_slippage_bps"] = sum(slippage_bps_series) / len(slippage_bps_series)
-    net["slippage_adjusted"] = 1.0
+    net["slippage_adjusted"] = True
     return net
 
 

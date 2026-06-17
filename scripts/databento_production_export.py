@@ -3460,7 +3460,9 @@ def _run_fmp_intraday_bridge(
     now_dt_et = datetime.now(US_EASTERN_TZ)
     now_et: time = now_dt_et.time()
     today_et = now_dt_et.date()
-    we: time = window_end if window_end is not None else now_et
+    # Normalize to naive time so callers may pass either naive or aware
+    # window_end without raising TypeError on comparison.
+    we: time = window_end.replace(tzinfo=None) if window_end is not None else now_et
     # Only clamp to "now" for the active ET trading day. For historical dates,
     # honor the caller-provided window_end so deterministic tests and backfills
     # do not collapse to pre-open empty windows when CI runs overnight ET.
@@ -4887,4 +4889,13 @@ def main(argv: Sequence[str] | None = None) -> None:
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    try:
+        main(sys.argv[1:])
+    except KeyboardInterrupt:
+        logger.warning("Interrupted by user (SIGINT/KeyboardInterrupt).")
+        raise SystemExit(130) from None
+    except SystemExit:
+        raise  # let argparse / explicit exits propagate unchanged
+    except Exception:
+        logger.critical("Fatal error in production export", exc_info=True)
+        raise SystemExit(1) from None

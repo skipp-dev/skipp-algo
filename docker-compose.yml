@@ -11,10 +11,23 @@ services:
     environment:
       - STREAMLIT_AUTH_TOKEN=${STREAMLIT_AUTH_TOKEN:-}
       - SMC_TERMINAL_TEST_MODE=0
+      # SQLite needs writable path with read_only rootfs
+      - SQLITE_PATH=/app/data/state.db
     volumes:
       - ./artifacts:/app/artifacts
+      - terminal-data:/app/data
+    mem_limit: 2g
+    read_only: true
+    tmpfs:
+      - /tmp
+    user: "1000:1000"
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
       interval: 30s
       timeout: 5s
       retries: 3
+
+volumes:
+  terminal-data:

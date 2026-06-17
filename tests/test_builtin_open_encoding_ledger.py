@@ -39,11 +39,9 @@ _DIR_EXCLUDE = {
     "SMC++",
 }
 
-# Frozen ledger — exactly today's surface (2026-04-25).
-_FROZEN_SITES: dict[str, frozenset[int]] = {
-    "scripts/count_main_locals.py": frozenset({4}),
-    "scripts/fvg_quality_d4_audit.py": frozenset({34}),
-}
+# Frozen ledger — fully fixed (2026-06-17, G1 encoding discipline sweep).
+# Was 2 sites across 2 files (2026-04-25); all now have encoding="utf-8".
+_FROZEN_SITES: dict[str, frozenset[int]] = {}
 _FROZEN_TOTAL = sum(len(v) for v in _FROZEN_SITES.values())
 
 

@@ -435,7 +435,7 @@ class TestJsonlExport:
         append_jsonl(ci, path)
 
         assert os.path.exists(path)
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             lines = f.readlines()
         assert len(lines) == 1
         data = json.loads(lines[0])
@@ -449,7 +449,7 @@ class TestJsonlExport:
             ci = self._make_classified_item(item_id=f"item{i}", ticker=f"T{i}")
             append_jsonl(ci, path)
 
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             lines = f.readlines()
         assert len(lines) == 5
 
@@ -465,7 +465,7 @@ class TestJsonlExport:
         # Rotate to 10
         rotate_jsonl(path, max_lines=10)
 
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             lines = f.readlines()
         assert len(lines) == 10
         # The last line should be the most recent item
@@ -479,7 +479,7 @@ class TestJsonlExport:
         append_jsonl(ci, path)
 
         rotate_jsonl(path, max_lines=100)
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             assert len(f.readlines()) == 1
 
 
@@ -877,7 +877,7 @@ class TestRtIntegration:
     def test_load_skips_malformed_lines(self, tmp_path: Path) -> None:
         from terminal_export import load_rt_quotes
         p = tmp_path / "mixed.jsonl"
-        with open(p, "w") as fh:
+        with open(p, "w", encoding="utf-8") as fh:
             fh.write('{"symbol": "OK", "price": 100}\n')
             fh.write("NOT VALID JSON\n")
             fh.write("\n")  # blank line
