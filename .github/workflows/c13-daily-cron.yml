@@ -94,6 +94,35 @@ jobs:
             echo "::notice title=c13-cron::branch data/phase-a-audit not found on origin — soft-skip"
           fi
 
+      - name: Guard — phase-a-audit branch freshness
+        run: |
+          # Emit ::warning when cache/live/ has not been updated for more than
+          # AUDIT_STALE_BUDGET_DAYS calendar days.  This fires when the local
+          # paper-trading session (run_smc_live_incubation.py + run-c13-audit-push.sh)
+          # is idle, surfacing the gap before it cascades to the shadow ledger.
+          AUDIT_STALE_BUDGET_DAYS="5"
+          if git fetch origin data/phase-a-audit --quiet 2>/dev/null; then
+            LAST_COMMIT_DATE=$(git log --max-count=1 --format="%cI" \
+              origin/data/phase-a-audit -- cache/live/ 2>/dev/null || true)
+            if [ -n "${LAST_COMMIT_DATE}" ]; then
+              GAP_DAYS=$(python3 -c "
+import sys
+from datetime import datetime, timezone
+last = datetime.fromisoformat('${LAST_COMMIT_DATE}')
+if last.tzinfo is None:
+    last = last.replace(tzinfo=timezone.utc)
+print((datetime.now(timezone.utc) - last).days)
+")
+              if [ "${GAP_DAYS}" -gt "${AUDIT_STALE_BUDGET_DAYS}" ]; then
+                echo "::warning title=c13-cron::data/phase-a-audit cache/live/ last updated ${GAP_DAYS} calendar days ago (budget ${AUDIT_STALE_BUDGET_DAYS}d). Paper trading session likely idle — run run-c13-audit-push.sh locally."
+              else
+                echo "::notice title=c13-cron::data/phase-a-audit cache/live/ last commit ${GAP_DAYS}d ago — within ${AUDIT_STALE_BUDGET_DAYS}d budget."
+              fi
+            else
+              echo "::notice title=c13-cron::no cache/live/ commits on data/phase-a-audit — branch may be new."
+            fi
+          fi
+
       - uses: ./.github/actions/setup-python-pinned
         with:
           cache: pip
