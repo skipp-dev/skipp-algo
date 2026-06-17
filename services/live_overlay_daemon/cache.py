@@ -56,6 +56,9 @@ def push_bar(symbol: str, bar: dict[str, Any]) -> None:
     global _last_eviction_at
     with _bar_lock:
         now = time.monotonic()
+        # Seed the eviction clock on first push so periodic eviction can fire
+        if _last_eviction_at == 0.0:
+            _last_eviction_at = now
         need_cap_evict = symbol not in _bars and len(_bars) >= _max_symbols
         if need_cap_evict:
             _evict_stale_symbols_locked()

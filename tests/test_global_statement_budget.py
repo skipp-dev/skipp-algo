@@ -185,8 +185,8 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # 2026-07-07 (fix/cache-eviction): added _last_eviction_at (L5).
         ("services/live_overlay_daemon/cache.py", 47, ("_max_symbols", "_rolling_bars_cap")),
         ("services/live_overlay_daemon/cache.py", 56, ("_last_eviction_at",)),
-        ("services/live_overlay_daemon/cache.py", 119, ("_overlay_computed_at",)),
-        ("services/live_overlay_daemon/cache.py", 164, ("_vix_level",)),
+        ("services/live_overlay_daemon/cache.py", 122, ("_overlay_computed_at",)),
+        ("services/live_overlay_daemon/cache.py", 167, ("_vix_level",)),
         ("services/live_overlay_daemon/compute.py", 52, ("_news_cache", "_news_loaded_at")),
         ("services/live_overlay_daemon/feed.py", 178, ("_last_bar_at",)),
         ("services/live_overlay_daemon/feed.py", 280, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
