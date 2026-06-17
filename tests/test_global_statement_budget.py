@@ -100,7 +100,8 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("open_prep/regime.py", 156, ("_prev_regime",)),
         # R-E2 audit (2026-06-14): thread-safe one-time guard for
         # _normalize_tls_certificate_env os.environ write (see macro.py R-E2).
-        ("open_prep/macro.py", 145, ("_TLS_NORM_DONE",)),
+        # Line shifted 145→148 by M1 iteration-limit addition (PR #2828).
+        ("open_prep/macro.py", 148, ("_TLS_NORM_DONE",)),
         # F-V5-G1 (2026-05-01): pre-existing site surfaced when ``scripts/``
         # was added to the audit scope. TODO move to a class attribute or
         # injected dependency in a follow-up PR.
