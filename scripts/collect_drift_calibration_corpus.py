@@ -168,7 +168,7 @@ def _append_rows(corpus_path: Path, rows: list[dict[str, Any]]) -> int:
     written = 0  # initialise before lock acquisition so the return is always defined
     with lock_path.open("w") as _lock_fh:
         if _FLOCK_SUPPORTED:
-            fcntl.flock(_lock_fh, fcntl.LOCK_EX)
+            fcntl.flock(_lock_fh.fileno(), fcntl.LOCK_EX)
         try:
             existing = _existing_keys(corpus_path)
             with corpus_path.open("a", encoding="utf-8") as fh:
@@ -186,7 +186,7 @@ def _append_rows(corpus_path: Path, rows: list[dict[str, Any]]) -> int:
                     os.fsync(fh.fileno())
         finally:
             if _FLOCK_SUPPORTED:
-                fcntl.flock(_lock_fh, fcntl.LOCK_UN)
+                fcntl.flock(_lock_fh.fileno(), fcntl.LOCK_UN)
     return written
 
 

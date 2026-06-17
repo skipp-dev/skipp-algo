@@ -88,8 +88,13 @@ def test_reject_stale_fallback_requires_non_dispatch_event() -> None:
         "reject_stale_export_fallback.if must exclude workflow_dispatch events so "
         "operators can manually accept a fallback artifact."
     )
-    assert "!=" in condition or "!=" in condition.replace(" ", ""), (
-        "Condition must use != 'workflow_dispatch' (not ==) to allow manual override."
+    # Must be a negative check: operators are ALLOWED on dispatch, BLOCKED on schedule.
+    assert re.search(
+        r"github\.event_name\s*!=\s*['\"]workflow_dispatch['\"]",
+        condition,
+    ), (
+        "Condition must use github.event_name != 'workflow_dispatch' (not ==) to allow "
+        "manual override on dispatch runs."
     )
 
 

@@ -127,6 +127,8 @@ jobs:
             else
               echo "::notice title=c13-cron::no cache/live/ commits on data/phase-a-audit — branch may be new."
             fi
+          else
+            echo "::warning title=c13-cron::git fetch origin data/phase-a-audit failed — staleness check skipped (network issue or branch deleted)."
           fi
 
       - uses: ./.github/actions/setup-python-pinned

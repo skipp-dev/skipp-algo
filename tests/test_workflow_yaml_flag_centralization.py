@@ -46,7 +46,7 @@ WORKFLOWS_DIR = REPO / ".github" / "workflows"
 # representations.  Anchored to a full line (stripped) so partial-key hits
 # like "ENABLE_FOO_DESCRIPTION: some_literal" do not match.
 _HARDCODED_ENABLE_RE = re.compile(
-    r"""^\s*ENABLE_[A-Z0-9_]+\s*:\s*(?:[\"']?(?:true|false|yes|no|1|0)[\"']?)\s*$""",
+    r"""^\s*ENABLE_[A-Z0-9_]+\s*:\s*(?:[\"']?(?:true|false|yes|no|1|0)[\"']?)\s*(?:#.*)?\s*$""",
     re.IGNORECASE | re.MULTILINE,
 )
 

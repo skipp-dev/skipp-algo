@@ -31,9 +31,11 @@ All notable changes to this project are documented in this file.
   to absorb workstation restarts without false staleness alerts.
 - `c13-daily-cron.yml`: new audit-branch staleness guard step checks whether
   `origin/data/phase-a-audit` has received a commit in the last N days;
-  fails loudly if the branch is stale. Fixed YAML parse error (Python heredoc
-  at col-1 replaced with `date -d` shell arithmetic). Added UTC normalization
-  (`date -u`) and `LAST_TS=0` false-positive guard.
+  emits `::warning::` if stale (soft-alert, does not fail the job). Fixed
+  YAML parse error (Python heredoc at col-1 replaced with `date -d` shell
+  arithmetic). Added UTC normalization (`date -u`), `LAST_TS=0`
+  false-positive guard via UTC-midnight normalisation (`LAST_TS_NORM` /
+  `TODAY_TS_NORM`), and a `::warning::` when `git fetch` itself fails.
 - `tests/test_workflow_adr0023_magnitude_shadow_daily_contract.py`: updated
   `GAP_BUDGET_DAYS` pin from 7 to 10.
 - `f2-promotion-gate-daily`: was **disabled** in GHA UI (3 missed weekday runs

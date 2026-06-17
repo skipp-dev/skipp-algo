@@ -294,11 +294,16 @@ def _map_vendor_http_error(name: str, label: str, exc: urllib.error.HTTPError) -
             getattr(exc, "response", None), "headers", None
         )
         retry_after: str | None = _hdrs.get("Retry-After") if _hdrs is not None else None
+        # Retry-After can be seconds (integer string) or an HTTP-date.
+        # Only append the 's' unit when the value is a plain integer.
+        retry_after_display = (
+            f"{retry_after}s" if retry_after and retry_after.isdigit() else retry_after
+        )
         return ProbeResult(
             name,
             "warn",
             f"{label} rate-limited the probe (HTTP 429) — probe inconclusive, but quota pressure is real"
-            + (f"; Retry-After={retry_after}s" if retry_after else ""),
+            + (f"; Retry-After={retry_after_display}" if retry_after_display else ""),
             {"status": status, "retry_after": retry_after or "unknown"},
         )
     if 500 <= status < 600:
