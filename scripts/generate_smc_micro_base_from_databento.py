@@ -1879,4 +1879,13 @@ def _resolve_enrichment_flags(args: argparse.Namespace) -> dict[str, bool]:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        logger.warning("Interrupted by user (SIGINT/KeyboardInterrupt).")
+        raise SystemExit(130)
+    except SystemExit:
+        raise  # let argparse / explicit exits propagate unchanged
+    except Exception:
+        logger.critical("Fatal error in SMC micro-base generation", exc_info=True)
+        raise SystemExit(1)
