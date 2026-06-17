@@ -165,12 +165,12 @@ def _append_rows(corpus_path: Path, rows: list[dict[str, Any]]) -> int:
     # existing suffix) instead of a *replacement* of the current suffix.
     # This is unambiguous regardless of whether corpus_path has a suffix.
     lock_path = corpus_path.parent / (corpus_path.name + ".lock")
+    written = 0  # initialise before lock acquisition so the return is always defined
     with lock_path.open("w") as _lock_fh:
         if _FLOCK_SUPPORTED:
             fcntl.flock(_lock_fh, fcntl.LOCK_EX)
         try:
             existing = _existing_keys(corpus_path)
-            written = 0
             with corpus_path.open("a", encoding="utf-8") as fh:
                 for row in rows:
                     key = (str(row.get("computed_at", "")), str(row.get("variant", "")))
@@ -187,6 +187,7 @@ def _append_rows(corpus_path: Path, rows: list[dict[str, Any]]) -> int:
         finally:
             if _FLOCK_SUPPORTED:
                 fcntl.flock(_lock_fh, fcntl.LOCK_UN)
+    return written
 
 
 # ---------------------------------------------------------------------------

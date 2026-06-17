@@ -141,7 +141,9 @@ FCNTL_FLOCK_ALLOWED: set[tuple[str, int]] = {
     ("scripts/ib_client_id.py", 227),  # LOCK_UN
     # Corpus deduplication writer: POSIX-guarded try/except ImportError;
     # LOCK_EX acquired before checking existing keys, LOCK_UN in finally.
-    ("scripts/collect_drift_calibration_corpus.py", 170),  # LOCK_EX
+    # Line numbers updated 2026-06-17: written=0 initialised before the
+    # with-block (bug-fix: function was returning None instead of int).
+    ("scripts/collect_drift_calibration_corpus.py", 171),  # LOCK_EX
     ("scripts/collect_drift_calibration_corpus.py", 189),  # LOCK_UN
 }
 
