@@ -4889,4 +4889,13 @@ def main(argv: Sequence[str] | None = None) -> None:
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    try:
+        main(sys.argv[1:])
+    except KeyboardInterrupt:
+        logger.warning("Interrupted by user (SIGINT/KeyboardInterrupt).")
+        raise SystemExit(130)
+    except SystemExit:
+        raise  # let argparse / explicit exits propagate unchanged
+    except Exception:
+        logger.critical("Fatal error in production export", exc_info=True)
+        raise SystemExit(1)
