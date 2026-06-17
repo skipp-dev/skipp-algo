@@ -58,24 +58,24 @@ Usage
 
 from __future__ import annotations
 
-import logging
-
-logger = logging.getLogger(__name__)
-
 import argparse
-try:
-    import fcntl          # POSIX only; Windows CI uses best-effort no-lock path
-    _FLOCK_SUPPORTED = True
-except ImportError:   # Windows
-    fcntl = None  # type: ignore[assignment]
-    _FLOCK_SUPPORTED = False
 import json
+import logging
 import os
 import sys
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
+
+try:
+    import fcntl  # POSIX only; Windows CI uses best-effort no-lock path
+    _FLOCK_SUPPORTED = True
+except ImportError:   # Windows
+    fcntl = None  # type: ignore[assignment]
+    _FLOCK_SUPPORTED = False
 
 # ---------------------------------------------------------------------------
 # Corpus row builder
