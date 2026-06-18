@@ -2353,35 +2353,71 @@ export function indicatorsMyScriptsShowsMatchingPrivateScript(
  * Dismiss any blocking overlay in TradingView's #overlap-manager-root before
  * attempting pointer-event-driven interactions (e.g. opening the Indicators dialog).
  *
+ * Uses a 4-step strategy (mouse-move → outerHTML log → Escape → JS bypass):
+ * 1. Move mouse to (0,0) — dismisses hover-triggered tooltips/popovers.
+ * 2. Log .container-VeoIyDt4 outerHTML for artifact observability.
+ * 3. Press Escape — dismisses conventional modal-style overlays.
+ * 4. Set pointer-events:none via JS — last resort for Escape-resistant overlays.
+ *
  * TradingView renders modals, dropdowns, and popups into a portal div
  * (#overlap-manager-root > .container-VeoIyDt4). When a stale overlay from a
  * previous interaction lingers, its pointer-events intercept ALL clicks on the
  * chart surface, causing Playwright's locator.click() to time out with:
  *   "<div class=\"container-VeoIyDt4\">…</div> subtree intercepts pointer events"
  *
- * Pressing Escape dismisses most TradingView overlays. It is safe to call before
- * opening the Indicators dialog because neither the dialog nor Pine editor is
- * open at this point.
+ * Investigation (runs #27750634938 → #27773053223) found the blocker is a
+ * hover-triggered tooltip/popover (data-id changes across attempts) that is NOT
+ * dismissed by Escape and has no close button. The 4-step strategy below handles
+ * both the tooltip/popover class and conventional modal overlays.
  */
 async function dismissOverlapManagerOverlay(page: Page): Promise<void> {
   if (page.isClosed()) return;
 
-  const hasBlocker = await page
-    .locator("#overlap-manager-root [data-id]")
-    .count()
-    .then((n) => n > 0)
-    .catch(() => false);
+  const overlayLocator = page.locator("#overlap-manager-root [data-id]");
 
-  if (hasBlocker) {
-    tracePageEvent(page, "dismiss-overlap-manager-overlay", "start");
-    await page.keyboard.press("Escape").catch(() => undefined);
-    await page.waitForTimeout(400).catch(() => undefined);
-    const remaining = await page
-      .locator("#overlap-manager-root [data-id]")
-      .count()
-      .catch(() => -1);
-    tracePageEvent(page, "dismiss-overlap-manager-overlay", `done:remaining=${remaining}`);
+  // Step 1: Move mouse to a neutral position (0,0) — dismisses hover-triggered
+  // tooltips / popovers that appear when the mouse hovers over TV UI elements.
+  // The dynamic data-id across attempts strongly suggests a hover-sensitive element.
+  await page.mouse.move(0, 0).catch(() => undefined);
+  await page.waitForTimeout(200).catch(() => undefined);
+
+  const countAfterMove = await overlayLocator.count().catch(() => 0);
+  if (countAfterMove === 0) return; // mouse.move was sufficient
+
+  // Step 2: Log the overlay's outerHTML for artifact observability so future
+  // failures can identify the exact TV element without another manual RCA.
+  const overlayHtml = await page
+    .locator("#overlap-manager-root .container-VeoIyDt4")
+    .first()
+    .evaluate((el) => el.outerHTML)
+    .catch(() => "");
+  tracePageEvent(page, "dismiss-overlap-manager-overlay-found", overlayHtml.slice(0, 500));
+
+  // Step 3: Try Escape — works for conventional modal-style overlays.
+  await page.keyboard.press("Escape").catch(() => undefined);
+  await page.waitForTimeout(300).catch(() => undefined);
+
+  const countAfterEscape = await overlayLocator.count().catch(() => 0);
+  if (countAfterEscape === 0) {
+    tracePageEvent(page, "dismiss-overlap-manager-overlay-done", "escape-worked");
+    return;
   }
+
+  // Step 4: Last resort — neutralise pointer-events via JavaScript for overlays
+  // that cannot be dismissed interactively (no close button, Escape-resistant).
+  // This does NOT remove the element, so TV's own cleanup still fires normally.
+  tracePageEvent(page, "dismiss-overlap-manager-overlay-js-bypass", String(countAfterEscape));
+  await page
+    .evaluate(() => {
+      document
+        .querySelectorAll("#overlap-manager-root .container-VeoIyDt4")
+        .forEach((el) => ((el as HTMLElement).style.pointerEvents = "none"));
+    })
+    .catch(() => undefined);
+  await page.waitForTimeout(100).catch(() => undefined);
+
+  const remaining = await overlayLocator.count().catch(() => -1);
+  tracePageEvent(page, "dismiss-overlap-manager-overlay-done", `js-bypass:remaining=${remaining}`);
 }
 
 async function collectVisibleIndicatorMyScriptNames(page: Page, limit = 8): Promise<string[]> {
