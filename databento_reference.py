@@ -18,12 +18,18 @@ import os
 import re
 import tempfile
 import threading
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
+
+try:
+    import fcntl
+    _HAS_FCNTL = True
+except ImportError:
+    _HAS_FCNTL = False
 
 from databento_client import _make_databento_reference_client, _redact_sensitive_error_text
 
@@ -107,6 +113,24 @@ def _replace_atomic(path: Path, content: str) -> None:
         with contextlib.suppress(OSError):
             temp_path.unlink(missing_ok=True)
         raise
+
+
+@contextlib.contextmanager
+def _interprocess_lock(cache_dir: str | Path | None = None) -> Iterator[None]:
+    if not _HAS_FCNTL:
+        yield
+        return
+    lock_file = _cache_path(cache_dir).with_suffix(".lock")
+    lock_file.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(str(lock_file), os.O_CREAT | os.O_RDWR)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        with contextlib.suppress(OSError):
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        with contextlib.suppress(OSError):
+            os.close(fd)
 
 
 def _invalidate_state_cache() -> None:
@@ -367,7 +391,7 @@ def _merge_event_records(existing: list[dict[str, Any]], new_records: list[dict[
     return sorted(
         merged.values(),
         key=lambda record: (
-            str(record.get("effective_date") or ""),
+            _parse_effective_date(record.get("effective_date")) or date.min,
             str(record.get("event") or ""),
             str(record.get("old_symbol") or ""),
             str(record.get("new_symbol") or ""),
@@ -386,7 +410,10 @@ def _resolve_alias_chain(alias_edges: dict[str, str], symbol: str) -> str:
 
 def _build_symbol_aliases(records: list[dict[str, Any]]) -> dict[str, str]:
     alias_edges: dict[str, str] = {}
-    sorted_records = sorted(records, key=lambda record: str(record.get("effective_date") or ""))
+    sorted_records = sorted(
+        records,
+        key=lambda record: _parse_effective_date(record.get("effective_date")) or date.min
+    )
     for record in sorted_records:
         for old_value, new_value in (
             (record.get("old_symbol"), record.get("new_symbol")),
@@ -405,7 +432,10 @@ def _build_symbol_aliases(records: list[dict[str, Any]]) -> dict[str, str]:
 
 def _build_identifier_map(records: list[dict[str, Any]], symbol_aliases: dict[str, str]) -> dict[str, dict[str, Any]]:
     identifier_map: dict[str, dict[str, Any]] = {}
-    for record in sorted(records, key=lambda item: str(item.get("effective_date") or "")):
+    for record in sorted(
+        records,
+        key=lambda item: _parse_effective_date(item.get("effective_date")) or date.min
+    ):
         symbol_candidates = [
             _normalize_symbol_token(record.get("new_symbol")),
             _normalize_symbol_token(record.get("listing_symbol")),
@@ -446,8 +476,11 @@ def _build_identifier_map(records: list[dict[str, Any]], symbol_aliases: dict[st
             entry["events"].append(event_summary)
 
         effective_date = str(record.get("effective_date") or "")
-        if effective_date >= str(entry.get("latest_effective_date") or ""):
-            entry["latest_effective_date"] = effective_date
+        effect_dt = _parse_effective_date(effective_date)
+        latest_dt = _parse_effective_date(entry.get("latest_effective_date"))
+        if effect_dt is not None:
+            if latest_dt is None or effect_dt >= latest_dt:
+                entry["latest_effective_date"] = effective_date
 
         for key, old_key, new_key in (
             ("bbg_comp_id", "old_bbg_comp_id", "new_bbg_comp_id"),
@@ -615,96 +648,95 @@ def maybe_refresh_symbol_reference_cache(
             if (normalized := _normalize_symbol_token(symbol))
         }
     )
-    state = _load_state(cache_dir)
     if not requested_symbols:
-        return state
+        return _load_state(cache_dir)
 
-    success_ttl = _env_int("DATABENTO_REFERENCE_CACHE_TTL_SECONDS", CORPORATE_ACTION_CACHE_TTL_SECONDS)
-    failure_ttl = _env_int("DATABENTO_REFERENCE_FAILURE_TTL_SECONDS", CORPORATE_ACTION_FAILURE_TTL_SECONDS)
-    configured_api_key = str(api_key or os.getenv("DATABENTO_API_KEY") or "").strip()
-    if not configured_api_key and not force_refresh:
-        return state
-
-    coverage_symbols = {
-        _normalize_symbol_token(symbol)
-        for symbol in state.get("coverage_symbols") or []
-        if _normalize_symbol_token(symbol)
-    }
-    provider_status = str(state.get("provider_status") or "")
-    success_age = _state_age_seconds(state, failure=False)
-    failure_age = _state_age_seconds(state, failure=True)
-    have_full_coverage = set(requested_symbols).issubset(coverage_symbols)
-
-    if not force_refresh:
-        if have_full_coverage and success_age is not None and success_age <= success_ttl:
-            return state
-        if provider_status == "not_subscribed" and failure_age is not None and failure_age <= failure_ttl:
-            return state
-        if provider_status == "error" and failure_age is not None and failure_age <= failure_ttl:
-            return state
-        if not configured_api_key:
+    with _interprocess_lock(cache_dir):
+        state = _load_state(cache_dir)
+        success_ttl = _env_int("DATABENTO_REFERENCE_CACHE_TTL_SECONDS", CORPORATE_ACTION_CACHE_TTL_SECONDS)
+        failure_ttl = _env_int("DATABENTO_REFERENCE_FAILURE_TTL_SECONDS", CORPORATE_ACTION_FAILURE_TTL_SECONDS)
+        configured_api_key = str(api_key or os.getenv("DATABENTO_API_KEY") or "").strip()
+        if not configured_api_key and not force_refresh:
             return state
 
-    target_symbols = requested_symbols if force_refresh or success_age is None or success_age > success_ttl else [
-        symbol for symbol in requested_symbols if symbol not in coverage_symbols
-    ]
-    if not target_symbols and not force_refresh:
-        return state
+        coverage_symbols = {
+            _normalize_symbol_token(symbol)
+            for symbol in state.get("coverage_symbols") or []
+            if _normalize_symbol_token(symbol)
+        }
+        provider_status = str(state.get("provider_status") or "")
+        success_age = _state_age_seconds(state, failure=False)
+        failure_age = _state_age_seconds(state, failure=True)
+        have_full_coverage = set(requested_symbols).issubset(coverage_symbols)
 
-    current_time = datetime.now(UTC).isoformat(timespec="seconds")
-    query_start = start or CORPORATE_ACTION_START_DATE.isoformat()
-    query_end = end or datetime.now(UTC).date().isoformat()
-    query_events = list(events or CORPORATE_ACTION_IDENTIFIER_EVENTS)
+        if not force_refresh:
+            if have_full_coverage and success_age is not None and success_age <= success_ttl:
+                return state
+            if provider_status == "not_subscribed" and failure_age is not None and failure_age <= failure_ttl:
+                return state
+            if provider_status == "error" and failure_age is not None and failure_age <= failure_ttl:
+                return state
 
-    try:
-        reference_client = client if client is not None else _make_databento_reference_client(configured_api_key)
-        new_records: list[dict[str, Any]] = []
-        for index in range(0, len(target_symbols), CORPORATE_ACTION_BATCH_SIZE):
-            batch = target_symbols[index:index + CORPORATE_ACTION_BATCH_SIZE]
-            frame = reference_client.corporate_actions.get_range(
-                start=query_start,
-                end=query_end,
-                symbols=batch,
-                stype_in="raw_symbol",
-                events=query_events,
-                flatten=True,
-                pit=False,
+        target_symbols = requested_symbols if force_refresh or success_age is None or success_age > success_ttl else [
+            symbol for symbol in requested_symbols if symbol not in coverage_symbols
+        ]
+        if not target_symbols and not force_refresh:
+            return state
+
+        current_time = datetime.now(UTC).isoformat(timespec="seconds")
+        query_start = start or CORPORATE_ACTION_START_DATE.isoformat()
+        query_end = end or datetime.now(UTC).date().isoformat()
+        query_events = list(events or CORPORATE_ACTION_IDENTIFIER_EVENTS)
+
+        try:
+            reference_client = client if client is not None else _make_databento_reference_client(configured_api_key)
+            new_records: list[dict[str, Any]] = []
+            for index in range(0, len(target_symbols), CORPORATE_ACTION_BATCH_SIZE):
+                batch = target_symbols[index:index + CORPORATE_ACTION_BATCH_SIZE]
+                frame = reference_client.corporate_actions.get_range(
+                    start=query_start,
+                    end=query_end,
+                    symbols=batch,
+                    stype_in="raw_symbol",
+                    events=query_events,
+                    flatten=True,
+                    pit=False,
+                )
+                if isinstance(frame, pd.DataFrame):
+                    new_records.extend(_extract_event_records(frame))
+
+            merged_records = _merge_event_records(list(state.get("events") or []), new_records)
+            symbol_aliases = _build_symbol_aliases(merged_records)
+            identifier_map = _build_identifier_map(merged_records, symbol_aliases)
+            coverage_symbols.update(target_symbols)
+            updated_state = {
+                **state,
+                "version": CORPORATE_ACTION_CACHE_VERSION,
+                "provider_status": "ok",
+                "fetched_at": current_time,
+                "last_attempted_at": current_time,
+                "last_error": "",
+                "coverage_symbols": sorted(coverage_symbols),
+                "events": merged_records,
+                "symbol_aliases": symbol_aliases,
+                "identifier_map": identifier_map,
+            }
+            return _save_state(updated_state, cache_dir)
+        except Exception as exc:
+            error_text = _redact_sensitive_error_text(str(exc))
+            lowered = error_text.lower()
+            provider_status = (
+                "not_subscribed"
+                if "license_reference_dataset_no_subscription" in lowered
+                or "subscription is required" in lowered
+                else "error"
             )
-            if isinstance(frame, pd.DataFrame):
-                new_records.extend(_extract_event_records(frame))
-
-        merged_records = _merge_event_records(list(state.get("events") or []), new_records)
-        symbol_aliases = _build_symbol_aliases(merged_records)
-        identifier_map = _build_identifier_map(merged_records, symbol_aliases)
-        coverage_symbols.update(target_symbols)
-        updated_state = {
-            **state,
-            "version": CORPORATE_ACTION_CACHE_VERSION,
-            "provider_status": "ok",
-            "fetched_at": current_time,
-            "last_attempted_at": current_time,
-            "last_error": "",
-            "coverage_symbols": sorted(coverage_symbols),
-            "events": merged_records,
-            "symbol_aliases": symbol_aliases,
-            "identifier_map": identifier_map,
-        }
-        return _save_state(updated_state, cache_dir)
-    except Exception as exc:
-        error_text = _redact_sensitive_error_text(str(exc))
-        lowered = error_text.lower()
-        provider_status = (
-            "not_subscribed"
-            if "license_reference_dataset_no_subscription" in lowered
-            or "subscription is required" in lowered
-            else "error"
-        )
-        failed_state = {
-            **state,
-            "version": CORPORATE_ACTION_CACHE_VERSION,
-            "provider_status": provider_status,
-            "last_attempted_at": current_time,
-            "last_error": error_text,
-        }
-        logger.info("Databento reference cache refresh skipped: %s", error_text)
-        return _save_state(failed_state, cache_dir)
+            failed_state = {
+                **state,
+                "version": CORPORATE_ACTION_CACHE_VERSION,
+                "provider_status": provider_status,
+                "last_attempted_at": current_time,
+                "last_error": error_text,
+            }
+            logger.info("Databento reference cache refresh skipped: %s", error_text)
+            return _save_state(failed_state, cache_dir)

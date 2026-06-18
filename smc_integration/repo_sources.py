@@ -428,6 +428,20 @@ def _try_load_meta_domain(
             if not auto_mode:
                 raise
             continue
+        except Exception as exc:
+            last_status = "source_load_error"
+            if not auto_mode:
+                raise
+            _LOG.warning(
+                "meta load failed for provider %s symbol %s/%s domain %s: %r",
+                name,
+                symbol,
+                timeframe,
+                domain,
+                exc,
+                exc_info=True,
+            )
+            continue
         domain_statuses = meta.get(_SOURCE_DOMAIN_STATUS_KEY)
         hinted_status = ""
         if isinstance(domain_statuses, dict):
