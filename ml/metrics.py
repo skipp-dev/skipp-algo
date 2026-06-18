@@ -19,6 +19,10 @@ def _as_arrays(y_true: Sequence[float], y_prob: Sequence[float]) -> tuple[np.nda
         raise ValueError(f"shape mismatch: {yt.shape} vs {yp.shape}")
     if yt.size == 0:
         raise ValueError("empty arrays")
+    if not np.isfinite(yt).all():
+        raise ValueError("y_true contains NaN or Inf")
+    if not np.isfinite(yp).all():
+        raise ValueError("y_prob contains NaN or Inf")
     return yt, yp
 
 
@@ -95,6 +99,10 @@ def population_stability_index(
     a = np.asarray(actual, dtype=float)
     if e.size == 0 or a.size == 0:
         raise ValueError("empty arrays")
+    if not np.isfinite(e).all():
+        raise ValueError("expected contains NaN or Inf")
+    if not np.isfinite(a).all():
+        raise ValueError("actual contains NaN or Inf")
     edges = np.linspace(0.0, 1.0, n_bins + 1)
     edges[-1] += 1e-9
     e_hist, _ = np.histogram(e, bins=edges)
