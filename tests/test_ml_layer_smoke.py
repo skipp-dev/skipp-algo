@@ -28,7 +28,7 @@ from ml.features import (
     vpin,
 )
 from ml.inference import FamilyPredictor, ModelArtifact
-from ml.metrics import brier_score, expected_calibration_error, log_loss, roc_auc
+from ml.metrics import brier_score, expected_calibration_error, log_loss, population_stability_index, roc_auc
 from ml.training import FamilyDataset, LogisticBaseline
 from ml.types import EventFamily, MLPrediction, TrainingReport
 
@@ -195,3 +195,36 @@ def test_xgb_and_lgbm_trainers_optional_dep_contract():
     if not LGBMFamilyTrainer.available:
         with pytest.raises(RuntimeError, match="lightgbm is not installed"):
             LGBMFamilyTrainer()
+
+
+# --- B1 regression: NaN/Inf must raise ValueError, not silently propagate ---
+# Fuzzer-RCA (ref 8eb32df3): brier_score([0,1],[nan,0.5]) returned nan;
+# roc_auc returned 0.0; psi returned 13.8. All now raise immediately.
+
+
+@pytest.mark.parametrize(
+    "func,args",
+    [
+        (brier_score, ([0, 1], [float("nan"), 0.5])),
+        (brier_score, ([0, 1], [float("inf"), 0.5])),
+        (brier_score, ([float("nan"), 1], [0.3, 0.5])),
+        (log_loss, ([0, 1], [float("nan"), 0.5])),
+        (log_loss, ([0, 1], [float("inf"), 0.5])),
+        (roc_auc, ([0, 1], [float("nan"), 0.5])),
+        (roc_auc, ([0, 1], [float("inf"), 0.5])),
+        (expected_calibration_error, ([0, 1], [float("nan"), 0.5])),
+        (expected_calibration_error, ([0, 1], [float("inf"), 0.5])),
+    ],
+)
+def test_metrics_reject_nan_inf_inputs(func, args):
+    """B1 regression: any metric must raise ValueError on NaN/Inf, not return nan."""
+    with pytest.raises(ValueError, match="NaN or Inf"):
+        func(*args)
+
+
+def test_population_stability_index_rejects_nan_inf():
+    """B1 regression: PSI must raise ValueError on NaN/Inf inputs."""
+    with pytest.raises(ValueError, match="NaN or Inf"):
+        population_stability_index([float("nan")], [0.5])
+    with pytest.raises(ValueError, match="NaN or Inf"):
+        population_stability_index([0.5], [float("inf")])
