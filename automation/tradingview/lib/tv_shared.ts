@@ -2359,6 +2359,11 @@ export function indicatorsMyScriptsShowsMatchingPrivateScript(
  * 3. Press Escape — dismisses conventional modal-style overlays.
  * 4. Set pointer-events:none via JS — last resort for Escape-resistant overlays.
  *
+ * Call sites: addScriptToChartViaIndicators, ensurePineEditor (×2).
+ * TODO(#2849 — after ≥2 green smc-library-refresh runs): centralise step 1
+ * (mouse.move) into clickVisibleWithFallback to cover all future entry-points
+ * automatically without requiring explicit call sites.
+ *
  * TradingView renders modals, dropdowns, and popups into a portal div
  * (#overlap-manager-root > .container-VeoIyDt4). When a stale overlay from a
  * previous interaction lingers, its pointer-events intercept ALL clicks on the
