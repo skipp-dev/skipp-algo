@@ -80,7 +80,7 @@ def _atexit_register_sites() -> set[tuple[str, int]]:
 # the sharded producer. Handler is parameter-less, idempotent (dump_cache_probe_log
 # disables the singleton after writing) and bounded (one parquet write).
 ATEXIT_REGISTER_ALLOWED: set[tuple[str, int]] = {
-    ("terminal_bitcoin.py", 105),
+    ("terminal_bitcoin.py", 103),
     ("scripts/databento_production_export.py", 4716),  # PR #2787: FMP bridge (+260 lines); rebaselined PR #2810 (+7 lines)
 }
 

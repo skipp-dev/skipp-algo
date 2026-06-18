@@ -94,8 +94,6 @@ _client_lock = threading.Lock()
 
 def _get_client() -> httpx.Client | None:
     global _client
-    if _client is not None:
-        return _client
     with _client_lock:
         if _client is not None:
             return _client
