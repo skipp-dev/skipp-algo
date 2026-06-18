@@ -145,6 +145,9 @@ FCNTL_FLOCK_ALLOWED: set[tuple[str, int]] = {
     # with-block (bug-fix: function was returning None instead of int).
     ("scripts/collect_drift_calibration_corpus.py", 171),  # LOCK_EX
     ("scripts/collect_drift_calibration_corpus.py", 189),  # LOCK_UN
+    # Databento reference-cache interprocess lock (advisory, POSIX-guarded exception/import).
+    ("databento_reference.py", 127),  # LOCK_EX
+    ("databento_reference.py", 131),  # LOCK_UN
 }
 
 
