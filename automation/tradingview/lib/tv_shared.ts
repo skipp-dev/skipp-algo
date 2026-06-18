@@ -2380,6 +2380,12 @@ export async function dismissOverlapManagerOverlay(page: Page): Promise<void> {
 
   const overlayLocator = page.locator("#overlap-manager-root [data-id]");
 
+  // Fast-path: skip the 200 ms mouse.move wait entirely if no overlay is present.
+  // ensurePineEditor calls this function twice per invocation, so the early-exit
+  // avoids 400 ms of unnecessary latency in the common (no-overlay) case.
+  const initialCount = await overlayLocator.count().catch(() => 0);
+  if (initialCount === 0) return;
+
   // Step 1: Move mouse to a neutral position (0,0) — dismisses hover-triggered
   // tooltips / popovers that appear when the mouse hovers over TV UI elements.
   // The dynamic data-id across attempts strongly suggests a hover-sensitive element.
