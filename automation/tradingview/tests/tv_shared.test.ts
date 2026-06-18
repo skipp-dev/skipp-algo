@@ -237,8 +237,14 @@ test("open script search names include legacy aliases for renamed scripts", () =
     ["SMC Long-Dip Strategy v7", "SMC Execution", "SMC Long Strategy"],
   );
   // Pre-rename callers continue to work.
-  assert.deepEqual(resolveOpenScriptSearchNames("SMC Decision Board"), ["SMC Decision Board", "SMC Dashboard"]);
-  assert.deepEqual(resolveOpenScriptSearchNames("SMC Execution"), ["SMC Execution", "SMC Long Strategy"]);
+  assert.deepEqual(
+    resolveOpenScriptSearchNames("SMC Decision Board"),
+    ["SMC Decision Board", "SMC Long-Dip Dashboard v7", "SMC Dashboard"],
+  );
+  assert.deepEqual(
+    resolveOpenScriptSearchNames("SMC Execution"),
+    ["SMC Execution", "SMC Long-Dip Strategy v7", "SMC Long Strategy"],
+  );
 });
 
 test("open script search names normalize whitespace and de-duplicate", () => {
