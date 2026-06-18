@@ -190,7 +190,7 @@ def test_build_identifier_map_mixed_date_formats() -> None:
 
     aliases = {"AAA": "BBB"}
     identifier_map = databento_reference._build_identifier_map(records, aliases)
-    
+
     # "latest_effective_date" should be the chronologically latest one: "2024-01-03"
     assert identifier_map["BBB"]["latest_effective_date"] == "2024-01-03"
     assert identifier_map["BBB"]["identifiers"]["isin"]["current"] == "ISIN3"
@@ -198,15 +198,15 @@ def test_build_identifier_map_mixed_date_formats() -> None:
 
 def test_interprocess_lock_is_called(tmp_path: Path, monkeypatch) -> None:
     lock_called = []
-    
+
     original_lock = databento_reference._interprocess_lock
-    
+
     def mock_lock(cache_dir=None):
         lock_called.append(True)
         return original_lock(cache_dir)
-        
+
     monkeypatch.setattr(databento_reference, "_interprocess_lock", mock_lock)
-    
+
     class FakeCorporateActions:
         def get_range(self, **kwargs):
             return pd.DataFrame([])
@@ -222,5 +222,5 @@ def test_interprocess_lock_is_called(tmp_path: Path, monkeypatch) -> None:
         force_refresh=True,
         client=FakeReferenceClient(),
     )
-    
+
     assert len(lock_called) > 0

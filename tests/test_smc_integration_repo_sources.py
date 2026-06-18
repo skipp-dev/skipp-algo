@@ -43,7 +43,6 @@ def test_discover_repo_source_paths_returns_transparent_mapping() -> None:
     assert info["selected_source"]["name"] == "structure_artifact_json"
 
 
-
 def test_load_raw_structure_input_is_ingest_compatible() -> None:
     csv_path = Path(__file__).resolve().parents[1] / "reports" / "databento_watchlist_top5_pre1530.csv"
     symbol = _first_symbol_from_watchlist(csv_path)
@@ -58,7 +57,6 @@ def test_load_raw_structure_input_is_ingest_compatible() -> None:
     assert isinstance(structure.liquidity_sweeps, list)
 
 
-
 def test_load_raw_meta_input_is_ingest_compatible() -> None:
     csv_path = Path(__file__).resolve().parents[1] / "reports" / "databento_watchlist_top5_pre1530.csv"
     symbol = _first_symbol_from_watchlist(csv_path)
@@ -70,7 +68,6 @@ def test_load_raw_meta_input_is_ingest_compatible() -> None:
     assert meta.timeframe == "15m"
     assert meta.volume.value.regime in {"NORMAL", "LOW_VOLUME", "HOLIDAY_SUSPECT"}
     assert isinstance(raw_meta.get("provenance"), list)
-
 
 
 def test_missing_symbol_and_missing_source_fail_loudly() -> None:
@@ -192,12 +189,14 @@ class TestDiscoverCompositeSourcePlan:
 class TestResolveAutoStructureSourceForSymbolTimeframe:
     def test_returns_source_name(self) -> None:
         from smc_integration.repo_sources import _resolve_auto_structure_source_for_symbol_timeframe
+
         name = _resolve_auto_structure_source_for_symbol_timeframe("AAPL", "15m")
         assert isinstance(name, str)
         assert name
 
     def test_nonexistent_symbol_falls_through(self) -> None:
         from smc_integration.repo_sources import _resolve_auto_structure_source_for_symbol_timeframe
+
         # Even with a bogus symbol, should still find a provider that can supply structure
         name = _resolve_auto_structure_source_for_symbol_timeframe("__ZZZZ_NONEXISTENT__", "15m")
         assert isinstance(name, str)
@@ -305,7 +304,11 @@ class TestFinalizeCompositeMetaInvalidAsofTs:
                 volume_meta={
                     "symbol": "AAPL",
                     "timeframe": "15m",
-                    "volume": {"value": {"regime": "NORMAL", "thin_fraction": 0.1}, "asof_ts": float("nan"), "stale": False},
+                    "volume": {
+                        "value": {"regime": "NORMAL", "thin_fraction": 0.1},
+                        "asof_ts": float("nan"),
+                        "stale": False,
+                    },
                     "asof_ts": float("nan"),
                     "provenance": ["test"],
                 },
@@ -337,8 +340,10 @@ class TestFinalizeCompositeMetaStaleProvenance:
             reference_time=_time.time(),
             structure_source="structure_artifact_json",
             planned_volume_source="databento_watchlist_csv",
-            volume_meta={                "symbol": "AAPL",
-                "timeframe": "15m",                "volume": {"value": {"regime": "NORMAL", "thin_fraction": 0.1}, "asof_ts": very_old, "stale": False},
+            volume_meta={
+                "symbol": "AAPL",
+                "timeframe": "15m",
+                "volume": {"value": {"regime": "NORMAL", "thin_fraction": 0.1}, "asof_ts": very_old, "stale": False},
                 "asof_ts": very_old,
                 "provenance": "not_a_list",
             },
@@ -368,15 +373,28 @@ class TestTryLoadMetaDomainEdges:
         """Cover line 415: ValueError re-raised in non-auto mode."""
         with pytest.raises(ValueError):
             _try_load_meta_domain(
-                "volume", "__MISSING__", "15m", "databento_watchlist_csv", auto_mode=False,
+                "volume",
+                "__MISSING__",
+                "15m",
+                "databento_watchlist_csv",
+                auto_mode=False,
             )
 
     def test_auto_mode_returns_none_on_missing(self) -> None:
         meta, status, _source = _try_load_meta_domain(
-            "volume", "__MISSING__", "15m", "databento_watchlist_csv", auto_mode=True,
+            "volume",
+            "__MISSING__",
+            "15m",
+            "databento_watchlist_csv",
+            auto_mode=True,
         )
         assert meta is None
-        assert status in {"source_file_not_found", "source_validation_error", "domain_key_absent", "not_attempted_no_candidates"}
+        assert status in {
+            "source_file_not_found",
+            "source_validation_error",
+            "domain_key_absent",
+            "not_attempted_no_candidates",
+        }
 
     def test_auto_mode_catches_generic_exception(self, monkeypatch) -> None:
         """Verify that generic exceptions are caught in auto_mode and it falls back."""
@@ -395,11 +413,21 @@ class TestTryLoadMetaDomainEdges:
         )
         monkeypatch.setitem(rs._SOURCE_PROVIDERS, primary, fake)
 
-        meta, status, source = _try_load_meta_domain(
-            "volume", "__MISSING__", "15m", primary, auto_mode=True,
+        meta, status, _source = _try_load_meta_domain(
+            "volume",
+            "__MISSING__",
+            "15m",
+            primary,
+            auto_mode=True,
         )
         assert meta is None
-        assert status in {"source_file_not_found", "source_validation_error", "domain_key_absent", "not_attempted_no_candidates", "source_load_error"}
+        assert status in {
+            "source_file_not_found",
+            "source_validation_error",
+            "domain_key_absent",
+            "not_attempted_no_candidates",
+            "source_load_error",
+        }
 
     def test_non_auto_mode_raises_generic_exception(self, monkeypatch) -> None:
         """Verify that generic exceptions are not caught in non-auto_mode."""
@@ -420,7 +448,11 @@ class TestTryLoadMetaDomainEdges:
 
         with pytest.raises(RuntimeError, match="corrupted json or something"):
             _try_load_meta_domain(
-                "volume", "AAPL", "15m", primary, auto_mode=False,
+                "volume",
+                "AAPL",
+                "15m",
+                primary,
+                auto_mode=False,
             )
 
 
