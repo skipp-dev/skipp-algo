@@ -1631,7 +1631,7 @@ export async function clickFirst(candidates: Locator[], timeoutMs = 2_500): Prom
   for (const locator of candidates) {
     const candidate = await firstVisibleLocator(locator, timeoutMs);
     if (candidate) {
-      await candidate.click();
+      await candidate.click({ timeout: timeoutMs }).catch(() => undefined);
       return true;
     }
   }
@@ -5694,11 +5694,14 @@ export async function closeModal(page: Page): Promise<void> {
     page,
     "closeModal",
     async () => {
-      await clickFirst(tvSelectors.closeModal(page), 400).catch(() => false);
+      // Press Escape first — works even when an overlay blocks pointer events
       await page.keyboard.press("Escape").catch(() => undefined);
+      await page.waitForTimeout(200).catch(() => undefined);
+      // Then try clicking the close button for dialogs where Escape doesn't dismiss
+      await clickFirst(tvSelectors.closeModal(page), 400).catch(() => false);
       await page.waitForTimeout(150).catch(() => undefined);
     },
-    2_000,
+    3_000,  // increased from 2_000: clickFirst tries 3 locators × 400ms + Escape + waits
   ).catch(() => undefined);
 }
 
