@@ -9,11 +9,11 @@ import pytest
 from smc_adapters import build_meta_from_raw, build_structure_from_raw
 from smc_integration.repo_sources import (
     _SOURCE_PROVIDERS,
-    _SourceProvider,
     _can_supply_domain,
     _finalize_composite_meta,
     _resolve_provider,
     _select_best_source_for_domain,
+    _SourceProvider,
     _try_load_meta_domain,
     discover_composite_source_plan,
     discover_repo_source_paths,
