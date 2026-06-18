@@ -4379,6 +4379,9 @@ export async function ensurePineEditor(page: Page): Promise<void> {
 
     await dismissSignInModal(page);
     await dismissCookieBanner(page);
+    // Dismiss any #overlap-manager-root blocker before clicking the Pine editor
+    // button. The overlay also blocks ensurePineEditor (run #27773053223 RCA).
+    await dismissOverlapManagerOverlay(page);
 
     const initialDiagnostics = await collectEditorDiagnostics(page);
     if (hasVisibleEditorHost(initialDiagnostics)) {
@@ -4404,6 +4407,7 @@ export async function ensurePineEditor(page: Page): Promise<void> {
       await closeModal(page).catch(() => undefined);
       await dismissSignInModal(page);
       await dismissCookieBanner(page);
+      await dismissOverlapManagerOverlay(page);
 
       diagnostics = await collectEditorDiagnostics(page);
       if (hasVisibleEditorHost(diagnostics)) {

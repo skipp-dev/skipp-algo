@@ -119,6 +119,55 @@ test("ensurePineEditor recovers after closeModal clears a blocking dialog", asyn
   }
 });
 
+test("ensurePineEditor neutralises #overlap-manager-root [data-id] blocker before clicking Pine button (A1 regression)", async () => {
+  // Regression for run #27773053223: container-VeoIyDt4 inside overlap-manager-root
+  // blocked the Pine editor button. ensurePineEditor must call
+  // dismissOverlapManagerOverlay() so the JS pointer-events bypass fires and
+  // the Pine button becomes clickable.
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body>
+        <button type="button" id="pine-open">Pine</button>
+        <div id="overlap-manager-root">
+          <div class="container-VeoIyDt4">
+            <div data-id="blockingTooltip"
+                 style="position:fixed;inset:0;z-index:9999;pointer-events:all">
+            </div>
+          </div>
+        </div>
+        <script>
+          document.getElementById("pine-open").addEventListener("click", () => {
+            if (!document.querySelector('[data-name="pine-dialog"]')) {
+              const host = document.createElement("div");
+              host.setAttribute("data-name", "pine-dialog");
+              host.textContent = "Pine editor ready";
+              document.body.appendChild(host);
+            }
+          });
+        </script>
+      </body></html>
+    `);
+
+    await ensurePineEditor(page);
+
+    // Pine editor must be visible after the overlay was neutralised
+    assert.equal(
+      await page.locator('[data-name="pine-dialog"]').isVisible(),
+      true,
+      "Pine editor must open after overlay is neutralised",
+    );
+    // The [data-id] overlay must have pointer-events:none so it no longer blocks
+    const overlayPe = await page
+      .locator("#overlap-manager-root [data-id]")
+      .evaluate((el) => (el as HTMLElement).style.pointerEvents);
+    assert.equal(overlayPe, "none", "[data-id] overlay must be neutralised by JS bypass");
+  } finally {
+    await browser.close();
+  }
+});
+
 test("editor diagnostics reject toolbar-free non-editor states", () => {
   assert.equal(editorDiagnosticsSuggestOpenHost({
     textareaCount: { total: 0, visible: 0 },
