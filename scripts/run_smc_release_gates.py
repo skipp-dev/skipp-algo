@@ -538,11 +538,21 @@ def _serialize_family_metrics(scoring_result: Any | None) -> dict[str, dict[str,
 
     serialized: dict[str, dict[str, Any]] = {}
     for family, metrics in raw_metrics.items():
+        n_ev = int(getattr(metrics, "n_events", 0) or 0)
+        hr = _finite_metric(getattr(metrics, "hit_rate", None))
         serialized[str(family)] = {
-            "n_events": int(getattr(metrics, "n_events", 0) or 0),
+            "n_events": n_ev,
             "brier_score": _finite_metric(getattr(metrics, "brier_score", None)),
             "log_score": _finite_metric(getattr(metrics, "log_score", None)),
-            "hit_rate": _finite_metric(getattr(metrics, "hit_rate", None)),
+            "hit_rate": hr,
+            # Option A (W11-1): explicit skip_reason so downstream reporters
+            # can show "Family BOS: 0 Trades, nicht bewertet" instead of
+            # silently omitting the family from the FDR advisory report.
+            "skip_reason": (
+                None
+                if hr is not None
+                else ("no_trades" if n_ev == 0 else "non_finite")
+            ),
         }
     return serialized
 
