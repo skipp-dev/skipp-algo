@@ -3180,8 +3180,14 @@ export function settingsDialogTitleMatchesScriptName(scriptName: string, dialogT
   if (!normalizedTitle) {
     return false;
   }
-  return scriptNameAppearsInUiText(scriptName, normalizedTitle)
-    || isLegendTruncatedMatch(normalizedTitle, scriptName);
+  const candidates = resolveOpenScriptSearchNames(scriptName);
+  for (const candidate of candidates) {
+    if (scriptNameAppearsInUiText(candidate, normalizedTitle)
+      || isLegendTruncatedMatch(normalizedTitle, candidate)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**

@@ -624,7 +624,15 @@ test("settings dialog identity matches TradingView-truncated titles", () => {
   assert.equal(settingsDialogTitleMatchesScriptName("SMC Long-Dip Strategy v7", "SMC Long Strategy"), true);
   // Unrelated script must still be rejected
   assert.equal(settingsDialogTitleMatchesScriptName("SMC Long-Dip Dashboard v7", "Vol"), false);
-  assert.equal(settingsDialogTitleMatchesScriptName("SMC Long-Dip Dashboard v7", "SMC Decision Board"), false);
+  // Matches valid alias via symmetric lookup now
+  assert.equal(settingsDialogTitleMatchesScriptName("SMC Long-Dip Dashboard v7", "SMC Decision Board"), true);
+});
+
+test("settings dialog identity matches legacy and candidate search names", () => {
+  assert.equal(settingsDialogTitleMatchesScriptName("SMC Decision Board", "SMC Long-Dip Dashboard v7"), true);
+  assert.equal(settingsDialogTitleMatchesScriptName("SMC Long-Dip Dashboard v7", "SMC Decision Board"), true);
+  assert.equal(settingsDialogTitleMatchesScriptName("SMC Decision Board", "SMC Dashboard"), true);
+  assert.equal(settingsDialogTitleMatchesScriptName("SMC Long-Dip Strategy v7", "SMC Execution"), true);
 });
 
 test("buildScriptNamePatterns fuzzy does not match word supersets", () => {
