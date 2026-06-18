@@ -163,3 +163,64 @@ def test_reference_event_risk_snapshot_filters_recent_events(tmp_path: Path) -> 
     assert snapshot["reference_change_tickers"] == ["META"]
     assert snapshot["by_symbol"]["META"]["event_types"] == ["LCC"]
     assert snapshot["by_symbol"]["META"]["aliases"] == ["FB"]
+
+
+def test_build_identifier_map_mixed_date_formats() -> None:
+    # Test that dates with different string lengths/formats (YYYY-MM-DD vs ISO timestamps)
+    # are correctly parsed and compared chronologically, and not lexically as strings.
+    records = [
+        {
+            "event": "LCC",
+            "effective_date": "2024-01-02T12:00:00Z",
+            "old_symbol": "AAA",
+            "new_symbol": "BBB",
+            "new_localcode": "BBB",
+            "old_isin": "ISIN1",
+            "new_isin": "ISIN2",
+        },
+        {
+            "event": "ICC",
+            "effective_date": "2024-01-03",
+            "old_symbol": "BBB",
+            "new_symbol": "BBB",
+            "old_isin": "ISIN2",
+            "new_isin": "ISIN3",
+        },
+    ]
+
+    aliases = {"AAA": "BBB"}
+    identifier_map = databento_reference._build_identifier_map(records, aliases)
+    
+    # "latest_effective_date" should be the chronologically latest one: "2024-01-03"
+    assert identifier_map["BBB"]["latest_effective_date"] == "2024-01-03"
+    assert identifier_map["BBB"]["identifiers"]["isin"]["current"] == "ISIN3"
+
+
+def test_interprocess_lock_is_called(tmp_path: Path, monkeypatch) -> None:
+    lock_called = []
+    
+    original_lock = databento_reference._interprocess_lock
+    
+    def mock_lock(cache_dir=None):
+        lock_called.append(True)
+        return original_lock(cache_dir)
+        
+    monkeypatch.setattr(databento_reference, "_interprocess_lock", mock_lock)
+    
+    class FakeCorporateActions:
+        def get_range(self, **kwargs):
+            return pd.DataFrame([])
+
+    class FakeReferenceClient:
+        corporate_actions = FakeCorporateActions()
+
+    databento_reference._invalidate_state_cache()
+    databento_reference.maybe_refresh_symbol_reference_cache(
+        ["AAPL"],
+        api_key="db-test-key",
+        cache_dir=tmp_path,
+        force_refresh=True,
+        client=FakeReferenceClient(),
+    )
+    
+    assert len(lock_called) > 0

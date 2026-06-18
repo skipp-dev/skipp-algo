@@ -61,7 +61,7 @@ _RANDOM_LEDGER: frozenset[tuple[str, int]] = frozenset({
 _ALLOWED_TEMPFILE_METHODS: frozenset[str] = frozenset({"mkstemp"})
 
 _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
-    ("databento_reference.py", 100, "mkstemp"),
+    ("databento_reference.py", 106, "mkstemp"),
     ("databento_utils.py", 144, "mkstemp"),
     # F-002 (PR #2295): cache-probe helpers added near the top of
     # ``databento_volatility_screener.py`` shifted the only ``mkstemp`` site

@@ -378,6 +378,51 @@ class TestTryLoadMetaDomainEdges:
         assert meta is None
         assert status in {"source_file_not_found", "source_validation_error", "domain_key_absent", "not_attempted_no_candidates"}
 
+    def test_auto_mode_catches_generic_exception(self, monkeypatch) -> None:
+        """Verify that generic exceptions are caught in auto_mode and it falls back."""
+        import smc_integration.repo_sources as rs
+        from smc_integration.repo_sources import _SourceProvider
+
+        def _raise_generic_err(symbol, timeframe, reference_time=None):
+            raise RuntimeError("corrupted json or something")
+
+        primary = "databento_watchlist_csv"
+        orig = rs._SOURCE_PROVIDERS[primary]
+        fake = _SourceProvider(
+            descriptor=orig.descriptor,
+            load_structure=orig.load_structure,
+            load_meta=_raise_generic_err,
+        )
+        monkeypatch.setitem(rs._SOURCE_PROVIDERS, primary, fake)
+
+        meta, status, source = _try_load_meta_domain(
+            "volume", "__MISSING__", "15m", primary, auto_mode=True,
+        )
+        assert meta is None
+        assert status in {"source_file_not_found", "source_validation_error", "domain_key_absent", "not_attempted_no_candidates", "source_load_error"}
+
+    def test_non_auto_mode_raises_generic_exception(self, monkeypatch) -> None:
+        """Verify that generic exceptions are not caught in non-auto_mode."""
+        import smc_integration.repo_sources as rs
+        from smc_integration.repo_sources import _SourceProvider
+
+        def _raise_generic_err(symbol, timeframe, reference_time=None):
+            raise RuntimeError("corrupted json or something")
+
+        primary = "databento_watchlist_csv"
+        orig = rs._SOURCE_PROVIDERS[primary]
+        fake = _SourceProvider(
+            descriptor=orig.descriptor,
+            load_structure=orig.load_structure,
+            load_meta=_raise_generic_err,
+        )
+        monkeypatch.setitem(rs._SOURCE_PROVIDERS, primary, fake)
+
+        with pytest.raises(RuntimeError, match="corrupted json or something"):
+            _try_load_meta_domain(
+                "volume", "AAPL", "15m", primary, auto_mode=False,
+            )
+
 
 class TestLoadRawStructureAutoFileNotFoundContinues:
     """Cover lines 349-350: auto structure FileNotFoundError caught and continued."""
