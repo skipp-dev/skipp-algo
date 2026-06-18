@@ -325,7 +325,7 @@ async function main(): Promise<number> {
     );
   }
 
-  let storageStateToWrite: Record<string, unknown> = storageState as Record<string, unknown>;
+  let storageStateToWrite: Record<string, unknown>;
 
   if (!inspection.looksAuthenticated && cli.persistentProfileDir) {
     console.warn(
@@ -338,6 +338,18 @@ async function main(): Promise<number> {
         authValidatedByChartAccess: true,
         authValidatedAt: new Date().toISOString(),
         validationMode: "persistent_profile_chart_access",
+        chartUrl: authDiagnostics.url,
+      },
+    };
+  } else {
+    // Normal authenticated session: always write meta.authValidatedAt so that
+    // credential_health_check.py (which requires meta.authValidatedAt) does not
+    // report "storage_state missing meta block".
+    storageStateToWrite = {
+      ...(storageState as Record<string, unknown>),
+      meta: {
+        authValidatedAt: new Date().toISOString(),
+        validationMode: "standard_session",
         chartUrl: authDiagnostics.url,
       },
     };
