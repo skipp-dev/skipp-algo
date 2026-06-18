@@ -2349,6 +2349,41 @@ export function indicatorsMyScriptsShowsMatchingPrivateScript(
   });
 }
 
+/**
+ * Dismiss any blocking overlay in TradingView's #overlap-manager-root before
+ * attempting pointer-event-driven interactions (e.g. opening the Indicators dialog).
+ *
+ * TradingView renders modals, dropdowns, and popups into a portal div
+ * (#overlap-manager-root > .container-VeoIyDt4). When a stale overlay from a
+ * previous interaction lingers, its pointer-events intercept ALL clicks on the
+ * chart surface, causing Playwright's locator.click() to time out with:
+ *   "<div class=\"container-VeoIyDt4\">…</div> subtree intercepts pointer events"
+ *
+ * Pressing Escape dismisses most TradingView overlays. It is safe to call before
+ * opening the Indicators dialog because neither the dialog nor Pine editor is
+ * open at this point.
+ */
+async function dismissOverlapManagerOverlay(page: Page): Promise<void> {
+  if (page.isClosed()) return;
+
+  const hasBlocker = await page
+    .locator("#overlap-manager-root [data-id]")
+    .count()
+    .then((n) => n > 0)
+    .catch(() => false);
+
+  if (hasBlocker) {
+    tracePageEvent(page, "dismiss-overlap-manager-overlay", "start");
+    await page.keyboard.press("Escape").catch(() => undefined);
+    await page.waitForTimeout(400).catch(() => undefined);
+    const remaining = await page
+      .locator("#overlap-manager-root [data-id]")
+      .count()
+      .catch(() => -1);
+    tracePageEvent(page, "dismiss-overlap-manager-overlay", `done:remaining=${remaining}`);
+  }
+}
+
 async function collectVisibleIndicatorMyScriptNames(page: Page, limit = 8): Promise<string[]> {
   return page
     .locator('[data-name="indicators-dialog"] [data-id^="USER;"]')
@@ -2396,6 +2431,9 @@ async function addScriptToChartViaIndicators(page: Page, scriptName: string): Pr
   tracePageEvent(page, "add-to-chart-indicators-start", scriptName);
   await dismissSignInModal(page);
   await closePineEditorIfVisible(page).catch(() => undefined);
+  // Dismiss any lingering #overlap-manager-root overlay (e.g. container-VeoIyDt4
+  // blocking pointer events) before clicking the Indicators button.
+  await dismissOverlapManagerOverlay(page);
 
   const attempt: AddExistingScriptToChartViaIndicatorsAttempt = {
     searchName: scriptName,
