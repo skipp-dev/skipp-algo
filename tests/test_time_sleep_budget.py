@@ -104,8 +104,8 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # (776→784, 795→803).
         # 2026-06-13: profile-bulk pagination constant shifted +1
         # (784→785, 803→804); sleeps unchanged: retry-backoff paths.
-        ("open_prep/macro.py", 799),
-        ("open_prep/macro.py", 818),
+        ("open_prep/macro.py", 803),
+        ("open_prep/macro.py", 822),
         ("newsstack_fmp/ingest_fmp_political.py", 122),
         ("newsstack_fmp/ingest_fmp_political.py", 135),
         ("newsstack_fmp/shared_fetch.py", 297),
@@ -125,8 +125,8 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("open_prep/run_open_prep.py", 1952),
         ("open_prep/run_open_prep.py", 1954),
         ("newsstack_fmp/_bz_http.py", 44),
+        ("terminal_bitcoin.py", 846),
         ("terminal_bitcoin.py", 848),
-        ("terminal_bitcoin.py", 850),
         # 2026-06-10 (#2670 W3): source-field additions shifted +6 (286 -> 292).
         ("terminal_technicals.py", 293),
         ("terminal_tradingview_news.py", 409),
