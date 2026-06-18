@@ -107,7 +107,10 @@ def test_reject_stale_fallback_requires_today_artifact_missing() -> None:
     assert "restore_export_bundle_today" in condition, (
         "Condition must reference restore_export_bundle_today step output."
     )
-    assert re.search(r"found_artifact.*!=.*true|found_artifact.*==.*false", condition), (
+    assert re.search(
+        r"found_artifact.*!=\s*['\"]true['\"]|found_artifact.*==\s*['\"]false[\"']",
+        condition,
+    ), (
         "Condition must assert that today's artifact was NOT found "
         "(found_artifact != 'true' or found_artifact == 'false')."
     )
@@ -122,7 +125,9 @@ def test_reject_stale_fallback_requires_fallback_artifact_present() -> None:
     assert "restore_export_bundle_fallback" in condition, (
         "Condition must reference restore_export_bundle_fallback step output."
     )
-    assert re.search(r"found_artifact.*==.*true", condition), (
+    assert re.search(r"found_artifact.*==\s*['\"]true['\"]|", condition) or re.search(
+        r"found_artifact.*==\s*['\"]true[\"']", condition
+    ), (
         "Condition must assert that the FALLBACK artifact was found "
         "(found_artifact == 'true') — rejecting only when a stale artifact was "
         "actually resolved."

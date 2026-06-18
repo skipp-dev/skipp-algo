@@ -33,9 +33,11 @@ All notable changes to this project are documented in this file.
   `origin/data/phase-a-audit` has received a commit in the last N days;
   emits `::warning::` if stale (soft-alert, does not fail the job). Fixed
   YAML parse error (Python heredoc at col-1 replaced with `date -d` shell
-  arithmetic). Added UTC normalization (`date -u`), `LAST_TS=0`
-  false-positive guard via UTC-midnight normalisation (`LAST_TS_NORM` /
-  `TODAY_TS_NORM`), and a `::warning::` when `git fetch` itself fails.
+  arithmetic). Replaced raw-epoch-seconds arithmetic with UTC
+  calendar-day normalization (`LAST_DATE`/`TODAY` via `date -u +%Y-%m-%d`)
+  so `GAP_DAYS` is an exact calendar-day count regardless of commit
+  time-of-day, eliminating the old `LAST_TS=0`-on-parse-failure false
+  positive (parse failure now emits `::notice` + skips the check).
 - `tests/test_workflow_adr0023_magnitude_shadow_daily_contract.py`: updated
   `GAP_BUDGET_DAYS` pin from 7 to 10.
 - `f2-promotion-gate-daily`: was **disabled** in GHA UI (3 missed weekday runs
