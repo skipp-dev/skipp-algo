@@ -2349,6 +2349,91 @@ export function indicatorsMyScriptsShowsMatchingPrivateScript(
   });
 }
 
+/**
+ * Dismiss any blocking overlay in TradingView's #overlap-manager-root before
+ * attempting pointer-event-driven interactions (e.g. opening the Indicators dialog).
+ *
+ * Uses a 4-step strategy (mouse-move → outerHTML log → Escape → JS bypass):
+ * 1. Move mouse to (0,0) — dismisses hover-triggered tooltips/popovers.
+ * 2. Log .container-VeoIyDt4 outerHTML for artifact observability.
+ * 3. Press Escape — dismisses conventional modal-style overlays.
+ * 4. Set pointer-events:none via JS — last resort for Escape-resistant overlays.
+ *
+ * Call sites: addScriptToChartViaIndicators, ensurePineEditor (×2).
+ * TODO(#2849 — after ≥2 green smc-library-refresh runs): centralise step 1
+ * (mouse.move) into clickVisibleWithFallback to cover all future entry-points
+ * automatically without requiring explicit call sites.
+ *
+ * TradingView renders modals, dropdowns, and popups into a portal div
+ * (#overlap-manager-root > .container-VeoIyDt4). When a stale overlay from a
+ * previous interaction lingers, its pointer-events intercept ALL clicks on the
+ * chart surface, causing Playwright's locator.click() to time out with:
+ *   "<div class=\"container-VeoIyDt4\">…</div> subtree intercepts pointer events"
+ *
+ * Investigation (runs #27750634938 → #27773053223) found the blocker is a
+ * hover-triggered tooltip/popover (data-id changes across attempts) that is NOT
+ * dismissed by Escape and has no close button. The 4-step strategy below handles
+ * both the tooltip/popover class and conventional modal overlays.
+ */
+export async function dismissOverlapManagerOverlay(page: Page): Promise<void> {
+  if (page.isClosed()) return;
+
+  const overlayLocator = page.locator("#overlap-manager-root [data-id]");
+
+  // Fast-path: skip the 200 ms mouse.move wait entirely if no overlay is present.
+  // ensurePineEditor calls this function twice per invocation, so the early-exit
+  // avoids 400 ms of unnecessary latency in the common (no-overlay) case.
+  const initialCount = await overlayLocator.count().catch(() => 0);
+  if (initialCount === 0) return;
+
+  // Step 1: Move mouse to a neutral position (0,0) — dismisses hover-triggered
+  // tooltips / popovers that appear when the mouse hovers over TV UI elements.
+  // The dynamic data-id across attempts strongly suggests a hover-sensitive element.
+  await page.mouse.move(0, 0).catch(() => undefined);
+  await page.waitForTimeout(200).catch(() => undefined);
+
+  const countAfterMove = await overlayLocator.count().catch(() => 0);
+  if (countAfterMove === 0) return; // mouse.move was sufficient
+
+  // Step 2: Log the overlay's outerHTML for artifact observability so future
+  // failures can identify the exact TV element without another manual RCA.
+  const overlayHtml = await page
+    .locator("#overlap-manager-root .container-VeoIyDt4")
+    .first()
+    .evaluate((el) => el.outerHTML)
+    .catch(() => "");
+  tracePageEvent(page, "dismiss-overlap-manager-overlay-found", overlayHtml.slice(0, 500));
+
+  // Step 3: Try Escape — works for conventional modal-style overlays.
+  await page.keyboard.press("Escape").catch(() => undefined);
+  await page.waitForTimeout(300).catch(() => undefined);
+
+  const countAfterEscape = await overlayLocator.count().catch(() => 0);
+  if (countAfterEscape === 0) {
+    tracePageEvent(page, "dismiss-overlap-manager-overlay-done", "escape-worked");
+    return;
+  }
+
+  // Step 4: Last resort — neutralise pointer-events via JavaScript for overlays
+  // that cannot be dismissed interactively (no close button, Escape-resistant).
+  // This does NOT remove the element, so TV's own cleanup still fires normally.
+  tracePageEvent(page, "dismiss-overlap-manager-overlay-js-bypass", String(countAfterEscape));
+  await page
+    .evaluate(() => {
+      // Target only the blocking [data-id] overlay elements — NOT the portal
+      // container (.container-VeoIyDt4), which TradingView reuses for ALL future
+      // dialogs (including the Indicators dialog opened immediately after).
+      document
+        .querySelectorAll("#overlap-manager-root [data-id]")
+        .forEach((el) => ((el as HTMLElement).style.pointerEvents = "none"));
+    })
+    .catch(() => undefined);
+  await page.waitForTimeout(100).catch(() => undefined);
+
+  const remaining = await overlayLocator.count().catch(() => -1);
+  tracePageEvent(page, "dismiss-overlap-manager-overlay-done", `js-bypass:remaining=${remaining}`);
+}
+
 async function collectVisibleIndicatorMyScriptNames(page: Page, limit = 8): Promise<string[]> {
   return page
     .locator('[data-name="indicators-dialog"] [data-id^="USER;"]')
@@ -2396,6 +2481,9 @@ async function addScriptToChartViaIndicators(page: Page, scriptName: string): Pr
   tracePageEvent(page, "add-to-chart-indicators-start", scriptName);
   await dismissSignInModal(page);
   await closePineEditorIfVisible(page).catch(() => undefined);
+  // Dismiss any lingering #overlap-manager-root overlay (e.g. container-VeoIyDt4
+  // blocking pointer events) before clicking the Indicators button.
+  await dismissOverlapManagerOverlay(page);
 
   const attempt: AddExistingScriptToChartViaIndicatorsAttempt = {
     searchName: scriptName,
@@ -4302,6 +4390,9 @@ export async function ensurePineEditor(page: Page): Promise<void> {
 
     await dismissSignInModal(page);
     await dismissCookieBanner(page);
+    // Dismiss any #overlap-manager-root blocker before clicking the Pine editor
+    // button. The overlay also blocks ensurePineEditor (run #27773053223 RCA).
+    await dismissOverlapManagerOverlay(page);
 
     const initialDiagnostics = await collectEditorDiagnostics(page);
     if (hasVisibleEditorHost(initialDiagnostics)) {
@@ -4327,6 +4418,7 @@ export async function ensurePineEditor(page: Page): Promise<void> {
       await closeModal(page).catch(() => undefined);
       await dismissSignInModal(page);
       await dismissCookieBanner(page);
+      await dismissOverlapManagerOverlay(page);
 
       diagnostics = await collectEditorDiagnostics(page);
       if (hasVisibleEditorHost(diagnostics)) {
