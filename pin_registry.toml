@@ -65,8 +65,8 @@
 # explicit timeout=15s, B310 nosec'd at the call site (constant URL).
 "scripts/check_workflow_freshness.py" = [72]
 # smc_fmp_client.py: bare-name urlopen (from urllib.request import urlopen)
-# at L276 inside FMPClient._do_request; has timeout=self.timeout_seconds.
-"scripts/smc_fmp_client.py" = [276]
+# at L279 inside FMPClient._do_request; has timeout=self.timeout_seconds.
+"scripts/smc_fmp_client.py" = [279]
 "scripts/smc_alert_notifier.py" = [481]
 "scripts/verify_branch_protection.py" = [104]
 "terminal_notifications.py" = [255, 319]
@@ -77,7 +77,7 @@
 "databento_volatility_screener.py" = [1430]
 "open_prep/bea.py" = [94]
 # 2026-06-11 (eval-findings B8): surprise-scale comment block +8 (713→721).
-"open_prep/macro.py" = [736]
+"open_prep/macro.py" = [740]
 "open_prep/sentiment_fng.py" = [100]
 "scripts/probe_fmp_13f_endpoints.py" = [75]
 "scripts/resolve_workflow_runner.py" = [91]

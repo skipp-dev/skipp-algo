@@ -88,10 +88,14 @@ def _prev_us_equity_trading_day(day: date) -> date:
     if _prev_trading_day is not None:
         return cast(date, _prev_trading_day(day))
     probe = day
-    while True:
-        probe = probe.fromordinal(probe.toordinal() - 1)
+    for _ in range(10):
+        try:
+            probe = date.fromordinal(probe.toordinal() - 1)
+        except (ValueError, OverflowError):
+            raise RuntimeError(f"No trading day found within 10 days before {day}") from None
         if probe.weekday() < 5:
             return probe
+    raise RuntimeError(f"No trading day found within 10 days before {day}")
 
 
 def _to_float(value: Any) -> float | None:
