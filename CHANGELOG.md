@@ -6,6 +6,45 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-06-18) — TV automation async-race fix + token/corpus hardening (PR #2843)
+
+**TV-automation — async "My scripts" rows (run #456 RCA)**
+- `automation/tradingview/lib/tv_shared.ts` (`collectVisibleIndicatorMyScriptNames`):
+  replaced the fixed `waitForTimeout(500)` with `waitFor({state:'visible', timeout:3_000})`
+  on the first `[data-name="indicators-dialog"] [data-id^="USER;"]` element.
+  Root cause: TradingView began lazy-loading "My scripts" asynchronously; the prior
+  500 ms flat wait was insufficient after a tab switch, causing `collectVisible` to
+  return `[]` for all three targets (`auth_ok=True, ui_green=True` but
+  `"No private My scripts rows were visible" → overall_preflight_ok=False`).
+- Added `tracePageEvent('add-to-chart-indicators-rows-ready:<count>')` so future
+  failure artifacts include how many USER rows were visible at collection time.
+- Locator dedup (Copilot finding): extracted shared `allScriptRowsLocator` constant
+  (`page.locator('[data-name="indicators-dialog"] [data-id^="USER;"]')`); was
+  previously duplicated between `firstScriptRowLocator` and the `count()` call.
+
+**smc-library-refresh.yml — token-masking + pipefail hardening**
+- `Configure git credentials for metrics push` step: moved `${{ github.token }}`
+  out of the inline shell command into a dedicated `env: GIT_PUSH_TOKEN:` block
+  and references `${GIT_PUSH_TOKEN}` instead — matches the `GITHUB_TOKEN` env-var
+  indirection pattern used elsewhere and ensures reliable secret masking.
+- Added `set -euo pipefail` so a failed `git remote set-url` exits immediately
+  instead of silently continuing with a misconfigured remote.
+- `GIT_PUSH_TOKEN` renamed to `GITHUB_TOKEN` in one step `env:` block (Copilot:
+  non-standard name caused confusion); `${{ github.repository }}` swapped to
+  `${GITHUB_REPOSITORY}` (built-in GHA env var, not a template expression).
+
+**Corpus + ledger fixes (co-landed on this branch)**
+- `scripts/collect_drift_calibration_corpus.py`: `_append_rows` was returning
+  `None` instead of the written-row count (`return written` was missing;
+  `written = 0` was also inside the `with`-block). Fixed: initialise before
+  the `with`-block, add explicit `return written`.
+- `scripts/collect_drift_calibration_corpus.py`: replaced bare `except
+  ImportError: pass` with `fcntl = None; _FLOCK_SUPPORTED = False` null-fallback,
+  eliminating `# noqa: F821` workarounds and satisfying the POSIX import-guard
+  pattern.
+- `pin_registry.toml`: bumped `set +e` count 1→2 for the new
+  `Annotate probe results` step in `meta-watchdog.yml`.
+
 ### Changed (2026-06-17) — Monitoring hardening + Q&A audit follow-up (PR #2841, #2842)
 
 **W11-1 — Skip `hit_rate=None` families in advisory FDR layer (PR #2841)**
@@ -33,9 +72,11 @@ All notable changes to this project are documented in this file.
   `origin/data/phase-a-audit` has received a commit in the last N days;
   emits `::warning::` if stale (soft-alert, does not fail the job). Fixed
   YAML parse error (Python heredoc at col-1 replaced with `date -d` shell
-  arithmetic). Added UTC normalization (`date -u`), `LAST_TS=0`
-  false-positive guard via UTC-midnight normalisation (`LAST_TS_NORM` /
-  `TODAY_TS_NORM`), and a `::warning::` when `git fetch` itself fails.
+  arithmetic). Replaced raw-epoch-seconds arithmetic with UTC
+  calendar-day normalization (`LAST_DATE`/`TODAY` via `date -u +%Y-%m-%d`)
+  so `GAP_DAYS` is an exact calendar-day count regardless of commit
+  time-of-day, eliminating the old `LAST_TS=0`-on-parse-failure false
+  positive (parse failure now emits `::notice` + skips the check).
 - `tests/test_workflow_adr0023_magnitude_shadow_daily_contract.py`: updated
   `GAP_BUDGET_DAYS` pin from 7 to 10.
 - `f2-promotion-gate-daily`: was **disabled** in GHA UI (3 missed weekday runs

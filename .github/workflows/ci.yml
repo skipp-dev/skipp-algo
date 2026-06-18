@@ -108,6 +108,20 @@ jobs:
         run: |
           python -c "import sys; raise SystemExit('GitHub-hosted Python bootstrap did not resolve Python 3.12.' if sys.version_info[:2] != (3, 12) else 0)"
           echo "SMC_PYTHON_BIN=python" >> "$GITHUB_ENV"
+      - name: Cache venv (GitHub-hosted)
+        # Restore the .venv from the previous run with the same requirements.lock
+        # hash.  On a cache-hit, setup-persistent-venv's 'uv pip sync' finds all
+        # packages already installed and exits in < 1 s instead of ~45 s.
+        # On a cache-miss (new requirements.lock) the venv is built from the uv
+        # package-download cache (already warm) and saved at job end.
+        id: venv-cache
+        if: steps.gate.outputs.run_heavy == 'true'
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-python3.12-${{ hashFiles('requirements.lock') }}
+          restore-keys: |
+            venv-${{ runner.os }}-python3.12-
       - name: Install test dependencies
         # SC-04 (supply-chain audit 2026-06-14): requirements.lock is now always
         # used instead of being gated behind vars.SMC_USE_REQUIREMENTS_LOCK.
@@ -141,10 +155,11 @@ jobs:
         uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
         with:
           path: .testmondata
-          key: testmondata-${{ runner.os }}-${{ github.base_ref || github.ref_name }}-${{ github.run_id }}
+          key: testmondata-${{ runner.os }}-${{ github.base_ref || github.ref_name }}-${{ github.sha }}
           restore-keys: |
             testmondata-${{ runner.os }}-${{ github.base_ref || github.ref_name }}-
             testmondata-${{ runner.os }}-main-
+          save-always: true
       - name: Run Python tests (PR / non-main push — testmon fast lane)
         if: steps.gate.outputs.run_heavy == 'true' && (github.event_name == 'pull_request' || github.ref != 'refs/heads/main') && vars.SMC_TESTMON_PR_LANE == 'true'
         run: |
