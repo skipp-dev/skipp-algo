@@ -14,6 +14,12 @@ const PYTHON_ENCODED = process.env.PYTHON_ENCODED === '1';
 // ── Logging ────────────────────────────────────────────
 app.use(morgan('combined'));
 
+// ── CORS — set on every response, including 4xx/5xx error paths ───────────
+app.use((_req, res, next) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  next();
+});
+
 // ── Rate-limit (60 req/min per IP) ─────────────────────
 const limiter = rateLimit({
   windowMs: 60_000,
@@ -101,7 +107,6 @@ app.get('/smc_tv', async (req, res) => {
           return res.status(502).json({ error: `python backend ${r.status}` });
         }
         const out = await r.json();
-        res.set('Access-Control-Allow-Origin', '*');
         return res.json(out);
       } finally {
         clearTimeout(timeout);
@@ -135,7 +140,6 @@ app.get('/smc_tv', async (req, res) => {
       news: typeof snap.newsscore === 'number' ? snap.newsscore : 0.0,
     };
 
-    res.set('Access-Control-Allow-Origin', '*');
     res.json(out);
   } catch (e) {
     console.error('smc_tv error', e);
