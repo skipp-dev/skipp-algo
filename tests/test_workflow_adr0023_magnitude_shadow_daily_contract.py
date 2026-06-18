@@ -128,7 +128,7 @@ def test_commit_back_gap_guard_present_and_fail_loud() -> None:
     assert not guard.get("continue-on-error", False)
     env = guard["env"]
     assert env["LEDGER_PATH"] == "artifacts/governance/magnitude_resolution_shadow.jsonl"
-    assert int(env["GAP_BUDGET_DAYS"]) == 7
+    assert int(env["GAP_BUDGET_DAYS"]) == 10  # bumped 7→10 (2026-06-17, W11 monitoring review)
     run = guard["run"]
     assert "GAP_BUDGET_DAYS" in run
     assert "sys.exit(1)" in run  # fail-loud on gap breach

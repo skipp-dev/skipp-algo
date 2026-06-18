@@ -172,13 +172,14 @@ jobs:
       # checkout (i.e. BEFORE today's append) and fails loud when the
       # gap exceeds budget. A red run here surfaces through the
       # freshness monitor (this workflow is on its watchlist), so the
-      # alert chain closes. Budget 7 calendar days: weekday cron means
-      # a normal weekend gap is 3 days; 7 absorbs holidays plus a
-      # couple of legitimate fail-soft skips before alarming.
+      # alert chain closes. Budget 10 calendar days: weekday cron means
+      # a normal weekend gap is 3 days; 10 absorbs holidays plus a
+      # brief C13 pause (e.g. workstation restart) before alarming.
+      # Extended from 7→10 on 2026-06-17 to accommodate C13 resume lag.
       - name: Guard against silent commit-back gap in shadow ledger
         env:
           LEDGER_PATH: artifacts/governance/magnitude_resolution_shadow.jsonl
-          GAP_BUDGET_DAYS: "7"
+          GAP_BUDGET_DAYS: "10"
         run: |
           set -euo pipefail
           python - <<'PY'

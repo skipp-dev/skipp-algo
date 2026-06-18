@@ -103,9 +103,11 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # 2026-06-11 (Copilot sweep #2677): deferred-summary accounting 690→702.
     # 2026-06-12 (pytest write-guard merge): guard import/call + sweep
     # combined — measured 125/711; outcomes.py guard shift → 161.
-    ("open_prep/outcome_backfill.py", 125, "unlink"),
+    # 2026-06-17 (F1 lint fix): remove unused import sys → 125→124.
+    ("open_prep/outcome_backfill.py", 124, "unlink"),
     # 2026-06-12 (Copilot #2729): main() exit-semantics docstring +6 → 717.
-    ("open_prep/outcome_backfill.py", 717, "unlink"),
+    # 2026-06-17 (F1 lint fix): remove unused import sys → 717→716.
+    ("open_prep/outcome_backfill.py", 716, "unlink"),
     ("open_prep/outcomes.py", 161, "unlink"),
     # 2026-06-11 (trend-state features): 431→449, snapshot keys +
     # FEATURE_KEYS/PASS_THROUGH block added above.
