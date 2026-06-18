@@ -787,14 +787,16 @@ function legacyOpenScriptNames(scriptName: string): string[] {
   switch (normalizeUiText(scriptName).toLowerCase()) {
     case "smc core":
       return ["SMC Core Engine"];
+    case "smc core engine":
+      return ["SMC Core"];
     case "smc long-dip dashboard v7":
       return ["SMC Decision Board", "SMC Dashboard"];
+    case "smc decision board":
+      return ["SMC Long-Dip Dashboard v7", "SMC Dashboard"];
     case "smc long-dip strategy v7":
       return ["SMC Execution", "SMC Long Strategy"];
-    case "smc decision board":
-      return ["SMC Dashboard"];
     case "smc execution":
-      return ["SMC Long Strategy"];
+      return ["SMC Long-Dip Strategy v7", "SMC Long Strategy"];
     default:
       return [];
   }
@@ -3178,8 +3180,14 @@ export function settingsDialogTitleMatchesScriptName(scriptName: string, dialogT
   if (!normalizedTitle) {
     return false;
   }
-  return scriptNameAppearsInUiText(scriptName, normalizedTitle)
-    || isLegendTruncatedMatch(normalizedTitle, scriptName);
+  const candidates = resolveOpenScriptSearchNames(scriptName);
+  for (const candidate of candidates) {
+    if (scriptNameAppearsInUiText(candidate, normalizedTitle)
+      || isLegendTruncatedMatch(normalizedTitle, candidate)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -3488,7 +3496,8 @@ async function isScriptStrictlyVisibleOnChartSurface(page: Page, scriptName: str
 }
 
 export async function findLegendRowWrappers(page: Page, scriptName: string): Promise<Locator[]> {
-  const [, loosePattern, fuzzyPattern] = buildScriptNamePatterns(scriptName);
+  const candidateNames = resolveOpenScriptSearchNames(scriptName);
+  const patternsList = candidateNames.map((name) => buildScriptNamePatterns(name));
 
   // Start from the known legend-action buttons and walk UP the ancestor
   // chain to find the enclosing legend row.  TradingView wraps the buttons
@@ -3512,7 +3521,17 @@ export async function findLegendRowWrappers(page: Page, scriptName: string): Pro
       const ancestor = btn.locator(`xpath=${xpath}`);
       const text = normalizeUiText((await ancestor.innerText({ timeout: 300 }).catch(() => "")) || "");
       if (!text || text.length > 300) continue;
-      if (loosePattern.test(text) || fuzzyPattern.test(text) || isLegendTruncatedMatch(text, scriptName)) {
+
+      let matched = false;
+      for (const [index, candidate] of candidateNames.entries()) {
+        const [, loosePattern, fuzzyPattern] = patternsList[index];
+        if (loosePattern.test(text) || fuzzyPattern.test(text) || isLegendTruncatedMatch(text, candidate)) {
+          matched = true;
+          break;
+        }
+      }
+
+      if (matched) {
         const key = `${depth}:${text.slice(0, 60)}`;
         if (!seenKeys.has(key)) {
           seenKeys.add(key);
@@ -3861,7 +3880,8 @@ async function tryOpenScriptSettingsByDoubleClick(
 
 async function openSettingsFromLegendContainer(page: Page, scriptName: string): Promise<boolean> {
   tracePageEvent(page, "script-settings-legend-container-start", scriptName);
-  const [, loosePattern, fuzzyPattern] = buildScriptNamePatterns(scriptName);
+  const candidateNames = resolveOpenScriptSearchNames(scriptName);
+  const patternsList = candidateNames.map((name) => buildScriptNamePatterns(name));
   const directWrappers = await findLegendRowWrappers(page, scriptName).catch(() => []);
 
   for (const wrapper of directWrappers) {
@@ -3915,113 +3935,123 @@ async function openSettingsFromLegendContainer(page: Page, scriptName: string): 
     }
   }
 
-  for (const locator of tvSelectors.scriptLegendContainers(page, scriptName)) {
-    const container = await firstVisibleLocator(locator, 1_200);
-    if (!container) {
-      continue;
-    }
-
-    const containerText = normalizeUiText(await container.innerText().catch(() => ""));
-    if (!loosePattern.test(containerText) && !fuzzyPattern.test(containerText)) {
-      continue;
-    }
-    tracePageEvent(page, "script-settings-legend-container-visible", containerText.slice(0, 160));
-
-    const containersToTry: Locator[] = [];
-    const actionableWrapper = container.locator(
-      'xpath=ancestor::*[.//button[@data-qa-id="legend-settings-action"] or .//button[@data-qa-id="legend-more-action"] or .//*[@aria-label="Settings"] or .//*[@aria-label="More"]][1]',
-    ).first();
-    for (const target of [actionableWrapper, container]) {
-      const visible = await target.isVisible({ timeout: 500 }).catch(() => false);
-      if (!visible) {
-        continue;
-      }
-      containersToTry.push(target);
-    }
-
-    for (const [containerIndex, targetContainer] of containersToTry.entries()) {
-      const targetVisible = await targetContainer.isVisible({ timeout: 500 }).catch(() => false);
-      if (!targetVisible) {
+  for (const candidate of candidateNames) {
+    for (const locator of tvSelectors.scriptLegendContainers(page, candidate)) {
+      const container = await firstVisibleLocator(locator, 1_200);
+      if (!container) {
         continue;
       }
 
-      await targetContainer.scrollIntoViewIfNeeded().catch(() => undefined);
-      await targetContainer.hover({ timeout: 1_000 }).catch(() => undefined);
+      const containerText = normalizeUiText(await container.innerText().catch(() => ""));
+      let matched = false;
+      for (let index = 0; index < candidateNames.length; index++) {
+        const [, loosePattern, fuzzyPattern] = patternsList[index];
+        if (loosePattern.test(containerText) || fuzzyPattern.test(containerText)) {
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) {
+        continue;
+      }
+      tracePageEvent(page, "script-settings-legend-container-visible", containerText.slice(0, 160));
 
-      if (await tryOpenScriptSettingsByDoubleClick(
-        page,
-        targetContainer,
-        "script-settings-legend-container-dblclick-start",
-        "script-settings-legend-container-dblclick-ok",
-        `${scriptName}:${containerIndex}`,
-      )) {
-        return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-container-dblclick");
+      const containersToTry: Locator[] = [];
+      const actionableWrapper = container.locator(
+        'xpath=ancestor::*[.//button[@data-qa-id="legend-settings-action"] or .//button[@data-qa-id="legend-more-action"] or .//*[@aria-label="Settings"] or .//*[@aria-label="More"]][1]',
+      ).first();
+      for (const target of [actionableWrapper, container]) {
+        const visible = await target.isVisible({ timeout: 500 }).catch(() => false);
+        if (!visible) {
+          continue;
+        }
+        containersToTry.push(target);
       }
 
-      const clickedDirectSettings = await clickLegendControlWithFallback(
-        page,
-        tvSelectors.legendSettingsButtons(targetContainer),
-        "script-settings-legend-direct",
-        500,
-        150,
-        async () => waitForSettingsSurface(page, 350),
-      );
-      if (clickedDirectSettings) {
-        tracePageEvent(page, "script-settings-legend-direct-clicked", `${scriptName}:${containerIndex}`);
-        await page.waitForTimeout(150);
-        if (await waitForScriptSettingsInputsSurface(page, 350)) {
-          return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-direct-surface");
+      for (const [containerIndex, targetContainer] of containersToTry.entries()) {
+        const targetVisible = await targetContainer.isVisible({ timeout: 500 }).catch(() => false);
+        if (!targetVisible) {
+          continue;
         }
-        if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `script-settings-legend-direct:${scriptName}:${containerIndex}`, 350)) {
-          return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-direct-dialog");
+
+        await targetContainer.scrollIntoViewIfNeeded().catch(() => undefined);
+        await targetContainer.hover({ timeout: 1_000 }).catch(() => undefined);
+
+        if (await tryOpenScriptSettingsByDoubleClick(
+          page,
+          targetContainer,
+          "script-settings-legend-container-dblclick-start",
+          "script-settings-legend-container-dblclick-ok",
+          `${scriptName}:${containerIndex}:${candidate}`,
+        )) {
+          return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-container-dblclick");
         }
-        tracePageEvent(page, "script-settings-legend-direct-no-surface", `${scriptName}:${containerIndex}`);
-      }
 
-      const clickedMenu = await clickLegendControlWithFallback(
-        page,
-        tvSelectors.legendMenuButtons(targetContainer),
-        "script-settings-legend",
-        500,
-        150,
-        async () => waitForSettingsSurface(page, 350),
-      );
-      if (clickedMenu) {
-        tracePageEvent(page, "script-settings-legend-container-clicked", `${scriptName}:${containerIndex}`);
-        await page.waitForTimeout(150);
-        if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `script-settings-legend-menu:${scriptName}:${containerIndex}`, 350)) {
-          return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-menu-dialog");
+        const clickedDirectSettings = await clickLegendControlWithFallback(
+          page,
+          tvSelectors.legendSettingsButtons(targetContainer),
+          "script-settings-legend-direct",
+          500,
+          150,
+          async () => waitForSettingsSurface(page, 350),
+        );
+        if (clickedDirectSettings) {
+          tracePageEvent(page, "script-settings-legend-direct-clicked", `${scriptName}:${containerIndex}:${candidate}`);
+          await page.waitForTimeout(150);
+          if (await waitForScriptSettingsInputsSurface(page, 350)) {
+            return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-direct-surface");
+          }
+          if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `script-settings-legend-direct:${scriptName}:${containerIndex}:${candidate}`, 350)) {
+            return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-direct-dialog");
+          }
+          tracePageEvent(page, "script-settings-legend-direct-no-surface", `${scriptName}:${containerIndex}:${candidate}`);
         }
-        tracePageEvent(page, "script-settings-legend-container-no-surface", `${scriptName}:${containerIndex}`);
-      }
 
-      const box = await targetContainer.boundingBox().catch(() => null);
-      if (box) {
-        const targetX = Math.max(box.x + 8, box.x + box.width - 14);
-        const targetY = box.y + Math.max(6, Math.min(box.height / 2, Math.max(box.height - 6, 6)));
+        const clickedMenu = await clickLegendControlWithFallback(
+          page,
+          tvSelectors.legendMenuButtons(targetContainer),
+          "script-settings-legend",
+          500,
+          150,
+          async () => waitForSettingsSurface(page, 350),
+        );
+        if (clickedMenu) {
+          tracePageEvent(page, "script-settings-legend-container-clicked", `${scriptName}:${containerIndex}:${candidate}`);
+          await page.waitForTimeout(150);
+          if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `script-settings-legend-menu:${scriptName}:${containerIndex}:${candidate}`, 350)) {
+            return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-menu-dialog");
+          }
+          tracePageEvent(page, "script-settings-legend-container-no-surface", `${scriptName}:${containerIndex}:${candidate}`);
+        }
 
-        await page.mouse.move(targetX, targetY).catch(() => undefined);
-        await page.waitForTimeout(100);
-        await page.mouse.click(targetX, targetY).catch(() => undefined);
+        const box = await targetContainer.boundingBox().catch(() => null);
+        if (box) {
+          const targetX = Math.max(box.x + 8, box.x + box.width - 14);
+          const targetY = box.y + Math.max(6, Math.min(box.height / 2, Math.max(box.height - 6, 6)));
+
+          await page.mouse.move(targetX, targetY).catch(() => undefined);
+          await page.waitForTimeout(100);
+          await page.mouse.click(targetX, targetY).catch(() => undefined);
+          await page.waitForTimeout(350);
+          if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `script-settings-legend-mouse:${scriptName}:${containerIndex}:${candidate}`)) {
+            tracePageEvent(page, "script-settings-legend-container-mouse-ok", `${scriptName}:${containerIndex}:${candidate}`);
+            return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-mouse-dialog");
+          }
+
+          await page.mouse.click(targetX, targetY, { button: "right" }).catch(() => undefined);
+          await page.waitForTimeout(350);
+          if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `script-settings-legend-rightclick:${scriptName}:${containerIndex}:${candidate}`)) {
+            tracePageEvent(page, "script-settings-legend-container-rightclick-ok", `${scriptName}:${containerIndex}:${candidate}`);
+            return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-rightclick-dialog");
+          }
+        }
+
+        await targetContainer.click({ button: "right", force: true, timeout: 1_000 }).catch(() => undefined);
         await page.waitForTimeout(350);
-        if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `script-settings-legend-mouse:${scriptName}:${containerIndex}`)) {
-          tracePageEvent(page, "script-settings-legend-container-mouse-ok", `${scriptName}:${containerIndex}`);
-          return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-mouse-dialog");
+        if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `script-settings-legend-force-rightclick:${scriptName}:${containerIndex}:${candidate}`)) {
+          tracePageEvent(page, "script-settings-legend-container-force-rightclick-ok", `${scriptName}:${containerIndex}:${candidate}`);
+          return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-force-rightclick-dialog");
         }
-
-        await page.mouse.click(targetX, targetY, { button: "right" }).catch(() => undefined);
-        await page.waitForTimeout(350);
-        if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `script-settings-legend-rightclick:${scriptName}:${containerIndex}`)) {
-          tracePageEvent(page, "script-settings-legend-container-rightclick-ok", `${scriptName}:${containerIndex}`);
-          return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-rightclick-dialog");
-        }
-      }
-
-      await targetContainer.click({ button: "right", force: true, timeout: 1_000 }).catch(() => undefined);
-      await page.waitForTimeout(350);
-      if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `script-settings-legend-force-rightclick:${scriptName}:${containerIndex}`)) {
-        tracePageEvent(page, "script-settings-legend-container-force-rightclick-ok", `${scriptName}:${containerIndex}`);
-        return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-force-rightclick-dialog");
       }
     }
   }
@@ -4033,112 +4063,115 @@ async function openSettingsFromLegendContainer(page: Page, scriptName: string): 
 
 async function openSettingsFromScriptText(page: Page, scriptName: string): Promise<boolean> {
   tracePageEvent(page, "script-settings-text-start", scriptName);
-  for (const locator of tvSelectors.scriptRow(page, scriptName, { strict: true })) {
-    const scriptText = await firstVisibleLocator(locator, 1_200);
-    if (!scriptText) {
-      continue;
-    }
-
-    const scriptTextValue = await scriptText.innerText().catch(() => "");
-    tracePageEvent(page, "script-settings-text-visible", scriptTextValue.slice(0, 160));
-
-    const inPineDialog = await scriptText
-      .evaluate((node) => Boolean(node.closest('[data-name="pine-dialog"]')))
-      .catch(() => false);
-    if (inPineDialog) {
-      tracePageEvent(page, "script-settings-text-skip-pine-dialog", scriptName);
-      continue;
-    }
-
-    await scriptText.scrollIntoViewIfNeeded().catch(() => undefined);
-    await scriptText.hover({ timeout: 1_000 }).catch(() => undefined);
-
-    for (let level = 1; level <= 5; level += 1) {
-      const ancestor = scriptText.locator(`xpath=ancestor::div[${level}]`).first();
-      const visible = await ancestor.isVisible({ timeout: 750 }).catch(() => false);
-      if (!visible) {
+  const candidateNames = resolveOpenScriptSearchNames(scriptName);
+  for (const candidate of candidateNames) {
+    for (const locator of tvSelectors.scriptRow(page, candidate, { strict: true })) {
+      const scriptText = await firstVisibleLocator(locator, 1_200);
+      if (!scriptText) {
         continue;
       }
 
-      await ancestor.scrollIntoViewIfNeeded().catch(() => undefined);
-      await ancestor.hover({ timeout: 750 }).catch(() => undefined);
-      if (await tryOpenScriptSettingsByDoubleClick(
-        page,
-        ancestor,
-        "script-settings-text-ancestor-dblclick-start",
-        "script-settings-text-ancestor-dblclick-ok",
-        `${scriptName}:${level}`,
-      )) {
-        return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-text-ancestor-dblclick");
-      }
+      const scriptTextValue = await scriptText.innerText().catch(() => "");
+      tracePageEvent(page, "script-settings-text-visible", scriptTextValue.slice(0, 160));
 
-      const clickedDirectSettings = await clickVisibleWithFallback(
-        page,
-        tvSelectors.legendSettingsButtons(ancestor),
-        "script-settings-text-ancestor-direct",
-        1_000,
-        300,
-      );
-      if (clickedDirectSettings) {
-        if (await waitForScriptSettingsInputsSurface(page, 1_500)) {
-          tracePageEvent(page, "script-settings-text-ancestor-direct-ok", `${scriptName}:${level}`);
-          return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-text-ancestor-direct-surface");
-        }
-        if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `script-settings-text-ancestor-direct:${scriptName}:${level}`)) {
-          tracePageEvent(page, "script-settings-text-ancestor-direct-ok", `${scriptName}:${level}`);
-          return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-text-ancestor-direct-dialog");
-        }
-      }
-
-      const clickedMenu = await clickVisibleWithFallback(
-        page,
-        tvSelectors.legendMenuButtons(ancestor),
-        "script-settings-text-ancestor-menu",
-        1_000,
-        300,
-      );
-      if (clickedMenu && (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `script-settings-text-ancestor-menu:${scriptName}:${level}`))) {
-        tracePageEvent(page, "script-settings-text-ancestor-menu-ok", `${scriptName}:${level}`);
-        return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-text-ancestor-menu-dialog");
-      }
-    }
-
-    const textBox = await scriptText.boundingBox().catch(() => null);
-    if (textBox) {
-      const textX = textBox.x + Math.max(6, Math.min(18, Math.max(textBox.width - 6, 6)));
-      const textY = textBox.y + Math.max(4, Math.min(textBox.height / 2, Math.max(textBox.height - 4, 4)));
-
-      await page.mouse.move(textX, textY).catch(() => undefined);
-      await page.waitForTimeout(100);
-      await page.mouse.click(textX, textY, { button: "right" }).catch(() => undefined);
-      await page.waitForTimeout(350);
-      if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `script-settings-text-rightclick:${scriptName}`)) {
-        tracePageEvent(page, "script-settings-text-rightclick-ok", scriptName);
-        return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-text-rightclick-dialog");
-      }
-    }
-
-    await scriptText.click({ button: "right", force: true, timeout: 1_000 }).catch(() => undefined);
-    await page.waitForTimeout(350);
-    if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `script-settings-text-force-rightclick:${scriptName}`)) {
-      tracePageEvent(page, "script-settings-text-force-rightclick-ok", scriptName);
-      return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-text-force-rightclick-dialog");
-    }
-
-    for (let level = 1; level <= 4; level += 1) {
-      const ancestor = scriptText.locator(`xpath=ancestor::div[${level}]`).first();
-      const visible = await ancestor.isVisible({ timeout: 750 }).catch(() => false);
-      if (!visible) {
+      const inPineDialog = await scriptText
+        .evaluate((node) => Boolean(node.closest('[data-name="pine-dialog"]')))
+        .catch(() => false);
+      if (inPineDialog) {
+        tracePageEvent(page, "script-settings-text-skip-pine-dialog", scriptName);
         continue;
       }
 
-      await ancestor.scrollIntoViewIfNeeded().catch(() => undefined);
-      await ancestor.hover({ timeout: 750 }).catch(() => undefined);
-      await ancestor.click({ button: "right", force: true, timeout: 1_000 }).catch(() => undefined);
+      await scriptText.scrollIntoViewIfNeeded().catch(() => undefined);
+      await scriptText.hover({ timeout: 1_000 }).catch(() => undefined);
+
+      for (let level = 1; level <= 5; level += 1) {
+        const ancestor = scriptText.locator(`xpath=ancestor::div[${level}]`).first();
+        const visible = await ancestor.isVisible({ timeout: 750 }).catch(() => false);
+        if (!visible) {
+          continue;
+        }
+
+        await ancestor.scrollIntoViewIfNeeded().catch(() => undefined);
+        await ancestor.hover({ timeout: 750 }).catch(() => undefined);
+        if (await tryOpenScriptSettingsByDoubleClick(
+          page,
+          ancestor,
+          "script-settings-text-ancestor-dblclick-start",
+          "script-settings-text-ancestor-dblclick-ok",
+          `${scriptName}:${level}:${candidate}`,
+        )) {
+          return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-text-ancestor-dblclick");
+        }
+
+        const clickedDirectSettings = await clickVisibleWithFallback(
+          page,
+          tvSelectors.legendSettingsButtons(ancestor),
+          "script-settings-text-ancestor-direct",
+          1_000,
+          300,
+        );
+        if (clickedDirectSettings) {
+          if (await waitForScriptSettingsInputsSurface(page, 1_500)) {
+            tracePageEvent(page, "script-settings-text-ancestor-direct-ok", `${scriptName}:${level}:${candidate}`);
+            return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-text-ancestor-direct-surface");
+          }
+          if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `script-settings-text-ancestor-direct:${scriptName}:${level}:${candidate}`)) {
+            tracePageEvent(page, "script-settings-text-ancestor-direct-ok", `${scriptName}:${level}:${candidate}`);
+            return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-text-ancestor-direct-dialog");
+          }
+        }
+
+        const clickedMenu = await clickVisibleWithFallback(
+          page,
+          tvSelectors.legendMenuButtons(ancestor),
+          "script-settings-text-ancestor-menu",
+          1_000,
+          300,
+        );
+        if (clickedMenu && (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `script-settings-text-ancestor-menu:${scriptName}:${level}:${candidate}`))) {
+          tracePageEvent(page, "script-settings-text-ancestor-menu-ok", `${scriptName}:${level}:${candidate}`);
+          return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-text-ancestor-menu-dialog");
+        }
+      }
+
+      const textBox = await scriptText.boundingBox().catch(() => null);
+      if (textBox) {
+        const textX = textBox.x + Math.max(6, Math.min(18, Math.max(textBox.width - 6, 6)));
+        const textY = textBox.y + Math.max(4, Math.min(textBox.height / 2, Math.max(textBox.height - 4, 4)));
+
+        await page.mouse.move(textX, textY).catch(() => undefined);
+        await page.waitForTimeout(100);
+        await page.mouse.click(textX, textY, { button: "right" }).catch(() => undefined);
+        await page.waitForTimeout(350);
+        if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `script-settings-text-rightclick:${scriptName}:${candidate}`)) {
+          tracePageEvent(page, "script-settings-text-rightclick-ok", `${scriptName}:${candidate}`);
+          return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-text-rightclick-dialog");
+        }
+      }
+
+      await scriptText.click({ button: "right", force: true, timeout: 1_000 }).catch(() => undefined);
       await page.waitForTimeout(350);
-      if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `script-settings-text-ancestor-rightclick:${scriptName}:${level}`)) {
-        tracePageEvent(page, "script-settings-text-ancestor-rightclick-ok", `${scriptName}:${level}`);
-        return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-text-ancestor-rightclick-dialog");
+      if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `script-settings-text-force-rightclick:${scriptName}:${candidate}`)) {
+        tracePageEvent(page, "script-settings-text-force-rightclick-ok", `${scriptName}:${candidate}`);
+        return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-text-force-rightclick-dialog");
+      }
+
+      for (let level = 1; level <= 4; level += 1) {
+        const ancestor = scriptText.locator(`xpath=ancestor::div[${level}]`).first();
+        const visible = await ancestor.isVisible({ timeout: 750 }).catch(() => false);
+        if (!visible) {
+          continue;
+        }
+
+        await ancestor.scrollIntoViewIfNeeded().catch(() => undefined);
+        await ancestor.hover({ timeout: 750 }).catch(() => undefined);
+        await ancestor.click({ button: "right", force: true, timeout: 1_000 }).catch(() => undefined);
+        await page.waitForTimeout(350);
+        if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `script-settings-text-ancestor-rightclick:${scriptName}:${level}:${candidate}`)) {
+          tracePageEvent(page, "script-settings-text-ancestor-rightclick-ok", `${scriptName}:${level}:${candidate}`);
+          return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-text-ancestor-rightclick-dialog");
+        }
       }
     }
   }
