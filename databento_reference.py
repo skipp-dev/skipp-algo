@@ -676,8 +676,6 @@ def maybe_refresh_symbol_reference_cache(
                 return state
             if provider_status == "error" and failure_age is not None and failure_age <= failure_ttl:
                 return state
-            if not configured_api_key:
-                return state
 
         target_symbols = requested_symbols if force_refresh or success_age is None or success_age > success_ttl else [
             symbol for symbol in requested_symbols if symbol not in coverage_symbols

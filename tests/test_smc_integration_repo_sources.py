@@ -9,6 +9,7 @@ import pytest
 from smc_adapters import build_meta_from_raw, build_structure_from_raw
 from smc_integration.repo_sources import (
     _SOURCE_PROVIDERS,
+    _SourceProvider,
     _can_supply_domain,
     _finalize_composite_meta,
     _resolve_provider,
@@ -398,53 +399,58 @@ class TestTryLoadMetaDomainEdges:
 
     def test_auto_mode_catches_generic_exception(self, monkeypatch) -> None:
         """Verify that generic exceptions are caught in auto_mode and it falls back."""
-        import smc_integration.repo_sources as rs
-        from smc_integration.repo_sources import _SourceProvider
+        primary = "databento_watchlist_csv"
+        secondary = "fmp_watchlist_json"
 
+        # Mock primary to raise RuntimeError
         def _raise_generic_err(symbol, timeframe, reference_time=None):
             raise RuntimeError("corrupted json or something")
 
-        primary = "databento_watchlist_csv"
-        orig = rs._SOURCE_PROVIDERS[primary]
-        fake = _SourceProvider(
-            descriptor=orig.descriptor,
-            load_structure=orig.load_structure,
+        orig_primary = _SOURCE_PROVIDERS[primary]
+        fake_primary = _SourceProvider(
+            descriptor=orig_primary.descriptor,
+            load_structure=orig_primary.load_structure,
             load_meta=_raise_generic_err,
         )
-        monkeypatch.setitem(rs._SOURCE_PROVIDERS, primary, fake)
+        monkeypatch.setitem(_SOURCE_PROVIDERS, primary, fake_primary)
 
-        meta, status, _source = _try_load_meta_domain(
+        # Mock secondary to return valid volume metadata
+        orig_secondary = _SOURCE_PROVIDERS[secondary]
+        def _load_success(symbol, timeframe, reference_time=None):
+            return {"volume": {"some_field": 123}}
+
+        fake_secondary = _SourceProvider(
+            descriptor=orig_secondary.descriptor,
+            load_structure=orig_secondary.load_structure,
+            load_meta=_load_success,
+        )
+        monkeypatch.setitem(_SOURCE_PROVIDERS, secondary, fake_secondary)
+
+        meta, status, source = _try_load_meta_domain(
             "volume",
-            "__MISSING__",
+            "AAPL",
             "15m",
             primary,
             auto_mode=True,
         )
-        assert meta is None
-        assert status in {
-            "source_file_not_found",
-            "source_validation_error",
-            "domain_key_absent",
-            "not_attempted_no_candidates",
-            "source_load_error",
-        }
+        assert meta == {"volume": {"some_field": 123}}
+        assert status == "present"
+        assert source == secondary
 
     def test_non_auto_mode_raises_generic_exception(self, monkeypatch) -> None:
         """Verify that generic exceptions are not caught in non-auto_mode."""
-        import smc_integration.repo_sources as rs
-        from smc_integration.repo_sources import _SourceProvider
+        primary = "databento_watchlist_csv"
+        orig = _SOURCE_PROVIDERS[primary]
 
         def _raise_generic_err(symbol, timeframe, reference_time=None):
             raise RuntimeError("corrupted json or something")
 
-        primary = "databento_watchlist_csv"
-        orig = rs._SOURCE_PROVIDERS[primary]
         fake = _SourceProvider(
             descriptor=orig.descriptor,
             load_structure=orig.load_structure,
             load_meta=_raise_generic_err,
         )
-        monkeypatch.setitem(rs._SOURCE_PROVIDERS, primary, fake)
+        monkeypatch.setitem(_SOURCE_PROVIDERS, primary, fake)
 
         with pytest.raises(RuntimeError, match="corrupted json or something"):
             _try_load_meta_domain(
