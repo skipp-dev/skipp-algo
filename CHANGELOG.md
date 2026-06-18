@@ -6,6 +6,45 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-06-18) — TV automation async-race fix + token/corpus hardening (PR #2843)
+
+**TV-automation — async "My scripts" rows (run #456 RCA)**
+- `automation/tradingview/lib/tv_shared.ts` (`collectVisibleIndicatorMyScriptNames`):
+  replaced the fixed `waitForTimeout(500)` with `waitFor({state:'visible', timeout:3_000})`
+  on the first `[data-name="indicators-dialog"] [data-id^="USER;"]` element.
+  Root cause: TradingView began lazy-loading "My scripts" asynchronously; the prior
+  500 ms flat wait was insufficient after a tab switch, causing `collectVisible` to
+  return `[]` for all three targets (`auth_ok=True, ui_green=True` but
+  `"No private My scripts rows were visible" → overall_preflight_ok=False`).
+- Added `tracePageEvent('add-to-chart-indicators-rows-ready:<count>')` so future
+  failure artifacts include how many USER rows were visible at collection time.
+- Locator dedup (Copilot finding): extracted shared `allScriptRowsLocator` constant
+  (`page.locator('[data-name="indicators-dialog"] [data-id^="USER;"]')`); was
+  previously duplicated between `firstScriptRowLocator` and the `count()` call.
+
+**smc-library-refresh.yml — token-masking + pipefail hardening**
+- `Configure git credentials for metrics push` step: moved `${{ github.token }}`
+  out of the inline shell command into a dedicated `env: GIT_PUSH_TOKEN:` block
+  and references `${GIT_PUSH_TOKEN}` instead — matches the `GITHUB_TOKEN` env-var
+  indirection pattern used elsewhere and ensures reliable secret masking.
+- Added `set -euo pipefail` so a failed `git remote set-url` exits immediately
+  instead of silently continuing with a misconfigured remote.
+- `GIT_PUSH_TOKEN` renamed to `GITHUB_TOKEN` in one step `env:` block (Copilot:
+  non-standard name caused confusion); `${{ github.repository }}` swapped to
+  `${GITHUB_REPOSITORY}` (built-in GHA env var, not a template expression).
+
+**Corpus + ledger fixes (co-landed on this branch)**
+- `scripts/collect_drift_calibration_corpus.py`: `_append_rows` was returning
+  `None` instead of the written-row count (`return written` was missing;
+  `written = 0` was also inside the `with`-block). Fixed: initialise before
+  the `with`-block, add explicit `return written`.
+- `scripts/collect_drift_calibration_corpus.py`: replaced bare `except
+  ImportError: pass` with `fcntl = None; _FLOCK_SUPPORTED = False` null-fallback,
+  eliminating `# noqa: F821` workarounds and satisfying the POSIX import-guard
+  pattern.
+- `pin_registry.toml`: bumped `set +e` count 1→2 for the new
+  `Annotate probe results` step in `meta-watchdog.yml`.
+
 ### Changed (2026-06-17) — Monitoring hardening + Q&A audit follow-up (PR #2841, #2842)
 
 **W11-1 — Skip `hit_rate=None` families in advisory FDR layer (PR #2841)**
