@@ -29,6 +29,7 @@ import {
   ensurePineEditor,
   findLegendRowWrappers,
   isLegendTruncatedMatch,
+  dismissOverlapManagerOverlay,
 } from "../lib/tv_shared.js";
 
 const CORE_SCRIPT = "SMC Core";
@@ -901,6 +902,88 @@ test("isLegendTruncatedMatch requires at least 2 legend words", () => {
 test("isLegendTruncatedMatch exact full name matches", () => {
   assert.equal(isLegendTruncatedMatch("SMC Long-Dip Dashboard v7", "SMC Long-Dip Dashboard v7"), true);
   assert.equal(isLegendTruncatedMatch("SMC Core", "SMC Core"), true);
+});
+
+// --- dismissOverlapManagerOverlay: #overlap-manager-root blocking overlay ---
+
+test("dismissOverlapManagerOverlay is a no-op when #overlap-manager-root has no [data-id] children", async () => {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body>
+        <div id="overlap-manager-root">
+          <div class="container-VeoIyDt4"><!-- empty: no [data-id] child --></div>
+        </div>
+      </body></html>`);
+    await dismissOverlapManagerOverlay(page);
+    // pointer-events must NOT have been touched
+    const pe = await page
+      .locator("#overlap-manager-root .container-VeoIyDt4")
+      .evaluate((el) => (el as HTMLElement).style.pointerEvents);
+    assert.equal(pe, "", "pointer-events must not be set when no overlay was present");
+  } finally {
+    await browser.close();
+  }
+});
+
+test("dismissOverlapManagerOverlay applies JS pointer-events:none when overlay persists after mouse-move + Escape", async () => {
+  // Simulates the 4th-step fallback: a synthetic [data-id] overlay that will NOT
+  // disappear after mouse.move(0,0) or Escape (no event listeners in static DOM).
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body>
+        <div id="overlap-manager-root">
+          <div class="container-VeoIyDt4">
+            <div data-id="U5quI2xP71yE1h2MZuK78"
+                 style="pointer-events:all;position:fixed;inset:0;z-index:9999">
+              <!-- blocking overlay -->
+            </div>
+          </div>
+        </div>
+      </body></html>`);
+    await dismissOverlapManagerOverlay(page);
+    // After JS bypass, pointer-events must be "none" on the container
+    const pe = await page
+      .locator("#overlap-manager-root .container-VeoIyDt4")
+      .evaluate((el) => (el as HTMLElement).style.pointerEvents);
+    assert.equal(pe, "none", "JS bypass must set pointer-events:none on container-VeoIyDt4 when overlay cannot be dismissed interactively");
+  } finally {
+    await browser.close();
+  }
+});
+
+test("dismissOverlapManagerOverlay emits trace events and applies JS bypass when overlay has dynamic data-id", async () => {
+  // Regression for runs #27750634938–#27773053223: dynamic data-id across
+  // attempts indicates a hover-tooltip. Verify the full 4-step path fires:
+  // mouse.move → outerHTML log → Escape (no-op in static DOM) → JS bypass.
+  // The observable outcome is pointer-events:none on .container-VeoIyDt4.
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  try {
+    await page.setContent(`
+      <html><body>
+        <div id="overlap-manager-root">
+          <div class="container-VeoIyDt4">
+            <div data-id="Od_eqor7i1RFijJcecEWe">tooltip content</div>
+          </div>
+        </div>
+      </body></html>`);
+    await dismissOverlapManagerOverlay(page);
+    // The JS bypass (step 4) must have fired, setting pointer-events:none
+    const pe = await page
+      .locator("#overlap-manager-root .container-VeoIyDt4")
+      .evaluate((el) => (el as HTMLElement).style.pointerEvents);
+    assert.equal(
+      pe,
+      "none",
+      "JS bypass must set pointer-events:none even when data-id changes (dynamic tooltip pattern)",
+    );
+  } finally {
+    await browser.close();
+  }
 });
 
 // --- findLegendRowWrappers: truncated legend name regression ---

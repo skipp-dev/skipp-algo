@@ -2370,7 +2370,7 @@ export function indicatorsMyScriptsShowsMatchingPrivateScript(
  * dismissed by Escape and has no close button. The 4-step strategy below handles
  * both the tooltip/popover class and conventional modal overlays.
  */
-async function dismissOverlapManagerOverlay(page: Page): Promise<void> {
+export async function dismissOverlapManagerOverlay(page: Page): Promise<void> {
   if (page.isClosed()) return;
 
   const overlayLocator = page.locator("#overlap-manager-root [data-id]");
