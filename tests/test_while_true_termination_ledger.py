@@ -91,7 +91,6 @@ WHILE_TRUE_LEDGER: dict[str, int] = {
     "terminal_background_poller.py": 1,
     "databento_universe.py": 1,
     "open_prep/realtime_signals.py": 1,
-    "open_prep/macro.py": 1,
     # resilient retry decorator: exits via return on success, raise after
     # max retries, or return on_failure(exc) callback. CWE-835 mitigated
     # by three explicit exit paths (system review 2026-04-30).
