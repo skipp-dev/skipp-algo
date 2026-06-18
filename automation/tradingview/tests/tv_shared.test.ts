@@ -945,21 +945,26 @@ test("dismissOverlapManagerOverlay applies JS pointer-events:none when overlay p
         </div>
       </body></html>`);
     await dismissOverlapManagerOverlay(page);
-    // After JS bypass, pointer-events must be "none" on the container
-    const pe = await page
+    // Bypass must target only the [data-id] element — NOT the portal container
+    const overlayPe = await page
+      .locator("#overlap-manager-root [data-id]")
+      .evaluate((el) => (el as HTMLElement).style.pointerEvents);
+    assert.equal(overlayPe, "none", "JS bypass must set pointer-events:none on the blocking [data-id] element");
+    // Portal container must be untouched so future dialogs (e.g. Indicators) still render
+    const containerPe = await page
       .locator("#overlap-manager-root .container-VeoIyDt4")
       .evaluate((el) => (el as HTMLElement).style.pointerEvents);
-    assert.equal(pe, "none", "JS bypass must set pointer-events:none on container-VeoIyDt4 when overlay cannot be dismissed interactively");
+    assert.equal(containerPe, "", "portal container pointer-events must remain unchanged — it hosts future dialogs");
   } finally {
     await browser.close();
   }
 });
 
-test("dismissOverlapManagerOverlay emits trace events and applies JS bypass when overlay has dynamic data-id", async () => {
+test("dismissOverlapManagerOverlay applies JS bypass for dynamic data-id tooltip pattern", async () => {
   // Regression for runs #27750634938–#27773053223: dynamic data-id across
   // attempts indicates a hover-tooltip. Verify the full 4-step path fires:
   // mouse.move → outerHTML log → Escape (no-op in static DOM) → JS bypass.
-  // The observable outcome is pointer-events:none on .container-VeoIyDt4.
+  // Only the [data-id] element gets pointer-events:none; container is untouched.
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
   try {
@@ -972,15 +977,14 @@ test("dismissOverlapManagerOverlay emits trace events and applies JS bypass when
         </div>
       </body></html>`);
     await dismissOverlapManagerOverlay(page);
-    // The JS bypass (step 4) must have fired, setting pointer-events:none
-    const pe = await page
+    const overlayPe = await page
+      .locator("#overlap-manager-root [data-id]")
+      .evaluate((el) => (el as HTMLElement).style.pointerEvents);
+    assert.equal(overlayPe, "none", "JS bypass must neutralise [data-id] overlay regardless of dynamic data-id value");
+    const containerPe = await page
       .locator("#overlap-manager-root .container-VeoIyDt4")
       .evaluate((el) => (el as HTMLElement).style.pointerEvents);
-    assert.equal(
-      pe,
-      "none",
-      "JS bypass must set pointer-events:none even when data-id changes (dynamic tooltip pattern)",
-    );
+    assert.equal(containerPe, "", "portal container must remain untouched after JS bypass");
   } finally {
     await browser.close();
   }

@@ -2409,8 +2409,11 @@ export async function dismissOverlapManagerOverlay(page: Page): Promise<void> {
   tracePageEvent(page, "dismiss-overlap-manager-overlay-js-bypass", String(countAfterEscape));
   await page
     .evaluate(() => {
+      // Target only the blocking [data-id] overlay elements — NOT the portal
+      // container (.container-VeoIyDt4), which TradingView reuses for ALL future
+      // dialogs (including the Indicators dialog opened immediately after).
       document
-        .querySelectorAll("#overlap-manager-root .container-VeoIyDt4")
+        .querySelectorAll("#overlap-manager-root [data-id]")
         .forEach((el) => ((el as HTMLElement).style.pointerEvents = "none"));
     })
     .catch(() => undefined);
