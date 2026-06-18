@@ -212,9 +212,14 @@ jobs:
         # set the remote URL with the token before the push script runs.
         # This is more explicit and auditable than relying on the injected
         # credential-helper from the checkout action.
+        env:
+          # Pass the token via env-var so it is masked consistently in logs,
+          # matching the pattern used elsewhere in this workflow.
+          GIT_PUSH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           git remote set-url origin \
-            "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+            "https://x-access-token:${GIT_PUSH_TOKEN}@github.com/${{ github.repository }}.git"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
 
