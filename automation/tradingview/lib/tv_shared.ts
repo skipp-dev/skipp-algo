@@ -2430,16 +2430,17 @@ async function addScriptToChartViaIndicators(page: Page, scriptName: string): Pr
   // TradingView loads "My scripts" via an async API call; the previous fixed
   // 500ms was too short on 2026-06-17 (TV UI change introduced lazy rendering).
   // Poll for up to 3 s, then proceed regardless so we log the exact state.
-  const firstScriptRowLocator = page.locator(
+  const allScriptRowsLocator = page.locator(
     '[data-name="indicators-dialog"] [data-id^="USER;"]',
-  ).first();
+  );
+  const firstScriptRowLocator = allScriptRowsLocator.first();
   await firstScriptRowLocator
     .waitFor({ state: "visible", timeout: 3_000 })
     .catch(() => undefined);
   tracePageEvent(
     page,
     "add-to-chart-indicators-rows-ready",
-    String(await page.locator('[data-name="indicators-dialog"] [data-id^="USER;"]').count()),
+    String(await allScriptRowsLocator.count()),
   );
   attempt.visiblePrivateScripts = await collectVisibleIndicatorMyScriptNames(page);
   attempt.matchingPrivateScriptVisible = indicatorsMyScriptsShowsMatchingPrivateScript(scriptName, attempt.visiblePrivateScripts);
