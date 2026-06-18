@@ -3944,7 +3944,7 @@ async function openSettingsFromLegendContainer(page: Page, scriptName: string): 
 
       const containerText = normalizeUiText(await container.innerText().catch(() => ""));
       let matched = false;
-      for (const [index, c] of candidateNames.entries()) {
+      for (let index = 0; index < candidateNames.length; index++) {
         const [, loosePattern, fuzzyPattern] = patternsList[index];
         if (loosePattern.test(containerText) || fuzzyPattern.test(containerText)) {
           matched = true;
