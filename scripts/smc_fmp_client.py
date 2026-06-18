@@ -179,10 +179,10 @@ def _prev_trading_day(day: date) -> date:
         try:
             probe = date.fromordinal(probe.toordinal() - 1)
         except (ValueError, OverflowError):
-            raise RuntimeError(f"no trading day found within 10 days before {day}") from None
+                raise RuntimeError(f"No trading day found within 10 days before {day}") from None
         if probe.weekday() < 5:
             return probe
-    raise RuntimeError(f"no trading day found within 10 days before {day}")
+    raise RuntimeError(f"No trading day found within 10 days before {day}")
 
 
 def _coerce_finite_float(value: Any) -> float | None:
