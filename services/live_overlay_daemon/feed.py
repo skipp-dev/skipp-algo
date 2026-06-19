@@ -438,7 +438,7 @@ def _metric_state() -> tuple[threading.Lock, dict[str, int]]:
                 "partial_restarts": 0,
             },
         )
-        setattr(_metric_state, "_state", state)
+        _metric_state._state = state
     return state
 
 
