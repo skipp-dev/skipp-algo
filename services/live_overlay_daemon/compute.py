@@ -64,6 +64,7 @@ def _load_news_snapshot() -> dict[str, Any]:
     except Exception:
         logger.warning("Failed to load news snapshot from %s", path, exc_info=True)
         _news_cache = {}
+        _news_loaded_at = time.monotonic()
     return _news_cache
 
 
