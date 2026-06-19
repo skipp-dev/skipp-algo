@@ -90,7 +90,8 @@ ATEXIT_REGISTER_ALLOWED: set[tuple[str, int]] = {
     # 2026-06-19 (bug-hunt): _record_to_bar helper block shifted start() body.
     # 2026-06-19 (findings cleanup): current feed.start() layout pins
     # the atexit.register site; current location line 379.
-    ("services/live_overlay_daemon/feed.py", 379),
+    # 2026-06-19 (telemetry): import + _inc_metric expansion shifted to 384.
+    ("services/live_overlay_daemon/feed.py", 384),
 }
 
 

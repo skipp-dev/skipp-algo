@@ -26,7 +26,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Path, Query
 from fastapi.responses import JSONResponse
 
-from . import cache, config, feed, observability
+from . import cache, config, feed, metrics, observability
 
 logging.basicConfig(
     level=logging.INFO,
@@ -147,6 +147,22 @@ def health() -> JSONResponse:
             "ts": datetime.datetime.now(datetime.UTC).isoformat(),
         }
     )
+
+
+# ---------------------------------------------------------------------------
+# /{token}/metrics — Prometheus text exposition (token-protected)
+# ---------------------------------------------------------------------------
+
+@app.get("/{token}/metrics", include_in_schema=False)
+def prometheus_metrics(token: str = Path(...)) -> JSONResponse:
+    """Prometheus scrape endpoint, protected by the same bearer token as /smc_live."""
+    expected = config.overlay_secret_token()
+    if not _ct_eq(token, expected):
+        raise HTTPException(status_code=404)
+    from fastapi.responses import PlainTextResponse
+
+    body = metrics.render_metrics(_startup_ts)
+    return PlainTextResponse(body, media_type="text/plain; version=0.0.4; charset=utf-8")
 
 
 # ---------------------------------------------------------------------------

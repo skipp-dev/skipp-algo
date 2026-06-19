@@ -29,6 +29,7 @@ from typing import Any
 import databento as db
 
 from . import cache, compute, config
+from .observability import metric_counter
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +110,8 @@ def _maybe_cache_vix(sym: str, bar: dict[str, Any]) -> None:
 def _inc_metric(name: str, amount: int = 1) -> None:
     with _metrics_lock:
         _metrics[name] = _metrics.get(name, 0) + amount
+    # Also emit as structured observability counter for log-drain/metrics pipeline
+    metric_counter(f"live_overlay.feed.{name}", float(amount))
 
 
 def _metrics_snapshot() -> dict[str, int]:
@@ -297,6 +300,7 @@ def _run_refresh_loop(stop: threading.Event) -> None:
             elapsed = time.monotonic() - t0
             logger.info("Full overlay computed: %d symbols in %.1fs", n, elapsed)
         except Exception as exc:
+            metric_counter("live_overlay.full_compute_cycle.errors")
             logger.error("Full overlay compute error: %s", exc, exc_info=True)
         stop.wait(secs)
     logger.info("Refresh thread stopped.")
@@ -313,6 +317,7 @@ def _run_flow_refresh_loop(stop: threading.Event) -> None:
             elapsed = time.monotonic() - t0
             logger.debug("Flow patch: %d symbols in %.1fs", n, elapsed)
         except Exception as exc:
+            metric_counter("live_overlay.flow_patch_cycle.errors")
             logger.error("Flow patch error: %s", exc, exc_info=True)
         stop.wait(secs)
     logger.info("Flow refresh thread stopped.")

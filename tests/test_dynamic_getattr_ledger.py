@@ -98,7 +98,8 @@ DYNAMIC_GETATTR_LEDGER: set[tuple[str, int]] = {
     # preserve missing OHLC attrs as None instead of coercing to 0.0.
     # 2026-06-19 (follow-up): keep ledger pinned to current helper site.
     # 2026-06-19 (Copilot follow-up): feed metrics helpers shifted site 56 -> 64.
-    ("services/live_overlay_daemon/feed.py", 64),
+    # 2026-06-19 (telemetry): import line shifted getattr site to 65.
+    ("services/live_overlay_daemon/feed.py", 65),
     ("smc_core/event_ledger.py", 79),
     ("smc_core/scoring.py", 308),
     ("streamlit_terminal_alerts.py", 41),
