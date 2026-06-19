@@ -44,7 +44,7 @@ _refresh_thread: threading.Thread | None = None
 _flow_refresh_thread: threading.Thread | None = None
 _stop_event = threading.Event()
 _feed_ready = threading.Event()
-_last_bar_at: float = 0.0
+_last_bar_at: list[float] = [0.0]
 
 
 # ---------------------------------------------------------------------------
@@ -89,6 +89,9 @@ def _symbol_from_record(record: Any, symmap: dict[int, str]) -> str | None:
         return sym.upper() if sym else None
     except Exception:
         return None
+
+
+_last_bar_lock = threading.Lock()
 
 
 # ---------------------------------------------------------------------------
@@ -178,11 +181,12 @@ def _run_feed_loop(stop: threading.Event) -> None:
                             logger.warning("bar=None for sym=%s rec_type=%s", sym, rec_type)
                         continue
 
+                    global _last_bar_at
                     cache.push_bar(sym, bar)
                     _bars_pushed_count += 1
 
-                    global _last_bar_at
-                    _last_bar_at = time.monotonic()
+                    with _last_bar_lock:
+                        _last_bar_at[0] = time.monotonic()
 
                     if not _feed_ready.is_set():
                         _feed_ready.set()
@@ -277,14 +281,10 @@ def _run_flow_refresh_loop(stop: threading.Event) -> None:
             logger.error("Flow patch error: %s", exc, exc_info=True)
         stop.wait(secs)
     logger.info("Flow refresh thread stopped.")
-
-
-# ---------------------------------------------------------------------------
-# Public start / stop API (called from main.py lifespan)
-# ---------------------------------------------------------------------------
-
 def start() -> None:
     """Start the three background threads (feed + refresh + flow refresh)."""
+
+
     global _feed_thread, _refresh_thread, _flow_refresh_thread
 
     if _feed_thread is not None and _feed_thread.is_alive():
@@ -336,13 +336,17 @@ def is_ready() -> bool:
     """Return True if the feed is connected and bars are not stale."""
     if not _feed_ready.is_set():
         return False
-    if _last_bar_at <= 0:
+    with _last_bar_lock:
+        last_bar_at = _last_bar_at[0] if isinstance(_last_bar_at, list) else _last_bar_at
+    if last_bar_at <= 0:
         return False
-    return (time.monotonic() - _last_bar_at) < config.max_stale_secs()
+    return (time.monotonic() - last_bar_at) < config.max_stale_secs()
 
 
 def last_bar_age_secs() -> float | None:
     """Return seconds since the last bar was pushed, or None if never."""
-    if _last_bar_at <= 0:
+    with _last_bar_lock:
+        last_bar_at = _last_bar_at[0] if isinstance(_last_bar_at, list) else _last_bar_at
+    if last_bar_at <= 0:
         return None
-    return time.monotonic() - _last_bar_at
+    return time.monotonic() - last_bar_at

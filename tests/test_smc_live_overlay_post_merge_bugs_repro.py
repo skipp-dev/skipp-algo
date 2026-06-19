@@ -207,8 +207,8 @@ class TestBuildPayloadInvariants:
         assert payload["ats_state"] is None
         assert payload["ats_zscore"] is None
 
-    def test_squeeze_on_is_bool_when_present(self) -> None:
-        """squeeze_on muss bool oder None sein, niemals int."""
+    def test_squeeze_on_is_int_when_present(self) -> None:
+        """squeeze_on muss int(0/1) oder None sein (Schema-Konformitaet)."""
         import services.live_overlay_daemon.compute as compute
 
         bars = [
@@ -217,7 +217,11 @@ class TestBuildPayloadInvariants:
         ]
         squeeze = compute.compute_squeeze_on(bars)
         if squeeze is not None:
-            assert isinstance(squeeze, bool)
+            payload = compute.build_payload(
+                "AAPL", bars, {"tone": "NEUTRAL", "global_heat": 0.0}, 3600
+            )
+            assert payload["squeeze_on"] in (0, 1)
+            assert type(payload["squeeze_on"]) is int
 
 
 class TestNewsSnapshotRaceCondition:
