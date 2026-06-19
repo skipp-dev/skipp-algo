@@ -365,7 +365,7 @@ class TestAdditionalLiveOverlayBugRepros:
 
 
 class TestNewsSnapshotRaceCondition:
-    """Concurrency-Risiko: _load_news_snapshot schreibt Modul-Globals ohne Lock."""
+    """Concurrency stress test for _load_news_snapshot with lock-protected globals."""
 
     def test_concurrent_load_news_snapshot_does_not_crash(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

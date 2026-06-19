@@ -158,7 +158,7 @@ class TestVIXNonePropagationBug:
 
 
 class TestFeedReadinessRaceCondition:
-    """RACE RISK: _last_bar_at was written and read without a lock."""
+    """Concurrency stress test: _last_bar_at read/write remains stable under lock."""
 
     def test_last_bar_at_race_does_not_crash(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import services.live_overlay_daemon.feed as feed_mod
