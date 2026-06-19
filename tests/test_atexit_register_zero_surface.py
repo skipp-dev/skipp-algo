@@ -88,7 +88,7 @@ ATEXIT_REGISTER_ALLOWED: set[tuple[str, int]] = {
     # process exit. unregister-then-register keeps exactly one hook; stop() sets
     # an Event and joins with a 5s/thread timeout (bounded, non-deadlocking).
     # 2026-06-19 (bug-hunt): _record_to_bar helper block shifted start() body.
-    ("services/live_overlay_daemon/feed.py", 338),
+    ("services/live_overlay_daemon/feed.py", 354),
 }
 
 
