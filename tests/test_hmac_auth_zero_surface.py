@@ -39,7 +39,8 @@ HMAC_ALLOWED: set[tuple[str, int, str]] = {
     # 2026-06-19 (fix/live-overlay-daemon-security, C1): _ct_eq now SHA-256
     # hashes both sides before the compare to drop the token-length side
     # channel; the compare_digest call shifted 178 -> 193.
-    ("services/live_overlay_daemon/main.py", 193, "compare_digest"),
+    # 2026-06-19 (telemetry): /metrics route added above _ct_eq, shifted 193 -> 263.
+    ("services/live_overlay_daemon/main.py", 263, "compare_digest"),
 }
 
 _DIR_EXCLUDE = {
