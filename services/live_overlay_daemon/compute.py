@@ -91,6 +91,24 @@ def _get_news_fields(symbol: str) -> dict[str, Any]:
     stories = snap.get("stories") or snap.get("items") or []
     sym_upper = symbol.upper()
 
+    def _normalize_tickers(raw: Any) -> list[str]:
+        """Normalize story tickers to a safe uppercase ticker list."""
+        if isinstance(raw, str):
+            raw_items: list[Any] = [raw]
+        elif isinstance(raw, list):
+            raw_items = raw
+        else:
+            return []
+
+        out: list[str] = []
+        for item in raw_items:
+            if not isinstance(item, str):
+                continue
+            ticker = item.strip().upper()
+            if ticker:
+                out.append(ticker)
+        return out
+
     def _score(story: dict[str, Any]) -> float:
         """Prefer sentiment_score when present (including 0.0), else news_score."""
         try:
@@ -106,8 +124,8 @@ def _get_news_fields(symbol: str) -> dict[str, Any]:
     for story in stories:
         if not isinstance(story, dict):
             continue
-        tickers = story.get("tickers") or []
-        if sym_upper not in [t.upper() for t in tickers]:
+        tickers = _normalize_tickers(story.get("tickers"))
+        if sym_upper not in tickers:
             continue
         scores.append(_score(story))
 
