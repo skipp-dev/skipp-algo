@@ -354,7 +354,7 @@ class TestStringVolumeCoercion:
 class TestNewsScoreFiniteCoercion:
     """Non-finite news scores must be treated as invalid/missing, not propagated."""
 
-    def test_nan_sentiment_score_is_treated_as_zero(self):
+    def test_nan_sentiment_score_is_treated_as_missing(self):
         compute = _compute()
         compute._load_news_snapshot = lambda: {
             "stories": [{"tickers": ["AAPL"], "sentiment_score": float("nan")}]
@@ -362,10 +362,10 @@ class TestNewsScoreFiniteCoercion:
 
         fields = compute._get_news_fields("AAPL")
 
-        assert fields["news_strength"] == 0.0
-        assert fields["news_bias"] == "NEUTRAL"
+        assert fields["news_strength"] is None
+        assert fields["news_bias"] is None
 
-    def test_inf_news_score_is_treated_as_zero(self):
+    def test_inf_news_score_is_treated_as_missing(self):
         compute = _compute()
         compute._load_news_snapshot = lambda: {
             "stories": [{"tickers": ["AAPL"], "news_score": "inf"}]
@@ -373,8 +373,8 @@ class TestNewsScoreFiniteCoercion:
 
         fields = compute._get_news_fields("AAPL")
 
-        assert fields["news_strength"] == 0.0
-        assert fields["news_bias"] == "NEUTRAL"
+        assert fields["news_strength"] is None
+        assert fields["news_bias"] is None
 
     def test_global_news_fields_reject_non_finite_scores(self):
         compute = _compute()
@@ -388,7 +388,25 @@ class TestNewsScoreFiniteCoercion:
         fields = compute._get_global_news_fields()
 
         assert fields["tone"] == "NEUTRAL"
-        assert fields["global_heat"] == 0.0
+        assert fields["global_heat"] is None
+
+    def test_mixed_finite_and_non_finite_scores_keep_only_finite_samples(self):
+        compute = _compute()
+        compute._load_news_snapshot = lambda: {
+            "stories": [
+                {"tickers": ["AAPL"], "sentiment_score": "nan"},
+                {"tickers": ["AAPL"], "news_score": 0.6},
+                {"tickers": ["AAPL"], "news_score": "-inf"},
+            ]
+        }
+
+        sym = compute._get_news_fields("AAPL")
+        glob = compute._get_global_news_fields()
+
+        assert sym["news_strength"] == 0.6
+        assert sym["news_bias"] == "BULLISH"
+        assert glob["tone"] == "BULLISH"
+        assert glob["global_heat"] == 0.6
 
     def test_inf_string_volume_treated_as_missing(self):
         """Non-finite numeric string volume ('inf') must be rejected as missing."""
