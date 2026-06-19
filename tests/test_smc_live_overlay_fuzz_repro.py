@@ -1,18 +1,17 @@
-"""Manuelle Fuzzing-/Property-Tests ohne Hypothesis.
+"""Manual fuzzing / property tests without Hypothesis.
 
-Ziel: gebrochene Invarianten mit vielen zufaelligen/extremen Eingaben finden.
+Goal: find broken invariants using many random and extreme inputs.
 """
 from __future__ import annotations
 
 import math
 import random
-from typing import Any
 
 import pytest
 
 
 class TestComputeFlowFieldsFuzz:
-    """Invarianten fuer compute_flow_fields."""
+    """Invariants for compute_flow_fields."""
 
     def test_flow_delta_proxy_pct_within_bounds(self) -> None:
         import services.live_overlay_daemon.compute as compute
@@ -69,9 +68,9 @@ class TestComputeSqueezeOnFuzz:
 
 
 class TestGetNewsFieldsFuzz:
-    """Invarianten fuer _get_news_fields."""
+    """Invariants for _get_news_fields."""
 
-    def test_news_strength_between_zero_and_one(self) -> None:
+    def test_news_strength_between_zero_and_one(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import services.live_overlay_daemon.compute as compute
 
         random.seed(42)
@@ -86,9 +85,8 @@ class TestGetNewsFieldsFuzz:
             ]
             snap = {"stories": stories}
 
-            # Patch cache directly to avoid file I/O
-            compute._news_cache = snap
-            compute._news_loaded_at = 1.0  # non-zero, far in the past TTL-wise
+            # Use monkeypatch to avoid direct module-level mutation and file I/O.
+            monkeypatch.setattr(compute, "_load_news_snapshot", lambda s=snap: s)
 
             fields = compute._get_news_fields("AAPL")
             strength = fields["news_strength"]
@@ -97,9 +95,9 @@ class TestGetNewsFieldsFuzz:
 
 
 class TestGlobalNewsFieldsFuzz:
-    """Invarianten fuer _get_global_news_fields."""
+    """Invariants for _get_global_news_fields."""
 
-    def test_global_heat_between_minus_one_and_one(self) -> None:
+    def test_global_heat_between_minus_one_and_one(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import services.live_overlay_daemon.compute as compute
 
         random.seed(42)
@@ -110,8 +108,9 @@ class TestGlobalNewsFieldsFuzz:
                 for _ in range(n)
             ]
             snap = {"stories": stories}
-            compute._news_cache = snap
-            compute._news_loaded_at = 1.0
+
+            # Use monkeypatch to avoid direct module-level mutation and file I/O.
+            monkeypatch.setattr(compute, "_load_news_snapshot", lambda s=snap: s)
 
             fields = compute._get_global_news_fields()
             heat = fields["global_heat"]
@@ -120,7 +119,7 @@ class TestGlobalNewsFieldsFuzz:
 
 
 class TestBuildPayloadFuzz:
-    """Invarianten fuer build_payload."""
+    """Invariants for build_payload."""
 
     def test_build_payload_never_crashes(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import services.live_overlay_daemon.compute as compute

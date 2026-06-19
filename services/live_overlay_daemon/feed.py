@@ -44,7 +44,7 @@ _refresh_thread: threading.Thread | None = None
 _flow_refresh_thread: threading.Thread | None = None
 _stop_event = threading.Event()
 _feed_ready = threading.Event()
-_last_bar_at: list[float] = [0.0]
+_last_bar_at: float = 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -195,7 +195,7 @@ def _run_feed_loop(stop: threading.Event) -> None:
                     _bars_pushed_count += 1
 
                     with _last_bar_lock:
-                        _last_bar_at[0] = time.monotonic()
+                        _last_bar_at = time.monotonic()
 
                     if not _feed_ready.is_set():
                         _feed_ready.set()
@@ -290,6 +290,8 @@ def _run_flow_refresh_loop(stop: threading.Event) -> None:
             logger.error("Flow patch error: %s", exc, exc_info=True)
         stop.wait(secs)
     logger.info("Flow refresh thread stopped.")
+
+
 def start() -> None:
     """Start the three background threads (feed + refresh + flow refresh)."""
 
@@ -300,8 +302,22 @@ def start() -> None:
     refresh_alive = _refresh_thread is not None and _refresh_thread.is_alive()
     flow_alive = _flow_refresh_thread is not None and _flow_refresh_thread.is_alive()
 
-    if feed_alive and refresh_alive and flow_alive:
-        logger.warning("start() called while feed threads are already running — ignoring.")
+    # Guard: if ANY thread is still alive, refuse to start to prevent
+    # _stop_event.clear() from racing a thread that is still shutting down.
+    if feed_alive or refresh_alive or flow_alive:
+        alive_names = ", ".join(
+            name
+            for name, alive in [
+                ("live-feed", feed_alive),
+                ("overlay-refresh", refresh_alive),
+                ("flow-refresh", flow_alive),
+            ]
+            if alive
+        )
+        logger.warning(
+            "start() called while [%s] still alive — ignoring. Call stop() first.",
+            alive_names,
+        )
         return
 
     _stop_event.clear()
@@ -354,7 +370,7 @@ def is_ready() -> bool:
     if not _feed_ready.is_set():
         return False
     with _last_bar_lock:
-        last_bar_at = _last_bar_at[0] if isinstance(_last_bar_at, list) else _last_bar_at
+        last_bar_at = _last_bar_at
     if last_bar_at <= 0:
         return False
     return (time.monotonic() - last_bar_at) < config.max_stale_secs()
@@ -363,7 +379,7 @@ def is_ready() -> bool:
 def last_bar_age_secs() -> float | None:
     """Return seconds since the last bar was pushed, or None if never."""
     with _last_bar_lock:
-        last_bar_at = _last_bar_at[0] if isinstance(_last_bar_at, list) else _last_bar_at
+        last_bar_at = _last_bar_at
     if last_bar_at <= 0:
         return None
     return time.monotonic() - last_bar_at

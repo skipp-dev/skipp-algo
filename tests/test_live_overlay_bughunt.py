@@ -9,9 +9,6 @@ Run:
 """
 import importlib
 import threading
-import time
-
-import pytest
 
 # ---------------------------------------------------------------------------
 # Module loaders – always reload to pick up on-disk state
@@ -215,8 +212,10 @@ class TestCacheConcurrentConsistency:
 
         w = threading.Thread(target=writer)
         r = threading.Thread(target=reader)
-        w.start(); r.start()
-        w.join(); r.join()
+        w.start()
+        r.start()
+        w.join()
+        r.join()
         assert not errors, f"Concurrent consistency violations: {errors[:3]}"
 
 
@@ -235,7 +234,8 @@ class TestSafeStatEdgeCases:
         assert compute._safe_std([5.0, 5.0, 5.0, 5.0]) == 0.0
 
     def test_safe_std_does_not_return_nan_or_inf(self):
-        import math, random
+        import math
+        import random
         compute = _compute()
         for _ in range(200):
             vals = [random.uniform(-1e14, 1e14) for _ in range(random.randint(2, 30))]

@@ -1,6 +1,6 @@
-"""Zusaetzliche Reproduktions- und Property-Tests fuer live_overlay_daemon.
+"""Additional reproduction and property tests for live_overlay_daemon.
 
-Keine Codeaenderungen, nur nachweisbare Bugs dokumentieren.
+No code changes — only document demonstrable bugs.
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ import pytest
 
 
 class TestNewsScoreFalsyZeroBug:
-    """BUG: sentiment_score=0 wird als 'falsy' behandelt und durch news_score ersetzt."""
+    """BUG: sentiment_score=0 was treated as 'falsy' and replaced by news_score."""
 
     def test_zero_sentiment_score_is_not_ignored(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         import services.live_overlay_daemon.compute as compute
@@ -160,7 +160,7 @@ class TestVIXNonePropagationBug:
 
 
 class TestFeedReadinessRaceCondition:
-    """BUG/RISIKO: _last_bar_at wird ohne Lock geschrieben und gelesen."""
+    """RACE RISK: _last_bar_at was written and read without a lock."""
 
     def test_last_bar_at_race_does_not_crash(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import services.live_overlay_daemon.feed as feed_mod
@@ -168,13 +168,13 @@ class TestFeedReadinessRaceCondition:
         feed_mod._feed_ready.set()
         feed_mod._last_bar_at = time.monotonic()
 
-        errors: list[BaseException] = []
+        errors: list[Exception] = []
 
         def writer() -> None:
             try:
                 for _ in range(1000):
                     feed_mod._last_bar_at = time.monotonic()
-            except BaseException as exc:
+            except Exception as exc:
                 errors.append(exc)
 
         def reader() -> None:
@@ -182,7 +182,7 @@ class TestFeedReadinessRaceCondition:
                 for _ in range(1000):
                     feed_mod.is_ready()
                     feed_mod.last_bar_age_secs()
-            except BaseException as exc:
+            except Exception as exc:
                 errors.append(exc)
 
         writers = [threading.Thread(target=writer) for _ in range(5)]
@@ -196,12 +196,12 @@ class TestFeedReadinessRaceCondition:
 
 
 class TestStartStopThreadLifecycleBug:
-    """BUG: start() ueberschreibt Thread-Variablen, auch wenn alte Threads tot sind."""
+    """BUG: start() overwrites thread variables even when old threads have died."""
 
     def test_start_after_thread_death_creates_new_threads(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import services.live_overlay_daemon.feed as feed_mod
 
-        # Simuliere einen toten Thread, der noch in der Variable haengt
+        # Simulate a dead thread still held in the module-level variable.
         dead_thread = type("DeadThread", (), {"is_alive": lambda self: False})()
         monkeypatch.setattr(feed_mod, "_feed_thread", dead_thread)
         monkeypatch.setattr(feed_mod, "_refresh_thread", None)
