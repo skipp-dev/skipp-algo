@@ -118,11 +118,11 @@ file = "open_prep/realtime_signals.py"
 line = 336
 codes = ["S603"]
 
-# smc_integration/release_policy.py:1119 — Bandit S603 false positive:
+# smc_integration/release_policy.py:1121 — Bandit S603 false positive:
 # git rev-parse HEAD via shutil.which("git").
 [[noqa_budget.sites]]
 file = "smc_integration/release_policy.py"
-line = 1119
+line = 1121
 codes = ["S603"]
 
 # E402 outliers in newsstack_fmp/pipeline.py remain (not covered by per-file-ignores).
@@ -155,7 +155,7 @@ codes = ["F401"]
 
 [[noqa_budget.sites]]
 file = "smc_tv_bridge/smc_api.py"
-line = 178
+line = 184
 codes = ["E402", "I001"]
 
 # ---------------------------------------------------------------------------
