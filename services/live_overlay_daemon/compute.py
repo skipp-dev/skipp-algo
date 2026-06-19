@@ -209,6 +209,10 @@ def _coerce_finite_float(v: Any) -> float | None:
     """Coerce value to finite float, returning None on invalid/non-finite input."""
     if v is None:
         return None
+    # bool is a subclass of int in Python, but True/False in OHLC/volume fields
+    # indicates malformed provider data and must not be interpreted as 1.0/0.0.
+    if isinstance(v, bool):
+        return None
     try:
         coerced = float(v)
     except (TypeError, ValueError):
@@ -351,9 +355,9 @@ def compute_ats_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:
     else:
         # Simple heuristic: price trend × volume z-score
         price_delta = last_close - last_open
-        if price_delta > 0 and (zscore or 0) > 0.5:
+        if price_delta > 0 and (zscore or 0) >= 0.5:
             state = "accumulation"
-        elif price_delta < 0 and (zscore or 0) > 0.5:
+        elif price_delta < 0 and (zscore or 0) >= 0.5:
             state = "distribution"
         else:
             state = "neutral"
