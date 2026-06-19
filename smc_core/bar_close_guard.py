@@ -50,6 +50,7 @@ if TYPE_CHECKING:  # pragma: no cover - type-only
 _INTERVAL_SECONDS: Final[Mapping[str, int]] = {
     "1m": 60,
     "5m": 5 * 60,
+    "10m": 10 * 60,
     "15m": 15 * 60,
     "30m": 30 * 60,
     "1h": 60 * 60,

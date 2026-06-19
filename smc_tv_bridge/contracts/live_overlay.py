@@ -23,7 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field
 SCHEMA_ID: str = "smc-live-overlay/1"
 
 #: Timeframes the overlay can be requested for, in canonical Pine spelling.
-SUPPORTED_TIMEFRAMES: tuple[str, ...] = ("5m", "15m", "1H", "4H")
+SUPPORTED_TIMEFRAMES: tuple[str, ...] = ("5m", "10m", "15m", "30m", "1H", "4H")
 
 #: Allowed non-null values for ``news_bias``.
 NEWS_BIAS_VALUES: tuple[str, ...] = ("BULLISH", "BEARISH", "NEUTRAL")
@@ -31,7 +31,7 @@ NEWS_BIAS_VALUES: tuple[str, ...] = ("BULLISH", "BEARISH", "NEUTRAL")
 #: Envelope fields that are always present on the wire.
 ENVELOPE_FIELDS: tuple[str, ...] = ("schema", "symbol", "tf", "asof_ts", "stale")
 
-TimeframeLiteral = Literal["5m", "15m", "1H", "4H"]
+TimeframeLiteral = Literal["5m", "10m", "15m", "30m", "1H", "4H"]
 NewsBiasLiteral = Literal["BULLISH", "BEARISH", "NEUTRAL"]
 
 

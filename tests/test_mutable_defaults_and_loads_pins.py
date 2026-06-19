@@ -125,7 +125,9 @@ _FROZEN_JSON_LOAD_SITES: frozenset[tuple[str, int]] = frozenset(
         ("skipp_config/trading_thresholds.py", 287),
         # 2026-06-08 (WP-B2): +99 lines (event-risk overlay block) shifted the
         # pre-existing ATS-baseline json.load from 320 -> 419; same reviewed site.
-        ("smc_tv_bridge/smc_api.py", 419),
+        # 2026-06-19 (timeframe expansion): added 10m/30m map entries near
+        # the top-level TF dictionaries, shifting 419 -> 425.
+        ("smc_tv_bridge/smc_api.py", 425),
     }
 )
 

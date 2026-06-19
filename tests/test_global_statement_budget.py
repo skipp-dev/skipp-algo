@@ -132,9 +132,11 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # WP-H (PR #2612): lines shifted 184/192/200 -> 186/194/202 by the
         # ``import math``/``import threading`` + VIX overlay helper block added
         # above the lazy provider getters in smc_api.py.
-        ("smc_tv_bridge/smc_api.py", 186, ("_candle_provider",)),
-        ("smc_tv_bridge/smc_api.py", 194, ("_regime_provider",)),
-        ("smc_tv_bridge/smc_api.py", 202, ("_tech_provider",)),
+        # 2026-06-19 (timeframe expansion): added 10m/30m map entries,
+        # shifting provider-global sites 186/194/202 -> 192/200/208.
+        ("smc_tv_bridge/smc_api.py", 192, ("_candle_provider",)),
+        ("smc_tv_bridge/smc_api.py", 200, ("_regime_provider",)),
+        ("smc_tv_bridge/smc_api.py", 208, ("_tech_provider",)),
         (
             "streamlit_terminal.py",
             599,
@@ -170,14 +172,16 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # 2026-06-10 (#2670 W3): TechnicalResult gained a `source` field +
         # dc_replace import, shifting the four global sites +6 (212/213/245/262
         # -> 218/219/251/268).
-        ("terminal_technicals.py", 219, ("_tv_consecutive_429s", "_tv_cooldown_until")),
+        # 2026-06-19 (timeframe expansion): added 10m map/default interval,
+        # shifting these global sites 219/220/252/269 -> 220/221/253/270.
+        ("terminal_technicals.py", 220, ("_tv_consecutive_429s", "_tv_cooldown_until")),
         (
             "terminal_technicals.py",
-            220,
+            221,
             ("_tv_last_429_log_key", "_tv_last_429_log_ts", "_tv_suppressed_429_logs"),
         ),
-        ("terminal_technicals.py", 252, ("_tv_consecutive_429s",)),
-        ("terminal_technicals.py", 269, ("_tv_cooldown_ended_at", "_tv_last_call_ts")),
+        ("terminal_technicals.py", 253, ("_tv_consecutive_429s",)),
+        ("terminal_technicals.py", 270, ("_tv_cooldown_ended_at", "_tv_last_call_ts")),
         ("terminal_tradingview_news.py", 403, ("_last_request_ts",)),
         # 2026-06-16 (feat/live-overlay-daemon): daemon singletons guarded by
         # threading.Lock() per concurrency-shared-mutables guideline.

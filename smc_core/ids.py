@@ -21,7 +21,9 @@ from .types import BosDir, BosEventKind, FvgDir, ObDir, SweepSide
 
 _TIMEFRAME_TO_SECONDS = {
     "5m": 5 * 60,
+    "10m": 10 * 60,
     "15m": 15 * 60,
+    "30m": 30 * 60,
     "1H": 60 * 60,
     "4H": 240 * 60,
     "1D": 1440 * 60,

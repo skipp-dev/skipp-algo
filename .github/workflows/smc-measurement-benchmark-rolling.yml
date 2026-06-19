@@ -52,10 +52,10 @@ on:
         required: false
         default: ""
       timeframes:
-        # Plan 2.8 §3.1 (2026-04-21): expanded from 15m,1H to 5m,15m,1H,4H.
-        description: "Comma-separated timeframes (default: 5m,15m,1H,4H)"
+        # Timeframe expansion (2026-06-19): full canonical benchmark set.
+        description: "Comma-separated timeframes (default: 5m,10m,15m,30m,1H,4H,1D)"
         required: false
-        default: "5m,15m,1H,4H"
+        default: "5m,10m,15m,30m,1H,4H,1D"
 
 permissions:
   contents: read
@@ -292,7 +292,7 @@ jobs:
         env:
           # A2 (2026-06-10): env-var indirection for user-supplied inputs.
           INPUT_SYMBOLS: ${{ github.event.inputs.symbols }}
-          INPUT_TIMEFRAMES: ${{ github.event.inputs.timeframes || '5m,15m,1H,4H' }}
+          INPUT_TIMEFRAMES: ${{ github.event.inputs.timeframes || '5m,10m,15m,30m,1H,4H,1D' }}
         run: |
           set -euo pipefail
           SYMBOLS="${INPUT_SYMBOLS}"
@@ -304,11 +304,11 @@ jobs:
               echo "::error::symbols must be a comma-separated list of uppercase tickers, got: ${SYMBOLS}"; exit 1
             }
           fi
-          # Plan 2.8 §3.1 (2026-04-21): expanded from 15m,1H to 5m,15m,1H,4H.
+          # Canonical timeframe set for rolling benchmark.
           TIMEFRAMES="${INPUT_TIMEFRAMES}"
           # A2: digits + m/H/D/W/M + commas only.
           [[ "${TIMEFRAMES}" =~ ^[0-9mHDWM,]+$ ]] || {
-            echo "::error::timeframes must be a comma-separated list like '5m,15m,1H,4H', got: ${TIMEFRAMES}"; exit 1
+            echo "::error::timeframes must be a comma-separated list like '5m,10m,15m,30m,1H,4H,1D', got: ${TIMEFRAMES}"; exit 1
           }
           echo "SMC_BENCH_SYMBOLS=${SYMBOLS}" >> "$GITHUB_ENV"
           echo "SMC_BENCH_TIMEFRAMES=${TIMEFRAMES}" >> "$GITHUB_ENV"
@@ -364,7 +364,7 @@ jobs:
           set +e
           "$SMC_PYTHON_BIN" scripts/plan_2_8_tf_family_rollup.py \
             --scoring-root "${{ steps.meta.outputs.out_dir }}" \
-            --timeframes   "5m,15m,1H,4H" \
+            --timeframes   "5m,10m,15m,30m,1H,4H,1D" \
             --output       "${{ steps.meta.outputs.out_dir }}/plan_2_8_tf_family_rollup.json" \
             --format       md \
             > /tmp/rollup.md 2>/dev/null

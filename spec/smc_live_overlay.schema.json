@@ -19,7 +19,7 @@
     "tf": {
       "description": "Chart timeframe the overlay was computed for.",
       "type": "string",
-      "enum": ["5m", "15m", "1H", "4H"]
+      "enum": ["5m", "10m", "15m", "30m", "1H", "4H"]
     },
     "asof_ts": {
       "description": "Unix epoch seconds at which the overlay was produced. Pine compares this against OVERLAY_MAX_AGE_SEC to decide freshness.",
