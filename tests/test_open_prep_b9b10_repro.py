@@ -7,8 +7,8 @@ import pytest
 
 from open_prep.run_open_prep import (
     _add_pdh_pdl_context,
-    _calendar_date_sort_key,
     _calculate_atr14_from_eod,
+    _calendar_date_sort_key,
     _fetch_symbol_atr,
     _momentum_z_score_from_eod,
     _parse_calendar_date,
