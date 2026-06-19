@@ -49,21 +49,27 @@ USE_MOCK = os.environ.get("SMC_USE_MOCK", "0") == "1"
 # ── Timeframe mapping ──────────────────────────────────
 _TF_TO_FMP_INTERVAL: dict[str, str] = {
     "5m": "5min",
+    "10m": "10min",
     "15m": "15min",
+    "30m": "30min",
     "1H": "1hour",
     "4H": "4hour",
 }
 
 _TF_TO_TECH_INTERVAL: dict[str, str] = {
     "5m": "5m",
+    "10m": "10m",
     "15m": "15m",
+    "30m": "30m",
     "1H": "1h",
     "4H": "4h",
 }
 
 _TF_CANDLE_LIMIT: dict[str, int] = {
     "5m": 200,
+    "10m": 150,
     "15m": 100,
+    "30m": 80,
     "1H": 50,
     "4H": 30,
 }
@@ -636,7 +642,7 @@ def encode_sweeps(sweeps: list[dict[str, Any]]) -> str:
 @app.get("/smc_snapshot")
 def smc_snapshot_endpoint(
     symbol: str = Query(..., description="Ticker symbol, e.g. AAPL"),
-    timeframe: str = Query("15m", description="Timeframe: 5m, 15m, 1H, 4H"),
+    timeframe: str = Query("15m", description="Timeframe: 5m, 10m, 15m, 30m, 1H, 4H"),
 ) -> dict[str, Any]:
     """Full SMC snapshot (nested JSON)."""
     symbol = symbol.upper()
@@ -648,7 +654,7 @@ def smc_snapshot_endpoint(
 @app.get("/smc_tv")
 def smc_tv_endpoint(
     symbol: str = Query(..., description="Ticker symbol"),
-    tf: str = Query("15m", description="Timeframe: 5m, 15m, 1H, 4H"),
+    tf: str = Query("15m", description="Timeframe: 5m, 10m, 15m, 30m, 1H, 4H"),
 ) -> dict[str, Any]:
     """Pine-friendly pipe-encoded SMC snapshot."""
     symbol = symbol.upper()
@@ -674,7 +680,7 @@ _NEWS_BIAS_EPS = 0.05
 @app.get("/smc_live")
 def smc_live_endpoint(
     symbol: str = Query(..., description="Ticker symbol"),
-    tf: str = Query("15m", description="Timeframe: 5m, 15m, 1H, 4H"),
+    tf: str = Query("15m", description="Timeframe: 5m, 10m, 15m, 30m, 1H, 4H"),
 ) -> dict[str, Any]:
     """Flat ``smc-live-overlay/1`` payload for the Pine bridge.
 

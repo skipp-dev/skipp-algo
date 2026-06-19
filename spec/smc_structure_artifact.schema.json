@@ -34,7 +34,7 @@
       }
     },
     "symbol": { "type": "string", "minLength": 1 },
-    "timeframe": { "type": "string", "enum": ["5m", "15m", "1H", "4H", "1D"] },
+    "timeframe": { "type": "string", "enum": ["5m", "10m", "15m", "30m", "1H", "4H", "1D"] },
     "source": {
       "type": "object",
       "required": ["sheet", "event_logic"],
@@ -48,7 +48,7 @@
         },
         "canonical_upstream": { "type": "string", "minLength": 1 },
         "sheet": { "type": "string", "const": "daily_bars" },
-        "timeframe": { "type": "string", "enum": ["5m", "15m", "1H", "4H", "1D"] },
+        "timeframe": { "type": "string", "enum": ["5m", "10m", "15m", "30m", "1H", "4H", "1D"] },
         "event_logic": { "type": "string", "minLength": 1 },
         "structure_profile": { "type": "string", "minLength": 1 },
         "event_logic_version": { "type": "string", "minLength": 1 }
@@ -95,7 +95,7 @@
         "additionalProperties": false,
         "properties": {
           "symbol": { "type": "string", "minLength": 1 },
-          "timeframe": { "type": "string", "enum": ["5m", "15m", "1H", "4H", "1D"] },
+          "timeframe": { "type": "string", "enum": ["5m", "10m", "15m", "30m", "1H", "4H", "1D"] },
           "asof_ts": { "type": "number" },
           "coverage": { "type": "string", "enum": ["full", "partial", "none"] },
           "coverage_detail": { "$ref": "#/$defs/coverage" },

@@ -18,10 +18,12 @@ var string TOKEN       = input.string("REPLACE_WITH_YOUR_TOKEN", title="Overlay 
 // Fetch overlay payload (once per bar close)
 // ---------------------------------------------------------------------------
 _sym = syminfo.ticker
-// Map TradingView timeframe.period to canonical daemon format (5m/15m/1H/4H/1D)
+// Map TradingView timeframe.period to canonical daemon format (5m/10m/15m/30m/1H/4H/1D)
 _tf_raw = timeframe.period
 _tf  = _tf_raw == "5"   ? "5m"  :
+     _tf_raw == "10"  ? "10m" :
      _tf_raw == "15"  ? "15m" :
+     _tf_raw == "30"  ? "30m" :
      _tf_raw == "60"  ? "1H"  :
      _tf_raw == "240" ? "4H"  :
      _tf_raw == "D"   ? "1D"  : _tf_raw

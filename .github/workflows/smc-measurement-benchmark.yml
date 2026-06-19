@@ -110,7 +110,7 @@ jobs:
         run: |
           "$SMC_PYTHON_BIN" scripts/run_smc_measurement_benchmark.py \
             --symbols AAPL,MSFT,AMZN,GOOGL,META,NVDA,TSLA,JPM,BAC,GS,MS,V,UNH,JNJ,HD,XOM,CVX,COP,OXY,CAT \
-            --timeframes 5m,15m,1H,4H \
+            --timeframes 5m,10m,15m,30m,1H,4H,1D \
             --output-dir artifacts/ci/measurement_benchmark
 
       - name: Generate performance reports
