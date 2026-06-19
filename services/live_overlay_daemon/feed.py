@@ -383,3 +383,12 @@ def last_bar_age_secs() -> float | None:
     if last_bar_at <= 0:
         return None
     return time.monotonic() - last_bar_at
+
+
+def worker_liveness() -> dict[str, bool]:
+    """Return per-worker liveness flags for operational health reporting."""
+    return {
+        "live_feed": _feed_thread is not None and _feed_thread.is_alive(),
+        "overlay_refresh": _refresh_thread is not None and _refresh_thread.is_alive(),
+        "flow_refresh": _flow_refresh_thread is not None and _flow_refresh_thread.is_alive(),
+    }

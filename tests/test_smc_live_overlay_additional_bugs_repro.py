@@ -225,3 +225,65 @@ class TestStartStopThreadLifecycleBug:
         assert "live-feed" in created
         assert "overlay-refresh" in created
         assert "flow-refresh" in created
+
+
+class TestVolumeTypeDriftRobustness:
+    """Compute cycle must tolerate non-ideal volume types without crashing."""
+
+    def test_string_volumes_are_coerced_in_flow_and_ats(self) -> None:
+        import services.live_overlay_daemon.compute as compute
+
+        bars = [
+            {
+                "open": 100.0 + i,
+                "high": 101.0 + i,
+                "low": 99.0 + i,
+                "close": 100.5 + i,
+                "volume": str(100 + i * 10),
+            }
+            for i in range(5)
+        ]
+
+        flow = compute.compute_flow_fields(bars)
+        ats = compute.compute_ats_fields(bars)
+
+        assert flow["flow_rel_vol"] == pytest.approx(140.0 / 115.0, rel=1e-4)
+        assert flow["flow_delta_proxy_pct"] is not None
+        assert ats["ats_zscore"] is not None
+
+    def test_run_full_compute_cycle_skips_invalid_volume_types_without_crash(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import services.live_overlay_daemon.cache as cache_mod
+        import services.live_overlay_daemon.compute as compute
+
+        monkeypatch.setattr(cache_mod, "_bars", {})
+        monkeypatch.setattr(cache_mod, "_bar_last_update", {})
+        monkeypatch.setattr(cache_mod, "_overlay", {})
+        monkeypatch.setattr(cache_mod, "_overlay_computed_at", 0.0)
+        monkeypatch.setattr(compute.config, "max_stale_secs", lambda: 3600)
+        monkeypatch.setattr(compute, "_news_loaded_at", 0.0)
+        monkeypatch.setattr(compute, "_news_checked_at", 0.0)
+        monkeypatch.setattr(compute, "_news_cache", {})
+        monkeypatch.setattr(compute, "_load_news_snapshot", lambda: {})
+
+        for i in range(5):
+            cache_mod.push_bar(
+                "AAPL",
+                {
+                    "open": 100.0 + i,
+                    "high": 101.0 + i,
+                    "low": 99.0 + i,
+                    "close": 100.5 + i,
+                    "volume": {"bad": 1} if i == 4 else 100,
+                    "ts_event": i,
+                },
+            )
+
+        n = compute.run_full_compute_cycle()
+        payload = cache_mod.get_overlay("AAPL")
+
+        assert n == 1
+        assert payload is not None
+        assert payload["flow_rel_vol"] is None
+        assert payload["ats_zscore"] is None
