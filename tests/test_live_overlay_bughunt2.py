@@ -490,3 +490,65 @@ class TestMalformedOhlcValues:
         result = compute.compute_squeeze_on(bars, period=20)
         assert result is None
 
+    def test_compute_flow_fields_rejects_boolean_open_close(self):
+        """Replay: bool OHLC values must not become synthetic 1.0/0.0 prices."""
+        compute = _compute()
+        bars = [{"open": True, "close": False, "high": 2.0, "low": 0.5, "volume": 100}]
+
+        result = compute.compute_flow_fields(bars)
+
+        assert result["flow_delta_proxy_pct"] is None
+
+    def test_compute_ats_fields_rejects_boolean_open_close(self):
+        """Replay: bool OHLC values must not produce fake bearish/distribution signals."""
+        compute = _compute()
+        bars = [
+            {"open": 1.0, "close": 1.1, "high": 1.2, "low": 0.9, "volume": 100},
+            {"open": 1.0, "close": 1.1, "high": 1.2, "low": 0.9, "volume": 110},
+            {"open": 1.0, "close": 1.1, "high": 1.2, "low": 0.9, "volume": 120},
+            {"open": 1.0, "close": 1.1, "high": 1.2, "low": 0.9, "volume": 130},
+            {"open": True, "close": False, "high": 1.2, "low": 0.9, "volume": 500},
+        ]
+
+        result = compute.compute_ats_fields(bars)
+
+        assert result["ats_state"] == "neutral"
+        assert result["ats_zscore"] is not None
+
+
+class TestBoundaryThresholdAndOverlayPatch:
+    """Boundary semantics and cache patch robustness regressions."""
+
+    def test_ats_state_uses_inclusive_zscore_threshold(self):
+        """zscore exactly 0.5 should classify as accumulation/distribution, not neutral."""
+        compute = _compute()
+        bars = [
+            {"open": 1.0, "close": 1.1, "high": 1.2, "low": 0.9, "volume": 100},
+            {"open": 1.0, "close": 1.1, "high": 1.2, "low": 0.9, "volume": 110},
+            {"open": 1.0, "close": 1.1, "high": 1.2, "low": 0.9, "volume": 120},
+            {"open": 1.0, "close": 1.1, "high": 1.2, "low": 0.9, "volume": 130},
+            {"open": 1.0, "close": 1.2, "high": 1.3, "low": 0.9, "volume": 121.90915243299638},
+        ]
+
+        result = compute.compute_ats_fields(bars)
+
+        assert result["ats_zscore"] is not None
+        assert result["ats_zscore"] >= 0.5
+        assert result["ats_state"] == "accumulation"
+
+    def test_patch_overlay_rejects_non_finite_updates(self):
+        import services.live_overlay_daemon.cache as cache_mod
+
+        cache_mod.set_overlay({"AAPL": {"vix_level": 20.0, "flow_rel_vol": 1.5}})
+
+        cache_mod.patch_overlay(
+            "AAPL",
+            {"vix_level": float("inf"), "flow_rel_vol": float("nan")},
+        )
+
+        payload = cache_mod.get_overlay("AAPL")
+
+        assert payload is not None
+        assert payload["vix_level"] == 20.0
+        assert payload["flow_rel_vol"] == 1.5
+

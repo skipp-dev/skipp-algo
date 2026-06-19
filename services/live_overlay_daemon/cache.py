@@ -13,6 +13,7 @@ Design notes:
 from __future__ import annotations
 
 import logging
+import math
 import threading
 import time
 from collections import deque
@@ -168,7 +169,11 @@ def patch_overlay(symbol: str, updates: dict[str, Any]) -> None:
         upper = symbol.upper()
         if upper in _overlay:
             _overlay[upper].update(
-                {k: v for k, v in updates.items() if v is not None}
+                {
+                    k: v
+                    for k, v in updates.items()
+                    if v is not None and not (isinstance(v, float) and not math.isfinite(v))
+                }
             )
 
 

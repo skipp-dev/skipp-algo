@@ -190,10 +190,10 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # 2026-06-19 (bug-hunt hardcap): immediate downscale cap-enforcement and
         # single-pass cap-eviction in push_bar shifted cache.py global lines to
         # 67/144/193.
-        ("services/live_overlay_daemon/cache.py", 47, ("_max_symbols", "_rolling_bars_cap")),
-        ("services/live_overlay_daemon/cache.py", 67, ("_last_eviction_at",)),
-        ("services/live_overlay_daemon/cache.py", 144, ("_overlay_computed_at",)),
-        ("services/live_overlay_daemon/cache.py", 193, ("_vix_level",)),
+        ("services/live_overlay_daemon/cache.py", 48, ("_max_symbols", "_rolling_bars_cap")),
+        ("services/live_overlay_daemon/cache.py", 68, ("_last_eviction_at",)),
+        ("services/live_overlay_daemon/cache.py", 145, ("_overlay_computed_at",)),
+        ("services/live_overlay_daemon/cache.py", 198, ("_vix_level",)),
         # 2026-06-19 (fix/live-overlay-post-merge-bugs): separate _news_checked_at
         # from _news_loaded_at so missing-file rate-limiting does not pin the
         # success cache for the full TTL when a snapshot appears later.
