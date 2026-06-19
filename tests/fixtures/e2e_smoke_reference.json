@@ -72,9 +72,12 @@
   "reference_symbols_count": 12,
   "reference_timeframes": [
     "5m",
+    "10m",
     "15m",
+    "30m",
     "1H",
-    "4H"
+    "4H",
+    "1D"
   ],
   "schema": "e2e_smoke_v1",
   "threshold_defaults": {

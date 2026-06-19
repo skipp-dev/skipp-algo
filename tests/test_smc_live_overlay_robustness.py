@@ -917,6 +917,6 @@ class TestTfSchemaContract:
             main_mod.smc_live(token="tok", symbol="AAPL", tf="1D")
 
         assert exc_info.value.status_code == 400
-        assert exc_info.value.detail == "tf must be one of ['15m', '1H', '4H', '5m']"
+        assert exc_info.value.detail == "tf must be one of ['10m', '15m', '1H', '30m', '4H', '5m']"
 
 
