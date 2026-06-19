@@ -229,7 +229,7 @@ class TestBarCacheEviction:
         cache_mod.init_bar_cache(5, max_symbols=3)
         assert cache_mod.bar_symbol_count() <= 3
 
-    def test_new_symbol_push_keeps_cache_within_new_cap(
+    def test_new_symbol_push_at_capacity_after_downscale_keeps_cache_within_cap(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         import services.live_overlay_daemon.cache as cache_mod
@@ -243,8 +243,8 @@ class TestBarCacheEviction:
         for i in range(10):
             cache_mod.push_bar(f"OLD{i}", bar)
 
-        # Lowering the cap enforces it immediately; this test verifies that
-        # inserting a brand-new symbol still preserves cap safety.
+        # Lowering the cap enforces it immediately; this verifies the next
+        # insertion while already at capacity still preserves the hard cap.
         cache_mod.init_bar_cache(5, max_symbols=3)
         cache_mod.push_bar("NEW1", bar)
 
