@@ -122,9 +122,7 @@ class TestVIXZeroCloseBug:
             "ts_event": 0,
         }
 
-        sym = "VIX"
-        if sym == feed_mod._VIX_SYMBOL and bar.get("close") is not None:
-            cache_mod.set_vix(bar["close"])
+        feed_mod._maybe_cache_vix("VIX", bar)
 
         assert calls == [0.0], f"VIX zero close should be cached, got calls={calls}"
 
