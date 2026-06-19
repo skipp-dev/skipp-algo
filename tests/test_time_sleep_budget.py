@@ -123,8 +123,9 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         # 2026-06-11 (eval-findings D7): technical_analysis import block
         # +8 lines (1943→1951, 1945→1953).
         # 2026-06-19 (B9/B10 open-prep fix): +9 → 1961, 1963.
-        ("open_prep/run_open_prep.py", 1961),
-        ("open_prep/run_open_prep.py", 1963),
+        # 2026-06-19 (B11/B12/B13 open-prep fix): +13 → 1974, 1976.
+        ("open_prep/run_open_prep.py", 1974),
+        ("open_prep/run_open_prep.py", 1976),
         ("newsstack_fmp/_bz_http.py", 44),
         ("terminal_bitcoin.py", 846),
         ("terminal_bitcoin.py", 848),

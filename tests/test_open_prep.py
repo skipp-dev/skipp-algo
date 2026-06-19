@@ -1,6 +1,7 @@
 import argparse
 import io
 import json
+import math
 import os
 import tempfile
 import time
@@ -4223,3 +4224,142 @@ class TestB10MixedDateSorting(unittest.TestCase):
         # This will compute returns correctly because of the robust sorting.
         val = run_open_prep._momentum_z_score_from_eod(candles, period=10)
         self.assertIsInstance(val, float)
+
+
+class TestB11TradingViewDateExtremeTimestamps(unittest.TestCase):
+    """B11: _normalize_tradingview_article_date must never raise for any numeric
+    input.  datetime.fromtimestamp raises OverflowError, OSError (ERANGE), and
+    ValueError (NaN / year-out-of-range) for extreme timestamps."""
+
+    def _call(self, ts):
+        return run_open_prep._normalize_tradingview_article_date(ts)
+
+    def test_overflow_timestamp(self):
+        # 1e20 -> OverflowError before fix
+        self.assertEqual(self._call(1e20), "")
+
+    def test_erange_timestamp(self):
+        # 1e18 -> OSError [Errno 84] before fix (macOS/Linux ERANGE)
+        self.assertEqual(self._call(1e18), "")
+
+    def test_year_out_of_range_timestamp(self):
+        # 99999999999999 -> ValueError 'year ... is out of range' before fix
+        self.assertEqual(self._call(99999999999999), "")
+
+    def test_nan_timestamp(self):
+        # float('nan') -> ValueError 'Invalid value NaN' before fix
+        self.assertEqual(self._call(float("nan")), "")
+
+    def test_inf_timestamp(self):
+        self.assertEqual(self._call(float("inf")), "")
+
+    def test_neg_inf_timestamp(self):
+        self.assertEqual(self._call(float("-inf")), "")
+
+    def test_non_numeric_inputs_return_empty(self):
+        for bad in (None, "", "abc", [], {}):
+            self.assertEqual(self._call(bad), "", f"Expected '' for {bad!r}")
+
+    def test_valid_recent_timestamp_parses(self):
+        # Unix timestamp for 2023-11-14 is reasonable
+        result = self._call(1700000000)
+        self.assertTrue(result.startswith("2023-"), f"Unexpected: {result!r}")
+
+    def test_return_type_is_always_str(self):
+        for ts in [1e20, 99999999999999, 1e18, float("nan"), float("inf"), -1,
+                   0, None, "bad", 1700000000, True, False]:
+            result = self._call(ts)
+            self.assertIsInstance(result, str, f"Non-str return for {ts!r}")
+
+
+class TestB12MomentumZScoreNaNAndOverflow(unittest.TestCase):
+    """B12: _momentum_z_score_from_eod must always return a finite float in
+    [-5.0, 5.0] or 0.0.  Before fix:
+    - inf closes (1e400) produced NaN via inf-inf in variance (isnan check missed inf).
+    - Large finite closes (10**300) caused OverflowError in (r-mean)**2.
+    """
+
+    def _call(self, candles, period=10):
+        return run_open_prep._momentum_z_score_from_eod(candles, period=period)
+
+    def _good_candles(self, closes):
+        return [{"date": f"2024-01-{i+1:02d}", "close": c}
+                for i, c in enumerate(closes)]
+
+    def test_inf_closes_return_zero(self):
+        # All-inf closes → no valid rows → 0.0 (not NaN)
+        candles = self._good_candles([1e400] * 9)
+        z = self._call(candles)
+        self.assertEqual(z, 0.0, f"Expected 0.0 for inf closes, got {z}")
+
+    def test_nan_closes_return_zero(self):
+        candles = self._good_candles([float("nan")] * 9)
+        self.assertEqual(self._call(candles), 0.0)
+
+    def test_mixed_inf_finite_does_not_crash(self):
+        # Mix of valid and inf/nan closes; must not raise and must stay in range
+        closes = [100.0, 1e400, 102.0, float("nan"), 104.0,
+                  float("inf"), 106.0, 107.0, 108.0]
+        z = self._call(self._good_candles(closes))
+        self.assertIsInstance(z, float)
+        self.assertTrue(math.isfinite(z), f"z not finite: {z}")
+        self.assertGreaterEqual(z, -5.0)
+        self.assertLessEqual(z, 5.0)
+
+    def test_huge_finite_closes_do_not_overflow(self):
+        # 10**300 is a valid finite float that can overflow in (r-mean)**2
+        closes = [100.0, 200.0, 300.0, 400.0, 500.0, 10**300, 700.0, 800.0, 900.0]
+        z = self._call(self._good_candles(closes))
+        self.assertIsInstance(z, float)
+        self.assertTrue(math.isfinite(z), f"OverflowError path leaked: z={z}")
+
+    def test_return_always_finite_and_bounded_fuzz(self):
+        import random
+        rng = random.Random(99)
+        extreme_choices = [1e400, float("inf"), float("nan"), 0.0, -1.0, 10**300]
+        for _ in range(500):
+            n = rng.randint(2, 15)
+            closes = [rng.choice([*extreme_choices, rng.uniform(1.0, 1e6)])
+                      for _ in range(n)]
+            candles = self._good_candles(closes)
+            try:
+                z = self._call(candles)
+            except Exception as e:
+                self.fail(f"Exception for closes={closes[:4]!r}: {e}")
+            self.assertIsInstance(z, float, f"Non-float for closes={closes[:4]!r}")
+            self.assertFalse(math.isnan(z), f"NaN returned for closes={closes[:4]!r}")
+            if z != 0.0:
+                self.assertGreaterEqual(z, -5.0, f"Below -5 for closes={closes[:4]!r}")
+                self.assertLessEqual(z, 5.0, f"Above 5 for closes={closes[:4]!r}")
+
+
+class TestB13NormalizeSymbolsNonIterable(unittest.TestCase):
+    """B13: _normalize_symbols must not raise TypeError when passed None, an
+    integer, or any other non-iterable.  Before fix: for raw in values raised
+    TypeError for None/int inputs."""
+
+    def _call(self, v):
+        return run_open_prep._normalize_symbols(v)
+
+    def test_none_returns_empty(self):
+        self.assertEqual(self._call(None), [])
+
+    def test_integer_returns_empty(self):
+        self.assertEqual(self._call(42), [])
+
+    def test_string_returns_empty(self):
+        # A bare string would previously iterate over characters ('AAPL' → ['A','P','L'])
+        self.assertEqual(self._call("AAPL"), [])
+
+    def test_empty_list_returns_empty(self):
+        self.assertEqual(self._call([]), [])
+
+    def test_valid_list_deduplicates_and_uppercases(self):
+        result = self._call(["aapl", "AAPL", "msft", "", None])
+        self.assertEqual(result, ["AAPL", "MSFT"])
+
+    def test_return_type_is_always_list(self):
+        for bad in (None, 0, 3.14, False, True, object()):
+            result = self._call(bad)
+            self.assertIsInstance(result, list, f"Non-list for {bad!r}")
+            self.assertEqual(result, [], f"Non-empty for {bad!r}")

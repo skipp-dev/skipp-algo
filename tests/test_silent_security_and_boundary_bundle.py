@@ -206,7 +206,8 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # 2026-06-12 (backlog-resilience): fail-loud outcome storage +18 → 5942.
     # 2026-06-12 (copilot-followup): rename + 3-line comment → 5945.
     # 2026-06-19 (B9/B10 open-prep fix): +9 → 5954.
-    ("open_prep/run_open_prep.py", 5954),
+    # 2026-06-19 (B11/B12/B13 open-prep fix): +18 → 5972.
+    ("open_prep/run_open_prep.py", 5972),
     # WP-H (PR #2612): 35 -> 37, VIX import + helper block added above.
     ("smc_tv_bridge/smc_api.py", 37),
 })

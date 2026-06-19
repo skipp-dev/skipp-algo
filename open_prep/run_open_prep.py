@@ -650,7 +650,9 @@ def _momentum_z_score_from_eod(candles: list[dict], period: int = 50) -> float:
     for candle in candles:
         d = str(candle.get("date") or "")
         close = _to_float(candle.get("close"), default=float("nan"))
-        if d and not math.isnan(close) and close > 0.0:  # NaN-safe check
+        # B12: use math.isfinite to reject both NaN and ±inf; inf closes produce
+        # inf returns whose squared deviations raise OverflowError in variance.
+        if d and math.isfinite(close) and close > 0.0:
             parsed = _parse_calendar_date(d)
             if parsed is not None:
                 rows.append((parsed, close))
@@ -665,7 +667,11 @@ def _momentum_z_score_from_eod(candles: list[dict], period: int = 50) -> float:
         cur = closes[idx]
         if prev <= 0.0:
             continue
-        returns.append((cur - prev) / prev)
+        r = (cur - prev) / prev
+        # B12: also filter non-finite returns; large-but-finite closes (e.g.
+        # 1e300) produce returns whose squared deviation overflows float.max.
+        if math.isfinite(r):
+            returns.append(r)
 
     if len(returns) < 2:
         return 0.0
@@ -675,13 +681,17 @@ def _momentum_z_score_from_eod(candles: list[dict], period: int = 50) -> float:
         # Need at least 5 observations for a statistically meaningful z-score;
         # Bessel's correction with n<5 can produce extreme values.
         return 0.0
-    mean_ret = sum(window) / float(len(window))
-    variance = sum((r - mean_ret) ** 2 for r in window) / float(len(window) - 1)
-    std_ret = variance**0.5
-    if std_ret <= 0.0:
+    try:
+        mean_ret = sum(window) / float(len(window))
+        variance = sum((r - mean_ret) ** 2 for r in window) / float(len(window) - 1)
+        std_ret = variance**0.5
+        if std_ret <= 0.0:
+            return 0.0
+        z = (window[-1] - mean_ret) / std_ret
+    except (OverflowError, FloatingPointError):
         return 0.0
-
-    z = (window[-1] - mean_ret) / std_ret
+    if not math.isfinite(z):
+        return 0.0
     return float(round(max(min(z, 5.0), -5.0), 4))
 
 
@@ -731,6 +741,9 @@ def _add_pdh_pdl_context(quote: dict[str, Any]) -> None:
 
 
 def _normalize_symbols(values: list[str]) -> list[str]:
+    # B13: guard against None / non-iterable inputs that callers may produce.
+    if not values or not hasattr(values, "__iter__") or isinstance(values, str):
+        return []
     out: list[str] = []
     seen: set[str] = set()
     for raw in values:
@@ -4228,7 +4241,12 @@ def _normalize_tradingview_article_date(published: Any) -> str:
         return ""
     if published_float <= 0:
         return ""
-    return datetime.fromtimestamp(published_float, tz=UTC).isoformat()
+    # B11: datetime.fromtimestamp raises OverflowError, OSError (errno ERANGE),
+    # or ValueError (NaN / year-out-of-range) for extreme / non-finite timestamps.
+    try:
+        return datetime.fromtimestamp(published_float, tz=UTC).isoformat()
+    except (OverflowError, OSError, ValueError):
+        return ""
 
 
 def _tradingview_headline_to_article(headline: Any) -> dict[str, Any] | None:

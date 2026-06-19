@@ -49,7 +49,8 @@ _SYS_EXIT_LEDGER: frozenset[tuple[str, int]] = frozenset({
     # (outcomes_<date>.json) must not fail silently green.
     # 2026-06-12 (copilot-followup): rename + 3-line comment → 5931.
     # 2026-06-19 (B9/B10 open-prep fix): +9 → 5940.
-    ("open_prep/run_open_prep.py", 5940),
+    # 2026-06-19 (B11/B12/B13 open-prep fix): +18 → 5958.
+    ("open_prep/run_open_prep.py", 5958),
     # 2026-06-02 (#2497): +68 lines after the `provenance` subcommand block
     # was inserted above the lint dispatch (was 400, 402).
     ("pine_input_surface.py", 468),
