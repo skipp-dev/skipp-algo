@@ -118,6 +118,9 @@ def _get_news_fields(symbol: str) -> dict[str, Any]:
         if "sentiment_score" in story and story.get("sentiment_score") is not None:
             if (score := _coerce_finite_float(story["sentiment_score"])) is not None:
                 return score
+            # Malformed sentiment_score should not mask a valid news_score.
+            if "news_score" in story and story.get("news_score") is not None:
+                return _coerce_finite_float(story["news_score"])
             return None
         if "news_score" in story and story.get("news_score") is not None:
             if (score := _coerce_finite_float(story["news_score"])) is not None:
@@ -163,6 +166,9 @@ def _get_global_news_fields() -> dict[str, Any]:
         if "sentiment_score" in story and story.get("sentiment_score") is not None:
             if (score := _coerce_finite_float(story["sentiment_score"])) is not None:
                 return score
+            # Malformed sentiment_score should not mask a valid news_score.
+            if "news_score" in story and story.get("news_score") is not None:
+                return _coerce_finite_float(story["news_score"])
             return None
         if "news_score" in story and story.get("news_score") is not None:
             if (score := _coerce_finite_float(story["news_score"])) is not None:
@@ -248,10 +254,10 @@ def compute_flow_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:
     if avg_vol and avg_vol > 0 and last_vol is not None:
         flow_rel_vol = round(last_vol / avg_vol, 4)
 
-    open_ = last_bar.get("open")
-    close_ = last_bar.get("close")
+    open_ = _coerce_finite_float(last_bar.get("open"))
+    close_ = _coerce_finite_float(last_bar.get("close"))
     flow_delta: float | None = None
-    if open_ and open_ > 0 and close_ is not None:
+    if open_ is not None and open_ > 0 and close_ is not None:
         flow_delta = round((close_ - open_) / open_ * 100, 4)
 
     return {"flow_rel_vol": flow_rel_vol, "flow_delta_proxy_pct": flow_delta}
@@ -269,13 +275,14 @@ def compute_squeeze_on(bars: list[dict[str, Any]], period: int = 20) -> bool | N
     # Build aligned triples so that closes_w[i], highs_w[i], lows_w[i]
     # all refer to the SAME bar. Independent per-field filtering would
     # produce cross-bar ATR when any bar in the window is missing a field.
-    triples = [
-        (b["close"], b["high"], b["low"])
-        for b in bars
-        if b.get("close") is not None
-        and b.get("high") is not None
-        and b.get("low") is not None
-    ]
+    triples: list[tuple[float, float, float]] = []
+    for b in bars:
+        close = _coerce_finite_float(b.get("close"))
+        high = _coerce_finite_float(b.get("high"))
+        low = _coerce_finite_float(b.get("low"))
+        if close is None or high is None or low is None:
+            continue
+        triples.append((close, high, low))
 
     if len(triples) < period:
         return None
@@ -336,8 +343,8 @@ def compute_ats_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:
     if std_v > 0:
         zscore = round((last_vol - mean_v) / std_v, 4)
 
-    last_open = last_bar.get("open")
-    last_close = last_bar.get("close")
+    last_open = _coerce_finite_float(last_bar.get("open"))
+    last_close = _coerce_finite_float(last_bar.get("close"))
     if last_open is None or last_close is None:
         # Cannot determine price direction for this bar; avoid cross-bar delta.
         state = "neutral"
