@@ -190,17 +190,23 @@ def _coerce_volume(v: Any) -> float | None:
     """Coerce a volume field value to float, returning None on failure.
 
     Accepts int, float, and numeric strings (e.g. '100' from schema drift).
-    Returns None for None, empty string, or any non-numeric value so that
+    Returns None for None, empty string, non-finite values (NaN/Inf), or
+    any non-numeric value so that
     callers can safely skip the bar instead of crashing.
     """
     if v is None:
         return None
     if isinstance(v, (int, float)):
-        return float(v)
-    try:
-        return float(v)
-    except (TypeError, ValueError):
+        coerced = float(v)
+    else:
+        try:
+            coerced = float(v)
+        except (TypeError, ValueError):
+            return None
+
+    if not math.isfinite(coerced):
         return None
+    return coerced
 
 
 def compute_flow_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:

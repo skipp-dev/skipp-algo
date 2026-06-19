@@ -333,3 +333,37 @@ class TestStringVolumeCoercion:
         assert result["flow_rel_vol"] is not None
         assert result["flow_rel_vol"] > 1.0
 
+    def test_nan_string_volume_treated_as_missing(self):
+        """Non-finite numeric string volume ('NaN') must be rejected as missing."""
+        compute = _compute()
+        bars = [
+            {"open": 100.0 + i, "high": 101.0 + i, "low": 99.0 + i,
+             "close": 100.5 + i,
+             "volume": "NaN" if i == 4 else (100 + i * 10)}
+            for i in range(5)
+        ]
+
+        flow = compute.compute_flow_fields(bars)
+        ats = compute.compute_ats_fields(bars)
+
+        assert flow["flow_rel_vol"] is None
+        assert ats["ats_zscore"] is None
+        assert ats["ats_state"] is None
+
+    def test_inf_string_volume_treated_as_missing(self):
+        """Non-finite numeric string volume ('inf') must be rejected as missing."""
+        compute = _compute()
+        bars = [
+            {"open": 100.0 + i, "high": 101.0 + i, "low": 99.0 + i,
+             "close": 100.5 + i,
+             "volume": "inf" if i == 4 else (100 + i * 10)}
+            for i in range(5)
+        ]
+
+        flow = compute.compute_flow_fields(bars)
+        ats = compute.compute_ats_fields(bars)
+
+        assert flow["flow_rel_vol"] is None
+        assert ats["ats_zscore"] is None
+        assert ats["ats_state"] is None
+
