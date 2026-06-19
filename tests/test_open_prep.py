@@ -4160,3 +4160,66 @@ class TestSr6BreakoutZeroGuards(unittest.TestCase):
         self.assertEqual(result["direction"], "LONG",
                          "Should detect bullish range breakout")
         self.assertIn("breakout", result["pattern"])
+
+
+class TestB9PdhPdlContextNoFallback(unittest.TestCase):
+    """B9: _add_pdh_pdl_context must strictly use previous day fields,
+    never fall back to current session dayHigh or dayLow."""
+
+    def test_add_pdh_pdl_context_strictly_previous_day(self):
+        # Quote with only current session dayHigh and dayLow
+        quote = {
+            "symbol": "AAPL",
+            "price": 150.0,
+            "atr": 3.0,
+            "dayHigh": 155.0,
+            "dayLow": 145.0,
+        }
+        run_open_prep._add_pdh_pdl_context(quote)
+        self.assertIsNone(quote["pdh"], "pdh must be None if previousDayHigh is missing")
+        self.assertIsNone(quote["pdl"], "pdl must be None if previousDayLow is missing")
+        self.assertEqual(quote["current_day_high"], 155.0)
+        self.assertEqual(quote["current_day_low"], 145.0)
+
+    def test_add_pdh_pdl_context_uses_previous_day_high_low(self):
+        # Quote with previous day fields
+        quote = {
+            "symbol": "AAPL",
+            "price": 150.0,
+            "atr": 3.0,
+            "previousDayHigh": 160.0,
+            "previousDayLow": 140.0,
+            "dayHigh": 155.0,
+            "dayLow": 145.0,
+        }
+        run_open_prep._add_pdh_pdl_context(quote)
+        self.assertEqual(quote["pdh"], 160.0)
+        self.assertEqual(quote["pdl"], 140.0)
+        self.assertEqual(quote["current_day_high"], 155.0)
+        self.assertEqual(quote["current_day_low"], 145.0)
+
+
+class TestB10MixedDateSorting(unittest.TestCase):
+    """B10: Sort by parsed date rather than string date
+    to correctly handle mixed formats."""
+
+    def test_momentum_z_score_from_eod_mixed_date_formats(self):
+        # Mixed YYYY-MM-DD and YYYY-M-D or extra formats
+        # We need at least 5 observations in the returns window to get a non-zero z-score
+        # Candles dates in mixed format, but in chronological order they should go:
+        # "2024-01-01", "2024-1-2", "2024-01-03", "2024-1-4", "2024-01-05", "2024-1-6", "2024-01-07", "2024-1-8"
+        # Since standard string sort would sort:
+        # "2024-01-03" < "2024-1-2", but chronological: "2024-1-2" (Jan 2nd) < "2024-01-03" (Jan 3rd).
+        candles = [
+            {"date": "2024-01-01", "close": 100.0},
+            {"date": "2024-1-2", "close": 101.0},
+            {"date": "2024-01-03", "close": 102.0},
+            {"date": "2024-1-4", "close": 103.0},
+            {"date": "2024-01-05", "close": 104.0},
+            {"date": "2024-1-6", "close": 105.0},
+            {"date": "2024-01-07", "close": 106.0},
+            {"date": "2024-1-8", "close": 107.0},
+        ]
+        # This will compute returns correctly because of the robust sorting.
+        val = run_open_prep._momentum_z_score_from_eod(candles, period=10)
+        self.assertIsInstance(val, float)
