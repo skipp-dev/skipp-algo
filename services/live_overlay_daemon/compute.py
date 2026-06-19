@@ -111,12 +111,13 @@ def _get_news_fields(symbol: str) -> dict[str, Any]:
 
     def _score(story: dict[str, Any]) -> float:
         """Prefer sentiment_score when present (including 0.0), else news_score."""
-        try:
-            if "sentiment_score" in story and story.get("sentiment_score") is not None:
-                return float(story["sentiment_score"])
-            if "news_score" in story and story.get("news_score") is not None:
-                return float(story["news_score"])
-        except (TypeError, ValueError):
+        if "sentiment_score" in story and story.get("sentiment_score") is not None:
+            if (score := _coerce_finite_float(story["sentiment_score"])) is not None:
+                return score
+            return 0.0
+        if "news_score" in story and story.get("news_score") is not None:
+            if (score := _coerce_finite_float(story["news_score"])) is not None:
+                return score
             return 0.0
         return 0.0
 
@@ -150,12 +151,13 @@ def _get_global_news_fields() -> dict[str, Any]:
 
     def _score(story: dict[str, Any]) -> float:
         """Prefer sentiment_score when present (including 0.0), else news_score."""
-        try:
-            if "sentiment_score" in story and story.get("sentiment_score") is not None:
-                return float(story["sentiment_score"])
-            if "news_score" in story and story.get("news_score") is not None:
-                return float(story["news_score"])
-        except (TypeError, ValueError):
+        if "sentiment_score" in story and story.get("sentiment_score") is not None:
+            if (score := _coerce_finite_float(story["sentiment_score"])) is not None:
+                return score
+            return 0.0
+        if "news_score" in story and story.get("news_score") is not None:
+            if (score := _coerce_finite_float(story["news_score"])) is not None:
+                return score
             return 0.0
         return 0.0
 
@@ -186,6 +188,19 @@ def _safe_std(vals: list[float]) -> float:
     return math.sqrt(sum((v - mean) ** 2 for v in vals) / (n - 1))
 
 
+def _coerce_finite_float(v: Any) -> float | None:
+    """Coerce value to finite float, returning None on invalid/non-finite input."""
+    if v is None:
+        return None
+    try:
+        coerced = float(v)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(coerced):
+        return None
+    return coerced
+
+
 def _coerce_volume(v: Any) -> float | None:
     """Coerce a volume field value to float, returning None on failure.
 
@@ -194,19 +209,7 @@ def _coerce_volume(v: Any) -> float | None:
     any non-numeric value so that
     callers can safely skip the bar instead of crashing.
     """
-    if v is None:
-        return None
-    if isinstance(v, (int, float)):
-        coerced = float(v)
-    else:
-        try:
-            coerced = float(v)
-        except (TypeError, ValueError):
-            return None
-
-    if not math.isfinite(coerced):
-        return None
-    return coerced
+    return _coerce_finite_float(v)
 
 
 def compute_flow_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:
