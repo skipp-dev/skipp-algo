@@ -96,7 +96,7 @@ def _dynamic_getattr_sites() -> set[tuple[str, int]]:
 DYNAMIC_GETATTR_LEDGER: set[tuple[str, int]] = {
     # 2026-06-19 (live-overlay bugfix): _record_to_bar uses a tiny helper to
     # preserve missing OHLC attrs as None instead of coercing to 0.0.
-    ("services/live_overlay_daemon/feed.py", 63),
+    ("services/live_overlay_daemon/feed.py", 56),
     ("smc_core/event_ledger.py", 79),
     ("smc_core/scoring.py", 308),
     ("streamlit_terminal_alerts.py", 41),
