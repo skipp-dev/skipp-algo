@@ -93,6 +93,24 @@ class TestConfigRangeValidation:
         assert result == 60  # default
         assert "Invalid integer" in caplog.text
 
+    def test_load_env_unquotes_wrapped_values(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        import services.live_overlay_daemon.config as cfg
+
+        env_file = tmp_path / ".env"
+        env_file.write_text(
+            "OVERLAY_SECRET_TOKEN=\"quoted-token\"\nDATABENTO_API_KEY='quoted-key'\n",
+            encoding="utf-8",
+        )
+
+        monkeypatch.delenv("OVERLAY_SECRET_TOKEN", raising=False)
+        monkeypatch.delenv("DATABENTO_API_KEY", raising=False)
+        monkeypatch.setattr(cfg, "_ENV_FILE", env_file)
+
+        cfg._load_env()
+
+        assert cfg.overlay_secret_token() == "quoted-token"
+        assert cfg.databento_api_key() == "quoted-key"
+
 
 # ---------------------------------------------------------------------------
 # R3: _load_news_snapshot warning logging
@@ -467,6 +485,7 @@ class TestHealthStatusSignals:
             "worker_liveness",
             lambda: {"live_feed": True, "overlay_refresh": False, "flow_refresh": False},
         )
+        monkeypatch.setattr(main_mod.feed, "metrics_snapshot", lambda: {"reconnect_attempts": 3})
         monkeypatch.setattr(main_mod.cache, "overlay_age_secs", lambda: 1.0)
         monkeypatch.setattr(main_mod.cache, "bar_symbol_count", lambda: 1)
         monkeypatch.setattr(main_mod.cache, "total_bar_count", lambda: 10)
@@ -478,6 +497,7 @@ class TestHealthStatusSignals:
         assert payload["status"] == "starting"
         assert payload["feed_healthy"] is True
         assert payload["workers_healthy"] is False
+        assert payload["feed_metrics"]["reconnect_attempts"] == 3
         assert payload["overlay_fresh"] is True
 
     def test_health_is_starting_when_overlay_is_stale(
@@ -577,6 +597,46 @@ class TestSmcLiveSerializationSafety:
         assert payload["vix_level"] is None
 
 
+class TestVixFiniteContract:
+    """Non-finite VIX values must not enter overlay state via cache/flow patch."""
+
+    def test_set_vix_ignores_non_finite_values(self) -> None:
+        import services.live_overlay_daemon.cache as cache_mod
+
+        cache_mod.set_vix(20.5)
+        cache_mod.set_vix(float("inf"))
+        cache_mod.set_vix(float("nan"))
+
+        assert cache_mod.get_vix() == 20.5
+
+    def test_flow_patch_cycle_does_not_write_non_finite_vix(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import services.live_overlay_daemon.cache as cache_mod
+        import services.live_overlay_daemon.compute as compute_mod
+
+        monkeypatch.setattr(
+            cache_mod,
+            "get_all_symbols_snapshot",
+            lambda: {
+                "AAPL": [
+                    {"open": 1.0, "high": 1.2, "low": 0.9, "close": 1.1, "volume": 100},
+                    {"open": 1.0, "high": 1.2, "low": 0.9, "close": 1.1, "volume": 110},
+                    {"open": 1.0, "high": 1.2, "low": 0.9, "close": 1.1, "volume": 120},
+                    {"open": 1.0, "high": 1.2, "low": 0.9, "close": 1.1, "volume": 130},
+                    {"open": 1.0, "high": 1.2, "low": 0.9, "close": 1.1, "volume": 140},
+                ]
+            },
+        )
+        monkeypatch.setattr(cache_mod, "get_vix", lambda: float("inf"))
+
+        cache_mod.set_overlay({"AAPL": {"vix_level": 19.0, "flow_rel_vol": 1.0}})
+
+        compute_mod.run_flow_patch_cycle()
+
+        payload = cache_mod.get_overlay("AAPL")
+        assert payload is not None
+        assert payload["vix_level"] == 19.0
+
+
 # ---------------------------------------------------------------------------
 # N1/N2: stop() and circuit-breaker clear _feed_ready
 # ---------------------------------------------------------------------------
@@ -655,7 +715,7 @@ class TestDoubleStartGuard:
         monkeypatch.setattr(feed_mod, "_refresh_thread", None)
         monkeypatch.setattr(feed_mod, "_flow_refresh_thread", None)
 
-    def test_start_refuses_restart_when_any_worker_alive(
+    def test_start_recovers_dead_workers_when_some_are_alive(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         import services.live_overlay_daemon.feed as feed_mod
@@ -685,8 +745,8 @@ class TestDoubleStartGuard:
 
         feed_mod.start()
 
-        assert "overlay-refresh" not in created
-        assert "flow-refresh" not in created
+        assert "overlay-refresh" in created
+        assert "flow-refresh" in created
         assert "live-feed" not in created
 
 

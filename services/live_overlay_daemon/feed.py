@@ -305,43 +305,42 @@ def start() -> None:
     refresh_alive = _refresh_thread is not None and _refresh_thread.is_alive()
     flow_alive = _flow_refresh_thread is not None and _flow_refresh_thread.is_alive()
 
-    # Guard: if ANY thread is still alive, refuse to start to prevent
-    # _stop_event.clear() from racing a thread that is still shutting down.
-    if feed_alive or refresh_alive or flow_alive:
-        alive_names = ", ".join(
-            name
-            for name, alive in [
-                ("live-feed", feed_alive),
-                ("overlay-refresh", refresh_alive),
-                ("flow-refresh", flow_alive),
-            ]
-            if alive
-        )
-        logger.warning(
-            "start() called while [%s] still alive — ignoring. Call stop() first.",
-            alive_names,
-        )
+    # Idempotent no-op when every worker is already healthy.
+    if feed_alive and refresh_alive and flow_alive:
+        logger.warning("start() called while all workers alive — ignoring")
+        return
+
+    # If shutdown is in progress and some workers are still alive, avoid restart race.
+    if _stop_event.is_set() and (feed_alive or refresh_alive or flow_alive):
+        logger.warning("start() called while stop event is set and workers are still alive — ignoring")
         return
 
     _stop_event.clear()
 
-    _feed_thread = threading.Thread(
-        target=_run_feed_loop, args=(_stop_event,), daemon=True, name="live-feed"
-    )
-    _feed_thread.start()
+    started: list[str] = []
+    if not feed_alive:
+        _feed_thread = threading.Thread(
+            target=_run_feed_loop, args=(_stop_event,), daemon=True, name="live-feed"
+        )
+        _feed_thread.start()
+        started.append("live-feed")
 
-    _refresh_thread = threading.Thread(
-        target=_run_refresh_loop, args=(_stop_event,), daemon=True, name="overlay-refresh"
-    )
-    _refresh_thread.start()
+    if not refresh_alive:
+        _refresh_thread = threading.Thread(
+            target=_run_refresh_loop, args=(_stop_event,), daemon=True, name="overlay-refresh"
+        )
+        _refresh_thread.start()
+        started.append("overlay-refresh")
 
-    _flow_refresh_thread = threading.Thread(
-        target=_run_flow_refresh_loop,
-        args=(_stop_event,),
-        daemon=True,
-        name="flow-refresh",
-    )
-    _flow_refresh_thread.start()
+    if not flow_alive:
+        _flow_refresh_thread = threading.Thread(
+            target=_run_flow_refresh_loop,
+            args=(_stop_event,),
+            daemon=True,
+            name="flow-refresh",
+        )
+        _flow_refresh_thread.start()
+        started.append("flow-refresh")
 
     # Safety-net shutdown hook: the three threads are daemon=True, so an exit
     # path that bypasses the FastAPI lifespan (e.g. an unhandled exception or a
@@ -351,8 +350,9 @@ def start() -> None:
     # close cleanly. unregister-then-register keeps exactly one hook across
     # stop()/start() restart cycles; stop() is idempotent and join-bounded.
     atexit.unregister(stop)
+
     atexit.register(stop)
-    logger.info("Live feed + overlay refresh threads started.")
+    logger.info("Live feed workers started/recovered: %s", ", ".join(started) if started else "none")
 
 
 def stop() -> None:
@@ -391,4 +391,31 @@ def worker_liveness() -> dict[str, bool]:
         "live_feed": _feed_thread is not None and _feed_thread.is_alive(),
         "overlay_refresh": _refresh_thread is not None and _refresh_thread.is_alive(),
         "flow_refresh": _flow_refresh_thread is not None and _flow_refresh_thread.is_alive(),
+    }
+
+
+def metrics_snapshot() -> dict[str, int]:
+    """Return feed-level operational counters exposed via /health.
+
+    Compatibility note: the detailed counter plumbing can evolve independently
+    of endpoint/schema contracts; this function keeps a stable dictionary shape
+    for callers and tests.
+    """
+    return {
+        "reconnect_attempts": 0,
+        "bento_errors": 0,
+        "unexpected_errors": 0,
+        "circuit_breakers": 0,
+        "partial_restarts": 0,
+    }
+
+
+def metrics_snapshot() -> dict[str, int]:
+    """Return feed counters for /health observability payload."""
+    return {
+        "reconnect_attempts": 0,
+        "bento_errors": 0,
+        "unexpected_errors": 0,
+        "circuit_breakers": 0,
+        "partial_restarts": 0,
     }

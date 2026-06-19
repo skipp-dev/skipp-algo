@@ -485,8 +485,8 @@ def run_flow_patch_cycle() -> int:
             if not bars:
                 continue
             updates = compute_flow_fields(bars)
-            if vix is not None:
-                updates["vix_level"] = round(vix, 4)
+            if (vix_value := _coerce_finite_float(vix)) is not None:
+                updates["vix_level"] = round(vix_value, 4)
             cache.patch_overlay(sym, updates)
             count += 1
         observability.metric_gauge("live_overlay.flow_patch_symbols", count)

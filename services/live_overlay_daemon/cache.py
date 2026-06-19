@@ -196,6 +196,9 @@ def overlay_symbol_count() -> int:
 
 def set_vix(level: float) -> None:
     global _vix_level
+    if not math.isfinite(level):
+        logger.warning("Ignoring non-finite VIX level: %r", level)
+        return
     with _vix_lock:
         _vix_level = level
 

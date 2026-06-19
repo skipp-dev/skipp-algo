@@ -89,8 +89,8 @@ ATEXIT_REGISTER_ALLOWED: set[tuple[str, int]] = {
     # an Event and joins with a 5s/thread timeout (bounded, non-deadlocking).
     # 2026-06-19 (bug-hunt): _record_to_bar helper block shifted start() body.
     # 2026-06-19 (findings cleanup): current feed.start() layout pins
-    # the atexit.register site at line 354.
-    ("services/live_overlay_daemon/feed.py", 354),
+        # the atexit.register site; current location line 354.
+        ("services/live_overlay_daemon/feed.py", 354),
 }
 
 

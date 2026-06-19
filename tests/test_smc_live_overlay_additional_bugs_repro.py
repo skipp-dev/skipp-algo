@@ -171,7 +171,8 @@ class TestFeedReadinessRaceCondition:
         def writer() -> None:
             try:
                 for _ in range(1000):
-                    feed_mod._last_bar_at = time.monotonic()
+                    with feed_mod._last_bar_lock:
+                        feed_mod._last_bar_at = time.monotonic()
             except Exception as exc:
                 errors.append(exc)
 
@@ -191,6 +192,8 @@ class TestFeedReadinessRaceCondition:
             t.join()
 
         assert not errors, f"Race on _last_bar_at raised: {errors[:3]}"
+        age = feed_mod.last_bar_age_secs()
+        assert age is None or age >= 0.0
 
 
 class TestStartStopThreadLifecycleBug:
@@ -264,7 +267,6 @@ class TestVolumeTypeDriftRobustness:
         monkeypatch.setattr(compute.config, "max_stale_secs", lambda: 3600)
         monkeypatch.setattr(compute, "_news_loaded_at", 0.0)
         monkeypatch.setattr(compute, "_news_checked_at", 0.0)
-        monkeypatch.setattr(compute, "_news_cache", {})
         monkeypatch.setattr(compute, "_load_news_snapshot", lambda: {})
 
         for i in range(5):
@@ -286,4 +288,28 @@ class TestVolumeTypeDriftRobustness:
         assert n == 1
         assert payload is not None
         assert payload["flow_rel_vol"] is None
+
+        def test_read_paths_explicitly_take_last_bar_lock(self, monkeypatch: pytest.MonkeyPatch) -> None:
+            import services.live_overlay_daemon.feed as feed_mod
+
+            class _ProbeLock:
+                def __init__(self) -> None:
+                    self.enters = 0
+
+                def __enter__(self) -> "_ProbeLock":
+                    self.enters += 1
+                    return self
+
+                def __exit__(self, exc_type, exc, tb) -> None:
+                    return None
+
+            probe = _ProbeLock()
+            monkeypatch.setattr(feed_mod, "_last_bar_lock", probe)
+            monkeypatch.setattr(feed_mod, "_last_bar_at", time.monotonic())
+            feed_mod._feed_ready.set()
+
+            feed_mod.is_ready()
+            feed_mod.last_bar_age_secs()
+
+            assert probe.enters >= 2, "Expected read paths to acquire _last_bar_lock"
         assert payload["ats_zscore"] is None
