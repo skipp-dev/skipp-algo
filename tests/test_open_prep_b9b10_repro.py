@@ -248,7 +248,7 @@ class TestLoadAtrCacheFiltersNonFinite:
                 ),
                 encoding="utf-8",
             )
-            atr_map, momentum_map, prev_close_map = _load_atr_cache(date(2024, 1, 15), 14)
+            atr_map, momentum_map, _prev_close_map = _load_atr_cache(date(2024, 1, 15), 14)
             # AAPL and MSFT should be filtered (inf ATR / negative ATR)
             assert "AAPL" not in atr_map, "inf ATR must be filtered"
             assert "MSFT" not in atr_map, "negative ATR must be filtered"
