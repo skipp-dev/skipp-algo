@@ -287,28 +287,36 @@ def start() -> None:
 
     global _feed_thread, _refresh_thread, _flow_refresh_thread
 
-    if _feed_thread is not None and _feed_thread.is_alive():
+    feed_alive = _feed_thread is not None and _feed_thread.is_alive()
+    refresh_alive = _refresh_thread is not None and _refresh_thread.is_alive()
+    flow_alive = _flow_refresh_thread is not None and _flow_refresh_thread.is_alive()
+
+    if feed_alive and refresh_alive and flow_alive:
         logger.warning("start() called while feed threads are already running — ignoring.")
         return
 
     _stop_event.clear()
 
-    _feed_thread = threading.Thread(
-        target=_run_feed_loop, args=(_stop_event,), daemon=True, name="live-feed"
-    )
-    _refresh_thread = threading.Thread(
-        target=_run_refresh_loop, args=(_stop_event,), daemon=True, name="overlay-refresh"
-    )
-    _flow_refresh_thread = threading.Thread(
-        target=_run_flow_refresh_loop,
-        args=(_stop_event,),
-        daemon=True,
-        name="flow-refresh",
-    )
+    if not feed_alive:
+        _feed_thread = threading.Thread(
+            target=_run_feed_loop, args=(_stop_event,), daemon=True, name="live-feed"
+        )
+        _feed_thread.start()
 
-    _feed_thread.start()
-    _refresh_thread.start()
-    _flow_refresh_thread.start()
+    if not refresh_alive:
+        _refresh_thread = threading.Thread(
+            target=_run_refresh_loop, args=(_stop_event,), daemon=True, name="overlay-refresh"
+        )
+        _refresh_thread.start()
+
+    if not flow_alive:
+        _flow_refresh_thread = threading.Thread(
+            target=_run_flow_refresh_loop,
+            args=(_stop_event,),
+            daemon=True,
+            name="flow-refresh",
+        )
+        _flow_refresh_thread.start()
 
     # Safety-net shutdown hook: the three threads are daemon=True, so an exit
     # path that bypasses the FastAPI lifespan (e.g. an unhandled exception or a

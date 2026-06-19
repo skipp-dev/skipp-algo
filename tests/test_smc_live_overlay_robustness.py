@@ -193,6 +193,24 @@ class TestBarCacheEviction:
         # FRESH should exist
         assert cache_mod.get_bars_snapshot("FRESH") != []
 
+    def test_reinit_updates_existing_symbol_deque_cap(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import services.live_overlay_daemon.cache as cache_mod
+
+        monkeypatch.setattr(cache_mod, "_bars", {})
+        monkeypatch.setattr(cache_mod, "_bar_last_update", {})
+        monkeypatch.setattr(cache_mod, "_last_eviction_at", 0.0)
+
+        cache_mod.init_bar_cache(2, max_symbols=2000)
+        for i in range(4):
+            cache_mod.push_bar("AAPL", {"open": 1, "close": 1, "high": 1, "low": 1, "volume": i})
+        assert len(cache_mod.get_bars_snapshot("AAPL")) == 2
+
+        cache_mod.init_bar_cache(5, max_symbols=2000)
+        for i in range(10):
+            cache_mod.push_bar("AAPL", {"open": 1, "close": 1, "high": 1, "low": 1, "volume": i})
+
+        assert len(cache_mod.get_bars_snapshot("AAPL")) == 5
+
 
 # ---------------------------------------------------------------------------
 # R1: _symbology_map guard
@@ -434,6 +452,8 @@ class TestDoubleStartGuard:
         sentinel = MagicMock(spec=threading.Thread)
         sentinel.is_alive.return_value = True
         monkeypatch.setattr(feed_mod, "_feed_thread", sentinel)
+        monkeypatch.setattr(feed_mod, "_refresh_thread", sentinel)
+        monkeypatch.setattr(feed_mod, "_flow_refresh_thread", sentinel)
 
         # Calling start() should return early without creating new threads
         with patch.object(feed_mod, "_stop_event") as mock_stop:
@@ -442,6 +462,42 @@ class TestDoubleStartGuard:
 
         # cleanup
         monkeypatch.setattr(feed_mod, "_feed_thread", None)
+        monkeypatch.setattr(feed_mod, "_refresh_thread", None)
+        monkeypatch.setattr(feed_mod, "_flow_refresh_thread", None)
+
+    def test_start_restarts_missing_workers_when_feed_alive(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import services.live_overlay_daemon.feed as feed_mod
+
+        alive = MagicMock(spec=threading.Thread)
+        alive.is_alive.return_value = True
+        dead = MagicMock(spec=threading.Thread)
+        dead.is_alive.return_value = False
+
+        monkeypatch.setattr(feed_mod, "_feed_thread", alive)
+        monkeypatch.setattr(feed_mod, "_refresh_thread", dead)
+        monkeypatch.setattr(feed_mod, "_flow_refresh_thread", dead)
+
+        created: list[str | None] = []
+
+        class _FakeThread:
+            def __init__(self, *args, name: str | None = None, **kwargs):
+                created.append(name)
+
+            def start(self) -> None:
+                return None
+
+            def is_alive(self) -> bool:
+                return True
+
+        monkeypatch.setattr(feed_mod.threading, "Thread", _FakeThread)
+
+        feed_mod.start()
+
+        assert "overlay-refresh" in created
+        assert "flow-refresh" in created
+        assert "live-feed" not in created
 
 
 # ---------------------------------------------------------------------------

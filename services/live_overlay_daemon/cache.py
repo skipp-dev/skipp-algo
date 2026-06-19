@@ -47,8 +47,15 @@ def init_bar_cache(rolling_bars: int, *, max_symbols: int = 2000) -> None:
     global _rolling_bars_cap, _max_symbols
     if max_symbols < 1:
         raise ValueError(f"max_symbols must be >= 1, got {max_symbols}")
-    _rolling_bars_cap = rolling_bars
-    _max_symbols = max_symbols
+    with _bar_lock:
+        _rolling_bars_cap = rolling_bars
+        _max_symbols = max_symbols
+        # Apply updated rolling cap to existing symbol deques as well, so a
+        # runtime reconfiguration is reflected immediately for already-tracked
+        # symbols.
+        if _bars:
+            for sym, dq in list(_bars.items()):
+                _bars[sym] = deque(dq, maxlen=_rolling_bars_cap)
 
 
 def push_bar(symbol: str, bar: dict[str, Any]) -> None:
@@ -168,8 +175,8 @@ def overlay_symbol_count() -> int:
 # ---------------------------------------------------------------------------
 
 def set_vix(level: float) -> None:
+    global _vix_level
     with _vix_lock:
-        global _vix_level
         _vix_level = level
 
 
