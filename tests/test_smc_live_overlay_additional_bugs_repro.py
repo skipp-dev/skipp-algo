@@ -313,3 +313,79 @@ class TestVolumeTypeDriftRobustness:
         feed_mod.last_bar_age_secs()
 
         assert probe.enters >= 2, "Expected read paths to acquire _last_bar_lock"
+
+    def test_flow_patch_cycle_clears_stale_rel_vol_when_last_volume_invalid(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import services.live_overlay_daemon.cache as cache_mod
+        import services.live_overlay_daemon.compute as compute_mod
+
+        cache_mod.set_overlay(
+            {
+                "AAPL": {
+                    "flow_rel_vol": 2.5,
+                    "flow_delta_proxy_pct": 1.0,
+                    "vix_level": 20.0,
+                }
+            }
+        )
+
+        monkeypatch.setattr(
+            cache_mod,
+            "get_all_symbols_snapshot",
+            lambda: {
+                "AAPL": [
+                    {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 100},
+                    {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 110},
+                    {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 120},
+                    {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 130},
+                    {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": -1},
+                ]
+            },
+        )
+        monkeypatch.setattr(cache_mod, "get_vix", lambda: 21.0)
+
+        compute_mod.run_flow_patch_cycle()
+
+        payload = cache_mod.get_overlay("AAPL")
+        assert payload is not None
+        assert payload["flow_rel_vol"] is None
+        assert payload["flow_delta_proxy_pct"] == 0.5
+        assert payload["vix_level"] == 21.0
+
+    def test_flow_patch_cycle_clears_stale_delta_when_last_open_missing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import services.live_overlay_daemon.cache as cache_mod
+        import services.live_overlay_daemon.compute as compute_mod
+
+        cache_mod.set_overlay(
+            {
+                "AAPL": {
+                    "flow_rel_vol": 2.5,
+                    "flow_delta_proxy_pct": 1.0,
+                }
+            }
+        )
+
+        monkeypatch.setattr(
+            cache_mod,
+            "get_all_symbols_snapshot",
+            lambda: {
+                "AAPL": [
+                    {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 100},
+                    {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 110},
+                    {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 120},
+                    {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 130},
+                    {"open": None, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 140},
+                ]
+            },
+        )
+        monkeypatch.setattr(cache_mod, "get_vix", lambda: None)
+
+        compute_mod.run_flow_patch_cycle()
+
+        payload = cache_mod.get_overlay("AAPL")
+        assert payload is not None
+        assert payload["flow_rel_vol"] == pytest.approx(140.0 / 115.0, rel=1e-4)
+        assert payload["flow_delta_proxy_pct"] is None

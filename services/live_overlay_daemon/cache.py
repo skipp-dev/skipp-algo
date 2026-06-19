@@ -156,23 +156,35 @@ def get_overlay(symbol: str) -> dict[str, Any] | None:
         return dict(payload) if payload is not None else None
 
 
-def patch_overlay(symbol: str, updates: dict[str, Any]) -> None:
+def patch_overlay(
+    symbol: str,
+    updates: dict[str, Any],
+    *,
+    allow_none_keys: set[str] | None = None,
+) -> None:
     """Merge updates into an existing overlay entry (used for fast flow refresh).
 
     Only patches symbols that already have a full overlay payload; ignores
     symbols not yet computed to avoid serving incomplete payloads.
 
-    None values in *updates* are silently skipped: a failed or uncomputable
-    refresh cycle must not overwrite a previously-computed valid value with None.
+    None values in *updates* are skipped by default so failed/uncomputable
+    refresh paths don't erase previously valid values. Callers can explicitly
+    allow None overwrite for selected keys via ``allow_none_keys`` when
+    ``None`` is the correct current-state value (for example, flow fields when
+    the latest bar is malformed).
     """
     with _overlay_lock:
         upper = symbol.upper()
         if upper in _overlay:
+            allowed_none = allow_none_keys or set()
             _overlay[upper].update(
                 {
                     k: v
                     for k, v in updates.items()
-                    if v is not None and not (isinstance(v, float) and not math.isfinite(v))
+                    if (
+                        (v is not None or k in allowed_none)
+                        and not (isinstance(v, float) and not math.isfinite(v))
+                    )
                 }
             )
 
