@@ -260,10 +260,10 @@ def compute_squeeze_on(bars: list[dict[str, Any]], period: int = 20) -> bool | N
     if len(triples) < period:
         return None
 
-    window   = triples[-period:]
+    window = triples[-period:]
     closes_w = [t[0] for t in window]
-    highs_w  = [t[1] for t in window]
-    lows_w   = [t[2] for t in window]
+    highs_w = [t[1] for t in window]
+    lows_w = [t[2] for t in window]
 
     std_c = _safe_std(closes_w)
 
@@ -310,13 +310,13 @@ def compute_ats_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:
         return {"ats_state": None, "ats_zscore": None}
 
     mean_v = sum(prior_vols) / len(prior_vols)
-    std_v  = _safe_std(prior_vols)
+    std_v = _safe_std(prior_vols)
 
     zscore: float | None = None
     if std_v > 0:
         zscore = round((last_vol - mean_v) / std_v, 4)
 
-    last_open  = last_bar.get("open")
+    last_open = last_bar.get("open")
     last_close = last_bar.get("close")
     if last_open is None or last_close is None:
         # Cannot determine price direction for this bar; avoid cross-bar delta.

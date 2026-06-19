@@ -314,7 +314,7 @@ class TestStringVolumeCoercion:
         ]
         # Must not crash
         r_flow = compute.compute_flow_fields(bars)
-        r_ats  = compute.compute_ats_fields(bars)
+        r_ats = compute.compute_ats_fields(bars)
         assert isinstance(r_flow, dict)
         assert isinstance(r_ats, dict)
 
