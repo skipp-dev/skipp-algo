@@ -343,6 +343,30 @@ class TestAdditionalLiveOverlayBugRepros:
         assert fields_aapl["news_strength"] == 0.8
         assert fields_aapl["news_bias"] == "BULLISH"
 
+    def test_tuple_and_set_tickers_are_supported(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import services.live_overlay_daemon.compute as compute
+
+        original_loader = compute._load_news_snapshot
+        try:
+            compute._load_news_snapshot = lambda: {
+                "stories": [{"tickers": ("AAPL",), "sentiment_score": 0.7}]
+            }
+            fields_tuple = compute._get_news_fields("AAPL")
+
+            compute._load_news_snapshot = lambda: {
+                "stories": [{"tickers": {"AAPL"}, "sentiment_score": 0.7}]
+            }
+            fields_set = compute._get_news_fields("AAPL")
+        finally:
+            compute._load_news_snapshot = original_loader
+
+        assert fields_tuple["news_strength"] == 0.7
+        assert fields_tuple["news_bias"] == "BULLISH"
+        assert fields_set["news_strength"] == 0.7
+        assert fields_set["news_bias"] == "BULLISH"
+
 
 class TestNewsSnapshotRaceCondition:
     """Concurrency-Risiko: _load_news_snapshot schreibt Modul-Globals ohne Lock."""

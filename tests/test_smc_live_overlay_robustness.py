@@ -438,6 +438,31 @@ class TestFeedReadyClearedOnStop:
         feed_mod._stop_event.clear()
 
 
+class TestFeedLoopConfigFailFast:
+    """Non-retryable configuration failures must not enter retry/backoff loops."""
+
+    def test_run_feed_loop_does_not_retry_on_config_runtime_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import services.live_overlay_daemon.feed as feed_mod
+
+        calls = {"n": 0}
+
+        def _bad_key() -> str:
+            calls["n"] += 1
+            raise RuntimeError("missing DATABENTO_API_KEY")
+
+        monkeypatch.setattr(feed_mod.config, "databento_api_key", _bad_key)
+        monkeypatch.setattr(feed_mod.config, "max_feed_failures", lambda: 50)
+        monkeypatch.setattr(feed_mod, "_RECONNECT_DELAY_SECS", 0)
+        monkeypatch.setattr(feed_mod, "_RECONNECT_BACKOFF_SECS", 0)
+
+        stop = threading.Event()
+        feed_mod._run_feed_loop(stop)
+
+        assert calls["n"] == 1, "config errors must fail fast without retries"
+
+
 # ---------------------------------------------------------------------------
 # N5: double-start guard
 # ---------------------------------------------------------------------------
