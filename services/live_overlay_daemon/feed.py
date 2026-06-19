@@ -299,7 +299,6 @@ def _run_flow_refresh_loop(stop: threading.Event) -> None:
 def start() -> None:
     """Start the three background threads (feed + refresh + flow refresh)."""
 
-
     global _feed_thread, _refresh_thread, _flow_refresh_thread
 
     feed_alive = _feed_thread is not None and _feed_thread.is_alive()

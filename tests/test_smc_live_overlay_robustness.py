@@ -505,6 +505,31 @@ class TestHealthStatusSignals:
         assert payload["workers_healthy"] is True
         assert payload["overlay_fresh"] is False
 
+    def test_health_is_starting_when_overlay_cache_is_empty(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import services.live_overlay_daemon.main as main_mod
+
+        monkeypatch.setattr(main_mod.feed, "is_ready", lambda: True)
+        monkeypatch.setattr(main_mod.feed, "last_bar_age_secs", lambda: 0.1)
+        monkeypatch.setattr(
+            main_mod.feed,
+            "worker_liveness",
+            lambda: {"live_feed": True, "overlay_refresh": True, "flow_refresh": True},
+        )
+        monkeypatch.setattr(main_mod.cache, "overlay_age_secs", lambda: 1.0)
+        monkeypatch.setattr(main_mod.cache, "bar_symbol_count", lambda: 1)
+        monkeypatch.setattr(main_mod.cache, "total_bar_count", lambda: 10)
+        monkeypatch.setattr(main_mod.cache, "overlay_symbol_count", lambda: 0)
+        monkeypatch.setattr(main_mod.config, "max_stale_secs", lambda: 3600)
+
+        payload = json.loads(main_mod.health().body)
+
+        assert payload["status"] == "starting"
+        assert payload["feed_healthy"] is True
+        assert payload["workers_healthy"] is True
+        assert payload["overlay_fresh"] is False
+
 
 class TestSmcLiveSerializationSafety:
     """smc_live should never emit non-finite numbers into JSONResponse."""
