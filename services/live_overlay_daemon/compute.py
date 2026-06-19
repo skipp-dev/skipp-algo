@@ -51,7 +51,7 @@ _news_loaded_at: float = 0.0
 def _load_news_snapshot() -> dict[str, Any]:
     global _news_cache, _news_loaded_at
     path = config.news_snapshot_path()
-    if time.monotonic() - _news_loaded_at < config.news_cache_ttl_secs() and _news_cache:
+    if _news_loaded_at > 0.0 and time.monotonic() - _news_loaded_at < config.news_cache_ttl_secs():
         return _news_cache
     if not path.exists():
         _news_cache = {}
@@ -271,7 +271,7 @@ def build_payload(
         "flow_rel_vol": flow.get("flow_rel_vol"),
         "flow_delta_proxy_pct": flow.get("flow_delta_proxy_pct"),
         # Technicals
-        "squeeze_on": int(squeeze) if squeeze is not None else None,
+        "squeeze_on": bool(squeeze) if squeeze is not None else None,
         "ats_state": ats.get("ats_state"),
         "ats_zscore": ats.get("ats_zscore"),
         # Market-wide
