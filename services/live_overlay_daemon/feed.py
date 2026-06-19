@@ -325,26 +325,23 @@ def start() -> None:
 
     _stop_event.clear()
 
-    if not feed_alive:
-        _feed_thread = threading.Thread(
-            target=_run_feed_loop, args=(_stop_event,), daemon=True, name="live-feed"
-        )
-        _feed_thread.start()
+    _feed_thread = threading.Thread(
+        target=_run_feed_loop, args=(_stop_event,), daemon=True, name="live-feed"
+    )
+    _feed_thread.start()
 
-    if not refresh_alive:
-        _refresh_thread = threading.Thread(
-            target=_run_refresh_loop, args=(_stop_event,), daemon=True, name="overlay-refresh"
-        )
-        _refresh_thread.start()
+    _refresh_thread = threading.Thread(
+        target=_run_refresh_loop, args=(_stop_event,), daemon=True, name="overlay-refresh"
+    )
+    _refresh_thread.start()
 
-    if not flow_alive:
-        _flow_refresh_thread = threading.Thread(
-            target=_run_flow_refresh_loop,
-            args=(_stop_event,),
-            daemon=True,
-            name="flow-refresh",
-        )
-        _flow_refresh_thread.start()
+    _flow_refresh_thread = threading.Thread(
+        target=_run_flow_refresh_loop,
+        args=(_stop_event,),
+        daemon=True,
+        name="flow-refresh",
+    )
+    _flow_refresh_thread.start()
 
     # Safety-net shutdown hook: the three threads are daemon=True, so an exit
     # path that bypasses the FastAPI lifespan (e.g. an unhandled exception or a
