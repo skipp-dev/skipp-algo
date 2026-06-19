@@ -152,15 +152,23 @@ def compute_flow_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:
     if not bars:
         return {"flow_rel_vol": None, "flow_delta_proxy_pct": None}
 
-    volumes = [b["volume"] for b in bars if b.get("volume") is not None]
-    avg_vol = _safe_mean(volumes[:-1]) if len(volumes) > 1 else None
-    last_vol = volumes[-1] if volumes else None
+    # Anchor volume ratio to the CURRENT (last) bar.  If the last bar has no
+    # volume we must NOT fall back to bars[-2].volume — that would silently
+    # report a one-bar-stale ratio alongside the current bar's price delta.
+    last_bar = bars[-1]
+    last_vol: float | None = last_bar.get("volume")
+    if last_vol is not None:
+        prior_volumes = [
+            b["volume"] for b in bars[:-1] if b.get("volume") is not None
+        ]
+        avg_vol: float | None = _safe_mean(prior_volumes) if prior_volumes else None
+    else:
+        avg_vol = None
 
     flow_rel_vol: float | None = None
     if avg_vol and avg_vol > 0 and last_vol is not None:
         flow_rel_vol = round(last_vol / avg_vol, 4)
 
-    last_bar = bars[-1]
     open_ = last_bar.get("open")
     close_ = last_bar.get("close")
     flow_delta: float | None = None

@@ -138,11 +138,16 @@ def patch_overlay(symbol: str, updates: dict[str, Any]) -> None:
 
     Only patches symbols that already have a full overlay payload; ignores
     symbols not yet computed to avoid serving incomplete payloads.
+
+    None values in *updates* are silently skipped: a failed or uncomputable
+    refresh cycle must not overwrite a previously-computed valid value with None.
     """
     with _overlay_lock:
         upper = symbol.upper()
         if upper in _overlay:
-            _overlay[upper].update(updates)
+            _overlay[upper].update(
+                {k: v for k, v in updates.items() if v is not None}
+            )
 
 
 def overlay_age_secs() -> float:
