@@ -33,20 +33,20 @@ class TestNewsSnapshotCachingBug:
         monkeypatch.setattr(compute, "_news_loaded_at", 0.0)
         monkeypatch.setattr(compute, "_news_checked_at", 0.0)
         monkeypatch.setattr(compute, "_news_cache", {})
-        # Kurze TTL, damit der Test schnell laeuft
+        # Short TTL so the test runs quickly
         monkeypatch.setattr(cfg, "news_cache_ttl_secs", lambda: 0)
 
         with patch.object(compute.config, "news_snapshot_path", return_value=snapshot_path):
-            # Erster Aufruf: Datei existiert noch nicht
+            # First call: snapshot file does not exist yet
             result1 = compute._load_news_snapshot()
             assert result1 == {}
             assert compute._news_loaded_at == 0.0
             assert compute._news_checked_at > 0.0
 
-            # Datei wird nun erstellt
+            # File is now created
             snapshot_path.write_text(json.dumps(payload), encoding="utf-8")
 
-            # Zweiter Aufruf: TTL=0, also sofortiges Nachladen
+            # Second call: TTL=0, so immediate reload
             result2 = compute._load_news_snapshot()
 
         assert result2 == payload, (
@@ -57,8 +57,8 @@ class TestNewsSnapshotCachingBug:
     def test_missing_file_is_rate_limited(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Waehrend der Rate-Limit-TTL wird ein wiederholt fehlendes File nicht
-        neu eingelesen (kein Read/Log-Storm).
+        """During the rate-limit TTL a repeatedly missing file is not
+        reloaded (no read/log storm).
         """
         import services.live_overlay_daemon.compute as compute
         import services.live_overlay_daemon.config as cfg
