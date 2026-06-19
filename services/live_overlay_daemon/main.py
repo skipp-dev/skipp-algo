@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 _startup_ts: float = 0.0
 
-_VALID_TFS: frozenset[str] = frozenset({"5m", "15m", "1H", "4H", "1D"})
+_VALID_TFS: frozenset[str] = frozenset({"5m", "15m", "1H", "4H"})
 
 
 # ---------------------------------------------------------------------------

@@ -91,8 +91,8 @@ def _get_news_fields(symbol: str) -> dict[str, Any]:
     stories = snap.get("stories") or snap.get("items") or []
     sym_upper = symbol.upper()
 
-    def _first_score(story: dict[str, Any]) -> float:
-        # Keep a legit 0.0 sentiment_score; do not treat it as falsy.
+    def _score(story: dict[str, Any]) -> float:
+        """Prefer sentiment_score when present (including 0.0), else news_score."""
         try:
             if "sentiment_score" in story and story.get("sentiment_score") is not None:
                 return float(story["sentiment_score"])
@@ -104,11 +104,12 @@ def _get_news_fields(symbol: str) -> dict[str, Any]:
 
     scores: list[float] = []
     for story in stories:
+        if not isinstance(story, dict):
+            continue
         tickers = story.get("tickers") or []
         if sym_upper not in [t.upper() for t in tickers]:
             continue
-        score = _first_score(story)
-        scores.append(score)
+        scores.append(_score(story))
 
     if not scores:
         return {"news_strength": None, "news_bias": None}
@@ -125,11 +126,12 @@ def _get_global_news_fields() -> dict[str, Any]:
     """Compute market-wide tone and global_heat from the full news snapshot."""
     snap = _load_news_snapshot()
     stories = snap.get("stories") or snap.get("items") or []
-    if not stories:
+    story_dicts = [s for s in stories if isinstance(s, dict)]
+    if not story_dicts:
         return {"tone": "NEUTRAL", "global_heat": None}
 
-    def _first_score(story: dict[str, Any]) -> float:
-        # Keep a legit 0.0 sentiment_score; do not treat it as falsy.
+    def _score(story: dict[str, Any]) -> float:
+        """Prefer sentiment_score when present (including 0.0), else news_score."""
         try:
             if "sentiment_score" in story and story.get("sentiment_score") is not None:
                 return float(story["sentiment_score"])
@@ -139,7 +141,7 @@ def _get_global_news_fields() -> dict[str, Any]:
             return 0.0
         return 0.0
 
-    scores = [_first_score(s) for s in stories]
+    scores = [_score(s) for s in story_dicts]
     avg = sum(scores) / len(scores)
     # global_heat: directional [-1, 1] per smc-live-overlay/1 schema
     heat = round(max(-1.0, min(1.0, avg)), 4)
@@ -344,8 +346,8 @@ def run_full_compute_cycle() -> int:
             continue
         payloads[sym.upper()] = build_payload(sym, bars, global_fields, max_stale)
 
-    # Always replace overlay snapshot, including with an empty mapping,
-    # so stale symbols are removed when the bar cache drains.
+    # Always replace snapshot (including empty) so stale symbols are removed
+    # when bar cache is temporarily empty.
     cache.set_overlay(payloads)
 
     return len(payloads)

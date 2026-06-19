@@ -224,6 +224,79 @@ class TestBuildPayloadInvariants:
             assert type(payload["squeeze_on"]) is int
 
 
+class TestAdditionalLiveOverlayBugRepros:
+    def test_zero_sentiment_score_is_not_ignored(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import services.live_overlay_daemon.compute as compute
+        import services.live_overlay_daemon.config as cfg
+
+        snapshot_path = tmp_path / "news.json"
+        snapshot_path.write_text(
+            json.dumps(
+                {
+                    "stories": [
+                        {"tickers": ["AAPL"], "sentiment_score": 0.0, "news_score": 0.9}
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        monkeypatch.setattr(compute, "_news_loaded_at", 0.0)
+        monkeypatch.setattr(compute, "_news_checked_at", 0.0)
+        monkeypatch.setattr(compute, "_news_cache", {})
+        monkeypatch.setattr(cfg, "news_cache_ttl_secs", lambda: 0)
+
+        with patch.object(compute.config, "news_snapshot_path", return_value=snapshot_path):
+            fields = compute._get_news_fields("AAPL")
+
+        assert fields["news_strength"] == 0.0
+        assert fields["news_bias"] == "NEUTRAL"
+
+    def test_empty_bar_cache_does_not_preserve_stale_overlay(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import services.live_overlay_daemon.cache as cache_mod
+        import services.live_overlay_daemon.compute as compute
+
+        cache_mod.set_overlay({"AAPL": {"symbol": "AAPL", "stale": False}})
+        assert cache_mod.get_overlay("AAPL") is not None
+
+        monkeypatch.setattr(cache_mod, "_bars", {})
+        monkeypatch.setattr(compute.config, "max_stale_secs", lambda: 3600)
+        monkeypatch.setattr(compute, "_news_loaded_at", 0.0)
+        monkeypatch.setattr(compute, "_news_checked_at", 0.0)
+        monkeypatch.setattr(compute, "_news_cache", {})
+
+        count = compute.run_full_compute_cycle()
+        assert count == 0
+        assert cache_mod.get_overlay("AAPL") is None
+
+    def test_malformed_story_items_do_not_crash_global_news_fields(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import services.live_overlay_daemon.compute as compute
+        import services.live_overlay_daemon.config as cfg
+
+        snapshot_path = tmp_path / "news.json"
+        snapshot_path.write_text(
+            json.dumps({"stories": [None, {"sentiment_score": 0.2}, "oops"]}),
+            encoding="utf-8",
+        )
+
+        monkeypatch.setattr(compute, "_news_loaded_at", 0.0)
+        monkeypatch.setattr(compute, "_news_checked_at", 0.0)
+        monkeypatch.setattr(compute, "_news_cache", {})
+        monkeypatch.setattr(cfg, "news_cache_ttl_secs", lambda: 0)
+
+        with patch.object(compute.config, "news_snapshot_path", return_value=snapshot_path):
+            fields = compute._get_global_news_fields()
+
+        assert fields["tone"] in ("BULLISH", "BEARISH", "NEUTRAL")
+        assert fields["global_heat"] is None or -1.0 <= fields["global_heat"] <= 1.0
+
+
 class TestNewsSnapshotRaceCondition:
     """Concurrency-Risiko: _load_news_snapshot schreibt Modul-Globals ohne Lock."""
 
