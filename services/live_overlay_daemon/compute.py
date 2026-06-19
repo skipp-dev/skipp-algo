@@ -220,18 +220,30 @@ def compute_flow_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:
 def compute_squeeze_on(bars: list[dict[str, Any]], period: int = 20) -> bool | None:
     """
     Squeeze = True when Bollinger Band width < Keltner Channel width.
-    Approximated here as: BB width < 1.5 × ATR (simplified single-symbol check).
-    """
-    closes = [b["close"] for b in bars if b.get("close") is not None]
-    highs = [b["high"] for b in bars if b.get("high") is not None]
-    lows = [b["low"] for b in bars if b.get("low") is not None]
+    Approximated here as: BB width < 2 × ATR (simplified single-symbol check).
 
-    if len(closes) < period or len(highs) < period or len(lows) < period:
+    Uses aligned filtering: only bars that have ALL of close, high, and low
+    are included, so the TR calculation is never computed from misaligned bars
+    (which would happen if each field were filtered independently).
+    """
+    # Build aligned triples so that closes_w[i], highs_w[i], lows_w[i]
+    # all refer to the SAME bar. Independent per-field filtering would
+    # produce cross-bar ATR when any bar in the window is missing a field.
+    triples = [
+        (b["close"], b["high"], b["low"])
+        for b in bars
+        if b.get("close") is not None
+        and b.get("high") is not None
+        and b.get("low") is not None
+    ]
+
+    if len(triples) < period:
         return None
 
-    closes_w = closes[-period:]
-    highs_w = highs[-period:]
-    lows_w = lows[-period:]
+    window   = triples[-period:]
+    closes_w = [t[0] for t in window]
+    highs_w  = [t[1] for t in window]
+    lows_w   = [t[2] for t in window]
 
     std_c = _safe_std(closes_w)
 
@@ -250,26 +262,43 @@ def compute_ats_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:
     ATS (Automatic Trading System) state:
       ats_state  — "accumulation" | "distribution" | "neutral"
       ats_zscore — z-score of most recent bar's volume vs rolling avg
+
+    All fields are anchored to bars[-1] to avoid cross-bar misalignment.
+    B19: if bars[-1] has no volume, zscore and state are both None.
+    B20: if bars[-1] has no close or open, state falls back to "neutral"
+         rather than using close/open from a different (prior) bar.
     """
-    volumes = [b["volume"] for b in bars if b.get("volume") is not None]
-    if len(volumes) < 5:
+    if not bars:
         return {"ats_state": None, "ats_zscore": None}
 
-    mean_v = sum(volumes[:-1]) / len(volumes[:-1])
-    std_v = _safe_std(volumes[:-1])
-    last_v = volumes[-1]
+    # Anchor to the CURRENT (last) bar — do not fall through to prior bars.
+    last_bar = bars[-1]
+    last_vol = last_bar.get("volume")
+    if last_vol is None:
+        # Cannot compute a z-score for a bar with no volume.
+        return {"ats_state": None, "ats_zscore": None}
+
+    prior_vols = [b["volume"] for b in bars[:-1] if b.get("volume") is not None]
+    if len(prior_vols) < 4:
+        # Need at least 4 prior bars (+ 1 current = 5 total) for a meaningful
+        # mean/std — matches the original ≥5-volume guard.
+        return {"ats_state": None, "ats_zscore": None}
+
+    mean_v = sum(prior_vols) / len(prior_vols)
+    std_v  = _safe_std(prior_vols)
 
     zscore: float | None = None
     if std_v > 0:
-        zscore = round((last_v - mean_v) / std_v, 4)
+        zscore = round((last_vol - mean_v) / std_v, 4)
 
-    closes = [b["close"] for b in bars if b.get("close") is not None]
-    opens = [b["open"] for b in bars if b.get("open") is not None]
-    if len(closes) < 2 or len(opens) < 2:
+    last_open  = last_bar.get("open")
+    last_close = last_bar.get("close")
+    if last_open is None or last_close is None:
+        # Cannot determine price direction for this bar; avoid cross-bar delta.
         state = "neutral"
     else:
-        # Simple heuristic: price trend × volume
-        price_delta = closes[-1] - opens[-1]
+        # Simple heuristic: price trend × volume z-score
+        price_delta = last_close - last_open
         if price_delta > 0 and (zscore or 0) > 0.5:
             state = "accumulation"
         elif price_delta < 0 and (zscore or 0) > 0.5:
