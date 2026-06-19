@@ -41,8 +41,8 @@ class TestNewsScoreFalsyZeroBug:
         with patch.object(compute.config, "news_snapshot_path", return_value=snapshot_path):
             fields = compute._get_news_fields("AAPL")
 
-        # Erwartet: sentiment_score=0 => avg=0 => news_strength=0, news_bias=NEUTRAL
-        # Tatsaechlich: 0.0 ist falsy, also wird news_score=0.9 genommen
+        # Expected: sentiment_score=0 => avg=0 => news_strength=0, news_bias=NEUTRAL
+        # Actual bug path: 0.0 is falsy, so news_score=0.9 would be used.
         assert fields["news_strength"] == 0.0, (
             f"BUG: zero sentiment_score was ignored due to 'or' falsiness. "
             f"expected news_strength=0.0, got {fields['news_strength']!r}"

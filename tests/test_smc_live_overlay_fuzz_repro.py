@@ -45,7 +45,7 @@ class TestComputeFlowFieldsFuzz:
 
 
 class TestComputeSqueezeOnFuzz:
-    """Invarianten fuer compute_squeeze_on."""
+    """Invariants for compute_squeeze_on."""
 
     def test_squeeze_on_returns_bool_or_none(self) -> None:
         import services.live_overlay_daemon.compute as compute

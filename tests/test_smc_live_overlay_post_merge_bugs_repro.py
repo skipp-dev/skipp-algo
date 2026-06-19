@@ -128,10 +128,10 @@ class TestVIXZeroCloseBug:
 
 
 class TestRecordToBarRobustness:
-    """Property-/Replay-Tests fuer _record_to_bar und _symbol_from_record."""
+    """Property/replay tests for _record_to_bar and _symbol_from_record."""
 
     def test_record_to_bar_with_zero_fields(self) -> None:
-        """Record mit numerisch 0 Werten darf nicht zu None fuehren."""
+        """Record values of numeric zero must not produce None."""
         import services.live_overlay_daemon.feed as feed_mod
 
         record = type(
@@ -153,7 +153,7 @@ class TestRecordToBarRobustness:
         assert bar["open"] == 0.0
 
     def test_symbol_from_record_prefers_instrument_id_attribute(self) -> None:
-        """_symbol_from_record sollte .instrument_id vor .hd.instrument_id bevorzugen."""
+        """_symbol_from_record should prefer .instrument_id over .hd.instrument_id."""
         import services.live_overlay_daemon.feed as feed_mod
 
         symmap = {42: "SPY"}
@@ -161,7 +161,7 @@ class TestRecordToBarRobustness:
         assert feed_mod._symbol_from_record(record, symmap) == "SPY"
 
     def test_missing_close_must_not_become_zero_for_vix(self) -> None:
-        """Fehlendes close-Feld darf nicht als 0.0 materialisiert werden."""
+        """A missing close field must not be materialized as 0.0."""
         import services.live_overlay_daemon.feed as feed_mod
 
         record = type(
