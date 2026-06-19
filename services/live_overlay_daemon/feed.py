@@ -395,22 +395,6 @@ def worker_liveness() -> dict[str, bool]:
 
 
 def metrics_snapshot() -> dict[str, int]:
-    """Return feed-level operational counters exposed via /health.
-
-    Compatibility note: the detailed counter plumbing can evolve independently
-    of endpoint/schema contracts; this function keeps a stable dictionary shape
-    for callers and tests.
-    """
-    return {
-        "reconnect_attempts": 0,
-        "bento_errors": 0,
-        "unexpected_errors": 0,
-        "circuit_breakers": 0,
-        "partial_restarts": 0,
-    }
-
-
-def metrics_snapshot() -> dict[str, int]:
     """Return feed counters for /health observability payload."""
     return {
         "reconnect_attempts": 0,

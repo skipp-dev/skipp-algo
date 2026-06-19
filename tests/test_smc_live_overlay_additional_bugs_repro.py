@@ -288,28 +288,28 @@ class TestVolumeTypeDriftRobustness:
         assert n == 1
         assert payload is not None
         assert payload["flow_rel_vol"] is None
-
-        def test_read_paths_explicitly_take_last_bar_lock(self, monkeypatch: pytest.MonkeyPatch) -> None:
-            import services.live_overlay_daemon.feed as feed_mod
-
-            class _ProbeLock:
-                def __init__(self) -> None:
-                    self.enters = 0
-
-                def __enter__(self) -> "_ProbeLock":
-                    self.enters += 1
-                    return self
-
-                def __exit__(self, exc_type, exc, tb) -> None:
-                    return None
-
-            probe = _ProbeLock()
-            monkeypatch.setattr(feed_mod, "_last_bar_lock", probe)
-            monkeypatch.setattr(feed_mod, "_last_bar_at", time.monotonic())
-            feed_mod._feed_ready.set()
-
-            feed_mod.is_ready()
-            feed_mod.last_bar_age_secs()
-
-            assert probe.enters >= 2, "Expected read paths to acquire _last_bar_lock"
         assert payload["ats_zscore"] is None
+
+    def test_read_paths_explicitly_take_last_bar_lock(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import services.live_overlay_daemon.feed as feed_mod
+
+        class _ProbeLock:
+            def __init__(self) -> None:
+                self.enters = 0
+
+            def __enter__(self) -> _ProbeLock:
+                self.enters += 1
+                return self
+
+            def __exit__(self, exc_type, exc, tb) -> None:
+                return None
+
+        probe = _ProbeLock()
+        monkeypatch.setattr(feed_mod, "_last_bar_lock", probe)
+        monkeypatch.setattr(feed_mod, "_last_bar_at", time.monotonic())
+        feed_mod._feed_ready.set()
+
+        feed_mod.is_ready()
+        feed_mod.last_bar_age_secs()
+
+        assert probe.enters >= 2, "Expected read paths to acquire _last_bar_lock"
