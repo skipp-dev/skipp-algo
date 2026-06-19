@@ -1,6 +1,7 @@
 import argparse
 import io
 import json
+import math
 import os
 import tempfile
 import time
@@ -4160,3 +4161,94 @@ class TestSr6BreakoutZeroGuards(unittest.TestCase):
         self.assertEqual(result["direction"], "LONG",
                          "Should detect bullish range breakout")
         self.assertIn("breakout", result["pattern"])
+
+
+class TestB9PdhPdlContextNoFallback(unittest.TestCase):
+    """B9: _add_pdh_pdl_context must strictly use previous day fields,
+    never fall back to current session dayHigh or dayLow."""
+
+    def test_add_pdh_pdl_context_strictly_previous_day(self):
+        # Quote with only current session dayHigh and dayLow
+        quote = {
+            "symbol": "AAPL",
+            "price": 150.0,
+            "atr": 3.0,
+            "dayHigh": 155.0,
+            "dayLow": 145.0,
+        }
+        run_open_prep._add_pdh_pdl_context(quote)
+        self.assertIsNone(quote["pdh"], "pdh must be None if previousDayHigh is missing")
+        self.assertIsNone(quote["pdl"], "pdl must be None if previousDayLow is missing")
+        self.assertEqual(quote["current_day_high"], 155.0)
+        self.assertEqual(quote["current_day_low"], 145.0)
+
+    def test_add_pdh_pdl_context_uses_previous_day_high_low(self):
+        # Quote with previous day fields
+        quote = {
+            "symbol": "AAPL",
+            "price": 150.0,
+            "atr": 3.0,
+            "previousDayHigh": 160.0,
+            "previousDayLow": 140.0,
+            "dayHigh": 155.0,
+            "dayLow": 145.0,
+        }
+        run_open_prep._add_pdh_pdl_context(quote)
+        self.assertEqual(quote["pdh"], 160.0)
+        self.assertEqual(quote["pdl"], 140.0)
+        self.assertEqual(quote["current_day_high"], 155.0)
+        self.assertEqual(quote["current_day_low"], 145.0)
+
+
+class TestB10MixedDateSorting(unittest.TestCase):
+    """B10: Sort by parsed date rather than string date
+    to correctly handle mixed formats."""
+
+    def test_momentum_z_score_from_eod_mixed_date_formats(self):
+        # Candles: last chronological date "2024-1-8" has a spike close=200.
+        # Chronological sort → spike is last return → large positive z-score.
+        # Lexicographic string sort puts "2024-1-8" before "2024-01-03" etc.
+        # (because '1' < '0' is false, actually '2024-1-8' sorts after '2024-01-07'
+        # due to '1' vs '0' difference), so let's verify the expected value instead.
+        # We assert the result equals the known chronological value within tolerance.
+        candles = [
+            {"date": "2024-01-01", "close": 100.0},
+            {"date": "2024-1-2", "close": 101.0},
+            {"date": "2024-01-03", "close": 102.0},
+            {"date": "2024-1-4", "close": 103.0},
+            {"date": "2024-01-05", "close": 104.0},
+            {"date": "2024-1-6", "close": 105.0},
+            {"date": "2024-01-07", "close": 106.0},
+            {"date": "2024-1-8", "close": 200.0},  # large spike — must be last
+        ]
+        # Chronological: spike return = (200-106)/106 ≈ 0.886, all other returns ≈ 0.01
+        # → last return is a large outlier → positive z-score >> 1.0.
+        # Lexicographic sort: '2024-1-8' sorts after '2024-1-6' and '2024-1-4'
+        # but before '2024-01-07' (since '2024-1' < '2024-0'), placing the spike
+        # in the middle and producing a different z-score.
+        val = run_open_prep._momentum_z_score_from_eod(candles, period=10)
+        self.assertIsInstance(val, float)
+        self.assertTrue(math.isfinite(val))
+        # The mixed-format batch must produce the same z-score as the
+        # equivalent canonical ISO batch because both sort to the same
+        # chronological order.  A lexicographic mis-sort would diverge.
+        iso_candles = [
+            {"date": "2024-01-01", "close": 100.0},
+            {"date": "2024-01-02", "close": 101.0},
+            {"date": "2024-01-03", "close": 102.0},
+            {"date": "2024-01-04", "close": 103.0},
+            {"date": "2024-01-05", "close": 104.0},
+            {"date": "2024-01-06", "close": 105.0},
+            {"date": "2024-01-07", "close": 106.0},
+            {"date": "2024-01-08", "close": 200.0},  # same spike as mixed format
+        ]
+        iso_val = run_open_prep._momentum_z_score_from_eod(iso_candles, period=10)
+        self.assertEqual(val, iso_val)
+        self.assertTrue(math.isfinite(val))
+        # Chronological sort places the spike as the LAST return → z > 1.0.
+        # Wrong sort moves the spike into the middle → the last return would be ≈ 0.01 → z < 0.
+        self.assertGreater(
+            val,
+            1.0,
+            f"z={val!r}: expected chronological sort placing spike last (z > 1.0)",
+        )

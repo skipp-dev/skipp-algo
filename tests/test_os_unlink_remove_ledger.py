@@ -128,19 +128,22 @@ OS_DELETE_LEDGER: set[tuple[str, int, str]] = {
     # real-ADX/BBW block added +15 more after L5491.
     # 2026-06-11 (vix9d D5): VIX9D fetch (+17) + ratio stamping (+4)
     # shifted 5491→5506, 5765→5784.
-    ("open_prep/run_open_prep.py", 2226, "unlink"),
+    # 2026-06-19 (B9/B10): _add_pdh_pdl_context current-day fields +6 and
+    # 2026-06-19 (B10 non-padded date extension): _parse_calendar_date
+    # extended; multiple insertion points produced non-uniform shifts.
+    ("open_prep/run_open_prep.py", 2308, "unlink"),
     # 2026-06-10 (#2670 W2/W4): regime_source + premarket source-disclosure
     # edits shifted the later unlink sites (+20/+20/+20/+25).
-    ("open_prep/run_open_prep.py", 3040, "unlink"),
-    ("open_prep/run_open_prep.py", 3376, "unlink"),
+    ("open_prep/run_open_prep.py", 3131, "unlink"),
+    ("open_prep/run_open_prep.py", 3483, "unlink"),
     # 2026-06-11 (Copilot sweep #2688): VIX9D fail-closed guard +5;
     # 2026-06-12 (merge #2713 into #2696): net +1 → 5512/5790.
-    ("open_prep/run_open_prep.py", 5512, "unlink"),
+    ("open_prep/run_open_prep.py", 5621, "unlink"),
     # 2026-06-11 (trend-state features): 5731→5742, enrichment-loop
     # stamping + lookback comment added above; eval-findings 5742→5765.
     # 2026-06-12 (backlog-resilience): fail-loud outcome storage +9 → 5799.
     # 2026-06-12 (copilot-followup): rename + 3-line comment → 5802.
-    ("open_prep/run_open_prep.py", 5802, "unlink"),
+    ("open_prep/run_open_prep.py", 5916, "unlink"),
     ("open_prep/scorer.py", 149, "unlink"),
     ("open_prep/watchlist.py", 74, "unlink"),
     ("smc_core/benchmark.py", 39, "unlink"),

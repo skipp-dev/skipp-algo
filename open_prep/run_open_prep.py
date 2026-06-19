@@ -646,12 +646,14 @@ def _time_based_warn_flags(
 
 
 def _momentum_z_score_from_eod(candles: list[dict], period: int = 50) -> float:
-    rows: list[tuple[str, float]] = []
+    rows: list[tuple[date, float]] = []
     for candle in candles:
         d = str(candle.get("date") or "")
         close = _to_float(candle.get("close"), default=float("nan"))
-        if d and not math.isnan(close) and close > 0.0:  # NaN-safe check
-            rows.append((d, close))
+        if d and math.isfinite(close) and close > 0.0:
+            parsed = _parse_calendar_date(d)
+            if parsed is not None:
+                rows.append((parsed, close))
     if len(rows) < 3:
         return 0.0
 
@@ -663,7 +665,10 @@ def _momentum_z_score_from_eod(candles: list[dict], period: int = 50) -> float:
         cur = closes[idx]
         if prev <= 0.0:
             continue
-        returns.append((cur - prev) / prev)
+        ret = (cur - prev) / prev
+        if not math.isfinite(ret):
+            continue
+        returns.append(ret)
 
     if len(returns) < 2:
         return 0.0
@@ -674,12 +679,18 @@ def _momentum_z_score_from_eod(candles: list[dict], period: int = 50) -> float:
         # Bessel's correction with n<5 can produce extreme values.
         return 0.0
     mean_ret = sum(window) / float(len(window))
+    if not math.isfinite(mean_ret):
+        return 0.0
     variance = sum((r - mean_ret) ** 2 for r in window) / float(len(window) - 1)
+    if not math.isfinite(variance) or variance < 0.0:
+        return 0.0
     std_ret = variance**0.5
-    if std_ret <= 0.0:
+    if not math.isfinite(std_ret) or std_ret <= 0.0:
         return 0.0
 
     z = (window[-1] - mean_ret) / std_ret
+    if not math.isfinite(z):
+        return 0.0
     return float(round(max(min(z, 5.0), -5.0), 4))
 
 
@@ -695,12 +706,17 @@ def _add_pdh_pdl_context(quote: dict[str, Any]) -> None:
     price = _to_float(quote.get("price"), default=0.0)
     atr = _to_float(quote.get("atr"), default=0.0)
 
+    # Strictly use previous day values, excluding today's session high/low fallbacks.
+    def _valid_prev_day_level(key: str) -> bool:
+        value = _to_float(quote.get(key), default=0.0)
+        return value > 0.0 and math.isfinite(value)
+
     pdh_source = next(
-        (k for k in ("previousDayHigh", "prevDayHigh", "pdh", "dayHigh") if _to_float(quote.get(k), default=0.0) > 0.0),
+        (k for k in ("previousDayHigh", "prevDayHigh", "pdh") if _valid_prev_day_level(k)),
         None,
     )
     pdl_source = next(
-        (k for k in ("previousDayLow", "prevDayLow", "pdl", "dayLow") if _to_float(quote.get(k), default=0.0) > 0.0),
+        (k for k in ("previousDayLow", "prevDayLow", "pdl") if _valid_prev_day_level(k)),
         None,
     )
     pdh = _to_float(quote.get(pdh_source), default=0.0) if pdh_source else 0.0
@@ -710,6 +726,21 @@ def _add_pdh_pdl_context(quote: dict[str, Any]) -> None:
     quote["pdl"] = round(pdl, 4) if pdl > 0.0 else None
     quote["pdh_source"] = pdh_source
     quote["pdl_source"] = pdl_source
+
+    # Explicitly map current session dayHigh and dayLow to distinct fields for observability (B9)
+    current_day_high = _to_float(quote.get("dayHigh"), default=0.0)
+    current_day_low = _to_float(quote.get("dayLow"), default=0.0)
+    # Guard against ±inf: round(inf, 4) == inf which breaks allow_nan=False JSON.
+    quote["current_day_high"] = (
+        round(current_day_high, 4)
+        if math.isfinite(current_day_high) and current_day_high > 0.0
+        else None
+    )
+    quote["current_day_low"] = (
+        round(current_day_low, 4)
+        if math.isfinite(current_day_low) and current_day_low > 0.0
+        else None
+    )
 
     if price > 0.0 and atr > 0.0 and pdh > 0.0:
         quote["dist_to_pdh_atr"] = round(abs(price - pdh) / atr, 4)
@@ -741,24 +772,75 @@ def _parse_calendar_date(value: Any) -> date | None:
     raw = str(value or "").strip()
     if not raw:
         return None
-    normalized = raw.replace("Z", "+00:00")
-    try:
-        return datetime.fromisoformat(normalized).date()
-    except ValueError:
-        pass
 
-    date_part = raw.split("T")[0].split(" ")[0]
-    try:
-        return date.fromisoformat(date_part)
-    except ValueError:
-        pass
+    # Strict ISO date only (YYYY-MM-DD)
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", raw):
+        try:
+            return date.fromisoformat(raw)
+        except ValueError:
+            return None
 
+    # Non-zero-padded date (YYYY-M-D or YYYY-MM-D or YYYY-M-DD) emitted by
+    # some providers.  Normalise to zero-padded before parsing so that mixed
+    # format batches sort correctly after the B10 fix.
+    m = re.fullmatch(r"(\d{4})-(\d{1,2})-(\d{1,2})", raw)
+    if m:
+        try:
+            return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        except ValueError:
+            return None
+
+    # Strict ISO datetime (YYYY-MM-DD[T| ]HH:MM[:SS[.ffffff]][Z|±HH:MM])
+    if re.fullmatch(
+        r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?(?:Z|[+-]\d{2}:\d{2})?",
+        raw,
+    ):
+        normalized = raw.replace("Z", "+00:00")
+        try:
+            return datetime.fromisoformat(normalized).date()
+        except ValueError:
+            return None
+
+    # Legacy / US / provider-specific date formats (MM/DD/YYYY, YYYY/MM/DD,
+    # MM-DD-YYYY). These appear in earnings-calendar and macro-event feeds and
+    # must be supported so that _compute_tomorrow_outlook matches correctly.
+    date_part_leg = raw.split("T")[0].split(" ")[0]
     for fmt in ("%m/%d/%Y", "%m-%d-%Y", "%Y/%m/%d"):
         try:
-            return datetime.strptime(date_part, fmt).date()
+            return datetime.strptime(date_part_leg, fmt).date()
         except ValueError:
             continue
+
     return None
+
+
+def _calendar_date_sort_key(value: Any) -> tuple[int, date, str]:
+    """Return a robust sort key for heterogeneous provider date formats.
+
+    Primary path uses strict ISO parsing via ``_parse_calendar_date``.
+    Fallback path is intentionally broader and used *only* for ordering legacy
+    provider rows that still emit formats like YYYY-M-D or MM/DD/YYYY.
+    """
+    raw = str(value or "").strip()
+    parsed = _parse_calendar_date(raw)
+    if parsed is not None:
+        return (0, parsed, raw)
+
+    date_part = raw.split(" ")[0]
+    # Only strip a T-delimited time component if what follows T looks like a
+    # real time (HH:MM…).  A bare trailing 'T' (e.g. "2024-01-01T") must not
+    # be silently accepted — leave it intact so the strptime loop rejects it.
+    if "T" in date_part:
+        head, tail = date_part.split("T", 1)
+        if re.fullmatch(r"\d{2}:\d{2}.*", tail):
+            date_part = head
+    for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%m/%d/%Y", "%m-%d-%Y"):
+        try:
+            return (0, datetime.strptime(date_part, fmt).date(), raw)
+        except ValueError:
+            continue
+
+    return (1, date.max, raw)
 
 
 def _parse_calendar_timestamp(value: Any) -> float | None:
@@ -2703,7 +2785,7 @@ def _compute_gap_for_quote(
     ).astimezone(UTC).isoformat()
 
     prev_close = _to_float(quote.get("previousClose"), default=0.0)
-    if prev_close <= 0.0:
+    if not math.isfinite(prev_close) or prev_close <= 0.0:
         fallback_gap = _to_float(
             quote.get("changesPercentage") or quote.get("changePercentage"),
             default=0.0,
@@ -2908,7 +2990,7 @@ def _calculate_atr14_from_eod(candles: list[dict], period: int = 14) -> float:
     3. Subsequent ATR = ((Prior ATR * (period-1)) + Current TR) / period
     """
     period_eff = max(int(period), 1)
-    parsed: list[tuple[str, float, float, float]] = []
+    parsed: list[tuple[date, float, float, float]] = []
     for c in candles:
         d = str(c.get("date") or "")
         if not d:
@@ -2916,9 +2998,13 @@ def _calculate_atr14_from_eod(candles: list[dict], period: int = 14) -> float:
         high = _to_float(c.get("high"), default=float("nan"))
         low = _to_float(c.get("low"), default=float("nan"))
         close = _to_float(c.get("close"), default=float("nan"))
-        if any(math.isnan(x) for x in (high, low, close)):  # NaN check
+        if not all(math.isfinite(x) for x in (high, low, close)):
             continue
-        parsed.append((d, high, low, close))
+        if high <= 0.0 or low <= 0.0 or close <= 0.0 or high < low:
+            continue
+        d_parsed = _parse_calendar_date(d)
+        if d_parsed is not None:
+            parsed.append((d_parsed, high, low, close))
 
     if len(parsed) < period_eff:  # Need at least `period` bars for first ATR seed
         return 0.0
@@ -2961,15 +3047,20 @@ def _load_atr_cache(as_of: date, period: int) -> tuple[dict[str, float], dict[st
         atr_map = {
             str(k).upper(): val
             for k, v in dict(payload.get("atr14_by_symbol", {})).items()
-            if (val := _to_float(v, default=0.0)) > 0.0
+            if (val := _to_float(v, default=0.0)) > 0.0 and math.isfinite(val)
         }
         momentum_map = {
-            str(k).upper(): _to_float(v, default=0.0)
+            str(k).upper(): mv
             for k, v in dict(payload.get("momentum_z_by_symbol", {})).items()
+            if str(k).upper() in atr_map
+            and math.isfinite(mv := _to_float(v, default=0.0))
         }
         prev_close_map = {
-            str(k).upper(): _to_float(v, default=0.0)
+            str(k).upper(): pv
             for k, v in dict(payload.get("prev_close_by_symbol", {})).items()
+            if str(k).upper() in atr_map
+            and (pv := _to_float(v, default=0.0)) > 0.0
+            and math.isfinite(pv)
         }
         return atr_map, momentum_map, prev_close_map
     except Exception as exc:
@@ -3075,13 +3166,19 @@ def _incremental_atr_from_eod_bulk(
         prev_atr = _to_float(prev_atr_map.get(sym), default=0.0)
         prev_close = _to_float(prev_close_map.get(sym), default=0.0)
         eod_row = by_symbol.get(sym)
-        if not eod_row or prev_atr <= 0.0 or prev_close <= 0.0:
+        if (
+            not eod_row
+            or not math.isfinite(prev_atr)
+            or prev_atr <= 0.0
+            or not math.isfinite(prev_close)
+            or prev_close <= 0.0
+        ):
             continue
 
         high = _to_float(eod_row.get("high"), default=float("nan"))
         low = _to_float(eod_row.get("low"), default=float("nan"))
         close = _to_float(eod_row.get("close"), default=float("nan"))
-        if math.isnan(high) or math.isnan(low) or math.isnan(close):
+        if not all(math.isfinite(x) for x in (high, low, close)):
             continue
 
         tr = max(high - low, abs(high - prev_close), abs(low - prev_close))
@@ -3118,18 +3215,28 @@ def _fetch_symbol_atr(
 
         atr_value = _calculate_atr14_from_eod(candles, period=atr_period)
         momentum_z = _momentum_z_score_from_eod(candles, period=50)
+        if not math.isfinite(momentum_z):
+            momentum_z = 0.0
         latest_vwap: float | None = None
         avg_volume_fallback: float = 0.0
-        rows = [c for c in candles if str(c.get("date") or "")]
-        if rows:
-            rows.sort(key=lambda c: str(c.get("date") or ""))
-            vwap_raw = _to_float(rows[-1].get("vwap"), default=0.0)
-            latest_vwap = vwap_raw if vwap_raw > 0.0 else None
-            last_n = rows[-20:]
+        parsed_rows = []
+        for c in candles:
+            d_str = str(c.get("date") or "")
+            if d_str:
+                d_parsed = _parse_calendar_date(d_str)
+                if d_parsed is not None:
+                    parsed_rows.append((d_parsed, c))
+        if parsed_rows:
+            parsed_rows.sort(key=lambda x: x[0])
+            sorted_candles = [x[1] for x in parsed_rows]
+            vwap_raw = _to_float(sorted_candles[-1].get("vwap"), default=0.0)
+            latest_vwap = vwap_raw if vwap_raw > 0.0 and math.isfinite(vwap_raw) else None
+            last_n = sorted_candles[-20:]
             vol_values = [
                 _to_float(c.get("volume"), default=0.0)
                 for c in last_n
                 if _to_float(c.get("volume"), default=0.0) > 0.0
+                and math.isfinite(_to_float(c.get("volume"), default=0.0))
             ]
             if vol_values:
                 avg_volume_fallback = round(sum(vol_values) / len(vol_values), 4)
@@ -5306,7 +5413,9 @@ def generate_open_prep_result(
                 "eps_actual": item.get("epsActual"),
                 "revenue_actual": item.get("revenueActual"),
             })
-        earnings_calendar.sort(key=lambda x: (x.get("date") or "", x.get("symbol") or ""))
+        earnings_calendar.sort(
+            key=lambda x: (_calendar_date_sort_key(x.get("date")), str(x.get("symbol") or "")),
+        )
     except Exception as exc:
         logger.warning("Earnings calendar (6-day) fetch failed: %s", type(exc).__name__, exc_info=True)
 
@@ -5545,7 +5654,12 @@ def generate_open_prep_result(
                     maybe_hist = bars_raw.get("historical")
                     bars_raw = maybe_hist if isinstance(maybe_hist, list) else []
                 if isinstance(bars_raw, list) and len(bars_raw) >= 10:
-                    bars_sorted = sorted(bars_raw, key=lambda b: str(b.get("date", "")))
+                    bars_sorted = sorted(
+                        bars_raw,
+                        key=lambda b: _calendar_date_sort_key(
+                            b.get("date") if b.get("date") is not None else b.get("datetime"),
+                        ),
+                    )
                     return sym, bars_sorted
             except Exception as exc:
                 logger.debug("Breakout enrichment: failed to fetch bars for %s: %s", sym, exc)
