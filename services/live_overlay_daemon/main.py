@@ -4,9 +4,8 @@ FastAPI app — SMC Live Overlay Daemon.
 Endpoints:
   GET /health                          — healthcheck (no auth)
   GET /{token}/smc_live?symbol=NVDA    — overlay payload (token = OVERLAY_SECRET_TOKEN)
-
 Security model:
-  Pine's request.get() cannot send Authorization headers, so the secret
+    Pine's request.get() cannot send Authorization headers, so the secret
   token is embedded in the URL path. The Pine source is never released to
   users, so the URL is effectively obscure. Rotate monthly via library update.
 
@@ -39,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 _startup_ts: float = 0.0
 
-_VALID_TFS: frozenset[str] = frozenset({"5m", "15m", "1H", "4H", "1D"})
+_VALID_TFS: frozenset[str] = frozenset({"5m", "15m", "1H", "4H"})
 
 
 def _json_safe(value: Any) -> Any:

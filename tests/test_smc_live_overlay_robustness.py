@@ -525,6 +525,21 @@ class TestHealthStatusSignals:
         assert payload["workers_healthy"] is True
         assert payload["overlay_fresh"] is False
 
+
+class TestSmcLiveTimeframeContract:
+    """Endpoint tf validation must match published schema contract."""
+
+    def test_smc_live_rejects_1d_timeframe(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import services.live_overlay_daemon.main as main_mod
+
+        monkeypatch.setattr(main_mod.config, "overlay_secret_token", lambda: "tok")
+
+        with pytest.raises(main_mod.HTTPException) as exc_info:
+            main_mod.smc_live(token="tok", symbol="AAPL", tf="1D")
+
+        assert exc_info.value.status_code == 400
+        assert "tf must be one of" in str(exc_info.value.detail)
+
     def test_health_is_starting_when_overlay_cache_is_empty(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -715,6 +730,54 @@ class TestDoubleStartGuard:
         monkeypatch.setattr(feed_mod, "_refresh_thread", None)
         monkeypatch.setattr(feed_mod, "_flow_refresh_thread", None)
 
+
+class TestFeedMetricsSnapshot:
+    """feed.metrics_snapshot should expose real counters, not hard-coded zeros."""
+
+    def test_metrics_snapshot_reflects_counter_updates(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import services.live_overlay_daemon.feed as feed_mod
+
+        monkeypatch.setattr(
+            feed_mod,
+            "_metrics",
+            {
+                "reconnect_attempts": 0,
+                "bento_errors": 0,
+                "unexpected_errors": 0,
+                "circuit_breakers": 0,
+                "partial_restarts": 0,
+            },
+        )
+
+        feed_mod._inc_metric("reconnect_attempts", 2)
+        feed_mod._inc_metric("bento_errors")
+        feed_mod._inc_metric("partial_restarts")
+
+        snapshot = feed_mod.metrics_snapshot()
+        assert snapshot["reconnect_attempts"] == 2
+        assert snapshot["bento_errors"] == 1
+        assert snapshot["partial_restarts"] == 1
+
+    def test_metrics_snapshot_is_defensive_copy(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import services.live_overlay_daemon.feed as feed_mod
+
+        monkeypatch.setattr(
+            feed_mod,
+            "_metrics",
+            {
+                "reconnect_attempts": 1,
+                "bento_errors": 2,
+                "unexpected_errors": 3,
+                "circuit_breakers": 4,
+                "partial_restarts": 5,
+            },
+        )
+
+        snapshot = feed_mod.metrics_snapshot()
+        snapshot["reconnect_attempts"] = 999
+
+        assert feed_mod.metrics_snapshot()["reconnect_attempts"] == 1
+
     def test_start_recovers_dead_workers_when_some_are_alive(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -836,3 +899,45 @@ class TestAtexitShutdownHook:
         # cleanup
         feed_mod._stop_event.clear()
         monkeypatch.setattr(feed_mod, "_feed_thread", None)
+
+
+class TestTfSchemaContract:
+    """smc_live tf validation must stay aligned with schema enum."""
+
+    def test_smc_live_rejects_unsupported_1d_tf(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from fastapi import HTTPException
+
+        import services.live_overlay_daemon.main as main_mod
+
+        monkeypatch.setattr(main_mod.config, "overlay_secret_token", lambda: "tok")
+
+        with pytest.raises(HTTPException) as exc_info:
+            main_mod.smc_live(token="tok", symbol="AAPL", tf="1D")
+
+        assert exc_info.value.status_code == 400
+        assert exc_info.value.detail == "tf must be one of ['15m', '1H', '4H', '5m']"
+
+
+class TestFeedMetricsSnapshot:
+    """/health feed metrics should expose real non-zero counters when errors occur."""
+
+    def test_metrics_snapshot_reflects_runtime_increments(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import services.live_overlay_daemon.feed as feed_mod
+
+        # Reset lazy metric state for deterministic assertions.
+        monkeypatch.delattr(feed_mod._metric_state, "_state", raising=False)
+
+        feed_mod._inc_metric("reconnect_attempts", 2)
+        feed_mod._inc_metric("bento_errors")
+        feed_mod._inc_metric("unexpected_errors")
+
+        snapshot = feed_mod.metrics_snapshot()
+        assert snapshot["reconnect_attempts"] == 2
+        assert snapshot["bento_errors"] == 1
+        assert snapshot["unexpected_errors"] == 1
+        assert snapshot["circuit_breakers"] == 0
+        assert snapshot["partial_restarts"] == 0

@@ -214,11 +214,15 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # in _run_feed_loop shifted feed.py global lines to 193/297.
         # 2026-06-19 (PR #2860 follow-up): extracted _maybe_cache_vix helper,
         # shifting feed.py global statement line numbers.
-        ("services/live_overlay_daemon/feed.py", 200, ("_last_bar_at",)),
-        ("services/live_overlay_daemon/feed.py", 302, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        # 2026-06-19 (Copilot follow-up): feed metrics counters/helpers added,
+        # shifting feed.py global statement line numbers to 218/324.
+        ("services/live_overlay_daemon/feed.py", 218, ("_last_bar_at",)),
+        ("services/live_overlay_daemon/feed.py", 324, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
         # 2026-06-19 (fix/live-overlay-post-merge-bugs): added non-finite JSON
         # sanitization helper and related imports, shifting _startup_ts line.
-        ("services/live_overlay_daemon/main.py", 64, ("_startup_ts",)),
+        # 2026-06-19 (Copilot follow-up): _VALID_TFS contract alignment shifted
+        # surrounding code; current _startup_ts global line is 63.
+        ("services/live_overlay_daemon/main.py", 63, ("_startup_ts",)),
     }
 )
 

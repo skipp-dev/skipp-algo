@@ -45,6 +45,14 @@ _flow_refresh_thread: threading.Thread | None = None
 _stop_event = threading.Event()
 _feed_ready = threading.Event()
 _last_bar_at: float = 0.0
+_metrics_lock = threading.Lock()
+_metrics: dict[str, int] = {
+    "reconnect_attempts": 0,
+    "bento_errors": 0,
+    "unexpected_errors": 0,
+    "circuit_breakers": 0,
+    "partial_restarts": 0,
+}
 
 
 # ---------------------------------------------------------------------------
@@ -96,6 +104,16 @@ def _maybe_cache_vix(sym: str, bar: dict[str, Any]) -> None:
     """Cache VIX level when a bar for the VIX symbol has a concrete close."""
     if sym == _VIX_SYMBOL and bar.get("close") is not None:
         cache.set_vix(bar["close"])
+
+
+def _inc_metric(name: str, amount: int = 1) -> None:
+    with _metrics_lock:
+        _metrics[name] = _metrics.get(name, 0) + amount
+
+
+def _metrics_snapshot() -> dict[str, int]:
+    with _metrics_lock:
+        return dict(_metrics)
 
 
 _last_bar_lock = threading.Lock()
@@ -213,6 +231,7 @@ def _run_feed_loop(stop: threading.Event) -> None:
 
             except db.BentoError as exc:
                 consecutive_failures += 1
+                _inc_metric("bento_errors")
                 _feed_ready.clear()
                 logger.warning(
                     "db.Live() BentoError (attempt %d/%d): %s",
@@ -221,6 +240,7 @@ def _run_feed_loop(stop: threading.Event) -> None:
                 )
             except Exception as exc:
                 consecutive_failures += 1
+                _inc_metric("unexpected_errors")
                 _feed_ready.clear()
                 logger.warning("db.Live() unexpected error: %s", exc, exc_info=True)
             finally:
@@ -238,6 +258,7 @@ def _run_feed_loop(stop: threading.Event) -> None:
             _feed_ready.clear()
 
             if consecutive_failures >= max_failures:
+                _inc_metric("circuit_breakers")
                 logger.critical(
                     "Feed loop exceeded %d consecutive failures — "
                     "circuit-breaker triggered, thread stopping.",
@@ -251,6 +272,7 @@ def _run_feed_loop(stop: threading.Event) -> None:
                 if consecutive_failures >= _MAX_RECONNECT_ATTEMPTS
                 else _RECONNECT_DELAY_SECS
             )
+            _inc_metric("reconnect_attempts")
             logger.info("Feed reconnecting in %ds …", delay)
             stop.wait(delay)
 
@@ -342,6 +364,9 @@ def start() -> None:
         _flow_refresh_thread.start()
         started.append("flow-refresh")
 
+    if started and (feed_alive or refresh_alive or flow_alive):
+        _inc_metric("partial_restarts")
+
     # Safety-net shutdown hook: the three threads are daemon=True, so an exit
     # path that bypasses the FastAPI lifespan (e.g. an unhandled exception or a
     # bare process exit) would hard-kill them before client.stop() / loop.close()
@@ -396,10 +421,34 @@ def worker_liveness() -> dict[str, bool]:
 
 def metrics_snapshot() -> dict[str, int]:
     """Return feed counters for /health observability payload."""
-    return {
-        "reconnect_attempts": 0,
-        "bento_errors": 0,
-        "unexpected_errors": 0,
-        "circuit_breakers": 0,
-        "partial_restarts": 0,
-    }
+    return _metrics_snapshot()
+
+
+def _metric_state() -> tuple[threading.Lock, dict[str, int]]:
+    """Lazily initialize metric state without adding module-level globals."""
+    state = getattr(_metric_state, "_state", None)
+    if state is None:
+        state = (
+            threading.Lock(),
+            {
+                "reconnect_attempts": 0,
+                "bento_errors": 0,
+                "unexpected_errors": 0,
+                "circuit_breakers": 0,
+                "partial_restarts": 0,
+            },
+        )
+        setattr(_metric_state, "_state", state)
+    return state
+
+
+def _inc_metric(name: str, value: int = 1) -> None:
+    lock, counters = _metric_state()
+    with lock:
+        counters[name] = counters.get(name, 0) + value
+
+
+def _metrics_snapshot() -> dict[str, int]:
+    lock, counters = _metric_state()
+    with lock:
+        return dict(counters)
