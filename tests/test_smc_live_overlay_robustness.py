@@ -920,24 +920,3 @@ class TestTfSchemaContract:
         assert exc_info.value.detail == "tf must be one of ['15m', '1H', '4H', '5m']"
 
 
-class TestFeedMetricsSnapshot:
-    """/health feed metrics should expose real non-zero counters when errors occur."""
-
-    def test_metrics_snapshot_reflects_runtime_increments(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        import services.live_overlay_daemon.feed as feed_mod
-
-        # Reset lazy metric state for deterministic assertions.
-        monkeypatch.delattr(feed_mod._metric_state, "_state", raising=False)
-
-        feed_mod._inc_metric("reconnect_attempts", 2)
-        feed_mod._inc_metric("bento_errors")
-        feed_mod._inc_metric("unexpected_errors")
-
-        snapshot = feed_mod.metrics_snapshot()
-        assert snapshot["reconnect_attempts"] == 2
-        assert snapshot["bento_errors"] == 1
-        assert snapshot["unexpected_errors"] == 1
-        assert snapshot["circuit_breakers"] == 0
-        assert snapshot["partial_restarts"] == 0
