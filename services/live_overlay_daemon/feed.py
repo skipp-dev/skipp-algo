@@ -422,33 +422,3 @@ def worker_liveness() -> dict[str, bool]:
 def metrics_snapshot() -> dict[str, int]:
     """Return feed counters for /health observability payload."""
     return _metrics_snapshot()
-
-
-def _metric_state() -> tuple[threading.Lock, dict[str, int]]:
-    """Lazily initialize metric state without adding module-level globals."""
-    state = getattr(_metric_state, "_state", None)
-    if state is None:
-        state = (
-            threading.Lock(),
-            {
-                "reconnect_attempts": 0,
-                "bento_errors": 0,
-                "unexpected_errors": 0,
-                "circuit_breakers": 0,
-                "partial_restarts": 0,
-            },
-        )
-        _metric_state._state = state
-    return state
-
-
-def _inc_metric(name: str, value: int = 1) -> None:
-    lock, counters = _metric_state()
-    with lock:
-        counters[name] = counters.get(name, 0) + value
-
-
-def _metrics_snapshot() -> dict[str, int]:
-    lock, counters = _metric_state()
-    with lock:
-        return dict(counters)

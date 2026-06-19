@@ -183,7 +183,7 @@ def patch_overlay(
                     for k, v in updates.items()
                     if (
                         (v is not None or k in allowed_none)
-                        and not (isinstance(v, float) and not math.isfinite(v))
+                        and not ((isinstance(v, float) and not math.isfinite(v)) or (v.__class__.__name__ == "Decimal" and hasattr(v, "is_finite") and (not bool(v.is_finite()))))
                     )
                 }
             )

@@ -420,9 +420,10 @@ class TestJsonSafeAndSqueezeIntegrity:
 
         payload = cache_mod.get_overlay("AAPL")
         assert payload is not None
-        # B11: even if Decimal('NaN') reaches the cache, _json_safe must
-        # normalize it to None instead of raising during JSON serialization.
-        assert _json_safe(payload)["vix_level"] is None
+        # B11: Decimal('NaN') updates must be rejected at patch boundary,
+        # preserving the previous finite value.
+        assert payload["vix_level"] == 20.0
+        assert _json_safe(payload)["vix_level"] == 20.0
 
     def test_squeeze_on_rejects_close_outside_high_low(self) -> None:
         import services.live_overlay_daemon.compute as compute
