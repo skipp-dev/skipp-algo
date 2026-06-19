@@ -104,7 +104,12 @@ def health() -> JSONResponse:
     workers_healthy = all(workers.values())
     overlay_age = cache.overlay_age_secs()
     max_stale = config.max_stale_secs()
-    overlay_fresh = overlay_age != float("inf") and overlay_age <= max_stale
+    overlay_symbols = cache.overlay_symbol_count()
+    overlay_fresh = (
+        overlay_symbols > 0
+        and overlay_age != float("inf")
+        and overlay_age <= max_stale
+    )
     status = "ok" if (feed_healthy and workers_healthy and overlay_fresh) else "starting"
     return JSONResponse(
         {
@@ -117,7 +122,7 @@ def health() -> JSONResponse:
             "uptime_secs": round(uptime),
             "bar_symbols": cache.bar_symbol_count(),
             "bar_count": cache.total_bar_count(),
-            "overlay_symbols": cache.overlay_symbol_count(),
+            "overlay_symbols": overlay_symbols,
             "overlay_age_secs": (
                 None
                 if overlay_age == float("inf")
