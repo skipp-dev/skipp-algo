@@ -1,4 +1,20 @@
 {
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "Grafana Cloud Prometheus datasource",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "__requires": [
+    {"type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.0.0"},
+    {"type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0"},
+    {"type": "panel", "id": "stat", "name": "Stat", "version": ""},
+    {"type": "panel", "id": "timeseries", "name": "Time series", "version": ""}
+  ],
   "annotations": {"list": []},
   "editable": true,
   "fiscalYearStartMonth": 0,
@@ -7,85 +23,180 @@
   "links": [],
   "panels": [
     {
+      "id": 1,
       "title": "Service Status",
       "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
-      "targets": [{"expr": "live_overlay_feed_healthy", "legendFormat": "Feed Healthy"}],
-      "fieldConfig": {"defaults": {"mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}]}}
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "live_overlay_feed_healthy",
+          "legendFormat": "Feed Healthy",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"type": "value", "options": {"0": {"text": "DOWN", "color": "red", "index": 0}, "1": {"text": "UP", "color": "green", "index": 1}}}
+          ],
+          "thresholds": {"mode": "absolute", "steps": [{"value": null, "color": "red"}, {"value": 1, "color": "green"}]}
+        },
+        "overrides": []
+      },
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "none"}
     },
     {
+      "id": 2,
       "title": "Workers Healthy",
       "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
-      "targets": [{"expr": "live_overlay_workers_healthy", "legendFormat": "Workers"}],
-      "fieldConfig": {"defaults": {"mappings": [{"type": "value", "options": {"0": {"text": "DEGRADED", "color": "red"}, "1": {"text": "OK", "color": "green"}}}]}}
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "live_overlay_workers_healthy",
+          "legendFormat": "Workers",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"type": "value", "options": {"0": {"text": "DEGRADED", "color": "red", "index": 0}, "1": {"text": "OK", "color": "green", "index": 1}}}
+          ],
+          "thresholds": {"mode": "absolute", "steps": [{"value": null, "color": "red"}, {"value": 1, "color": "green"}]}
+        },
+        "overrides": []
+      },
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background", "graphMode": "none"}
     },
     {
+      "id": 3,
       "title": "Uptime",
       "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
-      "targets": [{"expr": "live_overlay_uptime_seconds / 3600", "legendFormat": "Hours"}],
-      "fieldConfig": {"defaults": {"unit": "h", "decimals": 1}}
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "live_overlay_uptime_seconds / 3600",
+          "legendFormat": "Hours",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "h", "decimals": 1, "thresholds": {"mode": "absolute", "steps": [{"value": null, "color": "green"}]}},
+        "overrides": []
+      },
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "graphMode": "none"}
     },
     {
+      "id": 4,
       "title": "Overlay Symbols",
       "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
-      "targets": [{"expr": "live_overlay_overlay_symbols", "legendFormat": "Symbols"}]
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "live_overlay_overlay_symbols",
+          "legendFormat": "Symbols",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"thresholds": {"mode": "absolute", "steps": [{"value": null, "color": "red"}, {"value": 1, "color": "green"}]}},
+        "overrides": []
+      },
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value", "graphMode": "none"}
     },
     {
+      "id": 5,
       "title": "Request Rate",
       "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
       "targets": [
-        {"expr": "rate(live_overlay_smc_live_requests_total[5m])", "legendFormat": "smc_live total"},
-        {"expr": "rate(live_overlay_smc_live_success_total[5m])", "legendFormat": "success"},
-        {"expr": "rate(live_overlay_smc_live_auth_denied[5m])", "legendFormat": "auth denied"},
-        {"expr": "rate(live_overlay_smc_live_cache_miss_total[5m])", "legendFormat": "cache miss"}
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"}, "expr": "rate(live_overlay_smc_live_requests_total[5m])", "legendFormat": "smc_live total"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"}, "expr": "rate(live_overlay_smc_live_success_total[5m])", "legendFormat": "success"},
+        {"refId": "C", "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"}, "expr": "rate(live_overlay_smc_live_auth_denied[5m])", "legendFormat": "auth denied"},
+        {"refId": "D", "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"}, "expr": "rate(live_overlay_smc_live_cache_miss_total[5m])", "legendFormat": "cache miss"}
       ],
-      "fieldConfig": {"defaults": {"unit": "reqps"}}
+      "fieldConfig": {"defaults": {"unit": "reqps", "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10}}, "overrides": []}
     },
     {
+      "id": 6,
       "title": "Overlay & Bar Age",
       "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
       "targets": [
-        {"expr": "live_overlay_overlay_age_seconds", "legendFormat": "overlay age"},
-        {"expr": "live_overlay_last_bar_age_seconds", "legendFormat": "last bar age"}
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"}, "expr": "live_overlay_overlay_age_seconds", "legendFormat": "overlay age"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"}, "expr": "live_overlay_last_bar_age_seconds", "legendFormat": "last bar age"}
       ],
-      "fieldConfig": {"defaults": {"unit": "s", "thresholds": {"steps": [{"value": 0, "color": "green"}, {"value": 1800, "color": "yellow"}, {"value": 3600, "color": "red"}]}}}
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10},
+          "thresholds": {"mode": "absolute", "steps": [{"value": null, "color": "green"}, {"value": 1800, "color": "yellow"}, {"value": 3600, "color": "red"}]}
+        },
+        "overrides": []
+      }
     },
     {
+      "id": 7,
       "title": "Compute Cycle Errors",
       "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
       "targets": [
-        {"expr": "rate(live_overlay_full_compute_cycle_errors[5m])", "legendFormat": "full compute errors"},
-        {"expr": "rate(live_overlay_flow_patch_cycle_errors[5m])", "legendFormat": "flow patch errors"}
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"}, "expr": "rate(live_overlay_full_compute_cycle_errors[5m])", "legendFormat": "full compute errors"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"}, "expr": "rate(live_overlay_flow_patch_cycle_errors[5m])", "legendFormat": "flow patch errors"}
       ],
-      "fieldConfig": {"defaults": {"unit": "errors/s", "color": {"mode": "palette-classic"}}}
+      "fieldConfig": {"defaults": {"unit": "cps", "custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10}}, "overrides": []}
     },
     {
+      "id": 8,
       "title": "Feed Health Counters",
       "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
       "targets": [
-        {"expr": "rate(live_overlay_feed_reconnect_attempts[5m])", "legendFormat": "reconnects"},
-        {"expr": "rate(live_overlay_feed_bento_errors[5m])", "legendFormat": "bento errors"},
-        {"expr": "rate(live_overlay_feed_unexpected_errors[5m])", "legendFormat": "unexpected errors"},
-        {"expr": "live_overlay_feed_circuit_breakers", "legendFormat": "circuit breakers (total)"}
-      ]
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"}, "expr": "rate(live_overlay_feed_reconnect_attempts[5m])", "legendFormat": "reconnects"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"}, "expr": "rate(live_overlay_feed_bento_errors[5m])", "legendFormat": "bento errors"},
+        {"refId": "C", "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"}, "expr": "rate(live_overlay_feed_unexpected_errors[5m])", "legendFormat": "unexpected errors"},
+        {"refId": "D", "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"}, "expr": "live_overlay_feed_circuit_breakers", "legendFormat": "circuit breakers (total)"}
+      ],
+      "fieldConfig": {"defaults": {"custom": {"drawStyle": "line", "lineWidth": 1, "fillOpacity": 10}}, "overrides": []}
     },
     {
+      "id": 9,
       "title": "Worker Liveness",
       "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "gridPos": {"h": 6, "w": 24, "x": 0, "y": 20},
       "targets": [
-        {"expr": "live_overlay_worker_live_feed_alive", "legendFormat": "live_feed"},
-        {"expr": "live_overlay_worker_overlay_refresh_alive", "legendFormat": "overlay_refresh"},
-        {"expr": "live_overlay_worker_flow_refresh_alive", "legendFormat": "flow_refresh"}
+        {"refId": "A", "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"}, "expr": "live_overlay_worker_live_feed_alive", "legendFormat": "live_feed"},
+        {"refId": "B", "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"}, "expr": "live_overlay_worker_overlay_refresh_alive", "legendFormat": "overlay_refresh"},
+        {"refId": "C", "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"}, "expr": "live_overlay_worker_flow_refresh_alive", "legendFormat": "flow_refresh"}
       ],
-      "fieldConfig": {"defaults": {"min": 0, "max": 1, "mappings": [{"type": "value", "options": {"0": {"text": "DEAD"}, "1": {"text": "ALIVE"}}}]}}
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 1,
+          "custom": {"drawStyle": "line", "lineWidth": 2, "fillOpacity": 20},
+          "mappings": [
+            {"type": "value", "options": {"0": {"text": "DEAD", "index": 0}, "1": {"text": "ALIVE", "index": 1}}}
+          ],
+          "thresholds": {"mode": "absolute", "steps": [{"value": null, "color": "red"}, {"value": 1, "color": "green"}]}
+        },
+        "overrides": []
+      }
     }
   ],
   "schemaVersion": 39,
