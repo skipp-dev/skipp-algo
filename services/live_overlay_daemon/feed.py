@@ -113,7 +113,16 @@ def _run_feed_loop(stop: threading.Event) -> None:
         while not stop.is_set():
             client: db.Live | None = None
             try:
-                key = config.databento_api_key()
+                try:
+                    key = config.databento_api_key()
+                except RuntimeError as exc:
+                    # Non-retryable local configuration error (e.g. missing
+                    # DATABENTO_API_KEY) — retrying only creates log noise
+                    # and delays operator feedback.
+                    _feed_ready.clear()
+                    logger.critical("Non-retryable feed configuration error: %s", exc)
+                    break
+
                 client = db.Live(key=key)
                 client.subscribe(
                     dataset="EQUS.MINI",

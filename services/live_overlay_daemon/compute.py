@@ -95,7 +95,7 @@ def _get_news_fields(symbol: str) -> dict[str, Any]:
         """Normalize story tickers to a safe uppercase ticker list."""
         if isinstance(raw, str):
             raw_items: list[Any] = [raw]
-        elif isinstance(raw, list):
+        elif isinstance(raw, (list, tuple, set)):
             raw_items = raw
         else:
             return []
