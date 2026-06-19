@@ -38,6 +38,7 @@ from smc_core.bar_close_guard import (
     [
         ("1m", 60),
         ("5m", 300),
+        ("10m", 600),
         ("15m", 900),
         ("30m", 1800),
         ("1h", 3600),
@@ -57,8 +58,8 @@ def test_interval_seconds_table_round_trip() -> None:
 
 
 def test_interval_seconds_values_strictly_increasing_in_documented_order() -> None:
-    """1m < 5m < 15m < 30m < 1h < 4h < 1d < 1w — pins the documented progression."""
-    tokens = ["1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w"]
+    """1m < 5m < 10m < 15m < 30m < 1h < 4h < 1d < 1w — pins the documented progression."""
+    tokens = ["1m", "5m", "10m", "15m", "30m", "1h", "4h", "1d", "1w"]
     values = [interval_seconds(t) for t in tokens]
     assert values == sorted(values)
     assert len(set(values)) == len(values)  # strictly increasing

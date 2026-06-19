@@ -49,15 +49,18 @@ class TestDefaultPolicy:
     def test_reference_timeframes_include_intraday_and_higher(self) -> None:
         tfs = set(RELEASE_REFERENCE_TIMEFRAMES)
         assert "5m" in tfs
+        assert "10m" in tfs
         assert "15m" in tfs
-        assert len(tfs) >= 3, "need at least 3 timeframes for breadth"
+        assert "30m" in tfs
+        assert "1D" in tfs
+        assert len(tfs) >= 7, "need the full canonical timeframe set"
 
     def test_stale_threshold_is_7_days(self) -> None:
         assert RELEASE_STALE_AFTER_SECONDS == 7 * 24 * 60 * 60
 
     def test_coverage_thresholds_are_positive(self) -> None:
         assert EVIDENCE_MIN_SYMBOL_COVERAGE >= 1
-        assert EVIDENCE_MIN_TIMEFRAME_COVERAGE >= 1
+        assert EVIDENCE_MIN_TIMEFRAME_COVERAGE >= 4
 
 
 # ---------------------------------------------------------------------------
