@@ -439,3 +439,91 @@ class TestDoubleStartGuard:
 
         # cleanup
         monkeypatch.setattr(feed_mod, "_feed_thread", None)
+
+
+# ---------------------------------------------------------------------------
+# C1: constant-time token compare with no length side-channel
+# ---------------------------------------------------------------------------
+
+
+class TestConstantTimeTokenCompare:
+    """C1: _ct_eq hashes both sides before the compare so the token length is
+    not exposed as a timing oracle (CWE-208)."""
+
+    def test_equal_tokens_match(self) -> None:
+        import services.live_overlay_daemon.main as main_mod
+
+        assert main_mod._ct_eq("s3cr3t-token", "s3cr3t-token") is True
+
+    def test_same_length_mismatch_rejected(self) -> None:
+        import services.live_overlay_daemon.main as main_mod
+
+        assert main_mod._ct_eq("s3cr3t-token", "S3CR3T-TOKEN") is False
+
+    def test_different_length_mismatch_rejected(self) -> None:
+        import services.live_overlay_daemon.main as main_mod
+
+        # The old code short-circuited on len() before the constant-time
+        # compare; the digest-based path must still reject cleanly.
+        assert main_mod._ct_eq("short", "a-much-longer-secret-token") is False
+        assert main_mod._ct_eq("", "nonempty") is False
+
+    def test_empty_equal(self) -> None:
+        import services.live_overlay_daemon.main as main_mod
+
+        assert main_mod._ct_eq("", "") is True
+
+    def test_compares_fixed_length_digests(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The compare must run over equal-length buffers regardless of input
+        length, so neither the comparison nor a len() pre-check can leak the
+        secret-token length."""
+        import services.live_overlay_daemon.main as main_mod
+
+        seen: list[tuple[int, int]] = []
+
+        import hmac as _hmac
+
+        real_compare = _hmac.compare_digest
+
+        def _spy(a: bytes, b: bytes) -> bool:
+            seen.append((len(a), len(b)))
+            return real_compare(a, b)
+
+        monkeypatch.setattr(_hmac, "compare_digest", _spy)
+        main_mod._ct_eq("abc", "a-far-longer-token-value")
+        assert seen, "_ct_eq must call hmac.compare_digest"
+        # SHA-256 digests are always 32 bytes on both sides — no length leak.
+        assert seen[0] == (32, 32)
+
+
+# ---------------------------------------------------------------------------
+# C2: atexit safety-net shutdown hook
+# ---------------------------------------------------------------------------
+
+
+class TestAtexitShutdownHook:
+    """C2: start() registers a bounded atexit hook so the daemon=True feed
+    threads close the Databento loop/sockets even on a non-lifespan exit."""
+
+    def test_start_registers_stop_atexit(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import services.live_overlay_daemon.feed as feed_mod
+
+        # Avoid spawning real threads / touching Databento.
+        monkeypatch.setattr(feed_mod, "_feed_thread", None)
+        monkeypatch.setattr(feed_mod, "_refresh_thread", None)
+        monkeypatch.setattr(feed_mod, "_flow_refresh_thread", None)
+        monkeypatch.setattr(feed_mod.threading, "Thread", MagicMock())
+
+        registered: list[object] = []
+        unregistered: list[object] = []
+        monkeypatch.setattr(feed_mod.atexit, "register", lambda fn: registered.append(fn))
+        monkeypatch.setattr(feed_mod.atexit, "unregister", lambda fn: unregistered.append(fn))
+
+        feed_mod.start()
+
+        assert feed_mod.stop in registered, "start() must register feed.stop() with atexit"
+        assert feed_mod.stop in unregistered, "start() must unregister first to keep a single hook"
+
+        # cleanup
+        feed_mod._stop_event.clear()
+        monkeypatch.setattr(feed_mod, "_feed_thread", None)

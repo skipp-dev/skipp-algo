@@ -82,6 +82,12 @@ def _atexit_register_sites() -> set[tuple[str, int]]:
 ATEXIT_REGISTER_ALLOWED: set[tuple[str, int]] = {
     ("terminal_bitcoin.py", 103),
     ("scripts/databento_production_export.py", 4716),  # PR #2787: FMP bridge (+260 lines); rebaselined PR #2810 (+7 lines)
+    # 2026-06-19 (fix/live-overlay-daemon-security, C2): feed.start() registers a
+    # bounded, idempotent shutdown hook (feed.stop()) so the daemon=True feed
+    # threads get a chance to close the Databento loop/sockets on a non-lifespan
+    # process exit. unregister-then-register keeps exactly one hook; stop() sets
+    # an Event and joins with a 5s/thread timeout (bounded, non-deadlocking).
+    ("services/live_overlay_daemon/feed.py", 314),
 }
 
 

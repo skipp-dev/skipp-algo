@@ -20,6 +20,7 @@ Thread safety:
 from __future__ import annotations
 
 import asyncio
+import atexit
 import logging
 import threading
 import time
@@ -301,6 +302,16 @@ def start() -> None:
     _feed_thread.start()
     _refresh_thread.start()
     _flow_refresh_thread.start()
+
+    # Safety-net shutdown hook: the three threads are daemon=True, so an exit
+    # path that bypasses the FastAPI lifespan (e.g. an unhandled exception or a
+    # bare process exit) would hard-kill them before client.stop() / loop.close()
+    # run, leaking Databento sockets/FDs. atexit fires on normal interpreter
+    # shutdown and blocks on stop() (bounded join), giving the loop a chance to
+    # close cleanly. unregister-then-register keeps exactly one hook across
+    # stop()/start() restart cycles; stop() is idempotent and join-bounded.
+    atexit.unregister(stop)
+    atexit.register(stop)
     logger.info("Live feed + overlay refresh threads started.")
 
 

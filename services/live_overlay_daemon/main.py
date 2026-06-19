@@ -114,10 +114,12 @@ def smc_live(
     symbol: str = Query(..., min_length=1, max_length=10),
     tf: str = Query("5m", max_length=8),  # timeframe hint — stored in response
 ) -> JSONResponse:
-    # Constant-time token comparison to avoid timing attacks
+    # Constant-time token comparison to avoid timing attacks. _ct_eq hashes
+    # both sides to a fixed-length digest before comparing, so neither the
+    # comparison nor a Python len() short-circuit can leak the token length
+    # as a timing side-channel (CWE-208).
     expected = config.overlay_secret_token()
-    # _ct_eq delegates to hmac.compare_digest — no XOR, no early exit
-    if len(token) != len(expected) or not _ct_eq(token, expected):
+    if not _ct_eq(token, expected):
         raise HTTPException(status_code=404)  # 404 not 401 to avoid leaking route structure
 
     sym = symbol.upper().strip()
@@ -173,6 +175,19 @@ def smc_live(
 # ---------------------------------------------------------------------------
 
 def _ct_eq(a: str, b: str) -> bool:
-    """Constant-time string equality (same as hmac.compare_digest for str)."""
+    """Constant-time string equality with no length side-channel.
+
+    Both inputs are reduced to fixed-length SHA-256 digests *before* the
+    constant-time compare. ``hmac.compare_digest`` on two raw strings still
+    leaks their length (it returns early when the lengths differ), so a naive
+    ``compare_digest(token, expected)`` — or a Python ``len()`` pre-check —
+    would expose the secret-token length as a timing oracle (CWE-208).
+    Comparing fixed 32-byte digests makes the timing independent of the input
+    length, while SHA-256's collision resistance preserves equality semantics.
+    """
+    import hashlib
     import hmac
-    return hmac.compare_digest(a.encode(), b.encode())
+
+    a_digest = hashlib.sha256(a.encode()).digest()
+    b_digest = hashlib.sha256(b.encode()).digest()
+    return hmac.compare_digest(a_digest, b_digest)
