@@ -187,10 +187,13 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # 2026-06-19 (fix/live-overlay-post-merge-bugs): init_bar_cache gained
         # runtime deque-cap migration for existing symbols, shifting cache.py
         # global statements to 63/129/178.
+        # 2026-06-19 (bug-hunt hardcap): immediate downscale cap-enforcement and
+        # converging cap-eviction in push_bar shifted cache.py global lines to
+        # 69/141/190.
         ("services/live_overlay_daemon/cache.py", 47, ("_max_symbols", "_rolling_bars_cap")),
-        ("services/live_overlay_daemon/cache.py", 63, ("_last_eviction_at",)),
-        ("services/live_overlay_daemon/cache.py", 129, ("_overlay_computed_at",)),
-        ("services/live_overlay_daemon/cache.py", 178, ("_vix_level",)),
+        ("services/live_overlay_daemon/cache.py", 69, ("_last_eviction_at",)),
+        ("services/live_overlay_daemon/cache.py", 141, ("_overlay_computed_at",)),
+        ("services/live_overlay_daemon/cache.py", 190, ("_vix_level",)),
         # 2026-06-19 (fix/live-overlay-post-merge-bugs): separate _news_checked_at
         # from _news_loaded_at so missing-file rate-limiting does not pin the
         # success cache for the full TTL when a snapshot appears later.

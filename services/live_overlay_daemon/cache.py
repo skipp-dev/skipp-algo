@@ -56,6 +56,12 @@ def init_bar_cache(rolling_bars: int, *, max_symbols: int = 2000) -> None:
         if _bars:
             for sym, dq in list(_bars.items()):
                 _bars[sym] = deque(dq, maxlen=_rolling_bars_cap)
+            # Downscaling max_symbols must enforce the hard cap immediately.
+            while len(_bars) > _max_symbols:
+                prev_len = len(_bars)
+                _evict_stale_symbols_locked()
+                if len(_bars) >= prev_len:
+                    break
 
 
 def push_bar(symbol: str, bar: dict[str, Any]) -> None:
@@ -68,7 +74,13 @@ def push_bar(symbol: str, bar: dict[str, Any]) -> None:
             _last_eviction_at = now
         need_cap_evict = symbol not in _bars and len(_bars) >= _max_symbols
         if need_cap_evict:
-            _evict_stale_symbols_locked()
+            # When far above cap (e.g. after runtime downscale), one 10%-pass is
+            # not enough. Keep evicting until capacity allows adding one symbol.
+            while symbol not in _bars and len(_bars) >= _max_symbols:
+                prev_len = len(_bars)
+                _evict_stale_symbols_locked()
+                if len(_bars) >= prev_len:
+                    break
             _last_eviction_at = now
         if symbol not in _bars:
             _bars[symbol] = deque(maxlen=_rolling_bars_cap)
