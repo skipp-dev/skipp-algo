@@ -56,7 +56,7 @@ class TestChronologicalSortingEverywhere:
 class TestAtrDataQuality:
     def test_atr_rejects_negative_ohlc(self):
         candles = [
-            {"date": f"2024-02-{i:02d}", "high": -5.0 + i, "low": -6.0 + i, "close": -5.5 + i}
+            {"date": f"2024-02-{i:02d}", "high": -5.0, "low": -6.0, "close": -5.5}
             for i in range(1, 25)
         ]
         atr = _calculate_atr14_from_eod(candles)
