@@ -38,7 +38,7 @@ import threading
 import time
 from typing import Any
 
-from . import cache, config
+from . import cache, config, observability
 
 logger = logging.getLogger(__name__)
 
@@ -226,11 +226,17 @@ def _coerce_volume(v: Any) -> float | None:
     """Coerce a volume field value to float, returning None on failure.
 
     Accepts int, float, and numeric strings (e.g. '100' from schema drift).
-    Returns None for None, empty string, non-finite values (NaN/Inf), or
+    Returns None for None, empty string, negative values, non-finite values
+    (NaN/Inf), or
     any non-numeric value so that
     callers can safely skip the bar instead of crashing.
     """
-    return _coerce_finite_float(v)
+    coerced = _coerce_finite_float(v)
+    if coerced is None:
+        return None
+    if coerced < 0:
+        return None
+    return coerced
 
 
 def compute_flow_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:
@@ -439,21 +445,30 @@ def run_full_compute_cycle() -> int:
     Returns number of symbols computed.
     Called every OVERLAY_REFRESH_SECS by the refresh thread.
     """
-    all_bars = cache.get_all_symbols_snapshot()
-    max_stale = config.max_stale_secs()
-    global_fields = _get_global_news_fields()
+    with observability.trace_span("live_overlay.full_compute_cycle"):
+        all_bars = cache.get_all_symbols_snapshot()
+        max_stale = config.max_stale_secs()
+        global_fields = _get_global_news_fields()
 
-    payloads: dict[str, Any] = {}
-    for sym, bars in all_bars.items():
-        if not bars:
-            continue
-        payloads[sym.upper()] = build_payload(sym, bars, global_fields, max_stale)
+        payloads: dict[str, Any] = {}
+        for sym, bars in all_bars.items():
+            if not bars:
+                continue
+            payloads[sym.upper()] = build_payload(sym, bars, global_fields, max_stale)
 
-    # Always replace snapshot (including empty) so stale symbols are removed
-    # when bar cache is temporarily empty.
-    cache.set_overlay(payloads)
+        # Always replace snapshot (including empty) so stale symbols are removed
+        # when bar cache is temporarily empty.
+        cache.set_overlay(payloads)
 
-    return len(payloads)
+        count = len(payloads)
+        observability.metric_gauge("live_overlay.overlay_symbols", count)
+        observability.metric_counter("live_overlay.full_compute_cycle.total")
+        observability.audit_event(
+            "live_overlay_full_compute_cycle",
+            "ok",
+            symbols=count,
+        )
+        return count
 
 
 def run_flow_patch_cycle() -> int:
@@ -462,15 +477,23 @@ def run_flow_patch_cycle() -> int:
     Does NOT reset the full overlay cache timestamp.
     Called every OVERLAY_FLOW_REFRESH_SECS.
     """
-    all_bars = cache.get_all_symbols_snapshot()
-    vix = cache.get_vix()
-    count = 0
-    for sym, bars in all_bars.items():
-        if not bars:
-            continue
-        updates = compute_flow_fields(bars)
-        if vix is not None:
-            updates["vix_level"] = round(vix, 4)
-        cache.patch_overlay(sym, updates)
-        count += 1
-    return count
+    with observability.trace_span("live_overlay.flow_patch_cycle"):
+        all_bars = cache.get_all_symbols_snapshot()
+        vix = cache.get_vix()
+        count = 0
+        for sym, bars in all_bars.items():
+            if not bars:
+                continue
+            updates = compute_flow_fields(bars)
+            if vix is not None:
+                updates["vix_level"] = round(vix, 4)
+            cache.patch_overlay(sym, updates)
+            count += 1
+        observability.metric_gauge("live_overlay.flow_patch_symbols", count)
+        observability.metric_counter("live_overlay.flow_patch_cycle.total")
+        observability.audit_event(
+            "live_overlay_flow_patch_cycle",
+            "ok",
+            symbols=count,
+        )
+        return count

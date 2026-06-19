@@ -350,6 +350,39 @@ class TestStringVolumeCoercion:
         assert ats["ats_zscore"] is None
         assert ats["ats_state"] is None
 
+    def test_negative_last_volume_treated_as_missing(self):
+        """Negative last-bar volume must be rejected and not produce negative rel-vol."""
+        compute = _compute()
+        bars = [
+            {"open": 1.0, "high": 1.2, "low": 0.9, "close": 1.1, "volume": 100},
+            {"open": 1.0, "high": 1.2, "low": 0.9, "close": 1.1, "volume": 110},
+            {"open": 1.0, "high": 1.2, "low": 0.9, "close": 1.1, "volume": 120},
+            {"open": 1.0, "high": 1.2, "low": 0.9, "close": 1.1, "volume": 130},
+            {"open": 1.0, "high": 1.2, "low": 0.9, "close": 1.1, "volume": -500},
+        ]
+
+        flow = compute.compute_flow_fields(bars)
+        ats = compute.compute_ats_fields(bars)
+
+        assert flow["flow_rel_vol"] is None
+        assert ats["ats_zscore"] is None
+        assert ats["ats_state"] is None
+
+    def test_negative_prior_volumes_are_filtered(self):
+        """Negative prior volumes must be ignored in avg/zscore baselines."""
+        compute = _compute()
+        bars = [
+            {"open": 1.0, "high": 1.2, "low": 0.9, "close": 1.1, "volume": -100},
+            {"open": 1.0, "high": 1.2, "low": 0.9, "close": 1.1, "volume": 110},
+            {"open": 1.0, "high": 1.2, "low": 0.9, "close": 1.1, "volume": 120},
+            {"open": 1.0, "high": 1.2, "low": 0.9, "close": 1.1, "volume": 130},
+            {"open": 1.0, "high": 1.2, "low": 0.9, "close": 1.1, "volume": 500},
+        ]
+
+        flow = compute.compute_flow_fields(bars)
+        # prior valid vols = [110,120,130] => avg=120 => rel_vol=4.1667
+        assert flow["flow_rel_vol"] == 4.1667
+
 
 class TestNewsScoreFiniteCoercion:
     """Non-finite news scores must be treated as invalid/missing, not propagated."""
