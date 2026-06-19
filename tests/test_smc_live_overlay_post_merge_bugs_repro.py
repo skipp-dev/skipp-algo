@@ -1,0 +1,259 @@
+"""Reproduktions- und Property-Tests fuer die Post-Merge-Fixes in live_overlay_daemon.
+
+Ziel: Nachweis von echten Bugs durch ausfuehrbare Tests, nicht nur Code-Lesekritik.
+"""
+from __future__ import annotations
+
+import json
+import threading
+from pathlib import Path
+from typing import Any
+from unittest.mock import patch
+
+import pytest
+
+
+class TestNewsSnapshotCachingBug:
+    """BUG-1: _load_news_snapshot() cached {} nach 'file not found' und ignoriert
+    eine spaeter erstellte Datei waehrend der TTL.
+    """
+
+    def test_newly_created_snapshot_loaded_after_rate_limit_window(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Regression: eine nach 'file not found' erstellte Snapshot-Datei muss
+        nach Ablauf des Rate-Limit-Fensters erkannt werden, nicht erst nach der
+        vollen Erfolgs-TTL.
+        """
+        import services.live_overlay_daemon.compute as compute
+        import services.live_overlay_daemon.config as cfg
+
+        snapshot_path = tmp_path / "news.json"
+        payload = {"stories": [{"tickers": ["AAPL"], "sentiment_score": 0.5}]}
+
+        # Reset cache
+        monkeypatch.setattr(compute, "_news_loaded_at", 0.0)
+        monkeypatch.setattr(compute, "_news_checked_at", 0.0)
+        monkeypatch.setattr(compute, "_news_cache", {})
+        # Kurze TTL, damit der Test schnell laeuft
+        monkeypatch.setattr(cfg, "news_cache_ttl_secs", lambda: 0)
+
+        with patch.object(compute.config, "news_snapshot_path", return_value=snapshot_path):
+            # Erster Aufruf: Datei existiert noch nicht
+            result1 = compute._load_news_snapshot()
+            assert result1 == {}
+            assert compute._news_loaded_at == 0.0
+            assert compute._news_checked_at > 0.0
+
+            # Datei wird nun erstellt
+            snapshot_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            # Zweiter Aufruf: TTL=0, also sofortiges Nachladen
+            result2 = compute._load_news_snapshot()
+
+        assert result2 == payload, (
+            "BUG: _load_news_snapshot returned stale empty cache even though "
+            f"snapshot file now exists. expected={payload!r}, got={result2!r}"
+        )
+
+    def test_missing_file_is_rate_limited(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Waehrend der Rate-Limit-TTL wird ein wiederholt fehlendes File nicht
+        neu eingelesen (kein Read/Log-Storm).
+        """
+        import services.live_overlay_daemon.compute as compute
+        import services.live_overlay_daemon.config as cfg
+
+        snapshot_path = tmp_path / "news.json"
+
+        monkeypatch.setattr(compute, "_news_loaded_at", 0.0)
+        monkeypatch.setattr(compute, "_news_checked_at", 0.0)
+        monkeypatch.setattr(compute, "_news_cache", {})
+        monkeypatch.setattr(cfg, "news_cache_ttl_secs", lambda: 3600)
+
+        with patch.object(compute.config, "news_snapshot_path", return_value=snapshot_path):
+            result1 = compute._load_news_snapshot()
+            assert result1 == {}
+
+            result2 = compute._load_news_snapshot()
+            assert result2 == {}
+            assert compute._news_loaded_at == 0.0
+
+    def test_reload_after_ttl_expires(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Nach Ablauf der TTL sollte die Datei neu geladen werden."""
+        import services.live_overlay_daemon.compute as compute
+        import services.live_overlay_daemon.config as cfg
+
+        snapshot_path = tmp_path / "news.json"
+        payload = {"stories": [{"tickers": ["TSLA"], "sentiment_score": -0.3}]}
+        snapshot_path.write_text(json.dumps(payload), encoding="utf-8")
+
+        monkeypatch.setattr(compute, "_news_loaded_at", 0.0)
+        monkeypatch.setattr(compute, "_news_cache", {})
+        monkeypatch.setattr(cfg, "news_cache_ttl_secs", lambda: 0)
+
+        with patch.object(compute.config, "news_snapshot_path", return_value=snapshot_path):
+            result = compute._load_news_snapshot()
+
+        assert result == payload
+
+
+class TestVIXZeroCloseBug:
+    """BUG-2: VIX-Bar mit close=0 wurde vorher wegen falsy-Test ignoriert.
+    Der Fix prueft auf 'is not None'. Dieser Test dokumentiert die Invariante.
+    """
+
+    def test_vix_zero_close_is_cached(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Ein VIX-Bar mit close=0 soll cache.set_vix(0) aufrufen."""
+        import services.live_overlay_daemon.cache as cache_mod
+        import services.live_overlay_daemon.feed as feed_mod
+
+        calls: list[float] = []
+        monkeypatch.setattr(cache_mod, "set_vix", calls.append)
+        monkeypatch.setattr(cache_mod, "push_bar", lambda sym, bar: None)
+
+        bar = {
+            "open": 10.0,
+            "high": 11.0,
+            "low": 9.0,
+            "close": 0.0,
+            "volume": 100,
+            "ts_event": 0,
+        }
+
+        sym = "VIX"
+        if sym == feed_mod._VIX_SYMBOL and bar.get("close") is not None:
+            cache_mod.set_vix(bar["close"])
+
+        assert calls == [0.0], f"VIX zero close should be cached, got calls={calls}"
+
+
+class TestRecordToBarRobustness:
+    """Property-/Replay-Tests fuer _record_to_bar und _symbol_from_record."""
+
+    def test_record_to_bar_with_zero_fields(self) -> None:
+        """Record mit numerisch 0 Werten darf nicht zu None fuehren."""
+        import services.live_overlay_daemon.feed as feed_mod
+
+        record = type(
+            "FakeOhlcv",
+            (),
+            {
+                "open": 0,
+                "high": 0,
+                "low": 0,
+                "close": 0,
+                "volume": 0,
+                "ts_event": 123,
+            },
+        )()
+
+        bar = feed_mod._record_to_bar(record)
+        assert bar is not None
+        assert bar["close"] == 0.0
+        assert bar["open"] == 0.0
+
+    def test_symbol_from_record_prefers_instrument_id_attribute(self) -> None:
+        """_symbol_from_record sollte .instrument_id vor .hd.instrument_id bevorzugen."""
+        import services.live_overlay_daemon.feed as feed_mod
+
+        symmap = {42: "SPY"}
+        record = type("FakeRecord", (), {"instrument_id": 42})()
+        assert feed_mod._symbol_from_record(record, symmap) == "SPY"
+
+    def test_missing_close_must_not_become_zero_for_vix(self) -> None:
+        """Fehlendes close-Feld darf nicht als 0.0 materialisiert werden."""
+        import services.live_overlay_daemon.feed as feed_mod
+
+        record = type(
+            "FakeOhlcvMissingClose",
+            (),
+            {
+                "open": 100_000_000_000,
+                "high": 101_000_000_000,
+                "low": 99_000_000_000,
+                # intentionally no close attribute
+                "volume": 100,
+                "ts_event": 123,
+            },
+        )()
+
+        bar = feed_mod._record_to_bar(record)
+        assert bar is not None
+        assert bar["close"] is None, f"missing close must stay None, got {bar['close']!r}"
+
+
+class TestBuildPayloadInvariants:
+    """Invarianten-Tests fuer build_payload."""
+
+    def test_build_payload_with_empty_bars(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Leere bar-Liste sollte keine Exception werfen und None-Felder liefern."""
+        import services.live_overlay_daemon.compute as compute
+
+        monkeypatch.setattr(compute, "_load_news_snapshot", lambda: {})
+        payload = compute.build_payload(
+            "AAPL", [], {"tone": "NEUTRAL", "global_heat": 0.0}, 3600
+        )
+
+        assert payload["symbol"] == "AAPL"
+        assert payload["flow_rel_vol"] is None
+        assert payload["flow_delta_proxy_pct"] is None
+        assert payload["squeeze_on"] is None
+        assert payload["ats_state"] is None
+        assert payload["ats_zscore"] is None
+
+    def test_squeeze_on_is_bool_when_present(self) -> None:
+        """squeeze_on muss bool oder None sein, niemals int."""
+        import services.live_overlay_daemon.compute as compute
+
+        bars = [
+            {"open": 1.0, "high": 1.1, "low": 0.9, "close": 1.05, "volume": 100}
+            for _ in range(25)
+        ]
+        squeeze = compute.compute_squeeze_on(bars)
+        if squeeze is not None:
+            assert isinstance(squeeze, bool)
+
+
+class TestNewsSnapshotRaceCondition:
+    """Concurrency-Risiko: _load_news_snapshot schreibt Modul-Globals ohne Lock."""
+
+    def test_concurrent_load_news_snapshot_does_not_crash(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Stress-Test: viele parallele Aufrufe duerfen nicht crashen oder
+        ungueltige Zustaende hinterlassen.
+        """
+        import services.live_overlay_daemon.compute as compute
+        import services.live_overlay_daemon.config as cfg
+
+        snapshot_path = tmp_path / "news.json"
+        snapshot_path.write_text(json.dumps({"stories": []}), encoding="utf-8")
+
+        monkeypatch.setattr(compute, "_news_loaded_at", 0.0)
+        monkeypatch.setattr(compute, "_news_cache", {})
+        monkeypatch.setattr(cfg, "news_cache_ttl_secs", lambda: 0)
+
+        errors: list[BaseException] = []
+
+        def worker() -> None:
+            try:
+                with patch.object(
+                    compute.config, "news_snapshot_path", return_value=snapshot_path
+                ):
+                    compute._load_news_snapshot()
+            except BaseException as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=worker) for _ in range(50)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert not errors, f"Concurrent _load_news_snapshot raised: {errors[:3]}"

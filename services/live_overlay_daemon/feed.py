@@ -58,11 +58,16 @@ def _record_to_bar(record: Any) -> dict[str, Any] | None:
         # Python objects (e.g. object()) have none of these and must yield None.
         if not (hasattr(record, "open") or hasattr(record, "high") or hasattr(record, "low") or hasattr(record, "close")):
             return None
+
+        def _price(name: str) -> float | None:
+            val = getattr(record, name, None)
+            return (val / 1e9) if val is not None else None
+
         return {
-            "open": getattr(record, "open", 0) / 1e9,
-            "high": getattr(record, "high", 0) / 1e9,
-            "low": getattr(record, "low", 0) / 1e9,
-            "close": getattr(record, "close", 0) / 1e9,
+            "open": _price("open"),
+            "high": _price("high"),
+            "low": _price("low"),
+            "close": _price("close"),
             "volume": getattr(record, "volume", 0),
             # ts_event is a top-level field on OHLCVMsg, not under .hd
             "ts_event": _ts if (_ts := getattr(record, "ts_event", None)) is not None else getattr(getattr(record, "hd", None), "ts_event", 0),

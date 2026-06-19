@@ -188,13 +188,21 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("services/live_overlay_daemon/cache.py", 56, ("_last_eviction_at",)),
         ("services/live_overlay_daemon/cache.py", 122, ("_overlay_computed_at",)),
         ("services/live_overlay_daemon/cache.py", 167, ("_vix_level",)),
-        ("services/live_overlay_daemon/compute.py", 52, ("_news_cache", "_news_loaded_at")),
+        # 2026-06-19 (fix/live-overlay-post-merge-bugs): separate _news_checked_at
+        # from _news_loaded_at so missing-file rate-limiting does not pin the
+        # success cache for the full TTL when a snapshot appears later.
+        # 2026-06-19 (bug-hunt): added _news_lock + with-block around
+        # _load_news_snapshot cache mutation for atomic state transitions.
+        ("services/live_overlay_daemon/compute.py", 55, ("_news_cache", "_news_checked_at", "_news_loaded_at")),
         # 2026-06-19 (fix/live-overlay-daemon-security, C2): `import atexit`
         # added at the top of feed.py shifted both globals down by one line.
         # 2026-06-19 (fix/live-overlay-post-merge-bugs): 2-line VIX comment
         # insertion at ~L184 shifted the start() global down by 2 more lines.
-        ("services/live_overlay_daemon/feed.py", 179, ("_last_bar_at",)),
-        ("services/live_overlay_daemon/feed.py", 283, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        # 2026-06-19 (bug-hunt): _record_to_bar extracted _price helper
+        # with Optional semantics for missing OHLC attributes, shifting
+        # feed.py global statement lines by +5.
+        ("services/live_overlay_daemon/feed.py", 184, ("_last_bar_at",)),
+        ("services/live_overlay_daemon/feed.py", 288, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
         ("services/live_overlay_daemon/main.py", 49, ("_startup_ts",)),
     }
 )
