@@ -110,6 +110,7 @@ class TestNewsSnapshotWarningLogging:
 
         # Reset TTL cache so it reloads
         monkeypatch.setattr(compute, "_news_loaded_at", 0.0)
+        monkeypatch.setattr(compute, "_news_checked_at", 0.0)
         monkeypatch.setattr(compute, "_news_cache", {})
 
         with patch.object(compute.config, "news_snapshot_path", return_value=bad_file), caplog.at_level(logging.WARNING):
@@ -125,6 +126,7 @@ class TestNewsSnapshotWarningLogging:
         import services.live_overlay_daemon.compute as compute
 
         monkeypatch.setattr(compute, "_news_loaded_at", 0.0)
+        monkeypatch.setattr(compute, "_news_checked_at", 0.0)
         monkeypatch.setattr(compute, "_news_cache", {})
 
         with patch.object(compute.config, "news_snapshot_path", return_value=good_file), caplog.at_level(logging.WARNING):
@@ -358,6 +360,7 @@ class TestNewsSnapshotFileNotFound:
         import services.live_overlay_daemon.compute as compute
 
         monkeypatch.setattr(compute, "_news_loaded_at", 0.0)
+        monkeypatch.setattr(compute, "_news_checked_at", 0.0)
         monkeypatch.setattr(compute, "_news_cache", {})
 
         with patch.object(compute.config, "news_snapshot_path", return_value=missing):
