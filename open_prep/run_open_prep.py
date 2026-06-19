@@ -646,12 +646,14 @@ def _time_based_warn_flags(
 
 
 def _momentum_z_score_from_eod(candles: list[dict], period: int = 50) -> float:
-    rows: list[tuple[str, float]] = []
+    rows: list[tuple[date, float]] = []
     for candle in candles:
         d = str(candle.get("date") or "")
         close = _to_float(candle.get("close"), default=float("nan"))
         if d and not math.isnan(close) and close > 0.0:  # NaN-safe check
-            rows.append((d, close))
+            parsed = _parse_calendar_date(d)
+            if parsed is not None:
+                rows.append((parsed, close))
     if len(rows) < 3:
         return 0.0
 
@@ -695,12 +697,13 @@ def _add_pdh_pdl_context(quote: dict[str, Any]) -> None:
     price = _to_float(quote.get("price"), default=0.0)
     atr = _to_float(quote.get("atr"), default=0.0)
 
+    # Strictly use previous day values, excluding today's session high/low fallbacks.
     pdh_source = next(
-        (k for k in ("previousDayHigh", "prevDayHigh", "pdh", "dayHigh") if _to_float(quote.get(k), default=0.0) > 0.0),
+        (k for k in ("previousDayHigh", "prevDayHigh", "pdh") if _to_float(quote.get(k), default=0.0) > 0.0),
         None,
     )
     pdl_source = next(
-        (k for k in ("previousDayLow", "prevDayLow", "pdl", "dayLow") if _to_float(quote.get(k), default=0.0) > 0.0),
+        (k for k in ("previousDayLow", "prevDayLow", "pdl") if _to_float(quote.get(k), default=0.0) > 0.0),
         None,
     )
     pdh = _to_float(quote.get(pdh_source), default=0.0) if pdh_source else 0.0
@@ -710,6 +713,12 @@ def _add_pdh_pdl_context(quote: dict[str, Any]) -> None:
     quote["pdl"] = round(pdl, 4) if pdl > 0.0 else None
     quote["pdh_source"] = pdh_source
     quote["pdl_source"] = pdl_source
+
+    # Explicitly map current session dayHigh and dayLow to distinct fields for observability (B9)
+    current_day_high = _to_float(quote.get("dayHigh"), default=0.0)
+    current_day_low = _to_float(quote.get("dayLow"), default=0.0)
+    quote["current_day_high"] = round(current_day_high, 4) if current_day_high > 0.0 else None
+    quote["current_day_low"] = round(current_day_low, 4) if current_day_low > 0.0 else None
 
     if price > 0.0 and atr > 0.0 and pdh > 0.0:
         quote["dist_to_pdh_atr"] = round(abs(price - pdh) / atr, 4)
@@ -2908,7 +2917,7 @@ def _calculate_atr14_from_eod(candles: list[dict], period: int = 14) -> float:
     3. Subsequent ATR = ((Prior ATR * (period-1)) + Current TR) / period
     """
     period_eff = max(int(period), 1)
-    parsed: list[tuple[str, float, float, float]] = []
+    parsed: list[tuple[date, float, float, float]] = []
     for c in candles:
         d = str(c.get("date") or "")
         if not d:
@@ -2918,7 +2927,9 @@ def _calculate_atr14_from_eod(candles: list[dict], period: int = 14) -> float:
         close = _to_float(c.get("close"), default=float("nan"))
         if any(math.isnan(x) for x in (high, low, close)):  # NaN check
             continue
-        parsed.append((d, high, low, close))
+        d_parsed = _parse_calendar_date(d)
+        if d_parsed is not None:
+            parsed.append((d_parsed, high, low, close))
 
     if len(parsed) < period_eff:  # Need at least `period` bars for first ATR seed
         return 0.0
@@ -3120,12 +3131,19 @@ def _fetch_symbol_atr(
         momentum_z = _momentum_z_score_from_eod(candles, period=50)
         latest_vwap: float | None = None
         avg_volume_fallback: float = 0.0
-        rows = [c for c in candles if str(c.get("date") or "")]
-        if rows:
-            rows.sort(key=lambda c: str(c.get("date") or ""))
-            vwap_raw = _to_float(rows[-1].get("vwap"), default=0.0)
+        parsed_rows = []
+        for c in candles:
+            d_str = str(c.get("date") or "")
+            if d_str:
+                d_parsed = _parse_calendar_date(d_str)
+                if d_parsed is not None:
+                    parsed_rows.append((d_parsed, c))
+        if parsed_rows:
+            parsed_rows.sort(key=lambda x: x[0])
+            sorted_candles = [x[1] for x in parsed_rows]
+            vwap_raw = _to_float(sorted_candles[-1].get("vwap"), default=0.0)
             latest_vwap = vwap_raw if vwap_raw > 0.0 else None
-            last_n = rows[-20:]
+            last_n = sorted_candles[-20:]
             vol_values = [
                 _to_float(c.get("volume"), default=0.0)
                 for c in last_n

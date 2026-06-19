@@ -6,6 +6,14 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-06-19) — Open-prep pdh/pdl strictly previous-day + mixed date sorting (PR #2855)
+
+**Strict previous-day pdh/pdl fields (B9)**
+- `open_prep/run_open_prep.py` (`_add_pdh_pdl_context`): Strictly use previous day values, excluding today's session `dayHigh` or `dayLow` fallbacks, to prevent off-by-one session index shifts in distance metrics. Added separate `current_day_high` and `current_day_low` fields for current intraday session.
+
+**Chronological sorting of heterogeneous date formats (B10)**
+- `open_prep/run_open_prep.py`: Replaced string-based date sorting with `_parse_calendar_date` parsed date objects in `_momentum_z_score_from_eod`, `_calculate_atr14_from_eod`, and `_fetch_symbol_atr`. Prevents sorting errors caused by mismatched formats (e.g., YYYY-M-D vs YYYY-MM-DD).
+
 ### Fixed (2026-06-18) — TV automation async-race fix + token/corpus hardening (PR #2843)
 
 **TV-automation — async "My scripts" rows (run #456 RCA)**
