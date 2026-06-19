@@ -34,6 +34,7 @@ import datetime
 import json
 import logging
 import math
+import threading
 import time
 from typing import Any
 
@@ -47,25 +48,41 @@ logger = logging.getLogger(__name__)
 
 _news_cache: dict[str, Any] = {}
 _news_loaded_at: float = 0.0
+_news_checked_at: float = 0.0
+_news_lock = threading.Lock()
 
 def _load_news_snapshot() -> dict[str, Any]:
-    global _news_cache, _news_loaded_at
-    path = config.news_snapshot_path()
-    if _news_loaded_at > 0.0 and time.monotonic() - _news_loaded_at < config.news_cache_ttl_secs():
-        return _news_cache
-    if not path.exists():
-        _news_cache = {}
-        _news_loaded_at = time.monotonic()
-        return {}
-    try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-        _news_cache = raw if isinstance(raw, dict) else {}
-        _news_loaded_at = time.monotonic()
-    except Exception:
-        logger.warning("Failed to load news snapshot from %s", path, exc_info=True)
-        _news_cache = {}
-        _news_loaded_at = time.monotonic()
-    return _news_cache
+    global _news_cache, _news_loaded_at, _news_checked_at
+    with _news_lock:
+        path = config.news_snapshot_path()
+        now = time.monotonic()
+        ttl = config.news_cache_ttl_secs()
+
+        # Happy path: we already have a successful load within the TTL.
+        if _news_loaded_at > 0.0 and now - _news_loaded_at < ttl:
+            return dict(_news_cache)
+
+        # Rate-limit all read attempts (success or failure) so a missing file
+        # or corrupted JSON does not generate a read/log storm.  We keep
+        # _news_loaded_at for *successful* loads only; that way a snapshot that
+        # appears after an earlier "file not found" is picked up as soon as the
+        # rate-limit window expires instead of being ignored for the full TTL.
+        if _news_checked_at > 0.0 and now - _news_checked_at < ttl:
+            return dict(_news_cache)
+
+        _news_checked_at = now
+
+        if not path.exists():
+            _news_cache = {}
+            return {}
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            _news_cache = raw if isinstance(raw, dict) else {}
+            _news_loaded_at = now
+        except Exception:
+            logger.warning("Failed to load news snapshot from %s", path, exc_info=True)
+            _news_cache = {}
+        return dict(_news_cache)
 
 
 def _get_news_fields(symbol: str) -> dict[str, Any]:
