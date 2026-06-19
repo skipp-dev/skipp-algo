@@ -506,6 +506,52 @@ class TestHealthStatusSignals:
         assert payload["overlay_fresh"] is False
 
 
+class TestSmcLiveSerializationSafety:
+    """smc_live should never emit non-finite numbers into JSONResponse."""
+
+    def test_smc_live_replaces_non_finite_payload_floats_with_null(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import services.live_overlay_daemon.main as main_mod
+
+        monkeypatch.setattr(main_mod.config, "overlay_secret_token", lambda: "tok")
+        monkeypatch.setattr(main_mod.cache, "overlay_age_secs", lambda: 1.0)
+        monkeypatch.setattr(main_mod.config, "max_stale_secs", lambda: 3600)
+        monkeypatch.setattr(
+            main_mod.cache,
+            "get_overlay",
+            lambda _sym: {
+                "schema": "smc-live-overlay/1",
+                "symbol": "AAPL",
+                "asof_ts": 1,
+                "stale": False,
+                "news_strength": None,
+                "news_bias": None,
+                "flow_rel_vol": float("nan"),
+                "flow_delta_proxy_pct": 0.0,
+                "squeeze_on": 0,
+                "ats_state": "neutral",
+                "ats_zscore": float("inf"),
+                "vix_level": float("-inf"),
+                "tone": "NEUTRAL",
+                "global_heat": 0.0,
+                "event_window_state": "normal",
+                "event_risk_level": "low",
+                "next_event_name": None,
+                "next_event_time": None,
+                "market_event_blocked": False,
+                "symbol_event_blocked": False,
+                "event_provider_status": "unavailable",
+            },
+        )
+
+        payload = json.loads(main_mod.smc_live(token="tok", symbol="aapl", tf="5m").body)
+
+        assert payload["flow_rel_vol"] is None
+        assert payload["ats_zscore"] is None
+        assert payload["vix_level"] is None
+
+
 # ---------------------------------------------------------------------------
 # N1/N2: stop() and circuit-breaker clear _feed_ready
 # ---------------------------------------------------------------------------
