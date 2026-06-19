@@ -650,7 +650,7 @@ def _momentum_z_score_from_eod(candles: list[dict], period: int = 50) -> float:
     for candle in candles:
         d = str(candle.get("date") or "")
         close = _to_float(candle.get("close"), default=float("nan"))
-        if d and not math.isnan(close) and close > 0.0:  # NaN-safe check
+        if d and math.isfinite(close) and close > 0.0:
             parsed = _parse_calendar_date(d)
             if parsed is not None:
                 rows.append((parsed, close))
@@ -665,7 +665,10 @@ def _momentum_z_score_from_eod(candles: list[dict], period: int = 50) -> float:
         cur = closes[idx]
         if prev <= 0.0:
             continue
-        returns.append((cur - prev) / prev)
+        ret = (cur - prev) / prev
+        if not math.isfinite(ret):
+            continue
+        returns.append(ret)
 
     if len(returns) < 2:
         return 0.0
@@ -676,12 +679,18 @@ def _momentum_z_score_from_eod(candles: list[dict], period: int = 50) -> float:
         # Bessel's correction with n<5 can produce extreme values.
         return 0.0
     mean_ret = sum(window) / float(len(window))
+    if not math.isfinite(mean_ret):
+        return 0.0
     variance = sum((r - mean_ret) ** 2 for r in window) / float(len(window) - 1)
+    if not math.isfinite(variance) or variance < 0.0:
+        return 0.0
     std_ret = variance**0.5
-    if std_ret <= 0.0:
+    if not math.isfinite(std_ret) or std_ret <= 0.0:
         return 0.0
 
     z = (window[-1] - mean_ret) / std_ret
+    if not math.isfinite(z):
+        return 0.0
     return float(round(max(min(z, 5.0), -5.0), 4))
 
 
@@ -698,12 +707,16 @@ def _add_pdh_pdl_context(quote: dict[str, Any]) -> None:
     atr = _to_float(quote.get("atr"), default=0.0)
 
     # Strictly use previous day values, excluding today's session high/low fallbacks.
+    def _valid_prev_day_level(key: str) -> bool:
+        value = _to_float(quote.get(key), default=0.0)
+        return value > 0.0 and math.isfinite(value)
+
     pdh_source = next(
-        (k for k in ("previousDayHigh", "prevDayHigh", "pdh") if _to_float(quote.get(k), default=0.0) > 0.0),
+        (k for k in ("previousDayHigh", "prevDayHigh", "pdh") if _valid_prev_day_level(k)),
         None,
     )
     pdl_source = next(
-        (k for k in ("previousDayLow", "prevDayLow", "pdl") if _to_float(quote.get(k), default=0.0) > 0.0),
+        (k for k in ("previousDayLow", "prevDayLow", "pdl") if _valid_prev_day_level(k)),
         None,
     )
     pdh = _to_float(quote.get(pdh_source), default=0.0) if pdh_source else 0.0
@@ -750,24 +763,58 @@ def _parse_calendar_date(value: Any) -> date | None:
     raw = str(value or "").strip()
     if not raw:
         return None
-    normalized = raw.replace("Z", "+00:00")
-    try:
-        return datetime.fromisoformat(normalized).date()
-    except ValueError:
-        pass
+
+    # Strict ISO date only (YYYY-MM-DD)
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", raw):
+        try:
+            return date.fromisoformat(raw)
+        except ValueError:
+            return None
+
+    # Non-zero-padded date (YYYY-M-D or YYYY-MM-D or YYYY-M-DD) emitted by
+    # some providers.  Normalise to zero-padded before parsing so that mixed
+    # format batches sort correctly after the B10 fix.
+    m = re.fullmatch(r"(\d{4})-(\d{1,2})-(\d{1,2})", raw)
+    if m:
+        try:
+            return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        except ValueError:
+            return None
+
+    # Strict ISO datetime (YYYY-MM-DD[T| ]HH:MM[:SS[.ffffff]][Z|±HH:MM])
+    if re.fullmatch(
+        r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?(?:Z|[+-]\d{2}:\d{2})?",
+        raw,
+    ):
+        normalized = raw.replace("Z", "+00:00")
+        try:
+            return datetime.fromisoformat(normalized).date()
+        except ValueError:
+            return None
+
+    return None
+
+
+def _calendar_date_sort_key(value: Any) -> tuple[int, date, str]:
+    """Return a robust sort key for heterogeneous provider date formats.
+
+    Primary path uses strict ISO parsing via ``_parse_calendar_date``.
+    Fallback path is intentionally broader and used *only* for ordering legacy
+    provider rows that still emit formats like YYYY-M-D or MM/DD/YYYY.
+    """
+    raw = str(value or "").strip()
+    parsed = _parse_calendar_date(raw)
+    if parsed is not None:
+        return (0, parsed, raw)
 
     date_part = raw.split("T")[0].split(" ")[0]
-    try:
-        return date.fromisoformat(date_part)
-    except ValueError:
-        pass
-
-    for fmt in ("%m/%d/%Y", "%m-%d-%Y", "%Y/%m/%d"):
+    for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%m/%d/%Y", "%m-%d-%Y"):
         try:
-            return datetime.strptime(date_part, fmt).date()
+            return (0, datetime.strptime(date_part, fmt).date(), raw)
         except ValueError:
             continue
-    return None
+
+    return (1, date.max, raw)
 
 
 def _parse_calendar_timestamp(value: Any) -> float | None:
@@ -2925,7 +2972,9 @@ def _calculate_atr14_from_eod(candles: list[dict], period: int = 14) -> float:
         high = _to_float(c.get("high"), default=float("nan"))
         low = _to_float(c.get("low"), default=float("nan"))
         close = _to_float(c.get("close"), default=float("nan"))
-        if any(math.isnan(x) for x in (high, low, close)):  # NaN check
+        if not all(math.isfinite(x) for x in (high, low, close)):
+            continue
+        if high <= 0.0 or low <= 0.0 or close <= 0.0 or high < low:
             continue
         d_parsed = _parse_calendar_date(d)
         if d_parsed is not None:
@@ -3129,6 +3178,8 @@ def _fetch_symbol_atr(
 
         atr_value = _calculate_atr14_from_eod(candles, period=atr_period)
         momentum_z = _momentum_z_score_from_eod(candles, period=50)
+        if not math.isfinite(momentum_z):
+            momentum_z = 0.0
         latest_vwap: float | None = None
         avg_volume_fallback: float = 0.0
         parsed_rows = []
@@ -3142,12 +3193,13 @@ def _fetch_symbol_atr(
             parsed_rows.sort(key=lambda x: x[0])
             sorted_candles = [x[1] for x in parsed_rows]
             vwap_raw = _to_float(sorted_candles[-1].get("vwap"), default=0.0)
-            latest_vwap = vwap_raw if vwap_raw > 0.0 else None
+            latest_vwap = vwap_raw if vwap_raw > 0.0 and math.isfinite(vwap_raw) else None
             last_n = sorted_candles[-20:]
             vol_values = [
                 _to_float(c.get("volume"), default=0.0)
                 for c in last_n
                 if _to_float(c.get("volume"), default=0.0) > 0.0
+                and math.isfinite(_to_float(c.get("volume"), default=0.0))
             ]
             if vol_values:
                 avg_volume_fallback = round(sum(vol_values) / len(vol_values), 4)
@@ -5324,7 +5376,9 @@ def generate_open_prep_result(
                 "eps_actual": item.get("epsActual"),
                 "revenue_actual": item.get("revenueActual"),
             })
-        earnings_calendar.sort(key=lambda x: (x.get("date") or "", x.get("symbol") or ""))
+        earnings_calendar.sort(
+            key=lambda x: (_calendar_date_sort_key(x.get("date")), str(x.get("symbol") or "")),
+        )
     except Exception as exc:
         logger.warning("Earnings calendar (6-day) fetch failed: %s", type(exc).__name__, exc_info=True)
 
@@ -5563,7 +5617,12 @@ def generate_open_prep_result(
                     maybe_hist = bars_raw.get("historical")
                     bars_raw = maybe_hist if isinstance(maybe_hist, list) else []
                 if isinstance(bars_raw, list) and len(bars_raw) >= 10:
-                    bars_sorted = sorted(bars_raw, key=lambda b: str(b.get("date", "")))
+                    bars_sorted = sorted(
+                        bars_raw,
+                        key=lambda b: _calendar_date_sort_key(
+                            b.get("date") if b.get("date") is not None else b.get("datetime"),
+                        ),
+                    )
                     return sym, bars_sorted
             except Exception as exc:
                 logger.debug("Breakout enrichment: failed to fetch bars for %s: %s", sym, exc)
