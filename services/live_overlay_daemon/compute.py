@@ -109,17 +109,21 @@ def _get_news_fields(symbol: str) -> dict[str, Any]:
                 out.append(ticker)
         return out
 
-    def _score(story: dict[str, Any]) -> float:
-        """Prefer sentiment_score when present (including 0.0), else news_score."""
+    def _score(story: dict[str, Any]) -> float | None:
+        """Prefer sentiment_score when present (including 0.0), else news_score.
+
+        Invalid/non-finite values are treated as missing (None), not as a
+        neutral 0.0 sample.
+        """
         if "sentiment_score" in story and story.get("sentiment_score") is not None:
             if (score := _coerce_finite_float(story["sentiment_score"])) is not None:
                 return score
-            return 0.0
+            return None
         if "news_score" in story and story.get("news_score") is not None:
             if (score := _coerce_finite_float(story["news_score"])) is not None:
                 return score
-            return 0.0
-        return 0.0
+            return None
+        return None
 
     scores: list[float] = []
     for story in stories:
@@ -128,7 +132,8 @@ def _get_news_fields(symbol: str) -> dict[str, Any]:
         tickers = _normalize_tickers(story.get("tickers"))
         if sym_upper not in tickers:
             continue
-        scores.append(_score(story))
+        if (score := _score(story)) is not None:
+            scores.append(score)
 
     if not scores:
         return {"news_strength": None, "news_bias": None}
@@ -149,19 +154,25 @@ def _get_global_news_fields() -> dict[str, Any]:
     if not story_dicts:
         return {"tone": "NEUTRAL", "global_heat": None}
 
-    def _score(story: dict[str, Any]) -> float:
-        """Prefer sentiment_score when present (including 0.0), else news_score."""
+    def _score(story: dict[str, Any]) -> float | None:
+        """Prefer sentiment_score when present (including 0.0), else news_score.
+
+        Invalid/non-finite values are treated as missing (None), not as a
+        neutral 0.0 sample.
+        """
         if "sentiment_score" in story and story.get("sentiment_score") is not None:
             if (score := _coerce_finite_float(story["sentiment_score"])) is not None:
                 return score
-            return 0.0
+            return None
         if "news_score" in story and story.get("news_score") is not None:
             if (score := _coerce_finite_float(story["news_score"])) is not None:
                 return score
-            return 0.0
-        return 0.0
+            return None
+        return None
 
-    scores = [_score(s) for s in story_dicts]
+    scores = [score for s in story_dicts if (score := _score(s)) is not None]
+    if not scores:
+        return {"tone": "NEUTRAL", "global_heat": None}
     avg = sum(scores) / len(scores)
     # global_heat: directional [-1, 1] per smc-live-overlay/1 schema
     heat = round(max(-1.0, min(1.0, avg)), 4)
