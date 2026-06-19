@@ -13,6 +13,7 @@ Design notes:
 from __future__ import annotations
 
 import logging
+import math
 import threading
 import time
 from collections import deque
@@ -47,8 +48,19 @@ def init_bar_cache(rolling_bars: int, *, max_symbols: int = 2000) -> None:
     global _rolling_bars_cap, _max_symbols
     if max_symbols < 1:
         raise ValueError(f"max_symbols must be >= 1, got {max_symbols}")
-    _rolling_bars_cap = rolling_bars
-    _max_symbols = max_symbols
+    with _bar_lock:
+        _rolling_bars_cap = rolling_bars
+        _max_symbols = max_symbols
+        # Apply updated rolling cap to existing symbol deques as well, so a
+        # runtime reconfiguration is reflected immediately for already-tracked
+        # symbols.
+        if _bars:
+            for sym, dq in list(_bars.items()):
+                _bars[sym] = deque(dq, maxlen=_rolling_bars_cap)
+            # Downscaling max_symbols must enforce the hard cap immediately.
+            overshoot = len(_bars) - _max_symbols
+            if overshoot > 0:
+                _evict_n_stale_symbols_locked(overshoot)
 
 
 def push_bar(symbol: str, bar: dict[str, Any]) -> None:
@@ -61,7 +73,10 @@ def push_bar(symbol: str, bar: dict[str, Any]) -> None:
             _last_eviction_at = now
         need_cap_evict = symbol not in _bars and len(_bars) >= _max_symbols
         if need_cap_evict:
-            _evict_stale_symbols_locked()
+            # Evict exactly the required overshoot (+1 for the incoming symbol)
+            # in a single stale-sort pass to keep lock hold time bounded.
+            overshoot_plus_incoming = (len(_bars) - _max_symbols) + 1
+            _evict_n_stale_symbols_locked(overshoot_plus_incoming)
             _last_eviction_at = now
         if symbol not in _bars:
             _bars[symbol] = deque(maxlen=_rolling_bars_cap)
@@ -103,9 +118,17 @@ def total_bar_count() -> int:
 
 def _evict_stale_symbols_locked() -> None:
     """Evict the 10% least-recently-updated symbols. Caller MUST hold _bar_lock."""
+    n_evict = max(1, len(_bars) // 10)
+    _evict_n_stale_symbols_locked(n_evict)
+
+
+def _evict_n_stale_symbols_locked(n_evict: int) -> None:
+    """Evict N least-recently-updated symbols. Caller MUST hold _bar_lock."""
     if not _bar_last_update:
         return
-    n_evict = max(1, len(_bars) // 10)
+    n_evict = max(0, min(n_evict, len(_bars)))
+    if n_evict == 0:
+        return
     victims = sorted(_bar_last_update, key=lambda s: _bar_last_update[s])[:n_evict]
     for sym in victims:
         _bars.pop(sym, None)
@@ -133,16 +156,37 @@ def get_overlay(symbol: str) -> dict[str, Any] | None:
         return dict(payload) if payload is not None else None
 
 
-def patch_overlay(symbol: str, updates: dict[str, Any]) -> None:
+def patch_overlay(
+    symbol: str,
+    updates: dict[str, Any],
+    *,
+    allow_none_keys: set[str] | None = None,
+) -> None:
     """Merge updates into an existing overlay entry (used for fast flow refresh).
 
     Only patches symbols that already have a full overlay payload; ignores
     symbols not yet computed to avoid serving incomplete payloads.
+
+    None values in *updates* are skipped by default so failed/uncomputable
+    refresh paths don't erase previously valid values. Callers can explicitly
+    allow None overwrite for selected keys via ``allow_none_keys`` when
+    ``None`` is the correct current-state value (for example, flow fields when
+    the latest bar is malformed).
     """
     with _overlay_lock:
         upper = symbol.upper()
         if upper in _overlay:
-            _overlay[upper].update(updates)
+            allowed_none = allow_none_keys or set()
+            _overlay[upper].update(
+                {
+                    k: v
+                    for k, v in updates.items()
+                    if (
+                        (v is not None or k in allowed_none)
+                        and not ((isinstance(v, float) and not math.isfinite(v)) or (v.__class__.__name__ == "Decimal" and hasattr(v, "is_finite") and (not bool(v.is_finite()))))
+                    )
+                }
+            )
 
 
 def overlay_age_secs() -> float:
@@ -163,8 +207,11 @@ def overlay_symbol_count() -> int:
 # ---------------------------------------------------------------------------
 
 def set_vix(level: float) -> None:
+    global _vix_level
+    if not math.isfinite(level):
+        logger.warning("Ignoring non-finite VIX level: %r", level)
+        return
     with _vix_lock:
-        global _vix_level
         _vix_level = level
 
 

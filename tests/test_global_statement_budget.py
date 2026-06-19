@@ -132,9 +132,11 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # WP-H (PR #2612): lines shifted 184/192/200 -> 186/194/202 by the
         # ``import math``/``import threading`` + VIX overlay helper block added
         # above the lazy provider getters in smc_api.py.
-        ("smc_tv_bridge/smc_api.py", 186, ("_candle_provider",)),
-        ("smc_tv_bridge/smc_api.py", 194, ("_regime_provider",)),
-        ("smc_tv_bridge/smc_api.py", 202, ("_tech_provider",)),
+        # 2026-06-19 (timeframe expansion): added 10m/30m map entries,
+        # shifting provider-global sites 186/194/202 -> 192/200/208.
+        ("smc_tv_bridge/smc_api.py", 192, ("_candle_provider",)),
+        ("smc_tv_bridge/smc_api.py", 200, ("_regime_provider",)),
+        ("smc_tv_bridge/smc_api.py", 208, ("_tech_provider",)),
         (
             "streamlit_terminal.py",
             599,
@@ -170,30 +172,63 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # 2026-06-10 (#2670 W3): TechnicalResult gained a `source` field +
         # dc_replace import, shifting the four global sites +6 (212/213/245/262
         # -> 218/219/251/268).
-        ("terminal_technicals.py", 219, ("_tv_consecutive_429s", "_tv_cooldown_until")),
+        # 2026-06-19 (timeframe expansion): added 10m map/default interval,
+        # shifting these global sites 219/220/252/269 -> 220/221/253/270.
+        ("terminal_technicals.py", 220, ("_tv_consecutive_429s", "_tv_cooldown_until")),
         (
             "terminal_technicals.py",
-            220,
+            221,
             ("_tv_last_429_log_key", "_tv_last_429_log_ts", "_tv_suppressed_429_logs"),
         ),
-        ("terminal_technicals.py", 252, ("_tv_consecutive_429s",)),
-        ("terminal_technicals.py", 269, ("_tv_cooldown_ended_at", "_tv_last_call_ts")),
+        ("terminal_technicals.py", 253, ("_tv_consecutive_429s",)),
+        ("terminal_technicals.py", 270, ("_tv_cooldown_ended_at", "_tv_last_call_ts")),
         ("terminal_tradingview_news.py", 403, ("_last_request_ts",)),
         # 2026-06-16 (feat/live-overlay-daemon): daemon singletons guarded by
         # threading.Lock() per concurrency-shared-mutables guideline.
         # 2026-06-17 (fix/overlay-daemon-robustness): shifted by logging import,
         # eviction helpers, circuit-breaker, readiness event, configurable TTL.
         # 2026-07-07 (fix/cache-eviction): added _last_eviction_at (L5).
-        ("services/live_overlay_daemon/cache.py", 47, ("_max_symbols", "_rolling_bars_cap")),
-        ("services/live_overlay_daemon/cache.py", 56, ("_last_eviction_at",)),
-        ("services/live_overlay_daemon/cache.py", 122, ("_overlay_computed_at",)),
-        ("services/live_overlay_daemon/cache.py", 167, ("_vix_level",)),
-        ("services/live_overlay_daemon/compute.py", 52, ("_news_cache", "_news_loaded_at")),
+        # 2026-06-19 (fix/live-overlay-post-merge-bugs): init_bar_cache gained
+        # runtime deque-cap migration for existing symbols, shifting cache.py
+        # global statements to 63/129/178.
+        # 2026-06-19 (bug-hunt hardcap): immediate downscale cap-enforcement and
+        # single-pass cap-eviction in push_bar shifted cache.py global lines to
+        # 67/144/193.
+        # 2026-06-19 (bug-hunt follow-up): patch_overlay gained explicit
+        # allow_none_keys semantics for flow-field stale-state fixes, shifting
+        # cache.py set_vix global line 198 -> 210.
+        ("services/live_overlay_daemon/cache.py", 48, ("_max_symbols", "_rolling_bars_cap")),
+        ("services/live_overlay_daemon/cache.py", 68, ("_last_eviction_at",)),
+        ("services/live_overlay_daemon/cache.py", 145, ("_overlay_computed_at",)),
+        ("services/live_overlay_daemon/cache.py", 210, ("_vix_level",)),
+        # 2026-06-19 (fix/live-overlay-post-merge-bugs): separate _news_checked_at
+        # from _news_loaded_at so missing-file rate-limiting does not pin the
+        # success cache for the full TTL when a snapshot appears later.
+        # 2026-06-19 (bug-hunt): added _news_lock + with-block around
+        # _load_news_snapshot cache mutation for atomic state transitions.
+        ("services/live_overlay_daemon/compute.py", 55, ("_news_cache", "_news_checked_at", "_news_loaded_at")),
         # 2026-06-19 (fix/live-overlay-daemon-security, C2): `import atexit`
         # added at the top of feed.py shifted both globals down by one line.
-        ("services/live_overlay_daemon/feed.py", 179, ("_last_bar_at",)),
-        ("services/live_overlay_daemon/feed.py", 281, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
-        ("services/live_overlay_daemon/main.py", 49, ("_startup_ts",)),
+        # 2026-06-19 (fix/live-overlay-post-merge-bugs): 2-line VIX comment
+        # insertion at ~L184 shifted the start() global down by 2 more lines.
+        # 2026-06-19 (bug-hunt): _record_to_bar extracted _price helper
+        # with Optional semantics for missing OHLC attributes, shifting
+        # feed.py global statement lines by +5.
+        # 2026-06-19 (bug-hunt follow-up): non-retryable config fail-fast path
+        # in _run_feed_loop shifted feed.py global lines to 193/297.
+        # 2026-06-19 (PR #2860 follow-up): extracted _maybe_cache_vix helper,
+        # shifting feed.py global statement line numbers.
+        # 2026-06-19 (Copilot follow-up): feed metrics counters/helpers added,
+        # shifting feed.py global statement line numbers to 218/324.
+        # 2026-06-19 (telemetry): from .observability import metric_counter +
+        # _inc_metric body expansion shifted globals to 221/329.
+        ("services/live_overlay_daemon/feed.py", 221, ("_last_bar_at",)),
+        ("services/live_overlay_daemon/feed.py", 329, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        # 2026-06-19 (fix/live-overlay-post-merge-bugs): added non-finite JSON
+        # sanitization helper and related imports, shifting _startup_ts line.
+        # 2026-06-19 (Copilot follow-up): _VALID_TFS contract alignment shifted
+        # surrounding code; current _startup_ts global line is 63.
+        ("services/live_overlay_daemon/main.py", 63, ("_startup_ts",)),
     }
 )
 

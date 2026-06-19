@@ -151,6 +151,7 @@ def test_fvg_bias_counter_direction_matches_sign(seed: int) -> None:
     (
         ("1m", "D"),
         ("5m", "D"),
+        ("10m", "D"),
         ("15m", "D"),
         ("30m", "D"),
         ("1H", "D"),

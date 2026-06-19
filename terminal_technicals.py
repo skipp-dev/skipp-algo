@@ -34,6 +34,7 @@ if _TV_AVAILABLE:
     INTERVAL_MAP = {
         "1m": Interval.INTERVAL_1_MINUTE,
         "5m": Interval.INTERVAL_5_MINUTES,
+        "10m": getattr(Interval, "INTERVAL_10_MINUTES", "10m"),
         "15m": Interval.INTERVAL_15_MINUTES,
         "30m": Interval.INTERVAL_30_MINUTES,
         "1h": Interval.INTERVAL_1_HOUR,
@@ -584,7 +585,7 @@ def fetch_multi_interval(
     Returns a dict keyed by interval label.
     """
     if intervals is None:
-        intervals = ["1m", "5m", "15m", "30m", "1h", "2h", "4h", "1D", "1W", "1M"]
+        intervals = ["1m", "5m", "10m", "15m", "30m", "1h", "2h", "4h", "1D", "1W", "1M"]
     return {iv: fetch_technicals(symbol, iv) for iv in intervals}
 
 

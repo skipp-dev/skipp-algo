@@ -42,7 +42,7 @@ def compute_fvg_bias_counter(df: pd.DataFrame) -> list[dict]:
 
 def select_ipda_htf(chart_tf: str) -> str:
     normalized = str(chart_tf).strip()
-    intraday_short = {"1m", "5m", "15m", "30m", "1H", "2H"}
+    intraday_short = {"1m", "5m", "10m", "15m", "30m", "1H", "2H"}
     intraday_long = {"3H", "4H", "6H", "8H", "12H"}
 
     if normalized in intraday_short:

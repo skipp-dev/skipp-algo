@@ -34,10 +34,11 @@ import datetime
 import json
 import logging
 import math
+import threading
 import time
 from typing import Any
 
-from . import cache, config
+from . import cache, config, observability
 
 logger = logging.getLogger(__name__)
 
@@ -47,24 +48,41 @@ logger = logging.getLogger(__name__)
 
 _news_cache: dict[str, Any] = {}
 _news_loaded_at: float = 0.0
+_news_checked_at: float = 0.0
+_news_lock = threading.Lock()
 
 def _load_news_snapshot() -> dict[str, Any]:
-    global _news_cache, _news_loaded_at
-    path = config.news_snapshot_path()
-    if time.monotonic() - _news_loaded_at < config.news_cache_ttl_secs() and _news_cache:
-        return _news_cache
-    if not path.exists():
-        _news_cache = {}
-        _news_loaded_at = time.monotonic()
-        return {}
-    try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-        _news_cache = raw if isinstance(raw, dict) else {}
-        _news_loaded_at = time.monotonic()
-    except Exception:
-        logger.warning("Failed to load news snapshot from %s", path, exc_info=True)
-        _news_cache = {}
-    return _news_cache
+    global _news_cache, _news_loaded_at, _news_checked_at
+    with _news_lock:
+        path = config.news_snapshot_path()
+        now = time.monotonic()
+        ttl = config.news_cache_ttl_secs()
+
+        # Happy path: we already have a successful load within the TTL.
+        if _news_loaded_at > 0.0 and now - _news_loaded_at < ttl:
+            return dict(_news_cache)
+
+        # Rate-limit all read attempts (success or failure) so a missing file
+        # or corrupted JSON does not generate a read/log storm.  We keep
+        # _news_loaded_at for *successful* loads only; that way a snapshot that
+        # appears after an earlier "file not found" is picked up as soon as the
+        # rate-limit window expires instead of being ignored for the full TTL.
+        if _news_checked_at > 0.0 and now - _news_checked_at < ttl:
+            return dict(_news_cache)
+
+        _news_checked_at = now
+
+        if not path.exists():
+            _news_cache = {}
+            return {}
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            _news_cache = raw if isinstance(raw, dict) else {}
+            _news_loaded_at = now
+        except Exception:
+            logger.warning("Failed to load news snapshot from %s", path, exc_info=True)
+            _news_cache = {}
+        return dict(_news_cache)
 
 
 def _get_news_fields(symbol: str) -> dict[str, Any]:
@@ -73,13 +91,52 @@ def _get_news_fields(symbol: str) -> dict[str, Any]:
     stories = snap.get("stories") or snap.get("items") or []
     sym_upper = symbol.upper()
 
+    def _normalize_tickers(raw: Any) -> list[str]:
+        """Normalize story tickers to a safe uppercase ticker list."""
+        if isinstance(raw, str):
+            raw_items: list[Any] = [raw]
+        elif isinstance(raw, (list, tuple, set)):
+            raw_items = raw
+        else:
+            return []
+
+        out: list[str] = []
+        for item in raw_items:
+            if not isinstance(item, str):
+                continue
+            ticker = item.strip().upper()
+            if ticker:
+                out.append(ticker)
+        return out
+
+    def _score(story: dict[str, Any]) -> float | None:
+        """Prefer sentiment_score when present (including 0.0), else news_score.
+
+        Invalid/non-finite values are treated as missing (None), not as a
+        neutral 0.0 sample.
+        """
+        if "sentiment_score" in story and story.get("sentiment_score") is not None:
+            if (score := _coerce_finite_float(story["sentiment_score"])) is not None:
+                return score
+            # Malformed sentiment_score should not mask a valid news_score.
+            if "news_score" in story and story.get("news_score") is not None:
+                return _coerce_finite_float(story["news_score"])
+            return None
+        if "news_score" in story and story.get("news_score") is not None:
+            if (score := _coerce_finite_float(story["news_score"])) is not None:
+                return score
+            return None
+        return None
+
     scores: list[float] = []
     for story in stories:
-        tickers = story.get("tickers") or []
-        if sym_upper not in [t.upper() for t in tickers]:
+        if not isinstance(story, dict):
             continue
-        score = float(story.get("sentiment_score") or story.get("news_score") or 0.0)
-        scores.append(score)
+        tickers = _normalize_tickers(story.get("tickers"))
+        if sym_upper not in tickers:
+            continue
+        if (score := _score(story)) is not None:
+            scores.append(score)
 
     if not scores:
         return {"news_strength": None, "news_bias": None}
@@ -96,13 +153,32 @@ def _get_global_news_fields() -> dict[str, Any]:
     """Compute market-wide tone and global_heat from the full news snapshot."""
     snap = _load_news_snapshot()
     stories = snap.get("stories") or snap.get("items") or []
-    if not stories:
+    story_dicts = [s for s in stories if isinstance(s, dict)]
+    if not story_dicts:
         return {"tone": "NEUTRAL", "global_heat": None}
 
-    scores = [
-        float(s.get("sentiment_score") or s.get("news_score") or 0.0)
-        for s in stories
-    ]
+    def _score(story: dict[str, Any]) -> float | None:
+        """Prefer sentiment_score when present (including 0.0), else news_score.
+
+        Invalid/non-finite values are treated as missing (None), not as a
+        neutral 0.0 sample.
+        """
+        if "sentiment_score" in story and story.get("sentiment_score") is not None:
+            if (score := _coerce_finite_float(story["sentiment_score"])) is not None:
+                return score
+            # Malformed sentiment_score should not mask a valid news_score.
+            if "news_score" in story and story.get("news_score") is not None:
+                return _coerce_finite_float(story["news_score"])
+            return None
+        if "news_score" in story and story.get("news_score") is not None:
+            if (score := _coerce_finite_float(story["news_score"])) is not None:
+                return score
+            return None
+        return None
+
+    scores = [score for s in story_dicts if (score := _score(s)) is not None]
+    if not scores:
+        return {"tone": "NEUTRAL", "global_heat": None}
     avg = sum(scores) / len(scores)
     # global_heat: directional [-1, 1] per smc-live-overlay/1 schema
     heat = round(max(-1.0, min(1.0, avg)), 4)
@@ -129,24 +205,69 @@ def _safe_std(vals: list[float]) -> float:
     return math.sqrt(sum((v - mean) ** 2 for v in vals) / (n - 1))
 
 
+def _coerce_finite_float(v: Any) -> float | None:
+    """Coerce value to finite float, returning None on invalid/non-finite input."""
+    if v is None:
+        return None
+    # bool is a subclass of int in Python, but True/False in OHLC/volume fields
+    # indicates malformed provider data and must not be interpreted as 1.0/0.0.
+    if isinstance(v, bool):
+        return None
+    try:
+        coerced = float(v)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(coerced):
+        return None
+    return coerced
+
+
+def _coerce_volume(v: Any) -> float | None:
+    """Coerce a volume field value to float, returning None on failure.
+
+    Accepts int, float, and numeric strings (e.g. '100' from schema drift).
+    Returns None for None, empty string, negative values, non-finite values
+    (NaN/Inf), or
+    any non-numeric value so that
+    callers can safely skip the bar instead of crashing.
+    """
+    coerced = _coerce_finite_float(v)
+    if coerced is None:
+        return None
+    if coerced < 0:
+        return None
+    return coerced
+
+
 def compute_flow_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:
     """Compute flow_rel_vol, flow_delta_proxy_pct from bar list."""
     if not bars:
         return {"flow_rel_vol": None, "flow_delta_proxy_pct": None}
 
-    volumes = [b["volume"] for b in bars if b.get("volume") is not None]
-    avg_vol = _safe_mean(volumes[:-1]) if len(volumes) > 1 else None
-    last_vol = volumes[-1] if volumes else None
+    # Anchor volume ratio to the CURRENT (last) bar.  If the last bar has no
+    # volume we must NOT fall back to bars[-2].volume — that would silently
+    # report a one-bar-stale ratio alongside the current bar's price delta.
+    # _coerce_volume also guards against string volumes from schema-drift producers.
+    last_bar = bars[-1]
+    last_vol: float | None = _coerce_volume(last_bar.get("volume"))
+    if last_vol is not None:
+        prior_volumes = [
+            fv
+            for b in bars[:-1]
+            if (fv := _coerce_volume(b.get("volume"))) is not None
+        ]
+        avg_vol: float | None = _safe_mean(prior_volumes) if prior_volumes else None
+    else:
+        avg_vol = None
 
     flow_rel_vol: float | None = None
     if avg_vol and avg_vol > 0 and last_vol is not None:
         flow_rel_vol = round(last_vol / avg_vol, 4)
 
-    last_bar = bars[-1]
-    open_ = last_bar.get("open")
-    close_ = last_bar.get("close")
+    open_ = _coerce_finite_float(last_bar.get("open"))
+    close_ = _coerce_finite_float(last_bar.get("close"))
     flow_delta: float | None = None
-    if open_ and open_ > 0 and close_ is not None:
+    if open_ is not None and open_ > 0 and close_ is not None:
         flow_delta = round((close_ - open_) / open_ * 100, 4)
 
     return {"flow_rel_vol": flow_rel_vol, "flow_delta_proxy_pct": flow_delta}
@@ -155,18 +276,41 @@ def compute_flow_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:
 def compute_squeeze_on(bars: list[dict[str, Any]], period: int = 20) -> bool | None:
     """
     Squeeze = True when Bollinger Band width < Keltner Channel width.
-    Approximated here as: BB width < 1.5 × ATR (simplified single-symbol check).
-    """
-    closes = [b["close"] for b in bars if b.get("close") is not None]
-    highs = [b["high"] for b in bars if b.get("high") is not None]
-    lows = [b["low"] for b in bars if b.get("low") is not None]
+    Approximated here as: BB width < 2 × ATR (simplified single-symbol check).
 
-    if len(closes) < period or len(highs) < period or len(lows) < period:
+    Uses aligned filtering: only bars that have ALL of close, high, and low
+    are included, so the TR calculation is never computed from misaligned bars
+    (which would happen if each field were filtered independently).
+    """
+    # Build aligned triples so that closes_w[i], highs_w[i], lows_w[i]
+    # all refer to the SAME bar. Independent per-field filtering would
+    # produce cross-bar ATR when any bar in the window is missing a field.
+    triples: list[tuple[float, float, float]] = []
+    for b in bars:
+        close = _coerce_finite_float(b.get("close"))
+        high = _coerce_finite_float(b.get("high"))
+        low = _coerce_finite_float(b.get("low"))
+        if close is None or high is None or low is None:
+            continue
+        # Defensive: reject malformed bars where provider data violates OHLC
+        # ordering. Keeping such bars would create negative true ranges and
+        # can produce false-positive squeeze signals.
+        if high < low:
+            continue
+        # Defensive: close must lie inside [low, high]. Values outside this
+        # envelope indicate malformed OHLC bars and can produce false-positive
+        # squeeze signals (std close collapses while ATR remains positive).
+        if not (low <= close <= high):
+            continue
+        triples.append((close, high, low))
+
+    if len(triples) < period:
         return None
 
-    closes_w = closes[-period:]
-    highs_w = highs[-period:]
-    lows_w = lows[-period:]
+    window = triples[-period:]
+    closes_w = [t[0] for t in window]
+    highs_w = [t[1] for t in window]
+    lows_w = [t[2] for t in window]
 
     std_c = _safe_std(closes_w)
 
@@ -185,29 +329,51 @@ def compute_ats_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:
     ATS (Automatic Trading System) state:
       ats_state  — "accumulation" | "distribution" | "neutral"
       ats_zscore — z-score of most recent bar's volume vs rolling avg
+
+    All fields are anchored to bars[-1] to avoid cross-bar misalignment.
+    B19: if bars[-1] has no volume, zscore and state are both None.
+    B20: if bars[-1] has no close or open, state falls back to "neutral"
+         rather than using close/open from a different (prior) bar.
     """
-    volumes = [b["volume"] for b in bars if b.get("volume") is not None]
-    if len(volumes) < 5:
+    if not bars:
         return {"ats_state": None, "ats_zscore": None}
 
-    mean_v = sum(volumes[:-1]) / len(volumes[:-1])
-    std_v = _safe_std(volumes[:-1])
-    last_v = volumes[-1]
+    # Anchor to the CURRENT (last) bar — do not fall through to prior bars.
+    # _coerce_volume also guards against string volumes from schema-drift producers.
+    last_bar = bars[-1]
+    last_vol = _coerce_volume(last_bar.get("volume"))
+    if last_vol is None:
+        # Cannot compute a z-score for a bar with no volume.
+        return {"ats_state": None, "ats_zscore": None}
+
+    prior_vols = [
+        fv
+        for b in bars[:-1]
+        if (fv := _coerce_volume(b.get("volume"))) is not None
+    ]
+    if len(prior_vols) < 4:
+        # Need at least 4 prior bars (+ 1 current = 5 total) for a meaningful
+        # mean/std — matches the original ≥5-volume guard.
+        return {"ats_state": None, "ats_zscore": None}
+
+    mean_v = sum(prior_vols) / len(prior_vols)
+    std_v = _safe_std(prior_vols)
 
     zscore: float | None = None
     if std_v > 0:
-        zscore = round((last_v - mean_v) / std_v, 4)
+        zscore = round((last_vol - mean_v) / std_v, 4)
 
-    closes = [b["close"] for b in bars if b.get("close") is not None]
-    opens = [b["open"] for b in bars if b.get("open") is not None]
-    if len(closes) < 2 or len(opens) < 2:
+    last_open = _coerce_finite_float(last_bar.get("open"))
+    last_close = _coerce_finite_float(last_bar.get("close"))
+    if last_open is None or last_close is None:
+        # Cannot determine price direction for this bar; avoid cross-bar delta.
         state = "neutral"
     else:
-        # Simple heuristic: price trend × volume
-        price_delta = closes[-1] - opens[-1]
-        if price_delta > 0 and (zscore or 0) > 0.5:
+        # Simple heuristic: price trend × volume z-score
+        price_delta = last_close - last_open
+        if price_delta > 0 and (zscore or 0) >= 0.5:
             state = "accumulation"
-        elif price_delta < 0 and (zscore or 0) > 0.5:
+        elif price_delta < 0 and (zscore or 0) >= 0.5:
             state = "distribution"
         else:
             state = "neutral"
@@ -289,20 +455,30 @@ def run_full_compute_cycle() -> int:
     Returns number of symbols computed.
     Called every OVERLAY_REFRESH_SECS by the refresh thread.
     """
-    all_bars = cache.get_all_symbols_snapshot()
-    max_stale = config.max_stale_secs()
-    global_fields = _get_global_news_fields()
+    with observability.trace_span("live_overlay.full_compute_cycle"):
+        all_bars = cache.get_all_symbols_snapshot()
+        max_stale = config.max_stale_secs()
+        global_fields = _get_global_news_fields()
 
-    payloads: dict[str, Any] = {}
-    for sym, bars in all_bars.items():
-        if not bars:
-            continue
-        payloads[sym.upper()] = build_payload(sym, bars, global_fields, max_stale)
+        payloads: dict[str, Any] = {}
+        for sym, bars in all_bars.items():
+            if not bars:
+                continue
+            payloads[sym.upper()] = build_payload(sym, bars, global_fields, max_stale)
 
-    if payloads:
+        # Always replace snapshot (including empty) so stale symbols are removed
+        # when bar cache is temporarily empty.
         cache.set_overlay(payloads)
 
-    return len(payloads)
+        count = len(payloads)
+        observability.metric_gauge("live_overlay.overlay_symbols", count)
+        observability.metric_counter("live_overlay.full_compute_cycle.total")
+        observability.audit_event(
+            "live_overlay_full_compute_cycle",
+            "ok",
+            symbols=count,
+        )
+        return count
 
 
 def run_flow_patch_cycle() -> int:
@@ -311,15 +487,27 @@ def run_flow_patch_cycle() -> int:
     Does NOT reset the full overlay cache timestamp.
     Called every OVERLAY_FLOW_REFRESH_SECS.
     """
-    all_bars = cache.get_all_symbols_snapshot()
-    vix = cache.get_vix()
-    count = 0
-    for sym, bars in all_bars.items():
-        if not bars:
-            continue
-        updates = compute_flow_fields(bars)
-        if vix is not None:
-            updates["vix_level"] = round(vix, 4)
-        cache.patch_overlay(sym, updates)
-        count += 1
-    return count
+    with observability.trace_span("live_overlay.flow_patch_cycle"):
+        all_bars = cache.get_all_symbols_snapshot()
+        vix = cache.get_vix()
+        count = 0
+        for sym, bars in all_bars.items():
+            if not bars:
+                continue
+            updates = compute_flow_fields(bars)
+            if (vix_value := _coerce_finite_float(vix)) is not None:
+                updates["vix_level"] = round(vix_value, 4)
+            cache.patch_overlay(
+                sym,
+                updates,
+                allow_none_keys={"flow_rel_vol", "flow_delta_proxy_pct"},
+            )
+            count += 1
+        observability.metric_gauge("live_overlay.flow_patch_symbols", count)
+        observability.metric_counter("live_overlay.flow_patch_cycle.total")
+        observability.audit_event(
+            "live_overlay_flow_patch_cycle",
+            "ok",
+            symbols=count,
+        )
+        return count

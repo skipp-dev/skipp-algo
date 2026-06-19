@@ -11,6 +11,8 @@ from dataclasses import asdict, dataclass
 from statistics import median
 from typing import Any
 
+from smc_integration.timeframes import CANONICAL_TIMEFRAMES
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -34,7 +36,7 @@ RELEASE_REFERENCE_SYMBOLS: tuple[str, ...] = (
     "META",   # Communication
     "LIN",    # Materials
 )
-RELEASE_REFERENCE_TIMEFRAMES: tuple[str, ...] = ("5m", "15m", "1H", "4H")
+RELEASE_REFERENCE_TIMEFRAMES: tuple[str, ...] = CANONICAL_TIMEFRAMES
 
 # 7-day freshness: artifacts older than one trading week are considered stale
 # for active signal release purposes.
@@ -47,7 +49,7 @@ EVIDENCE_MIN_RELEASE_OK_RUNS: int = 2
 
 # Minimum coverage thresholds for release evidence.
 EVIDENCE_MIN_SYMBOL_COVERAGE: int = 5
-EVIDENCE_MIN_TIMEFRAME_COVERAGE: int = 2
+EVIDENCE_MIN_TIMEFRAME_COVERAGE: int = 4
 
 # ---------------------------------------------------------------------------
 # Environment variable names for config-driven overrides.

@@ -1,0 +1,188 @@
+# Grafana Cloud Alerting rules for SMC Live Overlay Daemon.
+# Import via Grafana UI → Alerting → Alert rules → Import, or provision via API.
+#
+# Notification channel must be configured separately in Grafana Cloud
+# (Slack webhook / Telegram bot / Email).
+
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: live-overlay-critical
+    folder: SMC Live Overlay
+    interval: 1m
+    rules:
+      - uid: lo-feed-down
+        title: "Feed unhealthy"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: live_overlay_feed_healthy
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator: {type: lt, params: [1]}
+                  operator: {type: and}
+                  query: {params: [A]}
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Live overlay feed is DOWN for > 5 min"
+          runbook: "Check Railway logs for BentoError / circuit breaker. Verify DATABENTO_API_KEY validity."
+
+      - uid: lo-workers-degraded
+        title: "Workers unhealthy"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: live_overlay_workers_healthy
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator: {type: lt, params: [1]}
+                  operator: {type: and}
+                  query: {params: [A]}
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "One or more worker threads are dead"
+          runbook: "Check worker_liveness in /health. Railway may need restart (ON_FAILURE should auto-recover)."
+
+      - uid: lo-overlay-stale
+        title: "Overlay data stale"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: live_overlay_overlay_age_seconds
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator: {type: gt, params: [3600]}
+                  operator: {type: and}
+                  query: {params: [A]}
+        for: 5m
+        labels:
+          severity: high
+        annotations:
+          summary: "Overlay age > 1h — compute cycle likely hung or erroring"
+          runbook: "Check full_compute_cycle_errors rate. Verify feed is pushing bars (last_bar_age_seconds)."
+
+      - uid: lo-no-symbols
+        title: "Zero overlay symbols after warmup"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: live_overlay_overlay_symbols
+              instant: true
+          - refId: B
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: live_overlay_uptime_seconds
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: math
+              expression: "$A == 0 && $B > 600"
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No symbols computed after 10 min uptime"
+          runbook: "Service started but compute cycle never succeeded. Check feed + compute logs."
+
+  - orgId: 1
+    name: live-overlay-warning
+    folder: SMC Live Overlay
+    interval: 5m
+    rules:
+      - uid: lo-circuit-breaker
+        title: "Circuit breaker triggered"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: live_overlay_feed_circuit_breakers
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+                  operator: {type: and}
+                  query: {params: [A]}
+        for: 0s
+        labels:
+          severity: high
+        annotations:
+          summary: "Feed circuit breaker has fired — feed thread stopped"
+          runbook: "Persistent Databento outage. Service needs manual restart or will recover on Railway restart policy."
+
+      - uid: lo-bento-errors-rate
+        title: "Elevated Databento error rate"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: rate(live_overlay_feed_bento_errors[5m])
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator: {type: gt, params: [0.1]}
+                  operator: {type: and}
+                  query: {params: [A]}
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Sustained Databento error rate > 0.1/s for 10 min"
+          runbook: "Check Databento status page. May indicate API key quota or network issues."
+
+      - uid: lo-compute-errors-rate
+        title: "Compute cycle errors"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: rate(live_overlay_full_compute_cycle_errors[5m]) + rate(live_overlay_flow_patch_cycle_errors[5m])
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+                  operator: {type: and}
+                  query: {params: [A]}
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Compute cycles are erroring persistently"
+          runbook: "Check Railway logs for stack traces in compute.py. Likely data quality issue in cached bars."

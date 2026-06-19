@@ -8,6 +8,11 @@ re-opened the intraday-workbook-fallback hole.
 
 from __future__ import annotations
 
+CANONICAL_TIMEFRAMES: tuple[str, ...] = ("5m", "10m", "15m", "30m", "1H", "4H", "1D")
+DAILY_TIMEFRAMES: tuple[str, ...] = ("1D",)
+INTRADAY_TIMEFRAMES: tuple[str, ...] = tuple(tf for tf in CANONICAL_TIMEFRAMES if tf not in DAILY_TIMEFRAMES)
+LIVE_OVERLAY_TIMEFRAMES: tuple[str, ...] = INTRADAY_TIMEFRAMES
+
 _DAILY_ALIASES = frozenset({"1D", "D", "DAILY", "1DAY"})
 
 

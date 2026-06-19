@@ -128,7 +128,9 @@ _FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
         ("terminal_bitcoin.py", 846),
         ("terminal_bitcoin.py", 848),
         # 2026-06-10 (#2670 W3): source-field additions shifted +6 (286 -> 292).
-        ("terminal_technicals.py", 293),
+        # 2026-06-19 (timeframe expansion): INTERVAL_MAP/default list additions
+        # shifted the throttle sleep site 293 -> 294.
+        ("terminal_technicals.py", 294),
         ("terminal_tradingview_news.py", 409),
     }
 )

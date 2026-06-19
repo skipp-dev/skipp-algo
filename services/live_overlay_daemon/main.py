@@ -4,9 +4,8 @@ FastAPI app — SMC Live Overlay Daemon.
 Endpoints:
   GET /health                          — healthcheck (no auth)
   GET /{token}/smc_live?symbol=NVDA    — overlay payload (token = OVERLAY_SECRET_TOKEN)
-
 Security model:
-  Pine's request.get() cannot send Authorization headers, so the secret
+    Pine's request.get() cannot send Authorization headers, so the secret
   token is embedded in the URL path. The Pine source is never released to
   users, so the URL is effectively obscure. Rotate monthly via library update.
 
@@ -19,13 +18,15 @@ from __future__ import annotations
 
 import datetime
 import logging
+import math
 import time
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI, HTTPException, Path, Query
 from fastapi.responses import JSONResponse
 
-from . import cache, config, feed
+from . import cache, config, feed, metrics, observability
 
 logging.basicConfig(
     level=logging.INFO,
@@ -37,7 +38,20 @@ logger = logging.getLogger(__name__)
 
 _startup_ts: float = 0.0
 
-_VALID_TFS: frozenset[str] = frozenset({"5m", "15m", "1H", "4H", "1D"})
+_VALID_TFS: frozenset[str] = frozenset({"5m", "10m", "15m", "30m", "1H", "4H"})
+
+
+def _json_safe(value: Any) -> Any:
+    """Return a JSON-safe value tree by normalizing non-finite floats to None."""
+    if isinstance(value, float) or value.__class__.__name__ == "Decimal":
+        return _coerced if math.isfinite(_coerced := float(value)) else None
+    if isinstance(value, dict):
+        return {k: _json_safe(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(v) for v in value]
+    if isinstance(value, tuple):
+        return [_json_safe(v) for v in value]
+    return value
 
 
 # ---------------------------------------------------------------------------
@@ -48,22 +62,28 @@ _VALID_TFS: frozenset[str] = frozenset({"5m", "15m", "1H", "4H", "1D"})
 async def _lifespan(app: FastAPI):
     global _startup_ts
     logger.info("Starting SMC Live Overlay Daemon …")
+    observability.metric_counter("live_overlay.daemon.start_attempt")
 
     # Validate required env vars fail-fast at startup
-    config.databento_api_key()
-    config.overlay_secret_token()
+    with observability.trace_span("live_overlay.daemon_lifespan"):
+        config.databento_api_key()
+        config.overlay_secret_token()
 
-    feed.start()
-    _startup_ts = time.monotonic()
-    logger.info(
-        "Daemon started — refresh=%ds flow=%ds rolling=%d bars",
-        config.refresh_secs(),
-        config.flow_refresh_secs(),
-        config.rolling_bars(),
-    )
+        feed.start()
+        _startup_ts = time.monotonic()
+        logger.info(
+            "Daemon started — refresh=%ds flow=%ds rolling=%d bars",
+            config.refresh_secs(),
+            config.flow_refresh_secs(),
+            config.rolling_bars(),
+        )
+        observability.metric_counter("live_overlay.daemon.start_success")
+        observability.audit_event("live_overlay_daemon_start", "ok")
     yield
     logger.info("Shutting down …")
     feed.stop()
+    observability.metric_counter("live_overlay.daemon.stop_total")
+    observability.audit_event("live_overlay_daemon_stop", "ok")
     logger.info("Daemon stopped.")
 
 
@@ -82,26 +102,67 @@ app = FastAPI(
 
 @app.api_route("/health", methods=["GET", "HEAD"], include_in_schema=False)
 def health() -> JSONResponse:
+    observability.metric_counter("live_overlay.health_requests.total")
     uptime = time.monotonic() - _startup_ts if _startup_ts else 0
     feed_healthy = feed.is_ready()
     bar_age = feed.last_bar_age_secs()
+    workers = feed.worker_liveness()
+    feed_metrics = feed.metrics_snapshot()
+    workers_healthy = all(workers.values())
+    overlay_age = cache.overlay_age_secs()
+    max_stale = config.max_stale_secs()
+    overlay_symbols = cache.overlay_symbol_count()
+    overlay_fresh = (
+        overlay_symbols > 0
+        and overlay_age != float("inf")
+        and overlay_age <= max_stale
+    )
+    status = "ok" if (feed_healthy and workers_healthy and overlay_fresh) else "starting"
+    observability.metric_gauge("live_overlay.health.status_ok", 1 if status == "ok" else 0)
+    observability.audit_event(
+        "live_overlay_health",
+        status,
+        feed_healthy=feed_healthy,
+        workers_healthy=workers_healthy,
+        overlay_fresh=overlay_fresh,
+    )
     return JSONResponse(
         {
-            "status": "ok" if feed_healthy else "starting",
+            "status": status,
             "feed_healthy": feed_healthy,
+            "workers_healthy": workers_healthy,
+            "worker_liveness": workers,
+            "feed_metrics": feed_metrics,
+            "overlay_fresh": overlay_fresh,
             "last_bar_age_secs": None if bar_age is None else round(bar_age, 1),
             "uptime_secs": round(uptime),
             "bar_symbols": cache.bar_symbol_count(),
             "bar_count": cache.total_bar_count(),
-            "overlay_symbols": cache.overlay_symbol_count(),
+            "overlay_symbols": overlay_symbols,
             "overlay_age_secs": (
                 None
-                if cache.overlay_age_secs() == float("inf")
-                else round(cache.overlay_age_secs(), 1)
+                if overlay_age == float("inf")
+                else round(overlay_age, 1)
             ),
             "ts": datetime.datetime.now(datetime.UTC).isoformat(),
         }
     )
+
+
+# ---------------------------------------------------------------------------
+# /{token}/metrics — Prometheus text exposition (token-protected)
+# ---------------------------------------------------------------------------
+
+@app.get("/{token}/metrics", include_in_schema=False)
+def prometheus_metrics(token: str = Path(...)) -> JSONResponse:
+    """Prometheus scrape endpoint, protected by the same bearer token as /smc_live."""
+    expected = config.overlay_secret_token()
+    if not _ct_eq(token, expected):
+        raise HTTPException(status_code=404)
+    from fastapi.responses import PlainTextResponse
+
+    body = metrics.render_metrics(_startup_ts)
+    return PlainTextResponse(body, media_type="text/plain; version=0.0.4; charset=utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -114,16 +175,21 @@ def smc_live(
     symbol: str = Query(..., min_length=1, max_length=10),
     tf: str = Query("5m", max_length=8),  # timeframe hint — stored in response
 ) -> JSONResponse:
+    observability.metric_counter("live_overlay.smc_live_requests.total")
     # Constant-time token comparison to avoid timing attacks. _ct_eq hashes
     # both sides to a fixed-length digest before comparing, so neither the
     # comparison nor a Python len() short-circuit can leak the token length
     # as a timing side-channel (CWE-208).
     expected = config.overlay_secret_token()
     if not _ct_eq(token, expected):
+        observability.metric_counter("live_overlay.smc_live_auth.denied")
+        observability.audit_event("smc_live_auth", "denied", symbol=symbol, tf=tf)
         raise HTTPException(status_code=404)  # 404 not 401 to avoid leaking route structure
 
     sym = symbol.upper().strip()
     if tf not in _VALID_TFS:
+        observability.metric_counter("live_overlay.smc_live_bad_tf.total")
+        observability.audit_event("smc_live_tf_validation", "rejected", symbol=sym, tf=tf)
         raise HTTPException(
             status_code=400,
             detail=f"tf must be one of {sorted(_VALID_TFS)}",
@@ -131,6 +197,8 @@ def smc_live(
     payload = cache.get_overlay(sym)
 
     if payload is None:
+        observability.metric_counter("live_overlay.smc_live_cache_miss.total")
+        observability.audit_event("smc_live_fetch", "cache_miss", symbol=sym, tf=tf)
         # Symbol not yet in cache — return minimal stale response
         return JSONResponse(
             {
@@ -167,7 +235,9 @@ def smc_live(
     payload["stale"] = (age > max_stale) if age != float("inf") else True
     # Inject tf into response
     payload["tf"] = tf
-    return JSONResponse(payload)
+    observability.metric_counter("live_overlay.smc_live_success.total")
+    observability.audit_event("smc_live_fetch", "ok", symbol=sym, tf=tf, stale=payload["stale"])
+    return JSONResponse(_json_safe(payload))
 
 
 # ---------------------------------------------------------------------------

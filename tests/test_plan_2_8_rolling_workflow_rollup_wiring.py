@@ -4,7 +4,7 @@ Guards that the smc-measurement-benchmark-rolling workflow:
 
   * runs the Plan 2.8 rollup step after the FVG audit and before the
     upload step,
-  * passes the expanded 5m,15m,1H,4H TF list,
+    * passes the canonical 5m,10m,15m,30m,1H,4H,1D TF list,
   * writes the manifest into the benchmark output dir,
   * streams the Markdown view to the step summary,
   * is fail-soft so a rollup hiccup cannot mask the benchmark outcome,
@@ -57,9 +57,9 @@ def test_rollup_step_order_after_audit_before_upload() -> None:
     assert i_audit < i_roll < i_upload
 
 
-def test_rollup_step_passes_all_four_tfs() -> None:
+def test_rollup_step_passes_all_seven_tfs() -> None:
     run = _step("Plan 2.8 Phase 1 per-TF family rollup")["run"]
-    assert '"5m,15m,1H,4H"' in run
+    assert '"5m,10m,15m,30m,1H,4H,1D"' in run
     assert "scripts/plan_2_8_tf_family_rollup.py" in run
 
 

@@ -16,7 +16,7 @@ def test_ob_id_deterministic() -> None:
 
 def test_quantize_time_to_tf_alignment() -> None:
     t = 1709250123
-    for tf, minutes in [("5m", 5), ("15m", 15), ("1H", 60), ("4H", 240)]:
+    for tf, minutes in [("5m", 5), ("10m", 10), ("15m", 15), ("30m", 30), ("1H", 60), ("4H", 240)]:
         anchor = quantize_time_to_tf(t, tf)
         block = minutes * 60
         assert int(anchor) % block == 0

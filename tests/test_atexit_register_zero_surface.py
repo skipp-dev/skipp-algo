@@ -87,7 +87,11 @@ ATEXIT_REGISTER_ALLOWED: set[tuple[str, int]] = {
     # threads get a chance to close the Databento loop/sockets on a non-lifespan
     # process exit. unregister-then-register keeps exactly one hook; stop() sets
     # an Event and joins with a 5s/thread timeout (bounded, non-deadlocking).
-    ("services/live_overlay_daemon/feed.py", 314),
+    # 2026-06-19 (bug-hunt): _record_to_bar helper block shifted start() body.
+    # 2026-06-19 (findings cleanup): current feed.start() layout pins
+    # the atexit.register site; current location line 379.
+    # 2026-06-19 (telemetry): import + _inc_metric expansion shifted to 384.
+    ("services/live_overlay_daemon/feed.py", 384),
 }
 
 
