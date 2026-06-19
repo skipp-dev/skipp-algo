@@ -296,6 +296,53 @@ class TestAdditionalLiveOverlayBugRepros:
         assert fields["tone"] in ("BULLISH", "BEARISH", "NEUTRAL")
         assert fields["global_heat"] is None or -1.0 <= fields["global_heat"] <= 1.0
 
+    def test_malformed_tickers_do_not_crash_news_fields(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import services.live_overlay_daemon.compute as compute
+        import services.live_overlay_daemon.config as cfg
+
+        snapshot_path = tmp_path / "news.json"
+        snapshot_path.write_text(
+            json.dumps({"stories": [{"tickers": [None], "sentiment_score": 0.2}]}),
+            encoding="utf-8",
+        )
+
+        monkeypatch.setattr(compute, "_news_loaded_at", 0.0)
+        monkeypatch.setattr(compute, "_news_checked_at", 0.0)
+        monkeypatch.setattr(compute, "_news_cache", {})
+        monkeypatch.setattr(cfg, "news_cache_ttl_secs", lambda: 0)
+
+        with patch.object(compute.config, "news_snapshot_path", return_value=snapshot_path):
+            fields = compute._get_news_fields("AAPL")
+
+        assert fields == {"news_strength": None, "news_bias": None}
+
+    def test_string_ticker_is_treated_as_single_ticker(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import services.live_overlay_daemon.compute as compute
+        import services.live_overlay_daemon.config as cfg
+
+        snapshot_path = tmp_path / "news.json"
+        snapshot_path.write_text(
+            json.dumps({"stories": [{"tickers": "AAPL", "sentiment_score": 0.8}]}),
+            encoding="utf-8",
+        )
+
+        monkeypatch.setattr(compute, "_news_loaded_at", 0.0)
+        monkeypatch.setattr(compute, "_news_checked_at", 0.0)
+        monkeypatch.setattr(compute, "_news_cache", {})
+        monkeypatch.setattr(cfg, "news_cache_ttl_secs", lambda: 0)
+
+        with patch.object(compute.config, "news_snapshot_path", return_value=snapshot_path):
+            fields_a = compute._get_news_fields("A")
+            fields_aapl = compute._get_news_fields("AAPL")
+
+        assert fields_a == {"news_strength": None, "news_bias": None}
+        assert fields_aapl["news_strength"] == 0.8
+        assert fields_aapl["news_bias"] == "BULLISH"
+
 
 class TestNewsSnapshotRaceCondition:
     """Concurrency-Risiko: _load_news_snapshot schreibt Modul-Globals ohne Lock."""
