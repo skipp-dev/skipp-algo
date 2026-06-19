@@ -183,12 +183,12 @@ class TestRecordToBarRobustness:
 
 
 class TestBuildPayloadInvariants:
-    """Invarianten-Tests fuer build_payload."""
+    """Invariant tests for build_payload."""
 
     def test_build_payload_with_empty_bars(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Leere bar-Liste sollte keine Exception werfen und None-Felder liefern."""
+        """An empty bar list should not raise and should keep fields as None."""
         import services.live_overlay_daemon.compute as compute
 
         monkeypatch.setattr(compute, "_load_news_snapshot", lambda: {})
@@ -204,7 +204,7 @@ class TestBuildPayloadInvariants:
         assert payload["ats_zscore"] is None
 
     def test_squeeze_on_is_int_when_present(self) -> None:
-        """squeeze_on muss int(0/1) oder None sein (Schema-Konformitaet)."""
+        """squeeze_on must be int(0/1) or None (schema compliance)."""
         import services.live_overlay_daemon.compute as compute
 
         bars = [
