@@ -7,7 +7,7 @@ expanded set {5m, 15m, 1H, 4H}. This test pins:
   * the output-dir layout is <root>/<symbol>/<tf_token>,
   * `_path_token` is stable under the exact TF strings used by
     `RELEASE_REFERENCE_TIMEFRAMES`,
-  * all four TFs partition to distinct directories (no collisions).
+    * all seven TFs partition to distinct directories (no collisions).
 
 Regressions here would silently merge cross-TF events into a single
 bucket and break per-chart_tf calibration exactly at the layer the
@@ -22,8 +22,8 @@ from scripts.run_smc_measurement_benchmark import _pair_output_dir, _path_token
 from smc_integration.release_policy import RELEASE_REFERENCE_TIMEFRAMES
 
 
-def test_path_token_stable_for_all_four_release_tfs() -> None:
-    # All four TFs must pass through _path_token unchanged (no slashes
+def test_path_token_stable_for_all_release_tfs() -> None:
+    # All canonical TFs must pass through _path_token unchanged (no slashes
     # or spaces in the canonical strings).
     for tf in RELEASE_REFERENCE_TIMEFRAMES:
         assert _path_token(tf) == tf
@@ -35,12 +35,15 @@ def test_pair_output_dir_partitions_per_tf() -> None:
         tf: _pair_output_dir(root, symbol="AAPL", timeframe=tf)
         for tf in RELEASE_REFERENCE_TIMEFRAMES
     }
-    # Expect four distinct directories.
-    assert len({str(p) for p in dirs.values()}) == 4
+    # Expect seven distinct directories.
+    assert len({str(p) for p in dirs.values()}) == 7
     assert dirs["5m"] == root / "AAPL" / "5m"
+    assert dirs["10m"] == root / "AAPL" / "10m"
     assert dirs["15m"] == root / "AAPL" / "15m"
+    assert dirs["30m"] == root / "AAPL" / "30m"
     assert dirs["1H"] == root / "AAPL" / "1H"
     assert dirs["4H"] == root / "AAPL" / "4H"
+    assert dirs["1D"] == root / "AAPL" / "1D"
 
 
 def test_pair_output_dir_partitions_per_symbol() -> None:
