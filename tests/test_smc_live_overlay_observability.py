@@ -74,9 +74,8 @@ def test_smc_live_auth_denied_emits_metric_and_audit(
 
     monkeypatch.setattr(main_mod.config, "overlay_secret_token", lambda: "secret-token")
 
-    with caplog.at_level(logging.INFO, logger=obs.logger.name):
-        with pytest.raises(HTTPException) as exc_info:
-            main_mod.smc_live(token="wrong", symbol="AAPL", tf="5m")
+    with caplog.at_level(logging.INFO, logger=obs.logger.name), pytest.raises(HTTPException) as exc_info:
+        main_mod.smc_live(token="wrong", symbol="AAPL", tf="5m")
 
     assert exc_info.value.status_code == 404
     msgs = [r.getMessage() for r in caplog.records]
