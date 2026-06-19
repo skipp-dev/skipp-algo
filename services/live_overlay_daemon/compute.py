@@ -292,6 +292,11 @@ def compute_squeeze_on(bars: list[dict[str, Any]], period: int = 20) -> bool | N
         low = _coerce_finite_float(b.get("low"))
         if close is None or high is None or low is None:
             continue
+        # Defensive: reject malformed bars where provider data violates OHLC
+        # ordering. Keeping such bars would create negative true ranges and
+        # can produce false-positive squeeze signals.
+        if high < low:
+            continue
         triples.append((close, high, low))
 
     if len(triples) < period:

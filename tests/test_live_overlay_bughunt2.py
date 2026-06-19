@@ -171,6 +171,34 @@ class TestAtsFieldsPriceDeltaAlignment:
 class TestSqueezeAlignedWindow:
     """B22: TR must always use high and low from the same bar."""
 
+    def test_squeeze_on_rejects_negative_true_range_bar(self):
+        """B10: malformed bar with high<low must not emit squeeze=True."""
+        compute = _compute()
+        bars = [
+            {
+                "open": 100.0 + i * 0.1,
+                "close": 100.0 + i * 0.1,
+                "high": 101.0 + i * 0.1,
+                "low": 99.0 + i * 0.1,
+                "volume": 100,
+            }
+            for i in range(19)
+        ]
+        bars.append(
+            {
+                "open": 100.0,
+                "close": 100.0,
+                "high": 99.0,
+                "low": 101.0,
+                "volume": 100,
+            }
+        )
+
+        result = compute.compute_squeeze_on(bars, period=20)
+        assert result is not True, (
+            "B10: malformed bar with high<low must not create a squeeze signal"
+        )
+
     def test_result_is_correct_when_bar_in_window_missing_high(self):
         """
         25 bars; bar[5] has no high. After fix, bar[5] is excluded from
