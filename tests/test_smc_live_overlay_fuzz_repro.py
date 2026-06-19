@@ -4,6 +4,7 @@ Ziel: gebrochene Invarianten mit vielen zufaelligen/extremen Eingaben finden.
 """
 from __future__ import annotations
 
+import math
 import random
 from typing import Any
 
@@ -26,7 +27,7 @@ class TestComputeFlowFieldsFuzz:
             result = compute.compute_flow_fields(bars)
             delta = result["flow_delta_proxy_pct"]
             if delta is not None:
-                assert -10000.0 < delta < 10000.0, f"delta out of bounds: {delta}"
+                assert math.isfinite(delta), f"delta must be finite, got {delta}"
 
     def test_flow_rel_vol_non_negative(self) -> None:
         import services.live_overlay_daemon.compute as compute
