@@ -350,6 +350,46 @@ class TestStringVolumeCoercion:
         assert ats["ats_zscore"] is None
         assert ats["ats_state"] is None
 
+
+class TestNewsScoreFiniteCoercion:
+    """Non-finite news scores must be treated as invalid/missing, not propagated."""
+
+    def test_nan_sentiment_score_is_treated_as_zero(self):
+        compute = _compute()
+        compute._load_news_snapshot = lambda: {
+            "stories": [{"tickers": ["AAPL"], "sentiment_score": float("nan")}]
+        }
+
+        fields = compute._get_news_fields("AAPL")
+
+        assert fields["news_strength"] == 0.0
+        assert fields["news_bias"] == "NEUTRAL"
+
+    def test_inf_news_score_is_treated_as_zero(self):
+        compute = _compute()
+        compute._load_news_snapshot = lambda: {
+            "stories": [{"tickers": ["AAPL"], "news_score": "inf"}]
+        }
+
+        fields = compute._get_news_fields("AAPL")
+
+        assert fields["news_strength"] == 0.0
+        assert fields["news_bias"] == "NEUTRAL"
+
+    def test_global_news_fields_reject_non_finite_scores(self):
+        compute = _compute()
+        compute._load_news_snapshot = lambda: {
+            "stories": [
+                {"sentiment_score": float("nan")},
+                {"news_score": "-inf"},
+            ]
+        }
+
+        fields = compute._get_global_news_fields()
+
+        assert fields["tone"] == "NEUTRAL"
+        assert fields["global_heat"] == 0.0
+
     def test_inf_string_volume_treated_as_missing(self):
         """Non-finite numeric string volume ('inf') must be rejected as missing."""
         compute = _compute()
