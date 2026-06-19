@@ -211,6 +211,45 @@ class TestBarCacheEviction:
 
         assert len(cache_mod.get_bars_snapshot("AAPL")) == 5
 
+    def test_downscale_max_symbols_enforces_hard_cap_immediately(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import services.live_overlay_daemon.cache as cache_mod
+
+        monkeypatch.setattr(cache_mod, "_bars", {})
+        monkeypatch.setattr(cache_mod, "_bar_last_update", {})
+        monkeypatch.setattr(cache_mod, "_last_eviction_at", 0.0)
+
+        bar = {"open": 1, "close": 1, "high": 1, "low": 1, "volume": 1}
+        cache_mod.init_bar_cache(5, max_symbols=100)
+        for i in range(10):
+            cache_mod.push_bar(f"SYM{i}", bar)
+        assert cache_mod.bar_symbol_count() == 10
+
+        cache_mod.init_bar_cache(5, max_symbols=3)
+        assert cache_mod.bar_symbol_count() <= 3
+
+    def test_new_symbol_push_eviction_converges_to_cap_under_overshoot(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import services.live_overlay_daemon.cache as cache_mod
+
+        monkeypatch.setattr(cache_mod, "_bars", {})
+        monkeypatch.setattr(cache_mod, "_bar_last_update", {})
+        monkeypatch.setattr(cache_mod, "_last_eviction_at", 0.0)
+
+        bar = {"open": 1, "close": 1, "high": 1, "low": 1, "volume": 1}
+        cache_mod.init_bar_cache(5, max_symbols=100)
+        for i in range(10):
+            cache_mod.push_bar(f"OLD{i}", bar)
+
+        # Force a strong overshoot over the new cap.
+        cache_mod.init_bar_cache(5, max_symbols=3)
+        cache_mod.push_bar("NEW1", bar)
+
+        assert cache_mod.bar_symbol_count() <= 3
+        assert cache_mod.get_bars_snapshot("NEW1") != []
+
 
 # ---------------------------------------------------------------------------
 # R1: _symbology_map guard
