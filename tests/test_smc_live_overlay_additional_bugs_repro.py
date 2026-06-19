@@ -51,7 +51,7 @@ class TestNewsScoreFalsyZeroBug:
 
 
 class TestRunFullComputeCycleEmptyCacheBug:
-    """BUG: Wenn der bar cache leer wird, bleibt das alte Overlay erhalten."""
+    """BUG: When the bar cache is cleared, the stale overlay is preserved."""
 
     def test_empty_bar_cache_does_not_preserve_stale_overlay(
         self, monkeypatch: pytest.MonkeyPatch
@@ -59,12 +59,12 @@ class TestRunFullComputeCycleEmptyCacheBug:
         import services.live_overlay_daemon.cache as cache_mod
         import services.live_overlay_daemon.compute as compute
 
-        # Altes Overlay setzen
+        # Set old overlay
         cache_mod.set_overlay({"AAPL": {"symbol": "AAPL", "stale": False}})
         old_overlay = cache_mod.get_overlay("AAPL")
         assert old_overlay is not None
 
-        # Bar cache leer
+        # Bar cache is empty
         monkeypatch.setattr(cache_mod, "_bars", {})
         monkeypatch.setattr(compute.config, "max_stale_secs", lambda: 3600)
 
@@ -76,8 +76,8 @@ class TestRunFullComputeCycleEmptyCacheBug:
         count = compute.run_full_compute_cycle()
 
         assert count == 0
-        # Erwartet: Overlay sollte geleert werden, weil keine Symbole mehr verfuegbar
-        # Tatsaechlich: altes Overlay bleibt erhalten
+        # Expected: overlay should be cleared because no symbols are available any more
+        # Actual (pre-fix): stale overlay persisted
         current = cache_mod.get_overlay("AAPL")
         assert current is None, (
             "BUG: stale overlay persisted after all bars were removed. "
@@ -86,7 +86,7 @@ class TestRunFullComputeCycleEmptyCacheBug:
 
 
 class TestRecordToBarMissingFieldsBug:
-    """BUG: _record_to_bar defaultet fehlende Felder auf 0.0 statt None."""
+    """BUG: _record_to_bar defaulted missing fields to 0.0 instead of None."""
 
     def test_missing_close_defaults_to_none(self) -> None:
         import services.live_overlay_daemon.feed as feed_mod
@@ -98,7 +98,7 @@ class TestRecordToBarMissingFieldsBug:
                 "open": 10.0,
                 "high": 11.0,
                 "low": 9.0,
-                # close fehlt
+                # close missing
                 "volume": 100,
                 "ts_event": 123,
             },
@@ -117,7 +117,7 @@ class TestRecordToBarMissingFieldsBug:
             "FakeRecord",
             (),
             {
-                # open fehlt
+                # open missing
                 "high": 11.0,
                 "low": 9.0,
                 "close": 10.5,
@@ -134,7 +134,7 @@ class TestRecordToBarMissingFieldsBug:
 
 
 class TestVIXNonePropagationBug:
-    """BUG: Wenn _record_to_bar close=None liefert, darf cache.set_vix nicht None setzen."""
+    """BUG: When _record_to_bar returns close=None, cache.set_vix must not be called."""
 
     def test_vix_with_none_close_is_not_cached(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import services.live_overlay_daemon.cache as cache_mod

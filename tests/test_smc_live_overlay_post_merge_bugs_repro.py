@@ -370,9 +370,7 @@ class TestNewsSnapshotRaceCondition:
     def test_concurrent_load_news_snapshot_does_not_crash(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Stress-Test: viele parallele Aufrufe duerfen nicht crashen oder
-        ungueltige Zustaende hinterlassen.
-        """
+        """Stress test: many parallel calls must not crash or leave invalid state."""
         import services.live_overlay_daemon.compute as compute
         import services.live_overlay_daemon.config as cfg
 
