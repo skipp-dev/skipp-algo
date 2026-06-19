@@ -212,7 +212,7 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # 2026-06-19 (PR #2860 follow-up): extracted _maybe_cache_vix helper,
         # shifting feed.py global statement line numbers.
         ("services/live_overlay_daemon/feed.py", 200, ("_last_bar_at",)),
-        ("services/live_overlay_daemon/feed.py", 303, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        ("services/live_overlay_daemon/feed.py", 302, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
         # 2026-06-19 (fix/live-overlay-post-merge-bugs): added non-finite JSON
         # sanitization helper and related imports, shifting _startup_ts line.
         ("services/live_overlay_daemon/main.py", 64, ("_startup_ts",)),
