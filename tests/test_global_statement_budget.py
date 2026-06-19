@@ -211,8 +211,8 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # in _run_feed_loop shifted feed.py global lines to 193/297.
         # 2026-06-19 (PR #2860 follow-up): extracted _maybe_cache_vix helper,
         # shifting feed.py global statement line numbers.
-        ("services/live_overlay_daemon/feed.py", 199, ("_last_bar_at",)),
-        ("services/live_overlay_daemon/feed.py", 302, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        ("services/live_overlay_daemon/feed.py", 200, ("_last_bar_at",)),
+        ("services/live_overlay_daemon/feed.py", 303, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
         ("services/live_overlay_daemon/main.py", 49, ("_startup_ts",)),
     }
 )
