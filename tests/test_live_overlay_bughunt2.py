@@ -252,3 +252,84 @@ class TestSqueezeAlignedWindow:
         assert isinstance(result, bool) or result is None, (
             f"Expected bool or None, got {type(result)!r}"
         )
+
+
+# ============================================================
+# B23 – compute_flow_fields / compute_ats_fields: string-volume TypeError
+# ============================================================
+
+class TestStringVolumeCoercion:
+    """B23: volume fields arriving as numeric strings must not crash compute functions.
+
+    Root cause: b.get("volume") is not None passes string values through the filter,
+    but sum(["100", "110", ...]) raises TypeError because int + str is not supported.
+    Fix: _coerce_volume() converts numeric strings to float and returns None for
+    non-numeric values so callers can skip the bar gracefully.
+    """
+
+    def test_all_string_volumes_no_crash(self):
+        """compute_flow_fields must not raise when all volumes are numeric strings."""
+        compute = _compute()
+        bars = [
+            {"open": 100.0 + i, "high": 101.0 + i, "low": 99.0 + i,
+             "close": 100.5 + i, "volume": str(100 + i * 10)}
+            for i in range(5)
+        ]
+        result = compute.compute_flow_fields(bars)
+        assert isinstance(result, dict)
+        # Numeric strings are valid volumes: ratio should be computed.
+        assert result["flow_rel_vol"] is not None
+
+    def test_ats_fields_string_volumes_no_crash(self):
+        """compute_ats_fields must not raise when all volumes are numeric strings."""
+        compute = _compute()
+        bars = [
+            {"open": 100.0 + i, "high": 101.0 + i, "low": 99.0 + i,
+             "close": 100.5 + i, "volume": str(100 + i * 10)}
+            for i in range(5)
+        ]
+        result = compute.compute_ats_fields(bars)
+        assert isinstance(result, dict)
+
+    def test_garbage_volume_treated_as_missing(self):
+        """Non-numeric volume strings (e.g. 'N/A') must yield None fields, not crash."""
+        compute = _compute()
+        bars = [
+            {"open": 100.0, "high": 101.0, "low": 99.0,
+             "close": 100.5, "volume": "N/A"}
+            for _ in range(5)
+        ]
+        result = compute.compute_flow_fields(bars)
+        assert result["flow_rel_vol"] is None
+
+    def test_mixed_none_int_string_volume(self):
+        """Mixed volume types in a bar list: None/int/string must not crash."""
+        compute = _compute()
+        bars = [
+            {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": None},
+            {"open": 101.0, "high": 102.0, "low": 100.0, "close": 101.5, "volume": 200},
+            {"open": 102.0, "high": 103.0, "low": 101.0, "close": 102.5, "volume": "300"},
+            {"open": 103.0, "high": 104.0, "low": 102.0, "close": 103.5, "volume": 400},
+            {"open": 104.0, "high": 105.0, "low": 103.0, "close": 104.5, "volume": 500},
+        ]
+        # Must not crash
+        r_flow = compute.compute_flow_fields(bars)
+        r_ats  = compute.compute_ats_fields(bars)
+        assert isinstance(r_flow, dict)
+        assert isinstance(r_ats, dict)
+
+    def test_last_bar_string_volume_treated_as_valid(self):
+        """A numeric-string volume on bars[-1] is coerced and used, not skipped."""
+        compute = _compute()
+        bars = [
+            {"open": 100.0 + i, "high": 101.0 + i, "low": 99.0 + i,
+             "close": 100.5 + i,
+             "volume": "500" if i == 4 else (100 + i * 10)}
+            for i in range(5)
+        ]
+        result = compute.compute_flow_fields(bars)
+        # last_vol=500 (coerced), prior_vols=[100,110,120,130], avg=115
+        # rel_vol = 500/115 ≈ 4.3478
+        assert result["flow_rel_vol"] is not None
+        assert result["flow_rel_vol"] > 1.0
+
