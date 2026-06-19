@@ -425,3 +425,68 @@ class TestNewsScoreFiniteCoercion:
         assert ats["ats_zscore"] is None
         assert ats["ats_state"] is None
 
+    def test_invalid_sentiment_falls_back_to_valid_news_score(self):
+        """Regression: malformed sentiment_score must not mask valid news_score."""
+        compute = _compute()
+        compute._load_news_snapshot = lambda: {
+            "stories": [
+                {
+                    "tickers": ["AAPL"],
+                    "sentiment_score": "nan",
+                    "news_score": 0.9,
+                }
+            ]
+        }
+
+        sym = compute._get_news_fields("AAPL")
+        glob = compute._get_global_news_fields()
+
+        assert sym["news_strength"] == 0.9
+        assert sym["news_bias"] == "BULLISH"
+        assert glob["global_heat"] == 0.9
+        assert glob["tone"] == "BULLISH"
+
+
+class TestMalformedOhlcValues:
+    """Malformed OHLC values should degrade gracefully, not raise TypeError."""
+
+    def test_compute_flow_fields_ignores_non_numeric_open(self):
+        compute = _compute()
+        bars = [
+            {
+                "open": "bad",
+                "high": 2.0,
+                "low": 0.8,
+                "close": 1.2,
+                "volume": 100,
+            }
+        ]
+
+        result = compute.compute_flow_fields(bars)
+        assert result["flow_delta_proxy_pct"] is None
+        assert result["flow_rel_vol"] is None
+
+    def test_compute_ats_fields_non_numeric_last_open_returns_neutral_state(self):
+        compute = _compute()
+        bars = [
+            {"open": 1.0, "close": 1.1, "high": 1.2, "low": 0.9, "volume": 100},
+            {"open": 1.0, "close": 1.1, "high": 1.2, "low": 0.9, "volume": 120},
+            {"open": 1.0, "close": 1.1, "high": 1.2, "low": 0.9, "volume": 130},
+            {"open": 1.0, "close": 1.1, "high": 1.2, "low": 0.9, "volume": 140},
+            {"open": "bad", "close": 2.0, "high": 2.1, "low": 1.9, "volume": 500},
+        ]
+
+        result = compute.compute_ats_fields(bars)
+        assert result["ats_state"] == "neutral"
+        assert result["ats_zscore"] is not None
+
+    def test_compute_squeeze_on_skips_non_numeric_ohlc(self):
+        compute = _compute()
+        bars = [
+            {"close": "bad", "high": 101.0, "low": 99.0}
+            for _ in range(20)
+        ]
+
+        result = compute.compute_squeeze_on(bars, period=20)
+        assert result is None
+
