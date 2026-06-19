@@ -1,0 +1,100 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "Service Status",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+      "targets": [{"expr": "live_overlay_feed_healthy", "legendFormat": "Feed Healthy"}],
+      "fieldConfig": {"defaults": {"mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}]}}
+    },
+    {
+      "title": "Workers Healthy",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+      "targets": [{"expr": "live_overlay_workers_healthy", "legendFormat": "Workers"}],
+      "fieldConfig": {"defaults": {"mappings": [{"type": "value", "options": {"0": {"text": "DEGRADED", "color": "red"}, "1": {"text": "OK", "color": "green"}}}]}}
+    },
+    {
+      "title": "Uptime",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+      "targets": [{"expr": "live_overlay_uptime_seconds / 3600", "legendFormat": "Hours"}],
+      "fieldConfig": {"defaults": {"unit": "h", "decimals": 1}}
+    },
+    {
+      "title": "Overlay Symbols",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+      "targets": [{"expr": "live_overlay_overlay_symbols", "legendFormat": "Symbols"}]
+    },
+    {
+      "title": "Request Rate",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+      "targets": [
+        {"expr": "rate(live_overlay_smc_live_requests_total[5m])", "legendFormat": "smc_live total"},
+        {"expr": "rate(live_overlay_smc_live_success_total[5m])", "legendFormat": "success"},
+        {"expr": "rate(live_overlay_smc_live_auth_denied[5m])", "legendFormat": "auth denied"},
+        {"expr": "rate(live_overlay_smc_live_cache_miss_total[5m])", "legendFormat": "cache miss"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "reqps"}}
+    },
+    {
+      "title": "Overlay & Bar Age",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+      "targets": [
+        {"expr": "live_overlay_overlay_age_seconds", "legendFormat": "overlay age"},
+        {"expr": "live_overlay_last_bar_age_seconds", "legendFormat": "last bar age"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "s", "thresholds": {"steps": [{"value": 0, "color": "green"}, {"value": 1800, "color": "yellow"}, {"value": 3600, "color": "red"}]}}}
+    },
+    {
+      "title": "Compute Cycle Errors",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+      "targets": [
+        {"expr": "rate(live_overlay_full_compute_cycle_errors[5m])", "legendFormat": "full compute errors"},
+        {"expr": "rate(live_overlay_flow_patch_cycle_errors[5m])", "legendFormat": "flow patch errors"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "errors/s", "color": {"mode": "palette-classic"}}}
+    },
+    {
+      "title": "Feed Health Counters",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+      "targets": [
+        {"expr": "rate(live_overlay_feed_reconnect_attempts[5m])", "legendFormat": "reconnects"},
+        {"expr": "rate(live_overlay_feed_bento_errors[5m])", "legendFormat": "bento errors"},
+        {"expr": "rate(live_overlay_feed_unexpected_errors[5m])", "legendFormat": "unexpected errors"},
+        {"expr": "live_overlay_feed_circuit_breakers", "legendFormat": "circuit breakers (total)"}
+      ]
+    },
+    {
+      "title": "Worker Liveness",
+      "type": "timeseries",
+      "gridPos": {"h": 6, "w": 24, "x": 0, "y": 20},
+      "targets": [
+        {"expr": "live_overlay_worker_live_feed_alive", "legendFormat": "live_feed"},
+        {"expr": "live_overlay_worker_overlay_refresh_alive", "legendFormat": "overlay_refresh"},
+        {"expr": "live_overlay_worker_flow_refresh_alive", "legendFormat": "flow_refresh"}
+      ],
+      "fieldConfig": {"defaults": {"min": 0, "max": 1, "mappings": [{"type": "value", "options": {"0": {"text": "DEAD"}, "1": {"text": "ALIVE"}}}]}}
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["live-overlay", "skipp-algo"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "timepicker": {},
+  "timezone": "utc",
+  "title": "SMC Live Overlay Daemon",
+  "uid": "smc-live-overlay-v1",
+  "version": 1
+}

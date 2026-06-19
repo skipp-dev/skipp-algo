@@ -42,19 +42,39 @@ No authentication required. Used by Railway healthcheck and UptimeRobot.
 {
   "status": "ok",
   "feed_healthy": true,
+  "workers_healthy": true,
+  "worker_liveness": {"live_feed": true, "overlay_refresh": true, "flow_refresh": true},
+  "feed_metrics": {"reconnect_attempts": 0, "bento_errors": 0, "unexpected_errors": 0, "circuit_breakers": 0, "partial_restarts": 0},
+  "overlay_fresh": true,
+  "last_bar_age_secs": 12.3,
   "uptime_secs": 406,
   "bar_symbols": 12,
   "bar_count": 720,
   "overlay_symbols": 12,
-  "overlay_age_secs": 45,
-  "ts": "2026-06-16T13:17:30Z"
+  "overlay_age_secs": 45.2,
+  "ts": "2026-06-16T13:17:30+00:00"
 }
 ```
 
-> `status` is `"starting"` until the feed has pushed at least one bar, then `"ok"`.
-> `feed_healthy` is `true` when the feed is connected and has delivered bars; becomes
-> `false` after `stop()` or if the circuit-breaker trips.
+> `status` is `"starting"` until feed + workers + overlay_fresh are all healthy, then `"ok"`.
+> `feed_healthy` becomes `false` after `stop()` or if bars are stale beyond `max_stale_secs`.
+> `workers_healthy` is `false` if any of the three background threads (feed, refresh, flow) is dead.
+> `overlay_fresh` is `false` when overlay_symbols == 0 or overlay_age > max_stale_secs.
 > `HEAD` requests return only headers (body stripped by Starlette automatically).
+
+---
+
+### `GET /{token}/metrics`
+
+Token-protected Prometheus text-format endpoint. Same token as `/smc_live`.
+Returns all in-process counters (request totals, auth denials, compute errors,
+feed errors) plus gauges (uptime, overlay age, bar count, worker liveness).
+
+Used by Prometheus scrape jobs. Returns `text/plain; version=0.0.4`.
+
+```bash
+curl "http://localhost:8000/mysecret/metrics"
+```
 
 ---
 
@@ -68,7 +88,7 @@ Returns **404** on wrong token (does not leak route existence).
 | Param    | Required | Example | Notes |
 |----------|----------|---------|-------|
 | `symbol` | ✅ | `NVDA` | Case-insensitive, max 10 chars |
-| `tf`     | ❌ | `5m` | One of `5m`, `15m`, `1H`, `4H`, `1D`. Returns 400 for unknown values. |
+| `tf`     | ❌ | `5m` | One of `5m`, `15m`, `1H`, `4H`. Returns 400 for unknown values. |
 
 **Response fields**
 
@@ -170,6 +190,9 @@ DATABENTO_API_KEY=xxx OVERLAY_SECRET_TOKEN=mysecret \
 # Health check
 curl http://localhost:8000/health
 
+# Metrics (Prometheus text format)
+curl "http://localhost:8000/mysecret/metrics"
+
 # Overlay (replace TOKEN and symbol)
 curl "http://localhost:8000/mysecret/smc_live?symbol=NVDA&tf=5m"
 ```
@@ -177,6 +200,52 @@ curl "http://localhost:8000/mysecret/smc_live?symbol=NVDA&tf=5m"
 ---
 
 ## Monitoring
+
+### Telemetry architecture
+
+```
+observability.py (structured log lines + in-process counters)
+        │
+        ├── /metrics  → Prometheus scrape → Grafana dashboards + alerts
+        ├── /health   → Railway healthcheck + UptimeRobot (binary up/down)
+        └── stdout    → Railway Logs (human/debug) → optional log-drain
+```
+
+**Metric names** (Prometheus-format via `/{token}/metrics`):
+
+| Metric | Type | Source |
+|--------|------|--------|
+| `live_overlay_smc_live_requests_total` | counter | main.py |
+| `live_overlay_smc_live_auth_denied` | counter | main.py |
+| `live_overlay_smc_live_cache_miss_total` | counter | main.py |
+| `live_overlay_smc_live_success_total` | counter | main.py |
+| `live_overlay_health_requests_total` | counter | main.py |
+| `live_overlay_full_compute_cycle_errors` | counter | feed.py |
+| `live_overlay_flow_patch_cycle_errors` | counter | feed.py |
+| `live_overlay_feed_reconnect_attempts` | counter | feed.py |
+| `live_overlay_feed_bento_errors` | counter | feed.py |
+| `live_overlay_feed_unexpected_errors` | counter | feed.py |
+| `live_overlay_feed_circuit_breakers` | counter | feed.py |
+| `live_overlay_feed_partial_restarts` | counter | feed.py |
+| `live_overlay_uptime_seconds` | gauge | main.py |
+| `live_overlay_overlay_symbols` | gauge | cache |
+| `live_overlay_overlay_age_seconds` | gauge | cache |
+| `live_overlay_last_bar_age_seconds` | gauge | feed.py |
+| `live_overlay_feed_healthy` | gauge | feed.py |
+| `live_overlay_workers_healthy` | gauge | feed.py |
+| `live_overlay_worker_*_alive` | gauge | feed.py |
+
+### Alert rules (recommended)
+
+| Condition | Severity | Action |
+|-----------|----------|--------|
+| `status != "ok"` for > 5 min | critical | Investigate feed + workers |
+| `overlay_fresh == false` | high | Compute cycle hung or erroring |
+| `workers_healthy == false` | critical | Thread died, check logs |
+| `circuit_breakers > 0` | high | Feed outage exceeded max retries |
+| `rate(bento_errors[5m]) > 0.5` | warning | Databento connectivity degraded |
+| `overlay_age_seconds > max_stale_secs` | high | Compute not running |
+| `overlay_symbols == 0` after 10 min | critical | No symbols computed |
 
 ### UptimeRobot (free tier)
 

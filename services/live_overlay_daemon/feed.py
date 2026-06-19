@@ -29,6 +29,7 @@ from typing import Any
 import databento as db
 
 from . import cache, compute, config
+from .observability import metric_counter
 
 logger = logging.getLogger(__name__)
 
@@ -45,11 +46,24 @@ _flow_refresh_thread: threading.Thread | None = None
 _stop_event = threading.Event()
 _feed_ready = threading.Event()
 _last_bar_at: float = 0.0
+_metrics_lock = threading.Lock()
+_metrics: dict[str, int] = {
+    "reconnect_attempts": 0,
+    "bento_errors": 0,
+    "unexpected_errors": 0,
+    "circuit_breakers": 0,
+    "partial_restarts": 0,
+}
 
 
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+def _price_from_record(record: Any, name: str) -> float | None:
+    """Read a nanodollar price field from a Databento record and scale to float."""
+    val = getattr(record, name, None)
+    return (val / 1e9) if val is not None else None
 
 def _record_to_bar(record: Any) -> dict[str, Any] | None:
     """Convert a DBN OhlcvMsg record to a plain bar dict."""
@@ -58,11 +72,12 @@ def _record_to_bar(record: Any) -> dict[str, Any] | None:
         # Python objects (e.g. object()) have none of these and must yield None.
         if not (hasattr(record, "open") or hasattr(record, "high") or hasattr(record, "low") or hasattr(record, "close")):
             return None
+
         return {
-            "open": getattr(record, "open", 0) / 1e9,
-            "high": getattr(record, "high", 0) / 1e9,
-            "low": getattr(record, "low", 0) / 1e9,
-            "close": getattr(record, "close", 0) / 1e9,
+            "open": _price_from_record(record, "open"),
+            "high": _price_from_record(record, "high"),
+            "low": _price_from_record(record, "low"),
+            "close": _price_from_record(record, "close"),
             "volume": getattr(record, "volume", 0),
             # ts_event is a top-level field on OHLCVMsg, not under .hd
             "ts_event": _ts if (_ts := getattr(record, "ts_event", None)) is not None else getattr(getattr(record, "hd", None), "ts_event", 0),
@@ -86,6 +101,27 @@ def _symbol_from_record(record: Any, symmap: dict[int, str]) -> str | None:
         return None
 
 
+def _maybe_cache_vix(sym: str, bar: dict[str, Any]) -> None:
+    """Cache VIX level when a bar for the VIX symbol has a concrete close."""
+    if sym == _VIX_SYMBOL and bar.get("close") is not None:
+        cache.set_vix(bar["close"])
+
+
+def _inc_metric(name: str, amount: int = 1) -> None:
+    with _metrics_lock:
+        _metrics[name] = _metrics.get(name, 0) + amount
+    # Also emit as structured observability counter for log-drain/metrics pipeline
+    metric_counter(f"live_overlay.feed.{name}", float(amount))
+
+
+def _metrics_snapshot() -> dict[str, int]:
+    with _metrics_lock:
+        return dict(_metrics)
+
+
+_last_bar_lock = threading.Lock()
+
+
 # ---------------------------------------------------------------------------
 # Feed consumer loop
 # ---------------------------------------------------------------------------
@@ -105,7 +141,16 @@ def _run_feed_loop(stop: threading.Event) -> None:
         while not stop.is_set():
             client: db.Live | None = None
             try:
-                key = config.databento_api_key()
+                try:
+                    key = config.databento_api_key()
+                except RuntimeError as exc:
+                    # Non-retryable local configuration error (e.g. missing
+                    # DATABENTO_API_KEY) — retrying only creates log noise
+                    # and delays operator feedback.
+                    _feed_ready.clear()
+                    logger.critical("Non-retryable feed configuration error: %s", exc)
+                    break
+
                 client = db.Live(key=key)
                 client.subscribe(
                     dataset="EQUS.MINI",
@@ -173,24 +218,23 @@ def _run_feed_loop(stop: threading.Event) -> None:
                             logger.warning("bar=None for sym=%s rec_type=%s", sym, rec_type)
                         continue
 
+                    global _last_bar_at
                     cache.push_bar(sym, bar)
                     _bars_pushed_count += 1
 
-                    global _last_bar_at
-                    _last_bar_at = time.monotonic()
+                    with _last_bar_lock:
+                        _last_bar_at = time.monotonic()
 
                     if not _feed_ready.is_set():
                         _feed_ready.set()
                         logger.info("Feed ready — first bar pushed for %s", sym)
 
-                    # Track VIX separately — use explicit None-check so that a
-                    # zero close (corrupted tick) is still cached rather than
-                    # silently dropped by a falsy test.
-                    if sym == _VIX_SYMBOL and bar.get("close") is not None:
-                        cache.set_vix(bar["close"])
+                    # Track VIX separately.
+                    _maybe_cache_vix(sym, bar)
 
             except db.BentoError as exc:
                 consecutive_failures += 1
+                _inc_metric("bento_errors")
                 _feed_ready.clear()
                 logger.warning(
                     "db.Live() BentoError (attempt %d/%d): %s",
@@ -199,6 +243,7 @@ def _run_feed_loop(stop: threading.Event) -> None:
                 )
             except Exception as exc:
                 consecutive_failures += 1
+                _inc_metric("unexpected_errors")
                 _feed_ready.clear()
                 logger.warning("db.Live() unexpected error: %s", exc, exc_info=True)
             finally:
@@ -216,6 +261,7 @@ def _run_feed_loop(stop: threading.Event) -> None:
             _feed_ready.clear()
 
             if consecutive_failures >= max_failures:
+                _inc_metric("circuit_breakers")
                 logger.critical(
                     "Feed loop exceeded %d consecutive failures — "
                     "circuit-breaker triggered, thread stopping.",
@@ -229,6 +275,7 @@ def _run_feed_loop(stop: threading.Event) -> None:
                 if consecutive_failures >= _MAX_RECONNECT_ATTEMPTS
                 else _RECONNECT_DELAY_SECS
             )
+            _inc_metric("reconnect_attempts")
             logger.info("Feed reconnecting in %ds …", delay)
             stop.wait(delay)
 
@@ -253,6 +300,7 @@ def _run_refresh_loop(stop: threading.Event) -> None:
             elapsed = time.monotonic() - t0
             logger.info("Full overlay computed: %d symbols in %.1fs", n, elapsed)
         except Exception as exc:
+            metric_counter("live_overlay.full_compute_cycle.errors")
             logger.error("Full overlay compute error: %s", exc, exc_info=True)
         stop.wait(secs)
     logger.info("Refresh thread stopped.")
@@ -269,41 +317,60 @@ def _run_flow_refresh_loop(stop: threading.Event) -> None:
             elapsed = time.monotonic() - t0
             logger.debug("Flow patch: %d symbols in %.1fs", n, elapsed)
         except Exception as exc:
+            metric_counter("live_overlay.flow_patch_cycle.errors")
             logger.error("Flow patch error: %s", exc, exc_info=True)
         stop.wait(secs)
     logger.info("Flow refresh thread stopped.")
 
 
-# ---------------------------------------------------------------------------
-# Public start / stop API (called from main.py lifespan)
-# ---------------------------------------------------------------------------
-
 def start() -> None:
     """Start the three background threads (feed + refresh + flow refresh)."""
+
     global _feed_thread, _refresh_thread, _flow_refresh_thread
 
-    if _feed_thread is not None and _feed_thread.is_alive():
-        logger.warning("start() called while feed threads are already running — ignoring.")
+    feed_alive = _feed_thread is not None and _feed_thread.is_alive()
+    refresh_alive = _refresh_thread is not None and _refresh_thread.is_alive()
+    flow_alive = _flow_refresh_thread is not None and _flow_refresh_thread.is_alive()
+
+    # Idempotent no-op when every worker is already healthy.
+    if feed_alive and refresh_alive and flow_alive:
+        logger.warning("start() called while all workers alive — ignoring")
+        return
+
+    # If shutdown is in progress and some workers are still alive, avoid restart race.
+    if _stop_event.is_set() and (feed_alive or refresh_alive or flow_alive):
+        logger.warning("start() called while stop event is set and workers are still alive — ignoring")
         return
 
     _stop_event.clear()
 
-    _feed_thread = threading.Thread(
-        target=_run_feed_loop, args=(_stop_event,), daemon=True, name="live-feed"
-    )
-    _refresh_thread = threading.Thread(
-        target=_run_refresh_loop, args=(_stop_event,), daemon=True, name="overlay-refresh"
-    )
-    _flow_refresh_thread = threading.Thread(
-        target=_run_flow_refresh_loop,
-        args=(_stop_event,),
-        daemon=True,
-        name="flow-refresh",
-    )
+    started: list[str] = []
+    if not feed_alive:
+        _feed_thread = threading.Thread(
+            target=_run_feed_loop, args=(_stop_event,), daemon=True, name="live-feed"
+        )
+        _feed_thread.start()
+        started.append("live-feed")
 
-    _feed_thread.start()
-    _refresh_thread.start()
-    _flow_refresh_thread.start()
+    if not refresh_alive:
+        _refresh_thread = threading.Thread(
+            target=_run_refresh_loop, args=(_stop_event,), daemon=True, name="overlay-refresh"
+        )
+        _refresh_thread.start()
+        started.append("overlay-refresh")
+
+    if not flow_alive:
+        _flow_refresh_thread = threading.Thread(
+            target=_run_flow_refresh_loop,
+            args=(_stop_event,),
+            daemon=True,
+            name="flow-refresh",
+        )
+        _flow_refresh_thread.start()
+        started.append("flow-refresh")
+
+    if started and (feed_alive or refresh_alive or flow_alive):
+        _inc_metric("partial_restarts")
 
     # Safety-net shutdown hook: the three threads are daemon=True, so an exit
     # path that bypasses the FastAPI lifespan (e.g. an unhandled exception or a
@@ -313,8 +380,9 @@ def start() -> None:
     # close cleanly. unregister-then-register keeps exactly one hook across
     # stop()/start() restart cycles; stop() is idempotent and join-bounded.
     atexit.unregister(stop)
+
     atexit.register(stop)
-    logger.info("Live feed + overlay refresh threads started.")
+    logger.info("Live feed workers started/recovered: %s", ", ".join(started) if started else "none")
 
 
 def stop() -> None:
@@ -331,13 +399,31 @@ def is_ready() -> bool:
     """Return True if the feed is connected and bars are not stale."""
     if not _feed_ready.is_set():
         return False
-    if _last_bar_at <= 0:
+    with _last_bar_lock:
+        last_bar_at = _last_bar_at
+    if last_bar_at <= 0:
         return False
-    return (time.monotonic() - _last_bar_at) < config.max_stale_secs()
+    return (time.monotonic() - last_bar_at) < config.max_stale_secs()
 
 
 def last_bar_age_secs() -> float | None:
     """Return seconds since the last bar was pushed, or None if never."""
-    if _last_bar_at <= 0:
+    with _last_bar_lock:
+        last_bar_at = _last_bar_at
+    if last_bar_at <= 0:
         return None
-    return time.monotonic() - _last_bar_at
+    return time.monotonic() - last_bar_at
+
+
+def worker_liveness() -> dict[str, bool]:
+    """Return per-worker liveness flags for operational health reporting."""
+    return {
+        "live_feed": _feed_thread is not None and _feed_thread.is_alive(),
+        "overlay_refresh": _refresh_thread is not None and _refresh_thread.is_alive(),
+        "flow_refresh": _flow_refresh_thread is not None and _flow_refresh_thread.is_alive(),
+    }
+
+
+def metrics_snapshot() -> dict[str, int]:
+    """Return feed counters for /health observability payload."""
+    return _metrics_snapshot()

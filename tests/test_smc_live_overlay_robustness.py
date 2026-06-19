@@ -93,6 +93,24 @@ class TestConfigRangeValidation:
         assert result == 60  # default
         assert "Invalid integer" in caplog.text
 
+    def test_load_env_unquotes_wrapped_values(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        import services.live_overlay_daemon.config as cfg
+
+        env_file = tmp_path / ".env"
+        env_file.write_text(
+            "OVERLAY_SECRET_TOKEN=\"quoted-token\"\nDATABENTO_API_KEY='quoted-key'\n",
+            encoding="utf-8",
+        )
+
+        monkeypatch.delenv("OVERLAY_SECRET_TOKEN", raising=False)
+        monkeypatch.delenv("DATABENTO_API_KEY", raising=False)
+        monkeypatch.setattr(cfg, "_ENV_FILE", env_file)
+
+        cfg._load_env()
+
+        assert cfg.overlay_secret_token() == "quoted-token"
+        assert cfg.databento_api_key() == "quoted-key"
+
 
 # ---------------------------------------------------------------------------
 # R3: _load_news_snapshot warning logging
@@ -110,6 +128,7 @@ class TestNewsSnapshotWarningLogging:
 
         # Reset TTL cache so it reloads
         monkeypatch.setattr(compute, "_news_loaded_at", 0.0)
+        monkeypatch.setattr(compute, "_news_checked_at", 0.0)
         monkeypatch.setattr(compute, "_news_cache", {})
 
         with patch.object(compute.config, "news_snapshot_path", return_value=bad_file), caplog.at_level(logging.WARNING):
@@ -125,6 +144,7 @@ class TestNewsSnapshotWarningLogging:
         import services.live_overlay_daemon.compute as compute
 
         monkeypatch.setattr(compute, "_news_loaded_at", 0.0)
+        monkeypatch.setattr(compute, "_news_checked_at", 0.0)
         monkeypatch.setattr(compute, "_news_cache", {})
 
         with patch.object(compute.config, "news_snapshot_path", return_value=good_file), caplog.at_level(logging.WARNING):
@@ -190,6 +210,64 @@ class TestBarCacheEviction:
         assert cache_mod.get_bars_snapshot("SYM0") == []
         # FRESH should exist
         assert cache_mod.get_bars_snapshot("FRESH") != []
+
+    def test_reinit_updates_existing_symbol_deque_cap(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import services.live_overlay_daemon.cache as cache_mod
+
+        monkeypatch.setattr(cache_mod, "_bars", {})
+        monkeypatch.setattr(cache_mod, "_bar_last_update", {})
+        monkeypatch.setattr(cache_mod, "_last_eviction_at", 0.0)
+
+        cache_mod.init_bar_cache(2, max_symbols=2000)
+        for i in range(4):
+            cache_mod.push_bar("AAPL", {"open": 1, "close": 1, "high": 1, "low": 1, "volume": i})
+        assert len(cache_mod.get_bars_snapshot("AAPL")) == 2
+
+        cache_mod.init_bar_cache(5, max_symbols=2000)
+        for i in range(10):
+            cache_mod.push_bar("AAPL", {"open": 1, "close": 1, "high": 1, "low": 1, "volume": i})
+
+        assert len(cache_mod.get_bars_snapshot("AAPL")) == 5
+
+    def test_downscale_max_symbols_enforces_hard_cap_immediately(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import services.live_overlay_daemon.cache as cache_mod
+
+        monkeypatch.setattr(cache_mod, "_bars", {})
+        monkeypatch.setattr(cache_mod, "_bar_last_update", {})
+        monkeypatch.setattr(cache_mod, "_last_eviction_at", 0.0)
+
+        bar = {"open": 1, "close": 1, "high": 1, "low": 1, "volume": 1}
+        cache_mod.init_bar_cache(5, max_symbols=100)
+        for i in range(10):
+            cache_mod.push_bar(f"SYM{i}", bar)
+        assert cache_mod.bar_symbol_count() == 10
+
+        cache_mod.init_bar_cache(5, max_symbols=3)
+        assert cache_mod.bar_symbol_count() <= 3
+
+    def test_new_symbol_push_at_capacity_after_downscale_keeps_cache_within_cap(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import services.live_overlay_daemon.cache as cache_mod
+
+        monkeypatch.setattr(cache_mod, "_bars", {})
+        monkeypatch.setattr(cache_mod, "_bar_last_update", {})
+        monkeypatch.setattr(cache_mod, "_last_eviction_at", 0.0)
+
+        bar = {"open": 1, "close": 1, "high": 1, "low": 1, "volume": 1}
+        cache_mod.init_bar_cache(5, max_symbols=100)
+        for i in range(10):
+            cache_mod.push_bar(f"OLD{i}", bar)
+
+        # Lowering the cap enforces it immediately; this verifies the next
+        # insertion while already at capacity still preserves the hard cap.
+        cache_mod.init_bar_cache(5, max_symbols=3)
+        cache_mod.push_bar("NEW1", bar)
+
+        assert cache_mod.bar_symbol_count() <= 3
+        assert cache_mod.get_bars_snapshot("NEW1") != []
 
 
 # ---------------------------------------------------------------------------
@@ -358,6 +436,7 @@ class TestNewsSnapshotFileNotFound:
         import services.live_overlay_daemon.compute as compute
 
         monkeypatch.setattr(compute, "_news_loaded_at", 0.0)
+        monkeypatch.setattr(compute, "_news_checked_at", 0.0)
         monkeypatch.setattr(compute, "_news_cache", {})
 
         with patch.object(compute.config, "news_snapshot_path", return_value=missing):
@@ -391,6 +470,188 @@ class TestFeedReadiness:
         feed_mod._last_bar_at = 0.0
 
 
+class TestHealthStatusSignals:
+    """Health endpoint should not report ok during worker/staleness degradation."""
+
+    def test_health_is_starting_when_workers_not_all_alive(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import services.live_overlay_daemon.main as main_mod
+
+        monkeypatch.setattr(main_mod.feed, "is_ready", lambda: True)
+        monkeypatch.setattr(main_mod.feed, "last_bar_age_secs", lambda: 0.1)
+        monkeypatch.setattr(
+            main_mod.feed,
+            "worker_liveness",
+            lambda: {"live_feed": True, "overlay_refresh": False, "flow_refresh": False},
+        )
+        monkeypatch.setattr(main_mod.feed, "metrics_snapshot", lambda: {"reconnect_attempts": 3})
+        monkeypatch.setattr(main_mod.cache, "overlay_age_secs", lambda: 1.0)
+        monkeypatch.setattr(main_mod.cache, "bar_symbol_count", lambda: 1)
+        monkeypatch.setattr(main_mod.cache, "total_bar_count", lambda: 10)
+        monkeypatch.setattr(main_mod.cache, "overlay_symbol_count", lambda: 1)
+        monkeypatch.setattr(main_mod.config, "max_stale_secs", lambda: 3600)
+
+        payload = json.loads(main_mod.health().body)
+
+        assert payload["status"] == "starting"
+        assert payload["feed_healthy"] is True
+        assert payload["workers_healthy"] is False
+        assert payload["feed_metrics"]["reconnect_attempts"] == 3
+        assert payload["overlay_fresh"] is True
+
+    def test_health_is_starting_when_overlay_is_stale(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import services.live_overlay_daemon.main as main_mod
+
+        monkeypatch.setattr(main_mod.feed, "is_ready", lambda: True)
+        monkeypatch.setattr(main_mod.feed, "last_bar_age_secs", lambda: 0.1)
+        monkeypatch.setattr(
+            main_mod.feed,
+            "worker_liveness",
+            lambda: {"live_feed": True, "overlay_refresh": True, "flow_refresh": True},
+        )
+        monkeypatch.setattr(main_mod.cache, "overlay_age_secs", lambda: float("inf"))
+        monkeypatch.setattr(main_mod.cache, "bar_symbol_count", lambda: 1)
+        monkeypatch.setattr(main_mod.cache, "total_bar_count", lambda: 10)
+        monkeypatch.setattr(main_mod.cache, "overlay_symbol_count", lambda: 0)
+        monkeypatch.setattr(main_mod.config, "max_stale_secs", lambda: 3600)
+
+        payload = json.loads(main_mod.health().body)
+
+        assert payload["status"] == "starting"
+        assert payload["feed_healthy"] is True
+        assert payload["workers_healthy"] is True
+        assert payload["overlay_fresh"] is False
+
+
+class TestSmcLiveTimeframeContract:
+    """Endpoint tf validation must match published schema contract."""
+
+    def test_smc_live_rejects_1d_timeframe(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import services.live_overlay_daemon.main as main_mod
+
+        monkeypatch.setattr(main_mod.config, "overlay_secret_token", lambda: "tok")
+
+        with pytest.raises(main_mod.HTTPException) as exc_info:
+            main_mod.smc_live(token="tok", symbol="AAPL", tf="1D")
+
+        assert exc_info.value.status_code == 400
+        assert "tf must be one of" in str(exc_info.value.detail)
+
+    def test_health_is_starting_when_overlay_cache_is_empty(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import services.live_overlay_daemon.main as main_mod
+
+        monkeypatch.setattr(main_mod.feed, "is_ready", lambda: True)
+        monkeypatch.setattr(main_mod.feed, "last_bar_age_secs", lambda: 0.1)
+        monkeypatch.setattr(
+            main_mod.feed,
+            "worker_liveness",
+            lambda: {"live_feed": True, "overlay_refresh": True, "flow_refresh": True},
+        )
+        monkeypatch.setattr(main_mod.cache, "overlay_age_secs", lambda: 1.0)
+        monkeypatch.setattr(main_mod.cache, "bar_symbol_count", lambda: 1)
+        monkeypatch.setattr(main_mod.cache, "total_bar_count", lambda: 10)
+        monkeypatch.setattr(main_mod.cache, "overlay_symbol_count", lambda: 0)
+        monkeypatch.setattr(main_mod.config, "max_stale_secs", lambda: 3600)
+
+        payload = json.loads(main_mod.health().body)
+
+        assert payload["status"] == "starting"
+        assert payload["feed_healthy"] is True
+        assert payload["workers_healthy"] is True
+        assert payload["overlay_fresh"] is False
+
+
+class TestSmcLiveSerializationSafety:
+    """smc_live should never emit non-finite numbers into JSONResponse."""
+
+    def test_smc_live_replaces_non_finite_payload_floats_with_null(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import services.live_overlay_daemon.main as main_mod
+
+        monkeypatch.setattr(main_mod.config, "overlay_secret_token", lambda: "tok")
+        monkeypatch.setattr(main_mod.cache, "overlay_age_secs", lambda: 1.0)
+        monkeypatch.setattr(main_mod.config, "max_stale_secs", lambda: 3600)
+        monkeypatch.setattr(
+            main_mod.cache,
+            "get_overlay",
+            lambda _sym: {
+                "schema": "smc-live-overlay/1",
+                "symbol": "AAPL",
+                "asof_ts": 1,
+                "stale": False,
+                "news_strength": None,
+                "news_bias": None,
+                "flow_rel_vol": float("nan"),
+                "flow_delta_proxy_pct": 0.0,
+                "squeeze_on": 0,
+                "ats_state": "neutral",
+                "ats_zscore": float("inf"),
+                "vix_level": float("-inf"),
+                "tone": "NEUTRAL",
+                "global_heat": 0.0,
+                "event_window_state": "normal",
+                "event_risk_level": "low",
+                "next_event_name": None,
+                "next_event_time": None,
+                "market_event_blocked": False,
+                "symbol_event_blocked": False,
+                "event_provider_status": "unavailable",
+            },
+        )
+
+        payload = json.loads(main_mod.smc_live(token="tok", symbol="aapl", tf="5m").body)
+
+        assert payload["flow_rel_vol"] is None
+        assert payload["ats_zscore"] is None
+        assert payload["vix_level"] is None
+
+
+class TestVixFiniteContract:
+    """Non-finite VIX values must not enter overlay state via cache/flow patch."""
+
+    def test_set_vix_ignores_non_finite_values(self) -> None:
+        import services.live_overlay_daemon.cache as cache_mod
+
+        cache_mod.set_vix(20.5)
+        cache_mod.set_vix(float("inf"))
+        cache_mod.set_vix(float("nan"))
+
+        assert cache_mod.get_vix() == 20.5
+
+    def test_flow_patch_cycle_does_not_write_non_finite_vix(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import services.live_overlay_daemon.cache as cache_mod
+        import services.live_overlay_daemon.compute as compute_mod
+
+        monkeypatch.setattr(
+            cache_mod,
+            "get_all_symbols_snapshot",
+            lambda: {
+                "AAPL": [
+                    {"open": 1.0, "high": 1.2, "low": 0.9, "close": 1.1, "volume": 100},
+                    {"open": 1.0, "high": 1.2, "low": 0.9, "close": 1.1, "volume": 110},
+                    {"open": 1.0, "high": 1.2, "low": 0.9, "close": 1.1, "volume": 120},
+                    {"open": 1.0, "high": 1.2, "low": 0.9, "close": 1.1, "volume": 130},
+                    {"open": 1.0, "high": 1.2, "low": 0.9, "close": 1.1, "volume": 140},
+                ]
+            },
+        )
+        monkeypatch.setattr(cache_mod, "get_vix", lambda: float("inf"))
+
+        cache_mod.set_overlay({"AAPL": {"vix_level": 19.0, "flow_rel_vol": 1.0}})
+
+        compute_mod.run_flow_patch_cycle()
+
+        payload = cache_mod.get_overlay("AAPL")
+        assert payload is not None
+        assert payload["vix_level"] == 19.0
+
+
 # ---------------------------------------------------------------------------
 # N1/N2: stop() and circuit-breaker clear _feed_ready
 # ---------------------------------------------------------------------------
@@ -417,6 +678,31 @@ class TestFeedReadyClearedOnStop:
         feed_mod._stop_event.clear()
 
 
+class TestFeedLoopConfigFailFast:
+    """Non-retryable configuration failures must not enter retry/backoff loops."""
+
+    def test_run_feed_loop_does_not_retry_on_config_runtime_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import services.live_overlay_daemon.feed as feed_mod
+
+        calls = {"n": 0}
+
+        def _bad_key() -> str:
+            calls["n"] += 1
+            raise RuntimeError("missing DATABENTO_API_KEY")
+
+        monkeypatch.setattr(feed_mod.config, "databento_api_key", _bad_key)
+        monkeypatch.setattr(feed_mod.config, "max_feed_failures", lambda: 50)
+        monkeypatch.setattr(feed_mod, "_RECONNECT_DELAY_SECS", 0)
+        monkeypatch.setattr(feed_mod, "_RECONNECT_BACKOFF_SECS", 0)
+
+        stop = threading.Event()
+        feed_mod._run_feed_loop(stop)
+
+        assert calls["n"] == 1, "config errors must fail fast without retries"
+
+
 # ---------------------------------------------------------------------------
 # N5: double-start guard
 # ---------------------------------------------------------------------------
@@ -431,6 +717,8 @@ class TestDoubleStartGuard:
         sentinel = MagicMock(spec=threading.Thread)
         sentinel.is_alive.return_value = True
         monkeypatch.setattr(feed_mod, "_feed_thread", sentinel)
+        monkeypatch.setattr(feed_mod, "_refresh_thread", sentinel)
+        monkeypatch.setattr(feed_mod, "_flow_refresh_thread", sentinel)
 
         # Calling start() should return early without creating new threads
         with patch.object(feed_mod, "_stop_event") as mock_stop:
@@ -439,6 +727,90 @@ class TestDoubleStartGuard:
 
         # cleanup
         monkeypatch.setattr(feed_mod, "_feed_thread", None)
+        monkeypatch.setattr(feed_mod, "_refresh_thread", None)
+        monkeypatch.setattr(feed_mod, "_flow_refresh_thread", None)
+
+
+class TestFeedMetricsSnapshot:
+    """feed.metrics_snapshot should expose real counters, not hard-coded zeros."""
+
+    def test_metrics_snapshot_reflects_counter_updates(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import services.live_overlay_daemon.feed as feed_mod
+
+        monkeypatch.setattr(
+            feed_mod,
+            "_metrics",
+            {
+                "reconnect_attempts": 0,
+                "bento_errors": 0,
+                "unexpected_errors": 0,
+                "circuit_breakers": 0,
+                "partial_restarts": 0,
+            },
+        )
+
+        feed_mod._inc_metric("reconnect_attempts", 2)
+        feed_mod._inc_metric("bento_errors")
+        feed_mod._inc_metric("partial_restarts")
+
+        snapshot = feed_mod.metrics_snapshot()
+        assert snapshot["reconnect_attempts"] == 2
+        assert snapshot["bento_errors"] == 1
+        assert snapshot["partial_restarts"] == 1
+
+    def test_metrics_snapshot_is_defensive_copy(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import services.live_overlay_daemon.feed as feed_mod
+
+        monkeypatch.setattr(
+            feed_mod,
+            "_metrics",
+            {
+                "reconnect_attempts": 1,
+                "bento_errors": 2,
+                "unexpected_errors": 3,
+                "circuit_breakers": 4,
+                "partial_restarts": 5,
+            },
+        )
+
+        snapshot = feed_mod.metrics_snapshot()
+        snapshot["reconnect_attempts"] = 999
+
+        assert feed_mod.metrics_snapshot()["reconnect_attempts"] == 1
+
+    def test_start_recovers_dead_workers_when_some_are_alive(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import services.live_overlay_daemon.feed as feed_mod
+
+        alive = MagicMock(spec=threading.Thread)
+        alive.is_alive.return_value = True
+        dead = MagicMock(spec=threading.Thread)
+        dead.is_alive.return_value = False
+
+        monkeypatch.setattr(feed_mod, "_feed_thread", alive)
+        monkeypatch.setattr(feed_mod, "_refresh_thread", dead)
+        monkeypatch.setattr(feed_mod, "_flow_refresh_thread", dead)
+
+        created: list[str | None] = []
+
+        class _FakeThread:
+            def __init__(self, *args, name: str | None = None, **kwargs):
+                created.append(name)
+
+            def start(self) -> None:
+                return None
+
+            def is_alive(self) -> bool:
+                return True
+
+        monkeypatch.setattr(feed_mod.threading, "Thread", _FakeThread)
+
+        feed_mod.start()
+
+        assert "overlay-refresh" in created
+        assert "flow-refresh" in created
+        assert "live-feed" not in created
 
 
 # ---------------------------------------------------------------------------
@@ -527,3 +899,24 @@ class TestAtexitShutdownHook:
         # cleanup
         feed_mod._stop_event.clear()
         monkeypatch.setattr(feed_mod, "_feed_thread", None)
+
+
+class TestTfSchemaContract:
+    """smc_live tf validation must stay aligned with schema enum."""
+
+    def test_smc_live_rejects_unsupported_1d_tf(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from fastapi import HTTPException
+
+        import services.live_overlay_daemon.main as main_mod
+
+        monkeypatch.setattr(main_mod.config, "overlay_secret_token", lambda: "tok")
+
+        with pytest.raises(HTTPException) as exc_info:
+            main_mod.smc_live(token="tok", symbol="AAPL", tf="1D")
+
+        assert exc_info.value.status_code == 400
+        assert exc_info.value.detail == "tf must be one of ['15m', '1H', '4H', '5m']"
+
+

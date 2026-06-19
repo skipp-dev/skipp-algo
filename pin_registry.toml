@@ -399,7 +399,7 @@ frozen_major = "v7"
 # in compute.py (_get_news_fields / _get_global_news_fields use
 # `snap.get("stories") or snap.get("items")` — two aliases for the same
 # news-snapshot key in different provider shapes).
-"services/live_overlay_daemon/compute.py" = 4
+"services/live_overlay_daemon/compute.py" = 2
 "scripts/smc_analyst_enrichment.py" = 5
 "scripts/smc_compression_regime.py" = 1
 "scripts/smc_hero_state.py" = 1
