@@ -34,7 +34,7 @@ if _TV_AVAILABLE:
     INTERVAL_MAP = {
         "1m": Interval.INTERVAL_1_MINUTE,
         "5m": Interval.INTERVAL_5_MINUTES,
-        "10m": Interval.INTERVAL_10_MINUTES,
+        "10m": getattr(Interval, "INTERVAL_10_MINUTES", "10m"),
         "15m": Interval.INTERVAL_15_MINUTES,
         "30m": Interval.INTERVAL_30_MINUTES,
         "1h": Interval.INTERVAL_1_HOUR,
