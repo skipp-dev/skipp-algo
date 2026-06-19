@@ -22,7 +22,9 @@ from open_prep.run_open_prep import (
 
 class TestParseCalendarDateInvariants:
     def test_rejects_slash_delimited_year_first(self):
-        assert _parse_calendar_date("2024/01/03") is None
+        # YYYY/MM/DD is a supported legacy format (also accepted by the original
+        # parser and used by some providers) — must not return None.
+        assert _parse_calendar_date("2024/01/03") == date(2024, 1, 3)
 
     def test_rejects_iso_week_date(self):
         assert _parse_calendar_date("2024-W01-1") is None

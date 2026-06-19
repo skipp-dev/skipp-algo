@@ -801,6 +801,16 @@ def _parse_calendar_date(value: Any) -> date | None:
         except ValueError:
             return None
 
+    # Legacy / US / provider-specific date formats (MM/DD/YYYY, YYYY/MM/DD,
+    # MM-DD-YYYY). These appear in earnings-calendar and macro-event feeds and
+    # must be supported so that _compute_tomorrow_outlook matches correctly.
+    date_part_leg = raw.split("T")[0].split(" ")[0]
+    for fmt in ("%m/%d/%Y", "%m-%d-%Y", "%Y/%m/%d"):
+        try:
+            return datetime.strptime(date_part_leg, fmt).date()
+        except ValueError:
+            continue
+
     return None
 
 

@@ -4240,7 +4240,7 @@ class TestB10MixedDateSorting(unittest.TestCase):
             {"date": "2024-01-05", "close": 104.0},
             {"date": "2024-01-06", "close": 105.0},
             {"date": "2024-01-07", "close": 106.0},
-            {"date": "2024-01-08", "close": 107.0},
+            {"date": "2024-01-08", "close": 200.0},  # same spike as mixed format
         ]
         iso_val = run_open_prep._momentum_z_score_from_eod(iso_candles, period=10)
         self.assertEqual(val, iso_val)
