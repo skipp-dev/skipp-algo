@@ -183,8 +183,10 @@ def _run_feed_loop(stop: threading.Event) -> None:
                         _feed_ready.set()
                         logger.info("Feed ready — first bar pushed for %s", sym)
 
-                    # Track VIX separately
-                    if sym == _VIX_SYMBOL and bar.get("close"):
+                    # Track VIX separately — use explicit None-check so that a
+                    # zero close (corrupted tick) is still cached rather than
+                    # silently dropped by a falsy test.
+                    if sym == _VIX_SYMBOL and bar.get("close") is not None:
                         cache.set_vix(bar["close"])
 
             except db.BentoError as exc:

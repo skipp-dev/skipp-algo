@@ -191,8 +191,10 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("services/live_overlay_daemon/compute.py", 52, ("_news_cache", "_news_loaded_at")),
         # 2026-06-19 (fix/live-overlay-daemon-security, C2): `import atexit`
         # added at the top of feed.py shifted both globals down by one line.
+        # 2026-06-19 (fix/live-overlay-post-merge-bugs): 2-line VIX comment
+        # insertion at ~L184 shifted the start() global down by 2 more lines.
         ("services/live_overlay_daemon/feed.py", 179, ("_last_bar_at",)),
-        ("services/live_overlay_daemon/feed.py", 281, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        ("services/live_overlay_daemon/feed.py", 283, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
         ("services/live_overlay_daemon/main.py", 49, ("_startup_ts",)),
     }
 )
