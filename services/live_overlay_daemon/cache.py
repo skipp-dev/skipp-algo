@@ -57,11 +57,9 @@ def init_bar_cache(rolling_bars: int, *, max_symbols: int = 2000) -> None:
             for sym, dq in list(_bars.items()):
                 _bars[sym] = deque(dq, maxlen=_rolling_bars_cap)
             # Downscaling max_symbols must enforce the hard cap immediately.
-            while len(_bars) > _max_symbols:
-                prev_len = len(_bars)
-                _evict_stale_symbols_locked()
-                if len(_bars) >= prev_len:
-                    break
+            overshoot = len(_bars) - _max_symbols
+            if overshoot > 0:
+                _evict_n_stale_symbols_locked(overshoot)
 
 
 def push_bar(symbol: str, bar: dict[str, Any]) -> None:
@@ -74,13 +72,10 @@ def push_bar(symbol: str, bar: dict[str, Any]) -> None:
             _last_eviction_at = now
         need_cap_evict = symbol not in _bars and len(_bars) >= _max_symbols
         if need_cap_evict:
-            # When far above cap (e.g. after runtime downscale), one 10%-pass is
-            # not enough. Keep evicting until capacity allows adding one symbol.
-            while symbol not in _bars and len(_bars) >= _max_symbols:
-                prev_len = len(_bars)
-                _evict_stale_symbols_locked()
-                if len(_bars) >= prev_len:
-                    break
+            # Evict exactly the required overshoot (+1 for the incoming symbol)
+            # in a single stale-sort pass to keep lock hold time bounded.
+            overshoot_plus_incoming = (len(_bars) - _max_symbols) + 1
+            _evict_n_stale_symbols_locked(overshoot_plus_incoming)
             _last_eviction_at = now
         if symbol not in _bars:
             _bars[symbol] = deque(maxlen=_rolling_bars_cap)
@@ -122,9 +117,17 @@ def total_bar_count() -> int:
 
 def _evict_stale_symbols_locked() -> None:
     """Evict the 10% least-recently-updated symbols. Caller MUST hold _bar_lock."""
+    n_evict = max(1, len(_bars) // 10)
+    _evict_n_stale_symbols_locked(n_evict)
+
+
+def _evict_n_stale_symbols_locked(n_evict: int) -> None:
+    """Evict N least-recently-updated symbols. Caller MUST hold _bar_lock."""
     if not _bar_last_update:
         return
-    n_evict = max(1, len(_bars) // 10)
+    n_evict = max(0, min(n_evict, len(_bars)))
+    if n_evict == 0:
+        return
     victims = sorted(_bar_last_update, key=lambda s: _bar_last_update[s])[:n_evict]
     for sym in victims:
         _bars.pop(sym, None)
