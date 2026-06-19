@@ -210,7 +210,7 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # 2026-06-19 (bug-hunt follow-up): non-retryable config fail-fast path
         # in _run_feed_loop shifted feed.py global lines to 193/297.
         ("services/live_overlay_daemon/feed.py", 193, ("_last_bar_at",)),
-        ("services/live_overlay_daemon/feed.py", 297, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        ("services/live_overlay_daemon/feed.py", 299, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
         ("services/live_overlay_daemon/main.py", 49, ("_startup_ts",)),
     }
 )

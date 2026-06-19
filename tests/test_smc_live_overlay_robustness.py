@@ -529,7 +529,7 @@ class TestDoubleStartGuard:
         monkeypatch.setattr(feed_mod, "_refresh_thread", None)
         monkeypatch.setattr(feed_mod, "_flow_refresh_thread", None)
 
-    def test_start_restarts_missing_workers_when_feed_alive(
+    def test_start_refuses_restart_when_any_worker_alive(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         import services.live_overlay_daemon.feed as feed_mod
@@ -559,8 +559,8 @@ class TestDoubleStartGuard:
 
         feed_mod.start()
 
-        assert "overlay-refresh" in created
-        assert "flow-refresh" in created
+        assert "overlay-refresh" not in created
+        assert "flow-refresh" not in created
         assert "live-feed" not in created
 
 

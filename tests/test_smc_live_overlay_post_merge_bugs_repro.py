@@ -1,29 +1,27 @@
-"""Reproduktions- und Property-Tests fuer die Post-Merge-Fixes in live_overlay_daemon.
+"""Reproduction and property tests for the post-merge fixes in live_overlay_daemon.
 
-Ziel: Nachweis von echten Bugs durch ausfuehrbare Tests, nicht nur Code-Lesekritik.
+Goal: demonstrate real bugs through executable tests, not just code-reading critique.
 """
 from __future__ import annotations
 
 import json
 import threading
 from pathlib import Path
-from typing import Any
 from unittest.mock import patch
 
 import pytest
 
 
 class TestNewsSnapshotCachingBug:
-    """BUG-1: _load_news_snapshot() cached {} nach 'file not found' und ignoriert
-    eine spaeter erstellte Datei waehrend der TTL.
+    """BUG-1: _load_news_snapshot() cached {} after 'file not found' and ignores
+    a file created later during the TTL window.
     """
 
     def test_newly_created_snapshot_loaded_after_rate_limit_window(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Regression: eine nach 'file not found' erstellte Snapshot-Datei muss
-        nach Ablauf des Rate-Limit-Fensters erkannt werden, nicht erst nach der
-        vollen Erfolgs-TTL.
+        """Regression: a snapshot file created after 'file not found' must be picked
+        up after the rate-limit window expires, not only after the full load TTL.
         """
         import services.live_overlay_daemon.compute as compute
         import services.live_overlay_daemon.config as cfg
@@ -83,7 +81,7 @@ class TestNewsSnapshotCachingBug:
     def test_reload_after_ttl_expires(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Nach Ablauf der TTL sollte die Datei neu geladen werden."""
+        """After the TTL expires the file must be reloaded."""
         import services.live_overlay_daemon.compute as compute
         import services.live_overlay_daemon.config as cfg
 
@@ -102,12 +100,12 @@ class TestNewsSnapshotCachingBug:
 
 
 class TestVIXZeroCloseBug:
-    """BUG-2: VIX-Bar mit close=0 wurde vorher wegen falsy-Test ignoriert.
-    Der Fix prueft auf 'is not None'. Dieser Test dokumentiert die Invariante.
+    """BUG-2: A VIX bar with close=0 was previously dropped by the falsy check.
+    The fix uses 'is not None'. This test documents the invariant.
     """
 
     def test_vix_zero_close_is_cached(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Ein VIX-Bar mit close=0 soll cache.set_vix(0) aufrufen."""
+        """A VIX bar with close=0 must call cache.set_vix(0)."""
         import services.live_overlay_daemon.cache as cache_mod
         import services.live_overlay_daemon.feed as feed_mod
 
@@ -387,21 +385,21 @@ class TestNewsSnapshotRaceCondition:
         monkeypatch.setattr(compute, "_news_cache", {})
         monkeypatch.setattr(cfg, "news_cache_ttl_secs", lambda: 0)
 
-        errors: list[BaseException] = []
+        errors: list[Exception] = []
 
         def worker() -> None:
             try:
-                with patch.object(
-                    compute.config, "news_snapshot_path", return_value=snapshot_path
-                ):
-                    compute._load_news_snapshot()
-            except BaseException as exc:
+                compute._load_news_snapshot()
+            except Exception as exc:
                 errors.append(exc)
 
-        threads = [threading.Thread(target=worker) for _ in range(50)]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
+        with patch.object(
+            compute.config, "news_snapshot_path", return_value=snapshot_path
+        ):
+            threads = [threading.Thread(target=worker) for _ in range(50)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
 
         assert not errors, f"Concurrent _load_news_snapshot raised: {errors[:3]}"
