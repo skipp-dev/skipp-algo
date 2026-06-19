@@ -51,6 +51,11 @@ _last_bar_at: float = 0.0
 # Internal helpers
 # ---------------------------------------------------------------------------
 
+def _price_from_record(record: Any, name: str) -> float | None:
+    """Read a nanodollar price field from a Databento record and scale to float."""
+    val = getattr(record, name, None)
+    return (val / 1e9) if val is not None else None
+
 def _record_to_bar(record: Any) -> dict[str, Any] | None:
     """Convert a DBN OhlcvMsg record to a plain bar dict."""
     try:
@@ -59,15 +64,11 @@ def _record_to_bar(record: Any) -> dict[str, Any] | None:
         if not (hasattr(record, "open") or hasattr(record, "high") or hasattr(record, "low") or hasattr(record, "close")):
             return None
 
-        def _price(name: str) -> float | None:
-            val = getattr(record, name, None)
-            return (val / 1e9) if val is not None else None
-
         return {
-            "open": _price("open"),
-            "high": _price("high"),
-            "low": _price("low"),
-            "close": _price("close"),
+            "open": _price_from_record(record, "open"),
+            "high": _price_from_record(record, "high"),
+            "low": _price_from_record(record, "low"),
+            "close": _price_from_record(record, "close"),
             "volume": getattr(record, "volume", 0),
             # ts_event is a top-level field on OHLCVMsg, not under .hd
             "ts_event": _ts if (_ts := getattr(record, "ts_event", None)) is not None else getattr(getattr(record, "hd", None), "ts_event", 0),
