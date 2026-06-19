@@ -730,8 +730,17 @@ def _add_pdh_pdl_context(quote: dict[str, Any]) -> None:
     # Explicitly map current session dayHigh and dayLow to distinct fields for observability (B9)
     current_day_high = _to_float(quote.get("dayHigh"), default=0.0)
     current_day_low = _to_float(quote.get("dayLow"), default=0.0)
-    quote["current_day_high"] = round(current_day_high, 4) if current_day_high > 0.0 else None
-    quote["current_day_low"] = round(current_day_low, 4) if current_day_low > 0.0 else None
+    # Guard against ±inf: round(inf, 4) == inf which breaks allow_nan=False JSON.
+    quote["current_day_high"] = (
+        round(current_day_high, 4)
+        if math.isfinite(current_day_high) and current_day_high > 0.0
+        else None
+    )
+    quote["current_day_low"] = (
+        round(current_day_low, 4)
+        if math.isfinite(current_day_low) and current_day_low > 0.0
+        else None
+    )
 
     if price > 0.0 and atr > 0.0 and pdh > 0.0:
         quote["dist_to_pdh_atr"] = round(abs(price - pdh) / atr, 4)
@@ -807,7 +816,14 @@ def _calendar_date_sort_key(value: Any) -> tuple[int, date, str]:
     if parsed is not None:
         return (0, parsed, raw)
 
-    date_part = raw.split("T")[0].split(" ")[0]
+    date_part = raw.split(" ")[0]
+    # Only strip a T-delimited time component if what follows T looks like a
+    # real time (HH:MM…).  A bare trailing 'T' (e.g. "2024-01-01T") must not
+    # be silently accepted — leave it intact so the strptime loop rejects it.
+    if "T" in date_part:
+        head, tail = date_part.split("T", 1)
+        if re.fullmatch(r"\d{2}:\d{2}.*", tail):
+            date_part = head
     for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%m/%d/%Y", "%m-%d-%Y"):
         try:
             return (0, datetime.strptime(date_part, fmt).date(), raw)
@@ -2759,7 +2775,7 @@ def _compute_gap_for_quote(
     ).astimezone(UTC).isoformat()
 
     prev_close = _to_float(quote.get("previousClose"), default=0.0)
-    if prev_close <= 0.0:
+    if not math.isfinite(prev_close) or prev_close <= 0.0:
         fallback_gap = _to_float(
             quote.get("changesPercentage") or quote.get("changePercentage"),
             default=0.0,
@@ -3021,15 +3037,20 @@ def _load_atr_cache(as_of: date, period: int) -> tuple[dict[str, float], dict[st
         atr_map = {
             str(k).upper(): val
             for k, v in dict(payload.get("atr14_by_symbol", {})).items()
-            if (val := _to_float(v, default=0.0)) > 0.0
+            if (val := _to_float(v, default=0.0)) > 0.0 and math.isfinite(val)
         }
         momentum_map = {
-            str(k).upper(): _to_float(v, default=0.0)
+            str(k).upper(): mv
             for k, v in dict(payload.get("momentum_z_by_symbol", {})).items()
+            if str(k).upper() in atr_map
+            and math.isfinite(mv := _to_float(v, default=0.0))
         }
         prev_close_map = {
-            str(k).upper(): _to_float(v, default=0.0)
+            str(k).upper(): pv
             for k, v in dict(payload.get("prev_close_by_symbol", {})).items()
+            if str(k).upper() in atr_map
+            and (pv := _to_float(v, default=0.0)) > 0.0
+            and math.isfinite(pv)
         }
         return atr_map, momentum_map, prev_close_map
     except Exception as exc:
@@ -3135,13 +3156,19 @@ def _incremental_atr_from_eod_bulk(
         prev_atr = _to_float(prev_atr_map.get(sym), default=0.0)
         prev_close = _to_float(prev_close_map.get(sym), default=0.0)
         eod_row = by_symbol.get(sym)
-        if not eod_row or prev_atr <= 0.0 or prev_close <= 0.0:
+        if (
+            not eod_row
+            or not math.isfinite(prev_atr)
+            or prev_atr <= 0.0
+            or not math.isfinite(prev_close)
+            or prev_close <= 0.0
+        ):
             continue
 
         high = _to_float(eod_row.get("high"), default=float("nan"))
         low = _to_float(eod_row.get("low"), default=float("nan"))
         close = _to_float(eod_row.get("close"), default=float("nan"))
-        if math.isnan(high) or math.isnan(low) or math.isnan(close):
+        if not all(math.isfinite(x) for x in (high, low, close)):
             continue
 
         tr = max(high - low, abs(high - prev_close), abs(low - prev_close))

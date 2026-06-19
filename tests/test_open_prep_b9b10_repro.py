@@ -1,15 +1,20 @@
 """Regression tests for actionable findings in PR #2856 audit."""
+import json
 import math
-from datetime import date
+from datetime import date, datetime
 from unittest.mock import MagicMock
 
 import pytest
 
+from open_prep import run_open_prep
 from open_prep.run_open_prep import (
     _add_pdh_pdl_context,
     _calculate_atr14_from_eod,
     _calendar_date_sort_key,
+    _compute_gap_for_quote,
     _fetch_symbol_atr,
+    _incremental_atr_from_eod_bulk,
+    _load_atr_cache,
     _momentum_z_score_from_eod,
     _parse_calendar_date,
 )
@@ -124,3 +129,179 @@ class TestPdhPdlDataQuality:
         assert q.get("dist_to_pdh_atr") is None
         assert q.get("dist_to_pdl_atr") is None
 
+
+
+class TestIncrementalAtrNonFinite:
+    """Bug #2 – _incremental_atr_from_eod_bulk must reject inf prev_close."""
+
+    def test_incremental_atr_rejects_non_finite_prev_close(self, tmp_path):
+        original_cache_dir = run_open_prep.ATR_CACHE_DIR
+        try:
+            run_open_prep.ATR_CACHE_DIR = tmp_path
+            cache_file = tmp_path / "2024-01-12_p14.json"
+            cache_file.write_text(
+                json.dumps(
+                    {
+                        "as_of": "2024-01-12",
+                        "atr_period": 14,
+                        "atr14_by_symbol": {"AAPL": 2.5},
+                        "momentum_z_by_symbol": {"AAPL": 0.5},
+                        "prev_close_by_symbol": {"AAPL": float("inf")},
+                    },
+                    allow_nan=True,
+                ),
+                encoding="utf-8",
+            )
+            client = MagicMock()
+            client.get_eod_bulk.return_value = [
+                {
+                    "symbol": "AAPL",
+                    "date": "2024-01-15",
+                    "high": 105.0,
+                    "low": 103.0,
+                    "close": 104.0,
+                }
+            ]
+            atr_map, _, _ = _incremental_atr_from_eod_bulk(
+                client=client,
+                symbols=["AAPL"],
+                as_of=date(2024, 1, 15),
+                atr_period=14,
+            )
+            assert "AAPL" not in atr_map, (
+                f"Expected AAPL to be skipped (inf prev_close), got atr_map={atr_map}"
+            )
+        finally:
+            run_open_prep.ATR_CACHE_DIR = original_cache_dir
+
+    def test_incremental_atr_rejects_non_finite_prev_atr(self, tmp_path):
+        original_cache_dir = run_open_prep.ATR_CACHE_DIR
+        try:
+            run_open_prep.ATR_CACHE_DIR = tmp_path
+            cache_file = tmp_path / "2024-01-12_p14.json"
+            cache_file.write_text(
+                json.dumps(
+                    {
+                        "as_of": "2024-01-12",
+                        "atr_period": 14,
+                        "atr14_by_symbol": {"AAPL": float("inf")},
+                        "momentum_z_by_symbol": {"AAPL": 0.5},
+                        "prev_close_by_symbol": {"AAPL": 150.0},
+                    },
+                    allow_nan=True,
+                ),
+                encoding="utf-8",
+            )
+            client = MagicMock()
+            client.get_eod_bulk.return_value = [
+                {
+                    "symbol": "AAPL",
+                    "date": "2024-01-15",
+                    "high": 155.0,
+                    "low": 148.0,
+                    "close": 152.0,
+                }
+            ]
+            atr_map, _, _ = _incremental_atr_from_eod_bulk(
+                client=client,
+                symbols=["AAPL"],
+                as_of=date(2024, 1, 15),
+                atr_period=14,
+            )
+            assert "AAPL" not in atr_map, (
+                f"Expected AAPL skipped (inf prev_atr), got atr_map={atr_map}"
+            )
+        finally:
+            run_open_prep.ATR_CACHE_DIR = original_cache_dir
+
+
+class TestLoadAtrCacheFiltersNonFinite:
+    """Bug #3 – _load_atr_cache must drop inf/negative entries from all maps."""
+
+    def test_load_atr_cache_filters_non_finite_values(self, tmp_path):
+        original_cache_dir = run_open_prep.ATR_CACHE_DIR
+        try:
+            run_open_prep.ATR_CACHE_DIR = tmp_path
+            cache_file = tmp_path / "2024-01-15_p14.json"
+            cache_file.write_text(
+                json.dumps(
+                    {
+                        "as_of": "2024-01-15",
+                        "atr_period": 14,
+                        "atr14_by_symbol": {
+                            "AAPL": float("inf"),
+                            "MSFT": -2.5,
+                            "GOOG": 3.0,
+                        },
+                        "momentum_z_by_symbol": {
+                            "AAPL": 0.5,
+                            "MSFT": 0.5,
+                            "GOOG": float("inf"),
+                        },
+                        "prev_close_by_symbol": {
+                            "AAPL": 100.0,
+                            "MSFT": 100.0,
+                            "GOOG": 150.0,
+                        },
+                    },
+                    allow_nan=True,
+                ),
+                encoding="utf-8",
+            )
+            atr_map, momentum_map, prev_close_map = _load_atr_cache(date(2024, 1, 15), 14)
+            # AAPL and MSFT should be filtered (inf ATR / negative ATR)
+            assert "AAPL" not in atr_map, "inf ATR must be filtered"
+            assert "MSFT" not in atr_map, "negative ATR must be filtered"
+            # GOOG is in atr_map but has inf momentum; momentum entry should be absent
+            assert "GOOG" in atr_map
+            assert "GOOG" not in momentum_map, "inf momentum_z must be filtered"
+        finally:
+            run_open_prep.ATR_CACHE_DIR = original_cache_dir
+
+    def test_load_atr_cache_filters_non_finite_prev_close(self, tmp_path):
+        original_cache_dir = run_open_prep.ATR_CACHE_DIR
+        try:
+            run_open_prep.ATR_CACHE_DIR = tmp_path
+            cache_file = tmp_path / "2024-01-15_p14.json"
+            cache_file.write_text(
+                json.dumps(
+                    {
+                        "as_of": "2024-01-15",
+                        "atr_period": 14,
+                        "atr14_by_symbol": {"AAPL": 2.5},
+                        "momentum_z_by_symbol": {"AAPL": 0.3},
+                        "prev_close_by_symbol": {"AAPL": float("inf")},
+                    },
+                    allow_nan=True,
+                ),
+                encoding="utf-8",
+            )
+            _, _, prev_close_map = _load_atr_cache(date(2024, 1, 15), 14)
+            assert "AAPL" not in prev_close_map, "inf prev_close must be filtered"
+        finally:
+            run_open_prep.ATR_CACHE_DIR = original_cache_dir
+
+
+class TestComputeGapNonFinitePrevClose:
+    """Bug #4 – _compute_gap_for_quote must treat inf previousClose as missing."""
+
+    def test_compute_gap_rejects_inf_prev_close(self):
+        q = {
+            "symbol": "A",
+            "price": 100.0,
+            "previousClose": float("inf"),
+            "open": 105.0,
+        }
+        run_dt = datetime(2024, 1, 2, 14, 30)
+        res = _compute_gap_for_quote(
+            q,
+            run_dt_utc=run_dt,
+            gap_mode="RTH_OPEN",
+            gap_scope="DAILY",
+        )
+        assert res["gap_reason"] == "missing_previous_close", (
+            f"Expected missing_previous_close, got {res['gap_reason']!r}"
+        )
+        assert math.isfinite(res["gap_pct"]), (
+            f"gap_pct must be finite, got {res['gap_pct']!r}"
+        )
