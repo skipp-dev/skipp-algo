@@ -85,10 +85,19 @@ def health() -> JSONResponse:
     uptime = time.monotonic() - _startup_ts if _startup_ts else 0
     feed_healthy = feed.is_ready()
     bar_age = feed.last_bar_age_secs()
+    workers = feed.worker_liveness()
+    workers_healthy = all(workers.values())
+    overlay_age = cache.overlay_age_secs()
+    max_stale = config.max_stale_secs()
+    overlay_fresh = overlay_age != float("inf") and overlay_age <= max_stale
+    status = "ok" if (feed_healthy and workers_healthy and overlay_fresh) else "starting"
     return JSONResponse(
         {
-            "status": "ok" if feed_healthy else "starting",
+            "status": status,
             "feed_healthy": feed_healthy,
+            "workers_healthy": workers_healthy,
+            "worker_liveness": workers,
+            "overlay_fresh": overlay_fresh,
             "last_bar_age_secs": None if bar_age is None else round(bar_age, 1),
             "uptime_secs": round(uptime),
             "bar_symbols": cache.bar_symbol_count(),
@@ -96,8 +105,8 @@ def health() -> JSONResponse:
             "overlay_symbols": cache.overlay_symbol_count(),
             "overlay_age_secs": (
                 None
-                if cache.overlay_age_secs() == float("inf")
-                else round(cache.overlay_age_secs(), 1)
+                if overlay_age == float("inf")
+                else round(overlay_age, 1)
             ),
             "ts": datetime.datetime.now(datetime.UTC).isoformat(),
         }
