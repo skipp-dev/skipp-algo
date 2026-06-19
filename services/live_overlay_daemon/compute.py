@@ -91,12 +91,23 @@ def _get_news_fields(symbol: str) -> dict[str, Any]:
     stories = snap.get("stories") or snap.get("items") or []
     sym_upper = symbol.upper()
 
+    def _first_score(story: dict[str, Any]) -> float:
+        # Keep a legit 0.0 sentiment_score; do not treat it as falsy.
+        try:
+            if "sentiment_score" in story and story.get("sentiment_score") is not None:
+                return float(story["sentiment_score"])
+            if "news_score" in story and story.get("news_score") is not None:
+                return float(story["news_score"])
+        except (TypeError, ValueError):
+            return 0.0
+        return 0.0
+
     scores: list[float] = []
     for story in stories:
         tickers = story.get("tickers") or []
         if sym_upper not in [t.upper() for t in tickers]:
             continue
-        score = float(story.get("sentiment_score") or story.get("news_score") or 0.0)
+        score = _first_score(story)
         scores.append(score)
 
     if not scores:
@@ -117,10 +128,18 @@ def _get_global_news_fields() -> dict[str, Any]:
     if not stories:
         return {"tone": "NEUTRAL", "global_heat": None}
 
-    scores = [
-        float(s.get("sentiment_score") or s.get("news_score") or 0.0)
-        for s in stories
-    ]
+    def _first_score(story: dict[str, Any]) -> float:
+        # Keep a legit 0.0 sentiment_score; do not treat it as falsy.
+        try:
+            if "sentiment_score" in story and story.get("sentiment_score") is not None:
+                return float(story["sentiment_score"])
+            if "news_score" in story and story.get("news_score") is not None:
+                return float(story["news_score"])
+        except (TypeError, ValueError):
+            return 0.0
+        return 0.0
+
+    scores = [_first_score(s) for s in stories]
     avg = sum(scores) / len(scores)
     # global_heat: directional [-1, 1] per smc-live-overlay/1 schema
     heat = round(max(-1.0, min(1.0, avg)), 4)
@@ -297,7 +316,7 @@ def build_payload(
         "flow_rel_vol": flow.get("flow_rel_vol"),
         "flow_delta_proxy_pct": flow.get("flow_delta_proxy_pct"),
         # Technicals
-        "squeeze_on": bool(squeeze) if squeeze is not None else None,
+        "squeeze_on": int(squeeze) if squeeze is not None else None,
         "ats_state": ats.get("ats_state"),
         "ats_zscore": ats.get("ats_zscore"),
         # Market-wide
@@ -325,8 +344,9 @@ def run_full_compute_cycle() -> int:
             continue
         payloads[sym.upper()] = build_payload(sym, bars, global_fields, max_stale)
 
-    if payloads:
-        cache.set_overlay(payloads)
+    # Always replace overlay snapshot, including with an empty mapping,
+    # so stale symbols are removed when the bar cache drains.
+    cache.set_overlay(payloads)
 
     return len(payloads)
 
