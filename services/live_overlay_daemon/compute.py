@@ -297,6 +297,11 @@ def compute_squeeze_on(bars: list[dict[str, Any]], period: int = 20) -> bool | N
         # can produce false-positive squeeze signals.
         if high < low:
             continue
+        # Defensive: close must lie inside [low, high]. Values outside this
+        # envelope indicate malformed OHLC bars and can produce false-positive
+        # squeeze signals (std close collapses while ATR remains positive).
+        if not (low <= close <= high):
+            continue
         triples.append((close, high, low))
 
     if len(triples) < period:

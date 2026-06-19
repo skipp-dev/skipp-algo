@@ -43,8 +43,8 @@ _VALID_TFS: frozenset[str] = frozenset({"5m", "15m", "1H", "4H"})
 
 def _json_safe(value: Any) -> Any:
     """Return a JSON-safe value tree by normalizing non-finite floats to None."""
-    if isinstance(value, float):
-        return value if math.isfinite(value) else None
+    if isinstance(value, float) or value.__class__.__name__ == "Decimal":
+        return _coerced if math.isfinite(_coerced := float(value)) else None
     if isinstance(value, dict):
         return {k: _json_safe(v) for k, v in value.items()}
     if isinstance(value, list):

@@ -212,9 +212,9 @@ class TestSqueezeAlignedWindow:
         compute = _compute()
         bars = []
         for i in range(25):
-            b: dict[str, Any] = {"close": 100.0, "low": 90.0 + i}
+            b: dict[str, Any] = {"close": 100.0, "low": 90.0}
             if i != 5:
-                b["high"] = 110.0 + i
+                b["high"] = 110.0
             bars.append(b)
 
         result = compute.compute_squeeze_on(bars, period=20)

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import threading
+from decimal import Decimal
 from pathlib import Path
 from unittest.mock import patch
 
@@ -399,3 +400,39 @@ class TestNewsSnapshotRaceCondition:
                 t.join()
 
         assert not errors, f"Concurrent _load_news_snapshot raised: {errors[:3]}"
+
+
+class TestJsonSafeAndSqueezeIntegrity:
+    """B11/B12 regressions from post-merge bug-hunt findings."""
+
+    def test_json_safe_converts_decimal_nan_to_none(self) -> None:
+        from services.live_overlay_daemon.main import _json_safe
+
+        assert _json_safe({"x": Decimal("NaN")}) == {"x": None}
+        assert _json_safe({"x": Decimal("1.5")}) == {"x": 1.5}
+
+    def test_patch_overlay_decimal_nan_does_not_break_json_path(self) -> None:
+        import services.live_overlay_daemon.cache as cache_mod
+        from services.live_overlay_daemon.main import _json_safe
+
+        cache_mod.set_overlay({"AAPL": {"vix_level": 20.0}})
+        cache_mod.patch_overlay("AAPL", {"vix_level": Decimal("NaN")})
+
+        payload = cache_mod.get_overlay("AAPL")
+        assert payload is not None
+        # B11: even if Decimal('NaN') reaches the cache, _json_safe must
+        # normalize it to None instead of raising during JSON serialization.
+        assert _json_safe(payload)["vix_level"] is None
+
+    def test_squeeze_on_rejects_close_outside_high_low(self) -> None:
+        import services.live_overlay_daemon.compute as compute
+
+        bars = [
+            {"open": 100.0, "close": 110.0, "high": 101.0, "low": 99.0, "volume": 100}
+            for _ in range(20)
+        ]
+
+        result = compute.compute_squeeze_on(bars)
+        assert result is not True, (
+            "B12: malformed bars with close outside [low, high] must not produce squeeze=True"
+        )
