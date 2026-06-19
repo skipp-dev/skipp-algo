@@ -186,6 +186,23 @@ def _safe_std(vals: list[float]) -> float:
     return math.sqrt(sum((v - mean) ** 2 for v in vals) / (n - 1))
 
 
+def _coerce_volume(v: Any) -> float | None:
+    """Coerce a volume field value to float, returning None on failure.
+
+    Accepts int, float, and numeric strings (e.g. '100' from schema drift).
+    Returns None for None, empty string, or any non-numeric value so that
+    callers can safely skip the bar instead of crashing.
+    """
+    if v is None:
+        return None
+    if isinstance(v, (int, float)):
+        return float(v)
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
 def compute_flow_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:
     """Compute flow_rel_vol, flow_delta_proxy_pct from bar list."""
     if not bars:
@@ -194,11 +211,14 @@ def compute_flow_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:
     # Anchor volume ratio to the CURRENT (last) bar.  If the last bar has no
     # volume we must NOT fall back to bars[-2].volume — that would silently
     # report a one-bar-stale ratio alongside the current bar's price delta.
+    # _coerce_volume also guards against string volumes from schema-drift producers.
     last_bar = bars[-1]
-    last_vol: float | None = last_bar.get("volume")
+    last_vol: float | None = _coerce_volume(last_bar.get("volume"))
     if last_vol is not None:
         prior_volumes = [
-            b["volume"] for b in bars[:-1] if b.get("volume") is not None
+            fv
+            for b in bars[:-1]
+            if (fv := _coerce_volume(b.get("volume"))) is not None
         ]
         avg_vol: float | None = _safe_mean(prior_volumes) if prior_volumes else None
     else:
@@ -272,13 +292,18 @@ def compute_ats_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:
         return {"ats_state": None, "ats_zscore": None}
 
     # Anchor to the CURRENT (last) bar — do not fall through to prior bars.
+    # _coerce_volume also guards against string volumes from schema-drift producers.
     last_bar = bars[-1]
-    last_vol = last_bar.get("volume")
+    last_vol = _coerce_volume(last_bar.get("volume"))
     if last_vol is None:
         # Cannot compute a z-score for a bar with no volume.
         return {"ats_state": None, "ats_zscore": None}
 
-    prior_vols = [b["volume"] for b in bars[:-1] if b.get("volume") is not None]
+    prior_vols = [
+        fv
+        for b in bars[:-1]
+        if (fv := _coerce_volume(b.get("volume"))) is not None
+    ]
     if len(prior_vols) < 4:
         # Need at least 4 prior bars (+ 1 current = 5 total) for a meaningful
         # mean/std — matches the original ≥5-volume guard.
