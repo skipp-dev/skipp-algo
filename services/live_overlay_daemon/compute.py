@@ -264,14 +264,18 @@ def supported_timeframes() -> tuple[str, ...]:
 
 
 def _bar_minute_bucket(ts_event: int, minutes: int) -> int:
-    """Return the floor-boundary timestamp (nanoseconds) for a bar.
+    """Return the bucket-end timestamp (nanoseconds) for a bar.
 
     Databento ts_event is in nanoseconds since the Unix epoch. We align
-    to the start of the N-minute bucket in UTC. Intraday timeframes only.
+    to the end of the N-minute bucket in UTC. Intraday timeframes only.
+
+    For bar-close stamps, events between boundaries are ceiled to the next
+    boundary while events already on a boundary remain unchanged.
     """
     ns_per_minute = 60_000_000_000
     minute = ts_event // ns_per_minute
-    aligned_minute = (minute // minutes) * minutes
+    floored_minute = (minute // minutes) * minutes
+    aligned_minute = floored_minute if minute == floored_minute else floored_minute + minutes
     return aligned_minute * ns_per_minute
 
 
