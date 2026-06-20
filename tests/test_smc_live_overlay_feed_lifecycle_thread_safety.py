@@ -15,14 +15,16 @@ import pytest
 
 
 class _SlowToStartThread:
-    """Fake Thread that becomes alive only after a short delay."""
+    """Fake Thread that becomes alive when the start gate is released."""
 
     def __init__(self, *args, name: str | None = None, **kwargs):
         self.name = name
         self._alive = False
+        self._start_gate: threading.Event | None = kwargs.get("start_gate")
 
     def start(self) -> None:
-        time.sleep(0.05)
+        if self._start_gate is not None:
+            self._start_gate.wait(timeout=1)
         self._alive = True
 
     def is_alive(self) -> bool:
@@ -44,13 +46,18 @@ def test_concurrent_start_serializes_lifecycle(monkeypatch: pytest.MonkeyPatch) 
     feed_mod._flow_refresh_thread = None
 
     created: queue.Queue[str] = queue.Queue()
+    release_start = threading.Event()
 
     class _InstrumentedThread(_SlowToStartThread):
         def start(self) -> None:
             created.put(self.name or "unknown")
             super().start()
 
-    monkeypatch.setattr(feed_mod.threading, "Thread", _InstrumentedThread)
+    def _thread_factory(*args, **kwargs):
+        kwargs["start_gate"] = release_start
+        return _InstrumentedThread(*args, **kwargs)
+
+    monkeypatch.setattr(feed_mod.threading, "Thread", _thread_factory)
 
     errors: queue.Queue[str] = queue.Queue()
 
@@ -64,6 +71,11 @@ def test_concurrent_start_serializes_lifecycle(monkeypatch: pytest.MonkeyPatch) 
     t2 = RealThread(target=_call_start, args=(2,))
     t1.start()
     t2.start()
+    # Ensure first start() call has created at least one worker while holding
+    # lifecycle lock, then release all worker starts together.
+    while created.qsize() == 0:
+        time.sleep(0.001)
+    release_start.set()
     t1.join(timeout=10)
     t2.join(timeout=10)
     assert not t1.is_alive(), "start caller thread #1 did not finish within timeout"
@@ -90,17 +102,21 @@ def test_concurrent_start_serializes_lifecycle(monkeypatch: pytest.MonkeyPatch) 
 def test_stop_clears_feed_ready_under_lifecycle_lock(monkeypatch: pytest.MonkeyPatch) -> None:
     import services.live_overlay_daemon.feed as feed_mod
 
+    last_bar_before = feed_mod._last_bar_at
     feed_mod._feed_ready.set()
     feed_mod._last_bar_at = time.monotonic()
     assert feed_mod.is_ready()
 
-    monkeypatch.setattr(feed_mod, "_feed_thread", None)
-    monkeypatch.setattr(feed_mod, "_refresh_thread", None)
-    monkeypatch.setattr(feed_mod, "_flow_refresh_thread", None)
-    feed_mod.stop()
+    try:
+        monkeypatch.setattr(feed_mod, "_feed_thread", None)
+        monkeypatch.setattr(feed_mod, "_refresh_thread", None)
+        monkeypatch.setattr(feed_mod, "_flow_refresh_thread", None)
+        feed_mod.stop()
 
-    assert not feed_mod.is_ready(), "_feed_ready must be cleared after stop()"
-    feed_mod._stop_event.clear()
+        assert not feed_mod.is_ready(), "_feed_ready must be cleared after stop()"
+    finally:
+        feed_mod._last_bar_at = last_bar_before
+        feed_mod._stop_event.clear()
 
 
 def test_worker_liveness_runs_under_lifecycle_lock(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -114,28 +130,31 @@ def test_worker_liveness_runs_under_lifecycle_lock(monkeypatch: pytest.MonkeyPat
 
     liveness_results: list[dict[str, bool]] = []
     errors: list[BaseException] = []
+    step_barrier = threading.Barrier(2)
+    iterations = 50
 
     def _poll_liveness() -> None:
         try:
-            for _ in range(100):
+            for _ in range(iterations):
+                step_barrier.wait()
                 liveness_results.append(feed_mod.worker_liveness())
-                time.sleep(0.001)
+                step_barrier.wait()
         except Exception as exc:
             errors.append(exc)
 
     def _flip_state() -> None:
         try:
-            for _ in range(50):
+            for _ in range(iterations):
                 with feed_mod._lifecycle_lock:
                     feed_mod._feed_thread = _SlowToStartThread(name="live-feed")
                     feed_mod._refresh_thread = _SlowToStartThread(name="overlay-refresh")
                     feed_mod._flow_refresh_thread = _SlowToStartThread(name="flow-refresh")
-                time.sleep(0.001)
+                step_barrier.wait()
                 with feed_mod._lifecycle_lock:
                     feed_mod._feed_thread = None
                     feed_mod._refresh_thread = None
                     feed_mod._flow_refresh_thread = None
-                time.sleep(0.001)
+                step_barrier.wait()
         except Exception as exc:
             errors.append(exc)
 
@@ -149,7 +168,7 @@ def test_worker_liveness_runs_under_lifecycle_lock(monkeypatch: pytest.MonkeyPat
     assert not t2.is_alive(), "state flip thread did not finish within timeout"
 
     assert not errors, errors
-    assert len(liveness_results) == 100
+    assert len(liveness_results) == iterations
     for result in liveness_results:
         assert set(result.keys()) == {"live_feed", "overlay_refresh", "flow_refresh"}
         assert all(isinstance(v, bool) for v in result.values())
