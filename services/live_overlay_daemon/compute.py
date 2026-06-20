@@ -286,11 +286,14 @@ def _aggregate_bars(bars: list[dict[str, Any]], tf: str) -> list[dict[str, Any]]
 
     minutes = _TF_TO_MINUTES[tf]
 
+    ordered_bars = sorted(
+        (bar for bar in bars if isinstance(bar.get("ts_event"), int)),
+        key=lambda bar: int(bar["ts_event"]),
+    )
+
     buckets: dict[int, dict[str, Any]] = {}
-    for bar in bars:
-        ts_event = bar.get("ts_event")
-        if not isinstance(ts_event, int):
-            continue
+    for bar in ordered_bars:
+        ts_event = int(bar["ts_event"])
         bucket_ts = _bar_minute_bucket(ts_event, minutes)
         bucket = buckets.setdefault(bucket_ts, {
             "open": None,
