@@ -201,8 +201,8 @@ _FROZEN_BASIC_CONFIG_SITES: frozenset[tuple[str, int]] = frozenset({
     # 2026-06-19 (findings cleanup): restored accidental docstring pollution,
     # shifting basicConfig line 32 -> 31.
     # 2026-06-20 (market-hours helper extraction): imports shifted
-    # basicConfig to line 35.
-    ("services/live_overlay_daemon/main.py", 35),
+    # basicConfig to line 35; Ruff import sorting shifted it to line 37.
+    ("services/live_overlay_daemon/main.py", 37),
     # 2026-06-10 (#2670 W2/W4): source-disclosure edits shifted +25 (5840→5865).
     # 2026-06-11 (trend-state features): 5865→5876, enrichment-loop stamping.
     # 2026-06-11 (eval-findings D7): import block +8, enrichment +15

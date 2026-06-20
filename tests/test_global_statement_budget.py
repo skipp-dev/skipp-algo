@@ -228,8 +228,8 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # sanitization helper and related imports, shifting _startup_ts line.
         # 2026-06-19 (Copilot follow-up): _VALID_TFS contract alignment shifted
         # surrounding code; 2026-06-20 (market-hours helper extraction) moved
-        # current _startup_ts global line to 67.
-        ("services/live_overlay_daemon/main.py", 67, ("_startup_ts",)),
+        # current _startup_ts global line to 67; Ruff import sorting shifted it to 69.
+        ("services/live_overlay_daemon/main.py", 69, ("_startup_ts",)),
     }
 )
 

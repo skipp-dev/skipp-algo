@@ -29,6 +29,8 @@ from fastapi.responses import JSONResponse
 from . import cache, config, feed, metrics, observability
 from .market_hours import (
     compute_daemon_health_status,
+)
+from .market_hours import (
     is_us_regular_session_open as _is_us_regular_session_open,
 )
 
