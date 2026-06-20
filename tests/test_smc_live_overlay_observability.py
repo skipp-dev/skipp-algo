@@ -87,3 +87,73 @@ def test_structured_log_fields_escape_whitespace_and_newlines() -> None:
     import services.live_overlay_daemon.observability as obs
 
     assert obs._kv({"symbol": "BAD TICK\nNEXT", "tf": "5m"}) == "symbol=BAD\\sTICK\\nNEXT tf=5m"
+
+
+def test_smc_live_cache_miss_counts_stale_served(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import services.live_overlay_daemon.main as main_mod
+    import services.live_overlay_daemon.observability as obs
+
+    monkeypatch.setattr(main_mod.config, "overlay_secret_token", lambda: "secret-token")
+    monkeypatch.setattr(main_mod.cache, "get_overlay", lambda _sym: None)
+
+    with obs._counter_lock:
+        obs._counters.pop("live_overlay.smc_live_stale_served.total", None)
+
+    payload = main_mod.smc_live(token="secret-token", symbol="AAPL", tf="5m")
+
+    assert payload.status_code == 200
+    with obs._counter_lock:
+        assert obs._counters.get("live_overlay.smc_live_stale_served.total") == 1.0
+
+
+def test_smc_live_records_latency_histogram_counters(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import services.live_overlay_daemon.main as main_mod
+    import services.live_overlay_daemon.observability as obs
+
+    monkeypatch.setattr(main_mod.config, "overlay_secret_token", lambda: "secret-token")
+    monkeypatch.setattr(main_mod.cache, "overlay_age_secs", lambda: 1.0)
+    monkeypatch.setattr(main_mod.config, "max_stale_secs", lambda: 3600)
+    monkeypatch.setattr(
+        main_mod.cache,
+        "get_overlay",
+        lambda _sym: {
+            "schema": "smc-live-overlay/1",
+            "symbol": "AAPL",
+            "asof_ts": 1,
+            "stale": False,
+            "news_strength": None,
+            "news_bias": None,
+            "flow_rel_vol": 1.0,
+            "flow_delta_proxy_pct": 0.0,
+            "squeeze_on": 0,
+            "ats_state": "neutral",
+            "ats_zscore": 0.0,
+            "vix_level": 20.0,
+            "tone": "NEUTRAL",
+            "global_heat": 0.0,
+            "event_window_state": "normal",
+            "event_risk_level": "low",
+            "next_event_name": None,
+            "next_event_time": None,
+            "market_event_blocked": False,
+            "symbol_event_blocked": False,
+            "event_provider_status": "unavailable",
+        },
+    )
+
+    with obs._counter_lock:
+        obs._counters.pop("live_overlay.smc_live_latency.count", None)
+        obs._counters.pop("live_overlay.smc_live_latency.sum_ms", None)
+        obs._counters.pop("live_overlay.smc_live_latency.bucket_le_inf", None)
+
+    response = main_mod.smc_live(token="secret-token", symbol="AAPL", tf="5m")
+    assert response.status_code == 200
+
+    with obs._counter_lock:
+        assert obs._counters.get("live_overlay.smc_live_latency.count") == 1.0
+        assert obs._counters.get("live_overlay.smc_live_latency.bucket_le_inf") == 1.0
+        assert obs._counters.get("live_overlay.smc_live_latency.sum_ms", 0.0) >= 0.0

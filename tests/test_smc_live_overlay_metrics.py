@@ -81,6 +81,7 @@ def test_render_metrics_health_status_ok(monkeypatch: pytest.MonkeyPatch) -> Non
     )
 
     body = metrics_mod.render_metrics(startup_ts=100.0)
+    assert "live_overlay_overlay_fresh 1" in body
     assert "live_overlay_health_status_ok 1" in body
     assert "live_overlay_health_status_starting 0" in body
     assert "live_overlay_health_status_idle_market_closed 0" in body
@@ -166,3 +167,23 @@ def test_observability_counter_accepts_finite_values() -> None:
     total = obs.metric_counter("live_overlay.test_counter_ok", 1.5)
     assert math.isfinite(total)
     assert total == 1.5
+
+
+def test_observability_histogram_ms_emits_bucket_count_and_sum() -> None:
+    import services.live_overlay_daemon.observability as obs
+
+    with obs._counter_lock:
+        obs._counters.pop("live_overlay.test_latency.count", None)
+        obs._counters.pop("live_overlay.test_latency.sum_ms", None)
+        obs._counters.pop("live_overlay.test_latency.bucket_le_10", None)
+        obs._counters.pop("live_overlay.test_latency.bucket_le_50", None)
+        obs._counters.pop("live_overlay.test_latency.bucket_le_inf", None)
+
+    obs.metric_histogram_ms("live_overlay.test_latency", 42.0, buckets_ms=(10.0, 50.0))
+
+    with obs._counter_lock:
+        assert obs._counters["live_overlay.test_latency.count"] == 1.0
+        assert obs._counters["live_overlay.test_latency.sum_ms"] == 42.0
+        assert "live_overlay.test_latency.bucket_le_10" not in obs._counters
+        assert obs._counters["live_overlay.test_latency.bucket_le_50"] == 1.0
+        assert obs._counters["live_overlay.test_latency.bucket_le_inf"] == 1.0
