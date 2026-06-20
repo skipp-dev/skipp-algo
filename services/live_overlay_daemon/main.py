@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 _startup_ts: float = 0.0
 
-_VALID_TFS: frozenset[str] = frozenset({"5m", "10m", "15m", "30m", "1H", "4H"})
+_VALID_TFS: frozenset[str] = frozenset(compute.supported_timeframes())
 
 
 def _json_safe(value: Any) -> Any:
