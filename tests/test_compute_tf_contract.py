@@ -17,7 +17,9 @@ def _minute_bars(n: int, start_price: float = 100.0) -> list[dict[str, Any]]:
             "low": start_price - 1.0,
             "close": start_price,
             "volume": 100.0,
-            "ts_event": i * 60_000_000_000,
+            # Model Databento bar-close stamps: the i-th 1m bar closes at
+            # (i + 1) minutes, not at minute start.
+            "ts_event": (i + 1) * 60_000_000_000,
         })
     return bars
 
@@ -33,9 +35,9 @@ def test_aggregate_5m_buckets_minute_bars() -> None:
     assert first["high"] == 101.0
     assert first["low"] == 99.0
     assert first["volume"] == 5 * 100.0
-    assert first["ts_event"] == 0
+    assert first["ts_event"] == 5 * 60_000_000_000
     assert second["volume"] == 5 * 100.0
-    assert second["ts_event"] == 5 * 60_000_000_000
+    assert second["ts_event"] == 10 * 60_000_000_000
 
 
 def test_aggregate_10m_combines_five_minute_bars() -> None:
@@ -59,7 +61,7 @@ def test_aggregate_10m_combines_five_minute_bars() -> None:
 
 def test_aggregate_higher_timeframe_changes_indicators() -> None:
     bars = [
-        {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 1000.0, "ts_event": i * 60_000_000_000}
+        {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 1000.0, "ts_event": (i + 1) * 60_000_000_000}
         for i in range(25)
     ]
 
