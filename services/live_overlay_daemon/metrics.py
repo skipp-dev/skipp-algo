@@ -106,6 +106,8 @@ def render_metrics(startup_ts: float) -> str:
 
     lines.append("# TYPE live_overlay_market_open gauge")
     lines.append(f"live_overlay_market_open {1 if market_open else 0}")
+    lines.append("# TYPE live_overlay_max_stale_seconds gauge")
+    lines.append(f"live_overlay_max_stale_seconds {max_stale}")
     lines.append("# TYPE live_overlay_health_status_ok gauge")
     lines.append(f"live_overlay_health_status_ok {1 if status == 'ok' else 0}")
     lines.append("# TYPE live_overlay_health_status_starting gauge")

@@ -354,7 +354,7 @@
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32},
       "targets": [
         {
-          "expr": "100 * live_overlay_overlay_age_seconds{job=\"live_overlay\"} / 3600",
+          "expr": "100 * live_overlay_overlay_age_seconds{job=\"live_overlay\"} / clamp_min(live_overlay_max_stale_seconds{job=\"live_overlay\"}, 1)",
           "legendFormat": "stale_budget_used"
         }
       ],
