@@ -7,10 +7,10 @@
 # to replace the CPU build with the CUDA wheel from the official PyTorch index.
 # The two pins intentionally differ today: the base file keeps the
 # cross-platform CPU wheel used on GitHub-hosted / non-GPU runners, while the
-# GPU override stays on the validated `2.11.0+cu128` CUDA build published on
+# GPU override tracks the security-updated `2.12.1+cu129` CUDA build published on
 # the official PyTorch index. Runner type therefore determines the *effective*
 # torch build; compatibility must be validated against both lanes.
 gymnasium==1.2.3
 stable-baselines3==2.8.0
-torch==2.12.0
+torch==2.12.1
 optuna==4.9.0

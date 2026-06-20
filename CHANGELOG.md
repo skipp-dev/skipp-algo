@@ -6,6 +6,17 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Security (2026-06-20) — Torch GHSA remediation refresh (GHSA-rrmf-rvhw-rf47)
+
+- `requirements-rl.txt`: `torch==2.12.0` → `torch==2.12.1`.
+- `requirements-rl-gpu.txt`: CUDA override switched from
+  `https://download.pytorch.org/whl/cu128` + `torch==2.11.0+cu128` to
+  `https://download.pytorch.org/whl/cu129` + `torch==2.12.1+cu129`.
+- `requirements-rl.lock` regenerated from the updated RL requirements.
+- Supersedes the older note from 2026-06-12 that no patched torch version was
+  available for this GHSA; patched `2.12.1` is now available on PyPI and on
+  the official CUDA channels used above.
+
 ### Fixed (2026-06-19) — Open-prep pdh/pdl strictly previous-day + mixed date sorting (PR #2855)
 
 **Strict previous-day pdh/pdl fields (B9)**

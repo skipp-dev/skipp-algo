@@ -9,5 +9,5 @@
 # Provenance: official PyTorch CDN (https://download.pytorch.org/whl/).
 # Governance: any additional --index-url / --extra-index-url in this repo
 # requires an explicit ADR entry before merging.
---index-url https://download.pytorch.org/whl/cu128
-torch==2.11.0+cu128
+--index-url https://download.pytorch.org/whl/cu129
+torch==2.12.1+cu129
