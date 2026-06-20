@@ -1,4 +1,4 @@
-"""Audit test: verify tf parameter actually influences compute output.
+"""Audit test: verify tf parameter does not influence computed numeric fields.
 
 Current behaviour: main.py validates tf and injects it into the response,
 but compute.py always operates on the 1-minute bars from cache. Therefore
@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 
 
-def test_timeframe_does_not_change_computed_fields() -> None:
+def test_timeframe_does_not_change_computed_fields(monkeypatch: pytest.MonkeyPatch) -> None:
     import services.live_overlay_daemon.main as main
 
     base_payload = {
@@ -36,7 +36,6 @@ def test_timeframe_does_not_change_computed_fields() -> None:
         "symbol_event_blocked": False,
         "event_provider_status": "unavailable",
     }
-    monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(main.config, "overlay_secret_token", lambda: "tok")
     monkeypatch.setattr(main.cache, "get_overlay", lambda _sym: dict(base_payload))
     monkeypatch.setattr(main.cache, "overlay_age_secs", lambda: 0.0)
@@ -49,7 +48,6 @@ def test_timeframe_does_not_change_computed_fields() -> None:
 
     p5 = json.loads(payload_5m)
     p4 = json.loads(payload_4h)
-    monkeypatch.undo()
 
     # Identical numerical fields despite different requested timeframes
     for key in [

@@ -2,7 +2,7 @@
 Overlay field computation.
 
 Takes a snapshot of accumulated OHLCV bars from cache.py and produces
-the 16-field overlay payload for each symbol.
+the overlay payload for each symbol.
 
 All computations use only standard library + the bars already in cache —
 no additional network calls from this module.
