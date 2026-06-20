@@ -60,7 +60,7 @@ def test_concurrent_start_serializes_lifecycle(monkeypatch: pytest.MonkeyPatch) 
         try:
             feed_mod.start()
             log_queue.put(f"T{n}: returned")
-        except BaseException as exc:
+        except Exception as exc:
             errors.put(f"T{n}: {type(exc).__name__}: {exc}")
 
     t1 = RealThread(target=_call_start, args=(1,))
@@ -69,6 +69,8 @@ def test_concurrent_start_serializes_lifecycle(monkeypatch: pytest.MonkeyPatch) 
     t2.start()
     t1.join(timeout=10)
     t2.join(timeout=10)
+    assert not t1.is_alive(), "start caller thread #1 did not finish within timeout"
+    assert not t2.is_alive(), "start caller thread #2 did not finish within timeout"
 
     errs = []
     while not errors.empty():
@@ -121,21 +123,23 @@ def test_worker_liveness_runs_under_lifecycle_lock(monkeypatch: pytest.MonkeyPat
             for _ in range(100):
                 liveness_results.append(feed_mod.worker_liveness())
                 time.sleep(0.001)
-        except BaseException as exc:
+        except Exception as exc:
             errors.append(exc)
 
     def _flip_state() -> None:
         try:
             for _ in range(50):
-                feed_mod._feed_thread = _SlowToStartThread(name="live-feed")
-                feed_mod._refresh_thread = _SlowToStartThread(name="overlay-refresh")
-                feed_mod._flow_refresh_thread = _SlowToStartThread(name="flow-refresh")
+                with feed_mod._lifecycle_lock:
+                    feed_mod._feed_thread = _SlowToStartThread(name="live-feed")
+                    feed_mod._refresh_thread = _SlowToStartThread(name="overlay-refresh")
+                    feed_mod._flow_refresh_thread = _SlowToStartThread(name="flow-refresh")
                 time.sleep(0.001)
-                feed_mod._feed_thread = None
-                feed_mod._refresh_thread = None
-                feed_mod._flow_refresh_thread = None
+                with feed_mod._lifecycle_lock:
+                    feed_mod._feed_thread = None
+                    feed_mod._refresh_thread = None
+                    feed_mod._flow_refresh_thread = None
                 time.sleep(0.001)
-        except BaseException as exc:
+        except Exception as exc:
             errors.append(exc)
 
     t1 = RealThread(target=_poll_liveness)
@@ -144,6 +148,8 @@ def test_worker_liveness_runs_under_lifecycle_lock(monkeypatch: pytest.MonkeyPat
     t2.start()
     t1.join(timeout=3)
     t2.join(timeout=3)
+    assert not t1.is_alive(), "liveness poll thread did not finish within timeout"
+    assert not t2.is_alive(), "state flip thread did not finish within timeout"
 
     assert not errors, errors
     assert len(liveness_results) == 100

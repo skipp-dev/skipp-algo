@@ -398,10 +398,9 @@ def stop() -> None:
     with _lifecycle_lock:
         _stop_event.set()
         _feed_ready.clear()
-    for thread in (_feed_thread, _refresh_thread, _flow_refresh_thread):
-        if thread is not None and thread.is_alive():
-            thread.join(timeout=5)
-    with _lifecycle_lock:
+        for thread in (_feed_thread, _refresh_thread, _flow_refresh_thread):
+            if thread is not None and thread.is_alive():
+                thread.join(timeout=5)
         _feed_thread = None
         _refresh_thread = None
         _flow_refresh_thread = None
