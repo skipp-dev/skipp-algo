@@ -22,6 +22,7 @@ import math
 import time
 from contextlib import asynccontextmanager
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import FastAPI, HTTPException, Path, Query
 from fastapi.responses import JSONResponse
@@ -39,6 +40,26 @@ logger = logging.getLogger(__name__)
 _startup_ts: float = 0.0
 
 _VALID_TFS: frozenset[str] = frozenset({"5m", "10m", "15m", "30m", "1H", "4H"})
+
+
+def _is_us_regular_session_open(now_utc: datetime.datetime | None = None) -> bool:
+    """Return True during regular US equities session (Mon-Fri, 09:30-16:00 ET)."""
+    now_utc = now_utc or datetime.datetime.now(datetime.UTC)
+    try:
+        ny_tz = ZoneInfo("America/New_York")
+        now_ny = now_utc.astimezone(ny_tz)
+    except ZoneInfoNotFoundError:
+        # Conservative UTC fallback if timezone database is unavailable.
+        # 13:30-20:00 UTC approximates 09:30-16:00 ET during DST.
+        if now_utc.weekday() >= 5:
+            return False
+        current_utc = now_utc.time()
+        return datetime.time(13, 30) <= current_utc < datetime.time(20, 0)
+
+    if now_ny.weekday() >= 5:
+        return False
+    current_ny = now_ny.time()
+    return datetime.time(9, 30) <= current_ny < datetime.time(16, 0)
 
 
 def _json_safe(value: Any) -> Any:
@@ -109,15 +130,24 @@ def health() -> JSONResponse:
     workers = feed.worker_liveness()
     feed_metrics = feed.metrics_snapshot()
     workers_healthy = all(workers.values())
+    market_open = _is_us_regular_session_open()
     overlay_age = cache.overlay_age_secs()
     max_stale = config.max_stale_secs()
+    bar_symbols = cache.bar_symbol_count()
+    bar_count = cache.total_bar_count()
     overlay_symbols = cache.overlay_symbol_count()
     overlay_fresh = (
         overlay_symbols > 0
         and overlay_age != float("inf")
         and overlay_age <= max_stale
     )
-    status = "ok" if (feed_healthy and workers_healthy and overlay_fresh) else "starting"
+    if feed_healthy and workers_healthy and overlay_fresh:
+        status = "ok"
+    elif (not market_open) and workers_healthy and (not feed_healthy) and bar_count == 0:
+        # Expected idle state outside regular market session before first bar.
+        status = "idle_market_closed"
+    else:
+        status = "starting"
     observability.metric_gauge("live_overlay.health.status_ok", 1 if status == "ok" else 0)
     observability.audit_event(
         "live_overlay_health",
@@ -133,11 +163,12 @@ def health() -> JSONResponse:
             "workers_healthy": workers_healthy,
             "worker_liveness": workers,
             "feed_metrics": feed_metrics,
+            "market_open": market_open,
             "overlay_fresh": overlay_fresh,
             "last_bar_age_secs": None if bar_age is None else round(bar_age, 1),
             "uptime_secs": round(uptime),
-            "bar_symbols": cache.bar_symbol_count(),
-            "bar_count": cache.total_bar_count(),
+            "bar_symbols": bar_symbols,
+            "bar_count": bar_count,
             "overlay_symbols": overlay_symbols,
             "overlay_age_secs": (
                 None

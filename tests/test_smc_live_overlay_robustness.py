@@ -525,6 +525,58 @@ class TestHealthStatusSignals:
         assert payload["workers_healthy"] is True
         assert payload["overlay_fresh"] is False
 
+    def test_health_is_idle_market_closed_when_feed_not_ready_outside_session(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import services.live_overlay_daemon.main as main_mod
+
+        monkeypatch.setattr(main_mod.feed, "is_ready", lambda: False)
+        monkeypatch.setattr(main_mod.feed, "last_bar_age_secs", lambda: None)
+        monkeypatch.setattr(
+            main_mod.feed,
+            "worker_liveness",
+            lambda: {"live_feed": True, "overlay_refresh": True, "flow_refresh": True},
+        )
+        monkeypatch.setattr(main_mod.feed, "metrics_snapshot", lambda: {"reconnect_attempts": 0})
+        monkeypatch.setattr(main_mod.cache, "overlay_age_secs", lambda: float("inf"))
+        monkeypatch.setattr(main_mod.cache, "bar_symbol_count", lambda: 0)
+        monkeypatch.setattr(main_mod.cache, "total_bar_count", lambda: 0)
+        monkeypatch.setattr(main_mod.cache, "overlay_symbol_count", lambda: 0)
+        monkeypatch.setattr(main_mod.config, "max_stale_secs", lambda: 3600)
+        monkeypatch.setattr(main_mod, "_is_us_regular_session_open", lambda: False)
+
+        payload = json.loads(main_mod.health().body)
+
+        assert payload["status"] == "idle_market_closed"
+        assert payload["market_open"] is False
+        assert payload["workers_healthy"] is True
+        assert payload["feed_healthy"] is False
+
+    def test_health_remains_starting_when_feed_not_ready_during_session(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import services.live_overlay_daemon.main as main_mod
+
+        monkeypatch.setattr(main_mod.feed, "is_ready", lambda: False)
+        monkeypatch.setattr(main_mod.feed, "last_bar_age_secs", lambda: None)
+        monkeypatch.setattr(
+            main_mod.feed,
+            "worker_liveness",
+            lambda: {"live_feed": True, "overlay_refresh": True, "flow_refresh": True},
+        )
+        monkeypatch.setattr(main_mod.feed, "metrics_snapshot", lambda: {"reconnect_attempts": 0})
+        monkeypatch.setattr(main_mod.cache, "overlay_age_secs", lambda: float("inf"))
+        monkeypatch.setattr(main_mod.cache, "bar_symbol_count", lambda: 0)
+        monkeypatch.setattr(main_mod.cache, "total_bar_count", lambda: 0)
+        monkeypatch.setattr(main_mod.cache, "overlay_symbol_count", lambda: 0)
+        monkeypatch.setattr(main_mod.config, "max_stale_secs", lambda: 3600)
+        monkeypatch.setattr(main_mod, "_is_us_regular_session_open", lambda: True)
+
+        payload = json.loads(main_mod.health().body)
+
+        assert payload["status"] == "starting"
+        assert payload["market_open"] is True
+
 
 class TestSmcLiveTimeframeContract:
     """Endpoint tf validation must match published schema contract."""
