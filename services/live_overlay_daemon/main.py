@@ -276,6 +276,7 @@ def smc_live(
 
         if payload is None:
             observability.metric_counter("live_overlay.smc_live_cache_miss.total")
+            observability.metric_counter("live_overlay.smc_live_stale_served.total")
             observability.audit_event("smc_live_fetch", "cache_miss", symbol=sym, tf=tf)
             # Symbol not yet in cache — return minimal stale response
             return JSONResponse(
@@ -311,6 +312,8 @@ def smc_live(
             age = cache.overlay_age_secs()
             max_stale = config.max_stale_secs()
             payload["stale"] = (age > max_stale) if age != float("inf") else True
+        if payload.get("stale"):
+            observability.metric_counter("live_overlay.smc_live_stale_served.total")
         # Inject tf into response
         payload["tf"] = tf
         observability.metric_counter("live_overlay.smc_live_success.total")
