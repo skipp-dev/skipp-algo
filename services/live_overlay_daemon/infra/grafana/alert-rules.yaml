@@ -139,6 +139,30 @@ groups:
     folder: SMC Live Overlay
     interval: 5m
     rules:
+      - uid: lo-last-bar-stale-open
+        title: "Last bar stale while market open"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: live_overlay_market_open{job="live_overlay"} * (live_overlay_last_bar_age_seconds{job="live_overlay"} > bool 300)
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+                  operator: {type: and}
+                  query: {params: [A]}
+        for: 5m
+        labels:
+          severity: high
+        annotations:
+          summary: "No fresh bar for > 5 min while market is open"
+          runbook: "Check feed thread liveness and Databento connectivity. Compare with feed_healthy/workers_healthy."
+
       - uid: lo-circuit-breaker-increase
         title: "Circuit breaker triggered (15m)"
         condition: C
@@ -186,6 +210,54 @@ groups:
         annotations:
           summary: "Sustained Databento error rate > 0.1/s for 10 min"
           runbook: "Check Databento status page. May indicate API key quota or network issues."
+
+      - uid: lo-auth-denied-spike
+        title: "Auth denied spike on smc_live"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: increase(live_overlay_smc_live_auth_denied{job="live_overlay"}[15m])
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator: {type: gt, params: [20]}
+                  operator: {type: and}
+                  query: {params: [A]}
+        for: 0s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Auth denied requests spiked in the last 15m"
+          runbook: "Potential token drift or probing. Validate OVERLAY_SECRET_TOKEN rollout in Pine consumers."
+
+      - uid: lo-request-rate-drop-open
+        title: "Request rate near zero while market open"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: live_overlay_market_open{job="live_overlay"} * (rate(live_overlay_smc_live_requests_total{job="live_overlay"}[10m]) < bool 0.001) * (live_overlay_uptime_seconds{job="live_overlay"} > bool 600)
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+                  operator: {type: and}
+                  query: {params: [A]}
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Incoming smc_live request rate dropped near zero during market-open"
+          runbook: "Check TradingView consumer health, token rollout, and upstream network path."
 
       - uid: lo-compute-errors-rate
         title: "Compute cycle errors"
