@@ -52,14 +52,11 @@ def test_concurrent_start_serializes_lifecycle(monkeypatch: pytest.MonkeyPatch) 
 
     monkeypatch.setattr(feed_mod.threading, "Thread", _InstrumentedThread)
 
-    log_queue: queue.Queue[str] = queue.Queue()
     errors: queue.Queue[str] = queue.Queue()
 
     def _call_start(n: int) -> None:
-        log_queue.put(f"T{n}: entered")
         try:
             feed_mod.start()
-            log_queue.put(f"T{n}: returned")
         except Exception as exc:
             errors.put(f"T{n}: {type(exc).__name__}: {exc}")
 
