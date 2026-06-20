@@ -34,6 +34,10 @@ def test_set_overlay_replaces_atomically() -> None:
 def test_eviction_keeps_bar_and_last_update_consistent() -> None:
     import services.live_overlay_daemon.cache as cache
 
+    with cache._bar_lock:
+        cache._bars.clear()
+        cache._bar_last_update.clear()
+
     cache.init_bar_cache(rolling_bars=10, max_symbols=3)
 
     for sym in ["AAPL", "MSFT", "TSLA"]:
@@ -47,6 +51,10 @@ def test_eviction_keeps_bar_and_last_update_consistent() -> None:
 
 def test_init_bar_cache_downscale_cleans_last_update() -> None:
     import services.live_overlay_daemon.cache as cache
+
+    with cache._bar_lock:
+        cache._bars.clear()
+        cache._bar_last_update.clear()
 
     cache.init_bar_cache(rolling_bars=10, max_symbols=10)
     for sym in ["A", "B", "C", "D", "E"]:
