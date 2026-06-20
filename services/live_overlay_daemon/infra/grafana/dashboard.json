@@ -10,82 +10,218 @@
       "title": "Service Status",
       "type": "stat",
       "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
-      "targets": [{"expr": "live_overlay_feed_healthy", "legendFormat": "Feed Healthy"}],
-      "fieldConfig": {"defaults": {"mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}]}}
+      "targets": [{"expr": "live_overlay_feed_healthy{job=\"live_overlay\"}", "legendFormat": "Feed Healthy"}],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}],
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}
+        }
+      }
     },
     {
       "title": "Workers Healthy",
       "type": "stat",
       "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
-      "targets": [{"expr": "live_overlay_workers_healthy", "legendFormat": "Workers"}],
-      "fieldConfig": {"defaults": {"mappings": [{"type": "value", "options": {"0": {"text": "DEGRADED", "color": "red"}, "1": {"text": "OK", "color": "green"}}}]}}
+      "targets": [{"expr": "live_overlay_workers_healthy{job=\"live_overlay\"}", "legendFormat": "Workers"}],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [{"type": "value", "options": {"0": {"text": "DEGRADED", "color": "red"}, "1": {"text": "OK", "color": "green"}}}],
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}
+        }
+      }
     },
     {
       "title": "Uptime",
       "type": "stat",
       "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
-      "targets": [{"expr": "live_overlay_uptime_seconds / 3600", "legendFormat": "Hours"}],
-      "fieldConfig": {"defaults": {"unit": "h", "decimals": 1}}
+      "targets": [{"expr": "live_overlay_uptime_seconds{job=\"live_overlay\"}", "legendFormat": "Uptime"}],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 360},
+              {"color": "green", "value": 3600}
+            ]
+          }
+        }
+      }
     },
     {
       "title": "Overlay Symbols",
       "type": "stat",
       "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
-      "targets": [{"expr": "live_overlay_overlay_symbols", "legendFormat": "Symbols"}]
+      "targets": [{"expr": "live_overlay_overlay_symbols{job=\"live_overlay\"}", "legendFormat": "Symbols"}],
+      "options": {
+        "graphMode": "area",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {"text": "EMPTY", "color": "red"}
+              }
+            }
+          ]
+        }
+      }
     },
     {
       "title": "Request Rate",
       "type": "timeseries",
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
       "targets": [
-        {"expr": "rate(live_overlay_smc_live_requests_total[5m])", "legendFormat": "smc_live total"},
-        {"expr": "rate(live_overlay_smc_live_success_total[5m])", "legendFormat": "success"},
-        {"expr": "rate(live_overlay_smc_live_auth_denied[5m])", "legendFormat": "auth denied"},
-        {"expr": "rate(live_overlay_smc_live_cache_miss_total[5m])", "legendFormat": "cache miss"}
+        {"expr": "rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "smc_live total"},
+        {"expr": "rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "success"},
+        {"expr": "rate(live_overlay_smc_live_auth_denied{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "auth denied"},
+        {"expr": "rate(live_overlay_smc_live_cache_miss_total{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "cache miss"}
       ],
-      "fieldConfig": {"defaults": {"unit": "reqps"}}
+      "options": {
+        "tooltip": {"mode": "multi", "sort": "none"},
+        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["mean", "lastNotNull"]}
+      },
+      "fieldConfig": {
+        "defaults": {"unit": "reqps"},
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "auth denied"},
+            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}]
+          },
+          {
+            "matcher": {"id": "byName", "options": "cache miss"},
+            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "yellow"}}]
+          }
+        ]
+      }
     },
     {
       "title": "Overlay & Bar Age",
       "type": "timeseries",
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
       "targets": [
-        {"expr": "live_overlay_overlay_age_seconds", "legendFormat": "overlay age"},
-        {"expr": "live_overlay_last_bar_age_seconds", "legendFormat": "last bar age"}
+        {"expr": "live_overlay_overlay_age_seconds{job=\"live_overlay\"}", "legendFormat": "overlay age"},
+        {"expr": "live_overlay_last_bar_age_seconds{job=\"live_overlay\"} or vector(0)", "legendFormat": "last bar age"}
       ],
-      "fieldConfig": {"defaults": {"unit": "s", "thresholds": {"steps": [{"value": 0, "color": "green"}, {"value": 1800, "color": "yellow"}, {"value": 3600, "color": "red"}]}}}
+      "options": {
+        "tooltip": {"mode": "multi", "sort": "none"},
+        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["lastNotNull"]}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {"steps": [{"value": 0, "color": "green"}, {"value": 1800, "color": "yellow"}, {"value": 3600, "color": "red"}]},
+          "custom": {"thresholdsStyle": {"mode": "line"}}
+        }
+      }
     },
     {
       "title": "Compute Cycle Errors",
       "type": "timeseries",
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
       "targets": [
-        {"expr": "rate(live_overlay_full_compute_cycle_errors[5m])", "legendFormat": "full compute errors"},
-        {"expr": "rate(live_overlay_flow_patch_cycle_errors[5m])", "legendFormat": "flow patch errors"}
+        {"expr": "rate(live_overlay_full_compute_cycle_errors{job=\"live_overlay\"}[$__rate_interval]) or vector(0)", "legendFormat": "full compute errors"},
+        {"expr": "rate(live_overlay_flow_patch_cycle_errors{job=\"live_overlay\"}[$__rate_interval]) or vector(0)", "legendFormat": "flow patch errors"}
       ],
-      "fieldConfig": {"defaults": {"unit": "errors/s", "color": {"mode": "palette-classic"}}}
+      "options": {
+        "tooltip": {"mode": "multi", "sort": "none"},
+        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["mean", "lastNotNull"]}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "cps",
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1e-09}]},
+          "custom": {"thresholdsStyle": {"mode": "area"}}
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "full compute errors"},
+            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}]
+          },
+          {
+            "matcher": {"id": "byName", "options": "flow patch errors"},
+            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "orange"}}]
+          }
+        ]
+      }
     },
     {
       "title": "Feed Health Counters",
       "type": "timeseries",
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
       "targets": [
-        {"expr": "rate(live_overlay_feed_reconnect_attempts[5m])", "legendFormat": "reconnects"},
-        {"expr": "rate(live_overlay_feed_bento_errors[5m])", "legendFormat": "bento errors"},
-        {"expr": "rate(live_overlay_feed_unexpected_errors[5m])", "legendFormat": "unexpected errors"},
-        {"expr": "live_overlay_feed_circuit_breakers", "legendFormat": "circuit breakers (total)"}
-      ]
+        {"expr": "rate(live_overlay_feed_reconnect_attempts{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "reconnects/s"},
+        {"expr": "rate(live_overlay_feed_bento_errors{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "bento errors/s"},
+        {"expr": "rate(live_overlay_feed_unexpected_errors{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "unexpected errors/s"}
+      ],
+      "options": {
+        "tooltip": {"mode": "multi", "sort": "none"},
+        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["mean", "lastNotNull"]}
+      },
+      "fieldConfig": {"defaults": {"unit": "cps"}}
+    },
+    {
+      "title": "Feed Circuit Breakers (Total)",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 12, "x": 12, "y": 20},
+      "targets": [
+        {"expr": "live_overlay_feed_circuit_breakers{job=\"live_overlay\"}", "legendFormat": "circuit breakers"}
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {"text": "0", "color": "green"}
+              }
+            }
+          ]
+        }
+      }
     },
     {
       "title": "Worker Liveness",
-      "type": "timeseries",
-      "gridPos": {"h": 6, "w": 24, "x": 0, "y": 20},
+      "type": "state-timeline",
+      "gridPos": {"h": 6, "w": 12, "x": 0, "y": 20},
       "targets": [
-        {"expr": "live_overlay_worker_live_feed_alive", "legendFormat": "live_feed"},
-        {"expr": "live_overlay_worker_overlay_refresh_alive", "legendFormat": "overlay_refresh"},
-        {"expr": "live_overlay_worker_flow_refresh_alive", "legendFormat": "flow_refresh"}
+        {"expr": "live_overlay_worker_live_feed_alive{job=\"live_overlay\"}", "legendFormat": "live_feed"},
+        {"expr": "live_overlay_worker_overlay_refresh_alive{job=\"live_overlay\"} or vector(0)", "legendFormat": "overlay_refresh"},
+        {"expr": "live_overlay_worker_flow_refresh_alive{job=\"live_overlay\"} or vector(0)", "legendFormat": "flow_refresh"}
       ],
-      "fieldConfig": {"defaults": {"min": 0, "max": 1, "mappings": [{"type": "value", "options": {"0": {"text": "DEAD"}, "1": {"text": "ALIVE"}}}]}}
+      "options": {
+        "tooltip": {"mode": "multi", "sort": "none"},
+        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true},
+        "rowHeight": 0.9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "mappings": [{"type": "value", "options": {"0": {"text": "DEAD"}, "1": {"text": "ALIVE"}}}],
+          "color": {"mode": "thresholds"},
+          "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}
+        }
+      }
     }
   ],
   "schemaVersion": 39,
