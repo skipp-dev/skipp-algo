@@ -1,21 +1,20 @@
-"""Guard the Databento live-client contract assumed by feed.py.
+"""Guard the Databento live-client start() contract assumed by feed.py.
 
 feed.py instantiates db.Live(key=...) and iterates without calling
-client.start(). In databento>=0.79 this is the documented path; calling
-start() explicitly would raise ValueError. This test pins that behaviour
-so a future dependency upgrade cannot silently invalidate the feed loop.
+client.start(). In databento>=0.79, calling start() explicitly after
+subscribe() raises ValueError. This test pins that behaviour so a future
+dependency upgrade cannot silently invalidate the feed loop assumptions.
 """
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import databento as db
 import pytest
 
-import databento as db
 
-
-class TestDatabentoLiveIteratorContract:
-    """db.Live must be iterable without an explicit start() call."""
+class TestDatabentoLiveStartContract:
+    """db.Live.start() must raise after subscribe() in current contract."""
 
     def test_live_start_before_iteration_raises_value_error(self) -> None:
         """Calling start() before iterating must fail per current Databento contract."""
