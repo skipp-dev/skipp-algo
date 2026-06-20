@@ -227,7 +227,7 @@ def _run_feed_loop(stop: threading.Event) -> None:
 
                     with _last_bar_lock:
                         _last_bar_at = time.monotonic()
-                        if not _feed_ready.is_set():
+                        if not stop.is_set() and not _feed_ready.is_set():
                             _feed_ready.set()
                             logger.info("Feed ready — first bar pushed for %s", sym)
 
@@ -414,7 +414,15 @@ def stop() -> None:
         # Defensive clear after joins: the feed thread can still race to set
         # readiness during shutdown; stop() must always end in not-ready state.
         _feed_ready.clear()
-    logger.info("All feed threads stopped.")
+        still_alive = {
+            "live_feed": _feed_thread is not None and _feed_thread.is_alive(),
+            "overlay_refresh": _refresh_thread is not None and _refresh_thread.is_alive(),
+            "flow_refresh": _flow_refresh_thread is not None and _flow_refresh_thread.is_alive(),
+        }
+    if any(still_alive.values()):
+        logger.warning("Stop requested; bounded joins ended with workers still alive: %s", still_alive)
+    else:
+        logger.info("All feed threads stopped.")
 
 
 def is_ready() -> bool:
