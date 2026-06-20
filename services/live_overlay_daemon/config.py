@@ -22,6 +22,11 @@ import os
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+# Uvicorn-compatible log levels (case-insensitive input, lower-cased output).
+_VALID_UVICORN_LOG_LEVELS: frozenset[str] = frozenset(
+    {"critical", "error", "warning", "info", "debug", "trace"}
+)
+
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _ENV_FILE = _REPO_ROOT / ".env"
@@ -142,4 +147,11 @@ def port() -> int:
 
 
 def log_level() -> str:
-    return _optional_str("LOG_LEVEL", "info").lower()
+    """Return uvicorn-compatible log level, falling back to "info"."""
+    raw = _optional_str("LOG_LEVEL", "info").lower()
+    if raw == "warn":
+        return "warning"
+    if raw not in _VALID_UVICORN_LOG_LEVELS:
+        logger.warning("LOG_LEVEL=%r is not a valid uvicorn log level; using info", raw)
+        return "info"
+    return raw
