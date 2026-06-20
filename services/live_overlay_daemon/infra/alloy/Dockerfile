@@ -1,4 +1,4 @@
-FROM grafana/alloy:latest
+FROM grafana/alloy:v1.17.0
 
 COPY config.alloy /etc/alloy/config.alloy
 
