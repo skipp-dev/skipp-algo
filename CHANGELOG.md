@@ -565,10 +565,10 @@ behauptete) ist mitkorrigiert.
 (high: fehlende Binary-Integritätsprüfung im Deno-Modul → RCE via
 `NPM_CONFIG_REGISTRY`) und #5 (low: arbitrary file read im Dev-Server
 unter Windows). Beide Alerts betreffen nur dev-Tooling (tsx-Runner für
-die `tv:*`-Skripte), kein Produktionscode. Verbleibende torch-Alerts
-(#3/#4, low, memory corruption in `torch.jit.script`) haben upstream
-keinen Patch (`fixed: none`, torch ≤ 2.12.0) — kein Handlungsspielraum,
-beobachten.
+die `tv:*`-Skripte), kein Produktionscode. Der damalige Hinweis zu
+verbleibenden Torch-Alerts ohne Patch ist durch das Security-Update vom
+2026-06-20 überholt (Upgrade auf `torch==2.12.1` bzw.
+`torch==2.12.1+cu129`).
 ### Added (2026-06-12) — pre-push Hook: pin/ledger drift guard (fast-gates parity)
 
 Neues `scripts/run_ledger_drift_guard.sh` + pre-commit-Hook
