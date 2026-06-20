@@ -187,6 +187,11 @@ def _get_global_news_fields() -> dict[str, Any]:
     return {"tone": tone, "global_heat": heat}
 
 
+def get_global_news_fields() -> dict[str, Any]:
+    """Public accessor for market-wide news fields used by API layer."""
+    return _get_global_news_fields()
+
+
 # ---------------------------------------------------------------------------
 # OHLCV bar computations
 # ---------------------------------------------------------------------------
@@ -251,6 +256,11 @@ _TF_TO_MINUTES: dict[str, int] = {
     "1H": 60,
     "4H": 240,
 }
+
+
+def supported_timeframes() -> tuple[str, ...]:
+    """Return supported intraday overlay timeframes in canonical order."""
+    return tuple(_TF_TO_MINUTES.keys())
 
 
 def _bar_minute_bucket(ts_event: int, minutes: int) -> int:
