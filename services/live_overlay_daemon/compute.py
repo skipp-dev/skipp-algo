@@ -411,7 +411,15 @@ def build_payload(
     global_fields: dict[str, Any],
     max_stale_secs: int,
 ) -> dict[str, Any]:
-    """Build the full 16-field overlay payload for one symbol."""
+    """Build the full 16-field overlay payload for one symbol.
+
+    NOTE: all technical indicators are computed from the 1-minute bars
+    supplied in ``bars``. The caller-timeframe hint (``tf``) is injected
+    into the response envelope by the API layer and does not currently
+    influence the computation. Multi-timeframe aggregation is a planned
+    follow-up; until then callers receive the same numerical fields for
+    every supported ``tf`` value.
+    """
     # asof_ts is Unix-Epoch seconds (int) per smc-live-overlay/1 schema
     asof_ts = int(datetime.datetime.now(datetime.UTC).timestamp())
 
