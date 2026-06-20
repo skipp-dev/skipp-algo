@@ -976,3 +976,36 @@ class TestTfSchemaContract:
         assert exc_info.value.detail == "tf must be one of ['10m', '15m', '1H', '30m', '4H', '5m']"
 
 
+
+
+# ---------------------------------------------------------------------------
+# R4-ext: log_level validation
+# ---------------------------------------------------------------------------
+
+
+class TestLogLevelConfig:
+    """log_level() returns a valid uvicorn log level, defaulting on invalid input."""
+
+    def test_log_level_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("LOG_LEVEL", raising=False)
+        import services.live_overlay_daemon.config as cfg
+
+        assert cfg.log_level() == "info"
+
+    def test_log_level_env_lower_cased(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("LOG_LEVEL", "DEBUG")
+        import services.live_overlay_daemon.config as cfg
+
+        assert cfg.log_level() == "debug"
+
+    def test_log_level_invalid_warns_and_defaults(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        monkeypatch.setenv("LOG_LEVEL", "verbose")
+        import services.live_overlay_daemon.config as cfg
+
+        with caplog.at_level(logging.WARNING):
+            assert cfg.log_level() == "info"
+        assert "Invalid LOG_LEVEL" in caplog.text

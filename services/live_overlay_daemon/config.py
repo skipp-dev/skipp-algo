@@ -141,5 +141,11 @@ def port() -> int:
     return _optional_int("PORT", 8000)
 
 
+_VALID_LOG_LEVELS = frozenset({"critical", "error", "warning", "info", "debug", "trace"})
+
 def log_level() -> str:
-    return _optional_str("LOG_LEVEL", "info").lower()
+    raw = _optional_str("LOG_LEVEL", "info").lower()
+    if raw not in _VALID_LOG_LEVELS:
+        logger.warning("Invalid LOG_LEVEL=%r, falling back to info", raw)
+        return "info"
+    return raw
