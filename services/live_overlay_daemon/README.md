@@ -23,7 +23,7 @@ Databento Live (db.Live())
         ┌─────────────┴─────────────┐
         ▼                           ▼
   GET /health                GET /{token}/smc_live
-  (no auth)                  (token in path, HMAC compare)
+  (liveness, no auth)        (token in path, HMAC compare)
         │                           │
   Railway healthcheck        Pine request.raw() consumer
   UptimeRobot HEAD probe     TradingView chart
@@ -35,7 +35,23 @@ Databento Live (db.Live())
 
 ### `GET /health` / `HEAD /health`
 
-No authentication required. Used by Railway healthcheck and UptimeRobot.
+No authentication required. **Liveness only** endpoint used by Railway healthcheck and UptimeRobot.
+
+**Response (200 OK)**
+```json
+{
+  "status": "alive",
+  "service": "smc-live-overlay",
+  "uptime_secs": 406,
+  "ts": "2026-06-20T18:17:30+00:00"
+}
+```
+
+---
+
+### `GET /ready` / `HEAD /ready`
+
+No authentication required. **Readiness/diagnostics** endpoint with worker and dependency state.
 
 **Response (200 OK)**
 ```json
@@ -207,7 +223,8 @@ curl "http://localhost:8000/mysecret/smc_live?symbol=NVDA&tf=5m"
 observability.py (structured log lines + in-process counters)
         │
         ├── /metrics  → Prometheus scrape → Grafana dashboards + alerts
-        ├── /health   → Railway healthcheck + UptimeRobot (binary up/down)
+        ├── /health   → Railway/Uptime liveness (binary up/down)
+        ├── /ready    → readiness diagnostics (worker/feed/overlay state)
         └── stdout    → Railway Logs (human/debug) → optional log-drain
 ```
 
@@ -257,6 +274,7 @@ observability.py (structured log lines + in-process counters)
 | Alert | Email on down |
 
 > The `/health` endpoint accepts both `GET` and `HEAD` (UptimeRobot sends HEAD).
+> Use `/ready` for semantic status checks and deeper alerting.
 
 ---
 

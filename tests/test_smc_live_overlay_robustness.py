@@ -477,6 +477,16 @@ class TestFeedReadiness:
 class TestHealthStatusSignals:
     """Health endpoint should not report ok during worker/staleness degradation."""
 
+    def test_health_is_liveness_only(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import services.live_overlay_daemon.main as main_mod
+
+        payload = json.loads(main_mod.health().body)
+
+        assert payload["status"] == "alive"
+        assert payload["service"] == "smc-live-overlay"
+        assert "uptime_secs" in payload
+        assert "ts" in payload
+
     def test_health_is_starting_when_workers_not_all_alive(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -496,7 +506,7 @@ class TestHealthStatusSignals:
         monkeypatch.setattr(main_mod.cache, "overlay_symbol_count", lambda: 1)
         monkeypatch.setattr(main_mod.config, "max_stale_secs", lambda: 3600)
 
-        payload = json.loads(main_mod.health().body)
+        payload = json.loads(main_mod.ready().body)
 
         assert payload["status"] == "starting"
         assert payload["feed_healthy"] is True
@@ -522,7 +532,7 @@ class TestHealthStatusSignals:
         monkeypatch.setattr(main_mod.cache, "overlay_symbol_count", lambda: 0)
         monkeypatch.setattr(main_mod.config, "max_stale_secs", lambda: 3600)
 
-        payload = json.loads(main_mod.health().body)
+        payload = json.loads(main_mod.ready().body)
 
         assert payload["status"] == "starting"
         assert payload["feed_healthy"] is True
@@ -549,7 +559,7 @@ class TestHealthStatusSignals:
         monkeypatch.setattr(main_mod.config, "max_stale_secs", lambda: 3600)
         monkeypatch.setattr(main_mod, "_is_us_regular_session_open", lambda: False)
 
-        payload = json.loads(main_mod.health().body)
+        payload = json.loads(main_mod.ready().body)
 
         assert payload["status"] == "idle_market_closed"
         assert payload["market_open"] is False
@@ -576,7 +586,7 @@ class TestHealthStatusSignals:
         monkeypatch.setattr(main_mod.config, "max_stale_secs", lambda: 3600)
         monkeypatch.setattr(main_mod, "_is_us_regular_session_open", lambda: True)
 
-        payload = json.loads(main_mod.health().body)
+        payload = json.loads(main_mod.ready().body)
 
         assert payload["status"] == "starting"
         assert payload["market_open"] is True
@@ -603,7 +613,7 @@ class TestSmcLiveTimeframeContract:
         monkeypatch.setattr(main_mod.cache, "overlay_symbol_count", lambda: 0)
         monkeypatch.setattr(main_mod.config, "max_stale_secs", lambda: 3600)
 
-        payload = json.loads(main_mod.health().body)
+        payload = json.loads(main_mod.ready().body)
 
         assert payload["status"] == "starting"
         assert payload["feed_healthy"] is True

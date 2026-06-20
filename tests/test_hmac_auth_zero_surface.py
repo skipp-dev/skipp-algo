@@ -39,8 +39,9 @@ HMAC_ALLOWED: set[tuple[str, int, str]] = {
     # 2026-06-19 (fix/live-overlay-daemon-security, C1): _ct_eq now SHA-256
     # hashes both sides before the compare to drop the token-length side
     # channel; market-hours helper extraction + Ruff import sorting shifted
-    # the call to line 279; PlainTextResponse import cleanup shifted it to 278.
-    ("services/live_overlay_daemon/main.py", 278, "compare_digest"),
+    # the call to line 279; PlainTextResponse import cleanup shifted it to 278;
+    # liveness/readiness endpoint split shifted it to line 297.
+    ("services/live_overlay_daemon/main.py", 297, "compare_digest"),
 }
 
 _DIR_EXCLUDE = {

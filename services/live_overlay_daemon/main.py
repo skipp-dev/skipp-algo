@@ -2,7 +2,8 @@
 FastAPI app — SMC Live Overlay Daemon.
 
 Endpoints:
-  GET /health                          — healthcheck (no auth)
+    GET /health                          — liveness healthcheck (no auth)
+    GET /ready                           — readiness diagnostics (no auth)
   GET /{token}/smc_live?symbol=NVDA    — overlay payload (token = OVERLAY_SECRET_TOKEN)
 Security model:
     Pine's request.get() cannot send Authorization headers, so the secret
@@ -103,12 +104,30 @@ app = FastAPI(
 
 
 # ---------------------------------------------------------------------------
-# /health — no auth, used by Railway healthcheck
+# /health — no auth, process liveness only (Railway/Uptime)
 # ---------------------------------------------------------------------------
 
 @app.api_route("/health", methods=["GET", "HEAD"], include_in_schema=False)
 def health() -> JSONResponse:
     observability.metric_counter("live_overlay.health_requests.total")
+    uptime = time.monotonic() - _startup_ts if _startup_ts else 0
+    return JSONResponse(
+        {
+            "status": "alive",
+            "service": "smc-live-overlay",
+            "uptime_secs": round(uptime),
+            "ts": datetime.datetime.now(datetime.UTC).isoformat(),
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# /ready — no auth, dependency + worker readiness detail payload
+# ---------------------------------------------------------------------------
+
+@app.api_route("/ready", methods=["GET", "HEAD"], include_in_schema=False)
+def ready() -> JSONResponse:
+    observability.metric_counter("live_overlay.ready_requests.total")
     uptime = time.monotonic() - _startup_ts if _startup_ts else 0
     feed_healthy = feed.is_ready()
     bar_age = feed.last_bar_age_secs()
@@ -135,7 +154,7 @@ def health() -> JSONResponse:
     )
     observability.metric_gauge("live_overlay.health.status_ok", 1 if status == "ok" else 0)
     observability.audit_event(
-        "live_overlay_health",
+        "live_overlay_ready",
         status,
         feed_healthy=feed_healthy,
         workers_healthy=workers_healthy,
