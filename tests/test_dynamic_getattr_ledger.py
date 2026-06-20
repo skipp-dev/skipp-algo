@@ -99,7 +99,8 @@ DYNAMIC_GETATTR_LEDGER: set[tuple[str, int]] = {
     # 2026-06-19 (follow-up): keep ledger pinned to current helper site.
     # 2026-06-19 (Copilot follow-up): feed metrics helpers shifted site 56 -> 64.
     # 2026-06-19 (telemetry): import line shifted getattr site to 65.
-    ("services/live_overlay_daemon/feed.py", 65),
+    # 2026-06-20 (lifecycle lock): added module-level lock shifted site to 68.
+    ("services/live_overlay_daemon/feed.py", 68),
     ("smc_core/event_ledger.py", 79),
     ("smc_core/scoring.py", 308),
     ("streamlit_terminal_alerts.py", 41),
