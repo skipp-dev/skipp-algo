@@ -12,28 +12,52 @@ groups:
     folder: SMC Live Overlay
     interval: 1m
     rules:
-      - uid: lo-feed-down
-        title: "Feed unhealthy"
+      - uid: lo-scrape-missing
+        title: "Metrics scrape missing"
         condition: C
         data:
           - refId: A
             datasourceUid: grafanacloud-prom
             model:
-              expr: live_overlay_feed_healthy
+              expr: absent(live_overlay_uptime_seconds{job="live_overlay"})
               instant: true
           - refId: C
             datasourceUid: __expr__
             model:
               type: threshold
               conditions:
-                - evaluator: {type: lt, params: [1]}
+                - evaluator: {type: gt, params: [0]}
+                  operator: {type: and}
+                  query: {params: [A]}
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Prometheus is not scraping live-overlay metrics"
+          runbook: "Check metrics-collector service and /metrics auth/path wiring."
+
+      - uid: lo-feed-down-market-open
+        title: "Feed unhealthy while market open"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: live_overlay_market_open{job="live_overlay"} * (1 - live_overlay_feed_healthy{job="live_overlay"})
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator: {type: gt, params: [0]}
                   operator: {type: and}
                   query: {params: [A]}
         for: 5m
         labels:
           severity: critical
         annotations:
-          summary: "Live overlay feed is DOWN for > 5 min"
+          summary: "Live overlay feed is DOWN during market-open for > 5 min"
           runbook: "Check Railway logs for BentoError / circuit breaker. Verify DATABENTO_API_KEY validity."
 
       - uid: lo-workers-degraded
@@ -115,14 +139,14 @@ groups:
     folder: SMC Live Overlay
     interval: 5m
     rules:
-      - uid: lo-circuit-breaker
-        title: "Circuit breaker triggered"
+      - uid: lo-circuit-breaker-increase
+        title: "Circuit breaker triggered (15m)"
         condition: C
         data:
           - refId: A
             datasourceUid: grafanacloud-prom
             model:
-              expr: live_overlay_feed_circuit_breakers
+              expr: increase(live_overlay_feed_circuit_breakers{job="live_overlay"}[15m])
               instant: true
           - refId: C
             datasourceUid: __expr__
@@ -136,8 +160,8 @@ groups:
         labels:
           severity: high
         annotations:
-          summary: "Feed circuit breaker has fired — feed thread stopped"
-          runbook: "Persistent Databento outage. Service needs manual restart or will recover on Railway restart policy."
+          summary: "Feed circuit breaker increased in last 15m"
+          runbook: "Persistent Databento outage. Service may need restart if breaker keeps incrementing."
 
       - uid: lo-bento-errors-rate
         title: "Elevated Databento error rate"
@@ -170,7 +194,7 @@ groups:
           - refId: A
             datasourceUid: grafanacloud-prom
             model:
-              expr: rate(live_overlay_full_compute_cycle_errors[5m]) + rate(live_overlay_flow_patch_cycle_errors[5m])
+              expr: increase(live_overlay_full_compute_cycle_errors{job="live_overlay"}[15m]) + increase(live_overlay_flow_patch_cycle_errors{job="live_overlay"}[15m])
               instant: true
           - refId: C
             datasourceUid: __expr__
