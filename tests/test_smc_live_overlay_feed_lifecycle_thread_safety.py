@@ -73,8 +73,10 @@ def test_concurrent_start_serializes_lifecycle(monkeypatch: pytest.MonkeyPatch) 
     t2.start()
     # Ensure first start() call has created at least one worker while holding
     # lifecycle lock, then release all worker starts together.
-    while created.qsize() == 0:
+    deadline = time.monotonic() + 2.0
+    while created.qsize() == 0 and time.monotonic() < deadline:
         time.sleep(0.001)
+    assert created.qsize() > 0, "no worker thread creation observed before timeout"
     release_start.set()
     t1.join(timeout=10)
     t2.join(timeout=10)
