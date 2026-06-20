@@ -17,7 +17,7 @@ groups:
         condition: C
         data:
           - refId: A
-            datasourceUid: grafanacloud-prom
+            datasourceUid: grafanacloud-bronzeporridge977-prom
             model:
               expr: live_overlay_feed_healthy
               instant: true
@@ -41,7 +41,7 @@ groups:
         condition: C
         data:
           - refId: A
-            datasourceUid: grafanacloud-prom
+            datasourceUid: grafanacloud-bronzeporridge977-prom
             model:
               expr: live_overlay_workers_healthy
               instant: true
@@ -65,7 +65,7 @@ groups:
         condition: C
         data:
           - refId: A
-            datasourceUid: grafanacloud-prom
+            datasourceUid: grafanacloud-bronzeporridge977-prom
             model:
               expr: live_overlay_overlay_age_seconds
               instant: true
@@ -89,12 +89,12 @@ groups:
         condition: C
         data:
           - refId: A
-            datasourceUid: grafanacloud-prom
+            datasourceUid: grafanacloud-bronzeporridge977-prom
             model:
               expr: live_overlay_overlay_symbols
               instant: true
           - refId: B
-            datasourceUid: grafanacloud-prom
+            datasourceUid: grafanacloud-bronzeporridge977-prom
             model:
               expr: live_overlay_uptime_seconds
               instant: true
@@ -120,7 +120,7 @@ groups:
         condition: C
         data:
           - refId: A
-            datasourceUid: grafanacloud-prom
+            datasourceUid: grafanacloud-bronzeporridge977-prom
             model:
               expr: live_overlay_feed_circuit_breakers
               instant: true
@@ -144,7 +144,7 @@ groups:
         condition: C
         data:
           - refId: A
-            datasourceUid: grafanacloud-prom
+            datasourceUid: grafanacloud-bronzeporridge977-prom
             model:
               expr: rate(live_overlay_feed_bento_errors[5m])
               instant: true
@@ -168,7 +168,7 @@ groups:
         condition: C
         data:
           - refId: A
-            datasourceUid: grafanacloud-prom
+            datasourceUid: grafanacloud-bronzeporridge977-prom
             model:
               expr: rate(live_overlay_full_compute_cycle_errors[5m]) + rate(live_overlay_flow_patch_cycle_errors[5m])
               instant: true
