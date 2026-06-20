@@ -24,8 +24,20 @@ _counters: dict[str, float] = {}
 def _kv(fields: dict[str, Any]) -> str:
     if not fields:
         return ""
-    parts = [f"{k}={fields[k]}" for k in sorted(fields)]
+    parts = [f"{k}={_field_value(fields[k])}" for k in sorted(fields)]
     return " ".join(parts)
+
+
+def _field_value(value: Any) -> str:
+    """Return a single-token field value for space-delimited structured logs."""
+    text = str(value)
+    return (
+        text.replace("\\", "\\\\")
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\t", "\\t")
+        .replace(" ", "\\s")
+    )
 
 
 def _coerce_finite_metric_value(value: float, *, metric_name: str) -> float:

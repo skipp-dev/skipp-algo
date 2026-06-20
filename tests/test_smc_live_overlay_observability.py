@@ -81,3 +81,9 @@ def test_smc_live_auth_denied_emits_metric_and_audit(
     msgs = [r.getMessage() for r in caplog.records]
     assert any("metric kind=counter name=live_overlay.smc_live_auth.denied" in m for m in msgs)
     assert any("audit event=smc_live_auth outcome=denied" in m for m in msgs)
+
+
+def test_structured_log_fields_escape_whitespace_and_newlines() -> None:
+    import services.live_overlay_daemon.observability as obs
+
+    assert obs._kv({"symbol": "BAD TICK\nNEXT", "tf": "5m"}) == "symbol=BAD\\sTICK\\nNEXT tf=5m"

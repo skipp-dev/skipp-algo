@@ -77,9 +77,8 @@ Begründung der Optionswahl:
 
 Ziel: Saubere Basis, keine Funktionsänderung am Verhalten.
 
-- `feed.py`: doppelte Metrics-Implementierung vereinheitlichen (es existieren module-level
-  `_metrics_lock/_metrics` **und** eine spätere lazy `_metric_state()`-Variante; die spätere
-  gewinnt, die oberen Globals sind redundant). Auf **eine** thread-sichere Quelle reduzieren.
+- `feed.py`: Metrics-Implementierung vereinheitlicht; `metrics_snapshot()` liest jetzt aus der
+  einen thread-sicheren Counter-Quelle.
 - README/Ops-Doku korrigieren: `/health`-Payload vollständig dokumentieren, `tf`-Contract auf
   `5m,15m,1H,4H` (kein `1D`), strukturierte Telemetrie erklären.
 - Akzeptanz: bestehende Tests grün, `metrics_snapshot()` unverändert im Verhalten, README
@@ -91,7 +90,7 @@ Aufwand: klein. Risiko: niedrig.
 
 Ziel: Zahlen pull-bar machen, ohne neue schwere Dependency.
 
-- Neue Route `GET /metrics` in `main.py`, die ausgibt:
+- Neue token-geschützte Route `GET /{token}/metrics` in `main.py`, die ausgibt:
   - Counter aus `observability._counters` (bereits vorhanden) im Prometheus-Textformat.
   - Feed-Counter aus `feed.metrics_snapshot()`.
   - Health-abgeleitete Gauges: `overlay_fresh`, `workers_healthy`, `last_bar_age_secs`,
@@ -103,8 +102,8 @@ Ziel: Zahlen pull-bar machen, ohne neue schwere Dependency.
     Registry-Verdrahtung mit den vorhandenen Countern.
 - Name-Mapping: `live_overlay.smc_live_requests.total` → `live_overlay_smc_live_requests_total`
   (Punkte → Unterstriche, Prometheus-Konvention). Mapping zentral kapseln.
-- Auth: `/metrics` entweder hinter Token wie `/smc_live` ODER nur intern erreichbar. Da Railway
-  Private Networking bietet, bevorzugt **nicht öffentlich** exponieren.
+- Auth: `/{token}/metrics` nutzt denselben URL-Token wie `/smc_live`; Alloy soll den Endpoint nur
+  über Railway Private Networking scrapen.
 - Tests: Endpoint liefert gültiges Prometheus-Textformat; Counter-Werte spiegeln Aktionen
   (z. B. nach einem `/smc_live`-Hit steigt `..._requests_total`).
 - Akzeptanz: `curl /metrics` liefert parsebares Format; ausgewählte Kern-Counter vorhanden.

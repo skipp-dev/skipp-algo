@@ -106,10 +106,14 @@ class TestConfigRangeValidation:
         monkeypatch.delenv("DATABENTO_API_KEY", raising=False)
         monkeypatch.setattr(cfg, "_ENV_FILE", env_file)
 
-        cfg._load_env()
+        try:
+            cfg._load_env()
 
-        assert cfg.overlay_secret_token() == "quoted-token"
-        assert cfg.databento_api_key() == "quoted-key"
+            assert cfg.overlay_secret_token() == "quoted-token"
+            assert cfg.databento_api_key() == "quoted-key"
+        finally:
+            monkeypatch.delenv("OVERLAY_SECRET_TOKEN", raising=False)
+            monkeypatch.delenv("DATABENTO_API_KEY", raising=False)
 
 
 # ---------------------------------------------------------------------------
@@ -667,9 +671,10 @@ class TestSmcLiveSerializationSafety:
 class TestVixFiniteContract:
     """Non-finite VIX values must not enter overlay state via cache/flow patch."""
 
-    def test_set_vix_ignores_non_finite_values(self) -> None:
+    def test_set_vix_ignores_non_finite_values(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import services.live_overlay_daemon.cache as cache_mod
 
+        monkeypatch.setattr(cache_mod, "_vix_level", None)
         cache_mod.set_vix(20.5)
         cache_mod.set_vix(float("inf"))
         cache_mod.set_vix(float("nan"))

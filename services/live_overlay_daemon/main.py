@@ -24,7 +24,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Path, Query
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 
 from . import cache, config, feed, metrics, observability
 from .market_hours import (
@@ -170,12 +170,11 @@ def health() -> JSONResponse:
 # ---------------------------------------------------------------------------
 
 @app.get("/{token}/metrics", include_in_schema=False)
-def prometheus_metrics(token: str = Path(...)) -> JSONResponse:
+def prometheus_metrics(token: str = Path(...)) -> PlainTextResponse:
     """Prometheus scrape endpoint, protected by the same bearer token as /smc_live."""
     expected = config.overlay_secret_token()
     if not _ct_eq(token, expected):
         raise HTTPException(status_code=404)
-    from fastapi.responses import PlainTextResponse
 
     body = metrics.render_metrics(_startup_ts)
     return PlainTextResponse(body, media_type="text/plain; version=0.0.4; charset=utf-8")
