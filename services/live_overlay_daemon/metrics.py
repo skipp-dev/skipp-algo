@@ -9,11 +9,11 @@ values are consistent and complete.
 """
 from __future__ import annotations
 
-import datetime
+import math
 import time
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from . import cache, config, feed, observability
+from .market_hours import compute_daemon_health_status, is_us_regular_session_open
 
 
 def _sanitize_name(name: str) -> str:
@@ -21,24 +21,13 @@ def _sanitize_name(name: str) -> str:
     return name.replace(".", "_").replace("-", "_")
 
 
-def _is_us_regular_session_open(now_utc: datetime.datetime | None = None) -> bool:
-    """Return True during regular US equities session (Mon-Fri, 09:30-16:00 ET)."""
-    now_utc = now_utc or datetime.datetime.now(datetime.UTC)
+def _prom_numeric_value(raw: object) -> float:
+    """Coerce metric value to a Prometheus-safe finite number (fallback: NaN)."""
     try:
-        ny_tz = ZoneInfo("America/New_York")
-        now_ny = now_utc.astimezone(ny_tz)
-    except ZoneInfoNotFoundError:
-        # Conservative UTC fallback if timezone database is unavailable.
-        # 13:30-20:00 UTC approximates 09:30-16:00 ET during DST.
-        if now_utc.weekday() >= 5:
-            return False
-        current_utc = now_utc.time()
-        return datetime.time(13, 30) <= current_utc < datetime.time(20, 0)
-
-    if now_ny.weekday() >= 5:
-        return False
-    current_ny = now_ny.time()
-    return datetime.time(9, 30) <= current_ny < datetime.time(16, 0)
+        value = float(raw)
+    except (TypeError, ValueError):
+        return float("nan")
+    return value if math.isfinite(value) else float("nan")
 
 
 def render_metrics(startup_ts: float) -> str:
@@ -52,14 +41,14 @@ def render_metrics(startup_ts: float) -> str:
     for name, value in sorted(counters.items()):
         prom_name = _sanitize_name(name)
         lines.append(f"# TYPE {prom_name} counter")
-        lines.append(f"{prom_name} {value}")
+        lines.append(f"{prom_name} {_prom_numeric_value(value)}")
 
     # --- Feed counters ---
     feed_metrics = feed.metrics_snapshot()
     for name, value in sorted(feed_metrics.items()):
         prom_name = f"live_overlay_feed_{_sanitize_name(name)}"
         lines.append(f"# TYPE {prom_name} counter")
-        lines.append(f"{prom_name} {value}")
+        lines.append(f"{prom_name} {_prom_numeric_value(value)}")
 
     # --- Gauges: overlay health state ---
     uptime = time.monotonic() - startup_ts if startup_ts > 0 else 0
@@ -98,19 +87,20 @@ def render_metrics(startup_ts: float) -> str:
     lines.append(f"live_overlay_workers_healthy {workers_healthy}")
 
     # Market/session-aware daemon health state mirrors /health status logic.
-    market_open = _is_us_regular_session_open()
+    market_open = is_us_regular_session_open()
     max_stale = config.max_stale_secs()
     overlay_fresh = (
         overlay_symbols > 0
         and overlay_age != float("inf")
         and overlay_age <= max_stale
     )
-    if feed_healthy and workers_healthy and overlay_fresh:
-        status = "ok"
-    elif (not market_open) and workers_healthy and (not feed_healthy) and bar_count == 0:
-        status = "idle_market_closed"
-    else:
-        status = "starting"
+    status = compute_daemon_health_status(
+        feed_healthy=bool(feed_healthy),
+        workers_healthy=bool(workers_healthy),
+        overlay_fresh=overlay_fresh,
+        market_open=market_open,
+        bar_count=bar_count,
+    )
 
     lines.append("# TYPE live_overlay_market_open gauge")
     lines.append(f"live_overlay_market_open {1 if market_open else 0}")

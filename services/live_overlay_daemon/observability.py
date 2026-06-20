@@ -7,6 +7,7 @@ dependencies.
 from __future__ import annotations
 
 import logging
+import math
 import threading
 import time
 import uuid
@@ -27,16 +28,26 @@ def _kv(fields: dict[str, Any]) -> str:
     return " ".join(parts)
 
 
+def _coerce_finite_metric_value(value: float, *, metric_name: str) -> float:
+    """Coerce to float and reject non-finite metric values."""
+    coerced = float(value)
+    if not math.isfinite(coerced):
+        raise ValueError(f"metric '{metric_name}' value must be finite, got {coerced!r}")
+    return coerced
+
+
 def metric_counter(name: str, value: float = 1.0, **fields: Any) -> float:
     """Record a counter metric and emit a structured log line."""
+    inc = _coerce_finite_metric_value(value, metric_name=name)
     with _counter_lock:
-        total = _counters.get(name, 0.0) + float(value)
+        base = _coerce_finite_metric_value(_counters.get(name, 0.0), metric_name=name)
+        total = _coerce_finite_metric_value(base + inc, metric_name=name)
         _counters[name] = total
     extra = _kv(fields)
     logger.info(
         "metric kind=counter name=%s value=%s total=%s%s%s",
         name,
-        value,
+        inc,
         total,
         " " if extra else "",
         extra,
@@ -46,11 +57,12 @@ def metric_counter(name: str, value: float = 1.0, **fields: Any) -> float:
 
 def metric_gauge(name: str, value: float, **fields: Any) -> None:
     """Record a gauge metric via structured logging."""
+    finite_value = _coerce_finite_metric_value(value, metric_name=name)
     extra = _kv(fields)
     logger.info(
         "metric kind=gauge name=%s value=%s%s%s",
         name,
-        value,
+        finite_value,
         " " if extra else "",
         extra,
     )
@@ -58,11 +70,12 @@ def metric_gauge(name: str, value: float, **fields: Any) -> None:
 
 def metric_timing_ms(name: str, value_ms: float, **fields: Any) -> None:
     """Record a duration metric in milliseconds via structured logging."""
+    finite_ms = _coerce_finite_metric_value(value_ms, metric_name=name)
     extra = _kv(fields)
     logger.info(
         "metric kind=timing_ms name=%s value=%0.3f%s%s",
         name,
-        value_ms,
+        finite_ms,
         " " if extra else "",
         extra,
     )
