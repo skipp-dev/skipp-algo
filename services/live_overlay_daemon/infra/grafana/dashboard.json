@@ -10,7 +10,12 @@
       "title": "Service Status",
       "type": "stat",
       "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
-      "targets": [{"expr": "live_overlay_feed_healthy{job=\"live_overlay\"}", "legendFormat": "Feed Healthy"}],
+      "targets": [
+        {
+          "expr": "live_overlay_health_status_ok{job=\"live_overlay\"}*2 + live_overlay_health_status_idle_market_closed{job=\"live_overlay\"}",
+          "legendFormat": "Health state"
+        }
+      ],
       "options": {
         "colorMode": "background_solid",
         "graphMode": "none",
@@ -18,7 +23,16 @@
       },
       "fieldConfig": {
         "defaults": {
-          "mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}],
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {"text": "STARTING", "color": "yellow"},
+                "1": {"text": "IDLE (MARKET CLOSED)", "color": "semi-dark-orange"},
+                "2": {"text": "OK", "color": "green"}
+              }
+            }
+          ],
           "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}
         }
       }
@@ -127,7 +141,7 @@
       "fieldConfig": {
         "defaults": {
           "unit": "s",
-          "thresholds": {"steps": [{"value": 0, "color": "green"}, {"value": 1800, "color": "yellow"}, {"value": 3600, "color": "red"}]},
+          "thresholds": {"mode": "absolute", "steps": [{"value": 0, "color": "green"}, {"value": 1800, "color": "yellow"}, {"value": 3600, "color": "red"}]},
           "custom": {"thresholdsStyle": {"mode": "line"}}
         }
       }
@@ -219,7 +233,7 @@
           "max": 1,
           "mappings": [{"type": "value", "options": {"0": {"text": "DEAD"}, "1": {"text": "ALIVE"}}}],
           "color": {"mode": "thresholds"},
-          "thresholds": {"steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}
+          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}
         }
       }
     }
@@ -228,6 +242,7 @@
   "tags": ["live-overlay", "skipp-algo"],
   "templating": {"list": []},
   "time": {"from": "now-6h", "to": "now"},
+  "refresh": "30s",
   "timepicker": {},
   "timezone": "utc",
   "title": "SMC Live Overlay Daemon",

@@ -9,14 +9,36 @@ values are consistent and complete.
 """
 from __future__ import annotations
 
+import datetime
 import time
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from . import cache, feed, observability
+from . import cache, config, feed, observability
 
 
 def _sanitize_name(name: str) -> str:
     """Convert dotted metric names to Prometheus-safe underscore format."""
     return name.replace(".", "_").replace("-", "_")
+
+
+def _is_us_regular_session_open(now_utc: datetime.datetime | None = None) -> bool:
+    """Return True during regular US equities session (Mon-Fri, 09:30-16:00 ET)."""
+    now_utc = now_utc or datetime.datetime.now(datetime.UTC)
+    try:
+        ny_tz = ZoneInfo("America/New_York")
+        now_ny = now_utc.astimezone(ny_tz)
+    except ZoneInfoNotFoundError:
+        # Conservative UTC fallback if timezone database is unavailable.
+        # 13:30-20:00 UTC approximates 09:30-16:00 ET during DST.
+        if now_utc.weekday() >= 5:
+            return False
+        current_utc = now_utc.time()
+        return datetime.time(13, 30) <= current_utc < datetime.time(20, 0)
+
+    if now_ny.weekday() >= 5:
+        return False
+    current_ny = now_ny.time()
+    return datetime.time(9, 30) <= current_ny < datetime.time(16, 0)
 
 
 def render_metrics(startup_ts: float) -> str:
@@ -74,6 +96,30 @@ def render_metrics(startup_ts: float) -> str:
     workers_healthy = 1 if all(workers.values()) else 0
     lines.append("# TYPE live_overlay_workers_healthy gauge")
     lines.append(f"live_overlay_workers_healthy {workers_healthy}")
+
+    # Market/session-aware daemon health state mirrors /health status logic.
+    market_open = _is_us_regular_session_open()
+    max_stale = config.max_stale_secs()
+    overlay_fresh = (
+        overlay_symbols > 0
+        and overlay_age != float("inf")
+        and overlay_age <= max_stale
+    )
+    if feed_healthy and workers_healthy and overlay_fresh:
+        status = "ok"
+    elif (not market_open) and workers_healthy and (not feed_healthy) and bar_count == 0:
+        status = "idle_market_closed"
+    else:
+        status = "starting"
+
+    lines.append("# TYPE live_overlay_market_open gauge")
+    lines.append(f"live_overlay_market_open {1 if market_open else 0}")
+    lines.append("# TYPE live_overlay_health_status_ok gauge")
+    lines.append(f"live_overlay_health_status_ok {1 if status == 'ok' else 0}")
+    lines.append("# TYPE live_overlay_health_status_starting gauge")
+    lines.append(f"live_overlay_health_status_starting {1 if status == 'starting' else 0}")
+    lines.append("# TYPE live_overlay_health_status_idle_market_closed gauge")
+    lines.append(f"live_overlay_health_status_idle_market_closed {1 if status == 'idle_market_closed' else 0}")
 
     for worker_name, alive in workers.items():
         prom_worker = _sanitize_name(worker_name)
