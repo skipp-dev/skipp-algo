@@ -209,69 +209,79 @@ def smc_live(
     symbol: str = Query(..., min_length=1, max_length=10),
     tf: str = Query("5m", max_length=8),  # timeframe hint — stored in response
 ) -> JSONResponse:
+    started_at = time.monotonic()
     observability.metric_counter("live_overlay.smc_live_requests.total")
-    # Constant-time token comparison to avoid timing attacks. _ct_eq hashes
-    # both sides to a fixed-length digest before comparing, so neither the
-    # comparison nor a Python len() short-circuit can leak the token length
-    # as a timing side-channel (CWE-208).
-    expected = config.overlay_secret_token()
-    if not _ct_eq(token, expected):
-        observability.metric_counter("live_overlay.smc_live_auth.denied")
-        observability.audit_event("smc_live_auth", "denied", symbol=symbol, tf=tf)
-        raise HTTPException(status_code=404)  # 404 not 401 to avoid leaking route structure
+    try:
+        # Constant-time token comparison to avoid timing attacks. _ct_eq hashes
+        # both sides to a fixed-length digest before comparing, so neither the
+        # comparison nor a Python len() short-circuit can leak the token length
+        # as a timing side-channel (CWE-208).
+        expected = config.overlay_secret_token()
+        if not _ct_eq(token, expected):
+            observability.metric_counter("live_overlay.smc_live_auth.denied")
+            observability.audit_event("smc_live_auth", "denied", symbol=symbol, tf=tf)
+            raise HTTPException(status_code=404)  # 404 not 401 to avoid leaking route structure
 
-    sym = symbol.upper().strip()
-    if tf not in _VALID_TFS:
-        observability.metric_counter("live_overlay.smc_live_bad_tf.total")
-        observability.audit_event("smc_live_tf_validation", "rejected", symbol=sym, tf=tf)
-        raise HTTPException(
-            status_code=400,
-            detail=f"tf must be one of {sorted(_VALID_TFS)}",
+        sym = symbol.upper().strip()
+        if tf not in _VALID_TFS:
+            observability.metric_counter("live_overlay.smc_live_bad_tf.total")
+            observability.audit_event("smc_live_tf_validation", "rejected", symbol=sym, tf=tf)
+            raise HTTPException(
+                status_code=400,
+                detail=f"tf must be one of {sorted(_VALID_TFS)}",
+            )
+        payload = cache.get_overlay(sym)
+
+        if payload is None:
+            observability.metric_counter("live_overlay.smc_live_cache_miss.total")
+            observability.metric_counter("live_overlay.smc_live_stale_served.total")
+            observability.audit_event("smc_live_fetch", "cache_miss", symbol=sym, tf=tf)
+            # Symbol not yet in cache — return minimal stale response
+            return JSONResponse(
+                {
+                    "schema": "smc-live-overlay/1",
+                    "symbol": sym,
+                    "tf": tf,
+                    "asof_ts": int(datetime.datetime.now(datetime.UTC).timestamp()),
+                    "stale": True,
+                    "news_strength": None,
+                    "news_bias": None,
+                    "flow_rel_vol": None,
+                    "flow_delta_proxy_pct": None,
+                    "squeeze_on": None,
+                    "ats_state": None,
+                    "ats_zscore": None,
+                    "vix_level": None,
+                    "tone": None,
+                    "global_heat": None,
+                    "event_window_state": None,
+                    "event_risk_level": None,
+                    "next_event_name": None,
+                    "next_event_time": None,
+                    "market_event_blocked": False,
+                    "symbol_event_blocked": False,
+                    "event_provider_status": "unavailable",
+                }
+            )
+
+        # Re-evaluate stale based on current overlay age so a cached payload
+        # does not serve a stale=false flag after the age window has elapsed.
+        age = cache.overlay_age_secs()
+        max_stale = config.max_stale_secs()
+        payload = dict(payload)  # shallow-copy — do not mutate shared cache state
+        payload["stale"] = (age > max_stale) if age != float("inf") else True
+        # Inject tf into response
+        payload["tf"] = tf
+        if payload["stale"]:
+            observability.metric_counter("live_overlay.smc_live_stale_served.total")
+        observability.metric_counter("live_overlay.smc_live_success.total")
+        observability.audit_event("smc_live_fetch", "ok", symbol=sym, tf=tf, stale=payload["stale"])
+        return JSONResponse(_json_safe(payload))
+    finally:
+        observability.metric_histogram_ms(
+            "live_overlay.smc_live_latency",
+            (time.monotonic() - started_at) * 1000.0,
         )
-    payload = cache.get_overlay(sym)
-
-    if payload is None:
-        observability.metric_counter("live_overlay.smc_live_cache_miss.total")
-        observability.audit_event("smc_live_fetch", "cache_miss", symbol=sym, tf=tf)
-        # Symbol not yet in cache — return minimal stale response
-        return JSONResponse(
-            {
-                "schema": "smc-live-overlay/1",
-                "symbol": sym,
-                "tf": tf,
-                "asof_ts": int(datetime.datetime.now(datetime.UTC).timestamp()),
-                "stale": True,
-                "news_strength": None,
-                "news_bias": None,
-                "flow_rel_vol": None,
-                "flow_delta_proxy_pct": None,
-                "squeeze_on": None,
-                "ats_state": None,
-                "ats_zscore": None,
-                "vix_level": None,
-                "tone": None,
-                "global_heat": None,
-                "event_window_state": None,
-                "event_risk_level": None,
-                "next_event_name": None,
-                "next_event_time": None,
-                "market_event_blocked": False,
-                "symbol_event_blocked": False,
-                "event_provider_status": "unavailable",
-            }
-        )
-
-    # Re-evaluate stale based on current overlay age so a cached payload
-    # does not serve a stale=false flag after the age window has elapsed.
-    age = cache.overlay_age_secs()
-    max_stale = config.max_stale_secs()
-    payload = dict(payload)  # shallow-copy — do not mutate shared cache state
-    payload["stale"] = (age > max_stale) if age != float("inf") else True
-    # Inject tf into response
-    payload["tf"] = tf
-    observability.metric_counter("live_overlay.smc_live_success.total")
-    observability.audit_event("smc_live_fetch", "ok", symbol=sym, tf=tf, stale=payload["stale"])
-    return JSONResponse(_json_safe(payload))
 
 
 # ---------------------------------------------------------------------------

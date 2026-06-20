@@ -94,6 +94,8 @@ def render_metrics(startup_ts: float) -> str:
         and overlay_age != float("inf")
         and overlay_age <= max_stale
     )
+    lines.append("# TYPE live_overlay_overlay_fresh gauge")
+    lines.append(f"live_overlay_overlay_fresh {1 if overlay_fresh else 0}")
     status = compute_daemon_health_status(
         feed_healthy=bool(feed_healthy),
         workers_healthy=bool(workers_healthy),
