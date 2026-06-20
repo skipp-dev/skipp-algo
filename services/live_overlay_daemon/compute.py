@@ -302,6 +302,8 @@ def _aggregate_bars(bars: list[dict[str, Any]], tf: str) -> list[dict[str, Any]]
             "close": None,
             "volume": None,
             "ts_event": bucket_ts,
+            "_first_ts": None,
+            "_last_ts": None,
         })
 
         open_ = _coerce_finite_float(bar.get("open"))
@@ -310,20 +312,29 @@ def _aggregate_bars(bars: list[dict[str, Any]], tf: str) -> list[dict[str, Any]]
         close = _coerce_finite_float(bar.get("close"))
         volume = _coerce_volume(bar.get("volume"))
 
-        if bucket["open"] is None and open_ is not None:
+        if open_ is not None and (bucket["_first_ts"] is None or ts_event < bucket["_first_ts"]):
             bucket["open"] = open_
+            bucket["_first_ts"] = ts_event
         if high is not None:
             bucket["high"] = high if bucket["high"] is None else max(bucket["high"], high)
         if low is not None:
             bucket["low"] = low if bucket["low"] is None else min(bucket["low"], low)
-        if close is not None:
+        if close is not None and (bucket["_last_ts"] is None or ts_event >= bucket["_last_ts"]):
             bucket["close"] = close
+            bucket["_last_ts"] = ts_event
         if volume is not None:
             bucket["volume"] = volume if bucket["volume"] is None else bucket["volume"] + volume
 
     # Drop buckets that contain no valid close — they cannot contribute
     # to any indicator and would otherwise create empty aggregated bars.
-    return [b for _, b in sorted(buckets.items()) if b["close"] is not None]
+    out: list[dict[str, Any]] = []
+    for _, bucket in sorted(buckets.items()):
+        if bucket["close"] is None:
+            continue
+        bucket.pop("_first_ts", None)
+        bucket.pop("_last_ts", None)
+        out.append(bucket)
+    return out
 
 
 def _bars_for_timeframe(bars: list[dict[str, Any]], tf: str) -> list[dict[str, Any]]:
