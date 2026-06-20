@@ -419,10 +419,10 @@ def stop() -> None:
             "overlay_refresh": _refresh_thread is not None and _refresh_thread.is_alive(),
             "flow_refresh": _flow_refresh_thread is not None and _flow_refresh_thread.is_alive(),
         }
-    if any(still_alive.values()):
-        logger.warning("Stop requested; bounded joins ended with workers still alive: %s", still_alive)
-    else:
-        logger.info("All feed threads stopped.")
+        if any(still_alive.values()):
+            logger.warning("Stop requested; bounded joins ended with workers still alive: %s", still_alive)
+        else:
+            logger.info("All feed threads stopped.")
 
 
 def is_ready() -> bool:
