@@ -224,7 +224,7 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # 2026-06-19 (telemetry): from .observability import metric_counter +
         # _inc_metric body expansion shifted globals to 221/329.
         # 2026-06-20 (feed lifecycle lock): extracted _do_start() helper and
-        # added _lifecycle_lock shifted globals to 224/337.
+        # added _lifecycle_lock shifted globals to 224/336.
         # 2026-06-20 (feed lifecycle follow-up): stop() now clears thread
         # handles after join() to prevent stale worker_liveness() reads.
         ("services/live_overlay_daemon/feed.py", 224, ("_last_bar_at",)),

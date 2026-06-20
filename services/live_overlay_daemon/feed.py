@@ -398,12 +398,19 @@ def stop() -> None:
     with _lifecycle_lock:
         _stop_event.set()
         _feed_ready.clear()
-        for thread in (_feed_thread, _refresh_thread, _flow_refresh_thread):
-            if thread is not None and thread.is_alive():
-                thread.join(timeout=5)
-        _feed_thread = None
-        _refresh_thread = None
-        _flow_refresh_thread = None
+        if _feed_thread is not None and _feed_thread.is_alive():
+            _feed_thread.join(timeout=5)
+        if _refresh_thread is not None and _refresh_thread.is_alive():
+            _refresh_thread.join(timeout=5)
+        if _flow_refresh_thread is not None and _flow_refresh_thread.is_alive():
+            _flow_refresh_thread.join(timeout=5)
+
+        if _feed_thread is None or not _feed_thread.is_alive():
+            _feed_thread = None
+        if _refresh_thread is None or not _refresh_thread.is_alive():
+            _refresh_thread = None
+        if _flow_refresh_thread is None or not _flow_refresh_thread.is_alive():
+            _flow_refresh_thread = None
     logger.info("All feed threads stopped.")
 
 
