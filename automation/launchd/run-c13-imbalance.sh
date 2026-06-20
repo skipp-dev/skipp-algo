@@ -14,9 +14,11 @@ VENV="${C13_VENV:-${REPO}/.venv}"
 WATCHLIST="${C13_WATCHLIST:-${REPO}/reports/databento_watchlist_top5_pre1530.csv}"
 
 DATE="$(date -u +%Y-%m-%d)"
-# Marker used only for preflight (venv/interpreter) failures, which are not
-# specific to any one run-date.
-PREFLIGHT_MARKER="${REPO}/cache/imbalance/.push_status_${DATE}"
+# Canonical "this invocation degraded" marker path for today's UTC date.
+# Preflight failures always write here. Runtime collector failures also write
+# here (in addition to the per-run-date marker) so machine checks that watch
+# today's marker still see a degradation when catch-up replays historical dates.
+TODAY_MARKER="${REPO}/cache/imbalance/.push_status_${DATE}"
 
 _write_marker() {
     local marker_path="$1"
@@ -31,7 +33,7 @@ cd "${REPO}"
 # clear error so the operator can fix C13_VENV in the plist.
 if [[ ! -f "${VENV}/bin/activate" ]]; then
     echo "imbalance cron: virtualenv activate script not found at ${VENV}/bin/activate (set C13_VENV in plist)" >&2
-    _write_marker "${PREFLIGHT_MARKER}" "degraded:preflight-error:$(date -u +%FT%TZ)"
+    _write_marker "${TODAY_MARKER}" "degraded:preflight-error:$(date -u +%FT%TZ)"
     exit 1
 fi
 # shellcheck disable=SC1091
@@ -43,7 +45,7 @@ source "${VENV}/bin/activate"
 PY="${VENV}/bin/python"
 if [[ ! -x "${PY}" ]]; then
     echo "imbalance cron: python interpreter not executable at ${PY}" >&2
-    _write_marker "${PREFLIGHT_MARKER}" "degraded:preflight-error:$(date -u +%FT%TZ)"
+    _write_marker "${TODAY_MARKER}" "degraded:preflight-error:$(date -u +%FT%TZ)"
     exit 1
 fi
 
@@ -78,6 +80,7 @@ process_one_date() {
     else
         local rc=$?
         echo "imbalance cron: collect_opening_imbalances FAILED for ${DATE} (exit ${rc}) — see above for details" >&2
+        _write_marker "${TODAY_MARKER}" "degraded:collector-error:${TS}"
         _write_marker "${MARKER}" "degraded:collector-error:${TS}"
         return 1
     fi
