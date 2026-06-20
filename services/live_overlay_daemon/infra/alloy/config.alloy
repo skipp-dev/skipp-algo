@@ -16,6 +16,7 @@ prometheus.scrape "live_overlay" {
   }]
   scrape_interval = "30s"
   scrape_timeout  = "10s"
+  job_name        = "live_overlay"
 
   forward_to = [prometheus.remote_write.grafana_cloud.receiver]
 }
