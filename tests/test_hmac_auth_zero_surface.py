@@ -38,8 +38,8 @@ HMAC_ALLOWED: set[tuple[str, int, str]] = {
     # endpoint uses hmac.compare_digest for constant-time comparison.
     # 2026-06-19 (fix/live-overlay-daemon-security, C1): _ct_eq now SHA-256
     # hashes both sides before the compare to drop the token-length side
-    # channel; the compare_digest call shifted 178 -> 193.
-    ("services/live_overlay_daemon/main.py", 193, "compare_digest"),
+    # channel; /metrics additions above _ct_eq shifted the call from 193 to 263.
+    ("services/live_overlay_daemon/main.py", 263, "compare_digest"),
 }
 
 _DIR_EXCLUDE = {
