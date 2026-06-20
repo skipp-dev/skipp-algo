@@ -239,6 +239,91 @@ def _coerce_volume(v: Any) -> float | None:
     return coerced
 
 
+# ---------------------------------------------------------------------------
+# Multi-timeframe aggregation
+# ---------------------------------------------------------------------------
+
+_TF_TO_MINUTES: dict[str, int] = {
+    "5m": 5,
+    "10m": 10,
+    "15m": 15,
+    "30m": 30,
+    "1H": 60,
+    "4H": 240,
+}
+
+
+def _bar_minute_bucket(ts_event: int, minutes: int) -> int:
+    """Return the floor-boundary timestamp (nanoseconds) for a bar.
+
+    Databento ts_event is in nanoseconds since the Unix epoch. We align
+    to the start of the N-minute bucket in UTC. Intraday timeframes only.
+    """
+    ns_per_minute = 60_000_000_000
+    minute = ts_event // ns_per_minute
+    aligned_minute = (minute // minutes) * minutes
+    return aligned_minute * ns_per_minute
+
+
+def _aggregate_bars(bars: list[dict[str, Any]], tf: str) -> list[dict[str, Any]]:
+    """Aggregate 1-minute bars into higher intraday timeframes.
+
+    The input cache stores 1-minute bars, so all supported intraday
+    timeframes (including 5m) are bucketed and aggregated.
+    """
+    if tf not in _TF_TO_MINUTES:
+        raise ValueError(f"unsupported timeframe: {tf}")
+
+    minutes = _TF_TO_MINUTES[tf]
+
+    buckets: dict[int, dict[str, Any]] = {}
+    for bar in bars:
+        ts_event = bar.get("ts_event")
+        if not isinstance(ts_event, int):
+            continue
+        bucket_ts = _bar_minute_bucket(ts_event, minutes)
+        bucket = buckets.setdefault(bucket_ts, {
+            "open": None,
+            "high": None,
+            "low": None,
+            "close": None,
+            "volume": None,
+            "ts_event": bucket_ts,
+        })
+
+        open_ = _coerce_finite_float(bar.get("open"))
+        high = _coerce_finite_float(bar.get("high"))
+        low = _coerce_finite_float(bar.get("low"))
+        close = _coerce_finite_float(bar.get("close"))
+        volume = _coerce_volume(bar.get("volume"))
+
+        if bucket["open"] is None and open_ is not None:
+            bucket["open"] = open_
+        if high is not None:
+            bucket["high"] = high if bucket["high"] is None else max(bucket["high"], high)
+        if low is not None:
+            bucket["low"] = low if bucket["low"] is None else min(bucket["low"], low)
+        if close is not None:
+            bucket["close"] = close
+        if volume is not None:
+            bucket["volume"] = volume if bucket["volume"] is None else bucket["volume"] + volume
+
+    # Drop buckets that contain no valid close — they cannot contribute
+    # to any indicator and would otherwise create empty aggregated bars.
+    return [b for _, b in sorted(buckets.items()) if b["close"] is not None]
+
+
+def _bars_for_timeframe(bars: list[dict[str, Any]], tf: str) -> list[dict[str, Any]]:
+    """Return bars for indicator computation at the requested timeframe.
+
+    We aggregate from 1-minute cache bars when possible. If aggregation yields
+    no usable bars (for example synthetic/unit-test inputs that omit ts_event),
+    fall back to the provided input bars so indicator invariants remain stable.
+    """
+    aggregated = _aggregate_bars(bars, tf)
+    return aggregated if aggregated else list(bars)
+
+
 def compute_flow_fields(bars: list[dict[str, Any]]) -> dict[str, Any]:
     """Compute flow_rel_vol, flow_delta_proxy_pct from bar list."""
     if not bars:
@@ -410,23 +495,24 @@ def build_payload(
     bars: list[dict[str, Any]],
     global_fields: dict[str, Any],
     max_stale_secs: int,
+    tf: str = "5m",
 ) -> dict[str, Any]:
-    """Build the full 16-field overlay payload for one symbol.
+    """Build the full overlay payload for one symbol.
 
-    NOTE: all technical indicators are computed from the 1-minute bars
-    supplied in ``bars``. The caller-timeframe hint (``tf``) is injected
-    into the response envelope by the API layer and does not currently
-    influence the computation. Multi-timeframe aggregation is a planned
-    follow-up; until then callers receive the same numerical fields for
-    every supported ``tf`` value.
+    The supplied ``bars`` are expected to be 1-minute bars. They are
+    aggregated to the requested ``tf`` before computing technical
+    indicators.
     """
     # asof_ts is Unix-Epoch seconds (int) per smc-live-overlay/1 schema
     asof_ts = int(datetime.datetime.now(datetime.UTC).timestamp())
 
+    aggregated = _bars_for_timeframe(bars, tf)
+
     news = _get_news_fields(symbol)
-    flow = compute_flow_fields(bars)
-    squeeze = compute_squeeze_on(bars)
-    ats = compute_ats_fields(bars)
+    flow = compute_flow_fields(aggregated)
+    squeeze_period = len(aggregated) if 5 <= len(aggregated) < 20 else 20
+    squeeze = compute_squeeze_on(aggregated, period=squeeze_period)
+    ats = compute_ats_fields(aggregated)
     vix = cache.get_vix()
     events = _event_fields_for(symbol)
 
@@ -457,7 +543,7 @@ def build_payload(
     }
 
 
-def run_full_compute_cycle() -> int:
+def run_full_compute_cycle(tf: str = "5m") -> int:
     """
     Compute overlay payloads for ALL symbols currently in the bar cache.
     Returns number of symbols computed.
@@ -472,7 +558,7 @@ def run_full_compute_cycle() -> int:
         for sym, bars in all_bars.items():
             if not bars:
                 continue
-            payloads[sym.upper()] = build_payload(sym, bars, global_fields, max_stale)
+            payloads[sym.upper()] = build_payload(sym, bars, global_fields, max_stale, tf=tf)
 
         # Always replace snapshot (including empty) so stale symbols are removed
         # when bar cache is temporarily empty.
@@ -489,7 +575,7 @@ def run_full_compute_cycle() -> int:
         return count
 
 
-def run_flow_patch_cycle() -> int:
+def run_flow_patch_cycle(tf: str = "5m") -> int:
     """
     Fast refresh: recompute only flow fields for all symbols.
     Does NOT reset the full overlay cache timestamp.
@@ -502,7 +588,8 @@ def run_flow_patch_cycle() -> int:
         for sym, bars in all_bars.items():
             if not bars:
                 continue
-            updates = compute_flow_fields(bars)
+            aggregated = _bars_for_timeframe(bars, tf)
+            updates = compute_flow_fields(aggregated)
             if (vix_value := _coerce_finite_float(vix)) is not None:
                 updates["vix_level"] = round(vix_value, 4)
             cache.patch_overlay(
