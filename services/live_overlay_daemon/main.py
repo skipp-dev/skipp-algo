@@ -322,7 +322,6 @@ def smc_live(
             (time.monotonic() - started_at) * 1000.0,
         )
 
-
 # ---------------------------------------------------------------------------
 # Constant-time string comparison (avoid timing oracle on token)
 # ---------------------------------------------------------------------------
