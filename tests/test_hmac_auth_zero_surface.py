@@ -40,8 +40,9 @@ HMAC_ALLOWED: set[tuple[str, int, str]] = {
     # hashes both sides before the compare to drop the token-length side
     # channel; market-hours helper extraction + Ruff import sorting shifted
     # the call to line 279; PlainTextResponse import cleanup shifted it to 278;
-    # liveness/readiness endpoint split shifted it to line 297.
-    ("services/live_overlay_daemon/main.py", 297, "compare_digest"),
+    # liveness/readiness endpoint split shifted it to line 297; smc_live
+    # observability timing wrapper shifted it to line 307.
+    ("services/live_overlay_daemon/main.py", 307, "compare_digest"),
 }
 
 _DIR_EXCLUDE = {

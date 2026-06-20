@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import math
+import re
 import threading
 import time
 import uuid
@@ -19,6 +20,17 @@ logger = logging.getLogger(__name__)
 
 _counter_lock = threading.Lock()
 _counters: dict[str, float] = {}
+_HISTOGRAM_DEFAULT_BUCKETS_MS: tuple[float, ...] = (
+    10.0,
+    25.0,
+    50.0,
+    100.0,
+    250.0,
+    500.0,
+    1000.0,
+    2500.0,
+    5000.0,
+)
 
 
 def _kv(fields: dict[str, Any]) -> str:
@@ -48,6 +60,15 @@ def _coerce_finite_metric_value(value: float, *, metric_name: str) -> float:
     return coerced
 
 
+def _bucket_suffix(value: float) -> str:
+    """Return a Prometheus-safe bucket suffix for metric key names."""
+    text = f"{value:.9f}".rstrip("0").rstrip(".")
+    if not text:
+        text = "0"
+    text = text.replace(".", "_")
+    return re.sub(r"[^0-9_]", "_", text)
+
+
 def metric_counter(name: str, value: float = 1.0, **fields: Any) -> float:
     """Record a counter metric and emit a structured log line."""
     inc = _coerce_finite_metric_value(value, metric_name=name)
@@ -65,6 +86,64 @@ def metric_counter(name: str, value: float = 1.0, **fields: Any) -> float:
         extra,
     )
     return total
+
+
+def metric_histogram_ms(
+    name: str,
+    value_ms: float,
+    *,
+    buckets_ms: tuple[float, ...] | None = None,
+    **fields: Any,
+) -> None:
+    """Record a histogram-like metric using cumulative counter series.
+
+    The lightweight renderer exposes only flat counter names (no label sets),
+    so buckets are represented as suffixed counters:
+      - ``{name}.count``
+      - ``{name}.sum_ms``
+      - ``{name}.bucket_le_<N>`` (cumulative)
+      - ``{name}.bucket_le_inf``
+    """
+    finite_ms = _coerce_finite_metric_value(value_ms, metric_name=name)
+    chosen = buckets_ms or _HISTOGRAM_DEFAULT_BUCKETS_MS
+    finite_bucket_set: set[float] = set()
+    for bucket in chosen:
+        coerced_bucket = _coerce_finite_metric_value(bucket, metric_name=f"{name}.bucket")
+        if coerced_bucket >= 0.0:
+            finite_bucket_set.add(coerced_bucket)
+    finite_buckets = tuple(sorted(finite_bucket_set))
+
+    with _counter_lock:
+        _counters[f"{name}.count"] = _coerce_finite_metric_value(
+            _counters.get(f"{name}.count", 0.0) + 1.0,
+            metric_name=f"{name}.count",
+        )
+        _counters[f"{name}.sum_ms"] = _coerce_finite_metric_value(
+            _counters.get(f"{name}.sum_ms", 0.0) + finite_ms,
+            metric_name=f"{name}.sum_ms",
+        )
+        for bucket in finite_buckets:
+            if finite_ms <= bucket:
+                suffix = _bucket_suffix(bucket)
+                key = f"{name}.bucket_le_{suffix}"
+                _counters[key] = _coerce_finite_metric_value(
+                    _counters.get(key, 0.0) + 1.0,
+                    metric_name=key,
+                )
+        inf_key = f"{name}.bucket_le_inf"
+        _counters[inf_key] = _coerce_finite_metric_value(
+            _counters.get(inf_key, 0.0) + 1.0,
+            metric_name=inf_key,
+        )
+
+    extra = _kv(fields)
+    logger.info(
+        "metric kind=histogram_ms name=%s value=%0.3f%s%s",
+        name,
+        finite_ms,
+        " " if extra else "",
+        extra,
+    )
 
 
 def metric_gauge(name: str, value: float, **fields: Any) -> None:
