@@ -22,10 +22,20 @@ def _minute_bars(n: int, start_price: float = 100.0) -> list[dict[str, Any]]:
     return bars
 
 
-def test_aggregate_5m_returns_input_unchanged() -> None:
+def test_aggregate_5m_buckets_minute_bars() -> None:
     bars = _minute_bars(10)
     aggregated = compute._aggregate_bars(bars, "5m")
-    assert aggregated == bars
+    assert len(aggregated) == 2
+    first = aggregated[0]
+    second = aggregated[1]
+    assert first["open"] == 100.0
+    assert first["close"] == 100.0
+    assert first["high"] == 101.0
+    assert first["low"] == 99.0
+    assert first["volume"] == 5 * 100.0
+    assert first["ts_event"] == 0
+    assert second["volume"] == 5 * 100.0
+    assert second["ts_event"] == 5 * 60_000_000_000
 
 
 def test_aggregate_10m_combines_five_minute_bars() -> None:
