@@ -27,7 +27,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Path, Query
 from fastapi.responses import JSONResponse, PlainTextResponse
 
-from . import cache, config, feed, metrics, observability
+from . import cache, compute, config, feed, metrics, observability
 from .market_hours import (
     compute_daemon_health_status,
 )
