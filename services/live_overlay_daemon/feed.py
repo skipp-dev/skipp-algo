@@ -411,6 +411,9 @@ def stop() -> None:
             _refresh_thread = None
         if _flow_refresh_thread is None or not _flow_refresh_thread.is_alive():
             _flow_refresh_thread = None
+        # Defensive clear after joins: the feed thread can still race to set
+        # readiness during shutdown; stop() must always end in not-ready state.
+        _feed_ready.clear()
     logger.info("All feed threads stopped.")
 
 
