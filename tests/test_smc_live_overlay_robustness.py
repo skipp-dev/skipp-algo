@@ -431,6 +431,77 @@ class TestConfigBoundaryValues:
 # ---------------------------------------------------------------------------
 
 
+
+# ---------------------------------------------------------------------------
+# R4-ext: additional config accessors
+# ---------------------------------------------------------------------------
+
+
+class TestMaxFeedFailuresConfig:
+    """max_feed_failures() clamps and defaults."""
+
+    def test_max_feed_failures_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("OVERLAY_MAX_FEED_FAILURES", raising=False)
+        import services.live_overlay_daemon.config as cfg
+
+        assert cfg.max_feed_failures() == 50
+
+    def test_max_feed_failures_at_upper_bound(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("OVERLAY_MAX_FEED_FAILURES", "1000")
+        import services.live_overlay_daemon.config as cfg
+
+        assert cfg.max_feed_failures() == 1000
+
+    def test_max_feed_failures_above_upper_clamps(self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+        monkeypatch.setenv("OVERLAY_MAX_FEED_FAILURES", "2000")
+        import services.live_overlay_daemon.config as cfg
+
+        with caplog.at_level(logging.WARNING):
+            assert cfg.max_feed_failures() == 1000
+        assert "outside valid range" in caplog.text
+
+    def test_max_feed_failures_below_lower_clamps(self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+        monkeypatch.setenv("OVERLAY_MAX_FEED_FAILURES", "0")
+        import services.live_overlay_daemon.config as cfg
+
+        with caplog.at_level(logging.WARNING):
+            assert cfg.max_feed_failures() == 1
+        assert "outside valid range" in caplog.text
+
+
+class TestNewsSnapshotPathConfig:
+    """news_snapshot_path() honours env override and default."""
+
+    def test_news_snapshot_path_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("NEWS_SNAPSHOT_PATH", raising=False)
+        import services.live_overlay_daemon.config as cfg
+
+        path = cfg.news_snapshot_path()
+        assert path.name == "smc_live_news_snapshot.json"
+
+    def test_news_snapshot_path_env_override(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        override = tmp_path / "custom_snapshot.json"
+        monkeypatch.setenv("NEWS_SNAPSHOT_PATH", str(override))
+        import services.live_overlay_daemon.config as cfg
+
+        assert cfg.news_snapshot_path() == override
+
+
+class TestLogLevelConfig:
+    """log_level() returns lower-cased env value or default."""
+
+    def test_log_level_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("LOG_LEVEL", raising=False)
+        import services.live_overlay_daemon.config as cfg
+
+        assert cfg.log_level() == "info"
+
+    def test_log_level_env_lower_cased(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("LOG_LEVEL", "DEBUG")
+        import services.live_overlay_daemon.config as cfg
+
+        assert cfg.log_level() == "debug"
+
 class TestNewsSnapshotFileNotFound:
     """_load_news_snapshot() handles non-existent file gracefully."""
 
