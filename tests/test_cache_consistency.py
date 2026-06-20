@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 
-
 def test_get_overlay_returns_deep_copy() -> None:
     import services.live_overlay_daemon.cache as cache
 
