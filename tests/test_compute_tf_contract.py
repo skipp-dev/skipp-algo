@@ -85,11 +85,12 @@ def test_aggregate_unsupported_timeframe_raises() -> None:
 
 def test_aggregate_skips_malformed_bars() -> None:
     bars = [
+        # ts_event=0 is a sentinel/fallback value and must be ignored.
         {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 100.0, "ts_event": 0},
         {"open": "bad", "high": None, "low": 99.0, "close": None, "volume": 100.0, "ts_event": 10 * 60_000_000_000},
     ]
     aggregated = compute._aggregate_bars(bars, "10m")
-    assert len(aggregated) == 1
+    assert len(aggregated) == 0
 
 
 def test_aggregate_skips_missing_ts_event() -> None:
