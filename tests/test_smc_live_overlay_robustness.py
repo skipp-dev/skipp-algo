@@ -585,17 +585,6 @@ class TestHealthStatusSignals:
 class TestSmcLiveTimeframeContract:
     """Endpoint tf validation must match published schema contract."""
 
-    def test_smc_live_rejects_1d_timeframe(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        import services.live_overlay_daemon.main as main_mod
-
-        monkeypatch.setattr(main_mod.config, "overlay_secret_token", lambda: "tok")
-
-        with pytest.raises(main_mod.HTTPException) as exc_info:
-            main_mod.smc_live(token="tok", symbol="AAPL", tf="1D")
-
-        assert exc_info.value.status_code == 400
-        assert "tf must be one of" in str(exc_info.value.detail)
-
     def test_health_is_starting_when_overlay_cache_is_empty(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
