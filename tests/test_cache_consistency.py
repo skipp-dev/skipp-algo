@@ -37,6 +37,7 @@ def test_eviction_keeps_bar_and_last_update_consistent() -> None:
     with cache._bar_lock:
         cache._bars.clear()
         cache._bar_last_update.clear()
+        cache._last_eviction_at = 0.0
 
     cache.init_bar_cache(rolling_bars=10, max_symbols=3)
 
@@ -46,6 +47,9 @@ def test_eviction_keeps_bar_and_last_update_consistent() -> None:
     cache.push_bar("NVDA", {"open": 1.0, "close": 1.0})
 
     with cache._bar_lock:
+        assert "NVDA" in cache._bars
+        assert len(cache._bars) == 3
+        assert len({"AAPL", "MSFT", "TSLA"} - set(cache._bars.keys())) >= 1
         assert set(cache._bars.keys()) == set(cache._bar_last_update.keys())
 
 
@@ -55,6 +59,7 @@ def test_init_bar_cache_downscale_cleans_last_update() -> None:
     with cache._bar_lock:
         cache._bars.clear()
         cache._bar_last_update.clear()
+        cache._last_eviction_at = 0.0
 
     cache.init_bar_cache(rolling_bars=10, max_symbols=10)
     for sym in ["A", "B", "C", "D", "E"]:
