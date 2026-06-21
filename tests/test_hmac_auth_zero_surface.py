@@ -40,7 +40,7 @@ HMAC_ALLOWED: set[tuple[str, int, str]] = {
     # moved repeatedly with daemon endpoint updates.
     # 2026-06-21 (monitoring SLO follow-up): smc_live latency guard
     # update shifted compare_digest call to line 419.
-    ("services/live_overlay_daemon/main.py", 419, "compare_digest"),
+    ("services/live_overlay_daemon/main.py", 421, "compare_digest"),
 }
 
 _DIR_EXCLUDE = {
