@@ -35,6 +35,7 @@ class TestDatabentoLiveStartContract:
             with pytest.raises(ValueError):
                 client.start()
 
+
 class TestDatabentoPinConsistency:
     """Daemon requirements.txt must track the repo-wide Databento pin."""
 

@@ -16,15 +16,28 @@ def alloy_config() -> str:
 
 
 def _block(text: str, start_marker: str, end_marker: str | None = None) -> str:
+    """Extract a balanced-brace block starting at start_marker."""
     start = text.find(start_marker)
     assert start != -1, f"{start_marker!r} not found"
-    if end_marker is None:
-        brace = text.find("\n}", start)
-        assert brace != -1, f"closing brace not found after {start_marker!r}"
-        return text[start : brace + 2]
-    end = text.find(end_marker, start)
-    assert end != -1, f"{end_marker!r} not found after {start_marker!r}"
-    return text[start : end + len(end_marker)]
+    if end_marker is not None:
+        end = text.find(end_marker, start)
+        assert end != -1, f"{end_marker!r} not found after {start_marker!r}"
+        return text[start : end + len(end_marker)]
+
+    # Find the matching top-level closing brace, accounting for nesting.
+    brace_open = text.find("{", start)
+    assert brace_open != -1, f"opening brace not found after {start_marker!r}"
+    depth = 1
+    pos = brace_open + 1
+    while pos < len(text) and depth > 0:
+        ch = text[pos]
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+        pos += 1
+    assert depth == 0, f"unbalanced braces after {start_marker!r}"
+    return text[start:pos]
 
 
 def test_alloy_config_requires_expected_env_vars(alloy_config: str) -> None:
