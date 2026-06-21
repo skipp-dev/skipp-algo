@@ -1638,3 +1638,13 @@ class TestDiagnoseGateDegradationsAndGateDetails:
         reasons = diagnose_gate_failure(report)
         # Gate with non-dict details is simply skipped — no error, no crash
         assert isinstance(reasons, list)
+
+def test_release_reference_timeframes_supported_by_price_action_engine() -> None:
+    from scripts.explicit_structure_from_bars import _TIMEFRAME_TO_PANDAS_FREQ
+    from scripts.smc_price_action_engine import canonical_timeframe
+    from smc_integration.release_policy import RELEASE_REFERENCE_TIMEFRAMES
+
+    for tf in RELEASE_REFERENCE_TIMEFRAMES:
+        canonical = canonical_timeframe(tf)
+        assert canonical in _TIMEFRAME_TO_PANDAS_FREQ, f"{tf} -> {canonical} missing in explicit_structure_from_bars _TIMEFRAME_TO_PANDAS_FREQ"
+

@@ -20,7 +20,9 @@ RequiredBarColumns = ("symbol", "timestamp", "open", "high", "low", "close")
 
 _TIMEFRAME_TO_PANDAS_FREQ: dict[str, str] = {
     "5m": "5min",
+    "10m": "10min",
     "15m": "15min",
+    "30m": "30min",
     "1H": "1h",
     "4H": "4h",
     "1D": "1D",
