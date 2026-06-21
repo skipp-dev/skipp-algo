@@ -961,7 +961,7 @@ class TestFeedMetricsSnapshot:
 
 
 class TestConstantTimeTokenCompare:
-    """C1: _ct_eq hashes both sides before the compare so the token length is
+    """C1: _ct_eq compares equal-length normalized buffers so token length is
     not exposed as a timing oracle (CWE-208)."""
 
     def test_equal_tokens_match(self) -> None:
@@ -977,8 +977,8 @@ class TestConstantTimeTokenCompare:
     def test_different_length_mismatch_rejected(self) -> None:
         import services.live_overlay_daemon.main as main_mod
 
-        # The old code short-circuited on len() before the constant-time
-        # compare; the digest-based path must still reject cleanly.
+        # Different-length values must reject while still using the normalized
+        # constant-time comparison path.
         assert main_mod._ct_eq("short", "a-much-longer-secret-token") is False
         assert main_mod._ct_eq("", "nonempty") is False
 
@@ -987,7 +987,7 @@ class TestConstantTimeTokenCompare:
 
         assert main_mod._ct_eq("", "") is True
 
-    def test_compares_fixed_length_digests(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_compares_equal_length_buffers(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """The compare must run over equal-length buffers regardless of input
         length, so neither the comparison nor a len() pre-check can leak the
         secret-token length."""
@@ -1006,8 +1006,16 @@ class TestConstantTimeTokenCompare:
         monkeypatch.setattr(_hmac, "compare_digest", _spy)
         main_mod._ct_eq("abc", "a-far-longer-token-value")
         assert seen, "_ct_eq must call hmac.compare_digest"
-        # SHA-256 digests are always 32 bytes on both sides — no length leak.
-        assert seen[0] == (32, 32)
+        assert seen[0][0] == seen[0][1], "compare buffers must be same length"
+        assert seen[0][0] >= len("a-far-longer-token-value")
+
+    def test_rejects_multibyte_input_exceeding_byte_cap(self) -> None:
+        import services.live_overlay_daemon.main as main_mod
+
+        # 3000 code points are below the character cap (4096) but exceed the
+        # byte cap for a short secret when encoded as UTF-8.
+        attacker_value = "😀" * 3000
+        assert main_mod._ct_eq(attacker_value, "tok") is False
 
 
 # ---------------------------------------------------------------------------

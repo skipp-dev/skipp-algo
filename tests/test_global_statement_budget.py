@@ -233,10 +233,11 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # 2026-06-19 (fix/live-overlay-post-merge-bugs): added non-finite JSON
         # sanitization helper and related imports, shifting _startup_ts line.
         # 2026-06-19 (Copilot follow-up): _VALID_TFS contract alignment shifted
-        # surrounding code; 2026-06-20 (market-hours helper extraction) moved
-        # current _startup_ts global line to 67; Ruff import sorting shifted it to 69;
-        # liveness/readiness endpoint split shifted it to 70.
-        ("services/live_overlay_daemon/main.py", 70, ("_startup_ts",)),
+        # surrounding code; 2026-06-20 (liveness/readiness split +
+        # basic-auth endpoint updates) shifted _startup_ts to line 71.
+        # 2026-06-21 (auth decode hardening): binascii import shifted
+        # _startup_ts to line 72.
+        ("services/live_overlay_daemon/main.py", 72, ("_startup_ts",)),
     }
 )
 
