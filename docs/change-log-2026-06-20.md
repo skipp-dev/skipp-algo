@@ -1,5 +1,7 @@
 # Change Log — 2026-06-20
 
+> Fortsetzung für den Folgetag: `docs/change-log-2026-06-21.md`
+
 ## Überblick
 
 Dieser Eintrag dokumentiert alle heutigen Änderungen laut Git-Historie auf `main`.
