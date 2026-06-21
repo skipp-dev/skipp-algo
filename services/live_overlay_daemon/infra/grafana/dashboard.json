@@ -1214,7 +1214,7 @@
           "alerting": true,
           "firing": true,
           "pending": true,
-          "no_data": true,
+          "no_data": false,
           "normal": false,
           "ok": false,
           "paused": true
