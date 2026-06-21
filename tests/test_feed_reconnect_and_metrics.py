@@ -22,7 +22,15 @@ def _reload_feed_module() -> ModuleType:
     """Import a fresh copy of feed.py so each test sees clean module globals."""
     import importlib
 
+    import services.live_overlay_daemon.cache as cache
     import services.live_overlay_daemon.feed as feed
+
+    # feed._run_feed_loop mutates cache module state; reset it so tests remain
+    # order-independent when the feed module is reloaded.
+    cache.init_bar_cache(rolling_bars=60, max_symbols=2000)
+    cache.set_overlay({})
+    with cache._vix_lock:
+        cache._vix_level = None
 
     importlib.reload(feed)
     return feed
@@ -53,6 +61,7 @@ def _run_feed_loop_until(
         stop.wait(0.05)
     stop.set()
     thread.join(timeout=2)
+    assert not thread.is_alive(), "feed loop thread did not stop within timeout"
 
 
 class FakeLive:
