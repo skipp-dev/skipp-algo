@@ -89,6 +89,8 @@ def render_metrics(startup_ts: float) -> str:
     # Market/session-aware daemon health state mirrors /health status logic.
     market_open = is_us_regular_session_open()
     max_stale = config.max_stale_secs()
+    lines.append("# TYPE live_overlay_max_stale_seconds gauge")
+    lines.append(f"live_overlay_max_stale_seconds {max_stale}")
     overlay_fresh = (
         overlay_symbols > 0
         and overlay_age != float("inf")

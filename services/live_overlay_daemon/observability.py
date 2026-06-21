@@ -95,16 +95,13 @@ def metric_histogram_ms(
       - ``{name}.bucket_le_inf``
     """
     finite_ms = _coerce_finite_metric_value(value_ms, metric_name=name)
-    chosen = buckets_ms or _HISTOGRAM_DEFAULT_BUCKETS_MS
-    finite_buckets = tuple(
-        sorted(
-            {
-                _coerce_finite_metric_value(bucket, metric_name=f"{name}.bucket")
-                for bucket in chosen
-                if _coerce_finite_metric_value(bucket, metric_name=f"{name}.bucket") >= 0.0
-            }
-        )
-    )
+    chosen = _HISTOGRAM_DEFAULT_BUCKETS_MS if buckets_ms is None else buckets_ms
+    finite_bucket_set: set[float] = set()
+    for bucket in chosen:
+        finite_bucket = _coerce_finite_metric_value(bucket, metric_name=f"{name}.bucket")
+        if finite_bucket >= 0.0:
+            finite_bucket_set.add(finite_bucket)
+    finite_buckets = tuple(sorted(finite_bucket_set))
 
     with _counter_lock:
         _counters[f"{name}.count"] = _coerce_finite_metric_value(
