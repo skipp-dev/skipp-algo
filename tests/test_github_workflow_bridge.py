@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import patch
 
@@ -27,8 +28,7 @@ def test_phase_code_mapping() -> None:
 
 
 def test_iso_age_seconds() -> None:
-    from datetime import datetime, timezone, timedelta
-    one_hour_ago = (datetime.now(timezone.utc) - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    one_hour_ago = (datetime.now(UTC) - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
     age = github_workflow_bridge._iso_age_seconds(one_hour_ago)
     assert age is not None and 3500 < age < 3700
     assert github_workflow_bridge._iso_age_seconds(None) is None
