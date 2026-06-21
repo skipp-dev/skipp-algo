@@ -368,6 +368,40 @@ Operational UX additions:
 - Provider drill-down query excludes aggregate health series so per-provider
   `..._ok` / `..._degraded` timelines remain noise-free.
 
+### Dashboard UX maintenance
+
+The helper script `scripts/update_overlay_dashboard.py` applies idempotent
+Grafana UX improvements to `services/live_overlay_daemon/infra/grafana/dashboard.json`:
+
+- Adds a `UptimeRobot Monitor States` state-timeline panel so ``paused``
+  no longer renders as an ``unknown`` numeric line.
+- Adds explicit value mappings to state-timeline panels so `0`/`1` become
+  human-readable labels (e.g. `DEAD`/`ALIVE`, `NO`/`YES`, `CLOSED`/`OPEN`).
+- Adds a `News Provider State Codes` text legend above the provider panels.
+- Converts `GitHub Workflow Runs` from raw counters to rates (`cps`) with a
+  labelled y-axis.
+- Renames the `Overlay Freshness Budget (%)` panel to
+  `Stale Budget Consumed (%)` to remove ambiguity with `overlay_fresh`.
+
+Run it after hand-editing the dashboard:
+
+```bash
+python scripts/update_overlay_dashboard.py
+```
+
+State-timeline panels use explicit value mappings to avoid Grafana's default
+`<1` / `1+` labels. UptimeRobot monitor state mapping follows the UptimeRobot
+API v2 status codes:
+
+| Code | Label | Meaning |
+|------|-------|---------|
+| `0` | `PAUSED` | Monitor intentionally paused |
+| `1` | `NOT CHECKED` | Monitor not yet checked |
+| `2` | `UP` | Healthy |
+| `8` | `DOWN` | Down (seems down) |
+| `9` | `DOWN` | Down (confirmed) |
+| other | `UNKNOWN` | Unrecognized status code |
+
 ### UptimeRobot (free tier)
 
 | Setting | Value |

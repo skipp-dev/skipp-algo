@@ -577,6 +577,78 @@
       }
     },
     {
+      "title": "Worker Liveness",
+      "type": "state-timeline",
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 20
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_worker_live_feed_alive{job=~\"$job\"}",
+          "legendFormat": "live_feed"
+        },
+        {
+          "expr": "live_overlay_worker_overlay_refresh_alive{job=~\"$job\"} or vector(0)",
+          "legendFormat": "overlay_refresh"
+        },
+        {
+          "expr": "live_overlay_worker_flow_refresh_alive{job=~\"$job\"} or vector(0)",
+          "legendFormat": "flow_refresh"
+        }
+      ],
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "rowHeight": 0.9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "DEAD",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "ALIVE",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        }
+      },
+      "description": "Per-worker thread liveness: live_feed, overlay_refresh, flow_refresh, ingest_processor."
+    },
+    {
       "title": "Feed Circuit Breakers (Total)",
       "type": "stat",
       "gridPos": {
@@ -679,77 +751,6 @@
               {
                 "color": "red",
                 "value": 3
-              }
-            ]
-          }
-        }
-      }
-    },
-    {
-      "title": "Worker Liveness",
-      "type": "state-timeline",
-      "gridPos": {
-        "h": 6,
-        "w": 12,
-        "x": 0,
-        "y": 20
-      },
-      "targets": [
-        {
-          "expr": "live_overlay_worker_live_feed_alive{job=~\"$job\"}",
-          "legendFormat": "live_feed"
-        },
-        {
-          "expr": "live_overlay_worker_overlay_refresh_alive{job=~\"$job\"} or vector(0)",
-          "legendFormat": "overlay_refresh"
-        },
-        {
-          "expr": "live_overlay_worker_flow_refresh_alive{job=~\"$job\"} or vector(0)",
-          "legendFormat": "flow_refresh"
-        }
-      ],
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        },
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "rowHeight": 0.9
-      },
-      "fieldConfig": {
-        "defaults": {
-          "min": 0,
-          "max": 1,
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "0": {
-                  "text": "DEAD"
-                },
-                "1": {
-                  "text": "ALIVE"
-                }
-              }
-            }
-          ],
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "green",
-                "value": 1
               }
             ]
           }
@@ -1028,7 +1029,7 @@
       }
     },
     {
-      "title": "Overlay Freshness Budget (%)",
+      "title": "Stale Budget Consumed (%)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -1082,7 +1083,8 @@
             ]
           }
         }
-      }
+      },
+      "description": "How much of the configured max_stale budget is currently consumed. 100 % means the overlay is at the stale threshold. This is derived from overlay_age_seconds / max_stale_seconds."
     },
     {
       "title": "Readiness Components Timeline",
@@ -1125,17 +1127,17 @@
       },
       "fieldConfig": {
         "defaults": {
-          "min": 0,
-          "max": 1,
           "mappings": [
             {
               "type": "value",
               "options": {
                 "0": {
-                  "text": "NO"
+                  "text": "NO",
+                  "color": "red"
                 },
                 "1": {
-                  "text": "YES"
+                  "text": "YES",
+                  "color": "green"
                 }
               }
             }
@@ -1157,7 +1159,8 @@
             ]
           }
         }
-      }
+      },
+      "description": "Readiness components over time: feed healthy, workers healthy, overlay fresh, market open."
     },
     {
       "title": "Stale Responses (served)",
@@ -1533,6 +1536,90 @@
       }
     },
     {
+      "title": "UptimeRobot Monitor States",
+      "type": "state-timeline",
+      "description": "Per-monitor UptimeRobot state over time. paused = monitor intentionally paused; unknown = unrecognized status code.",
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 61
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_uptimerobot_monitor_status_code{job=~\"$job\"} or vector(0)",
+          "legendFormat": "{{__name__}}"
+        }
+      ],
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "rowHeight": 0.9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "PAUSED",
+                  "color": "gray"
+                },
+                "1": {
+                  "text": "UNKNOWN",
+                  "color": "purple"
+                },
+                "2": {
+                  "text": "NOT CHECKED",
+                  "color": "blue"
+                },
+                "8": {
+                  "text": "DOWN",
+                  "color": "red"
+                },
+                "9": {
+                  "text": "DOWN",
+                  "color": "red"
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "gray",
+                "value": null
+              },
+              {
+                "color": "blue",
+                "value": 1
+              },
+              {
+                "color": "green",
+                "value": 2
+              },
+              {
+                "color": "red",
+                "value": 8
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
       "title": "GitHub Workflow Bridge",
       "type": "stat",
       "gridPos": {
@@ -1667,23 +1754,23 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_github_workflow_runs_seen_total{job=~\"$job\"} or live_overlay_github_workflow_runs_seen_total or vector(0)",
+          "expr": "rate(live_overlay_github_workflow_runs_seen_total{job=~\"$job\"}[$__rate_interval]) or vector(0)",
           "legendFormat": "seen"
         },
         {
-          "expr": "live_overlay_github_workflow_runs_success_total{job=~\"$job\"} or live_overlay_github_workflow_runs_success_total or vector(0)",
+          "expr": "rate(live_overlay_github_workflow_runs_success_total{job=~\"$job\"}[$__rate_interval]) or vector(0)",
           "legendFormat": "success"
         },
         {
-          "expr": "live_overlay_github_workflow_runs_failed_total{job=~\"$job\"} or live_overlay_github_workflow_runs_failed_total or vector(0)",
+          "expr": "rate(live_overlay_github_workflow_runs_failed_total{job=~\"$job\"}[$__rate_interval]) or vector(0)",
           "legendFormat": "failed"
         },
         {
-          "expr": "live_overlay_github_workflow_runs_in_progress_total{job=~\"$job\"} or live_overlay_github_workflow_runs_in_progress_total or vector(0)",
+          "expr": "rate(live_overlay_github_workflow_runs_in_progress_total{job=~\"$job\"}[$__rate_interval]) or vector(0)",
           "legendFormat": "in_progress"
         },
         {
-          "expr": "live_overlay_github_workflow_runs_queued_total{job=~\"$job\"} or live_overlay_github_workflow_runs_queued_total or vector(0)",
+          "expr": "rate(live_overlay_github_workflow_runs_queued_total{job=~\"$job\"}[$__rate_interval]) or vector(0)",
           "legendFormat": "queued"
         }
       ],
@@ -1703,9 +1790,13 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
+          "unit": "cps",
+          "custom": {
+            "axisLabel": "runs / sec"
+          }
         }
-      }
+      },
+      "description": "Rate of GitHub workflow runs by phase (runs per second)."
     },
     {
       "title": "GitHub Workflow Timing",
@@ -1714,7 +1805,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 73
+        "y": 79
       },
       "targets": [
         {
@@ -1779,7 +1870,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 81
+        "y": 87
       },
       "targets": [
         {
@@ -1815,17 +1906,17 @@
       },
       "fieldConfig": {
         "defaults": {
-          "min": 0,
-          "max": 1,
           "mappings": [
             {
               "type": "value",
               "options": {
                 "0": {
-                  "text": "CLOSED"
+                  "text": "CLOSED",
+                  "color": "red"
                 },
                 "1": {
-                  "text": "OPEN"
+                  "text": "OPEN",
+                  "color": "green"
                 }
               }
             }
@@ -1837,7 +1928,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "gray",
+                "color": "red",
                 "value": null
               },
               {
@@ -1847,7 +1938,8 @@
             ]
           }
         }
-      }
+      },
+      "description": "Regular trading session state for US, Europe, and Asia markets."
     },
     {
       "title": "SLO & Reliability",
@@ -1856,7 +1948,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 89
+        "y": 95
       },
       "collapsed": false,
       "panels": []
@@ -1868,7 +1960,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 90
+        "y": 96
       },
       "targets": [
         {
@@ -1928,7 +2020,7 @@
         "h": 8,
         "w": 6,
         "x": 12,
-        "y": 90
+        "y": 96
       },
       "targets": [
         {
@@ -1979,7 +2071,7 @@
         "h": 8,
         "w": 6,
         "x": 18,
-        "y": 90
+        "y": 96
       },
       "targets": [
         {
@@ -2038,7 +2130,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 98
+        "y": 104
       },
       "targets": [
         {
@@ -2098,7 +2190,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 98
+        "y": 104
       },
       "targets": [
         {
@@ -2128,17 +2220,17 @@
       },
       "fieldConfig": {
         "defaults": {
-          "min": 0,
-          "max": 1,
           "mappings": [
             {
               "type": "value",
               "options": {
                 "0": {
-                  "text": "ERROR"
+                  "text": "ERROR",
+                  "color": "red"
                 },
                 "1": {
-                  "text": "OK"
+                  "text": "OK",
+                  "color": "green"
                 }
               }
             }
@@ -2160,7 +2252,8 @@
             ]
           }
         }
-      }
+      },
+      "description": "External bridge scrape success over time (UptimeRobot + GitHub Workflows)."
     },
     {
       "title": "Restart Causes (24h, by cause)",
@@ -2169,7 +2262,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 106
+        "y": 112
       },
       "targets": [
         {
@@ -2198,13 +2291,13 @@
       }
     },
     {
-      "title": "Hotspots \u2014 Symbols (Top)",
+      "title": "Hotspots — Symbols (Top)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 106
+        "y": 112
       },
       "targets": [
         {
@@ -2233,13 +2326,13 @@
       }
     },
     {
-      "title": "Hotspots \u2014 Timeframes (Top)",
+      "title": "Hotspots — Timeframes (Top)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 114
+        "y": 120
       },
       "targets": [
         {
@@ -2274,7 +2367,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 122
+        "y": 128
       },
       "targets": [
         {
@@ -2317,7 +2410,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 122
+        "y": 128
       },
       "targets": [
         {
@@ -2367,13 +2460,28 @@
       }
     },
     {
+      "title": "News Provider State Codes",
+      "type": "text",
+      "description": "Legend for News Provider panels directly below.",
+      "gridPos": {
+        "h": 2,
+        "w": 24,
+        "x": 0,
+        "y": 129
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**News provider state codes:** `0` = unknown / no data, `1` = degraded, `2` = ok. Drill-down panel shows per-provider ok/degraded flags; state-code panel maps the same provider to a single numeric state."
+      }
+    },
+    {
       "title": "Provider Health",
       "type": "row",
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 130
+        "y": 138
       },
       "collapsed": false,
       "panels": []
@@ -2385,7 +2493,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 131
+        "y": 139
       },
       "targets": [
         {
@@ -2421,17 +2529,17 @@
       },
       "fieldConfig": {
         "defaults": {
-          "min": 0,
-          "max": 1,
           "mappings": [
             {
               "type": "value",
               "options": {
                 "0": {
-                  "text": "OFF"
+                  "text": "OFF",
+                  "color": "red"
                 },
                 "1": {
-                  "text": "ON"
+                  "text": "ON",
+                  "color": "green"
                 }
               }
             }
@@ -2443,7 +2551,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "gray",
+                "color": "red",
                 "value": null
               },
               {
@@ -2453,7 +2561,8 @@
             ]
           }
         }
-      }
+      },
+      "description": "Aggregate news provider health flags (ok / degraded / unknown)."
     },
     {
       "title": "News Snapshot Age & Provider Counts",
@@ -2462,7 +2571,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 131
+        "y": 139
       },
       "targets": [
         {
@@ -2503,13 +2612,13 @@
       }
     },
     {
-      "title": "News Providers \u2014 OK/Degraded (Drill-down)",
+      "title": "News Providers — OK/Degraded (Drill-down)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 139
+        "y": 147
       },
       "targets": [
         {
@@ -2540,13 +2649,13 @@
       }
     },
     {
-      "title": "News Providers \u2014 State Code",
+      "title": "News Providers — State Code",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 139
+        "y": 147
       },
       "targets": [
         {
@@ -2600,7 +2709,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 147
+        "y": 155
       },
       "options": {
         "showLabels": true,
@@ -2649,5 +2758,5 @@
   "timezone": "utc",
   "title": "SMC Live Overlay Daemon",
   "uid": "smc-live-overlay-v1",
-  "version": 20
+  "version": 21
 }

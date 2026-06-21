@@ -564,3 +564,37 @@ def test_dashboard_service_status_panel_maps_starting_state() -> None:
     panel = next(p for p in dashboard["panels"] if p.get("title") == "Service Status")
     options = panel["fieldConfig"]["defaults"]["mappings"][0]["options"]
     assert options.get("0", {}).get("text") == "STARTING"
+
+
+def test_dashboard_worker_liveness_uses_human_labels() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
+    dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
+    panel = next(p for p in dashboard["panels"] if p.get("title") == "Worker Liveness")
+    options = panel["fieldConfig"]["defaults"]["mappings"][0]["options"]
+    assert options.get("0", {}).get("text") == "DEAD"
+    assert options.get("1", {}).get("text") == "ALIVE"
+    assert "min" not in panel["fieldConfig"]["defaults"]
+    assert "max" not in panel["fieldConfig"]["defaults"]
+
+
+def test_dashboard_has_uptimerobot_state_timeline() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
+    dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
+    panel = next(p for p in dashboard["panels"] if p.get("title") == "UptimeRobot Monitor States")
+    assert panel["type"] == "state-timeline"
+    assert any("live_overlay_uptimerobot_monitor_status_code" in t["expr"] for t in panel["targets"])
+    options = panel["fieldConfig"]["defaults"]["mappings"][0]["options"]
+    assert options.get("0", {}).get("text") == "PAUSED"
+    assert options.get("8", {}).get("text") == "DOWN"
+
+
+def test_dashboard_github_workflow_runs_panel_uses_rate() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
+    dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
+    panel = next(p for p in dashboard["panels"] if p.get("title") == "GitHub Workflow Runs")
+    assert all("rate(" in t["expr"] for t in panel["targets"])
+    assert panel["fieldConfig"]["defaults"]["unit"] == "cps"
+    assert panel["fieldConfig"]["defaults"]["custom"]["axisLabel"] == "runs / sec"
