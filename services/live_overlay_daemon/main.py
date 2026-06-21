@@ -17,6 +17,8 @@ Stale handling:
 """
 from __future__ import annotations
 
+import base64
+import binascii
 import datetime
 import logging
 import math
@@ -24,7 +26,7 @@ import time
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Path, Query
+from fastapi import FastAPI, HTTPException, Path, Query, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
 
 from . import cache, compute, config, feed, metrics, observability
@@ -185,15 +187,64 @@ def ready() -> JSONResponse:
 
 
 # ---------------------------------------------------------------------------
-# /{token}/metrics — Prometheus text exposition (token-protected)
+# /{token}/metrics — Prometheus text exposition (token-protected, legacy path)
 # ---------------------------------------------------------------------------
 
 @app.get("/{token}/metrics", include_in_schema=False)
-def prometheus_metrics(token: str = Path(...)) -> PlainTextResponse:
-    """Prometheus scrape endpoint, protected by the same bearer token as /smc_live."""
+def prometheus_metrics_legacy(token: str = Path(...)) -> PlainTextResponse:
+    """Prometheus scrape endpoint, protected by the same path secret as /smc_live.
+
+    Legacy path kept for backwards compatibility. New deployments should use
+    /metrics with Basic auth so the secret token does not appear in Prometheus
+    target labels or scrape logs.
+    """
     expected = config.overlay_secret_token()
     if not _ct_eq(token, expected):
         raise HTTPException(status_code=404)
+
+    body = metrics.render_metrics(_startup_ts)
+    return PlainTextResponse(body, media_type="text/plain; version=0.0.4; charset=utf-8")
+
+
+# ---------------------------------------------------------------------------
+# /metrics — Prometheus text exposition (Basic auth, preferred)
+# ---------------------------------------------------------------------------
+
+def _basic_auth_password(request: Request) -> str | None:
+    """Extract password from a Basic Authorization header, or None."""
+    auth = request.headers.get("authorization")
+    if not auth:
+        return None
+    scheme, sep, credentials = auth.partition(" ")
+    if sep != " " or scheme.lower() != "basic":
+        return None
+    credentials = credentials.strip()
+    if not credentials:
+        return None
+    try:
+        decoded = base64.b64decode(credentials.encode(), validate=True).decode("utf-8")
+    except (binascii.Error, UnicodeDecodeError):
+        return None
+    _user, sep2, password = decoded.partition(":")
+    if sep2 != ":":
+        return None
+    # Allow any username; only the password matters for this shared secret.
+    return password
+
+
+@app.get("/metrics", include_in_schema=False)
+def prometheus_metrics(request: Request) -> PlainTextResponse:
+    """Prometheus scrape endpoint protected by Basic auth.
+
+    Uses the overlay secret token as the Basic auth password. This keeps the
+    token out of Prometheus target labels, scrape logs, and remote-write
+    metadata. Alloy config should set __metrics_path__ = "/metrics" and
+    basic_auth { username = "metrics", password = sys.env("OVERLAY_SECRET_TOKEN") }.
+    """
+    password = _basic_auth_password(request)
+    expected = config.overlay_secret_token()
+    if password is None or not _ct_eq(password, expected):
+        raise HTTPException(status_code=401, headers={"WWW-Authenticate": "Basic"})
 
     body = metrics.render_metrics(_startup_ts)
     return PlainTextResponse(body, media_type="text/plain; version=0.0.4; charset=utf-8")
@@ -255,10 +306,9 @@ def smc_live(
     observability.metric_counter("live_overlay.smc_live_requests.total")
     sym = symbol.upper().strip()
     try:
-        # Constant-time token comparison to avoid timing attacks. _ct_eq hashes
-        # both sides to a fixed-length digest before comparing, so neither the
-        # comparison nor a Python len() short-circuit can leak the token length
-        # as a timing side-channel (CWE-208).
+        # Constant-time token comparison to avoid timing attacks. _ct_eq uses
+        # fixed-length normalized buffers and guarded input caps so direct
+        # user-input length mismatches do not create a timing oracle (CWE-208).
         expected = config.overlay_secret_token()
         if not _ct_eq(token, expected):
             observability.metric_counter("live_overlay.smc_live_auth.denied")
@@ -344,17 +394,21 @@ def smc_live(
 def _ct_eq(a: str, b: str) -> bool:
     """Constant-time string equality with no length side-channel.
 
-    Both inputs are reduced to fixed-length SHA-256 digests *before* the
-    constant-time compare. ``hmac.compare_digest`` on two raw strings still
-    leaks their length (it returns early when the lengths differ), so a naive
-    ``compare_digest(token, expected)`` — or a Python ``len()`` pre-check —
-    would expose the secret-token length as a timing oracle (CWE-208).
-    Comparing fixed 32-byte digests makes the timing independent of the input
-    length, while SHA-256's collision resistance preserves equality semantics.
+    Both inputs are reduced to fixed-size SHA-256 digests before
+    ``hmac.compare_digest``. This keeps the compare width constant (32 bytes)
+    and avoids token-length-dependent compare work.
     """
     import hashlib
     import hmac
 
-    a_digest = hashlib.sha256(a.encode()).digest()
+    # Keep a hard upper bound on attacker-controlled input processing.
+    if len(a) > 4096:
+        return False
+
+    a_bytes = a.encode()
+    if len(a_bytes) > 16_384:
+        return False
+
+    a_digest = hashlib.sha256(a_bytes).digest()
     b_digest = hashlib.sha256(b.encode()).digest()
     return hmac.compare_digest(a_digest, b_digest)

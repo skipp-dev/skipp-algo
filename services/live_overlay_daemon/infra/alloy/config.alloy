@@ -12,11 +12,16 @@
 prometheus.scrape "live_overlay" {
   targets = [{
     __address__ = sys.env("OVERLAY_SERVICE_URL"),
-    __metrics_path__ = "/" + sys.env("OVERLAY_SECRET_TOKEN") + "/metrics",
+    __metrics_path__ = "/metrics",
   }]
   scrape_interval = "30s"
   scrape_timeout  = "10s"
   job_name        = "live_overlay"
+
+  basic_auth {
+    username = "metrics"
+    password = sys.env("OVERLAY_SECRET_TOKEN")
+  }
 
   forward_to = [prometheus.remote_write.grafana_cloud.receiver]
 }
