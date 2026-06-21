@@ -226,6 +226,12 @@ def github_workflow_ids() -> list[str]:
     return unique_ids
 
 
+def github_workflow_branch() -> str | None:
+    """Optional branch filter for workflow runs (default main; empty = all)."""
+    raw = os.getenv("GITHUB_WORKFLOW_MONITOR_BRANCH", "main").strip()
+    return raw or None
+
+
 def github_workflow_timeout_secs() -> int:
     """HTTP timeout for GitHub workflow polling requests."""
     return _clamped_int("GITHUB_WORKFLOW_MONITOR_TIMEOUT_SECS", 5, 1, 30)

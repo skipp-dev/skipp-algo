@@ -1,5 +1,7 @@
 {
-  "annotations": {"list": []},
+  "annotations": {
+    "list": []
+  },
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -22,17 +24,28 @@
     {
       "title": "Service Status",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 0
+      },
       "targets": [
         {
-          "expr": "live_overlay_health_status_ok{job=\"live_overlay\"}*2 + live_overlay_health_status_idle_market_closed{job=\"live_overlay\"}",
+          "expr": "live_overlay_health_status_ok{job=~\"$job\"}*2 + live_overlay_health_status_idle_market_closed{job=~\"$job\"}",
           "legendFormat": "Health state"
         }
       ],
       "options": {
         "colorMode": "background_solid",
         "graphMode": "none",
-        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -40,38 +53,103 @@
             {
               "type": "value",
               "options": {
-                "0": {"text": "STARTING", "color": "yellow"},
-                "1": {"text": "IDLE (MARKET CLOSED)", "color": "semi-dark-orange"},
-                "2": {"text": "OK", "color": "green"}
+                "0": {
+                  "text": "STARTING",
+                  "color": "yellow"
+                },
+                "1": {
+                  "text": "IDLE (MARKET CLOSED)",
+                  "color": "semi-dark-orange"
+                },
+                "2": {
+                  "text": "OK",
+                  "color": "green"
+                }
               }
             }
           ],
-          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
         }
       }
     },
     {
       "title": "Workers Healthy",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 4, "x": 4, "y": 0},
-      "targets": [{"expr": "live_overlay_workers_healthy{job=\"live_overlay\"}", "legendFormat": "Workers"}],
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_workers_healthy{job=~\"$job\"}",
+          "legendFormat": "Workers"
+        }
+      ],
       "options": {
         "colorMode": "background_solid",
         "graphMode": "none",
-        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
       },
       "fieldConfig": {
         "defaults": {
-          "mappings": [{"type": "value", "options": {"0": {"text": "DEGRADED", "color": "red"}, "1": {"text": "OK", "color": "green"}}}],
-          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "DEGRADED",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "OK",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
         }
       }
     },
     {
       "title": "Uptime",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 4, "x": 8, "y": 0},
-      "targets": [{"expr": "live_overlay_uptime_seconds{job=\"live_overlay\"}", "legendFormat": "Uptime"}],
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_uptime_seconds{job=~\"$job\"}",
+          "legendFormat": "Uptime"
+        }
+      ],
       "fieldConfig": {
         "defaults": {
           "unit": "s",
@@ -79,9 +157,18 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {"color": "red", "value": null},
-              {"color": "yellow", "value": 360},
-              {"color": "green", "value": 3600}
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 360
+              },
+              {
+                "color": "green",
+                "value": 3600
+              }
             ]
           }
         }
@@ -90,21 +177,48 @@
     {
       "title": "Overlay Symbols",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 4, "x": 12, "y": 0},
-      "targets": [{"expr": "live_overlay_overlay_symbols{job=\"live_overlay\"}", "legendFormat": "Symbols"}],
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_overlay_symbols{job=~\"$job\"}",
+          "legendFormat": "Symbols"
+        }
+      ],
       "options": {
         "graphMode": "area",
-        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
       },
       "fieldConfig": {
         "defaults": {
           "unit": "short",
-          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
           "mappings": [
             {
               "type": "value",
               "options": {
-                "0": {"text": "EMPTY", "color": "red"}
+                "0": {
+                  "text": "EMPTY",
+                  "color": "red"
+                }
               }
             }
           ]
@@ -114,11 +228,27 @@
     {
       "title": "Bar Symbols",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 4, "x": 16, "y": 0},
-      "targets": [{"expr": "live_overlay_bar_symbols{job=\"live_overlay\"}", "legendFormat": "Bar symbols"}],
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_bar_symbols{job=~\"$job\"}",
+          "legendFormat": "Bar symbols"
+        }
+      ],
       "options": {
         "graphMode": "area",
-        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -127,7 +257,10 @@
             {
               "type": "value",
               "options": {
-                "0": {"text": "EMPTY", "color": "red"}
+                "0": {
+                  "text": "EMPTY",
+                  "color": "red"
+                }
               }
             }
           ]
@@ -137,11 +270,27 @@
     {
       "title": "Bar Count",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 4, "x": 20, "y": 0},
-      "targets": [{"expr": "live_overlay_bar_count{job=\"live_overlay\"}", "legendFormat": "Bar count"}],
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "live_overlay_bar_count{job=~\"$job\"}",
+          "legendFormat": "Bar count"
+        }
+      ],
       "options": {
         "graphMode": "area",
-        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -152,27 +301,79 @@
     {
       "title": "Request Rate",
       "type": "timeseries",
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
       "targets": [
-        {"expr": "rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[$__rate_interval]) or vector(0)", "legendFormat": "smc_live total"},
-        {"expr": "rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[$__rate_interval]) or vector(0)", "legendFormat": "success"},
-        {"expr": "rate(live_overlay_smc_live_auth_denied{job=\"live_overlay\"}[$__rate_interval]) or vector(0)", "legendFormat": "auth denied"},
-        {"expr": "rate(live_overlay_smc_live_cache_miss_total{job=\"live_overlay\"}[$__rate_interval]) or vector(0)", "legendFormat": "cache miss"}
+        {
+          "expr": "rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[$__rate_interval]) or vector(0)",
+          "legendFormat": "smc_live total"
+        },
+        {
+          "expr": "rate(live_overlay_smc_live_success_total{job=~\"$job\"}[$__rate_interval]) or vector(0)",
+          "legendFormat": "success"
+        },
+        {
+          "expr": "rate(live_overlay_smc_live_auth_denied{job=~\"$job\"}[$__rate_interval]) or vector(0)",
+          "legendFormat": "auth denied"
+        },
+        {
+          "expr": "rate(live_overlay_smc_live_cache_miss_total{job=~\"$job\"}[$__rate_interval]) or vector(0)",
+          "legendFormat": "cache miss"
+        }
       ],
       "options": {
-        "tooltip": {"mode": "multi", "sort": "none"},
-        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["mean", "lastNotNull"]}
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ]
+        }
       },
       "fieldConfig": {
-        "defaults": {"unit": "reqps"},
+        "defaults": {
+          "unit": "reqps"
+        },
         "overrides": [
           {
-            "matcher": {"id": "byName", "options": "auth denied"},
-            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}]
+            "matcher": {
+              "id": "byName",
+              "options": "auth denied"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
           },
           {
-            "matcher": {"id": "byName", "options": "cache miss"},
-            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "yellow"}}]
+            "matcher": {
+              "id": "byName",
+              "options": "cache miss"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "yellow"
+                }
+              }
+            ]
           }
         ]
       }
@@ -180,50 +381,153 @@
     {
       "title": "Overlay & Bar Age",
       "type": "timeseries",
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
       "targets": [
-        {"expr": "live_overlay_overlay_age_seconds{job=\"live_overlay\"}", "legendFormat": "overlay age"},
-        {"expr": "live_overlay_last_bar_age_seconds{job=\"live_overlay\"} or vector(0)", "legendFormat": "last bar age"}
+        {
+          "expr": "live_overlay_overlay_age_seconds{job=~\"$job\"}",
+          "legendFormat": "overlay age"
+        },
+        {
+          "expr": "live_overlay_last_bar_age_seconds{job=~\"$job\"} or vector(0)",
+          "legendFormat": "last bar age"
+        }
       ],
       "options": {
-        "tooltip": {"mode": "multi", "sort": "none"},
-        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["lastNotNull"]}
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
       },
       "fieldConfig": {
         "defaults": {
           "unit": "s",
-          "thresholds": {"mode": "absolute", "steps": [{"value": 0, "color": "green"}, {"value": 1800, "color": "yellow"}, {"value": 3600, "color": "red"}]},
-          "custom": {"thresholdsStyle": {"mode": "line"}}
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": 0,
+                "color": "green"
+              },
+              {
+                "value": 1800,
+                "color": "yellow"
+              },
+              {
+                "value": 3600,
+                "color": "red"
+              }
+            ]
+          },
+          "custom": {
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          }
         }
       }
     },
     {
       "title": "Compute Cycle Errors",
       "type": "timeseries",
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
       "targets": [
-        {"expr": "rate(live_overlay_full_compute_cycle_errors{job=\"live_overlay\"}[$__rate_interval]) or vector(0)", "legendFormat": "full compute errors"},
-        {"expr": "rate(live_overlay_flow_patch_cycle_errors{job=\"live_overlay\"}[$__rate_interval]) or vector(0)", "legendFormat": "flow patch errors"}
+        {
+          "expr": "rate(live_overlay_full_compute_cycle_errors{job=~\"$job\"}[$__rate_interval]) or vector(0)",
+          "legendFormat": "full compute errors"
+        },
+        {
+          "expr": "rate(live_overlay_flow_patch_cycle_errors{job=~\"$job\"}[$__rate_interval]) or vector(0)",
+          "legendFormat": "flow patch errors"
+        }
       ],
       "options": {
-        "tooltip": {"mode": "multi", "sort": "none"},
-        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["mean", "lastNotNull"]}
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ]
+        }
       },
       "fieldConfig": {
         "defaults": {
           "unit": "cps",
-          "color": {"mode": "thresholds"},
-          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1e-09}]},
-          "custom": {"thresholdsStyle": {"mode": "area"}}
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1e-09
+              }
+            ]
+          },
+          "custom": {
+            "thresholdsStyle": {
+              "mode": "area"
+            }
+          }
         },
         "overrides": [
           {
-            "matcher": {"id": "byName", "options": "full compute errors"},
-            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}]
+            "matcher": {
+              "id": "byName",
+              "options": "full compute errors"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
           },
           {
-            "matcher": {"id": "byName", "options": "flow patch errors"},
-            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "orange"}}]
+            "matcher": {
+              "id": "byName",
+              "options": "flow patch errors"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
           }
         ]
       }
@@ -231,29 +535,72 @@
     {
       "title": "Feed Health Counters",
       "type": "timeseries",
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
       "targets": [
-        {"expr": "rate(live_overlay_feed_reconnect_attempts{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "reconnects/s"},
-        {"expr": "rate(live_overlay_feed_bento_errors{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "bento errors/s"},
-        {"expr": "rate(live_overlay_feed_unexpected_errors{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "unexpected errors/s"}
+        {
+          "expr": "rate(live_overlay_feed_reconnect_attempts{job=~\"$job\"}[$__rate_interval])",
+          "legendFormat": "reconnects/s"
+        },
+        {
+          "expr": "rate(live_overlay_feed_bento_errors{job=~\"$job\"}[$__rate_interval])",
+          "legendFormat": "bento errors/s"
+        },
+        {
+          "expr": "rate(live_overlay_feed_unexpected_errors{job=~\"$job\"}[$__rate_interval])",
+          "legendFormat": "unexpected errors/s"
+        }
       ],
       "options": {
-        "tooltip": {"mode": "multi", "sort": "none"},
-        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["mean", "lastNotNull"]}
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ]
+        }
       },
-      "fieldConfig": {"defaults": {"unit": "cps"}}
+      "fieldConfig": {
+        "defaults": {
+          "unit": "cps"
+        }
+      }
     },
     {
       "title": "Feed Circuit Breakers (Total)",
       "type": "stat",
-      "gridPos": {"h": 6, "w": 6, "x": 12, "y": 20},
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 12,
+        "y": 20
+      },
       "targets": [
-        {"expr": "live_overlay_feed_circuit_breakers{job=\"live_overlay\"}", "legendFormat": "circuit breakers"}
+        {
+          "expr": "live_overlay_feed_circuit_breakers{job=~\"$job\"}",
+          "legendFormat": "circuit breakers"
+        }
       ],
       "options": {
         "colorMode": "background_solid",
         "graphMode": "none",
-        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -262,16 +609,28 @@
             {
               "type": "value",
               "options": {
-                "0": {"text": "0", "color": "green"}
+                "0": {
+                  "text": "0",
+                  "color": "green"
+                }
               }
             }
           ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {"color": "green", "value": null},
-              {"color": "yellow", "value": 1},
-              {"color": "red", "value": 3}
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 3
+              }
             ]
           }
         }
@@ -280,14 +639,28 @@
     {
       "title": "Feed Partial Restarts (Total)",
       "type": "stat",
-      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 20},
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 18,
+        "y": 20
+      },
       "targets": [
-        {"expr": "live_overlay_feed_partial_restarts{job=\"live_overlay\"}", "legendFormat": "partial restarts"}
+        {
+          "expr": "live_overlay_feed_partial_restarts{job=~\"$job\"}",
+          "legendFormat": "partial restarts"
+        }
       ],
       "options": {
         "colorMode": "background_solid",
         "graphMode": "none",
-        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -295,9 +668,18 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {"color": "green", "value": null},
-              {"color": "yellow", "value": 1},
-              {"color": "red", "value": 3}
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 3
+              }
             ]
           }
         }
@@ -306,41 +688,99 @@
     {
       "title": "Worker Liveness",
       "type": "state-timeline",
-      "gridPos": {"h": 6, "w": 12, "x": 0, "y": 20},
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 20
+      },
       "targets": [
-        {"expr": "live_overlay_worker_live_feed_alive{job=\"live_overlay\"}", "legendFormat": "live_feed"},
-        {"expr": "live_overlay_worker_overlay_refresh_alive{job=\"live_overlay\"} or vector(0)", "legendFormat": "overlay_refresh"},
-        {"expr": "live_overlay_worker_flow_refresh_alive{job=\"live_overlay\"} or vector(0)", "legendFormat": "flow_refresh"}
+        {
+          "expr": "live_overlay_worker_live_feed_alive{job=~\"$job\"}",
+          "legendFormat": "live_feed"
+        },
+        {
+          "expr": "live_overlay_worker_overlay_refresh_alive{job=~\"$job\"} or vector(0)",
+          "legendFormat": "overlay_refresh"
+        },
+        {
+          "expr": "live_overlay_worker_flow_refresh_alive{job=~\"$job\"} or vector(0)",
+          "legendFormat": "flow_refresh"
+        }
       ],
       "options": {
-        "tooltip": {"mode": "multi", "sort": "none"},
-        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true},
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
         "rowHeight": 0.9
       },
       "fieldConfig": {
         "defaults": {
           "min": 0,
           "max": 1,
-          "mappings": [{"type": "value", "options": {"0": {"text": "DEAD"}, "1": {"text": "ALIVE"}}}],
-          "color": {"mode": "thresholds"},
-          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "DEAD"
+                },
+                "1": {
+                  "text": "ALIVE"
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
         }
       }
     },
     {
       "title": "Success Rate (%)",
       "type": "stat",
-      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 26},
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 26
+      },
       "targets": [
         {
-          "expr": "(100 * sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[$__rate_interval])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[$__rate_interval])), 1e-9)) or vector(0)",
+          "expr": "(100 * sum(rate(live_overlay_smc_live_success_total{job=~\"$job\"}[$__rate_interval])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[$__rate_interval])), 1e-9)) or vector(0)",
           "legendFormat": "success_rate"
         }
       ],
       "options": {
         "colorMode": "background_solid",
         "graphMode": "area",
-        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -351,9 +791,18 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {"color": "red", "value": null},
-              {"color": "yellow", "value": 95},
-              {"color": "green", "value": 99}
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 95
+              },
+              {
+                "color": "green",
+                "value": 99
+              }
             ]
           }
         }
@@ -362,17 +811,28 @@
     {
       "title": "Market-open Request Health",
       "type": "stat",
-      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 26},
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 6,
+        "y": 26
+      },
       "targets": [
         {
-          "expr": "(live_overlay_market_open{job=\"live_overlay\"} or live_overlay_market_open or vector(0)) + ((live_overlay_market_open{job=\"live_overlay\"} or live_overlay_market_open or vector(0)) * (((rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[$__rate_interval]) or rate(live_overlay_smc_live_requests_total[$__rate_interval]) or vector(0)) > bool 0.001)))",
+          "expr": "(live_overlay_market_open{job=~\"$job\"} or live_overlay_market_open or vector(0)) + ((live_overlay_market_open{job=~\"$job\"} or live_overlay_market_open or vector(0)) * (((rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[$__rate_interval]) or rate(live_overlay_smc_live_requests_total[$__rate_interval]) or vector(0)) > bool 0.001)))",
           "legendFormat": "open_req_health"
         }
       ],
       "options": {
         "colorMode": "background_solid",
         "graphMode": "area",
-        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -380,18 +840,36 @@
             {
               "type": "value",
               "options": {
-                "0": {"text": "MARKET_CLOSED", "color": "gray"},
-                "1": {"text": "OPEN_NO_TRAFFIC", "color": "yellow"},
-                "2": {"text": "TRAFFIC_OK", "color": "green"}
+                "0": {
+                  "text": "MARKET_CLOSED",
+                  "color": "gray"
+                },
+                "1": {
+                  "text": "OPEN_NO_TRAFFIC",
+                  "color": "yellow"
+                },
+                "2": {
+                  "text": "TRAFFIC_OK",
+                  "color": "green"
+                }
               }
             }
           ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {"color": "gray", "value": null},
-              {"color": "yellow", "value": 1},
-              {"color": "green", "value": 2}
+              {
+                "color": "gray",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "green",
+                "value": 2
+              }
             ]
           }
         }
@@ -400,17 +878,28 @@
     {
       "title": "Uptime Resets (24h, est.)",
       "type": "stat",
-      "gridPos": {"h": 6, "w": 6, "x": 12, "y": 26},
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 12,
+        "y": 26
+      },
       "targets": [
         {
-          "expr": "sum(resets(live_overlay_uptime_seconds{job=\"live_overlay\"}[24h])) or sum(resets(live_overlay_uptime_seconds[24h])) or vector(0)",
+          "expr": "sum(resets(live_overlay_uptime_seconds{job=~\"$job\"}[24h])) or sum(resets(live_overlay_uptime_seconds[24h])) or vector(0)",
           "legendFormat": "uptime_resets"
         }
       ],
       "options": {
         "colorMode": "background_solid",
         "graphMode": "none",
-        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -418,9 +907,18 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {"color": "green", "value": null},
-              {"color": "yellow", "value": 1},
-              {"color": "red", "value": 3}
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 3
+              }
             ]
           }
         }
@@ -429,17 +927,28 @@
     {
       "title": "Restart Causes (24h, counted)",
       "type": "stat",
-      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 26},
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 18,
+        "y": 26
+      },
       "targets": [
         {
-          "expr": "sum(increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\",job=\"live_overlay\"}[24h])) or sum(increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\"}[24h])) or vector(0)",
+          "expr": "sum(increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\",job=~\"$job\"}[24h])) or sum(increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\"}[24h])) or vector(0)",
           "legendFormat": "restart_causes_count"
         }
       ],
       "options": {
         "colorMode": "background_solid",
         "graphMode": "none",
-        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -447,9 +956,18 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {"color": "green", "value": null},
-              {"color": "yellow", "value": 1},
-              {"color": "red", "value": 3}
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 3
+              }
             ]
           }
         }
@@ -458,37 +976,85 @@
     {
       "title": "Failure Mix",
       "type": "timeseries",
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 32
+      },
       "targets": [
-        {"expr": "rate(live_overlay_smc_live_auth_denied{job=\"live_overlay\"}[$__rate_interval]) or vector(0)", "legendFormat": "auth denied"},
-        {"expr": "rate(live_overlay_smc_live_cache_miss_total{job=\"live_overlay\"}[$__rate_interval]) or vector(0)", "legendFormat": "cache miss"},
-        {"expr": "rate(live_overlay_smc_live_bad_tf_total{job=\"live_overlay\"}[$__rate_interval]) or vector(0)", "legendFormat": "bad tf"},
-        {"expr": "rate(live_overlay_smc_live_errors_total{job=\"live_overlay\"}[$__rate_interval]) or vector(0)", "legendFormat": "errors"}
+        {
+          "expr": "rate(live_overlay_smc_live_auth_denied{job=~\"$job\"}[$__rate_interval]) or vector(0)",
+          "legendFormat": "auth denied"
+        },
+        {
+          "expr": "rate(live_overlay_smc_live_cache_miss_total{job=~\"$job\"}[$__rate_interval]) or vector(0)",
+          "legendFormat": "cache miss"
+        },
+        {
+          "expr": "rate(live_overlay_smc_live_bad_tf_total{job=~\"$job\"}[$__rate_interval]) or vector(0)",
+          "legendFormat": "bad tf"
+        },
+        {
+          "expr": "rate(live_overlay_smc_live_errors_total{job=~\"$job\"}[$__rate_interval]) or vector(0)",
+          "legendFormat": "errors"
+        }
       ],
       "options": {
-        "tooltip": {"mode": "multi", "sort": "none"},
-        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["mean", "lastNotNull"]}
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ]
+        }
       },
       "fieldConfig": {
         "defaults": {
           "unit": "reqps",
-          "custom": {"stacking": {"mode": "normal", "group": "A"}}
+          "custom": {
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          }
         }
       }
     },
     {
       "title": "Overlay Freshness Budget (%)",
       "type": "timeseries",
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 32
+      },
       "targets": [
         {
-          "expr": "100 * live_overlay_overlay_age_seconds{job=\"live_overlay\"} / clamp_min(live_overlay_max_stale_seconds{job=\"live_overlay\"}, 1)",
+          "expr": "100 * live_overlay_overlay_age_seconds{job=~\"$job\"} / clamp_min(live_overlay_max_stale_seconds{job=~\"$job\"}, 1)",
           "legendFormat": "stale_budget_used"
         }
       ],
       "options": {
-        "tooltip": {"mode": "multi", "sort": "none"},
-        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["lastNotNull"]}
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -497,10 +1063,22 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {"color": "green", "value": null},
-              {"color": "yellow", "value": 50},
-              {"color": "orange", "value": 80},
-              {"color": "red", "value": 100}
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 50
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 100
+              }
             ]
           }
         }
@@ -509,41 +1087,107 @@
     {
       "title": "Readiness Components Timeline",
       "type": "state-timeline",
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 40},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 40
+      },
       "targets": [
-        {"expr": "live_overlay_feed_healthy{job=\"live_overlay\"}", "legendFormat": "feed_healthy"},
-        {"expr": "live_overlay_workers_healthy{job=\"live_overlay\"}", "legendFormat": "workers_healthy"},
-        {"expr": "live_overlay_overlay_fresh{job=\"live_overlay\"} or vector(0)", "legendFormat": "overlay_fresh"},
-        {"expr": "live_overlay_market_open{job=\"live_overlay\"}", "legendFormat": "market_open"}
+        {
+          "expr": "live_overlay_feed_healthy{job=~\"$job\"}",
+          "legendFormat": "feed_healthy"
+        },
+        {
+          "expr": "live_overlay_workers_healthy{job=~\"$job\"}",
+          "legendFormat": "workers_healthy"
+        },
+        {
+          "expr": "live_overlay_overlay_fresh{job=~\"$job\"} or vector(0)",
+          "legendFormat": "overlay_fresh"
+        },
+        {
+          "expr": "live_overlay_market_open{job=~\"$job\"}",
+          "legendFormat": "market_open"
+        }
       ],
       "options": {
-        "tooltip": {"mode": "multi", "sort": "none"},
-        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true},
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
         "rowHeight": 0.9
       },
       "fieldConfig": {
         "defaults": {
           "min": 0,
           "max": 1,
-          "mappings": [{"type": "value", "options": {"0": {"text": "NO"}, "1": {"text": "YES"}}}],
-          "color": {"mode": "thresholds"},
-          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "NO"
+                },
+                "1": {
+                  "text": "YES"
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
         }
       }
     },
     {
       "title": "Stale Responses (served)",
       "type": "timeseries",
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 40},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 40
+      },
       "targets": [
         {
-          "expr": "rate(live_overlay_smc_live_stale_served_total{job=\"live_overlay\"}[$__rate_interval]) or vector(0)",
+          "expr": "rate(live_overlay_smc_live_stale_served_total{job=~\"$job\"}[$__rate_interval]) or vector(0)",
           "legendFormat": "stale served/s"
         }
       ],
       "options": {
-        "tooltip": {"mode": "multi", "sort": "none"},
-        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["mean", "lastNotNull"]}
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ]
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -551,9 +1195,18 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {"color": "green", "value": null},
-              {"color": "yellow", "value": 0.01},
-              {"color": "red", "value": 0.1}
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.01
+              },
+              {
+                "color": "red",
+                "value": 0.1
+              }
             ]
           }
         }
@@ -562,16 +1215,32 @@
     {
       "title": "smc_live Latency Avg (ms)",
       "type": "timeseries",
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 48},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 48
+      },
       "targets": [
         {
-          "expr": "(rate(live_overlay_smc_live_latency_sum_ms{job=\"live_overlay\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_sum_ms[$__rate_interval]) or vector(0)) / clamp_min((rate(live_overlay_smc_live_latency_count{job=\"live_overlay\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_count[$__rate_interval]) or vector(0)), 1e-9)",
+          "expr": "(rate(live_overlay_smc_live_latency_sum_ms{job=~\"$job\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_sum_ms[$__rate_interval]) or vector(0)) / clamp_min((rate(live_overlay_smc_live_latency_count{job=~\"$job\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_count[$__rate_interval]) or vector(0)), 1e-9)",
           "legendFormat": "avg latency"
         }
       ],
       "options": {
-        "tooltip": {"mode": "multi", "sort": "none"},
-        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["mean", "lastNotNull"]}
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ]
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -579,10 +1248,22 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {"color": "green", "value": null},
-              {"color": "yellow", "value": 150},
-              {"color": "orange", "value": 300},
-              {"color": "red", "value": 500}
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 150
+              },
+              {
+                "color": "orange",
+                "value": 300
+              },
+              {
+                "color": "red",
+                "value": 500
+              }
             ]
           }
         }
@@ -591,47 +1272,102 @@
     {
       "title": "smc_live Latency Buckets (req/s)",
       "type": "timeseries",
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 48},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 48
+      },
       "targets": [
-        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_50{job=\"live_overlay\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_50[$__rate_interval]) or vector(0)", "legendFormat": "<=50ms"},
-        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_100{job=\"live_overlay\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_100[$__rate_interval]) or vector(0)", "legendFormat": "<=100ms"},
-        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_250{job=\"live_overlay\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_250[$__rate_interval]) or vector(0)", "legendFormat": "<=250ms"},
-        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_500{job=\"live_overlay\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_500[$__rate_interval]) or vector(0)", "legendFormat": "<=500ms"},
-        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_1000{job=\"live_overlay\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_1000[$__rate_interval]) or vector(0)", "legendFormat": "<=1000ms"},
-        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_inf{job=\"live_overlay\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_inf[$__rate_interval]) or vector(0)", "legendFormat": "<=inf"}
+        {
+          "expr": "rate(live_overlay_smc_live_latency_bucket_le_50{job=~\"$job\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_50[$__rate_interval]) or vector(0)",
+          "legendFormat": "<=50ms"
+        },
+        {
+          "expr": "rate(live_overlay_smc_live_latency_bucket_le_100{job=~\"$job\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_100[$__rate_interval]) or vector(0)",
+          "legendFormat": "<=100ms"
+        },
+        {
+          "expr": "rate(live_overlay_smc_live_latency_bucket_le_250{job=~\"$job\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_250[$__rate_interval]) or vector(0)",
+          "legendFormat": "<=250ms"
+        },
+        {
+          "expr": "rate(live_overlay_smc_live_latency_bucket_le_500{job=~\"$job\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_500[$__rate_interval]) or vector(0)",
+          "legendFormat": "<=500ms"
+        },
+        {
+          "expr": "rate(live_overlay_smc_live_latency_bucket_le_1000{job=~\"$job\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_1000[$__rate_interval]) or vector(0)",
+          "legendFormat": "<=1000ms"
+        },
+        {
+          "expr": "rate(live_overlay_smc_live_latency_bucket_le_inf{job=~\"$job\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_inf[$__rate_interval]) or vector(0)",
+          "legendFormat": "<=inf"
+        }
       ],
       "options": {
-        "tooltip": {"mode": "multi", "sort": "none"},
-        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["mean", "lastNotNull"]}
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ]
+        }
       },
       "fieldConfig": {
         "defaults": {
           "unit": "reqps",
-          "custom": {"stacking": {"mode": "none", "group": "A"}}
+          "custom": {
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
         }
       }
     },
     {
       "title": "External Integrations",
       "type": "row",
-      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 56},
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 56
+      },
       "collapsed": false,
       "panels": []
     },
     {
       "title": "UptimeRobot Bridge",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 57},
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 57
+      },
       "targets": [
         {
-          "expr": "((live_overlay_uptimerobot_scrape_success{job=\"live_overlay\"} or live_overlay_uptimerobot_scrape_success or vector(0)) * 2) + (live_overlay_uptimerobot_bridge_enabled{job=\"live_overlay\"} or live_overlay_uptimerobot_bridge_enabled or vector(0))",
+          "expr": "(live_overlay_uptimerobot_bridge_enabled{job=~\"$job\"} or vector(0)) + (live_overlay_uptimerobot_scrape_success{job=~\"$job\"} or vector(0))",
           "legendFormat": "bridge_state"
         }
       ],
       "options": {
         "colorMode": "background_solid",
         "graphMode": "none",
-        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -639,30 +1375,58 @@
             {
               "type": "value",
               "options": {
-                "0": {"text": "DISABLED", "color": "gray"},
-                "1": {"text": "SCRAPE ERROR", "color": "red"},
-                "2": {"text": "OK", "color": "green"}
+                "0": {
+                  "text": "DISABLED",
+                  "color": "gray"
+                },
+                "1": {
+                  "text": "SCRAPE ERROR",
+                  "color": "red"
+                },
+                "2": {
+                  "text": "OK",
+                  "color": "green"
+                }
               }
             }
           ],
-          "thresholds": {"mode": "absolute", "steps": [{"color": "gray", "value": null}]}
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "gray",
+                "value": null
+              }
+            ]
+          }
         }
       }
     },
     {
       "title": "UptimeRobot Snapshot Age",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 57},
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 57
+      },
       "targets": [
         {
-          "expr": "live_overlay_uptimerobot_snapshot_age_seconds{job=\"live_overlay\"} or live_overlay_uptimerobot_snapshot_age_seconds or vector(0)",
+          "expr": "(live_overlay_uptimerobot_snapshot_age_seconds{job=~\"$job\"} and on(job) (live_overlay_uptimerobot_bridge_enabled{job=~\"$job\"} == 1)) or (live_overlay_uptimerobot_bridge_enabled{job=~\"$job\"} * 0 - 1)",
           "legendFormat": "snapshot_age"
         }
       ],
       "options": {
         "colorMode": "background_solid",
         "graphMode": "none",
-        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -670,28 +1434,83 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {"color": "green", "value": null},
-              {"color": "yellow", "value": 60},
-              {"color": "red", "value": 180}
+              {
+                "color": "gray",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 60
+              },
+              {
+                "color": "red",
+                "value": 180
+              }
             ]
-          }
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "DISABLED",
+                  "color": "gray",
+                  "index": 0
+                }
+              }
+            }
+          ]
         }
       }
     },
     {
       "title": "UptimeRobot Monitors",
       "type": "timeseries",
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 57},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 57
+      },
       "targets": [
-        {"expr": "live_overlay_uptimerobot_monitors_total_total{job=\"live_overlay\"} or live_overlay_uptimerobot_monitors_total_total or vector(0)", "legendFormat": "total"},
-        {"expr": "live_overlay_uptimerobot_monitors_up_total{job=\"live_overlay\"} or live_overlay_uptimerobot_monitors_up_total or vector(0)", "legendFormat": "up"},
-        {"expr": "live_overlay_uptimerobot_monitors_down_total{job=\"live_overlay\"} or live_overlay_uptimerobot_monitors_down_total or vector(0)", "legendFormat": "down"},
-        {"expr": "live_overlay_uptimerobot_monitors_paused_total{job=\"live_overlay\"} or live_overlay_uptimerobot_monitors_paused_total or vector(0)", "legendFormat": "paused"},
-        {"expr": "live_overlay_uptimerobot_monitors_response_time_ms_avg{job=\"live_overlay\"} or live_overlay_uptimerobot_monitors_response_time_ms_avg or vector(0)", "legendFormat": "avg response (ms)"}
+        {
+          "expr": "live_overlay_uptimerobot_monitors_total_total{job=~\"$job\"} or live_overlay_uptimerobot_monitors_total_total or vector(0)",
+          "legendFormat": "total"
+        },
+        {
+          "expr": "live_overlay_uptimerobot_monitors_up_total{job=~\"$job\"} or live_overlay_uptimerobot_monitors_up_total or vector(0)",
+          "legendFormat": "up"
+        },
+        {
+          "expr": "live_overlay_uptimerobot_monitors_down_total{job=~\"$job\"} or live_overlay_uptimerobot_monitors_down_total or vector(0)",
+          "legendFormat": "down"
+        },
+        {
+          "expr": "live_overlay_uptimerobot_monitors_paused_total{job=~\"$job\"} or live_overlay_uptimerobot_monitors_paused_total or vector(0)",
+          "legendFormat": "paused"
+        },
+        {
+          "expr": "live_overlay_uptimerobot_monitors_response_time_ms_avg{job=~\"$job\"} or live_overlay_uptimerobot_monitors_response_time_ms_avg or vector(0)",
+          "legendFormat": "avg response (ms)"
+        }
       ],
       "options": {
-        "tooltip": {"mode": "multi", "sort": "none"},
-        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["lastNotNull"]}
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -699,8 +1518,16 @@
         },
         "overrides": [
           {
-            "matcher": {"id": "byName", "options": "avg response (ms)"},
-            "properties": [{"id": "unit", "value": "ms"}]
+            "matcher": {
+              "id": "byName",
+              "options": "avg response (ms)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
           }
         ]
       }
@@ -708,17 +1535,28 @@
     {
       "title": "GitHub Workflow Bridge",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 65},
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 65
+      },
       "targets": [
         {
-          "expr": "((live_overlay_github_workflow_scrape_success{job=\"live_overlay\"} or live_overlay_github_workflow_scrape_success or vector(0)) * 2) + (live_overlay_github_workflow_bridge_enabled{job=\"live_overlay\"} or live_overlay_github_workflow_bridge_enabled or vector(0))",
+          "expr": "(live_overlay_github_workflow_bridge_enabled{job=~\"$job\"} or vector(0)) + (live_overlay_github_workflow_scrape_success{job=~\"$job\"} or vector(0))",
           "legendFormat": "bridge_state"
         }
       ],
       "options": {
         "colorMode": "background_solid",
         "graphMode": "none",
-        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -726,30 +1564,58 @@
             {
               "type": "value",
               "options": {
-                "0": {"text": "DISABLED", "color": "gray"},
-                "1": {"text": "SCRAPE ERROR", "color": "red"},
-                "2": {"text": "OK", "color": "green"}
+                "0": {
+                  "text": "DISABLED",
+                  "color": "gray"
+                },
+                "1": {
+                  "text": "SCRAPE ERROR",
+                  "color": "red"
+                },
+                "2": {
+                  "text": "OK",
+                  "color": "green"
+                }
               }
             }
           ],
-          "thresholds": {"mode": "absolute", "steps": [{"color": "gray", "value": null}]}
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "gray",
+                "value": null
+              }
+            ]
+          }
         }
       }
     },
     {
       "title": "GitHub Workflow Snapshot Age",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 65},
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 65
+      },
       "targets": [
         {
-          "expr": "live_overlay_github_workflow_snapshot_age_seconds{job=\"live_overlay\"} or live_overlay_github_workflow_snapshot_age_seconds or vector(0)",
+          "expr": "(live_overlay_github_workflow_snapshot_age_seconds{job=~\"$job\"} and on(job) (live_overlay_github_workflow_bridge_enabled{job=~\"$job\"} == 1)) or (live_overlay_github_workflow_bridge_enabled{job=~\"$job\"} * 0 - 1)",
           "legendFormat": "snapshot_age"
         }
       ],
       "options": {
         "colorMode": "background_solid",
         "graphMode": "none",
-        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -757,28 +1623,83 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {"color": "green", "value": null},
-              {"color": "yellow", "value": 60},
-              {"color": "red", "value": 180}
+              {
+                "color": "gray",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "yellow",
+                "value": 60
+              },
+              {
+                "color": "red",
+                "value": 180
+              }
             ]
-          }
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "DISABLED",
+                  "color": "gray",
+                  "index": 0
+                }
+              }
+            }
+          ]
         }
       }
     },
     {
       "title": "GitHub Workflow Runs",
       "type": "timeseries",
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 65},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 65
+      },
       "targets": [
-        {"expr": "live_overlay_github_workflow_runs_seen_total{job=\"live_overlay\"} or live_overlay_github_workflow_runs_seen_total or vector(0)", "legendFormat": "seen"},
-        {"expr": "live_overlay_github_workflow_runs_success_total{job=\"live_overlay\"} or live_overlay_github_workflow_runs_success_total or vector(0)", "legendFormat": "success"},
-        {"expr": "live_overlay_github_workflow_runs_failed_total{job=\"live_overlay\"} or live_overlay_github_workflow_runs_failed_total or vector(0)", "legendFormat": "failed"},
-        {"expr": "live_overlay_github_workflow_runs_in_progress_total{job=\"live_overlay\"} or live_overlay_github_workflow_runs_in_progress_total or vector(0)", "legendFormat": "in_progress"},
-        {"expr": "live_overlay_github_workflow_runs_queued_total{job=\"live_overlay\"} or live_overlay_github_workflow_runs_queued_total or vector(0)", "legendFormat": "queued"}
+        {
+          "expr": "live_overlay_github_workflow_runs_seen_total{job=~\"$job\"} or live_overlay_github_workflow_runs_seen_total or vector(0)",
+          "legendFormat": "seen"
+        },
+        {
+          "expr": "live_overlay_github_workflow_runs_success_total{job=~\"$job\"} or live_overlay_github_workflow_runs_success_total or vector(0)",
+          "legendFormat": "success"
+        },
+        {
+          "expr": "live_overlay_github_workflow_runs_failed_total{job=~\"$job\"} or live_overlay_github_workflow_runs_failed_total or vector(0)",
+          "legendFormat": "failed"
+        },
+        {
+          "expr": "live_overlay_github_workflow_runs_in_progress_total{job=~\"$job\"} or live_overlay_github_workflow_runs_in_progress_total or vector(0)",
+          "legendFormat": "in_progress"
+        },
+        {
+          "expr": "live_overlay_github_workflow_runs_queued_total{job=~\"$job\"} or live_overlay_github_workflow_runs_queued_total or vector(0)",
+          "legendFormat": "queued"
+        }
       ],
       "options": {
-        "tooltip": {"mode": "multi", "sort": "none"},
-        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["lastNotNull"]}
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -789,14 +1710,35 @@
     {
       "title": "GitHub Workflow Timing",
       "type": "timeseries",
-      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 73},
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 73
+      },
       "targets": [
-        {"expr": "live_overlay_github_workflow_latest_run_age_seconds{job=\"live_overlay\"} or live_overlay_github_workflow_latest_run_age_seconds or vector(0)", "legendFormat": "latest age (s)"},
-        {"expr": "live_overlay_github_workflow_latest_run_duration_seconds{job=\"live_overlay\"} or live_overlay_github_workflow_latest_run_duration_seconds or vector(0)", "legendFormat": "latest duration (s)"}
+        {
+          "expr": "live_overlay_github_workflow_latest_run_age_seconds{job=~\"$job\"} or live_overlay_github_workflow_latest_run_age_seconds or vector(0)",
+          "legendFormat": "latest age (s)"
+        },
+        {
+          "expr": "live_overlay_github_workflow_latest_run_duration_seconds{job=~\"$job\"} or live_overlay_github_workflow_latest_run_duration_seconds or vector(0)",
+          "legendFormat": "latest duration (s)"
+        }
       ],
       "options": {
-        "tooltip": {"mode": "multi", "sort": "none"},
-        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["lastNotNull"]}
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -804,12 +1746,28 @@
         },
         "overrides": [
           {
-            "matcher": {"id": "byName", "options": "latest age (s)"},
-            "properties": [{"id": "unit", "value": "s"}]
+            "matcher": {
+              "id": "byName",
+              "options": "latest age (s)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
           },
           {
-            "matcher": {"id": "byName", "options": "latest duration (s)"},
-            "properties": [{"id": "unit", "value": "s"}]
+            "matcher": {
+              "id": "byName",
+              "options": "latest duration (s)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
           }
         ]
       }
@@ -817,15 +1775,42 @@
     {
       "title": "Global Market Sessions",
       "type": "state-timeline",
-      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 81},
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 81
+      },
       "targets": [
-        {"expr": "max_over_time(live_overlay_market_us_open{job=\"live_overlay\"}[5m]) or max_over_time(live_overlay_market_us_open[5m]) or vector(0)", "legendFormat": "US", "instant": false, "range": true},
-        {"expr": "max_over_time(live_overlay_market_europe_open{job=\"live_overlay\"}[5m]) or max_over_time(live_overlay_market_europe_open[5m]) or vector(0)", "legendFormat": "Europe", "instant": false, "range": true},
-        {"expr": "max_over_time(live_overlay_market_asia_open{job=\"live_overlay\"}[5m]) or max_over_time(live_overlay_market_asia_open[5m]) or vector(0)", "legendFormat": "Asia", "instant": false, "range": true}
+        {
+          "expr": "max_over_time(live_overlay_market_us_open{job=~\"$job\"}[5m]) or max_over_time(live_overlay_market_us_open[5m]) or vector(0)",
+          "legendFormat": "US",
+          "instant": false,
+          "range": true
+        },
+        {
+          "expr": "max_over_time(live_overlay_market_europe_open{job=~\"$job\"}[5m]) or max_over_time(live_overlay_market_europe_open[5m]) or vector(0)",
+          "legendFormat": "Europe",
+          "instant": false,
+          "range": true
+        },
+        {
+          "expr": "max_over_time(live_overlay_market_asia_open{job=~\"$job\"}[5m]) or max_over_time(live_overlay_market_asia_open[5m]) or vector(0)",
+          "legendFormat": "Asia",
+          "instant": false,
+          "range": true
+        }
       ],
       "options": {
-        "tooltip": {"mode": "multi", "sort": "none"},
-        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true},
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
         "rowHeight": 0.9
       },
       "fieldConfig": {
@@ -836,17 +1821,29 @@
             {
               "type": "value",
               "options": {
-                "0": {"text": "CLOSED"},
-                "1": {"text": "OPEN"}
+                "0": {
+                  "text": "CLOSED"
+                },
+                "1": {
+                  "text": "OPEN"
+                }
               }
             }
           ],
-          "color": {"mode": "thresholds"},
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {"color": "gray", "value": null},
-              {"color": "green", "value": 1}
+              {
+                "color": "gray",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
             ]
           }
         }
@@ -855,21 +1852,47 @@
     {
       "title": "SLO & Reliability",
       "type": "row",
-      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 89},
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 89
+      },
       "collapsed": false,
       "panels": []
     },
     {
       "title": "Latency p95/p99 (ms)",
       "type": "timeseries",
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 90},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 90
+      },
       "targets": [
-        {"expr": "live_overlay_smc_live_latency_p95_ms{job=\"live_overlay\"} or live_overlay_smc_live_latency_p95_ms or vector(0)", "legendFormat": "p95"},
-        {"expr": "live_overlay_smc_live_latency_p99_ms{job=\"live_overlay\"} or live_overlay_smc_live_latency_p99_ms or vector(0)", "legendFormat": "p99"}
+        {
+          "expr": "live_overlay_smc_live_latency_p95_ms{job=~\"$job\"} or live_overlay_smc_live_latency_p95_ms or vector(0)",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "live_overlay_smc_live_latency_p99_ms{job=~\"$job\"} or live_overlay_smc_live_latency_p99_ms or vector(0)",
+          "legendFormat": "p99"
+        }
       ],
       "options": {
-        "tooltip": {"mode": "multi", "sort": "none"},
-        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["lastNotNull"]}
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -877,10 +1900,22 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {"color": "green", "value": null},
-              {"color": "yellow", "value": 200},
-              {"color": "orange", "value": 350},
-              {"color": "red", "value": 500}
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 200
+              },
+              {
+                "color": "orange",
+                "value": 350
+              },
+              {
+                "color": "red",
+                "value": 500
+              }
             ]
           }
         }
@@ -889,17 +1924,28 @@
     {
       "title": "Freshness SLO (Market Open, 1h)",
       "type": "stat",
-      "gridPos": {"h": 8, "w": 6, "x": 12, "y": 90},
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 90
+      },
       "targets": [
         {
-          "expr": "100 * ((sum(sum_over_time((((live_overlay_overlay_fresh{job=\"live_overlay\"} or live_overlay_overlay_fresh or vector(1)) * (live_overlay_market_open{job=\"live_overlay\"} or live_overlay_market_open or vector(0))))[1h:])) + (sum(sum_over_time((live_overlay_market_open{job=\"live_overlay\"} or live_overlay_market_open or vector(0))[1h:])) == bool 0)) / clamp_min(sum(sum_over_time((live_overlay_market_open{job=\"live_overlay\"} or live_overlay_market_open or vector(0))[1h:])), 1))",
+          "expr": "100 * ((sum(sum_over_time((((live_overlay_overlay_fresh{job=~\"$job\"} or live_overlay_overlay_fresh or vector(1)) * (live_overlay_market_open{job=~\"$job\"} or live_overlay_market_open or vector(0))))[1h:])) + (sum(sum_over_time((live_overlay_market_open{job=~\"$job\"} or live_overlay_market_open or vector(0))[1h:])) == bool 0)) / clamp_min(sum(sum_over_time((live_overlay_market_open{job=~\"$job\"} or live_overlay_market_open or vector(0))[1h:])), 1))",
           "legendFormat": "freshness_slo"
         }
       ],
       "options": {
         "colorMode": "background_solid",
         "graphMode": "area",
-        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -909,9 +1955,18 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {"color": "red", "value": null},
-              {"color": "yellow", "value": 95},
-              {"color": "green", "value": 99}
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 95
+              },
+              {
+                "color": "green",
+                "value": 99
+              }
             ]
           }
         }
@@ -920,17 +1975,28 @@
     {
       "title": "No-Data Guard (Core Metrics)",
       "type": "stat",
-      "gridPos": {"h": 8, "w": 6, "x": 18, "y": 90},
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 90
+      },
       "targets": [
         {
-          "expr": "count(live_overlay_uptime_seconds{job=\"live_overlay\"}) > bool 0",
+          "expr": "count(live_overlay_uptime_seconds{job=~\"$job\"}) > bool 0",
           "legendFormat": "core_metrics_present"
         }
       ],
       "options": {
         "colorMode": "background_solid",
         "graphMode": "none",
-        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -938,32 +2004,65 @@
             {
               "type": "value",
               "options": {
-                "0": {"text": "MISSING", "color": "red"},
-                "1": {"text": "PRESENT", "color": "green"}
+                "0": {
+                  "text": "MISSING",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "PRESENT",
+                  "color": "green"
+                }
               }
             }
           ],
-          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
         }
       }
     },
     {
       "title": "Error Budget Burn Rate (5m / 1h)",
       "type": "timeseries",
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 98},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 98
+      },
       "targets": [
         {
-          "expr": "((sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[5m])) > bool 1e-6) * ((1 - (sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[5m])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[5m])), 1e-9))) / 0.01)) or vector(0)",
+          "expr": "((sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[5m])) > bool 1e-6) * ((1 - (sum(rate(live_overlay_smc_live_success_total{job=~\"$job\"}[5m])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[5m])), 1e-9))) / 0.01)) or vector(0)",
           "legendFormat": "burn_5m"
         },
         {
-          "expr": "((sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[1h])) > bool 1e-6) * ((1 - (sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[1h])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[1h])), 1e-9))) / 0.01)) or vector(0)",
+          "expr": "((sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[1h])) > bool 1e-6) * ((1 - (sum(rate(live_overlay_smc_live_success_total{job=~\"$job\"}[1h])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[1h])), 1e-9))) / 0.01)) or vector(0)",
           "legendFormat": "burn_1h"
         }
       ],
       "options": {
-        "tooltip": {"mode": "multi", "sort": "none"},
-        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["lastNotNull"]}
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -971,10 +2070,22 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {"color": "green", "value": null},
-              {"color": "yellow", "value": 2},
-              {"color": "orange", "value": 6},
-              {"color": "red", "value": 14}
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 2
+              },
+              {
+                "color": "orange",
+                "value": 6
+              },
+              {
+                "color": "red",
+                "value": 14
+              }
             ]
           }
         }
@@ -983,39 +2094,102 @@
     {
       "title": "Bridge Scrape Health Timeline",
       "type": "state-timeline",
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 98},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 98
+      },
       "targets": [
-        {"expr": "max_over_time(live_overlay_uptimerobot_scrape_success{job=\"live_overlay\"}[5m]) or max_over_time(live_overlay_uptimerobot_scrape_success[5m]) or vector(0)", "legendFormat": "UptimeRobot", "instant": false, "range": true},
-        {"expr": "max_over_time(live_overlay_github_workflow_scrape_success{job=\"live_overlay\"}[5m]) or max_over_time(live_overlay_github_workflow_scrape_success[5m]) or vector(0)", "legendFormat": "GitHub Workflows", "instant": false, "range": true}
+        {
+          "expr": "max_over_time(live_overlay_uptimerobot_scrape_success{job=~\"$job\"}[5m]) or max_over_time(live_overlay_uptimerobot_scrape_success[5m]) or vector(0)",
+          "legendFormat": "UptimeRobot",
+          "instant": false,
+          "range": true
+        },
+        {
+          "expr": "max_over_time(live_overlay_github_workflow_scrape_success{job=~\"$job\"}[5m]) or max_over_time(live_overlay_github_workflow_scrape_success[5m]) or vector(0)",
+          "legendFormat": "GitHub Workflows",
+          "instant": false,
+          "range": true
+        }
       ],
       "options": {
-        "tooltip": {"mode": "multi", "sort": "none"},
-        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true},
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
         "rowHeight": 0.9
       },
       "fieldConfig": {
         "defaults": {
           "min": 0,
           "max": 1,
-          "mappings": [{"type": "value", "options": {"0": {"text": "ERROR"}, "1": {"text": "OK"}}}],
-          "color": {"mode": "thresholds"},
-          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "ERROR"
+                },
+                "1": {
+                  "text": "OK"
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
         }
       }
     },
     {
       "title": "Restart Causes (24h, by cause)",
       "type": "timeseries",
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 106},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 106
+      },
       "targets": [
         {
-          "expr": "sum by (__name__) (increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\",job=\"live_overlay\"}[24h])) or sum by (__name__) (increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\"}[24h])) or vector(0)",
+          "expr": "sum by (__name__) (increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\",job=~\"$job\"}[24h])) or sum by (__name__) (increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\"}[24h])) or vector(0)",
           "legendFormat": "{{__name__}}"
         }
       ],
       "options": {
-        "tooltip": {"mode": "multi", "sort": "none"},
-        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["lastNotNull"]}
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -1024,18 +2198,33 @@
       }
     },
     {
-      "title": "Hotspots — Symbols (Top)",
+      "title": "Hotspots \u2014 Symbols (Top)",
       "type": "timeseries",
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 106},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 106
+      },
       "targets": [
         {
-          "expr": "{__name__=~\"live_overlay_hotspot_symbol_.*_requests_total\",job=\"live_overlay\"} or {__name__=~\"live_overlay_hotspot_symbol_.*_requests_total\"} or vector(0)",
+          "expr": "{__name__=~\"live_overlay_hotspot_symbol_.*_requests_total\",job=~\"$job\"} or {__name__=~\"live_overlay_hotspot_symbol_.*_requests_total\"} or vector(0)",
           "legendFormat": "{{__name__}}"
         }
       ],
       "options": {
-        "tooltip": {"mode": "multi", "sort": "none"},
-        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["lastNotNull"]}
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -1044,18 +2233,33 @@
       }
     },
     {
-      "title": "Hotspots — Timeframes (Top)",
+      "title": "Hotspots \u2014 Timeframes (Top)",
       "type": "timeseries",
-      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 114},
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 114
+      },
       "targets": [
         {
-          "expr": "{__name__=~\"live_overlay_hotspot_tf_.*_requests_total\",job=\"live_overlay\"} or {__name__=~\"live_overlay_hotspot_tf_.*_requests_total\"} or vector(0)",
+          "expr": "{__name__=~\"live_overlay_hotspot_tf_.*_requests_total\",job=~\"$job\"} or {__name__=~\"live_overlay_hotspot_tf_.*_requests_total\"} or vector(0)",
           "legendFormat": "{{__name__}}"
         }
       ],
       "options": {
-        "tooltip": {"mode": "multi", "sort": "none"},
-        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["lastNotNull"]}
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -1066,15 +2270,39 @@
     {
       "title": "Ingest Queue Backpressure",
       "type": "timeseries",
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 122},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 122
+      },
       "targets": [
-        {"expr": "live_overlay_feed_ingest_queue_depth{job=\"live_overlay\"} or live_overlay_feed_ingest_queue_depth or vector(0)", "legendFormat": "depth"},
-        {"expr": "live_overlay_feed_ingest_queue_depth_max{job=\"live_overlay\"} or live_overlay_feed_ingest_queue_depth_max or vector(0)", "legendFormat": "depth max"},
-        {"expr": "live_overlay_feed_ingest_queue_dropped_total{job=\"live_overlay\"} or live_overlay_feed_ingest_queue_dropped_total or vector(0)", "legendFormat": "dropped total"}
+        {
+          "expr": "live_overlay_feed_ingest_queue_depth{job=~\"$job\"} or live_overlay_feed_ingest_queue_depth or vector(0)",
+          "legendFormat": "depth"
+        },
+        {
+          "expr": "live_overlay_feed_ingest_queue_depth_max{job=~\"$job\"} or live_overlay_feed_ingest_queue_depth_max or vector(0)",
+          "legendFormat": "depth max"
+        },
+        {
+          "expr": "live_overlay_feed_ingest_queue_dropped_total{job=~\"$job\"} or live_overlay_feed_ingest_queue_dropped_total or vector(0)",
+          "legendFormat": "dropped total"
+        }
       ],
       "options": {
-        "tooltip": {"mode": "multi", "sort": "none"},
-        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["lastNotNull"]}
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -1085,14 +2313,35 @@
     {
       "title": "Ingest Queue Lag (ms)",
       "type": "timeseries",
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 122},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 122
+      },
       "targets": [
-        {"expr": "live_overlay_feed_ingest_queue_lag_ms_last{job=\"live_overlay\"} or live_overlay_feed_ingest_queue_lag_ms_last or vector(0)", "legendFormat": "lag last"},
-        {"expr": "live_overlay_feed_ingest_queue_lag_ms_max{job=\"live_overlay\"} or live_overlay_feed_ingest_queue_lag_ms_max or vector(0)", "legendFormat": "lag max"}
+        {
+          "expr": "live_overlay_feed_ingest_queue_lag_ms_last{job=~\"$job\"} or live_overlay_feed_ingest_queue_lag_ms_last or vector(0)",
+          "legendFormat": "lag last"
+        },
+        {
+          "expr": "live_overlay_feed_ingest_queue_lag_ms_max{job=~\"$job\"} or live_overlay_feed_ingest_queue_lag_ms_max or vector(0)",
+          "legendFormat": "lag max"
+        }
       ],
       "options": {
-        "tooltip": {"mode": "multi", "sort": "none"},
-        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["lastNotNull"]}
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -1100,9 +2349,18 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {"color": "green", "value": null},
-              {"color": "yellow", "value": 1000},
-              {"color": "red", "value": 5000}
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1000
+              },
+              {
+                "color": "red",
+                "value": 5000
+              }
             ]
           }
         }
@@ -1111,47 +2369,132 @@
     {
       "title": "Provider Health",
       "type": "row",
-      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 130},
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 130
+      },
       "collapsed": false,
       "panels": []
     },
     {
       "title": "News Provider Health State",
       "type": "state-timeline",
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 131},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 131
+      },
       "targets": [
-        {"expr": "max_over_time(live_overlay_provider_news_health_ok{job=\"live_overlay\"}[5m]) or max_over_time(live_overlay_provider_news_health_ok[5m]) or vector(0)", "legendFormat": "health_ok", "instant": false, "range": true},
-        {"expr": "max_over_time(live_overlay_provider_news_health_degraded{job=\"live_overlay\"}[5m]) or max_over_time(live_overlay_provider_news_health_degraded[5m]) or vector(0)", "legendFormat": "health_degraded", "instant": false, "range": true},
-        {"expr": "max_over_time(live_overlay_provider_news_health_unknown{job=\"live_overlay\"}[5m]) or max_over_time(live_overlay_provider_news_health_unknown[5m]) or vector(0)", "legendFormat": "health_unknown", "instant": false, "range": true}
+        {
+          "expr": "max_over_time(live_overlay_provider_news_health_ok{job=~\"$job\"}[5m]) or max_over_time(live_overlay_provider_news_health_ok[5m]) or vector(0)",
+          "legendFormat": "health_ok",
+          "instant": false,
+          "range": true
+        },
+        {
+          "expr": "max_over_time(live_overlay_provider_news_health_degraded{job=~\"$job\"}[5m]) or max_over_time(live_overlay_provider_news_health_degraded[5m]) or vector(0)",
+          "legendFormat": "health_degraded",
+          "instant": false,
+          "range": true
+        },
+        {
+          "expr": "max_over_time(live_overlay_provider_news_health_unknown{job=~\"$job\"}[5m]) or max_over_time(live_overlay_provider_news_health_unknown[5m]) or vector(0)",
+          "legendFormat": "health_unknown",
+          "instant": false,
+          "range": true
+        }
       ],
       "options": {
-        "tooltip": {"mode": "multi", "sort": "none"},
-        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true},
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
         "rowHeight": 0.9
       },
       "fieldConfig": {
         "defaults": {
           "min": 0,
           "max": 1,
-          "mappings": [{"type": "value", "options": {"0": {"text": "OFF"}, "1": {"text": "ON"}}}],
-          "color": {"mode": "thresholds"},
-          "thresholds": {"mode": "absolute", "steps": [{"color": "gray", "value": null}, {"color": "green", "value": 1}]}
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "OFF"
+                },
+                "1": {
+                  "text": "ON"
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "gray",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
         }
       }
     },
     {
       "title": "News Snapshot Age & Provider Counts",
       "type": "timeseries",
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 131},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 131
+      },
       "targets": [
-        {"expr": "live_overlay_provider_news_snapshot_age_seconds{job=\"live_overlay\"} or live_overlay_provider_news_snapshot_age_seconds or vector(0)", "legendFormat": "snapshot age (s)"},
-        {"expr": "live_overlay_provider_news_providers_total{job=\"live_overlay\"} or live_overlay_provider_news_providers_total or vector(0)", "legendFormat": "providers total"},
-        {"expr": "live_overlay_provider_news_providers_ok_total{job=\"live_overlay\"} or live_overlay_provider_news_providers_ok_total or vector(0)", "legendFormat": "providers ok"},
-        {"expr": "live_overlay_provider_news_providers_degraded_total{job=\"live_overlay\"} or live_overlay_provider_news_providers_degraded_total or vector(0)", "legendFormat": "providers degraded"}
+        {
+          "expr": "live_overlay_provider_news_snapshot_age_seconds{job=~\"$job\"} or live_overlay_provider_news_snapshot_age_seconds or vector(0)",
+          "legendFormat": "snapshot age (s)"
+        },
+        {
+          "expr": "live_overlay_provider_news_providers_total{job=~\"$job\"} or live_overlay_provider_news_providers_total or vector(0)",
+          "legendFormat": "providers total"
+        },
+        {
+          "expr": "live_overlay_provider_news_providers_ok_total{job=~\"$job\"} or live_overlay_provider_news_providers_ok_total or vector(0)",
+          "legendFormat": "providers ok"
+        },
+        {
+          "expr": "live_overlay_provider_news_providers_degraded_total{job=~\"$job\"} or live_overlay_provider_news_providers_degraded_total or vector(0)",
+          "legendFormat": "providers degraded"
+        }
       ],
       "options": {
-        "tooltip": {"mode": "multi", "sort": "none"},
-        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["lastNotNull"]}
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -1160,18 +2503,33 @@
       }
     },
     {
-      "title": "News Providers — OK/Degraded (Drill-down)",
+      "title": "News Providers \u2014 OK/Degraded (Drill-down)",
       "type": "timeseries",
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 139},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 139
+      },
       "targets": [
         {
-          "expr": "(({__name__=~\"live_overlay_provider_news_.*_(ok|degraded)\",job=\"live_overlay\"} or {__name__=~\"live_overlay_provider_news_.*_(ok|degraded)\"}) unless ({__name__=~\"live_overlay_provider_news_health_(ok|degraded)\",job=\"live_overlay\"} or {__name__=~\"live_overlay_provider_news_health_(ok|degraded)\"})) or vector(0)",
+          "expr": "(({__name__=~\"live_overlay_provider_news_.*_(ok|degraded)\",job=~\"$job\"} or {__name__=~\"live_overlay_provider_news_.*_(ok|degraded)\"}) unless ({__name__=~\"live_overlay_provider_news_health_(ok|degraded)\",job=~\"$job\"} or {__name__=~\"live_overlay_provider_news_health_(ok|degraded)\"})) or vector(0)",
           "legendFormat": "{{__name__}}"
         }
       ],
       "options": {
-        "tooltip": {"mode": "multi", "sort": "none"},
-        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["lastNotNull"]}
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -1182,18 +2540,33 @@
       }
     },
     {
-      "title": "News Providers — State Code",
+      "title": "News Providers \u2014 State Code",
       "type": "timeseries",
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 139},
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 139
+      },
       "targets": [
         {
-          "expr": "{__name__=~\"live_overlay_provider_news_.*_state_code\",job=\"live_overlay\"} or {__name__=~\"live_overlay_provider_news_.*_state_code\"} or vector(0)",
+          "expr": "{__name__=~\"live_overlay_provider_news_.*_state_code\",job=~\"$job\"} or {__name__=~\"live_overlay_provider_news_.*_state_code\"} or vector(0)",
           "legendFormat": "{{__name__}}"
         }
       ],
       "options": {
-        "tooltip": {"mode": "multi", "sort": "none"},
-        "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["lastNotNull"]}
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -1203,9 +2576,18 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {"color": "gray", "value": null},
-              {"color": "orange", "value": 1},
-              {"color": "green", "value": 2}
+              {
+                "color": "gray",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "green",
+                "value": 2
+              }
             ]
           }
         }
@@ -1214,7 +2596,12 @@
     {
       "title": "Active Alerts (live_overlay)",
       "type": "alertlist",
-      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 147},
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 147
+      },
       "options": {
         "showLabels": true,
         "sortOrder": 1,
@@ -1226,9 +2613,37 @@
     }
   ],
   "schemaVersion": 39,
-  "tags": ["live-overlay", "skipp-algo"],
-  "templating": {"list": []},
-  "time": {"from": "now-6h", "to": "now"},
+  "tags": [
+    "live-overlay",
+    "skipp-algo"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": false,
+          "text": "live_overlay",
+          "value": "live_overlay"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": "job",
+        "multi": false,
+        "name": "job",
+        "options": [],
+        "query": "label_values(live_overlay_uptime_seconds, job)",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
   "refresh": "30s",
   "timepicker": {},
   "timezone": "utc",

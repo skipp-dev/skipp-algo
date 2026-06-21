@@ -191,6 +191,7 @@ All numeric fields are `null`, all bool fields are `false`, `stale: true`.
 | `GITHUB_WORKFLOW_MONITOR_TOKEN` | ❌ | *(unset)* | Enables optional GitHub Actions workflow bridge metrics in `/metrics` |
 | `GITHUB_WORKFLOW_MONITOR_REPO` | ❌ | `skippALGO/skipp-algo` | Target repository in `owner/repo` format |
 | `GITHUB_WORKFLOW_MONITOR_IDS` | ❌ | *(all workflows)* | Comma-separated workflow IDs to include |
+| `GITHUB_WORKFLOW_MONITOR_BRANCH` | ❌ | `main` | Branch filter for workflow runs (empty = all branches) |
 | `GITHUB_WORKFLOW_MONITOR_TIMEOUT_SECS` | ❌ | `5` | GitHub API timeout in seconds (range 1–30) |
 | `GITHUB_WORKFLOW_MONITOR_POLL_TTL_SECS` | ❌ | `30` | In-process cache TTL for workflow snapshot (range 5–300) |
 | `GITHUB_WORKFLOW_MONITOR_PER_PAGE` | ❌ | `30` | Number of workflow runs fetched per API poll (range 1–100) |
@@ -378,6 +379,19 @@ Operational UX additions:
 
 > The `/health` endpoint accepts both `GET` and `HEAD` (UptimeRobot sends HEAD).
 > Use `/ready` for semantic status checks and deeper alerting.
+
+---
+
+## SLO / Reliability targets
+
+| SLO | Target | Alert rules |
+|-----|--------|-------------|
+| Availability (smc_live success rate while market open) | ≥ 99 % over any 1h window | `lo-error-budget-burn-warning`, `lo-error-budget-burn-critical` |
+| Overlay freshness while market open | ≥ 99 % fresh (`overlay_fresh == 1`) over any 1h window | `lo-overlay-stale`, `lo-core-signal-missing` |
+| p99 latency while market open | < 500 ms | `lo-latency-p99-high` |
+| Feed health while market open | 100 % healthy | `lo-feed-down-market-open`, `lo-last-bar-stale-open` |
+
+Error-budget alerts use a 1 % error budget. Burn-rate thresholds are 6×/14× over 5m and 3×/7× over 1h for warning/critical respectively.
 
 ---
 

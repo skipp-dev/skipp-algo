@@ -6,6 +6,33 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-06-21) — Live-overlay observability hardening
+
+- Alert rule `lo-news-snapshot-stale-or-missing` split into two rules:
+  - `lo-news-snapshot-unavailable` (high severity, 5m) fires when the snapshot
+    is not loaded (`snapshot_loaded == 0`).
+  - `lo-news-snapshot-stale` (warning, 15m) fires only when a loaded snapshot
+    is older than 1 hour.
+- `lo-request-rate-drop-open` now also requires at least 5 requests in the
+  10m evaluation window to avoid flapping on very low pre-open traffic.
+- `lo-no-symbols` now triggers immediately after a recent restart (uptime reset)
+  in addition to the 10-minute steady-state condition.
+- Grafana dashboard `Service Status` panel now maps value `0` to `STARTING`
+  (yellow).
+- Bridge snapshot-age panels (`UptimeRobot Snapshot Age`,
+  `GitHub Workflow Snapshot Age`) now display `DISABLED` (gray) when the bridge
+  is disabled instead of showing `No data`.
+- Dashboard gained a `job` template variable; all hard-coded
+  `job="live_overlay"` selectors were replaced with `job=~"$job"` for
+  multi-environment deployments.
+- GitHub workflow bridge gained optional `GITHUB_WORKFLOW_MONITOR_BRANCH`
+  filter (default `main`; empty = all branches) to avoid cross-branch noise.
+- README documents the new `GITHUB_WORKFLOW_MONITOR_BRANCH` variable and adds
+  an SLO / reliability-targets section.
+- Added unit tests for `uptimerobot_bridge` and `github_workflow_bridge` and
+  extended `test_smc_live_overlay_metrics.py` with dashboard/alert contract
+  assertions.
+
 ### Changed (2026-06-21) — Live-overlay cold-start seed snapshot + missing-series alert
 
 - Added `news_snapshot_seed.json` for cold-start provider visibility in CI,
