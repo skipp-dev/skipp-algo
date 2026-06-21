@@ -487,8 +487,8 @@ class TestNewsSnapshotPathConfig:
         assert cfg.news_snapshot_path() == override
 
 
-class TestLogLevelConfig:
-    """log_level() returns lower-cased env value or default."""
+class TestLogLevelValidation:
+    """log_level() normalizes aliases and falls back to info for invalid values."""
 
     def test_log_level_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("LOG_LEVEL", raising=False)
@@ -501,6 +501,21 @@ class TestLogLevelConfig:
         import services.live_overlay_daemon.config as cfg
 
         assert cfg.log_level() == "debug"
+
+    def test_log_level_warn_alias_normalized(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("LOG_LEVEL", "WARN")
+        import services.live_overlay_daemon.config as cfg
+
+        assert cfg.log_level() == "warning"
+
+    def test_log_level_invalid_falls_back_to_info(self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+        monkeypatch.setenv("LOG_LEVEL", "BOGUS")
+        import services.live_overlay_daemon.config as cfg
+
+        with caplog.at_level(logging.WARNING):
+            assert cfg.log_level() == "info"
+        assert "not a valid uvicorn log level" in caplog.text
+
 
 class TestNewsSnapshotFileNotFound:
     """_load_news_snapshot() handles non-existent file gracefully."""
@@ -1045,5 +1060,3 @@ class TestTfSchemaContract:
 
         assert exc_info.value.status_code == 400
         assert exc_info.value.detail == "tf must be one of ['10m', '15m', '1H', '30m', '4H', '5m']"
-
-
