@@ -81,6 +81,7 @@ def test_render_metrics_health_status_ok(monkeypatch: pytest.MonkeyPatch) -> Non
     )
 
     body = metrics_mod.render_metrics(startup_ts=100.0)
+    assert "live_overlay_max_stale_seconds 300" in body
     assert "live_overlay_overlay_fresh 1" in body
     assert "live_overlay_health_status_ok 1" in body
     assert "live_overlay_health_status_starting 0" in body
@@ -187,3 +188,21 @@ def test_observability_histogram_ms_emits_bucket_count_and_sum() -> None:
         assert "live_overlay.test_latency.bucket_le_10" not in obs._counters
         assert obs._counters["live_overlay.test_latency.bucket_le_50"] == 1.0
         assert obs._counters["live_overlay.test_latency.bucket_le_inf"] == 1.0
+
+
+def test_observability_histogram_respects_explicit_empty_buckets() -> None:
+    import services.live_overlay_daemon.observability as obs
+
+    with obs._counter_lock:
+        for key in list(obs._counters):
+            if key.startswith("live_overlay.test_latency_empty"):
+                obs._counters.pop(key, None)
+
+    obs.metric_histogram_ms("live_overlay.test_latency_empty", 42.0, buckets_ms=())
+
+    with obs._counter_lock:
+        assert obs._counters["live_overlay.test_latency_empty.count"] == 1.0
+        assert obs._counters["live_overlay.test_latency_empty.sum_ms"] == 42.0
+        assert obs._counters["live_overlay.test_latency_empty.bucket_le_inf"] == 1.0
+        assert "live_overlay.test_latency_empty.bucket_le_10" not in obs._counters
+        assert "live_overlay.test_latency_empty.bucket_le_50" not in obs._counters
