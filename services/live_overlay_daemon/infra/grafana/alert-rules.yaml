@@ -146,11 +146,16 @@ groups:
             model:
               expr: live_overlay_uptime_seconds
               instant: true
+          - refId: D
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: resets(live_overlay_uptime_seconds{job="live_overlay"}[10m])
+              instant: true
           - refId: C
             datasourceUid: __expr__
             model:
               type: math
-              expression: "$A == 0 && ($B > 600 || resets(live_overlay_uptime_seconds{job=\"live_overlay\"}[10m]) > 0)"
+              expression: "$A == 0 && ($B > 600 || $D > 0)"
         for: 5m
         labels:
           severity: critical
@@ -534,7 +539,7 @@ groups:
           - refId: A
             datasourceUid: grafanacloud-prom
             model:
-              expr: live_overlay_provider_news_snapshot_loaded{job="live_overlay"} == 0
+              expr: live_overlay_provider_news_snapshot_loaded{job="live_overlay"} == bool 0
               instant: true
           - refId: C
             datasourceUid: __expr__

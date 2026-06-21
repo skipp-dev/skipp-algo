@@ -539,7 +539,7 @@ def test_alert_rules_split_news_snapshot_unavailable_and_stale() -> None:
     unavailable = next(r for r in warning_group["rules"] if r.get("uid") == "lo-news-snapshot-unavailable")
     assert unavailable["labels"]["severity"] == "high"
     assert "snapshot_loaded" in unavailable["data"][0]["model"]["expr"]
-    assert "== 0" in unavailable["data"][0]["model"]["expr"]
+    assert "== bool 0" in unavailable["data"][0]["model"]["expr"]
 
     stale = next(r for r in warning_group["rules"] if r.get("uid") == "lo-news-snapshot-stale")
     assert "snapshot_age_seconds" in stale["data"][0]["model"]["expr"]

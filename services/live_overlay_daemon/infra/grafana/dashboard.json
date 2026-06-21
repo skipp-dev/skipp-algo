@@ -32,7 +32,7 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_health_status_ok{job=\"live_overlay\"}*2 + live_overlay_health_status_idle_market_closed{job=\"live_overlay\"}",
+          "expr": "live_overlay_health_status_ok{job=~\"$job\"}*2 + live_overlay_health_status_idle_market_closed{job=~\"$job\"}",
           "legendFormat": "Health state"
         }
       ],
@@ -91,7 +91,7 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_workers_healthy{job=\"live_overlay\"}",
+          "expr": "live_overlay_workers_healthy{job=~\"$job\"}",
           "legendFormat": "Workers"
         }
       ],
@@ -146,7 +146,7 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_uptime_seconds{job=\"live_overlay\"}",
+          "expr": "live_overlay_uptime_seconds{job=~\"$job\"}",
           "legendFormat": "Uptime"
         }
       ],
@@ -185,7 +185,7 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_overlay_symbols{job=\"live_overlay\"}",
+          "expr": "live_overlay_overlay_symbols{job=~\"$job\"}",
           "legendFormat": "Symbols"
         }
       ],
@@ -236,7 +236,7 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_bar_symbols{job=\"live_overlay\"}",
+          "expr": "live_overlay_bar_symbols{job=~\"$job\"}",
           "legendFormat": "Bar symbols"
         }
       ],
@@ -278,7 +278,7 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_bar_count{job=\"live_overlay\"}",
+          "expr": "live_overlay_bar_count{job=~\"$job\"}",
           "legendFormat": "Bar count"
         }
       ],
@@ -309,19 +309,19 @@
       },
       "targets": [
         {
-          "expr": "rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[$__rate_interval]) or vector(0)",
+          "expr": "rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[$__rate_interval]) or vector(0)",
           "legendFormat": "smc_live total"
         },
         {
-          "expr": "rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[$__rate_interval]) or vector(0)",
+          "expr": "rate(live_overlay_smc_live_success_total{job=~\"$job\"}[$__rate_interval]) or vector(0)",
           "legendFormat": "success"
         },
         {
-          "expr": "rate(live_overlay_smc_live_auth_denied{job=\"live_overlay\"}[$__rate_interval]) or vector(0)",
+          "expr": "rate(live_overlay_smc_live_auth_denied{job=~\"$job\"}[$__rate_interval]) or vector(0)",
           "legendFormat": "auth denied"
         },
         {
-          "expr": "rate(live_overlay_smc_live_cache_miss_total{job=\"live_overlay\"}[$__rate_interval]) or vector(0)",
+          "expr": "rate(live_overlay_smc_live_cache_miss_total{job=~\"$job\"}[$__rate_interval]) or vector(0)",
           "legendFormat": "cache miss"
         }
       ],
@@ -389,11 +389,11 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_overlay_age_seconds{job=\"live_overlay\"}",
+          "expr": "live_overlay_overlay_age_seconds{job=~\"$job\"}",
           "legendFormat": "overlay age"
         },
         {
-          "expr": "live_overlay_last_bar_age_seconds{job=\"live_overlay\"} or vector(0)",
+          "expr": "live_overlay_last_bar_age_seconds{job=~\"$job\"} or vector(0)",
           "legendFormat": "last bar age"
         }
       ],
@@ -450,11 +450,11 @@
       },
       "targets": [
         {
-          "expr": "rate(live_overlay_full_compute_cycle_errors{job=\"live_overlay\"}[$__rate_interval]) or vector(0)",
+          "expr": "rate(live_overlay_full_compute_cycle_errors{job=~\"$job\"}[$__rate_interval]) or vector(0)",
           "legendFormat": "full compute errors"
         },
         {
-          "expr": "rate(live_overlay_flow_patch_cycle_errors{job=\"live_overlay\"}[$__rate_interval]) or vector(0)",
+          "expr": "rate(live_overlay_flow_patch_cycle_errors{job=~\"$job\"}[$__rate_interval]) or vector(0)",
           "legendFormat": "flow patch errors"
         }
       ],
@@ -543,15 +543,15 @@
       },
       "targets": [
         {
-          "expr": "rate(live_overlay_feed_reconnect_attempts{job=\"live_overlay\"}[$__rate_interval])",
+          "expr": "rate(live_overlay_feed_reconnect_attempts{job=~\"$job\"}[$__rate_interval])",
           "legendFormat": "reconnects/s"
         },
         {
-          "expr": "rate(live_overlay_feed_bento_errors{job=\"live_overlay\"}[$__rate_interval])",
+          "expr": "rate(live_overlay_feed_bento_errors{job=~\"$job\"}[$__rate_interval])",
           "legendFormat": "bento errors/s"
         },
         {
-          "expr": "rate(live_overlay_feed_unexpected_errors{job=\"live_overlay\"}[$__rate_interval])",
+          "expr": "rate(live_overlay_feed_unexpected_errors{job=~\"$job\"}[$__rate_interval])",
           "legendFormat": "unexpected errors/s"
         }
       ],
@@ -587,7 +587,7 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_feed_circuit_breakers{job=\"live_overlay\"}",
+          "expr": "live_overlay_feed_circuit_breakers{job=~\"$job\"}",
           "legendFormat": "circuit breakers"
         }
       ],
@@ -647,7 +647,7 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_feed_partial_restarts{job=\"live_overlay\"}",
+          "expr": "live_overlay_feed_partial_restarts{job=~\"$job\"}",
           "legendFormat": "partial restarts"
         }
       ],
@@ -696,15 +696,15 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_worker_live_feed_alive{job=\"live_overlay\"}",
+          "expr": "live_overlay_worker_live_feed_alive{job=~\"$job\"}",
           "legendFormat": "live_feed"
         },
         {
-          "expr": "live_overlay_worker_overlay_refresh_alive{job=\"live_overlay\"} or vector(0)",
+          "expr": "live_overlay_worker_overlay_refresh_alive{job=~\"$job\"} or vector(0)",
           "legendFormat": "overlay_refresh"
         },
         {
-          "expr": "live_overlay_worker_flow_refresh_alive{job=\"live_overlay\"} or vector(0)",
+          "expr": "live_overlay_worker_flow_refresh_alive{job=~\"$job\"} or vector(0)",
           "legendFormat": "flow_refresh"
         }
       ],
@@ -767,7 +767,7 @@
       },
       "targets": [
         {
-          "expr": "(100 * sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[$__rate_interval])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[$__rate_interval])), 1e-9)) or vector(0)",
+          "expr": "(100 * sum(rate(live_overlay_smc_live_success_total{job=~\"$job\"}[$__rate_interval])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[$__rate_interval])), 1e-9)) or vector(0)",
           "legendFormat": "success_rate"
         }
       ],
@@ -819,7 +819,7 @@
       },
       "targets": [
         {
-          "expr": "(live_overlay_market_open{job=\"live_overlay\"} or live_overlay_market_open or vector(0)) + ((live_overlay_market_open{job=\"live_overlay\"} or live_overlay_market_open or vector(0)) * (((rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[$__rate_interval]) or rate(live_overlay_smc_live_requests_total[$__rate_interval]) or vector(0)) > bool 0.001)))",
+          "expr": "(live_overlay_market_open{job=~\"$job\"} or live_overlay_market_open or vector(0)) + ((live_overlay_market_open{job=~\"$job\"} or live_overlay_market_open or vector(0)) * (((rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[$__rate_interval]) or rate(live_overlay_smc_live_requests_total[$__rate_interval]) or vector(0)) > bool 0.001)))",
           "legendFormat": "open_req_health"
         }
       ],
@@ -886,7 +886,7 @@
       },
       "targets": [
         {
-          "expr": "sum(resets(live_overlay_uptime_seconds{job=\"live_overlay\"}[24h])) or sum(resets(live_overlay_uptime_seconds[24h])) or vector(0)",
+          "expr": "sum(resets(live_overlay_uptime_seconds{job=~\"$job\"}[24h])) or sum(resets(live_overlay_uptime_seconds[24h])) or vector(0)",
           "legendFormat": "uptime_resets"
         }
       ],
@@ -935,7 +935,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\",job=\"live_overlay\"}[24h])) or sum(increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\"}[24h])) or vector(0)",
+          "expr": "sum(increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\",job=~\"$job\"}[24h])) or sum(increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\"}[24h])) or vector(0)",
           "legendFormat": "restart_causes_count"
         }
       ],
@@ -984,19 +984,19 @@
       },
       "targets": [
         {
-          "expr": "rate(live_overlay_smc_live_auth_denied{job=\"live_overlay\"}[$__rate_interval]) or vector(0)",
+          "expr": "rate(live_overlay_smc_live_auth_denied{job=~\"$job\"}[$__rate_interval]) or vector(0)",
           "legendFormat": "auth denied"
         },
         {
-          "expr": "rate(live_overlay_smc_live_cache_miss_total{job=\"live_overlay\"}[$__rate_interval]) or vector(0)",
+          "expr": "rate(live_overlay_smc_live_cache_miss_total{job=~\"$job\"}[$__rate_interval]) or vector(0)",
           "legendFormat": "cache miss"
         },
         {
-          "expr": "rate(live_overlay_smc_live_bad_tf_total{job=\"live_overlay\"}[$__rate_interval]) or vector(0)",
+          "expr": "rate(live_overlay_smc_live_bad_tf_total{job=~\"$job\"}[$__rate_interval]) or vector(0)",
           "legendFormat": "bad tf"
         },
         {
-          "expr": "rate(live_overlay_smc_live_errors_total{job=\"live_overlay\"}[$__rate_interval]) or vector(0)",
+          "expr": "rate(live_overlay_smc_live_errors_total{job=~\"$job\"}[$__rate_interval]) or vector(0)",
           "legendFormat": "errors"
         }
       ],
@@ -1038,7 +1038,7 @@
       },
       "targets": [
         {
-          "expr": "100 * live_overlay_overlay_age_seconds{job=\"live_overlay\"} / clamp_min(live_overlay_max_stale_seconds{job=\"live_overlay\"}, 1)",
+          "expr": "100 * live_overlay_overlay_age_seconds{job=~\"$job\"} / clamp_min(live_overlay_max_stale_seconds{job=~\"$job\"}, 1)",
           "legendFormat": "stale_budget_used"
         }
       ],
@@ -1095,19 +1095,19 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_feed_healthy{job=\"live_overlay\"}",
+          "expr": "live_overlay_feed_healthy{job=~\"$job\"}",
           "legendFormat": "feed_healthy"
         },
         {
-          "expr": "live_overlay_workers_healthy{job=\"live_overlay\"}",
+          "expr": "live_overlay_workers_healthy{job=~\"$job\"}",
           "legendFormat": "workers_healthy"
         },
         {
-          "expr": "live_overlay_overlay_fresh{job=\"live_overlay\"} or vector(0)",
+          "expr": "live_overlay_overlay_fresh{job=~\"$job\"} or vector(0)",
           "legendFormat": "overlay_fresh"
         },
         {
-          "expr": "live_overlay_market_open{job=\"live_overlay\"}",
+          "expr": "live_overlay_market_open{job=~\"$job\"}",
           "legendFormat": "market_open"
         }
       ],
@@ -1170,7 +1170,7 @@
       },
       "targets": [
         {
-          "expr": "rate(live_overlay_smc_live_stale_served_total{job=\"live_overlay\"}[$__rate_interval]) or vector(0)",
+          "expr": "rate(live_overlay_smc_live_stale_served_total{job=~\"$job\"}[$__rate_interval]) or vector(0)",
           "legendFormat": "stale served/s"
         }
       ],
@@ -1223,7 +1223,7 @@
       },
       "targets": [
         {
-          "expr": "(rate(live_overlay_smc_live_latency_sum_ms{job=\"live_overlay\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_sum_ms[$__rate_interval]) or vector(0)) / clamp_min((rate(live_overlay_smc_live_latency_count{job=\"live_overlay\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_count[$__rate_interval]) or vector(0)), 1e-9)",
+          "expr": "(rate(live_overlay_smc_live_latency_sum_ms{job=~\"$job\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_sum_ms[$__rate_interval]) or vector(0)) / clamp_min((rate(live_overlay_smc_live_latency_count{job=~\"$job\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_count[$__rate_interval]) or vector(0)), 1e-9)",
           "legendFormat": "avg latency"
         }
       ],
@@ -1280,27 +1280,27 @@
       },
       "targets": [
         {
-          "expr": "rate(live_overlay_smc_live_latency_bucket_le_50{job=\"live_overlay\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_50[$__rate_interval]) or vector(0)",
+          "expr": "rate(live_overlay_smc_live_latency_bucket_le_50{job=~\"$job\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_50[$__rate_interval]) or vector(0)",
           "legendFormat": "<=50ms"
         },
         {
-          "expr": "rate(live_overlay_smc_live_latency_bucket_le_100{job=\"live_overlay\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_100[$__rate_interval]) or vector(0)",
+          "expr": "rate(live_overlay_smc_live_latency_bucket_le_100{job=~\"$job\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_100[$__rate_interval]) or vector(0)",
           "legendFormat": "<=100ms"
         },
         {
-          "expr": "rate(live_overlay_smc_live_latency_bucket_le_250{job=\"live_overlay\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_250[$__rate_interval]) or vector(0)",
+          "expr": "rate(live_overlay_smc_live_latency_bucket_le_250{job=~\"$job\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_250[$__rate_interval]) or vector(0)",
           "legendFormat": "<=250ms"
         },
         {
-          "expr": "rate(live_overlay_smc_live_latency_bucket_le_500{job=\"live_overlay\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_500[$__rate_interval]) or vector(0)",
+          "expr": "rate(live_overlay_smc_live_latency_bucket_le_500{job=~\"$job\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_500[$__rate_interval]) or vector(0)",
           "legendFormat": "<=500ms"
         },
         {
-          "expr": "rate(live_overlay_smc_live_latency_bucket_le_1000{job=\"live_overlay\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_1000[$__rate_interval]) or vector(0)",
+          "expr": "rate(live_overlay_smc_live_latency_bucket_le_1000{job=~\"$job\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_1000[$__rate_interval]) or vector(0)",
           "legendFormat": "<=1000ms"
         },
         {
-          "expr": "rate(live_overlay_smc_live_latency_bucket_le_inf{job=\"live_overlay\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_inf[$__rate_interval]) or vector(0)",
+          "expr": "rate(live_overlay_smc_live_latency_bucket_le_inf{job=~\"$job\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_inf[$__rate_interval]) or vector(0)",
           "legendFormat": "<=inf"
         }
       ],
@@ -1354,7 +1354,7 @@
       },
       "targets": [
         {
-          "expr": "((live_overlay_uptimerobot_scrape_success{job=\"live_overlay\"} or live_overlay_uptimerobot_scrape_success or vector(0)) * 2) + (live_overlay_uptimerobot_bridge_enabled{job=\"live_overlay\"} or live_overlay_uptimerobot_bridge_enabled or vector(0))",
+          "expr": "(live_overlay_uptimerobot_bridge_enabled{job=~\"$job\"} or vector(0)) + (live_overlay_uptimerobot_scrape_success{job=~\"$job\"} or vector(0))",
           "legendFormat": "bridge_state"
         }
       ],
@@ -1413,7 +1413,7 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_uptimerobot_bridge_enabled{job=\"live_overlay\"} * (1 + (live_overlay_uptimerobot_snapshot_age_seconds{job=\"live_overlay\"} > bool 0))",
+          "expr": "live_overlay_uptimerobot_snapshot_age_seconds{job=~\"$job\"} or vector(-1)",
           "legendFormat": "snapshot_age"
         }
       ],
@@ -1430,13 +1430,17 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "none",
+          "unit": "s",
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "gray",
                 "value": null
+              },
+              {
+                "color": "green",
+                "value": 0
               },
               {
                 "color": "yellow",
@@ -1452,13 +1456,10 @@
             {
               "type": "value",
               "options": {
-                "0": {
+                "-1": {
                   "text": "DISABLED",
-                  "color": "gray"
-                },
-                "1": {
-                  "text": "AGE 0s",
-                  "color": "green"
+                  "color": "gray",
+                  "index": 0
                 }
               }
             }
@@ -1477,23 +1478,23 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_uptimerobot_monitors_total_total{job=\"live_overlay\"} or live_overlay_uptimerobot_monitors_total_total or vector(0)",
+          "expr": "live_overlay_uptimerobot_monitors_total_total{job=~\"$job\"} or live_overlay_uptimerobot_monitors_total_total or vector(0)",
           "legendFormat": "total"
         },
         {
-          "expr": "live_overlay_uptimerobot_monitors_up_total{job=\"live_overlay\"} or live_overlay_uptimerobot_monitors_up_total or vector(0)",
+          "expr": "live_overlay_uptimerobot_monitors_up_total{job=~\"$job\"} or live_overlay_uptimerobot_monitors_up_total or vector(0)",
           "legendFormat": "up"
         },
         {
-          "expr": "live_overlay_uptimerobot_monitors_down_total{job=\"live_overlay\"} or live_overlay_uptimerobot_monitors_down_total or vector(0)",
+          "expr": "live_overlay_uptimerobot_monitors_down_total{job=~\"$job\"} or live_overlay_uptimerobot_monitors_down_total or vector(0)",
           "legendFormat": "down"
         },
         {
-          "expr": "live_overlay_uptimerobot_monitors_paused_total{job=\"live_overlay\"} or live_overlay_uptimerobot_monitors_paused_total or vector(0)",
+          "expr": "live_overlay_uptimerobot_monitors_paused_total{job=~\"$job\"} or live_overlay_uptimerobot_monitors_paused_total or vector(0)",
           "legendFormat": "paused"
         },
         {
-          "expr": "live_overlay_uptimerobot_monitors_response_time_ms_avg{job=\"live_overlay\"} or live_overlay_uptimerobot_monitors_response_time_ms_avg or vector(0)",
+          "expr": "live_overlay_uptimerobot_monitors_response_time_ms_avg{job=~\"$job\"} or live_overlay_uptimerobot_monitors_response_time_ms_avg or vector(0)",
           "legendFormat": "avg response (ms)"
         }
       ],
@@ -1542,7 +1543,7 @@
       },
       "targets": [
         {
-          "expr": "((live_overlay_github_workflow_scrape_success{job=\"live_overlay\"} or live_overlay_github_workflow_scrape_success or vector(0)) * 2) + (live_overlay_github_workflow_bridge_enabled{job=\"live_overlay\"} or live_overlay_github_workflow_bridge_enabled or vector(0))",
+          "expr": "(live_overlay_github_workflow_bridge_enabled{job=~\"$job\"} or vector(0)) + (live_overlay_github_workflow_scrape_success{job=~\"$job\"} or vector(0))",
           "legendFormat": "bridge_state"
         }
       ],
@@ -1601,7 +1602,7 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_github_workflow_bridge_enabled{job=\"live_overlay\"} * (1 + (live_overlay_github_workflow_snapshot_age_seconds{job=\"live_overlay\"} > bool 0))",
+          "expr": "live_overlay_github_workflow_snapshot_age_seconds{job=~\"$job\"} or vector(-1)",
           "legendFormat": "snapshot_age"
         }
       ],
@@ -1618,13 +1619,17 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "none",
+          "unit": "s",
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "gray",
                 "value": null
+              },
+              {
+                "color": "green",
+                "value": 0
               },
               {
                 "color": "yellow",
@@ -1640,13 +1645,10 @@
             {
               "type": "value",
               "options": {
-                "0": {
+                "-1": {
                   "text": "DISABLED",
-                  "color": "gray"
-                },
-                "1": {
-                  "text": "AGE 0s",
-                  "color": "green"
+                  "color": "gray",
+                  "index": 0
                 }
               }
             }
@@ -1665,23 +1667,23 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_github_workflow_runs_seen_total{job=\"live_overlay\"} or live_overlay_github_workflow_runs_seen_total or vector(0)",
+          "expr": "live_overlay_github_workflow_runs_seen_total{job=~\"$job\"} or live_overlay_github_workflow_runs_seen_total or vector(0)",
           "legendFormat": "seen"
         },
         {
-          "expr": "live_overlay_github_workflow_runs_success_total{job=\"live_overlay\"} or live_overlay_github_workflow_runs_success_total or vector(0)",
+          "expr": "live_overlay_github_workflow_runs_success_total{job=~\"$job\"} or live_overlay_github_workflow_runs_success_total or vector(0)",
           "legendFormat": "success"
         },
         {
-          "expr": "live_overlay_github_workflow_runs_failed_total{job=\"live_overlay\"} or live_overlay_github_workflow_runs_failed_total or vector(0)",
+          "expr": "live_overlay_github_workflow_runs_failed_total{job=~\"$job\"} or live_overlay_github_workflow_runs_failed_total or vector(0)",
           "legendFormat": "failed"
         },
         {
-          "expr": "live_overlay_github_workflow_runs_in_progress_total{job=\"live_overlay\"} or live_overlay_github_workflow_runs_in_progress_total or vector(0)",
+          "expr": "live_overlay_github_workflow_runs_in_progress_total{job=~\"$job\"} or live_overlay_github_workflow_runs_in_progress_total or vector(0)",
           "legendFormat": "in_progress"
         },
         {
-          "expr": "live_overlay_github_workflow_runs_queued_total{job=\"live_overlay\"} or live_overlay_github_workflow_runs_queued_total or vector(0)",
+          "expr": "live_overlay_github_workflow_runs_queued_total{job=~\"$job\"} or live_overlay_github_workflow_runs_queued_total or vector(0)",
           "legendFormat": "queued"
         }
       ],
@@ -1716,11 +1718,11 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_github_workflow_latest_run_age_seconds{job=\"live_overlay\"} or live_overlay_github_workflow_latest_run_age_seconds or vector(0)",
+          "expr": "live_overlay_github_workflow_latest_run_age_seconds{job=~\"$job\"} or live_overlay_github_workflow_latest_run_age_seconds or vector(0)",
           "legendFormat": "latest age (s)"
         },
         {
-          "expr": "live_overlay_github_workflow_latest_run_duration_seconds{job=\"live_overlay\"} or live_overlay_github_workflow_latest_run_duration_seconds or vector(0)",
+          "expr": "live_overlay_github_workflow_latest_run_duration_seconds{job=~\"$job\"} or live_overlay_github_workflow_latest_run_duration_seconds or vector(0)",
           "legendFormat": "latest duration (s)"
         }
       ],
@@ -1781,19 +1783,19 @@
       },
       "targets": [
         {
-          "expr": "max_over_time(live_overlay_market_us_open{job=\"live_overlay\"}[5m]) or max_over_time(live_overlay_market_us_open[5m]) or vector(0)",
+          "expr": "max_over_time(live_overlay_market_us_open{job=~\"$job\"}[5m]) or max_over_time(live_overlay_market_us_open[5m]) or vector(0)",
           "legendFormat": "US",
           "instant": false,
           "range": true
         },
         {
-          "expr": "max_over_time(live_overlay_market_europe_open{job=\"live_overlay\"}[5m]) or max_over_time(live_overlay_market_europe_open[5m]) or vector(0)",
+          "expr": "max_over_time(live_overlay_market_europe_open{job=~\"$job\"}[5m]) or max_over_time(live_overlay_market_europe_open[5m]) or vector(0)",
           "legendFormat": "Europe",
           "instant": false,
           "range": true
         },
         {
-          "expr": "max_over_time(live_overlay_market_asia_open{job=\"live_overlay\"}[5m]) or max_over_time(live_overlay_market_asia_open[5m]) or vector(0)",
+          "expr": "max_over_time(live_overlay_market_asia_open{job=~\"$job\"}[5m]) or max_over_time(live_overlay_market_asia_open[5m]) or vector(0)",
           "legendFormat": "Asia",
           "instant": false,
           "range": true
@@ -1870,11 +1872,11 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_smc_live_latency_p95_ms{job=\"live_overlay\"} or live_overlay_smc_live_latency_p95_ms or vector(0)",
+          "expr": "live_overlay_smc_live_latency_p95_ms{job=~\"$job\"} or live_overlay_smc_live_latency_p95_ms or vector(0)",
           "legendFormat": "p95"
         },
         {
-          "expr": "live_overlay_smc_live_latency_p99_ms{job=\"live_overlay\"} or live_overlay_smc_live_latency_p99_ms or vector(0)",
+          "expr": "live_overlay_smc_live_latency_p99_ms{job=~\"$job\"} or live_overlay_smc_live_latency_p99_ms or vector(0)",
           "legendFormat": "p99"
         }
       ],
@@ -1930,7 +1932,7 @@
       },
       "targets": [
         {
-          "expr": "100 * ((sum(sum_over_time((((live_overlay_overlay_fresh{job=\"live_overlay\"} or live_overlay_overlay_fresh or vector(1)) * (live_overlay_market_open{job=\"live_overlay\"} or live_overlay_market_open or vector(0))))[1h:])) + (sum(sum_over_time((live_overlay_market_open{job=\"live_overlay\"} or live_overlay_market_open or vector(0))[1h:])) == bool 0)) / clamp_min(sum(sum_over_time((live_overlay_market_open{job=\"live_overlay\"} or live_overlay_market_open or vector(0))[1h:])), 1))",
+          "expr": "100 * ((sum(sum_over_time((((live_overlay_overlay_fresh{job=~\"$job\"} or live_overlay_overlay_fresh or vector(1)) * (live_overlay_market_open{job=~\"$job\"} or live_overlay_market_open or vector(0))))[1h:])) + (sum(sum_over_time((live_overlay_market_open{job=~\"$job\"} or live_overlay_market_open or vector(0))[1h:])) == bool 0)) / clamp_min(sum(sum_over_time((live_overlay_market_open{job=~\"$job\"} or live_overlay_market_open or vector(0))[1h:])), 1))",
           "legendFormat": "freshness_slo"
         }
       ],
@@ -1981,7 +1983,7 @@
       },
       "targets": [
         {
-          "expr": "count(live_overlay_uptime_seconds{job=\"live_overlay\"}) > bool 0",
+          "expr": "count(live_overlay_uptime_seconds{job=~\"$job\"}) > bool 0",
           "legendFormat": "core_metrics_present"
         }
       ],
@@ -2040,11 +2042,11 @@
       },
       "targets": [
         {
-          "expr": "((sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[5m])) > bool 1e-6) * ((1 - (sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[5m])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[5m])), 1e-9))) / 0.01)) or vector(0)",
+          "expr": "((sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[5m])) > bool 1e-6) * ((1 - (sum(rate(live_overlay_smc_live_success_total{job=~\"$job\"}[5m])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[5m])), 1e-9))) / 0.01)) or vector(0)",
           "legendFormat": "burn_5m"
         },
         {
-          "expr": "((sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[1h])) > bool 1e-6) * ((1 - (sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[1h])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[1h])), 1e-9))) / 0.01)) or vector(0)",
+          "expr": "((sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[1h])) > bool 1e-6) * ((1 - (sum(rate(live_overlay_smc_live_success_total{job=~\"$job\"}[1h])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=~\"$job\"}[1h])), 1e-9))) / 0.01)) or vector(0)",
           "legendFormat": "burn_1h"
         }
       ],
@@ -2100,13 +2102,13 @@
       },
       "targets": [
         {
-          "expr": "max_over_time(live_overlay_uptimerobot_scrape_success{job=\"live_overlay\"}[5m]) or max_over_time(live_overlay_uptimerobot_scrape_success[5m]) or vector(0)",
+          "expr": "max_over_time(live_overlay_uptimerobot_scrape_success{job=~\"$job\"}[5m]) or max_over_time(live_overlay_uptimerobot_scrape_success[5m]) or vector(0)",
           "legendFormat": "UptimeRobot",
           "instant": false,
           "range": true
         },
         {
-          "expr": "max_over_time(live_overlay_github_workflow_scrape_success{job=\"live_overlay\"}[5m]) or max_over_time(live_overlay_github_workflow_scrape_success[5m]) or vector(0)",
+          "expr": "max_over_time(live_overlay_github_workflow_scrape_success{job=~\"$job\"}[5m]) or max_over_time(live_overlay_github_workflow_scrape_success[5m]) or vector(0)",
           "legendFormat": "GitHub Workflows",
           "instant": false,
           "range": true
@@ -2171,7 +2173,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (__name__) (increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\",job=\"live_overlay\"}[24h])) or sum by (__name__) (increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\"}[24h])) or vector(0)",
+          "expr": "sum by (__name__) (increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\",job=~\"$job\"}[24h])) or sum by (__name__) (increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\"}[24h])) or vector(0)",
           "legendFormat": "{{__name__}}"
         }
       ],
@@ -2196,7 +2198,7 @@
       }
     },
     {
-      "title": "Hotspots — Symbols (Top)",
+      "title": "Hotspots \u2014 Symbols (Top)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -2206,7 +2208,7 @@
       },
       "targets": [
         {
-          "expr": "{__name__=~\"live_overlay_hotspot_symbol_.*_requests_total\",job=\"live_overlay\"} or {__name__=~\"live_overlay_hotspot_symbol_.*_requests_total\"} or vector(0)",
+          "expr": "{__name__=~\"live_overlay_hotspot_symbol_.*_requests_total\",job=~\"$job\"} or {__name__=~\"live_overlay_hotspot_symbol_.*_requests_total\"} or vector(0)",
           "legendFormat": "{{__name__}}"
         }
       ],
@@ -2231,7 +2233,7 @@
       }
     },
     {
-      "title": "Hotspots — Timeframes (Top)",
+      "title": "Hotspots \u2014 Timeframes (Top)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -2241,7 +2243,7 @@
       },
       "targets": [
         {
-          "expr": "{__name__=~\"live_overlay_hotspot_tf_.*_requests_total\",job=\"live_overlay\"} or {__name__=~\"live_overlay_hotspot_tf_.*_requests_total\"} or vector(0)",
+          "expr": "{__name__=~\"live_overlay_hotspot_tf_.*_requests_total\",job=~\"$job\"} or {__name__=~\"live_overlay_hotspot_tf_.*_requests_total\"} or vector(0)",
           "legendFormat": "{{__name__}}"
         }
       ],
@@ -2276,15 +2278,15 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_feed_ingest_queue_depth{job=\"live_overlay\"} or live_overlay_feed_ingest_queue_depth or vector(0)",
+          "expr": "live_overlay_feed_ingest_queue_depth{job=~\"$job\"} or live_overlay_feed_ingest_queue_depth or vector(0)",
           "legendFormat": "depth"
         },
         {
-          "expr": "live_overlay_feed_ingest_queue_depth_max{job=\"live_overlay\"} or live_overlay_feed_ingest_queue_depth_max or vector(0)",
+          "expr": "live_overlay_feed_ingest_queue_depth_max{job=~\"$job\"} or live_overlay_feed_ingest_queue_depth_max or vector(0)",
           "legendFormat": "depth max"
         },
         {
-          "expr": "live_overlay_feed_ingest_queue_dropped_total{job=\"live_overlay\"} or live_overlay_feed_ingest_queue_dropped_total or vector(0)",
+          "expr": "live_overlay_feed_ingest_queue_dropped_total{job=~\"$job\"} or live_overlay_feed_ingest_queue_dropped_total or vector(0)",
           "legendFormat": "dropped total"
         }
       ],
@@ -2319,11 +2321,11 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_feed_ingest_queue_lag_ms_last{job=\"live_overlay\"} or live_overlay_feed_ingest_queue_lag_ms_last or vector(0)",
+          "expr": "live_overlay_feed_ingest_queue_lag_ms_last{job=~\"$job\"} or live_overlay_feed_ingest_queue_lag_ms_last or vector(0)",
           "legendFormat": "lag last"
         },
         {
-          "expr": "live_overlay_feed_ingest_queue_lag_ms_max{job=\"live_overlay\"} or live_overlay_feed_ingest_queue_lag_ms_max or vector(0)",
+          "expr": "live_overlay_feed_ingest_queue_lag_ms_max{job=~\"$job\"} or live_overlay_feed_ingest_queue_lag_ms_max or vector(0)",
           "legendFormat": "lag max"
         }
       ],
@@ -2387,19 +2389,19 @@
       },
       "targets": [
         {
-          "expr": "max_over_time(live_overlay_provider_news_health_ok{job=\"live_overlay\"}[5m]) or max_over_time(live_overlay_provider_news_health_ok[5m]) or vector(0)",
+          "expr": "max_over_time(live_overlay_provider_news_health_ok{job=~\"$job\"}[5m]) or max_over_time(live_overlay_provider_news_health_ok[5m]) or vector(0)",
           "legendFormat": "health_ok",
           "instant": false,
           "range": true
         },
         {
-          "expr": "max_over_time(live_overlay_provider_news_health_degraded{job=\"live_overlay\"}[5m]) or max_over_time(live_overlay_provider_news_health_degraded[5m]) or vector(0)",
+          "expr": "max_over_time(live_overlay_provider_news_health_degraded{job=~\"$job\"}[5m]) or max_over_time(live_overlay_provider_news_health_degraded[5m]) or vector(0)",
           "legendFormat": "health_degraded",
           "instant": false,
           "range": true
         },
         {
-          "expr": "max_over_time(live_overlay_provider_news_health_unknown{job=\"live_overlay\"}[5m]) or max_over_time(live_overlay_provider_news_health_unknown[5m]) or vector(0)",
+          "expr": "max_over_time(live_overlay_provider_news_health_unknown{job=~\"$job\"}[5m]) or max_over_time(live_overlay_provider_news_health_unknown[5m]) or vector(0)",
           "legendFormat": "health_unknown",
           "instant": false,
           "range": true
@@ -2464,19 +2466,19 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_provider_news_snapshot_age_seconds{job=\"live_overlay\"} or live_overlay_provider_news_snapshot_age_seconds or vector(0)",
+          "expr": "live_overlay_provider_news_snapshot_age_seconds{job=~\"$job\"} or live_overlay_provider_news_snapshot_age_seconds or vector(0)",
           "legendFormat": "snapshot age (s)"
         },
         {
-          "expr": "live_overlay_provider_news_providers_total{job=\"live_overlay\"} or live_overlay_provider_news_providers_total or vector(0)",
+          "expr": "live_overlay_provider_news_providers_total{job=~\"$job\"} or live_overlay_provider_news_providers_total or vector(0)",
           "legendFormat": "providers total"
         },
         {
-          "expr": "live_overlay_provider_news_providers_ok_total{job=\"live_overlay\"} or live_overlay_provider_news_providers_ok_total or vector(0)",
+          "expr": "live_overlay_provider_news_providers_ok_total{job=~\"$job\"} or live_overlay_provider_news_providers_ok_total or vector(0)",
           "legendFormat": "providers ok"
         },
         {
-          "expr": "live_overlay_provider_news_providers_degraded_total{job=\"live_overlay\"} or live_overlay_provider_news_providers_degraded_total or vector(0)",
+          "expr": "live_overlay_provider_news_providers_degraded_total{job=~\"$job\"} or live_overlay_provider_news_providers_degraded_total or vector(0)",
           "legendFormat": "providers degraded"
         }
       ],
@@ -2501,7 +2503,7 @@
       }
     },
     {
-      "title": "News Providers — OK/Degraded (Drill-down)",
+      "title": "News Providers \u2014 OK/Degraded (Drill-down)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -2511,7 +2513,7 @@
       },
       "targets": [
         {
-          "expr": "(({__name__=~\"live_overlay_provider_news_.*_(ok|degraded)\",job=\"live_overlay\"} or {__name__=~\"live_overlay_provider_news_.*_(ok|degraded)\"}) unless ({__name__=~\"live_overlay_provider_news_health_(ok|degraded)\",job=\"live_overlay\"} or {__name__=~\"live_overlay_provider_news_health_(ok|degraded)\"})) or vector(0)",
+          "expr": "(({__name__=~\"live_overlay_provider_news_.*_(ok|degraded)\",job=~\"$job\"} or {__name__=~\"live_overlay_provider_news_.*_(ok|degraded)\"}) unless ({__name__=~\"live_overlay_provider_news_health_(ok|degraded)\",job=~\"$job\"} or {__name__=~\"live_overlay_provider_news_health_(ok|degraded)\"})) or vector(0)",
           "legendFormat": "{{__name__}}"
         }
       ],
@@ -2538,7 +2540,7 @@
       }
     },
     {
-      "title": "News Providers — State Code",
+      "title": "News Providers \u2014 State Code",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -2548,7 +2550,7 @@
       },
       "targets": [
         {
-          "expr": "{__name__=~\"live_overlay_provider_news_.*_state_code\",job=\"live_overlay\"} or {__name__=~\"live_overlay_provider_news_.*_state_code\"} or vector(0)",
+          "expr": "{__name__=~\"live_overlay_provider_news_.*_state_code\",job=~\"$job\"} or {__name__=~\"live_overlay_provider_news_.*_state_code\"} or vector(0)",
           "legendFormat": "{{__name__}}"
         }
       ],

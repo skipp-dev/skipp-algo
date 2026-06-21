@@ -27,9 +27,10 @@ def test_phase_code_mapping() -> None:
 
 
 def test_iso_age_seconds() -> None:
-    recent = "2026-06-21T12:00:00Z"
-    age = github_workflow_bridge._iso_age_seconds(recent)
-    assert age is not None and age > 0
+    from datetime import datetime, timezone, timedelta
+    one_hour_ago = (datetime.now(timezone.utc) - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    age = github_workflow_bridge._iso_age_seconds(one_hour_ago)
+    assert age is not None and 3500 < age < 3700
     assert github_workflow_bridge._iso_age_seconds(None) is None
     assert github_workflow_bridge._iso_age_seconds("") is None
     assert github_workflow_bridge._iso_age_seconds("not-a-date") is None
