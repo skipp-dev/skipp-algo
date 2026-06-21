@@ -126,8 +126,12 @@ def _provider_health_snapshot() -> dict[str, object]:
             if isinstance(raw, dict):
                 providers_obj = raw.get("providers") or {}
                 snapshot_loaded = 1.0
-            stat = path.stat()
-            snapshot_age_seconds = max(0.0, time.time() - float(stat.st_mtime))
+                # Prefer fetched_at_unix embedded in snapshot (written by live producer).
+                # Falls back to 0.0 for static seed files (avoids false-positive stale alerts).
+                fetched_at = raw.get("fetched_at_unix")
+                if fetched_at and math.isfinite(float(fetched_at)) and float(fetched_at) > 0:
+                    snapshot_age_seconds = max(0.0, time.time() - float(fetched_at))
+                # else: keep 0.0 — no live producer has written a timestamp yet
         except Exception:
             providers_obj = {}
 

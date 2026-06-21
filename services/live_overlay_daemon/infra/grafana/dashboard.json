@@ -154,17 +154,17 @@
       "type": "timeseries",
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
       "targets": [
-        {"expr": "rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "smc_live total"},
-        {"expr": "rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "success"},
-        {"expr": "rate(live_overlay_smc_live_auth_denied{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "auth denied"},
-        {"expr": "rate(live_overlay_smc_live_cache_miss_total{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "cache miss"}
+        {"expr": "rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)", "legendFormat": "smc_live total"},
+        {"expr": "rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)", "legendFormat": "success"},
+        {"expr": "rate(live_overlay_smc_live_auth_denied{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)", "legendFormat": "auth denied"},
+        {"expr": "rate(live_overlay_smc_live_cache_miss_total{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)", "legendFormat": "cache miss"}
       ],
       "options": {
         "tooltip": {"mode": "multi", "sort": "none"},
         "legend": {"displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": ["mean", "lastNotNull"]}
       },
       "fieldConfig": {
-        "defaults": {"unit": "reqps"},
+        "defaults": {"unit": "reqps", "noValue": "MARKET CLOSED"},
         "overrides": [
           {
             "matcher": {"id": "byName", "options": "auth denied"},
@@ -333,7 +333,7 @@
       "gridPos": {"h": 6, "w": 8, "x": 0, "y": 26},
       "targets": [
         {
-          "expr": "100 * sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[$__rate_interval])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[$__rate_interval])), 1e-9)",
+          "expr": "(100 * sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[$__rate_interval])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[$__rate_interval])), 1e-9)) and on() (max(live_overlay_market_open{job=\"live_overlay\"}) == 1)",
           "legendFormat": "success_rate"
         }
       ],
@@ -344,6 +344,7 @@
       },
       "fieldConfig": {
         "defaults": {
+          "noValue": "MARKET CLOSED",
           "unit": "percent",
           "decimals": 2,
           "min": 0,
@@ -365,7 +366,7 @@
       "gridPos": {"h": 6, "w": 8, "x": 8, "y": 26},
       "targets": [
         {
-          "expr": "live_overlay_market_open{job=\"live_overlay\"} + (live_overlay_market_open{job=\"live_overlay\"} * (rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[$__rate_interval]) > bool 0.001))",
+          "expr": "(max(live_overlay_market_open{job=\"live_overlay\"}) * (1 + ((sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[$__rate_interval])) > bool 0.001) or vector(0)))) or vector(0)",
           "legendFormat": "open_req_health"
         }
       ],
@@ -431,10 +432,10 @@
       "type": "timeseries",
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32},
       "targets": [
-        {"expr": "rate(live_overlay_smc_live_auth_denied{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "auth denied"},
-        {"expr": "rate(live_overlay_smc_live_cache_miss_total{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "cache miss"},
-        {"expr": "rate(live_overlay_smc_live_bad_tf_total{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "bad tf"},
-        {"expr": "rate(live_overlay_smc_live_errors_total{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "errors"}
+        {"expr": "rate(live_overlay_smc_live_auth_denied{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)", "legendFormat": "auth denied"},
+        {"expr": "rate(live_overlay_smc_live_cache_miss_total{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)", "legendFormat": "cache miss"},
+        {"expr": "rate(live_overlay_smc_live_bad_tf_total{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)", "legendFormat": "bad tf"},
+        {"expr": "rate(live_overlay_smc_live_errors_total{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)", "legendFormat": "errors"}
       ],
       "options": {
         "tooltip": {"mode": "multi", "sort": "none"},
@@ -442,6 +443,7 @@
       },
       "fieldConfig": {
         "defaults": {
+          "noValue": "MARKET CLOSED",
           "unit": "reqps",
           "custom": {"stacking": {"mode": "normal", "group": "A"}}
         }
@@ -508,7 +510,7 @@
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 40},
       "targets": [
         {
-          "expr": "rate(live_overlay_smc_live_stale_served_total{job=\"live_overlay\"}[$__rate_interval])",
+          "expr": "rate(live_overlay_smc_live_stale_served_total{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)",
           "legendFormat": "stale served/s"
         }
       ],
@@ -518,6 +520,7 @@
       },
       "fieldConfig": {
         "defaults": {
+          "noValue": "MARKET CLOSED",
           "unit": "reqps",
           "thresholds": {
             "mode": "absolute",
@@ -536,7 +539,7 @@
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 48},
       "targets": [
         {
-          "expr": "rate(live_overlay_smc_live_latency_sum_ms{job=\"live_overlay\"}[$__rate_interval]) / clamp_min(rate(live_overlay_smc_live_latency_count{job=\"live_overlay\"}[$__rate_interval]), 1e-9)",
+          "expr": "(rate(live_overlay_smc_live_latency_sum_ms{job=\"live_overlay\"}[$__rate_interval]) / clamp_min(rate(live_overlay_smc_live_latency_count{job=\"live_overlay\"}[$__rate_interval]), 1e-9)) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)",
           "legendFormat": "avg latency"
         }
       ],
@@ -546,6 +549,7 @@
       },
       "fieldConfig": {
         "defaults": {
+          "noValue": "MARKET CLOSED",
           "unit": "ms",
           "thresholds": {
             "mode": "absolute",
@@ -564,12 +568,12 @@
       "type": "timeseries",
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 48},
       "targets": [
-        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_50{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "<=50ms"},
-        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_100{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "<=100ms"},
-        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_250{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "<=250ms"},
-        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_500{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "<=500ms"},
-        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_1000{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "<=1000ms"},
-        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_inf{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "<=inf"}
+        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_50{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)", "legendFormat": "<=50ms"},
+        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_100{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)", "legendFormat": "<=100ms"},
+        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_250{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)", "legendFormat": "<=250ms"},
+        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_500{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)", "legendFormat": "<=500ms"},
+        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_1000{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)", "legendFormat": "<=1000ms"},
+        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_inf{job=\"live_overlay\"}[$__rate_interval]) and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)", "legendFormat": "<=inf"}
       ],
       "options": {
         "tooltip": {"mode": "multi", "sort": "none"},
@@ -577,6 +581,7 @@
       },
       "fieldConfig": {
         "defaults": {
+          "noValue": "MARKET CLOSED",
           "unit": "reqps",
           "custom": {"stacking": {"mode": "none", "group": "A"}}
         }
@@ -595,7 +600,7 @@
       "gridPos": {"h": 4, "w": 6, "x": 0, "y": 57},
       "targets": [
         {
-          "expr": "live_overlay_uptimerobot_scrape_success{job=\"live_overlay\"}*2 + live_overlay_uptimerobot_bridge_enabled{job=\"live_overlay\"}",
+          "expr": "live_overlay_uptimerobot_bridge_enabled{job=\"live_overlay\"} + live_overlay_uptimerobot_scrape_success{job=\"live_overlay\"}",
           "legendFormat": "bridge_state"
         }
       ],
@@ -682,7 +687,7 @@
       "gridPos": {"h": 4, "w": 6, "x": 0, "y": 65},
       "targets": [
         {
-          "expr": "live_overlay_github_workflow_scrape_success{job=\"live_overlay\"}*2 + live_overlay_github_workflow_bridge_enabled{job=\"live_overlay\"}",
+          "expr": "live_overlay_github_workflow_bridge_enabled{job=\"live_overlay\"} + live_overlay_github_workflow_scrape_success{job=\"live_overlay\"}",
           "legendFormat": "bridge_state"
         }
       ],
@@ -835,8 +840,8 @@
       "type": "timeseries",
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 90},
       "targets": [
-        {"expr": "live_overlay_smc_live_latency_p95_ms{job=\"live_overlay\"}", "legendFormat": "p95"},
-        {"expr": "live_overlay_smc_live_latency_p99_ms{job=\"live_overlay\"}", "legendFormat": "p99"}
+        {"expr": "live_overlay_smc_live_latency_p95_ms{job=\"live_overlay\"} and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)", "legendFormat": "p95"},
+        {"expr": "live_overlay_smc_live_latency_p99_ms{job=\"live_overlay\"} and on(job) (live_overlay_market_open{job=\"live_overlay\"} == 1)", "legendFormat": "p99"}
       ],
       "options": {
         "tooltip": {"mode": "multi", "sort": "none"},
@@ -844,6 +849,7 @@
       },
       "fieldConfig": {
         "defaults": {
+          "noValue": "MARKET CLOSED",
           "unit": "ms",
           "thresholds": {
             "mode": "absolute",
@@ -874,6 +880,7 @@
       },
       "fieldConfig": {
         "defaults": {
+          "noValue": "MARKET CLOSED",
           "unit": "percent",
           "min": 0,
           "max": 100,
@@ -889,13 +896,13 @@
       }
     },
     {
-      "title": "No-Data Guard (Core Metrics)",
+      "title": "Market Session Banner",
       "type": "stat",
       "gridPos": {"h": 8, "w": 6, "x": 18, "y": 90},
       "targets": [
         {
-          "expr": "1 - (absent(live_overlay_uptime_seconds{job=\"live_overlay\"}) or vector(0))",
-          "legendFormat": "core_metrics_present"
+          "expr": "((2 * (max(live_overlay_market_open{job=\"live_overlay\"}) or vector(0))) + (clamp_max(count(live_overlay_uptime_seconds{job=\"live_overlay\"}), 1) or vector(0)))",
+          "legendFormat": "market_session_banner"
         }
       ],
       "options": {
@@ -909,12 +916,22 @@
             {
               "type": "value",
               "options": {
-                "0": {"text": "MISSING", "color": "red"},
-                "1": {"text": "PRESENT", "color": "green"}
+                "0": {"text": "SERVICE DOWN", "color": "red"},
+                "1": {"text": "MARKET CLOSED", "color": "gray"},
+                "2": {"text": "OPEN / TELEMETRY MISSING", "color": "red"},
+                "3": {"text": "MARKET OPEN", "color": "green"}
               }
             }
           ],
-          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "gray", "value": 1},
+              {"color": "red", "value": 2},
+              {"color": "green", "value": 3}
+            ]
+          }
         }
       }
     },
@@ -924,11 +941,11 @@
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 98},
       "targets": [
         {
-          "expr": "(1 - (sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[5m])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[5m])), 1e-9))) / 0.01",
+          "expr": "((1 - (sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[5m])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[5m])), 1e-9))) / 0.01) and on() (max(live_overlay_market_open{job=\"live_overlay\"}) == 1)",
           "legendFormat": "burn_5m"
         },
         {
-          "expr": "(1 - (sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[1h])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[1h])), 1e-9))) / 0.01",
+          "expr": "((1 - (sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[1h])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[1h])), 1e-9))) / 0.01) and on() (max(live_overlay_market_open{job=\"live_overlay\"}) == 1)",
           "legendFormat": "burn_1h"
         }
       ],
@@ -938,6 +955,7 @@
       },
       "fieldConfig": {
         "defaults": {
+          "noValue": "MARKET CLOSED",
           "unit": "short",
           "thresholds": {
             "mode": "absolute",
@@ -1136,7 +1154,7 @@
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 139},
       "targets": [
         {
-          "expr": "({__name__=~\"live_overlay_provider_news_.*_(ok|degraded)\",job=\"live_overlay\"}) unless ({__name__=~\"live_overlay_provider_news_health_(ok|degraded)\",job=\"live_overlay\"})",
+          "expr": "{__name__=~\"live_overlay_provider_news_.*_(ok|degraded)\",__name__!~\"live_overlay_provider_news_health_(ok|degraded)\",job=\"live_overlay\"} != 0",
           "legendFormat": "{{__name__}}"
         }
       ],
@@ -1158,7 +1176,7 @@
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 139},
       "targets": [
         {
-          "expr": "{__name__=~\"live_overlay_provider_news_.*_state_code\",job=\"live_overlay\"}",
+          "expr": "{__name__=~\"live_overlay_provider_news_.*_state_code\",job=\"live_overlay\"} > 0",
           "legendFormat": "{{__name__}}"
         }
       ],
