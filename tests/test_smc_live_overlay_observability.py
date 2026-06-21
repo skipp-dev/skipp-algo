@@ -178,9 +178,10 @@ def test_smc_live_unexpected_error_emits_error_metric_and_audit(
     with obs._counter_lock:
         obs._counters.pop("live_overlay.smc_live_errors.total", None)
 
-    with caplog.at_level(logging.INFO, logger=obs.logger.name):
-        with pytest.raises(main_mod.HTTPException) as exc_info:
-            main_mod.smc_live(token="secret-token", symbol="AAPL", tf="5m")
+    with caplog.at_level(logging.INFO, logger=obs.logger.name), pytest.raises(
+        main_mod.HTTPException
+    ) as exc_info:
+        main_mod.smc_live(token="secret-token", symbol="AAPL", tf="5m")
 
     assert exc_info.value.status_code == 500
     assert exc_info.value.detail == "internal error"
