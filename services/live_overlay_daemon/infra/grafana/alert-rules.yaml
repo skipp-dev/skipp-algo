@@ -150,7 +150,7 @@ groups:
             datasourceUid: __expr__
             model:
               type: math
-              expression: "$A == 0 && $B > 600"
+              expression: "$A == 0 && ($B > 600 || resets(live_overlay_uptime_seconds{job=\"live_overlay\"}[10m]) > 0)"
         for: 5m
         labels:
           severity: critical
@@ -266,7 +266,7 @@ groups:
           - refId: A
             datasourceUid: grafanacloud-prom
             model:
-              expr: live_overlay_market_open{job="live_overlay"} * (rate(live_overlay_smc_live_requests_total{job="live_overlay"}[10m]) < bool 0.001) * (live_overlay_uptime_seconds{job="live_overlay"} > bool 600)
+              expr: live_overlay_market_open{job="live_overlay"} * (rate(live_overlay_smc_live_requests_total{job="live_overlay"}[10m]) < bool 0.001) * (live_overlay_uptime_seconds{job="live_overlay"} > bool 600) * (increase(live_overlay_smc_live_requests_total{job="live_overlay"}[10m]) > bool 5)
               instant: true
           - refId: C
             datasourceUid: __expr__
@@ -527,14 +527,38 @@ groups:
           summary: "News snapshot metrics are missing from scrape output"
           runbook: "Check /metrics exposure for news snapshot gauges and scrape target label wiring."
 
-      - uid: lo-news-snapshot-stale-or-missing
-        title: "News snapshot stale or missing"
+      - uid: lo-news-snapshot-unavailable
+        title: "News snapshot unavailable"
         condition: C
         data:
           - refId: A
             datasourceUid: grafanacloud-prom
             model:
-              expr: (live_overlay_provider_news_snapshot_loaded{job="live_overlay"} == bool 0) or (live_overlay_provider_news_snapshot_age_seconds{job="live_overlay"} > bool 3600)
+              expr: live_overlay_provider_news_snapshot_loaded{job="live_overlay"} == 0
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+                  operator: {type: and}
+                  query: {params: [A]}
+        for: 5m
+        labels:
+          severity: high
+        annotations:
+          summary: "News provider snapshot file is not loaded"
+          runbook: "Verify NEWS_SNAPSHOT_PATH exists and is readable by the daemon; check seed/producer job."
+
+      - uid: lo-news-snapshot-stale
+        title: "News snapshot stale"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: live_overlay_provider_news_snapshot_loaded{job="live_overlay"} * (live_overlay_provider_news_snapshot_age_seconds{job="live_overlay"} > bool 3600)
               instant: true
           - refId: C
             datasourceUid: __expr__
@@ -548,5 +572,5 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "News provider snapshot is stale or unavailable"
-          runbook: "Check NEWS_SNAPSHOT_PATH producer job and file update cadence."
+          summary: "News provider snapshot is older than 1 hour"
+          runbook: "Check NEWS_SNAPSHOT_PATH producer job and file update cadence; inspect fetched_at_unix in snapshot."

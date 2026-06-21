@@ -8,7 +8,9 @@ Covers:
 """
 from __future__ import annotations
 
+import json
 import math
+from pathlib import Path
 
 import pytest
 
@@ -520,3 +522,45 @@ def test_sanitize_name_rejects_invalid_prometheus_characters() -> None:
     assert metrics_mod._sanitize_name("provider@news") == "provider_news"
     assert metrics_mod._sanitize_name("123provider") == "_123provider"
     assert metrics_mod._sanitize_name("") == "_"
+
+
+def test_alert_rules_split_news_snapshot_unavailable_and_stale() -> None:
+    """Unavailable snapshot (loaded==0) and stale snapshot (age>3600) must be separate alerts."""
+    import yaml
+
+    repo_root = Path(__file__).resolve().parents[1]
+    rules_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "alert-rules.yaml"
+    rules_doc = yaml.safe_load(rules_path.read_text(encoding="utf-8"))
+    warning_group = next(g for g in rules_doc["groups"] if g.get("name") == "live-overlay-warning")
+    uids = {r.get("uid") for r in warning_group["rules"]}
+    assert "lo-news-snapshot-unavailable" in uids
+    assert "lo-news-snapshot-stale" in uids
+
+    unavailable = next(r for r in warning_group["rules"] if r.get("uid") == "lo-news-snapshot-unavailable")
+    assert unavailable["labels"]["severity"] == "high"
+    assert "snapshot_loaded" in unavailable["data"][0]["model"]["expr"]
+    assert "== 0" in unavailable["data"][0]["model"]["expr"]
+
+    stale = next(r for r in warning_group["rules"] if r.get("uid") == "lo-news-snapshot-stale")
+    assert "snapshot_age_seconds" in stale["data"][0]["model"]["expr"]
+    assert "> bool 3600" in stale["data"][0]["model"]["expr"]
+
+
+def test_github_workflow_config_defaults_to_main_branch(monkeypatch: pytest.MonkeyPatch) -> None:
+    import services.live_overlay_daemon.config as config
+
+    monkeypatch.delenv("GITHUB_WORKFLOW_MONITOR_BRANCH", raising=False)
+    assert config.github_workflow_branch() == "main"
+    monkeypatch.setenv("GITHUB_WORKFLOW_MONITOR_BRANCH", "")
+    assert config.github_workflow_branch() is None
+    monkeypatch.setenv("GITHUB_WORKFLOW_MONITOR_BRANCH", "develop")
+    assert config.github_workflow_branch() == "develop"
+
+
+def test_dashboard_service_status_panel_maps_starting_state() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    dashboard_path = repo_root / "services" / "live_overlay_daemon" / "infra" / "grafana" / "dashboard.json"
+    dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
+    panel = next(p for p in dashboard["panels"] if p.get("title") == "Service Status")
+    options = panel["fieldConfig"]["defaults"]["mappings"][0]["options"]
+    assert options.get("0", {}).get("text") == "STARTING"
