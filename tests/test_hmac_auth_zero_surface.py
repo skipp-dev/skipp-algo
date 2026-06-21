@@ -42,7 +42,9 @@ HMAC_ALLOWED: set[tuple[str, int, str]] = {
     # the call to line 279; PlainTextResponse import cleanup shifted it to 278;
     # liveness/readiness endpoint split shifted it to line 297; smc_live
     # observability timing wrapper shifted it to line 307.
-    ("services/live_overlay_daemon/main.py", 307, "compare_digest"),
+    # 2026-06-21 (audit/main-error-paths): added catch-all error handling in
+    # smc_live, shifting _ct_eq to line 319.
+    ("services/live_overlay_daemon/main.py", 319, "compare_digest"),
 }
 
 _DIR_EXCLUDE = {
