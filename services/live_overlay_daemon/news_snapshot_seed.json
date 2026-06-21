@@ -1,0 +1,54 @@
+{
+  "generated_at": "2026-06-21T00:00:00Z",
+  "providers": {
+    "newsapi_ai": {
+      "ok": true,
+      "error": "",
+      "raw_count": 1,
+      "new_item_count": 0,
+      "cursor": 0
+    },
+    "benzinga": {
+      "ok": false,
+      "error": "disabled",
+      "raw_count": 0,
+      "new_item_count": 0,
+      "cursor": 0
+    },
+    "benzinga_quantified": {
+      "ok": false,
+      "error": "disabled",
+      "raw_count": 0,
+      "new_item_count": 0,
+      "cursor": 0
+    },
+    "fmp_stock": {
+      "ok": false,
+      "error": "disabled",
+      "raw_count": 0,
+      "new_item_count": 0,
+      "cursor": 0
+    },
+    "fmp_press": {
+      "ok": false,
+      "error": "disabled",
+      "raw_count": 0,
+      "new_item_count": 0,
+      "cursor": 0
+    },
+    "fmp_articles": {
+      "ok": false,
+      "error": "disabled",
+      "raw_count": 0,
+      "new_item_count": 0,
+      "cursor": 0
+    },
+    "tv": {
+      "ok": false,
+      "error": "disabled",
+      "raw_count": 0,
+      "new_item_count": 0,
+      "cursor": 0
+    }
+  }
+}

@@ -503,6 +503,30 @@ groups:
           summary: "Multiple news providers are degraded"
           runbook: "Inspect provider error fields in news snapshot and upstream provider quotas/auth."
 
+      - uid: lo-news-snapshot-series-missing
+        title: "News snapshot series missing"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: grafanacloud-prom
+            model:
+              expr: absent(live_overlay_provider_news_snapshot_loaded{job="live_overlay"}) or absent(live_overlay_provider_news_snapshot_age_seconds{job="live_overlay"})
+              instant: true
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator: {type: gt, params: [0]}
+                  operator: {type: and}
+                  query: {params: [A]}
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "News snapshot metrics are missing from scrape output"
+          runbook: "Check /metrics exposure for news snapshot gauges and scrape target label wiring."
+
       - uid: lo-news-snapshot-stale-or-missing
         title: "News snapshot stale or missing"
         condition: C

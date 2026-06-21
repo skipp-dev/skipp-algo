@@ -141,8 +141,11 @@ def _provider_health_snapshot() -> dict[str, object]:
             if isinstance(raw, dict):
                 providers_obj = raw.get("providers") or {}
                 snapshot_loaded = 1.0
-            stat = path.stat()
-            snapshot_age_seconds = max(0.0, time.time() - float(stat.st_mtime))
+                # Use fetched_at_unix when present (live producer snapshots).
+                # Seed files omit this key and report age 0 (never stale).
+                fetched_at = raw.get("fetched_at_unix")
+                if fetched_at is not None and math.isfinite(float(fetched_at)) and float(fetched_at) > 0:
+                    snapshot_age_seconds = max(0.0, time.time() - float(fetched_at))
         except Exception:
             providers_obj = {}
 
