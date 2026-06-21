@@ -154,10 +154,10 @@
       "type": "timeseries",
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
       "targets": [
-        {"expr": "rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "smc_live total"},
-        {"expr": "rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "success"},
-        {"expr": "rate(live_overlay_smc_live_auth_denied{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "auth denied"},
-        {"expr": "rate(live_overlay_smc_live_cache_miss_total{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "cache miss"}
+        {"expr": "rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[$__rate_interval]) or vector(0)", "legendFormat": "smc_live total"},
+        {"expr": "rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[$__rate_interval]) or vector(0)", "legendFormat": "success"},
+        {"expr": "rate(live_overlay_smc_live_auth_denied{job=\"live_overlay\"}[$__rate_interval]) or vector(0)", "legendFormat": "auth denied"},
+        {"expr": "rate(live_overlay_smc_live_cache_miss_total{job=\"live_overlay\"}[$__rate_interval]) or vector(0)", "legendFormat": "cache miss"}
       ],
       "options": {
         "tooltip": {"mode": "multi", "sort": "none"},
@@ -330,10 +330,10 @@
     {
       "title": "Success Rate (%)",
       "type": "stat",
-      "gridPos": {"h": 6, "w": 8, "x": 0, "y": 26},
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 26},
       "targets": [
         {
-          "expr": "100 * sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[$__rate_interval])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[$__rate_interval])), 1e-9)",
+          "expr": "(100 * sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[$__rate_interval])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[$__rate_interval])), 1e-9)) or vector(0)",
           "legendFormat": "success_rate"
         }
       ],
@@ -362,10 +362,10 @@
     {
       "title": "Market-open Request Health",
       "type": "stat",
-      "gridPos": {"h": 6, "w": 8, "x": 8, "y": 26},
+      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 26},
       "targets": [
         {
-          "expr": "live_overlay_market_open{job=\"live_overlay\"} + (live_overlay_market_open{job=\"live_overlay\"} * (rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[$__rate_interval]) > bool 0.001))",
+          "expr": "(live_overlay_market_open{job=\"live_overlay\"} or live_overlay_market_open or vector(0)) + ((live_overlay_market_open{job=\"live_overlay\"} or live_overlay_market_open or vector(0)) * (((rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[$__rate_interval]) or rate(live_overlay_smc_live_requests_total[$__rate_interval]) or vector(0)) > bool 0.001)))",
           "legendFormat": "open_req_health"
         }
       ],
@@ -398,13 +398,42 @@
       }
     },
     {
-      "title": "Restarts (24h)",
+      "title": "Uptime Resets (24h, est.)",
       "type": "stat",
-      "gridPos": {"h": 6, "w": 8, "x": 16, "y": 26},
+      "gridPos": {"h": 6, "w": 6, "x": 12, "y": 26},
       "targets": [
         {
-          "expr": "resets(live_overlay_uptime_seconds{job=\"live_overlay\"}[24h])",
-          "legendFormat": "restarts"
+          "expr": "sum(resets(live_overlay_uptime_seconds{job=\"live_overlay\"}[24h])) or sum(resets(live_overlay_uptime_seconds[24h])) or vector(0)",
+          "legendFormat": "uptime_resets"
+        }
+      ],
+      "options": {
+        "colorMode": "background_solid",
+        "graphMode": "none",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 1},
+              {"color": "red", "value": 3}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Restart Causes (24h, counted)",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 26},
+      "targets": [
+        {
+          "expr": "sum(increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\",job=\"live_overlay\"}[24h])) or sum(increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\"}[24h])) or vector(0)",
+          "legendFormat": "restart_causes_count"
         }
       ],
       "options": {
@@ -431,10 +460,10 @@
       "type": "timeseries",
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32},
       "targets": [
-        {"expr": "rate(live_overlay_smc_live_auth_denied{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "auth denied"},
-        {"expr": "rate(live_overlay_smc_live_cache_miss_total{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "cache miss"},
-        {"expr": "rate(live_overlay_smc_live_bad_tf_total{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "bad tf"},
-        {"expr": "rate(live_overlay_smc_live_errors_total{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "errors"}
+        {"expr": "rate(live_overlay_smc_live_auth_denied{job=\"live_overlay\"}[$__rate_interval]) or vector(0)", "legendFormat": "auth denied"},
+        {"expr": "rate(live_overlay_smc_live_cache_miss_total{job=\"live_overlay\"}[$__rate_interval]) or vector(0)", "legendFormat": "cache miss"},
+        {"expr": "rate(live_overlay_smc_live_bad_tf_total{job=\"live_overlay\"}[$__rate_interval]) or vector(0)", "legendFormat": "bad tf"},
+        {"expr": "rate(live_overlay_smc_live_errors_total{job=\"live_overlay\"}[$__rate_interval]) or vector(0)", "legendFormat": "errors"}
       ],
       "options": {
         "tooltip": {"mode": "multi", "sort": "none"},
@@ -508,7 +537,7 @@
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 40},
       "targets": [
         {
-          "expr": "rate(live_overlay_smc_live_stale_served_total{job=\"live_overlay\"}[$__rate_interval])",
+          "expr": "rate(live_overlay_smc_live_stale_served_total{job=\"live_overlay\"}[$__rate_interval]) or vector(0)",
           "legendFormat": "stale served/s"
         }
       ],
@@ -536,7 +565,7 @@
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 48},
       "targets": [
         {
-          "expr": "rate(live_overlay_smc_live_latency_sum_ms{job=\"live_overlay\"}[$__rate_interval]) / clamp_min(rate(live_overlay_smc_live_latency_count{job=\"live_overlay\"}[$__rate_interval]), 1e-9)",
+          "expr": "(rate(live_overlay_smc_live_latency_sum_ms{job=\"live_overlay\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_sum_ms[$__rate_interval]) or vector(0)) / clamp_min((rate(live_overlay_smc_live_latency_count{job=\"live_overlay\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_count[$__rate_interval]) or vector(0)), 1e-9)",
           "legendFormat": "avg latency"
         }
       ],
@@ -564,12 +593,12 @@
       "type": "timeseries",
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 48},
       "targets": [
-        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_50{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "<=50ms"},
-        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_100{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "<=100ms"},
-        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_250{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "<=250ms"},
-        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_500{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "<=500ms"},
-        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_1000{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "<=1000ms"},
-        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_inf{job=\"live_overlay\"}[$__rate_interval])", "legendFormat": "<=inf"}
+        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_50{job=\"live_overlay\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_50[$__rate_interval]) or vector(0)", "legendFormat": "<=50ms"},
+        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_100{job=\"live_overlay\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_100[$__rate_interval]) or vector(0)", "legendFormat": "<=100ms"},
+        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_250{job=\"live_overlay\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_250[$__rate_interval]) or vector(0)", "legendFormat": "<=250ms"},
+        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_500{job=\"live_overlay\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_500[$__rate_interval]) or vector(0)", "legendFormat": "<=500ms"},
+        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_1000{job=\"live_overlay\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_1000[$__rate_interval]) or vector(0)", "legendFormat": "<=1000ms"},
+        {"expr": "rate(live_overlay_smc_live_latency_bucket_le_inf{job=\"live_overlay\"}[$__rate_interval]) or rate(live_overlay_smc_live_latency_bucket_le_inf[$__rate_interval]) or vector(0)", "legendFormat": "<=inf"}
       ],
       "options": {
         "tooltip": {"mode": "multi", "sort": "none"},
@@ -595,7 +624,7 @@
       "gridPos": {"h": 4, "w": 6, "x": 0, "y": 57},
       "targets": [
         {
-          "expr": "live_overlay_uptimerobot_scrape_success{job=\"live_overlay\"}*2 + live_overlay_uptimerobot_bridge_enabled{job=\"live_overlay\"}",
+          "expr": "((live_overlay_uptimerobot_scrape_success{job=\"live_overlay\"} or live_overlay_uptimerobot_scrape_success or vector(0)) * 2) + (live_overlay_uptimerobot_bridge_enabled{job=\"live_overlay\"} or live_overlay_uptimerobot_bridge_enabled or vector(0))",
           "legendFormat": "bridge_state"
         }
       ],
@@ -626,7 +655,7 @@
       "gridPos": {"h": 4, "w": 6, "x": 6, "y": 57},
       "targets": [
         {
-          "expr": "live_overlay_uptimerobot_snapshot_age_seconds{job=\"live_overlay\"}",
+          "expr": "live_overlay_uptimerobot_snapshot_age_seconds{job=\"live_overlay\"} or live_overlay_uptimerobot_snapshot_age_seconds or vector(0)",
           "legendFormat": "snapshot_age"
         }
       ],
@@ -654,11 +683,11 @@
       "type": "timeseries",
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 57},
       "targets": [
-        {"expr": "live_overlay_uptimerobot_monitors_total_total{job=\"live_overlay\"}", "legendFormat": "total"},
-        {"expr": "live_overlay_uptimerobot_monitors_up_total{job=\"live_overlay\"}", "legendFormat": "up"},
-        {"expr": "live_overlay_uptimerobot_monitors_down_total{job=\"live_overlay\"}", "legendFormat": "down"},
-        {"expr": "live_overlay_uptimerobot_monitors_paused_total{job=\"live_overlay\"}", "legendFormat": "paused"},
-        {"expr": "live_overlay_uptimerobot_monitors_response_time_ms_avg{job=\"live_overlay\"}", "legendFormat": "avg response (ms)"}
+        {"expr": "live_overlay_uptimerobot_monitors_total_total{job=\"live_overlay\"} or live_overlay_uptimerobot_monitors_total_total or vector(0)", "legendFormat": "total"},
+        {"expr": "live_overlay_uptimerobot_monitors_up_total{job=\"live_overlay\"} or live_overlay_uptimerobot_monitors_up_total or vector(0)", "legendFormat": "up"},
+        {"expr": "live_overlay_uptimerobot_monitors_down_total{job=\"live_overlay\"} or live_overlay_uptimerobot_monitors_down_total or vector(0)", "legendFormat": "down"},
+        {"expr": "live_overlay_uptimerobot_monitors_paused_total{job=\"live_overlay\"} or live_overlay_uptimerobot_monitors_paused_total or vector(0)", "legendFormat": "paused"},
+        {"expr": "live_overlay_uptimerobot_monitors_response_time_ms_avg{job=\"live_overlay\"} or live_overlay_uptimerobot_monitors_response_time_ms_avg or vector(0)", "legendFormat": "avg response (ms)"}
       ],
       "options": {
         "tooltip": {"mode": "multi", "sort": "none"},
@@ -682,7 +711,7 @@
       "gridPos": {"h": 4, "w": 6, "x": 0, "y": 65},
       "targets": [
         {
-          "expr": "live_overlay_github_workflow_scrape_success{job=\"live_overlay\"}*2 + live_overlay_github_workflow_bridge_enabled{job=\"live_overlay\"}",
+          "expr": "((live_overlay_github_workflow_scrape_success{job=\"live_overlay\"} or live_overlay_github_workflow_scrape_success or vector(0)) * 2) + (live_overlay_github_workflow_bridge_enabled{job=\"live_overlay\"} or live_overlay_github_workflow_bridge_enabled or vector(0))",
           "legendFormat": "bridge_state"
         }
       ],
@@ -713,7 +742,7 @@
       "gridPos": {"h": 4, "w": 6, "x": 6, "y": 65},
       "targets": [
         {
-          "expr": "live_overlay_github_workflow_snapshot_age_seconds{job=\"live_overlay\"}",
+          "expr": "live_overlay_github_workflow_snapshot_age_seconds{job=\"live_overlay\"} or live_overlay_github_workflow_snapshot_age_seconds or vector(0)",
           "legendFormat": "snapshot_age"
         }
       ],
@@ -741,11 +770,11 @@
       "type": "timeseries",
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 65},
       "targets": [
-        {"expr": "live_overlay_github_workflow_runs_seen_total{job=\"live_overlay\"}", "legendFormat": "seen"},
-        {"expr": "live_overlay_github_workflow_runs_success_total{job=\"live_overlay\"}", "legendFormat": "success"},
-        {"expr": "live_overlay_github_workflow_runs_failed_total{job=\"live_overlay\"}", "legendFormat": "failed"},
-        {"expr": "live_overlay_github_workflow_runs_in_progress_total{job=\"live_overlay\"}", "legendFormat": "in_progress"},
-        {"expr": "live_overlay_github_workflow_runs_queued_total{job=\"live_overlay\"}", "legendFormat": "queued"}
+        {"expr": "live_overlay_github_workflow_runs_seen_total{job=\"live_overlay\"} or live_overlay_github_workflow_runs_seen_total or vector(0)", "legendFormat": "seen"},
+        {"expr": "live_overlay_github_workflow_runs_success_total{job=\"live_overlay\"} or live_overlay_github_workflow_runs_success_total or vector(0)", "legendFormat": "success"},
+        {"expr": "live_overlay_github_workflow_runs_failed_total{job=\"live_overlay\"} or live_overlay_github_workflow_runs_failed_total or vector(0)", "legendFormat": "failed"},
+        {"expr": "live_overlay_github_workflow_runs_in_progress_total{job=\"live_overlay\"} or live_overlay_github_workflow_runs_in_progress_total or vector(0)", "legendFormat": "in_progress"},
+        {"expr": "live_overlay_github_workflow_runs_queued_total{job=\"live_overlay\"} or live_overlay_github_workflow_runs_queued_total or vector(0)", "legendFormat": "queued"}
       ],
       "options": {
         "tooltip": {"mode": "multi", "sort": "none"},
@@ -762,8 +791,8 @@
       "type": "timeseries",
       "gridPos": {"h": 8, "w": 24, "x": 0, "y": 73},
       "targets": [
-        {"expr": "live_overlay_github_workflow_latest_run_age_seconds{job=\"live_overlay\"}", "legendFormat": "latest age (s)"},
-        {"expr": "live_overlay_github_workflow_latest_run_duration_seconds{job=\"live_overlay\"}", "legendFormat": "latest duration (s)"}
+        {"expr": "live_overlay_github_workflow_latest_run_age_seconds{job=\"live_overlay\"} or live_overlay_github_workflow_latest_run_age_seconds or vector(0)", "legendFormat": "latest age (s)"},
+        {"expr": "live_overlay_github_workflow_latest_run_duration_seconds{job=\"live_overlay\"} or live_overlay_github_workflow_latest_run_duration_seconds or vector(0)", "legendFormat": "latest duration (s)"}
       ],
       "options": {
         "tooltip": {"mode": "multi", "sort": "none"},
@@ -790,9 +819,9 @@
       "type": "state-timeline",
       "gridPos": {"h": 8, "w": 24, "x": 0, "y": 81},
       "targets": [
-        {"expr": "live_overlay_market_us_open{job=\"live_overlay\"}", "legendFormat": "US"},
-        {"expr": "live_overlay_market_europe_open{job=\"live_overlay\"}", "legendFormat": "Europe"},
-        {"expr": "live_overlay_market_asia_open{job=\"live_overlay\"}", "legendFormat": "Asia"}
+        {"expr": "max_over_time(live_overlay_market_us_open{job=\"live_overlay\"}[5m]) or max_over_time(live_overlay_market_us_open[5m]) or vector(0)", "legendFormat": "US", "instant": false, "range": true},
+        {"expr": "max_over_time(live_overlay_market_europe_open{job=\"live_overlay\"}[5m]) or max_over_time(live_overlay_market_europe_open[5m]) or vector(0)", "legendFormat": "Europe", "instant": false, "range": true},
+        {"expr": "max_over_time(live_overlay_market_asia_open{job=\"live_overlay\"}[5m]) or max_over_time(live_overlay_market_asia_open[5m]) or vector(0)", "legendFormat": "Asia", "instant": false, "range": true}
       ],
       "options": {
         "tooltip": {"mode": "multi", "sort": "none"},
@@ -835,8 +864,8 @@
       "type": "timeseries",
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 90},
       "targets": [
-        {"expr": "live_overlay_smc_live_latency_p95_ms{job=\"live_overlay\"}", "legendFormat": "p95"},
-        {"expr": "live_overlay_smc_live_latency_p99_ms{job=\"live_overlay\"}", "legendFormat": "p99"}
+        {"expr": "live_overlay_smc_live_latency_p95_ms{job=\"live_overlay\"} or live_overlay_smc_live_latency_p95_ms or vector(0)", "legendFormat": "p95"},
+        {"expr": "live_overlay_smc_live_latency_p99_ms{job=\"live_overlay\"} or live_overlay_smc_live_latency_p99_ms or vector(0)", "legendFormat": "p99"}
       ],
       "options": {
         "tooltip": {"mode": "multi", "sort": "none"},
@@ -863,7 +892,7 @@
       "gridPos": {"h": 8, "w": 6, "x": 12, "y": 90},
       "targets": [
         {
-          "expr": "100 * sum_over_time((live_overlay_overlay_fresh{job=\"live_overlay\"} * live_overlay_market_open{job=\"live_overlay\"})[1h]) / clamp_min(sum_over_time(live_overlay_market_open{job=\"live_overlay\"}[1h]), 1)",
+          "expr": "100 * ((sum(sum_over_time((((live_overlay_overlay_fresh{job=\"live_overlay\"} or live_overlay_overlay_fresh or vector(1)) * (live_overlay_market_open{job=\"live_overlay\"} or live_overlay_market_open or vector(0))))[1h:])) + (sum(sum_over_time((live_overlay_market_open{job=\"live_overlay\"} or live_overlay_market_open or vector(0))[1h:])) == bool 0)) / clamp_min(sum(sum_over_time((live_overlay_market_open{job=\"live_overlay\"} or live_overlay_market_open or vector(0))[1h:])), 1))",
           "legendFormat": "freshness_slo"
         }
       ],
@@ -894,7 +923,7 @@
       "gridPos": {"h": 8, "w": 6, "x": 18, "y": 90},
       "targets": [
         {
-          "expr": "1 - (absent(live_overlay_uptime_seconds{job=\"live_overlay\"}) or vector(0))",
+          "expr": "count(live_overlay_uptime_seconds{job=\"live_overlay\"}) > bool 0",
           "legendFormat": "core_metrics_present"
         }
       ],
@@ -924,11 +953,11 @@
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 98},
       "targets": [
         {
-          "expr": "(1 - (sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[5m])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[5m])), 1e-9))) / 0.01",
+          "expr": "((sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[5m])) > bool 1e-6) * ((1 - (sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[5m])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[5m])), 1e-9))) / 0.01)) or vector(0)",
           "legendFormat": "burn_5m"
         },
         {
-          "expr": "(1 - (sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[1h])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[1h])), 1e-9))) / 0.01",
+          "expr": "((sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[1h])) > bool 1e-6) * ((1 - (sum(rate(live_overlay_smc_live_success_total{job=\"live_overlay\"}[1h])) / clamp_min(sum(rate(live_overlay_smc_live_requests_total{job=\"live_overlay\"}[1h])), 1e-9))) / 0.01)) or vector(0)",
           "legendFormat": "burn_1h"
         }
       ],
@@ -956,8 +985,8 @@
       "type": "state-timeline",
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 98},
       "targets": [
-        {"expr": "live_overlay_uptimerobot_scrape_success{job=\"live_overlay\"}", "legendFormat": "UptimeRobot"},
-        {"expr": "live_overlay_github_workflow_scrape_success{job=\"live_overlay\"}", "legendFormat": "GitHub Workflows"}
+        {"expr": "max_over_time(live_overlay_uptimerobot_scrape_success{job=\"live_overlay\"}[5m]) or max_over_time(live_overlay_uptimerobot_scrape_success[5m]) or vector(0)", "legendFormat": "UptimeRobot", "instant": false, "range": true},
+        {"expr": "max_over_time(live_overlay_github_workflow_scrape_success{job=\"live_overlay\"}[5m]) or max_over_time(live_overlay_github_workflow_scrape_success[5m]) or vector(0)", "legendFormat": "GitHub Workflows", "instant": false, "range": true}
       ],
       "options": {
         "tooltip": {"mode": "multi", "sort": "none"},
@@ -975,12 +1004,12 @@
       }
     },
     {
-      "title": "Restart Causes (24h)",
+      "title": "Restart Causes (24h, by cause)",
       "type": "timeseries",
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 106},
       "targets": [
         {
-          "expr": "sum by (__name__) (increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\",job=\"live_overlay\"}[24h]))",
+          "expr": "sum by (__name__) (increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\",job=\"live_overlay\"}[24h])) or sum by (__name__) (increase({__name__=~\"live_overlay_daemon_restart_cause_.*_total\"}[24h])) or vector(0)",
           "legendFormat": "{{__name__}}"
         }
       ],
@@ -1000,7 +1029,7 @@
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 106},
       "targets": [
         {
-          "expr": "{__name__=~\"live_overlay_hotspot_symbol_.*_requests_total\",job=\"live_overlay\"}",
+          "expr": "{__name__=~\"live_overlay_hotspot_symbol_.*_requests_total\",job=\"live_overlay\"} or {__name__=~\"live_overlay_hotspot_symbol_.*_requests_total\"} or vector(0)",
           "legendFormat": "{{__name__}}"
         }
       ],
@@ -1020,7 +1049,7 @@
       "gridPos": {"h": 8, "w": 24, "x": 0, "y": 114},
       "targets": [
         {
-          "expr": "{__name__=~\"live_overlay_hotspot_tf_.*_requests_total\",job=\"live_overlay\"}",
+          "expr": "{__name__=~\"live_overlay_hotspot_tf_.*_requests_total\",job=\"live_overlay\"} or {__name__=~\"live_overlay_hotspot_tf_.*_requests_total\"} or vector(0)",
           "legendFormat": "{{__name__}}"
         }
       ],
@@ -1039,9 +1068,9 @@
       "type": "timeseries",
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 122},
       "targets": [
-        {"expr": "live_overlay_feed_ingest_queue_depth{job=\"live_overlay\"}", "legendFormat": "depth"},
-        {"expr": "live_overlay_feed_ingest_queue_depth_max{job=\"live_overlay\"}", "legendFormat": "depth max"},
-        {"expr": "live_overlay_feed_ingest_queue_dropped_total{job=\"live_overlay\"}", "legendFormat": "dropped total"}
+        {"expr": "live_overlay_feed_ingest_queue_depth{job=\"live_overlay\"} or live_overlay_feed_ingest_queue_depth or vector(0)", "legendFormat": "depth"},
+        {"expr": "live_overlay_feed_ingest_queue_depth_max{job=\"live_overlay\"} or live_overlay_feed_ingest_queue_depth_max or vector(0)", "legendFormat": "depth max"},
+        {"expr": "live_overlay_feed_ingest_queue_dropped_total{job=\"live_overlay\"} or live_overlay_feed_ingest_queue_dropped_total or vector(0)", "legendFormat": "dropped total"}
       ],
       "options": {
         "tooltip": {"mode": "multi", "sort": "none"},
@@ -1058,8 +1087,8 @@
       "type": "timeseries",
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 122},
       "targets": [
-        {"expr": "live_overlay_feed_ingest_queue_lag_ms_last{job=\"live_overlay\"}", "legendFormat": "lag last"},
-        {"expr": "live_overlay_feed_ingest_queue_lag_ms_max{job=\"live_overlay\"}", "legendFormat": "lag max"}
+        {"expr": "live_overlay_feed_ingest_queue_lag_ms_last{job=\"live_overlay\"} or live_overlay_feed_ingest_queue_lag_ms_last or vector(0)", "legendFormat": "lag last"},
+        {"expr": "live_overlay_feed_ingest_queue_lag_ms_max{job=\"live_overlay\"} or live_overlay_feed_ingest_queue_lag_ms_max or vector(0)", "legendFormat": "lag max"}
       ],
       "options": {
         "tooltip": {"mode": "multi", "sort": "none"},
@@ -1091,9 +1120,9 @@
       "type": "state-timeline",
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 131},
       "targets": [
-        {"expr": "live_overlay_provider_news_health_ok{job=\"live_overlay\"}", "legendFormat": "health_ok"},
-        {"expr": "live_overlay_provider_news_health_degraded{job=\"live_overlay\"}", "legendFormat": "health_degraded"},
-        {"expr": "live_overlay_provider_news_health_unknown{job=\"live_overlay\"}", "legendFormat": "health_unknown"}
+        {"expr": "max_over_time(live_overlay_provider_news_health_ok{job=\"live_overlay\"}[5m]) or max_over_time(live_overlay_provider_news_health_ok[5m]) or vector(0)", "legendFormat": "health_ok", "instant": false, "range": true},
+        {"expr": "max_over_time(live_overlay_provider_news_health_degraded{job=\"live_overlay\"}[5m]) or max_over_time(live_overlay_provider_news_health_degraded[5m]) or vector(0)", "legendFormat": "health_degraded", "instant": false, "range": true},
+        {"expr": "max_over_time(live_overlay_provider_news_health_unknown{job=\"live_overlay\"}[5m]) or max_over_time(live_overlay_provider_news_health_unknown[5m]) or vector(0)", "legendFormat": "health_unknown", "instant": false, "range": true}
       ],
       "options": {
         "tooltip": {"mode": "multi", "sort": "none"},
@@ -1115,10 +1144,10 @@
       "type": "timeseries",
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 131},
       "targets": [
-        {"expr": "live_overlay_provider_news_snapshot_age_seconds{job=\"live_overlay\"}", "legendFormat": "snapshot age (s)"},
-        {"expr": "live_overlay_provider_news_providers_total{job=\"live_overlay\"}", "legendFormat": "providers total"},
-        {"expr": "live_overlay_provider_news_providers_ok_total{job=\"live_overlay\"}", "legendFormat": "providers ok"},
-        {"expr": "live_overlay_provider_news_providers_degraded_total{job=\"live_overlay\"}", "legendFormat": "providers degraded"}
+        {"expr": "live_overlay_provider_news_snapshot_age_seconds{job=\"live_overlay\"} or live_overlay_provider_news_snapshot_age_seconds or vector(0)", "legendFormat": "snapshot age (s)"},
+        {"expr": "live_overlay_provider_news_providers_total{job=\"live_overlay\"} or live_overlay_provider_news_providers_total or vector(0)", "legendFormat": "providers total"},
+        {"expr": "live_overlay_provider_news_providers_ok_total{job=\"live_overlay\"} or live_overlay_provider_news_providers_ok_total or vector(0)", "legendFormat": "providers ok"},
+        {"expr": "live_overlay_provider_news_providers_degraded_total{job=\"live_overlay\"} or live_overlay_provider_news_providers_degraded_total or vector(0)", "legendFormat": "providers degraded"}
       ],
       "options": {
         "tooltip": {"mode": "multi", "sort": "none"},
@@ -1136,7 +1165,7 @@
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 139},
       "targets": [
         {
-          "expr": "({__name__=~\"live_overlay_provider_news_.*_(ok|degraded)\",job=\"live_overlay\"}) unless ({__name__=~\"live_overlay_provider_news_health_(ok|degraded)\",job=\"live_overlay\"})",
+          "expr": "(({__name__=~\"live_overlay_provider_news_.*_(ok|degraded)\",job=\"live_overlay\"} or {__name__=~\"live_overlay_provider_news_.*_(ok|degraded)\"}) unless ({__name__=~\"live_overlay_provider_news_health_(ok|degraded)\",job=\"live_overlay\"} or {__name__=~\"live_overlay_provider_news_health_(ok|degraded)\"})) or vector(0)",
           "legendFormat": "{{__name__}}"
         }
       ],
@@ -1158,7 +1187,7 @@
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 139},
       "targets": [
         {
-          "expr": "{__name__=~\"live_overlay_provider_news_.*_state_code\",job=\"live_overlay\"}",
+          "expr": "{__name__=~\"live_overlay_provider_news_.*_state_code\",job=\"live_overlay\"} or {__name__=~\"live_overlay_provider_news_.*_state_code\"} or vector(0)",
           "legendFormat": "{{__name__}}"
         }
       ],
@@ -1192,15 +1221,6 @@
         "groupMode": "default",
         "maxItems": 20,
         "alertInstanceLabelFilter": "job=live_overlay",
-        "stateFilter": {
-          "alerting": true,
-          "firing": true,
-          "pending": true,
-          "no_data": true,
-          "normal": false,
-          "ok": false,
-          "paused": true
-        },
         "viewMode": "list"
       }
     }
@@ -1214,5 +1234,5 @@
   "timezone": "utc",
   "title": "SMC Live Overlay Daemon",
   "uid": "smc-live-overlay-v1",
-  "version": 12
+  "version": 20
 }

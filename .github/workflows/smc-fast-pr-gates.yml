@@ -237,6 +237,17 @@ jobs:
             echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
           fi
 
+      - name: Validate live-overlay daemon requirements
+        if: steps.gate.outputs.run_heavy == 'true'
+        run: |
+          "$SMC_PYTHON_BIN" -m pip install --dry-run -r services/live_overlay_daemon/requirements.txt
+
+      - name: Build live-overlay daemon Docker image
+        if: steps.gate.outputs.run_heavy == 'true'
+        run: |
+          # Drift guard: verify daemon Dockerfile still builds from repository root context.
+          docker build -f services/live_overlay_daemon/Dockerfile .
+
       # Guard: ruff must pass clean (exit 0) on every PR. ruff comes from the
       # venv just installed above (pinned in requirements.txt — single source
       # of truth for the version; no separate uvx pin that could drift).

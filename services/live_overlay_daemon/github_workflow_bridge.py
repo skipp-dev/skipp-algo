@@ -11,6 +11,7 @@ It is optional and env-driven:
 """
 from __future__ import annotations
 
+import calendar
 import json
 import threading
 import time
@@ -62,7 +63,7 @@ def _iso_age_seconds(iso_ts: str | None) -> float | None:
     try:
         # GitHub emits UTC timestamps with trailing Z.
         dt = time.strptime(iso_ts.replace("Z", "+0000"), "%Y-%m-%dT%H:%M:%S%z")
-        epoch = time.mktime(dt) - time.timezone
+        epoch = calendar.timegm(dt)
     except Exception:
         return None
     return max(0.0, time.time() - epoch)
@@ -74,8 +75,8 @@ def _duration_seconds(started_at: str | None, updated_at: str | None) -> float |
     try:
         s = time.strptime(started_at.replace("Z", "+0000"), "%Y-%m-%dT%H:%M:%S%z")
         u = time.strptime(updated_at.replace("Z", "+0000"), "%Y-%m-%dT%H:%M:%S%z")
-        s_epoch = time.mktime(s) - time.timezone
-        u_epoch = time.mktime(u) - time.timezone
+        s_epoch = calendar.timegm(s)
+        u_epoch = calendar.timegm(u)
     except Exception:
         return None
     return max(0.0, u_epoch - s_epoch)

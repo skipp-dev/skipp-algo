@@ -114,7 +114,8 @@ def metric_histogram_ms(
         )
         for bucket in finite_buckets:
             if finite_ms <= bucket:
-                suffix = format(bucket, "g").replace(".", "_")
+                # Avoid scientific notation (1e+06) so Prometheus suffixes stay readable.
+                suffix = ("{:.0f}".format(bucket)).replace(".", "_")
                 key = f"{name}.bucket_le_{suffix}"
                 _counters[key] = _coerce_finite_metric_value(
                     _counters.get(key, 0.0) + 1.0,
