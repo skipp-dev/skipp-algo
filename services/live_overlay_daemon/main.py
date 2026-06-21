@@ -325,7 +325,8 @@ def smc_live(
                 status_code=400,
                 detail=f"tf must be one of {sorted(_VALID_TFS)}",
             )
-        payload = _get_payload_for_timeframe(sym, tf) if (record_latency := True) else None
+        record_latency = True
+        payload = _get_payload_for_timeframe(sym, tf)
         request_hotspots.record_request(sym, tf)
 
         if payload is None:
@@ -379,7 +380,8 @@ def smc_live(
         # a deterministic 500 with observability signals for triage.
         if isinstance(exc, HTTPException):
             raise
-        (record_latency := True) and logger.exception("smc_live failed for %s tf=%s", sym, tf)
+        record_latency = True
+        logger.exception("smc_live failed for %s tf=%s", sym, tf)
         observability.metric_counter("live_overlay.smc_live_errors.total")
         observability.audit_event(
             "smc_live_fetch", "error", symbol=sym, tf=tf, error=type(exc).__name__

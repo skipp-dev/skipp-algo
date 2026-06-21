@@ -89,8 +89,8 @@ ATEXIT_REGISTER_ALLOWED: set[tuple[str, int]] = {
     # an Event and joins with a 5s/thread timeout (bounded, non-deadlocking).
     # 2026-06-20 (lifecycle follow-up): keep this pin aligned to the current
     # atexit.register location in feed.start().
-    # 2026-06-21 (PR #2879 rebase): feed lifecycle changes shifted this callsite.
-    ("services/live_overlay_daemon/feed.py", 484),
+    # 2026-06-21 (PR #2879 follow-up): feed lifecycle changes shifted this callsite.
+    ("services/live_overlay_daemon/feed.py", 505),
 }
 
 
