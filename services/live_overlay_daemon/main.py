@@ -27,7 +27,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Path, Query
 from fastapi.responses import JSONResponse, PlainTextResponse
 
-from . import cache, config, feed, metrics, observability
+from . import cache, compute, config, feed, metrics, observability
 from .market_hours import (
     compute_daemon_health_status,
 )
@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 _startup_ts: float = 0.0
 
-_VALID_TFS: frozenset[str] = frozenset({"5m", "10m", "15m", "30m", "1H", "4H"})
+_VALID_TFS: frozenset[str] = frozenset(compute.supported_timeframes())
 
 
 def _json_safe(value: Any) -> Any:
@@ -200,6 +200,48 @@ def prometheus_metrics(token: str = Path(...)) -> PlainTextResponse:
 
 
 # ---------------------------------------------------------------------------
+# Timeframe-aware payload lookup / on-demand compute
+# ---------------------------------------------------------------------------
+
+def _get_payload_for_timeframe(sym: str, tf: str) -> dict[str, Any] | None:
+    """Return overlay payload for symbol and timeframe.
+
+    The background refresh thread computes the default 5m timeframe and stores
+    it in the overlay cache. For non-default timeframes we aggregate the cached
+    1-minute bars on demand so callers still get timeframe-consistent fields.
+    """
+    if tf == "5m":
+        return cache.get_overlay(sym)
+
+    bars = cache.get_bars_snapshot(sym)
+    if not bars:
+        return None
+    payload = compute.build_payload(
+        sym,
+        bars,
+        compute.get_global_news_fields(),
+        config.max_stale_secs(),
+        tf=tf,
+    )
+    # On-demand payloads should be marked stale based on bar recency, not
+    # overlay cache age (which tracks only the background 5m snapshot).
+    valid_ts_events = [
+        ts
+        for bar in bars
+        if isinstance((ts := bar.get("ts_event")), int)
+        and not isinstance(ts, bool)
+        and ts > 0
+    ]
+    if not valid_ts_events:
+        payload["stale"] = True
+        return payload
+
+    latest_bar_age_secs = max(0.0, time.time() - (max(valid_ts_events) / 1_000_000_000))
+    payload["stale"] = latest_bar_age_secs > config.max_stale_secs()
+    return payload
+
+
+# ---------------------------------------------------------------------------
 # /{token}/smc_live — overlay payload
 # ---------------------------------------------------------------------------
 
@@ -225,12 +267,12 @@ def smc_live(
         sym = symbol.upper().strip()
         if tf not in _VALID_TFS:
             observability.metric_counter("live_overlay.smc_live_bad_tf.total")
-            observability.audit_event("smc_live_tf_validation", "rejected", symbol=sym, tf=tf)
+            observability.audit_event("live_overlay_tf_validation", "rejected", symbol=sym, tf=tf)
             raise HTTPException(
                 status_code=400,
                 detail=f"tf must be one of {sorted(_VALID_TFS)}",
             )
-        payload = cache.get_overlay(sym)
+        payload = _get_payload_for_timeframe(sym, tf)
 
         if payload is None:
             observability.metric_counter("live_overlay.smc_live_cache_miss.total")
@@ -264,16 +306,16 @@ def smc_live(
                 }
             )
 
-        # Re-evaluate stale based on current overlay age so a cached payload
-        # does not serve a stale=false flag after the age window has elapsed.
-        age = cache.overlay_age_secs()
-        max_stale = config.max_stale_secs()
         payload = dict(payload)  # shallow-copy — do not mutate shared cache state
-        payload["stale"] = (age > max_stale) if age != float("inf") else True
+        if tf == "5m":
+            # Re-evaluate stale for cached background snapshots.
+            age = cache.overlay_age_secs()
+            max_stale = config.max_stale_secs()
+            payload["stale"] = (age > max_stale) if age != float("inf") else True
+        if payload.get("stale"):
+            observability.metric_counter("live_overlay.smc_live_stale_served.total")
         # Inject tf into response
         payload["tf"] = tf
-        if payload["stale"]:
-            observability.metric_counter("live_overlay.smc_live_stale_served.total")
         observability.metric_counter("live_overlay.smc_live_success.total")
         observability.audit_event("smc_live_fetch", "ok", symbol=sym, tf=tf, stale=payload["stale"])
         return JSONResponse(_json_safe(payload))
@@ -282,7 +324,6 @@ def smc_live(
             "live_overlay.smc_live_latency",
             (time.monotonic() - started_at) * 1000.0,
         )
-
 
 # ---------------------------------------------------------------------------
 # Constant-time string comparison (avoid timing oracle on token)
