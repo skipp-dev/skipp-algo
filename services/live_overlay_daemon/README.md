@@ -351,8 +351,11 @@ observability.py (structured log lines + in-process counters)
 
 ### Grafana dashboard layout (v12)
 
-The dashboard `services/live_overlay_daemon/infra/grafana/dashboard.json`
-is organized into section rows to keep navigation fast during incidents:
+Production dashboard: **[SMC Live Overlay Daemon](https://bronzeporridge977.grafana.net/d/smc-live-overlay-v1/smc-live-overlay-daemon)**
+
+Source JSON: `services/live_overlay_daemon/infra/grafana/dashboard.json`
+
+The dashboard is organized into section rows to keep navigation fast during incidents:
 
 - `External Integrations`
 - `SLO & Reliability`
