@@ -197,10 +197,11 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # 2026-06-19 (bug-hunt follow-up): patch_overlay gained explicit
         # allow_none_keys semantics for flow-field stale-state fixes, shifting
         # cache.py set_vix global line 198 -> 210.
-        ("services/live_overlay_daemon/cache.py", 48, ("_max_symbols", "_rolling_bars_cap")),
-        ("services/live_overlay_daemon/cache.py", 68, ("_last_eviction_at",)),
-        ("services/live_overlay_daemon/cache.py", 145, ("_overlay_computed_at",)),
-        ("services/live_overlay_daemon/cache.py", 210, ("_vix_level",)),
+        # 2026-06-20 (cache defensive copy): added copy import shifted globals +1.
+        ("services/live_overlay_daemon/cache.py", 49, ("_max_symbols", "_rolling_bars_cap")),
+        ("services/live_overlay_daemon/cache.py", 69, ("_last_eviction_at",)),
+        ("services/live_overlay_daemon/cache.py", 146, ("_overlay_computed_at",)),
+        ("services/live_overlay_daemon/cache.py", 216, ("_vix_level",)),
         # 2026-06-19 (fix/live-overlay-post-merge-bugs): separate _news_checked_at
         # from _news_loaded_at so missing-file rate-limiting does not pin the
         # success cache for the full TTL when a snapshot appears later.
@@ -222,15 +223,21 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         # shifting feed.py global statement line numbers to 218/324.
         # 2026-06-19 (telemetry): from .observability import metric_counter +
         # _inc_metric body expansion shifted globals to 221/329.
-        ("services/live_overlay_daemon/feed.py", 221, ("_last_bar_at",)),
-        ("services/live_overlay_daemon/feed.py", 329, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        # 2026-06-20 (feed lifecycle lock): extracted _do_start() helper and
+        # added _lifecycle_lock shifted globals to 224/336.
+        # 2026-06-20 (feed lifecycle follow-up): stop() now clears thread
+        # handles after join() to prevent stale worker_liveness() reads.
+        ("services/live_overlay_daemon/feed.py", 224, ("_last_bar_at",)),
+        ("services/live_overlay_daemon/feed.py", 336, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
+        ("services/live_overlay_daemon/feed.py", 397, ("_feed_thread", "_flow_refresh_thread", "_refresh_thread")),
         # 2026-06-19 (fix/live-overlay-post-merge-bugs): added non-finite JSON
         # sanitization helper and related imports, shifting _startup_ts line.
         # 2026-06-19 (Copilot follow-up): _VALID_TFS contract alignment shifted
-        # surrounding code; 2026-06-20 (market-hours helper extraction) moved
-        # current _startup_ts global line to 67; Ruff import sorting shifted it to 69;
-        # liveness/readiness endpoint split shifted it to 70.
-        ("services/live_overlay_daemon/main.py", 70, ("_startup_ts",)),
+        # surrounding code; 2026-06-20 (liveness/readiness split +
+        # basic-auth endpoint updates) shifted _startup_ts to line 71.
+        # 2026-06-21 (auth decode hardening): binascii import shifted
+        # _startup_ts to line 72.
+        ("services/live_overlay_daemon/main.py", 72, ("_startup_ts",)),
     }
 )
 

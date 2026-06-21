@@ -12,6 +12,7 @@ Design notes:
 """
 from __future__ import annotations
 
+import copy
 import logging
 import math
 import threading
@@ -150,10 +151,15 @@ def set_overlay(payloads: dict[str, dict[str, Any]]) -> None:
 
 
 def get_overlay(symbol: str) -> dict[str, Any] | None:
-    """Return a defensive copy of the overlay payload for one symbol."""
+    """Return a deep defensive copy of the overlay payload for one symbol.
+
+    HTTP handlers may mutate nested fields (e.g., injecting tf or recomputing
+    stale flags) before serialising the response. A shallow copy would let
+    those mutations leak back into the shared cache.
+    """
     with _overlay_lock:
         payload = _overlay.get(symbol.upper())
-        return dict(payload) if payload is not None else None
+        return copy.deepcopy(payload) if payload is not None else None
 
 
 def patch_overlay(

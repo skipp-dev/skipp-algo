@@ -36,13 +36,11 @@ HMAC_ALLOWED: set[tuple[str, int, str]] = {
     ("terminal_auth.py", 30, "compare_digest"),
     # 2026-06-16 (feat/live-overlay-daemon, PR #2794): token auth in FastAPI
     # endpoint uses hmac.compare_digest for constant-time comparison.
-    # 2026-06-19 (fix/live-overlay-daemon-security, C1): _ct_eq now SHA-256
-    # hashes both sides before the compare to drop the token-length side
-    # channel; market-hours helper extraction + Ruff import sorting shifted
-    # the call to line 279; PlainTextResponse import cleanup shifted it to 278;
-    # liveness/readiness endpoint split shifted it to line 297; SLO/metrics
-    # instrumentation updates shifted it to line 307.
-    ("services/live_overlay_daemon/main.py", 307, "compare_digest"),
+    # 2026-06-19 (fix/live-overlay-daemon-security, C1): _ct_eq compare site
+    # moved repeatedly with daemon endpoint updates.
+    # 2026-06-21 (merge refresh): combined branch changes shifted
+    # compare_digest call to line 414.
+    ("services/live_overlay_daemon/main.py", 414, "compare_digest"),
 }
 
 _DIR_EXCLUDE = {

@@ -17,6 +17,8 @@ Stale handling:
 """
 from __future__ import annotations
 
+import base64
+import binascii
 import datetime
 import logging
 import math
@@ -24,10 +26,10 @@ import time
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Path, Query
+from fastapi import FastAPI, HTTPException, Path, Query, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
 
-from . import cache, config, feed, metrics, observability
+from . import cache, compute, config, feed, metrics, observability
 from .market_hours import (
     compute_daemon_health_status,
 )
@@ -45,7 +47,7 @@ logger = logging.getLogger(__name__)
 
 _startup_ts: float = 0.0
 
-_VALID_TFS: frozenset[str] = frozenset({"5m", "10m", "15m", "30m", "1H", "4H"})
+_VALID_TFS: frozenset[str] = frozenset(compute.supported_timeframes())
 
 
 def _json_safe(value: Any) -> Any:
@@ -185,18 +187,109 @@ def ready() -> JSONResponse:
 
 
 # ---------------------------------------------------------------------------
-# /{token}/metrics — Prometheus text exposition (token-protected)
+# /{token}/metrics — Prometheus text exposition (token-protected, legacy path)
 # ---------------------------------------------------------------------------
 
 @app.get("/{token}/metrics", include_in_schema=False)
-def prometheus_metrics(token: str = Path(...)) -> PlainTextResponse:
-    """Prometheus scrape endpoint, protected by the same bearer token as /smc_live."""
+def prometheus_metrics_legacy(token: str = Path(...)) -> PlainTextResponse:
+    """Prometheus scrape endpoint, protected by the same path secret as /smc_live.
+
+    Legacy path kept for backwards compatibility. New deployments should use
+    /metrics with Basic auth so the secret token does not appear in Prometheus
+    target labels or scrape logs.
+    """
     expected = config.overlay_secret_token()
     if not _ct_eq(token, expected):
         raise HTTPException(status_code=404)
 
     body = metrics.render_metrics(_startup_ts)
     return PlainTextResponse(body, media_type="text/plain; version=0.0.4; charset=utf-8")
+
+
+# ---------------------------------------------------------------------------
+# /metrics — Prometheus text exposition (Basic auth, preferred)
+# ---------------------------------------------------------------------------
+
+def _basic_auth_password(request: Request) -> str | None:
+    """Extract password from a Basic Authorization header, or None."""
+    auth = request.headers.get("authorization")
+    if not auth:
+        return None
+    scheme, sep, credentials = auth.partition(" ")
+    if sep != " " or scheme.lower() != "basic":
+        return None
+    credentials = credentials.strip()
+    if not credentials:
+        return None
+    try:
+        decoded = base64.b64decode(credentials.encode(), validate=True).decode("utf-8")
+    except (binascii.Error, UnicodeDecodeError):
+        return None
+    _user, sep2, password = decoded.partition(":")
+    if sep2 != ":":
+        return None
+    # Allow any username; only the password matters for this shared secret.
+    return password
+
+
+@app.get("/metrics", include_in_schema=False)
+def prometheus_metrics(request: Request) -> PlainTextResponse:
+    """Prometheus scrape endpoint protected by Basic auth.
+
+    Uses the overlay secret token as the Basic auth password. This keeps the
+    token out of Prometheus target labels, scrape logs, and remote-write
+    metadata. Alloy config should set __metrics_path__ = "/metrics" and
+    basic_auth { username = "metrics", password = sys.env("OVERLAY_SECRET_TOKEN") }.
+    """
+    password = _basic_auth_password(request)
+    expected = config.overlay_secret_token()
+    if password is None or not _ct_eq(password, expected):
+        raise HTTPException(status_code=401, headers={"WWW-Authenticate": "Basic"})
+
+    body = metrics.render_metrics(_startup_ts)
+    return PlainTextResponse(body, media_type="text/plain; version=0.0.4; charset=utf-8")
+
+
+# ---------------------------------------------------------------------------
+# Timeframe-aware payload lookup / on-demand compute
+# ---------------------------------------------------------------------------
+
+def _get_payload_for_timeframe(sym: str, tf: str) -> dict[str, Any] | None:
+    """Return overlay payload for symbol and timeframe.
+
+    The background refresh thread computes the default 5m timeframe and stores
+    it in the overlay cache. For non-default timeframes we aggregate the cached
+    1-minute bars on demand so callers still get timeframe-consistent fields.
+    """
+    if tf == "5m":
+        return cache.get_overlay(sym)
+
+    bars = cache.get_bars_snapshot(sym)
+    if not bars:
+        return None
+    payload = compute.build_payload(
+        sym,
+        bars,
+        compute.get_global_news_fields(),
+        config.max_stale_secs(),
+        tf=tf,
+    )
+    # On-demand payloads should be marked stale based on bar recency, not
+    # overlay cache age (which tracks only the background 5m snapshot).
+    valid_ts_events = [
+        ts
+        for bar in bars
+        if isinstance((ts := bar.get("ts_event")), int)
+        and not isinstance(ts, bool)
+        and ts > 0
+    ]
+    if not valid_ts_events:
+        payload["stale"] = True
+        return payload
+
+    latest_bar_age_secs = max(0.0, time.time() - (max(valid_ts_events) / 1_000_000_000))
+    payload["stale"] = latest_bar_age_secs > config.max_stale_secs()
+    return payload
 
 
 # ---------------------------------------------------------------------------
@@ -211,26 +304,25 @@ def smc_live(
 ) -> JSONResponse:
     started_at = time.monotonic()
     observability.metric_counter("live_overlay.smc_live_requests.total")
+    sym = symbol.upper().strip()
     try:
-        # Constant-time token comparison to avoid timing attacks. _ct_eq hashes
-        # both sides to a fixed-length digest before comparing, so neither the
-        # comparison nor a Python len() short-circuit can leak the token length
-        # as a timing side-channel (CWE-208).
+        # Constant-time token comparison to avoid timing attacks. _ct_eq uses
+        # fixed-length normalized buffers and guarded input caps so direct
+        # user-input length mismatches do not create a timing oracle (CWE-208).
         expected = config.overlay_secret_token()
         if not _ct_eq(token, expected):
             observability.metric_counter("live_overlay.smc_live_auth.denied")
-            observability.audit_event("smc_live_auth", "denied", symbol=symbol, tf=tf)
+            observability.audit_event("smc_live_auth", "denied", symbol=sym, tf=tf)
             raise HTTPException(status_code=404)  # 404 not 401 to avoid leaking route structure
 
-        sym = symbol.upper().strip()
         if tf not in _VALID_TFS:
             observability.metric_counter("live_overlay.smc_live_bad_tf.total")
-            observability.audit_event("smc_live_tf_validation", "rejected", symbol=sym, tf=tf)
+            observability.audit_event("live_overlay_tf_validation", "rejected", symbol=sym, tf=tf)
             raise HTTPException(
                 status_code=400,
                 detail=f"tf must be one of {sorted(_VALID_TFS)}",
             )
-        payload = cache.get_overlay(sym)
+        payload = _get_payload_for_timeframe(sym, tf)
 
         if payload is None:
             observability.metric_counter("live_overlay.smc_live_cache_miss.total")
@@ -264,25 +356,36 @@ def smc_live(
                 }
             )
 
-        # Re-evaluate stale based on current overlay age so a cached payload
-        # does not serve a stale=false flag after the age window has elapsed.
-        age = cache.overlay_age_secs()
-        max_stale = config.max_stale_secs()
         payload = dict(payload)  # shallow-copy — do not mutate shared cache state
-        payload["stale"] = (age > max_stale) if age != float("inf") else True
+        if tf == "5m":
+            # Re-evaluate stale for cached background snapshots.
+            age = cache.overlay_age_secs()
+            max_stale = config.max_stale_secs()
+            payload["stale"] = (age > max_stale) if age != float("inf") else True
+        if payload.get("stale"):
+            observability.metric_counter("live_overlay.smc_live_stale_served.total")
         # Inject tf into response
         payload["tf"] = tf
-        if payload["stale"]:
-            observability.metric_counter("live_overlay.smc_live_stale_served.total")
         observability.metric_counter("live_overlay.smc_live_success.total")
         observability.audit_event("smc_live_fetch", "ok", symbol=sym, tf=tf, stale=payload["stale"])
         return JSONResponse(_json_safe(payload))
+    except Exception as exc:
+        # Let FastAPI's own HTTPExceptions (auth denied, bad tf, etc.) propagate
+        # unchanged; only unexpected failures (cache/config bugs, etc.) become
+        # a deterministic 500 with observability signals for triage.
+        if isinstance(exc, HTTPException):
+            raise
+        logger.exception("smc_live failed for %s tf=%s", sym, tf)
+        observability.metric_counter("live_overlay.smc_live_errors.total")
+        observability.audit_event(
+            "smc_live_fetch", "error", symbol=sym, tf=tf, error=type(exc).__name__
+        )
+        raise HTTPException(status_code=500, detail="internal error") from exc
     finally:
         observability.metric_histogram_ms(
             "live_overlay.smc_live_latency",
             (time.monotonic() - started_at) * 1000.0,
         )
-
 
 # ---------------------------------------------------------------------------
 # Constant-time string comparison (avoid timing oracle on token)
@@ -291,17 +394,21 @@ def smc_live(
 def _ct_eq(a: str, b: str) -> bool:
     """Constant-time string equality with no length side-channel.
 
-    Both inputs are reduced to fixed-length SHA-256 digests *before* the
-    constant-time compare. ``hmac.compare_digest`` on two raw strings still
-    leaks their length (it returns early when the lengths differ), so a naive
-    ``compare_digest(token, expected)`` — or a Python ``len()`` pre-check —
-    would expose the secret-token length as a timing oracle (CWE-208).
-    Comparing fixed 32-byte digests makes the timing independent of the input
-    length, while SHA-256's collision resistance preserves equality semantics.
+    Both inputs are reduced to fixed-size SHA-256 digests before
+    ``hmac.compare_digest``. This keeps the compare width constant (32 bytes)
+    and avoids token-length-dependent compare work.
     """
     import hashlib
     import hmac
 
-    a_digest = hashlib.sha256(a.encode()).digest()
+    # Keep a hard upper bound on attacker-controlled input processing.
+    if len(a) > 4096:
+        return False
+
+    a_bytes = a.encode()
+    if len(a_bytes) > 16_384:
+        return False
+
+    a_digest = hashlib.sha256(a_bytes).digest()
     b_digest = hashlib.sha256(b.encode()).digest()
     return hmac.compare_digest(a_digest, b_digest)

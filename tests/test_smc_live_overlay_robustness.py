@@ -431,6 +431,92 @@ class TestConfigBoundaryValues:
 # ---------------------------------------------------------------------------
 
 
+
+# ---------------------------------------------------------------------------
+# R4-ext: additional config accessors
+# ---------------------------------------------------------------------------
+
+
+class TestMaxFeedFailuresConfig:
+    """max_feed_failures() clamps and defaults."""
+
+    def test_max_feed_failures_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("OVERLAY_MAX_FEED_FAILURES", raising=False)
+        import services.live_overlay_daemon.config as cfg
+
+        assert cfg.max_feed_failures() == 50
+
+    def test_max_feed_failures_at_upper_bound(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("OVERLAY_MAX_FEED_FAILURES", "1000")
+        import services.live_overlay_daemon.config as cfg
+
+        assert cfg.max_feed_failures() == 1000
+
+    def test_max_feed_failures_above_upper_clamps(self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+        monkeypatch.setenv("OVERLAY_MAX_FEED_FAILURES", "2000")
+        import services.live_overlay_daemon.config as cfg
+
+        with caplog.at_level(logging.WARNING):
+            assert cfg.max_feed_failures() == 1000
+        assert "outside valid range" in caplog.text
+
+    def test_max_feed_failures_below_lower_clamps(self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+        monkeypatch.setenv("OVERLAY_MAX_FEED_FAILURES", "0")
+        import services.live_overlay_daemon.config as cfg
+
+        with caplog.at_level(logging.WARNING):
+            assert cfg.max_feed_failures() == 1
+        assert "outside valid range" in caplog.text
+
+
+class TestNewsSnapshotPathConfig:
+    """news_snapshot_path() honours env override and default."""
+
+    def test_news_snapshot_path_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("NEWS_SNAPSHOT_PATH", raising=False)
+        import services.live_overlay_daemon.config as cfg
+
+        path = cfg.news_snapshot_path()
+        assert path.name == "smc_live_news_snapshot.json"
+
+    def test_news_snapshot_path_env_override(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        override = tmp_path / "custom_snapshot.json"
+        monkeypatch.setenv("NEWS_SNAPSHOT_PATH", str(override))
+        import services.live_overlay_daemon.config as cfg
+
+        assert cfg.news_snapshot_path() == override
+
+
+class TestLogLevelValidation:
+    """log_level() normalizes aliases and falls back to info for invalid values."""
+
+    def test_log_level_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("LOG_LEVEL", raising=False)
+        import services.live_overlay_daemon.config as cfg
+
+        assert cfg.log_level() == "info"
+
+    def test_log_level_env_lower_cased(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("LOG_LEVEL", "DEBUG")
+        import services.live_overlay_daemon.config as cfg
+
+        assert cfg.log_level() == "debug"
+
+    def test_log_level_warn_alias_normalized(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("LOG_LEVEL", "WARN")
+        import services.live_overlay_daemon.config as cfg
+
+        assert cfg.log_level() == "warning"
+
+    def test_log_level_invalid_falls_back_to_info(self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+        monkeypatch.setenv("LOG_LEVEL", "BOGUS")
+        import services.live_overlay_daemon.config as cfg
+
+        with caplog.at_level(logging.WARNING):
+            assert cfg.log_level() == "info"
+        assert "not a valid uvicorn log level" in caplog.text
+
+
 class TestNewsSnapshotFileNotFound:
     """_load_news_snapshot() handles non-existent file gracefully."""
 
@@ -875,8 +961,8 @@ class TestFeedMetricsSnapshot:
 
 
 class TestConstantTimeTokenCompare:
-    """C1: _ct_eq hashes both sides before the compare so the token length is
-    not exposed as a timing oracle (CWE-208)."""
+    """C1: _ct_eq compares fixed-size digests so token length is not exposed
+    as a timing oracle (CWE-208)."""
 
     def test_equal_tokens_match(self) -> None:
         import services.live_overlay_daemon.main as main_mod
@@ -891,8 +977,8 @@ class TestConstantTimeTokenCompare:
     def test_different_length_mismatch_rejected(self) -> None:
         import services.live_overlay_daemon.main as main_mod
 
-        # The old code short-circuited on len() before the constant-time
-        # compare; the digest-based path must still reject cleanly.
+        # Different-length values must reject while still using the normalized
+        # constant-time comparison path.
         assert main_mod._ct_eq("short", "a-much-longer-secret-token") is False
         assert main_mod._ct_eq("", "nonempty") is False
 
@@ -901,7 +987,7 @@ class TestConstantTimeTokenCompare:
 
         assert main_mod._ct_eq("", "") is True
 
-    def test_compares_fixed_length_digests(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_compares_equal_length_buffers(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """The compare must run over equal-length buffers regardless of input
         length, so neither the comparison nor a len() pre-check can leak the
         secret-token length."""
@@ -920,8 +1006,15 @@ class TestConstantTimeTokenCompare:
         monkeypatch.setattr(_hmac, "compare_digest", _spy)
         main_mod._ct_eq("abc", "a-far-longer-token-value")
         assert seen, "_ct_eq must call hmac.compare_digest"
-        # SHA-256 digests are always 32 bytes on both sides — no length leak.
-        assert seen[0] == (32, 32)
+        assert seen[0] == (32, 32), "compare buffers must be fixed-size digests"
+
+    def test_rejects_multibyte_input_exceeding_byte_cap(self) -> None:
+        import services.live_overlay_daemon.main as main_mod
+
+        # 3000 code points are below the character cap (4096) but exceed the
+        # byte cap for a short secret when encoded as UTF-8.
+        attacker_value = "😀" * 3000
+        assert main_mod._ct_eq(attacker_value, "tok") is False
 
 
 # ---------------------------------------------------------------------------
@@ -974,5 +1067,3 @@ class TestTfSchemaContract:
 
         assert exc_info.value.status_code == 400
         assert exc_info.value.detail == "tf must be one of ['10m', '15m', '1H', '30m', '4H', '5m']"
-
-

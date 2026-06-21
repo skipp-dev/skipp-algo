@@ -1,7 +1,11 @@
 # Grafana Alloy — Metrics Collector
 
-Scrapes `/{token}/metrics` from the live overlay daemon and remote-writes to
+Scrapes `/metrics` from the live overlay daemon and remote-writes to
 Grafana Cloud. Runs as a separate Railway service in the same project.
+
+The daemon exposes `/metrics` with **Basic auth**. Alloy sends the
+`OVERLAY_SECRET_TOKEN` as the Basic auth password. This keeps the token out
+of Prometheus target labels, scrape logs, and remote-write metadata.
 
 ## Railway Setup
 
@@ -39,3 +43,9 @@ live_overlay_smc_live_requests_total
 live_overlay_uptime_seconds
 live_overlay_feed_healthy
 ```
+
+## Security note
+
+The legacy path `/{token}/metrics` is still supported for backwards
+compatibility, but new deployments should use `/metrics` with Basic auth
+so the secret token does not appear in observability metadata.

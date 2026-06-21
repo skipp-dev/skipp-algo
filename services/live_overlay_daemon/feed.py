@@ -55,6 +55,9 @@ _metrics: dict[str, int] = {
     "partial_restarts": 0,
 }
 
+# Guard all lifecycle mutations (start/stop/worker reads) against races.
+_lifecycle_lock = threading.Lock()
+
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -224,10 +227,9 @@ def _run_feed_loop(stop: threading.Event) -> None:
 
                     with _last_bar_lock:
                         _last_bar_at = time.monotonic()
-
-                    if not _feed_ready.is_set():
-                        _feed_ready.set()
-                        logger.info("Feed ready — first bar pushed for %s", sym)
+                        if not stop.is_set() and not _feed_ready.is_set():
+                            _feed_ready.set()
+                            logger.info("Feed ready — first bar pushed for %s", sym)
 
                     # Track VIX separately.
                     _maybe_cache_vix(sym, bar)
@@ -325,7 +327,12 @@ def _run_flow_refresh_loop(stop: threading.Event) -> None:
 
 def start() -> None:
     """Start the three background threads (feed + refresh + flow refresh)."""
+    with _lifecycle_lock:
+        _do_start()
 
+
+def _do_start() -> None:
+    """Unsynchronized start implementation; callers must hold _lifecycle_lock."""
     global _feed_thread, _refresh_thread, _flow_refresh_thread
 
     feed_alive = _feed_thread is not None and _feed_thread.is_alive()
@@ -387,12 +394,35 @@ def start() -> None:
 
 def stop() -> None:
     """Signal all background threads to stop and wait for them."""
-    _stop_event.set()
-    _feed_ready.clear()
-    for thread in (_feed_thread, _refresh_thread, _flow_refresh_thread):
-        if thread is not None and thread.is_alive():
-            thread.join(timeout=5)
-    logger.info("All feed threads stopped.")
+    global _feed_thread, _refresh_thread, _flow_refresh_thread
+    with _lifecycle_lock:
+        _stop_event.set()
+        _feed_ready.clear()
+        if _feed_thread is not None and _feed_thread.is_alive():
+            _feed_thread.join(timeout=5)
+        if _refresh_thread is not None and _refresh_thread.is_alive():
+            _refresh_thread.join(timeout=5)
+        if _flow_refresh_thread is not None and _flow_refresh_thread.is_alive():
+            _flow_refresh_thread.join(timeout=5)
+
+        if _feed_thread is None or not _feed_thread.is_alive():
+            _feed_thread = None
+        if _refresh_thread is None or not _refresh_thread.is_alive():
+            _refresh_thread = None
+        if _flow_refresh_thread is None or not _flow_refresh_thread.is_alive():
+            _flow_refresh_thread = None
+        # Defensive clear after joins: the feed thread can still race to set
+        # readiness during shutdown; stop() must always end in not-ready state.
+        _feed_ready.clear()
+        still_alive = {
+            "live_feed": _feed_thread is not None and _feed_thread.is_alive(),
+            "overlay_refresh": _refresh_thread is not None and _refresh_thread.is_alive(),
+            "flow_refresh": _flow_refresh_thread is not None and _flow_refresh_thread.is_alive(),
+        }
+        if any(still_alive.values()):
+            logger.warning("Stop requested; bounded joins ended with workers still alive: %s", still_alive)
+        else:
+            logger.info("All feed threads stopped.")
 
 
 def is_ready() -> bool:
@@ -417,11 +447,12 @@ def last_bar_age_secs() -> float | None:
 
 def worker_liveness() -> dict[str, bool]:
     """Return per-worker liveness flags for operational health reporting."""
-    return {
-        "live_feed": _feed_thread is not None and _feed_thread.is_alive(),
-        "overlay_refresh": _refresh_thread is not None and _refresh_thread.is_alive(),
-        "flow_refresh": _flow_refresh_thread is not None and _flow_refresh_thread.is_alive(),
-    }
+    with _lifecycle_lock:
+        return {
+            "live_feed": _feed_thread is not None and _feed_thread.is_alive(),
+            "overlay_refresh": _refresh_thread is not None and _refresh_thread.is_alive(),
+            "flow_refresh": _flow_refresh_thread is not None and _flow_refresh_thread.is_alive(),
+        }
 
 
 def metrics_snapshot() -> dict[str, int]:
