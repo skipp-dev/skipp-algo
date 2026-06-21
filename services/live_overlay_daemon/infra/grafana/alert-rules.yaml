@@ -139,12 +139,12 @@ groups:
           - refId: A
             datasourceUid: grafanacloud-prom
             model:
-              expr: live_overlay_overlay_symbols
+              expr: live_overlay_overlay_symbols{job="live_overlay"}
               instant: true
           - refId: B
             datasourceUid: grafanacloud-prom
             model:
-              expr: live_overlay_uptime_seconds
+              expr: live_overlay_uptime_seconds{job="live_overlay"}
               instant: true
           - refId: D
             datasourceUid: grafanacloud-prom

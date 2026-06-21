@@ -1413,7 +1413,7 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_uptimerobot_snapshot_age_seconds{job=~\"$job\"} or vector(-1)",
+          "expr": "(live_overlay_uptimerobot_snapshot_age_seconds{job=~\"$job\"} and on(job) (live_overlay_uptimerobot_bridge_enabled{job=~\"$job\"} == 1)) or (live_overlay_uptimerobot_bridge_enabled{job=~\"$job\"} * 0 - 1)",
           "legendFormat": "snapshot_age"
         }
       ],
@@ -1602,7 +1602,7 @@
       },
       "targets": [
         {
-          "expr": "live_overlay_github_workflow_snapshot_age_seconds{job=~\"$job\"} or vector(-1)",
+          "expr": "(live_overlay_github_workflow_snapshot_age_seconds{job=~\"$job\"} and on(job) (live_overlay_github_workflow_bridge_enabled{job=~\"$job\"} == 1)) or (live_overlay_github_workflow_bridge_enabled{job=~\"$job\"} * 0 - 1)",
           "legendFormat": "snapshot_age"
         }
       ],
